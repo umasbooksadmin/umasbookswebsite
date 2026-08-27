@@ -1,4 +1,6 @@
-.DS_Store
+
 *.log
-node_modules/
+.DS_Store
 .artifact-body.html
+_sqs_harness.html
+node_modules/
