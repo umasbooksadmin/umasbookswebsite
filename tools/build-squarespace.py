@@ -16,6 +16,9 @@ if not css:
     css = re.search(r'<style>\n(.*?)\n</style>', src, re.S)
 css = css.group(1)
 
+# drop /* comments */ so section labels don't get folded into the scoped selectors
+css = re.sub(r'/\*.*?\*/', '', css, flags=re.S)
+
 body = re.search(r'(<header class="site">.*?</footer>)', src, re.S).group(1)
 script = re.search(r'(<script>\n\(function.*?</script>)', src, re.S).group(1)
 script = script.replace(
@@ -98,6 +101,11 @@ for old, new in [
     body = body.replace(old, new)
 body = body.replace('<main id="top">', '<main id="umas-top">')
 
+# The logo already uploaded to the umasbooks.org Squarespace CDN. Used to also
+# emit a ready-to-paste copy with no find/replace needed. Update if it changes.
+LIVE_LOGO_URL = ('https://images.squarespace-cdn.com/content/6a8c40b949196171fd54fb3c/'
+                 '1bb91e0f-8849-4797-928e-504506053bc8/logo_final.png?content-type=image%2Fpng')
+
 out = (
     '<!-- Uma\'s Books & Adventures  —  paste into a Squarespace Code Block -->\n'
     '<!-- Replace LOGO_URL (appears twice) with the uploaded logo\'s URL. -->\n'
@@ -107,8 +115,16 @@ out = (
     + script + '\n\n'
     '</div>\n'
 )
-pass
-print('wrote squarespace-code-block.html:', len(out), 'bytes')
-print('LOGO_URL placeholders:', out.count('LOGO_URL'))
-print('scoped rule sample:')
-print('\n'.join(scoped.splitlines()[:8]))
+
+with open('squarespace-code-block.html', 'w', encoding='utf-8') as f:
+    f.write(out)
+
+filled = out.replace('LOGO_URL', LIVE_LOGO_URL).replace(
+    "<!-- Replace LOGO_URL (appears twice) with the uploaded logo's URL. -->\n", '')
+with open('squarespace-code-block.filled.html', 'w', encoding='utf-8') as f:
+    f.write(filled)
+
+print('wrote squarespace-code-block.html       ', len(out), 'bytes  (LOGO_URL x%d)' % out.count('LOGO_URL'))
+print('wrote squarespace-code-block.filled.html', len(filled), 'bytes  (logo URL baked in)')
+assert 'LOGO_URL' not in filled
+assert '/*' not in scoped, 'CSS comments leaked into scoped output'

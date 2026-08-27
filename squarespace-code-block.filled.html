@@ -78,8 +78,7 @@
     margin: 0;
   }
 .umas-site .wrap { max-width: 760px; margin: 0 auto; padding: 0 28px; }
-.umas-site /* ---------- Header ---------- */
-  header.site {
+.umas-site header.site {
     position: static;
     background: color-mix(in srgb, var(--paper) 88%, transparent);
     backdrop-filter: blur(6px);
@@ -113,12 +112,10 @@
 .umas-site nav.links a { font-size: 14px; }
 .umas-site .hero { padding: 16px 22px 40px; }
 }
-.umas-site /* ---------- Ornament / dividers ---------- */
-  .ornament { display: flex; align-items: center; justify-content: center; gap: 14px; margin: 0 auto; width: 100%; max-width: 340px; opacity: 0.85; }
+.umas-site .ornament { display: flex; align-items: center; justify-content: center; gap: 14px; margin: 0 auto; width: 100%; max-width: 340px; opacity: 0.85; }
 .umas-site .ornament .line { flex: 1; height: 1px; background: linear-gradient(90deg, transparent, var(--gold), transparent); }
 .umas-site .ornament svg { flex-shrink: 0; color: var(--gold); }
-.umas-site /* ---------- Hero ---------- */
-  .hero {
+.umas-site .hero {
     padding: 28px 28px 52px;
     text-align: center;
     display: flex; flex-direction: column; align-items: center; gap: 22px;
@@ -139,8 +136,7 @@
     padding-bottom: 3px;
   }
 .umas-site .hero .scrollcue:hover { border-bottom-color: var(--brick); color: var(--brick); }
-.umas-site /* ---------- Chapters (sections) ---------- */
-  .chapter { padding: 56px 28px; }
+.umas-site .chapter { padding: 56px 28px; }
 .umas-site .chapter + .chapter { border-top: 1px solid var(--rule); }
 .umas-site .chapter-head { text-align: center; margin-bottom: 36px; display: flex; flex-direction: column; gap: 10px; align-items: center; }
 .umas-site .chapter-head .kicker {
@@ -155,8 +151,7 @@
     font-family: 'Playfair Display', serif; font-weight: 900; font-size: 3.2em;
     float: left; line-height: 0.8; padding: 0.06em 0.08em 0 0; color: var(--brick);
   }
-.umas-site /* ---------- Collection / Events lists ---------- */
-  .cardlist { display: flex; flex-direction: column; gap: 14px; max-width: 62ch; margin: 0 auto; }
+.umas-site .cardlist { display: flex; flex-direction: column; gap: 14px; max-width: 62ch; margin: 0 auto; }
 .umas-site .card {
     background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 3px;
     padding: 18px 22px; display: flex; gap: 16px; align-items: baseline;
@@ -170,8 +165,7 @@
 .umas-site .card { flex-direction: column; gap: 4px; }
 .umas-site .card .card-title { min-width: 0; }
 }
-.umas-site /* ---------- Visit / contact ---------- */
-  .visit-grid {
+.umas-site .visit-grid {
     display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px;
     max-width: 62ch; margin: 0 auto; text-align: center;
   }
@@ -193,16 +187,14 @@
     color: var(--ink-soft); font-size: 17px;
   }
 .umas-site .donate-note strong { color: var(--bronze-strong); font-weight: 600; }
-.umas-site /* ---------- Footer ---------- */
-  footer.site {
+.umas-site footer.site {
     padding: 44px 28px 52px; text-align: center;
     display: flex; flex-direction: column; align-items: center; gap: 16px;
   }
 .umas-site footer.site .fname { font-family: 'Playfair Display', serif; font-weight: 600; font-size: 17px; color: var(--bronze-strong); }
 .umas-site footer.site .fmeta { font-size: 15px; color: var(--ink-soft); }
 .umas-site footer.site .fmeta a { color: var(--ink-soft); }
-.umas-site /* ---------- Language toggle ---------- */
-  .langtoggle {
+.umas-site .langtoggle {
     position: absolute; top: 20px; right: 28px;
     display: inline-flex; align-items: center; gap: 5px;
   }
