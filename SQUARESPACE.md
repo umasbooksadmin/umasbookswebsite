@@ -1,77 +1,69 @@
-# Putting this page on umasbooks.org (Squarespace)
+# Updating the page on umasbooks.org (Squarespace)
 
-Squarespace has no API to push a page in, so this is a copy‑paste job. It takes
-about 10 minutes. The design goes in as **one Code Block**.
+The design is **already live** on umasbooks.org — a previous version was pasted
+into a single **Code Block** on the one page. What's there now is the older
+build: no EN | FR toggle, the cramped header, and the block is squeezed into a
+narrow column (~416 px) inside a Fluid Engine section, which is why it looks
+boxed-in on the live site.
 
-## What you need first
+This updates that block to the current version (EN | FR toggle, tightened
+spacing, French translation) **and** widens it.
 
-**A Business plan or higher.** Code Blocks need Business, Commerce, or the old
-Business/Advanced tiers. To check: *Home menu → Billing & Account → Billing*, or
-just try adding a Code Block (step 3) — if it's greyed out or shows an upgrade
-prompt, you're on Personal and this route won't work (tell me and I'll rebuild
-it with native Squarespace sections instead).
+## 1. Replace the Code Block's contents
 
-The site is a single page, so you're replacing that one page's contents wholesale.
+1. Edit the page. Click the existing **Code Block** → **Edit** (the `< >` pencil).
+2. Select all inside it, delete.
+3. Open **`squarespace-code-block.filled.html`** (in this folder), copy the whole
+   file, paste it in. It already points at your uploaded `logo_final.png`, so
+   there's nothing to find-and-replace.
+   Mode stays **HTML**; leave "Display Source" unticked.
+4. Apply / Save.
 
-## Steps
+> `squarespace-code-block.html` is the same thing but with a `LOGO_URL`
+> placeholder instead — use that one only if the logo URL ever changes.
 
-### 1. Get a URL for the logo
+## 2. Widen the block (this is what fixes the boxed-in look)
 
-1. On your one page, hit **Edit** and add a temporary **Image** block anywhere.
-   Upload `logo.png` (in this folder). Save / publish.
-2. Open the live page in a normal tab, right‑click the logo → *Copy image
-   address*. It looks like
-   `https://images.squarespace-cdn.com/content/v1/.../logo.png`.
-3. Keep that URL. You'll delete this temporary Image block in step 3.
+The design centers itself at 760 px, but only if the block is allowed to be that
+wide. In the **Fluid Engine** editor:
 
-### 2. Prepare the code
+1. Click the Code Block once to select it (don't open the editor).
+2. Drag its side handles so it spans the **full width of the section** — edge to
+   edge of the row.
+3. Drag the bottom handle down to give it plenty of height so it doesn't scroll
+   inside its own little box.
+4. If the section itself is narrow, open **Edit Section → Section width** and set
+   it to **Full width**.
 
-1. Open `squarespace-code-block.html` (in this folder) in a text editor.
-2. Find **`LOGO_URL`** — it appears **twice** — and replace both with the URL
-   from step 1.
-3. Select all, copy.
+## 3. Check the live page
 
-### 3. Put it on the page
+Open umasbooks.org in a normal browser tab (not the editor — scripts don't run
+in the editor preview, so the toggle looks dead there).
 
-1. **Edit** the page again.
-2. Delete every existing block/section — including the temporary Image block
-   from step 1 — so the page is empty.
-3. Add one **Code** block. Clear its default contents, paste. Leave the mode on
-   **HTML** (not Markdown). Do **not** tick "Display Source".
-4. Save. Scripts don't run in the Squarespace editor preview, so the
-   **EN | FR** toggle will look inert there — that's expected. **Open the live
-   page** in a normal browser tab to test it.
+- **EN | FR** toggle, top right — switches every line of text, remembers the choice.
+- No big empty band at the top; header fits on one row (EN).
+- Phone layout holds.
+- Logo shows in both the header and the hero.
 
-If the page has a title/announcement area from the theme you can't delete, that's
-fine — the block sits below it and still looks right (the in‑page header isn't
-sticky, so there's no clash).
+## Notes
 
-### 4. Check the live page
-
-- EN | FR toggle (top right of the block) switches every bit of text and
-  remembers the choice.
-- Layout holds on a phone.
-- The logo shows in the header and the hero.
-
-## Notes / tweaks
-
-- **Fonts** (Playfair Display, EB Garamond) load via `@import` at the top of the
-  block's `<style>`. If your Squarespace theme's CSS is aggressive you *may* get
-  a flash of a fallback serif first — harmless. If you'd rather, move that one
-  `@import ...;` line into *Website → Website Tools → Code Injection → Header*
-  wrapped in `<style> ... </style>` and delete it from the block.
-- **Not sticky.** The in‑page header (with the toggle) scrolls away, so it never
-  fights your Squarespace site header. To make it stick instead, find
-  `position: static;` inside `.umas-site header.site { ... }` in the block and
-  change it back to `position: sticky; top: 0; z-index: 10;`.
-- **All styles are scoped** under `.umas-site`, so nothing leaks into the rest of
-  your Squarespace theme, and the block picks up dark mode from the visitor's
-  browser setting on its own.
-- **To change wording later:** edit `index.html` (the English default) **and**
-  the matching `fr:` entry in its inline script, then regenerate the block:
+- **Not sticky anymore.** The in-page header (with the toggle) now scrolls away
+  instead of sticking — one less thing to clash with the Squarespace site
+  chrome. To restore sticky: in the block, find `position: static;` inside
+  `.umas-site header.site { … }` and change it to
+  `position: sticky; top: 0; z-index: 10;`.
+- **Styles are scoped** under `.umas-site` now (the old paste wasn't), so the
+  block can't affect the rest of the Squarespace theme. Dark mode follows the
+  visitor's browser setting automatically.
+- **Fonts** load via one `@import` at the top of the block's `<style>`. A brief
+  fallback-serif flash on first load is possible and harmless; to avoid it, move
+  that line into *Website → Website Tools → Code Injection → Header* wrapped in
+  `<style> … </style>`.
+- **Changing wording later:** edit `index.html` (English) **and** the matching
+  `fr:` entry in its inline script, then regenerate:
 
   ```bash
   python3 tools/build-squarespace.py
   ```
 
-  Re‑do the `LOGO_URL` replacement and re‑paste the Code Block.
+  Then rebuild the filled copy (swap `LOGO_URL` for the logo URL) and re-paste.
