@@ -103,8 +103,8 @@ body = body.replace('<main id="top">', '<main id="umas-top">')
 
 # The logo already uploaded to the umasbooks.org Squarespace CDN. Used to also
 # emit a ready-to-paste copy with no find/replace needed. Update if it changes.
-LIVE_LOGO_URL = ('https://images.squarespace-cdn.com/content/6a8c40b949196171fd54fb3c/'
-                 '1bb91e0f-8849-4797-928e-504506053bc8/logo_final.png?content-type=image%2Fpng')
+LIVE_LOGO_URL = ('https://static1.squarespace.com/static/6a8c40b949196171fd54fb3c/'
+                 't/6a953597bbed3c398abaf176/1788163479266/logo_umas_apostrophe.png')
 
 out = (
     '<!-- Uma\'s Books & Adventures  —  paste into a Squarespace Code Block -->\n'
