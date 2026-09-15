@@ -11,6 +11,7 @@ services:
     plan: free
     rootDir: members-app
     buildCommand: npm install
+    preDeployCommand: npm run migrate
     startCommand: npm start
     envVars:
       - key: DATABASE_URL

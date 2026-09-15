@@ -87,13 +87,24 @@ there's no admin-management UI yet.
 
 To deploy: in the Render dashboard, **New +** → **Blueprint**, connect the
 `umasbookswebsite` GitHub repo, and Render will read `render.yaml` and set
-both up. After the first deploy, run the migration and seed once against
-the production database — either via Render's shell for the service
-(`Shell` tab in the dashboard) or by pointing `DATABASE_URL` at the
-production database locally:
+both up.
+
+`render.yaml` sets `preDeployCommand: npm run migrate`, so migrations run
+automatically before every deploy going forward — new migration files
+just need to be committed and pushed, no manual step. (This needs
+checking against Render's current plan support: Pre-Deploy Command has
+historically required a paid instance type, not the free plan used here
+— watch the deploy's logs for a "Running migration: ..." step to confirm
+it actually ran; if it's silently skipped on the free plan, fall back to
+running `npm run migrate` by hand in the **Shell** tab after each deploy
+that adds a migration.)
+
+Seeding the first admin account is still a one-time manual step (it
+needs a password only you should choose) — via Render's **Shell** tab for
+the service, or by pointing `DATABASE_URL` at the production database
+locally:
 
 ```bash
-npm run migrate
 SEED_ADMIN_PASSWORD='a-real-password' npm run seed
 ```
 
