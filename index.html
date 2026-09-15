@@ -246,6 +246,14 @@
     padding: 4px 16px;
   }
 
+  .btn-link {
+    display: inline-block; font-family: 'Playfair Display', serif; font-weight: 600;
+    font-size: 15px; letter-spacing: 0.03em; color: var(--paper); background: var(--brick);
+    border-radius: 3px; padding: 12px 30px; text-decoration: none; transition: background 0.15s ease;
+  }
+  .btn-link:hover { background: var(--brick-soft); }
+  .cta-row { text-align: center; margin-top: 28px; }
+
   /* ---------- Footer ---------- */
   footer.site {
     padding: 44px 28px 52px; text-align: center;
@@ -486,28 +494,17 @@
       <div class="chapter-head">
         <span class="kicker" data-i18n="c6.kicker">Chapter Six</span>
         <h2 data-i18n="c6.title">Order Online</h2>
-        <span class="badge-soon" data-i18n="soon.badge">Coming soon</span>
       </div>
       <div class="prose">
-        <p data-i18n="order.intro">We&#39;re planning a way to browse the collection and order online for in-shop pickup. It isn&#39;t ready yet &mdash; if you&#39;re looking for something in particular, email us in the meantime and we&#39;ll check the shelves.</p>
+        <p data-i18n="order.intro">Browse the collection and order online &mdash; pay securely through our shop, then collect in person during opening hours.</p>
       </div>
-      <h3 class="form-title" data-i18n="notify.form.title">Get Notified When It&#39;s Ready</h3>
-      <form class="formcard" id="order-form" novalidate>
-        <div class="field">
-          <label for="ord-name" data-i18n="form.name.l">Name</label>
-          <input id="ord-name" type="text" data-field="Name" autocomplete="name">
-        </div>
-        <div class="field">
-          <label for="ord-email" data-i18n="form.email.l">Email</label>
-          <input id="ord-email" type="email" data-field="Email" autocomplete="email">
-        </div>
-        <div class="field">
-          <label for="ord-note" data-i18n="form.note.l">Note (optional)</label>
-          <textarea id="ord-note" data-field="Note"></textarea>
-        </div>
-        <p class="form-hint" data-i18n="form.hint">This opens your email app with the message ready to send.</p>
-        <button type="submit" class="btn-submit" data-i18n="notify.form.submit">Notify Me</button>
-      </form>
+      <div class="cta-row">
+        <!-- TODO: confirm this is the live Squarespace shop page URL before publishing -->
+        <a class="btn-link" href="https://umasbooks.org/shop" data-i18n="order.cta">Shop Now</a>
+      </div>
+      <div class="note-box" data-i18n-html="order.contact.note">
+        Questions about an order? Email us at <a href="mailto:admin@umasbooks.org">admin@umasbooks.org</a>.
+      </div>
     </div>
   </section>
 
@@ -516,28 +513,17 @@
       <div class="chapter-head">
         <span class="kicker" data-i18n="c7.kicker">Chapter Seven</span>
         <h2 data-i18n="c7.title">Become a Member</h2>
-        <span class="badge-soon" data-i18n="soon.badge">Coming soon</span>
       </div>
       <div class="prose">
-        <p data-i18n="membership.intro">We&#39;re setting up a membership programme to give regular supporters a closer connection to the shop. Details aren&#39;t finalised yet &mdash; if you&#39;d like to hear more when it opens, let us know.</p>
+        <p data-i18n="membership.intro">Membership accounts are open &mdash; log in or create yours to support the shop directly.</p>
       </div>
-      <h3 class="form-title" data-i18n="notify.form.title">Get Notified When It&#39;s Ready</h3>
-      <form class="formcard" id="membership-form" novalidate>
-        <div class="field">
-          <label for="mem-name" data-i18n="form.name.l">Name</label>
-          <input id="mem-name" type="text" data-field="Name" autocomplete="name">
-        </div>
-        <div class="field">
-          <label for="mem-email" data-i18n="form.email.l">Email</label>
-          <input id="mem-email" type="email" data-field="Email" autocomplete="email">
-        </div>
-        <div class="field">
-          <label for="mem-note" data-i18n="form.note.l">Note (optional)</label>
-          <textarea id="mem-note" data-field="Note"></textarea>
-        </div>
-        <p class="form-hint" data-i18n="form.hint">This opens your email app with the message ready to send.</p>
-        <button type="submit" class="btn-submit" data-i18n="notify.form.submit">Notify Me</button>
-      </form>
+      <div class="cta-row">
+        <!-- TODO: confirm this is the live Squarespace member login/join page URL before publishing -->
+        <a class="btn-link" href="https://umasbooks.org/member-login" data-i18n="membership.cta">Log In / Join</a>
+      </div>
+      <div class="note-box" data-i18n-html="membership.contact.note">
+        Trouble logging in? Email us at <a href="mailto:admin@umasbooks.org">admin@umasbooks.org</a>.
+      </div>
     </div>
   </section>
 
@@ -686,10 +672,14 @@
       "notify.form.submit": "Notify Me",
       "c6.kicker": "Chapter Six",
       "c6.title": "Order Online",
-      "order.intro": "We’re planning a way to browse the collection and order online for in-shop pickup. It isn’t ready yet — if you’re looking for something in particular, email us in the meantime and we’ll check the shelves.",
+      "order.intro": "Browse the collection and order online — pay securely through our shop, then collect in person during opening hours.",
+      "order.cta": "Shop Now",
+      "order.contact.note": "Questions about an order? Email us at <a href=\"mailto:admin@umasbooks.org\">admin@umasbooks.org</a>.",
       "c7.kicker": "Chapter Seven",
       "c7.title": "Become a Member",
-      "membership.intro": "We’re setting up a membership programme to give regular supporters a closer connection to the shop. Details aren’t finalised yet — if you’d like to hear more when it opens, let us know.",
+      "membership.intro": "Membership accounts are open — log in or create yours to support the shop directly.",
+      "membership.cta": "Log In / Join",
+      "membership.contact.note": "Trouble logging in? Email us at <a href=\"mailto:admin@umasbooks.org\">admin@umasbooks.org</a>.",
       "c8.kicker": "Chapter Eight",
       "c8.title": "Classes",
       "classes.intro": "We’re looking into offering drop-in classes alongside our existing language exchange sessions. Nothing is scheduled yet — tell us what you’d be interested in and we’ll keep you posted.",
@@ -780,10 +770,14 @@
       "notify.form.submit": "M\u2019informer",
       "c6.kicker": "Chapitre six",
       "c6.title": "Commander en ligne",
-      "order.intro": "Nous pr\u00e9parons un moyen de parcourir la collection et de commander en ligne pour un retrait en boutique. Ce n\u2019est pas encore pr\u00eat \u2014 si vous cherchez quelque chose en particulier, \u00e9crivez-nous d\u2019ici l\u00e0 et nous v\u00e9rifierons les rayons.",
+      "order.intro": "Parcourez la collection et commandez en ligne \u2014 r\u00e8glement s\u00e9curis\u00e9 via notre boutique, puis retrait en personne pendant les heures d\u2019ouverture.",
+      "order.cta": "Acheter maintenant",
+      "order.contact.note": "Une question sur une commande\u00a0? \u00c9crivez-nous \u00e0 <a href=\"mailto:admin@umasbooks.org\">admin@umasbooks.org</a>.",
       "c7.kicker": "Chapitre sept",
       "c7.title": "Devenir membre",
-      "membership.intro": "Nous mettons en place un programme d\u2019adh\u00e9sion pour offrir aux soutiens r\u00e9guliers un lien plus \u00e9troit avec la boutique. Les d\u00e9tails ne sont pas encore arr\u00eat\u00e9s \u2014 si vous souhaitez en savoir plus \u00e0 l\u2019ouverture, faites-le nous savoir.",
+      "membership.intro": "Les comptes d\u2019adh\u00e9sion sont ouverts \u2014 connectez-vous ou cr\u00e9ez le v\u00f4tre pour soutenir la boutique directement.",
+      "membership.cta": "Se connecter / Adh\u00e9rer",
+      "membership.contact.note": "Un souci de connexion\u00a0? \u00c9crivez-nous \u00e0 <a href=\"mailto:admin@umasbooks.org\">admin@umasbooks.org</a>.",
       "c8.kicker": "Chapitre huit",
       "c8.title": "Cours",
       "classes.intro": "Nous \u00e9tudions la possibilit\u00e9 de proposer des cours en acc\u00e8s libre, en compl\u00e9ment de nos s\u00e9ances d\u2019\u00e9change linguistique existantes. Rien n\u2019est encore programm\u00e9 \u2014 dites-nous ce qui vous int\u00e9resserait et nous vous tiendrons inform\u00e9\u00b7e.",
@@ -847,8 +841,6 @@
 
   wireMailtoForm("wishlist-form", "admin@umasbooks.org", "Book Wish List Suggestion");
   wireMailtoForm("volunteer-form", "admin@umasbooks.org", "Volunteer Sign-up");
-  wireMailtoForm("order-form", "admin@umasbooks.org", "Book Order Request");
-  wireMailtoForm("membership-form", "admin@umasbooks.org", "Membership Interest");
   wireMailtoForm("classes-form", "admin@umasbooks.org", "Class Interest");
 
   apply(initial);
