@@ -3,6 +3,7 @@
 <h1>Start a thread</h1>
 <% if (error) { %><div class="error-box"><%= error %></div><% } %>
 <form class="stack" method="post" action="/forum/new">
+  <%- include('partials/csrf_field') %>
   <label for="title">Title</label>
   <input id="title" name="title" type="text" required>
   <label for="body">Message</label>

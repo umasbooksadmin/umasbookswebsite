@@ -15,10 +15,12 @@
     <% if (e.description) { %><p><%= e.description %></p><% } %>
     <% if (rsvpedEventIds.has(e.id)) { %>
       <form method="post" action="/events/<%= e.id %>/unrsvp">
+        <%- include('partials/csrf_field') %>
         <button class="btn btn-outline btn-small" type="submit">Cancel RSVP</button>
       </form>
     <% } else { %>
       <form method="post" action="/events/<%= e.id %>/rsvp">
+        <%- include('partials/csrf_field') %>
         <button class="btn btn-small" type="submit"<%= (e.capacity != null && e.rsvp_count >= e.capacity) ? ' disabled' : '' %>>
           <%= (e.capacity != null && e.rsvp_count >= e.capacity) ? 'Full' : 'RSVP' %>
         </button>

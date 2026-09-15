@@ -96,6 +96,29 @@ period of inactivity/trial per Render's terms) — worth checking their
 current free-tier database policy before relying on it long-term, and
 upgrading to a paid database if this needs to stay up indefinitely.
 
+## Security
+
+- Passwords hashed with bcrypt (cost 12); reset tokens are 256-bit random,
+  only a SHA-256 hash is ever stored, single-use, 1-hour expiry.
+- Session cookies are `httpOnly`, `secure` in production, `SameSite=Lax`.
+- **CSRF protection** — every form carries a per-session token
+  (`src/middleware/csrf.js`); any POST without a matching token is
+  rejected with 403. New forms must include
+  `<%- include('partials/csrf_field') %>` right after `<form ...>`.
+- **CSP** (`src/index.js`'s `helmet` config) — `script-src 'self'` with no
+  `unsafe-inline`/`unsafe-eval`; `style-src` allows inline styles (used
+  throughout the views) and Google Fonts' stylesheet host.
+- **Login hardening** — a login attempt against a nonexistent email still
+  runs a same-cost bcrypt compare (against a fixed dummy hash) so response
+  timing can't be used to enumerate registered emails; 5 failed attempts
+  on one account locks it for 15 minutes.
+- **Breach checking** — new/changed passwords are checked against the
+  HaveIBeenPwned range API (`src/lib/passwordPolicy.js`) using k-anonymity
+  (only a 5-char hash prefix leaves the server, never the password); fails
+  open (allows the password) if that API is unreachable, so a third-party
+  outage never blocks signup.
+- Deliberately **not** implemented: 2FA.
+
 ## Known gaps for a v1
 
 - Email is reset-flow only for now — no signup verification, no event/

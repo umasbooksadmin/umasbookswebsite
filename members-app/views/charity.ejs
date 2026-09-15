@@ -12,6 +12,7 @@
       <div class="vote-option">
         <div>
           <form method="post" action="/charity/vote" style="display:inline;">
+            <%- include('partials/csrf_field') %>
             <input type="hidden" name="optionId" value="<%= o.id %>">
             <strong><%= o.name %></strong>
             <% if (o.description) { %><div class="muted small"><%= o.description %></div><% } %>

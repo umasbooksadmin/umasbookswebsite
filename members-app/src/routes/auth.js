@@ -4,6 +4,7 @@ const rateLimit = require("express-rate-limit");
 const { pool } = require("../db");
 const { hashToken } = require("../lib/resetTokens");
 const { sendResetLink } = require("../lib/passwordReset");
+const { validateNewPassword } = require("../lib/passwordPolicy");
 const { requireAuth } = require("../middleware/auth");
 
 const router = express.Router();
@@ -19,6 +20,15 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// Precomputed once at startup so a login attempt against a nonexistent
+// email still runs a bcrypt compare of comparable cost — otherwise the
+// "no such user" path returns measurably faster than "wrong password",
+// letting an attacker enumerate registered emails via response timing.
+const DUMMY_HASH = bcrypt.hashSync("no-such-account-timing-equalizer", 12);
+
+const LOGIN_LOCK_THRESHOLD = 5;
+const LOGIN_LOCK_DURATION_MS = 15 * 60 * 1000;
+
 router.get("/signup", (req, res) => {
   if (req.session.user) return res.redirect("/dashboard");
   res.render("signup", { error: null });
@@ -32,8 +42,9 @@ router.post("/signup", authLimiter, async (req, res) => {
   if (!email || !password || !displayName) {
     return res.status(400).render("signup", { error: "All fields are required." });
   }
-  if (password.length < 8) {
-    return res.status(400).render("signup", { error: "Password must be at least 8 characters." });
+  const passwordError = await validateNewPassword(password);
+  if (passwordError) {
+    return res.status(400).render("signup", { error: passwordError });
   }
 
   try {
@@ -69,10 +80,40 @@ router.post("/login", authLimiter, async (req, res) => {
   try {
     const { rows } = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
     const user = rows[0];
-    const ok = user && (await bcrypt.compare(password, user.password_hash));
+
+    if (user && user.locked_until && new Date(user.locked_until) > new Date()) {
+      return res.status(429).render("login", {
+        error: "Too many failed attempts on this account. Please try again in a few minutes.",
+        notice: null,
+      });
+    }
+
+    // Always run a bcrypt compare of the same cost, even when there's no
+    // such user, so the response time doesn't reveal whether the email
+    // is registered.
+    const ok = user
+      ? await bcrypt.compare(password, user.password_hash)
+      : await bcrypt.compare(password, DUMMY_HASH).then(() => false);
+
     if (!ok) {
+      if (user) {
+        const attempts = user.failed_login_attempts + 1;
+        if (attempts >= LOGIN_LOCK_THRESHOLD) {
+          await pool.query(
+            "UPDATE users SET failed_login_attempts = 0, locked_until = $1 WHERE id = $2",
+            [new Date(Date.now() + LOGIN_LOCK_DURATION_MS), user.id]
+          );
+        } else {
+          await pool.query("UPDATE users SET failed_login_attempts = $1 WHERE id = $2", [attempts, user.id]);
+        }
+      }
       return res.status(401).render("login", { error: "Incorrect email or password.", notice: null });
     }
+
+    if (user.failed_login_attempts > 0 || user.locked_until) {
+      await pool.query("UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = $1", [user.id]);
+    }
+
     req.session.user = { id: user.id, email: user.email, displayName: user.display_name, isAdmin: user.is_admin };
     res.redirect("/dashboard");
   } catch (err) {
@@ -127,8 +168,9 @@ router.post("/reset-password/:token", authLimiter, async (req, res) => {
   if (!record) {
     return res.status(400).render("reset_password", { error: "This reset link is invalid or has expired.", token: null });
   }
-  if (newPassword.length < 8) {
-    return res.status(400).render("reset_password", { error: "Password must be at least 8 characters.", token: req.params.token });
+  const passwordError = await validateNewPassword(newPassword);
+  if (passwordError) {
+    return res.status(400).render("reset_password", { error: passwordError, token: req.params.token });
   }
 
   const hash = await bcrypt.hash(newPassword, 12);
@@ -146,8 +188,9 @@ router.post("/account/password", requireAuth, async (req, res) => {
   const currentPassword = req.body.currentPassword || "";
   const newPassword = req.body.newPassword || "";
 
-  if (newPassword.length < 8) {
-    return res.status(400).render("change_password", { error: "New password must be at least 8 characters.", notice: null });
+  const passwordError = await validateNewPassword(newPassword);
+  if (passwordError) {
+    return res.status(400).render("change_password", { error: passwordError, notice: null });
   }
 
   const { rows } = await pool.query("SELECT * FROM users WHERE id = $1", [req.session.user.id]);

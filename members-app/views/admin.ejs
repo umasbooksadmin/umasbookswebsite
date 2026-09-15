@@ -11,6 +11,7 @@
       <li>
         <strong><%= m.display_name %></strong> &middot; <%= m.email %><%= m.is_admin ? ' · admin' : '' %>
         <form method="post" action="/admin/members/reset-password" style="display:inline; margin-left:8px;">
+          <%- include('partials/csrf_field') %>
           <input type="hidden" name="email" value="<%= m.email %>">
           <button class="btn btn-outline btn-small" type="submit">Send password reset email</button>
         </form>
@@ -22,6 +23,7 @@
 <div class="card">
   <div class="section-title">Post an announcement</div>
   <form class="stack" method="post" action="/admin/announcements">
+    <%- include('partials/csrf_field') %>
     <label for="a-title">Title</label>
     <input id="a-title" name="title" type="text" required>
     <label for="a-body">Body</label>
@@ -33,6 +35,7 @@
 <div class="card">
   <div class="section-title">Add an event</div>
   <form class="stack" method="post" action="/admin/events">
+    <%- include('partials/csrf_field') %>
     <label for="e-title">Title</label>
     <input id="e-title" name="title" type="text" required>
     <label for="e-desc">Description</label>
@@ -57,6 +60,7 @@
   <div class="section-title">Add a volunteer shift</div>
   <p class="muted small">Use "Repeat weekly" to create the same shift for several weeks at once &mdash; handy for regular shop-floor slots.</p>
   <form class="stack" method="post" action="/admin/volunteer-shifts">
+    <%- include('partials/csrf_field') %>
     <label for="v-role">Role</label>
     <input id="v-role" name="role" type="text" required placeholder="Shop Floor" list="v-role-suggestions">
     <datalist id="v-role-suggestions">
@@ -86,6 +90,7 @@
         <%= s.role %>
         <span class="muted small"><%= new Date(s.starts_at).toLocaleString() %> &middot; <%= s.signup_count %>/<%= s.capacity %> filled</span>
         <form method="post" action="/admin/volunteer-shifts/<%= s.id %>/delete" style="display:inline;">
+          <%- include('partials/csrf_field') %>
           <button class="btn btn-outline btn-small" type="submit">Delete</button>
         </form>
       </li>
@@ -97,6 +102,7 @@
   <div class="section-title">Start a charity vote round</div>
   <p class="muted small">Starting a new round closes any round that's currently open.</p>
   <form class="stack" method="post" action="/admin/charity-rounds">
+    <%- include('partials/csrf_field') %>
     <label for="c-title">Question</label>
     <input id="c-title" name="title" type="text" required placeholder="Which charity should we support next?">
     <label for="c-options">Options (comma-separated)</label>
@@ -111,6 +117,7 @@
         <span class="muted small"><%= r.is_active ? '(active)' : '(closed)' %></span>
         <% if (r.is_active) { %>
           <form method="post" action="/admin/charity-rounds/<%= r.id %>/close" style="display:inline;">
+            <%- include('partials/csrf_field') %>
             <button class="btn btn-outline btn-small" type="submit">Close</button>
           </form>
         <% } %>
