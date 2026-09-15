@@ -1,0 +1,65 @@
+<%- include('partials/header', { title: 'Admin' }) %>
+
+<h1>Admin</h1>
+
+<div class="card">
+  <div class="section-title">Post an announcement</div>
+  <form class="stack" method="post" action="/admin/announcements">
+    <label for="a-title">Title</label>
+    <input id="a-title" name="title" type="text" required>
+    <label for="a-body">Body</label>
+    <textarea id="a-body" name="body" required></textarea>
+    <button class="btn" type="submit">Post</button>
+  </form>
+</div>
+
+<div class="card">
+  <div class="section-title">Add an event</div>
+  <form class="stack" method="post" action="/admin/events">
+    <label for="e-title">Title</label>
+    <input id="e-title" name="title" type="text" required>
+    <label for="e-desc">Description</label>
+    <textarea id="e-desc" name="description"></textarea>
+    <label for="e-loc">Location</label>
+    <input id="e-loc" name="location" type="text">
+    <label for="e-start">Starts at</label>
+    <input id="e-start" name="startsAt" type="datetime-local" required>
+    <label for="e-cap">Capacity (optional)</label>
+    <input id="e-cap" name="capacity" type="number" min="1">
+    <button class="btn" type="submit">Add event</button>
+  </form>
+  <h3 style="margin-top:20px;">Recent events</h3>
+  <ul class="plain">
+    <% events.forEach(e => { %>
+      <li><%= e.title %> &middot; <span class="muted small"><%= new Date(e.starts_at).toLocaleString() %></span></li>
+    <% }) %>
+  </ul>
+</div>
+
+<div class="card">
+  <div class="section-title">Start a charity vote round</div>
+  <p class="muted small">Starting a new round closes any round that's currently open.</p>
+  <form class="stack" method="post" action="/admin/charity-rounds">
+    <label for="c-title">Question</label>
+    <input id="c-title" name="title" type="text" required placeholder="Which charity should we support next?">
+    <label for="c-options">Options (comma-separated)</label>
+    <input id="c-options" name="options" type="text" required placeholder="Restos du Coeur, SPA Albi, ...">
+    <button class="btn" type="submit">Start round</button>
+  </form>
+  <h3 style="margin-top:20px;">Recent rounds</h3>
+  <ul class="plain">
+    <% rounds.forEach(r => { %>
+      <li>
+        <%= r.title %>
+        <span class="muted small"><%= r.is_active ? '(active)' : '(closed)' %></span>
+        <% if (r.is_active) { %>
+          <form method="post" action="/admin/charity-rounds/<%= r.id %>/close" style="display:inline;">
+            <button class="btn btn-outline btn-small" type="submit">Close</button>
+          </form>
+        <% } %>
+      </li>
+    <% }) %>
+  </ul>
+</div>
+
+<%- include('partials/footer') %>

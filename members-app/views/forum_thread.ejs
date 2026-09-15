@@ -1,0 +1,25 @@
+<%- include('partials/header', { title: thread.title }) %>
+
+<p><a href="/forum">&larr; Back to forum</a></p>
+<h1><%= thread.title %></h1>
+<div class="thread-meta"><%= thread.author_name || 'Member' %> &middot; <%= new Date(thread.created_at).toLocaleString() %></div>
+<div class="card"><%= thread.body %></div>
+
+<h3>Replies</h3>
+<% if (!replies.length) { %>
+  <p class="muted">No replies yet.</p>
+<% } %>
+<% replies.forEach(r => { %>
+  <div class="reply">
+    <div class="thread-meta"><%= r.author_name || 'Member' %> &middot; <%= new Date(r.created_at).toLocaleString() %></div>
+    <div><%= r.body %></div>
+  </div>
+<% }) %>
+
+<h3>Add a reply</h3>
+<form class="stack" method="post" action="/forum/<%= thread.id %>/replies">
+  <textarea name="body" required></textarea>
+  <button class="btn" type="submit">Reply</button>
+</form>
+
+<%- include('partials/footer') %>

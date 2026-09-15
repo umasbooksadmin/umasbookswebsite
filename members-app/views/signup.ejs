@@ -1,0 +1,16 @@
+<%- include('partials/header', { title: 'Join' }) %>
+
+<h1>Create your account</h1>
+<% if (error) { %><div class="error-box"><%= error %></div><% } %>
+<form class="stack" method="post" action="/signup">
+  <label for="displayName">Name</label>
+  <input id="displayName" name="displayName" type="text" required>
+  <label for="email">Email</label>
+  <input id="email" name="email" type="email" required>
+  <label for="password">Password</label>
+  <input id="password" name="password" type="password" minlength="8" required>
+  <button class="btn" type="submit">Create account</button>
+</form>
+<p class="muted small">Already a member? <a href="/login">Log in</a></p>
+
+<%- include('partials/footer') %>

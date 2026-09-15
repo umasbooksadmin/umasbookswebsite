@@ -1,0 +1,30 @@
+<%- include('partials/header', { title: 'Events' }) %>
+
+<h1>Events</h1>
+
+<% if (!events.length) { %>
+  <p class="muted">Nothing scheduled yet.</p>
+<% } %>
+<% events.forEach(e => { %>
+  <div class="card">
+    <div class="section-title"><%= e.title %></div>
+    <div class="muted small">
+      <%= new Date(e.starts_at).toLocaleString() %><%= e.location ? ' · ' + e.location : '' %>
+      <%= e.capacity != null ? ' · ' + e.rsvp_count + '/' + e.capacity + ' spots taken' : '' %>
+    </div>
+    <% if (e.description) { %><p><%= e.description %></p><% } %>
+    <% if (rsvpedEventIds.has(e.id)) { %>
+      <form method="post" action="/events/<%= e.id %>/unrsvp">
+        <button class="btn btn-outline btn-small" type="submit">Cancel RSVP</button>
+      </form>
+    <% } else { %>
+      <form method="post" action="/events/<%= e.id %>/rsvp">
+        <button class="btn btn-small" type="submit"<%= (e.capacity != null && e.rsvp_count >= e.capacity) ? ' disabled' : '' %>>
+          <%= (e.capacity != null && e.rsvp_count >= e.capacity) ? 'Full' : 'RSVP' %>
+        </button>
+      </form>
+    <% } %>
+  </div>
+<% }) %>
+
+<%- include('partials/footer') %>

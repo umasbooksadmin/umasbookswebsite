@@ -1,0 +1,19 @@
+<%- include('partials/header', { title: 'Forum' }) %>
+
+<h1>Community Forum</h1>
+<p><a class="btn" href="/forum/new">Start a thread</a></p>
+
+<% if (!threads.length) { %>
+  <p class="muted">No threads yet.</p>
+<% } else { %>
+  <ul class="plain">
+    <% threads.forEach(t => { %>
+      <li>
+        <a href="/forum/<%= t.id %>"><%= t.title %></a>
+        <div class="thread-meta"><%= t.author_name || 'Member' %> &middot; <%= new Date(t.created_at).toLocaleDateString() %> &middot; <%= t.reply_count %> repl<%= t.reply_count == 1 ? 'y' : 'ies' %></div>
+      </li>
+    <% }) %>
+  </ul>
+<% } %>
+
+<%- include('partials/footer') %>

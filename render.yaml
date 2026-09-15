@@ -1,0 +1,23 @@
+databases:
+  - name: umasbooks-members-db
+    plan: free
+    databaseName: umasbooks_members
+    user: umasbooks
+
+services:
+  - type: web
+    name: umasbooks-members
+    runtime: node
+    plan: free
+    rootDir: members-app
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: umasbooks-members-db
+          property: connectionString
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: NODE_ENV
+        value: production
