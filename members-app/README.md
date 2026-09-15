@@ -89,15 +89,16 @@ To deploy: in the Render dashboard, **New +** → **Blueprint**, connect the
 `umasbookswebsite` GitHub repo, and Render will read `render.yaml` and set
 both up.
 
-`render.yaml` sets `preDeployCommand: npm run migrate`, so migrations run
-automatically before every deploy going forward — new migration files
-just need to be committed and pushed, no manual step. (This needs
-checking against Render's current plan support: Pre-Deploy Command has
-historically required a paid instance type, not the free plan used here
-— watch the deploy's logs for a "Running migration: ..." step to confirm
-it actually ran; if it's silently skipped on the free plan, fall back to
-running `npm run migrate` by hand in the **Shell** tab after each deploy
-that adds a migration.)
+`render.yaml`'s `startCommand` runs `npm run migrate` before `npm start`,
+so migrations run automatically on every boot — new migration files just
+need to be committed and pushed, no manual step. (Render's dedicated
+`preDeployCommand` would be the more obvious fit, but it needs a paid
+instance type; the free plan used here rejects it outright at Blueprint
+creation time with "pre-deploy command is not supported for free tier
+services" — confirmed by trying it. Running migrate in `startCommand`
+works on free tier and is safe because every migration file is written
+to be idempotent, so re-running the whole set on every boot — including
+free-tier spin-down/wake cycles — is harmless.)
 
 Seeding the first admin account is still a one-time manual step (it
 needs a password only you should choose) — via Render's **Shell** tab for
