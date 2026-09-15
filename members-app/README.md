@@ -36,8 +36,11 @@ safe to re-run. Change `SEED_ADMIN_EMAIL` too if you don't want
   enforced) or cancel.
 - **Charity vote** (`/charity`) — admin starts a round with named options;
   each member gets one vote per round, changeable while the round is open.
+- **Volunteer shifts** (`/volunteer`) — admin creates shifts (role, time
+  range, capacity), optionally repeating weekly for several weeks in one
+  go; members sign up or cancel, capacity enforced.
 - **Admin** (`/admin`, admin accounts only) — post announcements, add
-  events, start/close charity vote rounds.
+  events, manage volunteer shifts, start/close charity vote rounds.
 
 There's no separate "customer" vs "admin" signup flow — the seed script
 creates the first admin; that account can be used to promote others later

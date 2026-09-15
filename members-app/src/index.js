@@ -13,6 +13,7 @@ const dashboardRoutes = require("./routes/dashboard");
 const forumRoutes = require("./routes/forum");
 const eventsRoutes = require("./routes/events");
 const charityRoutes = require("./routes/charity");
+const volunteerRoutes = require("./routes/volunteer");
 const adminRoutes = require("./routes/admin");
 
 const app = express();
@@ -54,6 +55,7 @@ app.use(dashboardRoutes);
 app.use(forumRoutes);
 app.use(eventsRoutes);
 app.use(charityRoutes);
+app.use(volunteerRoutes);
 app.use(adminRoutes);
 
 app.use((req, res) => {

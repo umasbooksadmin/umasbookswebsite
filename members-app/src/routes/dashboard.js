@@ -7,7 +7,7 @@ const router = express.Router();
 router.get("/dashboard", requireAuth, async (req, res) => {
   const userId = req.session.user.id;
 
-  const [announcements, upcomingEvents, myRsvps, activeRound, forumThreads] = await Promise.all([
+  const [announcements, upcomingEvents, myRsvps, activeRound, forumThreads, upcomingShifts, myShiftSignups] = await Promise.all([
     pool.query("SELECT * FROM announcements ORDER BY published_at DESC LIMIT 5"),
     pool.query("SELECT * FROM events WHERE starts_at >= now() ORDER BY starts_at ASC LIMIT 5"),
     pool.query("SELECT event_id FROM event_rsvps WHERE user_id = $1", [userId]),
@@ -18,9 +18,15 @@ router.get("/dashboard", requireAuth, async (req, res) => {
        FROM forum_threads t LEFT JOIN users u ON u.id = t.author_id
        ORDER BY t.created_at DESC LIMIT 5`
     ),
+    pool.query(
+      `SELECT s.*, (SELECT COUNT(*) FROM volunteer_signups g WHERE g.shift_id = s.id) AS signup_count
+       FROM volunteer_shifts s WHERE s.starts_at >= now() ORDER BY s.starts_at ASC LIMIT 5`
+    ),
+    pool.query("SELECT shift_id FROM volunteer_signups WHERE user_id = $1", [userId]),
   ]);
 
   const rsvpedEventIds = new Set(myRsvps.rows.map((r) => r.event_id));
+  const mySignedUpShiftIds = new Set(myShiftSignups.rows.map((r) => r.shift_id));
 
   let charity = null;
   if (activeRound.rows.length) {
@@ -47,6 +53,8 @@ router.get("/dashboard", requireAuth, async (req, res) => {
     rsvpedEventIds,
     charity,
     forumThreads: forumThreads.rows,
+    shifts: upcomingShifts.rows,
+    mySignedUpShiftIds,
   });
 });
 

@@ -56,6 +56,26 @@
   <p><a href="/events">See all &amp; RSVP &rarr;</a></p>
 </div>
 
+<div class="card">
+  <div class="section-title">Volunteer Shifts</div>
+  <% if (!shifts.length) { %>
+    <p class="muted">No shifts scheduled yet.</p>
+  <% } else { %>
+    <ul class="plain">
+      <% shifts.forEach(s => { %>
+        <li>
+          <strong><%= s.role %></strong>
+          <div class="muted small"><%= new Date(s.starts_at).toLocaleString() %> &middot; <%= s.signup_count %>/<%= s.capacity %> filled</div>
+          <% if (mySignedUpShiftIds.has(s.id)) { %>
+            <span class="notice-box small" style="display:inline-block; margin-top:6px;">You're signed up</span>
+          <% } %>
+        </li>
+      <% }) %>
+    </ul>
+  <% } %>
+  <p><a href="/volunteer">See all &amp; sign up &rarr;</a></p>
+</div>
+
 <% if (charity) { %>
 <div class="card">
   <div class="section-title">Charity Vote</div>
