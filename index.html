@@ -238,6 +238,14 @@
   .scheduletable th, .scheduletable td { padding: 10px 14px; border-bottom: 1px solid var(--rule); text-align: left; }
   .scheduletable th { font-variant: small-caps; letter-spacing: 0.06em; color: var(--gold); font-weight: 600; }
 
+  /* ---------- "Coming soon" placeholders ---------- */
+  .badge-soon {
+    display: inline-block; margin-top: 2px;
+    font-variant: small-caps; letter-spacing: 0.1em; font-size: 13px;
+    color: var(--gold); border: 1px dashed var(--card-border); border-radius: 999px;
+    padding: 4px 16px;
+  }
+
   /* ---------- Footer ---------- */
   footer.site {
     padding: 44px 28px 52px; text-align: center;
@@ -274,6 +282,9 @@
       <a href="#events" data-i18n="nav.events">Events</a>
       <a href="#wishlist" data-i18n="nav.wishlist">Wish List</a>
       <a href="#volunteer" data-i18n="nav.volunteer">Volunteer</a>
+      <a href="#order" data-i18n="nav.order">Order Online</a>
+      <a href="#membership" data-i18n="nav.membership">Membership</a>
+      <a href="#classes" data-i18n="nav.classes">Classes</a>
       <a href="#visit" data-i18n="nav.visit">Visit Us</a>
     </nav>
     <div class="langtoggle" role="group" aria-label="Language / Langue">
@@ -470,11 +481,101 @@
     </div>
   </section>
 
-  <section class="chapter" id="visit">
+  <section class="chapter" id="order">
     <div class="wrap">
       <div class="chapter-head">
         <span class="kicker" data-i18n="c6.kicker">Chapter Six</span>
-        <h2 data-i18n="c6.title">Visit Us</h2>
+        <h2 data-i18n="c6.title">Order Online</h2>
+        <span class="badge-soon" data-i18n="soon.badge">Coming soon</span>
+      </div>
+      <div class="prose">
+        <p data-i18n="order.intro">We&#39;re planning a way to browse the collection and order online for in-shop pickup. It isn&#39;t ready yet &mdash; if you&#39;re looking for something in particular, email us in the meantime and we&#39;ll check the shelves.</p>
+      </div>
+      <h3 class="form-title" data-i18n="notify.form.title">Get Notified When It&#39;s Ready</h3>
+      <form class="formcard" id="order-form" novalidate>
+        <div class="field">
+          <label for="ord-name" data-i18n="form.name.l">Name</label>
+          <input id="ord-name" type="text" data-field="Name" autocomplete="name">
+        </div>
+        <div class="field">
+          <label for="ord-email" data-i18n="form.email.l">Email</label>
+          <input id="ord-email" type="email" data-field="Email" autocomplete="email">
+        </div>
+        <div class="field">
+          <label for="ord-note" data-i18n="form.note.l">Note (optional)</label>
+          <textarea id="ord-note" data-field="Note"></textarea>
+        </div>
+        <p class="form-hint" data-i18n="form.hint">This opens your email app with the message ready to send.</p>
+        <button type="submit" class="btn-submit" data-i18n="notify.form.submit">Notify Me</button>
+      </form>
+    </div>
+  </section>
+
+  <section class="chapter" id="membership">
+    <div class="wrap">
+      <div class="chapter-head">
+        <span class="kicker" data-i18n="c7.kicker">Chapter Seven</span>
+        <h2 data-i18n="c7.title">Become a Member</h2>
+        <span class="badge-soon" data-i18n="soon.badge">Coming soon</span>
+      </div>
+      <div class="prose">
+        <p data-i18n="membership.intro">We&#39;re setting up a membership programme to give regular supporters a closer connection to the shop. Details aren&#39;t finalised yet &mdash; if you&#39;d like to hear more when it opens, let us know.</p>
+      </div>
+      <h3 class="form-title" data-i18n="notify.form.title">Get Notified When It&#39;s Ready</h3>
+      <form class="formcard" id="membership-form" novalidate>
+        <div class="field">
+          <label for="mem-name" data-i18n="form.name.l">Name</label>
+          <input id="mem-name" type="text" data-field="Name" autocomplete="name">
+        </div>
+        <div class="field">
+          <label for="mem-email" data-i18n="form.email.l">Email</label>
+          <input id="mem-email" type="email" data-field="Email" autocomplete="email">
+        </div>
+        <div class="field">
+          <label for="mem-note" data-i18n="form.note.l">Note (optional)</label>
+          <textarea id="mem-note" data-field="Note"></textarea>
+        </div>
+        <p class="form-hint" data-i18n="form.hint">This opens your email app with the message ready to send.</p>
+        <button type="submit" class="btn-submit" data-i18n="notify.form.submit">Notify Me</button>
+      </form>
+    </div>
+  </section>
+
+  <section class="chapter" id="classes">
+    <div class="wrap">
+      <div class="chapter-head">
+        <span class="kicker" data-i18n="c8.kicker">Chapter Eight</span>
+        <h2 data-i18n="c8.title">Classes</h2>
+        <span class="badge-soon" data-i18n="soon.badge">Coming soon</span>
+      </div>
+      <div class="prose">
+        <p data-i18n="classes.intro">We&#39;re looking into offering drop-in classes alongside our existing language exchange sessions. Nothing is scheduled yet &mdash; tell us what you&#39;d be interested in and we&#39;ll keep you posted.</p>
+      </div>
+      <h3 class="form-title" data-i18n="notify.form.title">Get Notified When It&#39;s Ready</h3>
+      <form class="formcard" id="classes-form" novalidate>
+        <div class="field">
+          <label for="cls-name" data-i18n="form.name.l">Name</label>
+          <input id="cls-name" type="text" data-field="Name" autocomplete="name">
+        </div>
+        <div class="field">
+          <label for="cls-email" data-i18n="form.email.l">Email</label>
+          <input id="cls-email" type="email" data-field="Email" autocomplete="email">
+        </div>
+        <div class="field">
+          <label for="cls-note" data-i18n="form.note.l">Note (optional)</label>
+          <textarea id="cls-note" data-field="Note"></textarea>
+        </div>
+        <p class="form-hint" data-i18n="form.hint">This opens your email app with the message ready to send.</p>
+        <button type="submit" class="btn-submit" data-i18n="notify.form.submit">Notify Me</button>
+      </form>
+    </div>
+  </section>
+
+  <section class="chapter" id="visit">
+    <div class="wrap">
+      <div class="chapter-head">
+        <span class="kicker" data-i18n="c9.kicker">Chapter Nine</span>
+        <h2 data-i18n="c9.title">Visit Us</h2>
       </div>
       <div class="visit-grid">
         <div class="visit-item">
@@ -514,6 +615,9 @@
       "nav.events": "Events",
       "nav.wishlist": "Wish List",
       "nav.volunteer": "Volunteer",
+      "nav.order": "Order Online",
+      "nav.membership": "Membership",
+      "nav.classes": "Classes",
       "nav.visit": "Visit Us",
       "hero.eyebrow": "A Non-Profit English Bookshop \u00b7 Albi, France",
       "hero.h1": "Secondhand stories, passed from one reader to the next.",
@@ -577,8 +681,20 @@
       "form.email.l": "Email",
       "form.note.l": "Note (optional)",
       "form.hint": "This opens your email app with the message ready to send.",
+      "soon.badge": "Coming soon",
+      "notify.form.title": "Get Notified When It’s Ready",
+      "notify.form.submit": "Notify Me",
       "c6.kicker": "Chapter Six",
-      "c6.title": "Visit Us",
+      "c6.title": "Order Online",
+      "order.intro": "We’re planning a way to browse the collection and order online for in-shop pickup. It isn’t ready yet — if you’re looking for something in particular, email us in the meantime and we’ll check the shelves.",
+      "c7.kicker": "Chapter Seven",
+      "c7.title": "Become a Member",
+      "membership.intro": "We’re setting up a membership programme to give regular supporters a closer connection to the shop. Details aren’t finalised yet — if you’d like to hear more when it opens, let us know.",
+      "c8.kicker": "Chapter Eight",
+      "c8.title": "Classes",
+      "classes.intro": "We’re looking into offering drop-in classes alongside our existing language exchange sessions. Nothing is scheduled yet — tell us what you’d be interested in and we’ll keep you posted.",
+      "c9.kicker": "Chapter Nine",
+      "c9.title": "Visit Us",
       "visit.where.l": "Where",
       "visit.where.v": "Albi, France",
       "visit.hours.l": "Hours",
@@ -593,6 +709,9 @@
       "nav.events": "\u00c9v\u00e9nements",
       "nav.wishlist": "Liste de souhaits",
       "nav.volunteer": "B\u00e9n\u00e9volat",
+      "nav.order": "Commander en ligne",
+      "nav.membership": "Adh\u00e9sion",
+      "nav.classes": "Cours",
       "nav.visit": "Nous rendre visite",
       "hero.eyebrow": "Librairie anglophone \u00e0 but non lucratif \u00b7 Albi, France",
       "hero.h1": "Des histoires d\u2019occasion, transmises d\u2019un lecteur au suivant.",
@@ -656,8 +775,20 @@
       "form.email.l": "Email",
       "form.note.l": "Remarque (facultatif)",
       "form.hint": "Cela ouvre votre application de messagerie avec le message pr\u00eat \u00e0 envoyer.",
+      "soon.badge": "Bient\u00f4t disponible",
+      "notify.form.title": "\u00catre inform\u00e9\u00b7e du lancement",
+      "notify.form.submit": "M\u2019informer",
       "c6.kicker": "Chapitre six",
-      "c6.title": "Nous rendre visite",
+      "c6.title": "Commander en ligne",
+      "order.intro": "Nous pr\u00e9parons un moyen de parcourir la collection et de commander en ligne pour un retrait en boutique. Ce n\u2019est pas encore pr\u00eat \u2014 si vous cherchez quelque chose en particulier, \u00e9crivez-nous d\u2019ici l\u00e0 et nous v\u00e9rifierons les rayons.",
+      "c7.kicker": "Chapitre sept",
+      "c7.title": "Devenir membre",
+      "membership.intro": "Nous mettons en place un programme d\u2019adh\u00e9sion pour offrir aux soutiens r\u00e9guliers un lien plus \u00e9troit avec la boutique. Les d\u00e9tails ne sont pas encore arr\u00eat\u00e9s \u2014 si vous souhaitez en savoir plus \u00e0 l\u2019ouverture, faites-le nous savoir.",
+      "c8.kicker": "Chapitre huit",
+      "c8.title": "Cours",
+      "classes.intro": "Nous \u00e9tudions la possibilit\u00e9 de proposer des cours en acc\u00e8s libre, en compl\u00e9ment de nos s\u00e9ances d\u2019\u00e9change linguistique existantes. Rien n\u2019est encore programm\u00e9 \u2014 dites-nous ce qui vous int\u00e9resserait et nous vous tiendrons inform\u00e9\u00b7e.",
+      "c9.kicker": "Chapitre neuf",
+      "c9.title": "Nous rendre visite",
       "visit.where.l": "O\u00f9",
       "visit.where.v": "Albi, France",
       "visit.hours.l": "Horaires",
@@ -716,6 +847,9 @@
 
   wireMailtoForm("wishlist-form", "admin@umasbooks.org", "Book Wish List Suggestion");
   wireMailtoForm("volunteer-form", "admin@umasbooks.org", "Volunteer Sign-up");
+  wireMailtoForm("order-form", "admin@umasbooks.org", "Book Order Request");
+  wireMailtoForm("membership-form", "admin@umasbooks.org", "Membership Interest");
+  wireMailtoForm("classes-form", "admin@umasbooks.org", "Class Interest");
 
   apply(initial);
 })();
