@@ -207,12 +207,36 @@
   .visit-item .hours-row { display: flex; justify-content: space-between; gap: 8px; max-width: 190px; margin: 0 auto; }
   .visit-item .hours-row + .hours-row { margin-top: 2px; }
 
-  .donate-note {
+  .donate-note, .note-box {
     max-width: 62ch; margin: 40px auto 0; text-align: center;
     padding: 20px 24px; border: 1px dashed var(--card-border); border-radius: 3px;
     color: var(--ink-soft); font-size: 17px;
   }
-  .donate-note strong { color: var(--bronze-strong); font-weight: 600; }
+  .donate-note strong, .note-box strong { color: var(--bronze-strong); font-weight: 600; }
+
+  /* ---------- Forms (Wish List / Volunteer) ---------- */
+  .form-title { font-family: 'Playfair Display', serif; font-weight: 600; font-size: 20px; color: var(--bronze-strong); text-align: center; margin: 32px 0 0; }
+  .formcard { max-width: 62ch; margin: 20px auto 0; display: flex; flex-direction: column; gap: 14px; }
+  .formcard .field { display: flex; flex-direction: column; gap: 6px; text-align: left; }
+  .formcard label { font-variant: small-caps; letter-spacing: 0.08em; font-size: 14px; color: var(--gold); }
+  .formcard input, .formcard textarea {
+    font-family: 'EB Garamond', Georgia, serif; font-size: 17px; color: var(--ink);
+    background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 3px;
+    padding: 10px 12px;
+  }
+  .formcard textarea { resize: vertical; min-height: 80px; }
+  .formcard input:focus, .formcard textarea:focus { outline: 2px solid var(--brick); outline-offset: 1px; }
+  .form-hint { font-size: 14px; color: var(--ink-soft); max-width: 62ch; margin: -4px auto 0; text-align: left; }
+  .btn-submit {
+    align-self: flex-start; font-family: 'Playfair Display', serif; font-weight: 600;
+    font-size: 15px; letter-spacing: 0.03em; color: var(--paper); background: var(--brick);
+    border: 0; border-radius: 3px; padding: 12px 26px; cursor: pointer; transition: background 0.15s ease;
+  }
+  .btn-submit:hover { background: var(--brick-soft); }
+
+  .scheduletable { width: 100%; max-width: 62ch; margin: 20px auto 0; border-collapse: collapse; font-size: 17px; }
+  .scheduletable th, .scheduletable td { padding: 10px 14px; border-bottom: 1px solid var(--rule); text-align: left; }
+  .scheduletable th { font-variant: small-caps; letter-spacing: 0.06em; color: var(--gold); font-weight: 600; }
 
   /* ---------- Footer ---------- */
   footer.site {
@@ -248,6 +272,8 @@
       <a href="#story" data-i18n="nav.story">Our Story</a>
       <a href="#collection" data-i18n="nav.collection">The Collection</a>
       <a href="#events" data-i18n="nav.events">Events</a>
+      <a href="#wishlist" data-i18n="nav.wishlist">Wish List</a>
+      <a href="#volunteer" data-i18n="nav.volunteer">Volunteer</a>
       <a href="#visit" data-i18n="nav.visit">Visit Us</a>
     </nav>
     <div class="langtoggle" role="group" aria-label="Language / Langue">
@@ -330,14 +356,125 @@
           <span class="card-desc" data-i18n="ev.swap.d">Bring a book, take a book, meet fellow readers.</span>
         </div>
       </div>
+      <div class="note-box" data-i18n-html="ev.rsvp.note">
+        <strong>Want to join in?</strong> Drop us a line and we&#39;ll let you know the next date &mdash; <a href="mailto:admin@umasbooks.org?subject=Event%20RSVP">admin@umasbooks.org</a>.
+      </div>
+    </div>
+  </section>
+
+  <section class="chapter" id="wishlist">
+    <div class="wrap">
+      <div class="chapter-head">
+        <span class="kicker" data-i18n="c4.kicker">Chapter Four</span>
+        <h2 data-i18n="c4.title">The Wish List</h2>
+      </div>
+      <div class="prose">
+        <p data-i18n="wishlist.intro">Every shelf here started as someone&#39;s wish list. If there&#39;s a title you&#39;re hoping to find, or a kind of book we should keep an eye out for, tell us &mdash; we&#39;ll watch for it as new donations come in.</p>
+      </div>
+      <div class="cardlist" style="margin-top: 28px;">
+        <div class="card">
+          <span class="card-title" data-i18n="wishlist.ya.t">Young Adult &amp; Teen</span>
+          <span class="card-desc" data-i18n="wishlist.ya.d">Contemporary and classic YA in English &mdash; always in demand, always short on shelf space.</span>
+        </div>
+        <div class="card">
+          <span class="card-title" data-i18n="wishlist.langlearn.t">Language Learners</span>
+          <span class="card-desc" data-i18n="wishlist.langlearn.d">Graded readers and simple English titles for francophone readers building confidence.</span>
+        </div>
+        <div class="card">
+          <span class="card-title" data-i18n="wishlist.large.t">Large Print &amp; Audio</span>
+          <span class="card-desc" data-i18n="wishlist.large.d">Large-print editions and English-language audiobooks, for readers who need them.</span>
+        </div>
+      </div>
+      <h3 class="form-title" data-i18n="wishlist.form.title">Suggest a Title</h3>
+      <form class="formcard" id="wishlist-form" novalidate>
+        <div class="field">
+          <label for="wl-name" data-i18n="form.name.l">Name</label>
+          <input id="wl-name" type="text" data-field="Name" autocomplete="name">
+        </div>
+        <div class="field">
+          <label for="wl-email" data-i18n="form.email.l">Email</label>
+          <input id="wl-email" type="email" data-field="Email" autocomplete="email">
+        </div>
+        <div class="field">
+          <label for="wl-book" data-i18n="wishlist.form.book.l">Title &amp; author</label>
+          <input id="wl-book" type="text" data-field="Title/Author">
+        </div>
+        <div class="field">
+          <label for="wl-note" data-i18n="form.note.l">Note (optional)</label>
+          <textarea id="wl-note" data-field="Note"></textarea>
+        </div>
+        <p class="form-hint" data-i18n="form.hint">This opens your email app with the message ready to send.</p>
+        <button type="submit" class="btn-submit" data-i18n="wishlist.form.submit">Send Suggestion</button>
+      </form>
+    </div>
+  </section>
+
+  <section class="chapter" id="volunteer">
+    <div class="wrap">
+      <div class="chapter-head">
+        <span class="kicker" data-i18n="c5.kicker">Chapter Five</span>
+        <h2 data-i18n="c5.title">Volunteer With Us</h2>
+      </div>
+      <div class="prose">
+        <p data-i18n="volunteer.intro">Uma&#39;s is entirely volunteer-run &mdash; every hour on the shop floor, every sorted donation, every event, is someone giving their time. New volunteers, at any language level, are always welcome.</p>
+      </div>
+      <div class="cardlist" style="margin-top: 28px;">
+        <div class="card">
+          <span class="card-title" data-i18n="volunteer.shop.t">Shop Floor</span>
+          <span class="card-desc" data-i18n="volunteer.shop.d">Welcome visitors and mind the till during opening hours.</span>
+        </div>
+        <div class="card">
+          <span class="card-title" data-i18n="volunteer.sorting.t">Sorting &amp; Shelving</span>
+          <span class="card-desc" data-i18n="volunteer.sorting.d">Sort donations and keep the collection organised.</span>
+        </div>
+        <div class="card">
+          <span class="card-title" data-i18n="volunteer.events.t">Events &amp; Language Exchange</span>
+          <span class="card-desc" data-i18n="volunteer.events.d">Help run book club, language exchange, or story swaps.</span>
+        </div>
+        <div class="card">
+          <span class="card-title" data-i18n="volunteer.translation.t">Bilingual Support</span>
+          <span class="card-desc" data-i18n="volunteer.translation.d">Help visitors and paperwork move smoothly between English and French.</span>
+        </div>
+      </div>
+      <h3 class="form-title" data-i18n="volunteer.schedule.title">Shop Shifts</h3>
+      <table class="scheduletable">
+        <thead>
+          <tr><th data-i18n="volunteer.schedule.day">Days</th><th data-i18n="volunteer.schedule.time">Time</th></tr>
+        </thead>
+        <tbody>
+          <tr><td data-i18n="visit.hours.days">Wed &ndash; Sat</td><td data-i18n="visit.hours.time">10:00&ndash;13:00</td></tr>
+        </tbody>
+      </table>
+      <p class="form-hint" data-i18n="volunteer.schedule.note">Shifts typically run 2&ndash;3 hours within opening hours &mdash; tell us what works for you below.</p>
+      <h3 class="form-title" data-i18n="volunteer.form.title">Volunteer Sign-up</h3>
+      <form class="formcard" id="volunteer-form" novalidate>
+        <div class="field">
+          <label for="vol-name" data-i18n="form.name.l">Name</label>
+          <input id="vol-name" type="text" data-field="Name" autocomplete="name">
+        </div>
+        <div class="field">
+          <label for="vol-email" data-i18n="form.email.l">Email</label>
+          <input id="vol-email" type="email" data-field="Email" autocomplete="email">
+        </div>
+        <div class="field">
+          <label for="vol-avail" data-i18n="volunteer.form.avail.l">Availability</label>
+          <input id="vol-avail" type="text" data-field="Availability">
+        </div>
+        <div class="field">
+          <label for="vol-note" data-i18n="form.note.l">Note (optional)</label>
+          <textarea id="vol-note" data-field="Note"></textarea>
+        </div>
+        <p class="form-hint" data-i18n="form.hint">This opens your email app with the message ready to send.</p>
+        <button type="submit" class="btn-submit" data-i18n="volunteer.form.submit">Send Sign-up</button>
+      </form>
     </div>
   </section>
 
   <section class="chapter" id="visit">
     <div class="wrap">
       <div class="chapter-head">
-        <span class="kicker" data-i18n="c4.kicker">Chapter Four</span>
-        <h2 data-i18n="c4.title">Visit Us</h2>
+        <span class="kicker" data-i18n="c6.kicker">Chapter Six</span>
+        <h2 data-i18n="c6.title">Visit Us</h2>
       </div>
       <div class="visit-grid">
         <div class="visit-item">
@@ -375,6 +512,8 @@
       "nav.story": "Our Story",
       "nav.collection": "The Collection",
       "nav.events": "Events",
+      "nav.wishlist": "Wish List",
+      "nav.volunteer": "Volunteer",
       "nav.visit": "Visit Us",
       "hero.eyebrow": "A Non-Profit English Bookshop \u00b7 Albi, France",
       "hero.h1": "Secondhand stories, passed from one reader to the next.",
@@ -403,8 +542,43 @@
       "ev.lang.d": "Weekly sessions for adults, plus a dedicated children\u2019s group \u2014 conversation practice, or storytime for younger learners.",
       "ev.swap.t": "Story Swaps",
       "ev.swap.d": "Bring a book, take a book, meet fellow readers.",
+      "ev.rsvp.note": "<strong>Want to join in?</strong> Drop us a line and we\u2019ll let you know the next date \u2014 <a href=\"mailto:admin@umasbooks.org?subject=Event%20RSVP\">admin@umasbooks.org</a>.",
       "c4.kicker": "Chapter Four",
-      "c4.title": "Visit Us",
+      "c4.title": "The Wish List",
+      "wishlist.intro": "Every shelf here started as someone\u2019s wish list. If there\u2019s a title you\u2019re hoping to find, or a kind of book we should keep an eye out for, tell us \u2014 we\u2019ll watch for it as new donations come in.",
+      "wishlist.ya.t": "Young Adult & Teen",
+      "wishlist.ya.d": "Contemporary and classic YA in English \u2014 always in demand, always short on shelf space.",
+      "wishlist.langlearn.t": "Language Learners",
+      "wishlist.langlearn.d": "Graded readers and simple English titles for francophone readers building confidence.",
+      "wishlist.large.t": "Large Print & Audio",
+      "wishlist.large.d": "Large-print editions and English-language audiobooks, for readers who need them.",
+      "wishlist.form.title": "Suggest a Title",
+      "wishlist.form.book.l": "Title & author",
+      "wishlist.form.submit": "Send Suggestion",
+      "c5.kicker": "Chapter Five",
+      "c5.title": "Volunteer With Us",
+      "volunteer.intro": "Uma\u2019s is entirely volunteer-run \u2014 every hour on the shop floor, every sorted donation, every event, is someone giving their time. New volunteers, at any language level, are always welcome.",
+      "volunteer.shop.t": "Shop Floor",
+      "volunteer.shop.d": "Welcome visitors and mind the till during opening hours.",
+      "volunteer.sorting.t": "Sorting & Shelving",
+      "volunteer.sorting.d": "Sort donations and keep the collection organised.",
+      "volunteer.events.t": "Events & Language Exchange",
+      "volunteer.events.d": "Help run book club, language exchange, or story swaps.",
+      "volunteer.translation.t": "Bilingual Support",
+      "volunteer.translation.d": "Help visitors and paperwork move smoothly between English and French.",
+      "volunteer.schedule.title": "Shop Shifts",
+      "volunteer.schedule.day": "Days",
+      "volunteer.schedule.time": "Time",
+      "volunteer.schedule.note": "Shifts typically run 2\u20133 hours within opening hours \u2014 tell us what works for you below.",
+      "volunteer.form.title": "Volunteer Sign-up",
+      "volunteer.form.avail.l": "Availability",
+      "volunteer.form.submit": "Send Sign-up",
+      "form.name.l": "Name",
+      "form.email.l": "Email",
+      "form.note.l": "Note (optional)",
+      "form.hint": "This opens your email app with the message ready to send.",
+      "c6.kicker": "Chapter Six",
+      "c6.title": "Visit Us",
       "visit.where.l": "Where",
       "visit.where.v": "Albi, France",
       "visit.hours.l": "Hours",
@@ -417,6 +591,8 @@
       "nav.story": "Notre histoire",
       "nav.collection": "La collection",
       "nav.events": "\u00c9v\u00e9nements",
+      "nav.wishlist": "Liste de souhaits",
+      "nav.volunteer": "B\u00e9n\u00e9volat",
       "nav.visit": "Nous rendre visite",
       "hero.eyebrow": "Librairie anglophone \u00e0 but non lucratif \u00b7 Albi, France",
       "hero.h1": "Des histoires d\u2019occasion, transmises d\u2019un lecteur au suivant.",
@@ -445,8 +621,43 @@
       "ev.lang.d": "S\u00e9ances hebdomadaires pour adultes, plus un groupe d\u00e9di\u00e9 aux enfants \u2014 pratique de la conversation ou lecture d\u2019histoires pour les plus jeunes.",
       "ev.swap.t": "Trocs de livres",
       "ev.swap.d": "Apportez un livre, repartez avec un autre, rencontrez d\u2019autres lecteurs.",
+      "ev.rsvp.note": "<strong>Envie de nous rejoindre\u00a0?</strong> \u00c9crivez-nous et nous vous indiquerons la prochaine date \u2014 <a href=\"mailto:admin@umasbooks.org?subject=Event%20RSVP\">admin@umasbooks.org</a>.",
       "c4.kicker": "Chapitre quatre",
-      "c4.title": "Nous rendre visite",
+      "c4.title": "La liste de souhaits",
+      "wishlist.intro": "Chaque \u00e9tag\u00e8re ici a commenc\u00e9 comme la liste de souhaits de quelqu\u2019un. S\u2019il y a un titre que vous esp\u00e9rez trouver, ou un genre de livre que nous devrions rechercher, dites-le-nous \u2014 nous y pr\u00eaterons attention \u00e0 l\u2019arriv\u00e9e des nouveaux dons.",
+      "wishlist.ya.t": "Jeunes adultes et adolescents",
+      "wishlist.ya.d": "Romans jeunesse contemporains et classiques en anglais \u2014 toujours demand\u00e9s, toujours \u00e0 court de place sur nos rayons.",
+      "wishlist.langlearn.t": "Apprenants de langue",
+      "wishlist.langlearn.d": "Livres gradu\u00e9s et titres en anglais simple pour les lecteurs francophones qui gagnent en confiance.",
+      "wishlist.large.t": "Gros caract\u00e8res et audio",
+      "wishlist.large.d": "\u00c9ditions en gros caract\u00e8res et livres audio en anglais, pour les lecteurs qui en ont besoin.",
+      "wishlist.form.title": "Sugg\u00e9rer un titre",
+      "wishlist.form.book.l": "Titre et auteur",
+      "wishlist.form.submit": "Envoyer la suggestion",
+      "c5.kicker": "Chapitre cinq",
+      "c5.title": "Devenir b\u00e9n\u00e9vole",
+      "volunteer.intro": "Uma\u2019s fonctionne enti\u00e8rement gr\u00e2ce \u00e0 des b\u00e9n\u00e9voles \u2014 chaque heure en boutique, chaque don tri\u00e9, chaque \u00e9v\u00e9nement, c\u2019est quelqu\u2019un qui donne de son temps. Les nouveaux b\u00e9n\u00e9voles, quel que soit leur niveau de langue, sont toujours les bienvenus.",
+      "volunteer.shop.t": "En boutique",
+      "volunteer.shop.d": "Accueillir les visiteurs et tenir la caisse pendant les heures d\u2019ouverture.",
+      "volunteer.sorting.t": "Tri et rangement",
+      "volunteer.sorting.d": "Trier les dons et garder la collection organis\u00e9e.",
+      "volunteer.events.t": "\u00c9v\u00e9nements et \u00e9change linguistique",
+      "volunteer.events.d": "Aider \u00e0 animer le club de lecture, l\u2019\u00e9change linguistique ou les trocs de livres.",
+      "volunteer.translation.t": "Soutien bilingue",
+      "volunteer.translation.d": "Aider les visiteurs et les d\u00e9marches \u00e0 circuler facilement entre l\u2019anglais et le fran\u00e7ais.",
+      "volunteer.schedule.title": "Cr\u00e9neaux en boutique",
+      "volunteer.schedule.day": "Jours",
+      "volunteer.schedule.time": "Horaire",
+      "volunteer.schedule.note": "Les cr\u00e9neaux durent g\u00e9n\u00e9ralement 2 \u00e0 3 heures pendant les heures d\u2019ouverture \u2014 indiquez-nous vos disponibilit\u00e9s ci-dessous.",
+      "volunteer.form.title": "Formulaire de b\u00e9n\u00e9volat",
+      "volunteer.form.avail.l": "Disponibilit\u00e9s",
+      "volunteer.form.submit": "Envoyer ma candidature",
+      "form.name.l": "Nom",
+      "form.email.l": "Email",
+      "form.note.l": "Remarque (facultatif)",
+      "form.hint": "Cela ouvre votre application de messagerie avec le message pr\u00eat \u00e0 envoyer.",
+      "c6.kicker": "Chapitre six",
+      "c6.title": "Nous rendre visite",
       "visit.where.l": "O\u00f9",
       "visit.where.v": "Albi, France",
       "visit.hours.l": "Horaires",
@@ -487,6 +698,24 @@
   document.querySelectorAll(".langtoggle button").forEach(function (b) {
     b.addEventListener("click", function () { apply(b.getAttribute("data-lang")); });
   });
+
+  function wireMailtoForm(formId, address, subject) {
+    var form = document.getElementById(formId);
+    if (!form) return;
+    form.addEventListener("submit", function (e) {
+      e.preventDefault();
+      var lines = [];
+      form.querySelectorAll("[data-field]").forEach(function (el) {
+        var val = (el.value || "").trim();
+        if (val) lines.push(el.getAttribute("data-field") + ": " + val);
+      });
+      var url = "mailto:" + address + "?subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(lines.join("\n"));
+      window.location.href = url;
+    });
+  }
+
+  wireMailtoForm("wishlist-form", "admin@umasbooks.org", "Book Wish List Suggestion");
+  wireMailtoForm("volunteer-form", "admin@umasbooks.org", "Volunteer Sign-up");
 
   apply(initial);
 })();
