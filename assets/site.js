@@ -86,6 +86,7 @@
         e.preventDefault();
         var lines = [];
         form.querySelectorAll("[data-field]").forEach(function (el) {
+          if ((el.type === "radio" || el.type === "checkbox") && !el.checked) return;
           var val = (el.value || "").trim();
           if (val) lines.push(el.getAttribute("data-field") + ": " + val);
         });
