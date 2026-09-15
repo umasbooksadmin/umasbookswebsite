@@ -9,22 +9,53 @@ function baseUrl(req) {
   return process.env.APP_BASE_URL || process.env.RENDER_EXTERNAL_URL || `${req.protocol}://${req.get("host")}`;
 }
 
-async function loadAdminData() {
-  const [events, rounds, shifts, members] = await Promise.all([
-    pool.query("SELECT * FROM events ORDER BY starts_at DESC LIMIT 10"),
-    pool.query("SELECT * FROM charity_rounds ORDER BY opens_at DESC LIMIT 5"),
-    pool.query(
-      `SELECT s.*, (SELECT COUNT(*) FROM volunteer_signups g WHERE g.shift_id = s.id) AS signup_count
-       FROM volunteer_shifts s WHERE s.starts_at >= now() ORDER BY s.starts_at ASC LIMIT 15`
-    ),
-    pool.query("SELECT id, email, display_name, is_admin FROM users ORDER BY created_at DESC LIMIT 50"),
-  ]);
-  return { events: events.rows, rounds: rounds.rows, shifts: shifts.rows, members: members.rows };
-}
+// ---------- Overview ----------
 
 router.get("/admin", requireAdmin, async (req, res) => {
-  const data = await loadAdminData();
-  res.render("admin", { ...data, error: null, notice: null });
+  const [memberCount, upcomingEvents, upcomingShifts, activeRound, nextMeeting] = await Promise.all([
+    pool.query("SELECT COUNT(*)::int AS n FROM users"),
+    pool.query("SELECT COUNT(*)::int AS n FROM events WHERE starts_at >= now()"),
+    pool.query("SELECT COUNT(*)::int AS n FROM volunteer_shifts WHERE starts_at >= now()"),
+    pool.query("SELECT * FROM charity_rounds WHERE is_active = TRUE ORDER BY opens_at DESC LIMIT 1"),
+    pool.query("SELECT * FROM meetings WHERE scheduled_at >= now() ORDER BY scheduled_at ASC LIMIT 1"),
+  ]);
+
+  res.render("admin/index", {
+    active: "overview",
+    memberCount: memberCount.rows[0].n,
+    upcomingEventCount: upcomingEvents.rows[0].n,
+    upcomingShiftCount: upcomingShifts.rows[0].n,
+    activeRound: activeRound.rows[0] || null,
+    nextMeeting: nextMeeting.rows[0] || null,
+  });
+});
+
+// ---------- Members ----------
+
+router.get("/admin/members", requireAdmin, async (req, res) => {
+  const { rows: members } = await pool.query("SELECT id, email, display_name, is_admin FROM users ORDER BY created_at DESC LIMIT 200");
+  res.render("admin/members", { active: "members", members, error: null, notice: null });
+});
+
+router.post("/admin/members/reset-password", requireAdmin, async (req, res) => {
+  const email = (req.body.email || "").trim().toLowerCase();
+  const { rows: members } = await pool.query("SELECT id, email, display_name, is_admin FROM users ORDER BY created_at DESC LIMIT 200");
+
+  const { rows } = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
+  const member = rows[0];
+  if (!member) {
+    return res.status(400).render("admin/members", { active: "members", members, error: "No member found with that email.", notice: null });
+  }
+
+  await sendResetLink(member, baseUrl(req));
+  res.render("admin/members", { active: "members", members, error: null, notice: `Reset email sent to ${member.email}.` });
+});
+
+// ---------- Announcements ----------
+
+router.get("/admin/announcements", requireAdmin, async (req, res) => {
+  const { rows: announcements } = await pool.query("SELECT * FROM announcements ORDER BY published_at DESC LIMIT 20");
+  res.render("admin/announcements", { active: "announcements", announcements });
 });
 
 router.post("/admin/announcements", requireAdmin, async (req, res) => {
@@ -36,7 +67,14 @@ router.post("/admin/announcements", requireAdmin, async (req, res) => {
       [title, body, req.session.user.id]
     );
   }
-  res.redirect("/admin");
+  res.redirect("/admin/announcements");
+});
+
+// ---------- Events ----------
+
+router.get("/admin/events", requireAdmin, async (req, res) => {
+  const { rows: events } = await pool.query("SELECT * FROM events ORDER BY starts_at DESC LIMIT 20");
+  res.render("admin/events", { active: "events", events });
 });
 
 router.post("/admin/events", requireAdmin, async (req, res) => {
@@ -52,39 +90,17 @@ router.post("/admin/events", requireAdmin, async (req, res) => {
       [title, description, location, startsAt, capacity, req.session.user.id]
     );
   }
-  res.redirect("/admin");
+  res.redirect("/admin/events");
 });
 
-router.post("/admin/charity-rounds", requireAdmin, async (req, res) => {
-  const title = (req.body.title || "").trim();
-  const optionNames = (req.body.options || "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
+// ---------- Volunteer shifts ----------
 
-  if (title && optionNames.length) {
-    await pool.query("UPDATE charity_rounds SET is_active = FALSE WHERE is_active = TRUE");
-    const { rows } = await pool.query(
-      "INSERT INTO charity_rounds (title, is_active) VALUES ($1, TRUE) RETURNING id",
-      [title]
-    );
-    const roundId = rows[0].id;
-    for (const name of optionNames) {
-      await pool.query(
-        "INSERT INTO charity_options (round_id, name) VALUES ($1, $2)",
-        [roundId, name]
-      );
-    }
-  }
-  res.redirect("/admin");
-});
-
-router.post("/admin/charity-rounds/:id/close", requireAdmin, async (req, res) => {
-  await pool.query(
-    "UPDATE charity_rounds SET is_active = FALSE, closes_at = now() WHERE id = $1",
-    [Number(req.params.id)]
+router.get("/admin/volunteer-shifts", requireAdmin, async (req, res) => {
+  const { rows: shifts } = await pool.query(
+    `SELECT s.*, (SELECT COUNT(*) FROM volunteer_signups g WHERE g.shift_id = s.id) AS signup_count
+     FROM volunteer_shifts s WHERE s.starts_at >= now() ORDER BY s.starts_at ASC LIMIT 30`
   );
-  res.redirect("/admin");
+  res.render("admin/volunteer", { active: "volunteer", shifts });
 });
 
 router.post("/admin/volunteer-shifts", requireAdmin, async (req, res) => {
@@ -110,26 +126,85 @@ router.post("/admin/volunteer-shifts", requireAdmin, async (req, res) => {
       );
     }
   }
-  res.redirect("/admin");
+  res.redirect("/admin/volunteer-shifts");
 });
 
 router.post("/admin/volunteer-shifts/:id/delete", requireAdmin, async (req, res) => {
   await pool.query("DELETE FROM volunteer_shifts WHERE id = $1", [Number(req.params.id)]);
-  res.redirect("/admin");
+  res.redirect("/admin/volunteer-shifts");
 });
 
-router.post("/admin/members/reset-password", requireAdmin, async (req, res) => {
-  const email = (req.body.email || "").trim().toLowerCase();
-  const data = await loadAdminData();
+// ---------- Meetings ----------
 
-  const { rows } = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
-  const member = rows[0];
-  if (!member) {
-    return res.status(400).render("admin", { ...data, error: "No member found with that email.", notice: null });
+router.get("/admin/meetings", requireAdmin, async (req, res) => {
+  const { rows: meetings } = await pool.query("SELECT * FROM meetings ORDER BY scheduled_at DESC LIMIT 30");
+  res.render("admin/meetings", { active: "meetings", meetings });
+});
+
+router.post("/admin/meetings", requireAdmin, async (req, res) => {
+  const title = (req.body.title || "").trim();
+  const scheduledAt = req.body.scheduledAt;
+  const location = (req.body.location || "").trim() || null;
+  const agenda = (req.body.agenda || "").trim() || null;
+
+  if (title && scheduledAt) {
+    await pool.query(
+      `INSERT INTO meetings (title, scheduled_at, location, agenda, created_by)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [title, scheduledAt, location, agenda, req.session.user.id]
+    );
   }
+  res.redirect("/admin/meetings");
+});
 
-  await sendResetLink(member, baseUrl(req));
-  res.render("admin", { ...data, error: null, notice: `Reset email sent to ${member.email}.` });
+router.post("/admin/meetings/:id/minutes", requireAdmin, async (req, res) => {
+  const minutes = (req.body.minutes || "").trim() || null;
+  await pool.query("UPDATE meetings SET minutes = $1 WHERE id = $2", [minutes, Number(req.params.id)]);
+  res.redirect("/admin/meetings");
+});
+
+router.post("/admin/meetings/:id/delete", requireAdmin, async (req, res) => {
+  await pool.query("DELETE FROM meetings WHERE id = $1", [Number(req.params.id)]);
+  res.redirect("/admin/meetings");
+});
+
+// ---------- Charity vote ----------
+
+router.get("/admin/charity", requireAdmin, async (req, res) => {
+  const { rows: rounds } = await pool.query("SELECT * FROM charity_rounds ORDER BY opens_at DESC LIMIT 10");
+  res.render("admin/charity", { active: "charity", rounds });
+});
+
+router.post("/admin/charity-rounds", requireAdmin, async (req, res) => {
+  const title = (req.body.title || "").trim();
+  const optionNames = (req.body.options || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  if (title && optionNames.length) {
+    await pool.query("UPDATE charity_rounds SET is_active = FALSE WHERE is_active = TRUE");
+    const { rows } = await pool.query(
+      "INSERT INTO charity_rounds (title, is_active) VALUES ($1, TRUE) RETURNING id",
+      [title]
+    );
+    const roundId = rows[0].id;
+    for (const name of optionNames) {
+      await pool.query(
+        "INSERT INTO charity_options (round_id, name) VALUES ($1, $2)",
+        [roundId, name]
+      );
+    }
+  }
+  res.redirect("/admin/charity");
+});
+
+router.post("/admin/charity-rounds/:id/close", requireAdmin, async (req, res) => {
+  await pool.query(
+    "UPDATE charity_rounds SET is_active = FALSE, closes_at = now() WHERE id = $1",
+    [Number(req.params.id)]
+  );
+  res.redirect("/admin/charity");
 });
 
 module.exports = router;

@@ -76,6 +76,23 @@
   <p><a href="/volunteer">See all &amp; sign up &rarr;</a></p>
 </div>
 
+<div class="card">
+  <div class="section-title">Meetings</div>
+  <% if (!meetings.length) { %>
+    <p class="muted">Nothing scheduled yet.</p>
+  <% } else { %>
+    <ul class="plain">
+      <% meetings.forEach(m => { %>
+        <li>
+          <strong><%= m.title %></strong>
+          <div class="muted small"><%= new Date(m.scheduled_at).toLocaleString() %><%= m.location ? ' · ' + m.location : '' %></div>
+        </li>
+      <% }) %>
+    </ul>
+  <% } %>
+  <p><a href="/meetings">See all &amp; past minutes &rarr;</a></p>
+</div>
+
 <% if (charity) { %>
 <div class="card">
   <div class="section-title">Charity Vote</div>

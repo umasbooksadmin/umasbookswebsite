@@ -1,0 +1,43 @@
+<%- include('partials/header', { title: 'Meetings' }) %>
+
+<h1>Meetings</h1>
+
+<div class="card">
+  <div class="section-title">Upcoming meetings</div>
+  <% if (!upcoming.length) { %>
+    <p class="muted">Nothing scheduled yet.</p>
+  <% } else { %>
+    <ul class="plain">
+      <% upcoming.forEach(m => { %>
+        <li>
+          <strong><%= m.title %></strong>
+          <div class="muted small"><%= new Date(m.scheduled_at).toLocaleString() %><%= m.location ? ' · ' + m.location : '' %></div>
+          <% if (m.agenda) { %><div style="margin-top:6px;"><em>Agenda:</em> <%= m.agenda %></div><% } %>
+        </li>
+      <% }) %>
+    </ul>
+  <% } %>
+</div>
+
+<div class="card">
+  <div class="section-title">Past meetings &amp; minutes</div>
+  <% if (!past.length) { %>
+    <p class="muted">No past meetings yet.</p>
+  <% } else { %>
+    <ul class="plain">
+      <% past.forEach(m => { %>
+        <li>
+          <strong><%= m.title %></strong>
+          <div class="muted small"><%= new Date(m.scheduled_at).toLocaleString() %><%= m.location ? ' · ' + m.location : '' %></div>
+          <% if (m.minutes) { %>
+            <div style="margin-top:6px;"><em>Minutes:</em> <%= m.minutes %></div>
+          <% } else { %>
+            <div class="muted small" style="margin-top:6px;">Minutes not posted yet.</div>
+          <% } %>
+        </li>
+      <% }) %>
+    </ul>
+  <% } %>
+</div>
+
+<%- include('partials/footer') %>

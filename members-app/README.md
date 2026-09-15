@@ -39,14 +39,20 @@ safe to re-run. Change `SEED_ADMIN_EMAIL` too if you don't want
 - **Volunteer shifts** (`/volunteer`) — admin creates shifts (role, time
   range, capacity), optionally repeating weekly for several weeks in one
   go; members sign up or cancel, capacity enforced.
+- **Meetings** (`/meetings`) — admin schedules meetings (title, date/time,
+  location, agenda) and posts minutes afterward; members see upcoming
+  meetings with their agenda and past meetings with minutes once posted.
 - **Password reset** — a member can request a reset link at
   `/forgot-password` (emailed via Gmail/Google Workspace SMTP, one-hour
   expiry, single use), or a logged-in member can change their password
   directly at `/account/password`. An admin can also trigger a reset email
-  for any member from `/admin`.
-- **Admin** (`/admin`, admin accounts only) — post announcements, add
-  events, manage volunteer shifts, start/close charity vote rounds, and
-  see all members with a one-click "send password reset email" per member.
+  for any member from `/admin/members`.
+- **Admin** (`/admin`, admin accounts only) — a proper multi-page section
+  with its own sub-nav (`views/partials/admin_subnav.ejs`): an overview
+  with counts/links, plus dedicated pages for Members (send password
+  resets), Announcements, Events, Volunteer Shifts, Meetings, and Charity
+  Vote. Add a new admin area by adding a route in `src/routes/admin.js`,
+  a view under `views/admin/`, and a link in the subnav partial.
 
 ### Email setup (Gmail/Google Workspace SMTP)
 

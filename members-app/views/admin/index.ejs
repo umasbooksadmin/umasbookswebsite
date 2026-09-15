@@ -1,0 +1,25 @@
+<%- include('../partials/header', { title: 'Admin' }) %>
+<%- include('../partials/admin_subnav', { active }) %>
+
+<h1>Admin overview</h1>
+
+<div class="card">
+  <ul class="plain">
+    <li><a href="/admin/members">Members</a> <span class="muted small">&middot; <%= memberCount %> total</span></li>
+    <li><a href="/admin/announcements">Announcements</a></li>
+    <li><a href="/admin/events">Events</a> <span class="muted small">&middot; <%= upcomingEventCount %> upcoming</span></li>
+    <li><a href="/admin/volunteer-shifts">Volunteer Shifts</a> <span class="muted small">&middot; <%= upcomingShiftCount %> upcoming</span></li>
+    <li>
+      <a href="/admin/meetings">Meetings</a>
+      <span class="muted small">
+        &middot; <%= nextMeeting ? 'next: ' + new Date(nextMeeting.scheduled_at).toLocaleDateString() : 'none scheduled' %>
+      </span>
+    </li>
+    <li>
+      <a href="/admin/charity">Charity Vote</a>
+      <span class="muted small">&middot; <%= activeRound ? activeRound.title : 'no active round' %></span>
+    </li>
+  </ul>
+</div>
+
+<%- include('../partials/footer') %>

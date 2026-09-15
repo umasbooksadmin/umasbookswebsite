@@ -1,0 +1,37 @@
+<%- include('../partials/header', { title: 'Admin — Charity Vote' }) %>
+<%- include('../partials/admin_subnav', { active }) %>
+
+<h1>Charity Vote</h1>
+
+<div class="card">
+  <div class="section-title">Start a charity vote round</div>
+  <p class="muted small">Starting a new round closes any round that's currently open.</p>
+  <form class="stack" method="post" action="/admin/charity-rounds">
+    <%- include('../partials/csrf_field') %>
+    <label for="c-title">Question</label>
+    <input id="c-title" name="title" type="text" required placeholder="Which charity should we support next?">
+    <label for="c-options">Options (comma-separated)</label>
+    <input id="c-options" name="options" type="text" required placeholder="Restos du Coeur, SPA Albi, ...">
+    <button class="btn" type="submit">Start round</button>
+  </form>
+</div>
+
+<div class="card">
+  <div class="section-title">Recent rounds</div>
+  <ul class="plain">
+    <% rounds.forEach(r => { %>
+      <li>
+        <%= r.title %>
+        <span class="muted small"><%= r.is_active ? '(active)' : '(closed)' %></span>
+        <% if (r.is_active) { %>
+          <form method="post" action="/admin/charity-rounds/<%= r.id %>/close" style="display:inline;">
+            <%- include('../partials/csrf_field') %>
+            <button class="btn btn-outline btn-small" type="submit">Close</button>
+          </form>
+        <% } %>
+      </li>
+    <% }) %>
+  </ul>
+</div>
+
+<%- include('../partials/footer') %>

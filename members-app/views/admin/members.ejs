@@ -1,0 +1,23 @@
+<%- include('../partials/header', { title: 'Admin — Members' }) %>
+<%- include('../partials/admin_subnav', { active }) %>
+
+<h1>Members</h1>
+<% if (error) { %><div class="error-box"><%= error %></div><% } %>
+<% if (notice) { %><div class="notice-box"><%= notice %></div><% } %>
+
+<div class="card">
+  <ul class="plain">
+    <% members.forEach(m => { %>
+      <li>
+        <strong><%= m.display_name %></strong> &middot; <%= m.email %><%= m.is_admin ? ' · admin' : '' %>
+        <form method="post" action="/admin/members/reset-password" style="display:inline; margin-left:8px;">
+          <%- include('../partials/csrf_field') %>
+          <input type="hidden" name="email" value="<%= m.email %>">
+          <button class="btn btn-outline btn-small" type="submit">Send password reset email</button>
+        </form>
+      </li>
+    <% }) %>
+  </ul>
+</div>
+
+<%- include('../partials/footer') %>

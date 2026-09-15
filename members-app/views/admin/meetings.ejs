@@ -1,0 +1,50 @@
+<%- include('../partials/header', { title: 'Admin — Meetings' }) %>
+<%- include('../partials/admin_subnav', { active }) %>
+
+<h1>Meetings</h1>
+
+<div class="card">
+  <div class="section-title">Schedule a meeting</div>
+  <form class="stack" method="post" action="/admin/meetings">
+    <%- include('../partials/csrf_field') %>
+    <label for="m-title">Title</label>
+    <input id="m-title" name="title" type="text" required placeholder="Board Meeting">
+    <label for="m-when">Date &amp; time</label>
+    <input id="m-when" name="scheduledAt" type="datetime-local" required>
+    <label for="m-loc">Location</label>
+    <input id="m-loc" name="location" type="text" placeholder="Uma's Books, back room">
+    <label for="m-agenda">Agenda (optional)</label>
+    <textarea id="m-agenda" name="agenda"></textarea>
+    <button class="btn" type="submit">Schedule</button>
+  </form>
+</div>
+
+<div class="card">
+  <div class="section-title">All meetings</div>
+  <% if (!meetings.length) { %><p class="muted">None scheduled yet.</p><% } %>
+  <ul class="plain">
+    <% meetings.forEach(m => { %>
+      <li>
+        <strong><%= m.title %></strong>
+        <span class="muted small"><%= new Date(m.scheduled_at).toLocaleString() %><%= m.location ? ' · ' + m.location : '' %></span>
+        <% if (m.agenda) { %><div class="muted small" style="margin-top:4px;"><em>Agenda:</em> <%= m.agenda %></div><% } %>
+
+        <form class="stack" method="post" action="/admin/meetings/<%= m.id %>/minutes" style="margin-top:10px; max-width:100%;">
+          <%- include('../partials/csrf_field') %>
+          <label for="minutes-<%= m.id %>">Minutes</label>
+          <textarea id="minutes-<%= m.id %>" name="minutes" placeholder="Add or edit minutes&hellip;"><%= m.minutes || '' %></textarea>
+          <div>
+            <button class="btn btn-small" type="submit">Save minutes</button>
+          </div>
+        </form>
+
+        <form method="post" action="/admin/meetings/<%= m.id %>/delete" style="margin-top:6px; display:inline;">
+          <%- include('../partials/csrf_field') %>
+          <button class="btn btn-outline btn-small" type="submit">Delete meeting</button>
+        </form>
+      </li>
+    <% }) %>
+  </ul>
+</div>
+
+<%- include('../partials/footer') %>

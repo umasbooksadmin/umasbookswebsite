@@ -1,0 +1,32 @@
+<%- include('../partials/header', { title: 'Admin — Announcements' }) %>
+<%- include('../partials/admin_subnav', { active }) %>
+
+<h1>Announcements</h1>
+
+<div class="card">
+  <div class="section-title">Post an announcement</div>
+  <form class="stack" method="post" action="/admin/announcements">
+    <%- include('../partials/csrf_field') %>
+    <label for="a-title">Title</label>
+    <input id="a-title" name="title" type="text" required>
+    <label for="a-body">Body</label>
+    <textarea id="a-body" name="body" required></textarea>
+    <button class="btn" type="submit">Post</button>
+  </form>
+</div>
+
+<div class="card">
+  <div class="section-title">Recent announcements</div>
+  <% if (!announcements.length) { %><p class="muted">None posted yet.</p><% } %>
+  <ul class="plain">
+    <% announcements.forEach(a => { %>
+      <li>
+        <strong><%= a.title %></strong>
+        <div class="muted small"><%= new Date(a.published_at).toLocaleString() %></div>
+        <div><%= a.body %></div>
+      </li>
+    <% }) %>
+  </ul>
+</div>
+
+<%- include('../partials/footer') %>

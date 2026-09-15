@@ -1,0 +1,34 @@
+<%- include('../partials/header', { title: 'Admin — Events' }) %>
+<%- include('../partials/admin_subnav', { active }) %>
+
+<h1>Events</h1>
+
+<div class="card">
+  <div class="section-title">Add an event</div>
+  <form class="stack" method="post" action="/admin/events">
+    <%- include('../partials/csrf_field') %>
+    <label for="e-title">Title</label>
+    <input id="e-title" name="title" type="text" required>
+    <label for="e-desc">Description</label>
+    <textarea id="e-desc" name="description"></textarea>
+    <label for="e-loc">Location</label>
+    <input id="e-loc" name="location" type="text">
+    <label for="e-start">Starts at</label>
+    <input id="e-start" name="startsAt" type="datetime-local" required>
+    <label for="e-cap">Capacity (optional)</label>
+    <input id="e-cap" name="capacity" type="number" min="1">
+    <button class="btn" type="submit">Add event</button>
+  </form>
+</div>
+
+<div class="card">
+  <div class="section-title">Recent events</div>
+  <% if (!events.length) { %><p class="muted">None yet.</p><% } %>
+  <ul class="plain">
+    <% events.forEach(e => { %>
+      <li><%= e.title %> &middot; <span class="muted small"><%= new Date(e.starts_at).toLocaleString() %></span></li>
+    <% }) %>
+  </ul>
+</div>
+
+<%- include('../partials/footer') %>

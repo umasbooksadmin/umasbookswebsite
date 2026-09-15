@@ -15,6 +15,7 @@ const forumRoutes = require("./routes/forum");
 const eventsRoutes = require("./routes/events");
 const charityRoutes = require("./routes/charity");
 const volunteerRoutes = require("./routes/volunteer");
+const meetingsRoutes = require("./routes/meetings");
 const adminRoutes = require("./routes/admin");
 
 const app = express();
@@ -74,6 +75,7 @@ app.use(forumRoutes);
 app.use(eventsRoutes);
 app.use(charityRoutes);
 app.use(volunteerRoutes);
+app.use(meetingsRoutes);
 app.use(adminRoutes);
 
 app.use((req, res) => {
