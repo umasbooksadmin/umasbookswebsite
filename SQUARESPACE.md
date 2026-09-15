@@ -1,9 +1,32 @@
 # umasbooks.org — the Squarespace Code Block
 
-**Status: live.** The whole site is one **Code Block** on the Home page of the
-Squarespace site (`bullfrog-watermelon-zrtr.squarespace.com`, custom domain
-`umasbooks.org`). Block id `block-yui_3_17_2_1_1787578335295_4914`, in a Fluid
-Engine section.
+> **⚠ Stale as of the multi-page redesign.** Everything below describes how
+> the *old single-page* `index.html` was pasted into one Squarespace Code
+> Block. The site is now nine separate HTML files (`index.html`,
+> `books.html`, `classes.html`, `events.html`, `about.html`, `visit.html`,
+> `volunteer.html`, `wishlist.html`, `membership.html`) plus a shared
+> `assets/site.css` / `assets/site.js` — **a single Code Block can only ever
+> hold one page**, so this workflow no longer covers the whole site as-is.
+> `tools/build-squarespace.py` and the `squarespace-code-block*.html` /
+> `squarespace-paste-payload.html` files in this repo were built for the old
+> design and are now stale. Options going forward:
+> 1. **One Squarespace page + Code Block per site page** (9 pages, 9 blocks)
+>    — repeat the steps below for each `.html` file, updating each block
+>    whenever that page's content changes. `assets/site.css`/`site.js`
+>    would need to be inlined into each block too, since Squarespace Code
+>    Blocks can't reference external files in this repo.
+> 2. **Move hosting off the single-block hack** — e.g. GitHub Pages,
+>    Netlify, or Squarespace's own multi-page support if the plan allows
+>    custom code per page — so the files here can be served as-is,
+>    `assets/` included.
+>
+> Until one of these is chosen and set up, the content below is historical
+> reference only.
+
+**Status: superseded — see above.** The whole site used to be one **Code
+Block** on the Home page of the Squarespace site
+(`bullfrog-watermelon-zrtr.squarespace.com`, custom domain `umasbooks.org`).
+Block id `block-yui_3_17_2_1_1787578335295_4914`, in a Fluid Engine section.
 
 Last update (2026-08-27) put in the current build: tightened header spacing, the
 **EN | FR** toggle + full French translation, page pulled to the top of the

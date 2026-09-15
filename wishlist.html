@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Wish List &mdash; Uma's Books and Adventures</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;0,700;0,900;1,500;1,600&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+
+<header class="site">
+  <div class="nav-row">
+    <a class="brandmark" href="index.html">
+      <img src="logo.png" alt="Uma's Books and Adventures logo">
+      <span class="brand-text">
+        <span class="brand-name">Uma's Books</span>
+        <span class="brand-tag" data-i18n="brand.tag">English Pre-Loved Books</span>
+      </span>
+    </a>
+    <nav class="mainlinks">
+      <a href="books.html" data-i18n="nav.books">Books</a>
+      <a href="classes.html" data-i18n="nav.classes">Éveil Classes</a>
+      <a href="events.html" data-i18n="nav.events">Events</a>
+      <a href="about.html" data-i18n="nav.about">About</a>
+      <a href="visit.html" data-i18n="nav.visit">Visit</a>
+    </nav>
+    <div class="header-tools">
+      <div class="langtoggle" role="group" aria-label="Language / Langue">
+        <button type="button" data-lang="en" class="is-active" aria-pressed="true">EN</button>
+        <span aria-hidden="true">|</span>
+        <button type="button" data-lang="fr" aria-pressed="false">FR</button>
+      </div>
+      <a class="icon-btn" href="books.html" data-i18n-attr="title:icon.search;aria-label:icon.search" title="Search" aria-label="Search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      </a>
+      <a class="icon-btn" href="membership.html" data-i18n-attr="title:icon.account;aria-label:icon.account" title="Account / Membership" aria-label="Account / Membership">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-6 8-6s8 2 8 6"/></svg>
+      </a>
+      <a class="icon-btn" href="wishlist.html" data-i18n-attr="title:icon.wishlist;aria-label:icon.wishlist" title="Wish List" aria-label="Wish List">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 20s-7-4.4-9.5-8.8C.8 7.8 2.4 4.5 5.8 4c2-.3 3.7.7 4.8 2.4L12 8l1.4-1.6C14.5 4.7 16.2 3.7 18.2 4c3.4.5 5 3.8 3.3 7.2C19 15.6 12 20 12 20z"/></svg>
+      </a>
+      <!-- TODO: confirm this is the live Squarespace shop page URL before publishing -->
+      <a class="icon-btn" href="https://umasbooks.org/shop" data-i18n-attr="title:icon.cart;aria-label:icon.cart" title="Shop" aria-label="Shop">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M6 8h12l-1 12H7L6 8z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>
+      </a>
+    </div>
+  </div>
+</header>
+<main>
+  <div class="page-hero">
+    <span class="kicker" data-i18n="wishlist.kicker">For Our Shelves</span>
+    <h1 data-i18n="wishlist.title">The Wish List</h1>
+  </div>
+  <div class="section">
+    <div class="wrap-narrow">
+      <div class="prose">
+        <p data-i18n="wishlist.intro">Every shelf here started as someone&#39;s wish list. If there&#39;s a title you&#39;re hoping to find, or a kind of book we should keep an eye out for, tell us &mdash; we&#39;ll watch for it as new donations come in.</p>
+      </div>
+      <div class="cardlist" style="margin-top: 28px;">
+        <div class="card">
+          <span class="card-title" data-i18n="wishlist.ya.t">Young Adult &amp; Teen</span>
+          <span class="card-desc" data-i18n="wishlist.ya.d">Contemporary and classic YA in English &mdash; always in demand, always short on shelf space.</span>
+        </div>
+        <div class="card">
+          <span class="card-title" data-i18n="wishlist.langlearn.t">Language Learners</span>
+          <span class="card-desc" data-i18n="wishlist.langlearn.d">Graded readers and simple English titles for francophone readers building confidence.</span>
+        </div>
+        <div class="card">
+          <span class="card-title" data-i18n="wishlist.large.t">Large Print &amp; Audio</span>
+          <span class="card-desc" data-i18n="wishlist.large.d">Large-print editions and English-language audiobooks, for readers who need them.</span>
+        </div>
+      </div>
+      <h3 class="form-title" data-i18n="wishlist.form.title">Suggest a Title</h3>
+      <form class="formcard" data-mailto="admin@umasbooks.org" data-subject="Book Wish List Suggestion" novalidate>
+        <div class="field">
+          <label for="wl-name" data-i18n="form.name.l">Name</label>
+          <input id="wl-name" type="text" data-field="Name" autocomplete="name">
+        </div>
+        <div class="field">
+          <label for="wl-email" data-i18n="form.email.l">Email</label>
+          <input id="wl-email" type="email" data-field="Email" autocomplete="email">
+        </div>
+        <div class="field">
+          <label for="wl-book" data-i18n="wishlist.form.book.l">Title &amp; author</label>
+          <input id="wl-book" type="text" data-field="Title/Author">
+        </div>
+        <div class="field">
+          <label for="wl-note" data-i18n="form.note.l">Note (optional)</label>
+          <textarea id="wl-note" data-field="Note"></textarea>
+        </div>
+        <p class="form-hint" data-i18n="form.hint">This opens your email app with the message ready to send.</p>
+        <button type="submit" class="btn-submit" data-i18n="wishlist.form.submit">Send Suggestion</button>
+      </form>
+    </div>
+  </div>
+</main>
+<footer class="site">
+  <div class="footer-grid">
+    <div>
+      <div class="fname">Uma's Books &amp; Adventures</div>
+      <div class="faddr" data-i18n="footer.addr">Rue Peyroli&egrave;re, 81000 Albi</div>
+      <div class="fhours" data-i18n="footer.hours.l">Tuesday &ndash; Saturday, 10:00&ndash;19:00</div>
+    </div>
+    <div class="footer-links">
+      <a href="mailto:admin@umasbooks.org" data-i18n="footer.contact">Contact</a>
+      <a href="wishlist.html" data-i18n="footer.wishlist">Wish List</a>
+      <a href="volunteer.html" data-i18n="footer.volunteer">Volunteer</a>
+      <a href="membership.html" data-i18n="footer.membership">Membership</a>
+    </div>
+    <div class="footer-social">
+      <!-- TODO: add real social links when available -->
+      <a href="#" aria-label="Instagram" title="Instagram (coming soon)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.3" cy="6.7" r="1" fill="currentColor" stroke="none"/></svg></a>
+      <a href="#" aria-label="Facebook" title="Facebook (coming soon)"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M13.5 21v-8h2.7l.4-3.1h-3.1V8c0-.9.25-1.5 1.55-1.5H17V3.7C16.7 3.6 15.7 3.5 14.5 3.5c-2.4 0-4 1.5-4 4.1v2.3H8v3.1h2.5V21h3z"/></svg></a>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <span data-i18n="footer.tagline">Good books. Brighter lives.</span>
+  </div>
+</footer>
+
+<script>
+window.PAGE_I18N = {
+  "en": {
+    "wishlist.kicker": "For Our Shelves",
+    "wishlist.title": "The Wish List",
+    "wishlist.intro": "Every shelf here started as someone’s wish list. If there’s a title you’re hoping to find, or a kind of book we should keep an eye out for, tell us — we’ll watch for it as new donations come in.",
+    "wishlist.ya.t": "Young Adult & Teen",
+    "wishlist.ya.d": "Contemporary and classic YA in English — always in demand, always short on shelf space.",
+    "wishlist.langlearn.t": "Language Learners",
+    "wishlist.langlearn.d": "Graded readers and simple English titles for francophone readers building confidence.",
+    "wishlist.large.t": "Large Print & Audio",
+    "wishlist.large.d": "Large-print editions and English-language audiobooks, for readers who need them.",
+    "wishlist.form.title": "Suggest a Title",
+    "wishlist.form.book.l": "Title & author",
+    "wishlist.form.submit": "Send Suggestion",
+    "form.name.l": "Name",
+    "form.email.l": "Email",
+    "form.note.l": "Note (optional)",
+    "form.hint": "This opens your email app with the message ready to send."
+  },
+  "fr": {
+    "wishlist.kicker": "Pour nos étagères",
+    "wishlist.title": "La liste de souhaits",
+    "wishlist.intro": "Chaque étagère ici a commencé comme la liste de souhaits de quelqu’un. S’il y a un titre que vous espérez trouver, ou un genre de livre que nous devrions rechercher, dites-le-nous — nous y prêterons attention à l’arrivée des nouveaux dons.",
+    "wishlist.ya.t": "Jeunes adultes et adolescents",
+    "wishlist.ya.d": "Romans jeunesse contemporains et classiques en anglais — toujours demandés, toujours à court de place sur nos rayons.",
+    "wishlist.langlearn.t": "Apprenants de langue",
+    "wishlist.langlearn.d": "Livres gradués et titres en anglais simple pour les lecteurs francophones qui gagnent en confiance.",
+    "wishlist.large.t": "Gros caractères et audio",
+    "wishlist.large.d": "Éditions en gros caractères et livres audio en anglais, pour les lecteurs qui en ont besoin.",
+    "wishlist.form.title": "Suggérer un titre",
+    "wishlist.form.book.l": "Titre et auteur",
+    "wishlist.form.submit": "Envoyer la suggestion",
+    "form.name.l": "Nom",
+    "form.email.l": "Email",
+    "form.note.l": "Remarque (facultatif)",
+    "form.hint": "Cela ouvre votre application de messagerie avec le message prêt à envoyer."
+  }
+};
+</script>
+<script src="assets/site.js"></script>
+</body>
+</html>
