@@ -1,25 +1,30 @@
 const express = require("express");
 const { pool } = require("../db");
 const { requireAdmin } = require("../middleware/auth");
+const { sendResetLink } = require("../lib/passwordReset");
 
 const router = express.Router();
 
-router.get("/admin", requireAdmin, async (req, res) => {
-  const [events, rounds, shifts] = await Promise.all([
+function baseUrl(req) {
+  return process.env.APP_BASE_URL || process.env.RENDER_EXTERNAL_URL || `${req.protocol}://${req.get("host")}`;
+}
+
+async function loadAdminData() {
+  const [events, rounds, shifts, members] = await Promise.all([
     pool.query("SELECT * FROM events ORDER BY starts_at DESC LIMIT 10"),
     pool.query("SELECT * FROM charity_rounds ORDER BY opens_at DESC LIMIT 5"),
     pool.query(
       `SELECT s.*, (SELECT COUNT(*) FROM volunteer_signups g WHERE g.shift_id = s.id) AS signup_count
        FROM volunteer_shifts s WHERE s.starts_at >= now() ORDER BY s.starts_at ASC LIMIT 15`
     ),
+    pool.query("SELECT id, email, display_name, is_admin FROM users ORDER BY created_at DESC LIMIT 50"),
   ]);
-  res.render("admin", {
-    events: events.rows,
-    rounds: rounds.rows,
-    shifts: shifts.rows,
-    error: null,
-    notice: null,
-  });
+  return { events: events.rows, rounds: rounds.rows, shifts: shifts.rows, members: members.rows };
+}
+
+router.get("/admin", requireAdmin, async (req, res) => {
+  const data = await loadAdminData();
+  res.render("admin", { ...data, error: null, notice: null });
 });
 
 router.post("/admin/announcements", requireAdmin, async (req, res) => {
@@ -111,6 +116,20 @@ router.post("/admin/volunteer-shifts", requireAdmin, async (req, res) => {
 router.post("/admin/volunteer-shifts/:id/delete", requireAdmin, async (req, res) => {
   await pool.query("DELETE FROM volunteer_shifts WHERE id = $1", [Number(req.params.id)]);
   res.redirect("/admin");
+});
+
+router.post("/admin/members/reset-password", requireAdmin, async (req, res) => {
+  const email = (req.body.email || "").trim().toLowerCase();
+  const data = await loadAdminData();
+
+  const { rows } = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
+  const member = rows[0];
+  if (!member) {
+    return res.status(400).render("admin", { ...data, error: "No member found with that email.", notice: null });
+  }
+
+  await sendResetLink(member, baseUrl(req));
+  res.render("admin", { ...data, error: null, notice: `Reset email sent to ${member.email}.` });
 });
 
 module.exports = router;

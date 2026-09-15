@@ -25,6 +25,7 @@
     <div class="who">
       <% if (locals.user) { %>
         <span>Hi, <%= user.displayName %></span>
+        <a href="/account/password">Change password</a>
         <form method="post" action="/logout" style="margin:0;">
           <button class="btn btn-outline btn-small" type="submit">Log out</button>
         </form>

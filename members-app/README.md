@@ -39,8 +39,33 @@ safe to re-run. Change `SEED_ADMIN_EMAIL` too if you don't want
 - **Volunteer shifts** (`/volunteer`) — admin creates shifts (role, time
   range, capacity), optionally repeating weekly for several weeks in one
   go; members sign up or cancel, capacity enforced.
+- **Password reset** — a member can request a reset link at
+  `/forgot-password` (emailed via Gmail/Google Workspace SMTP, one-hour
+  expiry, single use), or a logged-in member can change their password
+  directly at `/account/password`. An admin can also trigger a reset email
+  for any member from `/admin`.
 - **Admin** (`/admin`, admin accounts only) — post announcements, add
-  events, manage volunteer shifts, start/close charity vote rounds.
+  events, manage volunteer shifts, start/close charity vote rounds, and
+  see all members with a one-click "send password reset email" per member.
+
+### Email setup (Gmail/Google Workspace SMTP)
+
+Password reset emails send through `admin@umasbooks.org` (or whichever
+mailbox you configure) via SMTP. This needs a Google **App Password**, not
+the regular account password:
+
+1. In that Google account, turn on **2-Step Verification** (required before
+   App Passwords are available).
+2. Go to Google Account → Security → **App passwords**, create one for
+   "Mail" / "Other", and copy the 16-character password it gives you.
+3. Set `GMAIL_USER` (the full email address) and `GMAIL_APP_PASSWORD` (that
+   16-character password, no spaces) as env vars — locally in `.env`, or in
+   Render's dashboard under the service's **Environment** tab (they're
+   marked `sync: false` in `render.yaml`, so Render won't auto-fill them —
+   you add them once by hand).
+
+Until both are set, the app doesn't fail — it just logs what it would have
+sent to the console instead, which is enough for local development.
 
 There's no separate "customer" vs "admin" signup flow — the seed script
 creates the first admin; that account can be used to promote others later
@@ -73,8 +98,9 @@ upgrading to a paid database if this needs to stay up indefinitely.
 
 ## Known gaps for a v1
 
-- No password reset flow (forgot password) yet.
-- No email at all yet — no verification, no notification emails.
+- Email is reset-flow only for now — no signup verification, no event/
+  announcement notification emails yet (the `sendMail` helper in
+  `src/mailer.js` is ready to reuse for those later).
 - No admin UI for promoting other members to admin, or for editing/deleting
   posted content (edit user roles or delete a thread directly in the
   database for now).

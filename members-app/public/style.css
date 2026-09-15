@@ -62,6 +62,15 @@ form.stack input, form.stack textarea {
 }
 form.stack textarea { min-height: 90px; resize: vertical; }
 
+.password-field { position: relative; }
+.password-field input { width: 100%; padding-right: 52px; }
+.password-toggle {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  background: none; border: 0; cursor: pointer; color: var(--ink-soft);
+  font-family: 'EB Garamond', Georgia, serif; font-size: 13.5px; padding: 4px 6px;
+}
+.password-toggle:hover { color: var(--maroon); }
+
 .error-box { background: #fbeaea; border: 1px solid #d9a3a3; color: #7a1f2b; padding: 10px 14px; border-radius: 3px; font-size: 15px; margin-bottom: 14px; }
 .notice-box { background: #eef6ea; border: 1px solid #a9d1a0; color: #2e5a24; padding: 10px 14px; border-radius: 3px; font-size: 15px; margin-bottom: 14px; }
 
