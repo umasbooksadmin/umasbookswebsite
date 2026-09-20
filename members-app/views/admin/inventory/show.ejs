@@ -1,0 +1,107 @@
+<%- include('../../partials/header', { title: book.title }) %>
+<%- include('../../partials/admin_subnav', { active }) %>
+
+<p><a href="/admin/inventory">&larr; Back to inventory</a></p>
+<h1><%= book.title %></h1>
+<p class="muted"><%= book.authors || 'Unknown author' %><%= book.isbn ? ' · ISBN ' + book.isbn : '' %></p>
+
+<div class="card" style="display:flex; gap:20px;">
+  <% if (book.cover_url) { %>
+    <img src="<%= book.cover_url %>" alt="" class="book-cover-preview" style="flex-shrink:0;">
+  <% } %>
+  <div style="flex:1;">
+    <% if (book.publisher) { %><div class="muted small">Publisher: <%= book.publisher %></div><% } %>
+    <% if (book.published_year) { %><div class="muted small">Published: <%= book.published_year %></div><% } %>
+    <% if (book.description) { %><p style="margin-top:10px;"><%= book.description %></p><% } %>
+
+    <details style="margin-top:14px;">
+      <summary style="cursor:pointer; color: var(--maroon);">Edit details</summary>
+      <form class="stack" method="post" action="/admin/inventory/<%= book.id %>" style="margin-top:12px;">
+        <%- include('../../partials/csrf_field') %>
+        <label for="title">Title</label>
+        <input id="title" name="title" type="text" required value="<%= book.title %>">
+        <label for="author">Author</label>
+        <input id="author" name="author" type="text" value="<%= book.authors || '' %>">
+        <label for="isbn">ISBN</label>
+        <input id="isbn" name="isbn" type="text" value="<%= book.isbn || '' %>">
+        <label for="publisher">Publisher</label>
+        <input id="publisher" name="publisher" type="text" value="<%= book.publisher || '' %>">
+        <label for="publishedYear">Published year</label>
+        <input id="publishedYear" name="publishedYear" type="number" value="<%= book.published_year || '' %>">
+        <label for="coverUrl">Cover image URL</label>
+        <input id="coverUrl" name="coverUrl" type="text" value="<%= book.cover_url || '' %>">
+        <label for="description">Description</label>
+        <textarea id="description" name="description"><%= book.description || '' %></textarea>
+        <div><button class="btn btn-small" type="submit">Save changes</button></div>
+      </form>
+      <form method="post" action="/admin/inventory/<%= book.id %>/delete" style="margin-top:10px;">
+        <%- include('../../partials/csrf_field') %>
+        <button class="btn btn-outline btn-small" type="submit">Delete this book &amp; all its copies</button>
+      </form>
+    </details>
+  </div>
+</div>
+
+<div class="card">
+  <div class="section-title">Copies (<%= copies.length %>)</div>
+  <% if (!copies.length) { %>
+    <p class="muted">No copies recorded yet.</p>
+  <% } else { %>
+    <ul class="plain">
+      <% copies.forEach(c => { %>
+        <% const conditionLabel = (conditions.find(x => x.value === c.condition) || {}).label || c.condition; %>
+        <% const statusLabel = (statuses.find(x => x.value === c.status) || {}).label || c.status; %>
+        <li>
+          <details>
+            <summary style="cursor:pointer;">
+              <%= conditionLabel %> &middot; <%= statusLabel %><%= c.price != null ? ' · €' + Number(c.price).toFixed(2) : '' %>
+            </summary>
+            <form class="stack" method="post" action="/admin/inventory/<%= book.id %>/copies/<%= c.id %>" style="margin-top:12px;">
+              <%- include('../../partials/csrf_field') %>
+              <label for="condition-<%= c.id %>">Condition</label>
+              <select id="condition-<%= c.id %>" name="condition">
+                <% conditions.forEach(opt => { %><option value="<%= opt.value %>" <%= opt.value === c.condition ? 'selected' : '' %>><%= opt.label %></option><% }) %>
+              </select>
+              <label for="status-<%= c.id %>">Status</label>
+              <select id="status-<%= c.id %>" name="status">
+                <% statuses.forEach(opt => { %><option value="<%= opt.value %>" <%= opt.value === c.status ? 'selected' : '' %>><%= opt.label %></option><% }) %>
+              </select>
+              <label for="price-<%= c.id %>">Price (&euro;)</label>
+              <input id="price-<%= c.id %>" name="price" type="number" step="0.01" min="0" value="<%= c.price != null ? c.price : '' %>">
+              <label for="notes-<%= c.id %>">Notes</label>
+              <textarea id="notes-<%= c.id %>" name="notes"><%= c.notes || '' %></textarea>
+              <div class="muted small">Added <%= new Date(c.created_at).toLocaleDateString() %></div>
+              <div><button class="btn btn-small" type="submit">Save copy</button></div>
+            </form>
+            <form method="post" action="/admin/inventory/<%= book.id %>/copies/<%= c.id %>/delete" style="margin-top:8px;">
+              <%- include('../../partials/csrf_field') %>
+              <button class="btn btn-outline btn-small" type="submit">Delete this copy</button>
+            </form>
+          </details>
+        </li>
+      <% }) %>
+    </ul>
+  <% } %>
+</div>
+
+<div class="card">
+  <div class="section-title">Add another copy</div>
+  <form class="stack" method="post" action="/admin/inventory/<%= book.id %>/copies">
+    <%- include('../../partials/csrf_field') %>
+    <label for="new-condition">Condition</label>
+    <select id="new-condition" name="condition">
+      <% conditions.forEach(opt => { %><option value="<%= opt.value %>" <%= opt.value === 'good' ? 'selected' : '' %>><%= opt.label %></option><% }) %>
+    </select>
+    <label for="new-status">Status</label>
+    <select id="new-status" name="status">
+      <% statuses.forEach(opt => { %><option value="<%= opt.value %>" <%= opt.value === 'in_stock' ? 'selected' : '' %>><%= opt.label %></option><% }) %>
+    </select>
+    <label for="new-price">Price (&euro;)</label>
+    <input id="new-price" name="price" type="number" step="0.01" min="0">
+    <label for="new-notes">Notes</label>
+    <textarea id="new-notes" name="notes"></textarea>
+    <div><button class="btn" type="submit">Add copy</button></div>
+  </form>
+</div>
+
+<%- include('../../partials/footer') %>

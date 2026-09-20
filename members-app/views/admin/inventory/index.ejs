@@ -1,0 +1,45 @@
+<%- include('../../partials/header', { title: 'Admin — Inventory' }) %>
+<%- include('../../partials/admin_subnav', { active }) %>
+
+<h1>Inventory</h1>
+
+<div class="card">
+  <form class="stack" method="get" action="/admin/inventory" style="flex-direction: row; gap: 8px; max-width: 480px; align-items: end;">
+    <div style="flex: 1;">
+      <label for="q">Search by title, author, or ISBN</label>
+      <input id="q" name="q" type="text" value="<%= q %>" placeholder="Search inventory...">
+    </div>
+    <button class="btn" type="submit">Search</button>
+  </form>
+  <p style="margin-top:16px;">
+    <a class="btn" href="/admin/inventory/scan">Scan a book</a>
+    <a class="btn btn-outline" href="/admin/inventory/new">Add manually</a>
+  </p>
+</div>
+
+<div class="card">
+  <% if (!books.length) { %>
+    <p class="muted">No books yet — scan or add one above.</p>
+  <% } else { %>
+    <ul class="plain">
+      <% books.forEach(b => { %>
+        <li style="display:flex; gap:14px; align-items:center;">
+          <% if (b.cover_url) { %>
+            <img src="<%= b.cover_url %>" alt="" class="book-thumb">
+          <% } else { %>
+            <div class="book-thumb book-thumb-placeholder">No cover</div>
+          <% } %>
+          <div style="flex:1;">
+            <a href="/admin/inventory/<%= b.id %>"><strong><%= b.title %></strong></a>
+            <div class="muted small">
+              <%= b.authors || 'Unknown author' %><%= b.isbn ? ' · ISBN ' + b.isbn : '' %>
+              &middot; <%= b.in_stock_count %>/<%= b.copy_count %> in stock
+            </div>
+          </div>
+        </li>
+      <% }) %>
+    </ul>
+  <% } %>
+</div>
+
+<%- include('../../partials/footer') %>

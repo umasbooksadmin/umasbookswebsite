@@ -47,12 +47,23 @@ safe to re-run. Change `SEED_ADMIN_EMAIL` too if you don't want
   `/forgot-password` (emailed via Gmail/Google Workspace SMTP, one-hour
   expiry, single use), or a logged-in member can change their password
   directly at `/account/password`.
+- **Inventory** (`/admin/inventory`, admin only) — full CRUD for the book
+  catalog. Each title (`books`) can have several individually-tracked
+  physical copies (`book_copies`, each with its own condition, price, and
+  status: in stock / sold / donated / damaged). Adding a book can start
+  from a scan at `/admin/inventory/scan`: typing/scanning an ISBN looks up
+  metadata via the free Open Library API, or a photo of the cover or
+  barcode is read by Claude's vision API (`ANTHROPIC_API_KEY`, see below)
+  to extract the title/author/ISBN, which is then matched against Open
+  Library. Either path lands on a prefilled "confirm before saving" form —
+  nothing is saved without a look. Books can also be added or edited by
+  hand with no scan at all.
 - **Admin** (`/admin`, admin accounts only) — a proper multi-page section
   with its own sub-nav (`views/partials/admin_subnav.ejs`): an overview
   with counts/links, plus dedicated pages for Members, Announcements,
-  Volunteer Shifts, Meetings, and Charity Vote. Add a new admin area by
-  adding a route in `src/routes/admin.js`, a view under `views/admin/`,
-  and a link in the subnav partial.
+  Volunteer Shifts, Meetings, Inventory, and Charity Vote. Add a new admin
+  area by adding a route in `src/routes/admin.js`, a view under
+  `views/admin/`, and a link in the subnav partial.
 
 Note: event scheduling/RSVPs previously lived here but has been removed —
 it's planned as a separate part of the app. The `events`/`event_rsvps`
@@ -82,6 +93,20 @@ There's no separate "customer" vs "admin" signup flow — the seed script
 creates the first admin; that account can be used to promote others later
 by hand (`UPDATE users SET is_admin = TRUE WHERE email = '...'`) since
 there's no admin-management UI yet.
+
+### Photo scanning setup (inventory)
+
+The ISBN-lookup half of `/admin/inventory/scan` works with no setup —
+Open Library needs no API key. The photo-scanning half (reading a cover
+or barcode photo) needs an Anthropic API key:
+
+1. Get a key at [console.anthropic.com](https://console.anthropic.com).
+2. Set `ANTHROPIC_API_KEY` as an env var — locally in `.env`, or in
+   Render's dashboard under the service's **Environment** tab (marked
+   `sync: false` in `render.yaml`, so you add it once by hand).
+
+Until it's set, the scan page just hides the photo option and says so —
+ISBN entry and manual add still work fully.
 
 ## Deploying to Render
 

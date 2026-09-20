@@ -2,6 +2,7 @@ require("dotenv").config();
 const path = require("path");
 const express = require("express");
 const helmet = require("helmet");
+const multer = require("multer");
 const session = require("express-session");
 const pgSession = require("connect-pg-simple")(session);
 
@@ -32,7 +33,7 @@ app.use(
         scriptSrc: ["'self'"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
-        imgSrc: ["'self'", "data:"],
+        imgSrc: ["'self'", "data:", "https://covers.openlibrary.org", "https://archive.org", "https://*.archive.org"],
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
         formAction: ["'self'"],
@@ -61,6 +62,13 @@ app.use(
 );
 
 app.use(attachUser(pool));
+
+// Multer must parse this route's multipart body (populating req.body._csrf
+// and req.file) before the CSRF check below runs — csrfProtection only
+// ever sees req.body as urlencoded-parsing (above) left it otherwise.
+const inventoryPhotoUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
+app.use("/admin/inventory/lookup", inventoryPhotoUpload.single("photo"));
+
 app.use(csrfProtection);
 
 app.get("/", (req, res) => {

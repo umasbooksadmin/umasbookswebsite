@@ -1,0 +1,33 @@
+<%- include('../../partials/header', { title: 'Scan a Book' }) %>
+<%- include('../../partials/admin_subnav', { active }) %>
+
+<h1>Scan a Book</h1>
+<% if (error) { %><div class="error-box"><%= error %></div><% } %>
+
+<div class="card">
+  <div class="section-title">Enter an ISBN</div>
+  <p class="muted small">Type the ISBN from the barcode, or scan it with a barcode-scanner device (which just types into the box below).</p>
+  <form class="stack" method="post" action="/admin/inventory/lookup" enctype="multipart/form-data">
+    <%- include('../../partials/csrf_field') %>
+    <label for="isbn">ISBN</label>
+    <input id="isbn" name="isbn" type="text" inputmode="numeric" placeholder="9780143127550" autofocus>
+    <button class="btn" type="submit">Look up</button>
+  </form>
+</div>
+
+<div class="card">
+  <div class="section-title">Or take a photo</div>
+  <% if (visionEnabled) { %>
+    <p class="muted small">Photograph the front cover, or the barcode/ISBN on the back &mdash; we'll read whatever's visible.</p>
+    <form class="stack" method="post" action="/admin/inventory/lookup" enctype="multipart/form-data">
+      <%- include('../../partials/csrf_field') %>
+      <label for="photo">Photo</label>
+      <input id="photo" name="photo" type="file" accept="image/*" capture="environment" required>
+      <button class="btn" type="submit">Scan photo</button>
+    </form>
+  <% } else { %>
+    <p class="muted small">Photo scanning isn't set up yet (needs an <code>ANTHROPIC_API_KEY</code>) &mdash; use the ISBN box above, or <a href="/admin/inventory/new">add the book manually</a>.</p>
+  <% } %>
+</div>
+
+<%- include('../../partials/footer') %>

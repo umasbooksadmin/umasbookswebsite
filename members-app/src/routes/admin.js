@@ -2,17 +2,21 @@ const express = require("express");
 const { pool } = require("../db");
 const { requireAdmin } = require("../middleware/auth");
 const { parseMonthParam, monthRange, monthGrid, groupByDate, monthNav } = require("../lib/calendar");
+const { normalizeIsbn, lookupByIsbn, searchByTitleAuthor } = require("../lib/bookLookup");
+const { extractBookInfoFromPhoto } = require("../lib/coverVision");
+const { CONDITIONS, STATUSES, normalizeCondition, normalizeStatus } = require("../lib/inventory");
 
 const router = express.Router();
 
 // ---------- Overview ----------
 
 router.get("/admin", requireAdmin, async (req, res) => {
-  const [memberCount, upcomingShifts, activeRound, nextMeeting] = await Promise.all([
+  const [memberCount, upcomingShifts, activeRound, nextMeeting, inStockCount] = await Promise.all([
     pool.query("SELECT COUNT(*)::int AS n FROM users"),
     pool.query("SELECT COUNT(*)::int AS n FROM volunteer_shifts WHERE starts_at >= now()"),
     pool.query("SELECT * FROM charity_rounds WHERE is_active = TRUE ORDER BY opens_at DESC LIMIT 1"),
     pool.query("SELECT * FROM meetings WHERE scheduled_at >= now() ORDER BY scheduled_at ASC LIMIT 1"),
+    pool.query("SELECT COUNT(*)::int AS n FROM book_copies WHERE status = 'in_stock'"),
   ]);
 
   res.render("admin/index", {
@@ -21,6 +25,7 @@ router.get("/admin", requireAdmin, async (req, res) => {
     upcomingShiftCount: upcomingShifts.rows[0].n,
     activeRound: activeRound.rows[0] || null,
     nextMeeting: nextMeeting.rows[0] || null,
+    inStockCount: inStockCount.rows[0].n,
   });
 });
 
@@ -172,6 +177,191 @@ router.post("/admin/charity-rounds/:id/close", requireAdmin, async (req, res) =>
     [Number(req.params.id)]
   );
   res.redirect("/admin/charity");
+});
+
+// ---------- Inventory ----------
+
+router.get("/admin/inventory", requireAdmin, async (req, res) => {
+  const q = (req.query.q || "").trim();
+  const params = [];
+  let where = "";
+  if (q) {
+    params.push(`%${q}%`);
+    where = "WHERE b.title ILIKE $1 OR b.authors ILIKE $1 OR b.isbn ILIKE $1";
+  }
+  const { rows: books } = await pool.query(
+    `SELECT b.*, COUNT(c.id)::int AS copy_count,
+            COUNT(c.id) FILTER (WHERE c.status = 'in_stock')::int AS in_stock_count
+     FROM books b LEFT JOIN book_copies c ON c.book_id = b.id
+     ${where}
+     GROUP BY b.id ORDER BY b.title ASC LIMIT 200`,
+    params
+  );
+  res.render("admin/inventory/index", { active: "inventory", books, q });
+});
+
+router.get("/admin/inventory/scan", requireAdmin, (req, res) => {
+  res.render("admin/inventory/scan", { active: "inventory", error: null, visionEnabled: !!process.env.ANTHROPIC_API_KEY });
+});
+
+router.post("/admin/inventory/lookup", requireAdmin, async (req, res) => {
+  const visionEnabled = !!process.env.ANTHROPIC_API_KEY;
+  let book = null;
+  let error = null;
+
+  if (req.file) {
+    const info = await extractBookInfoFromPhoto(req.file.buffer, req.file.mimetype);
+    if (!info || (!info.isbn && !info.title)) {
+      return res.render("admin/inventory/scan", {
+        active: "inventory", visionEnabled,
+        error: "Couldn't read anything useful from that photo — try a clearer shot, or enter details manually below.",
+      });
+    }
+    if (info.isbn) {
+      book = await lookupByIsbn(info.isbn);
+    }
+    if (!book && info.title) {
+      const candidates = await searchByTitleAuthor(info.title, info.author);
+      book = candidates[0] || null;
+    }
+    if (!book) {
+      book = { isbn: info.isbn ? normalizeIsbn(info.isbn) : null, title: info.title, author: info.author, publisher: null, publishedYear: null, description: null, coverUrl: null };
+      error = "Found some details from the photo, but no catalog match — check everything below before saving.";
+    }
+  } else {
+    const isbn = (req.body.isbn || "").trim();
+    if (!isbn) {
+      return res.render("admin/inventory/scan", { active: "inventory", visionEnabled, error: "Enter an ISBN or choose a photo." });
+    }
+    book = await lookupByIsbn(isbn);
+    if (!book) {
+      book = { isbn: normalizeIsbn(isbn), title: null, author: null, publisher: null, publishedYear: null, description: null, coverUrl: null };
+      error = "No catalog match for that ISBN — enter the details manually below.";
+    }
+  }
+
+  res.render("admin/inventory/new", { active: "inventory", book, error, conditions: CONDITIONS, statuses: STATUSES });
+});
+
+router.get("/admin/inventory/new", requireAdmin, (req, res) => {
+  res.render("admin/inventory/new", {
+    active: "inventory",
+    book: { isbn: null, title: null, author: null, publisher: null, publishedYear: null, description: null, coverUrl: null },
+    error: null,
+    conditions: CONDITIONS,
+    statuses: STATUSES,
+  });
+});
+
+router.post("/admin/inventory", requireAdmin, async (req, res) => {
+  const title = (req.body.title || "").trim();
+  const author = (req.body.author || "").trim() || null;
+  const isbn = req.body.isbn ? normalizeIsbn(req.body.isbn) : null;
+  const publisher = (req.body.publisher || "").trim() || null;
+  const publishedYear = req.body.publishedYear ? Number(req.body.publishedYear) : null;
+  const description = (req.body.description || "").trim() || null;
+  const coverUrl = (req.body.coverUrl || "").trim() || null;
+
+  if (!title) {
+    return res.render("admin/inventory/new", {
+      active: "inventory",
+      book: { isbn, title: null, author, publisher, publishedYear, description, coverUrl },
+      error: "Title is required.",
+      conditions: CONDITIONS,
+      statuses: STATUSES,
+    });
+  }
+
+  const { rows } = await pool.query(
+    `INSERT INTO books (isbn, title, authors, publisher, published_year, description, cover_url, created_by)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+    [isbn || null, title, author, publisher, publishedYear, description, coverUrl, req.session.user.id]
+  );
+  const bookId = rows[0].id;
+
+  const condition = normalizeCondition(req.body.condition);
+  const status = normalizeStatus(req.body.status);
+  const price = req.body.price ? Number(req.body.price) : null;
+  const notes = (req.body.copyNotes || "").trim() || null;
+
+  await pool.query(
+    `INSERT INTO book_copies (book_id, condition, price, status, notes, created_by)
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+    [bookId, condition, price, status, notes, req.session.user.id]
+  );
+
+  res.redirect(`/admin/inventory/${bookId}`);
+});
+
+router.get("/admin/inventory/:id", requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  const { rows: bookRows } = await pool.query("SELECT * FROM books WHERE id = $1", [id]);
+  const book = bookRows[0];
+  if (!book) return res.status(404).render("404");
+  const { rows: copies } = await pool.query(
+    "SELECT * FROM book_copies WHERE book_id = $1 ORDER BY created_at DESC", [id]
+  );
+  res.render("admin/inventory/show", { active: "inventory", book, copies, conditions: CONDITIONS, statuses: STATUSES });
+});
+
+router.post("/admin/inventory/:id", requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  const title = (req.body.title || "").trim();
+  const author = (req.body.author || "").trim() || null;
+  const isbn = req.body.isbn ? normalizeIsbn(req.body.isbn) : null;
+  const publisher = (req.body.publisher || "").trim() || null;
+  const publishedYear = req.body.publishedYear ? Number(req.body.publishedYear) : null;
+  const description = (req.body.description || "").trim() || null;
+  const coverUrl = (req.body.coverUrl || "").trim() || null;
+
+  if (title) {
+    await pool.query(
+      `UPDATE books SET isbn=$1, title=$2, authors=$3, publisher=$4, published_year=$5,
+              description=$6, cover_url=$7, updated_at=now()
+       WHERE id = $8`,
+      [isbn || null, title, author, publisher, publishedYear, description, coverUrl, id]
+    );
+  }
+  res.redirect(`/admin/inventory/${id}`);
+});
+
+router.post("/admin/inventory/:id/delete", requireAdmin, async (req, res) => {
+  await pool.query("DELETE FROM books WHERE id = $1", [Number(req.params.id)]);
+  res.redirect("/admin/inventory");
+});
+
+router.post("/admin/inventory/:id/copies", requireAdmin, async (req, res) => {
+  const bookId = Number(req.params.id);
+  const condition = normalizeCondition(req.body.condition);
+  const status = normalizeStatus(req.body.status);
+  const price = req.body.price ? Number(req.body.price) : null;
+  const notes = (req.body.notes || "").trim() || null;
+  await pool.query(
+    `INSERT INTO book_copies (book_id, condition, price, status, notes, created_by)
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+    [bookId, condition, price, status, notes, req.session.user.id]
+  );
+  res.redirect(`/admin/inventory/${bookId}`);
+});
+
+router.post("/admin/inventory/:id/copies/:copyId", requireAdmin, async (req, res) => {
+  const bookId = Number(req.params.id);
+  const copyId = Number(req.params.copyId);
+  const condition = normalizeCondition(req.body.condition);
+  const status = normalizeStatus(req.body.status);
+  const price = req.body.price ? Number(req.body.price) : null;
+  const notes = (req.body.notes || "").trim() || null;
+  await pool.query(
+    `UPDATE book_copies SET condition=$1, status=$2, price=$3, notes=$4, updated_at=now()
+     WHERE id = $5 AND book_id = $6`,
+    [condition, status, price, notes, copyId, bookId]
+  );
+  res.redirect(`/admin/inventory/${bookId}`);
+});
+
+router.post("/admin/inventory/:id/copies/:copyId/delete", requireAdmin, async (req, res) => {
+  await pool.query("DELETE FROM book_copies WHERE id = $1 AND book_id = $2", [Number(req.params.copyId), Number(req.params.id)]);
+  res.redirect(`/admin/inventory/${req.params.id}`);
 });
 
 module.exports = router;
