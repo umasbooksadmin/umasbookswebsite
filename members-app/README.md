@@ -130,6 +130,10 @@ upgrading to a paid database if this needs to stay up indefinitely.
   runs a same-cost bcrypt compare (against a fixed dummy hash) so response
   timing can't be used to enumerate registered emails; 5 failed attempts
   on one account locks it for 15 minutes.
+- **Password requirements** — at least 8 characters, with an uppercase
+  letter, a lowercase letter, a number, and a symbol (`src/lib/passwordPolicy.js`),
+  enforced both client-side (`pattern`/`minlength` on the form inputs) and
+  server-side.
 - **Breach checking** — new/changed passwords are checked against the
   HaveIBeenPwned range API (`src/lib/passwordPolicy.js`) using k-anonymity
   (only a 5-char hash prefix leaves the server, never the password); fails

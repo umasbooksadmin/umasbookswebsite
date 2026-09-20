@@ -2,6 +2,13 @@ const crypto = require("crypto");
 
 const MIN_LENGTH = 8;
 
+const COMPLEXITY_RULES = [
+  { test: (pw) => /[a-z]/.test(pw), label: "a lowercase letter" },
+  { test: (pw) => /[A-Z]/.test(pw), label: "an uppercase letter" },
+  { test: (pw) => /[0-9]/.test(pw), label: "a number" },
+  { test: (pw) => /[^A-Za-z0-9]/.test(pw), label: "a symbol" },
+];
+
 // Checks the password against the HaveIBeenPwned k-anonymity range API:
 // only the first 5 chars of the SHA-1 hash are ever sent, never the
 // password itself. Fails open (treats as "not pwned") on any network
@@ -38,6 +45,10 @@ async function isPasswordPwned(password) {
 async function validateNewPassword(password) {
   if (!password || password.length < MIN_LENGTH) {
     return `Password must be at least ${MIN_LENGTH} characters.`;
+  }
+  const missing = COMPLEXITY_RULES.filter((rule) => !rule.test(password)).map((rule) => rule.label);
+  if (missing.length > 0) {
+    return `Password must include ${missing.join(", ")}.`;
   }
   if (await isPasswordPwned(password)) {
     return "That password has appeared in a known data breach. Please choose a different one.";

@@ -10,9 +10,12 @@
   <input id="email" name="email" type="email" required>
   <label for="password">Password</label>
   <div class="password-field">
-    <input id="password" name="password" type="password" minlength="8" required>
+    <input id="password" name="password" type="password" minlength="8" required
+      pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}"
+      title="At least 8 characters, with an uppercase letter, a lowercase letter, a number, and a symbol.">
     <button type="button" class="password-toggle" data-toggle-password="password" aria-label="Show password">Show</button>
   </div>
+  <p class="muted small">At least 8 characters, with an uppercase letter, a lowercase letter, a number, and a symbol.</p>
   <button class="btn" type="submit">Create account</button>
 </form>
 <p class="muted small">Already a member? <a href="/login">Log in</a></p>
