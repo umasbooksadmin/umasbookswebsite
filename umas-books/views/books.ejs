@@ -1,0 +1,63 @@
+<%- include('partials/header', { title: 'Books' }) %>
+
+<h1>Books</h1>
+<p class="muted">Search what's in stock right now &mdash; reserve a copy and pick it up in the shop, no account or online payment needed.</p>
+
+<div class="card">
+  <form class="stack" method="get" action="/books" style="flex-direction: row; gap: 12px; max-width: none; align-items: end; flex-wrap: wrap;">
+    <div style="flex: 2; min-width: 200px;">
+      <label for="q">Title or author</label>
+      <input id="q" name="q" type="text" value="<%= q %>" placeholder="Search title or author...">
+    </div>
+    <div style="flex: 1; min-width: 160px;">
+      <label for="genre">Genre</label>
+      <input id="genre" name="genre" type="text" value="<%= genre %>" placeholder="e.g. Fantasy">
+    </div>
+    <button class="btn" type="submit">Search</button>
+  </form>
+</div>
+
+<% if (!books.length) { %>
+  <div class="card"><p class="muted"><%= (q || genre) ? 'No in-stock books match that search.' : 'Search above to browse what\'s currently in stock.' %></p></div>
+<% } %>
+
+<% books.forEach(b => { %>
+  <% const copies = copiesByBook[b.id] || []; %>
+  <div class="card" style="display:flex; gap:20px;">
+    <% if (b.cover_url) { %>
+      <img src="<%= b.cover_url %>" alt="" class="book-cover-preview" style="flex-shrink:0; margin-bottom:0;">
+    <% } %>
+    <div style="flex:1;">
+      <div class="section-title" style="margin-bottom:4px;"><%= b.title %></div>
+      <div class="muted small"><%= b.authors || 'Unknown author' %><%= b.categories ? ' · ' + b.categories : '' %></div>
+      <% if (b.description) { %><p style="margin-top:10px;"><%= b.description %></p><% } %>
+
+      <ul class="plain" style="margin-top:10px;">
+        <% copies.forEach(c => { %>
+          <li>
+            <details>
+              <summary style="cursor:pointer;">
+                <%= c.condition %><%= c.price != null ? ' · €' + Number(c.price).toFixed(2) : '' %>
+              </summary>
+              <form class="stack" method="post" action="/books/copies/<%= c.id %>/reserve" style="margin-top:10px; gap:8px;">
+                <%- include('partials/csrf_field') %>
+                <input type="hidden" name="q" value="<%= q %>">
+                <input type="hidden" name="genre" value="<%= genre %>">
+                <label for="name-<%= c.id %>">Name</label>
+                <input id="name-<%= c.id %>" name="name" type="text" required>
+                <label for="email-<%= c.id %>">Email</label>
+                <input id="email-<%= c.id %>" name="email" type="email" required>
+                <label for="phone-<%= c.id %>">Phone (optional)</label>
+                <input id="phone-<%= c.id %>" name="phone" type="tel">
+                <p class="muted small">We'll hold this copy for you &mdash; pay when you pick it up in the shop.</p>
+                <div><button class="btn btn-small" type="submit">Buy &amp; Pickup</button></div>
+              </form>
+            </details>
+          </li>
+        <% }) %>
+      </ul>
+    </div>
+  </div>
+<% }) %>
+
+<%- include('partials/footer') %>

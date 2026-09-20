@@ -4,6 +4,7 @@ const { requireAdmin } = require("../middleware/auth");
 const { parseMonthParam, monthRange, monthGrid, groupByDate, monthNav } = require("../lib/calendar");
 const { normalizeIsbn, lookupByIsbn, searchByTitleAuthor } = require("../lib/bookLookup");
 const { extractBookInfoFromPhoto } = require("../lib/coverVision");
+const { generateBookDescription } = require("../lib/bookDescription");
 const { CONDITIONS, STATUSES, normalizeCondition, normalizeStatus } = require("../lib/inventory");
 
 const router = express.Router();
@@ -371,7 +372,7 @@ router.post("/admin/inventory/lookup", requireAdmin, async (req, res) => {
       book = candidates[0] || null;
     }
     if (!book) {
-      book = { isbn: info.isbn ? normalizeIsbn(info.isbn) : null, title: info.title, author: info.author, publisher: null, publishedYear: null, description: null, coverUrl: null };
+      book = { isbn: info.isbn ? normalizeIsbn(info.isbn) : null, title: info.title, author: info.author, publisher: null, publishedYear: null, description: null, coverUrl: null, genre: null };
       error = "Found some details from the photo, but no catalog match — check everything below before saving.";
     }
   } else {
@@ -381,7 +382,7 @@ router.post("/admin/inventory/lookup", requireAdmin, async (req, res) => {
     }
     book = await lookupByIsbn(isbn);
     if (!book) {
-      book = { isbn: normalizeIsbn(isbn), title: null, author: null, publisher: null, publishedYear: null, description: null, coverUrl: null };
+      book = { isbn: normalizeIsbn(isbn), title: null, author: null, publisher: null, publishedYear: null, description: null, coverUrl: null, genre: null };
       error = "No catalog match for that ISBN — enter the details manually below.";
     }
   }
@@ -392,7 +393,7 @@ router.post("/admin/inventory/lookup", requireAdmin, async (req, res) => {
 router.get("/admin/inventory/new", requireAdmin, (req, res) => {
   res.render("admin/inventory/new", {
     active: "inventory",
-    book: { isbn: null, title: null, author: null, publisher: null, publishedYear: null, description: null, coverUrl: null },
+    book: { isbn: null, title: null, author: null, publisher: null, publishedYear: null, description: null, coverUrl: null, genre: null },
     error: null,
     conditions: CONDITIONS,
     statuses: STATUSES,
@@ -405,35 +406,42 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
   const isbn = req.body.isbn ? normalizeIsbn(req.body.isbn) : null;
   const publisher = (req.body.publisher || "").trim() || null;
   const publishedYear = req.body.publishedYear ? Number(req.body.publishedYear) : null;
-  const description = (req.body.description || "").trim() || null;
+  const genre = (req.body.genre || "").trim() || null;
+  let description = (req.body.description || "").trim() || null;
   const coverUrl = (req.body.coverUrl || "").trim() || null;
 
   if (!title) {
     return res.render("admin/inventory/new", {
       active: "inventory",
-      book: { isbn, title: null, author, publisher, publishedYear, description, coverUrl },
+      book: { isbn, title: null, author, publisher, publishedYear, description, coverUrl, genre },
       error: "Title is required.",
       conditions: CONDITIONS,
       statuses: STATUSES,
     });
   }
 
+  if (!description) {
+    description = await generateBookDescription({ title, author, publisher, publishedYear });
+  }
+
   const { rows } = await pool.query(
-    `INSERT INTO books (isbn, title, authors, publisher, published_year, description, cover_url, created_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
-    [isbn || null, title, author, publisher, publishedYear, description, coverUrl, req.session.user.id]
+    `INSERT INTO books (isbn, title, authors, publisher, published_year, description, cover_url, categories, created_by)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
+    [isbn || null, title, author, publisher, publishedYear, description, coverUrl, genre, req.session.user.id]
   );
   const bookId = rows[0].id;
 
   const condition = normalizeCondition(req.body.condition);
   const status = normalizeStatus(req.body.status);
   const price = req.body.price ? Number(req.body.price) : null;
+  const acquisitionCost = req.body.acquisitionCost ? Number(req.body.acquisitionCost) : null;
+  const acquiredAt = req.body.acquiredAt || null;
   const notes = (req.body.copyNotes || "").trim() || null;
 
   await pool.query(
-    `INSERT INTO book_copies (book_id, condition, price, status, notes, created_by)
-     VALUES ($1, $2, $3, $4, $5, $6)`,
-    [bookId, condition, price, status, notes, req.session.user.id]
+    `INSERT INTO book_copies (book_id, condition, price, acquisition_cost, acquired_at, status, notes, created_by)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    [bookId, condition, price, acquisitionCost, acquiredAt, status, notes, req.session.user.id]
   );
 
   res.redirect(`/admin/inventory/${bookId}`);
@@ -457,16 +465,32 @@ router.post("/admin/inventory/:id", requireAdmin, async (req, res) => {
   const isbn = req.body.isbn ? normalizeIsbn(req.body.isbn) : null;
   const publisher = (req.body.publisher || "").trim() || null;
   const publishedYear = req.body.publishedYear ? Number(req.body.publishedYear) : null;
+  const genre = (req.body.genre || "").trim() || null;
   const description = (req.body.description || "").trim() || null;
   const coverUrl = (req.body.coverUrl || "").trim() || null;
 
   if (title) {
     await pool.query(
       `UPDATE books SET isbn=$1, title=$2, authors=$3, publisher=$4, published_year=$5,
-              description=$6, cover_url=$7, updated_at=now()
-       WHERE id = $8`,
-      [isbn || null, title, author, publisher, publishedYear, description, coverUrl, id]
+              description=$6, cover_url=$7, categories=$8, updated_at=now()
+       WHERE id = $9`,
+      [isbn || null, title, author, publisher, publishedYear, description, coverUrl, genre, id]
     );
+  }
+  res.redirect(`/admin/inventory/${id}`);
+});
+
+router.post("/admin/inventory/:id/generate-description", requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  const { rows } = await pool.query("SELECT * FROM books WHERE id = $1", [id]);
+  const book = rows[0];
+  if (book) {
+    const description = await generateBookDescription({
+      title: book.title, author: book.authors, publisher: book.publisher, publishedYear: book.published_year,
+    });
+    if (description) {
+      await pool.query("UPDATE books SET description = $1, updated_at = now() WHERE id = $2", [description, id]);
+    }
   }
   res.redirect(`/admin/inventory/${id}`);
 });
@@ -481,11 +505,13 @@ router.post("/admin/inventory/:id/copies", requireAdmin, async (req, res) => {
   const condition = normalizeCondition(req.body.condition);
   const status = normalizeStatus(req.body.status);
   const price = req.body.price ? Number(req.body.price) : null;
+  const acquisitionCost = req.body.acquisitionCost ? Number(req.body.acquisitionCost) : null;
+  const acquiredAt = req.body.acquiredAt || null;
   const notes = (req.body.notes || "").trim() || null;
   await pool.query(
-    `INSERT INTO book_copies (book_id, condition, price, status, notes, created_by)
-     VALUES ($1, $2, $3, $4, $5, $6)`,
-    [bookId, condition, price, status, notes, req.session.user.id]
+    `INSERT INTO book_copies (book_id, condition, price, acquisition_cost, acquired_at, status, notes, created_by)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    [bookId, condition, price, acquisitionCost, acquiredAt, status, notes, req.session.user.id]
   );
   res.redirect(`/admin/inventory/${bookId}`);
 });
@@ -496,13 +522,25 @@ router.post("/admin/inventory/:id/copies/:copyId", requireAdmin, async (req, res
   const condition = normalizeCondition(req.body.condition);
   const status = normalizeStatus(req.body.status);
   const price = req.body.price ? Number(req.body.price) : null;
+  const acquisitionCost = req.body.acquisitionCost ? Number(req.body.acquisitionCost) : null;
+  const acquiredAt = req.body.acquiredAt || null;
   const notes = (req.body.notes || "").trim() || null;
   await pool.query(
-    `UPDATE book_copies SET condition=$1, status=$2, price=$3, notes=$4, updated_at=now()
-     WHERE id = $5 AND book_id = $6`,
-    [condition, status, price, notes, copyId, bookId]
+    `UPDATE book_copies SET condition=$1, status=$2, price=$3, acquisition_cost=$4, acquired_at=$5, notes=$6, updated_at=now()
+     WHERE id = $7 AND book_id = $8`,
+    [condition, status, price, acquisitionCost, acquiredAt, notes, copyId, bookId]
   );
   res.redirect(`/admin/inventory/${bookId}`);
+});
+
+router.post("/admin/inventory/:id/copies/:copyId/cancel-reservation", requireAdmin, async (req, res) => {
+  await pool.query(
+    `UPDATE book_copies SET status='in_stock', reserved_by_name=NULL, reserved_by_email=NULL,
+            reserved_by_phone=NULL, reserved_at=NULL, updated_at=now()
+     WHERE id = $1 AND book_id = $2`,
+    [Number(req.params.copyId), Number(req.params.id)]
+  );
+  res.redirect(`/admin/inventory/${req.params.id}`);
 });
 
 router.post("/admin/inventory/:id/copies/:copyId/delete", requireAdmin, async (req, res) => {

@@ -13,6 +13,16 @@ function extractYear(publishDate) {
   return match ? Number(match[0]) : null;
 }
 
+// Open Library subject lists are long and noisy (fictitious characters,
+// series tags, etc.) — keep just the first few plain-looking ones as a
+// rough genre suggestion, not a full taxonomy.
+function pickGenres(names) {
+  const clean = (names || [])
+    .filter((n) => typeof n === "string" && !n.includes(":"))
+    .slice(0, 3);
+  return clean.length ? clean.join(", ") : null;
+}
+
 async function fetchJsonOnce(url, timeoutMs) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -68,6 +78,7 @@ async function lookupByIsbn(rawIsbn) {
     publishedYear: extractYear(info.publish_date),
     description: typeof info.description === "string" ? info.description : (info.description && info.description.value) || null,
     coverUrl: (info.cover && (info.cover.large || info.cover.medium)) || null,
+    genre: pickGenres(Array.isArray(info.subjects) ? info.subjects.map((s) => s.name) : null),
   };
 }
 
@@ -75,7 +86,7 @@ async function searchByTitleAuthor(title, author) {
   if (!title && !author) return [];
   const params = new URLSearchParams({
     limit: "5",
-    fields: "title,author_name,isbn,cover_i,first_publish_year,publisher",
+    fields: "title,author_name,isbn,cover_i,first_publish_year,publisher,subject",
   });
   if (title) params.set("title", title);
   if (author) params.set("author", author);
@@ -91,6 +102,7 @@ async function searchByTitleAuthor(title, author) {
     publishedYear: doc.first_publish_year || null,
     description: null,
     coverUrl: doc.cover_i ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg` : null,
+    genre: pickGenres(doc.subject),
   }));
 }
 

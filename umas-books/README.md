@@ -44,32 +44,48 @@ safe to re-run. Change `SEED_ADMIN_EMAIL` too if you don't want
   meetings (title, date/time, location, agenda) and posts minutes
   afterward; members RSVP ("I'll be there") or cancel, and see past
   meetings with minutes once posted.
+- **Events** (`/events`, public, no login) and **Classes** (`/classes`,
+  public, no login) — month-calendar views, each backed by its own table.
+  Admin creates/edits/deletes sessions (title, description, location,
+  time range, capacity) from `/admin/events` / `/admin/classes` and sees
+  who's signed up; anyone can browse the public calendar and sign up with
+  just a name and email, capacity enforced.
 - **Password reset** — a member can request a reset link at
   `/forgot-password` (emailed via Gmail/Google Workspace SMTP, one-hour
   expiry, single use), or a logged-in member can change their password
   directly at `/account/password`.
 - **Inventory** (`/admin/inventory`, admin only) — full CRUD for the book
-  catalog. Each title (`books`) can have several individually-tracked
-  physical copies (`book_copies`, each with its own condition, price, and
-  status: in stock / sold / donated / damaged). Adding a book can start
-  from a scan at `/admin/inventory/scan`: typing/scanning an ISBN looks up
-  metadata via the free Open Library API, or a photo of the cover or
-  barcode is read by Claude's vision API (`ANTHROPIC_API_KEY`, see below)
-  to extract the title/author/ISBN, which is then matched against Open
-  Library. Either path lands on a prefilled "confirm before saving" form —
-  nothing is saved without a look. Books can also be added or edited by
-  hand with no scan at all.
+  catalog. Each title (`books`, with a genre/`categories` field) can have
+  several individually-tracked physical copies (`book_copies`, each with
+  its own condition, price, acquisition cost, acquisition date, and
+  status: in stock / reserved / sold / donated / damaged). Adding a book
+  can start from a scan at `/admin/inventory/scan`: typing/scanning an
+  ISBN looks up metadata via the free Open Library API, or a photo of the
+  cover or barcode is read by Claude's vision API (`ANTHROPIC_API_KEY`,
+  see below) to extract the title/author/ISBN, which is then matched
+  against Open Library. Either path lands on a prefilled "confirm before
+  saving" form — nothing is saved without a look. Books can also be added
+  or edited by hand with no scan at all. If a book has no description, one
+  is generated automatically by Claude (also re-generatable by hand from
+  the book's page).
+- **Book search** (`/books`, public, no login) — anyone can search
+  in-stock inventory by title, author, or genre, and reserve a specific
+  copy for pickup with just a name and email (no online payment — you pay
+  in person when you collect it). A reserved copy is held (status
+  `reserved`) until an admin cancels the reservation or marks it sold from
+  the book's admin page.
 - **Admin** (`/admin`, admin accounts only) — a proper multi-page section
   with its own sub-nav (`views/partials/admin_subnav.ejs`): an overview
   with counts/links, plus dedicated pages for Members, Announcements,
-  Volunteer Shifts, Meetings, Inventory, and Charity Vote. Add a new admin
-  area by adding a route in `src/routes/admin.js`, a view under
+  Volunteer Shifts, Meetings, Events, Classes, Inventory, and Charity
+  Vote. Add a new admin area by adding a route in `src/routes/admin.js`,
+  a view under
   `views/admin/`, and a link in the subnav partial.
 
-Note: event scheduling/RSVPs previously lived here but has been removed —
-it's planned as a separate part of the app. The `events`/`event_rsvps`
-tables are left in place (migrations are additive-only) in case that
-future feature reuses them.
+Note: an earlier, member-only events feature was removed and later
+replaced by the public **Events** and **Classes** features above. The old
+`event_rsvps` table (member-only sign-ups) is left in place, unused —
+public sign-ups now go through `event_signups`/`class_signups` instead.
 
 ### Email setup (Gmail/Google Workspace SMTP)
 

@@ -3,7 +3,7 @@
 
 <p><a href="/admin/inventory">&larr; Back to inventory</a></p>
 <h1><%= book.title %></h1>
-<p class="muted"><%= book.authors || 'Unknown author' %><%= book.isbn ? ' · ISBN ' + book.isbn : '' %></p>
+<p class="muted"><%= book.authors || 'Unknown author' %><%= book.isbn ? ' · ISBN ' + book.isbn : '' %><%= book.categories ? ' · ' + book.categories : '' %></p>
 
 <div class="card" style="display:flex; gap:20px;">
   <% if (book.cover_url) { %>
@@ -13,6 +13,10 @@
     <% if (book.publisher) { %><div class="muted small">Publisher: <%= book.publisher %></div><% } %>
     <% if (book.published_year) { %><div class="muted small">Published: <%= book.published_year %></div><% } %>
     <% if (book.description) { %><p style="margin-top:10px;"><%= book.description %></p><% } %>
+    <form method="post" action="/admin/inventory/<%= book.id %>/generate-description" style="margin-top:6px;">
+      <%- include('../../partials/csrf_field') %>
+      <button class="btn btn-outline btn-small" type="submit"><%= book.description ? 'Regenerate' : 'Generate' %> AI description</button>
+    </form>
 
     <details style="margin-top:14px;">
       <summary style="cursor:pointer; color: var(--maroon);">Edit details</summary>
@@ -28,6 +32,8 @@
         <input id="publisher" name="publisher" type="text" value="<%= book.publisher || '' %>">
         <label for="publishedYear">Published year</label>
         <input id="publishedYear" name="publishedYear" type="number" value="<%= book.published_year || '' %>">
+        <label for="genre">Genre</label>
+        <input id="genre" name="genre" type="text" value="<%= book.categories || '' %>" placeholder="e.g. Fantasy, Fiction">
         <label for="coverUrl">Cover image URL</label>
         <input id="coverUrl" name="coverUrl" type="text" value="<%= book.cover_url || '' %>">
         <label for="description">Description</label>
@@ -56,6 +62,16 @@
             <summary style="cursor:pointer;">
               <%= conditionLabel %> &middot; <%= statusLabel %><%= c.price != null ? ' · €' + Number(c.price).toFixed(2) : '' %>
             </summary>
+            <% if (c.status === 'reserved' && c.reserved_by_name) { %>
+              <div class="notice-box small" style="margin-top:10px;">
+                Reserved by <%= c.reserved_by_name %> &middot; <%= c.reserved_by_email %><%= c.reserved_by_phone ? ' · ' + c.reserved_by_phone : '' %>
+                <% if (c.reserved_at) { %><div class="muted small"><%= new Date(c.reserved_at).toLocaleString() %></div><% } %>
+                <form method="post" action="/admin/inventory/<%= book.id %>/copies/<%= c.id %>/cancel-reservation" style="margin-top:6px;">
+                  <%- include('../../partials/csrf_field') %>
+                  <button class="btn btn-outline btn-small" type="submit">Cancel reservation &amp; return to stock</button>
+                </form>
+              </div>
+            <% } %>
             <form class="stack" method="post" action="/admin/inventory/<%= book.id %>/copies/<%= c.id %>" style="margin-top:12px;">
               <%- include('../../partials/csrf_field') %>
               <label for="condition-<%= c.id %>">Condition</label>
@@ -68,6 +84,10 @@
               </select>
               <label for="price-<%= c.id %>">Price (&euro;)</label>
               <input id="price-<%= c.id %>" name="price" type="number" step="0.01" min="0" value="<%= c.price != null ? c.price : '' %>">
+              <label for="acquisitionCost-<%= c.id %>">Acquisition cost (&euro;)</label>
+              <input id="acquisitionCost-<%= c.id %>" name="acquisitionCost" type="number" step="0.01" min="0" value="<%= c.acquisition_cost != null ? c.acquisition_cost : '' %>">
+              <label for="acquiredAt-<%= c.id %>">Acquired on</label>
+              <input id="acquiredAt-<%= c.id %>" name="acquiredAt" type="date" value="<%= c.acquired_at ? new Date(c.acquired_at).toLocaleDateString('en-CA') : '' %>">
               <label for="notes-<%= c.id %>">Notes</label>
               <textarea id="notes-<%= c.id %>" name="notes"><%= c.notes || '' %></textarea>
               <div class="muted small">Added <%= new Date(c.created_at).toLocaleDateString() %></div>
@@ -98,6 +118,10 @@
     </select>
     <label for="new-price">Price (&euro;)</label>
     <input id="new-price" name="price" type="number" step="0.01" min="0">
+    <label for="new-acquisitionCost">Acquisition cost (&euro;)</label>
+    <input id="new-acquisitionCost" name="acquisitionCost" type="number" step="0.01" min="0">
+    <label for="new-acquiredAt">Acquired on</label>
+    <input id="new-acquiredAt" name="acquiredAt" type="date">
     <label for="new-notes">Notes</label>
     <textarea id="new-notes" name="notes"></textarea>
     <div><button class="btn" type="submit">Add copy</button></div>
