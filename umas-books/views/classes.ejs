@@ -1,0 +1,50 @@
+<%- include('partials/header', { title: 'Classes' }) %>
+
+<h1>Classes</h1>
+<p class="muted">Browse upcoming classes and sign up below, no account needed.</p>
+
+<div class="card">
+  <div class="calendar-nav">
+    <a class="btn btn-outline btn-small" href="/classes?month=<%= prevMonth %>">&larr; Prev</a>
+    <span class="month-label"><%= monthLabel %></span>
+    <a class="btn btn-outline btn-small" href="/classes?month=<%= nextMonth %>">Next &rarr;</a>
+  </div>
+  <div class="calendar-grid">
+    <% ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].forEach(d => { %><div class="calendar-weekday"><%= d %></div><% }) %>
+    <% weeks.forEach(week => { %>
+      <% week.forEach(day => { %>
+        <% if (!day) { %>
+          <div class="calendar-day is-empty"></div>
+        <% } else { %>
+          <div class="calendar-day<%= day.isToday ? ' is-today' : '' %>">
+            <div class="calendar-day-number"><%= day.day %></div>
+            <% day.items.forEach(c => { %>
+              <% const full = c.capacity != null && c.signup_count >= c.capacity; %>
+              <details class="calendar-pill<%= full ? ' is-full' : '' %>">
+                <summary><%= c.title %> &middot; <%= new Date(c.starts_at).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}) %></summary>
+                <div class="calendar-pill-body">
+                  <div class="muted small">
+                    <%= new Date(c.starts_at).toLocaleString() %><%= c.location ? ' · ' + c.location : '' %>
+                    <%= c.capacity != null ? ' · ' + c.signup_count + '/' + c.capacity + ' spots taken' : ' · ' + c.signup_count + ' signed up' %>
+                  </div>
+                  <% if (c.description) { %><div class="muted small" style="margin-top:6px;"><%= c.description %></div><% } %>
+
+                  <form class="stack" method="post" action="/classes/<%= c.id %>/signup?month=<%= currentMonth %>" style="margin-top:10px; gap:8px;">
+                    <%- include('partials/csrf_field') %>
+                    <label for="name-<%= c.id %>">Name</label>
+                    <input id="name-<%= c.id %>" name="name" type="text" required<%= full ? ' disabled' : '' %>>
+                    <label for="email-<%= c.id %>">Email</label>
+                    <input id="email-<%= c.id %>" name="email" type="email" required<%= full ? ' disabled' : '' %>>
+                    <div><button class="btn btn-small" type="submit"<%= full ? ' disabled' : '' %>><%= full ? 'Full' : 'Sign up' %></button></div>
+                  </form>
+                </div>
+              </details>
+            <% }) %>
+          </div>
+        <% } %>
+      <% }) %>
+    <% }) %>
+  </div>
+</div>
+
+<%- include('partials/footer') %>

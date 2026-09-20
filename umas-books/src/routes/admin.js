@@ -11,12 +11,14 @@ const router = express.Router();
 // ---------- Overview ----------
 
 router.get("/admin", requireAdmin, async (req, res) => {
-  const [memberCount, upcomingShifts, activeRound, nextMeeting, inStockCount] = await Promise.all([
+  const [memberCount, upcomingShifts, activeRound, nextMeeting, inStockCount, upcomingEvents, upcomingClasses] = await Promise.all([
     pool.query("SELECT COUNT(*)::int AS n FROM users"),
     pool.query("SELECT COUNT(*)::int AS n FROM volunteer_shifts WHERE starts_at >= now()"),
     pool.query("SELECT * FROM charity_rounds WHERE is_active = TRUE ORDER BY opens_at DESC LIMIT 1"),
     pool.query("SELECT * FROM meetings WHERE scheduled_at >= now() ORDER BY scheduled_at ASC LIMIT 1"),
     pool.query("SELECT COUNT(*)::int AS n FROM book_copies WHERE status = 'in_stock'"),
+    pool.query("SELECT COUNT(*)::int AS n FROM events WHERE starts_at >= now()"),
+    pool.query("SELECT COUNT(*)::int AS n FROM classes WHERE starts_at >= now()"),
   ]);
 
   res.render("admin/index", {
@@ -26,6 +28,8 @@ router.get("/admin", requireAdmin, async (req, res) => {
     activeRound: activeRound.rows[0] || null,
     nextMeeting: nextMeeting.rows[0] || null,
     inStockCount: inStockCount.rows[0].n,
+    upcomingEventCount: upcomingEvents.rows[0].n,
+    upcomingClassCount: upcomingClasses.rows[0].n,
   });
 });
 
@@ -138,6 +142,148 @@ router.post("/admin/meetings/:id/minutes", requireAdmin, async (req, res) => {
 router.post("/admin/meetings/:id/delete", requireAdmin, async (req, res) => {
   await pool.query("DELETE FROM meetings WHERE id = $1", [Number(req.params.id)]);
   res.redirect(req.query.month ? `/admin/meetings?month=${req.query.month}` : "/admin/meetings");
+});
+
+// ---------- Events (public sign-up) ----------
+
+router.get("/admin/events", requireAdmin, async (req, res) => {
+  const { year, month } = parseMonthParam(req.query.month);
+  const { start, end } = monthRange(year, month);
+  const { rows: events } = await pool.query(
+    `SELECT e.*, (SELECT COUNT(*) FROM event_signups s WHERE s.event_id = e.id) AS signup_count
+     FROM events e WHERE e.starts_at >= $1 AND e.starts_at < $2 ORDER BY e.starts_at ASC`,
+    [start, end]
+  );
+  const eventIds = events.map((e) => e.id);
+  const { rows: signupRows } = eventIds.length
+    ? await pool.query("SELECT * FROM event_signups WHERE event_id = ANY($1) ORDER BY created_at ASC", [eventIds])
+    : { rows: [] };
+  const signupsByEvent = {};
+  for (const s of signupRows) {
+    if (!signupsByEvent[s.event_id]) signupsByEvent[s.event_id] = [];
+    signupsByEvent[s.event_id].push(s);
+  }
+
+  const weeks = monthGrid(year, month, groupByDate(events, "starts_at"));
+  res.render("admin/events", { active: "events", weeks, signupsByEvent, ...monthNav(year, month) });
+});
+
+router.post("/admin/events", requireAdmin, async (req, res) => {
+  const title = (req.body.title || "").trim();
+  const description = (req.body.description || "").trim() || null;
+  const location = (req.body.location || "").trim() || null;
+  const startsAt = req.body.startsAt;
+  const endsAt = req.body.endsAt || null;
+  const capacity = req.body.capacity ? Number(req.body.capacity) : null;
+
+  if (title && startsAt) {
+    await pool.query(
+      `INSERT INTO events (title, description, location, starts_at, ends_at, capacity, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [title, description, location, startsAt, endsAt, capacity, req.session.user.id]
+    );
+  }
+  res.redirect(req.body.month ? `/admin/events?month=${req.body.month}` : "/admin/events");
+});
+
+router.post("/admin/events/:id", requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  const title = (req.body.title || "").trim();
+  const description = (req.body.description || "").trim() || null;
+  const location = (req.body.location || "").trim() || null;
+  const startsAt = req.body.startsAt;
+  const endsAt = req.body.endsAt || null;
+  const capacity = req.body.capacity ? Number(req.body.capacity) : null;
+
+  if (title && startsAt) {
+    await pool.query(
+      `UPDATE events SET title=$1, description=$2, location=$3, starts_at=$4, ends_at=$5, capacity=$6
+       WHERE id = $7`,
+      [title, description, location, startsAt, endsAt, capacity, id]
+    );
+  }
+  res.redirect(req.query.month ? `/admin/events?month=${req.query.month}` : "/admin/events");
+});
+
+router.post("/admin/events/:id/delete", requireAdmin, async (req, res) => {
+  await pool.query("DELETE FROM events WHERE id = $1", [Number(req.params.id)]);
+  res.redirect(req.query.month ? `/admin/events?month=${req.query.month}` : "/admin/events");
+});
+
+router.post("/admin/events/:id/signups/:signupId/delete", requireAdmin, async (req, res) => {
+  await pool.query("DELETE FROM event_signups WHERE id = $1 AND event_id = $2", [Number(req.params.signupId), Number(req.params.id)]);
+  res.redirect(req.query.month ? `/admin/events?month=${req.query.month}` : "/admin/events");
+});
+
+// ---------- Classes (public sign-up) ----------
+
+router.get("/admin/classes", requireAdmin, async (req, res) => {
+  const { year, month } = parseMonthParam(req.query.month);
+  const { start, end } = monthRange(year, month);
+  const { rows: classes } = await pool.query(
+    `SELECT c.*, (SELECT COUNT(*) FROM class_signups s WHERE s.class_id = c.id) AS signup_count
+     FROM classes c WHERE c.starts_at >= $1 AND c.starts_at < $2 ORDER BY c.starts_at ASC`,
+    [start, end]
+  );
+  const classIds = classes.map((c) => c.id);
+  const { rows: signupRows } = classIds.length
+    ? await pool.query("SELECT * FROM class_signups WHERE class_id = ANY($1) ORDER BY created_at ASC", [classIds])
+    : { rows: [] };
+  const signupsByClass = {};
+  for (const s of signupRows) {
+    if (!signupsByClass[s.class_id]) signupsByClass[s.class_id] = [];
+    signupsByClass[s.class_id].push(s);
+  }
+
+  const weeks = monthGrid(year, month, groupByDate(classes, "starts_at"));
+  res.render("admin/classes", { active: "classes", weeks, signupsByClass, ...monthNav(year, month) });
+});
+
+router.post("/admin/classes", requireAdmin, async (req, res) => {
+  const title = (req.body.title || "").trim();
+  const description = (req.body.description || "").trim() || null;
+  const location = (req.body.location || "").trim() || null;
+  const startsAt = req.body.startsAt;
+  const endsAt = req.body.endsAt || null;
+  const capacity = req.body.capacity ? Number(req.body.capacity) : null;
+
+  if (title && startsAt) {
+    await pool.query(
+      `INSERT INTO classes (title, description, location, starts_at, ends_at, capacity, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [title, description, location, startsAt, endsAt, capacity, req.session.user.id]
+    );
+  }
+  res.redirect(req.body.month ? `/admin/classes?month=${req.body.month}` : "/admin/classes");
+});
+
+router.post("/admin/classes/:id", requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  const title = (req.body.title || "").trim();
+  const description = (req.body.description || "").trim() || null;
+  const location = (req.body.location || "").trim() || null;
+  const startsAt = req.body.startsAt;
+  const endsAt = req.body.endsAt || null;
+  const capacity = req.body.capacity ? Number(req.body.capacity) : null;
+
+  if (title && startsAt) {
+    await pool.query(
+      `UPDATE classes SET title=$1, description=$2, location=$3, starts_at=$4, ends_at=$5, capacity=$6
+       WHERE id = $7`,
+      [title, description, location, startsAt, endsAt, capacity, id]
+    );
+  }
+  res.redirect(req.query.month ? `/admin/classes?month=${req.query.month}` : "/admin/classes");
+});
+
+router.post("/admin/classes/:id/delete", requireAdmin, async (req, res) => {
+  await pool.query("DELETE FROM classes WHERE id = $1", [Number(req.params.id)]);
+  res.redirect(req.query.month ? `/admin/classes?month=${req.query.month}` : "/admin/classes");
+});
+
+router.post("/admin/classes/:id/signups/:signupId/delete", requireAdmin, async (req, res) => {
+  await pool.query("DELETE FROM class_signups WHERE id = $1 AND class_id = $2", [Number(req.params.signupId), Number(req.params.id)]);
+  res.redirect(req.query.month ? `/admin/classes?month=${req.query.month}` : "/admin/classes");
 });
 
 // ---------- Charity vote ----------

@@ -132,6 +132,9 @@ events_body = """
   </div>
   <div class="section">
     <div class="wrap-narrow">
+      <div class="note-box" data-i18n-html="ev.calendar.note">
+        <strong>See what's coming up &amp; sign up:</strong> <a href="https://umas-books.onrender.com/events">View the events calendar &rarr;</a> &mdash; no account needed.
+      </div>
       <div class="cardlist">
         <div class="card">
           <span class="card-title" data-i18n="ev.club.t">Monthly Book Club</span>
@@ -163,6 +166,7 @@ events_i18n = {
         "ev.lang.d": "Weekly sessions for adults, plus a dedicated children’s group — conversation practice, or storytime for younger learners.",
         "ev.swap.t": "Story Swaps",
         "ev.swap.d": "Bring a book, take a book, meet fellow readers.",
+        "ev.calendar.note": "<strong>See what's coming up &amp; sign up:</strong> <a href=\"https://umas-books.onrender.com/events\">View the events calendar &rarr;</a> — no account needed.",
         "ev.rsvp.note": "<strong>Want to join in?</strong> Drop us a line and we’ll let you know the next date — <a href=\"mailto:admin@umasbooks.org?subject=Event%20RSVP\">admin@umasbooks.org</a>.",
     },
     "fr": {
@@ -174,6 +178,7 @@ events_i18n = {
         "ev.lang.d": "Séances hebdomadaires pour adultes, plus un groupe dédié aux enfants — pratique de la conversation ou lecture d’histoires pour les plus jeunes.",
         "ev.swap.t": "Trocs de livres",
         "ev.swap.d": "Apportez un livre, repartez avec un autre, rencontrez d’autres lecteurs.",
+        "ev.calendar.note": "<strong>Découvrez le programme et inscrivez-vous :</strong> <a href=\"https://umas-books.onrender.com/events\">Voir le calendrier des événements &rarr;</a> — aucun compte requis.",
         "ev.rsvp.note": "<strong>Envie de nous rejoindre ?</strong> Écrivez-nous et nous vous indiquerons la prochaine date — <a href=\"mailto:admin@umasbooks.org?subject=Event%20RSVP\">admin@umasbooks.org</a>.",
     },
 }

@@ -4,3 +4,4 @@
 .artifact-body.html
 _sqs_harness.html
 node_modules/
+__pycache__/

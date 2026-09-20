@@ -1,0 +1,103 @@
+<%- include('../partials/header', { title: 'Admin — Classes' }) %>
+<%- include('../partials/admin_subnav', { active }) %>
+
+<h1>Classes</h1>
+<p class="muted small">Classes are public — anyone can view the calendar at <a href="/classes">/classes</a> and sign up with just a name and email, no account needed.</p>
+
+<div class="card">
+  <div class="section-title">Add a class</div>
+  <form class="stack" method="post" action="/admin/classes">
+    <%- include('../partials/csrf_field') %>
+    <input type="hidden" name="month" value="<%= currentMonth %>">
+    <label for="c-title">Title</label>
+    <input id="c-title" name="title" type="text" required placeholder="Éveil English Immersion">
+    <label for="c-desc">Description</label>
+    <textarea id="c-desc" name="description"></textarea>
+    <label for="c-loc">Location</label>
+    <input id="c-loc" name="location" type="text">
+    <label for="c-start">Starts at</label>
+    <input id="c-start" name="startsAt" type="datetime-local" required>
+    <label for="c-end">Ends at (optional)</label>
+    <input id="c-end" name="endsAt" type="datetime-local">
+    <label for="c-cap">Capacity (optional)</label>
+    <input id="c-cap" name="capacity" type="number" min="1">
+    <button class="btn" type="submit">Add class</button>
+  </form>
+</div>
+
+<div class="card">
+  <div class="calendar-nav">
+    <a class="btn btn-outline btn-small" href="/admin/classes?month=<%= prevMonth %>">&larr; Prev</a>
+    <span class="month-label"><%= monthLabel %></span>
+    <a class="btn btn-outline btn-small" href="/admin/classes?month=<%= nextMonth %>">Next &rarr;</a>
+  </div>
+  <div class="calendar-grid">
+    <% ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].forEach(d => { %><div class="calendar-weekday"><%= d %></div><% }) %>
+    <% weeks.forEach(week => { %>
+      <% week.forEach(day => { %>
+        <% if (!day) { %>
+          <div class="calendar-day is-empty"></div>
+        <% } else { %>
+          <div class="calendar-day<%= day.isToday ? ' is-today' : '' %>">
+            <div class="calendar-day-number"><%= day.day %></div>
+            <% day.items.forEach(c => { %>
+              <% const full = c.capacity != null && c.signup_count >= c.capacity; const signups = signupsByClass[c.id] || []; %>
+              <details class="calendar-pill<%= full ? ' is-full' : '' %>">
+                <summary><%= c.title %> &middot; <%= new Date(c.starts_at).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}) %></summary>
+                <div class="calendar-pill-body">
+                  <div class="muted small">
+                    <%= new Date(c.starts_at).toLocaleString() %><%= c.location ? ' · ' + c.location : '' %>
+                    <%= c.capacity != null ? ' · ' + c.signup_count + '/' + c.capacity + ' signed up' : ' · ' + c.signup_count + ' signed up' %>
+                  </div>
+                  <% if (c.description) { %><div class="muted small" style="margin-top:6px;"><%= c.description %></div><% } %>
+
+                  <% if (signups.length) { %>
+                    <div class="muted small" style="margin-top:10px; font-variant: small-caps; letter-spacing: 0.06em; color: var(--gold);">Signed up</div>
+                    <ul class="plain" style="margin-top:4px;">
+                      <% signups.forEach(s => { %>
+                        <li style="padding:6px 0;">
+                          <%= s.name %> &middot; <span class="muted small"><%= s.email %></span>
+                          <form method="post" action="/admin/classes/<%= c.id %>/signups/<%= s.id %>/delete?month=<%= currentMonth %>" style="display:inline; margin-left:8px;">
+                            <%- include('../partials/csrf_field') %>
+                            <button class="btn btn-outline btn-small" type="submit">Remove</button>
+                          </form>
+                        </li>
+                      <% }) %>
+                    </ul>
+                  <% } %>
+
+                  <details style="margin-top:10px;">
+                    <summary style="cursor:pointer; color: var(--maroon);">Edit</summary>
+                    <form class="stack" method="post" action="/admin/classes/<%= c.id %>?month=<%= currentMonth %>" style="margin-top:10px;">
+                      <%- include('../partials/csrf_field') %>
+                      <label for="title-<%= c.id %>">Title</label>
+                      <input id="title-<%= c.id %>" name="title" type="text" required value="<%= c.title %>">
+                      <label for="desc-<%= c.id %>">Description</label>
+                      <textarea id="desc-<%= c.id %>" name="description"><%= c.description || '' %></textarea>
+                      <label for="loc-<%= c.id %>">Location</label>
+                      <input id="loc-<%= c.id %>" name="location" type="text" value="<%= c.location || '' %>">
+                      <label for="start-<%= c.id %>">Starts at</label>
+                      <input id="start-<%= c.id %>" name="startsAt" type="datetime-local" required value="<%= new Date(c.starts_at.getTime() - c.starts_at.getTimezoneOffset()*60000).toISOString().slice(0,16) %>">
+                      <label for="end-<%= c.id %>">Ends at</label>
+                      <input id="end-<%= c.id %>" name="endsAt" type="datetime-local" value="<%= c.ends_at ? new Date(c.ends_at.getTime() - c.ends_at.getTimezoneOffset()*60000).toISOString().slice(0,16) : '' %>">
+                      <label for="cap-<%= c.id %>">Capacity</label>
+                      <input id="cap-<%= c.id %>" name="capacity" type="number" min="1" value="<%= c.capacity != null ? c.capacity : '' %>">
+                      <div><button class="btn btn-small" type="submit">Save changes</button></div>
+                    </form>
+                  </details>
+
+                  <form method="post" action="/admin/classes/<%= c.id %>/delete?month=<%= currentMonth %>" style="margin-top:8px;">
+                    <%- include('../partials/csrf_field') %>
+                    <button class="btn btn-outline btn-small" type="submit">Delete class</button>
+                  </form>
+                </div>
+              </details>
+            <% }) %>
+          </div>
+        <% } %>
+      <% }) %>
+    <% }) %>
+  </div>
+</div>
+
+<%- include('../partials/footer') %>
