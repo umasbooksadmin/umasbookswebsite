@@ -1,20 +1,15 @@
 const express = require("express");
 const { pool } = require("../db");
 const { requireAdmin } = require("../middleware/auth");
-const { sendResetLink } = require("../lib/passwordReset");
+const { parseMonthParam, monthRange, monthGrid, groupByDate, monthNav } = require("../lib/calendar");
 
 const router = express.Router();
-
-function baseUrl(req) {
-  return process.env.APP_BASE_URL || process.env.RENDER_EXTERNAL_URL || `${req.protocol}://${req.get("host")}`;
-}
 
 // ---------- Overview ----------
 
 router.get("/admin", requireAdmin, async (req, res) => {
-  const [memberCount, upcomingEvents, upcomingShifts, activeRound, nextMeeting] = await Promise.all([
+  const [memberCount, upcomingShifts, activeRound, nextMeeting] = await Promise.all([
     pool.query("SELECT COUNT(*)::int AS n FROM users"),
-    pool.query("SELECT COUNT(*)::int AS n FROM events WHERE starts_at >= now()"),
     pool.query("SELECT COUNT(*)::int AS n FROM volunteer_shifts WHERE starts_at >= now()"),
     pool.query("SELECT * FROM charity_rounds WHERE is_active = TRUE ORDER BY opens_at DESC LIMIT 1"),
     pool.query("SELECT * FROM meetings WHERE scheduled_at >= now() ORDER BY scheduled_at ASC LIMIT 1"),
@@ -23,7 +18,6 @@ router.get("/admin", requireAdmin, async (req, res) => {
   res.render("admin/index", {
     active: "overview",
     memberCount: memberCount.rows[0].n,
-    upcomingEventCount: upcomingEvents.rows[0].n,
     upcomingShiftCount: upcomingShifts.rows[0].n,
     activeRound: activeRound.rows[0] || null,
     nextMeeting: nextMeeting.rows[0] || null,
@@ -34,21 +28,7 @@ router.get("/admin", requireAdmin, async (req, res) => {
 
 router.get("/admin/members", requireAdmin, async (req, res) => {
   const { rows: members } = await pool.query("SELECT id, email, display_name, is_admin FROM users ORDER BY created_at DESC LIMIT 200");
-  res.render("admin/members", { active: "members", members, error: null, notice: null });
-});
-
-router.post("/admin/members/reset-password", requireAdmin, async (req, res) => {
-  const email = (req.body.email || "").trim().toLowerCase();
-  const { rows: members } = await pool.query("SELECT id, email, display_name, is_admin FROM users ORDER BY created_at DESC LIMIT 200");
-
-  const { rows } = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
-  const member = rows[0];
-  if (!member) {
-    return res.status(400).render("admin/members", { active: "members", members, error: "No member found with that email.", notice: null });
-  }
-
-  await sendResetLink(member, baseUrl(req));
-  res.render("admin/members", { active: "members", members, error: null, notice: `Reset email sent to ${member.email}.` });
+  res.render("admin/members", { active: "members", members });
 });
 
 // ---------- Announcements ----------
@@ -70,44 +50,24 @@ router.post("/admin/announcements", requireAdmin, async (req, res) => {
   res.redirect("/admin/announcements");
 });
 
-// ---------- Events ----------
-
-router.get("/admin/events", requireAdmin, async (req, res) => {
-  const { rows: events } = await pool.query("SELECT * FROM events ORDER BY starts_at DESC LIMIT 20");
-  res.render("admin/events", { active: "events", events });
-});
-
-router.post("/admin/events", requireAdmin, async (req, res) => {
-  const title = (req.body.title || "").trim();
-  const description = (req.body.description || "").trim();
-  const location = (req.body.location || "").trim();
-  const startsAt = req.body.startsAt;
-  const capacity = req.body.capacity ? Number(req.body.capacity) : null;
-  if (title && startsAt) {
-    await pool.query(
-      `INSERT INTO events (title, description, location, starts_at, capacity, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [title, description, location, startsAt, capacity, req.session.user.id]
-    );
-  }
-  res.redirect("/admin/events");
-});
-
 // ---------- Volunteer shifts ----------
 
 router.get("/admin/volunteer-shifts", requireAdmin, async (req, res) => {
+  const { year, month } = parseMonthParam(req.query.month);
+  const { start, end } = monthRange(year, month);
   const { rows: shifts } = await pool.query(
     `SELECT s.*, (SELECT COUNT(*) FROM volunteer_signups g WHERE g.shift_id = s.id) AS signup_count
-     FROM volunteer_shifts s WHERE s.starts_at >= now() ORDER BY s.starts_at ASC LIMIT 30`
+     FROM volunteer_shifts s WHERE s.starts_at >= $1 AND s.starts_at < $2 ORDER BY s.starts_at ASC`,
+    [start, end]
   );
-  res.render("admin/volunteer", { active: "volunteer", shifts });
+  const weeks = monthGrid(year, month, groupByDate(shifts, "starts_at"));
+  res.render("admin/volunteer", { active: "volunteer", weeks, ...monthNav(year, month) });
 });
 
 router.post("/admin/volunteer-shifts", requireAdmin, async (req, res) => {
   const role = (req.body.role || "").trim();
   const startsAt = req.body.startsAt;
   const endsAt = req.body.endsAt;
-  const capacity = Math.max(1, Number(req.body.capacity) || 1);
   const notes = (req.body.notes || "").trim() || null;
   const repeatWeeks = Math.max(1, Math.min(52, Number(req.body.repeatWeeks) || 1));
 
@@ -121,24 +81,31 @@ router.post("/admin/volunteer-shifts", requireAdmin, async (req, res) => {
       const e = new Date(end.getTime() + i * weekMs);
       await pool.query(
         `INSERT INTO volunteer_shifts (role, starts_at, ends_at, capacity, notes, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [role, s.toISOString(), e.toISOString(), capacity, notes, req.session.user.id]
+         VALUES ($1, $2, $3, 1, $4, $5)`,
+        [role, s.toISOString(), e.toISOString(), notes, req.session.user.id]
       );
     }
   }
-  res.redirect("/admin/volunteer-shifts");
+  res.redirect(req.body.month ? `/admin/volunteer-shifts?month=${req.body.month}` : "/admin/volunteer-shifts");
 });
 
 router.post("/admin/volunteer-shifts/:id/delete", requireAdmin, async (req, res) => {
   await pool.query("DELETE FROM volunteer_shifts WHERE id = $1", [Number(req.params.id)]);
-  res.redirect("/admin/volunteer-shifts");
+  res.redirect(req.query.month ? `/admin/volunteer-shifts?month=${req.query.month}` : "/admin/volunteer-shifts");
 });
 
 // ---------- Meetings ----------
 
 router.get("/admin/meetings", requireAdmin, async (req, res) => {
-  const { rows: meetings } = await pool.query("SELECT * FROM meetings ORDER BY scheduled_at DESC LIMIT 30");
-  res.render("admin/meetings", { active: "meetings", meetings });
+  const { year, month } = parseMonthParam(req.query.month);
+  const { start, end } = monthRange(year, month);
+  const { rows: meetings } = await pool.query(
+    `SELECT m.*, (SELECT COUNT(*) FROM meeting_rsvps r WHERE r.meeting_id = m.id) AS rsvp_count
+     FROM meetings m WHERE m.scheduled_at >= $1 AND m.scheduled_at < $2 ORDER BY m.scheduled_at ASC`,
+    [start, end]
+  );
+  const weeks = monthGrid(year, month, groupByDate(meetings, "scheduled_at"));
+  res.render("admin/meetings", { active: "meetings", weeks, ...monthNav(year, month) });
 });
 
 router.post("/admin/meetings", requireAdmin, async (req, res) => {
@@ -154,18 +121,18 @@ router.post("/admin/meetings", requireAdmin, async (req, res) => {
       [title, scheduledAt, location, agenda, req.session.user.id]
     );
   }
-  res.redirect("/admin/meetings");
+  res.redirect(req.body.month ? `/admin/meetings?month=${req.body.month}` : "/admin/meetings");
 });
 
 router.post("/admin/meetings/:id/minutes", requireAdmin, async (req, res) => {
   const minutes = (req.body.minutes || "").trim() || null;
   await pool.query("UPDATE meetings SET minutes = $1 WHERE id = $2", [minutes, Number(req.params.id)]);
-  res.redirect("/admin/meetings");
+  res.redirect(req.query.month ? `/admin/meetings?month=${req.query.month}` : "/admin/meetings");
 });
 
 router.post("/admin/meetings/:id/delete", requireAdmin, async (req, res) => {
   await pool.query("DELETE FROM meetings WHERE id = $1", [Number(req.params.id)]);
-  res.redirect("/admin/meetings");
+  res.redirect(req.query.month ? `/admin/meetings?month=${req.query.month}` : "/admin/meetings");
 });
 
 // ---------- Charity vote ----------

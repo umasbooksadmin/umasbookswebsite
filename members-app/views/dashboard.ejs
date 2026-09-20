@@ -37,26 +37,6 @@
 </div>
 
 <div class="card">
-  <div class="section-title">Upcoming Events</div>
-  <% if (!events.length) { %>
-    <p class="muted">Nothing scheduled yet.</p>
-  <% } else { %>
-    <ul class="plain">
-      <% events.forEach(e => { %>
-        <li>
-          <strong><%= e.title %></strong>
-          <div class="muted small"><%= new Date(e.starts_at).toLocaleString() %><%= e.location ? ' · ' + e.location : '' %></div>
-          <% if (rsvpedEventIds.has(e.id)) { %>
-            <span class="notice-box small" style="display:inline-block; margin-top:6px;">You're going</span>
-          <% } %>
-        </li>
-      <% }) %>
-    </ul>
-  <% } %>
-  <p><a href="/events">See all &amp; RSVP &rarr;</a></p>
-</div>
-
-<div class="card">
   <div class="section-title">Volunteer Shifts</div>
   <% if (!shifts.length) { %>
     <p class="muted">No shifts scheduled yet.</p>
@@ -86,11 +66,14 @@
         <li>
           <strong><%= m.title %></strong>
           <div class="muted small"><%= new Date(m.scheduled_at).toLocaleString() %><%= m.location ? ' · ' + m.location : '' %></div>
+          <% if (rsvpedMeetingIds.has(m.id)) { %>
+            <span class="notice-box small" style="display:inline-block; margin-top:6px;">You're going</span>
+          <% } %>
         </li>
       <% }) %>
     </ul>
   <% } %>
-  <p><a href="/meetings">See all &amp; past minutes &rarr;</a></p>
+  <p><a href="/meetings">See all, RSVP &amp; past minutes &rarr;</a></p>
 </div>
 
 <% if (charity) { %>

@@ -12,7 +12,6 @@ const { csrfProtection } = require("./middleware/csrf");
 const authRoutes = require("./routes/auth");
 const dashboardRoutes = require("./routes/dashboard");
 const forumRoutes = require("./routes/forum");
-const eventsRoutes = require("./routes/events");
 const charityRoutes = require("./routes/charity");
 const volunteerRoutes = require("./routes/volunteer");
 const meetingsRoutes = require("./routes/meetings");
@@ -72,7 +71,6 @@ app.get("/", (req, res) => {
 app.use(authRoutes);
 app.use(dashboardRoutes);
 app.use(forumRoutes);
-app.use(eventsRoutes);
 app.use(charityRoutes);
 app.use(volunteerRoutes);
 app.use(meetingsRoutes);

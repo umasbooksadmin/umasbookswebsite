@@ -3,12 +3,11 @@
 <h1>Volunteer Shifts</h1>
 <p class="muted">Sign up for a shift below. Uma's is entirely volunteer-run &mdash; every hour on the shop floor, every sorted donation, every event, is someone giving their time.</p>
 
-<% const mine = shifts.filter(s => mySignedUpIds.has(s.id)); %>
-<% if (mine.length) { %>
+<% if (myShifts.length) { %>
   <div class="card">
     <div class="section-title">My upcoming shifts</div>
     <ul class="plain">
-      <% mine.forEach(s => { %>
+      <% myShifts.forEach(s => { %>
         <li>
           <strong><%= s.role %></strong>
           <div class="muted small"><%= new Date(s.starts_at).toLocaleString() %> &ndash; <%= new Date(s.ends_at).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}) %></div>
@@ -19,34 +18,49 @@
 <% } %>
 
 <div class="card">
-  <div class="section-title">All upcoming shifts</div>
-  <% if (!shifts.length) { %>
-    <p class="muted">No shifts scheduled yet.</p>
-  <% } %>
-  <ul class="plain">
-    <% shifts.forEach(s => { %>
-      <% const full = s.signup_count >= s.capacity; %>
-      <li>
-        <strong><%= s.role %></strong>
-        <div class="muted small">
-          <%= new Date(s.starts_at).toLocaleString() %> &ndash; <%= new Date(s.ends_at).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}) %>
-          &middot; <%= s.signup_count %>/<%= s.capacity %> filled
-        </div>
-        <% if (s.notes) { %><div class="muted small"><%= s.notes %></div><% } %>
-        <% if (mySignedUpIds.has(s.id)) { %>
-          <form method="post" action="/volunteer/<%= s.id %>/cancel" style="margin-top:6px;">
-            <%- include('partials/csrf_field') %>
-            <button class="btn btn-outline btn-small" type="submit">Cancel</button>
-          </form>
+  <div class="calendar-nav">
+    <a class="btn btn-outline btn-small" href="/volunteer?month=<%= prevMonth %>">&larr; Prev</a>
+    <span class="month-label"><%= monthLabel %></span>
+    <a class="btn btn-outline btn-small" href="/volunteer?month=<%= nextMonth %>">Next &rarr;</a>
+  </div>
+  <div class="calendar-grid">
+    <% ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].forEach(d => { %><div class="calendar-weekday"><%= d %></div><% }) %>
+    <% weeks.forEach(week => { %>
+      <% week.forEach(day => { %>
+        <% if (!day) { %>
+          <div class="calendar-day is-empty"></div>
         <% } else { %>
-          <form method="post" action="/volunteer/<%= s.id %>/signup" style="margin-top:6px;">
-            <%- include('partials/csrf_field') %>
-            <button class="btn btn-small" type="submit"<%= full ? ' disabled' : '' %>><%= full ? 'Full' : 'Sign up' %></button>
-          </form>
+          <div class="calendar-day<%= day.isToday ? ' is-today' : '' %>">
+            <div class="calendar-day-number"><%= day.day %></div>
+            <% day.items.forEach(s => { %>
+              <% const full = s.signup_count >= s.capacity; const mine = mySignedUpIds.has(s.id); %>
+              <details class="calendar-pill<%= full ? ' is-full' : '' %><%= mine ? ' is-mine' : '' %>">
+                <summary><%= s.role %> &middot; <%= new Date(s.starts_at).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}) %></summary>
+                <div class="calendar-pill-body">
+                  <div class="muted small">
+                    <%= new Date(s.starts_at).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}) %> &ndash; <%= new Date(s.ends_at).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}) %>
+                    &middot; <%= s.signup_count %>/<%= s.capacity %> filled
+                  </div>
+                  <% if (s.notes) { %><div class="muted small"><%= s.notes %></div><% } %>
+                  <% if (mine) { %>
+                    <form method="post" action="/volunteer/<%= s.id %>/cancel?month=<%= currentMonth %>" style="margin-top:8px;">
+                      <%- include('partials/csrf_field') %>
+                      <button class="btn btn-outline btn-small" type="submit">Cancel</button>
+                    </form>
+                  <% } else { %>
+                    <form method="post" action="/volunteer/<%= s.id %>/signup?month=<%= currentMonth %>" style="margin-top:8px;">
+                      <%- include('partials/csrf_field') %>
+                      <button class="btn btn-small" type="submit"<%= full ? ' disabled' : '' %>><%= full ? 'Full' : 'Sign up' %></button>
+                    </form>
+                  <% } %>
+                </div>
+              </details>
+            <% }) %>
+          </div>
         <% } %>
-      </li>
+      <% }) %>
     <% }) %>
-  </ul>
+  </div>
 </div>
 
 <%- include('partials/footer') %>

@@ -7,6 +7,7 @@
   <div class="section-title">Schedule a meeting</div>
   <form class="stack" method="post" action="/admin/meetings">
     <%- include('../partials/csrf_field') %>
+    <input type="hidden" name="month" value="<%= currentMonth %>">
     <label for="m-title">Title</label>
     <input id="m-title" name="title" type="text" required placeholder="Board Meeting">
     <label for="m-when">Date &amp; time</label>
@@ -20,31 +21,51 @@
 </div>
 
 <div class="card">
-  <div class="section-title">All meetings</div>
-  <% if (!meetings.length) { %><p class="muted">None scheduled yet.</p><% } %>
-  <ul class="plain">
-    <% meetings.forEach(m => { %>
-      <li>
-        <strong><%= m.title %></strong>
-        <span class="muted small"><%= new Date(m.scheduled_at).toLocaleString() %><%= m.location ? ' · ' + m.location : '' %></span>
-        <% if (m.agenda) { %><div class="muted small" style="margin-top:4px;"><em>Agenda:</em> <%= m.agenda %></div><% } %>
+  <div class="calendar-nav">
+    <a class="btn btn-outline btn-small" href="/admin/meetings?month=<%= prevMonth %>">&larr; Prev</a>
+    <span class="month-label"><%= monthLabel %></span>
+    <a class="btn btn-outline btn-small" href="/admin/meetings?month=<%= nextMonth %>">Next &rarr;</a>
+  </div>
+  <div class="calendar-grid">
+    <% ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].forEach(d => { %><div class="calendar-weekday"><%= d %></div><% }) %>
+    <% weeks.forEach(week => { %>
+      <% week.forEach(day => { %>
+        <% if (!day) { %>
+          <div class="calendar-day is-empty"></div>
+        <% } else { %>
+          <div class="calendar-day<%= day.isToday ? ' is-today' : '' %>">
+            <div class="calendar-day-number"><%= day.day %></div>
+            <% day.items.forEach(m => { %>
+              <details class="calendar-pill">
+                <summary><%= m.title %> &middot; <%= new Date(m.scheduled_at).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}) %></summary>
+                <div class="calendar-pill-body">
+                  <div class="muted small">
+                    <%= new Date(m.scheduled_at).toLocaleString() %><%= m.location ? ' · ' + m.location : '' %>
+                    &middot; <%= m.rsvp_count %> going
+                  </div>
+                  <% if (m.agenda) { %><div class="muted small"><em>Agenda:</em> <%= m.agenda %></div><% } %>
 
-        <form class="stack" method="post" action="/admin/meetings/<%= m.id %>/minutes" style="margin-top:10px; max-width:100%;">
-          <%- include('../partials/csrf_field') %>
-          <label for="minutes-<%= m.id %>">Minutes</label>
-          <textarea id="minutes-<%= m.id %>" name="minutes" placeholder="Add or edit minutes&hellip;"><%= m.minutes || '' %></textarea>
-          <div>
-            <button class="btn btn-small" type="submit">Save minutes</button>
+                  <form class="stack" method="post" action="/admin/meetings/<%= m.id %>/minutes?month=<%= currentMonth %>" style="margin-top:10px;">
+                    <%- include('../partials/csrf_field') %>
+                    <label for="minutes-<%= m.id %>">Minutes</label>
+                    <textarea id="minutes-<%= m.id %>" name="minutes" placeholder="Add or edit minutes&hellip;"><%= m.minutes || '' %></textarea>
+                    <div>
+                      <button class="btn btn-small" type="submit">Save minutes</button>
+                    </div>
+                  </form>
+
+                  <form method="post" action="/admin/meetings/<%= m.id %>/delete?month=<%= currentMonth %>" style="margin-top:8px;">
+                    <%- include('../partials/csrf_field') %>
+                    <button class="btn btn-outline btn-small" type="submit">Delete meeting</button>
+                  </form>
+                </div>
+              </details>
+            <% }) %>
           </div>
-        </form>
-
-        <form method="post" action="/admin/meetings/<%= m.id %>/delete" style="margin-top:6px; display:inline;">
-          <%- include('../partials/csrf_field') %>
-          <button class="btn btn-outline btn-small" type="submit">Delete meeting</button>
-        </form>
-      </li>
+        <% } %>
+      <% }) %>
     <% }) %>
-  </ul>
+  </div>
 </div>
 
 <%- include('../partials/footer') %>

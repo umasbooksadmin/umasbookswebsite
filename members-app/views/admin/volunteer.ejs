@@ -5,9 +5,10 @@
 
 <div class="card">
   <div class="section-title">Add a volunteer shift</div>
-  <p class="muted small">Use "Repeat weekly" to create the same shift for several weeks at once &mdash; handy for regular shop-floor slots.</p>
+  <p class="muted small">Use "Repeat weekly" to create the same shift for several weeks at once &mdash; handy for regular shop-floor slots. Each shift takes one volunteer.</p>
   <form class="stack" method="post" action="/admin/volunteer-shifts">
     <%- include('../partials/csrf_field') %>
+    <input type="hidden" name="month" value="<%= currentMonth %>">
     <label for="v-role">Role</label>
     <input id="v-role" name="role" type="text" required placeholder="Shop Floor" list="v-role-suggestions">
     <datalist id="v-role-suggestions">
@@ -21,8 +22,6 @@
     <input id="v-start" name="startsAt" type="datetime-local" required>
     <label for="v-end">Ends at</label>
     <input id="v-end" name="endsAt" type="datetime-local" required>
-    <label for="v-cap">Capacity</label>
-    <input id="v-cap" name="capacity" type="number" min="1" value="1" required>
     <label for="v-repeat">Repeat weekly, this many times (including the first)</label>
     <input id="v-repeat" name="repeatWeeks" type="number" min="1" max="52" value="1">
     <label for="v-notes">Notes (optional)</label>
@@ -32,20 +31,42 @@
 </div>
 
 <div class="card">
-  <div class="section-title">Upcoming shifts</div>
-  <ul class="plain">
-    <% if (!shifts.length) { %><li class="muted small">None scheduled.</li><% } %>
-    <% shifts.forEach(s => { %>
-      <li>
-        <%= s.role %>
-        <span class="muted small"><%= new Date(s.starts_at).toLocaleString() %> &middot; <%= s.signup_count %>/<%= s.capacity %> filled</span>
-        <form method="post" action="/admin/volunteer-shifts/<%= s.id %>/delete" style="display:inline;">
-          <%- include('../partials/csrf_field') %>
-          <button class="btn btn-outline btn-small" type="submit">Delete</button>
-        </form>
-      </li>
+  <div class="calendar-nav">
+    <a class="btn btn-outline btn-small" href="/admin/volunteer-shifts?month=<%= prevMonth %>">&larr; Prev</a>
+    <span class="month-label"><%= monthLabel %></span>
+    <a class="btn btn-outline btn-small" href="/admin/volunteer-shifts?month=<%= nextMonth %>">Next &rarr;</a>
+  </div>
+  <div class="calendar-grid">
+    <% ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].forEach(d => { %><div class="calendar-weekday"><%= d %></div><% }) %>
+    <% weeks.forEach(week => { %>
+      <% week.forEach(day => { %>
+        <% if (!day) { %>
+          <div class="calendar-day is-empty"></div>
+        <% } else { %>
+          <div class="calendar-day<%= day.isToday ? ' is-today' : '' %>">
+            <div class="calendar-day-number"><%= day.day %></div>
+            <% day.items.forEach(s => { %>
+              <% const full = s.signup_count >= s.capacity; %>
+              <details class="calendar-pill<%= full ? ' is-full' : '' %>">
+                <summary><%= s.role %> &middot; <%= new Date(s.starts_at).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}) %></summary>
+                <div class="calendar-pill-body">
+                  <div class="muted small">
+                    <%= new Date(s.starts_at).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}) %> &ndash; <%= new Date(s.ends_at).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}) %>
+                    &middot; <%= s.signup_count %>/<%= s.capacity %> filled
+                  </div>
+                  <% if (s.notes) { %><div class="muted small"><%= s.notes %></div><% } %>
+                  <form method="post" action="/admin/volunteer-shifts/<%= s.id %>/delete?month=<%= currentMonth %>" style="margin-top:8px;">
+                    <%- include('../partials/csrf_field') %>
+                    <button class="btn btn-outline btn-small" type="submit">Delete</button>
+                  </form>
+                </div>
+              </details>
+            <% }) %>
+          </div>
+        <% } %>
+      <% }) %>
     <% }) %>
-  </ul>
+  </div>
 </div>
 
 <%- include('../partials/footer') %>

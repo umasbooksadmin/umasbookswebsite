@@ -1,8 +1,9 @@
 # Uma's Books — Members Area (backend)
 
-A real, separate web app: accounts, a community forum, event RSVPs, and a
-quarterly charity vote for Uma's Books members. Node.js + Express +
-PostgreSQL, server-rendered with EJS, sessions stored in Postgres.
+A real, separate web app: accounts, a community forum, volunteer shift and
+meeting scheduling, and a quarterly charity vote for Uma's Books members.
+Node.js + Express + PostgreSQL, server-rendered with EJS, sessions stored
+in Postgres.
 
 This is **independent of Squarespace** — Squarespace stays the public
 website and shop; this app runs on its own (Render) and members reach it
@@ -30,29 +31,33 @@ safe to re-run. Change `SEED_ADMIN_EMAIL` too if you don't want
 - **Accounts** — signup/login/logout, sessions stored in Postgres
   (`connect-pg-simple`), passwords hashed with bcrypt.
 - **Dashboard** (`/dashboard`) — recent announcements, forum preview,
-  upcoming events, the active charity vote.
+  upcoming volunteer shifts and meetings, the active charity vote.
 - **Forum** (`/forum`) — threads and replies, any logged-in member can post.
-- **Events** (`/events`) — admin-created events; members RSVP (capacity
-  enforced) or cancel.
 - **Charity vote** (`/charity`) — admin starts a round with named options;
   each member gets one vote per round, changeable while the round is open.
-- **Volunteer shifts** (`/volunteer`) — admin creates shifts (role, time
-  range, capacity), optionally repeating weekly for several weeks in one
-  go; members sign up or cancel, capacity enforced.
-- **Meetings** (`/meetings`) — admin schedules meetings (title, date/time,
-  location, agenda) and posts minutes afterward; members see upcoming
-  meetings with their agenda and past meetings with minutes once posted.
+- **Volunteer shifts** (`/volunteer`) — a month-calendar view. Admin creates
+  shifts (role, time range, optional notes), optionally repeating weekly
+  for several weeks in one go; each shift takes one volunteer. Members
+  browse the calendar and sign up or cancel.
+- **Meetings** (`/meetings`) — a month-calendar view. Admin schedules
+  meetings (title, date/time, location, agenda) and posts minutes
+  afterward; members RSVP ("I'll be there") or cancel, and see past
+  meetings with minutes once posted.
 - **Password reset** — a member can request a reset link at
   `/forgot-password` (emailed via Gmail/Google Workspace SMTP, one-hour
   expiry, single use), or a logged-in member can change their password
-  directly at `/account/password`. An admin can also trigger a reset email
-  for any member from `/admin/members`.
+  directly at `/account/password`.
 - **Admin** (`/admin`, admin accounts only) — a proper multi-page section
   with its own sub-nav (`views/partials/admin_subnav.ejs`): an overview
-  with counts/links, plus dedicated pages for Members (send password
-  resets), Announcements, Events, Volunteer Shifts, Meetings, and Charity
-  Vote. Add a new admin area by adding a route in `src/routes/admin.js`,
-  a view under `views/admin/`, and a link in the subnav partial.
+  with counts/links, plus dedicated pages for Members, Announcements,
+  Volunteer Shifts, Meetings, and Charity Vote. Add a new admin area by
+  adding a route in `src/routes/admin.js`, a view under `views/admin/`,
+  and a link in the subnav partial.
+
+Note: event scheduling/RSVPs previously lived here but has been removed —
+it's planned as a separate part of the app. The `events`/`event_rsvps`
+tables are left in place (migrations are additive-only) in case that
+future feature reuses them.
 
 ### Email setup (Gmail/Google Workspace SMTP)
 

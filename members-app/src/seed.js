@@ -33,7 +33,7 @@ async function main() {
   if (announcementCount[0].n === 0) {
     await pool.query(
       `INSERT INTO announcements (title, body, created_by) VALUES ($1, $2, $3)`,
-      ["Welcome to the Members Area", "This is where we'll share announcements, host the community forum, run our quarterly charity vote, and manage event RSVPs.", adminId]
+      ["Welcome to the Members Area", "This is where we'll share announcements, host the community forum, run our quarterly charity vote, and schedule volunteer shifts and meetings.", adminId]
     );
     console.log("Seeded a welcome announcement.");
   }

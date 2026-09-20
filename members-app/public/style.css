@@ -95,3 +95,29 @@ footer.site { text-align: center; padding: 30px 0; color: var(--ink-soft); font-
 .admin-subnav a { font-size: 15px; color: var(--ink-soft); padding-bottom: 4px; border-bottom: 2px solid transparent; }
 .admin-subnav a:hover { color: var(--maroon); }
 .admin-subnav a.is-active { color: var(--maroon); border-bottom-color: var(--maroon); font-weight: 600; }
+
+.calendar-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.calendar-nav .month-label { font-family: 'Playfair Display', serif; color: var(--maroon-dark); font-size: 20px; }
+.calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.calendar-weekday { text-align: center; font-variant: small-caps; letter-spacing: 0.06em; color: var(--ink-soft); font-size: 13px; padding-bottom: 4px; }
+.calendar-day {
+  min-height: 100px; border: 1px solid var(--card-border); border-radius: 4px;
+  padding: 6px; background: #fff;
+}
+.calendar-day.is-empty { background: transparent; border-color: transparent; }
+.calendar-day.is-today { border-color: var(--maroon); border-width: 2px; }
+.calendar-day-number { font-size: 13px; color: var(--ink-soft); margin-bottom: 4px; }
+.calendar-pill {
+  background: var(--cream); border: 1px solid var(--card-border); border-radius: 3px;
+  padding: 4px 6px; margin-bottom: 4px; font-size: 12.5px;
+}
+.calendar-pill summary { cursor: pointer; list-style: none; color: var(--ink); }
+.calendar-pill summary::-webkit-details-marker { display: none; }
+.calendar-pill summary::before { content: "\25B8"; display: inline-block; margin-right: 4px; color: var(--maroon); }
+.calendar-pill[open] summary::before { content: "\25BE"; }
+.calendar-pill[open] { background: #fff; }
+.calendar-pill.is-mine { border-color: var(--maroon); }
+.calendar-pill.is-full summary { opacity: 0.65; }
+.calendar-pill-body { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+.calendar-pill-body form.stack { gap: 8px; max-width: none; }
+.calendar-day-more { font-size: 12px; color: var(--ink-soft); }
