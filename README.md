@@ -15,10 +15,11 @@ France.
 - `volunteer.html` — Volunteer sign-up & schedule (linked from About / footer)
 - `wishlist.html` — Book wish list (linked from footer / header heart icon)
 - `membership.html` — Membership (linked from header account icon / footer;
-  currently a stub — will eventually link out to `members-app`)
-- `members-app/` — the real Members Area: a separate Node.js + PostgreSQL
-  app (accounts, forum, event RSVPs, charity vote) deployed on Render,
-  independent of Squarespace. See `members-app/README.md`.
+  currently a stub — will eventually link out to `umas-books`)
+- `umas-books/` — the real Members Area backend: a separate Node.js +
+  PostgreSQL app (accounts, forum, charity vote, volunteer/meeting
+  scheduling, inventory) deployed on Render, independent of Squarespace.
+  See `umas-books/README.md`.
 - `assets/site.css` — shared styles for every page
 - `assets/site.js` — shared language toggle (EN/FR) + mailto-form wiring
 - `logo.png` — the shop's logo, referenced by every page

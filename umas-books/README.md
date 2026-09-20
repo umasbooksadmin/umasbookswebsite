@@ -1,9 +1,10 @@
-# Uma's Books — Members Area (backend)
+# umas-books (backend)
 
-A real, separate web app: accounts, a community forum, volunteer shift and
-meeting scheduling, and a quarterly charity vote for Uma's Books members.
-Node.js + Express + PostgreSQL, server-rendered with EJS, sessions stored
-in Postgres.
+A real, separate web app for Uma's Books and Adventures: member accounts,
+a community forum, volunteer shift and meeting scheduling, a quarterly
+charity vote, and admin-side book inventory management. Node.js +
+Express + PostgreSQL, server-rendered with EJS, sessions stored in
+Postgres.
 
 This is **independent of Squarespace** — Squarespace stays the public
 website and shop; this app runs on its own (Render) and members reach it
@@ -15,7 +16,7 @@ Requires Node 18+ and a local PostgreSQL server.
 
 ```bash
 npm install
-createdb umasbooks_members
+createdb umas_books
 cp .env.example .env        # edit DATABASE_URL / SESSION_SECRET if needed
 npm run migrate
 SEED_ADMIN_PASSWORD='pick-a-password' npm run seed   # creates admin@umasbooks.org
@@ -111,8 +112,8 @@ ISBN entry and manual add still work fully.
 ## Deploying to Render
 
 `render.yaml` at the repo root is a Render Blueprint that provisions:
-- a free Postgres database (`umasbooks-members-db`)
-- this app as a web service (`umasbooks-members`), wired to that database's
+- a free Postgres database (`umas-books-db`)
+- this app as a web service (`umas-books`), wired to that database's
   `DATABASE_URL` and a generated `SESSION_SECRET` automatically
 
 To deploy: in the Render dashboard, **New +** → **Blueprint**, connect the

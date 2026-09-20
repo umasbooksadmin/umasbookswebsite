@@ -1,8 +1,8 @@
 {
-  "name": "umasbooks-members",
+  "name": "umas-books",
   "version": "1.0.0",
   "private": true,
-  "description": "Members area backend for Uma's Books and Adventures (accounts, forum, charity vote, event RSVPs)",
+  "description": "Backend for Uma's Books and Adventures: member accounts, forum, charity vote, volunteer/meeting scheduling, and inventory management",
   "main": "src/index.js",
   "engines": {
     "node": ">=18"

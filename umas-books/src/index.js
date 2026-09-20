@@ -90,5 +90,5 @@ app.use((req, res) => {
 
 const port = process.env.PORT || 3000;
 app.listen(port, () => {
-  console.log(`Members app listening on port ${port}`);
+  console.log(`umas-books listening on port ${port}`);
 });
