@@ -1,56 +1,45 @@
-<!-- Uma's Books & Adventures  —  paste into a Squarespace Code Block -->
-<!-- Replace https://static1.squarespace.com/static/6a8c40b949196171fd54fb3c/t/6a953597bbed3c398abaf176/1788163479266/logo_umas_apostrophe.png (appears twice) with the uploaded logo's URL. -->
+<!-- Uma's Books & Adventures — paste into a Squarespace Code Block -->
+<!-- Replace https://static1.squarespace.com/static/6a8c40b949196171fd54fb3c/t/6a953597bbed3c398abaf176/1788163479266/logo_umas_apostrophe.png (appears once) with the uploaded logo's URL. -->
 <div class="umas-site">
 
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;0,700;0,900;1,500;1,600&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&display=swap');
 .umas-site {
-    --paper: #f2e8d6;
-    --paper-raised: #ece0c8;
-    --ink: #34220f;
-    --ink-soft: #5a4327;
-    --bronze: #7a5327;
-    --bronze-strong: #5c3a1a;
-    --gold: #a9803f;
-    --brick: #a63e2e;
-    --brick-soft: #b9584a;
-    --rule: rgba(90, 67, 39, 0.35);
-    --card-bg: rgba(255, 252, 244, 0.55);
-    --card-border: rgba(122, 83, 39, 0.28);
-    --shadow: rgba(52, 34, 15, 0.18);
-  }
+  --cream: #faf6ee;
+  --cream-alt: #f2e9d6;
+  --panel: #ffffff;
+  --ink: #2b2018;
+  --ink-soft: #5c4d3e;
+  --maroon: #7a1f2b;
+  --maroon-dark: #5c1620;
+  --maroon-soft: #a54450;
+  --gold: #b08d57;
+  --line: rgba(122, 31, 43, 0.16);
+  --card-border: rgba(122, 31, 43, 0.14);
+  --shadow: rgba(43, 32, 24, 0.14);
+}
 @media (prefers-color-scheme: dark) {
 .umas-site:not([data-theme="light"]) {
-      --paper: #241a10;
-      --paper-raised: #2c2013;
-      --ink: #efe1c4;
-      --ink-soft: #cbb686;
-      --bronze: #d9b878;
-      --bronze-strong: #eccf95;
-      --gold: #cda45a;
-      --brick: #d97b62;
-      --brick-soft: #e2937c;
-      --rule: rgba(217, 184, 120, 0.28);
-      --card-bg: rgba(255, 246, 224, 0.05);
-      --card-border: rgba(217, 184, 120, 0.22);
-      --shadow: rgba(0, 0, 0, 0.45);
-    }
+    --cream: #201613;
+    --cream-alt: #2a1c17;
+    --panel: #2a1c17;
+    --ink: #f1e6da;
+    --ink-soft: #cdb9a4;
+    --maroon: #e17f8b;
+    --maroon-dark: #f0a3ac;
+    --maroon-soft: #c96672;
+    --gold: #d8b878;
+    --line: rgba(225, 127, 139, 0.28);
+    --card-border: rgba(225, 127, 139, 0.22);
+    --shadow: rgba(0, 0, 0, 0.5);
+  }
 }
 .umas-site[data-theme="dark"] {
-    --paper: #241a10;
-    --paper-raised: #2c2013;
-    --ink: #efe1c4;
-    --ink-soft: #cbb686;
-    --bronze: #d9b878;
-    --bronze-strong: #eccf95;
-    --gold: #cda45a;
-    --brick: #d97b62;
-    --brick-soft: #e2937c;
-    --rule: rgba(217, 184, 120, 0.28);
-    --card-bg: rgba(255, 246, 224, 0.05);
-    --card-border: rgba(217, 184, 120, 0.22);
-    --shadow: rgba(0, 0, 0, 0.45);
-  }
+  --cream: #201613; --cream-alt: #2a1c17; --panel: #2a1c17;
+  --ink: #f1e6da; --ink-soft: #cdb9a4; --maroon: #e17f8b; --maroon-dark: #f0a3ac;
+  --maroon-soft: #c96672; --gold: #d8b878; --line: rgba(225, 127, 139, 0.28);
+  --card-border: rgba(225, 127, 139, 0.22); --shadow: rgba(0, 0, 0, 0.5);
+}
 .umas-site * { box-sizing: border-box; }
 .umas-site { scroll-behavior: smooth; }
 @media (prefers-reduced-motion: reduce) {
@@ -58,381 +47,585 @@
 .umas-site * { animation: none !important; transition: none !important; }
 }
 .umas-site {
-    margin: 0;
-    background: var(--paper);
-    background-image:
-      radial-gradient(ellipse at top, rgba(255,255,255,0.10), transparent 60%),
-      repeating-linear-gradient(0deg, rgba(90,67,39,0.02) 0px, rgba(90,67,39,0.02) 1px, transparent 1px, transparent 3px);
-    color: var(--ink);
-    font-family: 'EB Garamond', 'Iowan Old Style', Georgia, serif;
-    font-size: 19px;
-    line-height: 1.65;
-    -webkit-font-smoothing: antialiased;
-  }
-.umas-site a { color: var(--brick); text-decoration-thickness: 1px; text-underline-offset: 3px; }
-.umas-site a:focus-visible, .umas-site button:focus-visible { outline: 2px solid var(--brick); outline-offset: 3px; }
-.umas-site h1, .umas-site h2, .umas-site h3 {
-    font-family: 'Playfair Display', Georgia, serif;
-    color: var(--bronze-strong);
-    text-wrap: balance;
-    margin: 0;
-  }
-.umas-site .wrap { max-width: 760px; margin: 0 auto; padding: 0 28px; }
-.umas-site header.site {
-    position: static;
-    background: color-mix(in srgb, var(--paper) 88%, transparent);
-    backdrop-filter: blur(6px);
-    border-bottom: 1px solid var(--rule);
-  }
-.umas-site .nav {
-    position: relative;
-    max-width: 760px; margin: 0 auto; padding: 14px 108px 14px 28px;
-    display: flex; align-items: center; justify-content: space-between;
-    flex-wrap: wrap; gap: 10px 16px;
-  }
-.umas-site .brandmark { display: flex; align-items: center; gap: 10px; text-decoration: none; flex: 0 0 auto; }
-.umas-site .brandmark img { height: 40px; width: auto; display: block; }
-.umas-site .brandmark span {
-    font-family: 'Playfair Display', serif; font-weight: 600; font-size: 15px;
-    color: var(--ink); letter-spacing: 0.02em; white-space: nowrap;
-  }
-.umas-site nav.links { display: flex; flex-wrap: wrap; gap: 10px 20px; flex: 1 1 auto; justify-content: flex-end; align-self: center; }
-.umas-site nav.links a {
-    color: var(--ink-soft); text-decoration: none; font-size: 15px;
-    font-variant: small-caps; letter-spacing: 0.04em;
-    border-bottom: 1px solid transparent; white-space: nowrap;
-  }
-.umas-site nav.links a:hover { border-bottom-color: var(--brick); color: var(--brick); }
-@media (max-width: 640px) {
-.umas-site .nav { padding: 12px 84px 12px 20px; }
-.umas-site .brandmark img { height: 34px; }
-.umas-site .brandmark span { font-size: 14px; }
-.umas-site .langtoggle { top: 15px; right: 18px; }
-.umas-site nav.links { width: 100%; justify-content: center; gap: 10px 16px; }
-.umas-site nav.links a { font-size: 14px; }
-.umas-site .hero { padding: 16px 22px 40px; }
+  margin: 0;
+  background: var(--cream);
+  color: var(--ink);
+  font-family: 'EB Garamond', 'Iowan Old Style', Georgia, serif;
+  font-size: 18px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
 }
-.umas-site .ornament { display: flex; align-items: center; justify-content: center; gap: 14px; margin: 0 auto; width: 100%; max-width: 340px; opacity: 0.85; }
-.umas-site .ornament .line { flex: 1; height: 1px; background: linear-gradient(90deg, transparent, var(--gold), transparent); }
-.umas-site .ornament svg { flex-shrink: 0; color: var(--gold); }
+.umas-site a { color: var(--maroon); }
+.umas-site a:focus-visible, .umas-site button:focus-visible, .umas-site input:focus-visible, .umas-site textarea:focus-visible {
+  outline: 2px solid var(--maroon); outline-offset: 2px;
+}
+.umas-site h1, .umas-site h2, .umas-site h3 { font-family: 'Playfair Display', Georgia, serif; color: var(--maroon-dark); margin: 0; text-wrap: balance; }
+.umas-site img { max-width: 100%; display: block; }
+.umas-site .wrap { max-width: 1180px; margin: 0 auto; padding: 0 28px; }
+.umas-site .wrap-narrow { max-width: 800px; margin: 0 auto; padding: 0 28px; }
+.umas-site header.site {
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+}
+.umas-site .nav-row {
+  max-width: 1180px; margin: 0 auto; padding: 18px 28px;
+  display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap;
+}
+.umas-site .brandmark { display: flex; align-items: center; gap: 12px; text-decoration: none; flex: 0 0 auto; }
+.umas-site .brandmark img { height: 44px; width: auto; }
+.umas-site .brandmark .brand-text { display: flex; flex-direction: column; line-height: 1.15; }
+.umas-site .brandmark .brand-name {
+  font-family: 'Playfair Display', serif; font-weight: 700; font-size: 21px; color: var(--maroon);
+  letter-spacing: 0.01em;
+}
+.umas-site .brandmark .brand-tag {
+  font-size: 10.5px; letter-spacing: 0.14em; color: var(--ink-soft); font-variant: small-caps; font-weight: 600;
+}
+.umas-site nav.mainlinks { display: flex; flex-wrap: wrap; gap: 26px; }
+.umas-site nav.mainlinks a {
+  color: var(--ink); text-decoration: none; font-size: 16px; letter-spacing: 0.01em;
+  border-bottom: 1px solid transparent; padding-bottom: 2px;
+}
+.umas-site nav.mainlinks a:hover, .umas-site nav.mainlinks a.is-active { color: var(--maroon); border-bottom-color: var(--maroon); }
+.umas-site .header-tools { display: flex; align-items: center; gap: 16px; }
+.umas-site .icon-btn {
+  display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px;
+  color: var(--ink); text-decoration: none;
+}
+.umas-site .icon-btn svg { width: 20px; height: 20px; }
+.umas-site .icon-btn:hover { color: var(--maroon); }
+.umas-site .langtoggle { display: inline-flex; align-items: center; gap: 5px; margin-right: 4px; }
+.umas-site .langtoggle button {
+  background: none; border: 0; cursor: pointer; padding: 2px 3px;
+  font-family: 'Playfair Display', serif; font-size: 13px; letter-spacing: 0.06em; color: var(--ink-soft);
+  border-bottom: 1px solid transparent; line-height: 1;
+}
+.umas-site .langtoggle button:hover { color: var(--maroon); }
+.umas-site .langtoggle button.is-active { color: var(--maroon); border-bottom-color: var(--maroon); font-weight: 600; }
+.umas-site .langtoggle span { color: var(--line); font-size: 12px; }
+@media (max-width: 860px) {
+.umas-site nav.mainlinks { order: 3; width: 100%; justify-content: center; gap: 16px 22px; }
+.umas-site .nav-row { padding: 14px 20px; }
+}
+.umas-site .btn {
+  display: inline-block; font-family: 'Playfair Display', serif; font-weight: 600;
+  font-size: 14.5px; letter-spacing: 0.05em; text-transform: uppercase; text-decoration: none;
+  padding: 13px 28px; border-radius: 2px; border: 0; cursor: pointer; transition: background 0.15s ease, color 0.15s ease;
+}
+.umas-site .btn-maroon { background: var(--maroon); color: #fff; }
+.umas-site .btn-maroon:hover { background: var(--maroon-dark); }
+.umas-site .btn-outline { background: transparent; color: var(--maroon); border: 1px solid var(--maroon); }
+.umas-site .btn-outline:hover { background: var(--maroon); color: #fff; }
 .umas-site .hero {
-    padding: 28px 28px 52px;
-    text-align: center;
-    display: flex; flex-direction: column; align-items: center; gap: 22px;
-  }
-.umas-site .hero .eyebrow {
-    font-variant: small-caps; letter-spacing: 0.16em; font-size: 15px;
-    color: var(--brick); font-weight: 600;
-  }
-.umas-site .hero img.logo { width: min(58vw, 300px); height: auto; filter: drop-shadow(0 6px 18px var(--shadow)); }
-.umas-site .hero h1 {
-    font-size: clamp(26px, 4.4vw, 36px); font-style: italic; font-weight: 600;
-    color: var(--ink); max-width: 20ch; line-height: 1.35;
-  }
-.umas-site .hero p.sub { max-width: 46ch; color: var(--ink-soft); font-size: 19px; margin: 0; }
-.umas-site .hero .scrollcue {
-    margin-top: 6px; font-variant: small-caps; letter-spacing: 0.1em; font-size: 15px;
-    color: var(--bronze); text-decoration: none; border-bottom: 1px solid var(--rule);
-    padding-bottom: 3px;
-  }
-.umas-site .hero .scrollcue:hover { border-bottom-color: var(--brick); color: var(--brick); }
-.umas-site .chapter { padding: 56px 28px; }
-.umas-site .chapter + .chapter { border-top: 1px solid var(--rule); }
-.umas-site .chapter-head { text-align: center; margin-bottom: 36px; display: flex; flex-direction: column; gap: 10px; align-items: center; }
-.umas-site .chapter-head .kicker {
-    font-family: 'Playfair Display', serif; font-style: italic; font-weight: 500;
-    font-size: 16px; color: var(--gold);
-  }
-.umas-site .chapter-head h2 { font-size: clamp(24px, 3.6vw, 30px); font-weight: 700; }
+  position: relative; overflow: hidden; min-height: 68vh; display: flex; align-items: center;
+}
+.umas-site .hero .hero-copy {
+  position: relative; z-index: 2; max-width: 560px; padding: 60px 40px; color: #fff;
+}
+.umas-site .hero .eyebrow-tag {
+  font-variant: small-caps; letter-spacing: 0.12em; font-size: 14px; opacity: 0.9; margin-bottom: 10px; display:block;
+}
+.umas-site .hero h1 { font-size: clamp(34px, 5.4vw, 56px); font-weight: 900; color: #fff; line-height: 1.08; margin-bottom: 18px; }
+.umas-site .hero p.sub { font-size: 19px; max-width: 42ch; margin: 0 0 26px; opacity: 0.95; }
+.umas-site .hero-scrim {
+  position: absolute; inset: 0; z-index: 1;
+  background: linear-gradient(100deg, rgba(30,15,12,0.72) 10%, rgba(30,15,12,0.42) 55%, rgba(30,15,12,0.08) 90%);
+}
+.umas-site .photo-block {
+  position: relative; overflow: hidden;
+  background:
+    repeating-linear-gradient(135deg, rgba(122,31,43,0.06) 0 2px, transparent 2px 14px),
+    linear-gradient(135deg, var(--cream-alt), #e7d9bd 55%, var(--cream-alt));
+  display: flex; align-items: center; justify-content: center;
+}
+.umas-site .photo-block .placeholder-tag {
+  font-family: 'EB Garamond', Georgia, serif; font-style: italic; font-size: 14px; color: var(--ink-soft);
+  border: 1px dashed var(--card-border); border-radius: 999px; padding: 6px 16px;
+  background: rgba(255, 255, 255, 0.6); text-align: center; max-width: 80%;
+}
+.umas-site .hero .photo-block { position: absolute; inset: 0; z-index: 0; align-items: flex-end; justify-content: flex-end; padding: 18px; }
+.umas-site .hero .photo-block .placeholder-tag { font-size: 13px; opacity: 0.85; }
+.umas-site .feature-row {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px;
+  max-width: 1000px; margin: 0 auto; padding: 56px 28px; text-align: center;
+}
+.umas-site .feature-row .feature-icon {
+  width: 46px; height: 46px; margin: 0 auto 14px; color: var(--maroon);
+}
+.umas-site .feature-row h3 { font-size: 19px; margin-bottom: 6px; }
+.umas-site .feature-row p { color: var(--ink-soft); font-size: 16px; margin: 0; }
+@media (max-width: 720px) {
+.umas-site .feature-row { grid-template-columns: 1fr; gap: 36px; }
+}
+.umas-site .promo-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 24px;
+  max-width: 1180px; margin: 0 auto; padding: 0 28px 56px;
+}
+.umas-site .promo-card {
+  background: var(--panel); border: 1px solid var(--card-border); border-radius: 4px; overflow: hidden;
+  display: flex; flex-direction: column;
+}
+.umas-site .promo-card .photo-block { aspect-ratio: 16 / 10; }
+.umas-site .promo-card .promo-body { padding: 26px 28px 30px; }
+.umas-site .promo-card h3 { font-size: 24px; margin-bottom: 10px; }
+.umas-site .promo-card p { color: var(--ink-soft); margin: 0 0 20px; }
+@media (max-width: 760px) {
+.umas-site .promo-grid { grid-template-columns: 1fr; }
+}
+.umas-site .category-section { padding: 12px 28px 60px; text-align: center; }
+.umas-site .category-section h2 { font-size: 26px; margin-bottom: 30px; }
+.umas-site .category-grid {
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 30px 34px;
+  max-width: 1000px; margin: 0 auto;
+}
+.umas-site .category-item { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 108px; text-decoration: none; }
+.umas-site .category-item .chip {
+  width: 78px; height: 78px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  color: var(--maroon-dark);
+}
+.umas-site .category-item .chip svg { width: 34px; height: 34px; }
+.umas-site .category-item span { font-size: 15px; color: var(--ink); line-height: 1.25; }
+.umas-site .category-item:hover span { color: var(--maroon); }
+.umas-site .community-banner {
+  display: grid; grid-template-columns: 1.3fr 1fr; gap: 0; max-width: 1180px; margin: 0 auto 60px; padding: 0 28px;
+}
+.umas-site .community-banner .photo-block { min-height: 260px; border-radius: 4px 0 0 4px; }
+.umas-site .community-banner .photo-block .script-tag {
+  font-family: 'Playfair Display', serif; font-style: italic; color: #fff; font-size: 22px; text-align: center;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.35); padding: 0 20px;
+}
+.umas-site .newsletter-card {
+  background: #eef3f6; border-radius: 0 4px 4px 0; padding: 34px 34px; display: flex; flex-direction: column;
+  justify-content: center; gap: 12px;
+}
+.umas-site .newsletter-card h3 { font-size: 22px; }
+.umas-site .newsletter-card p { color: var(--ink-soft); margin: 0 0 6px; }
+.umas-site .newsletter-form { display: flex; gap: 10px; flex-wrap: wrap; }
+.umas-site .newsletter-form input {
+  flex: 1 1 180px; font-family: 'EB Garamond', serif; font-size: 16px; padding: 11px 14px;
+  border: 1px solid var(--card-border); border-radius: 2px; background: #fff; color: var(--ink);
+}
+@media (max-width: 760px) {
+.umas-site .community-banner { grid-template-columns: 1fr; }
+.umas-site .community-banner .photo-block { border-radius: 4px 4px 0 0; min-height: 200px; }
+.umas-site .newsletter-card { border-radius: 0 0 4px 4px; }
+}
+.umas-site footer.site { background: var(--maroon-dark); color: #f1e3d6; padding: 44px 28px 30px; }
+.umas-site .footer-grid {
+  max-width: 1180px; margin: 0 auto; display: flex; flex-wrap: wrap; justify-content: space-between;
+  gap: 30px; padding-bottom: 26px; border-bottom: 1px solid rgba(255,255,255,0.18);
+}
+.umas-site .footer-grid .fname { font-family: 'Playfair Display', serif; font-weight: 700; font-size: 18px; color: #fff; margin-bottom: 8px; }
+.umas-site .footer-grid .faddr, .umas-site .footer-grid .fhours { font-size: 15px; opacity: 0.88; margin: 2px 0; }
+.umas-site .footer-links { display: flex; flex-wrap: wrap; gap: 16px 24px; align-items: center; }
+.umas-site .footer-links a { color: #f1e3d6; text-decoration: none; font-size: 15px; opacity: 0.9; }
+.umas-site .footer-links a:hover { opacity: 1; text-decoration: underline; }
+.umas-site .footer-social { display: flex; gap: 14px; align-items: center; }
+.umas-site .footer-social a { color: #f1e3d6; }
+.umas-site .footer-social svg { width: 19px; height: 19px; }
+.umas-site .footer-bottom {
+  max-width: 1180px; margin: 20px auto 0; display: flex; justify-content: space-between; align-items: center;
+  flex-wrap: wrap; gap: 12px; font-size: 14px; opacity: 0.8; font-style: italic; font-family: 'Playfair Display', serif;
+}
+.umas-site .page-hero { padding: 54px 28px 10px; text-align: center; }
+.umas-site .page-hero .kicker { font-family: 'Playfair Display', serif; font-style: italic; font-size: 16px; color: var(--gold); }
+.umas-site .page-hero h1 { font-size: clamp(28px, 4vw, 40px); margin-top: 8px; }
+.umas-site .section { padding: 40px 28px; }
+.umas-site .section + .section { border-top: 1px solid var(--line); }
 .umas-site .prose { max-width: 62ch; margin: 0 auto; }
 .umas-site .prose p { margin: 0 0 1.1em; }
 .umas-site .prose p:last-child { margin-bottom: 0; }
-.umas-site .prose p:first-of-type::first-letter {
-    font-family: 'Playfair Display', serif; font-weight: 900; font-size: 3.2em;
-    float: left; line-height: 0.8; padding: 0.06em 0.08em 0 0; color: var(--brick);
-  }
 .umas-site .cardlist { display: flex; flex-direction: column; gap: 14px; max-width: 62ch; margin: 0 auto; }
 .umas-site .card {
-    background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 3px;
-    padding: 18px 22px; display: flex; gap: 16px; align-items: baseline;
-  }
-.umas-site .card .card-title {
-    font-family: 'Playfair Display', serif; font-weight: 600; font-size: 18px;
-    color: var(--bronze-strong); flex: 0 0 auto; min-width: 190px;
-  }
-.umas-site .card .card-desc { color: var(--ink-soft); font-size: 17px; }
+  background: var(--panel); border: 1px solid var(--card-border); border-radius: 3px;
+  padding: 18px 22px; display: flex; gap: 16px; align-items: baseline;
+}
+.umas-site .card .card-title { font-family: 'Playfair Display', serif; font-weight: 600; font-size: 18px; color: var(--maroon-dark); flex: 0 0 auto; min-width: 190px; }
+.umas-site .card .card-desc { color: var(--ink-soft); font-size: 16.5px; }
 @media (max-width: 560px) {
 .umas-site .card { flex-direction: column; gap: 4px; }
 .umas-site .card .card-title { min-width: 0; }
 }
-.umas-site .visit-grid {
-    display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px;
-    max-width: 62ch; margin: 0 auto; text-align: center;
-  }
+.umas-site .note-box {
+  max-width: 62ch; margin: 32px auto 0; text-align: center; padding: 20px 24px;
+  border: 1px dashed var(--card-border); border-radius: 3px; color: var(--ink-soft); font-size: 16.5px;
+}
+.umas-site .note-box strong { color: var(--maroon-dark); font-weight: 600; }
+.umas-site .badge-soon {
+  display: inline-block; margin-top: 6px; font-variant: small-caps; letter-spacing: 0.1em; font-size: 13px;
+  color: var(--gold); border: 1px dashed var(--card-border); border-radius: 999px; padding: 4px 16px;
+}
+.umas-site .cta-row { text-align: center; margin-top: 28px; }
+.umas-site .form-title { font-family: 'Playfair Display', serif; font-weight: 600; font-size: 20px; color: var(--maroon-dark); text-align: center; margin: 32px 0 0; }
+.umas-site .formcard { max-width: 62ch; margin: 20px auto 0; display: flex; flex-direction: column; gap: 14px; }
+.umas-site .formcard .field { display: flex; flex-direction: column; gap: 6px; text-align: left; }
+.umas-site .formcard label { font-variant: small-caps; letter-spacing: 0.08em; font-size: 14px; color: var(--gold); }
+.umas-site .formcard input, .umas-site .formcard textarea {
+  font-family: 'EB Garamond', Georgia, serif; font-size: 17px; color: var(--ink);
+  background: var(--panel); border: 1px solid var(--card-border); border-radius: 3px; padding: 10px 12px;
+}
+.umas-site .formcard textarea { resize: vertical; min-height: 80px; }
+.umas-site .formcard input:focus, .umas-site .formcard textarea:focus { outline: 2px solid var(--maroon); outline-offset: 1px; }
+.umas-site .form-hint { font-size: 14px; color: var(--ink-soft); max-width: 62ch; margin: -4px auto 0; text-align: left; }
+.umas-site .btn-submit {
+  align-self: flex-start; font-family: 'Playfair Display', serif; font-weight: 600; font-size: 15px;
+  letter-spacing: 0.03em; color: #fff; background: var(--maroon); border: 0; border-radius: 3px;
+  padding: 12px 26px; cursor: pointer; transition: background 0.15s ease;
+}
+.umas-site .btn-submit:hover { background: var(--maroon-dark); }
+.umas-site .scheduletable { width: 100%; max-width: 62ch; margin: 20px auto 0; border-collapse: collapse; font-size: 17px; }
+.umas-site .scheduletable th, .umas-site .scheduletable td { padding: 10px 14px; border-bottom: 1px solid var(--line); text-align: left; }
+.umas-site .scheduletable th { font-variant: small-caps; letter-spacing: 0.06em; color: var(--gold); font-weight: 600; }
+.umas-site .visit-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; max-width: 62ch; margin: 0 auto; text-align: center; }
 @media (max-width: 620px) {
 .umas-site .visit-grid { grid-template-columns: 1fr; gap: 30px; }
 }
-.umas-site .visit-item .label {
-    font-variant: small-caps; letter-spacing: 0.12em; font-size: 14px;
-    color: var(--gold); display: block; margin-bottom: 8px;
-  }
-.umas-site .visit-item .value { font-size: 18px; color: var(--ink); }
-.umas-site .visit-item .value a { color: var(--brick); text-decoration: none; border-bottom: 1px solid var(--rule); }
-.umas-site .visit-item .value a:hover { border-bottom-color: var(--brick); }
-.umas-site .visit-item .hours-row { display: flex; justify-content: space-between; gap: 8px; max-width: 190px; margin: 0 auto; }
-.umas-site .visit-item .hours-row + .hours-row { margin-top: 2px; }
-.umas-site .donate-note {
-    max-width: 62ch; margin: 40px auto 0; text-align: center;
-    padding: 20px 24px; border: 1px dashed var(--card-border); border-radius: 3px;
-    color: var(--ink-soft); font-size: 17px;
-  }
-.umas-site .donate-note strong { color: var(--bronze-strong); font-weight: 600; }
-.umas-site footer.site {
-    padding: 44px 28px 52px; text-align: center;
-    display: flex; flex-direction: column; align-items: center; gap: 16px;
-  }
-.umas-site footer.site .fname { font-family: 'Playfair Display', serif; font-weight: 600; font-size: 17px; color: var(--bronze-strong); }
-.umas-site footer.site .fmeta { font-size: 15px; color: var(--ink-soft); }
-.umas-site footer.site .fmeta a { color: var(--ink-soft); }
-.umas-site .langtoggle {
-    position: absolute; top: 20px; right: 28px;
-    display: inline-flex; align-items: center; gap: 5px;
-  }
-.umas-site .langtoggle button {
-    background: none; border: 0; cursor: pointer; padding: 2px 3px;
-    font-family: 'Playfair Display', serif; font-size: 14px; letter-spacing: 0.08em;
-    color: var(--ink-soft); border-bottom: 1px solid transparent; line-height: 1;
-  }
-.umas-site .langtoggle button:hover { color: var(--brick); }
-.umas-site .langtoggle button.is-active { color: var(--brick); border-bottom-color: var(--brick); font-weight: 600; }
-.umas-site .langtoggle span { color: var(--rule); font-size: 13px; }
+.umas-site .visit-item .label { font-variant: small-caps; letter-spacing: 0.12em; font-size: 14px; color: var(--gold); display: block; margin-bottom: 8px; }
+.umas-site .visit-item .value { font-size: 17px; color: var(--ink); }
+.umas-site .visit-item .value a { color: var(--maroon); text-decoration: none; border-bottom: 1px solid var(--line); }
+.umas-site .visit-item .hours-row { display: flex; justify-content: space-between; gap: 8px; max-width: 200px; margin: 0 auto; }
+.umas-site .program-hero { padding: 46px 28px 10px; }
+.umas-site .program-hero-grid { display: grid; grid-template-columns: 1.15fr 1fr; gap: 40px; align-items: center; }
+.umas-site .program-hero-copy .kicker { font-variant: small-caps; letter-spacing: 0.12em; font-size: 14px; color: var(--maroon); display: block; margin-bottom: 10px; }
+.umas-site .program-hero-copy h1 { font-size: clamp(30px, 4.2vw, 44px); margin-bottom: 10px; }
+.umas-site .program-hero-copy .tagline { font-family: 'Playfair Display', serif; font-style: italic; font-size: 20px; color: var(--maroon-dark); margin: 0 0 14px; }
+.umas-site .program-hero-copy p.desc { color: var(--ink-soft); margin: 0 0 26px; max-width: 46ch; }
+.umas-site .mini-feature-row { display: flex; gap: 26px; flex-wrap: wrap; }
+.umas-site .mini-feature { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; max-width: 120px; }
+.umas-site .mini-feature svg { width: 30px; height: 30px; color: var(--maroon); }
+.umas-site .mini-feature span { font-size: 14.5px; color: var(--ink); line-height: 1.25; }
+.umas-site .program-hero-photo { aspect-ratio: 4 / 3; border-radius: 4px; }
+@media (max-width: 820px) {
+.umas-site .program-hero-grid { grid-template-columns: 1fr; }
+.umas-site .program-hero-photo { aspect-ratio: 16 / 10; }
+}
+.umas-site .program-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: start; max-width: 1180px; margin: 0 auto; padding: 0 28px; }
+@media (max-width: 900px) {
+.umas-site .program-grid { grid-template-columns: 1fr; gap: 40px; }
+}
+.umas-site .program-details h2, .umas-site .program-register h2 { font-size: 25px; margin-bottom: 18px; }
+.umas-site .detail-list { display: flex; flex-direction: column; gap: 20px; margin: 0 0 28px; padding: 0; }
+.umas-site .detail-row { display: flex; gap: 16px; align-items: flex-start; }
+.umas-site .detail-row .detail-icon { width: 24px; height: 24px; flex: 0 0 auto; color: var(--maroon); margin-top: 3px; }
+.umas-site .detail-row .detail-icon svg { width: 100%; height: 100%; }
+.umas-site .detail-row dt { font-variant: small-caps; letter-spacing: 0.06em; font-size: 15px; color: var(--gold); font-weight: 600; margin: 0 0 3px; }
+.umas-site .detail-row dd { margin: 0; color: var(--ink); line-height: 1.5; }
+.umas-site .info-box { background: var(--cream-alt); border-radius: 4px; padding: 22px 24px; }
+.umas-site .info-box-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.umas-site .info-box-head .script { font-family: 'Playfair Display', serif; font-style: italic; font-size: 19px; color: var(--maroon-dark); }
+.umas-site .info-box-head svg { width: 20px; height: 20px; color: var(--maroon); flex: 0 0 auto; }
+.umas-site .info-box ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 9px; }
+.umas-site .info-box li { display: flex; gap: 10px; align-items: flex-start; font-size: 15.5px; color: var(--ink-soft); }
+.umas-site .info-box li svg { width: 16px; height: 16px; flex: 0 0 auto; margin-top: 3px; color: var(--maroon); }
+.umas-site .program-register { background: var(--panel); border: 1px solid var(--card-border); border-radius: 4px; padding: 30px 30px 34px; }
+.umas-site .program-register p.lede { color: var(--ink-soft); margin: 0 0 20px; }
+.umas-site .program-register .formcard { margin-top: 0; }
+.umas-site .form-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 520px) {
+.umas-site .form-row-2 { grid-template-columns: 1fr; }
+}
+.umas-site .radio-group { display: flex; gap: 14px; flex-wrap: wrap; }
+.umas-site .radio-option { display: flex; align-items: center; gap: 8px; border: 1px solid var(--card-border); border-radius: 3px; padding: 9px 14px; font-size: 15.5px; cursor: pointer; }
+.umas-site .radio-option input { margin: 0; accent-color: var(--maroon); }
+.umas-site .checkbox-field { display: flex; align-items: flex-start; gap: 9px; font-size: 14.5px; color: var(--ink-soft); }
+.umas-site .checkbox-field input { margin: 3px 0 0; accent-color: var(--maroon); }
 </style>
 
 <header class="site">
-  <div class="nav">
-    <a class="brandmark" href="#umas-top">
-      <img src="https://static1.squarespace.com/static/6a8c40b949196171fd54fb3c/t/6a953597bbed3c398abaf176/1788163479266/logo_umas_apostrophe.png" alt="Uma's Books and Adventures crest" />
-      <span>Uma's Books &amp; Adventures</span>
+  <div class="nav-row">
+    <a class="brandmark" href="index.html">
+      <img src="https://static1.squarespace.com/static/6a8c40b949196171fd54fb3c/t/6a953597bbed3c398abaf176/1788163479266/logo_umas_apostrophe.png" alt="Uma's Books and Adventures logo">
+      <span class="brand-text">
+        <span class="brand-name">Uma's Books</span>
+        <span class="brand-tag" data-i18n="brand.tag">English Pre-Loved Books</span>
+      </span>
     </a>
-    <nav class="links">
-      <a href="#umas-story" data-i18n="nav.story">Our Story</a>
-      <a href="#umas-collection" data-i18n="nav.collection">The Collection</a>
-      <a href="#umas-events" data-i18n="nav.events">Events</a>
-      <a href="#umas-visit" data-i18n="nav.visit">Visit Us</a>
+    <nav class="mainlinks">
+      <a href="books.html" data-i18n="nav.books">Books</a>
+      <a href="classes.html" data-i18n="nav.classes">Éveil Classes</a>
+      <a href="events.html" data-i18n="nav.events">Events</a>
+      <a href="about.html" data-i18n="nav.about">About</a>
+      <a href="visit.html" data-i18n="nav.visit">Visit</a>
     </nav>
-    <div class="langtoggle" role="group" aria-label="Language / Langue">
-      <button type="button" data-lang="en" class="is-active" aria-pressed="true">EN</button>
-      <span aria-hidden="true">|</span>
-      <button type="button" data-lang="fr" aria-pressed="false">FR</button>
+    <div class="header-tools">
+      <div class="langtoggle" role="group" aria-label="Language / Langue">
+        <button type="button" data-lang="en" class="is-active" aria-pressed="true">EN</button>
+        <span aria-hidden="true">|</span>
+        <button type="button" data-lang="fr" aria-pressed="false">FR</button>
+      </div>
+      <a class="icon-btn" href="books.html" data-i18n-attr="title:icon.search;aria-label:icon.search" title="Search" aria-label="Search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      </a>
+      <a class="icon-btn" href="membership.html" data-i18n-attr="title:icon.account;aria-label:icon.account" title="Account / Membership" aria-label="Account / Membership">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-6 8-6s8 2 8 6"/></svg>
+      </a>
+      <a class="icon-btn" href="wishlist.html" data-i18n-attr="title:icon.wishlist;aria-label:icon.wishlist" title="Wish List" aria-label="Wish List">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 20s-7-4.4-9.5-8.8C.8 7.8 2.4 4.5 5.8 4c2-.3 3.7.7 4.8 2.4L12 8l1.4-1.6C14.5 4.7 16.2 3.7 18.2 4c3.4.5 5 3.8 3.3 7.2C19 15.6 12 20 12 20z"/></svg>
+      </a>
+      <!-- TODO: confirm this is the live Squarespace shop page URL before publishing -->
+      <a class="icon-btn" href="https://umasbooks.org/shop" data-i18n-attr="title:icon.cart;aria-label:icon.cart" title="Shop" aria-label="Shop">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M6 8h12l-1 12H7L6 8z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>
+      </a>
     </div>
   </div>
 </header>
 
-<main id="umas-top">
+<main>
   <section class="hero">
-    <p class="eyebrow" data-i18n="hero.eyebrow">A Non-Profit English Bookshop &middot; Albi, France</p>
-    <img class="logo" src="https://static1.squarespace.com/static/6a8c40b949196171fd54fb3c/t/6a953597bbed3c398abaf176/1788163479266/logo_umas_apostrophe.png" alt="Uma's Books and Adventures" />
-    <h1 data-i18n="hero.h1">Secondhand stories, passed from one reader to the next.</h1>
-    <p class="sub" data-i18n="hero.sub">A volunteer-run home for pre-loved English-language books, tucked into the red-brick streets of Albi.</p>
-    <a class="scrollcue" href="#umas-story" data-i18n="hero.scrollcue">Begin Chapter One ↓</a>
-  </section>
-
-  <section class="chapter" id="umas-story">
-    <div class="wrap">
-      <div class="chapter-head">
-        <span class="kicker" data-i18n="c1.kicker">Chapter One</span>
-        <h2 data-i18n="c1.title">Our Story</h2>
-      </div>
-      <div class="prose">
-        <p data-i18n="c1.p1">Uma&#39;s Books and Adventures is a non-profit bookshop built entirely on books that already had one home before finding their way to our shelves. Every title here has been read, released, and re-shelved by someone in Albi's English-speaking community &mdash; a paperback traded in after a summer read, a donated box from someone moving on, a hardback rescued before its next stop at the recycling bin.</p>
-        <p data-i18n="c1.p2">Run by volunteers and open just a few mornings a week, the shop exists for one simple reason: to keep good English-language books affordable, in circulation, and easy to find &mdash; however far from home you happen to be. But the shelves are only half of it. As much as a bookshop, this is a meeting point &mdash; a small, unhurried space where anglophones and francophones, longtime Albigeois and newly arrived expats, cross paths over a shared shelf and swap more than books: languages, recommendations, and a little bit of home.</p>
-      </div>
+    <div class="photo-block" role="img" aria-label="Photo placeholder: the shopfront of Uma's Books and Adventures">
+      <span class="placeholder-tag" data-i18n="hero.photo.label">Photo placeholder — shopfront photo to come</span>
+    </div>
+    <div class="hero-scrim"></div>
+    <div class="hero-copy">
+      <span class="eyebrow-tag" data-i18n="hero.eyebrow">Placeholder eyebrow text</span>
+      <h1 data-i18n="hero.h1">Placeholder Headline</h1>
+      <p class="sub" data-i18n="hero.sub">Placeholder subheading text goes here.</p>
+      <a class="btn btn-maroon" href="books.html" data-i18n="hero.cta">Browse Books</a>
     </div>
   </section>
 
-  <section class="chapter" id="umas-collection">
-    <div class="wrap">
-      <div class="chapter-head">
-        <span class="kicker" data-i18n="c2.kicker">Chapter Two</span>
-        <h2 data-i18n="c2.title">The Collection</h2>
-      </div>
-      <div class="cardlist">
-        <div class="card">
-          <span class="card-title" data-i18n="col.fiction.t">Fiction &amp; Classics</span>
-          <span class="card-desc" data-i18n="col.fiction.d">Secondhand novels, from paperback favourites to well-thumbed classics.</span>
-        </div>
-        <div class="card">
-          <span class="card-title" data-i18n="col.travel.t">Travel &amp; Adventure</span>
-          <span class="card-desc" data-i18n="col.travel.d">Memoirs, guidebooks, and stories from readers who&#39;ve been somewhere.</span>
-        </div>
-        <div class="card">
-          <span class="card-title" data-i18n="col.children.t">Children&#39;s Corner</span>
-          <span class="card-desc" data-i18n="col.children.d">Picture books and early readers, priced for growing libraries.</span>
-        </div>
-        <div class="card">
-          <span class="card-title" data-i18n="col.nonfiction.t">Non-Fiction &amp; Reference</span>
-          <span class="card-desc" data-i18n="col.nonfiction.d">History, biography, and the occasional surprising find.</span>
-        </div>
-      </div>
-      <div class="donate-note" data-i18n-html="donate.note">
-        <strong>Donations welcome.</strong> Bring your finished reads by during opening hours &mdash; every book gets a second chapter.
-      </div>
+  <div class="feature-row">
+    <div class="feature">
+      <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M12 6c-1.8-1.4-4.4-2-7-2v14c2.6 0 5.2.6 7 2 1.8-1.4 4.4-2 7-2V4c-2.6 0-5.2.6-7 2z"/><path d="M12 6v14"/></svg>
+      <h3 data-i18n="feature.books.t">Placeholder Feature 1</h3>
+      <p data-i18n="feature.books.d">Placeholder description text.</p>
     </div>
-  </section>
+    <div class="feature">
+      <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"><path d="M12 21V10"/><path d="M12 10C12 6 9 4 5 4c0 4 3 6 7 6z"/><path d="M12 13c0-3.5 2.5-5.5 6-5.5 0 3.5-2.5 5.5-6 5.5z"/></svg>
+      <h3 data-i18n="feature.english.t">Placeholder Feature 2</h3>
+      <p data-i18n="feature.english.d">Placeholder description text.</p>
+    </div>
+    <div class="feature">
+      <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"><circle cx="8.5" cy="8" r="3"/><circle cx="16" cy="9" r="2.5"/><path d="M2.5 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><path d="M14.5 14.8c2.7.3 4.5 2.2 4.5 5.2"/></svg>
+      <h3 data-i18n="feature.community.t">Placeholder Feature 3</h3>
+      <p data-i18n="feature.community.d">Placeholder description text.</p>
+    </div>
+  </div>
 
-  <section class="chapter" id="umas-events">
-    <div class="wrap">
-      <div class="chapter-head">
-        <span class="kicker" data-i18n="c3.kicker">Chapter Three</span>
-        <h2 data-i18n="c3.title">Adventures &amp; Events</h2>
+  <div class="promo-grid">
+    <div class="promo-card">
+      <div class="photo-block" role="img" aria-label="Photo placeholder: children's Éveil reading room">
+        <span class="placeholder-tag" data-i18n="promo.photo.label">Photo placeholder</span>
       </div>
-      <div class="cardlist">
-        <div class="card">
-          <span class="card-title" data-i18n="ev.club.t">Monthly Book Club</span>
-          <span class="card-desc" data-i18n="ev.club.d">One story, discussed over tea &mdash; details posted in shop.</span>
-        </div>
-        <div class="card">
-          <span class="card-title" data-i18n="ev.lang.t">Language Exchange</span>
-          <span class="card-desc" data-i18n="ev.lang.d">Weekly sessions for adults, plus a dedicated children&#39;s group &mdash; conversation practice, or storytime for younger learners.</span>
-        </div>
-        <div class="card">
-          <span class="card-title" data-i18n="ev.swap.t">Story Swaps</span>
-          <span class="card-desc" data-i18n="ev.swap.d">Bring a book, take a book, meet fellow readers.</span>
-        </div>
+      <div class="promo-body">
+        <h3 data-i18n="promo.eveil.t">Placeholder Program Title</h3>
+        <p data-i18n="promo.eveil.d">Placeholder description text.</p>
+        <a class="btn btn-maroon" href="classes.html" data-i18n="promo.eveil.cta">Learn More</a>
       </div>
     </div>
-  </section>
+    <div class="promo-card">
+      <div class="photo-block" role="img" aria-label="Photo placeholder: inside the bookshop">
+        <span class="placeholder-tag" data-i18n="promo.photo.label">Photo placeholder</span>
+      </div>
+      <div class="promo-body">
+        <h3 data-i18n="promo.books.t">Placeholder Section Title</h3>
+        <p data-i18n="promo.books.d">Placeholder description text.</p>
+        <a class="btn btn-maroon" href="books.html" data-i18n="promo.books.cta">Explore Books</a>
+      </div>
+    </div>
+  </div>
 
-  <section class="chapter" id="umas-visit">
-    <div class="wrap">
-      <div class="chapter-head">
-        <span class="kicker" data-i18n="c4.kicker">Chapter Four</span>
-        <h2 data-i18n="c4.title">Visit Us</h2>
-      </div>
-      <div class="visit-grid">
-        <div class="visit-item">
-          <span class="label" data-i18n="visit.where.l">Where</span>
-          <span class="value" data-i18n="visit.where.v">Albi, France</span>
-        </div>
-        <div class="visit-item">
-          <span class="label" data-i18n="visit.hours.l">Hours</span>
-          <span class="value">
-            <span class="hours-row"><span data-i18n="visit.hours.days">Wed &ndash; Sat</span><span data-i18n="visit.hours.time">10:00&ndash;13:00</span></span>
-          </span>
-        </div>
-        <div class="visit-item">
-          <span class="label" data-i18n="visit.contact.l">Contact</span>
-          <span class="value"><a href="mailto:admin@umasbooks.org">admin@umasbooks.org</a></span>
-        </div>
-      </div>
+  <div class="category-section">
+    <h2 data-i18n="category.title">Placeholder Section Title</h2>
+    <div class="category-grid">
+      <a class="category-item" href="books.html">
+        <span class="chip" style="background:#dceaf5;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M9 10c-1-3 0-6 1.5-6S12 7 11.5 10"/><path d="M15 10c1-3 0-6-1.5-6S12 7 12.5 10"/><ellipse cx="12" cy="15" rx="5.5" ry="5"/><circle cx="10" cy="14" r=".7" fill="currentColor"/><circle cx="14" cy="14" r=".7" fill="currentColor"/></svg></span>
+        <span data-i18n="category.picture">Category 1</span>
+      </a>
+      <a class="category-item" href="books.html">
+        <span class="chip" style="background:#dceaf5;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M4 15h16l-2 5H6l-2-5z"/><path d="M12 15V4"/><path d="M12 4l5 5H12"/></svg></span>
+        <span data-i18n="category.early">Category 2</span>
+      </a>
+      <a class="category-item" href="books.html">
+        <span class="chip" style="background:#e1eedd;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M7 14l-3 4h6l-3-4z"/><path d="M7 10.2 4.6 13.2h4.8L7 10.2z"/><path d="M7 17v3"/><path d="M16 12l-3.6 5h7.2L16 12z"/><path d="M16 16v4"/></svg></span>
+        <span data-i18n="category.chapter">Category 3</span>
+      </a>
+      <a class="category-item" href="books.html">
+        <span class="chip" style="background:#dceaf5;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="12" cy="12" r="8"/><path d="M4 12h16"/><path d="M12 4c2.5 2.2 2.5 13.8 0 16"/><path d="M12 4c-2.5 2.2-2.5 13.8 0 16"/></svg></span>
+        <span data-i18n="category.nonfiction">Category 4</span>
+      </a>
+      <a class="category-item" href="books.html">
+        <span class="chip" style="background:#f3ecd9;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M12 3a9 6.5 0 1 0 0 13c1 0 1.5-.6 1.5-1.3 0-.5-.3-.8-.3-1.3 0-.7.6-1 1.3-1H16c2.2 0 4-1.6 4-4C20 5.5 16.4 3 12 3z"/><circle cx="7.5" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="9.5" cy="7" r="1" fill="currentColor" stroke="none"/><circle cx="13.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg></span>
+        <span data-i18n="category.arts">Category 5</span>
+      </a>
+      <a class="category-item" href="books.html">
+        <span class="chip" style="background:#dceaf5;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"><path d="M12 2l3 6h-2l2 5h-2.5l2 7H9.5l2-7H9l2-5H9l3-6z"/><path d="M7 20h10"/></svg></span>
+        <span data-i18n="category.travel">Category 6</span>
+      </a>
+      <a class="category-item" href="books.html">
+        <span class="chip" style="background:#f7ded9;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><rect x="4" y="9" width="16" height="4"/><rect x="5" y="13" width="14" height="7"/><path d="M12 9v11"/><path d="M12 9c-1.5-3-5-3-5 0M12 9c1.5-3 5-3 5 0"/></svg></span>
+        <span data-i18n="category.gifts">Category 7</span>
+      </a>
     </div>
-  </section>
+  </div>
+
+  <div class="community-banner">
+    <div class="photo-block" role="img" aria-label="Photo placeholder: the Tarn river and Albi cathedral">
+      <span class="script-tag" data-i18n="community.tagline">Placeholder tagline text.</span>
+    </div>
+    <div class="newsletter-card">
+      <h3 data-i18n="newsletter.title">Placeholder Heading</h3>
+      <p data-i18n="newsletter.text">Placeholder description text.</p>
+      <form class="newsletter-form" data-mailto="admin@umasbooks.org" data-subject="Newsletter Sign-up">
+        <input type="email" data-field="Email" data-i18n-attr="placeholder:newsletter.placeholder" placeholder="Your email address" required>
+        <button type="submit" class="btn btn-maroon" data-i18n="newsletter.submit">Sign Up</button>
+      </form>
+    </div>
+  </div>
 </main>
 
 <footer class="site">
-  <div class="ornament">
-    <span class="line"></span>
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 0L12 8L20 10L12 12L10 20L8 12L0 10L8 8L10 0Z" fill="currentColor"/></svg>
-    <span class="line"></span>
+  <div class="footer-grid">
+    <div>
+      <div class="fname">Uma's Books &amp; Adventures</div>
+      <div class="faddr" data-i18n="footer.addr">Rue Peyroli&egrave;re, 81000 Albi</div>
+      <div class="fhours" data-i18n="footer.hours.l">Tuesday &ndash; Saturday, 10:00&ndash;19:00</div>
+    </div>
+    <div class="footer-links">
+      <a href="mailto:admin@umasbooks.org" data-i18n="footer.contact">Contact</a>
+      <a href="wishlist.html" data-i18n="footer.wishlist">Wish List</a>
+      <a href="volunteer.html" data-i18n="footer.volunteer">Volunteer</a>
+      <a href="membership.html" data-i18n="footer.membership">Membership</a>
+    </div>
+    <div class="footer-social">
+      <!-- TODO: add real social links when available -->
+      <a href="#" aria-label="Instagram" title="Instagram (coming soon)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.3" cy="6.7" r="1" fill="currentColor" stroke="none"/></svg></a>
+      <a href="#" aria-label="Facebook" title="Facebook (coming soon)"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M13.5 21v-8h2.7l.4-3.1h-3.1V8c0-.9.25-1.5 1.55-1.5H17V3.7C16.7 3.6 15.7 3.5 14.5 3.5c-2.4 0-4 1.5-4 4.1v2.3H8v3.1h2.5V21h3z"/></svg></a>
+    </div>
   </div>
-  <span class="fname">Uma's Books &amp; Adventures</span>
-  <span class="fmeta" data-i18n-html="footer.meta">A non-profit English bookshop &middot; Albi, France &middot; <a href="mailto:admin@umasbooks.org">admin@umasbooks.org</a></span>
+  <div class="footer-bottom">
+    <span data-i18n="footer.tagline">Good books. Brighter lives.</span>
+  </div>
 </footer>
 
 <script>
+window.PAGE_I18N = {
+  en: {
+    "hero.photo.label": "Photo placeholder — shopfront photo to come",
+    "hero.eyebrow": "Placeholder eyebrow text",
+    "hero.h1": "Placeholder Headline",
+    "hero.sub": "Placeholder subheading text goes here.",
+    "hero.cta": "Browse Books",
+    "feature.books.t": "Placeholder Feature 1",
+    "feature.books.d": "Placeholder description text.",
+    "feature.english.t": "Placeholder Feature 2",
+    "feature.english.d": "Placeholder description text.",
+    "feature.community.t": "Placeholder Feature 3",
+    "feature.community.d": "Placeholder description text.",
+    "promo.photo.label": "Photo placeholder",
+    "promo.eveil.t": "Placeholder Program Title",
+    "promo.eveil.d": "Placeholder description text.",
+    "promo.eveil.cta": "Learn More",
+    "promo.books.t": "Placeholder Section Title",
+    "promo.books.d": "Placeholder description text.",
+    "promo.books.cta": "Explore Books",
+    "category.title": "Placeholder Section Title",
+    "category.picture": "Category 1",
+    "category.early": "Category 2",
+    "category.chapter": "Category 3",
+    "category.nonfiction": "Category 4",
+    "category.arts": "Category 5",
+    "category.travel": "Category 6",
+    "category.gifts": "Category 7",
+    "community.tagline": "Placeholder tagline text.",
+    "newsletter.title": "Placeholder Heading",
+    "newsletter.text": "Placeholder description text.",
+    "newsletter.placeholder": "Your email address",
+    "newsletter.submit": "Sign Up"
+  },
+  fr: {
+    "hero.photo.label": "Emplacement photo — photo de la façade à venir",
+    "hero.eyebrow": "Texte d'espace réservé",
+    "hero.h1": "Titre provisoire",
+    "hero.sub": "Texte de remplacement à venir.",
+    "hero.cta": "Parcourir les livres",
+    "feature.books.t": "Fonctionnalité 1",
+    "feature.books.d": "Texte de remplacement.",
+    "feature.english.t": "Fonctionnalité 2",
+    "feature.english.d": "Texte de remplacement.",
+    "feature.community.t": "Fonctionnalité 3",
+    "feature.community.d": "Texte de remplacement.",
+    "promo.photo.label": "Emplacement photo",
+    "promo.eveil.t": "Titre du programme (provisoire)",
+    "promo.eveil.d": "Texte de remplacement.",
+    "promo.eveil.cta": "En savoir plus",
+    "promo.books.t": "Titre de section (provisoire)",
+    "promo.books.d": "Texte de remplacement.",
+    "promo.books.cta": "Découvrir les livres",
+    "category.title": "Titre de section (provisoire)",
+    "category.picture": "Catégorie 1",
+    "category.early": "Catégorie 2",
+    "category.chapter": "Catégorie 3",
+    "category.nonfiction": "Catégorie 4",
+    "category.arts": "Catégorie 5",
+    "category.travel": "Catégorie 6",
+    "category.gifts": "Catégorie 7",
+    "community.tagline": "Texte d'espace réservé.",
+    "newsletter.title": "Titre provisoire",
+    "newsletter.text": "Texte de remplacement.",
+    "newsletter.placeholder": "Votre adresse email",
+    "newsletter.submit": "S’inscrire"
+  }
+};
+</script>
+
+<script>
 (function () {
-  var I18N = {
+  var COMMON = {
     en: {
-      "nav.story": "Our Story",
-      "nav.collection": "The Collection",
+      "brand.tag": "English Pre-Loved Books",
+      "footer.addr": "Rue Peyrolière, 81000 Albi",
+      "nav.books": "Books",
+      "nav.classes": "Éveil Classes",
       "nav.events": "Events",
-      "nav.visit": "Visit Us",
-      "hero.eyebrow": "A Non-Profit English Bookshop \u00b7 Albi, France",
-      "hero.h1": "Secondhand stories, passed from one reader to the next.",
-      "hero.sub": "A volunteer-run home for pre-loved English-language books, tucked into the red-brick streets of Albi.",
-      "hero.scrollcue": "Begin Chapter One \u2193",
-      "c1.kicker": "Chapter One",
-      "c1.title": "Our Story",
-      "c1.p1": "Uma\u2019s Books and Adventures is a non-profit bookshop built entirely on books that already had one home before finding their way to our shelves. Every title here has been read, released, and re-shelved by someone in Albi\u2019s English-speaking community \u2014 a paperback traded in after a summer read, a donated box from someone moving on, a hardback rescued before its next stop at the recycling bin.",
-      "c1.p2": "Run by volunteers and open just a few mornings a week, the shop exists for one simple reason: to keep good English-language books affordable, in circulation, and easy to find \u2014 however far from home you happen to be. But the shelves are only half of it. As much as a bookshop, this is a meeting point \u2014 a small, unhurried space where anglophones and francophones, longtime Albigeois and newly arrived expats, cross paths over a shared shelf and swap more than books: languages, recommendations, and a little bit of home.",
-      "c2.kicker": "Chapter Two",
-      "c2.title": "The Collection",
-      "col.fiction.t": "Fiction & Classics",
-      "col.fiction.d": "Secondhand novels, from paperback favourites to well-thumbed classics.",
-      "col.travel.t": "Travel & Adventure",
-      "col.travel.d": "Memoirs, guidebooks, and stories from readers who\u2019ve been somewhere.",
-      "col.children.t": "Children\u2019s Corner",
-      "col.children.d": "Picture books and early readers, priced for growing libraries.",
-      "col.nonfiction.t": "Non-Fiction & Reference",
-      "col.nonfiction.d": "History, biography, and the occasional surprising find.",
-      "donate.note": "<strong>Donations welcome.</strong> Bring your finished reads by during opening hours \u2014 every book gets a second chapter.",
-      "c3.kicker": "Chapter Three",
-      "c3.title": "Adventures & Events",
-      "ev.club.t": "Monthly Book Club",
-      "ev.club.d": "One story, discussed over tea \u2014 details posted in shop.",
-      "ev.lang.t": "Language Exchange",
-      "ev.lang.d": "Weekly sessions for adults, plus a dedicated children\u2019s group \u2014 conversation practice, or storytime for younger learners.",
-      "ev.swap.t": "Story Swaps",
-      "ev.swap.d": "Bring a book, take a book, meet fellow readers.",
-      "c4.kicker": "Chapter Four",
-      "c4.title": "Visit Us",
-      "visit.where.l": "Where",
-      "visit.where.v": "Albi, France",
-      "visit.hours.l": "Hours",
-      "visit.hours.days": "Wed \u2013 Sat",
-      "visit.hours.time": "10:00\u201313:00",
-      "visit.contact.l": "Contact",
-      "footer.meta": "A non-profit English bookshop \u00b7 Albi, France \u00b7 <a href=\"mailto:admin@umasbooks.org\">admin@umasbooks.org</a>"
+      "nav.about": "About",
+      "nav.visit": "Visit",
+      "icon.search": "Search",
+      "icon.account": "Account / Membership",
+      "icon.wishlist": "Wish List",
+      "icon.cart": "Shop",
+      "footer.contact": "Contact",
+      "footer.wishlist": "Wish List",
+      "footer.volunteer": "Volunteer",
+      "footer.membership": "Membership",
+      "footer.hours.l": "Tuesday – Saturday, 10:00–19:00",
+      "footer.tagline": "Good books. Brighter lives."
     },
     fr: {
-      "nav.story": "Notre histoire",
-      "nav.collection": "La collection",
-      "nav.events": "\u00c9v\u00e9nements",
+      "brand.tag": "Livres anglais d’occasion",
+      "footer.addr": "Rue Peyrolière, 81000 Albi",
+      "nav.books": "Livres",
+      "nav.classes": "Cours Éveil",
+      "nav.events": "Événements",
+      "nav.about": "À propos",
       "nav.visit": "Nous rendre visite",
-      "hero.eyebrow": "Librairie anglophone \u00e0 but non lucratif \u00b7 Albi, France",
-      "hero.h1": "Des histoires d\u2019occasion, transmises d\u2019un lecteur au suivant.",
-      "hero.sub": "Un havre tenu par des b\u00e9n\u00e9voles pour les livres d\u2019occasion en anglais, nich\u00e9 dans les rues de brique rouge d\u2019Albi.",
-      "hero.scrollcue": "Commencer le chapitre un \u2193",
-      "c1.kicker": "Chapitre un",
-      "c1.title": "Notre histoire",
-      "c1.p1": "Uma\u2019s Books and Adventures est une librairie \u00e0 but non lucratif enti\u00e8rement constitu\u00e9e de livres qui ont d\u00e9j\u00e0 connu un premier foyer avant d\u2019arriver sur nos \u00e9tag\u00e8res. Chaque titre a \u00e9t\u00e9 lu, c\u00e9d\u00e9 puis remis en rayon par quelqu\u2019un de la communaut\u00e9 anglophone d\u2019Albi : un poche rapport\u00e9 apr\u00e8s une lecture d\u2019\u00e9t\u00e9, un carton donn\u00e9 par une personne qui d\u00e9m\u00e9nage, un beau livre reli\u00e9 sauv\u00e9 juste avant le bac de recyclage.",
-      "c1.p2": "Tenue par des b\u00e9n\u00e9voles et ouverte seulement quelques matin\u00e9es par semaine, la boutique existe pour une raison simple : garder les bons livres en anglais abordables, en circulation et faciles \u00e0 trouver, aussi loin de chez soi que l\u2019on soit. Mais les rayons ne sont qu\u2019une moiti\u00e9 de l\u2019histoire. Autant qu\u2019une librairie, c\u2019est un lieu de rencontre : un petit espace sans h\u00e2te o\u00f9 anglophones et francophones, Albigeois de longue date et expatri\u00e9s fra\u00eechement arriv\u00e9s se croisent autour d\u2019une \u00e9tag\u00e8re commune et \u00e9changent bien plus que des livres \u2014 des langues, des conseils de lecture et un peu de chez-soi.",
-      "c2.kicker": "Chapitre deux",
-      "c2.title": "La collection",
-      "col.fiction.t": "Fiction et classiques",
-      "col.fiction.d": "Des romans d\u2019occasion, des poches favoris aux classiques bien feuillet\u00e9s.",
-      "col.travel.t": "Voyage et aventure",
-      "col.travel.d": "R\u00e9cits, guides et histoires de lecteurs qui ont roul\u00e9 leur bosse.",
-      "col.children.t": "Le coin des enfants",
-      "col.children.d": "Albums illustr\u00e9s et premi\u00e8res lectures, \u00e0 petits prix pour les biblioth\u00e8ques qui grandissent.",
-      "col.nonfiction.t": "Documents et ouvrages de r\u00e9f\u00e9rence",
-      "col.nonfiction.d": "Histoire, biographie et, parfois, une trouvaille surprenante.",
-      "donate.note": "<strong>Vos dons sont les bienvenus.</strong> Apportez vos livres termin\u00e9s pendant les heures d\u2019ouverture \u2014 chaque livre a droit \u00e0 un second chapitre.",
-      "c3.kicker": "Chapitre trois",
-      "c3.title": "Aventures et \u00e9v\u00e9nements",
-      "ev.club.t": "Club de lecture mensuel",
-      "ev.club.d": "Un livre, discut\u00e9 autour d\u2019un th\u00e9 \u2014 d\u00e9tails affich\u00e9s en boutique.",
-      "ev.lang.t": "\u00c9change linguistique",
-      "ev.lang.d": "S\u00e9ances hebdomadaires pour adultes, plus un groupe d\u00e9di\u00e9 aux enfants \u2014 pratique de la conversation ou lecture d\u2019histoires pour les plus jeunes.",
-      "ev.swap.t": "Trocs de livres",
-      "ev.swap.d": "Apportez un livre, repartez avec un autre, rencontrez d\u2019autres lecteurs.",
-      "c4.kicker": "Chapitre quatre",
-      "c4.title": "Nous rendre visite",
-      "visit.where.l": "O\u00f9",
-      "visit.where.v": "Albi, France",
-      "visit.hours.l": "Horaires",
-      "visit.hours.days": "Mer \u2013 Sam",
-      "visit.hours.time": "10h00\u201313h00",
-      "visit.contact.l": "Contact",
-      "footer.meta": "Librairie anglophone \u00e0 but non lucratif \u00b7 Albi, France \u00b7 <a href=\"mailto:admin@umasbooks.org\">admin@umasbooks.org</a>"
+      "icon.search": "Rechercher",
+      "icon.account": "Compte / Adhésion",
+      "icon.wishlist": "Liste de souhaits",
+      "icon.cart": "Boutique",
+      "footer.contact": "Contact",
+      "footer.wishlist": "Liste de souhaits",
+      "footer.volunteer": "Bénévolat",
+      "footer.membership": "Adhésion",
+      "footer.hours.l": "Mardi – samedi, 10h00–19h00",
+      "footer.tagline": "De bons livres. Des vies plus lumineuses."
     }
   };
 
   var STORE_KEY = "umasbooks.lang";
 
+  function mergedDict(lang) {
+    var page = (window.PAGE_I18N && window.PAGE_I18N[lang]) || {};
+    var out = {};
+    var base = COMMON[lang] || {};
+    for (var k in base) out[k] = base[k];
+    for (var k2 in page) out[k2] = page[k2];
+    return out;
+  }
+
   function apply(lang) {
     if (lang !== "fr") lang = "en";
-    var dict = I18N[lang];
+    var dict = mergedDict(lang);
     (document.querySelector(".umas-site") || document.documentElement).setAttribute("lang", lang);
 
     document.querySelectorAll("[data-i18n]").forEach(function (el) {
@@ -443,6 +636,14 @@
       var v = dict[el.getAttribute("data-i18n-html")];
       if (v != null) el.innerHTML = v;
     });
+    document.querySelectorAll("[data-i18n-attr]").forEach(function (el) {
+      el.getAttribute("data-i18n-attr").split(";").forEach(function (pair) {
+        var parts = pair.split(":");
+        var attr = parts[0].trim(), key = parts[1] && parts[1].trim();
+        var v = key && dict[key];
+        if (attr && v != null) el.setAttribute(attr, v);
+      });
+    });
     document.querySelectorAll(".langtoggle button").forEach(function (b) {
       var on = b.getAttribute("data-lang") === lang;
       b.classList.toggle("is-active", on);
@@ -451,16 +652,38 @@
     try { localStorage.setItem(STORE_KEY, lang); } catch (e) {}
   }
 
-  var stored = null;
-  try { stored = localStorage.getItem(STORE_KEY); } catch (e) {}
-  var initial = stored || (/^fr\b/i.test(navigator.language || "") ? "fr" : "en");
+  function wireMailtoForms() {
+    document.querySelectorAll("form[data-mailto]").forEach(function (form) {
+      form.addEventListener("submit", function (e) {
+        e.preventDefault();
+        var lines = [];
+        form.querySelectorAll("[data-field]").forEach(function (el) {
+          if ((el.type === "radio" || el.type === "checkbox") && !el.checked) return;
+          var val = (el.value || "").trim();
+          if (val) lines.push(el.getAttribute("data-field") + ": " + val);
+        });
+        var address = form.getAttribute("data-mailto");
+        var subject = form.getAttribute("data-subject") || "";
+        var url = "mailto:" + address + "?subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(lines.join("\n"));
+        window.location.href = url;
+      });
+    });
+  }
 
-  document.querySelectorAll(".langtoggle button").forEach(function (b) {
-    b.addEventListener("click", function () { apply(b.getAttribute("data-lang")); });
+  document.addEventListener("DOMContentLoaded", function () {
+    var stored = null;
+    try { stored = localStorage.getItem(STORE_KEY); } catch (e) {}
+    var initial = stored || (/^fr\b/i.test(navigator.language || "") ? "fr" : "en");
+
+    document.querySelectorAll(".langtoggle button").forEach(function (b) {
+      b.addEventListener("click", function () { apply(b.getAttribute("data-lang")); });
+    });
+
+    wireMailtoForms();
+    apply(initial);
   });
-
-  apply(initial);
 })();
+
 </script>
 
 </div>
