@@ -13,20 +13,43 @@ document.addEventListener("change", function (e) {
   var input = e.target.closest("input[type=file][data-file-name-target]");
   if (!input) return;
   var target = document.getElementById(input.getAttribute("data-file-name-target"));
-  if (!target) return;
-  var file = input.files && input.files[0];
-  target.textContent = file ? file.name : "No photo selected";
+  if (target) {
+    var file = input.files && input.files[0];
+    target.textContent = file ? file.name : "No photo selected";
+  }
+  if (input.hasAttribute("data-auto-submit-file") && input.files && input.files[0]) {
+    if (input.form.requestSubmit) input.form.requestSubmit();
+    else input.form.submit();
+  }
+});
+
+// A <label for> on a hidden file input is unreliable for triggering the
+// camera on iOS Safari (it sometimes falls back to the Files app instead
+// of the capture UI) — a real button calling .click() on the input is
+// more consistent.
+document.addEventListener("click", function (e) {
+  var btn = e.target.closest("[data-trigger-file]");
+  if (!btn) return;
+  var input = document.getElementById(btn.getAttribute("data-trigger-file"));
+  if (input) input.click();
 });
 
 // Barcode scanners "type" the ISBN then usually send Enter, which submits
 // the form natively — but some scanners skip the Enter, so also submit as
-// soon as the field reaches a full ISBN-10/13 length.
+// soon as the field settles at a full ISBN-10/13 length. A 13-digit ISBN
+// passes through 10 digits while it's still being typed (it starts with
+// "978"/"979"), so checking on every keystroke fires a premature submit
+// with only the first 10 digits — debounce until input pauses instead.
+var autoSubmitIsbnTimer = null;
 document.addEventListener("input", function (e) {
   var input = e.target.closest("[data-auto-submit-isbn]");
   if (!input) return;
-  var digits = input.value.replace(/[^0-9Xx]/g, "");
-  if (digits.length === 10 || digits.length === 13) {
-    if (input.form.requestSubmit) input.form.requestSubmit();
-    else input.form.submit();
-  }
+  clearTimeout(autoSubmitIsbnTimer);
+  autoSubmitIsbnTimer = setTimeout(function () {
+    var digits = input.value.replace(/[^0-9Xx]/g, "");
+    if (digits.length === 10 || digits.length === 13) {
+      if (input.form.requestSubmit) input.form.requestSubmit();
+      else input.form.submit();
+    }
+  }, 200);
 });

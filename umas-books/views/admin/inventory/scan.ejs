@@ -18,13 +18,12 @@
 <div class="card">
   <div class="section-title">Or take a photo</div>
   <% if (visionEnabled) { %>
-    <p class="muted small">Photograph the front cover, or the barcode/ISBN on the back &mdash; we'll read whatever's visible.</p>
+    <p class="muted small">Photograph the front cover, or the barcode/ISBN on the back &mdash; we'll read whatever's visible and look it up automatically.</p>
     <form class="stack" method="post" action="/admin/inventory/lookup" enctype="multipart/form-data">
       <%- include('../../partials/csrf_field') %>
-      <label for="photo" class="btn btn-outline file-input-label">Take or Choose Photo</label>
-      <input id="photo" name="photo" type="file" accept="image/*" capture="environment" required class="file-input-hidden" data-file-name-target="photo-name">
+      <button type="button" class="btn btn-outline" data-trigger-file="photo">Take or Choose Photo</button>
+      <input id="photo" name="photo" type="file" accept="image/*" capture="environment" required class="file-input-hidden" data-file-name-target="photo-name" data-auto-submit-file>
       <span id="photo-name" class="muted small file-input-name">No photo selected</span>
-      <button class="btn" type="submit">Scan photo</button>
     </form>
   <% } else { %>
     <p class="muted small">Photo scanning isn't set up yet (needs an <code>ANTHROPIC_API_KEY</code>) &mdash; use the ISBN box above, or <a href="/admin/inventory/new">add the book manually</a>.</p>
