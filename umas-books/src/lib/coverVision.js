@@ -42,6 +42,7 @@ async function extractBookInfoFromPhoto(buffer, mimeType) {
         "content-type": "application/json",
         "x-api-key": apiKey,
         "anthropic-version": "2023-06-01",
+        ...(process.env.ANTHROPIC_WORKSPACE_ID ? { "anthropic-workspace-id": process.env.ANTHROPIC_WORKSPACE_ID } : {}),
       },
       body: JSON.stringify({
         model: VISION_MODEL,
