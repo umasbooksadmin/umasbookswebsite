@@ -67,7 +67,7 @@
             <% if (c.status === 'reserved' && c.reserved_by_name) { %>
               <div class="notice-box small" style="margin-top:10px;">
                 Reserved by <%= c.reserved_by_name %> &middot; <%= c.reserved_by_email %><%= c.reserved_by_phone ? ' · ' + c.reserved_by_phone : '' %>
-                <% if (c.reserved_at) { %><div class="muted small"><%= new Date(c.reserved_at).toLocaleString() %></div><% } %>
+                <% if (c.reserved_at) { %><div class="muted small"><%= formatDateTime(c.reserved_at) %></div><% } %>
                 <form method="post" action="/admin/inventory/<%= book.id %>/copies/<%= c.id %>/cancel-reservation" style="margin-top:6px;">
                   <%- include('../../partials/csrf_field') %>
                   <button class="btn btn-outline btn-small" type="submit">Cancel reservation &amp; return to stock</button>
@@ -92,12 +92,14 @@
               <input id="acquiredAt-<%= c.id %>" name="acquiredAt" type="date" value="<%= c.acquired_at ? new Date(c.acquired_at).toLocaleDateString('en-CA') : '' %>">
               <label for="notes-<%= c.id %>">Notes</label>
               <textarea id="notes-<%= c.id %>" name="notes"><%= c.notes || '' %></textarea>
-              <div class="muted small">Added <%= new Date(c.created_at).toLocaleDateString() %></div>
-              <div><button class="btn btn-small" type="submit">Save copy</button></div>
+              <div class="muted small">Added <%= formatDate(c.created_at) %></div>
+              <div style="display:flex; gap:8px;">
+                <button class="btn btn-small" type="submit">Save copy</button>
+                <button class="btn btn-outline btn-small" type="submit" form="delete-copy-<%= c.id %>">Delete 1 copy</button>
+              </div>
             </form>
-            <form method="post" action="/admin/inventory/<%= book.id %>/copies/<%= c.id %>/delete" style="margin-top:8px;">
+            <form id="delete-copy-<%= c.id %>" method="post" action="/admin/inventory/<%= book.id %>/copies/<%= c.id %>/delete">
               <%- include('../../partials/csrf_field') %>
-              <button class="btn btn-outline btn-small" type="submit">Delete 1 copy</button>
             </form>
           </details>
         </li>
