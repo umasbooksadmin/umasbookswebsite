@@ -202,11 +202,14 @@ router.post("/admin/events", requireAdmin, async (req, res) => {
   const title = (req.body.title || "").trim();
   const description = (req.body.description || "").trim() || null;
   const location = (req.body.location || "").trim() || null;
-  const startsAt = req.body.startsAt;
-  const endsAt = req.body.endsAt || null;
+  const date = req.body.date;
+  const startTime = req.body.startTime;
+  const endTime = req.body.endTime || null;
   const capacity = req.body.capacity ? Number(req.body.capacity) : null;
 
-  if (title && startsAt) {
+  if (title && date && startTime) {
+    const startsAt = `${date}T${startTime}`;
+    const endsAt = endTime ? `${date}T${endTime}` : null;
     await pool.query(
       `INSERT INTO events (title, description, location, starts_at, ends_at, capacity, created_by)
        VALUES ($1, $2, $3, $4, $5, $6, $7)`,
@@ -273,11 +276,14 @@ router.post("/admin/classes", requireAdmin, async (req, res) => {
   const title = (req.body.title || "").trim();
   const description = (req.body.description || "").trim() || null;
   const location = (req.body.location || "").trim() || null;
-  const startsAt = req.body.startsAt;
-  const endsAt = req.body.endsAt || null;
+  const date = req.body.date;
+  const startTime = req.body.startTime;
+  const endTime = req.body.endTime || null;
   const capacity = req.body.capacity ? Number(req.body.capacity) : null;
 
-  if (title && startsAt) {
+  if (title && date && startTime) {
+    const startsAt = `${date}T${startTime}`;
+    const endsAt = endTime ? `${date}T${endTime}` : null;
     await pool.query(
       `INSERT INTO classes (title, description, location, starts_at, ends_at, capacity, created_by)
        VALUES ($1, $2, $3, $4, $5, $6, $7)`,

@@ -34,7 +34,7 @@
         <input id="coverUrl" name="coverUrl" type="text" value="<%= book.cover_url || '' %>">
         <% if (!book.cover_url) { %>
           <label for="coverPhoto" class="btn btn-outline file-input-label" style="align-self: flex-start;">No cover found — Take or Upload a Photo</label>
-          <input id="coverPhoto" name="coverPhoto" type="file" accept="image/*" class="file-input-hidden" data-file-name-target="coverPhoto-name">
+          <input id="coverPhoto" name="coverPhoto" type="file" accept="image/*" capture="environment" class="file-input-hidden" data-file-name-target="coverPhoto-name">
           <span id="coverPhoto-name" class="muted small file-input-name">No photo selected</span>
           <p class="muted small">A photo overrides the URL above.</p>
         <% } %>

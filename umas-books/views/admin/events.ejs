@@ -2,28 +2,7 @@
 <%- include('../partials/admin_subnav', { active }) %>
 
 <h1>Events</h1>
-<p class="muted small">Events are public — anyone can view the calendar at <a href="/events">/events</a> and sign up with just a name and email, no account needed.</p>
-
-<div class="card">
-  <div class="section-title">Add an event</div>
-  <form class="stack" method="post" action="/admin/events">
-    <%- include('../partials/csrf_field') %>
-    <input type="hidden" name="month" value="<%= currentMonth %>">
-    <label for="e-title">Title</label>
-    <input id="e-title" name="title" type="text" required>
-    <label for="e-desc">Description</label>
-    <textarea id="e-desc" name="description"></textarea>
-    <label for="e-loc">Location</label>
-    <input id="e-loc" name="location" type="text">
-    <label for="e-start">Starts at</label>
-    <input id="e-start" name="startsAt" type="datetime-local" required>
-    <label for="e-end">Ends at (optional)</label>
-    <input id="e-end" name="endsAt" type="datetime-local">
-    <label for="e-cap">Capacity (optional)</label>
-    <input id="e-cap" name="capacity" type="number" min="1">
-    <button class="btn" type="submit">Add event</button>
-  </form>
-</div>
+<p class="muted small">Events are public — anyone can view the calendar at <a href="/events">/events</a> and sign up with just a name and email, no account needed. Click a day to add an event there; click an event to see who's signed up.</p>
 
 <div class="card">
   <div class="calendar-nav">
@@ -40,6 +19,27 @@
         <% } else { %>
           <div class="calendar-day<%= day.isToday ? ' is-today' : '' %>">
             <div class="calendar-day-number"><%= day.day %></div>
+            <details class="calendar-pill calendar-add-pill">
+              <summary>+ Add event</summary>
+              <div class="calendar-pill-body">
+                <form class="stack" method="post" action="/admin/events">
+                  <%- include('../partials/csrf_field') %>
+                  <input type="hidden" name="month" value="<%= currentMonth %>">
+                  <input type="hidden" name="date" value="<%= day.dateKey %>">
+                  <label for="title-new-<%= day.dateKey %>">Title</label>
+                  <input id="title-new-<%= day.dateKey %>" name="title" type="text" required>
+                  <label for="start-new-<%= day.dateKey %>">Start time</label>
+                  <input id="start-new-<%= day.dateKey %>" name="startTime" type="time" required>
+                  <label for="end-new-<%= day.dateKey %>">End time (optional)</label>
+                  <input id="end-new-<%= day.dateKey %>" name="endTime" type="time">
+                  <label for="loc-new-<%= day.dateKey %>">Location (optional)</label>
+                  <input id="loc-new-<%= day.dateKey %>" name="location" type="text">
+                  <label for="cap-new-<%= day.dateKey %>">Capacity (optional)</label>
+                  <input id="cap-new-<%= day.dateKey %>" name="capacity" type="number" min="1">
+                  <div><button class="btn btn-small" type="submit">Add event</button></div>
+                </form>
+              </div>
+            </details>
             <% day.items.forEach(e => { %>
               <% const full = e.capacity != null && e.signup_count >= e.capacity; const signups = signupsByEvent[e.id] || []; %>
               <details class="calendar-pill<%= full ? ' is-full' : '' %>">

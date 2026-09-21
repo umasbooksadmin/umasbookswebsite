@@ -130,6 +130,10 @@ footer.site { text-align: center; padding: 30px 0; color: var(--ink-soft); font-
 .calendar-pill[open] { background: #fff; }
 .calendar-pill.is-mine { border-color: var(--maroon); }
 .calendar-pill.is-full summary { opacity: 0.65; }
+.calendar-add-pill { background: transparent; border-style: dashed; }
+.calendar-add-pill summary { color: var(--ink-soft); }
+.calendar-add-pill summary::before { content: ""; margin-right: 0; }
+.calendar-add-pill[open] { background: #fff; border-style: solid; }
 .calendar-pill-body { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
 .calendar-pill-body form.stack { gap: 8px; max-width: none; }
 .calendar-day-more { font-size: 12px; color: var(--ink-soft); }

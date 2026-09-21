@@ -68,7 +68,7 @@ router.post("/signup", authLimiter, async (req, res) => {
 });
 
 router.get("/login", (req, res) => {
-  if (req.session.user) return res.redirect("/dashboard");
+  if (req.session.user) return res.redirect(req.session.user.isAdmin ? "/admin" : "/dashboard");
   const notice = req.query.reset === "success" ? "Password updated — log in with your new password." : null;
   res.render("login", { error: null, notice });
 });
@@ -115,7 +115,7 @@ router.post("/login", authLimiter, async (req, res) => {
     }
 
     req.session.user = { id: user.id, email: user.email, displayName: user.display_name, isAdmin: user.is_admin };
-    res.redirect("/dashboard");
+    res.redirect(user.is_admin ? "/admin" : "/dashboard");
   } catch (err) {
     console.error(err);
     res.status(500).render("login", { error: "Something went wrong. Please try again.", notice: null });
