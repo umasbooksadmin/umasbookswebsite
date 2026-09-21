@@ -42,6 +42,10 @@
         <textarea id="description" name="description"><%= book.description || '' %></textarea>
         <div><button class="btn btn-small" type="submit">Save changes</button></div>
       </form>
+      <form method="post" action="/admin/inventory/<%= book.id %>/delete" style="margin-top:10px;">
+        <%- include('../../partials/csrf_field') %>
+        <button class="btn btn-outline btn-small" type="submit">Delete this book &amp; all its copies</button>
+      </form>
     </details>
   </div>
 </div>
