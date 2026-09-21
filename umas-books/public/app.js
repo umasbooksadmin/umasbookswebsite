@@ -17,3 +17,16 @@ document.addEventListener("change", function (e) {
   var file = input.files && input.files[0];
   target.textContent = file ? file.name : "No photo selected";
 });
+
+// Barcode scanners "type" the ISBN then usually send Enter, which submits
+// the form natively — but some scanners skip the Enter, so also submit as
+// soon as the field reaches a full ISBN-10/13 length.
+document.addEventListener("input", function (e) {
+  var input = e.target.closest("[data-auto-submit-isbn]");
+  if (!input) return;
+  var digits = input.value.replace(/[^0-9Xx]/g, "");
+  if (digits.length === 10 || digits.length === 13) {
+    if (input.form.requestSubmit) input.form.requestSubmit();
+    else input.form.submit();
+  }
+});

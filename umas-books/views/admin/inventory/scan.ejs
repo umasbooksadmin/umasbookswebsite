@@ -10,7 +10,7 @@
   <form class="stack" method="post" action="/admin/inventory/lookup" enctype="multipart/form-data">
     <%- include('../../partials/csrf_field') %>
     <label for="isbn">ISBN</label>
-    <input id="isbn" name="isbn" type="text" inputmode="numeric" placeholder="9780143127550" autofocus>
+    <input id="isbn" name="isbn" type="text" inputmode="numeric" placeholder="9780143127550" autofocus data-auto-submit-isbn>
     <button class="btn" type="submit">Look up</button>
   </form>
 </div>

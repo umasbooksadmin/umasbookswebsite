@@ -16,7 +16,7 @@
 
     <details style="margin-top:14px;">
       <summary style="cursor:pointer; color: var(--maroon);">Edit details</summary>
-      <form class="stack" method="post" action="/admin/inventory/<%= book.id %>" style="margin-top:12px;">
+      <form class="stack" method="post" action="/admin/inventory/<%= book.id %>" enctype="multipart/form-data" style="margin-top:12px;">
         <%- include('../../partials/csrf_field') %>
         <label for="title">Title</label>
         <input id="title" name="title" type="text" required value="<%= book.title %>">
@@ -32,6 +32,12 @@
         <input id="genre" name="genre" type="text" value="<%= book.categories || '' %>" placeholder="e.g. Fantasy, Fiction">
         <label for="coverUrl">Cover image URL</label>
         <input id="coverUrl" name="coverUrl" type="text" value="<%= book.cover_url || '' %>">
+        <% if (!book.cover_url) { %>
+          <label for="coverPhoto" class="btn btn-outline file-input-label" style="align-self: flex-start;">No cover found — Take or Upload a Photo</label>
+          <input id="coverPhoto" name="coverPhoto" type="file" accept="image/*" class="file-input-hidden" data-file-name-target="coverPhoto-name">
+          <span id="coverPhoto-name" class="muted small file-input-name">No photo selected</span>
+          <p class="muted small">A photo overrides the URL above.</p>
+        <% } %>
         <label for="description">Description</label>
         <textarea id="description" name="description"><%= book.description || '' %></textarea>
         <div><button class="btn btn-small" type="submit">Save changes</button></div>

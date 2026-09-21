@@ -49,11 +49,13 @@ async function fetchJsonOnce(url, timeoutMs) {
   }
 }
 
-// Retries on transient network errors (e.g. a reset connection) so a
-// real book doesn't come back "not found" just from a network blip.
-const MAX_ATTEMPTS = 3;
+// One retry on transient network errors (e.g. a reset connection) so a
+// real book doesn't come back "not found" just from a network blip —
+// capped low so a slow/unreachable Open Library can't make the whole
+// admin request hang for tens of seconds.
+const MAX_ATTEMPTS = 2;
 
-async function fetchJson(url, timeoutMs = 10000) {
+async function fetchJson(url, timeoutMs = 5000) {
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     try {
       return await fetchJsonOnce(url, timeoutMs);

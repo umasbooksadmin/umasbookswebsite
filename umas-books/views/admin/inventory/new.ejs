@@ -8,7 +8,7 @@
   <% if (book.coverUrl) { %>
     <img src="<%= book.coverUrl %>" alt="" class="book-cover-preview">
   <% } %>
-  <form class="stack" method="post" action="/admin/inventory">
+  <form class="stack" method="post" action="/admin/inventory" enctype="multipart/form-data">
     <%- include('../../partials/csrf_field') %>
 
     <label for="title">Title</label>
@@ -31,6 +31,13 @@
 
     <label for="coverUrl">Cover image URL</label>
     <input id="coverUrl" name="coverUrl" type="text" value="<%= book.coverUrl || '' %>">
+
+    <% if (!book.coverUrl) { %>
+      <label for="coverPhoto" class="btn btn-outline file-input-label" style="align-self: flex-start;">No cover found — Take or Upload a Photo</label>
+      <input id="coverPhoto" name="coverPhoto" type="file" accept="image/*" class="file-input-hidden" data-file-name-target="coverPhoto-name">
+      <span id="coverPhoto-name" class="muted small file-input-name">No photo selected</span>
+      <p class="muted small">A photo overrides the URL above. Leave both blank to have a cover looked up automatically when you save.</p>
+    <% } %>
 
     <label for="description">Description</label>
     <textarea id="description" name="description"><%= book.description || '' %></textarea>

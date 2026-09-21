@@ -66,11 +66,18 @@ app.use(
 
 app.use(attachUser(pool));
 
-// Multer must parse this route's multipart body (populating req.body._csrf
-// and req.file) before the CSRF check below runs — csrfProtection only
-// ever sees req.body as urlencoded-parsing (above) left it otherwise.
-const inventoryPhotoUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
-app.use("/admin/inventory/lookup", inventoryPhotoUpload.single("photo"));
+// Multer must parse any multipart body under /admin/inventory (populating
+// req.body._csrf and req.files) before the CSRF check below runs —
+// csrfProtection only ever sees req.body as urlencoded-parsing (above)
+// left it otherwise. Scoped as one middleware covering every field name
+// used anywhere under this prefix (the ISBN-photo scan and the cover-photo
+// upload), rather than one per route, so a single multipart request is
+// never run through multer twice.
+const inventoryUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
+app.use("/admin/inventory", inventoryUpload.fields([
+  { name: "photo", maxCount: 1 },
+  { name: "coverPhoto", maxCount: 1 },
+]));
 
 app.use(csrfProtection);
 

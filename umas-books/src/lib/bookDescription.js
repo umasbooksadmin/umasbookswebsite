@@ -23,7 +23,7 @@ Title: "${title}" ${details}
 Only describe the book itself — no marketing fluff about the shop, no mention that it's second-hand. If you don't recognize the book, write a brief generic description based only on the title. Respond with ONLY the description text, no preamble, no quotes around it.`;
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15000);
+  const timeout = setTimeout(() => controller.abort(), 8000);
 
   try {
     const res = await fetch("https://api.anthropic.com/v1/messages", {

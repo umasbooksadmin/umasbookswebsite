@@ -1,4 +1,5 @@
 const express = require("express");
+const sharp = require("sharp");
 const { pool } = require("../db");
 const { requireAdmin } = require("../middleware/auth");
 const { parseMonthParam, monthRange, monthGrid, groupByDate, monthNav } = require("../lib/calendar");
@@ -22,6 +23,19 @@ async function findCoverUrl({ isbn, title, author }) {
     if (withCover) return withCover.coverUrl;
   }
   return null;
+}
+
+// Render has no persistent disk, so an uploaded cover photo can't be
+// saved to the filesystem — it's resized/compressed down to a small
+// thumbnail and stored inline as a data URI in the same cover_url column
+// a lookup-sourced image URL would go in.
+async function processCoverPhoto(file) {
+  const resized = await sharp(file.buffer)
+    .rotate()
+    .resize(500, 700, { fit: "inside", withoutEnlargement: true })
+    .jpeg({ quality: 78 })
+    .toBuffer();
+  return `data:image/jpeg;base64,${resized.toString("base64")}`;
 }
 
 // ---------- Overview ----------
@@ -371,8 +385,9 @@ router.post("/admin/inventory/lookup", requireAdmin, async (req, res) => {
   let book = null;
   let error = null;
 
-  if (req.file) {
-    const info = await extractBookInfoFromPhoto(req.file.buffer, req.file.mimetype);
+  const scanPhoto = req.files && req.files.photo && req.files.photo[0];
+  if (scanPhoto) {
+    const info = await extractBookInfoFromPhoto(scanPhoto.buffer, scanPhoto.mimetype);
     if (!info || (!info.isbn && !info.title)) {
       return res.render("admin/inventory/scan", {
         active: "inventory", visionEnabled,
@@ -435,12 +450,13 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
     });
   }
 
-  if (!description) {
-    description = await generateBookDescription({ title, author, publisher, publishedYear });
-  }
-  if (!coverUrl) {
-    coverUrl = await findCoverUrl({ isbn, title, author });
-  }
+  const coverPhoto = req.files && req.files.coverPhoto && req.files.coverPhoto[0];
+  if (coverPhoto) coverUrl = await processCoverPhoto(coverPhoto);
+
+  [description, coverUrl] = await Promise.all([
+    description || generateBookDescription({ title, author, publisher, publishedYear }),
+    coverUrl || findCoverUrl({ isbn, title, author }),
+  ]);
 
   const { rows } = await pool.query(
     `INSERT INTO books (isbn, title, authors, publisher, published_year, description, cover_url, categories, created_by)
@@ -488,12 +504,13 @@ router.post("/admin/inventory/:id", requireAdmin, async (req, res) => {
   let coverUrl = (req.body.coverUrl || "").trim() || null;
 
   if (title) {
-    if (!description) {
-      description = await generateBookDescription({ title, author, publisher, publishedYear });
-    }
-    if (!coverUrl) {
-      coverUrl = await findCoverUrl({ isbn, title, author });
-    }
+    const coverPhoto = req.files && req.files.coverPhoto && req.files.coverPhoto[0];
+    if (coverPhoto) coverUrl = await processCoverPhoto(coverPhoto);
+
+    [description, coverUrl] = await Promise.all([
+      description || generateBookDescription({ title, author, publisher, publishedYear }),
+      coverUrl || findCoverUrl({ isbn, title, author }),
+    ]);
     await pool.query(
       `UPDATE books SET isbn=$1, title=$2, authors=$3, publisher=$4, published_year=$5,
               description=$6, cover_url=$7, categories=$8, updated_at=now()
