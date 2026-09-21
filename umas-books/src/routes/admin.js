@@ -521,11 +521,6 @@ router.post("/admin/inventory/:id", requireAdmin, async (req, res) => {
   res.redirect(`/admin/inventory/${id}`);
 });
 
-router.post("/admin/inventory/:id/delete", requireAdmin, async (req, res) => {
-  await pool.query("DELETE FROM books WHERE id = $1", [Number(req.params.id)]);
-  res.redirect("/admin/inventory");
-});
-
 router.post("/admin/inventory/:id/copies/:copyId", requireAdmin, async (req, res) => {
   const bookId = Number(req.params.id);
   const copyId = Number(req.params.copyId);
@@ -554,8 +549,14 @@ router.post("/admin/inventory/:id/copies/:copyId/cancel-reservation", requireAdm
 });
 
 router.post("/admin/inventory/:id/copies/:copyId/delete", requireAdmin, async (req, res) => {
-  await pool.query("DELETE FROM book_copies WHERE id = $1 AND book_id = $2", [Number(req.params.copyId), Number(req.params.id)]);
-  res.redirect(`/admin/inventory/${req.params.id}`);
+  const bookId = Number(req.params.id);
+  await pool.query("DELETE FROM book_copies WHERE id = $1 AND book_id = $2", [Number(req.params.copyId), bookId]);
+  const { rows } = await pool.query("SELECT 1 FROM book_copies WHERE book_id = $1", [bookId]);
+  if (!rows.length) {
+    await pool.query("DELETE FROM books WHERE id = $1", [bookId]);
+    return res.redirect("/admin/inventory");
+  }
+  res.redirect(`/admin/inventory/${bookId}`);
 });
 
 module.exports = router;
