@@ -21,8 +21,9 @@
     <p class="muted small">Photograph the front cover, or the barcode/ISBN on the back &mdash; we'll read whatever's visible.</p>
     <form class="stack" method="post" action="/admin/inventory/lookup" enctype="multipart/form-data">
       <%- include('../../partials/csrf_field') %>
-      <label for="photo">Photo</label>
-      <input id="photo" name="photo" type="file" accept="image/*" capture="environment" required>
+      <label for="photo" class="btn btn-outline file-input-label">Take or Choose Photo</label>
+      <input id="photo" name="photo" type="file" accept="image/*" capture="environment" required class="file-input-hidden" data-file-name-target="photo-name">
+      <span id="photo-name" class="muted small file-input-name">No photo selected</span>
       <button class="btn" type="submit">Scan photo</button>
     </form>
   <% } else { %>

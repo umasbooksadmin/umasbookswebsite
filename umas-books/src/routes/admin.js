@@ -9,6 +9,21 @@ const { CONDITIONS, STATUSES, normalizeCondition, normalizeStatus } = require(".
 
 const router = express.Router();
 
+// Best-effort cover lookup for books saved without one — tries the ISBN
+// first (most precise), then falls back to a title/author search.
+async function findCoverUrl({ isbn, title, author }) {
+  if (isbn) {
+    const byIsbn = await lookupByIsbn(isbn);
+    if (byIsbn && byIsbn.coverUrl) return byIsbn.coverUrl;
+  }
+  if (title) {
+    const candidates = await searchByTitleAuthor(title, author);
+    const withCover = candidates.find((c) => c.coverUrl);
+    if (withCover) return withCover.coverUrl;
+  }
+  return null;
+}
+
 // ---------- Overview ----------
 
 router.get("/admin", requireAdmin, async (req, res) => {
@@ -408,7 +423,7 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
   const publishedYear = req.body.publishedYear ? Number(req.body.publishedYear) : null;
   const genre = (req.body.genre || "").trim() || null;
   let description = (req.body.description || "").trim() || null;
-  const coverUrl = (req.body.coverUrl || "").trim() || null;
+  let coverUrl = (req.body.coverUrl || "").trim() || null;
 
   if (!title) {
     return res.render("admin/inventory/new", {
@@ -422,6 +437,9 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
 
   if (!description) {
     description = await generateBookDescription({ title, author, publisher, publishedYear });
+  }
+  if (!coverUrl) {
+    coverUrl = await findCoverUrl({ isbn, title, author });
   }
 
   const { rows } = await pool.query(
@@ -466,10 +484,16 @@ router.post("/admin/inventory/:id", requireAdmin, async (req, res) => {
   const publisher = (req.body.publisher || "").trim() || null;
   const publishedYear = req.body.publishedYear ? Number(req.body.publishedYear) : null;
   const genre = (req.body.genre || "").trim() || null;
-  const description = (req.body.description || "").trim() || null;
-  const coverUrl = (req.body.coverUrl || "").trim() || null;
+  let description = (req.body.description || "").trim() || null;
+  let coverUrl = (req.body.coverUrl || "").trim() || null;
 
   if (title) {
+    if (!description) {
+      description = await generateBookDescription({ title, author, publisher, publishedYear });
+    }
+    if (!coverUrl) {
+      coverUrl = await findCoverUrl({ isbn, title, author });
+    }
     await pool.query(
       `UPDATE books SET isbn=$1, title=$2, authors=$3, publisher=$4, published_year=$5,
               description=$6, cover_url=$7, categories=$8, updated_at=now()
@@ -480,40 +504,9 @@ router.post("/admin/inventory/:id", requireAdmin, async (req, res) => {
   res.redirect(`/admin/inventory/${id}`);
 });
 
-router.post("/admin/inventory/:id/generate-description", requireAdmin, async (req, res) => {
-  const id = Number(req.params.id);
-  const { rows } = await pool.query("SELECT * FROM books WHERE id = $1", [id]);
-  const book = rows[0];
-  if (book) {
-    const description = await generateBookDescription({
-      title: book.title, author: book.authors, publisher: book.publisher, publishedYear: book.published_year,
-    });
-    if (description) {
-      await pool.query("UPDATE books SET description = $1, updated_at = now() WHERE id = $2", [description, id]);
-    }
-  }
-  res.redirect(`/admin/inventory/${id}`);
-});
-
 router.post("/admin/inventory/:id/delete", requireAdmin, async (req, res) => {
   await pool.query("DELETE FROM books WHERE id = $1", [Number(req.params.id)]);
   res.redirect("/admin/inventory");
-});
-
-router.post("/admin/inventory/:id/copies", requireAdmin, async (req, res) => {
-  const bookId = Number(req.params.id);
-  const condition = normalizeCondition(req.body.condition);
-  const status = normalizeStatus(req.body.status);
-  const price = req.body.price ? Number(req.body.price) : null;
-  const acquisitionCost = req.body.acquisitionCost ? Number(req.body.acquisitionCost) : null;
-  const acquiredAt = req.body.acquiredAt || null;
-  const notes = (req.body.notes || "").trim() || null;
-  await pool.query(
-    `INSERT INTO book_copies (book_id, condition, price, acquisition_cost, acquired_at, status, notes, created_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-    [bookId, condition, price, acquisitionCost, acquiredAt, status, notes, req.session.user.id]
-  );
-  res.redirect(`/admin/inventory/${bookId}`);
 });
 
 router.post("/admin/inventory/:id/copies/:copyId", requireAdmin, async (req, res) => {

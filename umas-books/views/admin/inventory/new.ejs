@@ -49,14 +49,14 @@
       <% statuses.forEach(s => { %><option value="<%= s.value %>" <%= s.value === 'in_stock' ? 'selected' : '' %>><%= s.label %></option><% }) %>
     </select>
 
-    <label for="price">Price (&euro;)</label>
-    <input id="price" name="price" type="number" step="0.01" min="0">
-
     <label for="acquisitionCost">Acquisition cost (&euro;)</label>
-    <input id="acquisitionCost" name="acquisitionCost" type="number" step="0.01" min="0">
+    <input id="acquisitionCost" name="acquisitionCost" type="number" step="0.01" min="0" value="0">
 
-    <label for="acquiredAt">Acquired on</label>
-    <input id="acquiredAt" name="acquiredAt" type="date">
+    <label for="price">Price (&euro;)</label>
+    <input id="price" name="price" type="number" step="0.01" min="0" value="5">
+
+    <label for="acquiredAt">Acquisition Date</label>
+    <input id="acquiredAt" name="acquiredAt" type="date" value="<%= new Date().toLocaleDateString('en-CA') %>">
 
     <label for="copyNotes">Copy notes (optional)</label>
     <textarea id="copyNotes" name="copyNotes"></textarea>

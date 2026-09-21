@@ -14,13 +14,27 @@ function extractYear(publishDate) {
 }
 
 // Open Library subject lists are long and noisy (fictitious characters,
-// series tags, etc.) — keep just the first few plain-looking ones as a
-// rough genre suggestion, not a full taxonomy.
-function pickGenres(names) {
-  const clean = (names || [])
-    .filter((n) => typeof n === "string" && !n.includes(":"))
-    .slice(0, 3);
-  return clean.length ? clean.join(", ") : null;
+// series tags, themes like "Ghosts" or "Magic", etc.) — not a genre
+// taxonomy. Prefer the broadest standard bookstore genre that appears
+// anywhere in the list (checked most-generic-first), falling back to the
+// shortest raw tag if none of these common genres show up at all.
+const COMMON_GENRES = [
+  "Fiction", "Non-fiction",
+  "Fantasy", "Science Fiction", "Mystery", "Romance", "Thriller", "Horror",
+  "Biography", "History", "Poetry", "Drama", "Adventure", "Humor",
+  "Philosophy", "Religion", "Travel", "Cooking", "Art", "Self-help",
+  "Children's Fiction", "Young Adult Fiction", "Classics",
+];
+
+function pickGenre(names) {
+  const clean = (names || []).filter((n) => typeof n === "string" && !n.includes(":"));
+  if (!clean.length) return null;
+
+  const lower = clean.map((n) => n.toLowerCase());
+  for (const genre of COMMON_GENRES) {
+    if (lower.some((n) => n.includes(genre.toLowerCase()))) return genre;
+  }
+  return clean.reduce((shortest, n) => (n.length < shortest.length ? n : shortest));
 }
 
 async function fetchJsonOnce(url, timeoutMs) {
@@ -78,7 +92,7 @@ async function lookupByIsbn(rawIsbn) {
     publishedYear: extractYear(info.publish_date),
     description: typeof info.description === "string" ? info.description : (info.description && info.description.value) || null,
     coverUrl: (info.cover && (info.cover.large || info.cover.medium)) || null,
-    genre: pickGenres(Array.isArray(info.subjects) ? info.subjects.map((s) => s.name) : null),
+    genre: pickGenre(Array.isArray(info.subjects) ? info.subjects.map((s) => s.name) : null),
   };
 }
 
@@ -102,7 +116,7 @@ async function searchByTitleAuthor(title, author) {
     publishedYear: doc.first_publish_year || null,
     description: null,
     coverUrl: doc.cover_i ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg` : null,
-    genre: pickGenres(doc.subject),
+    genre: pickGenre(doc.subject),
   }));
 }
 
