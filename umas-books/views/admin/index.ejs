@@ -11,7 +11,7 @@
     <li>
       <a href="/admin/meetings">Meetings</a>
       <span class="muted small">
-        &middot; <%= nextMeeting ? 'next: ' + new Date(nextMeeting.scheduled_at).toLocaleDateString() : 'none scheduled' %>
+        &middot; <%= nextMeeting ? 'next: ' + formatDate(nextMeeting.scheduled_at) : 'none scheduled' %>
       </span>
     </li>
     <li><a href="/admin/events">Events</a> <span class="muted small">&middot; <%= upcomingEventCount %> upcoming</span></li>

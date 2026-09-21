@@ -37,10 +37,10 @@
             <div class="calendar-day-number"><%= day.day %></div>
             <% day.items.forEach(m => { %>
               <details class="calendar-pill">
-                <summary><%= m.title %> &middot; <%= new Date(m.scheduled_at).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}) %></summary>
+                <summary><%= m.title %> &middot; <%= formatTime(m.scheduled_at) %></summary>
                 <div class="calendar-pill-body">
                   <div class="muted small">
-                    <%= new Date(m.scheduled_at).toLocaleString() %><%= m.location ? ' · ' + m.location : '' %>
+                    <%= formatDateTime(m.scheduled_at) %><%= m.location ? ' · ' + m.location : '' %>
                     &middot; <%= m.rsvp_count %> going
                   </div>
                   <% if (m.agenda) { %><div class="muted small"><em>Agenda:</em> <%= m.agenda %></div><% } %>

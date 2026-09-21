@@ -22,7 +22,7 @@
     <% announcements.forEach(a => { %>
       <li>
         <strong><%= a.title %></strong>
-        <div class="muted small"><%= new Date(a.published_at).toLocaleString() %></div>
+        <div class="muted small"><%= formatDateTime(a.published_at) %></div>
         <div><%= a.body %></div>
       </li>
     <% }) %>

@@ -10,7 +10,7 @@
     <% threads.forEach(t => { %>
       <li>
         <a href="/forum/<%= t.id %>"><%= t.title %></a>
-        <div class="thread-meta"><%= t.author_name || 'Member' %> &middot; <%= new Date(t.created_at).toLocaleDateString() %> &middot; <%= t.reply_count %> repl<%= t.reply_count == 1 ? 'y' : 'ies' %></div>
+        <div class="thread-meta"><%= t.author_name || 'Member' %> &middot; <%= formatDate(t.created_at) %> &middot; <%= t.reply_count %> repl<%= t.reply_count == 1 ? 'y' : 'ies' %></div>
       </li>
     <% }) %>
   </ul>

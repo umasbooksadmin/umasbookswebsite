@@ -11,7 +11,7 @@
       <% announcements.forEach(a => { %>
         <li>
           <strong><%= a.title %></strong>
-          <div class="muted small"><%= new Date(a.published_at).toLocaleDateString() %></div>
+          <div class="muted small"><%= formatDate(a.published_at) %></div>
           <div><%= a.body %></div>
         </li>
       <% }) %>
@@ -45,7 +45,7 @@
       <% shifts.forEach(s => { %>
         <li>
           <strong><%= s.role %></strong>
-          <div class="muted small"><%= new Date(s.starts_at).toLocaleString() %> &middot; <%= s.signup_count %>/<%= s.capacity %> filled</div>
+          <div class="muted small"><%= formatDateTime(s.starts_at) %> &middot; <%= s.signup_count %>/<%= s.capacity %> filled</div>
           <% if (mySignedUpShiftIds.has(s.id)) { %>
             <span class="notice-box small" style="display:inline-block; margin-top:6px;">You're signed up</span>
           <% } %>
@@ -65,7 +65,7 @@
       <% meetings.forEach(m => { %>
         <li>
           <strong><%= m.title %></strong>
-          <div class="muted small"><%= new Date(m.scheduled_at).toLocaleString() %><%= m.location ? ' · ' + m.location : '' %></div>
+          <div class="muted small"><%= formatDateTime(m.scheduled_at) %><%= m.location ? ' · ' + m.location : '' %></div>
           <% if (rsvpedMeetingIds.has(m.id)) { %>
             <span class="notice-box small" style="display:inline-block; margin-top:6px;">You're going</span>
           <% } %>

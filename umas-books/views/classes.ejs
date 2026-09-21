@@ -21,10 +21,10 @@
             <% day.items.forEach(c => { %>
               <% const full = c.capacity != null && c.signup_count >= c.capacity; %>
               <details class="calendar-pill<%= full ? ' is-full' : '' %>">
-                <summary><%= c.title %> &middot; <%= new Date(c.starts_at).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}) %></summary>
+                <summary><%= c.title %> &middot; <%= formatTime(c.starts_at) %></summary>
                 <div class="calendar-pill-body">
                   <div class="muted small">
-                    <%= new Date(c.starts_at).toLocaleString() %><%= c.location ? ' · ' + c.location : '' %>
+                    <%= formatDateTime(c.starts_at) %><%= c.location ? ' · ' + c.location : '' %>
                     <%= c.capacity != null ? ' · ' + c.signup_count + '/' + c.capacity + ' spots taken' : ' · ' + c.signup_count + ' signed up' %>
                   </div>
                   <% if (c.description) { %><div class="muted small" style="margin-top:6px;"><%= c.description %></div><% } %>

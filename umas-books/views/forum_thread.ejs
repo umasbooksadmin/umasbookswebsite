@@ -2,7 +2,7 @@
 
 <p><a href="/forum">&larr; Back to forum</a></p>
 <h1><%= thread.title %></h1>
-<div class="thread-meta"><%= thread.author_name || 'Member' %> &middot; <%= new Date(thread.created_at).toLocaleString() %></div>
+<div class="thread-meta"><%= thread.author_name || 'Member' %> &middot; <%= formatDateTime(thread.created_at) %></div>
 <div class="card"><%= thread.body %></div>
 
 <h3>Replies</h3>
@@ -11,7 +11,7 @@
 <% } %>
 <% replies.forEach(r => { %>
   <div class="reply">
-    <div class="thread-meta"><%= r.author_name || 'Member' %> &middot; <%= new Date(r.created_at).toLocaleString() %></div>
+    <div class="thread-meta"><%= r.author_name || 'Member' %> &middot; <%= formatDateTime(r.created_at) %></div>
     <div><%= r.body %></div>
   </div>
 <% }) %>

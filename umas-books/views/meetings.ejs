@@ -20,10 +20,10 @@
             <% day.items.forEach(m => { %>
               <% const going = rsvpedMeetingIds.has(m.id); %>
               <details class="calendar-pill<%= going ? ' is-mine' : '' %>">
-                <summary><%= m.title %> &middot; <%= new Date(m.scheduled_at).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}) %></summary>
+                <summary><%= m.title %> &middot; <%= formatTime(m.scheduled_at) %></summary>
                 <div class="calendar-pill-body">
                   <div class="muted small">
-                    <%= new Date(m.scheduled_at).toLocaleString() %><%= m.location ? ' · ' + m.location : '' %>
+                    <%= formatDateTime(m.scheduled_at) %><%= m.location ? ' · ' + m.location : '' %>
                     &middot; <%= m.rsvp_count %> going
                   </div>
                   <% if (m.agenda) { %><div class="muted small" style="margin-top:6px;"><em>Agenda:</em> <%= m.agenda %></div><% } %>
@@ -57,7 +57,7 @@
       <% past.forEach(m => { %>
         <li>
           <strong><%= m.title %></strong>
-          <div class="muted small"><%= new Date(m.scheduled_at).toLocaleString() %><%= m.location ? ' · ' + m.location : '' %></div>
+          <div class="muted small"><%= formatDateTime(m.scheduled_at) %><%= m.location ? ' · ' + m.location : '' %></div>
           <% if (m.minutes) { %>
             <div style="margin-top:6px;"><em>Minutes:</em> <%= m.minutes %></div>
           <% } else { %>
