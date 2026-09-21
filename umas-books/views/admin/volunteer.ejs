@@ -2,35 +2,16 @@
 <%- include('../partials/admin_subnav', { active }) %>
 
 <h1>Volunteer Shifts</h1>
+<p class="muted small">Click a day to add a shift there. Each shift takes one volunteer; use "Repeat weekly" to create the same shift for several weeks at once.</p>
 
 <div class="card">
-  <div class="section-title">Add a volunteer shift</div>
-  <p class="muted small">Use "Repeat weekly" to create the same shift for several weeks at once &mdash; handy for regular shop-floor slots. Each shift takes one volunteer.</p>
-  <form class="stack" method="post" action="/admin/volunteer-shifts">
-    <%- include('../partials/csrf_field') %>
-    <input type="hidden" name="month" value="<%= currentMonth %>">
-    <label for="v-role">Role</label>
-    <input id="v-role" name="role" type="text" required placeholder="Shop Floor" list="v-role-suggestions">
-    <datalist id="v-role-suggestions">
-      <option value="Shop Floor">
-      <option value="Sorting & Shelving">
-      <option value="Events & Language Exchange">
-      <option value="Bilingual Support">
-      <option value="Éveil Helper">
-    </datalist>
-    <label for="v-start">Starts at</label>
-    <input id="v-start" name="startsAt" type="datetime-local" required>
-    <label for="v-end">Ends at</label>
-    <input id="v-end" name="endsAt" type="datetime-local" required>
-    <label for="v-repeat">Repeat weekly, this many times (including the first)</label>
-    <input id="v-repeat" name="repeatWeeks" type="number" min="1" max="52" value="1">
-    <label for="v-notes">Notes (optional)</label>
-    <textarea id="v-notes" name="notes"></textarea>
-    <button class="btn" type="submit">Add shift</button>
-  </form>
-</div>
-
-<div class="card">
+  <datalist id="v-role-suggestions">
+    <option value="Shop Floor">
+    <option value="Sorting & Shelving">
+    <option value="Events & Language Exchange">
+    <option value="Bilingual Support">
+    <option value="Éveil Helper">
+  </datalist>
   <div class="calendar-nav">
     <a class="btn btn-outline btn-small" href="/admin/volunteer-shifts?month=<%= prevMonth %>">&larr; Prev</a>
     <span class="month-label"><%= monthLabel %></span>
@@ -45,6 +26,27 @@
         <% } else { %>
           <div class="calendar-day<%= day.isToday ? ' is-today' : '' %>">
             <div class="calendar-day-number"><%= day.day %></div>
+            <details class="calendar-pill calendar-add-pill">
+              <summary>+ Add shift</summary>
+              <div class="calendar-pill-body">
+                <form class="stack" method="post" action="/admin/volunteer-shifts">
+                  <%- include('../partials/csrf_field') %>
+                  <input type="hidden" name="month" value="<%= currentMonth %>">
+                  <input type="hidden" name="date" value="<%= day.dateKey %>">
+                  <label for="role-new-<%= day.dateKey %>">Role</label>
+                  <input id="role-new-<%= day.dateKey %>" name="role" type="text" required placeholder="Shop Floor" list="v-role-suggestions">
+                  <label for="start-new-<%= day.dateKey %>">Start time</label>
+                  <input id="start-new-<%= day.dateKey %>" name="startTime" type="time" required>
+                  <label for="end-new-<%= day.dateKey %>">End time</label>
+                  <input id="end-new-<%= day.dateKey %>" name="endTime" type="time" required>
+                  <label for="repeat-new-<%= day.dateKey %>">Repeat weekly, this many times (including this one)</label>
+                  <input id="repeat-new-<%= day.dateKey %>" name="repeatWeeks" type="number" min="1" max="52" value="1">
+                  <label for="notes-new-<%= day.dateKey %>">Notes (optional)</label>
+                  <textarea id="notes-new-<%= day.dateKey %>" name="notes"></textarea>
+                  <div><button class="btn btn-small" type="submit">Add shift</button></div>
+                </form>
+              </div>
+            </details>
             <% day.items.forEach(s => { %>
               <% const full = s.signup_count >= s.capacity; %>
               <details class="calendar-pill<%= full ? ' is-full' : '' %>">

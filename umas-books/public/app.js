@@ -53,3 +53,57 @@ document.addEventListener("input", function (e) {
     }
   }, 200);
 });
+
+// Preview an AI-generated description before saving — the field named by
+// data-generate-description gets filled in place so it can be reviewed
+// or edited before the form is submitted.
+document.addEventListener("click", function (e) {
+  var btn = e.target.closest("[data-generate-description]");
+  if (!btn) return;
+  e.preventDefault();
+  var form = btn.closest("form");
+  var descField = document.getElementById(btn.getAttribute("data-generate-description"));
+  if (!form || !descField) return;
+
+  var titleInput = form.querySelector("[name=title]");
+  var title = titleInput ? titleInput.value.trim() : "";
+  if (!title) {
+    alert("Enter a title first.");
+    return;
+  }
+
+  var field = function (name) {
+    var el = form.querySelector("[name=" + name + "]");
+    return el ? el.value : "";
+  };
+  var params = new URLSearchParams();
+  params.set("_csrf", field("_csrf"));
+  params.set("title", title);
+  params.set("author", field("author"));
+  params.set("publisher", field("publisher"));
+  params.set("publishedYear", field("publishedYear"));
+
+  var originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Generating…";
+
+  fetch("/admin/inventory/generate-description", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: params.toString(),
+  })
+    .then(function (res) {
+      return res.json().then(function (data) { return { ok: res.ok, data: data }; });
+    })
+    .then(function (result) {
+      if (result.ok) descField.value = result.data.description;
+      else alert(result.data.error || "Couldn't generate a description.");
+    })
+    .catch(function () {
+      alert("Couldn't generate a description — check your connection and try again.");
+    })
+    .finally(function () {
+      btn.disabled = false;
+      btn.textContent = originalText;
+    });
+});

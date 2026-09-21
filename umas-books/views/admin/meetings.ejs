@@ -2,23 +2,7 @@
 <%- include('../partials/admin_subnav', { active }) %>
 
 <h1>Meetings</h1>
-
-<div class="card">
-  <div class="section-title">Schedule a meeting</div>
-  <form class="stack" method="post" action="/admin/meetings">
-    <%- include('../partials/csrf_field') %>
-    <input type="hidden" name="month" value="<%= currentMonth %>">
-    <label for="m-title">Title</label>
-    <input id="m-title" name="title" type="text" required placeholder="Board Meeting">
-    <label for="m-when">Date &amp; time</label>
-    <input id="m-when" name="scheduledAt" type="datetime-local" required>
-    <label for="m-loc">Location</label>
-    <input id="m-loc" name="location" type="text" placeholder="Uma's Books, back room">
-    <label for="m-agenda">Agenda (optional)</label>
-    <textarea id="m-agenda" name="agenda"></textarea>
-    <button class="btn" type="submit">Schedule</button>
-  </form>
-</div>
+<p class="muted small">Click a day to schedule a meeting there.</p>
 
 <div class="card">
   <div class="calendar-nav">
@@ -35,6 +19,25 @@
         <% } else { %>
           <div class="calendar-day<%= day.isToday ? ' is-today' : '' %>">
             <div class="calendar-day-number"><%= day.day %></div>
+            <details class="calendar-pill calendar-add-pill">
+              <summary>+ Add meeting</summary>
+              <div class="calendar-pill-body">
+                <form class="stack" method="post" action="/admin/meetings">
+                  <%- include('../partials/csrf_field') %>
+                  <input type="hidden" name="month" value="<%= currentMonth %>">
+                  <input type="hidden" name="date" value="<%= day.dateKey %>">
+                  <label for="title-new-<%= day.dateKey %>">Title</label>
+                  <input id="title-new-<%= day.dateKey %>" name="title" type="text" required placeholder="Board Meeting">
+                  <label for="time-new-<%= day.dateKey %>">Time</label>
+                  <input id="time-new-<%= day.dateKey %>" name="time" type="time" required>
+                  <label for="loc-new-<%= day.dateKey %>">Location (optional)</label>
+                  <input id="loc-new-<%= day.dateKey %>" name="location" type="text" placeholder="Uma's Books, back room">
+                  <label for="agenda-new-<%= day.dateKey %>">Agenda (optional)</label>
+                  <textarea id="agenda-new-<%= day.dateKey %>" name="agenda"></textarea>
+                  <div><button class="btn btn-small" type="submit">Schedule</button></div>
+                </form>
+              </div>
+            </details>
             <% day.items.forEach(m => { %>
               <details class="calendar-pill">
                 <summary><%= m.title %> &middot; <%= formatTime(m.scheduled_at) %></summary>

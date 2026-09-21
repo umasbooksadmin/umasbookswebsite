@@ -40,6 +40,7 @@
         <% } %>
         <label for="description">Description</label>
         <textarea id="description" name="description"><%= book.description || '' %></textarea>
+        <div><button type="button" class="btn btn-outline btn-small" data-generate-description="description">Generate description</button></div>
         <div><button class="btn btn-small" type="submit">Save changes</button></div>
       </form>
       <form method="post" action="/admin/inventory/<%= book.id %>/delete" style="margin-top:10px;">

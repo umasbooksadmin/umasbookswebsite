@@ -105,14 +105,15 @@ router.get("/admin/volunteer-shifts", requireAdmin, async (req, res) => {
 
 router.post("/admin/volunteer-shifts", requireAdmin, async (req, res) => {
   const role = (req.body.role || "").trim();
-  const startsAt = req.body.startsAt;
-  const endsAt = req.body.endsAt;
+  const date = req.body.date;
+  const startTime = req.body.startTime;
+  const endTime = req.body.endTime;
   const notes = (req.body.notes || "").trim() || null;
   const repeatWeeks = Math.max(1, Math.min(52, Number(req.body.repeatWeeks) || 1));
 
-  if (role && startsAt && endsAt) {
-    const start = new Date(startsAt);
-    const end = new Date(endsAt);
+  if (role && date && startTime && endTime) {
+    const start = new Date(`${date}T${startTime}`);
+    const end = new Date(`${date}T${endTime}`);
     const weekMs = 7 * 24 * 60 * 60 * 1000;
 
     for (let i = 0; i < repeatWeeks; i++) {
@@ -149,11 +150,13 @@ router.get("/admin/meetings", requireAdmin, async (req, res) => {
 
 router.post("/admin/meetings", requireAdmin, async (req, res) => {
   const title = (req.body.title || "").trim();
-  const scheduledAt = req.body.scheduledAt;
+  const date = req.body.date;
+  const time = req.body.time;
   const location = (req.body.location || "").trim() || null;
   const agenda = (req.body.agenda || "").trim() || null;
 
-  if (title && scheduledAt) {
+  if (title && date && time) {
+    const scheduledAt = `${date}T${time}`;
     await pool.query(
       `INSERT INTO meetings (title, scheduled_at, location, agenda, created_by)
        VALUES ($1, $2, $3, $4, $5)`,
@@ -436,6 +439,19 @@ router.get("/admin/inventory/new", requireAdmin, (req, res) => {
   });
 });
 
+router.post("/admin/inventory/generate-description", requireAdmin, async (req, res) => {
+  const title = (req.body.title || "").trim();
+  const author = (req.body.author || "").trim() || null;
+  const publisher = (req.body.publisher || "").trim() || null;
+  const publishedYear = req.body.publishedYear ? Number(req.body.publishedYear) : null;
+
+  if (!title) return res.status(400).json({ error: "Enter a title first." });
+
+  const description = await generateBookDescription({ title, author, publisher, publishedYear });
+  if (!description) return res.status(502).json({ error: "Couldn't generate a description — try again, or write one manually." });
+  res.json({ description });
+});
+
 router.post("/admin/inventory", requireAdmin, async (req, res) => {
   const title = (req.body.title || "").trim();
   const author = (req.body.author || "").trim() || null;
@@ -459,17 +475,44 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
   const coverPhoto = req.files && req.files.coverPhoto && req.files.coverPhoto[0];
   if (coverPhoto) coverUrl = await processCoverPhoto(coverPhoto);
 
-  [description, coverUrl] = await Promise.all([
-    description || generateBookDescription({ title, author, publisher, publishedYear }),
-    coverUrl || findCoverUrl({ isbn, title, author }),
-  ]);
+  // A second physical copy of a book already in inventory (same ISBN)
+  // should add a copy to that existing record, not create a duplicate
+  // book entry — otherwise scanning a title you already stock splits
+  // into a separate single-copy book instead of accumulating on one.
+  let bookId = null;
+  if (isbn) {
+    const { rows: existingRows } = await pool.query("SELECT * FROM books WHERE isbn = $1", [isbn]);
+    if (existingRows.length) {
+      const existing = existingRows[0];
+      bookId = existing.id;
+      if (!existing.description || !existing.cover_url) {
+        const [genDescription, genCoverUrl] = await Promise.all([
+          existing.description ? null : (description || generateBookDescription({ title, author, publisher, publishedYear })),
+          existing.cover_url ? null : (coverUrl || findCoverUrl({ isbn, title, author })),
+        ]);
+        if (genDescription || genCoverUrl) {
+          await pool.query(
+            "UPDATE books SET description = COALESCE($1, description), cover_url = COALESCE($2, cover_url), updated_at = now() WHERE id = $3",
+            [genDescription, genCoverUrl, bookId]
+          );
+        }
+      }
+    }
+  }
 
-  const { rows } = await pool.query(
-    `INSERT INTO books (isbn, title, authors, publisher, published_year, description, cover_url, categories, created_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
-    [isbn || null, title, author, publisher, publishedYear, description, coverUrl, genre, req.session.user.id]
-  );
-  const bookId = rows[0].id;
+  if (!bookId) {
+    [description, coverUrl] = await Promise.all([
+      description || generateBookDescription({ title, author, publisher, publishedYear }),
+      coverUrl || findCoverUrl({ isbn, title, author }),
+    ]);
+
+    const { rows } = await pool.query(
+      `INSERT INTO books (isbn, title, authors, publisher, published_year, description, cover_url, categories, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
+      [isbn || null, title, author, publisher, publishedYear, description, coverUrl, genre, req.session.user.id]
+    );
+    bookId = rows[0].id;
+  }
 
   const condition = normalizeCondition(req.body.condition);
   const status = normalizeStatus(req.body.status);
