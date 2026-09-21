@@ -66,10 +66,16 @@ async function extractBookInfoFromPhoto(buffer, mimeType) {
 
     const data = await res.json();
     const text = data.content && data.content[0] && data.content[0].text;
-    if (!text) return null;
+    if (!text) {
+      console.warn("Vision extraction skipped: unexpected response shape:", JSON.stringify(data).slice(0, 500));
+      return null;
+    }
 
     const parsed = extractJson(text);
-    if (!parsed) return null;
+    if (!parsed) {
+      console.warn("Vision extraction skipped: couldn't parse JSON from model output:", text.slice(0, 300));
+      return null;
+    }
 
     return {
       isbn: parsed.isbn || null,
@@ -77,7 +83,7 @@ async function extractBookInfoFromPhoto(buffer, mimeType) {
       author: parsed.author || null,
     };
   } catch (err) {
-    console.warn("Vision extraction skipped (treating as not found):", err.message);
+    console.warn("Vision extraction skipped:", err.name === "AbortError" ? "request timed out" : err.message);
     return null;
   } finally {
     clearTimeout(timeout);

@@ -7,10 +7,13 @@ const TEXT_MODEL = "claude-haiku-4-5-20251001";
 async function generateBookDescription({ title, author, publisher, publishedYear }) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
-    console.warn("ANTHROPIC_API_KEY not set — AI description generation is disabled.");
+    console.warn("AI description skipped: ANTHROPIC_API_KEY not set.");
     return null;
   }
-  if (!title) return null;
+  if (!title) {
+    console.warn("AI description skipped: no title provided.");
+    return null;
+  }
 
   const details = [
     author ? `by ${author}` : null,
@@ -49,9 +52,13 @@ Only describe the book itself — no marketing fluff about the shop, no mention 
 
     const data = await res.json();
     const text = data.content && data.content[0] && data.content[0].text;
-    return text ? text.trim() : null;
+    if (!text) {
+      console.warn("AI description skipped: unexpected response shape:", JSON.stringify(data).slice(0, 500));
+      return null;
+    }
+    return text.trim();
   } catch (err) {
-    console.warn("AI description generation skipped:", err.message);
+    console.warn("AI description skipped:", err.name === "AbortError" ? "request timed out" : err.message);
     return null;
   } finally {
     clearTimeout(timeout);
