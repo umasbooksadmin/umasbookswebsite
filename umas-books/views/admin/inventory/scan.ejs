@@ -2,6 +2,7 @@
 <%- include('../../partials/admin_subnav', { active }) %>
 
 <h1>Scan a Book</h1>
+<% if (typeof saved !== "undefined" && saved) { %><div class="notice-box">Book saved &mdash; ready for the next one.</div><% } %>
 <% if (error) { %><div class="error-box"><%= error %></div><% } %>
 
 <div class="card">

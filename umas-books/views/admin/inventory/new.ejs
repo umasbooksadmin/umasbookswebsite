@@ -10,6 +10,7 @@
   <% } %>
   <form class="stack" method="post" action="/admin/inventory" enctype="multipart/form-data">
     <%- include('../../partials/csrf_field') %>
+    <input type="hidden" name="fromScan" value="<%= fromScan ? '1' : '' %>">
 
     <label for="title">Title</label>
     <input id="title" name="title" type="text" required value="<%= book.title || '' %>">

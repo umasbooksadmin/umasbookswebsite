@@ -390,7 +390,12 @@ router.get("/admin/inventory", requireAdmin, async (req, res) => {
 });
 
 router.get("/admin/inventory/scan", requireAdmin, (req, res) => {
-  res.render("admin/inventory/scan", { active: "inventory", error: null, visionEnabled: !!process.env.ANTHROPIC_API_KEY });
+  res.render("admin/inventory/scan", {
+    active: "inventory",
+    error: null,
+    saved: req.query.saved === "1",
+    visionEnabled: !!process.env.ANTHROPIC_API_KEY,
+  });
 });
 
 router.post("/admin/inventory/lookup", requireAdmin, async (req, res) => {
@@ -430,7 +435,7 @@ router.post("/admin/inventory/lookup", requireAdmin, async (req, res) => {
     }
   }
 
-  res.render("admin/inventory/new", { active: "inventory", book, error, conditions: CONDITIONS, statuses: STATUSES });
+  res.render("admin/inventory/new", { active: "inventory", book, error, fromScan: true, conditions: CONDITIONS, statuses: STATUSES });
 });
 
 router.get("/admin/inventory/new", requireAdmin, (req, res) => {
@@ -438,6 +443,7 @@ router.get("/admin/inventory/new", requireAdmin, (req, res) => {
     active: "inventory",
     book: { isbn: null, title: null, author: null, publisher: null, publishedYear: null, description: null, coverUrl: null, genre: null },
     error: null,
+    fromScan: false,
     conditions: CONDITIONS,
     statuses: STATUSES,
   });
@@ -471,6 +477,7 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
       active: "inventory",
       book: { isbn, title: null, author, publisher, publishedYear, description, coverUrl, genre },
       error: "Title is required.",
+      fromScan: req.body.fromScan === "1",
       conditions: CONDITIONS,
       statuses: STATUSES,
     });
@@ -537,6 +544,7 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
     await matchWishlistOnArrival(pool, { bookId, copyId: copyRows[0].id, title });
   }
 
+  if (req.body.fromScan === "1") return res.redirect("/admin/inventory/scan?saved=1");
   res.redirect(`/admin/inventory/${bookId}`);
 });
 
