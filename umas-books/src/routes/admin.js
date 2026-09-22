@@ -7,7 +7,7 @@ const { normalizeIsbn, lookupByIsbn, searchByTitleAuthor } = require("../lib/boo
 const { extractBookInfoFromPhoto } = require("../lib/coverVision");
 const { generateBookDescription } = require("../lib/bookDescription");
 const { CONDITIONS, STATUSES, normalizeCondition, normalizeStatus } = require("../lib/inventory");
-const { expireStaleReservations } = require("../lib/reservations");
+const { expireStaleReservations, matchWishlistOnArrival } = require("../lib/reservations");
 
 const router = express.Router();
 
@@ -525,11 +525,17 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
   const acquiredAt = req.body.acquiredAt || null;
   const notes = (req.body.copyNotes || "").trim() || null;
 
-  await pool.query(
+  const { rows: copyRows } = await pool.query(
     `INSERT INTO book_copies (book_id, condition, price, acquisition_cost, acquired_at, status, notes, created_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
     [bookId, condition, price, acquisitionCost, acquiredAt, status, notes, req.session.user.id]
   );
+
+  // A copy arriving as in_stock might be exactly what someone's on the
+  // wishlist for — claim it for them instead of leaving it up for grabs.
+  if (status === "in_stock") {
+    await matchWishlistOnArrival(pool, { bookId, copyId: copyRows[0].id, title });
+  }
 
   res.redirect(`/admin/inventory/${bookId}`);
 });

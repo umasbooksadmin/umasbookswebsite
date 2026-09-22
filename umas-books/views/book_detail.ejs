@@ -30,7 +30,7 @@
         </p>
 
         <details>
-          <summary class="btn">Buy and Pickup</summary>
+          <summary class="btn">Reserve and Pickup</summary>
           <form class="stack" method="post" action="/books/<%= book.id %>/reserve" style="margin-top:14px; gap:10px;">
             <%- include('partials/csrf_field') %>
             <% if (copies.length > 1) { %>
