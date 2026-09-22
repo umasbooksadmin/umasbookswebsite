@@ -19,6 +19,7 @@ const meetingsRoutes = require("./routes/meetings");
 const eventsRoutes = require("./routes/events");
 const classesRoutes = require("./routes/classes");
 const booksRoutes = require("./routes/books");
+const wishlistRoutes = require("./routes/wishlist");
 const adminRoutes = require("./routes/admin");
 
 const app = express();
@@ -98,6 +99,7 @@ app.use(meetingsRoutes);
 app.use(eventsRoutes);
 app.use(classesRoutes);
 app.use(booksRoutes);
+app.use(wishlistRoutes);
 app.use(adminRoutes);
 
 app.use((req, res) => {

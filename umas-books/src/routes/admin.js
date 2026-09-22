@@ -41,7 +41,7 @@ async function processCoverPhoto(file) {
 // ---------- Overview ----------
 
 router.get("/admin", requireAdmin, async (req, res) => {
-  const [memberCount, upcomingShifts, activeRound, nextMeeting, inStockCount, upcomingEvents, upcomingClasses] = await Promise.all([
+  const [memberCount, upcomingShifts, activeRound, nextMeeting, inStockCount, upcomingEvents, upcomingClasses, openWishlist] = await Promise.all([
     pool.query("SELECT COUNT(*)::int AS n FROM users"),
     pool.query("SELECT COUNT(*)::int AS n FROM volunteer_shifts WHERE starts_at >= now()"),
     pool.query("SELECT * FROM charity_rounds WHERE is_active = TRUE ORDER BY opens_at DESC LIMIT 1"),
@@ -49,6 +49,7 @@ router.get("/admin", requireAdmin, async (req, res) => {
     pool.query("SELECT COUNT(*)::int AS n FROM book_copies WHERE status = 'in_stock'"),
     pool.query("SELECT COUNT(*)::int AS n FROM events WHERE starts_at >= now()"),
     pool.query("SELECT COUNT(*)::int AS n FROM classes WHERE starts_at >= now()"),
+    pool.query("SELECT COUNT(*)::int AS n FROM wishlist_requests WHERE status = 'open'"),
   ]);
 
   res.render("admin/index", {
@@ -60,6 +61,7 @@ router.get("/admin", requireAdmin, async (req, res) => {
     inStockCount: inStockCount.rows[0].n,
     upcomingEventCount: upcomingEvents.rows[0].n,
     upcomingClassCount: upcomingClasses.rows[0].n,
+    openWishlistCount: openWishlist.rows[0].n,
   });
 });
 
@@ -611,6 +613,36 @@ router.post("/admin/inventory/:id/copies/:copyId/delete", requireAdmin, async (r
     return res.redirect("/admin/inventory");
   }
   res.redirect(`/admin/inventory/${bookId}`);
+});
+
+// ---------- Wishlist ----------
+
+router.get("/admin/wishlist", requireAdmin, async (req, res) => {
+  const { rows: requests } = await pool.query(
+    "SELECT * FROM wishlist_requests ORDER BY status ASC, created_at DESC"
+  );
+  res.render("admin/wishlist", { active: "wishlist", requests });
+});
+
+router.post("/admin/wishlist/:id/fulfill", requireAdmin, async (req, res) => {
+  await pool.query(
+    "UPDATE wishlist_requests SET status = 'fulfilled', updated_at = now() WHERE id = $1",
+    [Number(req.params.id)]
+  );
+  res.redirect("/admin/wishlist");
+});
+
+router.post("/admin/wishlist/:id/reopen", requireAdmin, async (req, res) => {
+  await pool.query(
+    "UPDATE wishlist_requests SET status = 'open', updated_at = now() WHERE id = $1",
+    [Number(req.params.id)]
+  );
+  res.redirect("/admin/wishlist");
+});
+
+router.post("/admin/wishlist/:id/delete", requireAdmin, async (req, res) => {
+  await pool.query("DELETE FROM wishlist_requests WHERE id = $1", [Number(req.params.id)]);
+  res.redirect("/admin/wishlist");
 });
 
 module.exports = router;

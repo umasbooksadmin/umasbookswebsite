@@ -1,0 +1,25 @@
+<%- include('partials/header', { title: 'Wishlist' }) %>
+
+<h1>Wishlist</h1>
+<p class="muted">Looking for a title we don't have in stock? Let us know and we'll keep an eye out for it &mdash; no account needed.</p>
+
+<% if (success) { %>
+  <div class="notice-box">Thanks! We've added it to the wishlist.</div>
+<% } %>
+<% if (error) { %><div class="error-box"><%= error %></div><% } %>
+
+<div class="card">
+  <form class="stack" method="post" action="/wishlist">
+    <%- include('partials/csrf_field') %>
+    <label for="title">Book title</label>
+    <input id="title" name="title" type="text" required>
+    <label for="author">Author (optional)</label>
+    <input id="author" name="author" type="text">
+    <label for="email">Your email</label>
+    <input id="email" name="email" type="email" required>
+    <p class="muted small">We'll email you if we find a copy.</p>
+    <button class="btn" type="submit">Add to wishlist</button>
+  </form>
+</div>
+
+<%- include('partials/footer') %>

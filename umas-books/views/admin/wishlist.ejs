@@ -1,0 +1,43 @@
+<%- include('../partials/header', { title: 'Admin — Wishlist' }) %>
+<%- include('../partials/admin_subnav', { active }) %>
+
+<h1>Wishlist</h1>
+<p class="muted small">Requests from the public <a href="/wishlist">wishlist form</a> &mdash; titles customers are looking for.</p>
+
+<div class="card">
+  <% if (!requests.length) { %>
+    <p class="muted">No requests yet.</p>
+  <% } else { %>
+    <ul class="plain">
+      <% requests.forEach(r => { %>
+        <li style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px;">
+          <div>
+            <strong><%= r.title %></strong><% if (r.status === 'fulfilled') { %> <span class="muted small">(fulfilled)</span><% } %>
+            <div class="muted small">
+              <%= r.author || 'Author not given' %> &middot; <%= r.email %> &middot; <%= formatDate(r.created_at) %>
+            </div>
+          </div>
+          <div style="display:flex; gap:8px; flex-shrink:0;">
+            <% if (r.status === 'fulfilled') { %>
+              <form method="post" action="/admin/wishlist/<%= r.id %>/reopen">
+                <%- include('../partials/csrf_field') %>
+                <button class="btn btn-outline btn-small" type="submit">Reopen</button>
+              </form>
+            <% } else { %>
+              <form method="post" action="/admin/wishlist/<%= r.id %>/fulfill">
+                <%- include('../partials/csrf_field') %>
+                <button class="btn btn-outline btn-small" type="submit">Mark fulfilled</button>
+              </form>
+            <% } %>
+            <form method="post" action="/admin/wishlist/<%= r.id %>/delete">
+              <%- include('../partials/csrf_field') %>
+              <button class="btn btn-outline btn-small" type="submit">Delete</button>
+            </form>
+          </div>
+        </li>
+      <% }) %>
+    </ul>
+  <% } %>
+</div>
+
+<%- include('../partials/footer') %>
