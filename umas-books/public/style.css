@@ -1,13 +1,23 @@
+/* Palette: Mahogany Rose, Olive Green, Mustard Gold, Warm Cream, Terracotta Clay.
+   --cream/--panel are lightened tints of Warm Cream (rather than the raw
+   swatch) so body text and links keep AA-level contrast sitting directly
+   on them; --ink/--ink-soft are Olive Green at two depths; --maroon/
+   --maroon-dark are Mahogany Rose and a darkened variant for the primary
+   accent and its hover/heading state; --gold is a slightly deepened
+   Mustard Gold for text-sized use. Terracotta Clay is used separately for
+   .error-box, kept apart from --maroon so an error reads as distinct from
+   the brand accent. */
 :root {
-  --cream: #faf6ee;
-  --panel: #ffffff;
-  --ink: #2b2018;
-  --ink-soft: #5c4d3e;
-  --maroon: #7a1f2b;
-  --maroon-dark: #5c1620;
-  --gold: #b08d57;
-  --line: rgba(122, 31, 43, 0.16);
-  --card-border: rgba(122, 31, 43, 0.14);
+  --cream: #e9dfd3;
+  --panel: #faf7f4;
+  --ink: #3d3c28;
+  --ink-soft: #686754;
+  --maroon: #8b534a;
+  --maroon-dark: #6f423b;
+  --gold: #906637;
+  --terracotta: #a05946;
+  --line: rgba(139, 83, 74, 0.18);
+  --card-border: rgba(139, 83, 74, 0.16);
 }
 
 * { box-sizing: border-box; }
@@ -58,7 +68,7 @@ form.stack { display: flex; flex-direction: column; gap: 12px; max-width: 440px;
 form.stack label { font-variant: small-caps; letter-spacing: 0.06em; font-size: 14px; color: var(--gold); }
 form.stack input, form.stack textarea {
   font-family: 'EB Garamond', Georgia, serif; font-size: 16px; color: var(--ink);
-  border: 1px solid var(--card-border); border-radius: 3px; padding: 9px 12px; background: #fff;
+  border: 1px solid var(--card-border); border-radius: 3px; padding: 9px 12px; background: var(--panel);
 }
 form.stack textarea { min-height: 90px; resize: vertical; }
 
@@ -82,8 +92,8 @@ input[type="file"].file-input-hidden {
 }
 .password-toggle:hover { color: var(--maroon); }
 
-.error-box { background: #fbeaea; border: 1px solid #d9a3a3; color: #7a1f2b; padding: 10px 14px; border-radius: 3px; font-size: 15px; margin-bottom: 14px; }
-.notice-box { background: #eef6ea; border: 1px solid #a9d1a0; color: #2e5a24; padding: 10px 14px; border-radius: 3px; font-size: 15px; margin-bottom: 14px; }
+.error-box { background: #f7f1f0; border: 1px solid #d4b4ab; color: #90503f; padding: 10px 14px; border-radius: 3px; font-size: 15px; margin-bottom: 14px; }
+.notice-box { background: #f0f0ee; border: 1px solid #acaba1; color: #47462f; padding: 10px 14px; border-radius: 3px; font-size: 15px; margin-bottom: 14px; }
 
 ul.plain { list-style: none; margin: 0; padding: 0; }
 ul.plain li { padding: 10px 0; border-bottom: 1px solid var(--line); }
@@ -113,7 +123,7 @@ footer.site { text-align: center; padding: 30px 0; color: var(--ink-soft); font-
 .calendar-weekday { text-align: center; font-variant: small-caps; letter-spacing: 0.06em; color: var(--ink-soft); font-size: 13px; padding-bottom: 4px; }
 .calendar-day {
   min-height: 100px; border: 1px solid var(--card-border); border-radius: 4px;
-  padding: 6px; background: #fff;
+  padding: 6px; background: var(--panel);
 }
 .calendar-day.is-empty { background: transparent; border-color: transparent; }
 .calendar-day.is-today { border-color: var(--maroon); border-width: 2px; }
@@ -126,13 +136,13 @@ footer.site { text-align: center; padding: 30px 0; color: var(--ink-soft); font-
 .calendar-pill summary::-webkit-details-marker { display: none; }
 .calendar-pill summary::before { content: "\25B8"; display: inline-block; margin-right: 4px; color: var(--maroon); }
 .calendar-pill[open] summary::before { content: "\25BE"; }
-.calendar-pill[open] { background: #fff; }
+.calendar-pill[open] { background: var(--panel); }
 .calendar-pill.is-mine { border-color: var(--maroon); }
 .calendar-pill.is-full summary { opacity: 0.65; }
 .calendar-add-pill { background: transparent; border-style: dashed; }
 .calendar-add-pill summary { color: var(--ink-soft); }
 .calendar-add-pill summary::before { content: ""; margin-right: 0; }
-.calendar-add-pill[open] { background: #fff; border-style: solid; }
+.calendar-add-pill[open] { background: var(--panel); border-style: solid; }
 .calendar-pill-body { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
 .calendar-pill-body form.stack { gap: 8px; max-width: none; }
 .calendar-day-more { font-size: 12px; color: var(--ink-soft); }
