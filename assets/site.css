@@ -139,6 +139,25 @@ nav.mainlinks a:hover, nav.mainlinks a.is-active { color: var(--maroon); border-
   position: absolute; inset: 0; z-index: 1;
   background: linear-gradient(100deg, rgba(30,15,12,0.72) 10%, rgba(30,15,12,0.42) 55%, rgba(30,15,12,0.08) 90%);
 }
+.hero-chalkboard {
+  margin-top: 28px; max-width: 190px;
+  background: #2a2119; border: 1px solid rgba(255,255,255,0.15); border-radius: 3px;
+  padding: 16px 20px; transform: rotate(-2deg); box-shadow: 0 10px 24px rgba(0,0,0,0.35);
+  display: none; flex-direction: column; gap: 6px;
+}
+.hero-chalkboard span {
+  font-family: 'EB Garamond', Georgia, serif; font-style: italic; color: #f1e6da; font-size: 15px;
+}
+.hero-tagbox {
+  position: absolute; z-index: 2; right: 40px; top: 18%;
+  background: rgba(255,255,255,0.92); border-radius: 3px; padding: 14px 18px;
+  display: none; flex-direction: column; gap: 4px; text-align: right;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+}
+.hero-tagbox span {
+  font-variant: small-caps; letter-spacing: 0.06em; color: var(--maroon-dark); font-size: 13px;
+}
+@media (min-width: 860px) { .hero-chalkboard, .hero-tagbox { display: flex; } }
 
 /* ---------- Placeholder photo blocks ---------- */
 .photo-block {
