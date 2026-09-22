@@ -72,15 +72,15 @@
 
   <div class="section">
     <div class="wrap-narrow">
-      <h2 style="text-align:center;" data-i18n="order.title">Order Online</h2>
+      <h2 style="text-align:center;" data-i18n="order.title">Reserve Online</h2>
       <div class="prose" style="margin-top:14px;">
-        <p data-i18n="order.intro">Browse the collection and reserve online &mdash; pay when you collect your order during opening hours.</p>
+        <p data-i18n="order.intro">Browse the collection and reserve online &mdash; pay when you collect your reservation during opening hours.</p>
       </div>
       <div class="cta-row">
         <a class="btn btn-maroon" href="https://umas-books.onrender.com/books" data-i18n="order.cta">Shop Now</a>
       </div>
       <div class="note-box" data-i18n-html="order.contact.note">
-        Questions about an order? Email us at <a href="mailto:admin@umasbooks.org">admin@umasbooks.org</a>.
+        Questions about a reservation? Email us at <a href="mailto:admin@umasbooks.org">admin@umasbooks.org</a>.
       </div>
     </div>
   </div>
@@ -120,10 +120,10 @@ window.PAGE_I18N = {
     "arrivals.loading": "Loading the latest arrivals…",
     "arrivals.empty": "No new arrivals in the last week — check back soon, or browse the full catalog.",
     "arrivals.error": "Couldn't load new arrivals right now — browse the full catalog instead.",
-    "order.title": "Order Online",
-    "order.intro": "Browse the collection and reserve online — pay when you collect your order during opening hours.",
+    "order.title": "Reserve Online",
+    "order.intro": "Browse the collection and reserve online — pay when you collect your reservation during opening hours.",
     "order.cta": "Shop Now",
-    "order.contact.note": "Questions about an order? Email us at <a href=\"mailto:admin@umasbooks.org\">admin@umasbooks.org</a>."
+    "order.contact.note": "Questions about a reservation? Email us at <a href=\"mailto:admin@umasbooks.org\">admin@umasbooks.org</a>."
   },
   fr: {
     "books.kicker": "La collection",
@@ -133,10 +133,10 @@ window.PAGE_I18N = {
     "arrivals.loading": "Chargement des derniers arrivages…",
     "arrivals.empty": "Aucun nouvel arrivage cette semaine — revenez bientôt, ou parcourez tout le catalogue.",
     "arrivals.error": "Impossible de charger les derniers arrivages pour le moment — parcourez plutôt tout le catalogue.",
-    "order.title": "Commander en ligne",
+    "order.title": "Réserver en ligne",
     "order.intro": "Parcourez la collection et réservez en ligne — vous réglez au moment du retrait pendant les heures d’ouverture.",
     "order.cta": "Acheter maintenant",
-    "order.contact.note": "Une question sur une commande ? Écrivez-nous à <a href=\"mailto:admin@umasbooks.org\">admin@umasbooks.org</a>."
+    "order.contact.note": "Une question sur une réservation ? Écrivez-nous à <a href=\"mailto:admin@umasbooks.org\">admin@umasbooks.org</a>."
   }
 };
 </script>
@@ -158,30 +158,41 @@ window.PAGE_I18N = {
     return dict[key] || fallback;
   }
 
-  fetch('https://umas-books.onrender.com/api/books/latest-arrivals')
-    .then(function (res) {
-      if (!res.ok) throw new Error('bad response');
-      return res.json();
-    })
-    .then(function (books) {
-      if (!books.length) {
-        track.innerHTML = '<p class="muted">' + esc(i18nText('arrivals.empty', 'No new arrivals in the last week.')) + '</p>';
-        return;
-      }
-      track.innerHTML = books.map(function (b) {
-        var cover = b.coverUrl
-          ? '<img src="' + esc(b.coverUrl) + '" alt="" class="arrival-cover">'
-          : '<div class="arrival-cover arrival-cover-placeholder">No cover</div>';
-        var price = b.price != null ? '€' + Number(b.price).toFixed(2) : '';
-        var meta = [b.author, price].filter(Boolean).join(' · ');
-        return '<a class="arrival-card" href="' + esc(b.url) + '">' + cover +
-          '<div class="arrival-title">' + esc(b.title) + '</div>' +
-          '<div class="arrival-meta">' + esc(meta) + '</div></a>';
-      }).join('');
-    })
-    .catch(function () {
-      track.innerHTML = '<p class="muted">' + esc(i18nText('arrivals.error', "Couldn't load new arrivals right now.")) + '</p>';
-    });
+  // Render's free tier sleeps after inactivity and briefly returns an
+  // error (or a slow response) while it wakes back up — retry once after
+  // a few seconds before showing the error state, since a cold start is
+  // the most likely cause of a first-attempt failure here.
+  function loadArrivals(isRetry) {
+    fetch('https://umas-books.onrender.com/api/books/latest-arrivals')
+      .then(function (res) {
+        if (!res.ok) throw new Error('bad response');
+        return res.json();
+      })
+      .then(function (books) {
+        if (!books.length) {
+          track.innerHTML = '<p class="muted">' + esc(i18nText('arrivals.empty', 'No new arrivals in the last week.')) + '</p>';
+          return;
+        }
+        track.innerHTML = books.map(function (b) {
+          var cover = b.coverUrl
+            ? '<img src="' + esc(b.coverUrl) + '" alt="" class="arrival-cover">'
+            : '<div class="arrival-cover arrival-cover-placeholder">No cover</div>';
+          var price = b.price != null ? '€' + Number(b.price).toFixed(2) : '';
+          var meta = [b.author, price].filter(Boolean).join(' · ');
+          return '<a class="arrival-card" href="' + esc(b.url) + '">' + cover +
+            '<div class="arrival-title">' + esc(b.title) + '</div>' +
+            '<div class="arrival-meta">' + esc(meta) + '</div></a>';
+        }).join('');
+      })
+      .catch(function () {
+        if (!isRetry) {
+          setTimeout(function () { loadArrivals(true); }, 4000);
+          return;
+        }
+        track.innerHTML = '<p class="muted">' + esc(i18nText('arrivals.error', "Couldn't load new arrivals right now.")) + '</p>';
+      });
+  }
+  loadArrivals(false);
 
   var prevBtn = document.getElementById('arrivals-prev');
   var nextBtn = document.getElementById('arrivals-next');

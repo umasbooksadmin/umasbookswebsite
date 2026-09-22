@@ -138,37 +138,48 @@ window.PAGE_I18N = {
     return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
   }
 
-  fetch('https://umas-books.onrender.com/api/events/upcoming')
-    .then(function (res) {
-      if (!res.ok) throw new Error('bad response');
-      return res.json();
-    })
-    .then(function (events) {
-      if (!events.length) {
-        list.innerHTML = '<p class="muted">' + esc(i18nText('events.empty', 'Nothing on the calendar right now.')) + '</p>';
-        return;
-      }
-      list.innerHTML = events.map(function (e) {
-        var d = fmtDayMonth(e.startsAt);
-        var meta = [fmtTime(e.startsAt)];
-        if (e.location) meta.push(e.location);
-        if (e.capacity != null) meta.push(e.signupCount + '/' + e.capacity + ' ' + i18nText('events.spots', 'spots taken'));
-        else meta.push(e.signupCount + ' ' + i18nText('events.signedup', 'signed up'));
-        var desc = e.description ? '<p class="event-desc">' + esc(e.description) + '</p>' : '';
-        return '<div class="event-item">' +
-          '<div class="event-date"><span class="event-date-day">' + d.day + '</span><span class="event-date-month">' + esc(d.month) + '</span></div>' +
-          '<div class="event-body">' +
-            '<div class="event-title">' + esc(e.title) + '</div>' +
-            '<div class="event-meta">' + esc(meta.join(' · ')) + '</div>' +
-            desc +
-            '<a class="event-link" href="' + esc(e.url) + '">' + esc(i18nText('events.signup', 'Sign up →')) + '</a>' +
-          '</div>' +
-        '</div>';
-      }).join('');
-    })
-    .catch(function () {
-      list.innerHTML = '<p class="muted">' + esc(i18nText('events.error', "Couldn't load the schedule right now.")) + '</p>';
-    });
+  // Render's free tier sleeps after inactivity and briefly returns an
+  // error while it wakes back up — retry once after a few seconds before
+  // showing the error state, since a cold start is the most likely cause
+  // of a first-attempt failure here.
+  function loadEvents(isRetry) {
+    fetch('https://umas-books.onrender.com/api/events/upcoming')
+      .then(function (res) {
+        if (!res.ok) throw new Error('bad response');
+        return res.json();
+      })
+      .then(function (events) {
+        if (!events.length) {
+          list.innerHTML = '<p class="muted">' + esc(i18nText('events.empty', 'Nothing on the calendar right now.')) + '</p>';
+          return;
+        }
+        list.innerHTML = events.map(function (e) {
+          var d = fmtDayMonth(e.startsAt);
+          var meta = [fmtTime(e.startsAt)];
+          if (e.location) meta.push(e.location);
+          if (e.capacity != null) meta.push(e.signupCount + '/' + e.capacity + ' ' + i18nText('events.spots', 'spots taken'));
+          else meta.push(e.signupCount + ' ' + i18nText('events.signedup', 'signed up'));
+          var desc = e.description ? '<p class="event-desc">' + esc(e.description) + '</p>' : '';
+          return '<div class="event-item">' +
+            '<div class="event-date"><span class="event-date-day">' + d.day + '</span><span class="event-date-month">' + esc(d.month) + '</span></div>' +
+            '<div class="event-body">' +
+              '<div class="event-title">' + esc(e.title) + '</div>' +
+              '<div class="event-meta">' + esc(meta.join(' · ')) + '</div>' +
+              desc +
+              '<a class="event-link" href="' + esc(e.url) + '">' + esc(i18nText('events.signup', 'Sign up →')) + '</a>' +
+            '</div>' +
+          '</div>';
+        }).join('');
+      })
+      .catch(function () {
+        if (!isRetry) {
+          setTimeout(function () { loadEvents(true); }, 4000);
+          return;
+        }
+        list.innerHTML = '<p class="muted">' + esc(i18nText('events.error', "Couldn't load the schedule right now.")) + '</p>';
+      });
+  }
+  loadEvents(false);
 })();
 </script>
 </body>
