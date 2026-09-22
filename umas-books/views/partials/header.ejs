@@ -18,7 +18,7 @@
 <body>
 <header class="site">
   <div class="wrap">
-    <div class="brand">Uma's Books &mdash; Members</div>
+    <div class="brand">Uma's Books &mdash; <%= (locals.user && user.isAdmin) ? "Admin" : "Members" %></div>
     <nav>
       <a href="/books">Books</a>
       <a href="/wishlist">Wishlist</a>
