@@ -54,8 +54,8 @@
   </div>
   <div class="section">
     <div class="wrap-narrow">
-      <div class="note-box" data-i18n-html="ev.calendar.note">
-        <strong>See what's coming up &amp; sign up:</strong> <a href="https://umas-books.onrender.com/events">View the events calendar &rarr;</a> &mdash; no account needed.
+      <div class="event-list" id="events-schedule">
+        <p class="muted" data-i18n="events.loading">Loading the schedule&hellip;</p>
       </div>
     </div>
   </div>
@@ -89,15 +89,87 @@ window.PAGE_I18N = {
   "en": {
     "events.kicker": "Chapter Three",
     "events.title": "Adventures & Events",
-    "ev.calendar.note": "<strong>See what's coming up &amp; sign up:</strong> <a href=\"https://umas-books.onrender.com/events\">View the events calendar &rarr;</a> — no account needed."
+    "events.loading": "Loading the schedule…",
+    "events.empty": "Nothing on the calendar right now — check back soon.",
+    "events.error": "Couldn't load the schedule right now — view the calendar directly instead.",
+    "events.spots": "spots taken",
+    "events.signedup": "signed up",
+    "events.signup": "Sign up →"
   },
   "fr": {
     "events.kicker": "Chapitre trois",
     "events.title": "Aventures et événements",
-    "ev.calendar.note": "<strong>Découvrez le programme et inscrivez-vous :</strong> <a href=\"https://umas-books.onrender.com/events\">Voir le calendrier des événements &rarr;</a> — aucun compte requis."
+    "events.loading": "Chargement du programme…",
+    "events.empty": "Rien de prévu pour le moment — revenez bientôt.",
+    "events.error": "Impossible de charger le programme — consultez directement le calendrier.",
+    "events.spots": "places prises",
+    "events.signedup": "inscrits",
+    "events.signup": "S'inscrire →"
   }
 };
 </script>
 <script src="assets/site.js"></script>
+<script>
+(function () {
+  var list = document.getElementById('events-schedule');
+  if (!list) return;
+
+  function esc(s) {
+    return String(s || '').replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function i18nText(key, fallback) {
+    var lang = (window.localStorage && localStorage.getItem('umasbooks.lang')) || 'en';
+    var dict = (window.PAGE_I18N && window.PAGE_I18N[lang]) || {};
+    return dict[key] || fallback;
+  }
+
+  function fmtDayMonth(iso) {
+    var d = new Date(iso);
+    return {
+      day: d.getDate(),
+      month: d.toLocaleDateString('en-GB', { month: 'short' })
+    };
+  }
+
+  function fmtTime(iso) {
+    return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  fetch('https://umas-books.onrender.com/api/events/upcoming')
+    .then(function (res) {
+      if (!res.ok) throw new Error('bad response');
+      return res.json();
+    })
+    .then(function (events) {
+      if (!events.length) {
+        list.innerHTML = '<p class="muted">' + esc(i18nText('events.empty', 'Nothing on the calendar right now.')) + '</p>';
+        return;
+      }
+      list.innerHTML = events.map(function (e) {
+        var d = fmtDayMonth(e.startsAt);
+        var meta = [fmtTime(e.startsAt)];
+        if (e.location) meta.push(e.location);
+        if (e.capacity != null) meta.push(e.signupCount + '/' + e.capacity + ' ' + i18nText('events.spots', 'spots taken'));
+        else meta.push(e.signupCount + ' ' + i18nText('events.signedup', 'signed up'));
+        var desc = e.description ? '<p class="event-desc">' + esc(e.description) + '</p>' : '';
+        return '<div class="event-item">' +
+          '<div class="event-date"><span class="event-date-day">' + d.day + '</span><span class="event-date-month">' + esc(d.month) + '</span></div>' +
+          '<div class="event-body">' +
+            '<div class="event-title">' + esc(e.title) + '</div>' +
+            '<div class="event-meta">' + esc(meta.join(' · ')) + '</div>' +
+            desc +
+            '<a class="event-link" href="' + esc(e.url) + '">' + esc(i18nText('events.signup', 'Sign up →')) + '</a>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+    })
+    .catch(function () {
+      list.innerHTML = '<p class="muted">' + esc(i18nText('events.error', "Couldn't load the schedule right now.")) + '</p>';
+    });
+})();
+</script>
 </body>
 </html>

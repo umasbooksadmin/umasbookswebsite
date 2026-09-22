@@ -372,3 +372,23 @@ footer.site { background: var(--maroon-dark); color: #f1e3d6; padding: 44px 28px
 }
 .carousel-arrow:hover { background: var(--maroon); color: #fff; border-color: var(--maroon); }
 .carousel-arrow[hidden] { display: none; }
+
+.event-list { display: flex; flex-direction: column; gap: 16px; }
+.event-item {
+  display: flex; gap: 18px; background: var(--panel); border: 1px solid var(--card-border);
+  border-radius: 4px; padding: 18px 20px;
+}
+.event-date {
+  flex: 0 0 auto; width: 56px; text-align: center; color: var(--maroon-dark);
+  border-right: 1px solid var(--card-border); padding-right: 16px;
+}
+.event-date-day { display: block; font-family: 'Playfair Display', serif; font-size: 26px; font-weight: 700; line-height: 1; }
+.event-date-month { display: block; font-variant: small-caps; letter-spacing: 0.06em; font-size: 13px; margin-top: 4px; }
+.event-title { font-family: 'Playfair Display', serif; font-size: 19px; margin-bottom: 2px; }
+.event-meta { color: var(--ink-soft); font-size: 15px; }
+.event-desc { color: var(--ink-soft); font-size: 15.5px; margin: 8px 0 0; }
+.event-link { display: inline-block; margin-top: 10px; font-weight: 600; }
+@media (max-width: 480px) {
+  .event-item { gap: 12px; }
+  .event-date { width: 44px; padding-right: 10px; }
+}

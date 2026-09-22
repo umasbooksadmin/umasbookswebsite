@@ -1,10 +1,41 @@
 const express = require("express");
 const { pool } = require("../db");
-const { parseMonthParam, monthRange, monthGrid, groupByDate, monthNav } = require("../lib/calendar");
+const { parseMonthParam, monthRange, monthGrid, groupByDate, monthNav, monthParam } = require("../lib/calendar");
 
 const router = express.Router();
 
 // Public — no login required. Anyone can view the calendar and sign up.
+
+// Public JSON, cross-origin — consumed by the marketing site's Events
+// page so it can show the actual upcoming schedule inline instead of
+// just linking out to it. Same CORS treatment as
+// /api/books/latest-arrivals: Access-Control-Allow-Origin alone isn't
+// enough, helmet's Cross-Origin-Resource-Policy: same-origin blocks the
+// read independently of CORS unless relaxed here too.
+router.get("/api/events/upcoming", async (req, res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Cross-Origin-Resource-Policy", "cross-origin");
+  const { rows } = await pool.query(
+    `SELECT e.*, (SELECT COUNT(*) FROM event_signups s WHERE s.event_id = e.id) AS signup_count
+     FROM events e WHERE e.starts_at >= now() ORDER BY e.starts_at ASC LIMIT 10`
+  );
+  res.json(
+    rows.map((e) => {
+      const starts = new Date(e.starts_at);
+      return {
+        id: e.id,
+        title: e.title,
+        description: e.description,
+        location: e.location,
+        startsAt: e.starts_at,
+        endsAt: e.ends_at,
+        capacity: e.capacity,
+        signupCount: e.signup_count,
+        url: `https://umas-books.onrender.com/events?month=${monthParam(starts.getFullYear(), starts.getMonth())}`,
+      };
+    })
+  );
+});
 
 router.get("/events", async (req, res) => {
   const { year, month } = parseMonthParam(req.query.month);
