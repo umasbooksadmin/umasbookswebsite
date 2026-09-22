@@ -9,55 +9,42 @@
       <label for="q">Title or author</label>
       <input id="q" name="q" type="text" value="<%= q %>" placeholder="Search title or author...">
     </div>
-    <div style="flex: 1; min-width: 160px;">
-      <label for="genre">Genre</label>
-      <input id="genre" name="genre" type="text" value="<%= genre %>" placeholder="e.g. Fantasy">
-    </div>
     <button class="btn" type="submit">Search</button>
   </form>
 </div>
+
+<% if (genres.length) { %>
+  <nav class="genre-subnav">
+    <a href="/books<%= q ? '?q=' + encodeURIComponent(q) : '' %>" class="<%= !genre ? 'is-active' : '' %>">All Genres</a>
+    <% genres.forEach(g => { %>
+      <a href="/books?genre=<%= encodeURIComponent(g) %><%= q ? '&q=' + encodeURIComponent(q) : '' %>" class="<%= genre === g ? 'is-active' : '' %>"><%= g %></a>
+    <% }) %>
+  </nav>
+<% } %>
 
 <% if (!books.length) { %>
   <div class="card"><p class="muted"><%= (q || genre) ? 'No in-stock books match that search.' : 'Search above to browse what\'s currently in stock.' %></p></div>
 <% } %>
 
-<% books.forEach(b => { %>
-  <% const copies = copiesByBook[b.id] || []; %>
-  <div class="card" style="display:flex; gap:20px;">
-    <% if (b.cover_url) { %>
-      <img src="<%= b.cover_url %>" alt="" class="book-cover-preview" style="flex-shrink:0; margin-bottom:0;">
-    <% } %>
-    <div style="flex:1;">
-      <div class="section-title" style="margin-bottom:4px;"><%= b.title %></div>
-      <div class="muted small"><%= b.authors || 'Unknown author' %><%= b.categories ? ' · ' + b.categories : '' %></div>
-      <% if (b.description) { %><p style="margin-top:10px;"><%= b.description %></p><% } %>
-
-      <ul class="plain" style="margin-top:10px;">
-        <% copies.forEach(c => { %>
-          <li>
-            <details>
-              <summary style="cursor:pointer;">
-                <%= c.condition %><%= c.price != null ? ' · €' + Number(c.price).toFixed(2) : '' %>
-              </summary>
-              <form class="stack" method="post" action="/books/copies/<%= c.id %>/reserve" style="margin-top:10px; gap:8px;">
-                <%- include('partials/csrf_field') %>
-                <input type="hidden" name="q" value="<%= q %>">
-                <input type="hidden" name="genre" value="<%= genre %>">
-                <label for="name-<%= c.id %>">Name</label>
-                <input id="name-<%= c.id %>" name="name" type="text" required>
-                <label for="email-<%= c.id %>">Email</label>
-                <input id="email-<%= c.id %>" name="email" type="email" required>
-                <label for="phone-<%= c.id %>">Phone (optional)</label>
-                <input id="phone-<%= c.id %>" name="phone" type="tel">
-                <p class="muted small">We'll hold this copy for you &mdash; pay when you pick it up in the shop.</p>
-                <div><button class="btn btn-small" type="submit">Buy &amp; Pickup</button></div>
-              </form>
-            </details>
-          </li>
-        <% }) %>
-      </ul>
-    </div>
-  </div>
-<% }) %>
+<div class="book-grid">
+  <% books.forEach(b => { %>
+    <a class="book-card" href="/books/<%= b.id %><%= genre ? '?genre=' + encodeURIComponent(genre) : '' %>">
+      <% if (b.cover_url) { %>
+        <img src="<%= b.cover_url %>" alt="" class="book-card-cover">
+      <% } else { %>
+        <div class="book-card-cover book-thumb-placeholder">No cover</div>
+      <% } %>
+      <div class="book-card-body">
+        <div class="book-card-title"><%= b.title %></div>
+        <div class="muted small"><%= b.authors || 'Unknown author' %></div>
+        <div class="book-card-meta">
+          <% if (b.min_price != null) { %><span class="book-card-price">&euro;<%= Number(b.min_price).toFixed(2) %></span><% } %>
+          <span class="availability-badge is-in-stock"><span class="dot"></span><%= b.in_stock_count %> in stock</span>
+        </div>
+        <span class="btn btn-outline btn-small" style="margin-top:10px;">Buy and Pickup</span>
+      </div>
+    </a>
+  <% }) %>
+</div>
 
 <%- include('partials/footer') %>

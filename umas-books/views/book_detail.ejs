@@ -1,0 +1,71 @@
+<%- include('partials/header', { title: book.title }) %>
+
+<p><a href="/books<%= backGenre ? '?genre=' + encodeURIComponent(backGenre) : '' %>">&larr; Back to <%= backGenre || 'Books' %></a></p>
+
+<div class="book-detail-grid">
+  <div>
+    <% if (book.cover_url) { %>
+      <img src="<%= book.cover_url %>" alt="" class="book-detail-cover">
+    <% } else { %>
+      <div class="book-detail-cover book-thumb-placeholder">No cover</div>
+    <% } %>
+  </div>
+
+  <div>
+    <% if (book.categories) { %><div class="book-detail-kicker"><%= book.categories %></div><% } %>
+    <h1 style="margin-bottom:4px;"><%= book.title %></h1>
+    <p class="muted" style="margin-top:0;">by <%= book.authors || 'Unknown author' %></p>
+
+    <% if (copies.length) { %>
+      <% const minPrice = Math.min(...copies.map(c => c.price != null ? Number(c.price) : Infinity)); %>
+      <div class="book-detail-price">
+        <% if (isFinite(minPrice)) { %>&euro;<%= minPrice.toFixed(2) %><% } %>
+        <% if (copies.length === 1) { %><span class="muted small">&middot; <%= conditionLabel(copies[0].condition) %></span><% } %>
+      </div>
+
+      <div class="availability-box">
+        <div class="availability-badge is-in-stock"><span class="dot"></span>Available in Shop</div>
+        <p class="muted small" style="margin:6px 0 16px;">
+          <%= copies.length %> cop<%= copies.length === 1 ? 'y' : 'ies' %> on our shelves. Come by to pick it up today.
+        </p>
+
+        <details>
+          <summary class="btn">Buy and Pickup</summary>
+          <form class="stack" method="post" action="/books/<%= book.id %>/reserve" style="margin-top:14px; gap:10px;">
+            <%- include('partials/csrf_field') %>
+            <% if (copies.length > 1) { %>
+              <label for="copyId">Which copy?</label>
+              <select id="copyId" name="copyId">
+                <% copies.forEach(c => { %>
+                  <option value="<%= c.id %>"><%= conditionLabel(c.condition) %><%= c.price != null ? ' · €' + Number(c.price).toFixed(2) : '' %></option>
+                <% }) %>
+              </select>
+            <% } else { %>
+              <input type="hidden" name="copyId" value="<%= copies[0].id %>">
+            <% } %>
+            <label for="name">Name</label>
+            <input id="name" name="name" type="text" required>
+            <label for="email">Email</label>
+            <input id="email" name="email" type="email" required>
+            <label for="phone">Phone (optional)</label>
+            <input id="phone" name="phone" type="tel">
+            <p class="muted small">We'll hold this copy for you &mdash; pay when you pick it up in the shop.</p>
+            <div><button class="btn btn-small" type="submit">Confirm &amp; Reserve</button></div>
+          </form>
+        </details>
+      </div>
+    <% } else { %>
+      <div class="availability-box">
+        <div class="availability-badge is-out">&middot; Currently unavailable</div>
+        <p class="muted small" style="margin:6px 0 0;">All copies of this title are spoken for right now &mdash; check back soon, or <a href="/wishlist">add it to your wishlist</a>.</p>
+      </div>
+    <% } %>
+
+    <% if (book.description) { %>
+      <h3 style="margin-top:28px;">About this book</h3>
+      <p><%= book.description %></p>
+    <% } %>
+  </div>
+</div>
+
+<%- include('partials/footer') %>
