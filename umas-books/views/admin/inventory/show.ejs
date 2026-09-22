@@ -68,7 +68,12 @@
             <% if (c.status === 'reserved' && c.reserved_by_name) { %>
               <div class="notice-box small" style="margin-top:10px;">
                 Reserved by <%= c.reserved_by_name %> &middot; <%= c.reserved_by_email %><%= c.reserved_by_phone ? ' · ' + c.reserved_by_phone : '' %>
-                <% if (c.reserved_at) { %><div class="muted small"><%= formatDateTime(c.reserved_at) %></div><% } %>
+                <% if (c.reserved_at) { %>
+                  <div class="muted small">
+                    <%= formatDateTime(c.reserved_at) %>
+                    &middot; auto-releases <%= formatDate(new Date(new Date(c.reserved_at).getTime() + 14 * 24 * 60 * 60 * 1000)) %>
+                  </div>
+                <% } %>
                 <form method="post" action="/admin/inventory/<%= book.id %>/copies/<%= c.id %>/cancel-reservation" style="margin-top:6px;">
                   <%- include('../../partials/csrf_field') %>
                   <button class="btn btn-outline btn-small" type="submit">Cancel reservation &amp; return to stock</button>

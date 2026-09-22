@@ -1,6 +1,8 @@
 const express = require("express");
 const { pool } = require("../db");
 const { CONDITIONS } = require("../lib/inventory");
+const { expireStaleReservations } = require("../lib/reservations");
+const { sendMail } = require("../mailer");
 
 const router = express.Router();
 
@@ -12,6 +14,7 @@ function conditionLabel(value) {
 }
 
 router.get("/books", async (req, res) => {
+  await expireStaleReservations(pool);
   const q = (req.query.q || "").trim();
   const genre = (req.query.genre || "").trim();
 
@@ -83,6 +86,7 @@ router.get("/api/books/latest-arrivals", async (req, res) => {
 });
 
 router.get("/books/:id", async (req, res) => {
+  await expireStaleReservations(pool);
   const id = Number(req.params.id);
   const { rows: bookRows } = await pool.query("SELECT * FROM books WHERE id = $1", [id]);
   const book = bookRows[0];
@@ -111,12 +115,24 @@ router.post("/books/:id/reserve", async (req, res) => {
 
   if (!name || !email || !copyId) return res.redirect(redirectUrl);
 
-  await pool.query(
+  const { rows } = await pool.query(
     `UPDATE book_copies SET status = 'reserved', reserved_by_name = $1, reserved_by_email = $2,
             reserved_by_phone = $3, reserved_at = now(), updated_at = now()
-     WHERE id = $4 AND book_id = $5 AND status = 'in_stock'`,
+     WHERE id = $4 AND book_id = $5 AND status = 'in_stock'
+     RETURNING id`,
     [name, email, phone, copyId, bookId]
   );
+
+  if (rows.length) {
+    const { rows: bookRows } = await pool.query("SELECT title FROM books WHERE id = $1", [bookId]);
+    const title = bookRows[0] && bookRows[0].title;
+    sendMail({
+      to: email,
+      subject: `You've reserved "${title}" at Uma's Books`,
+      text: `Hi ${name},\n\nWe've set aside your copy of "${title}" — come by Uma's Books within the next 2 weeks to pick it up and pay in the shop. We'll send you a reminder a few days before the hold expires.\n\nUma's Books\nRue Peyroliere, 81000 Albi`,
+    }).catch((err) => console.error("Reservation confirmation email failed:", err.message));
+  }
+
   res.redirect(redirectUrl);
 });
 

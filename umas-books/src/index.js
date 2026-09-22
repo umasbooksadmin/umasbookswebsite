@@ -9,6 +9,7 @@ const pgSession = require("connect-pg-simple")(session);
 const { pool } = require("./db");
 const { attachUser } = require("./middleware/auth");
 const { csrfProtection } = require("./middleware/csrf");
+const { expireStaleReservations, sendPickupReminders } = require("./lib/reservations");
 
 const authRoutes = require("./routes/auth");
 const dashboardRoutes = require("./routes/dashboard");
@@ -110,3 +111,18 @@ const port = process.env.PORT || 3000;
 app.listen(port, () => {
   console.log(`umas-books listening on port ${port}`);
 });
+
+// Belt-and-suspenders backstop for the 2-week reservation expiry — the
+// public/admin inventory routes already expire stale reservations on
+// read, which is what actually keeps the displayed status correct, but
+// this catches it too whenever the process happens to be awake with no
+// traffic (Render's free tier can sleep, so a timer alone isn't reliable
+// on its own). Pickup-reminder emails (3 days before expiry) only ever
+// run from here, not on page reads — sending mail is a side effect that
+// doesn't belong in a GET request's hot path.
+function runReservationMaintenance() {
+  expireStaleReservations(pool).catch((err) => console.error("Reservation expiry failed:", err));
+  sendPickupReminders(pool).catch((err) => console.error("Pickup reminders failed:", err));
+}
+runReservationMaintenance();
+setInterval(runReservationMaintenance, 6 * 60 * 60 * 1000);

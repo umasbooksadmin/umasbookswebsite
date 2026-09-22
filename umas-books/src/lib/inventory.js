@@ -11,7 +11,7 @@ const CONDITIONS = [
 ];
 
 const STATUSES = [
-  { value: "in_stock", label: "In stock" },
+  { value: "in_stock", label: "In Store" },
   { value: "reserved", label: "Reserved" },
   { value: "sold", label: "Sold" },
   { value: "donated", label: "Donated" },

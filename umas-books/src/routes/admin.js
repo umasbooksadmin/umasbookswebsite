@@ -7,6 +7,7 @@ const { normalizeIsbn, lookupByIsbn, searchByTitleAuthor } = require("../lib/boo
 const { extractBookInfoFromPhoto } = require("../lib/coverVision");
 const { generateBookDescription } = require("../lib/bookDescription");
 const { CONDITIONS, STATUSES, normalizeCondition, normalizeStatus } = require("../lib/inventory");
+const { expireStaleReservations } = require("../lib/reservations");
 
 const router = express.Router();
 
@@ -369,6 +370,7 @@ router.post("/admin/charity-rounds/:id/close", requireAdmin, async (req, res) =>
 // ---------- Inventory ----------
 
 router.get("/admin/inventory", requireAdmin, async (req, res) => {
+  await expireStaleReservations(pool);
   const q = (req.query.q || "").trim();
   const params = [];
   let where = "";
@@ -533,6 +535,7 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
 });
 
 router.get("/admin/inventory/:id", requireAdmin, async (req, res) => {
+  await expireStaleReservations(pool);
   const id = Number(req.params.id);
   const { rows: bookRows } = await pool.query("SELECT * FROM books WHERE id = $1", [id]);
   const book = bookRows[0];
