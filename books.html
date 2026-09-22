@@ -58,25 +58,14 @@
     <div class="wrap-narrow">
       <h2 style="text-align:center;" data-i18n="arrivals.title">Latest Arrivals</h2>
       <div class="prose" style="margin-top:14px;">
-        <p data-i18n="arrivals.intro">A few of the titles that just found a new home on our shelves &mdash; new stock arrives every week.</p>
+        <p data-i18n="arrivals.intro">Fresh on our shelves in the past week.</p>
       </div>
-      <div class="cardlist" style="margin-top:20px;">
-        <div class="card">
-          <span class="card-title" data-i18n="arrivals.1.t">The Midnight Library</span>
-          <span class="card-desc" data-i18n="arrivals.1.d">Matt Haig &middot; &euro;4</span>
+      <div class="arrivals-carousel" style="margin-top:20px;">
+        <button type="button" class="carousel-arrow" id="arrivals-prev" aria-label="Previous">&larr;</button>
+        <div class="arrivals-track" id="arrivals-track">
+          <p class="muted" data-i18n="arrivals.loading">Loading the latest arrivals&hellip;</p>
         </div>
-        <div class="card">
-          <span class="card-title" data-i18n="arrivals.2.t">Demon Copperhead</span>
-          <span class="card-desc" data-i18n="arrivals.2.d">Barbara Kingsolver &middot; &euro;5</span>
-        </div>
-        <div class="card">
-          <span class="card-title" data-i18n="arrivals.3.t">Lessons in Chemistry</span>
-          <span class="card-desc" data-i18n="arrivals.3.d">Bonnie Garmus &middot; &euro;5</span>
-        </div>
-        <div class="card">
-          <span class="card-title" data-i18n="arrivals.4.t">The Salt Path</span>
-          <span class="card-desc" data-i18n="arrivals.4.d">Raynor Winn &middot; &euro;4</span>
-        </div>
+        <button type="button" class="carousel-arrow" id="arrivals-next" aria-label="Next">&rarr;</button>
       </div>
     </div>
   </div>
@@ -127,15 +116,10 @@ window.PAGE_I18N = {
     "books.kicker": "The Collection",
     "books.title": "Books",
     "arrivals.title": "Latest Arrivals",
-    "arrivals.intro": "A few of the titles that just found a new home on our shelves — new stock arrives every week.",
-    "arrivals.1.t": "The Midnight Library",
-    "arrivals.1.d": "Matt Haig · €4",
-    "arrivals.2.t": "Demon Copperhead",
-    "arrivals.2.d": "Barbara Kingsolver · €5",
-    "arrivals.3.t": "Lessons in Chemistry",
-    "arrivals.3.d": "Bonnie Garmus · €5",
-    "arrivals.4.t": "The Salt Path",
-    "arrivals.4.d": "Raynor Winn · €4",
+    "arrivals.intro": "Fresh on our shelves in the past week.",
+    "arrivals.loading": "Loading the latest arrivals…",
+    "arrivals.empty": "No new arrivals in the last week — check back soon, or browse the full catalog.",
+    "arrivals.error": "Couldn't load new arrivals right now — browse the full catalog instead.",
     "order.title": "Order Online",
     "order.intro": "Browse the collection and reserve online — pay when you collect your order during opening hours.",
     "order.cta": "Shop Now",
@@ -145,15 +129,10 @@ window.PAGE_I18N = {
     "books.kicker": "La collection",
     "books.title": "Livres",
     "arrivals.title": "Derniers arrivages",
-    "arrivals.intro": "Quelques titres qui viennent tout juste de trouver une place sur nos étagères — de nouveaux arrivages chaque semaine.",
-    "arrivals.1.t": "The Midnight Library",
-    "arrivals.1.d": "Matt Haig · 4 €",
-    "arrivals.2.t": "Demon Copperhead",
-    "arrivals.2.d": "Barbara Kingsolver · 5 €",
-    "arrivals.3.t": "Lessons in Chemistry",
-    "arrivals.3.d": "Bonnie Garmus · 5 €",
-    "arrivals.4.t": "The Salt Path",
-    "arrivals.4.d": "Raynor Winn · 4 €",
+    "arrivals.intro": "Fraîchement arrivés sur nos étagères cette semaine.",
+    "arrivals.loading": "Chargement des derniers arrivages…",
+    "arrivals.empty": "Aucun nouvel arrivage cette semaine — revenez bientôt, ou parcourez tout le catalogue.",
+    "arrivals.error": "Impossible de charger les derniers arrivages pour le moment — parcourez plutôt tout le catalogue.",
     "order.title": "Commander en ligne",
     "order.intro": "Parcourez la collection et réservez en ligne — vous réglez au moment du retrait pendant les heures d’ouverture.",
     "order.cta": "Acheter maintenant",
@@ -162,5 +141,54 @@ window.PAGE_I18N = {
 };
 </script>
 <script src="assets/site.js"></script>
+<script>
+(function () {
+  var track = document.getElementById('arrivals-track');
+  if (!track) return;
+
+  function esc(s) {
+    return String(s || '').replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function i18nText(key, fallback) {
+    var lang = (window.localStorage && localStorage.getItem('umasbooks.lang')) || 'en';
+    var dict = (window.PAGE_I18N && window.PAGE_I18N[lang]) || {};
+    return dict[key] || fallback;
+  }
+
+  fetch('https://umas-books.onrender.com/api/books/latest-arrivals')
+    .then(function (res) {
+      if (!res.ok) throw new Error('bad response');
+      return res.json();
+    })
+    .then(function (books) {
+      if (!books.length) {
+        track.innerHTML = '<p class="muted">' + esc(i18nText('arrivals.empty', 'No new arrivals in the last week.')) + '</p>';
+        return;
+      }
+      track.innerHTML = books.map(function (b) {
+        var cover = b.coverUrl
+          ? '<img src="' + esc(b.coverUrl) + '" alt="" class="arrival-cover">'
+          : '<div class="arrival-cover arrival-cover-placeholder">No cover</div>';
+        var price = b.price != null ? '€' + Number(b.price).toFixed(2) : '';
+        var meta = [b.author, price].filter(Boolean).join(' · ');
+        return '<a class="arrival-card" href="' + esc(b.url) + '">' + cover +
+          '<div class="arrival-title">' + esc(b.title) + '</div>' +
+          '<div class="arrival-meta">' + esc(meta) + '</div></a>';
+      }).join('');
+    })
+    .catch(function () {
+      track.innerHTML = '<p class="muted">' + esc(i18nText('arrivals.error', "Couldn't load new arrivals right now.")) + '</p>';
+    });
+
+  var prevBtn = document.getElementById('arrivals-prev');
+  var nextBtn = document.getElementById('arrivals-next');
+  var scrollAmount = 300;
+  if (prevBtn) prevBtn.addEventListener('click', function () { track.scrollBy({ left: -scrollAmount, behavior: 'smooth' }); });
+  if (nextBtn) nextBtn.addEventListener('click', function () { track.scrollBy({ left: scrollAmount, behavior: 'smooth' }); });
+})();
+</script>
 </body>
 </html>

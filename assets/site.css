@@ -344,3 +344,31 @@ footer.site { background: var(--maroon-dark); color: #f1e3d6; padding: 44px 28px
 .radio-option input { margin: 0; accent-color: var(--maroon); }
 .checkbox-field { display: flex; align-items: flex-start; gap: 9px; font-size: 14.5px; color: var(--ink-soft); }
 .checkbox-field input { margin: 3px 0 0; accent-color: var(--maroon); }
+
+.arrivals-carousel { display: flex; align-items: center; gap: 10px; }
+.arrivals-track {
+  display: flex; gap: 18px; overflow-x: auto; scroll-snap-type: x mandatory;
+  scroll-behavior: smooth; padding: 2px 2px 8px; flex: 1; min-width: 0;
+  -ms-overflow-style: none; scrollbar-width: none;
+}
+.arrivals-track::-webkit-scrollbar { display: none; }
+.arrival-card { display: flex; flex-direction: column; color: var(--ink); flex: 0 0 130px; scroll-snap-align: start; }
+.arrival-card:hover { text-decoration: none; }
+.arrival-card:hover .arrival-title { color: var(--maroon); }
+.arrival-cover {
+  width: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 3px;
+  border: 1px solid var(--card-border); margin-bottom: 8px; background: var(--cream-alt);
+}
+.arrival-cover-placeholder {
+  display: flex; align-items: center; justify-content: center; text-align: center;
+  color: var(--ink-soft); font-size: 12px; padding: 6px;
+}
+.arrival-title { font-family: 'Playfair Display', serif; font-size: 15px; line-height: 1.25; margin-bottom: 2px; }
+.arrival-meta { font-size: 13.5px; color: var(--ink-soft); }
+.carousel-arrow {
+  flex: 0 0 auto; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--card-border);
+  background: var(--panel); color: var(--maroon); cursor: pointer; font-size: 18px; line-height: 1;
+  display: flex; align-items: center; justify-content: center; padding: 0;
+}
+.carousel-arrow:hover { background: var(--maroon); color: #fff; border-color: var(--maroon); }
+.carousel-arrow[hidden] { display: none; }

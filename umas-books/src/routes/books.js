@@ -47,6 +47,41 @@ router.get("/books", async (req, res) => {
   res.render("books", { books, q, genre, genres });
 });
 
+// Public JSON, cross-origin — consumed by the marketing site's "Latest
+// Arrivals" section (a different origin, e.g. umasbooks.org), so this
+// specific endpoint opts back into CORS even though the rest of the app
+// is same-origin only. Only ever returns what's already publicly visible
+// at /books (title, author, cover, price) — nothing sensitive.
+router.get("/api/books/latest-arrivals", async (req, res) => {
+  // Access-Control-Allow-Origin alone isn't enough — helmet sets a global
+  // Cross-Origin-Resource-Policy: same-origin, which blocks cross-origin
+  // reads independently of CORS unless relaxed here too.
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Cross-Origin-Resource-Policy", "cross-origin");
+  const { rows } = await pool.query(
+    `SELECT b.id, b.title, b.authors, b.cover_url,
+            (SELECT MIN(price) FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock') AS min_price,
+            (SELECT MAX(c.created_at) FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock') AS newest_copy_at
+     FROM books b
+     WHERE EXISTS (
+       SELECT 1 FROM book_copies c
+       WHERE c.book_id = b.id AND c.status = 'in_stock' AND c.created_at >= now() - interval '7 days'
+     )
+     ORDER BY newest_copy_at DESC
+     LIMIT 8`
+  );
+  res.json(
+    rows.map((b) => ({
+      id: b.id,
+      title: b.title,
+      author: b.authors,
+      coverUrl: b.cover_url,
+      price: b.min_price != null ? Number(b.min_price) : null,
+      url: `https://umas-books.onrender.com/books/${b.id}`,
+    }))
+  );
+});
+
 router.get("/books/:id", async (req, res) => {
   const id = Number(req.params.id);
   const { rows: bookRows } = await pool.query("SELECT * FROM books WHERE id = $1", [id]);
