@@ -406,6 +406,14 @@ footer.site { background: var(--maroon-dark); color: #f1e3d6; padding: 44px 28px
 .carousel-arrow:hover { background: var(--maroon); color: #fff; border-color: var(--maroon); }
 .carousel-arrow[hidden] { display: none; }
 
+.shop-search { display: flex; gap: 10px; max-width: 440px; margin: 24px auto 0; }
+.shop-search input {
+  flex: 1; font-family: 'Libre Baskerville', serif; font-size: 16px; padding: 11px 14px;
+  border: 1px solid var(--card-border); border-radius: 2px; background: var(--panel); color: var(--ink);
+}
+.shop-results-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 22px 20px; margin-top: 28px; }
+.shop-results-grid .arrival-card { flex: 0 0 140px; }
+
 .event-list { display: flex; flex-direction: column; gap: 16px; }
 .event-item {
   display: flex; gap: 18px; background: var(--panel); border: 1px solid var(--card-border);

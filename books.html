@@ -56,15 +56,19 @@
 
   <div class="section">
     <div class="wrap-narrow">
-      <h2 style="text-align:center;" data-i18n="order.title">Reserve Online</h2>
+      <h2 style="text-align:center;" data-i18n="order.title">Buy Online</h2>
       <div class="prose" style="margin-top:14px;">
-        <p data-i18n="order.intro">Browse the collection and reserve online &mdash; pay when you collect your item during opening hours.</p>
+        <p data-i18n="order.intro">Search what's in stock right now &mdash; buy online and pick up in the shop, or come by in person.</p>
       </div>
-      <div class="cta-row">
-        <a class="btn btn-maroon" href="https://umas-books.onrender.com/books" data-i18n="order.cta">Shop Now</a>
+      <form class="shop-search" id="shop-search-form">
+        <input type="text" id="shop-search-input" data-i18n-attr="placeholder:order.search.placeholder" placeholder="Search title or author&hellip;">
+        <button type="submit" class="btn btn-maroon" data-i18n="order.search.submit">Search</button>
+      </form>
+      <div class="shop-results-grid" id="shop-results">
+        <p class="muted" data-i18n="order.loading">Loading books&hellip;</p>
       </div>
       <div class="note-box" data-i18n-html="order.contact.note">
-        Questions about a reservation? Email us at <a href="mailto:admin@umasbooks.org">admin@umasbooks.org</a>.
+        Questions about an order? Email us at <a href="mailto:admin@umasbooks.org">admin@umasbooks.org</a>.
       </div>
     </div>
   </div>
@@ -99,21 +103,94 @@ window.PAGE_I18N = {
   en: {
     "books.kicker": "The Collection",
     "books.title": "Browse Books",
-    "order.title": "Reserve Online",
-    "order.intro": "Browse the collection and reserve online — pay when you collect your item during opening hours.",
-    "order.cta": "Shop Now",
-    "order.contact.note": "Questions about a reservation? Email us at <a href=\"mailto:admin@umasbooks.org\">admin@umasbooks.org</a>."
+    "order.title": "Buy Online",
+    "order.intro": "Search what's in stock right now — buy online and pick up in the shop, or come by in person.",
+    "order.search.placeholder": "Search title or author…",
+    "order.search.submit": "Search",
+    "order.loading": "Loading books…",
+    "order.empty": "No books match that search.",
+    "order.error": "Couldn't load books right now — try again in a moment.",
+    "order.contact.note": "Questions about an order? Email us at <a href=\"mailto:admin@umasbooks.org\">admin@umasbooks.org</a>."
   },
   fr: {
     "books.kicker": "La collection",
     "books.title": "Parcourir les livres",
-    "order.title": "Réserver en ligne",
-    "order.intro": "Parcourez la collection et réservez en ligne — vous réglez au moment du retrait pendant les heures d’ouverture.",
-    "order.cta": "Acheter maintenant",
-    "order.contact.note": "Une question sur une réservation ? Écrivez-nous à <a href=\"mailto:admin@umasbooks.org\">admin@umasbooks.org</a>."
+    "order.title": "Acheter en ligne",
+    "order.intro": "Recherchez ce qui est en stock en ce moment — achetez en ligne et récupérez en boutique, ou passez nous voir.",
+    "order.search.placeholder": "Rechercher un titre ou un auteur…",
+    "order.search.submit": "Rechercher",
+    "order.loading": "Chargement des livres…",
+    "order.empty": "Aucun livre ne correspond à cette recherche.",
+    "order.error": "Impossible de charger les livres pour le moment — réessayez dans un instant.",
+    "order.contact.note": "Une question sur une commande ? Écrivez-nous à <a href=\"mailto:admin@umasbooks.org\">admin@umasbooks.org</a>."
   }
 };
 </script>
 <script src="assets/site.js"></script>
+<script>
+(function () {
+  var results = document.getElementById('shop-results');
+  if (!results) return;
+  var form = document.getElementById('shop-search-form');
+  var input = document.getElementById('shop-search-input');
+
+  function esc(s) {
+    return String(s || '').replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function i18nText(key, fallback) {
+    var lang = (window.localStorage && localStorage.getItem('umasbooks.lang')) || 'en';
+    var dict = (window.PAGE_I18N && window.PAGE_I18N[lang]) || {};
+    return dict[key] || fallback;
+  }
+
+  // Render's free tier sleeps after inactivity and briefly returns an
+  // error (or a slow response) while it wakes back up — retry once
+  // before showing the error state, same as the other API-backed
+  // sections on this site.
+  function loadBooks(q, isRetry) {
+    fetch('https://umas-books.onrender.com/api/books/search?q=' + encodeURIComponent(q))
+      .then(function (res) {
+        if (!res.ok) throw new Error('bad response');
+        return res.json();
+      })
+      .then(function (books) {
+        if (!books.length) {
+          results.innerHTML = '<p class="muted">' + esc(i18nText('order.empty', 'No books match that search.')) + '</p>';
+          return;
+        }
+        results.innerHTML = books.map(function (b) {
+          var cover = b.coverUrl
+            ? '<img src="' + esc(b.coverUrl) + '" alt="" class="arrival-cover">'
+            : '<div class="arrival-cover arrival-cover-placeholder">No cover</div>';
+          var price = b.price != null ? '€' + Number(b.price).toFixed(2) : '';
+          var meta = [b.author, price].filter(Boolean).join(' · ');
+          return '<a class="arrival-card" href="' + esc(b.url) + '">' + cover +
+            '<div class="arrival-title">' + esc(b.title) + '</div>' +
+            '<div class="arrival-meta">' + esc(meta) + '</div></a>';
+        }).join('');
+      })
+      .catch(function () {
+        if (!isRetry) {
+          setTimeout(function () { loadBooks(q, true); }, 4000);
+          return;
+        }
+        results.innerHTML = '<p class="muted">' + esc(i18nText('order.error', "Couldn't load books right now.")) + '</p>';
+      });
+  }
+
+  loadBooks('', false);
+
+  if (form) {
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      results.innerHTML = '<p class="muted">' + esc(i18nText('order.loading', 'Loading books…')) + '</p>';
+      loadBooks(input.value.trim(), false);
+    });
+  }
+})();
+</script>
 </body>
 </html>

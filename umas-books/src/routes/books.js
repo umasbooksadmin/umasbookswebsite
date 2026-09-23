@@ -85,6 +85,42 @@ router.get("/api/books/latest-arrivals", async (req, res) => {
   );
 });
 
+// Public JSON, cross-origin — consumed by the marketing site's Books
+// page so it can show real in-stock results inline instead of just
+// linking out to the shop. Same CORS treatment as
+// /api/books/latest-arrivals.
+router.get("/api/books/search", async (req, res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Cross-Origin-Resource-Policy", "cross-origin");
+  const q = (req.query.q || "").trim();
+
+  const clauses = ["c.status = 'in_stock'"];
+  const params = [];
+  if (q) {
+    params.push(`%${q}%`);
+    clauses.push(`(b.title ILIKE $${params.length} OR b.authors ILIKE $${params.length})`);
+  }
+
+  const { rows } = await pool.query(
+    `SELECT b.id, b.title, b.authors, b.cover_url,
+            (SELECT MIN(price) FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock') AS min_price
+     FROM books b
+     WHERE EXISTS (SELECT 1 FROM book_copies c WHERE c.book_id = b.id AND ${clauses.join(" AND ")})
+     ORDER BY b.title ASC LIMIT 60`,
+    params
+  );
+  res.json(
+    rows.map((b) => ({
+      id: b.id,
+      title: b.title,
+      author: b.authors,
+      coverUrl: b.cover_url,
+      price: b.min_price != null ? Number(b.min_price) : null,
+      url: `https://umas-books.onrender.com/books/${b.id}`,
+    }))
+  );
+});
+
 // Favorites live entirely client-side (localStorage — see public/favorites.js),
 // so this page just renders a shell; the list itself is fetched below by id.
 router.get("/favorites", (req, res) => {
