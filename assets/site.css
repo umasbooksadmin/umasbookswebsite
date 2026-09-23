@@ -207,25 +207,33 @@ nav.mainlinks a:hover, nav.mainlinks a.is-active { color: var(--maroon); border-
 
 /* ---------- Community / newsletter banner ---------- */
 .community-banner {
-  display: grid; grid-template-columns: 1.3fr 1fr; gap: 0; max-width: 1180px; margin: 0 auto 60px; padding: 0 28px;
+  display: grid; grid-template-columns: 1.1fr 1fr 1fr; gap: 0; max-width: 1180px; margin: 0 auto 60px; padding: 0 28px;
 }
 .community-banner .photo-block { min-height: 260px; border-radius: 4px 0 0 4px; }
 .community-banner .photo-block .script-tag {
   font-family: 'Playfair Display', serif; font-style: italic; color: #fff; font-size: 22px; text-align: center;
   text-shadow: 0 2px 10px rgba(0,0,0,0.35); padding: 0 20px;
 }
-.newsletter-card {
-  background: #eef3f6; border-radius: 0 4px 4px 0; padding: 34px 34px; display: flex; flex-direction: column;
+.newsletter-card, .member-card {
+  background: #eef3f6; padding: 34px 34px; display: flex; flex-direction: column;
   justify-content: center; gap: 12px;
 }
-.newsletter-card h3 { font-size: 22px; }
-.newsletter-card p { color: var(--ink-soft); margin: 0 0 6px; }
+.newsletter-card { border-radius: 0; }
+.member-card { background: #f5efe6; border-radius: 0 4px 4px 0; }
+.newsletter-card h3, .member-card h3 { font-size: 22px; }
+.newsletter-card p, .member-card p { color: var(--ink-soft); margin: 0 0 6px; }
+.member-card .btn { align-self: flex-start; }
 .newsletter-form { display: flex; gap: 10px; flex-wrap: wrap; }
 .newsletter-form input {
   flex: 1 1 180px; font-family: 'EB Garamond', serif; font-size: 16px; padding: 11px 14px;
   border: 1px solid var(--card-border); border-radius: 2px; background: #fff; color: var(--ink);
 }
-@media (max-width: 760px) { .community-banner { grid-template-columns: 1fr; } .community-banner .photo-block { border-radius: 4px 4px 0 0; min-height: 200px; } .newsletter-card { border-radius: 0 0 4px 4px; } }
+@media (max-width: 760px) {
+  .community-banner { grid-template-columns: 1fr; }
+  .community-banner .photo-block { border-radius: 4px 4px 0 0; min-height: 200px; }
+  .newsletter-card { border-radius: 0; }
+  .member-card { border-radius: 0 0 4px 4px; }
+}
 
 /* ---------- Footer ---------- */
 footer.site { background: var(--maroon-dark); color: #f1e3d6; padding: 44px 28px 30px; }
