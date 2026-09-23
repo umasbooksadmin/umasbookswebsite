@@ -2,19 +2,19 @@
    --cream/--panel are lightened tints of Warm Cream (rather than the raw
    swatch) so body text and links keep AA-level contrast sitting directly
    on them; --ink/--ink-soft are Olive Green at two depths; --maroon/
-   --maroon-dark are Terracotta Clay and a darkened variant for the primary
-   accent and its hover/heading state; --gold is a slightly deepened
-   Mustard Gold for text-sized use. */
+   --maroon-dark are Terracotta Clay (#a65347) and a darkened variant for
+   the primary accent and its hover/heading state; --gold is a slightly
+   deepened Mustard Gold for text-sized use. */
 :root {
   --cream: #e9dfd3;
   --panel: #faf7f4;
   --ink: #3d3c28;
   --ink-soft: #686754;
-  --maroon: #a05946;
-  --maroon-dark: #804738;
+  --maroon: #a65347;
+  --maroon-dark: #854239;
   --gold: #906637;
-  --line: rgba(160, 89, 70, 0.18);
-  --card-border: rgba(160, 89, 70, 0.16);
+  --line: rgba(166, 83, 71, 0.18);
+  --card-border: rgba(166, 83, 71, 0.16);
 }
 
 * { box-sizing: border-box; }
