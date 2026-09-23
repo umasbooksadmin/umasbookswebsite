@@ -85,6 +85,42 @@ router.get("/api/books/latest-arrivals", async (req, res) => {
   );
 });
 
+// Favorites live entirely client-side (localStorage — see public/favorites.js),
+// so this page just renders a shell; the list itself is fetched below by id.
+router.get("/favorites", (req, res) => {
+  res.render("favorites");
+});
+
+// Public JSON, same-origin only (the favorites page's own fetch) — no
+// CORS relaxation needed, unlike /api/books/latest-arrivals which the
+// marketing site calls cross-origin.
+router.get("/api/books/by-ids", async (req, res) => {
+  const ids = String(req.query.ids || "")
+    .split(",")
+    .map((s) => Number(s.trim()))
+    .filter((n) => Number.isInteger(n) && n > 0);
+  if (!ids.length) return res.json([]);
+
+  const { rows } = await pool.query(
+    `SELECT b.id, b.title, b.authors, b.cover_url,
+            (SELECT MIN(price) FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock') AS min_price,
+            (SELECT COUNT(*) FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock')::int AS in_stock_count
+     FROM books b WHERE b.id = ANY($1::int[])`,
+    [ids]
+  );
+  res.json(
+    rows.map((b) => ({
+      id: b.id,
+      title: b.title,
+      author: b.authors,
+      coverUrl: b.cover_url,
+      price: b.min_price != null ? Number(b.min_price) : null,
+      inStockCount: b.in_stock_count,
+      url: `/books/${b.id}`,
+    }))
+  );
+});
+
 router.get("/books/:id", async (req, res) => {
   await expireStaleReservations(pool);
   const id = Number(req.params.id);

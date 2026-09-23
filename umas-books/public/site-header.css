@@ -32,6 +32,12 @@ header.mkt-header { padding: 0; margin-bottom: 32px; }
 }
 .mkt-header .icon-btn svg { width: 20px; height: 20px; }
 .mkt-header .icon-btn:hover { color: var(--maroon); }
+.mkt-header .cart-icon { position: relative; }
+.mkt-header .cart-badge {
+  position: absolute; top: -6px; right: -8px; min-width: 15px; height: 15px; padding: 0 3px;
+  border-radius: 999px; background: var(--maroon); color: #fff; font-family: 'Montserrat', sans-serif;
+  font-size: 10px; font-weight: 700; line-height: 15px; text-align: center;
+}
 .mkt-header .langtoggle { display: inline-flex; align-items: center; gap: 5px; margin-right: 4px; }
 .mkt-header .langtoggle button {
   background: none; border: 0; cursor: pointer; padding: 2px 3px;

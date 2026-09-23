@@ -31,3 +31,11 @@ services:
         sync: false
       - key: ANTHROPIC_WORKSPACE_ID
         sync: false
+      - key: HELLOASSO_CLIENT_ID
+        sync: false
+      - key: HELLOASSO_CLIENT_SECRET
+        sync: false
+      - key: HELLOASSO_ORG_SLUG
+        sync: false
+      - key: HELLOASSO_API_BASE
+        sync: false

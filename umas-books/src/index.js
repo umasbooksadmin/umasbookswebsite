@@ -10,6 +10,7 @@ const { pool } = require("./db");
 const { attachUser } = require("./middleware/auth");
 const { csrfProtection } = require("./middleware/csrf");
 const { expireStaleReservations, sendPickupReminders } = require("./lib/reservations");
+const { expireStaleCartHolds, reconcilePendingOrders } = require("./lib/cart");
 
 const authRoutes = require("./routes/auth");
 const dashboardRoutes = require("./routes/dashboard");
@@ -21,6 +22,8 @@ const eventsRoutes = require("./routes/events");
 const classesRoutes = require("./routes/classes");
 const booksRoutes = require("./routes/books");
 const wishlistRoutes = require("./routes/wishlist");
+const cartRoutes = require("./routes/cart");
+const helloassoWebhookRoutes = require("./routes/helloassoWebhook");
 const adminRoutes = require("./routes/admin");
 
 const app = express();
@@ -70,6 +73,10 @@ app.use(
 );
 
 app.use(attachUser(pool));
+app.use((req, res, next) => {
+  res.locals.cartCount = Array.isArray(req.session.cart) ? req.session.cart.length : 0;
+  next();
+});
 
 // Multer must parse any multipart body under /admin/inventory (populating
 // req.body._csrf and req.files) before the CSRF check below runs —
@@ -83,6 +90,11 @@ app.use("/admin/inventory", inventoryUpload.fields([
   { name: "photo", maxCount: 1 },
   { name: "coverPhoto", maxCount: 1 },
 ]));
+
+// HelloAsso calls this server-to-server with no CSRF token, so it's
+// mounted ahead of the CSRF check below rather than with the rest of
+// the app's routes further down.
+app.use(helloassoWebhookRoutes);
 
 app.use(csrfProtection);
 
@@ -135,6 +147,7 @@ app.use(meetingsRoutes);
 app.use(eventsRoutes);
 app.use(classesRoutes);
 app.use(booksRoutes);
+app.use(cartRoutes);
 app.use(wishlistRoutes);
 app.use(adminRoutes);
 
@@ -161,3 +174,15 @@ function runReservationMaintenance() {
 }
 runReservationMaintenance();
 setInterval(runReservationMaintenance, 6 * 60 * 60 * 1000);
+
+// Same idea for the online-checkout cart, but on a much shorter interval
+// than the reservation job above: a cart hold is only good for an hour
+// (see CART_HOLD_TTL_MINUTES in lib/cart.js) and a buyer who closes the
+// tab mid-payment is relying on this to notice their order never got
+// reconciled by the webhook or the /cart/return page.
+function runCartMaintenance() {
+  expireStaleCartHolds(pool).catch((err) => console.error("Cart hold expiry failed:", err));
+  reconcilePendingOrders(pool).catch((err) => console.error("Order reconciliation failed:", err));
+}
+runCartMaintenance();
+setInterval(runCartMaintenance, 10 * 60 * 1000);

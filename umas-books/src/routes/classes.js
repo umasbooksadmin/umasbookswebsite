@@ -30,7 +30,7 @@ router.post("/classes/:id/signup", async (req, res) => {
 
   const { rows: classRows } = await pool.query("SELECT * FROM classes WHERE id = $1", [classId]);
   const cls = classRows[0];
-  if (!cls) return res.status(404).send("Class not found.");
+  if (!cls) return res.status(404).send("Program not found.");
 
   if (cls.capacity != null) {
     const { rows: countRows } = await pool.query(

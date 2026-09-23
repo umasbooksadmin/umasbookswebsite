@@ -1,8 +1,8 @@
-<%- include('../partials/header', { title: 'Admin — Classes' }) %>
+<%- include('../partials/header', { title: 'Admin — Programs' }) %>
 <%- include('../partials/admin_subnav', { active }) %>
 
-<h1>Classes</h1>
-<p class="muted small">Classes are public — anyone can view the calendar at <a href="/classes">/classes</a> and sign up with just a name and email, no account needed. Click a day to add a class there; click a class to see who's signed up.</p>
+<h1>Programs</h1>
+<p class="muted small">Programs are public — anyone can view the calendar at <a href="/classes">/classes</a> and sign up with just a name and email, no account needed. Click a day to add a program there; click a program to see who's signed up.</p>
 
 <div class="card">
   <div class="calendar-nav">
@@ -20,7 +20,7 @@
           <div class="calendar-day<%= day.isToday ? ' is-today' : '' %>">
             <div class="calendar-day-number"><%= day.day %></div>
             <details class="calendar-pill calendar-add-pill">
-              <summary>+ Add class</summary>
+              <summary>+ Add program</summary>
               <div class="calendar-pill-body">
                 <form class="stack" method="post" action="/admin/classes">
                   <%- include('../partials/csrf_field') %>
@@ -36,7 +36,7 @@
                   <input id="loc-new-<%= day.dateKey %>" name="location" type="text">
                   <label for="cap-new-<%= day.dateKey %>">Capacity (optional)</label>
                   <input id="cap-new-<%= day.dateKey %>" name="capacity" type="number" min="1">
-                  <div><button class="btn btn-small" type="submit">Add class</button></div>
+                  <div><button class="btn btn-small" type="submit">Add program</button></div>
                 </form>
               </div>
             </details>
@@ -88,7 +88,7 @@
 
                   <form method="post" action="/admin/classes/<%= c.id %>/delete?month=<%= currentMonth %>" style="margin-top:8px;">
                     <%- include('../partials/csrf_field') %>
-                    <button class="btn btn-outline btn-small" type="submit">Delete class</button>
+                    <button class="btn btn-outline btn-small" type="submit">Delete program</button>
                   </form>
                 </div>
               </details>

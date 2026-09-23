@@ -1,10 +1,10 @@
-<%- include('partials/header', { title: 'Wishlist' }) %>
+<%- include('partials/header', { title: 'Notify Me' }) %>
 
-<h1>Wishlist</h1>
+<h1>Notify Me</h1>
 <p class="muted">Looking for a title we don't have in stock? Let us know and we'll keep an eye out for it &mdash; no account needed.</p>
 
 <% if (success) { %>
-  <div class="notice-box">Thanks! We've added it to the wishlist.</div>
+  <div class="notice-box">Thanks! We'll notify you if a copy comes in.</div>
 <% } %>
 <% if (error) { %><div class="error-box"><%= error %></div><% } %>
 
@@ -18,7 +18,7 @@
     <label for="email">Your email</label>
     <input id="email" name="email" type="email" required>
     <p class="muted small">We'll email you if we find a copy.</p>
-    <button class="btn" type="submit">Add to wishlist</button>
+    <button class="btn" type="submit">Notify Me</button>
   </form>
 </div>
 

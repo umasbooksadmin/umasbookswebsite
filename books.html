@@ -21,10 +21,10 @@
       </span>
     </a>
     <nav class="mainlinks">
-      <a href="books.html" class="is-active" data-i18n="nav.books">Books</a>
-      <a href="classes.html" data-i18n="nav.classes">Éveil Classes</a>
+      <a href="books.html" class="is-active" data-i18n="nav.books">Browse Books</a>
+      <a href="classes.html" data-i18n="nav.classes">Éveil Programs</a>
       <a href="events.html" data-i18n="nav.events">Events</a>
-      <a href="wishlist.html" data-i18n="nav.wishlist">Wish List</a>
+      <a href="wishlist.html" data-i18n="nav.wishlist">Notify Me</a>
       <a href="visit.html" data-i18n="nav.visit">Visit</a>
       <a href="about.html" data-i18n="nav.about">About</a>
     </nav>
@@ -40,7 +40,7 @@
       <a class="icon-btn" href="membership.html" data-i18n-attr="title:icon.account;aria-label:icon.account" title="Account / Membership" aria-label="Account / Membership">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-6 8-6s8 2 8 6"/></svg>
       </a>
-      <a class="icon-btn" href="wishlist.html" data-i18n-attr="title:icon.wishlist;aria-label:icon.wishlist" title="Wish List" aria-label="Wish List">
+      <a class="icon-btn" href="wishlist.html" data-i18n-attr="title:icon.wishlist;aria-label:icon.wishlist" title="Notify Me" aria-label="Notify Me">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 20s-7-4.4-9.5-8.8C.8 7.8 2.4 4.5 5.8 4c2-.3 3.7.7 4.8 2.4L12 8l1.4-1.6C14.5 4.7 16.2 3.7 18.2 4c3.4.5 5 3.8 3.3 7.2C19 15.6 12 20 12 20z"/></svg>
       </a>
       <a class="btn btn-outline btn-small" href="https://umas-books.onrender.com/login" data-i18n="nav.login">Log In</a>
@@ -51,23 +51,7 @@
 <main>
   <div class="page-hero">
     <span class="kicker" data-i18n="books.kicker">The Collection</span>
-    <h1 data-i18n="books.title">Books</h1>
-  </div>
-
-  <div class="section">
-    <div class="wrap-narrow">
-      <h2 style="text-align:center;" data-i18n="arrivals.title">Latest Arrivals</h2>
-      <div class="prose" style="margin-top:14px;">
-        <p data-i18n="arrivals.intro">Fresh on our shelves in the past week.</p>
-      </div>
-      <div class="arrivals-carousel" style="margin-top:20px;">
-        <button type="button" class="carousel-arrow" id="arrivals-prev" aria-label="Previous">&larr;</button>
-        <div class="arrivals-track" id="arrivals-track">
-          <p class="muted" data-i18n="arrivals.loading">Loading the latest arrivals&hellip;</p>
-        </div>
-        <button type="button" class="carousel-arrow" id="arrivals-next" aria-label="Next">&rarr;</button>
-      </div>
-    </div>
+    <h1 data-i18n="books.title">Browse Books</h1>
   </div>
 
   <div class="section">
@@ -95,7 +79,7 @@
     </div>
     <div class="footer-links">
       <a href="mailto:admin@umasbooks.org" data-i18n="footer.contact">Contact</a>
-      <a href="wishlist.html" data-i18n="footer.wishlist">Wish List</a>
+      <a href="wishlist.html" data-i18n="footer.wishlist">Notify Me</a>
       <a href="volunteer.html" data-i18n="footer.volunteer">Volunteer</a>
       <a href="membership.html" data-i18n="footer.membership">Membership</a>
     </div>
@@ -114,12 +98,7 @@
 window.PAGE_I18N = {
   en: {
     "books.kicker": "The Collection",
-    "books.title": "Books",
-    "arrivals.title": "Latest Arrivals",
-    "arrivals.intro": "Fresh on our shelves in the past week.",
-    "arrivals.loading": "Loading the latest arrivals…",
-    "arrivals.empty": "No new arrivals in the last week — check back soon, or browse the full catalog.",
-    "arrivals.error": "Couldn't load new arrivals right now — browse the full catalog instead.",
+    "books.title": "Browse Books",
     "order.title": "Reserve Online",
     "order.intro": "Browse the collection and reserve online — pay when you collect your item during opening hours.",
     "order.cta": "Shop Now",
@@ -127,12 +106,7 @@ window.PAGE_I18N = {
   },
   fr: {
     "books.kicker": "La collection",
-    "books.title": "Livres",
-    "arrivals.title": "Derniers arrivages",
-    "arrivals.intro": "Fraîchement arrivés sur nos étagères cette semaine.",
-    "arrivals.loading": "Chargement des derniers arrivages…",
-    "arrivals.empty": "Aucun nouvel arrivage cette semaine — revenez bientôt, ou parcourez tout le catalogue.",
-    "arrivals.error": "Impossible de charger les derniers arrivages pour le moment — parcourez plutôt tout le catalogue.",
+    "books.title": "Parcourir les livres",
     "order.title": "Réserver en ligne",
     "order.intro": "Parcourez la collection et réservez en ligne — vous réglez au moment du retrait pendant les heures d’ouverture.",
     "order.cta": "Acheter maintenant",
@@ -141,65 +115,5 @@ window.PAGE_I18N = {
 };
 </script>
 <script src="assets/site.js"></script>
-<script>
-(function () {
-  var track = document.getElementById('arrivals-track');
-  if (!track) return;
-
-  function esc(s) {
-    return String(s || '').replace(/[&<>"']/g, function (c) {
-      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
-    });
-  }
-
-  function i18nText(key, fallback) {
-    var lang = (window.localStorage && localStorage.getItem('umasbooks.lang')) || 'en';
-    var dict = (window.PAGE_I18N && window.PAGE_I18N[lang]) || {};
-    return dict[key] || fallback;
-  }
-
-  // Render's free tier sleeps after inactivity and briefly returns an
-  // error (or a slow response) while it wakes back up — retry once after
-  // a few seconds before showing the error state, since a cold start is
-  // the most likely cause of a first-attempt failure here.
-  function loadArrivals(isRetry) {
-    fetch('https://umas-books.onrender.com/api/books/latest-arrivals')
-      .then(function (res) {
-        if (!res.ok) throw new Error('bad response');
-        return res.json();
-      })
-      .then(function (books) {
-        if (!books.length) {
-          track.innerHTML = '<p class="muted">' + esc(i18nText('arrivals.empty', 'No new arrivals in the last week.')) + '</p>';
-          return;
-        }
-        track.innerHTML = books.map(function (b) {
-          var cover = b.coverUrl
-            ? '<img src="' + esc(b.coverUrl) + '" alt="" class="arrival-cover">'
-            : '<div class="arrival-cover arrival-cover-placeholder">No cover</div>';
-          var price = b.price != null ? '€' + Number(b.price).toFixed(2) : '';
-          var meta = [b.author, price].filter(Boolean).join(' · ');
-          return '<a class="arrival-card" href="' + esc(b.url) + '">' + cover +
-            '<div class="arrival-title">' + esc(b.title) + '</div>' +
-            '<div class="arrival-meta">' + esc(meta) + '</div></a>';
-        }).join('');
-      })
-      .catch(function () {
-        if (!isRetry) {
-          setTimeout(function () { loadArrivals(true); }, 4000);
-          return;
-        }
-        track.innerHTML = '<p class="muted">' + esc(i18nText('arrivals.error', "Couldn't load new arrivals right now.")) + '</p>';
-      });
-  }
-  loadArrivals(false);
-
-  var prevBtn = document.getElementById('arrivals-prev');
-  var nextBtn = document.getElementById('arrivals-next');
-  var scrollAmount = 300;
-  if (prevBtn) prevBtn.addEventListener('click', function () { track.scrollBy({ left: -scrollAmount, behavior: 'smooth' }); });
-  if (nextBtn) nextBtn.addEventListener('click', function () { track.scrollBy({ left: scrollAmount, behavior: 'smooth' }); });
-})();
-</script>
 </body>
 </html>

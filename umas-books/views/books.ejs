@@ -1,7 +1,7 @@
-<%- include('partials/header', { title: 'Books' }) %>
+<%- include('partials/header', { title: 'Browse Books' }) %>
 
-<h1>Books</h1>
-<p class="muted">Search what's in stock right now &mdash; reserve a copy and pick it up in the shop, no account or online payment needed.</p>
+<h1>Browse Books</h1>
+<p class="muted">Search what's in stock right now &mdash; buy online and pick up in the shop, or reserve a copy to pay in person. No account needed.</p>
 
 <div class="card">
   <form class="stack" method="get" action="/books" style="flex-direction: row; gap: 12px; max-width: none; align-items: end; flex-wrap: wrap;">
@@ -14,12 +14,37 @@
 </div>
 
 <% if (genres.length) { %>
-  <nav class="genre-subnav">
-    <a href="/books<%= q ? '?q=' + encodeURIComponent(q) : '' %>" class="<%= !genre ? 'is-active' : '' %>">All Genres</a>
-    <% genres.forEach(g => { %>
-      <a href="/books?genre=<%= encodeURIComponent(g) %><%= q ? '&q=' + encodeURIComponent(q) : '' %>" class="<%= genre === g ? 'is-active' : '' %>"><%= g %></a>
+  <%
+    // Same visual "Browse by Genre" chips as the homepage. Matches each
+    // real inventory category (whatever staff typed into a book's
+    // Category field) against a few known genres by keyword for an icon
+    // + color; anything else falls back to a generic book icon so new
+    // or unexpected category text still gets a reasonable chip.
+    var CHIP_DEFS = [
+      { test: /child/i, bg: '#dceaf5', svg: '<path d="M9 10c-1-3 0-6 1.5-6S12 7 11.5 10"/><path d="M15 10c1-3 0-6-1.5-6S12 7 12.5 10"/><circle cx="12" cy="15" r="5.5"/><circle cx="10" cy="14" r=".8" fill="currentColor" stroke="none"/><circle cx="14" cy="14" r=".8" fill="currentColor" stroke="none"/><path d="M11 16.8q1 .9 2 0"/>' },
+      { test: /fiction(?!.*non)/i, bg: '#f7ded9', svg: '<path d="M4 6.5c2.2 0 4.4.7 6 2 1.6-1.3 3.8-2 6-2v10.5c-2.2 0-4.4.7-6 2-1.6-1.3-3.8-2-6-2V6.5z"/><path d="M10 8.5v10"/><path d="M17.3 3.2l.5 1.1 1.2.2-.9.8.2 1.2-1-.6-1 .6.2-1.2-.9-.8 1.2-.2.5-1.1z" fill="currentColor" stroke="none"/>' },
+      { test: /non.?fiction/i, bg: '#e8e3f2', svg: '<ellipse cx="12" cy="13.5" rx="6" ry="6.2"/><path d="M7.5 8.5 9 5.5"/><path d="M16.5 8.5 15 5.5"/><circle cx="9.3" cy="12.5" r="2"/><circle cx="14.7" cy="12.5" r="2"/><circle cx="9.3" cy="12.5" r=".5" fill="currentColor" stroke="none"/><circle cx="14.7" cy="12.5" r=".5" fill="currentColor" stroke="none"/><path d="M12 14.5 10.9 15.9h2.2L12 14.5z" fill="currentColor" stroke="none"/>' },
+      { test: /garden/i, bg: '#e1eedd', svg: '<path d="M8.5 17h7l-.8 3.5h-5.4L8.5 17z"/><path d="M12 17V9.5"/><path d="M12 13.5c-2-.2-3.3-1.7-3.3-3.8 2 0 3.7 1 4 3.3"/><path d="M12 12.8c2-.2 3.3-1.7 3.3-3.6-2 0-3.6 1-3.9 3.1"/><circle cx="12" cy="6.3" r="3"/>' },
+      { test: /cook|recipe/i, bg: '#f3ecd9', svg: '<path d="M5.5 12h13v4.5a3 3 0 0 1-3 3h-7a3 3 0 0 1-3-3V12z"/><path d="M4.5 12h15"/><path d="M4.5 12 3 13.3"/><path d="M19.5 12 21 13.3"/><path d="M12 4.2c-.6-.9-1.9-.9-2.2 0-.3.8.5 1.6 2.2 3 1.7-1.4 2.5-2.2 2.2-3-.3-.9-1.6-.9-2.2 0z" fill="currentColor" stroke="none"/>' },
+    ];
+    var FALLBACK_SVG = '<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H19v15.5a1 1 0 0 1-1 1H6.5A2.5 2.5 0 0 1 4 17V5.5z"/><path d="M4 17a2.5 2.5 0 0 1 2.5-2.5H19"/>';
+    function chipFor(g) {
+      var def = CHIP_DEFS.find(function (d) { return d.test.test(g); });
+      return def || { bg: '#eee3d4', svg: FALLBACK_SVG };
+    }
+  %>
+  <div class="category-grid">
+    <a class="category-item<%= !genre ? ' is-active' : '' %>" href="/books<%= q ? '?q=' + encodeURIComponent(q) : '' %>">
+      <span class="chip" style="background:#eee3d4;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H19v15.5a1 1 0 0 1-1 1H6.5A2.5 2.5 0 0 1 4 17V5.5z"/><path d="M4 17a2.5 2.5 0 0 1 2.5-2.5H19"/></svg></span>
+      <span>All Genres</span>
+    </a>
+    <% genres.forEach(g => { var c = chipFor(g); %>
+      <a class="category-item<%= genre === g ? ' is-active' : '' %>" href="/books?genre=<%= encodeURIComponent(g) %><%= q ? '&q=' + encodeURIComponent(q) : '' %>">
+        <span class="chip" style="background:<%= c.bg %>;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"><%- c.svg %></svg></span>
+        <span><%= g %></span>
+      </a>
     <% }) %>
-  </nav>
+  </div>
 <% } %>
 
 <% if (!books.length) { %>
@@ -28,22 +53,27 @@
 
 <div class="book-grid">
   <% books.forEach(b => { %>
-    <a class="book-card" href="/books/<%= b.id %><%= genre ? '?genre=' + encodeURIComponent(genre) : '' %>">
-      <% if (b.cover_url) { %>
-        <img src="<%= b.cover_url %>" alt="" class="book-card-cover">
-      <% } else { %>
-        <div class="book-card-cover book-thumb-placeholder">No cover</div>
-      <% } %>
-      <div class="book-card-body">
-        <div class="book-card-title"><%= b.title %></div>
-        <div class="muted small"><%= b.authors || 'Unknown author' %></div>
-        <div class="book-card-meta">
-          <% if (b.min_price != null) { %><span class="book-card-price">&euro;<%= Number(b.min_price).toFixed(2) %></span><% } %>
-          <span class="availability-badge is-in-stock"><span class="dot"></span><%= b.in_stock_count %> in stock</span>
+    <div class="book-card-wrap">
+      <button type="button" class="favorite-toggle" data-book-id="<%= b.id %>" aria-pressed="false" aria-label="Favorite">
+        <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 20s-7-4.4-9.5-8.8C.8 7.8 2.4 4.5 5.8 4c2-.3 3.7.7 4.8 2.4L12 8l1.4-1.6C14.5 4.7 16.2 3.7 18.2 4c3.4.5 5 3.8 3.3 7.2C19 15.6 12 20 12 20z"/></svg>
+      </button>
+      <a class="book-card" href="/books/<%= b.id %><%= genre ? '?genre=' + encodeURIComponent(genre) : '' %>">
+        <% if (b.cover_url) { %>
+          <img src="<%= b.cover_url %>" alt="" class="book-card-cover">
+        <% } else { %>
+          <div class="book-card-cover book-thumb-placeholder">No cover</div>
+        <% } %>
+        <div class="book-card-body">
+          <div class="book-card-title"><%= b.title %></div>
+          <div class="muted small"><%= b.authors || 'Unknown author' %></div>
+          <div class="book-card-meta">
+            <% if (b.min_price != null) { %><span class="book-card-price">&euro;<%= Number(b.min_price).toFixed(2) %></span><% } %>
+            <span class="availability-badge is-in-stock"><span class="dot"></span><%= b.in_stock_count %> in stock</span>
+          </div>
+          <span class="btn btn-outline btn-small" style="margin-top:10px;">View &amp; Buy</span>
         </div>
-        <span class="btn btn-outline btn-small" style="margin-top:10px;">Reserve and Pickup</span>
-      </div>
-    </a>
+      </a>
+    </div>
   <% }) %>
 </div>
 
