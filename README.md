@@ -74,8 +74,16 @@ which only supports one page. Now that the site is multiple HTML files,
 that deployment model no longer applies as-is — see `SQUARESPACE.md` for
 the options.
 
+Live at https://umas-books.onrender.com — the `umas-books` Render service
+(see `umas-books/README.md`) serves these marketing pages directly from
+the repo root alongside the Members Area app, so there's one link for
+everything. Routes for this are in `umas-books/src/index.js`; if a page
+here is renamed or a new one added, add/update its route there too.
+
 The site is also published as a Claude Artifact; edits made here are
-mirrored there.
+mirrored there. Note that client-side `fetch()` calls (e.g. the Latest
+Arrivals carousel on `books.html`) don't work inside the Artifact's
+sandboxed environment — they only work on the real Render deployment.
 
 ## Contact
 

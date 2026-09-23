@@ -86,9 +86,44 @@ app.use("/admin/inventory", inventoryUpload.fields([
 
 app.use(csrfProtection);
 
+// The public marketing site (repo root, one level up from this app) is
+// served from here too, so umas-books.onrender.com is the one link that
+// shows everything — the marketing pages alongside the Members Area.
+// Its inline <script> blocks (per-page i18n strings, the Latest Arrivals
+// carousel) predate this app and aren't nonce-tagged, so these routes
+// carry their own relaxed CSP instead of the strict app-wide one above;
+// the Members Area's own routes keep the stricter policy untouched.
+const marketingRoot = path.join(__dirname, "..", "..");
+const marketingCsp = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline'",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' https://fonts.gstatic.com",
+  "img-src 'self' data: https://covers.openlibrary.org https://archive.org https://*.archive.org",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+].join("; ");
+const MARKETING_PAGES = [
+  "about.html", "books.html", "classes.html", "events.html",
+  "membership.html", "visit.html", "volunteer.html", "wishlist.html",
+];
+
+app.use("/assets", express.static(path.join(marketingRoot, "assets")));
+app.get("/logo.png", (req, res) => res.sendFile(path.join(marketingRoot, "logo.png")));
+
 app.get("/", (req, res) => {
   if (req.session.user) return res.redirect("/dashboard");
-  res.render("landing");
+  res.set("Content-Security-Policy", marketingCsp);
+  res.sendFile(path.join(marketingRoot, "index.html"));
+});
+
+MARKETING_PAGES.forEach((file) => {
+  app.get("/" + file, (req, res) => {
+    res.set("Content-Security-Policy", marketingCsp);
+    res.sendFile(path.join(marketingRoot, file));
+  });
 });
 
 app.use(authRoutes);
