@@ -74,3 +74,11 @@ header.mkt-header { padding: 0; margin-bottom: 32px; }
   .mkt-header nav.mainlinks { order: 3; width: 100%; justify-content: center; gap: 16px 22px; }
   .mkt-header .nav-row { padding: 14px 20px; }
 }
+@media (max-width: 600px) {
+  /* Keep the header-tools icons (including the cart badge) anchored
+     top-right next to the logo instead of wrapping below it. */
+  .mkt-header .brandmark .brand-tag { display: none; }
+  .mkt-header .header-tools { gap: 10px; }
+  .mkt-header .langtoggle { margin-right: 0; }
+  .mkt-header .header-tools .btn { padding: 8px 14px; font-size: 12px; }
+}

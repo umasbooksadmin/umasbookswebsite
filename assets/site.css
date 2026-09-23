@@ -13,6 +13,8 @@
   --maroon-soft: #a65347;
   --gold: #c4933f;
   --gold-dark: #b28a42;
+  --btn-bg: #68775b;
+  --btn-bg-dark: #535f49;
   --line: rgba(166, 83, 71, 0.16);
   --card-border: rgba(166, 83, 71, 0.14);
   --shadow: rgba(64, 55, 43, 0.14);
@@ -32,6 +34,8 @@
     --maroon-soft: #a65347;
     --gold: #d8b878;
     --gold-dark: #e0c68f;
+    --btn-bg: #86927c;
+    --btn-bg-dark: #9ba692;
     --line: rgba(166, 83, 71, 0.28);
     --card-border: rgba(166, 83, 71, 0.22);
     --shadow: rgba(0, 0, 0, 0.5);
@@ -41,7 +45,8 @@
   --cream: #201613; --cream-alt: #2a1c17; --panel: #2a1c17;
   --ink: #f1e6da; --ink-soft: #cdb9a4; --green: #a3b89a; --green-soft: #8ba081;
   --maroon: #a65347; --maroon-dark: #b8756c;
-  --maroon-soft: #a65347; --gold: #d8b878; --gold-dark: #e0c68f; --line: rgba(166, 83, 71, 0.28);
+  --maroon-soft: #a65347; --gold: #d8b878; --gold-dark: #e0c68f;
+  --btn-bg: #86927c; --btn-bg-dark: #9ba692; --line: rgba(166, 83, 71, 0.28);
   --card-border: rgba(166, 83, 71, 0.22); --shadow: rgba(0, 0, 0, 0.5);
 }
 
@@ -119,6 +124,16 @@ nav.mainlinks a:hover, nav.mainlinks a.is-active { color: var(--maroon); border-
   nav.mainlinks { order: 3; width: 100%; justify-content: center; gap: 16px 22px; }
   .nav-row { padding: 14px 20px; }
 }
+@media (max-width: 600px) {
+  /* Keep the header-tools icons anchored top-right next to the logo
+     instead of wrapping to their own row — free up width by dropping
+     the tagline and tightening gaps/padding rather than letting
+     flex-wrap push icons below the brandmark. */
+  .brandmark .brand-tag { display: none; }
+  .header-tools { gap: 10px; }
+  .langtoggle { margin-right: 0; }
+  .header-tools .btn { padding: 8px 14px; font-size: 12px; }
+}
 
 /* ---------- Buttons ---------- */
 .btn {
@@ -126,10 +141,10 @@ nav.mainlinks a:hover, nav.mainlinks a.is-active { color: var(--maroon); border-
   font-size: 13.5px; letter-spacing: 0.05em; text-transform: uppercase; text-decoration: none;
   padding: 13px 28px; border-radius: 2px; border: 0; cursor: pointer; transition: background 0.15s ease, color 0.15s ease;
 }
-.btn-maroon { background: var(--maroon); color: #fff; }
-.btn-maroon:hover { background: var(--maroon-dark); }
-.btn-outline { background: transparent; color: var(--maroon); border: 1px solid var(--maroon); }
-.btn-outline:hover { background: var(--maroon); color: #fff; }
+.btn-maroon { background: var(--btn-bg); color: #fff; }
+.btn-maroon:hover { background: var(--btn-bg-dark); }
+.btn-outline { background: transparent; color: var(--btn-bg); border: 1px solid var(--btn-bg); }
+.btn-outline:hover { background: var(--btn-bg); color: #fff; }
 
 /* ---------- Hero ---------- */
 .hero {
@@ -310,10 +325,10 @@ footer.site { background: var(--maroon-dark); color: #f1e3d6; padding: 44px 28px
 .form-hint { font-size: 14px; color: var(--ink-soft); max-width: 62ch; margin: -4px auto 0; text-align: left; }
 .btn-submit {
   align-self: flex-start; font-family: 'Montserrat', sans-serif; font-weight: 600; font-size: 14px;
-  letter-spacing: 0.04em; text-transform: uppercase; color: #fff; background: var(--maroon); border: 0; border-radius: 3px;
+  letter-spacing: 0.04em; text-transform: uppercase; color: #fff; background: var(--btn-bg); border: 0; border-radius: 3px;
   padding: 12px 26px; cursor: pointer; transition: background 0.15s ease;
 }
-.btn-submit:hover { background: var(--maroon-dark); }
+.btn-submit:hover { background: var(--btn-bg-dark); }
 
 .scheduletable { width: 100%; max-width: 62ch; margin: 20px auto 0; border-collapse: collapse; font-size: 17px; }
 .scheduletable th, .scheduletable td { padding: 10px 14px; border-bottom: 1px solid var(--line); text-align: left; }
@@ -412,7 +427,18 @@ footer.site { background: var(--maroon-dark); color: #f1e3d6; padding: 44px 28px
   border: 1px solid var(--card-border); border-radius: 2px; background: var(--panel); color: var(--ink);
 }
 .shop-results-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 22px 20px; margin-top: 28px; }
+.shop-results-grid .arrival-card-wrap { position: relative; flex: 0 0 140px; }
 .shop-results-grid .arrival-card { flex: 0 0 140px; }
+
+.favorite-toggle {
+  position: absolute; top: 6px; right: 6px; z-index: 2; width: 28px; height: 28px; border-radius: 50%;
+  background: rgba(255,255,255,0.88); border: 1px solid var(--card-border); display: flex;
+  align-items: center; justify-content: center; color: var(--ink-soft); cursor: pointer; padding: 0;
+}
+.favorite-toggle svg { width: 16px; height: 16px; fill: none; }
+.favorite-toggle:hover { color: var(--maroon); }
+.favorite-toggle.is-favorite { color: var(--maroon); }
+.favorite-toggle.is-favorite svg { fill: currentColor; }
 
 .event-list { display: flex; flex-direction: column; gap: 16px; }
 .event-item {

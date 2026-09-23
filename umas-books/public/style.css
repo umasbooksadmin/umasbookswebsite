@@ -13,6 +13,8 @@
   --maroon-dark: #8f5148;
   --gold: #c4933f;
   --gold-dark: #b28a42;
+  --btn-bg: #68775b;
+  --btn-bg-dark: #535f49;
   --line: rgba(166, 83, 71, 0.18);
   --card-border: rgba(166, 83, 71, 0.16);
 }
@@ -50,11 +52,11 @@ header.site {
   display: inline-block; font-family: 'Montserrat', sans-serif; font-weight: 600;
   font-size: 13.5px; letter-spacing: 0.04em; text-transform: uppercase; text-decoration: none;
   padding: 10px 20px; border-radius: 3px; border: 0; cursor: pointer;
-  background: var(--maroon); color: #fff;
+  background: var(--btn-bg); color: #fff;
 }
-.btn:hover { background: var(--maroon-dark); text-decoration: none; }
-.btn-outline { background: transparent; color: var(--maroon); border: 1px solid var(--maroon); }
-.btn-outline:hover { background: var(--maroon); color: #fff; }
+.btn:hover { background: var(--btn-bg-dark); text-decoration: none; }
+.btn-outline { background: transparent; color: var(--btn-bg); border: 1px solid var(--btn-bg); }
+.btn-outline:hover { background: var(--btn-bg); color: #fff; }
 .btn-small { padding: 6px 14px; font-size: 12px; }
 
 form.stack { display: flex; flex-direction: column; gap: 12px; max-width: 440px; }

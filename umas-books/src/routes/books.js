@@ -169,11 +169,26 @@ router.get("/books/:id", async (req, res) => {
     [id]
   );
 
+  let moreByAuthor = [];
+  if (book.authors) {
+    const { rows } = await pool.query(
+      `SELECT b.id, b.title, b.cover_url,
+              (SELECT MIN(price) FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock') AS min_price
+       FROM books b
+       WHERE b.authors = $1 AND b.id != $2
+         AND EXISTS (SELECT 1 FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock')
+       ORDER BY b.title ASC LIMIT 6`,
+      [book.authors, id]
+    );
+    moreByAuthor = rows;
+  }
+
   res.render("book_detail", {
     book,
     copies,
     conditionLabel,
     backGenre: (req.query.genre || "").trim(),
+    moreByAuthor,
   });
 });
 
