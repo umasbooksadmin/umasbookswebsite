@@ -1,18 +1,18 @@
-/* Palette: Terracotta Clay, Olive Green, Mustard Gold, Warm Cream.
-   --cream/--panel are lightened tints of Warm Cream (rather than the raw
-   swatch) so body text and links keep AA-level contrast sitting directly
-   on them; --ink/--ink-soft are Olive Green at two depths; --maroon/
-   --maroon-dark are Terracotta Clay (#a65347) and a darkened variant for
-   the primary accent and its hover/heading state; --gold is a slightly
-   deepened Mustard Gold for text-sized use. */
+/* Palette: matches the marketing site's assets/site.css (12-color brand
+   palette). --ink/--ink-soft are the brand's dark brown / sage green;
+   --green is the primary logo/brand green; --maroon/--maroon-dark are
+   Terracotta Clay (#a65347) and a darkened variant for the primary accent
+   and its hover/heading state; --gold is Mustard Gold. */
 :root {
-  --cream: #e9dfd3;
-  --panel: #faf7f4;
-  --ink: #3d3c28;
-  --ink-soft: #686754;
+  --cream: #f2e8d2;
+  --panel: #faf7ef;
+  --ink: #40372b;
+  --ink-soft: #68775b;
+  --green: #344936;
   --maroon: #a65347;
-  --maroon-dark: #854239;
-  --gold: #906637;
+  --maroon-dark: #8f5148;
+  --gold: #c4933f;
+  --gold-dark: #b28a42;
   --line: rgba(166, 83, 71, 0.18);
   --card-border: rgba(166, 83, 71, 0.16);
 }
@@ -22,13 +22,13 @@ body {
   margin: 0;
   background: var(--cream);
   color: var(--ink);
-  font-family: 'EB Garamond', Georgia, serif;
+  font-family: 'Libre Baskerville', Georgia, serif;
   font-size: 18px;
   line-height: 1.6;
 }
 a { color: var(--maroon); text-decoration: none; }
 a:hover { text-decoration: underline; }
-h1, h2, h3 { font-family: 'Playfair Display', Georgia, serif; color: var(--maroon-dark); margin: 0 0 12px; }
+h1, h2, h3 { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; color: var(--maroon-dark); margin: 0 0 12px; }
 
 .wrap { max-width: 880px; margin: 0 auto; padding: 0 24px; }
 
@@ -42,25 +42,25 @@ header.site {
   padding: 22px 24px; margin-bottom: 20px;
 }
 .card + .card { margin-top: 0; }
-.section-title { font-size: 21px; margin-bottom: 14px; }
+.section-title { font-family: 'Cormorant Garamond', serif; font-weight: 600; font-size: 22px; margin-bottom: 14px; }
 .muted { color: var(--ink-soft); font-size: 15.5px; }
 .small { font-size: 14px; }
 
 .btn {
-  display: inline-block; font-family: 'Playfair Display', serif; font-weight: 600;
-  font-size: 14.5px; letter-spacing: 0.03em; text-decoration: none;
+  display: inline-block; font-family: 'Montserrat', sans-serif; font-weight: 600;
+  font-size: 13.5px; letter-spacing: 0.04em; text-transform: uppercase; text-decoration: none;
   padding: 10px 20px; border-radius: 3px; border: 0; cursor: pointer;
   background: var(--maroon); color: #fff;
 }
 .btn:hover { background: var(--maroon-dark); text-decoration: none; }
 .btn-outline { background: transparent; color: var(--maroon); border: 1px solid var(--maroon); }
 .btn-outline:hover { background: var(--maroon); color: #fff; }
-.btn-small { padding: 6px 14px; font-size: 13px; }
+.btn-small { padding: 6px 14px; font-size: 12px; }
 
 form.stack { display: flex; flex-direction: column; gap: 12px; max-width: 440px; }
-form.stack label { font-variant: small-caps; letter-spacing: 0.06em; font-size: 14px; color: var(--gold); }
+form.stack label { font-family: 'Montserrat', sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; font-size: 12px; color: var(--gold-dark); }
 form.stack input, form.stack textarea {
-  font-family: 'EB Garamond', Georgia, serif; font-size: 16px; color: var(--ink);
+  font-family: 'Libre Baskerville', Georgia, serif; font-size: 16px; color: var(--ink);
   border: 1px solid var(--card-border); border-radius: 3px; padding: 9px 12px; background: var(--panel);
 }
 form.stack textarea { min-height: 90px; resize: vertical; }
@@ -81,7 +81,7 @@ input[type="file"].file-input-hidden {
 .password-toggle {
   position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
   background: none; border: 0; cursor: pointer; color: var(--ink-soft);
-  font-family: 'EB Garamond', Georgia, serif; font-size: 13.5px; padding: 4px 6px;
+  font-family: 'Montserrat', sans-serif; font-weight: 600; font-size: 12px; padding: 4px 6px;
 }
 .password-toggle:hover { color: var(--maroon); }
 
@@ -111,9 +111,9 @@ footer.site { text-align: center; padding: 30px 0; color: var(--ink-soft); font-
 .admin-subnav a.is-active { color: var(--maroon); border-bottom-color: var(--maroon); font-weight: 600; }
 
 .calendar-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
-.calendar-nav .month-label { font-family: 'Playfair Display', serif; color: var(--maroon-dark); font-size: 20px; }
+.calendar-nav .month-label { font-family: 'Cormorant Garamond', serif; font-weight: 600; color: var(--maroon-dark); font-size: 21px; }
 .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
-.calendar-weekday { text-align: center; font-variant: small-caps; letter-spacing: 0.06em; color: var(--ink-soft); font-size: 13px; padding-bottom: 4px; }
+.calendar-weekday { text-align: center; font-family: 'Montserrat', sans-serif; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft); font-size: 11.5px; padding-bottom: 4px; }
 .calendar-day {
   min-height: 100px; border: 1px solid var(--card-border); border-radius: 4px;
   padding: 6px; background: var(--panel);
@@ -170,9 +170,9 @@ footer.site { text-align: center; padding: 30px 0; color: var(--ink-soft); font-
   display: inline-flex; align-items: center; gap: 6px; font-size: 14.5px; font-weight: 600;
 }
 .availability-badge .dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
-.availability-badge.is-in-stock { color: #3f5a2e; }
-.availability-badge.is-in-stock .dot { background: #4c7a30; }
-.availability-badge.is-out { color: #8b534a; }
+.availability-badge.is-in-stock { color: var(--green); }
+.availability-badge.is-in-stock .dot { background: var(--green); }
+.availability-badge.is-out { color: var(--maroon-dark); }
 
 .book-grid {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 20px;
@@ -185,14 +185,17 @@ footer.site { text-align: center; padding: 30px 0; color: var(--ink-soft); font-
 .book-card:hover { border-color: var(--maroon); text-decoration: none; }
 .book-card-cover { width: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 3px; margin-bottom: 10px; }
 .book-card-body { flex: 1; display: flex; flex-direction: column; }
-.book-card-title { font-family: 'Playfair Display', Georgia, serif; font-size: 16.5px; line-height: 1.25; margin-bottom: 2px; }
+.book-card-title { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; font-size: 17.5px; line-height: 1.25; margin-bottom: 2px; }
 .book-card-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
-.book-card-price { font-weight: 600; color: var(--maroon-dark); }
+.book-card-price { font-family: 'Montserrat', sans-serif; font-weight: 600; color: var(--maroon-dark); }
 
-.book-detail-grid { display: grid; grid-template-columns: 320px 1fr; gap: 36px; margin-top: 18px; }
-.book-detail-cover { width: 100%; border-radius: 4px; border: 1px solid var(--card-border); object-fit: cover; }
-.book-detail-kicker { font-variant: small-caps; letter-spacing: 0.1em; color: var(--maroon); font-size: 14px; margin-bottom: 6px; }
-.book-detail-price { font-size: 26px; font-weight: 600; color: var(--maroon-dark); margin: 14px 0; }
+.book-detail-grid { display: grid; grid-template-columns: 240px 1fr; gap: 36px; margin-top: 18px; }
+.book-detail-cover {
+  width: 100%; max-width: 240px; border-radius: 4px; border: 1px solid var(--card-border);
+  object-fit: cover; image-rendering: -webkit-optimize-contrast;
+}
+.book-detail-kicker { font-family: 'Montserrat', sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--maroon); font-size: 12.5px; margin-bottom: 6px; }
+.book-detail-price { font-family: 'Montserrat', sans-serif; font-size: 24px; font-weight: 700; color: var(--maroon-dark); margin: 14px 0; }
 .availability-box {
   background: var(--cream); border: 1px solid var(--card-border); border-radius: 4px;
   padding: 18px 20px; margin: 16px 0;
