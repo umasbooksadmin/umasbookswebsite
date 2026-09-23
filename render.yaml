@@ -7,6 +7,14 @@ databases:
 
 services:
   - type: web
+    name: umas-books-website
+    runtime: static
+    plan: free
+    region: frankfurt
+    staticPublishPath: ./
+    buildCommand: echo "No build needed"
+
+  - type: web
     name: umas-books
     runtime: node
     plan: free
