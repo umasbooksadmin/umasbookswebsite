@@ -5,8 +5,10 @@
 <title><%= typeof title !== "undefined" ? title + " — " : "" %>Uma's Books Members</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;900&family=EB+Garamond:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;0,700;0,900;1,500;1,600&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/site-header.css">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
@@ -16,34 +18,63 @@
 <meta name="apple-mobile-web-app-title" content="Uma's Books">
 </head>
 <body>
-<header class="site">
-  <div class="wrap">
-    <div class="brand">Uma's Books &mdash; <%= (locals.user && user.isAdmin) ? "Admin" : "Members" %></div>
-    <nav>
-      <a href="/books">Books</a>
-      <a href="/wishlist">Wishlist</a>
-      <a href="/events">Events</a>
-      <a href="/classes">Classes</a>
-      <% if (locals.user) { %>
-        <a href="/dashboard">Dashboard</a>
-        <a href="/forum">Forum</a>
-        <a href="/volunteer">Volunteer</a>
-        <a href="/charity">Charity Vote</a>
-        <a href="/meetings">Meetings</a>
-        <% if (user.isAdmin) { %><a href="/admin">Admin</a><% } %>
-      <% } %>
+
+<header class="site mkt-header">
+  <div class="nav-row">
+    <a class="brandmark" href="/">
+      <img src="/logo.png" alt="Uma's Books and Adventures logo">
+      <span class="brand-text">
+        <span class="brand-name">Uma's Books</span>
+        <span class="brand-tag" data-i18n="brand.tag">English Pre-Loved Books</span>
+      </span>
+    </a>
+    <nav class="mainlinks">
+      <a href="/books.html" data-i18n="nav.books">Books</a>
+      <a href="/classes.html" data-i18n="nav.classes">Éveil Classes</a>
+      <a href="/events.html" data-i18n="nav.events">Events</a>
+      <a href="/wishlist.html" data-i18n="nav.wishlist">Wish List</a>
+      <a href="/visit.html" data-i18n="nav.visit">Visit</a>
+      <a href="/about.html" data-i18n="nav.about">About</a>
     </nav>
-    <div class="who">
+    <div class="header-tools">
+      <div class="langtoggle" role="group" aria-label="Language / Langue">
+        <button type="button" data-lang="en" class="is-active" aria-pressed="true">EN</button>
+        <span aria-hidden="true">|</span>
+        <button type="button" data-lang="fr" aria-pressed="false">FR</button>
+      </div>
+      <a class="icon-btn" href="/books.html" data-i18n-attr="title:icon.search;aria-label:icon.search" title="Search" aria-label="Search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      </a>
       <% if (locals.user) { %>
-        <span>Hi, <%= user.displayName %></span>
-        <a href="/account/password">Change password</a>
-        <form method="post" action="/logout" style="margin:0;">
-          <%- include('csrf_field') %>
-          <button class="btn btn-outline btn-small" type="submit">Log out</button>
-        </form>
+      <div class="account-menu">
+        <button type="button" class="icon-btn account-toggle" aria-haspopup="true" aria-expanded="false" title="Account" aria-label="Account">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-6 8-6s8 2 8 6"/></svg>
+        </button>
+        <div class="account-dropdown">
+          <div class="account-dropdown-name">Hi, <%= user.displayName %></div>
+          <a href="/dashboard">Dashboard</a>
+          <a href="/forum">Forum</a>
+          <a href="/volunteer">Volunteer</a>
+          <a href="/charity">Charity Vote</a>
+          <a href="/meetings">Meetings</a>
+          <% if (user.isAdmin) { %><a href="/admin">Admin</a><% } %>
+          <a href="/account/password">Change password</a>
+          <form method="post" action="/logout">
+            <%- include('csrf_field') %>
+            <button type="submit" class="account-dropdown-logout">Log out</button>
+          </form>
+        </div>
+      </div>
       <% } else { %>
-        <a href="/login">Log in</a>
-        <a class="btn btn-small" href="/signup">Join</a>
+      <a class="icon-btn" href="/membership.html" data-i18n-attr="title:icon.account;aria-label:icon.account" title="Account / Membership" aria-label="Account / Membership">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-6 8-6s8 2 8 6"/></svg>
+      </a>
+      <% } %>
+      <a class="icon-btn" href="/wishlist.html" data-i18n-attr="title:icon.wishlist;aria-label:icon.wishlist" title="Wish List" aria-label="Wish List">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 20s-7-4.4-9.5-8.8C.8 7.8 2.4 4.5 5.8 4c2-.3 3.7.7 4.8 2.4L12 8l1.4-1.6C14.5 4.7 16.2 3.7 18.2 4c3.4.5 5 3.8 3.3 7.2C19 15.6 12 20 12 20z"/></svg>
+      </a>
+      <% if (!locals.user) { %>
+        <a class="btn btn-outline btn-small" href="/login">Log In</a>
       <% } %>
     </div>
   </div>

@@ -1,0 +1,69 @@
+/* Header shared with the marketing site (assets/site.css), scoped under
+   .mkt-header so it can't collide with this app's own header.site / .wrap
+   / .btn rules used throughout the rest of every page. Keep in sync by
+   hand with assets/site.css's "Header" section if that one changes. */
+
+header.mkt-header { padding: 0; margin-bottom: 32px; }
+.mkt-header .nav-row {
+  max-width: 1180px; margin: 0 auto; padding: 18px 28px;
+  display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap;
+}
+.mkt-header .brandmark { display: flex; align-items: center; gap: 12px; text-decoration: none; flex: 0 0 auto; }
+.mkt-header .brandmark img { height: 44px; width: auto; }
+.mkt-header .brandmark .brand-text { display: flex; flex-direction: column; line-height: 1.15; }
+.mkt-header .brandmark .brand-name {
+  font-family: 'Playfair Display', serif; font-weight: 700; font-size: 21px; color: var(--maroon);
+  letter-spacing: 0.01em;
+}
+.mkt-header .brandmark .brand-tag {
+  font-size: 10.5px; letter-spacing: 0.14em; color: var(--ink-soft); font-variant: small-caps; font-weight: 600;
+}
+.mkt-header nav.mainlinks { display: flex; flex-wrap: wrap; gap: 26px; }
+.mkt-header nav.mainlinks a {
+  color: var(--ink); text-decoration: none; font-size: 16px; letter-spacing: 0.01em;
+  border-bottom: 1px solid transparent; padding-bottom: 2px;
+}
+.mkt-header nav.mainlinks a:hover { color: var(--maroon); border-bottom-color: var(--maroon); }
+.mkt-header .header-tools { display: flex; align-items: center; gap: 16px; }
+.mkt-header .icon-btn {
+  display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px;
+  color: var(--ink); text-decoration: none; background: none; border: 0; padding: 0; cursor: pointer;
+}
+.mkt-header .icon-btn svg { width: 20px; height: 20px; }
+.mkt-header .icon-btn:hover { color: var(--maroon); }
+.mkt-header .langtoggle { display: inline-flex; align-items: center; gap: 5px; margin-right: 4px; }
+.mkt-header .langtoggle button {
+  background: none; border: 0; cursor: pointer; padding: 2px 3px;
+  font-family: 'Playfair Display', serif; font-size: 13px; letter-spacing: 0.06em; color: var(--ink-soft);
+  border-bottom: 1px solid transparent; line-height: 1;
+}
+.mkt-header .langtoggle button:hover { color: var(--maroon); }
+.mkt-header .langtoggle button.is-active { color: var(--maroon); border-bottom-color: var(--maroon); font-weight: 600; }
+.mkt-header .langtoggle span { color: var(--line); font-size: 12px; }
+
+/* ---------- Account dropdown (Members Area only) ---------- */
+.mkt-header .account-menu { position: relative; }
+.mkt-header .account-toggle[aria-expanded="true"] { color: var(--maroon); }
+.mkt-header .account-dropdown {
+  display: none; position: absolute; top: calc(100% + 14px); right: 0; z-index: 20;
+  background: var(--panel); border: 1px solid var(--card-border); border-radius: 4px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12); min-width: 200px; padding: 8px 0;
+}
+.mkt-header .account-menu.is-open .account-dropdown { display: block; }
+.mkt-header .account-dropdown-name {
+  font-family: 'Playfair Display', serif; font-size: 14px; color: var(--ink-soft);
+  padding: 8px 18px 10px; border-bottom: 1px solid var(--card-border); margin-bottom: 4px;
+}
+.mkt-header .account-dropdown a, .mkt-header .account-dropdown-logout {
+  display: block; width: 100%; text-align: left; font-family: 'EB Garamond', serif; font-size: 16px;
+  color: var(--ink); text-decoration: none; padding: 8px 18px; background: none; border: 0; cursor: pointer;
+}
+.mkt-header .account-dropdown a:hover, .mkt-header .account-dropdown-logout:hover {
+  color: var(--maroon); background: rgba(160, 89, 70, 0.06);
+}
+.mkt-header .account-dropdown form { margin: 0; }
+
+@media (max-width: 860px) {
+  .mkt-header nav.mainlinks { order: 3; width: 100%; justify-content: center; gap: 16px 22px; }
+  .mkt-header .nav-row { padding: 14px 20px; }
+}

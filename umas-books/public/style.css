@@ -36,10 +36,6 @@ header.site {
   background: var(--panel); border-bottom: 1px solid var(--line);
   padding: 18px 0; margin-bottom: 32px;
 }
-header.site .wrap { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; }
-header.site .brand { font-family: 'Playfair Display', serif; font-weight: 700; font-size: 20px; color: var(--maroon); }
-header.site nav { display: flex; gap: 18px; flex-wrap: wrap; font-size: 15.5px; }
-header.site .who { font-size: 14.5px; color: var(--ink-soft); display: flex; align-items: center; gap: 12px; }
 
 .card {
   background: var(--panel); border: 1px solid var(--card-border); border-radius: 4px;

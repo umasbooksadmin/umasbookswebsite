@@ -107,3 +107,29 @@ document.addEventListener("click", function (e) {
       btn.textContent = originalText;
     });
 });
+
+// Header account dropdown (logged-in members only — see partials/header.ejs).
+(function () {
+  function closeMenu(menu) {
+    menu.classList.remove("is-open");
+    menu.querySelector(".account-toggle").setAttribute("aria-expanded", "false");
+  }
+  document.addEventListener("click", function (e) {
+    var toggle = e.target.closest(".account-toggle");
+    var openMenu = document.querySelector(".account-menu.is-open");
+    if (toggle) {
+      var menu = toggle.closest(".account-menu");
+      var wasOpen = menu.classList.contains("is-open");
+      if (openMenu && openMenu !== menu) closeMenu(openMenu);
+      menu.classList.toggle("is-open", !wasOpen);
+      toggle.setAttribute("aria-expanded", String(!wasOpen));
+      return;
+    }
+    if (openMenu && !e.target.closest(".account-menu")) closeMenu(openMenu);
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key !== "Escape") return;
+    var openMenu = document.querySelector(".account-menu.is-open");
+    if (openMenu) closeMenu(openMenu);
+  });
+})();
