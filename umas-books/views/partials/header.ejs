@@ -33,57 +33,23 @@
       <a href="/classes" data-i18n="nav.classes">Éveil Programs</a>
       <a href="/events" data-i18n="nav.events">Events</a>
       <a href="/wishlist" data-i18n="nav.wishlist">Notify Me</a>
-      <a href="/favorites" data-i18n="nav.favorites">Favorites</a>
-      <a href="/visit.html" data-i18n="nav.visit">Visit</a>
       <a href="/about.html" data-i18n="nav.about">About</a>
+      <a href="/favorites" data-i18n="nav.favorites">Favorites</a>
     </nav>
     <div class="header-tools">
+      <% if (locals.user) { %>
+        <form method="post" action="/logout" style="margin:0;">
+          <%- include('csrf_field') %>
+          <button type="submit" class="btn btn-outline btn-small">Log Out</button>
+        </form>
+      <% } else { %>
+        <a class="btn btn-outline btn-small" href="/login">Log In</a>
+      <% } %>
       <div class="langtoggle" role="group" aria-label="Language / Langue">
         <button type="button" data-lang="en" class="is-active" aria-pressed="true">EN</button>
         <span aria-hidden="true">|</span>
         <button type="button" data-lang="fr" aria-pressed="false">FR</button>
       </div>
-      <a class="icon-btn" href="/books" data-i18n-attr="title:icon.search;aria-label:icon.search" title="Search" aria-label="Search">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      </a>
-      <a class="icon-btn cart-icon" href="/cart" title="Cart" aria-label="Cart">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8h12l-1 12H7L6 8z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>
-        <% if (typeof cartCount !== "undefined" && cartCount > 0) { %><span class="cart-badge"><%= cartCount %></span><% } %>
-      </a>
-      <% if (locals.user) { %>
-      <div class="account-menu">
-        <button type="button" class="icon-btn account-toggle" aria-haspopup="true" aria-expanded="false" title="Account" aria-label="Account">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-6 8-6s8 2 8 6"/></svg>
-        </button>
-        <div class="account-dropdown">
-          <div class="account-dropdown-name">Hi, <%= user.displayName %></div>
-          <a href="/dashboard">Dashboard</a>
-          <a href="/forum">Forum</a>
-          <a href="/volunteer">Volunteer</a>
-          <a href="/charity">Charity Vote</a>
-          <a href="/meetings">Meetings</a>
-          <% if (user.isAdmin) { %><a href="/admin">Admin</a><% } %>
-          <a href="/account/password">Change password</a>
-          <form method="post" action="/logout">
-            <%- include('csrf_field') %>
-            <button type="submit" class="account-dropdown-logout">Log out</button>
-          </form>
-        </div>
-      </div>
-      <% } else { %>
-      <a class="icon-btn" href="/membership.html" data-i18n-attr="title:icon.account;aria-label:icon.account" title="Account / Membership" aria-label="Account / Membership">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-6 8-6s8 2 8 6"/></svg>
-      </a>
-      <% } %>
-      <a class="icon-btn" href="/wishlist" data-i18n-attr="title:icon.wishlist;aria-label:icon.wishlist" title="Notify Me" aria-label="Notify Me">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 3.2 1 5.4 2 7H4c1-1.6 2-3.8 2-7z"/><path d="M9.5 18a2.5 2.5 0 0 0 5 0"/></svg>
-      </a>
-      <a class="icon-btn" href="/favorites" data-i18n-attr="title:icon.favorites;aria-label:icon.favorites" title="Favorites" aria-label="Favorites">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 20s-7-4.4-9.5-8.8C.8 7.8 2.4 4.5 5.8 4c2-.3 3.7.7 4.8 2.4L12 8l1.4-1.6C14.5 4.7 16.2 3.7 18.2 4c3.4.5 5 3.8 3.3 7.2C19 15.6 12 20 12 20z"/></svg>
-      </a>
-      <% if (!locals.user) { %>
-        <a class="btn btn-outline btn-small" href="/login">Log In</a>
-      <% } %>
     </div>
   </div>
 </header>

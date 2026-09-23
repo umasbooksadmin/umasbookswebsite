@@ -26,18 +26,6 @@ header.mkt-header { padding: 0; margin-bottom: 32px; }
 }
 .mkt-header nav.mainlinks a:hover { color: var(--maroon); border-bottom-color: var(--maroon); }
 .mkt-header .header-tools { display: flex; align-items: center; gap: 16px; }
-.mkt-header .icon-btn {
-  display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px;
-  color: var(--ink); text-decoration: none; background: none; border: 0; padding: 0; cursor: pointer;
-}
-.mkt-header .icon-btn svg { width: 20px; height: 20px; }
-.mkt-header .icon-btn:hover { color: var(--maroon); }
-.mkt-header .cart-icon { position: relative; }
-.mkt-header .cart-badge {
-  position: absolute; top: -6px; right: -8px; min-width: 15px; height: 15px; padding: 0 3px;
-  border-radius: 999px; background: var(--maroon); color: #fff; font-family: 'Montserrat', sans-serif;
-  font-size: 10px; font-weight: 700; line-height: 15px; text-align: center;
-}
 .mkt-header .langtoggle { display: inline-flex; align-items: center; gap: 5px; margin-right: 4px; }
 .mkt-header .langtoggle button {
   background: none; border: 0; cursor: pointer; padding: 2px 3px;
@@ -48,34 +36,12 @@ header.mkt-header { padding: 0; margin-bottom: 32px; }
 .mkt-header .langtoggle button.is-active { color: var(--maroon); border-bottom-color: var(--maroon); font-weight: 600; }
 .mkt-header .langtoggle span { color: var(--line); font-size: 12px; }
 
-/* ---------- Account dropdown (Members Area only) ---------- */
-.mkt-header .account-menu { position: relative; }
-.mkt-header .account-toggle[aria-expanded="true"] { color: var(--maroon); }
-.mkt-header .account-dropdown {
-  display: none; position: absolute; top: calc(100% + 14px); right: 0; z-index: 20;
-  background: var(--panel); border: 1px solid var(--card-border); border-radius: 4px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12); min-width: 200px; padding: 8px 0;
-}
-.mkt-header .account-menu.is-open .account-dropdown { display: block; }
-.mkt-header .account-dropdown-name {
-  font-family: 'Montserrat', sans-serif; font-weight: 600; font-size: 13px; color: var(--ink-soft);
-  padding: 8px 18px 10px; border-bottom: 1px solid var(--card-border); margin-bottom: 4px;
-}
-.mkt-header .account-dropdown a, .mkt-header .account-dropdown-logout {
-  display: block; width: 100%; text-align: left; font-family: 'Montserrat', sans-serif; font-size: 14px;
-  color: var(--ink); text-decoration: none; padding: 8px 18px; background: none; border: 0; cursor: pointer;
-}
-.mkt-header .account-dropdown a:hover, .mkt-header .account-dropdown-logout:hover {
-  color: var(--maroon); background: rgba(166, 83, 71, 0.06);
-}
-.mkt-header .account-dropdown form { margin: 0; }
-
 @media (max-width: 860px) {
   .mkt-header nav.mainlinks { order: 3; width: 100%; justify-content: center; gap: 16px 22px; }
   .mkt-header .nav-row { padding: 14px 20px; }
 }
 @media (max-width: 600px) {
-  /* Keep the header-tools icons (including the cart badge) anchored
+  /* Keep the header-tools (Log In/Out + language toggle) anchored
      top-right next to the logo instead of wrapping below it. */
   .mkt-header .brandmark .brand-tag { display: none; }
   .mkt-header .header-tools { gap: 10px; }

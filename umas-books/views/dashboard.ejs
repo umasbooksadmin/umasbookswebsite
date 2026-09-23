@@ -1,6 +1,10 @@
 <%- include('partials/header', { title: 'Dashboard' }) %>
 
 <h1>Welcome, <%= user.displayName %></h1>
+<p class="muted small">
+  <a href="/account/password">Change password</a>
+  <% if (user.isAdmin) { %> &middot; <a href="/admin">Admin</a><% } %>
+</p>
 
 <div class="card">
   <div class="section-title">Announcements</div>

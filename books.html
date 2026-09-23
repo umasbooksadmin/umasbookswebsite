@@ -25,25 +25,16 @@
       <a href="classes.html" data-i18n="nav.classes">Éveil Programs</a>
       <a href="events.html" data-i18n="nav.events">Events</a>
       <a href="wishlist.html" data-i18n="nav.wishlist">Notify Me</a>
-      <a href="visit.html" data-i18n="nav.visit">Visit</a>
       <a href="about.html" data-i18n="nav.about">About</a>
+      <a href="https://umas-books.onrender.com/favorites" data-i18n="nav.favorites">Favorites</a>
     </nav>
     <div class="header-tools">
+      <a class="btn btn-outline btn-small" href="https://umas-books.onrender.com/login" data-i18n="nav.login">Log In</a>
       <div class="langtoggle" role="group" aria-label="Language / Langue">
         <button type="button" data-lang="en" class="is-active" aria-pressed="true">EN</button>
         <span aria-hidden="true">|</span>
         <button type="button" data-lang="fr" aria-pressed="false">FR</button>
       </div>
-      <a class="icon-btn" href="books.html" data-i18n-attr="title:icon.search;aria-label:icon.search" title="Search" aria-label="Search">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      </a>
-      <a class="icon-btn" href="membership.html" data-i18n-attr="title:icon.account;aria-label:icon.account" title="Account / Membership" aria-label="Account / Membership">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-6 8-6s8 2 8 6"/></svg>
-      </a>
-      <a class="icon-btn" href="wishlist.html" data-i18n-attr="title:icon.wishlist;aria-label:icon.wishlist" title="Notify Me" aria-label="Notify Me">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 20s-7-4.4-9.5-8.8C.8 7.8 2.4 4.5 5.8 4c2-.3 3.7.7 4.8 2.4L12 8l1.4-1.6C14.5 4.7 16.2 3.7 18.2 4c3.4.5 5 3.8 3.3 7.2C19 15.6 12 20 12 20z"/></svg>
-      </a>
-      <a class="btn btn-outline btn-small" href="https://umas-books.onrender.com/login" data-i18n="nav.login">Log In</a>
     </div>
   </div>
 </header>
@@ -64,8 +55,9 @@
         <input type="text" id="shop-search-input" data-i18n-attr="placeholder:order.search.placeholder" placeholder="Search title or author&hellip;">
         <button type="submit" class="btn btn-maroon" data-i18n="order.search.submit">Search</button>
       </form>
+      <div class="category-grid" id="shop-genres" style="margin-top:28px;"></div>
       <div class="shop-results-grid" id="shop-results">
-        <p class="muted" data-i18n="order.loading">Loading books&hellip;</p>
+        <p class="muted" data-i18n="order.prompt">Search above or browse by genre to see what's in stock.</p>
       </div>
       <div class="note-box" data-i18n-html="order.contact.note">
         Questions about an order? Email us at <a href="mailto:admin@umasbooks.org">admin@umasbooks.org</a>.
@@ -76,16 +68,9 @@
 
 <footer class="site">
   <div class="footer-grid">
-    <div>
-      <div class="fname">Uma's Books &amp; Adventures</div>
-      <div class="faddr" data-i18n="footer.addr">Rue Peyroli&egrave;re, 81000 Albi</div>
-      <div class="fhours" data-i18n="footer.hours.l">Tuesday &ndash; Saturday, 10:00&ndash;19:00</div>
-    </div>
     <div class="footer-links">
       <a href="mailto:admin@umasbooks.org" data-i18n="footer.contact">Contact</a>
-      <a href="wishlist.html" data-i18n="footer.wishlist">Notify Me</a>
-      <a href="volunteer.html" data-i18n="footer.volunteer">Volunteer</a>
-      <a href="membership.html" data-i18n="footer.membership">Membership</a>
+      <a href="about.html" data-i18n="footer.about">About</a>
     </div>
     <div class="footer-social">
       <!-- TODO: add real social links when available -->
@@ -107,8 +92,10 @@ window.PAGE_I18N = {
     "order.intro": "Search what's in stock right now — buy online and pick up in the shop, or come by in person.",
     "order.search.placeholder": "Search title or author…",
     "order.search.submit": "Search",
+    "order.prompt": "Search above or browse by genre to see what's in stock.",
     "order.loading": "Loading books…",
     "order.empty": "No books match that search.",
+    "order.allgenres": "All Genres",
     "order.error": "Couldn't load books right now — try again in a moment.",
     "order.contact.note": "Questions about an order? Email us at <a href=\"mailto:admin@umasbooks.org\">admin@umasbooks.org</a>."
   },
@@ -119,8 +106,10 @@ window.PAGE_I18N = {
     "order.intro": "Recherchez ce qui est en stock en ce moment — achetez en ligne et récupérez en boutique, ou passez nous voir.",
     "order.search.placeholder": "Rechercher un titre ou un auteur…",
     "order.search.submit": "Rechercher",
+    "order.prompt": "Recherchez ci-dessus ou parcourez par genre pour voir ce qui est en stock.",
     "order.loading": "Chargement des livres…",
     "order.empty": "Aucun livre ne correspond à cette recherche.",
+    "order.allgenres": "Tous les genres",
     "order.error": "Impossible de charger les livres pour le moment — réessayez dans un instant.",
     "order.contact.note": "Une question sur une commande ? Écrivez-nous à <a href=\"mailto:admin@umasbooks.org\">admin@umasbooks.org</a>."
   }
@@ -151,8 +140,10 @@ window.PAGE_I18N = {
   // error (or a slow response) while it wakes back up — retry once
   // before showing the error state, same as the other API-backed
   // sections on this site.
-  function loadBooks(q, isRetry) {
-    fetch('https://umas-books.onrender.com/api/books/search?q=' + encodeURIComponent(q))
+  function loadBooks(q, genre, isRetry) {
+    var url = 'https://umas-books.onrender.com/api/books/search?q=' + encodeURIComponent(q);
+    if (genre) url += '&genre=' + encodeURIComponent(genre);
+    fetch(url)
       .then(function (res) {
         if (!res.ok) throw new Error('bad response');
         return res.json();
@@ -184,20 +175,72 @@ window.PAGE_I18N = {
       })
       .catch(function () {
         if (!isRetry) {
-          setTimeout(function () { loadBooks(q, true); }, 4000);
+          setTimeout(function () { loadBooks(q, genre, true); }, 4000);
           return;
         }
         results.innerHTML = '<p class="muted">' + esc(i18nText('order.error', "Couldn't load books right now.")) + '</p>';
       });
   }
 
-  loadBooks('', false);
+  // Genre chips, same icon set as the homepage's "Browse by Genre" —
+  // matched by keyword against whatever real inventory categories exist,
+  // with a generic book icon fallback for anything else.
+  var genresEl = document.getElementById('shop-genres');
+  var CHIP_DEFS = [
+    { test: /child/i, bg: '#dceaf5', svg: '<path d="M9 10c-1-3 0-6 1.5-6S12 7 11.5 10"/><path d="M15 10c1-3 0-6-1.5-6S12 7 12.5 10"/><circle cx="12" cy="15" r="5.5"/><circle cx="10" cy="14" r=".8" fill="currentColor" stroke="none"/><circle cx="14" cy="14" r=".8" fill="currentColor" stroke="none"/><path d="M11 16.8q1 .9 2 0"/>' },
+    { test: /fiction(?!.*non)/i, bg: '#f7ded9', svg: '<path d="M4 6.5c2.2 0 4.4.7 6 2 1.6-1.3 3.8-2 6-2v10.5c-2.2 0-4.4.7-6 2-1.6-1.3-3.8-2-6-2V6.5z"/><path d="M10 8.5v10"/><path d="M17.3 3.2l.5 1.1 1.2.2-.9.8.2 1.2-1-.6-1 .6.2-1.2-.9-.8 1.2-.2.5-1.1z" fill="currentColor" stroke="none"/>' },
+    { test: /non.?fiction/i, bg: '#e8e3f2', svg: '<ellipse cx="12" cy="13.5" rx="6" ry="6.2"/><path d="M7.5 8.5 9 5.5"/><path d="M16.5 8.5 15 5.5"/><circle cx="9.3" cy="12.5" r="2"/><circle cx="14.7" cy="12.5" r="2"/><circle cx="9.3" cy="12.5" r=".5" fill="currentColor" stroke="none"/><circle cx="14.7" cy="12.5" r=".5" fill="currentColor" stroke="none"/><path d="M12 14.5 10.9 15.9h2.2L12 14.5z" fill="currentColor" stroke="none"/>' },
+    { test: /garden/i, bg: '#e1eedd', svg: '<path d="M8.5 17h7l-.8 3.5h-5.4L8.5 17z"/><path d="M12 17V9.5"/><path d="M12 13.5c-2-.2-3.3-1.7-3.3-3.8 2 0 3.7 1 4 3.3"/><path d="M12 12.8c2-.2 3.3-1.7 3.3-3.6-2 0-3.6 1-3.9 3.1"/><circle cx="12" cy="6.3" r="3"/>' },
+    { test: /cook|recipe/i, bg: '#f3ecd9', svg: '<path d="M5.5 12h13v4.5a3 3 0 0 1-3 3h-7a3 3 0 0 1-3-3V12z"/><path d="M4.5 12h15"/><path d="M4.5 12 3 13.3"/><path d="M19.5 12 21 13.3"/><path d="M12 4.2c-.6-.9-1.9-.9-2.2 0-.3.8.5 1.6 2.2 3 1.7-1.4 2.5-2.2 2.2-3-.3-.9-1.6-.9-2.2 0z" fill="currentColor" stroke="none"/>' },
+  ];
+  var FALLBACK = { bg: '#eee3d4', svg: '<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H19v15.5a1 1 0 0 1-1 1H6.5A2.5 2.5 0 0 1 4 17V5.5z"/><path d="M4 17a2.5 2.5 0 0 1 2.5-2.5H19"/>' };
+  function chipFor(g) {
+    for (var i = 0; i < CHIP_DEFS.length; i++) if (CHIP_DEFS[i].test.test(g)) return CHIP_DEFS[i];
+    return FALLBACK;
+  }
+
+  var currentGenre = '';
+
+  function setActiveChip(genre) {
+    genresEl.querySelectorAll('.category-item').forEach(function (el) {
+      el.classList.toggle('is-active', el.getAttribute('data-genre') === genre);
+    });
+  }
+
+  function runSearch(q, genre) {
+    currentGenre = genre || '';
+    setActiveChip(currentGenre);
+    results.innerHTML = '<p class="muted">' + esc(i18nText('order.loading', 'Loading books…')) + '</p>';
+    loadBooks(q, currentGenre, false);
+  }
+
+  fetch('https://umas-books.onrender.com/api/books/genres')
+    .then(function (res) { return res.ok ? res.json() : []; })
+    .then(function (genres) {
+      if (!genres.length) return;
+      var allChip = '<div class="category-item is-active" data-genre="">' +
+        '<span class="chip" style="background:#eee3d4;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round">' + FALLBACK.svg + '</svg></span>' +
+        '<span>' + esc(i18nText('order.allgenres', 'All Genres')) + '</span></div>';
+      var chips = genres.map(function (g) {
+        var c = chipFor(g);
+        return '<div class="category-item" data-genre="' + esc(g) + '">' +
+          '<span class="chip" style="background:' + c.bg + ';"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round">' + c.svg + '</svg></span>' +
+          '<span>' + esc(g) + '</span></div>';
+      }).join('');
+      genresEl.innerHTML = allChip + chips;
+      genresEl.querySelectorAll('.category-item').forEach(function (el) {
+        el.addEventListener('click', function () {
+          input.value = '';
+          runSearch('', el.getAttribute('data-genre'));
+        });
+      });
+    })
+    .catch(function () {});
 
   if (form) {
     form.addEventListener('submit', function (e) {
       e.preventDefault();
-      results.innerHTML = '<p class="muted">' + esc(i18nText('order.loading', 'Loading books…')) + '</p>';
-      loadBooks(input.value.trim(), false);
+      runSearch(input.value.trim(), '');
     });
   }
 })();

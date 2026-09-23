@@ -25,25 +25,16 @@
       <a href="classes.html" data-i18n="nav.classes">Éveil Programs</a>
       <a href="events.html" data-i18n="nav.events">Events</a>
       <a href="wishlist.html" data-i18n="nav.wishlist">Notify Me</a>
-      <a href="visit.html" data-i18n="nav.visit">Visit</a>
       <a href="about.html" data-i18n="nav.about">About</a>
+      <a href="https://umas-books.onrender.com/favorites" data-i18n="nav.favorites">Favorites</a>
     </nav>
     <div class="header-tools">
+      <a class="btn btn-outline btn-small" href="https://umas-books.onrender.com/login" data-i18n="nav.login">Log In</a>
       <div class="langtoggle" role="group" aria-label="Language / Langue">
         <button type="button" data-lang="en" class="is-active" aria-pressed="true">EN</button>
         <span aria-hidden="true">|</span>
         <button type="button" data-lang="fr" aria-pressed="false">FR</button>
       </div>
-      <a class="icon-btn" href="books.html" data-i18n-attr="title:icon.search;aria-label:icon.search" title="Search" aria-label="Search">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      </a>
-      <a class="icon-btn" href="membership.html" data-i18n-attr="title:icon.account;aria-label:icon.account" title="Account / Membership" aria-label="Account / Membership">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-6 8-6s8 2 8 6"/></svg>
-      </a>
-      <a class="icon-btn" href="wishlist.html" data-i18n-attr="title:icon.wishlist;aria-label:icon.wishlist" title="Notify Me" aria-label="Notify Me">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 20s-7-4.4-9.5-8.8C.8 7.8 2.4 4.5 5.8 4c2-.3 3.7.7 4.8 2.4L12 8l1.4-1.6C14.5 4.7 16.2 3.7 18.2 4c3.4.5 5 3.8 3.3 7.2C19 15.6 12 20 12 20z"/></svg>
-      </a>
-      <a class="btn btn-outline btn-small" href="https://umas-books.onrender.com/login" data-i18n="nav.login">Log In</a>
     </div>
   </div>
 </header>
@@ -146,8 +137,11 @@
   </div>
 
   <div class="community-banner">
-    <div class="photo-block" role="img" aria-label="Photo placeholder: the Tarn river and Albi cathedral">
-      <span class="script-tag" data-i18n="community.tagline">A more curious, kinder world starts here. ♥</span>
+    <div class="donate-card">
+      <h3 data-i18n="donate.title">Donate Books</h3>
+      <p data-i18n="donate.text">Every shelf here started as someone&#39;s donation. Bringing in your gently used English-language books gives them a second life and keeps our prices low for the whole community.</p>
+      <p class="donate-voucher" data-i18n="donate.voucher">Donate more than one book and receive a voucher toward your next purchase in the shop.</p>
+      <a class="btn btn-maroon" href="mailto:admin@umasbooks.org?subject=Book%20Donation" data-i18n="donate.cta">Get in Touch</a>
     </div>
     <div class="newsletter-card">
       <h3 data-i18n="newsletter.title">Join Our Community</h3>
@@ -167,16 +161,9 @@
 
 <footer class="site">
   <div class="footer-grid">
-    <div>
-      <div class="fname">Uma's Books &amp; Adventures</div>
-      <div class="faddr" data-i18n="footer.addr">Rue Peyroli&egrave;re, 81000 Albi</div>
-      <div class="fhours" data-i18n="footer.hours.l">Tuesday &ndash; Saturday, 10:00&ndash;19:00</div>
-    </div>
     <div class="footer-links">
       <a href="mailto:admin@umasbooks.org" data-i18n="footer.contact">Contact</a>
-      <a href="wishlist.html" data-i18n="footer.wishlist">Notify Me</a>
-      <a href="volunteer.html" data-i18n="footer.volunteer">Volunteer</a>
-      <a href="membership.html" data-i18n="footer.membership">Membership</a>
+      <a href="about.html" data-i18n="footer.about">About</a>
     </div>
     <div class="footer-social">
       <!-- TODO: add real social links when available -->
@@ -220,7 +207,10 @@ window.PAGE_I18N = {
     "category.nonfiction": "Non-Fiction",
     "category.gardening": "Gardening",
     "category.cookbooks": "Cook Books",
-    "community.tagline": "A more curious, kinder world starts here. ♥",
+    "donate.title": "Donate Books",
+    "donate.text": "Every shelf here started as someone's donation. Bringing in your gently used English-language books gives them a second life and keeps our prices low for the whole community.",
+    "donate.voucher": "Donate more than one book and receive a voucher toward your next purchase in the shop.",
+    "donate.cta": "Get in Touch",
     "newsletter.title": "Join Our Community",
     "newsletter.text": "Be the first to know about new arrivals, programs and events.",
     "newsletter.placeholder": "Your email address",
@@ -258,7 +248,10 @@ window.PAGE_I18N = {
     "category.nonfiction": "Documentaires",
     "category.gardening": "Jardinage",
     "category.cookbooks": "Livres de cuisine",
-    "community.tagline": "Un monde plus curieux et plus bienveillant commence ici. ♥",
+    "donate.title": "Faire un don",
+    "donate.text": "Chaque étagère ici a commencé par un don. Apporter vos livres en anglais en bon état leur donne une seconde vie et permet de garder nos prix accessibles pour toute la communauté.",
+    "donate.voucher": "Faites un don de plus d'un livre et recevez un bon d'achat pour votre prochaine visite en boutique.",
+    "donate.cta": "Nous contacter",
     "newsletter.title": "Rejoignez notre communauté",
     "newsletter.text": "Soyez les premiers informés des nouveautés, programmes et événements.",
     "newsletter.placeholder": "Votre adresse email",

@@ -89,16 +89,36 @@ router.get("/api/books/latest-arrivals", async (req, res) => {
 // page so it can show real in-stock results inline instead of just
 // linking out to the shop. Same CORS treatment as
 // /api/books/latest-arrivals.
+// Public JSON, cross-origin — the list of in-stock genres for the
+// marketing site's genre chips. Same CORS treatment as the other
+// /api/books/* endpoints on this page.
+router.get("/api/books/genres", async (req, res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Cross-Origin-Resource-Policy", "cross-origin");
+  const { rows } = await pool.query(
+    `SELECT DISTINCT b.categories FROM books b
+     WHERE b.categories IS NOT NULL AND b.categories <> ''
+       AND EXISTS (SELECT 1 FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock')
+     ORDER BY b.categories ASC`
+  );
+  res.json(rows.map((r) => r.categories));
+});
+
 router.get("/api/books/search", async (req, res) => {
   res.set("Access-Control-Allow-Origin", "*");
   res.set("Cross-Origin-Resource-Policy", "cross-origin");
   const q = (req.query.q || "").trim();
+  const genre = (req.query.genre || "").trim();
 
   const clauses = ["c.status = 'in_stock'"];
   const params = [];
   if (q) {
     params.push(`%${q}%`);
     clauses.push(`(b.title ILIKE $${params.length} OR b.authors ILIKE $${params.length})`);
+  }
+  if (genre) {
+    params.push(genre);
+    clauses.push(`b.categories = $${params.length}`);
   }
 
   const { rows } = await pool.query(
