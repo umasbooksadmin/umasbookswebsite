@@ -206,7 +206,7 @@ router.post("/account/password", requireAuth, async (req, res) => {
 });
 
 router.post("/logout", (req, res) => {
-  req.session.destroy(() => res.redirect("https://umasbooks.org"));
+  req.session.destroy(() => res.redirect("/"));
 });
 
 module.exports = router;

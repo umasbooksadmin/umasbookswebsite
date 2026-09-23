@@ -9,7 +9,7 @@ header.mkt-header { padding: 0; margin-bottom: 32px; }
   display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap;
 }
 .mkt-header .brandmark { display: flex; align-items: center; gap: 12px; text-decoration: none; flex: 0 0 auto; }
-.mkt-header .brandmark img { height: 44px; width: auto; }
+.mkt-header .brandmark img { height: 58px; width: auto; }
 .mkt-header .brandmark .brand-text { display: flex; flex-direction: column; line-height: 1.15; }
 .mkt-header .brandmark .brand-name {
   font-family: 'Cormorant Garamond', serif; font-weight: 700; font-size: 22px; color: var(--green);

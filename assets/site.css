@@ -82,7 +82,7 @@ header.site {
   display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap;
 }
 .brandmark { display: flex; align-items: center; gap: 12px; text-decoration: none; flex: 0 0 auto; }
-.brandmark img { height: 44px; width: auto; }
+.brandmark img { height: 58px; width: auto; }
 .brandmark .brand-text { display: flex; flex-direction: column; line-height: 1.15; }
 .brandmark .brand-name {
   font-family: 'Cormorant Garamond', serif; font-weight: 700; font-size: 22px; color: var(--green);
