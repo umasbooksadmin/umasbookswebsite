@@ -55,7 +55,7 @@
 .wn-img.is-contain img { width: auto; height: 72%; object-fit: contain; }
 .wn-text { padding: 8px 0; }
 .wn-tag {
-  display: inline-block; background: #e8a397; color: #fff; font-size: 13px; letter-spacing: 0.16em;
+  display: inline-block; background: var(--maroon); color: #fff; font-size: 13px; letter-spacing: 0.16em;
   text-transform: uppercase; padding: 3px 12px; font-weight: 600;
 }
 .wn-title { font-size: clamp(28px, 3vw, 40px); line-height: 1.1; margin-top: 14px; }
