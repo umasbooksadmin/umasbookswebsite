@@ -2,4 +2,4 @@
 # push that only touches the marketing pages at the repo root is skipped.
 # Until the Render dashboard's Build Filter includes "**" (see README →
 # Deploying to Render), update this line alongside marketing-page changes.
-2026-09-24T10:16:07Z home: More than a bookstore card beside membership
+2026-09-24T10:19:08Z home: bottom cards match four-card type sizes
