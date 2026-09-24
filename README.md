@@ -30,7 +30,7 @@ France.
   four cards, `blog.html` lists all and shows one via `blog.html?post=<slug>`.
 - `assets/books.css` — Books-page-only styles. To change the
   "Recommendation of the week", edit the `BOOK_OF_THE_WEEK` block near the
-  bottom of `books.html` (title, author, ISBN, stars, EN/FR blurb and quote).
+  bottom of `books.html` (title, author, ISBN, stars, EN/FR blurb).
 - `assets/img/` — Home-page artwork (hero botanicals, card medallions,
   shop-interior photo, leaf sprig), cropped from the design mockup
 - `assets/site.js` — shared language toggle (EN/FR) + mailto-form wiring;

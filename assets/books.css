@@ -6,11 +6,15 @@
 /* ---------- Title + search ---------- */
 .bk-top { text-align: center; padding: 34px 0 22px; }
 .bk-top h1 {
-  font-size: clamp(44px, 6.4vw, 76px); font-weight: 500; color: var(--maroon);
-  letter-spacing: -0.005em; line-height: 1;
+  /* same look as the home page title */
+  font-size: clamp(36px, 9.5vw, 74px); font-weight: 500; color: var(--ink);
+  text-transform: uppercase; letter-spacing: 0.02em; line-height: 1.02;
+}
+@media (min-width: 1025px) and (min-height: 480px) {
+  .bk-top h1 { font-size: clamp(32px, 6.4vh, 72px); }
 }
 .bk-search {
-  display: flex; max-width: 1020px; margin: 28px auto 0; border: 1px solid #cfcac0; background: var(--panel);
+  display: flex; max-width: 1020px; margin: 42px auto 0; border: 1px solid #cfcac0; background: var(--panel);
 }
 .bk-search .icon { display: flex; align-items: center; padding: 0 6px 0 16px; color: var(--ink); }
 .bk-search .icon svg { width: 22px; height: 22px; }
@@ -30,14 +34,13 @@
    header's stamp logo, as in the design. The box itself lets clicks
    through so the logo stays clickable. */
 @media (min-width: 1241px) {
-  .bk-top { position: relative; z-index: 6; margin-top: -84px; padding-top: 0; pointer-events: none; }
+  .bk-top { position: relative; z-index: 6; margin-top: -66px; padding-top: 0; pointer-events: none; }
   .bk-top h1, .bk-top form { pointer-events: auto; }
   .bk-top h1 { display: inline-block; }
   .bk-search { max-width: min(1020px, calc(100% - 2 * 190px)); }
 }
 @media (min-width: 1241px) and (max-width: 1440px) {
   .bk-top { margin-top: -56px; }
-  .bk-top h1 { font-size: 66px; }
 }
 
 /* ---------- Browse by genre ---------- */
@@ -122,14 +125,9 @@
 .bk-rec .stars svg { width: 22px; height: 22px; }
 .bk-rec .blurb { font-size: 20px; line-height: 1.12; max-width: 58ch; margin: 0 0 18px; }
 .bk-rec .btn { padding: 11px 50px; font-size: 16px; }
-.bk-rec .quote {
-  font-family: 'Italianno', cursive; font-size: 46px; line-height: 0.95; color: #8a7d73;
-  transform: rotate(-12deg); max-width: 190px; margin: 0; padding-right: 20px;
-}
 @media (max-width: 1000px) {
   .bk-rec { grid-template-columns: auto 1fr; padding: 24px 28px; }
-  .bk-rec .quote { display: none; }
-}
+  }
 @media (max-width: 620px) {
   .bk-rec { grid-template-columns: 1fr; text-align: center; gap: 18px; padding: 26px 20px 30px; }
   .bk-rec .rec-cover { margin: 0 auto; width: 150px; }
@@ -193,7 +191,7 @@
 /* ---------- Spacing between sections ----------
    The Books page scrolls (it isn't squeezed onto one screen like Home),
    so each section gets generous room. */
-.bk-top { padding-bottom: 30px; }
+.bk-top { padding-bottom: 46px; }
 .bk-genres { padding: 6px 0 34px; }
 .bk-rec { margin-top: 0; }
 .bk-new { padding: 38px 0 40px; }
@@ -209,3 +207,21 @@ body:has(.bk-band) .h-footer { margin-top: 38px; }
   .bk-genres { padding-bottom: 32px; }
   .bk-new { padding: 36px 0 40px; }
 }
+
+/* Recommendation: no quote; the View book button sits on the right. */
+.bk-rec .rec-cta { align-self: center; justify-self: end; white-space: nowrap; }
+.bk-rec .blurb { margin-bottom: 0; }
+@media (max-width: 1000px) {
+  .bk-rec { grid-template-columns: auto 1fr auto; }
+}
+@media (max-width: 620px) {
+  .bk-rec { grid-template-columns: 1fr; }
+  .bk-rec .rec-cta { justify-self: center; }
+}
+
+/* Smaller genre buttons */
+.bk-genre { font-size: 13.5px; gap: 6px; }
+.bk-genre .chip { width: 50px; height: 50px; }
+.bk-genre .chip svg { width: 24px; height: 24px; }
+.bk-genres .label { font-size: 21px; }
+@media (max-width: 760px) { .bk-genre { flex-basis: 66px; } }

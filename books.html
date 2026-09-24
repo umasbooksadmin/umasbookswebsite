@@ -69,9 +69,8 @@
         <div class="author" id="bk-rec-author"></div>
         <div class="stars" id="bk-rec-stars"></div>
         <p class="blurb" id="bk-rec-blurb"></p>
-        <a class="btn btn-maroon" id="bk-rec-link" href="#" data-i18n="bk.rec.cta">View book</a>
       </div>
-      <p class="quote" id="bk-rec-quote"></p>
+      <a class="btn btn-maroon rec-cta" id="bk-rec-link" href="#" data-i18n="bk.rec.cta">View book</a>
     </section>
 
     <section class="bk-new" aria-labelledby="bk-new-title">
@@ -241,10 +240,6 @@ window.BOOK_OF_THE_WEEK = {
   blurb: {
     en: "A moving, witty and heartwarming novel about an unlikely friendship between a woman and a very intelligent octopus. It’s a story about loss, connection and finding hope in the most unexpected places. Charming, original and unforgettable.",
     fr: "Un roman émouvant, plein d’esprit et réconfortant sur l’amitié improbable entre une femme et une pieuvre très intelligente. Une histoire de deuil, de liens et d’espoir trouvé là où on l’attend le moins. Charmant, original et inoubliable."
-  },
-  quote: {
-    en: "Some friendships change everything.",
-    fr: "Certaines amitiés changent tout."
   }
 };
 </script>
@@ -419,7 +414,6 @@ window.BOOK_OF_THE_WEEK = {
     document.getElementById('bk-rec-title').textContent = rec.title;
     document.getElementById('bk-rec-author').textContent = rec.author;
     document.getElementById('bk-rec-blurb').textContent = rec.blurb[lang()] || rec.blurb.en;
-    document.getElementById('bk-rec-quote').textContent = '“' + (rec.quote[lang()] || rec.quote.en) + '”';
   }
   if (rec) {
     renderRecText();
