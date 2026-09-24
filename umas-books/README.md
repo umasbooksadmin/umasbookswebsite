@@ -151,9 +151,14 @@ Because `rootDir` is `umas-books`, Render by default only auto-deploys
 when a push changes files inside `umas-books/` — a push that only touches
 the marketing pages at the repo root (`index.html`, `assets/`, …) would be
 silently skipped, even though this service serves those pages too. The
-`buildFilter` in `render.yaml` (paths `"**"`) makes any change in the repo
-trigger a deploy. If a push ever doesn't show up live, use **Manual
-Deploy → Deploy latest commit** in the Render dashboard.
+`buildFilter` in `render.yaml` (paths `"**"`) is meant to make any change in
+the repo trigger a deploy, but Render only applies `render.yaml` edits when
+the Blueprint syncs — in practice a root-only push was still skipped after
+adding it. The reliable fix is one-time, in the Render dashboard: the
+`umas-books` service → **Settings → Build & Deploy → Build Filters** →
+add an included path of `**` (or sync the Blueprint so it picks up
+`render.yaml`). Until then, if a push doesn't show up live, use **Manual
+Deploy → Deploy latest commit**.
 
 Seeding the first admin account is still a one-time manual step (it
 needs a password only you should choose) — via Render's **Shell** tab for
