@@ -2,4 +2,4 @@
 # push that only touches the marketing pages at the repo root is skipped.
 # Until the Render dashboard's Build Filter includes "**" (see README →
 # Deploying to Render), update this line alongside marketing-page changes.
-2026-09-24T09:52:10Z home: terracotta line under the title
+2026-09-24T09:53:55Z books: tighter section spacing

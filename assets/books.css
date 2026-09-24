@@ -193,15 +193,17 @@
 /* ---------- Spacing between sections ----------
    The Books page scrolls (it isn't squeezed onto one screen like Home),
    so each section gets generous room. */
-.bk-top { padding-bottom: 44px; }
-.bk-genres { padding: 8px 0 52px; }
+.bk-top { padding-bottom: 30px; }
+.bk-genres { padding: 6px 0 34px; }
 .bk-rec { margin-top: 0; }
-.bk-new { padding: 60px 0 60px; }
-.bk-new-head { margin-bottom: 18px; }
+.bk-new { padding: 38px 0 40px; }
+.bk-new-head { margin-bottom: 12px; }
 .bk-track .bk-book .t {
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
 .bk-track .bk-book .a { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* a little less space above the footer on this page (browsers without :has keep 56px) */
+body:has(.bk-band) .h-footer { margin-top: 38px; }
 @media (max-width: 760px) {
   .bk-top { padding-bottom: 28px; }
   .bk-genres { padding-bottom: 32px; }
