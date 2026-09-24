@@ -92,8 +92,9 @@
   position: relative; overflow: hidden; margin-top: 12px;
 }
 .h-about .photo { width: 100%; height: 100%; min-height: 320px; object-fit: cover; }
-.h-about-copy { position: relative; padding: 36px 32px 56px; align-self: center; }
-.h-about h2 { font-size: clamp(24px, 2.6vw, 30px); letter-spacing: 0.14em; text-transform: uppercase; }
+/* text starts at the top of the band so the title lines up with the top of the photo */
+.h-about-copy { position: relative; padding: 0 32px 56px; align-self: start; }
+.h-about h2 { font-size: clamp(24px, 2.6vw, 30px); letter-spacing: 0.14em; text-transform: uppercase; line-height: 1.05; margin-top: -0.08em; }
 .h-about .divider { width: 46px; height: 2px; background: var(--maroon); margin: 16px 0 22px; }
 .h-about p { color: var(--ink-soft); margin: 0 0 28px; max-width: 34ch; line-height: 1.3; font-size: 19.5px; }
 .h-about .sprig {
@@ -143,7 +144,7 @@
   /* height 0 + min-height 100%: the photo fills the band without its own
      proportions making the band taller */
   .home-fit .h-about .photo { height: 0; min-height: 100%; }
-  .home-fit .h-about-copy { padding: 0.6vh 32px 0.8vh; }
+  .home-fit .h-about-copy { padding: 0 32px 0.8vh; }
   .home-fit .h-about h2 { font-size: clamp(18px, 2.3vh, 25px); }
   .home-fit .h-about .divider { margin: 0.8vh 0 0.9vh; }
   .home-fit .h-about p { font-size: clamp(14px, 1.7vh, 18px); line-height: 1.2; max-width: 72ch; margin-bottom: 1vh; padding-right: min(120px, 12vh); }
@@ -168,7 +169,7 @@
   .home-fit .h-card .actions { gap: 4px; }
   .home-fit .h-card .actions .h-btn { font-size: 11.5px; padding: 0.7vh 14px; }
   .home-fit .h-card .actions .h-btn-small { font-size: 11px; padding: 0.45vh 10px; }
-  .home-fit .h-about-copy { padding: 0.5vh 28px 0.6vh; }
+  .home-fit .h-about-copy { padding: 0 28px 0.6vh; }
   .home-fit .h-about h2 { font-size: 18px; }
   .home-fit .h-about .divider { margin: 0.7vh 0 0.9vh; }
   .home-fit .h-about p { font-size: 13.5px; line-height: 1.2; margin-bottom: 0.9vh; }
@@ -192,7 +193,7 @@
   .home-fit .h-card .actions .h-btn { font-size: 1.75vh; padding: 0.5vh 12px; }
   .home-fit .h-card .actions .h-btn-small { font-size: 1.65vh; padding: 0.35vh 10px; }
   .home-fit .h-about { margin-top: 2.4vh; }
-  .home-fit .h-about-copy { padding: 0.2vh 24px 0.3vh; }
+  .home-fit .h-about-copy { padding: 0 24px 0.3vh; }
   .home-fit .h-hero-copy { padding-top: 1.8vh; }
   .home-fit .h-about h2 { font-size: 2.6vh; }
   .home-fit .h-about .divider { margin: 0.5vh 0 0.6vh; }
