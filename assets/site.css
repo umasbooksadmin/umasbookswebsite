@@ -478,7 +478,6 @@ body:not(.home) .h-footer { margin-top: 56px; }
    to match on those pages only. */
 @media (min-width: 1025px) and (min-height: 480px) {
   .fit-screen .h-header-row { padding-top: 0.6vh; padding-bottom: 0.4vh; }
-  .fit-screen .h-logo img { width: min(100px, 10.5vh); height: min(100px, 10.5vh); }
   .fit-screen .h-nav { margin-top: 2.4vh; }
   .fit-screen .h-nav a { padding-bottom: 5px; }
   .fit-screen .h-tools { margin-top: 2.4vh; }
@@ -486,7 +485,6 @@ body:not(.home) .h-footer { margin-top: 56px; }
 }
 @media (min-width: 1025px) and (max-width: 1240px) and (min-height: 480px) {
   /* menu on its own row here: shrink the logo and the gaps around it */
-  .fit-screen .h-logo img { width: min(76px, 8.5vh); height: min(76px, 8.5vh); }
   .fit-screen .h-header-row { row-gap: 2px; padding-bottom: 0.6vh; }
   .fit-screen .h-nav a { padding-bottom: 2px; }
 }
@@ -507,7 +505,6 @@ body:not(.home) .h-footer { margin-top: 56px; }
   .fit-screen .h-footer-util { margin-top: 0.2vh; font-size: 12px; }
 }
 @media (min-width: 1025px) and (min-height: 480px) and (max-height: 700px) {
-  .fit-screen .h-logo img { width: 9vh; height: 9vh; }
   .fit-screen .h-nav, .fit-screen .h-tools { margin-top: 1.6vh; }
   .fit-screen .h-nav a { font-size: 2.5vh; padding-bottom: 2px; }
   .fit-screen .h-tool { font-size: 1.7vh; }
@@ -519,7 +516,6 @@ body:not(.home) .h-footer { margin-top: 56px; }
   .fit-screen .h-footer-util { margin-top: 0; font-size: 1.8vh; }
 }
 @media (min-width: 1025px) and (max-width: 1240px) and (min-height: 480px) and (max-height: 700px) {
-  .fit-screen .h-logo img { width: 7.5vh; height: 7.5vh; }
   .fit-screen .h-header-row { padding-bottom: 0.3vh; }
 }
 

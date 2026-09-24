@@ -10,6 +10,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Montserrat:wght@500;600;700&family=Nunito+Sans:wght@400;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/site.css">
 <link rel="stylesheet" href="assets/home.css">
+<link rel="stylesheet" href="assets/blog.css">
 </head>
 <body class="home home-fit fit-screen">
 
@@ -44,7 +45,6 @@
       <h1><span class="line">Uma&rsquo;s Books</span> <span class="line"><span class="amp">&amp;</span> Adventures</span></h1>
       <div class="rule"></div>
       <p class="tagline" data-i18n-html="home.hero.tagline">A community bookshop <br>in Albi, France</p>
-      <a class="h-btn h-btn-lg" href="books.html"><span data-i18n="home.hero.cta">Explore our books</span> <span class="arrow" aria-hidden="true">&rarr;</span></a>
     </div>
   </section>
 
@@ -91,16 +91,21 @@
     </article>
   </section>
 
-  <section class="h-about">
-    <!-- TODO: replace with a real photo of the shop when available -->
-    <img class="photo" src="assets/img/shop-interior.jpg" alt="" data-i18n-attr="alt:home.about.photo">
-    <div class="h-about-copy">
-      <h2 data-i18n="home.about.t">More than a bookstore</h2>
-      <div class="divider"></div>
-      <p data-i18n="home.about.d">Uma&rsquo;s Books &amp; Adventures is a nonprofit association in Albi, France, offering pre-loved English-language books, cultural events, and children&rsquo;s programs. We believe in the power of stories to connect, inspire, and build a kinder, more open world.</p>
-      <a class="h-btn" href="about.html"><span data-i18n="home.about.cta">Our story</span> <span class="arrow" aria-hidden="true">&rarr;</span></a>
+  <section class="wn" aria-labelledby="wn-title">
+    <div class="wn-head">
+      <h2 id="wn-title" data-i18n="home.wn.t">What’s New</h2>
+      <p data-i18n="home.wn.sub">Latest news, upcoming events, book recommendations and more.</p>
     </div>
-    <img class="sprig" src="assets/img/sprig.png" alt="">
+    <div class="wn-carousel" id="home-wn" aria-roledescription="carousel"></div>
+  </section>
+
+  <section class="member-band" aria-labelledby="member-title">
+    <div class="member-inner">
+      <div class="kicker" data-i18n="home.member.kicker">Join our community</div>
+      <h2 id="member-title" data-i18n-html="home.member.t">Become a Member<br>of Our Association</h2>
+      <p data-i18n-html="home.member.d">Members vote on the next charity to donate to,<br>volunteer opportunities, special events and more.</p>
+      <a class="h-btn" href="membership.html"><span data-i18n="home.member.cta">Find out how to sign up here</span> <span class="arrow" aria-hidden="true">&rarr;</span></a>
+    </div>
   </section>
 </main>
 
@@ -122,7 +127,6 @@
 window.PAGE_I18N = {
   en: {
     "home.hero.tagline": "A community bookshop <br>in Albi, France",
-    "home.hero.cta": "Explore our books",
     "home.browse.t": "Browse Books",
     "home.browse.d": "Browse history, fiction, romance, and more English books online to pick up at the store.",
     "home.browse.cta": "Explore books",
@@ -136,13 +140,15 @@ window.PAGE_I18N = {
     "home.events.d": "Book clubs, author talks, storytime, cultural events and more. Join our community!",
     "home.events.cta": "See what’s on",
     "home.about.photo": "Inside the bookshop: a wooden table with books and a jug of greenery, shelves behind",
-    "home.about.t": "More than a bookstore",
-    "home.about.d": "Uma’s Books & Adventures is a nonprofit association in Albi, France, offering pre-loved English-language books, cultural events, and children’s programs. We believe in the power of stories to connect, inspire, and build a kinder, more open world.",
-    "home.about.cta": "Our story",
+    "home.wn.t": "What’s New",
+    "home.wn.sub": "Latest news, upcoming events, book recommendations and more.",
+    "home.member.kicker": "Join our community",
+    "home.member.t": "Become a Member<br>of Our Association",
+    "home.member.d": "Members vote on the next charity to donate to,<br>volunteer opportunities, special events and more.",
+    "home.member.cta": "Find out how to sign up here",
   },
   fr: {
     "home.hero.tagline": "Une librairie associative <br>à Albi, France",
-    "home.hero.cta": "Découvrir nos livres",
     "home.browse.t": "Parcourir les livres",
     "home.browse.d": "Histoire, fiction, romance et bien plus : parcourez nos livres en anglais en ligne et retirez-les en boutique.",
     "home.browse.cta": "Voir les livres",
@@ -156,12 +162,18 @@ window.PAGE_I18N = {
     "home.events.d": "Clubs de lecture, rencontres d’auteurs, heure du conte, événements culturels et plus encore. Rejoignez-nous !",
     "home.events.cta": "Voir le programme",
     "home.about.photo": "L’intérieur de la librairie : une table en bois avec des livres et un pichet de verdure, des étagères derrière",
-    "home.about.t": "Plus qu’une librairie",
-    "home.about.d": "Uma’s Books & Adventures est une association à but non lucratif à Albi qui propose des livres en anglais d’occasion, des événements culturels et des programmes pour enfants. Nous croyons au pouvoir des histoires pour rassembler, inspirer et construire un monde plus bienveillant et plus ouvert.",
-    "home.about.cta": "Notre histoire",
+    "home.wn.t": "Quoi de neuf",
+    "home.wn.sub": "Actualités, événements à venir, coups de cœur et plus encore.",
+    "home.member.kicker": "Rejoignez notre communauté",
+    "home.member.t": "Devenez membre<br>de notre association",
+    "home.member.d": "Les membres votent pour la prochaine association à soutenir,<br>participent au bénévolat, aux événements spéciaux et plus encore.",
+    "home.member.cta": "Découvrir comment adhérer",
   }
 };
 </script>
 <script src="assets/site.js"></script>
+<script src="assets/posts.js"></script>
+<script src="assets/blog.js"></script>
+<script>UmasBlog.carousel(document.getElementById('home-wn'), 5);</script>
 </body>
 </html>

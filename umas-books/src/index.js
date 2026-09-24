@@ -118,7 +118,7 @@ const marketingCsp = [
   "frame-ancestors 'none'",
 ].join("; ");
 const MARKETING_PAGES = [
-  "about.html", "books.html", "classes.html", "events.html",
+  "about.html", "blog.html", "books.html", "classes.html", "events.html",
   "membership.html", "visit.html", "volunteer.html", "wishlist.html",
 ];
 

@@ -45,7 +45,7 @@
 .h-hero .rule { width: 150px; height: 1px; background: var(--maroon); margin: 26px auto 28px; }
 .h-hero .tagline {
   font-size: clamp(16px, 2vw, 22px); letter-spacing: 0.22em; text-transform: uppercase;
-  line-height: 1.55; margin: 0 0 32px;
+  line-height: 1.55; margin: 0;
 }
 @media (max-width: 520px) {
   .h-hero .tagline { letter-spacing: 0.16em; }
@@ -117,11 +117,11 @@
 
   /* Hero */
   /* padding-top keeps a clear gap between the header and the title */
-  .home-fit .h-hero { min-height: 0; height: 24vh; }
+  .home-fit .h-hero { min-height: 0; height: 19vh; }
   .home-fit .h-hero-copy { padding: 2.6vh 24px 0; }
   .home-fit .h-hero h1 { font-size: clamp(26px, 4.8vh, 54px); }
   .home-fit .h-hero .rule { margin: 1.2vh auto 1.3vh; width: 120px; }
-  .home-fit .h-hero .tagline { font-size: clamp(12px, 1.75vh, 18px); margin-bottom: 1.6vh; line-height: 1.3; }
+  .home-fit .h-hero .tagline { font-size: clamp(12px, 1.75vh, 18px); margin-bottom: 0; line-height: 1.3; }
   .home-fit .h-hero .tagline br { display: none; }
   .home-fit .h-btn-lg { font-size: clamp(12px, 1.5vh, 15px); padding: 1.1vh 28px; }
 
@@ -155,10 +155,10 @@
 /* Shorter laptop screens: the minimum text sizes above would add up to a
    little more than one screen, so tighten spacing and type a notch. */
 @media (min-width: 1025px) and (min-height: 480px) and (max-height: 840px) {
-  .home-fit .h-hero { height: 24.5vh; }
+  .home-fit .h-hero { height: 19.5vh; }
   .home-fit .h-hero h1 { font-size: 4.9vh; }
   .home-fit .h-hero .rule { margin: 0.9vh auto 1vh; }
-  .home-fit .h-hero .tagline { font-size: 12px; margin-bottom: 1.2vh; }
+  .home-fit .h-hero .tagline { font-size: 12px; margin-bottom: 0; }
   .home-fit .h-btn-lg { padding: 0.8vh 24px; font-size: 12px; }
   .home-fit .h-cards { padding: 0.4vh 16px 0.6vh; }
   .home-fit .h-card .medallion { margin-bottom: 0.6vh; }
@@ -178,11 +178,11 @@
 /* Very short windows (e.g. 1366×768 laptops, or a scaled Windows display):
    drop the fixed minimum sizes and size text from the window height too. */
 @media (min-width: 1025px) and (min-height: 480px) and (max-height: 700px) {
-  .home-fit .h-hero { height: 22.4vh; }
+  .home-fit .h-hero { height: 17.8vh; }
   .home-fit .h-hero h1 { font-size: 4.4vh; }
   .home-fit .h-hero-copy { padding-top: 2.2vh; }
   .home-fit .h-hero .rule { margin: 0.6vh auto 0.8vh; }
-  .home-fit .h-hero .tagline { font-size: 1.8vh; margin-bottom: 0.9vh; letter-spacing: 0.16em; }
+  .home-fit .h-hero .tagline { font-size: 1.8vh; margin-bottom: 0; letter-spacing: 0.16em; }
   .home-fit .h-btn-lg { font-size: 1.8vh; padding: 0.6vh 20px; }
   .home-fit .h-card .medallion { width: 6.2vh; height: 6.2vh; margin-bottom: 0.4vh; }
   .home-fit .h-card h2 { font-size: 2.6vh; }
@@ -207,4 +207,16 @@
   body.home-fit { display: flex; flex-direction: column; min-height: 100vh; }
   .home-fit main { flex: 1; display: flex; flex-direction: column; }
   .home-fit .h-cards { flex: 1; align-content: center; }
+}
+
+/* ---------- "Become a Member" band ---------- */
+.member-band { width: 100%; max-width: 1240px; margin: 8px auto 0; padding: 0 32px; }
+.member-inner { background: #f6ede3; text-align: center; padding: 30px 24px 36px; }
+.member-band .kicker { font-size: 14px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--maroon); font-weight: 600; }
+.member-band h2 { font-size: clamp(30px, 3vw, 40px); line-height: 1.1; margin: 14px 0 10px; }
+.member-band p { font-size: 20px; line-height: 1.35; margin: 0 auto 22px; max-width: 46ch; }
+@media (max-width: 600px) {
+  .member-band { padding: 0 16px; }
+  .member-band h2 br, .member-band p br { display: none; }
+  .member-band .h-btn { white-space: normal; max-width: 100%; padding-left: 18px; padding-right: 18px; }
 }
