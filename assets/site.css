@@ -522,3 +522,10 @@ body:not(.home) .h-footer { margin-top: 56px; }
   .fit-screen .h-logo img { width: 7.5vh; height: 7.5vh; }
   .fit-screen .h-header-row { padding-bottom: 0.3vh; }
 }
+
+/* White lettering on the dark green buttons: bolder weight and the
+   browser's default smoothing so the thin serif reads as bright white
+   instead of greyish. */
+.btn-maroon, .btn-submit, .h-btn:not(.h-btn-outline), .bk-search button, .btn-outline:hover, .h-btn-outline:hover {
+  font-weight: 700; -webkit-font-smoothing: auto; -moz-osx-font-smoothing: auto;
+}
