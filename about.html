@@ -8,6 +8,16 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Montserrat:wght@500;600;700&family=Nunito+Sans:wght@400;600&family=Italianno&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/site.css">
+<style>
+  .donate-row { display: flex; align-items: center; justify-content: center; gap: 32px; max-width: 720px; margin: 0 auto; padding: 24px 0 0; }
+  .donate-row .donate-img { flex: 0 0 auto; width: 200px; height: auto; border-radius: 4px; }
+  .donate-row .promo-card { flex: 0 1 40ch; }
+  @media (max-width: 600px) {
+    .donate-row { flex-direction: column; gap: 20px; }
+    .donate-row .donate-img { width: 170px; }
+    .donate-row .promo-card { flex-basis: auto; }
+  }
+</style>
 </head>
 <body>
 
@@ -50,7 +60,8 @@
   <div class="section">
     <div class="wrap-narrow">
       <h2 style="text-align:center;" data-i18n="about.involved.title">Get Involved</h2>
-      <div class="promo-grid" style="max-width:40ch; padding:24px 0 0; grid-template-columns:1fr; margin:0 auto;">
+      <div class="donate-row">
+        <img class="donate-img" src="assets/img/book-stack.png" alt="A stack of books titled Fairy Tales, Adventure, Nature, The World, Little Readers and Big Dreams" width="166" height="170">
         <div class="promo-card" id="donate">
           <div class="promo-body">
             <h3 data-i18n="about.donate.t">Donate</h3>
