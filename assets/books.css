@@ -13,6 +13,24 @@
 @media (min-width: 1025px) and (min-height: 480px) {
   .bk-top h1 { font-size: clamp(32px, 6.4vh, 72px); }
 }
+/* Leaf left of the title, flower right. The negative margins keep the
+   pictures from making the title row any taller. */
+.bk-title-row {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.35em;
+  font-size: clamp(36px, 9.5vw, 74px);
+}
+.bk-title-row h1 { font-size: 1em; }
+.bk-deco { width: auto; margin: -0.3em 0; flex: 0 0 auto; }
+.bk-leaf { height: 1.55em; transform: rotate(-8deg); }
+.bk-flower { height: 1.45em; }
+@media (min-width: 1025px) and (min-height: 480px) {
+  .bk-title-row { font-size: clamp(32px, 6.4vh, 72px); }
+}
+@media (max-width: 600px) {
+  .bk-title-row { gap: 0.2em; }
+  .bk-leaf { height: 1.3em; }
+  .bk-flower { height: 1.2em; }
+}
 .bk-search {
   display: flex; max-width: 1020px; margin: 96px auto 0; border: 1px solid #cfcac0; background: var(--panel);
 }
@@ -35,7 +53,7 @@
    through so the logo stays clickable. */
 @media (min-width: 1241px) {
   .bk-top { position: relative; z-index: 6; margin-top: -66px; padding-top: 0; pointer-events: none; }
-  .bk-top h1, .bk-top form { pointer-events: auto; }
+  .bk-top .bk-title-row, .bk-top form { pointer-events: auto; }
   .bk-top h1 { display: inline-block; }
   .bk-search { max-width: min(1020px, calc(100% - 2 * 190px)); margin-top: 120px; }
 }
