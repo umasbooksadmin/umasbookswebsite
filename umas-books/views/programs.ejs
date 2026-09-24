@@ -5,9 +5,9 @@
 
 <div class="card">
   <div class="calendar-nav">
-    <a class="btn btn-outline btn-small" href="/classes?month=<%= prevMonth %>">&larr; Prev</a>
+    <a class="btn btn-outline btn-small" href="/programs?month=<%= prevMonth %>">&larr; Prev</a>
     <span class="month-label"><%= monthLabel %></span>
-    <a class="btn btn-outline btn-small" href="/classes?month=<%= nextMonth %>">Next &rarr;</a>
+    <a class="btn btn-outline btn-small" href="/programs?month=<%= nextMonth %>">Next &rarr;</a>
   </div>
   <div class="calendar-grid">
     <% ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].forEach(d => { %><div class="calendar-weekday"><%= d %></div><% }) %>
@@ -29,7 +29,7 @@
                   </div>
                   <% if (c.description) { %><div class="muted small" style="margin-top:6px;"><%= c.description %></div><% } %>
 
-                  <form class="stack" method="post" action="/classes/<%= c.id %>/signup?month=<%= currentMonth %>" style="margin-top:10px; gap:8px;">
+                  <form class="stack" method="post" action="/programs/<%= c.id %>/signup?month=<%= currentMonth %>" style="margin-top:10px; gap:8px;">
                     <%- include('partials/csrf_field') %>
                     <label for="name-<%= c.id %>">Name</label>
                     <input id="name-<%= c.id %>" name="name" type="text" required<%= full ? ' disabled' : '' %>>

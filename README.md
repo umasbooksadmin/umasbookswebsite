@@ -8,7 +8,7 @@ France.
 
 - `index.html` — Home
 - `books.html` — Books (the collection, + Order Online)
-- `classes.html` — Éveil Classes (the Éveil English Immersion Program, + other classes)
+- `programs.html` — English Programs (the weekly English Immersion Program and drop-in classes)
 - `events.html` — Adventures & Events
 - `about.html` — About Uma's (our story, + Get Involved)
 - `visit.html` — Visit Us

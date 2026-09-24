@@ -19,7 +19,7 @@ const charityRoutes = require("./routes/charity");
 const volunteerRoutes = require("./routes/volunteer");
 const meetingsRoutes = require("./routes/meetings");
 const eventsRoutes = require("./routes/events");
-const classesRoutes = require("./routes/classes");
+const programsRoutes = require("./routes/programs");
 const booksRoutes = require("./routes/books");
 const wishlistRoutes = require("./routes/wishlist");
 const contactRoutes = require("./routes/contact");
@@ -119,7 +119,7 @@ const marketingCsp = [
   "frame-ancestors 'none'",
 ].join("; ");
 const MARKETING_PAGES = [
-  "about.html", "blog.html", "books.html", "classes.html", "events.html",
+  "about.html", "blog.html", "books.html", "events.html", "programs.html",
   "membership.html", "visit.html", "volunteer.html", "wishlist.html",
 ];
 
@@ -131,6 +131,13 @@ app.get("/", (req, res) => {
   res.set("Content-Security-Policy", marketingCsp);
   res.sendFile(path.join(marketingRoot, "index.html"));
 });
+
+// The programs page and calendar used to be called "classes"; send old
+// links and bookmarks to the new addresses.
+const qs = (req) => { const i = req.originalUrl.indexOf("?"); return i === -1 ? "" : req.originalUrl.slice(i); };
+app.get("/classes.html", (req, res) => res.redirect(301, "/programs.html"));
+app.get("/classes", (req, res) => res.redirect(301, "/programs" + qs(req)));
+app.get("/admin/classes", (req, res) => res.redirect(301, "/admin/programs" + qs(req)));
 
 MARKETING_PAGES.forEach((file) => {
   app.get("/" + file, (req, res) => {
@@ -146,7 +153,7 @@ app.use(charityRoutes);
 app.use(volunteerRoutes);
 app.use(meetingsRoutes);
 app.use(eventsRoutes);
-app.use(classesRoutes);
+app.use(programsRoutes);
 app.use(booksRoutes);
 app.use(cartRoutes);
 app.use(wishlistRoutes);

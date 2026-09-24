@@ -6,7 +6,7 @@ const router = express.Router();
 
 // Public — no login required. Anyone can view the calendar and sign up.
 
-router.get("/classes", async (req, res) => {
+router.get("/programs", async (req, res) => {
   const { year, month } = parseMonthParam(req.query.month);
   const { start, end } = monthRange(year, month);
 
@@ -17,14 +17,14 @@ router.get("/classes", async (req, res) => {
   );
 
   const weeks = monthGrid(year, month, groupByDate(classes, "starts_at"));
-  res.render("classes", { weeks, ...monthNav(year, month) });
+  res.render("programs", { weeks, ...monthNav(year, month) });
 });
 
-router.post("/classes/:id/signup", async (req, res) => {
+router.post("/programs/:id/signup", async (req, res) => {
   const classId = Number(req.params.id);
   const name = (req.body.name || "").trim();
   const email = (req.body.email || "").trim().toLowerCase();
-  const redirectUrl = req.query.month ? `/classes?month=${req.query.month}` : "/classes";
+  const redirectUrl = req.query.month ? `/programs?month=${req.query.month}` : "/programs";
 
   if (!name || !email) return res.redirect(redirectUrl);
 

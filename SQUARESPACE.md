@@ -3,7 +3,7 @@
 > **⚠ Stale as of the multi-page redesign.** Everything below describes how
 > the *old single-page* `index.html` was pasted into one Squarespace Code
 > Block. The site is now nine separate HTML files (`index.html`,
-> `books.html`, `classes.html`, `events.html`, `about.html`, `visit.html`,
+> `books.html`, `programs.html`, `events.html`, `about.html`, `visit.html`,
 > `volunteer.html`, `wishlist.html`, `membership.html`) plus a shared
 > `assets/site.css` / `assets/site.js` — **a single Code Block can only ever
 > hold one page**, so this workflow no longer covers the whole site as-is.
