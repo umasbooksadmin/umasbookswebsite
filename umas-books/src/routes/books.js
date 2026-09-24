@@ -134,7 +134,8 @@ router.get("/api/books/search", async (req, res) => {
     params.push(q.replace(/[^0-9Xx]/g, ""));
     const isbn = params.length;
     clauses.push(
-      `(b.title ILIKE $${n} OR b.authors ILIKE $${n} OR b.categories ILIKE $${n}` +
+      // title, author, keyword (the book's description) or genre (categories)
+      `(b.title ILIKE $${n} OR b.authors ILIKE $${n} OR b.description ILIKE $${n} OR b.categories ILIKE $${n}` +
         ` OR ($${isbn} <> '' AND length($${isbn}) >= 10 AND regexp_replace(COALESCE(b.isbn, ''), '[^0-9Xx]', '', 'g') = $${isbn}))`
     );
   }
