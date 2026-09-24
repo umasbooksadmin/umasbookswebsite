@@ -61,6 +61,13 @@ router.get("/api/books/latest-arrivals", async (req, res) => {
   // reads independently of CORS unless relaxed here too.
   res.set("Access-Control-Allow-Origin", "*");
   res.set("Cross-Origin-Resource-Policy", "cross-origin");
+  // ?limit= (1–24, default 8) and ?days= (default 7; 0 = no time window,
+  // i.e. simply the newest in-stock books — used by the Books page's
+  // "New In" shelf so it's never empty during a quiet week).
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 8, 1), 24);
+  const daysParam = parseInt(req.query.days, 10);
+  const days = Number.isInteger(daysParam) && daysParam >= 0 ? Math.min(daysParam, 365) : 7;
+  const windowClause = days > 0 ? "AND c.created_at >= now() - make_interval(days => $2)" : "";
   const { rows } = await pool.query(
     `SELECT b.id, b.title, b.authors, b.cover_url,
             (SELECT MIN(price) FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock') AS min_price,
@@ -68,10 +75,11 @@ router.get("/api/books/latest-arrivals", async (req, res) => {
      FROM books b
      WHERE EXISTS (
        SELECT 1 FROM book_copies c
-       WHERE c.book_id = b.id AND c.status = 'in_stock' AND c.created_at >= now() - interval '7 days'
+       WHERE c.book_id = b.id AND c.status = 'in_stock' ${windowClause}
      )
      ORDER BY newest_copy_at DESC
-     LIMIT 8`
+     LIMIT $1`,
+    days > 0 ? [limit, days] : [limit]
   );
   res.json(
     rows.map((b) => ({
@@ -109,16 +117,37 @@ router.get("/api/books/search", async (req, res) => {
   res.set("Cross-Origin-Resource-Policy", "cross-origin");
   const q = (req.query.q || "").trim();
   const genre = (req.query.genre || "").trim();
+  // ?topic=mystery,thriller,crime — the Books page's fixed genre buttons.
+  // Matches any in-stock book whose categories contain one of the words,
+  // since real inventory categories are free text (from ISBN lookups).
+  const topics = String(req.query.topic || "")
+    .split(",")
+    .map((t) => t.trim())
+    .filter(Boolean)
+    .slice(0, 10);
 
   const clauses = ["c.status = 'in_stock'"];
   const params = [];
   if (q) {
     params.push(`%${q}%`);
-    clauses.push(`(b.title ILIKE $${params.length} OR b.authors ILIKE $${params.length})`);
+    const n = params.length;
+    params.push(q.replace(/[^0-9Xx]/g, ""));
+    const isbn = params.length;
+    clauses.push(
+      `(b.title ILIKE $${n} OR b.authors ILIKE $${n} OR b.categories ILIKE $${n}` +
+        ` OR ($${isbn} <> '' AND length($${isbn}) >= 10 AND regexp_replace(COALESCE(b.isbn, ''), '[^0-9Xx]', '', 'g') = $${isbn}))`
+    );
   }
   if (genre) {
     params.push(genre);
     clauses.push(`b.categories = $${params.length}`);
+  }
+  if (topics.length) {
+    const ors = topics.map((t) => {
+      params.push(`%${t}%`);
+      return `b.categories ILIKE $${params.length}`;
+    });
+    clauses.push(`(${ors.join(" OR ")})`);
   }
 
   const { rows } = await pool.query(

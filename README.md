@@ -24,6 +24,9 @@ France.
   header and footer. The site is light-only (no dark theme) because the
   botanical artwork is painted for a pale background.
 - `assets/home.css` — Home-page-only styles (hero, feature cards, About band)
+- `assets/books.css` — Books-page-only styles. To change the
+  "Recommendation of the week", edit the `BOOK_OF_THE_WEEK` block near the
+  bottom of `books.html` (title, author, ISBN, stars, EN/FR blurb and quote).
 - `assets/img/` — Home-page artwork (hero botanicals, card medallions,
   shop-interior photo, leaf sprig), cropped from the design mockup
 - `assets/site.js` — shared language toggle (EN/FR) + mailto-form wiring;

@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Montserrat:wght@500;600;700&family=Italianno&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/site.css">
+<link rel="stylesheet" href="assets/books.css">
 </head>
 <body>
 
@@ -44,30 +45,87 @@
 </header>
 
 <main>
-  <div class="page-hero">
-    <span class="kicker" data-i18n="books.kicker">The Collection</span>
-    <h1 data-i18n="books.title">Browse Books</h1>
+  <div class="bk-wrap">
+    <section class="bk-top">
+      <h1 data-i18n="bk.title">Browse books.</h1>
+      <form class="bk-search" id="shop-search-form" role="search">
+        <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg></span>
+        <input type="search" id="shop-search-input" data-i18n-attr="placeholder:bk.search.ph;aria-label:bk.search.ph" placeholder="Search by title, author, keyword, or ISBN…" aria-label="Search by title, author, keyword, or ISBN">
+        <button type="submit" data-i18n="bk.search.submit">Search</button>
+      </form>
+    </section>
+
+    <section class="bk-genres" aria-labelledby="bk-genres-label">
+      <h2 class="label" id="bk-genres-label" data-i18n-html="bk.genres.label">Browse <br>by Genre</h2>
+      <div class="bk-genre-list" id="bk-genre-list"></div>
+    </section>
+
+    <section class="bk-results" id="bk-results" hidden aria-live="polite">
+      <div class="bk-results-head">
+        <h2 id="bk-results-title"></h2>
+        <button type="button" class="bk-link-btn" id="bk-results-clear" data-i18n="bk.results.clear">Clear ×</button>
+      </div>
+      <div class="bk-grid" id="bk-results-grid"></div>
+    </section>
   </div>
 
-  <div class="section">
-    <div class="wrap-narrow">
-      <h2 style="text-align:center;" data-i18n="order.title">Buy Online</h2>
-      <div class="prose" style="margin-top:14px;">
-        <p data-i18n="order.intro">Search what's in stock right now &mdash; buy online and pick up in the shop, or come by in person.</p>
+  <div class="bk-wrap">
+    <section class="bk-rec" aria-labelledby="bk-rec-title">
+      <div id="bk-rec-cover-slot"></div>
+      <div>
+        <div class="kicker" data-i18n="bk.rec.kicker">Our recommendation of the week</div>
+        <h2 id="bk-rec-title"></h2>
+        <div class="author" id="bk-rec-author"></div>
+        <div class="stars" id="bk-rec-stars"></div>
+        <p class="blurb" id="bk-rec-blurb"></p>
+        <a class="btn btn-maroon" id="bk-rec-link" href="#" data-i18n="bk.rec.cta">View book</a>
       </div>
-      <form class="shop-search" id="shop-search-form">
-        <input type="text" id="shop-search-input" data-i18n-attr="placeholder:order.search.placeholder" placeholder="Search title or author&hellip;">
-        <button type="submit" class="btn btn-maroon" data-i18n="order.search.submit">Search</button>
-      </form>
-      <div class="category-grid" id="shop-genres" style="margin-top:28px;"></div>
-      <div class="shop-results-grid" id="shop-results">
-        <p class="muted" data-i18n="order.prompt">Search above or browse by genre to see what's in stock.</p>
+      <p class="quote" id="bk-rec-quote"></p>
+    </section>
+
+    <section class="bk-new" aria-labelledby="bk-new-title">
+      <div class="bk-new-head">
+        <h2 id="bk-new-title" data-i18n="bk.new.title">New In</h2>
+        <span class="sub" data-i18n="bk.new.sub">Fresh arrivals, new adventures.</span>
+        <button type="button" class="bk-link-btn" id="bk-new-all"><span data-i18n="bk.new.all">See All New In</span> &rarr;</button>
       </div>
-      <div class="note-box" data-i18n-html="order.contact.note">
-        Questions about an order? Email us at <a href="mailto:admin@umasbooks.org">admin@umasbooks.org</a>.
+      <div class="bk-carousel">
+        <button type="button" class="arrow" id="bk-new-prev" data-i18n-attr="aria-label:bk.prev" aria-label="Previous"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4 7 12l8 8"/></svg></button>
+        <div class="bk-track" id="bk-new-track">
+          <p class="muted" data-i18n="bk.loading">Loading books…</p>
+        </div>
+        <button type="button" class="arrow" id="bk-new-next" data-i18n-attr="aria-label:bk.next" aria-label="Next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 4 8 8-8 8"/></svg></button>
+      </div>
+    </section>
+  </div>
+
+  <section class="bk-band">
+    <div class="bk-band-row">
+      <div class="bk-band-item">
+        <span class="badge" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15L6 16z"/><path d="M10 20.5a2 2 0 0 0 4 0"/><path d="M12 3v2"/></svg></span>
+        <div>
+          <h3 data-i18n="bk.band.alert.t">Find Something Specific?</h3>
+          <p data-i18n="bk.band.alert.d">Get notified when a book, author or topic you love arrives in the shop.</p>
+        </div>
+        <a class="btn btn-outline" href="wishlist.html" data-i18n="bk.band.alert.cta">Set an alert</a>
+      </div>
+      <div class="bk-band-item">
+        <span class="badge light" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 20C5 11 10 5 20 4c-.5 9-6.5 14-15 16z"/><path d="M5 20 14 11"/><path d="M9 16H6.5"/><path d="M12 13V9.5"/><path d="M12 13h3.5"/></svg></span>
+        <div>
+          <h3 data-i18n="bk.band.purpose.t">A Bookshop with a Bigger Purpose</h3>
+          <p data-i18n="bk.band.purpose.d">All profits go back into the bookstore to fund more events, books and a local charity chosen quarterly.</p>
+        </div>
+      </div>
+      <div class="bk-band-item">
+        <span class="badge" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M12 6.5C10.2 5.2 7.6 4.5 4 4.5v14c3.6 0 6.2.7 8 2 1.8-1.3 4.4-2 8-2v-14c-3.6 0-6.2.7-8 2z"/><path d="M12 6.5v14"/></svg></span>
+        <div>
+          <h3 data-i18n="bk.band.donate.t">Donate Books</h3>
+          <p data-i18n="bk.band.donate.d">Give your pre-loved books a new chapter. Help us grow our collection and support our community.</p>
+        </div>
+        <a class="btn btn-outline" href="about.html#donate" data-i18n="bk.band.donate.cta">Learn more</a>
       </div>
     </div>
-  </div>
+  </section>
 </main>
 
 <footer class="h-footer">
@@ -97,32 +155,115 @@
 <script>
 window.PAGE_I18N = {
   en: {
-    "books.kicker": "The Collection",
-    "books.title": "Browse Books",
-    "order.title": "Buy Online",
-    "order.intro": "Search what's in stock right now — buy online and pick up in the shop, or come by in person.",
-    "order.search.placeholder": "Search title or author…",
-    "order.search.submit": "Search",
-    "order.prompt": "Search above or browse by genre to see what's in stock.",
-    "order.loading": "Loading books…",
-    "order.empty": "No books match that search.",
-    "order.allgenres": "All Genres",
-    "order.error": "Couldn't load books right now — try again in a moment.",
-    "order.contact.note": "Questions about an order? Email us at <a href=\"mailto:admin@umasbooks.org\">admin@umasbooks.org</a>."
+    "bk.title": "Browse books.",
+    "bk.search.ph": "Search by title, author, keyword, or ISBN…",
+    "bk.search.submit": "Search",
+    "bk.genres.label": "Browse <br>by Genre",
+    "bk.results.clear": "Clear ×",
+    "bk.results.for": "Results for “{q}”",
+    "bk.results.new": "New In",
+    "bk.results.all": "All Genres",
+    "bk.rec.kicker": "Our recommendation of the week",
+    "bk.rec.cta": "View book",
+    "bk.new.title": "New In",
+    "bk.new.sub": "Fresh arrivals, new adventures.",
+    "bk.new.all": "See All New In",
+    "bk.new.empty": "New arrivals are on their way — check back soon.",
+    "bk.prev": "Previous",
+    "bk.next": "Next",
+    "bk.loading": "Loading books…",
+    "bk.empty": "No books match that search — try another word, or set an alert and we'll let you know when it arrives.",
+    "bk.error": "Couldn't load books right now — try again in a moment.",
+    "bk.nocover": "No cover",
+    "bk.fav": "Favorite",
+    "bk.band.alert.t": "Find Something Specific?",
+    "bk.band.alert.d": "Get notified when a book, author or topic you love arrives in the shop.",
+    "bk.band.alert.cta": "Set an alert",
+    "bk.band.purpose.t": "A Bookshop with a Bigger Purpose",
+    "bk.band.purpose.d": "All profits go back into the bookstore to fund more events, books and a local charity chosen quarterly.",
+    "bk.band.donate.t": "Donate Books",
+    "bk.band.donate.d": "Give your pre-loved books a new chapter. Help us grow our collection and support our community.",
+    "bk.band.donate.cta": "Learn more",
+    "g.fiction": "Fiction",
+    "g.children": "Children's Books",
+    "g.ya": "Young Adult",
+    "g.nonfiction": "Non-Fiction",
+    "g.classics": "Classics",
+    "g.mystery": "Mystery & Thriller",
+    "g.romance": "Romance",
+    "g.biography": "Biography & Memoir",
+    "g.health": "Health & Wellness",
+    "g.arts": "Arts & Crafts",
+    "g.travel": "Travel",
+    "g.food": "Food & Drink",
+    "g.home": "Home & Garden",
+    "g.all": "All Genres"
   },
   fr: {
-    "books.kicker": "La collection",
-    "books.title": "Parcourir les livres",
-    "order.title": "Acheter en ligne",
-    "order.intro": "Recherchez ce qui est en stock en ce moment — achetez en ligne et récupérez en boutique, ou passez nous voir.",
-    "order.search.placeholder": "Rechercher un titre ou un auteur…",
-    "order.search.submit": "Rechercher",
-    "order.prompt": "Recherchez ci-dessus ou parcourez par genre pour voir ce qui est en stock.",
-    "order.loading": "Chargement des livres…",
-    "order.empty": "Aucun livre ne correspond à cette recherche.",
-    "order.allgenres": "Tous les genres",
-    "order.error": "Impossible de charger les livres pour le moment — réessayez dans un instant.",
-    "order.contact.note": "Une question sur une commande ? Écrivez-nous à <a href=\"mailto:admin@umasbooks.org\">admin@umasbooks.org</a>."
+    "bk.title": "Parcourir les livres.",
+    "bk.search.ph": "Rechercher par titre, auteur, mot-clé ou ISBN…",
+    "bk.search.submit": "Rechercher",
+    "bk.genres.label": "Parcourir <br>par genre",
+    "bk.results.clear": "Effacer ×",
+    "bk.results.for": "Résultats pour « {q} »",
+    "bk.results.new": "Nouveautés",
+    "bk.results.all": "Tous les genres",
+    "bk.rec.kicker": "Notre coup de cœur de la semaine",
+    "bk.rec.cta": "Voir le livre",
+    "bk.new.title": "Nouveautés",
+    "bk.new.sub": "Nouveaux arrivages, nouvelles aventures.",
+    "bk.new.all": "Voir toutes les nouveautés",
+    "bk.new.empty": "De nouveaux livres arrivent bientôt — revenez vite.",
+    "bk.prev": "Précédent",
+    "bk.next": "Suivant",
+    "bk.loading": "Chargement des livres…",
+    "bk.empty": "Aucun livre ne correspond — essayez un autre mot, ou créez une alerte et nous vous préviendrons de son arrivée.",
+    "bk.error": "Impossible de charger les livres pour le moment — réessayez dans un instant.",
+    "bk.nocover": "Pas de couverture",
+    "bk.fav": "Favori",
+    "bk.band.alert.t": "Vous cherchez quelque chose de précis ?",
+    "bk.band.alert.d": "Soyez prévenu·e quand un livre, un auteur ou un sujet que vous aimez arrive en boutique.",
+    "bk.band.alert.cta": "Créer une alerte",
+    "bk.band.purpose.t": "Une librairie avec une vraie mission",
+    "bk.band.purpose.d": "Tous les bénéfices sont réinvestis dans la librairie pour financer des événements, des livres et une association locale choisie chaque trimestre.",
+    "bk.band.donate.t": "Donner des livres",
+    "bk.band.donate.d": "Offrez un nouveau chapitre à vos livres. Aidez-nous à enrichir notre collection et à soutenir notre communauté.",
+    "bk.band.donate.cta": "En savoir plus",
+    "g.fiction": "Fiction",
+    "g.children": "Jeunesse",
+    "g.ya": "Young Adult",
+    "g.nonfiction": "Documentaires",
+    "g.classics": "Classiques",
+    "g.mystery": "Polar & Thriller",
+    "g.romance": "Romance",
+    "g.biography": "Biographies & Mémoires",
+    "g.health": "Santé & Bien-être",
+    "g.arts": "Arts & Loisirs créatifs",
+    "g.travel": "Voyage",
+    "g.food": "Cuisine & Boissons",
+    "g.home": "Maison & Jardin",
+    "g.all": "Tous les genres"
+  }
+};
+
+// ---------------------------------------------------------------------
+// Recommendation of the week — edit this block to change the pick.
+// "isbn" is used to find the book in our inventory (for its "View book"
+// link and cover); if it isn't in stock, the button searches for the
+// title instead and the cover comes from Open Library.
+// ---------------------------------------------------------------------
+window.BOOK_OF_THE_WEEK = {
+  title: "Remarkably Bright Creatures",
+  author: "Shelby Van Pelt",
+  isbn: "9780063204157",
+  stars: 5,
+  blurb: {
+    en: "A moving, witty and heartwarming novel about an unlikely friendship between a woman and a very intelligent octopus. It’s a story about loss, connection and finding hope in the most unexpected places. Charming, original and unforgettable.",
+    fr: "Un roman émouvant, plein d’esprit et réconfortant sur l’amitié improbable entre une femme et une pieuvre très intelligente. Une histoire de deuil, de liens et d’espoir trouvé là où on l’attend le moins. Charmant, original et inoubliable."
+  },
+  quote: {
+    en: "Some friendships change everything.",
+    fr: "Certaines amitiés changent tout."
   }
 };
 </script>
@@ -130,130 +271,213 @@ window.PAGE_I18N = {
 <script src="favorites.js"></script>
 <script>
 (function () {
-  var results = document.getElementById('shop-results');
-  if (!results) return;
-  var form = document.getElementById('shop-search-form');
-  var input = document.getElementById('shop-search-input');
+  var API = 'https://umas-books.onrender.com/api/books';
 
+  function lang() {
+    try { return localStorage.getItem('umasbooks.lang') === 'fr' ? 'fr' : 'en'; } catch (e) { return 'en'; }
+  }
+  function t(key, fallback) {
+    var dict = (window.PAGE_I18N && window.PAGE_I18N[lang()]) || {};
+    return dict[key] || fallback || key;
+  }
   function esc(s) {
-    return String(s || '').replace(/[&<>"']/g, function (c) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
     });
   }
 
-  function i18nText(key, fallback) {
-    var lang = (window.localStorage && localStorage.getItem('umasbooks.lang')) || 'en';
-    var dict = (window.PAGE_I18N && window.PAGE_I18N[lang]) || {};
-    return dict[key] || fallback;
-  }
-
-  // Render's free tier sleeps after inactivity and briefly returns an
-  // error (or a slow response) while it wakes back up — retry once
-  // before showing the error state, same as the other API-backed
-  // sections on this site.
-  function loadBooks(q, genre, isRetry) {
-    var url = 'https://umas-books.onrender.com/api/books/search?q=' + encodeURIComponent(q);
-    if (genre) url += '&genre=' + encodeURIComponent(genre);
+  // Render's free tier sleeps after inactivity and briefly errors (or is
+  // slow) while it wakes up — retry once after a few seconds.
+  function getJSON(url, cb, isRetry) {
     fetch(url)
-      .then(function (res) {
-        if (!res.ok) throw new Error('bad response');
-        return res.json();
-      })
-      .then(function (books) {
-        if (!books.length) {
-          results.innerHTML = '<p class="muted">' + esc(i18nText('order.empty', 'No books match that search.')) + '</p>';
-          return;
-        }
-        results.innerHTML = books.map(function (b) {
-          var cover = b.coverUrl
-            ? '<img src="' + esc(b.coverUrl) + '" alt="" class="arrival-cover">'
-            : '<div class="arrival-cover arrival-cover-placeholder">No cover</div>';
-          var price = b.price != null ? '€' + Number(b.price).toFixed(2) : '';
-          var meta = [b.author, price].filter(Boolean).join(' · ');
-          return '<div class="arrival-card-wrap">' +
-            '<button type="button" class="favorite-toggle" data-book-id="' + b.id + '" aria-pressed="false" aria-label="Favorite">' +
-              '<svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 20s-7-4.4-9.5-8.8C.8 7.8 2.4 4.5 5.8 4c2-.3 3.7.7 4.8 2.4L12 8l1.4-1.6C14.5 4.7 16.2 3.7 18.2 4c3.4.5 5 3.8 3.3 7.2C19 15.6 12 20 12 20z"/></svg>' +
-            '</button>' +
-            '<a class="arrival-card" href="' + esc(b.url) + '">' + cover +
-              '<div class="arrival-title">' + esc(b.title) + '</div>' +
-              '<div class="arrival-meta">' + esc(meta) + '</div>' +
-            '</a>' +
-          '</div>';
-        }).join('');
-        if (window.UmasFavorites) {
-          results.querySelectorAll('.favorite-toggle').forEach(window.UmasFavorites.sync);
-        }
-      })
-      .catch(function () {
-        if (!isRetry) {
-          setTimeout(function () { loadBooks(q, genre, true); }, 4000);
-          return;
-        }
-        results.innerHTML = '<p class="muted">' + esc(i18nText('order.error', "Couldn't load books right now.")) + '</p>';
+      .then(function (res) { if (!res.ok) throw new Error('bad response'); return res.json(); })
+      .then(function (data) { cb(null, data); })
+      .catch(function (err) {
+        if (!isRetry) { setTimeout(function () { getJSON(url, cb, true); }, 4000); return; }
+        cb(err);
       });
   }
 
-  // Genre chips, same icon set as the homepage's "Browse by Genre" —
-  // matched by keyword against whatever real inventory categories exist,
-  // with a generic book icon fallback for anything else.
-  var genresEl = document.getElementById('shop-genres');
-  var CHIP_DEFS = [
-    { test: /child/i, bg: '#dceaf5', svg: '<path d="M9 10c-1-3 0-6 1.5-6S12 7 11.5 10"/><path d="M15 10c1-3 0-6-1.5-6S12 7 12.5 10"/><circle cx="12" cy="15" r="5.5"/><circle cx="10" cy="14" r=".8" fill="currentColor" stroke="none"/><circle cx="14" cy="14" r=".8" fill="currentColor" stroke="none"/><path d="M11 16.8q1 .9 2 0"/>' },
-    { test: /fiction(?!.*non)/i, bg: '#f7ded9', svg: '<path d="M4 6.5c2.2 0 4.4.7 6 2 1.6-1.3 3.8-2 6-2v10.5c-2.2 0-4.4.7-6 2-1.6-1.3-3.8-2-6-2V6.5z"/><path d="M10 8.5v10"/><path d="M17.3 3.2l.5 1.1 1.2.2-.9.8.2 1.2-1-.6-1 .6.2-1.2-.9-.8 1.2-.2.5-1.1z" fill="currentColor" stroke="none"/>' },
-    { test: /non.?fiction/i, bg: '#e8e3f2', svg: '<ellipse cx="12" cy="13.5" rx="6" ry="6.2"/><path d="M7.5 8.5 9 5.5"/><path d="M16.5 8.5 15 5.5"/><circle cx="9.3" cy="12.5" r="2"/><circle cx="14.7" cy="12.5" r="2"/><circle cx="9.3" cy="12.5" r=".5" fill="currentColor" stroke="none"/><circle cx="14.7" cy="12.5" r=".5" fill="currentColor" stroke="none"/><path d="M12 14.5 10.9 15.9h2.2L12 14.5z" fill="currentColor" stroke="none"/>' },
-    { test: /garden/i, bg: '#e1eedd', svg: '<path d="M8.5 17h7l-.8 3.5h-5.4L8.5 17z"/><path d="M12 17V9.5"/><path d="M12 13.5c-2-.2-3.3-1.7-3.3-3.8 2 0 3.7 1 4 3.3"/><path d="M12 12.8c2-.2 3.3-1.7 3.3-3.6-2 0-3.6 1-3.9 3.1"/><circle cx="12" cy="6.3" r="3"/>' },
-    { test: /cook|recipe/i, bg: '#f3ecd9', svg: '<path d="M5.5 12h13v4.5a3 3 0 0 1-3 3h-7a3 3 0 0 1-3-3V12z"/><path d="M4.5 12h15"/><path d="M4.5 12 3 13.3"/><path d="M19.5 12 21 13.3"/><path d="M12 4.2c-.6-.9-1.9-.9-2.2 0-.3.8.5 1.6 2.2 3 1.7-1.4 2.5-2.2 2.2-3-.3-.9-1.6-.9-2.2 0z" fill="currentColor" stroke="none"/>' },
+  var HEART = '<svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 20s-7-4.4-9.5-8.8C.8 7.8 2.4 4.5 5.8 4c2-.3 3.7.7 4.8 2.4L12 8l1.4-1.6C14.5 4.7 16.2 3.7 18.2 4c3.4.5 5 3.8 3.3 7.2C19 15.6 12 20 12 20z"/></svg>';
+
+  function bookCard(b, withFavorite) {
+    var cover = b.coverUrl
+      ? '<img class="cover" src="' + esc(b.coverUrl) + '" alt="" loading="lazy">'
+      : '<div class="cover cover-none">' + esc(t('bk.nocover', 'No cover')) + '</div>';
+    var price = b.price != null ? '€' + Number(b.price).toFixed(2) : '';
+    var fav = withFavorite
+      ? '<button type="button" class="favorite-toggle" data-book-id="' + esc(b.id) + '" aria-pressed="false" aria-label="' + esc(t('bk.fav', 'Favorite')) + '">' + HEART + '</button>'
+      : '';
+    return '<div class="bk-book">' + fav +
+      '<a href="' + esc(b.url) + '">' + cover +
+        '<div class="t">' + esc(b.title) + '</div>' +
+        (b.author ? '<div class="a">' + esc(b.author) + '</div>' : '') +
+        (price ? '<div class="p">' + esc(price) + '</div>' : '') +
+      '</a></div>';
+  }
+  // A cover URL that 404s shows the "No cover" placeholder instead of a blank box.
+  document.addEventListener('error', function (e) {
+    var img = e.target;
+    if (!img || img.tagName !== 'IMG' || !img.classList.contains('cover')) return;
+    var ph = document.createElement('div');
+    ph.className = 'cover cover-none';
+    ph.textContent = t('bk.nocover', 'No cover');
+    img.replaceWith(ph);
+  }, true);
+
+  function syncFavorites(root) {
+    if (window.UmasFavorites) root.querySelectorAll('.favorite-toggle').forEach(window.UmasFavorites.sync);
+  }
+
+  // ---------------- Genres ----------------
+  // Fixed buttons; "topic" words are matched against each book's free-text
+  // categories (from ISBN lookups) by /api/books/search?topic=.
+  var I = 'viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"';
+  var GENRES = [
+    { key: 'g.fiction', bg: '#f7dcdc', fg: '#a65347', topic: 'fiction', svg: '<path d="M12 6.5C10.2 5.2 7.6 4.5 4 4.5v14c3.6 0 6.2.7 8 2 1.8-1.3 4.4-2 8-2v-14c-3.6 0-6.2.7-8 2z"/><path d="M12 6.5v14"/><path d="M6.5 8.5c1.5 0 2.8.3 3.8.8M6.5 11.5c1.5 0 2.8.3 3.8.8M17.5 8.5c-1.5 0-2.8.3-3.8.8M17.5 11.5c-1.5 0-2.8.3-3.8.8"/>' },
+    { key: 'g.children', bg: '#e0ebdc', fg: '#2b2a26', topic: 'juvenile,child,picture book,baby', svg: '<path d="M4 18h12"/><path d="M5 18c-1-2-1-4 .5-5.5"/><path d="M15 18c1-2 1-4-.5-5.5"/><path d="M6 13h8.5c1.5 0 2.5-1 2.5-2.5V8.5l2-1.5-2-1-1.2-1.5c-.8 1-1.8 1.5-3 1.5H9c-2 0-3 1.5-3 3.5V13z"/><path d="M8 13l-.5 5M13 13l.5 5"/><circle cx="15" cy="7.2" r=".5" fill="currentColor" stroke="none"/>' },
+    { key: 'g.ya', bg: '#f4e4d2', fg: '#a65347', topic: 'young adult', svg: '<path d="M6 20c1-7 5-12 13-15-1 8-6 12-13 15z"/><path d="M6 20 15 9"/><path d="M9.5 15.5H7M11.5 13v-2.5M11.5 13H14M14 10V8"/>' },
+    { key: 'g.nonfiction', bg: '#dbe8f0', fg: '#2b2a26', topic: 'nonfiction,non-fiction,history,science,social science,political,philosophy,psychology,business,education,true crime,nature,religion,language', svg: '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17"/><path d="M12 3.5c2.5 2.3 3.8 5.2 3.8 8.5s-1.3 6.2-3.8 8.5c-2.5-2.3-3.8-5.2-3.8-8.5S9.5 5.8 12 3.5z"/>' },
+    { key: 'g.classics', bg: '#f3d6d1', fg: '#a65347', topic: 'classic', svg: '<path d="M4 7.5h14.5a1.5 1.5 0 0 1 0 3H4z"/><path d="M5 10.5h13a1.5 1.5 0 0 1 0 3H5z"/><path d="M4 13.5h14.5a1.5 1.5 0 0 1 0 3H4z"/><path d="M5 16.5h13a1.5 1.5 0 0 1 0 3H5z"/><path d="M6 4.5h12a1.5 1.5 0 0 1 0 3H6z"/>' },
+    { key: 'g.mystery', bg: '#e0ebdc', fg: '#2b2a26', topic: 'mystery,thriller,suspense,crime,detective', svg: '<circle cx="10" cy="10" r="6"/><path d="M14.5 14.5 20 20"/><path d="M7 9.5a3 3 0 0 1 3-3"/>' },
+    { key: 'g.romance', bg: '#f7dcdc', fg: '#a65347', topic: 'romance,love', svg: '<path d="M12 20s-7.5-4.6-9.5-9.3C1.2 7.3 3.3 4.5 6.3 4.5c2 0 3.8 1.3 5.7 3.5 1.9-2.2 3.7-3.5 5.7-3.5 3 0 5.1 2.8 3.8 6.2C19.5 15.4 12 20 12 20z"/>' },
+    { key: 'g.biography', bg: '#f7dfe2', fg: '#a65347', topic: 'biography,memoir,autobiography', svg: '<circle cx="12" cy="7.5" r="2.6"/><circle cx="6" cy="9" r="2.1"/><circle cx="18" cy="9" r="2.1"/><path d="M7.5 19.5c0-3 2-5.3 4.5-5.3s4.5 2.3 4.5 5.3"/><path d="M2.5 18.5c0-2.4 1.5-4.3 3.5-4.3 1 0 1.8.4 2.4 1"/><path d="M21.5 18.5c0-2.4-1.5-4.3-3.5-4.3-1 0-1.8.4-2.4 1"/>' },
+    { key: 'g.health', bg: '#e0ebdc', fg: '#43523a', topic: 'health,fitness,wellness,self-help,mind,body', svg: '<path d="M12 18c-2-2-3-4.5-3-7.5S10 5 12 3.5c2 1.5 3 4 3 7s-1 5.5-3 7.5z"/><path d="M12 18c-3.5 0-6.5-2-8-5 2-.8 4.3-.7 6 .5"/><path d="M12 18c3.5 0 6.5-2 8-5-2-.8-4.3-.7-6 .5"/><path d="M4 18.5h16"/>' },
+    { key: 'g.arts', bg: '#f4e4d2', fg: '#a65347', topic: 'arts,crafts,hobbies,design,music,photography,antiques,performing', svg: '<path d="M12 3.5c-4.8 0-8.5 3.6-8.5 8.2 0 4.2 3.2 7.8 7.2 7.8 1.3 0 1.8-.8 1.8-1.6 0-1.3-1-1.6-1-2.7 0-1 .8-1.7 1.8-1.7h2.2c2.7 0 4.9-2 4.9-4.6C20.4 6.5 16.8 3.5 12 3.5z"/><circle cx="7.8" cy="11" r="1.2"/><circle cx="10" cy="7.3" r="1.2"/><circle cx="14.5" cy="7.3" r="1.2"/><circle cx="17" cy="10.8" r="1.1"/>' },
+    { key: 'g.travel', bg: '#dbe8f0', fg: '#2b2a26', topic: 'travel', svg: '<circle cx="12" cy="12" r="8.5"/><path d="M7 5.5c.5 2 2.2 2.5 3 3.8.8 1.4-.4 2.3.8 3.4 1 1 2.6.2 3.2 1.6.4 1-.6 2.4-.4 3.6"/><path d="M15.5 4.5c-.6 1.3.2 2.3 1.4 2.6 1.3.3 2.5 1 3 2.2"/><path d="M4 13c1.5.2 2.6 1 3 2.5.3 1.2 0 2.5.8 3.5"/>' },
+    { key: 'g.food', bg: '#f7dede', fg: '#a65347', topic: 'cooking,food,drink,wine,recipe,baking', svg: '<path d="M7 13.5V20h10v-6.5"/><path d="M7 13.5a4 4 0 0 1-.7-7.9A4.5 4.5 0 0 1 12 3.5a4.5 4.5 0 0 1 5.7 2.1 4 4 0 0 1-.7 7.9z"/><path d="M7 17h10"/>' },
+    { key: 'g.home', bg: '#e0ebdc', fg: '#2b2a26', topic: 'gardening,garden,house,home,interior', svg: '<path d="M3.5 11 12 4l8.5 7"/><path d="M5.5 9.5V20h13V9.5"/><path d="M10 20v-5.5h4V20"/><path d="M9 11h6"/>' },
+    { key: 'g.all', bg: '#f6e6d4', fg: '#a65347', topic: '', svg: '<path d="m12 3.5 2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/>' }
   ];
-  var FALLBACK = { bg: '#eee3d4', svg: '<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H19v15.5a1 1 0 0 1-1 1H6.5A2.5 2.5 0 0 1 4 17V5.5z"/><path d="M4 17a2.5 2.5 0 0 1 2.5-2.5H19"/>' };
-  function chipFor(g) {
-    for (var i = 0; i < CHIP_DEFS.length; i++) if (CHIP_DEFS[i].test.test(g)) return CHIP_DEFS[i];
-    return FALLBACK;
+
+  var genreList = document.getElementById('bk-genre-list');
+  genreList.innerHTML = GENRES.map(function (g, i) {
+    return '<button type="button" class="bk-genre" data-index="' + i + '">' +
+      '<span class="chip" style="background:' + g.bg + ';color:' + g.fg + '"><svg ' + I + ' aria-hidden="true">' + g.svg + '</svg></span>' +
+      '<span data-i18n="' + g.key + '">' + esc(t(g.key)) + '</span></button>';
+  }).join('');
+
+  // ---------------- Results ----------------
+  var resultsEl = document.getElementById('bk-results');
+  var resultsTitle = document.getElementById('bk-results-title');
+  var resultsGrid = document.getElementById('bk-results-grid');
+  var form = document.getElementById('shop-search-form');
+  var input = document.getElementById('shop-search-input');
+  var lastTitle = null; // { key, q } so the heading re-translates on language switch
+
+  function setActiveGenre(index) {
+    genreList.querySelectorAll('.bk-genre').forEach(function (el) {
+      var on = String(index) === el.getAttribute('data-index');
+      el.classList.toggle('is-active', on);
+      el.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
   }
-
-  var currentGenre = '';
-
-  function setActiveChip(genre) {
-    genresEl.querySelectorAll('.category-item').forEach(function (el) {
-      el.classList.toggle('is-active', el.getAttribute('data-genre') === genre);
+  function renderTitle() {
+    if (!lastTitle) return;
+    resultsTitle.textContent = lastTitle.q != null
+      ? t('bk.results.for', 'Results for “{q}”').replace('{q}', lastTitle.q)
+      : t(lastTitle.key);
+  }
+  function showResults(url, title) {
+    lastTitle = title;
+    renderTitle();
+    resultsEl.hidden = false;
+    resultsGrid.innerHTML = '<p class="muted">' + esc(t('bk.loading', 'Loading books…')) + '</p>';
+    resultsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    getJSON(url, function (err, books) {
+      if (err) { resultsGrid.innerHTML = '<p class="muted">' + esc(t('bk.error')) + '</p>'; return; }
+      if (!books.length) { resultsGrid.innerHTML = '<p class="muted">' + esc(t('bk.empty')) + '</p>'; return; }
+      resultsGrid.innerHTML = books.map(function (b) { return bookCard(b, true); }).join('');
+      syncFavorites(resultsGrid);
     });
   }
 
-  function runSearch(q, genre) {
-    currentGenre = genre || '';
-    setActiveChip(currentGenre);
-    results.innerHTML = '<p class="muted">' + esc(i18nText('order.loading', 'Loading books…')) + '</p>';
-    loadBooks(q, currentGenre, false);
+  genreList.addEventListener('click', function (e) {
+    var btn = e.target.closest('.bk-genre');
+    if (!btn) return;
+    var g = GENRES[Number(btn.getAttribute('data-index'))];
+    input.value = '';
+    setActiveGenre(btn.getAttribute('data-index'));
+    showResults(API + '/search?q=' + (g.topic ? '&topic=' + encodeURIComponent(g.topic) : ''), { key: g.key });
+  });
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var q = input.value.trim();
+    if (!q) { input.focus(); return; }
+    setActiveGenre(null);
+    showResults(API + '/search?q=' + encodeURIComponent(q), { q: q });
+  });
+
+  document.getElementById('bk-results-clear').addEventListener('click', function () {
+    resultsEl.hidden = true;
+    resultsGrid.innerHTML = '';
+    lastTitle = null;
+    input.value = '';
+    setActiveGenre(null);
+  });
+
+  document.getElementById('bk-new-all').addEventListener('click', function () {
+    input.value = '';
+    setActiveGenre(null);
+    showResults(API + '/latest-arrivals?days=0&limit=24', { key: 'bk.results.new' });
+  });
+
+  // ---------------- Recommendation of the week ----------------
+  var rec = window.BOOK_OF_THE_WEEK;
+  var recLink = document.getElementById('bk-rec-link');
+  var recCoverSlot = document.getElementById('bk-rec-cover-slot');
+  function setRecCover(src) {
+    recCoverSlot.innerHTML = src
+      ? '<img class="rec-cover" src="' + esc(src) + '" alt="' + esc(rec.title) + '">'
+      : '<div class="rec-cover cover-none">' + esc(rec.title) + '</div>';
+    var img = recCoverSlot.querySelector('img');
+    if (img) img.addEventListener('error', function () { setRecCover(null); }, { once: true });
   }
-
-  fetch('https://umas-books.onrender.com/api/books/genres')
-    .then(function (res) { return res.ok ? res.json() : []; })
-    .then(function (genres) {
-      if (!genres.length) return;
-      var allChip = '<div class="category-item is-active" data-genre="">' +
-        '<span class="chip" style="background:#eee3d4;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round">' + FALLBACK.svg + '</svg></span>' +
-        '<span>' + esc(i18nText('order.allgenres', 'All Genres')) + '</span></div>';
-      var chips = genres.map(function (g) {
-        var c = chipFor(g);
-        return '<div class="category-item" data-genre="' + esc(g) + '">' +
-          '<span class="chip" style="background:' + c.bg + ';"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round">' + c.svg + '</svg></span>' +
-          '<span>' + esc(g) + '</span></div>';
-      }).join('');
-      genresEl.innerHTML = allChip + chips;
-      genresEl.querySelectorAll('.category-item').forEach(function (el) {
-        el.addEventListener('click', function () {
-          input.value = '';
-          runSearch('', el.getAttribute('data-genre'));
-        });
-      });
-    })
-    .catch(function () {});
-
-  if (form) {
-    form.addEventListener('submit', function (e) {
+  function renderRecText() {
+    document.getElementById('bk-rec-title').textContent = rec.title;
+    document.getElementById('bk-rec-author').textContent = rec.author;
+    document.getElementById('bk-rec-blurb').textContent = rec.blurb[lang()] || rec.blurb.en;
+    document.getElementById('bk-rec-quote').textContent = '“' + (rec.quote[lang()] || rec.quote.en) + '”';
+  }
+  if (rec) {
+    renderRecText();
+    var n = Math.max(0, Math.min(5, rec.stars || 0));
+    var star = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="m12 2.8 2.8 5.8 6.3.9-4.6 4.4 1.1 6.3L12 17.2l-5.6 3 1.1-6.3-4.6-4.4 6.3-.9z"/></svg>';
+    var starsEl = document.getElementById('bk-rec-stars');
+    starsEl.innerHTML = new Array(n + 1).join(star);
+    starsEl.setAttribute('role', 'img');
+    starsEl.setAttribute('aria-label', n + ' / 5');
+    setRecCover(rec.isbn ? 'https://covers.openlibrary.org/b/isbn/' + encodeURIComponent(rec.isbn) + '-L.jpg?default=false' : null);
+    recLink.addEventListener('click', function (e) {
+      if (recLink.getAttribute('href') !== '#') return; // in stock: go to its page
       e.preventDefault();
-      runSearch(input.value.trim(), '');
+      input.value = rec.title;
+      setActiveGenre(null);
+      showResults(API + '/search?q=' + encodeURIComponent(rec.title), { q: rec.title });
+    });
+    getJSON(API + '/search?q=' + encodeURIComponent(rec.isbn || rec.title), function (err, books) {
+      if (err || !books.length) return;
+      recLink.setAttribute('href', books[0].url);
+      if (books[0].coverUrl) setRecCover(books[0].coverUrl);
     });
   }
+
+  // ---------------- New In ----------------
+  var track = document.getElementById('bk-new-track');
+  getJSON(API + '/latest-arrivals?days=0&limit=12', function (err, books) {
+    if (err) { track.innerHTML = '<p class="muted">' + esc(t('bk.error')) + '</p>'; return; }
+    if (!books.length) { track.innerHTML = '<p class="muted">' + esc(t('bk.new.empty')) + '</p>'; return; }
+    track.innerHTML = books.map(function (b) { return bookCard(b, false); }).join('');
+  });
+  function page(dir) { track.scrollBy({ left: dir * track.clientWidth * 0.8, behavior: 'smooth' }); }
+  document.getElementById('bk-new-prev').addEventListener('click', function () { page(-1); });
+  document.getElementById('bk-new-next').addEventListener('click', function () { page(1); });
+
+  // Re-render the JS-built text when the language toggle is used.
+  document.querySelectorAll('.langtoggle button').forEach(function (b) {
+    b.addEventListener('click', function () { setTimeout(function () { renderTitle(); if (rec) renderRecText(); }, 0); });
+  });
 })();
 </script>
 </body>
