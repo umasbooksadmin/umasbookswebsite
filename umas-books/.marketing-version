@@ -1,0 +1,5 @@
+# Render only redeploys when files under umas-books/ change (rootDir), so a
+# push that only touches the marketing pages at the repo root is skipped.
+# Until the Render dashboard's Build Filter includes "**" (see README →
+# Deploying to Render), update this line alongside marketing-page changes.
+2026-09-24T09:07:14Z home: gap between cards and the About band

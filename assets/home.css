@@ -127,7 +127,7 @@
   /* Four cards */
   .home-fit .h-cards { padding: 0.8vh 16px 0.4vh; }
   .home-fit .h-card { padding: 0.6vh 20px 0; }
-  .home-fit .h-card .medallion { width: min(104px, 8.2vh); height: min(104px, 8.2vh); margin-bottom: 0.9vh; }
+  .home-fit .h-card .medallion { width: min(96px, 7.4vh); height: min(96px, 7.4vh); margin-bottom: 0.8vh; }
   .home-fit .h-card h2 { font-size: clamp(17px, 2.3vh, 24px); }
   .home-fit .h-card .subtitle { font-size: clamp(11px, 1.3vh, 13px); margin-top: 1px; }
   .home-fit .h-card .divider { margin: 1vh auto 1.1vh; }
@@ -138,15 +138,16 @@
   .home-fit .h-card .actions .h-btn-small { font-size: clamp(11px, 1.3vh, 13px); padding: 0.55vh 12px; letter-spacing: 0.06em; }
 
   /* About band */
-  .home-fit .h-about { margin-top: 0; min-height: 20vh; grid-template-columns: 50% 1fr; }
+  /* margin-top: a clear gap between the cards and the photo band */
+  .home-fit .h-about { margin-top: 3vh; min-height: 18vh; grid-template-columns: 50% 1fr; }
   /* height 0 + min-height 100%: the photo fills the band without its own
      proportions making the band taller */
   .home-fit .h-about .photo { height: 0; min-height: 100%; }
-  .home-fit .h-about-copy { padding: 1.2vh 32px 1.4vh; }
-  .home-fit .h-about h2 { font-size: clamp(18px, 2.5vh, 26px); }
-  .home-fit .h-about .divider { margin: 1vh 0 1.2vh; }
-  .home-fit .h-about p { font-size: clamp(14px, 1.75vh, 18px); line-height: 1.25; max-width: 68ch; margin-bottom: 1.2vh; padding-right: min(120px, 12vh); }
-  .home-fit .h-about .h-btn { font-size: clamp(11.5px, 1.4vh, 14px); padding: 0.9vh 22px; }
+  .home-fit .h-about-copy { padding: 0.6vh 32px 0.8vh; }
+  .home-fit .h-about h2 { font-size: clamp(18px, 2.3vh, 25px); }
+  .home-fit .h-about .divider { margin: 0.8vh 0 0.9vh; }
+  .home-fit .h-about p { font-size: clamp(14px, 1.7vh, 18px); line-height: 1.2; max-width: 72ch; margin-bottom: 1vh; padding-right: min(120px, 12vh); }
+  .home-fit .h-about .h-btn { font-size: clamp(11.5px, 1.4vh, 14px); padding: 0.75vh 22px; }
   .home-fit .h-about .sprig { width: min(180px, 16vh); }
 
 }
@@ -167,7 +168,7 @@
   .home-fit .h-card .actions { gap: 4px; }
   .home-fit .h-card .actions .h-btn { font-size: 11.5px; padding: 0.7vh 14px; }
   .home-fit .h-card .actions .h-btn-small { font-size: 11px; padding: 0.45vh 10px; }
-  .home-fit .h-about-copy { padding: 0.9vh 28px 1vh; }
+  .home-fit .h-about-copy { padding: 0.5vh 28px 0.6vh; }
   .home-fit .h-about h2 { font-size: 18px; }
   .home-fit .h-about .divider { margin: 0.7vh 0 0.9vh; }
   .home-fit .h-about p { font-size: 13.5px; line-height: 1.2; margin-bottom: 0.9vh; }
@@ -182,7 +183,7 @@
   .home-fit .h-hero .rule { margin: 0.6vh auto 0.8vh; }
   .home-fit .h-hero .tagline { font-size: 1.8vh; margin-bottom: 0.9vh; letter-spacing: 0.16em; }
   .home-fit .h-btn-lg { font-size: 1.8vh; padding: 0.6vh 20px; }
-  .home-fit .h-card .medallion { width: 7vh; height: 7vh; margin-bottom: 0.4vh; }
+  .home-fit .h-card .medallion { width: 6.2vh; height: 6.2vh; margin-bottom: 0.4vh; }
   .home-fit .h-card h2 { font-size: 2.6vh; }
   .home-fit .h-card .subtitle { font-size: 1.6vh; }
   .home-fit .h-card .divider { margin: 0.5vh auto 0.6vh; }
@@ -190,9 +191,11 @@
   .home-fit .h-card .actions { gap: 3px; }
   .home-fit .h-card .actions .h-btn { font-size: 1.75vh; padding: 0.5vh 12px; }
   .home-fit .h-card .actions .h-btn-small { font-size: 1.65vh; padding: 0.35vh 10px; }
-  .home-fit .h-about-copy { padding: 0.6vh 24px 0.8vh; }
+  .home-fit .h-about { margin-top: 2.4vh; }
+  .home-fit .h-about-copy { padding: 0.2vh 24px 0.3vh; }
+  .home-fit .h-hero-copy { padding-top: 1.8vh; }
   .home-fit .h-about h2 { font-size: 2.6vh; }
   .home-fit .h-about .divider { margin: 0.5vh 0 0.6vh; }
-  .home-fit .h-about p { font-size: 2.05vh; line-height: 1.18; margin-bottom: 0.7vh; }
+  .home-fit .h-about p { font-size: 2vh; line-height: 1.15; margin-bottom: 0.6vh; }
   .home-fit .h-about .h-btn { font-size: 1.75vh; padding: 0.5vh 16px; }
 }
