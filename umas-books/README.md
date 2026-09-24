@@ -147,6 +147,14 @@ works on free tier and is safe because every migration file is written
 to be idempotent, so re-running the whole set on every boot — including
 free-tier spin-down/wake cycles — is harmless.)
 
+Because `rootDir` is `umas-books`, Render by default only auto-deploys
+when a push changes files inside `umas-books/` — a push that only touches
+the marketing pages at the repo root (`index.html`, `assets/`, …) would be
+silently skipped, even though this service serves those pages too. The
+`buildFilter` in `render.yaml` (paths `"**"`) makes any change in the repo
+trigger a deploy. If a push ever doesn't show up live, use **Manual
+Deploy → Deploy latest commit** in the Render dashboard.
+
 Seeding the first admin account is still a one-time manual step (it
 needs a password only you should choose) — via Render's **Shell** tab for
 the service, or by pointing `DATABASE_URL` at the production database

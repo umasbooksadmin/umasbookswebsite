@@ -12,6 +12,12 @@ services:
     plan: free
     region: frankfurt
     rootDir: umas-books
+    # rootDir alone makes Render auto-deploy only when umas-books/ changes,
+    # but this service also serves the marketing pages at the repo root
+    # (index.html, assets/, …) — deploy on changes anywhere in the repo.
+    buildFilter:
+      paths:
+        - "**"
     buildCommand: npm install
     startCommand: npm run migrate && npm start
     envVars:

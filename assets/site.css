@@ -465,7 +465,7 @@ body:not(.home) .h-footer { margin-top: 56px; }
    Home and Browse Books size themselves to fit one desktop screen (see
    home.css / books.css); these rules shrink the shared header and footer
    to match on those pages only. */
-@media (min-width: 1025px) and (min-height: 600px) {
+@media (min-width: 1025px) and (min-height: 480px) {
   .fit-screen .h-header-row { padding-top: 0.6vh; padding-bottom: 0.4vh; }
   .fit-screen .h-logo img { width: min(100px, 10.5vh); height: min(100px, 10.5vh); }
   .fit-screen .h-nav { margin-top: 2.2vh; }
@@ -473,20 +473,20 @@ body:not(.home) .h-footer { margin-top: 56px; }
   .fit-screen .h-tools { margin-top: 1vh; }
   .fit-screen .h-tool svg { width: min(28px, 3.2vh); height: min(28px, 3.2vh); }
 }
-@media (min-width: 1025px) and (max-width: 1240px) and (min-height: 600px) {
+@media (min-width: 1025px) and (max-width: 1240px) and (min-height: 480px) {
   /* menu on its own row here: shrink the logo and the gaps around it */
   .fit-screen .h-logo img { width: min(76px, 8.5vh); height: min(76px, 8.5vh); }
   .fit-screen .h-header-row { row-gap: 2px; padding-bottom: 0.6vh; }
   .fit-screen .h-nav a { padding-bottom: 2px; }
 }
-@media (min-width: 1025px) and (min-height: 600px) {
+@media (min-width: 1025px) and (min-height: 480px) {
   body.fit-screen .h-footer { margin-top: 1vh; padding-bottom: 1vh; }
   .fit-screen .h-footer-row { padding-top: 1vh; }
   .fit-screen .h-footer li { font-size: clamp(11.5px, 1.4vh, 14px); }
   .fit-screen .h-social svg { width: 20px; height: 20px; }
   .fit-screen .h-footer-util { margin-top: 0.5vh; font-size: clamp(12px, 1.45vh, 15px); }
 }
-@media (min-width: 1025px) and (min-height: 600px) and (max-height: 840px) {
+@media (min-width: 1025px) and (min-height: 480px) and (max-height: 840px) {
   .fit-screen .h-header-row { padding-top: 0.3vh; padding-bottom: 0; }
   .fit-screen .h-nav { margin-top: 1.6vh; }
   .fit-screen .h-tool { font-size: 12px; gap: 2px; }
@@ -494,4 +494,22 @@ body:not(.home) .h-footer { margin-top: 56px; }
   .fit-screen .h-footer-row { padding-top: 0.7vh; }
   .fit-screen .h-footer li { font-size: 11.5px; }
   .fit-screen .h-footer-util { margin-top: 0.2vh; font-size: 12px; }
+}
+@media (min-width: 1025px) and (min-height: 480px) and (max-height: 700px) {
+  .fit-screen .h-logo img { width: 9vh; height: 9vh; }
+  .fit-screen .h-nav { margin-top: 1.2vh; }
+  .fit-screen .h-nav a { font-size: 2.5vh; padding-bottom: 2px; }
+  .fit-screen .h-tools { margin-top: 0.6vh; }
+  .fit-screen .h-tool { font-size: 1.8vh; }
+  .fit-screen .h-tool svg { width: 3.4vh; height: 3.4vh; }
+  body.fit-screen .h-footer { margin-top: 0.4vh; padding-bottom: 0.4vh; }
+  .fit-screen .h-footer-row { padding-top: 0.5vh; gap: 10px; }
+  .fit-screen .h-footer li { font-size: 1.75vh; }
+  .fit-screen .h-social svg { width: 2.8vh; height: 2.8vh; }
+  .fit-screen .h-footer-util { margin-top: 0; font-size: 1.8vh; }
+}
+@media (min-width: 1025px) and (max-width: 1240px) and (min-height: 480px) and (max-height: 700px) {
+  .fit-screen .h-logo img { width: 7.5vh; height: 7.5vh; }
+  .fit-screen .h-header-row { padding-bottom: 0.3vh; }
+  .fit-screen .h-nav { margin-top: 0; }
 }
