@@ -199,3 +199,11 @@
   .home-fit .h-about p { font-size: 2vh; line-height: 1.15; margin-bottom: 0.6vh; }
   .home-fit .h-about .h-btn { font-size: 1.75vh; padding: 0.5vh 16px; }
 }
+/* When the content is shorter than the screen, let the cards row absorb the
+   spare height (split evenly above and below it) so the footer still sits
+   at the bottom of the window instead of leaving a blank strip. */
+@media (min-width: 1025px) and (min-height: 480px) {
+  body.home-fit { display: flex; flex-direction: column; min-height: 100vh; }
+  .home-fit main { flex: 1; display: flex; flex-direction: column; }
+  .home-fit .h-cards { flex: 1; align-content: center; }
+}

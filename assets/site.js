@@ -1,9 +1,9 @@
 (function () {
   var COMMON = {
     en: {
-      "nav.books": "Browse Books",
-      "nav.programs": "English Programs",
-      "nav.events": "Events & Adventures",
+      "nav.books": "Browse",
+      "nav.programs": "Programs",
+      "nav.events": "Events",
       "nav.about": "About",
       "nav.visit": "Visit Us",
       "tool.favorites": "Favorites",
@@ -16,7 +16,7 @@
       "foot.community": "Community",
       "foot.english": "English",
       "foot.creativity": "Creativity",
-      "foot.contact": "Contact",
+      "foot.contact": "Contact Us",
       "foot.visit": "Visit Us",
       "foot.volunteer": "Volunteer",
       "foot.membership": "Membership",
@@ -24,9 +24,9 @@
       "foot.favorites": "Favorites"
     },
     fr: {
-      "nav.books": "Parcourir les livres",
-      "nav.programs": "Programmes d’anglais",
-      "nav.events": "Événements & Aventures",
+      "nav.books": "Parcourir",
+      "nav.programs": "Programmes",
+      "nav.events": "Événements",
       "nav.about": "À propos",
       "nav.visit": "Nous rendre visite",
       "tool.favorites": "Favoris",
@@ -39,7 +39,7 @@
       "foot.community": "Communauté",
       "foot.english": "Anglais",
       "foot.creativity": "Créativité",
-      "foot.contact": "Contact",
+      "foot.contact": "Nous contacter",
       "foot.visit": "Nous rendre visite",
       "foot.volunteer": "Bénévolat",
       "foot.membership": "Adhésion",
