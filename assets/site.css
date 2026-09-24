@@ -55,6 +55,9 @@ img { max-width: 100%; display: block; }
 /* Wordmark logo on the left, sans-serif nav, labelled icon tools on the
    right. */
 .h-header { background: var(--cream); position: relative; z-index: 5; }
+/* white space between the header and the page below it */
+.h-header { padding-bottom: 32px; }
+@media (max-width: 900px) { .h-header { padding-bottom: 18px; } }
 .h-header-row {
   max-width: 1480px; margin: 0 auto; padding: 8px 32px 4px;
   display: flex; align-items: flex-start; gap: 36px;

@@ -19,7 +19,7 @@
   display: inline-flex; align-items: center; justify-content: center; gap: 1.1em;
   font-size: clamp(36px, 9.5vw, 74px);
 }
-.bk-title-row h1 { font-size: 1em; }
+.bk-title-row h1 { font-size: 1em; position: relative; top: 0.4em; } /* title sits lower than the leaf and flower */
 .bk-deco { width: auto; margin: -0.3em 0; flex: 0 0 auto; }
 .bk-leaf { height: 1.55em; transform: rotate(-8deg); }
 .bk-flower { height: 1.45em; }
