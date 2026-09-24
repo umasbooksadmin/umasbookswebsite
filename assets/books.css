@@ -151,7 +151,7 @@
 .bk-carousel .arrow svg { width: 26px; height: 26px; }
 .bk-carousel .arrow:hover { color: var(--maroon); }
 .bk-track {
-  flex: 1; min-width: 0; display: flex; gap: 34px; overflow-x: auto; scroll-snap-type: x mandatory;
+  flex: 1; min-width: 0; display: flex; gap: 44px; overflow-x: auto; scroll-snap-type: x mandatory;
   scroll-behavior: smooth; padding: 8px 4px 6px; scrollbar-width: none;
 }
 .bk-track::-webkit-scrollbar { display: none; }
@@ -159,7 +159,7 @@
 .bk-track .muted { color: var(--ink-soft); }
 @media (max-width: 620px) {
   .bk-carousel .arrow { display: none; }
-  .bk-track { gap: 20px; }
+  .bk-track { gap: 28px; }
   .bk-track .bk-book { flex-basis: 120px; }
   .bk-new-head h2 { font-size: 34px; }
 }
@@ -362,7 +362,7 @@
   /* one line each for title and author in the New In row */
   .books-fit .bk-track .bk-book .t { -webkit-line-clamp: 1; }
   /* each book gets a slot wider than its cover so titles have room */
-  .books-fit .bk-track { gap: 1.4vw; }
+  .books-fit .bk-track { gap: max(40px, 3.2vw); }
   .books-fit .bk-track .bk-book { flex-basis: max(92px, 11vh); }
   .books-fit .bk-track .bk-book .cover { width: max(62px, 7.6vh); }
   .books-fit .bk-rec { padding-top: 0.8vh; padding-bottom: 0.8vh; }
