@@ -4,7 +4,7 @@
    Keep in sync by hand with assets/site.css if those sections change. */
 
 header.mkt-header, footer.mkt-footer {
-  --cream: #fffefb; --ink: #2b2a26; --ink-soft: #55524b; --maroon: #a65347; --line: #e4e0d8;
+  --cream: #fffefb; --ink: #000; --ink-soft: #000; --maroon: #a65347; --line: #e4e0d8;
   font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; color: var(--ink);
 }
 header.mkt-header { margin-bottom: 32px; }
