@@ -52,16 +52,15 @@ img { max-width: 100%; display: block; }
 .wrap-narrow { max-width: 800px; margin: 0 auto; padding: 0 28px; }
 
 /* ---------- Header ---------- */
-/* Stamp logo on the left, sans-serif nav, labelled icon tools on the
-   right. The header's lower half is left open beside the logo so a page
-   can tuck its title up into it (see .bk-top in books.css). */
+/* Wordmark logo on the left, sans-serif nav, labelled icon tools on the
+   right. */
 .h-header { background: var(--cream); position: relative; z-index: 5; }
 .h-header-row {
   max-width: 1480px; margin: 0 auto; padding: 8px 32px 4px;
   display: flex; align-items: flex-start; gap: 36px;
 }
 .h-logo { flex: 0 0 auto; display: block; line-height: 0; }
-.h-logo img { width: 150px; height: 150px; }
+.h-logo img { width: 240px; height: auto; margin-top: 14px; }
 .h-nav {
   /* nav and tools share the same top offset so the menu sits on the same
      line as the icons */
@@ -99,7 +98,7 @@ img { max-width: 100%; display: block; }
   .h-nav { gap: 26px; padding-left: 0; }
   .h-nav a { font-size: 16px; }
   .h-tools { gap: 16px; }
-  .h-logo img { width: 128px; height: 128px; }
+  .h-logo img { width: 220px; }
 }
 @media (max-width: 1180px) {
   .h-header-row { gap: 18px; }
@@ -107,19 +106,19 @@ img { max-width: 100%; display: block; }
   .h-nav a { font-size: 15px; }
   .h-tools { gap: 12px; }
   .h-tool { font-size: 11px; }
-  .h-logo img { width: 104px; height: 104px; }
+  .h-logo img { width: 190px; }
 }
 @media (max-width: 900px) {
   /* Nav drops to its own row under the logo + tools. */
   .h-header-row { flex-wrap: wrap; align-items: center; gap: 12px 24px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
-  .h-logo img { width: 96px; height: 96px; }
+  .h-logo img { width: 170px; margin-top: 0; }
   .h-tools { margin: 0 0 0 auto; }
   .h-nav { order: 3; width: 100%; justify-content: center; flex-wrap: wrap; margin: 0; padding: 0; gap: 10px 30px; }
   .h-nav a { padding-bottom: 4px; }
 }
 @media (max-width: 640px) {
   .h-header-row { padding: 8px 16px 8px; gap: 8px 14px; }
-  .h-logo img { width: 72px; height: 72px; }
+  .h-logo img { width: 112px; }
   .h-tools { gap: 14px; }
   .h-tool span.label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .h-tool svg { width: 22px; height: 22px; }
