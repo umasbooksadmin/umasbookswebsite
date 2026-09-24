@@ -1,50 +1,91 @@
-/* Header shared with the marketing site (assets/site.css), scoped under
-   .mkt-header so it can't collide with this app's own header.site / .wrap
-   / .btn rules used throughout the rest of every page. Keep in sync by
-   hand with assets/site.css's "Header" section if that one changes. */
+/* Header + footer shared with the marketing site (assets/site.css
+   "Header" / "Footer" sections), scoped under .mkt-header / .mkt-footer so
+   they can't collide with this app's own header.site / .wrap / .btn rules.
+   Keep in sync by hand with assets/site.css if those sections change. */
 
-header.mkt-header { padding: 0; margin-bottom: 32px; }
-.mkt-header .nav-row {
-  max-width: 1180px; margin: 0 auto; padding: 18px 28px;
-  display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap;
+header.mkt-header, footer.mkt-footer {
+  --cream: #fffefb; --ink: #2b2a26; --ink-soft: #55524b; --maroon: #a65347; --line: #e4e0d8;
+  font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; color: var(--ink);
 }
-.mkt-header .brandmark { display: flex; align-items: center; gap: 12px; text-decoration: none; flex: 0 0 auto; }
-.mkt-header .brandmark img { height: 58px; width: auto; }
-.mkt-header .brandmark .brand-text { display: flex; flex-direction: column; line-height: 1.15; }
-.mkt-header .brandmark .brand-name {
-  font-family: 'Cormorant Garamond', serif; font-weight: 700; font-size: 22px; color: var(--green);
-  letter-spacing: 0.01em;
-}
-.mkt-header .brandmark .brand-tag {
-  font-family: 'Montserrat', sans-serif; font-size: 10px; letter-spacing: 0.14em; color: var(--ink-soft);
-  font-variant: small-caps; font-weight: 600;
-}
-.mkt-header nav.mainlinks { display: flex; flex-wrap: wrap; gap: 26px; }
-.mkt-header nav.mainlinks a {
-  font-family: 'Montserrat', sans-serif; color: var(--ink); text-decoration: none; font-size: 14px;
-  font-weight: 500; letter-spacing: 0.02em; border-bottom: 1px solid transparent; padding-bottom: 2px;
-}
-.mkt-header nav.mainlinks a:hover { color: var(--maroon); border-bottom-color: var(--maroon); }
-.mkt-header .header-tools { display: flex; align-items: center; gap: 16px; }
-.mkt-header .langtoggle { display: inline-flex; align-items: center; gap: 5px; margin-right: 4px; }
-.mkt-header .langtoggle button {
-  background: none; border: 0; cursor: pointer; padding: 2px 3px;
-  font-family: 'Montserrat', sans-serif; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; color: var(--ink-soft);
-  border-bottom: 1px solid transparent; line-height: 1;
-}
-.mkt-header .langtoggle button:hover { color: var(--maroon); }
-.mkt-header .langtoggle button.is-active { color: var(--maroon); border-bottom-color: var(--maroon); font-weight: 600; }
-.mkt-header .langtoggle span { color: var(--line); font-size: 12px; }
+header.mkt-header { margin-bottom: 32px; }
+header.mkt-header a:hover, footer.mkt-footer a:hover { text-decoration: none; }
 
-@media (max-width: 860px) {
-  .mkt-header nav.mainlinks { order: 3; width: 100%; justify-content: center; gap: 16px 22px; }
-  .mkt-header .nav-row { padding: 14px 20px; }
+/* ---------- Header ---------- */
+header.mkt-header { background: var(--cream); border-bottom: 1px solid var(--line); }
+header.mkt-header .h-header-row {
+  max-width: 1240px; margin: 0 auto; padding: 14px 32px;
+  display: flex; align-items: center; gap: 28px; flex-wrap: wrap;
 }
-@media (max-width: 600px) {
-  /* Keep the header-tools (Log In/Out + language toggle) anchored
-     top-right next to the logo instead of wrapping below it. */
-  .mkt-header .brandmark .brand-tag { display: none; }
-  .mkt-header .header-tools { gap: 10px; }
-  .mkt-header .langtoggle { margin-right: 0; }
-  .mkt-header .header-tools .btn { padding: 8px 14px; font-size: 12px; }
+header.mkt-header .h-wordmark {
+  display: inline-flex; flex-direction: column; align-items: center; text-decoration: none;
+  border: 1px solid var(--ink); padding: 7px 18px 5px; color: var(--ink); line-height: 1.1;
 }
+header.mkt-header .h-wordmark .name { font-size: 20px; letter-spacing: 0.08em; text-transform: uppercase; white-space: nowrap; }
+header.mkt-header .h-wordmark .place { font-size: 10.5px; letter-spacing: 0.28em; text-transform: uppercase; margin-top: 2px; }
+header.mkt-header .h-nav { display: flex; gap: 26px; margin-left: 4px; }
+header.mkt-header .h-nav a {
+  white-space: nowrap; color: var(--ink); text-decoration: none; font-size: 14.5px; letter-spacing: 0.1em;
+  text-transform: uppercase; border-bottom: 1px solid transparent; padding-bottom: 2px;
+}
+header.mkt-header .h-nav a:hover, header.mkt-header .h-nav a.is-active { color: var(--maroon); border-bottom-color: var(--maroon); }
+header.mkt-header .h-tools { display: flex; align-items: center; gap: 18px; margin-left: auto; }
+header.mkt-header .h-tools .icon { color: var(--ink); display: inline-flex; }
+header.mkt-header .h-tools .icon:hover { color: var(--maroon); }
+header.mkt-header .h-tools form { margin: 0; display: inline-flex; }
+header.mkt-header .h-tools .text-btn {
+  background: none; border: 0; padding: 0; cursor: pointer; color: var(--ink-soft);
+  font-family: 'Cormorant Garamond', Georgia, serif; font-size: 14px; letter-spacing: 0.1em; text-transform: uppercase;
+}
+header.mkt-header .h-tools .text-btn:hover { color: var(--maroon); }
+header.mkt-header .h-tools .icon svg { width: 26px; height: 26px; }
+header.mkt-header .langtoggle { display: inline-flex; align-items: center; gap: 5px; }
+header.mkt-header .langtoggle button {
+  background: none; border: 0; border-bottom: 1px solid transparent; cursor: pointer; padding: 2px 3px; line-height: 1;
+  font-family: 'Cormorant Garamond', serif; font-size: 14px; font-weight: 600; letter-spacing: 0.08em; color: var(--ink-soft);
+}
+header.mkt-header .langtoggle button.is-active, header.mkt-header .langtoggle button:hover { color: var(--maroon); border-bottom-color: var(--maroon); }
+header.mkt-header .langtoggle span { color: var(--line); }
+
+@media (max-width: 960px) {
+  header.mkt-header .h-nav { order: 3; width: 100%; justify-content: center; margin-left: 0; gap: 12px 26px; flex-wrap: wrap; }
+}
+@media (max-width: 520px) {
+  header.mkt-header .h-header-row { padding: 12px 16px; gap: 14px; }
+  header.mkt-header .h-wordmark { padding: 6px 10px 4px; }
+  header.mkt-header .h-wordmark .name { font-size: 15px; letter-spacing: 0.05em; }
+  header.mkt-header .h-wordmark .place { font-size: 9px; }
+  header.mkt-header .h-tools { gap: 14px; }
+  header.mkt-header .h-tools .icon svg { width: 22px; height: 22px; }
+  header.mkt-header .h-nav { gap: 8px 16px; }
+  header.mkt-header .h-nav a { font-size: 12.5px; letter-spacing: 0.07em; }
+}
+
+/* ---------- Footer ---------- */
+footer.mkt-footer { max-width: 1240px; margin: 56px auto 0; padding: 0 32px 22px; }
+footer.mkt-footer .h-footer-row {
+  border-top: 1px solid var(--ink); padding-top: 18px;
+  display: flex; align-items: center; justify-content: center; gap: 18px; flex-wrap: wrap;
+}
+footer.mkt-footer ul {
+  list-style: none; margin: 0 auto; padding: 0; display: flex; flex-wrap: wrap; justify-content: center;
+}
+footer.mkt-footer li {
+  font-size: 14px; letter-spacing: 0.14em; text-transform: uppercase; padding: 0 30px;
+  border-left: 1px solid var(--ink); line-height: 1.2;
+}
+footer.mkt-footer li:first-child { border-left: 0; }
+footer.mkt-footer li a { color: inherit; text-decoration: none; }
+footer.mkt-footer li a:hover { color: var(--maroon); }
+footer.mkt-footer .h-social { display: flex; gap: 14px; }
+footer.mkt-footer .h-social a { color: var(--ink); display: inline-flex; }
+footer.mkt-footer .h-social a:hover { color: var(--maroon); }
+footer.mkt-footer .h-social svg { width: 24px; height: 24px; }
+@media (max-width: 760px) {
+  footer.mkt-footer li { padding: 4px 14px; font-size: 12.5px; }
+}
+footer.mkt-footer .h-footer-util {
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 22px; margin-top: 14px;
+  font-size: 15px; font-style: italic;
+}
+footer.mkt-footer .h-footer-util a { color: var(--ink-soft); text-decoration: none; }
+footer.mkt-footer .h-footer-util a:hover { color: var(--maroon); text-decoration: underline; }

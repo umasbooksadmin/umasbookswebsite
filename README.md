@@ -20,14 +20,22 @@ France.
   PostgreSQL app (accounts, forum, charity vote, volunteer/meeting
   scheduling, inventory) deployed on Render, independent of Squarespace.
   See `umas-books/README.md`.
-- `assets/site.css` — shared styles for every page
-- `assets/site.js` — shared language toggle (EN/FR) + mailto-form wiring
+- `assets/site.css` — shared styles for every page, including the shared
+  header and footer. The site is light-only (no dark theme) because the
+  botanical artwork is painted for a pale background.
+- `assets/home.css` — Home-page-only styles (hero, feature cards, About band)
+- `assets/img/` — Home-page artwork (hero botanicals, card medallions,
+  shop-interior photo, leaf sprig), cropped from the design mockup
+- `assets/site.js` — shared language toggle (EN/FR) + mailto-form wiring;
+  its `COMMON` dictionary holds the header/footer strings
 - `logo.png` — the shop's logo, referenced by every page
 - `tools/gen_page.py`, `tools/build_pages.py` — generator used to scaffold
-  the sub-pages consistently (shared header/footer). Re-run
-  `python3 tools/build_pages.py` after editing a page's content in that
-  script to regenerate it; hand-edits to a generated `.html` file will be
-  overwritten the next time it runs.
+  the sub-pages originally. **Outdated** — the pages have since been
+  edited by hand (including the new header/footer), so don't re-run it or
+  it will overwrite them. The header/footer markup is copied into each
+  `.html` file; when changing it, change every page (and
+  `umas-books/views/partials/header.ejs` / `footer.ejs`, whose styles live
+  in `umas-books/public/site-header.css`).
 
 No build step — every page is plain HTML/CSS/JS, open any `.html` file
 directly in a browser.

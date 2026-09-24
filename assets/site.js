@@ -1,30 +1,46 @@
 (function () {
   var COMMON = {
     en: {
-      "brand.tag": "English Pre-Loved Books",
-      "nav.books": "Browse Books",
-      "nav.classes": "Éveil Programs",
+      "nav.books": "Books",
       "nav.events": "Events",
+      "nav.ateliers": "Ateliers",
       "nav.about": "About",
-      "nav.wishlist": "Notify Me",
-      "nav.favorites": "Favorites",
+      "nav.contact": "Contact",
+      "icon.search": "Search books",
+      "icon.account": "My account",
+      "icon.cart": "Basket",
       "nav.login": "Log In",
-      "footer.contact": "Contact",
-      "footer.about": "About",
-      "footer.tagline": "Good books. Brighter lives."
+      "nav.logout": "Log Out",
+      "foot.books": "Books",
+      "foot.community": "Community",
+      "foot.english": "English",
+      "foot.creativity": "Creativity",
+      "foot.visit": "Visit Us",
+      "foot.volunteer": "Volunteer",
+      "foot.membership": "Membership",
+      "foot.wishlist": "Notify Me",
+      "foot.favorites": "Favorites"
     },
     fr: {
-      "brand.tag": "Livres anglais d’occasion",
-      "nav.books": "Parcourir les livres",
-      "nav.classes": "Programmes Éveil",
+      "nav.books": "Livres",
       "nav.events": "Événements",
+      "nav.ateliers": "Ateliers",
       "nav.about": "À propos",
-      "nav.wishlist": "Me prévenir",
-      "nav.favorites": "Favoris",
+      "nav.contact": "Contact",
+      "icon.search": "Rechercher des livres",
+      "icon.account": "Mon compte",
+      "icon.cart": "Panier",
       "nav.login": "Connexion",
-      "footer.contact": "Contact",
-      "footer.about": "À propos",
-      "footer.tagline": "De bons livres. Des vies plus lumineuses."
+      "nav.logout": "Déconnexion",
+      "foot.books": "Livres",
+      "foot.community": "Communauté",
+      "foot.english": "Anglais",
+      "foot.creativity": "Créativité",
+      "foot.visit": "Nous rendre visite",
+      "foot.volunteer": "Bénévolat",
+      "foot.membership": "Adhésion",
+      "foot.wishlist": "Me prévenir",
+      "foot.favorites": "Favoris"
     }
   };
 

@@ -1,34 +1,41 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
 <meta charset="utf-8">
-<title>Uma's Books and Adventures</title>
+<title>Uma's Books &amp; Adventures</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="description" content="Uma's Books & Adventures — a community bookshop in Albi, France: pre-loved English books, Éveil ateliers and events.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Montserrat:wght@500;600;700&family=Italianno&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Montserrat:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/site.css">
+<link rel="stylesheet" href="assets/home.css">
 </head>
-<body>
+<body class="home">
 
-<header class="site">
-  <div class="nav-row">
-    <a class="brandmark" href="/">
-      <img src="logo.png" alt="Uma's Books and Adventures logo">
-      <span class="brand-text">
-        <span class="brand-name">Uma's Books</span>
-        <span class="brand-tag" data-i18n="brand.tag">English Pre-Loved Books</span>
-      </span>
+<header class="h-header">
+  <div class="h-header-row">
+    <a class="h-wordmark" href="/" aria-label="Uma's Books &amp; Adventures — home">
+      <span class="name">Uma&rsquo;s Books &amp; Adventures</span>
+      <span class="place">Albi, France</span>
     </a>
-    <nav class="mainlinks">
-      <a href="books.html" data-i18n="nav.books">Browse Books</a>
-      <a href="classes.html" data-i18n="nav.classes">Éveil Programs</a>
+    <nav class="h-nav" aria-label="Main">
+      <a href="books.html" data-i18n="nav.books">Books</a>
       <a href="events.html" data-i18n="nav.events">Events</a>
-      <a href="wishlist.html" data-i18n="nav.wishlist">Notify Me</a>
-      <a href="https://umas-books.onrender.com/favorites" data-i18n="nav.favorites">Favorites</a>
+      <a href="classes.html" data-i18n="nav.ateliers">Ateliers</a>
+      <a href="about.html" data-i18n="nav.about">About</a>
+      <a href="mailto:admin@umasbooks.org" data-i18n="nav.contact">Contact</a>
     </nav>
-    <div class="header-tools">
-      <a class="btn btn-outline btn-small" href="https://umas-books.onrender.com/login" data-i18n="nav.login">Log In</a>
+    <div class="h-tools">
+      <a class="icon" href="books.html#shop-search-form" data-i18n-attr="aria-label:icon.search" aria-label="Search books">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg>
+      </a>
+      <a class="icon" href="https://umas-books.onrender.com/login" data-i18n-attr="aria-label:icon.account" aria-label="My account">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4.5 21c0-4.1 3.4-7 7.5-7s7.5 2.9 7.5 7"/></svg>
+      </a>
+      <a class="icon" href="https://umas-books.onrender.com/cart" data-i18n-attr="aria-label:icon.cart" aria-label="Basket">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M4.5 8h15l-1 13h-13l-1-13z"/><path d="M8.5 10V6.5a3.5 3.5 0 0 1 7 0V10"/></svg>
+      </a>
       <div class="langtoggle" role="group" aria-label="Language / Langue">
         <button type="button" data-lang="en" class="is-active" aria-pressed="true">EN</button>
         <span aria-hidden="true">|</span>
@@ -39,288 +46,146 @@
 </header>
 
 <main>
-  <section class="hero">
-    <div class="photo-block" role="img" aria-label="Photo placeholder: the shopfront of Uma's Books and Adventures">
-      <span class="placeholder-tag" data-i18n="hero.photo.label">Photo placeholder — shopfront photo to come</span>
-    </div>
-    <div class="hero-scrim"></div>
-
-    <div class="hero-copy">
-      <h1 data-i18n="hero.h1">Stories today. Tomorrow together.</h1>
-      <p class="sub" data-i18n="hero.sub">Pre-loved English books, Éveil programs and a welcoming community in the heart of Albi.</p>
-      <a class="btn btn-maroon" href="books.html" data-i18n="hero.cta">Browse Books →</a>
+  <section class="h-hero">
+    <img class="art art-left" src="assets/img/hero-left.png" alt="">
+    <img class="art art-right" src="assets/img/hero-right.png" alt="">
+    <div class="h-hero-copy">
+      <h1><span class="line">Uma&rsquo;s Books</span> <span class="line"><span class="amp">&amp;</span> Adventures</span></h1>
+      <div class="rule"></div>
+      <p class="tagline" data-i18n-html="home.hero.tagline">A community bookshop<br>in Albi, France</p>
+      <a class="h-btn h-btn-lg" href="books.html"><span data-i18n="home.hero.cta">Explore our books</span> <span class="arrow" aria-hidden="true">&rarr;</span></a>
     </div>
   </section>
 
-  <div class="feature-row">
-    <a class="feature" href="books.html">
-      <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M12 6c-1.8-1.4-4.4-2-7-2v14c2.6 0 5.2.6 7 2 1.8-1.4 4.4-2 7-2V4c-2.6 0-5.2.6-7 2z"/><path d="M12 6v14"/></svg>
-      <h3 data-i18n="feature.books.t">Pre-loved Books</h3>
-      <p data-i18n="feature.books.d">Carefully curated English books for every age.</p>
-    </a>
-    <a class="feature" href="classes.html">
-      <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"><path d="M12 21V10"/><path d="M12 10C12 6 9 4 5 4c0 4 3 6 7 6z"/><path d="M12 13c0-3.5 2.5-5.5 6-5.5 0 3.5-2.5 5.5-6 5.5z"/></svg>
-      <h3 data-i18n="feature.english.t">English from the Start</h3>
-      <p data-i18n="feature.english.d">Play, learn and grow with our Éveil program.</p>
-    </a>
-    <a class="feature" href="events.html">
-      <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"><circle cx="8.5" cy="8" r="3"/><circle cx="16" cy="9" r="2.5"/><path d="M2.5 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><path d="M14.5 14.8c2.7.3 4.5 2.2 4.5 5.2"/></svg>
-      <h3 data-i18n="feature.community.t">A Local Community</h3>
-      <p data-i18n="feature.community.d">Families, events and a love of books.</p>
-    </a>
-  </div>
+  <section class="h-cards">
+    <article class="h-card">
+      <img class="medallion" src="assets/img/medallion-browse.png" alt="">
+      <h2 data-i18n="home.browse.t">Browse Books</h2>
+      <div class="divider"></div>
+      <p data-i18n="home.browse.d">Browse history, fiction, romance, and more English books online to pick up at the store.</p>
+      <div class="actions">
+        <a class="h-btn" href="books.html"><span data-i18n="home.browse.cta">Explore books</span> <span class="arrow" aria-hidden="true">&rarr;</span></a>
+      </div>
+    </article>
 
-  <div class="section" style="padding-top:0;">
-    <div class="wrap-narrow">
-      <h2 style="text-align:center;" data-i18n="arrivals.title">Latest Arrivals</h2>
-      <div class="prose" style="margin-top:14px;">
-        <p data-i18n="arrivals.intro">Fresh on our shelves in the past week.</p>
+    <article class="h-card gold">
+      <img class="medallion" src="assets/img/medallion-donate.png" alt="">
+      <h2 data-i18n="home.donate.t">Donate Books</h2>
+      <div class="divider"></div>
+      <p data-i18n="home.donate.d">Give your pre-loved English books a second life and help support our community programs.</p>
+      <div class="actions">
+        <a class="h-btn" href="about.html#donate"><span data-i18n="home.donate.cta">Learn more</span> <span class="arrow" aria-hidden="true">&rarr;</span></a>
       </div>
-      <div class="arrivals-carousel" style="margin-top:20px;">
-        <button type="button" class="carousel-arrow" id="arrivals-prev" aria-label="Previous">&larr;</button>
-        <div class="arrivals-track" id="arrivals-track">
-          <p class="muted" data-i18n="arrivals.loading">Loading the latest arrivals&hellip;</p>
-        </div>
-        <button type="button" class="carousel-arrow" id="arrivals-next" aria-label="Next">&rarr;</button>
-      </div>
-    </div>
-  </div>
+    </article>
 
-  <div class="promo-grid">
-    <div class="promo-card">
-      <div class="photo-block" role="img" aria-label="Photo placeholder: children's Éveil reading room">
-        <span class="placeholder-tag" data-i18n="promo.photo.label">Photo placeholder</span>
+    <article class="h-card green">
+      <img class="medallion" src="assets/img/medallion-eveil.png" alt="">
+      <h2 data-i18n="home.eveil.t">Éveil Atelier</h2>
+      <span class="subtitle" data-i18n="home.eveil.sub">English Immersion</span>
+      <div class="divider"></div>
+      <p data-i18n="home.eveil.d">Play, learn and grow in English through stories, songs and creative activities.</p>
+      <div class="actions">
+        <a class="h-btn h-btn-small" href="classes.html"><span data-i18n="home.eveil.cta1">Regular sessions</span> <span class="arrow" aria-hidden="true">&rarr;</span></a>
+        <a class="h-btn h-btn-outline h-btn-small" href="classes.html#drop-in"><span data-i18n="home.eveil.cta2">Last minute drop ins</span> <span class="arrow" aria-hidden="true">&rarr;</span></a>
       </div>
-      <div class="promo-body">
-        <h3 data-i18n="promo.eveil.t">Éveil English Immersion Program</h3>
-        <p data-i18n="promo.eveil.d">A joyful, play-based program for children 18 months&ndash;5 years, with stories, songs and creative activities &mdash; all in English.</p>
-        <a class="btn btn-maroon" href="classes.html" data-i18n="promo.eveil.cta">Learn More →</a>
-      </div>
-    </div>
-    <div class="promo-card">
-      <div class="photo-block" role="img" aria-label="Photo placeholder: a community event at Uma's Books">
-        <span class="placeholder-tag" data-i18n="promo.photo.label">Photo placeholder</span>
-      </div>
-      <div class="promo-body">
-        <h3 data-i18n="promo.events.t">Browse Events</h3>
-        <p data-i18n="promo.events.d">Author visits, book clubs and community gatherings throughout the year.</p>
-        <a class="btn btn-maroon" href="events.html" data-i18n="promo.events.cta">See Events →</a>
-      </div>
-    </div>
-  </div>
+    </article>
 
-  <div class="category-section">
-    <h2 data-i18n="category.title">Browse by Genre</h2>
-    <div class="category-grid">
-      <a class="category-item" href="books.html">
-        <span class="chip" style="background:#dceaf5;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"><path d="M9 10c-1-3 0-6 1.5-6S12 7 11.5 10"/><path d="M15 10c1-3 0-6-1.5-6S12 7 12.5 10"/><circle cx="12" cy="15" r="5.5"/><circle cx="10" cy="14" r=".8" fill="currentColor" stroke="none"/><circle cx="14" cy="14" r=".8" fill="currentColor" stroke="none"/><path d="M11 16.8q1 .9 2 0"/></svg></span>
-        <span data-i18n="category.children">Children's Books</span>
-      </a>
-      <a class="category-item" href="books.html">
-        <span class="chip" style="background:#f7ded9;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"><path d="M4 6.5c2.2 0 4.4.7 6 2 1.6-1.3 3.8-2 6-2v10.5c-2.2 0-4.4.7-6 2-1.6-1.3-3.8-2-6-2V6.5z"/><path d="M10 8.5v10"/><path d="M17.3 3.2l.5 1.1 1.2.2-.9.8.2 1.2-1-.6-1 .6.2-1.2-.9-.8 1.2-.2.5-1.1z" fill="currentColor" stroke="none"/></svg></span>
-        <span data-i18n="category.fiction">Fiction</span>
-      </a>
-      <a class="category-item" href="books.html">
-        <span class="chip" style="background:#e8e3f2;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"><ellipse cx="12" cy="13.5" rx="6" ry="6.2"/><path d="M7.5 8.5 9 5.5"/><path d="M16.5 8.5 15 5.5"/><circle cx="9.3" cy="12.5" r="2"/><circle cx="14.7" cy="12.5" r="2"/><circle cx="9.3" cy="12.5" r=".5" fill="currentColor" stroke="none"/><circle cx="14.7" cy="12.5" r=".5" fill="currentColor" stroke="none"/><path d="M12 14.5 10.9 15.9h2.2L12 14.5z" fill="currentColor" stroke="none"/></svg></span>
-        <span data-i18n="category.nonfiction">Non-Fiction</span>
-      </a>
-      <a class="category-item" href="books.html">
-        <span class="chip" style="background:#e1eedd;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"><path d="M8.5 17h7l-.8 3.5h-5.4L8.5 17z"/><path d="M12 17V9.5"/><path d="M12 13.5c-2-.2-3.3-1.7-3.3-3.8 2 0 3.7 1 4 3.3"/><path d="M12 12.8c2-.2 3.3-1.7 3.3-3.6-2 0-3.6 1-3.9 3.1"/><circle cx="12" cy="6.3" r="3"/></svg></span>
-        <span data-i18n="category.gardening">Gardening</span>
-      </a>
-      <a class="category-item" href="books.html">
-        <span class="chip" style="background:#f3ecd9;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"><path d="M5.5 12h13v4.5a3 3 0 0 1-3 3h-7a3 3 0 0 1-3-3V12z"/><path d="M4.5 12h15"/><path d="M4.5 12 3 13.3"/><path d="M19.5 12 21 13.3"/><path d="M12 4.2c-.6-.9-1.9-.9-2.2 0-.3.8.5 1.6 2.2 3 1.7-1.4 2.5-2.2 2.2-3-.3-.9-1.6-.9-2.2 0z" fill="currentColor" stroke="none"/></svg></span>
-        <span data-i18n="category.cookbooks">Cook Books</span>
-      </a>
-    </div>
-  </div>
+    <article class="h-card">
+      <img class="medallion" src="assets/img/medallion-events.png" alt="">
+      <h2 data-i18n="home.events.t">Events</h2>
+      <div class="divider"></div>
+      <p data-i18n="home.events.d">Book clubs, author talks, storytime, cultural events and more. Join our community!</p>
+      <div class="actions">
+        <a class="h-btn" href="events.html"><span data-i18n="home.events.cta">See what&rsquo;s on</span> <span class="arrow" aria-hidden="true">&rarr;</span></a>
+      </div>
+    </article>
+  </section>
 
-  <div class="community-banner">
-    <div class="donate-card">
-      <h3 data-i18n="donate.title">Donate Books</h3>
-      <p data-i18n="donate.text">Every shelf here started as someone&#39;s donation. Bringing in your gently used English-language books gives them a second life and keeps our prices low for the whole community.</p>
-      <p class="donate-voucher" data-i18n="donate.voucher">Donate more than one book and receive a voucher toward your next purchase in the shop.</p>
-      <a class="btn btn-maroon" href="mailto:admin@umasbooks.org?subject=Book%20Donation" data-i18n="donate.cta">Get in Touch</a>
+  <section class="h-about">
+    <!-- TODO: replace with a real photo of the shop when available -->
+    <img class="photo" src="assets/img/shop-interior.jpg" alt="" data-i18n-attr="alt:home.about.photo">
+    <div class="h-about-copy">
+      <h2 data-i18n="home.about.t">More than a bookstore</h2>
+      <div class="divider"></div>
+      <p data-i18n="home.about.d">Uma&rsquo;s Books &amp; Adventures is a nonprofit association in Albi, France, offering pre-loved English-language books, cultural events, and children&rsquo;s programs. We believe in the power of stories to connect, inspire, and build a kinder, more open world.</p>
+      <a class="h-btn" href="about.html"><span data-i18n="home.about.cta">Our story</span> <span class="arrow" aria-hidden="true">&rarr;</span></a>
     </div>
-    <div class="newsletter-card">
-      <h3 data-i18n="newsletter.title">Join Our Community</h3>
-      <p data-i18n="newsletter.text">Be the first to know about new arrivals, programs and events.</p>
-      <form class="newsletter-form" data-mailto="admin@umasbooks.org" data-subject="Newsletter Sign-up">
-        <input type="email" data-field="Email" data-i18n-attr="placeholder:newsletter.placeholder" placeholder="Your email address" required>
-        <button type="submit" class="btn btn-maroon" data-i18n="newsletter.submit">Sign Up</button>
-      </form>
-    </div>
-    <div class="member-card">
-      <h3 data-i18n="member.title">Become a Member</h3>
-      <p data-i18n="member.text">Membership accounts are open &mdash; log in or create yours to support the shop directly.</p>
-      <a class="btn btn-maroon" href="membership.html" data-i18n="member.cta">Become a Member →</a>
-    </div>
-  </div>
+    <img class="sprig" src="assets/img/sprig.png" alt="">
+  </section>
 </main>
 
-<footer class="site">
-  <div class="footer-grid">
-    <div class="footer-links">
-      <a href="mailto:admin@umasbooks.org" data-i18n="footer.contact">Contact</a>
-      <a href="about.html" data-i18n="footer.about">About</a>
-    </div>
-    <div class="footer-social">
+<footer class="h-footer">
+  <div class="h-footer-row">
+    <ul>
+      <li><a href="books.html" data-i18n="foot.books">Books</a></li>
+      <li><a href="events.html" data-i18n="foot.community">Community</a></li>
+      <li><a href="classes.html" data-i18n="foot.english">English</a></li>
+      <li><a href="classes.html" data-i18n="foot.creativity">Creativity</a></li>
+      <li><a href="visit.html">Albi, France</a></li>
+    </ul>
+    <div class="h-social">
       <!-- TODO: add real social links when available -->
-      <a href="#" aria-label="Instagram" title="Instagram (coming soon)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.3" cy="6.7" r="1" fill="currentColor" stroke="none"/></svg></a>
-      <a href="#" aria-label="Facebook" title="Facebook (coming soon)"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M13.5 21v-8h2.7l.4-3.1h-3.1V8c0-.9.25-1.5 1.55-1.5H17V3.7C16.7 3.6 15.7 3.5 14.5 3.5c-2.4 0-4 1.5-4 4.1v2.3H8v3.1h2.5V21h3z"/></svg></a>
+      <a href="#" aria-label="Instagram" title="Instagram (coming soon)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.3" cy="6.7" r="1" fill="currentColor" stroke="none"/></svg></a>
+      <a href="#" aria-label="Facebook" title="Facebook (coming soon)"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h7.2v-7h-2.4v-2.8h2.4V9.1c0-2.4 1.5-3.7 3.6-3.7 1 0 1.9.1 2.2.1v2.5h-1.5c-1.2 0-1.4.6-1.4 1.4v1.8h2.8l-.4 2.8h-2.4v7H19a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z"/></svg></a>
     </div>
   </div>
-  <div class="footer-bottom">
-    <span data-i18n="footer.tagline">Good books. Brighter lives.</span>
-  </div>
+  <nav class="h-footer-util" aria-label="More">
+    <a href="visit.html" data-i18n="foot.visit">Visit Us</a>
+    <a href="volunteer.html" data-i18n="foot.volunteer">Volunteer</a>
+    <a href="membership.html" data-i18n="foot.membership">Membership</a>
+    <a href="wishlist.html" data-i18n="foot.wishlist">Notify Me</a>
+    <a href="https://umas-books.onrender.com/favorites" data-i18n="foot.favorites">Favorites</a>
+  </nav>
 </footer>
 
 <script>
 window.PAGE_I18N = {
   en: {
-    "hero.photo.label": "Photo placeholder — shopfront photo to come",
-    "hero.h1": "Stories today. Tomorrow together.",
-    "hero.sub": "Pre-loved English books, Éveil programs and a welcoming community in the heart of Albi.",
-    "hero.cta": "Browse Books →",
-    "feature.books.t": "Pre-loved Books",
-    "feature.books.d": "Carefully curated English books for every age.",
-    "feature.english.t": "English from the Start",
-    "feature.english.d": "Play, learn and grow with our Éveil program.",
-    "feature.community.t": "A Local Community",
-    "feature.community.d": "Families, events and a love of books.",
-    "arrivals.title": "Latest Arrivals",
-    "arrivals.intro": "Fresh on our shelves in the past week.",
-    "arrivals.loading": "Loading the latest arrivals…",
-    "arrivals.empty": "No new arrivals in the last week — check back soon, or browse the full catalog.",
-    "arrivals.error": "Couldn't load new arrivals right now — browse the full catalog instead.",
-    "promo.photo.label": "Photo placeholder",
-    "promo.eveil.t": "Éveil English Immersion Program",
-    "promo.eveil.d": "A joyful, play-based program for children 18 months–5 years, with stories, songs and creative activities — all in English.",
-    "promo.eveil.cta": "Learn More →",
-    "promo.events.t": "Browse Events",
-    "promo.events.d": "Author visits, book clubs and community gatherings throughout the year.",
-    "promo.events.cta": "See Events →",
-    "category.title": "Browse by Genre",
-    "category.children": "Children's Books",
-    "category.fiction": "Fiction",
-    "category.nonfiction": "Non-Fiction",
-    "category.gardening": "Gardening",
-    "category.cookbooks": "Cook Books",
-    "donate.title": "Donate Books",
-    "donate.text": "Every shelf here started as someone's donation. Bringing in your gently used English-language books gives them a second life and keeps our prices low for the whole community.",
-    "donate.voucher": "Donate more than one book and receive a voucher toward your next purchase in the shop.",
-    "donate.cta": "Get in Touch",
-    "newsletter.title": "Join Our Community",
-    "newsletter.text": "Be the first to know about new arrivals, programs and events.",
-    "newsletter.placeholder": "Your email address",
-    "newsletter.submit": "Sign Up",
-    "member.title": "Become a Member",
-    "member.text": "Membership accounts are open — log in or create yours to support the shop directly.",
-    "member.cta": "Become a Member →"
+    "home.hero.tagline": "A community bookshop<br>in Albi, France",
+    "home.hero.cta": "Explore our books",
+    "home.browse.t": "Browse Books",
+    "home.browse.d": "Browse history, fiction, romance, and more English books online to pick up at the store.",
+    "home.browse.cta": "Explore books",
+    "home.donate.t": "Donate Books",
+    "home.donate.d": "Give your pre-loved English books a second life and help support our community programs.",
+    "home.donate.cta": "Learn more",
+    "home.eveil.t": "Éveil Atelier",
+    "home.eveil.sub": "English Immersion",
+    "home.eveil.d": "Play, learn and grow in English through stories, songs and creative activities.",
+    "home.eveil.cta1": "Regular sessions",
+    "home.eveil.cta2": "Last minute drop ins",
+    "home.events.t": "Events",
+    "home.events.d": "Book clubs, author talks, storytime, cultural events and more. Join our community!",
+    "home.events.cta": "See what’s on",
+    "home.about.photo": "Inside the bookshop: a wooden table with books and a jug of greenery, shelves behind",
+    "home.about.t": "More than a bookstore",
+    "home.about.d": "Uma’s Books & Adventures is a nonprofit association in Albi, France, offering pre-loved English-language books, cultural events, and children’s programs. We believe in the power of stories to connect, inspire, and build a kinder, more open world.",
+    "home.about.cta": "Our story",
   },
   fr: {
-    "hero.photo.label": "Emplacement photo — photo de la façade à venir",
-    "hero.h1": "Des histoires aujourd'hui. Ensemble demain.",
-    "hero.sub": "Des livres anglais d'occasion, des programmes Éveil et une communauté chaleureuse au cœur d'Albi.",
-    "hero.cta": "Parcourir les livres →",
-    "feature.books.t": "Livres d'occasion",
-    "feature.books.d": "Une sélection soignée de livres en anglais pour tous les âges.",
-    "feature.english.t": "L'anglais dès le plus jeune âge",
-    "feature.english.d": "Jouer, apprendre et grandir avec notre programme Éveil.",
-    "feature.community.t": "Une communauté locale",
-    "feature.community.d": "Familles, événements et amour des livres.",
-    "arrivals.title": "Derniers arrivages",
-    "arrivals.intro": "Fraîchement arrivés sur nos étagères cette semaine.",
-    "arrivals.loading": "Chargement des derniers arrivages…",
-    "arrivals.empty": "Aucun nouvel arrivage cette semaine — revenez bientôt, ou parcourez tout le catalogue.",
-    "arrivals.error": "Impossible de charger les derniers arrivages pour le moment — parcourez plutôt tout le catalogue.",
-    "promo.photo.label": "Emplacement photo",
-    "promo.eveil.t": "Programme d'immersion anglaise Éveil",
-    "promo.eveil.d": "Un programme ludique pour les enfants de 18 mois à 5 ans, avec histoires, chansons et activités créatives — entièrement en anglais.",
-    "promo.eveil.cta": "En savoir plus →",
-    "promo.events.t": "Voir les événements",
-    "promo.events.d": "Rencontres d'auteurs, clubs de lecture et rassemblements communautaires tout au long de l'année.",
-    "promo.events.cta": "Voir les événements →",
-    "category.title": "Parcourir par genre",
-    "category.children": "Livres jeunesse",
-    "category.fiction": "Fiction",
-    "category.nonfiction": "Documentaires",
-    "category.gardening": "Jardinage",
-    "category.cookbooks": "Livres de cuisine",
-    "donate.title": "Faire un don",
-    "donate.text": "Chaque étagère ici a commencé par un don. Apporter vos livres en anglais en bon état leur donne une seconde vie et permet de garder nos prix accessibles pour toute la communauté.",
-    "donate.voucher": "Faites un don de plus d'un livre et recevez un bon d'achat pour votre prochaine visite en boutique.",
-    "donate.cta": "Nous contacter",
-    "newsletter.title": "Rejoignez notre communauté",
-    "newsletter.text": "Soyez les premiers informés des nouveautés, programmes et événements.",
-    "newsletter.placeholder": "Votre adresse email",
-    "newsletter.submit": "S’inscrire",
-    "member.title": "Devenir membre",
-    "member.text": "Les comptes d’adhésion sont ouverts — connectez-vous ou créez le vôtre pour soutenir la boutique directement.",
-    "member.cta": "Devenir membre →"
+    "home.hero.tagline": "Une librairie associative<br>à Albi, France",
+    "home.hero.cta": "Découvrir nos livres",
+    "home.browse.t": "Parcourir les livres",
+    "home.browse.d": "Histoire, fiction, romance et bien plus : parcourez nos livres en anglais en ligne et retirez-les en boutique.",
+    "home.browse.cta": "Voir les livres",
+    "home.donate.t": "Donner des livres",
+    "home.donate.d": "Offrez une seconde vie à vos livres en anglais et soutenez nos programmes associatifs.",
+    "home.donate.cta": "En savoir plus",
+    "home.eveil.t": "Atelier Éveil",
+    "home.eveil.sub": "Immersion en anglais",
+    "home.eveil.d": "Jouer, apprendre et grandir en anglais grâce aux histoires, chansons et activités créatives.",
+    "home.eveil.cta1": "Séances régulières",
+    "home.eveil.cta2": "Dernière minute",
+    "home.events.t": "Événements",
+    "home.events.d": "Clubs de lecture, rencontres d’auteurs, heure du conte, événements culturels et plus encore. Rejoignez-nous !",
+    "home.events.cta": "Voir le programme",
+    "home.about.photo": "L’intérieur de la librairie : une table en bois avec des livres et un pichet de verdure, des étagères derrière",
+    "home.about.t": "Plus qu’une librairie",
+    "home.about.d": "Uma’s Books & Adventures est une association à but non lucratif à Albi qui propose des livres en anglais d’occasion, des événements culturels et des programmes pour enfants. Nous croyons au pouvoir des histoires pour rassembler, inspirer et construire un monde plus bienveillant et plus ouvert.",
+    "home.about.cta": "Notre histoire",
   }
 };
 </script>
 <script src="assets/site.js"></script>
-<script>
-(function () {
-  var track = document.getElementById('arrivals-track');
-  if (!track) return;
-
-  function esc(s) {
-    return String(s || '').replace(/[&<>"']/g, function (c) {
-      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
-    });
-  }
-
-  function i18nText(key, fallback) {
-    var lang = (window.localStorage && localStorage.getItem('umasbooks.lang')) || 'en';
-    var dict = (window.PAGE_I18N && window.PAGE_I18N[lang]) || {};
-    return dict[key] || fallback;
-  }
-
-  // Render's free tier sleeps after inactivity and briefly returns an
-  // error (or a slow response) while it wakes back up — retry once after
-  // a few seconds before showing the error state, since a cold start is
-  // the most likely cause of a first-attempt failure here.
-  function loadArrivals(isRetry) {
-    fetch('https://umas-books.onrender.com/api/books/latest-arrivals')
-      .then(function (res) {
-        if (!res.ok) throw new Error('bad response');
-        return res.json();
-      })
-      .then(function (books) {
-        if (!books.length) {
-          track.innerHTML = '<p class="muted">' + esc(i18nText('arrivals.empty', 'No new arrivals in the last week.')) + '</p>';
-          return;
-        }
-        track.innerHTML = books.map(function (b) {
-          var cover = b.coverUrl
-            ? '<img src="' + esc(b.coverUrl) + '" alt="" class="arrival-cover">'
-            : '<div class="arrival-cover arrival-cover-placeholder">No cover</div>';
-          var price = b.price != null ? '€' + Number(b.price).toFixed(2) : '';
-          var meta = [b.author, price].filter(Boolean).join(' · ');
-          return '<a class="arrival-card" href="' + esc(b.url) + '">' + cover +
-            '<div class="arrival-title">' + esc(b.title) + '</div>' +
-            '<div class="arrival-meta">' + esc(meta) + '</div></a>';
-        }).join('');
-      })
-      .catch(function () {
-        if (!isRetry) {
-          setTimeout(function () { loadArrivals(true); }, 4000);
-          return;
-        }
-        track.innerHTML = '<p class="muted">' + esc(i18nText('arrivals.error', "Couldn't load new arrivals right now.")) + '</p>';
-      });
-  }
-  loadArrivals(false);
-
-  var prevBtn = document.getElementById('arrivals-prev');
-  var nextBtn = document.getElementById('arrivals-next');
-  var scrollAmount = 300;
-  if (prevBtn) prevBtn.addEventListener('click', function () { track.scrollBy({ left: -scrollAmount, behavior: 'smooth' }); });
-  if (nextBtn) nextBtn.addEventListener('click', function () { track.scrollBy({ left: scrollAmount, behavior: 'smooth' }); });
-})();
-</script>
 </body>
 </html>

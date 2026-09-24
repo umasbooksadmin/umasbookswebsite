@@ -1,22 +1,22 @@
-/* Palette: matches the marketing site's assets/site.css (12-color brand
-   palette). --ink/--ink-soft are the brand's dark brown / sage green;
+/* Palette: matches the marketing site's assets/site.css (light palette
+   from the Home page design). --ink/--ink-soft are the brand's dark brown / sage green;
    --green is the primary logo/brand green; --maroon/--maroon-dark are
    Terracotta Clay (#a65347) and a darkened variant for the primary accent
    and its hover/heading state; --gold is Mustard Gold. */
 :root {
-  --cream: #f2e8d2;
-  --panel: #faf7ef;
-  --ink: #40372b;
-  --ink-soft: #68775b;
-  --green: #344936;
+  --cream: #fffefb;
+  --panel: #ffffff;
+  --ink: #2b2a26;
+  --ink-soft: #55524b;
+  --green: #43523a;
   --maroon: #a65347;
   --maroon-dark: #8f5148;
   --gold: #c4933f;
-  --gold-dark: #b28a42;
-  --btn-bg: #68775b;
-  --btn-bg-dark: #535f49;
-  --line: rgba(166, 83, 71, 0.18);
-  --card-border: rgba(166, 83, 71, 0.16);
+  --gold-dark: #a77a2e;
+  --btn-bg: #43523a;
+  --btn-bg-dark: #34402d;
+  --line: #e4e0d8;
+  --card-border: #e4e0d8;
 }
 
 * { box-sizing: border-box; }
@@ -24,13 +24,14 @@ body {
   margin: 0;
   background: var(--cream);
   color: var(--ink);
-  font-family: 'Libre Baskerville', Georgia, serif;
-  font-size: 18px;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 19px;
+  font-weight: 500;
   line-height: 1.6;
 }
 a { color: var(--maroon); text-decoration: none; }
 a:hover { text-decoration: underline; }
-h1, h2, h3 { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; color: var(--maroon-dark); margin: 0 0 12px; }
+h1, h2, h3 { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; color: var(--ink); margin: 0 0 12px; }
 
 .wrap { max-width: 880px; margin: 0 auto; padding: 0 24px; }
 
@@ -49,9 +50,9 @@ header.site {
 .small { font-size: 14px; }
 
 .btn {
-  display: inline-block; font-family: 'Montserrat', sans-serif; font-weight: 600;
-  font-size: 13.5px; letter-spacing: 0.04em; text-transform: uppercase; text-decoration: none;
-  padding: 10px 20px; border-radius: 3px; border: 0; cursor: pointer;
+  display: inline-block; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600;
+  font-size: 15px; letter-spacing: 0.12em; text-transform: uppercase; text-decoration: none;
+  padding: 11px 22px; border-radius: 0; border: 0; cursor: pointer;
   background: var(--btn-bg); color: #fff;
 }
 .btn:hover { background: var(--btn-bg-dark); text-decoration: none; }

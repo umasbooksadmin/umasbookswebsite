@@ -11,24 +11,29 @@
 </head>
 <body>
 
-<header class="site">
-  <div class="nav-row">
-    <a class="brandmark" href="/">
-      <img src="logo.png" alt="Uma's Books and Adventures logo">
-      <span class="brand-text">
-        <span class="brand-name">Uma's Books</span>
-        <span class="brand-tag" data-i18n="brand.tag">English Pre-Loved Books</span>
-      </span>
+<header class="h-header">
+  <div class="h-header-row">
+    <a class="h-wordmark" href="/" aria-label="Uma's Books &amp; Adventures — home">
+      <span class="name">Uma&rsquo;s Books &amp; Adventures</span>
+      <span class="place">Albi, France</span>
     </a>
-    <nav class="mainlinks">
-      <a href="books.html" data-i18n="nav.books">Browse Books</a>
-      <a href="classes.html" data-i18n="nav.classes">Éveil Programs</a>
+    <nav class="h-nav" aria-label="Main">
+      <a href="books.html" data-i18n="nav.books">Books</a>
       <a href="events.html" data-i18n="nav.events">Events</a>
-      <a href="wishlist.html" class="is-active" data-i18n="nav.wishlist">Notify Me</a>
-      <a href="https://umas-books.onrender.com/favorites" data-i18n="nav.favorites">Favorites</a>
+      <a href="classes.html" data-i18n="nav.ateliers">Ateliers</a>
+      <a href="about.html" data-i18n="nav.about">About</a>
+      <a href="mailto:admin@umasbooks.org" data-i18n="nav.contact">Contact</a>
     </nav>
-    <div class="header-tools">
-      <a class="btn btn-outline btn-small" href="https://umas-books.onrender.com/login" data-i18n="nav.login">Log In</a>
+    <div class="h-tools">
+      <a class="icon" href="books.html#shop-search-form" data-i18n-attr="aria-label:icon.search" aria-label="Search books">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg>
+      </a>
+      <a class="icon" href="https://umas-books.onrender.com/login" data-i18n-attr="aria-label:icon.account" aria-label="My account">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4.5 21c0-4.1 3.4-7 7.5-7s7.5 2.9 7.5 7"/></svg>
+      </a>
+      <a class="icon" href="https://umas-books.onrender.com/cart" data-i18n-attr="aria-label:icon.cart" aria-label="Basket">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M4.5 8h15l-1 13h-13l-1-13z"/><path d="M8.5 10V6.5a3.5 3.5 0 0 1 7 0V10"/></svg>
+      </a>
       <div class="langtoggle" role="group" aria-label="Language / Langue">
         <button type="button" data-lang="en" class="is-active" aria-pressed="true">EN</button>
         <span aria-hidden="true">|</span>
@@ -71,21 +76,28 @@
     </div>
   </div>
 </main>
-<footer class="site">
-  <div class="footer-grid">
-    <div class="footer-links">
-      <a href="mailto:admin@umasbooks.org" data-i18n="footer.contact">Contact</a>
-      <a href="about.html" data-i18n="footer.about">About</a>
-    </div>
-    <div class="footer-social">
+<footer class="h-footer">
+  <div class="h-footer-row">
+    <ul>
+      <li><a href="books.html" data-i18n="foot.books">Books</a></li>
+      <li><a href="events.html" data-i18n="foot.community">Community</a></li>
+      <li><a href="classes.html" data-i18n="foot.english">English</a></li>
+      <li><a href="classes.html" data-i18n="foot.creativity">Creativity</a></li>
+      <li><a href="visit.html">Albi, France</a></li>
+    </ul>
+    <div class="h-social">
       <!-- TODO: add real social links when available -->
-      <a href="#" aria-label="Instagram" title="Instagram (coming soon)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.3" cy="6.7" r="1" fill="currentColor" stroke="none"/></svg></a>
-      <a href="#" aria-label="Facebook" title="Facebook (coming soon)"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M13.5 21v-8h2.7l.4-3.1h-3.1V8c0-.9.25-1.5 1.55-1.5H17V3.7C16.7 3.6 15.7 3.5 14.5 3.5c-2.4 0-4 1.5-4 4.1v2.3H8v3.1h2.5V21h3z"/></svg></a>
+      <a href="#" aria-label="Instagram" title="Instagram (coming soon)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.3" cy="6.7" r="1" fill="currentColor" stroke="none"/></svg></a>
+      <a href="#" aria-label="Facebook" title="Facebook (coming soon)"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h7.2v-7h-2.4v-2.8h2.4V9.1c0-2.4 1.5-3.7 3.6-3.7 1 0 1.9.1 2.2.1v2.5h-1.5c-1.2 0-1.4.6-1.4 1.4v1.8h2.8l-.4 2.8h-2.4v7H19a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z"/></svg></a>
     </div>
   </div>
-  <div class="footer-bottom">
-    <span data-i18n="footer.tagline">Good books. Brighter lives.</span>
-  </div>
+  <nav class="h-footer-util" aria-label="More">
+    <a href="visit.html" data-i18n="foot.visit">Visit Us</a>
+    <a href="volunteer.html" data-i18n="foot.volunteer">Volunteer</a>
+    <a href="membership.html" data-i18n="foot.membership">Membership</a>
+    <a href="wishlist.html" data-i18n="foot.wishlist">Notify Me</a>
+    <a href="https://umas-books.onrender.com/favorites" data-i18n="foot.favorites">Favorites</a>
+  </nav>
 </footer>
 
 <script>
