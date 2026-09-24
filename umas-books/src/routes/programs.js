@@ -1,10 +1,14 @@
 const express = require("express");
 const { pool } = require("../db");
 const { parseMonthParam, monthRange, monthGrid, groupByDate, monthNav } = require("../lib/calendar");
+const { requireAuth } = require("../middleware/auth");
 
 const router = express.Router();
 
-// Public — no login required. Anyone can view the calendar and sign up.
+// The calendar itself is public, but signing up now requires an account —
+// there's no name/email form any more, so a sign-up is always recorded
+// under the logged-in member's own name and email (see the signup route
+// below).
 
 router.get("/programs", async (req, res) => {
   const { year, month } = parseMonthParam(req.query.month);
@@ -16,21 +20,27 @@ router.get("/programs", async (req, res) => {
     [start, end]
   );
 
+  let mySignedUpClassIds = new Set();
+  if (req.session.user) {
+    const { rows: mySignups } = await pool.query(
+      "SELECT class_id FROM class_signups WHERE lower(email) = lower($1)", [req.session.user.email]
+    );
+    mySignedUpClassIds = new Set(mySignups.map((r) => r.class_id));
+  }
+
   const weeks = monthGrid(year, month, groupByDate(classes, "starts_at"));
-  res.render("programs", { weeks, ...monthNav(year, month) });
+  res.render("programs", { weeks, mySignedUpClassIds, ...monthNav(year, month) });
 });
 
-router.post("/programs/:id/signup", async (req, res) => {
+router.post("/programs/:id/signup", requireAuth, async (req, res) => {
   const classId = Number(req.params.id);
-  const name = (req.body.name || "").trim();
-  const email = (req.body.email || "").trim().toLowerCase();
+  const name = req.session.user.displayName;
+  const email = req.session.user.email.toLowerCase();
   const redirectUrl = req.query.month ? `/programs?month=${req.query.month}` : "/programs";
-
-  if (!name || !email) return res.redirect(redirectUrl);
 
   const { rows: classRows } = await pool.query("SELECT * FROM classes WHERE id = $1", [classId]);
   const cls = classRows[0];
-  if (!cls) return res.status(404).send("Program not found.");
+  if (!cls) return res.status(404).send("Session not found.");
 
   if (cls.capacity != null) {
     const { rows: countRows } = await pool.query(

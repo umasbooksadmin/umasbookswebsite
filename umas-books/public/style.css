@@ -94,6 +94,18 @@ input[type="file"].file-input-hidden {
 ul.plain { list-style: none; margin: 0; padding: 0; }
 ul.plain li { padding: 10px 0; border-bottom: 1px solid var(--line); }
 ul.plain li:last-child { border-bottom: 0; }
+ul.plain.nested { margin: 8px 0; }
+ul.plain.nested li { padding: 4px 0; border-bottom: 0; }
+
+.order-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.status-pill {
+  display: inline-block; flex: 0 0 auto; padding: 3px 11px; border-radius: 20px;
+  font-family: 'Montserrat', sans-serif; font-size: 12.5px; font-weight: 600; letter-spacing: 0.02em;
+}
+.status-pill.paid, .status-pill.upcoming { background: #eaf0e6; color: var(--green); }
+.status-pill.pending { background: #faf3df; color: #8a6a1f; }
+.status-pill.cancelled, .status-pill.expired { background: #f5e6e4; color: var(--maroon-dark); }
+.status-pill.completed { background: #efeee9; color: var(--ink-soft); }
 
 .thread-meta { font-size: 14px; color: var(--ink-soft); }
 .reply { border-top: 1px solid var(--line); padding: 14px 0; }

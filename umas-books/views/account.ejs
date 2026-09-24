@@ -1,0 +1,50 @@
+<%- include('partials/header', { title: 'My Account' }) %>
+
+<h1>My Account</h1>
+<p class="muted small">Orders and session sign-ups matched to <%= user.email %>.</p>
+
+<div class="card">
+  <div class="section-title">Book Orders</div>
+  <% if (!orders.length) { %>
+    <p class="muted">No orders yet &mdash; <a href="/books">browse books</a>.</p>
+  <% } else { %>
+    <ul class="plain">
+      <% orders.forEach(o => { %>
+        <li>
+          <div class="order-row">
+            <strong><%= formatDate(o.created_at) %></strong>
+            <span class="status-pill <%= o.status %>"><%= o.status.charAt(0).toUpperCase() + o.status.slice(1) %></span>
+          </div>
+          <ul class="plain nested">
+            <% (o.items || []).forEach(i => { %>
+              <li><%= i.title %> <span class="muted small">&middot; &euro;<%= Number(i.price).toFixed(2) %></span></li>
+            <% }) %>
+          </ul>
+          <div class="muted small">Total: &euro;<%= Number(o.total_amount).toFixed(2) %></div>
+        </li>
+      <% }) %>
+    </ul>
+  <% } %>
+</div>
+
+<div class="card">
+  <div class="section-title">Sessions</div>
+  <% if (!signups.length) { %>
+    <p class="muted">No sign-ups yet &mdash; <a href="/programs">see upcoming sessions</a>.</p>
+  <% } else { %>
+    <ul class="plain">
+      <% signups.forEach(s => { %>
+        <% const past = new Date(s.starts_at) < new Date(); %>
+        <li>
+          <div class="order-row">
+            <strong><%= s.title %></strong>
+            <span class="status-pill <%= past ? 'completed' : 'upcoming' %>"><%= past ? 'Completed' : 'Upcoming' %></span>
+          </div>
+          <div class="muted small"><%= formatDateTime(s.starts_at) %><%= s.location ? ' · ' + s.location : '' %></div>
+        </li>
+      <% }) %>
+    </ul>
+  <% } %>
+</div>
+
+<%- include('partials/footer') %>

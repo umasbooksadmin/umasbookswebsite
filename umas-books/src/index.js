@@ -14,6 +14,7 @@ const { expireStaleCartHolds, reconcilePendingOrders } = require("./lib/cart");
 
 const authRoutes = require("./routes/auth");
 const dashboardRoutes = require("./routes/dashboard");
+const accountRoutes = require("./routes/account");
 const forumRoutes = require("./routes/forum");
 const charityRoutes = require("./routes/charity");
 const volunteerRoutes = require("./routes/volunteer");
@@ -148,6 +149,7 @@ MARKETING_PAGES.forEach((file) => {
 
 app.use(authRoutes);
 app.use(dashboardRoutes);
+app.use(accountRoutes);
 app.use(forumRoutes);
 app.use(charityRoutes);
 app.use(volunteerRoutes);

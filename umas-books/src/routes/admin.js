@@ -285,7 +285,7 @@ router.post("/admin/programs", requireAdmin, async (req, res) => {
   const date = req.body.date;
   const startTime = req.body.startTime;
   const endTime = req.body.endTime || null;
-  const capacity = req.body.capacity ? Number(req.body.capacity) : null;
+  const capacity = req.body.capacity ? Number(req.body.capacity) : 5;
 
   if (title && date && startTime) {
     const startsAt = `${date}T${startTime}`;
