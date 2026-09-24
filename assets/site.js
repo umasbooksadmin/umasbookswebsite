@@ -2,7 +2,7 @@
   var COMMON = {
     en: {
       "nav.books": "Browse Books",
-      "nav.programs": "Programs",
+      "nav.programs": "English Programs",
       "nav.events": "Events",
       "nav.about": "About",
       "nav.visit": "Visit Us",
@@ -25,7 +25,7 @@
     },
     fr: {
       "nav.books": "Parcourir les livres",
-      "nav.programs": "Programmes",
+      "nav.programs": "Programmes d’anglais",
       "nav.events": "Événements",
       "nav.about": "À propos",
       "nav.visit": "Nous rendre visite",
