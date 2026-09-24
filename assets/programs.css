@@ -19,11 +19,8 @@
 .pg-dropin .pg-title { color: #b0772e; }
 .pg-script { font-family: 'Italianno', cursive; font-size: 50px; line-height: 1; margin: 6px 0 16px; color: var(--maroon); }
 .pg-dropin .pg-script { color: #33472c; }
-/* small flower / leaf beside the script line */
-.pg-script-row { display: flex; align-items: center; justify-content: center; gap: 14px; margin: 6px 0 16px; }
+.pg-script-row { display: flex; align-items: center; justify-content: center; margin: 6px 0 16px; }
 .pg-script-row .pg-script { margin: 0; }
-.pg-deco { height: 1.1em; width: auto; font-size: 50px; flex: 0 0 auto; }
-.pg-deco-leaf { transform: rotate(-10deg); }
 .pg-text { font-size: 19px; line-height: 1.35; color: var(--ink-soft); margin: 0 0 14px; max-width: 50ch; }
 
 .pg-info {
@@ -54,14 +51,12 @@
 .pg-btn.gold { background: #b37a36; }
 .pg-btn:hover { filter: brightness(0.92); }
 
-.pg-register { width: 100%; max-width: 760px; margin: 40px auto 0; padding: 0 24px; scroll-margin-top: 20px; }
-
 /* Computers: same sizes as the Home page (title like the hero title,
    everything else like the card text and buttons). */
 @media (min-width: 1025px) and (min-height: 480px) {
   .pg-title { font-size: clamp(32px, 6.4vh, 72px); }
   .pg-kicker { font-size: clamp(17px, 2.6vh, 27px); }
-  .pg-script, .pg-deco { font-size: clamp(30px, 4.6vh, 50px); }
+  .pg-script { font-size: clamp(30px, 4.6vh, 50px); }
   .pg-text, .pg-info .lbl, .pg-info .val, .pg-teacher { font-size: clamp(14px, 1.75vh, 18px); line-height: 1.25; }
   .pg-info .note { font-size: clamp(11.5px, 1.4vh, 14px); }
   .pg-btn { font-size: clamp(11.5px, 1.4vh, 14px); }

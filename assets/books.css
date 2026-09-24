@@ -13,22 +13,20 @@
 @media (min-width: 1025px) and (min-height: 480px) {
   .bk-top h1 { font-size: clamp(32px, 6.4vh, 72px); }
 }
-/* Leaf left of the title, flower right. The negative margins keep the
-   pictures from making the title row any taller. */
+/* Flower right of the title. The negative margins keep the
+   picture from making the title row any taller. */
 .bk-title-row {
   display: inline-flex; align-items: center; justify-content: center; gap: 1.1em;
   font-size: clamp(36px, 9.5vw, 74px);
 }
-.bk-title-row h1 { font-size: 1em; position: relative; top: 0.4em; } /* title sits lower than the leaf and flower */
+.bk-title-row h1 { font-size: 1em; position: relative; top: 0.4em; } /* title sits lower than the flower */
 .bk-deco { width: auto; margin: -0.3em 0; flex: 0 0 auto; }
-.bk-leaf { height: 1.55em; transform: rotate(-8deg); }
 .bk-flower { height: 1.45em; }
 @media (min-width: 1025px) and (min-height: 480px) {
   .bk-title-row { font-size: clamp(32px, 6.4vh, 72px); }
 }
 @media (max-width: 600px) {
   .bk-title-row { gap: 0.4em; }
-  .bk-leaf { height: 1.3em; }
   .bk-flower { height: 1.2em; }
 }
 .bk-search {
