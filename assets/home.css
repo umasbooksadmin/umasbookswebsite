@@ -220,3 +220,18 @@
   .member-band h2 br, .member-band p br { display: none; }
   .member-band .h-btn { white-space: normal; max-width: 100%; padding-left: 18px; padding-right: 18px; }
 }
+
+/* "More than a bookstore" card beside the membership card */
+.member-row { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; align-items: stretch; }
+.member-row .member-inner { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.about-card { position: relative; overflow: hidden; padding: 30px 36px 36px; border: 1px solid var(--line); background: var(--panel); }
+.about-card h2 { font-size: clamp(24px, 2.4vw, 30px); letter-spacing: 0.14em; text-transform: uppercase; line-height: 1.1; }
+.about-card .divider { width: 46px; height: 2px; background: var(--maroon); margin: 16px 0 18px; }
+.about-card p { position: relative; z-index: 1; font-size: 19px; line-height: 1.35; color: var(--ink-soft); margin: 0 0 22px; max-width: 34ch; }
+.about-card .h-btn { position: relative; z-index: 1; }
+.about-card .sprig { position: absolute; right: 0; bottom: 0; width: clamp(140px, 16vw, 220px); height: auto; pointer-events: none; }
+@media (max-width: 820px) {
+  .member-row { grid-template-columns: 1fr; gap: 20px; }
+  .about-card { padding: 26px 22px 120px; }
+  .about-card .sprig { width: 150px; }
+}
