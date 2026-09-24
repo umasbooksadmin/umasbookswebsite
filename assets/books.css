@@ -26,6 +26,20 @@
 }
 .bk-search button:hover { background: var(--btn-bg); }
 
+/* On wide screens the title tucks up into the open space beside the
+   header's stamp logo, as in the design. The box itself lets clicks
+   through so the logo stays clickable. */
+@media (min-width: 1241px) {
+  .bk-top { position: relative; z-index: 6; margin-top: -84px; padding-top: 0; pointer-events: none; }
+  .bk-top h1, .bk-top form { pointer-events: auto; }
+  .bk-top h1 { display: inline-block; }
+  .bk-search { max-width: min(1020px, calc(100% - 2 * 190px)); }
+}
+@media (min-width: 1241px) and (max-width: 1440px) {
+  .bk-top { margin-top: -56px; }
+  .bk-top h1 { font-size: 66px; }
+}
+
 /* ---------- Browse by genre ---------- */
 .bk-genres { display: flex; align-items: flex-start; gap: 22px; padding: 6px 0 20px; }
 .bk-genres .label {

@@ -11,53 +11,74 @@ header.mkt-header { margin-bottom: 32px; }
 header.mkt-header a:hover, footer.mkt-footer a:hover { text-decoration: none; }
 
 /* ---------- Header ---------- */
-header.mkt-header { background: var(--cream); border-bottom: 1px solid var(--line); }
+/* Stamp logo on the left, sans-serif nav, labelled icon tools on the
+   right. The header's lower half is left open beside the logo so a page
+   can tuck its title up into it (see .bk-top in books.css). */
+header.mkt-header { background: var(--cream); position: relative; z-index: 5; }
 header.mkt-header .h-header-row {
-  max-width: 1240px; margin: 0 auto; padding: 14px 32px;
-  display: flex; align-items: center; gap: 28px; flex-wrap: wrap;
+  max-width: 1480px; margin: 0 auto; padding: 8px 32px 4px;
+  display: flex; align-items: flex-start; gap: 36px;
 }
-header.mkt-header .h-wordmark {
-  display: inline-flex; flex-direction: column; align-items: center; text-decoration: none;
-  border: 1px solid var(--ink); padding: 7px 18px 5px; color: var(--ink); line-height: 1.1;
+header.mkt-header .h-logo { flex: 0 0 auto; display: block; line-height: 0; }
+header.mkt-header .h-logo img { width: 150px; height: 150px; }
+header.mkt-header .h-nav {
+  display: flex; gap: 40px; flex-wrap: nowrap; margin: 30px auto 0; padding-left: 16px;
+  font-family: 'Nunito Sans', 'Helvetica Neue', Arial, sans-serif;
 }
-header.mkt-header .h-wordmark .name { font-size: 20px; letter-spacing: 0.08em; text-transform: uppercase; white-space: nowrap; }
-header.mkt-header .h-wordmark .place { font-size: 10.5px; letter-spacing: 0.28em; text-transform: uppercase; margin-top: 2px; }
-header.mkt-header .h-nav { display: flex; gap: 26px; margin-left: 4px; }
 header.mkt-header .h-nav a {
-  white-space: nowrap; color: var(--ink); text-decoration: none; font-size: 14.5px; letter-spacing: 0.1em;
-  text-transform: uppercase; border-bottom: 1px solid transparent; padding-bottom: 2px;
+  white-space: nowrap; color: var(--ink); text-decoration: none; font-size: 17px; font-weight: 400;
+  border-bottom: 1.5px solid transparent; padding-bottom: 8px;
 }
 header.mkt-header .h-nav a:hover, header.mkt-header .h-nav a.is-active { color: var(--maroon); border-bottom-color: var(--maroon); }
-header.mkt-header .h-tools { display: flex; align-items: center; gap: 18px; margin-left: auto; }
-header.mkt-header .h-tools .icon { color: var(--ink); display: inline-flex; }
-header.mkt-header .h-tools .icon:hover { color: var(--maroon); }
-header.mkt-header .h-tools form { margin: 0; display: inline-flex; }
-header.mkt-header .h-tools .text-btn {
-  background: none; border: 0; padding: 0; cursor: pointer; color: var(--ink-soft);
-  font-family: 'Cormorant Garamond', Georgia, serif; font-size: 14px; letter-spacing: 0.1em; text-transform: uppercase;
+header.mkt-header .h-tools {
+  display: flex; align-items: flex-start; gap: 24px; margin-top: 16px;
+  font-family: 'Nunito Sans', 'Helvetica Neue', Arial, sans-serif;
 }
-header.mkt-header .h-tools .text-btn:hover { color: var(--maroon); }
-header.mkt-header .h-tools .icon svg { width: 26px; height: 26px; }
-header.mkt-header .langtoggle { display: inline-flex; align-items: center; gap: 5px; }
+header.mkt-header .h-tool {
+  display: flex; flex-direction: column; align-items: center; gap: 5px; color: var(--ink);
+  text-decoration: none; font-size: 13.5px; white-space: nowrap; background: none; border: 0; padding: 0;
+  cursor: pointer; font-family: inherit;
+}
+header.mkt-header .h-tool svg { width: 32px; height: 32px; }
+header.mkt-header .h-tool:hover { color: var(--maroon); }
+header.mkt-header .h-tool.fav svg { color: var(--maroon); }
+header.mkt-header .h-tools form { margin: 0; display: flex; }
+header.mkt-header .langtoggle { display: inline-flex; align-items: center; gap: 5px; margin-top: 8px; }
 header.mkt-header .langtoggle button {
   background: none; border: 0; border-bottom: 1px solid transparent; cursor: pointer; padding: 2px 3px; line-height: 1;
-  font-family: 'Cormorant Garamond', serif; font-size: 14px; font-weight: 600; letter-spacing: 0.08em; color: var(--ink-soft);
+  font-family: 'Nunito Sans', 'Helvetica Neue', Arial, sans-serif; font-size: 12.5px; font-weight: 600; letter-spacing: 0.06em; color: var(--ink-soft);
 }
 header.mkt-header .langtoggle button.is-active, header.mkt-header .langtoggle button:hover { color: var(--maroon); border-bottom-color: var(--maroon); }
 header.mkt-header .langtoggle span { color: var(--line); }
 
-@media (max-width: 960px) {
-  header.mkt-header .h-nav { order: 3; width: 100%; justify-content: center; margin-left: 0; gap: 12px 26px; flex-wrap: wrap; }
+@media (max-width: 1440px) {
+  header.mkt-header .h-header-row { gap: 24px; }
+  header.mkt-header .h-nav { gap: 26px; padding-left: 0; }
+  header.mkt-header .h-nav a { font-size: 16px; }
+  header.mkt-header .h-tools { gap: 18px; }
+  header.mkt-header .h-logo img { width: 128px; height: 128px; }
 }
-@media (max-width: 520px) {
-  header.mkt-header .h-header-row { padding: 12px 16px; gap: 14px; }
-  header.mkt-header .h-wordmark { padding: 6px 10px 4px; }
-  header.mkt-header .h-wordmark .name { font-size: 15px; letter-spacing: 0.05em; }
-  header.mkt-header .h-wordmark .place { font-size: 9px; }
+@media (max-width: 1240px) {
+  /* Nav drops to its own row under the logo + tools. */
+  header.mkt-header .h-header-row { flex-wrap: wrap; align-items: center; gap: 12px 24px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+  header.mkt-header .h-logo img { width: 96px; height: 96px; }
+  header.mkt-header .h-tools { margin: 0 0 0 auto; }
+  header.mkt-header .h-nav { order: 3; width: 100%; justify-content: center; flex-wrap: wrap; margin: 0; padding: 0; gap: 10px 30px; }
+  header.mkt-header .h-nav a { padding-bottom: 4px; }
+}
+@media (max-width: 640px) {
+  header.mkt-header .h-header-row { padding: 8px 16px 8px; gap: 8px 14px; }
+  header.mkt-header .h-logo img { width: 72px; height: 72px; }
   header.mkt-header .h-tools { gap: 14px; }
-  header.mkt-header .h-tools .icon svg { width: 22px; height: 22px; }
-  header.mkt-header .h-nav { gap: 8px 16px; }
-  header.mkt-header .h-nav a { font-size: 12.5px; letter-spacing: 0.07em; }
+  header.mkt-header .h-tool span.label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  header.mkt-header .h-tool svg { width: 26px; height: 26px; }
+  header.mkt-header .langtoggle { margin-top: 0; }
+  header.mkt-header .h-nav {
+    justify-content: flex-start; flex-wrap: nowrap; overflow-x: auto; gap: 22px;
+    scrollbar-width: none; padding-bottom: 2px;
+  }
+  header.mkt-header .h-nav::-webkit-scrollbar { display: none; }
+  header.mkt-header .h-nav a { font-size: 15.5px; }
 }
 
 /* ---------- Footer ---------- */

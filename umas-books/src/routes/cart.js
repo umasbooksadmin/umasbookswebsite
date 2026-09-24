@@ -31,6 +31,13 @@ async function loadCartCopies(cart) {
   return rows;
 }
 
+// Same-origin JSON for the site header's "Cart (n)" (assets/site.js).
+router.get("/api/cart/count", (req, res) => {
+  res.set("Cache-Control", "no-store");
+  // Read without getCart() so a visitor with no cart doesn't get a session created.
+  res.json({ count: Array.isArray(req.session.cart) ? req.session.cart.length : 0 });
+});
+
 router.get("/cart", async (req, res) => {
   await expireStaleReservations(pool);
   const cart = getCart(req);
