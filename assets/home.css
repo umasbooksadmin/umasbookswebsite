@@ -106,3 +106,68 @@
   .h-about-copy { padding: 36px 24px 150px; }
   .h-about .sprig { width: 170px; }
 }
+
+/* ---------- Fit the whole Home page on one desktop screen ----------
+   On computer-sized screens every section is sized from the window
+   height (vh), so header + hero + cards + About band + footer add up to
+   one screen with no scrolling. Phones and tablets keep the normal,
+   scrolling layout above. */
+@media (min-width: 1025px) and (min-height: 600px) {
+
+  /* Hero */
+  .home-fit .h-hero { min-height: 0; height: 22vh; }
+  .home-fit .h-hero-copy { padding: 0 24px; }
+  .home-fit .h-hero h1 { font-size: clamp(26px, 5.1vh, 56px); }
+  .home-fit .h-hero .rule { margin: 1.2vh auto 1.3vh; width: 120px; }
+  .home-fit .h-hero .tagline { font-size: clamp(12px, 1.75vh, 18px); margin-bottom: 1.6vh; line-height: 1.3; }
+  .home-fit .h-hero .tagline br { display: none; }
+  .home-fit .h-btn-lg { font-size: clamp(12px, 1.5vh, 15px); padding: 1.1vh 28px; }
+
+  /* Four cards */
+  .home-fit .h-cards { padding: 0.8vh 16px 1vh; }
+  .home-fit .h-card { padding: 0.6vh 20px 0; }
+  .home-fit .h-card .medallion { width: min(112px, 9.4vh); height: min(112px, 9.4vh); margin-bottom: 0.9vh; }
+  .home-fit .h-card h2 { font-size: clamp(17px, 2.3vh, 24px); }
+  .home-fit .h-card .subtitle { font-size: clamp(11px, 1.3vh, 13px); margin-top: 1px; }
+  .home-fit .h-card .divider { margin: 1vh auto 1.1vh; }
+  .home-fit .h-card p { font-size: clamp(14px, 1.75vh, 18px); line-height: 1.22; max-width: 32ch; margin-bottom: 1.1vh; }
+  .home-fit .h-card .actions { flex-direction: row; flex-wrap: wrap; justify-content: center; max-width: none; gap: 6px; }
+  .home-fit .h-card .actions .h-btn { width: auto; font-size: clamp(11.5px, 1.4vh, 14px); padding: 0.8vh 16px; letter-spacing: 0.1em; }
+  .home-fit .h-card .actions .h-btn-small { font-size: clamp(11px, 1.3vh, 13px); padding: 0.55vh 12px; letter-spacing: 0.06em; }
+
+  /* About band */
+  .home-fit .h-about { margin-top: 0; min-height: 20vh; grid-template-columns: 50% 1fr; }
+  /* height 0 + min-height 100%: the photo fills the band without its own
+     proportions making the band taller */
+  .home-fit .h-about .photo { height: 0; min-height: 100%; }
+  .home-fit .h-about-copy { padding: 1.2vh 32px 1.4vh; }
+  .home-fit .h-about h2 { font-size: clamp(18px, 2.5vh, 26px); }
+  .home-fit .h-about .divider { margin: 1vh 0 1.2vh; }
+  .home-fit .h-about p { font-size: clamp(14px, 1.75vh, 18px); line-height: 1.25; max-width: 68ch; margin-bottom: 1.2vh; padding-right: min(120px, 12vh); }
+  .home-fit .h-about .h-btn { font-size: clamp(11.5px, 1.4vh, 14px); padding: 0.9vh 22px; }
+  .home-fit .h-about .sprig { width: min(180px, 16vh); }
+
+}
+/* Shorter laptop screens: the minimum text sizes above would add up to a
+   little more than one screen, so tighten spacing and type a notch. */
+@media (min-width: 1025px) and (min-height: 600px) and (max-height: 840px) {
+  .home-fit .h-hero { height: 21.5vh; }
+  .home-fit .h-hero h1 { font-size: 4.9vh; }
+  .home-fit .h-hero .rule { margin: 0.9vh auto 1vh; }
+  .home-fit .h-hero .tagline { font-size: 12px; margin-bottom: 1.2vh; }
+  .home-fit .h-btn-lg { padding: 0.8vh 24px; font-size: 12px; }
+  .home-fit .h-cards { padding: 0.4vh 16px 0.6vh; }
+  .home-fit .h-card .medallion { margin-bottom: 0.6vh; }
+  .home-fit .h-card h2 { font-size: 17px; }
+  .home-fit .h-card .subtitle { font-size: 11px; }
+  .home-fit .h-card .divider { margin: 0.7vh auto 0.8vh; }
+  .home-fit .h-card p { font-size: 13.5px; line-height: 1.2; margin-bottom: 0.9vh; }
+  .home-fit .h-card .actions { gap: 4px; }
+  .home-fit .h-card .actions .h-btn { font-size: 11.5px; padding: 0.7vh 14px; }
+  .home-fit .h-card .actions .h-btn-small { font-size: 11px; padding: 0.45vh 10px; }
+  .home-fit .h-about-copy { padding: 0.9vh 28px 1vh; }
+  .home-fit .h-about h2 { font-size: 18px; }
+  .home-fit .h-about .divider { margin: 0.7vh 0 0.9vh; }
+  .home-fit .h-about p { font-size: 13.5px; line-height: 1.2; margin-bottom: 0.9vh; }
+  .home-fit .h-about .h-btn { font-size: 11.5px; padding: 0.7vh 18px; }
+}

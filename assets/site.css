@@ -460,3 +460,38 @@ img { max-width: 100%; display: block; }
   .event-date { width: 44px; padding-right: 10px; }
 }
 body:not(.home) .h-footer { margin-top: 56px; }
+
+/* ---------- One-screen pages (body.fit-screen) ----------
+   Home and Browse Books size themselves to fit one desktop screen (see
+   home.css / books.css); these rules shrink the shared header and footer
+   to match on those pages only. */
+@media (min-width: 1025px) and (min-height: 600px) {
+  .fit-screen .h-header-row { padding-top: 0.6vh; padding-bottom: 0.4vh; }
+  .fit-screen .h-logo img { width: min(100px, 10.5vh); height: min(100px, 10.5vh); }
+  .fit-screen .h-nav { margin-top: 2.2vh; }
+  .fit-screen .h-nav a { padding-bottom: 5px; }
+  .fit-screen .h-tools { margin-top: 1vh; }
+  .fit-screen .h-tool svg { width: min(28px, 3.2vh); height: min(28px, 3.2vh); }
+}
+@media (min-width: 1025px) and (max-width: 1240px) and (min-height: 600px) {
+  /* menu on its own row here: shrink the logo and the gaps around it */
+  .fit-screen .h-logo img { width: min(76px, 8.5vh); height: min(76px, 8.5vh); }
+  .fit-screen .h-header-row { row-gap: 2px; padding-bottom: 0.6vh; }
+  .fit-screen .h-nav a { padding-bottom: 2px; }
+}
+@media (min-width: 1025px) and (min-height: 600px) {
+  body.fit-screen .h-footer { margin-top: 1vh; padding-bottom: 1vh; }
+  .fit-screen .h-footer-row { padding-top: 1vh; }
+  .fit-screen .h-footer li { font-size: clamp(11.5px, 1.4vh, 14px); }
+  .fit-screen .h-social svg { width: 20px; height: 20px; }
+  .fit-screen .h-footer-util { margin-top: 0.5vh; font-size: clamp(12px, 1.45vh, 15px); }
+}
+@media (min-width: 1025px) and (min-height: 600px) and (max-height: 840px) {
+  .fit-screen .h-header-row { padding-top: 0.3vh; padding-bottom: 0; }
+  .fit-screen .h-nav { margin-top: 1.6vh; }
+  .fit-screen .h-tool { font-size: 12px; gap: 2px; }
+  body.fit-screen .h-footer { margin-top: 0.6vh; padding-bottom: 0.6vh; }
+  .fit-screen .h-footer-row { padding-top: 0.7vh; }
+  .fit-screen .h-footer li { font-size: 11.5px; }
+  .fit-screen .h-footer-util { margin-top: 0.2vh; font-size: 12px; }
+}
