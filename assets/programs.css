@@ -1,0 +1,83 @@
+/* Uma's Books & Adventures — English Programs page (classes.html).
+   Two side-by-side programs; type sizes match the Home page (hero title,
+   card text and buttons). Loaded after site.css. */
+
+.pg {
+  width: 100%; max-width: 1400px; margin: 0 auto; padding: 36px 32px 20px;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 56px;
+}
+.pg-col { display: flex; flex-direction: column; align-items: center; text-align: center; }
+.pg-kicker {
+  font-size: 19px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--maroon);
+  padding-bottom: 8px; border-bottom: 1px solid currentColor; opacity: 0.95;
+}
+.pg-dropin .pg-kicker { color: var(--green); }
+.pg-title {
+  font-size: clamp(36px, 9.5vw, 74px); font-weight: 600; line-height: 1.02; letter-spacing: -0.01em;
+  margin-top: 18px; color: #26351f;
+}
+.pg-dropin .pg-title { color: #b0772e; }
+.pg-script { font-family: 'Italianno', cursive; font-size: 50px; line-height: 1; margin: 6px 0 16px; color: var(--maroon); }
+.pg-dropin .pg-script { color: #33472c; }
+.pg-text { font-size: 19px; line-height: 1.35; color: var(--ink-soft); margin: 0 0 14px; max-width: 50ch; }
+
+.pg-info {
+  width: 100%; display: grid; grid-template-columns: repeat(3, 1fr); background: #f6f1ea;
+  border-radius: 6px; padding: 16px 8px; margin: 12px 0 18px; text-align: left;
+}
+.pg-info-item { display: flex; gap: 12px; align-items: flex-start; padding: 0 14px; border-left: 1px solid #d9c9a8; }
+.pg-info-item:first-child { border-left: 0; }
+.pg-info .ic { color: var(--maroon); flex: 0 0 auto; }
+.pg-info .ic svg { width: 34px; height: 34px; }
+.pg-info .lbl { color: var(--maroon); font-size: 19px; line-height: 1.2; }
+.pg-info .val { font-size: 19px; line-height: 1.2; color: var(--ink-soft); }
+.pg-info .note { font-size: 15px; line-height: 1.2; color: var(--ink-soft); }
+.pg-teacher { display: flex; align-items: center; gap: 14px; font-size: 19px; color: var(--ink-soft); margin: 0 0 22px; max-width: 34ch; }
+.pg-teacher .ic { color: var(--maroon); flex: 0 0 auto; }
+.pg-teacher .ic svg { width: 34px; height: 34px; }
+
+.pg-actions { width: 100%; display: flex; gap: 12px; margin-top: auto; }
+.pg-btn {
+  flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 14px;
+  padding: 14px 20px; border-radius: 4px; color: #fff; text-decoration: none; text-align: center;
+  font-size: 15px; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 700;
+  -webkit-font-smoothing: auto;
+}
+.pg-btn .arrow { font-size: 1.6em; line-height: 0.6; }
+.pg-btn.red { background: #a8352c; }
+.pg-btn.green { background: var(--btn-bg); }
+.pg-btn.gold { background: #b37a36; }
+.pg-btn:hover { filter: brightness(0.92); }
+
+.pg-register { width: 100%; max-width: 760px; margin: 40px auto 0; padding: 0 24px; scroll-margin-top: 20px; }
+
+/* Computers: same sizes as the Home page (title like the hero title,
+   everything else like the card text and buttons). */
+@media (min-width: 1025px) and (min-height: 480px) {
+  .pg-title { font-size: clamp(32px, 6.4vh, 72px); }
+  .pg-kicker { font-size: clamp(12px, 1.75vh, 18px); }
+  .pg-script { font-size: clamp(30px, 4.6vh, 50px); }
+  .pg-text, .pg-info .lbl, .pg-info .val, .pg-teacher { font-size: clamp(14px, 1.75vh, 18px); line-height: 1.25; }
+  .pg-info .note { font-size: clamp(11.5px, 1.4vh, 14px); }
+  .pg-btn { font-size: clamp(11.5px, 1.4vh, 14px); }
+}
+@media (min-width: 1025px) and (min-height: 480px) and (max-height: 840px) {
+  .pg-title { font-size: 6.2vh; }
+  .pg-kicker, .pg-text, .pg-info .lbl, .pg-info .val, .pg-teacher { font-size: 13.5px; }
+  .pg-btn, .pg-info .note { font-size: 11.5px; }
+}
+@media (min-width: 1025px) and (min-height: 480px) and (max-height: 700px) {
+  .pg-title { font-size: 5.6vh; }
+  .pg-kicker, .pg-text, .pg-info .lbl, .pg-info .val, .pg-teacher { font-size: 2.05vh; }
+  .pg-btn, .pg-info .note { font-size: 1.75vh; }
+}
+
+@media (max-width: 1024px) {
+  .pg { grid-template-columns: 1fr; gap: 56px; max-width: 760px; }
+}
+@media (max-width: 560px) {
+  .pg { padding: 24px 16px 10px; }
+  .pg-info { grid-template-columns: 1fr; gap: 12px; }
+  .pg-info-item { border-left: 0; }
+  .pg-actions { flex-direction: column; }
+}

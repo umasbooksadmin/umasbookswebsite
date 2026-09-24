@@ -21,7 +21,7 @@ function getTransporter() {
   return transporter;
 }
 
-async function sendMail({ to, subject, text }) {
+async function sendMail({ to, subject, text, replyTo }) {
   const t = getTransporter();
   if (!t) {
     console.warn("Email not configured — skipping send. Would have sent:\n", { to, subject }, "\n" + text);
@@ -32,6 +32,7 @@ async function sendMail({ to, subject, text }) {
     to,
     subject,
     text,
+    ...(replyTo ? { replyTo } : {}),
   });
 }
 

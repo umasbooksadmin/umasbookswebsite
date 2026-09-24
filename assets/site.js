@@ -1,6 +1,7 @@
 (function () {
   var COMMON = {
     en: {
+      "nav.home": "Home",
       "nav.books": "Browse Books",
       "nav.programs": "English Programs",
       "nav.events": "Events",
@@ -24,6 +25,7 @@
       "foot.favorites": "Favorites"
     },
     fr: {
+      "nav.home": "Accueil",
       "nav.books": "Parcourir les livres",
       "nav.programs": "Programmes d’anglais",
       "nav.events": "Événements",

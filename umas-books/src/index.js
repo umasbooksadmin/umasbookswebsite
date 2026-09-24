@@ -22,6 +22,7 @@ const eventsRoutes = require("./routes/events");
 const classesRoutes = require("./routes/classes");
 const booksRoutes = require("./routes/books");
 const wishlistRoutes = require("./routes/wishlist");
+const contactRoutes = require("./routes/contact");
 const cartRoutes = require("./routes/cart");
 const helloassoWebhookRoutes = require("./routes/helloassoWebhook");
 const adminRoutes = require("./routes/admin");
@@ -149,6 +150,7 @@ app.use(classesRoutes);
 app.use(booksRoutes);
 app.use(cartRoutes);
 app.use(wishlistRoutes);
+app.use(contactRoutes);
 app.use(adminRoutes);
 
 app.use((req, res) => {

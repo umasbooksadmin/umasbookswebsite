@@ -2,19 +2,21 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Éveil Programs &mdash; Uma's Books and Adventures</title>
+<title>English Programs &mdash; Uma's Books and Adventures</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Montserrat:wght@500;600;700&family=Nunito+Sans:wght@400;600&family=Italianno&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/site.css">
+<link rel="stylesheet" href="assets/programs.css">
 </head>
-<body>
+<body class="home">
 
 <header class="h-header">
   <div class="h-header-row">
     <a class="h-logo" href="/"><img src="assets/img/logo-stamp.png" alt="Uma’s Books &amp; Adventures — home" width="150" height="150"></a>
     <nav class="h-nav" aria-label="Main">
+      <a href="/" data-i18n="nav.home">Home</a>
       <a href="books.html" data-i18n="nav.books">Browse Books</a>
       <a href="classes.html" class="is-active" aria-current="page" data-i18n="nav.programs">English Programs</a>
       <a href="events.html" data-i18n="nav.events">Events</a>
@@ -34,101 +36,43 @@
   </div>
 </header>
 <main>
-
-  <div class="program-hero">
-    <div class="wrap-narrow">
-      <div class="program-hero-copy">
-        <span class="kicker" data-i18n="eveil.kicker">Children&#39;s Program</span>
-        <h1 data-i18n="eveil.title">Éveil English Immersion Program</h1>
-        <p class="tagline" data-i18n="eveil.tagline">Little Readers. A Bigger World.</p>
-        <p class="desc" data-i18n="eveil.desc">A joyful, play-based program for children to discover books, language and the world through stories, songs and creative activities &mdash; all in English.</p>
-        <div class="mini-feature-row">
-          <div class="mini-feature">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 6c-1.8-1.2-4-1.6-6.5-1.2v13c2.5-.4 4.7 0 6.5 1.2 1.8-1.2 4-1.6 6.5-1.2v-13C16 4.4 13.8 4.8 12 6z"/><path d="M12 6v13"/></svg>
-            <span data-i18n="eveil.mini.stories">Stories in English</span>
-          </div>
-          <div class="mini-feature">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 18a9 9 0 0 1 18 0"/><path d="M6.5 18a5.5 5.5 0 0 1 11 0"/></svg>
-            <span data-i18n="eveil.mini.play">Play &amp; Confidence</span>
-          </div>
-          <div class="mini-feature">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21V10"/><path d="M12 10C12 6 9 4 5 4c0 4 3 7 7 6z"/><path d="M12 13c0-3.5 2.5-5.5 6-5.5 0 3.5-2.5 6-6 5.5z"/></svg>
-            <span data-i18n="eveil.mini.curiosity">Curiosity for Life</span>
-          </div>
-        </div>
-        <div class="note-box" data-i18n-html="cls.calendar.note">
-          <strong>See what's scheduled &amp; sign up:</strong> <a href="https://umas-books.onrender.com/classes">View the programs calendar &rarr;</a> &mdash; no account needed.
-        </div>
+  <section class="pg">
+    <article class="pg-col pg-weekly">
+      <div class="pg-kicker" data-i18n="pg.w.kicker">Weekly program</div>
+      <h1 class="pg-title" data-i18n="pg.w.t">English Immersion Program</h1>
+      <p class="pg-script" data-i18n="pg.w.script">A joyful start for curious minds.</p>
+      <p class="pg-text" data-i18n="pg.w.p1">One hour a week in a fun, friendly and supportive environment. Our English immersion program is a gentle, progressive way for children to learn English — a great complement to English courses or a wonderful way to start.</p>
+      <p class="pg-text" data-i18n="pg.w.p2">Through stories, games, activities and creative play, children discover the language naturally while building confidence.</p>
+      <div class="pg-info">
+        <div class="pg-info-item"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6.5-6.2-6.5-11.2a6.5 6.5 0 0 1 13 0C18.5 14.8 12 21 12 21z"/><circle cx="12" cy="9.8" r="2.4"/></svg></span><div><div class="lbl" data-i18n="pg.loc.l">Location</div><div class="val" data-i18n="pg.loc.v">Uma’s Books and Adventures</div></div></div>
+        <div class="pg-info-item"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2.2"/></svg></span><div><div class="lbl" data-i18n="pg.dur.l">Duration</div><div class="val" data-i18n="pg.dur.v">1 hour</div></div></div>
+        <div class="pg-info-item"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><ellipse cx="15" cy="6" rx="5" ry="2"/><path d="M10 6v3c0 1.1 2.2 2 5 2s5-.9 5-2V6"/><path d="M10 9v3c0 1.1 2.2 2 5 2s5-.9 5-2V9"/><ellipse cx="9" cy="13" rx="5" ry="2"/><path d="M4 13v3c0 1.1 2.2 2 5 2s5-.9 5-2v-3"/><path d="M4 16v3c0 1.1 2.2 2 5 2s5-.9 5-2v-3"/></svg></span><div><div class="lbl" data-i18n="pg.cost.l">Cost</div><div class="val" data-i18n="pg.w.cost.v">15 € per session</div><div class="note" data-i18n="pg.w.cost.n">to be billed monthly</div></div></div>
       </div>
-    </div>
-  </div>
-
-  <div class="section">
-    <div class="program-grid">
-
-      <div class="program-details">
-        <h2 data-i18n="eveil.details.title">Program Details</h2>
-        <dl class="detail-list">
-          <div class="detail-row">
-            <div class="detail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-6 8-6s8 2 8 6"/></svg></div>
-            <div>
-              <dt data-i18n="eveil.who.l">Who?</dt>
-              <dd data-i18n="eveil.who.v">Children 18 months &ndash; 5 years</dd>
-            </div>
-          </div>
-          <div class="detail-row">
-            <div class="detail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg></div>
-            <div>
-              <dt data-i18n="eveil.when.l">When?</dt>
-              <dd data-i18n-html="eveil.when.v">Wednesdays at 11:00<br>Saturdays at 14:00<br>Choose one date and time for the year, when pre-registering. Your child will attend this session each week.</dd>
-            </div>
-          </div>
-          <div class="detail-row">
-            <div class="detail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 21s7-6.5 7-11a7 7 0 1 0-14 0c0 4.5 7 11 7 11z"/><circle cx="12" cy="10" r="2.4"/></svg></div>
-            <div>
-              <dt data-i18n="eveil.where.l">Where?</dt>
-              <dd data-i18n-html="eveil.where.v">Uma&#39;s Books<br>Rue Peyroli&egrave;re, 81000 Albi</dd>
-            </div>
-          </div>
-          <div class="detail-row">
-            <div class="detail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M16 6.5c-1-1-2.3-1.5-3.7-1.5-3.4 0-6 2.9-6 7s2.6 7 6 7c1.4 0 2.7-.5 3.7-1.5M4 10h8M4 13.5h7"/></svg></div>
-            <div>
-              <dt data-i18n="eveil.price.l">Price</dt>
-              <dd data-i18n-html="eveil.price.v">&euro;20 per session<br>Paid monthly. One session per week (your child&#39;s reserved spot).</dd>
-            </div>
-          </div>
-          <div class="detail-row">
-            <div class="detail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 20s-7-4.4-9.5-8.8C.8 7.8 2.4 4.5 5.8 4c2-.3 3.7.7 4.8 2.4L12 8l1.4-1.6C14.5 4.7 16.2 3.7 18.2 4c3.4.5 5 3.8 3.3 7.2C19 15.6 12 20 12 20z"/></svg></div>
-            <div>
-              <dt data-i18n="eveil.format.l">Format</dt>
-              <dd data-i18n="eveil.format.v">Drop-off program &mdash; no adults accompany children. Our experienced facilitators provide a warm, safe and nurturing environment.</dd>
-            </div>
-          </div>
-          <div class="detail-row">
-            <div class="detail-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 3l2.6 5.6 6.1.6-4.6 4.1 1.3 6-5.4-3.1-5.4 3.1 1.3-6-4.6-4.1 6.1-.6z"/></svg></div>
-            <div>
-              <dt data-i18n="eveil.start.l">Start Date</dt>
-              <dd data-i18n="eveil.start.v">Program begins in November and runs all year, including during school holidays.</dd>
-            </div>
-          </div>
-        </dl>
-
-        <div class="info-box">
-          <div class="info-box-head">
-            <span class="script" data-i18n="eveil.goodtoknow.title">Good to know&hellip;</span>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M12 20s-7-4.4-9.5-8.8C.8 7.8 2.4 4.5 5.8 4c2-.3 3.7.7 4.8 2.4L12 8l1.4-1.6C14.5 4.7 16.2 3.7 18.2 4c3.4.5 5 3.8 3.3 7.2C19 15.6 12 20 12 20z"/></svg>
-          </div>
-          <ul>
-            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg><span data-i18n="eveil.gtk.1">The first session is free!</span></li>
-            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg><span data-i18n="eveil.gtk.2">Programs are &euro;20 per session (paid monthly).</span></li>
-            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg><span data-i18n="eveil.gtk.3">One session per week &mdash; you must choose the date and time when pre-registering.</span></li>
-            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg><span data-i18n="eveil.gtk.4">Cancellations must be made at least 48 hours in advance.</span></li>
-            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg><span data-i18n="eveil.gtk.5">Programs run during school holidays.</span></li>
-            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg><span data-i18n="eveil.gtk.6">No adults accompany children during the program.</span></li>
-          </ul>
-        </div>
+      <p class="pg-teacher"><span class="ic"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="7.5" r="4"/><path d="M4 21v-1.5C4 15.4 7.6 13 12 13s8 2.4 8 6.5V21z"/></svg></span><span data-i18n="pg.teacher">Animated by a native English teacher who is also a volunteer.</span></p>
+      <div class="pg-actions">
+        <a class="pg-btn red" href="#preregister"><span data-i18n="pg.w.cta1">Preregister</span> <span class="arrow" aria-hidden="true">&rsaquo;</span></a>
+        <a class="pg-btn green" href="https://umas-books.onrender.com/classes"><span data-i18n="pg.w.cta2">Check the calendar</span> <span class="arrow" aria-hidden="true">&rsaquo;</span></a>
       </div>
+    </article>
+    <article class="pg-col pg-dropin" id="drop-in">
+      <div class="pg-kicker" data-i18n="pg.d.kicker">Flexible sessions</div>
+      <h2 class="pg-title" data-i18n="pg.d.t">Drop-In Immersion Classes</h2>
+      <p class="pg-script" data-i18n="pg.d.script">English, just for fun!</p>
+      <p class="pg-text" data-i18n="pg.d.p1">No commitment, just come and join! Our drop-in immersion classes offer a relaxed and engaging way for children to experience English.</p>
+      <p class="pg-text" data-i18n="pg.d.p2">Each one-hour session includes a mix of stories, games, activities and creative play — all in English.</p>
+      <div class="pg-info">
+        <div class="pg-info-item"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6.5-6.2-6.5-11.2a6.5 6.5 0 0 1 13 0C18.5 14.8 12 21 12 21z"/><circle cx="12" cy="9.8" r="2.4"/></svg></span><div><div class="lbl" data-i18n="pg.loc.l">Location</div><div class="val" data-i18n="pg.loc.v">Uma’s Books and Adventures</div></div></div>
+        <div class="pg-info-item"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2.2"/></svg></span><div><div class="lbl" data-i18n="pg.dur.l">Duration</div><div class="val" data-i18n="pg.dur.v">1 hour</div></div></div>
+        <div class="pg-info-item"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><ellipse cx="15" cy="6" rx="5" ry="2"/><path d="M10 6v3c0 1.1 2.2 2 5 2s5-.9 5-2V6"/><path d="M10 9v3c0 1.1 2.2 2 5 2s5-.9 5-2V9"/><ellipse cx="9" cy="13" rx="5" ry="2"/><path d="M4 13v3c0 1.1 2.2 2 5 2s5-.9 5-2v-3"/><path d="M4 16v3c0 1.1 2.2 2 5 2s5-.9 5-2v-3"/></svg></span><div><div class="lbl" data-i18n="pg.cost.l">Cost</div><div class="val" data-i18n="pg.d.cost.v">20 € per session</div><div class="note" data-i18n="pg.d.cost.n">prepaid</div></div></div>
+      </div>
+      <p class="pg-teacher"><span class="ic"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="7.5" r="4"/><path d="M4 21v-1.5C4 15.4 7.6 13 12 13s8 2.4 8 6.5V21z"/></svg></span><span data-i18n="pg.teacher">Animated by a native English teacher who is also a volunteer.</span></p>
+      <div class="pg-actions">
+        <a class="pg-btn gold wide" href="https://umas-books.onrender.com/classes"><span data-i18n="pg.d.cta">Check upcoming sessions</span> <span class="arrow" aria-hidden="true">&rsaquo;</span></a>
+      </div>
+    </article>
+  </section>
 
+  <section class="pg-register" id="preregister">
       <div class="program-register">
         <h2 data-i18n="eveil.register.title">Pre-Register for the Éveil English Immersion Program</h2>
         <p class="lede" data-i18n="eveil.register.lede">Secure your child&#39;s spot for a year of stories, play and discovery.</p>
@@ -174,43 +118,12 @@
           <button type="submit" class="btn-submit" data-i18n="eveil.f.submit">Pre-Register for the Program</button>
         </form>
       </div>
-
-    </div>
-  </div>
-
-  <div class="section" id="drop-in">
-    <div class="wrap-narrow">
-      <div class="page-hero" style="padding-top:0;">
-        <h2 data-i18n="classes.other.title">Other Programs</h2>
-        <span class="badge-soon" data-i18n="soon.badge">Coming soon</span>
-      </div>
-      <div class="prose">
-        <p data-i18n="classes.intro">We&#39;re looking into offering drop-in programs alongside our existing language exchange sessions. Nothing is scheduled yet &mdash; tell us what you&#39;d be interested in and we&#39;ll keep you posted.</p>
-      </div>
-      <h3 class="form-title" data-i18n="notify.form.title">Get Notified When It&#39;s Ready</h3>
-      <form class="formcard" data-mailto="admin@umasbooks.org" data-subject="Program Interest" novalidate>
-        <div class="field">
-          <label for="cls-name" data-i18n="form.name.l">Name</label>
-          <input id="cls-name" type="text" data-field="Name" autocomplete="name">
-        </div>
-        <div class="field">
-          <label for="cls-email" data-i18n="form.email.l">Email</label>
-          <input id="cls-email" type="email" data-field="Email" autocomplete="email">
-        </div>
-        <div class="field">
-          <label for="cls-note" data-i18n="form.note.l">Note (optional)</label>
-          <textarea id="cls-note" data-field="Note"></textarea>
-        </div>
-        <p class="form-hint" data-i18n="form.hint">This opens your email app with the message ready to send.</p>
-        <button type="submit" class="btn-submit" data-i18n="notify.form.submit">Notify Me</button>
-      </form>
-    </div>
-  </div>
+  </section>
 </main>
 <footer class="h-footer">
   <div class="h-footer-row">
     <ul>
-      <li><a href="mailto:admin@umasbooks.org" data-i18n="foot.contact">Contact Us</a></li>
+      <li><a href="https://umas-books.onrender.com/contact" data-i18n="foot.contact">Contact Us</a></li>
       <li><a href="visit.html">Albi, France</a></li>
     </ul>
     <div class="h-social">
@@ -224,6 +137,29 @@
 <script>
 window.PAGE_I18N = {
   "en": {
+    "pg.w.kicker": "Weekly program",
+    "pg.w.t": "English Immersion Program",
+    "pg.w.script": "A joyful start for curious minds.",
+    "pg.w.p1": "One hour a week in a fun, friendly and supportive environment. Our English immersion program is a gentle, progressive way for children to learn English — a great complement to English courses or a wonderful way to start.",
+    "pg.w.p2": "Through stories, games, activities and creative play, children discover the language naturally while building confidence.",
+    "pg.w.cost.v": "15 € per session",
+    "pg.w.cost.n": "to be billed monthly",
+    "pg.w.cta1": "Preregister",
+    "pg.w.cta2": "Check the calendar",
+    "pg.d.kicker": "Flexible sessions",
+    "pg.d.t": "Drop-In Immersion Classes",
+    "pg.d.script": "English, just for fun!",
+    "pg.d.p1": "No commitment, just come and join! Our drop-in immersion classes offer a relaxed and engaging way for children to experience English.",
+    "pg.d.p2": "Each one-hour session includes a mix of stories, games, activities and creative play — all in English.",
+    "pg.d.cost.v": "20 € per session",
+    "pg.d.cost.n": "prepaid",
+    "pg.d.cta": "Check upcoming sessions",
+    "pg.loc.l": "Location",
+    "pg.loc.v": "Uma’s Books and Adventures",
+    "pg.dur.l": "Duration",
+    "pg.dur.v": "1 hour",
+    "pg.cost.l": "Cost",
+    "pg.teacher": "Animated by a native English teacher who is also a volunteer.",
     "eveil.kicker": "Children's Program",
     "eveil.title": "Éveil English Immersion Program",
     "eveil.tagline": "Little Readers. A Bigger World.",
@@ -278,6 +214,29 @@ window.PAGE_I18N = {
     "form.hint": "This opens your email app with the message ready to send."
   },
   "fr": {
+    "pg.w.kicker": "Programme hebdomadaire",
+    "pg.w.t": "Programme d’immersion en anglais",
+    "pg.w.script": "Un joyeux départ pour les esprits curieux.",
+    "pg.w.p1": "Une heure par semaine dans un cadre ludique, bienveillant et encourageant. Notre programme d’immersion est une façon douce et progressive pour les enfants d’apprendre l’anglais — un excellent complément aux cours d’anglais ou une merveilleuse façon de commencer.",
+    "pg.w.p2": "À travers histoires, jeux, activités et jeux créatifs, les enfants découvrent la langue naturellement tout en prenant confiance.",
+    "pg.w.cost.v": "15 € par séance",
+    "pg.w.cost.n": "facturé mensuellement",
+    "pg.w.cta1": "Pré-inscription",
+    "pg.w.cta2": "Voir le calendrier",
+    "pg.d.kicker": "Séances flexibles",
+    "pg.d.t": "Ateliers d’immersion à la carte",
+    "pg.d.script": "L’anglais, juste pour le plaisir !",
+    "pg.d.p1": "Sans engagement, venez simplement nous rejoindre ! Nos ateliers à la carte offrent aux enfants une façon détendue et vivante de découvrir l’anglais.",
+    "pg.d.p2": "Chaque séance d’une heure mêle histoires, jeux, activités et jeux créatifs — entièrement en anglais.",
+    "pg.d.cost.v": "20 € par séance",
+    "pg.d.cost.n": "prépayé",
+    "pg.d.cta": "Voir les prochaines séances",
+    "pg.loc.l": "Lieu",
+    "pg.loc.v": "Uma’s Books and Adventures",
+    "pg.dur.l": "Durée",
+    "pg.dur.v": "1 heure",
+    "pg.cost.l": "Tarif",
+    "pg.teacher": "Animé par une personne anglophone native qui enseigne bénévolement.",
     "eveil.kicker": "Programme pour enfants",
     "eveil.title": "Programme d’immersion anglaise Éveil",
     "eveil.tagline": "Petits lecteurs. Un monde plus grand.",
