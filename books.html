@@ -71,7 +71,6 @@
         <div class="kicker" data-i18n="bk.rec.kicker">Our recommendation of the week</div>
         <h2 id="bk-rec-title"></h2>
         <div class="author" id="bk-rec-author"></div>
-        <div class="stars" id="bk-rec-stars"></div>
         <p class="blurb" id="bk-rec-blurb"></p>
       </div>
       <a class="btn btn-maroon rec-cta" id="bk-rec-link" href="#" data-i18n="bk.rec.cta">View book</a>
@@ -228,22 +227,6 @@ window.PAGE_I18N = {
   }
 };
 
-// ---------------------------------------------------------------------
-// Recommendation of the week — edit this block to change the pick.
-// "isbn" is used to find the book in our inventory (for its "View book"
-// link and cover); if it isn't in stock, the button searches for the
-// title instead and the cover comes from Open Library.
-// ---------------------------------------------------------------------
-window.BOOK_OF_THE_WEEK = {
-  title: "Remarkably Bright Creatures",
-  author: "Shelby Van Pelt",
-  isbn: "9780063204157",
-  stars: 5,
-  blurb: {
-    en: "A moving, witty and heartwarming novel about an unlikely friendship between a woman and a very intelligent octopus. It’s a story about loss, connection and finding hope in the most unexpected places. Charming, original and unforgettable.",
-    fr: "Un roman émouvant, plein d’esprit et réconfortant sur l’amitié improbable entre une femme et une pieuvre très intelligente. Une histoire de deuil, de liens et d’espoir trouvé là où on l’attend le moins. Charmant, original et inoubliable."
-  }
-};
 </script>
 <script src="assets/site.js"></script>
 <script src="favorites.js"></script>
@@ -394,7 +377,11 @@ window.BOOK_OF_THE_WEEK = {
   });
 
   // ---------------- Recommendation of the week ----------------
-  var rec = window.BOOK_OF_THE_WEEK;
+  // Pulled from real member/admin favorites (see GET /api/books/recommendation),
+  // not hand-curated — hidden entirely if nothing qualifies yet (no
+  // favorites, or the favorited book isn't in stock right now).
+  var rec = null;
+  var recSection = document.querySelector('.bk-rec');
   var recLink = document.getElementById('bk-rec-link');
   var recCoverSlot = document.getElementById('bk-rec-cover-slot');
   function setRecCover(src) {
@@ -405,32 +392,18 @@ window.BOOK_OF_THE_WEEK = {
     if (img) img.addEventListener('error', function () { setRecCover(null); }, { once: true });
   }
   function renderRecText() {
+    if (!rec) return;
     document.getElementById('bk-rec-title').textContent = rec.title;
-    document.getElementById('bk-rec-author').textContent = rec.author;
-    document.getElementById('bk-rec-blurb').textContent = rec.blurb[lang()] || rec.blurb.en;
+    document.getElementById('bk-rec-author').textContent = rec.author || '';
+    document.getElementById('bk-rec-blurb').textContent = (rec.blurb && (rec.blurb[lang()] || rec.blurb.en)) || '';
   }
-  if (rec) {
+  getJSON(API + '/recommendation', function (err, data) {
+    if (err || !data) { recSection.hidden = true; return; }
+    rec = data;
     renderRecText();
-    var n = Math.max(0, Math.min(5, rec.stars || 0));
-    var star = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="m12 2.8 2.8 5.8 6.3.9-4.6 4.4 1.1 6.3L12 17.2l-5.6 3 1.1-6.3-4.6-4.4 6.3-.9z"/></svg>';
-    var starsEl = document.getElementById('bk-rec-stars');
-    starsEl.innerHTML = new Array(n + 1).join(star);
-    starsEl.setAttribute('role', 'img');
-    starsEl.setAttribute('aria-label', n + ' / 5');
-    setRecCover(rec.isbn ? 'https://covers.openlibrary.org/b/isbn/' + encodeURIComponent(rec.isbn) + '-L.jpg?default=false' : null);
-    recLink.addEventListener('click', function (e) {
-      if (recLink.getAttribute('href') !== '#') return; // in stock: go to its page
-      e.preventDefault();
-      input.value = rec.title;
-      setActiveGenre(null);
-      showResults(API + '/search?q=' + encodeURIComponent(rec.title), { q: rec.title });
-    });
-    getJSON(API + '/search?q=' + encodeURIComponent(rec.isbn || rec.title), function (err, books) {
-      if (err || !books.length) return;
-      recLink.setAttribute('href', books[0].url);
-      if (books[0].coverUrl) setRecCover(books[0].coverUrl);
-    });
-  }
+    setRecCover(rec.coverUrl);
+    recLink.setAttribute('href', rec.url);
+  });
 
   // ---------------- New In ----------------
   var track = document.getElementById('bk-new-track');
