@@ -99,6 +99,14 @@
         var lines = [];
         form.querySelectorAll("[data-field]").forEach(function (el) {
           if ((el.type === "radio" || el.type === "checkbox") && !el.checked) return;
+          // A multi-select's .value is only its first selected option —
+          // list every option the visitor picked instead.
+          if (el.tagName === "SELECT" && el.multiple) {
+            var picked = Array.prototype.filter.call(el.options, function (o) { return o.selected; })
+              .map(function (o) { return (o.textContent || o.value).trim(); });
+            if (picked.length) lines.push(el.getAttribute("data-field") + ": " + picked.join(", "));
+            return;
+          }
           var val = (el.value || "").trim();
           if (val) lines.push(el.getAttribute("data-field") + ": " + val);
         });

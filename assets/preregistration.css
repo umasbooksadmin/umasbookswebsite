@@ -1,0 +1,87 @@
+/* Uma's Books & Adventures — Weekly Immersion pre-registration form
+   (pre-registration.html), linked from the Preregister button on
+   immersion.html. Reuses the Home page hero art (assets/home.css,
+   loaded before this file); everything below is specific to this
+   page's two-column form layout. No backend — the form submits as a
+   mailto: (see form[data-mailto] in assets/site.js), same pattern as
+   the Volunteer and Wishlist pages. */
+
+/* ---------- Hero ---------- */
+.preg-hero-copy { position: relative; z-index: 1; text-align: center; padding: 50px 24px 28px; max-width: 720px; margin: 0 auto; }
+.preg-hero-copy h1 {
+  font-size: clamp(30px, 4.6vw, 48px); font-weight: 600; line-height: 1.12; color: var(--ink);
+  text-transform: none; letter-spacing: normal;
+}
+.preg-kicker {
+  font-size: 16px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--maroon);
+  font-weight: 700; margin-top: 10px;
+}
+.preg-hero-copy .preg-rule { width: 60px; height: 2px; background: var(--maroon); margin: 14px auto; border: 0; }
+.preg-script { font-family: 'Italianno', cursive; font-size: clamp(24px, 3.6vw, 34px); line-height: 1.2; color: var(--maroon); margin: 0 0 8px; }
+.preg-hero-copy .preg-sub { font-size: 16px; color: var(--ink-soft); margin: 0; }
+
+/* ---------- Two-column layout ---------- */
+.preg-layout {
+  display: grid; grid-template-columns: 1.5fr 1fr; gap: 48px; align-items: start;
+  max-width: 1160px; margin: 10px auto 60px; padding: 0 28px;
+}
+
+/* ---------- Numbered section headers ---------- */
+.preg-section-title {
+  display: flex; align-items: baseline; gap: 14px; margin: 34px 0 18px;
+  font-size: 17px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink); font-weight: 700;
+}
+.preg-section-title:first-child { margin-top: 0; }
+.preg-section-title .num { color: var(--maroon); }
+.preg-section-title .opt { text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--ink-soft); font-size: 14px; }
+.preg-section-title::after { content: ""; flex: 1 1 auto; height: 1px; background: var(--maroon); opacity: 0.5; }
+
+.preg-note {
+  background: #fbe7e4; border-radius: 4px; padding: 16px 18px; margin-bottom: 18px;
+  color: var(--ink-soft); font-size: 15px; line-height: 1.4;
+}
+
+/* ---------- Form fields ---------- */
+.preg-form .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+.preg-form .field label { font-size: 14.5px; color: var(--ink); }
+.preg-form .field label .req { color: var(--maroon); }
+.preg-form .field input, .preg-form .field select, .preg-form .field textarea {
+  font-family: 'Cormorant Garamond', Georgia, serif; font-size: 16.5px; color: var(--ink);
+  background: #fbfaf7; border: 1px solid var(--card-border); border-radius: 4px; padding: 11px 13px;
+}
+.preg-form .field textarea { resize: vertical; min-height: 80px; }
+.preg-form .field select[multiple] { min-height: 100px; }
+.preg-form .field input:focus, .preg-form .field select:focus, .preg-form .field textarea:focus {
+  outline: 2px solid var(--maroon); outline-offset: 1px;
+}
+.preg-field-hint { font-size: 13px; color: var(--ink-soft); margin-top: -10px; margin-bottom: 16px; }
+.preg-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+@media (max-width: 560px) { .preg-row { grid-template-columns: 1fr; } }
+
+.preg-check { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px; font-size: 15px; color: var(--ink-soft); }
+.preg-check input { margin-top: 4px; }
+
+.preg-submit {
+  display: inline-flex; align-items: center; gap: 12px; justify-content: center; width: 100%;
+  padding: 16px 24px; border-radius: 4px; background: var(--btn-bg); color: #fff; border: 0; cursor: pointer;
+  font-family: 'Cormorant Garamond', Georgia, serif; font-size: 15px; letter-spacing: 0.14em;
+  text-transform: uppercase; font-weight: 700; margin-top: 6px;
+}
+.preg-submit:hover { background: var(--btn-bg-dark); }
+.preg-form-hint { text-align: center; font-size: 14.5px; color: var(--ink-soft); margin-top: 14px; }
+
+/* ---------- Sidebar summary ---------- */
+.preg-sidebar { position: sticky; top: 24px; }
+.preg-summary { background: #fbe7e4; border-radius: 6px; padding: 30px 28px; text-align: center; }
+.preg-summary .kicker { font-size: 13px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--maroon-dark); font-weight: 700; margin-bottom: 18px; }
+.preg-summary .item { margin-bottom: 4px; }
+.preg-summary .item .big { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 32px; color: var(--ink); line-height: 1.1; }
+.preg-summary .item .small { font-size: 14px; color: var(--ink-soft); }
+.preg-summary .preg-rule { width: 40px; height: 1px; background: rgba(166, 83, 71, 0.4); margin: 18px auto; border: 0; }
+.preg-summary .blurb { font-size: 15px; color: var(--ink-soft); line-height: 1.4; margin-top: 4px; }
+.preg-sidebar-art { display: block; width: 100%; max-width: 260px; height: auto; margin: 28px auto 0; }
+
+@media (max-width: 900px) {
+  .preg-layout { grid-template-columns: 1fr; }
+  .preg-sidebar { position: static; }
+}

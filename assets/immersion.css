@@ -1,0 +1,96 @@
+/* Uma's Books & Adventures — English Immersion landing page
+   (immersion.html), linked from the Preregister button on programs.html.
+   Reuses the Home page's hero art positioning (assets/home.css, loaded
+   before this file); everything below is specific to this page. */
+
+/* ---------- Hero ---------- */
+.imm-hero-copy { position: relative; z-index: 1; text-align: center; padding: 54px 24px 36px; max-width: 720px; margin: 0 auto; }
+.imm-hero-copy h1 {
+  font-size: clamp(32px, 5.2vw, 54px); font-weight: 600; line-height: 1.12; color: var(--ink);
+  text-transform: none; letter-spacing: normal;
+}
+.imm-script {
+  font-family: 'Italianno', cursive; font-size: clamp(28px, 4.2vw, 42px); line-height: 1.15;
+  color: var(--maroon); margin: 8px 0 10px;
+}
+.imm-hero-copy .imm-sub { font-size: 17px; color: var(--ink-soft); margin: 0; }
+
+/* ---------- Shared section heading (small caps + red rule) ---------- */
+.imm-heading { text-align: center; padding: 0 28px; }
+.imm-heading h2 {
+  font-size: 15px; letter-spacing: 0.26em; text-transform: uppercase; font-weight: 600; color: var(--ink);
+  display: inline-block; padding-bottom: 10px; border-bottom: 2px solid var(--maroon); margin: 0;
+}
+
+/* ---------- Find the Right Session for You ---------- */
+.imm-sessions { padding: 30px 28px 56px; }
+.imm-session-grid {
+  display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px; max-width: 1240px; margin: 0 auto;
+}
+.imm-session-card { border-radius: 6px; padding: 26px 14px 22px; text-align: center; color: var(--ink); }
+.imm-session-card h3 { font-size: 18px; font-weight: 600; line-height: 1.2; margin-bottom: 16px; }
+.imm-session-card .imm-rule { width: 26px; height: 1px; background: currentColor; opacity: 0.35; margin: 0 auto 12px; }
+.imm-session-card .age-label {
+  font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; opacity: 0.7; margin-bottom: 2px;
+}
+.imm-session-card .age-range { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 26px; }
+.imm-session-card.tone-a { background: #dfe7e1; }
+.imm-session-card.tone-b { background: #f7e2df; }
+.imm-session-card.tone-c { background: #f4ead2; }
+.imm-session-card.tone-d { background: #e4e9dc; }
+.imm-session-card.tone-e { background: #f7dfe2; }
+.imm-session-card.tone-f { background: #dde7ee; }
+@media (max-width: 960px) { .imm-session-grid { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 620px) { .imm-session-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; } }
+
+/* ---------- What is English Immersion? ---------- */
+.imm-about { padding: 10px 28px 50px; text-align: center; }
+.imm-about .prose { max-width: 62ch; margin: 20px auto 0; color: var(--ink-soft); font-size: 18px; line-height: 1.42; }
+.imm-highlights { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; max-width: 1020px; margin: 40px auto 0; }
+.imm-highlights .col + .col { border-left: 1px solid var(--line); padding-left: 32px; }
+.imm-highlights .h-title {
+  font-size: 14px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--maroon-dark);
+  margin-bottom: 8px; font-weight: 700; line-height: 1.3;
+}
+.imm-highlights .h-text { font-size: 17px; color: var(--ink-soft); line-height: 1.35; margin: 0; }
+@media (max-width: 760px) {
+  .imm-highlights { grid-template-columns: 1fr; gap: 26px; }
+  .imm-highlights .col + .col { border-left: 0; padding-left: 0; border-top: 1px solid var(--line); padding-top: 26px; }
+}
+
+/* ---------- "Everything happens in English" banner ---------- */
+.imm-banner { background: #f7e2df; text-align: center; padding: 46px 28px; margin: 0 0 56px; }
+.imm-banner h2 {
+  font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; font-size: clamp(24px, 3.2vw, 34px);
+  color: var(--maroon-dark); margin-bottom: 10px;
+}
+.imm-banner p { color: var(--ink-soft); font-size: 17px; max-width: 56ch; margin: 0 auto; }
+
+/* ---------- Choose How You Join ---------- */
+.imm-join { padding: 0 28px 60px; }
+.imm-join-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; max-width: 1100px; margin: 30px auto 0; }
+.imm-join-card { border-radius: 6px; padding: 36px 34px; }
+.imm-join-card.tone-green { background: #e9ede2; }
+.imm-join-card.tone-pink { background: #fbe7e4; }
+.imm-join-card .kicker {
+  font-size: 13px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--maroon-dark);
+  font-weight: 700; margin-bottom: 12px;
+}
+.imm-join-card h3 { font-size: clamp(24px, 2.6vw, 30px); font-weight: 600; margin-bottom: 14px; line-height: 1.15; }
+.imm-join-card p { color: var(--ink-soft); font-size: 16.5px; line-height: 1.4; margin: 0 0 22px; }
+.imm-join-meta { display: flex; gap: 24px; margin-bottom: 26px; }
+.imm-join-meta .m { flex: 1; padding-left: 18px; border-left: 2px solid rgba(166, 83, 71, 0.3); }
+.imm-join-meta .m:first-child { padding-left: 0; border-left: 0; }
+.imm-join-meta .m .lbl { font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft); }
+.imm-join-meta .m .val { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 21px; color: var(--ink); display: block; margin-top: 2px; }
+.imm-join-meta .m .note { font-size: 13px; color: var(--ink-soft); }
+.imm-join-btn {
+  display: inline-flex; align-items: center; gap: 12px; padding: 14px 26px; border-radius: 4px;
+  color: #fff; text-decoration: none; font-size: 14px; letter-spacing: 0.14em; text-transform: uppercase;
+  font-weight: 700; -webkit-font-smoothing: auto;
+}
+.imm-join-btn .arrow { font-size: 1.4em; line-height: 0.6; }
+.imm-join-btn.dark-green { background: var(--btn-bg); }
+.imm-join-btn.dark-red { background: #a8352c; }
+.imm-join-btn:hover { filter: brightness(0.92); }
+@media (max-width: 760px) { .imm-join-grid { grid-template-columns: 1fr; } }

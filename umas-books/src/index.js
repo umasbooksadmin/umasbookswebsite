@@ -121,7 +121,8 @@ const marketingCsp = [
 ].join("; ");
 const MARKETING_PAGES = [
   "about.html", "blog.html", "books.html", "events.html", "programs.html",
-  "membership.html", "visit.html", "volunteer.html", "wishlist.html",
+  "immersion.html", "pre-registration.html", "membership.html", "visit.html",
+  "volunteer.html", "wishlist.html",
 ];
 
 app.use("/assets", express.static(path.join(marketingRoot, "assets")));
