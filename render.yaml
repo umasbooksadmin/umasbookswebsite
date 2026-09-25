@@ -19,7 +19,12 @@ services:
       paths:
         - "**"
     buildCommand: npm install
-    startCommand: npm run migrate && npm start
+    # seed is idempotent (only creates an admin if none exists yet, only
+    # seeds sample announcements/charity content if none exists) — safe to
+    # run on every startup. This matters on the free plan specifically,
+    # which has no Shell tab to run one-off commands from, so this is the
+    # only way to get the first admin account onto a fresh database.
+    startCommand: npm run migrate && npm run seed && npm start
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -29,6 +34,10 @@ services:
         generateValue: true
       - key: NODE_ENV
         value: production
+      - key: SEED_ADMIN_EMAIL
+        sync: false
+      - key: SEED_ADMIN_PASSWORD
+        sync: false
       - key: GMAIL_USER
         sync: false
       - key: GMAIL_APP_PASSWORD
