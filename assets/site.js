@@ -76,6 +76,18 @@
       var v = dict[el.getAttribute("data-i18n-html")];
       if (v != null) el.innerHTML = v;
     });
+    // Server-rendered dynamic content (e.g. a book's description/genre —
+    // see views/book_detail.ejs) that already has a French version from
+    // the database, rather than a fixed dictionary key: the element's own
+    // original text is the English fallback, cached once so toggling back
+    // and forth doesn't lose it. An empty/missing data-fr-text (a book
+    // that hasn't gotten its French version generated yet) just leaves
+    // the English text in place.
+    document.querySelectorAll("[data-fr-text]").forEach(function (el) {
+      if (el.dataset.enCache === undefined) el.dataset.enCache = el.textContent;
+      var fr = el.getAttribute("data-fr-text");
+      el.textContent = (lang === "fr" && fr) ? fr : el.dataset.enCache;
+    });
     document.querySelectorAll("[data-i18n-attr]").forEach(function (el) {
       el.getAttribute("data-i18n-attr").split(";").forEach(function (pair) {
         var parts = pair.split(":");

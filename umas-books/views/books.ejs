@@ -65,12 +65,12 @@
   <div class="category-grid">
     <a class="category-item<%= !genre ? ' is-active' : '' %>" href="/books<%= q ? '?q=' + encodeURIComponent(q) : '' %>">
       <span class="chip" style="background:#eee3d4;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H19v15.5a1 1 0 0 1-1 1H6.5A2.5 2.5 0 0 1 4 17V5.5z"/><path d="M4 17a2.5 2.5 0 0 1 2.5-2.5H19"/></svg></span>
-      <span>All Genres</span>
+      <span data-fr-text="Tous les genres">All Genres</span>
     </a>
-    <% genres.forEach(g => { var c = chipFor(g); %>
-      <a class="category-item<%= genre === g ? ' is-active' : '' %>" href="/books?genre=<%= encodeURIComponent(g) %><%= q ? '&q=' + encodeURIComponent(q) : '' %>">
+    <% genres.forEach(g => { var c = chipFor(g.en); %>
+      <a class="category-item<%= genre === g.en ? ' is-active' : '' %>" href="/books?genre=<%= encodeURIComponent(g.en) %><%= q ? '&q=' + encodeURIComponent(q) : '' %>">
         <span class="chip" style="background:<%= c.bg %>;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"><%- c.svg %></svg></span>
-        <span><%= g %></span>
+        <span data-fr-text="<%= g.fr || '' %>"><%= g.en %></span>
       </a>
     <% }) %>
   </div>

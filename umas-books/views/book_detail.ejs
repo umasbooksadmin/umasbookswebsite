@@ -17,7 +17,7 @@
   </div>
 
   <div>
-    <% if (book.categories) { %><div class="book-detail-kicker"><%= book.categories %></div><% } %>
+    <% if (book.categories) { %><div class="book-detail-kicker" data-fr-text="<%= book.categories_fr || '' %>"><%= book.categories %></div><% } %>
     <h1 style="margin-bottom:4px;"><%= book.title %></h1>
     <p class="muted" style="margin-top:0;">by <%= book.authors || 'Unknown author' %></p>
 
@@ -58,8 +58,8 @@
     <% } %>
 
     <% if (book.description) { %>
-      <h3 style="margin-top:28px;">About this book</h3>
-      <p><%= book.description %></p>
+      <h3 style="margin-top:28px;" data-fr-text="À propos de ce livre">About this book</h3>
+      <p data-fr-text="<%= book.description_fr || '' %>"><%= book.description %></p>
     <% } %>
   </div>
 </div>

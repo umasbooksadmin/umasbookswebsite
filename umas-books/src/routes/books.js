@@ -1,6 +1,7 @@
 const express = require("express");
 const { pool } = require("../db");
 const { CONDITIONS } = require("../lib/inventory");
+const { translateGenresToFrench } = require("../lib/bookLookup");
 const { expireStaleReservations } = require("../lib/reservations");
 const { sendMail } = require("../mailer");
 
@@ -28,7 +29,7 @@ router.get("/books", async (req, res) => {
        AND EXISTS (SELECT 1 FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock')
      ORDER BY genre ASC`
   );
-  const genres = genreRows.map((r) => r.genre);
+  const genres = genreRows.map((r) => ({ en: r.genre, fr: translateGenresToFrench(r.genre) }));
 
   const clauses = ["c.status = 'in_stock'"];
   const params = [];
