@@ -2,13 +2,13 @@
 <%- include('../partials/admin_subnav', { active }) %>
 
 <h1>Sessions</h1>
-<p class="muted small">Sessions are public — anyone can view the calendar at <a href="/programs">/programs</a>, but signing up requires a member account. Click a day to add a session there; click a session to see who's signed up.</p>
+<p class="muted small">Sessions are public — anyone can view the calendar at <a href="/sessions">/sessions</a>, but signing up requires a member account. Click a day to add a session there; click a session to see who's signed up.</p>
 
 <div class="card">
   <div class="calendar-nav">
-    <a class="btn btn-outline btn-small" href="/admin/programs?month=<%= prevMonth %>">&larr; Prev</a>
+    <a class="btn btn-outline btn-small" href="/admin/sessions?month=<%= prevMonth %>">&larr; Prev</a>
     <span class="month-label"><%= monthLabel %></span>
-    <a class="btn btn-outline btn-small" href="/admin/programs?month=<%= nextMonth %>">Next &rarr;</a>
+    <a class="btn btn-outline btn-small" href="/admin/sessions?month=<%= nextMonth %>">Next &rarr;</a>
   </div>
   <div class="calendar-grid">
     <% ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].forEach(d => { %><div class="calendar-weekday"><%= d %></div><% }) %>
@@ -22,7 +22,7 @@
             <details class="calendar-pill calendar-add-pill">
               <summary>+ Add session</summary>
               <div class="calendar-pill-body">
-                <form class="stack" method="post" action="/admin/programs">
+                <form class="stack" method="post" action="/admin/sessions">
                   <%- include('../partials/csrf_field') %>
                   <input type="hidden" name="month" value="<%= currentMonth %>">
                   <input type="hidden" name="date" value="<%= day.dateKey %>">
@@ -57,7 +57,7 @@
                       <% signups.forEach(s => { %>
                         <li style="padding:6px 0;">
                           <%= s.name %> &middot; <span class="muted small"><%= s.email %></span>
-                          <form method="post" action="/admin/programs/<%= c.id %>/signups/<%= s.id %>/delete?month=<%= currentMonth %>" style="display:inline; margin-left:8px;">
+                          <form method="post" action="/admin/sessions/<%= c.id %>/signups/<%= s.id %>/delete?month=<%= currentMonth %>" style="display:inline; margin-left:8px;">
                             <%- include('../partials/csrf_field') %>
                             <button class="btn btn-outline btn-small" type="submit">Remove</button>
                           </form>
@@ -68,7 +68,7 @@
 
                   <details style="margin-top:10px;">
                     <summary style="cursor:pointer; color: var(--maroon);">Edit</summary>
-                    <form class="stack" method="post" action="/admin/programs/<%= c.id %>?month=<%= currentMonth %>" style="margin-top:10px;">
+                    <form class="stack" method="post" action="/admin/sessions/<%= c.id %>?month=<%= currentMonth %>" style="margin-top:10px;">
                       <%- include('../partials/csrf_field') %>
                       <label for="title-<%= c.id %>">Title</label>
                       <input id="title-<%= c.id %>" name="title" type="text" required value="<%= c.title %>">
@@ -86,7 +86,7 @@
                     </form>
                   </details>
 
-                  <form method="post" action="/admin/programs/<%= c.id %>/delete?month=<%= currentMonth %>" style="margin-top:8px;">
+                  <form method="post" action="/admin/sessions/<%= c.id %>/delete?month=<%= currentMonth %>" style="margin-top:8px;">
                     <%- include('../partials/csrf_field') %>
                     <button class="btn btn-outline btn-small" type="submit">Delete session</button>
                   </form>

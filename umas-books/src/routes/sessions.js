@@ -10,7 +10,7 @@ const router = express.Router();
 // under the logged-in member's own name and email (see the signup route
 // below).
 
-router.get("/programs", async (req, res) => {
+router.get("/sessions", async (req, res) => {
   const { year, month } = parseMonthParam(req.query.month);
   const { start, end } = monthRange(year, month);
 
@@ -29,14 +29,14 @@ router.get("/programs", async (req, res) => {
   }
 
   const weeks = monthGrid(year, month, groupByDate(classes, "starts_at"));
-  res.render("programs", { weeks, mySignedUpClassIds, ...monthNav(year, month) });
+  res.render("sessions", { weeks, mySignedUpClassIds, ...monthNav(year, month) });
 });
 
-router.post("/programs/:id/signup", requireAuth, async (req, res) => {
+router.post("/sessions/:id/signup", requireAuth, async (req, res) => {
   const classId = Number(req.params.id);
   const name = req.session.user.displayName;
   const email = req.session.user.email.toLowerCase();
-  const redirectUrl = req.query.month ? `/programs?month=${req.query.month}` : "/programs";
+  const redirectUrl = req.query.month ? `/sessions?month=${req.query.month}` : "/sessions";
 
   const { rows: classRows } = await pool.query("SELECT * FROM classes WHERE id = $1", [classId]);
   const cls = classRows[0];

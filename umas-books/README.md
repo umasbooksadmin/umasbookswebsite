@@ -44,12 +44,12 @@ safe to re-run. Change `SEED_ADMIN_EMAIL` too if you don't want
   meetings (title, date/time, location, agenda) and posts minutes
   afterward; members RSVP ("I'll be there") or cancel, and see past
   meetings with minutes once posted.
-- **Events** (`/events`, public, no login) and **Programs** (`/programs`,
-  public, no login) — month-calendar views, each backed by its own table.
-  Admin creates/edits/deletes sessions (title, description, location,
-  time range, capacity) from `/admin/events` / `/admin/programs` and sees
-  who's signed up; anyone can browse the public calendar and sign up with
-  just a name and email, capacity enforced.
+- **Events** (`/events`, public, no login, guest sign-up with name/email)
+  and **Sessions** (`/sessions`, calendar public/no login, but signing up
+  requires a member account) — month-calendar views, each backed by its
+  own table. Admin creates/edits/deletes entries (title, description,
+  location, time range, capacity) from `/admin/events` / `/admin/sessions`
+  and sees who's signed up; capacity is enforced on both.
 - **Password reset** — a member can request a reset link at
   `/forgot-password` (emailed via Gmail/Google Workspace SMTP, one-hour
   expiry, single use), or a logged-in member can change their password

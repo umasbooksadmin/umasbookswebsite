@@ -4,11 +4,11 @@ const { requireAuth } = require("../middleware/auth");
 
 const router = express.Router();
 
-// Book orders and program/session sign-ups are both guest flows (no
-// account needed to check out or sign up — see src/routes/cart.js and
-// src/routes/programs.js), so there's no user_id on either one. The only
-// link back to an account is the email address, matched case-insensitively
-// since HelloAsso/browsers don't normalize case on what a buyer types in.
+// Book orders are a guest checkout flow (see src/routes/cart.js) and
+// session sign-ups predate requiring login (see src/routes/sessions.js),
+// so neither table has a user_id. The only link back to an account is
+// the email address, matched case-insensitively since HelloAsso/browsers
+// don't normalize case on what a buyer types in.
 router.get("/account", requireAuth, async (req, res) => {
   const email = req.session.user.email;
 

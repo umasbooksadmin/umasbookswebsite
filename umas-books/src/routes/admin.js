@@ -254,9 +254,9 @@ router.post("/admin/events/:id/signups/:signupId/delete", requireAdmin, async (r
   res.redirect(req.query.month ? `/admin/events?month=${req.query.month}` : "/admin/events");
 });
 
-// ---------- Classes (public sign-up) ----------
+// ---------- Sessions (public sign-up) ----------
 
-router.get("/admin/programs", requireAdmin, async (req, res) => {
+router.get("/admin/sessions", requireAdmin, async (req, res) => {
   const { year, month } = parseMonthParam(req.query.month);
   const { start, end } = monthRange(year, month);
   const { rows: classes } = await pool.query(
@@ -275,10 +275,10 @@ router.get("/admin/programs", requireAdmin, async (req, res) => {
   }
 
   const weeks = monthGrid(year, month, groupByDate(classes, "starts_at"));
-  res.render("admin/programs", { active: "programs", weeks, signupsByClass, ...monthNav(year, month) });
+  res.render("admin/sessions", { active: "sessions", weeks, signupsByClass, ...monthNav(year, month) });
 });
 
-router.post("/admin/programs", requireAdmin, async (req, res) => {
+router.post("/admin/sessions", requireAdmin, async (req, res) => {
   const title = (req.body.title || "").trim();
   const description = (req.body.description || "").trim() || null;
   const location = (req.body.location || "").trim() || null;
@@ -296,10 +296,10 @@ router.post("/admin/programs", requireAdmin, async (req, res) => {
       [title, description, location, startsAt, endsAt, capacity, req.session.user.id]
     );
   }
-  res.redirect(req.body.month ? `/admin/programs?month=${req.body.month}` : "/admin/programs");
+  res.redirect(req.body.month ? `/admin/sessions?month=${req.body.month}` : "/admin/sessions");
 });
 
-router.post("/admin/programs/:id", requireAdmin, async (req, res) => {
+router.post("/admin/sessions/:id", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   const title = (req.body.title || "").trim();
   const description = (req.body.description || "").trim() || null;
@@ -315,17 +315,17 @@ router.post("/admin/programs/:id", requireAdmin, async (req, res) => {
       [title, description, location, startsAt, endsAt, capacity, id]
     );
   }
-  res.redirect(req.query.month ? `/admin/programs?month=${req.query.month}` : "/admin/programs");
+  res.redirect(req.query.month ? `/admin/sessions?month=${req.query.month}` : "/admin/sessions");
 });
 
-router.post("/admin/programs/:id/delete", requireAdmin, async (req, res) => {
+router.post("/admin/sessions/:id/delete", requireAdmin, async (req, res) => {
   await pool.query("DELETE FROM classes WHERE id = $1", [Number(req.params.id)]);
-  res.redirect(req.query.month ? `/admin/programs?month=${req.query.month}` : "/admin/programs");
+  res.redirect(req.query.month ? `/admin/sessions?month=${req.query.month}` : "/admin/sessions");
 });
 
-router.post("/admin/programs/:id/signups/:signupId/delete", requireAdmin, async (req, res) => {
+router.post("/admin/sessions/:id/signups/:signupId/delete", requireAdmin, async (req, res) => {
   await pool.query("DELETE FROM class_signups WHERE id = $1 AND class_id = $2", [Number(req.params.signupId), Number(req.params.id)]);
-  res.redirect(req.query.month ? `/admin/programs?month=${req.query.month}` : "/admin/programs");
+  res.redirect(req.query.month ? `/admin/sessions?month=${req.query.month}` : "/admin/sessions");
 });
 
 // ---------- Charity vote ----------

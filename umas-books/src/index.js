@@ -20,7 +20,7 @@ const charityRoutes = require("./routes/charity");
 const volunteerRoutes = require("./routes/volunteer");
 const meetingsRoutes = require("./routes/meetings");
 const eventsRoutes = require("./routes/events");
-const programsRoutes = require("./routes/programs");
+const sessionsRoutes = require("./routes/sessions");
 const booksRoutes = require("./routes/books");
 const wishlistRoutes = require("./routes/wishlist");
 const contactRoutes = require("./routes/contact");
@@ -133,12 +133,16 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(marketingRoot, "index.html"));
 });
 
-// The programs page and calendar used to be called "classes"; send old
-// links and bookmarks to the new addresses.
+// The booking calendar used to be called "classes", then "programs"; send
+// old links and bookmarks to the current address. The marketing page at
+// programs.html keeps its own name — it's a different thing (see
+// MARKETING_PAGES below) from the /sessions calendar this app serves.
 const qs = (req) => { const i = req.originalUrl.indexOf("?"); return i === -1 ? "" : req.originalUrl.slice(i); };
 app.get("/classes.html", (req, res) => res.redirect(301, "/programs.html"));
-app.get("/classes", (req, res) => res.redirect(301, "/programs" + qs(req)));
-app.get("/admin/classes", (req, res) => res.redirect(301, "/admin/programs" + qs(req)));
+app.get("/classes", (req, res) => res.redirect(301, "/sessions" + qs(req)));
+app.get("/admin/classes", (req, res) => res.redirect(301, "/admin/sessions" + qs(req)));
+app.get("/programs", (req, res) => res.redirect(301, "/sessions" + qs(req)));
+app.get("/admin/programs", (req, res) => res.redirect(301, "/admin/sessions" + qs(req)));
 
 MARKETING_PAGES.forEach((file) => {
   app.get("/" + file, (req, res) => {
@@ -155,7 +159,7 @@ app.use(charityRoutes);
 app.use(volunteerRoutes);
 app.use(meetingsRoutes);
 app.use(eventsRoutes);
-app.use(programsRoutes);
+app.use(sessionsRoutes);
 app.use(booksRoutes);
 app.use(cartRoutes);
 app.use(wishlistRoutes);
