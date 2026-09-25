@@ -6,8 +6,15 @@
 <div class="card">
   <ul class="plain">
     <% members.forEach(m => { %>
-      <li>
-        <strong><%= m.display_name %></strong> &middot; <%= m.email %><%= m.is_admin ? ' · admin' : '' %>
+      <li style="display:flex; align-items:center; gap:10px; padding:6px 0;">
+        <span>
+          <strong><%= m.display_name %></strong> &middot; <%= m.email %><%= m.is_admin ? ' · admin' : '' %>
+          <% if (m.is_member) { %> &middot; <span class="status-pill paid">Member</span><% } %>
+        </span>
+        <form method="post" action="/admin/members/<%= m.id %>/toggle-member" style="margin-left:auto;">
+          <%- include('../partials/csrf_field') %>
+          <button type="submit" class="btn btn-outline btn-small"><%= m.is_member ? 'Remove member status' : 'Mark as member' %></button>
+        </form>
       </li>
     <% }) %>
   </ul>

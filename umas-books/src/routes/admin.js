@@ -70,8 +70,13 @@ router.get("/admin", requireAdmin, async (req, res) => {
 // ---------- Members ----------
 
 router.get("/admin/members", requireAdmin, async (req, res) => {
-  const { rows: members } = await pool.query("SELECT id, email, display_name, is_admin FROM users ORDER BY created_at DESC LIMIT 200");
+  const { rows: members } = await pool.query("SELECT id, email, display_name, is_admin, is_member FROM users ORDER BY created_at DESC LIMIT 200");
   res.render("admin/members", { active: "members", members });
+});
+
+router.post("/admin/members/:id/toggle-member", requireAdmin, async (req, res) => {
+  await pool.query("UPDATE users SET is_member = NOT is_member WHERE id = $1", [Number(req.params.id)]);
+  res.redirect("/admin/members");
 });
 
 // ---------- Announcements ----------
