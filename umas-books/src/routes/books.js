@@ -53,17 +53,19 @@ router.get("/books", async (req, res) => {
     params
   );
 
-  // A random in-stock book that some member has favorited (see
+  // A random in-stock book that some member or admin has favorited (see
   // public/favorites.js's server sync and POST /api/favorites/toggle
   // below) — only shown on the plain, unfiltered browse view.
   let recommended = null;
   if (!q && !genre) {
     const { rows: recRows } = await pool.query(
-      `SELECT DISTINCT b.*, (SELECT MIN(price) FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock') AS min_price
-       FROM favorites f
-       JOIN users u ON u.id = f.user_id AND u.is_member = true
-       JOIN books b ON b.id = f.book_id
-       WHERE EXISTS (SELECT 1 FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock')
+      `SELECT * FROM (
+         SELECT DISTINCT b.*, (SELECT MIN(price) FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock') AS min_price
+         FROM favorites f
+         JOIN users u ON u.id = f.user_id AND (u.is_member = true OR u.is_admin = true)
+         JOIN books b ON b.id = f.book_id
+         WHERE EXISTS (SELECT 1 FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock')
+       ) AS candidates
        ORDER BY random() LIMIT 1`
     );
     recommended = recRows[0] || null;
@@ -135,6 +137,41 @@ router.get("/api/books/latest-arrivals", async (req, res) => {
       url: `${baseUrl(req)}/books/${b.id}`,
     }))
   );
+});
+
+// Public JSON, cross-origin — the marketing site's "Recommendation of
+// the Week" band. Drawn from books a member or admin has favorited (see
+// POST /api/favorites/toggle below), not hand-curated — same eligibility
+// as the /books page's own "Recommended for You". Picks deterministically
+// per ISO week (every request during the same week gets the same book,
+// so it doesn't change on every page load) rather than fully at random,
+// by hashing each candidate with the current year+week and taking the
+// smallest hash — a new pick "at random" each week without needing any
+// stored state. Same CORS treatment as /api/books/latest-arrivals.
+router.get("/api/books/recommendation", async (req, res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Cross-Origin-Resource-Policy", "cross-origin");
+  const { rows } = await pool.query(
+    `SELECT * FROM (
+       SELECT DISTINCT b.id, b.title, b.authors, b.cover_url, b.description, b.description_fr
+       FROM favorites f
+       JOIN users u ON u.id = f.user_id AND (u.is_member = true OR u.is_admin = true)
+       JOIN books b ON b.id = f.book_id
+       WHERE EXISTS (SELECT 1 FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock')
+     ) AS candidates
+     ORDER BY md5(id::text || to_char(now(), 'IYYY-IW'))
+     LIMIT 1`
+  );
+  const b = rows[0];
+  if (!b) return res.json(null);
+  res.json({
+    id: b.id,
+    title: b.title,
+    author: b.authors,
+    coverUrl: b.cover_url,
+    blurb: { en: b.description || "", fr: b.description_fr || b.description || "" },
+    url: `${baseUrl(req)}/books/${b.id}`,
+  });
 });
 
 // Public JSON, cross-origin — consumed by the marketing site's Books
