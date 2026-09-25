@@ -10,7 +10,8 @@
   "scripts": {
     "start": "node src/index.js",
     "migrate": "node src/migrate.js",
-    "seed": "node src/seed.js"
+    "seed": "node src/seed.js",
+    "backfill-genres": "node src/backfillGenres.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

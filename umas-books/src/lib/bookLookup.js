@@ -127,4 +127,4 @@ async function searchByTitleAuthor(title, author) {
   }));
 }
 
-module.exports = { normalizeIsbn, lookupByIsbn, searchByTitleAuthor };
+module.exports = { normalizeIsbn, lookupByIsbn, searchByTitleAuthor, COMMON_GENRES };
