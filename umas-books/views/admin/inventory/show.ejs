@@ -30,6 +30,8 @@
         <input id="publishedYear" name="publishedYear" type="number" value="<%= book.published_year || '' %>">
         <label for="genre">Genres</label>
         <input id="genre" name="genre" type="text" value="<%= book.categories || '' %>" placeholder="e.g. Fantasy, Fiction — separate multiple with commas">
+        <label for="genreFr">Genres (French)</label>
+        <input id="genreFr" name="genreFr" type="text" value="<%= book.categories_fr || '' %>" placeholder="Filled in automatically from Genres above if left blank">
         <label for="coverUrl">Cover image URL</label>
         <input id="coverUrl" name="coverUrl" type="text" value="<%= book.cover_url || '' %>">
         <% if (!book.cover_url) { %>
@@ -40,7 +42,9 @@
         <% } %>
         <label for="description">Description</label>
         <textarea id="description" name="description"><%= book.description || '' %></textarea>
-        <div><button type="button" class="btn btn-outline btn-small" data-generate-description="description">Generate description</button></div>
+        <div><button type="button" class="btn btn-outline btn-small" data-generate-description="description" data-generate-description-fr="descriptionFr">Generate description</button></div>
+        <label for="descriptionFr">Description (French)</label>
+        <textarea id="descriptionFr" name="descriptionFr"><%= book.description_fr || '' %></textarea>
         <div><button class="btn btn-small" type="submit">Save changes</button></div>
       </form>
       <form method="post" action="/admin/inventory/<%= book.id %>/delete" style="margin-top:10px;">

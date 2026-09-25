@@ -3,9 +3,9 @@ const sharp = require("sharp");
 const { pool } = require("../db");
 const { requireAdmin } = require("../middleware/auth");
 const { parseMonthParam, monthRange, monthGrid, groupByDate, monthNav } = require("../lib/calendar");
-const { normalizeIsbn, lookupByIsbn, searchByTitleAuthor } = require("../lib/bookLookup");
+const { normalizeIsbn, lookupByIsbn, searchByTitleAuthor, translateGenresToFrench } = require("../lib/bookLookup");
 const { extractBookInfoFromPhoto } = require("../lib/coverVision");
-const { generateBookDescription } = require("../lib/bookDescription");
+const { generateBookDescription, translateDescriptionToFrench } = require("../lib/bookDescription");
 const { CONDITIONS, STATUSES, normalizeCondition, normalizeStatus, normalizeGenres } = require("../lib/inventory");
 const { expireStaleReservations, matchWishlistOnArrival } = require("../lib/reservations");
 const { seatsTakenExpr } = require("../lib/classCapacity");
@@ -442,7 +442,7 @@ router.post("/admin/inventory/lookup", requireAdmin, async (req, res) => {
       book = candidates[0] || null;
     }
     if (!book) {
-      book = { isbn: info.isbn ? normalizeIsbn(info.isbn) : null, title: info.title, author: info.author, publisher: null, publishedYear: null, description: null, coverUrl: null, genre: null };
+      book = { isbn: info.isbn ? normalizeIsbn(info.isbn) : null, title: info.title, author: info.author, publisher: null, publishedYear: null, description: null, coverUrl: null, genre: null, genreFr: null, descriptionFr: null };
       error = "Found some details from the photo, but no catalog match — check everything below before saving.";
     }
   } else {
@@ -452,7 +452,7 @@ router.post("/admin/inventory/lookup", requireAdmin, async (req, res) => {
     }
     book = await lookupByIsbn(isbn);
     if (!book) {
-      book = { isbn: normalizeIsbn(isbn), title: null, author: null, publisher: null, publishedYear: null, description: null, coverUrl: null, genre: null };
+      book = { isbn: normalizeIsbn(isbn), title: null, author: null, publisher: null, publishedYear: null, description: null, coverUrl: null, genre: null, genreFr: null, descriptionFr: null };
       error = "No catalog match for that ISBN — enter the details manually below.";
     }
   }
@@ -463,7 +463,7 @@ router.post("/admin/inventory/lookup", requireAdmin, async (req, res) => {
 router.get("/admin/inventory/new", requireAdmin, (req, res) => {
   res.render("admin/inventory/new", {
     active: "inventory",
-    book: { isbn: null, title: null, author: null, publisher: null, publishedYear: null, description: null, coverUrl: null, genre: null },
+    book: { isbn: null, title: null, author: null, publisher: null, publishedYear: null, description: null, coverUrl: null, genre: null, genreFr: null, descriptionFr: null },
     error: null,
     fromScan: false,
     conditions: CONDITIONS,
@@ -481,7 +481,8 @@ router.post("/admin/inventory/generate-description", requireAdmin, async (req, r
 
   const description = await generateBookDescription({ title, author, publisher, publishedYear });
   if (!description) return res.status(502).json({ error: "Couldn't generate a description — try again, or write one manually." });
-  res.json({ description });
+  const descriptionFr = await translateDescriptionToFrench(description);
+  res.json({ description, descriptionFr });
 });
 
 router.post("/admin/inventory", requireAdmin, async (req, res) => {
@@ -491,13 +492,15 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
   const publisher = (req.body.publisher || "").trim() || null;
   const publishedYear = req.body.publishedYear ? Number(req.body.publishedYear) : null;
   const genre = normalizeGenres(req.body.genre);
+  let genreFr = (req.body.genreFr || "").trim() || (genre ? translateGenresToFrench(genre) : null);
   let description = (req.body.description || "").trim() || null;
+  let descriptionFr = (req.body.descriptionFr || "").trim() || null;
   let coverUrl = (req.body.coverUrl || "").trim() || null;
 
   if (!title) {
     return res.render("admin/inventory/new", {
       active: "inventory",
-      book: { isbn, title: null, author, publisher, publishedYear, description, coverUrl, genre },
+      book: { isbn, title: null, author, publisher, publishedYear, description, descriptionFr, coverUrl, genre, genreFr },
       error: "Title is required.",
       fromScan: req.body.fromScan === "1",
       conditions: CONDITIONS,
@@ -518,15 +521,20 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
     if (existingRows.length) {
       const existing = existingRows[0];
       bookId = existing.id;
-      if (!existing.description || !existing.cover_url) {
+      if (!existing.description || !existing.cover_url || !existing.description_fr) {
         const [genDescription, genCoverUrl] = await Promise.all([
           existing.description ? null : (description || generateBookDescription({ title, author, publisher, publishedYear })),
           existing.cover_url ? null : (coverUrl || findCoverUrl({ isbn, title, author })),
         ]);
-        if (genDescription || genCoverUrl) {
+        const finalDescription = existing.description || genDescription;
+        const genDescriptionFr = existing.description_fr
+          ? null
+          : (descriptionFr || (finalDescription ? await translateDescriptionToFrench(finalDescription) : null));
+        if (genDescription || genCoverUrl || genDescriptionFr) {
           await pool.query(
-            "UPDATE books SET description = COALESCE($1, description), cover_url = COALESCE($2, cover_url), updated_at = now() WHERE id = $3",
-            [genDescription, genCoverUrl, bookId]
+            `UPDATE books SET description = COALESCE($1, description), cover_url = COALESCE($2, cover_url),
+                    description_fr = COALESCE($3, description_fr), updated_at = now() WHERE id = $4`,
+            [genDescription, genCoverUrl, genDescriptionFr, bookId]
           );
         }
       }
@@ -538,11 +546,12 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
       description || generateBookDescription({ title, author, publisher, publishedYear }),
       coverUrl || findCoverUrl({ isbn, title, author }),
     ]);
+    descriptionFr = descriptionFr || (description ? await translateDescriptionToFrench(description) : null);
 
     const { rows } = await pool.query(
-      `INSERT INTO books (isbn, title, authors, publisher, published_year, description, cover_url, categories, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
-      [isbn || null, title, author, publisher, publishedYear, description, coverUrl, genre, req.session.user.id]
+      `INSERT INTO books (isbn, title, authors, publisher, published_year, description, description_fr, cover_url, categories, categories_fr, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
+      [isbn || null, title, author, publisher, publishedYear, description, descriptionFr, coverUrl, genre, genreFr, req.session.user.id]
     );
     bookId = rows[0].id;
   }
@@ -590,7 +599,9 @@ router.post("/admin/inventory/:id", requireAdmin, async (req, res) => {
   const publisher = (req.body.publisher || "").trim() || null;
   const publishedYear = req.body.publishedYear ? Number(req.body.publishedYear) : null;
   const genre = normalizeGenres(req.body.genre);
+  let genreFr = (req.body.genreFr || "").trim() || (genre ? translateGenresToFrench(genre) : null);
   let description = (req.body.description || "").trim() || null;
+  let descriptionFr = (req.body.descriptionFr || "").trim() || null;
   let coverUrl = (req.body.coverUrl || "").trim() || null;
 
   if (title) {
@@ -601,11 +612,12 @@ router.post("/admin/inventory/:id", requireAdmin, async (req, res) => {
       description || generateBookDescription({ title, author, publisher, publishedYear }),
       coverUrl || findCoverUrl({ isbn, title, author }),
     ]);
+    descriptionFr = descriptionFr || (description ? await translateDescriptionToFrench(description) : null);
     await pool.query(
       `UPDATE books SET isbn=$1, title=$2, authors=$3, publisher=$4, published_year=$5,
-              description=$6, cover_url=$7, categories=$8, updated_at=now()
-       WHERE id = $9`,
-      [isbn || null, title, author, publisher, publishedYear, description, coverUrl, genre, id]
+              description=$6, description_fr=$7, cover_url=$8, categories=$9, categories_fr=$10, updated_at=now()
+       WHERE id = $11`,
+      [isbn || null, title, author, publisher, publishedYear, description, descriptionFr, coverUrl, genre, genreFr, id]
     );
   }
   res.redirect(`/admin/inventory/${id}`);

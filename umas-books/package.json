@@ -11,7 +11,7 @@
     "start": "node src/index.js",
     "migrate": "node src/migrate.js",
     "seed": "node src/seed.js",
-    "backfill-genres": "node src/backfillGenres.js"
+    "backfill-french-content": "node src/backfillFrenchContent.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

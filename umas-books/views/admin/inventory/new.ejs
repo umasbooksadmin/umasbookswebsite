@@ -30,6 +30,9 @@
     <label for="genre">Genres</label>
     <input id="genre" name="genre" type="text" value="<%= book.genre || '' %>" placeholder="e.g. Fantasy, Fiction — separate multiple with commas">
 
+    <label for="genreFr">Genres (French)</label>
+    <input id="genreFr" name="genreFr" type="text" value="<%= book.genreFr || '' %>" placeholder="Filled in automatically from Genres above if left blank">
+
     <label for="coverUrl">Cover image URL</label>
     <input id="coverUrl" name="coverUrl" type="text" value="<%= book.coverUrl || '' %>">
 
@@ -42,8 +45,12 @@
 
     <label for="description">Description</label>
     <textarea id="description" name="description"><%= book.description || '' %></textarea>
-    <div><button type="button" class="btn btn-outline btn-small" data-generate-description="description">Generate description</button></div>
+    <div><button type="button" class="btn btn-outline btn-small" data-generate-description="description" data-generate-description-fr="descriptionFr">Generate description</button></div>
     <p class="muted small">Preview an AI description above, or leave blank to have one generated automatically when you save.</p>
+
+    <label for="descriptionFr">Description (French)</label>
+    <textarea id="descriptionFr" name="descriptionFr"><%= book.descriptionFr || '' %></textarea>
+    <p class="muted small">Filled in automatically by translating the description above if left blank.</p>
 
     <div class="section-title" style="margin-top:10px;">This copy</div>
     <p class="muted small">Details for the physical copy you have in hand right now.</p>
