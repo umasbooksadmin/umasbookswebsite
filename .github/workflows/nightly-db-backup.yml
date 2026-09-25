@@ -1,0 +1,85 @@
+name: Nightly database backup
+
+# Runs entirely on GitHub's own infrastructure, independent of Render —
+# the whole point is that this survives even if access to the Render
+# account is ever lost again (see the incident that prompted this).
+# Requires a repo secret named DATABASE_URL (Settings > Secrets and
+# variables > Actions), set to the Render database's *external*
+# connection string (Render dashboard > umas-books-db > Connect >
+# External Connection String). This repo is private — dumps contain
+# member names/emails/order details, so this must never be enabled on a
+# public repo or with a public runner cache.
+
+on:
+  schedule:
+    - cron: "0 3 * * *" # 03:00 UTC nightly
+  workflow_dispatch: {} # allows a manual "Run workflow" from the Actions tab
+
+permissions:
+  contents: write
+
+concurrency:
+  group: db-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # need branch history to check out/create db-backups below
+
+      - name: Install matching PostgreSQL client tools
+        # Ubuntu's default apt package can lag behind Render's server
+        # version, and pg_dump requires a client >= the server version.
+        # The official PGDG repo always has the current major versions.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget gnupg lsb-release
+          wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /usr/share/keyrings/pgdg.gpg
+          echo "deb [signed-by=/usr/share/keyrings/pgdg.gpg] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+
+      - name: Dump database
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::DATABASE_URL secret is not set — see this workflow's comments for how to add it."
+            exit 1
+          fi
+          mkdir -p backup
+          STAMP=$(date -u +%Y-%m-%dT%H-%M-%SZ)
+          echo "STAMP=$STAMP" >> "$GITHUB_ENV"
+          pg_dump --no-owner --no-privileges --format=custom \
+            --file="backup/umas_books_${STAMP}.dump" "$DATABASE_URL"
+
+      - name: Commit dump to the db-backups branch
+        run: |
+          git config user.name "db-backup-bot"
+          git config user.email "actions@users.noreply.github.com"
+
+          # actions/checkout configures a narrow fetch refspec (just the
+          # default branch), so fetch db-backups with an explicit refspec
+          # rather than relying on it landing in refs/remotes/origin/*.
+          git fetch origin db-backups:refs/remotes/origin/db-backups || true
+          if git show-ref --verify --quiet refs/remotes/origin/db-backups; then
+            git checkout db-backups
+          else
+            git checkout --orphan db-backups
+            git rm -rf . > /dev/null 2>&1 || true
+          fi
+
+          mkdir -p backups
+          mv "backup/umas_books_${STAMP}.dump" "backups/umas_books_${STAMP}.dump"
+          git add "backups/umas_books_${STAMP}.dump"
+
+          # Keep a rolling 30 nightly backups so the branch doesn't grow forever.
+          cd backups
+          ls -1t umas_books_*.dump | tail -n +31 | xargs -r git rm --
+          cd ..
+
+          git commit -m "Nightly backup ${STAMP}"
+          git push origin db-backups
