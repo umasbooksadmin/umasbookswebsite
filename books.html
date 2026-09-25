@@ -59,7 +59,6 @@
     <section class="bk-results" id="bk-results" hidden aria-live="polite">
       <div class="bk-results-head">
         <h2 id="bk-results-title"></h2>
-        <button type="button" class="bk-link-btn" id="bk-results-clear" data-i18n="bk.results.clear">Clear ×</button>
       </div>
       <div class="bk-grid" id="bk-results-grid"></div>
     </section>
@@ -144,7 +143,6 @@ window.PAGE_I18N = {
     "bk.search.ph": "Search by title, author, keyword, or genre…",
     "bk.search.submit": "Search",
     "bk.genres.label": "Browse <br>by Genre",
-    "bk.results.clear": "Clear ×",
     "bk.results.for": "Results for “{q}”",
     "bk.results.new": "New In",
     "bk.results.all": "All Genres",
@@ -189,7 +187,6 @@ window.PAGE_I18N = {
     "bk.search.ph": "Rechercher par titre, auteur, mot-clé ou genre…",
     "bk.search.submit": "Rechercher",
     "bk.genres.label": "Parcourir <br>par genre",
-    "bk.results.clear": "Effacer ×",
     "bk.results.for": "Résultats pour « {q} »",
     "bk.results.new": "Nouveautés",
     "bk.results.all": "Tous les genres",
@@ -388,14 +385,6 @@ window.BOOK_OF_THE_WEEK = {
     if (!q) { input.focus(); return; }
     setActiveGenre(null);
     showResults(API + '/search?q=' + encodeURIComponent(q), { q: q });
-  });
-
-  document.getElementById('bk-results-clear').addEventListener('click', function () {
-    resultsEl.hidden = true;
-    resultsGrid.innerHTML = '';
-    lastTitle = null;
-    input.value = '';
-    setActiveGenre(null);
   });
 
   document.getElementById('bk-new-all').addEventListener('click', function () {

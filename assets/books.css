@@ -161,7 +161,12 @@
   scroll-behavior: smooth; padding: 8px 4px 6px; scrollbar-width: none;
 }
 .bk-track::-webkit-scrollbar { display: none; }
-.bk-track .bk-book { flex: 0 0 136px; scroll-snap-align: start; }
+/* min-width: 0 overrides the flex-item default of min-width: auto — without
+   it, a book with an unusually long comma-joined author list (e.g. several
+   translators/illustrators) forces this card wider than its flex-basis,
+   since white-space: nowrap on .a (below) has no line breaks to shrink to,
+   even though that text is meant to just ellipsize instead. */
+.bk-track .bk-book { flex: 0 0 136px; min-width: 0; scroll-snap-align: start; }
 .bk-track .muted { color: var(--ink-soft); }
 @media (max-width: 620px) {
   .bk-carousel .arrow { display: none; }
