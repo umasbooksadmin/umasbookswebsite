@@ -22,6 +22,36 @@
 
   function isFavorite(id) { return getFavorites().indexOf(id) !== -1; }
 
+  // Best-effort sync to the server for logged-in visitors (see
+  // POST /api/favorites/toggle) — this is what gives the Browse Books
+  // page's "recommended for you" pick a real pool of member favorites to
+  // draw from. Anonymous visitors' favorites stay local-only, same as
+  // before; the server silently no-ops for them. Never blocks the UI or
+  // surfaces an error — a failed sync just means this toggle didn't
+  // register server-side, which isn't worth interrupting anyone over.
+  var cachedCsrfToken = null;
+  function getCsrfToken() {
+    if (cachedCsrfToken) return Promise.resolve(cachedCsrfToken);
+    return fetch("/api/csrf-token", { credentials: "same-origin" })
+      .then(function (res) { return res.ok ? res.json() : null; })
+      .then(function (data) { cachedCsrfToken = (data && data.token) || null; return cachedCsrfToken; })
+      .catch(function () { return null; });
+  }
+
+  function syncToServer(id, isFav) {
+    if (!window.fetch) return;
+    getCsrfToken().then(function (token) {
+      if (!token) return;
+      var body = "bookId=" + encodeURIComponent(id) + "&isFavorite=" + (isFav ? "1" : "") + "&_csrf=" + encodeURIComponent(token);
+      fetch("/api/favorites/toggle", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: body,
+      }).catch(function () {});
+    });
+  }
+
   function toggleFavorite(id) {
     var favs = getFavorites();
     var i = favs.indexOf(id);
@@ -51,6 +81,7 @@
     btn.classList.toggle("is-favorite", nowFav);
     btn.setAttribute("aria-pressed", nowFav ? "true" : "false");
     btn.dispatchEvent(new CustomEvent("favoritechange", { bubbles: true, detail: { id: id, isFavorite: nowFav } }));
+    syncToServer(id, nowFav);
   });
 
   window.UmasFavorites = { get: getFavorites, has: isFavorite, toggle: toggleFavorite, sync: sync };

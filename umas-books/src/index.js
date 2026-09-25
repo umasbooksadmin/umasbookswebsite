@@ -103,6 +103,15 @@ app.use(helloassoWebhookRoutes);
 
 app.use(csrfProtection);
 
+// A CSRF token for client-side scripts that POST without a rendered
+// form — e.g. the favorite-toggle button (public/favorites.js), which
+// runs on both the marketing site's static HTML (no server templating,
+// so no <input> to read a token from) and this app's own EJS pages.
+app.get("/api/csrf-token", (req, res) => {
+  res.set("Cache-Control", "no-store");
+  res.json({ token: res.locals.csrfToken });
+});
+
 // The public marketing site (repo root, one level up from this app) is
 // served from here too, so umas-books.onrender.com is the one link that
 // shows everything — the marketing pages alongside the Members Area.

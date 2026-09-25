@@ -51,7 +51,45 @@ router.get("/books", async (req, res) => {
     params
   );
 
-  res.render("books", { books, q, genre, genres });
+  // A random in-stock book that some member has favorited (see
+  // public/favorites.js's server sync and POST /api/favorites/toggle
+  // below) — only shown on the plain, unfiltered browse view.
+  let recommended = null;
+  if (!q && !genre) {
+    const { rows: recRows } = await pool.query(
+      `SELECT DISTINCT b.*, (SELECT MIN(price) FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock') AS min_price
+       FROM favorites f
+       JOIN users u ON u.id = f.user_id AND u.is_member = true
+       JOIN books b ON b.id = f.book_id
+       WHERE EXISTS (SELECT 1 FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock')
+       ORDER BY random() LIMIT 1`
+    );
+    recommended = recRows[0] || null;
+  }
+
+  res.render("books", { books, q, genre, genres, recommended });
+});
+
+// Logged-in visitors' favorites persist here too (see public/favorites.js),
+// alongside the localStorage list every visitor already gets — this is
+// what lets the "recommended book" pick above draw from real member
+// favorites. Anonymous visitors get a silent no-op: favoriting stays
+// client-only for them, same as before this existed.
+router.post("/api/favorites/toggle", async (req, res) => {
+  if (!req.session.user) return res.status(204).end();
+  const bookId = Number(req.body.bookId);
+  const isFavorite = Boolean(req.body.isFavorite);
+  if (!bookId) return res.status(400).end();
+
+  if (isFavorite) {
+    await pool.query(
+      "INSERT INTO favorites (user_id, book_id) VALUES ($1, $2) ON CONFLICT (user_id, book_id) DO NOTHING",
+      [req.session.user.id, bookId]
+    );
+  } else {
+    await pool.query("DELETE FROM favorites WHERE user_id = $1 AND book_id = $2", [req.session.user.id, bookId]);
+  }
+  res.status(204).end();
 });
 
 // Public JSON, cross-origin — consumed by the marketing site's "Latest
