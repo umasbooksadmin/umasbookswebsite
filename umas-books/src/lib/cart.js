@@ -24,15 +24,18 @@ async function expireStaleCartHolds(pool) {
   }
 }
 
-// Puts a cart's copies back on the shelf and marks the order closed —
-// used both for TTL expiry above and for a checkout that comes back
-// non-paid (refused/canceled/abandoned).
+// Puts a cart's copies back on the shelf, drops any drop-in session
+// seat holds outright (there's nothing to "return to stock" — the seat
+// row was only ever synthetic, see migrations/015_dropin_seats.sql), and
+// marks the order closed. Used both for TTL expiry above and for a
+// checkout that comes back non-paid (refused/canceled/abandoned).
 async function releaseCartHold(pool, orderId, status) {
   await pool.query(
     `UPDATE book_copies SET status = 'in_stock', cart_order_id = NULL, cart_added_at = NULL, updated_at = now()
      WHERE cart_order_id = $1`,
     [orderId]
   );
+  await pool.query(`DELETE FROM class_dropin_seats WHERE order_id = $1 AND status = 'in_cart'`, [orderId]);
   await pool.query(`UPDATE orders SET status = $1 WHERE id = $2 AND status = 'pending'`, [status, orderId]);
 }
 
@@ -43,13 +46,17 @@ async function markOrderPaid(pool, order) {
      WHERE cart_order_id = $1`,
     [order.id]
   );
+  await pool.query(
+    `UPDATE class_dropin_seats SET status = 'sold', updated_at = now() WHERE order_id = $1`,
+    [order.id]
+  );
 
-  const { rows: items } = await pool.query("SELECT book_title, price FROM order_items WHERE order_id = $1", [order.id]);
-  const lines = items.map((i) => `- ${i.book_title} — €${Number(i.price).toFixed(2)}`).join("\n");
+  const { rows: items } = await pool.query("SELECT item_title, price FROM order_items WHERE order_id = $1", [order.id]);
+  const lines = items.map((i) => `- ${i.item_title} — €${Number(i.price).toFixed(2)}`).join("\n");
   sendMail({
     to: order.buyer_email,
     subject: "Your order at Uma's Books is confirmed",
-    text: `Hi ${order.buyer_name},\n\nThanks for your order — payment received:\n\n${lines}\n\nTotal: €${Number(order.total_amount).toFixed(2)}\n\nCome by Uma's Books during opening hours to pick it up.\n\nUma's Books\nRue Peyroliere, 81000 Albi`,
+    text: `Hi ${order.buyer_name},\n\nThanks for your order — payment received:\n\n${lines}\n\nTotal: €${Number(order.total_amount).toFixed(2)}\n\nCome by Uma's Books during opening hours to pick up any books. Drop-in sessions need no pickup — just come along at the session time.\n\nUma's Books\nRue Peyroliere, 81000 Albi`,
   }).catch((err) => console.error(`Order confirmation email failed for order ${order.id}:`, err.message));
 }
 

@@ -2,7 +2,7 @@
 <%- include('../partials/admin_subnav', { active }) %>
 
 <h1>Sessions</h1>
-<p class="muted small">Sessions are public — anyone can view the calendar at <a href="/sessions">/sessions</a>, but signing up requires a member account. Click a day to add a session there; click a session to see who's signed up.</p>
+<p class="muted small">Sessions are public — anyone can view the calendar at <a href="/sessions">/sessions</a> and buy a drop-in seat if you set a drop-in price below (paid via the shop's cart/checkout, no account needed). Click a day to add a session there; click a session to see who's booked.</p>
 
 <div class="card">
   <div class="calendar-nav">
@@ -36,23 +36,26 @@
                   <input id="loc-new-<%= day.dateKey %>" name="location" type="text">
                   <label for="cap-new-<%= day.dateKey %>">Capacity</label>
                   <input id="cap-new-<%= day.dateKey %>" name="capacity" type="number" min="1" required value="5">
+                  <label for="dropin-new-<%= day.dateKey %>">Drop-in price (&euro;, optional)</label>
+                  <input id="dropin-new-<%= day.dateKey %>" name="dropinPrice" type="number" min="0" step="0.01" placeholder="Leave blank to not sell as drop-in">
                   <div><button class="btn btn-small" type="submit">Add session</button></div>
                 </form>
               </div>
             </details>
             <% day.items.forEach(c => { %>
-              <% const full = c.capacity != null && c.signup_count >= c.capacity; const signups = signupsByClass[c.id] || []; %>
+              <% const full = c.capacity != null && c.seats_taken >= c.capacity; const signups = signupsByClass[c.id] || []; const dropins = dropinByClass[c.id] || []; %>
               <details class="calendar-pill<%= full ? ' is-full' : '' %>">
                 <summary><%= c.title %> &middot; <%= formatTime(c.starts_at) %></summary>
                 <div class="calendar-pill-body">
                   <div class="muted small">
                     <%= formatDateTime(c.starts_at) %><%= c.location ? ' · ' + c.location : '' %>
-                    <%= c.capacity != null ? ' · ' + c.signup_count + '/' + c.capacity + ' signed up' : ' · ' + c.signup_count + ' signed up' %>
+                    <%= c.capacity != null ? ' · ' + c.seats_taken + '/' + c.capacity + ' booked' : ' · ' + c.seats_taken + ' booked' %>
+                    <%= c.dropin_price != null ? ' · drop-in €' + Number(c.dropin_price).toFixed(2) : ' · not sold as drop-in' %>
                   </div>
                   <% if (c.description) { %><div class="muted small" style="margin-top:6px;"><%= c.description %></div><% } %>
 
                   <% if (signups.length) { %>
-                    <div class="muted small" style="margin-top:10px; font-variant: small-caps; letter-spacing: 0.06em; color: var(--gold);">Signed up</div>
+                    <div class="muted small" style="margin-top:10px; font-variant: small-caps; letter-spacing: 0.06em; color: var(--gold);">Signed up (free, legacy)</div>
                     <ul class="plain" style="margin-top:4px;">
                       <% signups.forEach(s => { %>
                         <li style="padding:6px 0;">
@@ -62,6 +65,15 @@
                             <button class="btn btn-outline btn-small" type="submit">Remove</button>
                           </form>
                         </li>
+                      <% }) %>
+                    </ul>
+                  <% } %>
+
+                  <% if (dropins.length) { %>
+                    <div class="muted small" style="margin-top:10px; font-variant: small-caps; letter-spacing: 0.06em; color: var(--gold);">Paid drop-in</div>
+                    <ul class="plain" style="margin-top:4px;">
+                      <% dropins.forEach(d => { %>
+                        <li style="padding:6px 0;"><%= d.buyer_name %> &middot; <span class="muted small"><%= d.buyer_email %></span></li>
                       <% }) %>
                     </ul>
                   <% } %>
@@ -82,6 +94,8 @@
                       <input id="end-<%= c.id %>" name="endsAt" type="datetime-local" value="<%= c.ends_at ? new Date(c.ends_at.getTime() - c.ends_at.getTimezoneOffset()*60000).toISOString().slice(0,16) : '' %>">
                       <label for="cap-<%= c.id %>">Capacity</label>
                       <input id="cap-<%= c.id %>" name="capacity" type="number" min="1" value="<%= c.capacity != null ? c.capacity : '' %>">
+                      <label for="dropin-<%= c.id %>">Drop-in price (&euro;, optional)</label>
+                      <input id="dropin-<%= c.id %>" name="dropinPrice" type="number" min="0" step="0.01" value="<%= c.dropin_price != null ? c.dropin_price : '' %>" placeholder="Leave blank to not sell as drop-in">
                       <div><button class="btn btn-small" type="submit">Save changes</button></div>
                     </form>
                   </details>

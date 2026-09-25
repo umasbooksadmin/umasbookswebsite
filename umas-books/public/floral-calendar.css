@@ -1,0 +1,71 @@
+/* Uma's Books & Adventures — shared "floral" calendar look, used by the
+   public English Immersion calendar (views/immersion_calendar.ejs) and
+   the Drop-In Sessions shop calendar. Loaded via header.ejs's extraCss
+   hook, after /style.css. */
+
+.fcal-hero { position: relative; overflow: hidden; padding: 20px 24px 6px; text-align: center; }
+.fcal-hero .art {
+  position: absolute; bottom: 0; height: 100%; width: auto; max-width: 30%;
+  object-fit: cover; pointer-events: none; user-select: none; opacity: 0.9;
+}
+.fcal-hero .art-left { left: 0; top: 0; object-position: right bottom; }
+.fcal-hero .art-right { right: 0; top: 0; object-position: left bottom; }
+.fcal-hero-copy { position: relative; z-index: 1; max-width: 640px; margin: 0 auto; }
+.fcal-kicker {
+  font-size: 14px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--maroon);
+  font-weight: 700; margin-bottom: 8px;
+}
+.fcal-kicker .rule { width: 46px; height: 2px; background: var(--maroon); margin: 10px auto 0; }
+.fcal-title { font-family: 'Cormorant Garamond', Georgia, serif; font-size: clamp(32px, 5vw, 50px); font-weight: 600; color: var(--ink); margin: 6px 0 18px; }
+
+.fcal-nav {
+  display: flex; align-items: center; justify-content: center; gap: 22px; margin-bottom: 8px;
+}
+.fcal-nav a {
+  color: var(--maroon); text-decoration: none; font-size: 22px; line-height: 1; padding: 4px 8px;
+}
+.fcal-nav a:hover { opacity: 0.7; }
+.fcal-nav .fcal-month {
+  font-family: 'Cormorant Garamond', Georgia, serif; font-size: 24px; color: var(--ink); min-width: 12ch;
+}
+
+.fcal-wrap { max-width: 1200px; margin: 0 auto; padding: 10px 24px 56px; position: relative; z-index: 1; }
+.fcal-grid { display: grid; grid-template-columns: repeat(7, 1fr); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.fcal-weekday {
+  text-align: center; font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--ink-soft); padding: 10px 4px; background: var(--panel); border-bottom: 1px solid var(--line);
+}
+.fcal-day {
+  min-height: 108px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line);
+  padding: 8px; background: var(--panel);
+}
+.fcal-grid .fcal-day:nth-child(7n) { border-right: 0; }
+.fcal-day.is-empty { background: var(--cream-alt); }
+.fcal-day .fcal-daynum { font-size: 13px; color: var(--ink-soft); margin-bottom: 6px; }
+.fcal-day.is-today .fcal-daynum { color: var(--maroon); font-weight: 700; }
+
+.fcal-session { border-radius: 4px; padding: 6px 8px; margin-bottom: 6px; }
+.fcal-session .fcal-session-title { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 15px; font-weight: 600; color: var(--ink); line-height: 1.2; }
+.fcal-session .fcal-session-time { font-size: 12.5px; color: var(--ink-soft); }
+.fcal-session .fcal-session-seats { font-size: 12px; color: var(--maroon-dark); margin-top: 2px; }
+.fcal-session .fcal-session-cta {
+  display: block; text-align: center; margin-top: 6px; padding: 5px 8px; border-radius: 3px;
+  background: var(--btn-bg); color: #fff; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
+  font-weight: 700; text-decoration: none; border: 0; cursor: pointer; width: 100%;
+}
+.fcal-session .fcal-session-cta:hover { background: var(--btn-bg-dark); }
+.fcal-session.tone-a { background: #dfe7e1; }
+.fcal-session.tone-b { background: #f7e2df; }
+.fcal-session.tone-c { background: #f4ead2; }
+.fcal-session.tone-d { background: #e4e9dc; }
+.fcal-session.tone-e { background: #f7dfe2; }
+.fcal-session.tone-f { background: #dde7ee; }
+
+@media (max-width: 760px) {
+  .fcal-hero .art { display: none; }
+  .fcal-grid { grid-template-columns: repeat(7, minmax(0, 1fr)); font-size: 12px; }
+  .fcal-day { min-height: 72px; padding: 5px; }
+  .fcal-weekday { padding: 6px 2px; font-size: 10px; }
+  .fcal-session .fcal-session-title { font-size: 12.5px; }
+  .fcal-session .fcal-session-time, .fcal-session .fcal-session-seats { font-size: 10.5px; }
+}

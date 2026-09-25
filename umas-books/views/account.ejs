@@ -4,9 +4,9 @@
 <p class="muted small">Orders and session sign-ups matched to <%= user.email %>.</p>
 
 <div class="card">
-  <div class="section-title">Book Orders</div>
+  <div class="section-title">Orders</div>
   <% if (!orders.length) { %>
-    <p class="muted">No orders yet &mdash; <a href="/books">browse books</a>.</p>
+    <p class="muted">No orders yet &mdash; <a href="/books">browse books</a> or <a href="/sessions">book a drop-in session</a>.</p>
   <% } else { %>
     <ul class="plain">
       <% orders.forEach(o => { %>
@@ -28,9 +28,9 @@
 </div>
 
 <div class="card">
-  <div class="section-title">Sessions</div>
+  <div class="section-title">Free Sign-Ups (Legacy)</div>
   <% if (!signups.length) { %>
-    <p class="muted">No sign-ups yet &mdash; <a href="/sessions">see upcoming sessions</a>.</p>
+    <p class="muted">Paid drop-in sessions show up under Orders above &mdash; <a href="/sessions">see upcoming sessions</a>.</p>
   <% } else { %>
     <ul class="plain">
       <% signups.forEach(s => { %>

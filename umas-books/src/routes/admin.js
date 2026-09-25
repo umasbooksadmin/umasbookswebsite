@@ -8,6 +8,7 @@ const { extractBookInfoFromPhoto } = require("../lib/coverVision");
 const { generateBookDescription } = require("../lib/bookDescription");
 const { CONDITIONS, STATUSES, normalizeCondition, normalizeStatus, normalizeGenres } = require("../lib/inventory");
 const { expireStaleReservations, matchWishlistOnArrival } = require("../lib/reservations");
+const { seatsTakenExpr } = require("../lib/classCapacity");
 
 const router = express.Router();
 
@@ -260,7 +261,7 @@ router.get("/admin/sessions", requireAdmin, async (req, res) => {
   const { year, month } = parseMonthParam(req.query.month);
   const { start, end } = monthRange(year, month);
   const { rows: classes } = await pool.query(
-    `SELECT c.*, (SELECT COUNT(*) FROM class_signups s WHERE s.class_id = c.id) AS signup_count
+    `SELECT c.*, ${seatsTakenExpr("c")}::int AS seats_taken
      FROM classes c WHERE c.starts_at >= $1 AND c.starts_at < $2 ORDER BY c.starts_at ASC`,
     [start, end]
   );
@@ -274,8 +275,22 @@ router.get("/admin/sessions", requireAdmin, async (req, res) => {
     signupsByClass[s.class_id].push(s);
   }
 
+  const { rows: dropinRows } = classIds.length
+    ? await pool.query(
+        `SELECT d.id, d.class_id, o.buyer_name, o.buyer_email, d.created_at
+         FROM class_dropin_seats d JOIN orders o ON o.id = d.order_id
+         WHERE d.class_id = ANY($1) AND d.status = 'sold' ORDER BY d.created_at ASC`,
+        [classIds]
+      )
+    : { rows: [] };
+  const dropinByClass = {};
+  for (const d of dropinRows) {
+    if (!dropinByClass[d.class_id]) dropinByClass[d.class_id] = [];
+    dropinByClass[d.class_id].push(d);
+  }
+
   const weeks = monthGrid(year, month, groupByDate(classes, "starts_at"));
-  res.render("admin/sessions", { active: "sessions", weeks, signupsByClass, ...monthNav(year, month) });
+  res.render("admin/sessions", { active: "sessions", weeks, signupsByClass, dropinByClass, ...monthNav(year, month) });
 });
 
 router.post("/admin/sessions", requireAdmin, async (req, res) => {
@@ -286,14 +301,15 @@ router.post("/admin/sessions", requireAdmin, async (req, res) => {
   const startTime = req.body.startTime;
   const endTime = req.body.endTime || null;
   const capacity = req.body.capacity ? Number(req.body.capacity) : 5;
+  const dropinPrice = req.body.dropinPrice ? Number(req.body.dropinPrice) : null;
 
   if (title && date && startTime) {
     const startsAt = `${date}T${startTime}`;
     const endsAt = endTime ? `${date}T${endTime}` : null;
     await pool.query(
-      `INSERT INTO classes (title, description, location, starts_at, ends_at, capacity, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [title, description, location, startsAt, endsAt, capacity, req.session.user.id]
+      `INSERT INTO classes (title, description, location, starts_at, ends_at, capacity, dropin_price, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [title, description, location, startsAt, endsAt, capacity, dropinPrice, req.session.user.id]
     );
   }
   res.redirect(req.body.month ? `/admin/sessions?month=${req.body.month}` : "/admin/sessions");
@@ -307,12 +323,13 @@ router.post("/admin/sessions/:id", requireAdmin, async (req, res) => {
   const startsAt = req.body.startsAt;
   const endsAt = req.body.endsAt || null;
   const capacity = req.body.capacity ? Number(req.body.capacity) : null;
+  const dropinPrice = req.body.dropinPrice ? Number(req.body.dropinPrice) : null;
 
   if (title && startsAt) {
     await pool.query(
-      `UPDATE classes SET title=$1, description=$2, location=$3, starts_at=$4, ends_at=$5, capacity=$6
-       WHERE id = $7`,
-      [title, description, location, startsAt, endsAt, capacity, id]
+      `UPDATE classes SET title=$1, description=$2, location=$3, starts_at=$4, ends_at=$5, capacity=$6, dropin_price=$7
+       WHERE id = $8`,
+      [title, description, location, startsAt, endsAt, capacity, dropinPrice, id]
     );
   }
   res.redirect(req.query.month ? `/admin/sessions?month=${req.query.month}` : "/admin/sessions");

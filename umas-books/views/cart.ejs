@@ -4,25 +4,33 @@
 
 <% if (error) { %><div class="error-box"><%= error %></div><% } %>
 
-<% if (!copies.length) { %>
-  <div class="card"><p class="muted">Your cart is empty. <a href="/books">Browse books</a> to add some.</p></div>
+<% if (!items.length) { %>
+  <div class="card"><p class="muted">Your cart is empty. <a href="/books">Browse books</a> or <a href="/sessions">browse drop-in sessions</a> to add some.</p></div>
 <% } else { %>
   <div class="cart-list">
-    <% copies.forEach(c => { %>
+    <% items.forEach(i => { %>
       <div class="cart-item">
-        <% if (c.cover_url) { %>
-          <img src="<%= c.cover_url %>" alt="" class="cart-item-cover">
+        <% if (i.kind === 'book') { %>
+          <% if (i.coverUrl) { %>
+            <img src="<%= i.coverUrl %>" alt="" class="cart-item-cover">
+          <% } else { %>
+            <div class="cart-item-cover book-thumb-placeholder">No cover</div>
+          <% } %>
+          <div class="cart-item-body">
+            <div class="cart-item-title"><%= i.title %></div>
+            <div class="muted small"><%= i.authors || 'Unknown author' %></div>
+          </div>
         <% } else { %>
-          <div class="cart-item-cover book-thumb-placeholder">No cover</div>
+          <div class="cart-item-cover book-thumb-placeholder">Session</div>
+          <div class="cart-item-body">
+            <div class="cart-item-title"><%= i.title %></div>
+            <div class="muted small">Drop-in seat &middot; <%= formatDateTime(i.startsAt) %></div>
+          </div>
         <% } %>
-        <div class="cart-item-body">
-          <div class="cart-item-title"><%= c.title %></div>
-          <div class="muted small"><%= c.authors || 'Unknown author' %></div>
-        </div>
-        <div class="cart-item-price">&euro;<%= Number(c.price).toFixed(2) %></div>
+        <div class="cart-item-price">&euro;<%= i.price.toFixed(2) %></div>
         <form method="post" action="/cart/remove">
           <%- include('partials/csrf_field') %>
-          <input type="hidden" name="copyId" value="<%= c.id %>">
+          <input type="hidden" name="lineId" value="<%= i.lineId %>">
           <button type="submit" class="btn-outline btn-small">Remove</button>
         </form>
       </div>

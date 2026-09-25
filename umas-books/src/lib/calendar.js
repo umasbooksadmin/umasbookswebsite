@@ -55,6 +55,22 @@ function monthGrid(year, month, itemsByDate) {
   return weeks;
 }
 
+// monthGrid builds Sunday-first weeks; the floral calendar pages
+// (/sessions, /immersion/calendar) display Monday-first. Re-chunking the
+// flattened days is the only correct way to do that — rotating each
+// Sunday-first row in place would pair every Saturday with the
+// *previous* Sunday instead of the following one.
+function mondayFirstWeeks(weeks) {
+  const flatDays = weeks.flat().filter(Boolean);
+  const leadingSunFirst = weeks[0].findIndex((c) => c !== null);
+  const leadingMonFirst = (leadingSunFirst + 6) % 7;
+  const cells = new Array(leadingMonFirst).fill(null).concat(flatDays);
+  while (cells.length % 7 !== 0) cells.push(null);
+  const result = [];
+  for (let i = 0; i < cells.length; i += 7) result.push(cells.slice(i, i + 7));
+  return result;
+}
+
 function groupByDate(rows, dateField) {
   const itemsByDate = {};
   for (const row of rows) {
@@ -87,6 +103,7 @@ module.exports = {
   monthLabel,
   monthRange,
   monthGrid,
+  mondayFirstWeeks,
   groupByDate,
   monthNav,
 };

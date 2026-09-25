@@ -37,6 +37,9 @@ app.use(express.static(path.join(__dirname, "..", "public")));
 
 // Date/time display helpers, available in every view without importing.
 Object.assign(app.locals, require("./lib/dates"));
+// Session color-coding, shared by /sessions and /immersion/calendar.
+Object.assign(app.locals, require("./lib/sessionTone"));
+app.locals.mondayFirstWeeks = require("./lib/calendar").mondayFirstWeeks;
 
 app.use(
   helmet({

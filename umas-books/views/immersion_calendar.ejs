@@ -1,0 +1,42 @@
+<%- include('partials/header', { title: 'English Immersion Calendar', extraCss: ['/floral-calendar.css'] }) %>
+
+<% const monWeeks = mondayFirstWeeks(weeks); %>
+
+<section class="fcal-hero">
+  <img class="art art-left" src="/assets/img/hero-left.png" alt="">
+  <img class="art art-right" src="/assets/img/hero-right.png" alt="">
+  <div class="fcal-hero-copy">
+    <div class="fcal-kicker">English Immersion<div class="rule"></div></div>
+    <h1 class="fcal-title">Upcoming Sessions</h1>
+    <div class="fcal-nav">
+      <a href="/immersion/calendar?month=<%= prevMonth %>" aria-label="Previous month">&lsaquo;</a>
+      <span class="fcal-month"><%= monthLabel %></span>
+      <a href="/immersion/calendar?month=<%= nextMonth %>" aria-label="Next month">&rsaquo;</a>
+    </div>
+  </div>
+</section>
+
+<div class="fcal-wrap">
+  <div class="fcal-grid">
+    <% ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].forEach(d => { %><div class="fcal-weekday"><%= d %></div><% }) %>
+    <% monWeeks.forEach(week => { %>
+      <% week.forEach(day => { %>
+        <% if (!day) { %>
+          <div class="fcal-day is-empty"></div>
+        <% } else { %>
+          <div class="fcal-day<%= day.isToday ? ' is-today' : '' %>">
+            <div class="fcal-daynum"><%= day.day %></div>
+            <% day.items.forEach(c => { %>
+              <div class="fcal-session <%= toneForClassTitle(c.title) %>">
+                <div class="fcal-session-title"><%= c.title %></div>
+                <div class="fcal-session-time"><%= formatTime(c.starts_at) %></div>
+              </div>
+            <% }) %>
+          </div>
+        <% } %>
+      <% }) %>
+    <% }) %>
+  </div>
+</div>
+
+<%- include('partials/footer') %>

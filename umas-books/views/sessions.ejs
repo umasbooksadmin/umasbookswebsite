@@ -1,48 +1,54 @@
-<%- include('partials/header', { title: 'Sessions' }) %>
+<%- include('partials/header', { title: 'Drop-In Sessions', extraCss: ['/floral-calendar.css'] }) %>
 
-<h1>Sessions</h1>
-<p class="muted">Browse upcoming sessions<% if (user) { %> and sign up below.<% } else { %> and <a href="/login">log in</a> to sign up.<% } %></p>
+<% const monWeeks = mondayFirstWeeks(weeks); %>
 
-<div class="card">
-  <div class="calendar-nav">
-    <a class="btn btn-outline btn-small" href="/sessions?month=<%= prevMonth %>">&larr; Prev</a>
-    <span class="month-label"><%= monthLabel %></span>
-    <a class="btn btn-outline btn-small" href="/sessions?month=<%= nextMonth %>">Next &rarr;</a>
+<section class="fcal-hero">
+  <img class="art art-left" src="/assets/img/hero-left.png" alt="">
+  <img class="art art-right" src="/assets/img/hero-right.png" alt="">
+  <div class="fcal-hero-copy">
+    <div class="fcal-kicker">English Immersion<div class="rule"></div></div>
+    <h1 class="fcal-title">Drop-In Sessions</h1>
+    <div class="fcal-nav">
+      <a href="/sessions?month=<%= prevMonth %>" aria-label="Previous month">&lsaquo;</a>
+      <span class="fcal-month"><%= monthLabel %></span>
+      <a href="/sessions?month=<%= nextMonth %>" aria-label="Next month">&rsaquo;</a>
+    </div>
   </div>
-  <div class="calendar-grid">
-    <% ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].forEach(d => { %><div class="calendar-weekday"><%= d %></div><% }) %>
-    <% weeks.forEach(week => { %>
+</section>
+
+<div class="fcal-wrap">
+  <div class="fcal-grid">
+    <% ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].forEach(d => { %><div class="fcal-weekday"><%= d %></div><% }) %>
+    <% monWeeks.forEach(week => { %>
       <% week.forEach(day => { %>
         <% if (!day) { %>
-          <div class="calendar-day is-empty"></div>
+          <div class="fcal-day is-empty"></div>
         <% } else { %>
-          <div class="calendar-day<%= day.isToday ? ' is-today' : '' %>">
-            <div class="calendar-day-number"><%= day.day %></div>
+          <div class="fcal-day<%= day.isToday ? ' is-today' : '' %>">
+            <div class="fcal-daynum"><%= day.day %></div>
             <% day.items.forEach(c => { %>
-              <% const full = c.capacity != null && c.signup_count >= c.capacity; %>
-              <% const spotsLeft = c.capacity != null ? Math.max(0, c.capacity - c.signup_count) : null; %>
-              <% const signedUp = mySignedUpClassIds.has(c.id); %>
-              <details class="calendar-pill<%= full ? ' is-full' : '' %>">
-                <summary><%= c.title %> &middot; <%= formatTime(c.starts_at) %></summary>
-                <div class="calendar-pill-body">
-                  <div class="muted small">
-                    <%= formatDateTime(c.starts_at) %><%= c.location ? ' · ' + c.location : '' %>
-                    <%= spotsLeft != null ? ' · ' + spotsLeft + ' spot' + (spotsLeft === 1 ? '' : 's') + ' left' : ' · ' + c.signup_count + ' signed up' %>
+              <% const spotsLeft = c.capacity != null ? Math.max(0, c.capacity - c.seats_taken) : null; %>
+              <% const sellsDropin = c.dropin_price != null; %>
+              <% const full = sellsDropin && spotsLeft != null && spotsLeft <= 0; %>
+              <div class="fcal-session <%= toneForClassTitle(c.title) %>">
+                <div class="fcal-session-title"><%= c.title %></div>
+                <div class="fcal-session-time"><%= formatTime(c.starts_at) %></div>
+                <% if (sellsDropin) { %>
+                  <div class="fcal-session-seats">
+                    &euro;<%= Number(c.dropin_price).toFixed(2) %><%= spotsLeft != null ? ' · ' + spotsLeft + ' place' + (spotsLeft === 1 ? '' : 's') + ' left' : '' %>
                   </div>
-                  <% if (c.description) { %><div class="muted small" style="margin-top:6px;"><%= c.description %></div><% } %>
-
-                  <% if (signedUp) { %>
-                    <span class="notice-box small" style="display:inline-block; margin-top:10px;">You're signed up</span>
-                  <% } else if (!user) { %>
-                    <div style="margin-top:10px;"><a class="btn btn-small" href="/login">Log in to sign up</a></div>
+                  <% if (full) { %>
+                    <div class="fcal-session-cta" style="opacity:0.6; cursor:default;">Full</div>
                   <% } else { %>
-                    <form method="post" action="/sessions/<%= c.id %>/signup?month=<%= currentMonth %>" style="margin-top:10px;">
+                    <form method="post" action="/cart/add-dropin">
                       <%- include('partials/csrf_field') %>
-                      <button class="btn btn-small" type="submit"<%= full ? ' disabled' : '' %>><%= full ? 'Full' : 'Sign up' %></button>
+                      <input type="hidden" name="classId" value="<%= c.id %>">
+                      <input type="hidden" name="backTo" value="/sessions?month=<%= currentMonth %>">
+                      <button type="submit" class="fcal-session-cta">Add to Cart</button>
                     </form>
                   <% } %>
-                </div>
-              </details>
+                <% } %>
+              </div>
             <% }) %>
           </div>
         <% } %>
