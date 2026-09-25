@@ -18,13 +18,17 @@ router.get("/books", async (req, res) => {
   const q = (req.query.q || "").trim();
   const genre = (req.query.genre || "").trim();
 
+  // categories holds a comma-separated list (a book can have more than
+  // one genre), so the distinct list and the filter below both unnest it
+  // rather than matching the whole string.
   const { rows: genreRows } = await pool.query(
-    `SELECT DISTINCT b.categories FROM books b
-     WHERE b.categories IS NOT NULL AND b.categories <> ''
+    `SELECT DISTINCT trim(g) AS genre
+     FROM books b, unnest(string_to_array(b.categories, ',')) AS g
+     WHERE b.categories IS NOT NULL AND b.categories <> '' AND trim(g) <> ''
        AND EXISTS (SELECT 1 FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock')
-     ORDER BY b.categories ASC`
+     ORDER BY genre ASC`
   );
-  const genres = genreRows.map((r) => r.categories);
+  const genres = genreRows.map((r) => r.genre);
 
   const clauses = ["c.status = 'in_stock'"];
   const params = [];
@@ -34,7 +38,7 @@ router.get("/books", async (req, res) => {
   }
   if (genre) {
     params.push(genre);
-    clauses.push(`b.categories = $${params.length}`);
+    clauses.push(`EXISTS (SELECT 1 FROM unnest(string_to_array(b.categories, ',')) AS g WHERE trim(g) = $${params.length})`);
   }
 
   const { rows: books } = await pool.query(
@@ -104,12 +108,13 @@ router.get("/api/books/genres", async (req, res) => {
   res.set("Access-Control-Allow-Origin", "*");
   res.set("Cross-Origin-Resource-Policy", "cross-origin");
   const { rows } = await pool.query(
-    `SELECT DISTINCT b.categories FROM books b
-     WHERE b.categories IS NOT NULL AND b.categories <> ''
+    `SELECT DISTINCT trim(g) AS genre
+     FROM books b, unnest(string_to_array(b.categories, ',')) AS g
+     WHERE b.categories IS NOT NULL AND b.categories <> '' AND trim(g) <> ''
        AND EXISTS (SELECT 1 FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock')
-     ORDER BY b.categories ASC`
+     ORDER BY genre ASC`
   );
-  res.json(rows.map((r) => r.categories));
+  res.json(rows.map((r) => r.genre));
 });
 
 router.get("/api/books/search", async (req, res) => {
@@ -141,7 +146,7 @@ router.get("/api/books/search", async (req, res) => {
   }
   if (genre) {
     params.push(genre);
-    clauses.push(`b.categories = $${params.length}`);
+    clauses.push(`EXISTS (SELECT 1 FROM unnest(string_to_array(b.categories, ',')) AS g WHERE trim(g) = $${params.length})`);
   }
   if (topics.length) {
     const ors = topics.map((t) => {

@@ -29,4 +29,22 @@ function normalizeStatus(value) {
   return STATUS_VALUES.has(value) ? value : "in_stock";
 }
 
-module.exports = { CONDITIONS, STATUSES, normalizeCondition, normalizeStatus };
+// Books can belong to more than one genre — stored as a single
+// comma-separated string in books.categories rather than a separate
+// table, since it's still just free text staff type in (or an ISBN
+// lookup fills in). This trims/dedupes/re-joins it into a consistent
+// "Fantasy, Fiction" form so the same genre typed with different
+// spacing or casing doesn't show up twice in the genre filters.
+function normalizeGenres(value) {
+  const seen = new Set();
+  const genres = [];
+  for (const raw of String(value || "").split(",")) {
+    const genre = raw.trim();
+    if (!genre || seen.has(genre.toLowerCase())) continue;
+    seen.add(genre.toLowerCase());
+    genres.push(genre);
+  }
+  return genres.length ? genres.join(", ") : null;
+}
+
+module.exports = { CONDITIONS, STATUSES, normalizeCondition, normalizeStatus, normalizeGenres };

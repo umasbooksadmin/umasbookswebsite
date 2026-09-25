@@ -26,14 +26,19 @@ const COMMON_GENRES = [
   "Children's Fiction", "Young Adult Fiction", "Classics",
 ];
 
-function pickGenre(names) {
+// A book can reasonably match several of these (e.g. both "Fantasy" and
+// "Young Adult Fiction") — return every one that appears, most-generic
+// first, capped so a noisy subject list doesn't produce a huge string.
+const MAX_GENRES = 3;
+
+function pickGenres(names) {
   const clean = (names || []).filter((n) => typeof n === "string" && !n.includes(":"));
   if (!clean.length) return null;
 
   const lower = clean.map((n) => n.toLowerCase());
-  for (const genre of COMMON_GENRES) {
-    if (lower.some((n) => n.includes(genre.toLowerCase()))) return genre;
-  }
+  const matches = COMMON_GENRES.filter((genre) => lower.some((n) => n.includes(genre.toLowerCase())));
+  if (matches.length) return matches.slice(0, MAX_GENRES).join(", ");
+
   return clean.reduce((shortest, n) => (n.length < shortest.length ? n : shortest));
 }
 
@@ -94,7 +99,7 @@ async function lookupByIsbn(rawIsbn) {
     publishedYear: extractYear(info.publish_date),
     description: typeof info.description === "string" ? info.description : (info.description && info.description.value) || null,
     coverUrl: (info.cover && (info.cover.large || info.cover.medium)) || null,
-    genre: pickGenre(Array.isArray(info.subjects) ? info.subjects.map((s) => s.name) : null),
+    genre: pickGenres(Array.isArray(info.subjects) ? info.subjects.map((s) => s.name) : null),
   };
 }
 
@@ -118,7 +123,7 @@ async function searchByTitleAuthor(title, author) {
     publishedYear: doc.first_publish_year || null,
     description: null,
     coverUrl: doc.cover_i ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg` : null,
-    genre: pickGenre(doc.subject),
+    genre: pickGenres(doc.subject),
   }));
 }
 

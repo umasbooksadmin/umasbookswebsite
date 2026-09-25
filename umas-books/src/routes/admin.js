@@ -6,7 +6,7 @@ const { parseMonthParam, monthRange, monthGrid, groupByDate, monthNav } = requir
 const { normalizeIsbn, lookupByIsbn, searchByTitleAuthor } = require("../lib/bookLookup");
 const { extractBookInfoFromPhoto } = require("../lib/coverVision");
 const { generateBookDescription } = require("../lib/bookDescription");
-const { CONDITIONS, STATUSES, normalizeCondition, normalizeStatus } = require("../lib/inventory");
+const { CONDITIONS, STATUSES, normalizeCondition, normalizeStatus, normalizeGenres } = require("../lib/inventory");
 const { expireStaleReservations, matchWishlistOnArrival } = require("../lib/reservations");
 
 const router = express.Router();
@@ -468,7 +468,7 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
   const isbn = req.body.isbn ? normalizeIsbn(req.body.isbn) : null;
   const publisher = (req.body.publisher || "").trim() || null;
   const publishedYear = req.body.publishedYear ? Number(req.body.publishedYear) : null;
-  const genre = (req.body.genre || "").trim() || null;
+  const genre = normalizeGenres(req.body.genre);
   let description = (req.body.description || "").trim() || null;
   let coverUrl = (req.body.coverUrl || "").trim() || null;
 
@@ -567,7 +567,7 @@ router.post("/admin/inventory/:id", requireAdmin, async (req, res) => {
   const isbn = req.body.isbn ? normalizeIsbn(req.body.isbn) : null;
   const publisher = (req.body.publisher || "").trim() || null;
   const publishedYear = req.body.publishedYear ? Number(req.body.publishedYear) : null;
-  const genre = (req.body.genre || "").trim() || null;
+  const genre = normalizeGenres(req.body.genre);
   let description = (req.body.description || "").trim() || null;
   let coverUrl = (req.body.coverUrl || "").trim() || null;
 
