@@ -1,6 +1,7 @@
 const express = require("express");
 const { pool } = require("../db");
 const { parseMonthParam, monthRange, monthGrid, groupByDate, monthNav, monthParam } = require("../lib/calendar");
+const { baseUrl } = require("../lib/baseUrl");
 
 const router = express.Router();
 
@@ -31,7 +32,7 @@ router.get("/api/events/upcoming", async (req, res) => {
         endsAt: e.ends_at,
         capacity: e.capacity,
         signupCount: e.signup_count,
-        url: `https://umas-books.onrender.com/events?month=${monthParam(starts.getFullYear(), starts.getMonth())}`,
+        url: `${baseUrl(req)}/events?month=${monthParam(starts.getFullYear(), starts.getMonth())}`,
       };
     })
   );

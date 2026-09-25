@@ -4,6 +4,7 @@ const helloasso = require("../lib/helloasso");
 const { releaseCartHold, reconcileOrder } = require("../lib/cart");
 const { expireStaleReservations } = require("../lib/reservations");
 const { seatsTakenExpr } = require("../lib/classCapacity");
+const { baseUrl } = require("../lib/baseUrl");
 
 const router = express.Router();
 
@@ -15,10 +16,6 @@ const router = express.Router();
 // migrations/015_dropin_seats.sql. Each line gets a lineId (from
 // cartSeq) so multiple seats for the same session can be added and
 // removed independently, unlike book copies which are unique already.
-
-function baseUrl(req) {
-  return process.env.APP_BASE_URL || process.env.RENDER_EXTERNAL_URL || `${req.protocol}://${req.get("host")}`;
-}
 
 function getCart(req) {
   if (!Array.isArray(req.session.cart)) req.session.cart = [];

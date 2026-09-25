@@ -113,8 +113,8 @@ app.get("/api/csrf-token", (req, res) => {
 });
 
 // The public marketing site (repo root, one level up from this app) is
-// served from here too, so umas-books.onrender.com is the one link that
-// shows everything — the marketing pages alongside the Members Area.
+// served from here too, so this app's own URL is the one link that shows
+// everything — the marketing pages alongside the Members Area.
 // Its inline <script> blocks (per-page i18n strings, the Latest Arrivals
 // carousel) predate this app and aren't nonce-tagged, so these routes
 // carry their own relaxed CSP instead of the strict app-wide one above;

@@ -4,6 +4,7 @@ const { CONDITIONS } = require("../lib/inventory");
 const { translateGenresToFrench } = require("../lib/bookLookup");
 const { expireStaleReservations } = require("../lib/reservations");
 const { sendMail } = require("../mailer");
+const { baseUrl } = require("../lib/baseUrl");
 
 const router = express.Router();
 
@@ -131,7 +132,7 @@ router.get("/api/books/latest-arrivals", async (req, res) => {
       author: b.authors,
       coverUrl: b.cover_url,
       price: b.min_price != null ? Number(b.min_price) : null,
-      url: `https://umas-books.onrender.com/books/${b.id}`,
+      url: `${baseUrl(req)}/books/${b.id}`,
     }))
   );
 });
@@ -210,7 +211,7 @@ router.get("/api/books/search", async (req, res) => {
       author: b.authors,
       coverUrl: b.cover_url,
       price: b.min_price != null ? Number(b.min_price) : null,
-      url: `https://umas-books.onrender.com/books/${b.id}`,
+      url: `${baseUrl(req)}/books/${b.id}`,
     }))
   );
 });

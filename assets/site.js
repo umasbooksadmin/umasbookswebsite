@@ -131,8 +131,8 @@
   }
 
   // The header's "Cart (n)". The cart lives in the Members Area app's
-  // session, so the count is only available on pages that app serves
-  // (umas-books.onrender.com); anywhere else it quietly stays at 0.
+  // session, so the count is only available on pages that app itself
+  // serves; anywhere else it quietly stays at 0.
   function loadCartCount() {
     var els = document.querySelectorAll("[data-cart-count]");
     if (!els.length || !window.fetch) return;
