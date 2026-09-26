@@ -21,6 +21,7 @@ const { attachUser } = require("./middleware/auth");
 const { csrfProtection } = require("./middleware/csrf");
 const { expireStaleReservations, sendPickupReminders } = require("./lib/reservations");
 const { expireStaleCartHolds, reconcilePendingOrders } = require("./lib/cart");
+const { alertOnError } = require("./lib/errorAlert");
 
 const authRoutes = require("./routes/auth");
 const dashboardRoutes = require("./routes/dashboard");
@@ -205,6 +206,7 @@ app.use((req, res) => {
 // itself fails (e.g. the DB is down and a view needs res.locals.user).
 app.use((err, req, res, next) => {
   console.error("Unhandled error:", err);
+  alertOnError(`Error on ${req.method} ${req.originalUrl}`, err);
   if (res.headersSent) return next(err);
   res.status(500);
   res.render("500", (renderErr, html) => {
@@ -218,10 +220,19 @@ app.use((err, req, res, next) => {
 // already .catch() their own). Log either way; only exit for the
 // synchronous case, where Node's own docs say the process is in an
 // unknown state and continuing is unsafe — Render restarts it clean.
-process.on("unhandledRejection", (err) => console.error("Unhandled rejection:", err));
+process.on("unhandledRejection", (err) => {
+  console.error("Unhandled rejection:", err);
+  alertOnError("Unhandled rejection", err);
+});
 process.on("uncaughtException", (err) => {
   console.error("Uncaught exception:", err);
-  process.exit(1);
+  // Give the alert email a few seconds, but exit regardless — an
+  // uncaught exception means the process is in an unknown state, and
+  // that matters more than a best-effort notification landing.
+  Promise.race([
+    alertOnError("Uncaught exception (process restarting)", err),
+    new Promise((resolve) => setTimeout(resolve, 3000)),
+  ]).finally(() => process.exit(1));
 });
 
 const port = process.env.PORT || 3000;
