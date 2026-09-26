@@ -410,7 +410,8 @@ window.PAGE_I18N = {
   getJSON(API + '/latest-arrivals?days=0&limit=12', function (err, books) {
     if (err) { track.innerHTML = '<p class="muted">' + esc(t('bk.error')) + '</p>'; return; }
     if (!books.length) { track.innerHTML = '<p class="muted">' + esc(t('bk.new.empty')) + '</p>'; return; }
-    track.innerHTML = books.map(function (b) { return bookCard(b, false); }).join('');
+    track.innerHTML = books.map(function (b) { return bookCard(b, true); }).join('');
+    syncFavorites(track);
   });
   function page(dir) { track.scrollBy({ left: dir * track.clientWidth * 0.8, behavior: 'smooth' }); }
   document.getElementById('bk-new-prev').addEventListener('click', function () { page(-1); });
