@@ -53,9 +53,13 @@ router.get("/books", async (req, res) => {
     params
   );
 
-  // A random in-stock book that some member or admin has favorited (see
+  // An in-stock book that some member or admin has favorited (see
   // public/favorites.js's server sync and POST /api/favorites/toggle
-  // below) — only shown on the plain, unfiltered browse view.
+  // below) — only shown on the plain, unfiltered browse view. Same
+  // candidate pool and same deterministic-per-ISO-week pick as the
+  // marketing site's /api/books/recommendation, so this page's
+  // "Recommended for You" always agrees with the public "Recommendation
+  // of the Week" band instead of reshuffling on every visit.
   let recommended = null;
   if (!q && !genre) {
     const { rows: recRows } = await pool.query(
@@ -66,7 +70,7 @@ router.get("/books", async (req, res) => {
          JOIN books b ON b.id = f.book_id
          WHERE EXISTS (SELECT 1 FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock')
        ) AS candidates
-       ORDER BY random() LIMIT 1`
+       ORDER BY md5(id::text || to_char(now(), 'IYYY-IW')) LIMIT 1`
     );
     recommended = recRows[0] || null;
   }
