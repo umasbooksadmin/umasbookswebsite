@@ -32,27 +32,24 @@ jobs:
 
       - name: Install matching PostgreSQL client tools
         # Ubuntu's default apt package can lag behind Render's server
-        # version, and pg_dump requires a client >= the server version.
+        # version, and pg_dump refuses to dump a server newer than itself.
         # The official PGDG repo always has the current major versions.
+        # Installing postgresql-client-18 alongside Ubuntu's own default
+        # (currently 16) doesn't make apt/update-alternatives prefer it
+        # automatically — invoke /usr/lib/postgresql/18/bin/pg_dump
+        # explicitly below rather than relying on the bare `pg_dump` on
+        # PATH, which silently kept resolving to the older one.
         run: |
           sudo apt-get update
           sudo apt-get install -y wget gnupg lsb-release
           wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /usr/share/keyrings/pgdg.gpg
           echo "deb [signed-by=/usr/share/keyrings/pgdg.gpg] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
           sudo apt-get update
-          sudo apt-get install -y postgresql-client-17
+          sudo apt-get install -y postgresql-client-18
 
       - name: Dump database
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          # Newer libpq (this runner's postgresql-client-17) tries a GSSAPI
-          # encryption probe before SSL by default; Render's Postgres proxy
-          # doesn't handle that probe and just drops the connection, which
-          # libpq reports as the misleading "SSL connection has been closed
-          # unexpectedly" rather than anything mentioning GSSAPI. Disabling
-          # the probe is the standard fix for this exact, well-known
-          # combination (new libpq + a proxied managed Postgres).
-          PGGSSENCMODE: disable
         run: |
           if [ -z "$DATABASE_URL" ]; then
             echo "::error::DATABASE_URL secret is not set — see this workflow's comments for how to add it."
@@ -62,10 +59,10 @@ jobs:
           STAMP=$(date -u +%Y-%m-%dT%H-%M-%SZ)
           echo "STAMP=$STAMP" >> "$GITHUB_ENV"
           # Retries a couple of times before giving up — pg_dump against a
-          # remote database over the internet can also hit an ordinary
-          # transient network blip, distinct from the GSSAPI issue above.
+          # remote database over the internet can hit an ordinary transient
+          # network blip.
           for attempt in 1 2 3; do
-            if pg_dump --no-owner --no-privileges --format=custom \
+            if /usr/lib/postgresql/18/bin/pg_dump --no-owner --no-privileges --format=custom \
                  --file="backup/umas_books_${STAMP}.dump" "$DATABASE_URL"; then
               break
             fi
