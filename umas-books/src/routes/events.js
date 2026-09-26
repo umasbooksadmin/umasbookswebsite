@@ -52,6 +52,49 @@ router.get("/events", async (req, res) => {
   res.render("events", { weeks, ...monthNav(year, month) });
 });
 
+function icsDate(d) {
+  return new Date(d).toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
+}
+function icsEscape(text) {
+  return String(text || "").replace(/\\/g, "\\\\").replace(/,/g, "\\,").replace(/;/g, "\\;").replace(/\r?\n/g, "\\n");
+}
+
+// "Add to My Calendar" — a plain .ics download rather than a Google/Apple/
+// Outlook API integration, so it works with any calendar app the visitor
+// already has and needs no OAuth or API keys. Public, like the rest of
+// the events feature: no account needed to sign up, so none is needed to
+// save the date either.
+router.get("/events/:id/ics", async (req, res) => {
+  const eventId = Number(req.params.id);
+  const { rows } = await pool.query("SELECT * FROM events WHERE id = $1", [eventId]);
+  const event = rows[0];
+  if (!event) return res.status(404).send("Event not found.");
+
+  const startsAt = new Date(event.starts_at);
+  const endsAt = event.ends_at ? new Date(event.ends_at) : new Date(startsAt.getTime() + 60 * 60 * 1000);
+
+  const lines = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//Uma's Books and Adventures//Events//EN",
+    "CALSCALE:GREGORIAN",
+    "BEGIN:VEVENT",
+    `UID:event-${event.id}@umasbooks.org`,
+    `DTSTAMP:${icsDate(new Date())}`,
+    `DTSTART:${icsDate(startsAt)}`,
+    `DTEND:${icsDate(endsAt)}`,
+    `SUMMARY:${icsEscape(event.title)}`,
+    event.description ? `DESCRIPTION:${icsEscape(event.description)}` : null,
+    event.location ? `LOCATION:${icsEscape(event.location)}` : null,
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ].filter(Boolean);
+
+  res.set("Content-Type", "text/calendar; charset=utf-8");
+  res.set("Content-Disposition", `attachment; filename="${event.id}-${event.title.replace(/[^a-z0-9]+/gi, "-")}.ics"`);
+  res.send(lines.join("\r\n"));
+});
+
 router.post("/events/:id/signup", async (req, res) => {
   const eventId = Number(req.params.id);
   const name = (req.body.name || "").trim();

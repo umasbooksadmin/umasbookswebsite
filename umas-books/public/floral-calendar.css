@@ -16,7 +16,8 @@
   font-weight: 700; margin-bottom: 8px;
 }
 .fcal-kicker .rule { width: 46px; height: 2px; background: var(--maroon); margin: 10px auto 0; }
-.fcal-title { font-family: 'Cormorant Garamond', Georgia, serif; font-size: clamp(32px, 5vw, 50px); font-weight: 600; color: var(--ink); margin: 6px 0 18px; }
+.fcal-title { font-family: 'Cormorant Garamond', Georgia, serif; font-size: clamp(32px, 5vw, 50px); font-weight: 600; color: var(--ink); margin: 6px 0 8px; }
+.fcal-sub { font-size: 15px; color: var(--ink-soft); margin: 0 0 14px; }
 
 .fcal-nav {
   display: flex; align-items: center; justify-content: center; gap: 22px; margin-bottom: 8px;
@@ -54,6 +55,25 @@
   font-weight: 700; text-decoration: none; border: 0; cursor: pointer; width: 100%;
 }
 .fcal-session .fcal-session-cta:hover { background: var(--btn-bg-dark); }
+/* A <details> event pill (views/events.ejs) — the <summary> carries the
+   same title/time/seats markup a plain session pill uses, so it needs no
+   styling of its own beyond removing the native disclosure marker. */
+.fcal-session summary { cursor: pointer; list-style: none; }
+.fcal-session summary::-webkit-details-marker { display: none; }
+.fcal-session[open] { padding-bottom: 10px; }
+.fcal-session-details { margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(0,0,0,0.12); }
+.fcal-session-details .muted.small { display: block; margin: 0 0 6px; }
+.fcal-session-form { display: flex; flex-direction: column; gap: 4px; margin-bottom: 6px; }
+.fcal-session-form label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft); }
+.fcal-session-form input {
+  font-family: 'Cormorant Garamond', Georgia, serif; font-size: 14px; padding: 5px 7px;
+  border: 1px solid var(--card-border); border-radius: 3px; background: #fff; color: var(--ink);
+}
+.fcal-session .fcal-session-cta.fcal-session-cta-outline {
+  background: transparent; border: 1px solid var(--btn-bg); color: var(--btn-bg); margin-top: 6px;
+}
+.fcal-session .fcal-session-cta.fcal-session-cta-outline:hover { background: var(--btn-bg); color: #fff; }
+
 .fcal-session.tone-a { background: #dfe7e1; }
 .fcal-session.tone-b { background: #f7e2df; }
 .fcal-session.tone-c { background: #f4ead2; }
