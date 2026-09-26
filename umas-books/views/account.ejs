@@ -27,24 +27,4 @@
   <% } %>
 </div>
 
-<div class="card">
-  <div class="section-title">Free Sign-Ups (Legacy)</div>
-  <% if (!signups.length) { %>
-    <p class="muted">Paid drop-in sessions show up under Orders above &mdash; <a href="/sessions">see upcoming sessions</a>.</p>
-  <% } else { %>
-    <ul class="plain">
-      <% signups.forEach(s => { %>
-        <% const past = new Date(s.starts_at) < new Date(); %>
-        <li>
-          <div class="order-row">
-            <strong><%= s.title %></strong>
-            <span class="status-pill <%= past ? 'completed' : 'upcoming' %>"><%= past ? 'Completed' : 'Upcoming' %></span>
-          </div>
-          <div class="muted small"><%= formatDateTime(s.starts_at) %><%= s.location ? ' · ' + s.location : '' %></div>
-        </li>
-      <% }) %>
-    </ul>
-  <% } %>
-</div>
-
 <%- include('partials/footer') %>
