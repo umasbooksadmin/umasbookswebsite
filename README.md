@@ -89,7 +89,7 @@ which only supports one page. Now that the site is multiple HTML files,
 that deployment model no longer applies as-is — see `SQUARESPACE.md` for
 the options.
 
-Live at https://umas-books.onrender.com — the `umas-books` Render service
+Live at https://umas-books-cmvv.onrender.com — the `umas-books` Render service
 (see `umas-books/README.md`) serves these marketing pages directly from
 the repo root alongside the Members Area app, so there's one link for
 everything. Routes for this are in `umas-books/src/index.js`; if a page
