@@ -1,7 +1,5 @@
-<%- include('../partials/header', { title: 'Admin — Wishlist' }) %>
-<%- include('../partials/admin_subnav', { active }) %>
+<%- include('../partials/admin_header', { title: 'Wishlist', active: active, pageTitle: 'Wishlist' }) %>
 
-<h1>Wishlist</h1>
 <p class="muted small">Requests from the public <a href="/wishlist">wishlist form</a> &mdash; titles customers are looking for.</p>
 
 <div class="card">
@@ -40,4 +38,4 @@
   <% } %>
 </div>
 
-<%- include('../partials/footer') %>
+<%- include('../partials/admin_footer') %>

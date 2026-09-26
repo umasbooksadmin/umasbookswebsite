@@ -1,7 +1,5 @@
-<%- include('../../partials/header', { title: 'Scan a Book' }) %>
-<%- include('../../partials/admin_subnav', { active }) %>
+<%- include('../../partials/admin_header', { title: 'Scan a Book', active: active, pageTitle: 'Scan a Book' }) %>
 
-<h1>Scan a Book</h1>
 <% if (typeof saved !== "undefined" && saved) { %><div class="notice-box">Book saved &mdash; ready for the next one.</div><% } %>
 <% if (error) { %><div class="error-box"><%= error %></div><% } %>
 
@@ -31,4 +29,4 @@
   <% } %>
 </div>
 
-<%- include('../../partials/footer') %>
+<%- include('../../partials/admin_footer') %>

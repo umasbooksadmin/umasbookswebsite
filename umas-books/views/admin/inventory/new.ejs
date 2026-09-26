@@ -1,7 +1,5 @@
-<%- include('../../partials/header', { title: 'Add Book' }) %>
-<%- include('../../partials/admin_subnav', { active }) %>
+<%- include('../../partials/admin_header', { title: 'Add Book', active: active, pageTitle: 'Add Book' }) %>
 
-<h1>Add Book</h1>
 <% if (error) { %><div class="error-box"><%= error %></div><% } %>
 
 <div class="card">
@@ -81,4 +79,4 @@
   </form>
 </div>
 
-<%- include('../../partials/footer') %>
+<%- include('../../partials/admin_footer') %>

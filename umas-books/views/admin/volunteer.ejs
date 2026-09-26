@@ -1,7 +1,5 @@
-<%- include('../partials/header', { title: 'Admin — Volunteer Shifts' }) %>
-<%- include('../partials/admin_subnav', { active }) %>
+<%- include('../partials/admin_header', { title: 'Volunteer Shifts', active: active, pageTitle: 'Volunteer Shifts' }) %>
 
-<h1>Volunteer Shifts</h1>
 <p class="muted small">Click a day to add a shift there. Each shift takes one volunteer; use "Repeat weekly" to create the same shift for several weeks at once.</p>
 
 <div class="card">
@@ -71,4 +69,4 @@
   </div>
 </div>
 
-<%- include('../partials/footer') %>
+<%- include('../partials/admin_footer') %>

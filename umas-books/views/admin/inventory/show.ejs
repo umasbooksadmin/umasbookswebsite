@@ -1,8 +1,6 @@
-<%- include('../../partials/header', { title: book.title }) %>
-<%- include('../../partials/admin_subnav', { active }) %>
+<%- include('../../partials/admin_header', { title: book.title, active: active, pageTitle: book.title }) %>
 
 <p><a href="/admin/inventory">&larr; Back to inventory</a></p>
-<h1><%= book.title %></h1>
 <p class="muted"><%= book.authors || 'Unknown author' %><%= book.isbn ? ' · ISBN ' + book.isbn : '' %><%= book.categories ? ' · ' + book.categories : '' %></p>
 
 <div class="card" style="display:flex; gap:20px;">
@@ -118,4 +116,4 @@
   <% } %>
 </div>
 
-<%- include('../../partials/footer') %>
+<%- include('../../partials/admin_footer') %>

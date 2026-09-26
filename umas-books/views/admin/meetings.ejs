@@ -1,7 +1,5 @@
-<%- include('../partials/header', { title: 'Admin — Meetings' }) %>
-<%- include('../partials/admin_subnav', { active }) %>
+<%- include('../partials/admin_header', { title: 'Meetings', active: active, pageTitle: 'Meetings' }) %>
 
-<h1>Meetings</h1>
 <p class="muted small">Click a day to schedule a meeting there.</p>
 
 <div class="card">
@@ -71,4 +69,4 @@
   </div>
 </div>
 
-<%- include('../partials/footer') %>
+<%- include('../partials/admin_footer') %>

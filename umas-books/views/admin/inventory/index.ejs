@@ -1,7 +1,5 @@
-<%- include('../../partials/header', { title: 'Admin — Inventory' }) %>
-<%- include('../../partials/admin_subnav', { active }) %>
+<%- include('../../partials/admin_header', { title: 'Inventory', active: active, pageTitle: 'Inventory' }) %>
 
-<h1>Inventory</h1>
 
 <div class="card">
   <form class="stack" method="get" action="/admin/inventory" style="flex-direction: row; gap: 8px; max-width: 480px; align-items: end;">
@@ -42,4 +40,4 @@
   <% } %>
 </div>
 
-<%- include('../../partials/footer') %>
+<%- include('../../partials/admin_footer') %>

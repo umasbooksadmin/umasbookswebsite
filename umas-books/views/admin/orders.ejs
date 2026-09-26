@@ -1,0 +1,27 @@
+<%- include('../partials/admin_header', { title: 'Orders', active: 'orders', pageTitle: 'Orders', pageSub: orders.length + ' order' + (orders.length === 1 ? '' : 's') }) %>
+
+<div class="card">
+  <% if (!orders.length) { %>
+    <p class="muted">No orders yet.</p>
+  <% } else { %>
+    <ul class="plain">
+      <% orders.forEach(o => { %>
+        <li style="margin-bottom: 18px;">
+          <div class="order-row">
+            <strong><%= formatDateTime(o.created_at) %></strong>
+            <span class="status-pill <%= o.status %>"><%= o.status.charAt(0).toUpperCase() + o.status.slice(1) %></span>
+          </div>
+          <div class="muted small"><%= o.buyer_name %> &middot; <%= o.buyer_email %><%= o.buyer_phone ? ' · ' + o.buyer_phone : '' %></div>
+          <ul class="plain nested">
+            <% (o.items || []).forEach(i => { %>
+              <li><%= i.title %> <span class="muted small">&middot; &euro;<%= Number(i.price).toFixed(2) %></span></li>
+            <% }) %>
+          </ul>
+          <div class="muted small">Total: &euro;<%= Number(o.total_amount).toFixed(2) %></div>
+        </li>
+      <% }) %>
+    </ul>
+  <% } %>
+</div>
+
+<%- include('../partials/admin_footer') %>

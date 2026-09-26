@@ -1,7 +1,5 @@
-<%- include('../partials/header', { title: 'Admin — Sessions' }) %>
-<%- include('../partials/admin_subnav', { active }) %>
+<%- include('../partials/admin_header', { title: 'Sessions', active: active, pageTitle: 'Sessions' }) %>
 
-<h1>Sessions</h1>
 <p class="muted small">Sessions are public — anyone can view the calendar at <a href="/sessions">/sessions</a> and buy a drop-in seat if you set a drop-in price below (paid via the shop's cart/checkout, no account needed). Click a day to add a session there; click a session to see who's booked.</p>
 
 <div class="card">
@@ -114,4 +112,4 @@
   </div>
 </div>
 
-<%- include('../partials/footer') %>
+<%- include('../partials/admin_footer') %>
