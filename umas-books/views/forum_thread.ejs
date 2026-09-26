@@ -16,10 +16,10 @@
   </div>
 <% }) %>
 
-<h3>Add a reply</h3>
+<h3 id="reply-heading">Add a reply</h3>
 <form class="stack" method="post" action="/forum/<%= thread.id %>/replies">
   <%- include('partials/csrf_field') %>
-  <textarea name="body" required></textarea>
+  <textarea name="body" aria-labelledby="reply-heading" required></textarea>
   <button class="btn" type="submit">Reply</button>
 </form>
 

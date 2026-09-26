@@ -19,6 +19,7 @@
 <meta name="apple-mobile-web-app-title" content="Uma's Books">
 </head>
 <body>
+<a class="skip-link" href="#main-content">Skip to main content</a>
 
 <header class="mkt-header">
   <div class="h-header-row">
@@ -51,4 +52,4 @@
     </div>
   </div>
 </header>
-<main class="<%= typeof mainClass !== 'undefined' ? mainClass : 'wrap' %>">
+<main id="main-content" tabindex="-1" class="<%= typeof mainClass !== 'undefined' ? mainClass : 'wrap' %>">

@@ -14,7 +14,7 @@
   --maroon-dark: #8f5148;
   --maroon-soft: #a65347;
   --gold: #c4933f;
-  --gold-dark: #a77a2e;
+  --gold-dark: #8c6627; /* darkened from #a77a2e — that shade was 3.81:1 on --cream, failing WCAG AA (4.5:1) for the normal-size text it's used for (form labels, kickers); this clears 5.15:1 */
   --btn-bg: #43523a;
   --btn-bg-dark: #34402d;
   --line: #e4e0d8;
@@ -45,6 +45,19 @@ a { color: var(--maroon); }
 a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible {
   outline: 2px solid var(--maroon); outline-offset: 2px;
 }
+
+/* Lets keyboard/screen-reader users jump past the header's ~11 tab
+   stops (logo, 4 nav links, 6 tool icons, language toggle) straight to
+   the page content, repeated on every page — WCAG 2.4.1 (Bypass
+   Blocks), Level A. Hidden until it receives focus, per the standard
+   skip-link pattern. */
+.skip-link {
+  position: absolute; top: -100px; left: 12px; z-index: 100;
+  background: var(--maroon); color: #fff; padding: 10px 18px; border-radius: 0 0 4px 4px;
+  font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; text-decoration: none;
+  transition: top 0.15s ease;
+}
+.skip-link:focus { top: 0; outline: 2px solid #fff; outline-offset: -4px; }
 h1, h2, h3 { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; color: var(--ink); margin: 0; text-wrap: balance; }
 img { max-width: 100%; display: block; }
 

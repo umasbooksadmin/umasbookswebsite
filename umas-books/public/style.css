@@ -12,7 +12,7 @@
   --maroon: #a65347;
   --maroon-dark: #8f5148;
   --gold: #c4933f;
-  --gold-dark: #a77a2e;
+  --gold-dark: #8c6627; /* darkened from #a77a2e — 3.81:1 on --cream, failing WCAG AA for the form-label text this is used for; this clears 5.15:1 */
   --btn-bg: #43523a;
   --btn-bg-dark: #34402d;
   --line: #e4e0d8;

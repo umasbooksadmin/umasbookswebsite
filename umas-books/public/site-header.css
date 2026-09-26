@@ -10,6 +10,19 @@ header.mkt-header, footer.mkt-footer {
 header.mkt-header { margin-bottom: 32px; }
 header.mkt-header a:hover, footer.mkt-footer a:hover { text-decoration: none; }
 
+/* Lets keyboard/screen-reader users jump past the header's tab stops
+   straight to the page content — WCAG 2.4.1 (Bypass Blocks), Level A.
+   Sits before header.mkt-header in the DOM (see partials/header.ejs),
+   so it uses --maroon from style.css's global :root, not the scoped
+   copy above. Hidden until it receives focus. */
+.skip-link {
+  position: absolute; top: -100px; left: 12px; z-index: 100;
+  background: var(--maroon); color: #fff; padding: 10px 18px; border-radius: 0 0 4px 4px;
+  font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; text-decoration: none;
+  transition: top 0.15s ease;
+}
+.skip-link:focus { top: 0; outline: 2px solid #fff; outline-offset: -4px; }
+
 /* ---------- Header ---------- */
 /* Stamp logo on the left, sans-serif nav, labelled icon tools on the
    right. The header's lower half is left open beside the logo so a page
