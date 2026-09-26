@@ -46,6 +46,22 @@ app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "..", "views"));
 app.use(express.static(path.join(__dirname, "..", "public")));
 
+// For the external uptime check (see .github/workflows/uptime-check.yml)
+// to actually catch what happened on 2026-09-26 — the process was up
+// and answering "/" the whole time, but every DB-backed route was
+// broken — this has to genuinely touch the database, not just confirm
+// the process is alive. Registered before session/helmet/csrf so a
+// broken DB can't also break the session store's own read on the way
+// to this route.
+app.get("/healthz", async (req, res) => {
+  try {
+    await pool.query("SELECT 1");
+    res.status(200).json({ ok: true });
+  } catch (err) {
+    res.status(503).json({ ok: false, error: err.message });
+  }
+});
+
 // Date/time display helpers, available in every view without importing.
 Object.assign(app.locals, require("./lib/dates"));
 // Session color-coding, shared by /sessions and /immersion/calendar.
