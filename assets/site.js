@@ -23,7 +23,8 @@
       "foot.volunteer": "Volunteer",
       "foot.membership": "Membership",
       "foot.wishlist": "Notify Me",
-      "foot.favorites": "Favorites"
+      "foot.favorites": "Favorites",
+      "foot.privacy": "Privacy Policy"
     },
     fr: {
       "nav.home": "Accueil",
@@ -48,7 +49,8 @@
       "foot.volunteer": "Bénévolat",
       "foot.membership": "Adhésion",
       "foot.wishlist": "Me prévenir",
-      "foot.favorites": "Favoris"
+      "foot.favorites": "Favoris",
+      "foot.privacy": "Politique de confidentialité"
     }
   };
 
