@@ -232,7 +232,16 @@ router.get("/api/books/search", async (req, res) => {
   if (topics.length) {
     const ors = topics.map((t) => {
       params.push(`%${t}%`);
-      return `b.categories ILIKE $${params.length}`;
+      const p = params.length;
+      // Plain "fiction" is also a substring of "Non-fiction", so the
+      // Fiction genre button would otherwise pull in non-fiction books
+      // too (and, symmetrically, "science" as a Non-fiction keyword
+      // matched "Science Fiction" — dropped above rather than excluded
+      // here, since nothing in the taxonomy is tagged just "Science").
+      if (t.toLowerCase() === "fiction") {
+        return `(b.categories ILIKE $${p} AND b.categories NOT ILIKE '%non-fiction%' AND b.categories NOT ILIKE '%nonfiction%')`;
+      }
+      return `b.categories ILIKE $${p}`;
     });
     clauses.push(`(${ors.join(" OR ")})`);
   }
