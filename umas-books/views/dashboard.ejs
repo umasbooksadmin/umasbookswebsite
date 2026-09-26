@@ -1,91 +1,160 @@
-<%- include('partials/header', { title: 'Dashboard' }) %>
+<%- include('partials/header', { title: 'Member\'s Access', extraCss: ['/dashboard.css'], mainClass: 'dash-main' }) %>
 
-<h1>Welcome, <%= user.displayName %></h1>
-<p class="muted small">
-  <a href="/account">My orders &amp; sessions</a> &middot; <a href="/account/password">Change password</a>
-  <% if (user.isAdmin) { %> &middot; <a href="/admin">Admin</a><% } %>
-</p>
+<section class="dash-hero">
+  <div class="txt">
+    <p class="dash-welcome">Welcome back, <%= user.displayName %></p>
+    <h1><span class="g">Uma’s Books</span><span class="m">and Adventures</span></h1>
+    <p>We are a non-profit organization for English literature lovers. We sell books and host English programs, events and community activities in the heart of Albi.</p>
+  </div>
+  <img class="dash-hero-photo" src="/assets/img/shop-interior.jpg" alt="">
+</section>
 
-<div class="card">
-  <div class="section-title">Announcements</div>
-  <% if (!announcements.length) { %>
-    <p class="muted">Nothing posted yet.</p>
-  <% } else { %>
-    <ul class="plain">
-      <% announcements.forEach(a => { %>
-        <li>
-          <strong><%= a.title %></strong>
-          <div class="muted small"><%= formatDate(a.published_at) %></div>
-          <div><%= a.body %></div>
-        </li>
-      <% }) %>
-    </ul>
-  <% } %>
+<div class="dash-cards">
+  <a class="dash-card" href="/books">
+    <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6.5C10.2 5.2 7.6 4.5 4 4.5v14c3.6 0 6.2.7 8 2 1.8-1.3 4.4-2 8-2v-14c-3.6 0-6.2.7-8 2z"/><path d="M12 6.5v14"/></svg></div>
+    <h3>Browse &amp; Buy Books Online</h3>
+    <div class="sub">Discover pre-loved English books</div>
+  </a>
+  <a class="dash-card tone-rose" href="/programs.html">
+    <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7" r="2.8"/><circle cx="5.5" cy="8.5" r="2.2"/><circle cx="18.5" cy="8.5" r="2.2"/><path d="M7 19c0-3.3 2.2-6 5-6s5 2.7 5 6z"/><path d="M1.5 18c0-2.7 1.8-4.8 4-4.8 1 0 1.8.4 2.5 1"/><path d="M22.5 18c0-2.7-1.8-4.8-4-4.8-1 0-1.8.4-2.5 1"/></svg></div>
+    <h3>Learn About Our English Programs</h3>
+    <div class="sub">Play, learn &amp; grow with Éveil</div>
+  </a>
+  <a class="dash-card tone-tan" href="/about.html#donate">
+    <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7.5h14.5a1.5 1.5 0 0 1 0 3H4z"/><path d="M5 10.5h13a1.5 1.5 0 0 1 0 3H5z"/><path d="M4 13.5h14.5a1.5 1.5 0 0 1 0 3H4z"/><path d="M5 16.5h13a1.5 1.5 0 0 1 0 3H5z"/><path d="M6 4.5h12a1.5 1.5 0 0 1 0 3H6z"/></svg></div>
+    <h3>Donate Books</h3>
+    <div class="sub">Give books a second life</div>
+  </a>
+  <a class="dash-card" href="/membership.html">
+    <div class="icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 20.5s-8-4.9-10-9.8C.6 7 2.9 4 6.2 4c2.2 0 4 1.3 5.8 3.5C13.8 5.3 15.6 4 17.8 4 21.1 4 23.4 7 22 10.7c-2 4.9-10 9.8-10 9.8z"/></svg></div>
+    <h3>Join Us as a Member</h3>
+    <div class="sub">Be part of our community</div>
+  </a>
 </div>
 
-<div class="card">
-  <div class="section-title">Community Forum</div>
-  <% if (!forumThreads.length) { %>
-    <p class="muted">No threads yet &mdash; <a href="/forum/new">start one</a>.</p>
-  <% } else { %>
-    <ul class="plain">
-      <% forumThreads.forEach(t => { %>
-        <li>
-          <a href="/forum/<%= t.id %>"><%= t.title %></a>
-          <div class="thread-meta"><%= t.author_name || 'Member' %> &middot; <%= t.reply_count %> repl<%= t.reply_count == 1 ? 'y' : 'ies' %></div>
-        </li>
-      <% }) %>
-    </ul>
-  <% } %>
-  <p><a href="/forum">See all &rarr;</a></p>
+<div class="dash-row">
+  <div class="dash-panel">
+    <div class="dash-panel-head">
+      <h2>Announcements</h2>
+    </div>
+    <% if (!announcements.length) { %>
+      <p class="muted">Nothing posted yet.</p>
+    <% } else { %>
+      <% var annPhotos = ['/assets/img/shop-interior.jpg', '/assets/img/about-books-photo.jpg', '/assets/img/book-stack.png']; %>
+      <ul class="dash-ann-list">
+        <% announcements.forEach((a, i) => { %>
+          <li class="dash-ann-item">
+            <img src="<%= annPhotos[i % annPhotos.length] %>" alt="">
+            <div>
+              <div class="dash-ann-date"><%= formatDate(a.published_at) %></div>
+              <h3><%= a.title %></h3>
+              <p><%= a.body %></p>
+            </div>
+          </li>
+        <% }) %>
+      </ul>
+    <% } %>
+  </div>
+
+  <div class="dash-charity">
+    <h2>Charity We Support</h2>
+    <!-- TODO: replace with a real photo of the supported charity when available -->
+    <div class="photo-block">Photo placeholder</div>
+    <% if (!charity) { %>
+      <h3>No vote open right now</h3>
+      <p>Check back soon for the next charity round.</p>
+    <% } else { %>
+      <h3><%= charity.round.title %></h3>
+      <p>
+        Every quarter, our members vote on what local charity a portion of our profits go to.
+        <% var leader = charity.options.slice().sort((a, b) => b.vote_count - a.vote_count)[0]; %>
+        <% if (leader && leader.vote_count > 0) { %>Currently in the lead: <strong><%= leader.name %></strong>.<% } %>
+      </p>
+      <a class="btn" href="/charity">Vote for This Quarter’s Charity</a>
+    <% } %>
+  </div>
 </div>
 
-<div class="card">
-  <div class="section-title">Volunteer Shifts</div>
-  <% if (!shifts.length) { %>
-    <p class="muted">No shifts scheduled yet.</p>
-  <% } else { %>
-    <ul class="plain">
-      <% shifts.forEach(s => { %>
-        <li>
-          <strong><%= s.role %></strong>
-          <div class="muted small"><%= formatDateTime(s.starts_at) %> &middot; <%= s.signup_count %>/<%= s.capacity %> filled</div>
-          <% if (mySignedUpShiftIds.has(s.id)) { %>
-            <span class="notice-box small" style="display:inline-block; margin-top:6px;">You're signed up</span>
-          <% } %>
-        </li>
+<% if (latestArrivals.length) { %>
+<div class="dash-section">
+  <div class="dash-section-head">
+    <h2>New In</h2>
+    <span class="sub">Fresh arrivals, new adventures.</span>
+    <a href="/books">See All New In &rarr;</a>
+  </div>
+  <div class="dash-track-wrap">
+    <button type="button" class="dash-arrow" id="dash-new-prev" aria-label="Previous"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4 7 12l8 8"/></svg></button>
+    <div class="dash-track" id="dash-new-track">
+      <% latestArrivals.forEach(b => { %>
+        <div class="dash-book">
+          <button type="button" class="favorite-toggle" data-book-id="<%= b.id %>" aria-pressed="false" aria-label="Favorite">
+            <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 20s-7-4.4-9.5-8.8C.8 7.8 2.4 4.5 5.8 4c2-.3 3.7.7 4.8 2.4L12 8l1.4-1.6C14.5 4.7 16.2 3.7 18.2 4c3.4.5 5 3.8 3.3 7.2C19 15.6 12 20 12 20z"/></svg>
+          </button>
+          <a href="/books/<%= b.id %>">
+            <% if (b.cover_url) { %>
+              <img class="cover" src="<%= b.cover_url %>" alt="" loading="lazy">
+            <% } else { %>
+              <div class="cover cover-none">No cover</div>
+            <% } %>
+            <div class="t"><%= b.title %></div>
+            <% if (b.authors) { %><div class="a"><%= b.authors %></div><% } %>
+          </a>
+        </div>
       <% }) %>
-    </ul>
-  <% } %>
-  <p><a href="/volunteer">See all &amp; sign up &rarr;</a></p>
-</div>
-
-<div class="card">
-  <div class="section-title">Meetings</div>
-  <% if (!meetings.length) { %>
-    <p class="muted">Nothing scheduled yet.</p>
-  <% } else { %>
-    <ul class="plain">
-      <% meetings.forEach(m => { %>
-        <li>
-          <strong><%= m.title %></strong>
-          <div class="muted small"><%= formatDateTime(m.scheduled_at) %><%= m.location ? ' · ' + m.location : '' %></div>
-          <% if (rsvpedMeetingIds.has(m.id)) { %>
-            <span class="notice-box small" style="display:inline-block; margin-top:6px;">You're going</span>
-          <% } %>
-        </li>
-      <% }) %>
-    </ul>
-  <% } %>
-  <p><a href="/meetings">See all, RSVP &amp; past minutes &rarr;</a></p>
-</div>
-
-<% if (charity) { %>
-<div class="card">
-  <div class="section-title">Charity Vote</div>
-  <p class="muted"><%= charity.round.title %></p>
-  <p><a href="/charity">View &amp; vote &rarr;</a></p>
+    </div>
+    <button type="button" class="dash-arrow" id="dash-new-next" aria-label="Next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 4 8 8-8 8"/></svg></button>
+  </div>
 </div>
 <% } %>
+
+<% if (upcomingEvents.length) { %>
+<div class="dash-section">
+  <div class="dash-section-head">
+    <h2>Upcoming Adventures</h2>
+    <a href="/events">See all events &rarr;</a>
+  </div>
+  <div class="dash-events">
+    <% upcomingEvents.forEach(e => { %>
+      <% var starts = new Date(e.starts_at); %>
+      <div class="dash-event">
+        <div class="badge">
+          <div class="mo"><%= starts.toLocaleDateString('en-GB', { month: 'short' }).toUpperCase() %></div>
+          <div class="day"><%= starts.getDate() %></div>
+        </div>
+        <div>
+          <h3><%= e.title %></h3>
+          <p><%= formatDateTime(e.starts_at) %><%= e.location ? ' · ' + e.location : '' %></p>
+        </div>
+      </div>
+    <% }) %>
+  </div>
+</div>
+<% } %>
+
+<p class="dash-utility">
+  <a href="/forum">Discussion Forum</a>&middot;
+  <a href="/volunteer">Volunteer Shifts</a>&middot;
+  <a href="/meetings">Meetings &amp; Minutes</a>&middot;
+  <a href="/account/password">Change Password</a>
+  <% if (user.isAdmin) { %>&middot; <a href="/admin">Admin</a><% } %>
+</p>
+
+<script>
+(function () {
+  var track = document.getElementById('dash-new-track');
+  if (!track) return;
+  function page(dir) { track.scrollBy({ left: dir * track.clientWidth * 0.8, behavior: 'smooth' }); }
+  document.getElementById('dash-new-prev').addEventListener('click', function () { page(-1); });
+  document.getElementById('dash-new-next').addEventListener('click', function () { page(1); });
+  document.addEventListener('error', function (e) {
+    var img = e.target;
+    if (!img || img.tagName !== 'IMG' || !img.classList.contains('cover')) return;
+    var ph = document.createElement('div');
+    ph.className = 'cover cover-none';
+    ph.textContent = 'No cover';
+    img.replaceWith(ph);
+  }, true);
+})();
+</script>
 
 <%- include('partials/footer') %>

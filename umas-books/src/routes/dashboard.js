@@ -7,26 +7,22 @@ const router = express.Router();
 router.get("/dashboard", requireMember, async (req, res) => {
   const userId = req.session.user.id;
 
-  const [announcements, activeRound, forumThreads, upcomingShifts, myShiftSignups, upcomingMeetings, myMeetingRsvps] = await Promise.all([
-    pool.query("SELECT * FROM announcements ORDER BY published_at DESC LIMIT 5"),
+  const [announcements, activeRound, latestArrivals, upcomingEvents] = await Promise.all([
+    pool.query("SELECT * FROM announcements ORDER BY published_at DESC LIMIT 3"),
     pool.query("SELECT * FROM charity_rounds WHERE is_active = TRUE ORDER BY opens_at DESC LIMIT 1"),
+    // Same "newest in-stock copy first" pick as the marketing site's
+    // /api/books/latest-arrivals — this page is server-rendered, so it's
+    // queried directly here instead of round-tripping through that API.
     pool.query(
-      `SELECT t.*, u.display_name AS author_name,
-              (SELECT COUNT(*) FROM forum_replies r WHERE r.thread_id = t.id) AS reply_count
-       FROM forum_threads t LEFT JOIN users u ON u.id = t.author_id
-       ORDER BY t.created_at DESC LIMIT 5`
+      `SELECT b.id, b.title, b.authors, b.cover_url,
+              (SELECT MIN(price) FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock') AS min_price,
+              (SELECT MAX(c.created_at) FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock') AS newest_copy_at
+       FROM books b
+       WHERE EXISTS (SELECT 1 FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock')
+       ORDER BY newest_copy_at DESC LIMIT 8`
     ),
-    pool.query(
-      `SELECT s.*, (SELECT COUNT(*) FROM volunteer_signups g WHERE g.shift_id = s.id) AS signup_count
-       FROM volunteer_shifts s WHERE s.starts_at >= now() ORDER BY s.starts_at ASC LIMIT 5`
-    ),
-    pool.query("SELECT shift_id FROM volunteer_signups WHERE user_id = $1", [userId]),
-    pool.query("SELECT * FROM meetings WHERE scheduled_at >= now() ORDER BY scheduled_at ASC LIMIT 3"),
-    pool.query("SELECT meeting_id FROM meeting_rsvps WHERE user_id = $1", [userId]),
+    pool.query("SELECT * FROM events WHERE starts_at >= now() ORDER BY starts_at ASC LIMIT 3"),
   ]);
-
-  const mySignedUpShiftIds = new Set(myShiftSignups.rows.map((r) => r.shift_id));
-  const rsvpedMeetingIds = new Set(myMeetingRsvps.rows.map((r) => r.meeting_id));
 
   let charity = null;
   if (activeRound.rows.length) {
@@ -50,11 +46,8 @@ router.get("/dashboard", requireMember, async (req, res) => {
   res.render("dashboard", {
     announcements: announcements.rows,
     charity,
-    forumThreads: forumThreads.rows,
-    shifts: upcomingShifts.rows,
-    mySignedUpShiftIds,
-    meetings: upcomingMeetings.rows,
-    rsvpedMeetingIds,
+    latestArrivals: latestArrivals.rows,
+    upcomingEvents: upcomingEvents.rows,
   });
 });
 
