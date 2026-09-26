@@ -1,4 +1,4 @@
-<%- include('../partials/admin_header', { title: 'Members', active: active, pageTitle: 'Members' }) %>
+<%- include('../partials/admin_header', { title: 'Accounts', active: active, pageTitle: 'Accounts' }) %>
 
 
 <div class="card">
@@ -9,10 +9,18 @@
           <strong><%= m.display_name %></strong> &middot; <%= m.email %><%= m.is_admin ? ' · admin' : '' %>
           <% if (m.is_member) { %> &middot; <span class="status-pill paid">Member</span><% } %>
         </span>
-        <form method="post" action="/admin/members/<%= m.id %>/toggle-member" style="margin-left:auto;">
-          <%- include('../partials/csrf_field') %>
-          <button type="submit" class="btn btn-outline btn-small"><%= m.is_member ? 'Remove member status' : 'Mark as member' %></button>
-        </form>
+        <span style="margin-left:auto; display:flex; gap:8px;">
+          <form method="post" action="/admin/members/<%= m.id %>/toggle-member">
+            <%- include('../partials/csrf_field') %>
+            <button type="submit" class="btn btn-outline btn-small"><%= m.is_member ? 'Remove member status' : 'Mark as member' %></button>
+          </form>
+          <% if (m.id !== user.id) { %>
+            <form method="post" action="/admin/members/<%= m.id %>/toggle-admin">
+              <%- include('../partials/csrf_field') %>
+              <button type="submit" class="btn btn-outline btn-small"><%= m.is_admin ? 'Remove admin' : 'Make admin' %></button>
+            </form>
+          <% } %>
+        </span>
       </li>
     <% }) %>
   </ul>
