@@ -1,6 +1,6 @@
 const express = require("express");
 const { pool } = require("../db");
-const { requireAuth } = require("../middleware/auth");
+const { requireMember } = require("../middleware/auth");
 
 const router = express.Router();
 
@@ -22,12 +22,12 @@ async function loadActiveRound(userId) {
   return { round, options, myOptionId: myVote[0] ? myVote[0].option_id : null };
 }
 
-router.get("/charity", requireAuth, async (req, res) => {
+router.get("/charity", requireMember, async (req, res) => {
   const charity = await loadActiveRound(req.session.user.id);
   res.render("charity", { charity });
 });
 
-router.post("/charity/vote", requireAuth, async (req, res) => {
+router.post("/charity/vote", requireMember, async (req, res) => {
   const optionId = Number(req.body.optionId);
   const userId = req.session.user.id;
 

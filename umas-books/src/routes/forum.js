@@ -1,10 +1,10 @@
 const express = require("express");
 const { pool } = require("../db");
-const { requireAuth } = require("../middleware/auth");
+const { requireMember } = require("../middleware/auth");
 
 const router = express.Router();
 
-router.get("/forum", requireAuth, async (req, res) => {
+router.get("/forum", requireMember, async (req, res) => {
   const { rows: threads } = await pool.query(
     `SELECT t.*, u.display_name AS author_name,
             (SELECT COUNT(*) FROM forum_replies r WHERE r.thread_id = t.id) AS reply_count
@@ -14,11 +14,11 @@ router.get("/forum", requireAuth, async (req, res) => {
   res.render("forum_list", { threads });
 });
 
-router.get("/forum/new", requireAuth, (req, res) => {
+router.get("/forum/new", requireMember, (req, res) => {
   res.render("forum_new", { error: null });
 });
 
-router.post("/forum/new", requireAuth, async (req, res) => {
+router.post("/forum/new", requireMember, async (req, res) => {
   const title = (req.body.title || "").trim();
   const body = (req.body.body || "").trim();
   if (!title || !body) {
@@ -31,7 +31,7 @@ router.post("/forum/new", requireAuth, async (req, res) => {
   res.redirect(`/forum/${rows[0].id}`);
 });
 
-router.get("/forum/:id", requireAuth, async (req, res) => {
+router.get("/forum/:id", requireMember, async (req, res) => {
   const threadId = Number(req.params.id);
   const { rows: threadRows } = await pool.query(
     `SELECT t.*, u.display_name AS author_name FROM forum_threads t
@@ -49,7 +49,7 @@ router.get("/forum/:id", requireAuth, async (req, res) => {
   res.render("forum_thread", { thread: threadRows[0], replies, error: null });
 });
 
-router.post("/forum/:id/replies", requireAuth, async (req, res) => {
+router.post("/forum/:id/replies", requireMember, async (req, res) => {
   const threadId = Number(req.params.id);
   const body = (req.body.body || "").trim();
   if (!body) return res.redirect(`/forum/${threadId}`);

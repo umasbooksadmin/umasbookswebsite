@@ -55,12 +55,15 @@ router.post("/signup", authLimiter, async (req, res) => {
     const hash = await bcrypt.hash(password, 12);
     const { rows } = await pool.query(
       `INSERT INTO users (email, password_hash, display_name) VALUES ($1, $2, $3)
-       RETURNING id, email, display_name, is_admin`,
+       RETURNING id, email, display_name, is_admin, is_member`,
       [email, hash, displayName]
     );
     const user = rows[0];
-    req.session.user = { id: user.id, email: user.email, displayName: user.display_name, isAdmin: user.is_admin };
-    res.redirect("/dashboard");
+    req.session.user = { id: user.id, email: user.email, displayName: user.display_name, isAdmin: user.is_admin, isMember: user.is_member };
+    // New accounts aren't members yet (that's a separate step — see
+    // Membership), so they land on the regular site, not the Member's
+    // Access dashboard. Only actual members/admins go straight there.
+    res.redirect(user.is_admin || user.is_member ? "/dashboard" : "/");
   } catch (err) {
     console.error(err);
     res.status(500).render("signup", { error: "Something went wrong. Please try again." });
@@ -68,7 +71,10 @@ router.post("/signup", authLimiter, async (req, res) => {
 });
 
 router.get("/login", (req, res) => {
-  if (req.session.user) return res.redirect(req.session.user.isAdmin ? "/admin" : "/dashboard");
+  if (req.session.user) {
+    const u = req.session.user;
+    return res.redirect(u.isAdmin ? "/admin" : u.isMember ? "/dashboard" : "/");
+  }
   const notice = req.query.reset === "success" ? "Password updated — log in with your new password." : null;
   res.render("login", { error: null, notice });
 });
@@ -114,8 +120,11 @@ router.post("/login", authLimiter, async (req, res) => {
       await pool.query("UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = $1", [user.id]);
     }
 
-    req.session.user = { id: user.id, email: user.email, displayName: user.display_name, isAdmin: user.is_admin };
-    res.redirect(user.is_admin ? "/admin" : "/dashboard");
+    req.session.user = { id: user.id, email: user.email, displayName: user.display_name, isAdmin: user.is_admin, isMember: user.is_member };
+    // Logging in doesn't make you a member — only actual members/admins
+    // land on the Member's Access dashboard; everyone else goes to the
+    // regular site, same as a logged-out visitor (see requireMember).
+    res.redirect(user.is_admin ? "/admin" : user.is_member ? "/dashboard" : "/");
   } catch (err) {
     console.error(err);
     res.status(500).render("login", { error: "Something went wrong. Please try again.", notice: null });

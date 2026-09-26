@@ -1,10 +1,10 @@
 const express = require("express");
 const { pool } = require("../db");
-const { requireAuth } = require("../middleware/auth");
+const { requireMember } = require("../middleware/auth");
 
 const router = express.Router();
 
-router.get("/dashboard", requireAuth, async (req, res) => {
+router.get("/dashboard", requireMember, async (req, res) => {
   const userId = req.session.user.id;
 
   const [announcements, activeRound, forumThreads, upcomingShifts, myShiftSignups, upcomingMeetings, myMeetingRsvps] = await Promise.all([
