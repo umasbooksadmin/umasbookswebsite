@@ -1,6 +1,16 @@
 require("dotenv").config();
 const path = require("path");
 const express = require("express");
+// Patches Express's router so a rejected promise from any async route
+// handler below is forwarded to the error-handling middleware at the
+// bottom of this file, instead of becoming an unhandled rejection.
+// Express 4 doesn't do this itself (fixed in Express 5) — without it, a
+// single transient error (e.g. a dropped DB connection) in any one of
+// this app's ~50 async handlers, none of which wrap their own
+// try/catch, crashes the whole process for every visitor rather than
+// just failing that one request. Must load before any router below is
+// required, since it patches Router/Layer as they're defined.
+require("express-async-errors");
 const helmet = require("helmet");
 const multer = require("multer");
 const session = require("express-session");
@@ -186,6 +196,32 @@ app.use(adminRoutes);
 
 app.use((req, res) => {
   res.status(404).render("404");
+});
+
+// Last-resort handler for anything a route threw or rejected with
+// (forwarded here automatically by express-async-errors, above). Never
+// shows the visitor error detail — that goes to the log only — and
+// falls back to a plain text response if even rendering the error page
+// itself fails (e.g. the DB is down and a view needs res.locals.user).
+app.use((err, req, res, next) => {
+  console.error("Unhandled error:", err);
+  if (res.headersSent) return next(err);
+  res.status(500);
+  res.render("500", (renderErr, html) => {
+    if (renderErr) return res.type("text").send("Something went wrong. Please try again.");
+    res.send(html);
+  });
+});
+
+// Both of these mean some error escaped every other net (route handlers
+// go through express-async-errors above; the background jobs below
+// already .catch() their own). Log either way; only exit for the
+// synchronous case, where Node's own docs say the process is in an
+// unknown state and continuing is unsafe — Render restarts it clean.
+process.on("unhandledRejection", (err) => console.error("Unhandled rejection:", err));
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught exception:", err);
+  process.exit(1);
 });
 
 const port = process.env.PORT || 3000;
