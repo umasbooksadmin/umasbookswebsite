@@ -1,7 +1,6 @@
 const express = require("express");
 const { pool } = require("../db");
 const { CONDITIONS } = require("../lib/inventory");
-const { translateGenresToFrench } = require("../lib/bookLookup");
 const { expireStaleReservations } = require("../lib/reservations");
 const { sendMail } = require("../mailer");
 const { baseUrl } = require("../lib/baseUrl");
@@ -10,79 +9,19 @@ const router = express.Router();
 
 // Public — no login required. Anyone can search in-stock inventory and
 // reserve a specific copy for pickup (payment happens in person).
+// The browse/search listing itself lives at /books.html (a static page
+// backed by the /api/books/* endpoints below) — there's no server-rendered
+// listing page anymore, just the detail/reserve route past this point.
 
 function conditionLabel(value) {
   return (CONDITIONS.find((c) => c.value === value) || {}).label || value;
 }
 
-router.get("/books", async (req, res) => {
-  await expireStaleReservations(pool);
-  const q = (req.query.q || "").trim();
-  const genre = (req.query.genre || "").trim();
-
-  // categories holds a comma-separated list (a book can have more than
-  // one genre), so the distinct list and the filter below both unnest it
-  // rather than matching the whole string.
-  const { rows: genreRows } = await pool.query(
-    `SELECT DISTINCT trim(g) AS genre
-     FROM books b, unnest(string_to_array(b.categories, ',')) AS g
-     WHERE b.categories IS NOT NULL AND b.categories <> '' AND trim(g) <> ''
-       AND EXISTS (SELECT 1 FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock')
-     ORDER BY genre ASC`
-  );
-  const genres = genreRows.map((r) => ({ en: r.genre, fr: translateGenresToFrench(r.genre) }));
-
-  const clauses = ["c.status = 'in_stock'"];
-  const params = [];
-  if (q) {
-    params.push(`%${q}%`);
-    clauses.push(`(b.title ILIKE $${params.length} OR b.authors ILIKE $${params.length})`);
-  }
-  if (genre) {
-    params.push(genre);
-    clauses.push(`EXISTS (SELECT 1 FROM unnest(string_to_array(b.categories, ',')) AS g WHERE trim(g) = $${params.length})`);
-  }
-
-  const { rows: books } = await pool.query(
-    `SELECT b.*,
-            (SELECT COUNT(*) FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock')::int AS in_stock_count,
-            (SELECT MIN(price) FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock') AS min_price
-     FROM books b
-     WHERE EXISTS (SELECT 1 FROM book_copies c WHERE c.book_id = b.id AND ${clauses.join(" AND ")})
-     ORDER BY b.title ASC LIMIT 60`,
-    params
-  );
-
-  // An in-stock book that some member or admin has favorited (see
-  // public/favorites.js's server sync and POST /api/favorites/toggle
-  // below) — only shown on the plain, unfiltered browse view. Same
-  // candidate pool and same deterministic-per-ISO-week pick as the
-  // marketing site's /api/books/recommendation, so this page's
-  // "Recommended for You" always agrees with the public "Recommendation
-  // of the Week" band instead of reshuffling on every visit.
-  let recommended = null;
-  if (!q && !genre) {
-    const { rows: recRows } = await pool.query(
-      `SELECT * FROM (
-         SELECT DISTINCT b.*, (SELECT MIN(price) FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock') AS min_price
-         FROM favorites f
-         JOIN users u ON u.id = f.user_id AND (u.is_member = true OR u.is_admin = true)
-         JOIN books b ON b.id = f.book_id
-         WHERE EXISTS (SELECT 1 FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock')
-       ) AS candidates
-       ORDER BY md5(id::text || to_char(now(), 'IYYY-IW')) LIMIT 1`
-    );
-    recommended = recRows[0] || null;
-  }
-
-  res.render("books", { books, q, genre, genres, recommended });
-});
-
 // Logged-in visitors' favorites persist here too (see public/favorites.js),
 // alongside the localStorage list every visitor already gets — this is
-// what lets the "recommended book" pick above draw from real member
-// favorites. Anonymous visitors get a silent no-op: favoriting stays
-// client-only for them, same as before this existed.
+// what lets /api/books/recommendation draw its weekly pick from real
+// member favorites. Anonymous visitors get a silent no-op: favoriting
+// stays client-only for them, same as before this existed.
 router.post("/api/favorites/toggle", async (req, res) => {
   if (!req.session.user) return res.status(204).end();
   const bookId = Number(req.body.bookId);
