@@ -30,7 +30,10 @@ const LOGIN_LOCK_THRESHOLD = 5;
 const LOGIN_LOCK_DURATION_MS = 15 * 60 * 1000;
 
 router.get("/signup", (req, res) => {
-  if (req.session.user) return res.redirect("/dashboard");
+  if (req.session.user) {
+    const u = req.session.user;
+    return res.redirect(u.isAdmin ? "/admin" : u.isMember ? "/dashboard" : "/");
+  }
   res.render("signup", { error: null });
 });
 

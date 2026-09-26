@@ -141,7 +141,12 @@ app.use("/assets", express.static(path.join(marketingRoot, "assets")));
 app.get("/logo.png", (req, res) => res.sendFile(path.join(marketingRoot, "logo.png")));
 
 app.get("/", (req, res) => {
-  if (req.session.user) return res.redirect("/dashboard");
+  // Only an actual member/admin gets bounced to the Member's Access
+  // dashboard — a logged-in visitor who isn't a member sees the regular
+  // homepage like anyone else (see requireMember), otherwise this and
+  // /dashboard's own redirect would loop forever on each other.
+  const u = req.session.user;
+  if (u && (u.isAdmin || u.isMember)) return res.redirect("/dashboard");
   res.set("Content-Security-Policy", marketingCsp);
   res.sendFile(path.join(marketingRoot, "index.html"));
 });

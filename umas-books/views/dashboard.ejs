@@ -139,22 +139,6 @@
   <% if (user.isAdmin) { %>&middot; <a href="/admin">Admin</a><% } %>
 </p>
 
-<script>
-(function () {
-  var track = document.getElementById('dash-new-track');
-  if (!track) return;
-  function page(dir) { track.scrollBy({ left: dir * track.clientWidth * 0.8, behavior: 'smooth' }); }
-  document.getElementById('dash-new-prev').addEventListener('click', function () { page(-1); });
-  document.getElementById('dash-new-next').addEventListener('click', function () { page(1); });
-  document.addEventListener('error', function (e) {
-    var img = e.target;
-    if (!img || img.tagName !== 'IMG' || !img.classList.contains('cover')) return;
-    var ph = document.createElement('div');
-    ph.className = 'cover cover-none';
-    ph.textContent = 'No cover';
-    img.replaceWith(ph);
-  }, true);
-})();
-</script>
+<script src="/dashboard.js"></script>
 
 <%- include('partials/footer') %>
