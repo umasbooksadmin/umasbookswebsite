@@ -260,7 +260,10 @@ router.post("/cart/checkout", async (req, res) => {
     client.release();
   }
 
-  const returnUrl = `${baseUrl(req)}/cart/return?order=${order.id}`;
+  // access_token (an unguessable UUID, see migrations/019) rather than
+  // order.id — the id is sequential, and this URL is public (it's where
+  // HelloAsso sends the buyer back to, with no secret of its own).
+  const returnUrl = `${baseUrl(req)}/cart/return?order=${order.access_token}`;
   const [firstName, ...rest] = name.split(" ");
   const lastName = rest.join(" ") || ".";
 
@@ -286,9 +289,13 @@ router.post("/cart/checkout", async (req, res) => {
   res.redirect(intent.redirectUrl);
 });
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 router.get("/cart/return", async (req, res) => {
-  const orderId = Number(req.query.order);
-  const { rows } = await pool.query("SELECT * FROM orders WHERE id = $1", [orderId]);
+  const token = String(req.query.order || "");
+  if (!UUID_RE.test(token)) return res.status(404).render("404");
+
+  const { rows } = await pool.query("SELECT * FROM orders WHERE access_token = $1", [token]);
   const order = rows[0];
   if (!order) return res.status(404).render("404");
 
