@@ -1,6 +1,7 @@
 require("dotenv").config();
 const bcrypt = require("bcryptjs");
 const { pool } = require("./db");
+const { validateNewPassword } = require("./lib/passwordPolicy");
 
 // Creates a starter admin account (only if no admin exists yet) plus a
 // couple of sample announcements/events/charity round so the area isn't
@@ -18,6 +19,15 @@ async function main() {
   } else {
     if (!adminPassword) {
       throw new Error("Set SEED_ADMIN_PASSWORD to create the first admin account.");
+    }
+    // This is the single most privileged account in the app, and this
+    // script is the only place it's ever created — there's no in-app way
+    // to promote another user to admin or add a second one. It shouldn't
+    // be held to a *lower* bar than an ordinary signup, which already
+    // runs through this same check.
+    const passwordError = await validateNewPassword(adminPassword);
+    if (passwordError) {
+      throw new Error(`SEED_ADMIN_PASSWORD is not strong enough: ${passwordError}`);
     }
     const hash = await bcrypt.hash(adminPassword, 12);
     const { rows } = await pool.query(
