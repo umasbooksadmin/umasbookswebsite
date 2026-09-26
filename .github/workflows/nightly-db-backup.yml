@@ -45,6 +45,14 @@ jobs:
       - name: Dump database
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          # Newer libpq (this runner's postgresql-client-17) tries a GSSAPI
+          # encryption probe before SSL by default; Render's Postgres proxy
+          # doesn't handle that probe and just drops the connection, which
+          # libpq reports as the misleading "SSL connection has been closed
+          # unexpectedly" rather than anything mentioning GSSAPI. Disabling
+          # the probe is the standard fix for this exact, well-known
+          # combination (new libpq + a proxied managed Postgres).
+          PGGSSENCMODE: disable
         run: |
           if [ -z "$DATABASE_URL" ]; then
             echo "::error::DATABASE_URL secret is not set — see this workflow's comments for how to add it."
@@ -53,8 +61,22 @@ jobs:
           mkdir -p backup
           STAMP=$(date -u +%Y-%m-%dT%H-%M-%SZ)
           echo "STAMP=$STAMP" >> "$GITHUB_ENV"
-          pg_dump --no-owner --no-privileges --format=custom \
-            --file="backup/umas_books_${STAMP}.dump" "$DATABASE_URL"
+          # Retries a couple of times before giving up — pg_dump against a
+          # remote database over the internet can also hit an ordinary
+          # transient network blip, distinct from the GSSAPI issue above.
+          for attempt in 1 2 3; do
+            if pg_dump --no-owner --no-privileges --format=custom \
+                 --file="backup/umas_books_${STAMP}.dump" "$DATABASE_URL"; then
+              break
+            fi
+            echo "pg_dump attempt $attempt failed."
+            if [ "$attempt" = 3 ]; then
+              echo "::error::pg_dump failed after 3 attempts."
+              exit 1
+            fi
+            rm -f "backup/umas_books_${STAMP}.dump"
+            sleep 10
+          done
 
       - name: Commit dump to the db-backups branch
         run: |
