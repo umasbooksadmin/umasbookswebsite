@@ -17,7 +17,12 @@ name: Site uptime check
 on:
   schedule:
     - cron: "*/10 * * * *"
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      test_alert:
+        description: "Send a test alert email now (doesn't touch the real health check logic)"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -26,6 +31,22 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
+      - name: Send test alert email
+        # Manual-only, one-off verification that the Gmail secrets/action
+        # actually deliver mail — remove once confirmed.
+        if: github.event.inputs.test_alert == 'true'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.GMAIL_USER }}
+          password: ${{ secrets.GMAIL_APP_PASSWORD }}
+          subject: "[umas-books] TEST — uptime alert wiring check"
+          to: admin@umasbooks.org
+          from: "Uma's Books Uptime Monitor"
+          body: |
+            This is a manual test triggered from the Actions tab to confirm the uptime-check workflow can actually send mail. No real outage occurred.
+
       - name: Check site health
         id: health
         run: |
