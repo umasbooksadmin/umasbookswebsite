@@ -1,0 +1,78 @@
+name: Site uptime check
+
+# Hits /healthz (see umas-books/src/index.js) every 10 minutes — that
+# route does a real SELECT 1, not just "is the process responding", so
+# this actually catches a broken database connection even while the
+# homepage keeps returning 200 (see the 2026-09-26 incident: the site
+# looked "up" by any naive check the entire time).
+#
+# Runs on GitHub's own infrastructure, independent of Render, same
+# reasoning as the nightly backup — needs to still work if the site
+# itself is down. Requires two repo secrets, GMAIL_USER and
+# GMAIL_APP_PASSWORD (Settings > Secrets and variables > Actions) — the
+# same Gmail account already used by the app for its own mail, just
+# added here too since this is a separate secret store from Render's
+# environment variables.
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check site health
+        id: health
+        run: |
+          # A generous timeout: Render's free plan spins the service down
+          # after inactivity, and the first request after that can take
+          # 30-50s to wake it back up. That's not an outage — a real
+          # outage keeps failing on the *next* check too (see below).
+          STATUS=$(curl -s -o /tmp/health.json -w "%{http_code}" --max-time 60 https://umas-books-cmvv.onrender.com/healthz || echo "000")
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+          echo "Response: $(cat /tmp/health.json 2>/dev/null)"
+
+      - name: Check previous run's outcome
+        # Only alert on the *second* consecutive failure (this run and
+        # the last one), not the first — a lone blip (cold start took
+        # too long, one dropped connection) shouldn't page anyone. GitHub
+        # itself is the state store here: no separate branch/file needed.
+        if: steps.health.outputs.status != '200'
+        id: history
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PREV=$(gh run list --workflow=uptime-check.yml --branch=main --status=completed --limit 1 --json conclusion --jq '.[0].conclusion')
+          echo "Previous run conclusion: $PREV"
+          echo "was_already_failing=$([ "$PREV" = "failure" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+      - name: Send alert email (second consecutive failure)
+        if: steps.health.outputs.status != '200' && steps.history.outputs.was_already_failing == 'true'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.GMAIL_USER }}
+          password: ${{ secrets.GMAIL_APP_PASSWORD }}
+          subject: "[umas-books] Site health check failing (status ${{ steps.health.outputs.status }})"
+          to: admin@umasbooks.org
+          from: "Uma's Books Uptime Monitor"
+          body: |
+            https://umas-books-cmvv.onrender.com/healthz has failed two checks in a row (10 minutes apart), status ${{ steps.health.outputs.status }}.
+
+            This means either the site is fully down, or it's up but can't reach the database — /healthz checks both.
+
+            Render dashboard: https://dashboard.render.com
+            Check again: https://umas-books-cmvv.onrender.com/healthz
+
+      - name: Fail this run if the check failed
+        # Makes the run's own status (visible in the Actions tab, and
+        # what the "previous run" check above reads) reflect reality —
+        # otherwise a failed health check would show as a green run.
+        if: steps.health.outputs.status != '200'
+        run: exit 1

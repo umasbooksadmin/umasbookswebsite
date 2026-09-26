@@ -102,3 +102,27 @@ jobs:
 
           git commit -m "Nightly backup ${STAMP}"
           git push origin db-backups
+
+      - name: Alert admin if any step above failed
+        # `if: failure()` here means "some earlier step in this job
+        # failed" — a missed backup only gets one shot until the next
+        # scheduled run 24h away, so unlike the uptime check this alerts
+        # on the very first failure rather than waiting for a second.
+        # Requires GMAIL_USER/GMAIL_APP_PASSWORD as repo secrets — the
+        # same Gmail account already used by the app for its own mail.
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.GMAIL_USER }}
+          password: ${{ secrets.GMAIL_APP_PASSWORD }}
+          subject: "[umas-books] Nightly database backup failed"
+          to: admin@umasbooks.org
+          from: "Uma's Books Backup Monitor"
+          body: |
+            Tonight's database backup did not complete successfully.
+
+            Check the failed run for details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+            The last successful backup is still on the db-backups branch, so nothing already saved is lost — but there won't be a new one until this is fixed and the workflow runs again.
