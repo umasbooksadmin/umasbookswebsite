@@ -4,12 +4,15 @@
 <meta charset="utf-8">
 <title>Membership &mdash; Uma's Books and Adventures</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="description" content="Become a member of Uma's Books & Adventures: vote on our quarterly charity, join the discussion forum, and get access to special events.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Montserrat:wght@500;600;700&family=Nunito+Sans:wght@400;600&family=Italianno&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Montserrat:wght@500;600;700&family=Nunito+Sans:wght@400;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/site.css">
+<link rel="stylesheet" href="assets/home.css">
+<link rel="stylesheet" href="assets/membership.css">
 </head>
-<body>
+<body class="home">
 
 <header class="h-header">
   <div class="h-header-row">
@@ -35,26 +38,104 @@
     </div>
   </div>
 </header>
+
 <main>
-  <div class="page-hero">
-    <span class="kicker" data-i18n="membership.kicker">Support the Shop</span>
-    <h1 data-i18n="membership.title">Become a Member</h1>
-  </div>
-  <div class="section">
-    <div class="wrap-narrow">
-      <div class="prose">
-        <p data-i18n="membership.intro">Membership accounts are open &mdash; log in or create yours to support the shop directly.</p>
-      </div>
-      <div class="cta-row">
-        <!-- TODO: confirm this is the live Squarespace member login/join page URL before publishing -->
-        <a class="btn btn-maroon" href="https://umasbooks.org/member-login" data-i18n="membership.cta">Log In / Join</a>
-      </div>
-      <div class="note-box" data-i18n-html="membership.contact.note">
-        Trouble logging in? Email us at <a href="mailto:admin@umasbooks.org">admin@umasbooks.org</a>.
-      </div>
+  <section class="h-hero" style="min-height:0;">
+    <img class="art art-left" src="assets/img/hero-left.png" alt="">
+    <img class="art art-right" src="assets/img/hero-right.png" alt="">
+    <div class="mem-hero-copy">
+      <div class="mem-kicker" data-i18n="mem.hero.kicker">Uma’s Books &amp; Adventures</div>
+      <hr class="mem-rule">
+      <h1 data-i18n="mem.hero.t">Membership</h1>
+      <p class="mem-script" data-i18n="mem.hero.script">Become part of our community</p>
+      <p class="mem-sub" data-i18n="mem.hero.sub">A simple way to support our nonprofit community, take part in what we build, and enjoy special opportunities at Uma’s Books &amp; Adventures.</p>
     </div>
+  </section>
+
+  <section class="mem-benefits-head">
+    <h2 data-i18n="mem.benefits.h">Membership Benefits</h2>
+  </section>
+  <section class="mem-benefits">
+    <div class="mem-benefit">
+      <h3 data-i18n="mem.b1.t">Vote on our quarterly charity</h3>
+      <p data-i18n="mem.b1.d">Help choose the organization our community supports each quarter.</p>
+    </div>
+    <div class="mem-benefit">
+      <h3 data-i18n="mem.b2.t">Discussion forums</h3>
+      <p data-i18n="mem.b2.d">Connect with other members, share ideas, and talk about books.</p>
+    </div>
+    <div class="mem-benefit">
+      <h3 data-i18n="mem.b3.t">Special events</h3>
+      <p data-i18n="mem.b3.d">Access member invitations and opportunities throughout the year.</p>
+    </div>
+    <div class="mem-benefit">
+      <h3 data-i18n="mem.b4.t">Special engagements</h3>
+      <p data-i18n="mem.b4.d">Take part in selected talks, activities and community experiences.</p>
+    </div>
+    <div class="mem-benefit">
+      <h3 data-i18n="mem.b5.t">A free tote bag</h3>
+      <p data-i18n="mem.b5.d">Collect your member tote bag from Uma’s Books &amp; Adventures. We’ll let you know when it’s ready for pickup.</p>
+    </div>
+  </section>
+
+  <div class="mem-layout">
+    <div>
+      <div class="mem-form-title" data-i18n="mem.form.h">Register for Membership</div>
+      <form class="mem-form" data-mailto="admin@umasbooks.org" data-subject="Membership Registration" novalidate>
+        <div class="mem-row">
+          <div class="field">
+            <label for="mem-first"><span data-i18n="mem.f.first.l">First name</span> <span class="req">*</span></label>
+            <input id="mem-first" type="text" data-field="First name" autocomplete="given-name" required>
+          </div>
+          <div class="field">
+            <label for="mem-last"><span data-i18n="mem.f.last.l">Last name</span> <span class="req">*</span></label>
+            <input id="mem-last" type="text" data-field="Last name" autocomplete="family-name" required>
+          </div>
+        </div>
+        <div class="field">
+          <label for="mem-email"><span data-i18n="mem.f.email.l">Email address</span> <span class="req">*</span></label>
+          <input id="mem-email" type="email" data-field="Email address" autocomplete="email" required>
+        </div>
+        <div class="field">
+          <label for="mem-phone" data-i18n="mem.f.phone.l">Phone number (optional)</label>
+          <input id="mem-phone" type="tel" data-field="Phone number" autocomplete="tel">
+        </div>
+        <div class="field">
+          <label for="mem-notes" data-i18n="mem.f.notes.l">Anything you’d like us to know? (optional)</label>
+          <textarea id="mem-notes" data-field="Additional notes"></textarea>
+        </div>
+
+        <label class="mem-check">
+          <input type="checkbox" required>
+          <span data-i18n-html="mem.f.terms">I agree to the <a href="#"><!-- TODO: link to real membership terms page -->membership terms</a> and <a href="#"><!-- TODO: link to real privacy policy page -->privacy policy</a>. <span class="req">*</span></span>
+        </label>
+        <label class="mem-check">
+          <input type="checkbox" data-field="Wants updates" value="Yes">
+          <span data-i18n="mem.f.updates">I’d like to receive news and updates from Uma’s Books &amp; Adventures. (optional)</span>
+        </label>
+
+        <button type="submit" class="mem-submit"><span data-i18n="mem.submit">Submit Membership Registration</span> <span aria-hidden="true">&rarr;</span></button>
+        <p class="mem-form-hint" data-i18n="mem.hint">This opens your email app with your registration ready to send — we’ll be in touch with the next steps and payment details.</p>
+      </form>
+    </div>
+
+    <aside class="mem-sidebar">
+      <div class="mem-price-card">
+        <img class="mem-medallion" src="assets/img/medallion-donate.png" alt="">
+        <div class="mem-price">20 &euro;</div>
+        <p class="mem-price-note" data-i18n="mem.price.note">one-time membership payment</p>
+        <hr class="mem-rule">
+        <p class="mem-payment-note" data-i18n="mem.price.d">Payment is made after your registration has been reviewed and confirmed.</p>
+      </div>
+      <div class="mem-next-steps">
+        <p data-i18n="mem.next.p1">Once registered, we’ll get back to you with the next steps and payment details.</p>
+        <hr class="mem-rule">
+        <p data-i18n="mem.next.p2">Your membership is confirmed once the 20&euro; one-time membership payment has been completed.</p>
+      </div>
+    </aside>
   </div>
 </main>
+
 <footer class="h-footer">
   <div class="h-footer-row">
     <ul>
@@ -71,19 +152,67 @@
 
 <script>
 window.PAGE_I18N = {
-  "en": {
-    "membership.kicker": "Support the Shop",
-    "membership.title": "Become a Member",
-    "membership.intro": "Membership accounts are open — log in or create yours to support the shop directly.",
-    "membership.cta": "Log In / Join",
-    "membership.contact.note": "Trouble logging in? Email us at <a href=\"mailto:admin@umasbooks.org\">admin@umasbooks.org</a>."
+  en: {
+    "mem.hero.kicker": "Uma’s Books & Adventures",
+    "mem.hero.t": "Membership",
+    "mem.hero.script": "Become part of our community",
+    "mem.hero.sub": "A simple way to support our nonprofit community, take part in what we build, and enjoy special opportunities at Uma’s Books & Adventures.",
+    "mem.benefits.h": "Membership Benefits",
+    "mem.b1.t": "Vote on our quarterly charity",
+    "mem.b1.d": "Help choose the organization our community supports each quarter.",
+    "mem.b2.t": "Discussion forums",
+    "mem.b2.d": "Connect with other members, share ideas, and talk about books.",
+    "mem.b3.t": "Special events",
+    "mem.b3.d": "Access member invitations and opportunities throughout the year.",
+    "mem.b4.t": "Special engagements",
+    "mem.b4.d": "Take part in selected talks, activities and community experiences.",
+    "mem.b5.t": "A free tote bag",
+    "mem.b5.d": "Collect your member tote bag from Uma’s Books & Adventures. We’ll let you know when it’s ready for pickup.",
+    "mem.form.h": "Register for Membership",
+    "mem.f.first.l": "First name",
+    "mem.f.last.l": "Last name",
+    "mem.f.email.l": "Email address",
+    "mem.f.phone.l": "Phone number (optional)",
+    "mem.f.notes.l": "Anything you’d like us to know? (optional)",
+    "mem.f.terms": "I agree to the <a href=\"#\">membership terms</a> and <a href=\"#\">privacy policy</a>. <span class=\"req\">*</span>",
+    "mem.f.updates": "I’d like to receive news and updates from Uma’s Books & Adventures. (optional)",
+    "mem.submit": "Submit Membership Registration",
+    "mem.hint": "This opens your email app with your registration ready to send — we’ll be in touch with the next steps and payment details.",
+    "mem.price.note": "one-time membership payment",
+    "mem.price.d": "Payment is made after your registration has been reviewed and confirmed.",
+    "mem.next.p1": "Once registered, we’ll get back to you with the next steps and payment details.",
+    "mem.next.p2": "Your membership is confirmed once the 20€ one-time membership payment has been completed."
   },
-  "fr": {
-    "membership.kicker": "Soutenir la boutique",
-    "membership.title": "Devenir membre",
-    "membership.intro": "Les comptes d’adhésion sont ouverts — connectez-vous ou créez le vôtre pour soutenir la boutique directement.",
-    "membership.cta": "Se connecter / Adhérer",
-    "membership.contact.note": "Un souci de connexion ? Écrivez-nous à <a href=\"mailto:admin@umasbooks.org\">admin@umasbooks.org</a>."
+  fr: {
+    "mem.hero.kicker": "Uma’s Books & Adventures",
+    "mem.hero.t": "Adhésion",
+    "mem.hero.script": "Rejoignez notre communauté",
+    "mem.hero.sub": "Une façon simple de soutenir notre association, de participer à ce que nous construisons, et de profiter d’opportunités réservées aux membres chez Uma’s Books & Adventures.",
+    "mem.benefits.h": "Avantages de l’adhésion",
+    "mem.b1.t": "Votez pour notre association trimestrielle",
+    "mem.b1.d": "Aidez à choisir l’association que notre communauté soutient chaque trimestre.",
+    "mem.b2.t": "Forums de discussion",
+    "mem.b2.d": "Échangez avec d’autres membres, partagez vos idées et parlez de livres.",
+    "mem.b3.t": "Événements spéciaux",
+    "mem.b3.d": "Accédez à des invitations et opportunités réservées aux membres tout au long de l’année.",
+    "mem.b4.t": "Rencontres spéciales",
+    "mem.b4.d": "Participez à des conférences, activités et moments de rencontre choisis.",
+    "mem.b5.t": "Un tote bag offert",
+    "mem.b5.d": "Récupérez votre tote bag de membre chez Uma’s Books & Adventures. Nous vous préviendrons dès qu’il sera prêt.",
+    "mem.form.h": "Inscription à l’adhésion",
+    "mem.f.first.l": "Prénom",
+    "mem.f.last.l": "Nom",
+    "mem.f.email.l": "Adresse e-mail",
+    "mem.f.phone.l": "Numéro de téléphone (facultatif)",
+    "mem.f.notes.l": "Quelque chose à nous faire savoir ? (facultatif)",
+    "mem.f.terms": "J’accepte les <a href=\"#\">conditions d’adhésion</a> et la <a href=\"#\">politique de confidentialité</a>. <span class=\"req\">*</span>",
+    "mem.f.updates": "Je souhaite recevoir des nouvelles d’Uma’s Books & Adventures. (facultatif)",
+    "mem.submit": "Envoyer l’inscription",
+    "mem.hint": "Cela ouvre votre application de messagerie avec votre inscription prête à envoyer — nous reviendrons vers vous avec les prochaines étapes et les modalités de paiement.",
+    "mem.price.note": "paiement unique d’adhésion",
+    "mem.price.d": "Le paiement est demandé une fois votre inscription examinée et confirmée.",
+    "mem.next.p1": "Une fois inscrit(e), nous reviendrons vers vous avec les prochaines étapes et les modalités de paiement.",
+    "mem.next.p2": "Votre adhésion est confirmée une fois le paiement unique de 20€ effectué."
   }
 };
 </script>

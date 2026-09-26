@@ -1,0 +1,97 @@
+/* Uma's Books & Adventures — Membership page (membership.html).
+   Reuses the Home page hero art positioning (assets/home.css, loaded
+   before this file); everything below is specific to this page. No
+   backend yet — the form submits as a mailto: (see form[data-mailto]
+   in assets/site.js), same pattern as the Volunteer/Wishlist/
+   Pre-Registration pages. */
+
+/* ---------- Hero ---------- */
+.mem-hero-copy { position: relative; z-index: 1; text-align: center; padding: 50px 24px 30px; max-width: 720px; margin: 0 auto; }
+.mem-kicker {
+  font-size: 15px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--maroon);
+  font-weight: 700;
+}
+.mem-hero-copy .mem-rule { width: 60px; height: 2px; background: var(--maroon); margin: 14px auto; border: 0; }
+.mem-hero-copy h1 {
+  font-size: clamp(34px, 5.4vw, 56px); font-weight: 600; line-height: 1.1; color: var(--ink);
+  text-transform: none; letter-spacing: normal; margin: 0 0 10px;
+}
+.mem-script { font-family: 'Libre Baskerville', Georgia, serif; font-style: italic; font-size: clamp(20px, 2.8vw, 26px); color: var(--maroon); margin: 0 0 14px; }
+.mem-hero-copy p.mem-sub { font-size: 17px; color: var(--ink-soft); max-width: 52ch; margin: 0 auto; line-height: 1.45; }
+
+/* ---------- Membership Benefits divider ---------- */
+.mem-benefits-head { text-align: center; padding: 8px 28px 0; }
+.mem-benefits-head h2 {
+  display: inline-flex; align-items: center; gap: 20px; font-size: 15px; letter-spacing: 0.22em;
+  text-transform: uppercase; color: var(--ink); font-weight: 700; margin: 0 auto 34px; max-width: 900px; width: 100%;
+}
+.mem-benefits-head h2::before, .mem-benefits-head h2::after { content: ""; flex: 1 1 auto; height: 1px; background: var(--maroon); opacity: 0.55; }
+
+.mem-benefits { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0; max-width: 1140px; margin: 0 auto; padding: 0 28px 56px; }
+.mem-benefit { text-align: center; padding: 0 22px; border-left: 1px solid var(--card-border); }
+.mem-benefit:first-child { border-left: 0; }
+.mem-benefit h3 { font-size: 18px; font-weight: 600; margin: 0 0 10px; line-height: 1.25; }
+.mem-benefit p { font-size: 14.5px; color: var(--ink-soft); margin: 0; line-height: 1.4; }
+@media (max-width: 900px) {
+  .mem-benefits { grid-template-columns: repeat(2, 1fr); gap: 28px 0; }
+  .mem-benefit { border-left: 0; border-top: 1px solid var(--card-border); padding-top: 22px; }
+  .mem-benefit:nth-child(1), .mem-benefit:nth-child(2) { border-top: 0; padding-top: 0; }
+}
+@media (max-width: 560px) {
+  .mem-benefits { grid-template-columns: 1fr; }
+  .mem-benefit { border-top: 1px solid var(--card-border); padding-top: 22px; }
+  .mem-benefit:first-child { border-top: 0; padding-top: 0; }
+}
+
+/* ---------- Two-column layout: form + payment sidebar ---------- */
+.mem-layout {
+  display: grid; grid-template-columns: 1.6fr 1fr; gap: 48px; align-items: start;
+  max-width: 1140px; margin: 0 auto 60px; padding: 0 28px;
+}
+@media (max-width: 900px) { .mem-layout { grid-template-columns: 1fr; } }
+
+.mem-form-title {
+  display: flex; align-items: baseline; gap: 14px; margin: 0 0 22px;
+  font-size: 26px; color: var(--ink); font-weight: 600;
+}
+.mem-form-title::after { content: ""; flex: 1 1 auto; height: 1px; background: var(--maroon); opacity: 0.5; }
+
+.mem-form .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+.mem-form .field label { font-size: 14.5px; color: var(--ink); }
+.mem-form .field label .req { color: var(--maroon); }
+.mem-form .field input, .mem-form .field textarea {
+  font-family: 'Cormorant Garamond', Georgia, serif; font-size: 16.5px; color: var(--ink);
+  background: #fbfaf7; border: 1px solid var(--card-border); border-radius: 4px; padding: 11px 13px;
+}
+.mem-form .field textarea { resize: vertical; min-height: 80px; }
+.mem-form .field input:focus, .mem-form .field textarea:focus { outline: 2px solid var(--maroon); outline-offset: 1px; }
+.mem-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+@media (max-width: 560px) { .mem-row { grid-template-columns: 1fr; } }
+
+.mem-check { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px; font-size: 15px; color: var(--ink-soft); }
+.mem-check input { margin-top: 4px; }
+.mem-check a { text-decoration: underline; }
+
+.mem-submit {
+  display: inline-flex; align-items: center; gap: 12px; justify-content: center; width: 100%;
+  padding: 16px 24px; border-radius: 4px; background: var(--btn-bg); color: #fff; border: 0; cursor: pointer;
+  font-family: 'Cormorant Garamond', Georgia, serif; font-size: 15px; letter-spacing: 0.14em;
+  text-transform: uppercase; font-weight: 700; margin-top: 6px;
+}
+.mem-submit:hover { background: var(--btn-bg-dark); }
+.mem-form-hint { text-align: center; font-size: 14.5px; color: var(--ink-soft); margin-top: 14px; }
+
+/* ---------- Sidebar: payment info ---------- */
+.mem-sidebar { position: sticky; top: 24px; }
+.mem-price-card { background: var(--panel, #fff); border: 1px solid var(--card-border); border-radius: 6px; padding: 30px 28px; text-align: center; }
+.mem-medallion { width: 96px; height: 96px; border-radius: 50%; border: 1px solid rgba(166, 83, 71, 0.4); padding: 10px; margin: 0 auto 20px; display: block; }
+.mem-price { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 44px; color: var(--ink); line-height: 1; margin: 0 0 6px; }
+.mem-price-note { font-size: 15px; color: var(--ink-soft); margin: 0 0 18px; }
+.mem-price-card hr.mem-rule { width: 40px; height: 1px; background: rgba(166, 83, 71, 0.4); margin: 18px auto; border: 0; }
+.mem-price-card .mem-payment-note { font-size: 14.5px; color: var(--ink-soft); line-height: 1.4; margin: 0; }
+
+.mem-next-steps { background: #fbe7e4; border-radius: 6px; padding: 22px 24px; margin-top: 18px; }
+.mem-next-steps p { font-size: 14.5px; color: var(--ink-soft); line-height: 1.4; margin: 0; text-align: center; }
+.mem-next-steps hr.mem-rule { width: 40px; height: 1px; background: rgba(166, 83, 71, 0.4); margin: 16px auto; border: 0; }
+
+@media (max-width: 900px) { .mem-sidebar { position: static; } }
