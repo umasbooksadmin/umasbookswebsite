@@ -1,35 +1,200 @@
-<%- include('../partials/admin_header', { title: 'Blog', active: active, pageTitle: 'Blog' }) %>
+<%- include('../partials/admin_header', { title: 'Blog', active: active, pageTitle: 'Blog Management', pageSub: 'Create, edit, and manage your blog posts.' }) %>
 
-<p class="muted small">Posts appear on the public blog at <a href="/blog.html">/blog.html</a>.</p>
+<%
+  function blogQs(overrides) {
+    const merged = Object.assign({}, filters, overrides);
+    const parts = [];
+    if (merged.status) parts.push('status=' + merged.status);
+    if (merged.category) parts.push('category=' + encodeURIComponent(merged.category));
+    if (merged.q) parts.push('q=' + encodeURIComponent(merged.q));
+    if (merged.dateRange) parts.push('dateRange=' + merged.dateRange);
+    if (overrides.page) parts.push('page=' + overrides.page);
+    return parts.join('&');
+  }
+  const listQs = blogQs({});
+  const statusLabels = { draft: 'Draft', scheduled: 'Scheduled', published: 'Published' };
+%>
 
 <div class="card">
-  <div class="section-title">Write a post</div>
-  <form class="stack" method="post" action="/admin/blog">
+  <div style="display:flex; justify-content:space-between; align-items:baseline;">
+    <div class="section-title"><%= editing ? 'Edit Post' : 'Write a New Post' %></div>
+    <% if (editing) { %><a href="/admin/blog?<%= listQs %>" class="small">Cancel edit</a><% } %>
+  </div>
+  <form class="stack" method="post" action="<%= editing ? '/admin/blog/' + editing.id : '/admin/blog' %>" enctype="multipart/form-data" id="blog-form">
     <%- include('../partials/csrf_field') %>
-    <label for="b-title">Title</label>
-    <input id="b-title" name="title" type="text" required>
-    <label for="b-body">Body</label>
-    <textarea id="b-body" name="body" required></textarea>
-    <button class="btn" type="submit">Post</button>
+    <input type="hidden" name="backQuery" value="<%= listQs %>">
+
+    <label for="blog-title">Title</label>
+    <input id="blog-title" name="title" type="text" required value="<%= editing ? editing.title : '' %>">
+
+    <label for="blog-content">Content</label>
+    <div class="richtext">
+      <div class="richtext-toolbar">
+        <button type="button" data-cmd="bold"><strong>B</strong></button>
+        <button type="button" data-cmd="italic"><em>I</em></button>
+        <button type="button" data-cmd="underline"><u>U</u></button>
+        <button type="button" data-cmd="insertUnorderedList">&bull; List</button>
+        <button type="button" data-cmd="insertOrderedList">1. List</button>
+        <button type="button" data-cmd="formatBlock" data-arg="blockquote">&ldquo;&rdquo;</button>
+        <button type="button" data-cmd="createLink">Link</button>
+      </div>
+      <div class="richtext-editor" contenteditable="true"><%- editing ? editing.body : '' %></div>
+    </div>
+    <textarea name="body" class="richtext-hidden" required><%= editing ? editing.body : '' %></textarea>
+
+    <label for="blog-excerpt">Excerpt (optional)</label>
+    <textarea id="blog-excerpt" name="excerpt" placeholder="A short summary shown on the blog list…"><%= editing ? (editing.excerpt || '') : '' %></textarea>
+
+    <div class="mem-row" style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+      <div>
+        <label for="blog-date">Publish Date</label>
+        <input id="blog-date" name="publishDate" type="date" value="<%= editing && editing.published_at ? new Date(editing.published_at).toISOString().slice(0,10) : new Date().toISOString().slice(0,10) %>">
+      </div>
+      <div>
+        <label for="blog-status">Status</label>
+        <select id="blog-status" name="status">
+          <option value="draft" <%= editing && editing.status === 'draft' ? 'selected' : '' %>>Draft</option>
+          <option value="scheduled" <%= editing && editing.status === 'scheduled' ? 'selected' : '' %>>Scheduled</option>
+          <option value="published" <%= !editing || editing.status === 'published' ? 'selected' : '' %>>Published</option>
+        </select>
+      </div>
+    </div>
+
+    <label>Featured Image</label>
+    <% if (editing && editing.image_url) { %>
+      <img src="<%= editing.image_url %>" alt="" style="max-width:200px; border-radius:4px; margin-bottom:6px;">
+      <label class="ann-check"><input type="checkbox" name="removeImage"> <span>Remove current image</span></label>
+    <% } %>
+    <button type="button" class="btn btn-outline" data-trigger-file="blog-image" style="align-self:flex-start;">Upload an image</button>
+    <input id="blog-image" name="image" type="file" accept="image/*" class="file-input-hidden" data-file-name-target="blog-image-name">
+    <span id="blog-image-name" class="muted small file-input-name">No image selected (JPG/PNG, max 5MB)</span>
+
+    <label for="blog-category">Category</label>
+    <select id="blog-category" name="category">
+      <option value="">Select a category…</option>
+      <% categories.forEach(c => { %><option value="<%= c %>" <%= editing && editing.category === c ? 'selected' : '' %>><%= c %></option><% }) %>
+    </select>
+
+    <label for="blog-tags">Tags (optional, comma-separated)</label>
+    <input id="blog-tags" name="tags" type="text" placeholder="books, community, events" value="<%= editing ? (editing.tags || '') : '' %>">
+
+    <div style="display:flex; gap:10px; margin-top:6px;">
+      <button class="btn" type="submit"><%= editing ? 'Save Changes' : 'Publish Post' %></button>
+      <button type="button" class="btn btn-outline" id="blog-preview-btn">Preview</button>
+    </div>
   </form>
 </div>
 
 <div class="card">
-  <div class="section-title">Published posts</div>
-  <% if (!posts.length) { %><p class="muted">None posted yet.</p><% } %>
-  <ul class="plain">
-    <% posts.forEach(p => { %>
-      <li style="padding:10px 0; border-bottom:1px solid var(--card-border);">
-        <strong><%= p.title %></strong>
-        <div class="muted small"><%= formatDateTime(p.published_at) %></div>
-        <div style="margin-top:4px;"><%= p.body %></div>
-        <form method="post" action="/admin/blog/<%= p.id %>/delete" style="margin-top:8px;">
-          <%- include('../partials/csrf_field') %>
-          <button class="btn btn-outline btn-small" type="submit">Delete post</button>
-        </form>
-      </li>
-    <% }) %>
-  </ul>
+  <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:12px;">
+    <div class="section-title">Posts (<%= pagination.totalMatching %>)</div>
+  </div>
+
+  <form class="ann-filters" method="get" action="/admin/blog">
+    <input type="text" name="q" value="<%= filters.q %>" placeholder="Search posts by title, content or tags…">
+    <select name="status">
+      <option value="">All Statuses</option>
+      <option value="draft" <%= filters.status === 'draft' ? 'selected' : '' %>>Draft</option>
+      <option value="scheduled" <%= filters.status === 'scheduled' ? 'selected' : '' %>>Scheduled</option>
+      <option value="published" <%= filters.status === 'published' ? 'selected' : '' %>>Published</option>
+    </select>
+    <select name="category">
+      <option value="">All Categories</option>
+      <% categories.forEach(c => { %><option value="<%= c %>" <%= filters.category === c ? 'selected' : '' %>><%= c %></option><% }) %>
+    </select>
+    <select name="dateRange">
+      <option value="">All Dates</option>
+      <option value="7d" <%= filters.dateRange === '7d' ? 'selected' : '' %>>Last 7 days</option>
+      <option value="30d" <%= filters.dateRange === '30d' ? 'selected' : '' %>>Last 30 days</option>
+      <option value="year" <%= filters.dateRange === 'year' ? 'selected' : '' %>>This year</option>
+    </select>
+    <button class="btn btn-small" type="submit">Apply</button>
+    <a class="btn btn-outline btn-small" href="/admin/blog">Clear Filters</a>
+  </form>
+
+  <form method="post" action="/admin/blog/bulk">
+    <%- include('../partials/csrf_field') %>
+    <input type="hidden" name="backQuery" value="<%= listQs %>">
+    <div class="ann-bulk-row">
+      <select name="bulkAction">
+        <option value="">Bulk actions…</option>
+        <option value="publish">Publish</option>
+        <option value="draft">Move to Draft</option>
+        <option value="delete">Delete</option>
+      </select>
+      <button class="btn btn-outline btn-small" type="submit">Apply</button>
+    </div>
+    <div style="overflow-x:auto;">
+    <table class="ann-table">
+      <thead>
+        <tr>
+          <th><input type="checkbox" data-select-all="blog-rows"></th>
+          <th>Image</th>
+          <th>Title</th>
+          <th>Category</th>
+          <th>Status</th>
+          <th>Published Date</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (!posts.length) { %><tr><td colspan="7" class="muted" style="text-align:center; padding:24px;">No posts match these filters.</td></tr><% } %>
+        <% posts.forEach(p => { %>
+          <tr>
+            <td><input type="checkbox" name="ids" value="<%= p.id %>" data-select-all-item="blog-rows"></td>
+            <td><% if (p.image_url) { %><img src="<%= p.image_url %>" alt="" class="ann-thumb"><% } %></td>
+            <td>
+              <strong><%= p.title %></strong>
+              <% if (p.excerpt) { %><div class="muted small"><%= p.excerpt.slice(0, 80) %></div><% } %>
+            </td>
+            <td><% if (p.category) { %><span class="status-pill category"><%= p.category %></span><% } %></td>
+            <td><span class="status-pill <%= p.status %>"><%= statusLabels[p.status] %></span></td>
+            <td class="muted small"><%= p.published_at ? formatDate(p.published_at) : '—' %></td>
+            <td style="white-space:nowrap;">
+              <a class="btn btn-outline btn-small" href="/admin/blog?edit=<%= p.id %>&<%= listQs %>">Edit</a>
+              <% if (p.status === 'published') { %><a class="btn btn-outline btn-small" href="/blog.html?post=<%= p.slug %>" target="_blank" rel="noopener">View</a><% } %>
+              <button type="submit" form="blog-delete-<%= p.id %>" class="btn btn-outline btn-small ann-menu-danger">Delete</button>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+    </div>
+  </form>
+  <% posts.forEach(p => { %>
+    <form id="blog-delete-<%= p.id %>" method="post" action="/admin/blog/<%= p.id %>/delete" onsubmit="return confirm('Delete this post permanently?');" style="display:none;">
+      <%- include('../partials/csrf_field') %>
+      <input type="hidden" name="backQuery" value="<%= listQs %>">
+    </form>
+  <% }) %>
+
+  <% if (pagination.totalPages > 1) { %>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:14px;">
+      <span class="muted small">Showing <%= (pagination.page - 1) * pagination.pageSize + 1 %>&ndash;<%= Math.min(pagination.page * pagination.pageSize, pagination.totalMatching) %> of <%= pagination.totalMatching %> posts</span>
+      <div style="display:flex; gap:6px;">
+        <% for (let p = 1; p <= pagination.totalPages; p++) { %>
+          <a class="btn btn-outline btn-small<%= p === pagination.page ? ' is-active' : '' %>" href="/admin/blog?<%= blogQs({ page: p }) %>"><%= p %></a>
+        <% } %>
+      </div>
+    </div>
+  <% } %>
 </div>
+
+<script>
+document.getElementById('blog-preview-btn').addEventListener('click', function () {
+  var form = document.getElementById('blog-form');
+  var title = form.querySelector('[name=title]').value || 'Untitled post';
+  var editor = form.querySelector('.richtext-editor');
+  var content = editor ? editor.innerHTML : '';
+  var win = window.open('', '_blank');
+  if (!win) return;
+  win.document.write(
+    '<!doctype html><html><head><meta charset="utf-8"><title>Preview — ' + title.replace(/</g, '&lt;') + '</title>' +
+    '<style>body{font-family:Georgia,serif;max-width:680px;margin:40px auto;padding:0 20px;line-height:1.6;color:#2a2620;} h1{font-family:Georgia,serif;}</style>' +
+    '</head><body><p style="color:#999;text-transform:uppercase;font-size:12px;letter-spacing:0.06em;">Preview — not yet saved</p><h1>' + title.replace(/</g, '&lt;') + '</h1>' + content + '</body></html>'
+  );
+  win.document.close();
+});
+</script>
 
 <%- include('../partials/admin_footer') %>

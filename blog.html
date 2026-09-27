@@ -63,7 +63,7 @@ window.PAGE_I18N = {
 };
 </script>
 <script src="assets/site.js"></script>
-<script src="assets/posts.js"></script>
+<script src="assets/blog-live.js"></script>
 <script src="assets/blog.js"></script>
 <script>
 (function () {
@@ -80,12 +80,17 @@ window.PAGE_I18N = {
       var title = B.pick(p.title, l);
       document.title = title + ' — Uma\'s Books and Adventures';
       var body = B.pick(p.body, l) || [];
+      // A database post's body is a single pre-sanitized HTML string
+      // (written via the rich-text editor in /admin/blog); the older
+      // static posts in assets/posts.js instead have body as an array of
+      // plain-text paragraphs, each escaped and wrapped here.
+      var bodyHtml = Array.isArray(body) ? body.map(function (para) { return '<p>' + B.esc(para) + '</p>'; }).join('') : body;
       root.innerHTML = '<article class="blog-post">' +
         '<a class="back" href="blog.html">&larr; ' + B.esc(B.ui('back')) + '</a>' +
         '<div class="blog-date">' + B.esc(B.fmtDate(p.date, l)) + '</div>' +
         '<h1>' + B.esc(title) + '</h1>' +
         B.image(p, 'blog-post-img') +
-        body.map(function (para) { return '<p>' + B.esc(para) + '</p>'; }).join('') +
+        bodyHtml +
       '</article>';
       return;
     }
@@ -100,6 +105,10 @@ window.PAGE_I18N = {
   document.querySelectorAll('.langtoggle button').forEach(function (b) {
     b.addEventListener('click', function () { setTimeout(draw, 0); });
   });
+  // Posts arrive from the database via an async fetch (assets/blog-live.js)
+  // — redraw once they're in so a direct link to a post, or the full
+  // list, isn't stuck showing "not found"/empty from before that resolved.
+  window.addEventListener('umasposts:updated', draw);
 })();
 </script>
 </body>

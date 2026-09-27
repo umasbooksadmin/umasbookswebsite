@@ -106,6 +106,11 @@
       document.querySelectorAll(".langtoggle button").forEach(function (b) {
         b.addEventListener("click", function () { setTimeout(draw, 0); });
       });
+      // Posts now live in the database (see assets/blog-live.js) and
+      // arrive after an async fetch — re-draw once they're in, same as a
+      // language switch, so the slider picks up the real list instead of
+      // whatever (if anything) was available at first paint.
+      window.addEventListener("umasposts:updated", draw);
     },
     // Render the newest `n` posts as cards into `el`; re-renders on language switch.
     feed: function (el, n) {
@@ -120,6 +125,7 @@
       document.querySelectorAll(".langtoggle button").forEach(function (b) {
         b.addEventListener("click", function () { setTimeout(draw, 0); });
       });
+      window.addEventListener("umasposts:updated", draw);
     }
   };
 })();

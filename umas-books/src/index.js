@@ -32,6 +32,7 @@ const charityRoutes = require("./routes/charity");
 const volunteerRoutes = require("./routes/volunteer");
 const meetingsRoutes = require("./routes/meetings");
 const eventsRoutes = require("./routes/events");
+const blogRoutes = require("./routes/blog");
 const sessionsRoutes = require("./routes/sessions");
 const booksRoutes = require("./routes/books");
 const wishlistRoutes = require("./routes/wishlist");
@@ -133,6 +134,10 @@ app.use("/admin/announcements", announcementUpload.fields([{ name: "image", maxC
 const charityUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 app.use("/admin/charities", charityUpload.fields([{ name: "image", maxCount: 1 }]));
 
+// Same again, for a blog post's featured image (see /admin/blog in routes/admin.js).
+const blogUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+app.use("/admin/blog", blogUpload.fields([{ name: "image", maxCount: 1 }]));
+
 // HelloAsso calls this server-to-server with no CSRF token, so it's
 // mounted ahead of the CSRF check below rather than with the rest of
 // the app's routes further down.
@@ -224,6 +229,7 @@ app.use(charityRoutes);
 app.use(volunteerRoutes);
 app.use(meetingsRoutes);
 app.use(eventsRoutes);
+app.use(blogRoutes);
 app.use(sessionsRoutes);
 app.use(booksRoutes);
 app.use(cartRoutes);
