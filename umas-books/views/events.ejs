@@ -42,7 +42,7 @@
                   <div class="fcal-session-title"><%= e.title %></div>
                   <div class="fcal-session-time"><%= formatTime(e.starts_at) %></div>
                   <div class="fcal-session-seats">
-                    <%= e.price != null ? '€' + Number(e.price).toFixed(2) : 'Free' %><%= e.capacity != null ? ' · ' + e.signup_count + '/' + e.capacity + ' spots taken' : ' · ' + e.signup_count + ' going' %>
+                    <%= e.price != null ? '€' + Number(e.price).toFixed(2) : 'Free' %> &middot; <%= e.signup_count %> going
                   </div>
                 </summary>
                 <div class="fcal-session-details">
