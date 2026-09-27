@@ -1,30 +1,245 @@
-<%- include('../partials/admin_header', { title: 'Accounts', active: active, pageTitle: 'Accounts' }) %>
+<%- include('../partials/admin_header', { title: 'Accounts', active: active, pageTitle: 'Accounts', pageSub: 'Manage members, admins, and their activity.' }) %>
 
+<%
+  function membersQs(overrides) {
+    const merged = Object.assign({}, filters, overrides);
+    const parts = [];
+    if (merged.q) parts.push('q=' + encodeURIComponent(merged.q));
+    if (merged.role) parts.push('role=' + merged.role);
+    if (merged.status) parts.push('status=' + merged.status);
+    if (merged.dateRange) parts.push('dateRange=' + merged.dateRange);
+    if (merged.sort && merged.sort !== 'newest') parts.push('sort=' + merged.sort);
+    if (overrides.page) parts.push('page=' + overrides.page);
+    return parts.join('&');
+  }
+  const listQs = membersQs({});
+  const initials = (name) => (name || '?').split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
+%>
 
-<div class="card">
-  <ul class="plain">
-    <% members.forEach(m => { %>
-      <li style="display:flex; align-items:center; gap:10px; padding:6px 0;">
-        <span>
-          <strong><%= m.display_name %></strong> &middot; <%= m.email %><%= m.is_admin ? ' · admin' : '' %>
-          <% if (m.is_member) { %> &middot; <span class="status-pill paid">Member</span><% } %>
-          <% if (m.member_expires_at) { %> <span class="muted small">(<%= new Date(m.member_expires_at) < new Date() ? 'expired' : 'renews' %> <%= formatDate(m.member_expires_at) %>)</span><% } %>
-        </span>
-        <span style="margin-left:auto; display:flex; gap:8px;">
-          <form method="post" action="/admin/members/<%= m.id %>/toggle-member">
+<div class="admin-stats">
+  <div class="admin-stat tone-blue"><div class="label">Total Members</div><div class="value" style="margin-bottom:0;"><%= stats.total_members %></div></div>
+  <div class="admin-stat tone-rose"><div class="label">Admins</div><div class="value" style="margin-bottom:0;"><%= stats.total_admins %></div></div>
+  <div class="admin-stat tone-green">
+    <div class="label">Book Orders</div>
+    <div class="value" style="margin-bottom:2px;"><%= stats.book_order_count %></div>
+    <div class="muted small">&euro;<%= Number(stats.book_order_total).toFixed(0) %> total</div>
+  </div>
+  <div class="admin-stat tone-tan">
+    <div class="label">Event Sign-Ups</div>
+    <div class="value" style="margin-bottom:2px;"><%= stats.event_signup_count %></div>
+    <div class="muted small">Free</div>
+  </div>
+  <div class="admin-stat tone-blue">
+    <div class="label">English Programs Enrolled</div>
+    <div class="value" style="margin-bottom:2px;"><%= stats.program_signup_count %></div>
+    <div class="muted small">Free</div>
+  </div>
+  <div class="admin-stat tone-green">
+    <div class="label">Drop-in Sessions</div>
+    <div class="value" style="margin-bottom:2px;"><%= stats.dropin_count %></div>
+    <div class="muted small">&euro;<%= Number(stats.dropin_total).toFixed(0) %> total</div>
+  </div>
+</div>
+
+<div style="display:flex; justify-content:flex-end; margin-bottom:14px;">
+  <details class="ann-more">
+    <summary class="btn">+ Add Member</summary>
+    <div class="ann-more-menu" style="min-width:300px; padding:16px;">
+      <form class="stack" method="post" action="/admin/members">
+        <%- include('../partials/csrf_field') %>
+        <label>Name</label>
+        <input name="displayName" type="text" required>
+        <label>Email</label>
+        <input name="email" type="email" required>
+        <label class="ann-check"><input type="checkbox" name="isMember"> <span>Mark as a member</span></label>
+        <label class="ann-check"><input type="checkbox" name="isAdmin"> <span>Make an admin</span></label>
+        <p class="muted small">They'll get an email to set their own password — same link as "Forgot password".</p>
+        <button class="btn btn-small" type="submit">Add &amp; Send Invite</button>
+      </form>
+    </div>
+  </details>
+</div>
+
+<form class="ann-filters" method="get" action="/admin/members">
+  <input type="text" name="q" value="<%= filters.q %>" placeholder="Search by name or email…">
+  <select name="role">
+    <option value="">All Roles</option>
+    <option value="admin" <%= filters.role === 'admin' ? 'selected' : '' %>>Admin</option>
+    <option value="member" <%= filters.role === 'member' ? 'selected' : '' %>>Member</option>
+  </select>
+  <select name="status">
+    <option value="">All Statuses</option>
+    <option value="active" <%= filters.status === 'active' ? 'selected' : '' %>>Active</option>
+    <option value="inactive" <%= filters.status === 'inactive' ? 'selected' : '' %>>Inactive</option>
+  </select>
+  <select name="dateRange">
+    <option value="">All Time</option>
+    <option value="7d" <%= filters.dateRange === '7d' ? 'selected' : '' %>>Last 7 days</option>
+    <option value="30d" <%= filters.dateRange === '30d' ? 'selected' : '' %>>Last 30 days</option>
+    <option value="year" <%= filters.dateRange === 'year' ? 'selected' : '' %>>This year</option>
+  </select>
+  <button class="btn btn-small" type="submit">Apply</button>
+  <a class="btn btn-outline btn-small" href="/admin/members">Clear Filters</a>
+</form>
+
+<div class="ann-layout" style="grid-template-columns: <%= detail ? '1.6fr 1fr' : '1fr' %>;">
+  <div class="ann-list-col">
+    <div class="card" style="padding:14px 16px;">
+      <div style="overflow-x:auto;">
+      <table class="ann-table">
+        <thead>
+          <tr>
+            <th>
+              <a href="/admin/members?<%= membersQs({ sort: filters.sort === 'name_asc' ? 'name_desc' : 'name_asc' }) %>" style="color:inherit; text-decoration:none;">Name &#8597;</a>
+            </th>
+            <th>Role</th>
+            <th>Status</th>
+            <th>Events</th>
+            <th>Books</th>
+            <th>Programs</th>
+            <th>Drop-ins</th>
+            <th>Total Spent</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% if (!members.length) { %><tr><td colspan="9" class="muted" style="text-align:center; padding:24px;">No accounts match these filters.</td></tr><% } %>
+          <% members.forEach(m => { %>
+            <tr>
+              <td>
+                <div style="display:flex; align-items:center; gap:10px;">
+                  <span class="admin-avatar" style="width:34px; height:34px; font-size:12px;"><%= initials(m.display_name) %></span>
+                  <div>
+                    <a href="/admin/members?view=<%= m.id %>&<%= listQs %>" style="color:var(--ink); text-decoration:none;"><strong><%= m.display_name %></strong></a>
+                    <div class="muted small"><%= m.email %></div>
+                  </div>
+                </div>
+              </td>
+              <td><span class="status-pill <%= m.is_admin ? 'trash' : 'category' %>"><%= m.is_admin ? 'Admin' : 'Member' %></span></td>
+              <td><span class="status-pill <%= m.is_disabled ? 'archived' : 'published' %>"><%= m.is_disabled ? 'Inactive' : 'Active' %></span></td>
+              <td><%= m.events_count %></td>
+              <td><%= m.books_count %></td>
+              <td><%= m.programs_count %></td>
+              <td><%= m.dropin_count %></td>
+              <td>&euro;<%= m.total_spent.toFixed(0) %></td>
+              <td><a class="btn btn-outline btn-small" href="/admin/members?view=<%= m.id %>&<%= listQs %>">View</a></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+      </div>
+
+      <% if (pagination.totalPages > 1) { %>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:14px;">
+          <span class="muted small">Showing <%= (pagination.page - 1) * pagination.pageSize + 1 %>&ndash;<%= Math.min(pagination.page * pagination.pageSize, pagination.totalMatching) %> of <%= pagination.totalMatching %> members</span>
+          <div style="display:flex; gap:6px;">
+            <% for (let p = 1; p <= pagination.totalPages; p++) { %>
+              <a class="btn btn-outline btn-small<%= p === pagination.page ? ' is-active' : '' %>" href="/admin/members?<%= membersQs({ page: p }) %>"><%= p %></a>
+            <% } %>
+          </div>
+        </div>
+      <% } %>
+    </div>
+  </div>
+
+  <% if (detail) { %>
+    <div class="ann-panel">
+      <div class="card">
+        <div style="display:flex; align-items:center; gap:12px;">
+          <span class="admin-avatar" style="width:48px; height:48px;"><%= initials(detail.user.display_name) %></span>
+          <div>
+            <strong style="font-size:18px;"><%= detail.user.display_name %></strong>
+            <div class="muted small"><%= detail.user.email %></div>
+          </div>
+          <span class="status-pill <%= detail.user.is_disabled ? 'archived' : 'published' %>" style="margin-left:auto;"><%= detail.user.is_disabled ? 'Inactive' : 'Active' %></span>
+        </div>
+
+        <div class="ann-tabs" style="margin-top:16px;">
+          <a href="/admin/members?view=<%= detail.user.id %>&panel=overview&<%= listQs %>" class="<%= panel === 'overview' ? 'is-active' : '' %>">Overview</a>
+          <a href="/admin/members?view=<%= detail.user.id %>&panel=activity&<%= listQs %>" class="<%= panel === 'activity' ? 'is-active' : '' %>">Activity</a>
+          <a href="/admin/members?view=<%= detail.user.id %>&panel=edit&<%= listQs %>" class="<%= panel === 'edit' ? 'is-active' : '' %>">Edit</a>
+        </div>
+
+        <% if (panel === 'overview') { %>
+          <div style="margin-top:14px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span class="muted small">Role</span>
+              <span class="status-pill <%= detail.user.is_admin ? 'trash' : 'category' %>"><%= detail.user.is_admin ? 'Admin' : 'Member' %></span>
+            </div>
+            <div style="display:flex; justify-content:space-between; margin-top:8px;"><span class="muted small">Member Since</span><span class="small"><%= formatDate(detail.user.created_at) %></span></div>
+            <div style="display:flex; justify-content:space-between; margin-top:6px;"><span class="muted small">Last Login</span><span class="small"><%= detail.user.last_login_at ? formatDate(detail.user.last_login_at) : 'Never' %></span></div>
+            <% if (detail.user.member_expires_at) { %>
+              <div style="display:flex; justify-content:space-between; margin-top:6px;"><span class="muted small">Membership</span><span class="small"><%= new Date(detail.user.member_expires_at) < new Date() ? 'Expired' : 'Renews' %> <%= formatDate(detail.user.member_expires_at) %></span></div>
+            <% } %>
+
+            <div class="section-title" style="font-size:15px; margin-top:16px;">Activity Summary</div>
+            <div style="display:flex; justify-content:space-between; margin-top:6px;"><span class="small">Events Signed Up</span><span class="small"><%= detail.user.events_count %></span></div>
+            <div style="display:flex; justify-content:space-between; margin-top:4px;"><span class="small">Books Ordered</span><span class="small"><%= detail.user.books_count %> &middot; &euro;<%= Number(detail.user.books_spend).toFixed(0) %></span></div>
+            <div style="display:flex; justify-content:space-between; margin-top:4px;"><span class="small">English Programs</span><span class="small"><%= detail.user.programs_count %></span></div>
+            <div style="display:flex; justify-content:space-between; margin-top:4px;"><span class="small">Drop-in Sessions</span><span class="small"><%= detail.user.dropin_count %> &middot; &euro;<%= Number(detail.user.dropin_spend).toFixed(0) %></span></div>
+
+            <div style="display:flex; justify-content:space-between; margin-top:14px; padding-top:10px; border-top:1px solid var(--card-border);">
+              <strong>Total Spent</strong><strong>&euro;<%= detail.totalSpent.toFixed(0) %></strong>
+            </div>
+
+            <div class="section-title" style="font-size:15px; margin-top:16px;">Actions</div>
+            <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;">
+              <form method="post" action="/admin/members/<%= detail.user.id %>/toggle-member">
+                <%- include('../partials/csrf_field') %>
+                <input type="hidden" name="backQuery" value="<%= listQs %>">
+                <button class="btn btn-outline btn-small" type="submit"><%= detail.user.is_member ? 'Remove Member Status' : 'Mark as Member' %></button>
+              </form>
+              <% if (detail.user.id !== user.id) { %>
+                <form method="post" action="/admin/members/<%= detail.user.id %>/toggle-admin">
+                  <%- include('../partials/csrf_field') %>
+                  <input type="hidden" name="backQuery" value="<%= listQs %>">
+                  <button class="btn btn-outline btn-small" type="submit"><%= detail.user.is_admin ? 'Remove Admin' : 'Make Admin' %></button>
+                </form>
+                <form method="post" action="/admin/members/<%= detail.user.id %>/toggle-disabled">
+                  <%- include('../partials/csrf_field') %>
+                  <input type="hidden" name="backQuery" value="<%= listQs %>">
+                  <button class="btn btn-outline btn-small" type="submit"><%= detail.user.is_disabled ? 'Reactivate Account' : 'Deactivate Account' %></button>
+                </form>
+                <form method="post" action="/admin/members/<%= detail.user.id %>/delete" onsubmit="return confirm('Delete this account permanently? This can\'t be undone.');">
+                  <%- include('../partials/csrf_field') %>
+                  <input type="hidden" name="backQuery" value="<%= listQs %>">
+                  <button class="btn btn-outline btn-small ann-menu-danger" type="submit">Delete Account</button>
+                </form>
+              <% } %>
+            </div>
+          </div>
+        <% } %>
+
+        <% if (panel === 'activity') { %>
+          <div style="margin-top:14px;">
+            <% if (!detail.activity.length) { %>
+              <p class="muted small">No activity yet.</p>
+            <% } %>
+            <ul class="plain">
+              <% detail.activity.forEach(a => { %>
+                <li>
+                  <strong><%= a.kind === 'order' ? 'Order' : a.kind === 'event' ? 'Event' : 'Program' %>:</strong> <%= a.label %>
+                  <div class="muted small"><%= formatDateTime(a.at) %><%= a.amount != null ? ' · €' + Number(a.amount).toFixed(2) : '' %></div>
+                </li>
+              <% }) %>
+            </ul>
+          </div>
+        <% } %>
+
+        <% if (panel === 'edit') { %>
+          <form class="stack" method="post" action="/admin/members/<%= detail.user.id %>/edit" style="margin-top:14px;">
             <%- include('../partials/csrf_field') %>
-            <button type="submit" class="btn btn-outline btn-small"><%= m.is_member ? 'Remove member status' : 'Mark as member' %></button>
+            <input type="hidden" name="backQuery" value="<%= listQs %>">
+            <label>Name</label>
+            <input name="displayName" type="text" required value="<%= detail.user.display_name %>">
+            <label>Email</label>
+            <input name="email" type="email" required value="<%= detail.user.email %>">
+            <button class="btn btn-small" type="submit">Save Changes</button>
           </form>
-          <% if (m.id !== user.id) { %>
-            <form method="post" action="/admin/members/<%= m.id %>/toggle-admin">
-              <%- include('../partials/csrf_field') %>
-              <button type="submit" class="btn btn-outline btn-small"><%= m.is_admin ? 'Remove admin' : 'Make admin' %></button>
-            </form>
-          <% } %>
-        </span>
-      </li>
-    <% }) %>
-  </ul>
+        <% } %>
+      </div>
+    </div>
+  <% } %>
 </div>
 
 <%- include('../partials/admin_footer') %>

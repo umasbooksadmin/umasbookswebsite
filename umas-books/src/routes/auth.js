@@ -97,6 +97,13 @@ router.post("/login", authLimiter, async (req, res) => {
       });
     }
 
+    if (user && user.is_disabled) {
+      return res.status(403).render("login", {
+        error: "This account has been deactivated. Contact us if you think this is a mistake.",
+        notice: null,
+      });
+    }
+
     // Always run a bcrypt compare of the same cost, even when there's no
     // such user, so the response time doesn't reveal whether the email
     // is registered.
@@ -122,6 +129,7 @@ router.post("/login", authLimiter, async (req, res) => {
     if (user.failed_login_attempts > 0 || user.locked_until) {
       await pool.query("UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = $1", [user.id]);
     }
+    await pool.query("UPDATE users SET last_login_at = now() WHERE id = $1", [user.id]);
 
     req.session.user = { id: user.id, email: user.email, displayName: user.display_name, isAdmin: user.is_admin, isMember: user.is_member };
     // Logging in doesn't make you a member — only actual members/admins
