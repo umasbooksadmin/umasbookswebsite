@@ -1,6 +1,6 @@
 const express = require("express");
 const { pool } = require("../db");
-const { parseMonthParam, monthRange, monthGrid, groupByDate, monthNav, monthParam } = require("../lib/calendar");
+const { groupByDate, monthParam, resolveCalendarRange, calendarBackQuery } = require("../lib/calendar");
 const { baseUrl } = require("../lib/baseUrl");
 
 const router = express.Router();
@@ -39,17 +39,16 @@ router.get("/api/events/upcoming", async (req, res) => {
 });
 
 router.get("/events", async (req, res) => {
-  const { year, month } = parseMonthParam(req.query.month);
-  const { start, end } = monthRange(year, month);
+  const range = resolveCalendarRange(req.query, 1);
 
   const { rows: events } = await pool.query(
     `SELECT e.*, (SELECT COUNT(*) FROM event_signups s WHERE s.event_id = e.id) AS signup_count
      FROM events e WHERE e.starts_at >= $1 AND e.starts_at < $2 ORDER BY e.starts_at ASC`,
-    [start, end]
+    [range.start, range.end]
   );
 
-  const weeks = monthGrid(year, month, groupByDate(events, "starts_at"));
-  res.render("events", { weeks, ...monthNav(year, month) });
+  const weeks = range.buildWeeks(groupByDate(events, "starts_at"));
+  res.render("events", { weeks, view: range.view, ...range.nav });
 });
 
 function icsDate(d) {
@@ -99,7 +98,8 @@ router.post("/events/:id/signup", async (req, res) => {
   const eventId = Number(req.params.id);
   const name = (req.body.name || "").trim();
   const email = (req.body.email || "").trim().toLowerCase();
-  const redirectUrl = req.query.month ? `/events?month=${req.query.month}` : "/events";
+  const backQuery = calendarBackQuery(req.query);
+  const redirectUrl = backQuery ? `/events?${backQuery}` : "/events";
 
   if (!name || !email) return res.redirect(redirectUrl);
 

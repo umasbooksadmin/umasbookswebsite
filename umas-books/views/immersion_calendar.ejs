@@ -1,6 +1,8 @@
 <%- include('partials/header', { title: 'English Immersion Calendar', extraCss: ['/floral-calendar.css'] }) %>
 
-<% const monWeeks = mondayFirstWeeks(weeks); %>
+<% const prevHref = view === 'week' ? `view=week&week=${prevWeek}` : `month=${prevMonth}`; %>
+<% const nextHref = view === 'week' ? `view=week&week=${nextWeek}` : `month=${nextMonth}`; %>
+<% const monWeeks = view === 'week' ? weeks : mondayFirstWeeks(weeks); %>
 
 <section class="fcal-hero">
   <img class="art art-left" src="/assets/img/hero-left.png" alt="">
@@ -9,9 +11,13 @@
     <div class="fcal-kicker">English Immersion<div class="rule"></div></div>
     <h1 class="fcal-title">Upcoming Sessions</h1>
     <div class="fcal-nav">
-      <a href="/immersion/calendar?month=<%= prevMonth %>" aria-label="Previous month">&lsaquo;</a>
-      <span class="fcal-month"><%= monthLabel %></span>
-      <a href="/immersion/calendar?month=<%= nextMonth %>" aria-label="Next month">&rsaquo;</a>
+      <a href="/immersion/calendar?<%= prevHref %>" aria-label="Previous">&lsaquo;</a>
+      <span class="fcal-month"><%= view === 'week' ? weekLabel : monthLabel %></span>
+      <a href="/immersion/calendar?<%= nextHref %>" aria-label="Next">&rsaquo;</a>
+    </div>
+    <div class="fcal-view-toggle">
+      <a href="/immersion/calendar" class="<%= view === 'month' ? 'is-active' : '' %>">Month</a>
+      <a href="/immersion/calendar?view=week" class="<%= view === 'week' ? 'is-active' : '' %>">Week</a>
     </div>
   </div>
 </section>

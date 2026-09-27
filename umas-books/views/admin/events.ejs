@@ -1,12 +1,22 @@
 <%- include('../partials/admin_header', { title: 'Events', active: active, pageTitle: 'Events' }) %>
 
+<% const qs = view === 'week' ? `view=week&week=${currentWeek}` : `month=${currentMonth}`; %>
+<% const prevHref = view === 'week' ? `view=week&week=${prevWeek}` : `month=${prevMonth}`; %>
+<% const nextHref = view === 'week' ? `view=week&week=${nextWeek}` : `month=${nextMonth}`; %>
+
 <p class="muted small">Events are public — anyone can view the calendar at <a href="/events">/events</a> and sign up with just a name and email, no account needed. Click a day to add an event there; click an event to see who's signed up.</p>
 
 <div class="card">
   <div class="calendar-nav">
-    <a class="btn btn-outline btn-small" href="/admin/events?month=<%= prevMonth %>">&larr; Prev</a>
-    <span class="month-label"><%= monthLabel %></span>
-    <a class="btn btn-outline btn-small" href="/admin/events?month=<%= nextMonth %>">Next &rarr;</a>
+    <div class="calendar-nav-main">
+      <a class="btn btn-outline btn-small" href="/admin/events?<%= prevHref %>">&larr; Prev</a>
+      <span class="month-label"><%= view === 'week' ? weekLabel : monthLabel %></span>
+      <a class="btn btn-outline btn-small" href="/admin/events?<%= nextHref %>">Next &rarr;</a>
+    </div>
+    <div class="calendar-view-toggle">
+      <a href="/admin/events" class="btn btn-outline btn-small<%= view === 'month' ? ' is-active' : '' %>">Month</a>
+      <a href="/admin/events?view=week" class="btn btn-outline btn-small<%= view === 'week' ? ' is-active' : '' %>">Week</a>
+    </div>
   </div>
   <div class="calendar-grid">
     <% ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].forEach(d => { %><div class="calendar-weekday"><%= d %></div><% }) %>
@@ -22,7 +32,9 @@
               <div class="calendar-pill-body">
                 <form class="stack" method="post" action="/admin/events">
                   <%- include('../partials/csrf_field') %>
-                  <input type="hidden" name="month" value="<%= currentMonth %>">
+                  <input type="hidden" name="view" value="<%= view %>">
+                  <input type="hidden" name="month" value="<%= view === 'month' ? currentMonth : '' %>">
+                  <input type="hidden" name="week" value="<%= view === 'week' ? currentWeek : '' %>">
                   <input type="hidden" name="date" value="<%= day.dateKey %>">
                   <label for="title-new-<%= day.dateKey %>">Title</label>
                   <input id="title-new-<%= day.dateKey %>" name="title" type="text" required>
@@ -58,7 +70,7 @@
                       <% signups.forEach(s => { %>
                         <li style="padding:6px 0;">
                           <%= s.name %> &middot; <span class="muted small"><%= s.email %></span>
-                          <form method="post" action="/admin/events/<%= e.id %>/signups/<%= s.id %>/delete?month=<%= currentMonth %>" style="display:inline; margin-left:8px;">
+                          <form method="post" action="/admin/events/<%= e.id %>/signups/<%= s.id %>/delete?<%= qs %>" style="display:inline; margin-left:8px;">
                             <%- include('../partials/csrf_field') %>
                             <button class="btn btn-outline btn-small" type="submit">Remove</button>
                           </form>
@@ -69,7 +81,7 @@
 
                   <details style="margin-top:10px;">
                     <summary style="cursor:pointer; color: var(--maroon);">Edit</summary>
-                    <form class="stack" method="post" action="/admin/events/<%= e.id %>?month=<%= currentMonth %>" style="margin-top:10px;">
+                    <form class="stack" method="post" action="/admin/events/<%= e.id %>?<%= qs %>" style="margin-top:10px;">
                       <%- include('../partials/csrf_field') %>
                       <label for="title-<%= e.id %>">Title</label>
                       <input id="title-<%= e.id %>" name="title" type="text" required value="<%= e.title %>">
@@ -89,7 +101,7 @@
                     </form>
                   </details>
 
-                  <form method="post" action="/admin/events/<%= e.id %>/delete?month=<%= currentMonth %>" style="margin-top:8px;">
+                  <form method="post" action="/admin/events/<%= e.id %>/delete?<%= qs %>" style="margin-top:8px;">
                     <%- include('../partials/csrf_field') %>
                     <button class="btn btn-outline btn-small" type="submit">Delete event</button>
                   </form>

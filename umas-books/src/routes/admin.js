@@ -2,7 +2,7 @@ const express = require("express");
 const sharp = require("sharp");
 const { pool } = require("../db");
 const { requireAdmin } = require("../middleware/auth");
-const { parseMonthParam, monthRange, monthGrid, groupByDate, monthNav } = require("../lib/calendar");
+const { parseMonthParam, monthRange, monthGrid, groupByDate, monthNav, resolveCalendarRange, calendarBackQuery } = require("../lib/calendar");
 const { normalizeIsbn, lookupByIsbn, searchByTitleAuthor, translateGenresToFrench } = require("../lib/bookLookup");
 const { extractBookInfoFromPhoto } = require("../lib/coverVision");
 const { generateBookDescription, translateDescriptionToFrench } = require("../lib/bookDescription");
@@ -202,15 +202,14 @@ router.post("/admin/blog/:id/delete", requireAdmin, async (req, res) => {
 // ---------- Volunteer shifts ----------
 
 router.get("/admin/volunteer-shifts", requireAdmin, async (req, res) => {
-  const { year, month } = parseMonthParam(req.query.month);
-  const { start, end } = monthRange(year, month);
+  const range = resolveCalendarRange(req.query, 0);
   const { rows: shifts } = await pool.query(
     `SELECT s.*, (SELECT COUNT(*) FROM volunteer_signups g WHERE g.shift_id = s.id) AS signup_count
      FROM volunteer_shifts s WHERE s.starts_at >= $1 AND s.starts_at < $2 ORDER BY s.starts_at ASC`,
-    [start, end]
+    [range.start, range.end]
   );
-  const weeks = monthGrid(year, month, groupByDate(shifts, "starts_at"));
-  res.render("admin/volunteer", { active: "volunteer", weeks, ...monthNav(year, month) });
+  const weeks = range.buildWeeks(groupByDate(shifts, "starts_at"));
+  res.render("admin/volunteer", { active: "volunteer", weeks, view: range.view, ...range.nav });
 });
 
 router.post("/admin/volunteer-shifts", requireAdmin, async (req, res) => {
@@ -236,26 +235,27 @@ router.post("/admin/volunteer-shifts", requireAdmin, async (req, res) => {
       );
     }
   }
-  res.redirect(req.body.month ? `/admin/volunteer-shifts?month=${req.body.month}` : "/admin/volunteer-shifts");
+  const backQuery = calendarBackQuery(req.body);
+  res.redirect(backQuery ? `/admin/volunteer-shifts?${backQuery}` : "/admin/volunteer-shifts");
 });
 
 router.post("/admin/volunteer-shifts/:id/delete", requireAdmin, async (req, res) => {
   await pool.query("DELETE FROM volunteer_shifts WHERE id = $1", [Number(req.params.id)]);
-  res.redirect(req.query.month ? `/admin/volunteer-shifts?month=${req.query.month}` : "/admin/volunteer-shifts");
+  const backQuery = calendarBackQuery(req.query);
+  res.redirect(backQuery ? `/admin/volunteer-shifts?${backQuery}` : "/admin/volunteer-shifts");
 });
 
 // ---------- Meetings ----------
 
 router.get("/admin/meetings", requireAdmin, async (req, res) => {
-  const { year, month } = parseMonthParam(req.query.month);
-  const { start, end } = monthRange(year, month);
+  const range = resolveCalendarRange(req.query, 0);
   const { rows: meetings } = await pool.query(
     `SELECT m.*, (SELECT COUNT(*) FROM meeting_rsvps r WHERE r.meeting_id = m.id) AS rsvp_count
      FROM meetings m WHERE m.scheduled_at >= $1 AND m.scheduled_at < $2 ORDER BY m.scheduled_at ASC`,
-    [start, end]
+    [range.start, range.end]
   );
-  const weeks = monthGrid(year, month, groupByDate(meetings, "scheduled_at"));
-  res.render("admin/meetings", { active: "meetings", weeks, ...monthNav(year, month) });
+  const weeks = range.buildWeeks(groupByDate(meetings, "scheduled_at"));
+  res.render("admin/meetings", { active: "meetings", weeks, view: range.view, ...range.nav });
 });
 
 router.post("/admin/meetings", requireAdmin, async (req, res) => {
@@ -273,29 +273,31 @@ router.post("/admin/meetings", requireAdmin, async (req, res) => {
       [title, scheduledAt, location, agenda, req.session.user.id]
     );
   }
-  res.redirect(req.body.month ? `/admin/meetings?month=${req.body.month}` : "/admin/meetings");
+  const backQuery = calendarBackQuery(req.body);
+  res.redirect(backQuery ? `/admin/meetings?${backQuery}` : "/admin/meetings");
 });
 
 router.post("/admin/meetings/:id/minutes", requireAdmin, async (req, res) => {
   const minutes = (req.body.minutes || "").trim() || null;
   await pool.query("UPDATE meetings SET minutes = $1 WHERE id = $2", [minutes, Number(req.params.id)]);
-  res.redirect(req.query.month ? `/admin/meetings?month=${req.query.month}` : "/admin/meetings");
+  const backQuery = calendarBackQuery(req.query);
+  res.redirect(backQuery ? `/admin/meetings?${backQuery}` : "/admin/meetings");
 });
 
 router.post("/admin/meetings/:id/delete", requireAdmin, async (req, res) => {
   await pool.query("DELETE FROM meetings WHERE id = $1", [Number(req.params.id)]);
-  res.redirect(req.query.month ? `/admin/meetings?month=${req.query.month}` : "/admin/meetings");
+  const backQuery = calendarBackQuery(req.query);
+  res.redirect(backQuery ? `/admin/meetings?${backQuery}` : "/admin/meetings");
 });
 
 // ---------- Events (public sign-up) ----------
 
 router.get("/admin/events", requireAdmin, async (req, res) => {
-  const { year, month } = parseMonthParam(req.query.month);
-  const { start, end } = monthRange(year, month);
+  const range = resolveCalendarRange(req.query, 0);
   const { rows: events } = await pool.query(
     `SELECT e.*, (SELECT COUNT(*) FROM event_signups s WHERE s.event_id = e.id) AS signup_count
      FROM events e WHERE e.starts_at >= $1 AND e.starts_at < $2 ORDER BY e.starts_at ASC`,
-    [start, end]
+    [range.start, range.end]
   );
   const eventIds = events.map((e) => e.id);
   const { rows: signupRows } = eventIds.length
@@ -307,8 +309,8 @@ router.get("/admin/events", requireAdmin, async (req, res) => {
     signupsByEvent[s.event_id].push(s);
   }
 
-  const weeks = monthGrid(year, month, groupByDate(events, "starts_at"));
-  res.render("admin/events", { active: "events", weeks, signupsByEvent, ...monthNav(year, month) });
+  const weeks = range.buildWeeks(groupByDate(events, "starts_at"));
+  res.render("admin/events", { active: "events", weeks, signupsByEvent, view: range.view, ...range.nav });
 });
 
 router.post("/admin/events", requireAdmin, async (req, res) => {
@@ -330,7 +332,8 @@ router.post("/admin/events", requireAdmin, async (req, res) => {
       [title, description, location, startsAt, endsAt, capacity, price, req.session.user.id]
     );
   }
-  res.redirect(req.body.month ? `/admin/events?month=${req.body.month}` : "/admin/events");
+  const backQuery = calendarBackQuery(req.body);
+  res.redirect(backQuery ? `/admin/events?${backQuery}` : "/admin/events");
 });
 
 router.post("/admin/events/:id", requireAdmin, async (req, res) => {
@@ -350,17 +353,20 @@ router.post("/admin/events/:id", requireAdmin, async (req, res) => {
       [title, description, location, startsAt, endsAt, capacity, price, id]
     );
   }
-  res.redirect(req.query.month ? `/admin/events?month=${req.query.month}` : "/admin/events");
+  const backQuery = calendarBackQuery(req.query);
+  res.redirect(backQuery ? `/admin/events?${backQuery}` : "/admin/events");
 });
 
 router.post("/admin/events/:id/delete", requireAdmin, async (req, res) => {
   await pool.query("DELETE FROM events WHERE id = $1", [Number(req.params.id)]);
-  res.redirect(req.query.month ? `/admin/events?month=${req.query.month}` : "/admin/events");
+  const backQuery = calendarBackQuery(req.query);
+  res.redirect(backQuery ? `/admin/events?${backQuery}` : "/admin/events");
 });
 
 router.post("/admin/events/:id/signups/:signupId/delete", requireAdmin, async (req, res) => {
   await pool.query("DELETE FROM event_signups WHERE id = $1 AND event_id = $2", [Number(req.params.signupId), Number(req.params.id)]);
-  res.redirect(req.query.month ? `/admin/events?month=${req.query.month}` : "/admin/events");
+  const backQuery = calendarBackQuery(req.query);
+  res.redirect(backQuery ? `/admin/events?${backQuery}` : "/admin/events");
 });
 
 // ---------- Sessions (public sign-up) ----------
@@ -368,12 +374,11 @@ router.post("/admin/events/:id/signups/:signupId/delete", requireAdmin, async (r
 const PROGRAM_TYPES = ["Little Explorers", "Éveil English", "Young Adventurers", "Young Readers", "Teen Literature", "English Café"];
 
 router.get("/admin/sessions", requireAdmin, async (req, res) => {
-  const { year, month } = parseMonthParam(req.query.month);
-  const { start, end } = monthRange(year, month);
+  const range = resolveCalendarRange(req.query, 0);
   const { rows: classes } = await pool.query(
     `SELECT c.*, ${seatsTakenExpr("c")}::int AS seats_taken
      FROM classes c WHERE c.starts_at >= $1 AND c.starts_at < $2 ORDER BY c.starts_at ASC`,
-    [start, end]
+    [range.start, range.end]
   );
   const classIds = classes.map((c) => c.id);
   const { rows: signupRows } = classIds.length
@@ -399,8 +404,8 @@ router.get("/admin/sessions", requireAdmin, async (req, res) => {
     dropinByClass[d.class_id].push(d);
   }
 
-  const weeks = monthGrid(year, month, groupByDate(classes, "starts_at"));
-  res.render("admin/sessions", { active: "sessions", weeks, signupsByClass, dropinByClass, programTypes: PROGRAM_TYPES, ...monthNav(year, month) });
+  const weeks = range.buildWeeks(groupByDate(classes, "starts_at"));
+  res.render("admin/sessions", { active: "sessions", weeks, signupsByClass, dropinByClass, programTypes: PROGRAM_TYPES, view: range.view, ...range.nav });
 });
 
 router.post("/admin/sessions", requireAdmin, async (req, res) => {
@@ -423,7 +428,8 @@ router.post("/admin/sessions", requireAdmin, async (req, res) => {
       [title, description, location, startsAt, endsAt, capacity, dropinPrice, programType, req.session.user.id]
     );
   }
-  res.redirect(req.body.month ? `/admin/sessions?month=${req.body.month}` : "/admin/sessions");
+  const backQuery = calendarBackQuery(req.body);
+  res.redirect(backQuery ? `/admin/sessions?${backQuery}` : "/admin/sessions");
 });
 
 router.post("/admin/sessions/:id", requireAdmin, async (req, res) => {
@@ -444,17 +450,20 @@ router.post("/admin/sessions/:id", requireAdmin, async (req, res) => {
       [title, description, location, startsAt, endsAt, capacity, dropinPrice, programType, id]
     );
   }
-  res.redirect(req.query.month ? `/admin/sessions?month=${req.query.month}` : "/admin/sessions");
+  const backQuery = calendarBackQuery(req.query);
+  res.redirect(backQuery ? `/admin/sessions?${backQuery}` : "/admin/sessions");
 });
 
 router.post("/admin/sessions/:id/delete", requireAdmin, async (req, res) => {
   await pool.query("DELETE FROM classes WHERE id = $1", [Number(req.params.id)]);
-  res.redirect(req.query.month ? `/admin/sessions?month=${req.query.month}` : "/admin/sessions");
+  const backQuery = calendarBackQuery(req.query);
+  res.redirect(backQuery ? `/admin/sessions?${backQuery}` : "/admin/sessions");
 });
 
 router.post("/admin/sessions/:id/signups/:signupId/delete", requireAdmin, async (req, res) => {
   await pool.query("DELETE FROM class_signups WHERE id = $1 AND class_id = $2", [Number(req.params.signupId), Number(req.params.id)]);
-  res.redirect(req.query.month ? `/admin/sessions?month=${req.query.month}` : "/admin/sessions");
+  const backQuery = calendarBackQuery(req.query);
+  res.redirect(backQuery ? `/admin/sessions?${backQuery}` : "/admin/sessions");
 });
 
 // ---------- Charity vote ----------

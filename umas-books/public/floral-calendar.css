@@ -30,6 +30,14 @@
   font-family: 'Cormorant Garamond', Georgia, serif; font-size: 24px; color: var(--ink); min-width: 12ch;
 }
 
+.fcal-view-toggle { display: flex; justify-content: center; gap: 8px; margin-bottom: 18px; }
+.fcal-view-toggle a {
+  font-family: 'Montserrat', sans-serif; font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--maroon); text-decoration: none; border: 1px solid var(--maroon); border-radius: 999px; padding: 5px 16px;
+}
+.fcal-view-toggle a:hover { opacity: 0.8; }
+.fcal-view-toggle a.is-active { background: var(--maroon); color: #fff; }
+
 .fcal-wrap { max-width: 1200px; margin: 0 auto; padding: 10px 24px 56px; position: relative; z-index: 1; }
 .fcal-grid { display: grid; grid-template-columns: repeat(7, 1fr); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
 .fcal-weekday {

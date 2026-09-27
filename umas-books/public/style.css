@@ -117,8 +117,11 @@ ul.plain.nested li { padding: 4px 0; border-bottom: 0; }
 
 footer.site { text-align: center; padding: 30px 0; color: var(--ink-soft); font-size: 14px; }
 
-.calendar-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.calendar-nav { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+.calendar-nav-main { display: flex; align-items: center; gap: 14px; }
 .calendar-nav .month-label { font-family: 'Cormorant Garamond', serif; font-weight: 600; color: var(--maroon-dark); font-size: 21px; }
+.calendar-view-toggle { display: flex; gap: 8px; }
+.calendar-view-toggle a.is-active { background: var(--maroon); color: #fff; border-color: var(--maroon); }
 .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
 .calendar-weekday { text-align: center; font-family: 'Montserrat', sans-serif; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft); font-size: 11.5px; padding-bottom: 4px; }
 .calendar-day {

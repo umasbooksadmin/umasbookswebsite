@@ -1,5 +1,9 @@
 <%- include('../partials/admin_header', { title: 'Volunteer Shifts', active: active, pageTitle: 'Volunteer Shifts' }) %>
 
+<% const qs = view === 'week' ? `view=week&week=${currentWeek}` : `month=${currentMonth}`; %>
+<% const prevHref = view === 'week' ? `view=week&week=${prevWeek}` : `month=${prevMonth}`; %>
+<% const nextHref = view === 'week' ? `view=week&week=${nextWeek}` : `month=${nextMonth}`; %>
+
 <p class="muted small">Click a day to add a shift there. Each shift takes one volunteer; use "Repeat weekly" to create the same shift for several weeks at once.</p>
 
 <div class="card">
@@ -11,9 +15,15 @@
     <option value="Éveil Helper">
   </datalist>
   <div class="calendar-nav">
-    <a class="btn btn-outline btn-small" href="/admin/volunteer-shifts?month=<%= prevMonth %>">&larr; Prev</a>
-    <span class="month-label"><%= monthLabel %></span>
-    <a class="btn btn-outline btn-small" href="/admin/volunteer-shifts?month=<%= nextMonth %>">Next &rarr;</a>
+    <div class="calendar-nav-main">
+      <a class="btn btn-outline btn-small" href="/admin/volunteer-shifts?<%= prevHref %>">&larr; Prev</a>
+      <span class="month-label"><%= view === 'week' ? weekLabel : monthLabel %></span>
+      <a class="btn btn-outline btn-small" href="/admin/volunteer-shifts?<%= nextHref %>">Next &rarr;</a>
+    </div>
+    <div class="calendar-view-toggle">
+      <a href="/admin/volunteer-shifts" class="btn btn-outline btn-small<%= view === 'month' ? ' is-active' : '' %>">Month</a>
+      <a href="/admin/volunteer-shifts?view=week" class="btn btn-outline btn-small<%= view === 'week' ? ' is-active' : '' %>">Week</a>
+    </div>
   </div>
   <div class="calendar-grid">
     <% ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].forEach(d => { %><div class="calendar-weekday"><%= d %></div><% }) %>
@@ -29,7 +39,9 @@
               <div class="calendar-pill-body">
                 <form class="stack" method="post" action="/admin/volunteer-shifts">
                   <%- include('../partials/csrf_field') %>
-                  <input type="hidden" name="month" value="<%= currentMonth %>">
+                  <input type="hidden" name="view" value="<%= view %>">
+                  <input type="hidden" name="month" value="<%= view === 'month' ? currentMonth : '' %>">
+                  <input type="hidden" name="week" value="<%= view === 'week' ? currentWeek : '' %>">
                   <input type="hidden" name="date" value="<%= day.dateKey %>">
                   <label for="role-new-<%= day.dateKey %>">Role</label>
                   <input id="role-new-<%= day.dateKey %>" name="role" type="text" required placeholder="Shop Floor" list="v-role-suggestions">
@@ -55,7 +67,7 @@
                     &middot; <%= s.signup_count %>/<%= s.capacity %> filled
                   </div>
                   <% if (s.notes) { %><div class="muted small"><%= s.notes %></div><% } %>
-                  <form method="post" action="/admin/volunteer-shifts/<%= s.id %>/delete?month=<%= currentMonth %>" style="margin-top:8px;">
+                  <form method="post" action="/admin/volunteer-shifts/<%= s.id %>/delete?<%= qs %>" style="margin-top:8px;">
                     <%- include('../partials/csrf_field') %>
                     <button class="btn btn-outline btn-small" type="submit">Delete</button>
                   </form>

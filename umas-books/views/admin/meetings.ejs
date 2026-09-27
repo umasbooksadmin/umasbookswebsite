@@ -1,12 +1,22 @@
 <%- include('../partials/admin_header', { title: 'Meetings', active: active, pageTitle: 'Meetings' }) %>
 
+<% const qs = view === 'week' ? `view=week&week=${currentWeek}` : `month=${currentMonth}`; %>
+<% const prevHref = view === 'week' ? `view=week&week=${prevWeek}` : `month=${prevMonth}`; %>
+<% const nextHref = view === 'week' ? `view=week&week=${nextWeek}` : `month=${nextMonth}`; %>
+
 <p class="muted small">Click a day to schedule a meeting there.</p>
 
 <div class="card">
   <div class="calendar-nav">
-    <a class="btn btn-outline btn-small" href="/admin/meetings?month=<%= prevMonth %>">&larr; Prev</a>
-    <span class="month-label"><%= monthLabel %></span>
-    <a class="btn btn-outline btn-small" href="/admin/meetings?month=<%= nextMonth %>">Next &rarr;</a>
+    <div class="calendar-nav-main">
+      <a class="btn btn-outline btn-small" href="/admin/meetings?<%= prevHref %>">&larr; Prev</a>
+      <span class="month-label"><%= view === 'week' ? weekLabel : monthLabel %></span>
+      <a class="btn btn-outline btn-small" href="/admin/meetings?<%= nextHref %>">Next &rarr;</a>
+    </div>
+    <div class="calendar-view-toggle">
+      <a href="/admin/meetings" class="btn btn-outline btn-small<%= view === 'month' ? ' is-active' : '' %>">Month</a>
+      <a href="/admin/meetings?view=week" class="btn btn-outline btn-small<%= view === 'week' ? ' is-active' : '' %>">Week</a>
+    </div>
   </div>
   <div class="calendar-grid">
     <% ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].forEach(d => { %><div class="calendar-weekday"><%= d %></div><% }) %>
@@ -22,7 +32,9 @@
               <div class="calendar-pill-body">
                 <form class="stack" method="post" action="/admin/meetings">
                   <%- include('../partials/csrf_field') %>
-                  <input type="hidden" name="month" value="<%= currentMonth %>">
+                  <input type="hidden" name="view" value="<%= view %>">
+                  <input type="hidden" name="month" value="<%= view === 'month' ? currentMonth : '' %>">
+                  <input type="hidden" name="week" value="<%= view === 'week' ? currentWeek : '' %>">
                   <input type="hidden" name="date" value="<%= day.dateKey %>">
                   <label for="title-new-<%= day.dateKey %>">Title</label>
                   <input id="title-new-<%= day.dateKey %>" name="title" type="text" required placeholder="Board Meeting">
@@ -46,7 +58,7 @@
                   </div>
                   <% if (m.agenda) { %><div class="muted small"><em>Agenda:</em> <%= m.agenda %></div><% } %>
 
-                  <form class="stack" method="post" action="/admin/meetings/<%= m.id %>/minutes?month=<%= currentMonth %>" style="margin-top:10px;">
+                  <form class="stack" method="post" action="/admin/meetings/<%= m.id %>/minutes?<%= qs %>" style="margin-top:10px;">
                     <%- include('../partials/csrf_field') %>
                     <label for="minutes-<%= m.id %>">Minutes</label>
                     <textarea id="minutes-<%= m.id %>" name="minutes" placeholder="Add or edit minutes&hellip;"><%= m.minutes || '' %></textarea>
@@ -55,7 +67,7 @@
                     </div>
                   </form>
 
-                  <form method="post" action="/admin/meetings/<%= m.id %>/delete?month=<%= currentMonth %>" style="margin-top:8px;">
+                  <form method="post" action="/admin/meetings/<%= m.id %>/delete?<%= qs %>" style="margin-top:8px;">
                     <%- include('../partials/csrf_field') %>
                     <button class="btn btn-outline btn-small" type="submit">Delete meeting</button>
                   </form>
