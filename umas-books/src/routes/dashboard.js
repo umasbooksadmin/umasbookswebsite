@@ -15,7 +15,20 @@ const LIVE_ANNOUNCEMENTS_WHERE = `
   status IN ('published', 'scheduled') AND published_at <= now() AND (expires_at IS NULL OR expires_at > now())
 `;
 
-router.get("/dashboard", requireMember, async (req, res) => {
+// Not the shared requireMember middleware: a logged-out visitor clicking
+// "Member's Access" (which always links here — see the h-tools icon in
+// partials/header.ejs and every static marketing page) is more likely
+// looking to become a member than to log in to an account they don't
+// have yet, so they land on the membership sign-up page instead of
+// /login. A logged-in account that isn't a member/admin still goes to
+// the regular site, same as requireMember everywhere else.
+function requireMemberOrOfferSignup(req, res, next) {
+  if (!req.session.user) return res.redirect("/membership.html");
+  if (!req.session.user.isAdmin && !req.session.user.isMember) return res.redirect("/");
+  next();
+}
+
+router.get("/dashboard", requireMemberOrOfferSignup, async (req, res) => {
   const [announcements, activeRound] = await Promise.all([
     pool.query(`SELECT * FROM announcements WHERE ${LIVE_ANNOUNCEMENTS_WHERE} ORDER BY is_pinned DESC, published_at DESC LIMIT 3`),
     pool.query("SELECT * FROM charity_rounds WHERE is_active = TRUE ORDER BY opens_at DESC LIMIT 1"),
