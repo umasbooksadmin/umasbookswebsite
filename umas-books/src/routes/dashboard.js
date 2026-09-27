@@ -38,20 +38,17 @@ router.get("/dashboard", requireMember, async (req, res) => {
   let charity = null;
   if (activeRound.rows.length) {
     const round = activeRound.rows[0];
+    // COALESCEs from the charity library the same way /admin/charity and
+    // /charity do — a library-linked option's name/description can change
+    // after the round was set up, and this always reflects that.
     const options = await pool.query(
-      `SELECT o.*, (SELECT COUNT(*) FROM charity_votes v WHERE v.option_id = o.id) AS vote_count
-       FROM charity_options o WHERE o.round_id = $1 ORDER BY o.id ASC`,
+      `SELECT o.id, COALESCE(c.name, o.name) AS name, COALESCE(c.description, o.description) AS description,
+              (SELECT COUNT(*) FROM charity_votes v WHERE v.option_id = o.id)::int AS vote_count
+       FROM charity_options o LEFT JOIN charities c ON c.id = o.charity_id
+       WHERE o.round_id = $1 ORDER BY o.id ASC`,
       [round.id]
     );
-    const myVote = await pool.query(
-      "SELECT option_id FROM charity_votes WHERE round_id = $1 AND user_id = $2",
-      [round.id, userId]
-    );
-    charity = {
-      round,
-      options: options.rows,
-      myOptionId: myVote.rows[0] ? myVote.rows[0].option_id : null,
-    };
+    charity = { round, options: options.rows };
   }
 
   res.render("dashboard", {

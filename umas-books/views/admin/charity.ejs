@@ -1,35 +1,331 @@
-<%- include('../partials/admin_header', { title: 'Charity Vote', active: active, pageTitle: 'Charity Vote' }) %>
+<%- include('../partials/admin_header', { title: 'Charity Vote', active: active, pageTitle: 'Charity Votes & Suggestions', pageSub: 'Manage charity options, view votes, and allow members to submit new ideas.' }) %>
 
-
-<div class="card">
-  <div class="section-title">Start a charity vote round</div>
-  <p class="muted small">Starting a new round closes any round that's currently open.</p>
-  <form class="stack" method="post" action="/admin/charity-rounds">
-    <%- include('../partials/csrf_field') %>
-    <label for="c-title">Question</label>
-    <input id="c-title" name="title" type="text" required placeholder="Which charity should we support next?">
-    <label for="c-options">Options (comma-separated)</label>
-    <input id="c-options" name="options" type="text" required placeholder="Restos du Coeur, SPA Albi, ...">
-    <button class="btn" type="submit">Start round</button>
-  </form>
+<div class="ann-tabs">
+  <a href="/admin/charity?tab=current" class="<%= tab === 'current' ? 'is-active' : '' %>">Current Vote</a>
+  <a href="/admin/charity?tab=library" class="<%= tab === 'library' ? 'is-active' : '' %>">All Charities</a>
+  <a href="/admin/charity?tab=ideas" class="<%= tab === 'ideas' ? 'is-active' : '' %>">Submitted Ideas<% if (ideaCounts.pending) { %> (<%= ideaCounts.pending %>)<% } %></a>
+  <a href="/admin/charity?tab=past" class="<%= tab === 'past' ? 'is-active' : '' %>">Past Votes</a>
 </div>
 
-<div class="card">
-  <div class="section-title">Recent rounds</div>
-  <ul class="plain">
-    <% rounds.forEach(r => { %>
-      <li>
-        <%= r.title %>
-        <span class="muted small"><%= r.is_active ? '(active)' : '(closed)' %></span>
-        <% if (r.is_active) { %>
-          <form method="post" action="/admin/charity-rounds/<%= r.id %>/close" style="display:inline;">
+<% if (tab === 'current') { %>
+  <% if (!activeRound) { %>
+    <div class="card">
+      <p class="muted">No vote is currently open.</p>
+      <details style="margin-top:12px;">
+        <summary class="btn btn-small" style="display:inline-block; cursor:pointer;">Start a New Vote</summary>
+        <form class="stack" method="post" action="/admin/charity-rounds" style="margin-top:14px; max-width:440px;">
+          <%- include('../partials/csrf_field') %>
+          <label>Question</label>
+          <input name="title" type="text" required placeholder="Which charity should we support next?">
+          <label>Label (optional, e.g. "Q4 2026")</label>
+          <input name="label" type="text">
+          <label>Voting ends (optional)</label>
+          <input name="closesAt" type="datetime-local">
+          <label class="ann-check"><input type="checkbox" name="allowMultiple" checked> <span>Allow multiple selections</span></label>
+          <label class="ann-check"><input type="checkbox" name="showResultsDuringVote" checked> <span>Show results while voting is open</span></label>
+          <label>Visible to</label>
+          <select name="visibleTo">
+            <option value="members">Members Only</option>
+            <option value="everyone">Everyone</option>
+          </select>
+          <p class="muted small">Add charities to the vote afterward from this tab.</p>
+          <button class="btn" type="submit">Start Vote</button>
+        </form>
+      </details>
+    </div>
+  <% } else { %>
+    <div class="card" style="background:#faeceb; border-color:#e3b9b3;">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:14px;">
+        <div>
+          <strong>Active Vote</strong>
+          <% if (activeRound.label) { %><span class="status-pill category"><%= activeRound.label %></span><% } %>
+          <p style="margin:8px 0 0;"><%= activeRound.title %></p>
+          <p class="muted small" style="margin:4px 0 0;">
+            <%= activeRound.allow_multiple ? 'Members can select multiple options.' : 'Members can select one option.' %>
+            <% if (activeRound.closes_at) { %> Voting ends on <%= formatDateTime(activeRound.closes_at) %>.<% } %>
+            <%= activeRound.visible_to === 'everyone' ? ' Visible to everyone.' : ' Visible to members only.' %>
+          </p>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <details class="ann-more">
+            <summary class="btn btn-outline btn-small">Edit Vote Settings</summary>
+            <div class="ann-more-menu" style="min-width:300px; padding:16px;">
+              <form class="stack" method="post" action="/admin/charity-rounds/<%= activeRound.id %>/settings">
+                <%- include('../partials/csrf_field') %>
+                <label>Title</label>
+                <input name="title" type="text" required value="<%= activeRound.title %>">
+                <label>Label</label>
+                <input name="label" type="text" value="<%= activeRound.label || '' %>">
+                <label>Voting ends</label>
+                <input name="closesAt" type="datetime-local" value="<%= activeRound.closes_at ? new Date(activeRound.closes_at.getTime() - activeRound.closes_at.getTimezoneOffset()*60000).toISOString().slice(0,16) : '' %>">
+                <label class="ann-check"><input type="checkbox" name="allowMultiple" <%= activeRound.allow_multiple ? 'checked' : '' %>> <span>Allow multiple selections</span></label>
+                <label class="ann-check"><input type="checkbox" name="showResultsDuringVote" <%= activeRound.show_results_during_vote ? 'checked' : '' %>> <span>Show results while voting is open</span></label>
+                <label>Visible to</label>
+                <select name="visibleTo">
+                  <option value="members" <%= activeRound.visible_to === 'members' ? 'selected' : '' %>>Members Only</option>
+                  <option value="everyone" <%= activeRound.visible_to === 'everyone' ? 'selected' : '' %>>Everyone</option>
+                </select>
+                <button class="btn btn-small" type="submit">Save Settings</button>
+              </form>
+            </div>
+          </details>
+          <form method="post" action="/admin/charity-rounds/<%= activeRound.id %>/close" onsubmit="return confirm('Close this vote? It will move to Past Votes.');">
             <%- include('../partials/csrf_field') %>
-            <button class="btn btn-outline btn-small" type="submit">Close</button>
+            <button class="btn btn-outline btn-small" type="submit">Close Vote</button>
           </form>
-        <% } %>
-      </li>
-    <% }) %>
-  </ul>
-</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex; justify-content:flex-end; margin:14px 0;">
+      <details class="ann-more">
+        <summary class="btn">+ Add a Charity Option</summary>
+        <div class="ann-more-menu" style="min-width:320px; padding:16px;">
+          <% if (availableCharities.length) { %>
+            <div class="section-title" style="font-size:14px;">From the library</div>
+            <% availableCharities.forEach(c => { %>
+              <form method="post" action="/admin/charity-options" style="margin-bottom:4px;">
+                <%- include('../partials/csrf_field') %>
+                <input type="hidden" name="charityId" value="<%= c.id %>">
+                <button type="submit" class="ann-menu-btn"><%= c.name %></button>
+              </form>
+            <% }) %>
+            <hr style="margin:10px 0; border-color:var(--card-border);">
+          <% } %>
+          <div class="section-title" style="font-size:14px;">Or create a new charity</div>
+          <form class="stack" method="post" action="/admin/charities" enctype="multipart/form-data">
+            <%- include('../partials/csrf_field') %>
+            <input type="hidden" name="returnTab" value="current">
+            <input type="hidden" name="addToCurrentVote" value="on">
+            <label>Name</label>
+            <input name="name" type="text" required>
+            <label>Category</label>
+            <select name="category">
+              <option value="">Select…</option>
+              <% categories.forEach(cat => { %><option value="<%= cat %>"><%= cat %></option><% }) %>
+            </select>
+            <label>Description</label>
+            <textarea name="description"></textarea>
+            <label>Website URL</label>
+            <input name="websiteUrl" type="text" placeholder="https://">
+            <label>Photo</label>
+            <input name="image" type="file" accept="image/*">
+            <button class="btn btn-small" type="submit">Add &amp; Include in Vote</button>
+          </form>
+        </div>
+      </details>
+    </div>
+
+    <div class="admin-cards" style="grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));">
+      <% if (!currentOptions.length) { %><p class="muted">No charities added to this vote yet.</p><% } %>
+      <% currentOptions.forEach(o => { %>
+        <div class="admin-card" style="padding:16px;">
+          <% if (o.image_url) { %><img src="<%= o.image_url %>" alt="" style="width:100%; height:120px; object-fit:cover; border-radius:6px; margin-bottom:10px;"><% } %>
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
+            <strong><%= o.name %></strong>
+            <details class="ann-more">
+              <summary class="btn btn-outline btn-small">&hellip;</summary>
+              <div class="ann-more-menu">
+                <form method="post" action="/admin/charity-options/<%= o.id %>/delete" onsubmit="return confirm('Remove this charity from the vote?');">
+                  <%- include('../partials/csrf_field') %>
+                  <button type="submit" class="ann-menu-btn ann-menu-danger">Remove from Vote</button>
+                </form>
+              </div>
+            </details>
+          </div>
+          <% if (o.category) { %><div style="margin-top:6px;"><span class="status-pill category"><%= o.category %></span></div><% } %>
+          <% if (o.description) { %><p class="muted small" style="margin-top:8px;"><%= o.description %></p><% } %>
+          <% if (o.website_url) { %><p class="small" style="margin-top:6px;"><a href="<%= o.website_url %>" target="_blank" rel="noopener"><%= o.website_url %></a></p><% } %>
+          <div class="muted small" style="margin-top:10px;"><%= o.vote_count %> vote<%= o.vote_count === 1 ? '' : 's' %> (<%= totalCurrentVotes ? Math.round(o.vote_count / totalCurrentVotes * 100) : 0 %>%)</div>
+          <div class="vote-bar" style="margin-top:4px;"><span style="width: <%= totalCurrentVotes ? Math.round(o.vote_count / totalCurrentVotes * 100) : 0 %>%;"></span></div>
+
+          <% if (o.charity_id) { %>
+            <details style="margin-top:10px;">
+              <summary style="cursor:pointer; color:var(--maroon); font-size:13px;">Edit</summary>
+              <form class="stack" method="post" action="/admin/charities/<%= o.charity_id %>" enctype="multipart/form-data" style="margin-top:8px;">
+                <%- include('../partials/csrf_field') %>
+                <input type="hidden" name="returnTab" value="current">
+                <label>Name</label>
+                <input name="name" type="text" required value="<%= o.name %>">
+                <label>Category</label>
+                <select name="category">
+                  <option value="">Select…</option>
+                  <% categories.forEach(cat => { %><option value="<%= cat %>" <%= o.category === cat ? 'selected' : '' %>><%= cat %></option><% }) %>
+                </select>
+                <label>Description</label>
+                <textarea name="description"><%= o.description || '' %></textarea>
+                <label>Website URL</label>
+                <input name="websiteUrl" type="text" value="<%= o.website_url || '' %>">
+                <label>Photo</label>
+                <input name="image" type="file" accept="image/*">
+                <button class="btn btn-small" type="submit">Save</button>
+              </form>
+            </details>
+          <% } %>
+        </div>
+      <% }) %>
+    </div>
+
+    <div class="card" style="margin-top:20px;" id="results">
+      <div class="section-title">Voting Summary</div>
+      <% if (!activeRound.show_results_during_vote) { %>
+        <p class="muted small" style="margin-bottom:10px;">Results are hidden from members while voting is open (see Vote Settings) — this summary is admin-only.</p>
+      <% } %>
+      <% currentOptions.slice().sort((a, b) => b.vote_count - a.vote_count).forEach(o => { %>
+        <div class="vote-option">
+          <div style="flex:1;">
+            <strong><%= o.name %></strong>
+            <div class="vote-bar"><span style="width: <%= totalCurrentVotes ? Math.round(o.vote_count / totalCurrentVotes * 100) : 0 %>%;"></span></div>
+          </div>
+          <div class="muted small" style="margin-left:12px;"><%= o.vote_count %> (<%= totalCurrentVotes ? Math.round(o.vote_count / totalCurrentVotes * 100) : 0 %>%)</div>
+        </div>
+      <% }) %>
+      <p class="muted small" style="margin-top:10px;">Total votes cast: <%= totalCurrentVotes %></p>
+    </div>
+  <% } %>
+<% } %>
+
+<% if (tab === 'library') { %>
+  <form method="get" action="/admin/charity" style="margin-bottom:16px; display:flex; gap:10px;">
+    <input type="hidden" name="tab" value="library">
+    <input type="text" name="q" value="<%= q %>" placeholder="Search charities…" style="flex:1; padding:8px 10px; border:1px solid var(--card-border); border-radius:4px;">
+    <button class="btn btn-small" type="submit">Search</button>
+    <% if (q) { %><a class="btn btn-outline btn-small" href="/admin/charity?tab=library">Clear</a><% } %>
+  </form>
+
+  <div class="ann-layout">
+    <div class="ann-list-col">
+      <div class="admin-cards" style="grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));">
+        <% if (!libraryCharities.length) { %><p class="muted">No charities yet.</p><% } %>
+        <% libraryCharities.forEach(c => { %>
+          <div class="admin-card" style="padding:16px;">
+            <% if (c.image_url) { %><img src="<%= c.image_url %>" alt="" style="width:100%; height:100px; object-fit:cover; border-radius:6px; margin-bottom:10px;"><% } %>
+            <strong><%= c.name %></strong>
+            <% if (c.category) { %><div style="margin-top:6px;"><span class="status-pill category"><%= c.category %></span></div><% } %>
+            <% if (c.description) { %><p class="muted small" style="margin-top:8px;"><%= c.description.slice(0, 100) %></p><% } %>
+            <details style="margin-top:10px;">
+              <summary style="cursor:pointer; color:var(--maroon); font-size:13px;">Edit</summary>
+              <form class="stack" method="post" action="/admin/charities/<%= c.id %>" enctype="multipart/form-data" style="margin-top:8px;">
+                <%- include('../partials/csrf_field') %>
+                <input type="hidden" name="returnTab" value="library">
+                <label>Name</label>
+                <input name="name" type="text" required value="<%= c.name %>">
+                <label>Category</label>
+                <select name="category">
+                  <option value="">Select…</option>
+                  <% categories.forEach(cat => { %><option value="<%= cat %>" <%= c.category === cat ? 'selected' : '' %>><%= cat %></option><% }) %>
+                </select>
+                <label>Description</label>
+                <textarea name="description"><%= c.description || '' %></textarea>
+                <label>Website URL</label>
+                <input name="websiteUrl" type="text" value="<%= c.website_url || '' %>">
+                <label>Photo</label>
+                <input name="image" type="file" accept="image/*">
+                <button class="btn btn-small" type="submit">Save</button>
+              </form>
+            </details>
+            <form method="post" action="/admin/charities/<%= c.id %>/archive" style="margin-top:6px;">
+              <%- include('../partials/csrf_field') %>
+              <input type="hidden" name="returnTab" value="library">
+              <button class="btn btn-outline btn-small" type="submit">Archive</button>
+            </form>
+          </div>
+        <% }) %>
+      </div>
+    </div>
+    <div class="ann-panel">
+      <div class="card">
+        <div class="section-title">Add a Charity</div>
+        <form class="stack" method="post" action="/admin/charities" enctype="multipart/form-data">
+          <%- include('../partials/csrf_field') %>
+          <input type="hidden" name="returnTab" value="library">
+          <label>Name</label>
+          <input name="name" type="text" required>
+          <label>Category</label>
+          <select name="category">
+            <option value="">Select…</option>
+            <% categories.forEach(cat => { %><option value="<%= cat %>"><%= cat %></option><% }) %>
+          </select>
+          <label>Description</label>
+          <textarea name="description"></textarea>
+          <label>Website URL</label>
+          <input name="websiteUrl" type="text" placeholder="https://">
+          <label>Photo</label>
+          <input name="image" type="file" accept="image/*">
+          <% if (activeRound) { %><label class="ann-check"><input type="checkbox" name="addToCurrentVote"> <span>Also add to the current vote</span></label><% } %>
+          <button class="btn" type="submit">Add Charity</button>
+        </form>
+      </div>
+    </div>
+  </div>
+<% } %>
+
+<% if (tab === 'ideas') { %>
+  <div class="ann-tabs">
+    <a href="/admin/charity?tab=ideas&ideasTab=pending" class="<%= ideasSubTab === 'pending' ? 'is-active' : '' %>">Pending Review (<%= ideaCounts.pending %>)</a>
+    <a href="/admin/charity?tab=ideas&ideasTab=approved" class="<%= ideasSubTab === 'approved' ? 'is-active' : '' %>">Approved (<%= ideaCounts.approved %>)</a>
+    <a href="/admin/charity?tab=ideas&ideasTab=rejected" class="<%= ideasSubTab === 'rejected' ? 'is-active' : '' %>">Not Selected (<%= ideaCounts.rejected %>)</a>
+  </div>
+  <div style="overflow-x:auto;">
+  <table class="ann-table">
+    <thead><tr><th>Idea</th><th>Submitted By</th><th>Description</th><th>Date</th><th>Actions</th></tr></thead>
+    <tbody>
+      <% if (!ideas.length) { %><tr><td colspan="5" class="muted" style="text-align:center; padding:20px;">Nothing here.</td></tr><% } %>
+      <% ideas.forEach(i => { %>
+        <tr>
+          <td>
+            <strong><%= i.name %></strong>
+            <% if (i.category) { %><div><span class="status-pill category"><%= i.category %></span></div><% } %>
+          </td>
+          <td class="muted small"><%= i.submitted_by_name || 'Unknown' %></td>
+          <td class="muted small"><%= (i.description || '').slice(0, 80) %></td>
+          <td class="muted small"><%= formatDate(i.created_at) %></td>
+          <td style="white-space:nowrap;">
+            <% if (i.status === 'pending') { %>
+              <form method="post" action="/admin/charity-ideas/<%= i.id %>/approve" style="display:inline;">
+                <%- include('../partials/csrf_field') %>
+                <button class="btn btn-outline btn-small" type="submit">Approve</button>
+              </form>
+              <form method="post" action="/admin/charity-ideas/<%= i.id %>/reject" style="display:inline;">
+                <%- include('../partials/csrf_field') %>
+                <button class="btn btn-outline btn-small" type="submit">Reject</button>
+              </form>
+            <% } %>
+            <form method="post" action="/admin/charity-ideas/<%= i.id %>/delete" style="display:inline;" onsubmit="return confirm('Delete this idea?');">
+              <%- include('../partials/csrf_field') %>
+              <input type="hidden" name="ideasTab" value="<%= ideasSubTab %>">
+              <button class="btn btn-outline btn-small ann-menu-danger" type="submit">Delete</button>
+            </form>
+          </td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+  </div>
+<% } %>
+
+<% if (tab === 'past') { %>
+  <% if (!pastRoundsWithResults.length) { %><p class="muted">No past votes yet.</p><% } %>
+  <% pastRoundsWithResults.forEach(pr => { %>
+    <details class="card">
+      <summary style="cursor:pointer;">
+        <strong><%= pr.round.title %></strong>
+        <span class="muted small"><%= formatDate(pr.round.opens_at) %><%= pr.round.closes_at ? ' – ' + formatDate(pr.round.closes_at) : '' %></span>
+      </summary>
+      <div style="margin-top:12px;">
+        <% pr.options.forEach((o, i) => { %>
+          <div class="vote-option">
+            <div style="flex:1;">
+              <strong><%= o.name %></strong><% if (i === 0 && o.vote_count > 0) { %> &#127942;<% } %>
+              <div class="vote-bar"><span style="width: <%= pr.total ? Math.round(o.vote_count / pr.total * 100) : 0 %>%;"></span></div>
+            </div>
+            <div class="muted small" style="margin-left:12px;"><%= o.vote_count %> (<%= pr.total ? Math.round(o.vote_count / pr.total * 100) : 0 %>%)</div>
+          </div>
+        <% }) %>
+        <p class="muted small" style="margin-top:8px;">Total votes: <%= pr.total %></p>
+      </div>
+    </details>
+  <% }) %>
+<% } %>
 
 <%- include('../partials/admin_footer') %>

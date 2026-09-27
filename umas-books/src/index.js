@@ -129,6 +129,10 @@ app.use("/admin/inventory", inventoryUpload.fields([
 const announcementUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 app.use("/admin/announcements", announcementUpload.fields([{ name: "image", maxCount: 1 }]));
 
+// Same again, for a charity's photo (see /admin/charities in routes/admin.js).
+const charityUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+app.use("/admin/charities", charityUpload.fields([{ name: "image", maxCount: 1 }]));
+
 // HelloAsso calls this server-to-server with no CSRF token, so it's
 // mounted ahead of the CSRF check below rather than with the rest of
 // the app's routes further down.
