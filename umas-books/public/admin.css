@@ -35,6 +35,11 @@
 
 /* ---------- Main area ---------- */
 .admin-main { padding: 28px 36px 60px; max-width: 1400px; }
+/* A week-view calendar (see calendarBackQuery/resolveCalendarRange in
+   lib/calendar.js) has only 7 day-cells instead of up to 42, so the
+   regular content width leaves them narrow — this lets that one row use
+   the full available width instead. */
+.admin-main.is-wide { max-width: none; }
 .admin-topbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 26px; flex-wrap: wrap; }
 .admin-back-link { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: var(--maroon); text-decoration: none; margin-bottom: 8px; }
 .admin-back-link:hover { text-decoration: underline; }

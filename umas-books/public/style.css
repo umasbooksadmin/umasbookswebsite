@@ -34,6 +34,10 @@ a:hover { text-decoration: underline; }
 h1, h2, h3 { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; color: var(--ink); margin: 0 0 12px; }
 
 .wrap { max-width: 880px; margin: 0 auto; padding: 0 24px; }
+/* A week-view calendar has only 7 day-cells instead of up to 42, so the
+   regular content width leaves them narrow — this lets that one row use
+   more of the available width instead (see mainClass in partials/header.ejs). */
+.wrap-wide { max-width: 1400px; margin: 0 auto; padding: 0 24px; }
 
 header.site {
   background: var(--panel); border-bottom: 1px solid var(--line);

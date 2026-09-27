@@ -39,6 +39,11 @@
 .fcal-view-toggle a.is-active { background: var(--maroon); color: #fff; }
 
 .fcal-wrap { max-width: 1200px; margin: 0 auto; padding: 10px 24px 56px; position: relative; z-index: 1; }
+/* A week-view calendar has only 7 day-cells instead of up to 6 rows of
+   them, so the regular width leaves them narrow — this (plus the wider
+   mainClass="wrap-wide" the page passes to its header include) lets that
+   one row use more of the available width instead. */
+.fcal-wrap.is-week { max-width: 1400px; }
 .fcal-grid { display: grid; grid-template-columns: repeat(7, 1fr); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
 .fcal-weekday {
   text-align: center; font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase;

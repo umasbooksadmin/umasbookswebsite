@@ -1,4 +1,4 @@
-<%- include('partials/header', { title: 'English Immersion Calendar', extraCss: ['/floral-calendar.css'] }) %>
+<%- include('partials/header', { title: 'English Immersion Calendar', extraCss: ['/floral-calendar.css'], mainClass: view === 'week' ? 'wrap-wide' : 'wrap' }) %>
 
 <% const qs = view === 'week' ? `view=week&week=${currentWeek}` : `month=${currentMonth}`; %>
 <% const prevHref = view === 'week' ? `view=week&week=${prevWeek}` : `month=${prevMonth}`; %>
@@ -23,7 +23,7 @@
   </div>
 </section>
 
-<div class="fcal-wrap">
+<div class="fcal-wrap<%= view === 'week' ? ' is-week' : '' %>">
   <div class="fcal-legend">
     <span class="fcal-legend-item"><span class="fcal-legend-swatch tone-dropin"></span> Drop-in</span>
     <span class="fcal-legend-item"><span class="fcal-legend-swatch tone-season"></span> Season</span>

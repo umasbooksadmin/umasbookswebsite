@@ -1,4 +1,4 @@
-<%- include('../partials/admin_header', { title: 'Sessions', active: active, pageTitle: 'Sessions' }) %>
+<%- include('../partials/admin_header', { title: 'Sessions', active: active, pageTitle: 'Sessions', mainWide: view === 'week' }) %>
 
 <% const qs = view === 'week' ? `view=week&week=${currentWeek}` : `month=${currentMonth}`; %>
 <% const prevHref = view === 'week' ? `view=week&week=${prevWeek}` : `month=${prevMonth}`; %>

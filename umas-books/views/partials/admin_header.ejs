@@ -39,7 +39,7 @@
     </a>
   </aside>
 
-  <main id="admin-main-content" tabindex="-1" class="admin-main">
+  <main id="admin-main-content" tabindex="-1" class="admin-main<%= typeof mainWide !== "undefined" && mainWide ? " is-wide" : "" %>">
     <div class="admin-topbar">
       <div>
         <% if (active !== "overview") { %>
