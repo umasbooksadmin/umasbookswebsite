@@ -84,3 +84,64 @@
 .admin-card .admin-card-links li + li { margin-top: 8px; }
 .admin-card .admin-card-links a { display: flex; align-items: center; justify-content: space-between; color: var(--ink); text-decoration: none; font-size: 15px; }
 .admin-card .admin-card-links a:hover { color: var(--maroon); }
+
+/* ---------- Announcements ---------- */
+.ann-tabs { display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--card-border); margin-bottom: 16px; }
+.ann-tabs a {
+  padding: 9px 16px; font-size: 14px; color: var(--ink-soft); text-decoration: none;
+  border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+.ann-tabs a.is-active { color: var(--maroon); border-bottom-color: var(--maroon); font-weight: 600; }
+.ann-tabs a:hover { color: var(--maroon); }
+
+.ann-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 18px; }
+.ann-filters input[type="text"] { flex: 1 1 220px; min-width: 180px; }
+.ann-filters input[type="text"], .ann-filters select {
+  font-family: inherit; font-size: 14px; padding: 8px 10px; border: 1px solid var(--card-border); border-radius: 4px; background: #fff;
+}
+.ann-filters label { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: var(--ink-soft); white-space: nowrap; }
+
+.ann-layout { display: grid; grid-template-columns: 1.7fr 1fr; gap: 24px; align-items: start; }
+@media (max-width: 1100px) { .ann-layout { grid-template-columns: 1fr; } }
+
+.ann-bulk-row { display: flex; gap: 8px; margin-bottom: 12px; }
+.ann-bulk-row select { font-family: inherit; font-size: 14px; padding: 7px 10px; border: 1px solid var(--card-border); border-radius: 4px; }
+
+.ann-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.ann-table th { text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-soft); padding: 8px 6px; border-bottom: 1px solid var(--card-border); }
+.ann-table td { padding: 10px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.ann-row-title { display: flex; gap: 10px; align-items: flex-start; }
+.ann-thumb { width: 52px; height: 40px; object-fit: cover; border-radius: 3px; flex: 0 0 auto; }
+
+.ann-more { position: relative; display: inline-block; }
+.ann-more summary { cursor: pointer; list-style: none; }
+.ann-more summary::-webkit-details-marker { display: none; }
+.ann-more-menu {
+  position: absolute; right: 0; top: calc(100% + 4px); background: #fff; border: 1px solid var(--card-border);
+  border-radius: 6px; box-shadow: 0 6px 18px rgba(0,0,0,0.1); padding: 6px; display: flex; flex-direction: column; gap: 2px;
+  min-width: 160px; z-index: 5;
+}
+.ann-menu-btn {
+  display: block; width: 100%; text-align: left; background: none; border: 0; padding: 7px 10px; font-size: 13.5px;
+  border-radius: 4px; cursor: pointer; color: var(--ink);
+}
+.ann-menu-btn:hover { background: var(--cream); }
+.ann-menu-danger { color: var(--maroon-dark); }
+
+.ann-panel .card { position: sticky; top: 20px; max-height: calc(100vh - 40px); overflow-y: auto; }
+
+.richtext { border: 1px solid var(--card-border); border-radius: 4px; overflow: hidden; }
+.richtext-toolbar { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px; background: var(--cream); border-bottom: 1px solid var(--card-border); }
+.richtext-toolbar button {
+  background: #fff; border: 1px solid var(--card-border); border-radius: 3px; padding: 4px 9px; font-size: 13px; cursor: pointer;
+}
+.richtext-toolbar button:hover { background: var(--panel); }
+.richtext-editor { min-height: 140px; padding: 10px 12px; font-size: 15.5px; }
+.richtext-editor:focus { outline: none; }
+.richtext-hidden { display: none; }
+
+.stack label.ann-check {
+  display: flex; align-items: flex-start; gap: 8px; font-family: 'Libre Baskerville', Georgia, serif;
+  font-size: 14.5px; color: var(--ink); font-weight: normal; text-transform: none; letter-spacing: normal;
+}
+.ann-check input { margin-top: 3px; }

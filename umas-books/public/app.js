@@ -114,6 +114,88 @@ document.addEventListener("click", function (e) {
     });
 });
 
+// Announcement editor's "N/200" excerpt counter (see data-char-count in
+// admin/announcements.ejs).
+document.addEventListener("input", function (e) {
+  var el = e.target.closest("[data-char-count]");
+  if (!el) return;
+  var counter = document.getElementById(el.getAttribute("data-char-count"));
+  if (counter) counter.textContent = String(el.value.length);
+});
+
+// Minimal rich-text editor for the announcement/blog content field: a
+// contenteditable div with a toolbar driving the (deprecated but still
+// universally supported) document.execCommand, rather than pulling in a
+// whole editor library for a handful of formatting buttons. The
+// contenteditable div itself has no `name` — its innerHTML is copied into
+// the paired hidden textarea.richtext-hidden (expected as its very next
+// sibling) right before the form submits, since a contenteditable node
+// isn't part of native form submission.
+document.addEventListener("click", function (e) {
+  var btn = e.target.closest(".richtext-toolbar [data-cmd]");
+  if (!btn) return;
+  e.preventDefault();
+  var wrap = btn.closest(".richtext");
+  var editor = wrap && wrap.querySelector(".richtext-editor");
+  if (!editor) return;
+  editor.focus();
+  var cmd = btn.getAttribute("data-cmd");
+  var arg = btn.getAttribute("data-arg") || null;
+  if (cmd === "createLink") {
+    var url = window.prompt("Link URL:", "https://");
+    if (!url) return;
+    arg = url;
+  }
+  document.execCommand(cmd, false, arg);
+});
+document.addEventListener("submit", function (e) {
+  var richtexts = e.target.querySelectorAll ? e.target.querySelectorAll(".richtext") : [];
+  richtexts.forEach(function (wrap) {
+    var editor = wrap.querySelector(".richtext-editor");
+    var hidden = wrap.nextElementSibling;
+    if (editor && hidden && hidden.classList.contains("richtext-hidden")) {
+      hidden.value = editor.innerHTML.trim();
+    }
+  });
+});
+
+// Generic conditional-visibility helper: an element with
+// data-show-when="fieldName=value" is shown only when the form field of
+// that name currently has that value (radios/checkboxes: the checked
+// one's value, or "on"/"" for a lone checkbox) — used for the
+// announcement form's "set expiration date" checkbox and "schedule for
+// later" status radio.
+function applyShowWhen(form) {
+  form.querySelectorAll("[data-show-when]").forEach(function (el) {
+    var eq = el.getAttribute("data-show-when").split("=");
+    var name = eq[0], expected = eq[1];
+    var checked = form.querySelector('[name="' + name + '"]:checked');
+    var field = checked || form.querySelector('[name="' + name + '"]');
+    var current = field ? (field.type === "checkbox" ? (field.checked ? "on" : "") : field.value) : "";
+    el.style.display = current === expected ? "" : "none";
+  });
+}
+document.addEventListener("change", function (e) {
+  var form = e.target.closest("form");
+  if (form) applyShowWhen(form);
+});
+document.addEventListener("DOMContentLoaded", function () {
+  document.querySelectorAll("form").forEach(applyShowWhen);
+});
+
+// A table's "select all" checkbox (data-select-all="group") checks/
+// unchecks every checkbox sharing data-select-all-item="group" — used for
+// the Announcements table's bulk-action row selection.
+document.addEventListener("change", function (e) {
+  var master = e.target.closest("[data-select-all]");
+  if (!master) return;
+  var name = master.getAttribute("data-select-all");
+  var form = master.closest("form") || document;
+  form.querySelectorAll('[data-select-all-item="' + name + '"]').forEach(function (cb) {
+    cb.checked = master.checked;
+  });
+});
+
 // Header account dropdown (logged-in members only — see partials/header.ejs).
 (function () {
   function closeMenu(menu) {

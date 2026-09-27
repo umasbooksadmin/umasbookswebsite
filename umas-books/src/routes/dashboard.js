@@ -8,7 +8,18 @@ router.get("/dashboard", requireMember, async (req, res) => {
   const userId = req.session.user.id;
 
   const [announcements, activeRound, latestArrivals, upcomingEvents] = await Promise.all([
-    pool.query("SELECT * FROM announcements ORDER BY published_at DESC LIMIT 3"),
+    // Only actually-live announcements. 'scheduled' is included as long
+    // as its published_at has actually passed — there's no periodic job
+    // flipping it to 'published' at that moment, so the date check alone
+    // is what makes it visible (see /admin/announcements, where the
+    // Scheduled tab may still show it briefly after that, purely as a
+    // cosmetic lag until an admin touches it). Not past its optional
+    // expiration; pinned ones lead regardless of date.
+    pool.query(
+      `SELECT * FROM announcements
+       WHERE status IN ('published', 'scheduled') AND published_at <= now() AND (expires_at IS NULL OR expires_at > now())
+       ORDER BY is_pinned DESC, published_at DESC LIMIT 3`
+    ),
     pool.query("SELECT * FROM charity_rounds WHERE is_active = TRUE ORDER BY opens_at DESC LIMIT 1"),
     // Same "newest in-stock copy first" pick as the marketing site's
     // /api/books/latest-arrivals — this page is server-rendered, so it's

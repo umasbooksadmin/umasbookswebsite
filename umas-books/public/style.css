@@ -102,10 +102,11 @@ ul.plain.nested li { padding: 4px 0; border-bottom: 0; }
   display: inline-block; flex: 0 0 auto; padding: 3px 11px; border-radius: 20px;
   font-family: 'Montserrat', sans-serif; font-size: 12.5px; font-weight: 600; letter-spacing: 0.02em;
 }
-.status-pill.paid, .status-pill.upcoming { background: #eaf0e6; color: var(--green); }
-.status-pill.pending { background: #faf3df; color: #8a6a1f; }
-.status-pill.cancelled, .status-pill.expired { background: #f5e6e4; color: var(--maroon-dark); }
-.status-pill.completed { background: #efeee9; color: var(--ink-soft); }
+.status-pill.paid, .status-pill.upcoming, .status-pill.published { background: #eaf0e6; color: var(--green); }
+.status-pill.pending, .status-pill.scheduled { background: #faf3df; color: #8a6a1f; }
+.status-pill.cancelled, .status-pill.expired, .status-pill.trash { background: #f5e6e4; color: var(--maroon-dark); }
+.status-pill.completed, .status-pill.draft, .status-pill.archived { background: #efeee9; color: var(--ink-soft); }
+.status-pill.category { background: #e5edf3; color: #3d5f78; }
 
 .thread-meta { font-size: 14px; color: var(--ink-soft); }
 .reply { border-top: 1px solid var(--line); padding: 14px 0; }

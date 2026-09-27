@@ -1,30 +1,241 @@
-<%- include('../partials/admin_header', { title: 'Announcements', active: active, pageTitle: 'Announcements' }) %>
+<%- include('../partials/admin_header', { title: 'Announcements', active: active, pageTitle: 'Announcements', pageSub: 'Create, manage, and schedule announcements for members.' }) %>
 
+<%
+  function announcementsQs(overrides) {
+    const merged = Object.assign({}, filters, overrides);
+    const parts = [];
+    parts.push('status=' + encodeURIComponent(merged.status || 'all'));
+    if (merged.category) parts.push('category=' + encodeURIComponent(merged.category));
+    if (merged.q) parts.push('q=' + encodeURIComponent(merged.q));
+    if (merged.dateRange) parts.push('dateRange=' + encodeURIComponent(merged.dateRange));
+    if (merged.pinnedOnly) parts.push('pinnedOnly=1');
+    if (merged.sort && merged.sort !== 'newest') parts.push('sort=' + merged.sort);
+    return parts.join('&');
+  }
+  const currentQs = announcementsQs({});
+  const statusLabels = { draft: 'Draft', scheduled: 'Scheduled', published: 'Published', archived: 'Archived', trash: 'Trash' };
+%>
 
-<div class="card">
-  <div class="section-title">Post an announcement</div>
-  <form class="stack" method="post" action="/admin/announcements">
-    <%- include('../partials/csrf_field') %>
-    <label for="a-title">Title</label>
-    <input id="a-title" name="title" type="text" required>
-    <label for="a-body">Body</label>
-    <textarea id="a-body" name="body" required></textarea>
-    <button class="btn" type="submit">Post</button>
-  </form>
+<div class="ann-tabs">
+  <a href="/admin/announcements?<%= announcementsQs({ status: 'all' }) %>" class="<%= filters.status === 'all' ? 'is-active' : '' %>">All (<%= allCount %>)</a>
+  <a href="/admin/announcements?<%= announcementsQs({ status: 'published' }) %>" class="<%= filters.status === 'published' ? 'is-active' : '' %>">Published (<%= counts.published %>)</a>
+  <a href="/admin/announcements?<%= announcementsQs({ status: 'scheduled' }) %>" class="<%= filters.status === 'scheduled' ? 'is-active' : '' %>">Scheduled (<%= counts.scheduled %>)</a>
+  <a href="/admin/announcements?<%= announcementsQs({ status: 'draft' }) %>" class="<%= filters.status === 'draft' ? 'is-active' : '' %>">Drafts (<%= counts.draft %>)</a>
+  <a href="/admin/announcements?<%= announcementsQs({ status: 'archived' }) %>" class="<%= filters.status === 'archived' ? 'is-active' : '' %>">Archived (<%= counts.archived %>)</a>
+  <a href="/admin/announcements?<%= announcementsQs({ status: 'trash' }) %>" class="<%= filters.status === 'trash' ? 'is-active' : '' %>">Trash (<%= counts.trash %>)</a>
 </div>
 
-<div class="card">
-  <div class="section-title">Recent announcements</div>
-  <% if (!announcements.length) { %><p class="muted">None posted yet.</p><% } %>
-  <ul class="plain">
-    <% announcements.forEach(a => { %>
-      <li>
-        <strong><%= a.title %></strong>
-        <div class="muted small"><%= formatDateTime(a.published_at) %></div>
-        <div><%= a.body %></div>
-      </li>
-    <% }) %>
-  </ul>
+<form class="ann-filters" method="get" action="/admin/announcements">
+  <input type="hidden" name="status" value="<%= filters.status %>">
+  <input type="text" name="q" value="<%= filters.q %>" placeholder="Search by title, content or category…">
+  <select name="category">
+    <option value="">All Categories</option>
+    <% categories.forEach(c => { %><option value="<%= c %>" <%= filters.category === c ? 'selected' : '' %>><%= c %></option><% }) %>
+  </select>
+  <select name="dateRange">
+    <option value="">All Dates</option>
+    <option value="7d" <%= filters.dateRange === '7d' ? 'selected' : '' %>>Last 7 days</option>
+    <option value="30d" <%= filters.dateRange === '30d' ? 'selected' : '' %>>Last 30 days</option>
+    <option value="year" <%= filters.dateRange === 'year' ? 'selected' : '' %>>This year</option>
+  </select>
+  <label><input type="checkbox" name="pinnedOnly" value="1" <%= filters.pinnedOnly ? 'checked' : '' %>> Pinned Only</label>
+  <select name="sort">
+    <option value="newest" <%= filters.sort === 'newest' ? 'selected' : '' %>>Newest First</option>
+    <option value="oldest" <%= filters.sort === 'oldest' ? 'selected' : '' %>>Oldest First</option>
+  </select>
+  <button class="btn btn-small" type="submit">Apply</button>
+  <a class="btn btn-outline btn-small" href="/admin/announcements">Clear Filters</a>
+</form>
+
+<div class="ann-layout">
+  <div class="ann-list-col">
+    <div class="card" style="padding:16px 18px;">
+      <form method="post" action="/admin/announcements/bulk">
+        <%- include('../partials/csrf_field') %>
+        <input type="hidden" name="backQuery" value="<%= currentQs %>">
+        <div class="ann-bulk-row">
+          <select name="bulkAction">
+            <option value="">Bulk actions…</option>
+            <option value="publish">Publish</option>
+            <option value="archive">Archive</option>
+            <option value="trash">Move to Trash</option>
+            <% if (filters.status === 'trash') { %><option value="delete">Delete Permanently</option><% } %>
+          </select>
+          <button class="btn btn-outline btn-small" type="submit">Apply</button>
+        </div>
+        <div style="overflow-x:auto;">
+        <table class="ann-table">
+          <thead>
+            <tr>
+              <th><input type="checkbox" data-select-all="ann-rows"></th>
+              <th>Announcement</th>
+              <th>Category</th>
+              <th>Status</th>
+              <th>Publish Date</th>
+              <th>Last Edited</th>
+              <th>Pinned</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% if (!announcements.length) { %>
+              <tr><td colspan="8" class="muted" style="text-align:center; padding:24px;">No announcements match these filters.</td></tr>
+            <% } %>
+            <% announcements.forEach(a => { %>
+              <tr>
+                <td><input type="checkbox" name="ids" value="<%= a.id %>" data-select-all-item="ann-rows"></td>
+                <td>
+                  <div class="ann-row-title">
+                    <% if (a.image_url) { %><img src="<%= a.image_url %>" alt="" class="ann-thumb"><% } %>
+                    <div>
+                      <strong><%= a.title %></strong>
+                      <% if (a.excerpt) { %><div class="muted small"><%= a.excerpt.slice(0, 90) %></div><% } %>
+                      <% if (a.event_title) { %><div class="muted small">&#128197; <%= a.event_title %></div><% } %>
+                    </div>
+                  </div>
+                </td>
+                <td><% if (a.category) { %><span class="status-pill category"><%= a.category %></span><% } %></td>
+                <td><span class="status-pill <%= a.status %>"><%= statusLabels[a.status] %></span></td>
+                <td class="muted small"><%= a.published_at ? formatDateTime(a.published_at) : '—' %></td>
+                <td class="muted small"><%= formatDateTime(a.updated_at) %></td>
+                <td><%= a.is_pinned ? '\u{1F4CC}' : '' %></td>
+                <td style="white-space:nowrap;">
+                  <a class="btn btn-outline btn-small" href="/admin/announcements?edit=<%= a.id %>&<%= currentQs %>">Edit</a>
+                  <details class="ann-more">
+                    <summary class="btn btn-outline btn-small">&hellip;</summary>
+                    <div class="ann-more-menu">
+                      <form method="post" action="/admin/announcements/<%= a.id %>/pin">
+                        <%- include('../partials/csrf_field') %>
+                        <input type="hidden" name="backQuery" value="<%= currentQs %>">
+                        <button type="submit" class="ann-menu-btn"><%= a.is_pinned ? 'Unpin' : 'Pin' %></button>
+                      </form>
+                      <% if (a.status === 'published' || a.status === 'draft' || a.status === 'scheduled') { %>
+                        <form method="post" action="/admin/announcements/<%= a.id %>/status">
+                          <%- include('../partials/csrf_field') %>
+                          <input type="hidden" name="action" value="archive">
+                          <input type="hidden" name="backQuery" value="<%= currentQs %>">
+                          <button type="submit" class="ann-menu-btn">Archive</button>
+                        </form>
+                      <% } %>
+                      <% if (a.status === 'archived' || a.status === 'draft' || a.status === 'scheduled') { %>
+                        <form method="post" action="/admin/announcements/<%= a.id %>/status">
+                          <%- include('../partials/csrf_field') %>
+                          <input type="hidden" name="action" value="restore">
+                          <input type="hidden" name="backQuery" value="<%= currentQs %>">
+                          <button type="submit" class="ann-menu-btn">Publish Now</button>
+                        </form>
+                      <% } %>
+                      <% if (a.status !== 'trash') { %>
+                        <form method="post" action="/admin/announcements/<%= a.id %>/status">
+                          <%- include('../partials/csrf_field') %>
+                          <input type="hidden" name="action" value="trash">
+                          <input type="hidden" name="backQuery" value="<%= currentQs %>">
+                          <button type="submit" class="ann-menu-btn ann-menu-danger">Move to Trash</button>
+                        </form>
+                      <% } else { %>
+                        <form method="post" action="/admin/announcements/<%= a.id %>/status">
+                          <%- include('../partials/csrf_field') %>
+                          <input type="hidden" name="action" value="restore">
+                          <input type="hidden" name="backQuery" value="<%= currentQs %>">
+                          <button type="submit" class="ann-menu-btn">Restore</button>
+                        </form>
+                        <form method="post" action="/admin/announcements/<%= a.id %>/delete" onsubmit="return confirm('Delete this announcement permanently? This can\'t be undone.');">
+                          <%- include('../partials/csrf_field') %>
+                          <input type="hidden" name="backQuery" value="<%= currentQs %>">
+                          <button type="submit" class="ann-menu-btn ann-menu-danger">Delete Permanently</button>
+                        </form>
+                      <% } %>
+                    </div>
+                  </details>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="ann-panel">
+    <div class="card">
+      <div class="section-title"><%= editing ? 'Edit Announcement' : 'Create New Announcement' %></div>
+      <form class="stack" method="post" action="<%= editing ? '/admin/announcements/' + editing.id : '/admin/announcements' %>" enctype="multipart/form-data">
+        <%- include('../partials/csrf_field') %>
+        <input type="hidden" name="backQuery" value="<%= currentQs %>">
+
+        <label for="ann-title">Title</label>
+        <input id="ann-title" name="title" type="text" required value="<%= editing ? editing.title : '' %>">
+
+        <label for="ann-excerpt">Excerpt / Summary (optional)</label>
+        <textarea id="ann-excerpt" name="excerpt" maxlength="200" data-char-count="ann-excerpt-count" placeholder="A short summary to display in the list…"><%= editing ? (editing.excerpt || '') : '' %></textarea>
+        <p class="muted small" style="margin:-6px 0 0;"><span id="ann-excerpt-count"><%= editing && editing.excerpt ? editing.excerpt.length : 0 %></span>/200</p>
+
+        <label for="ann-content">Content</label>
+        <div class="richtext">
+          <div class="richtext-toolbar">
+            <button type="button" data-cmd="bold"><strong>B</strong></button>
+            <button type="button" data-cmd="italic"><em>I</em></button>
+            <button type="button" data-cmd="underline"><u>U</u></button>
+            <button type="button" data-cmd="insertUnorderedList">&bull; List</button>
+            <button type="button" data-cmd="insertOrderedList">1. List</button>
+            <button type="button" data-cmd="formatBlock" data-arg="blockquote">&ldquo;&rdquo;</button>
+            <button type="button" data-cmd="createLink">Link</button>
+          </div>
+          <div class="richtext-editor" contenteditable="true"><%- editing ? editing.body : '' %></div>
+        </div>
+        <textarea name="body" class="richtext-hidden" required><%= editing ? editing.body : '' %></textarea>
+
+        <label>Featured Image</label>
+        <% if (editing && editing.image_url) { %>
+          <img src="<%= editing.image_url %>" alt="" style="max-width:160px; border-radius:4px; margin-bottom:6px;">
+          <label class="ann-check"><input type="checkbox" name="removeImage"> <span>Remove current image</span></label>
+        <% } %>
+        <button type="button" class="btn btn-outline" data-trigger-file="ann-image" style="align-self:flex-start;">Upload an image</button>
+        <input id="ann-image" name="image" type="file" accept="image/*" class="file-input-hidden" data-file-name-target="ann-image-name">
+        <span id="ann-image-name" class="muted small file-input-name">No image selected (JPG/PNG, max 5MB)</span>
+
+        <label for="ann-category">Category</label>
+        <select id="ann-category" name="category" required>
+          <option value="">Select a category…</option>
+          <% categories.forEach(c => { %><option value="<%= c %>" <%= editing && editing.category === c ? 'selected' : '' %>><%= c %></option><% }) %>
+        </select>
+
+        <label for="ann-event">Link to Event (optional)</label>
+        <select id="ann-event" name="eventId">
+          <option value="">— None —</option>
+          <% events.forEach(e => { %><option value="<%= e.id %>" <%= editing && editing.event_id === e.id ? 'selected' : '' %>><%= e.title %> (<%= formatDate(e.starts_at) %>)</option><% }) %>
+        </select>
+
+        <label class="ann-check">
+          <input type="checkbox" name="pinned" <%= editing && editing.is_pinned ? 'checked' : '' %>>
+          <span>Pin this announcement — show at the top of the list</span>
+        </label>
+
+        <label class="ann-check">
+          <input type="checkbox" name="expiresEnabled" <%= editing && editing.expires_at ? 'checked' : '' %>>
+          <span>Set an expiration date (optional)</span>
+        </label>
+        <div data-show-when="expiresEnabled=on">
+          <input type="date" name="expiresAt" value="<%= editing && editing.expires_at ? new Date(editing.expires_at).toISOString().slice(0,10) : '' %>">
+        </div>
+
+        <div class="section-title" style="font-size:16px; margin-top:6px;">Status</div>
+        <label class="ann-check"><input type="radio" name="statusAction" value="publish" <%= (!editing || editing.status === 'published') ? 'checked' : '' %>> <span>Publish now</span></label>
+        <label class="ann-check"><input type="radio" name="statusAction" value="schedule" <%= editing && editing.status === 'scheduled' ? 'checked' : '' %>> <span>Schedule for later</span></label>
+        <label class="ann-check"><input type="radio" name="statusAction" value="draft" <%= editing && editing.status === 'draft' ? 'checked' : '' %>> <span>Save as draft</span></label>
+        <div data-show-when="statusAction=schedule">
+          <label for="ann-scheduled-at">Publish date &amp; time</label>
+          <input id="ann-scheduled-at" type="datetime-local" name="scheduledAt" value="<%= editing && editing.published_at && editing.status === 'scheduled' ? new Date(editing.published_at.getTime() - editing.published_at.getTimezoneOffset()*60000).toISOString().slice(0,16) : '' %>">
+        </div>
+
+        <div style="display:flex; gap:10px; margin-top:6px;">
+          <button class="btn" type="submit"><%= editing ? 'Save Changes' : 'Publish' %></button>
+          <% if (editing) { %><a class="btn btn-outline" href="/admin/announcements?<%= currentQs %>">Cancel</a><% } %>
+        </div>
+      </form>
+    </div>
+  </div>
 </div>
 
 <%- include('../partials/admin_footer') %>

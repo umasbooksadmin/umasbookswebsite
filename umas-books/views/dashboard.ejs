@@ -44,11 +44,11 @@
       <ul class="dash-ann-list">
         <% announcements.forEach((a, i) => { %>
           <li class="dash-ann-item">
-            <img src="<%= annPhotos[i % annPhotos.length] %>" alt="">
+            <img src="<%= a.image_url || annPhotos[i % annPhotos.length] %>" alt="">
             <div>
-              <div class="dash-ann-date"><%= formatDate(a.published_at) %></div>
+              <div class="dash-ann-date"><%= a.is_pinned ? '\u{1F4CC} ' : '' %><%= formatDate(a.published_at) %></div>
               <h3><%= a.title %></h3>
-              <p><%= a.body %></p>
+              <% if (a.excerpt) { %><p><%= a.excerpt %></p><% } else { %><div class="rich-content"><%- a.body %></div><% } %>
             </div>
           </li>
         <% }) %>
