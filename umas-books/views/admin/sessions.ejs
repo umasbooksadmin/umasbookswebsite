@@ -26,6 +26,11 @@
                   <input type="hidden" name="date" value="<%= day.dateKey %>">
                   <label for="title-new-<%= day.dateKey %>">Title</label>
                   <input id="title-new-<%= day.dateKey %>" name="title" type="text" required placeholder="Éveil English Immersion">
+                  <label for="type-new-<%= day.dateKey %>">Program type (optional)</label>
+                  <select id="type-new-<%= day.dateKey %>" name="programType">
+                    <option value="">— None —</option>
+                    <% programTypes.forEach(t => { %><option value="<%= t %>"><%= t %></option><% }) %>
+                  </select>
                   <label for="start-new-<%= day.dateKey %>">Start time</label>
                   <input id="start-new-<%= day.dateKey %>" name="startTime" type="time" required>
                   <label for="end-new-<%= day.dateKey %>">End time (optional)</label>
@@ -49,6 +54,7 @@
                     <%= formatDateTime(c.starts_at) %><%= c.location ? ' · ' + c.location : '' %>
                     <%= c.capacity != null ? ' · ' + c.seats_taken + '/' + c.capacity + ' booked' : ' · ' + c.seats_taken + ' booked' %>
                     <%= c.dropin_price != null ? ' · drop-in €' + Number(c.dropin_price).toFixed(2) : ' · not sold as drop-in' %>
+                    <%= c.program_type ? ' · ' + c.program_type : '' %>
                   </div>
                   <% if (c.description) { %><div class="muted small" style="margin-top:6px;"><%= c.description %></div><% } %>
 
@@ -82,6 +88,11 @@
                       <%- include('../partials/csrf_field') %>
                       <label for="title-<%= c.id %>">Title</label>
                       <input id="title-<%= c.id %>" name="title" type="text" required value="<%= c.title %>">
+                      <label for="type-<%= c.id %>">Program type (optional)</label>
+                      <select id="type-<%= c.id %>" name="programType">
+                        <option value="">— None —</option>
+                        <% programTypes.forEach(t => { %><option value="<%= t %>" <%= c.program_type === t ? 'selected' : '' %>><%= t %></option><% }) %>
+                      </select>
                       <label for="desc-<%= c.id %>">Description</label>
                       <textarea id="desc-<%= c.id %>" name="description"><%= c.description || '' %></textarea>
                       <label for="loc-<%= c.id %>">Location</label>

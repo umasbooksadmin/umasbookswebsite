@@ -12,6 +12,24 @@ const { seatsTakenExpr } = require("../lib/classCapacity");
 
 const router = express.Router();
 
+// New copies default to a $0 cost / $5 price, but a book already in
+// inventory should default to whatever its existing copies are set at.
+async function getDefaultCopyPricing(isbn) {
+  const defaults = { price: 5, acquisitionCost: 0 };
+  if (!isbn) return defaults;
+  const { rows } = await pool.query(
+    `SELECT c.price, c.acquisition_cost FROM book_copies c
+     JOIN books b ON b.id = c.book_id
+     WHERE b.isbn = $1 ORDER BY c.created_at DESC LIMIT 1`,
+    [isbn]
+  );
+  if (!rows.length) return defaults;
+  return {
+    price: rows[0].price != null ? Number(rows[0].price) : defaults.price,
+    acquisitionCost: rows[0].acquisition_cost != null ? Number(rows[0].acquisition_cost) : defaults.acquisitionCost,
+  };
+}
+
 // Best-effort cover lookup for books saved without one — tries the ISBN
 // first (most precise), then falls back to a title/author search.
 async function findCoverUrl({ isbn, title, author }) {
@@ -152,6 +170,30 @@ router.post("/admin/announcements", requireAdmin, async (req, res) => {
   res.redirect("/admin/announcements");
 });
 
+// ---------- Blog ----------
+
+router.get("/admin/blog", requireAdmin, async (req, res) => {
+  const { rows: posts } = await pool.query("SELECT * FROM blog_posts ORDER BY published_at DESC LIMIT 50");
+  res.render("admin/blog", { active: "blog", posts });
+});
+
+router.post("/admin/blog", requireAdmin, async (req, res) => {
+  const title = (req.body.title || "").trim();
+  const body = (req.body.body || "").trim();
+  if (title && body) {
+    await pool.query(
+      "INSERT INTO blog_posts (title, body, created_by) VALUES ($1, $2, $3)",
+      [title, body, req.session.user.id]
+    );
+  }
+  res.redirect("/admin/blog");
+});
+
+router.post("/admin/blog/:id/delete", requireAdmin, async (req, res) => {
+  await pool.query("DELETE FROM blog_posts WHERE id = $1", [Number(req.params.id)]);
+  res.redirect("/admin/blog");
+});
+
 // ---------- Volunteer shifts ----------
 
 router.get("/admin/volunteer-shifts", requireAdmin, async (req, res) => {
@@ -272,14 +314,15 @@ router.post("/admin/events", requireAdmin, async (req, res) => {
   const startTime = req.body.startTime;
   const endTime = req.body.endTime || null;
   const capacity = req.body.capacity ? Number(req.body.capacity) : null;
+  const price = req.body.price ? Number(req.body.price) : null;
 
   if (title && date && startTime) {
     const startsAt = `${date}T${startTime}`;
     const endsAt = endTime ? `${date}T${endTime}` : null;
     await pool.query(
-      `INSERT INTO events (title, description, location, starts_at, ends_at, capacity, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [title, description, location, startsAt, endsAt, capacity, req.session.user.id]
+      `INSERT INTO events (title, description, location, starts_at, ends_at, capacity, price, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [title, description, location, startsAt, endsAt, capacity, price, req.session.user.id]
     );
   }
   res.redirect(req.body.month ? `/admin/events?month=${req.body.month}` : "/admin/events");
@@ -293,12 +336,13 @@ router.post("/admin/events/:id", requireAdmin, async (req, res) => {
   const startsAt = req.body.startsAt;
   const endsAt = req.body.endsAt || null;
   const capacity = req.body.capacity ? Number(req.body.capacity) : null;
+  const price = req.body.price ? Number(req.body.price) : null;
 
   if (title && startsAt) {
     await pool.query(
-      `UPDATE events SET title=$1, description=$2, location=$3, starts_at=$4, ends_at=$5, capacity=$6
-       WHERE id = $7`,
-      [title, description, location, startsAt, endsAt, capacity, id]
+      `UPDATE events SET title=$1, description=$2, location=$3, starts_at=$4, ends_at=$5, capacity=$6, price=$7
+       WHERE id = $8`,
+      [title, description, location, startsAt, endsAt, capacity, price, id]
     );
   }
   res.redirect(req.query.month ? `/admin/events?month=${req.query.month}` : "/admin/events");
@@ -315,6 +359,8 @@ router.post("/admin/events/:id/signups/:signupId/delete", requireAdmin, async (r
 });
 
 // ---------- Sessions (public sign-up) ----------
+
+const PROGRAM_TYPES = ["Little Explorers", "Éveil English", "Young Adventurers", "Young Readers", "Teen Literature", "English Café"];
 
 router.get("/admin/sessions", requireAdmin, async (req, res) => {
   const { year, month } = parseMonthParam(req.query.month);
@@ -349,7 +395,7 @@ router.get("/admin/sessions", requireAdmin, async (req, res) => {
   }
 
   const weeks = monthGrid(year, month, groupByDate(classes, "starts_at"));
-  res.render("admin/sessions", { active: "sessions", weeks, signupsByClass, dropinByClass, ...monthNav(year, month) });
+  res.render("admin/sessions", { active: "sessions", weeks, signupsByClass, dropinByClass, programTypes: PROGRAM_TYPES, ...monthNav(year, month) });
 });
 
 router.post("/admin/sessions", requireAdmin, async (req, res) => {
@@ -361,14 +407,15 @@ router.post("/admin/sessions", requireAdmin, async (req, res) => {
   const endTime = req.body.endTime || null;
   const capacity = req.body.capacity ? Number(req.body.capacity) : 5;
   const dropinPrice = req.body.dropinPrice ? Number(req.body.dropinPrice) : null;
+  const programType = PROGRAM_TYPES.includes(req.body.programType) ? req.body.programType : null;
 
   if (title && date && startTime) {
     const startsAt = `${date}T${startTime}`;
     const endsAt = endTime ? `${date}T${endTime}` : null;
     await pool.query(
-      `INSERT INTO classes (title, description, location, starts_at, ends_at, capacity, dropin_price, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [title, description, location, startsAt, endsAt, capacity, dropinPrice, req.session.user.id]
+      `INSERT INTO classes (title, description, location, starts_at, ends_at, capacity, dropin_price, program_type, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [title, description, location, startsAt, endsAt, capacity, dropinPrice, programType, req.session.user.id]
     );
   }
   res.redirect(req.body.month ? `/admin/sessions?month=${req.body.month}` : "/admin/sessions");
@@ -383,12 +430,13 @@ router.post("/admin/sessions/:id", requireAdmin, async (req, res) => {
   const endsAt = req.body.endsAt || null;
   const capacity = req.body.capacity ? Number(req.body.capacity) : null;
   const dropinPrice = req.body.dropinPrice ? Number(req.body.dropinPrice) : null;
+  const programType = PROGRAM_TYPES.includes(req.body.programType) ? req.body.programType : null;
 
   if (title && startsAt) {
     await pool.query(
-      `UPDATE classes SET title=$1, description=$2, location=$3, starts_at=$4, ends_at=$5, capacity=$6, dropin_price=$7
-       WHERE id = $8`,
-      [title, description, location, startsAt, endsAt, capacity, dropinPrice, id]
+      `UPDATE classes SET title=$1, description=$2, location=$3, starts_at=$4, ends_at=$5, capacity=$6, dropin_price=$7, program_type=$8
+       WHERE id = $9`,
+      [title, description, location, startsAt, endsAt, capacity, dropinPrice, programType, id]
     );
   }
   res.redirect(req.query.month ? `/admin/sessions?month=${req.query.month}` : "/admin/sessions");
@@ -511,7 +559,8 @@ router.post("/admin/inventory/lookup", requireAdmin, async (req, res) => {
     }
   }
 
-  res.render("admin/inventory/new", { active: "inventory", book, error, fromScan: true, conditions: CONDITIONS, statuses: STATUSES });
+  const defaultPricing = await getDefaultCopyPricing(book.isbn);
+  res.render("admin/inventory/new", { active: "inventory", book, error, fromScan: true, conditions: CONDITIONS, statuses: STATUSES, defaultPricing });
 });
 
 router.get("/admin/inventory/new", requireAdmin, (req, res) => {
@@ -522,6 +571,7 @@ router.get("/admin/inventory/new", requireAdmin, (req, res) => {
     fromScan: false,
     conditions: CONDITIONS,
     statuses: STATUSES,
+    defaultPricing: { price: 5, acquisitionCost: 0 },
   });
 });
 
@@ -559,6 +609,10 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
       fromScan: req.body.fromScan === "1",
       conditions: CONDITIONS,
       statuses: STATUSES,
+      defaultPricing: {
+        price: req.body.price ? Number(req.body.price) : 5,
+        acquisitionCost: req.body.acquisitionCost ? Number(req.body.acquisitionCost) : 0,
+      },
     });
   }
 

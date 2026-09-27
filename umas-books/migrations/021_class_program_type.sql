@@ -1,0 +1,1 @@
+ALTER TABLE classes ADD COLUMN IF NOT EXISTS program_type TEXT;

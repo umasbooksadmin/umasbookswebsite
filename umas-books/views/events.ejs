@@ -35,11 +35,11 @@
                   <div class="fcal-session-title"><%= e.title %></div>
                   <div class="fcal-session-time"><%= formatTime(e.starts_at) %></div>
                   <div class="fcal-session-seats">
-                    Free<%= e.capacity != null ? ' · ' + e.signup_count + '/' + e.capacity + ' spots taken' : ' · ' + e.signup_count + ' going' %>
+                    <%= e.price != null ? '€' + Number(e.price).toFixed(2) : 'Free' %><%= e.capacity != null ? ' · ' + e.signup_count + '/' + e.capacity + ' spots taken' : ' · ' + e.signup_count + ' going' %>
                   </div>
                 </summary>
                 <div class="fcal-session-details">
-                  <div class="muted small"><%= formatDateTime(e.starts_at) %><%= e.location ? ' · ' + e.location : '' %></div>
+                  <div class="muted small"><%= formatDateTime(e.starts_at) %><%= e.location ? ' · ' + e.location : '' %> · <%= e.price != null ? '€' + Number(e.price).toFixed(2) : 'Free' %></div>
                   <% if (e.description) { %><p class="muted small"><%= e.description %></p><% } %>
 
                   <form method="post" action="/events/<%= e.id %>/signup?month=<%= currentMonth %>" class="fcal-session-form">

@@ -64,10 +64,10 @@
     </select>
 
     <label for="acquisitionCost">Acquisition cost (&euro;)</label>
-    <input id="acquisitionCost" name="acquisitionCost" type="number" step="0.01" min="0" value="0">
+    <input id="acquisitionCost" name="acquisitionCost" type="number" step="0.01" min="0" value="<%= defaultPricing.acquisitionCost %>">
 
     <label for="price">Price (&euro;)</label>
-    <input id="price" name="price" type="number" step="0.01" min="0" value="5">
+    <input id="price" name="price" type="number" step="0.01" min="0" value="<%= defaultPricing.price %>">
 
     <label for="acquiredAt">Acquisition Date</label>
     <input id="acquiredAt" name="acquiredAt" type="date" value="<%= new Date().toLocaleDateString('en-CA') %>">

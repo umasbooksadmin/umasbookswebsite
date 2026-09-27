@@ -1,0 +1,35 @@
+<%- include('../partials/admin_header', { title: 'Blog', active: active, pageTitle: 'Blog' }) %>
+
+<p class="muted small">Posts appear on the public blog at <a href="/blog.html">/blog.html</a>.</p>
+
+<div class="card">
+  <div class="section-title">Write a post</div>
+  <form class="stack" method="post" action="/admin/blog">
+    <%- include('../partials/csrf_field') %>
+    <label for="b-title">Title</label>
+    <input id="b-title" name="title" type="text" required>
+    <label for="b-body">Body</label>
+    <textarea id="b-body" name="body" required></textarea>
+    <button class="btn" type="submit">Post</button>
+  </form>
+</div>
+
+<div class="card">
+  <div class="section-title">Published posts</div>
+  <% if (!posts.length) { %><p class="muted">None posted yet.</p><% } %>
+  <ul class="plain">
+    <% posts.forEach(p => { %>
+      <li style="padding:10px 0; border-bottom:1px solid var(--card-border);">
+        <strong><%= p.title %></strong>
+        <div class="muted small"><%= formatDateTime(p.published_at) %></div>
+        <div style="margin-top:4px;"><%= p.body %></div>
+        <form method="post" action="/admin/blog/<%= p.id %>/delete" style="margin-top:8px;">
+          <%- include('../partials/csrf_field') %>
+          <button class="btn btn-outline btn-small" type="submit">Delete post</button>
+        </form>
+      </li>
+    <% }) %>
+  </ul>
+</div>
+
+<%- include('../partials/admin_footer') %>
