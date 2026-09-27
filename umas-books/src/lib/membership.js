@@ -16,41 +16,68 @@ function isAuthorized(order) {
 
 // Re-checks HelloAsso (never trusts the webhook body itself — see
 // lib/helloasso.js) for this payer's Membership-form orders, records any
-// newly-seen paid order, and extends the matching site account's
-// membership by MEMBERSHIP_DURATION_MS from that payment's date. A
-// payer email with no matching account is logged and otherwise ignored:
-// there's no safe way to guess which account it belongs to.
+// newly-seen paid order, extends the matching site account's membership
+// by MEMBERSHIP_DURATION_MS from that payment's date, and reverts any
+// previously-recorded payment that no longer shows as Authorized (a
+// refund or a won dispute both land here, since HelloAsso reuses the
+// same order id and just flips its payment's state — see
+// paiement-remboursé.md/paiement-contesté-gagne.md). A payer email with
+// no matching account is logged and otherwise ignored: there's no safe
+// way to guess which account it belongs to.
 async function syncMembershipForEmail(pool, email) {
   if (!email) return;
   const orders = await findMembershipOrdersByEmail(email);
-  const paidOrders = orders.filter(isAuthorized);
-  if (!paidOrders.length) return;
+  if (!orders.length) return;
 
-  const { rows: userRows } = await pool.query("SELECT id, member_expires_at FROM users WHERE lower(email) = lower($1)", [email]);
+  const { rows: userRows } = await pool.query("SELECT id FROM users WHERE lower(email) = lower($1)", [email]);
   const user = userRows[0];
   if (!user) {
     console.warn(`HelloAsso membership payment from ${email} has no matching site account — skipped.`);
     return;
   }
 
-  let newExpiresAt = user.member_expires_at ? new Date(user.member_expires_at) : null;
+  const authorizedIds = new Set(orders.filter(isAuthorized).map((o) => o.id));
 
-  for (const order of paidOrders) {
-    const paidAt = new Date(order.date);
-    const expiresFromThisOrder = new Date(paidAt.getTime() + MEMBERSHIP_DURATION_MS);
-
-    const { rows: inserted } = await pool.query(
+  for (const order of orders.filter(isAuthorized)) {
+    await pool.query(
       `INSERT INTO membership_payments (user_id, helloasso_order_id, payer_email, amount_cents, paid_at)
        VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (helloasso_order_id) DO NOTHING RETURNING id`,
-      [user.id, order.id, email, order.amount && order.amount.total, paidAt]
+       ON CONFLICT (helloasso_order_id) DO NOTHING`,
+      [user.id, order.id, email, order.amount && order.amount.total, new Date(order.date)]
     );
-    if (!inserted.length) continue; // already processed this order
-
-    if (!newExpiresAt || expiresFromThisOrder > newExpiresAt) newExpiresAt = expiresFromThisOrder;
   }
 
-  if (newExpiresAt && (!user.member_expires_at || newExpiresAt.getTime() !== new Date(user.member_expires_at).getTime())) {
+  const { rows: recorded } = await pool.query(
+    "SELECT id, helloasso_order_id, paid_at FROM membership_payments WHERE user_id = $1",
+    [user.id]
+  );
+  const reversed = recorded.filter((r) => !authorizedIds.has(Number(r.helloasso_order_id)));
+  if (reversed.length) {
+    await pool.query("DELETE FROM membership_payments WHERE id = ANY($1)", [reversed.map((r) => r.id)]);
+  }
+
+  const stillValid = recorded.filter((r) => authorizedIds.has(Number(r.helloasso_order_id)));
+  if (!stillValid.length) {
+    // Nothing left to base a membership on. Only clear is_member if it
+    // was payment-driven (member_expires_at set) — a manual admin grant
+    // (member_expires_at NULL) is never touched by this sync.
+    if (reversed.length) {
+      await pool.query(
+        "UPDATE users SET is_member = FALSE, member_expires_at = NULL WHERE id = $1 AND member_expires_at IS NOT NULL",
+        [user.id]
+      );
+    }
+    return;
+  }
+
+  const newExpiresAt = stillValid.reduce((max, r) => {
+    const exp = new Date(new Date(r.paid_at).getTime() + MEMBERSHIP_DURATION_MS);
+    return !max || exp > max ? exp : max;
+  }, null);
+
+  const { rows: freshUser } = await pool.query("SELECT member_expires_at FROM users WHERE id = $1", [user.id]);
+  const currentExpiresAt = freshUser[0].member_expires_at ? new Date(freshUser[0].member_expires_at) : null;
+  if (!currentExpiresAt || newExpiresAt.getTime() !== currentExpiresAt.getTime()) {
     await pool.query("UPDATE users SET is_member = TRUE, member_expires_at = $1 WHERE id = $2", [newExpiresAt, user.id]);
   }
 }

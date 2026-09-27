@@ -147,6 +147,28 @@
       .catch(function () {});
   }
 
+  // Adds the "Admin" header link for a logged-in admin on pages that
+  // can't render it server-side (the marketing site's static HTML — see
+  // /api/session). A no-op wherever partials/header.ejs already rendered
+  // it (the dynamic app pages, which also load this script via
+  // partials/footer.ejs), since the guard below finds that link first.
+  function loadAdminLink() {
+    if (!window.fetch || document.querySelector('a.h-tool[href="/admin"]')) return;
+    var dashboardLink = document.querySelector('.h-tools a[href="/dashboard"]');
+    if (!dashboardLink) return;
+    fetch("/api/session", { credentials: "same-origin", headers: { Accept: "application/json" } })
+      .then(function (res) { return res.ok ? res.json() : null; })
+      .then(function (data) {
+        if (!data || !data.isAdmin) return;
+        var a = document.createElement("a");
+        a.className = "h-tool";
+        a.href = "/admin";
+        a.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.5 4 6v6c0 5 3.4 8.4 8 9.5 4.6-1.1 8-4.5 8-9.5V6z"/></svg><span class="label">Admin</span>';
+        dashboardLink.parentNode.insertBefore(a, dashboardLink);
+      })
+      .catch(function () {});
+  }
+
   document.addEventListener("DOMContentLoaded", function () {
     var stored = null;
     try { stored = localStorage.getItem(STORE_KEY); } catch (e) {}
@@ -159,5 +181,6 @@
     wireMailtoForms();
     apply(initial);
     loadCartCount();
+    loadAdminLink();
   });
 })();

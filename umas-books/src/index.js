@@ -140,6 +140,16 @@ app.get("/api/csrf-token", (req, res) => {
   res.json({ token: res.locals.csrfToken });
 });
 
+// Same idea as /api/cart/count above: the marketing site's static HTML
+// has no server-side session rendering, so it can't know an admin is
+// logged in the way the EJS pages' shared header does (see
+// partials/header.ejs) — this lets its plain <script> (assets/site.js)
+// ask, and only exposes the one boolean actually needed for that link.
+app.get("/api/session", (req, res) => {
+  res.set("Cache-Control", "no-store");
+  res.json({ isAdmin: Boolean(req.session.user && req.session.user.isAdmin) });
+});
+
 // The public marketing site (repo root, one level up from this app) is
 // served from here too, so this app's own URL is the one link that shows
 // everything — the marketing pages alongside the Members Area.
