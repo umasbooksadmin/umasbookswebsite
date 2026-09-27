@@ -22,15 +22,19 @@ router.get("/sessions", async (req, res) => {
   res.render("sessions", { weeks, view: range.view, ...range.nav });
 });
 
-// A separate, fully public read-only calendar for the marketing site's
-// English Immersion page (see /immersion.html) — same schedule as
-// /sessions, but no seats-left info and no Add to Cart, since it's meant
-// to be linked to from outside the shop as a quick "what's on" preview.
+// A separate, fully public calendar for the marketing site's English
+// Immersion page (see /immersion.html) — same schedule as /sessions, and
+// now also sells drop-in seats the same way (cart/checkout, no account
+// needed) so a visitor arriving from outside the shop doesn't have to
+// find their way to /sessions to book one. Weekly Immersion sessions
+// (no dropin_price) stay informational, since those are enrolled in via
+// pre-registration.html rather than bought per-session.
 router.get("/immersion/calendar", async (req, res) => {
   const range = resolveCalendarRange(req.query, 1);
 
   const { rows: classes } = await pool.query(
-    `SELECT c.* FROM classes c WHERE c.starts_at >= $1 AND c.starts_at < $2 ORDER BY c.starts_at ASC`,
+    `SELECT c.*, ${seatsTakenExpr("c")}::int AS seats_taken
+     FROM classes c WHERE c.starts_at >= $1 AND c.starts_at < $2 ORDER BY c.starts_at ASC`,
     [range.start, range.end]
   );
 

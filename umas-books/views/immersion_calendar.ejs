@@ -1,5 +1,6 @@
 <%- include('partials/header', { title: 'English Immersion Calendar', extraCss: ['/floral-calendar.css'] }) %>
 
+<% const qs = view === 'week' ? `view=week&week=${currentWeek}` : `month=${currentMonth}`; %>
 <% const prevHref = view === 'week' ? `view=week&week=${prevWeek}` : `month=${prevMonth}`; %>
 <% const nextHref = view === 'week' ? `view=week&week=${nextWeek}` : `month=${nextMonth}`; %>
 <% const monWeeks = view === 'week' ? weeks : mondayFirstWeeks(weeks); %>
@@ -23,6 +24,10 @@
 </section>
 
 <div class="fcal-wrap">
+  <div class="fcal-legend">
+    <span class="fcal-legend-item"><span class="fcal-legend-swatch tone-dropin"></span> Drop-in</span>
+    <span class="fcal-legend-item"><span class="fcal-legend-swatch tone-season"></span> Season</span>
+  </div>
   <div class="fcal-grid">
     <% ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].forEach(d => { %><div class="fcal-weekday"><%= d %></div><% }) %>
     <% monWeeks.forEach(week => { %>
@@ -33,10 +38,37 @@
           <div class="fcal-day<%= day.isToday ? ' is-today' : '' %>">
             <div class="fcal-daynum"><%= day.day %></div>
             <% day.items.forEach(c => { %>
-              <div class="fcal-session <%= toneForClassTitle(c.title) %>">
-                <div class="fcal-session-title"><%= c.title %></div>
-                <div class="fcal-session-time"><%= formatTime(c.starts_at) %></div>
-              </div>
+              <% const sellsDropin = c.dropin_price != null; %>
+              <% if (sellsDropin) { %>
+                <% const spotsLeft = c.capacity != null ? Math.max(0, c.capacity - c.seats_taken) : null; %>
+                <% const full = spotsLeft != null && spotsLeft <= 0; %>
+                <details class="fcal-session tone-dropin">
+                  <summary>
+                    <div class="fcal-session-title"><%= c.title %></div>
+                    <div class="fcal-session-time"><%= formatTime(c.starts_at) %></div>
+                    <div class="fcal-session-seats">
+                      &euro;<%= Number(c.dropin_price).toFixed(2) %><%= spotsLeft != null ? ' · ' + spotsLeft + ' place' + (spotsLeft === 1 ? '' : 's') + ' left' : '' %>
+                    </div>
+                  </summary>
+                  <div class="fcal-session-details">
+                    <% if (full) { %>
+                      <div class="fcal-session-cta" style="opacity:0.6; cursor:default;">Full</div>
+                    <% } else { %>
+                      <form method="post" action="/cart/add-dropin">
+                        <%- include('partials/csrf_field') %>
+                        <input type="hidden" name="classId" value="<%= c.id %>">
+                        <input type="hidden" name="backTo" value="/immersion/calendar?<%= qs %>">
+                        <button type="submit" class="fcal-session-cta">Add to Cart</button>
+                      </form>
+                    <% } %>
+                  </div>
+                </details>
+              <% } else { %>
+                <div class="fcal-session tone-season">
+                  <div class="fcal-session-title"><%= c.title %></div>
+                  <div class="fcal-session-time"><%= formatTime(c.starts_at) %></div>
+                </div>
+              <% } %>
             <% }) %>
           </div>
         <% } %>
