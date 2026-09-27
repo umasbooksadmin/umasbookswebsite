@@ -23,6 +23,18 @@ header.mkt-header a:hover, footer.mkt-footer a:hover { text-decoration: none; }
 }
 .skip-link:focus { top: 0; outline: 2px solid #fff; outline-offset: -4px; }
 
+/* Generic browser-back link shown above <main> on every page except the
+   member dashboard (see hideBackLink in partials/header.ejs) and pages
+   that already have their own more specific "back to X" link. Uses the
+   global --maroon from style.css's :root, same reasoning as .skip-link
+   above — it sits outside header.mkt-header's scoped copy. */
+.site-back-bar { max-width: 1480px; margin: 0 auto; padding: 0 32px 14px; }
+.site-back-link {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 15px;
+  font-family: 'Cormorant Garamond', Georgia, serif; color: var(--maroon); text-decoration: none;
+}
+.site-back-link:hover { text-decoration: underline; }
+
 /* ---------- Header ---------- */
 /* Stamp logo on the left, sans-serif nav, labelled icon tools on the
    right. The header's lower half is left open beside the logo so a page

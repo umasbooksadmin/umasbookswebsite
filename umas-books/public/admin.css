@@ -36,6 +36,8 @@
 /* ---------- Main area ---------- */
 .admin-main { padding: 28px 36px 60px; max-width: 1400px; }
 .admin-topbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 26px; flex-wrap: wrap; }
+.admin-back-link { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: var(--maroon); text-decoration: none; margin-bottom: 8px; }
+.admin-back-link:hover { text-decoration: underline; }
 .admin-topbar h1 { font-size: 30px; margin: 0 0 4px; }
 .admin-topbar .sub { color: var(--ink-soft); font-size: 16px; margin: 0; }
 .admin-topbar-tools { display: flex; align-items: center; gap: 14px; }

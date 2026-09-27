@@ -52,4 +52,7 @@
     </div>
   </div>
 </header>
+<% if (typeof hideBackLink === "undefined" || !hideBackLink) { %>
+<div class="site-back-bar"><a href="#" class="site-back-link" onclick="history.back(); return false;">&larr; Back</a></div>
+<% } %>
 <main id="main-content" tabindex="-1" class="<%= typeof mainClass !== 'undefined' ? mainClass : 'wrap' %>">

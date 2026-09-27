@@ -21,6 +21,7 @@ const { attachUser } = require("./middleware/auth");
 const { csrfProtection } = require("./middleware/csrf");
 const { expireStaleReservations, sendPickupReminders } = require("./lib/reservations");
 const { expireStaleCartHolds, reconcilePendingOrders } = require("./lib/cart");
+const { expireStaleMemberships } = require("./lib/membership");
 const { alertOnError } = require("./lib/errorAlert");
 
 const authRoutes = require("./routes/auth");
@@ -267,6 +268,7 @@ app.listen(port, () => {
 function runReservationMaintenance() {
   expireStaleReservations(pool).catch((err) => console.error("Reservation expiry failed:", err));
   sendPickupReminders(pool).catch((err) => console.error("Pickup reminders failed:", err));
+  expireStaleMemberships(pool).catch((err) => console.error("Membership expiry failed:", err));
 }
 runReservationMaintenance();
 setInterval(runReservationMaintenance, 6 * 60 * 60 * 1000);

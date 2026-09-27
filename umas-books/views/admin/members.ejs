@@ -8,6 +8,7 @@
         <span>
           <strong><%= m.display_name %></strong> &middot; <%= m.email %><%= m.is_admin ? ' · admin' : '' %>
           <% if (m.is_member) { %> &middot; <span class="status-pill paid">Member</span><% } %>
+          <% if (m.member_expires_at) { %> <span class="muted small">(<%= new Date(m.member_expires_at) < new Date() ? 'expired' : 'renews' %> <%= formatDate(m.member_expires_at) %>)</span><% } %>
         </span>
         <span style="margin-left:auto; display:flex; gap:8px;">
           <form method="post" action="/admin/members/<%= m.id %>/toggle-member">

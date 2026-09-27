@@ -42,6 +42,9 @@
   <main id="admin-main-content" tabindex="-1" class="admin-main">
     <div class="admin-topbar">
       <div>
+        <% if (active !== "overview") { %>
+          <a href="#" class="admin-back-link" onclick="history.back(); return false;">&larr; Back</a>
+        <% } %>
         <h1><%= typeof pageTitle !== "undefined" ? pageTitle : "Dashboard" %></h1>
         <% if (typeof pageSub !== "undefined") { %><p class="sub"><%= pageSub %></p><% } %>
       </div>

@@ -40,6 +40,7 @@
   </div>
 </header>
 
+<div class="site-back-bar"><a href="#" class="site-back-link" onclick="history.back(); return false;">&larr; Back</a></div>
 <main id="main-content" tabindex="-1">
   <section class="h-hero" style="min-height:0;">
     <img class="art art-left" src="assets/img/hero-left.png" alt="">
@@ -79,61 +80,12 @@
     </div>
   </section>
 
-  <div class="mem-layout">
-    <div>
-      <div class="mem-form-title" data-i18n="mem.form.h">Register for Membership</div>
-      <form class="mem-form" data-mailto="admin@umasbooks.org" data-subject="Membership Registration" novalidate>
-        <div class="mem-row">
-          <div class="field">
-            <label for="mem-first"><span data-i18n="mem.f.first.l">First name</span> <span class="req">*</span></label>
-            <input id="mem-first" type="text" data-field="First name" autocomplete="given-name" required>
-          </div>
-          <div class="field">
-            <label for="mem-last"><span data-i18n="mem.f.last.l">Last name</span> <span class="req">*</span></label>
-            <input id="mem-last" type="text" data-field="Last name" autocomplete="family-name" required>
-          </div>
-        </div>
-        <div class="field">
-          <label for="mem-email"><span data-i18n="mem.f.email.l">Email address</span> <span class="req">*</span></label>
-          <input id="mem-email" type="email" data-field="Email address" autocomplete="email" required>
-        </div>
-        <div class="field">
-          <label for="mem-phone" data-i18n="mem.f.phone.l">Phone number (optional)</label>
-          <input id="mem-phone" type="tel" data-field="Phone number" autocomplete="tel">
-        </div>
-        <div class="field">
-          <label for="mem-notes" data-i18n="mem.f.notes.l">Anything you’d like us to know? (optional)</label>
-          <textarea id="mem-notes" data-field="Additional notes"></textarea>
-        </div>
-
-        <label class="mem-check">
-          <input type="checkbox" required>
-          <span data-i18n-html="mem.f.terms">I agree to the <a href="membership-terms.html">membership terms</a> and <a href="privacy-policy.html">privacy policy</a>. <span class="req">*</span></span>
-        </label>
-        <label class="mem-check">
-          <input type="checkbox" data-field="Wants updates" value="Yes">
-          <span data-i18n="mem.f.updates">I’d like to receive news and updates from Uma’s Books &amp; Adventures. (optional)</span>
-        </label>
-
-        <button type="submit" class="mem-submit"><span data-i18n="mem.submit">Submit Membership Registration</span> <span aria-hidden="true">&rarr;</span></button>
-        <p class="mem-form-hint" data-i18n="mem.hint">This opens your email app with your registration ready to send — we’ll be in touch with the next steps and payment details.</p>
-      </form>
-    </div>
-
-    <aside class="mem-sidebar">
-      <div class="mem-price-card">
-        <img class="mem-medallion" src="assets/img/medallion-donate.png" alt="">
-        <div class="mem-price">20 &euro;</div>
-        <p class="mem-price-note" data-i18n="mem.price.note">one-time membership payment</p>
-        <hr class="mem-rule">
-        <p class="mem-payment-note" data-i18n="mem.price.d">Payment is made after your registration has been reviewed and confirmed.</p>
-      </div>
-      <div class="mem-next-steps">
-        <p data-i18n="mem.next.p1">Once registered, we’ll get back to you with the next steps and payment details.</p>
-        <hr class="mem-rule">
-        <p data-i18n="mem.next.p2">Your membership is confirmed once the 20&euro; one-time membership payment has been completed.</p>
-      </div>
-    </aside>
+  <div class="mem-widget-wrap">
+    <div class="mem-form-title" data-i18n="mem.form.h">Join Uma’s Books &amp; Adventures</div>
+    <p class="mem-widget-note" data-i18n-html="mem.widget.p">Sign-up and payment are handled securely by HelloAsso below. Membership lasts 12 months from your payment date and your account is activated automatically once it goes through — no need to contact us. By joining you agree to our <a href="membership-terms.html">membership terms</a> and <a href="privacy-policy.html">privacy policy</a>.</p>
+    <iframe id="haWidget" allow="payment 'self' https://paymenthub.helloassopay.com https://helloasso.com" allowtransparency="true" scrolling="auto" src="https://www.helloasso.com/associations/umasbooks/adhesions/uma-s-books-memberships/widget" style="width: 100%; height: 750px; border: none;" onload="window.addEventListener('message', function(e) { const dataHeight = e.data.height; const haWidgetElement = document.getElementById('haWidget');
+  if (dataHeight > parseFloat(haWidgetElement.height || 0)) { haWidgetElement.height = dataHeight + 'px';}})"></iframe>
+    <p class="mem-widget-hint" data-i18n="mem.widget.hint">Already a member and just renewing? Use the same email address you use to log in here so your account updates automatically.</p>
   </div>
 </main>
 
@@ -170,20 +122,9 @@ window.PAGE_I18N = {
     "mem.b4.d": "Take part in selected talks, activities and community experiences.",
     "mem.b5.t": "A free tote bag",
     "mem.b5.d": "Collect your member tote bag from Uma’s Books & Adventures. We’ll let you know when it’s ready for pickup.",
-    "mem.form.h": "Register for Membership",
-    "mem.f.first.l": "First name",
-    "mem.f.last.l": "Last name",
-    "mem.f.email.l": "Email address",
-    "mem.f.phone.l": "Phone number (optional)",
-    "mem.f.notes.l": "Anything you’d like us to know? (optional)",
-    "mem.f.terms": "I agree to the <a href=\"membership-terms.html\">membership terms</a> and <a href=\"privacy-policy.html\">privacy policy</a>. <span class=\"req\">*</span>",
-    "mem.f.updates": "I’d like to receive news and updates from Uma’s Books & Adventures. (optional)",
-    "mem.submit": "Submit Membership Registration",
-    "mem.hint": "This opens your email app with your registration ready to send — we’ll be in touch with the next steps and payment details.",
-    "mem.price.note": "one-time membership payment",
-    "mem.price.d": "Payment is made after your registration has been reviewed and confirmed.",
-    "mem.next.p1": "Once registered, we’ll get back to you with the next steps and payment details.",
-    "mem.next.p2": "Your membership is confirmed once the 20€ one-time membership payment has been completed."
+    "mem.form.h": "Join Uma’s Books & Adventures",
+    "mem.widget.p": "Sign-up and payment are handled securely by HelloAsso below. Membership lasts 12 months from your payment date and your account is activated automatically once it goes through — no need to contact us. By joining you agree to our <a href=\"membership-terms.html\">membership terms</a> and <a href=\"privacy-policy.html\">privacy policy</a>.",
+    "mem.widget.hint": "Already a member and just renewing? Use the same email address you use to log in here so your account updates automatically."
   },
   fr: {
     "mem.hero.kicker": "Uma’s Books & Adventures",
@@ -201,20 +142,9 @@ window.PAGE_I18N = {
     "mem.b4.d": "Participez à des conférences, activités et moments de rencontre choisis.",
     "mem.b5.t": "Un tote bag offert",
     "mem.b5.d": "Récupérez votre tote bag de membre chez Uma’s Books & Adventures. Nous vous préviendrons dès qu’il sera prêt.",
-    "mem.form.h": "Inscription à l’adhésion",
-    "mem.f.first.l": "Prénom",
-    "mem.f.last.l": "Nom",
-    "mem.f.email.l": "Adresse e-mail",
-    "mem.f.phone.l": "Numéro de téléphone (facultatif)",
-    "mem.f.notes.l": "Quelque chose à nous faire savoir ? (facultatif)",
-    "mem.f.terms": "J’accepte les <a href=\"membership-terms.html\">conditions d’adhésion</a> et la <a href=\"privacy-policy.html\">politique de confidentialité</a>. <span class=\"req\">*</span>",
-    "mem.f.updates": "Je souhaite recevoir des nouvelles d’Uma’s Books & Adventures. (facultatif)",
-    "mem.submit": "Envoyer l’inscription",
-    "mem.hint": "Cela ouvre votre application de messagerie avec votre inscription prête à envoyer — nous reviendrons vers vous avec les prochaines étapes et les modalités de paiement.",
-    "mem.price.note": "paiement unique d’adhésion",
-    "mem.price.d": "Le paiement est demandé une fois votre inscription examinée et confirmée.",
-    "mem.next.p1": "Une fois inscrit(e), nous reviendrons vers vous avec les prochaines étapes et les modalités de paiement.",
-    "mem.next.p2": "Votre adhésion est confirmée une fois le paiement unique de 20€ effectué."
+    "mem.form.h": "Rejoignez Uma’s Books & Adventures",
+    "mem.widget.p": "L’inscription et le paiement sont gérés en toute sécurité par HelloAsso ci-dessous. L’adhésion dure 12 mois à partir de la date de paiement et votre compte est activé automatiquement une fois le paiement effectué — inutile de nous contacter. En adhérant, vous acceptez nos <a href=\"membership-terms.html\">conditions d’adhésion</a> et notre <a href=\"privacy-policy.html\">politique de confidentialité</a>.",
+    "mem.widget.hint": "Déjà membre et vous renouvelez simplement ? Utilisez la même adresse e-mail que celle de votre compte pour qu’il soit mis à jour automatiquement."
   }
 };
 </script>

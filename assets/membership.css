@@ -1,9 +1,10 @@
 /* Uma's Books & Adventures — Membership page (membership.html).
    Reuses the Home page hero art positioning (assets/home.css, loaded
-   before this file); everything below is specific to this page. No
-   backend yet — the form submits as a mailto: (see form[data-mailto]
-   in assets/site.js), same pattern as the Volunteer/Wishlist/
-   Pre-Registration pages. */
+   before this file); everything below is specific to this page.
+   Sign-up and payment happen in the embedded HelloAsso widget
+   (.mem-widget-wrap) rather than a form on this page — see
+   src/routes/helloassoWebhook.js in umas-books for how a payment there
+   gets synced back to a site account's membership status. */
 
 /* ---------- Hero ---------- */
 .mem-hero-copy { position: relative; z-index: 1; text-align: center; padding: 50px 24px 30px; max-width: 720px; margin: 0 auto; }
@@ -49,6 +50,11 @@
   max-width: 1140px; margin: 0 auto 60px; padding: 0 28px;
 }
 @media (max-width: 900px) { .mem-layout { grid-template-columns: 1fr; } }
+
+.mem-widget-wrap { max-width: 720px; margin: 0 auto 60px; padding: 0 28px; }
+.mem-widget-note { font-size: 15px; color: var(--ink-soft); line-height: 1.5; margin: 0 0 22px; }
+.mem-widget-note a { text-decoration: underline; }
+.mem-widget-hint { font-size: 14px; color: var(--ink-soft); margin: 18px 0 0; }
 
 .mem-form-title {
   display: flex; align-items: baseline; gap: 14px; margin: 0 0 22px;

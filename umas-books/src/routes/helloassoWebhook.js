@@ -1,8 +1,21 @@
 const express = require("express");
 const { pool } = require("../db");
 const { reconcileOrder } = require("../lib/cart");
+const { syncMembershipForEmail } = require("../lib/membership");
 
 const router = express.Router();
+
+// Looks up a dotted path across a couple of possible shapes: an "Order"
+// event has formType directly under data, while a "Payment" event nests
+// it under data.order instead — payer.email, though, sits at data.payer
+// in both (see dev.helloasso.com's Order/Payment notification examples).
+function pick(obj, paths) {
+  for (const path of paths) {
+    const value = path.split(".").reduce((o, k) => (o == null ? undefined : o[k]), obj);
+    if (value != null) return value;
+  }
+  return undefined;
+}
 
 // HelloAsso calls this after Order/Payment events (configured from the
 // organization's HelloAsso dashboard under Mon Compte > Intégrations et
@@ -42,7 +55,17 @@ router.post("/webhooks/helloasso", express.json(), async (req, res) => {
       order = rows[0];
     }
     if (!order) {
-      console.warn("HelloAsso webhook: couldn't match a local order to this notification:", JSON.stringify(body).slice(0, 500));
+      // Not one of our own shop/checkout orders — check whether it's a
+      // payment on the HelloAsso-hosted membership form instead (those
+      // aren't created through our API, so there's no local order row
+      // to match in the first place).
+      const formType = pick(body, ["data.formType", "data.order.formType"]);
+      const payerEmail = pick(body, ["data.payer.email"]);
+      if (formType === "Membership" && payerEmail) {
+        await syncMembershipForEmail(pool, payerEmail);
+      } else {
+        console.warn("HelloAsso webhook: couldn't match a local order to this notification:", JSON.stringify(body).slice(0, 500));
+      }
       return;
     }
     await reconcileOrder(pool, order);

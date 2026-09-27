@@ -1,4 +1,4 @@
-<%- include('partials/header', { title: book.title }) %>
+<%- include('partials/header', { title: book.title, hideBackLink: true }) %>
 
 <p><a href="/books<%= backGenre ? '?genre=' + encodeURIComponent(backGenre) : '' %>">&larr; Back to <%= backGenre || 'Books' %></a></p>
 

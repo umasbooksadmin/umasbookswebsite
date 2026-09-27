@@ -58,6 +58,18 @@ a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visib
   transition: top 0.15s ease;
 }
 .skip-link:focus { top: 0; outline: 2px solid #fff; outline-offset: -4px; }
+
+/* Generic browser-back link shown above <main> on every marketing page
+   except the homepage (index.html) — see .site-back-bar markup right
+   after </header> in each page. Kept in sync by hand with the matching
+   rule in umas-books/public/site-header.css. */
+.site-back-bar { max-width: 1180px; margin: 0 auto; padding: 0 28px 14px; }
+.site-back-link {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 15px;
+  font-family: 'Cormorant Garamond', Georgia, serif; color: var(--maroon); text-decoration: none;
+}
+.site-back-link:hover { text-decoration: underline; }
+
 h1, h2, h3 { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; color: var(--ink); margin: 0; text-wrap: balance; }
 img { max-width: 100%; display: block; }
 

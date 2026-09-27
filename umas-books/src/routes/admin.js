@@ -133,12 +133,17 @@ router.get("/admin/orders", requireAdmin, async (req, res) => {
 // ---------- Accounts ----------
 
 router.get("/admin/members", requireAdmin, async (req, res) => {
-  const { rows: members } = await pool.query("SELECT id, email, display_name, is_admin, is_member FROM users ORDER BY created_at DESC LIMIT 200");
+  const { rows: members } = await pool.query("SELECT id, email, display_name, is_admin, is_member, member_expires_at FROM users ORDER BY created_at DESC LIMIT 200");
   res.render("admin/members", { active: "members", members });
 });
 
 router.post("/admin/members/:id/toggle-member", requireAdmin, async (req, res) => {
-  await pool.query("UPDATE users SET is_member = NOT is_member WHERE id = $1", [Number(req.params.id)]);
+  // Clears member_expires_at on manual toggle so a hand-granted membership
+  // doesn't get silently expired by the HelloAsso-driven backstop sweep
+  // (see expireStaleMemberships in lib/membership.js), and so re-granting
+  // status to someone whose paid membership lapsed starts as indefinite
+  // rather than reusing their old (past) expiry date.
+  await pool.query("UPDATE users SET is_member = NOT is_member, member_expires_at = NULL WHERE id = $1", [Number(req.params.id)]);
   res.redirect("/admin/members");
 });
 

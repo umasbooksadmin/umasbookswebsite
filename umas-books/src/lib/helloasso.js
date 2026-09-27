@@ -93,4 +93,22 @@ function isOrderPaid(checkoutIntent) {
   return Array.isArray(payments) && payments.some((p) => p.state === "Authorized");
 }
 
-module.exports = { isConfigured, createCheckoutIntent, getCheckoutIntent, isOrderPaid };
+// Membership is sold through a HelloAsso-hosted "Adhésion" form rather
+// than a checkout intent we create ourselves, so there's no local order
+// to look up by id the way reconcileOrder does — the payer's email is
+// the only link back to a site account. This mirrors this module's
+// existing rule of never trusting a webhook body: whatever the webhook
+// claims, syncMembershipForEmail (see lib/membership.js) re-verifies by
+// asking HelloAsso's API for this org's actual Membership-form orders.
+async function findMembershipOrdersByEmail(email) {
+  const params = new URLSearchParams({
+    formTypes: "Membership",
+    userSearchKey: email,
+    pageSize: "50",
+    sortOrder: "Desc",
+  });
+  const data = await apiRequest("GET", `/organizations/${ORG_SLUG}/orders?${params.toString()}`);
+  return Array.isArray(data && data.data) ? data.data : [];
+}
+
+module.exports = { isConfigured, createCheckoutIntent, getCheckoutIntent, isOrderPaid, findMembershipOrdersByEmail };
