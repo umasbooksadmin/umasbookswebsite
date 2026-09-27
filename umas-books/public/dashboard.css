@@ -21,22 +21,6 @@
   .dash-hero-photo { max-height: 220px; }
 }
 
-/* ---------- Quick-action cards ---------- */
-.dash-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-bottom: 40px; }
-.dash-card {
-  display: block; text-align: center; padding: 26px 16px; border-radius: 8px; background: #eef1ea;
-}
-.dash-card.tone-rose { background: #f7dfe0; }
-.dash-card.tone-tan { background: #f3e5cf; }
-.dash-card .icon {
-  width: 52px; height: 52px; margin: 0 auto 14px; border-radius: 50%; background: rgba(255,255,255,0.6);
-  display: flex; align-items: center; justify-content: center; color: var(--maroon-dark);
-}
-.dash-card .icon svg { width: 24px; height: 24px; }
-.dash-card h3 { font-size: 18px; font-weight: 600; margin: 0 0 6px; line-height: 1.25; }
-.dash-card .sub { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); }
-@media (max-width: 760px) { .dash-cards { grid-template-columns: 1fr 1fr; } }
-
 /* ---------- Announcements + Charity row ---------- */
 .dash-row { display: grid; grid-template-columns: 1.5fr 1fr; gap: 24px; margin-bottom: 44px; align-items: start; }
 @media (max-width: 900px) { .dash-row { grid-template-columns: 1fr; } }
@@ -46,6 +30,8 @@
 .dash-panel-head h2 { font-size: 24px; color: var(--maroon); margin: 0; }
 .dash-panel-head::after { content: ""; flex: 1 1 auto; height: 1px; background: var(--maroon); opacity: 0.4; }
 .dash-panel-head a { font-size: 14px; white-space: nowrap; }
+
+.dash-view-all { display: inline-block; margin-top: 16px; font-size: 14.5px; color: var(--maroon); }
 
 .dash-ann-list { list-style: none; margin: 0; padding: 0; }
 .dash-ann-item { display: flex; gap: 14px; padding: 12px 0; border-top: 1px solid var(--card-border); }
@@ -57,59 +43,33 @@
 
 .dash-charity { background: #fbe7e4; border-radius: 8px; padding: 22px 24px; }
 .dash-charity h2 { font-size: 24px; color: var(--maroon); margin: 0 0 16px; }
-.dash-charity .photo-block {
-  height: 130px; border-radius: 6px; margin-bottom: 14px; display: flex; align-items: center; justify-content: center;
-  border: 1px dashed rgba(166, 83, 71, 0.4); color: var(--maroon-dark); font-size: 13px; background: rgba(255,255,255,0.5);
-}
+.dash-charity .photo-block { width: 100%; height: 150px; object-fit: cover; border-radius: 6px; margin-bottom: 14px; }
 .dash-charity h3 { font-size: 19px; margin: 0 0 6px; }
 .dash-charity p { font-size: 14.5px; color: var(--ink-soft); line-height: 1.4; margin: 0 0 16px; }
 .dash-charity .btn { width: 100%; text-align: center; }
 .dash-charity .muted-note { font-size: 14px; color: var(--ink-soft); }
 
-/* ---------- New In carousel ---------- */
-.dash-section { margin-bottom: 44px; }
-.dash-section-head { display: flex; align-items: baseline; gap: 16px; margin-bottom: 18px; }
-.dash-section-head h2 { font-size: 26px; color: var(--maroon); margin: 0; }
-.dash-section-head .sub { font-size: 15px; color: var(--ink-soft); }
-.dash-section-head a { margin-left: auto; font-size: 14.5px; white-space: nowrap; }
-
-.dash-track-wrap { position: relative; display: flex; align-items: center; gap: 10px; }
-.dash-track {
-  display: flex; gap: 22px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 4px 2px 8px;
-  scrollbar-width: none;
+/* ---------- Forum / Meetings / Volunteer link cards ---------- */
+.dash-links { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 40px; }
+@media (max-width: 900px) { .dash-links { grid-template-columns: 1fr; } }
+.dash-link-card { border-radius: 8px; padding: 30px 26px; }
+.dash-link-card.tone-green { background: #e4ecdf; }
+.dash-link-card.tone-tan { background: #f6ecd9; }
+.dash-link-icon {
+  width: 56px; height: 56px; border-radius: 50%; background: #fff; display: flex; align-items: center; justify-content: center;
+  margin-bottom: 16px; color: var(--maroon-dark);
 }
-.dash-track::-webkit-scrollbar { display: none; }
-.dash-track .dash-book { flex: 0 0 140px; min-width: 0; scroll-snap-align: start; position: relative; }
-.dash-book a { color: var(--ink); text-decoration: none; display: block; }
-.dash-book .cover { width: 100%; aspect-ratio: 2/3; object-fit: cover; border-radius: 4px; background: var(--card-border); }
-.dash-book .cover-none { display: flex; align-items: center; justify-content: center; font-size: 12px; color: var(--ink-soft); text-align: center; padding: 6px; }
-.dash-book .t { font-size: 15.5px; line-height: 1.2; margin-top: 8px; }
-.dash-book .a { font-size: 13.5px; color: var(--ink-soft); }
-.dash-book .favorite-toggle {
-  position: absolute; top: 6px; right: 6px; z-index: 1; width: 28px; height: 28px; border-radius: 50%;
-  background: rgba(255,255,255,0.85); border: 0; display: flex; align-items: center; justify-content: center;
-  cursor: pointer; color: var(--maroon);
+.dash-link-icon svg { width: 26px; height: 26px; }
+.dash-link-card h2 { display: flex; align-items: baseline; gap: 12px; font-size: 22px; color: var(--ink); margin: 0 0 12px; }
+.dash-link-card h2::after { content: ""; flex: 1 1 auto; height: 1px; background: currentColor; opacity: 0.25; }
+.dash-link-card p { font-size: 14.5px; color: var(--ink-soft); line-height: 1.5; margin: 0 0 20px; }
+.dash-link-btn {
+  display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: 999px; color: #fff;
+  text-decoration: none; font-size: 14.5px; font-weight: 600;
 }
-.dash-book .favorite-toggle svg { width: 15px; height: 15px; fill: none; }
-.dash-book .favorite-toggle.is-favorite svg { fill: currentColor; }
-.dash-arrow {
-  flex: 0 0 auto; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--card-border);
-  background: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--ink);
-}
-.dash-arrow:hover { border-color: var(--maroon); color: var(--maroon); }
-
-/* ---------- Upcoming Adventures ---------- */
-.dash-events { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
-@media (max-width: 760px) { .dash-events { grid-template-columns: 1fr; } }
-.dash-event { display: flex; gap: 14px; }
-.dash-event .badge {
-  flex: 0 0 auto; width: 58px; height: 58px; border-radius: 6px; background: #f3e5cf;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-}
-.dash-event .badge .mo { font-size: 11.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--maroon-dark); }
-.dash-event .badge .day { font-size: 20px; font-weight: 700; line-height: 1; }
-.dash-event h3 { font-size: 17px; margin: 0 0 3px; }
-.dash-event p { font-size: 14px; color: var(--ink-soft); margin: 0; line-height: 1.3; }
+.dash-link-card.tone-green .dash-link-btn { background: var(--green); }
+.dash-link-card.tone-tan .dash-link-btn { background: var(--gold-dark); }
+.dash-link-btn:hover { opacity: 0.9; text-decoration: none; }
 
 /* ---------- Utility links (forum / volunteer / meetings / account) ---------- */
 .dash-utility { text-align: center; font-size: 14.5px; color: var(--ink-soft); margin: 8px 0 40px; }

@@ -1,0 +1,23 @@
+<%- include('partials/header', { title: 'Announcements', extraCss: ['/dashboard.css'] }) %>
+
+<h1>Announcements</h1>
+
+<% if (!announcements.length) { %>
+  <p class="muted">Nothing posted yet.</p>
+<% } else { %>
+  <ul class="dash-ann-list">
+    <% announcements.forEach(a => { %>
+      <li class="dash-ann-item">
+        <% if (a.image_url) { %><img src="<%= a.image_url %>" alt=""><% } %>
+        <div>
+          <div class="dash-ann-date"><%= a.is_pinned ? '\u{1F4CC} ' : '' %><%= formatDate(a.published_at) %></div>
+          <h3><%= a.title %></h3>
+          <% if (a.excerpt) { %><p><%= a.excerpt %></p><% } %>
+          <div class="rich-content"><%- a.body %></div>
+        </div>
+      </li>
+    <% }) %>
+  </ul>
+<% } %>
+
+<%- include('partials/footer') %>
