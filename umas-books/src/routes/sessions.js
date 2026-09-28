@@ -11,18 +11,21 @@ const router = express.Router();
 // separate, off-calendar flow (see pre-registration.html). This used to
 // be duplicated as its own page at /immersion/calendar (same query,
 // different view) for visitors arriving from immersion.html — merged
-// back into this one route; see the redirect below.
+// back into this one route; see the redirect below. ?type=dropin filters
+// to just the bookable sessions, for anyone who only wants to see what
+// they can drop in on right now rather than the full program schedule.
 router.get("/sessions", async (req, res) => {
   const range = resolveCalendarRange(req.query, 1);
+  const dropinOnly = req.query.type === "dropin";
 
   const { rows: classes } = await pool.query(
     `SELECT c.*, ${seatsTakenExpr("c")}::int AS seats_taken
-     FROM classes c WHERE c.starts_at >= $1 AND c.starts_at < $2 ORDER BY c.starts_at ASC`,
+     FROM classes c WHERE c.starts_at >= $1 AND c.starts_at < $2 ${dropinOnly ? "AND c.dropin_price IS NOT NULL" : ""} ORDER BY c.starts_at ASC`,
     [range.start, range.end]
   );
 
   const weeks = range.buildWeeks(groupByDate(classes, "starts_at"));
-  res.render("sessions", { weeks, view: range.view, ...range.nav });
+  res.render("sessions", { weeks, view: range.view, dropinOnly, ...range.nav });
 });
 
 // immersion.html and programs.html still link here — keep the URL alive

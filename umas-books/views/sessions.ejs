@@ -1,8 +1,10 @@
 <%- include('partials/header', { title: 'Upcoming Sessions', extraCss: ['/floral-calendar.css'], mainClass: view === 'week' ? 'wrap-wide' : 'wrap' }) %>
 
-<% const qs = view === 'week' ? `view=week&week=${currentWeek}` : `month=${currentMonth}`; %>
-<% const prevHref = view === 'week' ? `view=week&week=${prevWeek}` : `month=${prevMonth}`; %>
-<% const nextHref = view === 'week' ? `view=week&week=${nextWeek}` : `month=${nextMonth}`; %>
+<% const typeQs = dropinOnly ? '&type=dropin' : ''; %>
+<% const qs = (view === 'week' ? `view=week&week=${currentWeek}` : `month=${currentMonth}`) + typeQs; %>
+<% const prevHref = (view === 'week' ? `view=week&week=${prevWeek}` : `month=${prevMonth}`) + typeQs; %>
+<% const nextHref = (view === 'week' ? `view=week&week=${nextWeek}` : `month=${nextMonth}`) + typeQs; %>
+<% const periodQs = view === 'week' ? `view=week&week=${currentWeek}` : `month=${currentMonth}`; %>
 <% const monWeeks = view === 'week' ? weeks : mondayFirstWeeks(weeks); %>
 
 <section class="fcal-hero">
@@ -17,8 +19,12 @@
       <a href="/sessions?<%= nextHref %>" aria-label="Next">&rsaquo;</a>
     </div>
     <div class="fcal-view-toggle">
-      <a href="/sessions" class="<%= view === 'month' ? 'is-active' : '' %>">Month</a>
-      <a href="/sessions?view=week" class="<%= view === 'week' ? 'is-active' : '' %>">Week</a>
+      <a href="/sessions<%= dropinOnly ? '?type=dropin' : '' %>" class="<%= view === 'month' ? 'is-active' : '' %>">Month</a>
+      <a href="/sessions?view=week<%= typeQs %>" class="<%= view === 'week' ? 'is-active' : '' %>">Week</a>
+    </div>
+    <div class="fcal-view-toggle">
+      <a href="/sessions?<%= periodQs %>" class="<%= !dropinOnly ? 'is-active' : '' %>">All Sessions</a>
+      <a href="/sessions?<%= periodQs %>&type=dropin" class="<%= dropinOnly ? 'is-active' : '' %>">Drop-ins Only</a>
     </div>
   </div>
 </section>
