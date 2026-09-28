@@ -28,6 +28,13 @@ template change.
 `route-map.html` is a static viewer for that JSON — a searchable, filterable
 table, one row per page, expandable to see the link detail.
 
+`flowchart.html` is a second viewer for the same JSON — one flowchart per
+persona, laid out by BFS over that persona's real links starting from their
+actual landing page (`/` for a guest or plain account, `/dashboard` for a
+member or volunteer, `/admin` for an admin). Any page that persona can
+genuinely open (a real 200) but that has no path back to their landing page
+is listed separately as orphaned for them, rather than silently dropped.
+
 ## Prerequisites
 
 - The app running locally against a database you're fine crawling (this
@@ -63,20 +70,23 @@ test accounts, edit the `PASSWORD` constant at the top of the file.
 
 ## Viewing the result
 
-`route-map.html` expects the report JSON inlined in place of the
-`window.REPORT = __REPORT_JSON__;` placeholder. Generate a viewable copy:
+Both viewers expect the report JSON inlined in place of their
+`window.REPORT = __REPORT_JSON__;` placeholder. Generate a viewable copy of
+either (or both):
 
 ```bash
 node -e "
 const fs = require('fs');
-const html = fs.readFileSync('scripts/sitemap/route-map.html', 'utf8');
-const report = fs.readFileSync('scripts/sitemap/report.json', 'utf8');
-fs.writeFileSync('scripts/sitemap/route-map-filled.html', html.replace('__REPORT_JSON__', report));
+['route-map', 'flowchart'].forEach(name => {
+  const html = fs.readFileSync('scripts/sitemap/' + name + '.html', 'utf8');
+  const report = fs.readFileSync('scripts/sitemap/report.json', 'utf8');
+  fs.writeFileSync('scripts/sitemap/' + name + '-filled.html', html.replace('__REPORT_JSON__', report));
+});
 "
-open scripts/sitemap/route-map-filled.html
+open scripts/sitemap/route-map-filled.html scripts/sitemap/flowchart-filled.html
 ```
 
-`routes.json`, `crawl.json`, `report.json`, and `route-map-filled.html` are
+`routes.json`, `crawl.json`, `report.json`, and the `-filled.html` files are
 all generated output — regenerate them rather than editing by hand, and
 don't commit them (they contain a snapshot of your data, e.g. real IDs
 picked up from the crawl).
