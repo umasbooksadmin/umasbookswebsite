@@ -43,7 +43,7 @@
     <div class="admin-topbar">
       <div>
         <% if (active !== "overview") { %>
-          <a href="#" class="admin-back-link" onclick="history.back(); return false;">&larr; Back</a>
+          <a href="#" class="admin-back-link">&larr; Back</a>
         <% } %>
         <h1><%= typeof pageTitle !== "undefined" ? pageTitle : "Dashboard" %></h1>
         <% if (typeof pageSub !== "undefined") { %><p class="sub"><%= pageSub %></p><% } %>

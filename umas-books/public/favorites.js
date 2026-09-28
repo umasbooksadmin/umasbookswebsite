@@ -1,6 +1,6 @@
 // Favorites are per-browser only (localStorage), not tied to an
-// account — matches the rest of the public site (search, wishlist) not
-// needing to log in. Any ".favorite-toggle[data-book-id]" button on any
+// account — matches the rest of the public site (search) not needing to
+// log in. Any ".favorite-toggle[data-book-id]" button on any
 // page gets wired up automatically; the Favorites page itself (see
 // favorites.ejs) also uses UmasFavorites.get()/sync() to fetch and
 // render the saved list.

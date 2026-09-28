@@ -21,13 +21,13 @@
       <a href="books.html" class="is-active" aria-current="page" data-i18n="nav.books">Browse Books</a>
       <a href="immersion.html" data-i18n="nav.programs">English Programs</a>
       <a href="events.html" data-i18n="nav.events">Events</a>
+      <a href="membership.html" data-i18n="nav.membership">Membership</a>
+      <a href="about.html" data-i18n="nav.about">About</a>
     </nav>
     <div class="h-tools">
       <a class="h-tool fav" href="/favorites"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 20.5s-8-4.9-10-9.8C.6 7 2.9 4 6.2 4c2.2 0 4 1.3 5.8 3.5C13.8 5.3 15.6 4 17.8 4 21.1 4 23.4 7 22 10.7c-2 4.9-10 9.8-10 9.8z"/></svg><span class="label"><span data-i18n="tool.favorites">Favorites</span></span></a>
-      <a class="h-tool" href="wishlist.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.8 2H4.2z"/><path d="M10 20.5a2 2 0 0 0 4 0"/><path d="M12 3v2"/></svg><span class="label"><span data-i18n="tool.alerts">Alerts</span></span></a>
       <a class="h-tool" href="/account"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2.5h12v19l-2.5-1.6-2 1.6-2-1.6-2 1.6-2-1.6L6 21.5z"/><path d="M8.5 7h7M8.5 10.5h7M8.5 14h4.5"/></svg><span class="label"><span data-i18n="tool.account">My Account</span></span></a>
       <a class="h-tool" href="/cart"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 3.5h3l2.4 11.2a1.5 1.5 0 0 0 1.5 1.2h9.3a1.5 1.5 0 0 0 1.5-1.2L21.5 7H6"/><path d="M8 11h12.5"/><circle cx="9.5" cy="19.5" r="1.4"/><circle cx="17.5" cy="19.5" r="1.4"/></svg><span class="label"><span data-i18n="tool.cart">Cart</span> (<span data-cart-count>0</span>)</span></a>
-      <a class="h-tool" href="/dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></svg><span class="label"><span data-i18n="tool.members">Member’s Access</span></span></a>
       <a class="h-tool" href="/login"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="8" r="4.2"/><path d="M4 21c0-4.4 3.6-7.5 8-7.5s8 3.1 8 7.5z" stroke-linejoin="round"/></svg><span class="label"><span data-i18n="tool.login">Log In</span></span></a>
       <div class="langtoggle" role="group" aria-label="Language / Langue">
         <button type="button" data-lang="en" class="is-active" aria-pressed="true">EN</button>
@@ -97,14 +97,6 @@
   <section class="bk-band">
     <div class="bk-band-row">
       <div class="bk-band-item">
-        <span class="badge" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15L6 16z"/><path d="M10 20.5a2 2 0 0 0 4 0"/><path d="M12 3v2"/></svg></span>
-        <div>
-          <h3 data-i18n="bk.band.alert.t">Find Something Specific?</h3>
-          <p data-i18n="bk.band.alert.d">Get notified when a book, author or topic you love arrives in the shop.</p>
-        </div>
-        <a class="btn btn-outline" href="wishlist.html" data-i18n="bk.band.alert.cta">Set an alert</a>
-      </div>
-      <div class="bk-band-item">
         <span class="badge light" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 20C5 11 10 5 20 4c-.5 9-6.5 14-15 16z"/><path d="M5 20 14 11"/><path d="M9 16H6.5"/><path d="M12 13V9.5"/><path d="M12 13h3.5"/></svg></span>
         <div>
           <h3 data-i18n="bk.band.purpose.t">A Bookshop with a Bigger Purpose</h3>
@@ -128,7 +120,6 @@
     <ul>
       <li><a href="/contact" data-i18n="foot.contact">Contact Us</a></li>
       <li><a href="visit.html">Albi, France</a></li>
-      <li><a href="volunteer.html" data-i18n="foot.volunteer">Volunteer</a></li>
       <li><a href="privacy-policy.html" data-i18n="foot.privacy">Privacy Policy</a></li>
     </ul>
     <div class="h-social">
@@ -158,13 +149,10 @@ window.PAGE_I18N = {
     "bk.prev": "Previous",
     "bk.next": "Next",
     "bk.loading": "Loading books…",
-    "bk.empty": "No books match that search — try another word, or set an alert and we'll let you know when it arrives.",
+    "bk.empty": "No books match that search — try another word.",
     "bk.error": "Couldn't load books right now — try again in a moment.",
     "bk.nocover": "No cover",
     "bk.fav": "Favorite",
-    "bk.band.alert.t": "Find Something Specific?",
-    "bk.band.alert.d": "Get notified when a book, author or topic you love arrives in the shop.",
-    "bk.band.alert.cta": "Set an alert",
     "bk.band.purpose.t": "A Bookshop with a Bigger Purpose",
     "bk.band.purpose.d": "All profits go back into the bookstore to fund more events, books and a local charity chosen quarterly.",
     "bk.band.donate.t": "Donate Books",
@@ -202,13 +190,10 @@ window.PAGE_I18N = {
     "bk.prev": "Précédent",
     "bk.next": "Suivant",
     "bk.loading": "Chargement des livres…",
-    "bk.empty": "Aucun livre ne correspond — essayez un autre mot, ou créez une alerte et nous vous préviendrons de son arrivée.",
+    "bk.empty": "Aucun livre ne correspond — essayez un autre mot.",
     "bk.error": "Impossible de charger les livres pour le moment — réessayez dans un instant.",
     "bk.nocover": "Pas de couverture",
     "bk.fav": "Favori",
-    "bk.band.alert.t": "Vous cherchez quelque chose de précis ?",
-    "bk.band.alert.d": "Soyez prévenu·e quand un livre, un auteur ou un sujet que vous aimez arrive en boutique.",
-    "bk.band.alert.cta": "Créer une alerte",
     "bk.band.purpose.t": "Une librairie avec une vraie mission",
     "bk.band.purpose.d": "Tous les bénéfices sont réinvestis dans la librairie pour financer des événements, des livres et une association locale choisie chaque trimestre.",
     "bk.band.donate.t": "Donner des livres",

@@ -1,3 +1,16 @@
+// The "← Back" link in partials/header.ejs and partials/admin_header.ejs
+// used to run history.back() from an inline onclick attribute, which the
+// app's CSP (script-src-attr 'none', set in src/index.js) silently
+// blocks — every click did nothing. Delegated here instead, since this
+// script loads on both the public dynamic pages and the admin panel.
+document.addEventListener("click", function (e) {
+  var backLink = e.target.closest(".site-back-link, .admin-back-link");
+  if (backLink) {
+    e.preventDefault();
+    history.back();
+  }
+});
+
 document.addEventListener("click", function (e) {
   var btn = e.target.closest("[data-toggle-password]");
   if (!btn) return;

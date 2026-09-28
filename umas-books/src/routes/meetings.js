@@ -1,11 +1,11 @@
 const express = require("express");
 const { pool } = require("../db");
-const { requireAuth } = require("../middleware/auth");
+const { requireMember } = require("../middleware/auth");
 const { groupByDate, resolveCalendarRange, calendarBackQuery } = require("../lib/calendar");
 
 const router = express.Router();
 
-router.get("/meetings", requireAuth, async (req, res) => {
+router.get("/meetings", requireMember, async (req, res) => {
   const userId = req.session.user.id;
   const range = resolveCalendarRange(req.query, 0);
 
@@ -25,7 +25,7 @@ router.get("/meetings", requireAuth, async (req, res) => {
   res.render("meetings", { weeks, rsvpedMeetingIds, past, view: range.view, ...range.nav });
 });
 
-router.post("/meetings/:id/rsvp", requireAuth, async (req, res) => {
+router.post("/meetings/:id/rsvp", requireMember, async (req, res) => {
   const meetingId = Number(req.params.id);
   const userId = req.session.user.id;
   await pool.query(
@@ -36,7 +36,7 @@ router.post("/meetings/:id/rsvp", requireAuth, async (req, res) => {
   res.redirect(backQuery ? `/meetings?${backQuery}` : "/meetings");
 });
 
-router.post("/meetings/:id/unrsvp", requireAuth, async (req, res) => {
+router.post("/meetings/:id/unrsvp", requireMember, async (req, res) => {
   const meetingId = Number(req.params.id);
   const userId = req.session.user.id;
   await pool.query("DELETE FROM meeting_rsvps WHERE meeting_id = $1 AND user_id = $2", [meetingId, userId]);

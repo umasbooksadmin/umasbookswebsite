@@ -176,7 +176,7 @@
 .bk-band { background: #f0ece6; margin-top: 8px; }
 .bk-band-row {
   max-width: 1480px; margin: 0 auto; padding: 16px 32px;
-  display: grid; grid-template-columns: 1.25fr 1fr 1.25fr; gap: 24px; align-items: center;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: center;
 }
 .bk-band-item { display: flex; align-items: center; gap: 18px; }
 .bk-band-item .badge {

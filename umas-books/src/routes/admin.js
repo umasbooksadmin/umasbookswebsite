@@ -1,4 +1,5 @@
 const express = require("express");
+const path = require("path");
 const sharp = require("sharp");
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
@@ -11,7 +12,7 @@ const { normalizeIsbn, lookupByIsbn, searchByTitleAuthor, translateGenresToFrenc
 const { extractBookInfoFromPhoto } = require("../lib/coverVision");
 const { generateBookDescription, translateDescriptionToFrench } = require("../lib/bookDescription");
 const { CONDITIONS, STATUSES, normalizeCondition, normalizeStatus, normalizeGenres } = require("../lib/inventory");
-const { expireStaleReservations, matchWishlistOnArrival } = require("../lib/reservations");
+const { expireStaleReservations } = require("../lib/reservations");
 const { seatsTakenExpr } = require("../lib/classCapacity");
 const { sanitizeHtml } = require("../lib/sanitizeHtml");
 const { CHARITY_CATEGORIES } = require("../lib/charityCategories");
@@ -122,6 +123,12 @@ router.get("/admin", requireAdmin, async (req, res) => {
       memberCount: memberCount.rows[0].n,
     },
   });
+});
+
+// Temporary team reference, not linked from the public site — drop this
+// route and the file it serves once the team has seen it.
+router.get("/admin/team-sitemap", requireAdmin, (req, res) => {
+  res.sendFile(path.join(__dirname, "..", "internal", "team-sitemap.html"));
 });
 
 // ---------- Orders ----------
@@ -1425,12 +1432,6 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
     [bookId, condition, price, acquisitionCost, acquiredAt, status, notes, req.session.user.id]
   );
 
-  // A copy arriving as in_stock might be exactly what someone's on the
-  // wishlist for — claim it for them instead of leaving it up for grabs.
-  if (status === "in_stock") {
-    await matchWishlistOnArrival(pool, { bookId, copyId: copyRows[0].id, title });
-  }
-
   if (req.body.fromScan === "1") return res.redirect("/admin/inventory/scan?saved=1");
   res.redirect(`/admin/inventory/${bookId}`);
 });
@@ -1520,36 +1521,6 @@ router.post("/admin/inventory/:id/copies/:copyId/delete", requireAdmin, async (r
     return res.redirect("/admin/inventory");
   }
   res.redirect(`/admin/inventory/${bookId}`);
-});
-
-// ---------- Wishlist ----------
-
-router.get("/admin/wishlist", requireAdmin, async (req, res) => {
-  const { rows: requests } = await pool.query(
-    "SELECT * FROM wishlist_requests ORDER BY status ASC, created_at DESC"
-  );
-  res.render("admin/wishlist", { active: "wishlist", requests });
-});
-
-router.post("/admin/wishlist/:id/fulfill", requireAdmin, async (req, res) => {
-  await pool.query(
-    "UPDATE wishlist_requests SET status = 'fulfilled', updated_at = now() WHERE id = $1",
-    [Number(req.params.id)]
-  );
-  res.redirect("/admin/wishlist");
-});
-
-router.post("/admin/wishlist/:id/reopen", requireAdmin, async (req, res) => {
-  await pool.query(
-    "UPDATE wishlist_requests SET status = 'open', updated_at = now() WHERE id = $1",
-    [Number(req.params.id)]
-  );
-  res.redirect("/admin/wishlist");
-});
-
-router.post("/admin/wishlist/:id/delete", requireAdmin, async (req, res) => {
-  await pool.query("DELETE FROM wishlist_requests WHERE id = $1", [Number(req.params.id)]);
-  res.redirect("/admin/wishlist");
 });
 
 module.exports = router;

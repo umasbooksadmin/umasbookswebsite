@@ -35,7 +35,6 @@ const eventsRoutes = require("./routes/events");
 const blogRoutes = require("./routes/blog");
 const sessionsRoutes = require("./routes/sessions");
 const booksRoutes = require("./routes/books");
-const wishlistRoutes = require("./routes/wishlist");
 const contactRoutes = require("./routes/contact");
 const cartRoutes = require("./routes/cart");
 const helloassoWebhookRoutes = require("./routes/helloassoWebhook");
@@ -155,13 +154,19 @@ app.get("/api/csrf-token", (req, res) => {
 });
 
 // Same idea as /api/cart/count above: the marketing site's static HTML
-// has no server-side session rendering, so it can't know an admin is
-// logged in the way the EJS pages' shared header does (see
-// partials/header.ejs) — this lets its plain <script> (assets/site.js)
-// ask, and only exposes the one boolean actually needed for that link.
+// has no server-side session rendering, so it can't know a visitor is
+// logged in (to swap "Log In" for "Log Out"), a member (for the
+// Member's Access icon), or an admin (for the Admin link) the way the
+// EJS pages' shared header does (see partials/header.ejs) — this lets
+// its plain <script> (assets/site.js) ask, and only exposes the
+// booleans actually needed for those links.
 app.get("/api/session", (req, res) => {
   res.set("Cache-Control", "no-store");
-  res.json({ isAdmin: Boolean(req.session.user && req.session.user.isAdmin) });
+  res.json({
+    loggedIn: Boolean(req.session.user),
+    isMember: Boolean(req.session.user && req.session.user.isMember),
+    isAdmin: Boolean(req.session.user && req.session.user.isAdmin),
+  });
 });
 
 // The public marketing site (repo root, one level up from this app) is
@@ -186,7 +191,7 @@ const marketingCsp = [
 const MARKETING_PAGES = [
   "about.html", "blog.html", "books.html", "events.html", "programs.html",
   "immersion.html", "pre-registration.html", "membership.html", "visit.html",
-  "volunteer.html", "wishlist.html", "privacy-policy.html", "membership-terms.html",
+  "volunteer.html", "privacy-policy.html", "membership-terms.html",
 ];
 
 app.use("/assets", express.static(path.join(marketingRoot, "assets")));
@@ -233,7 +238,6 @@ app.use(blogRoutes);
 app.use(sessionsRoutes);
 app.use(booksRoutes);
 app.use(cartRoutes);
-app.use(wishlistRoutes);
 app.use(contactRoutes);
 app.use(adminRoutes);
 

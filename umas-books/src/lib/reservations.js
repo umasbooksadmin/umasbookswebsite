@@ -34,7 +34,10 @@ async function sendPickupReminders(pool) {
 
   for (const copy of rows) {
     try {
-      const greeting = copy.reserved_by_name === WISHLIST_RESERVED_NAME ? "Hi," : `Hi ${copy.reserved_by_name},`;
+      // "Wishlist match" is a legacy reserved_by_name from the retired
+      // wishlist feature — those reservations have no real person's name
+      // to greet by, so fall back to a plain "Hi,".
+      const greeting = copy.reserved_by_name === "Wishlist match" ? "Hi," : `Hi ${copy.reserved_by_name},`;
       await sendMail({
         to: copy.reserved_by_email,
         subject: `Reminder: your copy of "${copy.title}" is waiting for pickup`,
@@ -47,41 +50,5 @@ async function sendPickupReminders(pool) {
   }
 }
 
-const WISHLIST_RESERVED_NAME = "Wishlist match";
 
-// Called right after a new copy is added to inventory (scan or manual
-// add) — if there's an open wishlist request for the same title, claim
-// this copy for that requester instead of leaving it in_stock: mark the
-// copy reserved (reusing the same 2-week TTL/reminder machinery above),
-// mark the wishlist request fulfilled, and email them. Matches on exact
-// title (case-insensitive, trimmed) — no fuzzy matching, to avoid a
-// false match reserving the wrong person's book. Returns true if a
-// match was claimed.
-async function matchWishlistOnArrival(pool, { bookId, copyId, title }) {
-  const { rows } = await pool.query(
-    `SELECT * FROM wishlist_requests
-     WHERE status = 'open' AND LOWER(TRIM(title)) = LOWER(TRIM($1))
-     ORDER BY created_at ASC LIMIT 1`,
-    [title]
-  );
-  const match = rows[0];
-  if (!match) return false;
-
-  await pool.query(
-    `UPDATE book_copies SET status = 'reserved', reserved_by_name = $1, reserved_by_email = $2,
-            reserved_by_phone = NULL, reserved_at = now(), reminder_sent_at = NULL, updated_at = now()
-     WHERE id = $3 AND book_id = $4`,
-    [WISHLIST_RESERVED_NAME, match.email, copyId, bookId]
-  );
-  await pool.query("UPDATE wishlist_requests SET status = 'fulfilled', updated_at = now() WHERE id = $1", [match.id]);
-
-  sendMail({
-    to: match.email,
-    subject: `"${title}" is in stock at Uma's Books`,
-    text: `Hi,\n\nGood news — a copy of "${title}" that you asked us to look out for just came in. We've set it aside for you at Uma's Books.\n\nPlease come by within the next 2 weeks to pick it up and pay in the shop. We'll send a reminder a few days before that window closes.\n\nUma's Books\nRue Peyroliere, 81000 Albi`,
-  }).catch((err) => console.error("Wishlist arrival email failed:", err.message));
-
-  return true;
-}
-
-module.exports = { expireStaleReservations, sendPickupReminders, matchWishlistOnArrival };
+module.exports = { expireStaleReservations, sendPickupReminders };

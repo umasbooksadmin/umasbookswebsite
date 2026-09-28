@@ -5,10 +5,10 @@
       "nav.books": "Browse Books",
       "nav.programs": "English Programs",
       "nav.events": "Events",
+      "nav.membership": "Membership",
       "nav.about": "About",
       "nav.visit": "Visit Us",
       "tool.favorites": "Favorites",
-      "tool.alerts": "Alerts",
       "tool.login": "Log In",
       "tool.logout": "Log Out",
       "tool.members": "Member’s Access",
@@ -20,9 +20,7 @@
       "foot.creativity": "Creativity",
       "foot.contact": "Contact Us",
       "foot.visit": "Visit Us",
-      "foot.volunteer": "Volunteer",
       "foot.membership": "Membership",
-      "foot.wishlist": "Notify Me",
       "foot.favorites": "Favorites",
       "foot.privacy": "Privacy Policy"
     },
@@ -31,10 +29,10 @@
       "nav.books": "Parcourir les livres",
       "nav.programs": "Programmes d’anglais",
       "nav.events": "Événements",
+      "nav.membership": "Adhésion",
       "nav.about": "À propos",
       "nav.visit": "Nous rendre visite",
       "tool.favorites": "Favoris",
-      "tool.alerts": "Alertes",
       "tool.login": "Connexion",
       "tool.logout": "Déconnexion",
       "tool.members": "Espace membres",
@@ -46,9 +44,7 @@
       "foot.creativity": "Créativité",
       "foot.contact": "Nous contacter",
       "foot.visit": "Nous rendre visite",
-      "foot.volunteer": "Bénévolat",
       "foot.membership": "Adhésion",
-      "foot.wishlist": "Me prévenir",
       "foot.favorites": "Favoris",
       "foot.privacy": "Politique de confidentialité"
     }
@@ -147,15 +143,19 @@
       .catch(function () {});
   }
 
-  // Adds the "Admin" header link for a logged-in admin on pages that
-  // can't render it server-side (the marketing site's static HTML — see
-  // /api/session). A no-op wherever partials/header.ejs already rendered
-  // it (the dynamic app pages, which also load this script via
-  // partials/footer.ejs), since the guard below finds that link first.
+  // Adds the "Admin" and "Member's Access" header links for a logged-in
+  // admin/member on pages that can't render them server-side (the
+  // marketing site's static HTML — see /api/session). Each is a no-op
+  // wherever partials/header.ejs already rendered it (the dynamic app
+  // pages, which also load this script via partials/footer.ejs), since
+  // the guard below finds that link first. Both insert relative to the
+  // language toggle, the one header-tools element every static page
+  // always has — never the "Log In" link, since loadLoginState() below
+  // may replace that with a "Log Out" form.
   function loadAdminLink() {
     if (!window.fetch || document.querySelector('a.h-tool[href="/admin"]')) return;
-    var dashboardLink = document.querySelector('.h-tools a[href="/dashboard"]');
-    if (!dashboardLink) return;
+    var langToggle = document.querySelector('.h-tools .langtoggle');
+    if (!langToggle) return;
     fetch("/api/session", { credentials: "same-origin", headers: { Accept: "application/json" } })
       .then(function (res) { return res.ok ? res.json() : null; })
       .then(function (data) {
@@ -164,7 +164,65 @@
         a.className = "h-tool";
         a.href = "/admin";
         a.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.5 4 6v6c0 5 3.4 8.4 8 9.5 4.6-1.1 8-4.5 8-9.5V6z"/></svg><span class="label">Admin</span>';
-        dashboardLink.parentNode.insertBefore(a, dashboardLink);
+        langToggle.parentNode.insertBefore(a, langToggle);
+      })
+      .catch(function () {});
+  }
+
+  function loadMemberAccessLink() {
+    if (!window.fetch || document.querySelector('a.h-tool[href="/dashboard"]')) return;
+    var langToggle = document.querySelector('.h-tools .langtoggle');
+    if (!langToggle) return;
+    fetch("/api/session", { credentials: "same-origin", headers: { Accept: "application/json" } })
+      .then(function (res) { return res.ok ? res.json() : null; })
+      .then(function (data) {
+        if (!data || !(data.isMember || data.isAdmin)) return;
+        var a = document.createElement("a");
+        a.className = "h-tool";
+        a.href = "/dashboard";
+        a.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></svg><span class="label">Member’s Access</span>';
+        langToggle.parentNode.insertBefore(a, langToggle);
+      })
+      .catch(function () {});
+  }
+
+  // Swaps the static "Log In" icon for a "Log Out" button when a
+  // session already exists — the marketing site's static HTML always
+  // renders "Log In" (see loadAdminLink's comment above), unlike
+  // partials/header.ejs, which already does this swap server-side. A
+  // logged-in visitor clicking "Log In" would otherwise get silently
+  // redirected away by the server (GET /login sends an existing session
+  // to / or /dashboard instead of showing the form) — this makes the
+  // icon match what actually happens. A no-op wherever header.ejs
+  // already rendered the real logout form (it has no href="/login" to
+  // find).
+  function loadLoginState() {
+    var loginLink = document.querySelector('.h-tools a[href="/login"]');
+    if (!window.fetch || !loginLink) return;
+    fetch("/api/session", { credentials: "same-origin", headers: { Accept: "application/json" } })
+      .then(function (res) { return res.ok ? res.json() : null; })
+      .then(function (data) {
+        if (!data || !data.loggedIn) return;
+        return fetch("/api/csrf-token", { credentials: "same-origin", headers: { Accept: "application/json" } })
+          .then(function (res) { return res.ok ? res.json() : null; })
+          .then(function (csrf) {
+            if (!csrf || !csrf.token) return;
+            var form = document.createElement("form");
+            form.method = "post";
+            form.action = "/logout";
+            var hidden = document.createElement("input");
+            hidden.type = "hidden";
+            hidden.name = "_csrf";
+            hidden.value = csrf.token;
+            var btn = document.createElement("button");
+            btn.type = "submit";
+            btn.className = "h-tool";
+            btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="8" r="4.2"/><path d="M4 21c0-4.4 3.6-7.5 8-7.5s8 3.1 8 7.5z" stroke-linejoin="round"/></svg><span class="label" data-i18n="tool.logout">Log Out</span>';
+            form.appendChild(hidden);
+            form.appendChild(btn);
+            loginLink.parentNode.replaceChild(form, loginLink);
+            apply(document.documentElement.lang);
+          });
       })
       .catch(function () {});
   }
@@ -182,5 +240,7 @@
     apply(initial);
     loadCartCount();
     loadAdminLink();
+    loadMemberAccessLink();
+    loadLoginState();
   });
 })();
