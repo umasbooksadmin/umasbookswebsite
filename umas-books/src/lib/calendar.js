@@ -56,7 +56,7 @@ function monthGrid(year, month, itemsByDate) {
 }
 
 // monthGrid builds Sunday-first weeks; the floral calendar pages
-// (/sessions, /immersion/calendar) display Monday-first. Re-chunking the
+// (/sessions and others sharing its partial) display Monday-first. Re-chunking the
 // flattened days is the only correct way to do that — rotating each
 // Sunday-first row in place would pair every Saturday with the
 // *previous* Sunday instead of the following one.

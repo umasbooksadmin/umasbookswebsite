@@ -1,8 +1,9 @@
 // Color-codes a session by track keyword, matching the age-group cards
-// on the marketing immersion page (immersion.html) — shared by the
-// public /sessions shop calendar and the /immersion/calendar read-only
-// calendar so the two look consistent. Registered as an app.local (see
-// src/index.js) so views can call it directly, same as formatTime.
+// on the marketing immersion page (immersion.html). Used by the public
+// /sessions calendar (immersion.html and programs.html both link here;
+// /immersion/calendar redirects to it — see src/routes/sessions.js).
+// Registered as an app.local (see src/index.js) so views can call it
+// directly, same as formatTime.
 function toneForClassTitle(title) {
   const t = (title || "").toLowerCase();
   if (t.includes("little") || t.includes("explorer")) return "tone-a";

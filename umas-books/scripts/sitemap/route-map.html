@@ -1,0 +1,292 @@
+<title>Uma's Books Route Map</title>
+<style>
+  :root{
+    --bg:#f2f1ec; --surface:#ffffff; --ink:#1b1c19; --muted:#63645c; --line:#ddd9cf;
+    --mono-bg:#eae7dd;
+    --ok:#2f6f4f; --ok-bg:#e6f0e9;
+    --redirect:#8a6a1f; --redirect-bg:#f5eddb;
+    --blocked:#8a4a2f; --blocked-bg:#f5e4db;
+    --notreached:#9a988e; --notreached-bg:#eeece4;
+    --accent:#3a5a78;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#181a17; --surface:#22241f; --ink:#eeece2; --muted:#a3a196; --line:#3a3c34;
+      --mono-bg:#2b2d26;
+      --ok:#7cc79a; --ok-bg:#1e3126;
+      --redirect:#dcb45a; --redirect-bg:#3a3020;
+      --blocked:#e08b6c; --blocked-bg:#3a2620;
+      --notreached:#6b6a60; --notreached-bg:#26271f;
+      --accent:#8fb4d6;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#181a17; --surface:#22241f; --ink:#eeece2; --muted:#a3a196; --line:#3a3c34;
+    --mono-bg:#2b2d26;
+    --ok:#7cc79a; --ok-bg:#1e3126;
+    --redirect:#dcb45a; --redirect-bg:#3a3020;
+    --blocked:#e08b6c; --blocked-bg:#3a2620;
+    --notreached:#6b6a60; --notreached-bg:#26271f;
+    --accent:#8fb4d6;
+    color-scheme: dark;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:'Public Sans','Helvetica Neue',Arial,sans-serif;
+    padding-inline:16px; padding-block:28px 60px; font-size:14px;
+  }
+  .wrap{ max-width:1180px; margin:0 auto; }
+  h1{ font-size:clamp(22px,3.6vw,30px); font-weight:700; margin:0 0 4px; letter-spacing:-0.01em; }
+  .lede{ color:var(--muted); font-size:14px; max-width:70ch; line-height:1.55; margin:0 0 6px; }
+  .meta{ color:var(--muted); font-size:12px; font-family:'IBM Plex Mono',ui-monospace,monospace; margin:0 0 22px; }
+  code, .mono{ font-family:'IBM Plex Mono',ui-monospace,monospace; }
+
+  .toolbar{ display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:14px; position:sticky; top:0; background:var(--bg); padding-block:8px; z-index:5; border-bottom:1px solid var(--line); }
+  .search{ flex:1 1 220px; min-width:180px; }
+  .search input{
+    width:100%; padding:8px 12px; border-radius:8px; border:1px solid var(--line);
+    background:var(--surface); color:var(--ink); font-size:13.5px; font-family:inherit;
+  }
+  .search input:focus{ outline:2px solid var(--accent); outline-offset:1px; }
+  .gate-filter{ display:flex; gap:6px; flex-wrap:wrap; }
+  .chip{
+    font-family:inherit; font-size:12px; font-weight:600; color:var(--muted);
+    background:var(--surface); border:1px solid var(--line); border-radius:999px;
+    padding:6px 12px; cursor:pointer;
+  }
+  .chip.is-active{ background:var(--ink); color:var(--bg); border-color:var(--ink); }
+  .count-badge{ font-size:12px; color:var(--muted); font-family:'IBM Plex Mono',monospace; margin-left:auto; }
+
+  table{ width:100%; border-collapse:collapse; }
+  .table-scroll{ overflow-x:auto; border:1px solid var(--line); border-radius:10px; background:var(--surface); }
+  thead th{
+    text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:var(--muted);
+    padding:10px 12px; border-bottom:1px solid var(--line); white-space:nowrap; position:sticky; top:45px; background:var(--surface);
+  }
+  tbody tr{ border-bottom:1px solid var(--line); cursor:pointer; }
+  tbody tr:last-child{ border-bottom:none; }
+  tbody tr:hover{ background:color-mix(in srgb, var(--accent) 6%, transparent); }
+  tbody td{ padding:9px 12px; vertical-align:middle; }
+  .path-cell{ font-family:'IBM Plex Mono',monospace; font-size:13px; }
+  .path-cell .discovered{ color:var(--muted); font-size:10.5px; margin-left:6px; }
+  .gate-cell{ font-size:11.5px; color:var(--muted); font-family:'IBM Plex Mono',monospace; }
+  .status-pill{
+    display:inline-block; font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:600;
+    padding:2px 7px; border-radius:5px; white-space:nowrap;
+  }
+  .status-2xx{ background:var(--ok-bg); color:var(--ok); }
+  .status-3xx{ background:var(--redirect-bg); color:var(--redirect); }
+  .status-4xx{ background:var(--blocked-bg); color:var(--blocked); }
+  .status-not{ background:var(--notreached-bg); color:var(--notreached); }
+  .expander{ text-align:center; color:var(--muted); width:20px; }
+
+  .detail-row td{ padding:0; }
+  .detail{ display:none; padding:14px 18px 18px; background:color-mix(in srgb, var(--accent) 4%, transparent); border-bottom:1px solid var(--line); }
+  .detail.is-open{ display:block; }
+  .detail-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:16px; }
+  .detail-col h4{ margin:0 0 6px; font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:var(--muted); font-weight:700; }
+  .detail-col ul{ margin:0; padding:0; list-style:none; }
+  .detail-col li{ font-family:'IBM Plex Mono',monospace; font-size:12px; padding:2px 0; color:var(--ink); }
+  .detail-col .empty{ color:var(--muted); font-style:italic; font-family:inherit; font-size:12.5px; }
+  .persona-tag{ display:inline-block; font-size:9.5px; font-family:'Public Sans',sans-serif; font-weight:700; text-transform:uppercase; letter-spacing:0.03em; color:var(--accent); background:color-mix(in srgb, var(--accent) 14%, transparent); border-radius:4px; padding:1px 5px; margin-right:6px; }
+
+  .legend{ display:flex; flex-wrap:wrap; gap:14px 20px; margin:14px 0 18px; font-size:12px; color:var(--muted); }
+  .legend-item{ display:flex; align-items:center; gap:6px; }
+
+  footer.credit{ margin-top:26px; font-size:11.5px; color:var(--muted); line-height:1.6; }
+  footer.credit code{ background:var(--mono-bg); padding:1px 5px; border-radius:4px; }
+</style>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<div class="wrap">
+  <h1>Every page in the app, generated from the code</h1>
+  <p class="lede">Not modeled by hand: <code>route-inventory.js</code> parses every <code>router.get(...)</code> in the actual route files, then <code>crawler.js</code> logs in as five real accounts and fetches every page it can reach, recording exactly what came back and every link the HTML actually contained. Click a row for the detail.</p>
+  <p class="meta" id="meta-line"></p>
+
+  <div class="legend">
+    <div class="legend-item"><span class="status-pill status-2xx">200</span> loads</div>
+    <div class="legend-item"><span class="status-pill status-3xx">302</span> redirected (see detail)</div>
+    <div class="legend-item"><span class="status-pill status-4xx">403</span> blocked</div>
+    <div class="legend-item"><span class="status-pill status-not">&mdash;</span> not reached by this persona</div>
+  </div>
+
+  <div class="toolbar">
+    <div class="search"><input type="text" id="search" placeholder="Filter by path, e.g. /admin or /volunteer…"></div>
+    <div class="gate-filter" id="gate-filter"></div>
+    <div class="count-badge" id="count-badge"></div>
+  </div>
+
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr>
+          <th></th>
+          <th>Path</th>
+          <th>Gate</th>
+          <th>Guest</th>
+          <th>Account</th>
+          <th>Member</th>
+          <th>Volunteer</th>
+          <th>Admin</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+
+  <footer class="credit">
+    Generated <span id="gen-time"></span> against the codebase at that moment &mdash; rerun <code>route-inventory.js</code> + <code>crawler.js</code> + <code>build-report.js</code> after any route or template change to refresh this. This is a real crawl of a real running server under five real logged-in sessions (anonymous, a plain account, a paying member, a volunteer, an admin); nothing here was typed in by hand.
+  </footer>
+</div>
+
+<script>
+window.REPORT = __REPORT_JSON__;
+</script>
+<script>
+(function(){
+  const report = window.REPORT;
+  const personas = report.personas;
+  const personaLabel = { anonymous: "Guest", account: "Account", member: "Member", volunteer: "Volunteer", admin: "Admin" };
+
+  document.getElementById("meta-line").textContent = report.pages.length + " pages found across " + personas.length + " personas.";
+  document.getElementById("gen-time").textContent = new Date(report.generatedAt).toLocaleString();
+
+  function statusClass(s){
+    if (s === "not reached") return "status-not";
+    const code = parseInt(s, 10);
+    if (code >= 200 && code < 300) return "status-2xx";
+    if (code >= 300 && code < 400) return "status-3xx";
+    return "status-4xx";
+  }
+  function statusLabel(s){
+    if (s === "not reached") return "—";
+    return s.split(" -> ")[0];
+  }
+  // A route with no gate of its own isn't necessarily open content — if
+  // all it does is redirect (a legacy-bookmark shim), the real
+  // protection lives at the destination. Distinguish that from actual
+  // public pages instead of lumping both under "public".
+  function gateLabel(page){
+    return page.gate || (page.redirectsTo ? "redirect only" : "public");
+  }
+
+  let activeGate = "all";
+  const gates = ["all", ...new Set(report.pages.map(gateLabel))];
+  const gateFilterEl = document.getElementById("gate-filter");
+  gates.forEach(g => {
+    const btn = document.createElement("button");
+    btn.className = "chip" + (g === "all" ? " is-active" : "");
+    btn.textContent = g === "all" ? "All" : g;
+    btn.dataset.gate = g;
+    btn.addEventListener("click", () => {
+      activeGate = g;
+      gateFilterEl.querySelectorAll(".chip").forEach(c => c.classList.toggle("is-active", c === btn));
+      render();
+    });
+    gateFilterEl.appendChild(btn);
+  });
+
+  const tbody = document.getElementById("tbody");
+  const searchEl = document.getElementById("search");
+  const countBadge = document.getElementById("count-badge");
+  let openPath = null;
+
+  function buildDetail(page){
+    const wrap = document.createElement("div");
+    wrap.className = "detail-grid";
+
+    function col(title, dataByPersona, kind){
+      const c = document.createElement("div");
+      c.className = "detail-col";
+      const h = document.createElement("h4");
+      h.textContent = title;
+      c.appendChild(h);
+      const entries = personas.filter(p => dataByPersona[p] && dataByPersona[p].length);
+      if (!entries.length){
+        const e = document.createElement("div");
+        e.className = "empty";
+        e.textContent = "none found";
+        c.appendChild(e);
+        return c;
+      }
+      const seen = new Map();
+      entries.forEach(p => {
+        dataByPersona[p].forEach(url => {
+          if (!seen.has(url)) seen.set(url, []);
+          seen.get(url).push(p);
+        });
+      });
+      const ul = document.createElement("ul");
+      [...seen.entries()].sort((a,b) => a[0].localeCompare(b[0])).forEach(([url, ps]) => {
+        const li = document.createElement("li");
+        const tags = ps.map(p => '<span class="persona-tag">' + personaLabel[p] + '</span>').join("");
+        li.innerHTML = tags + url;
+        ul.appendChild(li);
+      });
+      c.appendChild(ul);
+      return c;
+    }
+
+    wrap.appendChild(col("Linked from", page.linkedFrom));
+    wrap.appendChild(col("Links to", page.linksTo));
+    wrap.appendChild(col("Submits to (forms)", page.submitsTo));
+    return wrap;
+  }
+
+  function render(){
+    const q = searchEl.value.trim().toLowerCase();
+    const filtered = report.pages.filter(p => {
+      if (activeGate !== "all" && gateLabel(p) !== activeGate) return false;
+      if (q && !p.path.toLowerCase().includes(q)) return false;
+      return true;
+    });
+    countBadge.textContent = filtered.length + " / " + report.pages.length + " pages";
+    tbody.innerHTML = "";
+    filtered.forEach(page => {
+      const tr = document.createElement("tr");
+      tr.innerHTML =
+        '<td class="expander">▸</td>' +
+        '<td class="path-cell">' + page.path + (page.discoveredByCrawlOnly ? '<span class="discovered">crawl-only</span>' : '') + '</td>' +
+        '<td class="gate-cell">' + gateLabel(page) + (page.redirectsTo ? ' <span class="mono" style="color:var(--muted)">&rarr; ' + page.redirectsTo + '</span>' : '') + '</td>' +
+        personas.map(p => {
+          const s = page.status[p];
+          return '<td><span class="status-pill ' + statusClass(s) + '" title="' + (s === "not reached" ? "not reached" : s) + '">' + statusLabel(s) + '</span></td>';
+        }).join("");
+      tr.addEventListener("click", () => toggleDetail(page, tr));
+      tbody.appendChild(tr);
+
+      const detailTr = document.createElement("tr");
+      detailTr.className = "detail-row";
+      const detailTd = document.createElement("td");
+      detailTd.colSpan = 3 + personas.length;
+      const detailDiv = document.createElement("div");
+      detailDiv.className = "detail";
+      detailDiv.dataset.path = page.path;
+      detailTd.appendChild(detailDiv);
+      detailTr.appendChild(detailTd);
+      tbody.appendChild(detailTr);
+    });
+  }
+
+  function toggleDetail(page, tr){
+    const detailDiv = tr.nextSibling.querySelector(".detail");
+    const isOpen = detailDiv.classList.contains("is-open");
+    document.querySelectorAll(".detail.is-open").forEach(d => { d.classList.remove("is-open"); d.innerHTML = ""; });
+    document.querySelectorAll(".expander").forEach(e => e.textContent = "▸");
+    if (!isOpen){
+      detailDiv.appendChild(buildDetail(page));
+      detailDiv.classList.add("is-open");
+      tr.querySelector(".expander").textContent = "▾";
+    }
+  }
+
+  searchEl.addEventListener("input", render);
+  render();
+})();
+</script>

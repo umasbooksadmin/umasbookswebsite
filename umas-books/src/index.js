@@ -65,7 +65,7 @@ app.get("/healthz", async (req, res) => {
 
 // Date/time display helpers, available in every view without importing.
 Object.assign(app.locals, require("./lib/dates"));
-// Session color-coding, shared by /sessions and /immersion/calendar.
+// Session color-coding, used by the /sessions calendar.
 Object.assign(app.locals, require("./lib/sessionTone"));
 app.locals.mondayFirstWeeks = require("./lib/calendar").mondayFirstWeeks;
 
