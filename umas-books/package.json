@@ -27,5 +27,11 @@
     "nodemailer": "^10.0.10",
     "pg": "^8.13.1",
     "sharp": "^0.35.4"
+  },
+  "devDependencies": {
+    "puppeteer": "^25.12.0"
+  },
+  "allowScripts": {
+    "puppeteer@25.12.0": true
   }
 }
