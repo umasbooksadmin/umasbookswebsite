@@ -1,4 +1,19 @@
 (function () {
+  // A double-click (or any accidental repeat click) on "Log Out" fires
+  // two POSTs almost simultaneously; the first destroys the session, so
+  // the second races in with a token that no longer matches anything —
+  // see middleware/csrf.js for the server-side half of this fix.
+  // Disabling the button on first submit stops the second request from
+  // ever going out. Delegated so it covers both the server-rendered
+  // form (partials/header.ejs) and the one this file injects on static
+  // pages (see loadLoginState below).
+  document.addEventListener("submit", function (e) {
+    var form = e.target;
+    if (form.getAttribute("action") !== "/logout") return;
+    var btn = form.querySelector('button[type="submit"]');
+    if (btn) btn.disabled = true;
+  });
+
   var COMMON = {
     en: {
       "nav.home": "Home",
@@ -6,7 +21,6 @@
       "nav.programs": "English Programs",
       "nav.events": "Events",
       "nav.membership": "Membership",
-      "nav.about": "About",
       "nav.visit": "Visit Us",
       "tool.favorites": "Favorites",
       "tool.login": "Log In",
@@ -30,7 +44,6 @@
       "nav.programs": "Programmes d’anglais",
       "nav.events": "Événements",
       "nav.membership": "Adhésion",
-      "nav.about": "À propos",
       "nav.visit": "Nous rendre visite",
       "tool.favorites": "Favoris",
       "tool.login": "Connexion",
@@ -176,7 +189,7 @@
     fetch("/api/session", { credentials: "same-origin", headers: { Accept: "application/json" } })
       .then(function (res) { return res.ok ? res.json() : null; })
       .then(function (data) {
-        if (!data || !(data.isMember || data.isAdmin)) return;
+        if (!data || !(data.isMember || data.isVolunteer || data.isAdmin)) return;
         var a = document.createElement("a");
         a.className = "h-tool";
         a.href = "/dashboard";

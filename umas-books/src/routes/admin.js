@@ -1,5 +1,4 @@
 const express = require("express");
-const path = require("path");
 const sharp = require("sharp");
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
@@ -125,12 +124,6 @@ router.get("/admin", requireAdmin, async (req, res) => {
   });
 });
 
-// Temporary team reference, not linked from the public site — drop this
-// route and the file it serves once the team has seen it.
-router.get("/admin/team-sitemap", requireAdmin, (req, res) => {
-  res.sendFile(path.join(__dirname, "..", "internal", "team-sitemap.html"));
-});
-
 // ---------- Orders ----------
 
 router.get("/admin/orders", requireAdmin, async (req, res) => {
@@ -242,7 +235,7 @@ router.get("/admin/members", requireAdmin, async (req, res) => {
   const offset = (currentPage - 1) * MEMBERS_PAGE_SIZE;
 
   const { rows: members } = await pool.query(
-    `SELECT u.id, u.email, u.display_name, u.is_admin, u.is_member, u.is_disabled, u.member_expires_at, u.created_at, u.last_login_at,
+    `SELECT u.id, u.email, u.display_name, u.is_admin, u.is_member, u.is_volunteer, u.is_disabled, u.member_expires_at, u.created_at, u.last_login_at,
             (SELECT COUNT(*) FROM event_signups es WHERE lower(es.email) = lower(u.email))::int AS events_count,
             (SELECT COUNT(*) FROM class_signups cs WHERE lower(cs.email) = lower(u.email))::int AS programs_count,
             COALESCE(bo.book_count, 0)::int AS books_count,
@@ -289,6 +282,7 @@ router.post("/admin/members", requireAdmin, async (req, res) => {
   const email = (req.body.email || "").trim().toLowerCase();
   const displayName = (req.body.displayName || "").trim();
   const isMember = req.body.isMember === "on";
+  const isVolunteer = req.body.isVolunteer === "on";
   const isAdmin = req.body.isAdmin === "on";
   if (!email || !displayName) return res.redirect("/admin/members");
 
@@ -301,9 +295,9 @@ router.post("/admin/members", requireAdmin, async (req, res) => {
   // their own, exactly like a real signup would.
   const placeholderHash = await bcrypt.hash(crypto.randomBytes(24).toString("hex"), 12);
   const { rows } = await pool.query(
-    `INSERT INTO users (email, password_hash, display_name, is_admin, is_member) VALUES ($1, $2, $3, $4, $5)
+    `INSERT INTO users (email, password_hash, display_name, is_admin, is_member, is_volunteer) VALUES ($1, $2, $3, $4, $5, $6)
      RETURNING id, email, display_name`,
-    [email, placeholderHash, displayName, isAdmin, isMember]
+    [email, placeholderHash, displayName, isAdmin, isMember, isVolunteer]
   );
   try {
     await sendResetLink(rows[0], baseUrl(req));
@@ -321,6 +315,12 @@ router.post("/admin/members/:id/toggle-member", requireAdmin, async (req, res) =
   // rather than reusing their old (past) expiry date.
   const id = Number(req.params.id);
   await pool.query("UPDATE users SET is_member = NOT is_member, member_expires_at = NULL WHERE id = $1", [id]);
+  res.redirect(`/admin/members?view=${id}${membersBackQuery(req)}`);
+});
+
+router.post("/admin/members/:id/toggle-volunteer", requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  await pool.query("UPDATE users SET is_volunteer = NOT is_volunteer WHERE id = $1", [id]);
   res.redirect(`/admin/members?view=${id}${membersBackQuery(req)}`);
 });
 

@@ -52,6 +52,7 @@
         <label>Email</label>
         <input name="email" type="email" required>
         <label class="ann-check"><input type="checkbox" name="isMember"> <span>Mark as a member</span></label>
+        <label class="ann-check"><input type="checkbox" name="isVolunteer"> <span>Mark as a volunteer</span></label>
         <label class="ann-check"><input type="checkbox" name="isAdmin"> <span>Make an admin</span></label>
         <p class="muted small">They'll get an email to set their own password — same link as "Forgot password".</p>
         <button class="btn btn-small" type="submit">Add &amp; Send Invite</button>
@@ -188,6 +189,11 @@
                 <%- include('../partials/csrf_field') %>
                 <input type="hidden" name="backQuery" value="<%= listQs %>">
                 <button class="btn btn-outline btn-small" type="submit"><%= detail.user.is_member ? 'Remove Member Status' : 'Mark as Member' %></button>
+              </form>
+              <form method="post" action="/admin/members/<%= detail.user.id %>/toggle-volunteer">
+                <%- include('../partials/csrf_field') %>
+                <input type="hidden" name="backQuery" value="<%= listQs %>">
+                <button class="btn btn-outline btn-small" type="submit"><%= detail.user.is_volunteer ? 'Remove Volunteer Status' : 'Mark as Volunteer' %></button>
               </form>
               <% if (detail.user.id !== user.id) { %>
                 <form method="post" action="/admin/members/<%= detail.user.id %>/toggle-admin">

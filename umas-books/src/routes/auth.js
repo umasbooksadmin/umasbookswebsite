@@ -32,7 +32,7 @@ const LOGIN_LOCK_DURATION_MS = 15 * 60 * 1000;
 router.get("/signup", (req, res) => {
   if (req.session.user) {
     const u = req.session.user;
-    return res.redirect(u.isAdmin ? "/admin" : u.isMember ? "/dashboard" : "/");
+    return res.redirect(u.isAdmin ? "/admin" : (u.isMember || u.isVolunteer) ? "/dashboard" : "/");
   }
   res.render("signup", { error: null });
 });
@@ -58,11 +58,11 @@ router.post("/signup", authLimiter, async (req, res) => {
     const hash = await bcrypt.hash(password, 12);
     const { rows } = await pool.query(
       `INSERT INTO users (email, password_hash, display_name) VALUES ($1, $2, $3)
-       RETURNING id, email, display_name, is_admin, is_member`,
+       RETURNING id, email, display_name, is_admin, is_member, is_volunteer`,
       [email, hash, displayName]
     );
     const user = rows[0];
-    req.session.user = { id: user.id, email: user.email, displayName: user.display_name, isAdmin: user.is_admin, isMember: user.is_member };
+    req.session.user = { id: user.id, email: user.email, displayName: user.display_name, isAdmin: user.is_admin, isMember: user.is_member, isVolunteer: user.is_volunteer };
     // New accounts aren't members yet (that's a separate step — see
     // Membership), so they land on the regular site, not the Member's
     // Access dashboard. Only actual members/admins go straight there.
@@ -76,7 +76,7 @@ router.post("/signup", authLimiter, async (req, res) => {
 router.get("/login", (req, res) => {
   if (req.session.user) {
     const u = req.session.user;
-    return res.redirect(u.isAdmin ? "/admin" : u.isMember ? "/dashboard" : "/");
+    return res.redirect(u.isAdmin ? "/admin" : (u.isMember || u.isVolunteer) ? "/dashboard" : "/");
   }
   const notice = req.query.reset === "success" ? "Password updated — log in with your new password." : null;
   res.render("login", { error: null, notice });
@@ -131,11 +131,12 @@ router.post("/login", authLimiter, async (req, res) => {
     }
     await pool.query("UPDATE users SET last_login_at = now() WHERE id = $1", [user.id]);
 
-    req.session.user = { id: user.id, email: user.email, displayName: user.display_name, isAdmin: user.is_admin, isMember: user.is_member };
+    req.session.user = { id: user.id, email: user.email, displayName: user.display_name, isAdmin: user.is_admin, isMember: user.is_member, isVolunteer: user.is_volunteer };
     // Logging in doesn't make you a member — only actual members/admins
-    // land on the Member's Access dashboard; everyone else goes to the
-    // regular site, same as a logged-out visitor (see requireMember).
-    res.redirect(user.is_admin ? "/admin" : user.is_member ? "/dashboard" : "/");
+    // (and volunteers, a superset of members — see requireMember) land on
+    // the Member's Access dashboard; everyone else goes to the regular
+    // site, same as a logged-out visitor.
+    res.redirect(user.is_admin ? "/admin" : (user.is_member || user.is_volunteer) ? "/dashboard" : "/");
   } catch (err) {
     console.error(err);
     res.status(500).render("login", { error: "Something went wrong. Please try again.", notice: null });

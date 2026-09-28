@@ -165,6 +165,7 @@ app.get("/api/session", (req, res) => {
   res.json({
     loggedIn: Boolean(req.session.user),
     isMember: Boolean(req.session.user && req.session.user.isMember),
+    isVolunteer: Boolean(req.session.user && req.session.user.isVolunteer),
     isAdmin: Boolean(req.session.user && req.session.user.isAdmin),
   });
 });
@@ -198,12 +199,12 @@ app.use("/assets", express.static(path.join(marketingRoot, "assets")));
 app.get("/logo.png", (req, res) => res.sendFile(path.join(marketingRoot, "logo.png")));
 
 app.get("/", (req, res) => {
-  // Only an actual member/admin gets bounced to the Member's Access
-  // dashboard — a logged-in visitor who isn't a member sees the regular
+  // Only an actual member/volunteer/admin gets bounced to the Member's
+  // Access dashboard — a logged-in visitor who isn't gets the regular
   // homepage like anyone else (see requireMember), otherwise this and
   // /dashboard's own redirect would loop forever on each other.
   const u = req.session.user;
-  if (u && (u.isAdmin || u.isMember)) return res.redirect("/dashboard");
+  if (u && (u.isAdmin || u.isMember || u.isVolunteer)) return res.redirect("/dashboard");
   res.set("Content-Security-Policy", marketingCsp);
   res.sendFile(path.join(marketingRoot, "index.html"));
 });

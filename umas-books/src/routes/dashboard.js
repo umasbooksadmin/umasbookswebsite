@@ -20,11 +20,12 @@ const LIVE_ANNOUNCEMENTS_WHERE = `
 // partials/header.ejs and every static marketing page) is more likely
 // looking to become a member than to log in to an account they don't
 // have yet, so they land on the membership sign-up page instead of
-// /login. A logged-in account that isn't a member/admin still goes to
-// the regular site, same as requireMember everywhere else.
+// /login. A logged-in account that isn't a member/volunteer/admin still
+// goes to the regular site, same as requireMember everywhere else.
 function requireMemberOrOfferSignup(req, res, next) {
   if (!req.session.user) return res.redirect("/membership.html");
-  if (!req.session.user.isAdmin && !req.session.user.isMember) return res.redirect("/");
+  const u = req.session.user;
+  if (!u.isAdmin && !u.isMember && !u.isVolunteer) return res.redirect("/");
   next();
 }
 

@@ -1,11 +1,11 @@
 const express = require("express");
 const { pool } = require("../db");
-const { requireAuth } = require("../middleware/auth");
+const { requireVolunteer } = require("../middleware/auth");
 const { groupByDate, resolveCalendarRange, calendarBackQuery } = require("../lib/calendar");
 
 const router = express.Router();
 
-router.get("/volunteer", requireAuth, async (req, res) => {
+router.get("/volunteer", requireVolunteer, async (req, res) => {
   const userId = req.session.user.id;
   const range = resolveCalendarRange(req.query, 0);
 
@@ -28,7 +28,7 @@ router.get("/volunteer", requireAuth, async (req, res) => {
   res.render("volunteer", { weeks, mySignedUpIds, myShifts: mySignups, view: range.view, ...range.nav });
 });
 
-router.post("/volunteer/:id/signup", requireAuth, async (req, res) => {
+router.post("/volunteer/:id/signup", requireVolunteer, async (req, res) => {
   const shiftId = Number(req.params.id);
   const userId = req.session.user.id;
   const backQuery = calendarBackQuery(req.query);
@@ -52,7 +52,7 @@ router.post("/volunteer/:id/signup", requireAuth, async (req, res) => {
   res.redirect(redirectUrl);
 });
 
-router.post("/volunteer/:id/cancel", requireAuth, async (req, res) => {
+router.post("/volunteer/:id/cancel", requireVolunteer, async (req, res) => {
   const shiftId = Number(req.params.id);
   const userId = req.session.user.id;
   await pool.query("DELETE FROM volunteer_signups WHERE shift_id = $1 AND user_id = $2", [shiftId, userId]);

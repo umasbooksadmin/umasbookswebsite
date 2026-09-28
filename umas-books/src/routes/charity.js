@@ -40,7 +40,7 @@ async function loadActiveRound(userId) {
 // behavior of sending a non-member away.
 router.get("/charity", async (req, res) => {
   const user = req.session.user;
-  const isMember = Boolean(user && (user.isAdmin || user.isMember));
+  const isMember = Boolean(user && (user.isAdmin || user.isMember || user.isVolunteer));
   const charity = await loadActiveRound(user ? user.id : null);
 
   const publiclyVisible = charity && charity.round.visible_to === "everyone";

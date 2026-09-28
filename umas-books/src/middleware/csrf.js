@@ -9,6 +9,16 @@ function csrfProtection(req, res, next) {
   if (req.method === "POST") {
     const token = req.body && req.body._csrf;
     if (!token || token !== req.session.csrfToken) {
+      // A double-click (or any near-simultaneous double submit) on the
+      // Log Out button races two POSTs against the same token: the first
+      // destroys the session, so the second always looks like a stale
+      // token here. That's harmless for this one route — the user
+      // already got what they wanted — so treat it as "already logged
+      // out" instead of showing a dead-end error for a request that
+      // succeeded a moment earlier.
+      if (req.path === "/logout") {
+        return req.session.destroy(() => res.redirect("/"));
+      }
       return res.status(403).send("Your session expired or this form is out of date. Please go back and try again.");
     }
   }
