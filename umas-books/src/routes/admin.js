@@ -219,7 +219,7 @@ router.get("/admin/members", requireAdmin, async (req, res) => {
     where.push(`(u.display_name ILIKE $${params.length} OR u.email ILIKE $${params.length})`);
   }
   if (role === "admin") where.push("u.is_admin = TRUE");
-  if (role === "member") where.push("u.is_admin = FALSE");
+  if (role === "member") where.push("u.is_member = TRUE");
   if (status === "active") where.push("u.is_disabled = FALSE");
   if (status === "inactive") where.push("u.is_disabled = TRUE");
   if (dateRange === "7d") where.push("u.created_at >= now() - interval '7 days'");
@@ -268,7 +268,10 @@ router.get("/admin/members", requireAdmin, async (req, res) => {
   const panel = ["overview", "activity", "edit"].includes(req.query.panel) ? req.query.panel : "overview";
 
   res.render("admin/members", {
-    active: "members",
+    // Accounts and the new Members quick-link both land here (the same
+    // list, just pre-filtered) — this distinguishes which sidebar entry
+    // should highlight without needing two separate routes.
+    active: role === "member" ? "members-filter" : "members",
     members,
     stats,
     detail,

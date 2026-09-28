@@ -1,4 +1,10 @@
-<%- include('../partials/admin_header', { title: 'Accounts', active: active, pageTitle: 'Accounts', pageSub: 'Manage members, admins, and their activity.' }) %>
+<% const isMembersView = filters.role === 'member'; %>
+<%- include('../partials/admin_header', {
+  title: isMembersView ? 'Members' : 'Accounts',
+  active: active,
+  pageTitle: isMembersView ? 'Members' : 'Accounts',
+  pageSub: isMembersView ? 'Everyone with paid membership.' : 'Manage members, admins, and their activity.',
+}) %>
 
 <%
   function membersQs(overrides) {

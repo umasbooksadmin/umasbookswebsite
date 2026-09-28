@@ -47,11 +47,23 @@ function extractLinks(html) {
   return { navigable: [...navigable], submits: [...submits] };
 }
 
-function normalize(url) {
+// The static marketing pages link to each other with relative hrefs
+// (e.g. books.html has href="about.html#donate", not "/about.html") —
+// resolving those correctly means resolving against the page that
+// contains them, not just checking for a leading slash. A relative href
+// resolves against its page's own path the same way a browser does: on
+// a page at /books.html, "about.html" replaces the last path segment
+// and becomes /about.html, not /books.html/about.html.
+function normalize(url, fromPath) {
   if (SKIP_SCHEME.test(url)) return null;
-  if (/^https?:\/\//i.test(url)) return null; // external
-  let u = url.split("#")[0].split("?")[0];
-  if (!u.startsWith("/")) return null;
+  let resolved;
+  try {
+    resolved = new URL(url, "http://sitemap-crawler.invalid" + fromPath);
+  } catch (e) {
+    return null;
+  }
+  if (resolved.hostname !== "sitemap-crawler.invalid") return null; // external host
+  const u = resolved.pathname;
   if (ASSET_EXT.test(u)) return null;
   return u;
 }
@@ -112,7 +124,7 @@ async function crawlPersona(name, jar, seeds) {
     if (res.status >= 300 && res.status < 400) {
       const loc = res.headers.get("location");
       visited[url] = { status: res.status, redirectTo: loc };
-      const norm = loc ? normalize(loc) : null;
+      const norm = loc ? normalize(loc, url) : null;
       if (norm && !queued.has(norm)) { queue.push(norm); queued.add(norm); }
       continue;
     }
@@ -121,8 +133,8 @@ async function crawlPersona(name, jar, seeds) {
     visited[url] = { status: res.status };
     if (res.status >= 200 && res.status < 300 && html) {
       const { navigable, submits } = extractLinks(html);
-      const navUniq = [...new Set(navigable.map(normalize).filter(Boolean))];
-      const submitUniq = [...new Set(submits.map(normalize).filter(Boolean))];
+      const navUniq = [...new Set(navigable.map((l) => normalize(l, url)).filter(Boolean))];
+      const submitUniq = [...new Set(submits.map((l) => normalize(l, url)).filter(Boolean))];
       for (const link of navUniq) {
         edges.push({ from: url, to: link, type: "link" });
         if (!queued.has(link)) { queue.push(link); queued.add(link); }
