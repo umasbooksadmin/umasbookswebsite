@@ -28,13 +28,14 @@
 <div class="fcal-wrap<%= view === 'week' ? ' is-week' : '' %>">
   <div class="fcal-grid">
     <% ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].forEach(d => { %><div class="fcal-weekday"><%= d %></div><% }) %>
+    <% const weekdayNames = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']; %>
     <% monWeeks.forEach(week => { %>
-      <% week.forEach(day => { %>
+      <% week.forEach((day, wIdx) => { %>
         <% if (!day) { %>
           <div class="fcal-day is-empty"></div>
         <% } else { %>
           <div class="fcal-day<%= day.isToday ? ' is-today' : '' %>">
-            <div class="fcal-daynum"><%= day.day %></div>
+            <div class="fcal-daynum"><span class="fcal-day-weekday"><%= weekdayNames[wIdx] %></span><%= day.day %></div>
             <% day.items.forEach(e => { %>
               <% const full = e.capacity != null && e.signup_count >= e.capacity; %>
               <details class="fcal-session <%= tones[e.id % tones.length] %>">

@@ -40,13 +40,14 @@
   </div>
   <div class="fcal-grid">
     <% ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].forEach(d => { %><div class="fcal-weekday"><%= d %></div><% }) %>
+    <% const weekdayNames = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']; %>
     <% monWeeks.forEach(week => { %>
-      <% week.forEach(day => { %>
+      <% week.forEach((day, wIdx) => { %>
         <% if (!day) { %>
           <div class="fcal-day is-empty"></div>
         <% } else { %>
           <div class="fcal-day<%= day.isToday ? ' is-today' : '' %>">
-            <div class="fcal-daynum"><%= day.day %></div>
+            <div class="fcal-daynum"><span class="fcal-day-weekday"><%= weekdayNames[wIdx] %></span><%= day.day %></div>
             <% day.items.forEach(c => { %>
               <% const spotsLeft = c.capacity != null ? Math.max(0, c.capacity - c.seats_taken) : null; %>
               <% const sellsDropin = c.dropin_price != null; %>

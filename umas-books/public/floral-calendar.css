@@ -57,9 +57,10 @@
 .fcal-day.is-empty { background: var(--cream-alt); }
 .fcal-day .fcal-daynum { font-size: 13px; color: var(--ink-soft); margin-bottom: 6px; }
 .fcal-day.is-today .fcal-daynum { color: var(--maroon); font-weight: 700; }
+.fcal-day-weekday { display: none; }
 
-.fcal-session { border-radius: 4px; padding: 6px 8px; margin-bottom: 6px; }
-.fcal-session .fcal-session-title { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 15px; font-weight: 600; color: var(--ink); line-height: 1.2; }
+.fcal-session { border-radius: 4px; padding: 6px 8px; margin-bottom: 6px; overflow-wrap: break-word; }
+.fcal-session .fcal-session-title { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 15px; font-weight: 600; color: var(--ink); line-height: 1.2; overflow-wrap: break-word; }
 .fcal-session .fcal-session-time { font-size: 12.5px; color: var(--ink-soft); }
 .fcal-session .fcal-session-seats { font-size: 12px; color: var(--maroon-dark); margin-top: 2px; }
 .fcal-session .fcal-session-cta {
@@ -104,11 +105,30 @@
 .fcal-legend-swatch.tone-e { background: #f7dfe2; }
 .fcal-legend-swatch.tone-f { background: #dde7ee; }
 
+/* Below 760px a 7-column grid can't fit a real session title without
+   wrapping it into an unreadable single-character-per-line column, so
+   mobile gets an agenda view instead: one full-width row per day that
+   actually has something on it, date on the left, sessions stacked to
+   its right — the same information, laid out the way a phone calendar
+   app would. */
 @media (max-width: 760px) {
   .fcal-hero .art { display: none; }
-  .fcal-grid { grid-template-columns: repeat(7, minmax(0, 1fr)); font-size: 12px; }
-  .fcal-day { min-height: 72px; padding: 5px; }
-  .fcal-weekday { padding: 6px 2px; font-size: 10px; }
-  .fcal-session .fcal-session-title { font-size: 12.5px; }
-  .fcal-session .fcal-session-time, .fcal-session .fcal-session-seats { font-size: 10.5px; }
+  .fcal-weekday { display: none; }
+  .fcal-grid { display: block; border: 0; }
+  .fcal-day.is-empty { display: none; }
+  .fcal-day:not(.is-empty):not(:has(.fcal-session)) { display: none; }
+  .fcal-day {
+    display: grid; grid-template-columns: 44px 1fr; column-gap: 14px; row-gap: 8px;
+    align-items: start; min-height: 0; padding: 14px 2px; border-right: 0;
+  }
+  .fcal-day .fcal-daynum {
+    grid-column: 1; grid-row: 1 / -1; display: flex; flex-direction: column; align-items: center;
+    font-size: 18px; margin-bottom: 0; color: var(--ink);
+  }
+  .fcal-day.is-today .fcal-daynum { color: var(--maroon); }
+  .fcal-day-weekday {
+    display: block; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
+    font-weight: 600; color: var(--ink-soft); margin-bottom: 2px;
+  }
+  .fcal-day .fcal-session, .fcal-day details.fcal-session { grid-column: 2; margin-bottom: 0; }
 }
