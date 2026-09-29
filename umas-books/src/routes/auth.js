@@ -61,7 +61,7 @@ router.get("/signup", (req, res) => {
     const u = req.session.user;
     return res.redirect(u.isAdmin ? "/admin" : (u.isMember || u.isVolunteer) ? "/dashboard" : "/");
   }
-  res.render("signup", { error: null });
+  res.render("signup", { error: null, notice: null });
 });
 
 router.post("/signup", authLimiter, async (req, res) => {
@@ -70,17 +70,23 @@ router.post("/signup", authLimiter, async (req, res) => {
   const displayName = (req.body.displayName || "").trim();
 
   if (!email || !password || !displayName) {
-    return res.status(400).render("signup", { error: "All fields are required." });
+    return res.status(400).render("signup", { error: "All fields are required.", notice: null });
   }
   const passwordError = await validateNewPassword(password);
   if (passwordError) {
-    return res.status(400).render("signup", { error: passwordError });
+    return res.status(400).render("signup", { error: passwordError, notice: null });
   }
 
   try {
     const { rows: existing } = await pool.query("SELECT id FROM users WHERE email = $1", [email]);
     if (existing.length) {
-      return res.status(400).render("signup", { error: "An account with that email already exists." });
+      // Doesn't say "an account with that email already exists" — same
+      // "never confirm whether an email is registered" principle
+      // /forgot-password already follows, just not yet applied here.
+      return res.render("signup", {
+        error: null,
+        notice: "If this is a new email, check your inbox for a confirmation link. If you already have an account, try logging in or resetting your password.",
+      });
     }
     const hash = await bcrypt.hash(password, 12);
     const { rows } = await pool.query(
@@ -103,7 +109,7 @@ router.post("/signup", authLimiter, async (req, res) => {
     loginAs(req, res, user, user.is_admin || user.is_member ? "/dashboard" : "/");
   } catch (err) {
     console.error(err);
-    res.status(500).render("signup", { error: "Something went wrong. Please try again." });
+    res.status(500).render("signup", { error: "Something went wrong. Please try again.", notice: null });
   }
 });
 

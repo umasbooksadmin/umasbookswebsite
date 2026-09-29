@@ -17,7 +17,7 @@ const session = require("express-session");
 const pgSession = require("connect-pg-simple")(session);
 
 const { pool } = require("./db");
-const { attachUser } = require("./middleware/auth");
+const { attachUser, requireAdmin } = require("./middleware/auth");
 const { csrfProtection } = require("./middleware/csrf");
 const { expireStaleReservations, sendPickupReminders } = require("./lib/reservations");
 const { expireStaleCartHolds, reconcilePendingOrders } = require("./lib/cart");
@@ -59,7 +59,14 @@ app.get("/healthz", async (req, res) => {
     await pool.query("SELECT 1");
     res.status(200).json({ ok: true });
   } catch (err) {
-    res.status(503).json({ ok: false, error: err.message });
+    // This route is public and unauthenticated (the uptime-check workflow
+    // and Render's own health probe both hit it with no login) — logging
+    // the real error server-side, rather than handing a raw database
+    // error message (connection details, driver internals, ...) to
+    // whoever's asking, same reasoning as never surfacing a raw err in
+    // any other response.
+    console.error("Health check failed:", err.message);
+    res.status(503).json({ ok: false });
   }
 });
 
@@ -136,6 +143,13 @@ app.use((req, res, next) => {
   next();
 });
 
+// requireAdmin gates each of these ahead of multer itself — without it,
+// an anonymous request could make the server buffer an upload (up to
+// 8MB) into memory before any admin/form check ever ran, just by POSTing
+// a large multipart body to one of these paths. req.session.user is
+// already fresh here (attachUser ran above), so this costs nothing extra
+// to check.
+//
 // Multer must parse any multipart body under /admin/inventory (populating
 // req.body._csrf and req.files) before the CSRF check below runs —
 // csrfProtection only ever sees req.body as urlencoded-parsing (above)
@@ -144,7 +158,7 @@ app.use((req, res, next) => {
 // upload), rather than one per route, so a single multipart request is
 // never run through multer twice.
 const inventoryUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
-app.use("/admin/inventory", inventoryUpload.fields([
+app.use("/admin/inventory", requireAdmin, inventoryUpload.fields([
   { name: "photo", maxCount: 1 },
   { name: "coverPhoto", maxCount: 1 },
 ]));
@@ -152,15 +166,15 @@ app.use("/admin/inventory", inventoryUpload.fields([
 // Same reasoning as inventoryUpload above, for the announcement form's
 // featured-image upload (see /admin/announcements in routes/admin/announcements.js).
 const announcementUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
-app.use("/admin/announcements", announcementUpload.fields([{ name: "image", maxCount: 1 }]));
+app.use("/admin/announcements", requireAdmin, announcementUpload.fields([{ name: "image", maxCount: 1 }]));
 
 // Same again, for a charity's photo (see /admin/charities in routes/admin/charity.js).
 const charityUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
-app.use("/admin/charities", charityUpload.fields([{ name: "image", maxCount: 1 }]));
+app.use("/admin/charities", requireAdmin, charityUpload.fields([{ name: "image", maxCount: 1 }]));
 
 // Same again, for a blog post's featured image (see /admin/blog in routes/admin/blog.js).
 const blogUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
-app.use("/admin/blog", blogUpload.fields([{ name: "image", maxCount: 1 }]));
+app.use("/admin/blog", requireAdmin, blogUpload.fields([{ name: "image", maxCount: 1 }]));
 
 // HelloAsso calls this server-to-server with no CSRF token, so it's
 // mounted ahead of the CSRF check below rather than with the rest of

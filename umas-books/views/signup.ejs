@@ -2,6 +2,7 @@
 
 <h1>Create your account</h1>
 <% if (error) { %><div class="error-box"><%= error %></div><% } %>
+<% if (notice) { %><div class="notice-box"><%= notice %></div><% } %>
 <form class="stack" method="post" action="/signup">
   <%- include('partials/csrf_field') %>
   <label for="displayName">Name</label>

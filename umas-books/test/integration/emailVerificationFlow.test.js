@@ -116,3 +116,26 @@ test("an admin-created account is verified immediately, with no link to click", 
   const { rows } = await pool.query("SELECT email_verified_at FROM users WHERE email = $1", [newMemberEmail]);
   assert.ok(rows[0].email_verified_at, "admin-created accounts should be verified immediately");
 });
+
+// Regression: signup used to respond "An account with that email already
+// exists" — confirming registration to anyone who tried, the same
+// enumeration /forgot-password already deliberately avoids.
+test("signing up with an already-registered email doesn't confirm the account exists", async () => {
+  const bcrypt = require("bcryptjs");
+  const email = `enum-check-${Date.now()}@example.test`;
+  await pool.query(
+    "INSERT INTO users (email, password_hash, display_name) VALUES ($1, $2, 'Existing User')",
+    [email, await bcrypt.hash("Irrelevant1!", 12)]
+  );
+
+  const jar = makeCookieJar();
+  const token = await fetchCsrfToken(app.base, jar);
+  const res = await fetch(`${app.base}/signup`, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded", cookie: jar.header() },
+    body: `email=${encodeURIComponent(email)}&password=${encodeURIComponent("Correct-Horse-2")}&displayName=Attacker&_csrf=${token}`,
+  });
+  assert.equal(res.status, 200); // re-renders the signup page, doesn't redirect/log in
+  const body = await res.text();
+  assert.ok(!body.includes("already exists"), "response should not confirm the email is registered");
+});

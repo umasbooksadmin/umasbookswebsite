@@ -34,21 +34,39 @@ router.post("/volunteer/:id/signup", requireVolunteer, async (req, res) => {
   const backQuery = calendarBackQuery(req.query);
   const redirectUrl = backQuery ? `/volunteer?${backQuery}` : "/volunteer";
 
-  const { rows: shiftRows } = await pool.query("SELECT * FROM volunteer_shifts WHERE id = $1", [shiftId]);
-  const shift = shiftRows[0];
-  if (!shift) return res.status(404).send("Shift not found.");
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    // Lock the shift row so two signups arriving at the same moment
+    // can't both read the same "spots left" and both squeeze in — same
+    // pattern as the event signup above and the drop-in seat checkout
+    // in lib/cart.js.
+    const { rows: shiftRows } = await client.query("SELECT * FROM volunteer_shifts WHERE id = $1 FOR UPDATE", [shiftId]);
+    const shift = shiftRows[0];
+    if (!shift) {
+      await client.query("ROLLBACK");
+      return res.status(404).send("Shift not found.");
+    }
 
-  const { rows: countRows } = await pool.query(
-    "SELECT COUNT(*)::int AS n FROM volunteer_signups WHERE shift_id = $1", [shiftId]
-  );
-  if (countRows[0].n >= shift.capacity) {
-    return res.redirect(redirectUrl);
+    const { rows: countRows } = await client.query(
+      "SELECT COUNT(*)::int AS n FROM volunteer_signups WHERE shift_id = $1", [shiftId]
+    );
+    if (countRows[0].n >= shift.capacity) {
+      await client.query("ROLLBACK");
+      return res.redirect(redirectUrl);
+    }
+
+    await client.query(
+      "INSERT INTO volunteer_signups (shift_id, user_id) VALUES ($1, $2) ON CONFLICT (shift_id, user_id) DO NOTHING",
+      [shiftId, userId]
+    );
+    await client.query("COMMIT");
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
   }
-
-  await pool.query(
-    "INSERT INTO volunteer_signups (shift_id, user_id) VALUES ($1, $2) ON CONFLICT (shift_id, user_id) DO NOTHING",
-    [shiftId, userId]
-  );
   res.redirect(redirectUrl);
 });
 
