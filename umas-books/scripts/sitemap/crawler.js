@@ -34,14 +34,17 @@ const PERSONAS = {
 const ASSET_EXT = /\.(png|jpe?g|svg|ico|css|js|webmanifest|json|gif|woff2?|ttf|map)(\?|$)/i;
 const SKIP_SCHEME = /^(mailto:|tel:|sms:|javascript:|#)/i;
 const NAV_TIMEOUT = 15000;
-// The /events and /sessions calendars generate their own Prev/Next links
-// (month=2037-12, week=2015-06-01, ...) — each page the crawler visits
-// discovers two more, unboundedly, in both directions. Left unchecked
-// that's an infinite walk that never drains the queue. One page already
-// proves the route and its markup; cap how many of these get queued at
-// all instead of trying to crawl every month there ever was or will be.
-const CALENDAR_PARAM_RE = /[?&](month|week)=/;
-const CALENDAR_PAGE_CAP = 6;
+// Some pages generate their own combinatorial query-string variants of
+// themselves — the /events and /sessions calendars' Prev/Next links
+// (month=2037-12, week=2015-06-01, ... unboundedly in both directions,
+// an infinite walk that never drains the queue) and /admin/members'
+// view/panel/sort/role filter links (every member row × every tab ×
+// every sort order — finite, but well past a hundred for a handful of
+// members). Neither is a real distinct "page" to a person following
+// links; one or a few examples already prove the route and its markup.
+// Cap how many query-string variants of the same base path get queued
+// at all, per persona, rather than crawling every combination.
+const QUERY_VARIANT_CAP = 6;
 
 function toPath(absoluteUrl){
   try {
@@ -97,12 +100,21 @@ async function crawlPersona(browser, name, email, seeds){
   const edges = [];
   const queue = [...seeds];
   const queued = new Set(seeds);
-  let calendarPagesQueued = seeds.filter((s) => CALENDAR_PARAM_RE.test(s)).length;
+  const queryVariantCounts = new Map();
+  seeds.forEach((s) => {
+    const q = s.indexOf("?");
+    if (q === -1) return;
+    const base = s.slice(0, q);
+    queryVariantCounts.set(base, (queryVariantCounts.get(base) || 0) + 1);
+  });
   function enqueue(link) {
     if (queued.has(link)) return;
-    if (CALENDAR_PARAM_RE.test(link)) {
-      if (calendarPagesQueued >= CALENDAR_PAGE_CAP) return;
-      calendarPagesQueued++;
+    const q = link.indexOf("?");
+    if (q !== -1) {
+      const base = link.slice(0, q);
+      const n = queryVariantCounts.get(base) || 0;
+      if (n >= QUERY_VARIANT_CAP) return;
+      queryVariantCounts.set(base, n + 1);
     }
     queue.push(link);
     queued.add(link);
