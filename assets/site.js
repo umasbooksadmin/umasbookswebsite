@@ -35,7 +35,11 @@
       "foot.visit": "Visit Us",
       "foot.membership": "Membership",
       "foot.favorites": "Favorites",
-      "foot.privacy": "Privacy Policy"
+      "foot.privacy": "Privacy Policy",
+      "member.kicker": "Join our community",
+      "member.t": "Become a Member <br>of Our Association",
+      "member.d": "Members vote on the next charity to donate to, <br>volunteer opportunities, special events and more.",
+      "member.cta": "Find out how to sign up here"
     },
     fr: {
       "nav.home": "Accueil",
@@ -57,7 +61,11 @@
       "foot.visit": "Nous rendre visite",
       "foot.membership": "Adhésion",
       "foot.favorites": "Favoris",
-      "foot.privacy": "Politique de confidentialité"
+      "foot.privacy": "Politique de confidentialité",
+      "member.kicker": "Rejoignez notre communauté",
+      "member.t": "Devenez membre <br>de notre association",
+      "member.d": "Les membres votent pour la prochaine association à soutenir, <br>participent au bénévolat, aux événements spéciaux et plus encore.",
+      "member.cta": "Découvrir comment adhérer"
     }
   };
 

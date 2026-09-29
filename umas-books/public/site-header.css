@@ -1,13 +1,18 @@
-/* Header + footer shared with the marketing site (assets/site.css
-   "Header" / "Footer" sections), scoped under .mkt-header / .mkt-footer so
-   they can't collide with this app's own header.site / .wrap / .btn rules.
-   Keep in sync by hand with assets/site.css if those sections change. */
+/* THE canonical header + footer, used everywhere: the marketing pages
+   (views/marketing/*.ejs) and the Members Area app (views/partials/
+   header.ejs, footer.ejs) both load this and share these classes —
+   scoped under .mkt-header / .mkt-footer so they can't collide with
+   this app's own header.site / .wrap / .btn rules, or with the
+   marketing site's own differently-scaled .wrap. There is exactly one
+   copy of this markup and this CSS; nothing here needs to be kept in
+   sync by hand with anything else. */
 
 header.mkt-header, footer.mkt-footer {
   --cream: #fffefb; --ink: #000; --ink-soft: #000; --maroon: #a65347; --line: #e4e0d8;
   font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; color: var(--ink);
 }
-header.mkt-header { margin-bottom: 32px; }
+header.mkt-header { padding-bottom: 32px; }
+@media (max-width: 900px) { header.mkt-header { padding-bottom: 18px; } }
 header.mkt-header a:hover, footer.mkt-footer a:hover { text-decoration: none; }
 
 /* Lets keyboard/screen-reader users jump past the header's tab stops

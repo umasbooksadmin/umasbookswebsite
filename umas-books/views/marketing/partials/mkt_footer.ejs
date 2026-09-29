@@ -1,0 +1,25 @@
+<%
+/* Shared </main>/<footer>/scripts for every marketing page. Params:
+   pageI18nEn/pageI18nFr (objects of this page's own i18n strings — nav,
+   footer and other cross-page strings already live in site.js's COMMON
+   dict and don't need to be repeated here), extraScripts (array of
+   extra <script src> paths, e.g. ['assets/blog.js']), extraInlineScript
+   (a raw JS string for one more <script> block, e.g. to kick off a
+   carousel once its script has loaded). */
+%>
+</main>
+
+<%- include('../../partials/mkt_chrome_footer') %>
+
+<script>
+window.PAGE_I18N = <%- JSON.stringify({
+  en: (typeof pageI18nEn !== 'undefined' ? pageI18nEn : {}),
+  fr: (typeof pageI18nFr !== 'undefined' ? pageI18nFr : {}),
+}) %>;
+</script>
+<script src="assets/site.js"></script>
+<script src="/app.js"></script>
+<% (typeof extraScripts !== 'undefined' ? extraScripts : []).forEach(src => { %><script src="<%= src %>"></script><% }) %>
+<% if (typeof extraInlineScript !== 'undefined' && extraInlineScript) { %><script><%- extraInlineScript %></script><% } %>
+</body>
+</html>

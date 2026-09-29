@@ -206,7 +206,7 @@ app.get("/", (req, res) => {
   const u = req.session.user;
   if (u && (u.isAdmin || u.isMember || u.isVolunteer)) return res.redirect("/dashboard");
   res.set("Content-Security-Policy", marketingCsp);
-  res.sendFile(path.join(marketingRoot, "index.html"));
+  res.render("marketing/index");
 });
 
 // The booking calendar used to be called "classes", then "programs"; send
@@ -223,7 +223,7 @@ app.get("/admin/programs", (req, res) => res.redirect(301, "/admin/sessions" + q
 MARKETING_PAGES.forEach((file) => {
   app.get("/" + file, (req, res) => {
     res.set("Content-Security-Policy", marketingCsp);
-    res.sendFile(path.join(marketingRoot, file));
+    res.render("marketing/" + file.replace(/\.html$/, ""));
   });
 });
 

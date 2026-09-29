@@ -51,13 +51,9 @@ a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visib
    the page content, repeated on every page — WCAG 2.4.1 (Bypass
    Blocks), Level A. Hidden until it receives focus, per the standard
    skip-link pattern. */
-.skip-link {
-  position: absolute; top: -100px; left: 12px; z-index: 100;
-  background: var(--maroon); color: #fff; padding: 10px 18px; border-radius: 0 0 4px 4px;
-  font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; text-decoration: none;
-  transition: top 0.15s ease;
-}
-.skip-link:focus { top: 0; outline: 2px solid #fff; outline-offset: -4px; }
+/* .skip-link now lives in umas-books/public/site-header.css alongside
+   the header/footer it sits next to — loaded here too (see
+   views/marketing/partials/mkt_header.ejs), one copy for every page. */
 
 /* Generic browser-back link shown above <main> on every marketing page
    except the homepage (index.html) — see .site-back-bar markup right
@@ -76,90 +72,10 @@ img { max-width: 100%; display: block; }
 .wrap { max-width: 1180px; margin: 0 auto; padding: 0 28px; }
 .wrap-narrow { max-width: 800px; margin: 0 auto; padding: 0 28px; }
 
-/* ---------- Header ---------- */
-/* Wordmark logo on the left, sans-serif nav, labelled icon tools on the
-   right. */
-.h-header { background: var(--cream); position: relative; z-index: 5; }
-/* white space between the header and the page below it */
-.h-header { padding-bottom: 32px; }
-@media (max-width: 900px) { .h-header { padding-bottom: 18px; } }
-.h-header-row {
-  max-width: 1480px; margin: 0 auto; padding: 8px 32px 4px;
-  display: flex; align-items: flex-start; gap: 36px;
-}
-/* the double-line box is baked into the logo image itself */
-.h-logo { flex: 0 0 auto; display: block; line-height: 0; margin-top: 12px; }
-.h-logo img { width: 220px; height: auto; }
-.h-nav {
-  /* nav and tools share the same top offset so the menu sits on the same
-     line as the icons */
-  display: flex; gap: 40px; flex-wrap: nowrap; margin: 30px auto 0; padding-left: 16px;
-  font-family: 'Nunito Sans', 'Helvetica Neue', Arial, sans-serif;
-}
-.h-nav a {
-  white-space: nowrap; color: var(--ink); text-decoration: none; font-size: 17px; font-weight: 400;
-  border-bottom: 1.5px solid transparent; padding-bottom: 8px;
-}
-.h-nav a:hover, .h-nav a.is-active { color: var(--maroon); border-bottom-color: var(--maroon); }
-.h-tools {
-  display: flex; align-items: flex-start; gap: 22px; margin-top: 30px;
-  font-family: 'Nunito Sans', 'Helvetica Neue', Arial, sans-serif;
-}
-.h-tool {
-  display: flex; flex-direction: column; align-items: center; gap: 3px; color: var(--ink);
-  text-decoration: none; font-size: 12px; white-space: nowrap; background: none; border: 0; padding: 0;
-  cursor: pointer; font-family: inherit;
-}
-.h-tool svg { width: 22px; height: 22px; }
-.h-tool:hover { color: var(--maroon); }
-.h-tool.fav svg { color: var(--maroon); }
-.h-tools form { margin: 0; display: flex; }
-.langtoggle { display: inline-flex; align-items: center; gap: 5px; margin-top: 3px; }
-.langtoggle button {
-  background: none; border: 0; border-bottom: 1px solid transparent; cursor: pointer; padding: 2px 3px; line-height: 1;
-  font-family: 'Nunito Sans', 'Helvetica Neue', Arial, sans-serif; font-size: 12.5px; font-weight: 600; letter-spacing: 0.06em; color: var(--ink-soft);
-}
-.langtoggle button.is-active, .langtoggle button:hover { color: var(--maroon); border-bottom-color: var(--maroon); }
-.langtoggle span { color: var(--line); }
-
-@media (max-width: 1440px) {
-  .h-header-row { gap: 24px; }
-  .h-nav { gap: 26px; padding-left: 0; }
-  .h-nav a { font-size: 16px; }
-  .h-tools { gap: 16px; }
-  .h-logo img { width: 200px; }
-}
-@media (max-width: 1180px) {
-  .h-header-row { gap: 18px; }
-  .h-nav { gap: 20px; }
-  .h-nav a { font-size: 15px; }
-  .h-tools { gap: 12px; }
-  .h-tool { font-size: 11px; }
-  .h-logo img { width: 180px; }
-}
-@media (max-width: 900px) {
-  /* Nav drops to its own row under the logo + tools. */
-  .h-header-row { flex-wrap: wrap; align-items: center; gap: 12px 24px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
-  .h-logo { margin-top: 0; }
-  .h-logo img { width: 160px; }
-  .h-tools { margin: 0 0 0 auto; }
-  .h-nav { order: 3; width: 100%; justify-content: center; flex-wrap: wrap; margin: 0; padding: 0; gap: 10px 30px; }
-  .h-nav a { padding-bottom: 4px; }
-}
-@media (max-width: 640px) {
-  .h-header-row { padding: 8px 16px 8px; gap: 8px 14px; }
-  .h-logo img { width: 120px; }
-  .h-tools { gap: 14px; }
-  .h-tool span.label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-  .h-tool svg { width: 22px; height: 22px; }
-  .langtoggle { margin-top: 0; }
-  .h-nav {
-    justify-content: flex-start; flex-wrap: nowrap; overflow-x: auto; gap: 22px;
-    scrollbar-width: none; padding-bottom: 2px;
-  }
-  .h-nav::-webkit-scrollbar { display: none; }
-  .h-nav a { font-size: 15.5px; }
-}
+/* ---------- Header ----------
+   Moved to umas-books/public/site-header.css (.mkt-header), the one
+   copy shared by every marketing page and the Members Area app —
+   see views/marketing/partials/mkt_header.ejs. */
 
 /* ---------- Buttons ---------- */
 .btn {
@@ -286,36 +202,9 @@ img { max-width: 100%; display: block; }
   .member-card { border-radius: 0 0 4px 4px; }
 }
 
-/* ---------- Footer ---------- */
-/* The top line runs the full width of the page; the content stays centred. */
-.h-footer { margin: 22px 0 0; padding: 0 0 22px; border-top: 1px solid var(--ink); }
-.h-footer-row {
-  max-width: 1240px; margin: 0 auto; padding: 18px 32px 0;
-  display: flex; align-items: center; justify-content: center; gap: 18px; flex-wrap: wrap;
-}
-.h-footer ul {
-  list-style: none; margin: 0 auto; padding: 0; display: flex; flex-wrap: wrap; justify-content: center;
-}
-.h-footer li {
-  font-size: 14px; letter-spacing: 0.14em; text-transform: uppercase; padding: 0 30px;
-  border-left: 1px solid var(--ink); line-height: 1.2;
-}
-.h-footer li:first-child { border-left: 0; }
-.h-footer li a { color: inherit; text-decoration: none; }
-.h-footer li a:hover { color: var(--maroon); }
-.h-social { display: flex; gap: 14px; }
-.h-social a { color: var(--ink); display: inline-flex; }
-.h-social a:hover { color: var(--maroon); }
-.h-social svg { width: 24px; height: 24px; }
-@media (max-width: 760px) {
-  .h-footer li { padding: 4px 14px; font-size: 12.5px; }
-}
-.h-footer-util {
-  display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 22px; margin-top: 14px;
-  font-size: 15px; font-style: italic;
-}
-.h-footer-util a { color: var(--ink-soft); text-decoration: none; }
-.h-footer-util a:hover { color: var(--maroon); text-decoration: underline; }
+/* ---------- Footer ----------
+   Moved to umas-books/public/site-header.css (.mkt-footer), alongside
+   the header — see the note above. */
 
 /* ---------- Shared chapter / content block styles (sub-pages) ---------- */
 .page-hero { padding: 54px 28px 10px; text-align: center; }
@@ -499,7 +388,7 @@ img { max-width: 100%; display: block; }
   .event-item { gap: 12px; }
   .event-date { width: 44px; padding-right: 10px; }
 }
-body:not(.home) .h-footer { margin-top: 56px; }
+body:not(.home) .mkt-footer { margin-top: 56px; }
 
 /* ---------- One-screen pages (body.fit-screen) ----------
    Home and Browse Books size themselves to fit one desktop screen (see
@@ -518,7 +407,7 @@ body:not(.home) .h-footer { margin-top: 56px; }
   .fit-screen .h-nav a { padding-bottom: 2px; }
 }
 @media (min-width: 1025px) and (min-height: 480px) {
-  body.fit-screen .h-footer { margin-top: 1vh; padding-bottom: 1vh; }
+  body.fit-screen .mkt-footer { margin-top: 1vh; padding-bottom: 1vh; }
   .fit-screen .h-footer-row { padding-top: 1vh; }
   .fit-screen .h-footer li { font-size: clamp(11.5px, 1.4vh, 14px); }
   .fit-screen .h-social svg { width: 20px; height: 20px; }
@@ -528,7 +417,7 @@ body:not(.home) .h-footer { margin-top: 56px; }
   .fit-screen .h-header-row { padding-top: 0.3vh; padding-bottom: 0; }
   .fit-screen .h-nav, .fit-screen .h-tools { margin-top: 1.8vh; }
   .fit-screen .h-tool { font-size: 11.5px; gap: 2px; }
-  body.fit-screen .h-footer { margin-top: 0.6vh; padding-bottom: 0.6vh; }
+  body.fit-screen .mkt-footer { margin-top: 0.6vh; padding-bottom: 0.6vh; }
   .fit-screen .h-footer-row { padding-top: 0.7vh; }
   .fit-screen .h-footer li { font-size: 11.5px; }
   .fit-screen .h-footer-util { margin-top: 0.2vh; font-size: 12px; }
@@ -538,7 +427,7 @@ body:not(.home) .h-footer { margin-top: 56px; }
   .fit-screen .h-nav a { font-size: 2.5vh; padding-bottom: 2px; }
   .fit-screen .h-tool { font-size: 1.7vh; }
   .fit-screen .h-tool svg { width: 3vh; height: 3vh; }
-  body.fit-screen .h-footer { margin-top: 0.4vh; padding-bottom: 0.4vh; }
+  body.fit-screen .mkt-footer { margin-top: 0.4vh; padding-bottom: 0.4vh; }
   .fit-screen .h-footer-row { padding-top: 0.5vh; gap: 10px; }
   .fit-screen .h-footer li { font-size: 1.75vh; }
   .fit-screen .h-social svg { width: 2.8vh; height: 2.8vh; }

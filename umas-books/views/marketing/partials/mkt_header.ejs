@@ -1,0 +1,38 @@
+<%
+/* Shared <head>/<header> for every marketing page (views/marketing/*.ejs).
+   Params: title (required), description (optional meta), extraCss
+   (array of extra stylesheet hrefs, e.g. ['assets/home.css']), bodyClass
+   (optional, e.g. 'home home-fit fit-screen'), activeNav (one of
+   'home'|'books'|'programs'|'events', or omitted for none), hideBackLink
+   (every page shows a "← Back" link above <main> except the homepage). */
+const nav = [
+  { key: 'home', href: '/', i18n: 'nav.home', label: 'Home' },
+  { key: 'books', href: 'books.html', i18n: 'nav.books', label: 'Browse Books' },
+  { key: 'programs', href: 'immersion.html', i18n: 'nav.programs', label: 'English Programs' },
+  // Straight to the live calendar from inside the app (partials/header.ejs);
+  // from here, a logged-out visitor sees the marketing teaser page first.
+  { key: 'events', href: 'events.html', i18n: 'nav.events', label: 'Events' },
+];
+%>
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<title><%= title %></title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<% if (typeof description !== 'undefined' && description) { %><meta name="description" content="<%= description %>"><% } %>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Montserrat:wght@500;600;700&family=Nunito+Sans:wght@400;600&family=Italianno&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/site.css">
+<link rel="stylesheet" href="site-header.css">
+<% (typeof extraCss !== 'undefined' ? extraCss : []).forEach(href => { %><link rel="stylesheet" href="<%= href %>"><% }) %>
+</head>
+<body<%- typeof bodyClass !== 'undefined' && bodyClass ? ' class="' + bodyClass + '"' : '' %>>
+<a class="skip-link" href="#main-content">Skip to main content</a>
+
+<%- include('../../partials/mkt_chrome_header', { nav, activeNav: typeof activeNav !== 'undefined' ? activeNav : undefined }) %>
+<% if (typeof hideBackLink === 'undefined' || !hideBackLink) { %>
+<div class="site-back-bar"><a href="#" class="site-back-link">&larr; Back</a></div>
+<% } %>
+<main id="main-content" tabindex="-1">

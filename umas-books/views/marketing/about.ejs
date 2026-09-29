@@ -1,0 +1,52 @@
+<%- include('partials/mkt_header', {
+  title: "About — Uma's Books and Adventures",
+  extraCss: ['assets/about.css'],
+}) %>
+  <div class="page-hero">
+    <span class="kicker" data-i18n="about.kicker">Our Story</span>
+    <h1 data-i18n="about.title">About Uma&#39;s</h1>
+  </div>
+  <div class="section">
+    <div class="wrap-narrow">
+      <div class="prose">
+        <p data-i18n="c1.p1">Uma&#39;s Books and Adventures is a non-profit bookshop built entirely on books that already had one home before finding their way to our shelves. Every title here has been read, released, and re-shelved by someone in Albi's English-speaking community &mdash; a paperback traded in after a summer read, a donated box from someone moving on, a hardback rescued before its next stop at the recycling bin.</p>
+        <p data-i18n="c1.p2">Run by volunteers and open just a few days a week, the shop exists for one simple reason: to keep good English-language books affordable, in circulation, and easy to find &mdash; however far from home you happen to be. But the shelves are only half of it. As much as a bookshop, this is a meeting point &mdash; a small, unhurried space where anglophones and francophones, longtime Albigeois and newly arrived expats, cross paths over a shared shelf and swap more than books: languages, recommendations, and a little bit of home.</p>
+      </div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="wrap-narrow">
+      <h2 style="text-align:center;" data-i18n="about.involved.title">Get Involved</h2>
+      <div class="donate-row">
+        <img class="donate-img" src="assets/img/about-books-photo.jpg" alt="A stack of classic novels — Pride and Prejudice, Jane Eyre, Little Women, Wuthering Heights, The Secret Garden, The Great Gatsby, and Anne of Green Gables — on a wooden table with flowers and a bookshelf behind" width="400" height="367">
+        <div class="promo-card" id="donate">
+          <div class="promo-body">
+            <h3 data-i18n="about.donate.t">Donate</h3>
+            <p data-i18n="about.donate.d">Every shelf here started as someone&#39;s donation. Bring your gently used English-language books by during opening hours, or get in touch to arrange a drop-off.</p>
+            <a class="btn btn-outline" href="mailto:admin@umasbooks.org?subject=Book%20Donation" data-i18n="about.donate.cta">Get in Touch</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+<% const pageI18nEn = {
+  "about.kicker": "Our Story",
+  "about.title": "About Uma's",
+  "c1.p1": "Uma’s Books and Adventures is a non-profit bookshop built entirely on books that already had one home before finding their way to our shelves. Every title here has been read, released, and re-shelved by someone in Albi’s English-speaking community — a paperback traded in after a summer read, a donated box from someone moving on, a hardback rescued before its next stop at the recycling bin.",
+  "c1.p2": "Run by volunteers and open just a few days a week, the shop exists for one simple reason: to keep good English-language books affordable, in circulation, and easy to find — however far from home you happen to be. But the shelves are only half of it. As much as a bookshop, this is a meeting point — a small, unhurried space where anglophones and francophones, longtime Albigeois and newly arrived expats, cross paths over a shared shelf and swap more than books: languages, recommendations, and a little bit of home.",
+  "about.involved.title": "Get Involved",
+  "about.donate.t": "Donate",
+  "about.donate.d": "Every shelf here started as someone's donation. Bring your gently used English-language books by during opening hours, or get in touch to arrange a drop-off.",
+  "about.donate.cta": "Get in Touch",
+}; %>
+<% const pageI18nFr = {
+  "about.kicker": "Notre histoire",
+  "about.title": "À propos d’Uma’s",
+  "c1.p1": "Uma’s Books and Adventures est une librairie à but non lucratif entièrement constituée de livres qui ont déjà connu un premier foyer avant d’arriver sur nos étagères. Chaque titre a été lu, cédé puis remis en rayon par quelqu’un de la communauté anglophone d’Albi : un poche rapporté après une lecture d’été, un carton donné par une personne qui déménage, un beau livre relié sauvé juste avant le bac de recyclage.",
+  "c1.p2": "Tenue par des bénévoles et ouverte seulement quelques jours par semaine, la boutique existe pour une raison simple : garder les bons livres en anglais abordables, en circulation et faciles à trouver, aussi loin de chez soi que l’on soit. Mais les rayons ne sont qu’une moitié de l’histoire. Autant qu’une librairie, c’est un lieu de rencontre : un petit espace sans hâte où anglophones et francophones, Albigeois de longue date et expatriés fraîchement arrivés se croisent autour d’une étagère commune et échangent bien plus que des livres — des langues, des conseils de lecture et un peu de chez-soi.",
+  "about.involved.title": "S’impliquer",
+  "about.donate.t": "Faire un don",
+  "about.donate.d": "Chaque étagère ici a commencé par un don. Apportez vos livres en anglais en bon état pendant nos heures d’ouverture, ou contactez-nous pour organiser un dépôt.",
+  "about.donate.cta": "Nous contacter",
+}; %>
+<%- include('partials/mkt_footer', { pageI18nEn, pageI18nFr }) %>

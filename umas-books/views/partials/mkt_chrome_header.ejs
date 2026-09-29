@@ -1,0 +1,51 @@
+<%
+/* THE <header> markup, shared by the Members Area app
+   (partials/header.ejs) and every marketing page
+   (marketing/partials/mkt_header.ejs) — one copy, styled by
+   public/site-header.css's .mkt-header rules. Since both systems now
+   render through the same Express app, both get the same
+   attachUser-populated locals.user, so this can show the real
+   Admin/Member's Access/Log Out state everywhere instead of the
+   marketing side faking it after the fact with client-side JS (see the
+   now-removed loadAdminLink/loadMemberAccessLink/loadLoginState in
+   assets/site.js).
+   Params: nav (required — array of {key, href, i18n, label}; the two
+   callers point "Events" at different places: the app links straight
+   to the live calendar, marketing links to its own teaser page first),
+   activeNav (optional — key of the nav item to mark current). */
+const navItems = typeof nav !== 'undefined' ? nav : [];
+%>
+<header class="mkt-header">
+  <div class="h-header-row">
+    <a class="h-logo" href="/"><img src="/assets/img/logo-wordmark-framed.png" alt="Uma’s Books &amp; Adventures — home" width="1774" height="887"></a>
+    <nav class="h-nav" aria-label="Main">
+      <% navItems.forEach(item => { %>
+        <a href="<%= item.href %>"<%- (typeof activeNav !== 'undefined' && activeNav === item.key) ? ' class="is-active" aria-current="page"' : '' %> data-i18n="<%= item.i18n %>"><%= item.label %></a>
+      <% }) %>
+    </nav>
+    <div class="h-tools">
+      <a class="h-tool fav" href="/favorites"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 20.5s-8-4.9-10-9.8C.6 7 2.9 4 6.2 4c2.2 0 4 1.3 5.8 3.5C13.8 5.3 15.6 4 17.8 4 21.1 4 23.4 7 22 10.7c-2 4.9-10 9.8-10 9.8z"/></svg><span class="label"><span data-i18n="tool.favorites">Favorites</span></span></a>
+      <% if (locals.user && user.isAdmin) { %>
+        <a class="h-tool" href="/admin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.5 4 6v6c0 5 3.4 8.4 8 9.5 4.6-1.1 8-4.5 8-9.5V6z"/></svg><span class="label">Admin</span></a>
+      <% } %>
+      <a class="h-tool" href="/account"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2.5h12v19l-2.5-1.6-2 1.6-2-1.6-2 1.6-2-1.6L6 21.5z"/><path d="M8.5 7h7M8.5 10.5h7M8.5 14h4.5"/></svg><span class="label"><span data-i18n="tool.account">My Account</span></span></a>
+      <a class="h-tool" href="/cart"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 3.5h3l2.4 11.2a1.5 1.5 0 0 0 1.5 1.2h9.3a1.5 1.5 0 0 0 1.5-1.2L21.5 7H6"/><path d="M8 11h12.5"/><circle cx="9.5" cy="19.5" r="1.4"/><circle cx="17.5" cy="19.5" r="1.4"/></svg><span class="label"><span data-i18n="tool.cart">Cart</span> (<span data-cart-count>0</span>)</span></a>
+      <% if (locals.user && (user.isMember || user.isVolunteer || user.isAdmin)) { %>
+        <a class="h-tool" href="/dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></svg><span class="label"><span data-i18n="tool.members">Member’s Access</span></span></a>
+      <% } %>
+      <% if (locals.user) { %>
+        <form method="post" action="/logout">
+          <%- include('csrf_field') %>
+          <button type="submit" class="h-tool"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="8" r="4.2"/><path d="M4 21c0-4.4 3.6-7.5 8-7.5s8 3.1 8 7.5z" stroke-linejoin="round"/></svg><span class="label" data-i18n="tool.logout">Log Out</span></button>
+        </form>
+      <% } else { %>
+        <a class="h-tool" href="/login"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="8" r="4.2"/><path d="M4 21c0-4.4 3.6-7.5 8-7.5s8 3.1 8 7.5z" stroke-linejoin="round"/></svg><span class="label"><span data-i18n="tool.login">Log In</span></span></a>
+      <% } %>
+      <div class="langtoggle" role="group" aria-label="Language / Langue">
+        <button type="button" data-lang="en" class="is-active" aria-pressed="true">EN</button>
+        <span aria-hidden="true">|</span>
+        <button type="button" data-lang="fr" aria-pressed="false">FR</button>
+      </div>
+    </div>
+  </div>
+</header>

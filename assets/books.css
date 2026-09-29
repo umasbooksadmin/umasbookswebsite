@@ -211,7 +211,7 @@
 }
 .bk-track .bk-book .a { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* a little less space above the footer on this page (browsers without :has keep 56px) */
-body:has(.bk-band) .h-footer { margin-top: 38px; }
+body:has(.bk-band) .mkt-footer { margin-top: 38px; }
 @media (max-width: 760px) {
   .bk-top { padding-bottom: 28px; }
   .bk-genres { padding-bottom: 32px; }

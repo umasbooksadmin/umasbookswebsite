@@ -1,0 +1,48 @@
+<%- include('partials/mkt_header', {
+  title: "Visit — Uma's Books and Adventures",
+}) %>
+  <div class="page-hero">
+    <span class="kicker" data-i18n="visit.kicker">Chapter Four</span>
+    <h1 data-i18n="visit.title">Visit Us</h1>
+  </div>
+  <div class="section">
+    <div class="wrap-narrow">
+      <div class="visit-grid">
+        <div class="visit-item">
+          <span class="label" data-i18n="visit.where.l">Where</span>
+          <span class="value" data-i18n="visit.where.v">Rue Peyroli&egrave;re, 81000 Albi</span>
+        </div>
+        <div class="visit-item">
+          <span class="label" data-i18n="visit.hours.l">Hours</span>
+          <span class="value">
+            <span class="hours-row"><span data-i18n="visit.hours.days">Tue &ndash; Sat</span><span data-i18n="visit.hours.time">10:00&ndash;19:00</span></span>
+          </span>
+        </div>
+        <div class="visit-item">
+          <span class="label" data-i18n="visit.contact.l">Contact</span>
+          <span class="value"><a href="mailto:admin@umasbooks.org">admin@umasbooks.org</a></span>
+        </div>
+      </div>
+    </div>
+  </div>
+<% const pageI18nEn = {
+  "visit.kicker": "Chapter Four",
+  "visit.title": "Visit Us",
+  "visit.where.l": "Where",
+  "visit.where.v": "Rue Peyrolière, 81000 Albi",
+  "visit.hours.l": "Hours",
+  "visit.hours.days": "Tue – Sat",
+  "visit.hours.time": "10:00–19:00",
+  "visit.contact.l": "Contact",
+}; %>
+<% const pageI18nFr = {
+  "visit.kicker": "Chapitre quatre",
+  "visit.title": "Nous rendre visite",
+  "visit.where.l": "Où",
+  "visit.where.v": "Rue Peyrolière, 81000 Albi",
+  "visit.hours.l": "Horaires",
+  "visit.hours.days": "Mar – Sam",
+  "visit.hours.time": "10h00–19h00",
+  "visit.contact.l": "Contact",
+}; %>
+<%- include('partials/mkt_footer', { pageI18nEn, pageI18nFr }) %>

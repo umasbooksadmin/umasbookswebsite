@@ -1,0 +1,188 @@
+<%- include('partials/mkt_header', {
+  title: "Events — Uma's Books and Adventures",
+  extraCss: ['assets/home.css', 'assets/events.css'],
+  bodyClass: 'home home-fit fit-screen',
+  activeNav: 'events',
+}) %>
+  <section class="h-hero">
+    <img class="art art-left" src="assets/img/hero-left.png" alt="">
+    <img class="art art-right" src="assets/img/hero-right.png" alt="">
+    <div class="h-hero-copy">
+      <h1 class="ev-hero-h1" data-i18n-html="ev.hero.h1"><span class="line">Adventures</span> <span class="line"><span class="amp">&amp;</span> Events</span></h1>
+      <div class="rule"></div>
+      <p class="tagline" data-i18n-html="ev.hero.tagline">Book clubs, author talks <br>&amp; storytime in Albi</p>
+    </div>
+  </section>
+
+  <section class="h-cards">
+    <article class="h-card">
+      <img class="medallion" src="assets/img/medallion-browse.png" alt="">
+      <h2 data-i18n="ev.clubs.t">Book Clubs</h2>
+      <div class="divider"></div>
+      <p data-i18n="ev.clubs.d">Read along with fellow book lovers and talk it all over — in English, over tea.</p>
+    </article>
+
+    <article class="h-card gold">
+      <img class="medallion" src="assets/img/medallion-donate.png" alt="">
+      <h2 data-i18n="ev.talks.t">Author Talks</h2>
+      <div class="divider"></div>
+      <p data-i18n="ev.talks.d">Meet writers, translators and storytellers, and hear how their books came to life.</p>
+    </article>
+
+    <article class="h-card green">
+      <img class="medallion" src="assets/img/medallion-eveil.png" alt="">
+      <h2 data-i18n="ev.story.t">Storytime</h2>
+      <span class="subtitle" data-i18n="ev.story.sub">For little readers</span>
+      <div class="divider"></div>
+      <p data-i18n="ev.story.d">Picture books, songs and rhymes read aloud in English for children and families.</p>
+    </article>
+
+    <article class="h-card">
+      <img class="medallion" src="assets/img/medallion-events.png" alt="">
+      <h2 data-i18n="ev.culture.t">Cultural Events</h2>
+      <div class="divider"></div>
+      <p data-i18n="ev.culture.d">Language exchanges, seasonal celebrations and gatherings for the whole community.</p>
+    </article>
+  </section>
+
+  <section class="ev-schedule" id="schedule" aria-labelledby="ev-schedule-title">
+    <div class="ev-head">
+      <h2 id="ev-schedule-title" data-i18n="ev.schedule.t">Upcoming</h2>
+      <div class="divider"></div>
+      <p data-i18n="ev.schedule.d">Everyone is welcome. Sign up so we know how many chairs to put out.</p>
+    </div>
+    <div class="ev-list" id="events-schedule">
+      <p class="ev-empty" data-i18n="events.loading">Loading the schedule…</p>
+    </div>
+    <div class="ev-more">
+      <a class="h-btn h-btn-outline" href="/events"><span data-i18n="ev.calendar">View the full calendar</span> <span class="arrow" aria-hidden="true">&rarr;</span></a>
+    </div>
+  </section>
+
+  <section class="member-band member-row">
+    <div class="about-card">
+      <h2 data-i18n="ev.about.t">Share an adventure</h2>
+      <div class="divider"></div>
+      <p data-i18n="ev.about.d">Uma’s is a community space. If you’d like to run a book club, give a talk or host a workshop, we’d love to hear your idea.</p>
+      <a class="h-btn" href="mailto:admin@umasbooks.org?subject=Event%20idea"><span data-i18n="ev.about.cta">Suggest an event</span> <span class="arrow" aria-hidden="true">&rarr;</span></a>
+      <img class="sprig" src="assets/img/sprig.png" alt="">
+    </div>
+    <%- include('partials/mkt_member_band') %>
+  </section>
+<% const pageI18nEn = {
+  "ev.hero.h1": "<span class=\"line\">Adventures</span> <span class=\"line\"><span class=\"amp\">&amp;</span> Events</span>",
+  "ev.hero.tagline": "Book clubs, author talks <br>&amp; storytime in Albi",
+  "ev.clubs.t": "Book Clubs",
+  "ev.clubs.d": "Read along with fellow book lovers and talk it all over — in English, over tea.",
+  "ev.talks.t": "Author Talks",
+  "ev.talks.d": "Meet writers, translators and storytellers, and hear how their books came to life.",
+  "ev.story.t": "Storytime",
+  "ev.story.sub": "For little readers",
+  "ev.story.d": "Picture books, songs and rhymes read aloud in English for children and families.",
+  "ev.culture.t": "Cultural Events",
+  "ev.culture.d": "Language exchanges, seasonal celebrations and gatherings for the whole community.",
+  "ev.schedule.t": "Upcoming",
+  "ev.schedule.d": "Everyone is welcome. Sign up so we know how many chairs to put out.",
+  "ev.calendar": "View the full calendar",
+  "ev.about.t": "Share an adventure",
+  "ev.about.d": "Uma’s is a community space. If you’d like to run a book club, give a talk or host a workshop, we’d love to hear your idea.",
+  "ev.about.cta": "Suggest an event",
+  "events.loading": "Loading the schedule…",
+  "events.empty": "Nothing on the calendar right now — check back soon.",
+  "events.error": "Couldn't load the schedule right now — view the full calendar instead.",
+  "events.spots": "spots taken",
+  "events.signedup": "signed up",
+  "events.signup": "Sign up",
+}; %>
+<% const pageI18nFr = {
+  "ev.hero.h1": "<span class=\"line\">Aventures</span> <span class=\"line\"><span class=\"amp\">&amp;</span> Événements</span>",
+  "ev.hero.tagline": "Clubs de lecture, rencontres <br>&amp; heure du conte à Albi",
+  "ev.clubs.t": "Clubs de lecture",
+  "ev.clubs.d": "Lisez avec d’autres passionnés et discutez-en ensemble — en anglais, autour d’un thé.",
+  "ev.talks.t": "Rencontres d’auteurs",
+  "ev.talks.d": "Rencontrez auteurs, traducteurs et conteurs, et découvrez comment leurs livres ont vu le jour.",
+  "ev.story.t": "Heure du conte",
+  "ev.story.sub": "Pour les petits lecteurs",
+  "ev.story.d": "Albums, chansons et comptines lus à voix haute en anglais pour les enfants et les familles.",
+  "ev.culture.t": "Événements culturels",
+  "ev.culture.d": "Échanges linguistiques, fêtes de saison et rencontres pour toute la communauté.",
+  "ev.schedule.t": "À venir",
+  "ev.schedule.d": "Tout le monde est bienvenu. Inscrivez-vous pour que nous sachions combien de chaises installer.",
+  "ev.calendar": "Voir tout le calendrier",
+  "ev.about.t": "Proposez une aventure",
+  "ev.about.d": "Uma’s est un lieu ouvert à tous. Si vous aimeriez animer un club de lecture, donner une conférence ou organiser un atelier, nous serions ravis de connaître votre idée.",
+  "ev.about.cta": "Proposer un événement",
+  "events.loading": "Chargement du programme…",
+  "events.empty": "Rien de prévu pour le moment — revenez bientôt.",
+  "events.error": "Impossible de charger le programme — consultez plutôt tout le calendrier.",
+  "events.spots": "places prises",
+  "events.signedup": "inscrits",
+  "events.signup": "S’inscrire",
+}; %>
+<%- include('partials/mkt_footer', {
+  pageI18nEn, pageI18nFr,
+  extraInlineScript: `
+(function () {
+  var list = document.getElementById('events-schedule');
+  if (!list) return;
+  var events = null;
+  var state = 'loading';
+
+  function lang() {
+    try { return localStorage.getItem('umasbooks.lang') === 'fr' ? 'fr' : 'en'; } catch (e) { return 'en'; }
+  }
+  function t(key, fallback) {
+    var dict = (window.PAGE_I18N && window.PAGE_I18N[lang()]) || {};
+    return dict[key] || fallback;
+  }
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function fmt(iso, opts) {
+    opts.timeZone = 'Europe/Paris';
+    return new Date(iso).toLocaleString(lang() === 'fr' ? 'fr-FR' : 'en-GB', opts);
+  }
+
+  function render() {
+    if (state === 'error') { list.innerHTML = '<p class="ev-empty">' + esc(t('events.error', "Couldn't load the schedule right now.")) + '</p>'; return; }
+    if (state === 'loading') return;
+    if (!events.length) { list.innerHTML = '<p class="ev-empty">' + esc(t('events.empty', 'Nothing on the calendar right now.')) + '</p>'; return; }
+    list.innerHTML = events.map(function (e) {
+      var when = fmt(e.startsAt, { weekday: 'long', hour: '2-digit', minute: '2-digit' });
+      if (e.endsAt) when += '–' + fmt(e.endsAt, { hour: '2-digit', minute: '2-digit' });
+      var meta = [when];
+      if (e.location) meta.push(e.location);
+      if (e.capacity != null) meta.push(e.signupCount + '/' + e.capacity + ' ' + t('events.spots', 'spots taken'));
+      else if (Number(e.signupCount) > 0) meta.push(e.signupCount + ' ' + t('events.signedup', 'signed up'));
+      return '<article class="ev-item">' +
+        '<div class="ev-date" aria-hidden="true"><span class="d">' + esc(fmt(e.startsAt, { day: 'numeric' })) + '</span>' +
+          '<span class="m">' + esc(fmt(e.startsAt, { month: 'short' }).replace('.', '')) + '</span></div>' +
+        '<div>' +
+          '<h3 class="ev-title">' + esc(e.title) + '</h3>' +
+          '<div class="ev-meta"><span class="sr-date">' + esc(fmt(e.startsAt, { day: 'numeric', month: 'long' })) + ' · </span>' + esc(meta.join(' · ')) + '</div>' +
+          (e.description ? '<p class="ev-desc">' + esc(e.description) + '</p>' : '') +
+        '</div>' +
+        '<a class="h-btn" href="' + esc(e.url) + '">' + esc(t('events.signup', 'Sign up')) + ' <span class="arrow" aria-hidden="true">&rarr;</span></a>' +
+      '</article>';
+    }).join('');
+  }
+
+  function loadEvents(isRetry) {
+    fetch('/api/events/upcoming')
+      .then(function (res) { if (!res.ok) throw new Error('bad response'); return res.json(); })
+      .then(function (data) { events = data; state = 'ok'; render(); })
+      .catch(function () {
+        if (!isRetry) { setTimeout(function () { loadEvents(true); }, 4000); return; }
+        state = 'error'; render();
+      });
+  }
+  loadEvents(false);
+
+  document.querySelectorAll('.langtoggle button').forEach(function (b) {
+    b.addEventListener('click', function () { setTimeout(render, 0); });
+  });
+})();
+  `,
+}) %>

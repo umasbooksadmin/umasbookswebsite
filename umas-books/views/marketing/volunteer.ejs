@@ -1,0 +1,116 @@
+<%- include('partials/mkt_header', {
+  title: "Volunteer — Uma's Books and Adventures",
+}) %>
+  <div class="page-hero">
+    <span class="kicker" data-i18n="volunteer.kicker">Get Involved</span>
+    <h1 data-i18n="volunteer.title">Volunteer With Us</h1>
+  </div>
+  <div class="section">
+    <div class="wrap-narrow">
+      <div class="prose">
+        <p data-i18n="volunteer.intro">Uma&#39;s is entirely volunteer-run &mdash; every hour on the shop floor, every sorted donation, every event, is someone giving their time. New volunteers, at any language level, are always welcome.</p>
+      </div>
+      <div class="cardlist" style="margin-top: 28px;">
+        <div class="card">
+          <span class="card-title" data-i18n="volunteer.shop.t">Shop Floor</span>
+          <span class="card-desc" data-i18n="volunteer.shop.d">Welcome visitors and mind the till during opening hours.</span>
+        </div>
+        <div class="card">
+          <span class="card-title" data-i18n="volunteer.sorting.t">Sorting &amp; Shelving</span>
+          <span class="card-desc" data-i18n="volunteer.sorting.d">Sort donations and keep the collection organised.</span>
+        </div>
+        <div class="card">
+          <span class="card-title" data-i18n="volunteer.events.t">Events &amp; Language Exchange</span>
+          <span class="card-desc" data-i18n="volunteer.events.d">Help run book club, language exchange, or story swaps.</span>
+        </div>
+        <div class="card">
+          <span class="card-title" data-i18n="volunteer.translation.t">Bilingual Support</span>
+          <span class="card-desc" data-i18n="volunteer.translation.d">Help visitors and paperwork move smoothly between English and French.</span>
+        </div>
+      </div>
+      <h3 class="form-title" data-i18n="volunteer.schedule.title">Shop Shifts</h3>
+      <table class="scheduletable">
+        <thead>
+          <tr><th data-i18n="volunteer.schedule.day">Days</th><th data-i18n="volunteer.schedule.time">Time</th></tr>
+        </thead>
+        <tbody>
+          <tr><td data-i18n="visit.hours.days">Tue &ndash; Sat</td><td data-i18n="visit.hours.time">10:00&ndash;19:00</td></tr>
+        </tbody>
+      </table>
+      <p class="form-hint" data-i18n="volunteer.schedule.note">Shifts typically run 2&ndash;3 hours within opening hours &mdash; tell us what works for you below.</p>
+      <h3 class="form-title" data-i18n="volunteer.form.title">Volunteer Sign-up</h3>
+      <form class="formcard" data-mailto="admin@umasbooks.org" data-subject="Volunteer Sign-up" novalidate>
+        <div class="field">
+          <label for="vol-name" data-i18n="form.name.l">Name</label>
+          <input id="vol-name" type="text" data-field="Name" autocomplete="name">
+        </div>
+        <div class="field">
+          <label for="vol-email" data-i18n="form.email.l">Email</label>
+          <input id="vol-email" type="email" data-field="Email" autocomplete="email">
+        </div>
+        <div class="field">
+          <label for="vol-avail" data-i18n="volunteer.form.avail.l">Availability</label>
+          <input id="vol-avail" type="text" data-field="Availability">
+        </div>
+        <div class="field">
+          <label for="vol-note" data-i18n="form.note.l">Note (optional)</label>
+          <textarea id="vol-note" data-field="Note"></textarea>
+        </div>
+        <p class="form-hint" data-i18n="form.hint">This opens your email app with the message ready to send.</p>
+        <button type="submit" class="btn-submit" data-i18n="volunteer.form.submit">Send Sign-up</button>
+      </form>
+    </div>
+  </div>
+<% const pageI18nEn = {
+  "visit.hours.days": "Tue – Sat",
+  "visit.hours.time": "10:00–19:00",
+  "volunteer.kicker": "Get Involved",
+  "volunteer.title": "Volunteer With Us",
+  "volunteer.intro": "Uma’s is entirely volunteer-run — every hour on the shop floor, every sorted donation, every event, is someone giving their time. New volunteers, at any language level, are always welcome.",
+  "volunteer.shop.t": "Shop Floor",
+  "volunteer.shop.d": "Welcome visitors and mind the till during opening hours.",
+  "volunteer.sorting.t": "Sorting & Shelving",
+  "volunteer.sorting.d": "Sort donations and keep the collection organised.",
+  "volunteer.events.t": "Events & Language Exchange",
+  "volunteer.events.d": "Help run book club, language exchange, or story swaps.",
+  "volunteer.translation.t": "Bilingual Support",
+  "volunteer.translation.d": "Help visitors and paperwork move smoothly between English and French.",
+  "volunteer.schedule.title": "Shop Shifts",
+  "volunteer.schedule.day": "Days",
+  "volunteer.schedule.time": "Time",
+  "volunteer.schedule.note": "Shifts typically run 2–3 hours within opening hours — tell us what works for you below.",
+  "volunteer.form.title": "Volunteer Sign-up",
+  "volunteer.form.avail.l": "Availability",
+  "volunteer.form.submit": "Send Sign-up",
+  "form.name.l": "Name",
+  "form.email.l": "Email",
+  "form.note.l": "Note (optional)",
+  "form.hint": "This opens your email app with the message ready to send.",
+}; %>
+<% const pageI18nFr = {
+  "visit.hours.days": "Mar – Sam",
+  "visit.hours.time": "10h00–19h00",
+  "volunteer.kicker": "S’impliquer",
+  "volunteer.title": "Devenir bénévole",
+  "volunteer.intro": "Uma’s fonctionne entièrement grâce à des bénévoles — chaque heure en boutique, chaque don trié, chaque événement, c’est quelqu’un qui donne de son temps. Les nouveaux bénévoles, quel que soit leur niveau de langue, sont toujours les bienvenus.",
+  "volunteer.shop.t": "En boutique",
+  "volunteer.shop.d": "Accueillir les visiteurs et tenir la caisse pendant les heures d’ouverture.",
+  "volunteer.sorting.t": "Tri et rangement",
+  "volunteer.sorting.d": "Trier les dons et garder la collection organisée.",
+  "volunteer.events.t": "Événements et échange linguistique",
+  "volunteer.events.d": "Aider à animer le club de lecture, l’échange linguistique ou les trocs de livres.",
+  "volunteer.translation.t": "Soutien bilingue",
+  "volunteer.translation.d": "Aider les visiteurs et les démarches à circuler facilement entre l’anglais et le français.",
+  "volunteer.schedule.title": "Créneaux en boutique",
+  "volunteer.schedule.day": "Jours",
+  "volunteer.schedule.time": "Horaire",
+  "volunteer.schedule.note": "Les créneaux durent généralement 2 à 3 heures pendant les heures d’ouverture — indiquez-nous vos disponibilités ci-dessous.",
+  "volunteer.form.title": "Formulaire de bénévolat",
+  "volunteer.form.avail.l": "Disponibilités",
+  "volunteer.form.submit": "Envoyer ma candidature",
+  "form.name.l": "Nom",
+  "form.email.l": "Email",
+  "form.note.l": "Remarque (facultatif)",
+  "form.hint": "Cela ouvre votre application de messagerie avec le message prêt à envoyer.",
+}; %>
+<%- include('partials/mkt_footer', { pageI18nEn, pageI18nFr }) %>

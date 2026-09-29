@@ -1,0 +1,261 @@
+<%- include('partials/mkt_header', {
+  title: "Pre-Registration — Uma's Books and Adventures",
+  description: "Pre-register your child for Weekly English Immersion sessions at Uma's Books in Albi.",
+  extraCss: ['assets/home.css', 'assets/preregistration.css'],
+  bodyClass: 'home',
+  activeNav: 'programs',
+}) %>
+  <section class="h-hero" style="min-height:0;">
+    <img class="art art-left" src="assets/img/hero-left.png" alt="">
+    <img class="art art-right" src="assets/img/hero-right.png" alt="">
+    <div class="preg-hero-copy">
+      <h1 data-i18n="preg.hero.t">Weekly English Immersion</h1>
+      <div class="preg-kicker" data-i18n="preg.hero.kicker">Pre-Registration</div>
+      <hr class="preg-rule">
+      <p class="preg-script" data-i18n="preg.hero.script">Stories, games, creativity and conversation — all in English.</p>
+      <p class="preg-sub" data-i18n="preg.hero.sub">For children, teens and adults in Albi.</p>
+    </div>
+  </section>
+
+  <div class="preg-layout">
+    <div>
+      <form class="preg-form" data-mailto="admin@umasbooks.org" data-subject="Weekly English Immersion — Pre-Registration" novalidate>
+        <div class="preg-section-title"><span class="num">1.</span> <span data-i18n="preg.s1.h">About Your Child</span></div>
+        <div class="preg-row">
+          <div class="field">
+            <label for="preg-first">
+              <span data-i18n="preg.f.first.l">Child’s first name</span> <span class="req">*</span>
+            </label>
+            <input id="preg-first" type="text" data-field="Child's first name" autocomplete="given-name" required>
+          </div>
+          <div class="field">
+            <label for="preg-last">
+              <span data-i18n="preg.f.last.l">Child’s last name</span> <span class="req">*</span>
+            </label>
+            <input id="preg-last" type="text" data-field="Child's last name" autocomplete="family-name" required>
+          </div>
+        </div>
+        <div class="preg-row">
+          <div class="field">
+            <label for="preg-dob">
+              <span data-i18n="preg.f.dob.l">Date of birth</span> <span class="req">*</span>
+            </label>
+            <input id="preg-dob" type="date" data-field="Date of birth" required>
+          </div>
+          <div class="field">
+            <label for="preg-session">
+              <span data-i18n="preg.f.session.l">Choose a session</span> <span class="req">*</span>
+            </label>
+            <select id="preg-session" data-field="Session" required>
+              <option value="" data-i18n="preg.f.session.ph">Select a session</option>
+              <option data-i18n="imm.s1.t">Little Explorers (Age 2–3)</option>
+              <option data-i18n="imm.s2.t">Éveil English (Age 3–5)</option>
+              <option data-i18n="imm.s3.t">Young Adventurers (Age 5–9)</option>
+              <option data-i18n="imm.s4.t">Young Readers (Age 9–14)</option>
+              <option data-i18n="imm.s5.t">Teen Literature (Age 14–17)</option>
+              <option data-i18n="imm.s6.t">English Café (Adult)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="preg-section-title"><span class="num">2.</span> <span data-i18n="preg.s2.h">Preferred Availability</span></div>
+        <div class="preg-note" data-i18n="preg.s2.note">Let us know which days and times work best for you. We will propose a couple of time slots based on your preferences and availability.</div>
+        <div class="preg-row">
+          <div class="field">
+            <label for="preg-days">
+              <span data-i18n="preg.f.days.l">Preferred day(s)</span> <span class="req">*</span>
+            </label>
+            <select id="preg-days" data-field="Preferred day(s)" multiple required>
+              <option data-i18n="preg.day.tue">Tuesday</option>
+              <option data-i18n="preg.day.wed">Wednesday</option>
+              <option data-i18n="preg.day.thu">Thursday</option>
+              <option data-i18n="preg.day.fri">Friday</option>
+              <option data-i18n="preg.day.sat">Saturday</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="preg-times">
+              <span data-i18n="preg.f.times.l">Preferred time(s)</span> <span class="req">*</span>
+            </label>
+            <select id="preg-times" data-field="Preferred time(s)" multiple required>
+              <option data-i18n="preg.time.morning">Morning</option>
+              <option data-i18n="preg.time.earlyafternoon">Early afternoon</option>
+              <option data-i18n="preg.time.lateafternoon">Late afternoon</option>
+              <option data-i18n="preg.time.evening">Evening</option>
+            </select>
+          </div>
+        </div>
+        <p class="preg-field-hint" data-i18n="preg.multiselect.hint">Hold Cmd (Mac) or Ctrl (Windows) to select more than one.</p>
+
+        <div class="preg-section-title"><span class="num">3.</span> <span data-i18n="preg.s3.h">Parent / Guardian</span></div>
+        <div class="field">
+          <label for="preg-parent">
+            <span data-i18n="preg.f.parent.l">Your name</span> <span class="req">*</span>
+          </label>
+          <input id="preg-parent" type="text" data-field="Parent/guardian name" autocomplete="name" required>
+        </div>
+        <div class="field">
+          <label for="preg-email">
+            <span data-i18n="preg.f.email.l">Email address</span> <span class="req">*</span>
+          </label>
+          <input id="preg-email" type="email" data-field="Email address" autocomplete="email" required>
+        </div>
+        <div class="field">
+          <label for="preg-phone">
+            <span data-i18n="preg.f.phone.l">Phone number</span> <span class="req">*</span>
+          </label>
+          <input id="preg-phone" type="tel" data-field="Phone number" autocomplete="tel" required>
+        </div>
+
+        <div class="preg-section-title"><span class="num">4.</span> <span data-i18n="preg.s4.h">Additional Information</span> <span class="opt" data-i18n="preg.s4.opt">(optional)</span></div>
+        <div class="field">
+          <label for="preg-level" data-i18n="preg.f.level.l">English experience or level</label>
+          <input id="preg-level" type="text" data-field="English experience/level">
+        </div>
+        <div class="field">
+          <label for="preg-notes" data-i18n="preg.f.notes.l">Anything else you’d like to share with us? (interests, needs, etc.)</label>
+          <textarea id="preg-notes" data-field="Additional notes"></textarea>
+        </div>
+
+        <label class="preg-check">
+          <input type="checkbox" data-field="Wants updates" value="Yes">
+          <span data-i18n="preg.f.updates">I’d like to receive updates about the English Immersion program. (optional)</span>
+        </label>
+        <label class="preg-check">
+          <input type="checkbox" required>
+          <span data-i18n="preg.f.consent">I agree to be contacted about this pre-registration. <span class="req">*</span></span>
+        </label>
+
+        <button type="submit" class="preg-submit"><span data-i18n="preg.submit">Submit Pre-Registration</span> <span aria-hidden="true">&rarr;</span></button>
+        <p class="preg-form-hint" data-i18n="preg.hint">This opens your email app with your registration ready to send — we’ll be in touch soon with a few suggested time slots and next steps.</p>
+      </form>
+    </div>
+
+    <aside class="preg-sidebar">
+      <div class="preg-summary">
+        <div class="kicker" data-i18n="preg.summary.kicker">Weekly Immersion</div>
+        <div class="item">
+          <div class="big" data-i18n="imm.duration.v">1 hour</div>
+          <div class="small" data-i18n="imm.duration.n">per session</div>
+        </div>
+        <hr class="preg-rule">
+        <div class="item">
+          <div class="big" data-i18n="imm.weekly.cost.v">15 €</div>
+          <div class="small" data-i18n="preg.summary.cost.n">per session (billed monthly)</div>
+        </div>
+        <hr class="preg-rule">
+        <div class="item">
+          <div class="big" data-i18n="preg.summary.where.t">In Albi</div>
+          <div class="small" data-i18n="preg.summary.where.d">At Uma’s Books &amp; Adventures</div>
+        </div>
+        <hr class="preg-rule">
+        <p class="blurb" data-i18n="preg.summary.blurb">A welcoming, community-led program where children and adults explore English through books, stories and creative activities.</p>
+      </div>
+      <img class="preg-sidebar-art" src="assets/img/hero-left.png" alt="">
+    </aside>
+  </div>
+<% const pageI18nEn = {
+  "preg.hero.t": "Weekly English Immersion",
+  "preg.hero.kicker": "Pre-Registration",
+  "preg.hero.script": "Stories, games, creativity and conversation — all in English.",
+  "preg.hero.sub": "For children, teens and adults in Albi.",
+  "preg.s1.h": "About Your Child",
+  "preg.f.first.l": "Child’s first name",
+  "preg.f.last.l": "Child’s last name",
+  "preg.f.dob.l": "Date of birth",
+  "preg.f.session.l": "Choose a session",
+  "preg.f.session.ph": "Select a session",
+  "imm.s1.t": "Little Explorers (Age 2–3)",
+  "imm.s2.t": "Éveil English (Age 3–5)",
+  "imm.s3.t": "Young Adventurers (Age 5–9)",
+  "imm.s4.t": "Young Readers (Age 9–14)",
+  "imm.s5.t": "Teen Literature (Age 14–17)",
+  "imm.s6.t": "English Café (Adult)",
+  "preg.s2.h": "Preferred Availability",
+  "preg.s2.note": "Let us know which days and times work best for you. We will propose a couple of time slots based on your preferences and availability.",
+  "preg.f.days.l": "Preferred day(s)",
+  "preg.f.times.l": "Preferred time(s)",
+  "preg.day.tue": "Tuesday",
+  "preg.day.wed": "Wednesday",
+  "preg.day.thu": "Thursday",
+  "preg.day.fri": "Friday",
+  "preg.day.sat": "Saturday",
+  "preg.time.morning": "Morning",
+  "preg.time.earlyafternoon": "Early afternoon",
+  "preg.time.lateafternoon": "Late afternoon",
+  "preg.time.evening": "Evening",
+  "preg.multiselect.hint": "Hold Cmd (Mac) or Ctrl (Windows) to select more than one.",
+  "preg.s3.h": "Parent / Guardian",
+  "preg.f.parent.l": "Your name",
+  "preg.f.email.l": "Email address",
+  "preg.f.phone.l": "Phone number",
+  "preg.s4.h": "Additional Information",
+  "preg.s4.opt": "(optional)",
+  "preg.f.level.l": "English experience or level",
+  "preg.f.notes.l": "Anything else you’d like to share with us? (interests, needs, etc.)",
+  "preg.f.updates": "I’d like to receive updates about the English Immersion program. (optional)",
+  "preg.f.consent": "I agree to be contacted about this pre-registration. *",
+  "preg.submit": "Submit Pre-Registration",
+  "preg.hint": "This opens your email app with your registration ready to send — we’ll be in touch soon with a few suggested time slots and next steps.",
+  "preg.summary.kicker": "Weekly Immersion",
+  "imm.duration.v": "1 hour",
+  "imm.duration.n": "per session",
+  "imm.weekly.cost.v": "15 €",
+  "preg.summary.cost.n": "per session (billed monthly)",
+  "preg.summary.where.t": "In Albi",
+  "preg.summary.where.d": "At Uma’s Books & Adventures",
+  "preg.summary.blurb": "A welcoming, community-led program where children and adults explore English through books, stories and creative activities.",
+}; %>
+<% const pageI18nFr = {
+  "preg.hero.t": "Immersion hebdomadaire en anglais",
+  "preg.hero.kicker": "Pré-inscription",
+  "preg.hero.script": "Histoires, jeux, créativité et conversation — le tout en anglais.",
+  "preg.hero.sub": "Pour les enfants, les ados et les adultes à Albi.",
+  "preg.s1.h": "Votre enfant",
+  "preg.f.first.l": "Prénom de l’enfant",
+  "preg.f.last.l": "Nom de l’enfant",
+  "preg.f.dob.l": "Date de naissance",
+  "preg.f.session.l": "Choisissez une séance",
+  "preg.f.session.ph": "Sélectionner une séance",
+  "imm.s1.t": "Little Explorers (2–3 ans)",
+  "imm.s2.t": "Éveil English (3–5 ans)",
+  "imm.s3.t": "Young Adventurers (5–9 ans)",
+  "imm.s4.t": "Young Readers (9–14 ans)",
+  "imm.s5.t": "Teen Literature (14–17 ans)",
+  "imm.s6.t": "English Café (Adultes)",
+  "preg.s2.h": "Disponibilités souhaitées",
+  "preg.s2.note": "Indiquez-nous les jours et horaires qui vous conviennent le mieux. Nous vous proposerons quelques créneaux selon vos préférences et disponibilités.",
+  "preg.f.days.l": "Jour(s) préféré(s)",
+  "preg.f.times.l": "Horaire(s) préféré(s)",
+  "preg.day.tue": "Mardi",
+  "preg.day.wed": "Mercredi",
+  "preg.day.thu": "Jeudi",
+  "preg.day.fri": "Vendredi",
+  "preg.day.sat": "Samedi",
+  "preg.time.morning": "Matin",
+  "preg.time.earlyafternoon": "Début d’après-midi",
+  "preg.time.lateafternoon": "Fin d’après-midi",
+  "preg.time.evening": "Soir",
+  "preg.multiselect.hint": "Maintenez Cmd (Mac) ou Ctrl (Windows) pour en sélectionner plusieurs.",
+  "preg.s3.h": "Parent / Tuteur",
+  "preg.f.parent.l": "Votre nom",
+  "preg.f.email.l": "Adresse e-mail",
+  "preg.f.phone.l": "Numéro de téléphone",
+  "preg.s4.h": "Informations complémentaires",
+  "preg.s4.opt": "(facultatif)",
+  "preg.f.level.l": "Niveau ou expérience en anglais",
+  "preg.f.notes.l": "Autre chose à nous partager ? (intérêts, besoins, etc.)",
+  "preg.f.updates": "Je souhaite recevoir des nouvelles du programme d’immersion anglaise. (facultatif)",
+  "preg.f.consent": "J’accepte d’être contacté(e) au sujet de cette pré-inscription. *",
+  "preg.submit": "Envoyer la pré-inscription",
+  "preg.hint": "Cela ouvre votre application de messagerie avec votre pré-inscription prête à envoyer — nous reviendrons vers vous avec quelques créneaux proposés.",
+  "preg.summary.kicker": "Immersion hebdomadaire",
+  "imm.duration.v": "1 heure",
+  "imm.duration.n": "par séance",
+  "imm.weekly.cost.v": "15 €",
+  "preg.summary.cost.n": "par séance (facturé mensuellement)",
+  "preg.summary.where.t": "À Albi",
+  "preg.summary.where.d": "À Uma’s Books & Adventures",
+  "preg.summary.blurb": "Un programme accueillant, porté par la communauté, où enfants et adultes découvrent l’anglais à travers les livres, les histoires et des activités créatives.",
+}; %>
+<%- include('partials/mkt_footer', { pageI18nEn, pageI18nFr }) %>

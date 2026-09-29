@@ -1,0 +1,97 @@
+<%- include('partials/mkt_header', {
+  title: "Membership — Uma's Books and Adventures",
+  description: "Become a member of Uma's Books & Adventures: vote on our quarterly charity, join the discussion forum, and get access to special events.",
+  extraCss: ['assets/home.css', 'assets/membership.css'],
+  bodyClass: 'home',
+}) %>
+  <section class="h-hero" style="min-height:0;">
+    <img class="art art-left" src="assets/img/hero-left.png" alt="">
+    <img class="art art-right" src="assets/img/hero-right.png" alt="">
+    <div class="mem-hero-copy">
+      <div class="mem-kicker" data-i18n="mem.hero.kicker">Uma’s Books &amp; Adventures</div>
+      <hr class="mem-rule">
+      <h1 data-i18n="mem.hero.t">Membership</h1>
+      <p class="mem-script" data-i18n="mem.hero.script">Become part of our community</p>
+      <p class="mem-sub" data-i18n="mem.hero.sub">A simple way to support our nonprofit community, take part in what we build, and enjoy special opportunities at Uma’s Books &amp; Adventures.</p>
+    </div>
+  </section>
+
+  <section class="mem-benefits-head">
+    <h2 data-i18n="mem.benefits.h">Membership Benefits</h2>
+  </section>
+  <section class="mem-benefits">
+    <div class="mem-benefit">
+      <h3 data-i18n="mem.b1.t">Vote on our quarterly charity</h3>
+      <p data-i18n="mem.b1.d">Help choose the organization our community supports each quarter.</p>
+    </div>
+    <div class="mem-benefit">
+      <h3 data-i18n="mem.b2.t">Discussion forums</h3>
+      <p data-i18n="mem.b2.d">Connect with other members, share ideas, and talk about books.</p>
+    </div>
+    <div class="mem-benefit">
+      <h3 data-i18n="mem.b3.t">Special events</h3>
+      <p data-i18n="mem.b3.d">Access member invitations and opportunities throughout the year.</p>
+    </div>
+    <div class="mem-benefit">
+      <h3 data-i18n="mem.b4.t">Special engagements</h3>
+      <p data-i18n="mem.b4.d">Take part in selected talks, activities and community experiences.</p>
+    </div>
+    <div class="mem-benefit">
+      <h3 data-i18n="mem.b5.t">A free tote bag</h3>
+      <p data-i18n="mem.b5.d">Collect your member tote bag from Uma’s Books &amp; Adventures. We’ll let you know when it’s ready for pickup.</p>
+    </div>
+  </section>
+
+  <div class="mem-widget-wrap">
+    <div class="mem-form-title" data-i18n="mem.form.h">Join Uma’s Books &amp; Adventures</div>
+    <p class="mem-widget-note" data-i18n-html="mem.widget.p">Sign-up and payment are handled securely by HelloAsso below. Membership lasts 12 months from your payment date and your account is activated automatically once it goes through — no need to contact us. By joining you agree to our <a href="membership-terms.html">membership terms</a> and <a href="privacy-policy.html">privacy policy</a>.</p>
+    <iframe id="haWidget" allow="payment 'self' https://paymenthub.helloassopay.com https://helloasso.com" allowtransparency="true" scrolling="auto" src="https://www.helloasso.com/associations/umasbooks/adhesions/uma-s-books-memberships/widget" style="width: 100%; height: 750px; border: none;" onload="window.addEventListener('message', function(e) { const dataHeight = e.data.height; const haWidgetElement = document.getElementById('haWidget');
+  if (dataHeight > parseFloat(haWidgetElement.height || 0)) { haWidgetElement.height = dataHeight + 'px';}})"></iframe>
+    <p class="mem-widget-hint" data-i18n="mem.widget.hint">Already a member and just renewing? Use the same email address you use to log in here so your account updates automatically.</p>
+    <p class="mem-widget-hint"><span data-i18n="mem.widget.directLabel">Having trouble with the form above?</span> <a href="https://www.helloasso.com/associations/umasbooks/adhesions/uma-s-books-memberships" target="_blank" rel="noopener" data-i18n="mem.widget.directLink">Open the membership page directly on HelloAsso</a>.</p>
+  </div>
+<% const pageI18nEn = {
+  "mem.hero.kicker": "Uma’s Books & Adventures",
+  "mem.hero.t": "Membership",
+  "mem.hero.script": "Become part of our community",
+  "mem.hero.sub": "A simple way to support our nonprofit community, take part in what we build, and enjoy special opportunities at Uma’s Books & Adventures.",
+  "mem.benefits.h": "Membership Benefits",
+  "mem.b1.t": "Vote on our quarterly charity",
+  "mem.b1.d": "Help choose the organization our community supports each quarter.",
+  "mem.b2.t": "Discussion forums",
+  "mem.b2.d": "Connect with other members, share ideas, and talk about books.",
+  "mem.b3.t": "Special events",
+  "mem.b3.d": "Access member invitations and opportunities throughout the year.",
+  "mem.b4.t": "Special engagements",
+  "mem.b4.d": "Take part in selected talks, activities and community experiences.",
+  "mem.b5.t": "A free tote bag",
+  "mem.b5.d": "Collect your member tote bag from Uma’s Books & Adventures. We’ll let you know when it’s ready for pickup.",
+  "mem.form.h": "Join Uma’s Books & Adventures",
+  "mem.widget.p": "Sign-up and payment are handled securely by HelloAsso below. Membership lasts 12 months from your payment date and your account is activated automatically once it goes through — no need to contact us. By joining you agree to our <a href=\"membership-terms.html\">membership terms</a> and <a href=\"privacy-policy.html\">privacy policy</a>.",
+  "mem.widget.hint": "Already a member and just renewing? Use the same email address you use to log in here so your account updates automatically.",
+  "mem.widget.directLabel": "Having trouble with the form above?",
+  "mem.widget.directLink": "Open the membership page directly on HelloAsso",
+}; %>
+<% const pageI18nFr = {
+  "mem.hero.kicker": "Uma’s Books & Adventures",
+  "mem.hero.t": "Adhésion",
+  "mem.hero.script": "Rejoignez notre communauté",
+  "mem.hero.sub": "Une façon simple de soutenir notre association, de participer à ce que nous construisons, et de profiter d’opportunités réservées aux membres chez Uma’s Books & Adventures.",
+  "mem.benefits.h": "Avantages de l’adhésion",
+  "mem.b1.t": "Votez pour notre association trimestrielle",
+  "mem.b1.d": "Aidez à choisir l’association que notre communauté soutient chaque trimestre.",
+  "mem.b2.t": "Forums de discussion",
+  "mem.b2.d": "Échangez avec d’autres membres, partagez vos idées et parlez de livres.",
+  "mem.b3.t": "Événements spéciaux",
+  "mem.b3.d": "Accédez à des invitations et opportunités réservées aux membres tout au long de l’année.",
+  "mem.b4.t": "Rencontres spéciales",
+  "mem.b4.d": "Participez à des conférences, activités et moments de rencontre choisis.",
+  "mem.b5.t": "Un tote bag offert",
+  "mem.b5.d": "Récupérez votre tote bag de membre chez Uma’s Books & Adventures. Nous vous préviendrons dès qu’il sera prêt.",
+  "mem.form.h": "Rejoignez Uma’s Books & Adventures",
+  "mem.widget.p": "L’inscription et le paiement sont gérés en toute sécurité par HelloAsso ci-dessous. L’adhésion dure 12 mois à partir de la date de paiement et votre compte est activé automatiquement une fois le paiement effectué — inutile de nous contacter. En adhérant, vous acceptez nos <a href=\"membership-terms.html\">conditions d’adhésion</a> et notre <a href=\"privacy-policy.html\">politique de confidentialité</a>.",
+  "mem.widget.hint": "Déjà membre et vous renouvelez simplement ? Utilisez la même adresse e-mail que celle de votre compte pour qu’il soit mis à jour automatiquement.",
+  "mem.widget.directLabel": "Un souci avec le formulaire ci-dessus ?",
+  "mem.widget.directLink": "Ouvrir la page d’adhésion directement sur HelloAsso",
+}; %>
+<%- include('partials/mkt_footer', { pageI18nEn, pageI18nFr }) %>
