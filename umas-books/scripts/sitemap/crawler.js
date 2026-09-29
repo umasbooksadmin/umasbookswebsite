@@ -34,6 +34,14 @@ const PERSONAS = {
 const ASSET_EXT = /\.(png|jpe?g|svg|ico|css|js|webmanifest|json|gif|woff2?|ttf|map)(\?|$)/i;
 const SKIP_SCHEME = /^(mailto:|tel:|sms:|javascript:|#)/i;
 const NAV_TIMEOUT = 15000;
+// The /events and /sessions calendars generate their own Prev/Next links
+// (month=2037-12, week=2015-06-01, ...) — each page the crawler visits
+// discovers two more, unboundedly, in both directions. Left unchecked
+// that's an infinite walk that never drains the queue. One page already
+// proves the route and its markup; cap how many of these get queued at
+// all instead of trying to crawl every month there ever was or will be.
+const CALENDAR_PARAM_RE = /[?&](month|week)=/;
+const CALENDAR_PAGE_CAP = 6;
 
 function toPath(absoluteUrl){
   try {
@@ -89,10 +97,21 @@ async function crawlPersona(browser, name, email, seeds){
   const edges = [];
   const queue = [...seeds];
   const queued = new Set(seeds);
+  let calendarPagesQueued = seeds.filter((s) => CALENDAR_PARAM_RE.test(s)).length;
+  function enqueue(link) {
+    if (queued.has(link)) return;
+    if (CALENDAR_PARAM_RE.test(link)) {
+      if (calendarPagesQueued >= CALENDAR_PAGE_CAP) return;
+      calendarPagesQueued++;
+    }
+    queue.push(link);
+    queued.add(link);
+  }
 
   while (queue.length) {
     const url = queue.shift();
     if (visited[url]) continue;
+    process.stderr.write(`  [${name}] ${url}\n`);
 
     let response;
     try {
@@ -111,7 +130,7 @@ async function crawlPersona(browser, name, email, seeds){
       const firstStatus = chain[0].response() ? chain[0].response().status() : null;
       const finalPath = toPath(response.url());
       visited[url] = { status: firstStatus, redirectTo: finalPath };
-      if (finalPath && !queued.has(finalPath)) { queue.push(finalPath); queued.add(finalPath); }
+      if (finalPath) enqueue(finalPath);
       continue;
     }
 
@@ -123,7 +142,7 @@ async function crawlPersona(browser, name, email, seeds){
       const submitUniq = [...new Set(submits.map(toPath).filter(Boolean))];
       for (const link of navUniq) {
         edges.push({ from: url, to: link, type: "link" });
-        if (!queued.has(link)) { queue.push(link); queued.add(link); }
+        enqueue(link);
       }
       for (const link of submitUniq) {
         edges.push({ from: url, to: link, type: "submit" });
