@@ -29,10 +29,23 @@ async function syncMembershipForEmail(pool, email) {
   const orders = await findMembershipOrdersByEmail(email);
   if (!orders.length) return;
 
-  const { rows: userRows } = await pool.query("SELECT id FROM users WHERE lower(email) = lower($1)", [email]);
+  const { rows: userRows } = await pool.query("SELECT id, email_verified_at FROM users WHERE lower(email) = lower($1)", [email]);
   const user = userRows[0];
   if (!user) {
     console.warn(`HelloAsso membership payment from ${email} has no matching site account — skipped.`);
+    return;
+  }
+  // Signup never proved this account actually controls this email
+  // address (see migrations/032_email_verification.sql) — auto-matching
+  // an unverified account here is exactly what let someone register a
+  // real person's email ahead of them and inherit a membership payment
+  // that person later made with their own money. This stops the
+  // mis-attribution itself; it doesn't free up the email address for its
+  // real owner to sign up with (the UNIQUE constraint still blocks that)
+  // — that part still needs an admin to step in via /admin/members (edit
+  // the squatter's email, or disable the account) once noticed.
+  if (!user.email_verified_at) {
+    console.warn(`HelloAsso membership payment from ${email} matched an account with an unverified email — skipped.`);
     return;
   }
 

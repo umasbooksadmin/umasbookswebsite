@@ -1,9 +1,27 @@
 const express = require("express");
+const rateLimit = require("express-rate-limit");
 const { pool } = require("../db");
 const { reconcileOrder } = require("../lib/cart");
 const { syncMembershipForEmail } = require("../lib/membership");
 
 const router = express.Router();
+
+// This route has no signature to verify a call actually came from
+// HelloAsso (see below), so its membership branch amounts to "anyone can
+// ask us to re-check any email against HelloAsso's real API, as often as
+// they like." findMembershipOrdersByEmail's exact-match check and
+// syncMembershipForEmail's verified-email check (lib/helloasso.js,
+// lib/membership.js) are what stop that from being able to misattribute
+// anything — this is just a cap on how much of that re-checking one
+// caller can force, since it costs a real outbound API call each time.
+// Comfortably above anything a small shop's real transaction volume
+// would ever hit.
+const webhookLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // Looks up a dotted path across a couple of possible shapes: an "Order"
 // event has formType directly under data, while a "Payment" event nests
@@ -32,7 +50,17 @@ function pick(obj, paths) {
 // worst, make us re-verify an order we'd have re-verified anyway on the
 // periodic backstop (see reconcilePendingOrders in index.js) — it can
 // never mark anything paid on its own.
-router.post("/webhooks/helloasso", express.json(), async (req, res) => {
+//
+// Same idea for the Membership branch below: the payer.email pulled from
+// the body is never trusted directly either — syncMembershipForEmail
+// re-asks HelloAsso's API for that email's real Authorized orders (now
+// filtered to an exact payer-email match, not HelloAsso's own fuzzy
+// userSearchKey — see lib/helloasso.js) and only ever applies them to a
+// local account whose email is itself verified (lib/membership.js). A
+// forged call here can, at worst, force an early re-check of one email
+// against HelloAsso's real records — never attribute a payment to an
+// account that hasn't proven it owns that email.
+router.post("/webhooks/helloasso", webhookLimiter, express.json(), async (req, res) => {
   res.status(200).end(); // ack immediately — HelloAsso retries on non-200/timeout
 
   const body = req.body || {};

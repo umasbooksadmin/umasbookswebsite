@@ -4,6 +4,7 @@ const rateLimit = require("express-rate-limit");
 const { pool } = require("../db");
 const { hashToken } = require("../lib/resetTokens");
 const { sendResetLink } = require("../lib/passwordReset");
+const { sendVerificationEmail } = require("../lib/emailVerification");
 const { validateNewPassword } = require("../lib/passwordPolicy");
 const { requireAuth } = require("../middleware/auth");
 const { baseUrl } = require("../lib/baseUrl");
@@ -88,6 +89,14 @@ router.post("/signup", authLimiter, async (req, res) => {
       [email, hash, displayName]
     );
     const user = rows[0];
+    try {
+      await sendVerificationEmail(user, baseUrl(req));
+    } catch (err) {
+      // Not fatal — the account still works normally; it just can't be
+      // auto-matched to a future HelloAsso membership payment until
+      // verified (see syncMembershipForEmail in lib/membership.js).
+      console.error("Verification email failed:", err.message);
+    }
     // New accounts aren't members yet (that's a separate step — see
     // Membership), so they land on the regular site, not the Member's
     // Access dashboard. Only actual members/admins go straight there.
@@ -98,12 +107,31 @@ router.post("/signup", authLimiter, async (req, res) => {
   }
 });
 
+router.get("/verify-email/:token", async (req, res) => {
+  const tokenHash = hashToken(req.params.token);
+  const { rows } = await pool.query(
+    "SELECT * FROM email_verification_tokens WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now()",
+    [tokenHash]
+  );
+  const record = rows[0];
+  if (!record) {
+    return res.redirect("/login?verified=invalid");
+  }
+  await pool.query("UPDATE users SET email_verified_at = now() WHERE id = $1 AND email_verified_at IS NULL", [record.user_id]);
+  await pool.query("UPDATE email_verification_tokens SET used_at = now() WHERE id = $1", [record.id]);
+  res.redirect("/login?verified=success");
+});
+
 router.get("/login", (req, res) => {
   if (req.session.user) {
     const u = req.session.user;
     return res.redirect(u.isAdmin ? "/admin" : (u.isMember || u.isVolunteer) ? "/dashboard" : "/");
   }
-  const notice = req.query.reset === "success" ? "Password updated — log in with your new password." : null;
+  const notice =
+    req.query.reset === "success" ? "Password updated — log in with your new password." :
+    req.query.verified === "success" ? "Email confirmed — thanks!" :
+    req.query.verified === "invalid" ? "That confirmation link is invalid or has expired." :
+    null;
   res.render("login", { error: null, notice });
 });
 

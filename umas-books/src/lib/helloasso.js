@@ -100,6 +100,15 @@ function isOrderPaid(checkoutIntent) {
 // existing rule of never trusting a webhook body: whatever the webhook
 // claims, syncMembershipForEmail (see lib/membership.js) re-verifies by
 // asking HelloAsso's API for this org's actual Membership-form orders.
+//
+// userSearchKey is NOT an exact match — HelloAsso's own docs describe it
+// as filtering "on user or payer first name, last name or email", a
+// fuzzy/multi-field search. Left unchecked, a search for
+// "sam@example.com" could also return an unrelated order whose payer is
+// simply named Sam, misattributing a stranger's real payment to
+// whichever local account holds that email. Re-verifying each result's
+// own order.payer.email against the exact address requested is what
+// actually enforces "this order belongs to this email", not the API call.
 async function findMembershipOrdersByEmail(email) {
   const params = new URLSearchParams({
     formTypes: "Membership",
@@ -108,7 +117,8 @@ async function findMembershipOrdersByEmail(email) {
     sortOrder: "Desc",
   });
   const data = await apiRequest("GET", `/organizations/${ORG_SLUG}/orders?${params.toString()}`);
-  return Array.isArray(data && data.data) ? data.data : [];
+  const orders = Array.isArray(data && data.data) ? data.data : [];
+  return orders.filter((o) => o.payer && typeof o.payer.email === "string" && o.payer.email.toLowerCase() === email.toLowerCase());
 }
 
 module.exports = { isConfigured, createCheckoutIntent, getCheckoutIntent, isOrderPaid, findMembershipOrdersByEmail };

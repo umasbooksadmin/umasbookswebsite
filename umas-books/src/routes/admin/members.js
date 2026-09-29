@@ -169,8 +169,12 @@ router.post("/admin/members", requireAdmin, async (req, res) => {
   // email's reset link (same flow as "Forgot password") lets them set
   // their own, exactly like a real signup would.
   const placeholderHash = await bcrypt.hash(crypto.randomBytes(24).toString("hex"), 12);
+  // email_verified_at is set immediately here (unlike a real signup) —
+  // an admin is already vouching for this being the right email for a
+  // real person, and the invite link below needs to be clicked from that
+  // same inbox anyway before the account becomes usable at all.
   const { rows } = await pool.query(
-    `INSERT INTO users (email, password_hash, display_name, is_admin, is_member, is_volunteer) VALUES ($1, $2, $3, $4, $5, $6)
+    `INSERT INTO users (email, password_hash, display_name, is_admin, is_member, is_volunteer, email_verified_at) VALUES ($1, $2, $3, $4, $5, $6, now())
      RETURNING id, email, display_name`,
     [email, placeholderHash, displayName, isAdmin, isMember, isVolunteer]
   );
