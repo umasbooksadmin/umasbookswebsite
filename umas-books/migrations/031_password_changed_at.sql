@@ -1,0 +1,13 @@
+-- Session-cached role flags (is_admin/is_member/is_volunteer, set at
+-- login — see loginAs in routes/auth.js) went stale for up to the
+-- session's full 30-day life: a disabled or demoted admin kept their old
+-- access until they happened to log back in. password_changed_at backs
+-- the other half of that fix — invalidating a session whose password was
+-- changed elsewhere (a reset-password link, or a change from another
+-- device) instead of letting it keep working until it expires on its own.
+--
+-- Defaults to now() for existing rows: shipping this forces every
+-- currently active session to re-login once, since none of them have a
+-- passwordChangedAt captured yet (see middleware/auth.js) — the correct,
+-- secure-by-default behavior for a change like this, not a bug.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMPTZ NOT NULL DEFAULT now();

@@ -1,6 +1,57 @@
-function attachUser(_pool) {
+// Role flags and disabled-status are cached into req.session.user at
+// login (see loginAs in routes/auth.js) rather than looked up per
+// request — left alone, that cache can go stale for the session cookie's
+// full 30-day life: a disabled or demoted admin kept their old access
+// until they happened to log back in, and changing a password (a reset
+// link, or a change from another device) never touched sessions that
+// were already open elsewhere. Re-fetching the real row here, on every
+// request from a logged-in visitor, and refreshing req.session.user in
+// place, means requireAuth/requireAdmin/requireMember/requireVolunteer
+// below always see the current truth — no changes needed there, they
+// just keep reading req.session.user as before.
+function attachUser(pool) {
   return async function (req, res, next) {
-    res.locals.user = req.session.user || null;
+    if (!req.session.user) {
+      res.locals.user = null;
+      return next();
+    }
+
+    const { rows } = await pool.query(
+      "SELECT is_admin, is_member, is_volunteer, is_disabled, password_changed_at FROM users WHERE id = $1",
+      [req.session.user.id]
+    );
+    const row = rows[0];
+
+    // Deleted, disabled, or this session predates the account's most
+    // recent password change (including a session with no
+    // passwordChangedAt captured at all — one already open from before
+    // this check existed) — force it out rather than let a stale cookie
+    // keep working until it expires on its own. Clearing req.session.user
+    // (not destroying the whole session — see below) is enough:
+    // requireAuth/requireAdmin/requireMember/requireVolunteer all treat a
+    // missing req.session.user as logged out, and express-session's
+    // resave:false still persists this change since the session was
+    // genuinely modified, so the same cookie sees the log-out on its next
+    // request too.
+    //
+    // Session.prototype.destroy (express-session) does `delete
+    // this.req.session` synchronously the instant it's called, before
+    // its async store deletion even starts — calling it here would leave
+    // req.session undefined for every middleware still to run in this
+    // same request (the cart-count middleware right after this one,
+    // which reads req.session.cart, crashed the request outright when
+    // this was tried).
+    const stillCurrent = row && String(row.password_changed_at.getTime()) === String(req.session.user.passwordChangedAt);
+    if (!row || row.is_disabled || !stillCurrent) {
+      req.session.user = null;
+      res.locals.user = null;
+      return next();
+    }
+
+    req.session.user.isAdmin = row.is_admin;
+    req.session.user.isMember = row.is_member;
+    req.session.user.isVolunteer = row.is_volunteer;
+    res.locals.user = req.session.user;
     next();
   };
 }

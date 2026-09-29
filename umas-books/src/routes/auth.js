@@ -47,6 +47,7 @@ function loginAs(req, res, user, redirectTo) {
     req.session.user = {
       id: user.id, email: user.email, displayName: user.display_name,
       isAdmin: user.is_admin, isMember: user.is_member, isVolunteer: user.is_volunteer,
+      passwordChangedAt: user.password_changed_at.getTime(),
     };
     if (cart) req.session.cart = cart;
     if (cartSeq) req.session.cartSeq = cartSeq;
@@ -83,7 +84,7 @@ router.post("/signup", authLimiter, async (req, res) => {
     const hash = await bcrypt.hash(password, 12);
     const { rows } = await pool.query(
       `INSERT INTO users (email, password_hash, display_name) VALUES ($1, $2, $3)
-       RETURNING id, email, display_name, is_admin, is_member, is_volunteer`,
+       RETURNING id, email, display_name, is_admin, is_member, is_volunteer, password_changed_at`,
       [email, hash, displayName]
     );
     const user = rows[0];
@@ -218,7 +219,10 @@ router.post("/reset-password/:token", authLimiter, async (req, res) => {
   }
 
   const hash = await bcrypt.hash(newPassword, 12);
-  await pool.query("UPDATE users SET password_hash = $1 WHERE id = $2", [hash, record.user_id]);
+  // password_changed_at is what forces every other open session (this
+  // reset flow isn't run from within one) to log out on its next
+  // request — see attachUser in middleware/auth.js.
+  await pool.query("UPDATE users SET password_hash = $1, password_changed_at = now() WHERE id = $2", [hash, record.user_id]);
   await pool.query("UPDATE password_reset_tokens SET used_at = now() WHERE id = $1", [record.id]);
 
   res.redirect("/login?reset=success");
@@ -245,7 +249,15 @@ router.post("/account/password", requireAuth, async (req, res) => {
   }
 
   const hash = await bcrypt.hash(newPassword, 12);
-  await pool.query("UPDATE users SET password_hash = $1 WHERE id = $2", [hash, user.id]);
+  const { rows: updated } = await pool.query(
+    "UPDATE users SET password_hash = $1, password_changed_at = now() WHERE id = $2 RETURNING password_changed_at",
+    [hash, user.id]
+  );
+  // Every OTHER open session for this account will fail attachUser's
+  // freshness check on its next request and get logged out — but this
+  // request's own session made the change, so it re-stamps its own
+  // captured value rather than also logging itself out.
+  req.session.user.passwordChangedAt = updated[0].password_changed_at.getTime();
   res.render("change_password", { error: null, notice: "Password updated." });
 });
 
