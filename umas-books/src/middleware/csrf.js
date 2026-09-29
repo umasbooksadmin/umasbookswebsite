@@ -1,5 +1,19 @@
 const crypto = require("crypto");
 
+// A plain !== comparison short-circuits at the first differing byte, so it
+// takes measurably longer the more of the real token a guess happens to
+// match — a timing side channel against a 32-byte random secret.
+// timingSafeEqual compares in constant time but throws if the two buffers
+// aren't the same length, so that (non-secret) length check has to happen
+// before it, not instead of it.
+function isValidCsrfToken(token, expected) {
+  if (typeof token !== "string" || typeof expected !== "string") return false;
+  const tokenBuf = Buffer.from(token);
+  const expectedBuf = Buffer.from(expected);
+  if (tokenBuf.length !== expectedBuf.length) return false;
+  return crypto.timingSafeEqual(tokenBuf, expectedBuf);
+}
+
 function csrfProtection(req, res, next) {
   if (!req.session.csrfToken) {
     req.session.csrfToken = crypto.randomBytes(32).toString("hex");
@@ -8,7 +22,7 @@ function csrfProtection(req, res, next) {
 
   if (req.method === "POST") {
     const token = req.body && req.body._csrf;
-    if (!token || token !== req.session.csrfToken) {
+    if (!isValidCsrfToken(token, req.session.csrfToken)) {
       // A double-click (or any near-simultaneous double submit) on the
       // Log Out button races two POSTs against the same token: the first
       // destroys the session, so the second always looks like a stale
