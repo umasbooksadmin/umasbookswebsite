@@ -10,6 +10,10 @@ This is **independent of Squarespace** — Squarespace stays the public
 website and shop; this app runs on its own (Render) and members reach it
 via a link from the main site.
 
+See [ARCHITECTURE.md](ARCHITECTURE.md) for routing, shared views, data
+domains, environment variables, and the migration/deploy process — this
+file is about what each feature does, that one is about how it's built.
+
 ## Local development
 
 Requires Node 18+ and a local PostgreSQL server.
