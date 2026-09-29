@@ -150,15 +150,15 @@ app.use("/admin/inventory", inventoryUpload.fields([
 ]));
 
 // Same reasoning as inventoryUpload above, for the announcement form's
-// featured-image upload (see /admin/announcements in routes/admin.js).
+// featured-image upload (see /admin/announcements in routes/admin/announcements.js).
 const announcementUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 app.use("/admin/announcements", announcementUpload.fields([{ name: "image", maxCount: 1 }]));
 
-// Same again, for a charity's photo (see /admin/charities in routes/admin.js).
+// Same again, for a charity's photo (see /admin/charities in routes/admin/charity.js).
 const charityUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 app.use("/admin/charities", charityUpload.fields([{ name: "image", maxCount: 1 }]));
 
-// Same again, for a blog post's featured image (see /admin/blog in routes/admin.js).
+// Same again, for a blog post's featured image (see /admin/blog in routes/admin/blog.js).
 const blogUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 app.use("/admin/blog", blogUpload.fields([{ name: "image", maxCount: 1 }]));
 
