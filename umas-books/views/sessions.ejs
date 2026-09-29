@@ -38,54 +38,7 @@
     <span class="fcal-legend-item"><span class="fcal-legend-swatch tone-e"></span> Teens</span>
     <span class="fcal-legend-item"><span class="fcal-legend-swatch tone-f"></span> Caf&eacute; / Adults</span>
   </div>
-  <div class="fcal-grid">
-    <% ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].forEach(d => { %><div class="fcal-weekday"><%= d %></div><% }) %>
-    <% const weekdayNames = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']; %>
-    <% monWeeks.forEach(week => { %>
-      <% week.forEach((day, wIdx) => { %>
-        <% if (!day) { %>
-          <div class="fcal-day is-empty"></div>
-        <% } else { %>
-          <div class="fcal-day<%= day.isToday ? ' is-today' : '' %>">
-            <div class="fcal-daynum"><span class="fcal-day-weekday"><%= weekdayNames[wIdx] %></span><%= day.day %></div>
-            <% day.items.forEach(c => { %>
-              <% const spotsLeft = c.capacity != null ? Math.max(0, c.capacity - c.seats_taken) : null; %>
-              <% const sellsDropin = c.dropin_price != null; %>
-              <% const full = sellsDropin && spotsLeft != null && spotsLeft <= 0; %>
-              <% if (sellsDropin) { %>
-                <details class="fcal-session <%= toneForClassTitle(c.title) %>">
-                  <summary>
-                    <div class="fcal-session-title"><%= c.title %></div>
-                    <div class="fcal-session-time"><%= formatTime(c.starts_at) %></div>
-                    <div class="fcal-session-seats">
-                      &euro;<%= Number(c.dropin_price).toFixed(2) %><%= spotsLeft != null ? ' · ' + spotsLeft + ' place' + (spotsLeft === 1 ? '' : 's') + ' left' : '' %>
-                    </div>
-                  </summary>
-                  <div class="fcal-session-details">
-                    <% if (full) { %>
-                      <div class="fcal-session-cta" style="opacity:0.6; cursor:default;">Full</div>
-                    <% } else { %>
-                      <form method="post" action="/cart/add-dropin">
-                        <%- include('partials/csrf_field') %>
-                        <input type="hidden" name="classId" value="<%= c.id %>">
-                        <input type="hidden" name="backTo" value="/sessions?<%= qs %>">
-                        <button type="submit" class="fcal-session-cta">Add to Cart</button>
-                      </form>
-                    <% } %>
-                  </div>
-                </details>
-              <% } else { %>
-                <div class="fcal-session <%= toneForClassTitle(c.title) %>">
-                  <div class="fcal-session-title"><%= c.title %></div>
-                  <div class="fcal-session-time"><%= formatTime(c.starts_at) %></div>
-                </div>
-              <% } %>
-            <% }) %>
-          </div>
-        <% } %>
-      <% }) %>
-    <% }) %>
-  </div>
+  <%- include('partials/calendar_grid', { monWeeks, qs, itemPartial: 'calendar_item_session' }) %>
 </div>
 
 <%- include('partials/footer') %>

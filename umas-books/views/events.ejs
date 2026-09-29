@@ -4,7 +4,6 @@
 <% const prevHref = view === 'week' ? `view=week&week=${prevWeek}` : `month=${prevMonth}`; %>
 <% const nextHref = view === 'week' ? `view=week&week=${nextWeek}` : `month=${nextMonth}`; %>
 <% const monWeeks = view === 'week' ? weeks : mondayFirstWeeks(weeks); %>
-<% const tones = ['tone-a', 'tone-b', 'tone-c', 'tone-d', 'tone-e', 'tone-f']; %>
 
 <section class="fcal-hero">
   <img class="art art-left" src="/assets/img/hero-left.png" alt="">
@@ -26,48 +25,7 @@
 </section>
 
 <div class="fcal-wrap<%= view === 'week' ? ' is-week' : '' %>">
-  <div class="fcal-grid">
-    <% ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].forEach(d => { %><div class="fcal-weekday"><%= d %></div><% }) %>
-    <% const weekdayNames = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']; %>
-    <% monWeeks.forEach(week => { %>
-      <% week.forEach((day, wIdx) => { %>
-        <% if (!day) { %>
-          <div class="fcal-day is-empty"></div>
-        <% } else { %>
-          <div class="fcal-day<%= day.isToday ? ' is-today' : '' %>">
-            <div class="fcal-daynum"><span class="fcal-day-weekday"><%= weekdayNames[wIdx] %></span><%= day.day %></div>
-            <% day.items.forEach(e => { %>
-              <% const full = e.capacity != null && e.signup_count >= e.capacity; %>
-              <details class="fcal-session <%= tones[e.id % tones.length] %>">
-                <summary>
-                  <div class="fcal-session-title"><%= e.title %></div>
-                  <div class="fcal-session-time"><%= formatTime(e.starts_at) %></div>
-                  <div class="fcal-session-seats">
-                    <%= e.price != null ? '€' + Number(e.price).toFixed(2) : 'Free' %> &middot; <%= e.signup_count %> going
-                  </div>
-                </summary>
-                <div class="fcal-session-details">
-                  <div class="muted small"><%= formatDateTime(e.starts_at) %><%= e.location ? ' · ' + e.location : '' %> · <%= e.price != null ? '€' + Number(e.price).toFixed(2) : 'Free' %></div>
-                  <% if (e.description) { %><p class="muted small"><%= e.description %></p><% } %>
-
-                  <form method="post" action="/events/<%= e.id %>/signup?<%= qs %>" class="fcal-session-form">
-                    <%- include('partials/csrf_field') %>
-                    <label for="name-<%= e.id %>">Name</label>
-                    <input id="name-<%= e.id %>" name="name" type="text" required<%= full ? ' disabled' : '' %>>
-                    <label for="email-<%= e.id %>">Email</label>
-                    <input id="email-<%= e.id %>" name="email" type="email" required<%= full ? ' disabled' : '' %>>
-                    <button type="submit" class="fcal-session-cta"<%= full ? ' disabled' : '' %>><%= full ? 'Full' : 'Sign Up' %></button>
-                  </form>
-
-                  <a class="fcal-session-cta fcal-session-cta-outline" href="/events/<%= e.id %>/ics" download>Add to My Calendar</a>
-                </div>
-              </details>
-            <% }) %>
-          </div>
-        <% } %>
-      <% }) %>
-    <% }) %>
-  </div>
+  <%- include('partials/calendar_grid', { monWeeks, qs, itemPartial: 'calendar_item_event' }) %>
 </div>
 
 <%- include('partials/footer') %>

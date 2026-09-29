@@ -1,0 +1,26 @@
+<%
+/* Shared month/week grid for the /sessions and /events calendars
+   (views/sessions.ejs, views/events.ejs) — styled by
+   public/floral-calendar.css. The caller supplies the weeks to render
+   and the name of a partial (in this same directory) that knows how to
+   draw one day's item, so this file stays ignorant of what a "session"
+   or an "event" actually is. */
+%>
+<div class="fcal-grid">
+  <% ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].forEach(d => { %><div class="fcal-weekday"><%= d %></div><% }) %>
+  <% const weekdayNames = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']; %>
+  <% monWeeks.forEach(week => { %>
+    <% week.forEach((day, wIdx) => { %>
+      <% if (!day) { %>
+        <div class="fcal-day is-empty"></div>
+      <% } else { %>
+        <div class="fcal-day<%= day.isToday ? ' is-today' : '' %>">
+          <div class="fcal-daynum"><span class="fcal-day-weekday"><%= weekdayNames[wIdx] %></span><%= day.day %></div>
+          <% day.items.forEach(item => { %>
+            <%- include(itemPartial, { item, qs }) %>
+          <% }) %>
+        </div>
+      <% } %>
+    <% }) %>
+  <% }) %>
+</div>
