@@ -1,5 +1,5 @@
 const express = require("express");
-const { pool } = require("../db");
+const { pool, withTransaction } = require("../db");
 const { groupByDate, monthParam, resolveCalendarRange, calendarBackQuery } = require("../lib/calendar");
 const { baseUrl } = require("../lib/baseUrl");
 
@@ -103,41 +103,33 @@ router.post("/events/:id/signup", async (req, res) => {
 
   if (!name || !email) return res.redirect(redirectUrl);
 
-  const client = await pool.connect();
   try {
-    await client.query("BEGIN");
-    // Lock the event row so two signups arriving at the same moment
-    // can't both read the same "spots left" and both squeeze in — the
-    // second one blocks here until the first commits, then re-reads the
-    // count for real within its own transaction. Same pattern as the
-    // drop-in seat checkout in lib/cart.js.
-    const { rows: eventRows } = await client.query("SELECT * FROM events WHERE id = $1 FOR UPDATE", [eventId]);
-    const event = eventRows[0];
-    if (!event) {
-      await client.query("ROLLBACK");
-      return res.status(404).send("Event not found.");
-    }
+    await withTransaction(pool, async (client) => {
+      // Lock the event row so two signups arriving at the same moment
+      // can't both read the same "spots left" and both squeeze in — the
+      // second one blocks here until the first commits, then re-reads
+      // the count for real within its own transaction. Same pattern as
+      // the drop-in seat checkout in lib/cart.js.
+      const { rows: eventRows } = await client.query("SELECT * FROM events WHERE id = $1 FOR UPDATE", [eventId]);
+      const event = eventRows[0];
+      if (!event) throw new Error("EVENT_NOT_FOUND");
 
-    if (event.capacity != null) {
-      const { rows: countRows } = await client.query(
-        "SELECT COUNT(*)::int AS n FROM event_signups WHERE event_id = $1", [eventId]
-      );
-      if (countRows[0].n >= event.capacity) {
-        await client.query("ROLLBACK");
-        return res.redirect(redirectUrl);
+      if (event.capacity != null) {
+        const { rows: countRows } = await client.query(
+          "SELECT COUNT(*)::int AS n FROM event_signups WHERE event_id = $1", [eventId]
+        );
+        if (countRows[0].n >= event.capacity) throw new Error("AT_CAPACITY");
       }
-    }
 
-    await client.query(
-      "INSERT INTO event_signups (event_id, name, email) VALUES ($1, $2, $3) ON CONFLICT (event_id, email) DO NOTHING",
-      [eventId, name, email]
-    );
-    await client.query("COMMIT");
+      await client.query(
+        "INSERT INTO event_signups (event_id, name, email) VALUES ($1, $2, $3) ON CONFLICT (event_id, email) DO NOTHING",
+        [eventId, name, email]
+      );
+    });
   } catch (err) {
-    await client.query("ROLLBACK");
+    if (err.message === "EVENT_NOT_FOUND") return res.status(404).send("Event not found.");
+    if (err.message === "AT_CAPACITY") return res.redirect(redirectUrl);
     throw err;
-  } finally {
-    client.release();
   }
   res.redirect(redirectUrl);
 });

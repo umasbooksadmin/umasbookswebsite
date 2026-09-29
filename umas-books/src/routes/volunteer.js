@@ -1,5 +1,5 @@
 const express = require("express");
-const { pool } = require("../db");
+const { pool, withTransaction } = require("../db");
 const { requireVolunteer } = require("../middleware/auth");
 const { groupByDate, resolveCalendarRange, calendarBackQuery } = require("../lib/calendar");
 
@@ -34,38 +34,30 @@ router.post("/volunteer/:id/signup", requireVolunteer, async (req, res) => {
   const backQuery = calendarBackQuery(req.query);
   const redirectUrl = backQuery ? `/volunteer?${backQuery}` : "/volunteer";
 
-  const client = await pool.connect();
   try {
-    await client.query("BEGIN");
-    // Lock the shift row so two signups arriving at the same moment
-    // can't both read the same "spots left" and both squeeze in — same
-    // pattern as the event signup above and the drop-in seat checkout
-    // in lib/cart.js.
-    const { rows: shiftRows } = await client.query("SELECT * FROM volunteer_shifts WHERE id = $1 FOR UPDATE", [shiftId]);
-    const shift = shiftRows[0];
-    if (!shift) {
-      await client.query("ROLLBACK");
-      return res.status(404).send("Shift not found.");
-    }
+    await withTransaction(pool, async (client) => {
+      // Lock the shift row so two signups arriving at the same moment
+      // can't both read the same "spots left" and both squeeze in —
+      // same pattern as the event signup and the drop-in seat checkout
+      // in lib/cart.js.
+      const { rows: shiftRows } = await client.query("SELECT * FROM volunteer_shifts WHERE id = $1 FOR UPDATE", [shiftId]);
+      const shift = shiftRows[0];
+      if (!shift) throw new Error("SHIFT_NOT_FOUND");
 
-    const { rows: countRows } = await client.query(
-      "SELECT COUNT(*)::int AS n FROM volunteer_signups WHERE shift_id = $1", [shiftId]
-    );
-    if (countRows[0].n >= shift.capacity) {
-      await client.query("ROLLBACK");
-      return res.redirect(redirectUrl);
-    }
+      const { rows: countRows } = await client.query(
+        "SELECT COUNT(*)::int AS n FROM volunteer_signups WHERE shift_id = $1", [shiftId]
+      );
+      if (countRows[0].n >= shift.capacity) throw new Error("AT_CAPACITY");
 
-    await client.query(
-      "INSERT INTO volunteer_signups (shift_id, user_id) VALUES ($1, $2) ON CONFLICT (shift_id, user_id) DO NOTHING",
-      [shiftId, userId]
-    );
-    await client.query("COMMIT");
+      await client.query(
+        "INSERT INTO volunteer_signups (shift_id, user_id) VALUES ($1, $2) ON CONFLICT (shift_id, user_id) DO NOTHING",
+        [shiftId, userId]
+      );
+    });
   } catch (err) {
-    await client.query("ROLLBACK");
+    if (err.message === "SHIFT_NOT_FOUND") return res.status(404).send("Shift not found.");
+    if (err.message === "AT_CAPACITY") return res.redirect(redirectUrl);
     throw err;
-  } finally {
-    client.release();
   }
   res.redirect(redirectUrl);
 });

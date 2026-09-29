@@ -1,5 +1,5 @@
 const express = require("express");
-const { pool } = require("../db");
+const { pool, withTransaction } = require("../db");
 const helloasso = require("../lib/helloasso");
 const { releaseCartHold, reconcileOrder } = require("../lib/cart");
 const { expireStaleReservations } = require("../lib/reservations");
@@ -185,72 +185,71 @@ router.post("/cart/checkout", async (req, res) => {
   const dropinItems = items.filter((i) => i.kind === "dropin");
   const total = items.reduce((sum, i) => sum + i.price, 0);
 
-  const client = await pool.connect();
   let order;
   try {
-    await client.query("BEGIN");
-    const { rows: orderRows } = await client.query(
-      `INSERT INTO orders (buyer_name, buyer_email, buyer_phone, total_amount) VALUES ($1, $2, $3, $4) RETURNING *`,
-      [name, email, phone, total]
-    );
-    order = orderRows[0];
-
-    if (bookItems.length) {
-      const { rows: locked } = await client.query(
-        `UPDATE book_copies SET status = 'in_cart', cart_order_id = $1, cart_added_at = now(), updated_at = now()
-         WHERE id = ANY($2::int[]) AND status = 'in_stock' RETURNING id`,
-        [order.id, bookItems.map((i) => i.copyId)]
+    order = await withTransaction(pool, async (client) => {
+      const { rows: orderRows } = await client.query(
+        `INSERT INTO orders (buyer_name, buyer_email, buyer_phone, total_amount) VALUES ($1, $2, $3, $4) RETURNING *`,
+        [name, email, phone, total]
       );
-      if (locked.length !== bookItems.length) {
-        // Someone else bought/reserved a copy in the moment between our
-        // read above and this write — bail out cleanly rather than
-        // charge for fewer books than were actually locked.
-        throw new Error("SOLD_OUT");
-      }
-      for (const i of bookItems) {
-        await client.query(
-          "INSERT INTO order_items (order_id, book_copy_id, item_title, price) VALUES ($1, $2, $3, $4)",
-          [order.id, i.copyId, i.title, i.price]
+      const newOrder = orderRows[0];
+
+      if (bookItems.length) {
+        const { rows: locked } = await client.query(
+          `UPDATE book_copies SET status = 'in_cart', cart_order_id = $1, cart_added_at = now(), updated_at = now()
+           WHERE id = ANY($2::int[]) AND status = 'in_stock' RETURNING id`,
+          [newOrder.id, bookItems.map((i) => i.copyId)]
         );
-      }
-    }
-
-    if (dropinItems.length) {
-      const wanted = new Map(); // classId -> requested seat count
-      for (const i of dropinItems) wanted.set(i.classId, (wanted.get(i.classId) || 0) + 1);
-
-      for (const [classId, count] of wanted) {
-        // Lock the class row so two simultaneous checkouts for the same
-        // session can't both read the same "spots left" and oversell it.
-        const { rows: clsRows } = await client.query(
-          `SELECT capacity, dropin_price, ${seatsTakenExpr("classes")}::int AS seats_taken
-           FROM classes WHERE id = $1 FOR UPDATE`,
-          [classId]
-        );
-        const cls = clsRows[0];
-        const spotsLeft = cls && cls.dropin_price != null
-          ? (cls.capacity != null ? cls.capacity - cls.seats_taken : Infinity)
-          : 0;
-        if (!cls || spotsLeft < count) throw new Error("SOLD_OUT");
-
-        for (let n = 0; n < count; n++) {
-          const { rows: seatRows } = await client.query(
-            `INSERT INTO class_dropin_seats (class_id, status, order_id, cart_added_at) VALUES ($1, 'in_cart', $2, now()) RETURNING id`,
-            [classId, order.id]
-          );
-          const item = dropinItems.find((i) => i.classId === classId);
-          const label = `${item.title} — ${item.startsAt.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}, ${item.startsAt.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`;
+        if (locked.length !== bookItems.length) {
+          // Someone else bought/reserved a copy in the moment between our
+          // read above and this write — bail out cleanly rather than
+          // charge for fewer books than were actually locked.
+          throw new Error("SOLD_OUT");
+        }
+        for (const i of bookItems) {
           await client.query(
-            "INSERT INTO order_items (order_id, class_dropin_seat_id, item_title, price) VALUES ($1, $2, $3, $4)",
-            [order.id, seatRows[0].id, label, item.price]
+            "INSERT INTO order_items (order_id, book_copy_id, item_title, price) VALUES ($1, $2, $3, $4)",
+            [newOrder.id, i.copyId, i.title, i.price]
           );
         }
       }
-    }
 
-    await client.query("COMMIT");
+      if (dropinItems.length) {
+        const wanted = new Map(); // classId -> requested seat count
+        for (const i of dropinItems) wanted.set(i.classId, (wanted.get(i.classId) || 0) + 1);
+
+        for (const [classId, count] of wanted) {
+          // Lock the class row so two simultaneous checkouts for the same
+          // session can't both read the same "spots left" and oversell it.
+          const { rows: clsRows } = await client.query(
+            `SELECT capacity, dropin_price, ${seatsTakenExpr("classes")}::int AS seats_taken
+             FROM classes WHERE id = $1 FOR UPDATE`,
+            [classId]
+          );
+          const cls = clsRows[0];
+          const spotsLeft = cls && cls.dropin_price != null
+            ? (cls.capacity != null ? cls.capacity - cls.seats_taken : Infinity)
+            : 0;
+          if (!cls || spotsLeft < count) throw new Error("SOLD_OUT");
+
+          for (let n = 0; n < count; n++) {
+            const { rows: seatRows } = await client.query(
+              `INSERT INTO class_dropin_seats (class_id, status, order_id, cart_added_at) VALUES ($1, 'in_cart', $2, now()) RETURNING id`,
+              [classId, newOrder.id]
+            );
+            const item = dropinItems.find((i) => i.classId === classId);
+            const label = `${item.title} — ${item.startsAt.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}, ${item.startsAt.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`;
+            await client.query(
+              "INSERT INTO order_items (order_id, class_dropin_seat_id, item_title, price) VALUES ($1, $2, $3, $4)",
+              [newOrder.id, seatRows[0].id, label, item.price]
+            );
+          }
+        }
+      }
+
+      return newOrder;
+    });
   } catch (err) {
-    await client.query("ROLLBACK");
     if (err.message !== "SOLD_OUT") {
       console.error("Checkout failed to create order:", err.message);
       return renderCart({ error: "Something went wrong starting checkout. Please try again." });
@@ -264,8 +263,6 @@ router.post("/cart/checkout", async (req, res) => {
       items: fresh, total: fresh.reduce((sum, i) => sum + i.price, 0),
       error: "Sorry, something in your cart was just taken by someone else. Please review your cart and try again.",
     });
-  } finally {
-    client.release();
   }
 
   // access_token (an unguessable UUID, see migrations/019) rather than
