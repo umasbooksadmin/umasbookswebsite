@@ -40,7 +40,23 @@ async function releaseCartHold(pool, orderId, status) {
 }
 
 async function markOrderPaid(pool, order) {
-  await pool.query("UPDATE orders SET status = 'paid', paid_at = now() WHERE id = $1", [order.id]);
+  // The WHERE clause here (not just the id) is the actual idempotency
+  // boundary: reconcileOrder's own "order.status !== 'pending'" guard
+  // only protects against a *sequential* re-call with a freshly-fetched
+  // order row. It does nothing for two calls racing concurrently on the
+  // same stale in-memory `order` — e.g. a live webhook delivery landing
+  // at the same moment as the periodic reconcilePendingOrders sweep
+  // (index.js), or HelloAsso retrying a webhook it didn't get a fast
+  // enough 200 for. Postgres serializes two concurrent UPDATEs on the
+  // same row, so only one of them ever sees status='pending' still true
+  // and gets rowCount 1 — the loser sees 0 and bails before touching
+  // inventory or sending a second confirmation email.
+  const { rowCount } = await pool.query(
+    "UPDATE orders SET status = 'paid', paid_at = now() WHERE id = $1 AND status = 'pending'",
+    [order.id]
+  );
+  if (rowCount === 0) return;
+
   await pool.query(
     `UPDATE book_copies SET status = 'sold', cart_order_id = NULL, cart_added_at = NULL, updated_at = now()
      WHERE cart_order_id = $1`,
