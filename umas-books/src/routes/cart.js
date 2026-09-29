@@ -8,6 +8,14 @@ const { baseUrl } = require("../lib/baseUrl");
 
 const router = express.Router();
 
+// A same-origin, path-only redirect target: "/foo" is fine, but "//evil"
+// or "/\evil" is a protocol-relative URL — browsers treat a Location
+// starting with // as "same scheme, different host" and follow it
+// off-site, so startsWith("/") alone isn't enough to keep backTo local.
+function isSafeLocalPath(value) {
+  return typeof value === "string" && value.startsWith("/") && !value.startsWith("//") && !value.startsWith("/\\");
+}
+
 // Public — no login required (matches /books and /sessions). The cart
 // itself is just a list of lines in the session; nothing is locked in
 // the database until checkout actually starts (see src/lib/cart.js for
@@ -110,7 +118,7 @@ router.get("/cart", async (req, res) => {
 
 router.post("/cart/add", async (req, res) => {
   const copyId = Number(req.body.copyId);
-  const backTo = req.body.backTo && req.body.backTo.startsWith("/") ? req.body.backTo : "/cart";
+  const backTo = isSafeLocalPath(req.body.backTo) ? req.body.backTo : "/cart";
   if (copyId) {
     const { rows } = await pool.query("SELECT id FROM book_copies WHERE id = $1 AND status = 'in_stock'", [copyId]);
     if (rows.length) {
@@ -125,7 +133,7 @@ router.post("/cart/add", async (req, res) => {
 
 router.post("/cart/add-dropin", async (req, res) => {
   const classId = Number(req.body.classId);
-  const backTo = req.body.backTo && req.body.backTo.startsWith("/") ? req.body.backTo : "/sessions";
+  const backTo = isSafeLocalPath(req.body.backTo) ? req.body.backTo : "/sessions";
   if (classId) {
     const { rows } = await pool.query(
       `SELECT capacity, dropin_price, ${seatsTakenExpr("classes")}::int AS seats_taken
