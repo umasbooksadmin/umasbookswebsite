@@ -172,7 +172,16 @@ async function crawlPersona(browser, name, email, seeds){
   // they'll still be discovered if something links to a real instance.
   const seeds = [...new Set(["/", ...getRoutes.filter((p) => !p.includes(":"))])];
 
-  const browser = await puppeteer.launch();
+  // GitHub Actions' ubuntu-latest runner restricts unprivileged user
+  // namespaces (AppArmor), which Chrome's sandbox needs — without this,
+  // launch() fails outright with "No usable sandbox!". Scoped to CI
+  // (GitHub Actions sets CI=true) rather than applied unconditionally:
+  // this only ever navigates to our own just-started localhost server,
+  // never arbitrary web content, so disabling the sandbox here carries
+  // none of the risk it would for a general-purpose browsing context —
+  // but there's no reason to weaken a developer's local run that already
+  // works fine with the sandbox on.
+  const browser = await puppeteer.launch(process.env.CI ? { args: ["--no-sandbox", "--disable-setuid-sandbox"] } : {});
   const results = {};
   try {
     for (const [name, email] of Object.entries(PERSONAS)) {
