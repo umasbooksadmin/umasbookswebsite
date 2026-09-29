@@ -32,9 +32,14 @@
   margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--card-border);
   font-size: 14.5px; color: var(--maroon); text-decoration: none; display: flex; align-items: center; gap: 6px;
 }
+.admin-nav-toggle, .admin-nav-close, .admin-nav-backdrop { display: none; }
 
 /* ---------- Main area ---------- */
-.admin-main { padding: 28px 36px 60px; max-width: 1400px; }
+/* min-width: 0 overrides a grid item's default auto min-width, which
+   otherwise refuses to let this 1fr track shrink below its content's
+   intrinsic width — without it, admin-main (and everything in it)
+   quietly overflows the sidebar-less single-column mobile layout. */
+.admin-main { padding: 28px 36px 60px; max-width: 1400px; min-width: 0; }
 /* A week-view calendar (see calendarBackQuery/resolveCalendarRange in
    lib/calendar.js) has only 7 day-cells instead of up to 42, so the
    regular content width leaves them narrow — this lets that one row use
@@ -71,7 +76,36 @@
 /* ---------- Feature card grid ---------- */
 .admin-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
 @media (max-width: 1100px) { .admin-cards { grid-template-columns: repeat(2, 1fr); } .admin-stats { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 640px) { .admin-cards { grid-template-columns: 1fr; } .admin-layout { grid-template-columns: 1fr; } .admin-sidebar { display: none; } }
+/* Below 640px the sidebar has nowhere to sit alongside the main content,
+   so it becomes an off-canvas drawer instead of just vanishing: the
+   hamburger button in the topbar (hidden on desktop, see above) slides
+   it in over a dimmed backdrop, both toggled by the same
+   data-toggle-admin-nav / data-close-admin-nav handlers in app.js. */
+@media (max-width: 640px) {
+  .admin-cards { grid-template-columns: 1fr; }
+  .admin-stats { grid-template-columns: 1fr; }
+  .admin-layout { grid-template-columns: 1fr; }
+  .admin-nav-toggle {
+    display: flex; align-items: center; justify-content: center; width: 40px; height: 40px;
+    border-radius: 50%; border: 1px solid var(--card-border); background: #fff; color: var(--ink);
+    cursor: pointer; flex: 0 0 auto;
+  }
+  .admin-nav-toggle svg { width: 20px; height: 20px; }
+  .admin-sidebar {
+    display: flex; position: fixed; top: 0; left: 0; bottom: 0; width: 260px; max-width: 82vw;
+    z-index: 30; transform: translateX(-100%); transition: transform 0.2s ease; overflow-y: auto;
+    box-shadow: 2px 0 16px rgba(0,0,0,0.18);
+  }
+  .admin-layout.is-nav-open .admin-sidebar { transform: translateX(0); }
+  .admin-nav-close {
+    display: block; align-self: flex-end; width: 32px; height: 32px; margin-bottom: 8px;
+    border: 0; background: none; font-size: 24px; line-height: 1; color: var(--ink-soft); cursor: pointer;
+  }
+  .admin-nav-backdrop {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 20;
+  }
+  .admin-layout.is-nav-open .admin-nav-backdrop { display: block; }
+}
 
 .admin-card { background: #fff; border: 1px solid var(--card-border); border-radius: 10px; padding: 26px 24px; }
 .admin-card .icon-badge {

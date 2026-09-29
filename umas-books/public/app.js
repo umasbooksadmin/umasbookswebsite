@@ -11,6 +11,27 @@ document.addEventListener("click", function (e) {
   }
 });
 
+// Below 640px the admin sidebar (partials/admin_header.ejs) is an
+// off-canvas drawer rather than a permanent column (see admin.css) —
+// the hamburger button opens it, and the backdrop, its own close
+// button, a nav link, or Escape all close it again.
+(function () {
+  var layout = document.querySelector(".admin-layout");
+  if (!layout) return;
+  var toggle = document.querySelector("[data-toggle-admin-nav]");
+  function setOpen(open) {
+    layout.classList.toggle("is-nav-open", open);
+    if (toggle) toggle.setAttribute("aria-expanded", open ? "true" : "false");
+  }
+  document.addEventListener("click", function (e) {
+    if (e.target.closest("[data-toggle-admin-nav]")) { setOpen(true); return; }
+    if (e.target.closest("[data-close-admin-nav]") || e.target.closest(".admin-nav a")) { setOpen(false); }
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") setOpen(false);
+  });
+})();
+
 document.addEventListener("click", function (e) {
   var btn = e.target.closest("[data-toggle-password]");
   if (!btn) return;

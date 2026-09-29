@@ -19,7 +19,9 @@
 <body>
 <a class="skip-link" href="#admin-main-content">Skip to main content</a>
 <div class="admin-layout">
-  <aside class="admin-sidebar">
+  <div class="admin-nav-backdrop" data-close-admin-nav></div>
+  <aside class="admin-sidebar" id="admin-sidebar">
+    <button type="button" class="admin-nav-close" data-close-admin-nav aria-label="Close menu">&times;</button>
     <a class="admin-logo" href="/dashboard"><img src="/assets/img/logo-wordmark-framed.png" alt="Uma’s Books &amp; Adventures"></a>
     <nav class="admin-nav" aria-label="Admin">
       <a href="/">Home</a>
@@ -51,6 +53,9 @@
         <% if (typeof pageSub !== "undefined") { %><p class="sub"><%= pageSub %></p><% } %>
       </div>
       <div class="admin-topbar-tools">
+        <button type="button" class="admin-nav-toggle" data-toggle-admin-nav aria-label="Open menu" aria-expanded="false" aria-controls="admin-sidebar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+        </button>
         <form class="admin-search" method="get" action="/admin/inventory">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
           <input type="text" name="q" placeholder="Search books…" aria-label="Search books">
