@@ -88,7 +88,7 @@ async function fetchJson(url, timeoutMs = 5000) {
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     try {
       return await fetchJsonOnce(url, timeoutMs);
-    } catch (err) {
+    } catch {
       if (attempt === MAX_ATTEMPTS - 1) return null;
     }
   }

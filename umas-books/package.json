@@ -11,7 +11,9 @@
     "start": "node src/index.js",
     "migrate": "node src/migrate.js",
     "seed": "node src/seed.js",
-    "backfill-french-content": "node src/backfillFrenchContent.js"
+    "backfill-french-content": "node src/backfillFrenchContent.js",
+    "lint": "eslint .",
+    "test": "node --test"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -30,6 +32,9 @@
     "sharp": "^0.35.4"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.11.0",
+    "globals": "^17.12.0",
     "puppeteer": "^25.12.0"
   },
   "allowScripts": {

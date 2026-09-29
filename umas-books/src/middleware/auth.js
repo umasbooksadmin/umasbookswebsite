@@ -1,4 +1,4 @@
-function attachUser(pool) {
+function attachUser(_pool) {
   return async function (req, res, next) {
     res.locals.user = req.session.user || null;
     next();

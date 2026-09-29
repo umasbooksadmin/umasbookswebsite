@@ -25,6 +25,16 @@ template change.
 3. **`build-report.js`** — merges the two into one `report.json`: for every
    page, its gate, its status under each persona, and who links to/from it.
 
+Two more scripts exist specifically for CI's smoke-crawl check (see
+`.github/workflows/ci.yml`), not for generating the map above:
+
+- **`seed-crawl-accounts.js`** — creates the four named accounts below
+  (idempotent — safe to run against a database that already has them).
+- **`assert-crawl-ok.js crawl.json`** — a pass/fail gate: exits nonzero if
+  any page came back with a server error, an outright navigation failure,
+  or if a persona's login silently didn't take (see the comments at the
+  top of the file for exactly what does and doesn't count as a failure).
+
 `route-map.html` is a static viewer for that JSON — a searchable, filterable
 table, one row per page, expandable to see the link detail.
 
@@ -40,17 +50,13 @@ is listed separately as orphaned for them, rather than silently dropped.
 - The app running locally against a database you're fine crawling (this
   logs in and clicks around as five accounts — don't point it at
   production).
-- Five test accounts, all with the same password, so the crawler can log
-  in as each persona:
+- Four test accounts (anonymous needs none), all with the same password,
+  so the crawler can log in as each persona:
 
-  ```sql
-  -- Replace the hash with your own: node -e "console.log(require('bcryptjs').hashSync('YOUR_PASSWORD', 12))"
-  INSERT INTO users (email, password_hash, display_name, is_admin, is_member, is_volunteer) VALUES
-    ('crawl-account@example.test',   '<hash>', 'Crawl Account',   false, false, false),
-    ('crawl-member@example.test',    '<hash>', 'Crawl Member',    false, true,  false),
-    ('crawl-volunteer@example.test', '<hash>', 'Crawl Volunteer', false, false, true),
-    ('crawl-admin@example.test',     '<hash>', 'Crawl Admin',     true,  true,  false)
-  ON CONFLICT (email) DO NOTHING;
+  ```bash
+  # from umas-books/ — creates crawl-account/member/volunteer/admin@example.test,
+  # all with the password crawler.js's PASSWORD constant expects
+  node scripts/sitemap/seed-crawl-accounts.js
   ```
 
   Delete these when you're done — they're just crawler credentials, not

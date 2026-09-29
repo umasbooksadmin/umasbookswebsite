@@ -39,4 +39,4 @@ function csrfProtection(req, res, next) {
   next();
 }
 
-module.exports = { csrfProtection };
+module.exports = { csrfProtection, isValidCsrfToken };

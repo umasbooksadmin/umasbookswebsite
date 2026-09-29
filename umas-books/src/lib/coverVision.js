@@ -19,7 +19,7 @@ function extractJson(text) {
   if (!match) return null;
   try {
     return JSON.parse(match[0]);
-  } catch (err) {
+  } catch {
     return null;
   }
 }

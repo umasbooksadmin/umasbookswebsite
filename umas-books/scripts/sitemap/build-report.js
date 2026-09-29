@@ -3,7 +3,6 @@
 // in here is typed by hand — every field comes from parsing the real
 // route files or from real HTTP responses recorded by the crawler.
 
-const fs = require("fs");
 const path = require("path");
 
 const routes = require(path.resolve(process.argv[2]));

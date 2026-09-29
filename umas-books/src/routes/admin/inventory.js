@@ -236,9 +236,9 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
   const acquiredAt = req.body.acquiredAt || null;
   const notes = (req.body.copyNotes || "").trim() || null;
 
-  const { rows: copyRows } = await pool.query(
+  await pool.query(
     `INSERT INTO book_copies (book_id, condition, price, acquisition_cost, acquired_at, status, notes, created_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
     [bookId, condition, price, acquisitionCost, acquiredAt, status, notes, req.session.user.id]
   );
 

@@ -1,0 +1,204 @@
+name: CI
+
+# Six independent checks against the umas-books app (the web service —
+# the repo's static marketing pages at the root have no build/test step
+# of their own). Each job gets its own throwaway Postgres service
+# container where needed; none of them touch Render or any real data.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "22"
+
+defaults:
+  run:
+    working-directory: umas-books
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: umas-books/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+
+  test:
+    # Unit tests (pure functions) plus integration tests that boot the
+    # real app as a child process against this job's own Postgres
+    # service and hit it over real HTTP (see test/integration/).
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:18 # matches production — see nightly-db-backup.yml
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: umasbooks_ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/umasbooks_ci
+      PGSSLMODE: disable
+      SESSION_SECRET: ci-test-session-secret
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: umas-books/package-lock.json
+      - run: npm ci
+      - run: npm run migrate
+      - run: npm test
+
+  migration-test:
+    # Proves every migration applies cleanly, in order, to a brand-new
+    # database — the same sequence Render's startCommand runs on a fresh
+    # deploy (see render.yaml: npm run migrate && npm run seed && npm
+    # start) — independent of the "test" job above, which reuses an
+    # already-migrated database for speed.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: umasbooks_ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/umasbooks_ci
+      PGSSLMODE: disable
+      SEED_ADMIN_PASSWORD: "Ci-Test-Passw0rd!"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: umas-books/package-lock.json
+      - run: npm ci
+      - name: Apply every migration to a brand-new database
+        run: npm run migrate
+      - name: Seed against the freshly migrated schema
+        run: npm run seed
+
+  dependency-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: umas-books/package-lock.json
+      - run: npm ci
+      - run: npm audit --audit-level=high
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: . # scans the whole repo, not just umas-books/
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # scan full history, not just the current commit
+      - name: Install gitleaks
+        # The core gitleaks tool (MIT-licensed) fetched directly from its
+        # GitHub release, rather than the gitleaks-action wrapper, which
+        # gates some usage behind a license for organization accounts.
+        run: |
+          curl -sSL -o /tmp/gitleaks.tar.gz https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz
+          tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
+          sudo install /tmp/gitleaks /usr/local/bin/gitleaks
+      - name: Scan for secrets
+        run: gitleaks detect --source . --redact -v --exit-code 1
+
+  smoke-crawl:
+    # Logs in as five real personas (anonymous, account, member,
+    # volunteer, admin) against an actually-running server and walks
+    # every reachable page — see scripts/sitemap/README.md. Fails on a
+    # server error or a navigation failure, or on a persona whose login
+    # didn't actually take (see assert-crawl-ok.js).
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: umasbooks_ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/umasbooks_ci
+      PGSSLMODE: disable
+      SESSION_SECRET: ci-test-session-secret
+      SEED_ADMIN_PASSWORD: "Ci-Test-Passw0rd!"
+      PORT: "3099"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: umas-books/package-lock.json
+      - run: npm ci
+      - run: npm run migrate
+      - name: Seed sample content (so the crawl has real pages to walk)
+        run: npm run seed
+      - run: node scripts/sitemap/seed-crawl-accounts.js
+
+      - name: Start the app
+        run: nohup node src/index.js > server.log 2>&1 &
+
+      - name: Wait for the app to be healthy
+        run: |
+          for _ in $(seq 1 40); do
+            if curl -sf http://localhost:3099/healthz > /dev/null; then
+              echo "healthy"; exit 0
+            fi
+            sleep 0.5
+          done
+          echo "App never became healthy:"; cat server.log; exit 1
+
+      - run: node scripts/sitemap/route-inventory.js . > routes.json
+      - run: node scripts/sitemap/crawler.js http://localhost:3099 routes.json > crawl.json
+      - run: node scripts/sitemap/assert-crawl-ok.js crawl.json
+
+      - name: Server log (always shown, for debugging a failure above)
+        if: always()
+        run: cat server.log

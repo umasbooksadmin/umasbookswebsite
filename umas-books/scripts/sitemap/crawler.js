@@ -54,7 +54,7 @@ function toPath(absoluteUrl){
     const p = u.pathname + u.search;
     if (ASSET_EXT.test(p)) return null;
     return p;
-  } catch (e) {
+  } catch {
     return null;
   }
 }
