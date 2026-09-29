@@ -6,12 +6,9 @@ const { hashToken } = require("../lib/resetTokens");
 const { sendResetLink } = require("../lib/passwordReset");
 const { validateNewPassword } = require("../lib/passwordPolicy");
 const { requireAuth } = require("../middleware/auth");
+const { baseUrl } = require("../lib/baseUrl");
 
 const router = express.Router();
-
-function baseUrl(req) {
-  return process.env.APP_BASE_URL || process.env.RENDER_EXTERNAL_URL || `${req.protocol}://${req.get("host")}`;
-}
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -28,6 +25,34 @@ const DUMMY_HASH = bcrypt.hashSync("no-such-account-timing-equalizer", 12);
 
 const LOGIN_LOCK_THRESHOLD = 5;
 const LOGIN_LOCK_DURATION_MS = 15 * 60 * 1000;
+
+// Every visitor already has a session (and thus a session ID) before
+// logging in — csrfProtection gives them one on their very first request,
+// to hand out a CSRF token. Writing req.session.user onto that same,
+// already-existing session ID would mean a session fixed before login
+// (however that happened) carries straight through into an authenticated
+// one. Regenerating here gives login/signup a fresh session ID, same as
+// any other privilege change — the pre-auth session's CSRF token goes
+// with it (csrfProtection issues a new one on the very next request,
+// which is fine, only the redirect target below reads it), but a cart
+// built up while still logged out is worth keeping.
+function loginAs(req, res, user, redirectTo) {
+  const cart = req.session.cart;
+  const cartSeq = req.session.cartSeq;
+  req.session.regenerate((err) => {
+    if (err) {
+      console.error(err);
+      return res.status(500).render("login", { error: "Something went wrong. Please try again.", notice: null });
+    }
+    req.session.user = {
+      id: user.id, email: user.email, displayName: user.display_name,
+      isAdmin: user.is_admin, isMember: user.is_member, isVolunteer: user.is_volunteer,
+    };
+    if (cart) req.session.cart = cart;
+    if (cartSeq) req.session.cartSeq = cartSeq;
+    res.redirect(redirectTo);
+  });
+}
 
 router.get("/signup", (req, res) => {
   if (req.session.user) {
@@ -62,11 +87,10 @@ router.post("/signup", authLimiter, async (req, res) => {
       [email, hash, displayName]
     );
     const user = rows[0];
-    req.session.user = { id: user.id, email: user.email, displayName: user.display_name, isAdmin: user.is_admin, isMember: user.is_member, isVolunteer: user.is_volunteer };
     // New accounts aren't members yet (that's a separate step — see
     // Membership), so they land on the regular site, not the Member's
     // Access dashboard. Only actual members/admins go straight there.
-    res.redirect(user.is_admin || user.is_member ? "/dashboard" : "/");
+    loginAs(req, res, user, user.is_admin || user.is_member ? "/dashboard" : "/");
   } catch (err) {
     console.error(err);
     res.status(500).render("signup", { error: "Something went wrong. Please try again." });
@@ -131,12 +155,11 @@ router.post("/login", authLimiter, async (req, res) => {
     }
     await pool.query("UPDATE users SET last_login_at = now() WHERE id = $1", [user.id]);
 
-    req.session.user = { id: user.id, email: user.email, displayName: user.display_name, isAdmin: user.is_admin, isMember: user.is_member, isVolunteer: user.is_volunteer };
     // Logging in doesn't make you a member — only actual members/admins
     // (and volunteers, a superset of members — see requireMember) land on
     // the Member's Access dashboard; everyone else goes to the regular
     // site, same as a logged-out visitor.
-    res.redirect(user.is_admin ? "/admin" : (user.is_member || user.is_volunteer) ? "/dashboard" : "/");
+    loginAs(req, res, user, user.is_admin ? "/admin" : (user.is_member || user.is_volunteer) ? "/dashboard" : "/");
   } catch (err) {
     console.error(err);
     res.status(500).render("login", { error: "Something went wrong. Please try again.", notice: null });
