@@ -88,6 +88,31 @@ app.use(
 );
 app.use(express.urlencoded({ extended: false }));
 
+// A repeated form-field name (e.g. two inputs both named "email", or a
+// scanner/extension re-submitting one) makes the urlencoded parser above
+// produce an array instead of a string — every route handler assumes a
+// scalar and calls .trim()/.toLowerCase() on it directly, which throws
+// and 500s the request. The couple of fields that are genuinely meant to
+// be multi-valued (a multi-select vote, a bulk-action checkbox list)
+// already defend themselves with [].concat(...), so they're left alone;
+// everything else collapses to its first value, the same as a normal
+// single-submission form would send.
+const MULTI_VALUE_BODY_FIELDS = new Set(["optionIds", "ids"]);
+app.use((req, res, next) => {
+  if (req.body && typeof req.body === "object") {
+    for (const key of Object.keys(req.body)) {
+      if (Array.isArray(req.body[key]) && !MULTI_VALUE_BODY_FIELDS.has(key)) {
+        req.body[key] = req.body[key][0];
+      }
+    }
+  }
+  next();
+});
+
+if (!process.env.SESSION_SECRET) {
+  throw new Error("SESSION_SECRET is not set");
+}
+
 app.set("trust proxy", 1);
 app.use(
   session({
