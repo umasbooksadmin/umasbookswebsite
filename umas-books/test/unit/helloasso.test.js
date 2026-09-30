@@ -55,3 +55,17 @@ test("returns an empty array when nothing matches exactly", async () => {
   const orders = await findMembershipOrdersByEmail("sam@example.com");
   assert.deepEqual(orders, []);
 });
+
+test("every outbound HelloAsso request carries a timeout signal", async () => {
+  const signals = [];
+  global.fetch = async (url, opts) => {
+    signals.push(opts && opts.signal);
+    if (String(url).includes("/oauth2/token")) {
+      return { ok: true, json: async () => ({ access_token: "fake-token", expires_in: 1 }) };
+    }
+    return { ok: true, json: async () => ({ data: [] }) };
+  };
+  await findMembershipOrdersByEmail("sam@example.com");
+  assert.ok(signals.length >= 1);
+  for (const s of signals) assert.ok(s instanceof AbortSignal);
+});

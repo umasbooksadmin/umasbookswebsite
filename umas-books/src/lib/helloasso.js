@@ -23,6 +23,11 @@ function isConfigured() {
 let cachedToken = null;
 let cachedTokenExpiresAt = 0;
 
+// Every outbound call gets a hard timeout: the public webhook can be
+// triggered by anyone (no signature), so a hung HelloAsso connection must
+// not let forged calls pile up open requests indefinitely.
+const REQUEST_TIMEOUT_MS = 10_000;
+
 async function getAccessToken() {
   if (!isConfigured()) {
     throw new Error("HelloAsso is not configured (missing HELLOASSO_CLIENT_ID/SECRET/ORG_SLUG).");
@@ -37,6 +42,7 @@ async function getAccessToken() {
       client_id: CLIENT_ID,
       client_secret: CLIENT_SECRET,
     }),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
   if (!res.ok) {
     throw new Error(`HelloAsso auth failed: ${res.status} ${await res.text()}`);
@@ -56,6 +62,7 @@ async function apiRequest(method, path, body) {
       ...(body ? { "Content-Type": "application/json" } : {}),
     },
     body: body ? JSON.stringify(body) : undefined,
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
   if (!res.ok) {
     throw new Error(`HelloAsso API ${method} ${path} failed: ${res.status} ${await res.text()}`);
@@ -121,4 +128,14 @@ async function findMembershipOrdersByEmail(email) {
   return orders.filter((o) => o.payer && typeof o.payer.email === "string" && o.payer.email.toLowerCase() === email.toLowerCase());
 }
 
-module.exports = { isConfigured, createCheckoutIntent, getCheckoutIntent, isOrderPaid, findMembershipOrdersByEmail };
+// Most recent Membership-form orders across the whole org (one API call),
+// for the periodic membership backstop in lib/membership.js — unlike
+// findMembershipOrdersByEmail there's no email to filter by, since the
+// point is to discover payers whose webhook never arrived.
+async function listRecentMembershipOrders() {
+  const params = new URLSearchParams({ formTypes: "Membership", pageSize: "50", sortOrder: "Desc" });
+  const data = await apiRequest("GET", `/organizations/${ORG_SLUG}/orders?${params.toString()}`);
+  return Array.isArray(data && data.data) ? data.data : [];
+}
+
+module.exports = { isConfigured, listRecentMembershipOrders, createCheckoutIntent, getCheckoutIntent, isOrderPaid, findMembershipOrdersByEmail };

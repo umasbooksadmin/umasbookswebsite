@@ -6,7 +6,7 @@
 // exceptions, which stay in effect since those accounts have no
 // member_expires_at to lapse).
 
-const { findMembershipOrdersByEmail } = require("./helloasso");
+const { findMembershipOrdersByEmail, listRecentMembershipOrders, isConfigured } = require("./helloasso");
 
 const MEMBERSHIP_DURATION_MS = 365 * 24 * 60 * 60 * 1000;
 
@@ -104,4 +104,32 @@ async function expireStaleMemberships(pool) {
   );
 }
 
-module.exports = { syncMembershipForEmail, expireStaleMemberships };
+// Periodic backstop for the public, unsigned webhook (see
+// routes/helloassoWebhook.js): the hosted membership form creates no local
+// order row, so unlike shop orders nothing else would ever notice a
+// missed delivery. One org-wide lookup, then the normal verified
+// per-email sync for each distinct payer with a recent order. Only a
+// recent window is re-synced — the sync is idempotent, this just avoids
+// re-checking every historical member on each run. (A refund on an older
+// order is still only caught by its webhook.)
+const RECENT_WINDOW_MS = 3 * 24 * 60 * 60 * 1000;
+
+async function reconcileRecentMemberships(pool) {
+  if (!isConfigured()) return;
+  const cutoff = Date.now() - RECENT_WINDOW_MS;
+  const orders = await listRecentMembershipOrders();
+  const emails = new Set(
+    orders
+      .filter((o) => o.payer && typeof o.payer.email === "string" && new Date(o.date).getTime() >= cutoff)
+      .map((o) => o.payer.email.toLowerCase())
+  );
+  for (const email of emails) {
+    try {
+      await syncMembershipForEmail(pool, email);
+    } catch (err) {
+      console.error(`Membership reconciliation failed for ${email}:`, err.message);
+    }
+  }
+}
+
+module.exports = { syncMembershipForEmail, expireStaleMemberships, reconcileRecentMemberships };
