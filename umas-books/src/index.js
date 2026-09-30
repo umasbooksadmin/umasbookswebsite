@@ -21,7 +21,7 @@ const { attachUser, requireAdmin } = require("./middleware/auth");
 const { csrfProtection } = require("./middleware/csrf");
 const { expireStaleReservations, sendPickupReminders } = require("./lib/reservations");
 const { expireStaleCartHolds, reconcilePendingOrders } = require("./lib/cart");
-const { expireStaleMemberships } = require("./lib/membership");
+const { expireStaleMemberships, reconcileRecentMemberships } = require("./lib/membership");
 const { alertOnError } = require("./lib/errorAlert");
 
 const authRoutes = require("./routes/auth");
@@ -46,6 +46,13 @@ const isProd = process.env.NODE_ENV === "production";
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "..", "views"));
 app.use(express.static(path.join(__dirname, "..", "public")));
+
+// Marketing-site static assets live at the repo root, not under public/.
+// Mounted here — before the session store and attachUser — so image/CSS/JS
+// requests never cost a session read or a per-request user lookup.
+const marketingRoot = path.join(__dirname, "..", "..");
+app.use("/assets", express.static(path.join(marketingRoot, "assets")));
+app.get("/logo.png", (req, res) => res.sendFile(path.join(marketingRoot, "logo.png")));
 
 // For the external uptime check (see .github/workflows/uptime-check.yml)
 // to actually catch what happened on 2026-09-26 — the process was up
@@ -216,7 +223,6 @@ app.get("/api/session", (req, res) => {
 // carousel) predate this app and aren't nonce-tagged, so these routes
 // carry their own relaxed CSP instead of the strict app-wide one above;
 // the Members Area's own routes keep the stricter policy untouched.
-const marketingRoot = path.join(__dirname, "..", "..");
 const marketingCsp = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline'",
@@ -234,8 +240,6 @@ const MARKETING_PAGES = [
   "volunteer.html", "privacy-policy.html", "membership-terms.html",
 ];
 
-app.use("/assets", express.static(path.join(marketingRoot, "assets")));
-app.get("/logo.png", (req, res) => res.sendFile(path.join(marketingRoot, "logo.png")));
 
 app.get("/", (req, res) => {
   // Only an actual member/volunteer/admin gets bounced to the Member's
@@ -338,6 +342,7 @@ function runReservationMaintenance() {
   expireStaleReservations(pool).catch((err) => console.error("Reservation expiry failed:", err));
   sendPickupReminders(pool).catch((err) => console.error("Pickup reminders failed:", err));
   expireStaleMemberships(pool).catch((err) => console.error("Membership expiry failed:", err));
+  reconcileRecentMemberships(pool).catch((err) => console.error("Membership reconciliation failed:", err));
 }
 runReservationMaintenance();
 setInterval(runReservationMaintenance, 6 * 60 * 60 * 1000);

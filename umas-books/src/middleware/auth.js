@@ -16,10 +16,18 @@ function attachUser(pool) {
       return next();
     }
 
-    const { rows } = await pool.query(
-      "SELECT is_admin, is_member, is_volunteer, is_disabled, password_changed_at FROM users WHERE id = $1",
-      [req.session.user.id]
-    );
+    // Express 4 doesn't catch a rejected promise from async middleware —
+    // without this, a DB error here would leave the request hanging
+    // instead of reaching the app's 500 handler.
+    let rows;
+    try {
+      ({ rows } = await pool.query(
+        "SELECT is_admin, is_member, is_volunteer, is_disabled, password_changed_at FROM users WHERE id = $1",
+        [req.session.user.id]
+      ));
+    } catch (err) {
+      return next(err);
+    }
     const row = rows[0];
 
     // Deleted, disabled, or this session predates the account's most
