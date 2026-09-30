@@ -26,6 +26,20 @@ jobs:
   backup:
     runs-on: ubuntu-latest
     steps:
+      - name: Refuse to run on a public repository
+        # Dumps contain member names/emails/order details and get pushed to
+        # the db-backups branch — on a public repo that branch is world-
+        # readable. Checked first, before anything is dumped or pushed, and
+        # fails the job so the alert email below fires too.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PRIVATE=$(gh api "repos/${{ github.repository }}" --jq .private)
+          if [ "$PRIVATE" != "true" ]; then
+            echo "::error::This repository is public — refusing to push database dumps to it. Make the repo private, then re-run."
+            exit 1
+          fi
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # need branch history to check out/create db-backups below
