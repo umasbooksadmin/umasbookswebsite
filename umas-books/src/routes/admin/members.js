@@ -5,6 +5,7 @@ const { pool } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
 const { sendResetLink } = require("../../lib/passwordReset");
 const { baseUrl } = require("../../lib/baseUrl");
+const { sendVerificationEmail } = require("../../lib/emailVerification");
 
 const router = express.Router();
 
@@ -148,6 +149,7 @@ router.get("/admin/members", requireAdmin, async (req, res) => {
     stats,
     detail,
     panel,
+    emailTaken: req.query.emailTaken === "1",
     filters: { q, role, status, dateRange, sort },
     pagination: { page: currentPage, totalPages, totalMatching, pageSize: MEMBERS_PAGE_SIZE },
   });
@@ -224,7 +226,35 @@ router.post("/admin/members/:id/edit", requireAdmin, async (req, res) => {
   const displayName = (req.body.displayName || "").trim();
   const email = (req.body.email || "").trim().toLowerCase();
   if (displayName && email) {
-    await pool.query("UPDATE users SET display_name = $1, email = $2 WHERE id = $3", [displayName, email, id]);
+    const { rows: current } = await pool.query("SELECT email FROM users WHERE id = $1", [id]);
+    const emailChanged = current[0] && current[0].email.toLowerCase() !== email;
+    // A changed email is a brand-new, unproven address: verification is
+    // cleared so syncMembershipForEmail (lib/membership.js) won't
+    // attribute a HelloAsso payment to it until the new inbox's link is
+    // clicked, and any still-unused link sent to the OLD address is
+    // burned so it can't verify the new one.
+    try {
+      await pool.query(
+        `UPDATE users SET display_name = $1, email = $2,
+           email_verified_at = CASE WHEN $4 THEN NULL ELSE email_verified_at END
+         WHERE id = $3`,
+        [displayName, email, id, !!emailChanged]
+      );
+    } catch (err) {
+      // users.email is UNIQUE — another account already has this address.
+      if (err.code === "23505") {
+        return res.redirect(`/admin/members?view=${id}&panel=edit&emailTaken=1${membersBackQuery(req)}`);
+      }
+      throw err;
+    }
+    if (emailChanged) {
+      await pool.query("UPDATE email_verification_tokens SET used_at = now() WHERE user_id = $1 AND used_at IS NULL", [id]);
+      try {
+        await sendVerificationEmail({ id, email, display_name: displayName }, baseUrl(req));
+      } catch (err) {
+        console.error("Verification email after admin email change failed:", err.message);
+      }
+    }
   }
   res.redirect(`/admin/members?view=${id}${membersBackQuery(req)}`);
 });

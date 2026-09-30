@@ -86,6 +86,15 @@ different nav (no cart/account icons).
   (an order line references *either* a book copy *or* a class drop-in
   seat, never both — see the `order_items_one_item_type` check
   constraint)
+- **Legacy trust decision (one-time):** migration 032 marked every
+  account that existed at the time as email-verified, since forcing
+  re-verification would lock out real members. Email squatting that
+  predates it (someone registering another person's address first) is
+  therefore not detectable and can only be fixed by an admin editing or
+  disabling the account at `/admin/members`. Changing an account's email
+  there clears verification and sends a link to the new address. Accounts
+  an admin creates are verified immediately, justified because the invite
+  link must be clicked from that same inbox to set a password.
 - **Membership** — `membership_payments` (HelloAsso payment records,
   matched to a `users` row by verified email — see
   `src/lib/membership.js`)

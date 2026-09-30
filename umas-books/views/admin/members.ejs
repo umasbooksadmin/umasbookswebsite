@@ -239,6 +239,7 @@
         <% } %>
 
         <% if (panel === 'edit') { %>
+          <% if (emailTaken) { %><div class="error-box" style="margin-top:14px;">That email is already used by another account — nothing was changed.</div><% } %>
           <form class="stack" method="post" action="/admin/members/<%= detail.user.id %>/edit" style="margin-top:14px;">
             <%- include('../partials/csrf_field') %>
             <input type="hidden" name="backQuery" value="<%= listQs %>">
