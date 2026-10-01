@@ -7,7 +7,11 @@ const { sendResetLink } = require("../../lib/passwordReset");
 const { baseUrl } = require("../../lib/baseUrl");
 const { sendVerificationEmail } = require("../../lib/emailVerification");
 
+const { validateIdParams } = require("../../middleware/idParams");
+
 const router = express.Router();
+// Garbage ids get the 404 page, not a Postgres 22P02 and a 500.
+validateIdParams(router, "id");
 
 // ---------- Accounts ----------
 
