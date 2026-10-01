@@ -21,7 +21,7 @@ const pgSession = require("connect-pg-simple")(session);
 
 const { pool } = require("./db");
 const { attachUser, requireAdmin } = require("./middleware/auth");
-const { csrfProtection, ensureToken } = require("./middleware/csrf");
+const { csrfProtection, csrfTokenEndpoint } = require("./middleware/csrf");
 const { expireStaleReservations, sendPickupReminders } = require("./lib/reservations");
 const { expireStaleCartHolds, reconcilePendingOrders } = require("./lib/cart");
 const { expireStaleMemberships, reconcileRecentMemberships } = require("./lib/membership");
@@ -232,10 +232,7 @@ app.use(csrfProtection);
 // form — e.g. the favorite-toggle button (public/favorites.js), which
 // runs on both the marketing site's static HTML (no server templating,
 // so no <input> to read a token from) and this app's own EJS pages.
-app.get("/api/csrf-token", (req, res) => {
-  res.set("Cache-Control", "no-store");
-  res.json({ token: ensureToken(req) });
-});
+app.get("/api/csrf-token", csrfTokenEndpoint);
 
 // Same idea as /api/cart/count above: the marketing site's static HTML
 // has no server-side session rendering, so it can't know a visitor is
