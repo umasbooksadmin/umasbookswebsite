@@ -4,6 +4,8 @@ const { CONDITIONS } = require("../lib/inventory");
 const { expireStaleReservations } = require("../lib/reservations");
 const { sendMail } = require("../mailer");
 const { baseUrl } = require("../lib/baseUrl");
+const { isEmail, clean } = require("../lib/validation");
+const { reserveLimiter } = require("../middleware/rateLimits");
 
 const router = express.Router();
 
@@ -276,15 +278,25 @@ router.get("/books/:id", async (req, res) => {
   });
 });
 
-router.post("/books/:id/reserve", async (req, res) => {
+// Most active reservations one email can hold at once — without a cap, a
+// script could reserve the whole shelf under a single address for 2 weeks.
+const MAX_ACTIVE_RESERVATIONS_PER_EMAIL = 5;
+
+router.post("/books/:id/reserve", reserveLimiter, async (req, res) => {
   const bookId = Number(req.params.id);
   const copyId = Number(req.body.copyId);
-  const name = (req.body.name || "").trim();
-  const email = (req.body.email || "").trim().toLowerCase();
-  const phone = (req.body.phone || "").trim() || null;
+  const name = clean(req.body.name, 100);
+  const email = clean(req.body.email, 200).toLowerCase();
+  const phone = clean(req.body.phone, 30) || null;
   const redirectUrl = `/books/${bookId}`;
 
-  if (!name || !email || !copyId) return res.redirect(redirectUrl);
+  if (!name || !isEmail(email) || !copyId) return res.redirect(redirectUrl);
+
+  const { rows: held } = await pool.query(
+    "SELECT COUNT(*)::int AS n FROM book_copies WHERE status = 'reserved' AND lower(reserved_by_email) = $1",
+    [email]
+  );
+  if (held[0].n >= MAX_ACTIVE_RESERVATIONS_PER_EMAIL) return res.redirect(redirectUrl);
 
   const { rows } = await pool.query(
     `UPDATE book_copies SET status = 'reserved', reserved_by_name = $1, reserved_by_email = $2,
