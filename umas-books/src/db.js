@@ -33,16 +33,25 @@ const pool = new Pool({
 // before this helper existed.
 async function withTransaction(pool, fn) {
   const client = await pool.connect();
+  let brokenConnection;
   try {
     await client.query("BEGIN");
     const result = await fn(client);
     await client.query("COMMIT");
     return result;
   } catch (err) {
-    await client.query("ROLLBACK");
+    // A dead connection makes ROLLBACK itself throw, which would replace
+    // the original error with a useless one — keep the original, and
+    // release(err) below tells the pool to discard this client rather
+    // than hand a broken one to the next caller.
+    try {
+      await client.query("ROLLBACK");
+    } catch (rollbackErr) {
+      brokenConnection = rollbackErr;
+    }
     throw err;
   } finally {
-    client.release();
+    client.release(brokenConnection);
   }
 }
 
