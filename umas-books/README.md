@@ -6,9 +6,11 @@ charity vote, and admin-side book inventory management. Node.js +
 Express + PostgreSQL, server-rendered with EJS, sessions stored in
 Postgres.
 
-This is **independent of Squarespace** — Squarespace stays the public
-website and shop; this app runs on its own (Render) and members reach it
-via a link from the main site.
+This app is the whole site: Squarespace has been retired, and the public
+marketing pages (home, about, books, events, …) are rendered by this same
+Express process alongside the members area — see
+[ARCHITECTURE.md](ARCHITECTURE.md#one-app-two-front-ends). It runs on
+Render.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for routing, shared views, data
 domains, environment variables, and the migration/deploy process — this
@@ -30,6 +32,24 @@ npm start                   # http://localhost:3000
 `npm run seed` only creates the first admin account if none exists yet —
 safe to re-run. Change `SEED_ADMIN_EMAIL` too if you don't want
 `admin@umasbooks.org`.
+
+### Running the tests
+
+```bash
+npm test                          # node --test: unit + integration
+node --test --test-concurrency=4  # same, but caps how many app servers boot at once
+npm run lint
+```
+
+The integration tests (`test/integration/`) boot the real app as a child
+process and hit it over HTTP. With no `DATABASE_URL` set they create (and
+drop) a throwaway `umasbooks_test_<port>_<timestamp>` database per test
+file, so a local Postgres with `createdb`/`dropdb` on your `PATH` is all
+they need. With `DATABASE_URL` set (as in CI) every file shares that one
+database and runs concurrently — a test that does something global to it
+must use `startTestApp({ port, isolated: true })`. Each test file uses its
+own fixed port (see the `PORT` constant at the top of the file); pick an
+unused one for a new file.
 
 ## What's included
 
@@ -58,6 +78,13 @@ safe to re-run. Change `SEED_ADMIN_EMAIL` too if you don't want
   `/forgot-password` (emailed via Gmail/Google Workspace SMTP, one-hour
   expiry, single use), or a logged-in member can change their password
   directly at `/account/password`.
+- **Email verification** — a new signup must click an emailed link before
+  the account counts as verified (`src/lib/emailVerification.js`); an admin
+  changing a member's email re-triggers it.
+- **Online checkout** (`/cart`) — book copies and class drop-in seats are
+  paid for through HelloAsso (`src/lib/helloasso.js`, webhook at
+  `/webhooks/helloasso`); membership payments are matched to accounts the
+  same way. See ARCHITECTURE.md's "Payment reliability" section.
 - **Inventory** (`/admin/inventory`, admin only) — full CRUD for the book
   catalog. Each title (`books`, with a genre/`categories` field) can have
   several individually-tracked physical copies (`book_copies`, each with
@@ -74,27 +101,31 @@ safe to re-run. Change `SEED_ADMIN_EMAIL` too if you don't want
   the book's page).
 - **Book search** (`/books`, public, no login) — anyone can search
   in-stock inventory by title, author, or genre, and reserve a specific
-  copy for pickup with just a name and email (no online payment — you pay
-  in person when you collect it). A reserved copy is held (status
+  copy for pickup with just a name and email (reserving takes no online
+  payment — you pay in person when you collect it; paying online is the
+  separate cart/checkout flow above). A reserved copy is held (status
   `reserved`) until an admin cancels the reservation or marks it sold from
   the book's admin page.
 - **Admin** (`/admin`, admin accounts only) — a proper multi-page section
   with its own sub-nav (`views/partials/admin_subnav.ejs`): an overview
-  with counts/links, plus dedicated pages for Members, Announcements,
-  Volunteer Shifts, Meetings, Events, Classes, Inventory, and Charity
-  Vote. Add a new admin area by adding a route in `src/routes/admin.js`,
+  with counts/links, plus dedicated pages for Books & Orders, English
+  Programs (`/admin/sessions`), Events, Volunteer Shifts, Meetings,
+  Announcements, Accounts/Members, Charities, and Blog. Add a new admin area by adding a route in `src/routes/admin.js`,
   a view under
   `views/admin/`, and a link in the subnav partial.
 
 Note: an earlier, member-only events feature was removed and later
-replaced by the public **Events** and **Classes** features above. The old
+replaced by the public **Events** and **Sessions** features above (the
+latter's tables are still named `classes`/`class_signups`). The old
 `event_rsvps` table (member-only sign-ups) is left in place, unused —
 public sign-ups now go through `event_signups`/`class_signups` instead.
 
 ### Email setup (Gmail/Google Workspace SMTP)
 
-Password reset emails send through `admin@umasbooks.org` (or whichever
-mailbox you configure) via SMTP. This needs a Google **App Password**, not
+All outgoing email — password reset, email verification, the contact
+form, reservation/pickup mail, and the admin error alerts — sends through
+`admin@umasbooks.org` (or whichever mailbox you configure) via SMTP. This
+needs a Google **App Password**, not
 the regular account password:
 
 1. In that Google account, turn on **2-Step Verification** (required before
@@ -111,9 +142,8 @@ Until both are set, the app doesn't fail — it just logs what it would have
 sent to the console instead, which is enough for local development.
 
 There's no separate "customer" vs "admin" signup flow — the seed script
-creates the first admin; that account can be used to promote others later
-by hand (`UPDATE users SET is_admin = TRUE WHERE email = '...'`) since
-there's no admin-management UI yet.
+creates the first admin; that account can then promote (or demote) other
+accounts from `/admin/members`.
 
 ### Photo scanning setup (inventory)
 
@@ -164,14 +194,102 @@ add an included path of `**` (or sync the Blueprint so it picks up
 `render.yaml`). Until then, if a push doesn't show up live, use **Manual
 Deploy → Deploy latest commit**.
 
-Seeding the first admin account is still a one-time manual step (it
-needs a password only you should choose) — via Render's **Shell** tab for
-the service, or by pointing `DATABASE_URL` at the production database
-locally:
+The first admin account is created by `npm run seed`, which `startCommand`
+runs on every boot (the free plan has no Shell tab, so this is the only
+route there): set `SEED_ADMIN_PASSWORD` (and optionally `SEED_ADMIN_EMAIL`)
+in the service's **Environment** tab before the first deploy. Or, to do it
+by hand, point `DATABASE_URL` at the production database locally:
 
 ```bash
 SEED_ADMIN_PASSWORD='a-real-password' npm run seed
 ```
+
+In production (`NODE_ENV=production`) the app checks its environment at
+boot: it refuses to start, naming every missing variable, if `DATABASE_URL`
+or `SESSION_SECRET` is unset, and logs a loud `[env] WARNING` at startup
+if the Gmail or HelloAsso variables are unset (email, including error
+alerts, or online payment would then be silently off). On `SIGTERM` (every
+Render deploy/spin-down) it stops taking new connections, lets in-flight
+requests — notably HelloAsso webhooks — finish, closes the database pool and
+exits 0; after 10 seconds it exits anyway.
+
+## Restoring from a backup
+
+`.github/workflows/nightly-db-backup.yml` dumps the production database
+every night (03:00 UTC) with `pg_dump --format=custom` and commits the file
+to the private **`db-backups`** branch as `backups/umas_books_<UTC
+timestamp>.dump`, keeping the newest 30. Once a month,
+`.github/workflows/backup-restore-test.yml` restores the newest dump into a
+scratch Postgres and checks the data, emailing admin@umasbooks.org if that
+fails — so this procedure is exercised regularly, not just on a bad day.
+
+> **A dump contains member data** (names, emails, order details, password
+> hashes). Download it only to a machine you control, restore it only into
+> a database you control, never commit or share it, and delete the local
+> copy when you are done. If the repository were ever made public the
+> `db-backups` branch would become world-readable — both backup workflows
+> refuse to run on a public repo for that reason.
+
+You need the PostgreSQL **18** client tools (the dumps are made with 18;
+an older `pg_restore` cannot read them) and the GitHub CLI (`gh`),
+logged in with access to the repo.
+
+1. **Download a dump.** List the available ones, then fetch one:
+
+   ```bash
+   REPO=umasbooksadmin/umasbookswebsite
+   gh api "repos/$REPO/contents/backups?ref=db-backups" --jq '.[].name'
+   # pick a name from the list, e.g. umas_books_2026-09-30T03-00-12Z.dump
+   gh api -H "Accept: application/vnd.github.raw" \
+     "repos/$REPO/contents/backups/umas_books_2026-09-30T03-00-12Z.dump?ref=db-backups" \
+     > restore.dump
+   ```
+
+   (Alternatively `git fetch origin db-backups` and
+   `git show origin/db-backups:backups/<file> > restore.dump`. The contents
+   API caps a single file at 100 MB; use the git route if the dump ever
+   grows past that.)
+
+2. **Restore into a fresh database.** Never restore over a database you
+   still need:
+
+   ```bash
+   createdb umas_books_restored
+   pg_restore --no-owner --no-privileges --exit-on-error \
+     -d umas_books_restored restore.dump
+   ```
+
+   For a managed target (a new Render Postgres), use its **external**
+   connection string instead of a database name:
+   `pg_restore --no-owner --no-privileges --exit-on-error -d "$NEW_EXTERNAL_DATABASE_URL" restore.dump`.
+   If your default `pg_restore` is older than 18, call the 18 binary by path
+   (e.g. `/usr/lib/postgresql/18/bin/pg_restore` on Debian/Ubuntu).
+
+3. **Sanity-check it:**
+
+   ```bash
+   psql umas_books_restored -c "SELECT
+     (SELECT count(*) FROM users)  AS users,
+     (SELECT count(*) FROM books)  AS books,
+     (SELECT count(*) FROM orders) AS orders,
+     (SELECT max(applied_at) FROM schema_migrations) AS last_migration;"
+   ```
+
+   The counts should look like the live site's, and `last_migration`
+   should be recent.
+
+4. **Point the app at it (disaster recovery only).** In the Render
+   dashboard, open the `umas-books` service → **Environment**, set
+   `DATABASE_URL` to the restored database's connection string (for a
+   database in the same Render account/region use its **Internal** URL), and
+   save — Render redeploys. `render.yaml` normally wires `DATABASE_URL` to
+   `umas-books-db`, so if you later re-sync the Blueprint, either restore
+   into `umas-books-db` itself or update `render.yaml` to match. Boot runs
+   `npm run migrate`, which applies any migrations newer than the dump.
+   Check `/healthz` returns 200.
+
+5. **Clean up:** `rm restore.dump`, and `dropdb umas_books_restored` if it
+   was only a drill.
 
 Render's free Postgres plan is time-limited (currently expires after a
 period of inactivity/trial per Render's terms) — worth checking their
@@ -207,12 +325,12 @@ upgrading to a paid database if this needs to stay up indefinitely.
 
 ## Known gaps for a v1
 
-- Email is reset-flow only for now — no signup verification, no event/
-  announcement notification emails yet (the `sendMail` helper in
-  `src/mailer.js` is ready to reuse for those later).
-- No admin UI for promoting other members to admin, or for editing/deleting
-  posted content (edit user roles or delete a thread directly in the
-  database for now).
-- No CORS/API layer — this is a server-rendered app, not a JSON API, so it
-  can't be embedded as a widget inside a Squarespace page; members follow a
-  link to it instead.
+- No event/announcement notification emails yet (email covers password
+  reset, signup verification, the contact form, reservations and error
+  alerts; the `sendMail` helper in `src/mailer.js` is ready to reuse).
+- No moderation UI for forum threads/replies — an admin can edit or delete
+  announcements and blog posts, but removing a forum post means deleting
+  the row in the database.
+- No general JSON API — this is a server-rendered app. The few `/api/...`
+  routes (book search, latest arrivals, cart count, favorites) exist for
+  the site's own pages.
