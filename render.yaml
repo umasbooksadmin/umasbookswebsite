@@ -1,6 +1,9 @@
 databases:
   - name: umas-books-db
-    plan: free
+    # Paid tier (matches the Render dashboard): the free Postgres expires 30
+    # days after creation. This app's nightly pg_dump (GitHub + S3) is the
+    # extra safety net, see .github/workflows.
+    plan: 1c-2g
     region: frankfurt
     databaseName: umas_books
     user: umasbooks
@@ -9,7 +12,10 @@ services:
   - type: web
     name: umas-books
     runtime: node
-    plan: free
+    # Paid tier: the free web service sleeps after 15 minutes without
+    # traffic, so the first visitor after a quiet spell waited through a
+    # cold start (migrate + seed + boot) — see startCommand below.
+    plan: 1c-2g
     region: frankfurt
     rootDir: umas-books
     # /healthz runs SELECT 1 against the database (src/index.js), so Render
@@ -24,9 +30,8 @@ services:
     buildCommand: npm install
     # seed is idempotent (only creates an admin if none exists yet, only
     # seeds sample announcements/charity content if none exists) — safe to
-    # run on every startup. This matters on the free plan specifically,
-    # which has no Shell tab to run one-off commands from, so this is the
-    # only way to get the first admin account onto a fresh database.
+    # run on every startup. It's how the first admin account gets onto a
+    # fresh database without needing a Shell session to run one-off commands.
     startCommand: npm run migrate && npm run seed && npm start
     envVars:
       - key: DATABASE_URL
