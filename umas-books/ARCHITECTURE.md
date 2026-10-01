@@ -1,5 +1,8 @@
 # Architecture
 
+> For diagrams of the whole system (context, request flow, data model, payments,
+> deploy, backups, security) see [`../docs/architecture.md`](../docs/architecture.md).
+
 A quick technical map of how this app is put together — routing, views,
 data, config, and how a change gets from a commit to production. See
 [README.md](README.md) for what each feature does, and
