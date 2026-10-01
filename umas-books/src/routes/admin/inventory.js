@@ -8,7 +8,11 @@ const { generateBookDescription, translateDescriptionToFrench } = require("../..
 const { CONDITIONS, STATUSES, normalizeCondition, normalizeStatus, normalizeGenres } = require("../../lib/inventory");
 const { expireStaleReservations } = require("../../lib/reservations");
 
+const { validateIdParams } = require("../../middleware/idParams");
+
 const router = express.Router();
+// Garbage ids get the 404 page, not a Postgres 22P02 and a 500.
+validateIdParams(router, "id", "copyId");
 
 // New copies default to a $0 cost / $5 price, but a book already in
 // inventory should default to whatever its existing copies are set at.

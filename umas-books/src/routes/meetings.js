@@ -3,7 +3,11 @@ const { pool } = require("../db");
 const { requireMember } = require("../middleware/auth");
 const { groupByDate, resolveCalendarRange, calendarBackQuery } = require("../lib/calendar");
 
+const { validateIdParams } = require("../middleware/idParams");
+
 const router = express.Router();
+// Garbage ids get the 404 page, not a Postgres 22P02 and a 500.
+validateIdParams(router, "id");
 
 router.get("/meetings", requireMember, async (req, res) => {
   const userId = req.session.user.id;
