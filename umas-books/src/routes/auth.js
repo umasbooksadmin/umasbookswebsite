@@ -8,6 +8,7 @@ const { sendVerificationEmail, sendSignupAttemptEmail } = require("../lib/emailV
 const { validateNewPassword } = require("../lib/passwordPolicy");
 const { requireAuth } = require("../middleware/auth");
 const { baseUrl } = require("../lib/baseUrl");
+const { saveSession } = require("../lib/session");
 
 const router = express.Router();
 
@@ -71,7 +72,14 @@ function loginAs(req, res, user, redirectTo) {
     };
     if (cart) req.session.cart = cart;
     if (cartSeq) req.session.cartSeq = cartSeq;
-    res.redirect(redirectTo);
+    // Persist before redirecting — see lib/session.js.
+    saveSession(req).then(
+      () => res.redirect(redirectTo),
+      (saveErr) => {
+        console.error(saveErr);
+        res.status(500).render("login", { error: "Something went wrong. Please try again.", notice: null });
+      }
+    );
   });
 }
 
@@ -319,6 +327,9 @@ router.post("/account/password", requireAuth, passwordChangeLimiter, async (req,
   // request's own session made the change, so it re-stamps its own
   // captured value rather than also logging itself out.
   req.session.user.passwordChangedAt = updated[0].password_changed_at.getTime();
+  // Persist before responding, or a quick next request reads the old stamp
+  // and logs this very session out — see lib/session.js.
+  await saveSession(req);
   res.render("change_password", { error: null, notice: "Password updated." });
 });
 
