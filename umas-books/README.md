@@ -16,7 +16,7 @@ file is about what each feature does, that one is about how it's built.
 
 ## Local development
 
-Requires Node 18+ and a local PostgreSQL server.
+Requires Node 22 and a local PostgreSQL server.
 
 ```bash
 npm install

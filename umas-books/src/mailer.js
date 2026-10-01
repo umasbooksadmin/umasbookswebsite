@@ -1,5 +1,7 @@
 const nodemailer = require("nodemailer");
 
+const MAIL_TIMEOUT_MS = 10 * 1000;
+
 let transporter;
 
 function getTransporter() {
@@ -13,6 +15,11 @@ function getTransporter() {
 
   transporter = nodemailer.createTransport({
     service: "gmail",
+    // Without these a stalled SMTP server holds the request (and its DB
+    // connection/handler) open indefinitely.
+    connectionTimeout: MAIL_TIMEOUT_MS,
+    greetingTimeout: MAIL_TIMEOUT_MS,
+    socketTimeout: MAIL_TIMEOUT_MS,
     auth: {
       user: process.env.GMAIL_USER,
       pass: process.env.GMAIL_APP_PASSWORD,
@@ -36,4 +43,4 @@ async function sendMail({ to, subject, text, replyTo }) {
   });
 }
 
-module.exports = { sendMail };
+module.exports = { sendMail, MAIL_TIMEOUT_MS };

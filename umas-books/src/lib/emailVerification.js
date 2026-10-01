@@ -22,4 +22,15 @@ async function sendVerificationEmail(user, baseUrl) {
   });
 }
 
-module.exports = { sendVerificationEmail };
+// Sent instead of a verification link when someone signs up with an
+// address that already has an account, so signup's HTTP response can be
+// identical either way while the real owner still learns about it.
+async function sendSignupAttemptEmail(user, baseUrl) {
+  await sendMail({
+    to: user.email,
+    subject: "Someone tried to sign up with your email at Uma's Books",
+    text: `Hi ${user.display_name},\n\nSomeone just tried to create a new Uma's Books account with this email address, but you already have one.\n\nIf it was you, log in at ${baseUrl}/login, or reset your password at ${baseUrl}/forgot-password.\n\nIf it wasn't you, you can safely ignore this email.`,
+  });
+}
+
+module.exports = { sendVerificationEmail, sendSignupAttemptEmail };

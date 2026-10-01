@@ -89,7 +89,9 @@ test("signup then login works end to end", async () => {
     body: `email=${encodeURIComponent(email)}&password=${encodeURIComponent("Correct-Horse-1")}&displayName=Integration+Test&_csrf=${token}`,
   });
   jar.capture(signupRes);
-  assert.equal(signupRes.status, 302);
+  // Signup no longer logs in (identical response for new and existing
+  // emails — see authHardening.test.js); the new user logs in afterwards.
+  assert.equal(signupRes.status, 200);
 
   const token2 = await fetchCsrfToken(app.base, jar);
   const loginRes = await fetch(`${app.base}/login`, {

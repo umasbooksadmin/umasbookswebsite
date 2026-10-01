@@ -4,7 +4,7 @@ const rateLimit = require("express-rate-limit");
 const { pool } = require("../db");
 const { hashToken } = require("../lib/resetTokens");
 const { sendResetLink } = require("../lib/passwordReset");
-const { sendVerificationEmail } = require("../lib/emailVerification");
+const { sendVerificationEmail, sendSignupAttemptEmail } = require("../lib/emailVerification");
 const { validateNewPassword } = require("../lib/passwordPolicy");
 const { requireAuth } = require("../middleware/auth");
 const { baseUrl } = require("../lib/baseUrl");
@@ -24,6 +24,9 @@ const authLimiter = rateLimit({
 // letting an attacker enumerate registered emails via response timing.
 const DUMMY_HASH = bcrypt.hashSync("no-such-account-timing-equalizer", 12);
 
+const SIGNUP_NOTICE =
+  "Thanks! Check your inbox for an email with next steps. Once your email is confirmed, log in. If you already have an account, try logging in or resetting your password.";
+
 const LOGIN_LOCK_THRESHOLD = 5;
 const LOGIN_LOCK_DURATION_MS = 15 * 60 * 1000;
 
@@ -32,7 +35,7 @@ const LOGIN_LOCK_DURATION_MS = 15 * 60 * 1000;
 // is what created it. Writing req.session.user onto that same,
 // already-existing session ID would mean a session fixed before login
 // (however that happened) carries straight through into an authenticated
-// one. Regenerating here gives login/signup a fresh session ID, same as
+// one. Regenerating here gives login a fresh session ID, same as
 // any other privilege change — the pre-auth session's CSRF token goes
 // with it (csrfProtection issues a new one lazily, the next time a page
 // or /api/csrf-token reads it), but a cart
@@ -77,36 +80,39 @@ router.post("/signup", authLimiter, async (req, res) => {
     return res.status(400).render("signup", { error: passwordError, notice: null });
   }
 
+  // Identical response whether or not the email is registered — a
+  // distinct redirect/auto-login for new accounts would let anyone probe
+  // which addresses have accounts. The new user proves they own the inbox
+  // (and can then log in); an existing owner is told someone tried. The
+  // bcrypt hash runs on both paths so response time doesn't differ, and
+  // mail is sent in the background so a slow mail server can't either.
   try {
-    const { rows: existing } = await pool.query("SELECT id FROM users WHERE email = $1", [email]);
-    if (existing.length) {
-      // Doesn't say "an account with that email already exists" — same
-      // "never confirm whether an email is registered" principle
-      // /forgot-password already follows, just not yet applied here.
-      return res.render("signup", {
-        error: null,
-        notice: "If this is a new email, check your inbox for a confirmation link. If you already have an account, try logging in or resetting your password.",
-      });
-    }
     const hash = await bcrypt.hash(password, 12);
-    const { rows } = await pool.query(
-      `INSERT INTO users (email, password_hash, display_name) VALUES ($1, $2, $3)
-       RETURNING id, email, display_name, is_admin, is_member, is_volunteer, password_changed_at`,
-      [email, hash, displayName]
-    );
-    const user = rows[0];
-    try {
-      await sendVerificationEmail(user, baseUrl(req));
-    } catch (err) {
-      // Not fatal — the account still works normally; it just can't be
+    const { rows: existing } = await pool.query("SELECT id, email, display_name FROM users WHERE email = $1", [email]);
+    let created = null;
+    if (!existing.length) {
+      try {
+        const { rows } = await pool.query(
+          `INSERT INTO users (email, password_hash, display_name) VALUES ($1, $2, $3)
+           RETURNING id, email, display_name`,
+          [email, hash, displayName]
+        );
+        created = rows[0];
+      } catch (err) {
+        // Lost a race with a concurrent signup for the same address.
+        if (err.code !== "23505") throw err;
+      }
+    }
+    const url = baseUrl(req);
+    if (created) {
+      // Not fatal — the account exists either way; it just can't be
       // auto-matched to a future HelloAsso membership payment until
       // verified (see syncMembershipForEmail in lib/membership.js).
-      console.error("Verification email failed:", err.message);
+      sendVerificationEmail(created, url).catch((err) => console.error("Verification email failed:", err.message));
+    } else if (existing.length) {
+      sendSignupAttemptEmail(existing[0], url).catch((err) => console.error("Signup-attempt email failed:", err.message));
     }
-    // New accounts aren't members yet (that's a separate step — see
-    // Membership), so they land on the regular site, not the Member's
-    // Access dashboard. Only actual members/admins go straight there.
-    loginAs(req, res, user, user.is_admin || user.is_member ? "/dashboard" : "/");
+    res.render("signup", { error: null, notice: SIGNUP_NOTICE });
   } catch (err) {
     console.error(err);
     res.status(500).render("signup", { error: "Something went wrong. Please try again.", notice: null });
@@ -149,26 +155,20 @@ router.post("/login", authLimiter, async (req, res) => {
     const { rows } = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
     const user = rows[0];
 
-    if (user && user.locked_until && new Date(user.locked_until) > new Date()) {
-      return res.status(429).render("login", {
-        error: "Too many failed attempts on this account. Please try again in a few minutes.",
-        notice: null,
-      });
-    }
-
-    if (user && user.is_disabled) {
-      return res.status(403).render("login", {
-        error: "This account has been deactivated. Contact us if you think this is a mistake.",
-        notice: null,
-      });
-    }
-
     // Always run a bcrypt compare of the same cost, even when there's no
     // such user, so the response time doesn't reveal whether the email
     // is registered.
     const ok = user
       ? await bcrypt.compare(password, user.password_hash)
       : await bcrypt.compare(password, DUMMY_HASH).then(() => false);
+
+    // A locked account answers exactly like a wrong password (even for the
+    // right one), so neither the lock nor the account's existence is
+    // revealed; attempts during the lock aren't counted or extended.
+    const locked = Boolean(user && user.locked_until && new Date(user.locked_until) > new Date());
+    if (locked) {
+      return res.status(401).render("login", { error: "Incorrect email or password.", notice: null });
+    }
 
     if (!ok) {
       if (user) {
@@ -183,6 +183,15 @@ router.post("/login", authLimiter, async (req, res) => {
         }
       }
       return res.status(401).render("login", { error: "Incorrect email or password.", notice: null });
+    }
+
+    // Only someone who proved they know the password learns the account
+    // is deactivated.
+    if (user.is_disabled) {
+      return res.status(403).render("login", {
+        error: "This account has been deactivated. Contact us if you think this is a mistake.",
+        notice: null,
+      });
     }
 
     if (user.failed_login_attempts > 0 || user.locked_until) {
@@ -214,7 +223,9 @@ router.post("/forgot-password", authLimiter, async (req, res) => {
       const { rows } = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
       const user = rows[0];
       if (user) {
-        await sendResetLink(user, baseUrl(req));
+        // Background, so the response time doesn't reveal whether the
+        // account exists (a mail round-trip only happens when it does).
+        sendResetLink(user, baseUrl(req)).catch((err) => console.error("Reset email failed:", err.message));
       }
     } catch (err) {
       console.error(err);
