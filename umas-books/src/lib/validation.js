@@ -53,6 +53,8 @@ function emailSafeName(value) {
   if (typeof value !== "string") return "";
   return value
     .replace(/(?:https?:\/\/|www\.)\S*/gi, " ")
+    // Stripping control characters is the point of this function.
+    // eslint-disable-next-line no-control-regex
     .replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029<>]/g, " ")
     .replace(/\s+/g, " ")
     .trim();

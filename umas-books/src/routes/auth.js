@@ -299,7 +299,7 @@ router.post("/reset-password/:token", resetLimiter, async (req, res) => {
 
   const hash = await bcrypt.hash(newPassword, 12);
   const client = await pool.connect();
-  let email = null;
+  let email;
   try {
     await client.query("BEGIN");
     // The token is the atomic gate: of any number of concurrent requests

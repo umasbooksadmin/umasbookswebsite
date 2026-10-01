@@ -100,6 +100,8 @@ test("URLs and control characters in the name never reach the email subject or b
     assert.equal(res.status, 302);
     assert.equal(sent.length, 1);
     for (const field of [sent[0].subject, sent[0].text.split("\n")[2]]) {
+      // The \u0007 (bell) is deliberate: control characters must be stripped.
+      // eslint-disable-next-line no-control-regex
       assert.doesNotMatch(field, /evil\.example|https?:|[<>\u0007]/);
       assert.match(field, /Eve/);
     }
