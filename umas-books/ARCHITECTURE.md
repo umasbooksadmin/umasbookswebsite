@@ -238,7 +238,7 @@ Render Blueprint) at the repo root:
    other — CI passing is not required for Render to deploy. Treat a
    CI failure as "go fix this," not as something that already stopped a
    bad deploy.
-2. Render's `buildCommand` runs `npm install`.
+2. Render's `buildCommand` runs `npm ci --omit=dev`.
 3. Render's `startCommand` runs `npm run migrate && npm run seed && npm
    start`, in that order, every time the service starts — including a
    free-tier spin-down/wake cycle, not just a real deploy. Both

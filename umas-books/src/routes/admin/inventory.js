@@ -1,5 +1,5 @@
 const express = require("express");
-const sharp = require("sharp");
+const { sharpFromUpload, reencodeForVision } = require("../../lib/uploadImage");
 const { pool } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
 const { normalizeIsbn, lookupByIsbn, searchByTitleAuthor, translateGenresToFrench } = require("../../lib/bookLookup");
@@ -52,7 +52,7 @@ async function findCoverUrl({ isbn, title, author }) {
 // thumbnail and stored inline as a data URI in the same cover_url column
 // a lookup-sourced image URL would go in.
 async function processCoverPhoto(file) {
-  const resized = await sharp(file.buffer)
+  const resized = await sharpFromUpload(file.buffer)
     .rotate()
     .resize(500, 700, { fit: "inside", withoutEnlargement: true })
     .jpeg({ quality: 78 })
@@ -98,7 +98,17 @@ router.post("/admin/inventory/lookup", requireAdmin, async (req, res) => {
 
   const scanPhoto = req.files && req.files.photo && req.files.photo[0];
   if (scanPhoto) {
-    const info = await extractBookInfoFromPhoto(scanPhoto.buffer, scanPhoto.mimetype);
+    let photo;
+    try {
+      photo = await reencodeForVision(scanPhoto.buffer);
+    } catch (err) {
+      console.warn("Scan photo could not be decoded:", err.message);
+      return res.render("admin/inventory/scan", {
+        active: "inventory", visionEnabled,
+        error: "That file couldn't be read as an image — try another photo, or enter details manually below.",
+      });
+    }
+    const info = await extractBookInfoFromPhoto(photo.buffer, photo.mimeType);
     if (!info || (!info.isbn && !info.title)) {
       return res.render("admin/inventory/scan", {
         active: "inventory", visionEnabled,
