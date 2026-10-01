@@ -37,15 +37,22 @@ test("a new signup is unverified until the emailed link is used", async () => {
     headers: { "content-type": "application/x-www-form-urlencoded", cookie: jar.header() },
     body: `email=${encodeURIComponent(email)}&password=${encodeURIComponent("Correct-Horse-1")}&displayName=Signup+Verify&_csrf=${token}`,
   });
-  assert.equal(signupRes.status, 302);
+  // Neutral page, not a redirect/auto-login (same for existing emails).
+  assert.equal(signupRes.status, 200);
 
   const { rows } = await pool.query("SELECT email_verified_at FROM users WHERE email = $1", [email]);
   assert.equal(rows[0].email_verified_at, null);
 
-  const { rows: tokenRows } = await pool.query(
-    `SELECT evt.id FROM email_verification_tokens evt JOIN users u ON u.id = evt.user_id WHERE u.email = $1`,
-    [email]
-  );
+  // The verification email is sent in the background after the response,
+  // so its token row can land a moment later.
+  let tokenRows = [];
+  for (let i = 0; i < 40 && tokenRows.length === 0; i++) {
+    ({ rows: tokenRows } = await pool.query(
+      `SELECT evt.id FROM email_verification_tokens evt JOIN users u ON u.id = evt.user_id WHERE u.email = $1`,
+      [email]
+    ));
+    if (!tokenRows.length) await new Promise((r) => setTimeout(r, 100));
+  }
   assert.equal(tokenRows.length, 1, "signup should have created exactly one verification token");
 });
 

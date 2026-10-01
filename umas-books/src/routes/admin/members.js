@@ -236,7 +236,8 @@ router.post("/admin/members/:id/edit", requireAdmin, async (req, res) => {
     try {
       await pool.query(
         `UPDATE users SET display_name = $1, email = $2,
-           email_verified_at = CASE WHEN $4 THEN NULL ELSE email_verified_at END
+           email_verified_at = CASE WHEN $4 THEN NULL ELSE email_verified_at END,
+           password_changed_at = CASE WHEN $4 THEN now() ELSE password_changed_at END
          WHERE id = $3`,
         [displayName, email, id, !!emailChanged]
       );
@@ -248,6 +249,11 @@ router.post("/admin/members/:id/edit", requireAdmin, async (req, res) => {
       throw err;
     }
     if (emailChanged) {
+      // password_changed_at (set above) logs out the account's existing
+      // sessions via attachUser — an admin fixing a squatted/hijacked
+      // account shouldn't leave the squatter logged in — and any unused
+      // reset link already sent to the old address must die too.
+      await pool.query("UPDATE password_reset_tokens SET used_at = now() WHERE user_id = $1 AND used_at IS NULL", [id]);
       await pool.query("UPDATE email_verification_tokens SET used_at = now() WHERE user_id = $1 AND used_at IS NULL", [id]);
       try {
         await sendVerificationEmail({ id, email, display_name: displayName }, baseUrl(req));
