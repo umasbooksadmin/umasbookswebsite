@@ -97,7 +97,7 @@ login, one database and one thing to monitor.
 | Sessions | `express-session` + `connect-pg-simple` | rows in table `session`; 30-day sliding cookie |
 | Security middleware | `helmet` (CSP, HSTS), `express-rate-limit`, custom CSRF | |
 | Uploads | `multer` (memory) + `sharp` re-encode to JPEG | admin only; images stored as data URIs in rows |
-| Mail | `nodemailer` over Gmail | one shared account for human and system mail |
+| Mail | `nodemailer` over Google Workspace SMTP | one mailbox (`admin@umasbooks.org`) for human and system mail |
 | Payments | HelloAsso (checkout intents + hosted membership form) | OAuth client credentials |
 | Hosting | Render Blueprint (`render.yaml`) | web `1c-2g`, database `1c-2g`, Frankfurt |
 | CI/CD | GitHub Actions | six required checks; Render deploys on merge |
@@ -581,8 +581,10 @@ Deliberate trade-offs (revisit only if traffic or risk changes):
   proper fix.
 * **Search is `ILIKE '%q%'`** over a few thousand books — fine now; trigram or
   full-text indexes when the catalogue grows.
-* **Shared Gmail account** for human and system mail; a transactional provider
-  would remove the quota risk.
+* **One Google Workspace mailbox** (`admin@umasbooks.org`) sends both human and
+  system mail: roughly 2,000 messages a day, signed by Google (SPF is in place;
+  confirm DKIM in the Google Admin console and add a DMARC record in the
+  Squarespace DNS). Plenty for this site; a transactional provider is not needed.
 
 Open items worth knowing:
 
