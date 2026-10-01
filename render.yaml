@@ -1,9 +1,6 @@
 databases:
   - name: umas-books-db
-    # Paid tier: the free Postgres expires 30 days after creation and has no
-    # backups of its own (this app's nightly pg_dump to the db-backups
-    # branch is the extra safety net, see .github/workflows).
-    plan: 0.5c-1g
+    plan: free
     region: frankfurt
     databaseName: umas_books
     user: umasbooks
@@ -15,7 +12,7 @@ services:
     # Paid tier: the free web service sleeps after 15 minutes without
     # traffic, so the first visitor after a quiet spell waited through a
     # cold start (migrate + seed + boot) — see startCommand below.
-    plan: 0.5c-512mb
+    plan: 1c-2g
     region: frankfurt
     rootDir: umas-books
     # /healthz runs SELECT 1 against the database (src/index.js), so Render
