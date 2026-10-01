@@ -64,7 +64,7 @@ thing from the `/programs` calendar route that used to exist.
 | Partial | Used by | Purpose |
 |---|---|---|
 | `header.ejs` / `footer.ejs` | every members-area page (~25 views) | page shell: `<head>`, nav (Log in/out, cart, account icons), closing markup |
-| `csrf_field.ejs` | every form (~24 views) | the hidden `_csrf` input every POST form must include — see [Security](README.md#security) |
+| `csrf_field.ejs` | every form (~27 views) | the hidden `_csrf` input every POST form must include — see [Security](README.md#security) |
 | `admin_header.ejs` / `admin_footer.ejs` | every `/admin/*` page (14 views) | the admin section's own shell + sub-nav, separate from the member-facing header/footer |
 | `calendar_grid.ejs` | `events.ejs`, `sessions.ejs`, and the admin volunteer/meetings/events/sessions calendars | the month/week grid layout, parameterized by an `itemPartial` name (`calendar_item_event.ejs` or `calendar_item_session.ejs`) so one grid renders either kind of entry |
 | `mkt_chrome_header.ejs` / `mkt_chrome_footer.ejs` (in `views/marketing/partials/`) | `views/marketing/index.ejs` | the marketing homepage's own header/footer variant |
@@ -78,7 +78,9 @@ different nav (no cart/account icons).
 
 ## Data domains
 
-29 tables (`migrations/`), grouped by what they belong to:
+28 application tables (`migrations/`), plus `schema_migrations` and the
+`session` store table (created by `migrate.js` / `connect-pg-simple`
+rather than by a numbered migration), grouped by what they belong to:
 
 - **Accounts & auth** — `users`, `password_reset_tokens`,
   `email_verification_tokens`
@@ -118,9 +120,9 @@ src/` is the ground truth if this list ever drifts):
 | Variable | Required? | Purpose |
 |---|---|---|
 | `DATABASE_URL` | yes | Postgres connection string — see [Migration process](#migration-process) for how `PGSSLMODE` affects it |
-| `SESSION_SECRET` | yes (app throws at startup if unset) | signs the session cookie |
+| `SESSION_SECRET` | yes (app refuses to start if unset) | signs the session cookie |
 | `PORT` | no (defaults 3000) | HTTP listen port |
-| `NODE_ENV` | no | only meaningfully checked in `src/lib/baseUrl.js` — `production` requires `APP_BASE_URL`/`RENDER_EXTERNAL_URL` to be set |
+| `NODE_ENV` | no | `production` turns on startup env validation (`src/lib/env.js`: fails fast listing every missing required var, warns about disabled email/payments), secure session cookies, and `src/lib/baseUrl.js` requiring `APP_BASE_URL`/`RENDER_EXTERNAL_URL` |
 | `PGSSLMODE` | no | set to `disable` for local dev (no TLS); any other value uses `{ rejectUnauthorized: false }` — see `src/db.js` |
 | `APP_BASE_URL` | no | overrides the auto-detected base URL (emailed links, HelloAsso return URLs) |
 | `RENDER_EXTERNAL_URL` | no | set automatically by Render; same purpose as `APP_BASE_URL` |
@@ -136,6 +138,29 @@ CI (`.github/workflows/ci.yml`) has its own separate set of throwaway
 values for these (a Postgres service container, a dummy
 `SESSION_SECRET`, etc.) — see that file, not this table, for what CI
 actually uses.
+
+## Process lifecycle and operations
+
+- **Startup checks** (`src/lib/env.js`, production only): called first thing
+  in `src/index.js`, before `db.js` loads. Missing `DATABASE_URL` /
+  `SESSION_SECRET` → one error naming all of them, exit 1. Unset Gmail,
+  HelloAsso or base-URL variables → a loud `[env] WARNING` line, since
+  those features otherwise fail silently (no Gmail also means no error-
+  alert emails). Test/dev are untouched.
+- **Graceful shutdown** (`src/index.js`): SIGTERM/SIGINT clear the two
+  maintenance timers, `server.close()` (in-flight requests, e.g. a
+  HelloAsso webhook, are allowed to finish; idle keep-alive sockets are
+  dropped), then `pool.end()`, then exit 0. A 10-second hard-exit timer
+  exits 1 if requests do not drain. A listen failure (e.g. `EADDRINUSE`)
+  logs a clear message and exits 1.
+  Covered by `test/integration/gracefulShutdown.test.js`.
+- **Monitoring and backups** (all GitHub Actions, independent of Render):
+  `uptime-check.yml` polls `/healthz` every 10 minutes and emails once on
+  the second consecutive failure and once on recovery;
+  `nightly-db-backup.yml` pushes a `pg_dump` to the private `db-backups`
+  branch; `backup-restore-test.yml` restores the newest dump into a
+  scratch postgres:18 monthly and checks it. The manual restore procedure
+  is in [README.md](README.md#restoring-from-a-backup).
 
 ## Migration process
 

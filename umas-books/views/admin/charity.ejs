@@ -135,7 +135,7 @@
           </div>
           <% if (o.category) { %><div style="margin-top:6px;"><span class="status-pill category"><%= o.category %></span></div><% } %>
           <% if (o.description) { %><p class="muted small" style="margin-top:8px;"><%= o.description %></p><% } %>
-          <% if (o.website_url) { %><p class="small" style="margin-top:6px;"><a href="<%= o.website_url %>" target="_blank" rel="noopener"><%= o.website_url %></a></p><% } %>
+          <% if (o.website_url && /^https?:\/\//i.test(o.website_url)) { %><p class="small" style="margin-top:6px;"><a href="<%= o.website_url %>" target="_blank" rel="noopener"><%= o.website_url %></a></p><% } %>
           <div class="muted small" style="margin-top:10px;"><%= o.vote_count %> vote<%= o.vote_count === 1 ? '' : 's' %> (<%= totalCurrentVotes ? Math.round(o.vote_count / totalCurrentVotes * 100) : 0 %>%)</div>
           <div class="vote-bar" style="margin-top:4px;"><span style="width: <%= totalCurrentVotes ? Math.round(o.vote_count / totalCurrentVotes * 100) : 0 %>%;"></span></div>
 

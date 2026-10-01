@@ -27,3 +27,21 @@ test("clean trims, caps length, and blanks non-strings", () => {
   assert.equal(clean(["a", "b"], 10), "");
   assert.equal(clean(undefined, 10), "");
 });
+
+test("parseId accepts positive int4 strings only", () => {
+  const { parseId } = require("../../src/lib/validation");
+  assert.equal(parseId("42"), 42);
+  assert.equal(parseId("2147483647"), 2147483647);
+  for (const bad of ["abc", "", "0", "-1", "1.5", "1x", " 1", "01", "2147483648", "99999999999", undefined, ["1"], 5]) {
+    assert.equal(parseId(bad), null, JSON.stringify(bad));
+  }
+});
+
+test("cleanHttpUrl keeps absolute http(s) URLs and drops everything else", () => {
+  const { cleanHttpUrl } = require("../../src/lib/validation");
+  assert.equal(cleanHttpUrl("  https://example.org/a?b=1 "), "https://example.org/a?b=1");
+  assert.equal(cleanHttpUrl("http://example.org"), "http://example.org");
+  for (const bad of ["javascript:alert(1)", "JAVASCRIPT:alert(1)", "data:text/html,x", "ftp://example.org", "example.org", "//example.org", "", "   ", undefined, ["https://a.org"], `https://a.org/${"x".repeat(300)}`]) {
+    assert.equal(cleanHttpUrl(bad), null, JSON.stringify(bad));
+  }
+});

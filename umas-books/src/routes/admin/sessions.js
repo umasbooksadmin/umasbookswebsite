@@ -4,7 +4,11 @@ const { requireAdmin } = require("../../middleware/auth");
 const { groupByDate, resolveCalendarRange, calendarBackQuery } = require("../../lib/calendar");
 const { seatsTakenExpr } = require("../../lib/classCapacity");
 
+const { validateIdParams } = require("../../middleware/idParams");
+
 const router = express.Router();
+// Garbage ids get the 404 page, not a Postgres 22P02 and a 500.
+validateIdParams(router, "id", "signupId");
 
 // ---------- Sessions (public sign-up) ----------
 

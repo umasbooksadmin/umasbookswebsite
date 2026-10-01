@@ -2,6 +2,8 @@ const express = require("express");
 const { pool, withTransaction } = require("../db");
 const { requireMember } = require("../middleware/auth");
 const { CHARITY_CATEGORIES } = require("../lib/charityCategories");
+const { charityIdeaLimiter } = require("../middleware/rateLimits");
+const { clean, cleanHttpUrl } = require("../lib/validation");
 
 const router = express.Router();
 
@@ -96,11 +98,11 @@ router.post("/charity/vote", requireMember, async (req, res) => {
   res.redirect("/charity");
 });
 
-router.post("/charity/ideas", requireMember, async (req, res) => {
-  const name = (req.body.name || "").trim();
-  const description = (req.body.description || "").trim() || null;
+router.post("/charity/ideas", requireMember, charityIdeaLimiter, async (req, res) => {
+  const name = clean(req.body.name, 150);
+  const description = clean(req.body.description, 1000) || null;
   const category = CHARITY_CATEGORIES.includes(req.body.category) ? req.body.category : null;
-  const websiteUrl = (req.body.websiteUrl || "").trim() || null;
+  const websiteUrl = cleanHttpUrl(req.body.websiteUrl);
   if (name) {
     await pool.query(
       "INSERT INTO charity_ideas (name, description, category, website_url, submitted_by) VALUES ($1, $2, $3, $4, $5)",

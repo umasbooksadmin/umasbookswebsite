@@ -4,7 +4,12 @@ const { pool } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
 const { CHARITY_CATEGORIES } = require("../../lib/charityCategories");
 
+const { validateIdParams } = require("../../middleware/idParams");
+const { cleanHttpUrl } = require("../../lib/validation");
+
 const router = express.Router();
+// Garbage ids get the 404 page, not a Postgres 22P02 and a 500.
+validateIdParams(router, "id");
 
 // ---------- Charity vote ----------
 
@@ -141,7 +146,7 @@ router.post("/admin/charities", requireAdmin, async (req, res) => {
   const name = (req.body.name || "").trim();
   const description = (req.body.description || "").trim() || null;
   const category = CHARITY_CATEGORIES.includes(req.body.category) ? req.body.category : null;
-  const websiteUrl = (req.body.websiteUrl || "").trim() || null;
+  const websiteUrl = cleanHttpUrl(req.body.websiteUrl);
   const addToCurrentVote = req.body.addToCurrentVote === "on";
   const returnTab = req.body.returnTab === "current" ? "current" : "library";
 
@@ -172,7 +177,7 @@ router.post("/admin/charities/:id", requireAdmin, async (req, res) => {
   const name = (req.body.name || "").trim();
   const description = (req.body.description || "").trim() || null;
   const category = CHARITY_CATEGORIES.includes(req.body.category) ? req.body.category : null;
-  const websiteUrl = (req.body.websiteUrl || "").trim() || null;
+  const websiteUrl = cleanHttpUrl(req.body.websiteUrl);
   const returnTab = req.body.returnTab === "current" ? "current" : "library";
 
   if (!name) return res.redirect(`/admin/charity?tab=${returnTab}`);
@@ -225,7 +230,7 @@ router.post("/admin/charity-ideas/:id/approve", requireAdmin, async (req, res) =
   if (idea && idea.status === "pending") {
     const { rows: charityRows } = await pool.query(
       "INSERT INTO charities (name, description, category, website_url, created_by) VALUES ($1, $2, $3, $4, $5) RETURNING id",
-      [idea.name, idea.description, idea.category, idea.website_url, req.session.user.id]
+      [idea.name, idea.description, idea.category, cleanHttpUrl(idea.website_url), req.session.user.id]
     );
     await pool.query("UPDATE charity_ideas SET status = 'approved', resulting_charity_id = $1 WHERE id = $2", [charityRows[0].id, id]);
   }
