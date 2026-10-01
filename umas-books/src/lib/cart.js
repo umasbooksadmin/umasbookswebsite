@@ -9,6 +9,7 @@
 
 const { getCheckoutIntent, isOrderPaid } = require("./helloasso");
 const { sendMail } = require("../mailer");
+const { withTransaction } = require("../db");
 
 const CART_HOLD_TTL_MINUTES = 60;
 
@@ -29,14 +30,36 @@ async function expireStaleCartHolds(pool) {
 // row was only ever synthetic, see migrations/015_dropin_seats.sql), and
 // marks the order closed. Used both for TTL expiry above and for a
 // checkout that comes back non-paid (refused/canceled/abandoned).
+//
+// All in one transaction, with the order row locked first: a hold must
+// never be released for an order that is actually paid. If it is (a
+// payment that landed while this was running, or state left behind by an
+// interrupted markOrderPaid), finish marking its copies sold instead —
+// the paid-but-resold failure this guards against.
 async function releaseCartHold(pool, orderId, status) {
-  await pool.query(
-    `UPDATE book_copies SET status = 'in_stock', cart_order_id = NULL, cart_added_at = NULL, updated_at = now()
+  await withTransaction(pool, async (client) => {
+    const { rows } = await client.query("SELECT status FROM orders WHERE id = $1 FOR UPDATE", [orderId]);
+    if (rows[0] && rows[0].status === "paid") {
+      await markCopiesSold(client, orderId);
+      return;
+    }
+    await client.query(
+      `UPDATE book_copies SET status = 'in_stock', cart_order_id = NULL, cart_added_at = NULL, updated_at = now()
+       WHERE cart_order_id = $1`,
+      [orderId]
+    );
+    await client.query(`DELETE FROM class_dropin_seats WHERE order_id = $1 AND status = 'in_cart'`, [orderId]);
+    await client.query(`UPDATE orders SET status = $1 WHERE id = $2 AND status = 'pending'`, [status, orderId]);
+  });
+}
+
+async function markCopiesSold(client, orderId) {
+  await client.query(
+    `UPDATE book_copies SET status = 'sold', cart_order_id = NULL, cart_added_at = NULL, updated_at = now()
      WHERE cart_order_id = $1`,
     [orderId]
   );
-  await pool.query(`DELETE FROM class_dropin_seats WHERE order_id = $1 AND status = 'in_cart'`, [orderId]);
-  await pool.query(`UPDATE orders SET status = $1 WHERE id = $2 AND status = 'pending'`, [status, orderId]);
+  await client.query(`UPDATE class_dropin_seats SET status = 'sold', updated_at = now() WHERE order_id = $1`, [orderId]);
 }
 
 async function markOrderPaid(pool, order) {
@@ -51,21 +74,21 @@ async function markOrderPaid(pool, order) {
   // same row, so only one of them ever sees status='pending' still true
   // and gets rowCount 1 — the loser sees 0 and bails before touching
   // inventory or sending a second confirmation email.
-  const { rowCount } = await pool.query(
-    "UPDATE orders SET status = 'paid', paid_at = now() WHERE id = $1 AND status = 'pending'",
-    [order.id]
-  );
-  if (rowCount === 0) return;
-
-  await pool.query(
-    `UPDATE book_copies SET status = 'sold', cart_order_id = NULL, cart_added_at = NULL, updated_at = now()
-     WHERE cart_order_id = $1`,
-    [order.id]
-  );
-  await pool.query(
-    `UPDATE class_dropin_seats SET status = 'sold', updated_at = now() WHERE order_id = $1`,
-    [order.id]
-  );
+  //
+  // The status flip and the inventory change commit together: if the
+  // process died between them, the order would read 'paid' (so nothing
+  // would ever retry) while its copies sat in_cart, and the hold-expiry
+  // sweep would put a book someone already paid for back on sale.
+  const won = await withTransaction(pool, async (client) => {
+    const { rowCount } = await client.query(
+      "UPDATE orders SET status = 'paid', paid_at = now() WHERE id = $1 AND status = 'pending'",
+      [order.id]
+    );
+    if (rowCount === 0) return false;
+    await markCopiesSold(client, order.id);
+    return true;
+  });
+  if (!won) return;
 
   const { rows: items } = await pool.query("SELECT item_title, price FROM order_items WHERE order_id = $1", [order.id]);
   const lines = items.map((i) => `- ${i.item_title} — €${Number(i.price).toFixed(2)}`).join("\n");
