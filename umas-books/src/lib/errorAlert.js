@@ -18,7 +18,18 @@ const THROTTLE_MS = 15 * 60 * 1000;
 let lastSentAt = 0;
 let suppressedCount = 0;
 
-function alertOnError(label, err) {
+// `force` skips the throttle (and leaves its clock alone): for the rare
+// alert that must not be swallowed because an unrelated error alert went
+// out a few minutes earlier — e.g. "a customer's money was taken but the
+// order can't be fulfilled" (lib/cart.js).
+function alertOnError(label, err, { force = false } = {}) {
+  if (force) {
+    return sendMail({
+      to: ALERT_TO,
+      subject: `[umas-books] ${label}`,
+      text: err && err.stack ? err.stack : String(err),
+    }).catch((mailErr) => console.error("Error-alert email itself failed:", mailErr.message));
+  }
   const now = Date.now();
   if (now - lastSentAt < THROTTLE_MS) {
     suppressedCount++;

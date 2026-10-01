@@ -352,9 +352,15 @@ setInterval(runReservationMaintenance, 6 * 60 * 60 * 1000);
 // (see CART_HOLD_TTL_MINUTES in lib/cart.js) and a buyer who closes the
 // tab mid-payment is relying on this to notice their order never got
 // reconciled by the webhook or the /cart/return page.
+//
+// Every 6th tick (hourly, starting with the one at boot) the sweep also
+// re-checks orders expired/cancelled in the last 7 days for a payment that
+// landed after the hold lapsed — see "LATE PAYMENTS" in lib/cart.js.
+let cartMaintenanceTick = 0;
 function runCartMaintenance() {
+  const includeClosed = cartMaintenanceTick++ % 6 === 0;
   expireStaleCartHolds(pool).catch((err) => console.error("Cart hold expiry failed:", err));
-  reconcilePendingOrders(pool).catch((err) => console.error("Order reconciliation failed:", err));
+  reconcilePendingOrders(pool, { includeClosed }).catch((err) => console.error("Order reconciliation failed:", err));
 }
 runCartMaintenance();
 setInterval(runCartMaintenance, 10 * 60 * 1000);
