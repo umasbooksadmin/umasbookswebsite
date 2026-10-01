@@ -2,6 +2,7 @@ const express = require("express");
 const sharp = require("sharp");
 const { pool } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
+const { parseLocalDateTime } = require("../../lib/dates");
 const { CHARITY_CATEGORIES } = require("../../lib/charityCategories");
 
 const { validateIdParams } = require("../../middleware/idParams");
@@ -97,8 +98,8 @@ router.get("/admin/charity", requireAdmin, async (req, res) => {
 router.post("/admin/charity-rounds", requireAdmin, async (req, res) => {
   const title = (req.body.title || "").trim();
   const label = (req.body.label || "").trim() || null;
-  const opensAt = req.body.opensAt || null;
-  const closesAt = req.body.closesAt || null;
+  const opensAt = parseLocalDateTime(req.body.opensAt);
+  const closesAt = parseLocalDateTime(req.body.closesAt);
   const allowMultiple = req.body.allowMultiple === "on";
   const visibleTo = req.body.visibleTo === "everyone" ? "everyone" : "members";
   const showResultsDuringVote = req.body.showResultsDuringVote === "on";
@@ -118,8 +119,8 @@ router.post("/admin/charity-rounds/:id/settings", requireAdmin, async (req, res)
   const id = Number(req.params.id);
   const title = (req.body.title || "").trim();
   const label = (req.body.label || "").trim() || null;
-  const opensAt = req.body.opensAt || null;
-  const closesAt = req.body.closesAt || null;
+  const opensAt = parseLocalDateTime(req.body.opensAt);
+  const closesAt = parseLocalDateTime(req.body.closesAt);
   const allowMultiple = req.body.allowMultiple === "on";
   const visibleTo = req.body.visibleTo === "everyone" ? "everyone" : "members";
   const showResultsDuringVote = req.body.showResultsDuringVote === "on";
