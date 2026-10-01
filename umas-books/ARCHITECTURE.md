@@ -192,9 +192,15 @@ statuses).
   marker, so retries and sweeps never re-alert or re-process it.
 - **Sweep cost.** The periodic sweep includes closed orders only once an
   hour (`index.js`), since each costs a HelloAsso API call.
-- **Known gap (not addressed here).** `releaseCartHold` deletes drop-in
-  seat rows that `order_items` still references; that FK has no ON DELETE
-  action, so releasing an order that holds drop-in seats fails.
+- **Drop-in seats on release.** Releasing an unpaid order marks its
+  `class_dropin_seats` rows `released` rather than deleting them:
+  `order_items.class_dropin_seat_id` references the seat (no ON DELETE
+  action), so a delete used to fail and roll back the whole release. A
+  released seat stops counting toward the session's capacity and is not on
+  the roster; the expired order keeps its line items. The expiry sweep
+  finds stale holds through book copies *and* seats (a drop-in-only
+  checkout has no copy). A late payment for a released seat is treated as
+  unclaimable (admin alert), since the capacity may already be resold.
 
 ## Deploy sequence
 

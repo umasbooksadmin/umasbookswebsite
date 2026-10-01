@@ -19,10 +19,16 @@ const CART_HOLD_TTL_MINUTES = 60;
 const LATE_PAYMENT_WINDOW_DAYS = 7;
 
 async function expireStaleCartHolds(pool) {
+  // Orders are discovered through BOTH kinds of hold: an abandoned
+  // checkout containing only a drop-in seat has no book copy to find it by.
   const { rows: stale } = await pool.query(
     `SELECT DISTINCT order_id FROM (
        SELECT cart_order_id AS order_id FROM book_copies
        WHERE status = 'in_cart' AND cart_added_at < now() - interval '${CART_HOLD_TTL_MINUTES} minutes'
+       UNION ALL
+       SELECT order_id FROM class_dropin_seats
+       WHERE status = 'in_cart' AND order_id IS NOT NULL
+         AND cart_added_at < now() - interval '${CART_HOLD_TTL_MINUTES} minutes'
      ) s`
   );
   for (const { order_id } of stale) {
@@ -53,7 +59,15 @@ async function releaseCartHold(pool, orderId, status) {
        WHERE cart_order_id = $1`,
       [orderId]
     );
-    await client.query(`DELETE FROM class_dropin_seats WHERE order_id = $1 AND status = 'in_cart'`, [orderId]);
+    // Marked 'released', not deleted: order_items.class_dropin_seat_id
+    // references the seat row (no ON DELETE action), so deleting it threw
+    // a foreign-key error that rolled back this whole release. A released
+    // seat no longer counts toward capacity (see lib/classCapacity.js) or
+    // shows on the roster, and the expired order keeps its line items.
+    await client.query(
+      `UPDATE class_dropin_seats SET status = 'released', updated_at = now() WHERE order_id = $1 AND status = 'in_cart'`,
+      [orderId]
+    );
     await client.query(`UPDATE orders SET status = $1 WHERE id = $2 AND status = 'pending'`, [status, orderId]);
   });
 }
@@ -162,7 +176,11 @@ async function recoverLatePayment(pool, order, intent) {
       [copyIds]
     );
     const { rows: seats } = await client.query(
-      "SELECT id FROM class_dropin_seats WHERE id = ANY($1::int[]) AND order_id = $2 ORDER BY id FOR UPDATE",
+      // Only a seat still held ('in_cart') can be claimed. A 'released' one
+      // (the hold expired) has already been given back to the session's
+      // capacity, so reclaiming it could oversell — it counts as unavailable
+      // and the admin is alerted to refund instead.
+      "SELECT id FROM class_dropin_seats WHERE id = ANY($1::int[]) AND order_id = $2 AND status = 'in_cart' ORDER BY id FOR UPDATE",
       [seatIds, order.id]
     );
     const copyOk = new Set(
