@@ -99,7 +99,11 @@ rather than by a numbered migration), grouped by what they belong to:
   link must be clicked from that same inbox to set a password.
 - **Membership** — `membership_payments` (HelloAsso payment records,
   matched to a `users` row by verified email — see
-  `src/lib/membership.js`)
+  `src/lib/membership.js`). The sync also re-runs (in the background)
+  when an account becomes eligible: email verified, password reset
+  completed (which also verifies the email), or admin-created. A recorded
+  payment is revoked only when HelloAsso returns that order without an
+  Authorized payment, never merely because the fuzzy search omitted it.
 - **Community** — `forum_threads`, `forum_replies`, `announcements`,
   `blog_posts`, `favorites`
 - **Charity vote** — `charity_rounds`, `charity_options`,
