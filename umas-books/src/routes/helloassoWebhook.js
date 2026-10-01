@@ -110,4 +110,21 @@ router.post("/webhooks/helloasso", webhookLimiter, express.json(), async (req, r
   }
 });
 
+// A body that express.json rejects (malformed JSON, a bare scalar like
+// `null`, an oversized or unsupported-encoding payload) never reaches the
+// handler above, so it used to fall through to the app's 500 handler — and
+// HelloAsso, seeing a non-200, retries the identical body again and again.
+// There is nothing to act on in such a body (the handler never trusts the
+// body's content anyway), so acknowledge it and log it. Anything that is not
+// a body-parser rejection still goes to the normal error handler.
+router.use("/webhooks/helloasso", (err, req, res, next) => {
+  const rejectedBody = err && (String(err.type || "").startsWith("entity.") || [400, 413, 415].includes(err.status));
+  if (!rejectedBody || res.headersSent) return next(err);
+  console.warn(
+    `HelloAsso webhook: ignored an unreadable body (${err.type || err.status}):`,
+    String(err.body || "").slice(0, 200)
+  );
+  res.status(200).end();
+});
+
 module.exports = router;
