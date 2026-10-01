@@ -213,6 +213,109 @@ Render deploy/spin-down) it stops taking new connections, lets in-flight
 requests — notably HelloAsso webhooks — finish, closes the database pool and
 exits 0; after 10 seconds it exits anyway.
 
+## Backups in Amazon S3
+
+Besides the `db-backups` branch, the nightly workflow also uploads each dump
+to a private S3 bucket (`s3://<bucket>/store-backups/umas_books_<UTC
+timestamp>.dump`, plus a copy under `store-backups/monthly/` on the 1st of
+each month). The upload is skipped silently until it is configured, and it
+runs *after* the GitHub copy, so a misconfigured bucket can never cost you
+that night's backup — a failed upload fails the job and sends the usual
+failure email.
+
+**One-time setup** (GitHub: repo → Settings → Secrets and variables →
+Actions):
+
+| Where | Name | Value |
+|---|---|---|
+| Variables | `AWS_BACKUP_BUCKET` | the bucket name |
+| Variables | `AWS_REGION` | the bucket's region, e.g. `eu-west-3` |
+| Variables | `AWS_BACKUP_PREFIX` | optional; defaults to `store-backups` |
+| Secrets | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | an IAM user's access keys **— or —** |
+| Variables | `AWS_BACKUP_ROLE_ARN` | an IAM role that trusts GitHub's OIDC provider (no stored keys; preferred) |
+
+Never paste access keys into chat, issues or code — add them only as
+GitHub secrets.
+
+**Permissions** — give the IAM user/role only this (replace the bucket
+name). There is deliberately no delete permission, so a leaked credential
+cannot erase the backups:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["s3:PutObject", "s3:GetObject"],
+      "Resource": "arn:aws:s3:::YOUR-BUCKET/store-backups/*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": "s3:ListBucket",
+      "Resource": "arn:aws:s3:::YOUR-BUCKET",
+      "Condition": { "StringLike": { "s3:prefix": ["store-backups/*"] } }
+    }
+  ]
+}
+```
+
+(`GetObject` and `ListBucket` are only needed by the monthly restore test;
+the nightly upload itself needs just `PutObject`.)
+
+**Setting up the OIDC role (recommended — no keys stored anywhere).** In
+the AWS console, as an administrator:
+
+1. *IAM → Identity providers → Add provider* → **OpenID Connect**.
+   Provider URL `https://token.actions.githubusercontent.com`, audience
+   `sts.amazonaws.com`. (If this provider already exists in the account,
+   skip this step — there can only be one.)
+2. *IAM → Policies → Create policy → JSON*: paste the permissions policy
+   above with your bucket name filled in; name it e.g.
+   `umasbooks-backup-access`.
+3. *IAM → Roles → Create role → Custom trust policy*: paste the policy
+   below (replace `ACCOUNT_ID` with your 12-digit AWS account id), attach
+   the policy from step 2, and name it e.g. `umasbooks-backup-writer`.
+4. Open the role and copy its **ARN**
+   (`arn:aws:iam::ACCOUNT_ID:role/umasbooks-backup-writer`) into the GitHub
+   variable `AWS_BACKUP_ROLE_ARN`.
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "arn:aws:iam::ACCOUNT_ID:oidc-provider/token.actions.githubusercontent.com"
+      },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": { "token.actions.githubusercontent.com:aud": "sts.amazonaws.com" },
+        "StringLike": { "token.actions.githubusercontent.com:sub": "repo:umasbooksadmin/umasbookswebsite:ref:refs/heads/main" }
+      }
+    }
+  ]
+}
+```
+
+The `sub` condition is what keeps this safe: only workflows running on the
+`main` branch of this exact repository can assume the role. Because of
+that, a manual run of the backup or restore workflow from any *other*
+branch cannot reach S3 — run them from `main`.
+
+**Bucket settings:** keep *Block all public access* on and default
+encryption on (dumps contain member data); enable versioning if you want
+protection against overwrites. Retention is not managed by the workflow —
+add an S3 lifecycle rule, e.g. expire `store-backups/umas_books_*` after 35
+days and `store-backups/monthly/` after about two years.
+
+**Check it works:** run the *Nightly database backup* workflow by hand
+(Actions tab → Run workflow) and look for the new object in the bucket, then
+run *Monthly backup restore test* by hand — once the variables are set it
+restores the newest dump **from S3**. Once that has passed, you can decide
+whether to stop writing the GitHub copy.
+
 ## Restoring from a backup
 
 `.github/workflows/nightly-db-backup.yml` dumps the production database
@@ -234,7 +337,14 @@ You need the PostgreSQL **18** client tools (the dumps are made with 18;
 an older `pg_restore` cannot read them) and the GitHub CLI (`gh`),
 logged in with access to the repo.
 
-1. **Download a dump.** List the available ones, then fetch one:
+1. **Download a dump.** From S3 (once configured — see above):
+
+   ```bash
+   aws s3 ls s3://YOUR-BUCKET/store-backups/ | tail
+   aws s3 cp s3://YOUR-BUCKET/store-backups/umas_books_<timestamp>.dump restore.dump
+   ```
+
+   Or from the GitHub branch — list the available ones, then fetch one:
 
    ```bash
    REPO=umasbooksadmin/umasbookswebsite
