@@ -1,6 +1,7 @@
 const express = require("express");
 const rateLimit = require("express-rate-limit");
 const { sendMail } = require("../mailer");
+const { isEmail } = require("../lib/validation");
 
 const router = express.Router();
 
@@ -37,7 +38,7 @@ router.post("/contact", contactLimiter, async (req, res) => {
   // Honeypot: real visitors never see or fill this field.
   if (req.body.website) return res.redirect("/contact?sent=1");
 
-  if (!values.name || !values.message || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email)) {
+  if (!values.name || !values.message || !isEmail(values.email)) {
     return res.status(400).render("contact", {
       topics: TOPICS, sent: false, values,
       error: "Please fill in your name, a valid email address and your message.",
@@ -47,7 +48,9 @@ router.post("/contact", contactLimiter, async (req, res) => {
   try {
     await sendMail({
       to: CONTACT_TO,
-      replyTo: `${values.name} <${values.email}>`,
+      // {name, address} form, not a hand-built "Name <addr>" string: a name
+      // containing "<boss@x.org>, y" would otherwise add extra Reply-To entries.
+      replyTo: { name: values.name.replace(/[<>",;\r\n]/g, " "), address: values.email },
       subject: `Website contact: ${values.topic} — ${values.name}`,
       text:
         `New message from the website contact form\n\n` +

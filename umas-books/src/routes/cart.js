@@ -5,6 +5,8 @@ const { releaseCartHold, reconcileOrder } = require("../lib/cart");
 const { expireStaleReservations } = require("../lib/reservations");
 const { seatsTakenExpr } = require("../lib/classCapacity");
 const { baseUrl } = require("../lib/baseUrl");
+const { isEmail, clean } = require("../lib/validation");
+const { checkoutLimiter, cartEditLimiter } = require("../middleware/rateLimits");
 
 const router = express.Router();
 
@@ -116,14 +118,18 @@ router.get("/cart", async (req, res) => {
   res.render("cart", { items, total, error: null, helloassoReady: helloasso.isConfigured() });
 });
 
-router.post("/cart/add", async (req, res) => {
+// Upper bound on lines per cart — checkout locks every copy in the cart
+// for an hour, so an unbounded cart is an inventory-lock lever.
+const MAX_CART_LINES = 20;
+
+router.post("/cart/add", cartEditLimiter, async (req, res) => {
   const copyId = Number(req.body.copyId);
   const backTo = isSafeLocalPath(req.body.backTo) ? req.body.backTo : "/cart";
   if (copyId) {
     const { rows } = await pool.query("SELECT id FROM book_copies WHERE id = $1 AND status = 'in_stock'", [copyId]);
     if (rows.length) {
       const cart = getCart(req);
-      if (!cart.some((l) => l.kind === "book" && l.copyId === copyId)) {
+      if (cart.length < MAX_CART_LINES && !cart.some((l) => l.kind === "book" && l.copyId === copyId)) {
         cart.push({ kind: "book", lineId: nextLineId(req), copyId });
       }
     }
@@ -131,7 +137,7 @@ router.post("/cart/add", async (req, res) => {
   res.redirect(backTo);
 });
 
-router.post("/cart/add-dropin", async (req, res) => {
+router.post("/cart/add-dropin", cartEditLimiter, async (req, res) => {
   const classId = Number(req.body.classId);
   const backTo = isSafeLocalPath(req.body.backTo) ? req.body.backTo : "/sessions";
   if (classId) {
@@ -147,7 +153,7 @@ router.post("/cart/add-dropin", async (req, res) => {
       const spotsLeft = cls.capacity != null ? cls.capacity - cls.seats_taken - alreadyInCart : Infinity;
       // A soft, early check for a friendly redirect — checkout below is
       // the real, race-condition-safe enforcement.
-      if (spotsLeft > 0) cart.push({ kind: "dropin", lineId: nextLineId(req), classId });
+      if (spotsLeft > 0 && cart.length < MAX_CART_LINES) cart.push({ kind: "dropin", lineId: nextLineId(req), classId });
     }
   }
   res.redirect(backTo);
@@ -160,11 +166,11 @@ router.post("/cart/remove", (req, res) => {
   res.redirect("/cart");
 });
 
-router.post("/cart/checkout", async (req, res) => {
+router.post("/cart/checkout", checkoutLimiter, async (req, res) => {
   const cart = getCart(req);
-  const name = (req.body.name || "").trim();
-  const email = (req.body.email || "").trim().toLowerCase();
-  const phone = (req.body.phone || "").trim() || null;
+  const name = clean(req.body.name, 100);
+  const email = clean(req.body.email, 200).toLowerCase();
+  const phone = clean(req.body.phone, 30) || null;
 
   const items = await loadCartItems(cart);
   req.session.cart = items.map((i) => ({
@@ -176,7 +182,7 @@ router.post("/cart/checkout", async (req, res) => {
     res.render("cart", { items, total: items.reduce((sum, i) => sum + i.price, 0), helloassoReady: helloasso.isConfigured(), error: null, ...extra });
 
   if (!items.length) return renderCart({ items: [], total: 0, error: "Your cart is empty." });
-  if (!name || !email) return renderCart({ error: "Name and email are required." });
+  if (!name || !isEmail(email)) return renderCart({ error: "Please enter your name and a valid email address." });
   if (!helloasso.isConfigured()) {
     return renderCart({ helloassoReady: false, error: "Online payment isn't set up yet — please check back soon, or come by the shop in person." });
   }
