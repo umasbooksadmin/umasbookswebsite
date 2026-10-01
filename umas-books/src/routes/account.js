@@ -9,8 +9,21 @@ const router = express.Router();
 // link back to an account is the email address, matched
 // case-insensitively since HelloAsso/browsers don't normalize case on
 // what a buyer types in.
+//
+// Because that link is *only* the email address, the orders list is shown
+// only once the account has proven it controls that address (email_verified_at,
+// see migrations/032_email_verification.sql). Signup logs you in at once and
+// doesn't verify anything, so without this check anyone could register a
+// victim's email and read their order history. The email is read fresh from
+// the users row (not the session copy, which goes stale after an admin
+// edits it).
 router.get("/account", requireAuth, async (req, res) => {
-  const email = req.session.user.email;
+  const { rows: userRows } = await pool.query("SELECT email, email_verified_at FROM users WHERE id = $1", [req.session.user.id]);
+  const { email, email_verified_at: verifiedAt } = userRows[0];
+
+  if (!verifiedAt) {
+    return res.render("account", { orders: [], email, emailVerified: false });
+  }
 
   const { rows: orders } = await pool.query(
     `SELECT o.*, (
@@ -23,7 +36,7 @@ router.get("/account", requireAuth, async (req, res) => {
     [email]
   );
 
-  res.render("account", { orders });
+  res.render("account", { orders, email, emailVerified: true });
 });
 
 module.exports = router;

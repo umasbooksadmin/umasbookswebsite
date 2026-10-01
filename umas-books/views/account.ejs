@@ -1,11 +1,13 @@
 <%- include('partials/header', { title: 'My Account' }) %>
 
 <h1>My Account</h1>
-<p class="muted small">Orders and session sign-ups matched to <%= user.email %>.</p>
+<p class="muted small">Orders and session sign-ups matched to <%= email %>.</p>
 
 <div class="card">
   <div class="section-title">Orders</div>
-  <% if (!orders.length) { %>
+  <% if (!emailVerified) { %>
+    <div class="notice-box">Confirm your email address to see your orders here &mdash; we sent a confirmation link to <%= email %> when you signed up. Check your inbox (and spam folder). Your orders are never lost; they&rsquo;ll appear as soon as the address is confirmed.</div>
+  <% } else if (!orders.length) { %>
     <p class="muted">No orders yet &mdash; <a href="/books.html">browse books</a> or <a href="/sessions">book a drop-in session</a>.</p>
   <% } else { %>
     <ul class="plain">

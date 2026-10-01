@@ -1,7 +1,7 @@
 const express = require("express");
 const rateLimit = require("express-rate-limit");
 const { pool } = require("../db");
-const { reconcileOrder } = require("../lib/cart");
+const { reconcileOrder, adoptCheckoutIntent } = require("../lib/cart");
 const { syncMembershipForEmail } = require("../lib/membership");
 
 const router = express.Router();
@@ -96,6 +96,14 @@ router.post("/webhooks/helloasso", webhookLimiter, express.json(), async (req, r
       }
       return;
     }
+    // The order can predate its intent id being saved (see
+    // persistCheckoutIntentId in lib/cart.js); adopt it from the webhook
+    // only if HelloAsso itself confirms the intent belongs to this order.
+    if (!order.checkout_intent_id && checkoutIntentId) {
+      order = await adoptCheckoutIntent(pool, order, checkoutIntentId);
+    }
+    // Also covers orders we already expired/cancelled but that were paid
+    // late — reconcileOrder handles those (see "LATE PAYMENTS" there).
     await reconcileOrder(pool, order);
   } catch (err) {
     console.error("HelloAsso webhook handling failed:", err.message);

@@ -139,26 +139,62 @@ actually uses.
 
 ## Migration process
 
-`src/migrate.js` runs every `.sql` file in `migrations/`, in filename
-order (`001_`, `002_`, …), every time it's invoked. There is no
-migrations-tracking table and no "already applied" check of any kind.
+`src/migrate.js` applies each `.sql` file in `migrations/` exactly once, in
+filename order (`001_`, `002_`, …), and records it in the
+`schema_migrations` table. `npm run migrate` still runs on every deploy
+and wake (see below), but only files not yet recorded do anything. Each
+file runs in its own transaction together with its bookkeeping row, so a
+failing migration leaves no half-applied state, and an advisory lock stops
+two booting instances racing.
 
-**Every migration file must therefore be safe to re-run against a
-database that already has it applied** — `CREATE TABLE IF NOT EXISTS`,
-`ADD COLUMN IF NOT EXISTS`, a `DROP CONSTRAINT IF EXISTS` immediately
-before re-adding one, guarding a `RENAME COLUMN` with an
-`information_schema` check first, and so on. This isn't optional
-convention — it's load-bearing, since `npm run migrate` runs on *every*
-deploy (see below), not just the first one. Don't trust an in-file
-comment that claims otherwise: `029_drop_wishlist.sql` says "Not
-auto-applied" but it runs like every other file, and the table it drops
-is in fact gone from every environment that's deployed since.
+Because a file runs once, a migration may contain one-time data fixes
+(`UPDATE ...`) — that's the point of the tracking. Before it existed,
+every file had to be re-runnable, and two weren't: `014` reset NULL
+(unlimited) session capacities to 5 and `032` marked still-unverified
+accounts as verified, on every deploy. Those files are unchanged (editing
+an applied migration would be pointless), but they no longer re-run.
 
-To add a migration: create the next-numbered `.sql` file, write it
-idempotently, and commit it — no other step. CI's `migration-test` and
-`test` jobs (`.github/workflows/ci.yml`) both apply every migration to a
-brand-new database on every run, which is the main thing keeping this
-guarantee honest.
+Rules: never edit or rename a migration that has been deployed — add a
+new numbered file instead. A database that predates the tracking table
+(production, at the time this was introduced) is detected on first run and
+all existing files are recorded as applied without being re-run.
+
+To add a migration: create the next-numbered `.sql` file and commit it.
+CI's `migration-test` and `test` jobs (`.github/workflows/ci.yml`) apply
+every migration to a brand-new database on every run, and
+`test/integration/migrationTracking.test.js` proves a second run changes
+nothing.
+
+## Payment reliability (online checkout)
+
+Order flow: checkout inserts a `pending` order and locks its copies/seats
+(`in_cart`), creates a HelloAsso checkout intent, then saves the intent id
+on the order. Orders become `paid` via the webhook, `/cart/return`, or the
+10-minute sweep — all through `reconcileOrder` (`src/lib/cart.js`), which
+re-asks HelloAsso rather than trusting any payload. Status values stay
+`pending`/`paid`/`cancelled`/`expired` (no CHECK constraint, no new
+statuses).
+
+- **Intent id gap.** If saving the intent id fails, `persistCheckoutIntentId`
+  retries once, then logs and force-alerts the admin with the order id and
+  intent id (the buyer is still redirected to pay). If HelloAsso's webhook
+  later names such an order, `adoptCheckoutIntent` records the intent id
+  only after HelloAsso confirms the intent's `metadata.orderId` matches.
+- **Late payments.** `reconcileOrder` also considers orders `expired` or
+  `cancelled` within the last 7 days (by `created_at`) that have an intent
+  id. If HelloAsso says paid, `recoverLatePayment` runs one transaction
+  with row locks: every copy still `in_stock` (or `in_cart` for this order)
+  and every drop-in seat row still held is marked `sold`, and the order
+  becomes `paid`. If any item can't be claimed (resold, reserved in shop,
+  seat gone), **nothing** is changed; the admin gets an unthrottled email
+  naming order id, buyer email and amount for a manual refund. Either way
+  `helloasso_order_id` is set on the closed order as the "already handled"
+  marker, so retries and sweeps never re-alert or re-process it.
+- **Sweep cost.** The periodic sweep includes closed orders only once an
+  hour (`index.js`), since each costs a HelloAsso API call.
+- **Known gap (not addressed here).** `releaseCartHold` deletes drop-in
+  seat rows that `order_items` still references; that FK has no ON DELETE
+  action, so releasing an order that holds drop-in seats fails.
 
 ## Deploy sequence
 
@@ -178,6 +214,10 @@ Render Blueprint) at the repo root:
    `migrate` and `seed` are written to be safe to re-run (see above; the
    seed script specifically only creates the first admin account if none
    exists yet).
+   The Node version is pinned to 22 (`engines` in `package.json`,
+   `.node-version`, CI's `NODE_VERSION`), and `render.yaml` sets
+   `healthCheckPath: /healthz` (a `SELECT 1`) so a deploy that can't
+   reach the database never goes live.
 4. The free Render plan doesn't support a dedicated pre-deploy command,
    which is why migrate/seed are folded into `startCommand` instead.
 

@@ -2,6 +2,8 @@ const express = require("express");
 const { pool, withTransaction } = require("../db");
 const { groupByDate, monthParam, resolveCalendarRange, calendarBackQuery } = require("../lib/calendar");
 const { baseUrl } = require("../lib/baseUrl");
+const { isEmail, clean } = require("../lib/validation");
+const { eventSignupLimiter } = require("../middleware/rateLimits");
 
 const router = express.Router();
 
@@ -94,14 +96,14 @@ router.get("/events/:id/ics", async (req, res) => {
   res.send(lines.join("\r\n"));
 });
 
-router.post("/events/:id/signup", async (req, res) => {
+router.post("/events/:id/signup", eventSignupLimiter, async (req, res) => {
   const eventId = Number(req.params.id);
-  const name = (req.body.name || "").trim();
-  const email = (req.body.email || "").trim().toLowerCase();
+  const name = clean(req.body.name, 100);
+  const email = clean(req.body.email, 200).toLowerCase();
   const backQuery = calendarBackQuery(req.query);
   const redirectUrl = backQuery ? `/events?${backQuery}` : "/events";
 
-  if (!name || !email) return res.redirect(redirectUrl);
+  if (!name || !isEmail(email)) return res.redirect(redirectUrl);
 
   try {
     await withTransaction(pool, async (client) => {
