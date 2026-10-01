@@ -31,7 +31,9 @@ function conditionLabel(value) {
 router.post("/api/favorites/toggle", async (req, res) => {
   if (!req.session.user) return res.status(204).end();
   const bookId = Number(req.body.bookId);
-  const isFavorite = Boolean(req.body.isFavorite);
+  // public/favorites.js sends exactly "1" (add) or "" (remove). Boolean() of
+  // any non-empty string — "false", "0" — would be true and add a favourite.
+  const isFavorite = req.body.isFavorite === "1";
   if (!bookId) return res.status(400).end();
 
   if (isFavorite) {
