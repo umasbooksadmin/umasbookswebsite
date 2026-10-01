@@ -52,6 +52,7 @@ router.get("/api/books/latest-arrivals", async (req, res) => {
   // reads independently of CORS unless relaxed here too.
   res.set("Access-Control-Allow-Origin", "*");
   res.set("Cross-Origin-Resource-Policy", "cross-origin");
+  res.set("Cache-Control", "public, max-age=60");
   // ?limit= (1–24, default 8) and ?days= (default 7; 0 = no time window,
   // i.e. simply the newest in-stock books — used by the Books page's
   // "New In" shelf so it's never empty during a quiet week).
@@ -96,6 +97,7 @@ router.get("/api/books/latest-arrivals", async (req, res) => {
 router.get("/api/books/recommendation", async (req, res) => {
   res.set("Access-Control-Allow-Origin", "*");
   res.set("Cross-Origin-Resource-Policy", "cross-origin");
+  res.set("Cache-Control", "public, max-age=300");
   const { rows } = await pool.query(
     `SELECT * FROM (
        SELECT DISTINCT b.id, b.title, b.authors, b.cover_url, b.description, b.description_fr
@@ -129,6 +131,7 @@ router.get("/api/books/recommendation", async (req, res) => {
 router.get("/api/books/genres", async (req, res) => {
   res.set("Access-Control-Allow-Origin", "*");
   res.set("Cross-Origin-Resource-Policy", "cross-origin");
+  res.set("Cache-Control", "public, max-age=300");
   const { rows } = await pool.query(
     `SELECT DISTINCT trim(g) AS genre
      FROM books b, unnest(string_to_array(b.categories, ',')) AS g
@@ -142,6 +145,7 @@ router.get("/api/books/genres", async (req, res) => {
 router.get("/api/books/search", async (req, res) => {
   res.set("Access-Control-Allow-Origin", "*");
   res.set("Cross-Origin-Resource-Policy", "cross-origin");
+  res.set("Cache-Control", "public, max-age=60");
   const q = (req.query.q || "").trim();
   const genre = (req.query.genre || "").trim();
   // ?topic=mystery,thriller,crime — the Books page's fixed genre buttons.

@@ -11,6 +11,7 @@ const express = require("express");
 // just failing that one request. Must load before any router below is
 // required, since it patches Router/Layer as they're defined.
 require("express-async-errors");
+const compression = require("compression");
 const helmet = require("helmet");
 const multer = require("multer");
 const session = require("express-session");
@@ -18,7 +19,7 @@ const pgSession = require("connect-pg-simple")(session);
 
 const { pool } = require("./db");
 const { attachUser, requireAdmin } = require("./middleware/auth");
-const { csrfProtection } = require("./middleware/csrf");
+const { csrfProtection, ensureToken } = require("./middleware/csrf");
 const { expireStaleReservations, sendPickupReminders } = require("./lib/reservations");
 const { expireStaleCartHolds, reconcilePendingOrders } = require("./lib/cart");
 const { expireStaleMemberships, reconcileRecentMemberships } = require("./lib/membership");
@@ -45,13 +46,25 @@ const isProd = process.env.NODE_ENV === "production";
 
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "..", "views"));
-app.use(express.static(path.join(__dirname, "..", "public")));
+// gzip/deflate for text responses (HTML, JSON, CSS, JS, SVG);
+// compression() skips already-compressed types (images) on its own.
+// First, so static files and JSON endpoints below are all covered.
+app.use(compression());
+
+// maxAge 7d on static files: filenames aren't content-hashed (about.css,
+// site.js, ... keep the same URL when they change), so a long immutable
+// cache isn't safe. 7 days is a compromise — repeat visitors stop
+// re-downloading every asset on each page view, at the cost of an edited
+// stylesheet/script taking up to a week to reach people who already have
+// the old one cached. Versioning the filenames would allow much longer.
+const STATIC_MAX_AGE = "7d";
+app.use(express.static(path.join(__dirname, "..", "public"), { maxAge: STATIC_MAX_AGE }));
 
 // Marketing-site static assets live at the repo root, not under public/.
 // Mounted here — before the session store and attachUser — so image/CSS/JS
 // requests never cost a session read or a per-request user lookup.
 const marketingRoot = path.join(__dirname, "..", "..");
-app.use("/assets", express.static(path.join(marketingRoot, "assets")));
+app.use("/assets", express.static(path.join(marketingRoot, "assets"), { maxAge: STATIC_MAX_AGE }));
 app.get("/logo.png", (req, res) => res.sendFile(path.join(marketingRoot, "logo.png")));
 
 // For the external uptime check (see .github/workflows/uptime-check.yml)
@@ -127,10 +140,19 @@ if (!process.env.SESSION_SECRET) {
   throw new Error("SESSION_SECRET is not set");
 }
 
+const SESSION_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+const SESSION_REFRESH_AFTER_MS = 24 * 60 * 60 * 1000;
 app.set("trust proxy", 1);
 app.use(
   session({
-    store: new pgSession({ pool, createTableIfMissing: true }),
+    // disableTouch: connect-pg-simple's touch() is an UPDATE run at the
+    // end of EVERY request that carries a session cookie (on top of the
+    // SELECT at the start). Marketing pages make several such requests
+    // per view, so that was most of the app's write load. Instead, the
+    // "refresh the expiry" middleware below saves the session at most
+    // once a day. rolling stays false so the cookie isn't re-sent on
+    // every response either.
+    store: new pgSession({ pool, createTableIfMissing: true, disableTouch: true }),
     name: "umasbooks.sid",
     secret: process.env.SESSION_SECRET,
     resave: false,
@@ -139,10 +161,24 @@ app.use(
       httpOnly: true,
       secure: isProd,
       sameSite: "lax",
-      maxAge: 30 * 24 * 60 * 60 * 1000,
+      maxAge: SESSION_MAX_AGE_MS,
     },
   })
 );
+
+// Sliding 30-day expiry without per-request writes: if the session was
+// last saved more than a day ago (its stored cookie.expires is under
+// 29 days away), record a timestamp so express-session saves it once,
+// which pushes both the DB row's expiry and the cookie out by another
+// 30 days. An active visitor therefore stays logged in indefinitely; an
+// idle one still expires 30 days (give or take a day) after last visit.
+app.use((req, res, next) => {
+  const expires = req.session && req.session.cookie && req.session.cookie.expires;
+  if (expires && new Date(expires).getTime() - Date.now() < SESSION_MAX_AGE_MS - SESSION_REFRESH_AFTER_MS) {
+    req.session.refreshedAt = Date.now();
+  }
+  next();
+});
 
 app.use(attachUser(pool));
 app.use((req, res, next) => {
@@ -196,7 +232,7 @@ app.use(csrfProtection);
 // so no <input> to read a token from) and this app's own EJS pages.
 app.get("/api/csrf-token", (req, res) => {
   res.set("Cache-Control", "no-store");
-  res.json({ token: res.locals.csrfToken });
+  res.json({ token: ensureToken(req) });
 });
 
 // Same idea as /api/cart/count above: the marketing site's static HTML
@@ -205,10 +241,13 @@ app.get("/api/csrf-token", (req, res) => {
 // Member's Access icon), or an admin (for the Admin link) the way the
 // EJS pages' shared header does (see partials/header.ejs) — this lets
 // its plain <script> (assets/site.js) ask, and only exposes the
-// booleans actually needed for those links.
+// booleans actually needed for those links. cartCount is folded in so a
+// marketing page view needs ONE session-backed request, not two
+// (/api/cart/count still exists for any other caller).
 app.get("/api/session", (req, res) => {
   res.set("Cache-Control", "no-store");
   res.json({
+    cartCount: Array.isArray(req.session.cart) ? req.session.cart.length : 0,
     loggedIn: Boolean(req.session.user),
     isMember: Boolean(req.session.user && req.session.user.isMember),
     isVolunteer: Boolean(req.session.user && req.session.user.isVolunteer),

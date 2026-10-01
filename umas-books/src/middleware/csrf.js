@@ -14,11 +14,30 @@ function isValidCsrfToken(token, expected) {
   return crypto.timingSafeEqual(tokenBuf, expectedBuf);
 }
 
-function csrfProtection(req, res, next) {
+// The token is created LAZILY: only when a view actually prints it, or
+// /api/csrf-token reads it. Creating it eagerly meant every request —
+// including every anonymous visitor and bot hitting a form-less marketing
+// page — modified req.session, so express-session INSERTed a `session`
+// row and issued a 30-day cookie for each of them.
+//
+// res.locals.csrfToken is a small object rather than a plain string (or a
+// getter) because Express copies res.locals into the view's data before
+// every render; a getter would fire during that copy, form or not. The
+// object is copied by reference, and its toString/valueOf only run when
+// a template actually outputs it (`<%= csrfToken %>`).
+function ensureToken(req) {
   if (!req.session.csrfToken) {
     req.session.csrfToken = crypto.randomBytes(32).toString("hex");
   }
-  res.locals.csrfToken = req.session.csrfToken;
+  return req.session.csrfToken;
+}
+
+function csrfProtection(req, res, next) {
+  res.locals.csrfToken = {
+    toString: () => ensureToken(req),
+    valueOf: () => ensureToken(req),
+    toJSON: () => ensureToken(req),
+  };
 
   if (req.method === "POST") {
     const token = req.body && req.body._csrf;
@@ -39,4 +58,4 @@ function csrfProtection(req, res, next) {
   next();
 }
 
-module.exports = { csrfProtection, isValidCsrfToken };
+module.exports = { csrfProtection, isValidCsrfToken, ensureToken };

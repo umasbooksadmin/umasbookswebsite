@@ -147,19 +147,32 @@
     });
   }
 
+  // One shared /api/session request per page view (cart count, admin
+  // link, member link and login state all read it) instead of one each —
+  // every call is a session-backed request, so this is 1 instead of 4.
+  // Resolves to the parsed JSON, or null on any failure. Created lazily
+  // so a page that needs none of them makes no request at all.
+  var sessionPromise = null;
+  function getSession() {
+    if (!sessionPromise) {
+      sessionPromise = fetch("/api/session", { credentials: "same-origin", headers: { Accept: "application/json" } })
+        .then(function (res) { return res.ok ? res.json() : null; })
+        .catch(function () { return null; });
+    }
+    return sessionPromise;
+  }
+
   // The header's "Cart (n)". The cart lives in the Members Area app's
   // session, so the count is only available on pages that app itself
-  // serves; anywhere else it quietly stays at 0.
+  // serves; anywhere else it quietly stays at 0. (/api/session carries
+  // cartCount; /api/cart/count remains for other callers.)
   function loadCartCount() {
     var els = document.querySelectorAll("[data-cart-count]");
     if (!els.length || !window.fetch) return;
-    fetch("/api/cart/count", { credentials: "same-origin", headers: { Accept: "application/json" } })
-      .then(function (res) { return res.ok ? res.json() : null; })
-      .then(function (data) {
-        if (!data || typeof data.count !== "number") return;
-        els.forEach(function (el) { el.textContent = String(data.count); });
-      })
-      .catch(function () {});
+    getSession().then(function (data) {
+      if (!data || typeof data.cartCount !== "number") return;
+      els.forEach(function (el) { el.textContent = String(data.cartCount); });
+    });
   }
 
   // Adds the "Admin" and "Member's Access" header links for a logged-in
@@ -175,8 +188,7 @@
     if (!window.fetch || document.querySelector('a.h-tool[href="/admin"]')) return;
     var langToggle = document.querySelector('.h-tools .langtoggle');
     if (!langToggle) return;
-    fetch("/api/session", { credentials: "same-origin", headers: { Accept: "application/json" } })
-      .then(function (res) { return res.ok ? res.json() : null; })
+    getSession()
       .then(function (data) {
         if (!data || !data.isAdmin) return;
         var a = document.createElement("a");
@@ -192,8 +204,7 @@
     if (!window.fetch || document.querySelector('a.h-tool[href="/dashboard"]')) return;
     var langToggle = document.querySelector('.h-tools .langtoggle');
     if (!langToggle) return;
-    fetch("/api/session", { credentials: "same-origin", headers: { Accept: "application/json" } })
-      .then(function (res) { return res.ok ? res.json() : null; })
+    getSession()
       .then(function (data) {
         if (!data || !(data.isMember || data.isVolunteer || data.isAdmin)) return;
         var a = document.createElement("a");
@@ -218,8 +229,7 @@
   function loadLoginState() {
     var loginLink = document.querySelector('.h-tools a[href="/login"]');
     if (!window.fetch || !loginLink) return;
-    fetch("/api/session", { credentials: "same-origin", headers: { Accept: "application/json" } })
-      .then(function (res) { return res.ok ? res.json() : null; })
+    getSession()
       .then(function (data) {
         if (!data || !data.loggedIn) return;
         return fetch("/api/csrf-token", { credentials: "same-origin", headers: { Accept: "application/json" } })

@@ -18,6 +18,7 @@ const router = express.Router();
 router.get("/api/events/upcoming", async (req, res) => {
   res.set("Access-Control-Allow-Origin", "*");
   res.set("Cross-Origin-Resource-Policy", "cross-origin");
+  res.set("Cache-Control", "public, max-age=60");
   const { rows } = await pool.query(
     `SELECT e.*, (SELECT COUNT(*) FROM event_signups s WHERE s.event_id = e.id) AS signup_count
      FROM events e WHERE e.starts_at >= now() ORDER BY e.starts_at ASC LIMIT 10`
