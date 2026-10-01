@@ -1,6 +1,9 @@
 databases:
   - name: umas-books-db
-    plan: free
+    # Paid tier (matches the Render dashboard): the free Postgres expires 30
+    # days after creation. This app's nightly pg_dump (GitHub + S3) is the
+    # extra safety net, see .github/workflows.
+    plan: 1c-2g
     region: frankfurt
     databaseName: umas_books
     user: umasbooks
