@@ -14,6 +14,9 @@ Start here:
 
 - **[`umas-books/README.md`](umas-books/README.md)** — what each feature does,
   how to run it locally, configuration, deploy, and how to restore a backup.
+- **[`docs/architecture.md`](docs/architecture.md)** — the whole system in
+  diagrams: how it fits together, request flow, data model, payments, deploy,
+  backups and security.
 - **[`umas-books/ARCHITECTURE.md`](umas-books/ARCHITECTURE.md)** — how it is put
   together: routes, views, data, environment variables, migrations, the
   deploy sequence, and operations.
