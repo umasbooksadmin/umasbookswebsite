@@ -1,6 +1,6 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
-const rateLimit = require("express-rate-limit");
+const { limit } = require("../middleware/rateLimits");
 const { pool } = require("../db");
 const { hashToken } = require("../lib/resetTokens");
 const { sendResetLink } = require("../lib/passwordReset");
@@ -8,14 +8,31 @@ const { sendVerificationEmail, sendSignupAttemptEmail } = require("../lib/emailV
 const { validateNewPassword } = require("../lib/passwordPolicy");
 const { requireAuth } = require("../middleware/auth");
 const { baseUrl } = require("../lib/baseUrl");
+const { saveSession } = require("../lib/session");
 
 const router = express.Router();
 
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 20,
-  standardHeaders: true,
-  legacyHeaders: false,
+const MINUTE = 60 * 1000;
+
+// Separate per-IP buckets: a shop or school behind one NAT shares an IP,
+// and one shared bucket that also counted successful logins let ordinary
+// use lock the whole site's members out. Login and reset only count
+// failures (what guessing looks like); the per-account lockout below is
+// independent of these. Signup and forgot-password answer identically
+// whatever happens (no enumeration), so every request counts there.
+const loginLimiter = limit({ windowMs: 15 * MINUTE, max: 20, skipSuccessfulRequests: true });
+const signupLimiter = limit({ windowMs: 60 * MINUTE, max: 30 });
+const forgotLimiter = limit({ windowMs: 15 * MINUTE, max: 10 });
+const resetLimiter = limit({ windowMs: 15 * MINUTE, max: 20, skipSuccessfulRequests: true });
+// Guessing the current password from a logged-in (e.g. hijacked) session:
+// 5 wrong attempts per account per 15 minutes. Keyed on the account, not
+// the IP, and only a wrong current password (401) counts.
+const passwordChangeLimiter = limit({
+  windowMs: 15 * MINUTE,
+  max: 5,
+  skipSuccessfulRequests: true,
+  requestWasSuccessful: (req, res) => res.statusCode !== 401,
+  keyGenerator: (req) => `user:${req.session.user.id}`,
 });
 
 // Precomputed once at startup so a login attempt against a nonexistent
@@ -55,7 +72,14 @@ function loginAs(req, res, user, redirectTo) {
     };
     if (cart) req.session.cart = cart;
     if (cartSeq) req.session.cartSeq = cartSeq;
-    res.redirect(redirectTo);
+    // Persist before redirecting — see lib/session.js.
+    saveSession(req).then(
+      () => res.redirect(redirectTo),
+      (saveErr) => {
+        console.error(saveErr);
+        res.status(500).render("login", { error: "Something went wrong. Please try again.", notice: null });
+      }
+    );
   });
 }
 
@@ -67,7 +91,7 @@ router.get("/signup", (req, res) => {
   res.render("signup", { error: null, notice: null });
 });
 
-router.post("/signup", authLimiter, async (req, res) => {
+router.post("/signup", signupLimiter, async (req, res) => {
   const email = (req.body.email || "").trim().toLowerCase();
   const password = req.body.password || "";
   const displayName = (req.body.displayName || "").trim();
@@ -147,7 +171,7 @@ router.get("/login", (req, res) => {
   res.render("login", { error: null, notice });
 });
 
-router.post("/login", authLimiter, async (req, res) => {
+router.post("/login", loginLimiter, async (req, res) => {
   const email = (req.body.email || "").trim().toLowerCase();
   const password = req.body.password || "";
 
@@ -214,7 +238,7 @@ router.get("/forgot-password", (req, res) => {
   res.render("forgot_password", { notice: null, error: null });
 });
 
-router.post("/forgot-password", authLimiter, async (req, res) => {
+router.post("/forgot-password", forgotLimiter, async (req, res) => {
   const email = (req.body.email || "").trim().toLowerCase();
   const notice = "If an account exists for that email, we've sent a password reset link.";
 
@@ -246,7 +270,7 @@ router.get("/reset-password/:token", async (req, res) => {
   res.render("reset_password", { error: null, token: req.params.token });
 });
 
-router.post("/reset-password/:token", authLimiter, async (req, res) => {
+router.post("/reset-password/:token", resetLimiter, async (req, res) => {
   const newPassword = req.body.newPassword || "";
   const tokenHash = hashToken(req.params.token);
 
@@ -277,7 +301,7 @@ router.get("/account/password", requireAuth, (req, res) => {
   res.render("change_password", { error: null, notice: null });
 });
 
-router.post("/account/password", requireAuth, async (req, res) => {
+router.post("/account/password", requireAuth, passwordChangeLimiter, async (req, res) => {
   const currentPassword = req.body.currentPassword || "";
   const newPassword = req.body.newPassword || "";
 
@@ -303,6 +327,9 @@ router.post("/account/password", requireAuth, async (req, res) => {
   // request's own session made the change, so it re-stamps its own
   // captured value rather than also logging itself out.
   req.session.user.passwordChangedAt = updated[0].password_changed_at.getTime();
+  // Persist before responding, or a quick next request reads the old stamp
+  // and logs this very session out — see lib/session.js.
+  await saveSession(req);
   res.render("change_password", { error: null, notice: "Password updated." });
 });
 

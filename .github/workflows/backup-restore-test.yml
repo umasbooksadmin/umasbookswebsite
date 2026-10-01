@@ -1,0 +1,206 @@
+name: Monthly backup restore test
+
+# A backup nobody has ever restored is a hope, not a backup. Once a month
+# (and on demand) this restores the NEWEST dump from the private
+# `db-backups` branch — or, once the AWS_* repo variables are set, from the
+# S3 bucket (written by nightly-db-backup.yml) — into a throwaway
+# postgres:18 service container and checks that the data is really there.
+# Nothing here touches Render or any real database.
+#
+# Same safety rule as the backup workflow: dumps contain member names/
+# emails/order details, so this refuses to run on a public repository.
+# Needs the GMAIL_USER / GMAIL_APP_PASSWORD repo secrets for the failure
+# email, like the other monitoring workflows. The README section
+# "Restoring from a backup" has the manual version of these same steps.
+
+on:
+  schedule:
+    - cron: "0 5 1 * *" # 05:00 UTC on the 1st of each month
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  id-token: write # only used if S3 access authenticates via an OIDC role
+
+jobs:
+  restore-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:18 # matches production and nightly-db-backup.yml
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: restore_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: restore_test
+    steps:
+      - name: Refuse to run on a public repository
+        # Dumps contain member names/emails/order details — on a public repo
+        # the db-backups branch is world-readable, and this job would be
+        # checking it out. Checked first, before anything is downloaded, and
+        # fails the job so the alert email below fires too.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PRIVATE=$(gh api "repos/${{ github.repository }}" --jq .private)
+          if [ "$PRIVATE" != "true" ]; then
+            echo "::error::This repository is public — refusing to check out database dumps. Make the repo private, then re-run."
+            exit 1
+          fi
+
+      - name: Where do the backups live?
+        id: src
+        env:
+          BUCKET: ${{ vars.AWS_BACKUP_BUCKET }}
+          REGION: ${{ vars.AWS_REGION }}
+          ROLE: ${{ vars.AWS_BACKUP_ROLE_ARN }}
+          KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        run: |
+          # S3 is used as soon as it is fully configured; until then the
+          # db-backups branch is tested exactly as before. The identity used
+          # here needs READ access (GetObject + ListBucket) — see README.
+          if [ -n "$BUCKET" ] && [ -n "$REGION" ] && { [ -n "$ROLE" ] || [ -n "$KEY_ID" ]; }; then
+            echo "s3=true" >> "$GITHUB_OUTPUT"
+            echo "Testing the newest backup in S3."
+          else
+            echo "s3=false" >> "$GITHUB_OUTPUT"
+            echo "Testing the newest backup on the db-backups branch."
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.src.outputs.s3 != 'true'
+        with:
+          ref: db-backups
+
+      - name: AWS credentials (OIDC role)
+        if: steps.src.outputs.s3 == 'true' && vars.AWS_BACKUP_ROLE_ARN != ''
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_BACKUP_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: AWS credentials (access keys)
+        if: steps.src.outputs.s3 == 'true' && vars.AWS_BACKUP_ROLE_ARN == ''
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Download the newest dump from S3
+        if: steps.src.outputs.s3 == 'true'
+        env:
+          BUCKET: ${{ vars.AWS_BACKUP_BUCKET }}
+          PREFIX: ${{ vars.AWS_BACKUP_PREFIX }}
+        run: |
+          PREFIX="${PREFIX:-store-backups}"
+          PREFIX="${PREFIX%/}"
+          # --delimiter keeps this to direct children (not the monthly/ copies);
+          # filenames embed a UTC timestamp, so sorting by key is chronological.
+          KEY=$(aws s3api list-objects-v2 --bucket "$BUCKET" --prefix "${PREFIX}/umas_books_" --delimiter "/" \
+                  --query 'sort_by(Contents, &Key)[-1].Key' --output text || true)
+          if [ -z "$KEY" ] || [ "$KEY" = "None" ]; then
+            echo "::error::No umas_books_*.dump objects under s3://${BUCKET}/${PREFIX}/"
+            exit 1
+          fi
+          echo "Newest dump: s3://${BUCKET}/${KEY}"
+          aws s3 cp "s3://${BUCKET}/${KEY}" restore.dump --only-show-errors
+          echo "Downloaded ($(du -h restore.dump | cut -f1))"
+          echo "DUMP=restore.dump" >> "$GITHUB_ENV"
+
+      - name: Pick the newest dump
+        if: steps.src.outputs.s3 != 'true'
+        run: |
+          # Filenames embed a UTC timestamp (umas_books_YYYY-MM-DDTHH-MM-SSZ.dump),
+          # so a plain lexical sort is chronological.
+          LATEST=$(ls -1 backups/umas_books_*.dump 2>/dev/null | sort | tail -n 1)
+          if [ -z "$LATEST" ]; then
+            echo "::error::No dumps found in backups/ on the db-backups branch."
+            exit 1
+          fi
+          echo "Newest dump: $LATEST ($(du -h "$LATEST" | cut -f1))"
+          echo "DUMP=$LATEST" >> "$GITHUB_ENV"
+
+      - name: Install matching PostgreSQL client tools
+        # Same reasoning as nightly-db-backup.yml: pg_restore from an older
+        # client can't read a dump made by a newer pg_dump, and the bare
+        # `pg_restore` on PATH resolves to Ubuntu's older default. Use the
+        # version-18 binaries explicitly below.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget gnupg lsb-release
+          wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /usr/share/keyrings/pgdg.gpg
+          echo "deb [signed-by=/usr/share/keyrings/pgdg.gpg] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-18
+
+      - name: Restore the dump
+        # Same flags the manual procedure in the README uses. --exit-on-error
+        # makes any problem fail this job instead of being skipped silently.
+        run: |
+          /usr/lib/postgresql/18/bin/pg_restore --no-owner --no-privileges --exit-on-error \
+            --dbname="$PGDATABASE" "$DUMP"
+
+      - name: Sanity-check the restored data
+        run: |
+          PSQL="/usr/lib/postgresql/18/bin/psql -v ON_ERROR_STOP=1 -tA"
+          fail=0
+
+          # Tables that must exist (a missing one makes the count query error).
+          for t in users books book_copies orders schema_migrations; do
+            if ! $PSQL -c "SELECT count(*) FROM public.$t" > /dev/null 2>&1; then
+              echo "::error::Table public.$t is missing or unreadable after restore."
+              fail=1
+            fi
+          done
+
+          # Row counts that must be non-zero for a real, populated site.
+          for t in users books schema_migrations; do
+            n=$($PSQL -c "SELECT count(*) FROM public.$t" 2>/dev/null || echo 0)
+            echo "public.$t: $n rows"
+            if [ "${n:-0}" -lt 1 ]; then
+              echo "::error::public.$t has no rows after restore."
+              fail=1
+            fi
+          done
+
+          # The site always has at least one admin (npm run seed guarantees it).
+          admins=$($PSQL -c "SELECT count(*) FROM public.users WHERE is_admin" 2>/dev/null || echo 0)
+          echo "admin users: $admins"
+          if [ "${admins:-0}" -lt 1 ]; then
+            echo "::error::No admin user in the restored data."
+            fail=1
+          fi
+
+          exit $fail
+
+      - name: Alert admin if the restore test failed
+        # Unlike the uptime check this alerts on the first failure: the job
+        # runs once a month, so a silent miss would go unnoticed for weeks.
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.GMAIL_USER }}
+          password: ${{ secrets.GMAIL_APP_PASSWORD }}
+          subject: "[umas-books] Backup restore test FAILED"
+          to: admin@umasbooks.org
+          from: "Uma's Books Backup Monitor"
+          body: |
+            The monthly test that restores the newest database backup into a scratch database did not pass.
+
+            Check the failed run for details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+            Until this is resolved, do not assume the backups on the db-backups branch are restorable.

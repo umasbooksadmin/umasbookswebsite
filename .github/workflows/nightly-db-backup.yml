@@ -17,6 +17,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write # only used if the S3 upload below authenticates via an OIDC role
 
 concurrency:
   group: db-backup
@@ -116,6 +117,66 @@ jobs:
 
           git commit -m "Nightly backup ${STAMP}"
           git push origin db-backups
+
+      # ---- Second copy in Amazon S3 (see README "Backups in Amazon S3") ----
+      # Runs AFTER the db-backups commit above on purpose: if S3 is
+      # misconfigured the GitHub copy still exists for the night, and the
+      # failure email below still fires. Skipped (with a notice) until the
+      # repo variables are set, so this can't break the existing backup.
+      # Variables (Settings > Secrets and variables > Actions > Variables):
+      #   AWS_BACKUP_BUCKET, AWS_REGION, optional AWS_BACKUP_PREFIX
+      #   (default "store-backups"), and EITHER AWS_BACKUP_ROLE_ARN (OIDC)
+      #   OR the secrets AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY.
+      - name: Is the S3 upload configured?
+        id: s3cfg
+        env:
+          BUCKET: ${{ vars.AWS_BACKUP_BUCKET }}
+          REGION: ${{ vars.AWS_REGION }}
+          ROLE: ${{ vars.AWS_BACKUP_ROLE_ARN }}
+          KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        run: |
+          if [ -n "$BUCKET" ] && [ -n "$REGION" ] && { [ -n "$ROLE" ] || [ -n "$KEY_ID" ]; }; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::S3 upload skipped — AWS_BACKUP_BUCKET, AWS_REGION and credentials (role or access keys) are not all set yet."
+          fi
+
+      - name: AWS credentials (OIDC role)
+        if: steps.s3cfg.outputs.enabled == 'true' && vars.AWS_BACKUP_ROLE_ARN != ''
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_BACKUP_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: AWS credentials (access keys)
+        if: steps.s3cfg.outputs.enabled == 'true' && vars.AWS_BACKUP_ROLE_ARN == ''
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Upload dump to S3
+        if: steps.s3cfg.outputs.enabled == 'true'
+        env:
+          BUCKET: ${{ vars.AWS_BACKUP_BUCKET }}
+          PREFIX: ${{ vars.AWS_BACKUP_PREFIX }}
+        run: |
+          PREFIX="${PREFIX:-store-backups}"
+          PREFIX="${PREFIX%/}"
+          FILE="backups/umas_books_${STAMP}.dump" # still in the working tree after the commit step
+          test -s "$FILE" || { echo "::error::$FILE is missing or empty."; exit 1; }
+          # The CLI exits non-zero if the upload fails; --sse asks for
+          # S3-managed encryption (also fine with bucket default encryption).
+          aws s3 cp "$FILE" "s3://${BUCKET}/${PREFIX}/$(basename "$FILE")" --sse AES256 --only-show-errors
+          echo "Uploaded to s3://${BUCKET}/${PREFIX}/$(basename "$FILE")"
+          # Keep one backup per month under monthly/ as a long-term copy
+          # (retention is the bucket's lifecycle rule — see README).
+          if [ "$(date -u +%d)" = "01" ]; then
+            aws s3 cp "$FILE" "s3://${BUCKET}/${PREFIX}/monthly/$(basename "$FILE")" --sse AES256 --only-show-errors
+            echo "Monthly copy written."
+          fi
 
       - name: Alert admin if any step above failed
         # `if: failure()` here means "some earlier step in this job

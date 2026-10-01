@@ -1,4 +1,6 @@
 require("dotenv").config();
+// Fail fast (production only) with one clear message, before db.js is loaded.
+require("./lib/env").checkEnv();
 const path = require("path");
 const express = require("express");
 // Patches Express's router so a rejected promise from any async route
@@ -365,8 +367,20 @@ process.on("uncaughtException", (err) => {
 });
 
 const port = process.env.PORT || 3000;
-app.listen(port, () => {
+const server = app.listen(port, () => {
   console.log(`umas-books listening on port ${port}`);
+});
+
+// Without a handler, a failed bind (most commonly EADDRINUSE) surfaces as
+// an uncaughtException with a stack trace and, in production, an alert
+// email that says nothing useful. Say what happened and exit non-zero.
+server.on("error", (err) => {
+  if (err.code === "EADDRINUSE") {
+    console.error(`Port ${port} is already in use - is another instance of the app running? Exiting.`);
+  } else {
+    console.error("HTTP server error:", err);
+  }
+  process.exit(1);
 });
 
 // Belt-and-suspenders backstop for the 2-week reservation expiry — the
@@ -384,7 +398,7 @@ function runReservationMaintenance() {
   reconcileRecentMemberships(pool).catch((err) => console.error("Membership reconciliation failed:", err));
 }
 runReservationMaintenance();
-setInterval(runReservationMaintenance, 6 * 60 * 60 * 1000);
+const reservationTimer = setInterval(runReservationMaintenance, 6 * 60 * 60 * 1000);
 
 // Same idea for the online-checkout cart, but on a much shorter interval
 // than the reservation job above: a cart hold is only good for an hour
@@ -402,4 +416,46 @@ function runCartMaintenance() {
   reconcilePendingOrders(pool, { includeClosed }).catch((err) => console.error("Order reconciliation failed:", err));
 }
 runCartMaintenance();
-setInterval(runCartMaintenance, 10 * 60 * 1000);
+const cartTimer = setInterval(runCartMaintenance, 10 * 60 * 1000);
+
+// Graceful shutdown. Render sends SIGTERM on every deploy and spin-down;
+// without a handler the process dies mid-request (an in-flight HelloAsso
+// webhook or checkout would be cut off). Order matters:
+//   1. stop the maintenance timers (no new background work),
+//   2. server.close() stops accepting connections and waits for in-flight
+//      requests to finish (idle keep-alive sockets are closed right away),
+//   3. only then pool.end(), so those requests can still reach the DB,
+//   4. exit 0. A hard-exit timer (unref'd, so it never keeps the process
+//      alive by itself) forces exit 1 if requests do not drain in time.
+const SHUTDOWN_TIMEOUT_MS = 10 * 1000;
+let shuttingDown = false;
+function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`${signal} received - shutting down gracefully.`);
+  clearInterval(reservationTimer);
+  clearInterval(cartTimer);
+  setTimeout(() => {
+    console.error(`Shutdown did not finish within ${SHUTDOWN_TIMEOUT_MS / 1000}s - forcing exit.`);
+    process.exit(1);
+  }, SHUTDOWN_TIMEOUT_MS).unref();
+  server.close(() => {
+    pool.end().then(
+      () => {
+        console.log("Shutdown complete.");
+        process.exit(0);
+      },
+      (err) => {
+        console.error("Error closing database pool:", err);
+        process.exit(1);
+      }
+    );
+  });
+  // A connection that was mid-request when we started closing becomes idle
+  // (keep-alive) the moment its response is sent; without this sweep it
+  // would hold the process open until Node's 5s keep-alive timeout.
+  server.closeIdleConnections();
+  setInterval(() => server.closeIdleConnections(), 250).unref();
+}
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
