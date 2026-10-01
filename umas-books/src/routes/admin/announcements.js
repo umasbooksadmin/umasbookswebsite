@@ -1,5 +1,5 @@
 const express = require("express");
-const sharp = require("sharp");
+const { sharpFromUpload } = require("../../lib/uploadImage");
 const { pool } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
 const { sanitizeHtml } = require("../../lib/sanitizeHtml");
@@ -17,7 +17,7 @@ const ANNOUNCEMENT_CATEGORIES = ["Programs", "Events", "Donations", "Volunteer",
 const ANNOUNCEMENT_STATUSES = ["draft", "scheduled", "published", "archived", "trash"];
 
 async function processAnnouncementImage(file) {
-  const resized = await sharp(file.buffer)
+  const resized = await sharpFromUpload(file.buffer)
     .rotate()
     .resize(800, 500, { fit: "cover" })
     .jpeg({ quality: 78 })

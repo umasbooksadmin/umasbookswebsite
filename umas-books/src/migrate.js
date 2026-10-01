@@ -21,6 +21,10 @@ async function main() {
   const files = fs.readdirSync(dir).filter((f) => f.endsWith(".sql")).sort();
   const client = await pool.connect();
   try {
+    // The pool's statement_timeout (db.js) is for web requests; here it would
+    // abort the wait on the advisory lock while another instance migrates,
+    // and cap legitimately long migrations.
+    await client.query("SET statement_timeout = 0");
     await client.query("SELECT pg_advisory_lock($1)", [LOCK_KEY]);
 
     const { rows: existing } = await client.query("SELECT to_regclass('public.schema_migrations') AS t, to_regclass('public.users') AS u");
