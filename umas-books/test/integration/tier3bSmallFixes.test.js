@@ -205,7 +205,8 @@ test("a stored non-http(s) website_url is not rendered as a link", async () => {
     "INSERT INTO charities (name, website_url) VALUES ('Render charity', 'javascript:alert(1337)') RETURNING id"
   );
   await pool.query("INSERT INTO charity_options (round_id, charity_id, name) VALUES ($1, $2, 'Render charity')", [round[0].id, ch[0].id]);
-  const res = await get("/charity");
+  const { jar } = await memberJar();
+  const res = await get("/charity", { jar });
   assert.equal(res.status, 200);
   const html = await res.text();
   assert.ok(html.includes("Render charity"));
