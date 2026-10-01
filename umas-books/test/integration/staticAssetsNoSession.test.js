@@ -15,7 +15,9 @@ let app;
 let pool;
 
 before(async () => {
-  app = await startTestApp({ port: PORT });
+  // isolated: this test renames the `session` table, which would log out
+  // every other test file's sessions if they all shared one CI database.
+  app = await startTestApp({ port: PORT, isolated: true });
   process.env.DATABASE_URL = app.databaseUrl;
   process.env.PGSSLMODE = process.env.PGSSLMODE || "disable";
   ({ pool } = require("../../src/db"));
@@ -23,7 +25,7 @@ before(async () => {
 
 after(async () => {
   await pool.end();
-  app.stop();
+  await app.stop();
 });
 
 test("marketing assets are served without touching the session store", async () => {
