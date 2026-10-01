@@ -13,6 +13,9 @@ name: Site uptime check
 # same Gmail account already used by the app for its own mail, just
 # added here too since this is a separate secret store from Render's
 # environment variables.
+#
+# Email policy: one alert per outage (on the 2nd consecutive failed
+# check), then silence, then one "recovered" email. See the "decide" step.
 
 on:
   schedule:
@@ -32,27 +35,55 @@ jobs:
           # A generous timeout: Render's free plan spins the service down
           # after inactivity, and the first request after that can take
           # 30-50s to wake it back up. That's not an outage — a real
-          # outage keeps failing on the *next* check too (see below).
+          # outage keeps failing on the *next* check too (see the
+          # "decide" step).
           STATUS=$(curl -s -o /tmp/health.json -w "%{http_code}" --max-time 60 https://umas-books-cmvv.onrender.com/healthz || echo "000")
           echo "status=$STATUS" >> "$GITHUB_OUTPUT"
           echo "Response: $(cat /tmp/health.json 2>/dev/null)"
 
-      - name: Check previous run's outcome
-        # Only alert on the *second* consecutive failure (this run and
-        # the last one), not the first — a lone blip (cold start took
-        # too long, one dropped connection) shouldn't page anyone. GitHub
-        # itself is the state store here: no separate branch/file needed.
-        if: steps.health.outputs.status != '200'
-        id: history
+      - name: Decide whether to email (alert once, recover once)
+        # GitHub itself is the state store: the conclusions of the last few
+        # completed runs of this workflow. No separate branch/file needed.
+        #
+        # Let C = this run (ok / fail), P = the previous run, PP = the one
+        # before that. Only runs that concluded `success` or `failure` count:
+        # `--status=completed` also returns cancelled/skipped runs, and a
+        # cancelled run says nothing about the site, so they are filtered
+        # out before picking P and PP. Missing history counts as success.
+        #
+        #   C=fail, P=fail, PP=ok    -> ALERT      (2nd consecutive failure,
+        #                                           sent exactly once)
+        #   C=fail, P=ok             -> quiet      (lone blip, maybe a cold start)
+        #   C=fail, P=fail, PP=fail  -> quiet      (already alerted; outage goes on)
+        #   C=ok,   P=fail, PP=fail  -> RECOVERED  (an alert was sent for this
+        #                                           outage, so say it is over)
+        #   C=ok,   P=fail, PP=ok    -> quiet      (blip that never alerted)
+        #   C=ok,   P=ok             -> quiet
+        #
+        # Known limit: if the alert email itself fails to send, that run is
+        # marked failed like any other, so no second attempt is made for this
+        # outage (the Actions tab still shows red runs).
+        id: decide
         env:
           GH_TOKEN: ${{ github.token }}
+          STATUS: ${{ steps.health.outputs.status }}
         run: |
-          PREV=$(gh run list --workflow=uptime-check.yml --branch=main --status=completed --limit 1 --json conclusion --jq '.[0].conclusion')
-          echo "Previous run conclusion: $PREV"
-          echo "was_already_failing=$([ "$PREV" = "failure" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          RUNS=$(gh run list --workflow=uptime-check.yml --branch=main --status=completed --limit 15 --json conclusion) || RUNS='[]'
+          # Newest first. Keep only real outcomes, then take the first two.
+          read -r P PP <<< "$(echo "$RUNS" | jq -r '[.[] | select(.conclusion == "success" or .conclusion == "failure") | .conclusion] | (.[0] // "success") + " " + (.[1] // "success")')"
+          echo "Current status: $STATUS; previous run: $P; the one before: $PP"
+          ALERT=false
+          RECOVERED=false
+          if [ "$STATUS" != "200" ]; then
+            if [ "$P" = "failure" ] && [ "$PP" = "success" ]; then ALERT=true; fi
+          else
+            if [ "$P" = "failure" ] && [ "$PP" = "failure" ]; then RECOVERED=true; fi
+          fi
+          echo "alert=$ALERT" >> "$GITHUB_OUTPUT"
+          echo "recovered=$RECOVERED" >> "$GITHUB_OUTPUT"
 
-      - name: Send alert email (second consecutive failure)
-        if: steps.health.outputs.status != '200' && steps.history.outputs.was_already_failing == 'true'
+      - name: Send alert email (second consecutive failure, once per outage)
+        if: steps.decide.outputs.alert == 'true'
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
@@ -67,12 +98,29 @@ jobs:
 
             This means either the site is fully down, or it's up but can't reach the database — /healthz checks both.
 
+            This is the only alert you will get for this outage; a "recovered" email follows when the site is healthy again.
+
             Render dashboard: https://dashboard.render.com
             Check again: https://umas-books-cmvv.onrender.com/healthz
 
+      - name: Send recovery email (first healthy check after an alerted outage)
+        if: steps.decide.outputs.recovered == 'true'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.GMAIL_USER }}
+          password: ${{ secrets.GMAIL_APP_PASSWORD }}
+          subject: "[umas-books] Site health check recovered"
+          to: admin@umasbooks.org
+          from: "Uma's Books Uptime Monitor"
+          body: |
+            https://umas-books-cmvv.onrender.com/healthz is responding normally again (status 200).
+
       - name: Fail this run if the check failed
         # Makes the run's own status (visible in the Actions tab, and
-        # what the "previous run" check above reads) reflect reality —
+        # what the "decide" step reads on the next run) reflect reality —
         # otherwise a failed health check would show as a green run.
+        # Deliberately last, so the email steps above still run first.
         if: steps.health.outputs.status != '200'
         run: exit 1
