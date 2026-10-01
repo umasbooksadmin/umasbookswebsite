@@ -2,7 +2,8 @@ name: Monthly backup restore test
 
 # A backup nobody has ever restored is a hope, not a backup. Once a month
 # (and on demand) this restores the NEWEST dump from the private
-# `db-backups` branch (written by nightly-db-backup.yml) into a throwaway
+# `db-backups` branch — or, once the AWS_* repo variables are set, from the
+# S3 bucket (written by nightly-db-backup.yml) — into a throwaway
 # postgres:18 service container and checks that the data is really there.
 # Nothing here touches Render or any real database.
 #
@@ -19,6 +20,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write # only used if S3 access authenticates via an OIDC role
 
 jobs:
   restore-test:
@@ -57,11 +59,68 @@ jobs:
             exit 1
           fi
 
+      - name: Where do the backups live?
+        id: src
+        env:
+          BUCKET: ${{ vars.AWS_BACKUP_BUCKET }}
+          REGION: ${{ vars.AWS_REGION }}
+          ROLE: ${{ vars.AWS_BACKUP_ROLE_ARN }}
+          KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        run: |
+          # S3 is used as soon as it is fully configured; until then the
+          # db-backups branch is tested exactly as before. The identity used
+          # here needs READ access (GetObject + ListBucket) — see README.
+          if [ -n "$BUCKET" ] && [ -n "$REGION" ] && { [ -n "$ROLE" ] || [ -n "$KEY_ID" ]; }; then
+            echo "s3=true" >> "$GITHUB_OUTPUT"
+            echo "Testing the newest backup in S3."
+          else
+            echo "s3=false" >> "$GITHUB_OUTPUT"
+            echo "Testing the newest backup on the db-backups branch."
+          fi
+
       - uses: actions/checkout@v4
+        if: steps.src.outputs.s3 != 'true'
         with:
           ref: db-backups
 
+      - name: AWS credentials (OIDC role)
+        if: steps.src.outputs.s3 == 'true' && vars.AWS_BACKUP_ROLE_ARN != ''
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_BACKUP_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: AWS credentials (access keys)
+        if: steps.src.outputs.s3 == 'true' && vars.AWS_BACKUP_ROLE_ARN == ''
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Download the newest dump from S3
+        if: steps.src.outputs.s3 == 'true'
+        env:
+          BUCKET: ${{ vars.AWS_BACKUP_BUCKET }}
+          PREFIX: ${{ vars.AWS_BACKUP_PREFIX }}
+        run: |
+          PREFIX="${PREFIX:-store-backups}"
+          PREFIX="${PREFIX%/}"
+          # --delimiter keeps this to direct children (not the monthly/ copies);
+          # filenames embed a UTC timestamp, so sorting by key is chronological.
+          KEY=$(aws s3api list-objects-v2 --bucket "$BUCKET" --prefix "${PREFIX}/umas_books_" --delimiter "/" \
+                  --query 'sort_by(Contents, &Key)[-1].Key' --output text || true)
+          if [ -z "$KEY" ] || [ "$KEY" = "None" ]; then
+            echo "::error::No umas_books_*.dump objects under s3://${BUCKET}/${PREFIX}/"
+            exit 1
+          fi
+          echo "Newest dump: s3://${BUCKET}/${KEY}"
+          aws s3 cp "s3://${BUCKET}/${KEY}" restore.dump --only-show-errors
+          echo "Downloaded ($(du -h restore.dump | cut -f1))"
+          echo "DUMP=restore.dump" >> "$GITHUB_ENV"
+
       - name: Pick the newest dump
+        if: steps.src.outputs.s3 != 'true'
         run: |
           # Filenames embed a UTC timestamp (umas_books_YYYY-MM-DDTHH-MM-SSZ.dump),
           # so a plain lexical sort is chronological.
