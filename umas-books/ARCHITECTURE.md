@@ -126,7 +126,9 @@ src/` is the ground truth if this list ever drifts):
 | `PGSSLMODE` | no | set to `disable` for local dev (no TLS); any other value uses `{ rejectUnauthorized: false }` — see `src/db.js` |
 | `APP_BASE_URL` | no | overrides the auto-detected base URL (emailed links, HelloAsso return URLs) |
 | `RENDER_EXTERNAL_URL` | no | set automatically by Render; same purpose as `APP_BASE_URL` |
-| `GMAIL_USER` / `GMAIL_APP_PASSWORD` | no | outgoing email (password reset, email verification, contact form); logs to console instead of sending when unset |
+| `GMAIL_USER` / `GMAIL_APP_PASSWORD` | no | outgoing email (password reset, email verification, contact form) via Gmail when `SMTP_HOST` is unset; logs to console instead of sending when neither is configured |
+| `SMTP_HOST`, `SMTP_PORT` (587), `SMTP_SECURE` (`true` for 465), `SMTP_USER`, `SMTP_PASS` | no | generic SMTP transport (Brevo); takes precedence over Gmail when `SMTP_HOST` is set. `SMTP_USER`/`SMTP_PASS` are secrets (`sync: false`, dashboard only) |
+| `MAIL_FROM` | no | From header for all outgoing mail, e.g. `Uma's Books <admin@umasbooks.org>`; defaults to the Gmail/SMTP user |
 | `CONTACT_TO` | no (defaults `admin@umasbooks.org`) | where the Contact form delivers |
 | `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` | `SEED_ADMIN_PASSWORD` required the first time `npm run seed` creates an admin | one-time bootstrap of the first admin account |
 | `ANTHROPIC_API_KEY` | no | powers inventory photo-scan and auto-generated book descriptions |

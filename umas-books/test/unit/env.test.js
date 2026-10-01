@@ -58,6 +58,20 @@ test("missing optional vars warn loudly but do not fail", () => {
   assert.match(logs.warn.join("\n"), /HELLOASSO_ORG_SLUG.*payment/is);
 });
 
+test("SMTP_HOST replaces the Gmail requirement; incomplete SMTP config warns", () => {
+  const env = { ...FULL };
+  delete env.GMAIL_USER;
+  delete env.GMAIL_APP_PASSWORD;
+  assert.match(validateEnv(env).warnings.join("\n"), /GMAIL_USER.*email/is);
+  const smtp = { ...env, SMTP_HOST: "smtp-relay.brevo.com", SMTP_USER: "u", SMTP_PASS: "p", MAIL_FROM: "A <a@b.c>" };
+  assert.deepEqual(validateEnv(smtp).warnings, []);
+  delete smtp.SMTP_PASS;
+  delete smtp.MAIL_FROM;
+  const w = validateEnv(smtp).warnings.join("\n");
+  assert.match(w, /SMTP_HOST is set but SMTP_PASS, MAIL_FROM not set/);
+  assert.doesNotMatch(w, /GMAIL/);
+});
+
 test("warns when neither APP_BASE_URL nor RENDER_EXTERNAL_URL is set", () => {
   const env = { ...FULL };
   delete env.RENDER_EXTERNAL_URL;

@@ -16,6 +16,8 @@ const REQUIRED = ["DATABASE_URL", "SESSION_SECRET"];
 const OPTIONAL_GROUPS = [
   {
     vars: ["GMAIL_USER", "GMAIL_APP_PASSWORD"],
+    // Not needed when a generic SMTP provider (SMTP_HOST) is configured.
+    skipIf: "SMTP_HOST",
     consequence:
       "ALL outgoing email is disabled (password resets, email verification, contact form, pickup reminders and the admin error alerts themselves)",
   },
@@ -31,9 +33,16 @@ const isSet = (env, name) => typeof env[name] === "string" && env[name].trim() !
 function validateEnv(env = process.env) {
   const missing = REQUIRED.filter((name) => !isSet(env, name));
   const warnings = [];
-  for (const { vars, consequence } of OPTIONAL_GROUPS) {
+  for (const { vars, consequence, skipIf } of OPTIONAL_GROUPS) {
+    if (skipIf && isSet(env, skipIf)) continue;
     const unset = vars.filter((name) => !isSet(env, name));
     if (unset.length > 0) warnings.push(`${unset.join(", ")} not set - ${consequence}.`);
+  }
+  if (isSet(env, "SMTP_HOST")) {
+    const unset = ["SMTP_USER", "SMTP_PASS", "MAIL_FROM"].filter((name) => !isSet(env, name));
+    if (unset.length > 0) {
+      warnings.push(`SMTP_HOST is set but ${unset.join(", ")} not set - the provider will likely reject the login, or mail will go out from an unverified address and land in spam.`);
+    }
   }
   if (!isSet(env, "APP_BASE_URL") && !isSet(env, "RENDER_EXTERNAL_URL")) {
     warnings.push("APP_BASE_URL / RENDER_EXTERNAL_URL not set - emailed links and payment return URLs will fail in production.");

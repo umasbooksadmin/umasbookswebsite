@@ -145,6 +145,40 @@ There's no separate "customer" vs "admin" signup flow — the seed script
 creates the first admin; that account can then promote (or demote) other
 accounts from `/admin/members`.
 
+### Sending email reliably (Brevo)
+
+Gmail has a low daily sending cap and its mail often lands in spam, so a
+member can miss a verification or reset email, and a burned quota also
+silences admin error alerts. The app can instead send through a
+transactional SMTP provider; Brevo is the intended one.
+
+1. Create a Brevo account and, under **Senders, Domains & Dedicated IPs**,
+   add the `umasbooks.org` domain. Brevo shows the DNS records to add at the
+   domain's DNS host: SPF, DKIM, and a DMARC record such as
+   `v=DMARC1; p=none; rua=mailto:admin@umasbooks.org`. Wait until Brevo
+   shows the domain as verified.
+2. In Brevo, **SMTP & API > SMTP**, note the SMTP login and create an
+   **SMTP key**.
+3. In the Render dashboard, service **Environment** tab, add these
+   **Render environment variables** on the web service:
+   - `SMTP_HOST` = `smtp-relay.brevo.com` (Render environment variable)
+   - `SMTP_PORT` = `587` (Render environment variable; optional, 587 is the default)
+   - `SMTP_SECURE` = `false` (Render environment variable; `true` only with port 465)
+   - `SMTP_USER` = the Brevo SMTP login (secret Render environment variable:
+     `sync: false`, entered in the dashboard, never committed)
+   - `SMTP_PASS` = the Brevo SMTP key (secret Render environment variable:
+     `sync: false`, entered in the dashboard, never committed)
+   - `MAIL_FROM` = `Uma's Books <admin@umasbooks.org>` (Render environment variable)
+4. **Verify**: request a password reset for your own account, open the
+   received message, choose "show original" and check the headers show
+   `spf=pass` and `dkim=pass` (and `dmarc=pass`).
+5. **Roll back**: delete the `SMTP_HOST` Render environment variable and
+   redeploy; the app returns to the Gmail setup above.
+
+`SMTP_HOST` takes precedence over `GMAIL_*`. At startup (production) the
+app warns if neither is set, or if `SMTP_HOST` is set without `SMTP_USER`,
+`SMTP_PASS` or `MAIL_FROM`.
+
 ### Photo scanning setup (inventory)
 
 The ISBN-lookup half of `/admin/inventory/scan` works with no setup —
