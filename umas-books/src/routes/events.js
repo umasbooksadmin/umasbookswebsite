@@ -5,7 +5,11 @@ const { baseUrl } = require("../lib/baseUrl");
 const { isEmail, clean } = require("../lib/validation");
 const { eventSignupLimiter } = require("../middleware/rateLimits");
 
+const { validateIdParams } = require("../middleware/idParams");
+
 const router = express.Router();
+// Garbage ids get the 404 page, not a Postgres 22P02 and a 500.
+validateIdParams(router, "id");
 
 // Public — no login required. Anyone can view the calendar and sign up.
 

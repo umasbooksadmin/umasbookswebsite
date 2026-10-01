@@ -7,7 +7,11 @@ const { baseUrl } = require("../lib/baseUrl");
 const { isEmail, clean } = require("../lib/validation");
 const { reserveLimiter } = require("../middleware/rateLimits");
 
+const { validateIdParams } = require("../middleware/idParams");
+
 const router = express.Router();
+// Garbage ids get the 404 page, not a Postgres 22P02 and a 500.
+validateIdParams(router, "id");
 
 // Public — no login required. Anyone can search in-stock inventory and
 // reserve a specific copy for pickup (payment happens in person).

@@ -4,8 +4,9 @@ const rateLimit = require("express-rate-limit");
 // on restart) — a speed bump against scripts hammering these routes, not
 // a hard guarantee. express's `trust proxy` is set, so the IP is the real
 // client's behind Render's proxy.
-function limit({ windowMs, max }) {
+function limit({ windowMs, max, ...options }) {
   return rateLimit({
+    ...options,
     windowMs,
     max,
     standardHeaders: true,
@@ -28,4 +29,9 @@ module.exports = {
   // Browsing users add a handful of items; this only stops scripted loops.
   cartEditLimiter: limit({ windowMs: 15 * 60 * 1000, max: 60 }),
   eventSignupLimiter: limit({ windowMs: HOUR, max: 10 }),
+  // Member-only writes that land in front of other members.
+  forumPostLimiter: limit({ windowMs: HOUR, max: 10 }),
+  forumReplyLimiter: limit({ windowMs: HOUR, max: 30 }),
+  charityIdeaLimiter: limit({ windowMs: HOUR, max: 10 }),
+  limit,
 };

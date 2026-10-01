@@ -4,7 +4,12 @@ const { pool } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
 const { sanitizeHtml } = require("../../lib/sanitizeHtml");
 
+const { validateIdParams } = require("../../middleware/idParams");
+const { parseId } = require("../../lib/validation");
+
 const router = express.Router();
+// Garbage ids get the 404 page, not a Postgres 22P02 and a 500.
+validateIdParams(router, "id");
 
 // ---------- Announcements ----------
 
@@ -122,6 +127,31 @@ router.post("/admin/announcements", requireAdmin, async (req, res) => {
   res.redirect(`/admin/announcements${backQuery}`);
 });
 
+// Registered before /:id: otherwise :id matches the literal "bulk" and the
+// bulk actions never run.
+router.post("/admin/announcements/bulk", requireAdmin, async (req, res) => {
+  const ids = [].concat(req.body.ids || []).map((v) => parseId(String(v))).filter((n) => n !== null);
+  const backQuery = announcementBackQuery(req);
+
+  if (ids.length) {
+    if (req.body.bulkAction === "delete") {
+      await pool.query("DELETE FROM announcements WHERE id = ANY($1)", [ids]);
+    } else {
+      const map = { publish: "published", archive: "archived", trash: "trash", draft: "draft" };
+      const newStatus = map[req.body.bulkAction];
+      if (newStatus === "published") {
+        await pool.query(
+          "UPDATE announcements SET status=$1, published_at = COALESCE(published_at, now()), updated_at = now() WHERE id = ANY($2)",
+          [newStatus, ids]
+        );
+      } else if (newStatus) {
+        await pool.query("UPDATE announcements SET status=$1, updated_at = now() WHERE id = ANY($2)", [newStatus, ids]);
+      }
+    }
+  }
+  res.redirect(`/admin/announcements${backQuery}`);
+});
+
 router.post("/admin/announcements/:id", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   const title = (req.body.title || "").trim();
@@ -178,29 +208,6 @@ router.post("/admin/announcements/:id/pin", requireAdmin, async (req, res) => {
 router.post("/admin/announcements/:id/delete", requireAdmin, async (req, res) => {
   await pool.query("DELETE FROM announcements WHERE id = $1", [Number(req.params.id)]);
   res.redirect(`/admin/announcements${announcementBackQuery(req)}`);
-});
-
-router.post("/admin/announcements/bulk", requireAdmin, async (req, res) => {
-  const ids = [].concat(req.body.ids || []).map(Number).filter((n) => Number.isInteger(n));
-  const backQuery = announcementBackQuery(req);
-
-  if (ids.length) {
-    if (req.body.bulkAction === "delete") {
-      await pool.query("DELETE FROM announcements WHERE id = ANY($1)", [ids]);
-    } else {
-      const map = { publish: "published", archive: "archived", trash: "trash", draft: "draft" };
-      const newStatus = map[req.body.bulkAction];
-      if (newStatus === "published") {
-        await pool.query(
-          "UPDATE announcements SET status=$1, published_at = COALESCE(published_at, now()), updated_at = now() WHERE id = ANY($2)",
-          [newStatus, ids]
-        );
-      } else if (newStatus) {
-        await pool.query("UPDATE announcements SET status=$1, updated_at = now() WHERE id = ANY($2)", [newStatus, ids]);
-      }
-    }
-  }
-  res.redirect(`/admin/announcements${backQuery}`);
 });
 
 module.exports = router;

@@ -17,4 +17,29 @@ function clean(value, max) {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
 }
 
-module.exports = { isEmail, clean };
+// Absolute http(s) URL, or null. Anything else ("javascript:", "data:",
+// a bare "example.com", an over-long value) is dropped rather than stored,
+// since these end up in href attributes. Not truncated: a cut-off URL is
+// a different (broken) URL.
+function cleanHttpUrl(value, max = 300) {
+  if (typeof value !== "string") return null;
+  const v = value.trim();
+  if (!v || v.length > max) return null;
+  try {
+    const u = new URL(v);
+    return u.protocol === "http:" || u.protocol === "https:" ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+// A positive int4 from a route param, or null. `Number("abc")` is NaN,
+// which Postgres rejects (22P02), a 500 for what is just a bad URL.
+// Values past int4 overflow the same way (22003), so they are rejected too.
+function parseId(value) {
+  if (typeof value !== "string" || !/^[1-9]\d{0,9}$/.test(value)) return null;
+  const n = Number(value);
+  return n <= 2147483647 ? n : null;
+}
+
+module.exports = { isEmail, clean, cleanHttpUrl, parseId };
