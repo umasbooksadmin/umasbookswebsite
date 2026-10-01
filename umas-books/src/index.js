@@ -68,6 +68,9 @@ app.use(express.static(path.join(__dirname, "..", "public"), { maxAge: STATIC_MA
 // requests never cost a session read or a per-request user lookup.
 const marketingRoot = path.join(__dirname, "..", "..");
 app.use("/assets", express.static(path.join(marketingRoot, "assets"), { maxAge: STATIC_MAX_AGE }));
+// Uploaded images (covers, blog/announcement/charity photos): content-addressed,
+// immutable, served from the DB with no session. See routes/img.js.
+app.use(require("./routes/img"));
 app.get("/logo.png", (req, res) => res.sendFile(path.join(marketingRoot, "logo.png")));
 
 // For the external uptime check (see .github/workflows/uptime-check.yml)

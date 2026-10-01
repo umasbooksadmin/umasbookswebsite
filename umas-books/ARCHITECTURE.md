@@ -157,8 +157,8 @@ actually uses.
 - **Monitoring and backups** (all GitHub Actions, independent of Render):
   `uptime-check.yml` polls `/healthz` every 10 minutes and emails once on
   the second consecutive failure and once on recovery;
-  `nightly-db-backup.yml` pushes a `pg_dump` to the private `db-backups`
-  branch; `backup-restore-test.yml` restores the newest dump into a
+  `nightly-db-backup.yml` pushes a `pg_dump` (without image bytes — see
+  "Images") to the private `db-backups` branch; `backup-restore-test.yml` restores the newest dump into a
   scratch postgres:18 monthly and checks it. The manual restore procedure
   is in [README.md](README.md#restoring-from-a-backup).
 
@@ -189,6 +189,44 @@ CI's `migration-test` and `test` jobs (`.github/workflows/ci.yml`) apply
 every migration to a brand-new database on every run, and
 `test/integration/migrationTracking.test.js` proves a second run changes
 nothing.
+
+## Images
+
+Uploaded photos (book covers, blog/announcement/charity images) are
+processed by sharp as before (see the `process*Image` functions in
+`src/routes/admin/`; the 40-megapixel decode cap is in
+`src/lib/uploadImage.js`) and then handed to `src/lib/imageStore.js`:
+`saveImage(buffer) -> '/img/<sha256>.jpg'`. Rows store only that short URL
+(`books.cover_url`, `announcements.image_url`, `charities.image_url`,
+`blog_posts.image_url`); remote http(s) URLs (Open Library) are stored
+as-is and never copied.
+
+- **Where the bytes live:** the `images` table (`id` = lowercase hex SHA-256
+  of the bytes, `content_type`, `data` BYTEA, `byte_size`;
+  `migrations/033_image_store.sql`). Content-addressed, so identical uploads
+  dedupe and a URL's bytes never change. Images are not garbage-collected
+  when a row stops referencing them (a replaced cover leaves an orphan);
+  they are small and re-uploads dedupe, so this is deliberate for now.
+- **Serving:** `GET /img/<sha256>.(jpg|png|webp)` (`src/routes/img.js`),
+  mounted before the session store like `/assets`, so it never reads or sets
+  a cookie. `Cache-Control: public, max-age=31536000, immutable`, `ETag` =
+  the hash (`If-None-Match` -> 304 without a DB read), `nosniff`. Anything
+  not matching the strict pattern, or unknown, is 404. No rate limiter: the
+  response is immutable and cacheable and a page legitimately loads dozens.
+  CSP `imgSrc` already allows `'self'`.
+- **Legacy values:** the migration converted every `data:image/...;base64`
+  value in those four columns (inside its transaction). Templates and APIs
+  just print the column, so old data URIs and new short URLs both work.
+- **Future object storage (Backblaze/S3):** callers only ever receive a URL
+  string, so reimplement `saveImage`/`getImage` against the bucket and have
+  `routes/img.js` redirect or stream from it; no caller changes. Existing
+  `/img/<hash>` URLs stay valid because the key is the content hash.
+- **Backups:** the nightly GitHub dump uses `--exclude-table-data=images`
+  (schema kept) to stay under the db-backups branch's 100 MB file limit; the
+  *complete* dump (images included) is uploaded to the offsite bucket under
+  `store-backups/full/` only when `BACKUP_S3_*` is configured. Until it is,
+  images are backed up nowhere but the live database (README, "Restoring
+  from a backup").
 
 ## Payment reliability (online checkout)
 

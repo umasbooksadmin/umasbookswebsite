@@ -1,4 +1,5 @@
 const express = require("express");
+const { saveImage } = require("../../lib/imageStore");
 const { sharpFromUpload } = require("../../lib/uploadImage");
 const { pool } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
@@ -19,7 +20,7 @@ async function processCharityImage(file) {
     .resize(600, 400, { fit: "cover" })
     .jpeg({ quality: 78 })
     .toBuffer();
-  return `data:image/jpeg;base64,${resized.toString("base64")}`;
+  return saveImage(resized, "image/jpeg");
 }
 
 // Every round-options query joins back to the library this way — a
