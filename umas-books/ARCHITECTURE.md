@@ -155,7 +155,7 @@ actually uses.
   logs a clear message and exits 1.
   Covered by `test/integration/gracefulShutdown.test.js`.
 - **Monitoring and backups** (all GitHub Actions, independent of Render):
-  `uptime-check.yml` polls `/healthz` every 10 minutes and emails once on
+  `uptime-check.yml` polls `/healthz` every 30 minutes (Actions minutes are metered on a private repo) and emails once on
   the second consecutive failure and once on recovery;
   `nightly-db-backup.yml` pushes a `pg_dump` to the private `db-backups`
   branch; `backup-restore-test.yml` restores the newest dump into a
