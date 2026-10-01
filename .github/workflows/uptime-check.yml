@@ -1,6 +1,6 @@
 name: Site uptime check
 
-# Hits /healthz (see umas-books/src/index.js) every 10 minutes — that
+# Hits /healthz (see umas-books/src/index.js) every 30 minutes — that
 # route does a real SELECT 1, not just "is the process responding", so
 # this actually catches a broken database connection even while the
 # homepage keeps returning 200 (see the 2026-09-26 incident: the site
@@ -14,12 +14,21 @@ name: Site uptime check
 # added here too since this is a separate secret store from Render's
 # environment variables.
 #
+# Cadence is a billing decision: the repo is private, so Actions minutes
+# are metered, and every run is billed as a whole minute. Every 10 minutes
+# was ~4,300 billed minutes a month on its own — more than a Pro plan's
+# 3,000-minute allowance — and when the allowance runs out, workflows
+# (including the nightly database backup) stop running. Every 30 minutes is
+# ~1,440 a month and still alerts within about an hour of an outage. For
+# faster detection use a free external monitor (UptimeRobot, Better Stack)
+# on /healthz instead of raising this.
+#
 # Email policy: one alert per outage (on the 2nd consecutive failed
 # check), then silence, then one "recovered" email. See the "decide" step.
 
 on:
   schedule:
-    - cron: "*/10 * * * *"
+    - cron: "*/30 * * * *"
   workflow_dispatch: {}
 
 permissions:
@@ -94,7 +103,7 @@ jobs:
           to: admin@umasbooks.org
           from: "Uma's Books Uptime Monitor"
           body: |
-            https://umas-books-cmvv.onrender.com/healthz has failed two checks in a row (10 minutes apart), status ${{ steps.health.outputs.status }}.
+            https://umas-books-cmvv.onrender.com/healthz has failed two checks in a row (about 30 minutes apart), status ${{ steps.health.outputs.status }}.
 
             This means either the site is fully down, or it's up but can't reach the database — /healthz checks both.
 

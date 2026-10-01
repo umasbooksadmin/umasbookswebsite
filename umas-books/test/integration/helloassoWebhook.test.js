@@ -225,18 +225,20 @@ test("an empty body and an empty JSON object are acked 200 and just logged", asy
   assert.equal(errors.length, 0);
 });
 
-test("a JSON array body is acked and logged; a bare scalar is rejected by the parser — neither crashes the handler", async () => {
+test("a JSON array body is acked and logged; a bare scalar is acked too — neither crashes the handler", async () => {
   assert.equal((await post([1, 2, 3])).status, 200);
   await waitFor(() => warnings.some((w) => /couldn't match a local order/.test(w)), { message: "unmatched warning" });
-  assert.ok((await post("null", { raw: true })).status >= 400, "express.json strict mode rejects non-object/array roots");
+  // express.json (strict mode) rejects a non-object/array root; the webhook still acks it so HelloAsso doesn't retry.
+  assert.equal((await post("null", { raw: true })).status, 200);
   assert.equal(errors.filter((e) => /webhook handling failed/.test(e)).length, 0);
 });
 
-test("malformed JSON is rejected without crashing the server or touching any order", async () => {
+test("malformed JSON is acked 200 (so HelloAsso doesn't retry it), logged, and touches no order", async () => {
+  // Regression: the body parser used to reject it before the handler ran, so
+  // the app answered 500 and HelloAsso kept retrying the same bad body.
   const res = await post("{ not json", { raw: true });
-  // Rejected by the body parser before the handler runs (so no 200 ack);
-  // HelloAsso would simply retry. What matters is it neither hangs nor kills the process.
-  assert.ok(res.status >= 400 && res.status < 600, `unexpected status ${res.status}`);
+  assert.equal(res.status, 200);
+  await waitFor(() => warnings.some((w) => /ignored an unreadable body/.test(w)), { message: "unreadable-body warning" });
   assert.equal(intentLookups.length, 0);
 
   const { order, intentId } = await pendingOrder();

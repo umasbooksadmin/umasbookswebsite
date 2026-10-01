@@ -1,5 +1,5 @@
 const express = require("express");
-const sharp = require("sharp");
+const { sharpFromUpload } = require("../../lib/uploadImage");
 const { pool } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
 const { CHARITY_CATEGORIES } = require("../../lib/charityCategories");
@@ -14,7 +14,7 @@ validateIdParams(router, "id");
 // ---------- Charity vote ----------
 
 async function processCharityImage(file) {
-  const resized = await sharp(file.buffer)
+  const resized = await sharpFromUpload(file.buffer)
     .rotate()
     .resize(600, 400, { fit: "cover" })
     .jpeg({ quality: 78 })

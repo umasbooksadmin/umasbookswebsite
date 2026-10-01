@@ -12,9 +12,9 @@ const router = express.Router();
 //
 // Because that link is *only* the email address, the orders list is shown
 // only once the account has proven it controls that address (email_verified_at,
-// see migrations/032_email_verification.sql). Signup logs you in at once and
-// doesn't verify anything, so without this check anyone could register a
-// victim's email and read their order history. The email is read fresh from
+// see migrations/032_email_verification.sql). Signup doesn't verify
+// anything (an account can log in before it ever follows the emailed
+// link), so without this check anyone could register a victim's email and read their order history. The email is read fresh from
 // the users row (not the session copy, which goes stale after an admin
 // edits it).
 router.get("/account", requireAuth, async (req, res) => {
