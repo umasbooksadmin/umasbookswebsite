@@ -176,12 +176,12 @@ test("an unknown thread id is a 404 for a member", async () => {
   assert.match(text, /Thread not found/);
 });
 
-test("a non-numeric thread id is a clean 404, not a server error", { todo: "BUG: Number('abc') is NaN, which pg sends as 'NaN' to an integer column -> 500 instead of 404 (routes/forum.js GET /forum/:id)" }, async () => {
+test("a non-numeric thread id is a clean 404, not a server error", async () => {
   const { res } = await get(memberJar, "/forum/abc");
   assert.equal(res.status, 404);
 });
 
-test("replying to a thread that doesn't exist is handled cleanly, not a server error", { todo: "BUG: POST /forum/:id/replies with an unknown id violates the forum_replies FK -> unhandled 500 (routes/forum.js); should 404 or redirect" }, async () => {
+test("replying to a thread that doesn't exist is a clean 404, not a server error", async () => {
   const { res } = await post(memberJar, "/forum/987654321/replies", { body: "orphan" });
-  assert.notEqual(res.status, 500);
+  assert.equal(res.status, 404);
 });
