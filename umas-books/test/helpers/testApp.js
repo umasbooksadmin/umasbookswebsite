@@ -7,6 +7,7 @@
 
 const { spawn, execFileSync } = require("node:child_process");
 const path = require("node:path");
+const { Client } = require("pg");
 
 const ROOT = path.join(__dirname, "..", "..");
 
@@ -26,16 +27,40 @@ async function waitForHealthy(base, timeoutMs) {
   throw new Error(`Server never became healthy: ${lastError && lastError.message}`);
 }
 
+// Same server as DATABASE_URL, different database name.
+function withDatabaseName(url, name) {
+  const u = new URL(url);
+  u.pathname = `/${name}`;
+  return u.toString();
+}
+
 // port: pick a fixed value distinct across test files so two files
 // running concurrently never collide on the same port.
-async function startTestApp({ port }) {
-  const ownsDatabase = !process.env.DATABASE_URL;
+//
+// isolated: when DATABASE_URL points at one shared database (CI), every
+// test file normally runs against it concurrently. A test that does
+// something global to the database — e.g. renaming the `session` table,
+// which logs out every other file's sessions mid-run — must pass
+// isolated: true to get its own throwaway database on that same server
+// (locally every file already gets one, so this is a no-op there).
+async function startTestApp({ port, isolated = false }) {
+  const sharedUrl = process.env.DATABASE_URL;
+  const ownsDatabase = !sharedUrl;
   const testDb = `umasbooks_test_${port}_${Date.now()}`;
-  const databaseUrl = process.env.DATABASE_URL || `postgres://localhost:5432/${testDb}`;
+  const makeIsolatedCopy = isolated && !!sharedUrl;
+  const databaseUrl = makeIsolatedCopy
+    ? withDatabaseName(sharedUrl, testDb)
+    : sharedUrl || `postgres://localhost:5432/${testDb}`;
   const base = `http://127.0.0.1:${port}`;
 
   if (ownsDatabase) {
     execFileSync("createdb", [testDb], { stdio: "inherit" });
+  }
+  if (makeIsolatedCopy) {
+    const admin = new Client({ connectionString: sharedUrl });
+    await admin.connect();
+    await admin.query(`CREATE DATABASE "${testDb}"`);
+    await admin.end();
   }
   execFileSync("node", ["src/migrate.js"], {
     cwd: ROOT,
@@ -61,10 +86,16 @@ async function startTestApp({ port }) {
   return {
     base,
     databaseUrl,
-    stop() {
+    async stop() {
       serverProcess.kill();
       if (ownsDatabase) {
         execFileSync("dropdb", ["--if-exists", testDb], { stdio: "inherit" });
+      }
+      if (makeIsolatedCopy) {
+        const admin = new Client({ connectionString: sharedUrl });
+        await admin.connect();
+        await admin.query(`DROP DATABASE IF EXISTS "${testDb}" WITH (FORCE)`);
+        await admin.end();
       }
     },
   };
