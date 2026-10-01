@@ -27,15 +27,15 @@ const DUMMY_HASH = bcrypt.hashSync("no-such-account-timing-equalizer", 12);
 const LOGIN_LOCK_THRESHOLD = 5;
 const LOGIN_LOCK_DURATION_MS = 15 * 60 * 1000;
 
-// Every visitor already has a session (and thus a session ID) before
-// logging in — csrfProtection gives them one on their very first request,
-// to hand out a CSRF token. Writing req.session.user onto that same,
+// Every visitor who can submit the login form already has a session (and
+// thus a session ID) — rendering the form's CSRF token (see csrfProtection)
+// is what created it. Writing req.session.user onto that same,
 // already-existing session ID would mean a session fixed before login
 // (however that happened) carries straight through into an authenticated
 // one. Regenerating here gives login/signup a fresh session ID, same as
 // any other privilege change — the pre-auth session's CSRF token goes
-// with it (csrfProtection issues a new one on the very next request,
-// which is fine, only the redirect target below reads it), but a cart
+// with it (csrfProtection issues a new one lazily, the next time a page
+// or /api/csrf-token reads it), but a cart
 // built up while still logged out is worth keeping.
 function loginAs(req, res, user, redirectTo) {
   const cart = req.session.cart;
