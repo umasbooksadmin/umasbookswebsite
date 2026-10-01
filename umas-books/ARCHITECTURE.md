@@ -165,6 +165,37 @@ every migration to a brand-new database on every run, and
 `test/integration/migrationTracking.test.js` proves a second run changes
 nothing.
 
+## Payment reliability (online checkout)
+
+Order flow: checkout inserts a `pending` order and locks its copies/seats
+(`in_cart`), creates a HelloAsso checkout intent, then saves the intent id
+on the order. Orders become `paid` via the webhook, `/cart/return`, or the
+10-minute sweep — all through `reconcileOrder` (`src/lib/cart.js`), which
+re-asks HelloAsso rather than trusting any payload. Status values stay
+`pending`/`paid`/`cancelled`/`expired` (no CHECK constraint, no new
+statuses).
+
+- **Intent id gap.** If saving the intent id fails, `persistCheckoutIntentId`
+  retries once, then logs and force-alerts the admin with the order id and
+  intent id (the buyer is still redirected to pay). If HelloAsso's webhook
+  later names such an order, `adoptCheckoutIntent` records the intent id
+  only after HelloAsso confirms the intent's `metadata.orderId` matches.
+- **Late payments.** `reconcileOrder` also considers orders `expired` or
+  `cancelled` within the last 7 days (by `created_at`) that have an intent
+  id. If HelloAsso says paid, `recoverLatePayment` runs one transaction
+  with row locks: every copy still `in_stock` (or `in_cart` for this order)
+  and every drop-in seat row still held is marked `sold`, and the order
+  becomes `paid`. If any item can't be claimed (resold, reserved in shop,
+  seat gone), **nothing** is changed; the admin gets an unthrottled email
+  naming order id, buyer email and amount for a manual refund. Either way
+  `helloasso_order_id` is set on the closed order as the "already handled"
+  marker, so retries and sweeps never re-alert or re-process it.
+- **Sweep cost.** The periodic sweep includes closed orders only once an
+  hour (`index.js`), since each costs a HelloAsso API call.
+- **Known gap (not addressed here).** `releaseCartHold` deletes drop-in
+  seat rows that `order_items` still references; that FK has no ON DELETE
+  action, so releasing an order that holds drop-in seats fails.
+
 ## Deploy sequence
 
 Production runs on Render, configured entirely by `render.yaml` (a
@@ -183,6 +214,10 @@ Render Blueprint) at the repo root:
    `migrate` and `seed` are written to be safe to re-run (see above; the
    seed script specifically only creates the first admin account if none
    exists yet).
+   The Node version is pinned to 22 (`engines` in `package.json`,
+   `.node-version`, CI's `NODE_VERSION`), and `render.yaml` sets
+   `healthCheckPath: /healthz` (a `SELECT 1`) so a deploy that can't
+   reach the database never goes live.
 4. The free Render plan doesn't support a dedicated pre-deploy command,
    which is why migrate/seed are folded into `startCommand` instead.
 

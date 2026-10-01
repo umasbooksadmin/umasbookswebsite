@@ -1,7 +1,7 @@
 const express = require("express");
 const { pool, withTransaction } = require("../db");
 const helloasso = require("../lib/helloasso");
-const { releaseCartHold, reconcileOrder } = require("../lib/cart");
+const { releaseCartHold, reconcileOrder, persistCheckoutIntentId } = require("../lib/cart");
 const { expireStaleReservations } = require("../lib/reservations");
 const { seatsTakenExpr } = require("../lib/classCapacity");
 const { baseUrl } = require("../lib/baseUrl");
@@ -295,7 +295,10 @@ router.post("/cart/checkout", checkoutLimiter, async (req, res) => {
     return renderCart({ error: "Couldn't reach the payment provider right now. Please try again in a moment." });
   }
 
-  await pool.query("UPDATE orders SET checkout_intent_id = $1 WHERE id = $2", [String(intent.id), order.id]);
+  // Retries once and alerts the admin if it still fails (never throws):
+  // the buyer is sent on to pay either way, since the payment link is
+  // already live — see persistCheckoutIntentId in lib/cart.js.
+  await persistCheckoutIntentId(pool, order.id, intent.id);
   req.session.cart = [];
   res.redirect(intent.redirectUrl);
 });

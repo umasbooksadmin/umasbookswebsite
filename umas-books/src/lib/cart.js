@@ -10,8 +10,13 @@
 const { getCheckoutIntent, isOrderPaid } = require("./helloasso");
 const { sendMail } = require("../mailer");
 const { withTransaction } = require("../db");
+const { alertOnError } = require("./errorAlert");
 
 const CART_HOLD_TTL_MINUTES = 60;
+
+// How long after an order was created we keep asking HelloAsso whether an
+// order we already expired/cancelled locally was paid after all.
+const LATE_PAYMENT_WINDOW_DAYS = 7;
 
 async function expireStaleCartHolds(pool) {
   const { rows: stale } = await pool.query(
@@ -90,6 +95,10 @@ async function markOrderPaid(pool, order) {
   });
   if (!won) return;
 
+  await sendOrderConfirmation(pool, order);
+}
+
+async function sendOrderConfirmation(pool, order) {
   const { rows: items } = await pool.query("SELECT item_title, price FROM order_items WHERE order_id = $1", [order.id]);
   const lines = items.map((i) => `- ${i.item_title} — €${Number(i.price).toFixed(2)}`).join("\n");
   sendMail({
@@ -104,15 +113,123 @@ async function markOrderPaid(pool, order) {
 // return-URL's code=succeeded param, both of which HelloAsso's docs say
 // aren't reliable enough to act on directly. Safe to call more than once
 // (markOrderPaid/releaseCartHold only touch orders still 'pending').
+//
+// LATE PAYMENTS: an order we already closed locally ('expired' by the
+// 60-minute hold, or 'cancelled') can still turn out to have been paid —
+// HelloAsso's own checkout outlives our hold, and a crash between
+// createCheckoutIntent and saving its id (see persistCheckoutIntentId)
+// leaves an order that expires with no intent recorded. So for up to
+// LATE_PAYMENT_WINDOW_DAYS after creation, closed orders that have an
+// intent id are re-checked too; if HelloAsso says paid, see
+// recoverLatePayment for the (deliberately conservative) policy.
+function isRecentlyClosed(order) {
+  return (
+    (order.status === "expired" || order.status === "cancelled") &&
+    !!order.checkout_intent_id &&
+    !order.helloasso_order_id && // set once we've recovered OR flagged it — never handle twice
+    Date.now() - new Date(order.created_at).getTime() < LATE_PAYMENT_WINDOW_DAYS * 24 * 3600 * 1000
+  );
+}
+
+// An expired/cancelled order was actually paid. Under one transaction with
+// row locks, re-claim every copy/seat the order covers and mark it paid —
+// all or nothing. If ANY item can no longer be claimed (resold to someone
+// else, reserved in-shop, drop-in seat gone), nothing is applied: we
+// can't fulfil the order as bought, and partially fulfilling money-taken
+// orders is worse than a human deciding. The admin gets an email naming
+// the order, buyer and amount to refund/handle by hand. No new order
+// status is introduced; instead helloasso_order_id doubles as the
+// "already handled" marker on a closed order (it's otherwise only ever
+// set together with status 'paid'), so neither the sweep nor webhook
+// retries re-alert or re-process the same order.
+async function recoverLatePayment(pool, order, intent) {
+  const marker = String((intent.order && intent.order.id) || `intent-${order.checkout_intent_id}`);
+
+  const result = await withTransaction(pool, async (client) => {
+    const { rows: locked } = await client.query("SELECT * FROM orders WHERE id = $1 FOR UPDATE", [order.id]);
+    const current = locked[0];
+    if (!current || !isRecentlyClosed(current)) return { outcome: "skip", status: current ? current.status : null };
+
+    const { rows: items } = await client.query(
+      "SELECT book_copy_id, class_dropin_seat_id, item_title FROM order_items WHERE order_id = $1",
+      [order.id]
+    );
+    const copyIds = items.filter((i) => i.book_copy_id != null).map((i) => i.book_copy_id);
+    const seatIds = items.filter((i) => i.class_dropin_seat_id != null).map((i) => i.class_dropin_seat_id);
+
+    const { rows: copies } = await client.query(
+      "SELECT id, status, cart_order_id FROM book_copies WHERE id = ANY($1::int[]) ORDER BY id FOR UPDATE",
+      [copyIds]
+    );
+    const { rows: seats } = await client.query(
+      "SELECT id FROM class_dropin_seats WHERE id = ANY($1::int[]) AND order_id = $2 ORDER BY id FOR UPDATE",
+      [seatIds, order.id]
+    );
+    const copyOk = new Set(
+      copies.filter((c) => c.status === "in_stock" || (c.status === "in_cart" && c.cart_order_id === order.id)).map((c) => c.id)
+    );
+    const seatOk = new Set(seats.map((s) => s.id));
+    const unavailable = items.filter((i) =>
+      i.book_copy_id != null ? !copyOk.has(i.book_copy_id) : !seatOk.has(i.class_dropin_seat_id)
+    );
+
+    if (items.length === 0 || unavailable.length > 0) {
+      await client.query("UPDATE orders SET helloasso_order_id = $1 WHERE id = $2", [marker, order.id]);
+      return { outcome: "conflict", unavailable: unavailable.map((i) => i.item_title), order: current };
+    }
+
+    await client.query(
+      `UPDATE book_copies SET status = 'sold', cart_order_id = NULL, cart_added_at = NULL, updated_at = now()
+       WHERE id = ANY($1::int[])`,
+      [copyIds]
+    );
+    await client.query(
+      "UPDATE class_dropin_seats SET status = 'sold', updated_at = now() WHERE id = ANY($1::int[])",
+      [seatIds]
+    );
+    await client.query(
+      "UPDATE orders SET status = 'paid', paid_at = now(), helloasso_order_id = $1 WHERE id = $2",
+      [marker, order.id]
+    );
+    return { outcome: "recovered", order: current };
+  });
+
+  if (result.outcome === "recovered") {
+    console.warn(`Late payment recovered: order ${order.id} (was ${order.status}) is now paid.`);
+    await sendOrderConfirmation(pool, result.order);
+    return "paid";
+  }
+  if (result.outcome === "conflict") {
+    const o = result.order;
+    const msg =
+      `Order ${o.id} was ${o.status} locally but HelloAsso shows it PAID (checkout intent ${o.checkout_intent_id}), ` +
+      `and these items can no longer be claimed: ${result.unavailable.join("; ") || "(order has no items)"}. ` +
+      `Nothing was changed. Buyer: ${o.buyer_name} <${o.buyer_email}>, amount: €${Number(o.total_amount).toFixed(2)}. ` +
+      `Please refund or fulfil this order manually in HelloAsso.`;
+    console.error(`LATE PAYMENT CONFLICT: ${msg}`);
+    await alertOnError(`Paid order ${o.id} could not be fulfilled — manual refund needed`, msg, { force: true });
+    return o.status;
+  }
+  return result.status || order.status;
+}
+
 async function reconcileOrder(pool, order) {
-  if (!order || order.status !== "pending" || !order.checkout_intent_id) return order.status;
+  if (!order) return null;
+  const closed = isRecentlyClosed(order);
+  if ((order.status !== "pending" && !closed) || !order.checkout_intent_id) return order.status;
 
   let intent;
   try {
     intent = await getCheckoutIntent(order.checkout_intent_id);
   } catch (err) {
     console.error(`HelloAsso lookup failed for order ${order.id}:`, err.message);
-    return "pending"; // transient API error — leave it pending, a later pass will retry
+    return order.status; // transient API error — leave as is, a later pass will retry
+  }
+
+  if (closed) {
+    // Only a confirmed payment matters for an already-closed order; a
+    // still-unpaid/failed intent changes nothing (holds are already released).
+    return isOrderPaid(intent) ? recoverLatePayment(pool, order, intent) : order.status;
   }
 
   if (isOrderPaid(intent)) {
@@ -139,10 +256,19 @@ async function reconcileOrder(pool, order) {
 // or wasn't recognized. Only bothers with orders old enough that the
 // checkout page (valid ~15 min) has definitely resolved one way or
 // another.
-async function reconcilePendingOrders(pool) {
+//
+// `includeClosed` also re-checks orders expired/cancelled in the last
+// LATE_PAYMENT_WINDOW_DAYS (see "LATE PAYMENTS" above). That's one
+// HelloAsso call per such order, and abandoned carts are the common case,
+// so index.js only turns it on once an hour rather than every 10 minutes.
+async function reconcilePendingOrders(pool, { includeClosed = true } = {}) {
   const { rows: pending } = await pool.query(
-    `SELECT * FROM orders WHERE status = 'pending' AND checkout_intent_id IS NOT NULL
-       AND created_at < now() - interval '20 minutes'`
+    `SELECT * FROM orders WHERE checkout_intent_id IS NOT NULL AND (
+       (status = 'pending' AND created_at < now() - interval '20 minutes')
+       OR ($1::boolean AND status IN ('expired', 'cancelled') AND helloasso_order_id IS NULL
+           AND created_at > now() - interval '${LATE_PAYMENT_WINDOW_DAYS} days')
+     ) ORDER BY id`,
+    [includeClosed]
   );
   for (const order of pending) {
     try {
@@ -153,4 +279,55 @@ async function reconcilePendingOrders(pool) {
   }
 }
 
-module.exports = { expireStaleCartHolds, releaseCartHold, markOrderPaid, reconcileOrder, reconcilePendingOrders, CART_HOLD_TTL_MINUTES };
+// Checkout (routes/cart.js) creates the HelloAsso intent first and only
+// then can record its id on our order. If the process dies or the DB
+// blips in between, the buyer can still pay, but nothing links the
+// payment back to the order. So: retry the write once, and if it still
+// fails, log + alert the admin with both ids (the intent id is the only
+// thing that can reunite the two). Never throws — the buyer should still
+// be sent to pay; adoptCheckoutIntent (called from the webhook) can also
+// repair the link later. Returns true if the id was saved.
+async function persistCheckoutIntentId(pool, orderId, intentId, { retryDelayMs = 250 } = {}) {
+  const sql = "UPDATE orders SET checkout_intent_id = $1 WHERE id = $2";
+  let lastErr;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      await pool.query(sql, [String(intentId), orderId]);
+      return true;
+    } catch (err) {
+      lastErr = err;
+      if (attempt === 0) await new Promise((r) => setTimeout(r, retryDelayMs));
+    }
+  }
+  const msg =
+    `Could not save HelloAsso checkout intent ${intentId} on local order ${orderId} ` +
+    `(${lastErr.message}). The buyer may still pay; if a payment arrives, match intent ${intentId} to order ${orderId} manually ` +
+    `(UPDATE orders SET checkout_intent_id = '${intentId}' WHERE id = ${orderId}).`;
+  console.error(msg);
+  await alertOnError(`Checkout intent not saved for order ${orderId}`, msg, { force: true });
+  return false;
+}
+
+// For a webhook that names an order which has no intent id recorded (the
+// gap persistCheckoutIntentId guards): the notification body is never
+// trusted, so the intent id it carries is only adopted after HelloAsso's
+// own API confirms that intent's metadata.orderId is this very order.
+async function adoptCheckoutIntent(pool, order, intentId) {
+  if (!order || order.checkout_intent_id || !intentId) return order;
+  let intent;
+  try {
+    intent = await getCheckoutIntent(intentId);
+  } catch (err) {
+    console.error(`HelloAsso lookup failed adopting intent ${intentId} for order ${order.id}:`, err.message);
+    return order;
+  }
+  const meta = (intent && (intent.metadata || (intent.order && intent.order.metadata))) || {};
+  if (Number(meta.orderId) !== order.id) return order;
+  const { rows } = await pool.query(
+    "UPDATE orders SET checkout_intent_id = $1 WHERE id = $2 AND checkout_intent_id IS NULL RETURNING *",
+    [String(intentId), order.id]
+  );
+  return rows[0] || order;
+}
+
+module.exports = { persistCheckoutIntentId, adoptCheckoutIntent, expireStaleCartHolds, releaseCartHold, markOrderPaid, reconcileOrder, reconcilePendingOrders, CART_HOLD_TTL_MINUTES };

@@ -5,7 +5,7 @@
   "description": "Backend for Uma's Books and Adventures: member accounts, forum, charity vote, volunteer/meeting scheduling, and inventory management",
   "main": "src/index.js",
   "engines": {
-    "node": ">=18"
+    "node": "22.x"
   },
   "scripts": {
     "start": "node src/index.js",
