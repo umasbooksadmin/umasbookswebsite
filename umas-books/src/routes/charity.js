@@ -1,5 +1,5 @@
 const express = require("express");
-const { pool } = require("../db");
+const { pool, withTransaction } = require("../db");
 const { requireMember } = require("../middleware/auth");
 const { CHARITY_CATEGORIES } = require("../lib/charityCategories");
 
@@ -58,24 +58,41 @@ router.get("/charity", async (req, res) => {
 router.post("/charity/vote", requireMember, async (req, res) => {
   const userId = req.session.user.id;
   const { rows: roundRows } = await pool.query(
-    "SELECT * FROM charity_rounds WHERE is_active = TRUE ORDER BY opens_at DESC LIMIT 1"
+    "SELECT id FROM charity_rounds WHERE is_active = TRUE ORDER BY opens_at DESC LIMIT 1"
   );
-  const round = roundRows[0];
-  if (!round) return res.redirect("/charity");
+  if (!roundRows.length) return res.redirect("/charity");
+  const roundId = roundRows[0].id;
 
-  const { rows: validOptions } = await pool.query("SELECT id FROM charity_options WHERE round_id = $1", [round.id]);
-  const validIds = new Set(validOptions.map((o) => o.id));
-
-  let selected = [].concat(req.body.optionIds || []).map(Number).filter((id) => validIds.has(id));
-  if (!round.allow_multiple) selected = selected.slice(0, 1);
-
-  await pool.query("DELETE FROM charity_votes WHERE round_id = $1 AND user_id = $2", [round.id, userId]);
-  for (const optionId of selected) {
-    await pool.query(
-      "INSERT INTO charity_votes (round_id, option_id, user_id) VALUES ($1, $2, $3)",
-      [round.id, optionId, userId]
+  // The row lock on the round serializes concurrent votes (a double-click,
+  // two tabs) so DELETE-then-INSERT can't interleave and leave two votes
+  // in a single-choice round.
+  await withTransaction(pool, async (client) => {
+    const { rows } = await client.query(
+      `SELECT allow_multiple, is_active,
+              (opens_at <= now() AND (closes_at IS NULL OR closes_at > now())) AS is_open
+       FROM charity_rounds WHERE id = $1 FOR UPDATE`,
+      [roundId]
     );
-  }
+    const round = rows[0];
+    // Not open (not yet opened, already closed, or deactivated since the
+    // lookup above): leave existing votes untouched.
+    if (!round || !round.is_active || !round.is_open) return;
+
+    const { rows: validOptions } = await client.query("SELECT id FROM charity_options WHERE round_id = $1", [roundId]);
+    const validIds = new Set(validOptions.map((o) => o.id));
+
+    let selected = [].concat(req.body.optionIds || []).map(Number).filter((id) => validIds.has(id));
+    selected = [...new Set(selected)];
+    if (!round.allow_multiple) selected = selected.slice(0, 1);
+
+    await client.query("DELETE FROM charity_votes WHERE round_id = $1 AND user_id = $2", [roundId, userId]);
+    for (const optionId of selected) {
+      await client.query(
+        "INSERT INTO charity_votes (round_id, option_id, user_id) VALUES ($1, $2, $3)",
+        [roundId, optionId, userId]
+      );
+    }
+  });
   res.redirect("/charity");
 });
 
