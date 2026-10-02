@@ -53,10 +53,7 @@ const nav = [
 <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
 <link rel="manifest" href="/site.webmanifest">
 <% if (typeof jsonLd !== 'undefined' && jsonLd) { %><script type="application/ld+json"><%- JSON.stringify(jsonLd).replace(/</g, '\\u003c') %></script>
-<% } %><link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Montserrat:wght@500;600;700&family=Nunito+Sans:wght@400;600&family=Italianno&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/site.css">
+<% } %><link rel="stylesheet" href="assets/site.css">
 <link rel="stylesheet" href="site-header.css">
 <% (typeof extraCss !== 'undefined' ? extraCss : []).forEach(href => { %><link rel="stylesheet" href="<%= href %>"><% }) %>
 </head>

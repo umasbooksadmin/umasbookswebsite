@@ -57,7 +57,7 @@ async function sendPickupReminders(pool) {
       await mailer.sendMail({
         to: copy.reserved_by_email,
         subject: `Reminder: your copy of "${copy.title}" is waiting for pickup`,
-        text: `${greeting}\n\nJust a reminder that we're holding your reserved copy of "${copy.title}" at Uma's Books. Reservations are held for 2 weeks from when you reserved — please come by within the next 3 days to pick it up and pay in the shop, or it will go back on the shelf.\n\nUma's Books\nRue Peyroliere, 81000 Albi`,
+        text: `${greeting}\n\nJust a reminder that we're holding your reserved copy of "${copy.title}" at Uma's Books. Reservations are held for 2 weeks from when you reserved — please come by within the next 3 days to pick it up and pay in the shop, or it will go back on the shelf.\n\nUma's Books\nRue Peyrolière, 81000 Albi`,
       });
     } catch (err) {
       console.error(`Pickup reminder failed for copy ${copy.id}:`, err.message);
