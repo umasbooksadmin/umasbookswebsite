@@ -59,3 +59,10 @@ test("privacy policy: no vague retention wording remains", () => {
   assert.doesNotMatch(en["pp.s5.list"], /as long as necessary|reasonable time/i);
   assert.doesNotMatch(fr["pp.s6.p1"], /délai raisonnable/);
 });
+
+test("privacy policy: promises the inactivity warning and keeps messages until asked", () => {
+  assert.match(en["pp.s5.list"], /30 days before deleting/);
+  assert.match(fr["pp.s5.list"], /30 jours avant la suppression/);
+  assert.match(en["pp.s5.list"], /Messages you send us:<\/strong> until you ask/);
+  assert.match(fr["pp.s5.list"], /jusqu’à ce que vous demandiez leur suppression/);
+});
