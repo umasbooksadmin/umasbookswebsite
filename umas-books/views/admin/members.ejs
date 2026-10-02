@@ -191,6 +191,7 @@
 
             <div class="section-title" style="font-size:15px; margin-top:16px;">Actions</div>
             <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;">
+              <a class="btn btn-outline btn-small" href="/admin/members/<%= detail.user.id %>/export.json">Download data (JSON)</a>
               <form method="post" action="/admin/members/<%= detail.user.id %>/toggle-member">
                 <%- include('../partials/csrf_field') %>
                 <input type="hidden" name="backQuery" value="<%= listQs %>">
