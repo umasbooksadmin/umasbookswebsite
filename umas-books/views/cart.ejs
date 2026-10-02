@@ -7,6 +7,7 @@
 <% if (!items.length) { %>
   <div class="card"><p class="muted">Your cart is empty. <a href="/books.html">Browse books</a> or <a href="/sessions">browse drop-in sessions</a> to add some.</p></div>
 <% } else { %>
+  <%- include('partials/cover_note') %>
   <div class="cart-list">
     <% items.forEach(i => { %>
       <div class="cart-item">
