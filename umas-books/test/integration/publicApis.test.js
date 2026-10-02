@@ -259,12 +259,12 @@ test("favorites toggle: anonymous is a silent 204 no-op; logged-in add is idempo
   const book = await makeBook();
   const user = await makeLoggedInUser({ member: false });
   const anon = makeCookieJar();
-  const noop = await postJson(anon, "/api/favorites/toggle", { bookId: String(book.id), isFavorite: "true" });
+  const noop = await postJson(anon, "/api/favorites/toggle", { bookId: String(book.id), isFavorite: "1" });
   assert.equal(noop.status, 204);
   assert.equal(await favCount(user.id, book.id), 0);
 
-  assert.equal((await postJson(user.jar, "/api/favorites/toggle", { bookId: String(book.id), isFavorite: "true" })).status, 204);
-  assert.equal((await postJson(user.jar, "/api/favorites/toggle", { bookId: String(book.id), isFavorite: "true" })).status, 204);
+  assert.equal((await postJson(user.jar, "/api/favorites/toggle", { bookId: String(book.id), isFavorite: "1" })).status, 204);
+  assert.equal((await postJson(user.jar, "/api/favorites/toggle", { bookId: String(book.id), isFavorite: "1" })).status, 204);
   assert.equal(await favCount(user.id, book.id), 1);
   assert.equal((await postJson(user.jar, "/api/favorites/toggle", { bookId: String(book.id), isFavorite: "" })).status, 204);
   assert.equal(await favCount(user.id, book.id), 0);
@@ -273,9 +273,9 @@ test("favorites toggle: anonymous is a silent 204 no-op; logged-in add is idempo
 test("favorites toggle: missing/zero/non-numeric bookId is a 400 for a logged-in user", async () => {
   const user = await makeLoggedInUser({ member: false });
   for (const bookId of ["", "0", "abc"]) {
-    assert.equal((await postJson(user.jar, "/api/favorites/toggle", { bookId, isFavorite: "true" })).status, 400, `bookId=${bookId}`);
+    assert.equal((await postJson(user.jar, "/api/favorites/toggle", { bookId, isFavorite: "1" })).status, 400, `bookId=${bookId}`);
   }
-  assert.equal((await postJson(user.jar, "/api/favorites/toggle", { isFavorite: "true" })).status, 400);
+  assert.equal((await postJson(user.jar, "/api/favorites/toggle", { isFavorite: "1" })).status, 400);
 });
 
 // BUG: no existence check before the INSERT, so favoriting a well-formed id
@@ -285,7 +285,7 @@ test("favorites toggle: an unknown (well-formed) book id is rejected with a 4xx,
   { todo: "POST /api/favorites/toggle with a non-existent bookId returns 500 (FK violation) instead of a 4xx" },
   async () => {
     const user = await makeLoggedInUser({ member: false });
-    const r = await postJson(user.jar, "/api/favorites/toggle", { bookId: "999999999", isFavorite: "true" });
+    const r = await postJson(user.jar, "/api/favorites/toggle", { bookId: "999999999", isFavorite: "1" });
     assert.ok(r.status >= 400 && r.status < 500, `got ${r.status}`);
   });
 
