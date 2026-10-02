@@ -250,10 +250,25 @@ environment, so those would be invisible to them and the upload would
 quietly skip itself.)
 
 **Retention:** the workflow doesn't delete anything. In Backblaze, open the
-bucket → *Lifecycle Settings* → *Use custom lifecycle rules* and add two
+bucket → *Lifecycle Settings* → *Use custom lifecycle rules* and add three
 rules: file path `store-backups/umas_books_`, days from uploading to hiding
-**35**, days from hiding to deleting **1**; and file path
+**35**, days from hiding to deleting **1**; file path
+`store-backups/full/`, days to hiding **35**, to deleting **1** (these are the
+big ones — they contain every image); and file path
 `store-backups/monthly/`, days to hiding **730**, to deleting **1**.
+
+> **Images are only fully backed up here.** Uploaded images (book covers,
+> blog/announcement/charity photos) live in the `images` table. The nightly
+> copy on the GitHub `db-backups` branch **leaves their bytes out**
+> (`--exclude-table-data=images`) because thousands of covers would exceed
+> that branch's 100 MB file limit and make the nightly backup fail. When the
+> settings above exist, the workflow also uploads a **second, complete dump**
+> to `store-backups/full/umas_books_full_<timestamp>.dump` — that is the only
+> backup that contains images.
+>
+> **Until the offsite bucket is configured, images are NOT backed up
+> anywhere except the live database.** Configure it before bulk-loading
+> covers.
 
 **Check it works:** run the *Nightly database backup* workflow by hand
 (Actions tab → Run workflow, branch `main`) and look for the new file in the
@@ -270,6 +285,15 @@ timestamp>.dump`, keeping the newest 30. Once a month,
 `.github/workflows/backup-restore-test.yml` restores the newest dump into a
 scratch Postgres and checks the data, emailing admin@umasbooks.org if that
 fails — so this procedure is exercised regularly, not just on a bad day.
+
+> **Which copy has what.** The GitHub `db-backups` copy has everything
+> **except image bytes** (book covers and other uploaded photos; the `images`
+> table is restored empty, so those pictures would 404). The offsite
+> **`store-backups/full/`** copy is complete, images included. **Until the
+> offsite bucket is configured, images are NOT backed up anywhere except the
+> live database** — if you restore from the GitHub copy, every uploaded cover
+> and photo must be re-uploaded (covers from Open Library keep working; they
+> are plain links).
 
 > **A dump contains member data** (names, emails, order details, password
 > hashes). Download it only to a machine you control, restore it only into
@@ -291,6 +315,10 @@ logged in with access to the repo.
    aws s3 ls s3://YOUR-BUCKET/store-backups/ --endpoint-url $EP | tail
    aws s3 cp s3://YOUR-BUCKET/store-backups/umas_books_<timestamp>.dump restore.dump --endpoint-url $EP
    ```
+
+   For a complete restore (with images) use the newest file under
+   `store-backups/full/` instead: `aws s3 ls s3://YOUR-BUCKET/store-backups/full/ --endpoint-url $EP | tail`,
+   then copy `umas_books_full_<timestamp>.dump` the same way.
 
    Or from the GitHub branch — list the available ones, then fetch one:
 

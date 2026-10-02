@@ -1,0 +1,28 @@
+<%- include('partials/header', { title: 'Two-step verification' }) %>
+
+<h1>Two-step verification</h1>
+<% if (error) { %><div class="error-box" role="alert"><%= error %></div><% } %>
+<p>Two-step verification is <strong>on</strong> for your account.<% if (recoveryLeft != null) { %> You have <%= recoveryLeft %> unused recovery code<%= recoveryLeft === 1 ? '' : 's' %>.<% } %></p>
+
+<h2>Get new recovery codes</h2>
+<p class="muted small">This invalidates your old codes. Enter a current code from your app to confirm.</p>
+<form class="stack" method="post" action="/account/2fa/recovery-codes">
+  <%- include('partials/csrf_field') %>
+  <label for="code1">Code</label>
+  <input id="code1" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" required>
+  <button class="btn btn-outline" type="submit">New recovery codes</button>
+</form>
+
+<% if (!isAdmin) { %>
+<h2>Turn off</h2>
+<form class="stack" method="post" action="/account/2fa/disable">
+  <%- include('partials/csrf_field') %>
+  <label for="code2">Code</label>
+  <input id="code2" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" required>
+  <button class="btn btn-outline" type="submit">Turn off two-step verification</button>
+</form>
+<% } else { %>
+<p class="muted small">Admin accounts can't turn this off. If you lose your phone and recovery codes, another admin can reset it for you (Admin → Members).</p>
+<% } %>
+
+<%- include('partials/footer') %>

@@ -169,6 +169,9 @@ jobs:
       SESSION_SECRET: ci-test-session-secret
       SEED_ADMIN_PASSWORD: "Ci-Test-Passw0rd!"
       PORT: "3099"
+      # The crawler logs in as an admin persona with just a password; the
+      # two-step requirement (ignored in production) is switched off here only.
+      ADMIN_2FA_REQUIRED: "false"
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
