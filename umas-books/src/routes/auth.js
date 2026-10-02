@@ -1,6 +1,6 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
-const { limit } = require("../middleware/rateLimits");
+const { limit, ipKey } = require("../middleware/rateLimits");
 const { pool } = require("../db");
 const { hashToken } = require("../lib/resetTokens");
 const { sendResetLink } = require("../lib/passwordReset");
@@ -284,7 +284,7 @@ const twoFactorLimiter = limit({
   max: 10,
   skipSuccessfulRequests: true,
   requestWasSuccessful: (req, res) => res.statusCode !== 401,
-  keyGenerator: (req) => (req.session.pending2fa ? `2fa:${req.session.pending2fa.userId}` : `ip:${req.ip}`),
+  keyGenerator: (req) => (req.session.pending2fa ? `2fa:${req.session.pending2fa.userId}` : `ip:${ipKey(req)}`),
 });
 
 function pendingLogin(req) {
