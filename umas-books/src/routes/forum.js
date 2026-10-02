@@ -1,8 +1,10 @@
 const express = require("express");
 const { pool } = require("../db");
 const { requireMember } = require("../middleware/auth");
-const { forumPostLimiter, forumReplyLimiter } = require("../middleware/rateLimits");
-const { clean } = require("../lib/validation");
+const { forumPostLimiter, forumReplyLimiter, limit } = require("../middleware/rateLimits");
+const { clean, parseId, emailSafeName } = require("../lib/validation");
+const { sendMail } = require("../mailer");
+const { baseUrl } = require("../lib/baseUrl");
 
 const { validateIdParams } = require("../middleware/idParams");
 
@@ -12,6 +14,25 @@ validateIdParams(router, "id");
 
 const MAX_THREAD_TITLE = 200;
 const MAX_POST_BODY = 5000;
+const MAX_REPORT_COMMENT = 1000;
+const REPORT_EXCERPT = 300;
+
+// Same destination as the contact form and the error alerts.
+const REPORT_TO = process.env.CONTACT_TO || "admin@umasbooks.org";
+
+const REPORT_REASONS = {
+  illegal: "Illegal content",
+  harassment: "Harassment",
+  spam: "Spam",
+  other: "Other",
+};
+
+// Per member (not per IP), so one person can't flood the inbox.
+const forumReportLimiter = limit({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  keyGenerator: (req) => `user:${req.session.user.id}`,
+});
 
 router.get("/forum", requireMember, async (req, res) => {
   const { rows: threads } = await pool.query(
@@ -55,7 +76,7 @@ router.get("/forum/:id", requireMember, async (req, res) => {
     [threadId]
   );
 
-  res.render("forum_thread", { thread: threadRows[0], replies, error: null });
+  res.render("forum_thread", { thread: threadRows[0], replies, error: null, reported: req.query.reported === "1" });
 });
 
 router.post("/forum/:id/replies", requireMember, forumReplyLimiter, async (req, res) => {
@@ -73,6 +94,57 @@ router.post("/forum/:id/replies", requireMember, forumReplyLimiter, async (req, 
     throw err;
   }
   res.redirect(`/forum/${threadId}`);
+});
+
+// Notice-and-action (EU Digital Services Act): a member flags a thread or
+// reply and the administrators get an email. Nothing is stored.
+router.post("/forum/report", requireMember, forumReportLimiter, async (req, res) => {
+  const kind = req.body.kind === "thread" || req.body.kind === "reply" ? req.body.kind : null;
+  const id = parseId(String(req.body.id || ""));
+  if (!kind || id === null) return res.status(404).render("404");
+  const reasonKey = Object.prototype.hasOwnProperty.call(REPORT_REASONS, req.body.reason) ? req.body.reason : null;
+  if (!reasonKey) return res.status(400).type("text/plain").send("Please choose a reason for the report.");
+  const comment = clean(req.body.comment, MAX_REPORT_COMMENT);
+
+  const { rows } = kind === "thread"
+    ? await pool.query(
+        `SELECT t.id AS thread_id, t.body, u.display_name AS author_name
+         FROM forum_threads t LEFT JOIN users u ON u.id = t.author_id WHERE t.id = $1`, [id])
+    : await pool.query(
+        `SELECT r.thread_id, r.body, u.display_name AS author_name
+         FROM forum_replies r LEFT JOIN users u ON u.id = r.author_id WHERE r.id = $1`, [id]);
+  const target = rows[0];
+  if (!target) return res.status(404).render("404");
+
+  // Never built from the Host header; with no configured base URL, no link.
+  let link = null;
+  try { link = `${baseUrl(req)}/forum/${target.thread_id}`; } catch { link = null; }
+
+  const reporter = emailSafeName(req.session.user.displayName || "") || "A member";
+  const excerpt = String(target.body || "").replace(/\s+/g, " ").trim().slice(0, REPORT_EXCERPT);
+  const lines = [
+    `A forum ${kind} was reported.`,
+    "",
+    `Reported by: ${reporter} (member #${req.session.user.id})`,
+    `Reason: ${REPORT_REASONS[reasonKey]}`,
+    `Comment: ${comment || "(none)"}`,
+    `Author of the post: ${emailSafeName(target.author_name || "") || "unknown"}`,
+    ...(link ? [`Thread: ${link}`] : []),
+    "",
+    "Text reported (first 300 characters):",
+    excerpt,
+  ];
+  try {
+    await sendMail({
+      to: REPORT_TO,
+      subject: `Forum report: ${REPORT_REASONS[reasonKey]} (${kind} ${id})`,
+      text: lines.join("\n") + "\n",
+    });
+  } catch (err) {
+    console.error("Forum report email failed:", err);
+    return res.status(500).type("text/plain").send("Sorry, your report couldn't be sent just now. Please email admin@umasbooks.org.");
+  }
+  res.redirect(`/forum/${target.thread_id}?reported=1`);
 });
 
 module.exports = router;

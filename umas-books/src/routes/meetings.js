@@ -32,6 +32,9 @@ router.get("/meetings", requireMember, async (req, res) => {
 router.post("/meetings/:id/rsvp", requireMember, async (req, res) => {
   const meetingId = Number(req.params.id);
   const userId = req.session.user.id;
+  // Well-formed id of a meeting that doesn't exist: 404, not an FK-violation 500.
+  const { rows: found } = await pool.query("SELECT 1 FROM meetings WHERE id = $1", [meetingId]);
+  if (!found.length) return res.status(404).render("404");
   await pool.query(
     "INSERT INTO meeting_rsvps (meeting_id, user_id) VALUES ($1, $2) ON CONFLICT (meeting_id, user_id) DO NOTHING",
     [meetingId, userId]
