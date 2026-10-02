@@ -166,6 +166,26 @@ actually uses.
   scratch postgres:18 monthly and checks it. The manual restore procedure
   is in [README.md](README.md#restoring-from-a-backup).
 
+## Two-step verification (admins)
+
+TOTP (RFC 6238, any authenticator app), mandatory for admins, optional for
+others. `lib/totp.js` (hand-rolled on `node:crypto`), `routes/twoFactor.js`
+(setup at `/account/2fa`), login step `/login/2fa` in `routes/auth.js`.
+
+- `requireAdmin` sends an admin without it to `/account/2fa?required=1`; the
+  setup page is the only thing they can reach until they enrol.
+- Login: the password only creates a 5-minute "pending" marker in the
+  session; the code (or a one-time recovery code) completes it. Codes can't
+  be replayed (`totp_last_step`), 5 wrong tries end the pending login.
+- The secret is AES-256-GCM encrypted in `users.totp_secret_enc`, keyed from
+  `TOTP_ENCRYPTION_KEY` (optional) or else `SESSION_SECRET`. Changing that
+  value makes everyone re-enrol, so set it once and don't rotate casually.
+- Lost phone and recovery codes: another admin uses **Reset Two-Step** on
+  Members. If the only admin is locked out, run in the Render shell:
+  `UPDATE users SET totp_secret_enc=NULL, totp_enabled_at=NULL, totp_last_step=NULL WHERE email='…';`
+  then log in with the password and enrol again.
+- Tests set `ADMIN_2FA_REQUIRED=false` (ignored when `NODE_ENV=production`).
+
 ## Dates and times (Europe/Paris)
 
 Uma's Books is in Albi, so every date and time an admin types and every one a

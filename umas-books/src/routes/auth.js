@@ -9,6 +9,7 @@ const { validateNewPassword } = require("../lib/passwordPolicy");
 const { requireAuth } = require("../middleware/auth");
 const { baseUrl } = require("../lib/baseUrl");
 const { saveSession } = require("../lib/session");
+const totp = require("../lib/totp");
 const { syncMembershipInBackground } = require("../lib/membership");
 
 const router = express.Router();
@@ -70,6 +71,7 @@ function loginAs(req, res, user, redirectTo) {
       id: user.id, email: user.email, displayName: user.display_name,
       isAdmin: user.is_admin, isMember: user.is_member, isVolunteer: user.is_volunteer,
       passwordChangedAt: user.password_changed_at.getTime(),
+      totpEnabled: Boolean(user.totp_enabled_at),
     };
     if (cart) req.session.cart = cart;
     if (cartSeq) req.session.cartSeq = cartSeq;
@@ -230,12 +232,100 @@ router.post("/login", loginLimiter, async (req, res) => {
     if (user.failed_login_attempts > 0 || user.locked_until) {
       await pool.query("UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = $1", [user.id]);
     }
+
+    // Two-step verification: the password alone doesn't log anyone in. The
+    // session only remembers who is mid-login (for 5 minutes); loginAs
+    // runs once the code checks out (POST /login/2fa below).
+    if (user.totp_enabled_at) {
+      req.session.pending2fa = { userId: user.id, at: Date.now(), fails: 0 };
+      await saveSession(req);
+      return res.redirect("/login/2fa");
+    }
+
     await pool.query("UPDATE users SET last_login_at = now() WHERE id = $1", [user.id]);
 
     // Logging in doesn't make you a member — only actual members/admins
     // (and volunteers, a superset of members — see requireMember) land on
     // the Member's Access dashboard; everyone else goes to the regular
     // site, same as a logged-out visitor.
+    loginAs(req, res, user, user.is_admin ? "/admin" : (user.is_member || user.is_volunteer) ? "/dashboard" : "/");
+  } catch (err) {
+    console.error(err);
+    res.status(500).render("login", { error: "Something went wrong. Please try again.", notice: null });
+  }
+});
+
+const PENDING_2FA_MS = 5 * MINUTE;
+const MAX_2FA_FAILS = 5;
+// Per pending account, not per IP: guessing a 6-digit code is what this
+// stops. Only failures count.
+const twoFactorLimiter = limit({
+  windowMs: 15 * MINUTE,
+  max: 10,
+  skipSuccessfulRequests: true,
+  requestWasSuccessful: (req, res) => res.statusCode !== 401,
+});
+
+function pendingLogin(req) {
+  const p = req.session.pending2fa;
+  if (!p || Date.now() - p.at > PENDING_2FA_MS) {
+    req.session.pending2fa = null;
+    return null;
+  }
+  return p;
+}
+
+router.get("/login/2fa", (req, res) => {
+  if (!pendingLogin(req)) return res.redirect("/login");
+  res.render("login_2fa", { error: null });
+});
+
+router.post("/login/2fa", twoFactorLimiter, async (req, res) => {
+  const pending = pendingLogin(req);
+  if (!pending) return res.redirect("/login");
+  const fail = async () => {
+    pending.fails += 1;
+    if (pending.fails >= MAX_2FA_FAILS) {
+      req.session.pending2fa = null;
+      await saveSession(req);
+      return res.status(401).render("login", { error: "Too many wrong codes. Log in again.", notice: null });
+    }
+    await saveSession(req);
+    return res.status(401).render("login_2fa", { error: "That code didn't work. Try again." });
+  };
+
+  try {
+    const { rows } = await pool.query("SELECT * FROM users WHERE id = $1", [pending.userId]);
+    const user = rows[0];
+    if (!user || user.is_disabled || !user.totp_enabled_at) {
+      req.session.pending2fa = null;
+      return res.redirect("/login");
+    }
+    const code = String(req.body.code || "").trim();
+
+    let accepted = false;
+    if (/^\d{3}\s?\d{3}$/.test(code)) {
+      const step = totp.verifyTotp(totp.decryptSecret(user.totp_secret_enc), code, { lastStep: user.totp_last_step });
+      if (step != null) {
+        // Atomic: a replayed code (same step) matches no row.
+        const { rowCount } = await pool.query(
+          "UPDATE users SET totp_last_step = $2 WHERE id = $1 AND (totp_last_step IS NULL OR totp_last_step < $2)",
+          [user.id, step]
+        );
+        accepted = rowCount === 1;
+      }
+    } else if (code) {
+      // One-time recovery code (for a lost phone); consumed on use.
+      const { rowCount } = await pool.query(
+        "UPDATE totp_recovery_codes SET used_at = now() WHERE user_id = $1 AND code_hash = $2 AND used_at IS NULL",
+        [user.id, totp.hashRecovery(code)]
+      );
+      accepted = rowCount === 1;
+    }
+    if (!accepted) return await fail();
+
+    req.session.pending2fa = null;
+    await pool.query("UPDATE users SET last_login_at = now() WHERE id = $1", [user.id]);
     loginAs(req, res, user, user.is_admin ? "/admin" : (user.is_member || user.is_volunteer) ? "/dashboard" : "/");
   } catch (err) {
     console.error(err);

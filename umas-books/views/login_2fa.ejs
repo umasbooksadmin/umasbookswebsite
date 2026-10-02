@@ -1,0 +1,15 @@
+<%- include('partials/header', { title: 'Two-step verification' }) %>
+
+<h1>Two-step verification</h1>
+<% if (error) { %><div class="error-box"><%= error %></div><% } %>
+<p>Enter the 6-digit code from your authenticator app.</p>
+<form class="stack" method="post" action="/login/2fa">
+  <%- include('partials/csrf_field') %>
+  <label for="code">Code</label>
+  <input id="code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" autofocus required>
+  <button class="btn" type="submit">Verify</button>
+</form>
+<p class="muted small">Lost your phone? Enter one of your recovery codes instead (each works once).</p>
+<p class="muted small"><a href="/login">Start over</a></p>
+
+<%- include('partials/footer') %>
