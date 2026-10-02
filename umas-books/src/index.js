@@ -270,7 +270,7 @@ const marketingCsp = [
 const MARKETING_PAGES = [
   "about.html", "blog.html", "books.html", "events.html", "programs.html",
   "immersion.html", "pre-registration.html", "membership.html", "visit.html",
-  "volunteer.html", "privacy-policy.html", "membership-terms.html",
+  "volunteer.html", "privacy-policy.html", "membership-terms.html", "mentions-legales.html",
 ];
 
 
