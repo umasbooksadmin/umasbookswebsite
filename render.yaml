@@ -1,8 +1,8 @@
 databases:
   - name: umas-books-db
-    # Paid tier (matches the Render dashboard): the free Postgres expires 30
-    # days after creation. This app's nightly pg_dump (GitHub + S3) is the
-    # extra safety net, see .github/workflows.
+    # Paid tier (matches the Render dashboard). This app's nightly pg_dump
+    # (GitHub branch + Backblaze B2) is the extra safety net, see
+    # .github/workflows.
     plan: 1c-2g
     region: frankfurt
     databaseName: umas_books
@@ -12,9 +12,8 @@ services:
   - type: web
     name: umas-books
     runtime: node
-    # Paid tier: the free web service sleeps after 15 minutes without
-    # traffic, so the first visitor after a quiet spell waited through a
-    # cold start (migrate + seed + boot) — see startCommand below.
+    # Paid tier (matches the Render dashboard): always on, so no cold
+    # start for the first visitor after a quiet spell.
     plan: 1c-2g
     region: frankfurt
     rootDir: umas-books
@@ -30,10 +29,10 @@ services:
     # Lockfile-exact, and --omit=dev skips puppeteer (and its Chrome download):
     # nothing in migrate/seed/start requires a devDependency.
     buildCommand: npm ci --omit=dev
-    # seed is idempotent (only creates an admin if none exists yet, only
-    # seeds sample announcements/charity content if none exists) — safe to
-    # run on every startup. It's how the first admin account gets onto a
-    # fresh database without needing a Shell session to run one-off commands.
+    # migrate applies each migration file once (tracked in schema_migrations);
+    # seed only creates an admin if none exists yet and only seeds sample
+    # announcements/charity content if none exists — safe on every startup.
+    # It's how the first admin account gets onto a fresh database.
     startCommand: npm run migrate && npm run seed && npm start
     envVars:
       - key: DATABASE_URL
@@ -41,6 +40,10 @@ services:
           name: umas-books-db
           property: connectionString
       - key: SESSION_SECRET
+        generateValue: true
+      # Encrypts admins' two-step secrets in the database. Separate from
+      # SESSION_SECRET so rotating the session secret doesn't break 2FA.
+      - key: TOTP_ENCRYPTION_KEY
         generateValue: true
       - key: NODE_ENV
         value: production

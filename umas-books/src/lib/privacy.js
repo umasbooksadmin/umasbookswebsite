@@ -7,7 +7,7 @@
 // the users row alone leaves it all behind. eraseMember() handles both.
 
 const { withTransaction } = require("../db");
-const { sendMail } = require("../mailer");
+const mailer = require("../mailer");
 const { emailSafeName } = require("./validation");
 
 const RETENTION = {
@@ -16,6 +16,7 @@ const RETENTION = {
   accountingYears: 10,
   tokenGraceDays: 7,
   inactivityWarningDays: 30,
+  closedOrderDays: 30, // also used for ended reservations
 };
 
 // Stands in for a name/email once someone is erased. The ".invalid" TLD
@@ -130,6 +131,34 @@ async function purgeExpiredPersonalData(pool) {
     return a.rowCount + b.rowCount;
   });
 
+  // A reservation that ended without a pickup (sold in the shop, cancelled)
+  // keeps no contact details after 30 days; active reservations are left
+  // alone (they expire on their own after 2 weeks).
+  await step("reservationContacts", async () => {
+    const r = await pool.query(
+      `UPDATE book_copies
+       SET reserved_by_name = NULL, reserved_by_email = NULL, reserved_by_phone = NULL
+       WHERE status <> 'reserved' AND reserved_by_email IS NOT NULL
+         AND updated_at < now() - interval '${RETENTION.closedOrderDays} days'`
+    );
+    return r.rowCount;
+  });
+
+  // Orders that never completed (expired/cancelled) have no accounting
+  // value, so their buyer details are anonymised after 30 days.
+  await step("closedOrders", async () => {
+    const r = await pool.query(
+      `UPDATE orders
+       SET buyer_name = $1, buyer_email = 'erased-order-' || id || '@erased.invalid',
+           buyer_phone = NULL, access_token = gen_random_uuid()
+       WHERE status IN ('expired', 'cancelled')
+         AND created_at < now() - interval '${RETENTION.closedOrderDays} days'
+         AND buyer_email NOT LIKE '%@erased.invalid'`,
+      [ERASED_NAME]
+    );
+    return r.rowCount;
+  });
+
   // Inactive accounts: warn by email first, delete 30 days later unless
   // they log in (a login clears the warning). Never admins, never anyone
   // with a current membership.
@@ -143,8 +172,16 @@ async function purgeExpiredPersonalData(pool) {
     );
     let n = 0;
     for (const u of rows) {
+      // Claim first so two overlapping app instances cannot both warn the
+      // same person; the claim is handed back if the send fails.
+      const claim = await pool.query(
+        `UPDATE users SET inactivity_warned_at = now()
+         WHERE id = $1 AND inactivity_warned_at IS NULL AND ${INACTIVE}`,
+        [u.id]
+      );
+      if (!claim.rowCount) continue;
       try {
-        await sendMail({
+        await mailer.sendMail({
           to: u.email,
           subject: "Your Uma's Books account will be deleted in 30 days",
           text:
@@ -154,12 +191,12 @@ async function purgeExpiredPersonalData(pool) {
             `To keep it, just log in once${appUrl() ? `: ${appUrl()}/login` : " on our website"}.\n\n` +
             `If you no longer want an account, you don't need to do anything.`,
         });
-        // Only marked after the mail went out: a failed send is retried
-        // tomorrow rather than deleting someone who was never warned.
-        await pool.query("UPDATE users SET inactivity_warned_at = now() WHERE id = $1", [u.id]);
         n += 1;
       } catch (err) {
         console.error(`Inactivity warning failed for account ${u.id}:`, err.message);
+        // Warned only if the mail went out: a failed send is retried
+        // tomorrow rather than deleting someone who was never warned.
+        await pool.query("UPDATE users SET inactivity_warned_at = NULL WHERE id = $1", [u.id]);
       }
     }
     return n;
