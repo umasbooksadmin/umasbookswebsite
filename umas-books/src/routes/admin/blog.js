@@ -107,8 +107,8 @@ router.get("/admin/blog", requireAdmin, async (req, res) => {
   );
 
   let editing = null;
-  if (req.query.edit) {
-    const { rows } = await pool.query("SELECT * FROM blog_posts WHERE id = $1", [Number(req.query.edit)]);
+  if (parseId(req.query.edit) !== null) {
+    const { rows } = await pool.query("SELECT * FROM blog_posts WHERE id = $1", [parseId(req.query.edit)]);
     editing = rows[0] || null;
   }
 

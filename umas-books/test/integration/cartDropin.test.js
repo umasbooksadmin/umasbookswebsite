@@ -42,7 +42,10 @@ after(async () => {
   await pool.end();
   db.drop();
 });
-beforeEach(() => {
+beforeEach(async () => {
+  // Checkout caps pending orders per IP; every request here shares one IP,
+  // so forget the IP on orders left by earlier tests.
+  await pool.query("UPDATE orders SET client_ip = NULL WHERE client_ip IS NOT NULL");
   configured = true;
   createdIntents.length = 0;
   checkoutLimiter.resetKey("127.0.0.1");

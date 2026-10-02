@@ -1,4 +1,5 @@
 <%- include('../partials/admin_header', { title: 'Sessions', active: active, pageTitle: 'Sessions', mainWide: view === 'week' }) %>
+<% if (typeof notice !== "undefined" && notice) { %><div class="notice-box" role="status"><%= notice %></div><% } %>
 
 <% const qs = view === 'week' ? `view=week&week=${currentWeek}` : `month=${currentMonth}`; %>
 <% const prevHref = view === 'week' ? `view=week&week=${prevWeek}` : `month=${prevMonth}`; %>

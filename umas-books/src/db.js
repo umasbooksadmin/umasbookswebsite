@@ -56,6 +56,14 @@ pool.on("error", (err) => {
 async function withTransaction(pool, fn) {
   const client = await pool.connect();
   let brokenConnection;
+  // pg emits 'error' on a checked-out client if its connection drops
+  // mid-transaction; with no listener that is an uncaught exception, which
+  // index.js turns into a process exit. The in-flight query rejects on its
+  // own, so just log it here.
+  const onClientError = (err) => {
+    console.error("PostgreSQL client error during transaction:", err.message);
+  };
+  client.on("error", onClientError);
   try {
     await client.query("BEGIN");
     const result = await fn(client);
@@ -73,6 +81,7 @@ async function withTransaction(pool, fn) {
     }
     throw err;
   } finally {
+    client.removeListener("error", onClientError);
     client.release(brokenConnection);
   }
 }

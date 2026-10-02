@@ -5,7 +5,7 @@ const { expireStaleReservations } = require("../lib/reservations");
 const { sendMail } = require("../mailer");
 const { baseUrl } = require("../lib/baseUrl");
 const { isEmail, clean, emailSafeName, parseId } = require("../lib/validation");
-const { reserveLimiter } = require("../middleware/rateLimits");
+const { reserveLimiter, reserveDailyLimiter } = require("../middleware/rateLimits");
 
 const { validateIdParams } = require("../middleware/idParams");
 
@@ -34,7 +34,7 @@ router.post("/api/favorites/toggle", async (req, res) => {
   // public/favorites.js sends exactly "1" (add) or "" (remove). Boolean() of
   // any non-empty string — "false", "0" — would be true and add a favourite.
   const isFavorite = req.body.isFavorite === "1";
-  if (!bookId) return res.status(400).end();
+  if (bookId === null) return res.status(400).end();
 
   if (isFavorite) {
     // A well-formed id that matches no book is a 404, not a foreign-key
@@ -297,7 +297,7 @@ router.get("/books/:id", async (req, res) => {
 // script could reserve the whole shelf under a single address for 2 weeks.
 const MAX_ACTIVE_RESERVATIONS_PER_EMAIL = 5;
 
-router.post("/books/:id/reserve", reserveLimiter, async (req, res) => {
+router.post("/books/:id/reserve", reserveLimiter, reserveDailyLimiter, async (req, res) => {
   const bookId = Number(req.params.id);
   const copyId = parseId(req.body.copyId);
   const name = clean(req.body.name, 100);
@@ -305,7 +305,7 @@ router.post("/books/:id/reserve", reserveLimiter, async (req, res) => {
   const phone = clean(req.body.phone, 30) || null;
   const redirectUrl = `/books/${bookId}`;
 
-  if (!name || !isEmail(email) || !copyId) return res.redirect(redirectUrl);
+  if (!name || !isEmail(email) || copyId === null) return res.redirect(redirectUrl);
 
   const { rows: held } = await pool.query(
     "SELECT COUNT(*)::int AS n FROM book_copies WHERE status = 'reserved' AND lower(reserved_by_email) = $1",

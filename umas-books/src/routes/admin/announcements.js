@@ -87,8 +87,8 @@ router.get("/admin/announcements", requireAdmin, async (req, res) => {
   );
 
   let editing = null;
-  if (req.query.edit) {
-    const { rows } = await pool.query("SELECT * FROM announcements WHERE id = $1", [Number(req.query.edit)]);
+  if (parseId(req.query.edit) !== null) {
+    const { rows } = await pool.query("SELECT * FROM announcements WHERE id = $1", [parseId(req.query.edit)]);
     editing = rows[0] || null;
   }
 
@@ -111,7 +111,7 @@ router.post("/admin/announcements", requireAdmin, async (req, res) => {
   const category = ANNOUNCEMENT_CATEGORIES.includes(req.body.category) ? req.body.category : null;
   const isPinned = req.body.pinned === "on";
   const expiresAt = req.body.expiresEnabled === "on" && req.body.expiresAt ? new Date(req.body.expiresAt) : null;
-  const eventId = req.body.eventId ? Number(req.body.eventId) : null;
+  const eventId = parseId(req.body.eventId);
   const { status, publishedAt } = resolveAnnouncementStatus(req.body.statusAction, req.body.scheduledAt);
   const backQuery = announcementBackQuery(req);
 
@@ -161,7 +161,7 @@ router.post("/admin/announcements/:id", requireAdmin, async (req, res) => {
   const category = ANNOUNCEMENT_CATEGORIES.includes(req.body.category) ? req.body.category : null;
   const isPinned = req.body.pinned === "on";
   const expiresAt = req.body.expiresEnabled === "on" && req.body.expiresAt ? new Date(req.body.expiresAt) : null;
-  const eventId = req.body.eventId ? Number(req.body.eventId) : null;
+  const eventId = parseId(req.body.eventId);
   const { status, publishedAt } = resolveAnnouncementStatus(req.body.statusAction, req.body.scheduledAt);
   const backQuery = announcementBackQuery(req);
 
