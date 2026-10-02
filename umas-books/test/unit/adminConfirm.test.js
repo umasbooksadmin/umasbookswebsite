@@ -15,7 +15,7 @@ const read = (rel) => fs.readFileSync(path.join(ROOT, rel), "utf8");
 
 // view -> the data-confirm messages its destructive forms must carry
 const DESTRUCTIVE = {
-  "views/admin/members.ejs": ["Delete this account permanently? This can't be undone."],
+  "views/admin/members.ejs": ["Erase this member? Their account, sign-ups and reservations are deleted, and their name/email on past orders is anonymised. This can't be undone."],
   "views/admin/blog.ejs": ["Delete this post permanently?"],
   "views/admin/announcements.ejs": ["Delete this announcement permanently? This can't be undone."],
   "views/admin/charity.ejs": [

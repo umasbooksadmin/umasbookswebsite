@@ -3,5 +3,5 @@
 module.exports = [
   "about.html", "blog.html", "books.html", "events.html", "programs.html",
   "immersion.html", "pre-registration.html", "membership.html", "visit.html",
-  "volunteer.html", "privacy-policy.html", "membership-terms.html",
+  "volunteer.html", "privacy-policy.html", "membership-terms.html", "terms-of-sale.html", "mentions-legales.html",
 ];
