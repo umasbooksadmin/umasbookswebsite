@@ -162,7 +162,7 @@ ISBN entry and manual add still work fully.
 ## Deploying to Render
 
 `render.yaml` at the repo root is a Render Blueprint that provisions:
-- a free Postgres database (`umas-books-db`)
+- a paid-plan Postgres database (`umas-books-db`)
 - this app as a web service (`umas-books`), wired to that database's
   `DATABASE_URL` and a generated `SESSION_SECRET` automatically
 
@@ -172,14 +172,11 @@ both up.
 
 `render.yaml`'s `startCommand` runs `npm run migrate` before `npm start`,
 so migrations run automatically on every boot — new migration files just
-need to be committed and pushed, no manual step. (Render's dedicated
-`preDeployCommand` would be the more obvious fit, but it needs a paid
-instance type; the free plan used here rejects it outright at Blueprint
-creation time with "pre-deploy command is not supported for free tier
-services" — confirmed by trying it. Running migrate in `startCommand`
-works on free tier and is safe because every migration file is written
-to be idempotent, so re-running the whole set on every boot — including
-free-tier spin-down/wake cycles — is harmless.)
+need to be committed and pushed, no manual step. `src/migrate.js` records
+each file in the `schema_migrations` table and applies it exactly once, so
+the command that runs on every boot only does anything for new files.
+Redeploying an older commit does **not** undo a migration; see
+[`docs/runbook.md`](../docs/runbook.md) before rolling back.
 
 Because `rootDir` is `umas-books`, Render by default only auto-deploys
 when a push changes files inside `umas-books/` — a push that only touches
@@ -195,9 +192,9 @@ add an included path of `**` (or sync the Blueprint so it picks up
 Deploy → Deploy latest commit**.
 
 The first admin account is created by `npm run seed`, which `startCommand`
-runs on every boot (the free plan has no Shell tab, so this is the only
-route there): set `SEED_ADMIN_PASSWORD` (and optionally `SEED_ADMIN_EMAIL`)
-in the service's **Environment** tab before the first deploy. Or, to do it
+runs on every boot (it does nothing once an admin exists): set `SEED_ADMIN_PASSWORD` (and optionally `SEED_ADMIN_EMAIL`)
+in the service's **Environment** tab before the first deploy, then delete
+`SEED_ADMIN_PASSWORD` from that tab once you can log in. Or, to do it
 by hand, point `DATABASE_URL` at the production database locally:
 
 ```bash
@@ -380,10 +377,12 @@ logged in with access to the repo.
 5. **Clean up:** `rm restore.dump`, and `dropdb umas_books_restored` if it
    was only a drill.
 
-Render's free Postgres plan is time-limited (currently expires after a
-period of inactivity/trial per Render's terms) — worth checking their
-current free-tier database policy before relying on it long-term, and
-upgrading to a paid database if this needs to stay up indefinitely.
+The database is on a paid Render plan (`render.yaml`), so it does not
+expire. These backups are the extra safety net on top of Render's own.
+
+More operational how-tos (rolling back a deploy, rotating secrets, a
+locked-out admin, who gets alerts, the yearly checklist) are in
+[`docs/runbook.md`](../docs/runbook.md).
 
 ## Security
 
