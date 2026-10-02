@@ -239,7 +239,7 @@ router.post("/login", loginLimiter, async (req, res) => {
     if (user.failed_login_attempts > 0 || user.locked_until) {
       await pool.query("UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = $1", [user.id]);
     }
-    await pool.query("UPDATE users SET last_login_at = now() WHERE id = $1", [user.id]);
+    await pool.query("UPDATE users SET last_login_at = now(), inactivity_warned_at = NULL WHERE id = $1", [user.id]);
 
     // Logging in doesn't make you a member — only actual members/admins
     // (and volunteers, a superset of members — see requireMember) land on

@@ -183,6 +183,7 @@ router.post("/cart/checkout", checkoutLimiter, async (req, res) => {
 
   if (!items.length) return renderCart({ items: [], total: 0, error: "Your cart is empty." });
   if (!name || !isEmail(email)) return renderCart({ error: "Please enter your name and a valid email address." });
+  if (req.body.acceptCgv !== "on") return renderCart({ error: "Please accept the terms of sale to continue." });
   if (!helloasso.isConfigured()) {
     return renderCart({ helloassoReady: false, error: "Online payment isn't set up yet — please check back soon, or come by the shop in person." });
   }
