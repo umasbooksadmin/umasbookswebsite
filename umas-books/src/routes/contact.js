@@ -1,7 +1,7 @@
 const express = require("express");
-const rateLimit = require("express-rate-limit");
+const { limit } = require("../middleware/rateLimits");
 const { sendMail } = require("../mailer");
-const { isEmail } = require("../lib/validation");
+const { isEmail, emailSafeName } = require("../lib/validation");
 
 const router = express.Router();
 
@@ -11,11 +11,9 @@ const CONTACT_TO = process.env.CONTACT_TO || "admin@umasbooks.org";
 const TOPICS = ["General question", "Books & orders", "English programs", "Events", "Donating books", "Membership", "Other"];
 
 // Public form, so keep it from being used to spam the inbox.
-const contactLimiter = rateLimit({
+const contactLimiter = limit({
   windowMs: 15 * 60 * 1000,
   max: 5,
-  standardHeaders: true,
-  legacyHeaders: false,
   handler: (req, res) =>
     res.status(429).render("contact", {
       topics: TOPICS, sent: false, values: req.body || {},
@@ -50,11 +48,11 @@ router.post("/contact", contactLimiter, async (req, res) => {
       to: CONTACT_TO,
       // {name, address} form, not a hand-built "Name <addr>" string: a name
       // containing "<boss@x.org>, y" would otherwise add extra Reply-To entries.
-      replyTo: { name: values.name.replace(/[<>",;\r\n]/g, " "), address: values.email },
-      subject: `Website contact: ${values.topic} — ${values.name}`,
+      replyTo: { name: emailSafeName(values.name).replace(/[<>",;\r\n]/g, " "), address: values.email },
+      subject: `Website contact: ${values.topic} — ${emailSafeName(values.name)}`,
       text:
         `New message from the website contact form\n\n` +
-        `Name: ${values.name}\nEmail: ${values.email}\nTopic: ${values.topic}\n\n` +
+        `Name: ${emailSafeName(values.name)}\nEmail: ${values.email}\nTopic: ${values.topic}\n\n` +
         `${values.message}\n`,
     });
   } catch (err) {

@@ -1,4 +1,12 @@
 const rateLimit = require("express-rate-limit");
+const { ipKeyGenerator } = rateLimit;
+
+// IPv6 clients are bucketed by their /56, not the raw address: one
+// subscriber is routinely handed a whole /64 (or /56), so a raw-address key
+// lets a script rotate through billions of addresses and never hit a cap.
+// IPv4 is untouched (the full address is the key).
+const IPV6_SUBNET = 56;
+const ipKey = (req) => ipKeyGenerator(req.ip, IPV6_SUBNET);
 
 // Per-IP cap for a public write endpoint. In-memory (one instance, resets
 // on restart) — a speed bump against scripts hammering these routes, not
@@ -6,16 +14,17 @@ const rateLimit = require("express-rate-limit");
 // client's behind Render's proxy.
 function limit({ windowMs, max, ...options }) {
   return rateLimit({
-    ...options,
-    windowMs,
-    max,
-    standardHeaders: true,
-    legacyHeaders: false,
+    keyGenerator: ipKey,
     handler: (req, res) =>
       res
         .status(429)
         .type("text/plain")
         .send("Too many requests from this connection — please wait a while and try again, or email admin@umasbooks.org."),
+    ...options,
+    windowMs,
+    max,
+    standardHeaders: true,
+    legacyHeaders: false,
   });
 }
 
@@ -34,4 +43,6 @@ module.exports = {
   forumReplyLimiter: limit({ windowMs: HOUR, max: 30 }),
   charityIdeaLimiter: limit({ windowMs: HOUR, max: 10 }),
   limit,
+  ipKey,
+  IPV6_SUBNET,
 };
