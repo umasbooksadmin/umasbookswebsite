@@ -79,7 +79,7 @@ jobs:
             echo "Testing the newest backup on the db-backups branch."
           fi
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         if: steps.src.outputs.offsite != 'true'
         with:
           ref: db-backups
@@ -182,7 +182,7 @@ jobs:
         # Unlike the uptime check this alerts on the first failure: the job
         # runs once a month, so a silent miss would go unnoticed for weeks.
         if: failure()
-        uses: dawidd6/action-send-mail@v3
+        uses: dawidd6/action-send-mail@4226df7daafa6fc901a43789c49bf7ab309066e7 # v3
         with:
           server_address: smtp.gmail.com
           server_port: 465

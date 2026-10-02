@@ -41,11 +41,10 @@ jobs:
       - name: Check site health
         id: health
         run: |
-          # A generous timeout: Render's free plan spins the service down
-          # after inactivity, and the first request after that can take
-          # 30-50s to wake it back up. That's not an outage — a real
-          # outage keeps failing on the *next* check too (see the
-          # "decide" step).
+          # A generous timeout: a restart or deploy can make the first
+          # request slow for a while. A single slow or failed check is not
+          # an outage — a real outage keeps failing on the *next* check
+          # too (see the "decide" step).
           STATUS=$(curl -s -o /tmp/health.json -w "%{http_code}" --max-time 60 https://umas-books-cmvv.onrender.com/healthz || echo "000")
           echo "status=$STATUS" >> "$GITHUB_OUTPUT"
           echo "Response: $(cat /tmp/health.json 2>/dev/null)"
@@ -93,7 +92,7 @@ jobs:
 
       - name: Send alert email (second consecutive failure, once per outage)
         if: steps.decide.outputs.alert == 'true'
-        uses: dawidd6/action-send-mail@v3
+        uses: dawidd6/action-send-mail@4226df7daafa6fc901a43789c49bf7ab309066e7 # v3
         with:
           server_address: smtp.gmail.com
           server_port: 465
@@ -114,7 +113,7 @@ jobs:
 
       - name: Send recovery email (first healthy check after an alerted outage)
         if: steps.decide.outputs.recovered == 'true'
-        uses: dawidd6/action-send-mail@v3
+        uses: dawidd6/action-send-mail@4226df7daafa6fc901a43789c49bf7ab309066e7 # v3
         with:
           server_address: smtp.gmail.com
           server_port: 465

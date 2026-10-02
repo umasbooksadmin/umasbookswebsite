@@ -214,7 +214,7 @@ production's environment on a Paris-timezone dev machine.
 `src/migrate.js` applies each `.sql` file in `migrations/` exactly once, in
 filename order (`001_`, `002_`, …), and records it in the
 `schema_migrations` table. `npm run migrate` still runs on every deploy
-and wake (see below), but only files not yet recorded do anything. Each
+and restart (see below), but only files not yet recorded do anything. Each
 file runs in its own transaction together with its bookkeeping row, so a
 failing migration leaves no half-applied state, and an advisory lock stops
 two booting instances racing.
@@ -287,18 +287,18 @@ Render Blueprint) at the repo root:
    bad deploy.
 2. Render's `buildCommand` runs `npm ci --omit=dev`.
 3. Render's `startCommand` runs `npm run migrate && npm run seed && npm
-   start`, in that order, every time the service starts — including a
-   free-tier spin-down/wake cycle, not just a real deploy. Both
-   `migrate` and `seed` are written to be safe to re-run (see above; the
-   seed script specifically only creates the first admin account if none
-   exists yet).
+   start`, in that order, every time the service starts — a restart, not just a
+   real deploy. `migrate` applies each migration file only once (see
+   above) and `seed` is safe to re-run (it only creates the first admin
+   account if none exists yet).
    The Node version is pinned to 22 (`engines` in `package.json`,
    `.node-version`, CI's `NODE_VERSION`), and `render.yaml` sets
    `healthCheckPath: /healthz` (a `SELECT 1`) so a deploy that can't
    reach the database never goes live.
-4. The free Render plan doesn't support a dedicated pre-deploy command,
-   which is why migrate/seed are folded into `startCommand` instead.
+4. Migrate/seed are folded into `startCommand` rather than Render's
+   dedicated pre-deploy command. Rolling back is covered in
+   [`../docs/runbook.md`](../docs/runbook.md).
 
 Nothing here currently blocks a bad migration or a failing app boot from
-reaching production automatically — the safety net is writing migrations
-idempotently, keeping CI green, and watching the deploy.
+reaching production automatically — the safety net is keeping migrations small and
+safe, keeping CI green, and watching the deploy.

@@ -40,7 +40,7 @@ jobs:
             exit 1
           fi
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0 # need branch history to check out/create db-backups below
 
@@ -181,7 +181,7 @@ jobs:
         # Requires GMAIL_USER/GMAIL_APP_PASSWORD as repo secrets — the
         # same Gmail account already used by the app for its own mail.
         if: failure()
-        uses: dawidd6/action-send-mail@v3
+        uses: dawidd6/action-send-mail@4226df7daafa6fc901a43789c49bf7ab309066e7 # v3
         with:
           server_address: smtp.gmail.com
           server_port: 465
