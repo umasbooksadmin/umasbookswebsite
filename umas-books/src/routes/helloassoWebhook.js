@@ -1,5 +1,5 @@
 const express = require("express");
-const rateLimit = require("express-rate-limit");
+const { limit } = require("../middleware/rateLimits");
 const { pool } = require("../db");
 const { reconcileOrder, adoptCheckoutIntent } = require("../lib/cart");
 const { syncMembershipForEmail } = require("../lib/membership");
@@ -15,13 +15,10 @@ const router = express.Router();
 // anything — this is just a cap on how much of that re-checking one
 // caller can force, since it costs a real outbound API call each time.
 // Comfortably above anything a small shop's real transaction volume
-// would ever hit.
-const webhookLimiter = rateLimit({
-  windowMs: 5 * 60 * 1000,
-  max: 30,
-  standardHeaders: true,
-  legacyHeaders: false,
-});
+// would ever hit — each payment sends several events and HelloAsso can
+// deliver a burst at once, and a 429 here loses the notification, so this
+// is generous (300 per 5 minutes per IP) but still bounded.
+const webhookLimiter = limit({ windowMs: 5 * 60 * 1000, max: 300 });
 
 // Looks up a dotted path across a couple of possible shapes: an "Order"
 // event has formType directly under data, while a "Payment" event nests

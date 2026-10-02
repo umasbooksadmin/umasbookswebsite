@@ -7,6 +7,7 @@ const { sendResetLink } = require("../lib/passwordReset");
 const { sendVerificationEmail, sendSignupAttemptEmail } = require("../lib/emailVerification");
 const { validateNewPassword } = require("../lib/passwordPolicy");
 const { requireAuth } = require("../middleware/auth");
+const { isEmail, clean } = require("../lib/validation");
 const { baseUrl } = require("../lib/baseUrl");
 const { saveSession } = require("../lib/session");
 const totp = require("../lib/totp");
@@ -109,9 +110,9 @@ router.get("/signup", (req, res) => {
 });
 
 router.post("/signup", signupLimiter, async (req, res) => {
-  const email = (req.body.email || "").trim().toLowerCase();
+  const email = clean(req.body.email, 200).toLowerCase();
   const password = req.body.password || "";
-  const displayName = (req.body.displayName || "").trim();
+  const displayName = clean(req.body.displayName, 100);
 
   if (!email || !password || !displayName) {
     return res.status(400).render("signup", { error: "All fields are required.", notice: null });
@@ -119,6 +120,14 @@ router.post("/signup", signupLimiter, async (req, res) => {
   const passwordError = await validateNewPassword(password);
   if (passwordError) {
     return res.status(400).render("signup", { error: passwordError, notice: null });
+  }
+
+  // Not a single plain address ("a@x.com, b@y.com" would make nodemailer
+  // mail every recipient from our Gmail with attacker-chosen text): no
+  // account, no mail, but the SAME neutral response as a real signup, so
+  // this can't be told apart from one (signup stays enumeration-safe).
+  if (!isEmail(email)) {
+    return res.render("signup", { error: null, notice: SIGNUP_NOTICE });
   }
 
   // Identical response whether or not the email is registered — a
