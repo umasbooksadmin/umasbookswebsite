@@ -8,6 +8,7 @@
 // reminder_sent_at so it's only ever sent once per reservation.
 
 const { sendMail } = require("../mailer");
+const { emailSafeName } = require("./validation");
 
 const RESERVATION_TTL_DAYS = 14;
 const REMINDER_AT_DAYS = RESERVATION_TTL_DAYS - 3;
@@ -37,7 +38,7 @@ async function sendPickupReminders(pool) {
       // "Wishlist match" is a legacy reserved_by_name from the retired
       // wishlist feature — those reservations have no real person's name
       // to greet by, so fall back to a plain "Hi,".
-      const greeting = copy.reserved_by_name === "Wishlist match" ? "Hi," : `Hi ${copy.reserved_by_name},`;
+      const greeting = copy.reserved_by_name === "Wishlist match" ? "Hi," : `Hi ${emailSafeName(copy.reserved_by_name)},`;
       await sendMail({
         to: copy.reserved_by_email,
         subject: `Reminder: your copy of "${copy.title}" is waiting for pickup`,

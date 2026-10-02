@@ -23,11 +23,12 @@ const pgSession = require("connect-pg-simple")(session);
 
 const { pool } = require("./db");
 const { attachUser, requireAdmin } = require("./middleware/auth");
-const { csrfProtection, ensureToken } = require("./middleware/csrf");
+const { csrfProtection, csrfTokenEndpoint } = require("./middleware/csrf");
 const { expireStaleReservations, sendPickupReminders } = require("./lib/reservations");
 const { expireStaleCartHolds, reconcilePendingOrders } = require("./lib/cart");
 const { expireStaleMemberships, reconcileRecentMemberships } = require("./lib/membership");
 const { alertOnError } = require("./lib/errorAlert");
+const { healthzHandler } = require("./lib/health");
 
 const authRoutes = require("./routes/auth");
 const dashboardRoutes = require("./routes/dashboard");
@@ -78,21 +79,7 @@ app.get("/logo.png", (req, res) => res.sendFile(path.join(marketingRoot, "logo.p
 // the process is alive. Registered before session/helmet/csrf so a
 // broken DB can't also break the session store's own read on the way
 // to this route.
-app.get("/healthz", async (req, res) => {
-  try {
-    await pool.query("SELECT 1");
-    res.status(200).json({ ok: true });
-  } catch (err) {
-    // This route is public and unauthenticated (the uptime-check workflow
-    // and Render's own health probe both hit it with no login) — logging
-    // the real error server-side, rather than handing a raw database
-    // error message (connection details, driver internals, ...) to
-    // whoever's asking, same reasoning as never surfacing a raw err in
-    // any other response.
-    console.error("Health check failed:", err.message);
-    res.status(503).json({ ok: false });
-  }
-});
+app.get("/healthz", healthzHandler(pool));
 
 // Date/time display helpers, available in every view without importing.
 Object.assign(app.locals, require("./lib/dates"));
@@ -234,10 +221,7 @@ app.use(csrfProtection);
 // form — e.g. the favorite-toggle button (public/favorites.js), which
 // runs on both the marketing site's static HTML (no server templating,
 // so no <input> to read a token from) and this app's own EJS pages.
-app.get("/api/csrf-token", (req, res) => {
-  res.set("Cache-Control", "no-store");
-  res.json({ token: ensureToken(req) });
-});
+app.get("/api/csrf-token", csrfTokenEndpoint);
 
 // Same idea as /api/cart/count above: the marketing site's static HTML
 // has no server-side session rendering, so it can't know a visitor is
@@ -276,6 +260,11 @@ const marketingCsp = [
   "base-uri 'self'",
   "form-action 'self'",
   "frame-ancestors 'none'",
+  // The HelloAsso membership widget iframe (views/marketing/membership.ejs)
+  // — without a frame-src, default-src 'self' blocks it and visitors see an
+  // empty box. The widget page itself is on www.helloasso.com; the payment
+  // hub (paymenthub.helloassopay.com) loads inside that frame, not in ours.
+  "frame-src https://www.helloasso.com",
 ].join("; ");
 const MARKETING_PAGES = [
   "about.html", "blog.html", "books.html", "events.html", "programs.html",

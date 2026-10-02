@@ -6,6 +6,7 @@ const { requireAdmin } = require("../../middleware/auth");
 const { sendResetLink } = require("../../lib/passwordReset");
 const { baseUrl } = require("../../lib/baseUrl");
 const { sendVerificationEmail } = require("../../lib/emailVerification");
+const { syncMembershipInBackground } = require("../../lib/membership");
 
 const { validateIdParams } = require("../../middleware/idParams");
 
@@ -189,6 +190,9 @@ router.post("/admin/members", requireAdmin, async (req, res) => {
   } catch (err) {
     console.error("Add Member invite email failed:", err.message);
   }
+  // Verified from the start, so a membership payment made before this
+  // account existed can be attributed now.
+  syncMembershipInBackground(pool, rows[0].email);
   res.redirect("/admin/members");
 });
 

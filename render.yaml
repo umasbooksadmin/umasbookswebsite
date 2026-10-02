@@ -27,7 +27,9 @@ services:
     buildFilter:
       paths:
         - "**"
-    buildCommand: npm install
+    # Lockfile-exact, and --omit=dev skips puppeteer (and its Chrome download):
+    # nothing in migrate/seed/start requires a devDependency.
+    buildCommand: npm ci --omit=dev
     # seed is idempotent (only creates an admin if none exists yet, only
     # seeds sample announcements/charity content if none exists) — safe to
     # run on every startup. It's how the first admin account gets onto a
