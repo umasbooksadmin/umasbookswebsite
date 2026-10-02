@@ -26,6 +26,8 @@ const { expireStaleReservations, sendPickupReminders } = require("./lib/reservat
 const { expireStaleCartHolds, reconcilePendingOrders } = require("./lib/cart");
 const { expireStaleMemberships, reconcileRecentMemberships } = require("./lib/membership");
 const { alertOnError } = require("./lib/errorAlert");
+const { errorHandler } = require("./lib/errorHandler");
+const { noStoreForUsers } = require("./middleware/noStoreForUsers");
 const { healthzHandler } = require("./lib/health");
 
 const authRoutes = require("./routes/auth");
@@ -46,6 +48,10 @@ const adminRoutes = require("./routes/admin");
 
 const app = express();
 const isProd = process.env.NODE_ENV === "production";
+
+// Helmet turns this off too, but it is mounted after /healthz and the
+// static mounts, which would otherwise still answer "X-Powered-By: Express".
+app.disable("x-powered-by");
 
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "..", "views"));
@@ -170,6 +176,8 @@ app.use((req, res, next) => {
 });
 
 app.use(attachUser(pool));
+// Right after attachUser (it needs res.locals.user): logged-in responses are no-store.
+app.use(noStoreForUsers);
 app.use((req, res, next) => {
   res.locals.cartCount = Array.isArray(req.session.cart) ? req.session.cart.length : 0;
   next();
@@ -320,20 +328,10 @@ app.use((req, res) => {
 });
 
 // Last-resort handler for anything a route threw or rejected with
-// (forwarded here automatically by express-async-errors, above). Never
-// shows the visitor error detail — that goes to the log only — and
-// falls back to a plain text response if even rendering the error page
-// itself fails (e.g. the DB is down and a view needs res.locals.user).
-app.use((err, req, res, next) => {
-  console.error("Unhandled error:", err);
-  alertOnError(`Error on ${req.method} ${req.originalUrl}`, err);
-  if (res.headersSent) return next(err);
-  res.status(500);
-  res.render("500", (renderErr, html) => {
-    if (renderErr) return res.type("text").send("Something went wrong. Please try again.");
-    res.send(html);
-  });
-});
+// (forwarded here automatically by express-async-errors, above): see
+// lib/errorHandler.js. A 4xx err.status (e.g. multer's 413) gets that
+// status and a friendly page with no alert; anything else is a 500 + alert.
+app.use(errorHandler);
 
 // Both of these mean some error escaped every other net (route handlers
 // go through express-async-errors above; the background jobs below
