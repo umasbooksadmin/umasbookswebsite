@@ -29,10 +29,15 @@ function limit({ windowMs, max, ...options }) {
 }
 
 const HOUR = 60 * 60 * 1000;
+const DAY = 24 * HOUR;
 
 module.exports = {
   // Holds a physical copy for 2 weeks and sends an email.
   reserveLimiter: limit({ windowMs: HOUR, max: 5 }),
+  // Reservations are not tied to an IP in the database, so this daily
+  // ceiling (on top of the hourly one) is what bounds one connection; the
+  // per-email cap lives in routes/books.js.
+  reserveDailyLimiter: limit({ windowMs: DAY, max: 10 }),
   // Locks copies for an hour and calls HelloAsso.
   checkoutLimiter: limit({ windowMs: HOUR, max: 10 }),
   // Browsing users add a handful of items; this only stops scripted loops.
@@ -42,6 +47,14 @@ module.exports = {
   forumPostLimiter: limit({ windowMs: HOUR, max: 10 }),
   forumReplyLimiter: limit({ windowMs: HOUR, max: 30 }),
   charityIdeaLimiter: limit({ windowMs: HOUR, max: 10 }),
+  // /api/csrf-token creates a session row for every visitor that has no
+  // token yet. Visitors that already hold one are not counted, so normal
+  // browsing (forms fetch the token once per page) never gets near this.
+  csrfTokenLimiter: limit({
+    windowMs: 10 * 60 * 1000,
+    max: 60,
+    skip: (req) => Boolean(req.session && req.session.csrfToken),
+  }),
   limit,
   ipKey,
   IPV6_SUBNET,

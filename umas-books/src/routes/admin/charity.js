@@ -7,7 +7,7 @@ const { parseLocalDateTime } = require("../../lib/dates");
 const { CHARITY_CATEGORIES } = require("../../lib/charityCategories");
 
 const { validateIdParams } = require("../../middleware/idParams");
-const { cleanHttpUrl } = require("../../lib/validation");
+const { cleanHttpUrl, parseId } = require("../../lib/validation");
 
 const router = express.Router();
 // Garbage ids get the 404 page, not a Postgres 22P02 and a 500.
@@ -206,8 +206,8 @@ router.post("/admin/charities/:id/archive", requireAdmin, async (req, res) => {
 });
 
 router.post("/admin/charity-options", requireAdmin, async (req, res) => {
-  const charityId = Number(req.body.charityId);
-  if (charityId) {
+  const charityId = parseId(req.body.charityId);
+  if (charityId !== null) {
     const { rows: activeRounds } = await pool.query("SELECT id FROM charity_rounds WHERE is_active = TRUE LIMIT 1");
     const { rows: charityRows } = await pool.query("SELECT name FROM charities WHERE id = $1", [charityId]);
     if (activeRounds.length && charityRows.length) {
