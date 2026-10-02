@@ -212,10 +212,10 @@
                   <input type="hidden" name="backQuery" value="<%= listQs %>">
                   <button class="btn btn-outline btn-small" type="submit"><%= detail.user.is_disabled ? 'Reactivate Account' : 'Deactivate Account' %></button>
                 </form>
-                <form method="post" action="/admin/members/<%= detail.user.id %>/delete" onsubmit="return confirm('Delete this account permanently? This can\'t be undone.');">
+                <form method="post" action="/admin/members/<%= detail.user.id %>/delete" onsubmit="return confirm('Erase this member? Their account, sign-ups and reservations are deleted, and their name/email on past orders is anonymised. This can\'t be undone.');">
                   <%- include('../partials/csrf_field') %>
                   <input type="hidden" name="backQuery" value="<%= listQs %>">
-                  <button class="btn btn-outline btn-small ann-menu-danger" type="submit">Delete Account</button>
+                  <button class="btn btn-outline btn-small ann-menu-danger" type="submit">Erase Member</button>
                 </form>
               <% } %>
             </div>
