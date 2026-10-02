@@ -8,6 +8,7 @@ const { baseUrl } = require("../../lib/baseUrl");
 const { sendVerificationEmail } = require("../../lib/emailVerification");
 const { syncMembershipInBackground } = require("../../lib/membership");
 const { eraseMember } = require("../../lib/privacy");
+const { parseId } = require("../../lib/validation");
 
 const { validateIdParams } = require("../../middleware/idParams");
 
@@ -143,7 +144,7 @@ router.get("/admin/members", requireAdmin, async (req, res) => {
   `);
   const stats = statRows[0];
 
-  const detail = req.query.view ? await loadMemberDetail(Number(req.query.view)) : null;
+  const detail = parseId(req.query.view) !== null ? await loadMemberDetail(parseId(req.query.view)) : null;
   const panel = ["overview", "activity", "edit"].includes(req.query.panel) ? req.query.panel : "overview";
 
   res.render("admin/members", {

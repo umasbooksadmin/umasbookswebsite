@@ -4,8 +4,8 @@ const { CONDITIONS } = require("../lib/inventory");
 const { expireStaleReservations } = require("../lib/reservations");
 const { sendMail } = require("../mailer");
 const { baseUrl } = require("../lib/baseUrl");
-const { isEmail, clean, emailSafeName } = require("../lib/validation");
-const { reserveLimiter } = require("../middleware/rateLimits");
+const { isEmail, clean, emailSafeName, parseId } = require("../lib/validation");
+const { reserveLimiter, reserveDailyLimiter } = require("../middleware/rateLimits");
 
 const { validateIdParams } = require("../middleware/idParams");
 
@@ -30,11 +30,11 @@ function conditionLabel(value) {
 // stays client-only for them, same as before this existed.
 router.post("/api/favorites/toggle", async (req, res) => {
   if (!req.session.user) return res.status(204).end();
-  const bookId = Number(req.body.bookId);
+  const bookId = parseId(req.body.bookId);
   // public/favorites.js sends exactly "1" (add) or "" (remove). Boolean() of
   // any non-empty string — "false", "0" — would be true and add a favourite.
   const isFavorite = req.body.isFavorite === "1";
-  if (!bookId) return res.status(400).end();
+  if (bookId === null) return res.status(400).end();
 
   if (isFavorite) {
     await pool.query(
@@ -292,15 +292,15 @@ router.get("/books/:id", async (req, res) => {
 // script could reserve the whole shelf under a single address for 2 weeks.
 const MAX_ACTIVE_RESERVATIONS_PER_EMAIL = 5;
 
-router.post("/books/:id/reserve", reserveLimiter, async (req, res) => {
+router.post("/books/:id/reserve", reserveLimiter, reserveDailyLimiter, async (req, res) => {
   const bookId = Number(req.params.id);
-  const copyId = Number(req.body.copyId);
+  const copyId = parseId(req.body.copyId);
   const name = clean(req.body.name, 100);
   const email = clean(req.body.email, 200).toLowerCase();
   const phone = clean(req.body.phone, 30) || null;
   const redirectUrl = `/books/${bookId}`;
 
-  if (!name || !isEmail(email) || !copyId) return res.redirect(redirectUrl);
+  if (!name || !isEmail(email) || copyId === null) return res.redirect(redirectUrl);
 
   const { rows: held } = await pool.query(
     "SELECT COUNT(*)::int AS n FROM book_copies WHERE status = 'reserved' AND lower(reserved_by_email) = $1",

@@ -1,4 +1,5 @@
 <%- include('../../partials/admin_header', { title: 'Inventory', active: active, pageTitle: 'Inventory' }) %>
+<% if (typeof notice !== "undefined" && notice) { %><div class="notice-box"><%= notice %></div><% } %>
 
 
 <div class="card">
