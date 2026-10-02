@@ -298,6 +298,18 @@ statuses).
   finds stale holds through book copies *and* seats (a drop-in-only
   checkout has no copy). A late payment for a released seat is treated as
   unclaimable (admin alert), since the capacity may already be resold.
+- **Sweeps and races.** `markOrderPaid` returns whether it won. If
+  `reconcileOrder` loses (the expiry sweep closed the order after its
+  snapshot), it re-reads the row and runs `recoverLatePayment` instead of
+  stamping `helloasso_order_id` and reporting paid. The cart job
+  (`runCartMaintenance`) runs expiry then reconcile sequentially; each
+  timer job is wrapped by `guardJob` so a slow run is skipped, not stacked.
+  One order failing to release no longer stops the expiry loop (alerted
+  once). The reconcile sweep stops at the first HelloAsso auth/network
+  failure and alerts (first run, then ~hourly while it persists). A 401
+  from HelloAsso clears the cached token and retries once. `/cart/return`
+  also reconciles recently closed orders; a paid-but-unfulfillable one
+  shows "we received your payment" rather than "nothing was charged".
 
 ## Deploy sequence
 
