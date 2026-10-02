@@ -9,6 +9,7 @@ const { validateNewPassword } = require("../lib/passwordPolicy");
 const { requireAuth } = require("../middleware/auth");
 const { baseUrl } = require("../lib/baseUrl");
 const { saveSession } = require("../lib/session");
+const { syncMembershipInBackground } = require("../lib/membership");
 
 const router = express.Router();
 
@@ -153,8 +154,12 @@ router.get("/verify-email/:token", async (req, res) => {
   if (!record) {
     return res.redirect("/login?verified=invalid");
   }
-  await pool.query("UPDATE users SET email_verified_at = now() WHERE id = $1 AND email_verified_at IS NULL", [record.user_id]);
+  const { rows: verified } = await pool.query(
+    "UPDATE users SET email_verified_at = now() WHERE id = $1 AND email_verified_at IS NULL RETURNING email",
+    [record.user_id]
+  );
   await pool.query("UPDATE email_verification_tokens SET used_at = now() WHERE id = $1", [record.id]);
+  if (verified.length) syncMembershipInBackground(pool, verified[0].email);
   res.redirect("/login?verified=success");
 });
 
@@ -196,15 +201,19 @@ router.post("/login", loginLimiter, async (req, res) => {
 
     if (!ok) {
       if (user) {
-        const attempts = user.failed_login_attempts + 1;
-        if (attempts >= LOGIN_LOCK_THRESHOLD) {
-          await pool.query(
-            "UPDATE users SET failed_login_attempts = 0, locked_until = $1 WHERE id = $2",
-            [new Date(Date.now() + LOGIN_LOCK_DURATION_MS), user.id]
-          );
-        } else {
-          await pool.query("UPDATE users SET failed_login_attempts = $1 WHERE id = $2", [attempts, user.id]);
-        }
+        // One atomic statement: a read-add-write in JS lets parallel
+        // wrong guesses all read the same count and write back the same
+        // +1, undercounting past the lock threshold. The row lock makes
+        // concurrent attempts count one by one; whichever one reaches the
+        // threshold sets the lock and resets the counter in the same
+        // statement (a later one, now seeing 0, simply counts again).
+        await pool.query(
+          `UPDATE users
+           SET failed_login_attempts = CASE WHEN failed_login_attempts + 1 >= $2 THEN 0 ELSE failed_login_attempts + 1 END,
+               locked_until = CASE WHEN failed_login_attempts + 1 >= $2 THEN $3::timestamptz ELSE locked_until END
+           WHERE id = $1`,
+          [user.id, LOGIN_LOCK_THRESHOLD, new Date(Date.now() + LOGIN_LOCK_DURATION_MS)]
+        );
       }
       return res.status(401).render("login", { error: "Incorrect email or password.", notice: null });
     }
@@ -273,27 +282,62 @@ router.get("/reset-password/:token", async (req, res) => {
 router.post("/reset-password/:token", resetLimiter, async (req, res) => {
   const newPassword = req.body.newPassword || "";
   const tokenHash = hashToken(req.params.token);
+  const invalid = () =>
+    res.status(400).render("reset_password", { error: "This reset link is invalid or has expired.", token: null });
 
+  // Cheap non-consuming look first, so a too-weak password doesn't burn
+  // the link; the real gate is the atomic claim below.
   const { rows } = await pool.query(
-    "SELECT * FROM password_reset_tokens WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now()",
+    "SELECT 1 FROM password_reset_tokens WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now()",
     [tokenHash]
   );
-  const record = rows[0];
-  if (!record) {
-    return res.status(400).render("reset_password", { error: "This reset link is invalid or has expired.", token: null });
-  }
+  if (!rows.length) return invalid();
   const passwordError = await validateNewPassword(newPassword);
   if (passwordError) {
     return res.status(400).render("reset_password", { error: passwordError, token: req.params.token });
   }
 
   const hash = await bcrypt.hash(newPassword, 12);
-  // password_changed_at is what forces every other open session (this
-  // reset flow isn't run from within one) to log out on its next
-  // request — see attachUser in middleware/auth.js.
-  await pool.query("UPDATE users SET password_hash = $1, password_changed_at = now() WHERE id = $2", [hash, record.user_id]);
-  await pool.query("UPDATE password_reset_tokens SET used_at = now() WHERE id = $1", [record.id]);
+  const client = await pool.connect();
+  let email;
+  try {
+    await client.query("BEGIN");
+    // The token is the atomic gate: of any number of concurrent requests
+    // with the same token, exactly one gets a row back.
+    const { rows: claimed } = await client.query(
+      `UPDATE password_reset_tokens SET used_at = now()
+       WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now()
+       RETURNING user_id`,
+      [tokenHash]
+    );
+    if (!claimed.length) {
+      await client.query("ROLLBACK");
+      return invalid();
+    }
+    const userId = claimed[0].user_id;
+    // password_changed_at is what forces every other open session (this
+    // reset flow isn't run from within one) to log out on its next
+    // request, see attachUser in middleware/auth.js. A completed reset
+    // also proves control of the inbox, so it verifies the email and
+    // clears any login lockout, and retires the user's other pending links.
+    const { rows: users } = await client.query(
+      `UPDATE users SET password_hash = $1, password_changed_at = now(),
+              email_verified_at = COALESCE(email_verified_at, now()),
+              failed_login_attempts = 0, locked_until = NULL
+       WHERE id = $2 RETURNING email`,
+      [hash, userId]
+    );
+    email = users[0] && users[0].email;
+    await client.query("UPDATE password_reset_tokens SET used_at = now() WHERE user_id = $1 AND used_at IS NULL", [userId]);
+    await client.query("COMMIT");
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
 
+  if (email) syncMembershipInBackground(pool, email);
   res.redirect("/login?reset=success");
 });
 
