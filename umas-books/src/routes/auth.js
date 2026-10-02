@@ -242,7 +242,7 @@ router.post("/login", loginLimiter, async (req, res) => {
       return res.redirect("/login/2fa");
     }
 
-    await pool.query("UPDATE users SET last_login_at = now() WHERE id = $1", [user.id]);
+    await pool.query("UPDATE users SET last_login_at = now(), inactivity_warned_at = NULL WHERE id = $1", [user.id]);
 
     // Logging in doesn't make you a member — only actual members/admins
     // (and volunteers, a superset of members — see requireMember) land on
@@ -325,7 +325,7 @@ router.post("/login/2fa", twoFactorLimiter, async (req, res) => {
     if (!accepted) return await fail();
 
     req.session.pending2fa = null;
-    await pool.query("UPDATE users SET last_login_at = now() WHERE id = $1", [user.id]);
+    await pool.query("UPDATE users SET last_login_at = now(), inactivity_warned_at = NULL WHERE id = $1", [user.id]);
     loginAs(req, res, user, user.is_admin ? "/admin" : (user.is_member || user.is_volunteer) ? "/dashboard" : "/");
   } catch (err) {
     console.error(err);

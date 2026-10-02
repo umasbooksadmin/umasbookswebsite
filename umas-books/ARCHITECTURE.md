@@ -186,6 +186,28 @@ others. `lib/totp.js` (hand-rolled on `node:crypto`), `routes/twoFactor.js`
   then log in with the password and enrol again.
 - Tests set `ADMIN_2FA_REQUIRED=false` (ignored when `NODE_ENV=production`).
 
+## Personal data: erasure and retention
+
+`src/lib/privacy.js` holds both halves. Most personal data is keyed by
+**email**, not user id, so deleting a `users` row alone leaves it behind.
+
+- `eraseMember(pool, userId)` (admin → Members → **Erase Member**): in one
+  transaction deletes the account, its event/class sign-ups and sessions,
+  releases any active book reservation, and **anonymises** (never deletes)
+  paid orders and HelloAsso payment rows, which French accounting law makes
+  us keep for 10 years. Forum posts keep their text with no author name.
+- `purgeExpiredPersonalData(pool)` runs at boot and daily from `index.js`:
+  sign-ups 12 months after the event, expired reset/verification tokens
+  after 7 days, orders and payment records after 10 years, accounts with no
+  login for 3 years (never admins or current members) — emailed a warning
+  first (`users.inactivity_warned_at`), deleted 30 days later unless they log
+  in, which clears the warning. The `RETENTION`
+  constants must match the privacy policy page.
+- Not automated: contact-form messages live in the Gmail inbox (the policy
+  says they are kept until the sender asks us to delete them), and server
+  logs sit with Render. Log lines never contain emails.
+
+
 ## Dates and times (Europe/Paris)
 
 Uma's Books is in Albi, so every date and time an admin types and every one a
