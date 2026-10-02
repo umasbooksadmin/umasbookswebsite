@@ -4,7 +4,7 @@ const { CONDITIONS } = require("../lib/inventory");
 const { expireStaleReservations } = require("../lib/reservations");
 const { sendMail } = require("../mailer");
 const { baseUrl } = require("../lib/baseUrl");
-const { isEmail, clean } = require("../lib/validation");
+const { isEmail, clean, emailSafeName } = require("../lib/validation");
 const { reserveLimiter } = require("../middleware/rateLimits");
 
 const { validateIdParams } = require("../middleware/idParams");
@@ -322,7 +322,7 @@ router.post("/books/:id/reserve", reserveLimiter, async (req, res) => {
     sendMail({
       to: email,
       subject: `You've reserved "${title}" at Uma's Books`,
-      text: `Hi ${name},\n\nWe've set aside your copy of "${title}" — come by Uma's Books within the next 2 weeks to pick it up and pay in the shop. We'll send you a reminder a few days before the hold expires.\n\nUma's Books\nRue Peyroliere, 81000 Albi`,
+      text: `Hi ${emailSafeName(name)},\n\nWe've set aside your copy of "${title}" — come by Uma's Books within the next 2 weeks to pick it up and pay in the shop. We'll send you a reminder a few days before the hold expires.\n\nUma's Books\nRue Peyroliere, 81000 Albi`,
     }).catch((err) => console.error("Reservation confirmation email failed:", err.message));
   }
 

@@ -1,4 +1,6 @@
 require("dotenv").config();
+// Site timezone (Europe/Paris) must be set before any date is created.
+require("./lib/tz");
 // Fail fast (production only) with one clear message, before db.js is loaded.
 require("./lib/env").checkEnv();
 const path = require("path");
@@ -25,6 +27,7 @@ const { csrfProtection, csrfTokenEndpoint } = require("./middleware/csrf");
 const { expireStaleReservations, sendPickupReminders } = require("./lib/reservations");
 const { runCartMaintenance: sweepCart } = require("./lib/cart");
 const { guardJob } = require("./lib/jobGuard");
+const { purgeExpiredPersonalData } = require("./lib/privacy");
 const { expireStaleMemberships, reconcileRecentMemberships } = require("./lib/membership");
 const { alertOnError } = require("./lib/errorAlert");
 const { healthzHandler } = require("./lib/health");
@@ -268,7 +271,7 @@ const marketingCsp = [
 const MARKETING_PAGES = [
   "about.html", "blog.html", "books.html", "events.html", "programs.html",
   "immersion.html", "pre-registration.html", "membership.html", "visit.html",
-  "volunteer.html", "privacy-policy.html", "membership-terms.html",
+  "volunteer.html", "privacy-policy.html", "membership-terms.html", "terms-of-sale.html", "mentions-legales.html",
 ];
 
 
@@ -411,6 +414,17 @@ const runCartMaintenance = guardJob("Cart maintenance", () => {
 runCartMaintenance();
 const cartTimer = setInterval(runCartMaintenance, 10 * 60 * 1000);
 
+// Retention purge: removes personal data past the periods promised in the
+// privacy policy (lib/privacy.js). Daily is plenty; it also runs once at
+// boot so a restart-heavy host still gets it.
+function runPrivacyPurge() {
+  purgeExpiredPersonalData(pool)
+    .then((counts) => console.log("Retention purge:", JSON.stringify(counts)))
+    .catch((err) => console.error("Retention purge failed:", err));
+}
+runPrivacyPurge();
+const privacyTimer = setInterval(runPrivacyPurge, 24 * 60 * 60 * 1000);
+
 // Graceful shutdown. Render sends SIGTERM on every deploy and spin-down;
 // without a handler the process dies mid-request (an in-flight HelloAsso
 // webhook or checkout would be cut off). Order matters:
@@ -428,6 +442,7 @@ function shutdown(signal) {
   console.log(`${signal} received - shutting down gracefully.`);
   clearInterval(reservationTimer);
   clearInterval(cartTimer);
+  clearInterval(privacyTimer);
   setTimeout(() => {
     console.error(`Shutdown did not finish within ${SHUTDOWN_TIMEOUT_MS / 1000}s - forcing exit.`);
     process.exit(1);

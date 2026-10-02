@@ -6,6 +6,8 @@ const { requireAdmin } = require("../../middleware/auth");
 const { sendResetLink } = require("../../lib/passwordReset");
 const { baseUrl } = require("../../lib/baseUrl");
 const { sendVerificationEmail } = require("../../lib/emailVerification");
+const { syncMembershipInBackground } = require("../../lib/membership");
+const { eraseMember } = require("../../lib/privacy");
 
 const { validateIdParams } = require("../../middleware/idParams");
 
@@ -189,6 +191,9 @@ router.post("/admin/members", requireAdmin, async (req, res) => {
   } catch (err) {
     console.error("Add Member invite email failed:", err.message);
   }
+  // Verified from the start, so a membership payment made before this
+  // account existed can be attributed now.
+  syncMembershipInBackground(pool, rows[0].email);
   res.redirect("/admin/members");
 });
 
@@ -272,7 +277,16 @@ router.post("/admin/members/:id/edit", requireAdmin, async (req, res) => {
 router.post("/admin/members/:id/delete", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   if (id === req.session.user.id) return res.redirect(`/admin/members${membersBackQuery(req).replace("&", "?")}`);
-  await pool.query("DELETE FROM users WHERE id = $1", [id]);
+  // The last admin can't be erased any more than demoted (toggle-admin).
+  const { rows: target } = await pool.query("SELECT is_admin FROM users WHERE id = $1", [id]);
+  if (target[0] && target[0].is_admin) {
+    const { rows: admins } = await pool.query("SELECT COUNT(*)::int AS n FROM users WHERE is_admin");
+    if (admins[0].n <= 1) return res.redirect(`/admin/members?view=${id}${membersBackQuery(req)}`);
+  }
+  // Erases the account AND everything held under its email (sign-ups,
+  // reservations, order and payment contact details) — see lib/privacy.js.
+  await eraseMember(pool, id);
+  console.log(`Member ${id} erased by admin ${req.session.user.id}.`);
   res.redirect(`/admin/members${membersBackQuery(req).replace("&", "?")}`);
 });
 

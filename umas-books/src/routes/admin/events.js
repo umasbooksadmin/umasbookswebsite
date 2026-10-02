@@ -1,6 +1,7 @@
 const express = require("express");
 const { pool } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
+const { parseLocalDateTime } = require("../../lib/dates");
 const { groupByDate, resolveCalendarRange, calendarBackQuery } = require("../../lib/calendar");
 
 const { validateIdParams } = require("../../middleware/idParams");
@@ -43,8 +44,9 @@ router.post("/admin/events", requireAdmin, async (req, res) => {
   const price = req.body.price ? Number(req.body.price) : null;
 
   if (title && date && startTime) {
-    const startsAt = `${date}T${startTime}`;
-    const endsAt = endTime ? `${date}T${endTime}` : null;
+    const startsAt = parseLocalDateTime(date, startTime);
+    const endsAt = endTime ? parseLocalDateTime(date, endTime) : null;
+    if (!startsAt) return res.redirect("/admin/events");
     await pool.query(
       `INSERT INTO events (title, description, location, starts_at, ends_at, capacity, price, created_by)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
@@ -60,8 +62,8 @@ router.post("/admin/events/:id", requireAdmin, async (req, res) => {
   const title = (req.body.title || "").trim();
   const description = (req.body.description || "").trim() || null;
   const location = (req.body.location || "").trim() || null;
-  const startsAt = req.body.startsAt;
-  const endsAt = req.body.endsAt || null;
+  const startsAt = parseLocalDateTime(req.body.startsAt);
+  const endsAt = req.body.endsAt ? parseLocalDateTime(req.body.endsAt) : null;
   const capacity = req.body.capacity ? Number(req.body.capacity) : null;
   const price = req.body.price ? Number(req.body.price) : null;
 

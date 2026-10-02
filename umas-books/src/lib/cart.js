@@ -11,6 +11,7 @@ const { getCheckoutIntent, isOrderPaid } = require("./helloasso");
 const { sendMail } = require("../mailer");
 const { withTransaction } = require("../db");
 const { alertOnError } = require("./errorAlert");
+const { emailSafeName } = require("./validation");
 
 const CART_HOLD_TTL_MINUTES = 60;
 
@@ -134,11 +135,15 @@ async function markOrderPaid(pool, order) {
 
 async function sendOrderConfirmation(pool, order) {
   const { rows: items } = await pool.query("SELECT item_title, price FROM order_items WHERE order_id = $1", [order.id]);
+  const base = process.env.APP_BASE_URL || process.env.RENDER_EXTERNAL_URL;
+  const termsLine = base
+    ? `Terms of sale and your 14-day right of withdrawal for books: ${base.replace(/\/$/, "")}/terms-of-sale.html\n\n`
+    : "";
   const lines = items.map((i) => `- ${i.item_title} — €${Number(i.price).toFixed(2)}`).join("\n");
   sendMail({
     to: order.buyer_email,
     subject: "Your order at Uma's Books is confirmed",
-    text: `Hi ${order.buyer_name},\n\nThanks for your order — payment received:\n\n${lines}\n\nTotal: €${Number(order.total_amount).toFixed(2)}\n\nCome by Uma's Books during opening hours to pick up any books. Drop-in sessions need no pickup — just come along at the session time.\n\nUma's Books\nRue Peyroliere, 81000 Albi`,
+    text: `Hi ${emailSafeName(order.buyer_name)},\n\nThanks for your order — payment received:\n\n${lines}\n\nTotal: €${Number(order.total_amount).toFixed(2)}\n\nCome by Uma's Books during opening hours to pick up any books. Drop-in sessions need no pickup — just come along at the session time.\n\n${termsLine}Uma's Books\nRue Peyroliere, 81000 Albi`,
   }).catch((err) => console.error(`Order confirmation email failed for order ${order.id}:`, err.message));
 }
 

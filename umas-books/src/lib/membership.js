@@ -18,10 +18,11 @@ function isAuthorized(order) {
 // lib/helloasso.js) for this payer's Membership-form orders, records any
 // newly-seen paid order, extends the matching site account's membership
 // by MEMBERSHIP_DURATION_MS from that payment's date, and reverts any
-// previously-recorded payment that no longer shows as Authorized (a
-// refund or a won dispute both land here, since HelloAsso reuses the
-// same order id and just flips its payment's state — see
-// paiement-remboursé.md/paiement-contesté-gagne.md). A payer email with
+// previously-recorded payment whose order is returned by HelloAsso but no
+// longer shows as Authorized (a refund or a won dispute both land here,
+// since HelloAsso reuses the same order id and just flips its payment's
+// state — see paiement-remboursé.md/paiement-contesté-gagne.md). A
+// recorded payment that is merely absent from the response is kept. A payer email with
 // no matching account is logged and otherwise ignored: there's no safe
 // way to guess which account it belongs to.
 async function syncMembershipForEmail(pool, email) {
@@ -32,7 +33,7 @@ async function syncMembershipForEmail(pool, email) {
   const { rows: userRows } = await pool.query("SELECT id, email_verified_at FROM users WHERE lower(email) = lower($1)", [email]);
   const user = userRows[0];
   if (!user) {
-    console.warn(`HelloAsso membership payment from ${email} has no matching site account — skipped.`);
+    console.warn(`HelloAsso membership payment has no matching site account — skipped.`);
     return;
   }
   // Signup never proved this account actually controls this email
@@ -45,11 +46,15 @@ async function syncMembershipForEmail(pool, email) {
   // — that part still needs an admin to step in via /admin/members (edit
   // the squatter's email, or disable the account) once noticed.
   if (!user.email_verified_at) {
-    console.warn(`HelloAsso membership payment from ${email} matched an account with an unverified email — skipped.`);
+    console.warn(`HelloAsso membership payment matched an account with an unverified email — skipped.`);
     return;
   }
 
-  const authorizedIds = new Set(orders.filter(isAuthorized).map((o) => o.id));
+  // Orders HelloAsso returned, by id. The search is fuzzy and paginated
+  // (pageSize 50), so a recorded payment merely missing from the response
+  // proves nothing; only an order that IS present and no longer Authorized
+  // is positive evidence of a refund/dispute.
+  const returnedById = new Map(orders.map((o) => [Number(o.id), o]));
 
   for (const order of orders.filter(isAuthorized)) {
     await pool.query(
@@ -64,12 +69,23 @@ async function syncMembershipForEmail(pool, email) {
     "SELECT id, helloasso_order_id, paid_at FROM membership_payments WHERE user_id = $1",
     [user.id]
   );
-  const reversed = recorded.filter((r) => !authorizedIds.has(Number(r.helloasso_order_id)));
+  const reversed = [];
+  const stillValid = [];
+  for (const r of recorded) {
+    const order = returnedById.get(Number(r.helloasso_order_id));
+    if (order && !isAuthorized(order)) {
+      reversed.push(r);
+    } else {
+      if (!order) {
+        console.warn(`HelloAsso order ${r.helloasso_order_id} is recorded but absent from the search response — keeping it.`);
+      }
+      stillValid.push(r);
+    }
+  }
   if (reversed.length) {
     await pool.query("DELETE FROM membership_payments WHERE id = ANY($1)", [reversed.map((r) => r.id)]);
   }
 
-  const stillValid = recorded.filter((r) => authorizedIds.has(Number(r.helloasso_order_id)));
   if (!stillValid.length) {
     // Nothing left to base a membership on. Only clear is_member if it
     // was payment-driven (member_expires_at set) — a manual admin grant
@@ -93,6 +109,18 @@ async function syncMembershipForEmail(pool, email) {
   if (!currentExpiresAt || newExpiresAt.getTime() !== currentExpiresAt.getTime()) {
     await pool.query("UPDATE users SET is_member = TRUE, member_expires_at = $1 WHERE id = $2", [newExpiresAt, user.id]);
   }
+}
+
+// Fire-and-forget re-sync for the moment an account becomes eligible for
+// attribution (email verified, password reset, admin-created account): a
+// payer who paid before their account existed or was verified is only
+// otherwise picked up by the webhook/backstop that already ran. Never
+// throws and never blocks the caller; does nothing when HelloAsso isn't
+// configured (dev) so it can't spam errors.
+function syncMembershipInBackground(pool, email) {
+  if (!email || !isConfigured()) return;
+  syncMembershipForEmail(pool, email).catch((err) =>
+    console.error(`Membership sync after account change failed:`, err.message));
 }
 
 // Belt-and-suspenders backstop (see runReservationMaintenance/runCartMaintenance
@@ -127,9 +155,9 @@ async function reconcileRecentMemberships(pool) {
     try {
       await syncMembershipForEmail(pool, email);
     } catch (err) {
-      console.error(`Membership reconciliation failed for ${email}:`, err.message);
+      console.error(`Membership reconciliation failed:`, err.message);
     }
   }
 }
 
-module.exports = { syncMembershipForEmail, expireStaleMemberships, reconcileRecentMemberships };
+module.exports = { syncMembershipForEmail, syncMembershipInBackground, expireStaleMemberships, reconcileRecentMemberships };

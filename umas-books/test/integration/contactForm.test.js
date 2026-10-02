@@ -94,6 +94,20 @@ test("Reply-To name can't smuggle extra recipients (angle brackets, quotes, comm
   });
 });
 
+test("URLs and control characters in the name never reach the email subject or body", async () => {
+  await withContactApp(async ({ post }) => {
+    const { res } = await post({ ...valid, name: "Eve https://evil.example/x www.evil.example\u0007<b>" });
+    assert.equal(res.status, 302);
+    assert.equal(sent.length, 1);
+    for (const field of [sent[0].subject, sent[0].text.split("\n")[2]]) {
+      // The \u0007 (bell) is deliberate: control characters must be stripped.
+      // eslint-disable-next-line no-control-regex
+      assert.doesNotMatch(field, /evil\.example|https?:|[<>\u0007]/);
+      assert.match(field, /Eve/);
+    }
+  });
+});
+
 test("an unknown topic falls back to 'General question'; an over-long message is truncated to 5000 chars", async () => {
   await withContactApp(async ({ post }) => {
     await post({ ...valid, topic: "Free money", message: "m".repeat(6000) });
