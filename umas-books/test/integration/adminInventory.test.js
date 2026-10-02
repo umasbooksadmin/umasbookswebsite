@@ -19,6 +19,15 @@ const { prepareDatabase, buildApp, listen } = require("../helpers/inProcessApp")
 
 const db = prepareDatabase("admin_inventory");
 const { pool } = require("../../src/db");
+const IMG_URL = /^\/img\/[0-9a-f]{64}\.jpg$/;
+// Covers live in the images table and cover_url holds /img/<sha256>.jpg.
+async function storedImage(url) {
+  assert.match(url, IMG_URL);
+  const { rows } = await pool.query("SELECT data, content_type FROM images WHERE id = $1", [url.slice(5, 69)]);
+  assert.equal(rows.length, 1, "image bytes are in the images table");
+  assert.equal(rows[0].content_type, "image/jpeg");
+  return rows[0].data;
+}
 const { requireAdmin } = require("../../src/middleware/auth");
 
 process.env.ANTHROPIC_API_KEY = "test-key-not-real";
@@ -302,7 +311,8 @@ test("lookup by photo: sends the photo to the vision API, then uses the ISBN it 
   assert.equal(anthropicCalls.length, 1);
   const image = anthropicCalls[0].messages[0].content[0];
   assert.equal(image.source.media_type, "image/jpeg");
-  assert.equal(image.source.data, photo.toString("base64"));
+  const sent = await sharp(Buffer.from(image.source.data, "base64")).metadata();
+  assert.equal(sent.format, "jpeg", "the photo is normalised to a JPEG before it goes to the vision API");
   assert.ok(text.includes("Catalog Title"));
   assert.ok(!text.includes("Ignored Title"));
 });
@@ -324,7 +334,7 @@ test("lookup by photo: read but not in the catalog -> prefilled from the photo w
   const { text } = await post("/admin/inventory/lookup", { files: { photo: { buffer: await png(), type: "image/png", name: "s.png" } } });
   assert.match(text, /Found some details from the photo, but no catalog match/);
   assert.ok(text.includes("Only On The Cover") && text.includes("Cover Author") && text.includes(`value="${isbn}"`));
-  assert.equal(anthropicCalls[0].messages[0].content[0].source.media_type, "image/png");
+  assert.equal(anthropicCalls[0].messages[0].content[0].source.media_type, "image/jpeg", "a PNG photo is converted to JPEG first");
 });
 
 test("lookup by photo: nothing readable, or the vision API failing, shows the scan page with guidance", async () => {
@@ -407,7 +417,10 @@ test("add: creates the book and one copy; garbage condition/status fall back to 
   assert.equal(Number(copy.acquisition_cost), 2);
   assert.equal(copy.notes, "dog-eared");
   assert.equal(copy.created_by, adminId);
-  assert.equal(new Date(copy.acquired_at).toISOString().slice(0, 10), "2026-01-15");
+  // pg returns a DATE as local midnight: read it with local getters so the
+  // assertion does not depend on the machine's timezone.
+  const d = new Date(copy.acquired_at);
+  assert.deepEqual([d.getFullYear(), d.getMonth() + 1, d.getDate()], [2026, 1, 15]);
   assert.equal(anthropicCalls.length, 0, "nothing to generate when description, French and cover are all given");
   assert.equal(olCalls.length, 0);
 });
@@ -456,7 +469,7 @@ test("add: with no ISBN match the cover falls back to a title/author search", as
   assert.equal(book.cover_url, "https://covers.openlibrary.org/b/id/77-L.jpg");
 });
 
-test("add: an uploaded cover photo is stored as a resized JPEG data URI, overriding the URL field", async () => {
+test("add: an uploaded cover photo is stored as a resized JPEG in the image store, overriding the URL field", async () => {
   const title = `Photo ${tag()}`;
   const big = await sharp({ create: { width: 2000, height: 3000, channels: 3, background: "#336699" } }).png().toBuffer();
   await post("/admin/inventory", {
@@ -464,8 +477,7 @@ test("add: an uploaded cover photo is stored as a resized JPEG data URI, overrid
     files: { coverPhoto: { buffer: big, type: "image/png", name: "cover.png" } },
   });
   const [book] = await bookByTitle(title);
-  assert.match(book.cover_url, /^data:image\/jpeg;base64,/);
-  const stored = Buffer.from(book.cover_url.split(",")[1], "base64");
+  const stored = await storedImage(book.cover_url);
   const meta = await sharp(stored).metadata();
   assert.equal(meta.format, "jpeg", "a PNG upload is converted to JPEG");
   assert.equal(meta.height, 700);
@@ -479,7 +491,7 @@ test("add: a small JPEG is not enlarged, and EXIF rotation is applied", async ()
   const wide = await sharp({ create: { width: 100, height: 50, channels: 3, background: "#ffffff" } }).withMetadata({ orientation: 6 }).jpeg().toBuffer();
   await post("/admin/inventory", { fields: { title, description: "d", descriptionFr: "d" }, files: { coverPhoto: { buffer: wide, type: "image/jpeg", name: "c.jpg" } } });
   const [book] = await bookByTitle(title);
-  const meta = await sharp(Buffer.from(book.cover_url.split(",")[1], "base64")).metadata();
+  const meta = await sharp(await storedImage(book.cover_url)).metadata();
   assert.deepEqual([meta.width, meta.height], [50, 100], "rotated 90 degrees, not upscaled");
 });
 
@@ -593,14 +605,14 @@ test("edit: blanking the description regenerates it, blanking the cover looks on
   assert.equal(book.cover_url, "https://covers.example/edit.jpg");
 });
 
-test("edit: uploading a cover photo replaces the cover with a JPEG data URI", async () => {
+test("edit: uploading a cover photo replaces the cover with a stored JPEG", async () => {
   const b = await seedBook();
   await post(`/admin/inventory/${b.id}`, {
     fields: { title: b.title, description: "d", descriptionFr: "d", coverUrl: "https://img.example/old.jpg" },
     files: { coverPhoto: { buffer: await png(), type: "image/png", name: "n.png" } },
   });
   const [book] = (await pool.query("SELECT cover_url FROM books WHERE id = $1", [b.id])).rows;
-  assert.match(book.cover_url, /^data:image\/jpeg;base64,/);
+  await storedImage(book.cover_url);
 });
 
 test("edit: a non-image upload is rejected and the existing cover is kept", async () => {
