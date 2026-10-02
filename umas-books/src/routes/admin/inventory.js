@@ -318,8 +318,11 @@ router.post("/admin/inventory/:id/copies/:copyId", requireAdmin, async (req, res
   const acquisitionCost = req.body.acquisitionCost ? Number(req.body.acquisitionCost) : null;
   const acquiredAt = req.body.acquiredAt || null;
   const notes = (req.body.notes || "").trim() || null;
+  // A copy in someone's checkout keeps its status (an edit must not put it
+  // back on sale mid-payment); the other fields can still be edited.
   await pool.query(
-    `UPDATE book_copies SET condition=$1, status=$2, price=$3, acquisition_cost=$4, acquired_at=$5, notes=$6, updated_at=now()
+    `UPDATE book_copies SET condition=$1,
+            status=CASE WHEN status = 'in_cart' THEN status ELSE $2 END, price=$3, acquisition_cost=$4, acquired_at=$5, notes=$6, updated_at=now()
      WHERE id = $7 AND book_id = $8`,
     [condition, status, price, acquisitionCost, acquiredAt, notes, copyId, bookId]
   );

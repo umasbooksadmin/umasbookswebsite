@@ -59,6 +59,25 @@ function attachUser(pool) {
     req.session.user.isAdmin = row.is_admin;
     req.session.user.isMember = row.is_member;
     req.session.user.isVolunteer = row.is_volunteer;
+
+    // Inactivity clock (src/lib/privacy.js erases accounts with no login for
+    // 3 years). Sessions last 30 days sliding, so an active member may never
+    // log in again with a password; count any authenticated request as
+    // activity, but write at most once per UTC day. The day marker lives in
+    // the session, so other requests cost no extra query.
+    const today = new Date().toISOString().slice(0, 10);
+    if (req.session.user.activeDay !== today) {
+      try {
+        await pool.query("UPDATE users SET last_login_at = now(), inactivity_warned_at = NULL WHERE id = $1", [
+          req.session.user.id,
+        ]);
+        req.session.user.activeDay = today;
+      } catch (err) {
+        // Not worth failing the request; retried on the next one.
+        console.error("Could not refresh last_login_at:", err.message);
+      }
+    }
+
     res.locals.user = req.session.user;
     next();
   };
