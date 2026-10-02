@@ -1,4 +1,6 @@
 require("dotenv").config();
+// Site timezone (Europe/Paris) must be set before any date is created.
+require("./lib/tz");
 // Fail fast (production only) with one clear message, before db.js is loaded.
 require("./lib/env").checkEnv();
 const path = require("path");
@@ -21,13 +23,21 @@ const pgSession = require("connect-pg-simple")(session);
 
 const { pool } = require("./db");
 const { attachUser, requireAdmin } = require("./middleware/auth");
-const { csrfProtection, ensureToken } = require("./middleware/csrf");
+const { csrfProtection, csrfTokenEndpoint } = require("./middleware/csrf");
 const { expireStaleReservations, sendPickupReminders } = require("./lib/reservations");
-const { expireStaleCartHolds, reconcilePendingOrders } = require("./lib/cart");
+const { runCartMaintenance: sweepCart } = require("./lib/cart");
+const { guardJob } = require("./lib/jobGuard");
+const { purgeExpiredPersonalData } = require("./lib/privacy");
 const { expireStaleMemberships, reconcileRecentMemberships } = require("./lib/membership");
 const { alertOnError } = require("./lib/errorAlert");
+const { errorHandler } = require("./lib/errorHandler");
+const { noStoreForUsers } = require("./middleware/noStoreForUsers");
+const { healthzHandler } = require("./lib/health");
+const seoRoutes = require("./routes/seo");
+const { MARKETING_PAGES, setMarketingSeoLocals } = seoRoutes;
 
 const authRoutes = require("./routes/auth");
+const twoFactorRoutes = require("./routes/twoFactor");
 const dashboardRoutes = require("./routes/dashboard");
 const accountRoutes = require("./routes/account");
 const forumRoutes = require("./routes/forum");
@@ -45,6 +55,10 @@ const adminRoutes = require("./routes/admin");
 
 const app = express();
 const isProd = process.env.NODE_ENV === "production";
+
+// Helmet turns this off too, but it is mounted after /healthz and the
+// static mounts, which would otherwise still answer "X-Powered-By: Express".
+app.disable("x-powered-by");
 
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "..", "views"));
@@ -67,6 +81,9 @@ app.use(express.static(path.join(__dirname, "..", "public"), { maxAge: STATIC_MA
 // requests never cost a session read or a per-request user lookup.
 const marketingRoot = path.join(__dirname, "..", "..");
 app.use("/assets", express.static(path.join(marketingRoot, "assets"), { maxAge: STATIC_MAX_AGE }));
+// Uploaded images (covers, blog/announcement/charity photos): content-addressed,
+// immutable, served from the DB with no session. See routes/img.js.
+app.use(require("./routes/img"));
 app.get("/logo.png", (req, res) => res.sendFile(path.join(marketingRoot, "logo.png")));
 
 // For the external uptime check (see .github/workflows/uptime-check.yml)
@@ -76,21 +93,11 @@ app.get("/logo.png", (req, res) => res.sendFile(path.join(marketingRoot, "logo.p
 // the process is alive. Registered before session/helmet/csrf so a
 // broken DB can't also break the session store's own read on the way
 // to this route.
-app.get("/healthz", async (req, res) => {
-  try {
-    await pool.query("SELECT 1");
-    res.status(200).json({ ok: true });
-  } catch (err) {
-    // This route is public and unauthenticated (the uptime-check workflow
-    // and Render's own health probe both hit it with no login) — logging
-    // the real error server-side, rather than handing a raw database
-    // error message (connection details, driver internals, ...) to
-    // whoever's asking, same reasoning as never surfacing a raw err in
-    // any other response.
-    console.error("Health check failed:", err.message);
-    res.status(503).json({ ok: false });
-  }
-});
+app.get("/healthz", healthzHandler(pool));
+
+// robots.txt and sitemap.xml: also before the session, so crawlers never
+// create a session row (and so they bypass CSRF/attachUser entirely).
+app.use(seoRoutes.router);
 
 // Date/time display helpers, available in every view without importing.
 Object.assign(app.locals, require("./lib/dates"));
@@ -183,6 +190,8 @@ app.use((req, res, next) => {
 });
 
 app.use(attachUser(pool));
+// Right after attachUser (it needs res.locals.user): logged-in responses are no-store.
+app.use(noStoreForUsers);
 app.use((req, res, next) => {
   res.locals.cartCount = Array.isArray(req.session.cart) ? req.session.cart.length : 0;
   next();
@@ -232,10 +241,7 @@ app.use(csrfProtection);
 // form — e.g. the favorite-toggle button (public/favorites.js), which
 // runs on both the marketing site's static HTML (no server templating,
 // so no <input> to read a token from) and this app's own EJS pages.
-app.get("/api/csrf-token", (req, res) => {
-  res.set("Cache-Control", "no-store");
-  res.json({ token: ensureToken(req) });
-});
+app.get("/api/csrf-token", csrfTokenEndpoint);
 
 // Same idea as /api/cart/count above: the marketing site's static HTML
 // has no server-side session rendering, so it can't know a visitor is
@@ -274,12 +280,12 @@ const marketingCsp = [
   "base-uri 'self'",
   "form-action 'self'",
   "frame-ancestors 'none'",
+  // The HelloAsso membership widget iframe (views/marketing/membership.ejs)
+  // — without a frame-src, default-src 'self' blocks it and visitors see an
+  // empty box. The widget page itself is on www.helloasso.com; the payment
+  // hub (paymenthub.helloassopay.com) loads inside that frame, not in ours.
+  "frame-src https://www.helloasso.com",
 ].join("; ");
-const MARKETING_PAGES = [
-  "about.html", "blog.html", "books.html", "events.html", "programs.html",
-  "immersion.html", "pre-registration.html", "membership.html", "visit.html",
-  "volunteer.html", "privacy-policy.html", "membership-terms.html",
-];
 
 
 app.get("/", (req, res) => {
@@ -290,6 +296,7 @@ app.get("/", (req, res) => {
   const u = req.session.user;
   if (u && (u.isAdmin || u.isMember || u.isVolunteer)) return res.redirect("/dashboard");
   res.set("Content-Security-Policy", marketingCsp);
+  setMarketingSeoLocals(req, res, "/");
   res.render("marketing/index");
 });
 
@@ -307,11 +314,13 @@ app.get("/admin/programs", (req, res) => res.redirect(301, "/admin/sessions" + q
 MARKETING_PAGES.forEach((file) => {
   app.get("/" + file, (req, res) => {
     res.set("Content-Security-Policy", marketingCsp);
+    setMarketingSeoLocals(req, res, "/" + file);
     res.render("marketing/" + file.replace(/\.html$/, ""));
   });
 });
 
 app.use(authRoutes);
+app.use(twoFactorRoutes);
 app.use(dashboardRoutes);
 app.use(accountRoutes);
 app.use(forumRoutes);
@@ -331,20 +340,10 @@ app.use((req, res) => {
 });
 
 // Last-resort handler for anything a route threw or rejected with
-// (forwarded here automatically by express-async-errors, above). Never
-// shows the visitor error detail — that goes to the log only — and
-// falls back to a plain text response if even rendering the error page
-// itself fails (e.g. the DB is down and a view needs res.locals.user).
-app.use((err, req, res, next) => {
-  console.error("Unhandled error:", err);
-  alertOnError(`Error on ${req.method} ${req.originalUrl}`, err);
-  if (res.headersSent) return next(err);
-  res.status(500);
-  res.render("500", (renderErr, html) => {
-    if (renderErr) return res.type("text").send("Something went wrong. Please try again.");
-    res.send(html);
-  });
-});
+// (forwarded here automatically by express-async-errors, above): see
+// lib/errorHandler.js. A 4xx err.status (e.g. multer's 413) gets that
+// status and a friendly page with no alert; anything else is a 500 + alert.
+app.use(errorHandler);
 
 // Both of these mean some error escaped every other net (route handlers
 // go through express-async-errors above; the background jobs below
@@ -391,12 +390,14 @@ server.on("error", (err) => {
 // on its own). Pickup-reminder emails (3 days before expiry) only ever
 // run from here, not on page reads — sending mail is a side effect that
 // doesn't belong in a GET request's hot path.
-function runReservationMaintenance() {
-  expireStaleReservations(pool).catch((err) => console.error("Reservation expiry failed:", err));
-  sendPickupReminders(pool).catch((err) => console.error("Pickup reminders failed:", err));
-  expireStaleMemberships(pool).catch((err) => console.error("Membership expiry failed:", err));
-  reconcileRecentMemberships(pool).catch((err) => console.error("Membership reconciliation failed:", err));
-}
+const runReservationMaintenance = guardJob("Reservation maintenance", async () => {
+  await Promise.allSettled([
+    expireStaleReservations(pool).catch((err) => console.error("Reservation expiry failed:", err)),
+    sendPickupReminders(pool).catch((err) => console.error("Pickup reminders failed:", err)),
+    expireStaleMemberships(pool).catch((err) => console.error("Membership expiry failed:", err)),
+    reconcileRecentMemberships(pool).catch((err) => console.error("Membership reconciliation failed:", err)),
+  ]);
+});
 runReservationMaintenance();
 const reservationTimer = setInterval(runReservationMaintenance, 6 * 60 * 60 * 1000);
 
@@ -410,13 +411,25 @@ const reservationTimer = setInterval(runReservationMaintenance, 6 * 60 * 60 * 10
 // re-checks orders expired/cancelled in the last 7 days for a payment that
 // landed after the hold lapsed — see "LATE PAYMENTS" in lib/cart.js.
 let cartMaintenanceTick = 0;
-function runCartMaintenance() {
+// Sweeps run sequentially (expiry, then reconcile) and a slow run is not
+// overlapped by the next tick - see runCartMaintenance in lib/cart.js.
+const runCartMaintenance = guardJob("Cart maintenance", () => {
   const includeClosed = cartMaintenanceTick++ % 6 === 0;
-  expireStaleCartHolds(pool).catch((err) => console.error("Cart hold expiry failed:", err));
-  reconcilePendingOrders(pool, { includeClosed }).catch((err) => console.error("Order reconciliation failed:", err));
-}
+  return sweepCart(pool, { includeClosed });
+});
 runCartMaintenance();
 const cartTimer = setInterval(runCartMaintenance, 10 * 60 * 1000);
+
+// Retention purge: removes personal data past the periods promised in the
+// privacy policy (lib/privacy.js). Daily is plenty; it also runs once at
+// boot so a restart-heavy host still gets it.
+function runPrivacyPurge() {
+  purgeExpiredPersonalData(pool)
+    .then((counts) => console.log("Retention purge:", JSON.stringify(counts)))
+    .catch((err) => console.error("Retention purge failed:", err));
+}
+runPrivacyPurge();
+const privacyTimer = setInterval(runPrivacyPurge, 24 * 60 * 60 * 1000);
 
 // Graceful shutdown. Render sends SIGTERM on every deploy and spin-down;
 // without a handler the process dies mid-request (an in-flight HelloAsso
@@ -435,6 +448,7 @@ function shutdown(signal) {
   console.log(`${signal} received - shutting down gracefully.`);
   clearInterval(reservationTimer);
   clearInterval(cartTimer);
+  clearInterval(privacyTimer);
   setTimeout(() => {
     console.error(`Shutdown did not finish within ${SHUTDOWN_TIMEOUT_MS / 1000}s - forcing exit.`);
     process.exit(1);

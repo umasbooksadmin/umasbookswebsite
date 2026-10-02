@@ -1,5 +1,6 @@
 const express = require("express");
-const sharp = require("sharp");
+const { saveImage } = require("../../lib/imageStore");
+const { sharpFromUpload, reencodeForVision } = require("../../lib/uploadImage");
 const { pool } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
 const { normalizeIsbn, lookupByIsbn, searchByTitleAuthor, translateGenresToFrench } = require("../../lib/bookLookup");
@@ -49,15 +50,16 @@ async function findCoverUrl({ isbn, title, author }) {
 
 // Render has no persistent disk, so an uploaded cover photo can't be
 // saved to the filesystem — it's resized/compressed down to a small
-// thumbnail and stored inline as a data URI in the same cover_url column
-// a lookup-sourced image URL would go in.
+// thumbnail, stored in the images table (lib/imageStore.js), and its short
+// /img/<hash>.jpg URL goes in the same cover_url column a lookup-sourced
+// image URL would go in.
 async function processCoverPhoto(file) {
-  const resized = await sharp(file.buffer)
+  const resized = await sharpFromUpload(file.buffer)
     .rotate()
     .resize(500, 700, { fit: "inside", withoutEnlargement: true })
     .jpeg({ quality: 78 })
     .toBuffer();
-  return `data:image/jpeg;base64,${resized.toString("base64")}`;
+  return saveImage(resized, "image/jpeg");
 }
 
 // ---------- Inventory ----------
@@ -98,7 +100,17 @@ router.post("/admin/inventory/lookup", requireAdmin, async (req, res) => {
 
   const scanPhoto = req.files && req.files.photo && req.files.photo[0];
   if (scanPhoto) {
-    const info = await extractBookInfoFromPhoto(scanPhoto.buffer, scanPhoto.mimetype);
+    let photo;
+    try {
+      photo = await reencodeForVision(scanPhoto.buffer);
+    } catch (err) {
+      console.warn("Scan photo could not be decoded:", err.message);
+      return res.render("admin/inventory/scan", {
+        active: "inventory", visionEnabled,
+        error: "That file couldn't be read as an image — try another photo, or enter details manually below.",
+      });
+    }
+    const info = await extractBookInfoFromPhoto(photo.buffer, photo.mimeType);
     if (!info || (!info.isbn && !info.title)) {
       return res.render("admin/inventory/scan", {
         active: "inventory", visionEnabled,

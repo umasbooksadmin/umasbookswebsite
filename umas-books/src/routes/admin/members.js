@@ -6,6 +6,9 @@ const { requireAdmin } = require("../../middleware/auth");
 const { sendResetLink } = require("../../lib/passwordReset");
 const { baseUrl } = require("../../lib/baseUrl");
 const { sendVerificationEmail } = require("../../lib/emailVerification");
+const { syncMembershipInBackground } = require("../../lib/membership");
+const { isEmail, clean, parseId } = require("../../lib/validation");
+const { eraseMember } = require("../../lib/privacy");
 
 const { validateIdParams } = require("../../middleware/idParams");
 
@@ -82,7 +85,7 @@ async function loadMemberDetail(userId) {
 }
 
 router.get("/admin/members", requireAdmin, async (req, res) => {
-  const q = (req.query.q || "").trim();
+  const q = clean(req.query.q, 100);
   const role = ["admin", "member"].includes(req.query.role) ? req.query.role : "";
   const status = ["active", "inactive"].includes(req.query.status) ? req.query.status : "";
   const dateRange = req.query.dateRange || "";
@@ -141,7 +144,11 @@ router.get("/admin/members", requireAdmin, async (req, res) => {
   `);
   const stats = statRows[0];
 
-  const detail = req.query.view ? await loadMemberDetail(Number(req.query.view)) : null;
+  // parseId: a huge or non-numeric ?view= would otherwise reach Postgres
+  // as an out-of-range int (a 500 and an alert email); treat it as "no
+  // member selected".
+  const viewId = parseId(req.query.view);
+  const detail = viewId ? await loadMemberDetail(viewId) : null;
   const panel = ["overview", "activity", "edit"].includes(req.query.panel) ? req.query.panel : "overview";
 
   res.render("admin/members", {
@@ -160,12 +167,12 @@ router.get("/admin/members", requireAdmin, async (req, res) => {
 });
 
 router.post("/admin/members", requireAdmin, async (req, res) => {
-  const email = (req.body.email || "").trim().toLowerCase();
-  const displayName = (req.body.displayName || "").trim();
+  const email = clean(req.body.email, 200).toLowerCase();
+  const displayName = clean(req.body.displayName, 100);
   const isMember = req.body.isMember === "on";
   const isVolunteer = req.body.isVolunteer === "on";
   const isAdmin = req.body.isAdmin === "on";
-  if (!email || !displayName) return res.redirect("/admin/members");
+  if (!email || !displayName || !isEmail(email)) return res.redirect("/admin/members");
 
   const { rows: existing } = await pool.query("SELECT id FROM users WHERE email = $1", [email]);
   if (existing.length) return res.redirect("/admin/members");
@@ -189,6 +196,9 @@ router.post("/admin/members", requireAdmin, async (req, res) => {
   } catch (err) {
     console.error("Add Member invite email failed:", err.message);
   }
+  // Verified from the start, so a membership payment made before this
+  // account existed can be attributed now.
+  syncMembershipInBackground(pool, rows[0].email);
   res.redirect("/admin/members");
 });
 
@@ -227,9 +237,9 @@ router.post("/admin/members/:id/toggle-disabled", requireAdmin, async (req, res)
 
 router.post("/admin/members/:id/edit", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
-  const displayName = (req.body.displayName || "").trim();
-  const email = (req.body.email || "").trim().toLowerCase();
-  if (displayName && email) {
+  const displayName = clean(req.body.displayName, 100);
+  const email = clean(req.body.email, 200).toLowerCase();
+  if (displayName && isEmail(email)) {
     const { rows: current } = await pool.query("SELECT email FROM users WHERE id = $1", [id]);
     const emailChanged = current[0] && current[0].email.toLowerCase() !== email;
     // A changed email is a brand-new, unproven address: verification is
@@ -269,10 +279,34 @@ router.post("/admin/members/:id/edit", requireAdmin, async (req, res) => {
   res.redirect(`/admin/members?view=${id}${membersBackQuery(req)}`);
 });
 
+// Lost phone AND recovery codes: another admin clears the account's
+// two-step setup. password_changed_at logs the account out everywhere;
+// an admin must enrol again at their next admin visit.
+router.post("/admin/members/:id/reset-2fa", requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  await pool.query(
+    `UPDATE users SET totp_secret_enc = NULL, totp_enabled_at = NULL, totp_last_step = NULL,
+            password_changed_at = now() WHERE id = $1`,
+    [id]
+  );
+  await pool.query("DELETE FROM totp_recovery_codes WHERE user_id = $1", [id]);
+  console.log(`Two-step verification of member ${id} reset by admin ${req.session.user.id}.`);
+  res.redirect(`/admin/members?view=${id}${membersBackQuery(req)}`);
+});
+
 router.post("/admin/members/:id/delete", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   if (id === req.session.user.id) return res.redirect(`/admin/members${membersBackQuery(req).replace("&", "?")}`);
-  await pool.query("DELETE FROM users WHERE id = $1", [id]);
+  // The last admin can't be erased any more than demoted (toggle-admin).
+  const { rows: target } = await pool.query("SELECT is_admin FROM users WHERE id = $1", [id]);
+  if (target[0] && target[0].is_admin) {
+    const { rows: admins } = await pool.query("SELECT COUNT(*)::int AS n FROM users WHERE is_admin");
+    if (admins[0].n <= 1) return res.redirect(`/admin/members?view=${id}${membersBackQuery(req)}`);
+  }
+  // Erases the account AND everything held under its email (sign-ups,
+  // reservations, order and payment contact details) — see lib/privacy.js.
+  await eraseMember(pool, id);
+  console.log(`Member ${id} erased by admin ${req.session.user.id}.`);
   res.redirect(`/admin/members${membersBackQuery(req).replace("&", "?")}`);
 });
 

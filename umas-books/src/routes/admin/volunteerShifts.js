@@ -1,6 +1,7 @@
 const express = require("express");
 const { pool } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
+const { weeklyDateTimes } = require("../../lib/dates");
 const { groupByDate, resolveCalendarRange, calendarBackQuery } = require("../../lib/calendar");
 
 const { validateIdParams } = require("../../middleware/idParams");
@@ -31,13 +32,13 @@ router.post("/admin/volunteer-shifts", requireAdmin, async (req, res) => {
   const repeatWeeks = Math.max(1, Math.min(52, Number(req.body.repeatWeeks) || 1));
 
   if (role && date && startTime && endTime) {
-    const start = new Date(`${date}T${startTime}`);
-    const end = new Date(`${date}T${endTime}`);
-    const weekMs = 7 * 24 * 60 * 60 * 1000;
+    // Same Paris wall-clock time each week (no drift across a clock change).
+    const starts = weeklyDateTimes(date, startTime, repeatWeeks);
+    const ends = weeklyDateTimes(date, endTime, repeatWeeks);
 
-    for (let i = 0; i < repeatWeeks; i++) {
-      const s = new Date(start.getTime() + i * weekMs);
-      const e = new Date(end.getTime() + i * weekMs);
+    for (let i = 0; i < starts.length && i < ends.length; i++) {
+      const s = starts[i];
+      const e = ends[i];
       await pool.query(
         `INSERT INTO volunteer_shifts (role, starts_at, ends_at, capacity, notes, created_by)
          VALUES ($1, $2, $3, 1, $4, $5)`,
