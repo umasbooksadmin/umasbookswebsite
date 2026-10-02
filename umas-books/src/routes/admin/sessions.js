@@ -1,6 +1,7 @@
 const express = require("express");
 const { pool } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
+const { parseLocalDateTime } = require("../../lib/dates");
 const { groupByDate, resolveCalendarRange, calendarBackQuery } = require("../../lib/calendar");
 const { seatsTakenExpr } = require("../../lib/classCapacity");
 
@@ -61,8 +62,9 @@ router.post("/admin/sessions", requireAdmin, async (req, res) => {
   const programType = PROGRAM_TYPES.includes(req.body.programType) ? req.body.programType : null;
 
   if (title && date && startTime) {
-    const startsAt = `${date}T${startTime}`;
-    const endsAt = endTime ? `${date}T${endTime}` : null;
+    const startsAt = parseLocalDateTime(date, startTime);
+    const endsAt = endTime ? parseLocalDateTime(date, endTime) : null;
+    if (!startsAt) return res.redirect("/admin/sessions");
     await pool.query(
       `INSERT INTO classes (title, description, location, starts_at, ends_at, capacity, dropin_price, program_type, created_by)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
@@ -78,8 +80,8 @@ router.post("/admin/sessions/:id", requireAdmin, async (req, res) => {
   const title = (req.body.title || "").trim();
   const description = (req.body.description || "").trim() || null;
   const location = (req.body.location || "").trim() || null;
-  const startsAt = req.body.startsAt;
-  const endsAt = req.body.endsAt || null;
+  const startsAt = parseLocalDateTime(req.body.startsAt);
+  const endsAt = req.body.endsAt ? parseLocalDateTime(req.body.endsAt) : null;
   const capacity = req.body.capacity ? Number(req.body.capacity) : null;
   const dropinPrice = req.body.dropinPrice ? Number(req.body.dropinPrice) : null;
   const programType = PROGRAM_TYPES.includes(req.body.programType) ? req.body.programType : null;

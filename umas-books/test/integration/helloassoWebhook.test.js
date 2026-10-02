@@ -266,11 +266,14 @@ test("the 200 is sent immediately — before a slow HelloAsso lookup finishes", 
 // Keep last: the limiter is per-process and counts every request above too.
 test("rate limit: callers past the cap get 429 and no further processing", async () => {
   const statuses = [];
-  for (let i = 0; i < 40; i++) {
+  for (let i = 0; i < 320; i++) {
     statuses.push((await post({})).status);
   }
   const firstLimited = statuses.indexOf(429);
-  assert.notEqual(firstLimited, -1, "a 429 should appear within 40 requests (cap is 30 per 5 minutes)");
+  assert.notEqual(firstLimited, -1, "a 429 should appear within 320 requests (cap is 300 per 5 minutes)");
+  // A burst well past the old 30-per-5-minutes cap must still be accepted
+  // (a 429 loses HelloAsso's notification).
+  assert.ok(firstLimited > 100, `burst was limited too early (first 429 at request ${firstLimited})`);
   assert.ok(statuses.slice(0, firstLimited).every((s) => s === 200));
   assert.ok(statuses.slice(firstLimited).every((s) => s === 429), "once limited, stays limited");
   const limited = await post({ metadata: { orderId: 1 } });

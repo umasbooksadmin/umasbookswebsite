@@ -1,5 +1,6 @@
 const express = require("express");
-const sharp = require("sharp");
+const { saveImage } = require("../../lib/imageStore");
+const { sharpFromUpload } = require("../../lib/uploadImage");
 const { pool } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
 const { sanitizeHtml } = require("../../lib/sanitizeHtml");
@@ -17,12 +18,12 @@ const ANNOUNCEMENT_CATEGORIES = ["Programs", "Events", "Donations", "Volunteer",
 const ANNOUNCEMENT_STATUSES = ["draft", "scheduled", "published", "archived", "trash"];
 
 async function processAnnouncementImage(file) {
-  const resized = await sharp(file.buffer)
+  const resized = await sharpFromUpload(file.buffer)
     .rotate()
     .resize(800, 500, { fit: "cover" })
     .jpeg({ quality: 78 })
     .toBuffer();
-  return `data:image/jpeg;base64,${resized.toString("base64")}`;
+  return saveImage(resized, "image/jpeg");
 }
 
 // "Publish now" / "Schedule for later" / "Save as draft" in the

@@ -42,4 +42,22 @@ function parseId(value) {
   return n <= 2147483647 ? n : null;
 }
 
-module.exports = { isEmail, clean, cleanHttpUrl, parseId };
+// A visitor-supplied name made safe to drop into an email body or subject.
+// The name is free text, so on the public forms it is a way to get a link
+// or markup into a message that arrives from our own address (phishing
+// with our sender reputation). Strips URLs (http(s)://, www.), control
+// characters (incl. CR/LF, which would also break headers) and angle
+// brackets, then collapses whitespace. Only for what is emailed — what is
+// stored is unchanged.
+function emailSafeName(value) {
+  if (typeof value !== "string") return "";
+  return value
+    .replace(/(?:https?:\/\/|www\.)\S*/gi, " ")
+    // Stripping control characters is the point of this function.
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029<>]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+module.exports = { isEmail, clean, cleanHttpUrl, parseId, emailSafeName };

@@ -21,8 +21,9 @@ async function main() {
       throw new Error("Set SEED_ADMIN_PASSWORD to create the first admin account.");
     }
     // This is the single most privileged account in the app, and this
-    // script is the only place it's ever created — there's no in-app way
-    // to promote another user to admin or add a second one. It shouldn't
+    // script is the only place the *first* one is created — afterwards an
+    // admin can promote others (/admin/members/:id/toggle-admin), but with
+    // none yet there's no in-app way in. It shouldn't
     // be held to a *lower* bar than an ordinary signup, which already
     // runs through this same check.
     const passwordError = await validateNewPassword(adminPassword);

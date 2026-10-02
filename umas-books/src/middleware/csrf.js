@@ -1,4 +1,5 @@
 const crypto = require("crypto");
+const { saveSession } = require("../lib/session");
 
 // A plain !== comparison short-circuits at the first differing byte, so it
 // takes measurably longer the more of the real token a guess happens to
@@ -58,4 +59,16 @@ function csrfProtection(req, res, next) {
   next();
 }
 
-module.exports = { csrfProtection, isValidCsrfToken, ensureToken };
+// GET /api/csrf-token. The token is created lazily and lives in the session,
+// but express-session sends response headers BEFORE its store write finishes
+// (see lib/session.js) — so a client that fetches the token and POSTs with
+// it straight away could reach the server before the session holding that
+// token was saved, and be rejected with a 403. Save first, then respond.
+async function csrfTokenEndpoint(req, res) {
+  res.set("Cache-Control", "no-store");
+  const token = ensureToken(req);
+  await saveSession(req);
+  res.json({ token });
+}
+
+module.exports = { csrfProtection, isValidCsrfToken, ensureToken, csrfTokenEndpoint };

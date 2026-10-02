@@ -27,7 +27,9 @@ services:
     buildFilter:
       paths:
         - "**"
-    buildCommand: npm install
+    # Lockfile-exact, and --omit=dev skips puppeteer (and its Chrome download):
+    # nothing in migrate/seed/start requires a devDependency.
+    buildCommand: npm ci --omit=dev
     # seed is idempotent (only creates an admin if none exists yet, only
     # seeds sample announcements/charity content if none exists) — safe to
     # run on every startup. It's how the first admin account gets onto a
@@ -39,6 +41,10 @@ services:
           name: umas-books-db
           property: connectionString
       - key: SESSION_SECRET
+        generateValue: true
+      # Encrypts admins' two-step secrets in the database. Separate from
+      # SESSION_SECRET so rotating the session secret doesn't break 2FA.
+      - key: TOTP_ENCRYPTION_KEY
         generateValue: true
       - key: NODE_ENV
         value: production

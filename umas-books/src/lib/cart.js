@@ -11,6 +11,7 @@ const { getCheckoutIntent, isOrderPaid } = require("./helloasso");
 const { sendMail } = require("../mailer");
 const { withTransaction } = require("../db");
 const { alertOnError } = require("./errorAlert");
+const { emailSafeName } = require("./validation");
 
 const CART_HOLD_TTL_MINUTES = 60;
 
@@ -31,8 +32,24 @@ async function expireStaleCartHolds(pool) {
          AND cart_added_at < now() - interval '${CART_HOLD_TTL_MINUTES} minutes'
      ) s`
   );
+  // One order that always fails to release (bad data, a constraint) must
+  // not stop every other stale hold from expiring on every run: isolate
+  // each order, keep going, and alert once at the end.
+  const failed = [];
   for (const { order_id } of stale) {
-    await releaseCartHold(pool, order_id, "expired");
+    try {
+      // Via module.exports so tests can substitute the release step.
+      await module.exports.releaseCartHold(pool, order_id, "expired");
+    } catch (err) {
+      failed.push(order_id);
+      console.error(`Cart hold expiry failed for order ${order_id}:`, err.message);
+    }
+  }
+  if (failed.length > 0) {
+    await alertOnError(
+      "Cart hold expiry failing for some orders",
+      `Could not release the expired cart hold for order(s): ${failed.join(", ")}. Other holds were released normally; these will be retried on the next sweep.`
+    );
   }
 }
 
@@ -81,6 +98,9 @@ async function markCopiesSold(client, orderId) {
   await client.query(`UPDATE class_dropin_seats SET status = 'sold', updated_at = now() WHERE order_id = $1`, [orderId]);
 }
 
+// Resolves true if THIS call flipped the order to paid, false if it was no
+// longer 'pending' (another caller won, or it was expired/cancelled since
+// the caller's snapshot was read).
 async function markOrderPaid(pool, order) {
   // The WHERE clause here (not just the id) is the actual idempotency
   // boundary: reconcileOrder's own "order.status !== 'pending'" guard
@@ -107,18 +127,23 @@ async function markOrderPaid(pool, order) {
     await markCopiesSold(client, order.id);
     return true;
   });
-  if (!won) return;
+  if (!won) return false;
 
   await sendOrderConfirmation(pool, order);
+  return true;
 }
 
 async function sendOrderConfirmation(pool, order) {
   const { rows: items } = await pool.query("SELECT item_title, price FROM order_items WHERE order_id = $1", [order.id]);
+  const base = process.env.APP_BASE_URL || process.env.RENDER_EXTERNAL_URL;
+  const termsLine = base
+    ? `Terms of sale and your 14-day right of withdrawal for books: ${base.replace(/\/$/, "")}/terms-of-sale.html\n\n`
+    : "";
   const lines = items.map((i) => `- ${i.item_title} — €${Number(i.price).toFixed(2)}`).join("\n");
   sendMail({
     to: order.buyer_email,
     subject: "Your order at Uma's Books is confirmed",
-    text: `Hi ${order.buyer_name},\n\nThanks for your order — payment received:\n\n${lines}\n\nTotal: €${Number(order.total_amount).toFixed(2)}\n\nCome by Uma's Books during opening hours to pick up any books. Drop-in sessions need no pickup — just come along at the session time.\n\nUma's Books\nRue Peyroliere, 81000 Albi`,
+    text: `Hi ${emailSafeName(order.buyer_name)},\n\nThanks for your order — payment received:\n\n${lines}\n\nTotal: €${Number(order.total_amount).toFixed(2)}\n\nCome by Uma's Books during opening hours to pick up any books. Drop-in sessions need no pickup — just come along at the session time.\n\n${termsLine}Uma's Books\nRue Peyroliere, 81000 Albi`,
   }).catch((err) => console.error(`Order confirmation email failed for order ${order.id}:`, err.message));
 }
 
@@ -231,7 +256,10 @@ async function recoverLatePayment(pool, order, intent) {
   return result.status || order.status;
 }
 
-async function reconcileOrder(pool, order) {
+// opts.failFast: rethrow a systemic HelloAsso failure (auth/network, see
+// isSystemicHelloAssoError) instead of swallowing it per order, so a sweep
+// can stop instead of trying every remaining order against a dead API.
+async function reconcileOrder(pool, order, { failFast = false } = {}) {
   if (!order) return null;
   const closed = isRecentlyClosed(order);
   if ((order.status !== "pending" && !closed) || !order.checkout_intent_id) return order.status;
@@ -241,6 +269,7 @@ async function reconcileOrder(pool, order) {
     intent = await getCheckoutIntent(order.checkout_intent_id);
   } catch (err) {
     console.error(`HelloAsso lookup failed for order ${order.id}:`, err.message);
+    if (failFast && isSystemicHelloAssoError(err)) throw err;
     return order.status; // transient API error — leave as is, a later pass will retry
   }
 
@@ -251,11 +280,23 @@ async function reconcileOrder(pool, order) {
   }
 
   if (isOrderPaid(intent)) {
-    await markOrderPaid(pool, order);
-    if (intent.order && intent.order.id) {
-      await pool.query("UPDATE orders SET helloasso_order_id = $1 WHERE id = $2", [String(intent.order.id), order.id]);
+    const won = await markOrderPaid(pool, order);
+    if (won) {
+      if (intent.order && intent.order.id) {
+        await pool.query("UPDATE orders SET helloasso_order_id = $1 WHERE id = $2", [String(intent.order.id), order.id]);
+      }
+      return "paid";
     }
-    return "paid";
+    // We lost: our snapshot said 'pending' but the row moved on (e.g. the
+    // hold-expiry sweep expired it while we were asking HelloAsso). Never
+    // report/stamp 'paid' on the strength of the stale snapshot - that
+    // would also hide the order from isRecentlyClosed forever.
+    const { rows: fresh } = await pool.query("SELECT * FROM orders WHERE id = $1", [order.id]);
+    const current = fresh[0];
+    if (!current) return order.status;
+    if (current.status === "paid") return "paid"; // another caller won
+    if (isRecentlyClosed(current)) return recoverLatePayment(pool, current, intent);
+    return current.status;
   }
 
   const payments = (intent.order && intent.order.payments) || [];
@@ -279,6 +320,17 @@ async function reconcileOrder(pool, order) {
 // LATE_PAYMENT_WINDOW_DAYS (see "LATE PAYMENTS" above). That's one
 // HelloAsso call per such order, and abandoned carts are the common case,
 // so index.js only turns it on once an hour rather than every 10 minutes.
+function isSystemicHelloAssoError(err) {
+  return !!err && (err.kind === "auth" || err.kind === "network");
+}
+
+// Consecutive sweeps that hit a systemic HelloAsso failure; reset by any
+// sweep that gets through without one.
+let helloassoFailureStreak = 0;
+const getHelloAssoFailureStreak = () => helloassoFailureStreak;
+const resetHelloAssoFailureStreak = () => { helloassoFailureStreak = 0; };
+const FAILURE_ALERT_EVERY = 6; // ~hourly at the 10-minute cadence
+
 async function reconcilePendingOrders(pool, { includeClosed = true } = {}) {
   const { rows: pending } = await pool.query(
     `SELECT * FROM orders WHERE checkout_intent_id IS NOT NULL AND (
@@ -288,12 +340,49 @@ async function reconcilePendingOrders(pool, { includeClosed = true } = {}) {
      ) ORDER BY id`,
     [includeClosed]
   );
+  let systemicError = null;
   for (const order of pending) {
     try {
-      await reconcileOrder(pool, order);
+      await reconcileOrder(pool, order, { failFast: true });
     } catch (err) {
+      if (isSystemicHelloAssoError(err)) {
+        // HelloAsso is unreachable or rejecting our credentials: every
+        // remaining order would burn its own 10 s timeout for nothing.
+        systemicError = err;
+        break;
+      }
       console.error(`Order reconciliation failed for order ${order.id}:`, err.message);
     }
+  }
+  if (!systemicError) {
+    helloassoFailureStreak = 0;
+    return;
+  }
+  helloassoFailureStreak++;
+  console.error(`Order reconciliation stopped early (HelloAsso ${systemicError.kind} failure, run ${helloassoFailureStreak} in a row).`);
+  // Mention the first failure, then only every FAILURE_ALERT_EVERY-th run.
+  if (helloassoFailureStreak === 1 || helloassoFailureStreak % FAILURE_ALERT_EVERY === 0) {
+    await alertOnError(
+      "HelloAsso reconciliation failing",
+      `Order reconciliation stopped after a HelloAsso ${systemicError.kind} failure: ${systemicError.message}. ` +
+        `${helloassoFailureStreak} consecutive run(s) have failed this way; pending payments are not being confirmed until it recovers.`
+    );
+  }
+}
+
+// The 10-minute cart job: the two sweeps run one after the other (never
+// concurrently) so the expiry sweep cannot release an order out from under
+// a reconcile that is about to mark it paid.
+async function runCartMaintenance(pool, { includeClosed }) {
+  try {
+    await module.exports.expireStaleCartHolds(pool);
+  } catch (err) {
+    console.error("Cart hold expiry failed:", err);
+  }
+  try {
+    await module.exports.reconcilePendingOrders(pool, { includeClosed });
+  } catch (err) {
+    console.error("Order reconciliation failed:", err);
   }
 }
 
@@ -348,4 +437,4 @@ async function adoptCheckoutIntent(pool, order, intentId) {
   return rows[0] || order;
 }
 
-module.exports = { persistCheckoutIntentId, adoptCheckoutIntent, expireStaleCartHolds, releaseCartHold, markOrderPaid, reconcileOrder, reconcilePendingOrders, CART_HOLD_TTL_MINUTES };
+module.exports = { runCartMaintenance, isRecentlyClosed, getHelloAssoFailureStreak, resetHelloAssoFailureStreak, persistCheckoutIntentId, adoptCheckoutIntent, expireStaleCartHolds, releaseCartHold, markOrderPaid, reconcileOrder, reconcilePendingOrders, CART_HOLD_TTL_MINUTES };
