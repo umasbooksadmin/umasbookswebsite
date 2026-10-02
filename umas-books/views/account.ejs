@@ -7,7 +7,7 @@
 <div class="card">
   <div class="section-title">Orders</div>
   <% if (!emailVerified) { %>
-    <div class="notice-box">Confirm your email address to see your orders here &mdash; we sent a confirmation link to <%= email %> when you signed up. Check your inbox (and spam folder). Your orders are never lost; they&rsquo;ll appear as soon as the address is confirmed.</div>
+    <div role="status" class="notice-box">Confirm your email address to see your orders here &mdash; we sent a confirmation link to <%= email %> when you signed up. Check your inbox (and spam folder). Your orders are never lost; they&rsquo;ll appear as soon as the address is confirmed.</div>
   <% } else if (!orders.length) { %>
     <p class="muted">No orders yet &mdash; <a href="/books.html">browse books</a> or <a href="/sessions">book a drop-in session</a>.</p>
   <% } else { %>

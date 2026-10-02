@@ -16,7 +16,7 @@
   font-size: clamp(36px, 9.5vw, 74px); font-weight: 600; line-height: 1.02; letter-spacing: -0.01em;
   margin-top: 18px; color: #26351f;
 }
-.pg-dropin .pg-title { color: #b0772e; }
+.pg-dropin .pg-title { color: #9a6a24; } /* was #b0772e: 3.77:1 on --cream; this is 4.67:1 (WCAG AA) */
 .pg-script { font-family: 'Italianno', cursive; font-size: 50px; line-height: 1; margin: 6px 0 16px; color: var(--maroon); }
 .pg-dropin .pg-script { color: #33472c; }
 .pg-script-row { display: flex; align-items: center; justify-content: center; margin: 6px 0 16px; }
@@ -48,7 +48,7 @@
 .pg-btn .arrow { font-size: 1.6em; line-height: 0.6; }
 .pg-btn.red { background: #a8352c; }
 .pg-btn.green { background: var(--btn-bg); }
-.pg-btn.gold { background: #b37a36; }
+.pg-btn.gold { background: #9a6a24; } /* was #b37a36: white text 3.65:1; this is 4.71:1 */
 .pg-btn:hover { filter: brightness(0.92); }
 
 /* Computers: same sizes as the Home page (title like the hero title,
