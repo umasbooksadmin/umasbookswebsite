@@ -144,11 +144,11 @@ test("announcements: a missing title or body writes nothing and still redirects 
   assert.equal((await h.q("SELECT 1 FROM announcements WHERE title LIKE $1", [`%${u}`])).length, 0);
 });
 
-test("announcements: an uploaded image is resized into a data: URL; update can replace or remove it", async () => {
+test("announcements: an uploaded image is resized and stored as an /img/ URL; update can replace or remove it", async () => {
   const title = `Image ${h.uniq()}`;
   await h.post("/admin/announcements", { title, body: "<p>x</p>" }, { image: true });
   const a = await annByTitle(title);
-  assert.match(a.image_url, /^data:image\/jpeg;base64,/);
+  assert.match(a.image_url, /^\/img\/[0-9a-f]{64}\.jpg$/);
 
   // Updating without a new file and without removeImage keeps it.
   await h.post(`/admin/announcements/${a.id}`, { title, body: "<p>x</p>" });
@@ -156,7 +156,7 @@ test("announcements: an uploaded image is resized into a data: URL; update can r
 
   // A new file replaces it.
   await h.post(`/admin/announcements/${a.id}`, { title, body: "<p>y</p>", removeImage: "on" }, { image: true });
-  assert.match((await annByTitle(title)).image_url, /^data:image\/jpeg;base64,/);
+  assert.match((await annByTitle(title)).image_url, /^\/img\/[0-9a-f]{64}\.jpg$/);
 
   await h.post(`/admin/announcements/${a.id}`, { title, body: "<p>x</p>", removeImage: "on" });
   assert.equal((await annByTitle(title)).image_url, null, "removeImage clears it");
@@ -390,7 +390,7 @@ test("blog: update changes fields and status, keeps the slug, handles images, an
   const title = `Upd ${h.uniq()}`;
   await h.post("/admin/blog", { title, body: "<p>x</p>" }, { image: true });
   const p = await blogByTitle(title);
-  assert.match(p.image_url, /^data:image\/jpeg;base64,/);
+  assert.match(p.image_url, /^\/img\/[0-9a-f]{64}\.jpg$/);
 
   const r = await h.post(`/admin/blog/${p.id}`, { title: `${title} v2`, body: "<p>y</p>", status: "draft", tags: "t", backQuery: "status=draft" });
   assert.equal(location(r), "/admin/blog?status=draft");
@@ -407,7 +407,7 @@ test("blog: update changes fields and status, keeps the slug, handles images, an
   assert.equal(row.status, "published", "no status in the form means published");
 
   await h.post(`/admin/blog/${p.id}`, { title: `${title} v3`, body: "<p>z</p>" }, { image: true });
-  assert.match((await h.q("SELECT image_url FROM blog_posts WHERE id = $1", [p.id]))[0].image_url, /^data:image\/jpeg/);
+  assert.match((await h.q("SELECT image_url FROM blog_posts WHERE id = $1", [p.id]))[0].image_url, /^\/img\/[0-9a-f]{64}\.jpg$/);
 
   await h.post(`/admin/blog/${p.id}`, { title: "", body: "<p>z</p>" });
   await h.post(`/admin/blog/${p.id}`, { title: "Renamed", body: "" });

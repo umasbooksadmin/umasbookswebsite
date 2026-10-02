@@ -183,7 +183,7 @@ test("charities: create trims fields, validates category, and keeps only http(s)
   assert.equal(location(bogusTab), "/admin/charity?tab=library");
 });
 
-test("charities: create needs a name (nothing written); an uploaded image becomes a data: URL", async () => {
+test("charities: create needs a name (nothing written); an uploaded image becomes an /img/ URL", async () => {
   const u = h.uniq();
   const before = Number((await h.q("SELECT COUNT(*) AS n FROM charities"))[0].n);
   const r = await h.post("/admin/charities", { name: "   ", description: `d ${u}` });
@@ -192,7 +192,7 @@ test("charities: create needs a name (nothing written); an uploaded image become
 
   const name = `Pic ${u}`;
   await h.post("/admin/charities", { name }, { image: true });
-  assert.match((await charityBy(name)).image_url, /^data:image\/jpeg;base64,/);
+  assert.match((await charityBy(name)).image_url, /^\/img\/[0-9a-f]{64}\.jpg$/);
 });
 
 test("charities: addToCurrentVote adds an option to the active round only (once), and is a no-op without one", async () => {
@@ -235,7 +235,7 @@ test("charities: update rewrites fields (cleaning the URL), keeps the image unle
 
   await h.post(`/admin/charities/${c.id}`, { name: row.name }, { image: true });
   const img = (await h.q("SELECT image_url FROM charities WHERE id = $1", [c.id]))[0].image_url;
-  assert.match(img, /^data:image\/jpeg;base64,/);
+  assert.match(img, /^\/img\/[0-9a-f]{64}\.jpg$/);
   await h.post(`/admin/charities/${c.id}`, { name: row.name });
   assert.equal((await h.q("SELECT image_url FROM charities WHERE id = $1", [c.id]))[0].image_url, img, "image kept when no new file");
 
