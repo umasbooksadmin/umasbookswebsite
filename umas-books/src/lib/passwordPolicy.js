@@ -1,6 +1,7 @@
 const crypto = require("crypto");
 
 const MIN_LENGTH = 8;
+const HIBP_TIMEOUT_MS = 3000;
 
 const COMPLEXITY_RULES = [
   { test: (pw) => /[a-z]/.test(pw), label: "a lowercase letter" },
@@ -19,20 +20,23 @@ async function isPasswordPwned(password) {
     const prefix = sha1.slice(0, 5);
     const suffix = sha1.slice(5);
 
+    // The abort signal must cover reading the BODY too: fetch() resolves
+    // once headers arrive, so a server that then stalls mid-body would
+    // otherwise hang this (and the signup/reset request awaiting it).
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 3000);
-    let res;
+    const timeout = setTimeout(() => controller.abort(), HIBP_TIMEOUT_MS);
+    let text;
     try {
-      res = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`, {
+      const res = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`, {
         headers: { "Add-Padding": "true" },
         signal: controller.signal,
       });
+      if (!res.ok) return false;
+      text = await res.text();
     } finally {
       clearTimeout(timeout);
     }
 
-    if (!res.ok) return false;
-    const text = await res.text();
     return text.split("\n").some((line) => line.split(":")[0].trim().toUpperCase() === suffix);
   } catch (err) {
     console.warn("Pwned-password check skipped (treating as OK):", err.message);

@@ -1,11 +1,11 @@
 const express = require("express");
 const { pool, withTransaction } = require("../db");
 const helloasso = require("../lib/helloasso");
-const { releaseCartHold, reconcileOrder, persistCheckoutIntentId } = require("../lib/cart");
+const { releaseCartHold, reconcileOrder, isRecentlyClosed, persistCheckoutIntentId } = require("../lib/cart");
 const { expireStaleReservations } = require("../lib/reservations");
 const { seatsTakenExpr } = require("../lib/classCapacity");
 const { baseUrl } = require("../lib/baseUrl");
-const { isEmail, clean } = require("../lib/validation");
+const { isEmail, clean, parseId } = require("../lib/validation");
 const { checkoutLimiter, cartEditLimiter } = require("../middleware/rateLimits");
 
 const router = express.Router();
@@ -123,7 +123,7 @@ router.get("/cart", async (req, res) => {
 const MAX_CART_LINES = 20;
 
 router.post("/cart/add", cartEditLimiter, async (req, res) => {
-  const copyId = Number(req.body.copyId);
+  const copyId = parseId(req.body.copyId);
   const backTo = isSafeLocalPath(req.body.backTo) ? req.body.backTo : "/cart";
   if (copyId) {
     const { rows } = await pool.query("SELECT id FROM book_copies WHERE id = $1 AND status = 'in_stock'", [copyId]);
@@ -138,7 +138,7 @@ router.post("/cart/add", cartEditLimiter, async (req, res) => {
 });
 
 router.post("/cart/add-dropin", cartEditLimiter, async (req, res) => {
-  const classId = Number(req.body.classId);
+  const classId = parseId(req.body.classId);
   const backTo = isSafeLocalPath(req.body.backTo) ? req.body.backTo : "/sessions";
   if (classId) {
     const { rows } = await pool.query(
@@ -311,13 +311,24 @@ router.get("/cart/return", async (req, res) => {
   if (!UUID_RE.test(token)) return res.status(404).render("404");
 
   const { rows } = await pool.query("SELECT * FROM orders WHERE access_token = $1", [token]);
-  const order = rows[0];
+  let order = rows[0];
   if (!order) return res.status(404).render("404");
 
-  const status = order.status === "pending" ? await reconcileOrder(pool, order) : order.status;
+  // A recently expired/cancelled order may have been paid after all (the
+  // buyer retried the same HelloAsso checkout), so reconcile those too,
+  // then re-read: reconcileOrder may have recovered or flagged the order.
+  if (order.status === "pending" || isRecentlyClosed(order)) {
+    await reconcileOrder(pool, order);
+    const { rows: fresh } = await pool.query("SELECT * FROM orders WHERE id = $1", [order.id]);
+    if (fresh[0]) order = fresh[0];
+  }
+  const status = order.status;
+  // helloasso_order_id on a closed order is only ever set by a late payment
+  // that could not be fulfilled (see recoverLatePayment): money was taken.
+  const paymentReceivedUnfulfilled = status !== "paid" && status !== "pending" && !!order.helloasso_order_id;
 
   const { rows: orderItems } = await pool.query("SELECT item_title, price FROM order_items WHERE order_id = $1", [order.id]);
-  res.render("cart_return", { order, items: orderItems, status });
+  res.render("cart_return", { order, items: orderItems, status, paymentReceivedUnfulfilled });
 });
 
 module.exports = router;

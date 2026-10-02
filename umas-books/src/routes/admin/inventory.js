@@ -1,4 +1,5 @@
 const express = require("express");
+const { saveImage } = require("../../lib/imageStore");
 const { sharpFromUpload, reencodeForVision } = require("../../lib/uploadImage");
 const { pool } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
@@ -49,15 +50,16 @@ async function findCoverUrl({ isbn, title, author }) {
 
 // Render has no persistent disk, so an uploaded cover photo can't be
 // saved to the filesystem — it's resized/compressed down to a small
-// thumbnail and stored inline as a data URI in the same cover_url column
-// a lookup-sourced image URL would go in.
+// thumbnail, stored in the images table (lib/imageStore.js), and its short
+// /img/<hash>.jpg URL goes in the same cover_url column a lookup-sourced
+// image URL would go in.
 async function processCoverPhoto(file) {
   const resized = await sharpFromUpload(file.buffer)
     .rotate()
     .resize(500, 700, { fit: "inside", withoutEnlargement: true })
     .jpeg({ quality: 78 })
     .toBuffer();
-  return `data:image/jpeg;base64,${resized.toString("base64")}`;
+  return saveImage(resized, "image/jpeg");
 }
 
 // ---------- Inventory ----------

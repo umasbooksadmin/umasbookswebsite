@@ -8,7 +8,7 @@ const bcrypt = require("bcryptjs");
 const { startTestApp } = require("../helpers/testApp");
 const { makeCookieJar, fetchCsrfToken } = require("../helpers/httpClient");
 
-const PORT = 3600;
+const PORT = 3680;
 const PASSWORD = "RetentionTest1!";
 const FORM = { "content-type": "application/x-www-form-urlencoded" };
 
