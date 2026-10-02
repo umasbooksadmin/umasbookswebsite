@@ -42,6 +42,10 @@ services:
           property: connectionString
       - key: SESSION_SECRET
         generateValue: true
+      # Encrypts admins' two-step secrets in the database. Separate from
+      # SESSION_SECRET so rotating the session secret doesn't break 2FA.
+      - key: TOTP_ENCRYPTION_KEY
+        generateValue: true
       - key: NODE_ENV
         value: production
       - key: SEED_ADMIN_EMAIL

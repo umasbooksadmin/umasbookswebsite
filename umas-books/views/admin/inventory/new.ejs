@@ -1,6 +1,6 @@
 <%- include('../../partials/admin_header', { title: 'Add Book', active: active, pageTitle: 'Add Book' }) %>
 
-<% if (error) { %><div class="error-box"><%= error %></div><% } %>
+<% if (error) { %><div role="alert" class="error-box"><%= error %></div><% } %>
 
 <div class="card">
   <% if (book.coverUrl) { %>

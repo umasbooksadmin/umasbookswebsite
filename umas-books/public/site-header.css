@@ -114,10 +114,10 @@ header.mkt-header .langtoggle span { color: var(--line); }
   header.mkt-header .h-tool svg { width: 22px; height: 22px; }
   header.mkt-header .langtoggle { margin-top: 0; }
   header.mkt-header .h-nav {
-    justify-content: flex-start; flex-wrap: nowrap; overflow-x: auto; gap: 22px;
-    scrollbar-width: none; padding-bottom: 2px;
+    /* Wraps rather than scrolling sideways: a clipped-off "Events" link
+       was past the right edge of a 320px screen. */
+    justify-content: flex-start; flex-wrap: wrap; gap: 6px 22px; padding-bottom: 2px;
   }
-  header.mkt-header .h-nav::-webkit-scrollbar { display: none; }
   header.mkt-header .h-nav a { font-size: 15.5px; }
 }
 

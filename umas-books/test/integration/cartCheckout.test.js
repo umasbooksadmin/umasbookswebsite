@@ -88,7 +88,7 @@ const copyRow = async (id) => (await pool.query("SELECT * FROM book_copies WHERE
 const orderByEmail = async (email) => (await pool.query("SELECT * FROM orders WHERE buyer_email = $1 ORDER BY id", [email])).rows;
 
 async function checkout(v, email, extra = {}) {
-  return v.post("/cart/checkout", { name: "Cart Buyer", email, ...extra });
+  return v.post("/cart/checkout", { name: "Cart Buyer", email, acceptCgv: "on", ...extra });
 }
 
 test("add to cart: in-stock copy is added once; unavailable/unknown/non-numeric ids are ignored", async () => {
@@ -203,6 +203,18 @@ test("checkout validation: empty cart, missing name, bad email — no order, no 
   r = await v.post("/cart/checkout", { name: "Name", email: "not-an-email" });
   assert.match(r.text, /enter your name and a valid email/);
 
+  assert.equal(createdIntents.length, 0);
+  assert.equal((await copyRow(copy)).status, "in_stock");
+});
+
+test("checkout without accepting the terms of sale is refused and locks nothing", async () => {
+  const v = visitor();
+  const copy = await makeCopy();
+  await v.post("/cart/add", { copyId: copy });
+  const email = `nocgv-${uniq()}@example.test`;
+  const r = await v.post("/cart/checkout", { name: "Cart Buyer", email });
+  assert.match(r.text, /accept the terms of sale/);
+  assert.equal((await orderByEmail(email)).length, 0);
   assert.equal(createdIntents.length, 0);
   assert.equal((await copyRow(copy)).status, "in_stock");
 });
