@@ -1,0 +1,10 @@
+<%- include('partials/header', { title: 'Your recovery codes' }) %>
+
+<h1>Two-step verification is on</h1>
+<div class="notice-box"><strong>Save these recovery codes now.</strong> They are shown only once. Each one works a single time if you lose your phone. Keep them somewhere safe (a password manager or a printout), not on the phone itself.</div>
+<ul>
+  <% codes.forEach(function (c) { %><li><code><%= c %></code></li><% }) %>
+</ul>
+<p><a class="btn" href="<%= isAdmin ? '/admin' : '/account' %>">I've saved them — continue</a></p>
+
+<%- include('partials/footer') %>

@@ -212,6 +212,13 @@
                   <input type="hidden" name="backQuery" value="<%= listQs %>">
                   <button class="btn btn-outline btn-small" type="submit"><%= detail.user.is_disabled ? 'Reactivate Account' : 'Deactivate Account' %></button>
                 </form>
+                <% if (detail.user.totp_enabled_at) { %>
+                <form method="post" action="/admin/members/<%= detail.user.id %>/reset-2fa" onsubmit="return confirm('Reset two-step verification for this account? They will be logged out and must set it up again.');">
+                  <%- include('../partials/csrf_field') %>
+                  <input type="hidden" name="backQuery" value="<%= listQs %>">
+                  <button class="btn btn-outline btn-small" type="submit">Reset Two-Step</button>
+                </form>
+                <% } %>
                 <form method="post" action="/admin/members/<%= detail.user.id %>/delete" onsubmit="return confirm('Erase this member? Their account, sign-ups and reservations are deleted, and their name/email on past orders is anonymised. This can\'t be undone.');">
                   <%- include('../partials/csrf_field') %>
                   <input type="hidden" name="backQuery" value="<%= listQs %>">
