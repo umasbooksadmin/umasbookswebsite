@@ -6,6 +6,8 @@ name: Monthly backup restore test
 # secrets are set, from the offsite bucket (written by
 # nightly-db-backup.yml) — into a throwaway
 # postgres:18 service container and checks that the data is really there.
+# Offsite it prefers the FULL dump (store-backups/full/, image bytes
+# included); the db-backups branch copy deliberately has no image bytes.
 # Nothing here touches Render or any real database.
 #
 # Same safety rule as the backup workflow: dumps contain member names/
@@ -98,11 +100,23 @@ jobs:
         run: |
           PREFIX="${PREFIX:-store-backups}"
           PREFIX="${PREFIX%/}"
-          # --delimiter keeps this to direct children (not the monthly/ copies);
+          # Prefer the FULL dump (<prefix>/full/, image bytes included) — it is
+          # the only complete backup. Fall back to the plain nightly copy
+          # (no image bytes) if no full dump exists yet.
+          # --delimiter keeps each lookup to direct children (not monthly/);
           # filenames embed a UTC timestamp, so sorting by key is chronological.
           KEY=$(aws s3api list-objects-v2 --endpoint-url "$ENDPOINT" --bucket "$BUCKET" \
-                  --prefix "${PREFIX}/umas_books_" --delimiter "/" \
+                  --prefix "${PREFIX}/full/umas_books_full_" --delimiter "/" \
                   --query 'sort_by(Contents, &Key)[-1].Key' --output text || true)
+          if [ -z "$KEY" ] || [ "$KEY" = "None" ]; then
+            echo "::warning::No full dump under ${BUCKET}/${PREFIX}/full/ — testing the plain nightly copy, which has NO image bytes."
+            KEY=$(aws s3api list-objects-v2 --endpoint-url "$ENDPOINT" --bucket "$BUCKET" \
+                    --prefix "${PREFIX}/umas_books_" --delimiter "/" \
+                    --query 'sort_by(Contents, &Key)[-1].Key' --output text || true)
+            echo "FULL_DUMP=false" >> "$GITHUB_ENV"
+          else
+            echo "FULL_DUMP=true" >> "$GITHUB_ENV"
+          fi
           if [ -z "$KEY" ] || [ "$KEY" = "None" ]; then
             echo "::error::No umas_books_*.dump objects under ${BUCKET}/${PREFIX}/"
             exit 1
@@ -174,6 +188,32 @@ jobs:
           if [ "${admins:-0}" -lt 1 ]; then
             echo "::error::No admin user in the restored data."
             fail=1
+          fi
+
+          # Image bytes. The db-backups branch copy deliberately EXCLUDES the
+          # data of the images table (it would exceed that branch's file size
+          # limit); only the offsite full/ dump has it. Table must exist either
+          # way; with a full dump, every /img/ URL in use must resolve.
+          if ! $PSQL -c "SELECT count(*) FROM public.images" > /dev/null 2>&1; then
+            echo "::error::Table public.images is missing after restore."
+            fail=1
+          elif [ "${FULL_DUMP:-false}" = "true" ]; then
+            missing=$($PSQL -c "
+              SELECT count(*) FROM (
+                SELECT cover_url AS u FROM public.books
+                UNION ALL SELECT image_url FROM public.announcements
+                UNION ALL SELECT image_url FROM public.charities
+                UNION ALL SELECT image_url FROM public.blog_posts
+              ) x
+              WHERE u ~ '^/img/[0-9a-f]{64}\\.' AND NOT EXISTS (
+                SELECT 1 FROM public.images i WHERE i.id = substring(x.u FROM 6 FOR 64))" 2>/dev/null || echo "-1")
+            echo "image URLs with no stored bytes: $missing"
+            if [ "$missing" != "0" ]; then
+              echo "::error::The full dump is missing image bytes for $missing image URL(s)."
+              fail=1
+            fi
+          else
+            echo "::warning::This backup has no image bytes (db-backups branch copy, or no offsite full/ dump yet). Images are NOT backed up in it."
           fi
 
           exit $fail

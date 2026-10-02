@@ -43,7 +43,9 @@ function withDatabaseName(url, name) {
 // which logs out every other file's sessions mid-run — must pass
 // isolated: true to get its own throwaway database on that same server
 // (locally every file already gets one, so this is a no-op there).
-async function startTestApp({ port, isolated = false }) {
+// env: extra environment for the server process (e.g. ADMIN_2FA_REQUIRED=true
+// to exercise the real admin two-step enforcement).
+async function startTestApp({ port, isolated = false, env = {} }) {
   const sharedUrl = process.env.DATABASE_URL;
   const ownsDatabase = !sharedUrl;
   const testDb = `umasbooks_test_${port}_${Date.now()}`;
@@ -77,6 +79,10 @@ async function startTestApp({ port, isolated = false }) {
       PORT: String(port),
       SESSION_SECRET: "test-session-secret-not-for-production",
       NODE_ENV: "test",
+      // Most tests log in as admins without a second factor; the 2FA test
+      // file turns enforcement back on via `env`.
+      ADMIN_2FA_REQUIRED: "false",
+      ...env,
     },
     stdio: "inherit",
   });

@@ -1,4 +1,5 @@
 const express = require("express");
+const { saveImage } = require("../../lib/imageStore");
 const { sharpFromUpload } = require("../../lib/uploadImage");
 const { pool } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
@@ -22,7 +23,7 @@ async function processAnnouncementImage(file) {
     .resize(800, 500, { fit: "cover" })
     .jpeg({ quality: 78 })
     .toBuffer();
-  return `data:image/jpeg;base64,${resized.toString("base64")}`;
+  return saveImage(resized, "image/jpeg");
 }
 
 // "Publish now" / "Schedule for later" / "Save as draft" in the

@@ -1,5 +1,5 @@
 <%- include('../partials/admin_header', { title: 'Sessions', active: active, pageTitle: 'Sessions', mainWide: view === 'week' }) %>
-<% if (typeof notice !== "undefined" && notice) { %><div class="notice-box"><%= notice %></div><% } %>
+<% if (typeof notice !== "undefined" && notice) { %><div class="notice-box" role="status"><%= notice %></div><% } %>
 
 <% const qs = view === 'week' ? `view=week&week=${currentWeek}` : `month=${currentMonth}`; %>
 <% const prevHref = view === 'week' ? `view=week&week=${prevWeek}` : `month=${prevMonth}`; %>
@@ -72,7 +72,7 @@
                   <% if (c.description) { %><div class="muted small" style="margin-top:6px;"><%= c.description %></div><% } %>
 
                   <% if (signups.length) { %>
-                    <div class="muted small" style="margin-top:10px; font-variant: small-caps; letter-spacing: 0.06em; color: var(--gold);">Signed up (free, legacy)</div>
+                    <div class="muted small" style="margin-top:10px; font-variant: small-caps; letter-spacing: 0.06em; color: var(--gold-dark);">Signed up (free, legacy)</div>
                     <ul class="plain" style="margin-top:4px;">
                       <% signups.forEach(s => { %>
                         <li style="padding:6px 0;">
@@ -87,7 +87,7 @@
                   <% } %>
 
                   <% if (dropins.length) { %>
-                    <div class="muted small" style="margin-top:10px; font-variant: small-caps; letter-spacing: 0.06em; color: var(--gold);">Paid drop-in</div>
+                    <div class="muted small" style="margin-top:10px; font-variant: small-caps; letter-spacing: 0.06em; color: var(--gold-dark);">Paid drop-in</div>
                     <ul class="plain" style="margin-top:4px;">
                       <% dropins.forEach(d => { %>
                         <li style="padding:6px 0;"><%= d.buyer_name %> &middot; <span class="muted small"><%= d.buyer_email %></span></li>

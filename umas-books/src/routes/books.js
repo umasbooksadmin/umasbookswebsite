@@ -37,6 +37,10 @@ router.post("/api/favorites/toggle", async (req, res) => {
   if (bookId === null) return res.status(400).end();
 
   if (isFavorite) {
+    // A well-formed id that matches no book is a 404, not a foreign-key
+    // violation (a 500 and an alert email).
+    const { rows: book } = await pool.query("SELECT 1 FROM books WHERE id = $1", [bookId]);
+    if (!book.length) return res.status(404).end();
     await pool.query(
       "INSERT INTO favorites (user_id, book_id) VALUES ($1, $2) ON CONFLICT (user_id, book_id) DO NOTHING",
       [req.session.user.id, bookId]
@@ -152,8 +156,9 @@ router.get("/api/books/search", async (req, res) => {
   res.set("Access-Control-Allow-Origin", "*");
   res.set("Cross-Origin-Resource-Policy", "cross-origin");
   res.set("Cache-Control", "public, max-age=60");
-  const q = (req.query.q || "").trim();
-  const genre = (req.query.genre || "").trim();
+  // clean(): capped, and an array (?q=a&q=b) can't reach .trim() and 500.
+  const q = clean(req.query.q, 100);
+  const genre = clean(req.query.genre, 100);
   // ?topic=mystery,thriller,crime — the Books page's fixed genre buttons.
   // Matches any in-stock book whose categories contain one of the words,
   // since real inventory categories are free text (from ISBN lookups).
