@@ -72,11 +72,20 @@ jobs:
           mkdir -p backup
           STAMP=$(date -u +%Y-%m-%dT%H-%M-%SZ)
           echo "STAMP=$STAMP" >> "$GITHUB_ENV"
+          # --exclude-table-data=images: uploaded image bytes (book covers,
+          # photos — the `images` table, migrations/033) are LEFT OUT of this
+          # GitHub copy; its schema is still included. Thousands of covers
+          # would push the dump past the 100 MB file limit of the db-backups
+          # branch and make every nightly backup fail. The complete dump
+          # (images included) goes to offsite storage below, when configured.
+          #
           # Retries a couple of times before giving up — pg_dump against a
           # remote database over the internet can hit an ordinary transient
           # network blip.
           for attempt in 1 2 3; do
             if /usr/lib/postgresql/18/bin/pg_dump --no-owner --no-privileges --format=custom \
+                 --exclude-table-data=session \
+                 --exclude-table-data=images \
                  --file="backup/umas_books_${STAMP}.dump" "$DATABASE_URL"; then
               break
             fi
@@ -97,25 +106,28 @@ jobs:
           # actions/checkout configures a narrow fetch refspec (just the
           # default branch), so fetch db-backups with an explicit refspec
           # rather than relying on it landing in refs/remotes/origin/*.
+          # The branch is rebuilt from scratch every night as ONE commit
+          # holding only the newest 30 dumps, then force-pushed. Old commits
+          # are never kept, so data that was later deleted or erased cannot
+          # live on in git history (the privacy policy promises backups
+          # disappear within about 30 days).
+          mkdir -p keep/backups
           git fetch origin db-backups:refs/remotes/origin/db-backups || true
           if git show-ref --verify --quiet refs/remotes/origin/db-backups; then
-            git checkout db-backups
-          else
-            git checkout --orphan db-backups
-            git rm -rf . > /dev/null 2>&1 || true
+            git archive refs/remotes/origin/db-backups backups | tar -x -C keep || true
           fi
+          mv "backup/umas_books_${STAMP}.dump" "keep/backups/umas_books_${STAMP}.dump"
 
+          # Keep a rolling 30 nightly backups (names sort chronologically).
+          ls -1 keep/backups/umas_books_*.dump | sort | head -n -30 | xargs -r rm --
+
+          git checkout --orphan db-backups-new
+          git rm -rf . > /dev/null 2>&1 || true
           mkdir -p backups
-          mv "backup/umas_books_${STAMP}.dump" "backups/umas_books_${STAMP}.dump"
-          git add "backups/umas_books_${STAMP}.dump"
-
-          # Keep a rolling 30 nightly backups so the branch doesn't grow forever.
-          cd backups
-          ls -1t umas_books_*.dump | tail -n +31 | xargs -r git rm --
-          cd ..
-
+          cp keep/backups/umas_books_*.dump backups/
+          git add backups
           git commit -m "Nightly backup ${STAMP}"
-          git push origin db-backups
+          git push --force origin db-backups-new:db-backups
 
       # ---- Second copy in offsite storage (Backblaze B2, S3-compatible) ----
       # Runs AFTER the db-backups commit above on purpose: if the offsite
@@ -172,6 +184,50 @@ jobs:
             aws s3 cp "$FILE" "s3://${BUCKET}/${PREFIX}/monthly/$(basename "$FILE")" --endpoint-url "$ENDPOINT" --only-show-errors
             echo "Monthly copy written."
           fi
+
+      # ---- FULL dump (image bytes included) -> offsite only ----
+      # The db-backups copy above has everything EXCEPT image bytes. This is
+      # the complete one, under <prefix>/full/ so a bucket lifecycle rule can
+      # treat it separately (see README "Offsite backups"). It is never
+      # committed to GitHub: it would exceed that branch's file size limit.
+      # Skipped with the rest of the offsite upload until BACKUP_S3_* is set —
+      # until then images are backed up nowhere except the live database.
+      - name: Full dump with images to offsite storage
+        if: steps.offsite.outputs.enabled == 'true'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_S3_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_APPLICATION_KEY }}
+          AWS_DEFAULT_REGION: ${{ vars.BACKUP_S3_REGION }}
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+          ENDPOINT: ${{ vars.BACKUP_S3_ENDPOINT }}
+          BUCKET: ${{ vars.BACKUP_S3_BUCKET }}
+          PREFIX: ${{ vars.BACKUP_S3_PREFIX }}
+        run: |
+          PREFIX="${PREFIX:-store-backups}"
+          PREFIX="${PREFIX%/}"
+          mkdir -p full
+          FILE="full/umas_books_full_${STAMP}.dump" # outside backups/, never git-added
+          for attempt in 1 2 3; do
+            # Login sessions (csrf tokens, role flags) are not worth keeping in
+            # any backup, offsite included; images ARE kept here.
+            if /usr/lib/postgresql/18/bin/pg_dump --no-owner --no-privileges --format=custom \
+                 --exclude-table-data=session \
+                 --file="$FILE" "$DATABASE_URL"; then
+              break
+            fi
+            echo "full pg_dump attempt $attempt failed."
+            if [ "$attempt" = 3 ]; then
+              echo "::error::full pg_dump failed after 3 attempts."
+              exit 1
+            fi
+            rm -f "$FILE"
+            sleep 10
+          done
+          test -s "$FILE" || { echo "::error::$FILE is missing or empty."; exit 1; }
+          aws s3 cp "$FILE" "s3://${BUCKET}/${PREFIX}/full/$(basename "$FILE")" --endpoint-url "$ENDPOINT" --only-show-errors
+          echo "Uploaded full dump ($(du -h "$FILE" | cut -f1)) to ${BUCKET}/${PREFIX}/full/$(basename "$FILE")"
 
       - name: Alert admin if any step above failed
         # `if: failure()` here means "some earlier step in this job

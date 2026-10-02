@@ -4,8 +4,8 @@ const { CONDITIONS } = require("../lib/inventory");
 const { expireStaleReservations } = require("../lib/reservations");
 const { sendMail } = require("../mailer");
 const { baseUrl } = require("../lib/baseUrl");
-const { isEmail, clean, emailSafeName } = require("../lib/validation");
-const { reserveLimiter } = require("../middleware/rateLimits");
+const { isEmail, clean, emailSafeName, parseId } = require("../lib/validation");
+const { reserveLimiter, reserveDailyLimiter } = require("../middleware/rateLimits");
 
 const { validateIdParams } = require("../middleware/idParams");
 
@@ -30,13 +30,17 @@ function conditionLabel(value) {
 // stays client-only for them, same as before this existed.
 router.post("/api/favorites/toggle", async (req, res) => {
   if (!req.session.user) return res.status(204).end();
-  const bookId = Number(req.body.bookId);
+  const bookId = parseId(req.body.bookId);
   // public/favorites.js sends exactly "1" (add) or "" (remove). Boolean() of
   // any non-empty string — "false", "0" — would be true and add a favourite.
   const isFavorite = req.body.isFavorite === "1";
-  if (!bookId) return res.status(400).end();
+  if (bookId === null) return res.status(400).end();
 
   if (isFavorite) {
+    // A well-formed id that matches no book is a 404, not a foreign-key
+    // violation (a 500 and an alert email).
+    const { rows: book } = await pool.query("SELECT 1 FROM books WHERE id = $1", [bookId]);
+    if (!book.length) return res.status(404).end();
     await pool.query(
       "INSERT INTO favorites (user_id, book_id) VALUES ($1, $2) ON CONFLICT (user_id, book_id) DO NOTHING",
       [req.session.user.id, bookId]
@@ -152,8 +156,9 @@ router.get("/api/books/search", async (req, res) => {
   res.set("Access-Control-Allow-Origin", "*");
   res.set("Cross-Origin-Resource-Policy", "cross-origin");
   res.set("Cache-Control", "public, max-age=60");
-  const q = (req.query.q || "").trim();
-  const genre = (req.query.genre || "").trim();
+  // clean(): capped, and an array (?q=a&q=b) can't reach .trim() and 500.
+  const q = clean(req.query.q, 100);
+  const genre = clean(req.query.genre, 100);
   // ?topic=mystery,thriller,crime — the Books page's fixed genre buttons.
   // Matches any in-stock book whose categories contain one of the words,
   // since real inventory categories are free text (from ISBN lookups).
@@ -292,15 +297,15 @@ router.get("/books/:id", async (req, res) => {
 // script could reserve the whole shelf under a single address for 2 weeks.
 const MAX_ACTIVE_RESERVATIONS_PER_EMAIL = 5;
 
-router.post("/books/:id/reserve", reserveLimiter, async (req, res) => {
+router.post("/books/:id/reserve", reserveLimiter, reserveDailyLimiter, async (req, res) => {
   const bookId = Number(req.params.id);
-  const copyId = Number(req.body.copyId);
+  const copyId = parseId(req.body.copyId);
   const name = clean(req.body.name, 100);
   const email = clean(req.body.email, 200).toLowerCase();
   const phone = clean(req.body.phone, 30) || null;
   const redirectUrl = `/books/${bookId}`;
 
-  if (!name || !isEmail(email) || !copyId) return res.redirect(redirectUrl);
+  if (!name || !isEmail(email) || copyId === null) return res.redirect(redirectUrl);
 
   const { rows: held } = await pool.query(
     "SELECT COUNT(*)::int AS n FROM book_copies WHERE status = 'reserved' AND lower(reserved_by_email) = $1",

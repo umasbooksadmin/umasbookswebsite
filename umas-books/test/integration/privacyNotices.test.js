@@ -50,11 +50,12 @@ test("alert and notice boxes carry ARIA roles in every view", () => {
     e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]);
   for (const f of walk(path.join(__dirname, "../../views")).filter((x) => x.endsWith(".ejs"))) {
     const src = fs.readFileSync(f, "utf8");
-    assert.equal((src.match(/<div class="error-box/g) || []).length, 0, `${f}: error-box without role`);
-    assert.equal((src.match(/<div class="notice-box/g) || []).length, 0, `${f}: notice-box without role`);
+    // A box is fine with its role before or after the class attribute.
+    assert.equal((src.match(/<div(?![^>]*\brole=)[^>]*class="error-box/g) || []).length, 0, `${f}: error-box without role`);
+    assert.equal((src.match(/<div(?![^>]*\brole=)[^>]*class="notice-box/g) || []).length, 0, `${f}: notice-box without role`);
   }
-  assert.match(view("login.ejs"), /role="alert" class="error-box"/);
-  assert.match(view("login.ejs"), /role="status" class="notice-box"/);
+  assert.match(view("login.ejs"), /<div[^>]*role="alert"[^>]*class="error-box"|<div[^>]*class="error-box"[^>]*role="alert"/);
+  assert.match(view("login.ejs"), /<div[^>]*role="status"[^>]*class="notice-box"|<div[^>]*class="notice-box"[^>]*role="status"/);
 });
 
 test("book cover has descriptive alt text", async () => {
