@@ -7,12 +7,15 @@
 // the users row alone leaves it all behind. eraseMember() handles both.
 
 const { withTransaction } = require("../db");
+const { sendMail } = require("../mailer");
+const { emailSafeName } = require("./validation");
 
 const RETENTION = {
   inactiveAccountYears: 3,
   signupMonths: 12,
   accountingYears: 10,
   tokenGraceDays: 7,
+  inactivityWarningDays: 30,
 };
 
 // Stands in for a name/email once someone is erased. The ".invalid" TLD
@@ -78,6 +81,9 @@ async function eraseMember(pool, userId, { client } = {}) {
   return client ? run(client) : withTransaction(pool, run);
 }
 
+const appUrl = () =>
+  (process.env.APP_BASE_URL || process.env.RENDER_EXTERNAL_URL || "https://www.umasbooks.org").replace(/\/$/, "");
+
 // Daily retention sweep. Each step is independent so one failure does not
 // stop the others; returns counts for logging (never any personal data).
 async function purgeExpiredPersonalData(pool) {
@@ -125,13 +131,48 @@ async function purgeExpiredPersonalData(pool) {
     return a.rowCount + b.rowCount;
   });
 
+  // Inactive accounts: warn by email first, delete 30 days later unless
+  // they log in (a login clears the warning). Never admins, never anyone
+  // with a current membership.
+  const INACTIVE = `NOT is_admin
+    AND (member_expires_at IS NULL OR member_expires_at < now())
+    AND COALESCE(last_login_at, created_at) < now() - interval '${RETENTION.inactiveAccountYears} years' + interval '${RETENTION.inactivityWarningDays} days'`;
+
+  await step("inactivityWarnings", async () => {
+    const { rows } = await pool.query(
+      `SELECT id, email, display_name FROM users WHERE ${INACTIVE} AND inactivity_warned_at IS NULL LIMIT 200`
+    );
+    let n = 0;
+    for (const u of rows) {
+      try {
+        await sendMail({
+          to: u.email,
+          subject: "Your Uma's Books account will be deleted in 30 days",
+          text:
+            `Hi ${emailSafeName(u.display_name)},\n\n` +
+            `You haven't logged in to your Uma's Books account for almost ${RETENTION.inactiveAccountYears} years. ` +
+            `To protect your privacy we delete inactive accounts, so yours will be deleted in ${RETENTION.inactivityWarningDays} days.\n\n` +
+            `To keep it, just log in once: ${appUrl()}/login\n\n` +
+            `If you no longer want an account, you don't need to do anything.`,
+        });
+        // Only marked after the mail went out: a failed send is retried
+        // tomorrow rather than deleting someone who was never warned.
+        await pool.query("UPDATE users SET inactivity_warned_at = now() WHERE id = $1", [u.id]);
+        n += 1;
+      } catch (err) {
+        console.error(`Inactivity warning failed for account ${u.id}:`, err.message);
+      }
+    }
+    return n;
+  });
+
   await step("inactiveAccounts", async () => {
-    // Never admins, never anyone with a current membership.
     const { rows } = await pool.query(
       `SELECT id FROM users
        WHERE NOT is_admin
          AND (member_expires_at IS NULL OR member_expires_at < now())
          AND COALESCE(last_login_at, created_at) < now() - interval '${RETENTION.inactiveAccountYears} years'
+         AND inactivity_warned_at < now() - interval '${RETENTION.inactivityWarningDays} days'
        LIMIT 200`
     );
     let n = 0;

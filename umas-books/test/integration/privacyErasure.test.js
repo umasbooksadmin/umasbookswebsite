@@ -29,17 +29,17 @@ after(async () => {
 
 const uniq = () => `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
 
-async function createUser({ admin = false, lastLoginYearsAgo = null, memberUntil = null } = {}) {
+async function createUser({ admin = false, lastLoginYearsAgo = null, memberUntil = null, warnedDaysAgo = null } = {}) {
   const email = `erase-${uniq()}@example.test`;
   const { rows } = await pool.query(
     `INSERT INTO users (email, password_hash, display_name, is_admin, email_verified_at,
-                        last_login_at, created_at, member_expires_at)
+                        last_login_at, created_at, member_expires_at, inactivity_warned_at)
      VALUES ($1, $2, 'Erase Me', $3, now(),
              CASE WHEN $4::int IS NULL THEN now() ELSE now() - make_interval(years => $4::int) END,
              CASE WHEN $4::int IS NULL THEN now() ELSE now() - make_interval(years => $4::int) END,
-             $5)
+             $5, CASE WHEN $6::int IS NULL THEN NULL ELSE now() - make_interval(days => $6::int) END)
      RETURNING id`,
-    [email, await bcrypt.hash(PASSWORD, 10), admin, lastLoginYearsAgo, memberUntil]
+    [email, await bcrypt.hash(PASSWORD, 10), admin, lastLoginYearsAgo, memberUntil, warnedDaysAgo]
   );
   return { id: rows[0].id, email };
 }
@@ -151,10 +151,10 @@ test("purge removes data past retention and keeps data inside it", async () => {
     `INSERT INTO orders (buyer_name, buyer_email, status, total_amount, created_at)
      VALUES ('o','o-mid@example.test','paid',1, now() - interval '9 years') RETURNING id`)).rows[0].id;
 
-  const stale = await createUser({ lastLoginYearsAgo: 4 });
+  const stale = await createUser({ lastLoginYearsAgo: 4, warnedDaysAgo: 31 });
   const fresh = await createUser({ lastLoginYearsAgo: 2 });
-  const oldAdmin = await createUser({ admin: true, lastLoginYearsAgo: 5 });
-  const oldPaidMember = await createUser({ lastLoginYearsAgo: 5, memberUntil: new Date(Date.now() + 86400000) });
+  const oldAdmin = await createUser({ admin: true, lastLoginYearsAgo: 5, warnedDaysAgo: 40 });
+  const oldPaidMember = await createUser({ lastLoginYearsAgo: 5, memberUntil: new Date(Date.now() + 86400000), warnedDaysAgo: 40 });
 
   const counts = await privacy.purgeExpiredPersonalData(pool);
   assert.ok(Object.values(counts).every((v) => v !== "error"), JSON.stringify(counts));
@@ -207,4 +207,32 @@ test("admin Erase Member route erases through the app,", async () => {
   assert.equal((await pool.query("SELECT 1 FROM users WHERE id=$1", [victim.id])).rows.length, 0);
   assert.equal((await pool.query("SELECT 1 FROM event_signups WHERE lower(email)=lower($1)", [victim.email])).rows.length, 0);
   assert.equal((await pool.query("SELECT 1 FROM orders WHERE buyer_email=$1", [victim.email])).rows.length, 0);
+});
+
+test("inactive accounts are warned first, and only deleted 30 days after the warning", async () => {
+  const unwarned = await createUser({ lastLoginYearsAgo: 4 });
+  const warnedRecently = await createUser({ lastLoginYearsAgo: 4, warnedDaysAgo: 10 });
+  const nearlyDue = await createUser({ lastLoginYearsAgo: 3 }); // 3y - 30d < inactive < 3y: warn, don't delete
+
+  await privacy.purgeExpiredPersonalData(pool);
+
+  const row = async (id) => (await pool.query("SELECT inactivity_warned_at FROM users WHERE id=$1", [id])).rows[0];
+  assert.ok(await row(unwarned.id), "unwarned account must still exist");
+  assert.ok((await row(unwarned.id)).inactivity_warned_at, "and now be marked warned");
+  assert.ok(await row(warnedRecently.id), "warned 10 days ago: not deleted yet");
+  assert.ok(await row(nearlyDue.id));
+});
+
+test("logging in clears the inactivity warning", async () => {
+  const u = await createUser({ lastLoginYearsAgo: 4, warnedDaysAgo: 5 });
+  const jar = makeCookieJar();
+  const token = await fetchCsrfToken(app.base, jar);
+  const res = await fetch(`${app.base}/login`, {
+    method: "POST", redirect: "manual",
+    headers: { ...FORM, cookie: jar.header() },
+    body: new URLSearchParams({ email: u.email, password: PASSWORD, _csrf: token }).toString(),
+  });
+  assert.equal(res.status, 302);
+  const { rows } = await pool.query("SELECT inactivity_warned_at FROM users WHERE id=$1", [u.id]);
+  assert.equal(rows[0].inactivity_warned_at, null);
 });

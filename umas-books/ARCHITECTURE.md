@@ -179,9 +179,12 @@ actually uses.
 - `purgeExpiredPersonalData(pool)` runs at boot and daily from `index.js`:
   sign-ups 12 months after the event, expired reset/verification tokens
   after 7 days, orders and payment records after 10 years, accounts with no
-  login for 3 years (never admins or current members). The `RETENTION`
+  login for 3 years (never admins or current members) — emailed a warning
+  first (`users.inactivity_warned_at`), deleted 30 days later unless they log
+  in, which clears the warning. The `RETENTION`
   constants must match the privacy policy page.
-- Not automated: contact-form messages live in the Gmail inbox, and server
+- Not automated: contact-form messages live in the Gmail inbox (the policy
+  says they are kept until the sender asks us to delete them), and server
   logs sit with Render. Log lines never contain emails.
 
 ## Dates and times (Europe/Paris)
