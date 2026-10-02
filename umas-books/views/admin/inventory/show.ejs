@@ -1,6 +1,7 @@
 <%- include('../../partials/admin_header', { title: book.title, active: active, pageTitle: book.title }) %>
 
 <p><a href="/admin/inventory">&larr; Back to inventory</a></p>
+<% if (typeof error !== 'undefined' && error) { %><div class="error-box"><%= error %></div><% } %>
 <p class="muted"><%= book.authors || 'Unknown author' %><%= book.isbn ? ' · ISBN ' + book.isbn : '' %><%= book.categories ? ' · ' + book.categories : '' %></p>
 
 <div class="card" style="display:flex; gap:20px;">
@@ -94,6 +95,9 @@
               </select>
               <label for="price-<%= c.id %>">Price (&euro;)</label>
               <input id="price-<%= c.id %>" name="price" type="number" step="0.01" min="0" value="<%= c.price != null ? c.price : '' %>">
+              <label for="publisherPrice-<%= c.id %>">Publisher's price (prix &eacute;diteur) (&euro;)</label>
+              <input id="publisherPrice-<%= c.id %>" name="publisherPrice" type="number" step="0.01" min="0" value="<%= c.publisher_price != null ? c.publisher_price : '' %>">
+              <p class="muted small">Required only when the condition is New. New books must be sold at the publisher's printed price; a discount of up to 5% is allowed (French fixed book price law).</p>
               <label for="acquisitionCost-<%= c.id %>">Acquisition cost (&euro;)</label>
               <input id="acquisitionCost-<%= c.id %>" name="acquisitionCost" type="number" step="0.01" min="0" value="<%= c.acquisition_cost != null ? c.acquisition_cost : '' %>">
               <label for="acquiredAt-<%= c.id %>">Acquisition Date</label>

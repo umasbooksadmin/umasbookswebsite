@@ -55,7 +55,7 @@
 
     <label for="condition">Condition</label>
     <select id="condition" name="condition">
-      <% conditions.forEach(c => { %><option value="<%= c.value %>" <%= c.value === 'good' ? 'selected' : '' %>><%= c.label %></option><% }) %>
+      <% conditions.forEach(c => { %><option value="<%= c.value %>" <%= c.value === (typeof selectedCondition !== 'undefined' ? selectedCondition : 'good') ? 'selected' : '' %>><%= c.label %></option><% }) %>
     </select>
 
     <label for="status">Status</label>
@@ -68,6 +68,10 @@
 
     <label for="price">Price (&euro;)</label>
     <input id="price" name="price" type="number" step="0.01" min="0" value="<%= defaultPricing.price %>">
+
+    <label for="publisherPrice">Publisher's price (prix &eacute;diteur) (&euro;)</label>
+    <input id="publisherPrice" name="publisherPrice" type="number" step="0.01" min="0" value="<%= typeof publisherPriceValue !== 'undefined' ? publisherPriceValue : '' %>">
+    <p class="muted small">Required only when the condition is New. New books must be sold at the publisher's printed price; a discount of up to 5% is allowed (French fixed book price law). Leave Price empty to use the publisher's price.</p>
 
     <label for="acquiredAt">Acquisition Date</label>
     <input id="acquiredAt" name="acquiredAt" type="date" value="<%= new Date().toLocaleDateString('en-CA') %>">

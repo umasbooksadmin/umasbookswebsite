@@ -5,7 +5,7 @@ const { requireAdmin } = require("../../middleware/auth");
 const { normalizeIsbn, lookupByIsbn, searchByTitleAuthor, translateGenresToFrench } = require("../../lib/bookLookup");
 const { extractBookInfoFromPhoto } = require("../../lib/coverVision");
 const { generateBookDescription, translateDescriptionToFrench } = require("../../lib/bookDescription");
-const { CONDITIONS, STATUSES, normalizeCondition, normalizeStatus, normalizeGenres } = require("../../lib/inventory");
+const { CONDITIONS, STATUSES, normalizeCondition, resolveCopyPricing, normalizeStatus, normalizeGenres } = require("../../lib/inventory");
 const { expireStaleReservations } = require("../../lib/reservations");
 
 const { validateIdParams } = require("../../middleware/idParams");
@@ -195,6 +195,27 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
     });
   }
 
+  // Fixed-price rule for new books (see lib/inventory.js). Checked before
+  // anything is saved so a refused copy leaves no half-created book behind.
+  const condition = normalizeCondition(req.body.condition);
+  const pricing = resolveCopyPricing(condition, req.body.price, req.body.publisherPrice);
+  if (pricing.error) {
+    return res.render("admin/inventory/new", {
+      active: "inventory",
+      book: { isbn, title, author, publisher, publishedYear, description, descriptionFr, coverUrl, genre, genreFr },
+      error: pricing.error,
+      fromScan: req.body.fromScan === "1",
+      conditions: CONDITIONS,
+      statuses: STATUSES,
+      selectedCondition: condition,
+      publisherPriceValue: req.body.publisherPrice || "",
+      defaultPricing: {
+        price: req.body.price ? Number(req.body.price) : 5,
+        acquisitionCost: req.body.acquisitionCost ? Number(req.body.acquisitionCost) : 0,
+      },
+    });
+  }
+
   const coverPhoto = req.files && req.files.coverPhoto && req.files.coverPhoto[0];
   if (coverPhoto) coverUrl = await processCoverPhoto(coverPhoto);
 
@@ -243,34 +264,34 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
     bookId = rows[0].id;
   }
 
-  const condition = normalizeCondition(req.body.condition);
   const status = normalizeStatus(req.body.status);
-  const price = req.body.price ? Number(req.body.price) : null;
+  const { price, publisherPrice } = pricing;
   const acquisitionCost = req.body.acquisitionCost ? Number(req.body.acquisitionCost) : null;
   const acquiredAt = req.body.acquiredAt || null;
   const notes = (req.body.copyNotes || "").trim() || null;
 
   await pool.query(
-    `INSERT INTO book_copies (book_id, condition, price, acquisition_cost, acquired_at, status, notes, created_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-    [bookId, condition, price, acquisitionCost, acquiredAt, status, notes, req.session.user.id]
+    `INSERT INTO book_copies (book_id, condition, price, publisher_price, acquisition_cost, acquired_at, status, notes, created_by)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+    [bookId, condition, price, publisherPrice, acquisitionCost, acquiredAt, status, notes, req.session.user.id]
   );
 
   if (req.body.fromScan === "1") return res.redirect("/admin/inventory/scan?saved=1");
   res.redirect(`/admin/inventory/${bookId}`);
 });
 
-router.get("/admin/inventory/:id", requireAdmin, async (req, res) => {
+async function renderBook(res, id, error = null) {
   await expireStaleReservations(pool);
-  const id = Number(req.params.id);
   const { rows: bookRows } = await pool.query("SELECT * FROM books WHERE id = $1", [id]);
   const book = bookRows[0];
   if (!book) return res.status(404).render("404");
   const { rows: copies } = await pool.query(
     "SELECT * FROM book_copies WHERE book_id = $1 ORDER BY created_at DESC", [id]
   );
-  res.render("admin/inventory/show", { active: "inventory", book, copies, conditions: CONDITIONS, statuses: STATUSES });
-});
+  res.render("admin/inventory/show", { active: "inventory", book, copies, conditions: CONDITIONS, statuses: STATUSES, error });
+}
+
+router.get("/admin/inventory/:id", requireAdmin, (req, res) => renderBook(res, Number(req.params.id)));
 
 router.post("/admin/inventory/:id", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
@@ -314,14 +335,16 @@ router.post("/admin/inventory/:id/copies/:copyId", requireAdmin, async (req, res
   const copyId = Number(req.params.copyId);
   const condition = normalizeCondition(req.body.condition);
   const status = normalizeStatus(req.body.status);
-  const price = req.body.price ? Number(req.body.price) : null;
+  const pricing = resolveCopyPricing(condition, req.body.price, req.body.publisherPrice);
+  if (pricing.error) return renderBook(res, bookId, pricing.error);
+  const { price, publisherPrice } = pricing;
   const acquisitionCost = req.body.acquisitionCost ? Number(req.body.acquisitionCost) : null;
   const acquiredAt = req.body.acquiredAt || null;
   const notes = (req.body.notes || "").trim() || null;
   await pool.query(
-    `UPDATE book_copies SET condition=$1, status=$2, price=$3, acquisition_cost=$4, acquired_at=$5, notes=$6, updated_at=now()
-     WHERE id = $7 AND book_id = $8`,
-    [condition, status, price, acquisitionCost, acquiredAt, notes, copyId, bookId]
+    `UPDATE book_copies SET condition=$1, status=$2, price=$3, publisher_price=$4, acquisition_cost=$5, acquired_at=$6, notes=$7, updated_at=now()
+     WHERE id = $8 AND book_id = $9`,
+    [condition, status, price, publisherPrice, acquisitionCost, acquiredAt, notes, copyId, bookId]
   );
   res.redirect(`/admin/inventory/${bookId}`);
 });

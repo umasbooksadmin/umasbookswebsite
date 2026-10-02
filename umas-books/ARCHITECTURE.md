@@ -82,6 +82,11 @@ different nav (no cart/account icons).
 `session` store table (created by `migrate.js` / `connect-pg-simple`
 rather than by a numbered migration), grouped by what they belong to:
 
+- **Fixed price for new books (loi Lang)** — a `book_copies` row with
+  condition `new` must carry `publisher_price` (migration 041) and be priced
+  between 95% and 100% of it; enforced server-side by `resolveCopyPricing`
+  in `src/lib/inventory.js` on both add-copy and edit-copy. Used copies are
+  free-priced and store `publisher_price` NULL.
 - **Accounts & auth** — `users`, `password_reset_tokens`,
   `email_verification_tokens`
 - **Shop / checkout** — `books`, `book_copies`, `orders`, `order_items`
