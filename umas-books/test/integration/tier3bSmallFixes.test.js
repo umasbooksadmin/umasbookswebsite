@@ -46,7 +46,7 @@ async function createUser(email, { isAdmin = false, isMember = true } = {}) {
 }
 
 async function post(path, fields, { jar = makeCookieJar(), ip = newIp() } = {}) {
-  const token = await fetchCsrfToken(app.base, jar);
+  const token = await fetchCsrfToken(app.base, jar, { "x-forwarded-for": ip });
   const res = await fetch(`${app.base}${path}`, {
     method: "POST",
     redirect: "manual",

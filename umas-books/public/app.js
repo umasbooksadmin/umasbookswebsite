@@ -11,6 +11,20 @@ document.addEventListener("click", function (e) {
   }
 });
 
+// Destructive-action confirmations. The admin forms used to carry an inline
+// onsubmit="return confirm(...)", which the app's CSP (script-src-attr
+// 'none') silently blocks — so the buttons submitted with no confirmation
+// at all. A form now declares data-confirm="message"; this one delegated
+// capture-phase listener asks, and cancels the submit if declined.
+document.addEventListener("submit", function (e) {
+  var form = e.target;
+  var message = form && form.getAttribute ? form.getAttribute("data-confirm") : null;
+  if (message && !window.confirm(message)) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+}, true);
+
 // Below 640px the admin sidebar (partials/admin_header.ejs) is an
 // off-canvas drawer rather than a permanent column (see admin.css) —
 // the hamburger button opens it, and the backdrop, its own close
@@ -41,6 +55,7 @@ document.addEventListener("click", function (e) {
   input.type = showing ? "password" : "text";
   btn.textContent = showing ? "Show" : "Hide";
   btn.setAttribute("aria-label", showing ? "Show password" : "Hide password");
+  btn.setAttribute("aria-pressed", showing ? "false" : "true");
 });
 
 document.addEventListener("change", function (e) {

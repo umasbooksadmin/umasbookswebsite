@@ -69,7 +69,7 @@
               </form>
             </div>
           </details>
-          <form method="post" action="/admin/charity-rounds/<%= activeRound.id %>/close" onsubmit="return confirm('Close this vote? It will move to Past Votes.');">
+          <form method="post" action="/admin/charity-rounds/<%= activeRound.id %>/close" data-confirm="Close this vote? It will move to Past Votes.">
             <%- include('../partials/csrf_field') %>
             <button class="btn btn-outline btn-small" type="submit">Close Vote</button>
           </form>
@@ -126,7 +126,7 @@
             <details class="ann-more">
               <summary class="btn btn-outline btn-small">&hellip;</summary>
               <div class="ann-more-menu">
-                <form method="post" action="/admin/charity-options/<%= o.id %>/delete" onsubmit="return confirm('Remove this charity from the vote?');">
+                <form method="post" action="/admin/charity-options/<%= o.id %>/delete" data-confirm="Remove this charity from the vote?">
                   <%- include('../partials/csrf_field') %>
                   <button type="submit" class="ann-menu-btn ann-menu-danger">Remove from Vote</button>
                 </form>
@@ -291,7 +291,7 @@
                 <button class="btn btn-outline btn-small" type="submit">Reject</button>
               </form>
             <% } %>
-            <form method="post" action="/admin/charity-ideas/<%= i.id %>/delete" style="display:inline;" onsubmit="return confirm('Delete this idea?');">
+            <form method="post" action="/admin/charity-ideas/<%= i.id %>/delete" style="display:inline;" data-confirm="Delete this idea?">
               <%- include('../partials/csrf_field') %>
               <input type="hidden" name="ideasTab" value="<%= ideasSubTab %>">
               <button class="btn btn-outline btn-small ann-menu-danger" type="submit">Delete</button>
