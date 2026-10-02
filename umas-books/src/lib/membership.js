@@ -33,7 +33,7 @@ async function syncMembershipForEmail(pool, email) {
   const { rows: userRows } = await pool.query("SELECT id, email_verified_at FROM users WHERE lower(email) = lower($1)", [email]);
   const user = userRows[0];
   if (!user) {
-    console.warn(`HelloAsso membership payment from ${email} has no matching site account — skipped.`);
+    console.warn(`HelloAsso membership payment has no matching site account — skipped.`);
     return;
   }
   // Signup never proved this account actually controls this email
@@ -46,7 +46,7 @@ async function syncMembershipForEmail(pool, email) {
   // — that part still needs an admin to step in via /admin/members (edit
   // the squatter's email, or disable the account) once noticed.
   if (!user.email_verified_at) {
-    console.warn(`HelloAsso membership payment from ${email} matched an account with an unverified email — skipped.`);
+    console.warn(`HelloAsso membership payment matched an account with an unverified email — skipped.`);
     return;
   }
 
@@ -77,7 +77,7 @@ async function syncMembershipForEmail(pool, email) {
       reversed.push(r);
     } else {
       if (!order) {
-        console.warn(`HelloAsso order ${r.helloasso_order_id} for ${email} is recorded but absent from the search response — keeping it.`);
+        console.warn(`HelloAsso order ${r.helloasso_order_id} is recorded but absent from the search response — keeping it.`);
       }
       stillValid.push(r);
     }
@@ -120,7 +120,7 @@ async function syncMembershipForEmail(pool, email) {
 function syncMembershipInBackground(pool, email) {
   if (!email || !isConfigured()) return;
   syncMembershipForEmail(pool, email).catch((err) =>
-    console.error(`Membership sync after account change failed for ${email}:`, err.message));
+    console.error(`Membership sync after account change failed:`, err.message));
 }
 
 // Belt-and-suspenders backstop (see runReservationMaintenance/runCartMaintenance
@@ -155,7 +155,7 @@ async function reconcileRecentMemberships(pool) {
     try {
       await syncMembershipForEmail(pool, email);
     } catch (err) {
-      console.error(`Membership reconciliation failed for ${email}:`, err.message);
+      console.error(`Membership reconciliation failed:`, err.message);
     }
   }
 }
