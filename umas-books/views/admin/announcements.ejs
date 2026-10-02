@@ -139,7 +139,7 @@
                           <input type="hidden" name="backQuery" value="<%= currentQs %>">
                           <button type="submit" class="ann-menu-btn">Restore</button>
                         </form>
-                        <form method="post" action="/admin/announcements/<%= a.id %>/delete" onsubmit="return confirm('Delete this announcement permanently? This can\'t be undone.');">
+                        <form method="post" action="/admin/announcements/<%= a.id %>/delete" data-confirm="Delete this announcement permanently? This can't be undone.">
                           <%- include('../partials/csrf_field') %>
                           <input type="hidden" name="backQuery" value="<%= currentQs %>">
                           <button type="submit" class="ann-menu-btn ann-menu-danger">Delete Permanently</button>

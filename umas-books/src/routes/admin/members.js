@@ -279,6 +279,21 @@ router.post("/admin/members/:id/edit", requireAdmin, async (req, res) => {
   res.redirect(`/admin/members?view=${id}${membersBackQuery(req)}`);
 });
 
+// Lost phone AND recovery codes: another admin clears the account's
+// two-step setup. password_changed_at logs the account out everywhere;
+// an admin must enrol again at their next admin visit.
+router.post("/admin/members/:id/reset-2fa", requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  await pool.query(
+    `UPDATE users SET totp_secret_enc = NULL, totp_enabled_at = NULL, totp_last_step = NULL,
+            password_changed_at = now() WHERE id = $1`,
+    [id]
+  );
+  await pool.query("DELETE FROM totp_recovery_codes WHERE user_id = $1", [id]);
+  console.log(`Two-step verification of member ${id} reset by admin ${req.session.user.id}.`);
+  res.redirect(`/admin/members?view=${id}${membersBackQuery(req)}`);
+});
+
 router.post("/admin/members/:id/delete", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   if (id === req.session.user.id) return res.redirect(`/admin/members${membersBackQuery(req).replace("&", "?")}`);

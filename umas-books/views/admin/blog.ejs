@@ -162,7 +162,7 @@
     </div>
   </form>
   <% posts.forEach(p => { %>
-    <form id="blog-delete-<%= p.id %>" method="post" action="/admin/blog/<%= p.id %>/delete" onsubmit="return confirm('Delete this post permanently?');" style="display:none;">
+    <form id="blog-delete-<%= p.id %>" method="post" action="/admin/blog/<%= p.id %>/delete" data-confirm="Delete this post permanently?" style="display:none;">
       <%- include('../partials/csrf_field') %>
       <input type="hidden" name="backQuery" value="<%= listQs %>">
     </form>
@@ -180,21 +180,6 @@
   <% } %>
 </div>
 
-<script>
-document.getElementById('blog-preview-btn').addEventListener('click', function () {
-  var form = document.getElementById('blog-form');
-  var title = form.querySelector('[name=title]').value || 'Untitled post';
-  var editor = form.querySelector('.richtext-editor');
-  var content = editor ? editor.innerHTML : '';
-  var win = window.open('', '_blank');
-  if (!win) return;
-  win.document.write(
-    '<!doctype html><html><head><meta charset="utf-8"><title>Preview — ' + title.replace(/</g, '&lt;') + '</title>' +
-    '<style>body{font-family:Georgia,serif;max-width:680px;margin:40px auto;padding:0 20px;line-height:1.6;color:#2a2620;} h1{font-family:Georgia,serif;}</style>' +
-    '</head><body><p style="color:#999;text-transform:uppercase;font-size:12px;letter-spacing:0.06em;">Preview — not yet saved</p><h1>' + title.replace(/</g, '&lt;') + '</h1>' + content + '</body></html>'
-  );
-  win.document.close();
-});
-</script>
+<script src="/blog-preview.js"></script>
 
 <%- include('../partials/admin_footer') %>

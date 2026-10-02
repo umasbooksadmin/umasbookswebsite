@@ -25,15 +25,19 @@ const { pool } = require("./db");
 const { attachUser, requireAdmin } = require("./middleware/auth");
 const { csrfProtection, csrfTokenEndpoint } = require("./middleware/csrf");
 const { expireStaleReservations, sendPickupReminders } = require("./lib/reservations");
-const { expireStaleCartHolds, reconcilePendingOrders } = require("./lib/cart");
+const { runCartMaintenance: sweepCart } = require("./lib/cart");
+const { guardJob } = require("./lib/jobGuard");
 const { purgeExpiredPersonalData } = require("./lib/privacy");
 const { expireStaleMemberships, reconcileRecentMemberships } = require("./lib/membership");
 const { alertOnError } = require("./lib/errorAlert");
 const { errorHandler } = require("./lib/errorHandler");
 const { noStoreForUsers } = require("./middleware/noStoreForUsers");
 const { healthzHandler } = require("./lib/health");
+const seoRoutes = require("./routes/seo");
+const { MARKETING_PAGES, setMarketingSeoLocals } = seoRoutes;
 
 const authRoutes = require("./routes/auth");
+const twoFactorRoutes = require("./routes/twoFactor");
 const dashboardRoutes = require("./routes/dashboard");
 const accountRoutes = require("./routes/account");
 const forumRoutes = require("./routes/forum");
@@ -87,6 +91,10 @@ app.get("/logo.png", (req, res) => res.sendFile(path.join(marketingRoot, "logo.p
 // broken DB can't also break the session store's own read on the way
 // to this route.
 app.get("/healthz", healthzHandler(pool));
+
+// robots.txt and sitemap.xml: also before the session, so crawlers never
+// create a session row (and so they bypass CSRF/attachUser entirely).
+app.use(seoRoutes.router);
 
 // Date/time display helpers, available in every view without importing.
 Object.assign(app.locals, require("./lib/dates"));
@@ -275,11 +283,6 @@ const marketingCsp = [
   // hub (paymenthub.helloassopay.com) loads inside that frame, not in ours.
   "frame-src https://www.helloasso.com",
 ].join("; ");
-const MARKETING_PAGES = [
-  "about.html", "blog.html", "books.html", "events.html", "programs.html",
-  "immersion.html", "pre-registration.html", "membership.html", "visit.html",
-  "volunteer.html", "privacy-policy.html", "membership-terms.html", "terms-of-sale.html", "mentions-legales.html",
-];
 
 
 app.get("/", (req, res) => {
@@ -290,6 +293,7 @@ app.get("/", (req, res) => {
   const u = req.session.user;
   if (u && (u.isAdmin || u.isMember || u.isVolunteer)) return res.redirect("/dashboard");
   res.set("Content-Security-Policy", marketingCsp);
+  setMarketingSeoLocals(req, res, "/");
   res.render("marketing/index");
 });
 
@@ -307,11 +311,13 @@ app.get("/admin/programs", (req, res) => res.redirect(301, "/admin/sessions" + q
 MARKETING_PAGES.forEach((file) => {
   app.get("/" + file, (req, res) => {
     res.set("Content-Security-Policy", marketingCsp);
+    setMarketingSeoLocals(req, res, "/" + file);
     res.render("marketing/" + file.replace(/\.html$/, ""));
   });
 });
 
 app.use(authRoutes);
+app.use(twoFactorRoutes);
 app.use(dashboardRoutes);
 app.use(accountRoutes);
 app.use(forumRoutes);
@@ -381,12 +387,14 @@ server.on("error", (err) => {
 // on its own). Pickup-reminder emails (3 days before expiry) only ever
 // run from here, not on page reads — sending mail is a side effect that
 // doesn't belong in a GET request's hot path.
-function runReservationMaintenance() {
-  expireStaleReservations(pool).catch((err) => console.error("Reservation expiry failed:", err));
-  sendPickupReminders(pool).catch((err) => console.error("Pickup reminders failed:", err));
-  expireStaleMemberships(pool).catch((err) => console.error("Membership expiry failed:", err));
-  reconcileRecentMemberships(pool).catch((err) => console.error("Membership reconciliation failed:", err));
-}
+const runReservationMaintenance = guardJob("Reservation maintenance", async () => {
+  await Promise.allSettled([
+    expireStaleReservations(pool).catch((err) => console.error("Reservation expiry failed:", err)),
+    sendPickupReminders(pool).catch((err) => console.error("Pickup reminders failed:", err)),
+    expireStaleMemberships(pool).catch((err) => console.error("Membership expiry failed:", err)),
+    reconcileRecentMemberships(pool).catch((err) => console.error("Membership reconciliation failed:", err)),
+  ]);
+});
 runReservationMaintenance();
 const reservationTimer = setInterval(runReservationMaintenance, 6 * 60 * 60 * 1000);
 
@@ -400,11 +408,12 @@ const reservationTimer = setInterval(runReservationMaintenance, 6 * 60 * 60 * 10
 // re-checks orders expired/cancelled in the last 7 days for a payment that
 // landed after the hold lapsed — see "LATE PAYMENTS" in lib/cart.js.
 let cartMaintenanceTick = 0;
-function runCartMaintenance() {
+// Sweeps run sequentially (expiry, then reconcile) and a slow run is not
+// overlapped by the next tick - see runCartMaintenance in lib/cart.js.
+const runCartMaintenance = guardJob("Cart maintenance", () => {
   const includeClosed = cartMaintenanceTick++ % 6 === 0;
-  expireStaleCartHolds(pool).catch((err) => console.error("Cart hold expiry failed:", err));
-  reconcilePendingOrders(pool, { includeClosed }).catch((err) => console.error("Order reconciliation failed:", err));
-}
+  return sweepCart(pool, { includeClosed });
+});
 runCartMaintenance();
 const cartTimer = setInterval(runCartMaintenance, 10 * 60 * 1000);
 
