@@ -72,9 +72,12 @@ async function enrol(user) {
   assert.equal(page.res.status, 200);
   assert.match(page.text, /data:image\/png;base64/);
   const secret = await secretOf(user.id);
-  const wrong = await post(jar, "/account/2fa/enable", { code: "000000" });
+  const badPw = await post(jar, "/account/2fa/enable", { code: totp.hotp(secret, totp.currentStep()), password: "wrong" });
+  assert.equal(badPw.res.status, 400);
+  assert.equal((await pool.query("SELECT totp_enabled_at FROM users WHERE id=$1", [user.id])).rows[0].totp_enabled_at, null);
+  const wrong = await post(jar, "/account/2fa/enable", { code: "000000", password: PASSWORD });
   assert.equal(wrong.res.status, 400);
-  const ok = await post(jar, "/account/2fa/enable", { code: totp.hotp(secret, totp.currentStep()) });
+  const ok = await post(jar, "/account/2fa/enable", { code: totp.hotp(secret, totp.currentStep()), password: PASSWORD });
   assert.equal(ok.res.status, 200);
   const codes = [...ok.text.matchAll(/<code>([A-Z2-7]{5}-[A-Z2-7]{5})<\/code>/g)].map((m) => m[1]);
   assert.equal(codes.length, 10);
@@ -171,4 +174,28 @@ test("admins cannot disable it; another admin can reset it and the account must 
   assert.equal(again.r.res.status, 302);
   assert.match((await get(again.jar, "/admin")).res.headers.get("location"), /^\/account\/2fa/);
   void otherJar;
+});
+
+test("wrong two-step codes lock the account, whatever cookie or session the attacker uses", async () => {
+  const admin = await createUser({ admin: true });
+  await enrol(admin);
+  // Fresh login (new cookie) each round: the per-session counter never reaches 5, the account counter does.
+  for (let round = 0; round < 3; round++) {
+    const a = await passwordLogin(admin.email);
+    if (a.r.res.headers.get("location") !== "/login/2fa") break;
+    for (let i = 0; i < 2; i++) await post(a.jar, "/login/2fa", { code: "222222" });
+  }
+  const { rows } = await pool.query("SELECT locked_until FROM users WHERE id=$1", [admin.id]);
+  assert.ok(rows[0].locked_until && new Date(rows[0].locked_until) > new Date(), "account must be locked");
+});
+
+test("an undecryptable secret does not 500 the login; recovery codes still work", async () => {
+  const admin = await createUser({ admin: true });
+  const { codes } = await enrol(admin);
+  await pool.query("UPDATE users SET totp_secret_enc = 'AAAA.BBBB.CCCC' WHERE id=$1", [admin.id]);
+  const a = await passwordLogin(admin.email);
+  const bad = await post(a.jar, "/login/2fa", { code: "123456" });
+  assert.equal(bad.res.status, 401);
+  const ok = await post(a.jar, "/login/2fa", { code: codes[0] });
+  assert.equal(ok.res.status, 302);
 });

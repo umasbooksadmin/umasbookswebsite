@@ -86,6 +86,20 @@ function loginAs(req, res, user, redirectTo) {
   });
 }
 
+// One atomic statement: a read-add-write in JS lets parallel wrong guesses
+// all read the same count and undercount past the lock threshold. Used for
+// wrong passwords AND wrong two-step codes, so guessing a code is capped
+// per account (not per cookie/IP) like guessing a password.
+function countFailedAttempt(userId) {
+  return pool.query(
+    `UPDATE users
+     SET failed_login_attempts = CASE WHEN failed_login_attempts + 1 >= $2 THEN 0 ELSE failed_login_attempts + 1 END,
+         locked_until = CASE WHEN failed_login_attempts + 1 >= $2 THEN $3::timestamptz ELSE locked_until END
+     WHERE id = $1`,
+    [userId, LOGIN_LOCK_THRESHOLD, new Date(Date.now() + LOGIN_LOCK_DURATION_MS)]
+  );
+}
+
 router.get("/signup", (req, res) => {
   if (req.session.user) {
     const u = req.session.user;
@@ -209,13 +223,7 @@ router.post("/login", loginLimiter, async (req, res) => {
         // concurrent attempts count one by one; whichever one reaches the
         // threshold sets the lock and resets the counter in the same
         // statement (a later one, now seeing 0, simply counts again).
-        await pool.query(
-          `UPDATE users
-           SET failed_login_attempts = CASE WHEN failed_login_attempts + 1 >= $2 THEN 0 ELSE failed_login_attempts + 1 END,
-               locked_until = CASE WHEN failed_login_attempts + 1 >= $2 THEN $3::timestamptz ELSE locked_until END
-           WHERE id = $1`,
-          [user.id, LOGIN_LOCK_THRESHOLD, new Date(Date.now() + LOGIN_LOCK_DURATION_MS)]
-        );
+        await countFailedAttempt(user.id);
       }
       return res.status(401).render("login", { error: "Incorrect email or password.", notice: null });
     }
@@ -229,7 +237,10 @@ router.post("/login", loginLimiter, async (req, res) => {
       });
     }
 
-    if (user.failed_login_attempts > 0 || user.locked_until) {
+    // With two-step on, a right password must NOT wipe the failure count:
+    // otherwise an attacker who has the password could re-login between
+    // code guesses and never reach the lock. It's cleared after the code.
+    if (!user.totp_enabled_at && (user.failed_login_attempts > 0 || user.locked_until)) {
       await pool.query("UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = $1", [user.id]);
     }
 
@@ -264,6 +275,7 @@ const twoFactorLimiter = limit({
   max: 10,
   skipSuccessfulRequests: true,
   requestWasSuccessful: (req, res) => res.statusCode !== 401,
+  keyGenerator: (req) => (req.session.pending2fa ? `2fa:${req.session.pending2fa.userId}` : `ip:${req.ip}`),
 });
 
 function pendingLogin(req) {
@@ -284,6 +296,7 @@ router.post("/login/2fa", twoFactorLimiter, async (req, res) => {
   const pending = pendingLogin(req);
   if (!pending) return res.redirect("/login");
   const fail = async () => {
+    await countFailedAttempt(pending.userId);
     pending.fails += 1;
     if (pending.fails >= MAX_2FA_FAILS) {
       req.session.pending2fa = null;
@@ -301,12 +314,24 @@ router.post("/login/2fa", twoFactorLimiter, async (req, res) => {
       req.session.pending2fa = null;
       return res.redirect("/login");
     }
+    if (user.locked_until && new Date(user.locked_until) > new Date()) {
+      req.session.pending2fa = null;
+      return res.status(401).render("login", { error: "Too many wrong attempts. Try again in a few minutes.", notice: null });
+    }
     const code = String(req.body.code || "").trim();
 
     let accepted = false;
     if (/^\d{3}\s?\d{3}$/.test(code)) {
-      const step = totp.verifyTotp(totp.decryptSecret(user.totp_secret_enc), code, { lastStep: user.totp_last_step });
-      if (step != null) {
+      let secret = null;
+      try {
+        secret = totp.decryptSecret(user.totp_secret_enc);
+      } catch (err) {
+        // The encryption key changed: the code can't be checked. Recovery
+        // codes still work; an admin can reset the account's two-step.
+        console.error(`Two-step secret of account ${user.id} could not be decrypted:`, err.message);
+      }
+      const step = secret && totp.verifyTotp(secret, code, { lastStep: user.totp_last_step });
+      if (step != null && step !== false) {
         // Atomic: a replayed code (same step) matches no row.
         const { rowCount } = await pool.query(
           "UPDATE users SET totp_last_step = $2 WHERE id = $1 AND (totp_last_step IS NULL OR totp_last_step < $2)",
@@ -325,7 +350,7 @@ router.post("/login/2fa", twoFactorLimiter, async (req, res) => {
     if (!accepted) return await fail();
 
     req.session.pending2fa = null;
-    await pool.query("UPDATE users SET last_login_at = now(), inactivity_warned_at = NULL WHERE id = $1", [user.id]);
+    await pool.query("UPDATE users SET last_login_at = now(), inactivity_warned_at = NULL, failed_login_attempts = 0, locked_until = NULL WHERE id = $1", [user.id]);
     loginAs(req, res, user, user.is_admin ? "/admin" : (user.is_member || user.is_volunteer) ? "/dashboard" : "/");
   } catch (err) {
     console.error(err);

@@ -4,6 +4,7 @@
 
 const express = require("express");
 const QRCode = require("qrcode");
+const bcrypt = require("bcryptjs");
 const { pool, withTransaction } = require("../db");
 const { requireAuth } = require("../middleware/auth");
 const { limit } = require("../middleware/rateLimits");
@@ -48,6 +49,13 @@ router.post("/account/2fa/enable", requireAuth, codeLimiter, async (req, res) =>
   const user = await loadUser(req.session.user.id);
   if (user.totp_enabled_at) return res.redirect("/account/2fa");
   if (!user.totp_secret_enc) return res.redirect("/account/2fa");
+
+  // Re-prove the password: without this, anyone holding a stolen admin
+  // session (or password) before the real admin enrols could enrol their
+  // OWN authenticator and lock the real admin out.
+  if (!(await bcrypt.compare(String(req.body.password || ""), user.password_hash))) {
+    return renderSetup(res, user, { error: "Your password didn't match. Enter your account password to continue." });
+  }
 
   const step = totp.verifyTotp(totp.decryptSecret(user.totp_secret_enc), req.body.code);
   if (step == null) return renderSetup(res, user, { error: "That code didn't match. Check the code in your app and try again." });

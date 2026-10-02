@@ -9,10 +9,12 @@
   <li>Install an authenticator app on your phone (Google Authenticator, Microsoft Authenticator, 1Password, Authy…).</li>
   <li>Scan this QR code with the app:<br><img src="<%= qr %>" alt="QR code for two-step verification" width="220" height="220"></li>
   <li>Can't scan? Enter this key by hand: <code><%= secret %></code></li>
-  <li>Type the 6-digit code the app shows:</li>
+  <li>Type your account password and the 6-digit code the app shows:</li>
 </ol>
 <form class="stack" method="post" action="/account/2fa/enable">
   <%- include('partials/csrf_field') %>
+  <label for="password">Your account password</label>
+  <input id="password" name="password" type="password" autocomplete="current-password" required>
   <label for="code">Code</label>
   <input id="code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" required>
   <button class="btn" type="submit">Turn on two-step verification</button>
