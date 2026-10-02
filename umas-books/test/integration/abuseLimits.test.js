@@ -163,7 +163,18 @@ test("the same ISBN added simultaneously ends up as one book with all the copies
   const fields = {
     title: "Racy Book", author: "R", isbn, description: "d", descriptionFr: "d", coverUrl: "https://example.test/c.jpg", price: "5",
   };
-  const results = await Promise.all(Array.from({ length: 6 }, () => post(admin, "/admin/inventory", fields)));
+  // One CSRF token for all six requests: six concurrent token fetches on one
+  // session would race each other (each can replace the other's token).
+  const token = await fetchCsrfToken(app.base, admin);
+  const results = await Promise.all(Array.from({ length: 6 }, () =>
+    fetch(`${app.base}/admin/inventory`, {
+      method: "POST",
+      redirect: "manual",
+      headers: { ...FORM, cookie: admin.header() },
+      body: new URLSearchParams({ ...fields, _csrf: token }).toString(),
+    })
+  ));
+  for (const r of results) await r.text();
   for (const r of results) assert.equal(r.status, 302);
   const { rows: books } = await pool.query("SELECT id FROM books WHERE isbn = $1", [isbn]);
   assert.equal(books.length, 1);
