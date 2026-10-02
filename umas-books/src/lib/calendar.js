@@ -1,6 +1,7 @@
 // Pure date-math helpers for rendering a month-grid calendar in EJS views.
-// All dates are handled in the server's local timezone, matching the
-// display helpers in lib/dates.js that views use to render them.
+// All dates are handled in the server's local timezone, which lib/tz.js
+// pins to Europe/Paris, matching the display helpers in lib/dates.js.
+require("./tz");
 
 function dateKey(d) {
   const dt = d instanceof Date ? d : new Date(d);

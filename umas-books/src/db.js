@@ -1,3 +1,4 @@
+require("./lib/tz"); // Europe/Paris — see lib/tz.js
 const { Pool } = require("pg");
 
 if (!process.env.DATABASE_URL) {
@@ -18,6 +19,27 @@ if (!process.env.DATABASE_URL) {
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.PGSSLMODE === "disable" ? false : { rejectUnauthorized: false },
+  // Without these pg waits forever for a connection and a runaway query or
+  // abandoned transaction holds a connection (and row locks) indefinitely —
+  // when Postgres becomes unreachable, requests would pile up instead of
+  // failing. Deliberately generous: migrations and the seed run through this
+  // same pool (migrate.js lifts statement_timeout for its own connection,
+  // since it can block on its advisory lock while another deploy migrates).
+  max: 10,
+  connectionTimeoutMillis: 5000,
+  idleTimeoutMillis: 30000,
+  statement_timeout: 30000,
+  idle_in_transaction_session_timeout: 30000,
+});
+
+// An idle pooled client whose connection drops (DB restart, failover,
+// network blip, Render maintenance) makes pg emit 'error' on the pool. With
+// no listener Node treats that as an uncaught exception, and index.js's
+// uncaughtException handler exits on purpose — so a hiccup while nobody was
+// querying would restart the whole service. pg has already discarded the
+// dead client; the next query just gets a fresh connection.
+pool.on("error", (err) => {
+  console.error("Idle PostgreSQL client error (client discarded, continuing):", err.message);
 });
 
 // Shared transaction boilerplate — checkout (lib/cart.js) and the event/

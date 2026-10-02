@@ -4,9 +4,9 @@
 <p class="muted" data-i18n="contact.intro">Questions about books, programs, events or donations? Send us a message and we'll get back to you by email.</p>
 
 <% if (sent) { %>
-  <div class="notice-box" data-i18n="contact.sent">Thank you! Your message has been sent — we'll reply by email soon.</div>
+  <div role="status" class="notice-box" data-i18n="contact.sent">Thank you! Your message has been sent — we'll reply by email soon.</div>
 <% } %>
-<% if (error) { %><div class="error-box"><%= error %></div><% } %>
+<% if (error) { %><div role="alert" class="error-box"><%= error %></div><% } %>
 
 <div class="card">
   <form class="stack" method="post" action="/contact">

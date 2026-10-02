@@ -1,7 +1,9 @@
 const express = require("express");
-const sharp = require("sharp");
+const { saveImage } = require("../../lib/imageStore");
+const { sharpFromUpload } = require("../../lib/uploadImage");
 const { pool } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
+const { parseLocalDateTime } = require("../../lib/dates");
 const { CHARITY_CATEGORIES } = require("../../lib/charityCategories");
 
 const { validateIdParams } = require("../../middleware/idParams");
@@ -14,12 +16,12 @@ validateIdParams(router, "id");
 // ---------- Charity vote ----------
 
 async function processCharityImage(file) {
-  const resized = await sharp(file.buffer)
+  const resized = await sharpFromUpload(file.buffer)
     .rotate()
     .resize(600, 400, { fit: "cover" })
     .jpeg({ quality: 78 })
     .toBuffer();
-  return `data:image/jpeg;base64,${resized.toString("base64")}`;
+  return saveImage(resized, "image/jpeg");
 }
 
 // Every round-options query joins back to the library this way — a
@@ -97,8 +99,8 @@ router.get("/admin/charity", requireAdmin, async (req, res) => {
 router.post("/admin/charity-rounds", requireAdmin, async (req, res) => {
   const title = (req.body.title || "").trim();
   const label = (req.body.label || "").trim() || null;
-  const opensAt = req.body.opensAt || null;
-  const closesAt = req.body.closesAt || null;
+  const opensAt = parseLocalDateTime(req.body.opensAt);
+  const closesAt = parseLocalDateTime(req.body.closesAt);
   const allowMultiple = req.body.allowMultiple === "on";
   const visibleTo = req.body.visibleTo === "everyone" ? "everyone" : "members";
   const showResultsDuringVote = req.body.showResultsDuringVote === "on";
@@ -118,8 +120,8 @@ router.post("/admin/charity-rounds/:id/settings", requireAdmin, async (req, res)
   const id = Number(req.params.id);
   const title = (req.body.title || "").trim();
   const label = (req.body.label || "").trim() || null;
-  const opensAt = req.body.opensAt || null;
-  const closesAt = req.body.closesAt || null;
+  const opensAt = parseLocalDateTime(req.body.opensAt);
+  const closesAt = parseLocalDateTime(req.body.closesAt);
   const allowMultiple = req.body.allowMultiple === "on";
   const visibleTo = req.body.visibleTo === "everyone" ? "everyone" : "members";
   const showResultsDuringVote = req.body.showResultsDuringVote === "on";
