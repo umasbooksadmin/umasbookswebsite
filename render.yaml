@@ -30,11 +30,16 @@ services:
     # Lockfile-exact, and --omit=dev skips puppeteer (and its Chrome download):
     # nothing in migrate/seed/start requires a devDependency.
     buildCommand: npm ci --omit=dev
+    # Migrations run BEFORE the new version takes traffic: if one fails the
+    # deploy is aborted and the running version keeps serving, instead of a
+    # crash loop on the live site. (The migration runner is tracked and
+    # takes an advisory lock, so it is safe if it ever runs twice.)
+    preDeployCommand: npm run migrate
     # seed is idempotent (only creates an admin if none exists yet, only
     # seeds sample announcements/charity content if none exists) — safe to
     # run on every startup. It's how the first admin account gets onto a
     # fresh database without needing a Shell session to run one-off commands.
-    startCommand: npm run migrate && npm run seed && npm start
+    startCommand: npm run seed && npm start
     envVars:
       - key: DATABASE_URL
         fromDatabase:

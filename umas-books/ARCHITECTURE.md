@@ -311,12 +311,13 @@ Render Blueprint) at the repo root:
    CI failure as "go fix this," not as something that already stopped a
    bad deploy.
 2. Render's `buildCommand` runs `npm ci --omit=dev`.
-3. Render's `startCommand` runs `npm run migrate && npm run seed && npm
-   start`, in that order, every time the service starts — including a
-   free-tier spin-down/wake cycle, not just a real deploy. Both
-   `migrate` and `seed` are written to be safe to re-run (see above; the
-   seed script specifically only creates the first admin account if none
-   exists yet).
+3. Render's `preDeployCommand` runs `npm run migrate` before the new
+   version takes traffic; if a migration fails the deploy is aborted and the
+   running version keeps serving. Then `startCommand` runs
+   `npm run seed && npm start` every time the service starts. `migrate`
+   is tracked (each file runs once) and takes an advisory lock; `seed` is
+   safe to re-run (it only creates the first admin account if none exists
+   yet). Rolling back to an older commit does NOT undo migrations.
    The Node version is pinned to 22 (`engines` in `package.json`,
    `.node-version`, CI's `NODE_VERSION`), and `render.yaml` sets
    `healthCheckPath: /healthz` (a `SELECT 1`) so a deploy that can't
