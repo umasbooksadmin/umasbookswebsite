@@ -166,12 +166,6 @@ test("a reminder then expiry: after the copy is released and re-reserved, the ne
 });
 
 test("two backstop runs at the same moment send a given reminder only once",
-  {
-    todo: "BUG lib/reservations.js sendPickupReminders: it SELECTs due rows, sends the mail, and only then sets reminder_sent_at "
-      + "(send-then-mark, no atomic claim). Two overlapping runs (e.g. the periodic timer firing while another instance/overlapping "
-      + "tick is mid-send) both read reminder_sent_at IS NULL and each emails the customer. Repro: one reserved copy 12 days old, "
-      + "mailer.sendMail slow (50ms), Promise.all([sendPickupReminders(pool), sendPickupReminders(pool)]) -> 2 emails.",
-  },
   async () => {
     const c = await reservedCopy({ age: "12 days" });
     sendImpl = () => new Promise((r) => setTimeout(r, 50));

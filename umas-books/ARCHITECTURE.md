@@ -208,8 +208,13 @@ others. `lib/totp.js` (hand-rolled on `node:crypto`), `routes/twoFactor.js`
   after 7 days, orders and payment records after 10 years, accounts with no
   login for 3 years (never admins or current members) — emailed a warning
   first (`users.inactivity_warned_at`), deleted 30 days later unless they log
-  in, which clears the warning. The `RETENTION`
-  constants must match the privacy policy page.
+  in, which clears the warning (any signed-in request also counts as
+  activity: `attachUser` refreshes `last_login_at` at most once a day).
+  Contact details on `book_copies` that are no longer reserved (sold or
+  cancelled) and on `expired`/`cancelled` orders are removed after 30 days.
+  The warning email is claimed (`inactivity_warned_at` set) before it is
+  sent and released if the send fails, so overlapping instances don't
+  double-send. The `RETENTION` constants must match the privacy policy page.
 - Not automated: contact-form messages live in the Gmail inbox (the policy
   says they are kept until the sender asks us to delete them), and server
   logs sit with Render. Log lines never contain emails.

@@ -84,6 +84,7 @@ jobs:
           # network blip.
           for attempt in 1 2 3; do
             if /usr/lib/postgresql/18/bin/pg_dump --no-owner --no-privileges --format=custom \
+                 --exclude-table-data=session \
                  --exclude-table-data=images \
                  --file="backup/umas_books_${STAMP}.dump" "$DATABASE_URL"; then
               break
@@ -105,25 +106,28 @@ jobs:
           # actions/checkout configures a narrow fetch refspec (just the
           # default branch), so fetch db-backups with an explicit refspec
           # rather than relying on it landing in refs/remotes/origin/*.
+          # The branch is rebuilt from scratch every night as ONE commit
+          # holding only the newest 30 dumps, then force-pushed. Old commits
+          # are never kept, so data that was later deleted or erased cannot
+          # live on in git history (the privacy policy promises backups
+          # disappear within about 30 days).
+          mkdir -p keep/backups
           git fetch origin db-backups:refs/remotes/origin/db-backups || true
           if git show-ref --verify --quiet refs/remotes/origin/db-backups; then
-            git checkout db-backups
-          else
-            git checkout --orphan db-backups
-            git rm -rf . > /dev/null 2>&1 || true
+            git archive refs/remotes/origin/db-backups backups | tar -x -C keep || true
           fi
+          mv "backup/umas_books_${STAMP}.dump" "keep/backups/umas_books_${STAMP}.dump"
 
+          # Keep a rolling 30 nightly backups (names sort chronologically).
+          ls -1 keep/backups/umas_books_*.dump | sort | head -n -30 | xargs -r rm --
+
+          git checkout --orphan db-backups-new
+          git rm -rf . > /dev/null 2>&1 || true
           mkdir -p backups
-          mv "backup/umas_books_${STAMP}.dump" "backups/umas_books_${STAMP}.dump"
-          git add "backups/umas_books_${STAMP}.dump"
-
-          # Keep a rolling 30 nightly backups so the branch doesn't grow forever.
-          cd backups
-          ls -1t umas_books_*.dump | tail -n +31 | xargs -r git rm --
-          cd ..
-
+          cp keep/backups/umas_books_*.dump backups/
+          git add backups
           git commit -m "Nightly backup ${STAMP}"
-          git push origin db-backups
+          git push --force origin db-backups-new:db-backups
 
       # ---- Second copy in offsite storage (Backblaze B2, S3-compatible) ----
       # Runs AFTER the db-backups commit above on purpose: if the offsite
@@ -206,7 +210,10 @@ jobs:
           mkdir -p full
           FILE="full/umas_books_full_${STAMP}.dump" # outside backups/, never git-added
           for attempt in 1 2 3; do
+            # Login sessions (csrf tokens, role flags) are not worth keeping in
+            # any backup, offsite included; images ARE kept here.
             if /usr/lib/postgresql/18/bin/pg_dump --no-owner --no-privileges --format=custom \
+                 --exclude-table-data=session \
                  --file="$FILE" "$DATABASE_URL"; then
               break
             fi
