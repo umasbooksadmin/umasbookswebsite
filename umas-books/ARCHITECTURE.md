@@ -166,6 +166,28 @@ actually uses.
   scratch postgres:18 monthly and checks it. The manual restore procedure
   is in [README.md](README.md#restoring-from-a-backup).
 
+## Dates and times (Europe/Paris)
+
+Uma's Books is in Albi, so every date and time an admin types and every one a
+visitor sees means **France time**, not UTC (Render's servers run in UTC).
+`src/lib/tz.js` pins the process timezone to `Europe/Paris` (required first by
+`index.js`, `db.js`, `lib/dates.js` and `lib/calendar.js`), so a typed
+`2026-07-15T18:00` with no offset is read as 18:00 Paris and calendar grouping,
+month maths and default formatting use Paris days. Postgres keeps exact
+instants (`timestamptz`); routes hand it a `Date` built by
+`parseLocalDateTime(date, time)` (`lib/dates.js`), which returns `null` for
+anything invalid so the write is skipped. Display helpers set
+`timeZone: "Europe/Paris"` explicitly. A weekly repeat (volunteer shifts) uses
+`weeklyDateTimes`, which keeps the same wall-clock time across the October/March
+clock changes instead of adding 7×24 h.
+
+Before this existed, typed times were stored as UTC (18:00 became 18:00Z, i.e.
+20:00 in Paris in summer) — migration `033_paris_wall_times.sql` shifted those
+rows once. Date-only fields (blog dates, announcement expiry) are
+UTC-midnight values and were left alone. `test/integration/parisTime.test.js`
+covers it; run it with `TZ=UTC PGOPTIONS='-c timezone=UTC'` to reproduce
+production's environment on a Paris-timezone dev machine.
+
 ## Migration process
 
 `src/migrate.js` applies each `.sql` file in `migrations/` exactly once, in

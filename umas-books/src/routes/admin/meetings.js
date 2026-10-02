@@ -1,6 +1,7 @@
 const express = require("express");
 const { pool } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
+const { parseLocalDateTime } = require("../../lib/dates");
 const { groupByDate, resolveCalendarRange, calendarBackQuery } = require("../../lib/calendar");
 
 const { validateIdParams } = require("../../middleware/idParams");
@@ -30,7 +31,8 @@ router.post("/admin/meetings", requireAdmin, async (req, res) => {
   const agenda = (req.body.agenda || "").trim() || null;
 
   if (title && date && time) {
-    const scheduledAt = `${date}T${time}`;
+    const scheduledAt = parseLocalDateTime(date, time);
+    if (!scheduledAt) return res.redirect("/admin/meetings");
     await pool.query(
       `INSERT INTO meetings (title, scheduled_at, location, agenda, created_by)
        VALUES ($1, $2, $3, $4, $5)`,

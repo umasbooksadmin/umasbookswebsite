@@ -1,4 +1,6 @@
 require("dotenv").config();
+// Site timezone (Europe/Paris) must be set before any date is created.
+require("./lib/tz");
 // Fail fast (production only) with one clear message, before db.js is loaded.
 require("./lib/env").checkEnv();
 const path = require("path");

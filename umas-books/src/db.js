@@ -1,3 +1,4 @@
+require("./lib/tz"); // Europe/Paris — see lib/tz.js
 const { Pool } = require("pg");
 
 if (!process.env.DATABASE_URL) {
