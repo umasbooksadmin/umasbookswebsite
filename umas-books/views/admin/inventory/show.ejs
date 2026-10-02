@@ -68,7 +68,7 @@
               <%= conditionLabel %> &middot; <%= statusLabel %><%= c.price != null ? ' · €' + Number(c.price).toFixed(2) : '' %>
             </summary>
             <% if (c.status === 'reserved' && c.reserved_by_name) { %>
-              <div class="notice-box small" style="margin-top:10px;">
+              <div role="status" class="notice-box small" style="margin-top:10px;">
                 Reserved by <%= c.reserved_by_name %> &middot; <%= c.reserved_by_email %><%= c.reserved_by_phone ? ' · ' + c.reserved_by_phone : '' %>
                 <% if (c.reserved_at) { %>
                   <div class="muted small">

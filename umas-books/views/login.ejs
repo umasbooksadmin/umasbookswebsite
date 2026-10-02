@@ -1,8 +1,8 @@
-<%- include('partials/header', { title: 'Log In' }) %>
+<%- include('partials/header', { noindex: true, title: 'Log In' }) %>
 
 <h1>Log in</h1>
-<% if (error) { %><div class="error-box"><%= error %></div><% } %>
-<% if (notice) { %><div class="notice-box"><%= notice %></div><% } %>
+<% if (error) { %><div role="alert" class="error-box"><%= error %></div><% } %>
+<% if (notice) { %><div role="status" class="notice-box"><%= notice %></div><% } %>
 <form class="stack" method="post" action="/login">
   <%- include('partials/csrf_field') %>
   <label for="email">Email</label>

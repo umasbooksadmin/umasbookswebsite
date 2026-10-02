@@ -1,7 +1,7 @@
 <%- include('../../partials/admin_header', { title: 'Scan a Book', active: active, pageTitle: 'Scan a Book' }) %>
 
-<% if (typeof saved !== "undefined" && saved) { %><div class="notice-box">Book saved &mdash; ready for the next one.</div><% } %>
-<% if (error) { %><div class="error-box"><%= error %></div><% } %>
+<% if (typeof saved !== "undefined" && saved) { %><div role="status" class="notice-box">Book saved &mdash; ready for the next one.</div><% } %>
+<% if (error) { %><div role="alert" class="error-box"><%= error %></div><% } %>
 
 <div class="card">
   <div class="section-title">Enter an ISBN</div>

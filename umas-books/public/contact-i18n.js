@@ -16,6 +16,7 @@ window.PAGE_I18N = {
     "contact.topic.6": "Other",
     "contact.message": "Message",
     "contact.send": "Send message",
+    "contact.privacy": "We use your details only to reply to your message. See our <a href=\"/privacy-policy.html\">privacy policy</a>.",
     "contact.or": "Or email us directly at"
   },
   fr: {
@@ -34,6 +35,7 @@ window.PAGE_I18N = {
     "contact.topic.6": "Autre",
     "contact.message": "Message",
     "contact.send": "Envoyer le message",
+    "contact.privacy": "Vos données servent uniquement à répondre à votre message. Consultez notre <a href=\"/privacy-policy.html\">politique de confidentialité</a>.",
     "contact.or": "Ou écrivez-nous directement à"
   }
 };
