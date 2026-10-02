@@ -34,6 +34,7 @@ const seoRoutes = require("./routes/seo");
 const { MARKETING_PAGES, setMarketingSeoLocals } = seoRoutes;
 
 const authRoutes = require("./routes/auth");
+const twoFactorRoutes = require("./routes/twoFactor");
 const dashboardRoutes = require("./routes/dashboard");
 const accountRoutes = require("./routes/account");
 const forumRoutes = require("./routes/forum");
@@ -307,6 +308,7 @@ MARKETING_PAGES.forEach((file) => {
 });
 
 app.use(authRoutes);
+app.use(twoFactorRoutes);
 app.use(dashboardRoutes);
 app.use(accountRoutes);
 app.use(forumRoutes);
