@@ -159,7 +159,7 @@ actually uses.
   logs a clear message and exits 1.
   Covered by `test/integration/gracefulShutdown.test.js`.
 - **Monitoring and backups** (all GitHub Actions, independent of Render):
-  `uptime-check.yml` polls `/healthz` every 10 minutes and emails once on
+  `uptime-check.yml` polls `/healthz` every 30 minutes (Actions minutes are metered on a private repo) and emails once on
   the second consecutive failure and once on recovery;
   `nightly-db-backup.yml` pushes a `pg_dump` to the private `db-backups`
   branch; `backup-restore-test.yml` restores the newest dump into a
@@ -242,7 +242,7 @@ Render Blueprint) at the repo root:
    other — CI passing is not required for Render to deploy. Treat a
    CI failure as "go fix this," not as something that already stopped a
    bad deploy.
-2. Render's `buildCommand` runs `npm install`.
+2. Render's `buildCommand` runs `npm ci --omit=dev`.
 3. Render's `startCommand` runs `npm run migrate && npm run seed && npm
    start`, in that order, every time the service starts — including a
    free-tier spin-down/wake cycle, not just a real deploy. Both
