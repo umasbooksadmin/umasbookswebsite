@@ -212,7 +212,7 @@
                   <input type="hidden" name="backQuery" value="<%= listQs %>">
                   <button class="btn btn-outline btn-small" type="submit"><%= detail.user.is_disabled ? 'Reactivate Account' : 'Deactivate Account' %></button>
                 </form>
-                <form method="post" action="/admin/members/<%= detail.user.id %>/delete" onsubmit="return confirm('Delete this account permanently? This can\'t be undone.');">
+                <form method="post" action="/admin/members/<%= detail.user.id %>/delete" data-confirm="Delete this account permanently? This can't be undone.">
                   <%- include('../partials/csrf_field') %>
                   <input type="hidden" name="backQuery" value="<%= listQs %>">
                   <button class="btn btn-outline btn-small ann-menu-danger" type="submit">Delete Account</button>
@@ -239,7 +239,7 @@
         <% } %>
 
         <% if (panel === 'edit') { %>
-          <% if (emailTaken) { %><div class="error-box" style="margin-top:14px;">That email is already used by another account — nothing was changed.</div><% } %>
+          <% if (emailTaken) { %><div role="alert" class="error-box" style="margin-top:14px;">That email is already used by another account — nothing was changed.</div><% } %>
           <form class="stack" method="post" action="/admin/members/<%= detail.user.id %>/edit" style="margin-top:14px;">
             <%- include('../partials/csrf_field') %>
             <input type="hidden" name="backQuery" value="<%= listQs %>">

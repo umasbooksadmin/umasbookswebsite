@@ -27,6 +27,8 @@ const { expireStaleCartHolds, reconcilePendingOrders } = require("./lib/cart");
 const { expireStaleMemberships, reconcileRecentMemberships } = require("./lib/membership");
 const { alertOnError } = require("./lib/errorAlert");
 const { healthzHandler } = require("./lib/health");
+const seoRoutes = require("./routes/seo");
+const { MARKETING_PAGES, setMarketingSeoLocals } = seoRoutes;
 
 const authRoutes = require("./routes/auth");
 const dashboardRoutes = require("./routes/dashboard");
@@ -78,6 +80,10 @@ app.get("/logo.png", (req, res) => res.sendFile(path.join(marketingRoot, "logo.p
 // broken DB can't also break the session store's own read on the way
 // to this route.
 app.get("/healthz", healthzHandler(pool));
+
+// robots.txt and sitemap.xml: also before the session, so crawlers never
+// create a session row (and so they bypass CSRF/attachUser entirely).
+app.use(seoRoutes.router);
 
 // Date/time display helpers, available in every view without importing.
 Object.assign(app.locals, require("./lib/dates"));
@@ -264,11 +270,6 @@ const marketingCsp = [
   // hub (paymenthub.helloassopay.com) loads inside that frame, not in ours.
   "frame-src https://www.helloasso.com",
 ].join("; ");
-const MARKETING_PAGES = [
-  "about.html", "blog.html", "books.html", "events.html", "programs.html",
-  "immersion.html", "pre-registration.html", "membership.html", "visit.html",
-  "volunteer.html", "privacy-policy.html", "membership-terms.html",
-];
 
 
 app.get("/", (req, res) => {
@@ -279,6 +280,7 @@ app.get("/", (req, res) => {
   const u = req.session.user;
   if (u && (u.isAdmin || u.isMember || u.isVolunteer)) return res.redirect("/dashboard");
   res.set("Content-Security-Policy", marketingCsp);
+  setMarketingSeoLocals(req, res, "/");
   res.render("marketing/index");
 });
 
@@ -296,6 +298,7 @@ app.get("/admin/programs", (req, res) => res.redirect(301, "/admin/sessions" + q
 MARKETING_PAGES.forEach((file) => {
   app.get("/" + file, (req, res) => {
     res.set("Content-Security-Policy", marketingCsp);
+    setMarketingSeoLocals(req, res, "/" + file);
     res.render("marketing/" + file.replace(/\.html$/, ""));
   });
 });
