@@ -117,8 +117,8 @@ router.post("/forum/report", requireMember, forumReportLimiter, async (req, res)
   if (!target) return res.status(404).render("404");
 
   // Never built from the Host header; with no configured base URL, no link.
-  let link = null;
-  try { link = `${baseUrl(req)}/forum/${target.thread_id}`; } catch { link = null; }
+  let link;
+  try { link = `${baseUrl(req)}/forum/${target.thread_id}`; } catch { /* no link */ }
 
   const reporter = emailSafeName(req.session.user.displayName || "") || "A member";
   const excerpt = String(target.body || "").replace(/\s+/g, " ").trim().slice(0, REPORT_EXCERPT);
