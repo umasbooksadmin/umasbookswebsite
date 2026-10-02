@@ -25,7 +25,8 @@ const { pool } = require("./db");
 const { attachUser, requireAdmin } = require("./middleware/auth");
 const { csrfProtection, csrfTokenEndpoint } = require("./middleware/csrf");
 const { expireStaleReservations, sendPickupReminders } = require("./lib/reservations");
-const { expireStaleCartHolds, reconcilePendingOrders } = require("./lib/cart");
+const { runCartMaintenance: sweepCart } = require("./lib/cart");
+const { guardJob } = require("./lib/jobGuard");
 const { purgeExpiredPersonalData } = require("./lib/privacy");
 const { expireStaleMemberships, reconcileRecentMemberships } = require("./lib/membership");
 const { alertOnError } = require("./lib/errorAlert");
@@ -385,12 +386,14 @@ server.on("error", (err) => {
 // on its own). Pickup-reminder emails (3 days before expiry) only ever
 // run from here, not on page reads — sending mail is a side effect that
 // doesn't belong in a GET request's hot path.
-function runReservationMaintenance() {
-  expireStaleReservations(pool).catch((err) => console.error("Reservation expiry failed:", err));
-  sendPickupReminders(pool).catch((err) => console.error("Pickup reminders failed:", err));
-  expireStaleMemberships(pool).catch((err) => console.error("Membership expiry failed:", err));
-  reconcileRecentMemberships(pool).catch((err) => console.error("Membership reconciliation failed:", err));
-}
+const runReservationMaintenance = guardJob("Reservation maintenance", async () => {
+  await Promise.allSettled([
+    expireStaleReservations(pool).catch((err) => console.error("Reservation expiry failed:", err)),
+    sendPickupReminders(pool).catch((err) => console.error("Pickup reminders failed:", err)),
+    expireStaleMemberships(pool).catch((err) => console.error("Membership expiry failed:", err)),
+    reconcileRecentMemberships(pool).catch((err) => console.error("Membership reconciliation failed:", err)),
+  ]);
+});
 runReservationMaintenance();
 const reservationTimer = setInterval(runReservationMaintenance, 6 * 60 * 60 * 1000);
 
@@ -404,11 +407,12 @@ const reservationTimer = setInterval(runReservationMaintenance, 6 * 60 * 60 * 10
 // re-checks orders expired/cancelled in the last 7 days for a payment that
 // landed after the hold lapsed — see "LATE PAYMENTS" in lib/cart.js.
 let cartMaintenanceTick = 0;
-function runCartMaintenance() {
+// Sweeps run sequentially (expiry, then reconcile) and a slow run is not
+// overlapped by the next tick - see runCartMaintenance in lib/cart.js.
+const runCartMaintenance = guardJob("Cart maintenance", () => {
   const includeClosed = cartMaintenanceTick++ % 6 === 0;
-  expireStaleCartHolds(pool).catch((err) => console.error("Cart hold expiry failed:", err));
-  reconcilePendingOrders(pool, { includeClosed }).catch((err) => console.error("Order reconciliation failed:", err));
-}
+  return sweepCart(pool, { includeClosed });
+});
 runCartMaintenance();
 const cartTimer = setInterval(runCartMaintenance, 10 * 60 * 1000);
 
