@@ -1,7 +1,7 @@
 // Where uploaded image bytes live. Callers (the admin upload handlers) hand
 // over a Buffer and get back a short URL string to store in their own row;
 // nothing else about the storage leaks out. Today the bytes are a row in the
-// `images` table (migrations/033_image_store.sql), keyed by the SHA-256 of the
+// `images` table (migrations/034_image_store.sql), keyed by the SHA-256 of the
 // bytes and served by routes/img.js. To move to object storage (Backblaze/S3)
 // later, reimplement saveImage/getImage here (and have routes/img.js redirect
 // or stream) — no caller changes.

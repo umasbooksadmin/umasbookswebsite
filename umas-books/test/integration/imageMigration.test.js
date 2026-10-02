@@ -1,4 +1,4 @@
-// migrations/033_image_store.sql converts every inline data: URI image into
+// migrations/034_image_store.sql converts every inline data: URI image into
 // an `images` row and rewrites the column to /img/<hash>.<ext>. The database
 // is isolated (the migration touches every row of four tables) and has
 // already had 033 applied once by startTestApp; the test then plants legacy
@@ -21,7 +21,7 @@ before(async () => {
   process.env.DATABASE_URL = app.databaseUrl;
   process.env.PGSSLMODE = process.env.PGSSLMODE || "disable";
   ({ pool } = require("../../src/db"));
-  migrationSql = fs.readFileSync(path.join(__dirname, "..", "..", "migrations", "033_image_store.sql"), "utf8");
+  migrationSql = fs.readFileSync(path.join(__dirname, "..", "..", "migrations", "034_image_store.sql"), "utf8");
 });
 
 after(async () => {

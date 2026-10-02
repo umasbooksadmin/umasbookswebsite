@@ -1,6 +1,7 @@
 const { pool } = require("../db");
 const { generateToken, hashToken } = require("./resetTokens");
 const { sendMail } = require("../mailer");
+const { emailSafeName } = require("./validation");
 
 const TOKEN_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -18,7 +19,7 @@ async function sendVerificationEmail(user, baseUrl) {
   await sendMail({
     to: user.email,
     subject: "Confirm your email for Uma's Books",
-    text: `Hi ${user.display_name},\n\nConfirm this is your email address (this link expires in 24 hours):\n${link}\n\nIf you didn't create an account at Uma's Books, you can safely ignore this email.`,
+    text: `Hi ${emailSafeName(user.display_name)},\n\nConfirm this is your email address (this link expires in 24 hours):\n${link}\n\nIf you didn't create an account at Uma's Books, you can safely ignore this email.`,
   });
 }
 
@@ -29,7 +30,7 @@ async function sendSignupAttemptEmail(user, baseUrl) {
   await sendMail({
     to: user.email,
     subject: "Someone tried to sign up with your email at Uma's Books",
-    text: `Hi ${user.display_name},\n\nSomeone just tried to create a new Uma's Books account with this email address, but you already have one.\n\nIf it was you, log in at ${baseUrl}/login, or reset your password at ${baseUrl}/forgot-password.\n\nIf it wasn't you, you can safely ignore this email.`,
+    text: `Hi ${emailSafeName(user.display_name)},\n\nSomeone just tried to create a new Uma's Books account with this email address, but you already have one.\n\nIf it was you, log in at ${baseUrl}/login, or reset your password at ${baseUrl}/forgot-password.\n\nIf it wasn't you, you can safely ignore this email.`,
   });
 }
 

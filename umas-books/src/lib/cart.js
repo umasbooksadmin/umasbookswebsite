@@ -11,6 +11,7 @@ const { getCheckoutIntent, isOrderPaid } = require("./helloasso");
 const { sendMail } = require("../mailer");
 const { withTransaction } = require("../db");
 const { alertOnError } = require("./errorAlert");
+const { emailSafeName } = require("./validation");
 
 const CART_HOLD_TTL_MINUTES = 60;
 
@@ -118,7 +119,7 @@ async function sendOrderConfirmation(pool, order) {
   sendMail({
     to: order.buyer_email,
     subject: "Your order at Uma's Books is confirmed",
-    text: `Hi ${order.buyer_name},\n\nThanks for your order — payment received:\n\n${lines}\n\nTotal: €${Number(order.total_amount).toFixed(2)}\n\nCome by Uma's Books during opening hours to pick up any books. Drop-in sessions need no pickup — just come along at the session time.\n\nUma's Books\nRue Peyroliere, 81000 Albi`,
+    text: `Hi ${emailSafeName(order.buyer_name)},\n\nThanks for your order — payment received:\n\n${lines}\n\nTotal: €${Number(order.total_amount).toFixed(2)}\n\nCome by Uma's Books during opening hours to pick up any books. Drop-in sessions need no pickup — just come along at the session time.\n\nUma's Books\nRue Peyroliere, 81000 Albi`,
   }).catch((err) => console.error(`Order confirmation email failed for order ${order.id}:`, err.message));
 }
 

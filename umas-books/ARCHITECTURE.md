@@ -99,7 +99,11 @@ rather than by a numbered migration), grouped by what they belong to:
   link must be clicked from that same inbox to set a password.
 - **Membership** — `membership_payments` (HelloAsso payment records,
   matched to a `users` row by verified email — see
-  `src/lib/membership.js`)
+  `src/lib/membership.js`). The sync also re-runs (in the background)
+  when an account becomes eligible: email verified, password reset
+  completed (which also verifies the email), or admin-created. A recorded
+  payment is revoked only when HelloAsso returns that order without an
+  Authorized payment, never merely because the fuzzy search omitted it.
 - **Community** — `forum_threads`, `forum_replies`, `announcements`,
   `blog_posts`, `favorites`
 - **Charity vote** — `charity_rounds`, `charity_options`,
@@ -155,7 +159,7 @@ actually uses.
   logs a clear message and exits 1.
   Covered by `test/integration/gracefulShutdown.test.js`.
 - **Monitoring and backups** (all GitHub Actions, independent of Render):
-  `uptime-check.yml` polls `/healthz` every 10 minutes and emails once on
+  `uptime-check.yml` polls `/healthz` every 30 minutes (Actions minutes are metered on a private repo) and emails once on
   the second consecutive failure and once on recovery;
   `nightly-db-backup.yml` pushes a `pg_dump` (without image bytes — see
   "Images") to the private `db-backups` branch; `backup-restore-test.yml` restores the newest dump into a
@@ -203,7 +207,7 @@ as-is and never copied.
 
 - **Where the bytes live:** the `images` table (`id` = lowercase hex SHA-256
   of the bytes, `content_type`, `data` BYTEA, `byte_size`;
-  `migrations/033_image_store.sql`). Content-addressed, so identical uploads
+  `migrations/034_image_store.sql`). Content-addressed, so identical uploads
   dedupe and a URL's bytes never change. Images are not garbage-collected
   when a row stops referencing them (a replaced cover leaves an orphan);
   they are small and re-uploads dedupe, so this is deliberate for now.
