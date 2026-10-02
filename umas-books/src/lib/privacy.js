@@ -14,6 +14,7 @@ const RETENTION = {
   inactiveAccountYears: 3,
   signupMonths: 12,
   accountingYears: 10,
+  auditLogMonths: 12,
   tokenGraceDays: 7,
   inactivityWarningDays: 30,
 };
@@ -128,6 +129,13 @@ async function purgeExpiredPersonalData(pool) {
       `DELETE FROM membership_payments WHERE paid_at < now() - interval '${RETENTION.accountingYears} years'`
     );
     return a.rowCount + b.rowCount;
+  });
+
+  await step("auditLog", async () => {
+    const r = await pool.query(
+      `DELETE FROM admin_audit_log WHERE at < now() - interval '${RETENTION.auditLogMonths} months'`
+    );
+    return r.rowCount;
   });
 
   // Inactive accounts: warn by email first, delete 30 days later unless

@@ -2,6 +2,7 @@ const express = require("express");
 const { sharpFromUpload } = require("../../lib/uploadImage");
 const { pool } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
+const { audit } = require("../../lib/audit");
 const { parseLocalDateTime } = require("../../lib/dates");
 const { CHARITY_CATEGORIES } = require("../../lib/charityCategories");
 
@@ -221,6 +222,7 @@ router.post("/admin/charity-options", requireAdmin, async (req, res) => {
 
 router.post("/admin/charity-options/:id/delete", requireAdmin, async (req, res) => {
   await pool.query("DELETE FROM charity_options WHERE id = $1", [Number(req.params.id)]);
+  await audit(req, { action: "charity_option.delete", targetType: "charity_option", targetId: Number(req.params.id) });
   res.redirect("/admin/charity?tab=current");
 });
 
@@ -245,6 +247,7 @@ router.post("/admin/charity-ideas/:id/reject", requireAdmin, async (req, res) =>
 
 router.post("/admin/charity-ideas/:id/delete", requireAdmin, async (req, res) => {
   await pool.query("DELETE FROM charity_ideas WHERE id = $1", [Number(req.params.id)]);
+  await audit(req, { action: "charity_idea.delete", targetType: "charity_idea", targetId: Number(req.params.id) });
   res.redirect(`/admin/charity?tab=ideas&ideasTab=${["pending", "approved", "rejected"].includes(req.body.ideasTab) ? req.body.ideasTab : "pending"}`);
 });
 

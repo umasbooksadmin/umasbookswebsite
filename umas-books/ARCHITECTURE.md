@@ -207,6 +207,13 @@ others. `lib/totp.js` (hand-rolled on `node:crypto`), `routes/twoFactor.js`
   first (`users.inactivity_warned_at`), deleted 30 days later unless they log
   in, which clears the warning. The `RETENTION`
   constants must match the privacy policy page.
+- Admin audit log: `lib/audit.js` `audit(req, {action, targetType, targetId,
+  detail})` appends to `admin_audit_log` (migration 040) from sensitive admin
+  routes (member changes/erasure/2FA reset, deletes, bulk deletes, admin
+  login), shown read-only at `/admin/audit`. It stores only the admin's id and
+  email, the action and a numeric target id, never member emails, names or
+  message text, and never throws. Purged after 12 months by
+  `purgeExpiredPersonalData`; keep the privacy policy in step.
 - Not automated: contact-form messages live in the Gmail inbox (the policy
   says they are kept until the sender asks us to delete them), and server
   logs sit with Render. Log lines never contain emails.
