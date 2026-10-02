@@ -81,8 +81,7 @@ async function eraseMember(pool, userId, { client } = {}) {
   return client ? run(client) : withTransaction(pool, run);
 }
 
-const appUrl = () =>
-  (process.env.APP_BASE_URL || process.env.RENDER_EXTERNAL_URL || "https://www.umasbooks.org").replace(/\/$/, "");
+const appUrl = () => (process.env.APP_BASE_URL || process.env.RENDER_EXTERNAL_URL || "").replace(/\/$/, "");
 
 // Daily retention sweep. Each step is independent so one failure does not
 // stop the others; returns counts for logging (never any personal data).
@@ -152,7 +151,7 @@ async function purgeExpiredPersonalData(pool) {
             `Hi ${emailSafeName(u.display_name)},\n\n` +
             `You haven't logged in to your Uma's Books account for almost ${RETENTION.inactiveAccountYears} years. ` +
             `To protect your privacy we delete inactive accounts, so yours will be deleted in ${RETENTION.inactivityWarningDays} days.\n\n` +
-            `To keep it, just log in once: ${appUrl()}/login\n\n` +
+            `To keep it, just log in once${appUrl() ? `: ${appUrl()}/login` : " on our website"}.\n\n` +
             `If you no longer want an account, you don't need to do anything.`,
         });
         // Only marked after the mail went out: a failed send is retried
