@@ -1,14 +1,14 @@
-<%- include('partials/header', { title: 'New Thread' }) %>
+<%- include('partials/header', { title: tr('New Thread', 'Nouvelle discussion') }) %>
 
-<h1>Start a thread</h1>
+<h1><%= tr('Start a thread', 'Lancer une discussion') %></h1>
 <% if (error) { %><div role="alert" class="error-box"><%= error %></div><% } %>
 <form class="stack" method="post" action="/forum/new">
   <%- include('partials/csrf_field') %>
-  <label for="title">Title</label>
+  <label for="title"><%= tr('Title', 'Titre') %></label>
   <input id="title" name="title" type="text" required>
-  <label for="body">Message</label>
+  <label for="body"><%= tr('Message', 'Message') %></label>
   <textarea id="body" name="body" required></textarea>
-  <button class="btn" type="submit">Post</button>
+  <button class="btn" type="submit"><%= tr('Post', 'Publier') %></button>
 </form>
 
 <%- include('partials/footer') %>

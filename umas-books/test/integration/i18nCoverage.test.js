@@ -22,9 +22,16 @@ const PORT = 3691;
 // Append translated customer-facing pages here.
 const PAGES = [
   "/this-page-does-not-exist", // views/404.ejs
+  "/events", // views/events.ejs + calendar partials (seeded calendars: i18nCommunity.test.js)
+  "/events?view=week",
+  "/sessions", // views/sessions.ejs
+  "/sessions?view=week&type=dropin",
+  "/contact", // views/contact.ejs
+  "/contact?sent=1",
 ];
 
-const EXTRA_ALLOWLIST = [];
+// "Éveil" is a program name, French in both languages.
+const EXTRA_ALLOWLIST = [/^[ÉE]veil$/, "Message"]; // same word in French
 
 let app;
 before(async () => {

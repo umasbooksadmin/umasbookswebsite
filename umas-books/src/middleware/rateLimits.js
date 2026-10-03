@@ -19,7 +19,12 @@ function limit({ windowMs, max, ...options }) {
       res
         .status(429)
         .type("text/plain")
-        .send("Too many requests from this connection — please wait a while and try again, or email admin@umasbooks.org."),
+        .send(
+          (req.tr || ((en) => en))(
+            "Too many requests from this connection — please wait a while and try again, or email admin@umasbooks.org.",
+            "Trop de requêtes depuis cette connexion — veuillez patienter un moment avant de réessayer, ou écrire à admin@umasbooks.org."
+          )
+        ),
     ...options,
     windowMs,
     max,

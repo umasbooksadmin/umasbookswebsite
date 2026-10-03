@@ -17,7 +17,10 @@ const contactLimiter = limit({
   handler: (req, res) =>
     res.status(429).render("contact", {
       topics: TOPICS, sent: false, values: req.body || {},
-      error: "Too many messages from this connection — please try again in a little while, or email admin@umasbooks.org.",
+      error: req.tr(
+        "Too many messages from this connection — please try again in a little while, or email admin@umasbooks.org.",
+        "Trop de messages depuis cette connexion — veuillez réessayer dans un moment, ou écrire à admin@umasbooks.org."
+      ),
     }),
 });
 
@@ -39,7 +42,10 @@ router.post("/contact", contactLimiter, async (req, res) => {
   if (!values.name || !values.message || !isEmail(values.email)) {
     return res.status(400).render("contact", {
       topics: TOPICS, sent: false, values,
-      error: "Please fill in your name, a valid email address and your message.",
+      error: req.tr(
+        "Please fill in your name, a valid email address and your message.",
+        "Veuillez indiquer votre nom, une adresse email valide et votre message."
+      ),
     });
   }
 
@@ -59,7 +65,10 @@ router.post("/contact", contactLimiter, async (req, res) => {
     console.error("Contact form email failed:", err);
     return res.status(500).render("contact", {
       topics: TOPICS, sent: false, values,
-      error: "Sorry, your message couldn't be sent just now. Please try again, or email admin@umasbooks.org.",
+      error: req.tr(
+        "Sorry, your message couldn't be sent just now. Please try again, or email admin@umasbooks.org.",
+        "Désolé, votre message n’a pas pu être envoyé pour le moment. Veuillez réessayer, ou écrire à admin@umasbooks.org."
+      ),
     });
   }
   res.redirect("/contact?sent=1");
