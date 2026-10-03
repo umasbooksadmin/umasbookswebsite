@@ -22,7 +22,7 @@ function attachUser(pool) {
     let rows;
     try {
       ({ rows } = await pool.query(
-        "SELECT is_admin, is_member, is_volunteer, is_disabled, password_changed_at FROM users WHERE id = $1",
+        "SELECT is_admin, is_member, is_volunteer, is_disabled, password_changed_at, totp_enabled_at FROM users WHERE id = $1",
         [req.session.user.id]
       ));
     } catch (err) {
@@ -59,9 +59,36 @@ function attachUser(pool) {
     req.session.user.isAdmin = row.is_admin;
     req.session.user.isMember = row.is_member;
     req.session.user.isVolunteer = row.is_volunteer;
+    req.session.user.totpEnabled = Boolean(row.totp_enabled_at);
+
+    // Inactivity clock (src/lib/privacy.js erases accounts with no login for
+    // 3 years). Sessions last 30 days sliding, so an active member may never
+    // log in again with a password; count any authenticated request as
+    // activity, but write at most once per UTC day. The day marker lives in
+    // the session, so other requests cost no extra query.
+    const today = new Date().toISOString().slice(0, 10);
+    if (req.session.user.activeDay !== today) {
+      try {
+        await pool.query("UPDATE users SET last_login_at = now(), inactivity_warned_at = NULL WHERE id = $1", [
+          req.session.user.id,
+        ]);
+        req.session.user.activeDay = today;
+      } catch (err) {
+        // Not worth failing the request; retried on the next one.
+        console.error("Could not refresh last_login_at:", err.message);
+      }
+    }
+
     res.locals.user = req.session.user;
     next();
   };
+}
+
+// Always on in production. Tests (which log in as admins all over the
+// place) can switch it off with ADMIN_2FA_REQUIRED=false, which is ignored
+// when NODE_ENV=production so a stray env var can't weaken the live site.
+function admin2faRequired() {
+  return process.env.NODE_ENV === "production" || process.env.ADMIN_2FA_REQUIRED !== "false";
 }
 
 function requireAuth(req, res, next) {
@@ -74,6 +101,9 @@ function requireAuth(req, res, next) {
 function requireAdmin(req, res, next) {
   if (!req.session.user) return res.redirect("/login");
   if (!req.session.user.isAdmin) return res.status(403).send("Admins only.");
+  // Admins must have two-step verification: until it is set up, the only
+  // thing an admin session can do is reach the setup page.
+  if (admin2faRequired() && !req.session.user.totpEnabled) return res.redirect("/account/2fa?required=1");
   next();
 }
 
@@ -100,4 +130,4 @@ function requireVolunteer(req, res, next) {
   next();
 }
 
-module.exports = { attachUser, requireAuth, requireAdmin, requireMember, requireVolunteer };
+module.exports = { admin2faRequired, attachUser, requireAuth, requireAdmin, requireMember, requireVolunteer };

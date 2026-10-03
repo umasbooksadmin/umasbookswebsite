@@ -51,7 +51,7 @@ Date accepted: ____ / ____ / ______ / Done by: ____________
 
 - **What they get:** the same nightly database dump (all personal data), in a private, encrypted bucket.
 - **Role:** processor.
-- **Action for Sharon:** look for the Backblaze Data Processing Addendum (DPA) on Backblaze's legal page (backblaze.com, footer "Legal"). Follow the instructions there to sign or accept it for the account. Also confirm in the B2 console: bucket is **private**, default encryption is **on**, the bucket is in an **EU region**, and the lifecycle rules from `umas-books/README.md` (35 days / 730 days) exist.
+- **Action for Sharon:** look for the Backblaze Data Processing Addendum (DPA) on Backblaze's legal page (backblaze.com, footer "Legal"). Follow the instructions there to sign or accept it for the account. Also confirm in the B2 console: bucket is **private**, default encryption is **on**, the bucket is in an **EU region**, and the lifecycle rules from `umas-books/README.md` (30 days / 730 days) exist.
 
 Date accepted: ____ / ____ / ______ / Done by: ____________
 

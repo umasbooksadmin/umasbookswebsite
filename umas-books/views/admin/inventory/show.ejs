@@ -1,4 +1,5 @@
 <%- include('../../partials/admin_header', { title: book.title, active: active, pageTitle: book.title }) %>
+<% if (typeof notice !== "undefined" && notice) { %><div class="notice-box" role="status"><%= notice %></div><% } %>
 
 <p><a href="/admin/inventory">&larr; Back to inventory</a></p>
 <p class="muted"><%= book.authors || 'Unknown author' %><%= book.isbn ? ' · ISBN ' + book.isbn : '' %><%= book.categories ? ' · ' + book.categories : '' %></p>
@@ -68,7 +69,7 @@
               <%= conditionLabel %> &middot; <%= statusLabel %><%= c.price != null ? ' · €' + Number(c.price).toFixed(2) : '' %>
             </summary>
             <% if (c.status === 'reserved' && c.reserved_by_name) { %>
-              <div class="notice-box small" style="margin-top:10px;">
+              <div role="status" class="notice-box small" style="margin-top:10px;">
                 Reserved by <%= c.reserved_by_name %> &middot; <%= c.reserved_by_email %><%= c.reserved_by_phone ? ' · ' + c.reserved_by_phone : '' %>
                 <% if (c.reserved_at) { %>
                   <div class="muted small">

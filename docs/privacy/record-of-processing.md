@@ -42,7 +42,7 @@ To answer an access or portability request ("a copy of my data"), use admin > Me
 | Legal basis | Contract; legal obligation (accounting, 10 years) |
 | Recipients / processors | HelloAsso (payment page, receives buyer name and email to create the payment); Render; Google Workspace/Gmail (confirmation emails); GitHub and Backblaze (backups) |
 | Transfers outside EU | HelloAsso and Render: EU. Google/GitHub/Backblaze as above. |
-| Retention | **10 years** (`accountingYears`), then the order and its items are deleted (automated daily). Exception: orders still `pending` are never deleted by the purge (they turn into `expired` or `cancelled` within minutes or hours, and those *are* purged at 10 years). **Gap:** unpaid (expired/cancelled) orders have no accounting value but are kept the full 10 years with name, email and phone. If you want to shorten this, it needs a code change. On an erasure request the buyer data is replaced by "Erased" and the access link is rotated, but the amounts and items stay (legal obligation). |
+| Retention | **10 years** (`accountingYears`), then the order and its items are deleted (automated daily). Exception: orders still `pending` are never deleted by the purge (they turn into `expired` or `cancelled` within minutes or hours, and those *are* purged at 10 years). Unpaid (expired/cancelled) orders have no accounting value, so their name, email and phone are anonymised **30 days** after the order (automated daily). On an erasure request the buyer data is replaced by "Erased" and the access link is rotated, but the amounts and items stay (legal obligation). |
 | Security | As in section 1; order pages need a secret link; payment data stays at HelloAsso |
 
 ## 3. Book reservations / Réservations de livres
@@ -137,7 +137,7 @@ Also note: the website's pages load typefaces from Google Fonts, so a visitor's 
 | Legal basis | Legitimate interest (continuity); same bases as the original data |
 | Recipients / processors | GitHub (private repository, branch `db-backups`); Backblaze B2 (private bucket, EU region, default encryption on, per the README) |
 | Transfers outside EU | GitHub: US company. Backblaze: the bucket is in an EU region (**confirm** the bucket region in the B2 console); Backblaze is a US company. |
-| Retention | **GitHub:** the nightly job keeps the newest 30 dump files in the branch. **Gap to know about:** older files are removed from the latest version of the branch but remain in Git's history, so they are not truly gone. This is not what the privacy policy says (30 days). To fix it properly the branch history would have to be rewritten or the GitHub copy stopped (the README already suggests deciding this once Backblaze is proven). **Backblaze:** the code never deletes anything; deletion depends on lifecycle rules set by hand in the Backblaze console: the README says nightly files hidden after 35 days and monthly files after 730 days (2 years). **Check that these rules exist** (**NOT AUTOMATED / not visible in the code**). Policy says "30 days nightly, up to 2 years monthly", so the 35 days differs by a few days. A deletion request therefore disappears from backups only after those periods. |
+| Retention | **GitHub:** the nightly job keeps the newest 30 dump files in the branch. The branch is rebuilt every night as a single commit holding only those 30 files and force-pushed, so older dumps do not survive in Git history (since the "Backup and data-retention fixes" change; login sessions are left out of every dump). **Backblaze:** the code never deletes anything; deletion depends on lifecycle rules set by hand in the Backblaze console: the intended rules are nightly files hidden after **30 days** and monthly files after 730 days (2 years), matching the policy. **Check that these rules exist** (**NOT AUTOMATED / not visible in the code**). A deletion request therefore disappears from backups only after those periods. |
 | Security | Private repository (the job refuses to run if the repository is public); private bucket with encryption; access keys limited to the one bucket; monthly automatic restore test; failure emails to admin |
 
 ---
@@ -146,5 +146,5 @@ Also note: the website's pages load typefaces from Google Fonts, so a visitor's 
 
 1. Fill in the blanks above (inbox retention rule, Render log retention, Google 2-step verification, B2 region and lifecycle rules).
 2. Sign the data processing agreements listed in `processors-checklist.md`.
-3. Decide about the old GitHub backup history (section 9) and about keeping unpaid orders for 10 years (section 2).
+3. Check the Backblaze lifecycle rules (30 days nightly, 730 days monthly) and run the nightly backup workflow once by hand after the backup change (GitHub > Actions > "Run workflow").
 4. Re-read this file once a year, and whenever a new feature collects personal data.

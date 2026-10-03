@@ -17,6 +17,8 @@ Start here:
 - **[`docs/architecture.md`](docs/architecture.md)** — the whole system in
   diagrams: how it fits together, request flow, data model, payments, deploy,
   backups and security.
+- **[`docs/runbook.md`](docs/runbook.md)** — step-by-step: rolling back a deploy,
+  rotating secrets, a locked-out admin, where alerts go, the yearly checklist.
 - **[`umas-books/ARCHITECTURE.md`](umas-books/ARCHITECTURE.md)** — how it is put
   together: routes, views, data, environment variables, migrations, the
   deploy sequence, and operations.
@@ -34,7 +36,8 @@ Only the static files the marketing pages load, plus deployment and CI config:
 |---|---|
 | `assets/` | Shared CSS/JS/images for the marketing pages, served at `/assets/*`. `site.css` is the shared header/footer/page styling; `site.js` is the EN/FR language toggle and the logged-in header state; each page has its own small stylesheet (`home.css`, `books.css`, `events.css`, `immersion.css`, …); `blog.js`, `blog-live.js` and `blog.css` render the blog; `img/` holds the artwork and photos. |
 | `logo.png` | The shop's logo, served at `/logo.png`. |
-| `render.yaml` | The Render Blueprint (web service + Postgres). The plans in it match what is set in the Render dashboard. |
+| `render.yaml` | The Render Blueprint (web service + Postgres), both on paid plans matching the Render dashboard. |
+| `.github/dependabot.yml` | Weekly update pull requests for GitHub Actions and npm packages (never auto-merged). |
 | `.github/workflows/` | CI (six required checks on every pull request), the nightly database backup, the monthly backup-restore test, and the uptime check. |
 
 The marketing static files are served before the session store, so images and

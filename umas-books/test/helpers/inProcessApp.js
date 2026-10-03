@@ -16,6 +16,9 @@ const { execFileSync } = require("node:child_process");
 
 const ROOT = path.join(__dirname, "..", "..");
 
+// In-process admin routes are exercised without a second factor.
+if (!process.env.ADMIN_2FA_REQUIRED) process.env.ADMIN_2FA_REQUIRED = "false";
+
 // Own throwaway database locally (createdb/dropdb); in CI DATABASE_URL is
 // one shared database that every test file uses concurrently, so nothing
 // is created or dropped there.

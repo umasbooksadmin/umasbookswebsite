@@ -1,11 +1,11 @@
 const express = require("express");
 const { pool, withTransaction } = require("../db");
 const helloasso = require("../lib/helloasso");
-const { releaseCartHold, reconcileOrder, persistCheckoutIntentId } = require("../lib/cart");
+const { releaseCartHold, reconcileOrder, isRecentlyClosed, persistCheckoutIntentId, CART_HOLD_TTL_MINUTES } = require("../lib/cart");
 const { expireStaleReservations } = require("../lib/reservations");
 const { seatsTakenExpr } = require("../lib/classCapacity");
 const { baseUrl } = require("../lib/baseUrl");
-const { isEmail, clean } = require("../lib/validation");
+const { isEmail, clean, parseId } = require("../lib/validation");
 const { checkoutLimiter, cartEditLimiter } = require("../middleware/rateLimits");
 
 const router = express.Router();
@@ -123,9 +123,9 @@ router.get("/cart", async (req, res) => {
 const MAX_CART_LINES = 20;
 
 router.post("/cart/add", cartEditLimiter, async (req, res) => {
-  const copyId = Number(req.body.copyId);
+  const copyId = parseId(req.body.copyId);
   const backTo = isSafeLocalPath(req.body.backTo) ? req.body.backTo : "/cart";
-  if (copyId) {
+  if (copyId !== null) {
     const { rows } = await pool.query("SELECT id FROM book_copies WHERE id = $1 AND status = 'in_stock'", [copyId]);
     if (rows.length) {
       const cart = getCart(req);
@@ -138,9 +138,9 @@ router.post("/cart/add", cartEditLimiter, async (req, res) => {
 });
 
 router.post("/cart/add-dropin", cartEditLimiter, async (req, res) => {
-  const classId = Number(req.body.classId);
+  const classId = parseId(req.body.classId);
   const backTo = isSafeLocalPath(req.body.backTo) ? req.body.backTo : "/sessions";
-  if (classId) {
+  if (classId !== null) {
     const { rows } = await pool.query(
       `SELECT capacity, dropin_price, ${seatsTakenExpr("classes")}::int AS seats_taken
        FROM classes WHERE id = $1`,
@@ -160,11 +160,35 @@ router.post("/cart/add-dropin", cartEditLimiter, async (req, res) => {
 });
 
 router.post("/cart/remove", (req, res) => {
+  // Only compared against the session's own lines, never sent to SQL.
   const lineId = Number(req.body.lineId);
   const cart = getCart(req);
   req.session.cart = cart.filter((l) => l.lineId !== lineId);
   res.redirect("/cart");
 });
+
+// Most unpaid orders one email address, or one IP address, can have open
+// at once. Each one locks its copies for CART_HOLD_TTL_MINUTES, so without
+// this a script could lock the whole shelf without ever paying.
+const MAX_PENDING_ORDERS = 2;
+
+// Run the checkout transaction, trying once more if Postgres picks it as
+// the loser of a deadlock (40P01): two overlapping carts that touch the
+// same rows. Everything inside rolled back, so a retry is safe.
+async function runCheckoutTransaction(fn) {
+  try {
+    return await withTransaction(pool, fn);
+  } catch (err) {
+    if (err.code !== "40P01") throw err;
+    console.warn("Checkout deadlock detected, retrying once");
+    try {
+      return await withTransaction(pool, fn);
+    } catch (retryErr) {
+      if (retryErr.code === "40P01") throw new Error("BUSY", { cause: retryErr });
+      throw retryErr;
+    }
+  }
+}
 
 router.post("/cart/checkout", checkoutLimiter, async (req, res) => {
   const cart = getCart(req);
@@ -192,20 +216,45 @@ router.post("/cart/checkout", checkoutLimiter, async (req, res) => {
   const dropinItems = items.filter((i) => i.kind === "dropin");
   const total = items.reduce((sum, i) => sum + i.price, 0);
 
+  const clientIp = req.ip || null;
+
   let order;
   try {
-    order = await withTransaction(pool, async (client) => {
+    order = await runCheckoutTransaction(async (client) => {
+      // Serialize concurrent checkouts from the same email / IP so two
+      // simultaneous requests can't both pass the cap below. Keys are
+      // taken in sorted order so these locks can't deadlock each other.
+      const lockKeys = [`checkout-email:${email}`, `checkout-ip:${clientIp || ""}`].sort();
+      for (const key of lockKeys) await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [key]);
+
+      const { rows: pendingRows } = await client.query(
+        `SELECT
+           COUNT(*) FILTER (WHERE lower(buyer_email) = $1)::int AS by_email,
+           COUNT(*) FILTER (WHERE client_ip = $2)::int AS by_ip
+         FROM orders
+         WHERE status = 'pending' AND created_at > now() - make_interval(mins => $3)
+           AND (lower(buyer_email) = $1 OR client_ip = $2)`,
+        [email, clientIp, CART_HOLD_TTL_MINUTES]
+      );
+      if (pendingRows[0].by_email >= MAX_PENDING_ORDERS || pendingRows[0].by_ip >= MAX_PENDING_ORDERS) {
+        throw new Error("TOO_MANY_PENDING");
+      }
+
       const { rows: orderRows } = await client.query(
-        `INSERT INTO orders (buyer_name, buyer_email, buyer_phone, total_amount) VALUES ($1, $2, $3, $4) RETURNING *`,
-        [name, email, phone, total]
+        `INSERT INTO orders (buyer_name, buyer_email, buyer_phone, total_amount, client_ip) VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+        [name, email, phone, total, clientIp]
       );
       const newOrder = orderRows[0];
 
       if (bookItems.length) {
+        // Take the row locks in id order. Two carts sharing copies would
+        // otherwise each lock them in their own order and deadlock.
+        const copyIds = bookItems.map((i) => i.copyId).sort((a, b) => a - b);
+        await client.query("SELECT id FROM book_copies WHERE id = ANY($1::int[]) ORDER BY id FOR UPDATE", [copyIds]);
         const { rows: locked } = await client.query(
           `UPDATE book_copies SET status = 'in_cart', cart_order_id = $1, cart_added_at = now(), updated_at = now()
            WHERE id = ANY($2::int[]) AND status = 'in_stock' RETURNING id`,
-          [newOrder.id, bookItems.map((i) => i.copyId)]
+          [newOrder.id, copyIds]
         );
         if (locked.length !== bookItems.length) {
           // Someone else bought/reserved a copy in the moment between our
@@ -225,7 +274,8 @@ router.post("/cart/checkout", checkoutLimiter, async (req, res) => {
         const wanted = new Map(); // classId -> requested seat count
         for (const i of dropinItems) wanted.set(i.classId, (wanted.get(i.classId) || 0) + 1);
 
-        for (const [classId, count] of wanted) {
+        // Class rows are locked in id order too (see the copies above).
+        for (const [classId, count] of [...wanted].sort((a, b) => a[0] - b[0])) {
           // Lock the class row so two simultaneous checkouts for the same
           // session can't both read the same "spots left" and oversell it.
           const { rows: clsRows } = await client.query(
@@ -257,6 +307,12 @@ router.post("/cart/checkout", checkoutLimiter, async (req, res) => {
       return newOrder;
     });
   } catch (err) {
+    if (err.message === "TOO_MANY_PENDING") {
+      return renderCart({ error: "You already have unpaid orders waiting for payment. Please finish or wait for them to expire (about an hour) before starting another." });
+    }
+    if (err.message === "BUSY") {
+      return renderCart({ error: "The shop is busy right now. Please try again in a moment." });
+    }
     if (err.message !== "SOLD_OUT") {
       console.error("Checkout failed to create order:", err.message);
       return renderCart({ error: "Something went wrong starting checkout. Please try again." });
@@ -311,13 +367,24 @@ router.get("/cart/return", async (req, res) => {
   if (!UUID_RE.test(token)) return res.status(404).render("404");
 
   const { rows } = await pool.query("SELECT * FROM orders WHERE access_token = $1", [token]);
-  const order = rows[0];
+  let order = rows[0];
   if (!order) return res.status(404).render("404");
 
-  const status = order.status === "pending" ? await reconcileOrder(pool, order) : order.status;
+  // A recently expired/cancelled order may have been paid after all (the
+  // buyer retried the same HelloAsso checkout), so reconcile those too,
+  // then re-read: reconcileOrder may have recovered or flagged the order.
+  if (order.status === "pending" || isRecentlyClosed(order)) {
+    await reconcileOrder(pool, order);
+    const { rows: fresh } = await pool.query("SELECT * FROM orders WHERE id = $1", [order.id]);
+    if (fresh[0]) order = fresh[0];
+  }
+  const status = order.status;
+  // helloasso_order_id on a closed order is only ever set by a late payment
+  // that could not be fulfilled (see recoverLatePayment): money was taken.
+  const paymentReceivedUnfulfilled = status !== "paid" && status !== "pending" && !!order.helloasso_order_id;
 
   const { rows: orderItems } = await pool.query("SELECT item_title, price FROM order_items WHERE order_id = $1", [order.id]);
-  res.render("cart_return", { order, items: orderItems, status });
+  res.render("cart_return", { order, items: orderItems, status, paymentReceivedUnfulfilled });
 });
 
 module.exports = router;
