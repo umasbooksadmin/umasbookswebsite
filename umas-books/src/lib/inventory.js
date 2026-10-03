@@ -25,6 +25,28 @@ function normalizeCondition(value) {
   return CONDITION_VALUES.has(value) ? value : "good";
 }
 
+// French fixed book price law (loi Lang, n° 81-766): a NEW book must be sold
+// at the publisher's price, with at most 5% off. Used books are free-priced.
+// Returns { error } or { price, publisherPrice } (both in euros, or null for
+// non-new copies). A blank price on a new copy defaults to the publisher's.
+function resolveCopyPricing(condition, rawPrice, rawPublisherPrice) {
+  const hasPrice = rawPrice !== undefined && rawPrice !== null && String(rawPrice).trim() !== "";
+  if (condition !== "new") {
+    return { price: hasPrice ? Number(rawPrice) : null, publisherPrice: null };
+  }
+  const pubCents = Math.round(Number(rawPublisherPrice) * 100);
+  if (!Number.isFinite(pubCents) || pubCents <= 0 || String(rawPublisherPrice || "").trim() === "") {
+    return { error: "New books need the publisher's price (prix éditeur): French law requires them to be sold at that price." };
+  }
+  const priceCents = hasPrice ? Math.round(Number(rawPrice) * 100) : pubCents;
+  const euros = (c) => (c / 100).toFixed(2);
+  if (!Number.isFinite(priceCents) || priceCents * 100 < 95 * pubCents || priceCents > pubCents) {
+    const minCents = Math.ceil((95 * pubCents) / 100);
+    return { error: `A new book must be sold at the publisher's price (€${euros(pubCents)}), with at most 5% off: the price must be between €${euros(minCents)} and €${euros(pubCents)}.` };
+  }
+  return { price: priceCents / 100, publisherPrice: pubCents / 100 };
+}
+
 function normalizeStatus(value) {
   return STATUS_VALUES.has(value) ? value : "in_stock";
 }
@@ -47,4 +69,4 @@ function normalizeGenres(value) {
   return genres.length ? genres.join(", ") : null;
 }
 
-module.exports = { CONDITIONS, STATUSES, normalizeCondition, normalizeStatus, normalizeGenres };
+module.exports = { CONDITIONS, STATUSES, normalizeCondition, resolveCopyPricing, normalizeStatus, normalizeGenres };
