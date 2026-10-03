@@ -369,19 +369,21 @@ Render Blueprint) at the repo root:
    CI failure as "go fix this," not as something that already stopped a
    bad deploy.
 2. Render's `buildCommand` runs `npm ci --omit=dev`.
-3. Render's `startCommand` runs `npm run migrate && npm run seed && npm
-   start`, in that order, every time the service starts — a restart, not just a
-   real deploy. `migrate` applies each migration file only once (see
-   above) and `seed` is safe to re-run (it only creates the first admin
-   account if none exists yet).
+3. Render's `preDeployCommand` runs `npm run migrate` before the new
+   version takes traffic; if a migration fails the deploy is aborted and the
+   running version keeps serving. Then `startCommand` runs
+   `npm run seed && npm start` every time the service starts. `migrate`
+   is tracked (each file runs once) and takes an advisory lock; `seed` is
+   safe to re-run (it only creates the first admin account if none exists
+   yet). Rolling back to an older commit does NOT undo migrations.
    The Node version is pinned to 22 (`engines` in `package.json`,
    `.node-version`, CI's `NODE_VERSION`), and `render.yaml` sets
    `healthCheckPath: /healthz` (a `SELECT 1`) so a deploy that can't
    reach the database never goes live.
-4. Migrate/seed are folded into `startCommand` rather than Render's
-   dedicated pre-deploy command. Rolling back is covered in
-   [`../docs/runbook.md`](../docs/runbook.md).
+4. Migrate runs as Render's pre-deploy command and seed in `startCommand`.
+   Rolling back is covered in [`../docs/runbook.md`](../docs/runbook.md).
 
-Nothing here currently blocks a bad migration or a failing app boot from
-reaching production automatically — the safety net is keeping migrations small and
-safe, keeping CI green, and watching the deploy.
+A failing migration stops the deploy (the old version keeps serving). Nothing
+blocks a bad app boot or a bad-but-valid migration automatically — the safety
+net is keeping migrations small and safe, keeping CI green, and watching the
+deploy.

@@ -18,9 +18,10 @@ the repo.
 
 ## a) Rolling back a deploy
 
-**Important:** every time the site starts, Render runs
-`npm run migrate && npm run seed && npm start` (`render.yaml`). Migrations
-(database changes) are applied once and recorded. Redeploying an old commit
+**Important:** on every deploy Render first runs `npm run migrate` (the
+*Pre-Deploy Command*; if it fails the deploy stops and the old version keeps
+running), then starts the site with `npm run seed && npm start`
+(`render.yaml`). Migrations (database changes) are applied once and recorded. Redeploying an old commit
 does **not** undo them. The old code then runs against the newer database,
 which usually works if the migration only added things, but can break if it
 renamed or removed something.

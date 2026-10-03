@@ -170,11 +170,12 @@ To deploy: in the Render dashboard, **New +** → **Blueprint**, connect the
 `umasbookswebsite` GitHub repo, and Render will read `render.yaml` and set
 both up.
 
-`render.yaml`'s `startCommand` runs `npm run migrate` before `npm start`,
-so migrations run automatically on every boot — new migration files just
-need to be committed and pushed, no manual step. `src/migrate.js` records
-each file in the `schema_migrations` table and applies it exactly once, so
-the command that runs on every boot only does anything for new files.
+Render's *Pre-Deploy Command* (`preDeployCommand: npm run migrate` in
+`render.yaml`) runs before each new version takes traffic, so migrations run
+automatically on every deploy — new migration files just need to be committed
+and pushed, no manual step — and a failing migration stops the deploy while
+the old version keeps serving. `src/migrate.js` records each file in the
+`schema_migrations` table and applies it exactly once.
 Redeploying an older commit does **not** undo a migration; see
 [`docs/runbook.md`](../docs/runbook.md) before rolling back.
 
