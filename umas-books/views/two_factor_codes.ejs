@@ -1,10 +1,10 @@
-<%- include('partials/header', { title: 'Your recovery codes' }) %>
+<%- include('partials/header', { title: tr('Your recovery codes', 'Vos codes de récupération') }) %>
 
-<h1>Two-step verification is on</h1>
-<div class="notice-box" role="status"><strong>Save these recovery codes now.</strong> They are shown only once. Each one works a single time if you lose your phone. Keep them somewhere safe (a password manager or a printout), not on the phone itself.</div>
+<h1><%= tr('Two-step verification is on', 'La vérification en deux étapes est activée') %></h1>
+<div class="notice-box" role="status"><strong><%= tr('Save these recovery codes now.', 'Enregistrez dès maintenant ces codes de récupération.') %></strong> <%= tr('They are shown only once. Each one works a single time if you lose your phone. Keep them somewhere safe (a password manager or a printout), not on the phone itself.', 'Ils ne sont affichés qu’une seule fois. Chacun ne fonctionne qu’une fois si vous perdez votre téléphone. Conservez-les en lieu sûr (gestionnaire de mots de passe ou version imprimée), pas sur le téléphone lui-même.') %></div>
 <ul>
   <% codes.forEach(function (c) { %><li><code><%= c %></code></li><% }) %>
 </ul>
-<p><a class="btn" href="<%= isAdmin ? '/admin' : '/account' %>">I've saved them — continue</a></p>
+<p><a class="btn" href="<%= isAdmin ? '/admin' : '/account' %>"><%= tr('I\'ve saved them — continue', 'Je les ai enregistrés — continuer') %></a></p>
 
 <%- include('partials/footer') %>

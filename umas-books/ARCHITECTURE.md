@@ -270,8 +270,9 @@ screens stay English). Two languages only: `en` and `fr`.
   when the visitor has chosen a language; NULL for admin-created accounts) and
   `orders.lang` (set at checkout). The order confirmation, reservation
   confirmation/reminder and inactivity warning follow it (the legal blocks of the
-  order email stay bilingual FR/EN in both languages); `sendResetLink` still
-  carries a `TODO(i18n)` note. Use `normLang` / `pickLang` for untrusted values.
+  order email stay bilingual FR/EN in both languages); `sendResetLink`, the verification
+  mails and the other account mails use `user.lang`; password-policy messages take a
+  translator (`validateNewPassword(pw, req.tr)`). Use `normLang` / `pickLang` for untrusted values.
   NULL means English.
 - **Marketing pages** (`views/marketing`) keep their client-side dictionaries
   (`data-i18n`, `pageI18nEn/Fr`); the shared header/footer chrome is also
