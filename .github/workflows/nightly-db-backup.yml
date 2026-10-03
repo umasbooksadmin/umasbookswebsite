@@ -29,7 +29,7 @@ jobs:
   backup:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Check the offsite settings are all present
         # The offsite upload is REQUIRED. Checked first, before anything is
@@ -132,7 +132,7 @@ jobs:
         # Requires GMAIL_USER/GMAIL_APP_PASSWORD as repo secrets — the
         # same Gmail account already used by the app for its own mail.
         if: failure()
-        uses: dawidd6/action-send-mail@4226df7daafa6fc901a43789c49bf7ab309066e7 # v3
+        uses: dawidd6/action-send-mail@2cea9617b09d79a095af21254fbcb7ae95903dde # v3.12.0
         with:
           server_address: smtp.gmail.com
           server_port: 465
