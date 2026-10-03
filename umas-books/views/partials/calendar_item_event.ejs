@@ -26,7 +26,7 @@ const priceLabel = e.price != null
       <%- include('csrf_field') %>
       <label for="name-<%= e.id %>"><%= tr('Name', 'Nom') %></label>
       <input id="name-<%= e.id %>" name="name" type="text" required<%= full ? ' disabled' : '' %>>
-      <label for="email-<%= e.id %>"><%= tr('Email', 'Email') %></label>
+      <label for="email-<%= e.id %>"><%= tr('Email', 'E-mail') %></label>
       <input id="email-<%= e.id %>" name="email" type="email" required<%= full ? ' disabled' : '' %>>
       <button type="submit" class="fcal-session-cta"<%= full ? ' disabled' : '' %>><%= full ? tr('Full', 'Complet') : tr('Sign Up', 'S’inscrire') %></button>
     </form>

@@ -28,7 +28,7 @@ const HOUR = 3600 * 1000;
 
 // Program name that is French in both languages; vote counts ("1 vote");
 // "and Adventures" is part of the brand lockup on the dashboard.
-const ALLOW = [new RegExp(MARK), /^[ÉE]veil$/, "Message", "Email", /^\d+ votes?$/, "and Adventures"];
+const ALLOW = [new RegExp(MARK), /^[ÉE]veil$/, "Message", /^\d+ votes?$/, "and Adventures"];
 
 let app;
 let pool;

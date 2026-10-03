@@ -70,7 +70,9 @@ const EXTRA_ALLOWLIST = [/^I18n Shop (Book|Sold|Author)/, /^[ÉE]veil$/, "Messag
 let app;
 let seeded;
 before(async () => {
-  app = await startTestApp({ port: PORT });
+  // Own database: in CI every file shares one, and events/sessions seeded by other
+  // files (English titles, identical in both renders) would be flagged here.
+  app = await startTestApp({ port: PORT, isolated: true });
 });
 after(async () => {
   await app.stop();
