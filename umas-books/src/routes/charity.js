@@ -1,7 +1,7 @@
 const express = require("express");
 const { pool, withTransaction } = require("../db");
 const { requireMember } = require("../middleware/auth");
-const { CHARITY_CATEGORIES } = require("../lib/charityCategories");
+const { CHARITY_CATEGORIES, CHARITY_CATEGORIES_FR } = require("../lib/charityCategories");
 const { charityIdeaLimiter } = require("../middleware/rateLimits");
 const { clean, cleanHttpUrl } = require("../lib/validation");
 
@@ -54,7 +54,9 @@ router.get("/charity", async (req, res) => {
     ? await pool.query("SELECT * FROM charity_ideas WHERE submitted_by = $1 ORDER BY created_at DESC LIMIT 10", [user.id])
     : { rows: [] };
 
-  res.render("charity", { charity, isMember, myIdeas, categories: CHARITY_CATEGORIES });
+  // Categories are stored in English; unknown (library-defined) ones show as stored.
+  const catLabel = (c) => req.tr(c, CHARITY_CATEGORIES_FR[c]);
+  res.render("charity", { charity, isMember, myIdeas, categories: CHARITY_CATEGORIES, catLabel });
 });
 
 router.post("/charity/vote", requireMember, async (req, res) => {

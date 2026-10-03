@@ -11,7 +11,7 @@ validateIdParams(router, "id");
 
 router.get("/volunteer", requireVolunteer, async (req, res) => {
   const userId = req.session.user.id;
-  const range = resolveCalendarRange(req.query, 0);
+  const range = resolveCalendarRange(req.query, 0, req.lang);
 
   const { rows: shifts } = await pool.query(
     `SELECT s.*, (SELECT COUNT(*) FROM volunteer_signups g WHERE g.shift_id = s.id) AS signup_count
@@ -59,7 +59,7 @@ router.post("/volunteer/:id/signup", requireVolunteer, async (req, res) => {
       );
     });
   } catch (err) {
-    if (err.message === "SHIFT_NOT_FOUND") return res.status(404).send("Shift not found.");
+    if (err.message === "SHIFT_NOT_FOUND") return res.status(404).send(req.tr("Shift not found.", "Créneau introuvable."));
     if (err.message === "AT_CAPACITY") return res.redirect(redirectUrl);
     throw err;
   }

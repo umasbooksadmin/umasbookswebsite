@@ -4,13 +4,15 @@ const { alertOnError } = require("./errorAlert");
 const { langMiddleware } = require("../middleware/lang");
 
 // Friendly text for the client errors that can reach the handler.
+// Each entry is [English, French].
 const CLIENT_ERROR_MESSAGES = {
-  400: "That request couldn't be understood. Please go back and try again.",
-  403: "You don't have permission to do that.",
-  404: "Page not found.",
-  413: "That file or request is too large. Please choose a smaller file and try again.",
-  415: "That type of file isn't supported.",
+  400: ["That request couldn't be understood. Please go back and try again.", "Cette demande n’a pas pu être comprise. Veuillez revenir en arrière et réessayer."],
+  403: ["You don't have permission to do that.", "Vous n’avez pas l’autorisation d’effectuer cette action."],
+  404: ["Page not found.", "Page introuvable."],
+  413: ["That file or request is too large. Please choose a smaller file and try again.", "Ce fichier ou cette demande est trop volumineux. Veuillez choisir un fichier plus petit et réessayer."],
+  415: ["That type of file isn't supported.", "Ce type de fichier n’est pas pris en charge."],
 };
+const GENERIC_CLIENT_ERROR = ["That request couldn't be processed.", "Cette demande n’a pas pu être traitée."];
 
 // Path-only, safe to log or email: reset/verification/order tokens travel
 // in the URL (/reset-password/<token>, /verify-email/<token>,
@@ -58,9 +60,8 @@ function errorHandler(err, req, res, next) {
   // body) still gets translated views.
   if (typeof res.locals.tr !== "function") langMiddleware(req, res, () => {});
   res.status(status);
-  const message = clientStatus
-    ? CLIENT_ERROR_MESSAGES[clientStatus] || "That request couldn't be processed."
-    : "Something went wrong. Please try again.";
+  const [msgEn, msgFr] = clientStatus ? CLIENT_ERROR_MESSAGES[clientStatus] || GENERIC_CLIENT_ERROR : ["Something went wrong. Please try again.", "Une erreur s’est produite. Veuillez réessayer."];
+  const message = res.locals.tr(msgEn, msgFr);
   if (clientStatus) {
     return res.render("error", { status, message }, (renderErr, html) => {
       if (renderErr) return res.type("text").send(message);

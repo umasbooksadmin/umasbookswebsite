@@ -24,6 +24,12 @@ const PORT = 3691;
 // Append translated customer-facing pages here.
 const PAGES = [
   "/this-page-does-not-exist", // views/404.ejs
+  "/events", // views/events.ejs + calendar partials (seeded calendars: i18nCommunity.test.js)
+  "/events?view=week",
+  "/sessions", // views/sessions.ejs
+  "/sessions?view=week&type=dropin",
+  "/contact", // views/contact.ejs
+  "/contact?sent=1",
   "/favorites", // views/favorites.ejs (the list itself is rendered client-side)
   "/login", // views/login.ejs
   "/login?reset=success", // login notice
@@ -58,12 +64,15 @@ const DYNAMIC_PAGES = {
   "cart_return (payment received, not fulfilled)": async () => ({ path: `/cart/return?order=${(await seed()).orders.unfulfilled}` }),
 };
 
-const EXTRA_ALLOWLIST = [/^I18n Shop (Book|Sold|Author)/];
+// "Éveil" is a program name, French in both languages; "Message" is the same word in French.
+const EXTRA_ALLOWLIST = [/^I18n Shop (Book|Sold|Author)/, /^[ÉE]veil$/, "Message"];
 
 let app;
 let seeded;
 before(async () => {
-  app = await startTestApp({ port: PORT });
+  // Own database: in CI every file shares one, and events/sessions seeded by other
+  // files (English titles, identical in both renders) would be flagged here.
+  app = await startTestApp({ port: PORT, isolated: true });
 });
 after(async () => {
   await app.stop();

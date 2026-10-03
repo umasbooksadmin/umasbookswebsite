@@ -29,8 +29,14 @@ function shiftMonth(year, month, delta) {
   return { year: d.getFullYear(), month: d.getMonth() };
 }
 
-function monthLabel(year, month) {
+// lang: "fr" gives "Octobre 2026"; anything else the original "October 2026".
+function monthLabel(year, month, lang) {
+  if (lang === "fr") return capitalize(new Date(year, month, 1).toLocaleString("fr-FR", { month: "long", year: "numeric" }));
   return new Date(year, month, 1).toLocaleString("en-US", { month: "long", year: "numeric" });
+}
+
+function capitalize(text) {
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 function monthRange(year, month) {
@@ -85,11 +91,11 @@ function groupByDate(rows, dateField) {
 // Convenience bundle of everything an admin/member calendar route needs
 // to hand to its view: the label, nav links, and the param for the
 // currently-displayed month (so "add" forms can redirect back to it).
-function monthNav(year, month) {
+function monthNav(year, month, lang) {
   const prev = shiftMonth(year, month, -1);
   const next = shiftMonth(year, month, 1);
   return {
-    monthLabel: monthLabel(year, month),
+    monthLabel: monthLabel(year, month, lang),
     prevMonth: monthParam(prev.year, prev.month),
     nextMonth: monthParam(next.year, next.month),
     currentMonth: monthParam(year, month),
@@ -131,10 +137,18 @@ function weekRange(startDate) {
   return { start, end };
 }
 
-function weekLabel(startDate) {
+function weekLabel(startDate, lang) {
   const start = new Date(startDate);
   const end = new Date(startDate);
   end.setDate(end.getDate() + 6);
+  if (lang === "fr") {
+    const m = (d) => d.toLocaleString("fr-FR", { month: "long" });
+    if (start.getFullYear() !== end.getFullYear()) {
+      return `${start.getDate()} ${m(start)} ${start.getFullYear()} – ${end.getDate()} ${m(end)} ${end.getFullYear()}`;
+    }
+    if (m(start) !== m(end)) return `${start.getDate()} ${m(start)} – ${end.getDate()} ${m(end)} ${start.getFullYear()}`;
+    return `${start.getDate()}–${end.getDate()} ${m(start)} ${start.getFullYear()}`;
+  }
   const startMonth = start.toLocaleString("en-US", { month: "long" });
   const endMonth = end.toLocaleString("en-US", { month: "long" });
   if (start.getFullYear() !== end.getFullYear()) {
@@ -161,11 +175,11 @@ function weekGrid(startDate, itemsByDate) {
   return days;
 }
 
-function weekNav(startDate) {
+function weekNav(startDate, lang) {
   const prev = shiftWeek(startDate, -1);
   const next = shiftWeek(startDate, 1);
   return {
-    weekLabel: weekLabel(startDate),
+    weekLabel: weekLabel(startDate, lang),
     prevWeek: dateKey(prev),
     nextWeek: dateKey(next),
     currentWeek: dateKey(startDate),
@@ -179,8 +193,9 @@ function weekNav(startDate) {
 // to call once the query's rows are grouped, and the nav fields the view
 // needs. Keeps month-view's existing field names (monthLabel, prevMonth,
 // ...) untouched — week view adds its own (weekLabel, prevWeek, ...)
-// alongside a `view` flag, rather than renaming anything.
-function resolveCalendarRange(query, weekStartsOn) {
+// alongside a `view` flag, rather than renaming anything. `lang` ("fr")
+// makes the month/week labels French; omitted means English (admin).
+function resolveCalendarRange(query, weekStartsOn, lang) {
   if (query.view === "week") {
     const weekStart = parseWeekParam(query.week, weekStartsOn);
     const { start, end } = weekRange(weekStart);
@@ -189,7 +204,7 @@ function resolveCalendarRange(query, weekStartsOn) {
       start,
       end,
       buildWeeks: (itemsByDate) => [weekGrid(weekStart, itemsByDate)],
-      nav: weekNav(weekStart),
+      nav: weekNav(weekStart, lang),
     };
   }
   const { year, month } = parseMonthParam(query.month);
@@ -199,7 +214,7 @@ function resolveCalendarRange(query, weekStartsOn) {
     start,
     end,
     buildWeeks: (itemsByDate) => monthGrid(year, month, itemsByDate),
-    nav: monthNav(year, month),
+    nav: monthNav(year, month, lang),
   };
 }
 

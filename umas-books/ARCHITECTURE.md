@@ -265,6 +265,9 @@ screens stay English). Two languages only: `en` and `fr`.
   (French falls back to English if empty; `<%= %>` does the HTML escaping).
   Attributes, `<title>` and `alt` text count too. Server messages:
   `req.tr('English', 'Français')`. Do not use `data-fr-text` for new work.
+- **Calendars:** public calendar routes pass `req.lang` to `resolveCalendarRange(query, weekStartsOn, lang)` so
+  month/week labels are French ("Mai 2092", "12–18 mai 2092"); admin calendars omit it and stay English.
+  The contact page no longer uses `contact-i18n.js`; its topics are stored in English and labelled in the view.
 - **Emails:** `emailTr(lang)` from `src/lib/lang.js` returns `(en, fr) => string`.
   The language is stored on `users.lang` (set at signup, refreshed at each login
   when the visitor has chosen a language; NULL for admin-created accounts) and

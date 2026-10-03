@@ -1,15 +1,15 @@
-<%- include('partials/header', { title: 'Charity Vote' }) %>
+<%- include('partials/header', { title: tr('Charity Vote', 'Vote pour une association') }) %>
 
-<h1>Charity Vote</h1>
+<h1><%= tr('Charity Vote', 'Vote pour une association') %></h1>
 
 <% if (!charity) { %>
-  <p class="muted">No vote is open right now.</p>
+  <p class="muted"><%= tr('No vote is open right now.', 'Aucun vote n’est ouvert pour le moment.') %></p>
 <% } else { %>
   <p class="muted">
     <%= charity.round.title %>
-    <% if (charity.round.closes_at) { %> &middot; Voting ends <%= formatDateTime(charity.round.closes_at) %><% } %>
+    <% if (charity.round.closes_at) { %> &middot; <%= tr('Voting ends {date}', 'Fin du vote : {date}', { date: formatDateTime(charity.round.closes_at) }) %><% } %>
   </p>
-  <% if (charity.round.allow_multiple) { %><p class="muted small">You can select multiple charities.</p><% } %>
+  <% if (charity.round.allow_multiple) { %><p class="muted small"><%= tr('You can select multiple charities.', 'Vous pouvez sélectionner plusieurs associations.') %></p><% } %>
 
   <% const total = charity.options.reduce((sum, o) => sum + Number(o.vote_count), 0); %>
 
@@ -25,19 +25,19 @@
                 <input type="<%= charity.round.allow_multiple ? 'checkbox' : 'radio' %>" name="optionIds" value="<%= o.id %>" <%= mine ? 'checked' : '' %> style="margin-top:5px;">
                 <span>
                   <strong><%= o.name %></strong>
-                  <% if (o.category) { %> <span class="status-pill category"><%= o.category %></span><% } %>
+                  <% if (o.category) { %> <span class="status-pill category"><%= catLabel(o.category) %></span><% } %>
                   <% if (o.description) { %><div class="muted small"><%= o.description %></div><% } %>
                   <% if (o.website_url && /^https?:\/\//i.test(o.website_url)) { %><div class="small"><a href="<%= o.website_url %>" target="_blank" rel="noopener"><%= o.website_url %></a></div><% } %>
                   <% if (charity.showResults) { %>
                     <div class="vote-bar" style="margin-top:6px;"><span style="width: <%= total ? Math.round(o.vote_count / total * 100) : 0 %>%;"></span></div>
-                    <div class="muted small"><%= o.vote_count %> vote<%= o.vote_count == 1 ? '' : 's' %></div>
+                    <div class="muted small"><%= o.vote_count == 1 ? tr('1 vote', '1 vote') : tr('{n} votes', '{n} votes', { n: o.vote_count }) %></div>
                   <% } %>
                 </span>
               </label>
             </div>
           </div>
         <% }) %>
-        <button class="btn" type="submit" style="margin-top:14px;">Submit My Votes</button>
+        <button class="btn" type="submit" style="margin-top:14px;"><%= tr('Submit My Votes', 'Envoyer mes votes') %></button>
       </div>
     </form>
   <% } else { %>
@@ -46,48 +46,48 @@
         <div class="vote-option">
           <div style="flex:1;">
             <strong><%= o.name %></strong>
-            <% if (o.category) { %> <span class="status-pill category"><%= o.category %></span><% } %>
+            <% if (o.category) { %> <span class="status-pill category"><%= catLabel(o.category) %></span><% } %>
             <% if (o.description) { %><div class="muted small"><%= o.description %></div><% } %>
             <% if (charity.showResults) { %>
               <div class="vote-bar" style="margin-top:6px;"><span style="width: <%= total ? Math.round(o.vote_count / total * 100) : 0 %>%;"></span></div>
-              <div class="muted small"><%= o.vote_count %> vote<%= o.vote_count == 1 ? '' : 's' %></div>
+              <div class="muted small"><%= o.vote_count == 1 ? tr('1 vote', '1 vote') : tr('{n} votes', '{n} votes', { n: o.vote_count }) %></div>
             <% } %>
           </div>
         </div>
       <% }) %>
-      <p class="muted small" style="margin-top:10px;"><a href="/login">Log in as a member</a> to vote.</p>
+      <p class="muted small" style="margin-top:10px;"><a href="/login"><%= tr('Log in as a member', 'Connectez-vous en tant que membre') %></a> <%= tr('to vote.', 'pour voter.') %></p>
     </div>
   <% } %>
 <% } %>
 
 <% if (isMember) { %>
   <div class="card" style="margin-top:20px;">
-    <div class="section-title">Suggest a Charity</div>
-    <p class="muted small">Know a local cause we should consider for a future vote? Suggest it below — an admin reviews every submission.</p>
+    <div class="section-title"><%= tr('Suggest a Charity', 'Proposer une association') %></div>
+    <p class="muted small"><%= tr('Know a local cause we should consider for a future vote? Suggest it below — an admin reviews every submission.', 'Connaissez-vous une cause locale à envisager pour un prochain vote ? Proposez-la ci-dessous — un administrateur examine chaque proposition.') %></p>
     <form class="stack" method="post" action="/charity/ideas">
       <%- include('partials/csrf_field') %>
-      <label for="idea-name">Charity name</label>
+      <label for="idea-name"><%= tr('Charity name', 'Nom de l’association') %></label>
       <input id="idea-name" name="name" type="text" required>
-      <label for="idea-category">Category (optional)</label>
+      <label for="idea-category"><%= tr('Category (optional)', 'Catégorie (facultatif)') %></label>
       <select id="idea-category" name="category">
-        <option value="">Select…</option>
-        <% categories.forEach(c => { %><option value="<%= c %>"><%= c %></option><% }) %>
+        <option value=""><%= tr('Select…', 'Sélectionner…') %></option>
+        <% categories.forEach(c => { %><option value="<%= c %>"><%= catLabel(c) %></option><% }) %>
       </select>
-      <label for="idea-description">Why this charity? (optional)</label>
+      <label for="idea-description"><%= tr('Why this charity? (optional)', 'Pourquoi cette association ? (facultatif)') %></label>
       <textarea id="idea-description" name="description"></textarea>
-      <label for="idea-website">Website (optional)</label>
+      <label for="idea-website"><%= tr('Website (optional)', 'Site web (facultatif)') %></label>
       <input id="idea-website" name="websiteUrl" type="text" placeholder="https://">
-      <button class="btn" type="submit">Submit Idea</button>
+      <button class="btn" type="submit"><%= tr('Submit Idea', 'Envoyer ma proposition') %></button>
     </form>
 
     <% if (myIdeas.length) { %>
-      <div class="section-title" style="margin-top:20px; font-size:18px;">Your submitted ideas</div>
+      <div class="section-title" style="margin-top:20px; font-size:18px;"><%= tr('Your submitted ideas', 'Vos propositions') %></div>
       <ul class="plain">
         <% myIdeas.forEach(i => { %>
           <li>
             <strong><%= i.name %></strong>
             <span class="status-pill <%= i.status === 'approved' ? 'published' : i.status === 'rejected' ? 'trash' : 'scheduled' %>">
-              <%= i.status === 'approved' ? 'Approved' : i.status === 'rejected' ? 'Not selected' : 'Pending review' %>
+              <%= i.status === 'approved' ? tr('Approved', 'Approuvée') : i.status === 'rejected' ? tr('Not selected', 'Non retenue') : tr('Pending review', 'En cours d’examen') %>
             </span>
           </li>
         <% }) %>

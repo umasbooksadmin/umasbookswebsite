@@ -6,28 +6,31 @@
 const e = item;
 const tones = ['tone-a', 'tone-b', 'tone-c', 'tone-d', 'tone-e', 'tone-f'];
 const full = e.capacity != null && e.signup_count >= e.capacity;
+const priceLabel = e.price != null
+  ? (lang === 'fr' ? Number(e.price).toFixed(2).replace('.', ',') + ' €' : '€' + Number(e.price).toFixed(2))
+  : tr('Free', 'Gratuit');
 %>
 <details class="fcal-session <%= tones[e.id % tones.length] %>">
   <summary>
     <div class="fcal-session-title"><%= e.title %></div>
     <div class="fcal-session-time"><%= formatTime(e.starts_at) %></div>
     <div class="fcal-session-seats">
-      <%= e.price != null ? '€' + Number(e.price).toFixed(2) : 'Free' %> &middot; <%= e.signup_count %> going
+      <%= priceLabel %> &middot; <%= tr('{n} going', e.signup_count == 1 ? '{n} inscrit' : '{n} inscrits', { n: e.signup_count }) %>
     </div>
   </summary>
   <div class="fcal-session-details">
-    <div class="muted small"><%= formatDateTime(e.starts_at) %><%= e.location ? ' · ' + e.location : '' %> · <%= e.price != null ? '€' + Number(e.price).toFixed(2) : 'Free' %></div>
+    <div class="muted small"><%= formatDateTime(e.starts_at) %><%= e.location ? ' · ' + e.location : '' %> · <%= priceLabel %></div>
     <% if (e.description) { %><p class="muted small"><%= e.description %></p><% } %>
 
     <form method="post" action="/events/<%= e.id %>/signup?<%= qs %>" class="fcal-session-form">
       <%- include('csrf_field') %>
-      <label for="name-<%= e.id %>">Name</label>
+      <label for="name-<%= e.id %>"><%= tr('Name', 'Nom') %></label>
       <input id="name-<%= e.id %>" name="name" type="text" required<%= full ? ' disabled' : '' %>>
-      <label for="email-<%= e.id %>">Email</label>
+      <label for="email-<%= e.id %>"><%= tr('Email', 'E-mail') %></label>
       <input id="email-<%= e.id %>" name="email" type="email" required<%= full ? ' disabled' : '' %>>
-      <button type="submit" class="fcal-session-cta"<%= full ? ' disabled' : '' %>><%= full ? 'Full' : 'Sign Up' %></button>
+      <button type="submit" class="fcal-session-cta"<%= full ? ' disabled' : '' %>><%= full ? tr('Full', 'Complet') : tr('Sign Up', 'S’inscrire') %></button>
     </form>
 
-    <a class="fcal-session-cta fcal-session-cta-outline" href="/events/<%= e.id %>/ics" download>Add to My Calendar</a>
+    <a class="fcal-session-cta fcal-session-cta-outline" href="/events/<%= e.id %>/ics" download><%= tr('Add to My Calendar', 'Ajouter à mon agenda') %></a>
   </div>
 </details>

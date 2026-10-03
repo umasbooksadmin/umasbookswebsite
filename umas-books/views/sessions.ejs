@@ -1,4 +1,4 @@
-<%- include('partials/header', { title: 'Upcoming Sessions', extraCss: ['/floral-calendar.css'], mainClass: view === 'week' ? 'wrap-wide' : 'wrap' }) %>
+<%- include('partials/header', { title: tr('Upcoming Sessions', 'Prochaines séances'), extraCss: ['/floral-calendar.css'], mainClass: view === 'week' ? 'wrap-wide' : 'wrap' }) %>
 
 <% const typeQs = dropinOnly ? '&type=dropin' : ''; %>
 <% const qs = (view === 'week' ? `view=week&week=${currentWeek}` : `month=${currentMonth}`) + typeQs; %>
@@ -11,32 +11,32 @@
   <img class="art art-left" src="/assets/img/hero-left.png" alt="">
   <img class="art art-right" src="/assets/img/hero-right.png" alt="">
   <div class="fcal-hero-copy">
-    <div class="fcal-kicker">English Immersion<div class="rule"></div></div>
-    <h1 class="fcal-title">Upcoming Sessions</h1>
+    <div class="fcal-kicker"><%= tr('English Immersion', 'Immersion en anglais') %><div class="rule"></div></div>
+    <h1 class="fcal-title"><%= tr('Upcoming Sessions', 'Prochaines séances') %></h1>
     <div class="fcal-nav">
-      <a href="/sessions?<%= prevHref %>" aria-label="Previous">&lsaquo;</a>
+      <a href="/sessions?<%= prevHref %>" aria-label="<%= tr('Previous', 'Précédent') %>">‹</a>
       <span class="fcal-month"><%= view === 'week' ? weekLabel : monthLabel %></span>
-      <a href="/sessions?<%= nextHref %>" aria-label="Next">&rsaquo;</a>
+      <a href="/sessions?<%= nextHref %>" aria-label="<%= tr('Next', 'Suivant') %>">›</a>
     </div>
     <div class="fcal-view-toggle">
-      <a href="/sessions<%= dropinOnly ? '?type=dropin' : '' %>" class="<%= view === 'month' ? 'is-active' : '' %>">Month</a>
-      <a href="/sessions?view=week<%= typeQs %>" class="<%= view === 'week' ? 'is-active' : '' %>">Week</a>
+      <a href="/sessions<%= dropinOnly ? '?type=dropin' : '' %>" class="<%= view === 'month' ? 'is-active' : '' %>"><%= tr('Month', 'Mois') %></a>
+      <a href="/sessions?view=week<%= typeQs %>" class="<%= view === 'week' ? 'is-active' : '' %>"><%= tr('Week', 'Semaine') %></a>
     </div>
     <div class="fcal-view-toggle">
-      <a href="/sessions?<%= periodQs %>" class="<%= !dropinOnly ? 'is-active' : '' %>">All Sessions</a>
-      <a href="/sessions?<%= periodQs %>&type=dropin" class="<%= dropinOnly ? 'is-active' : '' %>">Drop-ins Only</a>
+      <a href="/sessions?<%= periodQs %>" class="<%= !dropinOnly ? 'is-active' : '' %>"><%= tr('All Sessions', 'Toutes les séances') %></a>
+      <a href="/sessions?<%= periodQs %>&type=dropin" class="<%= dropinOnly ? 'is-active' : '' %>"><%= tr('Drop-ins Only', 'Séances à l’unité uniquement') %></a>
     </div>
   </div>
 </section>
 
 <div class="fcal-wrap<%= view === 'week' ? ' is-week' : '' %>">
   <div class="fcal-legend">
-    <span class="fcal-legend-item"><span class="fcal-legend-swatch tone-a"></span> Little Explorers</span>
-    <span class="fcal-legend-item"><span class="fcal-legend-swatch tone-b"></span> &Eacute;veil</span>
-    <span class="fcal-legend-item"><span class="fcal-legend-swatch tone-c"></span> Adventurers</span>
-    <span class="fcal-legend-item"><span class="fcal-legend-swatch tone-d"></span> Readers</span>
-    <span class="fcal-legend-item"><span class="fcal-legend-swatch tone-e"></span> Teens</span>
-    <span class="fcal-legend-item"><span class="fcal-legend-swatch tone-f"></span> Caf&eacute; / Adults</span>
+    <span class="fcal-legend-item"><span class="fcal-legend-swatch tone-a"></span> <%= tr('Little Explorers', 'Petits Explorateurs') %></span>
+    <span class="fcal-legend-item"><span class="fcal-legend-swatch tone-b"></span> Éveil</span>
+    <span class="fcal-legend-item"><span class="fcal-legend-swatch tone-c"></span> <%= tr('Adventurers', 'Aventuriers') %></span>
+    <span class="fcal-legend-item"><span class="fcal-legend-swatch tone-d"></span> <%= tr('Readers', 'Lecteurs') %></span>
+    <span class="fcal-legend-item"><span class="fcal-legend-swatch tone-e"></span> <%= tr('Teens', 'Ados') %></span>
+    <span class="fcal-legend-item"><span class="fcal-legend-swatch tone-f"></span> <%= tr('Café / Adults', 'Café / Adultes') %></span>
   </div>
   <%- include('partials/calendar_grid', { monWeeks, qs, itemPartial: 'calendar_item_session' }) %>
 </div>
