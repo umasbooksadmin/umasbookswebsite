@@ -22,6 +22,7 @@ const PORT = 3691;
 // Append translated customer-facing pages here.
 const PAGES = [
   "/this-page-does-not-exist", // views/404.ejs
+  "/account/deleted", // views/account_deleted.ejs
 ];
 
 const EXTRA_ALLOWLIST = [];

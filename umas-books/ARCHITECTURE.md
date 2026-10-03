@@ -236,6 +236,15 @@ others. `lib/totp.js` (hand-rolled on `node:crypto`), `routes/twoFactor.js`
   contains hash/token/secret/totp are never exported. Add a section there
   when a new table holds personal data. The privacy paperwork (register of
   processing, processor DPAs, breach log) is in `docs/privacy/`.
+- Self-service: a signed-in member can download their own data or delete
+  their own account at `/account/privacy` (`src/routes/accountPrivacy.js`).
+  Both need the current password (wrong ones count toward one throttle,
+  5 per 15 minutes per account); deleting also needs the typed word
+  DELETE/SUPPRIMER, is refused for admins, emails a bilingual confirmation
+  first (a failed send doesn't block it), then calls `eraseMember` and ends
+  the session. The download uses `lib/memberExport.js`, shared with the admin
+  export. Both write `member.self_export` / `member.self_erase` to the audit
+  log with the member's id only (`actor_label` = `self`).
 - Not automated: contact-form messages live in the Gmail inbox (the policy
   says they are kept until the sender asks us to delete them), and server
   logs sit with Render. Log lines never contain emails.
