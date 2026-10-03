@@ -17,6 +17,19 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    # These four have major versions that change how the app behaves (Express 5,
+    # EJS 6, bcryptjs 3, dotenv 18) and need a planned migration, not a bump.
+    # Their minor and patch updates still arrive normally. Remove an entry
+    # here when you decide to do that migration.
+    ignore:
+      - dependency-name: express
+        update-types: ["version-update:semver-major"]
+      - dependency-name: ejs
+        update-types: ["version-update:semver-major"]
+      - dependency-name: bcryptjs
+        update-types: ["version-update:semver-major"]
+      - dependency-name: dotenv
+        update-types: ["version-update:semver-major"]
     groups:
       npm-minor-and-patch:
         update-types: ["minor", "patch"]
