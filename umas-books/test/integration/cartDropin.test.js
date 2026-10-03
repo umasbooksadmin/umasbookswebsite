@@ -190,7 +190,7 @@ test("remove: deletes just that drop-in line and a lineId that isn't in the cart
 test("checkout of an empty cart re-renders the cart with an error and creates no order", async () => {
   const v = visitor();
   const email = `empty-${uniq()}@example.test`;
-  const r = await v.post("/cart/checkout", { acceptCgv: "on", name: "Nobody", email });
+  const r = await v.post("/cart/checkout", { acceptCgv: "on", waiveWithdrawal: "on", name: "Nobody", email });
   assert.equal(r.status, 200);
   assert.match(r.text, /Your cart is empty/);
   assert.equal(createdIntents.length, 0);
@@ -214,7 +214,7 @@ test("checkout with HelloAsso unconfigured says so and holds nothing", async () 
   const v = visitor();
   const cls = await makeClass({ capacity: 5 });
   await v.post("/cart/add-dropin", { classId: cls });
-  const r = await v.post("/cart/checkout", { acceptCgv: "on", name: "Pat", email: `pat-${uniq()}@example.test` });
+  const r = await v.post("/cart/checkout", { acceptCgv: "on", waiveWithdrawal: "on", name: "Pat", email: `pat-${uniq()}@example.test` });
   assert.match(r.text, /Online payment isn&#39;t set up yet/);
   assert.equal((await seats(cls)).length, 0);
 });
@@ -225,7 +225,7 @@ test("checkout: drop-in seats become in_cart rows tied to one order, with labell
   await v.post("/cart/add-dropin", { classId: cls });
   await v.post("/cart/add-dropin", { classId: cls });
   const email = `Seat-${uniq()}@Example.TEST`;
-  const r = await v.post("/cart/checkout", { acceptCgv: "on", name: "Seat Buyer", email, phone: "0600000000" });
+  const r = await v.post("/cart/checkout", { acceptCgv: "on", waiveWithdrawal: "on", name: "Seat Buyer", email, phone: "0600000000" });
   assert.equal(r.status, 302);
   assert.match(r.location, /^https:\/\/pay\.example\.test\/dropin\/\d+$/);
   assert.equal(await v.count(), 0, "cart emptied once the payment link exists");
@@ -253,7 +253,7 @@ test("checkout of a mixed cart locks the book copy and creates the seat in one o
   await v.post("/cart/add", { copyId: copy });
   await v.post("/cart/add-dropin", { classId: cls });
   const email = `mix-${uniq()}@example.test`;
-  const r = await v.post("/cart/checkout", { acceptCgv: "on", name: "Mixed Buyer", email });
+  const r = await v.post("/cart/checkout", { acceptCgv: "on", waiveWithdrawal: "on", name: "Mixed Buyer", email });
   assert.equal(r.status, 302);
   const { rows: orders } = await pool.query("SELECT * FROM orders WHERE buyer_email = $1", [email]);
   assert.equal(Number(orders[0].total_amount), 11);
@@ -272,7 +272,7 @@ test("checkout: a seat sold elsewhere after it was carted is pruned, so the buye
   // pre-check prunes it, so the cart shrinks to the one seat still free and
   // checkout proceeds for that one rather than overselling.
   await pool.query("INSERT INTO class_dropin_seats (class_id, status) VALUES ($1, 'sold')", [cls]);
-  const r = await v.post("/cart/checkout", { acceptCgv: "on", name: "Late Buyer", email });
+  const r = await v.post("/cart/checkout", { acceptCgv: "on", waiveWithdrawal: "on", name: "Late Buyer", email });
   assert.equal(r.status, 302);
   const { rows: orders } = await pool.query("SELECT * FROM orders WHERE buyer_email = $1", [email]);
   assert.equal(Number(orders[0].total_amount), 5, "charged for one seat, not two");
@@ -300,7 +300,7 @@ test("checkout: when the last seat is taken after the cart check, the buyer is t
   };
   let r;
   try {
-    r = await v.post("/cart/checkout", { acceptCgv: "on", name: "Race Buyer", email });
+    r = await v.post("/cart/checkout", { acceptCgv: "on", waiveWithdrawal: "on", name: "Race Buyer", email });
   } finally {
     pool.query = original;
   }

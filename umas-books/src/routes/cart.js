@@ -208,6 +208,12 @@ router.post("/cart/checkout", checkoutLimiter, async (req, res) => {
   if (!items.length) return renderCart({ items: [], total: 0, error: "Your cart is empty." });
   if (!name || !isEmail(email)) return renderCart({ error: "Please enter your name and a valid email address." });
   if (req.body.acceptCgv !== "on") return renderCart({ error: "Please accept the terms of sale to continue." });
+  // Drop-in seats are dated leisure bookings: the buyer must expressly ask for
+  // the session to take place on the booked date (no withdrawal afterwards).
+  const hasDropin = items.some((i) => i.kind === "dropin");
+  if (hasDropin && req.body.waiveWithdrawal !== "on") {
+    return renderCart({ error: "Please tick the box confirming you want the drop-in session(s) to take place on the date booked." });
+  }
   if (!helloasso.isConfigured()) {
     return renderCart({ helloassoReady: false, error: "Online payment isn't set up yet — please check back soon, or come by the shop in person." });
   }
@@ -241,8 +247,9 @@ router.post("/cart/checkout", checkoutLimiter, async (req, res) => {
       }
 
       const { rows: orderRows } = await client.query(
-        `INSERT INTO orders (buyer_name, buyer_email, buyer_phone, total_amount, client_ip) VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-        [name, email, phone, total, clientIp]
+        `INSERT INTO orders (buyer_name, buyer_email, buyer_phone, total_amount, client_ip, withdrawal_waiver_at)
+         VALUES ($1, $2, $3, $4, $5, CASE WHEN $6::boolean THEN now() END) RETURNING *`,
+        [name, email, phone, total, clientIp, hasDropin]
       );
       const newOrder = orderRows[0];
 

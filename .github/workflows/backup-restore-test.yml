@@ -1,19 +1,15 @@
 name: Monthly backup restore test
 
 # A backup nobody has ever restored is a hope, not a backup. Once a month
-# (and on demand) this restores the NEWEST dump from the private
-# `db-backups` branch — or, once the BACKUP_S3_* repository variables and
-# secrets are set, from the offsite bucket (written by
-# nightly-db-backup.yml) — into a throwaway
-# postgres:18 service container and checks that the data is really there.
-# Offsite it prefers the FULL dump (store-backups/full/, image bytes
-# included); the db-backups branch copy deliberately has no image bytes.
-# Nothing here touches Render or any real database.
+# (and on demand) this downloads the NEWEST dump under <prefix>/full/ from
+# the private Backblaze B2 bucket (written by nightly-db-backup.yml) and
+# restores it into a throwaway postgres:18 service container, then checks
+# that the data is really there. Nothing here touches Render or any real
+# database.
 #
-# Same safety rule as the backup workflow: dumps contain member names/
-# emails/order details, so this refuses to run on a public repository.
-# Needs the GMAIL_USER / GMAIL_APP_PASSWORD repo secrets for the failure
-# email, like the other monitoring workflows. The README section
+# Needs the BACKUP_S3_* repository variables/secrets (the application key
+# needs READ access: listFiles + readFiles) and the GMAIL_USER /
+# GMAIL_APP_PASSWORD repo secrets for the failure email. The README section
 # "Restoring from a backup" has the manual version of these same steps.
 
 on:
@@ -47,47 +43,7 @@ jobs:
       PGPASSWORD: postgres
       PGDATABASE: restore_test
     steps:
-      - name: Refuse to run on a public repository
-        # Dumps contain member names/emails/order details — on a public repo
-        # the db-backups branch is world-readable, and this job would be
-        # checking it out. Checked first, before anything is downloaded, and
-        # fails the job so the alert email below fires too.
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          PRIVATE=$(gh api "repos/${{ github.repository }}" --jq .private)
-          if [ "$PRIVATE" != "true" ]; then
-            echo "::error::This repository is public — refusing to check out database dumps. Make the repo private, then re-run."
-            exit 1
-          fi
-
-      - name: Where do the backups live?
-        id: src
-        env:
-          BUCKET: ${{ vars.BACKUP_S3_BUCKET }}
-          ENDPOINT: ${{ vars.BACKUP_S3_ENDPOINT }}
-          REGION: ${{ vars.BACKUP_S3_REGION }}
-          KEY_ID: ${{ secrets.BACKUP_S3_KEY_ID }}
-          APP_KEY: ${{ secrets.BACKUP_S3_APPLICATION_KEY }}
-        run: |
-          # The offsite bucket is used as soon as it is fully configured;
-          # until then the db-backups branch is tested exactly as before.
-          # The application key needs READ access (listFiles + readFiles).
-          if [ -n "$BUCKET" ] && [ -n "$ENDPOINT" ] && [ -n "$REGION" ] && [ -n "$KEY_ID" ] && [ -n "$APP_KEY" ]; then
-            echo "offsite=true" >> "$GITHUB_OUTPUT"
-            echo "Testing the newest backup in the offsite bucket."
-          else
-            echo "offsite=false" >> "$GITHUB_OUTPUT"
-            echo "Testing the newest backup on the db-backups branch."
-          fi
-
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        if: steps.src.outputs.offsite != 'true'
-        with:
-          ref: db-backups
-
-      - name: Download the newest dump from offsite storage
-        if: steps.src.outputs.offsite == 'true'
+      - name: Download the newest dump from Backblaze
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_S3_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_APPLICATION_KEY }}
@@ -96,48 +52,29 @@ jobs:
           AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
           ENDPOINT: ${{ vars.BACKUP_S3_ENDPOINT }}
           BUCKET: ${{ vars.BACKUP_S3_BUCKET }}
+          REGION: ${{ vars.BACKUP_S3_REGION }}
           PREFIX: ${{ vars.BACKUP_S3_PREFIX }}
         run: |
+          if [ -z "$BUCKET" ] || [ -z "$ENDPOINT" ] || [ -z "$REGION" ] || [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
+            echo "::error::Offsite backup settings are missing. Set BACKUP_S3_BUCKET, BACKUP_S3_ENDPOINT, BACKUP_S3_REGION (repository variables) and BACKUP_S3_KEY_ID, BACKUP_S3_APPLICATION_KEY (repository secrets)."
+            exit 1
+          fi
           PREFIX="${PREFIX:-store-backups}"
           PREFIX="${PREFIX%/}"
-          # Prefer the FULL dump (<prefix>/full/, image bytes included) — it is
-          # the only complete backup. Fall back to the plain nightly copy
-          # (no image bytes) if no full dump exists yet.
-          # --delimiter keeps each lookup to direct children (not monthly/);
+          # --delimiter keeps the lookup to direct children of full/;
           # filenames embed a UTC timestamp, so sorting by key is chronological.
           KEY=$(aws s3api list-objects-v2 --endpoint-url "$ENDPOINT" --bucket "$BUCKET" \
                   --prefix "${PREFIX}/full/umas_books_full_" --delimiter "/" \
                   --query 'sort_by(Contents, &Key)[-1].Key' --output text || true)
           if [ -z "$KEY" ] || [ "$KEY" = "None" ]; then
-            echo "::warning::No full dump under ${BUCKET}/${PREFIX}/full/ — testing the plain nightly copy, which has NO image bytes."
-            KEY=$(aws s3api list-objects-v2 --endpoint-url "$ENDPOINT" --bucket "$BUCKET" \
-                    --prefix "${PREFIX}/umas_books_" --delimiter "/" \
-                    --query 'sort_by(Contents, &Key)[-1].Key' --output text || true)
-            echo "FULL_DUMP=false" >> "$GITHUB_ENV"
-          else
-            echo "FULL_DUMP=true" >> "$GITHUB_ENV"
-          fi
-          if [ -z "$KEY" ] || [ "$KEY" = "None" ]; then
-            echo "::error::No umas_books_*.dump objects under ${BUCKET}/${PREFIX}/"
+            echo "::error::No backup dumps found under ${BUCKET}/${PREFIX}/full/ — has the nightly backup ever run successfully?"
             exit 1
           fi
           echo "Newest dump: ${BUCKET}/${KEY}"
           aws s3 cp "s3://${BUCKET}/${KEY}" restore.dump --endpoint-url "$ENDPOINT" --only-show-errors
+          test -s restore.dump || { echo "::error::Downloaded dump is empty."; exit 1; }
           echo "Downloaded ($(du -h restore.dump | cut -f1))"
           echo "DUMP=restore.dump" >> "$GITHUB_ENV"
-
-      - name: Pick the newest dump
-        if: steps.src.outputs.offsite != 'true'
-        run: |
-          # Filenames embed a UTC timestamp (umas_books_YYYY-MM-DDTHH-MM-SSZ.dump),
-          # so a plain lexical sort is chronological.
-          LATEST=$(ls -1 backups/umas_books_*.dump 2>/dev/null | sort | tail -n 1)
-          if [ -z "$LATEST" ]; then
-            echo "::error::No dumps found in backups/ on the db-backups branch."
-            exit 1
-          fi
-          echo "Newest dump: $LATEST ($(du -h "$LATEST" | cut -f1))"
-          echo "DUMP=$LATEST" >> "$GITHUB_ENV"
 
       - name: Install matching PostgreSQL client tools
         # Same reasoning as nightly-db-backup.yml: pg_restore from an older
@@ -190,14 +127,23 @@ jobs:
             fail=1
           fi
 
-          # Image bytes. The db-backups branch copy deliberately EXCLUDES the
-          # data of the images table (it would exceed that branch's file size
-          # limit); only the offsite full/ dump has it. Table must exist either
-          # way; with a full dump, every /img/ URL in use must resolve.
+          # Image bytes. The images table must exist. If the dump has image
+          # rows, at least one must carry data (the dump includes image
+          # bytes), and every /img/ URL in use must resolve to a stored image.
           if ! $PSQL -c "SELECT count(*) FROM public.images" > /dev/null 2>&1; then
             echo "::error::Table public.images is missing after restore."
             fail=1
-          elif [ "${FULL_DUMP:-false}" = "true" ]; then
+          else
+            rows=$($PSQL -c "SELECT count(*) FROM public.images" 2>/dev/null || echo 0)
+            echo "public.images: $rows rows"
+            if [ "${rows:-0}" -gt 0 ]; then
+              withdata=$($PSQL -c "SELECT count(*) FROM public.images WHERE length(data) > 0" 2>/dev/null || echo 0)
+              echo "images with data: $withdata"
+              if [ "${withdata:-0}" -lt 1 ]; then
+                echo "::error::The images table has $rows row(s) but none have image bytes — the backup is missing images."
+                fail=1
+              fi
+            fi
             missing=$($PSQL -c "
               SELECT count(*) FROM (
                 SELECT cover_url AS u FROM public.books
@@ -209,11 +155,9 @@ jobs:
                 SELECT 1 FROM public.images i WHERE i.id = substring(x.u FROM 6 FOR 64))" 2>/dev/null || echo "-1")
             echo "image URLs with no stored bytes: $missing"
             if [ "$missing" != "0" ]; then
-              echo "::error::The full dump is missing image bytes for $missing image URL(s)."
+              echo "::error::The dump is missing image bytes for $missing image URL(s)."
               fail=1
             fi
-          else
-            echo "::warning::This backup has no image bytes (db-backups branch copy, or no offsite full/ dump yet). Images are NOT backed up in it."
           fi
 
           exit $fail
@@ -236,4 +180,4 @@ jobs:
 
             Check the failed run for details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
-            Until this is resolved, do not assume the backups on the db-backups branch are restorable.
+            Until this is resolved, do not assume the backups in Backblaze are restorable.

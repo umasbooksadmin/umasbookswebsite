@@ -3,7 +3,9 @@
 <p><a href="/forum">&larr; Back to forum</a></p>
 <h1><%= thread.title %></h1>
 <div class="thread-meta"><%= thread.author_name || 'Member' %> &middot; <%= formatDateTime(thread.created_at) %></div>
+<% if (typeof reported !== 'undefined' && reported) { %><div class="notice-box" role="status">Thanks, we will review it.</div><% } %>
 <div class="card"><%= thread.body %></div>
+<%- include('partials/forum_report', { kind: 'thread', id: thread.id }) %>
 
 <h3>Replies</h3>
 <% if (!replies.length) { %>
@@ -13,6 +15,7 @@
   <div class="reply">
     <div class="thread-meta"><%= r.author_name || 'Member' %> &middot; <%= formatDateTime(r.created_at) %></div>
     <div><%= r.body %></div>
+    <%- include('partials/forum_report', { kind: 'reply', id: r.id }) %>
   </div>
 <% }) %>
 
