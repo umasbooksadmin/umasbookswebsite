@@ -1,3 +1,5 @@
 node_modules/
+# also the bare name: "node_modules/" does not match a symlink to one
+node_modules
 .env
 *.log

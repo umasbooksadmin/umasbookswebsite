@@ -38,12 +38,12 @@ Date accepted: ____ / ____ / ______ / Done by: ____________
 
 Date accepted: ____ / ____ / ______ / Done by: ____________
 
-## GitHub (code and nightly database backup)
+## GitHub (code only)
 
-- **What they get:** the code (no personal data) and, in the private branch `db-backups`, a full database dump every night: all personal data. This is the most sensitive item here: the repository must stay **private**. (The backup job refuses to run on a public repository.)
+- **What they get:** the code (no personal data) and the automatic checks. Database backups are NOT stored on GitHub (they go to Backblaze only). The repository holds no real personal data; make it private before real members arrive.
 - **Role:** processor.
 - **Action for Sharon:** look for the GitHub Data Protection Agreement on GitHub's legal page (docs.github.com, "Site policy" > "GitHub Customer Agreement" and its Data Protection Agreement). Follow the page to accept it for the account or organisation that owns the repository `umasbooksadmin`. If the page says it is part of the terms already accepted, note that and keep a copy.
-- Also decide whether to stop the GitHub copy of the backups once Backblaze is trusted, because old dumps stay in Git history (see `record-of-processing.md`, section 9).
+- If the old `db-backups` branch is still there, delete it (GitHub > repository > Branches). Old backup commits may stay reachable on GitHub for a while after that; GitHub Support can purge them on request.
 
 Date accepted: ____ / ____ / ______ / Done by: ____________
 
