@@ -2,6 +2,7 @@ const { pool } = require("../db");
 const { generateToken, hashToken } = require("./resetTokens");
 const { sendMail } = require("../mailer");
 const { emailSafeName } = require("./validation");
+const { emailTr } = require("./lang");
 
 const TOKEN_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -16,10 +17,24 @@ async function sendVerificationEmail(user, baseUrl) {
   );
 
   const link = `${baseUrl}/verify-email/${rawToken}`;
+  // The account's stored language (users.lang; set from the visitor's choice
+  // at signup), English when unknown.
+  // Callers that only have id/email/name (admin email change) don't carry the
+  // language: look it up.
+  let lang = user.lang;
+  if (lang === undefined) {
+    const { rows } = await pool.query("SELECT lang FROM users WHERE id = $1", [user.id]);
+    lang = rows[0] && rows[0].lang;
+  }
+  const tr = emailTr(lang);
+  const name = emailSafeName(user.display_name);
   await sendMail({
     to: user.email,
-    subject: "Confirm your email for Uma's Books",
-    text: `Hi ${emailSafeName(user.display_name)},\n\nConfirm this is your email address (this link expires in 24 hours):\n${link}\n\nIf you didn't create an account at Uma's Books, you can safely ignore this email.`,
+    subject: tr("Confirm your email for Uma's Books", "Confirmez votre adresse e-mail pour Uma's Books"),
+    text: tr(
+      `Hi ${name},\n\nConfirm this is your email address (this link expires in 24 hours):\n${link}\n\nIf you didn't create an account at Uma's Books, you can safely ignore this email.`,
+      `Bonjour ${name},\n\nVeuillez confirmer qu'il s'agit bien de votre adresse e-mail (ce lien expire dans 24 heures) :\n${link}\n\nSi vous n'avez pas créé de compte sur Uma's Books, vous pouvez ignorer ce message.`
+    ),
   });
 }
 
@@ -27,10 +42,15 @@ async function sendVerificationEmail(user, baseUrl) {
 // address that already has an account, so signup's HTTP response can be
 // identical either way while the real owner still learns about it.
 async function sendSignupAttemptEmail(user, baseUrl) {
+  const tr = emailTr(user.lang);
+  const name = emailSafeName(user.display_name);
   await sendMail({
     to: user.email,
-    subject: "Someone tried to sign up with your email at Uma's Books",
-    text: `Hi ${emailSafeName(user.display_name)},\n\nSomeone just tried to create a new Uma's Books account with this email address, but you already have one.\n\nIf it was you, log in at ${baseUrl}/login, or reset your password at ${baseUrl}/forgot-password.\n\nIf it wasn't you, you can safely ignore this email.`,
+    subject: tr("Someone tried to sign up with your email at Uma's Books", "Quelqu'un a tenté de s'inscrire avec votre adresse e-mail sur Uma's Books"),
+    text: tr(
+      `Hi ${name},\n\nSomeone just tried to create a new Uma's Books account with this email address, but you already have one.\n\nIf it was you, log in at ${baseUrl}/login, or reset your password at ${baseUrl}/forgot-password.\n\nIf it wasn't you, you can safely ignore this email.`,
+      `Bonjour ${name},\n\nQuelqu'un vient d'essayer de créer un compte Uma's Books avec cette adresse e-mail, mais vous en avez déjà un.\n\nSi c'était vous, connectez-vous sur ${baseUrl}/login ou réinitialisez votre mot de passe sur ${baseUrl}/forgot-password.\n\nSi ce n'était pas vous, vous pouvez ignorer ce message.`
+    ),
   });
 }
 

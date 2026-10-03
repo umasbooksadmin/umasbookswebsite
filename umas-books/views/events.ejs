@@ -1,4 +1,4 @@
-<%- include('partials/header', { title: 'Events', extraCss: ['/floral-calendar.css'], mainClass: view === 'week' ? 'wrap-wide' : 'wrap' }) %>
+<%- include('partials/header', { title: tr('Events', 'Événements'), extraCss: ['/floral-calendar.css'], mainClass: view === 'week' ? 'wrap-wide' : 'wrap' }) %>
 
 <% const qs = view === 'week' ? `view=week&week=${currentWeek}` : `month=${currentMonth}`; %>
 <% const prevHref = view === 'week' ? `view=week&week=${prevWeek}` : `month=${prevMonth}`; %>
@@ -10,16 +10,16 @@
   <img class="art art-right" src="/assets/img/hero-right.png" alt="">
   <div class="fcal-hero-copy">
     <div class="fcal-kicker">Uma’s Books &amp; Adventures<div class="rule"></div></div>
-    <h1 class="fcal-title">Upcoming Events</h1>
-    <p class="fcal-sub">Everyone’s welcome — browse what’s coming up and sign up below, no account needed.</p>
+    <h1 class="fcal-title"><%= tr('Upcoming Events', 'Prochains événements') %></h1>
+    <p class="fcal-sub"><%= tr('Everyone’s welcome — browse what’s coming up and sign up below, no account needed.', 'Tout le monde est le bienvenu — parcourez les événements à venir et inscrivez-vous ci-dessous, sans besoin de créer de compte.') %></p>
     <div class="fcal-nav">
-      <a href="/events?<%= prevHref %>" aria-label="Previous">&lsaquo;</a>
+      <a href="/events?<%= prevHref %>" aria-label="<%= tr('Previous', 'Précédent') %>">‹</a>
       <span class="fcal-month"><%= view === 'week' ? weekLabel : monthLabel %></span>
-      <a href="/events?<%= nextHref %>" aria-label="Next">&rsaquo;</a>
+      <a href="/events?<%= nextHref %>" aria-label="<%= tr('Next', 'Suivant') %>">›</a>
     </div>
     <div class="fcal-view-toggle">
-      <a href="/events" class="<%= view === 'month' ? 'is-active' : '' %>">Month</a>
-      <a href="/events?view=week" class="<%= view === 'week' ? 'is-active' : '' %>">Week</a>
+      <a href="/events" class="<%= view === 'month' ? 'is-active' : '' %>"><%= tr('Month', 'Mois') %></a>
+      <a href="/events?view=week" class="<%= view === 'week' ? 'is-active' : '' %>"><%= tr('Week', 'Semaine') %></a>
     </div>
   </div>
 </section>

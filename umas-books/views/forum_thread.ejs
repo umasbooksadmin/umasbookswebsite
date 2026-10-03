@@ -1,29 +1,29 @@
 <%- include('partials/header', { title: thread.title, hideBackLink: true }) %>
 
-<p><a href="/forum">&larr; Back to forum</a></p>
+<p><a href="/forum">&larr; <%= tr('Back to forum', 'Retour au forum') %></a></p>
 <h1><%= thread.title %></h1>
-<div class="thread-meta"><%= thread.author_name || 'Member' %> &middot; <%= formatDateTime(thread.created_at) %></div>
-<% if (typeof reported !== 'undefined' && reported) { %><div class="notice-box" role="status">Thanks, we will review it.</div><% } %>
+<div class="thread-meta"><%= thread.author_name || tr('Member', 'Membre') %> &middot; <%= formatDateTime(thread.created_at) %></div>
+<% if (typeof reported !== 'undefined' && reported) { %><div class="notice-box" role="status"><%= tr('Thanks, we will review it.', 'Merci, nous allons l’examiner.') %></div><% } %>
 <div class="card"><%= thread.body %></div>
 <%- include('partials/forum_report', { kind: 'thread', id: thread.id }) %>
 
-<h3>Replies</h3>
+<h3><%= tr('Replies', 'Réponses') %></h3>
 <% if (!replies.length) { %>
-  <p class="muted">No replies yet.</p>
+  <p class="muted"><%= tr('No replies yet.', 'Aucune réponse pour le moment.') %></p>
 <% } %>
 <% replies.forEach(r => { %>
   <div class="reply">
-    <div class="thread-meta"><%= r.author_name || 'Member' %> &middot; <%= formatDateTime(r.created_at) %></div>
+    <div class="thread-meta"><%= r.author_name || tr('Member', 'Membre') %> &middot; <%= formatDateTime(r.created_at) %></div>
     <div><%= r.body %></div>
     <%- include('partials/forum_report', { kind: 'reply', id: r.id }) %>
   </div>
 <% }) %>
 
-<h3 id="reply-heading">Add a reply</h3>
+<h3 id="reply-heading"><%= tr('Add a reply', 'Ajouter une réponse') %></h3>
 <form class="stack" method="post" action="/forum/<%= thread.id %>/replies">
   <%- include('partials/csrf_field') %>
   <textarea name="body" aria-labelledby="reply-heading" required></textarea>
-  <button class="btn" type="submit">Reply</button>
+  <button class="btn" type="submit"><%= tr('Reply', 'Répondre') %></button>
 </form>
 
 <%- include('partials/footer') %>

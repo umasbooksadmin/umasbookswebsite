@@ -1,25 +1,25 @@
-<%- include('partials/header', { title: 'Meetings', mainClass: view === 'week' ? 'wrap-wide' : 'wrap' }) %>
+<%- include('partials/header', { title: tr('Meetings', 'Réunions'), mainClass: view === 'week' ? 'wrap-wide' : 'wrap' }) %>
 
 <% const qs = view === 'week' ? `view=week&week=${currentWeek}` : `month=${currentMonth}`; %>
 <% const prevHref = view === 'week' ? `view=week&week=${prevWeek}` : `month=${prevMonth}`; %>
 <% const nextHref = view === 'week' ? `view=week&week=${nextWeek}` : `month=${nextMonth}`; %>
 
-<h1>Meetings</h1>
+<h1><%= tr('Meetings', 'Réunions') %></h1>
 
 <div class="card">
   <div class="calendar-nav">
     <div class="calendar-nav-main">
-      <a class="btn btn-outline btn-small" href="/meetings?<%= prevHref %>">&larr; Prev</a>
+      <a class="btn btn-outline btn-small" href="/meetings?<%= prevHref %>">&larr; <%= tr('Prev', 'Préc.') %></a>
       <span class="month-label"><%= view === 'week' ? weekLabel : monthLabel %></span>
-      <a class="btn btn-outline btn-small" href="/meetings?<%= nextHref %>">Next &rarr;</a>
+      <a class="btn btn-outline btn-small" href="/meetings?<%= nextHref %>"><%= tr('Next', 'Suiv.') %> &rarr;</a>
     </div>
     <div class="calendar-view-toggle">
-      <a href="/meetings" class="btn btn-outline btn-small<%= view === 'month' ? ' is-active' : '' %>">Month</a>
-      <a href="/meetings?view=week" class="btn btn-outline btn-small<%= view === 'week' ? ' is-active' : '' %>">Week</a>
+      <a href="/meetings" class="btn btn-outline btn-small<%= view === 'month' ? ' is-active' : '' %>"><%= tr('Month', 'Mois') %></a>
+      <a href="/meetings?view=week" class="btn btn-outline btn-small<%= view === 'week' ? ' is-active' : '' %>"><%= tr('Week', 'Semaine') %></a>
     </div>
   </div>
   <div class="calendar-grid">
-    <% ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].forEach(d => { %><div class="calendar-weekday"><%= d %></div><% }) %>
+    <% [tr('Sun', 'Dim'), tr('Mon', 'Lun'), tr('Tue', 'Mar'), tr('Wed', 'Mer'), tr('Thu', 'Jeu'), tr('Fri', 'Ven'), tr('Sat', 'Sam')].forEach(d => { %><div class="calendar-weekday"><%= d %></div><% }) %>
     <% weeks.forEach(week => { %>
       <% week.forEach(day => { %>
         <% if (!day) { %>
@@ -34,18 +34,18 @@
                 <div class="calendar-pill-body">
                   <div class="muted small">
                     <%= formatDateTime(m.scheduled_at) %><%= m.location ? ' · ' + m.location : '' %>
-                    &middot; <%= m.rsvp_count %> going
+                    &middot; <%= tr('{n} going', m.rsvp_count == 1 ? '{n} participant' : '{n} participants', { n: m.rsvp_count }) %>
                   </div>
-                  <% if (m.agenda) { %><div class="muted small" style="margin-top:6px;"><em>Agenda:</em> <%= m.agenda %></div><% } %>
+                  <% if (m.agenda) { %><div class="muted small" style="margin-top:6px;"><em><%= tr('Agenda:', 'Ordre du jour :') %></em> <%= m.agenda %></div><% } %>
                   <% if (going) { %>
                     <form method="post" action="/meetings/<%= m.id %>/unrsvp?<%= qs %>" style="margin-top:8px;">
                       <%- include('partials/csrf_field') %>
-                      <button class="btn btn-outline btn-small" type="submit">Cancel RSVP</button>
+                      <button class="btn btn-outline btn-small" type="submit"><%= tr('Cancel RSVP', 'Annuler ma participation') %></button>
                     </form>
                   <% } else { %>
                     <form method="post" action="/meetings/<%= m.id %>/rsvp?<%= qs %>" style="margin-top:8px;">
                       <%- include('partials/csrf_field') %>
-                      <button class="btn btn-small" type="submit">I'll be there</button>
+                      <button class="btn btn-small" type="submit"><%- tr("I'll be there", 'Je serai présent(e)') %></button>
                     </form>
                   <% } %>
                 </div>
@@ -59,9 +59,9 @@
 </div>
 
 <div class="card">
-  <div class="section-title">Past meetings &amp; minutes</div>
+  <div class="section-title"><%= tr('Past meetings & minutes', 'Réunions passées et comptes rendus') %></div>
   <% if (!past.length) { %>
-    <p class="muted">No past meetings yet.</p>
+    <p class="muted"><%= tr('No past meetings yet.', 'Aucune réunion passée pour le moment.') %></p>
   <% } else { %>
     <ul class="plain">
       <% past.forEach(m => { %>
@@ -69,9 +69,9 @@
           <strong><%= m.title %></strong>
           <div class="muted small"><%= formatDateTime(m.scheduled_at) %><%= m.location ? ' · ' + m.location : '' %></div>
           <% if (m.minutes) { %>
-            <div style="margin-top:6px;"><em>Minutes:</em> <%= m.minutes %></div>
+            <div style="margin-top:6px;"><em><%= tr('Minutes:', 'Compte rendu :') %></em> <%= m.minutes %></div>
           <% } else { %>
-            <div class="muted small" style="margin-top:6px;">Minutes not posted yet.</div>
+            <div class="muted small" style="margin-top:6px;"><%= tr('Minutes not posted yet.', 'Compte rendu pas encore publié.') %></div>
           <% } %>
         </li>
       <% }) %>

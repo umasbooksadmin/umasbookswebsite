@@ -54,11 +54,11 @@ router.post("/account/2fa/enable", requireAuth, codeLimiter, async (req, res) =>
   // session (or password) before the real admin enrols could enrol their
   // OWN authenticator and lock the real admin out.
   if (!(await bcrypt.compare(String(req.body.password || ""), user.password_hash))) {
-    return renderSetup(res, user, { error: "Your password didn't match. Enter your account password to continue." });
+    return renderSetup(res, user, { error: req.tr("Your password didn't match. Enter your account password to continue.", "Votre mot de passe ne correspond pas. Saisissez le mot de passe de votre compte pour continuer.") });
   }
 
   const step = totp.verifyTotp(totp.decryptSecret(user.totp_secret_enc), req.body.code);
-  if (step == null) return renderSetup(res, user, { error: "That code didn't match. Check the code in your app and try again." });
+  if (step == null) return renderSetup(res, user, { error: req.tr("That code didn't match. Check the code in your app and try again.", "Ce code ne correspond pas. Vérifiez le code dans votre application et réessayez.") });
 
   const codes = Array.from({ length: totp.RECOVERY_COUNT }, totp.newRecoveryCode);
   await withTransaction(pool, async (db) => {
@@ -78,7 +78,7 @@ router.post("/account/2fa/recovery-codes", requireAuth, codeLimiter, async (req,
   if (!user.totp_enabled_at) return res.redirect("/account/2fa");
   const step = totp.verifyTotp(totp.decryptSecret(user.totp_secret_enc), req.body.code, { lastStep: user.totp_last_step });
   if (step == null) {
-    return res.status(400).render("two_factor_status", { error: "That code didn't match.", recoveryLeft: null, isAdmin: user.is_admin });
+    return res.status(400).render("two_factor_status", { error: req.tr("That code didn't match.", "Ce code ne correspond pas."), recoveryLeft: null, isAdmin: user.is_admin });
   }
   const codes = Array.from({ length: totp.RECOVERY_COUNT }, totp.newRecoveryCode);
   await withTransaction(pool, async (db) => {
@@ -98,7 +98,7 @@ router.post("/account/2fa/disable", requireAuth, codeLimiter, async (req, res) =
   if (!user.totp_enabled_at || user.is_admin) return res.redirect("/account/2fa");
   const step = totp.verifyTotp(totp.decryptSecret(user.totp_secret_enc), req.body.code, { lastStep: user.totp_last_step });
   if (step == null) {
-    return res.status(400).render("two_factor_status", { error: "That code didn't match.", recoveryLeft: null, isAdmin: false });
+    return res.status(400).render("two_factor_status", { error: req.tr("That code didn't match.", "Ce code ne correspond pas."), recoveryLeft: null, isAdmin: false });
   }
   await withTransaction(pool, async (db) => {
     await db.query("UPDATE users SET totp_secret_enc = NULL, totp_enabled_at = NULL, totp_last_step = NULL WHERE id = $1", [user.id]);
