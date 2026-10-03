@@ -23,6 +23,40 @@ test("normalizeGenres trims, dedupes case-insensitively, and rejoins", () => {
   assert.equal(normalizeGenres(" Fantasy ,fiction, Fantasy"), "Fantasy, fiction");
 });
 
+const { normalizeLocation, parseScan, isbnVariants } = require("../../src/lib/inventory");
+
+test("normalizeLocation trims, collapses spaces, upper-cases and caps at 40", () => {
+  assert.equal(normalizeLocation("  fiction   a1 "), "FICTION A1");
+  assert.equal(normalizeLocation("Fiction-A1"), "FICTION-A1");
+  assert.equal(normalizeLocation("x".repeat(60)), "X".repeat(40));
+  assert.equal(normalizeLocation("a\tb\nc"), "A B C");
+});
+
+test("normalizeLocation returns null for blank input", () => {
+  assert.equal(normalizeLocation(""), null);
+  assert.equal(normalizeLocation("   "), null);
+  assert.equal(normalizeLocation(undefined), null);
+  assert.equal(normalizeLocation(null), null);
+});
+
+test("parseScan recognises ISBN-13 and ISBN-10, ignoring hyphens and spaces", () => {
+  assert.deepEqual(parseScan("9780143127550"), { type: "isbn", isbn: "9780143127550" });
+  assert.deepEqual(parseScan(" 978-0-14-312755-0 "), { type: "isbn", isbn: "9780143127550" });
+  assert.deepEqual(parseScan("0 14 312755 x"), { type: "isbn", isbn: "014312755X" });
+});
+
+test("parseScan treats anything else as unknown", () => {
+  for (const v of ["", "   ", "FICTION-A1", "12345", "97801431275501", undefined]) {
+    assert.deepEqual(parseScan(v), { type: "unknown" }, String(v));
+  }
+});
+
+test("isbnVariants converts between ISBN-10 and ISBN-13", () => {
+  assert.deepEqual(isbnVariants("9780143127550").sort(), ["0143127551", "9780143127550"].sort());
+  assert.deepEqual(isbnVariants("0143127551").sort(), ["0143127551", "9780143127550"].sort());
+  assert.deepEqual(isbnVariants("9791234567896"), ["9791234567896"]);
+});
+
 test("normalizeGenres returns null for empty input", () => {
   assert.equal(normalizeGenres(""), null);
   assert.equal(normalizeGenres(undefined), null);

@@ -184,3 +184,7 @@
   font-size: 14.5px; color: var(--ink); font-weight: normal; text-transform: none; letter-spacing: normal;
 }
 .ann-check input { margin-top: 3px; }
+
+/* Move books page log */
+.move-ok { font-weight: 600; }
+.move-bad { color: #9b1c1c; font-weight: 600; }

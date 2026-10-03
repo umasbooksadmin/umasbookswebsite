@@ -90,6 +90,15 @@ rather than by a numbered migration), grouped by what they belong to:
   between 95% and 100% of it; enforced server-side by `resolveCopyPricing`
   in `src/lib/inventory.js` on both add-copy and edit-copy. Used copies are
   free-priced and store `publisher_price` NULL.
+- **Inventory locations** — `book_copies.location` (migration 043) is free
+  text per physical copy, normalised by `normalizeLocation` in
+  `src/lib/inventory.js` (trimmed, spaces collapsed, upper-case, 40 chars).
+  There is no locations table: the dropdown (a `<datalist>`, partial
+  `location_options`) is `SELECT DISTINCT location`, so a newly typed place
+  appears from then on. The scan/add flow carries the current location
+  through hidden fields and `public/inventory-location.js` (localStorage);
+  `/admin/inventory/move` moves one copy per scanned ISBN (`parseScan`), and
+  each move writes a `copy.move` audit row (location codes only).
 - **Accounts & auth** — `users`, `password_reset_tokens`,
   `email_verification_tokens`
 - **Shop / checkout** — `books`, `book_copies`, `orders`, `order_items`
