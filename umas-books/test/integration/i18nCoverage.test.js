@@ -31,6 +31,11 @@ const PAGES = [
   "/contact", // views/contact.ejs
   "/contact?sent=1",
   "/favorites", // views/favorites.ejs (the list itself is rendered client-side)
+  "/login", // views/login.ejs
+  "/login?reset=success", // login notice
+  "/signup", // views/signup.ejs (and the privacy note)
+  "/forgot-password", // views/forgot_password.ejs
+  "/reset-password/not-a-real-token", // views/reset_password.ejs (invalid link branch)
 ];
 
 // Pages that need seeded data or a session: each entry sets itself up against

@@ -1,20 +1,20 @@
-<%- include('partials/header', { noindex: true, title: 'Log In' }) %>
+<%- include('partials/header', { noindex: true, title: tr('Log In', 'Connexion') }) %>
 
-<h1>Log in</h1>
+<h1><%= tr('Log in', 'Connexion') %></h1>
 <% if (error) { %><div role="alert" class="error-box"><%= error %></div><% } %>
 <% if (notice) { %><div role="status" class="notice-box"><%= notice %></div><% } %>
 <form class="stack" method="post" action="/login">
   <%- include('partials/csrf_field') %>
-  <label for="email">Email</label>
+  <label for="email"><%= tr('Email', 'E-mail') %></label>
   <input id="email" name="email" type="email" autocomplete="username" required>
-  <label for="password">Password</label>
+  <label for="password"><%= tr('Password', 'Mot de passe') %></label>
   <div class="password-field">
     <input id="password" name="password" type="password" autocomplete="current-password" required>
-    <button type="button" class="password-toggle" data-toggle-password="password" aria-label="Show password" aria-pressed="false">Show</button>
+    <button type="button" class="password-toggle" data-toggle-password="password" aria-label="<%= tr('Show password', 'Afficher le mot de passe') %>" aria-pressed="false"><%= tr('Show', 'Afficher') %></button>
   </div>
-  <button class="btn" type="submit">Log in</button>
+  <button class="btn" type="submit"><%= tr('Log in', 'Se connecter') %></button>
 </form>
-<p class="muted small">New here? <a href="/signup">Create an account</a></p>
-<p class="muted small"><a href="/forgot-password">Forgot your password?</a></p>
+<p class="muted small"><%= tr('New here?', 'Nouveau ici ?') %> <a href="/signup"><%= tr('Create an account', 'Créer un compte') %></a></p>
+<p class="muted small"><a href="/forgot-password"><%= tr('Forgot your password?', 'Mot de passe oublié ?') %></a></p>
 
 <%- include('partials/footer') %>

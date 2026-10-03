@@ -1,23 +1,23 @@
-<%- include('partials/header', { title: 'Set up two-step verification' }) %>
+<%- include('partials/header', { title: tr('Set up two-step verification', 'Activer la vérification en deux étapes') }) %>
 
-<h1>Set up two-step verification</h1>
+<h1><%= tr('Set up two-step verification', 'Activer la vérification en deux étapes') %></h1>
 <% if (locals.user && user.isAdmin && !user.totpEnabled) { %>
-  <div class="notice-box" role="status">Admin accounts must use two-step verification. Set it up now to continue to the admin area.</div>
+  <div class="notice-box" role="status"><%= tr('Admin accounts must use two-step verification. Set it up now to continue to the admin area.', 'Les comptes administrateurs doivent utiliser la vérification en deux étapes. Activez-la maintenant pour accéder à l’espace d’administration.') %></div>
 <% } %>
 <% if (error) { %><div class="error-box" role="alert"><%= error %></div><% } %>
 <ol>
-  <li>Install an authenticator app on your phone (Google Authenticator, Microsoft Authenticator, 1Password, Authy…).</li>
-  <li>Scan this QR code with the app:<br><img src="<%= qr %>" alt="QR code for two-step verification" width="220" height="220"></li>
-  <li>Can't scan? Enter this key by hand: <code><%= secret %></code></li>
-  <li>Type your account password and the 6-digit code the app shows:</li>
+  <li><%= tr('Install an authenticator app on your phone (Google Authenticator, Microsoft Authenticator, 1Password, Authy…).', 'Installez une application d’authentification sur votre téléphone (Google Authenticator, Microsoft Authenticator, 1Password, Authy…).') %></li>
+  <li><%= tr('Scan this QR code with the app:', 'Scannez ce code QR avec l’application :') %><br><img src="<%= qr %>" alt="<%= tr('QR code for two-step verification', 'Code QR pour la vérification en deux étapes') %>" width="220" height="220"></li>
+  <li><%= tr('Can\'t scan? Enter this key by hand:', 'Impossible de scanner ? Saisissez cette clé à la main :') %> <code><%= secret %></code></li>
+  <li><%= tr('Type your account password and the 6-digit code the app shows:', 'Saisissez le mot de passe de votre compte et le code à 6 chiffres affiché par l’application :') %></li>
 </ol>
 <form class="stack" method="post" action="/account/2fa/enable">
   <%- include('partials/csrf_field') %>
-  <label for="password">Your account password</label>
+  <label for="password"><%= tr('Your account password', 'Mot de passe de votre compte') %></label>
   <input id="password" name="password" type="password" autocomplete="current-password" required>
-  <label for="code">Code</label>
+  <label for="code"><%= tr('Code', 'Code') %></label>
   <input id="code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" required>
-  <button class="btn" type="submit">Turn on two-step verification</button>
+  <button class="btn" type="submit"><%= tr('Turn on two-step verification', 'Activer la vérification en deux étapes') %></button>
 </form>
 
 <%- include('partials/footer') %>
