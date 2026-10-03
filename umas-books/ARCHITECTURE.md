@@ -164,9 +164,10 @@ actually uses.
 - **Monitoring and backups** (all GitHub Actions, independent of Render):
   `uptime-check.yml` polls `/healthz` every 30 minutes (Actions minutes are metered on a private repo) and emails once on
   the second consecutive failure and once on recovery;
-  `nightly-db-backup.yml` pushes a `pg_dump` (without image bytes — see
-  "Images") to the private `db-backups` branch; `backup-restore-test.yml` restores the newest dump into a
-  scratch postgres:18 monthly and checks it. The manual restore procedure
+  `nightly-db-backup.yml` uploads one complete `pg_dump` (image bytes
+  included, login sessions excluded) to the private Backblaze B2 bucket and
+  fails if the offsite settings are missing; `backup-restore-test.yml` downloads the newest
+  dump from B2, restores it into a scratch postgres:18 monthly and checks it. The manual restore procedure
   is in [README.md](README.md#restoring-from-a-backup).
 
 ## Two-step verification (admins)
@@ -308,12 +309,10 @@ as-is and never copied.
   string, so reimplement `saveImage`/`getImage` against the bucket and have
   `routes/img.js` redirect or stream from it; no caller changes. Existing
   `/img/<hash>` URLs stay valid because the key is the content hash.
-- **Backups:** the nightly GitHub dump uses `--exclude-table-data=images`
-  (schema kept) to stay under the db-backups branch's 100 MB file limit; the
-  *complete* dump (images included) is uploaded to the offsite bucket under
-  `store-backups/full/` only when `BACKUP_S3_*` is configured. Until it is,
-  images are backed up nowhere but the live database (README, "Restoring
-  from a backup").
+- **Backups:** the nightly dump is complete (images included) and goes only
+  to the private Backblaze B2 bucket under `store-backups/full/` (nothing is
+  committed to git); the workflow fails if `BACKUP_S3_*` is not configured
+  (README, "Restoring from a backup").
 
 ## Payment reliability (online checkout)
 
