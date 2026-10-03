@@ -215,6 +215,13 @@ others. `lib/totp.js` (hand-rolled on `node:crypto`), `routes/twoFactor.js`
   The warning email is claimed (`inactivity_warned_at` set) before it is
   sent and released if the send fails, so overlapping instances don't
   double-send. The `RETENTION` constants must match the privacy policy page.
+- Admin audit log: `lib/audit.js` `audit(req, {action, targetType, targetId,
+  detail})` appends to `admin_audit_log` (migration 040) from sensitive admin
+  routes (member changes/erasure/2FA reset, deletes, bulk deletes, admin
+  login), shown read-only at `/admin/audit`. It stores only the admin's id and
+  email, the action and a numeric target id, never member emails, names or
+  message text, and never throws. Purged after 12 months by
+  `purgeExpiredPersonalData`; keep the privacy policy in step.
 - Right of access / portability: admin → Members → member detail →
   **Download data (JSON)** (`GET /admin/members/:id/export.json`, admin only,
   `no-store`) returns the account and everything held under its email or id

@@ -3,6 +3,7 @@ const { saveImage } = require("../../lib/imageStore");
 const { sharpFromUpload } = require("../../lib/uploadImage");
 const { pool } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
+const { audit } = require("../../lib/audit");
 const { sanitizeHtml } = require("../../lib/sanitizeHtml");
 
 const { validateIdParams } = require("../../middleware/idParams");
@@ -154,6 +155,7 @@ router.post("/admin/blog/bulk", requireAdmin, async (req, res) => {
   if (ids.length) {
     if (req.body.bulkAction === "delete") {
       await pool.query("DELETE FROM blog_posts WHERE id = ANY($1)", [ids]);
+      await audit(req, { action: "blog.bulk_delete", targetType: "blog_post", detail: `ids ${ids.join(",")}` });
     } else if (req.body.bulkAction === "publish") {
       await pool.query(
         "UPDATE blog_posts SET status = 'published', published_at = COALESCE(published_at, now()), updated_at = now() WHERE id = ANY($1)",
@@ -200,6 +202,7 @@ router.post("/admin/blog/:id", requireAdmin, async (req, res) => {
 
 router.post("/admin/blog/:id/delete", requireAdmin, async (req, res) => {
   await pool.query("DELETE FROM blog_posts WHERE id = $1", [Number(req.params.id)]);
+  await audit(req, { action: "blog.delete", targetType: "blog_post", targetId: Number(req.params.id) });
   res.redirect(`/admin/blog${blogBackQuery(req)}`);
 });
 

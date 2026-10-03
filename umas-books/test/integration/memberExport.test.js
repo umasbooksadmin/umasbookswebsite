@@ -86,6 +86,12 @@ test("admin downloads a member's data as JSON, without secrets", async () => {
 
   const text = await res.text();
   const data = JSON.parse(text);
+  // Reading a member's data is logged (id only, no personal data).
+  const { rows: audited } = await pool.query(
+    "SELECT actor_user_id, target_id, detail FROM admin_audit_log WHERE action = 'member.export' AND target_id = $1", [member.id]);
+  assert.equal(audited.length, 1);
+  assert.equal(audited[0].actor_user_id, admin.id);
+  assert.ok(!JSON.stringify(audited[0]).includes(member.email));
   for (const section of [
     "user", "event_signups", "class_signups", "orders", "membership_payments", "favorites",
     "volunteer_signups", "meeting_rsvps", "forum_threads", "forum_replies",
