@@ -4,6 +4,7 @@ const { CONDITIONS } = require("../lib/inventory");
 const { expireStaleReservations } = require("../lib/reservations");
 const { sendMail } = require("../mailer");
 const { baseUrl } = require("../lib/baseUrl");
+const { emailTr, pickLang } = require("../lib/lang");
 const { isEmail, clean, emailSafeName, parseId } = require("../lib/validation");
 const { reserveLimiter, reserveDailyLimiter } = require("../middleware/rateLimits");
 
@@ -19,8 +20,17 @@ validateIdParams(router, "id");
 // backed by the /api/books/* endpoints below) — there's no server-rendered
 // listing page anymore, just the detail/reserve route past this point.
 
-function conditionLabel(value) {
-  return (CONDITIONS.find((c) => c.value === value) || {}).label || value;
+const CONDITION_LABELS_FR = {
+  new: "Neuf",
+  like_new: "Comme neuf",
+  good: "Bon état",
+  fair: "État correct",
+  poor: "Mauvais état",
+};
+
+function conditionLabel(value, lang) {
+  const en = (CONDITIONS.find((c) => c.value === value) || {}).label || value;
+  return (lang === "fr" && CONDITION_LABELS_FR[value]) || en;
 }
 
 // Logged-in visitors' favorites persist here too (see public/favorites.js),
@@ -287,7 +297,7 @@ router.get("/books/:id", async (req, res) => {
   res.render("book_detail", {
     book,
     copies,
-    conditionLabel,
+    conditionLabel: (value) => conditionLabel(value, req.lang),
     backGenre: (req.query.genre || "").trim(),
     moreByAuthor,
   });
@@ -324,10 +334,21 @@ router.post("/books/:id/reserve", reserveLimiter, reserveDailyLimiter, async (re
   if (rows.length) {
     const { rows: bookRows } = await pool.query("SELECT title FROM books WHERE id = $1", [bookId]);
     const title = bookRows[0] && bookRows[0].title;
+    // Language: the account with this email when it has one, else the
+    // language the visitor explicitly chose on the site, else English.
+    const { rows: langRows } = await pool.query(
+      "SELECT lang FROM users WHERE lower(email) = $1 AND lang IS NOT NULL LIMIT 1",
+      [email]
+    );
+    const tr = emailTr(pickLang(langRows[0] && langRows[0].lang, req.langFromCookie ? req.lang : null));
+    const safeName = emailSafeName(name);
     sendMail({
       to: email,
-      subject: `You've reserved "${title}" at Uma's Books`,
-      text: `Hi ${emailSafeName(name)},\n\nWe've set aside your copy of "${title}" — come by Uma's Books within the next 2 weeks to pick it up and pay in the shop. We'll send you a reminder a few days before the hold expires.\n\nUma's Books\nRue Peyrolière, 81000 Albi`,
+      subject: tr(`You've reserved "${title}" at Uma's Books`, `Vous avez réservé « ${title} » chez Uma's Books`),
+      text: tr(
+        `Hi ${safeName},\n\nWe've set aside your copy of "${title}" — come by Uma's Books within the next 2 weeks to pick it up and pay in the shop. We'll send you a reminder a few days before the hold expires.\n\nUma's Books\nRue Peyrolière, 81000 Albi`,
+        `Bonjour ${safeName},\n\nNous avons mis de côté votre exemplaire de « ${title} » : passez à Uma's Books dans les 2 semaines à venir pour le récupérer et le régler en boutique. Nous vous enverrons un rappel quelques jours avant la fin de la réservation.\n\nUma's Books\nRue Peyrolière, 81000 Albi`
+      ),
     }).catch((err) => console.error("Reservation confirmation email failed:", err.message));
   }
 

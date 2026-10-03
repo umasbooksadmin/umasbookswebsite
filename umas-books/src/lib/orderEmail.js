@@ -1,5 +1,6 @@
 const { emailSafeName } = require("./validation");
 const { formatDate } = require("./dates");
+const { emailTr } = require("./lang");
 
 // The shop you pick up at (Rue Peyrolière) is NOT the association's
 // registered office (siège, 5 rue Hippolyte Savary): customers get the shop
@@ -34,14 +35,34 @@ const WITHDRAWAL_FORM = [
   "Name / Nom : ________   Address / Adresse : ________   Date : ________",
 ].join("\n");
 
+// Subject of the order confirmation, in the order's language (English when unknown).
+function orderConfirmationSubject(lang) {
+  return emailTr(lang)("Your order at Uma's Books is confirmed", "Votre commande chez Uma's Books est confirmée");
+}
+
 // Plain-text body of the order confirmation. Pure (no I/O) so it can be tested.
+// Written in the order's language (order.lang; English when missing). The
+// legal blocks (rights, withdrawal form, seller identity) are bilingual FR/EN
+// in every language: that is what the Consumer Code notice requires on the
+// durable medium, so they are never reduced to one language.
 function buildOrderConfirmationText(order, items, base) {
+  const tr = emailTr(order.lang);
+  const root = base ? base.replace(/\/$/, "") : "";
   const termsLine = base
-    ? `Terms of sale and your 14-day right of withdrawal for books: ${base.replace(/\/$/, "")}/terms-of-sale.html\n\n`
+    ? tr(
+        `Terms of sale and your 14-day right of withdrawal for books: ${root}/terms-of-sale.html\n\n`,
+        `Conditions de vente et votre droit de rétractation de 14 jours pour les livres : ${root}/terms-of-sale.html\n\n`
+      )
     : "";
   const lines = items.map((i) => `- ${i.item_title} — €${Number(i.price).toFixed(2)}`).join("\n");
   const orderDate = formatDate(order.created_at || new Date());
-  return `Hi ${emailSafeName(order.buyer_name)},\n\nThanks for your order — payment received:\n\nOrder #${order.id} — ${orderDate}\nPaid online via HelloAsso\n\n${lines}\n\nTotal: €${Number(order.total_amount).toFixed(2)}\n\nCome by Uma's Books (Rue Peyrolière, 81000 Albi) during opening hours to pick up any books. Drop-in sessions need no pickup — just come along at the session time.\n\n${termsLine}${LEGAL_RIGHTS}\n\n${WITHDRAWAL_FORM}\n\n${SELLER_LINES}`;
+  const name = emailSafeName(order.buyer_name);
+  const total = Number(order.total_amount).toFixed(2);
+  const head = tr(
+    `Hi ${name},\n\nThanks for your order — payment received:\n\nOrder #${order.id} — ${orderDate}\nPaid online via HelloAsso\n\n${lines}\n\nTotal: €${total}\n\nCome by Uma's Books (Rue Peyrolière, 81000 Albi) during opening hours to pick up any books. Drop-in sessions need no pickup — just come along at the session time.\n\n`,
+    `Bonjour ${name},\n\nMerci pour votre commande — paiement reçu :\n\nCommande n° ${order.id} — ${orderDate}\nPayée en ligne via HelloAsso\n\n${lines}\n\nTotal : €${total}\n\nPassez à Uma's Books (Rue Peyrolière, 81000 Albi) pendant les heures d’ouverture pour récupérer vos livres. Les séances drop-in ne nécessitent aucun retrait : il vous suffit de venir à l’heure de la séance.\n\n`
+  );
+  return `${head}${termsLine}${LEGAL_RIGHTS}\n\n${WITHDRAWAL_FORM}\n\n${SELLER_LINES}`;
 }
 
-module.exports = { buildOrderConfirmationText, SELLER_LINES, LEGAL_RIGHTS, WITHDRAWAL_FORM };
+module.exports = { buildOrderConfirmationText, orderConfirmationSubject, SELLER_LINES, LEGAL_RIGHTS, WITHDRAWAL_FORM };

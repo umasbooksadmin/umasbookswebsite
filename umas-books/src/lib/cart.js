@@ -11,7 +11,7 @@ const { getCheckoutIntent, isOrderPaid } = require("./helloasso");
 const { sendMail } = require("../mailer");
 const { withTransaction } = require("../db");
 const { alertOnError } = require("./errorAlert");
-const { buildOrderConfirmationText } = require("./orderEmail");
+const { buildOrderConfirmationText, orderConfirmationSubject } = require("./orderEmail");
 
 const CART_HOLD_TTL_MINUTES = 60;
 
@@ -136,12 +136,10 @@ async function markOrderPaid(pool, order) {
 async function sendOrderConfirmation(pool, order) {
   const { rows: items } = await pool.query("SELECT item_title, price FROM order_items WHERE order_id = $1", [order.id]);
   const base = process.env.APP_BASE_URL || process.env.RENDER_EXTERNAL_URL;
-  // TODO(i18n): order.lang ('en' | 'fr' | null) is the buyer's language; the
-  // email text (buildOrderConfirmationText) is still bilingual-in-one for now.
-  // Pass `emailTr(order.lang)` into it when the email is translated.
+  // Subject and body follow order.lang ('en' | 'fr' | null; null is English).
   sendMail({
     to: order.buyer_email,
-    subject: "Your order at Uma's Books is confirmed",
+    subject: orderConfirmationSubject(order.lang),
     text: buildOrderConfirmationText(order, items, base),
   }).catch((err) => console.error(`Order confirmation email failed for order ${order.id}:`, err.message));
 }
