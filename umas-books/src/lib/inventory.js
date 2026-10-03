@@ -2,6 +2,8 @@
 // routes (to validate/default incoming values) and the views (to build
 // the <select> dropdowns) so the two never drift apart.
 
+const { normalizeIsbn } = require("./bookLookup");
+
 const CONDITIONS = [
   { value: "new", label: "New" },
   { value: "like_new", label: "Like New" },
@@ -69,4 +71,51 @@ function normalizeGenres(value) {
   return genres.length ? genres.join(", ") : null;
 }
 
-module.exports = { CONDITIONS, STATUSES, normalizeCondition, resolveCopyPricing, normalizeStatus, normalizeGenres };
+// Shelf/box location of a copy: free text such as "fiction a1". Stored
+// trimmed, with runs of whitespace collapsed, upper-cased and at most 40
+// characters, so "Fiction  a1" and "FICTION A1" are one location in the
+// dropdown. Returns null when nothing is left.
+const LOCATION_MAX = 40;
+function normalizeLocation(value) {
+  const s = String(value == null ? "" : value)
+    .replace(/[\u0000-\u001f\u007f]/g, " ") // eslint-disable-line no-control-regex
+    .replace(/\s+/g, " ")
+    .trim()
+    .toUpperCase()
+    .slice(0, LOCATION_MAX)
+    .trim();
+  return s || null;
+}
+
+// Decides what a scanner (a keyboard that types a code then Enter) typed:
+// an ISBN-10 or ISBN-13 (hyphens/spaces ignored, X check digit allowed) or
+// something we don't recognise. The check digit is not verified, matching
+// how ISBNs are stored elsewhere.
+function parseScan(value) {
+  const compact = String(value == null ? "" : value).replace(/[\s-]/g, "");
+  if (/^\d{13}$/.test(compact) || /^\d{9}[\dXx]$/.test(compact)) {
+    return { type: "isbn", isbn: normalizeIsbn(compact) };
+  }
+  return { type: "unknown" };
+}
+
+// A book can be stored under its ISBN-10 or ISBN-13 form while the barcode
+// on the cover is always the 13-digit one: match either.
+function isbnVariants(isbn) {
+  const out = new Set([isbn]);
+  if (/^978\d{10}$/.test(isbn)) {
+    const body = isbn.slice(3, 12);
+    let sum = 0;
+    for (let i = 0; i < 9; i++) sum += (10 - i) * Number(body[i]);
+    const check = (11 - (sum % 11)) % 11;
+    out.add(body + (check === 10 ? "X" : String(check)));
+  } else if (/^\d{9}[\dX]$/.test(isbn)) {
+    const body = "978" + isbn.slice(0, 9);
+    let sum = 0;
+    for (let i = 0; i < 12; i++) sum += Number(body[i]) * (i % 2 ? 3 : 1);
+    out.add(body + String((10 - (sum % 10)) % 10));
+  }
+  return [...out];
+}
+
+module.exports = { CONDITIONS, STATUSES, LOCATION_MAX, normalizeCondition, resolveCopyPricing, normalizeStatus, normalizeGenres, normalizeLocation, parseScan, isbnVariants };

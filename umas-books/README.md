@@ -159,6 +159,26 @@ or barcode photo) needs an Anthropic API key:
 Until it's set, the scan page just hides the photo option and says so —
 ISBN entry and manual add still work fully.
 
+### How to use locations (for volunteers)
+
+Each copy can have a location, such as `FICTION-A1`, meaning the shelf or box
+it sits on.
+
+- **Adding books:** on **Books & Orders > Scan a book**, fill in **Current
+  location** first (pick one from the list, or type a new one; it is added to
+  the list as soon as a book is saved with it). Then scan the books one by one:
+  each new book is saved at that location, and the location stays filled in
+  for the next book. Change it whenever you move to another shelf.
+- **Moving books:** click **Move books**. Choose (or type) where the books are
+  going, then scan each book's barcode. Each scan moves one copy of that book
+  and the page lists what happened. If you have two copies of a book, scan it
+  twice. Sold, donated and in-cart copies are left alone.
+- **Finding books:** the inventory list shows each book's locations, and the
+  **Location** box filters the list to one place.
+- **Changing one copy:** open the book and edit **Location** on the copy.
+- Location names are tidied automatically (capital letters, single spaces),
+  so `fiction a1` and `FICTION A1` are the same place.
+
 ## Deploying to Render
 
 `render.yaml` at the repo root is a Render Blueprint that provisions:

@@ -1,0 +1,4 @@
+<%# Dropdown choices for any <input list="location-options">: the locations already in use. %>
+<datalist id="location-options">
+  <% (typeof locations !== 'undefined' ? locations : []).forEach(l => { %><option value="<%= l %>"><% }) %>
+</datalist>

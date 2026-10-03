@@ -7,7 +7,7 @@ const { audit } = require("../../lib/audit");
 const { normalizeIsbn, lookupByIsbn, searchByTitleAuthor, translateGenresToFrench } = require("../../lib/bookLookup");
 const { extractBookInfoFromPhoto } = require("../../lib/coverVision");
 const { generateBookDescription, translateDescriptionToFrench } = require("../../lib/bookDescription");
-const { CONDITIONS, STATUSES, normalizeCondition, resolveCopyPricing, normalizeStatus, normalizeGenres } = require("../../lib/inventory");
+const { CONDITIONS, STATUSES, normalizeCondition, resolveCopyPricing, normalizeStatus, normalizeGenres, normalizeLocation, parseScan, isbnVariants } = require("../../lib/inventory");
 const { expireStaleReservations } = require("../../lib/reservations");
 
 const { validateIdParams } = require("../../middleware/idParams");
@@ -74,37 +74,154 @@ const hasOrdersNotice = (req) => {
   return null;
 };
 
+// Locations already in use, for the combo box (<datalist>) on every screen
+// that has a location field. Values are stored normalised, so DISTINCT is
+// already case-insensitive.
+async function getLocations() {
+  const { rows } = await pool.query(
+    "SELECT DISTINCT location FROM book_copies WHERE location IS NOT NULL ORDER BY 1"
+  );
+  return rows.map((r) => r.location);
+}
+
 router.get("/admin/inventory", requireAdmin, async (req, res) => {
   await expireStaleReservations(pool);
   const q = (req.query.q || "").trim();
+  const location = normalizeLocation(req.query.location);
   const params = [];
-  let where = "";
+  const conditions = [];
   if (q) {
     params.push(`%${q}%`);
-    where = "WHERE b.title ILIKE $1 OR b.authors ILIKE $1 OR b.isbn ILIKE $1";
+    conditions.push(`(b.title ILIKE $${params.length} OR b.authors ILIKE $${params.length} OR b.isbn ILIKE $${params.length})`);
   }
+  if (location) {
+    params.push(location);
+    conditions.push(`EXISTS (SELECT 1 FROM book_copies lc WHERE lc.book_id = b.id AND lc.location = $${params.length})`);
+  }
+  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
   const { rows: books } = await pool.query(
     `SELECT b.*, COUNT(c.id)::int AS copy_count,
-            COUNT(c.id) FILTER (WHERE c.status = 'in_stock')::int AS in_stock_count
+            COUNT(c.id) FILTER (WHERE c.status = 'in_stock')::int AS in_stock_count,
+            string_agg(DISTINCT c.location, ', ' ORDER BY c.location)
+              FILTER (WHERE c.status = 'in_stock' AND c.location IS NOT NULL) AS locations
      FROM books b LEFT JOIN book_copies c ON c.book_id = b.id
      ${where}
      GROUP BY b.id ORDER BY b.title ASC LIMIT 200`,
     params
   );
-  res.render("admin/inventory/index", { active: "inventory", books, q, notice: hasOrdersNotice(req) });
+  res.render("admin/inventory/index", {
+    active: "inventory", books, q, location: location || "", locations: await getLocations(), notice: hasOrdersNotice(req),
+  });
 });
 
-router.get("/admin/inventory/scan", requireAdmin, (req, res) => {
+router.get("/admin/inventory/scan", requireAdmin, async (req, res) => {
   res.render("admin/inventory/scan", {
     active: "inventory",
     error: null,
     saved: req.query.saved === "1",
     visionEnabled: !!process.env.ANTHROPIC_API_KEY,
+    location: normalizeLocation(req.query.location) || "",
+    locations: await getLocations(),
   });
+});
+
+// ---------- Move books by scanning ----------
+// Pick a destination location, then scan ISBN barcodes one after another:
+// each scan moves ONE copy of that book to the destination. A scanner is a
+// keyboard that types the code and presses Enter, so this is a plain form
+// POST that re-renders the page with a running log (carried in a hidden
+// field, display only; nothing in it is trusted for anything but showing).
+const MOVABLE_STATUSES = ["in_stock", "reserved", "damaged"];
+const LOG_KINDS = new Set(["moved", "already", "missing", "sold", "busy", "info", "error"]);
+const LOG_LIMIT = 30;
+
+function parseMoveLog(raw) {
+  try {
+    const arr = JSON.parse(String(raw || "[]"));
+    if (!Array.isArray(arr)) return [];
+    return arr
+      .filter((e) => e && LOG_KINDS.has(e.k) && typeof e.t === "string")
+      .map((e) => ({ k: e.k, t: e.t.slice(0, 300) }))
+      .slice(0, LOG_LIMIT);
+  } catch {
+    return [];
+  }
+}
+
+async function renderMove(res, { dest, log, moved }) {
+  res.render("admin/inventory/move", {
+    active: "inventory", dest: dest || "", log, moved, locations: await getLocations(),
+  });
+}
+
+router.get("/admin/inventory/move", requireAdmin, async (req, res) => {
+  await renderMove(res, { dest: normalizeLocation(req.query.dest), log: [], moved: 0 });
+});
+
+// Moves one copy of the book with this ISBN to `dest`. Returns a log entry.
+async function moveOneCopy(req, isbn, dest) {
+  const { rows: all } = await pool.query(
+    `SELECT b.title, c.status, c.location FROM books b JOIN book_copies c ON c.book_id = b.id
+     WHERE b.isbn = ANY($1)`,
+    [isbnVariants(isbn)]
+  );
+  if (!all.length) return { k: "missing", t: `Not in inventory: ${isbn}` };
+  const title = all[0].title;
+  // One statement picks the oldest movable copy not already there and moves
+  // it; SKIP LOCKED keeps two scanners from grabbing the same copy.
+  const { rows } = await pool.query(
+    `WITH pick AS (
+       SELECT c.id, c.location AS old_location
+       FROM book_copies c JOIN books b ON b.id = c.book_id
+       WHERE b.isbn = ANY($1) AND c.status = ANY($3) AND c.location IS DISTINCT FROM $2
+       ORDER BY c.created_at ASC, c.id ASC LIMIT 1 FOR UPDATE OF c SKIP LOCKED
+     )
+     UPDATE book_copies SET location = $2, updated_at = now()
+     FROM pick WHERE book_copies.id = pick.id
+     RETURNING book_copies.id, pick.old_location`,
+    [isbnVariants(isbn), dest, MOVABLE_STATUSES]
+  );
+  if (rows.length) {
+    const from = rows[0].old_location;
+    await audit(req, {
+      action: "copy.move", targetType: "book_copy", targetId: rows[0].id,
+      detail: `from ${from || "none"} to ${dest}`,
+    });
+    return { k: "moved", t: `Moved: ${title} (was ${from || "none"}) \u2192 ${dest}` };
+  }
+  if (all.some((c) => MOVABLE_STATUSES.includes(c.status))) return { k: "already", t: `Already at ${dest}: ${title}` };
+  if (all.some((c) => c.status === "in_cart")) return { k: "busy", t: `Skipped, in a customer's cart: ${title}` };
+  return { k: "sold", t: `Only sold or donated copies: ${title}` };
+}
+
+router.post("/admin/inventory/move", requireAdmin, async (req, res) => {
+  const dest = normalizeLocation(req.body.dest);
+  const prevDest = normalizeLocation(req.body.prevDest);
+  const log = parseMoveLog(req.body.log);
+  let moved = Math.max(0, Math.min(1e6, parseInt(req.body.moved, 10) || 0));
+  const entries = [];
+
+  if (dest && dest !== prevDest) entries.push({ k: "info", t: `Moving books to ${dest}` });
+
+  const rawScan = String(req.body.scan || "").trim();
+  if (rawScan) {
+    const scan = parseScan(rawScan);
+    if (!dest) {
+      entries.push({ k: "error", t: "Choose where the books are going first." });
+    } else if (scan.type !== "isbn") {
+      entries.push({ k: "error", t: `Not a book barcode: ${rawScan.slice(0, 40)}` });
+    } else {
+      const entry = await moveOneCopy(req, scan.isbn, dest);
+      if (entry.k === "moved") moved += 1;
+      entries.push(entry);
+    }
+  }
+  await renderMove(res, { dest, log: [...entries.reverse(), ...log].slice(0, LOG_LIMIT), moved });
 });
 
 router.post("/admin/inventory/lookup", requireAdmin, async (req, res) => {
   const visionEnabled = !!process.env.ANTHROPIC_API_KEY;
+  const location = normalizeLocation(req.body.location) || "";
   let book = null;
   let error = null;
 
@@ -116,14 +233,14 @@ router.post("/admin/inventory/lookup", requireAdmin, async (req, res) => {
     } catch (err) {
       console.warn("Scan photo could not be decoded:", err.message);
       return res.render("admin/inventory/scan", {
-        active: "inventory", visionEnabled,
+        active: "inventory", visionEnabled, location, locations: await getLocations(),
         error: "That file couldn't be read as an image — try another photo, or enter details manually below.",
       });
     }
     const info = await extractBookInfoFromPhoto(photo.buffer, photo.mimeType);
     if (!info || (!info.isbn && !info.title)) {
       return res.render("admin/inventory/scan", {
-        active: "inventory", visionEnabled,
+        active: "inventory", visionEnabled, location, locations: await getLocations(),
         error: "Couldn't read anything useful from that photo — try a clearer shot, or enter details manually below.",
       });
     }
@@ -141,7 +258,7 @@ router.post("/admin/inventory/lookup", requireAdmin, async (req, res) => {
   } else {
     const isbn = (req.body.isbn || "").trim();
     if (!isbn) {
-      return res.render("admin/inventory/scan", { active: "inventory", visionEnabled, error: "Enter an ISBN or choose a photo." });
+      return res.render("admin/inventory/scan", { active: "inventory", visionEnabled, location, locations: await getLocations(), error: "Enter an ISBN or choose a photo." });
     }
     book = await lookupByIsbn(isbn);
     if (!book) {
@@ -151,10 +268,10 @@ router.post("/admin/inventory/lookup", requireAdmin, async (req, res) => {
   }
 
   const defaultPricing = await getDefaultCopyPricing(book.isbn);
-  res.render("admin/inventory/new", { active: "inventory", book, error, fromScan: true, conditions: CONDITIONS, statuses: STATUSES, defaultPricing });
+  res.render("admin/inventory/new", { active: "inventory", book, error, fromScan: true, conditions: CONDITIONS, statuses: STATUSES, defaultPricing, location, locations: await getLocations() });
 });
 
-router.get("/admin/inventory/new", requireAdmin, (req, res) => {
+router.get("/admin/inventory/new", requireAdmin, async (req, res) => {
   res.render("admin/inventory/new", {
     active: "inventory",
     book: { isbn: null, title: null, author: null, publisher: null, publishedYear: null, description: null, coverUrl: null, genre: null, genreFr: null, descriptionFr: null },
@@ -163,6 +280,8 @@ router.get("/admin/inventory/new", requireAdmin, (req, res) => {
     conditions: CONDITIONS,
     statuses: STATUSES,
     defaultPricing: { price: 5, acquisitionCost: 0 },
+    location: normalizeLocation(req.query.location) || "",
+    locations: await getLocations(),
   });
 });
 
@@ -192,9 +311,11 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
   let descriptionFr = (req.body.descriptionFr || "").trim() || null;
   let coverUrl = (req.body.coverUrl || "").trim() || null;
 
+  const location = normalizeLocation(req.body.location);
+
   if (!title) {
     return res.render("admin/inventory/new", {
-      active: "inventory",
+      active: "inventory", location: location || "", locations: await getLocations(),
       book: { isbn, title: null, author, publisher, publishedYear, description, descriptionFr, coverUrl, genre, genreFr },
       error: "Title is required.",
       fromScan: req.body.fromScan === "1",
@@ -213,7 +334,7 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
   const pricing = resolveCopyPricing(condition, req.body.price, req.body.publisherPrice);
   if (pricing.error) {
     return res.render("admin/inventory/new", {
-      active: "inventory",
+      active: "inventory", location: location || "", locations: await getLocations(),
       book: { isbn, title, author, publisher, publishedYear, description, descriptionFr, coverUrl, genre, genreFr },
       error: pricing.error,
       fromScan: req.body.fromScan === "1",
@@ -291,12 +412,13 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
   const notes = (req.body.copyNotes || "").trim() || null;
 
   await pool.query(
-    `INSERT INTO book_copies (book_id, condition, price, publisher_price, acquisition_cost, acquired_at, status, notes, created_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-    [bookId, condition, price, publisherPrice, acquisitionCost, acquiredAt, status, notes, req.session.user.id]
+    `INSERT INTO book_copies (book_id, condition, price, publisher_price, acquisition_cost, acquired_at, status, notes, location, created_by)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+    [bookId, condition, price, publisherPrice, acquisitionCost, acquiredAt, status, notes, location, req.session.user.id]
   );
 
-  if (req.body.fromScan === "1") return res.redirect("/admin/inventory/scan?saved=1");
+  // The scan flow remembers the location between books.
+  if (req.body.fromScan === "1") return res.redirect(`/admin/inventory/scan?saved=1${location ? `&location=${encodeURIComponent(location)}` : ""}`);
   res.redirect(`/admin/inventory/${bookId}`);
 });
 
@@ -308,7 +430,7 @@ async function renderBook(res, id, error = null, notice = null) {
   const { rows: copies } = await pool.query(
     "SELECT * FROM book_copies WHERE book_id = $1 ORDER BY created_at DESC", [id]
   );
-  res.render("admin/inventory/show", { active: "inventory", book, copies, conditions: CONDITIONS, statuses: STATUSES, error, notice });
+  res.render("admin/inventory/show", { active: "inventory", book, copies, conditions: CONDITIONS, statuses: STATUSES, error, notice, locations: await getLocations() });
 }
 
 router.get("/admin/inventory/:id", requireAdmin, (req, res) => renderBook(res, Number(req.params.id), null, hasOrdersNotice(req)));
@@ -372,14 +494,22 @@ router.post("/admin/inventory/:id/copies/:copyId", requireAdmin, async (req, res
   const acquisitionCost = req.body.acquisitionCost ? Number(req.body.acquisitionCost) : null;
   const acquiredAt = req.body.acquiredAt || null;
   const notes = (req.body.notes || "").trim() || null;
+  const location = normalizeLocation(req.body.location);
+  const { rows: before } = await pool.query("SELECT location FROM book_copies WHERE id = $1 AND book_id = $2", [copyId, bookId]);
   // A copy in someone's checkout keeps its status (an edit must not put it
   // back on sale mid-payment); the other fields can still be edited.
   await pool.query(
     `UPDATE book_copies SET condition=$1,
-            status=CASE WHEN status = 'in_cart' THEN status ELSE $2 END, price=$3, publisher_price=$4, acquisition_cost=$5, acquired_at=$6, notes=$7, updated_at=now()
+            status=CASE WHEN status = 'in_cart' THEN status ELSE $2 END, price=$3, publisher_price=$4, acquisition_cost=$5, acquired_at=$6, notes=$7, location=$10, updated_at=now()
      WHERE id = $8 AND book_id = $9`,
-    [condition, status, price, publisherPrice, acquisitionCost, acquiredAt, notes, copyId, bookId]
+    [condition, status, price, publisherPrice, acquisitionCost, acquiredAt, notes, copyId, bookId, location]
   );
+  if (before.length && (before[0].location || null) !== location) {
+    await audit(req, {
+      action: "copy.move", targetType: "book_copy", targetId: copyId,
+      detail: `from ${before[0].location || "none"} to ${location || "none"}`,
+    });
+  }
   res.redirect(`/admin/inventory/${bookId}`);
 });
 
