@@ -2,9 +2,9 @@
 
 <h1>Set up two-step verification</h1>
 <% if (locals.user && user.isAdmin && !user.totpEnabled) { %>
-  <div class="notice-box">Admin accounts must use two-step verification. Set it up now to continue to the admin area.</div>
+  <div class="notice-box" role="status">Admin accounts must use two-step verification. Set it up now to continue to the admin area.</div>
 <% } %>
-<% if (error) { %><div class="error-box"><%= error %></div><% } %>
+<% if (error) { %><div class="error-box" role="alert"><%= error %></div><% } %>
 <ol>
   <li>Install an authenticator app on your phone (Google Authenticator, Microsoft Authenticator, 1Password, Authy…).</li>
   <li>Scan this QR code with the app:<br><img src="<%= qr %>" alt="QR code for two-step verification" width="220" height="220"></li>

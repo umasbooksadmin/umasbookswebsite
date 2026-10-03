@@ -32,6 +32,7 @@ test("the legal notice page shows the publisher, director of publication and hos
     "5, rue Hippolyte Savary, 81000 Albi",
     "109 441 147 00013", // SIRET
     "109 441 147", // SIREN
+    "06 98 95 67 91", // phone (LCEN art. 6: legal entities must give one)
     "W811011706", // RNA
     "law of 1 July 1901", // English wording
     "Sharon Bjeletich",
@@ -56,7 +57,7 @@ test("the French and English texts cover exactly the same keys", async () => {
   assert.ok(en.length >= 14);
   // The French version names the same legal facts.
   const frText = JSON.stringify(i18n.fr);
-  for (const fact of ["Directrice de la publication", "Hébergeur", "109 441 147 00013", "W811011706", "Render Services, Inc."]) {
+  for (const fact of ["Directrice de la publication", "Hébergeur", "109 441 147 00013", "W811011706", "Render Services, Inc.", "Téléphone"]) {
     assert.ok(frText.includes(fact), `French notice should include: ${fact}`);
   }
 });

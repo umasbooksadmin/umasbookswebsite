@@ -1,6 +1,7 @@
 const express = require("express");
 const { pool } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
+const { audit } = require("../../lib/audit");
 const { parseLocalDateTime } = require("../../lib/dates");
 const { groupByDate, resolveCalendarRange, calendarBackQuery } = require("../../lib/calendar");
 
@@ -52,6 +53,7 @@ router.post("/admin/meetings/:id/minutes", requireAdmin, async (req, res) => {
 
 router.post("/admin/meetings/:id/delete", requireAdmin, async (req, res) => {
   await pool.query("DELETE FROM meetings WHERE id = $1", [Number(req.params.id)]);
+  await audit(req, { action: "meeting.delete", targetType: "meeting", targetId: Number(req.params.id) });
   const backQuery = calendarBackQuery(req.query);
   res.redirect(backQuery ? `/admin/meetings?${backQuery}` : "/admin/meetings");
 });

@@ -1,6 +1,7 @@
 const express = require("express");
 const { pool } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
+const { audit } = require("../../lib/audit");
 const { parseLocalDateTime } = require("../../lib/dates");
 const { groupByDate, resolveCalendarRange, calendarBackQuery } = require("../../lib/calendar");
 
@@ -80,12 +81,14 @@ router.post("/admin/events/:id", requireAdmin, async (req, res) => {
 
 router.post("/admin/events/:id/delete", requireAdmin, async (req, res) => {
   await pool.query("DELETE FROM events WHERE id = $1", [Number(req.params.id)]);
+  await audit(req, { action: "event.delete", targetType: "event", targetId: Number(req.params.id) });
   const backQuery = calendarBackQuery(req.query);
   res.redirect(backQuery ? `/admin/events?${backQuery}` : "/admin/events");
 });
 
 router.post("/admin/events/:id/signups/:signupId/delete", requireAdmin, async (req, res) => {
   await pool.query("DELETE FROM event_signups WHERE id = $1 AND event_id = $2", [Number(req.params.signupId), Number(req.params.id)]);
+  await audit(req, { action: "event.signup_delete", targetType: "event_signup", targetId: Number(req.params.signupId) });
   const backQuery = calendarBackQuery(req.query);
   res.redirect(backQuery ? `/admin/events?${backQuery}` : "/admin/events");
 });

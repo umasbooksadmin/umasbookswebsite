@@ -1,6 +1,7 @@
 const express = require("express");
 const { pool } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
+const { audit } = require("../../lib/audit");
 const { parseLocalDateTime } = require("../../lib/dates");
 const { groupByDate, resolveCalendarRange, calendarBackQuery } = require("../../lib/calendar");
 const { seatsTakenExpr } = require("../../lib/classCapacity");
@@ -47,7 +48,7 @@ router.get("/admin/sessions", requireAdmin, async (req, res) => {
   }
 
   const weeks = range.buildWeeks(groupByDate(classes, "starts_at"));
-  res.render("admin/sessions", { active: "sessions", weeks, signupsByClass, dropinByClass, programTypes: PROGRAM_TYPES, view: range.view, ...range.nav });
+  res.render("admin/sessions", { active: "sessions", notice: req.query.notice === "has-orders" ? "This item has orders, so it can't be deleted (mark it sold/archived instead)." : null, weeks, signupsByClass, dropinByClass, programTypes: PROGRAM_TYPES, view: range.view, ...range.nav });
 });
 
 router.post("/admin/sessions", requireAdmin, async (req, res) => {
@@ -98,13 +99,21 @@ router.post("/admin/sessions/:id", requireAdmin, async (req, res) => {
 });
 
 router.post("/admin/sessions/:id/delete", requireAdmin, async (req, res) => {
-  await pool.query("DELETE FROM classes WHERE id = $1", [Number(req.params.id)]);
   const backQuery = calendarBackQuery(req.query);
+  try {
+    await pool.query("DELETE FROM classes WHERE id = $1", [Number(req.params.id)]);
+  } catch (err) {
+    // Drop-in seats that were ever ordered are referenced by order_items.
+    if (err.code !== "23503") throw err;
+    return res.redirect(`/admin/sessions?${backQuery ? `${backQuery}&` : ""}notice=has-orders`);
+  }
+  await audit(req, { action: "session.delete", targetType: "class", targetId: Number(req.params.id) });
   res.redirect(backQuery ? `/admin/sessions?${backQuery}` : "/admin/sessions");
 });
 
 router.post("/admin/sessions/:id/signups/:signupId/delete", requireAdmin, async (req, res) => {
   await pool.query("DELETE FROM class_signups WHERE id = $1 AND class_id = $2", [Number(req.params.signupId), Number(req.params.id)]);
+  await audit(req, { action: "session.signup_delete", targetType: "class_signup", targetId: Number(req.params.signupId) });
   const backQuery = calendarBackQuery(req.query);
   res.redirect(backQuery ? `/admin/sessions?${backQuery}` : "/admin/sessions");
 });

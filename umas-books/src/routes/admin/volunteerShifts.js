@@ -1,6 +1,7 @@
 const express = require("express");
 const { pool } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
+const { audit } = require("../../lib/audit");
 const { weeklyDateTimes } = require("../../lib/dates");
 const { groupByDate, resolveCalendarRange, calendarBackQuery } = require("../../lib/calendar");
 
@@ -52,6 +53,7 @@ router.post("/admin/volunteer-shifts", requireAdmin, async (req, res) => {
 
 router.post("/admin/volunteer-shifts/:id/delete", requireAdmin, async (req, res) => {
   await pool.query("DELETE FROM volunteer_shifts WHERE id = $1", [Number(req.params.id)]);
+  await audit(req, { action: "volunteer_shift.delete", targetType: "volunteer_shift", targetId: Number(req.params.id) });
   const backQuery = calendarBackQuery(req.query);
   res.redirect(backQuery ? `/admin/volunteer-shifts?${backQuery}` : "/admin/volunteer-shifts");
 });

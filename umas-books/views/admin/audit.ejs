@@ -1,0 +1,34 @@
+<%- include('../partials/admin_header', { title: 'Admin activity', active: active, pageTitle: 'Admin activity', pageSub: 'The latest 200 sensitive actions taken in the admin area. Kept for 12 months. Times are Paris time.' }) %>
+
+<div class="card">
+  <% if (!entries.length) { %>
+    <p class="muted">Nothing recorded yet.</p>
+  <% } else { %>
+    <div style="overflow-x:auto;">
+      <table class="ann-table">
+        <thead>
+          <tr>
+            <th>When</th>
+            <th>Admin</th>
+            <th>Action</th>
+            <th>Target</th>
+            <th>Detail</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% entries.forEach(function (e) { %>
+            <tr>
+              <td><%= formatDateTime(e.at) %></td>
+              <td><%= e.actor_label || (e.actor_user_id ? '#' + e.actor_user_id : '') %></td>
+              <td><%= e.action %></td>
+              <td><%= e.target_type || '' %><%= e.target_id !== null ? ' #' + e.target_id : '' %></td>
+              <td><%= e.detail || '' %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</div>
+
+<%- include('../partials/admin_footer') %>
