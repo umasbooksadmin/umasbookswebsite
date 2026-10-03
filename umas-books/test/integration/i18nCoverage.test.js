@@ -15,7 +15,9 @@
 const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const { startTestApp } = require("../helpers/testApp");
+const { Client } = require("pg");
 const { untranslated } = require("../helpers/i18nAudit");
+const { makeCookieJar, fetchCsrfToken } = require("../helpers/httpClient");
 
 const PORT = 3691;
 
@@ -28,12 +30,40 @@ const PAGES = [
   "/sessions?view=week&type=dropin",
   "/contact", // views/contact.ejs
   "/contact?sent=1",
+  "/favorites", // views/favorites.ejs (the list itself is rendered client-side)
 ];
 
-// "Éveil" is a program name, French in both languages.
-const EXTRA_ALLOWLIST = [/^[ÉE]veil$/, "Message"]; // same word in French
+// Pages that need seeded data or a session: each entry sets itself up against
+// the running app and returns { path, headers? } (headers carry a session cookie).
+// Seeded titles are English-only data, so they are the same in both renders and
+// are allowlisted by prefix below.
+const DYNAMIC_PAGES = {
+  "book_detail (two copies, with description)": async () => ({ path: `/books/${(await seed()).bookId}` }),
+  "book_detail (no copies)": async () => ({ path: `/books/${(await seed()).soldBookId}` }),
+  "cart (with an item)": async () => {
+    const { copyId } = await seed();
+    const jar = makeCookieJar();
+    const token = await fetchCsrfToken(app.base, jar);
+    const add = await fetch(`${app.base}/cart/add`, {
+      method: "POST",
+      redirect: "manual",
+      headers: { cookie: jar.header(), "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ copyId: String(copyId), _csrf: token }).toString(),
+    });
+    assert.equal(add.status, 302);
+    return { path: "/cart", session: jar.header() };
+  },
+  "cart (empty)": async () => ({ path: "/cart" }),
+  "cart_return (paid)": async () => ({ path: `/cart/return?order=${(await seed()).orders.paid}` }),
+  "cart_return (cancelled)": async () => ({ path: `/cart/return?order=${(await seed()).orders.cancelled}` }),
+  "cart_return (payment received, not fulfilled)": async () => ({ path: `/cart/return?order=${(await seed()).orders.unfulfilled}` }),
+};
+
+// "Éveil" is a program name, French in both languages; "Message" is the same word in French.
+const EXTRA_ALLOWLIST = [/^I18n Shop (Book|Sold|Author)/, /^[ÉE]veil$/, "Message"];
 
 let app;
+let seeded;
 before(async () => {
   app = await startTestApp({ port: PORT });
 });
@@ -41,13 +71,63 @@ after(async () => {
   await app.stop();
 });
 
-const render = async (path, cookie) => (await fetch(`${app.base}${path}`, { headers: { cookie } })).text();
+// Seed once: a book with two in-stock copies (a description, a genre), a book
+// with only a sold copy, and three orders (paid / cancelled / paid-but-unfulfilled).
+async function seed() {
+  if (seeded) return seeded;
+  const client = new Client({ connectionString: app.databaseUrl });
+  await client.connect();
+  try {
+    const { rows: b } = await client.query(
+      "INSERT INTO books (title, authors, description, description_fr, categories, categories_fr) VALUES ('I18n Shop Book', 'I18n Shop Author', 'A plain English description.', 'Une description en français.', 'Fiction', 'Roman') RETURNING id"
+    );
+    await client.query("INSERT INTO books (title, authors) VALUES ('I18n Shop Book Two', 'I18n Shop Author')");
+    const { rows: c } = await client.query(
+      "INSERT INTO book_copies (book_id, status, price, condition) VALUES ($1, 'in_stock', 6.5, 'good'), ($1, 'in_stock', 9, 'like_new') RETURNING id",
+      [b[0].id]
+    );
+    const { rows: sold } = await client.query("INSERT INTO books (title, authors) VALUES ('I18n Shop Sold Book', 'I18n Shop Author') RETURNING id");
+    await client.query("INSERT INTO book_copies (book_id, status, price) VALUES ($1, 'sold', 5)", [sold[0].id]);
+    const orders = {};
+    for (const [key, status, hello] of [["paid", "paid", null], ["cancelled", "cancelled", null], ["unfulfilled", "cancelled", "ha-1"]]) {
+      const { rows } = await client.query(
+        "INSERT INTO orders (buyer_name, buyer_email, total_amount, status, helloasso_order_id) VALUES ('Buyer', 'buyer@example.test', 6.5, $1, $2) RETURNING id, access_token",
+        [status, hello]
+      );
+      const { rows: oc } = await client.query("INSERT INTO book_copies (book_id, status, price) VALUES ($1, 'sold', 6.5) RETURNING id", [sold[0].id]);
+      await client.query("INSERT INTO order_items (order_id, book_copy_id, item_title, price) VALUES ($1, $2, 'I18n Shop Book', 6.5)", [rows[0].id, oc[0].id]);
+      orders[key] = rows[0].access_token;
+    }
+    seeded = { bookId: b[0].id, soldBookId: sold[0].id, copyId: c[0].id, orders };
+  } finally {
+    await client.end();
+  }
+  return seeded;
+}
+
+const render = async (path, cookie, session) =>
+  (await fetch(`${app.base}${path}`, { headers: { cookie: [session, cookie].filter(Boolean).join("; ") } })).text();
+
+async function assertTranslated(path, session) {
+  const en = await render(path, "umasbooks_lang=en", session);
+  const fr = await render(path, "umasbooks_lang=fr", session);
+  assert.match(fr, /<html lang="fr"/);
+  assert.deepEqual(untranslated(en, fr, EXTRA_ALLOWLIST), [], `${path}: same text in English and French`);
+  return { en, fr };
+}
 
 for (const path of PAGES) {
   test(`${path} is fully translated`, async () => {
-    const en = await render(path, "umasbooks_lang=en");
-    const fr = await render(path, "umasbooks_lang=fr");
-    assert.match(fr, /<html lang="fr"/);
-    assert.deepEqual(untranslated(en, fr, EXTRA_ALLOWLIST), [], `${path}: same text in English and French`);
+    await assertTranslated(path);
   });
 }
+
+for (const [name, setup] of Object.entries(DYNAMIC_PAGES)) {
+  test(`${name} is fully translated`, async () => {
+    const { path, session } = await setup();
+    const { en, fr } = await assertTranslated(path, session);
+    assert.ok(visibleTextLength(fr) > 0 && en !== fr, `${name}: French render differs from English`);
+  });
+}
+
+const visibleTextLength = (html) => html.replace(/<[^>]*>/g, "").trim().length;
