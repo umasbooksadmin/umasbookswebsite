@@ -268,8 +268,10 @@ screens stay English). Two languages only: `en` and `fr`.
 - **Emails:** `emailTr(lang)` from `src/lib/lang.js` returns `(en, fr) => string`.
   The language is stored on `users.lang` (set at signup, refreshed at each login
   when the visitor has chosen a language; NULL for admin-created accounts) and
-  `orders.lang` (set at checkout). `sendOrderConfirmation` and `sendResetLink`
-  carry `TODO(i18n)` notes; use `normLang` / `pickLang` for untrusted values.
+  `orders.lang` (set at checkout). The order confirmation, reservation
+  confirmation/reminder and inactivity warning follow it (the legal blocks of the
+  order email stay bilingual FR/EN in both languages); `sendResetLink` still
+  carries a `TODO(i18n)` note. Use `normLang` / `pickLang` for untrusted values.
   NULL means English.
 - **Marketing pages** (`views/marketing`) keep their client-side dictionaries
   (`data-i18n`, `pageI18nEn/Fr`); the shared header/footer chrome is also
