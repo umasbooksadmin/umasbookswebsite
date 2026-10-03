@@ -1,5 +1,5 @@
 const express = require("express");
-const rateLimit = require("express-rate-limit");
+const { limit } = require("../middleware/rateLimits");
 const { sendMail } = require("../mailer");
 const { isEmail, emailSafeName } = require("../lib/validation");
 
@@ -11,11 +11,9 @@ const CONTACT_TO = process.env.CONTACT_TO || "admin@umasbooks.org";
 const TOPICS = ["General question", "Books & orders", "English programs", "Events", "Donating books", "Membership", "Other"];
 
 // Public form, so keep it from being used to spam the inbox.
-const contactLimiter = rateLimit({
+const contactLimiter = limit({
   windowMs: 15 * 60 * 1000,
   max: 5,
-  standardHeaders: true,
-  legacyHeaders: false,
   handler: (req, res) =>
     res.status(429).render("contact", {
       topics: TOPICS, sent: false, values: req.body || {},

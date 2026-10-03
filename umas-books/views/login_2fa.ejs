@@ -1,7 +1,7 @@
 <%- include('partials/header', { title: 'Two-step verification' }) %>
 
 <h1>Two-step verification</h1>
-<% if (error) { %><div class="error-box"><%= error %></div><% } %>
+<% if (error) { %><div class="error-box" role="alert"><%= error %></div><% } %>
 <p>Enter the 6-digit code from your authenticator app.</p>
 <form class="stack" method="post" action="/login/2fa">
   <%- include('partials/csrf_field') %>

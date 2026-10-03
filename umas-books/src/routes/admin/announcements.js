@@ -1,7 +1,9 @@
 const express = require("express");
+const { saveImage } = require("../../lib/imageStore");
 const { sharpFromUpload } = require("../../lib/uploadImage");
 const { pool } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
+const { audit } = require("../../lib/audit");
 const { sanitizeHtml } = require("../../lib/sanitizeHtml");
 
 const { validateIdParams } = require("../../middleware/idParams");
@@ -22,7 +24,7 @@ async function processAnnouncementImage(file) {
     .resize(800, 500, { fit: "cover" })
     .jpeg({ quality: 78 })
     .toBuffer();
-  return `data:image/jpeg;base64,${resized.toString("base64")}`;
+  return saveImage(resized, "image/jpeg");
 }
 
 // "Publish now" / "Schedule for later" / "Save as draft" in the
@@ -86,8 +88,8 @@ router.get("/admin/announcements", requireAdmin, async (req, res) => {
   );
 
   let editing = null;
-  if (req.query.edit) {
-    const { rows } = await pool.query("SELECT * FROM announcements WHERE id = $1", [Number(req.query.edit)]);
+  if (parseId(req.query.edit) !== null) {
+    const { rows } = await pool.query("SELECT * FROM announcements WHERE id = $1", [parseId(req.query.edit)]);
     editing = rows[0] || null;
   }
 
@@ -110,7 +112,7 @@ router.post("/admin/announcements", requireAdmin, async (req, res) => {
   const category = ANNOUNCEMENT_CATEGORIES.includes(req.body.category) ? req.body.category : null;
   const isPinned = req.body.pinned === "on";
   const expiresAt = req.body.expiresEnabled === "on" && req.body.expiresAt ? new Date(req.body.expiresAt) : null;
-  const eventId = req.body.eventId ? Number(req.body.eventId) : null;
+  const eventId = parseId(req.body.eventId);
   const { status, publishedAt } = resolveAnnouncementStatus(req.body.statusAction, req.body.scheduledAt);
   const backQuery = announcementBackQuery(req);
 
@@ -136,6 +138,7 @@ router.post("/admin/announcements/bulk", requireAdmin, async (req, res) => {
   if (ids.length) {
     if (req.body.bulkAction === "delete") {
       await pool.query("DELETE FROM announcements WHERE id = ANY($1)", [ids]);
+      await audit(req, { action: "announcement.bulk_delete", targetType: "announcement", detail: `ids ${ids.join(",")}` });
     } else {
       const map = { publish: "published", archive: "archived", trash: "trash", draft: "draft" };
       const newStatus = map[req.body.bulkAction];
@@ -160,7 +163,7 @@ router.post("/admin/announcements/:id", requireAdmin, async (req, res) => {
   const category = ANNOUNCEMENT_CATEGORIES.includes(req.body.category) ? req.body.category : null;
   const isPinned = req.body.pinned === "on";
   const expiresAt = req.body.expiresEnabled === "on" && req.body.expiresAt ? new Date(req.body.expiresAt) : null;
-  const eventId = req.body.eventId ? Number(req.body.eventId) : null;
+  const eventId = parseId(req.body.eventId);
   const { status, publishedAt } = resolveAnnouncementStatus(req.body.statusAction, req.body.scheduledAt);
   const backQuery = announcementBackQuery(req);
 
@@ -207,6 +210,7 @@ router.post("/admin/announcements/:id/pin", requireAdmin, async (req, res) => {
 // something to trash in the first place goes through /status above.
 router.post("/admin/announcements/:id/delete", requireAdmin, async (req, res) => {
   await pool.query("DELETE FROM announcements WHERE id = $1", [Number(req.params.id)]);
+  await audit(req, { action: "announcement.delete", targetType: "announcement", targetId: Number(req.params.id) });
   res.redirect(`/admin/announcements${announcementBackQuery(req)}`);
 });
 

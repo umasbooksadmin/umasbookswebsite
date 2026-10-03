@@ -1,7 +1,7 @@
 <%- include('partials/header', { title: 'Two-step verification' }) %>
 
 <h1>Two-step verification</h1>
-<% if (error) { %><div class="error-box"><%= error %></div><% } %>
+<% if (error) { %><div class="error-box" role="alert"><%= error %></div><% } %>
 <p>Two-step verification is <strong>on</strong> for your account.<% if (recoveryLeft != null) { %> You have <%= recoveryLeft %> unused recovery code<%= recoveryLeft === 1 ? '' : 's' %>.<% } %></p>
 
 <h2>Get new recovery codes</h2>

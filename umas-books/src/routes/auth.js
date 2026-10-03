@@ -1,15 +1,17 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
-const { limit } = require("../middleware/rateLimits");
+const { limit, ipKey } = require("../middleware/rateLimits");
 const { pool } = require("../db");
 const { hashToken } = require("../lib/resetTokens");
 const { sendResetLink } = require("../lib/passwordReset");
 const { sendVerificationEmail, sendSignupAttemptEmail } = require("../lib/emailVerification");
 const { validateNewPassword } = require("../lib/passwordPolicy");
 const { requireAuth } = require("../middleware/auth");
+const { isEmail, clean } = require("../lib/validation");
 const { baseUrl } = require("../lib/baseUrl");
 const { saveSession } = require("../lib/session");
 const totp = require("../lib/totp");
+const { audit } = require("../lib/audit");
 const { syncMembershipInBackground } = require("../lib/membership");
 
 const router = express.Router();
@@ -73,6 +75,7 @@ function loginAs(req, res, user, redirectTo) {
       passwordChangedAt: user.password_changed_at.getTime(),
       totpEnabled: Boolean(user.totp_enabled_at),
     };
+    if (user.is_admin) audit(req, { action: "admin.login", targetType: "user", targetId: user.id });
     if (cart) req.session.cart = cart;
     if (cartSeq) req.session.cartSeq = cartSeq;
     // Persist before redirecting — see lib/session.js.
@@ -109,9 +112,9 @@ router.get("/signup", (req, res) => {
 });
 
 router.post("/signup", signupLimiter, async (req, res) => {
-  const email = (req.body.email || "").trim().toLowerCase();
+  const email = clean(req.body.email, 200).toLowerCase();
   const password = req.body.password || "";
-  const displayName = (req.body.displayName || "").trim();
+  const displayName = clean(req.body.displayName, 100);
 
   if (!email || !password || !displayName) {
     return res.status(400).render("signup", { error: "All fields are required.", notice: null });
@@ -119,6 +122,14 @@ router.post("/signup", signupLimiter, async (req, res) => {
   const passwordError = await validateNewPassword(password);
   if (passwordError) {
     return res.status(400).render("signup", { error: passwordError, notice: null });
+  }
+
+  // Not a single plain address ("a@x.com, b@y.com" would make nodemailer
+  // mail every recipient from our Gmail with attacker-chosen text): no
+  // account, no mail, but the SAME neutral response as a real signup, so
+  // this can't be told apart from one (signup stays enumeration-safe).
+  if (!isEmail(email)) {
+    return res.render("signup", { error: null, notice: SIGNUP_NOTICE });
   }
 
   // Identical response whether or not the email is registered — a
@@ -275,7 +286,7 @@ const twoFactorLimiter = limit({
   max: 10,
   skipSuccessfulRequests: true,
   requestWasSuccessful: (req, res) => res.statusCode !== 401,
-  keyGenerator: (req) => (req.session.pending2fa ? `2fa:${req.session.pending2fa.userId}` : `ip:${req.ip}`),
+  keyGenerator: (req) => (req.session.pending2fa ? `2fa:${req.session.pending2fa.userId}` : `ip:${ipKey(req)}`),
 });
 
 function pendingLogin(req) {

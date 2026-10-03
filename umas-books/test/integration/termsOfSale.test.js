@@ -16,9 +16,39 @@ test("terms of sale page is served with withdrawal, guarantees, mediator and no-
   const res = await fetch(`${app.base}/terms-of-sale.html`);
   assert.equal(res.status, 200);
   const html = await res.text();
-  for (const needle of ["L.221-18", "14 days", "L.217-3", "1641", "CM2C", "TVA non applicable", "109 441 147 00013", "HelloAsso"]) {
+  for (const needle of ["L.221-18", "14 days", "L.217-3", "1641", "CM2C", "TVA non applicable", "109 441 147 00013", "HelloAsso", "06 98 95 67 91"]) {
     assert.ok(html.includes(needle), `missing ${needle}`);
   }
+});
+
+test("terms of sale carry the D211-2 legal-guarantee box and the 12-month second-hand presumption", async () => {
+  const html = await (await fetch(`${app.base}/terms-of-sale.html`)).text();
+  for (const needle of [
+    "D211-2",
+    "garantie légale de conformité",
+    "deux ans à compter de la délivrance du bien",
+    "trente jours",
+    "L. 217-1 à L. 217-32",
+    "articles 1641 à 1649 du code civil",
+    "douze mois",
+    "12 months",
+    "courtesy translation",
+  ]) {
+    assert.ok(html.includes(needle), `missing ${needle}`);
+  }
+});
+
+test("membership terms describe the instant HelloAsso flow, 12-month duration and email matching", async () => {
+  const res = await fetch(`${app.base}/membership-terms.html`);
+  assert.equal(res.status, 200);
+  const html = await res.text();
+  for (const needle of ["HelloAsso", "12 months", "October 2026", "verified", "privacy-policy.html"]) {
+    assert.ok(html.includes(needle), `missing ${needle}`);
+  }
+  assert.ok(!html.includes("payment instructions"), "old manual-review wording is gone");
+  const src = fs.readFileSync(path.join(__dirname, "../../views/marketing/membership-terms.ejs"), "utf8");
+  const dict = (name) => new Function(`return ${src.match(new RegExp(`const ${name} = (\\{[\\s\\S]*?\\n\\});`))[1]}`)();
+  assert.deepStrictEqual(Object.keys(dict("pageI18nFr")).sort(), Object.keys(dict("pageI18nEn")).sort());
 });
 
 test("the footer links to the terms of sale, in both languages", async () => {

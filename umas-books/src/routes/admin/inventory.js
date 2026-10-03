@@ -1,7 +1,9 @@
 const express = require("express");
+const { saveImage } = require("../../lib/imageStore");
 const { sharpFromUpload, reencodeForVision } = require("../../lib/uploadImage");
 const { pool } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
+const { audit } = require("../../lib/audit");
 const { normalizeIsbn, lookupByIsbn, searchByTitleAuthor, translateGenresToFrench } = require("../../lib/bookLookup");
 const { extractBookInfoFromPhoto } = require("../../lib/coverVision");
 const { generateBookDescription, translateDescriptionToFrench } = require("../../lib/bookDescription");
@@ -49,18 +51,28 @@ async function findCoverUrl({ isbn, title, author }) {
 
 // Render has no persistent disk, so an uploaded cover photo can't be
 // saved to the filesystem — it's resized/compressed down to a small
-// thumbnail and stored inline as a data URI in the same cover_url column
-// a lookup-sourced image URL would go in.
+// thumbnail, stored in the images table (lib/imageStore.js), and its short
+// /img/<hash>.jpg URL goes in the same cover_url column a lookup-sourced
+// image URL would go in.
 async function processCoverPhoto(file) {
   const resized = await sharpFromUpload(file.buffer)
     .rotate()
     .resize(500, 700, { fit: "inside", withoutEnlargement: true })
     .jpeg({ quality: 78 })
     .toBuffer();
-  return `data:image/jpeg;base64,${resized.toString("base64")}`;
+  return saveImage(resized, "image/jpeg");
 }
 
 // ---------- Inventory ----------
+
+// order_items point at copies with no ON DELETE action, so anything that has
+// ever been ordered can't be deleted (Postgres 23503) — say so instead of 500.
+const HAS_ORDERS_MESSAGE = "This item has orders, so it can't be deleted (mark it sold/archived instead).";
+const hasOrdersNotice = (req) => {
+  if (req.query.notice === "has-orders") return HAS_ORDERS_MESSAGE;
+  if (req.query.notice === "duplicate-isbn") return "Another book already has that ISBN, so the change was not saved.";
+  return null;
+};
 
 router.get("/admin/inventory", requireAdmin, async (req, res) => {
   await expireStaleReservations(pool);
@@ -79,7 +91,7 @@ router.get("/admin/inventory", requireAdmin, async (req, res) => {
      GROUP BY b.id ORDER BY b.title ASC LIMIT 200`,
     params
   );
-  res.render("admin/inventory/index", { active: "inventory", books, q });
+  res.render("admin/inventory/index", { active: "inventory", books, q, notice: hasOrdersNotice(req) });
 });
 
 router.get("/admin/inventory/scan", requireAdmin, (req, res) => {
@@ -258,10 +270,18 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
 
     const { rows } = await pool.query(
       `INSERT INTO books (isbn, title, authors, publisher, published_year, description, description_fr, cover_url, categories, categories_fr, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       ON CONFLICT DO NOTHING RETURNING id`,
       [isbn || null, title, author, publisher, publishedYear, description, descriptionFr, coverUrl, genre, genreFr, req.session.user.id]
     );
-    bookId = rows[0].id;
+    if (rows.length) {
+      bookId = rows[0].id;
+    } else {
+      // Another request added this ISBN between our lookup above and this
+      // insert (books.isbn is unique, see migration 038) — use its record.
+      const { rows: winner } = await pool.query("SELECT id FROM books WHERE isbn = $1", [isbn]);
+      bookId = winner[0].id;
+    }
   }
 
   const status = normalizeStatus(req.body.status);
@@ -280,7 +300,7 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
   res.redirect(`/admin/inventory/${bookId}`);
 });
 
-async function renderBook(res, id, error = null) {
+async function renderBook(res, id, error = null, notice = null) {
   await expireStaleReservations(pool);
   const { rows: bookRows } = await pool.query("SELECT * FROM books WHERE id = $1", [id]);
   const book = bookRows[0];
@@ -288,10 +308,10 @@ async function renderBook(res, id, error = null) {
   const { rows: copies } = await pool.query(
     "SELECT * FROM book_copies WHERE book_id = $1 ORDER BY created_at DESC", [id]
   );
-  res.render("admin/inventory/show", { active: "inventory", book, copies, conditions: CONDITIONS, statuses: STATUSES, error });
+  res.render("admin/inventory/show", { active: "inventory", book, copies, conditions: CONDITIONS, statuses: STATUSES, error, notice });
 }
 
-router.get("/admin/inventory/:id", requireAdmin, (req, res) => renderBook(res, Number(req.params.id)));
+router.get("/admin/inventory/:id", requireAdmin, (req, res) => renderBook(res, Number(req.params.id), null, hasOrdersNotice(req)));
 
 router.post("/admin/inventory/:id", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
@@ -315,18 +335,29 @@ router.post("/admin/inventory/:id", requireAdmin, async (req, res) => {
       coverUrl || findCoverUrl({ isbn, title, author }),
     ]);
     descriptionFr = descriptionFr || (description ? await translateDescriptionToFrench(description) : null);
-    await pool.query(
-      `UPDATE books SET isbn=$1, title=$2, authors=$3, publisher=$4, published_year=$5,
-              description=$6, description_fr=$7, cover_url=$8, categories=$9, categories_fr=$10, updated_at=now()
-       WHERE id = $11`,
-      [isbn || null, title, author, publisher, publishedYear, description, descriptionFr, coverUrl, genre, genreFr, id]
-    );
+    try {
+      await pool.query(
+        `UPDATE books SET isbn=$1, title=$2, authors=$3, publisher=$4, published_year=$5,
+                description=$6, description_fr=$7, cover_url=$8, categories=$9, categories_fr=$10, updated_at=now()
+         WHERE id = $11`,
+        [isbn || null, title, author, publisher, publishedYear, description, descriptionFr, coverUrl, genre, genreFr, id]
+      );
+    } catch (err) {
+      if (err.code !== "23505") throw err;
+      return res.redirect(`/admin/inventory/${id}?notice=duplicate-isbn`);
+    }
   }
   res.redirect(`/admin/inventory/${id}`);
 });
 
 router.post("/admin/inventory/:id/delete", requireAdmin, async (req, res) => {
-  await pool.query("DELETE FROM books WHERE id = $1", [Number(req.params.id)]);
+  try {
+    await pool.query("DELETE FROM books WHERE id = $1", [Number(req.params.id)]);
+  } catch (err) {
+    if (err.code !== "23503") throw err;
+    return res.redirect(`/admin/inventory/${Number(req.params.id)}?notice=has-orders`);
+  }
+  await audit(req, { action: "book.delete", targetType: "book", targetId: Number(req.params.id) });
   res.redirect("/admin/inventory");
 });
 
@@ -341,8 +372,11 @@ router.post("/admin/inventory/:id/copies/:copyId", requireAdmin, async (req, res
   const acquisitionCost = req.body.acquisitionCost ? Number(req.body.acquisitionCost) : null;
   const acquiredAt = req.body.acquiredAt || null;
   const notes = (req.body.notes || "").trim() || null;
+  // A copy in someone's checkout keeps its status (an edit must not put it
+  // back on sale mid-payment); the other fields can still be edited.
   await pool.query(
-    `UPDATE book_copies SET condition=$1, status=$2, price=$3, publisher_price=$4, acquisition_cost=$5, acquired_at=$6, notes=$7, updated_at=now()
+    `UPDATE book_copies SET condition=$1,
+            status=CASE WHEN status = 'in_cart' THEN status ELSE $2 END, price=$3, publisher_price=$4, acquisition_cost=$5, acquired_at=$6, notes=$7, updated_at=now()
      WHERE id = $8 AND book_id = $9`,
     [condition, status, price, publisherPrice, acquisitionCost, acquiredAt, notes, copyId, bookId]
   );
@@ -361,10 +395,17 @@ router.post("/admin/inventory/:id/copies/:copyId/cancel-reservation", requireAdm
 
 router.post("/admin/inventory/:id/copies/:copyId/delete", requireAdmin, async (req, res) => {
   const bookId = Number(req.params.id);
-  await pool.query("DELETE FROM book_copies WHERE id = $1 AND book_id = $2", [Number(req.params.copyId), bookId]);
+  try {
+    await pool.query("DELETE FROM book_copies WHERE id = $1 AND book_id = $2", [Number(req.params.copyId), bookId]);
+  } catch (err) {
+    if (err.code !== "23503") throw err;
+    return res.redirect(`/admin/inventory/${bookId}?notice=has-orders`);
+  }
+  await audit(req, { action: "book_copy.delete", targetType: "book_copy", targetId: Number(req.params.copyId) });
   const { rows } = await pool.query("SELECT 1 FROM book_copies WHERE book_id = $1", [bookId]);
   if (!rows.length) {
     await pool.query("DELETE FROM books WHERE id = $1", [bookId]);
+    await audit(req, { action: "book.delete", targetType: "book", targetId: bookId, detail: "last copy removed" });
     return res.redirect("/admin/inventory");
   }
   res.redirect(`/admin/inventory/${bookId}`);
