@@ -115,16 +115,17 @@ test("accepting the confirmation lets the submit through", () => {
   assert.equal(ev.stopped, false);
 });
 
-test("the password toggle keeps aria-pressed and aria-label in step", () => {
+function runPasswordToggle(lang) {
   const input = { type: "password" };
   const attrs = {};
   const btn = {
-    textContent: "Show",
+    textContent: lang === "fr" ? "Afficher" : "Show",
     getAttribute: (n) => (n === "data-toggle-password" ? "pw" : attrs[n]),
     setAttribute: (n, v) => { attrs[n] = v; },
   };
   const listeners = [];
   const document = {
+    documentElement: { lang },
     addEventListener: (type, fn) => listeners.push({ type, fn }),
     querySelector: () => null,
     querySelectorAll: () => [],
@@ -132,12 +133,31 @@ test("the password toggle keeps aria-pressed and aria-label in step", () => {
   };
   vm.runInNewContext(read("public/app.js"), { document, window: {}, history: {}, setTimeout, clearTimeout });
   const click = { target: { closest: (sel) => (sel === "[data-toggle-password]" ? btn : null) } };
-  for (const l of listeners.filter((x) => x.type === "click")) l.fn(click);
+  const press = () => { for (const l of listeners.filter((x) => x.type === "click")) l.fn(click); };
+  return { input, attrs, btn, press };
+}
+
+test("the password toggle keeps aria-pressed and aria-label in step", () => {
+  const { input, attrs, btn, press } = runPasswordToggle("en");
+  press();
   assert.equal(input.type, "text");
   assert.equal(attrs["aria-pressed"], "true");
   assert.equal(attrs["aria-label"], "Hide password");
-  for (const l of listeners.filter((x) => x.type === "click")) l.fn(click);
+  assert.equal(btn.textContent, "Hide");
+  press();
   assert.equal(input.type, "password");
   assert.equal(attrs["aria-pressed"], "false");
   assert.equal(attrs["aria-label"], "Show password");
+  assert.equal(btn.textContent, "Show");
+});
+
+test("the password toggle speaks French when <html lang> is fr", () => {
+  const { input, attrs, btn, press } = runPasswordToggle("fr");
+  press();
+  assert.equal(input.type, "text");
+  assert.equal(attrs["aria-label"], "Masquer le mot de passe");
+  assert.equal(btn.textContent, "Masquer");
+  press();
+  assert.equal(attrs["aria-label"], "Afficher le mot de passe");
+  assert.equal(btn.textContent, "Afficher");
 });

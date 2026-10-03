@@ -22,6 +22,11 @@ const PORT = 3691;
 // Append translated customer-facing pages here.
 const PAGES = [
   "/this-page-does-not-exist", // views/404.ejs
+  "/login", // views/login.ejs
+  "/login?reset=success", // login notice
+  "/signup", // views/signup.ejs (and the privacy note)
+  "/forgot-password", // views/forgot_password.ejs
+  "/reset-password/not-a-real-token", // views/reset_password.ejs (invalid link branch)
 ];
 
 const EXTRA_ALLOWLIST = [];
