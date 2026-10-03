@@ -241,6 +241,45 @@ others. `lib/totp.js` (hand-rolled on `node:crypto`), `routes/twoFactor.js`
   logs sit with Render. Log lines never contain emails.
 
 
+## Languages
+
+Everything customers and members see must be available in French (admin
+screens stay English). Two languages only: `en` and `fr`.
+
+- **Cookie.** `assets/site.js` (the EN/FR toggle) writes `umasbooks_lang=fr|en`
+  (1 year, `Path=/`, `SameSite=Lax`, `Secure` on https) whenever the language is
+  applied, and repairs a missing/different cookie from localStorage
+  (`umasbooks.lang`) on page load.
+- **Middleware** `src/middleware/lang.js` (mounted before `attachUser`, headers
+  only: no session, no DB). `req.lang` is `fr` only when the cookie is exactly
+  `fr`; with no cookie, the first `Accept-Language` tag decides (`fr*` is
+  French); otherwise `en`. It sets `res.locals.lang` / `htmlLang`,
+  `req.langFromCookie`, `req.tr` and `res.locals.tr`, and replaces the date
+  helpers in views with French-aware ones (`fr-FR` / `en-GB`, still Europe/Paris;
+  also `formatDateLong`, "3 octobre 2026"). `app.locals` dates stay en-GB for
+  non-request callers such as emails. Responses with `Cache-Control: public`
+  get `Vary: Cookie, Accept-Language` (static assets are mounted earlier and
+  untouched).
+- **Translate a view:** `<%= tr('English', 'Français') %>`, with placeholders
+  `<%= tr('Hello {name}', 'Bonjour {name}', { name: user.displayName }) %>`
+  (French falls back to English if empty; `<%= %>` does the HTML escaping).
+  Attributes, `<title>` and `alt` text count too. Server messages:
+  `req.tr('English', 'Français')`. Do not use `data-fr-text` for new work.
+- **Emails:** `emailTr(lang)` from `src/lib/lang.js` returns `(en, fr) => string`.
+  The language is stored on `users.lang` (set at signup, refreshed at each login
+  when the visitor has chosen a language; NULL for admin-created accounts) and
+  `orders.lang` (set at checkout). `sendOrderConfirmation` and `sendResetLink`
+  carry `TODO(i18n)` notes; use `normLang` / `pickLang` for untrusted values.
+  NULL means English.
+- **Marketing pages** (`views/marketing`) keep their client-side dictionaries
+  (`data-i18n`, `pageI18nEn/Fr`); the shared header/footer chrome is also
+  rendered in French on the server.
+- **Safety net:** `test/helpers/i18nAudit.js` (`visibleText`, `untranslated`,
+  shared `ALLOWLIST` for brand names and legal identifiers) reports text that is
+  identical in the English and French render of a page. Append each translated
+  customer page to `PAGES` in `test/integration/i18nCoverage.test.js`.
+  `test/integration/i18nCore.test.js` covers the plumbing.
+
 ## Dates and times (Europe/Paris)
 
 Uma's Books is in Albi, so every date and time an admin types and every one a

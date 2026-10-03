@@ -15,6 +15,9 @@ async function sendResetLink(user, baseUrl) {
     [user.id, tokenHash, expiresAt]
   );
 
+  // TODO(i18n): user.lang ('en' | 'fr' | null; selected via SELECT * on most
+  // callers) is the account's language: use emailTr(user.lang) from lib/lang.js
+  // for the subject/body when this email is translated.
   const link = `${baseUrl}/reset-password/${rawToken}`;
   await sendMail({
     to: user.email,

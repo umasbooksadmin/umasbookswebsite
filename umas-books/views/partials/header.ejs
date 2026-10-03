@@ -1,8 +1,8 @@
 <!doctype html>
-<html lang="en">
+<html lang="<%= typeof htmlLang !== 'undefined' && htmlLang ? htmlLang : 'en' %>">
 <head>
 <meta charset="utf-8">
-<title><%= typeof title !== "undefined" ? title + " — " : "" %>Uma's Books Members</title>
+<title><%= typeof title !== "undefined" ? title + " — " : "" %><%= typeof tr === 'function' ? tr("Uma's Books Members", "Uma’s Books — Espace membres") : "Uma's Books Members" %></title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <% if (typeof noindex !== "undefined" && noindex) { %><meta name="robots" content="noindex">
 <% } %><link rel="stylesheet" href="/style.css">
@@ -17,7 +17,7 @@
 <meta name="apple-mobile-web-app-title" content="Uma's Books">
 </head>
 <body>
-<a class="skip-link" href="#main-content">Skip to main content</a>
+<a class="skip-link" href="#main-content"><%= typeof tr === 'function' ? tr('Skip to main content', 'Aller au contenu principal') : 'Skip to main content' %></a>
 
 <%- include('mkt_chrome_header', { nav: [
   { key: 'home', href: '/', i18n: 'nav.home', label: 'Home' },
@@ -26,6 +26,6 @@
   { key: 'events', href: '/events', i18n: 'nav.events', label: 'Events' },
 ] }) %>
 <% if (typeof hideBackLink === "undefined" || !hideBackLink) { %>
-<div class="site-back-bar"><a href="#" class="site-back-link">&larr; Back</a></div>
+<div class="site-back-bar"><a href="#" class="site-back-link">&larr; <%= typeof tr === 'function' ? tr('Back', 'Retour') : 'Back' %></a></div>
 <% } %>
 <main id="main-content" tabindex="-1" class="<%= typeof mainClass !== 'undefined' ? mainClass : 'wrap' %>">
