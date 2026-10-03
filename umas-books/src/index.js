@@ -33,6 +33,7 @@ const { expireStaleMemberships, reconcileRecentMemberships } = require("./lib/me
 const { alertOnError } = require("./lib/errorAlert");
 const { errorHandler } = require("./lib/errorHandler");
 const { noStoreForUsers } = require("./middleware/noStoreForUsers");
+const { langMiddleware } = require("./middleware/lang");
 const { healthzHandler } = require("./lib/health");
 const seoRoutes = require("./routes/seo");
 const { MARKETING_PAGES, setMarketingSeoLocals } = seoRoutes;
@@ -190,6 +191,9 @@ app.use((req, res, next) => {
   next();
 });
 
+// Language (cookie / Accept-Language -> req.lang, tr(), localised dates).
+// Reads headers only, so it never creates a session or touches the DB.
+app.use(langMiddleware);
 app.use(attachUser(pool));
 // Right after attachUser (it needs res.locals.user): logged-in responses are no-store.
 app.use(noStoreForUsers);

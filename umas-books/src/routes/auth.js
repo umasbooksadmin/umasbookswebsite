@@ -61,6 +61,14 @@ const LOGIN_LOCK_DURATION_MS = 15 * 60 * 1000;
 // with it (csrfProtection issues a new one lazily, the next time a page
 // or /api/csrf-token reads it), but a cart
 // built up while still logged out is worth keeping.
+// Remember the language the visitor has chosen for later emails. Only when
+// they actually chose one (cookie present): a bare Accept-Language guess
+// must not overwrite a language stored earlier.
+async function refreshUserLang(req, userId) {
+  if (!req.langFromCookie) return;
+  await pool.query("UPDATE users SET lang = $1 WHERE id = $2", [req.lang, userId]);
+}
+
 function loginAs(req, res, user, redirectTo) {
   const cart = req.session.cart;
   const cartSeq = req.session.cartSeq;
@@ -145,9 +153,9 @@ router.post("/signup", signupLimiter, async (req, res) => {
     if (!existing.length) {
       try {
         const { rows } = await pool.query(
-          `INSERT INTO users (email, password_hash, display_name) VALUES ($1, $2, $3)
-           RETURNING id, email, display_name`,
-          [email, hash, displayName]
+          `INSERT INTO users (email, password_hash, display_name, lang) VALUES ($1, $2, $3, $4)
+           RETURNING id, email, display_name, lang`,
+          [email, hash, displayName, req.lang]
         );
         created = rows[0];
       } catch (err) {
@@ -265,6 +273,7 @@ router.post("/login", loginLimiter, async (req, res) => {
     }
 
     await pool.query("UPDATE users SET last_login_at = now(), inactivity_warned_at = NULL WHERE id = $1", [user.id]);
+    await refreshUserLang(req, user.id);
 
     // Logging in doesn't make you a member — only actual members/admins
     // (and volunteers, a superset of members — see requireMember) land on
@@ -362,6 +371,7 @@ router.post("/login/2fa", twoFactorLimiter, async (req, res) => {
 
     req.session.pending2fa = null;
     await pool.query("UPDATE users SET last_login_at = now(), inactivity_warned_at = NULL, failed_login_attempts = 0, locked_until = NULL WHERE id = $1", [user.id]);
+    await refreshUserLang(req, user.id);
     loginAs(req, res, user, user.is_admin ? "/admin" : (user.is_member || user.is_volunteer) ? "/dashboard" : "/");
   } catch (err) {
     console.error(err);

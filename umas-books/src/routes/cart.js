@@ -247,9 +247,9 @@ router.post("/cart/checkout", checkoutLimiter, async (req, res) => {
       }
 
       const { rows: orderRows } = await client.query(
-        `INSERT INTO orders (buyer_name, buyer_email, buyer_phone, total_amount, client_ip, withdrawal_waiver_at)
-         VALUES ($1, $2, $3, $4, $5, CASE WHEN $6::boolean THEN now() END) RETURNING *`,
-        [name, email, phone, total, clientIp, hasDropin]
+        `INSERT INTO orders (buyer_name, buyer_email, buyer_phone, total_amount, client_ip, withdrawal_waiver_at, lang)
+         VALUES ($1, $2, $3, $4, $5, CASE WHEN $6::boolean THEN now() END, $7) RETURNING *`,
+        [name, email, phone, total, clientIp, hasDropin, req.lang]
       );
       const newOrder = orderRows[0];
 

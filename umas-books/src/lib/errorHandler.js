@@ -1,6 +1,7 @@
 // The app's last-resort Express error handler (mounted at the bottom of
 // src/index.js), kept in its own module so it can be tested directly.
 const { alertOnError } = require("./errorAlert");
+const { langMiddleware } = require("../middleware/lang");
 
 // Friendly text for the client errors that can reach the handler.
 const CLIENT_ERROR_MESSAGES = {
@@ -53,6 +54,9 @@ function errorHandler(err, req, res, next) {
   if (res.headersSent) return next(err);
 
   const status = clientStatus || 500;
+  // An error thrown before the language middleware ran (e.g. a bad request
+  // body) still gets translated views.
+  if (typeof res.locals.tr !== "function") langMiddleware(req, res, () => {});
   res.status(status);
   const message = clientStatus
     ? CLIENT_ERROR_MESSAGES[clientStatus] || "That request couldn't be processed."
