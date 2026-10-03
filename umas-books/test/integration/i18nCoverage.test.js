@@ -24,6 +24,7 @@ const PORT = 3691;
 // Append translated customer-facing pages here.
 const PAGES = [
   "/this-page-does-not-exist", // views/404.ejs
+  "/account/deleted", // views/account_deleted.ejs
   "/events", // views/events.ejs + calendar partials (seeded calendars: i18nCommunity.test.js)
   "/events?view=week",
   "/sessions", // views/sessions.ejs

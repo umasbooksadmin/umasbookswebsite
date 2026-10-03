@@ -1,0 +1,10 @@
+<%- include('partials/header', { noindex: true, title: tr('Account deleted', 'Compte supprimé') }) %>
+
+<h1><%= tr('Your account has been deleted', 'Votre compte a été supprimé') %></h1>
+<p><%= tr(
+  'Thank you for being part of Uma’s Books. You should receive a short confirmation email. Orders and payments already made are kept anonymised, as French accounting law requires.',
+  'Merci d’avoir fait partie d’Uma’s Books. Vous devriez recevoir un court e-mail de confirmation. Les commandes et paiements déjà réglés sont conservés de façon anonymisée, comme l’exige la loi comptable française.'
+) %></p>
+<p><a href="/"><%= tr('Go home', 'Retour à l’accueil') %></a></p>
+
+<%- include('partials/footer') %>

@@ -1,0 +1,65 @@
+<%- include('partials/header', { noindex: true, title: tr('Privacy and my data', 'Confidentialité et mes données') }) %>
+
+<h1><%= tr('Privacy and my data', 'Confidentialité et mes données') %></h1>
+<% if (error) { %><div role="alert" class="error-box"><%= error %></div><% } %>
+
+<div class="card">
+  <div class="section-title"><%= tr('Download my data', 'Télécharger mes données') %></div>
+  <p><%= tr(
+    'You get one file (JSON) with everything we hold about you: your account details, orders, sign-ups, forum posts and so on. Your password and security codes are never included.',
+    'Vous recevez un fichier (JSON) avec tout ce que nous détenons sur vous : les informations de votre compte, vos commandes, vos inscriptions, vos messages du forum, etc. Votre mot de passe et vos codes de sécurité n’y figurent jamais.'
+  ) %></p>
+  <form class="stack" method="post" action="/account/privacy/export">
+    <%- include('partials/csrf_field') %>
+    <label for="exportPassword"><%= tr('Current password', 'Mot de passe actuel') %></label>
+    <div class="password-field">
+      <input id="exportPassword" name="currentPassword" type="password" autocomplete="current-password" required>
+      <button type="button" class="password-toggle" data-toggle-password="exportPassword" aria-label="<%= tr('Show password', 'Afficher le mot de passe') %>" aria-pressed="false"><%= tr('Show', 'Afficher') %></button>
+    </div>
+    <button class="btn" type="submit"><%= tr('Download my data', 'Télécharger mes données') %></button>
+  </form>
+</div>
+
+<div class="card">
+  <div class="section-title"><%= tr('Delete my account', 'Supprimer mon compte') %></div>
+  <% if (isAdmin) { %>
+    <p><%= tr(
+      'Administrators can’t delete their own account here: ask another administrator.',
+      'Les administrateurs ne peuvent pas supprimer leur propre compte ici : demandez à un autre administrateur.'
+    ) %></p>
+  <% } else { %>
+    <p><%= tr(
+      'This deletes your account, your sign-ups and your login sessions. It cannot be undone.',
+      'Cela supprime votre compte, vos inscriptions et vos sessions de connexion. C’est irréversible.'
+    ) %></p>
+    <ul>
+      <li><%= tr(
+        'A current paid membership is lost, without refund.',
+        'Une adhésion payée en cours est perdue, sans remboursement.'
+      ) %></li>
+      <li><%= tr(
+        'Orders and payments already made are kept, but anonymised (no name or email), because French accounting law requires it.',
+        'Les commandes et paiements déjà réglés sont conservés, mais anonymisés (sans nom ni e-mail), car la loi comptable française l’exige.'
+      ) %></li>
+      <li><%= tr(
+        'We email you a short confirmation first.',
+        'Nous vous envoyons d’abord un court e-mail de confirmation.'
+      ) %></li>
+    </ul>
+    <form class="stack" method="post" action="/account/privacy/delete">
+      <%- include('partials/csrf_field') %>
+      <label for="deletePassword"><%= tr('Current password', 'Mot de passe actuel') %></label>
+      <div class="password-field">
+        <input id="deletePassword" name="currentPassword" type="password" autocomplete="current-password" required>
+        <button type="button" class="password-toggle" data-toggle-password="deletePassword" aria-label="<%= tr('Show password', 'Afficher le mot de passe') %>" aria-pressed="false"><%= tr('Show', 'Afficher') %></button>
+      </div>
+      <label for="confirmation"><%= tr('Type DELETE to confirm', 'Saisissez SUPPRIMER pour confirmer') %></label>
+      <input id="confirmation" name="confirmation" type="text" autocomplete="off" required>
+      <button class="btn" type="submit"><%= tr('Delete my account for good', 'Supprimer définitivement mon compte') %></button>
+    </form>
+  <% } %>
+</div>
+
+<p class="small"><a href="/account"><%= tr('Back to My Account', 'Retour à Mon compte') %></a></p>
+
+<%- include('partials/footer') %>
