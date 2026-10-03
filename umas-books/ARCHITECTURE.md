@@ -1,5 +1,8 @@
 # Architecture
 
+> For diagrams of the whole system (context, request flow, data model, payments,
+> deploy, backups, security) see [`../docs/architecture.md`](../docs/architecture.md).
+
 A quick technical map of how this app is put together — routing, views,
 data, config, and how a change gets from a commit to production. See
 [README.md](README.md) for what each feature does, and
@@ -161,8 +164,8 @@ actually uses.
 - **Monitoring and backups** (all GitHub Actions, independent of Render):
   `uptime-check.yml` polls `/healthz` every 30 minutes (Actions minutes are metered on a private repo) and emails once on
   the second consecutive failure and once on recovery;
-  `nightly-db-backup.yml` pushes a `pg_dump` to the private `db-backups`
-  branch; `backup-restore-test.yml` restores the newest dump into a
+  `nightly-db-backup.yml` pushes a `pg_dump` (without image bytes — see
+  "Images") to the private `db-backups` branch; `backup-restore-test.yml` restores the newest dump into a
   scratch postgres:18 monthly and checks it. The manual restore procedure
   is in [README.md](README.md#restoring-from-a-backup).
 
@@ -205,8 +208,13 @@ others. `lib/totp.js` (hand-rolled on `node:crypto`), `routes/twoFactor.js`
   after 7 days, orders and payment records after 10 years, accounts with no
   login for 3 years (never admins or current members) — emailed a warning
   first (`users.inactivity_warned_at`), deleted 30 days later unless they log
-  in, which clears the warning. The `RETENTION`
-  constants must match the privacy policy page.
+  in, which clears the warning (any signed-in request also counts as
+  activity: `attachUser` refreshes `last_login_at` at most once a day).
+  Contact details on `book_copies` that are no longer reserved (sold or
+  cancelled) and on `expired`/`cancelled` orders are removed after 30 days.
+  The warning email is claimed (`inactivity_warned_at` set) before it is
+  sent and released if the send fails, so overlapping instances don't
+  double-send. The `RETENTION` constants must match the privacy policy page.
 - Admin audit log: `lib/audit.js` `audit(req, {action, targetType, targetId,
   detail})` appends to `admin_audit_log` (migration 040) from sensitive admin
   routes (member changes/erasure/2FA reset, deletes, bulk deletes, admin
@@ -246,7 +254,7 @@ production's environment on a Paris-timezone dev machine.
 `src/migrate.js` applies each `.sql` file in `migrations/` exactly once, in
 filename order (`001_`, `002_`, …), and records it in the
 `schema_migrations` table. `npm run migrate` still runs on every deploy
-and wake (see below), but only files not yet recorded do anything. Each
+and restart (see below), but only files not yet recorded do anything. Each
 file runs in its own transaction together with its bookkeeping row, so a
 failing migration leaves no half-applied state, and an advisory lock stops
 two booting instances racing.
@@ -268,6 +276,44 @@ CI's `migration-test` and `test` jobs (`.github/workflows/ci.yml`) apply
 every migration to a brand-new database on every run, and
 `test/integration/migrationTracking.test.js` proves a second run changes
 nothing.
+
+## Images
+
+Uploaded photos (book covers, blog/announcement/charity images) are
+processed by sharp as before (see the `process*Image` functions in
+`src/routes/admin/`; the 40-megapixel decode cap is in
+`src/lib/uploadImage.js`) and then handed to `src/lib/imageStore.js`:
+`saveImage(buffer) -> '/img/<sha256>.jpg'`. Rows store only that short URL
+(`books.cover_url`, `announcements.image_url`, `charities.image_url`,
+`blog_posts.image_url`); remote http(s) URLs (Open Library) are stored
+as-is and never copied.
+
+- **Where the bytes live:** the `images` table (`id` = lowercase hex SHA-256
+  of the bytes, `content_type`, `data` BYTEA, `byte_size`;
+  `migrations/034_image_store.sql`). Content-addressed, so identical uploads
+  dedupe and a URL's bytes never change. Images are not garbage-collected
+  when a row stops referencing them (a replaced cover leaves an orphan);
+  they are small and re-uploads dedupe, so this is deliberate for now.
+- **Serving:** `GET /img/<sha256>.(jpg|png|webp)` (`src/routes/img.js`),
+  mounted before the session store like `/assets`, so it never reads or sets
+  a cookie. `Cache-Control: public, max-age=31536000, immutable`, `ETag` =
+  the hash (`If-None-Match` -> 304 without a DB read), `nosniff`. Anything
+  not matching the strict pattern, or unknown, is 404. No rate limiter: the
+  response is immutable and cacheable and a page legitimately loads dozens.
+  CSP `imgSrc` already allows `'self'`.
+- **Legacy values:** the migration converted every `data:image/...;base64`
+  value in those four columns (inside its transaction). Templates and APIs
+  just print the column, so old data URIs and new short URLs both work.
+- **Future object storage (Backblaze/S3):** callers only ever receive a URL
+  string, so reimplement `saveImage`/`getImage` against the bucket and have
+  `routes/img.js` redirect or stream from it; no caller changes. Existing
+  `/img/<hash>` URLs stay valid because the key is the content hash.
+- **Backups:** the nightly GitHub dump uses `--exclude-table-data=images`
+  (schema kept) to stay under the db-backups branch's 100 MB file limit; the
+  *complete* dump (images included) is uploaded to the offsite bucket under
+  `store-backups/full/` only when `BACKUP_S3_*` is configured. Until it is,
+  images are backed up nowhere but the live database (README, "Restoring
+  from a backup").
 
 ## Payment reliability (online checkout)
 
@@ -305,6 +351,18 @@ statuses).
   finds stale holds through book copies *and* seats (a drop-in-only
   checkout has no copy). A late payment for a released seat is treated as
   unclaimable (admin alert), since the capacity may already be resold.
+- **Sweeps and races.** `markOrderPaid` returns whether it won. If
+  `reconcileOrder` loses (the expiry sweep closed the order after its
+  snapshot), it re-reads the row and runs `recoverLatePayment` instead of
+  stamping `helloasso_order_id` and reporting paid. The cart job
+  (`runCartMaintenance`) runs expiry then reconcile sequentially; each
+  timer job is wrapped by `guardJob` so a slow run is skipped, not stacked.
+  One order failing to release no longer stops the expiry loop (alerted
+  once). The reconcile sweep stops at the first HelloAsso auth/network
+  failure and alerts (first run, then ~hourly while it persists). A 401
+  from HelloAsso clears the cached token and retries once. `/cart/return`
+  also reconciles recently closed orders; a paid-but-unfulfillable one
+  shows "we received your payment" rather than "nothing was charged".
 
 ## Deploy sequence
 
@@ -318,19 +376,21 @@ Render Blueprint) at the repo root:
    CI failure as "go fix this," not as something that already stopped a
    bad deploy.
 2. Render's `buildCommand` runs `npm ci --omit=dev`.
-3. Render's `startCommand` runs `npm run migrate && npm run seed && npm
-   start`, in that order, every time the service starts — including a
-   free-tier spin-down/wake cycle, not just a real deploy. Both
-   `migrate` and `seed` are written to be safe to re-run (see above; the
-   seed script specifically only creates the first admin account if none
-   exists yet).
+3. Render's `preDeployCommand` runs `npm run migrate` before the new
+   version takes traffic; if a migration fails the deploy is aborted and the
+   running version keeps serving. Then `startCommand` runs
+   `npm run seed && npm start` every time the service starts. `migrate`
+   is tracked (each file runs once) and takes an advisory lock; `seed` is
+   safe to re-run (it only creates the first admin account if none exists
+   yet). Rolling back to an older commit does NOT undo migrations.
    The Node version is pinned to 22 (`engines` in `package.json`,
    `.node-version`, CI's `NODE_VERSION`), and `render.yaml` sets
    `healthCheckPath: /healthz` (a `SELECT 1`) so a deploy that can't
    reach the database never goes live.
-4. The free Render plan doesn't support a dedicated pre-deploy command,
-   which is why migrate/seed are folded into `startCommand` instead.
+4. Migrate runs as Render's pre-deploy command and seed in `startCommand`.
+   Rolling back is covered in [`../docs/runbook.md`](../docs/runbook.md).
 
-Nothing here currently blocks a bad migration or a failing app boot from
-reaching production automatically — the safety net is writing migrations
-idempotently, keeping CI green, and watching the deploy.
+A failing migration stops the deploy (the old version keeps serving). Nothing
+blocks a bad app boot or a bad-but-valid migration automatically — the safety
+net is keeping migrations small and safe, keeping CI green, and watching the
+deploy.

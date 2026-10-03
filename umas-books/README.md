@@ -162,7 +162,7 @@ ISBN entry and manual add still work fully.
 ## Deploying to Render
 
 `render.yaml` at the repo root is a Render Blueprint that provisions:
-- a free Postgres database (`umas-books-db`)
+- a paid-plan Postgres database (`umas-books-db`)
 - this app as a web service (`umas-books`), wired to that database's
   `DATABASE_URL` and a generated `SESSION_SECRET` automatically
 
@@ -170,16 +170,14 @@ To deploy: in the Render dashboard, **New +** → **Blueprint**, connect the
 `umasbookswebsite` GitHub repo, and Render will read `render.yaml` and set
 both up.
 
-`render.yaml`'s `startCommand` runs `npm run migrate` before `npm start`,
-so migrations run automatically on every boot — new migration files just
-need to be committed and pushed, no manual step. (Render's dedicated
-`preDeployCommand` would be the more obvious fit, but it needs a paid
-instance type; the free plan used here rejects it outright at Blueprint
-creation time with "pre-deploy command is not supported for free tier
-services" — confirmed by trying it. Running migrate in `startCommand`
-works on free tier and is safe because every migration file is written
-to be idempotent, so re-running the whole set on every boot — including
-free-tier spin-down/wake cycles — is harmless.)
+Render's *Pre-Deploy Command* (`preDeployCommand: npm run migrate` in
+`render.yaml`) runs before each new version takes traffic, so migrations run
+automatically on every deploy — new migration files just need to be committed
+and pushed, no manual step — and a failing migration stops the deploy while
+the old version keeps serving. `src/migrate.js` records each file in the
+`schema_migrations` table and applies it exactly once.
+Redeploying an older commit does **not** undo a migration; see
+[`docs/runbook.md`](../docs/runbook.md) before rolling back.
 
 Because `rootDir` is `umas-books`, Render by default only auto-deploys
 when a push changes files inside `umas-books/` — a push that only touches
@@ -195,9 +193,9 @@ add an included path of `**` (or sync the Blueprint so it picks up
 Deploy → Deploy latest commit**.
 
 The first admin account is created by `npm run seed`, which `startCommand`
-runs on every boot (the free plan has no Shell tab, so this is the only
-route there): set `SEED_ADMIN_PASSWORD` (and optionally `SEED_ADMIN_EMAIL`)
-in the service's **Environment** tab before the first deploy. Or, to do it
+runs on every boot (it does nothing once an admin exists): set `SEED_ADMIN_PASSWORD` (and optionally `SEED_ADMIN_EMAIL`)
+in the service's **Environment** tab before the first deploy, then delete
+`SEED_ADMIN_PASSWORD` from that tab once you can log in. Or, to do it
 by hand, point `DATABASE_URL` at the production database locally:
 
 ```bash
@@ -253,10 +251,25 @@ environment, so those would be invisible to them and the upload would
 quietly skip itself.)
 
 **Retention:** the workflow doesn't delete anything. In Backblaze, open the
-bucket → *Lifecycle Settings* → *Use custom lifecycle rules* and add two
+bucket → *Lifecycle Settings* → *Use custom lifecycle rules* and add three
 rules: file path `store-backups/umas_books_`, days from uploading to hiding
-**35**, days from hiding to deleting **1**; and file path
+**35**, days from hiding to deleting **1**; file path
+`store-backups/full/`, days to hiding **35**, to deleting **1** (these are the
+big ones — they contain every image); and file path
 `store-backups/monthly/`, days to hiding **730**, to deleting **1**.
+
+> **Images are only fully backed up here.** Uploaded images (book covers,
+> blog/announcement/charity photos) live in the `images` table. The nightly
+> copy on the GitHub `db-backups` branch **leaves their bytes out**
+> (`--exclude-table-data=images`) because thousands of covers would exceed
+> that branch's 100 MB file limit and make the nightly backup fail. When the
+> settings above exist, the workflow also uploads a **second, complete dump**
+> to `store-backups/full/umas_books_full_<timestamp>.dump` — that is the only
+> backup that contains images.
+>
+> **Until the offsite bucket is configured, images are NOT backed up
+> anywhere except the live database.** Configure it before bulk-loading
+> covers.
 
 **Check it works:** run the *Nightly database backup* workflow by hand
 (Actions tab → Run workflow, branch `main`) and look for the new file in the
@@ -273,6 +286,15 @@ timestamp>.dump`, keeping the newest 30. Once a month,
 `.github/workflows/backup-restore-test.yml` restores the newest dump into a
 scratch Postgres and checks the data, emailing admin@umasbooks.org if that
 fails — so this procedure is exercised regularly, not just on a bad day.
+
+> **Which copy has what.** The GitHub `db-backups` copy has everything
+> **except image bytes** (book covers and other uploaded photos; the `images`
+> table is restored empty, so those pictures would 404). The offsite
+> **`store-backups/full/`** copy is complete, images included. **Until the
+> offsite bucket is configured, images are NOT backed up anywhere except the
+> live database** — if you restore from the GitHub copy, every uploaded cover
+> and photo must be re-uploaded (covers from Open Library keep working; they
+> are plain links).
 
 > **A dump contains member data** (names, emails, order details, password
 > hashes). Download it only to a machine you control, restore it only into
@@ -294,6 +316,10 @@ logged in with access to the repo.
    aws s3 ls s3://YOUR-BUCKET/store-backups/ --endpoint-url $EP | tail
    aws s3 cp s3://YOUR-BUCKET/store-backups/umas_books_<timestamp>.dump restore.dump --endpoint-url $EP
    ```
+
+   For a complete restore (with images) use the newest file under
+   `store-backups/full/` instead: `aws s3 ls s3://YOUR-BUCKET/store-backups/full/ --endpoint-url $EP | tail`,
+   then copy `umas_books_full_<timestamp>.dump` the same way.
 
    Or from the GitHub branch — list the available ones, then fetch one:
 
@@ -352,10 +378,12 @@ logged in with access to the repo.
 5. **Clean up:** `rm restore.dump`, and `dropdb umas_books_restored` if it
    was only a drill.
 
-Render's free Postgres plan is time-limited (currently expires after a
-period of inactivity/trial per Render's terms) — worth checking their
-current free-tier database policy before relying on it long-term, and
-upgrading to a paid database if this needs to stay up indefinitely.
+The database is on a paid Render plan (`render.yaml`), so it does not
+expire. These backups are the extra safety net on top of Render's own.
+
+More operational how-tos (rolling back a deploy, rotating secrets, a
+locked-out admin, who gets alerts, the yearly checklist) are in
+[`docs/runbook.md`](../docs/runbook.md).
 
 ## Security
 

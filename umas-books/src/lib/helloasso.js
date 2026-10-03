@@ -28,13 +28,30 @@ let cachedTokenExpiresAt = 0;
 // not let forged calls pile up open requests indefinitely.
 const REQUEST_TIMEOUT_MS = 10_000;
 
+// Errors carry a `kind` ("auth" | "network" | "http") so callers (the
+// reconcile sweep) can tell a systemic outage from one bad request.
+function taggedError(message, kind, status) {
+  const err = new Error(message);
+  err.kind = kind;
+  if (status) err.status = status;
+  return err;
+}
+
+async function guardedFetch(url, init) {
+  try {
+    return await fetch(url, init);
+  } catch (err) {
+    throw taggedError(`HelloAsso request failed: ${err.message}`, "network");
+  }
+}
+
 async function getAccessToken() {
   if (!isConfigured()) {
     throw new Error("HelloAsso is not configured (missing HELLOASSO_CLIENT_ID/SECRET/ORG_SLUG).");
   }
   if (cachedToken && Date.now() < cachedTokenExpiresAt) return cachedToken;
 
-  const res = await fetch(`${BASE_URL}/oauth2/token`, {
+  const res = await guardedFetch(`${BASE_URL}/oauth2/token`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
@@ -45,7 +62,7 @@ async function getAccessToken() {
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
   if (!res.ok) {
-    throw new Error(`HelloAsso auth failed: ${res.status} ${await res.text()}`);
+    throw taggedError(`HelloAsso auth failed: ${res.status} ${await res.text()}`, "auth", res.status);
   }
   const data = await res.json();
   cachedToken = data.access_token;
@@ -54,20 +71,31 @@ async function getAccessToken() {
 }
 
 async function apiRequest(method, path, body) {
-  const token = await getAccessToken();
-  const res = await fetch(`${BASE_URL}${path}`, {
-    method,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      ...(body ? { "Content-Type": "application/json" } : {}),
-    },
-    body: body ? JSON.stringify(body) : undefined,
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-  });
-  if (!res.ok) {
-    throw new Error(`HelloAsso API ${method} ${path} failed: ${res.status} ${await res.text()}`);
+  // A 401 means the cached token is no good (expired early, secret rotated):
+  // drop it and retry once with a fresh one rather than failing every call
+  // until the cache would have expired on its own.
+  for (let attempt = 0; ; attempt++) {
+    const token = await getAccessToken();
+    const res = await guardedFetch(`${BASE_URL}${path}`, {
+      method,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        ...(body ? { "Content-Type": "application/json" } : {}),
+      },
+      body: body ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+    if (res.status === 401) {
+      cachedToken = null;
+      cachedTokenExpiresAt = 0;
+      if (attempt === 0) continue;
+      throw taggedError(`HelloAsso API ${method} ${path} failed: 401 ${await res.text()}`, "auth", 401);
+    }
+    if (!res.ok) {
+      throw taggedError(`HelloAsso API ${method} ${path} failed: ${res.status} ${await res.text()}`, "http", res.status);
+    }
+    return res.json();
   }
-  return res.json();
 }
 
 // amountCents: total order amount in cents (HelloAsso wants integer cents,

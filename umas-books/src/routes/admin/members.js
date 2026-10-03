@@ -8,6 +8,7 @@ const { sendResetLink } = require("../../lib/passwordReset");
 const { baseUrl } = require("../../lib/baseUrl");
 const { sendVerificationEmail } = require("../../lib/emailVerification");
 const { syncMembershipInBackground } = require("../../lib/membership");
+const { isEmail, clean, parseId } = require("../../lib/validation");
 const { eraseMember } = require("../../lib/privacy");
 
 const { validateIdParams } = require("../../middleware/idParams");
@@ -85,7 +86,7 @@ async function loadMemberDetail(userId) {
 }
 
 router.get("/admin/members", requireAdmin, async (req, res) => {
-  const q = (req.query.q || "").trim();
+  const q = clean(req.query.q, 100);
   const role = ["admin", "member"].includes(req.query.role) ? req.query.role : "";
   const status = ["active", "inactive"].includes(req.query.status) ? req.query.status : "";
   const dateRange = req.query.dateRange || "";
@@ -144,7 +145,11 @@ router.get("/admin/members", requireAdmin, async (req, res) => {
   `);
   const stats = statRows[0];
 
-  const detail = req.query.view ? await loadMemberDetail(Number(req.query.view)) : null;
+  // parseId: a huge or non-numeric ?view= would otherwise reach Postgres
+  // as an out-of-range int (a 500 and an alert email); treat it as "no
+  // member selected".
+  const viewId = parseId(req.query.view);
+  const detail = viewId ? await loadMemberDetail(viewId) : null;
   const panel = ["overview", "activity", "edit"].includes(req.query.panel) ? req.query.panel : "overview";
 
   res.render("admin/members", {
@@ -163,12 +168,12 @@ router.get("/admin/members", requireAdmin, async (req, res) => {
 });
 
 router.post("/admin/members", requireAdmin, async (req, res) => {
-  const email = (req.body.email || "").trim().toLowerCase();
-  const displayName = (req.body.displayName || "").trim();
+  const email = clean(req.body.email, 200).toLowerCase();
+  const displayName = clean(req.body.displayName, 100);
   const isMember = req.body.isMember === "on";
   const isVolunteer = req.body.isVolunteer === "on";
   const isAdmin = req.body.isAdmin === "on";
-  if (!email || !displayName) return res.redirect("/admin/members");
+  if (!email || !displayName || !isEmail(email)) return res.redirect("/admin/members");
 
   const { rows: existing } = await pool.query("SELECT id FROM users WHERE email = $1", [email]);
   if (existing.length) return res.redirect("/admin/members");
@@ -238,9 +243,9 @@ router.post("/admin/members/:id/toggle-disabled", requireAdmin, async (req, res)
 
 router.post("/admin/members/:id/edit", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
-  const displayName = (req.body.displayName || "").trim();
-  const email = (req.body.email || "").trim().toLowerCase();
-  if (displayName && email) {
+  const displayName = clean(req.body.displayName, 100);
+  const email = clean(req.body.email, 200).toLowerCase();
+  if (displayName && isEmail(email)) {
     const { rows: current } = await pool.query("SELECT email FROM users WHERE id = $1", [id]);
     const emailChanged = current[0] && current[0].email.toLowerCase() !== email;
     // A changed email is a brand-new, unproven address: verification is

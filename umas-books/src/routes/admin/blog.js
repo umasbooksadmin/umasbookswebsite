@@ -1,4 +1,5 @@
 const express = require("express");
+const { saveImage } = require("../../lib/imageStore");
 const { sharpFromUpload } = require("../../lib/uploadImage");
 const { pool } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
@@ -24,7 +25,7 @@ async function processBlogImage(file) {
     .resize(800, 500, { fit: "cover" })
     .jpeg({ quality: 78 })
     .toBuffer();
-  return `data:image/jpeg;base64,${resized.toString("base64")}`;
+  return saveImage(resized, "image/jpeg");
 }
 
 function slugifyTitle(title) {
@@ -107,8 +108,8 @@ router.get("/admin/blog", requireAdmin, async (req, res) => {
   );
 
   let editing = null;
-  if (req.query.edit) {
-    const { rows } = await pool.query("SELECT * FROM blog_posts WHERE id = $1", [Number(req.query.edit)]);
+  if (parseId(req.query.edit) !== null) {
+    const { rows } = await pool.query("SELECT * FROM blog_posts WHERE id = $1", [parseId(req.query.edit)]);
     editing = rows[0] || null;
   }
 
