@@ -1,11 +1,11 @@
-<%- include('partials/header', { noindex: true, title: 'Cart' }) %>
+<%- include('partials/header', { noindex: true, title: tr('Cart', 'Panier') }) %>
 
-<h1>Your Cart</h1>
+<h1><%= tr('Your Cart', 'Votre panier') %></h1>
 
 <% if (error) { %><div role="alert" class="error-box"><%= error %></div><% } %>
 
 <% if (!items.length) { %>
-  <div class="card"><p class="muted">Your cart is empty. <a href="/books.html">Browse books</a> or <a href="/sessions">browse drop-in sessions</a> to add some.</p></div>
+  <div class="card"><p class="muted"><%= tr('Your cart is empty.', 'Votre panier est vide.') %> <a href="/books.html"><%= tr('Browse books', 'Parcourez les livres') %></a> <%= tr('or', 'ou') %> <a href="/sessions"><%= tr('browse drop-in sessions', 'les séances drop-in') %></a> <%= tr('to add some.', 'pour en ajouter.') %></p></div>
 <% } else { %>
   <%- include('partials/cover_note') %>
   <div class="cart-list">
@@ -15,49 +15,49 @@
           <% if (i.coverUrl) { %>
             <img src="<%= i.coverUrl %>" alt="" class="cart-item-cover">
           <% } else { %>
-            <div class="cart-item-cover book-thumb-placeholder">No cover</div>
+            <div class="cart-item-cover book-thumb-placeholder"><%= tr('No cover', 'Pas de couverture') %></div>
           <% } %>
           <div class="cart-item-body">
             <div class="cart-item-title"><%= i.title %></div>
-            <div class="muted small"><%= i.authors || 'Unknown author' %></div>
+            <div class="muted small"><%= i.authors || tr('Unknown author', 'Auteur inconnu') %></div>
           </div>
         <% } else { %>
-          <div class="cart-item-cover book-thumb-placeholder">Session</div>
+          <div class="cart-item-cover book-thumb-placeholder"><%= tr('Session', 'Séance') %></div>
           <div class="cart-item-body">
             <div class="cart-item-title"><%= i.title %></div>
-            <div class="muted small">Drop-in seat &middot; <%= formatDateTime(i.startsAt) %></div>
+            <div class="muted small"><%= tr('Drop-in seat', 'Place drop-in') %> &middot; <%= formatDateTime(i.startsAt) %></div>
           </div>
         <% } %>
         <div class="cart-item-price">&euro;<%= i.price.toFixed(2) %></div>
         <form method="post" action="/cart/remove">
           <%- include('partials/csrf_field') %>
           <input type="hidden" name="lineId" value="<%= i.lineId %>">
-          <button type="submit" class="btn-outline btn-small">Remove</button>
+          <button type="submit" class="btn-outline btn-small"><%= tr('Remove', 'Retirer') %></button>
         </form>
       </div>
     <% }) %>
   </div>
 
-  <div class="cart-total">Total: <strong>&euro;<%= total.toFixed(2) %></strong></div>
+  <div class="cart-total"><%= tr('Total:', 'Total :') %> <strong>&euro;<%= total.toFixed(2) %></strong></div>
 
   <% if (!helloassoReady) { %>
-    <div role="status" class="notice-box">Online payment isn't switched on yet &mdash; please check back soon, or come by the shop to buy in person.</div>
+    <div role="status" class="notice-box"><%= tr("Online payment isn't switched on yet — please check back soon, or come by the shop to buy in person.", "Le paiement en ligne n’est pas encore activé : revenez bientôt, ou passez à la boutique pour acheter sur place.") %></div>
   <% } else { %>
     <div class="card">
-      <h2 class="section-title">Checkout</h2>
+      <h2 class="section-title"><%= tr('Checkout', 'Paiement') %></h2>
       <form class="stack" method="post" action="/cart/checkout">
         <%- include('partials/csrf_field') %>
-        <label for="name">Name</label>
+        <label for="name"><%= tr('Name', 'Nom') %></label>
         <input id="name" name="name" type="text" required>
-        <label for="email">Email</label>
+        <label for="email"><%= tr('Email', 'E-mail') %></label>
         <input id="email" name="email" type="email" required>
-        <label for="phone">Phone (optional)</label>
+        <label for="phone"><%= tr('Phone (optional)', 'Téléphone (facultatif)') %></label>
         <input id="phone" name="phone" type="tel">
-        <p class="muted small">You'll pay securely via HelloAsso, then come by Uma's Books to pick up your order.</p>
-        <label class="ann-check"><input type="checkbox" name="acceptCgv" required> <span>I have read and accept the <a href="/terms-of-sale.html" target="_blank" rel="noopener">terms of sale</a> (including the right of withdrawal).</span></label>
+        <p class="muted small"><%= tr("You'll pay securely via HelloAsso, then come by Uma's Books to pick up your order.", "Vous paierez en toute sécurité via HelloAsso, puis vous passerez à Uma's Books pour retirer votre commande.") %></p>
+        <label class="ann-check"><input type="checkbox" name="acceptCgv" required> <span><%= tr('I have read and accept the', 'J’ai lu et j’accepte les') %> <a href="/terms-of-sale.html" target="_blank" rel="noopener"><%= tr('terms of sale', 'conditions de vente') %></a> <%= tr('(including the right of withdrawal).', '(y compris le droit de rétractation).') %></span></label>
         <%- include('partials/privacy_note', { en: 'We use your details only to process your order. See our', fr: 'Vos données servent uniquement à traiter votre commande. Consultez notre' }) %>
         <% if (items.some((i) => i.kind === 'dropin')) { %><%- include('partials/dropin_waiver') %><% } %>
-        <button class="btn" type="submit">Pay &amp; Buy</button>
+        <button class="btn" type="submit"><%= tr('Pay & Buy', 'Payer') %></button>
       </form>
     </div>
   <% } %>
