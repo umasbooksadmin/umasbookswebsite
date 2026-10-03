@@ -85,6 +85,11 @@ different nav (no cart/account icons).
 `session` store table (created by `migrate.js` / `connect-pg-simple`
 rather than by a numbered migration), grouped by what they belong to:
 
+- **Fixed price for new books (loi Lang)** — a `book_copies` row with
+  condition `new` must carry `publisher_price` (migration 041) and be priced
+  between 95% and 100% of it; enforced server-side by `resolveCopyPricing`
+  in `src/lib/inventory.js` on both add-copy and edit-copy. Used copies are
+  free-priced and store `publisher_price` NULL.
 - **Accounts & auth** — `users`, `password_reset_tokens`,
   `email_verification_tokens`
 - **Shop / checkout** — `books`, `book_copies`, `orders`, `order_items`
@@ -164,9 +169,10 @@ actually uses.
 - **Monitoring and backups** (all GitHub Actions, independent of Render):
   `uptime-check.yml` polls `/healthz` every 30 minutes (Actions minutes are metered on a private repo) and emails once on
   the second consecutive failure and once on recovery;
-  `nightly-db-backup.yml` pushes a `pg_dump` (without image bytes — see
-  "Images") to the private `db-backups` branch; `backup-restore-test.yml` restores the newest dump into a
-  scratch postgres:18 monthly and checks it. The manual restore procedure
+  `nightly-db-backup.yml` uploads one complete `pg_dump` (image bytes
+  included, login sessions excluded) to the private Backblaze B2 bucket and
+  fails if the offsite settings are missing; `backup-restore-test.yml` downloads the newest
+  dump from B2, restores it into a scratch postgres:18 monthly and checks it. The manual restore procedure
   is in [README.md](README.md#restoring-from-a-backup).
 
 ## Two-step verification (admins)
@@ -215,6 +221,21 @@ others. `lib/totp.js` (hand-rolled on `node:crypto`), `routes/twoFactor.js`
   The warning email is claimed (`inactivity_warned_at` set) before it is
   sent and released if the send fails, so overlapping instances don't
   double-send. The `RETENTION` constants must match the privacy policy page.
+- Admin audit log: `lib/audit.js` `audit(req, {action, targetType, targetId,
+  detail})` appends to `admin_audit_log` (migration 040) from sensitive admin
+  routes (member changes/erasure/2FA reset, deletes, bulk deletes, admin
+  login), shown read-only at `/admin/audit`. It stores only the admin's id and
+  email, the action and a numeric target id, never member emails, names or
+  message text, and never throws. Purged after 12 months by
+  `purgeExpiredPersonalData`; keep the privacy policy in step.
+- Right of access / portability: admin → Members → member detail →
+  **Download data (JSON)** (`GET /admin/members/:id/export.json`, admin only,
+  `no-store`) returns the account and everything held under its email or id
+  (sign-ups, orders, membership payments, favorites, volunteer/meeting
+  RSVPs, forum posts, charity votes/ideas, reservations). Columns whose name
+  contains hash/token/secret/totp are never exported. Add a section there
+  when a new table holds personal data. The privacy paperwork (register of
+  processing, processor DPAs, breach log) is in `docs/privacy/`.
 - Not automated: contact-form messages live in the Gmail inbox (the policy
   says they are kept until the sender asks us to delete them), and server
   logs sit with Render. Log lines never contain emails.
@@ -301,12 +322,10 @@ as-is and never copied.
   string, so reimplement `saveImage`/`getImage` against the bucket and have
   `routes/img.js` redirect or stream from it; no caller changes. Existing
   `/img/<hash>` URLs stay valid because the key is the content hash.
-- **Backups:** the nightly GitHub dump uses `--exclude-table-data=images`
-  (schema kept) to stay under the db-backups branch's 100 MB file limit; the
-  *complete* dump (images included) is uploaded to the offsite bucket under
-  `store-backups/full/` only when `BACKUP_S3_*` is configured. Until it is,
-  images are backed up nowhere but the live database (README, "Restoring
-  from a backup").
+- **Backups:** the nightly dump is complete (images included) and goes only
+  to the private Backblaze B2 bucket under `store-backups/full/` (nothing is
+  committed to git); the workflow fails if `BACKUP_S3_*` is not configured
+  (README, "Restoring from a backup").
 
 ## Payment reliability (online checkout)
 
@@ -369,19 +388,21 @@ Render Blueprint) at the repo root:
    CI failure as "go fix this," not as something that already stopped a
    bad deploy.
 2. Render's `buildCommand` runs `npm ci --omit=dev`.
-3. Render's `startCommand` runs `npm run migrate && npm run seed && npm
-   start`, in that order, every time the service starts — a restart, not just a
-   real deploy. `migrate` applies each migration file only once (see
-   above) and `seed` is safe to re-run (it only creates the first admin
-   account if none exists yet).
+3. Render's `preDeployCommand` runs `npm run migrate` before the new
+   version takes traffic; if a migration fails the deploy is aborted and the
+   running version keeps serving. Then `startCommand` runs
+   `npm run seed && npm start` every time the service starts. `migrate`
+   is tracked (each file runs once) and takes an advisory lock; `seed` is
+   safe to re-run (it only creates the first admin account if none exists
+   yet). Rolling back to an older commit does NOT undo migrations.
    The Node version is pinned to 22 (`engines` in `package.json`,
    `.node-version`, CI's `NODE_VERSION`), and `render.yaml` sets
    `healthCheckPath: /healthz` (a `SELECT 1`) so a deploy that can't
    reach the database never goes live.
-4. Migrate/seed are folded into `startCommand` rather than Render's
-   dedicated pre-deploy command. Rolling back is covered in
-   [`../docs/runbook.md`](../docs/runbook.md).
+4. Migrate runs as Render's pre-deploy command and seed in `startCommand`.
+   Rolling back is covered in [`../docs/runbook.md`](../docs/runbook.md).
 
-Nothing here currently blocks a bad migration or a failing app boot from
-reaching production automatically — the safety net is keeping migrations small and
-safe, keeping CI green, and watching the deploy.
+A failing migration stops the deploy (the old version keeps serving). Nothing
+blocks a bad app boot or a bad-but-valid migration automatically — the safety
+net is keeping migrations small and safe, keeping CI green, and watching the
+deploy.

@@ -170,11 +170,12 @@ To deploy: in the Render dashboard, **New +** → **Blueprint**, connect the
 `umasbookswebsite` GitHub repo, and Render will read `render.yaml` and set
 both up.
 
-`render.yaml`'s `startCommand` runs `npm run migrate` before `npm start`,
-so migrations run automatically on every boot — new migration files just
-need to be committed and pushed, no manual step. `src/migrate.js` records
-each file in the `schema_migrations` table and applies it exactly once, so
-the command that runs on every boot only does anything for new files.
+Render's *Pre-Deploy Command* (`preDeployCommand: npm run migrate` in
+`render.yaml`) runs before each new version takes traffic, so migrations run
+automatically on every deploy — new migration files just need to be committed
+and pushed, no manual step — and a failing migration stops the deploy while
+the old version keeps serving. `src/migrate.js` records each file in the
+`schema_migrations` table and applies it exactly once.
 Redeploying an older commit does **not** undo a migration; see
 [`docs/runbook.md`](../docs/runbook.md) before rolling back.
 
@@ -210,16 +211,16 @@ Render deploy/spin-down) it stops taking new connections, lets in-flight
 requests — notably HelloAsso webhooks — finish, closes the database pool and
 exits 0; after 10 seconds it exits anyway.
 
-## Offsite backups in Backblaze B2
+## Backups in Backblaze B2
 
-Besides the `db-backups` branch, the nightly workflow also uploads each dump
-to a private **Backblaze B2** bucket (`<bucket>/store-backups/umas_books_<UTC
-timestamp>.dump`, plus a copy under `store-backups/monthly/` on the 1st of
-each month). B2 speaks the S3 protocol, so the workflow uses the standard
-AWS CLI pointed at B2's endpoint. The upload is skipped silently until it is
-configured, and it runs *after* the GitHub copy, so a misconfigured bucket
-can never cost you that night's backup — a failed upload fails the job and
-sends the usual failure email.
+The nightly workflow uploads one complete dump (image bytes included, login
+sessions left out) to a private **Backblaze B2** bucket
+(`<bucket>/store-backups/full/umas_books_full_<UTC timestamp>.dump`, plus a
+copy under `store-backups/monthly/` on the 1st of each month). Nothing is
+committed to the code repository. B2 speaks the S3 protocol, so the workflow
+uses the standard AWS CLI pointed at B2's endpoint. The upload is required:
+if any setting below is missing, or the upload fails, the job fails and sends
+the usual failure email.
 
 **One-time setup, in Backblaze:**
 
@@ -247,94 +248,68 @@ Actions). The type matters — the workflows read these two kinds only:
 
 (Not *environment* variables/secrets: the workflows don't name a GitHub
 environment, so those would be invisible to them and the upload would
-quietly skip itself.)
+fail the backup.)
 
 **Retention:** the workflow doesn't delete anything. In Backblaze, open the
-bucket → *Lifecycle Settings* → *Use custom lifecycle rules* and add three
-rules: file path `store-backups/umas_books_`, days from uploading to hiding
-**35**, days from hiding to deleting **1**; file path
-`store-backups/full/`, days to hiding **35**, to deleting **1** (these are the
-big ones — they contain every image); and file path
-`store-backups/monthly/`, days to hiding **730**, to deleting **1**.
+bucket → *Lifecycle Settings* → *Use custom lifecycle rules*. Only two
+folders are used now:
 
-> **Images are only fully backed up here.** Uploaded images (book covers,
-> blog/announcement/charity photos) live in the `images` table. The nightly
-> copy on the GitHub `db-backups` branch **leaves their bytes out**
-> (`--exclude-table-data=images`) because thousands of covers would exceed
-> that branch's 100 MB file limit and make the nightly backup fail. When the
-> settings above exist, the workflow also uploads a **second, complete dump**
-> to `store-backups/full/umas_books_full_<timestamp>.dump` — that is the only
-> backup that contains images.
->
-> **Until the offsite bucket is configured, images are NOT backed up
-> anywhere except the live database.** Configure it before bulk-loading
-> covers.
+| File path | Days to hiding | Days to deleting |
+|---|---|---|
+| `store-backups/full/` (nightly) | **30** | **1** |
+| `store-backups/monthly/` (long term) | **730** | **1** |
+
+Older rules for `store-backups/umas_books_` (the old plain nightly copy) are
+no longer needed and can be removed once their files have expired.
 
 **Check it works:** run the *Nightly database backup* workflow by hand
-(Actions tab → Run workflow, branch `main`) and look for the new file in the
-bucket, then run *Monthly backup restore test* by hand — once the settings
-exist it restores the newest dump **from B2**. Once that has passed you can
-decide whether to stop writing the GitHub copy.
+(Actions tab → Run workflow, branch `main`) and look for the new file under
+`store-backups/full/` in the bucket, then run *Monthly backup restore test*
+by hand — it downloads the newest dump from B2 and restores it.
 
 ## Restoring from a backup
 
 `.github/workflows/nightly-db-backup.yml` dumps the production database
-every night (03:00 UTC) with `pg_dump --format=custom` and commits the file
-to the private **`db-backups`** branch as `backups/umas_books_<UTC
-timestamp>.dump`, keeping the newest 30. Once a month,
-`.github/workflows/backup-restore-test.yml` restores the newest dump into a
-scratch Postgres and checks the data, emailing admin@umasbooks.org if that
-fails — so this procedure is exercised regularly, not just on a bad day.
+every night (03:00 UTC) with `pg_dump --format=custom` and uploads it to the
+private Backblaze B2 bucket as `store-backups/full/umas_books_full_<UTC
+timestamp>.dump` (kept 30 days; the 1st-of-month copy under
+`store-backups/monthly/` is kept 2 years). Once a month,
+`.github/workflows/backup-restore-test.yml` downloads the newest dump,
+restores it into a scratch Postgres and checks the data, emailing
+admin@umasbooks.org if that fails — so this procedure is exercised
+regularly, not just on a bad day.
 
-> **Which copy has what.** The GitHub `db-backups` copy has everything
-> **except image bytes** (book covers and other uploaded photos; the `images`
-> table is restored empty, so those pictures would 404). The offsite
-> **`store-backups/full/`** copy is complete, images included. **Until the
-> offsite bucket is configured, images are NOT backed up anywhere except the
-> live database** — if you restore from the GitHub copy, every uploaded cover
-> and photo must be re-uploaded (covers from Open Library keep working; they
-> are plain links).
+> **Each dump is complete** — book covers and other uploaded photos
+> included. Only login sessions are left out (everyone simply logs in again
+> after a restore).
 
 > **A dump contains member data** (names, emails, order details, password
 > hashes). Download it only to a machine you control, restore it only into
 > a database you control, never commit or share it, and delete the local
-> copy when you are done. If the repository were ever made public the
-> `db-backups` branch would become world-readable — both backup workflows
-> refuse to run on a public repo for that reason.
+> copy when you are done.
 
 You need the PostgreSQL **18** client tools (the dumps are made with 18;
-an older `pg_restore` cannot read them) and the GitHub CLI (`gh`),
-logged in with access to the repo.
+an older `pg_restore` cannot read them) and the AWS CLI.
 
-1. **Download a dump.** From Backblaze B2 (once configured — see above),
-   with the AWS CLI configured for B2 (`aws configure` with the B2 keyID and
-   applicationKey, region from the endpoint):
-
-   ```bash
-   EP=https://s3.eu-central-003.backblazeb2.com   # your endpoint
-   aws s3 ls s3://YOUR-BUCKET/store-backups/ --endpoint-url $EP | tail
-   aws s3 cp s3://YOUR-BUCKET/store-backups/umas_books_<timestamp>.dump restore.dump --endpoint-url $EP
-   ```
-
-   For a complete restore (with images) use the newest file under
-   `store-backups/full/` instead: `aws s3 ls s3://YOUR-BUCKET/store-backups/full/ --endpoint-url $EP | tail`,
-   then copy `umas_books_full_<timestamp>.dump` the same way.
-
-   Or from the GitHub branch — list the available ones, then fetch one:
+1. **Download a dump** from Backblaze B2. Fill in the three values (the
+   bucket name, the endpoint, and the B2 key pair from the Backblaze
+   *App Keys* page):
 
    ```bash
-   REPO=umasbooksadmin/umasbookswebsite
-   gh api "repos/$REPO/contents/backups?ref=db-backups" --jq '.[].name'
-   # pick a name from the list, e.g. umas_books_2026-09-30T03-00-12Z.dump
-   gh api -H "Accept: application/vnd.github.raw" \
-     "repos/$REPO/contents/backups/umas_books_2026-09-30T03-00-12Z.dump?ref=db-backups" \
-     > restore.dump
+   export AWS_ACCESS_KEY_ID=<B2 keyID>
+   export AWS_SECRET_ACCESS_KEY=<B2 applicationKey>
+   export AWS_DEFAULT_REGION=eu-central-003                  # your region
+   export AWS_REQUEST_CHECKSUM_CALCULATION=when_required
+   export AWS_RESPONSE_CHECKSUM_VALIDATION=when_required
+   EP=https://s3.eu-central-003.backblazeb2.com              # your endpoint
+   BUCKET=<bucket name>
+
+   aws s3 ls s3://$BUCKET/store-backups/full/ --endpoint-url $EP | tail
+   aws s3 cp s3://$BUCKET/store-backups/full/umas_books_full_<timestamp>.dump restore.dump --endpoint-url $EP
    ```
 
-   (Alternatively `git fetch origin db-backups` and
-   `git show origin/db-backups:backups/<file> > restore.dump`. The contents
-   API caps a single file at 100 MB; use the git route if the dump ever
-   grows past that.)
+   Pick the newest file from the list (names sort by date), or one from
+   `store-backups/monthly/` for an older copy.
 
 2. **Restore into a fresh database.** Never restore over a database you
    still need:

@@ -146,7 +146,6 @@ test("meetings: garbage id is a 404 and an RSVP to an unknown meeting stores not
 // but unknown meeting id hits the meeting_id foreign key and surfaces as a
 // 500 (23503) instead of the 404 page the other id routes give.
 test("meetings: RSVP to an unknown (well-formed) meeting id is a 404, not a 500",
-  { todo: "POST /meetings/:id/rsvp for a non-existent meeting returns 500 (FK violation) instead of 404" },
   async () => {
     const unknown = await c.post("/meetings/99999999/rsvp", {}, { as: member });
     assert.equal(unknown.status, 404);

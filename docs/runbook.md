@@ -18,9 +18,10 @@ the repo.
 
 ## a) Rolling back a deploy
 
-**Important:** every time the site starts, Render runs
-`npm run migrate && npm run seed && npm start` (`render.yaml`). Migrations
-(database changes) are applied once and recorded. Redeploying an old commit
+**Important:** on every deploy Render first runs `npm run migrate` (the
+*Pre-Deploy Command*; if it fails the deploy stops and the old version keeps
+running), then starts the site with `npm run seed && npm start`
+(`render.yaml`). Migrations (database changes) are applied once and recorded. Redeploying an old commit
 does **not** undo them. The old code then runs against the newer database,
 which usually works if the migration only added things, but can break if it
 renamed or removed something.
@@ -122,8 +123,7 @@ site logs an `[env] WARNING` at boot).
 
 **BACKUP_S3_\* (Backblaze B2).** Two kinds, in GitHub: the key pair are
 **repository secrets**, the bucket/endpoint/region are **repository
-variables**. If one is changed alone, the offsite upload fails and the backup
-workflow sends a failure email. Setup details: "Offsite backups in Backblaze
+variables**. If one is changed alone, the backup fails and the workflow sends a failure email. Setup details: "Backups in Backblaze
 B2" in [`umas-books/README.md`](../umas-books/README.md).
 
 1. Backblaze > App Keys > add a new key limited to the one bucket (Read and

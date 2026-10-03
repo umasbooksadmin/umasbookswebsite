@@ -428,7 +428,9 @@ test("add: creates the book and one copy; garbage condition/status fall back to 
 test("add: valid condition and status values are kept (reserved/sold/donated/damaged)", async () => {
   for (const [condition, status] of [["like_new", "reserved"], ["poor", "sold"], ["fair", "donated"], ["new", "damaged"]]) {
     const title = `Vocab ${tag()}`;
-    await post("/admin/inventory", { fields: { title, description: "d", descriptionFr: "d", coverUrl: "c", condition, status } });
+    // A NEW book needs its publisher's price (French fixed-price law).
+    const extra = condition === "new" ? { publisherPrice: "10", price: "10" } : {};
+    await post("/admin/inventory", { fields: { title, description: "d", descriptionFr: "d", coverUrl: "c", condition, status, ...extra } });
     const [book] = await bookByTitle(title);
     const [copy] = await copiesOf(book.id);
     assert.deepEqual([copy.condition, copy.status], [condition, status]);

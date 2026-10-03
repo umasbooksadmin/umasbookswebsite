@@ -327,7 +327,7 @@ router.post("/books/:id/reserve", reserveLimiter, reserveDailyLimiter, async (re
     sendMail({
       to: email,
       subject: `You've reserved "${title}" at Uma's Books`,
-      text: `Hi ${emailSafeName(name)},\n\nWe've set aside your copy of "${title}" — come by Uma's Books within the next 2 weeks to pick it up and pay in the shop. We'll send you a reminder a few days before the hold expires.\n\nUma's Books\nRue Peyroliere, 81000 Albi`,
+      text: `Hi ${emailSafeName(name)},\n\nWe've set aside your copy of "${title}" — come by Uma's Books within the next 2 weeks to pick it up and pay in the shop. We'll send you a reminder a few days before the hold expires.\n\nUma's Books\nRue Peyrolière, 81000 Albi`,
     }).catch((err) => console.error("Reservation confirmation email failed:", err.message));
   }
 

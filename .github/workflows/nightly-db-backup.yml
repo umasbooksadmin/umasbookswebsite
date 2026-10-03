@@ -3,12 +3,15 @@ name: Nightly database backup
 # Runs entirely on GitHub's own infrastructure, independent of Render —
 # the whole point is that this survives even if access to the Render
 # account is ever lost again (see the incident that prompted this).
-# Requires a repo secret named DATABASE_URL (Settings > Secrets and
-# variables > Actions), set to the Render database's *external*
+# The dump is uploaded to a PRIVATE Backblaze B2 bucket (S3-compatible).
+# It is never committed to this code repository: member data does not
+# belong in git history.
+# Needs a repository SECRET named DATABASE_URL (Settings > Secrets and
+# variables > Actions > Secrets), set to the Render database's *external*
 # connection string (Render dashboard > umas-books-db > Connect >
-# External Connection String). This repo is private — dumps contain
-# member names/emails/order details, so this must never be enabled on a
-# public repo or with a public runner cache.
+# External Connection String), plus the BACKUP_S3_* settings described in
+# the "Check the offsite settings" step below. If any of them is missing
+# the job FAILS (and the alert email fires) rather than skipping the backup.
 
 on:
   schedule:
@@ -16,7 +19,7 @@ on:
   workflow_dispatch: {} # allows a manual "Run workflow" from the Actions tab
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: db-backup
@@ -26,23 +29,28 @@ jobs:
   backup:
     runs-on: ubuntu-latest
     steps:
-      - name: Refuse to run on a public repository
-        # Dumps contain member names/emails/order details and get pushed to
-        # the db-backups branch — on a public repo that branch is world-
-        # readable. Checked first, before anything is dumped or pushed, and
-        # fails the job so the alert email below fires too.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Check the offsite settings are all present
+        # The offsite upload is REQUIRED. Checked first, before anything is
+        # dumped, so a missing setting fails fast with a clear message.
+        # Repository VARIABLES (Settings > Secrets and variables > Actions >
+        # Variables > Repository variables): BACKUP_S3_BUCKET,
+        # BACKUP_S3_ENDPOINT (e.g. https://s3.eu-central-003.backblazeb2.com),
+        # BACKUP_S3_REGION (e.g. eu-central-003), optional BACKUP_S3_PREFIX
+        # (default "store-backups"). Repository SECRETS (same page, Secrets
+        # tab > Repository secrets): BACKUP_S3_KEY_ID, BACKUP_S3_APPLICATION_KEY.
         env:
-          GH_TOKEN: ${{ github.token }}
+          BUCKET: ${{ vars.BACKUP_S3_BUCKET }}
+          ENDPOINT: ${{ vars.BACKUP_S3_ENDPOINT }}
+          REGION: ${{ vars.BACKUP_S3_REGION }}
+          KEY_ID: ${{ secrets.BACKUP_S3_KEY_ID }}
+          APP_KEY: ${{ secrets.BACKUP_S3_APPLICATION_KEY }}
         run: |
-          PRIVATE=$(gh api "repos/${{ github.repository }}" --jq .private)
-          if [ "$PRIVATE" != "true" ]; then
-            echo "::error::This repository is public — refusing to push database dumps to it. Make the repo private, then re-run."
+          if [ -z "$BUCKET" ] || [ -z "$ENDPOINT" ] || [ -z "$REGION" ] || [ -z "$KEY_ID" ] || [ -z "$APP_KEY" ]; then
+            echo "::error::Offsite backup settings are missing. Set BACKUP_S3_BUCKET, BACKUP_S3_ENDPOINT, BACKUP_S3_REGION (repository variables) and BACKUP_S3_KEY_ID, BACKUP_S3_APPLICATION_KEY (repository secrets). No backup was taken."
             exit 1
           fi
-
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          fetch-depth: 0 # need branch history to check out/create db-backups below
 
       - name: Install matching PostgreSQL client tools
         # Ubuntu's default apt package can lag behind Render's server
@@ -61,104 +69,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y postgresql-client-18
 
-      - name: Dump database
+      - name: Dump database and upload to Backblaze
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: |
-          if [ -z "$DATABASE_URL" ]; then
-            echo "::error::DATABASE_URL secret is not set — see this workflow's comments for how to add it."
-            exit 1
-          fi
-          mkdir -p backup
-          STAMP=$(date -u +%Y-%m-%dT%H-%M-%SZ)
-          echo "STAMP=$STAMP" >> "$GITHUB_ENV"
-          # --exclude-table-data=images: uploaded image bytes (book covers,
-          # photos — the `images` table, migrations/033) are LEFT OUT of this
-          # GitHub copy; its schema is still included. Thousands of covers
-          # would push the dump past the 100 MB file limit of the db-backups
-          # branch and make every nightly backup fail. The complete dump
-          # (images included) goes to offsite storage below, when configured.
-          #
-          # Retries a couple of times before giving up — pg_dump against a
-          # remote database over the internet can hit an ordinary transient
-          # network blip.
-          for attempt in 1 2 3; do
-            if /usr/lib/postgresql/18/bin/pg_dump --no-owner --no-privileges --format=custom \
-                 --exclude-table-data=session \
-                 --exclude-table-data=images \
-                 --file="backup/umas_books_${STAMP}.dump" "$DATABASE_URL"; then
-              break
-            fi
-            echo "pg_dump attempt $attempt failed."
-            if [ "$attempt" = 3 ]; then
-              echo "::error::pg_dump failed after 3 attempts."
-              exit 1
-            fi
-            rm -f "backup/umas_books_${STAMP}.dump"
-            sleep 10
-          done
-
-      - name: Commit dump to the db-backups branch
-        run: |
-          git config user.name "db-backup-bot"
-          git config user.email "actions@users.noreply.github.com"
-
-          # actions/checkout configures a narrow fetch refspec (just the
-          # default branch), so fetch db-backups with an explicit refspec
-          # rather than relying on it landing in refs/remotes/origin/*.
-          # The branch is rebuilt from scratch every night as ONE commit
-          # holding only the newest 30 dumps, then force-pushed. Old commits
-          # are never kept, so data that was later deleted or erased cannot
-          # live on in git history (the privacy policy promises backups
-          # disappear within about 30 days).
-          mkdir -p keep/backups
-          git fetch origin db-backups:refs/remotes/origin/db-backups || true
-          if git show-ref --verify --quiet refs/remotes/origin/db-backups; then
-            git archive refs/remotes/origin/db-backups backups | tar -x -C keep || true
-          fi
-          mv "backup/umas_books_${STAMP}.dump" "keep/backups/umas_books_${STAMP}.dump"
-
-          # Keep a rolling 30 nightly backups (names sort chronologically).
-          ls -1 keep/backups/umas_books_*.dump | sort | head -n -30 | xargs -r rm --
-
-          git checkout --orphan db-backups-new
-          git rm -rf . > /dev/null 2>&1 || true
-          mkdir -p backups
-          cp keep/backups/umas_books_*.dump backups/
-          git add backups
-          git commit -m "Nightly backup ${STAMP}"
-          git push --force origin db-backups-new:db-backups
-
-      # ---- Second copy in offsite storage (Backblaze B2, S3-compatible) ----
-      # Runs AFTER the db-backups commit above on purpose: if the offsite
-      # storage is misconfigured the GitHub copy still exists for the night,
-      # and the failure email below still fires. Skipped (with a notice)
-      # until the settings exist, so this can't break the existing backup.
-      # Repository VARIABLES (Settings > Secrets and variables > Actions >
-      # Variables > Repository variables): BACKUP_S3_BUCKET,
-      # BACKUP_S3_ENDPOINT (e.g. https://s3.eu-central-003.backblazeb2.com),
-      # BACKUP_S3_REGION (e.g. eu-central-003), optional BACKUP_S3_PREFIX
-      # (default "store-backups"). Repository SECRETS (same page, Secrets
-      # tab > Repository secrets): BACKUP_S3_KEY_ID, BACKUP_S3_APPLICATION_KEY.
-      - name: Is the offsite upload configured?
-        id: offsite
-        env:
-          BUCKET: ${{ vars.BACKUP_S3_BUCKET }}
-          ENDPOINT: ${{ vars.BACKUP_S3_ENDPOINT }}
-          REGION: ${{ vars.BACKUP_S3_REGION }}
-          KEY_ID: ${{ secrets.BACKUP_S3_KEY_ID }}
-          APP_KEY: ${{ secrets.BACKUP_S3_APPLICATION_KEY }}
-        run: |
-          if [ -n "$BUCKET" ] && [ -n "$ENDPOINT" ] && [ -n "$REGION" ] && [ -n "$KEY_ID" ] && [ -n "$APP_KEY" ]; then
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::Offsite upload skipped — BACKUP_S3_BUCKET/ENDPOINT/REGION (repository variables) and BACKUP_S3_KEY_ID/APPLICATION_KEY (repository secrets) are not all set yet."
-          fi
-
-      - name: Upload dump to offsite storage
-        if: steps.offsite.outputs.enabled == 'true'
-        env:
           AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_S3_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_APPLICATION_KEY }}
           AWS_DEFAULT_REGION: ${{ vars.BACKUP_S3_REGION }}
@@ -170,64 +83,46 @@ jobs:
           BUCKET: ${{ vars.BACKUP_S3_BUCKET }}
           PREFIX: ${{ vars.BACKUP_S3_PREFIX }}
         run: |
-          PREFIX="${PREFIX:-store-backups}"
-          PREFIX="${PREFIX%/}"
-          FILE="backups/umas_books_${STAMP}.dump" # still in the working tree after the commit step
-          test -s "$FILE" || { echo "::error::$FILE is missing or empty."; exit 1; }
-          # The CLI exits non-zero if the upload fails. Encryption at rest is
-          # the bucket's own default-encryption setting (see README).
-          aws s3 cp "$FILE" "s3://${BUCKET}/${PREFIX}/$(basename "$FILE")" --endpoint-url "$ENDPOINT" --only-show-errors
-          echo "Uploaded to ${BUCKET}/${PREFIX}/$(basename "$FILE")"
-          # Keep one backup per month under monthly/ as a long-term copy
-          # (retention itself is the bucket's lifecycle rule — see README).
-          if [ "$(date -u +%d)" = "01" ]; then
-            aws s3 cp "$FILE" "s3://${BUCKET}/${PREFIX}/monthly/$(basename "$FILE")" --endpoint-url "$ENDPOINT" --only-show-errors
-            echo "Monthly copy written."
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::DATABASE_URL secret is not set — see this workflow's comments for how to add it."
+            exit 1
           fi
-
-      # ---- FULL dump (image bytes included) -> offsite only ----
-      # The db-backups copy above has everything EXCEPT image bytes. This is
-      # the complete one, under <prefix>/full/ so a bucket lifecycle rule can
-      # treat it separately (see README "Offsite backups"). It is never
-      # committed to GitHub: it would exceed that branch's file size limit.
-      # Skipped with the rest of the offsite upload until BACKUP_S3_* is set —
-      # until then images are backed up nowhere except the live database.
-      - name: Full dump with images to offsite storage
-        if: steps.offsite.outputs.enabled == 'true'
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_S3_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_APPLICATION_KEY }}
-          AWS_DEFAULT_REGION: ${{ vars.BACKUP_S3_REGION }}
-          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
-          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
-          ENDPOINT: ${{ vars.BACKUP_S3_ENDPOINT }}
-          BUCKET: ${{ vars.BACKUP_S3_BUCKET }}
-          PREFIX: ${{ vars.BACKUP_S3_PREFIX }}
-        run: |
           PREFIX="${PREFIX:-store-backups}"
           PREFIX="${PREFIX%/}"
           mkdir -p full
-          FILE="full/umas_books_full_${STAMP}.dump" # outside backups/, never git-added
+          STAMP=$(date -u +%Y-%m-%dT%H-%M-%SZ)
+          FILE="full/umas_books_full_${STAMP}.dump"
+          # ONE complete dump, uploaded offsite only (never committed to git).
+          # Everything is included — uploaded image bytes too — except login
+          # sessions (csrf tokens, role flags), which are not worth keeping.
+          # Retries a couple of times before giving up — pg_dump against a
+          # remote database over the internet can hit an ordinary transient
+          # network blip.
           for attempt in 1 2 3; do
-            # Login sessions (csrf tokens, role flags) are not worth keeping in
-            # any backup, offsite included; images ARE kept here.
             if /usr/lib/postgresql/18/bin/pg_dump --no-owner --no-privileges --format=custom \
                  --exclude-table-data=session \
                  --file="$FILE" "$DATABASE_URL"; then
               break
             fi
-            echo "full pg_dump attempt $attempt failed."
+            echo "pg_dump attempt $attempt failed."
             if [ "$attempt" = 3 ]; then
-              echo "::error::full pg_dump failed after 3 attempts."
+              echo "::error::pg_dump failed after 3 attempts."
               exit 1
             fi
             rm -f "$FILE"
             sleep 10
           done
           test -s "$FILE" || { echo "::error::$FILE is missing or empty."; exit 1; }
+          # The prefix and folder names below are what the bucket's lifecycle
+          # rules match (full/ = 30 days, monthly/ = 730 days) — don't rename.
+          # The CLI exits non-zero if an upload fails.
           aws s3 cp "$FILE" "s3://${BUCKET}/${PREFIX}/full/$(basename "$FILE")" --endpoint-url "$ENDPOINT" --only-show-errors
-          echo "Uploaded full dump ($(du -h "$FILE" | cut -f1)) to ${BUCKET}/${PREFIX}/full/$(basename "$FILE")"
+          echo "Uploaded ($(du -h "$FILE" | cut -f1)) to ${BUCKET}/${PREFIX}/full/$(basename "$FILE")"
+          # On the 1st of the month (UTC) also keep a long-term copy.
+          if [ "$(date -u +%d)" = "01" ]; then
+            aws s3 cp "$FILE" "s3://${BUCKET}/${PREFIX}/monthly/$(basename "$FILE")" --endpoint-url "$ENDPOINT" --only-show-errors
+            echo "Monthly copy written."
+          fi
 
       - name: Alert admin if any step above failed
         # `if: failure()` here means "some earlier step in this job
@@ -237,7 +132,7 @@ jobs:
         # Requires GMAIL_USER/GMAIL_APP_PASSWORD as repo secrets — the
         # same Gmail account already used by the app for its own mail.
         if: failure()
-        uses: dawidd6/action-send-mail@4226df7daafa6fc901a43789c49bf7ab309066e7 # v3
+        uses: dawidd6/action-send-mail@2cea9617b09d79a095af21254fbcb7ae95903dde # v3.12.0
         with:
           server_address: smtp.gmail.com
           server_port: 465
@@ -251,4 +146,4 @@ jobs:
 
             Check the failed run for details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
-            The last successful backup is still on the db-backups branch, so nothing already saved is lost — but there won't be a new one until this is fixed and the workflow runs again.
+            Previous backups in Backblaze are unaffected, so nothing already saved is lost — but there won't be a new one until this is fixed and the workflow runs again.

@@ -65,11 +65,9 @@ flowchart LR
     direction TB
     REPO["main branch<br/>6 required checks"]
     ACT["Actions: CI, backups,<br/>restore test, uptime"]
-    BR[("db-backups branch")]
-    ACT --> BR
   end
 
-  OFF[("Offsite bucket (B2)<br/>optional, not set up")]
+  OFF[("Backblaze B2<br/>private bucket, EU")]
 
   People -->|"browse, log in, buy"| W
   W -->|"API calls and mail"| External
@@ -77,7 +75,7 @@ flowchart LR
   REPO -->|"merge deploys"| W
   ACT -->|"pg_dump"| DB
   ACT -->|"GET /healthz"| W
-  ACT -.->|"optional copy"| OFF
+  ACT -->|"nightly backup"| OFF
 ```
 
 **Why one app.** Squarespace was retired; the marketing pages are EJS views in
@@ -403,7 +401,7 @@ flowchart LR
 | Late-payment re-check | web process | hourly | only orders closed in the last 7 days |
 | Reservation expiry, pickup reminder (day 11 of 14), membership expiry, membership backstop | web process | 6 h | read-time expiry also keeps pages right while idle |
 | Uptime check | Actions | 30 min | emails on the **second** consecutive failure and on recovery |
-| Database backup | Actions | 03:00 UTC | GitHub branch; optional offsite copy |
+| Database backup | Actions | 03:00 UTC | Backblaze B2 (required) |
 | Restore test | Actions | monthly + manual | restores the newest backup into a scratch Postgres and checks it |
 
 On shutdown (`SIGTERM`/`SIGINT`) the timers are cleared, the server stops taking
@@ -478,17 +476,15 @@ flowchart LR
 ```mermaid
 flowchart TB
   subgraph nightly["Nightly 03:00 UTC (GitHub Actions)"]
-    G["refuse to run if the repo is public"] --> D["pg_dump --format=custom<br/>(client 18, 3 attempts)"]
-    D --> C["commit to db-backups branch<br/>keep newest 30"]
-    C --> O{"offsite settings<br/>configured?"}
-    O -- yes --> U[("Backblaze B2<br/>store-backups/ and monthly/")]
-    O -- no --> SK["skipped, with a notice"]
-    C --> E["any failure: email to admin"]
+    G{"offsite settings<br/>all set?"} -- no --> E["any failure: email to admin"]
+    G -- yes --> D["pg_dump --format=custom<br/>(client 18, 3 attempts, images included)"]
+    D --> U[("Backblaze B2<br/>store-backups/full/ and monthly/")]
+    D --> E
     U --> E
   end
 
   subgraph monthly["Monthly restore test"]
-    N["newest dump (B2 if configured, else the branch)"] --> RS["pg_restore into a scratch postgres:18"]
+    N["newest dump from Backblaze B2 (full/)"] --> RS["pg_restore into a scratch postgres:18"]
     RS --> CK["check key tables exist, row counts,<br/>at least one admin"]
     CK --> E2["failure: email to admin"]
   end
@@ -500,15 +496,15 @@ flowchart TB
   end
 ```
 
-* **The repo must stay private**: dumps contain member names, emails, order
-  details and password hashes. Both backup workflows refuse to run on a public
-  repo.
+* **Dumps never go into the code repository**: they contain member names,
+  emails, order details and password hashes, so they live only in the private
+  Backblaze B2 bucket. Both backup workflows have read-only repository access.
 * **Restore procedure**: `umas-books/README.md` → "Restoring from a backup".
 * **Application errors** go through `alertOnError` (one email per 15 minutes, so
   an outage can't flood the inbox); payment-money alerts bypass that throttle.
-* **Offsite status**: the code is merged and dormant; Backblaze B2 is chosen but
-  not yet set up. The repository variables and secrets it needs are listed in
-  `umas-books/README.md`.
+* **Offsite status**: Backblaze B2 is the only backup location and is required;
+  the nightly job fails (and emails) if its settings are missing. The
+  repository variables and secrets it needs are listed in `umas-books/README.md`.
 
 ---
 
@@ -560,8 +556,8 @@ flowchart TD
 | `CONTACT_TO` | optional | contact-form recipient (default `admin@umasbooks.org`) |
 
 GitHub (repository **secrets** unless noted): `DATABASE_URL` (the database's
-*external* URL, for backups), `GMAIL_USER`, `GMAIL_APP_PASSWORD`; optional offsite
-backup: **repository variables** `BACKUP_S3_BUCKET`, `BACKUP_S3_ENDPOINT`,
+*external* URL, for backups), `GMAIL_USER`, `GMAIL_APP_PASSWORD`; required offsite
+backup (Backblaze B2): **repository variables** `BACKUP_S3_BUCKET`, `BACKUP_S3_ENDPOINT`,
 `BACKUP_S3_REGION` (and `BACKUP_S3_PREFIX`) plus **repository secrets**
 `BACKUP_S3_KEY_ID`, `BACKUP_S3_APPLICATION_KEY`.
 
@@ -588,8 +584,6 @@ Deliberate trade-offs (revisit only if traffic or risk changes):
 
 Open items worth knowing:
 
-* Offsite backups are coded but not configured (the AWS account was blocked by
-  an organisation policy; Backblaze B2 is the chosen replacement).
 * Reservations hold a copy for two weeks without an emailed confirmation link.
 * No two-factor login for admins, and no audit log of admin actions.
 * The 6-hourly membership backstop only looks at orders from the last 3 days;

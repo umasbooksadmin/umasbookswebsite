@@ -15,5 +15,6 @@ router.use(require("./events"));
 router.use(require("./sessions"));
 router.use(require("./charity"));
 router.use(require("./inventory"));
+router.use(require("./audit"));
 
 module.exports = router;

@@ -49,9 +49,11 @@ test("privacy policy: states concrete retention periods, rights delay and CNIL",
 
 test("privacy policy: lists every processor", () => {
   for (const d of [en, fr]) {
-    for (const name of ["HelloAsso", "Google", "Render", "GitHub", "Backblaze"]) {
+    for (const name of ["HelloAsso", "Google", "Render", "Backblaze"]) {
       assert.match(d["pp.s4.list"], new RegExp(name));
     }
+    // Backups no longer go to GitHub; the policy must not claim they do.
+    assert.doesNotMatch(d["pp.s4.list"], /GitHub/);
   }
 });
 
