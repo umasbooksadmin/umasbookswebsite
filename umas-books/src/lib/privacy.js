@@ -14,6 +14,7 @@ const RETENTION = {
   inactiveAccountYears: 3,
   signupMonths: 12,
   accountingYears: 10,
+  auditLogMonths: 12,
   tokenGraceDays: 7,
   inactivityWarningDays: 30,
   closedOrderDays: 30, // also used for ended reservations
@@ -155,6 +156,13 @@ async function purgeExpiredPersonalData(pool) {
          AND created_at < now() - interval '${RETENTION.closedOrderDays} days'
          AND buyer_email NOT LIKE '%@erased.invalid'`,
       [ERASED_NAME]
+    );
+    return r.rowCount;
+  });
+
+  await step("auditLog", async () => {
+    const r = await pool.query(
+      `DELETE FROM admin_audit_log WHERE at < now() - interval '${RETENTION.auditLogMonths} months'`
     );
     return r.rowCount;
   });

@@ -3,6 +3,7 @@ const { saveImage } = require("../../lib/imageStore");
 const { sharpFromUpload } = require("../../lib/uploadImage");
 const { pool } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
+const { audit } = require("../../lib/audit");
 const { sanitizeHtml } = require("../../lib/sanitizeHtml");
 
 const { validateIdParams } = require("../../middleware/idParams");
@@ -137,6 +138,7 @@ router.post("/admin/announcements/bulk", requireAdmin, async (req, res) => {
   if (ids.length) {
     if (req.body.bulkAction === "delete") {
       await pool.query("DELETE FROM announcements WHERE id = ANY($1)", [ids]);
+      await audit(req, { action: "announcement.bulk_delete", targetType: "announcement", detail: `ids ${ids.join(",")}` });
     } else {
       const map = { publish: "published", archive: "archived", trash: "trash", draft: "draft" };
       const newStatus = map[req.body.bulkAction];
@@ -208,6 +210,7 @@ router.post("/admin/announcements/:id/pin", requireAdmin, async (req, res) => {
 // something to trash in the first place goes through /status above.
 router.post("/admin/announcements/:id/delete", requireAdmin, async (req, res) => {
   await pool.query("DELETE FROM announcements WHERE id = $1", [Number(req.params.id)]);
+  await audit(req, { action: "announcement.delete", targetType: "announcement", targetId: Number(req.params.id) });
   res.redirect(`/admin/announcements${announcementBackQuery(req)}`);
 });
 

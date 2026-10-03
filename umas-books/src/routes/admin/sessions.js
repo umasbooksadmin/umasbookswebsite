@@ -1,6 +1,7 @@
 const express = require("express");
 const { pool } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
+const { audit } = require("../../lib/audit");
 const { parseLocalDateTime } = require("../../lib/dates");
 const { groupByDate, resolveCalendarRange, calendarBackQuery } = require("../../lib/calendar");
 const { seatsTakenExpr } = require("../../lib/classCapacity");
@@ -106,11 +107,13 @@ router.post("/admin/sessions/:id/delete", requireAdmin, async (req, res) => {
     if (err.code !== "23503") throw err;
     return res.redirect(`/admin/sessions?${backQuery ? `${backQuery}&` : ""}notice=has-orders`);
   }
+  await audit(req, { action: "session.delete", targetType: "class", targetId: Number(req.params.id) });
   res.redirect(backQuery ? `/admin/sessions?${backQuery}` : "/admin/sessions");
 });
 
 router.post("/admin/sessions/:id/signups/:signupId/delete", requireAdmin, async (req, res) => {
   await pool.query("DELETE FROM class_signups WHERE id = $1 AND class_id = $2", [Number(req.params.signupId), Number(req.params.id)]);
+  await audit(req, { action: "session.signup_delete", targetType: "class_signup", targetId: Number(req.params.signupId) });
   const backQuery = calendarBackQuery(req.query);
   res.redirect(backQuery ? `/admin/sessions?${backQuery}` : "/admin/sessions");
 });

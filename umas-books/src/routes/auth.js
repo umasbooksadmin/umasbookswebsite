@@ -11,6 +11,7 @@ const { isEmail, clean } = require("../lib/validation");
 const { baseUrl } = require("../lib/baseUrl");
 const { saveSession } = require("../lib/session");
 const totp = require("../lib/totp");
+const { audit } = require("../lib/audit");
 const { syncMembershipInBackground } = require("../lib/membership");
 
 const router = express.Router();
@@ -74,6 +75,7 @@ function loginAs(req, res, user, redirectTo) {
       passwordChangedAt: user.password_changed_at.getTime(),
       totpEnabled: Boolean(user.totp_enabled_at),
     };
+    if (user.is_admin) audit(req, { action: "admin.login", targetType: "user", targetId: user.id });
     if (cart) req.session.cart = cart;
     if (cartSeq) req.session.cartSeq = cartSeq;
     // Persist before redirecting — see lib/session.js.

@@ -3,6 +3,7 @@ const { saveImage } = require("../../lib/imageStore");
 const { sharpFromUpload, reencodeForVision } = require("../../lib/uploadImage");
 const { pool } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
+const { audit } = require("../../lib/audit");
 const { normalizeIsbn, lookupByIsbn, searchByTitleAuthor, translateGenresToFrench } = require("../../lib/bookLookup");
 const { extractBookInfoFromPhoto } = require("../../lib/coverVision");
 const { generateBookDescription, translateDescriptionToFrench } = require("../../lib/bookDescription");
@@ -335,6 +336,7 @@ router.post("/admin/inventory/:id/delete", requireAdmin, async (req, res) => {
     if (err.code !== "23503") throw err;
     return res.redirect(`/admin/inventory/${Number(req.params.id)}?notice=has-orders`);
   }
+  await audit(req, { action: "book.delete", targetType: "book", targetId: Number(req.params.id) });
   res.redirect("/admin/inventory");
 });
 
@@ -376,9 +378,11 @@ router.post("/admin/inventory/:id/copies/:copyId/delete", requireAdmin, async (r
     if (err.code !== "23503") throw err;
     return res.redirect(`/admin/inventory/${bookId}?notice=has-orders`);
   }
+  await audit(req, { action: "book_copy.delete", targetType: "book_copy", targetId: Number(req.params.copyId) });
   const { rows } = await pool.query("SELECT 1 FROM book_copies WHERE book_id = $1", [bookId]);
   if (!rows.length) {
     await pool.query("DELETE FROM books WHERE id = $1", [bookId]);
+    await audit(req, { action: "book.delete", targetType: "book", targetId: bookId, detail: "last copy removed" });
     return res.redirect("/admin/inventory");
   }
   res.redirect(`/admin/inventory/${bookId}`);

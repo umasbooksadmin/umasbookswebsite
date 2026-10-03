@@ -3,6 +3,7 @@ const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
 const { pool } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
+const { audit } = require("../../lib/audit");
 const { sendResetLink } = require("../../lib/passwordReset");
 const { baseUrl } = require("../../lib/baseUrl");
 const { sendVerificationEmail } = require("../../lib/emailVerification");
@@ -199,6 +200,7 @@ router.post("/admin/members", requireAdmin, async (req, res) => {
   // Verified from the start, so a membership payment made before this
   // account existed can be attributed now.
   syncMembershipInBackground(pool, rows[0].email);
+  await audit(req, { action: "member.create", targetType: "user", targetId: rows[0].id });
   res.redirect("/admin/members");
 });
 
@@ -210,12 +212,14 @@ router.post("/admin/members/:id/toggle-member", requireAdmin, async (req, res) =
   // rather than reusing their old (past) expiry date.
   const id = Number(req.params.id);
   await pool.query("UPDATE users SET is_member = NOT is_member, member_expires_at = NULL WHERE id = $1", [id]);
+  await audit(req, { action: "member.toggle_member", targetType: "user", targetId: id });
   res.redirect(`/admin/members?view=${id}${membersBackQuery(req)}`);
 });
 
 router.post("/admin/members/:id/toggle-volunteer", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   await pool.query("UPDATE users SET is_volunteer = NOT is_volunteer WHERE id = $1", [id]);
+  await audit(req, { action: "member.toggle_volunteer", targetType: "user", targetId: id });
   res.redirect(`/admin/members?view=${id}${membersBackQuery(req)}`);
 });
 
@@ -225,6 +229,7 @@ router.post("/admin/members/:id/toggle-admin", requireAdmin, async (req, res) =>
   // with no one able to manage it.
   if (id === req.session.user.id) return res.redirect(`/admin/members?view=${id}${membersBackQuery(req)}`);
   await pool.query("UPDATE users SET is_admin = NOT is_admin WHERE id = $1", [id]);
+  await audit(req, { action: "member.toggle_admin", targetType: "user", targetId: id });
   res.redirect(`/admin/members?view=${id}${membersBackQuery(req)}`);
 });
 
@@ -232,6 +237,7 @@ router.post("/admin/members/:id/toggle-disabled", requireAdmin, async (req, res)
   const id = Number(req.params.id);
   if (id === req.session.user.id) return res.redirect(`/admin/members?view=${id}${membersBackQuery(req)}`);
   await pool.query("UPDATE users SET is_disabled = NOT is_disabled WHERE id = $1", [id]);
+  await audit(req, { action: "member.toggle_disabled", targetType: "user", targetId: id });
   res.redirect(`/admin/members?view=${id}${membersBackQuery(req)}`);
 });
 
@@ -262,6 +268,7 @@ router.post("/admin/members/:id/edit", requireAdmin, async (req, res) => {
       }
       throw err;
     }
+    await audit(req, { action: "member.edit", targetType: "user", targetId: id });
     if (emailChanged) {
       // password_changed_at (set above) logs out the account's existing
       // sessions via attachUser — an admin fixing a squatted/hijacked
@@ -290,6 +297,7 @@ router.post("/admin/members/:id/reset-2fa", requireAdmin, async (req, res) => {
     [id]
   );
   await pool.query("DELETE FROM totp_recovery_codes WHERE user_id = $1", [id]);
+  await audit(req, { action: "member.reset_2fa", targetType: "user", targetId: id });
   console.log(`Two-step verification of member ${id} reset by admin ${req.session.user.id}.`);
   res.redirect(`/admin/members?view=${id}${membersBackQuery(req)}`);
 });
@@ -306,6 +314,7 @@ router.post("/admin/members/:id/delete", requireAdmin, async (req, res) => {
   // Erases the account AND everything held under its email (sign-ups,
   // reservations, order and payment contact details) — see lib/privacy.js.
   await eraseMember(pool, id);
+  await audit(req, { action: "member.erase", targetType: "user", targetId: id });
   console.log(`Member ${id} erased by admin ${req.session.user.id}.`);
   res.redirect(`/admin/members${membersBackQuery(req).replace("&", "?")}`);
 });
