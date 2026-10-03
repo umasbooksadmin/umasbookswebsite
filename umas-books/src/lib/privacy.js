@@ -191,26 +191,28 @@ async function purgeExpiredPersonalData(pool) {
       if (!claim.rowCount) continue;
       try {
         const tr = emailTr(u.lang);
+        const name = emailSafeName(u.display_name);
         const years = RETENTION.inactiveAccountYears;
         const days = RETENTION.inactivityWarningDays;
         await mailer.sendMail({
           to: u.email,
-          subject: tr(
-            "Your Uma's Books account will be deleted in 30 days",
-            "Votre compte Uma's Books sera supprimé dans 30 jours"
-          ),
-          text: tr(
-            `Hi ${emailSafeName(u.display_name)},\n\n` +
+          subject: tr("Your Uma's Books account will be deleted in 30 days", "Votre compte Uma's Books sera supprimé dans 30 jours"),
+          text:
+            tr(`Hi ${name},\n\n`, `Bonjour ${name},\n\n`) +
+            tr(
               `You haven't logged in to your Uma's Books account for almost ${years} years. ` +
-              `To protect your privacy we delete inactive accounts, so yours will be deleted in ${days} days.\n\n` +
-              `To keep it, just log in once${appUrl() ? `: ${appUrl()}/login` : " on our website"}.\n\n` +
-              `If you no longer want an account, you don't need to do anything.`,
-            `Bonjour ${emailSafeName(u.display_name)},\n\n` +
+                `To protect your privacy we delete inactive accounts, so yours will be deleted in ${days} days.\n\n`,
               `Vous ne vous êtes pas connecté(e) à votre compte Uma's Books depuis presque ${years} ans. ` +
-              `Pour protéger votre vie privée, nous supprimons les comptes inactifs : le vôtre sera donc supprimé dans ${days} jours.\n\n` +
-              `Pour le conserver, il vous suffit de vous connecter une fois${appUrl() ? ` : ${appUrl()}/login` : " sur notre site"}.\n\n` +
-              `Si vous ne souhaitez plus avoir de compte, vous n'avez rien à faire.`
-          ),
+                `Pour protéger votre vie privée, nous supprimons les comptes inactifs : le vôtre sera donc supprimé dans ${days} jours.\n\n`
+            ) +
+            tr(
+              `To keep it, just log in once${appUrl() ? `: ${appUrl()}/login` : " on our website"}.\n\n`,
+              `Pour le conserver, il vous suffit de vous connecter une fois${appUrl() ? ` : ${appUrl()}/login` : " sur notre site"}.\n\n`
+            ) +
+            tr(
+              "If you no longer want an account, you don't need to do anything.",
+              "Si vous ne souhaitez plus de compte, vous n’avez rien à faire."
+            ),
         });
         n += 1;
       } catch (err) {

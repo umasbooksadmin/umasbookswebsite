@@ -9,6 +9,7 @@
 
 const mailer = require("../mailer");
 const { emailSafeName } = require("./validation");
+const { emailTr } = require("./lang");
 
 const RESERVATION_TTL_DAYS = 14;
 const REMINDER_AT_DAYS = RESERVATION_TTL_DAYS - 3;
@@ -50,14 +51,25 @@ async function sendPickupReminders(pool) {
     if (!copy) continue; // someone else claimed it, or it changed since the lookup
 
     try {
+      // Language: the member account with this email, when there is one and
+      // it has a language; otherwise English.
+      const { rows: langRows } = await pool.query(
+        "SELECT lang FROM users WHERE lower(email) = lower($1) AND lang IS NOT NULL LIMIT 1",
+        [copy.reserved_by_email]
+      );
+      const tr = emailTr(langRows[0] && langRows[0].lang);
       // "Wishlist match" is a legacy reserved_by_name from the retired
       // wishlist feature — those reservations have no real person's name
       // to greet by, so fall back to a plain "Hi,".
-      const greeting = copy.reserved_by_name === "Wishlist match" ? "Hi," : `Hi ${emailSafeName(copy.reserved_by_name)},`;
+      const legacy = copy.reserved_by_name === "Wishlist match";
+      const greeting = legacy ? tr("Hi,", "Bonjour,") : tr(`Hi ${emailSafeName(copy.reserved_by_name)},`, `Bonjour ${emailSafeName(copy.reserved_by_name)},`);
       await mailer.sendMail({
         to: copy.reserved_by_email,
-        subject: `Reminder: your copy of "${copy.title}" is waiting for pickup`,
-        text: `${greeting}\n\nJust a reminder that we're holding your reserved copy of "${copy.title}" at Uma's Books. Reservations are held for 2 weeks from when you reserved — please come by within the next 3 days to pick it up and pay in the shop, or it will go back on the shelf.\n\nUma's Books\nRue Peyrolière, 81000 Albi`,
+        subject: tr(`Reminder: your copy of "${copy.title}" is waiting for pickup`, `Rappel : votre exemplaire de « ${copy.title} » vous attend`),
+        text: tr(
+          `${greeting}\n\nJust a reminder that we're holding your reserved copy of "${copy.title}" at Uma's Books. Reservations are held for 2 weeks from when you reserved — please come by within the next 3 days to pick it up and pay in the shop, or it will go back on the shelf.\n\nUma's Books\nRue Peyrolière, 81000 Albi`,
+          `${greeting}\n\nPetit rappel : nous gardons votre exemplaire réservé de « ${copy.title} » à Uma's Books. Les réservations sont conservées 2 semaines à partir de la réservation. Merci de passer d’ici 3 jours pour le récupérer et le régler en boutique, faute de quoi il retournera en rayon.\n\nUma's Books\nRue Peyrolière, 81000 Albi`
+        ),
       });
     } catch (err) {
       console.error(`Pickup reminder failed for copy ${copy.id}:`, err.message);
