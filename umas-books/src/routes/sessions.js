@@ -15,7 +15,7 @@ const router = express.Router();
 // to just the bookable sessions, for anyone who only wants to see what
 // they can drop in on right now rather than the full program schedule.
 router.get("/sessions", async (req, res) => {
-  const range = resolveCalendarRange(req.query, 1);
+  const range = resolveCalendarRange(req.query, 1, req.lang);
   const dropinOnly = req.query.type === "dropin";
 
   const { rows: classes } = await pool.query(

@@ -39,6 +39,7 @@ function makeServer() {
   app.use(express.urlencoded({ extended: false }));
   app.use((req, res, next) => {
     req.session = {};
+    req.tr = (en) => en;
     res.render = (view, locals) => res.json({ view, ...locals });
     next();
   });

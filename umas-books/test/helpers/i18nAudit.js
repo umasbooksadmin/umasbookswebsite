@@ -12,7 +12,7 @@
 // prices, punctuation, "EN"/"FR", emails and URLs are never reported.
 // Allowlist entries are exact strings (compared case-insensitively) or RegExps.
 
-const ENTITIES = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ", rsquo: "’", lsquo: "‘", ldquo: "“", rdquo: "”", mdash: "—", ndash: "–", hellip: "…", larr: "←", rarr: "→", laquo: "«", raquo: "»" };
+const ENTITIES = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ", rsquo: "’", lsquo: "‘", ldquo: "“", rdquo: "”", mdash: "—", ndash: "–", hellip: "…", euro: "€", middot: "·", larr: "←", rarr: "→", laquo: "«", raquo: "»" };
 
 function decodeEntities(s) {
   return s.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (m, e) => {

@@ -1,10 +1,10 @@
-<%- include('partials/header', { title: 'Member\'s Access', extraCss: ['/dashboard.css'], mainClass: 'dash-main', hideBackLink: true }) %>
+<%- include('partials/header', { title: tr('Member’s Access', 'Espace membres'), extraCss: ['/dashboard.css'], mainClass: 'dash-main', hideBackLink: true }) %>
 
 <section class="dash-hero">
   <div class="txt">
-    <p class="dash-welcome">Welcome back, <%= user.displayName %></p>
+    <p class="dash-welcome"><%= tr('Welcome back, {name}', 'Bon retour, {name}', { name: user.displayName }) %></p>
     <h1><span class="g">Uma’s Books</span><span class="m">and Adventures</span></h1>
-    <p>We are a non-profit organization for English literature lovers. We sell books and host English programs, events and community activities in the heart of Albi.</p>
+    <p><%= tr('We are a non-profit organization for English literature lovers. We sell books and host English programs, events and community activities in the heart of Albi.', 'Nous sommes une association à but non lucratif pour les amoureux de la littérature anglaise. Nous vendons des livres et proposons des programmes d’anglais, des événements et des activités communautaires au cœur d’Albi.') %></p>
   </div>
   <img class="dash-hero-photo" src="/assets/img/shop-interior.jpg" alt="">
 </section>
@@ -12,10 +12,10 @@
 <div class="dash-row">
   <div class="dash-panel">
     <div class="dash-panel-head">
-      <h2>Announcements</h2>
+      <h2><%= tr('Announcements', 'Annonces') %></h2>
     </div>
     <% if (!announcements.length) { %>
-      <p class="muted">Nothing posted yet.</p>
+      <p class="muted"><%= tr('Nothing posted yet.', 'Rien n’a encore été publié.') %></p>
     <% } else { %>
       <% var annPhotos = ['/assets/img/shop-interior.jpg', '/assets/img/about-books-photo.jpg', '/assets/img/book-stack.png']; %>
       <ul class="dash-ann-list">
@@ -31,19 +31,19 @@
         <% }) %>
       </ul>
     <% } %>
-    <a class="dash-view-all" href="/announcements">View All Announcements <span aria-hidden="true">&rarr;</span></a>
+    <a class="dash-view-all" href="/announcements"><%= tr('View All Announcements', 'Voir toutes les annonces') %> <span aria-hidden="true">&rarr;</span></a>
   </div>
 
   <div class="dash-charity">
-    <h2>Charity We Support</h2>
+    <h2><%= tr('Charity We Support', 'L’association que nous soutenons') %></h2>
     <img class="photo-block" src="/assets/img/medallion-donate.png" alt="">
     <% if (!charity) { %>
-      <h3>No vote open right now</h3>
-      <p>Check back soon for the next charity round.</p>
+      <h3><%= tr('No vote open right now', 'Aucun vote ouvert pour le moment') %></h3>
+      <p><%= tr('Check back soon for the next charity round.', 'Revenez bientôt pour le prochain tour de vote.') %></p>
     <% } else { %>
-      <h3>Vote on Our Next Charity</h3>
-      <p>Our community chooses a new charity each quarter. Vote for the cause you’d like us to support next.</p>
-      <a class="btn" href="/charity">Vote Now <span aria-hidden="true">&rarr;</span></a>
+      <h3><%= tr('Vote on Our Next Charity', 'Votez pour notre prochaine association') %></h3>
+      <p><%= tr('Our community chooses a new charity each quarter. Vote for the cause you’d like us to support next.', 'Notre communauté choisit une nouvelle association chaque trimestre. Votez pour la cause que vous souhaitez nous voir soutenir ensuite.') %></p>
+      <a class="btn" href="/charity"><%= tr('Vote Now', 'Voter maintenant') %> <span aria-hidden="true">&rarr;</span></a>
     <% } %>
   </div>
 </div>
@@ -51,28 +51,28 @@
 <div class="dash-links">
   <div class="dash-link-card tone-green">
     <div class="dash-link-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a7 7 0 0 1-7 7H8l-4 3 .8-4.4A7 7 0 1 1 20 12z"/></svg></div>
-    <h2>Community Forum</h2>
-    <p>Connect with fellow book lovers, parents, students and community members. Share recommendations, ask questions and be part of the conversation.</p>
-    <a class="dash-link-btn" href="/forum">Go to Forum <span aria-hidden="true">&rarr;</span></a>
+    <h2><%= tr('Community Forum', 'Forum de la communauté') %></h2>
+    <p><%= tr('Connect with fellow book lovers, parents, students and community members. Share recommendations, ask questions and be part of the conversation.', 'Échangez avec d’autres amoureux des livres, parents, étudiants et membres de la communauté. Partagez vos recommandations, posez vos questions et participez à la conversation.') %></p>
+    <a class="dash-link-btn" href="/forum"><%= tr('Go to Forum', 'Aller au forum') %> <span aria-hidden="true">&rarr;</span></a>
   </div>
   <div class="dash-link-card tone-tan">
     <div class="dash-link-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="16" rx="2"/><path d="M3.5 9.5h17"/><path d="M8 3v3.2"/><path d="M16 3v3.2"/></svg></div>
-    <h2>Meetings Calendar</h2>
-    <p>See upcoming events, book clubs, English programs, community meetings and special activities.</p>
-    <a class="dash-link-btn" href="/meetings">View Calendar <span aria-hidden="true">&rarr;</span></a>
+    <h2><%= tr('Meetings Calendar', 'Calendrier des réunions') %></h2>
+    <p><%= tr('See upcoming events, book clubs, English programs, community meetings and special activities.', 'Consultez les événements à venir, les clubs de lecture, les programmes d’anglais, les réunions de la communauté et les activités spéciales.') %></p>
+    <a class="dash-link-btn" href="/meetings"><%= tr('View Calendar', 'Voir le calendrier') %> <span aria-hidden="true">&rarr;</span></a>
   </div>
   <% if (user.isAdmin || user.isVolunteer) { %>
   <div class="dash-link-card tone-green">
     <div class="dash-link-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><path d="M2.5 20c0-3.6 2.9-6.2 6.5-6.2s6.5 2.6 6.5 6.2"/><path d="M15.5 6.5a3 3 0 0 1 0 5.8"/><path d="M17.5 13.9c2.7.4 4 2.5 4 6.1"/></svg></div>
-    <h2>Volunteer Sign Up</h2>
-    <p>Help us keep Uma’s Books and Adventures thriving. Sign up to volunteer for events, programs, book sorting, or community activities.</p>
-    <a class="dash-link-btn" href="/volunteer">Sign Up to Volunteer <span aria-hidden="true">&rarr;</span></a>
+    <h2><%= tr('Volunteer Sign Up', 'Inscription au bénévolat') %></h2>
+    <p><%= tr('Help us keep Uma’s Books and Adventures thriving. Sign up to volunteer for events, programs, book sorting, or community activities.', 'Aidez-nous à faire vivre Uma’s Books and Adventures. Inscrivez-vous comme bénévole pour les événements, les programmes, le tri des livres ou les activités communautaires.') %></p>
+    <a class="dash-link-btn" href="/volunteer"><%= tr('Sign Up to Volunteer', 'Devenir bénévole') %> <span aria-hidden="true">&rarr;</span></a>
   </div>
   <% } %>
 </div>
 
 <p class="dash-utility">
-  <a href="/account/password">Change Password</a>
+  <a href="/account/password"><%= tr('Change Password', 'Changer de mot de passe') %></a>
   <% if (user.isAdmin) { %>&middot; <a href="/admin">Admin</a><% } %>
 </p>
 

@@ -7,8 +7,8 @@
    or an "event" actually is. */
 %>
 <div class="fcal-grid">
-  <% ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].forEach(d => { %><div class="fcal-weekday"><%= d %></div><% }) %>
-  <% const weekdayNames = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']; %>
+  <% const weekdayNames = [tr('Mon', 'Lun'), tr('Tue', 'Mar'), tr('Wed', 'Mer'), tr('Thu', 'Jeu'), tr('Fri', 'Ven'), tr('Sat', 'Sam'), tr('Sun', 'Dim')]; %>
+  <% weekdayNames.forEach(d => { %><div class="fcal-weekday"><%= d %></div><% }) %>
   <% monWeeks.forEach(week => { %>
     <% week.forEach((day, wIdx) => { %>
       <% if (!day) { %>

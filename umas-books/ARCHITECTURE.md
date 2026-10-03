@@ -274,11 +274,17 @@ screens stay English). Two languages only: `en` and `fr`.
   (French falls back to English if empty; `<%= %>` does the HTML escaping).
   Attributes, `<title>` and `alt` text count too. Server messages:
   `req.tr('English', 'Français')`. Do not use `data-fr-text` for new work.
+- **Calendars:** public calendar routes pass `req.lang` to `resolveCalendarRange(query, weekStartsOn, lang)` so
+  month/week labels are French ("Mai 2092", "12–18 mai 2092"); admin calendars omit it and stay English.
+  The contact page no longer uses `contact-i18n.js`; its topics are stored in English and labelled in the view.
 - **Emails:** `emailTr(lang)` from `src/lib/lang.js` returns `(en, fr) => string`.
   The language is stored on `users.lang` (set at signup, refreshed at each login
   when the visitor has chosen a language; NULL for admin-created accounts) and
-  `orders.lang` (set at checkout). `sendOrderConfirmation` and `sendResetLink`
-  carry `TODO(i18n)` notes; use `normLang` / `pickLang` for untrusted values.
+  `orders.lang` (set at checkout). The order confirmation, reservation
+  confirmation/reminder and inactivity warning follow it (the legal blocks of the
+  order email stay bilingual FR/EN in both languages); `sendResetLink`, the verification
+  mails and the other account mails use `user.lang`; password-policy messages take a
+  translator (`validateNewPassword(pw, req.tr)`). Use `normLang` / `pickLang` for untrusted values.
   NULL means English.
 - **Marketing pages** (`views/marketing`) keep their client-side dictionaries
   (`data-i18n`, `pageI18nEn/Fr`); the shared header/footer chrome is also

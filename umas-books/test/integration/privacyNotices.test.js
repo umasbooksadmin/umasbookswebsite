@@ -28,8 +28,9 @@ test("signup and contact forms link to the privacy policy", async () => {
   }
 });
 
-test("contact privacy line exists in French too", () => {
-  assert.match(fs.readFileSync(path.join(__dirname, "../../public/contact-i18n.js"), "utf8"), /"contact\.privacy": "Vos données/);
+test("contact privacy line exists in French too", async () => {
+  const html = await (await fetch(`${app.base}/contact`, { headers: { cookie: "umasbooks_lang=fr" } })).text();
+  assert.match(html, /Vos données servent uniquement[^<]*<a href="\/privacy-policy\.html">politique de confidentialité<\/a>/);
 });
 
 test("checkout form links to terms of sale and privacy policy", () => {

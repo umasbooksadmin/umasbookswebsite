@@ -16,7 +16,7 @@
     if (!img || img.tagName !== 'IMG' || !img.classList.contains('cover')) return;
     var ph = document.createElement('div');
     ph.className = 'cover cover-none';
-    ph.textContent = 'No cover';
+    ph.textContent = document.documentElement.lang === 'fr' ? 'Pas de couverture' : 'No cover';
     img.replaceWith(ph);
   }, true);
 })();

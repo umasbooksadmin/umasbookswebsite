@@ -46,7 +46,7 @@ router.get("/api/events/upcoming", async (req, res) => {
 });
 
 router.get("/events", async (req, res) => {
-  const range = resolveCalendarRange(req.query, 1);
+  const range = resolveCalendarRange(req.query, 1, req.lang);
 
   const { rows: events } = await pool.query(
     `SELECT e.*, (SELECT COUNT(*) FROM event_signups s WHERE s.event_id = e.id) AS signup_count
@@ -74,7 +74,7 @@ router.get("/events/:id/ics", async (req, res) => {
   const eventId = Number(req.params.id);
   const { rows } = await pool.query("SELECT * FROM events WHERE id = $1", [eventId]);
   const event = rows[0];
-  if (!event) return res.status(404).send("Event not found.");
+  if (!event) return res.status(404).send(req.tr("Event not found.", "Événement introuvable."));
 
   const startsAt = new Date(event.starts_at);
   const endsAt = event.ends_at ? new Date(event.ends_at) : new Date(startsAt.getTime() + 60 * 60 * 1000);
@@ -134,7 +134,7 @@ router.post("/events/:id/signup", eventSignupLimiter, async (req, res) => {
       );
     });
   } catch (err) {
-    if (err.message === "EVENT_NOT_FOUND") return res.status(404).send("Event not found.");
+    if (err.message === "EVENT_NOT_FOUND") return res.status(404).send(req.tr("Event not found.", "Événement introuvable."));
     if (err.message === "AT_CAPACITY") return res.redirect(redirectUrl);
     throw err;
   }

@@ -28,7 +28,9 @@ test("book detail page shows the cover note", async () => {
   await pool.query("INSERT INTO book_copies (book_id, status, price) VALUES ($1, 'in_stock', 5)", [b[0].id]);
   const html = await (await fetch(`${app.base}/books/${b[0].id}`)).text();
   assert.ok(html.includes(NOTE_EN));
-  assert.match(html, /data-fr-text="Les couvertures proviennent/);
+  const fr = await (await fetch(`${app.base}/books/${b[0].id}`, { headers: { cookie: "umasbooks_lang=fr" } })).text();
+  assert.match(fr, /Les couvertures proviennent d’une bibliothèque/);
+  assert.ok(!fr.includes(NOTE_EN));
 });
 
 test("favorites page shows the cover note", async () => {
