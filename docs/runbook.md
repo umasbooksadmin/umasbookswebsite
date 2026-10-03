@@ -123,8 +123,7 @@ site logs an `[env] WARNING` at boot).
 
 **BACKUP_S3_\* (Backblaze B2).** Two kinds, in GitHub: the key pair are
 **repository secrets**, the bucket/endpoint/region are **repository
-variables**. If one is changed alone, the offsite upload fails and the backup
-workflow sends a failure email. Setup details: "Offsite backups in Backblaze
+variables**. If one is changed alone, the backup fails and the workflow sends a failure email. Setup details: "Backups in Backblaze
 B2" in [`umas-books/README.md`](../umas-books/README.md).
 
 1. Backblaze > App Keys > add a new key limited to the one bucket (Read and

@@ -135,10 +135,10 @@ Also note: the website's pages load typefaces from Google Fonts, so a visitor's 
 | Data | A full copy of the database every night (so: everything in sections 1 to 7) |
 | People | Everyone in the database |
 | Legal basis | Legitimate interest (continuity); same bases as the original data |
-| Recipients / processors | GitHub (private repository, branch `db-backups`); Backblaze B2 (private bucket, EU region, default encryption on, per the README) |
-| Transfers outside EU | GitHub: US company. Backblaze: the bucket is in an EU region (**confirm** the bucket region in the B2 console); Backblaze is a US company. |
-| Retention | **GitHub:** the nightly job keeps the newest 30 dump files in the branch. The branch is rebuilt every night as a single commit holding only those 30 files and force-pushed, so older dumps do not survive in Git history (since the "Backup and data-retention fixes" change; login sessions are left out of every dump). **Backblaze:** the code never deletes anything; deletion depends on lifecycle rules set by hand in the Backblaze console: the intended rules are nightly files hidden after **30 days** and monthly files after 730 days (2 years), matching the policy. **Check that these rules exist** (**NOT AUTOMATED / not visible in the code**). A deletion request therefore disappears from backups only after those periods. |
-| Security | Private repository (the job refuses to run if the repository is public); private bucket with encryption; access keys limited to the one bucket; monthly automatic restore test; failure emails to admin |
+| Recipients / processors | Backblaze B2 (private bucket, EU region, default encryption on, per the README); Render (its own automatic database recovery) |
+| Transfers outside EU | Backblaze: the bucket is in an EU region (**confirm** the bucket region in the B2 console); Backblaze is a US company. |
+| Retention | **Backblaze:** one full dump a night, kept 30 days; one on the 1st of each month, kept 2 years. Login sessions are left out of every dump. **Render:** its own point-in-time recovery covers the last **7 days**. Backblaze deletion depends on lifecycle rules set by hand in the Backblaze console (nightly files hidden after **30 days**, monthly files after 730 days, matching the policy). **Check that these rules exist** (**NOT AUTOMATED / not visible in the code**). A deletion request therefore disappears from backups only after those periods. |
+| Security | Private bucket with encryption (no backup is kept in the code repository); access keys limited to the one bucket; monthly automatic restore test; failure emails to admin |
 
 ---
 
