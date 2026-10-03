@@ -23,6 +23,11 @@ Start here:
   together: routes, views, data, environment variables, migrations, the
   deploy sequence, and operations.
 
+**Privacy paperwork:** [`docs/privacy/`](docs/privacy/) holds the GDPR register of processing
+([`record-of-processing.md`](docs/privacy/record-of-processing.md)), the provider DPA checklist
+([`processors-checklist.md`](docs/privacy/processors-checklist.md)) and the breach log with the
+72-hour procedure ([`breach-log.md`](docs/privacy/breach-log.md)).
+
 ## What lives at the repo root
 
 Only the static files the marketing pages load, plus deployment and CI config:

@@ -222,6 +222,14 @@ others. `lib/totp.js` (hand-rolled on `node:crypto`), `routes/twoFactor.js`
   email, the action and a numeric target id, never member emails, names or
   message text, and never throws. Purged after 12 months by
   `purgeExpiredPersonalData`; keep the privacy policy in step.
+- Right of access / portability: admin → Members → member detail →
+  **Download data (JSON)** (`GET /admin/members/:id/export.json`, admin only,
+  `no-store`) returns the account and everything held under its email or id
+  (sign-ups, orders, membership payments, favorites, volunteer/meeting
+  RSVPs, forum posts, charity votes/ideas, reservations). Columns whose name
+  contains hash/token/secret/totp are never exported. Add a section there
+  when a new table holds personal data. The privacy paperwork (register of
+  processing, processor DPAs, breach log) is in `docs/privacy/`.
 - Not automated: contact-form messages live in the Gmail inbox (the policy
   says they are kept until the sender asks us to delete them), and server
   logs sit with Render. Log lines never contain emails.

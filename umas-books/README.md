@@ -253,8 +253,8 @@ quietly skip itself.)
 **Retention:** the workflow doesn't delete anything. In Backblaze, open the
 bucket → *Lifecycle Settings* → *Use custom lifecycle rules* and add three
 rules: file path `store-backups/umas_books_`, days from uploading to hiding
-**35**, days from hiding to deleting **1**; file path
-`store-backups/full/`, days to hiding **35**, to deleting **1** (these are the
+**30**, days from hiding to deleting **1**; file path
+`store-backups/full/`, days to hiding **30**, to deleting **1** (these are the
 big ones — they contain every image); and file path
 `store-backups/monthly/`, days to hiding **730**, to deleting **1**.
 
