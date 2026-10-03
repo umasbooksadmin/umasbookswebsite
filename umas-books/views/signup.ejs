@@ -1,23 +1,24 @@
-<%- include('partials/header', { title: 'Join' }) %>
+<%- include('partials/header', { noindex: true, title: 'Join' }) %>
 
 <h1>Create your account</h1>
-<% if (error) { %><div class="error-box"><%= error %></div><% } %>
-<% if (notice) { %><div class="notice-box"><%= notice %></div><% } %>
+<% if (error) { %><div role="alert" class="error-box"><%= error %></div><% } %>
+<% if (notice) { %><div role="status" class="notice-box"><%= notice %></div><% } %>
 <form class="stack" method="post" action="/signup">
   <%- include('partials/csrf_field') %>
   <label for="displayName">Name</label>
-  <input id="displayName" name="displayName" type="text" required>
+  <input id="displayName" name="displayName" type="text" autocomplete="name" required>
   <label for="email">Email</label>
-  <input id="email" name="email" type="email" required>
+  <input id="email" name="email" type="email" autocomplete="email" required>
   <label for="password">Password</label>
   <div class="password-field">
-    <input id="password" name="password" type="password" minlength="8" required
+    <input id="password" name="password" type="password" minlength="8" autocomplete="new-password" required
       pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}"
       title="At least 8 characters, with an uppercase letter, a lowercase letter, a number, and a symbol.">
-    <button type="button" class="password-toggle" data-toggle-password="password" aria-label="Show password">Show</button>
+    <button type="button" class="password-toggle" data-toggle-password="password" aria-label="Show password" aria-pressed="false">Show</button>
   </div>
   <p class="muted small">At least 8 characters, with an uppercase letter, a lowercase letter, a number, and a symbol.</p>
   <button class="btn" type="submit">Create account</button>
+  <%- include('partials/privacy_note', { en: 'We use your details only to create and manage your account. See our', fr: 'Vos données servent uniquement à créer et gérer votre compte. Consultez notre' }) %>
 </form>
 <p class="muted small">Already a member? <a href="/login">Log in</a></p>
 

@@ -30,6 +30,7 @@ helloasso.getCheckoutIntent = async (id) => {
 };
 
 const { pool } = require("../../src/db");
+const { checkoutLimiter } = require("../../src/middleware/rateLimits");
 
 let server;
 before(async () => {
@@ -43,7 +44,14 @@ after(async () => {
 });
 
 let seq = 0;
-beforeEach(() => {
+beforeEach(async () => {
+  // Every request here comes from the same IP, and checkout caps pending
+  // orders per IP — forget the IP on orders left by earlier tests so each
+  // test starts from a clean slate (the per-IP tests below set it back).
+  await pool.query("UPDATE orders SET client_ip = NULL WHERE client_ip IS NOT NULL");
+  // ...and likewise the per-IP checkout rate limit (10/hour), which the
+  // abuse-cap tests below would otherwise run into.
+  for (const key of ["127.0.0.1", "::ffff:127.0.0.1", "::1"]) checkoutLimiter.resetKey(key);
   sentEmails.length = 0;
   createdIntents.length = 0;
   intents.clear();
@@ -312,6 +320,143 @@ test("a copy taken between the cart read and the lock rolls the whole checkout b
   assert.equal((await copyRow(mine)).status, "in_stock", "the copy that WAS available is not left locked");
   assert.equal(createdIntents.length, 0);
   assert.equal(await v.count(), 1, "cart now only holds the still-available copy");
+});
+
+// --- abuse caps and deadlock handling ------------------------------------
+
+async function addToCart(v, ...ids) {
+  for (const id of ids) await v.post("/cart/add", { copyId: id });
+}
+
+test("checkout refuses a 3rd pending order for one email, with a friendly message and nothing locked", async () => {
+  const email = `cap-email-${uniq()}@example.test`;
+  for (let i = 0; i < 2; i++) {
+    const v = visitor();
+    await addToCart(v, await makeCopy());
+    assert.equal((await checkout(v, email)).res.status, 302);
+    await pool.query("UPDATE orders SET client_ip = NULL WHERE buyer_email = $1", [email]); // isolate the email cap
+  }
+  const v = visitor();
+  const copy = await makeCopy();
+  await addToCart(v, copy);
+  const r = await checkout(v, email.toUpperCase());
+  assert.equal(r.res.status, 200);
+  assert.match(r.text, /already have unpaid orders/);
+  assert.equal((await orderByEmail(email)).length, 2);
+  assert.equal((await copyRow(copy)).status, "in_stock", "nothing locked by the refused checkout");
+  assert.equal(createdIntents.length, 2);
+});
+
+test("checkout refuses a 3rd pending order from one IP across different emails", async () => {
+  for (let i = 0; i < 2; i++) {
+    const v = visitor();
+    await addToCart(v, await makeCopy());
+    assert.equal((await checkout(v, `cap-ip-${uniq()}@example.test`)).res.status, 302);
+  }
+  const v = visitor();
+  const copy = await makeCopy();
+  await addToCart(v, copy);
+  const email = `cap-ip-${uniq()}@example.test`;
+  const r = await checkout(v, email);
+  assert.match(r.text, /already have unpaid orders/);
+  assert.equal((await orderByEmail(email)).length, 0);
+  assert.equal((await copyRow(copy)).status, "in_stock");
+  const { rows } = await pool.query("SELECT client_ip FROM orders WHERE client_ip IS NOT NULL LIMIT 1");
+  assert.ok(rows[0].client_ip, "the IP is stored on the order");
+});
+
+test("pending orders older than the hold, and paid/cancelled ones, don't count towards the cap", async () => {
+  const email = `cap-old-${uniq()}@example.test`;
+  for (let i = 0; i < 2; i++) {
+    const v = visitor();
+    await addToCart(v, await makeCopy());
+    assert.equal((await checkout(v, email)).res.status, 302);
+  }
+  await pool.query("UPDATE orders SET created_at = now() - interval '3 hours' WHERE buyer_email = $1", [email]);
+  const v = visitor();
+  await addToCart(v, await makeCopy());
+  assert.equal((await checkout(v, email)).res.status, 302);
+});
+
+// Wraps pool.connect so each checkout transaction's client can be observed
+// and made to fail like Postgres does when it picks the transaction as a
+// deadlock victim.
+function spyOnConnect({ deadlocks }) {
+  const realConnect = pool.connect.bind(pool);
+  const calls = [];
+  let remaining = deadlocks;
+  pool.connect = async (...args) => {
+    // pool.query() itself calls connect(callback) — leave that form alone.
+    if (typeof args[0] === "function") return realConnect(...args);
+    const client = await realConnect(...args);
+    const realQuery = client.query;
+    const realRelease = client.release;
+    client.release = (...a) => { client.query = realQuery; client.release = realRelease; return realRelease.apply(client, a); };
+    client.query = (sql, params) => {
+      if (typeof sql === "string") {
+        calls.push({ sql, params });
+        if (sql.includes("INSERT INTO orders") && remaining > 0) {
+          remaining--;
+          return Promise.reject(Object.assign(new Error("deadlock detected"), { code: "40P01" }));
+        }
+      }
+      return realQuery.call(client, sql, params);
+    };
+    return client;
+  };
+  return { calls, restore: () => { pool.connect = realConnect; } };
+}
+
+test("checkout locks copies in id order whatever order they were added to the cart", async () => {
+  const low = await makeCopy();
+  const high = await makeCopy();
+  const v = visitor();
+  await addToCart(v, high, low);
+  const spy = spyOnConnect({ deadlocks: 0 });
+  try {
+    assert.equal((await checkout(v, `order-${uniq()}@example.test`)).res.status, 302);
+  } finally {
+    spy.restore();
+  }
+  const lock = spy.calls.find((c) => /FOR UPDATE/.test(c.sql) && /book_copies/.test(c.sql));
+  assert.ok(lock, "copies are locked with SELECT ... FOR UPDATE");
+  assert.match(lock.sql, /ORDER BY id/);
+  assert.deepEqual(lock.params[0], [low, high].sort((a, b) => a - b));
+});
+
+test("checkout retries once when Postgres reports a deadlock", async () => {
+  const v = visitor();
+  const copy = await makeCopy();
+  await addToCart(v, copy);
+  const email = `retry-${uniq()}@example.test`;
+  const spy = spyOnConnect({ deadlocks: 1 });
+  let r;
+  try {
+    r = await checkout(v, email);
+  } finally {
+    spy.restore();
+  }
+  assert.equal(r.res.status, 302, "the retry succeeded");
+  assert.equal((await orderByEmail(email)).length, 1, "exactly one order");
+  assert.equal((await copyRow(copy)).status, "in_cart");
+});
+
+test("a checkout that deadlocks twice says 'try again' and leaves nothing locked", async () => {
+  const v = visitor();
+  const copy = await makeCopy();
+  await addToCart(v, copy);
+  const email = `retry2-${uniq()}@example.test`;
+  const spy = spyOnConnect({ deadlocks: 2 });
+  let r;
+  try {
+    r = await checkout(v, email);
+  } finally {
+    spy.restore();
+  }
+  assert.equal(r.res.status, 200);
+  assert.match(r.text, /try again/i);
+  assert.equal((await orderByEmail(email)).length, 0);
+  assert.equal((await copyRow(copy)).status, "in_stock");
 });
 
 // --- /cart/return -------------------------------------------------------

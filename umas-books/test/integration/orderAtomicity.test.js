@@ -64,7 +64,7 @@ function failingPool() {
     connect: async () => {
       const client = await pool.connect();
       const g = guard(client);
-      return { query: g.query, release: (e) => client.release(e) };
+      return { query: g.query, release: (e) => client.release(e), on: (...a) => client.on(...a), removeListener: (...a) => client.removeListener(...a) };
     },
   };
 }
