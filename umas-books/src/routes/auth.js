@@ -1,9 +1,10 @@
 const express = require("express");
+const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
 const { limit, ipKey } = require("../middleware/rateLimits");
 const { pool } = require("../db");
 const { hashToken } = require("../lib/resetTokens");
-const { sendResetLink } = require("../lib/passwordReset");
+const { sendResetLink, createResetToken } = require("../lib/passwordReset");
 const { sendVerificationEmail, sendSignupAttemptEmail } = require("../lib/emailVerification");
 const { validateNewPassword } = require("../lib/passwordPolicy");
 const { requireAuth } = require("../middleware/auth");
@@ -28,6 +29,11 @@ const loginLimiter = limit({ windowMs: 15 * MINUTE, max: 20, skipSuccessfulReque
 const signupLimiter = limit({ windowMs: 60 * MINUTE, max: 30 });
 const forgotLimiter = limit({ windowMs: 15 * MINUTE, max: 10 });
 const resetLimiter = limit({ windowMs: 15 * MINUTE, max: 20, skipSuccessfulRequests: true });
+// "Send me the confirmation link again": answers identically whatever the
+// account's state (no enumeration), so every request counts; on top of this
+// per-IP cap, an account is sent at most one link per RESEND_COOLDOWN_MS.
+const resendLimiter = limit({ windowMs: 15 * MINUTE, max: 6 });
+const RESEND_COOLDOWN_MS = 5 * MINUTE;
 // Guessing the current password from a logged-in (e.g. hijacked) session:
 // 5 wrong attempts per account per 15 minutes. Keyed on the account, not
 // the IP, and only a wrong current password (401) counts.
@@ -47,8 +53,8 @@ const DUMMY_HASH = bcrypt.hashSync("no-such-account-timing-equalizer", 12);
 
 const signupNotice = (req) =>
   req.tr(
-    "Thanks! Check your inbox for an email with next steps. Once your email is confirmed, log in. If you already have an account, try logging in or resetting your password.",
-    "Merci ! Consultez votre boîte de réception : un e-mail vous indique la marche à suivre. Une fois votre adresse confirmée, connectez-vous. Si vous avez déjà un compte, essayez de vous connecter ou de réinitialiser votre mot de passe."
+    "Thanks! Check your inbox for an email with next steps: open its link to confirm your address and choose your password, then log in. If you already have an account, try logging in or resetting your password.",
+    "Merci ! Consultez votre boîte de réception : un e-mail vous indique la marche à suivre. Ouvrez son lien pour confirmer votre adresse et choisir votre mot de passe, puis connectez-vous. Si vous avez déjà un compte, essayez de vous connecter ou de réinitialiser votre mot de passe."
   );
 
 const LOGIN_LOCK_THRESHOLD = 5;
@@ -156,7 +162,7 @@ router.post("/signup", signupLimiter, async (req, res) => {
     if (!existing.length) {
       try {
         const { rows } = await pool.query(
-          `INSERT INTO users (email, password_hash, display_name, lang) VALUES ($1, $2, $3, $4)
+          `INSERT INTO users (email, password_hash, display_name, lang, first_verification_pending) VALUES ($1, $2, $3, $4, TRUE)
            RETURNING id, email, display_name, lang`,
           [email, hash, displayName, req.lang]
         );
@@ -182,23 +188,101 @@ router.post("/signup", signupLimiter, async (req, res) => {
   }
 });
 
+// ACCOUNT PRE-HIJACK DEFENCE (two halves, both needed):
+//  1. POST /login refuses a self-signup account until its email is confirmed,
+//     so whoever typed the address at signup never holds a session before the
+//     real inbox owner has acted.
+//  2. The FIRST confirmation through the emailed link is a change of
+//     ownership: the signup password is destroyed (replaced by a random
+//     hash nobody knows), every session is killed (password_changed_at) and
+//     the person is sent straight to "choose your password" with a fresh
+//     single-use token. Whoever clicked the link controls the mailbox, so
+//     they, and only they, pick the password. An attacker who signed up with
+//     a victim's address and their own password is locked out the moment
+//     the victim confirms. Membership matching waits for that password
+//     choice (the reset POST runs syncMembershipInBackground).
+// Only accounts flagged by POST /signup (first_verification_pending) take
+// this path: admin-created, grandfathered and admin-email-changed accounts
+// keep their passwords and just become verified.
 router.get("/verify-email/:token", async (req, res) => {
   const tokenHash = hashToken(req.params.token);
-  const { rows } = await pool.query(
-    "SELECT * FROM email_verification_tokens WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now()",
-    [tokenHash]
-  );
-  const record = rows[0];
-  if (!record) {
-    return res.redirect("/login?verified=invalid");
+  // Computed before the transaction (bcrypt is slow); only used on the
+  // first-verification path.
+  const unusableHash = await bcrypt.hash(crypto.randomBytes(32).toString("hex"), 10);
+  const client = await pool.connect();
+  let outcome;
+  try {
+    await client.query("BEGIN");
+    // The token is the atomic gate: of concurrent clicks exactly one wins.
+    const { rows: claimed } = await client.query(
+      `UPDATE email_verification_tokens SET used_at = now()
+       WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now() RETURNING user_id`,
+      [tokenHash]
+    );
+    if (!claimed.length) {
+      await client.query("ROLLBACK");
+      return res.redirect("/login?verified=invalid");
+    }
+    const { rows: users } = await client.query(
+      "SELECT id, email, email_verified_at, first_verification_pending FROM users WHERE id = $1 FOR UPDATE",
+      [claimed[0].user_id]
+    );
+    const user = users[0];
+    if (!user || user.email_verified_at) {
+      outcome = { redirect: "/login?verified=success" };
+    } else if (user.first_verification_pending) {
+      await client.query(
+        `UPDATE users SET email_verified_at = now(), first_verification_pending = FALSE,
+                password_hash = $2, password_changed_at = now(),
+                failed_login_attempts = 0, locked_until = NULL
+         WHERE id = $1`,
+        [user.id, unusableHash]
+      );
+      await client.query("UPDATE password_reset_tokens SET used_at = now() WHERE user_id = $1 AND used_at IS NULL", [user.id]);
+      const rawReset = await createResetToken(client, user.id);
+      outcome = { redirect: `/reset-password/${rawReset}?confirmed=1`, noStore: true };
+    } else {
+      await client.query("UPDATE users SET email_verified_at = now() WHERE id = $1", [user.id]);
+      outcome = { redirect: "/login?verified=success", syncEmail: user.email };
+    }
+    await client.query("COMMIT");
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw err;
+  } finally {
+    client.release();
   }
-  const { rows: verified } = await pool.query(
-    "UPDATE users SET email_verified_at = now() WHERE id = $1 AND email_verified_at IS NULL RETURNING email",
-    [record.user_id]
+  if (outcome.syncEmail) syncMembershipInBackground(pool, outcome.syncEmail);
+  if (outcome.noStore) res.set("Cache-Control", "no-store");
+  res.redirect(outcome.redirect);
+});
+
+// Neutral for every account state; sends only for a self-signup account still
+// waiting for its first confirmation, at most once per cooldown.
+router.post("/resend-verification", resendLimiter, async (req, res) => {
+  const email = (req.body.email || "").trim().toLowerCase();
+  const notice = req.tr(
+    "If that account is waiting for confirmation, we've sent a new link. Check your inbox.",
+    "Si ce compte attend sa confirmation, nous avons envoyé un nouveau lien. Consultez votre boîte de réception."
   );
-  await pool.query("UPDATE email_verification_tokens SET used_at = now() WHERE id = $1", [record.id]);
-  if (verified.length) syncMembershipInBackground(pool, verified[0].email);
-  res.redirect("/login?verified=success");
+  if (email) {
+    try {
+      const { rows } = await pool.query(
+        `SELECT u.id, u.email, u.display_name, u.lang FROM users u
+         WHERE u.email = $1 AND u.email_verified_at IS NULL AND u.first_verification_pending
+           AND NOT EXISTS (SELECT 1 FROM email_verification_tokens t
+                           WHERE t.user_id = u.id AND t.created_at > now() - ($2::int * interval '1 millisecond'))`,
+        [email, RESEND_COOLDOWN_MS]
+      );
+      if (rows[0]) {
+        // Background, like signup: response time can't reveal the account.
+        sendVerificationEmail(rows[0], baseUrl(req)).catch((err) => console.error("Verification email failed:", err.message));
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }
+  res.render("login", { error: null, notice });
 });
 
 router.get("/login", (req, res) => {
@@ -207,6 +291,7 @@ router.get("/login", (req, res) => {
     return res.redirect(u.isAdmin ? "/admin" : (u.isMember || u.isVolunteer) ? "/dashboard" : "/");
   }
   const notice =
+    req.query.reset === "confirmed" ? req.tr("Password saved — your email is confirmed. Log in to get started.", "Mot de passe enregistré : votre adresse e-mail est confirmée. Connectez-vous pour commencer.") :
     req.query.reset === "success" ? req.tr("Password updated — log in with your new password.", "Mot de passe mis à jour : connectez-vous avec votre nouveau mot de passe.") :
     req.query.verified === "success" ? req.tr("Email confirmed — thanks!", "Adresse e-mail confirmée, merci !") :
     req.query.verified === "invalid" ? req.tr("That confirmation link is invalid or has expired.", "Ce lien de confirmation est invalide ou a expiré.") :
@@ -256,6 +341,17 @@ router.post("/login", loginLimiter, async (req, res) => {
       return res.status(403).render("login", {
         error: req.tr("This account has been deactivated. Contact us if you think this is a mistake.", "Ce compte a été désactivé. Contactez-nous si vous pensez qu'il s'agit d'une erreur."),
         notice: null,
+      });
+    }
+
+    // A self-signup account can't log in until its email is confirmed (see
+    // the pre-hijack note above GET /verify-email). Only someone who
+    // typed the right password learns this; the form offers a fresh link.
+    if (user.first_verification_pending && !user.email_verified_at) {
+      return res.status(403).render("login", {
+        error: req.tr("Please confirm your email first: open the link we sent you. You can request a new one below.", "Veuillez d'abord confirmer votre adresse e-mail : ouvrez le lien que nous vous avons envoyé. Vous pouvez en demander un nouveau ci-dessous."),
+        notice: null,
+        unverifiedEmail: user.email,
       });
     }
 
@@ -415,7 +511,7 @@ router.get("/reset-password/:token", async (req, res) => {
   if (!rows.length) {
     return res.status(400).render("reset_password", { error: req.tr("This reset link is invalid or has expired.", "Ce lien de réinitialisation est invalide ou a expiré."), token: null });
   }
-  res.render("reset_password", { error: null, token: req.params.token });
+  res.render("reset_password", { error: null, token: req.params.token, confirmed: req.query.confirmed === "1" });
 });
 
 router.post("/reset-password/:token", resetLimiter, async (req, res) => {
@@ -433,7 +529,7 @@ router.post("/reset-password/:token", resetLimiter, async (req, res) => {
   if (!rows.length) return invalid();
   const passwordError = await validateNewPassword(newPassword, req.tr);
   if (passwordError) {
-    return res.status(400).render("reset_password", { error: passwordError, token: req.params.token });
+    return res.status(400).render("reset_password", { error: passwordError, token: req.params.token, confirmed: req.query.confirmed === "1" });
   }
 
   const hash = await bcrypt.hash(newPassword, 12);
@@ -462,6 +558,7 @@ router.post("/reset-password/:token", resetLimiter, async (req, res) => {
     const { rows: users } = await client.query(
       `UPDATE users SET password_hash = $1, password_changed_at = now(),
               email_verified_at = COALESCE(email_verified_at, now()),
+              first_verification_pending = FALSE,
               failed_login_attempts = 0, locked_until = NULL
        WHERE id = $2 RETURNING email`,
       [hash, userId]
@@ -477,7 +574,7 @@ router.post("/reset-password/:token", resetLimiter, async (req, res) => {
   }
 
   if (email) syncMembershipInBackground(pool, email);
-  res.redirect("/login?reset=success");
+  res.redirect(req.query.confirmed === "1" ? "/login?reset=confirmed" : "/login?reset=success");
 });
 
 router.get("/account/password", requireAuth, (req, res) => {

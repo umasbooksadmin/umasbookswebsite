@@ -253,8 +253,9 @@ stateDiagram-v2
   [*] --> Anonymous
   Anonymous --> Signup: POST /signup
   Signup --> Unverified: neutral notice, same page whether or not the email exists, plus a verification email
-  Unverified --> Verified: GET /verify-email/:token, sets email_verified_at
-  Unverified --> LoggedIn: login (allowed before verifying)
+  Unverified --> Unverified: login refused until the email is confirmed (resend link offered)
+  Unverified --> ChoosePassword: GET /verify-email/:token, first confirmation: signup password discarded, sessions killed
+  ChoosePassword --> Verified: person picks their own password (reset flow)
   Verified --> LoggedIn: login
   Verified --> TwoStep: password right, two-step switched on
   TwoStep --> LoggedIn: authenticator code or one-time recovery code
@@ -263,6 +264,7 @@ stateDiagram-v2
   LoggedIn --> Anonymous: logout, disabled, deleted, or password changed elsewhere
   Anonymous --> Reset: POST /forgot-password (neutral reply)
   Reset --> Verified: reset link used once; also verifies the email and clears the lockout
+  note right of ChoosePassword: A self-signup account never has a session before its inbox owner acts, and the password typed at signup is useless once they do
 ```
 
 Key rules:
@@ -285,6 +287,17 @@ Key rules:
   who loses their phone and codes is reset by another admin (**Reset Two-Step**
   on the Members page, written to the audit log); non-admins can switch it off
   themselves, admins cannot.
+* **Pre-hijack defence.** Someone could sign up with a victim's email and their
+  own password, then wait for the victim to confirm the address. So a
+  self-signup account (`users.first_verification_pending`, migration 055)
+  **cannot log in until confirmed**, and its **first confirmation replaces the
+  password**: the link verifies the email, stores an unusable random hash, sets
+  `password_changed_at` (every session dies) and redirects to the reset-password
+  page with a fresh single-use token ("Email confirmed: now choose your
+  password"). Membership matching runs after that password is chosen. A neutral
+  `POST /resend-verification` (6 per 15 min per IP, one mail per account per
+  5 min) replaces a lost link. Admin-created, grandfathered and
+  admin-email-changed accounts are not flagged and behave as before.
 * **Email verification gates identity-sensitive features**: order history on
   `/account` and automatic membership attribution both require
   `email_verified_at`. Accounts created by an admin are verified immediately

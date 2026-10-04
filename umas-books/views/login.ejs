@@ -3,6 +3,13 @@
 <h1><%= tr('Log in', 'Connexion') %></h1>
 <% if (error) { %><div role="alert" class="error-box"><%= error %></div><% } %>
 <% if (notice) { %><div role="status" class="notice-box"><%= notice %></div><% } %>
+<% if (locals.unverifiedEmail) { %>
+<form class="stack" method="post" action="/resend-verification">
+  <%- include('partials/csrf_field') %>
+  <input type="hidden" name="email" value="<%= unverifiedEmail %>">
+  <button class="btn" type="submit"><%= tr('Send me a new confirmation link', 'Renvoyer le lien de confirmation') %></button>
+</form>
+<% } %>
 <form class="stack" method="post" action="/login">
   <%- include('partials/csrf_field') %>
   <label for="email"><%= tr('Email', 'E-mail') %></label>
