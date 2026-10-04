@@ -48,7 +48,7 @@ async function makeBook({ title, binding = null, copies }) {
 // ------------------------------------------------------------- migration 047
 
 test("migration 047 remaps old grades, sets the default, and locks the column to the four grades (re-runnable)", async () => {
-  const sql = fs.readFileSync(path.join(__dirname, "..", "..", "migrations", "047_condition_grades_and_binding.sql"), "utf8");
+  const sql = fs.readFileSync(path.join(__dirname, "..", "..", "migrations", "048_condition_grades_and_binding.sql"), "utf8");
   // Put the table back in its pre-047 state, with one copy of every old grade.
   await pool.query("ALTER TABLE book_copies DROP CONSTRAINT book_copies_condition_check");
   await pool.query("ALTER TABLE book_copies ALTER COLUMN condition SET DEFAULT 'good'");
