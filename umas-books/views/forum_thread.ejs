@@ -1,10 +1,16 @@
-<%- include('partials/header', { title: thread.title, hideBackLink: true }) %>
+<% const isAdmin = !!(user && user.isAdmin); const removed = thread.hidden && !isAdmin; %>
+<%- include('partials/header', { title: removed ? tr('Forum', 'Forum') : thread.title, hideBackLink: true }) %>
 
 <p><a href="/forum">&larr; <%= tr('Back to forum', 'Retour au forum') %></a></p>
+<% if (removed) { %>
+<h1><%= tr('Forum', 'Forum') %></h1>
+<p class="card muted"><%= tr('This post was removed by the moderators.', 'Ce message a été retiré par les modérateurs.') %></p>
+<% } else { %>
 <h1><%= thread.title %></h1>
 <div class="thread-meta"><%= thread.author_name || tr('Member', 'Membre') %> &middot; <%= formatDateTime(thread.created_at) %></div>
 <% if (typeof reported !== 'undefined' && reported) { %><div class="notice-box" role="status"><%= tr('Thanks, we will review it.', 'Merci, nous allons l’examiner.') %></div><% } %>
 <div class="card"><%= thread.body %></div>
+<% if (isAdmin) { %><%- include('partials/forum_moderation', { kind: 'thread', id: thread.id, hidden: !!thread.hidden, code: thread.hidden_code, note: thread.hidden_note }) %><% } %>
 <%- include('partials/forum_report', { kind: 'thread', id: thread.id }) %>
 
 <h3><%= tr('Replies', 'Réponses') %></h3>
@@ -14,8 +20,13 @@
 <% replies.forEach(r => { %>
   <div class="reply">
     <div class="thread-meta"><%= r.author_name || tr('Member', 'Membre') %> &middot; <%= formatDateTime(r.created_at) %></div>
-    <div><%= r.body %></div>
-    <%- include('partials/forum_report', { kind: 'reply', id: r.id }) %>
+    <% if (r.hidden && !isAdmin) { %>
+      <div class="muted"><em><%= tr('This post was removed by the moderators.', 'Ce message a été retiré par les modérateurs.') %></em></div>
+    <% } else { %>
+      <div><%= r.body %></div>
+      <% if (isAdmin) { %><%- include('partials/forum_moderation', { kind: 'reply', id: r.id, hidden: !!r.hidden, code: r.hidden_code, note: r.hidden_note }) %><% } %>
+    <% } %>
+    <% if (!r.hidden) { %><%- include('partials/forum_report', { kind: 'reply', id: r.id }) %><% } %>
   </div>
 <% }) %>
 
@@ -23,7 +34,9 @@
 <form class="stack" method="post" action="/forum/<%= thread.id %>/replies">
   <%- include('partials/csrf_field') %>
   <textarea name="body" aria-labelledby="reply-heading" required></textarea>
+  <%- include('partials/privacy_note', { en: 'Your reply is visible to other members and shows your name. See our', fr: 'Votre réponse est visible des autres membres et affiche votre nom. Consultez notre' }) %>
   <button class="btn" type="submit"><%= tr('Reply', 'Répondre') %></button>
 </form>
+<% } %>
 
 <%- include('partials/footer') %>
