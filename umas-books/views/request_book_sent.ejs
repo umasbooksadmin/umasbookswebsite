@@ -1,0 +1,7 @@
+<%- include('partials/header', { noindex: true, title: tr('Check your inbox', 'Vérifiez votre boîte de réception') }) %>
+
+<h1><%= tr('Check your inbox', 'Vérifiez votre boîte de réception') %></h1>
+<div role="status" class="notice-box"><%= tr("Thank you! If the details are fine, we have just sent you an email with a link to confirm your request. Your request only counts once you have confirmed it, and the link works for 7 days. If nothing arrives within a few minutes, check your spam folder.", "Merci ! Si les informations sont correctes, nous venons de vous envoyer un e-mail avec un lien pour confirmer votre demande. Votre demande ne compte qu'une fois confirmée, et le lien est valable 7 jours. Si rien n'arrive d'ici quelques minutes, vérifiez vos courriers indésirables.") %></div>
+<p class="muted small"><a href="/books.html"><%= tr('Back to browsing books', 'Retour aux livres') %></a></p>
+
+<%- include('partials/footer') %>

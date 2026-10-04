@@ -9,7 +9,6 @@
 const { test, before, after, beforeEach } = require("node:test");
 const assert = require("node:assert/strict");
 // Production loads this before any router (src/index.js).
-require("express-async-errors");
 const { prepareDatabase, buildApp, listen } = require("../helpers/inProcessApp");
 const { makeClient, uniq } = require("../helpers/routeClient");
 

@@ -1,0 +1,14 @@
+<%# A customer-facing status pill for a book request. Param: status. %>
+<%
+  const labels = {
+    unconfirmed: tr('Waiting for your confirmation', 'En attente de votre confirmation'),
+    open: tr('We are looking', 'Nous cherchons'),
+    matched: tr('We found a copy', 'Nous avons trouvé un exemplaire'),
+    notified: tr('We have written to you', 'Nous vous avons écrit'),
+    fulfilled: tr('Done', 'Terminée'),
+    cancelled: tr('Cancelled', 'Annulée'),
+    expired: tr('Expired', 'Expirée'),
+  };
+  const cls = { unconfirmed: 'pending', open: 'scheduled', matched: 'paid', notified: 'paid', fulfilled: 'completed', cancelled: 'cancelled', expired: 'expired' };
+%>
+<span class="status-pill <%= cls[status] || '' %>"><%= labels[status] || status %></span>

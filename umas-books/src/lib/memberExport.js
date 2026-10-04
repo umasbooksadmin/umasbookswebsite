@@ -94,6 +94,13 @@ async function buildMemberExport(pool, userId) {
        WHERE lower(c.reserved_by_email) = $1 ORDER BY c.reserved_at`,
       [email]
     ),
+    // Book requests (routes/bookRequests.js): no token hashes, only what the person gave us.
+    book_requests: await q(
+      `SELECT id, title, author, isbn, note, admin_note, email, name, lang, status,
+              created_at, confirmed_at, notified_at, expires_at
+       FROM book_requests WHERE user_id = $1 OR lower(email) = $2 ORDER BY created_at`,
+      [userId, email]
+    ),
   };
 }
 

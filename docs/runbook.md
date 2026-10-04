@@ -170,6 +170,12 @@ there forever. Deleting it is safe while an admin exists.
 Everything goes to **one mailbox: admin@umasbooks.org**. If that mailbox is
 missed, nobody hears about an outage.
 
+**Test the alert emails any time** (for example after Dependabot updates the
+mail action): GitHub > **Actions** > **Send a test alert** > **Run workflow**.
+An email titled "[umas-books] TEST alert" should arrive within a minute. If it
+doesn't, the Gmail secrets (`GMAIL_USER`, `GMAIL_APP_PASSWORD`, both
+*repository secrets*) or the mail action need attention.
+
 - **Site down** (and "recovered"): `.github/workflows/uptime-check.yml`, `to:`
   is written in the workflow file.
 - **Nightly backup failed / monthly restore test failed**:

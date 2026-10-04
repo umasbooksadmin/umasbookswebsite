@@ -178,6 +178,8 @@
   max-width: 1480px; margin: 0 auto; padding: 16px 32px;
   display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: center;
 }
+.bk-band-ask { margin-top: 0; }
+.bk-band-ask .bk-band-row { grid-template-columns: 1fr; padding-bottom: 0; }
 .bk-band-item { display: flex; align-items: center; gap: 18px; }
 .bk-band-item .badge {
   flex: 0 0 auto; width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center;

@@ -46,7 +46,7 @@ flowchart LR
 
   subgraph Render["Render (Frankfurt)"]
     direction TB
-    W["umas-books web service<br/>Node 22, Express 4, EJS"]
+    W["umas-books web service<br/>Node 22, Express 5, EJS"]
     DB[("Postgres<br/>umas-books-db<br/>text, orders, images")]
     W <--> DB
   end
@@ -92,7 +92,7 @@ login, one database and one thing to monitor.
 | Layer | Choice | Notes |
 |---|---|---|
 | Runtime | Node.js 22 (`engines: 22.x`) | pinned in `package.json`, `umas-books/.node-version` and CI |
-| Web | Express 4 (4.22) + `express-async-errors` | rejected promises reach the error handler; Express 5 is a planned, separate migration |
+| Web | Express 5 | rejected async handler promises reach the error handler natively |
 | Views | EJS, server-rendered | marketing views in `views/marketing/`; English and French via `tr()` (§3) |
 | Database | PostgreSQL (Render, `1c-2g`) | `pg` pool; `timestamptz` everywhere |
 | Sessions | `express-session` + `connect-pg-simple` | rows in table `session`; 30-day sliding cookie |

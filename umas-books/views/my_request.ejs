@@ -1,0 +1,23 @@
+<%- include('partials/header', { noindex: true, title: tr('My book request', 'Ma demande de livre') }) %>
+
+<h1><%= tr('My book request', 'Ma demande de livre') %></h1>
+<% if (!request) { %>
+  <div role="alert" class="error-box"><%= tr('This link is not valid. Use the most recent email we sent you, or find your requests with your email address.', "Ce lien n'est pas valable. Utilisez le dernier e-mail que nous vous avons envoyé, ou retrouvez vos demandes avec votre adresse e-mail.") %></div>
+  <p class="muted small"><a href="/my-requests"><%= tr('Find my requests', 'Retrouver mes demandes') %></a></p>
+<% } else { %>
+  <div class="card">
+    <strong><%= request.title %></strong><% if (request.author) { %> <span class="muted">&middot; <%= request.author %></span><% } %>
+    <div class="order-row"><%- include('partials/request_status', { status: request.status }) %> <span class="muted small"><%= formatDate(request.created_at) %></span></div>
+  </div>
+  <% if (['unconfirmed', 'open', 'matched', 'notified'].includes(request.status)) { %>
+    <form class="stack" method="post" action="/my-requests/<%= token %>/cancel">
+      <%- include('partials/csrf_field') %>
+      <button class="btn btn-outline" type="submit"><%= tr('Cancel this request', 'Annuler cette demande') %></button>
+    </form>
+    <p class="muted small"><%= tr('Cancelling deletes your email address and name from this request.', 'Annuler supprime votre adresse e-mail et votre nom de cette demande.') %></p>
+  <% } else if (request.status === 'cancelled') { %>
+    <div role="status" class="notice-box"><%= tr('This request is cancelled and your contact details have been deleted.', 'Cette demande est annulée et vos coordonnées ont été supprimées.') %></div>
+  <% } %>
+<% } %>
+
+<%- include('partials/footer') %>

@@ -3,7 +3,7 @@
 A real, separate web app for Uma's Books and Adventures: member accounts,
 a community forum, volunteer shift and meeting scheduling, a quarterly
 charity vote, and admin-side book inventory management. Node.js +
-Express + PostgreSQL, server-rendered with EJS, sessions stored in
+Express 5 + PostgreSQL, server-rendered with EJS, sessions stored in
 Postgres.
 
 This app is the whole site: Squarespace has been retired, and the public
@@ -178,6 +178,33 @@ it sits on.
 - **Changing one copy:** open the book and edit **Location** on the copy.
 - Location names are tidied automatically (capital letters, single spaces),
   so `fiction a1` and `FICTION A1` are the same place.
+
+### Customer book requests (volunteer how-to)
+
+Anyone can ask us to look out for a book at `/request-a-book` ("Can't find a
+book? Ask us", linked from the Books page). No account or membership is
+needed. They get an email with a link and must press **Confirm** (until then
+the request is "unconfirmed" and is deleted after 7 days).
+
+1. **Adding books is the only thing you do first.** When you save a new book
+   in **Books & Orders**, any confirmed request for that title or ISBN turns to
+   **Matched**, and the book's page shows "N customers asked for this book".
+2. Open **Book Requests** in the admin menu (default view: Open, Matched and
+   Notified). Each card shows the person's name and email, the title, and the
+   copy that matched.
+3. Click **Notify** to email them that the copy is here (in their language),
+   or **Notify and hold 7 days** to also put the copy aside for them: it shows
+   as Reserved for 7 days and goes back on the shelf by itself. If the copy has
+   been sold in the meantime, nothing is sent and you are told so.
+4. When they have collected it, click **Mark fulfilled**. **Cancel** drops a
+   request and removes the person's details; **Add a note** is for staff only.
+5. Nothing matched by itself (different spelling, a book already in stock)?
+   Type the book's id or ISBN next to **Match to a book**.
+
+Customers can cancel with the private link in every email, or under **My
+Account**, or by asking for a new link at `/my-requests`. Contact details are
+deleted when a request is cancelled, after 30 days once it is closed, and at
+the latest 12 months after it was made (the privacy policy says so).
 
 ## Deploying to Render
 

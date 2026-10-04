@@ -1,6 +1,8 @@
 <%- include('../../partials/admin_header', { title: book.title, active: active, pageTitle: book.title }) %>
 <% if (typeof notice !== "undefined" && notice) { %><div class="notice-box" role="status"><%= notice %></div><% } %>
 
+<% if (typeof requestCount !== "undefined" && requestCount > 0) { %><div class="notice-box" role="status"><%= requestCount %> customer<%= requestCount === 1 ? '' : 's' %> asked for this book. <a href="/admin/requests?status=matched&amp;book=<%= book.id %>">See the request<%= requestCount === 1 ? '' : 's' %></a></div><% } %>
+
 <p><a href="/admin/inventory">&larr; Back to inventory</a></p>
 <% if (typeof error !== 'undefined' && error) { %><div class="error-box" role="alert"><%= error %></div><% } %>
 <p class="muted"><%= book.authors || 'Unknown author' %><%= book.isbn ? ' · ISBN ' + book.isbn : '' %><%= book.categories ? ' · ' + book.categories : '' %></p>

@@ -2,6 +2,7 @@ const express = require("express");
 const { pool } = require("../db");
 const { orderItemLabel } = require("../lib/orderItems");
 const { requireAuth } = require("../middleware/auth");
+const { activeRequestsForUser } = require("../lib/bookRequests");
 
 const router = express.Router();
 
@@ -22,8 +23,12 @@ router.get("/account", requireAuth, async (req, res) => {
   const { rows: userRows } = await pool.query("SELECT email, email_verified_at FROM users WHERE id = $1", [req.session.user.id]);
   const { email, email_verified_at: verifiedAt } = userRows[0];
 
+  // Book requests (see routes/bookRequests.js): made while logged in, or under
+  // the verified email address. Not a membership perk.
+  const bookRequests = await activeRequestsForUser(pool, req.session.user.id);
+
   if (!verifiedAt) {
-    return res.render("account", { orders: [], email, emailVerified: false });
+    return res.render("account", { orders: [], email, emailVerified: false, bookRequests });
   }
 
   const { rows: orders } = await pool.query(
@@ -41,7 +46,7 @@ router.get("/account", requireAuth, async (req, res) => {
   );
 
   for (const o of orders) o.items = (o.items || []).map((i) => ({ title: orderItemLabel(i, req.lang), price: i.price }));
-  res.render("account", { orders, email, emailVerified: true });
+  res.render("account", { orders, email, emailVerified: true, bookRequests });
 });
 
 module.exports = router;

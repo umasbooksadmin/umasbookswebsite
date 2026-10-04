@@ -10,6 +10,7 @@ const { withTransaction } = require("../db");
 const mailer = require("../mailer");
 const { emailSafeName } = require("./validation");
 const { emailTr } = require("./lang");
+const { CLEAR_PERSONAL_SQL } = require("./bookRequests");
 
 const RETENTION = {
   inactiveAccountYears: 3,
@@ -19,6 +20,9 @@ const RETENTION = {
   tokenGraceDays: 7,
   inactivityWarningDays: 30,
   closedOrderDays: 30, // also used for ended reservations
+  unconfirmedRequestDays: 7, // book requests never confirmed by email
+  bookRequestMonths: 12, // book requests nobody closed
+  closedRequestDays: 30, // fulfilled/cancelled/expired book requests keep no contact details
 };
 
 // Stands in for a name/email once someone is erased. The ".invalid" TLD
@@ -66,6 +70,17 @@ async function eraseMember(pool, userId, { client } = {}) {
        WHERE user_id = $3 OR lower(payer_email) = $1`,
       [email, erasedEmail(userId), userId]
     );
+
+    // Book requests under this address or account: cancelled and stripped of
+    // personal data (title/author/ISBN stay for anonymous demand counts).
+    await db.query(
+      `UPDATE book_requests
+       SET status = CASE WHEN status IN ('fulfilled', 'expired') THEN status ELSE 'cancelled' END,
+           ${CLEAR_PERSONAL_SQL}, confirm_token_hash = NULL, manage_token_hash = NULL, updated_at = now()
+       WHERE user_id = $2 OR lower(email) = $1`,
+      [email, userId]
+    );
+    await db.query("DELETE FROM book_request_list_tokens WHERE lower(email) = $1", [email]);
 
     // Logged-in sessions of this account.
     // (The table is created by connect-pg-simple on first use, so it may
@@ -166,6 +181,33 @@ async function purgeExpiredPersonalData(pool) {
       `DELETE FROM admin_audit_log WHERE at < now() - interval '${RETENTION.auditLogMonths} months'`
     );
     return r.rowCount;
+  });
+
+  // Book requests (lib/bookRequests.js): unconfirmed ones vanish after 7 days; open,
+  // matched or notified ones expire 12 months after they were made; ended ones
+  // (fulfilled, cancelled, expired) keep no contact details after 30 days. Title,
+  // author and ISBN stay for anonymous demand counts.
+  await step("bookRequests", async () => {
+    const a = await pool.query(
+      `DELETE FROM book_requests
+       WHERE status = 'unconfirmed' AND (expires_at < now() OR created_at < now() - interval '${RETENTION.unconfirmedRequestDays} days')`
+    );
+    const b = await pool.query(
+      `UPDATE book_requests
+       SET status = 'expired', ${CLEAR_PERSONAL_SQL}, confirm_token_hash = NULL, manage_token_hash = NULL, updated_at = now()
+       WHERE status IN ('open', 'matched', 'notified')
+         AND (expires_at < now() OR created_at < now() - interval '${RETENTION.bookRequestMonths} months')`
+    );
+    const c = await pool.query(
+      `UPDATE book_requests
+       SET ${CLEAR_PERSONAL_SQL}, confirm_token_hash = NULL, manage_token_hash = NULL
+       WHERE status IN ('fulfilled', 'cancelled', 'expired')
+         AND updated_at < now() - interval '${RETENTION.closedRequestDays} days'
+         AND (email IS NOT NULL OR name IS NOT NULL OR note IS NOT NULL OR admin_note IS NOT NULL
+              OR user_id IS NOT NULL OR manage_token_hash IS NOT NULL)`
+    );
+    const d = await pool.query("DELETE FROM book_request_list_tokens WHERE expires_at < now()");
+    return a.rowCount + b.rowCount + c.rowCount + d.rowCount;
   });
 
   // Inactive accounts: warn by email first, delete 30 days later unless
