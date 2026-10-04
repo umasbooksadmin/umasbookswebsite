@@ -1,5 +1,5 @@
 // Condition grades and binding on the public side and in the database:
-// migration 047 (remap of the old grades, default, CHECK constraints), the
+// migration 048 (remap of the old grades, default, CHECK constraints), the
 // book page (every copy with its grade, legend, binding; English and French),
 // the cart line and the public search API.
 //
@@ -45,11 +45,11 @@ async function makeBook({ title, binding = null, copies }) {
   return { id: rows[0].id, copyIds: ids };
 }
 
-// ------------------------------------------------------------- migration 047
+// ------------------------------------------------------------- migration 048
 
-test("migration 047 remaps old grades, sets the default, and locks the column to the four grades (re-runnable)", async () => {
+test("migration 048 remaps old grades, sets the default, and locks the column to the four grades (re-runnable)", async () => {
   const sql = fs.readFileSync(path.join(__dirname, "..", "..", "migrations", "048_condition_grades_and_binding.sql"), "utf8");
-  // Put the table back in its pre-047 state, with one copy of every old grade.
+  // Put the table back in its pre-048 state, with one copy of every old grade.
   await pool.query("ALTER TABLE book_copies DROP CONSTRAINT book_copies_condition_check");
   await pool.query("ALTER TABLE book_copies ALTER COLUMN condition SET DEFAULT 'good'");
   const { rows: [b] } = await pool.query("INSERT INTO books (title) VALUES ($1) RETURNING id", [`${TAG} migration`]);

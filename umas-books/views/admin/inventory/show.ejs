@@ -74,7 +74,7 @@
         <% const conditionLabel = (conditions.find(x => x.value === c.condition) || {}).label || c.condition; %>
         <% const statusLabel = (statuses.find(x => x.value === c.status) || {}).label || c.status; %>
         <li>
-          <details>
+          <details<%= typeof suggestFor !== 'undefined' && suggestFor.copyId === c.id ? ' open' : '' %>>
             <summary style="cursor:pointer;">
               <%= conditionLabel %> &middot; <%= statusLabel %><%= c.price != null ? ' · €' + Number(c.price).toFixed(2) : '' %><%= c.location ? ' · Location ' + c.location : '' %>
             </summary>
@@ -105,8 +105,17 @@
               </select>
               <label for="location-<%= c.id %>">Location</label>
               <input id="location-<%= c.id %>" name="location" type="text" list="location-options" maxlength="40" value="<%= c.location || '' %>" placeholder="Not placed yet" autocomplete="off">
-              <label for="price-<%= c.id %>">Price (&euro;)</label>
-              <input id="price-<%= c.id %>" name="price" type="number" step="0.01" min="0" value="<%= c.price != null ? c.price : '' %>">
+              <label for="source-<%= c.id %>">Source</label>
+              <select id="source-<%= c.id %>" name="source">
+                <option value="" <%= !c.source ? 'selected' : '' %>>Unknown</option>
+                <% sources.forEach(opt => { %><option value="<%= opt.value %>" <%= opt.value === c.source ? 'selected' : '' %>><%= opt.label %></option><% }) %>
+              </select>
+              <% const suggestedHere = typeof suggestFor !== 'undefined' && suggestFor.copyId === c.id ? suggestFor.suggestion : null; %>
+              <%- include('_price_control', {
+                idSuffix: '-' + c.id, mode: 'edit', copyId: c.id, suggestion: suggestedHere, priceValue: c.price,
+                suggestAction: '/admin/inventory/' + book.id + '/copies/' + c.id + '/suggest',
+                selected: c.price != null ? priceUi.keyFor(c.price, c.is_clearance) : '',
+              }) %>
               <label for="publisherPrice-<%= c.id %>">Publisher's price (prix &eacute;diteur) (&euro;)</label>
               <input id="publisherPrice-<%= c.id %>" name="publisherPrice" type="number" step="0.01" min="0" value="<%= c.publisher_price != null ? c.publisher_price : '' %>">
               <p class="muted small">Required only when the condition is New. New books must be sold at the publisher's printed price; a discount of up to 5% is allowed (French fixed book price law).</p>
@@ -122,6 +131,9 @@
                 <button class="btn btn-outline btn-small" type="submit" form="delete-copy-<%= c.id %>">Delete 1 copy</button>
               </div>
             </form>
+            <form id="use-price-<%= c.id %>" method="post" action="/admin/inventory/<%= book.id %>/copies/<%= c.id %>/use-price">
+              <%- include('../../partials/csrf_field') %>
+            </form>
             <form id="delete-copy-<%= c.id %>" method="post" action="/admin/inventory/<%= book.id %>/copies/<%= c.id %>/delete">
               <%- include('../../partials/csrf_field') %>
             </form>
@@ -133,4 +145,5 @@
 </div>
 
 <%- include('../../partials/location_options') %>
+<script src="/price-suggestion.js"></script>
 <%- include('../../partials/admin_footer') %>

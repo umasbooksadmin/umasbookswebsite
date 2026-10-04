@@ -15,6 +15,9 @@
 </head>
 <body>
 <a class="skip-link" href="#admin-main-content">Skip to main content</a>
+<% if (locals.preview) { %>
+<div class="admin-preview-note" role="status">PREVIEW MODE is ON: payments are disabled and the public site shows the coming-soon banner. Remove the PREVIEW_MODE setting in Render to launch.</div>
+<% } %>
 <div class="admin-layout">
   <div class="admin-nav-backdrop" data-close-admin-nav></div>
   <aside class="admin-sidebar" id="admin-sidebar">
@@ -34,6 +37,8 @@
       <a href="/admin/members?role=member" class="<%= active === 'members-filter' ? 'is-active' : '' %>">Members</a>
       <a href="/admin/charity" class="<%= active === 'charity' ? 'is-active' : '' %>">Charities</a>
       <a href="/admin/blog" class="<%= active === 'blog' ? 'is-active' : '' %>">Blog</a>
+      <a href="/admin/reports" class="<%= active === 'reports' ? 'is-active' : '' %>">Reports</a>
+      <a href="/admin/pricing" class="<%= active === 'pricing' ? 'is-active' : '' %>">Pricing rules</a>
       <a href="/admin/audit" class="<%= active === 'audit' ? 'is-active' : '' %>">Admin activity</a>
     </nav>
     <a class="admin-view-site" href="/" target="_blank" rel="noopener">

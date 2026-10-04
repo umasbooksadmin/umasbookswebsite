@@ -32,6 +32,8 @@ const nav = [
 <title><%= title %></title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="description" content="<%= _desc %>">
+<% if (locals.preview) { %><meta name="robots" content="noindex, nofollow">
+<% } %>
 <% if (_pageUrl) { %><link rel="canonical" href="<%= _pageUrl %>">
 <% } %><meta property="og:site_name" content="Uma's Books &amp; Adventures">
 <meta property="og:title" content="<%= title %>">

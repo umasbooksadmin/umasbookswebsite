@@ -1,0 +1,14 @@
+<%- include('../../partials/admin_header', { title: 'Reports', active: active, pageTitle: 'Reports', pageSub: 'Figures about the stock, sales and members. Each report can be downloaded as a spreadsheet (CSV). No email addresses or buyer names are shown.' }) %>
+
+<div class="card">
+  <ul class="plain">
+    <% reports.forEach(r => { %>
+      <li>
+        <a href="/admin/reports/<%= r.slug %>"><strong><%= r.title %></strong></a>
+        <div class="muted small"><%= r.summary %></div>
+      </li>
+    <% }) %>
+  </ul>
+</div>
+
+<%- include('../../partials/admin_footer') %>

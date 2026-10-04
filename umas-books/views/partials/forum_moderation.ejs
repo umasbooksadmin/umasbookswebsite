@@ -1,0 +1,32 @@
+<%# Admin-only (callers check user.isAdmin; the routes enforce requireAdmin). Admin screens stay English. Expects: kind ('thread' | 'reply'), id, hidden (bool), code, note. %>
+<% const reasonLabels = { illegal: 'Illegal content', harassment: 'Harassment', spam: 'Spam', other: 'Other' }; %>
+<div class="muted small moderation-controls">
+<% if (hidden) { %>
+  <strong>Hidden: <%= reasonLabels[code] || code %><%= note ? ' (' + note + ')' : '' %></strong>
+  <form class="stack" method="post" action="/admin/forum/restore">
+    <%- include('csrf_field') %>
+    <input type="hidden" name="kind" value="<%= kind %>">
+    <input type="hidden" name="id" value="<%= id %>">
+    <button class="btn-outline btn-small" type="submit">Restore</button>
+  </form>
+<% } else { %>
+  <details>
+    <summary>Hide this post</summary>
+    <form class="stack" method="post" action="/admin/forum/hide">
+      <%- include('csrf_field') %>
+      <input type="hidden" name="kind" value="<%= kind %>">
+      <input type="hidden" name="id" value="<%= id %>">
+      <label for="hide-reason-<%= kind %>-<%= id %>">Reason (sent to the author)</label>
+      <select id="hide-reason-<%= kind %>-<%= id %>" name="reason" required>
+        <option value="illegal">Illegal content</option>
+        <option value="harassment">Harassment</option>
+        <option value="spam">Spam</option>
+        <option value="other">Other</option>
+      </select>
+      <label for="hide-note-<%= kind %>-<%= id %>">Note to the author (optional)</label>
+      <textarea id="hide-note-<%= kind %>-<%= id %>" name="note" maxlength="500"></textarea>
+      <button class="btn-outline btn-small" type="submit">Hide this post</button>
+    </form>
+  </details>
+<% } %>
+</div>

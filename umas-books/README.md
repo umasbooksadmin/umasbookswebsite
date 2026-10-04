@@ -227,6 +227,93 @@ Account**, or by asking for a new link at `/my-requests`. Contact details are
 deleted when a request is cancelled, after 30 days once it is closed, and at
 the latest 12 months after it was made (the privacy policy says so).
 
+### Reports and selling in the shop (for volunteers)
+
+**Selling a book in the shop**
+
+1. Click **Books & Orders**, then **Sell in shop**.
+2. Scan the book's barcode (or type the ISBN) and press Enter.
+3. Check the price (it is filled in for you, and you can change it), choose how
+   it was paid, and press **Record sale** (or Enter again). The book is now
+   marked as sold, and the box for the next ISBN is ready.
+4. If there are several copies of the same book, pick the one in your hand. The
+   oldest copy is already selected.
+5. A new book must be sold at the publisher's price, with at most 5% off: the
+   page tells you if the price is outside that.
+6. The list at the bottom shows the last 10 sales. If you made a mistake, ask
+   the person who looks after the site to fix it.
+
+Books bought on the website are marked as sold automatically; do not record
+those here.
+
+**Where a book came from**
+
+When you add books, choose **Source** (donation, purchase, job lot, other).
+On the scan page it stays the same for the next books until you change it. You
+can change it later on the book's page, on each copy.
+
+**Reports**
+
+Click **Reports** in the menu. Pick a report, set the dates if it has date
+boxes (without dates it shows the last 12 months), and press **Show**. Press
+**Download CSV** under a table to open it in Excel or a similar program. The
+reports never show customers' names or email addresses. Every download is
+noted in **Admin activity**.
+
+- **Inventory on hand:** books in the shop and their value, by genre,
+  condition, place and source.
+- **Aging stock:** how long books have been on the shelves, and a list of the
+  oldest.
+- **Sales over time:** online and shop sales by day, week, month or year.
+  Drop-in class seats are shown separately.
+- **Sell-through by genre:** of the books added in a period, how many sold and
+  how fast.
+- **Membership:** members now, new members and endings per month, and renewals
+  due in the next 30 days.
+- **Intake log:** books added per month and by source, with what they cost.
+### How prices are suggested (for volunteers)
+
+When you add a book, the shop suggests a price. It is only a suggestion: you
+can always pick another price, and nothing is published until you save.
+
+- **What you see:** next to the price, a line such as *Suggested EUR 8.00
+  (range 5.00-10.00, medium confidence)* and the matching choice marked
+  *Suggested*. Click **Why this price?** to read the reasons and, when the
+  online check found them, links to the listings it used.
+- **How it works:** the price depends on what the book is worth online (what
+  used copies typically sell for), its binding, and how many copies we already
+  have. **The condition of your copy does not change the price.**
+  - A **new** book is always sold at the publisher's price (French law).
+  - **Mass market** paperbacks are EUR 5.
+  - Other books: worth under EUR 6 online = EUR 5; EUR 6 to 19.99 = EUR 8;
+    EUR 20 to 49.99 = about three quarters of the online value. **Hardcovers
+    are never under EUR 10.**
+  - If we already have **2 or more copies** of the same book (in stock or
+    reserved), the next one goes to the **clearance** bin at EUR 1 (this
+    applies to the cheaper books; see the rules page).
+  - **No ISBN, or a book worth EUR 50 or more:** no price is suggested. Look
+    at the listings and choose the price yourself; the book then shows up on
+    the **Price check** page under *Needs review* until it has a price.
+- **If the number looks wrong:** just choose another price. Set the *Binding*
+  first if you can (it changes the suggestion), then press **Suggest price**.
+  On a copy that is already saved, **Suggest price** shows the suggestion
+  without changing anything; **Use this price** puts it in the form (or saves
+  it, if your browser has JavaScript switched off). If the rules themselves
+  seem off, tell the person who looks after the shop's settings.
+- **Changing the rules:** **Pricing rules** in the admin menu shows every rule
+  in plain language with its numbers, which you can change, and a calculator
+  to try values. Changes apply straight away to new suggestions (not to prices
+  already saved) and are written to the admin activity log.
+- **Price check** (on the same page): lists copies in stock whose price differs
+  from what the rules suggest, with a **Use suggested** button for each; lists
+  the books waiting for review; and previews **clearance candidates** (books
+  with more than 2 copies whose extra copies are not on clearance yet) with a
+  button to apply clearance after you have looked at the list.
+- **Privacy:** when the online check is switched on, only the book's ISBN,
+  title, author and binding are sent to the AI service (Anthropic), to find
+  prices for that exact edition. No names, emails or anything about members or
+  customers is ever sent.
+
 ## Deploying to Render
 
 `render.yaml` at the repo root is a Render Blueprint that provisions:

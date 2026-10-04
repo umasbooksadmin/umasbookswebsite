@@ -1,0 +1,67 @@
+<%- include('../../partials/admin_header', { title: report.title, active: active, pageTitle: report.title, pageSub: report.summary }) %>
+
+<p><a href="/admin/reports">&larr; All reports</a></p>
+
+<% if (report.usesRange) { %>
+<div class="card">
+  <form class="stack" method="get" action="/admin/reports/<%= report.slug %>" style="flex-direction: row; gap: 8px; max-width: 720px; align-items: end; flex-wrap: wrap;">
+    <div>
+      <label for="from">From</label>
+      <input id="from" name="from" type="date" value="<%= query.from %>">
+    </div>
+    <div>
+      <label for="to">To</label>
+      <input id="to" name="to" type="date" value="<%= query.to %>">
+    </div>
+    <% if (report.usesGroup) { %>
+    <div>
+      <label for="group">Group by</label>
+      <select id="group" name="group">
+        <% groups.forEach(g => { %><option value="<%= g %>" <%= g === query.group ? 'selected' : '' %>><%= g.charAt(0).toUpperCase() + g.slice(1) %></option><% }) %>
+      </select>
+    </div>
+    <% } %>
+    <button class="btn" type="submit">Show</button>
+  </form>
+  <p class="muted small">Paris days. Without dates, the last 12 months are shown.</p>
+</div>
+<% } %>
+
+<% result.notes.forEach(n => { %><p class="muted small"><%= n %></p><% }) %>
+
+<% result.sections.forEach((section, idx) => { %>
+<div class="card">
+  <div class="section-title"><%= section.title %></div>
+  <% if (section.note) { %><p class="muted small"><%= section.note %></p><% } %>
+  <% if (!section.rows.length) { %>
+    <p class="muted">Nothing to show for this period.</p>
+  <% } else { %>
+    <div style="overflow-x:auto;">
+      <table class="ann-table">
+        <thead>
+          <tr>
+            <% section.columns.forEach(c => { %><th<%- ['int', 'eur', 'pct', 'dec1'].includes(c.type) ? ' style="text-align:right;"' : '' %>><%= c.label %></th><% }) %>
+          </tr>
+        </thead>
+        <tbody>
+          <% section.rows.forEach(row => { %>
+            <tr>
+              <% section.columns.forEach(c => { %><td<%- ['int', 'eur', 'pct', 'dec1'].includes(c.type) ? ' style="text-align:right;"' : '' %>><%= formatCell(row[c.key], c.type) || '–' %></td><% }) %>
+            </tr>
+          <% }) %>
+          <% if (section.totals) { %>
+            <tr>
+              <% section.columns.forEach(c => { %><td<%- ['int', 'eur', 'pct', 'dec1'].includes(c.type) ? ' style="text-align:right;"' : '' %>><strong><%= formatCell(section.totals[c.key], c.type) || '–' %></strong></td><% }) %>
+            </tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+  <p style="margin-top:12px;">
+    <a class="btn btn-outline btn-small" href="/admin/reports/<%= report.slug %>?format=csv&amp;table=<%= section.key %>&amp;from=<%= query.from %>&amp;to=<%= query.to %>&amp;group=<%= query.group %>">Download CSV</a>
+  </p>
+</div>
+<% }) %>
+
+<%- include('../../partials/admin_footer') %>

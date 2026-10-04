@@ -92,10 +92,10 @@ rather than by a numbered migration), grouped by what they belong to:
   book page (every in-stock copy is listed with its grade, plus a "What the
   grades mean" legend), the cart and the order lines/emails (`orderItemLabel`
   appends the grade, joined from the copy via `order_items.book_copy_id`).
-  Migration 047 remapped the old grades (good to very_good, fair and poor to
+  Migration 048 remapped the old grades (good to very_good, fair and poor to
   acceptable) and added a CHECK constraint. A copy that cannot be sold at all
   is not a grade: it gets the status `damaged`. `books.binding` (migration
-  047, NULL when unknown) is `hardcover`, `paperback` or `mass_market`
+  048, NULL when unknown) is `hardcover`, `paperback` or `mass_market`
   (`BINDINGS`, `normalizeBinding`); it belongs to the edition, is prefilled
   from Open Library's `physical_format` (`mapBinding` in
   `src/lib/bookLookup.js`) and never overwritten by a second copy.
@@ -133,6 +133,59 @@ rather than by a numbered migration), grouped by what they belong to:
   requester's `lang`. Personal columns are cleared on cancel, expiry, erasure
   and by the daily purge (unconfirmed after 7 days, open/matched/notified at 12 months,
   ended ones after 30 days); the data export has a `book_requests` section.
+- **Copy source** — `book_copies.source` (migration 045) is `donation`,
+  `purchase`, `lot`, `other` or NULL (unknown; all copies from before). Chosen
+  at intake (a select next to the location on the scan page, carried through
+  the scan loop like the location, plus `inventory-location.js` for a page
+  reload) and editable on the copy; `SOURCES` / `normalizeSource` in
+  `src/lib/inventory.js`; the table has a CHECK constraint.
+- **In-shop sales** — `shop_sales` (migration 046): one row per copy sold over
+  the counter (price, `sold_at`, `sold_by` admin id, payment method; no buyer
+  data). `/admin/inventory/sell` (scan an ISBN, pick the copy, record) locks
+  the copy `FOR UPDATE`, refuses anything not `in_stock`/`reserved`, applies
+  the new-book price rule via `resolveCopyPricing`, inserts the sale and sets
+  the copy `sold` (clearing reservation contact fields) in ONE transaction,
+  then writes a `copy.shop_sale` audit row (price only).
+- **Reports** — `/admin/reports` (`src/routes/admin/reports.js`, SQL in
+  `src/lib/reports.js`, views `views/admin/reports/`): inventory on hand,
+  aging stock, sales over time (online paid orders by `orders.paid_at` + shop
+  sales; drop-in seats in a separate table), sell-through by genre,
+  membership, intake log. Read-only aggregate queries (no N+1, LIMITs on every
+  list, Paris day boundaries computed in SQL), `requireAdmin` throughout, no
+  member emails or buyer names. `?format=csv&table=<section>` (or a `.csv`
+  suffix) downloads a section: UTF-8 BOM, quoted text, cells starting with
+  `= + - @` get a leading apostrophe; each download writes a `report.csv`
+  audit row (slug only). Definitions: a copy is "sold" when its status is
+  `sold`; its sold date is the shop sale, else the paid order's `paid_at`
+  (copies marked sold by hand have no date and are left out of "days to
+  sell"); age is counted from `acquired_at`, else the day the row was created.
+
+- **Suggested prices** — `src/lib/pricing/` (migrations 053, 054). Prices are
+  only ever *suggestions*; a volunteer accepts or changes them and nothing is
+  published automatically. `rules.js` is the pure rules engine (no network,
+  no database; the order of checks is written at its top): new = publisher
+  price; no ISBN = manual review; mass market = EUR 5; online value M (median
+  of used listings in EUR, outliers trimmed; else publisher price x 0.35; else a
+  typical value by binding) under 6 = Rule A (EUR 5), under 20 = Rule B (EUR
+  8), under 50 = Rule C (75% of M, rounded to 0.50), 50 or more = manual
+  review; hardcovers never below EUR 10; clearance (EUR 1) when 2+ copies of
+  the book are already in stock (Rule A / mass market, by default). The
+  copy's condition never changes the price. Every number is a setting in
+  `pricing_settings` (single row, `settings.js`, 60 s cache) edited at
+  `/admin/pricing` (audit `pricing.settings`, changed keys only).
+  `market.js` is the optional AI market check (Anthropic Messages API with the
+  web search tool, same call pattern as `bookDescription.js`): off by default,
+  fails open, 12 s timeout, results cached 30 days per ISBN-13 in
+  `price_lookups`, daily cap counted from that table. `index.js` combines the
+  two (`suggestPrice`, never throws); `forms.js`/`intake.js` are the glue to the
+  admin forms; `clearance.js` counts copies and lists candidates. The add-book
+  and copy forms use `public/price-suggestion.js` against
+  `GET /admin/inventory/price-suggestion` (30 a minute per admin); what was
+  suggested is stored on the copy (`suggested_price`, `suggested_level`,
+  `price_basis`), and `is_clearance` marks clearance copies (shown to the public
+  as a badge). `/admin/pricing/review` is the price check (copies that differ
+  from the suggestion, copies needing review, clearance candidates; audit
+  `copy.reprice`).
 - **Accounts & auth** — `users`, `password_reset_tokens`,
   `email_verification_tokens`
 - **Shop / checkout** — `books`, `book_copies`, `orders`, `order_items`
@@ -157,6 +210,19 @@ rather than by a numbered migration), grouped by what they belong to:
   Authorized payment, never merely because the fuzzy search omitted it.
 - **Community** — `forum_threads`, `forum_replies`, `announcements`,
   `blog_posts`, `favorites`
+- **Forum moderation** — members report a post (`POST /forum/report`: emailed
+  to the admin address, nothing stored). An admin sees extra controls on the
+  thread page (`user.isAdmin`) and can hide or restore a thread or reply
+  (`POST /admin/forum/hide|restore`, `src/routes/admin/forum.js`, migration 044:
+  `hidden_at`, `hidden_reason` = reason code plus optional ": note", `hidden_by`).
+  The text stays in the row. `routes/forum.js` blanks hidden rows for members
+  (the views show the "removed by the moderators" placeholder; a hidden first
+  post hides the whole thread and its replies, and members cannot reply to
+  it); admins see the original marked "Hidden: reason" with Restore. Hiding
+  emails the author a statement of reasons (EU DSA art. 17, `lib/forumModeration.js`,
+  author's `users.lang`, skipped if the account is gone, a failed send never
+  blocks the hide) and writes `forum.hide` / `forum.restore` to the audit log
+  with the kind and reason code only.
 - **Charity vote** — `charity_rounds`, `charity_options`,
   `charity_votes`, `charities` (a reusable library), `charity_ideas`
   (member-submitted, admin-reviewed)
@@ -186,13 +252,39 @@ src/` is the ground truth if this list ever drifts):
 | `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` | `SEED_ADMIN_PASSWORD` required the first time `npm run seed` creates an admin | one-time bootstrap of the first admin account |
 | `ANTHROPIC_API_KEY` | no | powers inventory photo-scan and auto-generated book descriptions |
 | `ANTHROPIC_WORKSPACE_ID` | no | optional workspace header on Anthropic API calls |
+| `PRICING_AI` | no (off unless `1` or `true`) | turns on the AI market check behind price suggestions (also needs `ANTHROPIC_API_KEY`); without it prices come from the built-in rules only |
+| `PRICING_AI_MODEL` | no (defaults to the model used for book descriptions) | model for the market check; it must support the web search tool |
+| `PRICING_AI_DAILY_MAX` | no (defaults 150) | most AI market lookups per day, counted from the database so a restart cannot reset it; `0` switches lookups off |
 | `HELLOASSO_CLIENT_ID` / `HELLOASSO_CLIENT_SECRET` / `HELLOASSO_ORG_SLUG` | no (checkout shows "not set up yet" without them) | HelloAsso Checkout API credentials |
 | `HELLOASSO_API_BASE` | no (defaults to production) | set to HelloAsso's sandbox URL for testing |
+| `PREVIEW_MODE` | no (off when unset) | `true` or `1` (any case) turns on [preview mode](#preview-mode): coming-soon banner, payments off, search engines kept out. Set in the Render dashboard, not in `render.yaml` |
 
 CI (`.github/workflows/ci.yml`) has its own separate set of throwaway
 values for these (a Postgres service container, a dummy
 `SESSION_SECRET`, etc.) — see that file, not this table, for what CI
 actually uses.
+
+## Preview mode
+
+- **Preview mode** (`PREVIEW_MODE=true`, parsed by `isPreviewMode()` in
+  `src/lib/preview.js`; a middleware mounted first in `src/index.js` sets
+  `res.locals.preview`) is for showing the site, with sample data only, before
+  it opens. Off by default. While on:
+  - every customer page shows a bilingual banner (`views/partials/preview_banner.ejs`,
+    included by `partials/mkt_chrome_header.ejs`; marketing pages also get the strings
+    in `assets/site.js` COMMON `preview.*`), linking to `/contact?topic=feedback`
+    (the contact form then offers a "Feedback on the preview" topic);
+  - payments are off: the cart shows a notice instead of the checkout form,
+    `POST /cart/checkout` answers 403 before locking or creating anything
+    (drop-in seats use the same route), and the membership page shows
+    "Membership opens at launch" instead of the HelloAsso widget. The webhook
+    and reconcile jobs are untouched (no payment can start);
+  - search engines are kept out: `X-Robots-Tag: noindex, nofollow` on every
+    response, a robots meta tag, `/robots.txt` disallowing everything and an
+    empty `/sitemap.xml`;
+  - the admin header shows a red reminder that preview mode is on.
+- To launch, delete the variable in Render: see the runbook, "Launching: turn
+  preview mode off".
 
 ## Process lifecycle and operations
 
@@ -259,6 +351,9 @@ others. `lib/totp.js` (hand-rolled on `node:crypto`), `routes/twoFactor.js`
   first (`users.inactivity_warned_at`), deleted 30 days later unless they log
   in, which clears the warning (any signed-in request also counts as
   activity: `attachUser` refreshes `last_login_at` at most once a day).
+  `orders.client_ip` (kept only for the checkout abuse caps in `routes/cart.js`)
+  is set to NULL when an order leaves `pending` (`lib/cart.js`), by the purge
+  after 2 days (`clientIpDays`) and by `eraseMember`.
   Contact details on `book_copies` that are no longer reserved (sold or
   cancelled) and on `expired`/`cancelled` orders are removed after 30 days.
   The warning email is claimed (`inactivity_warned_at` set) before it is

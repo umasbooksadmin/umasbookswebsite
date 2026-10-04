@@ -203,7 +203,8 @@ router.get("/api/books/search", async (req, res) => {
     `SELECT b.id, b.title, b.authors, b.cover_url,
             (SELECT MIN(price) FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock') AS min_price,
             (SELECT array_agg(DISTINCT c.condition) FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock') AS conditions,
-            b.binding
+            b.binding,
+            EXISTS (SELECT 1 FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock' AND c.is_clearance) AS clearance
      FROM books b
      WHERE EXISTS (SELECT 1 FROM book_copies c WHERE c.book_id = b.id AND ${clauses.join(" AND ")})
      ORDER BY b.title ASC LIMIT 60`,
@@ -220,6 +221,7 @@ router.get("/api/books/search", async (req, res) => {
       conditions: CONDITIONS.filter((c) => (b.conditions || []).includes(c.value)).map((c) => ({ value: c.value, label: c.label })),
       binding: b.binding || null,
       bindingLabel: bindingLabel(b.binding, "en"),
+      clearance: b.clearance === true,
       url: `${baseUrl(req)}/books/${b.id}`,
     }))
   );

@@ -30,6 +30,7 @@
       <% const minPrice = Math.min(...copies.map(c => c.price != null ? Number(c.price) : Infinity)); %>
       <div class="book-detail-price">
         <% if (isFinite(minPrice)) { %>&euro;<%= minPrice.toFixed(2) %><% } %>
+        <% if (copies.some(c => c.is_clearance)) { %><span class="clearance-badge"><%= tr('Clearance', 'Déstockage') %></span><% } %>
       </div>
 
       <div class="availability-box">
@@ -51,7 +52,7 @@
             <% copies.forEach(c => { %>
               <tr>
                 <td><span class="condition-badge condition-<%= c.condition %>"><%= conditionLabel(c.condition) %></span></td>
-                <td><%= c.price != null ? '€' + Number(c.price).toFixed(2) : '' %></td>
+                <td><%= c.price != null ? '€' + Number(c.price).toFixed(2) : '' %><% if (c.is_clearance) { %> <span class="clearance-badge"><%= tr('Clearance', 'Déstockage') %></span><% } %></td>
                 <td>
                   <form method="post" action="/cart/add">
                     <%- include('partials/csrf_field') %>

@@ -8,6 +8,7 @@
   <input id="title" name="title" type="text" required>
   <label for="body"><%= tr('Message', 'Message') %></label>
   <textarea id="body" name="body" required></textarea>
+  <%- include('partials/privacy_note', { en: 'Your post is visible to other members and shows your name. See our', fr: 'Votre message est visible des autres membres et affiche votre nom. Consultez notre' }) %>
   <button class="btn" type="submit"><%= tr('Post', 'Publier') %></button>
 </form>
 

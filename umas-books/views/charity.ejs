@@ -77,6 +77,7 @@
       <textarea id="idea-description" name="description"></textarea>
       <label for="idea-website"><%= tr('Website (optional)', 'Site web (facultatif)') %></label>
       <input id="idea-website" name="websiteUrl" type="text" placeholder="https://">
+      <%- include('partials/privacy_note', { en: 'Your idea is linked to your account and reviewed by our administrators. See our', fr: 'Votre proposition est liée à votre compte et examinée par nos administrateurs. Consultez notre' }) %>
       <button class="btn" type="submit"><%= tr('Submit Idea', 'Envoyer ma proposition') %></button>
     </form>
 

@@ -86,4 +86,4 @@ async function translateDescriptionToFrench(englishText) {
   return callClaude(prompt, { maxTokens: 250, label: "AI description (French)" });
 }
 
-module.exports = { generateBookDescription, translateDescriptionToFrench };
+module.exports = { generateBookDescription, translateDescriptionToFrench, TEXT_MODEL };

@@ -104,7 +104,7 @@ test("search: CORS headers and result shape; only in-stock books; price is the c
   assert.equal(res.headers.get("cross-origin-resource-policy"), "cross-origin");
   assert.equal(res.headers.get("cache-control"), "public, max-age=60");
   const hit = json.find((x) => x.id === b.id);
-  assert.deepEqual(hit, { id: b.id, title: b.title, author: "Some Author", coverUrl: "/c.png", price: 4.5, conditions: [{ value: "very_good", label: "Very Good" }], binding: null, bindingLabel: null, url: `${app.base}/books/${b.id}` });
+  assert.deepEqual(hit, { id: b.id, title: b.title, author: "Some Author", coverUrl: "/c.png", price: 4.5, conditions: [{ value: "very_good", label: "Very Good" }], clearance: false, binding: null, bindingLabel: null, url: `${app.base}/books/${b.id}` });
   assert.ok(!json.some((x) => x.id === gone.id), "books with no in-stock copy are hidden");
 });
 
