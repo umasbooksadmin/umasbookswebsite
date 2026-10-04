@@ -1,0 +1,48 @@
+<%- include('partials/header', { noindex: true, title: tr('My book requests', 'Mes demandes de livres') }) %>
+
+<h1><%= tr('My book requests', 'Mes demandes de livres') %></h1>
+<% if (state === 'form') { %>
+  <% if (notice === 'bad-email') { %><div role="alert" class="error-box"><%= tr('Please enter one valid email address.', 'Veuillez saisir une seule adresse e-mail valide.') %></div><% } %>
+  <p class="muted"><%= tr('Enter the email address you used and we will send you a private link to see and cancel your requests.', "Saisissez l'adresse e-mail utilisée et nous vous enverrons un lien privé pour voir et annuler vos demandes.") %></p>
+  <form class="stack" method="post" action="/my-requests">
+    <%- include('partials/csrf_field') %>
+    <label for="mr-email"><%= tr('Your email', 'Votre e-mail') %></label>
+    <input id="mr-email" name="email" type="email" autocomplete="email" maxlength="200" required value="<%= typeof email !== 'undefined' ? email : '' %>">
+    <button class="btn" type="submit"><%= tr('Send me the link', 'Envoyez-moi le lien') %></button>
+  </form>
+  <p class="muted small"><a href="/request-a-book"><%= tr("Can't find a book? Ask us", 'Vous ne trouvez pas un livre ? Demandez-nous') %></a></p>
+<% } else if (state === 'sent') { %>
+  <div role="status" class="notice-box"><%= tr('If requests exist for that address, we have sent you a link. It works for 30 days. Check your spam folder if nothing arrives.', "Si des demandes existent pour cette adresse, nous vous avons envoyé un lien. Il est valable 30 jours. Vérifiez vos courriers indésirables si rien n'arrive.") %></div>
+  <p class="muted small"><a href="/books.html"><%= tr('Back to browsing books', 'Retour aux livres') %></a></p>
+<% } else if (state === 'limited') { %>
+  <div role="alert" class="error-box"><%= tr('Too many attempts from this connection. Please try again in an hour, or email admin@umasbooks.org.', 'Trop de tentatives depuis cette connexion. Veuillez réessayer dans une heure, ou écrire à admin@umasbooks.org.') %></div>
+<% } else if (state === 'invalid') { %>
+  <div role="alert" class="error-box"><%= tr('This link is not valid any more (links work for 30 days).', "Ce lien n'est plus valable (les liens sont valables 30 jours).") %></div>
+  <p class="muted small"><a href="/my-requests"><%= tr('Send me a new link', 'Envoyez-moi un nouveau lien') %></a></p>
+<% } else { %>
+  <% if (notice === 'cancelled') { %><div role="status" class="notice-box"><%= tr('Done. Cancelled requests no longer hold your email address.', "C'est fait. Les demandes annulées ne conservent plus votre adresse e-mail.") %></div><% } %>
+  <% if (!requests.length) { %>
+    <p class="muted"><%= tr('You have no active book requests.', "Vous n'avez aucune demande de livre en cours.") %></p>
+  <% } else { %>
+    <ul class="plain">
+      <% requests.forEach(function (r) { %>
+        <li>
+          <div class="order-row">
+            <strong><%= r.title %></strong><% if (r.author) { %> <span class="muted">&middot; <%= r.author %></span><% } %>
+            <%- include('partials/request_status', { status: r.status }) %>
+          </div>
+          <form method="post" action="/my-requests/list/<%= token %>/cancel/<%= r.id %>">
+            <%- include('partials/csrf_field') %>
+            <button class="btn btn-outline btn-small" type="submit"><%= tr('Cancel', 'Annuler') %></button>
+          </form>
+        </li>
+      <% }) %>
+    </ul>
+    <form class="stack" method="post" action="/my-requests/list/<%= token %>/cancel-all">
+      <%- include('partials/csrf_field') %>
+      <button class="btn btn-outline" type="submit"><%= tr('Cancel all', 'Tout annuler') %></button>
+    </form>
+  <% } %>
+<% } %>
+
+<%- include('partials/footer') %>

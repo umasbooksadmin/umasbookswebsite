@@ -43,6 +43,7 @@ const blogRoutes = require("./routes/blog");
 const sessionsRoutes = require("./routes/sessions");
 const booksRoutes = require("./routes/books");
 const contactRoutes = require("./routes/contact");
+const bookRequestRoutes = require("./routes/bookRequests");
 const cartRoutes = require("./routes/cart");
 const helloassoWebhookRoutes = require("./routes/helloassoWebhook");
 const adminRoutes = require("./routes/admin");
@@ -331,6 +332,7 @@ app.use(sessionsRoutes);
 app.use(booksRoutes);
 app.use(cartRoutes);
 app.use(contactRoutes);
+app.use(bookRequestRoutes);
 app.use(adminRoutes);
 
 app.use((req, res) => {

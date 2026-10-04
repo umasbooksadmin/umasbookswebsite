@@ -1,0 +1,21 @@
+<%- include('partials/header', { noindex: true, title: tr('Confirm your book request', 'Confirmer votre demande de livre') }) %>
+
+<h1><%= tr('Confirm your book request', 'Confirmer votre demande de livre') %></h1>
+<% if (state === 'ask') { %>
+  <p class="muted"><%= tr('Press the button to confirm that you would like us to look out for:', 'Appuyez sur le bouton pour confirmer que vous souhaitez que nous cherchions :') %></p>
+  <div class="card">
+    <strong><%= request.title %></strong><% if (request.author) { %> <span class="muted">&middot; <%= request.author %></span><% } %>
+  </div>
+  <form class="stack" method="post" action="/request-a-book/confirm/<%= token %>">
+    <%- include('partials/csrf_field') %>
+    <button class="btn" type="submit"><%= tr('Confirm my request', 'Confirmer ma demande') %></button>
+  </form>
+<% } else if (state === 'done') { %>
+  <div role="status" class="notice-box"><%= tr("Thank you, your request is confirmed. We'll email you if a copy arrives. You can cancel at any time with the link in our emails.", "Merci, votre demande est confirmée. Nous vous écrirons si un exemplaire arrive. Vous pouvez l'annuler à tout moment avec le lien présent dans nos e-mails.") %></div>
+  <p class="muted small"><a href="/books.html"><%= tr('Back to browsing books', 'Retour aux livres') %></a></p>
+<% } else { %>
+  <div role="alert" class="error-box"><%= tr("This link is not valid any more. It may have expired (links work for 7 days) or already been used. If you already confirmed your request, you are all set; otherwise please send the request again.", "Ce lien n'est plus valable. Il a peut-être expiré (les liens sont valables 7 jours) ou déjà été utilisé. Si vous avez déjà confirmé votre demande, tout est en ordre ; sinon, veuillez refaire la demande.") %></div>
+  <p class="muted small"><a href="/request-a-book"><%= tr('Make a new request', 'Faire une nouvelle demande') %></a></p>
+<% } %>
+
+<%- include('partials/footer') %>
