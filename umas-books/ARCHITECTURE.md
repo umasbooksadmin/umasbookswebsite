@@ -261,16 +261,18 @@ rather than by a numbered migration), grouped by what they belong to:
   an admin creates are verified immediately, justified because the invite
   link must be clicked from that same inbox to set a password.
 - **Account pre-hijack defence** (migration 055, `users.first_verification_pending`,
-  set only by `POST /signup`): a self-signup account cannot log in until its
-  email is confirmed, and its first confirmation through `GET /verify-email/:token`
-  discards the signup password (random unusable hash), bumps `password_changed_at`
-  (all sessions die) and redirects to `/reset-password/:token?confirmed=1`, a
-  fresh single-use token, so only the mailbox owner chooses the password. The
-  membership sync waits for that choice. `POST /resend-verification` is neutral
-  and rate limited. Admin-created, grandfathered (032) and admin-email-changed
-  accounts are unflagged: they keep their password and just become verified.
-  Migration 055 also flags any account still unverified when it ran. Reasoning
-  is in the comment above the verify route in `src/routes/auth.js`.
+  set only by `POST /signup`): signup collects **no password** (the account gets
+  a random unusable hash and cannot log in). The emailed link
+  (`GET /verify-email/:token`) verifies the email, bumps `password_changed_at`
+  and redirects to `/reset-password/:token?confirmed=1`, a fresh single-use
+  token, where the person chooses their password (policy and breach check
+  apply); they then land on `/login?reset=confirmed`. So only the mailbox owner
+  can ever set a password. The membership sync waits for that choice.
+  `POST /resend-verification` is neutral and rate limited. Admin-created,
+  grandfathered (032) and admin-email-changed accounts are unflagged and keep
+  their password. Still-unconfirmed accounts from the old password-at-signup form
+  follow the same rules (migration 055 flagged them). Reasoning is in the comment
+  above the verify route in `src/routes/auth.js`.
 - **Membership** — `membership_payments` (HelloAsso payment records,
   matched to a `users` row by verified email — see
   `src/lib/membership.js`). The sync also re-runs (in the background)
@@ -462,6 +464,29 @@ others. `lib/totp.js` (hand-rolled on `node:crypto`), `routes/twoFactor.js`
   says they are kept until the sender asks us to delete them), and server
   logs sit with Render. Log lines never contain emails.
 
+
+## Clearing test data before launch
+
+`npm run clear-test-data` (`scripts/clear-test-data.js`, logic in
+`src/lib/clearTestData.js`, tests in `test/integration/clearTestData.test.js`;
+steps for the maintainer in `docs/runbook.md`) removes test data from the
+database. Layers: dry run by default (the whole job runs in a transaction that is
+rolled back, so its counts are exact); a real run needs `--execute`,
+`--confirm "DELETE TEST DATA FROM <db name>"` and `--i-have-a-backup`; refused
+unless `PREVIEW_MODE` is on (`--allow-live` overrides); unknown flags refused;
+one transaction of plain `DELETE`s in foreign-key order (no `TRUNCATE ... CASCADE`);
+sanity checks (admins, 2FA, recovery codes, `pricing_settings`, `schema_migrations`,
+kept content unchanged) roll back on any difference; sequences are restarted only
+for tables left empty.
+
+**Every table must be classified** in `TABLES` (`shop`, `people`, `logs`, `content`,
+`kept`). The script refuses to run on a database with an unclassified table and a
+test fails when a migration adds one, so a new table cannot be forgotten: when you
+add a table, classify it there and, if it holds rows to delete, add it to
+`buildPlan()` in foreign-key order. Always kept: admin users (with 2FA and recovery
+codes), their sessions, `pricing_settings`, `schema_migrations`.
+Content is kept unless `--include-content`; non-admin accounts are kept with
+`--keep-members`.
 
 ## Languages
 

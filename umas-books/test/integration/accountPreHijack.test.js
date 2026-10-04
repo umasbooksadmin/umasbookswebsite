@@ -17,7 +17,9 @@ const db = prepareDatabase("prehijack");
 const mailer = require("../../src/mailer");
 const sent = [];
 mailer.sendMail = async (opts) => { sent.push(opts); };
-require("../../src/lib/passwordPolicy").validateNewPassword = async () => null;
+// No HaveIBeenPwned call from tests: a stand-in that still rejects short passwords,
+// so we can see the reset page applies the policy (the real rules have unit tests).
+require("../../src/lib/passwordPolicy").validateNewPassword = async (pw) => (pw.length < 8 ? "Password must be at least 8 characters." : null);
 const helloasso = require("../../src/lib/helloasso");
 let orders = [];
 helloasso.isConfigured = () => true;
@@ -67,7 +69,21 @@ function request(path, { method = "GET", body, lang, jar } = {}) {
     body: body ? new URLSearchParams(body).toString() : undefined,
   });
 }
-const signup = (email, password, lang) => request("/signup", { method: "POST", body: { email, password, displayName: "Test Person" }, lang });
+// Signup collects no password: a "password" sent anyway is ignored.
+const signup = (email, password, lang) => request("/signup", { method: "POST", body: { email, ...(password ? { password } : {}), displayName: "Test Person" }, lang });
+// An account as the previous signup form created it (attacker's own password,
+// still waiting for its first confirmation): same rules must still hold.
+async function legacyPendingSignup(email, password) {
+  await pool.query(
+    "INSERT INTO users (email, password_hash, display_name, first_verification_pending) VALUES ($1, $2, 'Legacy', TRUE)",
+    [email, await bcrypt.hash(password, 4)]
+  );
+  const { rows } = await pool.query("SELECT id FROM users WHERE email = $1", [email]);
+  const raw = require("crypto").randomBytes(16).toString("hex");
+  await pool.query("INSERT INTO email_verification_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, now() + interval '1 hour')",
+    [rows[0].id, require("crypto").createHash("sha256").update(raw).digest("hex")]);
+  sent.push({ to: email, text: `https://x.test/verify-email/${raw}` });
+}
 const login = (email, password, lang) => request("/login", { method: "POST", body: { email, password }, lang });
 
 // The link in the most recent mail to `email` (the mailer is stubbed).
@@ -78,11 +94,11 @@ async function linkFor(email, kind) {
 }
 const userRow = async (email) => (await pool.query("SELECT * FROM users WHERE email = $1", [email])).rows[0];
 
-test("attacker scenario end to end: no session before verification, attacker's password dies when the victim verifies", async () => {
+test("account created by the old signup form (attacker's own password): no session before verification, password dies when the victim verifies", async () => {
   const victim = `victim-${uniq()}@example.test`;
 
-  // 1. Attacker signs up with the victim's email and their own password.
-  assert.equal((await signup(victim, ATTACKER_PW)).status, 200);
+  // 1. Attacker signed up with the victim's email and their own password.
+  await legacyPendingSignup(victim, ATTACKER_PW);
   const verifyPath = await linkFor(victim, "verify-email");
   const before = await userRow(victim);
   assert.equal(before.email_verified_at, null);
@@ -128,6 +144,42 @@ test("attacker scenario end to end: no session before verification, attacker's p
   assert.equal((await request(resetPath.split("?")[0], { method: "POST", body: { newPassword: "Another-One-3#" } })).status, 400);
 });
 
+test("attacker scenario with the new signup: the attacker can set no password before the mailbox owner clicks", async () => {
+  const victim = `victim-new-${uniq()}@example.test`;
+  const page = await (await request("/signup")).text();
+  assert.ok(!/name="password"/.test(page), "the signup form asks for no password");
+
+  // Attacker tries anyway, sending a password field.
+  assert.equal((await signup(victim, ATTACKER_PW)).status, 200);
+  const verifyPath = await linkFor(victim, "verify-email");
+  const row = await userRow(victim);
+  assert.equal(row.email_verified_at, null);
+  assert.equal(row.first_verification_pending, true);
+  assert.equal(await bcrypt.compare(ATTACKER_PW, row.password_hash), false, "the sent password was never stored");
+  const early = await login(victim, ATTACKER_PW);
+  assert.equal(early.status, 401);
+  assert.equal(early.headers.get("set-cookie"), null);
+
+  // The mailbox owner confirms and chooses; only then does a password exist.
+  const resetPath = (await request(verifyPath)).headers.get("location");
+  assert.equal((await login(victim, ATTACKER_PW)).status, 401);
+  assert.equal((await request(resetPath, { method: "POST", body: { newPassword: VICTIM_PW } })).status, 302);
+  assert.equal((await login(victim, ATTACKER_PW)).status, 401);
+  assert.equal((await login(victim, VICTIM_PW)).status, 302);
+});
+
+test("the password chosen after confirming still goes through the password policy", async () => {
+  const email = `policy-${uniq()}@example.test`;
+  await signup(email);
+  const resetPath = (await request(await linkFor(email, "verify-email"))).headers.get("location");
+  const weak = await request(resetPath, { method: "POST", body: { newPassword: "abc" } });
+  assert.equal(weak.status, 400);
+  assert.match(await weak.text(), /at least 8 characters/);
+  assert.equal((await login(email, "abc")).status, 401);
+  // A rejected password doesn't burn the link.
+  assert.equal((await request(resetPath, { method: "POST", body: { newPassword: VICTIM_PW } })).status, 302);
+});
+
 test("membership attaches only after the victim has chosen the password", async () => {
   const victim = `member-victim-${uniq()}@example.test`;
   orders = [{ id: Math.floor(Math.random() * 1e9), payer: { email: victim }, payments: [{ state: "Authorized" }], amount: { total: 3000 }, date: new Date().toISOString() }];
@@ -147,12 +199,15 @@ test("legitimate signup works in English and French: confirm, choose a password,
   for (const lang of ["en", "fr"]) {
     const email = `legit-${lang}-${uniq()}@example.test`;
     assert.equal((await signup(email, ATTACKER_PW, lang)).status, 200);
-    // Before confirming: login says so (in the visitor's language) and offers a resend.
-    const early = await login(email, ATTACKER_PW, lang);
-    assert.equal(early.status, 403);
-    const earlyBody = await early.text();
-    assert.match(earlyBody, lang === "fr" ? /confirmer votre adresse e-mail/ : /confirm your email first/);
-    assert.match(earlyBody, /action="\/resend-verification"/);
+    // No password exists yet; the login page offers the link again, in the visitor's language.
+    assert.equal((await login(email, ATTACKER_PW, lang)).status, 401);
+    const loginPage = await (await request("/login", { lang })).text();
+    assert.match(loginPage, /action="\/resend-verification"/);
+    assert.match(loginPage, lang === "fr" ? /Renvoyer le lien de confirmation/ : /Send me the confirmation link again/);
+    // The signup mail says what the link is for.
+    const mail = sent.filter((m) => m.to === email).pop();
+    assert.match(mail.subject, lang === "fr" ? /Confirmez votre adresse e-mail et choisissez votre mot de passe/ : /Confirm your email and choose your password/);
+    assert.match(mail.text, lang === "fr" ? /confirmer votre adresse e-mail et choisir votre mot de passe/ : /confirm your email address and choose your password/);
 
     const verifyPath = await linkFor(email, "verify-email");
     const click = await request(verifyPath, { lang });
@@ -194,8 +249,8 @@ test("admin-created and grandfathered (already verified) accounts are unaffected
 
 test("password reset still verifies the email and lifts the sign-in block", async () => {
   const email = `reset-verifies-${uniq()}@example.test`;
-  await signup(email, ATTACKER_PW);
-  assert.equal((await login(email, ATTACKER_PW)).status, 403);
+  await signup(email);
+  assert.equal((await login(email, ATTACKER_PW)).status, 401);
   await request("/forgot-password", { method: "POST", body: { email } });
   const resetPath = await linkFor(email, "reset-password");
   assert.equal((await request(resetPath, { method: "POST", body: { newPassword: VICTIM_PW } })).status, 302);

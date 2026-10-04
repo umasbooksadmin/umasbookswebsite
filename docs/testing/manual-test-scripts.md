@@ -451,7 +451,7 @@ Two-step verification is **always required** for admins on the real site.
 ## Reset after testing
 
 - **Test accounts and orders:** delete throwaway accounts from **Accounts** > the person > **Erase Member**; cancel your own open book requests (**My book requests**).
-- **Test books, orders, forum posts, sample data:** **TODO.** There is no clearing script or written procedure yet. The runbook launch checklist (section g, item "Sample and test data removed") says so itself: "a placeholder to agree on a procedure before launch". Until it exists, ask the developer to clear test data before launch, and do not launch with test orders or test accounts in the shop.
+- **Test books, orders, forum posts, sample data:** run the clearing script: runbook section g, "Clearing the test data" (`npm run clear-test-data`: back up first, dry run first, then the real run). It removes the shop, all non-admin accounts and their data, and the audit log, and keeps admins, pricing rules and (unless told otherwise) content. Do not launch with test orders or test accounts in the shop.
 - **Preview mode:** put `PREVIEW_MODE` back on (runbook section g, "Turning it on again") whenever the site holds test data again, and at launch the runbook checklist says `HELLOASSO_API_BASE` must be unset or the production address, **not** the sandbox one, so switch it back (and the HelloAsso keys to the live ones) only when you are ready to launch.
 - **Emails:** delete the test emails from the shop mailbox.
 

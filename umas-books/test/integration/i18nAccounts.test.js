@@ -196,13 +196,13 @@ test("French server messages: wrong password, notices, forgot-password, change p
   assert.match(done.text, /Mot de passe mis à jour\./);
 });
 
-test("signup in French: French notice and password errors, the account keeps the chosen language", async () => {
+test("signup in French: French notice and form copy, the account keeps the chosen language", async () => {
   const jar = makeCookieJar();
   const missing = await post(jar, "/signup", { email: "", password: "", displayName: "" }, "fr");
   assert.equal(missing.res.status, 400);
   assert.match(missing.text, /Tous les champs sont obligatoires\./);
-  const short = await post(jar, "/signup", { email: "a@example.test", password: "Ab1!", displayName: "Ana" }, "fr");
-  assert.match(short.text, /Le mot de passe doit contenir au moins 8 caractères\./);
+  const form = await post(jar, "/signup", { email: "", displayName: "" }, "fr");
+  assert.match(form.text, /Nous vous enverrons par e-mail un lien pour confirmer votre adresse et choisir votre mot de passe\./);
 
   const email = `afr-signup-${uniq()}@example.test`;
   const ok = await post(jar, "/signup", { email, password: "Correct-Horse-1", displayName: "Ana" }, "fr");
@@ -217,6 +217,8 @@ test("signup in French: French notice and password errors, the account keeps the
   const created = (await pool.query("SELECT id, email, display_name, lang FROM users WHERE email = $1", [email])).rows[0];
   await sendVerificationEmail(created, "https://shop.test");
   assert.match(sent[before].subject, /^Confirmez votre adresse e-mail/);
+  await sendVerificationEmail(created, "https://shop.test", { choosePassword: true });
+  assert.match(sent[before + 1].subject, /^Confirmez votre adresse e-mail et choisissez votre mot de passe/);
 });
 
 test("inactivity warning is sent in the account's language", async () => {
