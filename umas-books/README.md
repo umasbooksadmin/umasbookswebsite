@@ -528,6 +528,7 @@ locked-out admin, who gets alerts, the yearly checklist) are in
 - Passwords hashed with bcrypt (cost 12); reset tokens are 256-bit random,
   only a SHA-256 hash is ever stored, single-use, 1-hour expiry.
 - Session cookies are `httpOnly`, `secure` in production, `SameSite=Lax`.
+- CSP `form-action` lists the HelloAsso payment hosts (`src/lib/helloassoHosts.js`; sandbox hosts only when `HELLOASSO_API_BASE` is the sandbox) because Chrome enforces `form-action` on the redirect after a form POST, so `/cart/checkout`'s 302 to HelloAsso would otherwise be blocked.
 - **CSRF protection** — every form carries a per-session token
   (`src/middleware/csrf.js`); any POST without a matching token is
   rejected with 403. New forms must include

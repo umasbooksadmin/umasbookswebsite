@@ -45,7 +45,9 @@ test("/membership.html CSP allows the HelloAsso widget frame, and only that", as
 test("the app's own (non-marketing) CSP does not gain a HelloAsso frame-src", async () => {
   const res = await fetch(`${app.base}/login`);
   const csp = res.headers.get("content-security-policy") || "";
-  assert.ok(!csp.includes("helloasso"), csp);
+  // (form-action does list HelloAsso's payment pages: see cspFormAction.test.js)
+  assert.equal(frameSrc(csp), null, csp);
+  assert.ok(!/frame-src[^;]*helloasso/.test(csp), csp);
 });
 
 async function loginJar(email) {
