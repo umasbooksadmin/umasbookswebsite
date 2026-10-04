@@ -150,12 +150,14 @@ test("POST /cart/add-dropin with an out-of-range classId redirects instead of 50
   assert.equal((await post("/cart/add-dropin", { classId: UNKNOWN_ID })).status, 302);
 });
 
-test("POST /books/:id/reserve with an out-of-range copyId redirects instead of 500", async () => {
+test("the public POST /books/:id/reserve route is gone (404): no anonymous holds, no mail to arbitrary addresses", async () => {
   const { rows } = await pool.query("INSERT INTO books (title, authors) VALUES ($1, 'A') RETURNING id", [`Quick Fix ${uniq()}`]);
   const bookId = rows[0].id;
-  const res = await post(`/books/${bookId}/reserve`, { copyId: HUGE, name: "Visitor", email: `v-${uniq()}@example.test` });
-  assert.equal(res.status, 302);
-  assert.equal(res.headers.get("location"), `/books/${bookId}`);
+  const { rows: c } = await pool.query("INSERT INTO book_copies (book_id, status, price) VALUES ($1, 'in_stock', 5) RETURNING id", [bookId]);
+  const res = await post(`/books/${bookId}/reserve`, { copyId: c[0].id, name: "Visitor", email: `v-${uniq()}@example.test` });
+  assert.equal(res.status, 404);
+  const { rows: after } = await pool.query("SELECT status FROM book_copies WHERE id = $1", [c[0].id]);
+  assert.equal(after[0].status, "in_stock");
 });
 
 test("POST /api/favorites/toggle: huge id is 400, unknown book is 404, real book is 204", async () => {

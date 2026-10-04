@@ -218,6 +218,9 @@ test("Notify emails the requester in English with the book link, price, reply li
   assert.match(mail.text, new RegExp(`/books/${m.bookId}\\b`));
   assert.match(mail.text, /€6\.50/);
   assert.match(mail.text, /reply to this email/i);
+  // there is no online reservation: the wording must not promise one
+  assert.match(mail.text, /come by the shop soon or add it to your cart online/);
+  assert.doesNotMatch(mail.text, /reserve it online/i);
   const token = mail.text.match(/\/my-requests\/([a-f0-9]{64})/)[1];
   const r = await get(m.id);
   assert.equal(r.status, "notified");
@@ -236,6 +239,8 @@ test("Notify writes to a French-speaking requester in French, with a French pric
   assert.match(mail.subject, /Bonne nouvelle/);
   assert.match(mail.text, /vous avez des questions|Pour toute question, répondez/);
   assert.match(mail.text, /6,50 €/);
+  assert.match(mail.text, /passez vite à la boutique ou ajoutez-le à votre panier en ligne\./);
+  assert.doesNotMatch(mail.text, /réservez-le en ligne/);
   assert.ok(!/Good news|reply to this email/.test(mail.subject + mail.text));
   assert.equal((await get(m.id)).status, "notified");
 });

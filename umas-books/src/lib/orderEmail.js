@@ -1,5 +1,5 @@
 const { emailSafeName } = require("./validation");
-const { formatDate } = require("./dates");
+const { formatDate, forLocale, LOCALES } = require("./dates");
 const { emailTr } = require("./lang");
 const { orderItemLabel } = require("./orderItems");
 
@@ -55,6 +55,14 @@ function buildOrderConfirmationText(order, items, base) {
         `Conditions de vente et votre droit de rétractation de 14 jours pour les livres : ${root}/terms-of-sale.html\n\n`
       )
     : "";
+  // Proof of acceptance of the terms of sale, as stored at checkout (absent on
+  // orders placed before it was recorded).
+  const cgvLine = order.cgv_accepted_at
+    ? tr(
+        `Terms of sale accepted on ${forLocale(LOCALES.en).formatDateLong(order.cgv_accepted_at)} (version ${order.cgv_version}).\n\n`,
+        `Conditions générales de vente acceptées le ${forLocale(LOCALES.fr).formatDateLong(order.cgv_accepted_at)} (version ${order.cgv_version}).\n\n`
+      )
+    : "";
   const lines = items.map((i) => `- ${orderItemLabel(i, order.lang)} — €${Number(i.price).toFixed(2)}`).join("\n");
   const orderDate = formatDate(order.created_at || new Date());
   const name = emailSafeName(order.buyer_name);
@@ -63,7 +71,7 @@ function buildOrderConfirmationText(order, items, base) {
     `Hi ${name},\n\nThanks for your order — payment received:\n\nOrder #${order.id} — ${orderDate}\nPaid online via HelloAsso\n\n${lines}\n\nTotal: €${total}\n\nCome by Uma's Books (Rue Peyrolière, 81000 Albi) during opening hours to pick up any books. Drop-in sessions need no pickup — just come along at the session time.\n\n`,
     `Bonjour ${name},\n\nMerci pour votre commande — paiement reçu :\n\nCommande n° ${order.id} — ${orderDate}\nPayée en ligne via HelloAsso\n\n${lines}\n\nTotal : €${total}\n\nPassez à Uma's Books (Rue Peyrolière, 81000 Albi) pendant les heures d’ouverture pour récupérer vos livres. Les séances drop-in ne nécessitent aucun retrait : il vous suffit de venir à l’heure de la séance.\n\n`
   );
-  return `${head}${termsLine}${LEGAL_RIGHTS}\n\n${WITHDRAWAL_FORM}\n\n${SELLER_LINES}`;
+  return `${head}${termsLine}${cgvLine}${LEGAL_RIGHTS}\n\n${WITHDRAWAL_FORM}\n\n${SELLER_LINES}`;
 }
 
 module.exports = { buildOrderConfirmationText, orderConfirmationSubject, SELLER_LINES, LEGAL_RIGHTS, WITHDRAWAL_FORM };

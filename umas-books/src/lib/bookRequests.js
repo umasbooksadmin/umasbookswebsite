@@ -371,10 +371,10 @@ async function sendNotifyEmail({ request, copy, manageToken, base, hold }) {
   const priceFr = price ? ` Prix : ${price}.` : "";
   const holdEn = hold
     ? `We've set this copy aside for you for ${LIMITS.holdDays} days (until ${until}). Come by the shop to pick it up and pay in person.`
-    : "Copies are sold first come, first served, so come by soon or reserve it online.";
+    : "Copies are sold first come, first served, so come by the shop soon or add it to your cart online.";
   const holdFr = hold
     ? `Nous avons mis cet exemplaire de côté pour vous pendant ${LIMITS.holdDays} jours (jusqu'au ${until}). Passez à la boutique pour le récupérer et le régler sur place.`
-    : "Les exemplaires partent au fur et à mesure : passez vite à la boutique ou réservez-le en ligne.";
+    : "Les exemplaires partent au fur et à mesure : passez vite à la boutique ou ajoutez-le à votre panier en ligne.";
   await mailer.sendMail({
     to: request.email,
     subject: tr(`Good news: "${title}" is now at Uma's Books`, `Bonne nouvelle : « ${title} » est arrivé chez Uma's Books`),

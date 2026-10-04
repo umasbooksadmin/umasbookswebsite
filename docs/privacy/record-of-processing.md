@@ -39,7 +39,7 @@ To answer an access or portability request ("a copy of my data"), use admin > Me
 | | |
 |---|---|
 | Purpose | Sell books and drop-in sessions online; confirm orders; keep accounting records |
-| Data | Buyer name, email, phone (optional), items and prices, total, status, dates, the language chosen at checkout (`orders.lang`), the date the buyer accepted the withdrawal-right waiver for drop-in sessions, an order access token, the HelloAsso checkout/order numbers, and the buyer's **IP address** (`orders.client_ip`). Card details never reach us (entered on HelloAsso). |
+| Data | Buyer name, email, phone (optional), items and prices, total, status, dates, the language chosen at checkout (`orders.lang`), the date the buyer accepted the withdrawal-right waiver for drop-in sessions, proof of acceptance of the terms of sale (`orders.cgv_accepted_at` and `orders.cgv_version`: when, and which version of the terms; not personal data by itself, kept with the order and on anonymised orders for the 10-year accounting retention), an order access token, the HelloAsso checkout/order numbers, and the buyer's **IP address** (`orders.client_ip`). Card details never reach us (entered on HelloAsso). |
 | People | Online buyers (with or without an account) |
 | Legal basis | Contract; legal obligation (accounting, 10 years) |
 | Recipients / processors | HelloAsso (payment page, receives buyer name and email to create the payment); Render; Google Workspace/Gmail (confirmation emails); Backblaze (backups) |
@@ -53,14 +53,14 @@ To answer an access or portability request ("a copy of my data"), use admin > Me
 |---|---|
 | Purpose | Hold a book for pickup and pay in the shop; send one pickup reminder |
 | Data | Name, email, phone, date of reservation and the date the reminder was sent (stored on the book copy: `reserved_by_name`, `reserved_by_email`, `reserved_by_phone`, `reserved_at`, `reminder_sent_at`) |
-| People | Visitors who reserve a book |
+| People | Visitors who ask the shop to hold a book (entered by an admin), and book requesters whose request is held |
 | Legal basis | Contract (their request) |
 | Recipients / processors | Render; Google Workspace/Gmail (reminder email); Backblaze (backups) |
 | Transfers outside EU | Google, Backblaze as above |
 | Retention | **14 days** (`RESERVATION_TTL_DAYS` in `src/lib/reservations.js`). After that name, email, phone and date are cleared and the book goes back on the shelf. The job runs at start-up and every 6 hours. A reminder is emailed once, 3 days before the end (day 11). A reservation that ended another way (the book was sold in the shop, or the reservation was cancelled) keeps no contact details **30 days** after it ended (`closedOrderDays`, step `reservationContacts` of the daily purge). On an erasure request an active reservation is released and the contact details are cleared at once. **Automated.** |
 | Security | Reservation details are shown in the admin area only |
 
-Note: the server route that records a reservation (`POST /books/:id/reserve`) exists, but the public book pages currently show only an "Add to cart" button and no reservation form. Reservations are therefore normally made at the shop and entered by an admin. If a public reservation form is added, it must carry the privacy note (`partials/privacy_note`).
+Note: there is no public reservation route or form (the former `POST /books/:id/reserve` was removed: it let anyone hold copies and trigger email to any address). Reservations are made at the shop and entered by an admin, or created by the book-request "notify and hold" flow. If a public reservation form is ever added, it needs email verification, a per-email cap and the privacy note (`partials/privacy_note`).
 
 Inventory locations (`book_copies.location`, the shelf code where a physical copy sits) are not personal data and are not covered here.
 ## 3b. Book requests / Demandes de livres

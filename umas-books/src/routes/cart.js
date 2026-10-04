@@ -6,6 +6,7 @@ const { expireStaleReservations } = require("../lib/reservations");
 const { seatsTakenExpr } = require("../lib/classCapacity");
 const { baseUrl } = require("../lib/baseUrl");
 const { isPreviewMode } = require("../lib/preview");
+const { TERMS_OF_SALE_VERSION } = require("../lib/legal");
 const { loadOrderItems, orderItemLabel } = require("../lib/orderItems");
 const { isEmail, clean, parseId } = require("../lib/validation");
 const { checkoutLimiter, cartEditLimiter } = require("../middleware/rateLimits");
@@ -257,9 +258,10 @@ router.post("/cart/checkout", checkoutLimiter, async (req, res) => {
       }
 
       const { rows: orderRows } = await client.query(
-        `INSERT INTO orders (buyer_name, buyer_email, buyer_phone, total_amount, client_ip, withdrawal_waiver_at, lang)
-         VALUES ($1, $2, $3, $4, $5, CASE WHEN $6::boolean THEN now() END, $7) RETURNING *`,
-        [name, email, phone, total, clientIp, hasDropin, req.lang]
+        `INSERT INTO orders (buyer_name, buyer_email, buyer_phone, total_amount, client_ip, withdrawal_waiver_at, lang,
+                             cgv_accepted_at, cgv_version)
+         VALUES ($1, $2, $3, $4, $5, CASE WHEN $6::boolean THEN now() END, $7, now(), $8) RETURNING *`,
+        [name, email, phone, total, clientIp, hasDropin, req.lang, TERMS_OF_SALE_VERSION]
       );
       const newOrder = orderRows[0];
 
