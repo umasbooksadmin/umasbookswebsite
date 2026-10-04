@@ -1,6 +1,6 @@
 const express = require("express");
 const { pool } = require("../db");
-const { CONDITIONS } = require("../lib/inventory");
+const { CONDITIONS, bindingLabel } = require("../lib/inventory");
 const { expireStaleReservations } = require("../lib/reservations");
 const { sendMail } = require("../mailer");
 const { baseUrl } = require("../lib/baseUrl");
@@ -19,19 +19,6 @@ validateIdParams(router, "id");
 // The browse/search listing itself lives at /books.html (a static page
 // backed by the /api/books/* endpoints below) — there's no server-rendered
 // listing page anymore, just the detail/reserve route past this point.
-
-const CONDITION_LABELS_FR = {
-  new: "Neuf",
-  like_new: "Comme neuf",
-  good: "Bon état",
-  fair: "État correct",
-  poor: "Mauvais état",
-};
-
-function conditionLabel(value, lang) {
-  const en = (CONDITIONS.find((c) => c.value === value) || {}).label || value;
-  return (lang === "fr" && CONDITION_LABELS_FR[value]) || en;
-}
 
 // Logged-in visitors' favorites persist here too (see public/favorites.js),
 // alongside the localStorage list every visitor already gets — this is
@@ -214,7 +201,9 @@ router.get("/api/books/search", async (req, res) => {
 
   const { rows } = await pool.query(
     `SELECT b.id, b.title, b.authors, b.cover_url,
-            (SELECT MIN(price) FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock') AS min_price
+            (SELECT MIN(price) FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock') AS min_price,
+            (SELECT array_agg(DISTINCT c.condition) FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock') AS conditions,
+            b.binding
      FROM books b
      WHERE EXISTS (SELECT 1 FROM book_copies c WHERE c.book_id = b.id AND ${clauses.join(" AND ")})
      ORDER BY b.title ASC LIMIT 60`,
@@ -227,6 +216,10 @@ router.get("/api/books/search", async (req, res) => {
       author: b.authors,
       coverUrl: b.cover_url,
       price: b.min_price != null ? Number(b.min_price) : null,
+      // Grades of the copies on the shelf, best first (value + English label).
+      conditions: CONDITIONS.filter((c) => (b.conditions || []).includes(c.value)).map((c) => ({ value: c.value, label: c.label })),
+      binding: b.binding || null,
+      bindingLabel: bindingLabel(b.binding, "en"),
       url: `${baseUrl(req)}/books/${b.id}`,
     }))
   );
@@ -297,7 +290,8 @@ router.get("/books/:id", async (req, res) => {
   res.render("book_detail", {
     book,
     copies,
-    conditionLabel: (value) => conditionLabel(value, req.lang),
+    conditions: CONDITIONS,
+    bindingLabel: bindingLabel(book.binding, req.lang),
     backGenre: (req.query.genre || "").trim(),
     moreByAuthor,
   });

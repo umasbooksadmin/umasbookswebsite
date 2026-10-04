@@ -25,6 +25,12 @@
     <label for="publishedYear">Published year</label>
     <input id="publishedYear" name="publishedYear" type="number" value="<%= book.publishedYear || '' %>">
 
+    <label for="binding">Binding</label>
+    <select id="binding" name="binding">
+      <option value="">Not specified</option>
+      <% bindings.forEach(b => { %><option value="<%= b.value %>" <%= b.value === book.binding ? 'selected' : '' %>><%= b.label %></option><% }) %>
+    </select>
+
     <label for="genre">Genres</label>
     <input id="genre" name="genre" type="text" value="<%= book.genre || '' %>" placeholder="e.g. Fantasy, Fiction — separate multiple with commas">
 
@@ -55,8 +61,11 @@
 
     <label for="condition">Condition</label>
     <select id="condition" name="condition">
-      <% conditions.forEach(c => { %><option value="<%= c.value %>" <%= c.value === (typeof selectedCondition !== 'undefined' ? selectedCondition : 'good') ? 'selected' : '' %>><%= c.label %></option><% }) %>
+      <% conditions.forEach(c => { %><option value="<%= c.value %>" <%= c.value === (typeof selectedCondition !== 'undefined' ? selectedCondition : 'very_good') ? 'selected' : '' %>><%= c.label %></option><% }) %>
     </select>
+    <p class="muted small">
+      <% conditions.forEach(c => { %><strong><%= c.label %>:</strong> <%= c.description %> <% }) %>
+    </p>
 
     <label for="location">Location</label>
     <input id="location" name="location" type="text" list="location-options" maxlength="40" value="<%= location %>" placeholder="e.g. FICTION-A1" data-location-input autocomplete="off">

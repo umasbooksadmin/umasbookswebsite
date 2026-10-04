@@ -89,7 +89,8 @@ unused one for a new file.
   catalog. Each title (`books`, with a genre/`categories` field) can have
   several individually-tracked physical copies (`book_copies`, each with
   its own condition, price, acquisition cost, acquisition date, and
-  status: in stock / reserved / sold / donated / damaged). Adding a book
+  status: in stock / reserved / sold / donated / damaged; see "How to
+  describe a book" below). Adding a book
   can start from a scan at `/admin/inventory/scan`: typing/scanning an
   ISBN looks up metadata via the free Open Library API, or a photo of the
   cover or barcode is read by Claude's vision API (`ANTHROPIC_API_KEY`,
@@ -158,6 +159,26 @@ or barcode photo) needs an Anthropic API key:
 
 Until it's set, the scan page just hides the photo option and says so —
 ISBN entry and manual add still work fully.
+
+### How to describe a book (for volunteers)
+
+Every copy gets one of four **condition** grades. Pick the first one that is
+true; if you hesitate between two, choose the lower one.
+
+- **New**: unread, as published. Must be sold at the publisher's price.
+- **Like New**: looks unread: no marks, no wear.
+- **Very Good**: light wear only: clean pages, no writing or highlighting.
+- **Acceptable**: clearly used but complete and readable: wear, creases or
+  some markings.
+
+A book that is not fit to sell (pages missing, mouldy, falling apart) is not a
+grade: set its **status** to "Damaged / withdrawn" instead.
+
+The **binding** says what kind of book it is: **Hardcover**, **Paperback** or
+**Mass Market** (the small pocket paperback). It is filled in automatically
+when the scan finds it; check it, and choose "Not specified" if unsure.
+Customers see the grade of each copy, the binding, and a "What the grades
+mean" box on the book's page.
 
 ### How to use locations (for volunteers)
 

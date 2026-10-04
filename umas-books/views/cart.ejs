@@ -20,6 +20,7 @@
           <div class="cart-item-body">
             <div class="cart-item-title"><%= i.title %></div>
             <div class="muted small"><%= i.authors || tr('Unknown author', 'Auteur inconnu') %></div>
+            <div style="margin-top:4px;"><span class="condition-badge condition-<%= i.condition %>"><%= conditionLabel(i.condition) %></span></div>
           </div>
         <% } else { %>
           <div class="cart-item-cover book-thumb-placeholder"><%= tr('Session', 'Séance') %></div>

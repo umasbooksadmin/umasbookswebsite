@@ -22,34 +22,58 @@
     <h1 style="margin-bottom:4px;"><%= book.title %></h1>
     <p class="muted" style="margin-top:0;"><%= tr('by', 'de') %> <%= book.authors || tr('Unknown author', 'Auteur inconnu') %></p>
 
+    <% if (bindingLabel) { %>
+      <dl class="book-facts"><div><dt><%= tr('Binding', 'Reliure') %> :</dt> <dd><%= bindingLabel %></dd></div></dl>
+    <% } %>
+
     <% if (copies.length) { %>
       <% const minPrice = Math.min(...copies.map(c => c.price != null ? Number(c.price) : Infinity)); %>
       <div class="book-detail-price">
         <% if (isFinite(minPrice)) { %>&euro;<%= minPrice.toFixed(2) %><% } %>
-        <% if (copies.length === 1) { %><span class="muted small">&middot; <%= conditionLabel(copies[0].condition) %></span><% } %>
       </div>
 
       <div class="availability-box">
         <div class="availability-badge is-in-stock"><span class="dot"></span><%= tr('Available in Shop', 'Disponible en boutique') %></div>
-        <p class="muted small" style="margin:6px 0 16px;">
+        <p class="muted small" style="margin:6px 0 12px;">
           <%= copies.length === 1 ? tr('1 copy on our shelves.', '1 exemplaire en rayon.') : tr('{n} copies on our shelves.', '{n} exemplaires en rayon.', { n: copies.length }) %>
         </p>
 
-        <form method="post" action="/cart/add" style="margin-bottom:14px;">
-          <%- include('partials/csrf_field') %>
-          <% if (copies.length > 1) { %>
-            <label for="cartCopyId"><%= tr('Which copy?', 'Quel exemplaire ?') %></label>
-            <select id="cartCopyId" name="copyId" style="margin-bottom:10px;">
-              <% copies.forEach(c => { %>
-                <option value="<%= c.id %>"><%= conditionLabel(c.condition) %><%= c.price != null ? ' · €' + Number(c.price).toFixed(2) : '' %></option>
-              <% }) %>
-            </select>
-          <% } else { %>
-            <input type="hidden" name="copyId" value="<%= copies[0].id %>">
-          <% } %>
-          <input type="hidden" name="backTo" value="/cart">
-          <button class="btn" type="submit"><%= tr('Add to Cart', 'Ajouter au panier') %></button>
-        </form>
+        <table class="copy-table">
+          <caption class="visually-hidden"><%= tr('Condition and price of each copy', 'État et prix de chaque exemplaire') %></caption>
+          <thead>
+            <tr>
+              <th scope="col"><%= tr('Condition', 'État') %></th>
+              <th scope="col"><%= tr('Price', 'Prix') %></th>
+              <th scope="col"><span class="visually-hidden"><%= tr('Add to Cart', 'Ajouter au panier') %></span></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% copies.forEach(c => { %>
+              <tr>
+                <td><span class="condition-badge condition-<%= c.condition %>"><%= conditionLabel(c.condition) %></span></td>
+                <td><%= c.price != null ? '€' + Number(c.price).toFixed(2) : '' %></td>
+                <td>
+                  <form method="post" action="/cart/add">
+                    <%- include('partials/csrf_field') %>
+                    <input type="hidden" name="copyId" value="<%= c.id %>">
+                    <input type="hidden" name="backTo" value="/cart">
+                    <button class="btn btn-small" type="submit"><%= tr('Add to Cart', 'Ajouter au panier') %></button>
+                  </form>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+
+        <details class="grade-legend">
+          <summary><%= tr('What the grades mean', 'Que signifient les états ?') %></summary>
+          <dl>
+            <% conditions.forEach(g => { %>
+              <dt><span class="condition-badge condition-<%= g.value %>"><%= conditionLabel(g.value) %></span></dt>
+              <dd><%= tr(g.description, g.description_fr) %></dd>
+            <% }) %>
+          </dl>
+        </details>
       </div>
     <% } else { %>
       <div class="availability-box">

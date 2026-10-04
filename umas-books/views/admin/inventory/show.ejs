@@ -11,6 +11,8 @@
   <% } %>
   <div style="flex:1;">
     <% if (book.publisher) { %><div class="muted small">Publisher: <%= book.publisher %></div><% } %>
+    <% const bindingLabel = (bindings.find(x => x.value === book.binding) || {}).label; %>
+    <% if (bindingLabel) { %><div class="muted small">Binding: <%= bindingLabel %></div><% } %>
     <% if (book.published_year) { %><div class="muted small">Published: <%= book.published_year %></div><% } %>
     <% if (book.description) { %><p style="margin-top:10px;"><%= book.description %></p><% } %>
 
@@ -28,6 +30,11 @@
         <input id="publisher" name="publisher" type="text" value="<%= book.publisher || '' %>">
         <label for="publishedYear">Published year</label>
         <input id="publishedYear" name="publishedYear" type="number" value="<%= book.published_year || '' %>">
+        <label for="binding">Binding</label>
+        <select id="binding" name="binding">
+          <option value="">Not specified</option>
+          <% bindings.forEach(b => { %><option value="<%= b.value %>" <%= b.value === book.binding ? 'selected' : '' %>><%= b.label %></option><% }) %>
+        </select>
         <label for="genre">Genres</label>
         <input id="genre" name="genre" type="text" value="<%= book.categories || '' %>" placeholder="e.g. Fantasy, Fiction — separate multiple with commas">
         <label for="genreFr">Genres (French)</label>
