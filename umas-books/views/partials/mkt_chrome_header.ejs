@@ -19,6 +19,7 @@ const navItems = typeof nav !== 'undefined' ? nav : [];
 const t = typeof tr === 'function' ? tr : (en) => en;
 const NAV_FR = { 'nav.home': 'Accueil', 'nav.books': 'Parcourir les livres', 'nav.programs': 'Programmes d’anglais', 'nav.events': 'Événements', 'nav.visit': 'Nous rendre visite' };
 %>
+<%- include('preview_banner') %>
 <header class="mkt-header">
   <div class="h-header-row">
     <a class="h-logo" href="/"><img src="/assets/img/logo-wordmark-framed.png" alt="<%= t('Uma’s Books & Adventures — home', 'Uma’s Books & Adventures — accueil') %>" width="1774" height="887"></a>

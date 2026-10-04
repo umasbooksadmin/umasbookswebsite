@@ -1,4 +1,4 @@
-require("dotenv").config();
+require("dotenv").config({ quiet: true });
 const { pool } = require("./db");
 const { generateBookGenres } = require("./lib/bookGenre");
 const { translateGenresToFrench } = require("./lib/bookLookup");

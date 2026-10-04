@@ -28,6 +28,19 @@ header.mkt-header a:hover, footer.mkt-footer a:hover { text-decoration: none; }
 }
 .skip-link:focus { top: 0; outline: 2px solid #fff; outline-offset: -4px; }
 
+/* Preview-mode banner (views/partials/preview_banner.ejs): a slim strip in
+   normal flow at the very top of every customer page. Fixed colours (not the
+   page theme) so the contrast holds in light and dark mode: #3d2b00 on
+   #fdf0c4 is about 12:1, the link is underlined and darker still. */
+.preview-banner {
+  background: #fdf0c4; color: #3d2b00; text-align: center;
+  padding: 6px 16px; font: 500 15px/1.4 system-ui, -apple-system, 'Segoe UI', sans-serif;
+  border-bottom: 1px solid #e3cf8f;
+}
+.preview-banner a { color: #2a1c00; font-weight: 700; text-decoration: underline; white-space: nowrap; }
+.preview-banner a:hover { text-decoration: none; }
+@media (max-width: 600px) { .preview-banner { padding: 6px 12px; font-size: 14px; text-align: left; } }
+
 /* Generic browser-back link shown above <main> on every page except the
    member dashboard (see hideBackLink in partials/header.ejs) and pages
    that already have their own more specific "back to X" link. Uses the
