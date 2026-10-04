@@ -440,6 +440,8 @@ secret** = same page, **Secrets** tab.
 - [ ] **Sample and test data removed**, using the clearing script in
   "Clearing the test data" below (dry run first, backup first), and the admin
   e-mail list it prints is the right one.
+- [ ] **Manual test scripts** run and passed (every **(must)** step), see
+  `docs/testing/manual-test-scripts.md`.
 
 ### Turning it on again
 
