@@ -1,17 +1,17 @@
-<%- include('partials/header', { title: 'Forum' }) %>
+<%- include('partials/header', { title: tr('Forum', 'Forum') }) %>
 
-<h1>Community Forum</h1>
-<p><a class="btn" href="/forum/new">Start a thread</a></p>
-<p class="muted small">See something that should not be here? Use the &ldquo;Report&rdquo; link on any thread or reply. Reports go to the association&rsquo;s administrators, who review them promptly.</p>
+<h1><%= tr('Community Forum', 'Forum de la communauté') %></h1>
+<p><a class="btn" href="/forum/new"><%= tr('Start a thread', 'Lancer une discussion') %></a></p>
+<p class="muted small"><%= tr('See something that should not be here? Use the “Report” link on any thread or reply. Reports go to the association’s administrators, who review them promptly.', 'Vous voyez quelque chose qui n’a pas sa place ici ? Utilisez le lien « Signaler » sur n’importe quelle discussion ou réponse. Les signalements sont transmis aux administrateurs de l’association, qui les examinent rapidement.') %></p>
 
 <% if (!threads.length) { %>
-  <p class="muted">No threads yet.</p>
+  <p class="muted"><%= tr('No threads yet.', 'Aucune discussion pour le moment.') %></p>
 <% } else { %>
   <ul class="plain">
     <% threads.forEach(t => { %>
       <li>
         <a href="/forum/<%= t.id %>"><%= t.title %></a>
-        <div class="thread-meta"><%= t.author_name || 'Member' %> &middot; <%= formatDate(t.created_at) %> &middot; <%= t.reply_count %> repl<%= t.reply_count == 1 ? 'y' : 'ies' %></div>
+        <div class="thread-meta"><%= t.author_name || tr('Member', 'Membre') %> &middot; <%= formatDate(t.created_at) %> &middot; <%= t.reply_count == 1 ? tr('1 reply', '1 réponse') : tr('{n} replies', '{n} réponses', { n: t.reply_count }) %></div>
       </li>
     <% }) %>
   </ul>

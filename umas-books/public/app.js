@@ -53,8 +53,9 @@ document.addEventListener("click", function (e) {
   if (!input) return;
   var showing = input.type === "text";
   input.type = showing ? "password" : "text";
-  btn.textContent = showing ? "Show" : "Hide";
-  btn.setAttribute("aria-label", showing ? "Show password" : "Hide password");
+  var fr = document.documentElement.lang === "fr";
+  btn.textContent = showing ? (fr ? "Afficher" : "Show") : (fr ? "Masquer" : "Hide");
+  btn.setAttribute("aria-label", showing ? (fr ? "Afficher le mot de passe" : "Show password") : (fr ? "Masquer le mot de passe" : "Hide password"));
   btn.setAttribute("aria-pressed", showing ? "false" : "true");
 });
 

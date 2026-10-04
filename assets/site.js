@@ -74,6 +74,20 @@
   };
 
   var STORE_KEY = "umasbooks.lang";
+  var COOKIE_KEY = "umasbooks_lang";
+
+  // The server reads the language from this cookie (see
+  // src/middleware/lang.js), so pages it renders match the toggle.
+  function readLangCookie() {
+    var m = document.cookie.match(new RegExp("(?:^|;\\s*)" + COOKIE_KEY + "=([^;]*)"));
+    return m ? m[1] : null;
+  }
+  function writeLangCookie(lang) {
+    try {
+      document.cookie = COOKIE_KEY + "=" + lang + "; Path=/; Max-Age=31536000; SameSite=Lax" +
+        (location.protocol === "https:" ? "; Secure" : "");
+    } catch (e) {}
+  }
 
   function mergedDict(lang) {
     var page = (window.PAGE_I18N && window.PAGE_I18N[lang]) || {};
@@ -123,6 +137,7 @@
       b.setAttribute("aria-pressed", on ? "true" : "false");
     });
     try { localStorage.setItem(STORE_KEY, lang); } catch (e) {}
+    writeLangCookie(lang);
   }
 
   function wireMailtoForms() {
@@ -263,6 +278,9 @@
   document.addEventListener("DOMContentLoaded", function () {
     var stored = null;
     try { stored = localStorage.getItem(STORE_KEY); } catch (e) {}
+    // A language chosen earlier (localStorage) must reach the server too:
+    // fix a missing or differing cookie so the next request matches.
+    if ((stored === "fr" || stored === "en") && readLangCookie() !== stored) writeLangCookie(stored);
     var initial = stored || (/^fr\b/i.test(navigator.language || "") ? "fr" : "en");
 
     document.querySelectorAll(".langtoggle button").forEach(function (b) {

@@ -45,8 +45,11 @@ const passwordChangeLimiter = limit({
 // letting an attacker enumerate registered emails via response timing.
 const DUMMY_HASH = bcrypt.hashSync("no-such-account-timing-equalizer", 12);
 
-const SIGNUP_NOTICE =
-  "Thanks! Check your inbox for an email with next steps. Once your email is confirmed, log in. If you already have an account, try logging in or resetting your password.";
+const signupNotice = (req) =>
+  req.tr(
+    "Thanks! Check your inbox for an email with next steps. Once your email is confirmed, log in. If you already have an account, try logging in or resetting your password.",
+    "Merci ! Consultez votre boîte de réception : un e-mail vous indique la marche à suivre. Une fois votre adresse confirmée, connectez-vous. Si vous avez déjà un compte, essayez de vous connecter ou de réinitialiser votre mot de passe."
+  );
 
 const LOGIN_LOCK_THRESHOLD = 5;
 const LOGIN_LOCK_DURATION_MS = 15 * 60 * 1000;
@@ -61,13 +64,21 @@ const LOGIN_LOCK_DURATION_MS = 15 * 60 * 1000;
 // with it (csrfProtection issues a new one lazily, the next time a page
 // or /api/csrf-token reads it), but a cart
 // built up while still logged out is worth keeping.
+// Remember the language the visitor has chosen for later emails. Only when
+// they actually chose one (cookie present): a bare Accept-Language guess
+// must not overwrite a language stored earlier.
+async function refreshUserLang(req, userId) {
+  if (!req.langFromCookie) return;
+  await pool.query("UPDATE users SET lang = $1 WHERE id = $2", [req.lang, userId]);
+}
+
 function loginAs(req, res, user, redirectTo) {
   const cart = req.session.cart;
   const cartSeq = req.session.cartSeq;
   req.session.regenerate((err) => {
     if (err) {
       console.error(err);
-      return res.status(500).render("login", { error: "Something went wrong. Please try again.", notice: null });
+      return res.status(500).render("login", { error: req.tr("Something went wrong. Please try again.", "Une erreur est survenue. Veuillez réessayer."), notice: null });
     }
     req.session.user = {
       id: user.id, email: user.email, displayName: user.display_name,
@@ -83,7 +94,7 @@ function loginAs(req, res, user, redirectTo) {
       () => res.redirect(redirectTo),
       (saveErr) => {
         console.error(saveErr);
-        res.status(500).render("login", { error: "Something went wrong. Please try again.", notice: null });
+        res.status(500).render("login", { error: req.tr("Something went wrong. Please try again.", "Une erreur est survenue. Veuillez réessayer."), notice: null });
       }
     );
   });
@@ -117,9 +128,9 @@ router.post("/signup", signupLimiter, async (req, res) => {
   const displayName = clean(req.body.displayName, 100);
 
   if (!email || !password || !displayName) {
-    return res.status(400).render("signup", { error: "All fields are required.", notice: null });
+    return res.status(400).render("signup", { error: req.tr("All fields are required.", "Tous les champs sont obligatoires."), notice: null });
   }
-  const passwordError = await validateNewPassword(password);
+  const passwordError = await validateNewPassword(password, req.tr);
   if (passwordError) {
     return res.status(400).render("signup", { error: passwordError, notice: null });
   }
@@ -129,7 +140,7 @@ router.post("/signup", signupLimiter, async (req, res) => {
   // account, no mail, but the SAME neutral response as a real signup, so
   // this can't be told apart from one (signup stays enumeration-safe).
   if (!isEmail(email)) {
-    return res.render("signup", { error: null, notice: SIGNUP_NOTICE });
+    return res.render("signup", { error: null, notice: signupNotice(req) });
   }
 
   // Identical response whether or not the email is registered — a
@@ -140,14 +151,14 @@ router.post("/signup", signupLimiter, async (req, res) => {
   // mail is sent in the background so a slow mail server can't either.
   try {
     const hash = await bcrypt.hash(password, 12);
-    const { rows: existing } = await pool.query("SELECT id, email, display_name FROM users WHERE email = $1", [email]);
+    const { rows: existing } = await pool.query("SELECT id, email, display_name, lang FROM users WHERE email = $1", [email]);
     let created = null;
     if (!existing.length) {
       try {
         const { rows } = await pool.query(
-          `INSERT INTO users (email, password_hash, display_name) VALUES ($1, $2, $3)
-           RETURNING id, email, display_name`,
-          [email, hash, displayName]
+          `INSERT INTO users (email, password_hash, display_name, lang) VALUES ($1, $2, $3, $4)
+           RETURNING id, email, display_name, lang`,
+          [email, hash, displayName, req.lang]
         );
         created = rows[0];
       } catch (err) {
@@ -164,10 +175,10 @@ router.post("/signup", signupLimiter, async (req, res) => {
     } else if (existing.length) {
       sendSignupAttemptEmail(existing[0], url).catch((err) => console.error("Signup-attempt email failed:", err.message));
     }
-    res.render("signup", { error: null, notice: SIGNUP_NOTICE });
+    res.render("signup", { error: null, notice: signupNotice(req) });
   } catch (err) {
     console.error(err);
-    res.status(500).render("signup", { error: "Something went wrong. Please try again.", notice: null });
+    res.status(500).render("signup", { error: req.tr("Something went wrong. Please try again.", "Une erreur est survenue. Veuillez réessayer."), notice: null });
   }
 });
 
@@ -196,9 +207,9 @@ router.get("/login", (req, res) => {
     return res.redirect(u.isAdmin ? "/admin" : (u.isMember || u.isVolunteer) ? "/dashboard" : "/");
   }
   const notice =
-    req.query.reset === "success" ? "Password updated — log in with your new password." :
-    req.query.verified === "success" ? "Email confirmed — thanks!" :
-    req.query.verified === "invalid" ? "That confirmation link is invalid or has expired." :
+    req.query.reset === "success" ? req.tr("Password updated — log in with your new password.", "Mot de passe mis à jour : connectez-vous avec votre nouveau mot de passe.") :
+    req.query.verified === "success" ? req.tr("Email confirmed — thanks!", "Adresse e-mail confirmée, merci !") :
+    req.query.verified === "invalid" ? req.tr("That confirmation link is invalid or has expired.", "Ce lien de confirmation est invalide ou a expiré.") :
     null;
   res.render("login", { error: null, notice });
 });
@@ -223,7 +234,7 @@ router.post("/login", loginLimiter, async (req, res) => {
     // revealed; attempts during the lock aren't counted or extended.
     const locked = Boolean(user && user.locked_until && new Date(user.locked_until) > new Date());
     if (locked) {
-      return res.status(401).render("login", { error: "Incorrect email or password.", notice: null });
+      return res.status(401).render("login", { error: req.tr("Incorrect email or password.", "E-mail ou mot de passe incorrect."), notice: null });
     }
 
     if (!ok) {
@@ -236,14 +247,14 @@ router.post("/login", loginLimiter, async (req, res) => {
         // statement (a later one, now seeing 0, simply counts again).
         await countFailedAttempt(user.id);
       }
-      return res.status(401).render("login", { error: "Incorrect email or password.", notice: null });
+      return res.status(401).render("login", { error: req.tr("Incorrect email or password.", "E-mail ou mot de passe incorrect."), notice: null });
     }
 
     // Only someone who proved they know the password learns the account
     // is deactivated.
     if (user.is_disabled) {
       return res.status(403).render("login", {
-        error: "This account has been deactivated. Contact us if you think this is a mistake.",
+        error: req.tr("This account has been deactivated. Contact us if you think this is a mistake.", "Ce compte a été désactivé. Contactez-nous si vous pensez qu'il s'agit d'une erreur."),
         notice: null,
       });
     }
@@ -265,6 +276,7 @@ router.post("/login", loginLimiter, async (req, res) => {
     }
 
     await pool.query("UPDATE users SET last_login_at = now(), inactivity_warned_at = NULL WHERE id = $1", [user.id]);
+    await refreshUserLang(req, user.id);
 
     // Logging in doesn't make you a member — only actual members/admins
     // (and volunteers, a superset of members — see requireMember) land on
@@ -273,7 +285,7 @@ router.post("/login", loginLimiter, async (req, res) => {
     loginAs(req, res, user, user.is_admin ? "/admin" : (user.is_member || user.is_volunteer) ? "/dashboard" : "/");
   } catch (err) {
     console.error(err);
-    res.status(500).render("login", { error: "Something went wrong. Please try again.", notice: null });
+    res.status(500).render("login", { error: req.tr("Something went wrong. Please try again.", "Une erreur est survenue. Veuillez réessayer."), notice: null });
   }
 });
 
@@ -312,10 +324,10 @@ router.post("/login/2fa", twoFactorLimiter, async (req, res) => {
     if (pending.fails >= MAX_2FA_FAILS) {
       req.session.pending2fa = null;
       await saveSession(req);
-      return res.status(401).render("login", { error: "Too many wrong codes. Log in again.", notice: null });
+      return res.status(401).render("login", { error: req.tr("Too many wrong codes. Log in again.", "Trop de codes erronés. Veuillez vous reconnecter."), notice: null });
     }
     await saveSession(req);
-    return res.status(401).render("login_2fa", { error: "That code didn't work. Try again." });
+    return res.status(401).render("login_2fa", { error: req.tr("That code didn't work. Try again.", "Ce code n'a pas fonctionné. Veuillez réessayer.") });
   };
 
   try {
@@ -327,7 +339,7 @@ router.post("/login/2fa", twoFactorLimiter, async (req, res) => {
     }
     if (user.locked_until && new Date(user.locked_until) > new Date()) {
       req.session.pending2fa = null;
-      return res.status(401).render("login", { error: "Too many wrong attempts. Try again in a few minutes.", notice: null });
+      return res.status(401).render("login", { error: req.tr("Too many wrong attempts. Try again in a few minutes.", "Trop de tentatives erronées. Veuillez réessayer dans quelques minutes."), notice: null });
     }
     const code = String(req.body.code || "").trim();
 
@@ -362,10 +374,11 @@ router.post("/login/2fa", twoFactorLimiter, async (req, res) => {
 
     req.session.pending2fa = null;
     await pool.query("UPDATE users SET last_login_at = now(), inactivity_warned_at = NULL, failed_login_attempts = 0, locked_until = NULL WHERE id = $1", [user.id]);
+    await refreshUserLang(req, user.id);
     loginAs(req, res, user, user.is_admin ? "/admin" : (user.is_member || user.is_volunteer) ? "/dashboard" : "/");
   } catch (err) {
     console.error(err);
-    res.status(500).render("login", { error: "Something went wrong. Please try again.", notice: null });
+    res.status(500).render("login", { error: req.tr("Something went wrong. Please try again.", "Une erreur est survenue. Veuillez réessayer."), notice: null });
   }
 });
 
@@ -375,7 +388,7 @@ router.get("/forgot-password", (req, res) => {
 
 router.post("/forgot-password", forgotLimiter, async (req, res) => {
   const email = (req.body.email || "").trim().toLowerCase();
-  const notice = "If an account exists for that email, we've sent a password reset link.";
+  const notice = req.tr("If an account exists for that email, we've sent a password reset link.", "Si un compte existe pour cette adresse e-mail, nous y avons envoyé un lien de réinitialisation du mot de passe.");
 
   if (email) {
     try {
@@ -400,7 +413,7 @@ router.get("/reset-password/:token", async (req, res) => {
     [tokenHash]
   );
   if (!rows.length) {
-    return res.status(400).render("reset_password", { error: "This reset link is invalid or has expired.", token: null });
+    return res.status(400).render("reset_password", { error: req.tr("This reset link is invalid or has expired.", "Ce lien de réinitialisation est invalide ou a expiré."), token: null });
   }
   res.render("reset_password", { error: null, token: req.params.token });
 });
@@ -409,7 +422,7 @@ router.post("/reset-password/:token", resetLimiter, async (req, res) => {
   const newPassword = req.body.newPassword || "";
   const tokenHash = hashToken(req.params.token);
   const invalid = () =>
-    res.status(400).render("reset_password", { error: "This reset link is invalid or has expired.", token: null });
+    res.status(400).render("reset_password", { error: req.tr("This reset link is invalid or has expired.", "Ce lien de réinitialisation est invalide ou a expiré."), token: null });
 
   // Cheap non-consuming look first, so a too-weak password doesn't burn
   // the link; the real gate is the atomic claim below.
@@ -418,7 +431,7 @@ router.post("/reset-password/:token", resetLimiter, async (req, res) => {
     [tokenHash]
   );
   if (!rows.length) return invalid();
-  const passwordError = await validateNewPassword(newPassword);
+  const passwordError = await validateNewPassword(newPassword, req.tr);
   if (passwordError) {
     return res.status(400).render("reset_password", { error: passwordError, token: req.params.token });
   }
@@ -475,7 +488,7 @@ router.post("/account/password", requireAuth, passwordChangeLimiter, async (req,
   const currentPassword = req.body.currentPassword || "";
   const newPassword = req.body.newPassword || "";
 
-  const passwordError = await validateNewPassword(newPassword);
+  const passwordError = await validateNewPassword(newPassword, req.tr);
   if (passwordError) {
     return res.status(400).render("change_password", { error: passwordError, notice: null });
   }
@@ -484,7 +497,7 @@ router.post("/account/password", requireAuth, passwordChangeLimiter, async (req,
   const user = rows[0];
   const ok = user && (await bcrypt.compare(currentPassword, user.password_hash));
   if (!ok) {
-    return res.status(401).render("change_password", { error: "Current password is incorrect.", notice: null });
+    return res.status(401).render("change_password", { error: req.tr("Current password is incorrect.", "Le mot de passe actuel est incorrect."), notice: null });
   }
 
   const hash = await bcrypt.hash(newPassword, 12);
@@ -500,7 +513,7 @@ router.post("/account/password", requireAuth, passwordChangeLimiter, async (req,
   // Persist before responding, or a quick next request reads the old stamp
   // and logs this very session out — see lib/session.js.
   await saveSession(req);
-  res.render("change_password", { error: null, notice: "Password updated." });
+  res.render("change_password", { error: null, notice: req.tr("Password updated.", "Mot de passe mis à jour.") });
 });
 
 router.post("/logout", (req, res) => {

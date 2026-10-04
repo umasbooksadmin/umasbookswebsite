@@ -1,38 +1,46 @@
-<%- include('partials/header', { title: 'Contact Us' }) %>
+<%- include('partials/header', { title: tr('Contact Us', 'Nous contacter') }) %>
+<% const topicFr = {
+  'General question': 'Question générale',
+  'Books & orders': 'Livres et commandes',
+  'English programs': 'Programmes d’anglais',
+  'Events': 'Événements',
+  'Donating books': 'Dons de livres',
+  'Membership': 'Adhésion',
+  'Other': 'Autre',
+}; %>
 
-<h1 class="contact-title" data-i18n="contact.t">Contact Us</h1>
-<p class="muted" data-i18n="contact.intro">Questions about books, programs, events or donations? Send us a message and we'll get back to you by email.</p>
+<h1 class="contact-title"><%= tr('Contact Us', 'Nous contacter') %></h1>
+<p class="muted"><%= tr("Questions about books, programs, events or donations? Send us a message and we'll get back to you by email.", 'Une question sur les livres, les programmes, les événements ou les dons ? Envoyez-nous un message, nous vous répondrons par email.') %></p>
 
 <% if (sent) { %>
-  <div role="status" class="notice-box" data-i18n="contact.sent">Thank you! Your message has been sent — we'll reply by email soon.</div>
+  <div role="status" class="notice-box"><%= tr('Thank you! Your message has been sent — we\'ll reply by email soon.', 'Merci ! Votre message a bien été envoyé — nous vous répondrons bientôt par email.') %></div>
 <% } %>
 <% if (error) { %><div role="alert" class="error-box"><%= error %></div><% } %>
 
 <div class="card">
   <form class="stack" method="post" action="/contact">
     <%- include('partials/csrf_field') %>
-    <label for="c-name" data-i18n="contact.name">Your name</label>
+    <label for="c-name"><%= tr('Your name', 'Votre nom') %></label>
     <input id="c-name" name="name" type="text" autocomplete="name" maxlength="120" required value="<%= values.name || '' %>">
-    <label for="c-email" data-i18n="contact.email">Your email</label>
+    <label for="c-email"><%= tr('Your email', 'Votre email') %></label>
     <input id="c-email" name="email" type="email" autocomplete="email" maxlength="200" required value="<%= values.email || '' %>">
-    <label for="c-topic" data-i18n="contact.topic">Topic</label>
+    <label for="c-topic"><%= tr('Topic', 'Sujet') %></label>
     <select id="c-topic" name="topic">
-      <% topics.forEach(function (t, i) { %>
-        <option value="<%= t %>" data-i18n="contact.topic.<%= i %>"<%= values.topic === t ? ' selected' : '' %>><%= t %></option>
+      <% topics.forEach(function (t) { %>
+        <option value="<%= t %>"<%= values.topic === t ? ' selected' : '' %>><%= tr(t, topicFr[t]) %></option>
       <% }) %>
     </select>
-    <label for="c-message" data-i18n="contact.message">Message</label>
+    <label for="c-message"><%= tr('Message', 'Message') %></label>
     <textarea id="c-message" name="message" rows="7" maxlength="5000" required><%= values.message || '' %></textarea>
     <div class="hp" aria-hidden="true">
-      <label for="c-website">Website</label>
+      <label for="c-website"><%= tr('Website', 'Site web') %></label>
       <input id="c-website" name="website" type="text" tabindex="-1" autocomplete="off">
     </div>
-    <p class="muted small privacy-note" data-i18n-html="contact.privacy">We use your details only to reply to your message. See our <a href="/privacy-policy.html">privacy policy</a>.</p>
-    <button class="btn" type="submit" data-i18n="contact.send">Send message</button>
+    <p class="muted small privacy-note"><%= tr('We use your details only to reply to your message. See our', 'Vos données servent uniquement à répondre à votre message. Consultez notre') %> <a href="/privacy-policy.html"><%= tr('privacy policy', 'politique de confidentialité') %></a>.</p>
+    <button class="btn" type="submit"><%= tr('Send message', 'Envoyer le message') %></button>
   </form>
 </div>
 
-<p class="muted small"><span data-i18n="contact.or">Or email us directly at</span> <a href="mailto:admin@umasbooks.org">admin@umasbooks.org</a>.</p>
+<p class="muted small"><%= tr('Or email us directly at', 'Ou écrivez-nous directement à') %> <a href="mailto:admin@umasbooks.org">admin@umasbooks.org</a>.</p>
 
-<script src="/contact-i18n.js"></script>
 <%- include('partials/footer') %>

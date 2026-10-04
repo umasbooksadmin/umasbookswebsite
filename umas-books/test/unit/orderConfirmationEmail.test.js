@@ -26,3 +26,40 @@ test("order email carries the withdrawal information and model form itself, in F
   }
 });
 
+// ------------------------------------------------------------ languages
+
+const { orderConfirmationSubject, LEGAL_RIGHTS, WITHDRAWAL_FORM, SELLER_LINES } = require("../../src/lib/orderEmail");
+
+test("French order: French subject and body, prices, date and addresses unchanged", () => {
+  const t = buildOrderConfirmationText({ ...order, lang: "fr" }, items, "https://shop.test/");
+  assert.equal(orderConfirmationSubject("fr"), "Votre commande chez Uma's Books est confirmée");
+  assert.match(t, /^Bonjour Ada,/);
+  assert.match(t, /Merci pour votre commande — paiement reçu/);
+  assert.match(t, /Commande n° 42 — 06\/03\/2026/);
+  assert.match(t, /Payée en ligne via HelloAsso/);
+  assert.match(t, /Total : €12\.50/);
+  assert.match(t, /- Emma — €12\.50/);
+  assert.match(t, /Rue Peyrolière, 81000 Albi\) pendant les heures d’ouverture/);
+  assert.match(t, /Conditions de vente et votre droit de rétractation de 14 jours pour les livres : https:\/\/shop\.test\/terms-of-sale\.html/);
+  assert.doesNotMatch(t, /Thanks for your order|Come by Uma's Books|^Hi /m);
+});
+
+test("French order keeps the bilingual legal block, withdrawal form and seller identity verbatim", () => {
+  const t = buildOrderConfirmationText({ ...order, lang: "fr" }, items, "");
+  for (const block of [LEGAL_RIGHTS, WITHDRAWAL_FORM, SELLER_LINES]) assert.ok(t.includes(block));
+  assert.match(t, /YOUR RIGHTS/);
+  assert.match(t, /VOS DROITS/);
+});
+
+test("English order is unchanged and a missing or unknown order.lang means English", () => {
+  assert.equal(orderConfirmationSubject("en"), "Your order at Uma's Books is confirmed");
+  const base = buildOrderConfirmationText(order, items, "https://shop.test/");
+  assert.match(base, /^Hi Ada,\n\nThanks for your order — payment received:/);
+  assert.match(base, /Total: €12\.50/);
+  for (const lang of [undefined, null, "", "de", "FR"]) {
+    assert.equal(buildOrderConfirmationText({ ...order, lang }, items, "https://shop.test/"), base, `lang ${String(lang)}`);
+    assert.equal(orderConfirmationSubject(lang), "Your order at Uma's Books is confirmed");
+  }
+  assert.equal(buildOrderConfirmationText({ ...order, lang: "en" }, items, "https://shop.test/"), base);
+});
+

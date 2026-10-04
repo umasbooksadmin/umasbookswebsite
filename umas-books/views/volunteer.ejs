@@ -1,15 +1,15 @@
-<%- include('partials/header', { title: 'Volunteer Shifts', mainClass: view === 'week' ? 'wrap-wide' : 'wrap' }) %>
+<%- include('partials/header', { title: tr('Volunteer Shifts', 'Créneaux de bénévolat'), mainClass: view === 'week' ? 'wrap-wide' : 'wrap' }) %>
 
 <% const qs = view === 'week' ? `view=week&week=${currentWeek}` : `month=${currentMonth}`; %>
 <% const prevHref = view === 'week' ? `view=week&week=${prevWeek}` : `month=${prevMonth}`; %>
 <% const nextHref = view === 'week' ? `view=week&week=${nextWeek}` : `month=${nextMonth}`; %>
 
-<h1>Volunteer Shifts</h1>
-<p class="muted">Sign up for a shift below. Uma's is entirely volunteer-run &mdash; every hour on the shop floor, every sorted donation, every event, is someone giving their time.</p>
+<h1><%= tr('Volunteer Shifts', 'Créneaux de bénévolat') %></h1>
+<p class="muted"><%= tr("Sign up for a shift below. Uma's is entirely volunteer-run — every hour on the shop floor, every sorted donation, every event, is someone giving their time.", "Inscrivez-vous à un créneau ci-dessous. Uma’s repose entièrement sur des bénévoles — chaque heure en boutique, chaque don trié, chaque événement, c’est quelqu’un qui donne de son temps.") %></p>
 
 <% if (myShifts.length) { %>
   <div class="card">
-    <div class="section-title">My upcoming shifts</div>
+    <div class="section-title"><%= tr('My upcoming shifts', 'Mes prochains créneaux') %></div>
     <ul class="plain">
       <% myShifts.forEach(s => { %>
         <li>
@@ -24,17 +24,17 @@
 <div class="card">
   <div class="calendar-nav">
     <div class="calendar-nav-main">
-      <a class="btn btn-outline btn-small" href="/volunteer?<%= prevHref %>">&larr; Prev</a>
+      <a class="btn btn-outline btn-small" href="/volunteer?<%= prevHref %>">&larr; <%= tr('Prev', 'Préc.') %></a>
       <span class="month-label"><%= view === 'week' ? weekLabel : monthLabel %></span>
-      <a class="btn btn-outline btn-small" href="/volunteer?<%= nextHref %>">Next &rarr;</a>
+      <a class="btn btn-outline btn-small" href="/volunteer?<%= nextHref %>"><%= tr('Next', 'Suiv.') %> &rarr;</a>
     </div>
     <div class="calendar-view-toggle">
-      <a href="/volunteer" class="btn btn-outline btn-small<%= view === 'month' ? ' is-active' : '' %>">Month</a>
-      <a href="/volunteer?view=week" class="btn btn-outline btn-small<%= view === 'week' ? ' is-active' : '' %>">Week</a>
+      <a href="/volunteer" class="btn btn-outline btn-small<%= view === 'month' ? ' is-active' : '' %>"><%= tr('Month', 'Mois') %></a>
+      <a href="/volunteer?view=week" class="btn btn-outline btn-small<%= view === 'week' ? ' is-active' : '' %>"><%= tr('Week', 'Semaine') %></a>
     </div>
   </div>
   <div class="calendar-grid">
-    <% ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].forEach(d => { %><div class="calendar-weekday"><%= d %></div><% }) %>
+    <% [tr('Sun', 'Dim'), tr('Mon', 'Lun'), tr('Tue', 'Mar'), tr('Wed', 'Mer'), tr('Thu', 'Jeu'), tr('Fri', 'Ven'), tr('Sat', 'Sam')].forEach(d => { %><div class="calendar-weekday"><%= d %></div><% }) %>
     <% weeks.forEach(week => { %>
       <% week.forEach(day => { %>
         <% if (!day) { %>
@@ -49,18 +49,18 @@
                 <div class="calendar-pill-body">
                   <div class="muted small">
                     <%= formatTime(s.starts_at) %> &ndash; <%= formatTime(s.ends_at) %>
-                    &middot; <%= s.signup_count %>/<%= s.capacity %> filled
+                    &middot; <%= tr('{n}/{max} filled', '{n}/{max} inscrits', { n: s.signup_count, max: s.capacity }) %>
                   </div>
                   <% if (s.notes) { %><div class="muted small"><%= s.notes %></div><% } %>
                   <% if (mine) { %>
                     <form method="post" action="/volunteer/<%= s.id %>/cancel?<%= qs %>" style="margin-top:8px;">
                       <%- include('partials/csrf_field') %>
-                      <button class="btn btn-outline btn-small" type="submit">Cancel</button>
+                      <button class="btn btn-outline btn-small" type="submit"><%= tr('Cancel', 'Annuler') %></button>
                     </form>
                   <% } else { %>
                     <form method="post" action="/volunteer/<%= s.id %>/signup?<%= qs %>" style="margin-top:8px;">
                       <%- include('partials/csrf_field') %>
-                      <button class="btn btn-small" type="submit"<%= full ? ' disabled' : '' %>><%= full ? 'Full' : 'Sign up' %></button>
+                      <button class="btn btn-small" type="submit"<%= full ? ' disabled' : '' %>><%= full ? tr('Full', 'Complet') : tr('Sign up', 'S’inscrire') %></button>
                     </form>
                   <% } %>
                 </div>

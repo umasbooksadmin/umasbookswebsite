@@ -11,7 +11,7 @@ validateIdParams(router, "id");
 
 router.get("/meetings", requireMember, async (req, res) => {
   const userId = req.session.user.id;
-  const range = resolveCalendarRange(req.query, 0);
+  const range = resolveCalendarRange(req.query, 0, req.lang);
 
   const { rows: meetings } = await pool.query(
     `SELECT m.*, (SELECT COUNT(*) FROM meeting_rsvps r WHERE r.meeting_id = m.id) AS rsvp_count

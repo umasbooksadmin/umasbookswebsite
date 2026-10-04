@@ -1,13 +1,14 @@
 const crypto = require("crypto");
+const { translator } = require("./lang");
 
 const MIN_LENGTH = 8;
 const HIBP_TIMEOUT_MS = 3000;
 
 const COMPLEXITY_RULES = [
-  { test: (pw) => /[a-z]/.test(pw), label: "a lowercase letter" },
-  { test: (pw) => /[A-Z]/.test(pw), label: "an uppercase letter" },
-  { test: (pw) => /[0-9]/.test(pw), label: "a number" },
-  { test: (pw) => /[^A-Za-z0-9]/.test(pw), label: "a symbol" },
+  { test: (pw) => /[a-z]/.test(pw), label: "a lowercase letter", fr: "une lettre minuscule" },
+  { test: (pw) => /[A-Z]/.test(pw), label: "an uppercase letter", fr: "une lettre majuscule" },
+  { test: (pw) => /[0-9]/.test(pw), label: "a number", fr: "un chiffre" },
+  { test: (pw) => /[^A-Za-z0-9]/.test(pw), label: "a symbol", fr: "un symbole" },
 ];
 
 // Checks the password against the HaveIBeenPwned k-anonymity range API:
@@ -45,17 +46,23 @@ async function isPasswordPwned(password) {
 }
 
 // Returns an error message string if the password should be rejected,
-// or null if it's acceptable.
-async function validateNewPassword(password) {
+// or null if it's acceptable. `tr` is the request's translator (req.tr);
+// without one the message is English.
+async function validateNewPassword(password, tr = translator("en")) {
   if (!password || password.length < MIN_LENGTH) {
-    return `Password must be at least ${MIN_LENGTH} characters.`;
+    return tr("Password must be at least {n} characters.", "Le mot de passe doit contenir au moins {n} caractères.", { n: MIN_LENGTH });
   }
-  const missing = COMPLEXITY_RULES.filter((rule) => !rule.test(password)).map((rule) => rule.label);
-  if (missing.length > 0) {
-    return `Password must include ${missing.join(", ")}.`;
+  const failed = COMPLEXITY_RULES.filter((rule) => !rule.test(password));
+  if (failed.length > 0) {
+    return tr("Password must include {list}.", "Le mot de passe doit contenir {list}.", {
+      list: failed.map((rule) => tr(rule.label, rule.fr)).join(", "),
+    });
   }
   if (await isPasswordPwned(password)) {
-    return "That password has appeared in a known data breach. Please choose a different one.";
+    return tr(
+      "That password has appeared in a known data breach. Please choose a different one.",
+      "Ce mot de passe figure dans une fuite de données connue. Veuillez en choisir un autre."
+    );
   }
   return null;
 }

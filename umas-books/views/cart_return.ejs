@@ -1,28 +1,28 @@
-<%- include('partials/header', { noindex: true, title: 'Order' }) %>
+<%- include('partials/header', { noindex: true, title: tr('Order', 'Commande') }) %>
 
 <% if (status === 'paid') { %>
-  <h1>Thank you!</h1>
-  <p class="muted">Your payment went through &mdash; here's what you ordered:</p>
+  <h1><%= tr('Thank you!', 'Merci !') %></h1>
+  <p class="muted"><%= tr("Your payment went through — here's what you ordered:", 'Votre paiement a bien été reçu. Voici ce que vous avez commandé :') %></p>
   <div class="card">
     <ul class="plain">
       <% items.forEach(i => { %>
         <li><%= i.item_title %> <span class="muted small">&middot; &euro;<%= Number(i.price).toFixed(2) %></span></li>
       <% }) %>
     </ul>
-    <p><strong>Total: &euro;<%= Number(order.total_amount).toFixed(2) %></strong></p>
+    <p><strong><%= tr('Total:', 'Total :') %> &euro;<%= Number(order.total_amount).toFixed(2) %></strong></p>
   </div>
-  <p class="muted small">A confirmation email is on its way to <%= order.buyer_email %>. Come by Uma's Books during opening hours to pick up your order.</p>
+  <p class="muted small"><%= tr('A confirmation email is on its way to {email}. Come by Uma\'s Books during opening hours to pick up your order.', 'Un e-mail de confirmation vous est envoyé à l’adresse {email}. Passez à Uma\'s Books pendant les heures d’ouverture pour retirer votre commande.', { email: order.buyer_email }) %></p>
 <% } else if (status === 'pending') { %>
-  <h1>Confirming your payment&hellip;</h1>
-  <p class="muted">We haven't heard back from the payment provider yet. This is usually quick &mdash; refresh this page in a minute, or check your email for a confirmation.</p>
+  <h1><%= tr('Confirming your payment…', 'Confirmation de votre paiement…') %></h1>
+  <p class="muted"><%= tr("We haven't heard back from the payment provider yet. This is usually quick — refresh this page in a minute, or check your email for a confirmation.", 'Nous n’avons pas encore de réponse du prestataire de paiement. C’est généralement rapide : actualisez cette page dans une minute, ou consultez vos e-mails pour la confirmation.') %></p>
 <% } else if (paymentReceivedUnfulfilled) { %>
-  <h1>We received your payment</h1>
-  <p class="muted">Your payment came through, but we couldn't complete your order automatically. We'll contact you at <%= order.buyer_email %> shortly to sort it out &mdash; there's no need to pay again.</p>
-  <p><a class="btn" href="/books.html">Back to Books</a></p>
+  <h1><%= tr('We received your payment', 'Nous avons bien reçu votre paiement') %></h1>
+  <p class="muted"><%= tr("Your payment came through, but we couldn't complete your order automatically. We'll contact you at {email} shortly to sort it out — there's no need to pay again.", 'Votre paiement nous est bien parvenu, mais nous n’avons pas pu finaliser votre commande automatiquement. Nous vous contacterons très bientôt à l’adresse {email} pour régler cela : inutile de payer à nouveau.', { email: order.buyer_email }) %></p>
+  <p><a class="btn" href="/books.html"><%= tr('Back to Books', 'Retour aux livres') %></a></p>
 <% } else { %>
-  <h1>Payment not completed</h1>
-  <p class="muted">Your payment didn't go through, so nothing was charged — any books are back in stock and any drop-in seats are open again for anyone else to buy.</p>
-  <p><a class="btn" href="/books.html">Back to Books</a></p>
+  <h1><%= tr('Payment not completed', 'Paiement non abouti') %></h1>
+  <p class="muted"><%= tr("Your payment didn't go through, so nothing was charged — any books are back in stock and any drop-in seats are open again for anyone else to buy.", 'Votre paiement n’a pas abouti : rien n’a donc été débité. Les livres sont de nouveau en stock et les places drop-in sont de nouveau disponibles pour tout le monde.') %></p>
+  <p><a class="btn" href="/books.html"><%= tr('Back to Books', 'Retour aux livres') %></a></p>
 <% } %>
 
 <%- include('partials/footer') %>

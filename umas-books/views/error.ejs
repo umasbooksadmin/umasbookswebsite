@@ -1,7 +1,7 @@
-<%- include('partials/header', { title: 'Request problem' }) %>
+<%- include('partials/header', { title: tr('Request problem', 'Problème avec la demande') }) %>
 
-<h1>That didn't work</h1>
+<h1><%= tr("That didn't work", 'Cela n’a pas fonctionné') %></h1>
 <p class="muted"><%= message %></p>
-<p><a href="/">Go home</a></p>
+<p><a href="/"><%= tr('Go home', 'Retour à l’accueil') %></a></p>
 
 <%- include('partials/footer') %>

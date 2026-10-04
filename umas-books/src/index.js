@@ -33,6 +33,7 @@ const { expireStaleMemberships, reconcileRecentMemberships } = require("./lib/me
 const { alertOnError } = require("./lib/errorAlert");
 const { errorHandler } = require("./lib/errorHandler");
 const { noStoreForUsers } = require("./middleware/noStoreForUsers");
+const { langMiddleware } = require("./middleware/lang");
 const { healthzHandler } = require("./lib/health");
 const seoRoutes = require("./routes/seo");
 const { MARKETING_PAGES, setMarketingSeoLocals } = seoRoutes;
@@ -41,6 +42,7 @@ const authRoutes = require("./routes/auth");
 const twoFactorRoutes = require("./routes/twoFactor");
 const dashboardRoutes = require("./routes/dashboard");
 const accountRoutes = require("./routes/account");
+const accountPrivacyRoutes = require("./routes/accountPrivacy");
 const forumRoutes = require("./routes/forum");
 const charityRoutes = require("./routes/charity");
 const volunteerRoutes = require("./routes/volunteer");
@@ -190,6 +192,9 @@ app.use((req, res, next) => {
   next();
 });
 
+// Language (cookie / Accept-Language -> req.lang, tr(), localised dates).
+// Reads headers only, so it never creates a session or touches the DB.
+app.use(langMiddleware);
 app.use(attachUser(pool));
 // Right after attachUser (it needs res.locals.user): logged-in responses are no-store.
 app.use(noStoreForUsers);
@@ -324,6 +329,7 @@ app.use(authRoutes);
 app.use(twoFactorRoutes);
 app.use(dashboardRoutes);
 app.use(accountRoutes);
+app.use(accountPrivacyRoutes);
 app.use(forumRoutes);
 app.use(charityRoutes);
 app.use(volunteerRoutes);
