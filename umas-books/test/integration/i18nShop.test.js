@@ -87,7 +87,7 @@ test("checkout form (HelloAsso on, book + drop-in seat) is fully translated", as
     pages[lang] = (await v.get("/cart")).text;
   }
   assert.match(pages.en, /Pay &amp; Buy/);
-  assert.match(pages.fr, /<button class="btn" type="submit">Payer<\/button>/);
+  assert.match(pages.fr, /<button class="btn" type="submit">Commander et payer<\/button>/);
   assert.doesNotMatch(pages.fr, /Pay &amp; Buy/);
   assert.match(pages.fr, /conditions de vente/);
   assert.match(pages.fr, /name="waiveWithdrawal"/);

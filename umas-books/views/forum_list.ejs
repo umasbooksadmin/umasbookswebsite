@@ -10,7 +10,11 @@
   <ul class="plain">
     <% threads.forEach(t => { %>
       <li>
-        <a href="/forum/<%= t.id %>"><%= t.title %></a>
+        <% if (t.hidden && !(user && user.isAdmin)) { %>
+          <em class="muted"><%= tr('This post was removed by the moderators.', 'Ce message a été retiré par les modérateurs.') %></em>
+        <% } else { %>
+          <a href="/forum/<%= t.id %>"><%= t.title %></a><% if (t.hidden) { %> <span class="muted small">(Hidden)</span><% } %>
+        <% } %>
         <div class="thread-meta"><%= t.author_name || tr('Member', 'Membre') %> &middot; <%= formatDate(t.created_at) %> &middot; <%= t.reply_count == 1 ? tr('1 reply', '1 réponse') : tr('{n} replies', '{n} réponses', { n: t.reply_count }) %></div>
       </li>
     <% }) %>

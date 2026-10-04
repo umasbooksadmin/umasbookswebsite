@@ -59,7 +59,7 @@
         <label class="ann-check"><input type="checkbox" name="acceptCgv" required> <span><%= tr('I have read and accept the', 'J’ai lu et j’accepte les') %> <a href="/terms-of-sale.html" target="_blank" rel="noopener"><%= tr('terms of sale', 'conditions de vente') %></a> <%= tr('(including the right of withdrawal).', '(y compris le droit de rétractation).') %></span></label>
         <%- include('partials/privacy_note', { en: 'We use your details only to process your order. See our', fr: 'Vos données servent uniquement à traiter votre commande. Consultez notre' }) %>
         <% if (items.some((i) => i.kind === 'dropin')) { %><%- include('partials/dropin_waiver') %><% } %>
-        <button class="btn" type="submit"><%= tr('Pay & Buy', 'Payer') %></button>
+        <button class="btn" type="submit"><%= tr('Pay & Buy', 'Commander et payer') %></button>
       </form>
     </div>
   <% } %>

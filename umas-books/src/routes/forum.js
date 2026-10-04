@@ -5,6 +5,7 @@ const { forumPostLimiter, forumReplyLimiter, limit } = require("../middleware/ra
 const { clean, parseId, emailSafeName } = require("../lib/validation");
 const { sendMail } = require("../mailer");
 const { baseUrl } = require("../lib/baseUrl");
+const { unpackReason } = require("../lib/forumModeration");
 
 const { validateIdParams } = require("../middleware/idParams");
 
@@ -34,6 +35,24 @@ const forumReportLimiter = limit({
   keyGenerator: (req) => `user:${req.session.user.id}`,
 });
 
+const isAdminReq = (req) => !!(req.session.user && req.session.user.isAdmin);
+
+// Hidden posts (admin moderation, routes/admin/forum.js): members never get
+// the text, so it is blanked here and the views show a placeholder. Admins
+// keep the original plus the reason.
+function maskHidden(row, admin) {
+  if (!row.hidden_at) return row;
+  const info = unpackReason(row.hidden_reason);
+  const out = { ...row, hidden: true, hidden_code: info.code, hidden_note: info.note };
+  if (!admin) {
+    out.title = "";
+    out.body = "";
+    out.hidden_code = null;
+    out.hidden_note = "";
+  }
+  return out;
+}
+
 router.get("/forum", requireMember, async (req, res) => {
   const { rows: threads } = await pool.query(
     `SELECT t.*, u.display_name AS author_name,
@@ -41,7 +60,8 @@ router.get("/forum", requireMember, async (req, res) => {
      FROM forum_threads t LEFT JOIN users u ON u.id = t.author_id
      ORDER BY t.created_at DESC`
   );
-  res.render("forum_list", { threads });
+  const admin = isAdminReq(req);
+  res.render("forum_list", { threads: threads.map((t) => maskHidden(t, admin)) });
 });
 
 router.get("/forum/new", requireMember, (req, res) => {
@@ -70,19 +90,29 @@ router.get("/forum/:id", requireMember, async (req, res) => {
   );
   if (!threadRows.length) return res.status(404).send(req.tr("Thread not found.", "Discussion introuvable."));
 
-  const { rows: replies } = await pool.query(
+  const admin = isAdminReq(req);
+  const thread = maskHidden(threadRows[0], admin);
+
+  // A hidden thread is hidden as a whole for members: no replies, no form.
+  const { rows: replyRows } = thread.hidden && !admin ? { rows: [] } : await pool.query(
     `SELECT r.*, u.display_name AS author_name FROM forum_replies r
      LEFT JOIN users u ON u.id = r.author_id WHERE r.thread_id = $1 ORDER BY r.created_at ASC`,
     [threadId]
   );
 
-  res.render("forum_thread", { thread: threadRows[0], replies, error: null, reported: req.query.reported === "1" });
+  const replies = replyRows.map((r) => maskHidden(r, admin));
+
+  res.render("forum_thread", { thread, replies, error: null, reported: req.query.reported === "1" });
 });
 
 router.post("/forum/:id/replies", requireMember, forumReplyLimiter, async (req, res) => {
   const threadId = Number(req.params.id);
   const body = clean(req.body.body, MAX_POST_BODY);
   if (!body) return res.redirect(`/forum/${threadId}`);
+  if (!isAdminReq(req)) {
+    const { rows } = await pool.query("SELECT hidden_at FROM forum_threads WHERE id = $1", [threadId]);
+    if (rows[0] && rows[0].hidden_at) return res.redirect(`/forum/${threadId}`);
+  }
   try {
     await pool.query(
       "INSERT INTO forum_replies (thread_id, body, author_id) VALUES ($1, $2, $3)",
