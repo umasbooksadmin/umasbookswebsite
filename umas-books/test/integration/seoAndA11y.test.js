@@ -6,6 +6,7 @@ const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const { startTestApp } = require("../helpers/testApp");
 const { makeCookieJar, fetchCsrfToken } = require("../helpers/httpClient");
+const { createAccount, loginOverHttp } = require("../helpers/accounts");
 const MARKETING_PAGES = require("../../src/lib/marketingPages");
 
 const PORT = 3611;
@@ -140,8 +141,13 @@ test("the home page carries Bookstore JSON-LD built from facts on the site; othe
   assert.doesNotMatch(await (await get("/about.html")).text(), /application\/ld\+json/);
 });
 
-test("the HelloAsso iframe has a title", async () => {
-  const html = await (await get("/membership.html")).text();
+test("the HelloAsso iframe has a title (shown to a logged-in account: a guest gets the join form instead)", async () => {
+  const guest = await (await get("/membership.html")).text();
+  assert.ok(!guest.includes("<iframe"), "no payment widget for a guest");
+  const jar = makeCookieJar();
+  const account = await createAccount(pool, { email: `a11y-${stamp}@example.test`, displayName: "A11y" });
+  assert.equal((await loginOverHttp(app.base, jar, account)).status, 302);
+  const html = await (await fetch(`${app.base}/membership.html`, { headers: { cookie: jar.header() } })).text();
   assert.match(html, /<iframe id="haWidget" title="HelloAsso membership form"/);
 });
 

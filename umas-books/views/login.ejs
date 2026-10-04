@@ -3,8 +3,10 @@
 <h1><%= tr('Log in', 'Connexion') %></h1>
 <% if (error) { %><div role="alert" class="error-box"><%= error %></div><% } %>
 <% if (notice) { %><div role="status" class="notice-box"><%= notice %></div><% } %>
+<%- include('partials/return_note') %>
 <form class="stack" method="post" action="/login">
   <%- include('partials/csrf_field') %>
+  <% if (locals.returnTo) { %><input type="hidden" name="returnTo" value="<%= locals.returnTo %>"><% } %>
   <label for="email"><%= tr('Email', 'E-mail') %></label>
   <input id="email" name="email" type="email" autocomplete="username" required>
   <label for="password"><%= tr('Password', 'Mot de passe') %></label>
@@ -14,11 +16,12 @@
   </div>
   <button class="btn" type="submit"><%= tr('Log in', 'Se connecter') %></button>
 </form>
-<p class="muted small"><%= tr('New here?', 'Nouveau ici ?') %> <a href="/signup"><%= tr('Create an account', 'Créer un compte') %></a></p>
+<p class="muted small"><%= tr('New here?', 'Nouveau ici ?') %> <a href="/signup<%= locals.returnTo ? '?returnTo=' + encodeURIComponent(locals.returnTo) : '' %>"><%= tr('Create an account', 'Créer un compte') %></a></p>
 <details class="muted small"<%= locals.unverifiedEmail ? ' open' : '' %>>
   <summary><%= tr('Just signed up? Send me the confirmation link again', 'Vous venez de vous inscrire ? Renvoyer le lien de confirmation') %></summary>
   <form class="stack" method="post" action="/resend-verification">
     <%- include('partials/csrf_field') %>
+    <% if (locals.returnTo) { %><input type="hidden" name="returnTo" value="<%= locals.returnTo %>"><% } %>
     <label for="resendEmail"><%= tr('Email', 'E-mail') %></label>
     <input id="resendEmail" name="email" type="email" autocomplete="email" value="<%= locals.unverifiedEmail || '' %>" required>
     <button class="btn" type="submit"><%= tr('Send me the link again', 'Renvoyer le lien') %></button>

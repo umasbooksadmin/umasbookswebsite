@@ -92,8 +92,11 @@ test("without PREVIEW_MODE there is no banner, no robots meta and no X-Robots-Ta
   assert.match(robots, /Allow: \//);
   const sitemap = await (await get(normal, "/sitemap.xml")).text();
   assert.match(sitemap, /<loc>/);
-  // The real membership widget is still there.
-  assert.match(await (await get(normal, "/membership.html")).text(), /id="haWidget"/);
+  // Normal mode: a guest gets the join form (the payment widget follows it, or
+  // shows directly for a logged-in account: see membershipAccount.test.js).
+  const guestMembership = await (await get(normal, "/membership.html")).text();
+  assert.match(guestMembership, /action="\/membership\/join"/);
+  assert.doesNotMatch(guestMembership, /id="haWidget"/);
 });
 
 test("search engines: X-Robots-Tag, robots.txt, empty sitemap", async () => {
