@@ -61,12 +61,13 @@ const DYNAMIC_PAGES = {
   },
   "cart (empty)": async () => ({ path: "/cart" }),
   "cart_return (paid)": async () => ({ path: `/cart/return?order=${(await seed()).orders.paid}` }),
+  "cart_return (paid, with a drop-in seat)": async () => ({ path: `/cart/return?order=${(await seed()).orders.dropin}` }),
   "cart_return (cancelled)": async () => ({ path: `/cart/return?order=${(await seed()).orders.cancelled}` }),
   "cart_return (payment received, not fulfilled)": async () => ({ path: `/cart/return?order=${(await seed()).orders.unfulfilled}` }),
 };
 
 // "Éveil" is a program name, French in both languages; "Message" is the same word in French.
-const EXTRA_ALLOWLIST = [/^I18n Shop (Book|Sold|Author)/, /^[ÉE]veil$/, "Message"];
+const EXTRA_ALLOWLIST = [/^I18n Shop (Book|Sold|Author|Class)/, /^[ÉE]veil$/, "Message"];
 
 let app;
 let seeded;
@@ -106,6 +107,22 @@ async function seed() {
       await client.query("INSERT INTO order_items (order_id, book_copy_id, item_title, price) VALUES ($1, $2, 'I18n Shop Book', 6.5)", [rows[0].id, oc[0].id]);
       orders[key] = rows[0].access_token;
     }
+    // A paid order with a drop-in seat: the line is rendered from the class row.
+    const { rows: cls } = await client.query(
+      "INSERT INTO classes (title, starts_at, capacity, dropin_price) VALUES ('I18n Shop Class', '2092-12-12T17:00:00Z', 10, 5) RETURNING id"
+    );
+    const { rows: dord } = await client.query(
+      "INSERT INTO orders (buyer_name, buyer_email, total_amount, status) VALUES ('Buyer', 'buyer@example.test', 5, 'paid') RETURNING access_token, id"
+    );
+    const { rows: seat } = await client.query(
+      "INSERT INTO class_dropin_seats (class_id, status, order_id) VALUES ($1, 'sold', $2) RETURNING id",
+      [cls[0].id, dord[0].id]
+    );
+    await client.query(
+      "INSERT INTO order_items (order_id, class_dropin_seat_id, item_title, price) VALUES ($1, $2, 'I18n Shop Class — 12 Dec, 18:00', 5)",
+      [dord[0].id, seat[0].id]
+    );
+    orders.dropin = dord[0].access_token;
     seeded = { bookId: b[0].id, soldBookId: sold[0].id, copyId: c[0].id, orders };
   } finally {
     await client.end();

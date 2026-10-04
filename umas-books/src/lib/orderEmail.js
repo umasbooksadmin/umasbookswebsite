@@ -1,6 +1,7 @@
 const { emailSafeName } = require("./validation");
 const { formatDate } = require("./dates");
 const { emailTr } = require("./lang");
+const { orderItemLabel } = require("./orderItems");
 
 // The shop you pick up at (Rue Peyrolière) is NOT the association's
 // registered office (siège, 5 rue Hippolyte Savary): customers get the shop
@@ -8,7 +9,7 @@ const { emailTr } = require("./lang");
 // The shop's identity block for order emails (French consumer-law
 // mentions: who sells, and that VAT does not apply).
 const SELLER_LINES =
-  "Uma's Books — association loi 1901, RNA W811011706, SIRET 109 441 147 00013, 5 rue Hippolyte Savary, 81000 Albi\nTVA non applicable";
+  "Uma's Books — association loi 1901, RNA W811011706, SIRET 109 441 147 00013, 5 rue Hippolyte Savary, 81000 Albi\nTél. / Phone : 06 98 95 67 91 — admin@umasbooks.org\nTVA non applicable";
 
 // Consumer Code art. L.221-13: the confirmation must carry the withdrawal
 // information and the model withdrawal form ON A DURABLE MEDIUM, a link to
@@ -54,7 +55,7 @@ function buildOrderConfirmationText(order, items, base) {
         `Conditions de vente et votre droit de rétractation de 14 jours pour les livres : ${root}/terms-of-sale.html\n\n`
       )
     : "";
-  const lines = items.map((i) => `- ${i.item_title} — €${Number(i.price).toFixed(2)}`).join("\n");
+  const lines = items.map((i) => `- ${orderItemLabel(i, order.lang)} — €${Number(i.price).toFixed(2)}`).join("\n");
   const orderDate = formatDate(order.created_at || new Date());
   const name = emailSafeName(order.buyer_name);
   const total = Number(order.total_amount).toFixed(2);
