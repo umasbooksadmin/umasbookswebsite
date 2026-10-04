@@ -119,6 +119,33 @@ rather than by a numbered migration), grouped by what they belong to:
   requester's `lang`. Personal columns are cleared on cancel, expiry, erasure
   and by the daily purge (unconfirmed after 7 days, open/matched/notified at 12 months,
   ended ones after 30 days); the data export has a `book_requests` section.
+
+- **Suggested prices** — `src/lib/pricing/` (migrations 053, 054). Prices are
+  only ever *suggestions*; a volunteer accepts or changes them and nothing is
+  published automatically. `rules.js` is the pure rules engine (no network,
+  no database; the order of checks is written at its top): new = publisher
+  price; no ISBN = manual review; mass market = EUR 5; online value M (median
+  of used listings in EUR, outliers trimmed; else publisher price x 0.35; else a
+  typical value by binding) under 6 = Rule A (EUR 5), under 20 = Rule B (EUR
+  8), under 50 = Rule C (75% of M, rounded to 0.50), 50 or more = manual
+  review; hardcovers never below EUR 10; clearance (EUR 1) when 2+ copies of
+  the book are already in stock (Rule A / mass market, by default). The
+  copy's condition never changes the price. Every number is a setting in
+  `pricing_settings` (single row, `settings.js`, 60 s cache) edited at
+  `/admin/pricing` (audit `pricing.settings`, changed keys only).
+  `market.js` is the optional AI market check (Anthropic Messages API with the
+  web search tool, same call pattern as `bookDescription.js`): off by default,
+  fails open, 12 s timeout, results cached 30 days per ISBN-13 in
+  `price_lookups`, daily cap counted from that table. `index.js` combines the
+  two (`suggestPrice`, never throws); `forms.js`/`intake.js` are the glue to the
+  admin forms; `clearance.js` counts copies and lists candidates. The add-book
+  and copy forms use `public/price-suggestion.js` against
+  `GET /admin/inventory/price-suggestion` (30 a minute per admin); what was
+  suggested is stored on the copy (`suggested_price`, `suggested_level`,
+  `price_basis`), and `is_clearance` marks clearance copies (shown to the public
+  as a badge). `/admin/pricing/review` is the price check (copies that differ
+  from the suggestion, copies needing review, clearance candidates; audit
+  `copy.reprice`).
 - **Accounts & auth** — `users`, `password_reset_tokens`,
   `email_verification_tokens`
 - **Shop / checkout** — `books`, `book_copies`, `orders`, `order_items`
@@ -172,6 +199,9 @@ src/` is the ground truth if this list ever drifts):
 | `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` | `SEED_ADMIN_PASSWORD` required the first time `npm run seed` creates an admin | one-time bootstrap of the first admin account |
 | `ANTHROPIC_API_KEY` | no | powers inventory photo-scan and auto-generated book descriptions |
 | `ANTHROPIC_WORKSPACE_ID` | no | optional workspace header on Anthropic API calls |
+| `PRICING_AI` | no (off unless `1` or `true`) | turns on the AI market check behind price suggestions (also needs `ANTHROPIC_API_KEY`); without it prices come from the built-in rules only |
+| `PRICING_AI_MODEL` | no (defaults to the model used for book descriptions) | model for the market check; it must support the web search tool |
+| `PRICING_AI_DAILY_MAX` | no (defaults 150) | most AI market lookups per day, counted from the database so a restart cannot reset it; `0` switches lookups off |
 | `HELLOASSO_CLIENT_ID` / `HELLOASSO_CLIENT_SECRET` / `HELLOASSO_ORG_SLUG` | no (checkout shows "not set up yet" without them) | HelloAsso Checkout API credentials |
 | `HELLOASSO_API_BASE` | no (defaults to production) | set to HelloAsso's sandbox URL for testing |
 | `PREVIEW_MODE` | no (off when unset) | `true` or `1` (any case) turns on [preview mode](#preview-mode): coming-soon banner, payments off, search engines kept out. Set in the Render dashboard, not in `render.yaml` |

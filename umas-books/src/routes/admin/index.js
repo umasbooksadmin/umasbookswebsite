@@ -14,7 +14,9 @@ router.use(require("./meetings"));
 router.use(require("./events"));
 router.use(require("./sessions"));
 router.use(require("./charity"));
+router.use(require("./priceSuggestions")); // before inventory: "price-suggestion" is not a book id
 router.use(require("./inventory"));
+router.use(require("./pricing"));
 router.use(require("./audit"));
 router.use(require("./requests"));
 
