@@ -347,6 +347,8 @@ secret** = same page, **Secrets** tab.
 - [ ] **`TOTP_ENCRYPTION_KEY`** is copied into the password manager (section b).
 - [ ] **Sample and test data removed.** There is no clearing script yet; this
   step is a placeholder to agree on a procedure before launch.
+- [ ] **Manual test scripts** run and passed (every **(must)** step), see
+  `docs/testing/manual-test-scripts.md`.
 
 ### Turning it on again
 
