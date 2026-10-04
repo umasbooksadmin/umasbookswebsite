@@ -11,6 +11,7 @@ const { getCheckoutIntent, isOrderPaid } = require("./helloasso");
 const { sendMail } = require("../mailer");
 const { withTransaction } = require("../db");
 const { alertOnError } = require("./errorAlert");
+const { loadOrderItems } = require("./orderItems");
 const { buildOrderConfirmationText, orderConfirmationSubject } = require("./orderEmail");
 
 const CART_HOLD_TTL_MINUTES = 60;
@@ -134,7 +135,7 @@ async function markOrderPaid(pool, order) {
 }
 
 async function sendOrderConfirmation(pool, order) {
-  const { rows: items } = await pool.query("SELECT item_title, price FROM order_items WHERE order_id = $1", [order.id]);
+  const items = await loadOrderItems(pool, order.id);
   const base = process.env.APP_BASE_URL || process.env.RENDER_EXTERNAL_URL;
   // Subject and body follow order.lang ('en' | 'fr' | null; null is English).
   sendMail({

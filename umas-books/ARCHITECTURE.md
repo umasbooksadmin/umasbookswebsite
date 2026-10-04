@@ -368,9 +368,18 @@ as-is and never copied.
 - **Where the bytes live:** the `images` table (`id` = lowercase hex SHA-256
   of the bytes, `content_type`, `data` BYTEA, `byte_size`;
   `migrations/034_image_store.sql`). Content-addressed, so identical uploads
-  dedupe and a URL's bytes never change. Images are not garbage-collected
-  when a row stops referencing them (a replaced cover leaves an orphan);
-  they are small and re-uploads dedupe, so this is deliberate for now.
+  dedupe and a URL's bytes never change.
+- **Cleanup of unused images:** `src/lib/imageCleanup.js` deletes `images`
+  rows whose hash appears in no referencing column. The columns are listed
+  once, in `IMAGE_REFERENCES` (cover/image URL columns plus the rich-text
+  bodies, excerpts and descriptions, matched by substring so an `<img>`
+  inside a body counts). Only images older than 7 days are removed (an
+  upload exists before the form that references it is saved), `saveImage`
+  refreshes `created_at` on a repeat upload, one run deletes at most 500
+  rows in a single statement, and a daily step in `src/index.js` runs it and
+  logs counts only. The admin dashboard shows "Unused images waiting for
+  cleanup". A test fails if a new image-looking text column or a new
+  `saveImage` caller appears without updating `IMAGE_REFERENCES`.
 - **Serving:** `GET /img/<sha256>.(jpg|png|webp)` (`src/routes/img.js`),
   mounted before the session store like `/assets`, so it never reads or sets
   a cookie. `Cache-Control: public, max-age=31536000, immutable`, `ETag` =
