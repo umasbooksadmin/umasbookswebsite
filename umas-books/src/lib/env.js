@@ -11,7 +11,13 @@
 //               itself off when any variable in the group is missing. That
 //               is easy to miss in production (e.g. no Gmail credentials
 //               also means no error-alert emails), so it gets a loud log.
-const REQUIRED = ["DATABASE_URL", "SESSION_SECRET"];
+//
+// TOTP_ENCRYPTION_KEY is required here (production only) because lib/totp.js
+// otherwise falls back to deriving the key from SESSION_SECRET, which would
+// silently re-key every admin's two-step secret if SESSION_SECRET is ever
+// rotated. Outside production that fallback is kept for convenience.
+const { isPreviewMode } = require("./preview");
+const REQUIRED = ["DATABASE_URL", "SESSION_SECRET", "TOTP_ENCRYPTION_KEY"];
 
 const OPTIONAL_GROUPS = [
   {
@@ -34,6 +40,12 @@ function validateEnv(env = process.env) {
   for (const { vars, consequence } of OPTIONAL_GROUPS) {
     const unset = vars.filter((name) => !isSet(env, name));
     if (unset.length > 0) warnings.push(`${unset.join(", ")} not set - ${consequence}.`);
+  }
+  // Error alerts ride on the Gmail credentials; the OPTIONAL_GROUPS warning
+  // above already says so. This one is stronger: a live site (not preview)
+  // that cannot email anyone about its own failures.
+  if (!isPreviewMode(env) && (!isSet(env, "GMAIL_USER") || !isSet(env, "GMAIL_APP_PASSWORD"))) {
+    warnings.push("Gmail is not configured and preview mode is off - error alerts to the admin are DISABLED on a live site. Set GMAIL_USER and GMAIL_APP_PASSWORD.");
   }
   if (!isSet(env, "APP_BASE_URL") && !isSet(env, "RENDER_EXTERNAL_URL")) {
     warnings.push("APP_BASE_URL / RENDER_EXTERNAL_URL not set - emailed links and payment return URLs will fail in production.");

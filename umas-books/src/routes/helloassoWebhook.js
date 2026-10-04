@@ -3,6 +3,7 @@ const { limit } = require("../middleware/rateLimits");
 const { pool } = require("../db");
 const { reconcileOrder, adoptCheckoutIntent } = require("../lib/cart");
 const { syncMembershipForEmail } = require("../lib/membership");
+const { scrubPersonalData } = require("../lib/scrub");
 
 const router = express.Router();
 
@@ -89,7 +90,7 @@ router.post("/webhooks/helloasso", webhookLimiter, express.json(), async (req, r
       if (formType === "Membership" && payerEmail) {
         await syncMembershipForEmail(pool, payerEmail);
       } else {
-        console.warn("HelloAsso webhook: couldn't match a local order to this notification:", JSON.stringify(body).slice(0, 500));
+        console.warn("HelloAsso webhook: couldn't match a local order to this notification:", scrubPersonalData(JSON.stringify(body)).slice(0, 500));
       }
       return;
     }

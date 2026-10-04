@@ -6,15 +6,19 @@ const { emailTr } = require("./lang");
 
 const TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
 
-async function sendResetLink(user, baseUrl) {
+// Stores a fresh single-use reset token for the user and returns the raw
+// value (only its hash is kept). `db` is a pool or a transaction client.
+async function createResetToken(db, userId) {
   const rawToken = generateToken();
-  const tokenHash = hashToken(rawToken);
-  const expiresAt = new Date(Date.now() + TOKEN_TTL_MS);
-
-  await pool.query(
+  await db.query(
     "INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, $3)",
-    [user.id, tokenHash, expiresAt]
+    [userId, hashToken(rawToken), new Date(Date.now() + TOKEN_TTL_MS)]
   );
+  return rawToken;
+}
+
+async function sendResetLink(user, baseUrl) {
+  const rawToken = await createResetToken(pool, user.id);
 
   // user.lang ('en' | 'fr' | null) is the account's language; callers that
   // don't select it (e.g. admin invites) get English.
@@ -31,4 +35,4 @@ async function sendResetLink(user, baseUrl) {
   });
 }
 
-module.exports = { sendResetLink };
+module.exports = { sendResetLink, createResetToken };

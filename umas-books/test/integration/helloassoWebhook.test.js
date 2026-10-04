@@ -152,6 +152,14 @@ test("an unmatched body does nothing except log a warning", async () => {
   assert.equal(errors.length, 0);
 });
 
+test("the unmatched-body log line never contains the payer's email address or phone number", async () => {
+  await post({ eventType: "Order", data: { formType: "Shop", payer: { email: "private.person@example.test", phone: "0612345678" } } });
+  await waitFor(() => warnings.some((w) => /couldn't match a local order/.test(w)), { message: "unmatched warning" });
+  const line = warnings.find((w) => /couldn't match a local order/.test(w));
+  assert.doesNotMatch(line, /private\.person|example\.test|0612345678/);
+  assert.match(line, /\[email\]/);
+});
+
 test("an unknown checkoutIntentId with no order id is likewise just logged", async () => {
   assert.equal((await post({ checkoutIntentId: "no-such-intent" })).status, 200);
   await waitFor(() => warnings.some((w) => /couldn't match a local order/.test(w)), { message: "unmatched warning" });
