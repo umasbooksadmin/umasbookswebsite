@@ -158,30 +158,6 @@ async function makeUser(lang) {
   return email;
 }
 
-test("reserve confirmation email: member language, else the language chosen on the site, else English", async () => {
-  const reserve = async ({ email, cookieLang }) => {
-    const { bookId, copyId } = await makeBookCopy();
-    await visitor(cookieLang).post(`/books/${bookId}/reserve`, { copyId, name: "Jean Dupont", email });
-    for (let i = 0; i < 50 && !sent.find((m) => m.to === email); i++) await new Promise((r) => setTimeout(r, 20));
-    return sent.find((m) => m.to === email);
-  };
-  const frMember = await makeUser("fr");
-  const m1 = await reserve({ email: frMember, cookieLang: "en" });
-  assert.match(m1.subject, /^Vous avez réservé « I18n Shop Book/);
-  assert.match(m1.text, /^Bonjour Jean Dupont,/);
-
-  const m2 = await reserve({ email: `anon-${uniq()}@example.test`, cookieLang: "fr" });
-  assert.match(m2.subject, /^Vous avez réservé/);
-
-  const m3 = await reserve({ email: `anon-${uniq()}@example.test`, cookieLang: undefined });
-  assert.match(m3.subject, /^You've reserved "I18n Shop Book/);
-  assert.match(m3.text, /^Hi Jean Dupont,/);
-
-  const enMember = await makeUser("en");
-  const m4 = await reserve({ email: enMember, cookieLang: "fr" });
-  assert.match(m4.subject, /^You've reserved/);
-});
-
 test("pickup reminder follows the member's language (English when unknown)", async () => {
   const remind = async (email) => {
     const { copyId } = await makeBookCopy();

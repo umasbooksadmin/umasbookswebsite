@@ -1,6 +1,5 @@
 // Abuse limits and input hardening, over HTTP against the real app:
 //   - /api/csrf-token can't be used to mint unlimited session rows
-//   - the reserve route carries a daily per-IP ceiling
 //   - garbage / out-of-range ids in request bodies get a 4xx or redirect,
 //     never a Postgres 22003/22P02 -> 500 (which would also use up the
 //     throttled admin error alert)
@@ -77,23 +76,13 @@ async function ordered(copyId) {
   await pool.query("INSERT INTO order_items (order_id, book_copy_id, item_title, price) VALUES ($1, $2, 't', 5)", [rows[0].id, copyId]);
 }
 
-test("reserve route carries the daily per-IP limiter", () => {
-  const { reserveDailyLimiter } = require("../../src/middleware/rateLimits");
-  const router = require("../../src/routes/books");
-  const layer = router.stack.find((l) => l.route && l.route.path === "/books/:id/reserve");
-  assert.ok(layer.route.stack.some((l) => l.handle === reserveDailyLimiter));
-});
-
 test("garbage / oversized ids in bodies never cause a 500", async () => {
   const jar = makeCookieJar();
-  const bookId = await newBook();
   for (const bad of [HUGE, "abc", "-1", "1e3", "0"]) {
     const add = await post(jar, "/cart/add", { copyId: bad });
     assert.equal(add.status, 302, `cart/add copyId=${bad}`);
     const dropin = await post(jar, "/cart/add-dropin", { classId: bad });
     assert.equal(dropin.status, 302, `cart/add-dropin classId=${bad}`);
-    const reserve = await post(jar, `/books/${bookId}/reserve`, { copyId: bad, name: "X", email: `r-${uniq()}@example.test` });
-    assert.equal(reserve.status, 302, `reserve copyId=${bad}`);
   }
 
   const member = await loginAs({});

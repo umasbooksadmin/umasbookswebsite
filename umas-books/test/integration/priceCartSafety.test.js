@@ -214,18 +214,6 @@ test("a copy with a real price still checks out normally", async () => {
 
 // ---------- reservations and book-request holds ----------
 
-test("public reservation skips a copy without a real price", async () => {
-  const bookId = await makeBook();
-  const noPrice = await makeCopy(bookId, { price: null });
-  const priced = await makeCopy(bookId, { price: 5 });
-  const v = visitor();
-  const email = `reserve-${uniq()}@example.test`;
-  await v.post(`/books/${bookId}/reserve`, { copyId: noPrice, name: "Rita", email });
-  assert.equal((await copyRow(noPrice)).status, "in_stock");
-  await v.post(`/books/${bookId}/reserve`, { copyId: priced, name: "Rita", email });
-  assert.equal((await copyRow(priced)).status, "reserved");
-});
-
 // ---------- in-shop sale ----------
 
 test("shop sale: an unpriced copy can be sold at a price typed at the counter; bad prices are refused", async () => {

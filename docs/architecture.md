@@ -310,8 +310,7 @@ Key rules:
 * **CSRF** — a per-session token created lazily, compared in constant time;
   `/api/csrf-token` saves the session before answering.
 * **Rate limits** are in memory (reset on restart) and mostly per IP: login 20
-  failures / 15 min, sign-up 30/h, password reset requests 10 / 15 min, reserve
-  5/h and 10/day, checkout 10/h, cart edits 60 / 15 min, event sign-up 10/h,
+  failures / 15 min, sign-up 30/h, password reset requests 10 / 15 min, checkout 10/h, cart edits 60 / 15 min, event sign-up 10/h,
   forum posts 10/h and replies 30/h, charity ideas 10/h, contact 5 / 15 min,
   webhook 300 / 5 min, book requests 5/day, "find my requests" 5/h (plus 3 a day
   per address). A few are per account instead: wrong two-step codes,
@@ -411,6 +410,10 @@ Details of the shop tables worth knowing:
   the server when a copy is added or edited. Used copies are free-priced.
 * **Order extras.** `orders.withdrawal_waiver_at` records the buyer's tick-box
   asking for a drop-in session to take place on its date (no withdrawal after);
+  `orders.cgv_accepted_at` / `orders.cgv_version` record when the buyer accepted
+  the terms of sale and which version (`TERMS_OF_SALE_VERSION` in
+  `src/lib/legal.js`, bump it when the terms page changes); they are in the
+  member data export and survive anonymisation;
   `orders.client_ip` supports the pending-order cap in §7; `orders.lang` sets the
   language of the confirmation email.
 
@@ -616,7 +619,7 @@ What keeps it correct:
 | Payment lands **after** the hold expired | hourly, orders closed in the last 7 days are re-checked; if every item can still be claimed the order is completed, otherwise nothing is changed and the admin gets an alert email naming order, buyer and amount for a manual refund |
 | Checkout crashes before saving the intent id | the same alert, with order and intent ids; the webhook may adopt the id if HelloAsso confirms the order id |
 | Overselling | atomic `UPDATE … WHERE status='in_stock'` and `FOR UPDATE` on class rows |
-| Hoarding stock without paying | a cart holds at most 20 lines; at most 2 unpaid orders per email and per IP address (`orders.client_ip`), checked under an advisory lock so two simultaneous checkouts cannot both slip through; at most 5 active reservations per email |
+| Hoarding stock without paying | a cart holds at most 20 lines; at most 2 unpaid orders per email and per IP address (`orders.client_ip`), checked under an advisory lock so two simultaneous checkouts cannot both slip through |
 | Terms and withdrawal | checkout requires accepting the terms of sale; a cart with a drop-in seat also requires the withdrawal waiver, whose time is stored on the order |
 
 ---
@@ -862,7 +865,7 @@ Layers, outermost first. A request must pass every one that applies to it.
 flowchart TD
   NET["Internet"] --> TLS["Render edge: TLS, trust proxy = 1<br/>(real client IP)"]
   TLS --> HL["helmet: CSP, HSTS, no-referrer,<br/>frame-ancestors none"]
-  HL --> RL["Rate limits (per IP)<br/>login, reserve, checkout, cart, sign-ups,<br/>forum, contact, webhook"]
+  HL --> RL["Rate limits (per IP)<br/>login, checkout, cart, sign-ups,<br/>forum, contact, webhook"]
   RL --> SE["Session cookie: HttpOnly, Secure,<br/>SameSite=Lax; regenerated at login"]
   SE --> CF["CSRF token on every POST<br/>(webhook excepted: never trusts its body)"]
   CF --> AU["attachUser: role flags re-read from the DB<br/>every request; disabled, deleted or<br/>password-changed sessions drop"]
@@ -993,7 +996,7 @@ Deliberate trade-offs (revisit only if traffic or risk changes):
 
 Open items worth knowing:
 
-* Reservations hold a copy for two weeks without an emailed confirmation link.
+* Reservations hold a copy for two weeks. There is no public reservation form (the old `POST /books/:id/reserve` route was removed because anyone could hold copies under any email address); holds are made by admins or by the book-request flow.
 * The 6-hourly membership backstop only looks at orders from the last 3 days;
   older missed payments rely on the webhook or account verification.
 * If the only admin loses their phone and recovery codes there is nobody to reset
