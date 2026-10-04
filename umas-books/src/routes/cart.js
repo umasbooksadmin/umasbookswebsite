@@ -5,6 +5,7 @@ const { releaseCartHold, reconcileOrder, isRecentlyClosed, persistCheckoutIntent
 const { expireStaleReservations } = require("../lib/reservations");
 const { seatsTakenExpr } = require("../lib/classCapacity");
 const { baseUrl } = require("../lib/baseUrl");
+const { loadOrderItems, orderItemLabel } = require("../lib/orderItems");
 const { isEmail, clean, parseId } = require("../lib/validation");
 const { checkoutLimiter, cartEditLimiter } = require("../middleware/rateLimits");
 
@@ -390,7 +391,7 @@ router.get("/cart/return", async (req, res) => {
   // that could not be fulfilled (see recoverLatePayment): money was taken.
   const paymentReceivedUnfulfilled = status !== "paid" && status !== "pending" && !!order.helloasso_order_id;
 
-  const { rows: orderItems } = await pool.query("SELECT item_title, price FROM order_items WHERE order_id = $1", [order.id]);
+  const orderItems = (await loadOrderItems(pool, order.id)).map((i) => ({ label: orderItemLabel(i, req.lang), price: i.price }));
   res.render("cart_return", { order, items: orderItems, status, paymentReceivedUnfulfilled });
 });
 
