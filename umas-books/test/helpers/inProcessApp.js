@@ -19,6 +19,10 @@ const ROOT = path.join(__dirname, "..", "..");
 // In-process admin routes are exercised without a second factor.
 if (!process.env.ADMIN_2FA_REQUIRED) process.env.ADMIN_2FA_REQUIRED = "false";
 
+// No test may reach Wikidata / NYT / Anthropic through the awards lookups
+// (lib/awards); the tests of that feature switch them on explicitly.
+if (!process.env.AWARDS_LOOKUPS) process.env.AWARDS_LOOKUPS = "off";
+
 // Own throwaway database locally (createdb/dropdb); in CI DATABASE_URL is
 // one shared database that every test file uses concurrently, so nothing
 // is created or dropped there.

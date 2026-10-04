@@ -18,6 +18,7 @@ const { csrfTokenLimiter } = require("./middleware/rateLimits");
 const { expireStaleReservations, sendPickupReminders } = require("./lib/reservations");
 const { runCartMaintenance: sweepCart } = require("./lib/cart");
 const { guardJob } = require("./lib/jobGuard");
+const { drainAwards } = require("./lib/awards");
 const { purgeUnusedImages } = require("./lib/imageCleanup");
 const { purgeExpiredPersonalData } = require("./lib/privacy");
 const { expireStaleMemberships, reconcileRecentMemberships } = require("./lib/membership");
@@ -444,6 +445,17 @@ const runImageCleanup = guardJob("Image cleanup", async () => {
 runImageCleanup();
 const imageCleanupTimer = setInterval(runImageCleanup, 24 * 60 * 60 * 1000);
 
+// Awards & best-seller lists (lib/awards): every 2 minutes look up a few
+// books that have never been checked (newest first), plus retries of failed
+// checks and a yearly refresh. This also back-fills old books gradually. No
+// run at boot: the first tick comes after 2 minutes, so a restart-heavy host
+// never hammers Wikidata, and a deploy is never slowed by it.
+const runAwardsDrain = guardJob("Awards check", async () => {
+  const { processed } = await drainAwards(pool);
+  if (processed) console.log(`Awards check: ${processed} book(s) checked.`);
+});
+const awardsTimer = setInterval(runAwardsDrain, 2 * 60 * 1000);
+
 // Graceful shutdown. Render sends SIGTERM on every deploy and spin-down;
 // without a handler the process dies mid-request (an in-flight HelloAsso
 // webhook or checkout would be cut off). Order matters:
@@ -463,6 +475,7 @@ function shutdown(signal) {
   clearInterval(cartTimer);
   clearInterval(privacyTimer);
   clearInterval(imageCleanupTimer);
+  clearInterval(awardsTimer);
   setTimeout(() => {
     console.error(`Shutdown did not finish within ${SHUTDOWN_TIMEOUT_MS / 1000}s - forcing exit.`);
     process.exit(1);

@@ -72,7 +72,8 @@ const DYNAMIC_PAGES = {
 };
 
 // "Éveil" is a program name, French in both languages; "Message" is the same word in French.
-const EXTRA_ALLOWLIST = [/^I18n Shop (Book|Sold|Author|Class)/, /^[ÉE]veil$/, "Message"];
+// An award label is a proper name from an outside source, shown as it is in both languages.
+const EXTRA_ALLOWLIST = [/^I18n Shop (Book|Sold|Author|Class|Award)/, /^[ÉE]veil$/, "Message"];
 
 let app;
 let seeded;
@@ -96,6 +97,7 @@ async function seed() {
       "INSERT INTO books (title, authors, description, description_fr, categories, categories_fr, binding) VALUES ('I18n Shop Book', 'I18n Shop Author', 'A plain English description.', 'Une description en français.', 'Fiction', 'Roman', 'paperback') RETURNING id"
     );
     await client.query("INSERT INTO books (title, authors) VALUES ('I18n Shop Book Two', 'I18n Shop Author')");
+    await client.query("INSERT INTO book_awards (book_id, label, year, kind, source, status) VALUES ($1, 'I18n Shop Award Prize', 2020, 'award', 'wikidata', 'verified')", [b[0].id]);
     const { rows: c } = await client.query(
       "INSERT INTO book_copies (book_id, status, price, condition) VALUES ($1, 'in_stock', 6.5, 'very_good'), ($1, 'in_stock', 9, 'like_new'), ($1, 'in_stock', 12, 'new'), ($1, 'in_stock', 3, 'acceptable') RETURNING id",
       [b[0].id]
@@ -157,6 +159,11 @@ for (const [name, setup] of Object.entries(DYNAMIC_PAGES)) {
     const { path, session } = await setup();
     const { en, fr } = await assertTranslated(path, session);
     assert.ok(visibleTextLength(fr) > 0 && en !== fr, `${name}: French render differs from English`);
+    if (name.startsWith("book_detail (two copies")) {
+      assert.match(fr, /Prix et classements/);
+      assert.match(en, /Awards &amp; lists/);
+      assert.ok(fr.includes("I18n Shop Award Prize (2020)"), "the label itself stays as it is");
+    }
   });
 }
 

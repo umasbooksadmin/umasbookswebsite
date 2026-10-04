@@ -65,6 +65,56 @@
 </div>
 
 <div class="card">
+  <div class="section-title">Awards &amp; lists</div>
+  <p class="muted small">Customers see an entry on the book page only when it is <strong>verified</strong> or <strong>approved</strong>. Entries found by AI wait here as <strong>pending</strong> until you approve them: open the source and check it first.</p>
+  <% if (!awards.length) { %>
+    <p class="muted">None yet.<%= book.awards_checked_at ? ' Last checked ' + formatDate(book.awards_checked_at) + '.' : ' Not checked yet.' %></p>
+  <% } else { %>
+    <ul class="plain">
+      <% awards.forEach(a => { %>
+        <li style="margin-bottom:10px;">
+          <span class="status-pill <%= a.status === 'pending' ? 'pending' : (a.status === 'rejected' ? 'cancelled' : 'paid') %>"><%= a.status %></span>
+          <strong><%= a.label %></strong><%= a.year ? ' (' + a.year + ')' : '' %>
+          <span class="muted small">&middot; <%= a.kind %> &middot; <%= a.source %>
+            <% if (a.source_url) { %>&middot; <a href="<%= a.source_url %>" target="_blank" rel="noopener noreferrer">source</a><% } %></span>
+          <% if (a.source === 'manual') { %>
+            <form method="post" action="/admin/awards/<%= a.id %>/remove" style="display:inline;">
+              <%- include('../../partials/csrf_field') %>
+              <button class="btn btn-outline btn-small" type="submit">Remove</button>
+            </form>
+          <% } else { %>
+            <% if (a.status === 'pending' || a.status === 'rejected') { %>
+              <form method="post" action="/admin/awards/<%= a.id %>/approve" style="display:inline;">
+                <%- include('../../partials/csrf_field') %>
+                <button class="btn btn-small" type="submit">Approve</button>
+              </form>
+            <% } %>
+            <% if (a.status !== 'rejected') { %>
+              <form method="post" action="/admin/awards/<%= a.id %>/reject" style="display:inline;">
+                <%- include('../../partials/csrf_field') %>
+                <button class="btn btn-outline btn-small" type="submit"><%= a.status === 'pending' ? 'Reject' : 'Hide from customers' %></button>
+              </form>
+            <% } %>
+          <% } %>
+        </li>
+      <% }) %>
+    </ul>
+    <% if (book.awards_checked_at) { %><p class="muted small">Last checked <%= formatDate(book.awards_checked_at) %><%= book.awards_check_state === 'error' ? ' (a lookup failed; it will be tried again)' : '' %>.</p><% } %>
+  <% } %>
+  <form class="stack" method="post" action="/admin/inventory/<%= book.id %>/awards/add" style="margin-top:12px;">
+    <%- include('../../partials/csrf_field') %>
+    <label for="awards-add">Add awards (comma separated)</label>
+    <input id="awards-add" name="awards" type="text" maxlength="1000" placeholder="e.g. Booker Prize (2019), Prix Goncourt (1999)" autocomplete="off">
+    <p class="muted small">Add the year in brackets if you know it. These show to customers straight away.</p>
+    <div><button class="btn btn-small" type="submit">Add</button></div>
+  </form>
+  <form method="post" action="/admin/inventory/<%= book.id %>/awards/check" style="margin-top:10px;">
+    <%- include('../../partials/csrf_field') %>
+    <button class="btn btn-outline btn-small" type="submit">Re-check now</button>
+  </form>
+</div>
+
+<div class="card">
   <div class="section-title">Copies (<%= copies.length %>)</div>
   <% if (!copies.length) { %>
     <p class="muted">No copies recorded yet.</p>

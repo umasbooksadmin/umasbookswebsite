@@ -83,6 +83,21 @@
       </div>
     <% } %>
 
+    <% if (typeof awards !== 'undefined' && awards.length) { %>
+      <div class="book-awards" style="margin-top:20px;">
+        <strong><%= tr('Awards & lists:', 'Prix et classements :') %></strong>
+        <% if (awards.length > 8) { %>
+          <%= awards.slice(0, 8).join(', ') %>
+          <details style="margin-top:6px;">
+            <summary style="cursor:pointer; color: var(--maroon);"><%= tr('Show all ({n})', 'Tout afficher ({n})', { n: awards.length }) %></summary>
+            <%= awards.join(', ') %>
+          </details>
+        <% } else { %>
+          <%= awards.join(', ') %>
+        <% } %>
+      </div>
+    <% } %>
+
     <% if (book.description) { %>
       <h3 style="margin-top:28px;"><%= tr('About this book', 'À propos de ce livre') %></h3>
       <p><%= tr(book.description, book.description_fr) %></p>
