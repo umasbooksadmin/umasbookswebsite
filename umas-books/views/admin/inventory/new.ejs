@@ -62,6 +62,12 @@
     <input id="location" name="location" type="text" list="location-options" maxlength="40" value="<%= location %>" placeholder="e.g. FICTION-A1" data-location-input autocomplete="off">
     <%- include('../../partials/location_options') %>
 
+    <label for="source">Source</label>
+    <select id="source" name="source">
+      <option value="" <%= !source ? 'selected' : '' %>>Unknown</option>
+      <% sources.forEach(s => { %><option value="<%= s.value %>" <%= s.value === source ? 'selected' : '' %>><%= s.label %></option><% }) %>
+    </select>
+
     <label for="status">Status</label>
     <select id="status" name="status">
       <% statuses.forEach(s => { %><option value="<%= s.value %>" <%= s.value === 'in_stock' ? 'selected' : '' %>><%= s.label %></option><% }) %>
