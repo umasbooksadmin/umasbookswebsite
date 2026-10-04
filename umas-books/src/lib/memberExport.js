@@ -37,7 +37,7 @@ async function buildMemberExport(pool, userId) {
     ),
     orders: await q(
       `SELECT o.id, o.buyer_name, o.buyer_email, o.buyer_phone, o.status, o.total_amount,
-              o.created_at, o.paid_at,
+              o.created_at, o.paid_at, o.cgv_accepted_at, o.cgv_version,
               COALESCE((SELECT json_agg(json_build_object('title', i.item_title, 'price', i.price) ORDER BY i.id)
                         FROM order_items i WHERE i.order_id = o.id), '[]'::json) AS items
        FROM orders o WHERE lower(o.buyer_email) = $1 ORDER BY o.created_at`,

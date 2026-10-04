@@ -108,12 +108,12 @@ unused one for a new file.
   is generated automatically by Claude (also re-generatable by hand from
   the book's page).
 - **Book search** (`/books`, public, no login) — anyone can search
-  in-stock inventory by title, author, or genre, and reserve a specific
-  copy for pickup with just a name and email (reserving takes no online
-  payment — you pay in person when you collect it; paying online is the
-  separate cart/checkout flow above). A reserved copy is held (status
-  `reserved`) until an admin cancels the reservation or marks it sold from
-  the book's admin page.
+  in-stock inventory by title, author, or genre, and add copies to the
+  cart (the cart/checkout flow above). There is no public "reserve" form:
+  a copy is held (status `reserved`) only when an admin reserves it from
+  the book's admin page or a book request is notified with a hold; it
+  stays held until an admin cancels the reservation or marks it sold, or
+  it expires.
 - **Admin** (`/admin`, admin accounts only) — a proper multi-page section
   with its own sub-nav (`views/partials/admin_subnav.ejs`): an overview
   with counts/links, plus dedicated pages for Books & Orders, English
