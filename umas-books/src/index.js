@@ -60,6 +60,7 @@ app.set("views", path.join(__dirname, "..", "views"));
 // gzip/deflate for text responses (HTML, JSON, CSS, JS, SVG);
 // compression() skips already-compressed types (images) on its own.
 // First, so static files and JSON endpoints below are all covered.
+app.use(require("./lib/preview").previewMiddleware); // res.locals.preview + X-Robots-Tag (lib/preview.js)
 app.use(compression());
 
 // maxAge 7d on static files: filenames aren't content-hashed (about.css,
