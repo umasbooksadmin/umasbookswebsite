@@ -1,13 +1,21 @@
 name: Send a test alert
 
-# Run by hand (Actions > "Send a test alert" > Run workflow) to prove that the
-# failure-alert emails still arrive, e.g. after the mail action is updated.
+# Runs by itself on the 1st of every month, and by hand (Actions > "Send a
+# test alert" > Run workflow), to prove that the failure-alert emails still
+# arrive, e.g. after the mail action is updated. The monthly run is there so a
+# revoked or expired Gmail app password is noticed within a month, not on the
+# day a real alert fails to arrive: if no test email shows up in
+# admin@umasbooks.org (or the run turns red in the Actions tab), fix the
+# GMAIL_USER / GMAIL_APP_PASSWORD secrets. It is safe unattended: it only
+# sends one email to the admin address and touches nothing else.
 # It sends the same kind of email the backup, restore-test and uptime
 # workflows send when something fails. Needs the repository secrets
 # GMAIL_USER and GMAIL_APP_PASSWORD (Settings > Secrets and variables >
 # Actions > Secrets > Repository secrets), the same ones they use.
 
 on:
+  schedule:
+    - cron: "17 7 1 * *"
   workflow_dispatch: {}
 
 permissions:

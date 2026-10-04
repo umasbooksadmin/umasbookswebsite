@@ -4,7 +4,7 @@ const sharp = require("sharp");
 
 // sharp's default input cap is ~268 MP, i.e. over a gigabyte of decoded
 // pixels — a small "pixel bomb" file (tiny on the wire, huge decoded) could
-// exhaust the 512 MB container. 40 MP covers any real phone/camera photo.
+// exhaust the container's memory (2 GB on the current plan). 40 MP covers any real phone/camera photo.
 const MAX_INPUT_PIXELS = 40_000_000;
 
 // Use instead of sharp(buffer) for anything decoded from an upload.

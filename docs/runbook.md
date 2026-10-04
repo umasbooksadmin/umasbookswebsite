@@ -20,8 +20,8 @@ the repo.
 
 **Important:** on every deploy Render first runs `npm run migrate` (the
 *Pre-Deploy Command*; if it fails the deploy stops and the old version keeps
-running), then starts the site with `npm run seed && npm start`
-(`render.yaml`). Migrations (database changes) are applied once and recorded. Redeploying an old commit
+running), then starts the site with `npm run seed; npm start`
+(`render.yaml`; the seed can never block the start). Migrations (database changes) are applied once and recorded. Redeploying an old commit
 does **not** undo them. The old code then runs against the newer database,
 which usually works if the migration only added things, but can break if it
 renamed or removed something.
@@ -101,6 +101,19 @@ admins are affected you will need the locked-out steps in section c. Set it
 once and leave it. If it really leaked, have another admin ready and rotate
 deliberately.
 
+**Keep a copy of TOTP_ENCRYPTION_KEY in the password manager.** A restored
+backup contains every admin's two-step secret encrypted with this key. If the
+service is ever recreated and Render generates a new key, all of that data is
+unreadable and every admin loses two-step verification until reset. Copy the
+value now (Render > `umas-books` > Environment > show the value) into the
+password manager (never a file in the repo or a chat). After a restore into a
+new service, set `TOTP_ENCRYPTION_KEY` to the saved value *before* the first
+start. If the key is truly lost, recovery is to clear two-step for each admin
+in the database (the `UPDATE users SET totp_secret_enc=NULL, ...` statement in
+section c) and have each admin enrol again. In production the site refuses to
+start without `TOTP_ENCRYPTION_KEY` (it no longer silently falls back to
+`SESSION_SECRET` there).
+
 **GMAIL_USER / GMAIL_APP_PASSWORD.** Two copies, and both must match. If only
 one is changed, either the site's emails (password reset, contact form, error
 alerts) stop, or the uptime and backup alert emails stop.
@@ -165,13 +178,41 @@ them choose a password in one step. The login page also offers to resend the
 confirmation link.
 
 **How the first admin is created.** At every start `npm run seed` runs
-(`src/seed.js`). If **no admin exists yet** it creates one from the Render env
-vars `SEED_ADMIN_EMAIL` (default `admin@umasbooks.org`) and
-`SEED_ADMIN_PASSWORD` (required, must be a strong password). If any admin
-exists it does nothing, so it cannot reset a password. After the first boot,
-**delete `SEED_ADMIN_PASSWORD` from Render's environment** (Render >
-`umas-books` > Environment > trash icon > Save) so the password does not sit
-there forever. Deleting it is safe while an admin exists.
+(`src/seed.js`). If **no admin exists yet** and no account with that email
+exists, it creates one from the Render env vars `SEED_ADMIN_EMAIL` (default
+`admin@umasbooks.org`) and `SEED_ADMIN_PASSWORD` (must be a strong password),
+and in that same run adds a sample announcement and charity round (a database
+that already has an admin never gets sample content again, so a closed round
+or a deleted announcement stays gone). If any admin exists it does nothing, so
+it cannot reset a password. It also never promotes or re-enables an existing
+account. After the first boot, **delete `SEED_ADMIN_PASSWORD` from Render's
+environment** (Render > `umas-books` > Environment > trash icon > Save) so the
+password does not sit there forever. Deleting it is safe: with no password and
+no admin the seed just logs a warning and the site starts normally.
+
+**The seed never stops the site from starting.** If it fails for any reason it
+logs `[seed] FAILED` or `[seed] WARNING` in the Render logs, emails an alert
+(when mail is configured) and the site starts anyway.
+
+**Never demote the last admin.** The site stops an admin from demoting
+themselves, but a direct change in the database (or demoting the other admin
+first) can still leave no admin at all, and then nobody can reach `/admin` or
+fix it from the site. Before demoting anyone, check that another admin exists. Safe ways to add an admin:
+
+- *Another person already has an account:* an existing admin opens Admin >
+  **Members** > the person > make admin. Nothing else is needed.
+- *No admin is left* (everyone was demoted): Render > `umas-books` > **Shell**,
+  run `psql "$DATABASE_URL"`, then (changing the email to the right person's):
+
+  ```sql
+  UPDATE users SET is_admin = TRUE WHERE email = 'the-person@example.org';
+  ```
+
+  Type `\q` to leave. That person should then log in and enrol two-step
+  verification. The seed will not do this for you on purpose: it never
+  promotes an existing account, so a leaked env var cannot turn into an admin.
+- *A brand-new database with no users at all:* set `SEED_ADMIN_EMAIL` and
+  `SEED_ADMIN_PASSWORD` in Render and redeploy, then delete the password again.
 
 ## d) Where alerts go
 
@@ -276,6 +317,36 @@ To launch:
    form, `/membership.html` shows the HelloAsso form, and
    `https://<your site>/robots.txt` no longer says `Disallow: /`. The red
    "PREVIEW MODE is ON" strip is gone from the admin screens.
+
+### Launch checklist (before and right after turning preview off)
+
+Tick each one. Where a variable lives matters: **Render environment variable**
+= Render > `umas-books` > Environment; **GitHub repository variable** = GitHub >
+Settings > Secrets and variables > Actions > **Variables** tab; **repository
+secret** = same page, **Secrets** tab.
+
+- [ ] **Domain.** `https://umasbooks.org` (and `www`) is attached to the Render
+  service (Settings > Custom Domains) with a valid certificate, and loads the site.
+- [ ] **`APP_BASE_URL`** (Render environment variable) is `https://umasbooks.org`,
+  so emailed links and payment return URLs point at the real domain.
+- [ ] **`PREVIEW_MODE`** (Render environment variable) is deleted, as above.
+- [ ] **`HELLOASSO_API_BASE`** (Render environment variable) is unset or the
+  production address, **not** the sandbox one. The `HELLOASSO_*` client id,
+  secret and organisation slug are the live ones.
+- [ ] **HelloAsso webhook.** In the HelloAsso back office the notification URL
+  is `https://umasbooks.org/webhooks/helloasso`.
+- [ ] **`CONTACT_TO`** (Render environment variable) is the mailbox that should
+  receive contact-form messages and forum reports (default
+  `admin@umasbooks.org`).
+- [ ] **Gmail alert test.** GitHub > Actions > **Send a test alert** > Run
+  workflow, and the email arrives (it also runs by itself monthly). Boot logs
+  must not show the `[env] WARNING ... error alerts ... DISABLED` line.
+- [ ] **Uptime check.** Optionally set the GitHub repository variable
+  `SITE_URL` (for example `https://umasbooks.org`); unset, the uptime check
+  already watches `https://umasbooks.org`.
+- [ ] **`TOTP_ENCRYPTION_KEY`** is copied into the password manager (section b).
+- [ ] **Sample and test data removed.** There is no clearing script yet; this
+  step is a placeholder to agree on a procedure before launch.
 
 ### Turning it on again
 
