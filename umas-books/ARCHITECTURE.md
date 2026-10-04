@@ -196,6 +196,19 @@ rather than by a numbered migration), grouped by what they belong to:
   Authorized payment, never merely because the fuzzy search omitted it.
 - **Community** — `forum_threads`, `forum_replies`, `announcements`,
   `blog_posts`, `favorites`
+- **Forum moderation** — members report a post (`POST /forum/report`: emailed
+  to the admin address, nothing stored). An admin sees extra controls on the
+  thread page (`user.isAdmin`) and can hide or restore a thread or reply
+  (`POST /admin/forum/hide|restore`, `src/routes/admin/forum.js`, migration 044:
+  `hidden_at`, `hidden_reason` = reason code plus optional ": note", `hidden_by`).
+  The text stays in the row. `routes/forum.js` blanks hidden rows for members
+  (the views show the "removed by the moderators" placeholder; a hidden first
+  post hides the whole thread and its replies, and members cannot reply to
+  it); admins see the original marked "Hidden: reason" with Restore. Hiding
+  emails the author a statement of reasons (EU DSA art. 17, `lib/forumModeration.js`,
+  author's `users.lang`, skipped if the account is gone, a failed send never
+  blocks the hide) and writes `forum.hide` / `forum.restore` to the audit log
+  with the kind and reason code only.
 - **Charity vote** — `charity_rounds`, `charity_options`,
   `charity_votes`, `charities` (a reusable library), `charity_ideas`
   (member-submitted, admin-reviewed)
@@ -324,6 +337,9 @@ others. `lib/totp.js` (hand-rolled on `node:crypto`), `routes/twoFactor.js`
   first (`users.inactivity_warned_at`), deleted 30 days later unless they log
   in, which clears the warning (any signed-in request also counts as
   activity: `attachUser` refreshes `last_login_at` at most once a day).
+  `orders.client_ip` (kept only for the checkout abuse caps in `routes/cart.js`)
+  is set to NULL when an order leaves `pending` (`lib/cart.js`), by the purge
+  after 2 days (`clientIpDays`) and by `eraseMember`.
   Contact details on `book_copies` that are no longer reserved (sold or
   cancelled) and on `expired`/`cancelled` orders are removed after 30 days.
   The warning email is claimed (`inactivity_warned_at` set) before it is

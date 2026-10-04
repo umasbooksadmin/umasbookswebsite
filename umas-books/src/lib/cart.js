@@ -86,7 +86,7 @@ async function releaseCartHold(pool, orderId, status) {
       `UPDATE class_dropin_seats SET status = 'released', updated_at = now() WHERE order_id = $1 AND status = 'in_cart'`,
       [orderId]
     );
-    await client.query(`UPDATE orders SET status = $1 WHERE id = $2 AND status = 'pending'`, [status, orderId]);
+    await client.query(`UPDATE orders SET status = $1, client_ip = NULL WHERE id = $2 AND status = 'pending'`, [status, orderId]);
   });
 }
 
@@ -121,7 +121,7 @@ async function markOrderPaid(pool, order) {
   // sweep would put a book someone already paid for back on sale.
   const won = await withTransaction(pool, async (client) => {
     const { rowCount } = await client.query(
-      "UPDATE orders SET status = 'paid', paid_at = now() WHERE id = $1 AND status = 'pending'",
+      "UPDATE orders SET status = 'paid', paid_at = now(), client_ip = NULL WHERE id = $1 AND status = 'pending'",
       [order.id]
     );
     if (rowCount === 0) return false;
@@ -229,7 +229,7 @@ async function recoverLatePayment(pool, order, intent) {
       [seatIds]
     );
     await client.query(
-      "UPDATE orders SET status = 'paid', paid_at = now(), helloasso_order_id = $1 WHERE id = $2",
+      "UPDATE orders SET status = 'paid', paid_at = now(), helloasso_order_id = $1, client_ip = NULL WHERE id = $2",
       [marker, order.id]
     );
     return { outcome: "recovered", order: current };
