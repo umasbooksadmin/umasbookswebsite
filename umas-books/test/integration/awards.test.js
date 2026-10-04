@@ -6,7 +6,6 @@
 
 const { test, before, after, beforeEach } = require("node:test");
 const assert = require("node:assert/strict");
-require("express-async-errors");
 const { prepareDatabase, buildApp, listen, waitFor } = require("../helpers/inProcessApp");
 
 const db = prepareDatabase("awards");
@@ -72,7 +71,7 @@ const FAST = { gapMs: 0 }; // no politeness sleep in tests
 
 async function seedBook({ title = `Book ${tag()}`, authors = "Some Author", isbn = isbn13(), inStock = true } = {}) {
   const { rows } = await pool.query("INSERT INTO books (title, authors, isbn) VALUES ($1, $2, $3) RETURNING id", [title, authors, isbn]);
-  if (inStock) await pool.query("INSERT INTO book_copies (book_id, status, price, condition) VALUES ($1, 'in_stock', 5, 'good')", [rows[0].id]);
+  if (inStock) await pool.query("INSERT INTO book_copies (book_id, status, price, condition) VALUES ($1, 'in_stock', 5, 'very_good')", [rows[0].id]);
   return { id: rows[0].id, title, isbn };
 }
 const addAward = async (bookId, label, { year = null, kind = "award", source = "wikidata", status = "verified", url = null } = {}) =>
@@ -467,7 +466,7 @@ test("saving a new book returns at once while the awards check runs in the backg
   const started = Date.now();
   const res = await http("/admin/inventory", {
     method: "POST",
-    form: { title, author: "Intake Author", isbn, condition: "good", price: "5", status: "in_stock", description: "d", descriptionFr: "d", coverUrl: "https://example.org/c.jpg" },
+    form: { title, author: "Intake Author", isbn, condition: "very_good", price: "5", status: "in_stock", description: "d", descriptionFr: "d", coverUrl: "https://example.org/c.jpg" },
   });
   const elapsed = Date.now() - started;
   assert.equal(res.status, 302);
@@ -485,7 +484,7 @@ test("a failing awards lookup never fails or loses the save", async () => {
   net.wikidata = "error";
   const res = await http("/admin/inventory", {
     method: "POST",
-    form: { title, author: "A", isbn: isbn13(), condition: "good", price: "5", status: "in_stock", description: "d", descriptionFr: "d", coverUrl: "https://example.org/c.jpg" },
+    form: { title, author: "A", isbn: isbn13(), condition: "very_good", price: "5", status: "in_stock", description: "d", descriptionFr: "d", coverUrl: "https://example.org/c.jpg" },
   });
   assert.equal(res.status, 302);
   const bookId = Number(res.location.split("/").pop());

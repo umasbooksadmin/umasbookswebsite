@@ -16,7 +16,7 @@ validateIdParams(router, "id");
 const RECHECK_WAIT_MS = 30 * 1000;
 
 const back = (req, bookId, notice) =>
-  req.body.returnTo === "review" || !bookId ? `/admin/awards?notice=${notice}` : `/admin/inventory/${bookId}?notice=${notice}`;
+  req.body?.returnTo === "review" || !bookId ? `/admin/awards?notice=${notice}` : `/admin/inventory/${bookId}?notice=${notice}`;
 
 // ---------- Review queue ----------
 
@@ -62,7 +62,7 @@ async function decide(req, ids, status, action) {
 }
 
 router.post("/admin/awards/approve-bulk", requireAdmin, async (req, res) => {
-  const raw = [].concat(req.body.ids || []);
+  const raw = [].concat(req.body?.ids || []);
   const ids = [...new Set(raw.map((v) => parseId(String(v))).filter((n) => n !== null))].slice(0, 300);
   if (ids.length) await decide(req, ids, "approved", "award.approve");
   res.redirect("/admin/awards?notice=awards-updated");
@@ -107,7 +107,7 @@ router.post("/admin/inventory/:id/awards/add", requireAdmin, async (req, res) =>
   const bookId = Number(req.params.id);
   const { rows } = await pool.query("SELECT 1 FROM books WHERE id = $1", [bookId]);
   if (!rows.length) return res.status(404).render("404");
-  const items = parseManualAwards(req.body.awards);
+  const items = parseManualAwards(req.body?.awards);
   for (const it of items) {
     // A typed-in award also replaces an AI suggestion that is pending or was rejected.
     const { rows: done } = await pool.query(
