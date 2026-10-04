@@ -259,12 +259,13 @@ test("manage link: shows the status, cancel clears personal data and keeps title
 
     const cancel = await c.post(`/my-requests/${manage}/cancel`, {});
     assert.equal(cancel.status, 302);
-    const { rows } = await pool.query("SELECT * FROM book_requests WHERE manage_token_hash = encode(sha256($1::bytea), 'hex')", [manage]);
+    const { rows } = await pool.query("SELECT * FROM book_requests WHERE title = $1", [fields.title]);
     const r = rows[0];
     assert.equal(r.status, "cancelled");
+    assert.equal(r.manage_token_hash, null, "a cancelled request's private link is dead");
     assert.deepEqual([r.email, r.name, r.note, r.user_id], [null, null, null, null]);
     assert.deepEqual([r.title, r.author, r.isbn], [fields.title, "Camus", "9780141439518"]);
-    assert.match((await c.get(`/my-requests/${manage}`)).text, /cancelled/i);
+    assert.equal((await c.get(`/my-requests/${manage}`)).status, 404);
 
     assert.equal((await c.get(`/my-requests/${"0".repeat(64)}`)).status, 404);
     assert.equal((await c.post(`/my-requests/${"0".repeat(64)}/cancel`, {})).status, 404);
@@ -393,4 +394,17 @@ test("an unverified account does not see requests made under its email address",
     const page = await c.get("/account", { as: user });
     assert.ok(!page.text.includes("Squat "));
   });
+});
+
+test("cancelling a request also kills its private manage link", async () => {
+  const { cancelRequest } = require("../../src/lib/bookRequests");
+  const { rows } = await pool.query(
+    "INSERT INTO book_requests (title, email, status, manage_token_hash) VALUES ($1, $2, 'open', 'abc123') RETURNING id",
+    [`Cancel ${uniq()}`, `cancel-${uniq()}@example.test`]
+  );
+  assert.equal(await cancelRequest(pool, rows[0].id), true);
+  const after = (await pool.query("SELECT status, manage_token_hash, confirm_token_hash FROM book_requests WHERE id = $1", [rows[0].id])).rows[0];
+  assert.equal(after.status, "cancelled");
+  assert.equal(after.manage_token_hash, null);
+  assert.equal(after.confirm_token_hash, null);
 });

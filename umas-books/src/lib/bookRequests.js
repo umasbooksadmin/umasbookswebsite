@@ -231,7 +231,7 @@ async function cancelRequest(pool, id, { ownerSql = "", ownerParams = [] } = {})
     await releaseHold(db, rows[0]);
     await db.query(
       `UPDATE book_requests SET status = 'cancelled', ${CLEAR_PERSONAL_SQL},
-              confirm_token_hash = NULL, updated_at = now()
+              confirm_token_hash = NULL, manage_token_hash = NULL, updated_at = now()
        WHERE id = $1`,
       [id]
     );
