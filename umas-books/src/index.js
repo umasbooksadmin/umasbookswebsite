@@ -28,11 +28,13 @@ const { csrfTokenLimiter } = require("./middleware/rateLimits");
 const { expireStaleReservations, sendPickupReminders } = require("./lib/reservations");
 const { runCartMaintenance: sweepCart } = require("./lib/cart");
 const { guardJob } = require("./lib/jobGuard");
+const { purgeUnusedImages } = require("./lib/imageCleanup");
 const { purgeExpiredPersonalData } = require("./lib/privacy");
 const { expireStaleMemberships, reconcileRecentMemberships } = require("./lib/membership");
 const { alertOnError } = require("./lib/errorAlert");
 const { errorHandler } = require("./lib/errorHandler");
 const { noStoreForUsers } = require("./middleware/noStoreForUsers");
+const { langMiddleware } = require("./middleware/lang");
 const { healthzHandler } = require("./lib/health");
 const seoRoutes = require("./routes/seo");
 const { MARKETING_PAGES, setMarketingSeoLocals } = seoRoutes;
@@ -41,6 +43,7 @@ const authRoutes = require("./routes/auth");
 const twoFactorRoutes = require("./routes/twoFactor");
 const dashboardRoutes = require("./routes/dashboard");
 const accountRoutes = require("./routes/account");
+const accountPrivacyRoutes = require("./routes/accountPrivacy");
 const forumRoutes = require("./routes/forum");
 const charityRoutes = require("./routes/charity");
 const volunteerRoutes = require("./routes/volunteer");
@@ -190,6 +193,9 @@ app.use((req, res, next) => {
   next();
 });
 
+// Language (cookie / Accept-Language -> req.lang, tr(), localised dates).
+// Reads headers only, so it never creates a session or touches the DB.
+app.use(langMiddleware);
 app.use(attachUser(pool));
 // Right after attachUser (it needs res.locals.user): logged-in responses are no-store.
 app.use(noStoreForUsers);
@@ -324,6 +330,7 @@ app.use(authRoutes);
 app.use(twoFactorRoutes);
 app.use(dashboardRoutes);
 app.use(accountRoutes);
+app.use(accountPrivacyRoutes);
 app.use(forumRoutes);
 app.use(charityRoutes);
 app.use(volunteerRoutes);
@@ -432,6 +439,16 @@ function runPrivacyPurge() {
 runPrivacyPurge();
 const privacyTimer = setInterval(runPrivacyPurge, 24 * 60 * 60 * 1000);
 
+// Unused-image cleanup (lib/imageCleanup.js): not personal data, so its own
+// daily step. Removes at most one batch of images older than 7 days that no
+// row references any more. Counts only in the log line.
+const runImageCleanup = guardJob("Image cleanup", async () => {
+  const { deleted, bytes } = await purgeUnusedImages(pool);
+  console.log("Image cleanup:", JSON.stringify({ deleted, bytes }));
+});
+runImageCleanup();
+const imageCleanupTimer = setInterval(runImageCleanup, 24 * 60 * 60 * 1000);
+
 // Graceful shutdown. Render sends SIGTERM on every deploy and spin-down;
 // without a handler the process dies mid-request (an in-flight HelloAsso
 // webhook or checkout would be cut off). Order matters:
@@ -450,6 +467,7 @@ function shutdown(signal) {
   clearInterval(reservationTimer);
   clearInterval(cartTimer);
   clearInterval(privacyTimer);
+  clearInterval(imageCleanupTimer);
   setTimeout(() => {
     console.error(`Shutdown did not finish within ${SHUTDOWN_TIMEOUT_MS / 1000}s - forcing exit.`);
     process.exit(1);

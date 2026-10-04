@@ -1,0 +1,37 @@
+<%- include('../../partials/admin_header', { title: 'Move books', active: active, pageTitle: 'Move books' }) %>
+
+<p><a href="/admin/inventory">&larr; Back to inventory</a> &middot; <a href="/admin/inventory/scan">Scan a new book</a></p>
+
+<div class="card">
+  <p class="muted small">Choose (or type) where the books are going, then scan each book's barcode. Every scan moves one copy of that book to this place. A new place you type here will appear in the list from then on.</p>
+  <form class="stack" method="post" action="/admin/inventory/move" autocomplete="off">
+    <%- include('../../partials/csrf_field') %>
+    <input type="hidden" name="prevDest" value="<%= dest %>">
+    <input type="hidden" name="moved" value="<%= moved %>">
+    <input type="hidden" name="log" value="<%= JSON.stringify(log) %>">
+
+    <label for="dest">Move books to</label>
+    <input id="dest" name="dest" type="text" list="location-options" maxlength="40" value="<%= dest %>" placeholder="e.g. FICTION-A1">
+
+    <label for="scan">Scan a book</label>
+    <input id="scan" name="scan" type="text" inputmode="numeric" placeholder="9780143127550" autofocus>
+    <button class="btn" type="submit">Move</button>
+  </form>
+  <%- include('../../partials/location_options') %>
+</div>
+
+<div class="card">
+  <% if (dest) { %><div class="section-title">Moving books to <%= dest %></div><% } %>
+  <p><strong><%= moved %></strong> moved so far.</p>
+  <% if (!log.length) { %>
+    <p class="muted">Nothing scanned yet.</p>
+  <% } else { %>
+    <ul class="plain" aria-live="polite">
+      <% log.forEach(e => { %>
+        <li class="<%= e.k === 'error' || e.k === 'missing' ? 'move-bad' : (e.k === 'moved' ? 'move-ok' : 'muted') %>"><%= e.t %></li>
+      <% }) %>
+    </ul>
+  <% } %>
+</div>
+
+<%- include('../../partials/admin_footer') %>

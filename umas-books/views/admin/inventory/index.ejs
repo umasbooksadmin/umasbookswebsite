@@ -3,16 +3,22 @@
 
 
 <div class="card">
-  <form class="stack" method="get" action="/admin/inventory" style="flex-direction: row; gap: 8px; max-width: 480px; align-items: end;">
+  <form class="stack" method="get" action="/admin/inventory" style="flex-direction: row; gap: 8px; max-width: 720px; align-items: end;">
     <div style="flex: 1;">
       <label for="q">Search by title, author, or ISBN</label>
       <input id="q" name="q" type="text" value="<%= q %>" placeholder="Search inventory...">
     </div>
+    <div style="flex: 1;">
+      <label for="location">Location</label>
+      <input id="location" name="location" type="text" list="location-options" value="<%= location %>" placeholder="Any location">
+    </div>
     <button class="btn" type="submit">Search</button>
   </form>
+  <%- include('../../partials/location_options') %>
   <p style="margin-top:16px;">
     <a class="btn" href="/admin/inventory/scan">Scan a book</a>
     <a class="btn btn-outline" href="/admin/inventory/new">Add manually</a>
+    <a class="btn btn-outline" href="/admin/inventory/move">Move books</a>
   </p>
 </div>
 
@@ -33,6 +39,7 @@
             <div class="muted small">
               <%= b.authors || 'Unknown author' %><%= b.isbn ? ' · ISBN ' + b.isbn : '' %>
               &middot; <%= b.in_stock_count %>/<%= b.copy_count %> in stock
+              <% if (b.locations) { %>&middot; Location: <%= b.locations %><% } %>
             </div>
           </div>
         </li>

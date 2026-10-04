@@ -90,6 +90,15 @@ rather than by a numbered migration), grouped by what they belong to:
   between 95% and 100% of it; enforced server-side by `resolveCopyPricing`
   in `src/lib/inventory.js` on both add-copy and edit-copy. Used copies are
   free-priced and store `publisher_price` NULL.
+- **Inventory locations** — `book_copies.location` (migration 043) is free
+  text per physical copy, normalised by `normalizeLocation` in
+  `src/lib/inventory.js` (trimmed, spaces collapsed, upper-case, 40 chars).
+  There is no locations table: the dropdown (a `<datalist>`, partial
+  `location_options`) is `SELECT DISTINCT location`, so a newly typed place
+  appears from then on. The scan/add flow carries the current location
+  through hidden fields and `public/inventory-location.js` (localStorage);
+  `/admin/inventory/move` moves one copy per scanned ISBN (`parseScan`), and
+  each move writes a `copy.move` audit row (location codes only).
 - **Accounts & auth** — `users`, `password_reset_tokens`,
   `email_verification_tokens`
 - **Shop / checkout** — `books`, `book_copies`, `orders`, `order_items`
@@ -236,10 +245,64 @@ others. `lib/totp.js` (hand-rolled on `node:crypto`), `routes/twoFactor.js`
   contains hash/token/secret/totp are never exported. Add a section there
   when a new table holds personal data. The privacy paperwork (register of
   processing, processor DPAs, breach log) is in `docs/privacy/`.
+- Self-service: a signed-in member can download their own data or delete
+  their own account at `/account/privacy` (`src/routes/accountPrivacy.js`).
+  Both need the current password (wrong ones count toward one throttle,
+  5 per 15 minutes per account); deleting also needs the typed word
+  DELETE/SUPPRIMER, is refused for admins, emails a bilingual confirmation
+  first (a failed send doesn't block it), then calls `eraseMember` and ends
+  the session. The download uses `lib/memberExport.js`, shared with the admin
+  export. Both write `member.self_export` / `member.self_erase` to the audit
+  log with the member's id only (`actor_label` = `self`).
 - Not automated: contact-form messages live in the Gmail inbox (the policy
   says they are kept until the sender asks us to delete them), and server
   logs sit with Render. Log lines never contain emails.
 
+
+## Languages
+
+Everything customers and members see must be available in French (admin
+screens stay English). Two languages only: `en` and `fr`.
+
+- **Cookie.** `assets/site.js` (the EN/FR toggle) writes `umasbooks_lang=fr|en`
+  (1 year, `Path=/`, `SameSite=Lax`, `Secure` on https) whenever the language is
+  applied, and repairs a missing/different cookie from localStorage
+  (`umasbooks.lang`) on page load.
+- **Middleware** `src/middleware/lang.js` (mounted before `attachUser`, headers
+  only: no session, no DB). `req.lang` is `fr` only when the cookie is exactly
+  `fr`; with no cookie, the first `Accept-Language` tag decides (`fr*` is
+  French); otherwise `en`. It sets `res.locals.lang` / `htmlLang`,
+  `req.langFromCookie`, `req.tr` and `res.locals.tr`, and replaces the date
+  helpers in views with French-aware ones (`fr-FR` / `en-GB`, still Europe/Paris;
+  also `formatDateLong`, "3 octobre 2026"). `app.locals` dates stay en-GB for
+  non-request callers such as emails. Responses with `Cache-Control: public`
+  get `Vary: Cookie, Accept-Language` (static assets are mounted earlier and
+  untouched).
+- **Translate a view:** `<%= tr('English', 'Français') %>`, with placeholders
+  `<%= tr('Hello {name}', 'Bonjour {name}', { name: user.displayName }) %>`
+  (French falls back to English if empty; `<%= %>` does the HTML escaping).
+  Attributes, `<title>` and `alt` text count too. Server messages:
+  `req.tr('English', 'Français')`. Do not use `data-fr-text` for new work.
+- **Calendars:** public calendar routes pass `req.lang` to `resolveCalendarRange(query, weekStartsOn, lang)` so
+  month/week labels are French ("Mai 2092", "12–18 mai 2092"); admin calendars omit it and stay English.
+  The contact page no longer uses `contact-i18n.js`; its topics are stored in English and labelled in the view.
+- **Emails:** `emailTr(lang)` from `src/lib/lang.js` returns `(en, fr) => string`.
+  The language is stored on `users.lang` (set at signup, refreshed at each login
+  when the visitor has chosen a language; NULL for admin-created accounts) and
+  `orders.lang` (set at checkout). The order confirmation, reservation
+  confirmation/reminder and inactivity warning follow it (the legal blocks of the
+  order email stay bilingual FR/EN in both languages); `sendResetLink`, the verification
+  mails and the other account mails use `user.lang`; password-policy messages take a
+  translator (`validateNewPassword(pw, req.tr)`). Use `normLang` / `pickLang` for untrusted values.
+  NULL means English.
+- **Marketing pages** (`views/marketing`) keep their client-side dictionaries
+  (`data-i18n`, `pageI18nEn/Fr`); the shared header/footer chrome is also
+  rendered in French on the server.
+- **Safety net:** `test/helpers/i18nAudit.js` (`visibleText`, `untranslated`,
+  shared `ALLOWLIST` for brand names and legal identifiers) reports text that is
+  identical in the English and French render of a page. Append each translated
+  customer page to `PAGES` in `test/integration/i18nCoverage.test.js`.
+  `test/integration/i18nCore.test.js` covers the plumbing.
 
 ## Dates and times (Europe/Paris)
 
@@ -305,9 +368,18 @@ as-is and never copied.
 - **Where the bytes live:** the `images` table (`id` = lowercase hex SHA-256
   of the bytes, `content_type`, `data` BYTEA, `byte_size`;
   `migrations/034_image_store.sql`). Content-addressed, so identical uploads
-  dedupe and a URL's bytes never change. Images are not garbage-collected
-  when a row stops referencing them (a replaced cover leaves an orphan);
-  they are small and re-uploads dedupe, so this is deliberate for now.
+  dedupe and a URL's bytes never change.
+- **Cleanup of unused images:** `src/lib/imageCleanup.js` deletes `images`
+  rows whose hash appears in no referencing column. The columns are listed
+  once, in `IMAGE_REFERENCES` (cover/image URL columns plus the rich-text
+  bodies, excerpts and descriptions, matched by substring so an `<img>`
+  inside a body counts). Only images older than 7 days are removed (an
+  upload exists before the form that references it is saved), `saveImage`
+  refreshes `created_at` on a repeat upload, one run deletes at most 500
+  rows in a single statement, and a daily step in `src/index.js` runs it and
+  logs counts only. The admin dashboard shows "Unused images waiting for
+  cleanup". A test fails if a new image-looking text column or a new
+  `saveImage` caller appears without updating `IMAGE_REFERENCES`.
 - **Serving:** `GET /img/<sha256>.(jpg|png|webp)` (`src/routes/img.js`),
   mounted before the session store like `/assets`, so it never reads or sets
   a cookie. `Cache-Control: public, max-age=31536000, immutable`, `ETag` =

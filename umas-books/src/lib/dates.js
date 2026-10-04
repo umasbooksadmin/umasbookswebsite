@@ -6,20 +6,34 @@
 // choice, so it's untouched here.
 const { SITE_TIME_ZONE } = require("./tz");
 
-function formatDate(d) {
-  return new Date(d).toLocaleDateString("en-GB", { timeZone: SITE_TIME_ZONE });
+// Formatters for one locale. The app-wide ones below stay en-GB (used by
+// emails and other non-request callers); middleware/lang.js builds
+// per-request ones with forLocale() so views follow the visitor's language.
+// Same output shape in both locales (numeric dates, 24-hour clock); only the
+// words differ where a format has any (formatDateLong's month name).
+function forLocale(locale) {
+  return {
+    formatDate(d) {
+      return new Date(d).toLocaleDateString(locale, { timeZone: SITE_TIME_ZONE });
+    },
+    formatDateTime(d) {
+      return new Date(d).toLocaleString(locale, {
+        timeZone: SITE_TIME_ZONE,
+        day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
+      });
+    },
+    formatTime(d) {
+      return new Date(d).toLocaleTimeString(locale, { timeZone: SITE_TIME_ZONE, hour: "2-digit", minute: "2-digit" });
+    },
+    // "3 October 2026" / "3 octobre 2026".
+    formatDateLong(d) {
+      return new Date(d).toLocaleDateString(locale, { timeZone: SITE_TIME_ZONE, day: "numeric", month: "long", year: "numeric" });
+    },
+  };
 }
 
-function formatDateTime(d) {
-  return new Date(d).toLocaleString("en-GB", {
-    timeZone: SITE_TIME_ZONE,
-    day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
-  });
-}
-
-function formatTime(d) {
-  return new Date(d).toLocaleTimeString("en-GB", { timeZone: SITE_TIME_ZONE, hour: "2-digit", minute: "2-digit" });
-}
+const LOCALES = { en: "en-GB", fr: "fr-FR" };
+const { formatDate, formatDateTime, formatTime, formatDateLong } = forLocale(LOCALES.en);
 
 // A date and time typed in an admin form ("2026-07-15" + "18:00", or a
 // datetime-local value "2026-07-15T18:00") as a real instant, read as Paris
@@ -47,4 +61,4 @@ function weeklyDateTimes(date, time, weeks) {
   return out;
 }
 
-module.exports = { formatDate, formatDateTime, formatTime, parseLocalDateTime, weeklyDateTimes };
+module.exports = { formatDate, formatDateTime, formatTime, formatDateLong, forLocale, LOCALES, parseLocalDateTime, weeklyDateTimes };

@@ -51,6 +51,7 @@ function buildApp(routers) {
   Object.assign(app.locals, require("../../src/lib/dates"));
   Object.assign(app.locals, require("../../src/lib/sessionTone"));
   app.use(express.urlencoded({ extended: false }));
+  app.use(require("../../src/middleware/lang").langMiddleware);
   app.use(session({ secret: "in-process-test", resave: false, saveUninitialized: false, name: "test.sid" }));
   app.use((req, res, next) => {
     const hdr = req.get("x-test-user");

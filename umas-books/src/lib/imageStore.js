@@ -19,8 +19,9 @@ function sha256Hex(buffer) {
   return crypto.createHash("sha256").update(buffer).digest("hex");
 }
 
-// Stores the bytes (a repeat of identical bytes is a no-op) and returns the
-// URL to put in the row, e.g. /img/<64 hex>.jpg.
+// Stores the bytes (identical bytes are stored once; a repeat only refreshes
+// created_at so lib/imageCleanup.js treats it as freshly uploaded) and
+// returns the URL to put in the row, e.g. /img/<64 hex>.jpg.
 async function saveImage(buffer, contentType = "image/jpeg", db = pool) {
   const ext = EXT_BY_TYPE[contentType];
   if (!ext) throw new Error(`Unsupported image type: ${contentType}`);
@@ -28,7 +29,7 @@ async function saveImage(buffer, contentType = "image/jpeg", db = pool) {
   const id = sha256Hex(buffer);
   await db.query(
     `INSERT INTO images (id, content_type, data, byte_size) VALUES ($1, $2, $3, $4)
-     ON CONFLICT (id) DO NOTHING`,
+     ON CONFLICT (id) DO UPDATE SET created_at = now()`,
     [id, contentType, buffer, buffer.length]
   );
   return `/img/${id}.${ext}`;

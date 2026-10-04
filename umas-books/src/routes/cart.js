@@ -5,6 +5,7 @@ const { releaseCartHold, reconcileOrder, isRecentlyClosed, persistCheckoutIntent
 const { expireStaleReservations } = require("../lib/reservations");
 const { seatsTakenExpr } = require("../lib/classCapacity");
 const { baseUrl } = require("../lib/baseUrl");
+const { loadOrderItems, orderItemLabel } = require("../lib/orderItems");
 const { isEmail, clean, parseId } = require("../lib/validation");
 const { checkoutLimiter, cartEditLimiter } = require("../middleware/rateLimits");
 
@@ -205,17 +206,17 @@ router.post("/cart/checkout", checkoutLimiter, async (req, res) => {
   const renderCart = (extra) =>
     res.render("cart", { items, total: items.reduce((sum, i) => sum + i.price, 0), helloassoReady: helloasso.isConfigured(), error: null, ...extra });
 
-  if (!items.length) return renderCart({ items: [], total: 0, error: "Your cart is empty." });
-  if (!name || !isEmail(email)) return renderCart({ error: "Please enter your name and a valid email address." });
-  if (req.body.acceptCgv !== "on") return renderCart({ error: "Please accept the terms of sale to continue." });
+  if (!items.length) return renderCart({ items: [], total: 0, error: req.tr("Your cart is empty.", "Votre panier est vide.") });
+  if (!name || !isEmail(email)) return renderCart({ error: req.tr("Please enter your name and a valid email address.", "Veuillez indiquer votre nom et une adresse e-mail valide.") });
+  if (req.body.acceptCgv !== "on") return renderCart({ error: req.tr("Please accept the terms of sale to continue.", "Veuillez accepter les conditions de vente pour continuer.") });
   // Drop-in seats are dated leisure bookings: the buyer must expressly ask for
   // the session to take place on the booked date (no withdrawal afterwards).
   const hasDropin = items.some((i) => i.kind === "dropin");
   if (hasDropin && req.body.waiveWithdrawal !== "on") {
-    return renderCart({ error: "Please tick the box confirming you want the drop-in session(s) to take place on the date booked." });
+    return renderCart({ error: req.tr("Please tick the box confirming you want the drop-in session(s) to take place on the date booked.", "Veuillez cocher la case confirmant que vous souhaitez que la ou les séances drop-in aient lieu à la date réservée.") });
   }
   if (!helloasso.isConfigured()) {
-    return renderCart({ helloassoReady: false, error: "Online payment isn't set up yet — please check back soon, or come by the shop in person." });
+    return renderCart({ helloassoReady: false, error: req.tr("Online payment isn't set up yet — please check back soon, or come by the shop in person.", "Le paiement en ligne n’est pas encore en place : revenez bientôt, ou passez à la boutique.") });
   }
 
   const bookItems = items.filter((i) => i.kind === "book");
@@ -247,9 +248,9 @@ router.post("/cart/checkout", checkoutLimiter, async (req, res) => {
       }
 
       const { rows: orderRows } = await client.query(
-        `INSERT INTO orders (buyer_name, buyer_email, buyer_phone, total_amount, client_ip, withdrawal_waiver_at)
-         VALUES ($1, $2, $3, $4, $5, CASE WHEN $6::boolean THEN now() END) RETURNING *`,
-        [name, email, phone, total, clientIp, hasDropin]
+        `INSERT INTO orders (buyer_name, buyer_email, buyer_phone, total_amount, client_ip, withdrawal_waiver_at, lang)
+         VALUES ($1, $2, $3, $4, $5, CASE WHEN $6::boolean THEN now() END, $7) RETURNING *`,
+        [name, email, phone, total, clientIp, hasDropin, req.lang]
       );
       const newOrder = orderRows[0];
 
@@ -315,14 +316,14 @@ router.post("/cart/checkout", checkoutLimiter, async (req, res) => {
     });
   } catch (err) {
     if (err.message === "TOO_MANY_PENDING") {
-      return renderCart({ error: "You already have unpaid orders waiting for payment. Please finish or wait for them to expire (about an hour) before starting another." });
+      return renderCart({ error: req.tr("You already have unpaid orders waiting for payment. Please finish or wait for them to expire (about an hour) before starting another.", "Vous avez déjà des commandes en attente de paiement. Veuillez les régler, ou attendre qu’elles expirent (environ une heure), avant d’en commencer une autre.") });
     }
     if (err.message === "BUSY") {
-      return renderCart({ error: "The shop is busy right now. Please try again in a moment." });
+      return renderCart({ error: req.tr("The shop is busy right now. Please try again in a moment.", "La boutique est très sollicitée en ce moment. Veuillez réessayer dans un instant.") });
     }
     if (err.message !== "SOLD_OUT") {
       console.error("Checkout failed to create order:", err.message);
-      return renderCart({ error: "Something went wrong starting checkout. Please try again." });
+      return renderCart({ error: req.tr("Something went wrong starting checkout. Please try again.", "Une erreur est survenue au démarrage du paiement. Veuillez réessayer.") });
     }
     const fresh = await loadCartItems(cart);
     req.session.cart = fresh.map((i) => ({
@@ -331,7 +332,7 @@ router.post("/cart/checkout", checkoutLimiter, async (req, res) => {
     }));
     return renderCart({
       items: fresh, total: fresh.reduce((sum, i) => sum + i.price, 0),
-      error: "Sorry, something in your cart was just taken by someone else. Please review your cart and try again.",
+      error: req.tr("Sorry, something in your cart was just taken by someone else. Please review your cart and try again.", "Désolé, un article de votre panier vient d’être pris par quelqu’un d’autre. Veuillez vérifier votre panier et réessayer."),
     });
   }
 
@@ -356,7 +357,7 @@ router.post("/cart/checkout", checkoutLimiter, async (req, res) => {
   } catch (err) {
     console.error(`HelloAsso checkout-intent creation failed for order ${order.id}:`, err.message);
     await releaseCartHold(pool, order.id, "cancelled");
-    return renderCart({ error: "Couldn't reach the payment provider right now. Please try again in a moment." });
+    return renderCart({ error: req.tr("Couldn't reach the payment provider right now. Please try again in a moment.", "Impossible de joindre le prestataire de paiement pour le moment. Veuillez réessayer dans un instant.") });
   }
 
   // Retries once and alerts the admin if it still fails (never throws):
@@ -390,7 +391,7 @@ router.get("/cart/return", async (req, res) => {
   // that could not be fulfilled (see recoverLatePayment): money was taken.
   const paymentReceivedUnfulfilled = status !== "paid" && status !== "pending" && !!order.helloasso_order_id;
 
-  const { rows: orderItems } = await pool.query("SELECT item_title, price FROM order_items WHERE order_id = $1", [order.id]);
+  const orderItems = (await loadOrderItems(pool, order.id)).map((i) => ({ label: orderItemLabel(i, req.lang), price: i.price }));
   res.render("cart_return", { order, items: orderItems, status, paymentReceivedUnfulfilled });
 });
 

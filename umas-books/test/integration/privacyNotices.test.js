@@ -28,8 +28,9 @@ test("signup and contact forms link to the privacy policy", async () => {
   }
 });
 
-test("contact privacy line exists in French too", () => {
-  assert.match(fs.readFileSync(path.join(__dirname, "../../public/contact-i18n.js"), "utf8"), /"contact\.privacy": "Vos données/);
+test("contact privacy line exists in French too", async () => {
+  const html = await (await fetch(`${app.base}/contact`, { headers: { cookie: "umasbooks_lang=fr" } })).text();
+  assert.match(html, /Vos données servent uniquement[^<]*<a href="\/privacy-policy\.html">politique de confidentialité<\/a>/);
 });
 
 test("checkout form links to terms of sale and privacy policy", () => {
@@ -75,8 +76,10 @@ test("account, login, signup, cart and password pages are noindex; public pages 
 test("404 and 500 pages give a contact address and French text", async () => {
   const nf = await get("/definitely-not-a-page");
   assert.match(nf, /admin@umasbooks\.org/);
-  assert.match(nf, /data-fr-text="Page introuvable"/);
+  const nfFr = await (await fetch(`${app.base}/definitely-not-a-page`, { headers: { cookie: "umasbooks_lang=fr" } })).text();
+  assert.match(nfFr, /admin@umasbooks\.org/);
+  assert.match(nfFr, /<h1>Page introuvable<\/h1>/);
   const err = view("500.ejs");
   assert.match(err, /admin@umasbooks\.org/);
-  assert.match(err, /data-fr-text="Une erreur est survenue"/);
+  assert.match(err, /'Une erreur est survenue'/);
 });

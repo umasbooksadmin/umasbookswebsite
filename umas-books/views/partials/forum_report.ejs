@@ -1,19 +1,19 @@
 <%# Expects: kind ('thread' | 'reply'), id. No JavaScript: a <details> disclosure. %>
 <details class="report-post">
-  <summary class="muted small">Report</summary>
+  <summary class="muted small"><%= tr('Report', 'Signaler') %></summary>
   <form class="stack" method="post" action="/forum/report">
     <%- include('csrf_field') %>
     <input type="hidden" name="kind" value="<%= kind %>">
     <input type="hidden" name="id" value="<%= id %>">
-    <label for="report-reason-<%= kind %>-<%= id %>">Reason</label>
+    <label for="report-reason-<%= kind %>-<%= id %>"><%= tr('Reason', 'Motif') %></label>
     <select id="report-reason-<%= kind %>-<%= id %>" name="reason" required>
-      <option value="illegal">Illegal content</option>
-      <option value="harassment">Harassment</option>
-      <option value="spam">Spam</option>
-      <option value="other">Other</option>
+      <option value="illegal"><%= tr('Illegal content', 'Contenu illicite') %></option>
+      <option value="harassment"><%= tr('Harassment', 'Harcèlement') %></option>
+      <option value="spam"><%= tr('Spam', 'Contenu indésirable (spam)') %></option>
+      <option value="other"><%= tr('Other', 'Autre') %></option>
     </select>
-    <label for="report-comment-<%= kind %>-<%= id %>">Comment (optional)</label>
+    <label for="report-comment-<%= kind %>-<%= id %>"><%= tr('Comment (optional)', 'Commentaire (facultatif)') %></label>
     <textarea id="report-comment-<%= kind %>-<%= id %>" name="comment" maxlength="1000"></textarea>
-    <button class="btn-outline btn-small" type="submit">Send report</button>
+    <button class="btn-outline btn-small" type="submit"><%= tr('Send report', 'Envoyer le signalement') %></button>
   </form>
 </details>
