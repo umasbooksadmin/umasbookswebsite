@@ -45,6 +45,19 @@ test("forms that collect new personal data carry the privacy note (one-click but
   }
 });
 
+test("every mailto form on the marketing pages (volunteer, pre-registration) links to the privacy policy, EN + FR", () => {
+  const dir = path.join(__dirname, "../../views/marketing");
+  const forms = fs.readdirSync(dir).filter((f) => f.endsWith(".ejs") && /data-mailto=/.test(view(`marketing/${f}`)));
+  assert.ok(forms.includes("volunteer.ejs") && forms.includes("pre-registration.ejs"), forms.join(","));
+  for (const f of forms) {
+    const src = view(`marketing/${f}`);
+    assert.match(src, /privacy-policy\.html/, f);
+    const [en, fr] = src.split("const pageI18nFr");
+    assert.match(en.split("const pageI18nEn")[1], /\.privacy": "[^\n]*privacy-policy\.html/, `${f}: EN note`);
+    assert.match(fr, /\.privacy": "[^\n]*privacy-policy\.html/, `${f}: FR note`);
+  }
+});
+
 test("pre-registration states a minor's data comes from a parent or guardian, EN + FR", async () => {
   const html = await get("/pre-registration.html");
   assert.match(html, /parent or legal guardian/);

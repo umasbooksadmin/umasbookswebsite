@@ -34,11 +34,11 @@ after(async () => {
 
 const uniq = () => `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
 
-async function createUser({ admin = false, lang = null, name = "Self Service" } = {}) {
+async function createUser({ admin = false, lang = null, name = "Self Service", verified = true } = {}) {
   const email = `self-${uniq()}@example.test`;
   const { rows } = await pool.query(
     `INSERT INTO users (email, password_hash, display_name, is_admin, email_verified_at, lang)
-     VALUES ($1, $2, $3, $4, now(), $5) RETURNING id`,
+     VALUES ($1, $2, $3, $4, ${verified ? "now()" : "NULL"}, $5) RETURNING id`,
     [email, await bcrypt.hash(PASSWORD, 10), name, admin, lang]
   );
   return { id: rows[0].id, email };
@@ -329,4 +329,154 @@ test("a failed confirmation email does not block the deletion", async () => {
   const res = await deleteInProcess(me, { mailFails: true });
   assert.equal(res.status, 303);
   assert.equal(await userExists(me.id), false);
+});
+
+// ---- unverified email: nothing is handed out or erased ----
+// Orders, reservations, sign-ups and book requests are matched to an account
+// by email address only, and signup does not prove the address is the
+// signer's own. An unverified account could belong to someone who typed a
+// victim's address.
+
+async function victimData(email) {
+  const { rows: ord } = await pool.query(
+    "INSERT INTO orders (buyer_name, buyer_email, status, total_amount) VALUES ('Victim Buyer', $1, 'paid', 7) RETURNING id",
+    [email]
+  );
+  const { rows: ev } = await pool.query("INSERT INTO events (title, starts_at) VALUES ('Victim Quiz', now()) RETURNING id");
+  await pool.query("INSERT INTO event_signups (event_id, name, email) VALUES ($1, 'Victim', $2)", [ev[0].id, email]);
+  return ord[0].id;
+}
+
+const tokenCount = async (id) => (await pool.query("SELECT COUNT(*)::int AS n FROM email_verification_tokens WHERE user_id = $1", [id])).rows[0].n;
+
+test("unverified: the download is refused (403), no file, nothing logged", async () => {
+  const me = await createUser({ verified: false });
+  await victimData(me.email);
+  const jar = await loginAs(me);
+  const res = await exportAs(jar, PASSWORD); // even with the right password
+  assert.equal(res.status, 403);
+  assert.doesNotMatch(res.headers.get("content-type"), /json/);
+  assert.equal(res.headers.get("content-disposition"), null);
+  const html = await res.text();
+  assert.match(html, /Confirm your email address first/);
+  assert.doesNotMatch(html, /Victim Buyer/);
+  const { rows } = await pool.query("SELECT 1 FROM admin_audit_log WHERE action = 'member.self_export' AND target_id = $1", [me.id]);
+  assert.equal(rows.length, 0);
+});
+
+test("unverified: the deletion is refused (403) and the account, orders and sign-ups are untouched", async () => {
+  sent.length = 0;
+  const me = await createUser({ verified: false });
+  const orderId = await victimData(me.email);
+  const jar = await loginAs(me);
+  const res = await deleteAs(jar, { confirmation: "DELETE" });
+  assert.equal(res.status, 403);
+  assert.match(await res.text(), /Confirm your email address first/);
+  assert.equal(await userExists(me.id), true);
+  const { rows: o } = await pool.query("SELECT buyer_name, buyer_email FROM orders WHERE id = $1", [orderId]);
+  assert.equal(o[0].buyer_name, "Victim Buyer");
+  assert.equal(o[0].buyer_email, me.email);
+  assert.equal((await pool.query("SELECT 1 FROM event_signups WHERE lower(email) = $1", [me.email])).rowCount, 1);
+  assert.equal(sent.filter((m) => m.to === me.email).length, 0, "no goodbye email either");
+  const { rows } = await pool.query("SELECT 1 FROM admin_audit_log WHERE action = 'member.self_erase' AND target_id = $1", [me.id]);
+  assert.equal(rows.length, 0);
+});
+
+test("unverified: the refusal does not reveal whether the password was right, and does not count as a wrong password", async () => {
+  const jar = await loginAs(await createUser({ verified: false }));
+  for (let i = 0; i < 7; i++) assert.equal((await exportAs(jar, "nope")).status, 403);
+});
+
+test("unverified: the page explains why, offers the resend button and hides both forms (EN and FR)", async () => {
+  const me = await createUser({ verified: false });
+  const jar = await loginAs(me);
+  const res = await get("/account/privacy", jar);
+  assert.equal(res.status, 200);
+  const html = await res.text();
+  assert.match(html, /Confirm your email address first/);
+  assert.ok(html.includes(me.email));
+  assert.match(html, /action="\/account\/privacy\/resend-verification"/);
+  assert.doesNotMatch(html, /action="\/account\/privacy\/export"/);
+  assert.doesNotMatch(html, /action="\/account\/privacy\/delete"/);
+  const fr = await (await get("/account/privacy", jar, "fr")).text();
+  assert.match(fr, /Confirmez d’abord votre adresse e-mail/);
+  assert.match(fr, /Renvoyer l’e-mail de confirmation/);
+  assert.deepEqual(untranslated(html, fr, []), []);
+});
+
+test("verified: the page still shows both forms and no resend button", async () => {
+  const html = await (await get("/account/privacy", await loginAs(await createUser()))).text();
+  assert.match(html, /action="\/account\/privacy\/export"/);
+  assert.match(html, /action="\/account\/privacy\/delete"/);
+  assert.doesNotMatch(html, /resend-verification/);
+});
+
+test("unverified: once the address is confirmed the download works", async () => {
+  const me = await createUser({ verified: false });
+  const jar = await loginAs(me);
+  assert.equal((await exportAs(jar, PASSWORD)).status, 403);
+  await pool.query("UPDATE users SET email_verified_at = now() WHERE id = $1", [me.id]);
+  const res = await exportAs(jar, PASSWORD);
+  assert.equal(res.status, 200);
+  assert.equal(JSON.parse(await res.text()).user.email, me.email);
+});
+
+test("resend: sends one new link, then waits 2 minutes, and never repeats for a verified account", async () => {
+  const me = await createUser({ verified: false });
+  const jar = await loginAs(me);
+  assert.equal(await tokenCount(me.id), 0);
+  const first = await post("/account/privacy/resend-verification", jar, {});
+  assert.equal(first.status, 303);
+  assert.equal(first.headers.get("location"), "/account/privacy?sent=1");
+  assert.equal(await tokenCount(me.id), 1);
+  assert.match(await (await get("/account/privacy?sent=1", jar)).text(), /We sent a new confirmation link/);
+  const again = await post("/account/privacy/resend-verification", jar, {});
+  assert.equal(again.headers.get("location"), "/account/privacy?sent=wait");
+  assert.equal(await tokenCount(me.id), 1, "the cooldown stops a second link");
+  assert.match(await (await get("/account/privacy?sent=wait", jar)).text(), /sent a moment ago/);
+
+  const verified = await loginAs(await createUser());
+  const res = await post("/account/privacy/resend-verification", verified, {});
+  assert.equal(res.status, 303);
+  assert.equal(res.headers.get("location"), "/account/privacy");
+});
+
+test("resend: needs a login and is capped at 3 an hour per account", async () => {
+  const anon = await post("/account/privacy/resend-verification", makeCookieJar(), {});
+  assert.notEqual(anon.status, 200);
+  assert.equal(anon.headers.get("location"), "/login");
+  const me = await createUser({ verified: false });
+  const jar = await loginAs(me);
+  for (let i = 0; i < 3; i++) {
+    await pool.query("DELETE FROM email_verification_tokens WHERE user_id = $1", [me.id]); // skip the 2-minute cooldown
+    assert.equal((await post("/account/privacy/resend-verification", jar, {})).status, 303);
+  }
+  await pool.query("DELETE FROM email_verification_tokens WHERE user_id = $1", [me.id]);
+  const res = await post("/account/privacy/resend-verification", jar, {});
+  assert.equal(res.status, 429);
+  assert.equal(await tokenCount(me.id), 0);
+});
+
+test("resend: the email goes to the account's own address, in the account's language", async () => {
+  sent.length = 0;
+  const me = await createUser({ verified: false, lang: "fr" });
+  const mailer = require("../../src/mailer");
+  const original = mailer.sendMail;
+  mailer.sendMail = async (opts) => { sent.push(opts); };
+  const server = await listen(buildApp([require("../../src/routes/accountPrivacy")]));
+  try {
+    const res = await fetch(`${server.base}/account/privacy/resend-verification`, {
+      method: "POST", redirect: "manual",
+      headers: { ...FORM, "x-test-user": JSON.stringify({ id: me.id, email: "someone-else@example.test" }) },
+      body: new URLSearchParams({ to: "attacker@example.test", email: "attacker@example.test" }).toString(),
+    });
+    assert.equal(res.status, 303);
+  } finally {
+    mailer.sendMail = original;
+    await server.close();
+  }
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].to, me.email);
+  assert.match(sent[0].subject, /Confirmez votre adresse e-mail/);
+  assert.match(sent[0].text, /\/verify-email\//);
 });

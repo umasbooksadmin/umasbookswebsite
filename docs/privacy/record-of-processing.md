@@ -9,13 +9,13 @@
 - Represented by: the President
 - Data protection officer (DPO): none appointed (not required for a small association; no large-scale monitoring or sensitive data)
 
-**Last reviewed / Dernière révision:** ____ / ____ / ______  by ____________
+**Last reviewed / Dernière révision:** TODO (the association): write the date and the name of the volunteer who last re-read this file as a whole (only the association knows who reviewed it).
 
-**Last checked against the code:** 4 October 2026 (every row below was compared with `umas-books/` on that date).
+**Last checked against the code:** 4 October 2026 (every row below was compared with `umas-books/` on that date; the reservation, image-cleanup, backup-recipient, font and AI rows were corrected on that date).
 
 How to read this: one table per activity. "In the code" means it was checked against the website's source code (`umas-books/`) when this file was written. Anything marked **NOT AUTOMATED** is a manual job for a volunteer. The retention periods are the ones in `umas-books/src/lib/privacy.js` (the `RETENTION` constants) and in the public privacy policy (`views/marketing/privacy-policy.ejs`, section "How long we keep it"). If you change one, change the other, and this file.
 
-Common to all activities: no sensitive data (health, religion, etc.) is collected on purpose; no profiling, advertising or automated decisions; no data is sold. Hosting database and website: Render, Frankfurt (Germany, EU).
+Common to all activities: no sensitive data (health, religion, etc.) is collected on purpose; no profiling, advertising or automated decisions; no data is sold. Hosting database and website: Render, Frankfurt (Germany, EU). AI service for book information (no personal data): Anthropic, see section 11.
 
 ---
 
@@ -32,7 +32,7 @@ Common to all activities: no sensitive data (health, religion, etc.) is collecte
 | Retention | Until the person asks for deletion, or **3 years without login** (`inactiveAccountYears`). A warning email goes out first and deletion follows 30 days later unless they log in (`inactivityWarningDays`). Never auto-deleted: admins and people with a current membership. Reset and verification tokens: removed 7 days after they expire (`tokenGraceDays`). Sessions: cookie lasts 30 days of inactivity; expired session rows are cleaned by the session library. **Automated** in code (`purgeExpiredPersonalData`, runs at start-up and daily). Manual erase: admin > Members > Erase Member. A signed-in member can also delete their own account at My Account > Privacy (password and the word DELETE required; admins cannot): the same erasure code runs, and a confirmation email is sent first. |
 | Security | HTTPS; password hash only; login lockout after failed attempts; HIBP check on new passwords; admin area restricted and CSRF-protected; database access limited to Render and the backup job; backups in a private encrypted bucket (nothing is stored in the code repository) |
 
-To answer an access or portability request ("a copy of my data"), use admin > Members > member > **Download data (JSON)**. Members can also do this themselves (and delete their account) at **My Account > Privacy** (`/account/privacy`, current password required); these self-service actions are recorded in the audit log by member id only.
+To answer an access or portability request ("a copy of my data"), use admin > Members > member > **Download data (JSON)**. Members can also do this themselves (and delete their account) at **My Account > Privacy** (`/account/privacy`, current password required); these self-service actions need a **confirmed email address** (an unconfirmed account is refused and can ask for the confirmation email again, so nobody can sign up with someone else's address and take or erase that person's orders) and are recorded in the audit log by member id only.
 
 ## 2. Orders and payments / Commandes et paiements
 
@@ -52,13 +52,15 @@ To answer an access or portability request ("a copy of my data"), use admin > Me
 | | |
 |---|---|
 | Purpose | Hold a book for pickup and pay in the shop; send one pickup reminder |
-| Data | Name, email, phone, date of reservation (stored on the book copy) |
+| Data | Name, email, phone, date of reservation and the date the reminder was sent (stored on the book copy: `reserved_by_name`, `reserved_by_email`, `reserved_by_phone`, `reserved_at`, `reminder_sent_at`) |
 | People | Visitors who reserve a book |
 | Legal basis | Contract (their request) |
 | Recipients / processors | Render; Google Workspace/Gmail (reminder email); Backblaze (backups) |
 | Transfers outside EU | Google, Backblaze as above |
-| Retention | **14 days** (`RESERVATION_TTL_DAYS`). After that name, email, phone and date are cleared and the book goes back on the shelf. The job runs at start-up and every 6 hours. **Automated.** A reminder is emailed 3 days before the end. |
+| Retention | **14 days** (`RESERVATION_TTL_DAYS` in `src/lib/reservations.js`). After that name, email, phone and date are cleared and the book goes back on the shelf. The job runs at start-up and every 6 hours. A reminder is emailed once, 3 days before the end (day 11). A reservation that ended another way (the book was sold in the shop, or the reservation was cancelled) keeps no contact details **30 days** after it ended (`closedOrderDays`, step `reservationContacts` of the daily purge). On an erasure request an active reservation is released and the contact details are cleared at once. **Automated.** |
 | Security | Reservation details are shown in the admin area only |
+
+Note: the server route that records a reservation (`POST /books/:id/reserve`) exists, but the public book pages currently show only an "Add to cart" button and no reservation form. Reservations are therefore normally made at the shop and entered by an admin. If a public reservation form is added, it must carry the privacy note (`partials/privacy_note`).
 
 Inventory locations (`book_copies.location`, the shelf code where a physical copy sits) are not personal data and are not covered here.
 ## 3b. Book requests / Demandes de livres
@@ -69,8 +71,8 @@ Inventory locations (`book_copies.location`, the shelf code where a physical cop
 | Data | Book title, author, ISBN; email (stored lower-case), optional name and note; the language of the page (en/fr) for emails; the account id when the person was logged in; dates and status; our own staff note. Confirmation and private-link tokens are stored **hashed** only. A "find my requests" link stores the email and a hashed token for 30 days. |
 | People | Visitors, account holders and members who fill in the form at `/request-a-book` |
 | Legal basis | Their request (pre-contractual steps at their request); double opt-in by email link |
-| Recipients / processors | Render; Google Workspace/Gmail (confirmation and notification emails); GitHub and Backblaze (backups). Admins see name and email on the admin Requests page. |
-| Transfers outside EU | Google, GitHub, Backblaze as above |
+| Recipients / processors | Render; Google Workspace/Gmail (confirmation and notification emails); Backblaze (backups). Admins see name and email on the admin Requests page. |
+| Transfers outside EU | Google, Backblaze as above |
 | Retention | **Unconfirmed** requests: deleted after **7 days**. **Open, matched or notified** requests: **12 months at most** from the request, then marked expired and the email, name, note and account link are cleared. **Fulfilled, cancelled or expired** requests lose email, name, note, staff note and account link **30 days** after they ended (cancelling by the person clears them at once). Title, author and ISBN stay without any personal data, for anonymous demand counts. Expired "find my requests" links are deleted. **Automated** daily (`purgeExpiredPersonalData`, step `bookRequests`). Also cleared on erasure (`eraseMember`) and included in the member data export (`book_requests`). |
 | Security | Tokens are random and stored hashed; pages reached by a token link are not cached and send no Referer; the form is rate limited (5 a day per connection, 3 pending requests per email) and gives the same answer whether or not an address is known; the admin Requests page is admin-only and every action is in the audit log (ids only). |
 
@@ -112,8 +114,8 @@ The weekly English Immersion pre-registration form on the website only opens the
 | Legal basis | Their request; legitimate interest in answering |
 | Recipients / processors | Google Workspace/Gmail only. The contact form sends an email to admin@umasbooks.org (or `CONTACT_TO`). **Nothing is stored in the database** (checked in `src/routes/contact.js`: it only sends the email, with the sender's address as Reply-To). Other forms open the visitor's own mail app. |
 | Transfers outside EU | Google: US company; check the DPA and its transfer clauses (see checklist) |
-| Retention | The Gmail inbox is the only place they are kept, and the public policy still says "until you ask us to delete them". **NOT AUTOMATED.** The inbox is never cleaned by code. Decide a rule (for example delete messages after 2 years) and write it here: ______________ |
-| Security | Google account protected by 2-step verification (**to confirm**: ____ ); only volunteers who need the inbox have access |
+| Retention | The Gmail inbox is the only place they are kept, and the public policy still says "until you ask us to delete them". **NOT AUTOMATED.** The inbox is never cleaned by code. **TODO (the association):** decide a rule (for example delete messages after 2 years), write it here and in the public policy ("Messages you send us"). Only the association can decide this. |
+| Security | 2-step verification is required to create the app password the website uses to send mail (`README.md`, "Email"). **TODO (the association): confirm that 2-step verification is on for every Google account that can open the admin@umasbooks.org inbox, and who has access.** |
 
 ## 7. Forum, charity votes, volunteer shifts, meetings / Forum, votes, bénévolat, réunions
 
@@ -137,13 +139,13 @@ The weekly English Immersion pre-registration form on the website only opens the
 | People | Visitors and members (technical data only) |
 | Legal basis | Legitimate interest (security and reliability) |
 | Recipients / processors | Render (logs); Google Workspace/Gmail (alert emails) |
-| Transfers outside EU | Render logs: Frankfurt, EU (**confirm** on the Render dashboard). Alert emails: Google. |
-| Retention | Policy says "a few weeks at most". **NOT controlled by our code.** It depends on the Render plan; check the log retention shown in the Render dashboard and write it here: __________. Alert emails sit in the inbox until deleted (**NOT AUTOMATED**). |
+| Transfers outside EU | Render logs: the web service and database are in the Frankfurt region (`render.yaml`, `region: frankfurt`). Alert emails: Google. |
+| Retention | Policy says "a few weeks at most". **NOT controlled by our code.** It depends on the Render plan; **TODO (the association): read the log retention shown in the Render dashboard for the plan in use and write it here** (the figure is not in the code or the repository). Alert emails sit in the inbox until deleted (**NOT AUTOMATED**). |
 | Security | Logs are only available to people with Render access |
 
-Uploaded images (book covers, blog, announcement and charity photos) are stored in the database table `images` and are not personal data. Images no longer used by anything are **not deleted automatically** (**NOT AUTOMATED**: `src/lib/imageCleanup.js` does not exist yet); they stay in the database and the backups until someone removes them.
+Uploaded images (book covers, blog, announcement and charity photos) are stored in the database table `images` and are not personal data. Images no longer used by anything are deleted automatically once they have been unused for at least 7 days (`src/lib/imageCleanup.js`, daily at start-up and every 24 hours; the list of columns that can hold an image is `IMAGE_REFERENCES`). They remain in older backups for the backup periods in section 9.
 
-Also note: the website's pages load typefaces from Google Fonts, so a visitor's IP address is sent to Google when a page loads (disclosed in the privacy policy). Consider hosting the fonts ourselves in future to remove this.
+Fonts: the website serves its typefaces itself (self-hosted files in `assets/fonts/`, declared in `public/style.css`, and the Content-Security-Policy allows fonts from the site only: `fontSrc: ["'self'"]` in `src/index.js`). No visitor IP address is sent to Google Fonts by the website. The old Squarespace-era snippet files at the repository root (`squarespace-*.html`) still import Google Fonts, but they are not served by the website; they matter only if someone pastes them into a Squarespace page (the root `README.md` says Squarespace was retired). **TODO (the association): confirm the old Squarespace account is closed.**
 
 ## 9. Backups / Sauvegardes
 
@@ -154,8 +156,8 @@ Also note: the website's pages load typefaces from Google Fonts, so a visitor's 
 | People | Everyone in the database |
 | Legal basis | Legitimate interest (continuity); same bases as the original data |
 | Recipients / processors | Backblaze B2 (private bucket, EU region, default encryption on, per the README); Render (its own automatic database recovery) |
-| Transfers outside EU | Backblaze: the bucket is in an EU region (**confirm** the bucket region in the B2 console); Backblaze is a US company. |
-| Retention | **Backblaze** (the only offsite copy; the code repository on GitHub holds no data): the nightly backup and the monthly restore test both passed on 1 October 2026. One full dump a night, kept 30 days; one on the 1st of each month, kept 2 years. Login sessions are left out of every dump (`--exclude-table-data=session`). **Render:** its own point-in-time recovery covers the last **7 days**. Backblaze deletion depends on lifecycle rules set by hand in the Backblaze console (nightly files hidden after **30 days**, monthly files after 730 days, matching the policy). **Check that these rules exist** (**NOT AUTOMATED / not visible in the code**). A deletion request therefore disappears from backups only after those periods. |
+| Transfers outside EU | Backblaze: the setup instructions require a bucket in an EU region (`README.md`, "Backups"; the region code is a repository variable, `BACKUP_S3_REGION`, e.g. `eu-central-003`); Backblaze is a US company. **TODO (the association): confirm the bucket's actual region in the B2 console or in the repository variable.** |
+| Retention | **Backblaze** (the only offsite copy; the code repository on GitHub holds no data): the nightly backup and the monthly restore test both passed on 1 October 2026. One full dump a night, kept 30 days; one on the 1st of each month, kept 2 years. Login sessions are left out of every dump (`--exclude-table-data=session`). **Render:** its own point-in-time recovery covers the last **7 days**. Backblaze deletion depends on lifecycle rules set by hand in the Backblaze console (`store-backups/full/`: hidden after **30 days**; `store-backups/monthly/`: hidden after 730 days; both then deleted after 1 day, as set out in `README.md` "Retention"; matching the policy). **TODO (the association): check in the B2 console that these rules exist** (**NOT AUTOMATED / not visible in the code**). A deletion request therefore disappears from backups only after those periods. |
 | Security | Private bucket with encryption (no backup is kept in the code repository); access keys limited to the one bucket; monthly automatic restore test (the 1st of each month); failure emails to admin |
 
 ## 10. Administrator action log / Journal des actions des administrateurs
@@ -171,11 +173,24 @@ Also note: the website's pages load typefaces from Google Fonts, so a visitor's 
 | Retention | **12 months** (`auditLogMonths`), automated daily. |
 | Security | Admin only; append-only from the code; writing it can never block an admin action |
 
+## 11. AI lookups of book information / Recherches d'informations sur les livres par IA
+
+| | |
+|---|---|
+| Purpose | Help administrators catalogue second-hand books: read a book's cover or barcode photo, write or translate a short description, suggest genres, suggest a used-book price, and find documented awards and best-seller lists |
+| Data | **No personal data about customers, members or volunteers.** What is sent (checked in `src/lib/coverVision.js`, `bookDescription.js`, `bookGenre.js`, `pricing/market.js` and `awards/ai.js`): book facts only (title, author, ISBN, publisher, year, binding, an existing description text), and, for a cover scan, the **photo of a book cover or barcode** that an administrator uploads. Results are cached per ISBN (`price_lookups`) and stored as book data; AI-found awards stay hidden until an administrator approves them. |
+| People | None: the data is about books. Only administrators can trigger a lookup. (Rule for volunteers: photograph only the book, never people or documents; if a face or a written name ends up in a photo, retake it.) |
+| Legal basis | Legitimate interest (running the shop efficiently); no personal data involved |
+| Recipients / processors | **Anthropic** (AI service, API). Off unless `ANTHROPIC_API_KEY` is set; price lookups also need `PRICING_AI` and award lookups need `AWARDS_AI`. See `processors-checklist.md`. |
+| Transfers outside EU | Anthropic is a US company. Because no personal data is sent, no transfer of personal data takes place; check Anthropic's terms if this ever changes. |
+| Retention | Book data is kept as long as the book is in the catalogue. Price-lookup cache: 30 days for a found price, 7 days for no result, 1 hour after a failure (`TTL_MS` in `src/lib/pricing/market.js`). Anthropic's own retention of API requests is set by Anthropic's terms (**TODO (the association): read it on anthropic.com/legal and note it here**). |
+| Security | API key stored as a Render environment variable; the calls fail open (a failure never blocks an admin action); daily caps on lookups (`PRICING_AI_DAILY_MAX`, `AWARDS_AI_DAILY_MAX`) |
+
 ---
 
 ## Open points for the volunteer in charge / Points à traiter
 
-1. Fill in the blanks above (inbox retention rule, Render log retention, Google 2-step verification, B2 region and lifecycle rules).
+1. Fill in every item marked **TODO (the association)** above: the review date and reviewer, the contact-inbox retention rule, the Render log retention, 2-step verification on the Google accounts, the Backblaze bucket region and lifecycle rules, Anthropic's API retention, and closing the old Squarespace account.
 2. Sign the data processing agreements listed in `processors-checklist.md`.
 3. Check the Backblaze lifecycle rules (30 days nightly, 730 days monthly) in the B2 console: the code cannot see them.
 4. Re-read this file once a year, and whenever a new feature collects personal data.

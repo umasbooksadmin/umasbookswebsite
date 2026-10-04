@@ -4,8 +4,17 @@
 //   POST /account/privacy/delete   erase the account (accounting records stay, anonymised)
 //   GET  /account/deleted          public goodbye page
 //
-// Both actions need the CURRENT password (a hijacked session must not be able
-// to take the data or wipe the account). Wrong passwords count toward ONE
+// Both actions need a VERIFIED email address (users.email_verified_at): orders,
+// reservations, sign-ups and book requests are linked to a person only by
+// email, and signup does not prove the address is the signer's own, so without
+// this someone could register a victim's email and download or erase the
+// victim's records. Unverified members are refused and see why on the page,
+// with a button to resend the confirmation email
+// (POST /account/privacy/resend-verification: 3 an hour per account, and not
+// again within 2 minutes of the last link).
+//
+// Both actions also need the CURRENT password (a hijacked session must not be
+// able to take the data or wipe the account). Wrong passwords count toward ONE
 // per-account throttle shared by both forms: 5 per 15 minutes, like the
 // password change form. Admins cannot delete themselves here.
 //
@@ -24,6 +33,8 @@ const { eraseMember } = require("../lib/privacy");
 const { audit } = require("../lib/audit");
 const { emailTr } = require("../lib/lang");
 const { emailSafeName } = require("../lib/validation");
+const { sendVerificationEmail } = require("../lib/emailVerification");
+const { baseUrl } = require("../lib/baseUrl");
 
 const router = express.Router();
 
@@ -49,22 +60,62 @@ const privacyLimiter = limit({
       ),
 });
 
+const resendLimiter = limit({
+  windowMs: 60 * MINUTE,
+  max: 3,
+  keyGenerator: (req) => `user:${req.session.user.id}`,
+  handler: (req, res) =>
+    res
+      .status(429)
+      .type("text/plain")
+      .send(
+        req.tr(
+          "Too many confirmation emails. Please wait an hour and try again, or email admin@umasbooks.org.",
+          "Trop d'e-mails de confirmation. Veuillez patienter une heure et réessayer, ou écrire à admin@umasbooks.org."
+        )
+      ),
+});
+const RESEND_COOLDOWN_MINUTES = 2;
+
 const selfAudit = (req, action, userId) =>
   audit(pool, { action, targetType: "user", targetId: userId, actorUserId: userId, actorLabel: "self", ip: req.ip });
 
-function page(req, res, { status = 200, error = null, isAdmin = false } = {}) {
+function page(req, res, { status = 200, error = null, notice = null, isAdmin = false, emailVerified = true, email = "" } = {}) {
   res.set("Cache-Control", "no-store");
-  return res.status(status).render("account_privacy", { error, isAdmin });
+  return res.status(status).render("account_privacy", { error, notice, isAdmin, emailVerified, email });
 }
+
+// The 403 page for an unverified address. Nothing is exported or erased.
+function refuseUnverified(req, res, user) {
+  return page(req, res, {
+    status: 403,
+    isAdmin: Boolean(user.is_admin),
+    emailVerified: false,
+    email: user.email,
+    error: req.tr(
+      "Confirm your email address first. We can only give out or erase the orders, reservations, sign-ups and book requests linked to an address once it is confirmed as yours.",
+      "Confirmez d'abord votre adresse e-mail. Nous ne pouvons communiquer ou effacer les commandes, réservations, inscriptions et demandes de livres liées à une adresse qu'une fois celle-ci confirmée comme étant la vôtre."
+    ),
+  });
+}
+
+const accountRow = async (id) =>
+  (await pool.query("SELECT id, email, display_name, lang, is_admin, email_verified_at FROM users WHERE id = $1", [id])).rows[0];
 
 // The signed-in account if `currentPassword` is right, else renders the
 // 401 page (counted by the limiter) and returns null.
 async function checkPassword(req, res) {
   const { rows } = await pool.query(
-    "SELECT id, email, display_name, lang, is_admin, password_hash FROM users WHERE id = $1",
+    "SELECT id, email, display_name, lang, is_admin, email_verified_at, password_hash FROM users WHERE id = $1",
     [req.session.user.id]
   );
   const user = rows[0];
+  // Unverified: refused before the password is even looked at, so the page
+  // can't be used to test passwords either.
+  if (user && !user.email_verified_at) {
+    refuseUnverified(req, res, user);
+    return null;
+  }
   const ok = user && (await bcrypt.compare(String(req.body.currentPassword || ""), user.password_hash));
   if (!ok) {
     page(req, res, {
@@ -78,8 +129,52 @@ async function checkPassword(req, res) {
 }
 
 router.get("/account/privacy", requireAuth, async (req, res) => {
-  const { rows } = await pool.query("SELECT is_admin FROM users WHERE id = $1", [req.session.user.id]);
-  page(req, res, { isAdmin: Boolean(rows[0] && rows[0].is_admin) });
+  const user = await accountRow(req.session.user.id);
+  const notice =
+    req.query.sent === "1"
+      ? req.tr(
+          "We sent a new confirmation link. Check your inbox (and spam folder).",
+          "Nous avons envoyé un nouveau lien de confirmation. Vérifiez votre boîte de réception (et vos courriers indésirables)."
+        )
+      : req.query.sent === "wait"
+        ? req.tr(
+            "A confirmation link was sent a moment ago. Please check your inbox (and spam folder), or try again in a couple of minutes.",
+            "Un lien de confirmation vient d'être envoyé. Vérifiez votre boîte de réception (et vos courriers indésirables), ou réessayez dans quelques minutes."
+          )
+        : null;
+  page(req, res, {
+    notice,
+    isAdmin: Boolean(user && user.is_admin),
+    emailVerified: Boolean(user && user.email_verified_at),
+    email: user ? user.email : "",
+  });
+});
+
+// Sends a fresh confirmation link to the address on the account (never to an
+// address from the request). One at a time: a link sent in the last 2 minutes
+// is not repeated, so the button can't be used to mail-bomb someone.
+router.post("/account/privacy/resend-verification", requireAuth, resendLimiter, async (req, res) => {
+  const user = await accountRow(req.session.user.id);
+  if (!user || user.email_verified_at) return res.redirect(303, "/account/privacy");
+  const { rows } = await pool.query(
+    `SELECT 1 FROM email_verification_tokens
+     WHERE user_id = $1 AND created_at > now() - make_interval(mins => $2)`,
+    [user.id, RESEND_COOLDOWN_MINUTES]
+  );
+  if (rows.length) return res.redirect(303, "/account/privacy?sent=wait");
+  try {
+    await sendVerificationEmail(user, baseUrl(req));
+  } catch (err) {
+    console.error(`Verification email failed for account ${user.id}:`, err.message);
+    return page(req, res, {
+      status: 500,
+      isAdmin: Boolean(user.is_admin),
+      emailVerified: false,
+      email: user.email,
+      error: req.tr("Something went wrong. Please try again.", "Une erreur est survenue. Veuillez réessayer."),
+    });
+  }
+  res.redirect(303, "/account/privacy?sent=1");
 });
 
 router.post("/account/privacy/export", requireAuth, privacyLimiter, async (req, res) => {

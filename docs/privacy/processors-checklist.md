@@ -110,5 +110,5 @@ Date checked: ____ / ____ / ______ / Done by: ____________
 
 ## Also worth knowing (not processors in the list above)
 
-- **Google Fonts:** the website's pages load typefaces from Google, which receives the visitor's IP address. Disclosed in the privacy policy. Hosting the fonts ourselves would remove this.
+- **Google Fonts:** not used by the website any more. Fonts are self-hosted (`assets/fonts/`, `public/style.css`) and the Content-Security-Policy allows fonts from the site only. Only the unused Squarespace-era snippet files at the repository root still import Google Fonts.
 - **Squarespace** was retired (see root `README.md`); if the old account still exists, close it or delete its personal data.
