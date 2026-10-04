@@ -1,0 +1,59 @@
+<%
+  // The price of a copy: a choice of standard prices (with the suggested one
+  // marked), clearance and custom, plus the "Why this price?" details.
+  // Params: idSuffix, mode ('intake' | 'edit'), suggestion (or null), priceValue,
+  // selected (radio key, or '' for none), suggestAction, bookId + copyId (edit).
+  // priceUi (levels, clearance price) comes from the route.
+  const ui = typeof priceUi !== 'undefined' ? priceUi : { levels: [3, 5, 8, 10], clearancePrice: 1, keyFor: () => '' };
+  const sfx = idSuffix || '';
+  const ps = suggestion || null;
+  const sugKey = ps && ps.price != null ? ui.keyFor(ps.price, ps.level === 'clearance') : '';
+  const options = [{ key: 'clearance', label: 'Clearance EUR ' + Number(ui.clearancePrice).toFixed(2), price: ui.clearancePrice }]
+    .concat(ui.levels.map((l) => ({ key: String(Number(l)), label: 'EUR ' + Number(l).toFixed(2), price: l })))
+    .concat([{ key: 'custom', label: 'Custom...', price: '' }]);
+  const checkedKey = selected || '';
+  const shown = ps && ps.price != null;
+%>
+<div class="price-control" data-price-suggestion data-ps-mode="<%= mode %>" data-ps-suffix="<%= sfx %>"<% if (typeof copyId !== 'undefined' && copyId) { %> data-ps-copy-id="<%= copyId %>"<% } %>>
+  <fieldset class="price-levels" data-price-levels>
+    <legend>Price</legend>
+    <% options.forEach(o => { %>
+      <label class="price-option" for="priceLevel-<%= o.key %><%= sfx %>">
+        <input type="radio" id="priceLevel-<%= o.key %><%= sfx %>" name="priceLevel" value="<%= o.key %>" data-price="<%= o.price %>" <%= checkedKey === o.key ? 'checked' : '' %>>
+        <%= o.label %>
+        <span class="price-suggested-tag" data-suggested-tag="<%= o.key %>"<%= sugKey === o.key ? '' : ' hidden' %>>Suggested</span>
+      </label>
+    <% }) %>
+  </fieldset>
+
+  <div data-price-custom>
+    <label for="price<%= sfx %>">Custom price (&euro;)</label>
+    <input id="price<%= sfx %>" name="price" type="number" step="0.01" min="0" value="<%= priceValue == null ? '' : priceValue %>"<%= ps && ps.needsReview && mode === 'intake' ? ' autofocus' : '' %>>
+    <p class="muted small" data-price-help>Used when &ldquo;Custom...&rdquo; is selected, and for new books (which are sold at the publisher's price).</p>
+  </div>
+
+  <input type="hidden" id="suggestedPrice<%= sfx %>" name="suggestedPrice" value="<%= shown ? ps.price : '' %>">
+  <input type="hidden" id="suggestedLevel<%= sfx %>" name="suggestedLevel" value="<%= ps && ps.levelText ? ps.levelText : '' %>">
+
+  <p class="muted small" data-ps-nojs-note><button type="submit" class="btn btn-outline btn-small" formaction="<%= suggestAction %>" formnovalidate data-ps-suggest>Suggest price</button></p>
+
+  <div class="price-suggestion-box" data-ps-box<%= ps ? '' : ' hidden' %>>
+    <p class="price-suggestion-label"><strong data-ps-label><%= ps ? ps.label : '' %></strong></p>
+    <p class="error-box" data-ps-review role="alert"<%= ps && ps.needsReview ? '' : ' hidden' %>><span data-ps-review-text><%= ps && ps.needsReview ? ps.reviewMessage : '' %></span></p>
+    <details>
+      <summary>Why this price?</summary>
+      <ul class="small" data-ps-rationale>
+        <% if (ps) { ps.rationale.forEach(r => { %><li><%= r %></li><% }) } %>
+      </ul>
+      <p class="small" data-ps-comps-title<%= ps && ps.comparables.length ? '' : ' hidden' %>>Listings found:</p>
+      <ul class="small" data-ps-comps>
+        <% if (ps) { ps.comparables.forEach(c => { %>
+          <li><a href="<%= c.url %>" target="_blank" rel="noopener"><%= c.site %></a>: EUR <%= Number(c.price).toFixed(2) %><%= c.condition ? ' (' + c.condition + ')' : '' %></li>
+        <% }) } %>
+      </ul>
+    </details>
+    <% if (mode === 'edit') { %>
+      <button type="submit" class="btn btn-small" form="use-price-<%= copyId %>" data-ps-use<%= shown ? '' : ' hidden' %>>Use this price</button>
+    <% } %>
+  </div>
+</div>

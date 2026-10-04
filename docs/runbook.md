@@ -268,3 +268,33 @@ Same place: Render dashboard > the web service > **Environment** > **Add
 Environment Variable**, name `PREVIEW_MODE`, value `true` > **Save changes**
 (the service redeploys). Do this whenever the site holds test data again.
 Any value other than `true` or `1` leaves preview mode off.
+
+## h) Price suggestions and the AI market check
+
+Prices suggested when a book is added come from rules the volunteers can edit
+(admin menu > **Pricing rules**), so day to day nothing needs doing here. The
+optional **online price check** uses the Anthropic API and is **off by
+default**. All three settings are **Render environment variables** (the
+service's **Environment** tab):
+
+| Variable | What it does |
+|---|---|
+| `PRICING_AI` | Set to `1` (or `true`) to switch the online price check on. Needs `ANTHROPIC_API_KEY` to be set too. Remove it (or set `0`) to switch it off: suggestions then use the built-in rules only, which still works. |
+| `PRICING_AI_DAILY_MAX` | Most online lookups per day (Paris time), default `150`. It is counted from the database, so restarting the service does not reset it. `0` stops all lookups. |
+| `PRICING_AI_MODEL` | Optional. A different Anthropic model for the check. It must support the web search tool. Leave unset to use the same model as book descriptions. |
+
+Good to know:
+
+- **Cost control:** each book is looked up at most once a month (results are
+  kept in the `price_lookups` table), a book with no result is retried after a
+  week, and a failed lookup after an hour. The daily cap is the hard limit.
+- **If it misbehaves:** unset `PRICING_AI` and redeploy (or just save the
+  variable: Render restarts the service). Nothing else is affected; the rules
+  keep working. A lookup that fails never blocks adding a book (the page waits
+  at most about 12 seconds).
+- **Web search is billed by Anthropic** on top of the normal usage; check the
+  Anthropic console usage page after the first week.
+- **Privacy:** only the ISBN, title, author and binding are sent. See
+  `docs/privacy/processors-checklist.md` (Anthropic row).
+- **To start fresh for one book** (its cached online price looks wrong): in the
+  database, `DELETE FROM price_lookups WHERE isbn = '<the 13-digit ISBN>';`.

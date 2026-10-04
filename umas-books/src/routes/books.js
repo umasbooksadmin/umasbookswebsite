@@ -214,7 +214,8 @@ router.get("/api/books/search", async (req, res) => {
 
   const { rows } = await pool.query(
     `SELECT b.id, b.title, b.authors, b.cover_url,
-            (SELECT MIN(price) FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock') AS min_price
+            (SELECT MIN(price) FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock') AS min_price,
+            EXISTS (SELECT 1 FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock' AND c.is_clearance) AS clearance
      FROM books b
      WHERE EXISTS (SELECT 1 FROM book_copies c WHERE c.book_id = b.id AND ${clauses.join(" AND ")})
      ORDER BY b.title ASC LIMIT 60`,
@@ -227,6 +228,7 @@ router.get("/api/books/search", async (req, res) => {
       author: b.authors,
       coverUrl: b.cover_url,
       price: b.min_price != null ? Number(b.min_price) : null,
+      clearance: b.clearance === true,
       url: `${baseUrl(req)}/books/${b.id}`,
     }))
   );
