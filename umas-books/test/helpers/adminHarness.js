@@ -10,11 +10,6 @@
 // passes { isolated: true } to get its own throwaway database instead.
 
 const path = require("node:path");
-// Must load before any router module: express-async-errors only wraps
-// handlers registered AFTER it is required, and without it a rejected
-// handler promise leaves the request hanging instead of reaching the 500
-// handler (so a regression would hang the test instead of failing it).
-require("express-async-errors");
 const { prepareDatabase, buildApp, listen } = require("./inProcessApp");
 
 const FORM = { "content-type": "application/x-www-form-urlencoded" };

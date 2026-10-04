@@ -3,7 +3,7 @@
 A real, separate web app for Uma's Books and Adventures: member accounts,
 a community forum, volunteer shift and meeting scheduling, a quarterly
 charity vote, and admin-side book inventory management. Node.js +
-Express + PostgreSQL, server-rendered with EJS, sessions stored in
+Express 5 + PostgreSQL, server-rendered with EJS, sessions stored in
 Postgres.
 
 This app is the whole site: Squarespace has been retired, and the public
