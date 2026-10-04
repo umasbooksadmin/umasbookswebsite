@@ -2,6 +2,22 @@
 
 <h1><%= tr('Privacy and my data', 'Confidentialité et mes données') %></h1>
 <% if (error) { %><div role="alert" class="error-box"><%= error %></div><% } %>
+<% if (notice) { %><div role="status" class="notice-box"><%= notice %></div><% } %>
+
+<% if (!emailVerified) { %>
+<div class="card">
+  <div class="section-title"><%= tr('Confirm your email address first', 'Confirmez d’abord votre adresse e-mail') %></div>
+  <p><%= tr(
+    'To protect your privacy, you can download or delete your data only once your email address is confirmed. Your orders, reservations, sign-ups and book requests are linked to your email address, so we must be sure the address is really yours before we hand over or erase anything. Otherwise, someone could sign up with another person’s address and take or erase that person’s data.',
+    'Pour protéger votre vie privée, vous ne pouvez télécharger ou supprimer vos données qu’une fois votre adresse e-mail confirmée. Vos commandes, réservations, inscriptions et demandes de livres sont liées à votre adresse e-mail : nous devons être certains qu’elle est bien la vôtre avant de communiquer ou d’effacer quoi que ce soit. Sinon, quelqu’un pourrait s’inscrire avec l’adresse d’une autre personne et récupérer ou effacer ses données.'
+  ) %></p>
+  <p><%= tr('We sent a confirmation link to {email} when you signed up. Click it, then come back to this page.', 'Nous avons envoyé un lien de confirmation à {email} lors de votre inscription. Cliquez dessus, puis revenez sur cette page.', { email: email }) %></p>
+  <form class="stack" method="post" action="/account/privacy/resend-verification">
+    <%- include('partials/csrf_field') %>
+    <button class="btn" type="submit"><%= tr('Resend the confirmation email', 'Renvoyer l’e-mail de confirmation') %></button>
+  </form>
+</div>
+<% } else { %>
 
 <div class="card">
   <div class="section-title"><%= tr('Download my data', 'Télécharger mes données') %></div>
@@ -63,6 +79,8 @@
     </form>
   <% } %>
 </div>
+
+<% } %>
 
 <p class="small"><a href="/account"><%= tr('Back to My Account', 'Retour à Mon compte') %></a></p>
 
