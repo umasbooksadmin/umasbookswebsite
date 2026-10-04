@@ -8,7 +8,7 @@ const { startTestApp } = require("../helpers/testApp");
 const { makeCookieJar, fetchCsrfToken } = require("../helpers/httpClient");
 const MARKETING_PAGES = require("../../src/lib/marketingPages");
 
-const PORT = 3610;
+const PORT = 3611;
 // Set before the app boots (startTestApp passes process.env through): the
 // SEO URLs must come from this, never from the request's Host header.
 const SITE = "https://books.example.test";

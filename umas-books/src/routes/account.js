@@ -1,5 +1,6 @@
 const express = require("express");
 const { pool } = require("../db");
+const { orderItemLabel } = require("../lib/orderItems");
 const { requireAuth } = require("../middleware/auth");
 
 const router = express.Router();
@@ -27,8 +28,11 @@ router.get("/account", requireAuth, async (req, res) => {
 
   const { rows: orders } = await pool.query(
     `SELECT o.*, (
-       SELECT json_agg(json_build_object('title', i.item_title, 'price', i.price) ORDER BY i.id)
-       FROM order_items i WHERE i.order_id = o.id
+       SELECT json_agg(json_build_object('title', i.item_title, 'price', i.price, 'classTitle', c.title, 'classStartsAt', c.starts_at) ORDER BY i.id)
+       FROM order_items i
+       LEFT JOIN class_dropin_seats s ON s.id = i.class_dropin_seat_id
+       LEFT JOIN classes c ON c.id = s.class_id
+       WHERE i.order_id = o.id
      ) AS items
      FROM orders o
      WHERE lower(o.buyer_email) = lower($1)
@@ -36,6 +40,7 @@ router.get("/account", requireAuth, async (req, res) => {
     [email]
   );
 
+  for (const o of orders) o.items = (o.items || []).map((i) => ({ title: orderItemLabel(i, req.lang), price: i.price }));
   res.render("account", { orders, email, emailVerified: true });
 });
 
