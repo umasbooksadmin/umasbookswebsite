@@ -12,6 +12,7 @@
     "migrate": "node src/migrate.js",
     "seed": "node src/seed.js",
     "backfill-french-content": "node src/backfillFrenchContent.js",
+    "clear-test-data": "node scripts/clear-test-data.js",
     "lint": "eslint .",
     "test": "node --test"
   },

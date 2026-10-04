@@ -102,4 +102,4 @@ async function purgeUnusedImages(pool, { minAgeDays = DEFAULT_MIN_AGE_DAYS, dryR
   return { candidates: rows.length, deleted: rows.length, bytes: rows.reduce((s, r) => s + r.byte_size, 0), dryRun: false };
 }
 
-module.exports = { IMAGE_REFERENCES, BATCH_LIMIT, DEFAULT_MIN_AGE_DAYS, findUnusedImages, countUnusedImages, purgeUnusedImages };
+module.exports = { IMAGE_REFERENCES, notReferencedSql, BATCH_LIMIT, DEFAULT_MIN_AGE_DAYS, findUnusedImages, countUnusedImages, purgeUnusedImages };

@@ -836,6 +836,16 @@ flowchart TB
   the nightly job fails (and emails) if its settings are missing. The
   repository variables and secrets it needs are listed in `umas-books/README.md`.
 
+* **Clearing test data before launch.** `npm run clear-test-data` (steps in
+  `docs/runbook.md`, design in `umas-books/ARCHITECTURE.md`) is the only
+  sanctioned way to empty the shop, accounts and logs. It is a dry run unless given
+  `--execute`, the exact `--confirm` phrase naming the database and
+  `--i-have-a-backup`; it refuses once `PREVIEW_MODE` is off; it runs as one
+  transaction that rolls back if admins, two-step verification, `pricing_settings`
+  or kept content would change; and every table in the schema must be classified in
+  the script (a test fails otherwise). Take the nightly backup first: restoring it,
+  or Render's seven-day point-in-time recovery, is the undo.
+
 ---
 
 ## 13. Security model

@@ -318,6 +318,98 @@ To launch:
    `https://<your site>/robots.txt` no longer says `Disallow: /`. The red
    "PREVIEW MODE is ON" strip is gone from the admin screens.
 
+### Clearing the test data
+
+`npm run clear-test-data` removes the test data before launch. It is the one
+command in this project that can destroy real orders and members, so it is
+built to be hard to run by mistake: it does nothing unless you ask three
+separate times, and it only runs while `PREVIEW_MODE` is on.
+
+**What it removes**
+
+- **Shop data**: all books and copies, orders and order lines, in-shop sales,
+  awards, book requests, price look-ups, favourites, and pictures no longer used.
+- **People**: every account that is **not an admin**, and everything they own
+  (sign-ups, RSVPs, forum posts, votes and ideas, membership payments, reset and
+  e-mail tokens, volunteer and meeting sign-ups, login sessions), plus guest
+  sign-ups for events and classes.
+- **Logs**: the admin audit log. (The script then writes one line saying that it ran.)
+
+**What always stays**: every admin account with its two-step verification and
+recovery codes, the admins' login sessions, the pricing rules (`pricing_settings`),
+and the migration record.
+
+**What stays unless you add an option**: **Content** (events, classes, blog
+posts, announcements, charity rounds and charities, meetings, volunteer shifts)
+stays unless you add `--include-content`; non-admin accounts stay if you add
+`--keep-members`.
+
+**Steps** (do them in this order)
+
+1. **Run the backup.** GitHub > the repo > **Actions** > **Nightly database
+   backup** > **Run workflow**. Wait for the green tick. This is your undo button.
+2. **Open a command line next to the database.** Either:
+   - **From Render (easiest):** Render dashboard > the `umas-books` web service
+     > **Shell** tab. A black terminal opens, already connected to the right
+     database with the right settings. Or
+   - **From a laptop:** in a terminal, `cd` into the `umas-books` folder of the
+     project (once: `npm ci`). The command needs the database's **External
+     Database URL**: Render dashboard > the database > **Connections** >
+     *External Database URL* (it contains the password: never paste it into a
+     chat or a file). The database must accept connections from your laptop
+     (section f above). Put these two settings in front of every command, with
+     your URL in the quotes:
+     `PREVIEW_MODE=true DATABASE_URL="postgres://..." npm run clear-test-data -- ...`
+     (below the command is shown without them). `PREVIEW_MODE=true` typed on a
+     laptop is only your word: first look at Render > `umas-books` >
+     **Environment** and check that `PREVIEW_MODE` really is there and `true`.
+3. **Check who is kept:** `npm run clear-test-data -- --list-admins` prints the
+   e-mail addresses of the admins. Every one that must keep working has to be in
+   the list. If the list is wrong or empty, stop.
+4. **Dry run** (deletes nothing, safe to repeat): `npm run clear-test-data`.
+   It prints the database host and name, then for every table how many rows
+   **would** be deleted and how many would remain, grouped as Shop data, People,
+   Logs, Content and Always kept. Read it. Anything under *WARNING* (paid orders,
+   accounts marked as members) is a reason to stop and ask. Add
+   `-- --include-content` or `-- --keep-members` to the dry run to see those
+   variants. Note the two dashes: `npm run clear-test-data -- --keep-members`.
+   Without the `--`, npm swallows the option.
+5. **The real run.** The dry run ends by printing the exact command; it looks like
+
+   ```
+   npm run clear-test-data -- --execute --confirm "DELETE TEST DATA FROM <database name>" --i-have-a-backup
+   ```
+
+   Copy that one (it already has the right database name). Add
+   `--include-content` and/or `--keep-members` if you want them. All three
+   (`--execute`, the exact `--confirm` text, `--i-have-a-backup`) are required,
+   or it refuses and changes nothing. It does everything in one go: if anything
+   looks wrong in its own final checks (an admin missing, pricing rules changed,
+   kept content changed) it undoes the whole run and says so.
+6. **Check:** log in as an admin (the session stays valid), the inventory is
+   empty, the admin list is right, the pricing rules are unchanged. The next
+   book you add is number 1.
+
+**Afterwards, what remains**: the admin account(s) with two-step verification,
+pricing rules, the content (unless cleared), and the migration record. Counters
+of emptied tables start again at 1.
+
+**To undo**: within a week Render's own point-in-time recovery (Render dashboard
+> the database > **Recovery**, back to a moment just before the run) is the
+quickest; otherwise restore the backup you took in step 1: see **Restoring from
+a backup** in `umas-books/README.md`. A restore also brings back the test data,
+which is the point of an undo.
+
+**Never run it on the live site.** Once `PREVIEW_MODE` is deleted the script
+refuses; `--allow-live` overrides that and exists only for a real emergency with
+a developer at your side, because after launch it would delete real orders (which
+French accounting law makes you keep for 10 years) and real members.
+
+**New database tables.** The script refuses to run when the database has a table
+it does not know, and an automated test fails when a developer adds one without
+classifying it in `src/lib/clearTestData.js`. If you ever see "tables this script
+does not know", it needs a small code change first.
+
 ### Launch checklist (before and right after turning preview off)
 
 Tick each one. Where a variable lives matters: **Render environment variable**
@@ -345,8 +437,9 @@ secret** = same page, **Secrets** tab.
   `SITE_URL` (for example `https://umasbooks.org`); unset, the uptime check
   already watches `https://umasbooks.org`.
 - [ ] **`TOTP_ENCRYPTION_KEY`** is copied into the password manager (section b).
-- [ ] **Sample and test data removed.** There is no clearing script yet; this
-  step is a placeholder to agree on a procedure before launch.
+- [ ] **Sample and test data removed**, using the clearing script in
+  "Clearing the test data" below (dry run first, backup first), and the admin
+  e-mail list it prints is the right one.
 
 ### Turning it on again
 
