@@ -15,7 +15,7 @@ const FORM = { "content-type": "application/x-www-form-urlencoded" };
 let app, pool, privacy;
 
 before(async () => {
-  app = await startTestApp({ port: PORT });
+  app = await startTestApp({ port: PORT, isolated: true });
   process.env.DATABASE_URL = app.databaseUrl;
   process.env.PGSSLMODE = process.env.PGSSLMODE || "disable";
   ({ pool } = require("../../src/db"));

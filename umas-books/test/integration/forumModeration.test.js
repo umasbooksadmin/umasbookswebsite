@@ -10,7 +10,7 @@ const assert = require("node:assert/strict");
 const { prepareDatabase, buildApp, listen } = require("../helpers/inProcessApp");
 const { untranslated } = require("../helpers/i18nAudit");
 
-const db = prepareDatabase("forum_moderation");
+const db = prepareDatabase("forum_moderation", { isolated: true });
 
 const mailer = require("../../src/mailer");
 const sent = [];

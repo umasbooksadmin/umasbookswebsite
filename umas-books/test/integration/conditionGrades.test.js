@@ -11,7 +11,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const { startTestApp } = require("../helpers/testApp");
-const { makeCookieJar, fetchCsrfToken } = require("../helpers/httpClient");
+const { makeCookieJar, fetchCsrfToken, waitForCartCount } = require("../helpers/httpClient");
 
 const PORT = 3820;
 const TAG = `Cg${Date.now().toString(36)}`;
@@ -147,6 +147,7 @@ test("cart: the line shows the copy's grade in English and French", async () => 
     body: new URLSearchParams({ copyId: String(b.copyIds[0]), _csrf: token }).toString(),
   });
   assert.equal(add.status, 302);
+  await waitForCartCount(app.base, jar, 1); // the 302 can arrive before the session write lands
   const en = await page("/cart", "en", { cookie: `umasbooks_lang=en; ${jar.header()}` });
   assert.match(en.text, /condition-badge condition-acceptable">Acceptable</);
   const fr = await page("/cart", "fr", { cookie: `umasbooks_lang=fr; ${jar.header()}` });

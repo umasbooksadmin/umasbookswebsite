@@ -14,7 +14,7 @@ const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const { adminHarness } = require("../helpers/adminHarness");
 
-const h = adminHarness("admincal", ["dashboard", "events", "sessions", "meetings", "volunteerShifts"]);
+const h = adminHarness("admincal", ["dashboard", "events", "sessions", "meetings", "volunteerShifts"], { isolated: true });
 before(h.start);
 after(h.stop);
 

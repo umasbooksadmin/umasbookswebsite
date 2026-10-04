@@ -8,6 +8,7 @@
 const { spawn, execFileSync } = require("node:child_process");
 const path = require("node:path");
 const { Client } = require("pg");
+const { withDatabaseName } = require("./testDatabase");
 
 const ROOT = path.join(__dirname, "..", "..");
 
@@ -25,13 +26,6 @@ async function waitForHealthy(base, timeoutMs) {
     await new Promise((r) => setTimeout(r, 300));
   }
   throw new Error(`Server never became healthy: ${lastError && lastError.message}`);
-}
-
-// Same server as DATABASE_URL, different database name.
-function withDatabaseName(url, name) {
-  const u = new URL(url);
-  u.pathname = `/${name}`;
-  return u.toString();
 }
 
 // port: pick a fixed value distinct across test files so two files
@@ -86,16 +80,52 @@ async function startTestApp({ port, isolated = false, env = {} }) {
       AWARDS_LOOKUPS: "off",
       ...env,
     },
-    stdio: "inherit",
+    // stdout is piped (and echoed) so a test can wait for the server's own
+    // boot-time background jobs to report in — see waitForLog() below.
+    stdio: ["inherit", "pipe", "inherit"],
   });
+  let output = "";
+  const logWaiters = new Set();
+  serverProcess.stdout.on("data", (chunk) => {
+    process.stdout.write(chunk);
+    output += chunk;
+    for (const w of [...logWaiters]) if (w.pattern.test(output)) { logWaiters.delete(w); w.resolve(); }
+  });
+  // Resolves once the server has printed a line matching `pattern` (already
+  // printed counts). src/index.js starts several maintenance jobs at boot
+  // (retention purge, image cleanup, cart sweep) without waiting for them, so
+  // the first seconds of a fresh server race with a test that inserts old
+  // rows those jobs are allowed to delete. A test that does that waits here
+  // for the job's own log line instead of guessing with a sleep.
+  function waitForLog(pattern, { timeoutMs = 20000 } = {}) {
+    if (pattern.test(output)) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      const w = { pattern, resolve };
+      logWaiters.add(w);
+      setTimeout(() => {
+        if (logWaiters.delete(w)) reject(new Error(`server never logged ${pattern}`));
+      }, timeoutMs).unref();
+    });
+  }
 
   await waitForHealthy(base, 20000);
 
   return {
     base,
     databaseUrl,
+    waitForLog,
     async stop() {
+      // Wait for the server to finish its graceful shutdown BEFORE dropping
+      // its database: dropping first (WITH FORCE) kills the connections of a
+      // server that is still shutting down, which then logs/raises errors.
+      const exited = new Promise((resolve) => {
+        if (serverProcess.exitCode !== null || serverProcess.signalCode !== null) return resolve();
+        serverProcess.once("exit", resolve);
+      });
       serverProcess.kill();
+      let escalate;
+      await Promise.race([exited, new Promise((resolve) => { escalate = setTimeout(() => { serverProcess.kill("SIGKILL"); resolve(); }, 15000); })]);
+      clearTimeout(escalate);
       if (ownsDatabase) {
         execFileSync("dropdb", ["--if-exists", testDb], { stdio: "inherit" });
       }

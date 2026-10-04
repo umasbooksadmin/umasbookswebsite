@@ -24,10 +24,14 @@ let app;
 let pool;
 
 before(async () => {
-  app = await startTestApp({ port: PORT });
+  app = await startTestApp({ port: PORT, isolated: true });
   process.env.DATABASE_URL = app.databaseUrl;
   process.env.PGSSLMODE = process.env.PGSSLMODE || "disable";
   ({ pool } = require("../../src/db"));
+  // The server runs an image cleanup of its own at boot, in the background.
+  // Let it finish before inserting old images, or it can delete one between
+  // a test's insert of the image and of the row that references it.
+  await app.waitForLog(/Image cleanup/);
 });
 
 after(async () => {

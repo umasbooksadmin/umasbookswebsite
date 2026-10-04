@@ -7,7 +7,7 @@ const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const bcrypt = require("bcryptjs");
 const { startTestApp } = require("../helpers/testApp");
-const { makeCookieJar, fetchCsrfToken } = require("../helpers/httpClient");
+const { makeCookieJar, fetchCsrfToken, waitForCartCount } = require("../helpers/httpClient");
 
 const PORT = 3750;
 const PASSWORD = "DropinLines1!";
@@ -100,6 +100,7 @@ test("cart page shows the seat date in the viewer's language", async () => {
     body: new URLSearchParams({ classId: String(rows[0].id), _csrf: token }).toString(),
   });
   assert.equal(add.status, 302);
+  await waitForCartCount(app.base, jar, 1); // the 302 can arrive before the session write lands
   const fr = await get("/cart", "fr", jar);
   assert.ok(fr.includes("Dropin Lines Class") && fr.includes("Place drop-in"));
   assert.ok(!fr.includes(STORED));

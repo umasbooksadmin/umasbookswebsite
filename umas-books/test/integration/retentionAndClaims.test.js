@@ -18,10 +18,13 @@ let failSends = false;
 let sendDelayMs = 0; // widens the window in which overlapping runs race
 
 before(async () => {
-  app = await startTestApp({ port: PORT });
+  app = await startTestApp({ port: PORT, isolated: true });
   process.env.DATABASE_URL = app.databaseUrl;
   process.env.PGSSLMODE = process.env.PGSSLMODE || "disable";
   ({ pool } = require("../../src/db"));
+  // The server runs a retention purge of its own at boot, in the background;
+  // let it finish before this file inserts old rows it is allowed to purge.
+  await app.waitForLog(/Retention purge/);
   privacy = require("../../src/lib/privacy");
   reservations = require("../../src/lib/reservations");
   mailer = require("../../src/mailer");

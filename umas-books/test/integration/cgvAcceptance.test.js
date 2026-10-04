@@ -8,7 +8,7 @@ const assert = require("node:assert/strict");
 const { prepareDatabase, buildApp, listen } = require("../helpers/inProcessApp");
 const { makeCookieJar } = require("../helpers/httpClient");
 
-const db = prepareDatabase("cgv_acceptance");
+const db = prepareDatabase("cgv_acceptance", { isolated: true });
 
 const sent = [];
 const mailer = require("../../src/mailer");

@@ -10,8 +10,8 @@ const { startTestApp } = require("../helpers/testApp");
 let prod;
 let sandbox;
 before(async () => {
-  prod = await startTestApp({ port: 3990, env: { HELLOASSO_API_BASE: "" } });
-  sandbox = await startTestApp({ port: 3991, env: { HELLOASSO_API_BASE: "https://api.helloasso-sandbox.com/v5" } });
+  prod = await startTestApp({ port: 3990, isolated: true, env: { HELLOASSO_API_BASE: "" } });
+  sandbox = await startTestApp({ port: 3991, isolated: true, env: { HELLOASSO_API_BASE: "https://api.helloasso-sandbox.com/v5" } });
 });
 after(() => {
   prod.stop();
