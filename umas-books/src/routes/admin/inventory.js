@@ -9,6 +9,7 @@ const { extractBookInfoFromPhoto } = require("../../lib/coverVision");
 const { generateBookDescription, translateDescriptionToFrench } = require("../../lib/bookDescription");
 const { CONDITIONS, BINDINGS, STATUSES, normalizeCondition, normalizeBinding,resolveCopyPricing, normalizeStatus, normalizeGenres, normalizeLocation, parseScan, isbnVariants } = require("../../lib/inventory");
 const { expireStaleReservations } = require("../../lib/reservations");
+const { matchRequestsForCopy, matchRequestsForBook } = require("../../lib/bookRequests");
 
 const { validateIdParams } = require("../../middleware/idParams");
 
@@ -61,6 +62,17 @@ async function processCoverPhoto(file) {
     .jpeg({ quality: 78 })
     .toBuffer();
   return saveImage(resized, "image/jpeg");
+}
+
+// Matching customers' book requests must never stop a book from being saved:
+// a failure is logged and counts as "nothing matched".
+async function matchBookRequests(fn) {
+  try {
+    return await fn();
+  } catch (err) {
+    console.error("Book request matching failed:", err.message);
+    return 0;
+  }
 }
 
 // ---------- Inventory ----------
@@ -119,6 +131,7 @@ router.get("/admin/inventory/scan", requireAdmin, async (req, res) => {
     active: "inventory",
     error: null,
     saved: req.query.saved === "1",
+    requestsMatched: req.query.saved === "1" ? Math.min(parseInt(req.query.requests, 10) || 0, 999) : 0,
     visionEnabled: !!process.env.ANTHROPIC_API_KEY,
     location: normalizeLocation(req.query.location) || "",
     locations: await getLocations(),
@@ -417,15 +430,22 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
   const acquiredAt = req.body.acquiredAt || null;
   const notes = (req.body.copyNotes || "").trim() || null;
 
-  await pool.query(
+  const { rows: copyRows } = await pool.query(
     `INSERT INTO book_copies (book_id, condition, price, publisher_price, acquisition_cost, acquired_at, status, notes, location, created_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
     [bookId, condition, price, publisherPrice, acquisitionCost, acquiredAt, status, notes, location, req.session.user.id]
   );
 
+  // Customers who asked for this book (Requests page): matched now, the
+  // banner on the book's page and the scan screen tells the admin.
+  const requestsMatched = await matchBookRequests(() => matchRequestsForCopy(pool, bookId, copyRows[0].id));
+
   // The scan flow remembers the location between books.
-  if (req.body.fromScan === "1") return res.redirect(`/admin/inventory/scan?saved=1${location ? `&location=${encodeURIComponent(location)}` : ""}`);
-  res.redirect(`/admin/inventory/${bookId}`);
+  if (req.body.fromScan === "1") {
+    const extra = `${location ? `&location=${encodeURIComponent(location)}` : ""}${requestsMatched ? `&requests=${requestsMatched}` : ""}`;
+    return res.redirect(`/admin/inventory/scan?saved=1${extra}`);
+  }
+  res.redirect(`/admin/inventory/${bookId}${requestsMatched ? `?requests=${requestsMatched}` : ""}`);
 });
 
 async function renderBook(res, id, error = null, notice = null) {
@@ -436,7 +456,13 @@ async function renderBook(res, id, error = null, notice = null) {
   const { rows: copies } = await pool.query(
     "SELECT * FROM book_copies WHERE book_id = $1 ORDER BY created_at DESC", [id]
   );
-  res.render("admin/inventory/show", { active: "inventory", book, copies, conditions: CONDITIONS, bindings: BINDINGS, statuses: STATUSES, error, notice, locations: await getLocations() });
+  // Customers waiting for this book (matched to one of its copies, not yet notified).
+  const { rows: asked } = await pool.query(
+    `SELECT count(*)::int AS n FROM book_requests r JOIN book_copies c ON c.id = r.matched_copy_id
+     WHERE c.book_id = $1 AND r.status = 'matched'`,
+    [id]
+  );
+  res.render("admin/inventory/show", { active: "inventory", book, copies, conditions: CONDITIONS, bindings: BINDINGS, statuses: STATUSES, error, notice, locations: await getLocations(), requestCount: asked[0].n });
 }
 
 router.get("/admin/inventory/:id", requireAdmin, (req, res) => renderBook(res, Number(req.params.id), null, hasOrdersNotice(req)));
@@ -474,6 +500,8 @@ router.post("/admin/inventory/:id", requireAdmin, async (req, res) => {
       if (err.code !== "23505") throw err;
       return res.redirect(`/admin/inventory/${id}?notice=duplicate-isbn`);
     }
+    // A corrected title or ISBN may now fit a customer's request.
+    await matchBookRequests(() => matchRequestsForBook(pool, id));
   }
   res.redirect(`/admin/inventory/${id}`);
 });

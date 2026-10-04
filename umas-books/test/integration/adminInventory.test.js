@@ -11,7 +11,6 @@
 
 const { test, before, after, beforeEach } = require("node:test");
 const assert = require("node:assert/strict");
-require("express-async-errors"); // must load before the router is built, as in src/index.js
 const express = require("express");
 const multer = require("multer");
 const sharp = require("sharp");

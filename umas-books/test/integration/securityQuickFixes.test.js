@@ -13,7 +13,6 @@ const assert = require("node:assert/strict");
 const bcrypt = require("bcryptjs");
 // Must load before the routers: a rejected async handler becomes a 500 (as
 // in production) instead of an unhandled rejection and a hung request.
-require("express-async-errors");
 const { prepareDatabase, buildApp, listen, waitFor } = require("../helpers/inProcessApp");
 
 const db = prepareDatabase("secquick");
