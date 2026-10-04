@@ -88,3 +88,18 @@ test("order email falls back to the stored title when the class is gone", () => 
   const fr = buildOrderConfirmationText({ ...order, lang: "fr" }, [gone], "");
   assert.match(fr, /- Old session — 12 Dec, 18:00 — €5\.00/);
 });
+
+// ------------------------------------------------- terms-of-sale acceptance
+
+test("order email states when the terms of sale were accepted (Paris date) and which version, in EN and FR", () => {
+  const accepted = { ...order, cgv_accepted_at: "2026-03-05T23:30:00Z", cgv_version: "2026-10-04" };
+  const en = buildOrderConfirmationText({ ...accepted, lang: "en" }, items, "");
+  assert.match(en, /Terms of sale accepted on 6 March 2026 \(version 2026-10-04\)\./);
+  const fr = buildOrderConfirmationText({ ...accepted, lang: "fr" }, items, "");
+  assert.match(fr, /Conditions générales de vente acceptées le 6 mars 2026 \(version 2026-10-04\)\./);
+});
+
+test("order email has no acceptance line for an order placed before it was recorded", () => {
+  const t = buildOrderConfirmationText(order, items, "");
+  assert.doesNotMatch(t, /accepted on|acceptées le/);
+});

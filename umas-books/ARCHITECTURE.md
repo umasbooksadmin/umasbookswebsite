@@ -43,6 +43,8 @@ Every marketing route sets its own restrictive CSP (`marketingCsp` in
 `src/index.js`) before rendering — stricter than default since these
 pages need no forms/scripts beyond the shared header's language toggle.
 
+Both CSPs (app-wide helmet and `marketingCsp`) list the HelloAsso payment hosts in `form-action` (`src/lib/helloassoHosts.js`): Chrome enforces `form-action` on the redirect after a form POST, so without them `/cart/checkout`'s 302 to HelloAsso is blocked.
+
 ## Legacy redirects
 
 The booking calendar has been renamed twice ("classes" → "programs" →
@@ -247,7 +249,7 @@ rather than by a numbered migration), grouped by what they belong to:
   because `stickers` would otherwise be read as a book id.
 - **Accounts & auth** — `users`, `password_reset_tokens`,
   `email_verification_tokens`
-- **Shop / checkout** — `books`, `book_copies`, `orders`, `order_items`
+- **Shop / checkout** — `books`, `book_copies`, `orders` (with `cgv_accepted_at` / `cgv_version`: proof of acceptance of the terms of sale, version from `src/lib/legal.js`), `order_items`
   (an order line references *either* a book copy *or* a class drop-in
   seat, never both — see the `order_items_one_item_type` check
   constraint)

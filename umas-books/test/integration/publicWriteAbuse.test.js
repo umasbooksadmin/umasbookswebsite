@@ -1,8 +1,7 @@
-// The public (no-login) write endpoints — book reserve, cart/checkout,
-// event signup — used to have no rate limit and no email validation.
-// Reserve emailed whatever the submitter typed (so "a@x.com, b@y.com"
-// mailed two strangers), and a script could reserve the whole shelf or
-// lock every copy via checkout. See src/lib/validation.js and
+// The public (no-login) write endpoints — cart/checkout, event signup —
+// used to have no rate limit and no email validation. A script could lock
+// every copy via checkout. (The public book-reserve route that used to be
+// here is gone; see securityQuickFixes.test.js.) See src/lib/validation.js and
 // src/middleware/rateLimits.js. One app instance shared by every test
 // here, so the per-IP limiters' budgets are spent in order — the
 // rate-limit assertions come last within each endpoint's group.
@@ -54,42 +53,6 @@ async function copyStatus(id) {
   const { rows } = await pool.query("SELECT status FROM book_copies WHERE id = $1", [id]);
   return rows[0].status;
 }
-
-test("reserve refuses a multi-recipient email and holds nothing", async () => {
-  const copy = await newCopy();
-  const res = await post(makeCookieJar(), `/books/${copy.book_id}/reserve`, {
-    copyId: copy.id, name: "Mallory", email: "victim1@example.test, victim2@example.test",
-  });
-  assert.equal(res.status, 302);
-  assert.equal(await copyStatus(copy.id), "in_stock");
-});
-
-test("reserve stops one email from holding more than 5 copies", async () => {
-  const email = "hoarder@example.test";
-  for (let i = 0; i < 5; i++) {
-    const c = await newCopy("reserved");
-    await pool.query("UPDATE book_copies SET reserved_by_email = $1, reserved_by_name = 'H' WHERE id = $2", [email, c.id]);
-  }
-  const sixth = await newCopy();
-  await post(makeCookieJar(), `/books/${sixth.book_id}/reserve`, { copyId: sixth.id, name: "Hoarder", email });
-  assert.equal(await copyStatus(sixth.id), "in_stock");
-});
-
-test("a valid reserve still works, and reserve is rate limited per IP", async () => {
-  const copy = await newCopy();
-  await post(makeCookieJar(), `/books/${copy.book_id}/reserve`, {
-    copyId: copy.id, name: "Real Reader", email: "reader@example.test",
-  });
-  assert.equal(await copyStatus(copy.id), "reserved");
-
-  const statuses = [];
-  for (let i = 0; i < 8; i++) {
-    const c = await newCopy();
-    const r = await post(makeCookieJar(), `/books/${c.book_id}/reserve`, { copyId: c.id, name: "Bot", email: `bot${i}@example.test` });
-    statuses.push(r.status);
-  }
-  assert.ok(statuses.includes(429), `expected a 429 within 8 more reserves, got ${statuses}`);
-});
 
 test("a cart can't grow past 20 lines", async () => {
   const jar = makeCookieJar();
