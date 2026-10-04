@@ -237,16 +237,18 @@ rather than by a numbered migration), grouped by what they belong to:
   an admin creates are verified immediately, justified because the invite
   link must be clicked from that same inbox to set a password.
 - **Account pre-hijack defence** (migration 055, `users.first_verification_pending`,
-  set only by `POST /signup`): a self-signup account cannot log in until its
-  email is confirmed, and its first confirmation through `GET /verify-email/:token`
-  discards the signup password (random unusable hash), bumps `password_changed_at`
-  (all sessions die) and redirects to `/reset-password/:token?confirmed=1`, a
-  fresh single-use token, so only the mailbox owner chooses the password. The
-  membership sync waits for that choice. `POST /resend-verification` is neutral
-  and rate limited. Admin-created, grandfathered (032) and admin-email-changed
-  accounts are unflagged: they keep their password and just become verified.
-  Migration 055 also flags any account still unverified when it ran. Reasoning
-  is in the comment above the verify route in `src/routes/auth.js`.
+  set only by `POST /signup`): signup collects **no password** (the account gets
+  a random unusable hash and cannot log in). The emailed link
+  (`GET /verify-email/:token`) verifies the email, bumps `password_changed_at`
+  and redirects to `/reset-password/:token?confirmed=1`, a fresh single-use
+  token, where the person chooses their password (policy and breach check
+  apply); they then land on `/login?reset=confirmed`. So only the mailbox owner
+  can ever set a password. The membership sync waits for that choice.
+  `POST /resend-verification` is neutral and rate limited. Admin-created,
+  grandfathered (032) and admin-email-changed accounts are unflagged and keep
+  their password. Still-unconfirmed accounts from the old password-at-signup form
+  follow the same rules (migration 055 flagged them). Reasoning is in the comment
+  above the verify route in `src/routes/auth.js`.
 - **Membership** — `membership_payments` (HelloAsso payment records,
   matched to a `users` row by verified email — see
   `src/lib/membership.js`). The sync also re-runs (in the background)
