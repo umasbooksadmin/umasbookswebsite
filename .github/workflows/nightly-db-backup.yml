@@ -140,7 +140,7 @@ jobs:
           password: ${{ secrets.GMAIL_APP_PASSWORD }}
           subject: "[umas-books] Nightly database backup failed"
           to: admin@umasbooks.org
-          from: "Uma's Books Backup Monitor"
+          from: "Uma's Books Backup Monitor <${{ secrets.GMAIL_USER }}>"
           body: |
             Tonight's database backup did not complete successfully.
 
