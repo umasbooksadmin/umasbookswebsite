@@ -1,6 +1,7 @@
 const express = require("express");
 const { pool } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
+const { countUnusedImages } = require("../../lib/imageCleanup");
 
 const router = express.Router();
 
@@ -12,7 +13,7 @@ const router = express.Router();
 // one would mean making it up. "This month" vs "last month" comparisons
 // use calendar-month boundaries in the server's local time.
 router.get("/admin", requireAdmin, async (req, res) => {
-  const [orders, sales, books, accounts, memberCount] = await Promise.all([
+  const [orders, sales, books, accounts, memberCount, unusedImages] = await Promise.all([
     pool.query(`
       SELECT
         COUNT(*) FILTER (WHERE created_at >= CURRENT_DATE)::int AS today,
@@ -42,6 +43,8 @@ router.get("/admin", requireAdmin, async (req, res) => {
                             AND created_at < date_trunc('month', now()))::int AS new_last_month
       FROM users`),
     pool.query("SELECT COUNT(*)::int AS n FROM users WHERE is_member = TRUE"),
+    // Read-only; a failure here must not take the dashboard down.
+    countUnusedImages(pool).catch(() => 0),
   ]);
 
   res.render("admin/index", {
@@ -60,6 +63,7 @@ router.get("/admin", requireAdmin, async (req, res) => {
       newAccountsThisMonth: accounts.rows[0].new_this_month,
       newAccountsLastMonth: accounts.rows[0].new_last_month,
       memberCount: memberCount.rows[0].n,
+      unusedImages,
     },
   });
 });
