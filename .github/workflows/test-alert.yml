@@ -1,0 +1,33 @@
+name: Send a test alert
+
+# Run by hand (Actions > "Send a test alert" > Run workflow) to prove that the
+# failure-alert emails still arrive, e.g. after the mail action is updated.
+# It sends the same kind of email the backup, restore-test and uptime
+# workflows send when something fails. Needs the repository secrets
+# GMAIL_USER and GMAIL_APP_PASSWORD (Settings > Secrets and variables >
+# Actions > Secrets > Repository secrets), the same ones they use.
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  test-alert:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send the test email
+        uses: dawidd6/action-send-mail@2cea9617b09d79a095af21254fbcb7ae95903dde # v3.12.0
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.GMAIL_USER }}
+          password: ${{ secrets.GMAIL_APP_PASSWORD }}
+          subject: "[umas-books] TEST alert - the alert emails work"
+          to: admin@umasbooks.org
+          from: "Uma's Books Backup Monitor"
+          body: |
+            This is a test. If you can read this, failure alerts from GitHub will reach you.
+
+            Sent from: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
