@@ -43,6 +43,8 @@ Every marketing route sets its own restrictive CSP (`marketingCsp` in
 `src/index.js`) before rendering — stricter than default since these
 pages need no forms/scripts beyond the shared header's language toggle.
 
+Both CSPs (app-wide helmet and `marketingCsp`) list the HelloAsso payment hosts in `form-action` (`src/lib/helloassoHosts.js`): Chrome enforces `form-action` on the redirect after a form POST, so without them `/cart/checkout`'s 302 to HelloAsso is blocked.
+
 ## Legacy redirects
 
 The booking calendar has been renamed twice ("classes" → "programs" →
