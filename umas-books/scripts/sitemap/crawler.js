@@ -32,6 +32,10 @@ const PERSONAS = {
 };
 
 const ASSET_EXT = /\.(png|jpe?g|svg|ico|css|js|webmanifest|json|gif|woff2?|ttf|map)(\?|$)/i;
+// File downloads (the Reports page's "Download CSV" links) are not pages: a
+// browser navigating to one is aborted, which the crawl would count as a
+// failure. Skip them like any other asset.
+const DOWNLOAD_QUERY = /[?&]format=csv(&|$)/i;
 const SKIP_SCHEME = /^(mailto:|tel:|sms:|javascript:|#)/i;
 const NAV_TIMEOUT = 15000;
 // Some pages generate their own combinatorial query-string variants of
@@ -52,7 +56,7 @@ function toPath(absoluteUrl){
     if (u.origin !== new URL(BASE).origin) return null; // external
     if (SKIP_SCHEME.test(absoluteUrl)) return null;
     const p = u.pathname + u.search;
-    if (ASSET_EXT.test(p)) return null;
+    if (ASSET_EXT.test(p) || DOWNLOAD_QUERY.test(u.search) || /\.csv$/i.test(u.pathname)) return null;
     return p;
   } catch {
     return null;

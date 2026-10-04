@@ -39,6 +39,12 @@ test("checkout form links to terms of sale and privacy policy", () => {
   assert.match(src, /partials\/privacy_note/);
 });
 
+test("forms that collect new personal data carry the privacy note (one-click buttons do not need it)", () => {
+  for (const f of ["partials/calendar_item_event.ejs", "forum_new.ejs", "forum_thread.ejs", "charity.ejs", "cart.ejs", "signup.ejs"]) {
+    assert.match(view(f), /privacy_note/, f);
+  }
+});
+
 test("pre-registration states a minor's data comes from a parent or guardian, EN + FR", async () => {
   const html = await get("/pre-registration.html");
   assert.match(html, /parent or legal guardian/);

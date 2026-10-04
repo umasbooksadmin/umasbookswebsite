@@ -28,6 +28,7 @@ const priceLabel = e.price != null
       <input id="name-<%= e.id %>" name="name" type="text" required<%= full ? ' disabled' : '' %>>
       <label for="email-<%= e.id %>"><%= tr('Email', 'E-mail') %></label>
       <input id="email-<%= e.id %>" name="email" type="email" required<%= full ? ' disabled' : '' %>>
+      <%- include('privacy_note', { en: 'We use your name and email only to manage attendance at this event. See our', fr: 'Votre nom et votre e-mail servent uniquement à gérer la participation à cet événement. Consultez notre' }) %>
       <button type="submit" class="fcal-session-cta"<%= full ? ' disabled' : '' %>><%= full ? tr('Full', 'Complet') : tr('Sign Up', 'S’inscrire') %></button>
     </form>
 

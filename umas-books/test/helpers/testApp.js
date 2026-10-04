@@ -82,6 +82,8 @@ async function startTestApp({ port, isolated = false, env = {} }) {
       // Most tests log in as admins without a second factor; the 2FA test
       // file turns enforcement back on via `env`.
       ADMIN_2FA_REQUIRED: "false",
+      // The awards lookups (lib/awards) must never reach the network from a test.
+      AWARDS_LOOKUPS: "off",
       ...env,
     },
     stdio: "inherit",

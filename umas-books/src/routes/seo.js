@@ -5,6 +5,7 @@
 const express = require("express");
 const { pool } = require("../db");
 const { baseUrl } = require("../lib/baseUrl");
+const { isPreviewMode } = require("../lib/preview");
 
 const router = express.Router();
 
@@ -66,11 +67,18 @@ let sitemapCache = null; // { base, at, xml }
 function clearSitemapCache() { sitemapCache = null; }
 
 router.get("/robots.txt", (req, res) => {
+  // Preview mode: keep every crawler out (see lib/preview.js).
+  if (isPreviewMode()) return res.set("Cache-Control", "no-cache").type("text/plain").send("User-agent: *\nDisallow: /\n");
   res.set("Cache-Control", "public, max-age=3600");
   res.type("text/plain").send(robotsTxt(safeBaseUrl(req)));
 });
 
 router.get("/sitemap.xml", async (req, res) => {
+  if (isPreviewMode()) {
+    return res.set("Cache-Control", "no-cache").type("application/xml").send(
+      `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n</urlset>\n`
+    );
+  }
   const base = safeBaseUrl(req);
   if (!base) return res.status(503).type("text/plain").send("Sitemap unavailable: base URL is not configured.");
   if (!sitemapCache || sitemapCache.base !== base || Date.now() - sitemapCache.at > SITEMAP_TTL_MS) {
