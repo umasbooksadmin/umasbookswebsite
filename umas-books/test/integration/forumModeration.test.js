@@ -257,5 +257,16 @@ test("a hidden-post thread page has no untranslated text in French vs English", 
   const listEn = await page("/forum", member("en"));
   const listFr = await page("/forum", member("fr"));
   assert.ok(listFr.includes(PLACEHOLDER_FR));
-  assert.deepEqual(untranslated(listEn, listFr, [/^(English Eve|Francoise|Admin Ann|Member|Forum)$/, /^(Buy cheap watches now|Seeded title|Visible thread)$/]), []);
+  // In CI every test file shares one database, so the list also shows threads
+  // written by OTHER test files: member-written text is data, the same in both
+  // languages. Allow every stored title/body, not just this file's.
+  const { rows: userText } = await pool.query(
+    "SELECT title AS t FROM forum_threads UNION ALL SELECT body FROM forum_threads UNION ALL SELECT body FROM forum_replies");
+  const stored = new Set(userText.map((r) => String(r.t).trim()));
+  const listAllow = [
+    /^(English Eve|Francoise|Admin Ann|Member|Forum)$/,
+    /^(Buy cheap watches now|Seeded title|Visible thread)$/,
+    ...stored,
+  ];
+  assert.deepEqual(untranslated(listEn, listFr, listAllow), []);
 });
