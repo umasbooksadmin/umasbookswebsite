@@ -25,7 +25,9 @@ const { markOrderPaid } = require("../../src/lib/cart");
 let server;
 before(async () => {
   db.create();
-  server = await listen(buildApp([require("../../src/routes/cart")]));
+  const app = buildApp([require("../../src/routes/cart")]);
+  app.set("trust proxy", true);
+  server = await listen(app);
 });
 after(async () => {
   await server.close();
@@ -33,13 +35,22 @@ after(async () => {
   db.drop();
 });
 
+// CI runs every test file against ONE shared database, concurrently, and
+// pending orders keep client_ip for the per-IP unpaid-order cap in
+// routes/cart.js. So this file's checkouts come from their own made-up client
+// addresses (trusted X-Forwarded-For) instead of 127.0.0.1: they can neither
+// hit nor fill the cap other files' 127.0.0.1 checkouts depend on.
+let ipSeq = Math.floor(Math.random() * 200) * 250;
+const nextIp = () => { ipSeq += 1; return `10.${(ipSeq >> 16) & 255}.${(ipSeq >> 8) & 255}.${ipSeq & 255}`; };
+
 function visitor(lang) {
   const jar = makeCookieJar();
+  const ip = nextIp();
   const send = async (path, form) => {
     const res = await fetch(`${server.base}${path}`, {
       method: form ? "POST" : "GET",
       redirect: "manual",
-      headers: { cookie: [jar.header(), lang ? `umasbooks_lang=${lang}` : ""].filter(Boolean).join("; "), ...(form ? { "content-type": "application/x-www-form-urlencoded" } : {}) },
+      headers: { "x-forwarded-for": ip, cookie: [jar.header(), lang ? `umasbooks_lang=${lang}` : ""].filter(Boolean).join("; "), ...(form ? { "content-type": "application/x-www-form-urlencoded" } : {}) },
       body: form ? new URLSearchParams(form).toString() : undefined,
     });
     jar.capture(res);
