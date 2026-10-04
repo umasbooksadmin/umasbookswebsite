@@ -128,9 +128,13 @@ test("short numbers (order ids, line numbers) are not scrubbed", async () => {
   assert.match(sent[0].text, /order 42 broke/);
 });
 
-test("scrubbing also applies to forced alerts", async () => {
-  await alertOnError("x", "contact a@b.co", { force: true });
-  assert.equal(sent[0].text, "contact [email]");
+test("non-forced alerts are scrubbed; forced (money) alerts keep the buyer email and long ids", async () => {
+  const msg = "Order 7 PAID. Buyer: Jane <jane@example.org>, intent 123456789012";
+  await alertOnError("Error on POST /x for jane@example.org", new Error(msg));
+  assert.doesNotMatch(sent[0].subject + sent[0].text, /jane@example|123456789012/);
+  await alertOnError("Paid order 7 could not be fulfilled", msg, { force: true });
+  assert.equal(sent[1].subject, "[umas-books] Paid order 7 could not be fulfilled");
+  assert.equal(sent[1].text, msg);
 });
 
 test("one repeated error cannot swallow a different error, and the cap still holds", async () => {

@@ -13,8 +13,8 @@
 //   - overall: at most MAX_ALERTS_PER_WINDOW emails per window whatever
 //     the signatures, so a storm of distinct errors cannot flood the inbox.
 //
-// Alert text is scrubbed of email addresses and long digit runs (phone
-// numbers) before it leaves the server: an error message can quote user
+// Alert text is scrubbed (non-forced alerts only, see `force` below) of email
+// addresses and long digit runs (phone numbers) before it leaves the server: an error message can quote user
 // input. Stack frames are kept.
 const { sendMail } = require("../mailer");
 const { scrubPersonalData } = require("./scrub");
@@ -49,7 +49,9 @@ function alertOnError(label, err, { force = false } = {}) {
   const subject = `[umas-books] ${scrubPersonalData(label)}`;
   const fail = (mailErr) => console.error("Error-alert email itself failed:", mailErr.message);
   if (force) {
-    return sendMail({ to: ALERT_TO, subject, text: body(err) }).catch(fail);
+    // Money alerts are NOT scrubbed: the admin needs the buyer's email and
+    // the order/intent ids to refund by hand, and they only go to her own inbox.
+    return sendMail({ to: ALERT_TO, subject: `[umas-books] ${label}`, text: describe(err) }).catch(fail);
   }
   const now = Date.now();
   sentTimes = sentTimes.filter((t) => now - t < THROTTLE_MS);
