@@ -27,6 +27,7 @@
       <div class="book-detail-price">
         <% if (isFinite(minPrice)) { %>&euro;<%= minPrice.toFixed(2) %><% } %>
         <% if (copies.length === 1) { %><span class="muted small">&middot; <%= conditionLabel(copies[0].condition) %></span><% } %>
+        <% if (copies.some(c => c.is_clearance)) { %><span class="clearance-badge"><%= tr('Clearance', 'Déstockage') %></span><% } %>
       </div>
 
       <div class="availability-box">
@@ -41,7 +42,7 @@
             <label for="cartCopyId"><%= tr('Which copy?', 'Quel exemplaire ?') %></label>
             <select id="cartCopyId" name="copyId" style="margin-bottom:10px;">
               <% copies.forEach(c => { %>
-                <option value="<%= c.id %>"><%= conditionLabel(c.condition) %><%= c.price != null ? ' · €' + Number(c.price).toFixed(2) : '' %></option>
+                <option value="<%= c.id %>"><%= conditionLabel(c.condition) %><%= c.price != null ? ' · €' + Number(c.price).toFixed(2) : '' %><%= c.is_clearance ? ' · ' + tr('Clearance', 'Déstockage') : '' %></option>
               <% }) %>
             </select>
           <% } else { %>

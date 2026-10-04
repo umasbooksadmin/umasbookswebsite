@@ -83,4 +83,4 @@ async function sendPickupReminders(pool) {
 }
 
 
-module.exports = { expireStaleReservations, sendPickupReminders };
+module.exports = { expireStaleReservations, sendPickupReminders, RESERVATION_TTL_DAYS };

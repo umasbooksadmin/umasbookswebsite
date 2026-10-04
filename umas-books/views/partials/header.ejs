@@ -4,7 +4,8 @@
 <meta charset="utf-8">
 <title><%= typeof title !== "undefined" ? title + " — " : "" %><%= typeof tr === 'function' ? tr("Uma's Books Members", "Uma’s Books — Espace membres") : "Uma's Books Members" %></title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<% if (typeof noindex !== "undefined" && noindex) { %><meta name="robots" content="noindex">
+<% if (locals.preview) { %><meta name="robots" content="noindex, nofollow">
+<% } else if (typeof noindex !== "undefined" && noindex) { %><meta name="robots" content="noindex">
 <% } %><link rel="stylesheet" href="/style.css">
 <link rel="stylesheet" href="/site-header.css">
 <% if (typeof extraCss !== "undefined") { extraCss.forEach(function (href) { %><link rel="stylesheet" href="<%= href %>"><% }) } %>

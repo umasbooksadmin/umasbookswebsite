@@ -36,4 +36,27 @@
   <% } %>
 </div>
 
+<div class="card">
+  <div class="section-title"><%= tr('My book requests', 'Mes demandes de livres') %></div>
+  <% if (!bookRequests.length) { %>
+    <p class="muted"><%= tr('No book requests.', 'Aucune demande de livre.') %> <a href="/request-a-book"><%= tr("Can't find a book? Ask us", 'Vous ne trouvez pas un livre ? Demandez-nous') %></a></p>
+  <% } else { %>
+    <ul class="plain">
+      <% bookRequests.forEach(r => { %>
+        <li>
+          <div class="order-row">
+            <strong><%= r.title %></strong><% if (r.author) { %> <span class="muted small">&middot; <%= r.author %></span><% } %>
+            <%- include('partials/request_status', { status: r.status }) %>
+          </div>
+          <form method="post" action="/account/book-requests/<%= r.id %>/cancel">
+            <%- include('partials/csrf_field') %>
+            <button class="btn btn-outline btn-small" type="submit"><%= tr('Cancel this request', 'Annuler cette demande') %></button>
+          </form>
+        </li>
+      <% }) %>
+    </ul>
+    <p class="muted small"><a href="/request-a-book"><%= tr('Ask for another book', 'Demander un autre livre') %></a></p>
+  <% } %>
+</div>
+
 <%- include('partials/footer') %>

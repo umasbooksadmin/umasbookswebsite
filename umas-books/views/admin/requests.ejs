@@ -1,0 +1,104 @@
+<%- include('../partials/admin_header', { title: 'Requests', active: active, pageTitle: 'Book requests', pageSub: 'Books customers asked us to look out for. When a matching copy is added to inventory the request turns to Matched; you then notify the customer with one click. Times are Paris time.' }) %>
+<% if (notice && noticeIsError) { %><div class="error-box" role="alert"><%= notice %></div><% } %>
+<% if (notice && !noticeIsError) { %><div class="notice-box" role="status"><%= notice %></div><% } %>
+<% if (error) { %><div class="error-box" role="alert"><%= error %></div><% } %>
+
+<div class="card">
+  <form class="stack" method="get" action="/admin/requests" style="flex-direction: row; gap: 8px; max-width: 820px; align-items: end; flex-wrap: wrap;">
+    <div style="flex: 1; min-width: 200px;">
+      <label for="rq-q">Search title, author, ISBN, name or email</label>
+      <input id="rq-q" name="q" type="text" value="<%= q %>" placeholder="Search requests...">
+    </div>
+    <div style="flex: 1; min-width: 200px;">
+      <label for="rq-status">Show</label>
+      <select id="rq-status" name="status">
+        <% statusFilters.forEach(function (f) { %>
+          <option value="<%= f.value %>"<%= f.value === status ? ' selected' : '' %>><%= f.label %><%= byStatus[f.value] ? ' (' + byStatus[f.value] + ')' : '' %></option>
+        <% }) %>
+      </select>
+    </div>
+    <% if (bookId) { %><input type="hidden" name="book" value="<%= bookId %>"><% } %>
+    <button class="btn" type="submit">Filter</button>
+  </form>
+  <% if (bookId) { %><p class="muted small">Showing requests matched to book #<%= bookId %>. <a href="/admin/requests">Show all</a></p><% } %>
+</div>
+
+<% if (!requests.length) { %>
+  <div class="card"><p class="muted">No requests here.</p></div>
+<% } %>
+
+<% requests.forEach(function (r) { %>
+  <div class="card" id="request-<%= r.id %>">
+    <div class="order-row">
+      <strong><%= r.title %></strong>
+      <span class="status-pill <%= r.status === 'matched' || r.status === 'notified' ? 'paid' : (r.status === 'open' ? 'scheduled' : (r.status === 'unconfirmed' ? 'pending' : (r.status === 'fulfilled' ? 'completed' : 'cancelled'))) %>"><%= r.status %></span>
+    </div>
+    <div class="muted small">
+      <%= r.author || 'No author given' %><%= r.isbn ? ' · ISBN ' + r.isbn : '' %>
+      · asked <%= formatDateTime(r.created_at) %><% if (r.notified_at) { %> · notified <%= formatDateTime(r.notified_at) %><% } %>
+    </div>
+    <div class="small" style="margin-top:6px;">
+      <% if (r.email) { %>
+        <%= r.name || 'No name' %> &lt;<a href="mailto:<%= r.email %>"><%= r.email %></a>&gt; · wrote in <%= r.lang === 'fr' ? 'French' : 'English' %><%= r.user_id ? ' · has an account (#' + r.user_id + ')' : '' %>
+      <% } else { %>
+        <span class="muted">Contact details removed.</span>
+      <% } %>
+    </div>
+    <% if (r.note) { %><p class="small" style="margin:6px 0 0;">Customer's note: <%= r.note %></p><% } %>
+    <% if (r.admin_note) { %><p class="small" style="margin:6px 0 0;">Our note: <%= r.admin_note %></p><% } %>
+
+    <% if (r.matched_copy_id && r.book_id) { %>
+      <p class="small" style="margin:6px 0 0;">
+        Matched book: <a href="/admin/inventory/<%= r.book_id %>"><%= r.book_title %></a>
+        · copy #<%= r.matched_copy_id %> is <%= r.copy_status.replace('_', ' ') %><%= r.copy_price !== null ? ' · €' + Number(r.copy_price).toFixed(2) : '' %>
+      </p>
+    <% } else if (r.status === 'matched') { %>
+      <p class="small" style="margin:6px 0 0;">The matched copy is gone. Match this request to a book again.</p>
+    <% } %>
+
+    <% const isActive = ['open', 'matched', 'notified'].includes(r.status); %>
+    <% const hidden = function () { %><%- include('../partials/csrf_field') %><input type="hidden" name="return_status" value="<%= status %>"><input type="hidden" name="return_q" value="<%= q %>"><input type="hidden" name="return_book" value="<%= bookId %>"><% }; %>
+    <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; align-items:flex-end;">
+      <% if (r.status === 'matched' || r.status === 'notified') { %>
+        <form method="post" action="/admin/requests/<%= r.id %>/notify"<%- r.status === 'notified' ? ' data-confirm="This customer was already emailed. Send the email again?"' : '' %>>
+          <% hidden() %>
+          <button class="btn btn-small" type="submit"><%= r.status === 'notified' ? 'Notify again' : 'Notify' %></button>
+        </form>
+        <form method="post" action="/admin/requests/<%= r.id %>/notify-hold" data-confirm="Email the customer and hold this copy for them for 7 days?">
+          <% hidden() %>
+          <button class="btn btn-small" type="submit">Notify and hold 7 days</button>
+        </form>
+      <% } %>
+      <% if (r.status === 'open' || r.status === 'matched') { %>
+        <form method="post" action="/admin/requests/<%= r.id %>/match" style="display:flex; gap:6px; align-items:center;">
+          <% hidden() %>
+          <input name="book" type="text" placeholder="Book id or ISBN" aria-label="Book id or ISBN to match" style="width:150px;">
+          <button class="btn btn-outline btn-small" type="submit">Match to a book</button>
+        </form>
+      <% } %>
+      <% if (isActive) { %>
+        <form method="post" action="/admin/requests/<%= r.id %>/fulfil">
+          <% hidden() %>
+          <button class="btn btn-outline btn-small" type="submit">Mark fulfilled</button>
+        </form>
+        <form method="post" action="/admin/requests/<%= r.id %>/cancel" data-confirm="Cancel this request? The customer's email, name and notes are removed.">
+          <% hidden() %>
+          <button class="btn btn-outline btn-small" type="submit">Cancel</button>
+        </form>
+      <% } %>
+      <form method="post" action="/admin/requests/<%= r.id %>/delete" data-confirm="Delete this request permanently?">
+        <% hidden() %>
+        <button class="btn btn-outline btn-small" type="submit">Delete</button>
+      </form>
+    </div>
+    <% if (['unconfirmed', 'open', 'matched', 'notified'].includes(r.status)) { %>
+      <form method="post" action="/admin/requests/<%= r.id %>/note" style="display:flex; gap:6px; margin-top:8px; align-items:center;">
+        <% hidden() %>
+        <input name="adminNote" type="text" maxlength="500" value="<%= r.admin_note || '' %>" placeholder="Add a note (only staff see it)" aria-label="Staff note" style="flex:1;">
+        <button class="btn btn-outline btn-small" type="submit">Save note</button>
+      </form>
+    <% } %>
+  </div>
+<% }) %>
+
+<%- include('../partials/admin_footer') %>

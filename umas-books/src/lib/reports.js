@@ -1,0 +1,531 @@
+// Admin Reports (/admin/reports). Everything here only READS the database:
+// each report is a handful of aggregate queries (never one query per book),
+// every list has a LIMIT, and nothing returns an email address or a buyer's
+// name. Dates are Europe/Paris days (see lib/tz.js): a range "2026-01-01 to
+// 2026-01-31" means from midnight Paris on the 1st to midnight Paris on the
+// 1st of February, whatever time zone the server runs in.
+//
+// A report's run(db, ctx) takes anything with a pg-style .query() (the pool in
+// the app, a client in tests) and returns { sections, notes }. A section is
+// { key, title, columns: [{ key, label, type }], rows, totals, note }, shown as
+// a table on the page and exported by toCsv().
+
+const { SITE_TIME_ZONE } = require("./tz");
+const { CONDITIONS, SOURCES } = require("./inventory");
+
+const TZ = SITE_TIME_ZONE;
+const LIST_LIMIT = 500;
+const INTAKE_LATEST = 50;
+const GROUPS = ["day", "week", "month", "year"];
+
+// ---------- dates ----------
+
+const pad2 = (n) => String(n).padStart(2, "0");
+const isoDay = (y, m, d) => `${String(y).padStart(4, "0")}-${pad2(m)}-${pad2(d)}`;
+
+// "YYYY-MM-DD" only if it is a real calendar day (not 2026-02-31).
+function validDay(value) {
+  const m = typeof value === "string" ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(value) : null;
+  if (!m) return null;
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== mo - 1 || dt.getUTCDate() !== d) return null;
+  return m[0];
+}
+
+// Today's date in Paris as YYYY-MM-DD.
+function todayParis(now = new Date()) {
+  return now.toLocaleDateString("en-CA", { timeZone: TZ });
+}
+
+// n calendar months before a day; the day is clamped to the end of a shorter
+// month (31 March minus 1 month is 28/29 February).
+function subMonths(day, n) {
+  const [y, m, d] = day.split("-").map(Number);
+  const total = y * 12 + (m - 1) - n;
+  const ny = Math.floor(total / 12);
+  const nm = (total % 12) + 1;
+  const last = new Date(Date.UTC(ny, nm, 0)).getUTCDate();
+  return isoDay(ny, nm, Math.min(d, last));
+}
+
+function addDays(day, n) {
+  const [y, m, d] = day.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + n));
+  return isoDay(dt.getUTCFullYear(), dt.getUTCMonth() + 1, dt.getUTCDate());
+}
+
+// ?from=&to= as two Paris days, default the last 12 months up to today. An
+// invalid or missing value falls back to its default; from after to are
+// swapped.
+function parseDateRange(query = {}, now = new Date()) {
+  const today = todayParis(now);
+  let to = validDay(query.to) || today;
+  let from = validDay(query.from) || subMonths(to, 12);
+  if (from > to) [from, to] = [to, from];
+  return { from, to };
+}
+
+function parseGroup(value) {
+  return GROUPS.includes(value) ? value : "month";
+}
+
+// Where the aging buckets split, as days: a copy acquired on or before
+// `m12` is 12+ months old, after `m3` it is under 3 months old, and so on.
+function agingCutoffs(today) {
+  return { m3: subMonths(today, 3), m6: subMonths(today, 6), m12: subMonths(today, 12) };
+}
+
+// The age bucket of a copy acquired on `day` (YYYY-MM-DD), for tests and
+// anywhere a single copy needs placing; the SQL uses the same cutoffs.
+function agingBucket(day, today) {
+  const c = agingCutoffs(today);
+  if (day > c.m3) return "0-3";
+  if (day > c.m6) return "3-6";
+  if (day > c.m12) return "6-12";
+  return "12+";
+}
+
+// ---------- number / cell formatting ----------
+
+const money = (n) => Math.round(Number(n || 0) * 100) / 100;
+
+function formatCell(value, type, { csv = false } = {}) {
+  if (value === null || value === undefined || value === "") return "";
+  switch (type) {
+    case "int": return String(Math.round(Number(value)));
+    case "eur": return csv ? Number(value).toFixed(2) : `€${Number(value).toFixed(2)}`;
+    case "pct": return Number(value).toFixed(1) + (csv ? "" : "%");
+    case "dec1": return Number(value).toFixed(1);
+    default: return String(value);
+  }
+}
+
+// ---------- CSV ----------
+
+// One CSV cell. Text is always quoted (quotes doubled); a text cell that a
+// spreadsheet could read as a formula (starts with = + - @, or a tab/CR) gets
+// a leading apostrophe so it stays plain text. Numbers are written bare.
+function csvCell(value) {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "number") return Number.isFinite(value) ? String(value) : "";
+  let s = String(value);
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+  return `"${s.replace(/"/g, '""')}"`;
+}
+
+// A section as CSV text: header row, data rows, then the totals row. UTF-8
+// BOM first so Excel reads accents correctly; CRLF line ends.
+function toCsv(section) {
+  const lines = [section.columns.map((c) => csvCell(c.label)).join(",")];
+  const asRow = (row) => section.columns.map((c) => {
+    const cell = formatCell(row[c.key], c.type, { csv: true });
+    return c.type === "text" || c.type === "date" ? csvCell(cell) : cell;
+  }).join(",");
+  for (const row of section.rows) lines.push(asRow(row));
+  if (section.totals) lines.push(asRow(section.totals));
+  return "﻿" + lines.join("\r\n") + "\r\n";
+}
+
+// ---------- SQL pieces ----------
+
+// A copy's acquisition day: the date typed at intake, else the day it was added.
+const COPY_DAY = `COALESCE(c.acquired_at, (c.created_at AT TIME ZONE '${TZ}')::date)`;
+// First genre of books.categories ("Fantasy, Fiction" -> "Fantasy").
+const GENRE = `COALESCE(NULLIF(btrim(split_part(b.categories, ',', 1)), ''), '(no genre)')`;
+// A timestamp range [from midnight Paris, midnight Paris after `to`) for params $a and $b.
+const inRange = (col, a, b) =>
+  `${col} >= ($${a}::date)::timestamp AT TIME ZONE '${TZ}' AND ${col} < (($${b}::date) + 1)::timestamp AT TIME ZONE '${TZ}'`;
+
+const conditionLabel = (v) => (CONDITIONS.find((c) => c.value === v) || {}).label || v;
+const sourceLabel = (v) => (SOURCES.find((s) => s.value === v) || {}).label || "(unknown)";
+
+function sumRows(rows, keys) {
+  const t = {};
+  for (const k of keys) t[k] = money(rows.reduce((a, r) => a + Number(r[k] || 0), 0));
+  return t;
+}
+
+// ---------- 1. inventory ----------
+
+async function inventoryBy(db, { groupExpr, labelExpr, mapLabel = (x) => x, title, key, firstLabel }) {
+  const { rows } = await db.query(
+    `SELECT MIN((${labelExpr}) COLLATE "C") AS label,
+            COUNT(*) FILTER (WHERE c.status = 'in_stock')::int AS in_stock_count,
+            COALESCE(SUM(c.price) FILTER (WHERE c.status = 'in_stock'), 0)::float8 AS in_stock_value,
+            COUNT(*) FILTER (WHERE c.status = 'reserved')::int AS reserved_count,
+            COALESCE(SUM(c.price) FILTER (WHERE c.status = 'reserved'), 0)::float8 AS reserved_value
+     FROM book_copies c JOIN books b ON b.id = c.book_id
+     WHERE c.status = ANY($1)
+     GROUP BY ${groupExpr}`,
+    [["in_stock", "reserved"]]
+  );
+  const out = rows.map((r) => ({
+    label: mapLabel(r.label),
+    in_stock_count: r.in_stock_count, in_stock_value: money(r.in_stock_value),
+    reserved_count: r.reserved_count, reserved_value: money(r.reserved_value),
+    total_count: r.in_stock_count + r.reserved_count, total_value: money(r.in_stock_value + r.reserved_value),
+  }));
+  out.sort((a, b) => b.total_count - a.total_count || String(a.label).localeCompare(String(b.label)));
+  return {
+    key, title,
+    columns: [
+      { key: "label", label: firstLabel, type: "text" },
+      { key: "in_stock_count", label: "In stock", type: "int" },
+      { key: "in_stock_value", label: "In stock value", type: "eur" },
+      { key: "reserved_count", label: "Reserved", type: "int" },
+      { key: "reserved_value", label: "Reserved value", type: "eur" },
+      { key: "total_count", label: "Total copies", type: "int" },
+      { key: "total_value", label: "Total value", type: "eur" },
+    ],
+    rows: out,
+    totals: { label: "Total", ...sumRows(out, ["in_stock_count", "in_stock_value", "reserved_count", "reserved_value", "total_count", "total_value"]) },
+  };
+}
+
+async function inventoryReport(db) {
+  const sections = await Promise.all([
+    inventoryBy(db, { key: "genre", title: "By genre", firstLabel: "Genre", groupExpr: `lower(${GENRE})`, labelExpr: GENRE }),
+    inventoryBy(db, { key: "condition", title: "By condition", firstLabel: "Condition", groupExpr: "c.condition", labelExpr: "c.condition", mapLabel: conditionLabel }),
+    inventoryBy(db, { key: "location", title: "By location", firstLabel: "Location", groupExpr: "COALESCE(c.location, '')", labelExpr: "COALESCE(c.location, '(no location)')" }),
+    inventoryBy(db, { key: "source", title: "By source", firstLabel: "Source", groupExpr: "COALESCE(c.source, '')", labelExpr: "COALESCE(c.source, '')", mapLabel: sourceLabel }),
+  ]);
+  return {
+    sections,
+    notes: ["Copies on the shelf (in stock) and set aside for a customer (reserved). Value is the asking price; a copy with no price counts as zero."],
+  };
+}
+
+// ---------- 2. aging ----------
+
+const AGING_BUCKETS = [
+  { key: "0-3", label: "0 to 3 months" },
+  { key: "3-6", label: "3 to 6 months" },
+  { key: "6-12", label: "6 to 12 months" },
+  { key: "12+", label: "12 months or more" },
+];
+
+async function agingReport(db, ctx) {
+  const today = ctx.today || todayParis();
+  const cut = agingCutoffs(today);
+  const { rows } = await db.query(
+    `SELECT
+       COUNT(*) FILTER (WHERE d > $1::date)::int AS n0,
+       COALESCE(SUM(price) FILTER (WHERE d > $1::date), 0)::float8 AS v0,
+       COUNT(*) FILTER (WHERE d <= $1::date AND d > $2::date)::int AS n1,
+       COALESCE(SUM(price) FILTER (WHERE d <= $1::date AND d > $2::date), 0)::float8 AS v1,
+       COUNT(*) FILTER (WHERE d <= $2::date AND d > $3::date)::int AS n2,
+       COALESCE(SUM(price) FILTER (WHERE d <= $2::date AND d > $3::date), 0)::float8 AS v2,
+       COUNT(*) FILTER (WHERE d <= $3::date)::int AS n3,
+       COALESCE(SUM(price) FILTER (WHERE d <= $3::date), 0)::float8 AS v3
+     FROM (SELECT ${COPY_DAY} AS d, c.price FROM book_copies c WHERE c.status = 'in_stock') x`,
+    [cut.m3, cut.m6, cut.m12]
+  );
+  const r = rows[0];
+  const summaryRows = AGING_BUCKETS.map((b, i) => ({ bucket: b.label, count: r[`n${i}`], value: money(r[`v${i}`]) }));
+  const { rows: old } = await db.query(
+    `SELECT b.title, b.authors, c.price, c.location, to_char(${COPY_DAY}, 'YYYY-MM-DD') AS acquired
+     FROM book_copies c JOIN books b ON b.id = c.book_id
+     WHERE c.status = 'in_stock' AND ${COPY_DAY} <= $1::date
+     ORDER BY ${COPY_DAY} ASC, c.id ASC LIMIT ${LIST_LIMIT}`,
+    [cut.m12]
+  );
+  const listRows = old.map((o) => ({
+    title: o.title, author: o.authors || "", price: o.price == null ? null : Number(o.price),
+    location: o.location || "", acquired: o.acquired,
+  }));
+  const oldTotal = summaryRows[3].count;
+  return {
+    sections: [
+      {
+        key: "buckets", title: "Copies in stock by age",
+        columns: [{ key: "bucket", label: "Time in stock", type: "text" }, { key: "count", label: "Copies", type: "int" }, { key: "value", label: "Asking value", type: "eur" }],
+        rows: summaryRows,
+        totals: { bucket: "Total", ...sumRows(summaryRows, ["count", "value"]) },
+      },
+      {
+        key: "oldest", title: "Copies in stock for 12 months or more, oldest first",
+        columns: [
+          { key: "title", label: "Title", type: "text" }, { key: "author", label: "Author", type: "text" },
+          { key: "price", label: "Price", type: "eur" }, { key: "location", label: "Location", type: "text" },
+          { key: "acquired", label: "Acquired", type: "date" },
+        ],
+        rows: listRows, totals: null,
+        note: oldTotal > listRows.length ? `Showing the oldest ${listRows.length} of ${oldTotal}.` : null,
+      },
+    ],
+    notes: ["Age is counted from the acquisition date (or the day the copy was added when no date was entered)."],
+  };
+}
+
+// ---------- 3. sales over time ----------
+
+function periodLabel(iso, group) {
+  if (group === "year") return iso.slice(0, 4);
+  if (group === "month") return iso.slice(0, 7);
+  return iso; // day, or the Monday that starts the week
+}
+
+async function salesReport(db, ctx) {
+  const group = ctx.group;
+  const params = [group, ctx.from, ctx.to];
+  const { rows } = await db.query(
+    `WITH online AS (
+       SELECT date_trunc($1::text, o.paid_at AT TIME ZONE '${TZ}') AS p, COUNT(*)::int AS n, COALESCE(SUM(oi.price), 0)::float8 AS rev
+       FROM order_items oi JOIN orders o ON o.id = oi.order_id
+       WHERE o.status = 'paid' AND oi.book_copy_id IS NOT NULL AND ${inRange("o.paid_at", 2, 3)}
+       GROUP BY 1
+     ), shop AS (
+       SELECT date_trunc($1::text, s.sold_at AT TIME ZONE '${TZ}') AS p, COUNT(*)::int AS n, COALESCE(SUM(s.price), 0)::float8 AS rev
+       FROM shop_sales s
+       WHERE ${inRange("s.sold_at", 2, 3)}
+       GROUP BY 1
+     )
+     SELECT to_char(COALESCE(online.p, shop.p), 'YYYY-MM-DD') AS period,
+            COALESCE(online.n, 0) AS online_items, COALESCE(online.rev, 0) AS online_revenue,
+            COALESCE(shop.n, 0) AS shop_items, COALESCE(shop.rev, 0) AS shop_revenue
+     FROM online FULL JOIN shop ON online.p = shop.p
+     ORDER BY 1`,
+    params
+  );
+  const out = rows.map((r) => {
+    const items = r.online_items + r.shop_items;
+    const revenue = money(r.online_revenue + r.shop_revenue);
+    return {
+      period: periodLabel(r.period, group),
+      online_items: r.online_items, online_revenue: money(r.online_revenue),
+      shop_items: r.shop_items, shop_revenue: money(r.shop_revenue),
+      total_revenue: revenue, average: items ? money(revenue / items) : null,
+    };
+  });
+  const t = sumRows(out, ["online_items", "online_revenue", "shop_items", "shop_revenue", "total_revenue"]);
+  const totalItems = t.online_items + t.shop_items;
+  const totals = { period: "Total", ...t, average: totalItems ? money(t.total_revenue / totalItems) : null };
+
+  const { rows: dropin } = await db.query(
+    `SELECT to_char(date_trunc($1::text, o.paid_at AT TIME ZONE '${TZ}'), 'YYYY-MM-DD') AS period,
+            COUNT(*)::int AS seats, COALESCE(SUM(oi.price), 0)::float8 AS revenue
+     FROM order_items oi JOIN orders o ON o.id = oi.order_id
+     WHERE o.status = 'paid' AND oi.class_dropin_seat_id IS NOT NULL AND ${inRange("o.paid_at", 2, 3)}
+     GROUP BY 1 ORDER BY 1`,
+    params
+  );
+  const dropinRows = dropin.map((r) => ({ period: periodLabel(r.period, group), seats: r.seats, revenue: money(r.revenue) }));
+  const periodHeader = group === "week" ? "Week starting (Monday)" : "Period";
+  return {
+    sections: [
+      {
+        key: "books", title: "Book sales",
+        columns: [
+          { key: "period", label: periodHeader, type: "text" },
+          { key: "online_items", label: "Online items", type: "int" }, { key: "online_revenue", label: "Online revenue", type: "eur" },
+          { key: "shop_items", label: "Shop items", type: "int" }, { key: "shop_revenue", label: "Shop revenue", type: "eur" },
+          { key: "total_revenue", label: "Total revenue", type: "eur" }, { key: "average", label: "Average per item", type: "eur" },
+        ],
+        rows: out, totals,
+      },
+      {
+        key: "dropin", title: "Drop-in class seats (not included in the book sales above)",
+        columns: [{ key: "period", label: periodHeader, type: "text" }, { key: "seats", label: "Seats sold", type: "int" }, { key: "revenue", label: "Revenue", type: "eur" }],
+        rows: dropinRows, totals: { period: "Total", ...sumRows(dropinRows, ["seats", "revenue"]) },
+      },
+    ],
+    notes: ["Online = paid orders, counted on the day they were paid. Shop = sales recorded with Sell in shop. Days are Paris days."],
+  };
+}
+
+// ---------- 4. sell-through by genre ----------
+
+async function sellthroughReport(db, ctx) {
+  const { rows } = await db.query(
+    `WITH base AS (
+       SELECT c.id, c.status, c.price, ${COPY_DAY} AS acq, ${GENRE} AS genre
+       FROM book_copies c JOIN books b ON b.id = c.book_id
+       WHERE ${COPY_DAY} >= $1::date AND ${COPY_DAY} <= $2::date
+     ), sold_when AS (
+       SELECT copy_id, MIN(moment) AS moment FROM (
+         SELECT s.copy_id, s.sold_at AS moment FROM shop_sales s
+         UNION ALL
+         SELECT oi.book_copy_id, o.paid_at FROM order_items oi JOIN orders o ON o.id = oi.order_id
+         WHERE o.status = 'paid' AND oi.book_copy_id IS NOT NULL AND o.paid_at IS NOT NULL
+       ) u GROUP BY copy_id
+     )
+     SELECT MIN(base.genre COLLATE "C") AS genre,
+            COUNT(*)::int AS acquired,
+            COUNT(*) FILTER (WHERE base.status = 'sold')::int AS sold,
+            COUNT(w.moment) FILTER (WHERE base.status = 'sold')::int AS days_n,
+            COALESCE(SUM(GREATEST(0, (w.moment AT TIME ZONE '${TZ}')::date - base.acq)) FILTER (WHERE base.status = 'sold'), 0)::float8 AS days_sum,
+            COUNT(base.price)::int AS price_n,
+            COALESCE(SUM(base.price), 0)::float8 AS price_sum
+     FROM base LEFT JOIN sold_when w ON w.copy_id = base.id
+     GROUP BY lower(base.genre)`,
+    [ctx.from, ctx.to]
+  );
+  const shape = (r, label) => ({
+    genre: label, acquired: r.acquired, sold: r.sold,
+    sell_through: r.acquired ? (100 * r.sold) / r.acquired : null,
+    avg_days: r.days_n ? r.days_sum / r.days_n : null,
+    avg_price: r.price_n ? money(r.price_sum / r.price_n) : null,
+  });
+  const out = rows.map((r) => shape(r, r.genre));
+  out.sort((a, b) => b.acquired - a.acquired || String(a.genre).localeCompare(String(b.genre)));
+  const sum = (k) => rows.reduce((a, r) => a + Number(r[k]), 0);
+  const totals = shape({
+    acquired: sum("acquired"), sold: sum("sold"), days_n: sum("days_n"), days_sum: sum("days_sum"), price_n: sum("price_n"), price_sum: sum("price_sum"),
+  }, "Total");
+  return {
+    sections: [{
+      key: "genres", title: "Copies acquired in the date range, by genre",
+      columns: [
+        { key: "genre", label: "Genre", type: "text" }, { key: "acquired", label: "Copies acquired", type: "int" },
+        { key: "sold", label: "Sold so far", type: "int" }, { key: "sell_through", label: "Sell-through %", type: "pct" },
+        { key: "avg_days", label: "Average days to sell", type: "dec1" }, { key: "avg_price", label: "Average asking price", type: "eur" },
+      ],
+      rows: out, totals,
+    }],
+    notes: [
+      "A copy counts as sold when its status is Sold. Days to sell run from the acquisition date to the shop sale or the day the online order was paid; sold copies with no recorded sale date are left out of the average.",
+    ],
+  };
+}
+
+// ---------- 5. membership ----------
+
+async function membershipReport(db, ctx) {
+  const [active, joins, expiries, due] = await Promise.all([
+    db.query(`SELECT COUNT(*)::int AS n FROM users WHERE is_member AND (member_expires_at IS NULL OR member_expires_at > now())`),
+    db.query(
+      `SELECT to_char(date_trunc('month', first_paid AT TIME ZONE '${TZ}'), 'YYYY-MM') AS month, COUNT(*)::int AS n
+       FROM (
+         SELECT MIN(paid_at) AS first_paid FROM membership_payments
+         GROUP BY COALESCE('u' || user_id::text, 'e' || lower(payer_email))
+       ) f
+       WHERE ${inRange("first_paid", 1, 2)}
+       GROUP BY 1 ORDER BY 1`,
+      [ctx.from, ctx.to]
+    ),
+    db.query(
+      `SELECT to_char(date_trunc('month', member_expires_at AT TIME ZONE '${TZ}'), 'YYYY-MM') AS month, COUNT(*)::int AS n
+       FROM users WHERE member_expires_at IS NOT NULL AND ${inRange("member_expires_at", 1, 2)}
+       GROUP BY 1 ORDER BY 1`,
+      [ctx.from, ctx.to]
+    ),
+    db.query(
+      `SELECT display_name, to_char(member_expires_at AT TIME ZONE '${TZ}', 'YYYY-MM-DD') AS expires
+       FROM users
+       WHERE is_member AND member_expires_at IS NOT NULL
+         AND member_expires_at >= now() AND member_expires_at < now() + interval '30 days'
+       ORDER BY member_expires_at ASC, id ASC LIMIT ${LIST_LIMIT}`
+    ),
+  ]);
+  const monthRows = (res) => res.rows.map((r) => ({ month: r.month, count: r.n }));
+  const joinRows = monthRows(joins);
+  const expiryRows = monthRows(expiries);
+  const dueRows = due.rows.map((r) => ({
+    name: r.display_name || "",
+    expires: r.expires,
+  }));
+  return {
+    sections: [
+      {
+        key: "now", title: "Members now",
+        columns: [{ key: "measure", label: "Measure", type: "text" }, { key: "count", label: "Count", type: "int" }],
+        rows: [{ measure: "Active members", count: active.rows[0].n }], totals: null,
+      },
+      {
+        key: "joins", title: "New members per month (first payment)",
+        columns: [{ key: "month", label: "Month", type: "text" }, { key: "count", label: "New members", type: "int" }],
+        rows: joinRows, totals: { month: "Total", ...sumRows(joinRows, ["count"]) },
+      },
+      {
+        key: "expiries", title: "Memberships ending per month",
+        columns: [{ key: "month", label: "Month", type: "text" }, { key: "count", label: "Ending", type: "int" }],
+        rows: expiryRows, totals: { month: "Total", ...sumRows(expiryRows, ["count"]) },
+      },
+      {
+        key: "renewals", title: "Renewals due in the next 30 days",
+        columns: [{ key: "name", label: "Name", type: "text" }, { key: "expires", label: "Expires", type: "date" }],
+        rows: dueRows, totals: null,
+      },
+    ],
+    notes: ["Active = marked as a member and not expired. Only names and dates are shown: no email addresses."],
+  };
+}
+
+// ---------- 6. intake log ----------
+
+async function intakeReport(db, ctx) {
+  const range = inRange("c.created_at", 1, 2);
+  const [perMonth, perSource, latest] = await Promise.all([
+    db.query(
+      `SELECT to_char(date_trunc('month', c.created_at AT TIME ZONE '${TZ}'), 'YYYY-MM') AS label,
+              COUNT(*)::int AS copies, COALESCE(SUM(c.acquisition_cost), 0)::float8 AS cost
+       FROM book_copies c WHERE ${range} GROUP BY 1 ORDER BY 1`,
+      [ctx.from, ctx.to]
+    ),
+    db.query(
+      `SELECT COALESCE(c.source, '') AS label, COUNT(*)::int AS copies, COALESCE(SUM(c.acquisition_cost), 0)::float8 AS cost
+       FROM book_copies c WHERE ${range} GROUP BY 1 ORDER BY 2 DESC, 1`,
+      [ctx.from, ctx.to]
+    ),
+    db.query(
+      `SELECT to_char(c.created_at AT TIME ZONE '${TZ}', 'YYYY-MM-DD') AS added, b.title, b.authors, c.source, c.condition, c.price, c.acquisition_cost, c.location
+       FROM book_copies c JOIN books b ON b.id = c.book_id
+       ORDER BY c.created_at DESC, c.id DESC LIMIT ${INTAKE_LATEST}`
+    ),
+  ]);
+  const grouped = (res, map = (x) => x) => res.rows.map((r) => ({ label: map(r.label), copies: r.copies, cost: money(r.cost) }));
+  const monthRows = grouped(perMonth);
+  const sourceRows = grouped(perSource, sourceLabel);
+  const latestRows = latest.rows.map((r) => ({
+    added: r.added,
+    title: r.title, author: r.authors || "", source: sourceLabel(r.source), condition: conditionLabel(r.condition),
+    price: r.price == null ? null : Number(r.price), cost: r.acquisition_cost == null ? null : Number(r.acquisition_cost),
+    location: r.location || "",
+  }));
+  const cols = (first) => [
+    { key: "label", label: first, type: "text" }, { key: "copies", label: "Copies added", type: "int" },
+    { key: "cost", label: "Acquisition cost", type: "eur" },
+  ];
+  return {
+    sections: [
+      { key: "months", title: "Copies added per month", columns: cols("Month"), rows: monthRows, totals: { label: "Total", ...sumRows(monthRows, ["copies", "cost"]) } },
+      { key: "sources", title: "Copies added by source", columns: cols("Source"), rows: sourceRows, totals: { label: "Total", ...sumRows(sourceRows, ["copies", "cost"]) } },
+      {
+        key: "latest", title: `Latest ${INTAKE_LATEST} copies added (any date)`,
+        columns: [
+          { key: "added", label: "Added", type: "date" }, { key: "title", label: "Title", type: "text" }, { key: "author", label: "Author", type: "text" },
+          { key: "source", label: "Source", type: "text" }, { key: "condition", label: "Condition", type: "text" },
+          { key: "price", label: "Price", type: "eur" }, { key: "cost", label: "Acquisition cost", type: "eur" }, { key: "location", label: "Location", type: "text" },
+        ],
+        rows: latestRows, totals: null,
+      },
+    ],
+    notes: ["Acquisition cost is only counted for copies where it was entered."],
+  };
+}
+
+const REPORTS = [
+  { slug: "inventory", title: "Inventory on hand", summary: "Copies in stock and reserved, with their asking value, by genre, condition, location and source.", run: inventoryReport },
+  { slug: "aging", title: "Aging stock", summary: "How long copies have been in stock (0-3, 3-6, 6-12, 12+ months), and the oldest ones.", run: agingReport },
+  { slug: "sales", title: "Sales over time", summary: "Book sales online and in the shop by day, week, month or year, plus drop-in seats separately.", usesRange: true, usesGroup: true, run: salesReport },
+  { slug: "sellthrough", title: "Sell-through by genre", summary: "Of the copies acquired in a period, how many have sold, and how fast.", usesRange: true, run: sellthroughReport },
+  { slug: "membership", title: "Membership", summary: "Active members, new members and endings per month, and renewals due soon.", usesRange: true, run: membershipReport },
+  { slug: "intake", title: "Intake log", summary: "Copies added per month and by source, with acquisition cost, and the latest additions.", usesRange: true, run: intakeReport },
+];
+
+const getReport = (slug) => REPORTS.find((r) => r.slug === slug) || null;
+
+// Runs a report for a request's query string.
+async function runReport(db, report, query = {}, now = new Date()) {
+  const range = parseDateRange(query, now);
+  const ctx = { ...range, group: parseGroup(query.group), today: todayParis(now) };
+  const result = await report.run(db, ctx);
+  return { ...result, range, group: ctx.group };
+}
+
+module.exports = {
+  REPORTS, GROUPS, LIST_LIMIT, getReport, runReport,
+  validDay, todayParis, subMonths, addDays, parseDateRange, parseGroup, agingCutoffs, agingBucket,
+  formatCell, csvCell, toCsv,
+};

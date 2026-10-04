@@ -9,7 +9,6 @@ const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 // Production loads this before any router (src/index.js); without it a
 // rejected async handler hangs the request instead of reaching the 500 handler.
-require("express-async-errors");
 const { prepareDatabase, buildApp, listen } = require("../helpers/inProcessApp");
 const { makeClient, makeUser, uniq } = require("../helpers/routeClient");
 

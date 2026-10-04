@@ -20,6 +20,21 @@ const STATUSES = [
   { value: "damaged", label: "Damaged / withdrawn" },
 ];
 
+// Where a copy came from (book_copies.source). NULL in the database means
+// "unknown": every copy added before this existed.
+const SOURCES = [
+  { value: "donation", label: "Donation" },
+  { value: "purchase", label: "Purchase" },
+  { value: "lot", label: "Job lot" },
+  { value: "other", label: "Other" },
+];
+const SOURCE_VALUES = new Set(SOURCES.map((s) => s.value));
+
+// A source value from a form: one of the known ones, otherwise null (unknown).
+function normalizeSource(value) {
+  return SOURCE_VALUES.has(value) ? value : null;
+}
+
 const CONDITION_VALUES = new Set(CONDITIONS.map((c) => c.value));
 const STATUS_VALUES = new Set(STATUSES.map((s) => s.value));
 
@@ -118,4 +133,4 @@ function isbnVariants(isbn) {
   return [...out];
 }
 
-module.exports = { CONDITIONS, STATUSES, LOCATION_MAX, normalizeCondition, resolveCopyPricing, normalizeStatus, normalizeGenres, normalizeLocation, parseScan, isbnVariants };
+module.exports = { CONDITIONS, STATUSES, SOURCES, normalizeSource, LOCATION_MAX, normalizeCondition, resolveCopyPricing, normalizeStatus, normalizeGenres, normalizeLocation, parseScan, isbnVariants };

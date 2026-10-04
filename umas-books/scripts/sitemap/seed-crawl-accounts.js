@@ -7,7 +7,7 @@
 //
 // Usage: node seed-crawl-accounts.js
 
-require("dotenv").config();
+require("dotenv").config({ quiet: true });
 const bcrypt = require("bcryptjs");
 const { pool } = require("../../src/db");
 

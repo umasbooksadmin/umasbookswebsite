@@ -15,6 +15,28 @@
     try { if (v) localStorage.setItem(KEY, v); } catch (e) { /* storage blocked: fine */ }
   }
 
+  // The source of the batch (donation / purchase / ...) is remembered the same
+  // way: a select on the scan page, mirrored into the photo form.
+  (function () {
+    var SOURCE_KEY = "umas.inventory.source";
+    var select = document.querySelector("[data-source-input]");
+    if (!select) return;
+    var sourceMirrors = document.querySelectorAll("[data-source-mirror]");
+    function syncSource() {
+      try { if (select.value) localStorage.setItem(SOURCE_KEY, select.value); else localStorage.removeItem(SOURCE_KEY); } catch (e) { /* storage blocked: fine */ }
+      for (var i = 0; i < sourceMirrors.length; i++) sourceMirrors[i].value = select.value;
+    }
+    if (!select.value) {
+      var savedSource = "";
+      try { savedSource = localStorage.getItem(SOURCE_KEY) || ""; } catch (e) { /* storage blocked: fine */ }
+      for (var j = 0; j < select.options.length; j++) {
+        if (select.options[j].value === savedSource) select.value = savedSource;
+      }
+    }
+    syncSource();
+    select.addEventListener("change", syncSource);
+  })();
+
   var input = document.querySelector("[data-location-input]");
   if (!input) return;
   var mirrors = document.querySelectorAll("[data-location-mirror]");

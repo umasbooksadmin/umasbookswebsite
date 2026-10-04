@@ -1,0 +1,34 @@
+<%- include('partials/header', { title: tr("Can't find a book? Ask us", 'Vous ne trouvez pas un livre ? Demandez-nous') }) %>
+
+<h1><%= tr("Can't find a book? Ask us", 'Vous ne trouvez pas un livre ? Demandez-nous') %></h1>
+<p class="muted"><%= tr("Tell us which book you are looking for and we'll keep an eye out for it. If a copy arrives, we'll email you. You don't need an account or a membership.", "Dites-nous quel livre vous cherchez et nous garderons l'œil ouvert. Si un exemplaire arrive, nous vous écrirons. Vous n'avez besoin ni de compte ni d'adhésion.") %></p>
+
+<% if (error) { %><div role="alert" class="error-box"><%= error %></div><% } %>
+
+<div class="card">
+  <form class="stack" method="post" action="/request-a-book">
+    <%- include('partials/csrf_field') %>
+    <label for="rb-title"><%= tr('Title', 'Titre') %></label>
+    <input id="rb-title" name="title" type="text" maxlength="200" required value="<%= values.title || '' %>">
+    <label for="rb-author"><%= tr('Author (optional)', 'Auteur (facultatif)') %></label>
+    <input id="rb-author" name="author" type="text" maxlength="150" value="<%= values.author || '' %>">
+    <label for="rb-isbn"><%= tr('ISBN (optional)', 'ISBN (facultatif)') %></label>
+    <input id="rb-isbn" name="isbn" type="text" maxlength="40" autocomplete="off" value="<%= values.isbn || '' %>">
+    <label for="rb-email"><%= tr('Your email', 'Votre e-mail') %></label>
+    <input id="rb-email" name="email" type="email" autocomplete="email" maxlength="200" required value="<%= values.email || '' %>">
+    <label for="rb-name"><%= tr('Your name (optional)', 'Votre nom (facultatif)') %></label>
+    <input id="rb-name" name="name" type="text" autocomplete="name" maxlength="100" value="<%= values.name || '' %>">
+    <label for="rb-note"><%= tr('Anything else we should know? (optional)', "Autre chose à nous dire ? (facultatif)") %></label>
+    <textarea id="rb-note" name="note" rows="4" maxlength="500"><%= values.note || '' %></textarea>
+    <div class="hp" aria-hidden="true">
+      <label for="rb-website"><%= tr('Website', 'Site web') %></label>
+      <input id="rb-website" name="website" type="text" tabindex="-1" autocomplete="off">
+    </div>
+    <%- include('partials/privacy_note', { en: 'We use your details only to handle this request: we email you to confirm it, and again if we find the book. You can cancel at any time. See our', fr: "Vos données servent uniquement à traiter cette demande : nous vous écrivons pour la confirmer, puis si nous trouvons le livre. Vous pouvez l'annuler à tout moment. Consultez notre" }) %>
+    <button class="btn" type="submit"><%= tr('Send request', 'Envoyer la demande') %></button>
+  </form>
+</div>
+
+<p class="muted small"><a href="/my-requests"><%= tr('Already asked? Find my requests', 'Déjà demandé ? Retrouver mes demandes') %></a></p>
+
+<%- include('partials/footer') %>

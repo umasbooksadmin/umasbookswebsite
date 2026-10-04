@@ -46,7 +46,6 @@ function prepareDatabase(label) {
 // header (JSON) is treated as logged in as that session user.
 function buildApp(routers) {
   const express = require("express");
-  require("express-async-errors");
   const session = require("express-session");
 
   const app = express();
