@@ -6,6 +6,7 @@ const { sendMail } = require("../mailer");
 const { baseUrl } = require("../lib/baseUrl");
 const { emailTr, pickLang } = require("../lib/lang");
 const { isEmail, clean, emailSafeName, parseId } = require("../lib/validation");
+const { loadPublicAwards, awardsTextSql } = require("../lib/awards/display");
 const { reserveLimiter, reserveDailyLimiter } = require("../middleware/rateLimits");
 
 const { validateIdParams } = require("../middleware/idParams");
@@ -214,7 +215,8 @@ router.get("/api/books/search", async (req, res) => {
 
   const { rows } = await pool.query(
     `SELECT b.id, b.title, b.authors, b.cover_url,
-            (SELECT MIN(price) FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock') AS min_price
+            (SELECT MIN(price) FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock') AS min_price,
+            ${awardsTextSql("b.id")} AS awards
      FROM books b
      WHERE EXISTS (SELECT 1 FROM book_copies c WHERE c.book_id = b.id AND ${clauses.join(" AND ")})
      ORDER BY b.title ASC LIMIT 60`,
@@ -227,6 +229,7 @@ router.get("/api/books/search", async (req, res) => {
       author: b.authors,
       coverUrl: b.cover_url,
       price: b.min_price != null ? Number(b.min_price) : null,
+      awards: b.awards || "",
       url: `${baseUrl(req)}/books/${b.id}`,
     }))
   );
@@ -297,6 +300,7 @@ router.get("/books/:id", async (req, res) => {
   res.render("book_detail", {
     book,
     copies,
+    awards: await loadPublicAwards(pool, id),
     conditionLabel: (value) => conditionLabel(value, req.lang),
     backGenre: (req.query.genre || "").trim(),
     moreByAuthor,

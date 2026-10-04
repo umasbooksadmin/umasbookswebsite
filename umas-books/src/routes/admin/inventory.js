@@ -9,6 +9,7 @@ const { extractBookInfoFromPhoto } = require("../../lib/coverVision");
 const { generateBookDescription, translateDescriptionToFrench } = require("../../lib/bookDescription");
 const { CONDITIONS, STATUSES, normalizeCondition, resolveCopyPricing, normalizeStatus, normalizeGenres, normalizeLocation, parseScan, isbnVariants } = require("../../lib/inventory");
 const { expireStaleReservations } = require("../../lib/reservations");
+const { checkBookAwardsInBackground } = require("../../lib/awards");
 
 const { validateIdParams } = require("../../middleware/idParams");
 
@@ -68,9 +69,17 @@ async function processCoverPhoto(file) {
 // order_items point at copies with no ON DELETE action, so anything that has
 // ever been ordered can't be deleted (Postgres 23503) — say so instead of 500.
 const HAS_ORDERS_MESSAGE = "This item has orders, so it can't be deleted (mark it sold/archived instead).";
+const AWARDS_NOTICES = {
+  "awards-checked": "Awards check finished.",
+  "awards-slow": "The awards check is taking a while. It keeps running in the background: reload this page in a minute.",
+  "awards-added": "Awards added.",
+  "awards-removed": "Award removed.",
+  "awards-updated": "Award updated.",
+};
 const hasOrdersNotice = (req) => {
   if (req.query.notice === "has-orders") return HAS_ORDERS_MESSAGE;
   if (req.query.notice === "duplicate-isbn") return "Another book already has that ISBN, so the change was not saved.";
+  if (typeof req.query.notice === "string" && Object.hasOwn(AWARDS_NOTICES, req.query.notice)) return AWARDS_NOTICES[req.query.notice];
   return null;
 };
 
@@ -357,6 +366,7 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
   // book entry — otherwise scanning a title you already stock splits
   // into a separate single-copy book instead of accumulating on one.
   let bookId = null;
+  let isNewBook = false;
   if (isbn) {
     const { rows: existingRows } = await pool.query("SELECT * FROM books WHERE isbn = $1", [isbn]);
     if (existingRows.length) {
@@ -397,6 +407,7 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
     );
     if (rows.length) {
       bookId = rows[0].id;
+      isNewBook = true;
     } else {
       // Another request added this ISBN between our lookup above and this
       // insert (books.isbn is unique, see migration 038) — use its record.
@@ -417,6 +428,10 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
     [bookId, condition, price, publisherPrice, acquisitionCost, acquiredAt, status, notes, location, req.session.user.id]
   );
 
+  // Look up awards / best-seller lists in the background so they usually
+  // appear within seconds. Never awaited: it must not delay or fail the save.
+  if (isNewBook) checkBookAwardsInBackground(pool, bookId);
+
   // The scan flow remembers the location between books.
   if (req.body.fromScan === "1") return res.redirect(`/admin/inventory/scan?saved=1${location ? `&location=${encodeURIComponent(location)}` : ""}`);
   res.redirect(`/admin/inventory/${bookId}`);
@@ -430,7 +445,11 @@ async function renderBook(res, id, error = null, notice = null) {
   const { rows: copies } = await pool.query(
     "SELECT * FROM book_copies WHERE book_id = $1 ORDER BY created_at DESC", [id]
   );
-  res.render("admin/inventory/show", { active: "inventory", book, copies, conditions: CONDITIONS, statuses: STATUSES, error, notice, locations: await getLocations() });
+  const { rows: awards } = await pool.query(
+    `SELECT a.*, u.display_name AS decided_by_name FROM book_awards a LEFT JOIN users u ON u.id = a.decided_by
+     WHERE a.book_id = $1 ORDER BY (a.status = 'pending') DESC, a.year DESC NULLS LAST, lower(a.label)`, [id]
+  );
+  res.render("admin/inventory/show", { active: "inventory", book, copies, awards, conditions: CONDITIONS, statuses: STATUSES, error, notice, locations: await getLocations() });
 }
 
 router.get("/admin/inventory/:id", requireAdmin, (req, res) => renderBook(res, Number(req.params.id), null, hasOrdersNotice(req)));

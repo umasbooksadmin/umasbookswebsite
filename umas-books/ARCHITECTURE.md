@@ -99,6 +99,25 @@ rather than by a numbered migration), grouped by what they belong to:
   through hidden fields and `public/inventory-location.js` (localStorage);
   `/admin/inventory/move` moves one copy per scanned ISBN (`parseScan`), and
   each move writes a `copy.move` audit row (location codes only).
+- **Awards & best-seller lists** — `book_awards` (migration 050) plus
+  `books.awards_checked_at / awards_check_state / awards_ai_checked_at`. Code
+  in `src/lib/awards/`: `wikidata.js` (SPARQL by ISBN, awards P166 and
+  nominations P1411), `nyt.js` (optional, `NYT_API_KEY`, in-process 5/min and
+  500/day gate), `ai.js` (optional web search, off unless `AWARDS_AI` is on),
+  `index.js` (`checkBookAwards`, `drainAwards`), `display.js` (what customers
+  may see). **Trust model:** Wikidata, NYT and admin-typed rows are `verified`
+  and shown at once; AI rows are `pending` and hidden until an admin approves
+  them (`approved`) at `/admin/awards` or on the book's admin page; `rejected`
+  rows stay so a suggestion is never offered again. An AI item is kept only if
+  its https source URL really appeared in that response's search results. Every
+  lookup fails open and never blocks a save. A new book is checked in the
+  background right after intake; a timer in `src/index.js` (every 2 minutes, 5
+  books, via `guardJob`) checks never-checked books newest first, retries
+  failures after a day, gives an AI-only pass to books checked before AI was on
+  (bounded by `AWARDS_AI_DAILY_MAX`, counted in memory and in
+  `books.awards_ai_checked_at`), and refreshes yearly. Admin approve / reject /
+  add / remove / re-check write `award.*` audit rows (label only).
+  `AWARDS_LOOKUPS=off` is a kill switch (the test helpers set it).
 - **Accounts & auth** — `users`, `password_reset_tokens`,
   `email_verification_tokens`
 - **Shop / checkout** — `books`, `book_copies`, `orders`, `order_items`
@@ -151,6 +170,11 @@ src/` is the ground truth if this list ever drifts):
 | `CONTACT_TO` | no (defaults `admin@umasbooks.org`) | where the Contact form delivers |
 | `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` | `SEED_ADMIN_PASSWORD` required the first time `npm run seed` creates an admin | one-time bootstrap of the first admin account |
 | `ANTHROPIC_API_KEY` | no | powers inventory photo-scan and auto-generated book descriptions |
+| `NYT_API_KEY` | no | New York Times Books API key (free from developer.nytimes.com); enables verified best-seller rows. Never logged |
+| `AWARDS_AI` | no (off) | `1`/`true` lets the awards lookup also ask Claude with web search (needs `ANTHROPIC_API_KEY`); results stay hidden until an admin approves them |
+| `AWARDS_AI_DAILY_MAX` | no (100) | most books the AI awards search may check per UTC day |
+| `AWARDS_AI_MODEL` | no (same model as book descriptions) | model for the AI awards search; must support web search |
+| `AWARDS_LOOKUPS` | no | `off` stops all awards lookups (kill switch) |
 | `ANTHROPIC_WORKSPACE_ID` | no | optional workspace header on Anthropic API calls |
 | `HELLOASSO_CLIENT_ID` / `HELLOASSO_CLIENT_SECRET` / `HELLOASSO_ORG_SLUG` | no (checkout shows "not set up yet" without them) | HelloAsso Checkout API credentials |
 | `HELLOASSO_API_BASE` | no (defaults to production) | set to HelloAsso's sandbox URL for testing |

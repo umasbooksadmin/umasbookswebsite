@@ -77,6 +77,20 @@ Date checked: ____ / ____ / ______ / Done by: ____________
 
 Date checked: ____ / ____ / ______ / Done by: ____________
 
+### Anthropic API: award and best-seller search (optional, `AWARDS_AI`)
+
+- **What they get (checked in `src/lib/awards/ai.js`):** only a book's **title, author, ISBN and publication year** and a fixed instruction, with Anthropic's web search tool. **No personal data.** Off unless `AWARDS_AI` is set; results stay hidden until an admin approves them.
+
+## Wikidata (awards by ISBN)
+
+- **What they get (`src/lib/awards/wikidata.js`):** a book's ISBN in a query to query.wikidata.org, sent by the server with the User-Agent `UmasBooks/1.0 (admin@umasbooks.org)`. **No personal data.** Their server sees the Render server's IP address.
+- **Action for Sharon:** none (no personal data).
+
+## New York Times Books API (best-seller lists, optional)
+
+- **What they get (`src/lib/awards/nyt.js`):** a book's ISBN-13 and our API key, only when `NYT_API_KEY` is set. **No personal data.**
+- **Action for Sharon:** none for the DPA. Keep to their terms (5 requests per minute, 500 per day; the code enforces both).
+
 ## Open Library (book data)
 
 - **What they get:** an ISBN or a title/author search when an admin adds a book (`src/lib/bookLookup.js`), and the cover image is fetched from their server. No personal data. Their server will see the Render server's IP address, not a person's.
