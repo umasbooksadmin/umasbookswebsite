@@ -1,0 +1,88 @@
+<%- include('../../partials/admin_header', { title: 'Price check', active: active, pageTitle: 'Price check', pageSub: 'Copies in stock whose price differs from what the rules suggest. Nothing changes until you press a button.' }) %>
+
+<% if (notice) { %><div class="notice-box" role="status"><%= notice %></div><% } %>
+<p><a href="/admin/pricing">&larr; Pricing rules</a></p>
+
+<div class="card">
+  <div class="section-title">Needs review (<%= needs.length %>)</div>
+  <p class="muted small">Copies saved without a suggested price (no ISBN, or a very valuable book) that still have no price or the standard starting price. Open each one, look at the listings and set the price.</p>
+  <% if (!needs.length) { %>
+    <p class="muted">Nothing waiting.</p>
+  <% } else { %>
+    <ul class="plain">
+      <% needs.forEach(n => { %>
+        <li><a href="/admin/inventory/<%= n.book_id %>"><%= n.title %></a> &middot; <%= n.price != null ? 'EUR ' + money(n.price) : 'no price yet' %></li>
+      <% }) %>
+    </ul>
+  <% } %>
+</div>
+
+<div class="card">
+  <div class="section-title">Priced differently from the suggestion (<%= total %>)</div>
+  <p class="muted small">Uses the rules and the online prices already looked up (no new lookups, so this page is instant). Books without a suggestion are not listed.</p>
+  <% if (!rows.length) { %>
+    <p class="muted">Nothing to check.</p>
+  <% } else { %>
+    <div style="overflow-x:auto;">
+      <table class="ann-table">
+        <thead><tr><th>Book</th><th>Price now</th><th>Suggested</th><th>Why listed</th><th></th></tr></thead>
+        <tbody>
+          <% rows.forEach(r => { %>
+            <tr>
+              <td><a href="/admin/inventory/<%= r.bookId %>"><%= r.title %></a></td>
+              <td>EUR <%= money(r.price) %></td>
+              <td>EUR <%= money(r.suggested) %> <span class="muted small">(<%= r.rule %>)</span></td>
+              <td><%= r.reason %></td>
+              <td>
+                <form method="post" action="/admin/pricing/review/<%= r.id %>">
+                  <%- include('../../partials/csrf_field') %>
+                  <input type="hidden" name="offset" value="<%= offset %>">
+                  <button class="btn btn-small" type="submit">Use suggested</button>
+                </form>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+    <p class="muted small">
+      <% if (offset > 0) { %><a href="/admin/pricing/review?offset=<%= Math.max(0, offset - pageSize) %>">&larr; Previous <%= pageSize %></a><% } %>
+      <% if (offset + pageSize < total) { %> <a href="/admin/pricing/review?offset=<%= offset + pageSize %>">Next <%= pageSize %> &rarr;</a><% } %>
+    </p>
+  <% } %>
+</div>
+
+<div class="card">
+  <div class="section-title">Clearance candidates (<%= candidates.length %>)</div>
+  <p class="muted small">
+    Books with more than <%= clearance.afterCopies %> copies in stock
+    (<%= clearance.appliesTo === 'set_a' ? 'Rule A and mass market books' : 'all books' %>)
+    whose <%= clearance.scope === 'all' ? 'copies are' : 'extra copies (beyond the first ' + clearance.afterCopies + ') are' %> not yet marked as clearance.
+    This is a preview: nothing changes until you confirm.
+  </p>
+  <% if (!candidates.length) { %>
+    <p class="muted">No candidates.</p>
+  <% } else { %>
+    <div style="overflow-x:auto;">
+      <table class="ann-table">
+        <thead><tr><th>Book</th><th>Copy</th><th>Price now</th><th>Clearance price</th></tr></thead>
+        <tbody>
+          <% candidates.forEach(c => { %>
+            <tr>
+              <td><a href="/admin/inventory/<%= c.bookId %>"><%= c.title %></a></td>
+              <td>No. <%= c.position %> of <%= c.total %></td>
+              <td><%= c.price != null ? 'EUR ' + money(c.price) : 'no price' %></td>
+              <td>EUR <%= money(clearance.price) %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+    <form method="post" action="/admin/pricing/clearance" style="margin-top:12px;">
+      <%- include('../../partials/csrf_field') %>
+      <button class="btn" type="submit">Apply clearance to these <%= candidates.length %> copies</button>
+    </form>
+  <% } %>
+</div>
+
+<%- include('../../partials/admin_footer') %>

@@ -1,20 +1,10 @@
-require("dotenv").config();
+require("dotenv").config({ quiet: true });
 // Site timezone (Europe/Paris) must be set before any date is created.
 require("./lib/tz");
 // Fail fast (production only) with one clear message, before db.js is loaded.
 require("./lib/env").checkEnv();
 const path = require("path");
 const express = require("express");
-// Patches Express's router so a rejected promise from any async route
-// handler below is forwarded to the error-handling middleware at the
-// bottom of this file, instead of becoming an unhandled rejection.
-// Express 4 doesn't do this itself (fixed in Express 5) — without it, a
-// single transient error (e.g. a dropped DB connection) in any one of
-// this app's ~50 async handlers, none of which wrap their own
-// try/catch, crashes the whole process for every visitor rather than
-// just failing that one request. Must load before any router below is
-// required, since it patches Router/Layer as they're defined.
-require("express-async-errors");
 const compression = require("compression");
 const helmet = require("helmet");
 const multer = require("multer");
@@ -70,6 +60,7 @@ app.set("views", path.join(__dirname, "..", "views"));
 // gzip/deflate for text responses (HTML, JSON, CSS, JS, SVG);
 // compression() skips already-compressed types (images) on its own.
 // First, so static files and JSON endpoints below are all covered.
+app.use(require("./lib/preview").previewMiddleware); // res.locals.preview + X-Robots-Tag (lib/preview.js)
 app.use(compression());
 
 // maxAge 7d on static files: filenames aren't content-hashed (about.css,
@@ -89,7 +80,7 @@ app.use("/assets", express.static(path.join(marketingRoot, "assets"), { maxAge: 
 // Uploaded images (covers, blog/announcement/charity photos): content-addressed,
 // immutable, served from the DB with no session. See routes/img.js.
 app.use(require("./routes/img"));
-app.get("/logo.png", (req, res) => res.sendFile(path.join(marketingRoot, "logo.png")));
+app.get("/logo.png", (req, res) => res.sendFile("logo.png", { root: marketingRoot }));
 
 // For the external uptime check (see .github/workflows/uptime-check.yml)
 // to actually catch what happened on 2026-09-26 — the process was up
@@ -350,13 +341,13 @@ app.use((req, res) => {
 });
 
 // Last-resort handler for anything a route threw or rejected with
-// (forwarded here automatically by express-async-errors, above): see
+// (Express 5 forwards a rejected async handler's promise here itself): see
 // lib/errorHandler.js. A 4xx err.status (e.g. multer's 413) gets that
 // status and a friendly page with no alert; anything else is a 500 + alert.
 app.use(errorHandler);
 
 // Both of these mean some error escaped every other net (route handlers
-// go through express-async-errors above; the background jobs below
+// are forwarded to the error handler by Express 5; the background jobs below
 // already .catch() their own). Log either way; only exit for the
 // synchronous case, where Node's own docs say the process is in an
 // unknown state and continuing is unsafe — Render restarts it clean.
@@ -376,8 +367,10 @@ process.on("uncaughtException", (err) => {
 });
 
 const port = process.env.PORT || 3000;
-const server = app.listen(port, () => {
-  console.log(`umas-books listening on port ${port}`);
+// Express 5 also passes a listen failure (e.g. EADDRINUSE) to this callback;
+// the "error" handler below deals with that, so only announce real success.
+const server = app.listen(port, (err) => {
+  if (!err) console.log(`umas-books listening on port ${port}`);
 });
 
 // Without a handler, a failed bind (most commonly EADDRINUSE) surfaces as

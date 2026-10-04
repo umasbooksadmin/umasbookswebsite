@@ -3,7 +3,7 @@
 A real, separate web app for Uma's Books and Adventures: member accounts,
 a community forum, volunteer shift and meeting scheduling, a quarterly
 charity vote, and admin-side book inventory management. Node.js +
-Express + PostgreSQL, server-rendered with EJS, sessions stored in
+Express 5 + PostgreSQL, server-rendered with EJS, sessions stored in
 Postgres.
 
 This app is the whole site: Squarespace has been retired, and the public
@@ -250,6 +250,48 @@ noted in **Admin activity**.
 - **Membership:** members now, new members and endings per month, and renewals
   due in the next 30 days.
 - **Intake log:** books added per month and by source, with what they cost.
+### How prices are suggested (for volunteers)
+
+When you add a book, the shop suggests a price. It is only a suggestion: you
+can always pick another price, and nothing is published until you save.
+
+- **What you see:** next to the price, a line such as *Suggested EUR 8.00
+  (range 5.00-10.00, medium confidence)* and the matching choice marked
+  *Suggested*. Click **Why this price?** to read the reasons and, when the
+  online check found them, links to the listings it used.
+- **How it works:** the price depends on what the book is worth online (what
+  used copies typically sell for), its binding, and how many copies we already
+  have. **The condition of your copy does not change the price.**
+  - A **new** book is always sold at the publisher's price (French law).
+  - **Mass market** paperbacks are EUR 5.
+  - Other books: worth under EUR 6 online = EUR 5; EUR 6 to 19.99 = EUR 8;
+    EUR 20 to 49.99 = about three quarters of the online value. **Hardcovers
+    are never under EUR 10.**
+  - If we already have **2 or more copies** of the same book (in stock or
+    reserved), the next one goes to the **clearance** bin at EUR 1 (this
+    applies to the cheaper books; see the rules page).
+  - **No ISBN, or a book worth EUR 50 or more:** no price is suggested. Look
+    at the listings and choose the price yourself; the book then shows up on
+    the **Price check** page under *Needs review* until it has a price.
+- **If the number looks wrong:** just choose another price. Set the *Binding*
+  first if you can (it changes the suggestion), then press **Suggest price**.
+  On a copy that is already saved, **Suggest price** shows the suggestion
+  without changing anything; **Use this price** puts it in the form (or saves
+  it, if your browser has JavaScript switched off). If the rules themselves
+  seem off, tell the person who looks after the shop's settings.
+- **Changing the rules:** **Pricing rules** in the admin menu shows every rule
+  in plain language with its numbers, which you can change, and a calculator
+  to try values. Changes apply straight away to new suggestions (not to prices
+  already saved) and are written to the admin activity log.
+- **Price check** (on the same page): lists copies in stock whose price differs
+  from what the rules suggest, with a **Use suggested** button for each; lists
+  the books waiting for review; and previews **clearance candidates** (books
+  with more than 2 copies whose extra copies are not on clearance yet) with a
+  button to apply clearance after you have looked at the list.
+- **Privacy:** when the online check is switched on, only the book's ISBN,
+  title, author and binding are sent to the AI service (Anthropic), to find
+  prices for that exact edition. No names, emails or anything about members or
+  customers is ever sent.
 
 ## Deploying to Render
 

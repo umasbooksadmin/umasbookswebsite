@@ -10,6 +10,10 @@ const { generateBookDescription, translateDescriptionToFrench } = require("../..
 const { CONDITIONS, STATUSES, SOURCES, normalizeSource, normalizeCondition, resolveCopyPricing, normalizeStatus, normalizeGenres, normalizeLocation, parseScan, isbnVariants } = require("../../lib/inventory");
 const { expireStaleReservations } = require("../../lib/reservations");
 const { matchRequestsForCopy, matchRequestsForBook } = require("../../lib/bookRequests");
+const { getSettings } = require("../../lib/pricing/settings");
+const { prepareIntakeForm, priceUi, computeSuggestion } = require("../../lib/pricing/forms");
+const { otherRepriceableCopies } = require("../../lib/pricing/clearance");
+const { parseSuggestedPrice, normalizeSuggestedLevel, priceBasisFor, priceFromLevelChoice } = require("../../lib/pricing/intake");
 
 const { validateIdParams } = require("../../middleware/idParams");
 
@@ -33,6 +37,19 @@ async function getDefaultCopyPricing(isbn) {
     price: rows[0].price != null ? Number(rows[0].price) : defaults.price,
     acquisitionCost: rows[0].acquisition_cost != null ? Number(rows[0].acquisition_cost) : defaults.acquisitionCost,
   };
+}
+
+
+// ---------- Price suggestions (see lib/pricing) ----------
+// A suggestion is only ever shown: the volunteer accepts it or picks their own
+// price. The suggestion that was on screen travels in hidden fields
+// (suggestedPrice, suggestedLevel) so the save can record whether it was kept.
+// The routes that compute suggestions live in priceSuggestions.js.
+function learningFields(price, body, stored = {}) {
+  const posted = body.suggestedPrice !== undefined || body.suggestedLevel !== undefined;
+  const suggestedPrice = posted ? parseSuggestedPrice(body.suggestedPrice) : (stored.suggested_price != null ? Number(stored.suggested_price) : null);
+  const suggestedLevel = posted ? normalizeSuggestedLevel(body.suggestedLevel) : (stored.suggested_level || null);
+  return { suggestedPrice, suggestedLevel, priceBasis: priceBasisFor(price, suggestedPrice, suggestedLevel) };
 }
 
 // Best-effort cover lookup for books saved without one — tries the ISBN
@@ -416,10 +433,15 @@ router.post("/admin/inventory/lookup", requireAdmin, async (req, res) => {
   }
 
   const defaultPricing = await getDefaultCopyPricing(book.isbn);
+  // The price starts at the suggestion for the form's default condition.
+  const { rows: stocked } = book.isbn ? await pool.query("SELECT to_jsonb(b) ->> 'binding' AS binding FROM books b WHERE b.isbn = ANY($1) LIMIT 1", [isbnVariants(normalizeIsbn(book.isbn))]) : { rows: [] };
+  const suggestion = await prepareIntakeForm(res, { isbn: book.isbn, title: book.title, author: book.author, binding: book.binding || (stocked[0] && stocked[0].binding) });
+  defaultPricing.price = suggestion.price;
   res.render("admin/inventory/new", { active: "inventory", book, error, fromScan: true, conditions: CONDITIONS, statuses: STATUSES, defaultPricing, location, source, sources: SOURCES, locations: await getLocations() });
 });
 
 router.get("/admin/inventory/new", requireAdmin, async (req, res) => {
+  const suggestion = await prepareIntakeForm(res, {});
   res.render("admin/inventory/new", {
     active: "inventory",
     book: { isbn: null, title: null, author: null, publisher: null, publishedYear: null, description: null, coverUrl: null, genre: null, genreFr: null, descriptionFr: null },
@@ -427,7 +449,7 @@ router.get("/admin/inventory/new", requireAdmin, async (req, res) => {
     fromScan: false,
     conditions: CONDITIONS,
     statuses: STATUSES,
-    defaultPricing: { price: 5, acquisitionCost: 0 },
+    defaultPricing: { price: suggestion.price, acquisitionCost: 0 },
     location: normalizeLocation(req.query.location) || "",
     source: normalizeSource(req.query.source) || "",
     sources: SOURCES,
@@ -465,6 +487,8 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
   const source = normalizeSource(req.body.source);
 
   if (!title) {
+    await prepareIntakeForm(res, { isbn, title: null, author, binding: req.body.binding, publisherPrice: req.body.publisherPrice });
+    res.locals.priceLevelSelected = req.body.priceLevel;
     return res.render("admin/inventory/new", {
       active: "inventory", location: location || "", source: source || "", sources: SOURCES, locations: await getLocations(),
       book: { isbn, title: null, author, publisher, publishedYear, description, descriptionFr, coverUrl, genre, genreFr },
@@ -482,8 +506,12 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
   // Fixed-price rule for new books (see lib/inventory.js). Checked before
   // anything is saved so a refused copy leaves no half-created book behind.
   const condition = normalizeCondition(req.body.condition);
-  const pricing = resolveCopyPricing(condition, req.body.price, req.body.publisherPrice);
+  const settings = await getSettings(pool);
+  const choice = priceFromLevelChoice(condition, req.body, settings);
+  const pricing = resolveCopyPricing(condition, choice.rawPrice, req.body.publisherPrice);
   if (pricing.error) {
+    await prepareIntakeForm(res, { isbn, title, author, binding: req.body.binding, condition, publisherPrice: req.body.publisherPrice });
+    res.locals.priceLevelSelected = req.body.priceLevel;
     return res.render("admin/inventory/new", {
       active: "inventory", location: location || "", source: source || "", sources: SOURCES, locations: await getLocations(),
       book: { isbn, title, author, publisher, publishedYear, description, descriptionFr, coverUrl, genre, genreFr },
@@ -562,11 +590,35 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
   const acquiredAt = req.body.acquiredAt || null;
   const notes = (req.body.copyNotes || "").trim() || null;
 
-  const { rows: copyRows } = await pool.query(
-    `INSERT INTO book_copies (book_id, condition, price, publisher_price, acquisition_cost, acquired_at, status, notes, location, source, created_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
-    [bookId, condition, price, publisherPrice, acquisitionCost, acquiredAt, status, notes, location, source, req.session.user.id]
-  );
+  // What was suggested on screen, and whether it was kept (learning loop).
+  const learning = learningFields(price, req.body);
+  const suggestedClearance = learning.suggestedLevel === "clearance" && learning.suggestedPrice != null && price === learning.suggestedPrice;
+  const isClearance = condition !== "new" && (choice.isClearance != null ? choice.isClearance : suggestedClearance);
+
+  // With clearance scope "all", the volunteer may also put the book's other
+  // copies on clearance (unticked by default): same transaction, one audit row each.
+  const repriceOthers = settings.clearance.scope === "all" && isClearance && req.body.repriceOthers === "1"
+    ? await otherRepriceableCopies(pool, isbn)
+    : [];
+  const copyRows = await withTransaction(pool, async (client) => {
+    const { rows } = await client.query(
+      `INSERT INTO book_copies (book_id, condition, price, publisher_price, acquisition_cost, acquired_at, status, notes, location, source, created_by,
+                                suggested_price, suggested_level, price_basis, is_clearance)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id`,
+      [bookId, condition, price, publisherPrice, acquisitionCost, acquiredAt, status, notes, location, source, req.session.user.id,
+        learning.suggestedPrice, learning.suggestedLevel, learning.priceBasis, isClearance]
+    );
+    for (const other of repriceOthers) {
+      await client.query("UPDATE book_copies SET price = $1, is_clearance = true, updated_at = now() WHERE id = $2", [settings.clearance.price, other.id]);
+    }
+    return rows;
+  });
+  for (const other of repriceOthers) {
+    await audit(req, {
+      action: "copy.reprice", targetType: "book_copy", targetId: other.id,
+      detail: `price ${other.price != null ? Number(other.price).toFixed(2) : "none"} -> ${Number(settings.clearance.price).toFixed(2)} (clearance)`,
+    });
+  }
 
   // Customers who asked for this book (Requests page): matched now, the
   // banner on the book's page and the scan screen tells the admin.
@@ -594,6 +646,7 @@ async function renderBook(res, id, error = null, notice = null) {
      WHERE c.book_id = $1 AND r.status = 'matched'`,
     [id]
   );
+  res.locals.priceUi = await priceUi(pool); // the price-level choices in each copy's form
   res.render("admin/inventory/show", { active: "inventory", book, copies, conditions: CONDITIONS, statuses: STATUSES, sources: SOURCES, error, notice, locations: await getLocations(), requestCount: asked[0].n });
 }
 
@@ -654,7 +707,9 @@ router.post("/admin/inventory/:id/copies/:copyId", requireAdmin, async (req, res
   const copyId = Number(req.params.copyId);
   const condition = normalizeCondition(req.body.condition);
   const status = normalizeStatus(req.body.status);
-  const pricing = resolveCopyPricing(condition, req.body.price, req.body.publisherPrice);
+  const settings = await getSettings(pool);
+  const choice = priceFromLevelChoice(condition, req.body, settings);
+  const pricing = resolveCopyPricing(condition, choice.rawPrice, req.body.publisherPrice);
   if (pricing.error) return renderBook(res, bookId, pricing.error);
   const { price, publisherPrice } = pricing;
   const acquisitionCost = req.body.acquisitionCost ? Number(req.body.acquisitionCost) : null;
@@ -662,14 +717,25 @@ router.post("/admin/inventory/:id/copies/:copyId", requireAdmin, async (req, res
   const notes = (req.body.notes || "").trim() || null;
   const location = normalizeLocation(req.body.location);
   const source = normalizeSource(req.body.source);
-  const { rows: before } = await pool.query("SELECT location FROM book_copies WHERE id = $1 AND book_id = $2", [copyId, bookId]);
+  const { rows: before } = await pool.query(
+    "SELECT location, price, suggested_price, suggested_level, is_clearance FROM book_copies WHERE id = $1 AND book_id = $2", [copyId, bookId]
+  );
+  // The suggestion shown with the form (if any) is kept; otherwise what was
+  // stored stays. A price chosen as "Clearance" marks the copy as clearance;
+  // any other price change clears the mark.
+  const stored = before[0] || {};
+  const learning = learningFields(price, req.body, stored);
+  const unchangedPrice = stored.price != null && price != null && Math.round(Number(stored.price) * 100) === Math.round(price * 100);
+  const isClearance = condition !== "new" && (choice.isClearance != null ? choice.isClearance : Boolean(stored.is_clearance) && unchangedPrice);
   // A copy in someone's checkout keeps its status (an edit must not put it
   // back on sale mid-payment); the other fields can still be edited.
   await pool.query(
     `UPDATE book_copies SET condition=$1,
-            status=CASE WHEN status = 'in_cart' THEN status ELSE $2 END, price=$3, publisher_price=$4, acquisition_cost=$5, acquired_at=$6, notes=$7, location=$10, source=$11, updated_at=now()
+            status=CASE WHEN status = 'in_cart' THEN status ELSE $2 END, price=$3, publisher_price=$4, acquisition_cost=$5, acquired_at=$6, notes=$7, location=$10, source=$11,
+            suggested_price=$12, suggested_level=$13, price_basis=$14, is_clearance=$15, updated_at=now()
      WHERE id = $8 AND book_id = $9`,
-    [condition, status, price, publisherPrice, acquisitionCost, acquiredAt, notes, copyId, bookId, location, source]
+    [condition, status, price, publisherPrice, acquisitionCost, acquiredAt, notes, copyId, bookId, location, source,
+      learning.suggestedPrice, learning.suggestedLevel, learning.priceBasis, isClearance]
   );
   if (before.length && (before[0].location || null) !== location) {
     await audit(req, {
@@ -677,6 +743,57 @@ router.post("/admin/inventory/:id/copies/:copyId", requireAdmin, async (req, res
       detail: `from ${before[0].location || "none"} to ${location || "none"}`,
     });
   }
+  res.redirect(`/admin/inventory/${bookId}`);
+});
+
+// The copy and its book, with what a price suggestion needs.
+async function loadCopyForPricing(bookId, copyId) {
+  const { rows } = await pool.query(
+    `SELECT c.*, b.isbn, b.title, b.authors, to_jsonb(b) ->> 'binding' AS binding
+     FROM book_copies c JOIN books b ON b.id = c.book_id WHERE c.id = $1 AND c.book_id = $2`,
+    [copyId, bookId]
+  );
+  return rows[0] || null;
+}
+
+// "Suggest price" on a copy's edit form (no JavaScript): shows the suggestion
+// next to the form. The stored price is NOT touched, whatever the suggestion is.
+router.post("/admin/inventory/:id/copies/:copyId/suggest", requireAdmin, async (req, res) => {
+  const bookId = Number(req.params.id);
+  const copyId = Number(req.params.copyId);
+  const copy = await loadCopyForPricing(bookId, copyId);
+  if (!copy) return res.redirect(`/admin/inventory/${bookId}`);
+  const suggestion = await computeSuggestion({
+    isbn: copy.isbn, title: copy.title, author: copy.authors, binding: copy.binding,
+    condition: req.body.condition || copy.condition,
+    publisherPrice: req.body.publisherPrice != null ? req.body.publisherPrice : copy.publisher_price,
+  }, { copyId });
+  res.locals.suggestFor = { copyId, suggestion };
+  return renderBook(res, bookId);
+});
+
+// "Use this price": the one button that stores a suggestion. The suggestion is
+// worked out again here (nothing posted by the page is trusted for the price).
+router.post("/admin/inventory/:id/copies/:copyId/use-price", requireAdmin, async (req, res) => {
+  const bookId = Number(req.params.id);
+  const copyId = Number(req.params.copyId);
+  const copy = await loadCopyForPricing(bookId, copyId);
+  if (!copy) return res.redirect(`/admin/inventory/${bookId}`);
+  const suggestion = await computeSuggestion({
+    isbn: copy.isbn, title: copy.title, author: copy.authors, binding: copy.binding, condition: copy.condition, publisherPrice: copy.publisher_price,
+  }, { copyId });
+  if (suggestion.price == null) return renderBook(res, bookId, suggestion.needsReview ? `${suggestion.reviewMessage}: set this price by hand.` : "No price could be suggested: set it by hand.");
+  const pricing = resolveCopyPricing(copy.condition, suggestion.price, copy.publisher_price);
+  if (pricing.error) return renderBook(res, bookId, pricing.error);
+  await pool.query(
+    `UPDATE book_copies SET price=$1, suggested_price=$1, suggested_level=$2, price_basis='suggested', is_clearance=$3, updated_at=now()
+     WHERE id = $4 AND book_id = $5`,
+    [pricing.price, suggestion.levelText, copy.condition !== "new" && suggestion.clearance, copyId, bookId]
+  );
+  await audit(req, {
+    action: "copy.reprice", targetType: "book_copy", targetId: copyId,
+    detail: `price ${copy.price != null ? Number(copy.price).toFixed(2) : "none"} -> ${pricing.price.toFixed(2)}`,
+  });
   res.redirect(`/admin/inventory/${bookId}`);
 });
 

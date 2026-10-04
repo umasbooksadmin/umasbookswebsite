@@ -11,7 +11,6 @@
 
 const { test, before, after, beforeEach } = require("node:test");
 const assert = require("node:assert/strict");
-require("express-async-errors"); // must load before the router is built, as in src/index.js
 const express = require("express");
 const multer = require("multer");
 const sharp = require("sharp");
@@ -248,10 +247,11 @@ test("scan page reflects whether photo scanning is configured and the saved flag
   }
 });
 
-test("new-book form renders with the default pricing", async () => {
+test("new-book form renders: with no ISBN there is no suggested price (manual review)", async () => {
   const res = await get("/admin/inventory/new");
   assert.equal(res.status, 200);
-  assert.match(res.text, /name="price"[^>]*value="5"/);
+  assert.match(res.text, /name="price"[^>]*value=""/);
+  assert.match(res.text, /Manual review: no ISBN barcode/);
   assert.match(res.text, /name="acquisitionCost"[^>]*value="0"/);
 });
 
@@ -282,12 +282,12 @@ test("lookup: a found ISBN pre-fills the add form (and the form escapes catalog 
   assert.doesNotMatch(text, /No catalog match/);
 });
 
-test("lookup: pricing defaults to the existing copies of the same ISBN", async () => {
+test("lookup: the price starts at the suggestion; the acquisition cost defaults to the existing copies of the same ISBN", async () => {
   const isbn = isbn13();
   await seedBook({ isbn, copies: [{ price: 12.5, cost: 3.25 }] });
   openLibrary.isbn.set(isbn, { title: "Known" });
   const { text } = await post("/admin/inventory/lookup", { fields: { isbn } });
-  assert.match(text, /name="price"[^>]*value="12.5"/);
+  assert.match(text, /name="price"[^>]*value="8"/); // nothing known about the book online: the usual EUR 8 (Rule B)
   assert.match(text, /name="acquisitionCost"[^>]*value="3.25"/);
 });
 
@@ -296,7 +296,7 @@ test("lookup: an unknown ISBN says so and still offers the normalised ISBN for m
   const { text } = await post("/admin/inventory/lookup", { fields: { isbn: ` ${isbn.slice(0, 3)} ${isbn.slice(3)} ` } });
   assert.match(text, /No catalog match for that ISBN/);
   assert.ok(text.includes(`value="${isbn}"`));
-  assert.match(text, /name="price"[^>]*value="5"/);
+  assert.match(text, /name="price"[^>]*value="8"/);
 });
 
 // ---------------------------------------------------------------- photo scan

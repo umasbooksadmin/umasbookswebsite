@@ -76,8 +76,22 @@
     <label for="acquisitionCost">Acquisition cost (&euro;)</label>
     <input id="acquisitionCost" name="acquisitionCost" type="number" step="0.01" min="0" value="<%= defaultPricing.acquisitionCost %>">
 
-    <label for="price">Price (&euro;)</label>
-    <input id="price" name="price" type="number" step="0.01" min="0" value="<%= defaultPricing.price %>">
+    <%- include('_price_control', {
+      idSuffix: '', mode: 'intake', suggestAction: '/admin/inventory/suggest',
+      suggestion: typeof priceSuggestion !== 'undefined' ? priceSuggestion : null,
+      priceValue: defaultPricing.price,
+      selected: typeof priceLevelSelected !== 'undefined' && priceLevelSelected !== undefined ? priceLevelSelected
+        : (typeof priceSuggestion !== 'undefined' && priceSuggestion && priceSuggestion.price != null ? priceUi.keyFor(priceSuggestion.price, priceSuggestion.level === 'clearance') : ''),
+    }) %>
+
+    <% if (typeof clearanceOthers !== 'undefined' && clearanceOthers.length) { %>
+      <div class="notice-box" role="status">
+        This book is going on clearance, and the shop is set to put <strong>all</strong> its copies on clearance.
+        These <%= clearanceOthers.length %> other cop<%= clearanceOthers.length === 1 ? 'y' : 'ies' %> would also be repriced:
+        <%= clearanceOthers.map(o => (o.price != null ? '€' + Number(o.price).toFixed(2) : 'no price')).join(', ') %>.
+        <label class="ann-check"><input type="checkbox" name="repriceOthers" value="1"> Also reprice the other <%= clearanceOthers.length %> cop<%= clearanceOthers.length === 1 ? 'y' : 'ies' %></label>
+      </div>
+    <% } %>
 
     <label for="publisherPrice">Publisher's price (prix &eacute;diteur) (&euro;)</label>
     <input id="publisherPrice" name="publisherPrice" type="number" step="0.01" min="0" value="<%= typeof publisherPriceValue !== 'undefined' ? publisherPriceValue : '' %>">
@@ -87,11 +101,12 @@
     <input id="acquiredAt" name="acquiredAt" type="date" value="<%= new Date().toLocaleDateString('en-CA') %>">
 
     <label for="copyNotes">Copy notes (optional)</label>
-    <textarea id="copyNotes" name="copyNotes"></textarea>
+    <textarea id="copyNotes" name="copyNotes"><%= typeof copyNotesValue !== 'undefined' ? copyNotesValue : '' %></textarea>
 
     <button class="btn" type="submit">Save book</button>
   </form>
 </div>
 
 <script src="/inventory-location.js"></script>
+<script src="/price-suggestion.js"></script>
 <%- include('../../partials/admin_footer') %>
