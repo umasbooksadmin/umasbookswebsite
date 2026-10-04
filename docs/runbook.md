@@ -427,3 +427,39 @@ as they are; AI suggestions need your approval because an AI can be wrong or
 make things up. A lookup that fails (internet problem, a limit reached) is tried
 again after a day. Only the book's title, author and ISBN are ever sent out; no
 member or customer data.
+
+## j) Price sticker colors
+
+Every used book gets a colored price sticker so customers and volunteers can
+read the price at a glance. The color follows the price: you never choose it
+separately, and the admin screens show it as a small colored chip next to the
+price.
+
+| Sticker | Meaning |
+|---|---|
+| Yellow | EUR 3 |
+| Green | EUR 5 |
+| Blue | EUR 8 |
+| Red | EUR 10 |
+| Purple | Custom / special price (any other price on a used book) |
+| Orange | Clearance (EUR 1) |
+| White | New book: sold at the publisher's price (loi Lang). Write the price on the sticker; a discount of up to 5% is allowed |
+
+If a copy is on clearance it is orange whatever its price. A new book is
+always white.
+
+**Printing the sticker sheet**
+
+1. Admin > **Books & Orders** > **Price stickers**.
+2. **Added since** defaults to the last 7 days: set an earlier date for older
+   books. You can also narrow by **Location** and by **Color**.
+3. Each row shows the color, price, title, author, ISBN, condition, binding and
+   location. Rows are sorted by location, then color, so you can stick all the
+   stickers of one shelf together.
+4. Click **Print** (menu and buttons are left out, colors are kept; if the
+   colors come out gray, tick "Background graphics" in the print dialog) or
+   **Download CSV** to open it in a spreadsheet. CSV downloads are written to
+   *Admin activity*.
+
+Only copies that are **In Store** are listed. Nothing here changes prices; to
+change a price, open the book and use the price choices on the copy.
