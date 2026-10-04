@@ -119,6 +119,32 @@ rather than by a numbered migration), grouped by what they belong to:
   requester's `lang`. Personal columns are cleared on cancel, expiry, erasure
   and by the daily purge (unconfirmed after 7 days, open/matched/notified at 12 months,
   ended ones after 30 days); the data export has a `book_requests` section.
+- **Copy source** — `book_copies.source` (migration 045) is `donation`,
+  `purchase`, `lot`, `other` or NULL (unknown; all copies from before). Chosen
+  at intake (a select next to the location on the scan page, carried through
+  the scan loop like the location, plus `inventory-location.js` for a page
+  reload) and editable on the copy; `SOURCES` / `normalizeSource` in
+  `src/lib/inventory.js`; the table has a CHECK constraint.
+- **In-shop sales** — `shop_sales` (migration 046): one row per copy sold over
+  the counter (price, `sold_at`, `sold_by` admin id, payment method; no buyer
+  data). `/admin/inventory/sell` (scan an ISBN, pick the copy, record) locks
+  the copy `FOR UPDATE`, refuses anything not `in_stock`/`reserved`, applies
+  the new-book price rule via `resolveCopyPricing`, inserts the sale and sets
+  the copy `sold` (clearing reservation contact fields) in ONE transaction,
+  then writes a `copy.shop_sale` audit row (price only).
+- **Reports** — `/admin/reports` (`src/routes/admin/reports.js`, SQL in
+  `src/lib/reports.js`, views `views/admin/reports/`): inventory on hand,
+  aging stock, sales over time (online paid orders by `orders.paid_at` + shop
+  sales; drop-in seats in a separate table), sell-through by genre,
+  membership, intake log. Read-only aggregate queries (no N+1, LIMITs on every
+  list, Paris day boundaries computed in SQL), `requireAdmin` throughout, no
+  member emails or buyer names. `?format=csv&table=<section>` (or a `.csv`
+  suffix) downloads a section: UTF-8 BOM, quoted text, cells starting with
+  `= + - @` get a leading apostrophe; each download writes a `report.csv`
+  audit row (slug only). Definitions: a copy is "sold" when its status is
+  `sold`; its sold date is the shop sale, else the paid order's `paid_at`
+  (copies marked sold by hand have no date and are left out of "days to
+  sell"); age is counted from `acquired_at`, else the day the row was created.
 
 - **Suggested prices** — `src/lib/pricing/` (migrations 053, 054). Prices are
   only ever *suggestions*; a volunteer accepts or changes them and nothing is

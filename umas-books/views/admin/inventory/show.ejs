@@ -98,6 +98,11 @@
               </select>
               <label for="location-<%= c.id %>">Location</label>
               <input id="location-<%= c.id %>" name="location" type="text" list="location-options" maxlength="40" value="<%= c.location || '' %>" placeholder="Not placed yet" autocomplete="off">
+              <label for="source-<%= c.id %>">Source</label>
+              <select id="source-<%= c.id %>" name="source">
+                <option value="" <%= !c.source ? 'selected' : '' %>>Unknown</option>
+                <% sources.forEach(opt => { %><option value="<%= opt.value %>" <%= opt.value === c.source ? 'selected' : '' %>><%= opt.label %></option><% }) %>
+              </select>
               <% const suggestedHere = typeof suggestFor !== 'undefined' && suggestFor.copyId === c.id ? suggestFor.suggestion : null; %>
               <%- include('_price_control', {
                 idSuffix: '-' + c.id, mode: 'edit', copyId: c.id, suggestion: suggestedHere, priceValue: c.price,

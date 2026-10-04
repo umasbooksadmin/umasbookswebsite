@@ -16,7 +16,7 @@ const { normalizeIsbn } = require("../../lib/bookLookup");
 const { parseId } = require("../../lib/validation");
 const { computeSuggestion, prepareIntakeForm, pricingBinding } = require("../../lib/pricing/forms");
 
-const { CONDITIONS, STATUSES, normalizeCondition, normalizeGenres, normalizeLocation } = inventoryLib;
+const { CONDITIONS, STATUSES, SOURCES, normalizeSource, normalizeCondition, normalizeGenres, normalizeLocation } = inventoryLib;
 
 const router = express.Router();
 
@@ -58,7 +58,7 @@ router.post("/admin/inventory/suggest", requireAdmin, async (req, res) => {
   res.locals.copyNotesValue = b.copyNotes || "";
   const { rows: locs } = await pool.query("SELECT DISTINCT location FROM book_copies WHERE location IS NOT NULL ORDER BY 1");
   res.render("admin/inventory/new", {
-    active: "inventory", location: normalizeLocation(b.location) || "", locations: locs.map((r) => r.location),
+    active: "inventory", location: normalizeLocation(b.location) || "", source: normalizeSource(b.source) || "", sources: SOURCES, locations: locs.map((r) => r.location),
     book: {
       isbn, title: (b.title || "").trim() || null, author: (b.author || "").trim() || null, publisher: (b.publisher || "").trim() || null,
       publishedYear: b.publishedYear ? Number(b.publishedYear) : null, description: (b.description || "").trim() || null,

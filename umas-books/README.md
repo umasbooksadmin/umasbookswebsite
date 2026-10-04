@@ -206,6 +206,50 @@ Account**, or by asking for a new link at `/my-requests`. Contact details are
 deleted when a request is cancelled, after 30 days once it is closed, and at
 the latest 12 months after it was made (the privacy policy says so).
 
+### Reports and selling in the shop (for volunteers)
+
+**Selling a book in the shop**
+
+1. Click **Books & Orders**, then **Sell in shop**.
+2. Scan the book's barcode (or type the ISBN) and press Enter.
+3. Check the price (it is filled in for you, and you can change it), choose how
+   it was paid, and press **Record sale** (or Enter again). The book is now
+   marked as sold, and the box for the next ISBN is ready.
+4. If there are several copies of the same book, pick the one in your hand. The
+   oldest copy is already selected.
+5. A new book must be sold at the publisher's price, with at most 5% off: the
+   page tells you if the price is outside that.
+6. The list at the bottom shows the last 10 sales. If you made a mistake, ask
+   the person who looks after the site to fix it.
+
+Books bought on the website are marked as sold automatically; do not record
+those here.
+
+**Where a book came from**
+
+When you add books, choose **Source** (donation, purchase, job lot, other).
+On the scan page it stays the same for the next books until you change it. You
+can change it later on the book's page, on each copy.
+
+**Reports**
+
+Click **Reports** in the menu. Pick a report, set the dates if it has date
+boxes (without dates it shows the last 12 months), and press **Show**. Press
+**Download CSV** under a table to open it in Excel or a similar program. The
+reports never show customers' names or email addresses. Every download is
+noted in **Admin activity**.
+
+- **Inventory on hand:** books in the shop and their value, by genre,
+  condition, place and source.
+- **Aging stock:** how long books have been on the shelves, and a list of the
+  oldest.
+- **Sales over time:** online and shop sales by day, week, month or year.
+  Drop-in class seats are shown separately.
+- **Sell-through by genre:** of the books added in a period, how many sold and
+  how fast.
+- **Membership:** members now, new members and endings per month, and renewals
+  due in the next 30 days.
+- **Intake log:** books added per month and by source, with what they cost.
 ### How prices are suggested (for volunteers)
 
 When you add a book, the shop suggests a price. It is only a suggestion: you
