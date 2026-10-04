@@ -27,7 +27,9 @@
     <% } %>
 
     <% if (copies.length) { %>
-      <% const minPrice = Math.min(...copies.map(c => c.price != null ? Number(c.price) : Infinity)); %>
+      <%# A copy is only for sale online with a real price: NULL / 0 / negative means "ask in the shop" (see isPurchasablePrice in lib/inventory.js). %>
+      <% const buyable = (c) => c.price != null && Number.isFinite(Number(c.price)) && Number(c.price) > 0; %>
+      <% const minPrice = Math.min(...copies.filter(buyable).map(c => Number(c.price))); %>
       <div class="book-detail-price">
         <% if (isFinite(minPrice)) { %>&euro;<%= minPrice.toFixed(2) %><% } %>
         <% if (copies.some(c => c.is_clearance)) { %><span class="clearance-badge"><%= tr('Clearance', 'Déstockage') %></span><% } %>
@@ -52,14 +54,18 @@
             <% copies.forEach(c => { %>
               <tr>
                 <td><span class="condition-badge condition-<%= c.condition %>"><%= conditionLabel(c.condition) %></span></td>
-                <td><%= c.price != null ? '€' + Number(c.price).toFixed(2) : '' %><% if (c.is_clearance) { %> <span class="clearance-badge"><%= tr('Clearance', 'Déstockage') %></span><% } %></td>
+                <td><%= buyable(c) ? '€' + Number(c.price).toFixed(2) : '' %><% if (c.is_clearance) { %> <span class="clearance-badge"><%= tr('Clearance', 'Déstockage') %></span><% } %></td>
                 <td>
+                  <% if (buyable(c)) { %>
                   <form method="post" action="/cart/add">
                     <%- include('partials/csrf_field') %>
                     <input type="hidden" name="copyId" value="<%= c.id %>">
                     <input type="hidden" name="backTo" value="/cart">
                     <button class="btn btn-small" type="submit"><%= tr('Add to Cart', 'Ajouter au panier') %></button>
                   </form>
+                  <% } else { %>
+                  <span class="muted small copy-ask-in-shop"><%= tr('Ask in the shop', 'Se renseigner en boutique') %></span>
+                  <% } %>
                 </td>
               </tr>
             <% }) %>

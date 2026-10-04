@@ -326,7 +326,7 @@ router.post("/books/:id/reserve", reserveLimiter, reserveDailyLimiter, async (re
   const { rows } = await pool.query(
     `UPDATE book_copies SET status = 'reserved', reserved_by_name = $1, reserved_by_email = $2,
             reserved_by_phone = $3, reserved_at = now(), updated_at = now()
-     WHERE id = $4 AND book_id = $5 AND status = 'in_stock'
+     WHERE id = $4 AND book_id = $5 AND status = 'in_stock' AND price IS NOT NULL AND price > 0
      RETURNING id`,
     [name, email, phone, copyId, bookId]
   );

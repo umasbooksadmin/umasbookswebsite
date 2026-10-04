@@ -1,10 +1,11 @@
 const express = require("express");
-const { pool } = require("../../db");
+const { pool, withTransaction } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
 const { audit } = require("../../lib/audit");
 const { parseLocalDateTime } = require("../../lib/dates");
 const { groupByDate, resolveCalendarRange, calendarBackQuery } = require("../../lib/calendar");
 const { seatsTakenExpr } = require("../../lib/classCapacity");
+const { parseMoney, parseWholeNumber } = require("../../lib/validation");
 
 const { validateIdParams } = require("../../middleware/idParams");
 
@@ -16,8 +17,18 @@ validateIdParams(router, "id", "signupId");
 
 const PROGRAM_TYPES = ["Little Explorers", "Éveil English", "Young Adventurers", "Young Readers", "Teen Literature", "English Café"];
 
-router.get("/admin/sessions", requireAdmin, async (req, res) => {
-  const range = resolveCalendarRange(req.query, 0);
+// Capacity and drop-in price typed by an admin (see lib/validation.js). A blank
+// drop-in price means "not sold as drop-in"; a drop-in price is at least 1 cent
+// (0 would be a free seat the cart cannot charge for).
+const MAX_CAPACITY = 1000;
+const parseCapacity = (raw) => parseWholeNumber(raw, { min: 1, max: MAX_CAPACITY, allowBlank: true, label: "Capacity" });
+const parseDropinPrice = (raw) => parseMoney(raw, { min: 0.01, allowBlank: true, label: "Drop-in price" });
+const asTyped = (raw) => (typeof raw === "string" ? raw.slice(0, 200) : "");
+
+// `overlay` keeps what was typed in a form that was refused: { classId | newDate,
+// values } (display only, nothing in it is saved).
+async function renderSessions(res, calendarQuery, { error = null, notice = null, overlay = null } = {}) {
+  const range = resolveCalendarRange(calendarQuery, 0);
   const { rows: classes } = await pool.query(
     `SELECT c.*, ${seatsTakenExpr("c")}::int AS seats_taken
      FROM classes c WHERE c.starts_at >= $1 AND c.starts_at < $2 ORDER BY c.starts_at ASC`,
@@ -48,7 +59,13 @@ router.get("/admin/sessions", requireAdmin, async (req, res) => {
   }
 
   const weeks = range.buildWeeks(groupByDate(classes, "starts_at"));
-  res.render("admin/sessions", { active: "sessions", notice: req.query.notice === "has-orders" ? "This item has orders, so it can't be deleted (mark it sold/archived instead)." : null, weeks, signupsByClass, dropinByClass, programTypes: PROGRAM_TYPES, view: range.view, ...range.nav });
+  res.render("admin/sessions", { active: "sessions", notice, error, formOverlay: overlay, weeks, signupsByClass, dropinByClass, programTypes: PROGRAM_TYPES, view: range.view, ...range.nav });
+}
+
+router.get("/admin/sessions", requireAdmin, async (req, res) => {
+  await renderSessions(res, req.query, {
+    notice: req.query.notice === "has-orders" ? "This item has orders, so it can't be deleted (mark it sold/archived instead)." : null,
+  });
 });
 
 router.post("/admin/sessions", requireAdmin, async (req, res) => {
@@ -58,9 +75,24 @@ router.post("/admin/sessions", requireAdmin, async (req, res) => {
   const date = req.body.date;
   const startTime = req.body.startTime;
   const endTime = req.body.endTime || null;
-  const capacity = req.body.capacity ? Number(req.body.capacity) : 5;
-  const dropinPrice = req.body.dropinPrice ? Number(req.body.dropinPrice) : null;
+  const capacityCheck = parseCapacity(req.body.capacity);
+  const dropinCheck = parseDropinPrice(req.body.dropinPrice);
+  // A new session with no capacity typed gets the form's default of 5.
+  const capacity = capacityCheck.value ?? 5;
+  const dropinPrice = dropinCheck.value ?? null;
   const programType = PROGRAM_TYPES.includes(req.body.programType) ? req.body.programType : null;
+
+  const inputError = capacityCheck.error || dropinCheck.error;
+  if (inputError) {
+    res.status(400);
+    return renderSessions(res, req.body, {
+      error: inputError,
+      overlay: {
+        newDate: asTyped(date),
+        values: { title, programType: programType || "", startTime: asTyped(startTime), endTime: asTyped(req.body.endTime), location: location || "", capacity: asTyped(req.body.capacity), dropinPrice: asTyped(req.body.dropinPrice) },
+      },
+    });
+  }
 
   if (title && date && startTime) {
     const startsAt = parseLocalDateTime(date, startTime);
@@ -83,17 +115,56 @@ router.post("/admin/sessions/:id", requireAdmin, async (req, res) => {
   const location = (req.body.location || "").trim() || null;
   const startsAt = parseLocalDateTime(req.body.startsAt);
   const endsAt = req.body.endsAt ? parseLocalDateTime(req.body.endsAt) : null;
-  const capacity = req.body.capacity ? Number(req.body.capacity) : null;
-  const dropinPrice = req.body.dropinPrice ? Number(req.body.dropinPrice) : null;
+  const capacityCheck = parseCapacity(req.body.capacity);
+  const dropinCheck = parseDropinPrice(req.body.dropinPrice);
   const programType = PROGRAM_TYPES.includes(req.body.programType) ? req.body.programType : null;
 
+  const refuse = (error) => {
+    res.status(400);
+    return renderSessions(res, req.query, {
+      error,
+      overlay: {
+        classId: id,
+        values: { title, description: description || "", location: location || "", programType: programType || "", capacity: asTyped(req.body.capacity), dropinPrice: asTyped(req.body.dropinPrice) },
+      },
+    });
+  };
+  const inputError = capacityCheck.error || dropinCheck.error;
+  if (inputError) return refuse(inputError);
+
+  let problem = null;
   if (title && startsAt) {
-    await pool.query(
-      `UPDATE classes SET title=$1, description=$2, location=$3, starts_at=$4, ends_at=$5, capacity=$6, dropin_price=$7, program_type=$8
-       WHERE id = $9`,
-      [title, description, location, startsAt, endsAt, capacity, dropinPrice, programType, id]
-    );
+    // The class row is locked first: checkout locks it too before taking a seat,
+    // so the seat counts below cannot change under this edit.
+    await withTransaction(pool, async (client) => {
+      const { rows } = await client.query(
+        `SELECT c.capacity, c.dropin_price, ${seatsTakenExpr("c")}::int AS seats_taken,
+                (SELECT COUNT(*) FROM class_dropin_seats d WHERE d.class_id = c.id AND d.status IN ('in_cart', 'sold'))::int AS paid_seats
+         FROM classes c WHERE c.id = $1 FOR UPDATE OF c`,
+        [id]
+      );
+      const cur = rows[0];
+      if (!cur) return;
+      // A blank capacity keeps the current one: it must never silently turn a
+      // session into an unlimited one (a new session defaults to 5).
+      const capacity = capacityCheck.value ?? cur.capacity;
+      const dropinPrice = dropinCheck.value;
+      if (capacity != null && capacity < cur.seats_taken) {
+        problem = `Capacity can't be lowered to ${capacity}: ${cur.seats_taken} seat${cur.seats_taken === 1 ? " is" : "s are"} already booked.`;
+        return;
+      }
+      if (dropinPrice == null && cur.dropin_price != null && cur.paid_seats > 0) {
+        problem = `The drop-in price can't be cleared: ${cur.paid_seats} paid drop-in seat${cur.paid_seats === 1 ? " is" : "s are"} already booked or in a cart. Change the price instead.`;
+        return;
+      }
+      await client.query(
+        `UPDATE classes SET title=$1, description=$2, location=$3, starts_at=$4, ends_at=$5, capacity=$6, dropin_price=$7, program_type=$8
+         WHERE id = $9`,
+        [title, description, location, startsAt, endsAt, capacity, dropinPrice, programType, id]
+      );
+    });
   }
+  if (problem) return refuse(problem);
   const backQuery = calendarBackQuery(req.query);
   res.redirect(backQuery ? `/admin/sessions?${backQuery}` : "/admin/sessions");
 });

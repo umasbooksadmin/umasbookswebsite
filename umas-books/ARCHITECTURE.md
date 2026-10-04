@@ -179,6 +179,22 @@ rather than by a numbered migration), grouped by what they belong to:
   (copies marked sold by hand have no date and are left out of "days to
   sell"); age is counted from `acquired_at`, else the day the row was created.
 
+- **Price safety** — a copy is only purchasable online with a real price:
+  `price IS NOT NULL AND price > 0` is required by the public book page (no
+  Add to Cart, "Ask in the shop" instead), `/cart/add`, `loadCartItems`, the
+  checkout row lock (a null-price copy can never reach an order or a total of
+  0), public reservations and book-request holds (`isPurchasablePrice` in
+  `src/lib/inventory.js`). The in-shop sale takes the price typed at the counter,
+  so an unpriced copy can still be sold over the counter. Every admin money
+  or number input goes through `parseMoney` / `parseWholeNumber`
+  (`src/lib/validation.js`: 0 to 10000 euros, at most 2 decimals, years 1000 to
+  next year); migration 056 adds CHECK constraints (`book_copies.price`,
+  `acquisition_cost`, `classes.dropin_price` NULL or 0 to under 100000) and
+  sets out-of-range legacy values to NULL. The copy edit form posts the status
+  it was rendered with and only changes the status when the copy still has it
+  (never a sold or in-cart copy); cancelling a reservation only matches a copy
+  that is still `reserved`.
+
 - **Suggested prices** — `src/lib/pricing/` (migrations 053, 054). Prices are
   only ever *suggestions*; a volunteer accepts or changes them and nothing is
   published automatically. `rules.js` is the pure rules engine (no network,
