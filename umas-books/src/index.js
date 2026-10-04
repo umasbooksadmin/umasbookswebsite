@@ -7,6 +7,7 @@ const path = require("path");
 const express = require("express");
 const compression = require("compression");
 const helmet = require("helmet");
+const { helloassoPaymentOrigins } = require("./lib/helloassoHosts");
 const multer = require("multer");
 const session = require("express-session");
 const pgSession = require("connect-pg-simple")(session);
@@ -102,6 +103,10 @@ Object.assign(app.locals, require("./lib/dates"));
 Object.assign(app.locals, require("./lib/sessionTone"));
 app.locals.mondayFirstWeeks = require("./lib/calendar").mondayFirstWeeks;
 
+// form-action also governs the redirect after a form POST in Chromium, so the
+// checkout's 302 to the HelloAsso payment page needs those origins listed.
+const formActionSources = ["'self'", ...helloassoPaymentOrigins()];
+
 app.use(
   helmet({
     contentSecurityPolicy: {
@@ -113,7 +118,7 @@ app.use(
         imgSrc: ["'self'", "data:", "https://covers.openlibrary.org", "https://archive.org", "https://*.archive.org"],
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
-        formAction: ["'self'"],
+        formAction: formActionSources,
         frameAncestors: ["'none'"],
       },
     },
@@ -278,7 +283,7 @@ const marketingCsp = [
   "img-src 'self' data: https://covers.openlibrary.org https://archive.org https://*.archive.org",
   "object-src 'none'",
   "base-uri 'self'",
-  "form-action 'self'",
+  `form-action ${formActionSources.join(" ")}`,
   "frame-ancestors 'none'",
   // The HelloAsso membership widget iframe (views/marketing/membership.ejs)
   // — without a frame-src, default-src 'self' blocks it and visitors see an
