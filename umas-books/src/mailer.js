@@ -31,7 +31,14 @@ function getTransporter() {
 async function sendMail({ to, subject, text, replyTo }) {
   const t = getTransporter();
   if (!t) {
-    console.warn("Email not configured — skipping send. Would have sent:\n", { to, subject }, "\n" + text);
+    // The body of a reset or verification mail is a live login link, so in
+    // production (where this only happens by misconfiguration) the logs get
+    // the recipient and subject only.
+    if (process.env.NODE_ENV === "production") {
+      console.warn("Email not configured — skipping send. Would have sent:", { to, subject });
+    } else {
+      console.warn("Email not configured — skipping send. Would have sent:\n", { to, subject }, "\n" + text);
+    }
     return;
   }
   await t.sendMail({

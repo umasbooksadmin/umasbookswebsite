@@ -6,6 +6,7 @@ const FULL = {
   NODE_ENV: "production",
   DATABASE_URL: "postgres://x",
   SESSION_SECRET: "s",
+  TOTP_ENCRYPTION_KEY: "t",
   GMAIL_USER: "a@b.c",
   GMAIL_APP_PASSWORD: "pw",
   HELLOASSO_CLIENT_ID: "id",
@@ -38,6 +39,7 @@ test("fails with ALL missing required vars listed in one message", () => {
   assert.equal(logs.error.length, 1);
   assert.match(logs.error[0], /DATABASE_URL/);
   assert.match(logs.error[0], /SESSION_SECRET/);
+  assert.match(logs.error[0], /TOTP_ENCRYPTION_KEY/);
 });
 
 test("lists only the one that is missing, and treats blank as missing", () => {
@@ -53,7 +55,7 @@ test("missing optional vars warn loudly but do not fail", () => {
   delete env.HELLOASSO_ORG_SLUG;
   const { logs, exitCode } = run(env);
   assert.equal(exitCode, undefined);
-  assert.equal(logs.warn.length, 2);
+  assert.equal(logs.warn.length, 3);
   assert.match(logs.warn.join("\n"), /GMAIL_APP_PASSWORD.*email/is);
   assert.match(logs.warn.join("\n"), /HELLOASSO_ORG_SLUG.*payment/is);
 });
@@ -74,5 +76,33 @@ test("non-production environments are untouched", () => {
 });
 
 test("validateEnv is pure: reports missing without exiting", () => {
-  assert.deepEqual(validateEnv({}).missing, ["DATABASE_URL", "SESSION_SECRET"]);
+  assert.deepEqual(validateEnv({}).missing, ["DATABASE_URL", "SESSION_SECRET", "TOTP_ENCRYPTION_KEY"]);
+});
+
+test("production refuses to boot without TOTP_ENCRYPTION_KEY (no silent SESSION_SECRET fallback)", () => {
+  const env = { ...FULL };
+  delete env.TOTP_ENCRYPTION_KEY;
+  const { logs, exitCode } = run(env);
+  assert.equal(exitCode, 1);
+  assert.match(logs.error[0], /TOTP_ENCRYPTION_KEY/);
+  assert.doesNotMatch(logs.error[0], /DATABASE_URL|SESSION_SECRET/);
+});
+
+test("outside production the TOTP key is not required", () => {
+  const { exitCode } = run({ NODE_ENV: "development", DATABASE_URL: "x", SESSION_SECRET: "s" });
+  assert.equal(exitCode, undefined);
+});
+
+test("warns that error alerts are disabled when Gmail is missing and preview mode is off", () => {
+  const env = { ...FULL };
+  delete env.GMAIL_USER;
+  const w = validateEnv(env).warnings.join("\n");
+  assert.match(w, /error alerts .*DISABLED/i);
+});
+
+test("no 'alerts disabled' warning in preview mode, or when Gmail is configured", () => {
+  const preview = { ...FULL, PREVIEW_MODE: "true" };
+  delete preview.GMAIL_USER;
+  assert.doesNotMatch(validateEnv(preview).warnings.join("\n"), /error alerts .*DISABLED/i);
+  assert.doesNotMatch(validateEnv(FULL).warnings.join("\n"), /DISABLED/);
 });

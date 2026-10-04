@@ -25,16 +25,15 @@ Result: ______________________  Date: ____ / ____ / ______  Done by: ___________
 - **What they get:** every email the site sends or receives: names, email addresses, phone numbers and message text from the contact form, order and reservation confirmations, reminders, password-reset and verification emails, and error alerts. Also the content of the inbox itself.
 - **Role:** processor (for Workspace).
 - **Action for Sharon:** sign in to the Google Admin console (admin.google.com) as a super administrator and go to Account > Account settings > Legal and compliance, then accept the **Data Processing Amendment** (the exact wording of the menu may change slightly). Choose the option that applies to the association's contact for data protection (admin@umasbooks.org).
-- Also check in the same console that 2-step verification is required for all users.
+- 2-step verification: confirmed on 4 October 2026 (Sharon Bjeletich) to be on for every Google account that can open the admin inbox; only Sharon Bjeletich has access to admin@umasbooks.org. Re-check it in the console at the yearly review.
 
 Date accepted: ____ / ____ / ______ / Done by: ____________
 
 ## Render (hosting and database)
 
-- **What they get:** the whole website and its database: all accounts, orders, sign-ups, reservations, forum posts and so on; plus server logs. Region: Frankfurt (EU), per `render.yaml`.
+- **What they get:** the whole website and its database: all accounts, orders, sign-ups, reservations, forum posts and so on; plus server logs. Region: Frankfurt (EU), per `render.yaml`. The workspace is on the Pro plan; platform logs are kept 14 days (confirmed by Sharon Bjeletich, 4 October 2026).
 - **Role:** processor.
 - **Action for Sharon:** look for the Data Processing Addendum (DPA) on Render's legal page (render.com, footer "Legal" or "Trust"/"Security" area). Follow the instructions there to accept or request it (some providers apply it automatically once you accept the Terms; the page says which). Keep a copy.
-- Also write the log retention shown in the dashboard into `record-of-processing.md` (section 8).
 
 Date accepted: ____ / ____ / ______ / Done by: ____________
 
@@ -52,8 +51,17 @@ Date accepted: ____ / ____ / ______ / Done by: ____________
 - **What they get:** the same nightly database dump (all personal data), in a private, encrypted bucket.
 - **Role:** processor.
 - **Action for Sharon:** look for the Backblaze Data Processing Addendum (DPA) on Backblaze's legal page (backblaze.com, footer "Legal"). Follow the instructions there to sign or accept it for the account. Also confirm in the B2 console: bucket is **private**, default encryption is **on**, the bucket is in an **EU region**, and the lifecycle rules from `umas-books/README.md` (30 days / 730 days) exist.
+- Confirmed by Sharon Bjeletich on 4 October 2026: bucket region `eu-central-003` (EU region); lifecycle set to delete nightly dumps after 30 days and monthly copies after 730 days. These are set in the Backblaze console and cannot be verified from the repository.
 
 Date accepted: ____ / ____ / ______ / Done by: ____________
+
+## Squarespace (domain registration and DNS)
+
+- **What they get:** the domain owner's account details (confirmed 4 October 2026 by Sharon Bjeletich). **No member data.** Squarespace is the registrar and DNS host for `umasbooks.org` only (Squarespace Domains II LLC; nameservers `squarespacedns.com`). It does **not** host the website: Render does, and the DNS records point `umasbooks.org` to Render.
+- **Role:** processor / service provider for the owner's account details only.
+- **Action for Sharon:** look for the Data Processing Addendum on Squarespace's legal page (squarespace.com, footer "Legal"). Keep the 2-step verification on the account and keep the domain on auto-renew.
+
+Date checked: ____ / ____ / ______ / Done by: ____________
 
 ## HelloAsso (payments and memberships)
 
@@ -72,6 +80,7 @@ Date checked: ____ / ____ / ______ / Done by: ____________
   - Description: only book facts (title, author, publisher, year) and a fixed instruction; the French translation sends only the English description text.
   - Pricing lookups (only when `PRICING_AI` is switched on, off by default): the book's **ISBN, title, author and binding** and a fixed instruction asking for current used prices of that edition, using the web search tool. Results are cached per ISBN.
   - **No member, buyer, email, name or order data is ever sent.** Only admins can trigger it, and the call is skipped if the key is missing.
+- **Retention at Anthropic:** inputs and outputs are deleted from Anthropic's systems within 30 days (source: Anthropic privacy centre; confirmed 4 October 2026), except content flagged for usage-policy violations, which is kept longer. The site sends only book facts and cover photos, no personal data.
 - **Role:** none for personal data, as long as the rule below is followed.
 - **Rule for volunteers:** photograph only the book (cover or barcode), never people or documents. If a person's face or a written name ends up in a photo, retake it.
 - **Action for Sharon:** none required for the DPA while no personal data is sent. If this ever changes, look for the DPA on Anthropic's legal page (anthropic.com/legal) before it does.
@@ -111,4 +120,4 @@ Date checked: ____ / ____ / ______ / Done by: ____________
 ## Also worth knowing (not processors in the list above)
 
 - **Google Fonts:** not used by the website any more. Fonts are self-hosted (`assets/fonts/`, `public/style.css`) and the Content-Security-Policy allows fonts from the site only. Only the unused Squarespace-era snippet files at the repository root still import Google Fonts.
-- **Squarespace** was retired (see root `README.md`); if the old account still exists, close it or delete its personal data.
+- (Squarespace is not in this list: it is a provider, see the section below.)

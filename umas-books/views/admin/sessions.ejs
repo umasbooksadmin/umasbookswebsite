@@ -1,6 +1,9 @@
 <%- include('../partials/admin_header', { title: 'Sessions', active: active, pageTitle: 'Sessions', mainWide: view === 'week' }) %>
 <% if (typeof notice !== "undefined" && notice) { %><div class="notice-box" role="status"><%= notice %></div><% } %>
 
+<% if (typeof error !== "undefined" && error) { %><div role="alert" class="error-box"><%= error %></div><% } %>
+<%# What was typed in a refused form is shown back in it (display only). %>
+<% const ov = typeof formOverlay !== "undefined" && formOverlay ? formOverlay : null; %>
 <% const qs = view === 'week' ? `view=week&week=${currentWeek}` : `month=${currentMonth}`; %>
 <% const prevHref = view === 'week' ? `view=week&week=${prevWeek}` : `month=${prevMonth}`; %>
 <% const nextHref = view === 'week' ? `view=week&week=${nextWeek}` : `month=${nextMonth}`; %>
@@ -28,7 +31,8 @@
         <% } else { %>
           <div class="calendar-day<%= day.isToday ? ' is-today' : '' %>">
             <div class="calendar-day-number"><%= day.day %></div>
-            <details class="calendar-pill calendar-add-pill">
+            <% const nv = ov && ov.newDate === day.dateKey ? ov.values : null; %>
+            <details class="calendar-pill calendar-add-pill"<%= nv ? ' open' : '' %>>
               <summary>+ Add session</summary>
               <div class="calendar-pill-body">
                 <form class="stack" method="post" action="/admin/sessions">
@@ -38,29 +42,30 @@
                   <input type="hidden" name="week" value="<%= view === 'week' ? currentWeek : '' %>">
                   <input type="hidden" name="date" value="<%= day.dateKey %>">
                   <label for="title-new-<%= day.dateKey %>">Title</label>
-                  <input id="title-new-<%= day.dateKey %>" name="title" type="text" required placeholder="Éveil English Immersion">
+                  <input id="title-new-<%= day.dateKey %>" name="title" type="text" required placeholder="Éveil English Immersion" value="<%= nv ? nv.title : '' %>">
                   <label for="type-new-<%= day.dateKey %>">Program type (optional)</label>
                   <select id="type-new-<%= day.dateKey %>" name="programType">
                     <option value="">— None —</option>
-                    <% programTypes.forEach(t => { %><option value="<%= t %>"><%= t %></option><% }) %>
+                    <% programTypes.forEach(t => { %><option value="<%= t %>" <%= nv && nv.programType === t ? 'selected' : '' %>><%= t %></option><% }) %>
                   </select>
                   <label for="start-new-<%= day.dateKey %>">Start time</label>
-                  <input id="start-new-<%= day.dateKey %>" name="startTime" type="time" required>
+                  <input id="start-new-<%= day.dateKey %>" name="startTime" type="time" required value="<%= nv ? nv.startTime : '' %>">
                   <label for="end-new-<%= day.dateKey %>">End time (optional)</label>
-                  <input id="end-new-<%= day.dateKey %>" name="endTime" type="time">
+                  <input id="end-new-<%= day.dateKey %>" name="endTime" type="time" value="<%= nv ? nv.endTime : '' %>">
                   <label for="loc-new-<%= day.dateKey %>">Location (optional)</label>
-                  <input id="loc-new-<%= day.dateKey %>" name="location" type="text">
+                  <input id="loc-new-<%= day.dateKey %>" name="location" type="text" value="<%= nv ? nv.location : '' %>">
                   <label for="cap-new-<%= day.dateKey %>">Capacity</label>
-                  <input id="cap-new-<%= day.dateKey %>" name="capacity" type="number" min="1" required value="5">
+                  <input id="cap-new-<%= day.dateKey %>" name="capacity" type="number" min="1" max="1000" step="1" required value="<%= nv ? nv.capacity : '5' %>">
                   <label for="dropin-new-<%= day.dateKey %>">Drop-in price (&euro;, optional)</label>
-                  <input id="dropin-new-<%= day.dateKey %>" name="dropinPrice" type="number" min="0" step="0.01" placeholder="Leave blank to not sell as drop-in">
+                  <input id="dropin-new-<%= day.dateKey %>" name="dropinPrice" type="number" min="0.01" max="10000" step="0.01" placeholder="Leave blank to not sell as drop-in" value="<%= nv ? nv.dropinPrice : '' %>">
                   <div><button class="btn btn-small" type="submit">Add session</button></div>
                 </form>
               </div>
             </details>
             <% day.items.forEach(c => { %>
+              <% const ev = ov && ov.classId === c.id ? ov.values : null; %>
               <% const full = c.capacity != null && c.seats_taken >= c.capacity; const signups = signupsByClass[c.id] || []; const dropins = dropinByClass[c.id] || []; %>
-              <details class="calendar-pill<%= full ? ' is-full' : '' %>">
+              <details class="calendar-pill<%= full ? ' is-full' : '' %>"<%= ev ? ' open' : '' %>>
                 <summary><%= c.title %> &middot; <%= formatTime(c.starts_at) %></summary>
                 <div class="calendar-pill-body">
                   <div class="muted small">
@@ -95,29 +100,30 @@
                     </ul>
                   <% } %>
 
-                  <details style="margin-top:10px;">
+                  <details style="margin-top:10px;"<%= ev ? ' open' : '' %>>
                     <summary style="cursor:pointer; color: var(--maroon);">Edit</summary>
                     <form class="stack" method="post" action="/admin/sessions/<%= c.id %>?<%= qs %>" style="margin-top:10px;">
                       <%- include('../partials/csrf_field') %>
                       <label for="title-<%= c.id %>">Title</label>
-                      <input id="title-<%= c.id %>" name="title" type="text" required value="<%= c.title %>">
+                      <input id="title-<%= c.id %>" name="title" type="text" required value="<%= ev ? ev.title : c.title %>">
                       <label for="type-<%= c.id %>">Program type (optional)</label>
                       <select id="type-<%= c.id %>" name="programType">
                         <option value="">— None —</option>
-                        <% programTypes.forEach(t => { %><option value="<%= t %>" <%= c.program_type === t ? 'selected' : '' %>><%= t %></option><% }) %>
+                        <% programTypes.forEach(t => { %><option value="<%= t %>" <%= (ev ? ev.programType : c.program_type) === t ? 'selected' : '' %>><%= t %></option><% }) %>
                       </select>
                       <label for="desc-<%= c.id %>">Description</label>
-                      <textarea id="desc-<%= c.id %>" name="description"><%= c.description || '' %></textarea>
+                      <textarea id="desc-<%= c.id %>" name="description"><%= ev ? ev.description : (c.description || '') %></textarea>
                       <label for="loc-<%= c.id %>">Location</label>
-                      <input id="loc-<%= c.id %>" name="location" type="text" value="<%= c.location || '' %>">
+                      <input id="loc-<%= c.id %>" name="location" type="text" value="<%= ev ? ev.location : (c.location || '') %>">
                       <label for="start-<%= c.id %>">Starts at</label>
                       <input id="start-<%= c.id %>" name="startsAt" type="datetime-local" required value="<%= new Date(c.starts_at.getTime() - c.starts_at.getTimezoneOffset()*60000).toISOString().slice(0,16) %>">
                       <label for="end-<%= c.id %>">Ends at</label>
                       <input id="end-<%= c.id %>" name="endsAt" type="datetime-local" value="<%= c.ends_at ? new Date(c.ends_at.getTime() - c.ends_at.getTimezoneOffset()*60000).toISOString().slice(0,16) : '' %>">
                       <label for="cap-<%= c.id %>">Capacity</label>
-                      <input id="cap-<%= c.id %>" name="capacity" type="number" min="1" value="<%= c.capacity != null ? c.capacity : '' %>">
+                      <input id="cap-<%= c.id %>" name="capacity" type="number" min="1" max="1000" step="1" value="<%= ev ? ev.capacity : (c.capacity != null ? c.capacity : '') %>">
+                      <div class="muted small">Leave blank to keep the current capacity. It can't go below the seats already booked.</div>
                       <label for="dropin-<%= c.id %>">Drop-in price (&euro;, optional)</label>
-                      <input id="dropin-<%= c.id %>" name="dropinPrice" type="number" min="0" step="0.01" value="<%= c.dropin_price != null ? c.dropin_price : '' %>" placeholder="Leave blank to not sell as drop-in">
+                      <input id="dropin-<%= c.id %>" name="dropinPrice" type="number" min="0.01" max="10000" step="0.01" value="<%= ev ? ev.dropinPrice : (c.dropin_price != null ? c.dropin_price : '') %>" placeholder="Leave blank to not sell as drop-in">
                       <div><button class="btn btn-small" type="submit">Save changes</button></div>
                     </form>
                   </details>

@@ -21,7 +21,7 @@ const { generateToken, hashToken } = require("./resetTokens");
 const { emailTr, normLang } = require("./lang");
 const { emailSafeName } = require("./validation");
 const { normalizeIsbn } = require("./bookLookup");
-const { isbnVariants } = require("./inventory");
+const { isbnVariants, isPurchasablePrice } = require("./inventory");
 const { RESERVATION_TTL_DAYS } = require("./reservations");
 
 const ACTIVE_STATUSES = ["unconfirmed", "open", "matched", "notified"];
@@ -231,7 +231,7 @@ async function cancelRequest(pool, id, { ownerSql = "", ownerParams = [] } = {})
     await releaseHold(db, rows[0]);
     await db.query(
       `UPDATE book_requests SET status = 'cancelled', ${CLEAR_PERSONAL_SQL},
-              confirm_token_hash = NULL, updated_at = now()
+              confirm_token_hash = NULL, manage_token_hash = NULL, updated_at = now()
        WHERE id = $1`,
       [id]
     );
@@ -393,6 +393,7 @@ const NOTIFY_ERRORS = {
   notMatched: "Only a matched request can be notified. Match it to a book first.",
   noEmail: "This request has no email address any more.",
   noCopy: "The matched copy no longer exists. Match the request to a book again.",
+  noPrice: "That copy has no price yet, so it can't be held. Set its price first. Nothing was sent.",
   holdGone: "That copy is no longer in stock, so it can't be held. Nothing was sent.",
   stockGone: "That copy is no longer in stock. Nothing was sent.",
   changed: "That request changed while you were working. Please reload.",
@@ -423,11 +424,13 @@ async function notifyRequest(pool, id, { hold = false, base }) {
 
   let heldNow = false;
   if (hold) {
+    // A copy with no real price is never held (it could not be sold at a known price).
+    if (!isPurchasablePrice(r.copy_price)) return { error: NOTIFY_ERRORS.noPrice };
     const claim = await pool.query(
       `UPDATE book_copies
        SET status = 'reserved', reserved_by_name = $1, reserved_by_email = $2, reserved_by_phone = NULL,
            reserved_at = now() - make_interval(days => $4), reminder_sent_at = now(), updated_at = now()
-       WHERE id = $3 AND status = 'in_stock'
+       WHERE id = $3 AND status = 'in_stock' AND price IS NOT NULL AND price > 0
        RETURNING id`,
       [r.name || "Book request", r.email, r.matched_copy_id, RESERVATION_TTL_DAYS - LIMITS.holdDays]
     );

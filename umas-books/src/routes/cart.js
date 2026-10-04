@@ -21,6 +21,11 @@ function isSafeLocalPath(value) {
   return typeof value === "string" && value.startsWith("/") && !value.startsWith("//") && !value.startsWith("/\\");
 }
 
+// A copy without a real price (NULL, 0, negative) is never purchasable here:
+// every query below that reads or locks a copy also requires
+// `price IS NOT NULL AND price > 0`, so such a copy can never reach an order or
+// a total (it would otherwise be charged as 0). It is "ask in the shop" only.
+//
 // Public — no login required (matches /books and /sessions). The cart
 // itself is just a list of lines in the session; nothing is locked in
 // the database until checkout actually starts (see src/lib/cart.js for
@@ -56,6 +61,7 @@ async function loadCartItems(cart) {
       `SELECT c.id, c.price, c.condition, b.title, b.authors, b.cover_url
        FROM book_copies c JOIN books b ON b.id = c.book_id
        WHERE c.id = ANY($1::int[]) AND c.status = 'in_stock'
+         AND c.price IS NOT NULL AND c.price > 0
        ORDER BY c.id ASC`,
       [bookLines.map((l) => l.copyId)]
     );
@@ -84,7 +90,7 @@ async function loadCartItems(cart) {
     const acceptedPerClass = new Map();
     for (const line of dropinLines) {
       const cls = byId.get(line.classId);
-      if (!cls || cls.dropin_price == null) continue; // no longer sold as drop-in — dropped
+      if (!cls || cls.dropin_price == null || Number(cls.dropin_price) <= 0) continue; // no longer sold as drop-in — dropped
       const alreadyAccepted = acceptedPerClass.get(cls.id) || 0;
       const spotsLeft = cls.capacity != null ? Math.max(0, cls.capacity - cls.seats_taken) : Infinity;
       if (alreadyAccepted >= spotsLeft) continue; // this class filled up — dropped
@@ -129,7 +135,7 @@ router.post("/cart/add", cartEditLimiter, async (req, res) => {
   const copyId = parseId(req.body.copyId);
   const backTo = isSafeLocalPath(req.body.backTo) ? req.body.backTo : "/cart";
   if (copyId !== null) {
-    const { rows } = await pool.query("SELECT id FROM book_copies WHERE id = $1 AND status = 'in_stock'", [copyId]);
+    const { rows } = await pool.query("SELECT id FROM book_copies WHERE id = $1 AND status = 'in_stock' AND price IS NOT NULL AND price > 0", [copyId]);
     if (rows.length) {
       const cart = getCart(req);
       if (cart.length < MAX_CART_LINES && !cart.some((l) => l.kind === "book" && l.copyId === copyId)) {
@@ -150,7 +156,7 @@ router.post("/cart/add-dropin", cartEditLimiter, async (req, res) => {
       [classId]
     );
     const cls = rows[0];
-    if (cls && cls.dropin_price != null) {
+    if (cls && cls.dropin_price != null && Number(cls.dropin_price) > 0) {
       const cart = getCart(req);
       const alreadyInCart = cart.filter((l) => l.kind === "dropin" && l.classId === classId).length;
       const spotsLeft = cls.capacity != null ? cls.capacity - cls.seats_taken - alreadyInCart : Infinity;
@@ -272,7 +278,7 @@ router.post("/cart/checkout", checkoutLimiter, async (req, res) => {
         await client.query("SELECT id FROM book_copies WHERE id = ANY($1::int[]) ORDER BY id FOR UPDATE", [copyIds]);
         const { rows: locked } = await client.query(
           `UPDATE book_copies SET status = 'in_cart', cart_order_id = $1, cart_added_at = now(), updated_at = now()
-           WHERE id = ANY($2::int[]) AND status = 'in_stock' RETURNING id`,
+           WHERE id = ANY($2::int[]) AND status = 'in_stock' AND price IS NOT NULL AND price > 0 RETURNING id`,
           [newOrder.id, copyIds]
         );
         if (locked.length !== bookItems.length) {
@@ -303,7 +309,7 @@ router.post("/cart/checkout", checkoutLimiter, async (req, res) => {
             [classId]
           );
           const cls = clsRows[0];
-          const spotsLeft = cls && cls.dropin_price != null
+          const spotsLeft = cls && cls.dropin_price != null && Number(cls.dropin_price) > 0
             ? (cls.capacity != null ? cls.capacity - cls.seats_taken : Infinity)
             : 0;
           if (!cls || spotsLeft < count) throw new Error("SOLD_OUT");

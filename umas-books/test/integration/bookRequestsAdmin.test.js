@@ -324,6 +324,16 @@ test("Notify and hold is refused for a sold or already reserved copy, and nothin
   assert.equal(sent.length, 0);
 });
 
+test("Notify and hold is refused for a copy with no price, and nothing is sent", async () => {
+  const m = await matched({ price: "" });
+  assert.equal((await copy(m.copyId)).price, null, "intake with a blank price stores no price");
+  const res = await adminPost(`/admin/requests/${m.id}/notify-hold`);
+  assert.match(res.location, /no\+price\+yet/);
+  assert.equal((await get(m.id)).status, "matched");
+  assert.equal((await copy(m.copyId)).status, "in_stock", "the copy is not held");
+  assert.equal(sent.length, 0);
+});
+
 test("cancelling a request (by the customer or an admin) releases the copy held for them", async () => {
   const m = await matched();
   await adminPost(`/admin/requests/${m.id}/notify-hold`);

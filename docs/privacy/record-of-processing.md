@@ -9,7 +9,7 @@
 - Represented by: the President
 - Data protection officer (DPO): none appointed (not required for a small association; no large-scale monitoring or sensitive data)
 
-**Last reviewed / Dernière révision:** TODO (the association): write the date and the name of the volunteer who last re-read this file as a whole (only the association knows who reviewed it).
+**Last reviewed / Dernière révision:** 4 October 2026, by Sharon Bjeletich (confirmed by the maintainer).
 
 **Last checked against the code:** 4 October 2026 (every row below was compared with `umas-books/` on that date; the reservation, image-cleanup, backup-recipient, font and AI rows were corrected on that date).
 
@@ -115,7 +115,7 @@ The weekly English Immersion pre-registration form on the website only opens the
 | Recipients / processors | Google Workspace/Gmail only. The contact form sends an email to admin@umasbooks.org (or `CONTACT_TO`). **Nothing is stored in the database** (checked in `src/routes/contact.js`: it only sends the email, with the sender's address as Reply-To). Other forms open the visitor's own mail app. |
 | Transfers outside EU | Google: US company; check the DPA and its transfer clauses (see checklist) |
 | Retention | The Gmail inbox (admin@umasbooks.org) is the only place they are kept. Emails received through the contact form are kept **12 months**, then deleted, unless a conversation is still ongoing (decided by the association; the public policy says the same). **NOT AUTOMATED:** the inbox is never cleaned by code; the yearly manual cleanup is in `docs/runbook.md`, section e) Yearly calendar. Other messages emailed to us (volunteer and pre-registration forms) are kept until the person asks us to delete them. |
-| Security | 2-step verification is required to create the app password the website uses to send mail (`README.md`, "Email"). **TODO (the association): confirm that 2-step verification is on for every Google account that can open the admin@umasbooks.org inbox, and who has access.** |
+| Security | 2-step verification is required to create the app password the website uses to send mail (`README.md`, "Email"). Confirmed by Sharon Bjeletich on 4 October 2026: 2-step verification is on for every Google account that can open the admin@umasbooks.org inbox, and only Sharon Bjeletich has access to that inbox. |
 
 ## 7. Forum, charity votes, volunteer shifts, meetings / Forum, votes, bénévolat, réunions
 
@@ -140,12 +140,12 @@ The weekly English Immersion pre-registration form on the website only opens the
 | Legal basis | Legitimate interest (security and reliability) |
 | Recipients / processors | Render (logs); Google Workspace/Gmail (alert emails) |
 | Transfers outside EU | Render logs: the web service and database are in the Frankfurt region (`render.yaml`, `region: frankfurt`). Alert emails: Google. |
-| Retention | Policy says "a few weeks at most". **NOT controlled by our code.** It depends on the Render plan; **TODO (the association): read the log retention shown in the Render dashboard for the plan in use and write it here** (the figure is not in the code or the repository). Alert emails sit in the inbox until deleted (**NOT AUTOMATED**). |
+| Retention | Policy says "a few weeks at most". **NOT controlled by our code.** It depends on the Render plan: the workspace is on the Pro plan, where platform logs are kept **14 days** (confirmed by Sharon Bjeletich on 4 October 2026; not visible in the code). Alert emails sit in the inbox until deleted (**NOT AUTOMATED**). |
 | Security | Logs are only available to people with Render access |
 
 Uploaded images (book covers, blog, announcement and charity photos) are stored in the database table `images` and are not personal data. Images no longer used by anything are deleted automatically once they have been unused for at least 7 days (`src/lib/imageCleanup.js`, daily at start-up and every 24 hours; the list of columns that can hold an image is `IMAGE_REFERENCES`). They remain in older backups for the backup periods in section 9.
 
-Fonts: the website serves its typefaces itself (self-hosted files in `assets/fonts/`, declared in `public/style.css`, and the Content-Security-Policy allows fonts from the site only: `fontSrc: ["'self'"]` in `src/index.js`). No visitor IP address is sent to Google Fonts by the website. The old Squarespace-era snippet files at the repository root (`squarespace-*.html`) still import Google Fonts, but they are not served by the website; they matter only if someone pastes them into a Squarespace page (the root `README.md` says Squarespace was retired). **TODO (the association): confirm the old Squarespace account is closed.**
+Fonts: the website serves its typefaces itself (self-hosted files in `assets/fonts/`, declared in `public/style.css`, and the Content-Security-Policy allows fonts from the site only: `fontSrc: ["'self'"]` in `src/index.js`). No visitor IP address is sent to Google Fonts by the website. The old Squarespace-era snippet files at the repository root (`squarespace-*.html`) still import Google Fonts, but they are not served by the website; they matter only if someone pastes them into a Squarespace page (they date from when the site was built on Squarespace). Squarespace is still used, but only as domain registrar and DNS host (section 12); it does not host or serve the website.
 
 ## 9. Backups / Sauvegardes
 
@@ -156,8 +156,8 @@ Fonts: the website serves its typefaces itself (self-hosted files in `assets/fon
 | People | Everyone in the database |
 | Legal basis | Legitimate interest (continuity); same bases as the original data |
 | Recipients / processors | Backblaze B2 (private bucket, EU region, default encryption on, per the README); Render (its own automatic database recovery) |
-| Transfers outside EU | Backblaze: the setup instructions require a bucket in an EU region (`README.md`, "Backups"; the region code is a repository variable, `BACKUP_S3_REGION`, e.g. `eu-central-003`); Backblaze is a US company. **TODO (the association): confirm the bucket's actual region in the B2 console or in the repository variable.** |
-| Retention | **Backblaze** (the only offsite copy; the code repository on GitHub holds no data): the nightly backup and the monthly restore test both passed on 1 October 2026. One full dump a night, kept 30 days; one on the 1st of each month, kept 2 years. Login sessions are left out of every dump (`--exclude-table-data=session`). **Render:** its own point-in-time recovery covers the last **7 days**. Backblaze deletion depends on lifecycle rules set by hand in the Backblaze console (`store-backups/full/`: hidden after **30 days**; `store-backups/monthly/`: hidden after 730 days; both then deleted after 1 day, as set out in `README.md` "Retention"; matching the policy). **TODO (the association): check in the B2 console that these rules exist** (**NOT AUTOMATED / not visible in the code**). A deletion request therefore disappears from backups only after those periods. |
+| Transfers outside EU | Backblaze: the setup instructions require a bucket in an EU region (`README.md`, "Backups"; the region code is a repository variable, `BACKUP_S3_REGION`, e.g. `eu-central-003`); Backblaze is a US company. The bucket region is `eu-central-003` (an EU region), confirmed by Sharon Bjeletich on 4 October 2026. |
+| Retention | **Backblaze** (the only offsite copy; the code repository on GitHub holds no data): the nightly backup and the monthly restore test both passed on 1 October 2026. One full dump a night, kept 30 days; one on the 1st of each month, kept 2 years. Login sessions are left out of every dump (`--exclude-table-data=session`). **Render:** its own point-in-time recovery covers the last **7 days**. Backblaze deletion depends on lifecycle rules set by hand in the Backblaze console (`store-backups/full/`: hidden after **30 days**; `store-backups/monthly/`: hidden after 730 days; both then deleted after 1 day, as set out in `README.md` "Retention"; matching the policy). The maintainer confirmed on 4 October 2026 that the lifecycle is configured in the Backblaze console to delete nightly dumps after 30 days and monthly copies after 730 days (**set in the console, not verifiable from the repository**). A deletion request therefore disappears from backups only after those periods. |
 | Security | Private bucket with encryption (no backup is kept in the code repository); access keys limited to the one bucket; monthly automatic restore test (the 1st of each month); failure emails to admin |
 
 ## 10. Administrator action log / Journal des actions des administrateurs
@@ -183,14 +183,27 @@ Fonts: the website serves its typefaces itself (self-hosted files in `assets/fon
 | Legal basis | Legitimate interest (running the shop efficiently); no personal data involved |
 | Recipients / processors | **Anthropic** (AI service, API). Off unless `ANTHROPIC_API_KEY` is set; price lookups also need `PRICING_AI` and award lookups need `AWARDS_AI`. See `processors-checklist.md`. |
 | Transfers outside EU | Anthropic is a US company. Because no personal data is sent, no transfer of personal data takes place; check Anthropic's terms if this ever changes. |
-| Retention | Book data is kept as long as the book is in the catalogue. Price-lookup cache: 30 days for a found price, 7 days for no result, 1 hour after a failure (`TTL_MS` in `src/lib/pricing/market.js`). Anthropic's own retention of API requests is set by Anthropic's terms (**TODO (the association): read it on anthropic.com/legal and note it here**). |
+| Retention | Book data is kept as long as the book is in the catalogue. Price-lookup cache: 30 days for a found price, 7 days for no result, 1 hour after a failure (`TTL_MS` in `src/lib/pricing/market.js`). Anthropic's own retention of API requests is set by Anthropic's terms (per Anthropic's privacy centre, confirmed 4 October 2026: inputs and outputs are deleted from Anthropic's systems within 30 days, except content flagged for usage-policy violations, which is kept longer; the site sends only book facts and cover photos, no personal data). |
 | Security | API key stored as a Render environment variable; the calls fail open (a failure never blocks an admin action); daily caps on lookups (`PRICING_AI_DAILY_MAX`, `AWARDS_AI_DAILY_MAX`) |
+
+## 12. Domain name and DNS / Nom de domaine et DNS
+
+| | |
+|---|---|
+| Purpose | Register the domain `umasbooks.org` and run its DNS (the records that point the domain to the website at Render and to Google Workspace mail) |
+| Data | The domain owner's account details (name, contact details, billing) held by the registrar. **No member, buyer or visitor data.** Squarespace does **not** host the website: Render does. |
+| People | The domain owner / account holder (a volunteer of the association) |
+| Legal basis | Contract (domain registration); the association's legitimate interest in keeping its domain |
+| Recipients / processors | Squarespace Domains II LLC (registrar and DNS host; nameservers `squarespacedns.com`) |
+| Transfers outside EU | Squarespace is a US company; the data is only the owner's account details. Check its terms and DPA (see `processors-checklist.md`). |
+| Retention | As long as the domain is registered and the account exists. |
+| Security | Keep the Squarespace account protected by a strong password and 2-step verification if offered. **TODO (the association): confirm who holds the Squarespace account and whether 2-step verification is on.** |
 
 ---
 
 ## Open points for the volunteer in charge / Points à traiter
 
-1. Fill in every item marked **TODO (the association)** above: the review date and reviewer, the Render log retention, 2-step verification on the Google accounts, the Backblaze bucket region and lifecycle rules, Anthropic's API retention, and closing the old Squarespace account.
+1. Fill in every item still marked **TODO (the association)** above (at present: who holds the Squarespace account and whether it has 2-step verification).
 2. Sign the data processing agreements listed in `processors-checklist.md`.
-3. Check the Backblaze lifecycle rules (30 days nightly, 730 days monthly) in the B2 console: the code cannot see them.
+3. The Backblaze lifecycle rules (30 days nightly, 730 days monthly) were confirmed by the maintainer on 4 October 2026; the code cannot see them, so re-check them in the B2 console at the yearly review.
 4. Re-read this file once a year, and whenever a new feature collects personal data.

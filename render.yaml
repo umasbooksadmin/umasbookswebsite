@@ -1,7 +1,7 @@
 databases:
   - name: umas-books-db
     # Paid tier (matches the Render dashboard). This app's nightly pg_dump
-    # (GitHub branch + Backblaze B2) is the extra safety net, see
+    # (uploaded to Backblaze B2) is the extra safety net, see
     # .github/workflows.
     plan: 1c-2g
     region: frankfurt
@@ -34,11 +34,12 @@ services:
     # crash loop on the live site. (The migration runner is tracked and
     # takes an advisory lock, so it is safe if it ever runs twice.)
     preDeployCommand: npm run migrate
-    # seed is idempotent (only creates an admin if none exists yet, only
-    # seeds sample announcements/charity content if none exists) — safe to
-    # run on every startup. It's how the first admin account gets onto a
-    # fresh database without needing a Shell session to run one-off commands.
-    startCommand: npm run seed && npm start
+    # The seed only bootstraps a brand-new database (first admin + sample
+    # content, see src/seed.js). It never blocks startup: it exits 0 even
+    # when it fails (logging loudly and emailing an alert), and ";" rather
+    # than "&&" makes sure of it, because a seed problem must never turn
+    # into a crash loop on the live site.
+    startCommand: npm run seed; npm start
     envVars:
       - key: DATABASE_URL
         fromDatabase:

@@ -37,6 +37,12 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
+    env:
+      # The address to watch. Set the repository VARIABLE SITE_URL (Settings >
+      # Secrets and variables > Actions > Variables tab > New repository
+      # variable, e.g. https://umasbooks.org, no trailing slash) to change it
+      # without editing this file; unset, it falls back to the live domain.
+      SITE_URL: ${{ vars.SITE_URL || 'https://umasbooks.org' }}
     steps:
       - name: Check site health
         id: health
@@ -45,7 +51,7 @@ jobs:
           # request slow for a while. A single slow or failed check is not
           # an outage — a real outage keeps failing on the *next* check
           # too (see the "decide" step).
-          STATUS=$(curl -s -o /tmp/health.json -w "%{http_code}" --max-time 60 https://umas-books-cmvv.onrender.com/healthz || echo "000")
+          STATUS=$(curl -s -o /tmp/health.json -w "%{http_code}" --max-time 60 "${SITE_URL%/}/healthz" || echo "000")
           echo "status=$STATUS" >> "$GITHUB_OUTPUT"
           echo "Response: $(cat /tmp/health.json 2>/dev/null)"
 
@@ -102,14 +108,14 @@ jobs:
           to: admin@umasbooks.org
           from: "Uma's Books Uptime Monitor <${{ secrets.GMAIL_USER }}>"
           body: |
-            https://umas-books-cmvv.onrender.com/healthz has failed two checks in a row (about 30 minutes apart), status ${{ steps.health.outputs.status }}.
+            ${{ env.SITE_URL }}/healthz has failed two checks in a row (about 30 minutes apart), status ${{ steps.health.outputs.status }}.
 
             This means either the site is fully down, or it's up but can't reach the database — /healthz checks both.
 
             This is the only alert you will get for this outage; a "recovered" email follows when the site is healthy again.
 
             Render dashboard: https://dashboard.render.com
-            Check again: https://umas-books-cmvv.onrender.com/healthz
+            Check again: ${{ env.SITE_URL }}/healthz
 
       - name: Send recovery email (first healthy check after an alerted outage)
         if: steps.decide.outputs.recovered == 'true'
@@ -123,7 +129,7 @@ jobs:
           to: admin@umasbooks.org
           from: "Uma's Books Uptime Monitor <${{ secrets.GMAIL_USER }}>"
           body: |
-            https://umas-books-cmvv.onrender.com/healthz is responding normally again (status 200).
+            ${{ env.SITE_URL }}/healthz is responding normally again (status 200).
 
       - name: Fail this run if the check failed
         # Makes the run's own status (visible in the Actions tab, and
