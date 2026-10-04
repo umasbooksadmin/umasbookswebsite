@@ -84,8 +84,9 @@ unused one for a new file.
   `/forgot-password` (emailed via Gmail/Google Workspace SMTP, one-hour
   expiry, single use), or a logged-in member can change their password
   directly at `/account/password`.
-- **Email verification** — a new signup must click an emailed link before
-  the account counts as verified (`src/lib/emailVerification.js`); an admin
+- **Email verification** — signup asks for no password: the emailed
+  link confirms the address and leads to "choose your password", and only then
+  can the person log in (`src/lib/emailVerification.js`); an admin
   changing a member's email re-triggers it.
 - **Online checkout** (`/cart`) — book copies and class drop-in seats are
   paid for through HelloAsso (`src/lib/helloasso.js`, webhook at

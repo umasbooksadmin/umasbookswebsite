@@ -201,3 +201,20 @@
 .price-suggested-tag { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--green, #3d6b46); font-weight: 700; }
 .price-suggestion-box { margin: 6px 0 10px; }
 .price-suggestion-box summary { cursor: pointer; color: var(--maroon); }
+
+/* Shelf-sticker color chips and the printable sticker sheet (colors come from lib/priceColors) */
+.sticker-chip { display: inline-block; padding: 2px 10px; border-radius: 999px; border: 1px solid transparent; font-size: 13px; font-weight: 600; line-height: 1.5; text-transform: none; letter-spacing: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.sticker-note { margin: 4px 0 8px; font-size: 13.5px; }
+.sticker-legend { list-style: none; margin: 8px 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px 18px; }
+.sticker-legend li { display: inline-flex; align-items: center; gap: 6px; }
+.sticker-filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }
+.sticker-sheet { width: 100%; border-collapse: collapse; font-size: 14px; }
+.sticker-sheet th, .sticker-sheet td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--card-border); vertical-align: top; }
+@media print {
+  .admin-sidebar, .admin-nav-backdrop, .skip-link, .admin-preview-note, .no-print, .admin-topbar-tools, .admin-back-link { display: none !important; }
+  .admin-layout, .admin-main, main { display: block !important; margin: 0 !important; padding: 0 !important; width: auto !important; }
+  .card { box-shadow: none !important; border: 0 !important; padding: 0 !important; }
+  .sticker-sheet { font-size: 11pt; }
+  .sticker-sheet tr { break-inside: avoid; }
+  .sticker-chip { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

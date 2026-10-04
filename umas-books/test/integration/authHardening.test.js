@@ -107,10 +107,10 @@ test("signup responds identically for a new and an existing email, and never log
   );
   assert.equal(oldTokens.length, 0);
 
-  // ...and cannot log in until the email is confirmed (account pre-hijack
-  // defence; the confirmed flow is in accountPreHijack.test.js).
+  // ...and has no password until the email is confirmed and one is chosen
+  // (account pre-hijack defence; see accountPreHijack.test.js).
   const loginRes = await login(newEmail, "Correct-Horse-1");
-  assert.equal(loginRes.res.status, 403);
+  assert.equal(loginRes.res.status, 401);
 });
 
 test("a locked account answers login exactly like a wrong password, even for the right one", async () => {

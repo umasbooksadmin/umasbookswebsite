@@ -16,6 +16,10 @@ const BINDING_NAMES = { hardcover: "hardcover", paperback: "paperback", mass_mar
 
 function summaryLabel(s) {
   if (!s) return "";
+  // A new book is never given a used-book level: it sells at the publisher's price.
+  if (s.ruleSet === "new") {
+    return "New book: sell at the publisher's price (max 5% off)." + (s.price == null ? " Enter the publisher's price (prix éditeur) first." : "");
+  }
   if (s.price == null) {
     return s.needsReview ? s.reviewMessage : "No suggestion yet: enter the publisher's price (prix éditeur) first.";
   }
