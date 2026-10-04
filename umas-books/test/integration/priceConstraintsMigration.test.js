@@ -9,7 +9,7 @@ const { execFileSync } = require("node:child_process");
 const path = require("node:path");
 const { startTestApp } = require("../helpers/testApp");
 
-const PORT = 3850;
+const PORT = 3866;
 const ROOT = path.join(__dirname, "..", "..");
 const FILE = "056_price_check_constraints.sql";
 const CONSTRAINTS = ["book_copies_price_range_check", "book_copies_acquisition_cost_range_check", "classes_dropin_price_range_check"];
