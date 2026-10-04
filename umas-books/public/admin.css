@@ -191,3 +191,13 @@
 /* Move books page log */
 .move-ok { font-weight: 600; }
 .move-bad { color: #9b1c1c; font-weight: 600; }
+
+/* Price control and suggestion (add-book form, copy edit form) */
+.price-control [hidden] { display: none !important; }
+.price-levels { border: 1px solid var(--card-border); border-radius: 3px; padding: 8px 12px 10px; margin: 0 0 8px; }
+.price-levels legend { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; padding: 0 4px; }
+.price-option { display: inline-flex; align-items: center; gap: 6px; margin: 4px 14px 4px 0; text-transform: none; letter-spacing: 0; font-size: 15px; font-weight: 500; }
+.price-option input { width: auto; }
+.price-suggested-tag { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--green, #3d6b46); font-weight: 700; }
+.price-suggestion-box { margin: 6px 0 10px; }
+.price-suggestion-box summary { cursor: pointer; color: var(--maroon); }

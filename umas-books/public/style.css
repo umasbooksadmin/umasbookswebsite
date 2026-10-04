@@ -283,3 +283,5 @@ form.stack select { font-family: 'Cormorant Garamond', Georgia, serif; font-size
 .hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
 
 .cover-note { font-size: 13px; color: var(--muted, #6b6b6b); margin: 10px 0 0; }
+
+.clearance-badge { display: inline-block; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #fff; background: #9b1c1c; padding: 2px 8px; border-radius: 3px; vertical-align: middle; }
