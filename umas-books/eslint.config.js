@@ -19,6 +19,12 @@ module.exports = [
     },
   },
   {
-    ignores: ["node_modules/**", "public/**", "scripts/sitemap/*.json", "scripts/sitemap/*-filled.html"],
+    // The end-to-end tests (e2e/) run small functions inside a real browser
+    // page (page.evaluate / page.$eval), so those files also see browser globals.
+    files: ["e2e/**/*.js"],
+    languageOptions: { globals: { ...globals.node, ...globals.browser } },
+  },
+  {
+    ignores: ["node_modules/**", "public/**", "scripts/sitemap/*.json", "scripts/sitemap/*-filled.html", "e2e/artifacts/**"],
   },
 ];

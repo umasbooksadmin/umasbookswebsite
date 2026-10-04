@@ -439,7 +439,15 @@ secret** = same page, **Secrets** tab.
 - [ ] **Sample and test data removed**, using the clearing script in
   "Clearing the test data" below (dry run first, backup first), and the admin
   e-mail list it prints is the right one.
-- [ ] **Manual test scripts** run and passed (every **(must)** step), see
+- [ ] **Automated end-to-end tests** run and passed, **while the site is still
+  in preview mode** (they refuse a live site unless `E2E_ALLOW_LIVE=1`), for
+  example `E2E_BASE_URL=https://umasbooks.org npm run e2e` from the `umas-books`
+  folder with the test accounts' details typed into that Terminal window. Set
+  them for one run only, never in a file. Instructions and the list of
+  manual-only steps: `umas-books/e2e/README.md`. Clean up what they created
+  (the README lists how) before launch.
+- [ ] **Manual test scripts** run and passed (every **(must)** step, and the
+  manual-only steps the automated tests list), see
   `docs/testing/manual-test-scripts.md`.
 
 ### Turning it on again
