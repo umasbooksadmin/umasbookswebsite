@@ -381,7 +381,8 @@ router.post("/admin/inventory/sell", requireAdmin, async (req, res) => {
     // sold this way): it must still be real money (see parseMoney).
     const typedPrice = parseMoney(priceText, { label: "Price" });
     if (typedPrice.error) {
-      return { error: priceText === "" ? "Enter the price the book was sold for (a number, 0 or more)." : typedPrice.error, status: 400 };
+      const ask = "Enter the price the book was sold for (a number, 0 or more).";
+      return { error: priceText === "" ? ask : `${ask} ${typedPrice.error}`, status: 400 };
     }
     // New books follow the fixed-price rule (publisher's price, at most 5% off).
     const pricing = resolveCopyPricing(copy.condition, priceText, copy.publisher_price);
