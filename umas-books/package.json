@@ -13,7 +13,9 @@
     "seed": "node src/seed.js",
     "backfill-french-content": "node src/backfillFrenchContent.js",
     "lint": "eslint .",
-    "test": "node --test"
+    "test": "node --test",
+    "e2e": "node e2e/run.js",
+    "e2e:local": "node e2e/local.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
