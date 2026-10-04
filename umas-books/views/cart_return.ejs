@@ -6,7 +6,7 @@
   <div class="card">
     <ul class="plain">
       <% items.forEach(i => { %>
-        <li><%= i.item_title %> <span class="muted small">&middot; &euro;<%= Number(i.price).toFixed(2) %></span></li>
+        <li><%= i.label %> <span class="muted small">&middot; &euro;<%= Number(i.price).toFixed(2) %></span></li>
       <% }) %>
     </ul>
     <p><strong><%= tr('Total:', 'Total :') %> &euro;<%= Number(order.total_amount).toFixed(2) %></strong></p>

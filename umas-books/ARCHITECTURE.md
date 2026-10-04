@@ -81,7 +81,7 @@ different nav (no cart/account icons).
 
 ## Data domains
 
-28 application tables (`migrations/`), plus `schema_migrations` and the
+30 application tables (`migrations/`), plus `schema_migrations` and the
 `session` store table (created by `migrate.js` / `connect-pg-simple`
 rather than by a numbered migration), grouped by what they belong to:
 
@@ -99,6 +99,26 @@ rather than by a numbered migration), grouped by what they belong to:
   through hidden fields and `public/inventory-location.js` (localStorage);
   `/admin/inventory/move` moves one copy per scanned ISBN (`parseScan`), and
   each move writes a `copy.move` audit row (location codes only).
+- **Book requests** — `book_requests` and `book_request_list_tokens`
+  (migration 047), replacing the retired wishlist. Public, no login or
+  membership: `/request-a-book` (form; always answers "check your inbox"),
+  double opt-in via `/request-a-book/confirm/:token` (the GET only shows a
+  Confirm button, the POST confirms, so mail scanners can't), a private
+  `/my-requests/:manageToken` link in every email to view/cancel, "Find my
+  requests" at `/my-requests` (30-day emailed list link), and a "My book
+  requests" section in My Account (by `user_id` or verified email). Tokens
+  use `lib/resetTokens.js` (hashed at rest; the manage token is replaced
+  whenever a newer email goes out). Logic is in `lib/bookRequests.js`: when a
+  copy is created (or a book's title/ISBN is edited) open requests with the same ISBN
+  (`isbnVariants`, 10 vs 13) or the same normalised title with an empty or
+  overlapping author become `matched`. Admin → Book Requests
+  (`routes/admin/requests.js`, English) has a one-click Notify and "Notify and hold
+  7 days" (reserves the copy with `reserved_at` back-dated 7 days so the standard 14-day
+  hold ends in 7, and `reminder_sent_at` set so the day-11 pickup reminder
+  stays quiet); every action writes an audit row with ids only. Emails use the
+  requester's `lang`. Personal columns are cleared on cancel, expiry, erasure
+  and by the daily purge (unconfirmed after 7 days, open/matched/notified at 12 months,
+  ended ones after 30 days); the data export has a `book_requests` section.
 - **Accounts & auth** — `users`, `password_reset_tokens`,
   `email_verification_tokens`
 - **Shop / checkout** — `books`, `book_copies`, `orders`, `order_items`
@@ -384,9 +404,18 @@ as-is and never copied.
 - **Where the bytes live:** the `images` table (`id` = lowercase hex SHA-256
   of the bytes, `content_type`, `data` BYTEA, `byte_size`;
   `migrations/034_image_store.sql`). Content-addressed, so identical uploads
-  dedupe and a URL's bytes never change. Images are not garbage-collected
-  when a row stops referencing them (a replaced cover leaves an orphan);
-  they are small and re-uploads dedupe, so this is deliberate for now.
+  dedupe and a URL's bytes never change.
+- **Cleanup of unused images:** `src/lib/imageCleanup.js` deletes `images`
+  rows whose hash appears in no referencing column. The columns are listed
+  once, in `IMAGE_REFERENCES` (cover/image URL columns plus the rich-text
+  bodies, excerpts and descriptions, matched by substring so an `<img>`
+  inside a body counts). Only images older than 7 days are removed (an
+  upload exists before the form that references it is saved), `saveImage`
+  refreshes `created_at` on a repeat upload, one run deletes at most 500
+  rows in a single statement, and a daily step in `src/index.js` runs it and
+  logs counts only. The admin dashboard shows "Unused images waiting for
+  cleanup". A test fails if a new image-looking text column or a new
+  `saveImage` caller appears without updating `IMAGE_REFERENCES`.
 - **Serving:** `GET /img/<sha256>.(jpg|png|webp)` (`src/routes/img.js`),
   mounted before the session store like `/assets`, so it never reads or sets
   a cookie. `Cache-Control: public, max-age=31536000, immutable`, `ETag` =

@@ -28,6 +28,7 @@ const { csrfTokenLimiter } = require("./middleware/rateLimits");
 const { expireStaleReservations, sendPickupReminders } = require("./lib/reservations");
 const { runCartMaintenance: sweepCart } = require("./lib/cart");
 const { guardJob } = require("./lib/jobGuard");
+const { purgeUnusedImages } = require("./lib/imageCleanup");
 const { purgeExpiredPersonalData } = require("./lib/privacy");
 const { expireStaleMemberships, reconcileRecentMemberships } = require("./lib/membership");
 const { alertOnError } = require("./lib/errorAlert");
@@ -52,6 +53,7 @@ const blogRoutes = require("./routes/blog");
 const sessionsRoutes = require("./routes/sessions");
 const booksRoutes = require("./routes/books");
 const contactRoutes = require("./routes/contact");
+const bookRequestRoutes = require("./routes/bookRequests");
 const cartRoutes = require("./routes/cart");
 const helloassoWebhookRoutes = require("./routes/helloassoWebhook");
 const adminRoutes = require("./routes/admin");
@@ -340,6 +342,7 @@ app.use(sessionsRoutes);
 app.use(booksRoutes);
 app.use(cartRoutes);
 app.use(contactRoutes);
+app.use(bookRequestRoutes);
 app.use(adminRoutes);
 
 app.use((req, res) => {
@@ -438,6 +441,16 @@ function runPrivacyPurge() {
 runPrivacyPurge();
 const privacyTimer = setInterval(runPrivacyPurge, 24 * 60 * 60 * 1000);
 
+// Unused-image cleanup (lib/imageCleanup.js): not personal data, so its own
+// daily step. Removes at most one batch of images older than 7 days that no
+// row references any more. Counts only in the log line.
+const runImageCleanup = guardJob("Image cleanup", async () => {
+  const { deleted, bytes } = await purgeUnusedImages(pool);
+  console.log("Image cleanup:", JSON.stringify({ deleted, bytes }));
+});
+runImageCleanup();
+const imageCleanupTimer = setInterval(runImageCleanup, 24 * 60 * 60 * 1000);
+
 // Graceful shutdown. Render sends SIGTERM on every deploy and spin-down;
 // without a handler the process dies mid-request (an in-flight HelloAsso
 // webhook or checkout would be cut off). Order matters:
@@ -456,6 +469,7 @@ function shutdown(signal) {
   clearInterval(reservationTimer);
   clearInterval(cartTimer);
   clearInterval(privacyTimer);
+  clearInterval(imageCleanupTimer);
   setTimeout(() => {
     console.error(`Shutdown did not finish within ${SHUTDOWN_TIMEOUT_MS / 1000}s - forcing exit.`);
     process.exit(1);

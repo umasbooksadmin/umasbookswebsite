@@ -14,6 +14,8 @@ test("order email states order number, Paris date, payment method, seller identi
   assert.match(t, /SIRET 109 441 147 00013/);
   assert.match(t, /5 rue Hippolyte Savary, 81000 Albi/);
   assert.match(t, /TVA non applicable/);
+  assert.match(t, /06 98 95 67 91/);
+  assert.match(t, /admin@umasbooks\.org\nTVA non applicable/, "contact email sits in the seller block");
   assert.match(t, /https:\/\/shop\.test\/terms-of-sale\.html/);
   assert.match(t, /Rue Peyrolière, 81000 Albi\) during opening hours/, "pickup is at the shop, not the registered office");
   assert.match(t, /- Emma — €12\.50/);
@@ -63,3 +65,26 @@ test("English order is unchanged and a missing or unknown order.lang means Engli
   assert.equal(buildOrderConfirmationText({ ...order, lang: "en" }, items, "https://shop.test/"), base);
 });
 
+
+// ------------------------------------------------------------ drop-in lines
+
+const dropin = {
+  item_title: "Éveil — 12 Dec, 18:00", price: "5.00", class_dropin_seat_id: 1,
+  class_title: "Éveil", class_starts_at: "2092-12-12T17:00:00Z", // 18:00 in Paris
+};
+
+test("order email renders a drop-in line in the order's language, Paris time", () => {
+  const fr = buildOrderConfirmationText({ ...order, lang: "fr" }, [dropin], "");
+  assert.match(fr, /- Éveil — 12 déc\., 18:00 — €5\.00/);
+  assert.ok(!fr.includes("12 Dec"));
+  const en = buildOrderConfirmationText({ ...order, lang: "en" }, [dropin], "");
+  assert.match(en, /- Éveil — 12 Dec, 18:00 — €5\.00/);
+  const none = buildOrderConfirmationText(order, [dropin], "");
+  assert.match(none, /12 Dec, 18:00/);
+});
+
+test("order email falls back to the stored title when the class is gone", () => {
+  const gone = { ...dropin, item_title: "Old session — 12 Dec, 18:00", class_title: null, class_starts_at: null };
+  const fr = buildOrderConfirmationText({ ...order, lang: "fr" }, [gone], "");
+  assert.match(fr, /- Old session — 12 Dec, 18:00 — €5\.00/);
+});

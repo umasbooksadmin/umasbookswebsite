@@ -61,6 +61,18 @@ To answer an access or portability request ("a copy of my data"), use admin > Me
 | Security | Reservation details are shown in the admin area only |
 
 Inventory locations (`book_copies.location`, the shelf code where a physical copy sits) are not personal data and are not covered here.
+## 3b. Book requests / Demandes de livres
+
+| | |
+|---|---|
+| Purpose | Let anyone ask us to look out for a book (no account or membership needed); confirm the request by email; email the person if a copy arrives (and optionally hold it for 7 days) |
+| Data | Book title, author, ISBN; email (stored lower-case), optional name and note; the language of the page (en/fr) for emails; the account id when the person was logged in; dates and status; our own staff note. Confirmation and private-link tokens are stored **hashed** only. A "find my requests" link stores the email and a hashed token for 30 days. |
+| People | Visitors, account holders and members who fill in the form at `/request-a-book` |
+| Legal basis | Their request (pre-contractual steps at their request); double opt-in by email link |
+| Recipients / processors | Render; Google Workspace/Gmail (confirmation and notification emails); GitHub and Backblaze (backups). Admins see name and email on the admin Requests page. |
+| Transfers outside EU | Google, GitHub, Backblaze as above |
+| Retention | **Unconfirmed** requests: deleted after **7 days**. **Open, matched or notified** requests: **12 months at most** from the request, then marked expired and the email, name, note and account link are cleared. **Fulfilled, cancelled or expired** requests lose email, name, note, staff note and account link **30 days** after they ended (cancelling by the person clears them at once). Title, author and ISBN stay without any personal data, for anonymous demand counts. Expired "find my requests" links are deleted. **Automated** daily (`purgeExpiredPersonalData`, step `bookRequests`). Also cleared on erasure (`eraseMember`) and included in the member data export (`book_requests`). |
+| Security | Tokens are random and stored hashed; pages reached by a token link are not cached and send no Referer; the form is rate limited (5 a day per connection, 3 pending requests per email) and gives the same answer whether or not an address is known; the admin Requests page is admin-only and every action is in the audit log (ids only). |
 
 ## 4. Event and session sign-ups / Inscriptions aux événements et séances
 
