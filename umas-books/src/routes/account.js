@@ -33,8 +33,9 @@ router.get("/account", requireAuth, async (req, res) => {
 
   const { rows: orders } = await pool.query(
     `SELECT o.*, (
-       SELECT json_agg(json_build_object('title', i.item_title, 'price', i.price, 'classTitle', c.title, 'classStartsAt', c.starts_at) ORDER BY i.id)
+       SELECT json_agg(json_build_object('title', i.item_title, 'price', i.price, 'classTitle', c.title, 'classStartsAt', c.starts_at, 'condition', bc.condition) ORDER BY i.id)
        FROM order_items i
+       LEFT JOIN book_copies bc ON bc.id = i.book_copy_id
        LEFT JOIN class_dropin_seats s ON s.id = i.class_dropin_seat_id
        LEFT JOIN classes c ON c.id = s.class_id
        WHERE i.order_id = o.id

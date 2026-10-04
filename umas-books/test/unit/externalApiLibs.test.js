@@ -212,6 +212,7 @@ test("bookLookup: lookupByIsbn maps a found record, normalising the ISBN in the 
     description: { value: "A fox story." },
     cover: { medium: "https://covers.example/m.jpg", large: "https://covers.example/l.jpg" },
     subjects: [{ name: "Foxes" }, { name: "Fantasy fiction" }, { name: "Fiction" }, { name: "x:y" }],
+    physical_format: "Mass Market Paperback",
   });
   const book = await lookupByIsbn("978-0-14-032872-1");
   assert.equal(calls[0].url, "https://openlibrary.org/api/volumes/brief/isbn/9780140328721.json");
@@ -226,7 +227,19 @@ test("bookLookup: lookupByIsbn maps a found record, normalising the ISBN in the 
     coverUrl: "https://covers.example/l.jpg",
     genre: "Fiction, Fantasy",
     genreFr: "Fiction, Fantasy",
+    binding: "mass_market",
   });
+});
+
+test("bookLookup: lookupByIsbn reports the binding from physical_format (also under details), null when unknown", async () => {
+  handler = () => volumeReply({ title: "A", physical_format: "Hardcover" });
+  assert.equal((await lookupByIsbn("9780140328721")).binding, "hardcover");
+  handler = () => json({ records: { "/books/OL1M": { isbns: ["9780140328721"], data: { title: "A" }, details: { details: { physical_format: "paperback" } } } } });
+  assert.equal((await lookupByIsbn("9780140328721")).binding, "paperback");
+  handler = () => volumeReply({ title: "A", physical_format: "Audio CD" });
+  assert.equal((await lookupByIsbn("9780140328721")).binding, null);
+  handler = () => volumeReply({ title: "A" });
+  assert.equal((await lookupByIsbn("9780140328721")).binding, null);
 });
 
 test("bookLookup: lookupByIsbn handles sparse records (by_statement author, string description, medium cover)", async () => {

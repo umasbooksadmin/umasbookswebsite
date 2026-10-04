@@ -64,7 +64,7 @@ async function seedBook(title, isbn = isbn13()) {
   return rows[0];
 }
 // ageDays: bigger = older, so "oldest first" is testable.
-async function seedCopy(bookId, { status = "in_stock", condition = "good", price = 5, publisherPrice = null, ageDays = 0, location = null, reserved = false } = {}) {
+async function seedCopy(bookId, { status = "in_stock", condition = "very_good", price = 5, publisherPrice = null, ageDays = 0, location = null, reserved = false } = {}) {
   const { rows } = await pool.query(
     `INSERT INTO book_copies (book_id, condition, price, publisher_price, status, location, created_at,
                               reserved_by_name, reserved_by_email, reserved_by_phone, reserved_at)
@@ -205,7 +205,7 @@ test("a new book must sell at the publisher's price, at most 5% off", async () =
   assert.equal((await record(copyId, "19.00")).status, 302, "exactly 5% off is allowed");
   assert.equal(Number((await salesOf(copyId))[0].price), 19);
   // A used book is free-priced.
-  const used = await seedCopy((await seedBook(`Used ${uniq()}`)).id, { condition: "fair", price: 10 });
+  const used = await seedCopy((await seedBook(`Used ${uniq()}`)).id, { condition: "acceptable", price: 10 });
   assert.equal((await record(used, "1")).status, 302);
 });
 
@@ -246,7 +246,7 @@ test("the page lists only the last 10 sales", async () => {
 
 // ---------- source ----------
 
-const INTAKE = { description: "d", descriptionFr: "d", coverUrl: "https://example.test/c.jpg", status: "in_stock", condition: "good", price: "5" };
+const INTAKE = { description: "d", descriptionFr: "d", coverUrl: "https://example.test/c.jpg", status: "in_stock", condition: "very_good", price: "5" };
 const sourceOfTitle = async (title) =>
   (await pool.query("SELECT c.source FROM book_copies c JOIN books b ON b.id = c.book_id WHERE b.title = $1", [title])).rows[0].source;
 
@@ -300,7 +300,7 @@ test("the copy edit form shows and saves the source, and can clear it", async ()
   const copyId = await seedCopy(book.id);
   const { text } = await get(`/admin/inventory/${book.id}`);
   assert.match(text, new RegExp(`id="source-${copyId}" name="source"[\\s\\S]*?<option value="" selected>Unknown</option>`));
-  const edit = (source) => post(`/admin/inventory/${book.id}/copies/${copyId}`, { condition: "good", status: "in_stock", price: "5", source });
+  const edit = (source) => post(`/admin/inventory/${book.id}/copies/${copyId}`, { condition: "very_good", status: "in_stock", price: "5", source });
   assert.equal((await edit("purchase")).status, 302);
   assert.equal((await copyRow(copyId)).source, "purchase");
   assert.match((await get(`/admin/inventory/${book.id}`)).text, new RegExp(`id="source-${copyId}"[\\s\\S]*?<option value="purchase" selected>Purchase</option>`));

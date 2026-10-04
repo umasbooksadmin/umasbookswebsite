@@ -36,7 +36,7 @@ router.get("/admin/inventory/price-suggestion", requireAdmin, suggestionLimiter,
   if (copyId !== null) {
     // Pricing an existing copy: the book comes from the copy, and only the copies before it count toward clearance.
     const { rows } = await pool.query(
-      `SELECT b.isbn, b.title, b.authors, to_jsonb(b) ->> 'binding' AS binding
+      `SELECT b.isbn, b.title, b.authors, b.binding
        FROM book_copies c JOIN books b ON b.id = c.book_id WHERE c.id = $1`, [copyId]
     );
     if (rows.length) src = { ...src, isbn: rows[0].isbn || "", title: rows[0].title, author: rows[0].authors, binding: src.binding || rows[0].binding };

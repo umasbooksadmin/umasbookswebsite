@@ -47,15 +47,15 @@ test("seatsTakenExpr counts both legacy sign-ups and in_cart/sold drop-in seats 
 test("inventory vocab: normalizers accept exactly the listed values", () => {
   for (const c of inv.CONDITIONS) assert.equal(inv.normalizeCondition(c.value), c.value);
   for (const s of inv.STATUSES) assert.equal(inv.normalizeStatus(s.value), s.value);
-  assert.deepEqual(inv.CONDITIONS.map((c) => c.value), ["new", "like_new", "good", "fair", "poor"]);
+  assert.deepEqual(inv.CONDITIONS.map((c) => c.value), ["new", "like_new", "very_good", "acceptable"]);
   assert.deepEqual(inv.STATUSES.map((s) => s.value), ["in_stock", "reserved", "sold", "donated", "damaged"]);
 });
 
 test("inventory normalizers reject near-misses and non-strings", () => {
-  assert.equal(inv.normalizeCondition("Like_New"), "good");
-  assert.equal(inv.normalizeCondition("NEW"), "good", "no case folding");
-  assert.equal(inv.normalizeCondition(null), "good");
-  assert.equal(inv.normalizeCondition({}), "good");
+  assert.equal(inv.normalizeCondition("Like_New"), "very_good");
+  assert.equal(inv.normalizeCondition("NEW"), "very_good", "no case folding");
+  assert.equal(inv.normalizeCondition(null), "very_good");
+  assert.equal(inv.normalizeCondition({}), "very_good");
   assert.equal(inv.normalizeStatus("SOLD"), "in_stock");
   assert.equal(inv.normalizeStatus(" sold"), "in_stock");
   assert.equal(inv.normalizeStatus(["sold"]), "in_stock");

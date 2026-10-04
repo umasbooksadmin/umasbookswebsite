@@ -94,12 +94,12 @@ async function seed() {
   await client.connect();
   try {
     const { rows: b } = await client.query(
-      "INSERT INTO books (title, authors, description, description_fr, categories, categories_fr) VALUES ('I18n Shop Book', 'I18n Shop Author', 'A plain English description.', 'Une description en français.', 'Fiction', 'Roman') RETURNING id"
+      "INSERT INTO books (title, authors, description, description_fr, categories, categories_fr, binding) VALUES ('I18n Shop Book', 'I18n Shop Author', 'A plain English description.', 'Une description en français.', 'Fiction', 'Roman', 'paperback') RETURNING id"
     );
     await client.query("INSERT INTO books (title, authors) VALUES ('I18n Shop Book Two', 'I18n Shop Author')");
     await client.query("INSERT INTO book_awards (book_id, label, year, kind, source, status) VALUES ($1, 'I18n Shop Award Prize', 2020, 'award', 'wikidata', 'verified')", [b[0].id]);
     const { rows: c } = await client.query(
-      "INSERT INTO book_copies (book_id, status, price, condition) VALUES ($1, 'in_stock', 6.5, 'good'), ($1, 'in_stock', 9, 'like_new') RETURNING id",
+      "INSERT INTO book_copies (book_id, status, price, condition) VALUES ($1, 'in_stock', 6.5, 'very_good'), ($1, 'in_stock', 9, 'like_new'), ($1, 'in_stock', 12, 'new'), ($1, 'in_stock', 3, 'acceptable') RETURNING id",
       [b[0].id]
     );
     const { rows: sold } = await client.query("INSERT INTO books (title, authors) VALUES ('I18n Shop Sold Book', 'I18n Shop Author') RETURNING id");

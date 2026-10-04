@@ -54,7 +54,7 @@ async function makeBook({ title, authors = "Pub Author", categories = null, desc
   for (const c of copies) {
     const r = await pool.query(
       "INSERT INTO book_copies (book_id, status, price, condition, created_at) VALUES ($1, $2, $3, $4, COALESCE($5, now())) RETURNING id",
-      [rows[0].id, c.status || "in_stock", c.price ?? null, c.condition || "good", c.createdAt || null]
+      [rows[0].id, c.status || "in_stock", c.price ?? null, c.condition || "very_good", c.createdAt || null]
     );
     ids.push(r.rows[0].id);
   }
@@ -104,7 +104,7 @@ test("search: CORS headers and result shape; only in-stock books; price is the c
   assert.equal(res.headers.get("cross-origin-resource-policy"), "cross-origin");
   assert.equal(res.headers.get("cache-control"), "public, max-age=60");
   const hit = json.find((x) => x.id === b.id);
-  assert.deepEqual(hit, { id: b.id, title: b.title, author: "Some Author", coverUrl: "/c.png", price: 4.5, awards: "", clearance: false, url: `${app.base}/books/${b.id}` });
+  assert.deepEqual(hit, { id: b.id, title: b.title, author: "Some Author", coverUrl: "/c.png", price: 4.5, awards: "", conditions: [{ value: "very_good", label: "Very Good" }], clearance: false, binding: null, bindingLabel: null, url: `${app.base}/books/${b.id}` });
   assert.ok(!json.some((x) => x.id === gone.id), "books with no in-stock copy are hidden");
 });
 
@@ -295,7 +295,7 @@ test("book detail: renders title, author, cheapest-first copies, condition, esca
   const author = `Author ${uniq()}`;
   const book = await makeBook({
     title: `<script>alert('b')</script> ${TAG}`, authors: author, categories: "Poetry",
-    description: "<img src=x onerror=1> Nice", copies: [{ price: 12, condition: "good" }, { price: 4, condition: "fair" }],
+    description: "<img src=x onerror=1> Nice", copies: [{ price: 12, condition: "very_good" }, { price: 4, condition: "acceptable" }],
   });
   const sibling = await makeBook({ title: `${TAG} Sibling`, authors: author });
   const soldOut = await makeBook({ title: `${TAG} SiblingSold`, authors: author, copies: [{ status: "sold" }] });
@@ -311,7 +311,9 @@ test("book detail: renders title, author, cheapest-first copies, condition, esca
   assert.ok(text.includes(`/books/${sibling.id}`));
   assert.ok(!text.includes(`/books/${soldOut.id}`), "sold-out books by the same author aren't suggested");
   assert.match(text, /action="\/cart\/add"/);
-  assert.match(text, /<select[^>]*name="copyId"/);
+  assert.equal((text.match(/name="copyId"/g) || []).length, 2, "one add-to-cart form per copy");
+  assert.match(text, /Acceptable/);
+  assert.match(text, /Very Good/);
 });
 
 test("book detail: a book with no in-stock copies renders without an add-to-cart form; unknown, garbage and overflow ids 404", async () => {

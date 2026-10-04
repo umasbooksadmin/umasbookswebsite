@@ -4,12 +4,40 @@
 
 const { normalizeIsbn } = require("./bookLookup");
 
+// The four condition grades: the single source of truth for the admin forms,
+// the public pages, the cart and the emails. A copy that cannot be sold at all
+// is not a condition: it gets the status "damaged / withdrawn" instead.
 const CONDITIONS = [
-  { value: "new", label: "New" },
-  { value: "like_new", label: "Like New" },
-  { value: "good", label: "Good" },
-  { value: "fair", label: "Fair" },
-  { value: "poor", label: "Poor" },
+  {
+    value: "new", label: "New", label_fr: "Neuf",
+    description: "Unread, as published (sold at the publisher's price).",
+    description_fr: "Jamais lu, tel que publié (vendu au prix éditeur).",
+  },
+  {
+    value: "like_new", label: "Like New", label_fr: "Comme neuf",
+    description: "Looks unread: no marks, no wear.",
+    description_fr: "Comme jamais lu : ni marques ni usure.",
+  },
+  {
+    value: "very_good", label: "Very Good", label_fr: "Très bon état",
+    description: "Light wear only: clean pages, no writing or highlighting.",
+    description_fr: "Légère usure seulement : pages propres, sans annotations ni surlignage.",
+  },
+  {
+    value: "acceptable", label: "Acceptable", label_fr: "État acceptable",
+    description: "Clearly used but complete and readable: wear, creases or some markings.",
+    description_fr: "Visiblement utilisé mais complet et lisible : usure, plis ou quelques annotations.",
+  },
+];
+
+const DEFAULT_CONDITION = "very_good";
+
+// How the book is bound. A property of the edition (books.binding), not of a
+// copy; optional (NULL when nobody has said).
+const BINDINGS = [
+  { value: "hardcover", label: "Hardcover", label_fr: "Relié" },
+  { value: "paperback", label: "Paperback", label_fr: "Broché" },
+  { value: "mass_market", label: "Mass Market", label_fr: "Poche" },
 ];
 
 const STATUSES = [
@@ -39,7 +67,26 @@ const CONDITION_VALUES = new Set(CONDITIONS.map((c) => c.value));
 const STATUS_VALUES = new Set(STATUSES.map((s) => s.value));
 
 function normalizeCondition(value) {
-  return CONDITION_VALUES.has(value) ? value : "good";
+  return CONDITION_VALUES.has(value) ? value : DEFAULT_CONDITION;
+}
+
+const BINDING_VALUES = new Set(BINDINGS.map((b) => b.value));
+
+// A known binding value, or null (blank, unknown, anything else).
+function normalizeBinding(value) {
+  return BINDING_VALUES.has(value) ? value : null;
+}
+
+// Label of a grade/binding in the given language ("fr" or English); an
+// unknown value is returned as is.
+function conditionLabel(value, lang) {
+  const c = CONDITIONS.find((x) => x.value === value);
+  return c ? (lang === "fr" ? c.label_fr : c.label) : value;
+}
+
+function bindingLabel(value, lang) {
+  const b = BINDINGS.find((x) => x.value === value);
+  return b ? (lang === "fr" ? b.label_fr : b.label) : null;
 }
 
 // French fixed book price law (loi Lang, n° 81-766): a NEW book must be sold
@@ -133,4 +180,4 @@ function isbnVariants(isbn) {
   return [...out];
 }
 
-module.exports = { CONDITIONS, STATUSES, SOURCES, normalizeSource, LOCATION_MAX, normalizeCondition, resolveCopyPricing, normalizeStatus, normalizeGenres, normalizeLocation, parseScan, isbnVariants };
+module.exports = { CONDITIONS, BINDINGS, DEFAULT_CONDITION, STATUSES, SOURCES, normalizeSource, LOCATION_MAX, normalizeCondition, normalizeBinding, conditionLabel, bindingLabel, resolveCopyPricing, normalizeStatus, normalizeGenres, normalizeLocation, parseScan, isbnVariants };

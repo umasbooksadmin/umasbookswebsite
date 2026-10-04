@@ -85,6 +85,20 @@ different nav (no cart/account icons).
 `session` store table (created by `migrate.js` / `connect-pg-simple`
 rather than by a numbered migration), grouped by what they belong to:
 
+- **Condition grades and binding** — `book_copies.condition` is one of four
+  grades, `new`, `like_new`, `very_good`, `acceptable` (default `very_good`),
+  defined once in `CONDITIONS` in `src/lib/inventory.js` (value, English and
+  French label, one-line description) and used by the admin forms, the public
+  book page (every in-stock copy is listed with its grade, plus a "What the
+  grades mean" legend), the cart and the order lines/emails (`orderItemLabel`
+  appends the grade, joined from the copy via `order_items.book_copy_id`).
+  Migration 048 remapped the old grades (good to very_good, fair and poor to
+  acceptable) and added a CHECK constraint. A copy that cannot be sold at all
+  is not a grade: it gets the status `damaged`. `books.binding` (migration
+  048, NULL when unknown) is `hardcover`, `paperback` or `mass_market`
+  (`BINDINGS`, `normalizeBinding`); it belongs to the edition, is prefilled
+  from Open Library's `physical_format` (`mapBinding` in
+  `src/lib/bookLookup.js`) and never overwritten by a second copy.
 - **Fixed price for new books (loi Lang)** — a `book_copies` row with
   condition `new` must carry `publisher_price` (migration 041) and be priced
   between 95% and 100% of it; enforced server-side by `resolveCopyPricing`

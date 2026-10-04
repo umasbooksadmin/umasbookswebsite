@@ -75,7 +75,7 @@ async function clearanceCandidates(pool, settings) {
   const after = settings.clearance.afterCopies;
   const { rows } = await pool.query(
     `SELECT c.id, c.book_id, c.status, c.condition, c.price, c.is_clearance, c.publisher_price,
-            b.title, b.isbn, to_jsonb(b) ->> 'binding' AS binding,
+            b.title, b.isbn, b.binding,
             ROW_NUMBER() OVER (PARTITION BY c.book_id ORDER BY c.created_at, c.id)::int AS pos,
             COUNT(*) OVER (PARTITION BY c.book_id)::int AS total
      FROM book_copies c JOIN books b ON b.id = c.book_id

@@ -7,7 +7,7 @@ const { audit } = require("../../lib/audit");
 const { normalizeIsbn, lookupByIsbn, searchByTitleAuthor, translateGenresToFrench } = require("../../lib/bookLookup");
 const { extractBookInfoFromPhoto } = require("../../lib/coverVision");
 const { generateBookDescription, translateDescriptionToFrench } = require("../../lib/bookDescription");
-const { CONDITIONS, STATUSES, SOURCES, normalizeSource, normalizeCondition, resolveCopyPricing, normalizeStatus, normalizeGenres, normalizeLocation, parseScan, isbnVariants } = require("../../lib/inventory");
+const { CONDITIONS, BINDINGS, STATUSES, SOURCES, normalizeSource, normalizeCondition, normalizeBinding, resolveCopyPricing, normalizeStatus, normalizeGenres, normalizeLocation, parseScan, isbnVariants } = require("../../lib/inventory");
 const { expireStaleReservations } = require("../../lib/reservations");
 const { checkBookAwardsInBackground } = require("../../lib/awards");
 const { matchRequestsForCopy, matchRequestsForBook } = require("../../lib/bookRequests");
@@ -443,10 +443,10 @@ router.post("/admin/inventory/lookup", requireAdmin, async (req, res) => {
 
   const defaultPricing = await getDefaultCopyPricing(book.isbn);
   // The price starts at the suggestion for the form's default condition.
-  const { rows: stocked } = book.isbn ? await pool.query("SELECT to_jsonb(b) ->> 'binding' AS binding FROM books b WHERE b.isbn = ANY($1) LIMIT 1", [isbnVariants(normalizeIsbn(book.isbn))]) : { rows: [] };
+  const { rows: stocked } = book.isbn ? await pool.query("SELECT b.binding FROM books b WHERE b.isbn = ANY($1) LIMIT 1", [isbnVariants(normalizeIsbn(book.isbn))]) : { rows: [] };
   const suggestion = await prepareIntakeForm(res, { isbn: book.isbn, title: book.title, author: book.author, binding: book.binding || (stocked[0] && stocked[0].binding) });
   defaultPricing.price = suggestion.price;
-  res.render("admin/inventory/new", { active: "inventory", book, error, fromScan: true, conditions: CONDITIONS, statuses: STATUSES, defaultPricing, location, source, sources: SOURCES, locations: await getLocations() });
+  res.render("admin/inventory/new", { active: "inventory", book, error, fromScan: true, conditions: CONDITIONS, bindings: BINDINGS, statuses: STATUSES, defaultPricing, location, source, sources: SOURCES, locations: await getLocations() });
 });
 
 router.get("/admin/inventory/new", requireAdmin, async (req, res) => {
@@ -456,7 +456,7 @@ router.get("/admin/inventory/new", requireAdmin, async (req, res) => {
     book: { isbn: null, title: null, author: null, publisher: null, publishedYear: null, description: null, coverUrl: null, genre: null, genreFr: null, descriptionFr: null },
     error: null,
     fromScan: false,
-    conditions: CONDITIONS,
+    conditions: CONDITIONS, bindings: BINDINGS,
     statuses: STATUSES,
     defaultPricing: { price: suggestion.price, acquisitionCost: 0 },
     location: normalizeLocation(req.query.location) || "",
@@ -492,6 +492,7 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
   let descriptionFr = (req.body.descriptionFr || "").trim() || null;
   let coverUrl = (req.body.coverUrl || "").trim() || null;
 
+  const binding = normalizeBinding(req.body.binding);
   const location = normalizeLocation(req.body.location);
   const source = normalizeSource(req.body.source);
 
@@ -500,10 +501,10 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
     res.locals.priceLevelSelected = req.body.priceLevel;
     return res.render("admin/inventory/new", {
       active: "inventory", location: location || "", source: source || "", sources: SOURCES, locations: await getLocations(),
-      book: { isbn, title: null, author, publisher, publishedYear, description, descriptionFr, coverUrl, genre, genreFr },
+      book: { isbn, title: null, author, publisher, publishedYear, description, descriptionFr, coverUrl, genre, genreFr, binding },
       error: "Title is required.",
       fromScan: req.body.fromScan === "1",
-      conditions: CONDITIONS,
+      conditions: CONDITIONS, bindings: BINDINGS,
       statuses: STATUSES,
       defaultPricing: {
         price: req.body.price ? Number(req.body.price) : 5,
@@ -523,10 +524,10 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
     res.locals.priceLevelSelected = req.body.priceLevel;
     return res.render("admin/inventory/new", {
       active: "inventory", location: location || "", source: source || "", sources: SOURCES, locations: await getLocations(),
-      book: { isbn, title, author, publisher, publishedYear, description, descriptionFr, coverUrl, genre, genreFr },
+      book: { isbn, title, author, publisher, publishedYear, description, descriptionFr, coverUrl, genre, genreFr, binding },
       error: pricing.error,
       fromScan: req.body.fromScan === "1",
-      conditions: CONDITIONS,
+      conditions: CONDITIONS, bindings: BINDINGS,
       statuses: STATUSES,
       selectedCondition: condition,
       publisherPriceValue: req.body.publisherPrice || "",
@@ -551,6 +552,11 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
     if (existingRows.length) {
       const existing = existingRows[0];
       bookId = existing.id;
+      // A second copy never overwrites what is already recorded: the binding
+      // is only filled in when the book has none yet.
+      if (binding && !existing.binding) {
+        await pool.query("UPDATE books SET binding = $1, updated_at = now() WHERE id = $2", [binding, bookId]);
+      }
       if (!existing.description || !existing.cover_url || !existing.description_fr) {
         const [genDescription, genCoverUrl] = await Promise.all([
           existing.description ? null : (description || generateBookDescription({ title, author, publisher, publishedYear })),
@@ -579,10 +585,10 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
     descriptionFr = descriptionFr || (description ? await translateDescriptionToFrench(description) : null);
 
     const { rows } = await pool.query(
-      `INSERT INTO books (isbn, title, authors, publisher, published_year, description, description_fr, cover_url, categories, categories_fr, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      `INSERT INTO books (isbn, title, authors, publisher, published_year, description, description_fr, cover_url, categories, categories_fr, binding, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        ON CONFLICT DO NOTHING RETURNING id`,
-      [isbn || null, title, author, publisher, publishedYear, description, descriptionFr, coverUrl, genre, genreFr, req.session.user.id]
+      [isbn || null, title, author, publisher, publishedYear, description, descriptionFr, coverUrl, genre, genreFr, binding, req.session.user.id]
     );
     if (rows.length) {
       bookId = rows[0].id;
@@ -666,7 +672,7 @@ async function renderBook(res, id, error = null, notice = null) {
      WHERE a.book_id = $1 ORDER BY (a.status = 'pending') DESC, a.year DESC NULLS LAST, lower(a.label)`, [id]
   );
   res.locals.priceUi = await priceUi(pool); // the price-level choices in each copy's form
-  res.render("admin/inventory/show", { active: "inventory", book, copies, awards, conditions: CONDITIONS, statuses: STATUSES, sources: SOURCES, error, notice, locations: await getLocations(), requestCount: asked[0].n });
+  res.render("admin/inventory/show", { active: "inventory", book, copies, awards, conditions: CONDITIONS, bindings: BINDINGS, statuses: STATUSES, sources: SOURCES, error, notice, locations: await getLocations(), requestCount: asked[0].n });
 }
 
 router.get("/admin/inventory/:id", requireAdmin, (req, res) => renderBook(res, Number(req.params.id), null, hasOrdersNotice(req)));
@@ -696,9 +702,9 @@ router.post("/admin/inventory/:id", requireAdmin, async (req, res) => {
     try {
       await pool.query(
         `UPDATE books SET isbn=$1, title=$2, authors=$3, publisher=$4, published_year=$5,
-                description=$6, description_fr=$7, cover_url=$8, categories=$9, categories_fr=$10, updated_at=now()
-         WHERE id = $11`,
-        [isbn || null, title, author, publisher, publishedYear, description, descriptionFr, coverUrl, genre, genreFr, id]
+                description=$6, description_fr=$7, cover_url=$8, categories=$9, categories_fr=$10, binding=$11, updated_at=now()
+         WHERE id = $12`,
+        [isbn || null, title, author, publisher, publishedYear, description, descriptionFr, coverUrl, genre, genreFr, normalizeBinding(req.body.binding), id]
       );
     } catch (err) {
       if (err.code !== "23505") throw err;
@@ -768,7 +774,7 @@ router.post("/admin/inventory/:id/copies/:copyId", requireAdmin, async (req, res
 // The copy and its book, with what a price suggestion needs.
 async function loadCopyForPricing(bookId, copyId) {
   const { rows } = await pool.query(
-    `SELECT c.*, b.isbn, b.title, b.authors, to_jsonb(b) ->> 'binding' AS binding
+    `SELECT c.*, b.isbn, b.title, b.authors, b.binding
      FROM book_copies c JOIN books b ON b.id = c.book_id WHERE c.id = $1 AND c.book_id = $2`,
     [copyId, bookId]
   );

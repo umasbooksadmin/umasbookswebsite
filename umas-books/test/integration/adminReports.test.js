@@ -8,12 +8,12 @@
 // never depend on today; the stock reports use dates relative to today.
 //
 // Stock now (in_stock unless noted), genre = first word of categories:
-//   c1 Fantasy  good      5.00  A1   donation  10 days ago
-//   c2 Fantasy  good      7.50  A1   purchase  120 days ago
+//   c1 Fantasy very_good    5.00  A1   donation  10 days ago
+//   c2 Fantasy very_good    7.50  A1   purchase  120 days ago
 //   c3 Cooking  new      20.00  -    unknown   250 days ago
-//   c4 Cooking  fair      3.00  B2   lot       500 days ago (reserved)
+//   c4 Cooking acceptable    3.00  B2   lot       500 days ago (reserved)
 //   c5 "=cmd"   like_new  4.00  A1   donation  800 days ago
-//   c9 fantasy  good      2.00  -    unknown   700 days ago
+//   c9 fantasy very_good    2.00  -    unknown   700 days ago
 // Sales / sell-through (2024), see the comments next to the expectations.
 
 const { test, before, after } = require("node:test");
@@ -91,7 +91,7 @@ async function copy(bookId, o) {
   const { rows } = await pool.query(
     `INSERT INTO book_copies (book_id, condition, price, publisher_price, status, location, source, acquisition_cost, acquired_at, created_at)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
-    [bookId, o.condition || "good", o.price, o.publisherPrice || null, o.status || "in_stock", o.location || null, o.source || null,
+    [bookId, o.condition || "very_good", o.price, o.publisherPrice || null, o.status || "in_stock", o.location || null, o.source || null,
       o.cost === undefined ? null : o.cost, o.acquired, o.created]
   );
   return rows[0].id;
@@ -172,7 +172,7 @@ function ensureStock() {
       await copy(fantasy, { price: 5, location: "A1", source: "donation", acquired: daysAgo(10), created: "2024-01-10", cost: 1 });
       await copy(fantasy, { price: 7.5, location: "A1", source: "purchase", acquired: daysAgo(120), created: "2024-01-20", cost: 3 });
       await copy(cooking, { price: 20, publisherPrice: 20, condition: "new", acquired: daysAgo(250), created: "2024-02-05" });
-      await copy(cooking, { price: 3, condition: "fair", status: "reserved", location: "B2", source: "lot", acquired: daysAgo(500), created: "2024-02-10", cost: 2 });
+      await copy(cooking, { price: 3, condition: "acceptable", status: "reserved", location: "B2", source: "lot", acquired: daysAgo(500), created: "2024-02-10", cost: 2 });
       await copy(cmd, { price: 4, condition: "like_new", location: "A1", source: "donation", acquired: daysAgo(800), created: "2024-03-02", cost: 0.5 });
       await copy(lower, { price: 2, acquired: daysAgo(700), created: "2024-03-03" });
     })();
@@ -273,7 +273,7 @@ test("inventory report: counts and asking value by genre, condition, location an
   assert.deepEqual(rowOf(genre, "Cooking"), ["Cooking", "1", "€20.00", "1", "€3.00", "2", "€23.00"]);
   assert.deepEqual(rowOf(genre, "(no genre)"), ["(no genre)", "1", "€4.00", "0", "€0.00", "1", "€4.00"]);
   assert.deepEqual(genre.at(-1), ["Total", "5", "€38.50", "1", "€3.00", "6", "€41.50"]);
-  assert.deepEqual(rowOf(condition, "Good"), ["Good", "3", "€14.50", "0", "€0.00", "3", "€14.50"]);
+  assert.deepEqual(rowOf(condition, "Very Good"), ["Very Good", "3", "€14.50", "0", "€0.00", "3", "€14.50"]);
   assert.deepEqual(rowOf(condition, "New"), ["New", "1", "€20.00", "0", "€0.00", "1", "€20.00"]);
   assert.deepEqual(rowOf(location, "A1"), ["A1", "3", "€16.50", "0", "€0.00", "3", "€16.50"]);
   assert.deepEqual(rowOf(location, "(no location)"), ["(no location)", "2", "€22.00", "0", "€0.00", "2", "€22.00"]);

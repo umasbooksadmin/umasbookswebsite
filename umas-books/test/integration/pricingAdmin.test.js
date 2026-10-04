@@ -215,6 +215,34 @@ test("the no-JavaScript 'Suggest price' button re-shows the form with everything
   assert.equal((await copiesOf(isbn)).length, 0, "nothing is saved");
 });
 
+test("the Binding select feeds the pricing: the form exposes it, the no-JS button and the endpoint use it (mass market EUR 5, hardcover EUR 10 floor)", async () => {
+  setMarket([2, 3, 4]); // Rule A would give EUR 5 for a paperback
+  const page = await h.get("/admin/inventory/new");
+  assert.match(page.text, /<select id="binding" name="binding">/);
+  assert.match(page.text, /<option value="mass_market"/);
+  assert.match(page.text, /price-suggestion\.js/);
+  const script = require("node:fs").readFileSync(require("node:path").join(__dirname, "../../public/price-suggestion.js"), "utf8");
+  assert.match(script, /byId\("binding"\)/, "the script reads the select the form really has");
+  assert.match(script, /p\.set\("binding"/, "and forwards it to the endpoint");
+
+  const viaForm = async (binding) => {
+    const r = await h.post("/admin/inventory/suggest", { title: "T", isbn: isbn13(), condition: "very_good", binding });
+    assert.equal(r.res.status, 200);
+    return r.text;
+  };
+  const mm = await viaForm("mass_market");
+  assert.match(mm, /Suggested EUR 5\.00/);
+  assert.match(mm, /<option value="mass_market" selected>/, "the chosen binding stays selected");
+  assert.match(await viaForm("hardcover"), /Suggested EUR 10\.00/, "the hardcover floor applies");
+  assert.match(await viaForm("hardcover"), /<option value="hardcover" selected>/);
+
+  const isbn = isbn13();
+  await addCopy({ isbn, binding: "mass_market", price: "5" });
+  assert.equal((await h.q("SELECT binding FROM books WHERE isbn = $1", [isbn]))[0].binding, "mass_market");
+  const viaEndpoint = await suggestion({ isbn, binding: "mass_market", condition: "very_good" });
+  assert.deepEqual([viaEndpoint.price, viaEndpoint.ruleSet], [5, "mass_market"]);
+});
+
 // ---------------------------------------------------------- the JSON endpoint
 
 test("endpoint: JSON, no-store, and the condition never changes the suggestion", async () => {

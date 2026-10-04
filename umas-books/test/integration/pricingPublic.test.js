@@ -50,10 +50,10 @@ test("book page: a Clearance badge (Déstockage in French) when an in-stock copy
 
   const en = await page(clearance.id);
   assert.match(en, /<span class="clearance-badge">Clearance<\/span>/);
-  assert.match(en, /€1\.00 · Clearance<\/option>/, "the copy row in the picker");
+  assert.match(en, /€1\.00 <span class="clearance-badge">Clearance<\/span><\/td>/, "the copy row in the table of copies");
   const fr = await page(clearance.id, "fr");
   assert.match(fr, /<span class="clearance-badge">Déstockage<\/span>/);
-  assert.match(fr, /€1\.00 · Déstockage<\/option>/);
+  assert.match(fr, /€1\.00 <span class="clearance-badge">Déstockage<\/span><\/td>/);
   assert.doesNotMatch(fr, />Clearance</);
 
   for (const book of [plain, soldOnly]) {
