@@ -12,7 +12,7 @@ const assert = require("node:assert/strict");
 const { prepareDatabase, buildApp, listen } = require("../helpers/inProcessApp");
 const { makeCookieJar } = require("../helpers/httpClient");
 
-const db = prepareDatabase("cart_dropin");
+const db = prepareDatabase("cart_dropin", { isolated: true });
 
 const mailer = require("../../src/mailer");
 mailer.sendMail = async () => {};

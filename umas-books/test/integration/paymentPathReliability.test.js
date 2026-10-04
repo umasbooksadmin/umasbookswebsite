@@ -12,7 +12,7 @@ const { test, before, after, beforeEach } = require("node:test");
 const assert = require("node:assert/strict");
 const { prepareDatabase, buildApp, listen } = require("../helpers/inProcessApp");
 
-const db = prepareDatabase("payment_path");
+const db = prepareDatabase("payment_path", { isolated: true });
 
 const mailer = require("../../src/mailer");
 const sentEmails = [];

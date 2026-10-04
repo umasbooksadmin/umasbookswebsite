@@ -11,7 +11,7 @@ const assert = require("node:assert/strict");
 const { prepareDatabase, buildApp, listen, waitFor } = require("../helpers/inProcessApp");
 const { makeClient, makeUser, uniq } = require("../helpers/routeClient");
 
-const db = prepareDatabase("bookreq_public");
+const db = prepareDatabase("bookreq_public", { isolated: true });
 const mailer = require("../../src/mailer");
 const sent = [];
 mailer.sendMail = async (opts) => { sent.push(opts); };

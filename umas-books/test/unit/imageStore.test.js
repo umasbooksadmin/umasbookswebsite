@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const crypto = require("node:crypto");
 const { prepareDatabase } = require("../helpers/inProcessApp");
 
-const database = prepareDatabase("imagestore");
+const database = prepareDatabase("imagestore", { isolated: true });
 let store;
 let pool;
 

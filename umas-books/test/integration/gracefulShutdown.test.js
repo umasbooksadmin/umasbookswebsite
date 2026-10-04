@@ -13,7 +13,7 @@ const ROOT = path.join(__dirname, "..", "..");
 let app;
 
 before(async () => {
-  app = await startTestApp({ port: 3460 });
+  app = await startTestApp({ port: 3460, isolated: true });
 });
 after(() => app.stop());
 

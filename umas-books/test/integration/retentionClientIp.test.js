@@ -9,10 +9,13 @@ const PORT = 3751;
 let app, pool, privacy, cartLib, mailer;
 
 before(async () => {
-  app = await startTestApp({ port: PORT });
+  app = await startTestApp({ port: PORT, isolated: true });
   process.env.DATABASE_URL = app.databaseUrl;
   process.env.PGSSLMODE = process.env.PGSSLMODE || "disable";
   ({ pool } = require("../../src/db"));
+  // The server runs a retention purge of its own at boot, in the background;
+  // let it finish before this file inserts old rows it is allowed to purge.
+  await app.waitForLog(/Retention purge/);
   privacy = require("../../src/lib/privacy");
   cartLib = require("../../src/lib/cart");
   mailer = require("../../src/mailer");

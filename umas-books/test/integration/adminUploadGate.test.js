@@ -14,7 +14,7 @@ const PORT = 3415; // distinct from other integration test files
 let app;
 
 before(async () => {
-  app = await startTestApp({ port: PORT });
+  app = await startTestApp({ port: PORT, isolated: true });
 });
 
 after(() => {

@@ -12,7 +12,7 @@ const { test, before, after, beforeEach } = require("node:test");
 const assert = require("node:assert/strict");
 const { prepareDatabase, buildApp, listen, waitFor } = require("../helpers/inProcessApp");
 
-const db = prepareDatabase("ha_webhook");
+const db = prepareDatabase("ha_webhook", { isolated: true });
 
 const mailer = require("../../src/mailer");
 const sentEmails = [];

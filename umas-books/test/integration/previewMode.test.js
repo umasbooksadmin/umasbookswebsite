@@ -10,7 +10,7 @@ const assert = require("node:assert/strict");
 const bcrypt = require("bcryptjs");
 const { Client } = require("pg");
 const { startTestApp } = require("../helpers/testApp");
-const { makeCookieJar, fetchCsrfToken } = require("../helpers/httpClient");
+const { makeCookieJar, fetchCsrfToken, waitForCartCount } = require("../helpers/httpClient");
 const { untranslated } = require("../helpers/i18nAudit");
 
 const PREVIEW_PORT = 3810;
@@ -31,7 +31,7 @@ before(async () => {
     // Credentials that look real: only preview mode may stop a checkout.
     env: { PREVIEW_MODE: "true", HELLOASSO_CLIENT_ID: "x", HELLOASSO_CLIENT_SECRET: "y", HELLOASSO_ORG_SLUG: "z", HELLOASSO_API_BASE: "http://127.0.0.1:9" },
   });
-  normal = await startTestApp({ port: NORMAL_PORT, env: { PREVIEW_MODE: "" } });
+  normal = await startTestApp({ port: NORMAL_PORT, isolated: true, env: { PREVIEW_MODE: "" } });
   db = new Client({ connectionString: preview.databaseUrl });
   await db.connect();
   const { rows: b } = await db.query("INSERT INTO books (title, authors) VALUES ('Preview Book', 'Preview Author') RETURNING id");
@@ -126,6 +126,7 @@ async function cartJar() {
   });
   assert.equal(add.status, 302, "adding to the cart still works");
   jar.capture(add);
+  await waitForCartCount(preview.base, jar, 1); // the 302 can arrive before the session write lands
   return jar;
 }
 

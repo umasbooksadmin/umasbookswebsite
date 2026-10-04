@@ -7,7 +7,7 @@ const assert = require("node:assert/strict");
 const { prepareDatabase, buildApp, listen } = require("../helpers/inProcessApp");
 const { makeCookieJar } = require("../helpers/httpClient");
 
-const db = prepareDatabase("dropin_waiver");
+const db = prepareDatabase("dropin_waiver", { isolated: true });
 
 const mailer = require("../../src/mailer");
 mailer.sendMail = async () => {};
