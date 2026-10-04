@@ -142,7 +142,7 @@ async function seedBook({ title = `Seed ${tag()}`, isbn = null, cover = "https:/
     const r = await pool.query(
       `INSERT INTO book_copies (book_id, status, condition, price, acquisition_cost, reserved_by_name, reserved_by_email, reserved_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
-      [rows[0].id, c.status || "in_stock", c.condition || "good", c.price ?? 6, c.cost ?? 1, c.name || null, c.email || null, c.reservedAt || null]
+      [rows[0].id, c.status || "in_stock", c.condition || "very_good", c.price ?? 6, c.cost ?? 1, c.name || null, c.email || null, c.reservedAt || null]
     );
     ids.push(r.rows[0].id);
   }
@@ -247,10 +247,11 @@ test("scan page reflects whether photo scanning is configured and the saved flag
   }
 });
 
-test("new-book form renders with the default pricing", async () => {
+test("new-book form renders: with no ISBN there is no suggested price (manual review)", async () => {
   const res = await get("/admin/inventory/new");
   assert.equal(res.status, 200);
-  assert.match(res.text, /name="price"[^>]*value="5"/);
+  assert.match(res.text, /name="price"[^>]*value=""/);
+  assert.match(res.text, /Manual review: no ISBN barcode/);
   assert.match(res.text, /name="acquisitionCost"[^>]*value="0"/);
 });
 
@@ -281,12 +282,12 @@ test("lookup: a found ISBN pre-fills the add form (and the form escapes catalog 
   assert.doesNotMatch(text, /No catalog match/);
 });
 
-test("lookup: pricing defaults to the existing copies of the same ISBN", async () => {
+test("lookup: the price starts at the suggestion; the acquisition cost defaults to the existing copies of the same ISBN", async () => {
   const isbn = isbn13();
   await seedBook({ isbn, copies: [{ price: 12.5, cost: 3.25 }] });
   openLibrary.isbn.set(isbn, { title: "Known" });
   const { text } = await post("/admin/inventory/lookup", { fields: { isbn } });
-  assert.match(text, /name="price"[^>]*value="12.5"/);
+  assert.match(text, /name="price"[^>]*value="8"/); // nothing known about the book online: the usual EUR 8 (Rule B)
   assert.match(text, /name="acquisitionCost"[^>]*value="3.25"/);
 });
 
@@ -295,7 +296,7 @@ test("lookup: an unknown ISBN says so and still offers the normalised ISBN for m
   const { text } = await post("/admin/inventory/lookup", { fields: { isbn: ` ${isbn.slice(0, 3)} ${isbn.slice(3)} ` } });
   assert.match(text, /No catalog match for that ISBN/);
   assert.ok(text.includes(`value="${isbn}"`));
-  assert.match(text, /name="price"[^>]*value="5"/);
+  assert.match(text, /name="price"[^>]*value="8"/);
 });
 
 // ---------------------------------------------------------------- photo scan
@@ -387,7 +388,7 @@ test("add: a title is required; the form is re-shown with what was typed and not
   assert.equal(anthropicCalls.length, 0);
 });
 
-test("add: creates the book and one copy; garbage condition/status fall back to good/in_stock", async () => {
+test("add: creates the book and one copy; garbage condition/status fall back to very_good/in_stock", async () => {
   const title = `Created ${tag()}`;
   const isbn = isbn13();
   const { status, location } = await post("/admin/inventory", {
@@ -410,7 +411,7 @@ test("add: creates the book and one copy; garbage condition/status fall back to 
   assert.equal(book.cover_url, "https://img.example/given.jpg");
   assert.equal(book.created_by, adminId);
   const [copy] = await copiesOf(book.id);
-  assert.equal(copy.condition, "good");
+  assert.equal(copy.condition, "very_good");
   assert.equal(copy.status, "in_stock");
   assert.equal(Number(copy.price), 8.5);
   assert.equal(Number(copy.acquisition_cost), 2);
@@ -425,7 +426,7 @@ test("add: creates the book and one copy; garbage condition/status fall back to 
 });
 
 test("add: valid condition and status values are kept (reserved/sold/donated/damaged)", async () => {
-  for (const [condition, status] of [["like_new", "reserved"], ["poor", "sold"], ["fair", "donated"], ["new", "damaged"]]) {
+  for (const [condition, status] of [["like_new", "reserved"], ["very_good", "sold"], ["acceptable", "donated"], ["new", "damaged"]]) {
     const title = `Vocab ${tag()}`;
     // A NEW book needs its publisher's price (French fixed-price law).
     const extra = condition === "new" ? { publisherPrice: "10", price: "10" } : {};
@@ -528,12 +529,12 @@ test("add: an upload in an unexpected field is rejected", async () => {
 test("add: a second copy of an ISBN already in stock joins the existing book instead of duplicating it", async () => {
   const isbn = isbn13();
   const b = await seedBook({ isbn, copies: [{ price: 6 }] });
-  const { location } = await post("/admin/inventory", { fields: { title: b.title, isbn, price: "4", condition: "fair" } });
+  const { location } = await post("/admin/inventory", { fields: { title: b.title, isbn, price: "4", condition: "acceptable" } });
   assert.equal(location, `/admin/inventory/${b.id}`);
   assert.equal((await pool.query("SELECT count(*)::int AS n FROM books WHERE isbn = $1", [isbn])).rows[0].n, 1);
   const copies = await copiesOf(b.id);
   assert.equal(copies.length, 2);
-  assert.deepEqual([copies[1].condition, Number(copies[1].price)], ["fair", 4]);
+  assert.deepEqual([copies[1].condition, Number(copies[1].price)], ["acceptable", 4]);
   assert.equal(anthropicCalls.length, 0, "existing book is complete: nothing regenerated");
   assert.equal(olCalls.length, 0);
 });
@@ -643,14 +644,14 @@ test("copy update: sets condition/status/price/cost/date/notes and normalises ba
 
   await post(`/admin/inventory/${b.id}/copies/${copyId}`, { form: { condition: "shiny", status: "borrowed", price: "", acquisitionCost: "", acquiredAt: "", notes: "" } });
   [c] = await copiesOf(b.id);
-  assert.deepEqual([c.condition, c.status, c.price, c.acquisition_cost, c.acquired_at, c.notes], ["good", "in_stock", null, null, null, null]);
+  assert.deepEqual([c.condition, c.status, c.price, c.acquisition_cost, c.acquired_at, c.notes], ["very_good", "in_stock", null, null, null, null]);
 });
 
 test("copy update: marking each status works (mark sold, donated, damaged, reserved)", async () => {
   const b = await seedBook();
   const [copyId] = b.copyIds;
   for (const status of ["sold", "donated", "damaged", "reserved", "in_stock"]) {
-    await post(`/admin/inventory/${b.id}/copies/${copyId}`, { form: { condition: "good", status, price: "5" } });
+    await post(`/admin/inventory/${b.id}/copies/${copyId}`, { form: { condition: "very_good", status, price: "5" } });
     assert.equal((await copiesOf(b.id))[0].status, status);
   }
 });
@@ -658,9 +659,9 @@ test("copy update: marking each status works (mark sold, donated, damaged, reser
 test("copy update: a copy id belonging to a different book is not touched", async () => {
   const mine = await seedBook();
   const other = await seedBook({ copies: [{ price: 20 }] });
-  await post(`/admin/inventory/${mine.id}/copies/${other.copyIds[0]}`, { form: { condition: "poor", status: "sold", price: "1" } });
+  await post(`/admin/inventory/${mine.id}/copies/${other.copyIds[0]}`, { form: { condition: "acceptable", status: "sold", price: "1" } });
   const [c] = await copiesOf(other.id);
-  assert.deepEqual([c.condition, c.status, Number(c.price)], ["good", "in_stock", 20]);
+  assert.deepEqual([c.condition, c.status, Number(c.price)], ["very_good", "in_stock", 20]);
 });
 
 test("cancel-reservation: releases the copy and clears the reserver's details", async () => {
@@ -721,4 +722,67 @@ test("delete book: removes the book and cascades to its copies", async () => {
   assert.equal((await pool.query("SELECT 1 FROM books WHERE id = $1", [b.id])).rows.length, 0);
   assert.equal((await copiesOf(b.id)).length, 0);
   assert.equal((await get(`/admin/inventory/${b.id}`)).status, 404);
+});
+
+// ------------------------------------------------ condition grades, binding
+
+test("add/scan/edit forms offer the four grades (default Very Good) and the binding select", async () => {
+  const { text } = await get("/admin/inventory/new");
+  const options = (id) => [...text.slice(text.indexOf(`id="${id}"`)).split("</select>")[0].matchAll(/<option value="([^"]*)"[^>]*>([^<]*)</g)].map((m) => [m[1], m[2].trim()]);
+  assert.deepEqual(options("condition"), [["new", "New"], ["like_new", "Like New"], ["very_good", "Very Good"], ["acceptable", "Acceptable"]]);
+  assert.match(text, /<option value="very_good" selected>Very Good/);
+  assert.deepEqual(options("binding"), [["", "Not specified"], ["hardcover", "Hardcover"], ["paperback", "Paperback"], ["mass_market", "Mass Market"]]);
+
+  const b = await seedBook();
+  const show = await get(`/admin/inventory/${b.id}`);
+  assert.match(show.text, /<option value="very_good" selected>Very Good<\/option><option value="acceptable" >Acceptable<\/option>/);
+  assert.match(show.text, /id="binding" name="binding"/);
+});
+
+test("add: binding is saved; an invalid or blank binding is ignored (NULL)", async () => {
+  for (const [sent, stored] of [["hardcover", "hardcover"], ["mass_market", "mass_market"], ["spiral", null], ["", null], ["Paperback", null]]) {
+    const title = `Bind ${tag()}`;
+    await post("/admin/inventory", { fields: { title, description: "d", descriptionFr: "d", coverUrl: "c", binding: sent } });
+    assert.equal((await bookByTitle(title))[0].binding, stored, sent);
+  }
+});
+
+test("edit book: binding can be set, changed and cleared; garbage clears it; the admin page shows it", async () => {
+  const b = await seedBook();
+  const bindingNow = async () => (await pool.query("SELECT binding FROM books WHERE id = $1", [b.id])).rows[0].binding;
+  const edit = (binding) => post(`/admin/inventory/${b.id}`, { fields: { title: b.title, binding } });
+  await edit("paperback");
+  assert.equal(await bindingNow(), "paperback");
+  const shown = (await get(`/admin/inventory/${b.id}`)).text;
+  assert.match(shown, /Binding: Paperback/);
+  assert.match(shown, /<option value="paperback" selected>Paperback/);
+  await edit("hardcover");
+  assert.equal(await bindingNow(), "hardcover");
+  await edit("bogus");
+  assert.equal(await bindingNow(), null);
+  await edit("mass_market");
+  await edit("");
+  assert.equal(await bindingNow(), null, "blank clears it");
+  assert.ok(!(await get(`/admin/inventory/${b.id}`)).text.includes("Binding: "));
+});
+
+test("add: a second copy fills a missing binding but never overwrites the existing one", async () => {
+  const isbn = isbn13();
+  const b = await seedBook({ isbn });
+  const bindingNow = async () => (await pool.query("SELECT binding FROM books WHERE id = $1", [b.id])).rows[0].binding;
+  await post("/admin/inventory", { fields: { title: b.title, isbn, price: "4", binding: "paperback" } });
+  assert.equal(await bindingNow(), "paperback", "filled in");
+  await post("/admin/inventory", { fields: { title: b.title, isbn, price: "4", binding: "hardcover" } });
+  assert.equal(await bindingNow(), "paperback", "explicit choice kept");
+});
+
+test("scan: the binding found by the catalogue lookup prefills the form; nothing found leaves it blank", async () => {
+  const isbn = isbn13();
+  openLibrary.isbn.set(isbn, { title: `Scan ${tag()}`, physical_format: "Mass Market Paperback" });
+  const { text } = await post("/admin/inventory/lookup", { fields: { isbn } });
+  assert.match(text, /<option value="mass_market" selected>Mass Market/);
+  const isbn2 = isbn13();
+  openLibrary.isbn.set(isbn2, { title: `Scan ${tag()}` });
+  const none = (await post("/admin/inventory/lookup", { fields: { isbn: isbn2 } })).text;
+  assert.ok(!/<option value="[a-z_]+" selected>(Hardcover|Paperback|Mass Market)/.test(none));
 });

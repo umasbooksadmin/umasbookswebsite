@@ -6,9 +6,9 @@ test("normalizeCondition passes through a known value", () => {
   assert.equal(normalizeCondition("like_new"), "like_new");
 });
 
-test("normalizeCondition defaults an unknown value to good", () => {
-  assert.equal(normalizeCondition("pristine"), "good");
-  assert.equal(normalizeCondition(undefined), "good");
+test("normalizeCondition defaults an unknown value to very_good", () => {
+  assert.equal(normalizeCondition("pristine"), "very_good");
+  assert.equal(normalizeCondition(undefined), "very_good");
 });
 
 test("normalizeStatus passes through a known value", () => {

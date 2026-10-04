@@ -65,17 +65,32 @@ Date accepted: ____ / ____ / ______ / Done by: ____________
 What I found: ____________________________
 Date checked: ____ / ____ / ______ / Done by: ____________
 
-## Anthropic API (book cover scans and book descriptions)
+## Anthropic API (book cover scans, book descriptions and price lookups)
 
-- **What they get (checked in `src/lib/coverVision.js` and `src/lib/bookDescription.js`):**
+- **What they get (checked in `src/lib/coverVision.js`, `src/lib/bookDescription.js` and `src/lib/pricing/market.js`):**
   - Cover scan: the **photo of a book cover or barcode** an admin uploads in the inventory screen, plus a fixed instruction asking for ISBN, title and author.
   - Description: only book facts (title, author, publisher, year) and a fixed instruction; the French translation sends only the English description text.
+  - Pricing lookups (only when `PRICING_AI` is switched on, off by default): the book's **ISBN, title, author and binding** and a fixed instruction asking for current used prices of that edition, using the web search tool. Results are cached per ISBN.
   - **No member, buyer, email, name or order data is ever sent.** Only admins can trigger it, and the call is skipped if the key is missing.
 - **Role:** none for personal data, as long as the rule below is followed.
 - **Rule for volunteers:** photograph only the book (cover or barcode), never people or documents. If a person's face or a written name ends up in a photo, retake it.
 - **Action for Sharon:** none required for the DPA while no personal data is sent. If this ever changes, look for the DPA on Anthropic's legal page (anthropic.com/legal) before it does.
 
 Date checked: ____ / ____ / ______ / Done by: ____________
+
+### Anthropic API: award and best-seller search (optional, `AWARDS_AI`)
+
+- **What they get (checked in `src/lib/awards/ai.js`):** only a book's **title, author, ISBN and publication year** and a fixed instruction, with Anthropic's web search tool. **No personal data.** Off unless `AWARDS_AI` is set; results stay hidden until an admin approves them.
+
+## Wikidata (awards by ISBN)
+
+- **What they get (`src/lib/awards/wikidata.js`):** a book's ISBN in a query to query.wikidata.org, sent by the server with the User-Agent `UmasBooks/1.0 (admin@umasbooks.org)`. **No personal data.** Their server sees the Render server's IP address.
+- **Action for Sharon:** none (no personal data).
+
+## New York Times Books API (best-seller lists, optional)
+
+- **What they get (`src/lib/awards/nyt.js`):** a book's ISBN-13 and our API key, only when `NYT_API_KEY` is set. **No personal data.**
+- **Action for Sharon:** none for the DPA. Keep to their terms (5 requests per minute, 500 per day; the code enforces both).
 
 ## Open Library (book data)
 

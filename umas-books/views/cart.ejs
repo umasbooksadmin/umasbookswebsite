@@ -20,6 +20,7 @@
           <div class="cart-item-body">
             <div class="cart-item-title"><%= i.title %></div>
             <div class="muted small"><%= i.authors || tr('Unknown author', 'Auteur inconnu') %></div>
+            <div style="margin-top:4px;"><span class="condition-badge condition-<%= i.condition %>"><%= conditionLabel(i.condition) %></span></div>
           </div>
         <% } else { %>
           <div class="cart-item-cover book-thumb-placeholder"><%= tr('Session', 'Séance') %></div>
@@ -40,7 +41,9 @@
 
   <div class="cart-total"><%= tr('Total:', 'Total :') %> <strong>&euro;<%= total.toFixed(2) %></strong></div>
 
-  <% if (!helloassoReady) { %>
+  <% if (locals.preview) { %>
+    <div role="status" class="notice-box"><%= tr('Online ordering opens when we launch. This is a preview, so you can fill a cart to see how it works, but nothing can be ordered yet.', 'La commande en ligne ouvrira au lancement. Ceci est un aperçu : vous pouvez remplir un panier pour voir comment cela fonctionne, mais rien ne peut encore être commandé.') %></div>
+  <% } else if (!helloassoReady) { %>
     <div role="status" class="notice-box"><%= tr("Online payment isn't switched on yet — please check back soon, or come by the shop to buy in person.", "Le paiement en ligne n’est pas encore activé : revenez bientôt, ou passez à la boutique pour acheter sur place.") %></div>
   <% } else { %>
     <div class="card">
@@ -57,7 +60,7 @@
         <label class="ann-check"><input type="checkbox" name="acceptCgv" required> <span><%= tr('I have read and accept the', 'J’ai lu et j’accepte les') %> <a href="/terms-of-sale.html" target="_blank" rel="noopener"><%= tr('terms of sale', 'conditions de vente') %></a> <%= tr('(including the right of withdrawal).', '(y compris le droit de rétractation).') %></span></label>
         <%- include('partials/privacy_note', { en: 'We use your details only to process your order. See our', fr: 'Vos données servent uniquement à traiter votre commande. Consultez notre' }) %>
         <% if (items.some((i) => i.kind === 'dropin')) { %><%- include('partials/dropin_waiver') %><% } %>
-        <button class="btn" type="submit"><%= tr('Pay & Buy', 'Payer') %></button>
+        <button class="btn" type="submit"><%= tr('Pay & Buy', 'Commander et payer') %></button>
       </form>
     </div>
   <% } %>

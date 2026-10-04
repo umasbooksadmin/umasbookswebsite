@@ -5,6 +5,7 @@ const { releaseCartHold, reconcileOrder, isRecentlyClosed, persistCheckoutIntent
 const { expireStaleReservations } = require("../lib/reservations");
 const { seatsTakenExpr } = require("../lib/classCapacity");
 const { baseUrl } = require("../lib/baseUrl");
+const { isPreviewMode } = require("../lib/preview");
 const { loadOrderItems, orderItemLabel } = require("../lib/orderItems");
 const { isEmail, clean, parseId } = require("../lib/validation");
 const { checkoutLimiter, cartEditLimiter } = require("../middleware/rateLimits");
@@ -63,7 +64,7 @@ async function loadCartItems(cart) {
       if (!r) continue; // no longer in stock — dropped, same as before
       items.push({
         kind: "book", lineId: line.lineId, copyId: r.id,
-        title: r.title, authors: r.authors, coverUrl: r.cover_url, price: Number(r.price),
+        title: r.title, authors: r.authors, coverUrl: r.cover_url, price: Number(r.price), condition: r.condition,
       });
     }
   }
@@ -205,6 +206,14 @@ router.post("/cart/checkout", checkoutLimiter, async (req, res) => {
 
   const renderCart = (extra) =>
     res.render("cart", { items, total: items.reduce((sum, i) => sum + i.price, 0), helloassoReady: helloasso.isConfigured(), error: null, ...extra });
+
+  // Preview mode (src/lib/preview.js): nothing can be ordered. Refuse before
+  // any validation, lock, order row or HelloAsso call; the cart page itself
+  // carries the "ordering opens at launch" notice (views/cart.ejs).
+  if (isPreviewMode()) {
+    res.status(403);
+    return renderCart({});
+  }
 
   if (!items.length) return renderCart({ items: [], total: 0, error: req.tr("Your cart is empty.", "Votre panier est vide.") });
   if (!name || !isEmail(email)) return renderCart({ error: req.tr("Please enter your name and a valid email address.", "Veuillez indiquer votre nom et une adresse e-mail valide.") });

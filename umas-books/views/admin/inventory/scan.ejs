@@ -4,7 +4,7 @@
 <% if (typeof requestsMatched !== "undefined" && requestsMatched > 0) { %><div role="status" class="notice-box"><%= requestsMatched %> customer<%= requestsMatched === 1 ? '' : 's' %> asked for this book. <a href="/admin/requests?status=matched">See the requests</a></div><% } %>
 <% if (error) { %><div role="alert" class="error-box"><%= error %></div><% } %>
 
-<p><a class="btn btn-outline btn-small" href="/admin/inventory/move">Move books</a></p>
+<p><a class="btn btn-outline btn-small" href="/admin/inventory/move">Move books</a> <a class="btn btn-outline btn-small" href="/admin/inventory/sell">Sell in shop</a></p>
 
 <div class="card">
   <div class="section-title">Enter an ISBN</div>
@@ -14,6 +14,12 @@
     <label for="location">Current location</label>
     <input id="location" name="location" type="text" list="location-options" maxlength="40" value="<%= location %>" placeholder="e.g. FICTION-A1 (stays the same until you change it)" data-location-input autocomplete="off">
     <p class="muted small">Every book you add below is saved at this place. Pick one from the list or type a new one.</p>
+    <label for="source">Source of these books</label>
+    <select id="source" name="source" data-source-input>
+      <option value="" <%= !source ? 'selected' : '' %>>Unknown</option>
+      <% sources.forEach(s => { %><option value="<%= s.value %>" <%= s.value === source ? 'selected' : '' %>><%= s.label %></option><% }) %>
+    </select>
+    <p class="muted small">Where this batch came from (a donation, something the shop bought, a job lot). It stays the same until you change it.</p>
     <label for="isbn">ISBN</label>
     <input id="isbn" name="isbn" type="text" inputmode="numeric" placeholder="9780143127550" autofocus data-auto-submit-isbn>
     <button class="btn" type="submit">Look up</button>
@@ -28,6 +34,7 @@
     <form class="stack" method="post" action="/admin/inventory/lookup" enctype="multipart/form-data">
       <%- include('../../partials/csrf_field') %>
       <input type="hidden" name="location" value="<%= location %>" data-location-mirror>
+      <input type="hidden" name="source" value="<%= source %>" data-source-mirror>
       <button type="button" class="btn btn-outline" data-trigger-file="photo">Take or Choose Photo</button>
       <input id="photo" name="photo" type="file" accept="image/*" capture="environment" required class="file-input-hidden" data-file-name-target="photo-name" data-auto-submit-file>
       <span id="photo-name" class="muted small file-input-name">No photo selected</span>

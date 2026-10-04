@@ -104,7 +104,7 @@ test("editing an in_cart copy keeps it in_cart but still saves other fields", as
     const res = await fetch(`${app.base}/admin/inventory/${bookId}/copies/${copyId}`, {
       method: "POST", redirect: "manual",
       headers: { ...FORM, cookie: jar.header() },
-      body: new URLSearchParams({ condition: "good", status, price, notes: "edited", _csrf: token }).toString(),
+      body: new URLSearchParams({ condition: "very_good", status, price, notes: "edited", _csrf: token }).toString(),
     });
     assert.equal(res.status, 302);
     return (await pool.query("SELECT status, price, notes FROM book_copies WHERE id=$1", [copyId])).rows[0];

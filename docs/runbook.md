@@ -63,6 +63,7 @@ asks you to. Always change **every** place listed, then check
 | `TOTP_ENCRYPTION_KEY` | Render env var only |
 | `GMAIL_USER`, `GMAIL_APP_PASSWORD` | Render env var **and** GitHub repository secrets (uptime alerts, backup emails) |
 | `HELLOASSO_CLIENT_ID`, `HELLOASSO_CLIENT_SECRET`, `HELLOASSO_ORG_SLUG`, `HELLOASSO_API_BASE` | Render env var only |
+| `PREVIEW_MODE` (not a secret; see section g) | Render env var only |
 | `BACKUP_S3_BUCKET`, `BACKUP_S3_ENDPOINT`, `BACKUP_S3_REGION` (and optional `BACKUP_S3_PREFIX`) | GitHub **repository variables** |
 | `BACKUP_S3_KEY_ID`, `BACKUP_S3_APPLICATION_KEY` | GitHub **repository secrets** |
 
@@ -238,3 +239,103 @@ The decision for the maintainer (and a developer if needed):
 Do not close the rule before the backup has a way in: you would silently lose
 your backups. Whichever you choose, run **Nightly database backup** manually
 afterwards and confirm it is green.
+
+## g) Launching: turn preview mode off
+
+While the site holds only sample books and test data, the Render service runs
+in **preview mode**: every customer page shows a "coming soon" banner, online
+checkout and the membership payment form are switched off, and search engines
+are told to ignore the site. It is controlled by one **Render environment
+variable**, `PREVIEW_MODE` (an environment variable, not a secret file and not
+a GitHub secret or variable). It is deliberately not in `render.yaml`.
+
+To launch:
+
+1. Make sure the real inventory is loaded and the sample and test data are gone.
+2. Render dashboard > the `umas-books` web service > **Environment**.
+3. Find the environment variable `PREVIEW_MODE` and delete it (the trash icon
+   next to it).
+4. Click **Save changes**. Render redeploys the service by itself; wait until
+   it shows **Live**.
+5. Check the site: no banner on the home page, the cart shows the checkout
+   form, `/membership.html` shows the HelloAsso form, and
+   `https://<your site>/robots.txt` no longer says `Disallow: /`. The red
+   "PREVIEW MODE is ON" strip is gone from the admin screens.
+
+### Turning it on again
+
+Same place: Render dashboard > the web service > **Environment** > **Add
+Environment Variable**, name `PREVIEW_MODE`, value `true` > **Save changes**
+(the service redeploys). Do this whenever the site holds test data again.
+Any value other than `true` or `1` leaves preview mode off.
+
+## h) Price suggestions and the AI market check
+
+Prices suggested when a book is added come from rules the volunteers can edit
+(admin menu > **Pricing rules**), so day to day nothing needs doing here. The
+optional **online price check** uses the Anthropic API and is **off by
+default**. All three settings are **Render environment variables** (the
+service's **Environment** tab):
+
+| Variable | What it does |
+|---|---|
+| `PRICING_AI` | Set to `1` (or `true`) to switch the online price check on. Needs `ANTHROPIC_API_KEY` to be set too. Remove it (or set `0`) to switch it off: suggestions then use the built-in rules only, which still works. |
+| `PRICING_AI_DAILY_MAX` | Most online lookups per day (Paris time), default `150`. It is counted from the database, so restarting the service does not reset it. `0` stops all lookups. |
+| `PRICING_AI_MODEL` | Optional. A different Anthropic model for the check. It must support the web search tool. Leave unset to use the same model as book descriptions. |
+
+Good to know:
+
+- **Cost control:** each book is looked up at most once a month (results are
+  kept in the `price_lookups` table), a book with no result is retried after a
+  week, and a failed lookup after an hour. The daily cap is the hard limit.
+- **If it misbehaves:** unset `PRICING_AI` and redeploy (or just save the
+  variable: Render restarts the service). Nothing else is affected; the rules
+  keep working. A lookup that fails never blocks adding a book (the page waits
+  at most about 12 seconds).
+- **Web search is billed by Anthropic** on top of the normal usage; check the
+  Anthropic console usage page after the first week.
+- **Privacy:** only the ISBN, title, author and binding are sent. See
+  `docs/privacy/processors-checklist.md` (Anthropic row).
+- **To start fresh for one book** (its cached online price looks wrong): in the
+  database, `DELETE FROM price_lookups WHERE isbn = '<the 13-digit ISBN>';`.
+
+## i) Awards and best-seller lists on books
+
+When a book is added, the website looks up awards and best-seller lists in
+the background (a few seconds, up to a couple of minutes) and shows them on the
+book page as "Awards & lists". Old books are filled in gradually.
+
+**What customers see.** Only entries that are *verified* (from Wikidata, from
+the New York Times list, or typed by an admin) or *approved* (suggested by AI,
+then approved by an admin). Nothing else is ever shown.
+
+**Volunteer how-to**
+
+1. **Check suggestions:** admin menu > **Awards to review**. For each line, click
+   *Open source*, read that the page really says this about this exact book, then
+   **Approve** or **Reject**. When unsure, reject. Several at once: tick them and
+   click **Approve selected**.
+2. **One book:** admin > Books & Orders > the book > **Awards & lists**. You see
+   every entry, where it came from and its status. **Re-check now** looks again.
+   **Add awards (comma separated)** adds your own, for example
+   `Booker Prize (2019), Prix Goncourt (1999)`; they show at once, and you can
+   remove them again. **Hide from customers** rejects a wrong entry.
+3. Everything you approve, reject, add or remove is written to *Admin activity*.
+
+**Settings** (all optional; Render dashboard > the `umas-books` service >
+**Environment** > these are *environment variables*, not secrets in GitHub):
+
+| Variable | What it does |
+|---|---|
+| `NYT_API_KEY` | New York Times best-seller history. Get a free key at developer.nytimes.com (create an app and enable the *Books API*). Without it that source is simply skipped. |
+| `AWARDS_AI` | Set to `1` to let the AI search the web too. Needs `ANTHROPIC_API_KEY`. Leave unset to keep it off. |
+| `AWARDS_AI_DAILY_MAX` | Most books the AI checks per day (default 100). The *Awards to review* page shows today's count. |
+| `AWARDS_AI_MODEL` | Optional model name; the default is the one used for book descriptions. |
+| `AWARDS_LOOKUPS` | Set to `off` to stop all lookups at once. |
+
+**Known limits.** Wikidata coverage is patchy: no entry means "Wikidata does
+not know", not "this book won nothing". Wikidata and the NYT list are trusted
+as they are; AI suggestions need your approval because an AI can be wrong or
+make things up. A lookup that fails (internet problem, a limit reached) is tried
+again after a day. Only the book's title, author and ISBN are ever sent out; no
+member or customer data.

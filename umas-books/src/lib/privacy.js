@@ -20,6 +20,7 @@ const RETENTION = {
   tokenGraceDays: 7,
   inactivityWarningDays: 30,
   closedOrderDays: 30, // also used for ended reservations
+  clientIpDays: 2, // buyer IP kept on an order only for the checkout abuse caps
   unconfirmedRequestDays: 7, // book requests never confirmed by email
   bookRequestMonths: 12, // book requests nobody closed
   closedRequestDays: 30, // fulfilled/cancelled/expired book requests keep no contact details
@@ -60,7 +61,7 @@ async function eraseMember(pool, userId, { client } = {}) {
     // an old emailed link stops working.
     await db.query(
       `UPDATE orders
-       SET buyer_name = $2, buyer_email = $3, buyer_phone = NULL,
+       SET buyer_name = $2, buyer_email = $3, buyer_phone = NULL, client_ip = NULL,
            access_token = gen_random_uuid()
        WHERE lower(buyer_email) = $1`,
       [email, ERASED_NAME, erasedEmail(userId)]
@@ -157,6 +158,17 @@ async function purgeExpiredPersonalData(pool) {
        SET reserved_by_name = NULL, reserved_by_email = NULL, reserved_by_phone = NULL
        WHERE status <> 'reserved' AND reserved_by_email IS NOT NULL
          AND updated_at < now() - interval '${RETENTION.closedOrderDays} days'`
+    );
+    return r.rowCount;
+  });
+
+  // The buyer IP on an order exists only for the checkout caps within the
+  // 60-minute hold (routes/cart.js); also cleared when an order leaves
+  // 'pending' (lib/cart.js), this catches the rest.
+  await step("clientIps", async () => {
+    const r = await pool.query(
+      `UPDATE orders SET client_ip = NULL
+       WHERE client_ip IS NOT NULL AND created_at < now() - interval '${RETENTION.clientIpDays} days'`
     );
     return r.rowCount;
   });
