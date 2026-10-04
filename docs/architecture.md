@@ -4,7 +4,8 @@ A complete picture of how the site is built, runs, is deployed, backed up and
 protected. Every diagram below is [Mermaid](https://mermaid.js.org/) and renders
 directly on GitHub. For file-level detail (route table, environment variables,
 migration rules) see [`umas-books/ARCHITECTURE.md`](../umas-books/ARCHITECTURE.md);
-for running and restoring it see [`umas-books/README.md`](../umas-books/README.md).
+for running and restoring it see [`umas-books/README.md`](../umas-books/README.md);
+for day-to-day operations see [`docs/runbook.md`](runbook.md).
 
 This describes `main` as of 4 October 2026.
 
@@ -55,15 +56,16 @@ flowchart LR
     direction TB
     HA["HelloAsso<br/>payments, membership form"]
     GM["Gmail SMTP<br/>all outgoing mail"]
-    AN["Anthropic API<br/>book-cover scan"]
+    AN["Anthropic API (optional)<br/>cover scan, descriptions,<br/>price and awards web search"]
     OL["Open Library, archive.org<br/>ISBN lookup, covers"]
+    WD["Wikidata, NYT Books API<br/>awards and best-seller lists"]
     PW["Have I Been Pwned<br/>breach check"]
   end
 
   subgraph GitHub["GitHub (private repo)"]
     direction TB
     REPO["main branch<br/>6 required checks"]
-    ACT["Actions: CI, backups,<br/>restore test, uptime check"]
+    ACT["Actions: CI, backups, restore test,<br/>backup freshness check, uptime check"]
   end
 
   OFF[("Backblaze B2<br/>private bucket, EU")]
@@ -75,11 +77,17 @@ flowchart LR
   ACT -->|"nightly pg_dump"| DB
   ACT -->|"GET /healthz"| W
   ACT -->|"uploads the dump"| OFF
+  ACT -->|"daily: newest dump fresh?"| OFF
 ```
 
 **Two layers of backup.** Render keeps its own seven-day point-in-time recovery
 for the database; on top of that a nightly dump (uploaded photos included) goes
 to a private Backblaze B2 bucket that Render cannot touch. See §12.
+
+**Preview mode.** While the shop is still being shown to outsiders, setting
+`PREVIEW_MODE=true` puts the whole site in "coming soon" mode: a banner on every
+page, online checkout and the membership payment widget switched off, and
+search engines told to stay away. See §3 and §13.
 
 **Why one app.** Squarespace was retired; the marketing pages are EJS views in
 the same Express process as the members area, so there is one deployment, one
@@ -99,9 +107,11 @@ login, one database and one thing to monitor.
 | Security middleware | `helmet` (CSP, HSTS), `express-rate-limit`, custom CSRF | |
 | Uploads | `multer` (memory) + `sharp` re-encode to JPEG | admin only; bytes stored in the `images` table, served at `/img/<hash>.jpg` |
 | Two-step login | TOTP authenticator app (`lib/totp.js`) | required for admins; the secret is encrypted in the database |
+| Languages | server-side English and French | `tr()` in views, cookie `umasbooks_lang`; emails follow the reader's stored language (§3) |
 | Mail | `nodemailer` over Google Workspace SMTP | one mailbox (`admin@umasbooks.org`) for human and system mail |
+| Optional AI | Anthropic API (Claude) | cover scan, book descriptions and genre, market price lookup, awards web search; every use is optional and off without `ANTHROPIC_API_KEY` |
 | Payments | HelloAsso (checkout intents + hosted membership form) | OAuth client credentials |
-| Hosting | Render Blueprint (`render.yaml`) | web `1c-2g`, database `1c-2g`, Frankfurt |
+| Hosting | Render Blueprint (`render.yaml`) | web `1c-2g`, database `1c-2g`, Frankfurt; migrations run as the pre-deploy command |
 | CI/CD | GitHub Actions + Dependabot | six required checks; Render deploys on merge; actions pinned by commit |
 
 ---
@@ -122,16 +132,17 @@ flowchart TB
     MR["rateLimits.js<br/>per-IP limiters"]
     MI["idParams.js<br/>bad ids give 404"]
     ML["lang.js<br/>English or French per request"]
+    MP["lib/preview.js<br/>preview mode: banner, noindex"]
     MS["noStoreForUsers.js<br/>no caching of logged-in pages"]
   end
 
   subgraph RT["src/routes"]
     direction LR
-    PUB["Public<br/>books, events, sessions, blog, contact,<br/>img, seo"]
+    PUB["Public<br/>books, events, sessions, blog, contact,<br/>book requests, img, seo"]
     MEMB["Members<br/>dashboard, account, privacy, forum,<br/>charity, volunteer, meetings"]
     COM["Commerce<br/>cart, helloassoWebhook"]
     AUTH["auth.js, twoFactor.js<br/>signup, verify, login, two-step,<br/>reset, password"]
-    ADM["admin/*<br/>members, inventory, events, sessions,<br/>meetings, volunteer shifts, blog,<br/>announcements, charity, dashboard, audit"]
+    ADM["admin/*<br/>members, inventory (scan, move, sell),<br/>pricing, price suggestions, awards, reports,<br/>requests, forum moderation, events, sessions,<br/>meetings, volunteer shifts, blog,<br/>announcements, charity, dashboard, audit"]
   end
 
   subgraph LIB["src/lib"]
@@ -145,6 +156,10 @@ flowchart TB
     L7["emailVerification.js, passwordReset.js,<br/>errorAlert.js, session.js, env.js"]
     L8["bookLookup.js, coverVision.js,<br/>uploadImage.js, imageStore.js, health.js"]
     L9["totp.js, audit.js, privacy.js,<br/>memberExport.js, lang.js, inventory.js"]
+    L10["pricing/*<br/>rules, market lookup, clearance, settings"]
+    L11["awards/*<br/>Wikidata, NYT, AI, display"]
+    L12["bookRequests.js, reports.js,<br/>forumModeration.js, orderEmail.js"]
+    L13["jobGuard.js, imageCleanup.js,<br/>preview.js, errorHandler.js"]
   end
 
   DBM["src/db.js<br/>pg Pool, withTransaction,<br/>error handler and timeouts"]
@@ -170,10 +185,22 @@ the EN/FR toggle in the page header. The `lang.js` middleware runs before the
 login check and reads only headers (so it never touches the session or the
 database): French when the cookie says `fr`, otherwise the browser's
 `Accept-Language`, otherwise English. Views call `tr('English', 'Français')`
-and server code calls `req.tr(...)`. Emails follow the reader's stored language:
-`users.lang` (set at signup, refreshed at login) and `orders.lang` (set at
-checkout); an empty value means English. The marketing pages keep their own
-in-page dictionaries and are only partly rendered in French on the server.
+and server code calls `req.tr(...)`. This covers the marketing pages too: they
+are EJS views rendered in the chosen language on the server (a small script
+only re-applies the strings after a client-side toggle), with localised dates. Emails follow the reader's stored language:
+`users.lang` (set at signup, refreshed at login), `orders.lang` (set at
+checkout) and `book_requests.lang`; an empty value means English. Book
+descriptions have a French column (`description_fr`). Admin screens, and the
+admin-only alert emails, stay English.
+
+**Preview mode.** `lib/preview.js` reads `PREVIEW_MODE` (`true` or `1`) on every
+request. When on, views get `res.locals.preview`: a "coming soon" banner is shown
+on every customer page, an `X-Robots-Tag: noindex, nofollow` header and a robots
+meta tag go out, `robots.txt` turns every crawler away, the sitemap is empty, the cart refuses
+checkout, the membership page shows a notice instead of the HelloAsso widget, and
+the contact form offers a "Feedback on the preview" topic. Admin pages show a
+reminder that the mode is on. Unset (the default) means the site behaves
+normally.
 
 ---
 
@@ -182,11 +209,14 @@ in-page dictionaries and are only partly rendered in French on the server.
 Order matters here — the registration order in `src/index.js` *is* the design.
 Static files and uploaded images are served before the session so that they
 never cost a session or user lookup, and the HelloAsso webhook is mounted before
-CSRF because it is an external POST with no token.
+CSRF because it is an external POST with no token. The preview-mode flag is set
+first of all so that even static files and error pages carry the `noindex`
+header when the site is in preview.
 
 ```mermaid
 flowchart TD
-  R([Incoming request]) --> C["compression"]
+  R([Incoming request]) --> PV["preview mode flag<br/>res.locals.preview, noindex header"]
+  PV --> C["compression"]
   C --> S1["Static files<br/>/public, /assets, /logo.png<br/>(7-day cache)"]
   S1 --> IM["GET /img/hash.jpg<br/>photo bytes from the images table,<br/>cached for a year, no cookie"]
   IM --> H["GET /healthz<br/>SELECT 1, 3 s limit, 503 on failure"]
@@ -204,7 +234,7 @@ flowchart TD
   WH --> CS["csrfProtection<br/>every other POST"]
   CS --> API["/api/csrf-token, /api/session"]
   API --> MK["marketing pages, legal pages<br/>(MARKETING_PAGES list)"]
-  MK --> RM["route modules<br/>auth, two-step, dashboard, account, privacy,<br/>forum, charity, volunteer, meetings, events,<br/>blog, sessions, books, cart, contact, admin"]
+  MK --> RM["route modules<br/>auth, two-step, dashboard, account, privacy,<br/>forum, charity, volunteer, meetings, events,<br/>blog, sessions, books, cart, contact,<br/>book requests, admin"]
   RM --> NF["404 page"]
   NF --> ER["error handler<br/>log, alert email, 500 page"]
 ```
@@ -266,15 +296,17 @@ Key rules:
   failures / 15 min, sign-up 30/h, password reset requests 10 / 15 min, reserve
   5/h and 10/day, checkout 10/h, cart edits 60 / 15 min, event sign-up 10/h,
   forum posts 10/h and replies 30/h, charity ideas 10/h, contact 5 / 15 min,
-  webhook 300 / 5 min. A few are per account instead: wrong two-step codes,
+  webhook 300 / 5 min, book requests 5/day, "find my requests" 5/h (plus 3 a day
+  per address). A few are per account instead: wrong two-step codes,
   wrong current password (password change, download or delete of your own data),
-  forum reports. See `src/middleware/rateLimits.js` and the route files.
+  forum reports, and admin price checks (30 a minute, since one can cost an AI
+  call). See `src/middleware/rateLimits.js` and the route files.
 
 ---
 
 ## 6. Data model
 
-31 application tables (plus `schema_migrations` and the session table), grouped by what they belong to. Foreign keys below are the real
+37 application tables (plus `schema_migrations` and the session table), grouped by what they belong to. Foreign keys below are the real
 ones from `migrations/`. (`event_rsvps` is unused; `wishlist_requests` was dropped
 in migration 029.)
 
@@ -291,6 +323,12 @@ erDiagram
   books ||--o{ favorites : "is saved as"
 
   books ||--o{ book_copies : "physical copies"
+  books ||--o{ book_awards : "awards, best-seller lists"
+  users ||--o{ book_awards : "decided by"
+  book_copies ||--o{ shop_sales : "sold over the counter"
+  users ||--o{ shop_sales : "sold by"
+  users ||--o{ book_requests : "may link"
+  book_copies ||--o{ book_requests : "matched copy"
   orders ||--o{ book_copies : "holds in cart"
   orders ||--o{ order_items : contains
   book_copies ||--o{ order_items : "sold as"
@@ -319,17 +357,34 @@ erDiagram
 | Domain | Tables | Notes |
 |---|---|---|
 | Accounts | `users`, `email_verification_tokens`, `password_reset_tokens`, `totp_recovery_codes`, `session`, `schema_migrations` | tokens and recovery codes stored as hashes; `users` also holds `lang`, the encrypted two-step secret and `inactivity_warned_at`; `session` is created by the store |
-| Shop | `books`, `book_copies`, `orders`, `order_items`, `class_dropin_seats` | an order line is *either* a copy *or* a seat (CHECK constraint); copy status `in_stock / reserved / in_cart / sold`; one row per ISBN (unique index) |
+| Shop | `books`, `book_copies`, `orders`, `order_items`, `class_dropin_seats`, `shop_sales` | an order line is *either* a copy *or* a seat (CHECK constraint); copy status `in_stock / reserved / in_cart / sold / donated / damaged` (`in_cart` is set by checkout only); one row per ISBN (unique index); `shop_sales` is the over-the-counter equivalent of an online order line |
+| Awards | `book_awards` | awards, shortlists and best-seller lists per book, with `source` (`wikidata / nyt / ai / manual`) and review `status` (`verified / pending / approved / rejected`) |
+| Pricing | `pricing_settings`, `price_lookups` | one settings row (`id = 1`) holding every number the rules use; one cached market lookup per ISBN-13 |
+| Book requests | `book_requests`, `book_request_list_tokens` | customer "ask us for a book" requests, identified by an emailed link instead of an account; personal columns are cleared when a request ends |
 | Images | `images` | content-addressed: id is the SHA-256 of the bytes; `books.cover_url` and the announcement, charity and blog image columns hold only the short `/img/<hash>.jpg` URL |
 | Admin | `admin_audit_log` | who, what, numeric target id, time and IP; no member emails or names; purged after 12 months |
 | Membership | `membership_payments` | one row per HelloAsso membership order; drives `member_expires_at` |
 | Programs and events | `events`, `event_signups`, `classes`, `class_signups` | a `classes` row is a program session; `dropin_price` set = bookable |
-| Community | `forum_threads`, `forum_replies`, `announcements`, `blog_posts`, `favorites` | rich text goes through `sanitize-html` |
+| Community | `forum_threads`, `forum_replies`, `announcements`, `blog_posts`, `favorites` | rich text goes through `sanitize-html`; threads and replies carry `hidden_at / hidden_reason / hidden_by` for moderation |
 | Volunteering | `volunteer_shifts`, `volunteer_signups`, `meetings`, `meeting_rsvps` | |
 | Charity vote | `charity_rounds`, `charity_options`, `charity_votes`, `charities`, `charity_ideas` | a library of charities reused across rounds |
 
-Three details of the shop tables worth knowing:
+Details of the shop tables worth knowing:
 
+* **Condition grades and binding.** `book_copies.condition` is one of four
+  grades, `new`, `like_new`, `very_good` (the default) or `acceptable`,
+  enforced by a CHECK constraint (migration 048 remapped the old values; a copy
+  that cannot be sold at all has status `damaged`, not a condition).
+  `books.binding` is `hardcover`, `paperback` or `mass_market` (optional; older
+  books are NULL until filled in). Both are shown in English and French.
+* **Copy source.** `book_copies.source` records where a copy came from:
+  `donation`, `purchase`, `lot` (job lot) or `other`; NULL means unknown (every
+  copy added before migration 045). The Reports pages group by it.
+* **Price history for the learning loop.** Each copy also stores
+  `suggested_price`, `suggested_level`, `price_basis` (`suggested`, `adjusted` or
+  `manual`) and `is_clearance`, so that later the shop can see how often a
+  volunteer kept the suggested price (see "Pricing" below). The data is collected but nothing
+  reads it back yet.
 * **Inventory locations.** `book_copies.location` is free text per physical copy
   (trimmed, upper-case); there is no locations table, the drop-down is simply the
   distinct values already used. The admin **Move books** page moves one copy per
@@ -342,10 +397,157 @@ Three details of the shop tables worth knowing:
   `orders.client_ip` supports the pending-order cap in §7; `orders.lang` sets the
   language of the confirmation email.
 
-**Migrations** (`src/migrate.js`) run on every boot but each file applies
-exactly once: a `schema_migrations` table, a per-file transaction and an
-advisory lock. A pre-existing database is baselined, not re-migrated. Never edit
-a deployed migration — add a new numbered file.
+### Pricing: suggested prices for used books
+
+When a volunteer adds a copy (or presses *Suggest* on an existing one),
+`src/lib/pricing/` proposes a price. It is only ever a **suggestion**: nothing is
+saved or published until the volunteer accepts or changes it. The copy's
+condition never changes the price; it only marks a `new` book.
+
+```mermaid
+flowchart TD
+  IN["Copy entered:<br/>ISBN, binding, condition,<br/>publisher price"] --> NEW{"Condition new?"}
+  NEW -- yes --> LANG["Publisher's price<br/>(loi Lang: 95% to 100%, never clearance)"]
+  NEW -- no --> ISBN{"Has an ISBN?"}
+  ISBN -- no --> REV["Manual review:<br/>no price suggested"]
+  ISBN -- yes --> MKT["Market value in EUR<br/>1. cached or fresh AI web lookup (optional)<br/>2. else publisher price x 35%<br/>3. else typical value by binding"]
+  MKT --> HI{"Not mass market and<br/>value 50 EUR or more?"}
+  HI -- yes --> REV
+  HI -- no --> CLR{"Book already has 2 or more<br/>copies, and Rule A or mass market?"}
+  CLR -- yes --> CP["Clearance: EUR 1"]
+  CLR -- no --> MM{"Mass market?"}
+  MM -- yes --> P5["EUR 5"]
+  MM -- no --> RS["Rule A under 6: EUR 5<br/>Rule B under 20: EUR 8<br/>Rule C under 50: 75% of value,<br/>rounded to 0.50"]
+  RS --> HC["Hardcover floor:<br/>raised to EUR 10"]
+```
+
+* **Rules are pure functions** (`pricing/rules.js`, no network or database), so
+  they always answer instantly and are fully unit-tested. First match wins, as in
+  the diagram; the thresholds shown are the defaults.
+* **All the numbers live in one database row** (`pricing_settings`, `id = 1`),
+  edited by admins on `/admin/pricing`: the standard price levels (3, 5, 8, 10
+  EUR), the mass-market price (EUR 5), the hardcover floor (EUR 10, optionally
+  applied to clearance too), the Rule A/B/C limits, the clearance count, price and
+  scope, the rounding step, fallback values by binding and the USD and GBP rates.
+* **Clearance** applies when the shop already holds two or more copies of a book
+  (in stock or reserved); the next copies (or, by setting, all of them) go to
+  EUR 1, by default only for Rule A and mass-market books. It is
+  sticky: `book_copies.is_clearance` only changes when a volunteer changes that
+  copy's price. `/admin/pricing/review` is a price check of the whole stock that
+  shows what would change and applies clearance only on confirmation.
+* **Market lookups** (`pricing/market.js`) are the optional AI step: Claude with
+  web search, switched on by `PRICING_AI=true` plus `ANTHROPIC_API_KEY`, capped
+  per day by `PRICING_AI_DAILY_MAX` (default 150) and cached per ISBN-13 in
+  `price_lookups` (a successful lookup for 30 days, an empty one for 7, a failed
+  one for an hour). Without it the rules still work from the publisher price or the
+  binding fallback, and the admin price-check endpoint is rate-limited because
+  one call can cost an AI request.
+* **Learning loop (data only).** `suggested_price`, `suggested_level` and
+  `price_basis` record what was suggested and whether it was kept; no report
+  reads them yet.
+
+### Awards and best-seller lists
+
+Each book page can show prizes and best-seller lists. `src/lib/awards/` looks
+them up in order of trust and stores them in `book_awards`.
+
+```mermaid
+flowchart LR
+  SAVE["Book saved"] --> CHK["checkBookAwards<br/>(in the background)"]
+  JOB["Every 2 min:<br/>drainAwards, 5 books"] --> CHK
+  CHK --> WD["Wikidata"]
+  CHK --> NY["NYT Books API<br/>(only if NYT_API_KEY)"]
+  CHK --> AI["Claude web search<br/>(only if AWARDS_AI=true,<br/>daily cap)"]
+  WD --> V["status: verified<br/>shown at once"]
+  NY --> V
+  MAN["Admin types one"] --> V
+  AI --> PEN["status: pending<br/>hidden"]
+  PEN --> ADM{"Admin review<br/>/admin/awards"}
+  ADM -- approve --> APP["approved: shown"]
+  ADM -- reject --> REJ["rejected: kept, never<br/>suggested again"]
+```
+
+Customers only ever see `verified` and `approved` rows. The background drain
+takes never-checked books newest first, then retries errors after a day, then
+runs the AI step for books checked before AI was on, then refreshes books last
+checked over a year ago; it does not run at boot, so a restart never hammers
+Wikidata. `AWARDS_AI_DAILY_MAX` (default 100) caps AI checks per UTC day, counted
+in the database so it survives restarts. `AWARDS_LOOKUPS=off` stops every lookup
+(the tests use it so no test reaches the network).
+
+### Customer book requests
+
+"Can't find a book? Ask us" (`/request-a-book`) needs no login or membership. The
+requester is identified by an email address confirmed with a link (double
+opt-in); every email link carries a random token that is stored only as a hash.
+
+```mermaid
+stateDiagram-v2
+  [*] --> unconfirmed: form sent, confirmation email
+  unconfirmed --> open: link opened and Confirm pressed
+  unconfirmed --> [*]: deleted after 7 days
+  open --> matched: copy added that fits (or admin matches by hand)
+  matched --> notified: admin presses Notify (optionally holds the copy 7 days)
+  notified --> fulfilled: admin marks done
+  open --> expired: 12 months
+  matched --> expired: 12 months
+  notified --> expired: 12 months
+  open --> cancelled: requester or admin
+  matched --> cancelled: requester or admin
+  notified --> cancelled: requester or admin
+```
+
+* **Matching on intake.** When a copy is added, or a book edited, open requests
+  for the same ISBN (10 or 13 form) or the same normalised title with a
+  compatible author become `matched` to that copy.
+* **Hold.** *Notify and hold* reserves the copy for the requester for 7 days using
+  the ordinary reservation machinery (§9), so it expires and shows as reserved like
+  any other reservation.
+* **Self-service.** Each request has a private manage link (`/my-requests/:token`)
+  to cancel it; "find my requests" emails a 30-day link listing every request of
+  one address (`book_request_list_tokens`), and a logged-in member can cancel from
+  their account. Limits: 3 pending requests per email, 5 submissions a day per IP.
+* **Privacy.** Email, name, note and account link are cleared when a request
+  ends (cancelled, expired, or closed 30 days); only title, author and ISBN stay
+  for anonymous demand counts. Erasing a member cancels and strips their requests
+  (`lib/privacy.js`).
+
+### Reports, copy source and in-shop sales
+
+* **Reports** (`/admin/reports`, `lib/reports.js`) are read-only and made of a few
+  aggregate queries each, never one query per book. Six reports: *Inventory on
+  hand* (by genre, condition, location and source), *Aging stock*, *Sales over
+  time* (online plus in-shop by day, week, month or year, drop-in seats shown
+  apart), *Sell-through by genre*, *Membership* and *Intake log*. Date ranges
+  are Paris calendar days. Any table can be downloaded as CSV; no report shows
+  email addresses or buyer names, and every CSV download is written to the audit
+  log (report name only).
+* **Sell in shop** (`/admin/inventory/sell`) records a counter sale: scan the ISBN,
+  choose the copy, confirm the price and an optional payment method (cash, card,
+  other). One transaction inserts a `shop_sales` row and sets the copy to `sold`;
+  only the admin's id is kept, never buyer details. New books keep the fixed-price
+  rule. The sale is audit-logged and joins online orders in the Sales report.
+* **Move books** (`/admin/inventory/move`) is described under inventory
+  locations above.
+
+### Forum moderation
+
+An admin can hide a thread or reply from the forum page with a reason (illegal
+content, harassment, spam or other) and an optional note. The text stays in the
+row (so it can be reviewed and restored); members see a placeholder. Hiding sends
+the author a **statement of reasons** by email in their language, as the EU
+Digital Services Act requires, with `admin@umasbooks.org` as the contact for
+contesting it. Hide and restore are audit-logged with the kind and reason code
+only, never the post text or the note.
+
+**Migrations** (`src/migrate.js`, files `migrations/001` to `054`; numbers 049,
+051 and 052 were never used) are run by Render's **pre-deploy command**,
+`npm run migrate`, before a new version takes traffic (§11), not by the web
+process at boot. Each file applies exactly once: a `schema_migrations` table, a
+per-file transaction and an advisory lock, so running it twice is harmless. A
+pre-existing database is baselined, not re-migrated. If a migration fails the
+deploy is aborted and the old version keeps serving. Never edit a deployed
+migration — add a new numbered file.
 
 ---
 
@@ -430,7 +632,9 @@ touched by the sync or the expiry sweep.
 ## 9. Background jobs
 
 There is no job queue: a few `setInterval` timers in the web process, plus
-GitHub Actions for work that must survive the site being down.
+GitHub Actions for work that must survive the site being down. Each timer's job
+is wrapped by `guardJob` (`lib/jobGuard.js`): a run that is still in progress is
+never overlapped by the next tick, which is skipped with one log line.
 
 
 ```mermaid
@@ -440,11 +644,14 @@ flowchart LR
     B["hourly (every 6th tick)<br/>late-payment re-check"]
     C["every 6 h<br/>reservations, reminders,<br/>membership expiry + backstop"]
     P["daily and at boot<br/>retention purge,<br/>30-day inactivity warnings"]
+    IC["daily and at boot<br/>unused-image cleanup"]
+    AW["every 2 min (not at boot)<br/>awards drain, 5 books"]
   end
   subgraph gha["GitHub Actions (independent of Render)"]
     D["every 30 min<br/>uptime check"]
     E["03:00 UTC nightly<br/>database backup to Backblaze"]
     F["1st of month, 05:00 UTC<br/>restore test"]
+    FR["09:00 UTC daily<br/>backup freshness check"]
   end
   A --> DB[("Postgres")]
   B --> HA["HelloAsso lookups"]
@@ -455,6 +662,10 @@ flowchart LR
   E --> DB
   E --> BK[("Backblaze B2")]
   BK --> F
+  FR -->|"newest full/ dump older than 36 h,<br/>empty or unreachable: email"| BK
+  IC --> DB
+  AW --> DB
+  AW --> EXT["Wikidata, NYT, Anthropic"]
 ```
 
 | Job | Where | Cadence | Notes |
@@ -462,16 +673,21 @@ flowchart LR
 | Cart hold expiry, order reconcile | web process | 10 min | also on boot |
 | Late-payment re-check | web process | hourly | only orders closed in the last 7 days |
 | Reservation expiry, pickup reminder (day 11 of 14), membership expiry, membership backstop | web process | 6 h | read-time expiry also keeps pages right while idle |
-| Retention purge | web process | daily, and at boot | see below |
+| Retention purge | web process | daily, and at boot | see below; also clears ended book requests and expired "find my requests" links |
+| Unused-image cleanup | web process | daily, and at boot | deletes at most one batch of images older than 7 days that no row references (`lib/imageCleanup.js`) |
+| Awards drain | web process | 2 min, not at boot | looks up awards for a few books at a time (§6); a no-op when `AWARDS_LOOKUPS=off` |
 | Uptime check | Actions | 30 min | emails on the **second** consecutive failure and on recovery |
 | Database backup | Actions | 03:00 UTC | full dump to Backblaze B2 (required); a second copy on the 1st of the month |
 | Restore test | Actions | monthly + manual | restores the newest Backblaze dump into a scratch Postgres and checks it |
+| Backup freshness check | Actions | 09:00 UTC daily + manual | emails if the newest nightly dump in Backblaze is older than 36 hours, empty, missing, or Backblaze cannot be reached (§12) |
 
 **The daily retention purge** keeps the promises on the privacy page. It removes
 event and class sign-ups 12 months after the date, expired reset and
 verification tokens after 7 days, orders and payment records after 10 years,
 contact details on ended reservations and on expired or cancelled orders after
-30 days, and audit-log rows after 12 months. Accounts with no login for 3 years
+30 days, audit-log rows after 12 months, and book requests (never-confirmed ones
+after 7 days, open ones after 12 months, and the contact details of closed ones
+after 30 days). Accounts with no login for 3 years
 (never admins, never current members) get an email warning first and are
 deleted 30 days later unless they log in. Each step runs on its own, so one
 failure does not stop the others.
@@ -569,6 +785,12 @@ flowchart TB
     CK --> E2["failure: email to admin"]
   end
 
+  subgraph fresh["Backup freshness check, daily 09:00 UTC"]
+    FL["list newest dump under full/"] --> FQ{"exists, not empty,<br/>written within 36 hours?"}
+    FQ -- no --> E5["email to admin"]
+    FQ -- yes --> FOK["ok, nothing sent"]
+  end
+
   subgraph watch["Uptime check every 30 min"]
     H["GET /healthz"] --> OK{"database reachable?"}
     OK -- "fails twice in a row" --> E3["one alert email"]
@@ -582,9 +804,16 @@ flowchart TB
 * **Retention in Backblaze** is set by two lifecycle rules on the bucket, not by
   the workflow: nightly dumps under `full/` are hidden after 30 days and the
   1st-of-the-month copies under `monthly/` after 730 days (about two years).
+* **Freshness check.** The nightly workflow emails when it *fails*, but cannot email
+  if it never runs at all (workflow disabled, schedule dropped, a GitHub outage).
+  `.github/workflows/backup-freshness.yml` therefore runs six hours after the
+  backup, looks at Backblaze itself, and emails `admin@umasbooks.org` if the newest
+  `full/` dump is older than 36 hours, is empty, or is missing, or if Backblaze
+  cannot be reached or its settings are absent. It uses the same `BACKUP_S3_*`
+  settings and the Gmail secrets as the nightly job.
 * **Dumps never go into the code repository**: they contain member names,
   emails, order details and password hashes, so they live only in the private
-  Backblaze B2 bucket. Both backup workflows have read-only repository access.
+  Backblaze B2 bucket. All three backup workflows (nightly, restore test, freshness check) have read-only repository access.
 * **What a dump holds.** Everything, including uploaded photos (they live in the
   database now) but not login sessions; after a restore everyone logs in again.
 * **Restore procedure**: `umas-books/README.md` → "Restoring from a backup".
@@ -619,7 +848,11 @@ flowchart TD
 | Secrets | environment variables only (`sync: false` on Render; GitHub secrets for CI); `.env` is git-ignored; a secret scan runs on every PR; startup fails fast in production if `DATABASE_URL` or `SESSION_SECRET` are missing |
 | Authentication | see §5; enumeration-resistant signup, login, reset; HIBP breach check; two-step verification mandatory for admins, secrets encrypted with `TOTP_ENCRYPTION_KEY` |
 | Authorization | admin guard (including two-step) before multer; admins cannot demote, disable or delete themselves |
-| Admin audit log | member changes, erasure, data export, two-step resets, deletes, bulk deletes, book moves and admin logins are appended to `admin_audit_log` and shown read-only at `/admin/audit`; it keeps the admin's id and email, the action and a numeric target, never member emails or names; rows are purged after 12 months |
+| Preview mode | `PREVIEW_MODE=true` switches checkout and the membership widget off, adds a banner, and sends `noindex, nofollow` (header, meta tag, `robots.txt`, empty sitemap), so an unfinished site cannot take payments or be indexed |
+| Moderation | admins can hide forum posts with a reason code; the author gets a statement of reasons (EU Digital Services Act) and the action is audit-logged without the post text |
+| AI features | optional and off without `ANTHROPIC_API_KEY`; price and awards lookups have separate switches and daily caps; AI-found awards stay hidden until an admin approves them; a suggested price is never saved without a person confirming it |
+| Book requests | double opt-in by emailed link, tokens stored as hashes, rate-limited, personal data cleared when a request ends |
+| Admin audit log | member changes, erasure, data export, two-step resets, deletes, bulk deletes, book moves and repricing, shop sales, pricing-rule changes, award edits, book-request handling, forum hide and restore, report CSV downloads and admin logins are appended to `admin_audit_log` and shown read-only at `/admin/audit`; it keeps the admin's id and email, the action and a numeric target, never member emails or names; rows are purged after 12 months |
 | Payments | never trust webhook or return-URL content; amounts computed server-side; idempotent state change |
 | Output | EJS auto-escapes; the only unescaped output is sanitised rich text or fixed markup; `esc()` in client code |
 | Uploads | admin only, size-capped, decoded and re-encoded by `sharp` with a pixel cap; stored in the `images` table and served from `/img/<hash>.jpg` (hash-named, immutable, no cookie) |
@@ -665,14 +898,31 @@ reservations behind. The code handles it in one place (`lib/privacy.js`):
 | `APP_BASE_URL` | recommended | absolute links in emails (verification, reset); Render's `RENDER_EXTERNAL_URL` is the fallback |
 | `GMAIL_USER`, `GMAIL_APP_PASSWORD` | recommended | all outgoing mail, including error alerts |
 | `HELLOASSO_CLIENT_ID`, `HELLOASSO_CLIENT_SECRET`, `HELLOASSO_ORG_SLUG` | for online payment | optional `HELLOASSO_API_BASE` |
-| `ANTHROPIC_API_KEY`, `ANTHROPIC_WORKSPACE_ID` | optional | cover-scan in admin inventory |
+| `ANTHROPIC_API_KEY`, `ANTHROPIC_WORKSPACE_ID` | optional | cover scan, book descriptions and genre in admin inventory; also needed (with the switches below) for AI price and awards lookups |
+| `PRICING_AI` | optional | `true` or `1` turns on the AI market-price lookup behind price suggestions (needs `ANTHROPIC_API_KEY`); off by default, rules still work without it |
+| `PRICING_AI_DAILY_MAX`, `PRICING_AI_MODEL` | optional | daily cap on price lookups (default 150) and model override |
+| `NYT_API_KEY` | optional | enables best-seller lists from the New York Times Books API; without it that source is skipped |
+| `AWARDS_AI` | optional | `true` turns on AI web search for awards (needs `ANTHROPIC_API_KEY`); results wait for admin approval |
+| `AWARDS_AI_DAILY_MAX`, `AWARDS_AI_MODEL` | optional | daily cap on AI award checks (default 100) and model override |
+| `AWARDS_LOOKUPS` | optional | `off` stops every awards lookup (used by tests) |
+| `PREVIEW_MODE` | optional | `true` or `1` puts the site in preview: coming-soon banner, checkout and membership payment off, `noindex`. Unset to open the shop |
 | `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD` | first boot | creates the first admin if none exists |
 | `CONTACT_TO` | optional | contact-form and forum-report recipient (default `admin@umasbooks.org`) |
+| `TZ` | no | forced to `Europe/Paris` by `lib/tz.js` at startup |
 | `ADMIN_2FA_REQUIRED` | tests only | `false` turns the admin two-step requirement off in CI; ignored in production |
+
+On Render, `render.yaml` declares the core variables (database, session secret,
+`TOTP_ENCRYPTION_KEY`, mail, HelloAsso, Anthropic, seed admin); the optional
+switches above (`PRICING_AI`, `AWARDS_AI`, `NYT_API_KEY`, `PREVIEW_MODE`, caps and
+model overrides) are added by hand in the service's environment settings.
+Startup validation (`lib/env.js`, production only) stops the boot if
+`DATABASE_URL` or `SESSION_SECRET` is missing and logs a warning when mail,
+payment or the base URL are not configured.
 
 GitHub (repository **secrets** unless noted): `DATABASE_URL` (the database's
 *external* URL, for backups), `GMAIL_USER`, `GMAIL_APP_PASSWORD`; required offsite
-backup (Backblaze B2): **repository variables** `BACKUP_S3_BUCKET`, `BACKUP_S3_ENDPOINT`,
+backup (Backblaze B2), used by the nightly backup, the restore test and the
+freshness check: **repository variables** `BACKUP_S3_BUCKET`, `BACKUP_S3_ENDPOINT`,
 `BACKUP_S3_REGION` (and `BACKUP_S3_PREFIX`) plus **repository secrets**
 `BACKUP_S3_KEY_ID`, `BACKUP_S3_APPLICATION_KEY`.
 
@@ -691,9 +941,9 @@ Deliberate trade-offs (revisit only if traffic or risk changes):
   request, deliberate for instant revocation.
 * **Photos live in Postgres.** They have their own `images` table and are served
   with a year-long cache, so they no longer bloat pages or JSON, but they do make
-  the database and every backup bigger. Nothing deletes an image once no row
-  uses it (a replaced cover leaves the old one behind); re-uploads of the same
-  file share one row, so this is small. Object storage is the proper next step
+  the database and every backup bigger. A daily job deletes images that are over
+  7 days old and that no row references any more (a replaced cover is cleaned up
+  after a week); re-uploads of the same file share one row. Object storage is the proper next step
   and would need no change to the URLs.
 * **Search is `ILIKE '%q%'`** over a few thousand books — fine now; trigram or
   full-text indexes when the catalogue grows.
@@ -701,8 +951,15 @@ Deliberate trade-offs (revisit only if traffic or risk changes):
   system mail: roughly 2,000 messages a day, signed by Google (SPF is in place;
   confirm DKIM in the Google Admin console and add a DMARC record in the
   Squarespace DNS). Plenty for this site; a transactional provider is not needed.
-* **Languages are English and French only**, and admin screens are English only.
-  The marketing pages translate in the browser with their own dictionaries.
+* **Languages are English and French only**, and admin screens (and admin-only
+  alert emails) are English only. French is rendered on the server everywhere
+  else; the marketing pages still carry small in-page dictionaries that a script
+  re-applies after a client-side toggle, so a new marketing string has to be added
+  in both places.
+* **Awards and price lookups depend on outside services.** Wikidata, the NYT
+  API and the AI web searches can be slow, wrong or unavailable; every call has a
+  timeout, failures are retried later, AI-found awards need an admin's approval
+  and a price is only ever a suggestion. Daily caps bound the Anthropic cost.
 
 Open items worth knowing:
 
@@ -714,7 +971,18 @@ Open items worth knowing:
   `umas-books/ARCHITECTURE.md`).
 * The unique-ISBN index is skipped by its migration if duplicate ISBNs existed
   when it ran; it has to be created by hand after merging them.
-* Backblaze lifecycle rules are set in the Backblaze console, not in code, so
-  nothing in the repository would notice them being changed.
+* Backblaze lifecycle rules are set in the Backblaze console, not in code. The
+  freshness check notices a missing or stale newest nightly dump, but would not
+  notice the rules being changed (for example the monthly copies expiring early).
+* Only the newest `full/` dump is checked for freshness; the `monthly/` copy on
+  the 1st is not checked separately.
+* Price suggestions record what was suggested and what the volunteer chose
+  (`suggested_price`, `price_basis`) but nothing yet uses that data to tune the
+  rules or reports on it.
+* Migration numbers 049, 051 and 052 do not exist (the sequence has gaps); that is
+  harmless, the runner applies whatever files exist, but do not "fill" the gaps.
+* The daily image cleanup only keeps images that a known column references;
+  a new image-bearing column must be added to `IMAGE_REFERENCES` in
+  `lib/imageCleanup.js` (a test fails if it is forgotten).
 * Squarespace-era files (`SQUARESPACE.md`, `squarespace-*.html`, `tools/`) remain
   in the repo root, unused.
