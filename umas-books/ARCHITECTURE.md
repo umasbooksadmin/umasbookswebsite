@@ -439,6 +439,29 @@ others. `lib/totp.js` (hand-rolled on `node:crypto`), `routes/twoFactor.js`
   logs sit with Render. Log lines never contain emails.
 
 
+## Clearing test data before launch
+
+`npm run clear-test-data` (`scripts/clear-test-data.js`, logic in
+`src/lib/clearTestData.js`, tests in `test/integration/clearTestData.test.js`;
+steps for the maintainer in `docs/runbook.md`) removes test data from the
+database. Layers: dry run by default (the whole job runs in a transaction that is
+rolled back, so its counts are exact); a real run needs `--execute`,
+`--confirm "DELETE TEST DATA FROM <db name>"` and `--i-have-a-backup`; refused
+unless `PREVIEW_MODE` is on (`--allow-live` overrides); unknown flags refused;
+one transaction of plain `DELETE`s in foreign-key order (no `TRUNCATE ... CASCADE`);
+sanity checks (admins, 2FA, recovery codes, `pricing_settings`, `schema_migrations`,
+kept content unchanged) roll back on any difference; sequences are restarted only
+for tables left empty.
+
+**Every table must be classified** in `TABLES` (`shop`, `people`, `logs`, `content`,
+`kept`). The script refuses to run on a database with an unclassified table and a
+test fails when a migration adds one, so a new table cannot be forgotten: when you
+add a table, classify it there and, if it holds rows to delete, add it to
+`buildPlan()` in foreign-key order. Always kept: admin users (with 2FA and recovery
+codes), their sessions, `pricing_settings`, `schema_migrations`.
+Content is kept unless `--include-content`; non-admin accounts are kept with
+`--keep-members`.
+
 ## Languages
 
 Everything customers and members see must be available in French (admin
