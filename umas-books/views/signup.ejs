@@ -9,14 +9,7 @@
   <input id="displayName" name="displayName" type="text" autocomplete="name" required>
   <label for="email"><%= tr('Email', 'E-mail') %></label>
   <input id="email" name="email" type="email" autocomplete="email" required>
-  <label for="password"><%= tr('Password', 'Mot de passe') %></label>
-  <div class="password-field">
-    <input id="password" name="password" type="password" minlength="8" autocomplete="new-password" required
-      pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}"
-      title="<%= tr('At least 8 characters, with an uppercase letter, a lowercase letter, a number, and a symbol.', '8 caractères minimum, avec une majuscule, une minuscule, un chiffre et un symbole.') %>">
-    <button type="button" class="password-toggle" data-toggle-password="password" aria-label="<%= tr('Show password', 'Afficher le mot de passe') %>" aria-pressed="false"><%= tr('Show', 'Afficher') %></button>
-  </div>
-  <p class="muted small"><%= tr('At least 8 characters, with an uppercase letter, a lowercase letter, a number, and a symbol.', '8 caractères minimum, avec une majuscule, une minuscule, un chiffre et un symbole.') %></p>
+  <p class="muted small"><%= tr('We will email you a link to confirm your address and choose your password.', 'Nous vous enverrons par e-mail un lien pour confirmer votre adresse et choisir votre mot de passe.') %></p>
   <button class="btn" type="submit"><%= tr('Create account', 'Créer mon compte') %></button>
   <%- include('partials/privacy_note', { en: 'We use your details only to create and manage your account. See our', fr: 'Vos données servent uniquement à créer et gérer votre compte. Consultez notre' }) %>
 </form>

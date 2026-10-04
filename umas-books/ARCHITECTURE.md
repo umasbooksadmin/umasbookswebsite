@@ -221,6 +221,30 @@ rather than by a numbered migration), grouped by what they belong to:
   as a badge). `/admin/pricing/review` is the price check (copies that differ
   from the suggestion, copies needing review, clearance candidates; audit
   `copy.reprice`).
+- **Price sticker colors** — the shop marks copies with colored price stickers
+  (3 yellow, 5 green, 8 blue, 10 red, any other used price purple, clearance
+  orange, new books white with the publisher's price written on). Nothing is
+  stored: `src/lib/priceColors.js` is the single source of truth (levels with
+  key, EUR amount, EN/FR label, hex and text color) and derives a copy's color
+  from its data, in this order: `is_clearance` -> orange; condition `new` ->
+  white (retail); price exactly 3/5/8/10 -> that color; else purple. Admin
+  views get it as `app.locals.priceColors`; `views/partials/sticker_chip.ejs`
+  draws a chip and `sticker_legend.ejs` the legend. The price control
+  (`_price_control.ejs` + `public/price-suggestion.js`) shows a live chip that
+  follows the price level and the condition (the scheme reaches the script as
+  JSON in `data-sticker-levels`). For new books the suggestion panel says
+  "New book: sell at the publisher's price (max 5% off)" and never proposes a
+  used level (`summaryLabel` in `lib/pricing/index.js`; the loi Lang rules in
+  `resolveCopyPricing` are unchanged).
+
+  | Route | Purpose |
+  |---|---|
+  | `GET /admin/inventory/stickers` | printable sheet of in-stock copies (`src/routes/admin/stickers.js`, `views/admin/inventory/stickers.ejs`): filters `?since=` (default last 7 days, Paris time), `?location=`, `?color=`; sorted by location then color |
+  | `GET /admin/inventory/stickers?format=csv` | same rows as a CSV download (audit action `stickers.csv`); the smoke crawler skips `?format=csv` links |
+
+  The sheet has an `@media print` stylesheet (menu hidden, chips keep their
+  colors via `print-color-adjust: exact`). Mounted before the inventory router
+  because `stickers` would otherwise be read as a book id.
 - **Accounts & auth** — `users`, `password_reset_tokens`,
   `email_verification_tokens`
 - **Shop / checkout** — `books`, `book_copies`, `orders` (with `cgv_accepted_at` / `cgv_version`: proof of acceptance of the terms of sale, version from `src/lib/legal.js`), `order_items`
@@ -237,16 +261,18 @@ rather than by a numbered migration), grouped by what they belong to:
   an admin creates are verified immediately, justified because the invite
   link must be clicked from that same inbox to set a password.
 - **Account pre-hijack defence** (migration 055, `users.first_verification_pending`,
-  set only by `POST /signup`): a self-signup account cannot log in until its
-  email is confirmed, and its first confirmation through `GET /verify-email/:token`
-  discards the signup password (random unusable hash), bumps `password_changed_at`
-  (all sessions die) and redirects to `/reset-password/:token?confirmed=1`, a
-  fresh single-use token, so only the mailbox owner chooses the password. The
-  membership sync waits for that choice. `POST /resend-verification` is neutral
-  and rate limited. Admin-created, grandfathered (032) and admin-email-changed
-  accounts are unflagged: they keep their password and just become verified.
-  Migration 055 also flags any account still unverified when it ran. Reasoning
-  is in the comment above the verify route in `src/routes/auth.js`.
+  set only by `POST /signup`): signup collects **no password** (the account gets
+  a random unusable hash and cannot log in). The emailed link
+  (`GET /verify-email/:token`) verifies the email, bumps `password_changed_at`
+  and redirects to `/reset-password/:token?confirmed=1`, a fresh single-use
+  token, where the person chooses their password (policy and breach check
+  apply); they then land on `/login?reset=confirmed`. So only the mailbox owner
+  can ever set a password. The membership sync waits for that choice.
+  `POST /resend-verification` is neutral and rate limited. Admin-created,
+  grandfathered (032) and admin-email-changed accounts are unflagged and keep
+  their password. Still-unconfirmed accounts from the old password-at-signup form
+  follow the same rules (migration 055 flagged them). Reasoning is in the comment
+  above the verify route in `src/routes/auth.js`.
 - **Membership** — `membership_payments` (HelloAsso payment records,
   matched to a `users` row by verified email — see
   `src/lib/membership.js`). The sync also re-runs (in the background)

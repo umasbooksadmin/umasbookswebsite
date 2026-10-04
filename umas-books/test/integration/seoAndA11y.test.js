@@ -155,7 +155,7 @@ test("login, signup and password forms carry autocomplete tokens", async () => {
   const signup = await (await get("/signup")).text();
   assert.match(tag(signup, "displayName"), /autocomplete="name"/);
   assert.match(tag(signup, "email"), /autocomplete="email"/);
-  assert.match(tag(signup, "password"), /autocomplete="new-password"/);
+  assert.ok(!/id="password"/.test(signup), "signup asks for no password (it is chosen after the email is confirmed)");
 
   const forgot = await (await get("/forgot-password")).text();
   assert.match(tag(forgot, "email"), /autocomplete="email"/);

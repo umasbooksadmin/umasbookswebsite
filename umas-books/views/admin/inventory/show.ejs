@@ -127,6 +127,7 @@
           <details<%= (typeof suggestFor !== 'undefined' && suggestFor.copyId === c.id) || (typeof openCopyId !== 'undefined' && openCopyId === c.id) ? ' open' : '' %>>
             <summary style="cursor:pointer;">
               <%= conditionLabel %> &middot; <%= statusLabel %><%= c.price != null && c.price !== '' && Number.isFinite(Number(c.price)) ? ' · €' + Number(c.price).toFixed(2) : '' %><%= c.location ? ' · Location ' + c.location : '' %>
+              <% const stk = priceColors.colorFor(c); %> <%- include('../../partials/sticker_chip', { level: stk, text: stk.label }) %>
             </summary>
             <% if (c.status === 'reserved' && c.reserved_by_name) { %>
               <div role="status" class="notice-box small" style="margin-top:10px;">
@@ -164,7 +165,7 @@
               </select>
               <% const suggestedHere = typeof suggestFor !== 'undefined' && suggestFor.copyId === c.id ? suggestFor.suggestion : null; %>
               <%- include('_price_control', {
-                idSuffix: '-' + c.id, mode: 'edit', copyId: c.id, suggestion: suggestedHere, priceValue: c.price,
+                idSuffix: '-' + c.id, mode: 'edit', copyId: c.id, condition: c.condition, isClearance: c.is_clearance, chipPublisherPrice: c.publisher_price, suggestion: suggestedHere, priceValue: c.price,
                 suggestAction: '/admin/inventory/' + book.id + '/copies/' + c.id + '/suggest',
                 selected: c.price != null ? priceUi.keyFor(c.price, c.is_clearance) : '',
               }) %>
