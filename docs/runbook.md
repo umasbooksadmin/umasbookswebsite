@@ -157,12 +157,11 @@ Try in this order:
    Five wrong passwords lock an account for 15 minutes: just wait.
 
 **A new member says "I can't log in after signing up" or "my confirmation link
-doesn't work".** A new account cannot log in until its email is confirmed, and
-confirming makes the person choose their password again (this stops someone
-signing up with another person's email). Tell them to use **Forgot your
-password?** on the login page: the link it emails confirms the address and lets
-them choose a password in one step. The login page also offers to resend the
-confirmation link.
+doesn't work".** Signup asks for no password: the person gets an email with a
+link that confirms their address and lets them choose their password, and only
+then can they log in. If the link is lost or expired, the login page has "Just
+signed up? Send me the confirmation link again", and **Forgot your password?**
+does the same job (its link also confirms the address and sets a password).
 
 **How the first admin is created.** At every start `npm run seed` runs
 (`src/seed.js`). If **no admin exists yet** it creates one from the Render env

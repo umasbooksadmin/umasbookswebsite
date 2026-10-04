@@ -253,8 +253,8 @@ stateDiagram-v2
   [*] --> Anonymous
   Anonymous --> Signup: POST /signup
   Signup --> Unverified: neutral notice, same page whether or not the email exists, plus a verification email
-  Unverified --> Unverified: login refused until the email is confirmed (resend link offered)
-  Unverified --> ChoosePassword: GET /verify-email/:token, first confirmation: signup password discarded, sessions killed
+  Unverified --> Unverified: no password exists yet, login impossible (resend link offered)
+  Unverified --> ChoosePassword: GET /verify-email/:token, first confirmation, sessions killed
   ChoosePassword --> Verified: person picks their own password (reset flow)
   Verified --> LoggedIn: login
   Verified --> TwoStep: password right, two-step switched on
@@ -287,16 +287,20 @@ Key rules:
   who loses their phone and codes is reset by another admin (**Reset Two-Step**
   on the Members page, written to the audit log); non-admins can switch it off
   themselves, admins cannot.
-* **Pre-hijack defence.** Someone could sign up with a victim's email and their
-  own password, then wait for the victim to confirm the address. So a
-  self-signup account (`users.first_verification_pending`, migration 055)
-  **cannot log in until confirmed**, and its **first confirmation replaces the
-  password**: the link verifies the email, stores an unusable random hash, sets
-  `password_changed_at` (every session dies) and redirects to the reset-password
-  page with a fresh single-use token ("Email confirmed: now choose your
-  password"). Membership matching runs after that password is chosen. A neutral
-  `POST /resend-verification` (6 per 15 min per IP, one mail per account per
-  5 min) replaces a lost link. Admin-created, grandfathered and
+* **Pre-hijack defence.** Someone could sign up with a victim's email and a
+  password they know, then wait for the victim to confirm the address. So
+  **signup asks for no password**: the account (`users.first_verification_pending`,
+  migration 055) starts with an unusable random hash and cannot log in. The
+  emailed link ("confirm your email and choose your password") verifies the
+  address, bumps `password_changed_at` (every session dies), stores a fresh
+  unusable hash and redirects to the reset-password page with a single-use
+  token ("Email confirmed: now choose your password"), where the password
+  policy and breach check apply. Only the mailbox owner can set a password.
+  Membership matching runs after that choice. After choosing, the person lands
+  on the login page. `POST /resend-verification` (neutral, 6 per 15 min per IP,
+  one mail per account per 5 min) replaces a lost link; Forgot password also
+  works. Accounts that signed up with a password before this change and are
+  still unconfirmed follow the same rules. Admin-created, grandfathered and
   admin-email-changed accounts are not flagged and behave as before.
 * **Email verification gates identity-sensitive features**: order history on
   `/account` and automatic membership attribution both require

@@ -6,7 +6,9 @@ const { emailTr } = require("./lang");
 
 const TOKEN_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
-async function sendVerificationEmail(user, baseUrl) {
+// choosePassword: true for a new signup, whose link leads to "choose your
+// password" (it has none yet); false for a plain address confirmation.
+async function sendVerificationEmail(user, baseUrl, { choosePassword = false } = {}) {
   const rawToken = generateToken();
   const tokenHash = hashToken(rawToken);
   const expiresAt = new Date(Date.now() + TOKEN_TTL_MS);
@@ -28,13 +30,21 @@ async function sendVerificationEmail(user, baseUrl) {
   }
   const tr = emailTr(lang);
   const name = emailSafeName(user.display_name);
+  const text = choosePassword
+    ? tr(
+        `Hi ${name},\n\nClick the link below to confirm your email address and choose your password (this link expires in 24 hours):\n${link}\n\nIf you didn't create an account at Uma's Books, you can safely ignore this email.`,
+        `Bonjour ${name},\n\nCliquez sur le lien ci-dessous pour confirmer votre adresse e-mail et choisir votre mot de passe (ce lien expire dans 24 heures) :\n${link}\n\nSi vous n'avez pas créé de compte sur Uma's Books, vous pouvez ignorer ce message.`
+      )
+    : tr(
+        `Hi ${name},\n\nConfirm this is your email address (this link expires in 24 hours):\n${link}\n\nIf you didn't create an account at Uma's Books, you can safely ignore this email.`,
+        `Bonjour ${name},\n\nVeuillez confirmer qu'il s'agit bien de votre adresse e-mail (ce lien expire dans 24 heures) :\n${link}\n\nSi vous n'avez pas créé de compte sur Uma's Books, vous pouvez ignorer ce message.`
+      );
   await sendMail({
     to: user.email,
-    subject: tr("Confirm your email for Uma's Books", "Confirmez votre adresse e-mail pour Uma's Books"),
-    text: tr(
-      `Hi ${name},\n\nConfirm this is your email address (this link expires in 24 hours):\n${link}\n\nIf you didn't create an account at Uma's Books, you can safely ignore this email.`,
-      `Bonjour ${name},\n\nVeuillez confirmer qu'il s'agit bien de votre adresse e-mail (ce lien expire dans 24 heures) :\n${link}\n\nSi vous n'avez pas créé de compte sur Uma's Books, vous pouvez ignorer ce message.`
-    ),
+    subject: choosePassword
+      ? tr("Confirm your email and choose your password for Uma's Books", "Confirmez votre adresse e-mail et choisissez votre mot de passe pour Uma's Books")
+      : tr("Confirm your email for Uma's Books", "Confirmez votre adresse e-mail pour Uma's Books"),
+    text,
   });
 }
 
