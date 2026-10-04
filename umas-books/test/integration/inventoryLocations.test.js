@@ -71,7 +71,7 @@ async function seedBook(title, isbn) {
 async function seedCopy(bookId, { status = "in_stock", location = null, ageDays = 0 } = {}) {
   const { rows } = await pool.query(
     `INSERT INTO book_copies (book_id, condition, price, status, location, created_at)
-     VALUES ($1, 'good', 5, $2, $3, now() - ($4 || ' days')::interval) RETURNING id`,
+     VALUES ($1, 'very_good', 5, $2, $3, now() - ($4 || ' days')::interval) RETURNING id`,
     [bookId, status, location, String(ageDays)]
   );
   return rows[0].id;
@@ -97,7 +97,7 @@ test("intake saves a normalised location on the new copy", async () => {
   const title = `Intake Book ${uniq()}`;
   const res = await post("/admin/inventory", {
     title, description: "d", descriptionFr: "d", coverUrl: "https://example.test/c.jpg",
-    status: "in_stock", condition: "good", price: "5", location: "  fiction   a1 ", fromScan: "1",
+    status: "in_stock", condition: "very_good", price: "5", location: "  fiction   a1 ", fromScan: "1",
   });
   assert.equal(res.status, 302);
   // The scan flow comes back with the same location, ready for the next book.
@@ -110,7 +110,7 @@ test("intake saves a normalised location on the new copy", async () => {
 
 test("intake without a location stores NULL", async () => {
   const title = `No Location ${uniq()}`;
-  await post("/admin/inventory", { title, description: "d", descriptionFr: "d", coverUrl: "https://example.test/c.jpg", status: "in_stock", condition: "good", price: "5" });
+  await post("/admin/inventory", { title, description: "d", descriptionFr: "d", coverUrl: "https://example.test/c.jpg", status: "in_stock", condition: "very_good", price: "5" });
   const { rows } = await pool.query(
     "SELECT c.location FROM book_copies c JOIN books b ON b.id = c.book_id WHERE b.title = $1", [title]
   );
@@ -137,7 +137,7 @@ test("the add-book form is pre-filled with the carried location and a typed new 
   const { text } = await get("/admin/inventory/new?location=brand%20new%20shelf");
   assert.match(text, /name="location"[^>]*value="BRAND NEW SHELF"/);
   const title = `Typed Location ${uniq()}`;
-  await post("/admin/inventory", { title, description: "d", descriptionFr: "d", coverUrl: "https://example.test/c.jpg", status: "in_stock", condition: "good", price: "5", location: "brand new shelf" });
+  await post("/admin/inventory", { title, description: "d", descriptionFr: "d", coverUrl: "https://example.test/c.jpg", status: "in_stock", condition: "very_good", price: "5", location: "brand new shelf" });
   const { text: after } = await get("/admin/inventory/new");
   assert.match(after, /<option value="BRAND NEW SHELF">/);
 });
@@ -148,13 +148,13 @@ test("copy edit form shows and saves the location, and a change is audited", asy
   const { text } = await get(`/admin/inventory/${bookId}`);
   assert.match(text, new RegExp(`id="location-${copyId}"[^>]*value="OLD-1"`));
   assert.match(text, /Location OLD-1/);
-  const res = await post(`/admin/inventory/${bookId}/copies/${copyId}`, { condition: "good", status: "in_stock", price: "5", location: " new-2 " });
+  const res = await post(`/admin/inventory/${bookId}/copies/${copyId}`, { condition: "very_good", status: "in_stock", price: "5", location: " new-2 " });
   assert.equal(res.status, 302);
   assert.equal(await locationOf(copyId), "NEW-2");
   const { rows } = await pool.query("SELECT detail FROM admin_audit_log WHERE action = 'copy.move' AND target_id = $1", [copyId]);
   assert.deepEqual(rows.map((r) => r.detail), ["from OLD-1 to NEW-2"]);
   // Clearing it stores NULL.
-  await post(`/admin/inventory/${bookId}/copies/${copyId}`, { condition: "good", status: "in_stock", price: "5", location: "" });
+  await post(`/admin/inventory/${bookId}/copies/${copyId}`, { condition: "very_good", status: "in_stock", price: "5", location: "" });
   assert.equal(await locationOf(copyId), null);
 });
 

@@ -87,7 +87,7 @@ async function assertServedImage(url) {
 test("inventory cover upload stores /img/<hash>.jpg, served with immutable caching", async () => {
   const isbn = `97812345${String(Date.now()).slice(-5)}`;
   await upload("/admin/inventory", {
-    title: `${TAG} cover book`, isbn, price: "5", condition: "good",
+    title: `${TAG} cover book`, isbn, price: "5", condition: "very_good",
     description: "d", descriptionFr: "d", genre: "Fiction",
   }, "coverPhoto");
   const { rows } = await pool.query("SELECT cover_url FROM books WHERE title = $1", [`${TAG} cover book`]);

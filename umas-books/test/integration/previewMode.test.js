@@ -35,7 +35,7 @@ before(async () => {
   db = new Client({ connectionString: preview.databaseUrl });
   await db.connect();
   const { rows: b } = await db.query("INSERT INTO books (title, authors) VALUES ('Preview Book', 'Preview Author') RETURNING id");
-  const { rows: c } = await db.query("INSERT INTO book_copies (book_id, status, price, condition) VALUES ($1, 'in_stock', 6.5, 'good') RETURNING id", [b[0].id]);
+  const { rows: c } = await db.query("INSERT INTO book_copies (book_id, status, price, condition) VALUES ($1, 'in_stock', 6.5, 'very_good') RETURNING id", [b[0].id]);
   copyId = c[0].id;
 });
 

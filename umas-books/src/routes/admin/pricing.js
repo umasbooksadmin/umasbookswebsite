@@ -95,7 +95,7 @@ router.post("/admin/pricing", requireAdmin, async (req, res) => {
 // market data that is already cached (never an AI call).
 async function reviewRows(settings) {
   const { rows } = await pool.query(
-    `SELECT c.id, c.book_id, c.price, c.condition, c.publisher_price, c.is_clearance, b.title, b.isbn, to_jsonb(b) ->> 'binding' AS binding
+    `SELECT c.id, c.book_id, c.price, c.condition, c.publisher_price, c.is_clearance, b.title, b.isbn, b.binding
      FROM book_copies c JOIN books b ON b.id = c.book_id
      WHERE c.status = 'in_stock' AND c.condition <> 'new' AND c.price IS NOT NULL
      ORDER BY c.id`
@@ -145,7 +145,7 @@ router.post("/admin/pricing/review/:copyId", requireAdmin, async (req, res) => {
   const offset = Math.max(0, parseInt(req.body.offset, 10) || 0);
   const settings = await getSettings(pool);
   const { rows } = await pool.query(
-    `SELECT c.id, c.price, c.condition, c.status, c.publisher_price, b.isbn, to_jsonb(b) ->> 'binding' AS binding
+    `SELECT c.id, c.price, c.condition, c.status, c.publisher_price, b.isbn, b.binding
      FROM book_copies c JOIN books b ON b.id = c.book_id WHERE c.id = $1`, [copyId]
   );
   const copy = rows[0];

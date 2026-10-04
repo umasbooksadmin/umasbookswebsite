@@ -64,7 +64,7 @@ async function loadCartItems(cart) {
       if (!r) continue; // no longer in stock — dropped, same as before
       items.push({
         kind: "book", lineId: line.lineId, copyId: r.id,
-        title: r.title, authors: r.authors, coverUrl: r.cover_url, price: Number(r.price),
+        title: r.title, authors: r.authors, coverUrl: r.cover_url, price: Number(r.price), condition: r.condition,
       });
     }
   }

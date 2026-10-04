@@ -94,7 +94,7 @@ test("new copy at 100% and at 95% is accepted; blank price defaults to publisher
 });
 
 test("used copy is unaffected and stores no publisher price", async () => {
-  const { res, title } = await addBook({ condition: "good", price: "3", publisherPrice: "20" });
+  const { res, title } = await addBook({ condition: "very_good", price: "3", publisherPrice: "20" });
   assert.equal(res.status, 302);
   const copies = await copiesOf(title);
   assert.equal(Number(copies[0].price), 3);
@@ -102,7 +102,7 @@ test("used copy is unaffected and stores no publisher price", async () => {
 });
 
 test("editing a copy enforces the same rule", async () => {
-  const { title } = await addBook({ condition: "good", price: "3" });
+  const { title } = await addBook({ condition: "very_good", price: "3" });
   const [copy] = await copiesOf(title);
   const url = `/admin/inventory/${copy.book_id}/copies/${copy.id}`;
   const base = { status: "in_stock", price: "3" };
@@ -112,7 +112,7 @@ test("editing a copy enforces the same rule", async () => {
   res = await post(url, { ...base, condition: "new", publisherPrice: "10", price: "9" });
   assert.equal(res.status, 200);
   let [row] = await copiesOf(title);
-  assert.equal(row.condition, "good");
+  assert.equal(row.condition, "very_good");
   assert.equal(row.publisher_price, null);
 
   res = await post(url, { ...base, condition: "new", publisherPrice: "10", price: "9.5" });
@@ -122,7 +122,7 @@ test("editing a copy enforces the same rule", async () => {
   assert.equal(Number(row.price), 9.5);
   assert.equal(Number(row.publisher_price), 10);
 
-  res = await post(url, { ...base, condition: "fair", price: "2" });
+  res = await post(url, { ...base, condition: "acceptable", price: "2" });
   assert.equal(res.status, 302);
   [row] = await copiesOf(title);
   assert.equal(row.publisher_price, null);

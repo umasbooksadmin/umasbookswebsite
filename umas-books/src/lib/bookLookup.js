@@ -7,6 +7,17 @@ function normalizeIsbn(isbn) {
   return (isbn || "").replace(/[^0-9Xx]/g, "").toUpperCase();
 }
 
+// Open Library's free-text physical format ("Hardcover", "Mass Market
+// Paperback", "trade paperback"...) mapped to our three bindings, or null when
+// it is missing or something else (e.g. "Audio CD", "Spiral-bound").
+function mapBinding(physicalFormat) {
+  const f = String(physicalFormat == null ? "" : physicalFormat).toLowerCase();
+  if (f.includes("mass market")) return "mass_market";
+  if (f.includes("hardcover") || f.includes("hardback")) return "hardcover";
+  if (f.includes("paperback") || f.includes("softcover")) return "paperback";
+  return null;
+}
+
 function extractYear(publishDate) {
   if (!publishDate) return null;
   const match = String(publishDate).match(/\d{4}/);
@@ -126,6 +137,7 @@ async function lookupByIsbn(rawIsbn) {
     coverUrl: (info.cover && (info.cover.large || info.cover.medium)) || null,
     genre,
     genreFr: translateGenresToFrench(genre),
+    binding: mapBinding(info.physical_format || (record.details && record.details.details && record.details.details.physical_format)),
   };
 }
 
@@ -157,4 +169,4 @@ async function searchByTitleAuthor(title, author) {
   });
 }
 
-module.exports = { normalizeIsbn, lookupByIsbn, searchByTitleAuthor, COMMON_GENRES, translateGenresToFrench };
+module.exports = { normalizeIsbn, mapBinding, lookupByIsbn, searchByTitleAuthor, COMMON_GENRES, translateGenresToFrench };
