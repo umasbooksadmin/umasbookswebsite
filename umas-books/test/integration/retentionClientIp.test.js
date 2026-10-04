@@ -5,7 +5,7 @@ const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const { startTestApp } = require("../helpers/testApp");
 
-const PORT = 3750;
+const PORT = 3751;
 let app, pool, privacy, cartLib, mailer;
 
 before(async () => {
