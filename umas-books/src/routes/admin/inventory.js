@@ -20,6 +20,7 @@ const { validateIdParams } = require("../../middleware/idParams");
 const { parseMoney, parseWholeNumber } = require("../../lib/validation");
 
 const router = express.Router();
+router.use("/admin/inventory", require("../../lib/priceColors").exposeToViews); // chips in the views
 // Garbage ids get the 404 page, not a Postgres 22P02 and a 500.
 validateIdParams(router, "id", "copyId");
 

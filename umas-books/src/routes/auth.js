@@ -53,8 +53,8 @@ const DUMMY_HASH = bcrypt.hashSync("no-such-account-timing-equalizer", 12);
 
 const signupNotice = (req) =>
   req.tr(
-    "Thanks! Check your inbox for an email with next steps: open its link to confirm your address and choose your password, then log in. If you already have an account, try logging in or resetting your password.",
-    "Merci ! Consultez votre boîte de réception : un e-mail vous indique la marche à suivre. Ouvrez son lien pour confirmer votre adresse et choisir votre mot de passe, puis connectez-vous. Si vous avez déjà un compte, essayez de vous connecter ou de réinitialiser votre mot de passe."
+    "Thanks! Check your inbox: we've emailed you a link to confirm your address and choose your password. If you already have an account, try logging in or resetting your password.",
+    "Merci ! Consultez votre boîte de réception : nous vous avons envoyé un lien pour confirmer votre adresse et choisir votre mot de passe. Si vous avez déjà un compte, essayez de vous connecter ou de réinitialiser votre mot de passe."
   );
 
 const LOGIN_LOCK_THRESHOLD = 5;
@@ -130,15 +130,14 @@ router.get("/signup", (req, res) => {
 
 router.post("/signup", signupLimiter, async (req, res) => {
   const email = clean(req.body.email, 200).toLowerCase();
-  const password = req.body.password || "";
+  // No password at signup (any "password" field sent is ignored): the person
+  // chooses it only after proving they own the mailbox, on the page the
+  // confirmation link leads to (GET /verify-email below). Nobody can set a
+  // password on an address they merely typed in.
   const displayName = clean(req.body.displayName, 100);
 
-  if (!email || !password || !displayName) {
+  if (!email || !displayName) {
     return res.status(400).render("signup", { error: req.tr("All fields are required.", "Tous les champs sont obligatoires."), notice: null });
-  }
-  const passwordError = await validateNewPassword(password, req.tr);
-  if (passwordError) {
-    return res.status(400).render("signup", { error: passwordError, notice: null });
   }
 
   // Not a single plain address ("a@x.com, b@y.com" would make nodemailer
@@ -156,7 +155,9 @@ router.post("/signup", signupLimiter, async (req, res) => {
   // bcrypt hash runs on both paths so response time doesn't differ, and
   // mail is sent in the background so a slow mail server can't either.
   try {
-    const hash = await bcrypt.hash(password, 12);
+    // Unusable: random, never revealed. The hash still runs on both paths so
+    // response time doesn't differ between new and existing emails.
+    const hash = await bcrypt.hash(crypto.randomBytes(32).toString("hex"), 12);
     const { rows: existing } = await pool.query("SELECT id, email, display_name, lang FROM users WHERE email = $1", [email]);
     let created = null;
     if (!existing.length) {
@@ -177,7 +178,7 @@ router.post("/signup", signupLimiter, async (req, res) => {
       // Not fatal — the account exists either way; it just can't be
       // auto-matched to a future HelloAsso membership payment until
       // verified (see syncMembershipForEmail in lib/membership.js).
-      sendVerificationEmail(created, url).catch((err) => console.error("Verification email failed:", err.message));
+      sendVerificationEmail(created, url, { choosePassword: true }).catch((err) => console.error("Verification email failed:", err.message));
     } else if (existing.length) {
       sendSignupAttemptEmail(existing[0], url).catch((err) => console.error("Signup-attempt email failed:", err.message));
     }
@@ -188,7 +189,9 @@ router.post("/signup", signupLimiter, async (req, res) => {
   }
 });
 
-// ACCOUNT PRE-HIJACK DEFENCE (two halves, both needed):
+// ACCOUNT PRE-HIJACK DEFENCE. Signup collects no password at all; the account
+// starts with an unusable one. (Older still-unconfirmed accounts that did
+// choose one at signup are covered by the same rules below.)
 //  1. POST /login refuses a self-signup account until its email is confirmed,
 //     so whoever typed the address at signup never holds a session before the
 //     real inbox owner has acted.
@@ -276,7 +279,7 @@ router.post("/resend-verification", resendLimiter, async (req, res) => {
       );
       if (rows[0]) {
         // Background, like signup: response time can't reveal the account.
-        sendVerificationEmail(rows[0], baseUrl(req)).catch((err) => console.error("Verification email failed:", err.message));
+        sendVerificationEmail(rows[0], baseUrl(req), { choosePassword: true }).catch((err) => console.error("Verification email failed:", err.message));
       }
     } catch (err) {
       console.error(err);

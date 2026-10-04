@@ -86,7 +86,7 @@
     <input id="acquisitionCost" name="acquisitionCost" type="number" step="0.01" min="0" value="<%= defaultPricing.acquisitionCost %>">
 
     <%- include('_price_control', {
-      idSuffix: '', mode: 'intake', suggestAction: '/admin/inventory/suggest',
+      idSuffix: '', mode: 'intake', condition: typeof selectedCondition !== 'undefined' ? selectedCondition : 'very_good', chipPublisherPrice: typeof publisherPriceValue !== 'undefined' ? publisherPriceValue : '', suggestAction: '/admin/inventory/suggest',
       suggestion: typeof priceSuggestion !== 'undefined' ? priceSuggestion : null,
       priceValue: defaultPricing.price,
       selected: typeof priceLevelSelected !== 'undefined' && priceLevelSelected !== undefined ? priceLevelSelected

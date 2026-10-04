@@ -102,9 +102,9 @@ test("signup, confirm the email, choose a password, then login works end to end"
       body: `email=${encodeURIComponent(email)}&password=${encodeURIComponent(password)}&_csrf=${t}`,
     });
   };
-  // Until the email is confirmed even the right password gets no session
-  // (account pre-hijack defence, see accountPreHijack.test.js).
-  assert.equal((await loginAttempt("Correct-Horse-1")).status, 403);
+  // Signup stores no password: nothing logs in until the person confirms
+  // and chooses one (account pre-hijack defence, see accountPreHijack.test.js).
+  assert.equal((await loginAttempt("Correct-Horse-1")).status, 401);
 
   // The real raw token is only in the (unsent) mail; plant a known one.
   const crypto = require("node:crypto");
