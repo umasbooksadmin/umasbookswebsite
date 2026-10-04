@@ -60,6 +60,19 @@
     </section>
   </div>
 
+  <section class="bk-band bk-band-ask">
+    <div class="bk-band-row">
+      <div class="bk-band-item">
+        <span class="badge" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/><path d="M10.5 8v5M8 10.5h5"/></svg></span>
+        <div>
+          <h3 data-i18n="bk.band.ask.t">Can't find a book? Ask us</h3>
+          <p data-i18n="bk.band.ask.d">Tell us what you are looking for and we'll email you if a copy arrives. No account needed.</p>
+        </div>
+        <a class="btn btn-outline" href="/request-a-book" data-i18n="bk.band.ask.cta">Ask us</a>
+      </div>
+    </div>
+  </section>
+
   <section class="bk-band">
     <div class="bk-band-row">
       <div class="bk-band-item">
@@ -106,6 +119,10 @@
   "bk.band.donate.t": "Donate Books",
   "bk.band.donate.d": "Give your pre-loved books a new chapter. Help us grow our collection and support our community.",
   "bk.band.donate.cta": "Learn more",
+  "bk.band.ask.t": "Can't find a book? Ask us",
+  "bk.band.ask.d": "Tell us what you are looking for and we'll email you if a copy arrives. No account needed.",
+  "bk.band.ask.cta": "Ask us",
+  "bk.empty.ask": "Can't find it? Ask us to look out for it.",
   "g.fiction": "Fiction",
   "g.children": "Children's Books",
   "g.ya": "Young Adult",
@@ -148,6 +165,10 @@
   "bk.band.donate.t": "Donner des livres",
   "bk.band.donate.d": "Offrez un nouveau chapitre à vos livres. Aidez-nous à enrichir notre collection et à soutenir notre communauté.",
   "bk.band.donate.cta": "En savoir plus",
+  "bk.band.ask.t": "Vous ne trouvez pas un livre ? Demandez-nous",
+  "bk.band.ask.d": "Dites-nous ce que vous cherchez et nous vous écrirons si un exemplaire arrive. Aucun compte nécessaire.",
+  "bk.band.ask.cta": "Demander",
+  "bk.empty.ask": "Introuvable ? Demandez-nous de le chercher pour vous.",
   "g.fiction": "Fiction",
   "g.children": "Jeunesse",
   "g.ya": "Young Adult",
@@ -276,7 +297,7 @@
     resultsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
     getJSON(url, function (err, books) {
       if (err) { resultsGrid.innerHTML = '<p class="muted">' + esc(t('bk.error')) + '</p>'; return; }
-      if (!books.length) { resultsGrid.innerHTML = '<p class="muted">' + esc(t('bk.empty')) + '</p>'; return; }
+      if (!books.length) { resultsGrid.innerHTML = '<p class="muted">' + esc(t('bk.empty')) + ' <a href="/request-a-book">' + esc(t('bk.empty.ask')) + '</a></p>'; return; }
       resultsGrid.innerHTML = books.map(function (b) { return bookCard(b, true); }).join('');
       syncFavorites(resultsGrid);
     });

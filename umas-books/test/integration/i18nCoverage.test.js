@@ -37,6 +37,11 @@ const PAGES = [
   "/signup", // views/signup.ejs (and the privacy note)
   "/forgot-password", // views/forgot_password.ejs
   "/reset-password/not-a-real-token", // views/reset_password.ejs (invalid link branch)
+  "/request-a-book", // views/request_book.ejs (and the privacy note)
+  "/my-requests", // views/my_requests.ejs ("find my requests" form)
+  "/my-requests/not-a-real-token", // views/my_request.ejs (invalid link branch)
+  "/my-requests/list/not-a-real-token", // views/my_requests.ejs (invalid list link)
+  "/request-a-book/confirm/not-a-real-token", // views/request_book_confirm.ejs (invalid link)
 ];
 
 // Pages that need seeded data or a session: each entry sets itself up against
