@@ -1,0 +1,78 @@
+name: Backup freshness check
+
+# The nightly backup workflow emails when it FAILS, but cannot email if it
+# never runs at all (workflow disabled, schedule dropped, GitHub outage).
+# This separate daily check looks at Backblaze itself and emails if the
+# newest nightly dump is missing or older than MAX_AGE_HOURS.
+# Needs the same BACKUP_S3_* repository variables/secrets as the nightly
+# backup, plus GMAIL_USER / GMAIL_APP_PASSWORD for the email.
+
+on:
+  schedule:
+    - cron: "0 9 * * *" # 09:00 UTC daily, six hours after the 03:00 backup
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  freshness:
+    runs-on: ubuntu-latest
+    env:
+      MAX_AGE_HOURS: "36"
+    steps:
+      - name: Check the newest nightly dump in Backblaze
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_S3_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_APPLICATION_KEY }}
+          AWS_DEFAULT_REGION: ${{ vars.BACKUP_S3_REGION }}
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+          ENDPOINT: ${{ vars.BACKUP_S3_ENDPOINT }}
+          BUCKET: ${{ vars.BACKUP_S3_BUCKET }}
+          PREFIX: ${{ vars.BACKUP_S3_PREFIX }}
+        run: |
+          if [ -z "$BUCKET" ] || [ -z "$ENDPOINT" ] || [ -z "$AWS_DEFAULT_REGION" ] || [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
+            echo "::error::Offsite backup settings are missing (BACKUP_S3_* variables/secrets)."
+            exit 1
+          fi
+          PREFIX="${PREFIX:-store-backups}"
+          PREFIX="${PREFIX%/}"
+          NEWEST=$(aws s3api list-objects-v2 --endpoint-url "$ENDPOINT" --bucket "$BUCKET" \
+                     --prefix "${PREFIX}/full/umas_books_full_" --delimiter "/" \
+                     --query 'sort_by(Contents, &LastModified)[-1].[Key,LastModified,Size]' --output text)
+          if [ -z "$NEWEST" ] || [ "$NEWEST" = "None" ]; then
+            echo "::error::No backup dumps found under ${BUCKET}/${PREFIX}/full/."
+            exit 1
+          fi
+          KEY=$(echo "$NEWEST" | awk '{print $1}')
+          WHEN=$(echo "$NEWEST" | awk '{print $2}')
+          SIZE=$(echo "$NEWEST" | awk '{print $3}')
+          AGE_HOURS=$(( ( $(date -u +%s) - $(date -u -d "$WHEN" +%s) ) / 3600 ))
+          echo "Newest dump: ${KEY} (${SIZE} bytes), written ${WHEN}, ${AGE_HOURS}h ago."
+          if [ "$SIZE" -le 0 ]; then
+            echo "::error::The newest dump is empty."
+            exit 1
+          fi
+          if [ "$AGE_HOURS" -gt "$MAX_AGE_HOURS" ]; then
+            echo "::error::The newest dump is ${AGE_HOURS}h old (limit ${MAX_AGE_HOURS}h): the nightly backup has not produced a new file."
+            exit 1
+          fi
+
+      - name: Alert admin if there is no fresh backup
+        if: failure()
+        uses: dawidd6/action-send-mail@67ce3558d613188179559c61d3565140cf389968 # v22
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.GMAIL_USER }}
+          password: ${{ secrets.GMAIL_APP_PASSWORD }}
+          subject: "[umas-books] No fresh database backup in Backblaze"
+          to: admin@umasbooks.org
+          from: "Uma's Books Backup Monitor"
+          body: |
+            The daily freshness check could not find a recent database backup in Backblaze (the newest nightly dump is missing, empty, or older than ${{ env.MAX_AGE_HOURS }} hours), or it could not reach Backblaze.
+
+            Check the failed run for details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+            Then open the "Nightly database backup" workflow in the Actions tab and check that it is enabled and running.

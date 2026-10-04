@@ -181,12 +181,15 @@ doesn't, the Gmail secrets (`GMAIL_USER`, `GMAIL_APP_PASSWORD`, both
 - **Nightly backup failed / monthly restore test failed**:
   `.github/workflows/nightly-db-backup.yml` and `backup-restore-test.yml`,
   `to:` written in the file.
+- **No fresh backup in Backblaze** (daily 09:00 UTC; catches the nightly
+  backup not running at all): `.github/workflows/backup-freshness.yml`.
+  Fails if the newest dump is missing, empty or older than 36 hours.
 - **Errors in the running site** (`src/lib/errorAlert.js`) and the **contact
   form** (`src/routes/contact.js`): sent to the Render env var `CONTACT_TO`,
   or `admin@umasbooks.org` if it is not set.
 - All of these are *sent from* the Gmail account in `GMAIL_USER`.
 
-To add a second person: for the workflows, edit the `to:` line in those three
+To add a second person: for the workflows, edit the `to:` line in those
 files (the action accepts several addresses separated by commas) in a pull
 request. For site errors and the contact form, set `CONTACT_TO` in Render
 (it is one value shared by both; it may also accept a comma-separated list, but
