@@ -1,6 +1,7 @@
 <%- include('../../partials/admin_header', { title: 'Scan a Book', active: active, pageTitle: 'Scan a Book' }) %>
 
 <% if (typeof saved !== "undefined" && saved) { %><div role="status" class="notice-box">Book saved &mdash; ready for the next one.</div><% } %>
+<% if (typeof requestsMatched !== "undefined" && requestsMatched > 0) { %><div role="status" class="notice-box"><%= requestsMatched %> customer<%= requestsMatched === 1 ? '' : 's' %> asked for this book. <a href="/admin/requests?status=matched">See the requests</a></div><% } %>
 <% if (error) { %><div role="alert" class="error-box"><%= error %></div><% } %>
 
 <p><a class="btn btn-outline btn-small" href="/admin/inventory/move">Move books</a> <a class="btn btn-outline btn-small" href="/admin/inventory/sell">Sell in shop</a></p>
