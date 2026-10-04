@@ -26,7 +26,7 @@ jobs:
           password: ${{ secrets.GMAIL_APP_PASSWORD }}
           subject: "[umas-books] TEST alert - the alert emails work"
           to: admin@umasbooks.org
-          from: "Uma's Books Backup Monitor"
+          from: "Uma's Books Backup Monitor <${{ secrets.GMAIL_USER }}>"
           body: |
             This is a test. If you can read this, failure alerts from GitHub will reach you.
 

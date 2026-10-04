@@ -69,7 +69,7 @@ jobs:
           password: ${{ secrets.GMAIL_APP_PASSWORD }}
           subject: "[umas-books] No fresh database backup in Backblaze"
           to: admin@umasbooks.org
-          from: "Uma's Books Backup Monitor"
+          from: "Uma's Books Backup Monitor <${{ secrets.GMAIL_USER }}>"
           body: |
             The daily freshness check could not find a recent database backup in Backblaze (the newest nightly dump is missing, empty, or older than ${{ env.MAX_AGE_HOURS }} hours), or it could not reach Backblaze.
 
