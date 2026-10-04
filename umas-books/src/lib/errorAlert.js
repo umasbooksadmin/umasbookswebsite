@@ -6,46 +6,69 @@
 // something broke without waiting for a customer to say so; revisit if
 // error volume ever justifies a real tool.
 //
-// Throttled to one email per window regardless of source (a route
-// error, an unhandled rejection, or an uncaught exception all share the
-// same clock) so an incident that fails repeatedly — e.g. the database
-// is down — sends one alert, not one per request.
+// Throttling, so an incident that fails repeatedly (e.g. the database is
+// down) sends a few alerts, not one per request:
+//   - per error signature (first line of the message, digits normalised): the same error is emailed at most once per window, so
+//     one harmless repeated 500 cannot hide a *different*, real error;
+//   - overall: at most MAX_ALERTS_PER_WINDOW emails per window whatever
+//     the signatures, so a storm of distinct errors cannot flood the inbox.
+//
+// Alert text is scrubbed of email addresses and long digit runs (phone
+// numbers) before it leaves the server: an error message can quote user
+// input. Stack frames are kept.
 const { sendMail } = require("../mailer");
+const { scrubPersonalData } = require("./scrub");
 
 const ALERT_TO = process.env.CONTACT_TO || "admin@umasbooks.org";
 const THROTTLE_MS = 15 * 60 * 1000;
+const MAX_ALERTS_PER_WINDOW = 6;
 
-let lastSentAt = 0;
+const lastSentBySignature = new Map();
+let sentTimes = [];
 let suppressedCount = 0;
 
-// `force` skips the throttle (and leaves its clock alone): for the rare
+function describe(err) {
+  return err && err.stack ? err.stack : String(err);
+}
+
+function signatureOf(err) {
+  const message = err && err.message !== undefined ? String(err.message) : String(err);
+  const firstLine = message.split("\n")[0].replace(/\d+/g, "N").slice(0, 200);
+  return firstLine;
+}
+
+function body(err) {
+  return scrubPersonalData(describe(err));
+}
+
+// `force` skips the throttle (and leaves its clocks alone): for the rare
 // alert that must not be swallowed because an unrelated error alert went
 // out a few minutes earlier — e.g. "a customer's money was taken but the
 // order can't be fulfilled" (lib/cart.js).
 function alertOnError(label, err, { force = false } = {}) {
+  const subject = `[umas-books] ${scrubPersonalData(label)}`;
+  const fail = (mailErr) => console.error("Error-alert email itself failed:", mailErr.message);
   if (force) {
-    return sendMail({
-      to: ALERT_TO,
-      subject: `[umas-books] ${label}`,
-      text: err && err.stack ? err.stack : String(err),
-    }).catch((mailErr) => console.error("Error-alert email itself failed:", mailErr.message));
+    return sendMail({ to: ALERT_TO, subject, text: body(err) }).catch(fail);
   }
   const now = Date.now();
-  if (now - lastSentAt < THROTTLE_MS) {
+  sentTimes = sentTimes.filter((t) => now - t < THROTTLE_MS);
+  for (const [sig, at] of lastSentBySignature) {
+    if (now - at >= THROTTLE_MS) lastSentBySignature.delete(sig);
+  }
+  const sig = signatureOf(err);
+  if (lastSentBySignature.has(sig) || sentTimes.length >= MAX_ALERTS_PER_WINDOW) {
     suppressedCount++;
     return Promise.resolve();
   }
   const suppressedNote = suppressedCount > 0
     ? `\n\n(${suppressedCount} further error(s) suppressed in the last ${Math.round(THROTTLE_MS / 60000)} minutes — check the Render logs for the full picture.)`
     : "";
-  lastSentAt = now;
+  lastSentBySignature.set(sig, now);
+  sentTimes.push(now);
   suppressedCount = 0;
 
-  return sendMail({
-    to: ALERT_TO,
-    subject: `[umas-books] ${label}`,
-    text: `${err && err.stack ? err.stack : String(err)}${suppressedNote}`,
-  }).catch((mailErr) => console.error("Error-alert email itself failed:", mailErr.message));
+  return sendMail({ to: ALERT_TO, subject, text: `${body(err)}${suppressedNote}` }).catch(fail);
 }
 
-module.exports = { alertOnError };
+module.exports = { alertOnError, MAX_ALERTS_PER_WINDOW };

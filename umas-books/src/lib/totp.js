@@ -64,7 +64,9 @@ function otpauthUri(secretB32, accountEmail) {
 }
 
 // ---- secret at rest: AES-256-GCM ----
-// Key: TOTP_ENCRYPTION_KEY if set, else derived from SESSION_SECRET. A
+// Key: TOTP_ENCRYPTION_KEY if set, else derived from SESSION_SECRET (that
+// fallback is for local development and tests only: lib/env.js makes the
+// boot fail in production without TOTP_ENCRYPTION_KEY). A
 // database dump alone (backups!) therefore never contains usable secrets.
 // Changing the key makes enrolled accounts re-enrol — set it once.
 function key() {

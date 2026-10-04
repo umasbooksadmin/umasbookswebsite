@@ -36,7 +36,11 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: umas-books/package-lock.json
-      - run: npm ci
+      # --ignore-scripts: the only package with an install script is
+      # puppeteer (it downloads Chrome, ~150 MB, which only the smoke-crawl
+      # job uses). bcryptjs is pure JS and sharp ships prebuilt binaries as
+      # optional dependencies, so nothing else needs one.
+      - run: npm ci --ignore-scripts
       - run: npm run lint
 
   test:
@@ -68,15 +72,16 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: umas-books/package-lock.json
-      - run: npm ci
+      # --ignore-scripts: skips puppeteer's Chrome download (see the lint job).
+      - run: npm ci --ignore-scripts
       - run: npm run migrate
       - run: npm test
 
   migration-test:
     # Proves every migration applies cleanly, in order, to a brand-new
     # database — the same sequence Render's startCommand runs on a fresh
-    # deploy (see render.yaml: npm run migrate && npm run seed && npm
-    # start) — independent of the "test" job above, which reuses an
+    # deploy (see render.yaml: npm run migrate before the deploy, then
+    # npm run seed; npm start) — independent of the "test" job above, which reuses an
     # already-migrated database for speed.
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -96,6 +101,9 @@ jobs:
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/umasbooks_ci
       PGSSLMODE: disable
       SEED_ADMIN_PASSWORD: "Ci-Test-Passw0rd!"
+      # In production a failing seed is logged and startup continues; in CI
+      # it must turn the job red.
+      SEED_STRICT: "true"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -103,7 +111,8 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: umas-books/package-lock.json
-      - run: npm ci
+      # --ignore-scripts: skips puppeteer's Chrome download (see the lint job).
+      - run: npm ci --ignore-scripts
       - name: Apply every migration to a brand-new database
         run: npm run migrate
       - name: Seed against the freshly migrated schema
@@ -119,7 +128,8 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: umas-books/package-lock.json
-      - run: npm ci
+      # --ignore-scripts: skips puppeteer's Chrome download (see the lint job).
+      - run: npm ci --ignore-scripts
       - run: npm audit --audit-level=high
 
   secret-scan:
@@ -168,6 +178,9 @@ jobs:
       PGSSLMODE: disable
       SESSION_SECRET: ci-test-session-secret
       SEED_ADMIN_PASSWORD: "Ci-Test-Passw0rd!"
+      # In production a failing seed is logged and startup continues; in CI
+      # it must turn the job red.
+      SEED_STRICT: "true"
       PORT: "3099"
       # The crawler logs in as an admin persona with just a password; the
       # two-step requirement (ignored in production) is switched off here only.
@@ -179,6 +192,11 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: umas-books/package-lock.json
+      - name: Cache the Chrome that puppeteer downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/puppeteer
+          key: puppeteer-${{ runner.os }}-${{ hashFiles('umas-books/package-lock.json') }}
       - run: npm ci
       - run: npm run migrate
       - name: Seed sample content (so the crawl has real pages to walk)

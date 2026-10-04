@@ -4,8 +4,9 @@ const path = require("path");
 const { pool } = require("./db");
 
 // Applies each migrations/*.sql file exactly once, in filename order, and
-// records it in schema_migrations. Render runs this on every boot and
-// wake (see render.yaml), so before this table existed every file had to
+// records it in schema_migrations. Render runs this in the pre-deploy
+// command, before each new version takes traffic (see render.yaml), so
+// before this table existed every file had to
 // be safe to re-run — and two weren't: 014 reset cleared session
 // capacities to 5, and 032 marked any still-unverified account as
 // verified, on every deploy. Tracking removes that whole class of bug:

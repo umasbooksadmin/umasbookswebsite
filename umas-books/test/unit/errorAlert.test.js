@@ -46,12 +46,12 @@ test("non-Error values are stringified", async () => {
 });
 
 test("a second alert inside 15 minutes is swallowed; one after the window goes out", async () => {
-  await alertOnError("a", new Error("1"));
+  await alertOnError("a", new Error("same failure"));
   advance(THROTTLE - 1);
-  await alertOnError("b", new Error("2"));
+  await alertOnError("b", new Error("same failure"));
   assert.equal(sent.length, 1, "still throttled 1ms before the window ends");
   advance(1);
-  await alertOnError("c", new Error("3"));
+  await alertOnError("c", new Error("same failure"));
   assert.equal(sent.length, 2);
   assert.equal(sent[1].subject, "[umas-books] c");
 });
@@ -78,7 +78,7 @@ test("force bypasses the throttle and leaves its clock and counter alone", async
   assert.deepEqual(sent.map((m) => m.subject), ["[umas-books] normal", "[umas-books] forced 1", "[umas-books] forced 2"]);
   // the forced sends did not restart the window: a normal alert is still throttled...
   advance(THROTTLE - 1);
-  await alertOnError("still throttled", new Error("t"));
+  await alertOnError("still throttled", new Error("n"));
   assert.equal(sent.length, 3);
   // ...and is released exactly 15 minutes after the *normal* one, not after the forced ones
   advance(1);
@@ -109,4 +109,41 @@ test("a failed send still consumes the throttle slot (no retry storm)", async ()
   sendImpl = async () => {};
   await alertOnError("y", new Error("e"));
   assert.equal(sent.length, 1);
+});
+
+test("scrubs email addresses and long digit runs from subject and body, keeps stack frames", async () => {
+  const err = new Error("could not email jane.doe@example.org about 0612345678 / +33 6 12 34 56 78\nsecond line bob@x.fr");
+  await alertOnError("Error on POST /contact for jane.doe@example.org", err);
+  const { subject, text } = sent[0];
+  assert.doesNotMatch(subject, /jane|example\.org/);
+  assert.doesNotMatch(text, /@|0612345678|34 56 78/);
+  assert.match(text, /\[email\]/);
+  assert.match(text, /\[number\]/);
+  assert.match(text, /\n\s+at .*errorAlert\.test\.js:\d+:\d+/, "stack frames survive");
+});
+
+test("short numbers (order ids, line numbers) are not scrubbed", async () => {
+  await alertOnError("Paid order 12345678 failed", new Error("order 42 broke"), { force: true });
+  assert.equal(sent[0].subject, "[umas-books] Paid order 12345678 failed");
+  assert.match(sent[0].text, /order 42 broke/);
+});
+
+test("scrubbing also applies to forced alerts", async () => {
+  await alertOnError("x", "contact a@b.co", { force: true });
+  assert.equal(sent[0].text, "contact [email]");
+});
+
+test("one repeated error cannot swallow a different error, and the cap still holds", async () => {
+  await alertOnError("Error on GET /a", new Error("harmless repeated failure"));
+  await alertOnError("Error on GET /a", new Error("harmless repeated failure"));
+  await alertOnError("Error on GET /b", new Error("a different, real failure"));
+  assert.equal(sent.length, 2, "the repeat was swallowed, the different error was not");
+  assert.match(sent[1].text, /a different, real failure/);
+  assert.match(sent[1].text, /1 further error\(s\) suppressed/);
+
+  for (let i = 0; i < 20; i++) await alertOnError("flood", new Error(`distinct failure ${"x".repeat(i + 1)}`));
+  assert.equal(sent.length, 6, "never more than 6 per window");
+  advance(THROTTLE);
+  await alertOnError("flood", new Error("distinct failure after the window"));
+  assert.equal(sent.length, 7, "released after the window");
 });

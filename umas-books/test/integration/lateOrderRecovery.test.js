@@ -134,7 +134,10 @@ test("late payment with one copy already resold: nothing partially applied, admi
   const alerts = sentEmails.filter((m) => /could not be fulfilled/.test(m.subject));
   assert.equal(alerts.length, 1);
   assert.match(alerts[0].text, new RegExp(`Order ${order.id} `));
-  assert.match(alerts[0].text, new RegExp(order.buyer_email));
+  // The buyer's address is scrubbed from alert emails (lib/errorAlert.js); the
+  // order id is what the admin uses to find the buyer in the admin screens.
+  assert.doesNotMatch(alerts[0].text, new RegExp(order.buyer_email.replace(/[.+]/g, "\\$&")));
+  assert.match(alerts[0].text, /Buyer: .*<\[email\]>/);
   assert.match(alerts[0].text, /€10\.00/);
   assert.equal(sentEmails.filter((m) => m.to === order.buyer_email).length, 0);
 
