@@ -60,4 +60,44 @@ function emailSafeName(value) {
     .trim();
 }
 
-module.exports = { isEmail, clean, cleanHttpUrl, parseId, emailSafeName };
+// Largest amount (in euros) an admin can enter for a price or cost. Far above
+// any real book or class, far below the NUMERIC(10,2) limit and the CHECK
+// constraints of migration 055 (< 100000), so a stray extra digit is caught.
+const MONEY_MAX = 10000;
+
+// An amount of money typed by an admin (a price, a cost). One shared check so
+// every form refuses the same things: not a number (NaN, "1e3", "Infinity",
+// text, a repeated field), negative, over `max`, or with more than 2 decimals.
+// A comma decimal ("4,50") is accepted, as typed on a French keyboard.
+// Returns { value } (euros, a number rounded to the cent; null for an allowed
+// blank) or { error } (a sentence in English for the admin).
+function parseMoney(raw, { min = 0, max = MONEY_MAX, allowBlank = false, label = "Price" } = {}) {
+  if (raw === undefined || raw === null || (typeof raw === "string" && raw.trim() === "")) {
+    return allowBlank ? { value: null } : { error: `${label} is required.` };
+  }
+  const range = `between €${min.toFixed(2)} and €${max.toFixed(2)}`;
+  if (typeof raw !== "string" && typeof raw !== "number") return { error: `${label} must be a number ${range}.` };
+  const text = String(raw).trim().replace(",", ".");
+  if (!/^\d+(\.\d*)?$/.test(text) || text.endsWith(".")) {
+    return { error: /^-\d/.test(text) ? `${label} cannot be negative.` : `${label} must be a number ${range}, like 4.50.` };
+  }
+  if (/\.\d{3,}$/.test(text)) return { error: `${label} can have at most 2 decimals (cents), like 4.50.` };
+  const value = Math.round(Number(text) * 100) / 100;
+  if (!Number.isFinite(value) || value < min || value > max) return { error: `${label} must be ${range}.` };
+  return { value };
+}
+
+// A whole number typed by an admin (a year, a capacity). Same contract as
+// parseMoney: { value } (null for an allowed blank) or { error }.
+function parseWholeNumber(raw, { min, max, allowBlank = false, label = "Number" }) {
+  if (raw === undefined || raw === null || (typeof raw === "string" && raw.trim() === "")) {
+    return allowBlank ? { value: null } : { error: `${label} is required.` };
+  }
+  const text = typeof raw === "string" || typeof raw === "number" ? String(raw).trim() : "";
+  if (!/^\d{1,9}$/.test(text) || Number(text) < min || Number(text) > max) {
+    return { error: `${label} must be a whole number between ${min} and ${max}.` };
+  }
+  return { value: Number(text) };
+}
+
+module.exports = { isEmail, clean, cleanHttpUrl, parseId, emailSafeName, parseMoney, parseWholeNumber, MONEY_MAX };

@@ -3,6 +3,7 @@
 // the <select> dropdowns) so the two never drift apart.
 
 const { normalizeIsbn } = require("./bookLookup");
+const { parseMoney } = require("./validation");
 
 // The four condition grades: the single source of truth for the admin forms,
 // the public pages, the cart and the emails. A copy that cannot be sold at all
@@ -95,8 +96,14 @@ function bindingLabel(value, lang) {
 // non-new copies). A blank price on a new copy defaults to the publisher's.
 function resolveCopyPricing(condition, rawPrice, rawPublisherPrice) {
   const hasPrice = rawPrice !== undefined && rawPrice !== null && String(rawPrice).trim() !== "";
+  // Whatever the condition, a price that was typed must be real money: a
+  // number of euros with at most 2 decimals, 0 to 10000 (see parseMoney).
+  const typed = parseMoney(hasPrice ? rawPrice : "", { allowBlank: true });
+  if (typed.error) return { error: typed.error };
   if (condition !== "new") {
-    return { price: hasPrice ? Number(rawPrice) : null, publisherPrice: null };
+    // Blank stays null (e.g. the pricing "manual review" case): such a copy is
+    // listed but cannot be bought online (see isPurchasablePrice).
+    return { price: typed.value, publisherPrice: null };
   }
   const pubCents = Math.round(Number(rawPublisherPrice) * 100);
   if (!Number.isFinite(pubCents) || pubCents <= 0 || String(rawPublisherPrice || "").trim() === "") {
@@ -109,6 +116,15 @@ function resolveCopyPricing(condition, rawPrice, rawPublisherPrice) {
     return { error: `A new book must be sold at the publisher's price (€${euros(pubCents)}), with at most 5% off: the price must be between €${euros(minCents)} and €${euros(pubCents)}.` };
   }
   return { price: priceCents / 100, publisherPrice: pubCents / 100 };
+}
+
+// A copy can only be bought online (cart, checkout) when it has a real price:
+// NULL (not priced yet), 0, negative or NaN never qualify. The SQL twin of this
+// rule is `price IS NOT NULL AND price > 0` (src/routes/cart.js).
+function isPurchasablePrice(price) {
+  if (price === null || price === undefined || price === "") return false;
+  const n = Number(price);
+  return Number.isFinite(n) && n > 0;
 }
 
 function normalizeStatus(value) {
@@ -180,4 +196,4 @@ function isbnVariants(isbn) {
   return [...out];
 }
 
-module.exports = { CONDITIONS, BINDINGS, DEFAULT_CONDITION, STATUSES, SOURCES, normalizeSource, LOCATION_MAX, normalizeCondition, normalizeBinding, conditionLabel, bindingLabel, resolveCopyPricing, normalizeStatus, normalizeGenres, normalizeLocation, parseScan, isbnVariants };
+module.exports = { CONDITIONS, BINDINGS, DEFAULT_CONDITION, STATUSES, SOURCES, normalizeSource, LOCATION_MAX, normalizeCondition, normalizeBinding, conditionLabel, bindingLabel, resolveCopyPricing, isPurchasablePrice, normalizeStatus, normalizeGenres, normalizeLocation, parseScan, isbnVariants };
