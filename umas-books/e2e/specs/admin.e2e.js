@@ -490,5 +490,21 @@ s.test("A39 (must) Pricing rules shows the rules and the Try it calculator, and 
   for (const re of [/Needs review/, /Priced differently from the suggestion|Clearance candidates/]) has(review, re);
 });
 s.manual("A39b change the Clearance price to 2, add a copy, then set it back to 1", "changes the real pricing settings; do by hand");
-s.manual("A40 price sticker colors page", "the page is not on the site yet (pull request still open)");
+s.test("A40 the Price stickers page loads with the 7-color legend, a CSV download, and a color chip on the add-book form", { as: "admin" }, async (ctx) => {
+  await admin(ctx, "/admin/inventory/stickers");
+  has(await ctx.text(), /Sticker colors/);
+  assert.equal((await ctx.page.$$(".sticker-legend [data-sticker-chip]")).length, 7, "the legend shows 7 colors");
+  const csv = await ctx.page.$eval("a[href*='format=csv']", (a) => a.getAttribute("href"));
+  assert.match(csv, /format=csv/);
+  const res = await ctx.fetchRaw(csv.replace(/&amp;/g, "&"));
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get("content-type") || "", /text\/csv/);
+  assert.match(res.headers.get("content-disposition") || "", /umas-books-stickers-since-/);
+  await admin(ctx, "/admin/inventory/new");
+  const note = await ctx.page.$eval("[data-sticker-note]", (e) => e.textContent.trim());
+  assert.ok(/sticker/i.test(note), `sticker note on the add-book form: "${note}"`);
+  await ctx.page.click("#priceLevel-5");
+  await ctx.page.waitForFunction(() => /sticker, EUR|sticker, €|sticker/i.test(document.querySelector("[data-sticker-note]").textContent));
+  assert.ok(await ctx.page.$("[data-sticker-note] [data-sticker-chip]"), "a colored chip shows for the chosen price");
+});
 s.manual("A41 online price check ('Listings found') when PRICING_AI is on", "depends on a setting and a paid lookup service; off by default");

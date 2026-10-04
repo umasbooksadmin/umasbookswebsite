@@ -93,7 +93,7 @@ Personas: `visitor`, `guest`, `member`, `volunteer`, `admin`, `edge`.
 |---|---|---|
 | visitor | nothing | contact form, book request, event sign-up (all tagged) |
 | guest | nothing | G6 starts a checkout when payments are on (one unpaid order, never paid) |
-| member | member account | one tagged unconfirmed sign-up that can never log in; a forum thread, reply and report; one charity vote and idea |
+| member | member account | one tagged unconfirmed sign-up that can never log in (the sign-up form now asks for no password: M1 to M3 and M4 follow that; M2 and M2b are skipped while the form has no password field); a forum thread, reply and report; one charity vote and idea |
 | volunteer | volunteer account (the member and admin accounts too, for VO1 and VO7) | signs up for one shift and cancels it again |
 | admin | test admin with two-step | one tagged test book (made-up ISBN, EUR 5.00, in the public shop), one tagged test member (disabled again). **Sells nothing.** |
 | edge | nothing (member account for E8) | double-click checkout test (payments on), a 6000-character contact message |
@@ -136,7 +136,7 @@ of the step) and **47 are manual-only**:
 | Needs a second person, a second browser, or real time | G23, VO4, A5b, E7, G22, A23b |
 | Would lock out or change the test account, or sell a real book | M10, A18 |
 | Human or hardware | V24 (calendar app), V43 (private window), G13 (pickup at the shop) |
-| Other | V30 (sends five real e-mails), V34 (needs a request made by another test and an admin look), G21 (would hold more books), M27 (same as V23), M30 (needs a deleted account), A13 (photo scan needs the AI key), A40 (page not on the site yet), A41 (optional paid lookup) |
+| Other | V30 (sends five real e-mails), V34 (needs a request made by another test and an admin look), G21 (would hold more books), M27 (same as V23), M30 (needs a deleted account), A13 (photo scan needs the AI key), A41 (optional paid lookup) |
 
 Parts of steps that are otherwise automated and stay manual are listed too, as
 their own skipped tests: A4b (lock-out after many wrong codes), A5c (recovery
@@ -163,9 +163,11 @@ final list) and uses `example.invalid` e-mail addresses.
 - **E-mails** (contact tests, forum report, test invite): delete them from the
   shop mailbox. The invite for the test member goes to `example.invalid` and
   may come back as a delivery failure message.
-- If the "clear test data" script (pull request "Safe script to clear test data
-  before launch") has been merged, use it before launch to clear all of this at
-  once.
+- **Everything at once before launch:** the clearing script, `npm run clear-test-data`
+  (dry run first, which deletes nothing; back up first; the steps are in
+  `docs/runbook.md`, section g, "Clearing the test data"). It removes the shop,
+  all non-admin accounts and their data, and the audit log, so it also removes
+  what these tests created. The e2e tests never run it.
 
 ## Checking the tests themselves (on your computer)
 

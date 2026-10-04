@@ -66,25 +66,33 @@ s.write("M3 (must) sign up creates an unconfirmed account and shows the check-yo
   await ctx.goto("/signup");
   await ctx.page.type("#displayName", `${process.env.E2E_RUN_ID} Test Member One`);
   await ctx.page.type("#email", email);
-  if (await ctx.page.$("#password")) await ctx.page.type("#password", password);
+  const asksPassword = Boolean(await ctx.page.$("#password"));
+  if (asksPassword) await ctx.page.type("#password", password);
   await Promise.all([ctx.page.waitForNavigation(), ctx.page.click("form[action='/signup'] button[type='submit']")]);
   has(await ctx.text(), /Check your inbox/);
   assert.equal(await ctx.page.$("form[action='/logout']"), null, "not logged in after signing up");
-  signup = { email, password };
+  signup = { email, password: asksPassword ? password : null };
   ctx.created("unconfirmed account (cannot log in: its email is example.invalid)", `${process.env.E2E_RUN_ID} Test Member One <${email}>`, "admin Accounts > search the tag > Erase Member");
 });
 
-s.write("M4 (must) logging in before confirming says to confirm the email first and offers a new link", { anon: true }, async (ctx) => {
-  if (!signup || !signup.password) ctx.skip("needs M3 to have created the account (and the sign-up form to ask for a password)");
+s.write("M4 (must) logging in with the unconfirmed address gives the same 'Incorrect email or password' as an unknown address", { anon: true }, async (ctx) => {
+  if (!signup) ctx.skip("needs M3 to have created the account");
+  // The sign-up form no longer asks for a password, so no right password exists yet: a login attempt is
+  // refused exactly like an unknown address (nothing is revealed about the account).
   await ctx.goto("/login");
   await ctx.page.type("form[action='/login'] #email", signup.email);
-  await ctx.page.type("form[action='/login'] #password", signup.password);
-  await Promise.all([ctx.page.waitForNavigation(), ctx.page.click("form[action='/login'] button[type='submit']")]);
-  has(await ctx.text(), /Please confirm your email first/);
-  const resend = await ctx.page.$("form[action='/resend-verification'] button");
-  assert.ok(resend, "Send me a new confirmation link");
-  await Promise.all([ctx.page.waitForNavigation(), resend.click()]);
-  has(await ctx.text(), /we've sent a new link|we.ve sent a new link/);
+  await ctx.page.type("form[action='/login'] #password", `Zq9!${crypto.randomBytes(8).toString("hex")}`);
+  const [res] = await Promise.all([ctx.page.waitForNavigation(), ctx.page.click("form[action='/login'] button[type='submit']")]);
+  assert.equal(res.status(), 401);
+  has(await ctx.text(), /Incorrect email or password\./);
+  if (signup.password) {
+    // Older form with a password: the site says to confirm first and offers a new link.
+    await ctx.goto("/login");
+    await ctx.page.type("form[action='/login'] #email", signup.email);
+    await ctx.page.type("form[action='/login'] #password", signup.password);
+    await Promise.all([ctx.page.waitForNavigation(), ctx.page.click("form[action='/login'] button[type='submit']")]);
+    has(await ctx.text(), /Please confirm your email first/);
+  }
 });
 
 s.manual("M5 open the confirmation email and click the link", "needs the emailed link");
