@@ -29,9 +29,15 @@ SEED_ADMIN_PASSWORD='pick-a-password' npm run seed   # creates admin@umasbooks.o
 npm start                   # http://localhost:3000
 ```
 
-`npm run seed` only creates the first admin account if none exists yet —
-safe to re-run. Change `SEED_ADMIN_EMAIL` too if you don't want
-`admin@umasbooks.org`.
+`npm run seed` only bootstraps a brand-new database: it creates the first admin
+account if no admin exists yet (and the email is not already taken), and in
+that same run adds a sample announcement and charity vote round. It is safe to
+re-run, never changes an existing account or password, and never stops the site
+from starting (a failure is logged and emailed, and the exit code stays 0; set
+`SEED_STRICT=true` to get exit 1, as CI does). Change `SEED_ADMIN_EMAIL` too if
+you don't want `admin@umasbooks.org`. `SEED_SAMPLE_CONTENT=true` forces the
+sample content on a database that already has an admin (only if the tables are
+empty or have no active round).
 
 ### Running the tests
 
@@ -349,9 +355,11 @@ add an included path of `**` (or sync the Blueprint so it picks up
 Deploy → Deploy latest commit**.
 
 The first admin account is created by `npm run seed`, which `startCommand`
-runs on every boot (it does nothing once an admin exists): set `SEED_ADMIN_PASSWORD` (and optionally `SEED_ADMIN_EMAIL`)
+runs on every boot (it does nothing once an admin exists, and it can never
+block the site from starting): set `SEED_ADMIN_PASSWORD` (and optionally `SEED_ADMIN_EMAIL`)
 in the service's **Environment** tab before the first deploy, then delete
-`SEED_ADMIN_PASSWORD` from that tab once you can log in. Or, to do it
+`SEED_ADMIN_PASSWORD` from that tab once you can log in. Never demote the last
+admin; see the runbook (section c) for adding or restoring one. Or, to do it
 by hand, point `DATABASE_URL` at the production database locally:
 
 ```bash
@@ -360,7 +368,7 @@ SEED_ADMIN_PASSWORD='a-real-password' npm run seed
 
 In production (`NODE_ENV=production`) the app checks its environment at
 boot: it refuses to start, naming every missing variable, if `DATABASE_URL`
-or `SESSION_SECRET` is unset, and logs a loud `[env] WARNING` at startup
+`SESSION_SECRET` or `TOTP_ENCRYPTION_KEY` is unset, and logs a loud `[env] WARNING` at startup
 if the Gmail or HelloAsso variables are unset (email, including error
 alerts, or online payment would then be silently off). On `SIGTERM` (every
 Render deploy/spin-down) it stops taking new connections, lets in-flight

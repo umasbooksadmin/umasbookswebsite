@@ -20,8 +20,8 @@ the repo.
 
 **Important:** on every deploy Render first runs `npm run migrate` (the
 *Pre-Deploy Command*; if it fails the deploy stops and the old version keeps
-running), then starts the site with `npm run seed && npm start`
-(`render.yaml`). Migrations (database changes) are applied once and recorded. Redeploying an old commit
+running), then starts the site with `npm run seed; npm start`
+(`render.yaml`; the seed can never block the start). Migrations (database changes) are applied once and recorded. Redeploying an old commit
 does **not** undo them. The old code then runs against the newer database,
 which usually works if the migration only added things, but can break if it
 renamed or removed something.
@@ -101,6 +101,19 @@ admins are affected you will need the locked-out steps in section c. Set it
 once and leave it. If it really leaked, have another admin ready and rotate
 deliberately.
 
+**Keep a copy of TOTP_ENCRYPTION_KEY in the password manager.** A restored
+backup contains every admin's two-step secret encrypted with this key. If the
+service is ever recreated and Render generates a new key, all of that data is
+unreadable and every admin loses two-step verification until reset. Copy the
+value now (Render > `umas-books` > Environment > show the value) into the
+password manager (never a file in the repo or a chat). After a restore into a
+new service, set `TOTP_ENCRYPTION_KEY` to the saved value *before* the first
+start. If the key is truly lost, recovery is to clear two-step for each admin
+in the database (the `UPDATE users SET totp_secret_enc=NULL, ...` statement in
+section c) and have each admin enrol again. In production the site refuses to
+start without `TOTP_ENCRYPTION_KEY` (it no longer silently falls back to
+`SESSION_SECRET` there).
+
 **GMAIL_USER / GMAIL_APP_PASSWORD.** Two copies, and both must match. If only
 one is changed, either the site's emails (password reset, contact form, error
 alerts) stop, or the uptime and backup alert emails stop.
@@ -164,13 +177,41 @@ signed up? Send me the confirmation link again", and **Forgot your password?**
 does the same job (its link also confirms the address and sets a password).
 
 **How the first admin is created.** At every start `npm run seed` runs
-(`src/seed.js`). If **no admin exists yet** it creates one from the Render env
-vars `SEED_ADMIN_EMAIL` (default `admin@umasbooks.org`) and
-`SEED_ADMIN_PASSWORD` (required, must be a strong password). If any admin
-exists it does nothing, so it cannot reset a password. After the first boot,
-**delete `SEED_ADMIN_PASSWORD` from Render's environment** (Render >
-`umas-books` > Environment > trash icon > Save) so the password does not sit
-there forever. Deleting it is safe while an admin exists.
+(`src/seed.js`). If **no admin exists yet** and no account with that email
+exists, it creates one from the Render env vars `SEED_ADMIN_EMAIL` (default
+`admin@umasbooks.org`) and `SEED_ADMIN_PASSWORD` (must be a strong password),
+and in that same run adds a sample announcement and charity round (a database
+that already has an admin never gets sample content again, so a closed round
+or a deleted announcement stays gone). If any admin exists it does nothing, so
+it cannot reset a password. It also never promotes or re-enables an existing
+account. After the first boot, **delete `SEED_ADMIN_PASSWORD` from Render's
+environment** (Render > `umas-books` > Environment > trash icon > Save) so the
+password does not sit there forever. Deleting it is safe: with no password and
+no admin the seed just logs a warning and the site starts normally.
+
+**The seed never stops the site from starting.** If it fails for any reason it
+logs `[seed] FAILED` or `[seed] WARNING` in the Render logs, emails an alert
+(when mail is configured) and the site starts anyway.
+
+**Never demote the last admin.** The site stops an admin from demoting
+themselves, but a direct change in the database (or demoting the other admin
+first) can still leave no admin at all, and then nobody can reach `/admin` or
+fix it from the site. Before demoting anyone, check that another admin exists. Safe ways to add an admin:
+
+- *Another person already has an account:* an existing admin opens Admin >
+  **Members** > the person > make admin. Nothing else is needed.
+- *No admin is left* (everyone was demoted): Render > `umas-books` > **Shell**,
+  run `psql "$DATABASE_URL"`, then (changing the email to the right person's):
+
+  ```sql
+  UPDATE users SET is_admin = TRUE WHERE email = 'the-person@example.org';
+  ```
+
+  Type `\q` to leave. That person should then log in and enrol two-step
+  verification. The seed will not do this for you on purpose: it never
+  promotes an existing account, so a leaked env var cannot turn into an admin.
+- *A brand-new database with no users at all:* set `SEED_ADMIN_EMAIL` and
+  `SEED_ADMIN_PASSWORD` in Render and redeploy, then delete the password again.
 
 ## d) Where alerts go
 
@@ -275,6 +316,131 @@ To launch:
    form, `/membership.html` shows the HelloAsso form, and
    `https://<your site>/robots.txt` no longer says `Disallow: /`. The red
    "PREVIEW MODE is ON" strip is gone from the admin screens.
+
+### Clearing the test data
+
+`npm run clear-test-data` removes the test data before launch. It is the one
+command in this project that can destroy real orders and members, so it is
+built to be hard to run by mistake: it does nothing unless you ask three
+separate times, and it only runs while `PREVIEW_MODE` is on.
+
+**What it removes**
+
+- **Shop data**: all books and copies, orders and order lines, in-shop sales,
+  awards, book requests, price look-ups, favourites, and pictures no longer used.
+- **People**: every account that is **not an admin**, and everything they own
+  (sign-ups, RSVPs, forum posts, votes and ideas, membership payments, reset and
+  e-mail tokens, volunteer and meeting sign-ups, login sessions), plus guest
+  sign-ups for events and classes.
+- **Logs**: the admin audit log. (The script then writes one line saying that it ran.)
+
+**What always stays**: every admin account with its two-step verification and
+recovery codes, the admins' login sessions, the pricing rules (`pricing_settings`),
+and the migration record.
+
+**What stays unless you add an option**: **Content** (events, classes, blog
+posts, announcements, charity rounds and charities, meetings, volunteer shifts)
+stays unless you add `--include-content`; non-admin accounts stay if you add
+`--keep-members`.
+
+**Steps** (do them in this order)
+
+1. **Run the backup.** GitHub > the repo > **Actions** > **Nightly database
+   backup** > **Run workflow**. Wait for the green tick. This is your undo button.
+2. **Open a command line next to the database.** Either:
+   - **From Render (easiest):** Render dashboard > the `umas-books` web service
+     > **Shell** tab. A black terminal opens, already connected to the right
+     database with the right settings. Or
+   - **From a laptop:** in a terminal, `cd` into the `umas-books` folder of the
+     project (once: `npm ci`). The command needs the database's **External
+     Database URL**: Render dashboard > the database > **Connections** >
+     *External Database URL* (it contains the password: never paste it into a
+     chat or a file). The database must accept connections from your laptop
+     (section f above). Put these two settings in front of every command, with
+     your URL in the quotes:
+     `PREVIEW_MODE=true DATABASE_URL="postgres://..." npm run clear-test-data -- ...`
+     (below the command is shown without them). `PREVIEW_MODE=true` typed on a
+     laptop is only your word: first look at Render > `umas-books` >
+     **Environment** and check that `PREVIEW_MODE` really is there and `true`.
+3. **Check who is kept:** `npm run clear-test-data -- --list-admins` prints the
+   e-mail addresses of the admins. Every one that must keep working has to be in
+   the list. If the list is wrong or empty, stop.
+4. **Dry run** (deletes nothing, safe to repeat): `npm run clear-test-data`.
+   It prints the database host and name, then for every table how many rows
+   **would** be deleted and how many would remain, grouped as Shop data, People,
+   Logs, Content and Always kept. Read it. Anything under *WARNING* (paid orders,
+   accounts marked as members) is a reason to stop and ask. Add
+   `-- --include-content` or `-- --keep-members` to the dry run to see those
+   variants. Note the two dashes: `npm run clear-test-data -- --keep-members`.
+   Without the `--`, npm swallows the option.
+5. **The real run.** The dry run ends by printing the exact command; it looks like
+
+   ```
+   npm run clear-test-data -- --execute --confirm "DELETE TEST DATA FROM <database name>" --i-have-a-backup
+   ```
+
+   Copy that one (it already has the right database name). Add
+   `--include-content` and/or `--keep-members` if you want them. All three
+   (`--execute`, the exact `--confirm` text, `--i-have-a-backup`) are required,
+   or it refuses and changes nothing. It does everything in one go: if anything
+   looks wrong in its own final checks (an admin missing, pricing rules changed,
+   kept content changed) it undoes the whole run and says so.
+6. **Check:** log in as an admin (the session stays valid), the inventory is
+   empty, the admin list is right, the pricing rules are unchanged. The next
+   book you add is number 1.
+
+**Afterwards, what remains**: the admin account(s) with two-step verification,
+pricing rules, the content (unless cleared), and the migration record. Counters
+of emptied tables start again at 1.
+
+**To undo**: within a week Render's own point-in-time recovery (Render dashboard
+> the database > **Recovery**, back to a moment just before the run) is the
+quickest; otherwise restore the backup you took in step 1: see **Restoring from
+a backup** in `umas-books/README.md`. A restore also brings back the test data,
+which is the point of an undo.
+
+**Never run it on the live site.** Once `PREVIEW_MODE` is deleted the script
+refuses; `--allow-live` overrides that and exists only for a real emergency with
+a developer at your side, because after launch it would delete real orders (which
+French accounting law makes you keep for 10 years) and real members.
+
+**New database tables.** The script refuses to run when the database has a table
+it does not know, and an automated test fails when a developer adds one without
+classifying it in `src/lib/clearTestData.js`. If you ever see "tables this script
+does not know", it needs a small code change first.
+
+### Launch checklist (before and right after turning preview off)
+
+Tick each one. Where a variable lives matters: **Render environment variable**
+= Render > `umas-books` > Environment; **GitHub repository variable** = GitHub >
+Settings > Secrets and variables > Actions > **Variables** tab; **repository
+secret** = same page, **Secrets** tab.
+
+- [ ] **Domain.** `https://umasbooks.org` (and `www`) is attached to the Render
+  service (Settings > Custom Domains) with a valid certificate, and loads the site.
+- [ ] **`APP_BASE_URL`** (Render environment variable) is `https://umasbooks.org`,
+  so emailed links and payment return URLs point at the real domain.
+- [ ] **`PREVIEW_MODE`** (Render environment variable) is deleted, as above.
+- [ ] **`HELLOASSO_API_BASE`** (Render environment variable) is unset or the
+  production address, **not** the sandbox one. The `HELLOASSO_*` client id,
+  secret and organisation slug are the live ones.
+- [ ] **HelloAsso webhook.** In the HelloAsso back office the notification URL
+  is `https://umasbooks.org/webhooks/helloasso`.
+- [ ] **`CONTACT_TO`** (Render environment variable) is the mailbox that should
+  receive contact-form messages and forum reports (default
+  `admin@umasbooks.org`).
+- [ ] **Gmail alert test.** GitHub > Actions > **Send a test alert** > Run
+  workflow, and the email arrives (it also runs by itself monthly). Boot logs
+  must not show the `[env] WARNING ... error alerts ... DISABLED` line.
+- [ ] **Uptime check.** Optionally set the GitHub repository variable
+  `SITE_URL` (for example `https://umasbooks.org`); unset, the uptime check
+  already watches `https://umasbooks.org`.
+- [ ] **`TOTP_ENCRYPTION_KEY`** is copied into the password manager (section b).
+- [ ] **Sample and test data removed**, using the clearing script in
+  "Clearing the test data" below (dry run first, backup first), and the admin
+  e-mail list it prints is the right one.
+- [ ] **Manual test scripts** run and passed (every **(must)** step), see
+  `docs/testing/manual-test-scripts.md`.
 
 ### Turning it on again
 
