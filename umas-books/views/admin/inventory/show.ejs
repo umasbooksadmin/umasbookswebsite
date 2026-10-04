@@ -124,9 +124,9 @@
         <% const conditionLabel = (conditions.find(x => x.value === c.condition) || {}).label || c.condition; %>
         <% const statusLabel = (statuses.find(x => x.value === c.status) || {}).label || c.status; %>
         <li>
-          <details<%= typeof suggestFor !== 'undefined' && suggestFor.copyId === c.id ? ' open' : '' %>>
+          <details<%= (typeof suggestFor !== 'undefined' && suggestFor.copyId === c.id) || (typeof openCopyId !== 'undefined' && openCopyId === c.id) ? ' open' : '' %>>
             <summary style="cursor:pointer;">
-              <%= conditionLabel %> &middot; <%= statusLabel %><%= c.price != null ? ' · €' + Number(c.price).toFixed(2) : '' %><%= c.location ? ' · Location ' + c.location : '' %>
+              <%= conditionLabel %> &middot; <%= statusLabel %><%= c.price != null && c.price !== '' && Number.isFinite(Number(c.price)) ? ' · €' + Number(c.price).toFixed(2) : '' %><%= c.location ? ' · Location ' + c.location : '' %>
               <% const stk = priceColors.colorFor(c); %> <%- include('../../partials/sticker_chip', { level: stk, text: stk.label }) %>
             </summary>
             <% if (c.status === 'reserved' && c.reserved_by_name) { %>
@@ -150,6 +150,8 @@
               <select id="condition-<%= c.id %>" name="condition">
                 <% conditions.forEach(opt => { %><option value="<%= opt.value %>" <%= opt.value === c.condition ? 'selected' : '' %>><%= opt.label %></option><% }) %>
               </select>
+              <%# The status this form was rendered with: the save only changes the status when the copy still has it (see the copy route). %>
+              <input type="hidden" name="renderedStatus" value="<%= c.rendered_status || c.status %>">
               <label for="status-<%= c.id %>">Status</label>
               <select id="status-<%= c.id %>" name="status">
                 <% statuses.forEach(opt => { %><option value="<%= opt.value %>" <%= opt.value === c.status ? 'selected' : '' %>><%= opt.label %></option><% }) %>

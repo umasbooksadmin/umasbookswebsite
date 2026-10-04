@@ -635,22 +635,24 @@ test("copy update: sets condition/status/price/cost/date/notes and normalises ba
   const b = await seedBook();
   const [copyId] = b.copyIds;
   const { status, location } = await post(`/admin/inventory/${b.id}/copies/${copyId}`, {
-    form: { condition: "like_new", status: "sold", price: "11.25", acquisitionCost: "0.5", acquiredAt: "2026-02-01", notes: " signed " },
+    form: { condition: "like_new", status: "damaged", price: "11.25", acquisitionCost: "0.5", acquiredAt: "2026-02-01", notes: " signed " },
   });
   assert.equal(status, 302);
   assert.equal(location, `/admin/inventory/${b.id}`);
   let [c] = await copiesOf(b.id);
-  assert.deepEqual([c.condition, c.status, Number(c.price), Number(c.acquisition_cost), c.notes], ["like_new", "sold", 11.25, 0.5, "signed"]);
+  assert.deepEqual([c.condition, c.status, Number(c.price), Number(c.acquisition_cost), c.notes], ["like_new", "damaged", 11.25, 0.5, "signed"]);
 
+  // An unknown condition falls back to the default; an unknown status changes nothing.
   await post(`/admin/inventory/${b.id}/copies/${copyId}`, { form: { condition: "shiny", status: "borrowed", price: "", acquisitionCost: "", acquiredAt: "", notes: "" } });
   [c] = await copiesOf(b.id);
-  assert.deepEqual([c.condition, c.status, c.price, c.acquisition_cost, c.acquired_at, c.notes], ["very_good", "in_stock", null, null, null, null]);
+  assert.deepEqual([c.condition, c.status, c.price, c.acquisition_cost, c.acquired_at, c.notes], ["very_good", "damaged", null, null, null, null]);
 });
 
 test("copy update: marking each status works (mark sold, donated, damaged, reserved)", async () => {
   const b = await seedBook();
   const [copyId] = b.copyIds;
-  for (const status of ["sold", "donated", "damaged", "reserved", "in_stock"]) {
+  // "sold" last: a sold copy's status can no longer be changed from this form.
+  for (const status of ["donated", "damaged", "reserved", "in_stock", "sold"]) {
     await post(`/admin/inventory/${b.id}/copies/${copyId}`, { form: { condition: "very_good", status, price: "5" } });
     assert.equal((await copiesOf(b.id))[0].status, status);
   }
