@@ -210,6 +210,10 @@ two people at the mail provider.
   when they run out the backups stop. GitHub > your account/organisation >
   **Settings > Billing and plans** > set a spending limit / budget alert, and
   check usage once a quarter.
+- **Contact-form emails:** delete contact-form emails older than 12 months
+  from the admin@umasbooks.org mailbox (Gmail search: `older_than:12m`, review,
+  then delete). Keep any conversation that is still ongoing. This is what the
+  privacy policy promises, and nothing does it automatically.
 - Also once a year: confirm the backup restore test emails are arriving, review
   Dependabot pull requests that have been waiting, and check the Backblaze
   and Render invoices.

@@ -114,7 +114,7 @@ The weekly English Immersion pre-registration form on the website only opens the
 | Legal basis | Their request; legitimate interest in answering |
 | Recipients / processors | Google Workspace/Gmail only. The contact form sends an email to admin@umasbooks.org (or `CONTACT_TO`). **Nothing is stored in the database** (checked in `src/routes/contact.js`: it only sends the email, with the sender's address as Reply-To). Other forms open the visitor's own mail app. |
 | Transfers outside EU | Google: US company; check the DPA and its transfer clauses (see checklist) |
-| Retention | The Gmail inbox is the only place they are kept, and the public policy still says "until you ask us to delete them". **NOT AUTOMATED.** The inbox is never cleaned by code. **TODO (the association):** decide a rule (for example delete messages after 2 years), write it here and in the public policy ("Messages you send us"). Only the association can decide this. |
+| Retention | The Gmail inbox (admin@umasbooks.org) is the only place they are kept. Emails received through the contact form are kept **12 months**, then deleted, unless a conversation is still ongoing (decided by the association; the public policy says the same). **NOT AUTOMATED:** the inbox is never cleaned by code; the yearly manual cleanup is in `docs/runbook.md`, section e) Yearly calendar. Other messages emailed to us (volunteer and pre-registration forms) are kept until the person asks us to delete them. |
 | Security | 2-step verification is required to create the app password the website uses to send mail (`README.md`, "Email"). **TODO (the association): confirm that 2-step verification is on for every Google account that can open the admin@umasbooks.org inbox, and who has access.** |
 
 ## 7. Forum, charity votes, volunteer shifts, meetings / Forum, votes, bénévolat, réunions
@@ -190,7 +190,7 @@ Fonts: the website serves its typefaces itself (self-hosted files in `assets/fon
 
 ## Open points for the volunteer in charge / Points à traiter
 
-1. Fill in every item marked **TODO (the association)** above: the review date and reviewer, the contact-inbox retention rule, the Render log retention, 2-step verification on the Google accounts, the Backblaze bucket region and lifecycle rules, Anthropic's API retention, and closing the old Squarespace account.
+1. Fill in every item marked **TODO (the association)** above: the review date and reviewer, the Render log retention, 2-step verification on the Google accounts, the Backblaze bucket region and lifecycle rules, Anthropic's API retention, and closing the old Squarespace account.
 2. Sign the data processing agreements listed in `processors-checklist.md`.
 3. Check the Backblaze lifecycle rules (30 days nightly, 730 days monthly) in the B2 console: the code cannot see them.
 4. Re-read this file once a year, and whenever a new feature collects personal data.

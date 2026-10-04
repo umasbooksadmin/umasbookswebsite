@@ -62,11 +62,11 @@ test("privacy policy: no vague retention wording remains", () => {
   assert.doesNotMatch(fr["pp.s6.p1"], /délai raisonnable/);
 });
 
-test("privacy policy: promises the inactivity warning and keeps messages until asked", () => {
+test("privacy policy: promises the inactivity warning and keeps contact-form emails 12 months", () => {
   assert.match(en["pp.s5.list"], /30 days before deleting/);
   assert.match(fr["pp.s5.list"], /30 jours avant la suppression/);
-  assert.match(en["pp.s5.list"], /Messages you send us:<\/strong> until you ask/);
-  assert.match(fr["pp.s5.list"], /jusqu’à ce que vous demandiez leur suppression/);
+  assert.match(en["pp.s5.list"], /Messages you send us:<\/strong> emails received through the contact form are kept 12 months, then deleted, unless a conversation is still ongoing/);
+  assert.match(fr["pp.s5.list"], /formulaire de contact sont conservés 12 mois, puis supprimés, sauf si une conversation est encore en cours/);
 });
 
 // Regression: the EN/FR dictionary strings once lost the space after every
