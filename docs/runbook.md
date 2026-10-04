@@ -63,6 +63,7 @@ asks you to. Always change **every** place listed, then check
 | `TOTP_ENCRYPTION_KEY` | Render env var only |
 | `GMAIL_USER`, `GMAIL_APP_PASSWORD` | Render env var **and** GitHub repository secrets (uptime alerts, backup emails) |
 | `HELLOASSO_CLIENT_ID`, `HELLOASSO_CLIENT_SECRET`, `HELLOASSO_ORG_SLUG`, `HELLOASSO_API_BASE` | Render env var only |
+| `PREVIEW_MODE` (not a secret; see section g) | Render env var only |
 | `BACKUP_S3_BUCKET`, `BACKUP_S3_ENDPOINT`, `BACKUP_S3_REGION` (and optional `BACKUP_S3_PREFIX`) | GitHub **repository variables** |
 | `BACKUP_S3_KEY_ID`, `BACKUP_S3_APPLICATION_KEY` | GitHub **repository secrets** |
 
@@ -232,3 +233,32 @@ The decision for the maintainer (and a developer if needed):
 Do not close the rule before the backup has a way in: you would silently lose
 your backups. Whichever you choose, run **Nightly database backup** manually
 afterwards and confirm it is green.
+
+## g) Launching: turn preview mode off
+
+While the site holds only sample books and test data, the Render service runs
+in **preview mode**: every customer page shows a "coming soon" banner, online
+checkout and the membership payment form are switched off, and search engines
+are told to ignore the site. It is controlled by one **Render environment
+variable**, `PREVIEW_MODE` (an environment variable, not a secret file and not
+a GitHub secret or variable). It is deliberately not in `render.yaml`.
+
+To launch:
+
+1. Make sure the real inventory is loaded and the sample and test data are gone.
+2. Render dashboard > the `umas-books` web service > **Environment**.
+3. Find the environment variable `PREVIEW_MODE` and delete it (the trash icon
+   next to it).
+4. Click **Save changes**. Render redeploys the service by itself; wait until
+   it shows **Live**.
+5. Check the site: no banner on the home page, the cart shows the checkout
+   form, `/membership.html` shows the HelloAsso form, and
+   `https://<your site>/robots.txt` no longer says `Disallow: /`. The red
+   "PREVIEW MODE is ON" strip is gone from the admin screens.
+
+### Turning it on again
+
+Same place: Render dashboard > the web service > **Environment** > **Add
+Environment Variable**, name `PREVIEW_MODE`, value `true` > **Save changes**
+(the service redeploys). Do this whenever the site holds test data again.
+Any value other than `true` or `1` leaves preview mode off.

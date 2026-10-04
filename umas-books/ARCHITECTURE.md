@@ -154,11 +154,34 @@ src/` is the ground truth if this list ever drifts):
 | `ANTHROPIC_WORKSPACE_ID` | no | optional workspace header on Anthropic API calls |
 | `HELLOASSO_CLIENT_ID` / `HELLOASSO_CLIENT_SECRET` / `HELLOASSO_ORG_SLUG` | no (checkout shows "not set up yet" without them) | HelloAsso Checkout API credentials |
 | `HELLOASSO_API_BASE` | no (defaults to production) | set to HelloAsso's sandbox URL for testing |
+| `PREVIEW_MODE` | no (off when unset) | `true` or `1` (any case) turns on [preview mode](#preview-mode): coming-soon banner, payments off, search engines kept out. Set in the Render dashboard, not in `render.yaml` |
 
 CI (`.github/workflows/ci.yml`) has its own separate set of throwaway
 values for these (a Postgres service container, a dummy
 `SESSION_SECRET`, etc.) — see that file, not this table, for what CI
 actually uses.
+
+## Preview mode
+
+- **Preview mode** (`PREVIEW_MODE=true`, parsed by `isPreviewMode()` in
+  `src/lib/preview.js`; a middleware mounted first in `src/index.js` sets
+  `res.locals.preview`) is for showing the site, with sample data only, before
+  it opens. Off by default. While on:
+  - every customer page shows a bilingual banner (`views/partials/preview_banner.ejs`,
+    included by `partials/mkt_chrome_header.ejs`; marketing pages also get the strings
+    in `assets/site.js` COMMON `preview.*`), linking to `/contact?topic=feedback`
+    (the contact form then offers a "Feedback on the preview" topic);
+  - payments are off: the cart shows a notice instead of the checkout form,
+    `POST /cart/checkout` answers 403 before locking or creating anything
+    (drop-in seats use the same route), and the membership page shows
+    "Membership opens at launch" instead of the HelloAsso widget. The webhook
+    and reconcile jobs are untouched (no payment can start);
+  - search engines are kept out: `X-Robots-Tag: noindex, nofollow` on every
+    response, a robots meta tag, `/robots.txt` disallowing everything and an
+    empty `/sitemap.xml`;
+  - the admin header shows a red reminder that preview mode is on.
+- To launch, delete the variable in Render: see the runbook, "Launching: turn
+  preview mode off".
 
 ## Process lifecycle and operations
 

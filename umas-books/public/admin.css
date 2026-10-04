@@ -2,6 +2,9 @@
    the old plain admin-subnav bar. Uses the color variables already
    defined globally in style.css. */
 
+/* Reminder strip shown while PREVIEW_MODE is on (partials/admin_header.ejs). */
+.admin-preview-note { background: #b3261e; color: #fff; text-align: center; font: 600 13px/1.4 system-ui, sans-serif; padding: 4px 12px; }
+
 .admin-layout { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
 
 /* Same pattern as assets/site.css's .skip-link — WCAG 2.4.1. Duplicated
