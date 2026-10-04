@@ -78,7 +78,7 @@ test("a protocol-relative backTo does not produce an off-site redirect (regressi
   assert.equal(res.headers.get("location"), "/cart");
 });
 
-test("signup then login works end to end", async () => {
+test("signup, confirm the email, choose a password, then login works end to end", async () => {
   const jar = makeCookieJar();
   const token = await fetchCsrfToken(app.base, jar);
   const email = `integration-${Date.now()}@example.test`;
@@ -90,15 +90,47 @@ test("signup then login works end to end", async () => {
   });
   jar.capture(signupRes);
   // Signup no longer logs in (identical response for new and existing
-  // emails — see authHardening.test.js); the new user logs in afterwards.
+  // emails — see authHardening.test.js).
   assert.equal(signupRes.status, 200);
 
-  const token2 = await fetchCsrfToken(app.base, jar);
-  const loginRes = await fetch(`${app.base}/login`, {
-    method: "POST",
-    redirect: "manual",
-    headers: { "content-type": "application/x-www-form-urlencoded", cookie: jar.header() },
-    body: `email=${encodeURIComponent(email)}&password=${encodeURIComponent("Correct-Horse-1")}&_csrf=${token2}`,
-  });
-  assert.equal(loginRes.status, 302);
+  const loginAttempt = async (password) => {
+    const t = await fetchCsrfToken(app.base, jar);
+    return fetch(`${app.base}/login`, {
+      method: "POST",
+      redirect: "manual",
+      headers: { "content-type": "application/x-www-form-urlencoded", cookie: jar.header() },
+      body: `email=${encodeURIComponent(email)}&password=${encodeURIComponent(password)}&_csrf=${t}`,
+    });
+  };
+  // Until the email is confirmed even the right password gets no session
+  // (account pre-hijack defence, see accountPreHijack.test.js).
+  assert.equal((await loginAttempt("Correct-Horse-1")).status, 403);
+
+  // The real raw token is only in the (unsent) mail; plant a known one.
+  const crypto = require("node:crypto");
+  process.env.DATABASE_URL = app.databaseUrl;
+  process.env.PGSSLMODE = process.env.PGSSLMODE || "disable";
+  const { pool } = require("../../src/db");
+  try {
+    const raw = `app-flow-${Date.now()}`;
+    const { rows } = await pool.query("SELECT id FROM users WHERE email = $1", [email]);
+    await pool.query("INSERT INTO email_verification_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, now() + interval '1 hour')",
+      [rows[0].id, crypto.createHash("sha256").update(raw).digest("hex")]);
+    const verify = await fetch(`${app.base}/verify-email/${raw}`, { redirect: "manual" });
+    const resetPath = verify.headers.get("location");
+    assert.match(resetPath, /^\/reset-password\/[0-9a-f]+\?confirmed=1$/);
+    // The signup password no longer works; the person chooses a new one.
+    assert.equal((await loginAttempt("Correct-Horse-1")).status, 401);
+    const t = await fetchCsrfToken(app.base, jar);
+    const set = await fetch(`${app.base}${resetPath}`, {
+      method: "POST",
+      redirect: "manual",
+      headers: { "content-type": "application/x-www-form-urlencoded", cookie: jar.header() },
+      body: `newPassword=${encodeURIComponent("Chosen-Anew-2@")}&_csrf=${t}`,
+    });
+    assert.equal(set.status, 302);
+    assert.equal((await loginAttempt("Chosen-Anew-2@")).status, 302);
+  } finally {
+    await pool.end();
+  }
 });
