@@ -508,3 +508,5 @@ s.test("A40 the Price stickers page loads with the 7-color legend, a CSV downloa
   assert.ok(await ctx.page.$("[data-sticker-note] [data-sticker-chip]"), "a colored chip shows for the chosen price");
 });
 s.manual("A41 online price check ('Listings found') when PRICING_AI is on", "depends on a setting and a paid lookup service; off by default");
+
+s.manual("A42 (must) Mark as Member gives no end date, and the member's membership page says so", "needs a look at the admin account page and the member's own membership page; the toggle itself is covered by A24");

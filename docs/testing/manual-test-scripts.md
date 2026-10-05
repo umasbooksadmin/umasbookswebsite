@@ -39,7 +39,10 @@ this table lists every step whose id changed. Ids that are not listed (`VO1` to
   `AC2` is reworded, `AC43`, `AC43b` (two-step for an ordinary account),
   `AC44` to `AC50` (member pages must not open for an account holder),
   `M3`, `M12` to `M14` (marking as member, announcements, how long membership lasts),
-  `VO8` (a volunteer also reaches the member pages).
+  `VO8` (a volunteer also reaches the member pages), and the new membership
+  flow: `G53` to `G56` (guest: the name and email form), `AC51` to `AC54`
+  (account holder: payment form only, "Check my membership"), `M15`, `M16`
+  (member status text, renewal window), `A42` (Mark as Member gives no end date).
 * `AC2` (old `M2`, a weak password typed on the sign-up form) now checks that
   the sign-up form has no password box; the weak and breached password checks
   moved to `AC2b`, on the choose-your-password page.
@@ -299,6 +302,16 @@ Use a private window. Time: 35 to 45 minutes. A guest browses, searches, fills a
 - [ ] **G51 (must). NOTE (changing).** Choose **Log in** from the cart, log in as an account holder (script 2). **You should see:** you land back on the cart with your items still in it. (Create an account instead: after the confirmation email and choosing a password, log in and the cart is still there, AC1 to AC7.)
 - [ ] **G52.** Log out and open `/forum`. **You should see:** the Log in page (member pages need a login). What a logged-in account holder who is **not** a member sees instead is in script 2J (AC46).
 
+### 1J. Becoming a member: the membership page for a guest
+
+**NOTE (changing).** These steps describe the flow of pull request #201 (becoming a member needs an account). Until it is live the page still shows the payment form to everyone and the automated tests for these steps are shown as known issues. Not in preview mode (there the page only says "Membership opens at launch", G8).
+
+- [ ] **G53 (must).** Open `/membership.html` as a guest. **You should see:** a short form with **Name** and **Email** and a **Continue to payment** button, a link to the membership terms and privacy policy, a "Log in" link for people who already have an account, and **no** HelloAsso payment form yet.
+- [ ] **G54.** Press **Continue to payment** with the Email box holding something that is not an address (the browser may stop you first; a script can send it anyway). **You should see:** "Please enter your name and a valid email address." and nothing is created.
+- [ ] **G55 (must).** Enter name `Test Member Guest` and `YOU+join1@gmail.com`, press **Continue to payment**. **You should see:** the page "Next: pay for your membership" with "We have emailed you a link: click it after paying to confirm your address and choose your password", the line "Use this same email on the payment form: <your email>", and now the HelloAsso payment form. An email "Confirm your email for Uma's Books" arrives. Do the same with an address that **already has an account**: the next page is **identical** (the site never reveals whether an address is registered) and the real owner gets "Someone tried to sign up with your email".
+- [ ] **G56.** On that page press **Use a different email**. **You should see:** the Name and Email form again.
+- [ ] **FR check (membership).** Switch to FR on G53 and G55. **You should see:** "Devenir membre", "Continuer vers le paiement", "Étape suivante : réglez votre adhésion", "Utilisez cette même adresse e-mail sur le formulaire de paiement :".
+
 ## Script 2. Account holder (logged in, not a member)
 
 An account holder has a confirmed account but has **not** paid for membership.
@@ -405,6 +418,15 @@ Log in as an account holder who is **not** a member, volunteer or admin. **What 
 - [ ] **AC49.** Open `/volunteer`. **You should see:** you end on the home page (the shifts are for volunteers and admins).
 - [ ] **AC50.** Click the key icon (Member's Access) in the header. **You should see:** the home page, still logged in (the person icon is **Log Out**), with no member content. (`/admin` for an account holder is E8.)
 
+### 2K. The membership page for an account holder
+
+**NOTE (changing).** Flow of pull request #201. Log in as an account holder who is **not** a member. Not in preview mode.
+
+- [ ] **AC51 (must).** Open `/membership.html`. **You should see:** **only** the HelloAsso payment form, with the line "Use the same email as your account (<your account email>) so your membership is linked to it", and **no** Name and Email sign-up form.
+- [ ] **AC52.** Send a membership sign-up request anyway (a script posting to `/membership/join`; there is no form to press). **You should see:** nothing happens: you land back on the membership page, still logged in, no new account is made and no email is sent.
+- [ ] **AC53 (must).** Press **Check my membership** (under the payment form) before paying. **You should see:** "We have not found your payment yet. It can take a few minutes. Make sure you used the email <your account email> on the payment form." (If HelloAsso cannot be reached: "We could not check right now.") It is limited to 5 tries in 10 minutes. If your email is not confirmed yet: "Please confirm your email address first".
+- [ ] **AC54 (must).** After a real payment made with the account's email (see M1), press **Check my membership**. **You should see:** "Membership found: you are a member until <date>." at once, without waiting for the automatic check, and Member's Access now opens.
+
 ## Script 3. Member
 
 A member is an account holder who also paid the membership fee. Time: 30 to 40
@@ -414,7 +436,7 @@ who bought, AC13). Preview mode does not matter except M1.
 
 ### 3A. Becoming a member
 
-- [ ] **M1 (must). Pay for membership.** Preview **off**, HelloAsso in test mode: open `/membership.html` while logged in as an account holder (script 2), fill the HelloAsso form in the page with **the same email as your account**, and pay. **TODO:** this form belongs to HelloAsso and points at the real organisation page, so a test payment would be real, and the sandbox form is unknown (see "Before you start"). Until confirmed, test everything below by having an admin press **Mark as Member** on the account (script 5, A24) and do the real payment test once at launch with a small amount, refunding it afterwards. If a payment is made: **You should see:** within a few minutes the key icon opens **Member's Access** (before that, AC44 shows what an account holder gets). A member paid by HelloAsso gets an end date a year (365 days) after the payment ("Welcome back, <name>") and in admin **Members** the account shows with its membership dates (one year from the payment). **Known:** the account's email must be confirmed first, or the payment is not matched.
+- [ ] **M1 (must). Pay for membership (a person with no account yet).** Preview **off**: as a guest open `/membership.html`, fill the short form (G53, G55) and note the email shown, then pay on the HelloAsso form on the next page **with that same email**. **Then**, after paying, open the confirmation email and click its link (AC5), choose a password (AC6) and log in. **You should see:** within a few minutes the key icon opens **Member's Access** ("Welcome back, <name>"), and in admin **Members** the account shows its membership dates (one year from the payment). An account holder who already exists logs in first and pays on the page that shows only the payment form (AC51); **Check my membership** (AC54) finds the payment at once. **Known:** the payment form is HelloAsso's own embedded form, pointing at the real organisation page; it does not follow `HELLOASSO_API_BASE`, so a test payment would be real (see "Before you start"). **TODO** confirm with the developer; until then use M3 and do one real payment at launch with a small amount, refunding it afterwards. **Known:** the account's email must be confirmed before the payment is attached, which is why the page asks you to click the link after paying.
 - [ ] **M2.** Read **Membership Terms** from the membership page. **You should see:** the terms (see G39/G40).
 - [ ] **M3 (must). Admin grants membership.** Because the HelloAsso form cannot be tested in sandbox (M1): in admin > Accounts, open the confirmed test account, press **Mark as Member** (script 5, A24). **You should see:** the button now says **Remove Member Status**, and the account holder who is logged in opens **Member's Access** on the next click, without logging in again.
 
@@ -438,6 +460,9 @@ who bought, AC13). Preview mode does not matter except M1.
 
 - [ ] **M13 (must). Admin-granted membership has no end date.** Admin > Accounts > the member made with **Mark as Member** (M3) > **View**. **You should see:** **no** "Membership" end-date line (a membership paid through HelloAsso shows a date a year after the payment). An admin-granted member stays a member until an admin presses **Remove Member Status**; the nightly expiry job never touches it.
 - [ ] **M14 (must). An expired paid membership loses access.** A paid membership ends 365 days after the payment (an hourly background job turns off members whose end date has passed). Waiting a year is not practical, so check the effect with the admin toggle: with the member logged in in one browser, press **Remove Member Status** on the account in another. **You should see:** at the member's next click, `/dashboard`, `/forum`, `/meetings`, `/announcements` and `/charity` send them to the home page, exactly as in AC44 to AC48, and the key icon no longer opens Member's Access. Press **Mark as Member** again to restore. **Known:** the website cannot set an end date by hand, so a real expiry can only be seen on a paid membership after a year (or in a local test copy with the end date changed in the database).
+
+- [ ] **M15 (must).** As a member, open `/membership.html`. **You should see:** "You are a member", with "You are a member until <date>." for a paid membership (a year after the payment) or "You are a member, with no end date." for one an admin granted (M13), and **no** payment form. **NOTE (changing):** flow of pull request #201.
+- [ ] **M16.** Renewal window. Take a paid member whose end date is less than 30 days away (see the **Known** below), open `/membership.html`. **You should see:** "You can renew from this page during the last 30 days of your membership" and the payment form again; after the end date has passed, the page treats the account like an account holder (AC51). **Known:** an admin cannot set an end date by hand, so this needs a real payment about a year old or a test copy with the date changed in the database. **NOTE (changing):** flow of pull request #201.
 
 ## Script 4. Volunteer
 
@@ -514,6 +539,7 @@ Two-step verification is **always required** for admins on the real site.
 ### 5H. Members and roles
 
 - [ ] **A24 (must). Create, roles.** **Accounts** > **+ Add Member** (Name, Email, optional **Mark as a member**, **Mark as a volunteer**, **Make an admin**) > **Add & Send Invite**. Open an account (**View**): **Mark as Member** / **Remove Member Status**, **Mark as Volunteer**, **Make Admin** / **Remove Admin**. **You should see:** the status changes at once; the person's open session loses or gains access soon after.
+- [ ] **A42 (must). Mark as Member gives no end date.** On a confirmed throwaway account press **Mark as Member**, then **View** it. **You should see:** **no** "Membership" end-date line (a paid membership shows one), and when that person opens `/membership.html` it says "You are a member, with no end date." (M15). **Remove Member Status** takes it away at once (M14).
 - [ ] **A25 (must). Disable.** **Deactivate Account** on a throwaway account. **You should see:** that person (with the right password) sees "This account has been deactivated. Contact us if you think this is a mistake."; **Reactivate Account** restores it.
 - [ ] **A26.** Demote the second admin (**Remove Admin**). **You should see:** they lose admin pages. You cannot demote yourself, and the last admin cannot be demoted or erased.
 - [ ] **A27.** **Edit** tab: change the Name and Email of a throwaway account. **You should see:** saved; an email already used is refused ("That email is already used by another account — nothing was changed."); a changed email needs a new confirmation.

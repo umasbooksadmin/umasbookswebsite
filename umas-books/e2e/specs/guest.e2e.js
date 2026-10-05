@@ -707,3 +707,85 @@ s.todo("G51 (must) after logging in from the cart, the guest is back on the cart
   assert.equal(new URL(ctx.page.url()).pathname, "/cart", "back on the cart after logging in");
   assert.equal(await cartLineCount(ctx), 1, "the item is still in the cart");
 });
+
+// ---- 1K. Becoming a member: the membership page for a guest ----
+//
+// NOTE (changing): the flow of pull request #201. Until it is live the page
+// shows the HelloAsso widget to everyone, so these tests fail and are shown
+// as known issues; once it is live they pass ("NOW PASSES, remove the todo").
+
+const JOIN = "form[action='/membership/join']";
+const WAIT_201 = "waiting for the pull request that makes becoming a member need an account (the membership page still shows only the payment form)";
+
+async function joinPage(ctx) {
+  if (ctx.preview) ctx.skip("preview mode: the membership page only says 'Membership opens at launch' (G8)");
+  await ctx.goto("/membership.html");
+}
+
+s.todo("G53 (must) the membership page shows a Name and Email form to a guest, and no payment form yet", WAIT_201, async (ctx) => {
+  await joinPage(ctx);
+  assert.ok(await ctx.page.$(`${JOIN} #memName`), "name box");
+  assert.ok(await ctx.page.$(`${JOIN} #memEmail`), "email box");
+  has(await ctx.page.$eval(JOIN, (f) => f.innerText), /Continue to payment/);
+  assert.equal(await ctx.page.$("#haWidget"), null, "the HelloAsso widget must not be in the page yet");
+  assert.ok(await ctx.page.$("a[href='membership-terms.html']"), "membership terms linked");
+  assert.ok(await ctx.page.$("a[href^='/login']"), "log in link");
+});
+
+s.todo("G54 an invalid email on the membership form is refused with a message and creates nothing", WAIT_201, async (ctx) => {
+  await joinPage(ctx);
+  assert.ok(await ctx.page.$(JOIN), "the join form exists");
+  // A script can send what the browser would stop; nothing valid is sent, so nothing is created.
+  await ctx.page.evaluate(async () => {
+    const f = document.querySelector("form[action='/membership/join']");
+    const token = f.querySelector("input[name='_csrf']").value;
+    await fetch("/membership/join", { method: "POST", redirect: "manual", body: new URLSearchParams({ _csrf: token, displayName: "E2E", email: "not-an-address" }) });
+  });
+  await ctx.goto("/membership.html");
+  has(await ctx.text(), /Please enter your name and a valid email address/);
+  assert.equal(await ctx.page.$("#memJoinedEmail"), null, "no payment step was shown");
+});
+
+async function joinWith(ctx, email) {
+  await ctx.page.$eval(`${JOIN} #memName`, (i) => { i.value = ""; });
+  await ctx.page.$eval(`${JOIN} #memEmail`, (i) => { i.value = ""; });
+  await ctx.page.type(`${JOIN} #memName`, `${process.env.E2E_RUN_ID} Join Test`);
+  await ctx.page.type(`${JOIN} #memEmail`, email);
+  await Promise.all([ctx.page.waitForNavigation(), ctx.page.click(`${JOIN} button[type='submit']`)]);
+}
+
+s.todo("G55 (must) submitting the form shows the payment step with the email to use, the same for a new and an existing address", WAIT_201, async (ctx) => {
+  if (!cfg.allowWrites()) ctx.skip("needs E2E_ALLOW_WRITES=1 (this step creates an unconfirmed account and sends an email)");
+  await joinPage(ctx);
+  const email = testEmail("membership-join");
+  await joinWith(ctx, email);
+  ctx.created("unconfirmed account made by the membership form (cannot log in: example.invalid)", `${process.env.E2E_RUN_ID} Join Test <${email}>`, "admin Accounts > search the tag > Erase Member");
+  const first = await ctx.text();
+  for (const re of [/Next: pay for your membership/, /We have emailed you a link: click it after paying/, /Use this same email on the payment form:/]) has(first, re);
+  assert.ok((await ctx.page.$eval("#memJoinedEmail", (e) => e.innerText)).includes(email), "the email to use on the payment form is shown");
+  assert.ok(await ctx.page.$("#haWidget"), "the HelloAsso payment form is shown now");
+  // The same address again (an account now exists): the page must be identical.
+  await Promise.all([ctx.page.waitForNavigation(), ctx.page.click("form[action='/membership/join/reset'] button")]);
+  await joinWith(ctx, email);
+  const second = await ctx.text();
+  for (const re of [/Next: pay for your membership/, /We have emailed you a link: click it after paying/]) has(second, re);
+  assert.ok((await ctx.page.$eval("#memJoinedEmail", (e) => e.innerText)).includes(email), "the same email is shown the second time");
+  assert.equal(second.replace(/\s+/g, " ").includes("already"), false, "nothing says the address is already registered");
+});
+
+s.todo("G56 'Use a different email' returns to the Name and Email form", WAIT_201, async (ctx) => {
+  if (!cfg.allowWrites()) ctx.skip("needs E2E_ALLOW_WRITES=1 (reaching the payment step creates an unconfirmed account)");
+  await joinPage(ctx);
+  const email = testEmail("membership-join-reset");
+  await joinWith(ctx, email);
+  ctx.created("unconfirmed account made by the membership form (cannot log in: example.invalid)", `${process.env.E2E_RUN_ID} Join Test <${email}>`, "admin Accounts > search the tag > Erase Member");
+  await Promise.all([ctx.page.waitForNavigation(), ctx.page.click("form[action='/membership/join/reset'] button")]);
+  assert.ok(await ctx.page.$(JOIN), "the form is back");
+  assert.equal(await ctx.page.$("#haWidget"), null);
+});
+
+s.todo("G-FR55 FR check (membership): the form and the payment step are in French", WAIT_201, { lang: "fr" }, async (ctx) => {
+  await joinPage(ctx);
+  const text = await ctx.text();
+  for (const re of [/Devenir membre/, /Continuer vers le paiement/]) has(text, re);
+});

@@ -136,3 +136,19 @@ s.test("M-FR11 FR check (member area): dashboard, forum, charity, meetings and a
 
 s.manual("M13 (must) a membership an admin granted has no end date and never lapses", "needs an admin look: admin > Accounts > the member shows no 'Membership' end date (a paid one shows the date a year after the payment)");
 s.manual("M14 (must) a paid member whose year has run out loses access to the member pages", "real time must pass; check the same effect with the admin toggle (Remove Member Status), then see AC44 to AC49 for what an account holder gets");
+
+// ---- 3E. The membership page for a member ----
+//
+// NOTE (changing): the flow of pull request #201 (known issue until it is live).
+
+s.todo("M15 (must) the membership page tells a member their status instead of showing the payment form", "waiting for the pull request that makes becoming a member need an account (the page still shows the payment form to a member)", { as: "member" }, async (ctx) => {
+  if (ctx.preview) ctx.skip("preview mode: the membership page only says 'Membership opens at launch'");
+  await ctx.goto("/membership.html");
+  const text = await ctx.text();
+  // Inside the last 30 days of a paid membership the payment form comes back (M16): that is not a failure of the test account.
+  if (/You can renew from this page/i.test(text) === false && (await ctx.page.$("#haWidget"))) assert.fail("a current member must see their status, not the payment form");
+  has(text, /You are a member (until \d{4}-\d{2}-\d{2}|, with no end date)|You are a member/);
+  assert.equal(await ctx.page.$("form[action='/membership/join']"), null, "no sign-up form for a member");
+});
+
+s.manual("M16 the renewal window: in the last 30 days the payment form comes back", "needs a paid membership about a year old (or a changed end date in a test copy)");

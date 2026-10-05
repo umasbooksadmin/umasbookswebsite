@@ -502,3 +502,47 @@ s.test("AC50 the key icon (Member's Access) leads an account holder to the home 
   for (const re of MEMBER_CONTENT) hasNot(await ctx.text(), re);
   assert.ok(await ctx.page.$("form[action='/logout'] button"), "still logged in");
 });
+
+// ---- 2K. The membership page for an account holder ----
+//
+// NOTE (changing): the flow of pull request #201 (known issues until it is live).
+
+const WAIT_201 = "waiting for the pull request that makes becoming a member need an account (the membership page does not yet adapt to a logged-in account)";
+async function membershipPage(ctx) {
+  if (ctx.preview) ctx.skip("preview mode: the membership page only says 'Membership opens at launch'");
+  await ctx.goto("/membership.html");
+}
+
+s.todo("AC51 (must) the membership page shows an account holder only the payment form, with the account's email, and no sign-up form", WAIT_201, { as: "account" }, async (ctx) => {
+  await membershipPage(ctx);
+  assert.equal(await ctx.page.$("form[action='/membership/join']"), null, "no sign-up form for a logged-in account");
+  assert.ok(await ctx.page.$("#haWidget"), "the payment form");
+  const note = await ctx.page.$eval("#memAccountEmail", (e) => e.innerText);
+  assert.ok(note.includes(accountCreds().email), "the account's own email is shown");
+  assert.ok(await ctx.page.$("form[action='/membership/check'] button"), "the Check my membership button");
+});
+
+s.todo("AC52 a membership sign-up request from a logged-in account does nothing", WAIT_201, { as: "account" }, async (ctx) => {
+  await membershipPage(ctx);
+  const res = await ctx.page.evaluate(async () => {
+    const { token } = await (await fetch("/api/csrf-token")).json();
+    const r = await fetch("/membership/join", { method: "POST", redirect: "manual", body: new URLSearchParams({ _csrf: token, displayName: "E2E", email: "e2e+nothing@example.invalid" }) });
+    return { type: r.type, status: r.status };
+  });
+  assert.equal(res.type, "opaqueredirect", `answered ${res.status}, expected a redirect back to the membership page`);
+  await ctx.goto("/membership.html");
+  assert.equal(await ctx.page.$("#memJoinedEmail"), null, "no payment-after-sign-up step was started");
+  assert.ok(await ctx.page.$("form[action='/membership/check']"), "still the logged-in view");
+});
+
+s.todo("AC53 (must) 'Check my membership' answers with a clear message (no payment was made, so it must not say found)", WAIT_201, { as: "account" }, async (ctx) => {
+  await membershipPage(ctx);
+  const btn = await ctx.page.$("form[action='/membership/check'] button");
+  assert.ok(btn, "the Check my membership button");
+  await Promise.all([ctx.page.waitForNavigation(), btn.click()]);
+  const text = await ctx.text();
+  has(text, /We have not found your payment yet|We could not check right now|Please confirm your email address first/);
+  hasNot(text, /Membership found/);
+});
+
+s.manual("AC54 (must) after a real payment, Check my membership finds it at once", "needs a real HelloAsso payment; the tests never pay");
