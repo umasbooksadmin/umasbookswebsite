@@ -660,12 +660,7 @@ s.test("G52 logged out, /forum shows the login page", { anon: true }, async (ctx
   assert.equal(new URL(ctx.page.url()).pathname, "/login");
 });
 
-// Buying needs an account.
-//
-// NOTE (changing): until the pull request that makes checkout need an account
-// is merged, the site still lets a guest check out, so G50 and G51 fail today
-// and are shown as known issues. Once the site has the new behaviour they
-// pass, and the report says "NOW PASSES, remove the todo".
+// Buying needs an account (pull request #201): checkout sends a guest to log in or sign up.
 
 // What the site does with a checkout request from someone who is not logged in.
 async function checkoutAsGuest(ctx) {
@@ -678,7 +673,7 @@ async function checkoutAsGuest(ctx) {
   return res;
 }
 
-s.todo("G50 (must) checkout asks a guest to log in or create an account", "waiting for the pull request that makes buying need an account (checkout still accepts guests)", async (ctx) => {
+s.test("G50 (must) checkout asks a guest to log in or create an account", async (ctx) => {
   if (ctx.preview) ctx.skip("preview mode: checkout is switched off for everyone");
   const book = await stockedBook(ctx);
   await addFirstCopyToCart(ctx, book);
@@ -693,7 +688,7 @@ s.todo("G50 (must) checkout asks a guest to log in or create an account", "waiti
   assert.deepEqual(ctx.blocked, [], "no payment page was reached");
 });
 
-s.todo("G51 (must) after logging in from the cart, the guest is back on the cart with their items", "waiting for the pull request that makes buying need an account", { needs: ["account"] }, async (ctx) => {
+s.test("G51 (must) after logging in from the cart, the guest is back on the cart with their items", { needs: ["account"] }, async (ctx) => {
   if (ctx.preview) ctx.skip("preview mode: checkout is switched off for everyone");
   const c = cfg.credentials("account");
   const book = await stockedBook(ctx);
@@ -710,19 +705,17 @@ s.todo("G51 (must) after logging in from the cart, the guest is back on the cart
 
 // ---- 1K. Becoming a member: the membership page for a guest ----
 //
-// NOTE (changing): the flow of pull request #201. Until it is live the page
-// shows the HelloAsso widget to everyone, so these tests fail and are shown
-// as known issues; once it is live they pass ("NOW PASSES, remove the todo").
+// Becoming a member needs an account (pull request #201): the page shows a
+// short Name and Email form to a guest, the payment form only to an account holder.
 
 const JOIN = "form[action='/membership/join']";
-const WAIT_201 = "waiting for the pull request that makes becoming a member need an account (the membership page still shows only the payment form)";
 
 async function joinPage(ctx) {
   if (ctx.preview) ctx.skip("preview mode: the membership page only says 'Membership opens at launch' (G8)");
   await ctx.goto("/membership.html");
 }
 
-s.todo("G53 (must) the membership page shows a Name and Email form to a guest, and no payment form yet", WAIT_201, async (ctx) => {
+s.test("G53 (must) the membership page shows a Name and Email form to a guest, and no payment form yet", async (ctx) => {
   await joinPage(ctx);
   assert.ok(await ctx.page.$(`${JOIN} #memName`), "name box");
   assert.ok(await ctx.page.$(`${JOIN} #memEmail`), "email box");
@@ -732,7 +725,7 @@ s.todo("G53 (must) the membership page shows a Name and Email form to a guest, a
   assert.ok(await ctx.page.$("a[href^='/login']"), "log in link");
 });
 
-s.todo("G54 an invalid email on the membership form is refused with a message and creates nothing", WAIT_201, async (ctx) => {
+s.test("G54 an invalid email on the membership form is refused with a message and creates nothing", async (ctx) => {
   await joinPage(ctx);
   assert.ok(await ctx.page.$(JOIN), "the join form exists");
   // A script can send what the browser would stop; nothing valid is sent, so nothing is created.
@@ -754,7 +747,7 @@ async function joinWith(ctx, email) {
   await Promise.all([ctx.page.waitForNavigation(), ctx.page.click(`${JOIN} button[type='submit']`)]);
 }
 
-s.todo("G55 (must) submitting the form shows the payment step with the email to use, the same for a new and an existing address", WAIT_201, async (ctx) => {
+s.test("G55 (must) submitting the form shows the payment step with the email to use, the same for a new and an existing address", async (ctx) => {
   if (!cfg.allowWrites()) ctx.skip("needs E2E_ALLOW_WRITES=1 (this step creates an unconfirmed account and sends an email)");
   await joinPage(ctx);
   const email = testEmail("membership-join");
@@ -775,7 +768,7 @@ s.todo("G55 (must) submitting the form shows the payment step with the email to 
   assert.equal(await wrap(), firstWrap, "the page for an address that now has an account is identical");
 });
 
-s.todo("G56 'Use a different email' returns to the Name and Email form", WAIT_201, async (ctx) => {
+s.test("G56 'Use a different email' returns to the Name and Email form", async (ctx) => {
   if (!cfg.allowWrites()) ctx.skip("needs E2E_ALLOW_WRITES=1 (reaching the payment step creates an unconfirmed account)");
   await joinPage(ctx);
   const email = testEmail("membership-join-reset");
@@ -786,7 +779,7 @@ s.todo("G56 'Use a different email' returns to the Name and Email form", WAIT_20
   assert.equal(await ctx.page.$("#haWidget"), null);
 });
 
-s.todo("G-FR55 FR check (membership): the form and the payment step are in French", WAIT_201, { lang: "fr" }, async (ctx) => {
+s.test("G-FR55 FR check (membership): the form and the payment step are in French", { lang: "fr" }, async (ctx) => {
   await joinPage(ctx);
   const text = await ctx.text();
   for (const re of [/Devenir membre/, /Continuer vers le paiement/]) has(text, re);

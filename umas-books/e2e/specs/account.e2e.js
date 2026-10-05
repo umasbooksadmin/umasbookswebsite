@@ -529,15 +529,14 @@ s.test("AC50 the key icon (Member's Access) leads an account holder to the home 
 
 // ---- 2K. The membership page for an account holder ----
 //
-// NOTE (changing): the flow of pull request #201 (known issues until it is live).
+// Becoming a member needs an account (pull request #201).
 
-const WAIT_201 = "waiting for the pull request that makes becoming a member need an account (the membership page does not yet adapt to a logged-in account)";
 async function membershipPage(ctx) {
   if (ctx.preview) ctx.skip("preview mode: the membership page only says 'Membership opens at launch'");
   await ctx.goto("/membership.html");
 }
 
-s.todo("AC51 (must) the membership page shows an account holder only the payment form, with the account's email, and no sign-up form", WAIT_201, { as: "account" }, async (ctx) => {
+s.test("AC51 (must) the membership page shows an account holder only the payment form, with the account's email, and no sign-up form", { as: "account" }, async (ctx) => {
   await membershipPage(ctx);
   assert.equal(await ctx.page.$("form[action='/membership/join']"), null, "no sign-up form for a logged-in account");
   assert.ok(await ctx.page.$("#haWidget"), "the payment form");
@@ -546,7 +545,7 @@ s.todo("AC51 (must) the membership page shows an account holder only the payment
   assert.ok(await ctx.page.$("form[action='/membership/check'] button"), "the Check my membership button");
 });
 
-s.todo("AC52 a membership sign-up request from a logged-in account does nothing", WAIT_201, { as: "account" }, async (ctx) => {
+s.test("AC52 a membership sign-up request from a logged-in account does nothing", { as: "account" }, async (ctx) => {
   await membershipPage(ctx);
   const res = await ctx.page.evaluate(async () => {
     const { token } = await (await fetch("/api/csrf-token")).json();
@@ -559,7 +558,7 @@ s.todo("AC52 a membership sign-up request from a logged-in account does nothing"
   assert.ok(await ctx.page.$("form[action='/membership/check']"), "still the logged-in view");
 });
 
-s.todo("AC53 (must) 'Check my membership' answers with a clear message (no payment was made, so it must not say found)", WAIT_201, { as: "account" }, async (ctx) => {
+s.test("AC53 (must) 'Check my membership' answers with a clear message (no payment was made, so it must not say found)", { as: "account" }, async (ctx) => {
   await membershipPage(ctx);
   const btn = await ctx.page.$("form[action='/membership/check'] button");
   assert.ok(btn, "the Check my membership button");

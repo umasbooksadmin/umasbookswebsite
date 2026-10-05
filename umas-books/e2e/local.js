@@ -47,7 +47,7 @@ function startFakeHelloAsso() {
         res.setHeader("content-type", "application/json");
         if (req.url.includes("/oauth2/token")) return res.end(JSON.stringify({ access_token: "fake", expires_in: 1800 }));
         if (req.method === "POST" && req.url.includes("/checkout-intents")) {
-          return res.end(JSON.stringify({ id: 4242, redirectUrl: "https://checkout.helloasso-sandbox.com/fake-e2e-checkout" }));
+          return res.end(JSON.stringify({ id: 4242, redirectUrl: "https://checkout.helloasso.com/fake-e2e-checkout" }));
         }
         res.statusCode = 404;
         res.end("{}");

@@ -202,16 +202,6 @@ that every step of the manual script has an e2e test.
 These are real findings from the first runs; the report keeps showing them
 until they are fixed.
 
-- **AC24 fails when payments are on.** The page's Content-Security-Policy says
-  `form-action 'self'`, so Chrome refuses to follow the redirect from **Pay &
-  Buy** to HelloAsso. Payment cannot start. (Allowing the HelloAsso addresses in
-  `src/index.js` fixes it.) Preview mode hides this, because checkout is off.
-- **G50, G51 and the membership-page steps (G53 to G56, AC51 to AC53, M15)** are
-  shown as known issues until the pull request that makes buying and
-  becoming a member need an account (#201) is merged: until then a guest can
-  still check out and everyone sees the payment form. Once it is merged they
-  pass, the report says "NOW PASSES, remove the todo", and the `todo` marks in
-  `specs/guest.e2e.js`, `account.e2e.js` and `member.e2e.js` should be removed.
 - Marked as known (do not fail): the Dashboard shows `NaN%` next to a sales or
   orders figure when last month had none (A6; `views/admin/index.ejs`, the trend
   helper divides by "0.00"; also a known todo in

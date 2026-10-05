@@ -18,7 +18,7 @@ you can read.
 Written against the site as of 4 October 2026, including pull request #181
 (no login until the email is confirmed) and #191 (the sign-up form asks only
 for name and email; the password is chosen after the confirmation link).
-Things that are about to change are marked **NOTE (changing)**; things I could
+Things I could
 not verify from the code are marked **TODO**.
 
 ## Where did the old steps go?
@@ -223,7 +223,7 @@ Use a private window. Time: 35 to 45 minutes. A guest browses, searches, fills a
 - [ ] **G18.** Find a book with awards. **You should see:** a line "Awards & lists: ..." (more than 8: **Show all (N)**). Nothing appears for a book with no verified or approved award.
 - [ ] **G19.** Open a book with no copy in stock. **You should see:** "Currently unavailable" and "All copies of this title are spoken for right now — check back soon."
 - [ ] **G20.** Click the heart on a book, then open the heart icon at the top (`/favorites`). **You should see:** the book listed. **Known:** favorites are saved in this browser only ("Books you've hearted on this device"), not in an account.
-- [ ] **G21 (must). Copy with no price.** Find a book that has a copy with no price (in admin, add a used copy and leave Price empty, A11). **You should see:** that copy shows **Ask in the shop** (French: **Se renseigner en boutique**) instead of a price, with **no Add to Cart** button, and the headline price ignores it. **NOTE (changing):** this comes from pull request #187 (prices and cart safety). Until it is merged, such a copy may show an empty price with an **Add to Cart** button and would be charged as 0 euros: do not buy it, and report it.
+- [ ] **G21 (must). Copy with no price.** Find a book that has a copy with no price (in admin, add a used copy and leave Price empty, A11). **You should see:** that copy shows **Ask in the shop** (French: **Se renseigner en boutique**) instead of a price, with **no Add to Cart** button, and the headline price ignores it.
 - [ ] **FR check (books).** Switch to FR on the search page, a book page, the grade legend. **You should see:** "Parcourez les livres" menu, "Disponible en boutique", "Ajouter au panier", conditions "Neuf / Comme neuf / Très bon état / État acceptable", "Déstockage" badge, "Reliure : Relié / Broché / Poche", "Prix et classements :", "Actuellement indisponible". **Known:** prices show as `€12.50` in both languages on the book page, cart and order email. The French style `12,50 €` is only used in book-request emails. Decide whether you want it everywhere and tell the developer; this is not a tester error.
 
 ### 1D. Events, English programs, blog
@@ -293,18 +293,18 @@ Use a private window. Time: 35 to 45 minutes. A guest browses, searches, fills a
 
 ### 1I. The cart, and where checkout asks for an account
 
-**NOTE (changing):** until the pull request that makes buying need an account is merged, the site still lets a guest check out; G50 and G51 describe the new behaviour. The automated tests for them are shown as known issues until then.
+Buying needs an account: a guest can fill a cart, but checkout sends them to log in or sign up first.
 
 - [ ] **G47 (must).** On a book page press **Add to Cart** for one copy. **You should see:** the cart page with that book (cover or "No cover", title, author, condition label, `€price`, **Remove**) and **Total**. **Known:** adding to the cart does **not** reserve the copy; it is only held once you start paying (AC24).
 - [ ] **G48.** Add a second book, then press **Remove** on it. **You should see:** it disappears and the total updates. (A cart holds at most 20 lines.)
 - [ ] **G49.** Open the cart header icon from another page. **You should see:** the number on the cart icon matches the lines in the cart.
-- [ ] **G50 (must). NOTE (changing).** In a cart with a book in it, as a guest, press the checkout button (or try to). **You should see:** a prompt to **log in or create an account**, with a link to each, and **no** payment form for a guest; nothing is charged and no order is started.
-- [ ] **G51 (must). NOTE (changing).** Choose **Log in** from the cart, log in as an account holder (script 2). **You should see:** you land back on the cart with your items still in it. (Create an account instead: after the confirmation email and choosing a password, log in and the cart is still there, AC1 to AC7.)
+- [ ] **G50 (must).** In a cart with a book in it, as a guest, press the checkout button (or try to). **You should see:** a prompt to **log in or create an account**, with a link to each, and **no** payment form for a guest; nothing is charged and no order is started.
+- [ ] **G51 (must).** Choose **Log in** from the cart, log in as an account holder (script 2). **You should see:** you land back on the cart with your items still in it. (Create an account instead: after the confirmation email and choosing a password, log in and the cart is still there, AC1 to AC7.)
 - [ ] **G52.** Log out and open `/forum`. **You should see:** the Log in page (member pages need a login). What a logged-in account holder who is **not** a member sees instead is in script 2J (AC46).
 
 ### 1J. Becoming a member: the membership page for a guest
 
-**NOTE (changing).** These steps describe the flow of pull request #201 (becoming a member needs an account). Until it is live the page still shows the payment form to everyone and the automated tests for these steps are shown as known issues. Not in preview mode (there the page only says "Membership opens at launch", G8).
+Becoming a member needs an account, created on the membership page itself. Not in preview mode (there the page only says "Membership opens at launch", G8).
 
 - [ ] **G53 (must).** Open `/membership.html` as a guest. **You should see:** a short form with **Name** and **Email** and a **Continue to payment** button, a link to the membership terms and privacy policy, a "Log in" link for people who already have an account, and **no** HelloAsso payment form yet.
 - [ ] **G54.** Press **Continue to payment** with the Email box holding something that is not an address (the browser may stop you first; a script can send it anyway). **You should see:** "Please enter your name and a valid email address." and nothing is created.
@@ -361,7 +361,7 @@ Time: 50 to 70 minutes. Needs a mailbox. Preview mode does not matter except in
 
 ### 2F. Buying: cart, checkout, pay with HelloAsso (test mode)
 
-Needs preview mode **off** and HelloAsso in test mode. If the cart shows the preview notice, steps AC22 onward cannot be run. Log in as the account holder first. **NOTE (changing):** until the pull request that makes buying need an account is merged, a guest can also reach this checkout; from then on only account holders can.
+Needs preview mode **off** and HelloAsso in test mode. If the cart shows the preview notice, steps AC22 onward cannot be run. Log in as the account holder first.  Only account holders can reach the checkout; a guest is sent to log in first (G50).
 
 - [ ] **AC22 (must).** In the cart, check the checkout form: **Name**, **Email**, **Phone (optional)**, a checkbox "I have read and accept the terms of sale (including the right of withdrawal...)" with a link that opens the Terms of Sale in a new tab, a privacy note, and the button **Pay & Buy**. **You should see:** all of these.
 - [ ] **AC23 (must).** Try to pay without ticking the terms checkbox. **You should see:** the browser refuses and points at the checkbox (you cannot submit). Try an email without `@`: the browser refuses.
@@ -372,11 +372,11 @@ Needs preview mode **off** and HelloAsso in test mode. If the cart shows the pre
 - [ ] **AC26 (must).** On the HelloAsso page pay with the test card (**TODO:** card and steps from the HelloAsso sandbox help, see "Before you start"). **You should see:** you are sent back to the site on a page "Thank you!" "Your payment went through — here's what you ordered:" with your items and the total, and "A confirmation email is on its way to <your email>."
 - [ ] **AC27 (must). Confirmation email (English).** Open the email "Your order at Uma's Books is confirmed". **You should see:** "Order #<number>" with the date, "Paid online via HelloAsso", each item with `€price`, the total, where to collect (Rue Peyrolière, 81000 Albi, during opening hours), and then, in this order:
   - [ ] a link to the Terms of Sale and "your 14-day right of withdrawal for books";
-  - [ ] **NOTE (changing):** after pull request #183 is live: "Terms of sale accepted on <date> (version <version>)." (before #183 this line does not exist);
+  - [ ] "Terms of sale accepted on <date> (version <version>).";
   - [ ] the right of withdrawal (14 days from collecting a book; tell us by email) and the **model withdrawal form** (cancel form);
   - [ ] the **seller identity**: Uma's Books, association loi 1901, RNA, SIRET, address in Albi, phone, `admin@umasbooks.org`, "TVA non applicable";
   - [ ] the **free consumer mediator** (CM2C, Paris address and web address) for complaints.
-- [ ] **AC28 (must). Confirmation email (French).** Repeat AC22 to AC27 with the site switched to **FR** before pressing **Pay & Buy**. **You should see:** subject "Votre commande chez Uma's Books est confirmée", the body in French ("Merci pour votre commande — paiement reçu", "Commande n° ...", "Payée en ligne via HelloAsso", "Total : €..."), the terms line "Conditions générales de vente acceptées le ... (version ...)" after #183, and the legal blocks (withdrawal, form, seller, mediator). **Known:** the legal blocks are written in both French and English in every email (required by law), and prices in the email read `€12.50`.
+- [ ] **AC28 (must). Confirmation email (French).** Repeat AC22 to AC27 with the site switched to **FR** before pressing **Pay & Buy**. **You should see:** subject "Votre commande chez Uma's Books est confirmée", the body in French ("Merci pour votre commande — paiement reçu", "Commande n° ...", "Payée en ligne via HelloAsso", "Total : €..."), the terms line "Conditions générales de vente acceptées le ... (version ...)", and the legal blocks (withdrawal, form, seller, mediator). **Known:** the legal blocks are written in both French and English in every email (required by law), and prices in the email read `€12.50`.
 - [ ] **AC29.** Refresh the "Thank you!" page, and open the address from a second browser. **You should see:** still "Thank you!" (no second email, no error). Only people with the unguessable link can see it.
 - [ ] **AC30 (must). Admin sees the order.** In admin open **Books & Orders** > orders (`/admin/orders`). **You should see:** the order, paid, with your name, items and total; the books are no longer in stock on the site.
 - [ ] **AC31 (must). Pickup.** Pretend to be the buyer at the shop: show the confirmation email; a volunteer finds the order in `/admin/orders` and hands over the books. **Known:** there is no "collected" button; an order stays "paid" and the staff hands over the books by hand. **TODO:** decide whether you want a "collected" status; none exists in the code today.
@@ -420,7 +420,7 @@ Log in as an account holder who is **not** a member, volunteer or admin. **What 
 
 ### 2K. The membership page for an account holder
 
-**NOTE (changing).** Flow of pull request #201. Log in as an account holder who is **not** a member. Not in preview mode.
+Log in as an account holder who is **not** a member. Not in preview mode.
 
 - [ ] **AC51 (must).** Open `/membership.html`. **You should see:** **only** the HelloAsso payment form, with the line "Use the same email as your account (<your account email>) so your membership is linked to it", and **no** Name and Email sign-up form.
 - [ ] **AC52.** Send a membership sign-up request anyway (a script posting to `/membership/join`; there is no form to press). **You should see:** nothing happens: you land back on the membership page, still logged in, no new account is made and no email is sent.
@@ -461,8 +461,8 @@ who bought, AC13). Preview mode does not matter except M1.
 - [ ] **M13 (must). Admin-granted membership has no end date.** Admin > Accounts > the member made with **Mark as Member** (M3) > **View**. **You should see:** **no** "Membership" end-date line (a membership paid through HelloAsso shows a date a year after the payment). An admin-granted member stays a member until an admin presses **Remove Member Status**; the nightly expiry job never touches it.
 - [ ] **M14 (must). An expired paid membership loses access.** A paid membership ends 365 days after the payment (an hourly background job turns off members whose end date has passed). Waiting a year is not practical, so check the effect with the admin toggle: with the member logged in in one browser, press **Remove Member Status** on the account in another. **You should see:** at the member's next click, `/dashboard`, `/forum`, `/meetings`, `/announcements` and `/charity` send them to the home page, exactly as in AC44 to AC48, and the key icon no longer opens Member's Access. Press **Mark as Member** again to restore. **Known:** the website cannot set an end date by hand, so a real expiry can only be seen on a paid membership after a year (or in a local test copy with the end date changed in the database).
 
-- [ ] **M15 (must).** As a member, open `/membership.html`. **You should see:** "You are a member", with "You are a member until <date>." for a paid membership (a year after the payment) or "You are a member, with no end date." for one an admin granted (M13), and **no** payment form. **NOTE (changing):** flow of pull request #201.
-- [ ] **M16.** Renewal window. Take a paid member whose end date is less than 30 days away (see the **Known** below), open `/membership.html`. **You should see:** "You can renew from this page during the last 30 days of your membership" and the payment form again; after the end date has passed, the page treats the account like an account holder (AC51). **Known:** an admin cannot set an end date by hand, so this needs a real payment about a year old or a test copy with the date changed in the database. **NOTE (changing):** flow of pull request #201.
+- [ ] **M15 (must).** As a member, open `/membership.html`. **You should see:** "You are a member", with "You are a member until <date>." for a paid membership (a year after the payment) or "You are a member, with no end date." for one an admin granted (M13), and **no** payment form.
+- [ ] **M16.** Renewal window. Take a paid member whose end date is less than 30 days away (see the **Known** below), open `/membership.html`. **You should see:** "You can renew from this page during the last 30 days of your membership" and the payment form again; after the end date has passed, the page treats the account like an account holder (AC51). **Known:** an admin cannot set an end date by hand, so this needs a real payment about a year old or a test copy with the date changed in the database.
 
 ## Script 4. Volunteer
 
@@ -510,7 +510,7 @@ Two-step verification is **always required** for admins on the real site.
 - [ ] **A12 (must). New book at publisher's price (loi Lang, 5%).** Add `9780747532743` with condition **New**. **You should see:** a field **Publisher's price (prix éditeur) (€)**, required only for New. Leave it empty and save: "New books need the publisher's price (prix éditeur): French law requires them to be sold at that price." Enter 12.00, leave Price empty: the price becomes 12.00. Enter Price 11.00 (more than 5% off): **You should see:** "A new book must be sold at the publisher's price (€12.00), with at most 5% off: the price must be between €11.40 and €12.00." Enter 11.40 (exactly 5% off): saved. A New book is never put on clearance.
 - [ ] **A13. Photo scan.** On **Scan a book** use **Take or Choose Photo** with a photo of a cover or barcode. **You should see:** the book looked up and the form filled in. If you see "Photo scanning isn't set up yet (needs an ANTHROPIC_API_KEY)", the key is missing: use ISBN or **Add manually**. **TODO:** confirm with the developer whether the key is set on the live service.
 - [ ] **A14. Add manually.** **Add manually** (`/admin/inventory/new`): fill Title, Author, ISBN (optional), Genres, Description, **Generate description**, upload a cover photo ("A photo overrides the URL above"). **You should see:** the book saved; no cover found shows "No cover found — Take or Upload a Photo". An empty title: "Title is required."
-- [ ] **A14a. Bad numbers are refused.** In a copy's price, acquisition cost, or a book's published year type `-5`, `abc`, `12.345`, `99999`. **You should see:** a clear English error each time, nothing saved, and what you typed still in the form. In a session, a drop-in price of 0 or a capacity of 0 or 5000 is refused (**NOTE (changing):** these checks come from pull request #187).
+- [ ] **A14a. Bad numbers are refused.** In a copy's price, acquisition cost, or a book's published year type `-5`, `abc`, `12.345`, `99999`. **You should see:** a clear English error each time, nothing saved, and what you typed still in the form. In a session, a drop-in price of 0 or a capacity of 0 or 5000 is refused.
 - [ ] **A14b. Edit and delete.** Open a book: **Edit details** > change author > **Save changes**; per copy **Save copy**, **Delete 1 copy**; **Delete this book** (ask first, it cannot be undone). **You should see:** each change saved; the public page updates.
 
 ### 5D. Awards, locations, sources, selling in shop
@@ -530,7 +530,7 @@ Two-step verification is **always required** for admins on the real site.
 
 - [ ] **A22 (must). Matching on intake.** Make sure a confirmed request for `9780141439518` exists (G31 to G33). **Add** that book to stock (A9). **You should see:** on the scan page "1 customer asked for this book" (or on the book page), and under **Book Requests** the request moved to **Matched (a copy is in the shop)**.
 - [ ] **A23 (must). Notify and hold.** In **Book Requests** (`/admin/requests`; filters Active, Open, Matched, Notified, Waiting for email confirmation, Fulfilled, Cancelled, Expired, All) press **Notify**: "Email sent." The requester receives the "Good news" email (G38). Press **Notify and hold 7 days**: "Email sent and the copy is held for 7 days." and the copy shows as Reserved on the book page ("Cancel reservation & return to stock" frees it). Then **Mark fulfilled**: "Marked as fulfilled." Also try **Match to a book** with a book id or ISBN, **Save note**, **Cancel** ("Request cancelled and the requester's contact details removed.") and **Delete**.
-- [ ] **A23b.** A hold ends by itself after its time (7 days for a request hold) and the copy goes back on sale. **Known:** not practical to wait for it in a test; check on a real hold during the first weeks. **TODO:** the public "reserve a book" button is being removed (pull request #183); after it is merged there is no way for a customer to reserve without an admin.
+- [ ] **A23b.** A hold ends by itself after its time (7 days for a request hold) and the copy goes back on sale. **Known:** not practical to wait for it in a test; check on a real hold during the first weeks.  The public "reserve a book" button no longer exists: only an admin can hold a copy for someone.
 
 ### 5G. Orders
 

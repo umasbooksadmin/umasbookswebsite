@@ -139,9 +139,9 @@ s.manual("M14 (must) a paid member whose year has run out loses access to the me
 
 // ---- 3E. The membership page for a member ----
 //
-// NOTE (changing): the flow of pull request #201 (known issue until it is live).
+// Becoming a member needs an account (pull request #201).
 
-s.todo("M15 (must) the membership page tells a member their status instead of showing the payment form", "waiting for the pull request that makes becoming a member need an account (the page still shows the payment form to a member)", { as: "member" }, async (ctx) => {
+s.test("M15 (must) the membership page tells a member their status instead of showing the payment form", { as: "member" }, async (ctx) => {
   if (ctx.preview) ctx.skip("preview mode: the membership page only says 'Membership opens at launch'");
   await ctx.goto("/membership.html");
   const text = await ctx.text();
