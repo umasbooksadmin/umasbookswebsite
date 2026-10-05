@@ -10,6 +10,7 @@ const { test, before, after, beforeEach } = require("node:test");
 const assert = require("node:assert/strict");
 const { prepareDatabase, buildApp, listen, waitFor } = require("../helpers/inProcessApp");
 const { makeCookieJar } = require("../helpers/httpClient");
+const { createAccount, sessionHeaders } = require("../helpers/accounts");
 
 const db = prepareDatabase("cart_checkout", { isolated: true });
 
@@ -65,11 +66,11 @@ beforeEach(async () => {
 
 function visitor() {
   const jar = makeCookieJar();
-  const send = async (path, { method = "GET", form } = {}) => {
+  const send = async (path, { method = "GET", form, headers = {} } = {}) => {
     const res = await fetch(`${server.base}${path}`, {
       method,
       redirect: "manual",
-      headers: { cookie: jar.header(), ...(form ? { "content-type": "application/x-www-form-urlencoded" } : {}) },
+      headers: { cookie: jar.header(), ...(form ? { "content-type": "application/x-www-form-urlencoded" } : {}), ...headers },
       body: form ? new URLSearchParams(form).toString() : undefined,
     });
     jar.capture(res);
@@ -77,7 +78,7 @@ function visitor() {
   };
   return {
     get: (p) => send(p),
-    post: (p, form) => send(p, { method: "POST", form }),
+    post: (p, form, headers) => send(p, { method: "POST", form, headers }),
     count: async () => JSON.parse((await send("/api/cart/count")).text).count,
   };
 }
@@ -95,8 +96,14 @@ async function makeCopy({ price = 7.5, status = "in_stock" } = {}) {
 const copyRow = async (id) => (await pool.query("SELECT * FROM book_copies WHERE id = $1", [id])).rows[0];
 const orderByEmail = async (email) => (await pool.query("SELECT * FROM orders WHERE buyer_email = $1 ORDER BY id", [email])).rows;
 
+// Buying requires an account: log the visitor in as a confirmed account with
+// this email (the in-process harness injects the session, see
+// test/helpers/accounts.js; the real /login flow is covered in
+// accountRequiredToBuy.test.js), then check out. The email comes from the
+// ACCOUNT: nothing about it is posted.
 async function checkout(v, email, extra = {}) {
-  return v.post("/cart/checkout", { name: "Cart Buyer", email, acceptCgv: "on", ...extra });
+  const account = await createAccount(pool, { email, displayName: "Cart Buyer" });
+  return v.post("/cart/checkout", { name: "Cart Buyer", acceptCgv: "on", ...extra }, sessionHeaders(account));
 }
 
 test("add to cart: in-stock copy is added once; unavailable/unknown/non-numeric ids are ignored", async () => {
@@ -175,6 +182,7 @@ test("checkout creates a pending order, locks the copies, calls HelloAsso and re
   assert.equal(orders.length, 1);
   const order = orders[0];
   assert.equal(order.status, "pending");
+  assert.ok(order.user_id, "the order is linked to the buyer's account");
   assert.equal(order.buyer_name, "Ada Lovelace Byron");
   assert.equal(order.buyer_phone, "0102030405");
   assert.equal(Number(order.total_amount), 8.25);
@@ -198,7 +206,7 @@ test("checkout creates a pending order, locks the copies, calls HelloAsso and re
   assert.equal(await v.count(), 0, "cart is emptied once the buyer is sent to pay");
 });
 
-test("checkout validation: empty cart, missing name, bad email — no order, no HelloAsso call", async () => {
+test("checkout validation: empty cart, no name anywhere — no order, no HelloAsso call", async () => {
   const v = visitor();
   let r = await checkout(v, `empty-${uniq()}@example.test`);
   assert.equal(r.res.status, 200);
@@ -206,10 +214,10 @@ test("checkout validation: empty cart, missing name, bad email — no order, no 
 
   const copy = await makeCopy();
   await v.post("/cart/add", { copyId: copy });
-  r = await v.post("/cart/checkout", { name: "", email: "nobody@example.test" });
-  assert.match(r.text, /enter your name and a valid email/);
-  r = await v.post("/cart/checkout", { name: "Name", email: "not-an-email" });
-  assert.match(r.text, /enter your name and a valid email/);
+  // An account with no display name and a blank name field: nothing to put on the order.
+  const nameless = await createAccount(pool, { email: `nameless-${uniq()}@example.test`, displayName: "" });
+  r = await v.post("/cart/checkout", { name: "", acceptCgv: "on" }, sessionHeaders(nameless));
+  assert.match(r.text, /Please enter your name\./);
 
   assert.equal(createdIntents.length, 0);
   assert.equal((await copyRow(copy)).status, "in_stock");
@@ -220,7 +228,7 @@ test("checkout without accepting the terms of sale is refused and locks nothing"
   const copy = await makeCopy();
   await v.post("/cart/add", { copyId: copy });
   const email = `nocgv-${uniq()}@example.test`;
-  const r = await v.post("/cart/checkout", { name: "Cart Buyer", email });
+  const r = await checkout(v, email, { acceptCgv: "" });
   assert.match(r.text, /accept the terms of sale/);
   assert.equal((await orderByEmail(email)).length, 0);
   assert.equal(createdIntents.length, 0);

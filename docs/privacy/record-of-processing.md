@@ -40,7 +40,7 @@ To answer an access or portability request ("a copy of my data"), use admin > Me
 |---|---|
 | Purpose | Sell books and drop-in sessions online; confirm orders; keep accounting records |
 | Data | Buyer name, email, phone (optional), items and prices, total, status, dates, the language chosen at checkout (`orders.lang`), the date the buyer accepted the withdrawal-right waiver for drop-in sessions, proof of acceptance of the terms of sale (`orders.cgv_accepted_at` and `orders.cgv_version`: when, and which version of the terms; not personal data by itself, kept with the order and on anonymised orders for the 10-year accounting retention), an order access token, the HelloAsso checkout/order numbers, and the buyer's **IP address** (`orders.client_ip`). Card details never reach us (entered on HelloAsso). |
-| People | Online buyers (with or without an account) |
+| People | Online buyers: **orders are placed with an account** (login required to check out; browsing and filling a cart need none). `orders.user_id` links the order to the account (empty for orders placed before this rule, and after an account is erased); the order carries the account's confirmed email. |
 | Legal basis | Contract; legal obligation (accounting, 10 years) |
 | Recipients / processors | HelloAsso (payment page, receives buyer name and email to create the payment); Render; Google Workspace/Gmail (confirmation emails); Backblaze (backups) |
 | Transfers outside EU | HelloAsso and Render: EU. Google/Backblaze as above. |
@@ -95,9 +95,9 @@ The weekly English Immersion pre-registration form on the website only opens the
 
 | | |
 |---|---|
-| Purpose | Recognise paid members on the website (member area) |
+| Purpose | Recognise paid members on the website (member area). Becoming a member needs an account: the membership page creates it in one step (name + email, same data and rules as a signup, see section 1), then the person pays on HelloAsso and confirms their email afterwards |
 | Data | HelloAsso order number, payer email, amount (cents), payment date, and a link to the matching account. Stored by the website in `membership_payments`. The person's full details (name, address, card) stay at HelloAsso. |
-| People | People who join through the HelloAsso membership form |
+| People | People who join through the membership page and its HelloAsso form (logged-in account holders, or new people who create their account on that page). The email typed on the page is kept in the visitor's session for up to 2 hours to show it on the payment step (never in a URL). "Check my membership" asks HelloAsso about the logged-in account's own confirmed email only. |
 | Legal basis | Contract; legal obligation (accounting) |
 | Recipients / processors | HelloAsso. For the payment itself HelloAsso is an **independent controller** (stated in our policy; confirm on their legal page, see checklist). Render; Backblaze (backups). |
 | Transfers outside EU | None for HelloAsso (France) |

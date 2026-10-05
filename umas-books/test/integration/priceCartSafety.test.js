@@ -10,6 +10,7 @@ const assert = require("node:assert/strict");
 const { prepareDatabase, buildApp, listen } = require("../helpers/inProcessApp");
 const { makeClient, makeUser, uniq } = require("../helpers/routeClient");
 const { makeCookieJar } = require("../helpers/httpClient");
+const { createAccount, logInInProcess } = require("../helpers/accounts");
 
 const db = prepareDatabase("price_safety", { isolated: true });
 
@@ -58,6 +59,13 @@ beforeEach(() => {
 
 // ---------- helpers ----------
 
+// Buying requires an account: sign this visitor in as a confirmed account.
+async function signIn(v, email, displayName = "Test Buyer") {
+  const account = await createAccount(pool, { email, displayName });
+  await logInInProcess(server.base, v.jar, account);
+  return account;
+}
+
 async function makeBook(title = `Price Book ${uniq()}`) {
   const { rows } = await pool.query("INSERT INTO books (title, authors) VALUES ($1, 'Price Author') RETURNING id", [title]);
   return rows[0].id;
@@ -89,6 +97,7 @@ function visitor() {
     return { res, text: await res.text() };
   };
   return {
+    jar,
     get: (p, o) => send(p, o),
     post: (p, form) => send(p, { method: "POST", form }),
     count: async () => JSON.parse((await send("/api/cart/count")).text).count,
@@ -163,7 +172,8 @@ test("a copy whose price is removed while it sits in a cart drops out: the cart 
 
   // Checkout of that cart: nothing to buy, no order, the copy is untouched.
   const email = `nullprice-${uniq()}@example.test`;
-  const res = await v.post("/cart/checkout", { name: "Buyer", email, acceptCgv: "on" });
+  await signIn(v, email);
+  const res = await v.post("/cart/checkout", { name: "Buyer", acceptCgv: "on" });
   assert.equal(res.res.status, 200);
   assert.match(res.text, /Your cart is empty/);
   assert.equal((await pool.query("SELECT 1 FROM orders WHERE buyer_email = $1", [email])).rowCount, 0);
@@ -176,6 +186,7 @@ test("checkout lock: a price removed after the cart was read cannot be locked or
   const v = visitor();
   await v.post("/cart/add", { copyId: copy });
   const email = `lockrace-${uniq()}@example.test`;
+  await signIn(v, email);
   // Fires inside the checkout transaction, after the cart was read (with its
   // price) and before the copy is locked: stands in for an admin blanking the price.
   const fn = `race_null_price_${Date.now()}`;
@@ -186,7 +197,7 @@ test("checkout lock: a price removed after the cart was read cannot be locked or
     END; $$ LANGUAGE plpgsql`);
   await pool.query(`CREATE TRIGGER ${fn} BEFORE INSERT ON orders FOR EACH ROW EXECUTE FUNCTION ${fn}()`);
   try {
-    const res = await v.post("/cart/checkout", { name: "Buyer", email, acceptCgv: "on" });
+    const res = await v.post("/cart/checkout", { name: "Buyer", acceptCgv: "on" });
     assert.equal(res.res.status, 200, "no redirect to payment");
     assert.match(res.text, /taken by someone else/);
     assert.equal(createdIntents.length, 0, "no payment was started");
@@ -206,7 +217,8 @@ test("a copy with a real price still checks out normally", async () => {
   const v = visitor();
   await v.post("/cart/add", { copyId: copy });
   const email = `ok-${uniq()}@example.test`;
-  const res = await v.post("/cart/checkout", { name: "Buyer", email, acceptCgv: "on" });
+  await signIn(v, email);
+  const res = await v.post("/cart/checkout", { name: "Buyer", acceptCgv: "on" });
   assert.equal(res.res.status, 302);
   assert.equal((await copyRow(copy)).status, "in_cart");
   assert.equal(createdIntents.at(-1).amountCents, 525);

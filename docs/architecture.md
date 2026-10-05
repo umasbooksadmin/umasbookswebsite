@@ -273,7 +273,15 @@ Key rules:
   k-anonymity breach check; a locked account (5 failures, 15 min) answers like a
   wrong password; the lockout counter is one atomic `UPDATE`. Wrong two-step
   codes count toward the same lockout.
-* **Sessions** — id regenerated at login; the session is **saved before the
+* **Buying and joining need an account.** Guests browse and fill the cart
+  (session); `GET`/`POST /cart/checkout` send them to `/login?returnTo=/cart`
+  (preview mode is checked first, so its notice is never masked), and the order is
+  placed under the account's confirmed email with `orders.user_id`. The
+  `returnTo` (local paths only, `lib/returnTo.js`) also rides inside the
+  single-use email-verification and reset tokens (`return_to` columns), so
+  signup -> confirm -> choose password -> login ends on the cart, and the cart
+  itself is copied across the login's session regeneration.
+* **Sessions** — id regenerated at login (the guest cart is carried over); the session is **saved before the
   redirect** (`lib/session.js`) because `express-session` otherwise answers
   before its write lands; cookie `HttpOnly`, `Secure`, `SameSite=Lax`.
 * **Two-step verification (TOTP).** Any authenticator app works. It is
@@ -587,7 +595,7 @@ sequenceDiagram
   participant HA as HelloAsso
   participant GM as Gmail
 
-  B->>W: POST /cart/checkout (name, email, terms ticked,<br/>drop-in waiver ticked if a seat is in the cart)
+  B->>W: POST /cart/checkout, logged in (name, terms ticked,<br/>drop-in waiver ticked if a seat is in the cart;<br/>email comes from the account)
   W->>DB: one transaction: create order,<br/>lock copies and seats as in_cart
   W->>HA: create checkout intent (10 s timeout)
   W->>DB: save intent id (one retry, admin alert if it fails)
@@ -620,6 +628,7 @@ What keeps it correct:
 | Checkout crashes before saving the intent id | the same alert, with order and intent ids; the webhook may adopt the id if HelloAsso confirms the order id |
 | Overselling | atomic `UPDATE … WHERE status='in_stock'` and `FOR UPDATE` on class rows |
 | Hoarding stock without paying | a cart holds at most 20 lines; at most 2 unpaid orders per email and per IP address (`orders.client_ip`), checked under an advisory lock so two simultaneous checkouts cannot both slip through |
+| Anonymous orders | checkout requires a logged-in account with a confirmed email, enforced on the server; the order stores `user_id` and the account's email (a posted email is ignored). Orders from before this rule (`user_id` NULL) remain valid everywhere |
 | Terms and withdrawal | checkout requires accepting the terms of sale; a cart with a drop-in seat also requires the withdrawal waiver, whose time is stored on the order |
 
 ---
@@ -630,6 +639,21 @@ Membership is sold on a **HelloAsso-hosted form** (embedded as an iframe — the
 marketing CSP needs `frame-src https://www.helloasso.com`), not through our
 cart, so there is no local order row. The link back to an account is the **payer's
 email address**.
+
+**Becoming a member needs an account**, created in one step on the membership
+page. A guest sees a name + email form (no widget); `POST /membership/join`
+runs the same `registerAccount` as `/signup` (unusable password, confirmation
+email whose token returns to the page), then the page shows the payment form
+and the email to use on it. The next page is identical whether or not the
+address already has an account (otherwise it would reveal which emails are
+registered); the typed email lives only in the session, for 2 hours. They pay
+first and confirm after: the sync runs when the password is chosen and picks
+the payment up. A logged-in person sees only the payment form (never a signup
+form), a current member sees "you are a member until <date>" (the form returns
+in the last 30 days), and **Check my membership** (`POST /membership/check`, 5
+per 10 minutes per account) runs the same verified sync for that account's own
+confirmed email immediately. Payments made directly on HelloAsso cannot be
+blocked: they still attach once an account with that confirmed email exists.
 
 ```mermaid
 flowchart LR

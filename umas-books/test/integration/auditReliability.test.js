@@ -8,6 +8,7 @@ const assert = require("node:assert/strict");
 const bcrypt = require("bcryptjs");
 const { startTestApp } = require("../helpers/testApp");
 const { makeCookieJar, fetchCsrfToken } = require("../helpers/httpClient");
+const { createAccount, loginOverHttp } = require("../helpers/accounts");
 
 const PORT = 3500;
 const PASSWORD = "Audit-Reliab-1!";
@@ -33,7 +34,11 @@ function frameSrc(csp) {
 }
 
 test("/membership.html CSP allows the HelloAsso widget frame, and only that", async () => {
-  const res = await fetch(`${app.base}/membership.html`);
+  // The widget is only in the page for a logged-in account holder.
+  const jar = makeCookieJar();
+  const account = await createAccount(pool, { email: `csp-widget-${Date.now()}@example.test`, displayName: "Csp" });
+  assert.equal((await loginOverHttp(app.base, jar, account)).status, 302);
+  const res = await fetch(`${app.base}/membership.html`, { headers: { cookie: jar.header() } });
   assert.equal(res.status, 200);
   const sources = frameSrc(res.headers.get("content-security-policy"));
   assert.ok(sources, "marketing CSP has a frame-src");

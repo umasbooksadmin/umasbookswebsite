@@ -8,11 +8,11 @@ const TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 // Stores a fresh single-use reset token for the user and returns the raw
 // value (only its hash is kept). `db` is a pool or a transaction client.
-async function createResetToken(db, userId) {
+async function createResetToken(db, userId, returnTo = null) {
   const rawToken = generateToken();
   await db.query(
-    "INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, $3)",
-    [userId, hashToken(rawToken), new Date(Date.now() + TOKEN_TTL_MS)]
+    "INSERT INTO password_reset_tokens (user_id, token_hash, expires_at, return_to) VALUES ($1, $2, $3, $4)",
+    [userId, hashToken(rawToken), new Date(Date.now() + TOKEN_TTL_MS), returnTo]
   );
   return rawToken;
 }

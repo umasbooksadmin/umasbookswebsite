@@ -7,8 +7,9 @@ const { activeRequestsForUser } = require("../lib/bookRequests");
 const router = express.Router();
 
 // Orders (books and paid drop-in seats alike — see src/routes/cart.js)
-// are a guest checkout flow, so the table has no user_id — the only
-// link back to an account is the email address, matched
+// now require an account at checkout, and orders.user_id records which
+// one. Orders placed before that (guest checkout) have user_id NULL, so
+// this page still finds orders by the account's email address, matched
 // case-insensitively since HelloAsso/browsers don't normalize case on
 // what a buyer types in.
 //

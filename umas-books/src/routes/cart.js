@@ -8,7 +8,9 @@ const { baseUrl } = require("../lib/baseUrl");
 const { isPreviewMode } = require("../lib/preview");
 const { TERMS_OF_SALE_VERSION } = require("../lib/legal");
 const { loadOrderItems, orderItemLabel } = require("../lib/orderItems");
-const { isEmail, clean, parseId } = require("../lib/validation");
+const { saveSession } = require("../lib/session");
+const { clean, parseId } = require("../lib/validation");
+const { CART_RETURN } = require("../lib/returnTo");
 const { checkoutLimiter, cartEditLimiter } = require("../middleware/rateLimits");
 
 const router = express.Router();
@@ -26,8 +28,11 @@ function isSafeLocalPath(value) {
 // `price IS NOT NULL AND price > 0`, so such a copy can never reach an order or
 // a total (it would otherwise be charged as 0). It is "ask in the shop" only.
 //
-// Public — no login required (matches /books and /sessions). The cart
-// itself is just a list of lines in the session; nothing is locked in
+// Browsing, adding to and viewing the cart need no login (matches /books and
+// /sessions); CHECKING OUT does: buying books or class seats requires an
+// account (see accountForCheckout and POST /cart/checkout). The cart itself is
+// just a list of lines in the session (it is carried across the login's
+// session regeneration, see loginAs in routes/auth.js); nothing is locked in
 // the database until checkout actually starts (see src/lib/cart.js for
 // why). A line is either a book copy ({ kind: "book", copyId }) or a
 // drop-in session seat ({ kind: "dropin", classId }) — see
@@ -49,6 +54,35 @@ function getCart(req) {
 function nextLineId(req) {
   req.session.cartSeq = (req.session.cartSeq || 0) + 1;
   return req.session.cartSeq;
+}
+
+// Who is checking out. Re-read from the database (not the session snapshot)
+// so the order always carries the account's CURRENT confirmed email.
+//   { state: "guest" }                     not logged in (or account gone/disabled)
+//   { state: "unconfirmed", user }         logged in, email never confirmed
+//   { state: "ok", user }                  may check out
+async function accountForCheckout(req) {
+  const sessionUser = req.session && req.session.user;
+  if (!sessionUser) return { state: "guest" };
+  const { rows } = await pool.query(
+    "SELECT id, email, display_name, email_verified_at, is_disabled FROM users WHERE id = $1",
+    [sessionUser.id]
+  );
+  const user = rows[0];
+  if (!user || user.is_disabled) return { state: "guest" };
+  // Nothing is ever sent to, or ordered under, an unconfirmed address.
+  if (!user.email_verified_at) return { state: "unconfirmed", user };
+  return { state: "ok", user };
+}
+
+// What views/cart.ejs needs to choose between the checkout form and the
+// "log in or create an account" block.
+function accountView(account) {
+  return {
+    checkoutState: account.state,
+    accountEmail: account.user ? account.user.email : null,
+    accountName: account.user ? account.user.display_name || "" : "",
+  };
 }
 
 async function loadCartItems(cart) {
@@ -124,7 +158,20 @@ router.get("/cart", async (req, res) => {
     ...(i.kind === "book" ? { copyId: i.copyId } : { classId: i.classId }),
   }));
   const total = items.reduce((sum, i) => sum + i.price, 0);
-  res.render("cart", { items, total, error: null, helloassoReady: helloasso.isConfigured() });
+  const account = await accountForCheckout(req);
+  res.render("cart", { items, total, error: null, helloassoReady: helloasso.isConfigured(), ...accountView(account) });
+});
+
+const LOGIN_REQUIRED_URL = `/login?returnTo=${encodeURIComponent(CART_RETURN)}`;
+
+// Nothing is checked out by GET: this only exists so a bookmarked or
+// back-button URL lands somewhere useful. Preview mode first (the cart page
+// carries the "ordering opens at launch" notice), then the login requirement.
+router.get("/cart/checkout", async (req, res) => {
+  if (isPreviewMode()) return res.redirect(CART_RETURN);
+  const account = await accountForCheckout(req);
+  if (account.state === "guest") return res.redirect(LOGIN_REQUIRED_URL);
+  res.redirect(CART_RETURN);
 });
 
 // Upper bound on lines per cart — checkout locks every copy in the cart
@@ -143,6 +190,7 @@ router.post("/cart/add", cartEditLimiter, async (req, res) => {
       }
     }
   }
+  await saveSession(req);
   res.redirect(backTo);
 });
 
@@ -165,14 +213,16 @@ router.post("/cart/add-dropin", cartEditLimiter, async (req, res) => {
       if (spotsLeft > 0 && cart.length < MAX_CART_LINES) cart.push({ kind: "dropin", lineId: nextLineId(req), classId });
     }
   }
+  await saveSession(req);
   res.redirect(backTo);
 });
 
-router.post("/cart/remove", (req, res) => {
+router.post("/cart/remove", async (req, res) => {
   // Only compared against the session's own lines, never sent to SQL.
   const lineId = Number(req.body.lineId);
   const cart = getCart(req);
   req.session.cart = cart.filter((l) => l.lineId !== lineId);
+  await saveSession(req);
   res.redirect("/cart");
 });
 
@@ -201,8 +251,10 @@ async function runCheckoutTransaction(fn) {
 
 router.post("/cart/checkout", checkoutLimiter, async (req, res) => {
   const cart = getCart(req);
-  const name = clean(req.body.name, 100);
-  const email = clean(req.body.email, 200).toLowerCase();
+  // Name and phone come from the form; the EMAIL never does: an order is
+  // placed under the logged-in account's confirmed address (any posted
+  // "email" field is ignored, so nobody can order under someone else's).
+  let name = clean(req.body.name, 100);
   const phone = clean(req.body.phone, 30) || null;
 
   const items = await loadCartItems(cart);
@@ -211,8 +263,10 @@ router.post("/cart/checkout", checkoutLimiter, async (req, res) => {
     ...(i.kind === "book" ? { copyId: i.copyId } : { classId: i.classId }),
   }));
 
+  const account = await accountForCheckout(req);
+
   const renderCart = (extra) =>
-    res.render("cart", { items, total: items.reduce((sum, i) => sum + i.price, 0), helloassoReady: helloasso.isConfigured(), error: null, ...extra });
+    res.render("cart", { items, total: items.reduce((sum, i) => sum + i.price, 0), helloassoReady: helloasso.isConfigured(), error: null, ...accountView(account), ...extra });
 
   // Preview mode (src/lib/preview.js): nothing can be ordered. Refuse before
   // any validation, lock, order row or HelloAsso call; the cart page itself
@@ -222,8 +276,23 @@ router.post("/cart/checkout", checkoutLimiter, async (req, res) => {
     return renderCart({});
   }
 
+  // Buying requires an account, enforced here on the server (the cart page
+  // merely hides the form). Checked AFTER preview mode, so the preview notice
+  // is never masked, and BEFORE anything else: a guest creates no order, no
+  // lock, no HelloAsso call. The cart stays in the session.
+  if (account.state === "guest") {
+    await saveSession(req); // the pruned cart must be there when the login page loads
+    return res.redirect(LOGIN_REQUIRED_URL);
+  }
+  if (account.state === "unconfirmed") {
+    res.status(403);
+    return renderCart({ error: req.tr("Please confirm your email address before ordering: open the link we sent you when you signed up.", "Veuillez confirmer votre adresse e-mail avant de commander : ouvrez le lien que nous vous avons envoyé lors de votre inscription.") });
+  }
+  const email = account.user.email.toLowerCase();
+  if (!name) name = clean(account.user.display_name, 100);
+
   if (!items.length) return renderCart({ items: [], total: 0, error: req.tr("Your cart is empty.", "Votre panier est vide.") });
-  if (!name || !isEmail(email)) return renderCart({ error: req.tr("Please enter your name and a valid email address.", "Veuillez indiquer votre nom et une adresse e-mail valide.") });
+  if (!name) return renderCart({ error: req.tr("Please enter your name.", "Veuillez indiquer votre nom.") });
   if (req.body.acceptCgv !== "on") return renderCart({ error: req.tr("Please accept the terms of sale to continue.", "Veuillez accepter les conditions de vente pour continuer.") });
   // Drop-in seats are dated leisure bookings: the buyer must expressly ask for
   // the session to take place on the booked date (no withdrawal afterwards).
@@ -265,9 +334,9 @@ router.post("/cart/checkout", checkoutLimiter, async (req, res) => {
 
       const { rows: orderRows } = await client.query(
         `INSERT INTO orders (buyer_name, buyer_email, buyer_phone, total_amount, client_ip, withdrawal_waiver_at, lang,
-                             cgv_accepted_at, cgv_version)
-         VALUES ($1, $2, $3, $4, $5, CASE WHEN $6::boolean THEN now() END, $7, now(), $8) RETURNING *`,
-        [name, email, phone, total, clientIp, hasDropin, req.lang, TERMS_OF_SALE_VERSION]
+                             cgv_accepted_at, cgv_version, user_id)
+         VALUES ($1, $2, $3, $4, $5, CASE WHEN $6::boolean THEN now() END, $7, now(), $8, $9) RETURNING *`,
+        [name, email, phone, total, clientIp, hasDropin, req.lang, TERMS_OF_SALE_VERSION, account.user.id]
       );
       const newOrder = orderRows[0];
 
@@ -382,6 +451,7 @@ router.post("/cart/checkout", checkoutLimiter, async (req, res) => {
   // already live — see persistCheckoutIntentId in lib/cart.js.
   await persistCheckoutIntentId(pool, order.id, intent.id);
   req.session.cart = [];
+  await saveSession(req);
   res.redirect(intent.redirectUrl);
 });
 

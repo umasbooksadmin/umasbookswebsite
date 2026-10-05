@@ -114,7 +114,13 @@ more things to keep in mind:
   link confirms the address and leads to "choose your password", and only then
   can the person log in (`src/lib/emailVerification.js`); an admin
   changing a member's email re-triggers it.
-- **Online checkout** (`/cart`) — book copies and class drop-in seats are
+- **Membership** (`/membership.html`) — needs an account, created in one step
+  on that page (name + email, then pay on HelloAsso and confirm the email
+  afterwards); a logged-in account holder sees only the payment form and a
+  "Check my membership" button (`src/lib/membershipPage.js`).
+- **Online checkout** (`/cart`) — **needs an account**: guests can browse and
+  fill the cart, then are asked to log in or sign up (the cart is kept and they
+  return to it). Book copies and class drop-in seats are
   paid for through HelloAsso (`src/lib/helloasso.js`, webhook at
   `/webhooks/helloasso`); membership payments are matched to accounts the
   same way. See ARCHITECTURE.md's "Payment reliability" section.

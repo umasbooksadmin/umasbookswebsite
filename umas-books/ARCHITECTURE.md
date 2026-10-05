@@ -275,7 +275,13 @@ rather than by a numbered migration), grouped by what they belong to:
   their password. Still-unconfirmed accounts from the old password-at-signup form
   follow the same rules (migration 055 flagged them). Reasoning is in the comment
   above the verify route in `src/routes/auth.js`.
-- **Membership** — `membership_payments` (HelloAsso payment records,
+- **Membership** — becoming a member needs an account, created in one step on
+  the membership page (`POST /membership/join` reuses `registerAccount` from
+  `/signup`; pay first, confirm the email after; the page state is in
+  `src/lib/membershipPage.js`; the next page is identical whether or not the
+  address already has an account). A logged-in person sees only the payment
+  form, and `POST /membership/check` (5 per 10 min per account) runs the same
+  sync for their own confirmed email. `membership_payments` (HelloAsso payment records,
   matched to a `users` row by verified email — see
   `src/lib/membership.js`). The sync also re-runs (in the background)
   when an account becomes eligible: email verified, password reset
@@ -631,6 +637,20 @@ as-is and never copied.
   (README, "Restoring from a backup").
 
 ## Payment reliability (online checkout)
+
+**Buying requires an account.** A guest can browse, search and fill the cart
+(a list of lines in the session), but `GET`/`POST /cart/checkout` redirect to
+`/login?returnTo=/cart` (checked server-side, after the preview-mode refusal and
+before anything is validated, locked or created). Login regenerates the session
+but copies the cart across; the returnTo (local paths only, `src/lib/returnTo.js`)
+travels in the login form and, through signup, inside the single-use
+`email_verification_tokens.return_to` / `password_reset_tokens.return_to`, so
+signup -> confirm -> choose password -> login ends back on the cart. The order
+is placed under the account's confirmed email (`orders.user_id`, `buyer_email`
+from the `users` row, never from the form; an unconfirmed account is refused);
+the name is pre-filled from `display_name` and stored on the order. Orders from
+before this rule have `user_id` NULL and keep working by token (`/cart/return`,
+the webhook, recovery, exports by email).
 
 Order flow: checkout inserts a `pending` order and locks its copies/seats
 (`in_cart`), creates a HelloAsso checkout intent, then saves the intent id
