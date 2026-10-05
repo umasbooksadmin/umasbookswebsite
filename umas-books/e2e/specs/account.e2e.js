@@ -37,6 +37,7 @@ let held = null; // set by AC24 for AC25: { bookId, copiesBefore }
 // Types into a field, replacing whatever the site already put there (a
 // logged-in checkout form may be pre-filled with the account's details).
 async function fill(ctx, sel, text) {
+  if (sel === "#email" && !(await ctx.page.$(sel))) return; // once buying needs an account the email is the account's, shown read-only
   await ctx.page.$eval(sel, (i) => { i.value = ""; });
   await ctx.page.type(sel, text);
 }
@@ -48,6 +49,17 @@ s.test("AC-setup the account-holder test login is a plain account (confirmed, no
   assert.equal(new URL(ctx.page.url()).pathname, "/", "an account holder is sent from Member's Access to the home page");
   assert.ok(await ctx.page.$("form[action='/logout'] button"), "logged in");
 });
+
+// A logged-in account keeps its cart between visits (and between tests), so
+// every buying test starts from an empty one.
+async function clearCart(ctx) {
+  await ctx.goto("/cart");
+  for (let i = 0; i < 30; i++) {
+    const remove = await ctx.page.$(".cart-item form[action='/cart/remove'] button");
+    if (!remove) break;
+    await Promise.all([ctx.page.waitForNavigation({ waitUntil: "domcontentloaded" }), remove.click()]);
+  }
+}
 
 // ---- 2A. Sign up, confirm, choose a password, log in ----
 
@@ -246,6 +258,7 @@ async function needPayments(ctx) {
 
 s.test("AC22 (must) the checkout form has name, email, phone, terms checkbox with link, privacy note and Pay & Buy", { as: "account" }, async (ctx) => {
   const book = await stockedBook(ctx);
+  await clearCart(ctx);
   await addFirstCopyToCart(ctx, book);
   await needPayments(ctx);
   const form = await ctx.page.$eval("form[action='/cart/checkout']", (f) => f.innerText);
@@ -257,6 +270,7 @@ s.test("AC22 (must) the checkout form has name, email, phone, terms checkbox wit
 
 s.test("AC23 (must) the form cannot be submitted without the terms box ticked or with a bad email", { as: "account" }, async (ctx) => {
   const book = await stockedBook(ctx);
+  await clearCart(ctx);
   await addFirstCopyToCart(ctx, book);
   await needPayments(ctx);
   const before = ctx.page.url();
@@ -264,8 +278,9 @@ s.test("AC23 (must) the form cannot be submitted without the terms box ticked or
   await fill(ctx, "#email", "not-an-email");
   await ctx.page.click("form[action='/cart/checkout'] button[type='submit']");
   assert.equal(ctx.page.url(), before, "the browser refused to submit");
-  let v = await ctx.page.$eval("form[action='/cart/checkout']", (f) => ({ ok: f.checkValidity(), terms: f.querySelector("[name=acceptCgv]").validity.valueMissing, email: f.querySelector("#email").validity.typeMismatch }));
-  assert.deepEqual(v, { ok: false, terms: true, email: true });
+  const hasEmailBox = Boolean(await ctx.page.$("#email"));
+  let v = await ctx.page.$eval("form[action='/cart/checkout']", (f) => ({ ok: f.checkValidity(), terms: f.querySelector("[name=acceptCgv]").validity.valueMissing, email: Boolean(f.querySelector("#email") && f.querySelector("#email").validity.typeMismatch) }));
+  assert.deepEqual(v, { ok: false, terms: true, email: hasEmailBox });
   await fill(ctx, "#email", testEmail("account-ac23"));
   v = await ctx.page.$eval("form[action='/cart/checkout']", (f) => ({ ok: f.checkValidity(), terms: f.querySelector("[name=acceptCgv]").validity.valueMissing }));
   assert.deepEqual(v, { ok: false, terms: true }, "with a good email, only the terms box is still missing");
@@ -274,6 +289,7 @@ s.test("AC23 (must) the form cannot be submitted without the terms box ticked or
 
 s.test("AC-FR22 FR check (cart): the cart and checkout form are in French", { as: "account", lang: "fr" }, async (ctx) => {
   const book = await stockedBook(ctx);
+  await clearCart(ctx);
   await addFirstCopyToCart(ctx, book);
   const text = await ctx.text();
   for (const re of [/Votre panier/, /Retirer/, /Total :/]) has(text, re);
@@ -285,6 +301,7 @@ s.test("AC-FR22 FR check (cart): the cart and checkout form are in French", { as
 s.test("AC24 (preview mode) checkout is refused by the server and never reaches HelloAsso", { as: "account" }, async (ctx) => {
   if (!ctx.preview) ctx.skip("the site is not in preview mode (see AC24 for the payments-on check)");
   const book = await stockedBook(ctx);
+  await clearCart(ctx);
   await addFirstCopyToCart(ctx, book);
   // There is no form to press, so send the request a script would send.
   const status = await ctx.page.evaluate(async () => {
@@ -303,6 +320,7 @@ s.write("AC24 (must) with payments on, Pay & Buy starts a checkout that redirect
   const book = await stockedBook(ctx);
   await ctx.goto(`/books/${book.id}`);
   const copiesBefore = (await ctx.page.$$(".copy-table tbody tr")).length;
+  await clearCart(ctx);
   await addFirstCopyToCart(ctx, book);
   await needPayments(ctx);
   const tag = process.env.E2E_RUN_ID;
@@ -355,6 +373,7 @@ s.test("AC32 the Terms of Sale say to collect within 14 days of payment (EN and 
 });
 
 async function addDropin(ctx) {
+  await clearCart(ctx);
   await ctx.goto("/sessions?type=dropin");
   let btn = await ctx.page.$("form[action='/cart/add-dropin'] button[type='submit']");
   if (!btn) {
@@ -366,6 +385,11 @@ async function addDropin(ctx) {
   await ctx.page.$eval("form[action='/cart/add-dropin']", (f) => { const d = f.closest("details"); if (d) d.open = true; });
   await Promise.all([ctx.page.waitForNavigation(), btn.click()]);
   await ctx.goto("/cart");
+  // The session holding the cart is saved a moment after the redirect: look again before giving up.
+  for (let i = 0; i < 4 && !(await ctx.page.$(".cart-item")); i++) {
+    await new Promise((r) => setTimeout(r, 500));
+    await ctx.page.reload({ waitUntil: "domcontentloaded" });
+  }
 }
 
 s.test("AC33 (must) a drop-in seat can be added to the cart from the sessions page", { as: "account" }, async (ctx) => {

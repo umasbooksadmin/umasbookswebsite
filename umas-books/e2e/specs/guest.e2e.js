@@ -698,7 +698,7 @@ s.todo("G51 (must) after logging in from the cart, the guest is back on the cart
   const c = cfg.credentials("account");
   const book = await stockedBook(ctx);
   await addFirstCopyToCart(ctx, book);
-  const login = await ctx.page.$("a[href^='/login']");
+  const login = (await ctx.page.$("#login-to-checkout a[href^='/login']")) || (await ctx.page.$("a[href^='/login']"));
   assert.ok(login, "the cart offers a log in link to a guest");
   await Promise.all([ctx.page.waitForNavigation(), login.click()]);
   await ctx.page.type("form[action='/login'] #email", c.email);
@@ -761,6 +761,8 @@ s.todo("G55 (must) submitting the form shows the payment step with the email to 
   await joinWith(ctx, email);
   ctx.created("unconfirmed account made by the membership form (cannot log in: example.invalid)", `${process.env.E2E_RUN_ID} Join Test <${email}>`, "admin Accounts > search the tag > Erase Member");
   const first = await ctx.text();
+  const wrap = () => ctx.page.$eval(".mem-widget-wrap", (e) => e.innerText.replace(/\s+/g, " "));
+  const firstWrap = await wrap();
   for (const re of [/Next: pay for your membership/, /We have emailed you a link: click it after paying/, /Use this same email on the payment form:/]) has(first, re);
   assert.ok((await ctx.page.$eval("#memJoinedEmail", (e) => e.innerText)).includes(email), "the email to use on the payment form is shown");
   assert.ok(await ctx.page.$("#haWidget"), "the HelloAsso payment form is shown now");
@@ -770,7 +772,7 @@ s.todo("G55 (must) submitting the form shows the payment step with the email to 
   const second = await ctx.text();
   for (const re of [/Next: pay for your membership/, /We have emailed you a link: click it after paying/]) has(second, re);
   assert.ok((await ctx.page.$eval("#memJoinedEmail", (e) => e.innerText)).includes(email), "the same email is shown the second time");
-  assert.equal(second.replace(/\s+/g, " ").includes("already"), false, "nothing says the address is already registered");
+  assert.equal(await wrap(), firstWrap, "the page for an address that now has an account is identical");
 });
 
 s.todo("G56 'Use a different email' returns to the Name and Email form", WAIT_201, async (ctx) => {

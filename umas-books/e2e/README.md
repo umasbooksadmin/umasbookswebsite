@@ -100,8 +100,8 @@ Personas: `guest`, `account`, `member`, `volunteer`, `admin`, `edge` (the five k
 
 | Persona | Needs | Writes (only with `E2E_ALLOW_WRITES=1`) |
 |---|---|---|
-| guest | nothing (G51 also uses the account login) | contact form, book request, event sign-up (all tagged) |
-| account | account-holder login (not a member) | one tagged unconfirmed sign-up that can never log in; AC24 starts a checkout when payments are on (one unpaid order, never paid); AC43 stores a pending two-step secret (nothing is switched on) |
+| guest | nothing (G51 also uses the account login) | contact form, book request, event sign-up (all tagged); G55 and G56 make one unconfirmed account through the membership form |
+| account | account-holder login (not a member) | one tagged unconfirmed sign-up that can never log in; AC24 starts a checkout when payments are on (one unpaid order, never paid); AC43 stores a pending two-step secret (nothing is switched on). AC53 presses Check my membership, which only reads HelloAsso (limited to 5 per 10 minutes) |
 | member | member login | a forum thread, reply and report; one charity vote and idea |
 | volunteer | volunteer login (the member and admin logins too, for VO1 and VO7) | signs up for one shift and cancels it again |
 | admin | test admin with two-step | one tagged test book (made-up ISBN, EUR 5.00, in the public shop), one tagged test member (disabled again). **Sells nothing.** |
@@ -119,8 +119,8 @@ a dash (skipped, with the reason). At the end:
   logins or because writes are off), **Known** (a known problem, shown but not
   counted as a failure), **Manual** (cannot be automated) and **Total**.
 - `Coverage: automated N / manual M / total T tests`, and a line saying how
-  many steps of the manual script have an automated test. (Full local run: 167
-  automated, 67 manual-only, 234 tests in all.)
+  many steps of the manual script have an automated test. (Full local run: 176
+  automated, 70 manual-only, 246 tests in all.)
 - **FAILED**: each failure with the step id and what was wrong. A screenshot
   and the page's HTML are saved in `e2e/artifacts/` (not committed to git).
 - **Known issues**: tests marked as known problems. If one starts passing, the
@@ -134,18 +134,18 @@ safety guard refused to start.
 
 These need a person (an e-mailed link, a payment, a second person or browser,
 real time passing, or something that would be damaging to automate). They
-appear in the report as skipped tests starting with `manual:`. Of the 182
-steps in the manual script, **131 have an automated test** (some only for part
-of the step) and **51 are manual-only**:
+appear in the report as skipped tests starting with `manual:`. Of the 193
+steps in the manual script, **139 have an automated test** (some only for part
+of the step) and **54 are manual-only**:
 
 | Why | Steps |
 |---|---|
 | Needs an e-mailed link, a readable mailbox or an authenticator app | G29, G33, G35, G36, G38, AC2b, AC5, AC6, AC12, AC14, AC20, AC21, AC27, AC28, AC43b, A2, A3, A22, A37 |
-| HelloAsso payment (never done by the tests) | AC26, AC29, AC30, AC35, AC36, AC37, AC38, AC42, M1, A21, E4 |
-| Needs a second person, a second browser, or real time | AC40, AC41, VO4, A5b, E7, A23b, M14 |
+| HelloAsso payment (never done by the tests) | AC26, AC29, AC30, AC35, AC36, AC37, AC38, AC42, AC54, M1, A21, E4 |
+| Needs a second person, a second browser, or real time | AC40, AC41, VO4, A5b, E7, A23b, M14, M16 |
 | Would lock out or change the test account, or sell a real book | AC10, A18 |
 | Human or hardware | G24 (calendar app), G43 (private window), AC31 (pickup at the shop) |
-| An admin action, done when the test account is set up | M3 (Mark as Member), M13 (an admin-granted membership has no end date) |
+| An admin action, done when the test account is set up | M3 (Mark as Member), M13 and A42 (an admin-granted membership has no end date) |
 | Other | G30 (sends five real e-mails), G34 (needs a request made by another test and an admin look), AC39 (would hold more books), M11 (same as G23), AC19 (needs a deleted account), A13 (photo scan needs the AI key), A41 (optional paid lookup) |
 
 Parts of steps that are otherwise automated and stay manual are listed too, as
@@ -206,11 +206,12 @@ until they are fixed.
   `form-action 'self'`, so Chrome refuses to follow the redirect from **Pay &
   Buy** to HelloAsso. Payment cannot start. (Allowing the HelloAsso addresses in
   `src/index.js` fixes it.) Preview mode hides this, because checkout is off.
-- **G50 and G51 (checkout asks a guest to log in or create an account)** are
-  shown as known issues until the pull request that makes buying need an
-  account is merged: the site still lets a guest check out today. Once it is
-  merged they pass, the report says "NOW PASSES, remove the todo", and the
-  mark in `specs/guest.e2e.js` should be removed.
+- **G50, G51 and the membership-page steps (G53 to G56, AC51 to AC53, M15)** are
+  shown as known issues until the pull request that makes buying and
+  becoming a member need an account (#201) is merged: until then a guest can
+  still check out and everyone sees the payment form. Once it is merged they
+  pass, the report says "NOW PASSES, remove the todo", and the `todo` marks in
+  `specs/guest.e2e.js`, `account.e2e.js` and `member.e2e.js` should be removed.
 - Marked as known (do not fail): the Dashboard shows `NaN%` next to a sales or
   orders figure when last month had none (A6; `views/admin/index.ejs`, the trend
   helper divides by "0.00"; also a known todo in
