@@ -21,10 +21,10 @@ validateIdParams(router, "id");
 // backed by the /api/books/* endpoints below) — there's no server-rendered
 // listing page anymore, just the detail route past this point.
 
-// Logged-in visitors' favorites persist here too (see public/favorites.js),
-// alongside the localStorage list every visitor already gets — this is
+// Logged-in people's favorites persist here too (see public/favorites.js),
+// alongside the localStorage list every person already gets — this is
 // what lets /api/books/recommendation draw its weekly pick from real
-// member favorites. Anonymous visitors get a silent no-op: favoriting
+// member favorites. Guests get a silent no-op: favoriting
 // stays client-only for them, same as before this existed.
 router.post("/api/favorites/toggle", async (req, res) => {
   if (!req.session.user) return res.status(204).end();

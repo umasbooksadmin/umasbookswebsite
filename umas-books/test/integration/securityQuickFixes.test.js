@@ -159,7 +159,7 @@ test("the public POST /books/:id/reserve route is gone (404): no anonymous holds
   const { rows } = await pool.query("INSERT INTO books (title, authors) VALUES ($1, 'A') RETURNING id", [`Quick Fix ${uniq()}`]);
   const bookId = rows[0].id;
   const { rows: c } = await pool.query("INSERT INTO book_copies (book_id, status, price) VALUES ($1, 'in_stock', 5) RETURNING id", [bookId]);
-  const res = await post(`/books/${bookId}/reserve`, { copyId: c[0].id, name: "Visitor", email: `v-${uniq()}@example.test` });
+  const res = await post(`/books/${bookId}/reserve`, { copyId: c[0].id, name: "Guest", email: `v-${uniq()}@example.test` });
   assert.equal(res.status, 404);
   const { rows: after } = await pool.query("SELECT status FROM book_copies WHERE id = $1", [c[0].id]);
   assert.equal(after[0].status, "in_stock");

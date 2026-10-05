@@ -53,7 +53,7 @@ To answer an access or portability request ("a copy of my data"), use admin > Me
 |---|---|
 | Purpose | Hold a book for pickup and pay in the shop; send one pickup reminder |
 | Data | Name, email, phone, date of reservation and the date the reminder was sent (stored on the book copy: `reserved_by_name`, `reserved_by_email`, `reserved_by_phone`, `reserved_at`, `reminder_sent_at`) |
-| People | Visitors who ask the shop to hold a book (entered by an admin), and book requesters whose request is held |
+| People | People who ask the shop to hold a book (entered by an admin), and book requesters whose request is held |
 | Legal basis | Contract (their request) |
 | Recipients / processors | Render; Google Workspace/Gmail (reminder email); Backblaze (backups) |
 | Transfers outside EU | Google, Backblaze as above |
@@ -69,7 +69,7 @@ Inventory locations (`book_copies.location`, the shelf code where a physical cop
 |---|---|
 | Purpose | Let anyone ask us to look out for a book (no account or membership needed); confirm the request by email; email the person if a copy arrives (and optionally hold it for 7 days) |
 | Data | Book title, author, ISBN; email (stored lower-case), optional name and note; the language of the page (en/fr) for emails; the account id when the person was logged in; dates and status; our own staff note. Confirmation and private-link tokens are stored **hashed** only. A "find my requests" link stores the email and a hashed token for 30 days. |
-| People | Visitors, account holders and members who fill in the form at `/request-a-book` |
+| People | Guests, account holders and members who fill in the form at `/request-a-book` |
 | Legal basis | Their request (pre-contractual steps at their request); double opt-in by email link |
 | Recipients / processors | Render; Google Workspace/Gmail (confirmation and notification emails); Backblaze (backups). Admins see name and email on the admin Requests page. |
 | Transfers outside EU | Google, Backblaze as above |
@@ -89,7 +89,7 @@ Inventory locations (`book_copies.location`, the shelf code where a physical cop
 | Retention | **12 months after the event or session date** (`signupMonths`). **Automated** (daily). Also deleted on erasure. |
 | Security | Rosters are in the admin area |
 
-The weekly English Immersion pre-registration form on the website only opens the visitor's own email app (a `mailto:` link). Nothing is stored by the website; the email arrives in our Gmail inbox (see section 6).
+The weekly English Immersion pre-registration form on the website only opens the person's own email app (a `mailto:` link). Nothing is stored by the website; the email arrives in our Gmail inbox (see section 6).
 
 ## 5. Membership via HelloAsso / Adhésions
 
@@ -97,7 +97,7 @@ The weekly English Immersion pre-registration form on the website only opens the
 |---|---|
 | Purpose | Recognise paid members on the website (member area). Becoming a member needs an account: the membership page creates it in one step (name + email, same data and rules as a signup, see section 1), then the person pays on HelloAsso and confirms their email afterwards |
 | Data | HelloAsso order number, payer email, amount (cents), payment date, and a link to the matching account. Stored by the website in `membership_payments`. The person's full details (name, address, card) stay at HelloAsso. |
-| People | People who join through the membership page and its HelloAsso form (logged-in account holders, or new people who create their account on that page). The email typed on the page is kept in the visitor's session for up to 2 hours to show it on the payment step (never in a URL). "Check my membership" asks HelloAsso about the logged-in account's own confirmed email only. |
+| People | People who join through the membership page and its HelloAsso form (logged-in account holders, or new people who create their account on that page). The email typed on the page is kept in the person's session for up to 2 hours to show it on the payment step (never in a URL). "Check my membership" asks HelloAsso about the logged-in account's own confirmed email only. |
 | Legal basis | Contract; legal obligation (accounting) |
 | Recipients / processors | HelloAsso. For the payment itself HelloAsso is an **independent controller** (stated in our policy; confirm on their legal page, see checklist). Render; Backblaze (backups). |
 | Transfers outside EU | None for HelloAsso (France) |
@@ -112,7 +112,7 @@ The weekly English Immersion pre-registration form on the website only opens the
 | Data | Whatever the person writes: name, email, phone, message |
 | People | Anyone writing to us |
 | Legal basis | Their request; legitimate interest in answering |
-| Recipients / processors | Google Workspace/Gmail only. The contact form sends an email to admin@umasbooks.org (or `CONTACT_TO`). **Nothing is stored in the database** (checked in `src/routes/contact.js`: it only sends the email, with the sender's address as Reply-To). Other forms open the visitor's own mail app. |
+| Recipients / processors | Google Workspace/Gmail only. The contact form sends an email to admin@umasbooks.org (or `CONTACT_TO`). **Nothing is stored in the database** (checked in `src/routes/contact.js`: it only sends the email, with the sender's address as Reply-To). Other forms open the person's own mail app. |
 | Transfers outside EU | Google: US company; check the DPA and its transfer clauses (see checklist) |
 | Retention | The Gmail inbox (admin@umasbooks.org) is the only place they are kept. Emails received through the contact form are kept **12 months**, then deleted, unless a conversation is still ongoing (decided by the association; the public policy says the same). **NOT AUTOMATED:** the inbox is never cleaned by code; the yearly manual cleanup is in `docs/runbook.md`, section e) Yearly calendar. Other messages emailed to us (volunteer and pre-registration forms) are kept until the person asks us to delete them. |
 | Security | 2-step verification is required to create the app password the website uses to send mail (`README.md`, "Email"). Confirmed by Sharon Bjeletich on 4 October 2026: 2-step verification is on for every Google account that can open the admin@umasbooks.org inbox, and only Sharon Bjeletich has access to that inbox. |
@@ -136,7 +136,7 @@ The weekly English Immersion pre-registration form on the website only opens the
 |---|---|
 | Purpose | Know when the site breaks; keep it running; limit abuse |
 | Data | Server logs at Render (technical details, IP addresses as seen by the host). Application log lines do not contain emails (see `ARCHITECTURE.md`). Request rate limits count requests per IP address in the application's memory only (lost at each restart, never written to the database). Error alert emails to admin@umasbooks.org contain an error message and technical stack trace, at most one every 15 minutes. |
-| People | Visitors and members (technical data only) |
+| People | Guests and members (technical data only) |
 | Legal basis | Legitimate interest (security and reliability) |
 | Recipients / processors | Render (logs); Google Workspace/Gmail (alert emails) |
 | Transfers outside EU | Render logs: the web service and database are in the Frankfurt region (`render.yaml`, `region: frankfurt`). Alert emails: Google. |
@@ -145,7 +145,7 @@ The weekly English Immersion pre-registration form on the website only opens the
 
 Uploaded images (book covers, blog, announcement and charity photos) are stored in the database table `images` and are not personal data. Images no longer used by anything are deleted automatically once they have been unused for at least 7 days (`src/lib/imageCleanup.js`, daily at start-up and every 24 hours; the list of columns that can hold an image is `IMAGE_REFERENCES`). They remain in older backups for the backup periods in section 9.
 
-Fonts: the website serves its typefaces itself (self-hosted files in `assets/fonts/`, declared in `public/style.css`, and the Content-Security-Policy allows fonts from the site only: `fontSrc: ["'self'"]` in `src/index.js`). No visitor IP address is sent to Google Fonts by the website. The old Squarespace-era snippet files at the repository root (`squarespace-*.html`) still import Google Fonts, but they are not served by the website; they matter only if someone pastes them into a Squarespace page (they date from when the site was built on Squarespace). Squarespace is still used, but only as domain registrar and DNS host (section 12); it does not host or serve the website.
+Fonts: the website serves its typefaces itself (self-hosted files in `assets/fonts/`, declared in `public/style.css`, and the Content-Security-Policy allows fonts from the site only: `fontSrc: ["'self'"]` in `src/index.js`). No person IP address is sent to Google Fonts by the website. The old Squarespace-era snippet files at the repository root (`squarespace-*.html`) still import Google Fonts, but they are not served by the website; they matter only if someone pastes them into a Squarespace page (they date from when the site was built on Squarespace). Squarespace is still used, but only as domain registrar and DNS host (section 12); it does not host or serve the website.
 
 ## 9. Backups / Sauvegardes
 
@@ -191,7 +191,7 @@ Fonts: the website serves its typefaces itself (self-hosted files in `assets/fon
 | | |
 |---|---|
 | Purpose | Register the domain `umasbooks.org` and run its DNS (the records that point the domain to the website at Render and to Google Workspace mail) |
-| Data | The domain owner's account details (name, contact details, billing) held by the registrar. **No member, buyer or visitor data.** Squarespace does **not** host the website: Render does. |
+| Data | The domain owner's account details (name, contact details, billing) held by the registrar. **No member, buyer or guest data.** Squarespace does **not** host the website: Render does. |
 | People | The domain owner / account holder (a volunteer of the association) |
 | Legal basis | Contract (domain registration); the association's legitimate interest in keeping its domain |
 | Recipients / processors | Squarespace Domains II LLC (registrar and DNS host; nameservers `squarespacedns.com`) |

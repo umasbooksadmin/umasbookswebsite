@@ -210,8 +210,8 @@ test("migration 038 left a unique ISBN index in place, and ignores blank ISBNs",
 });
 
 // Last on purpose: it spends this app instance's cookie-less token budget.
-test("/api/csrf-token is limited per IP for cookie-less callers, but not for a visitor who already has a token", async () => {
-  // A normal visitor: one token fetch per page, many pages.
+test("/api/csrf-token is limited per IP for cookie-less callers, but not for a person who already has a token", async () => {
+  // A normal person: one token fetch per page, many pages.
   const jar = makeCookieJar();
   await fetchCsrfToken(app.base, jar);
   for (let i = 0; i < 70; i++) {

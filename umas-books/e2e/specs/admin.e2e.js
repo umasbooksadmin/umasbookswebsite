@@ -256,7 +256,7 @@ s.test("A20 (must) each report's Download CSV link serves a CSV file named umas-
   }
   assert.ok(checked >= 5, `CSV links checked: ${checked}`);
 });
-s.manual("A21 the sales report counts the online sale, the shop sale and the drop-in seat separately", "needs real paid sales (G8, G17, A18)");
+s.manual("A21 the sales report counts the online sale, the shop sale and the drop-in seat separately", "needs real paid sales (AC26, AC35, A18)");
 
 // ---- 5F. Book requests ----
 
@@ -508,3 +508,5 @@ s.test("A40 the Price stickers page loads with the 7-color legend, a CSV downloa
   assert.ok(await ctx.page.$("[data-sticker-note] [data-sticker-chip]"), "a colored chip shows for the chosen price");
 });
 s.manual("A41 online price check ('Listings found') when PRICING_AI is on", "depends on a setting and a paid lookup service; off by default");
+
+s.manual("A42 (must) Mark as Member gives no end date, and the member's membership page says so", "needs a look at the admin account page and the member's own membership page; the toggle itself is covered by A24");

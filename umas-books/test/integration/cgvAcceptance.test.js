@@ -44,14 +44,14 @@ after(async () => {
 let ipSeq = Math.floor(Math.random() * 200) * 250;
 const nextIp = () => { ipSeq += 1; return `10.${(ipSeq >> 16) & 255}.${(ipSeq >> 8) & 255}.${ipSeq & 255}`; };
 
-// Buying requires an account: sign this visitor in as a confirmed account.
+// Buying requires an account: sign this person in as a confirmed account.
 async function signIn(v, email, displayName = "Test Buyer") {
   const account = await createAccount(pool, { email, displayName });
   await logInInProcess(server.base, v.jar, account);
   return account;
 }
 
-function visitor(lang) {
+function guest(lang) {
   const jar = makeCookieJar();
   const ip = nextIp();
   const send = async (path, form) => {
@@ -80,7 +80,7 @@ test("TERMS_OF_SALE_VERSION is a date string", () => {
 });
 
 test("checkout stores cgv_accepted_at and the current cgv_version on the new order", async () => {
-  const v = visitor();
+  const v = guest();
   await v.post("/cart/add", { copyId: await makeCopy() });
   const email = `cgv-${uniq()}@example.test`;
   await signIn(v, email);
@@ -94,7 +94,7 @@ test("checkout stores cgv_accepted_at and the current cgv_version on the new ord
 });
 
 test("checkout without the terms checkbox is refused: no order, nothing stored", async () => {
-  const v = visitor();
+  const v = guest();
   const copyId = await makeCopy();
   await v.post("/cart/add", { copyId });
   const email = `nocgv-${uniq()}@example.test`;
@@ -114,7 +114,7 @@ test("the paid confirmation email carries the acceptance line, in English and in
     ["en", /Terms of sale accepted on \d{1,2} \w+ \d{4} \(version 2026-10-05\)\./],
     ["fr", /Conditions générales de vente acceptées le \d{1,2} \S+ \d{4} \(version 2026-10-05\)\./],
   ]) {
-    const v = visitor(lang);
+    const v = guest(lang);
     await v.post("/cart/add", { copyId: await makeCopy() });
     const email = `cgvmail-${lang}-${uniq()}@example.test`;
     await signIn(v, email);
@@ -130,7 +130,7 @@ test("the paid confirmation email carries the acceptance line, in English and in
 });
 
 test("the proof is in the member data export and survives erasure (anonymised order keeps it)", async () => {
-  const v = visitor();
+  const v = guest();
   await v.post("/cart/add", { copyId: await makeCopy() });
   const email = `cgvexp-${uniq()}@example.test`;
   const account = await signIn(v, email, "Export Buyer");

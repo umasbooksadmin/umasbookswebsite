@@ -6,7 +6,13 @@ they see. They run against a **running site by its web address**. They are
 not part of `npm test` and not part of CI, so they can never run against the
 live site by accident.
 
-Each test is named with the step it comes from (`V12`, `G4`, `M7`, `VO3`,
+There are exactly **five kinds of user** (personas), the same as the five
+scripts of the manual plan, plus the edge cases: **guest** (anyone not logged
+in; browses and can fill a cart, but cannot buy), **account holder** (logged in
+with a confirmed email, not a member; this is who buys), **member** (an account
+holder who also paid the membership fee), **volunteer**, **admin**.
+
+Each test is named with the step it comes from (`G12`, `AC22`, `AC7`, `VO3`,
 `A9`, `E5`...). Steps that a computer cannot do (reading an email, paying on
 HelloAsso, judging whether something "looks right") are in the list too, as
 "manual-only" placeholders, so the report shows complete coverage numbers.
@@ -19,7 +25,7 @@ HelloAsso, judging whether something "looks right") are in the list too, as
    `E2E_ALLOW_LIVE=1` on purpose. It prints which rule allowed the run.
 2. **It never pays.** The browser is blocked from loading any HelloAsso address,
    so a payment page is never even opened. In preview mode the tests check that
-   checkout is switched off. With payments on, one test (G6, only with
+   checkout is switched off. With payments on, one test (AC24, only with
    `E2E_ALLOW_WRITES=1`) presses **Pay & Buy**, checks that the site sends the
    browser towards the HelloAsso address, and stops there. That leaves one
    unpaid order that holds a book for 60 minutes; the site frees it by itself.
@@ -40,7 +46,7 @@ HelloAsso, judging whether something "looks right") are in the list too, as
    cd path/to/umasbookswebsite/umas-books
    npm ci
    ```
-2. Run against the site (the visitor, guest-buyer and edge tests need no password):
+2. Run against the site (the guest and edge tests need no password):
    ```
    E2E_BASE_URL=https://umasbooks.org npm run e2e
    ```
@@ -50,6 +56,8 @@ HelloAsso, judging whether something "looks right") are in the list too, as
    Terminal window. Type passwords with `read -s` so they do not show on screen
    or in your history; the quotes and the `?` are part of the command:
    ```
+   export E2E_ACCOUNT_EMAIL="account-test@example.com"
+   read -s "E2E_ACCOUNT_PASSWORD?Account password: "; export E2E_ACCOUNT_PASSWORD
    export E2E_MEMBER_EMAIL="member-test@example.com"
    read -s "E2E_MEMBER_PASSWORD?Member password: "; export E2E_MEMBER_PASSWORD
    export E2E_ADMIN_EMAIL="admin-test@example.com"
@@ -58,20 +66,20 @@ HelloAsso, judging whether something "looks right") are in the list too, as
    E2E_BASE_URL=https://umasbooks.org npm run e2e
    ```
    These variables live only in this Terminal window. **Closing the window
-   forgets them**, or run `unset E2E_MEMBER_PASSWORD E2E_ADMIN_PASSWORD E2E_ADMIN_TOTP_SECRET`.
+   forgets them**, or run `unset E2E_ACCOUNT_PASSWORD E2E_MEMBER_PASSWORD E2E_VOLUNTEER_PASSWORD E2E_ADMIN_PASSWORD E2E_ADMIN_TOTP_SECRET`.
 4. Read the table at the end (see "Reading the report").
 
 More examples:
 
 ```
-E2E_BASE_URL=https://umasbooks.org npm run e2e -- --persona visitor        # only the visitor tests
-E2E_BASE_URL=https://umasbooks.org npm run e2e -- --persona visitor,guest
+E2E_BASE_URL=https://umasbooks.org npm run e2e -- --persona guest          # only the guest tests
+E2E_BASE_URL=https://umasbooks.org npm run e2e -- --persona guest,account
 E2E_BASE_URL=https://umasbooks.org E2E_ONLY=admin npm run e2e              # same thing with a variable
 E2E_BASE_URL=https://umasbooks.org E2E_ALLOW_WRITES=1 npm run e2e          # also create tagged test data
 E2E_BASE_URL=http://localhost:3000 npm run e2e                             # your own computer
 ```
 
-Personas: `visitor`, `guest`, `member`, `volunteer`, `admin`, `edge`.
+Personas: `guest`, `account`, `member`, `volunteer`, `admin`, `edge` (the five kinds of user, plus the edge cases).
 
 ## The variables
 
@@ -81,7 +89,8 @@ Personas: `visitor`, `guest`, `member`, `volunteer`, `admin`, `edge`.
 | `E2E_ONLY` | optional | Which personas to run, comma separated. Same as `-- --persona`. |
 | `E2E_ALLOW_WRITES` | optional | `1` to allow tests that create tagged data or send e-mail to the shop mailbox. |
 | `E2E_ALLOW_LIVE` | optional | `1` to run on a site that is **not** in preview mode. Only set it on purpose. |
-| `E2E_MEMBER_EMAIL`, `E2E_MEMBER_PASSWORD` | member tests | A **confirmed member** account made for testing. |
+| `E2E_ACCOUNT_EMAIL`, `E2E_ACCOUNT_PASSWORD` | account holder tests (also the buying tests, G51 and E2 and E8) | A **confirmed account that is NOT a member, volunteer or admin**. The tests check this by opening Member's Access: if it opens, they skip every account test and say so. |
+| `E2E_MEMBER_EMAIL`, `E2E_MEMBER_PASSWORD` | member tests | A **confirmed account marked as member** (admin: Mark as Member). It does not need any order. |
 | `E2E_VOLUNTEER_EMAIL`, `E2E_VOLUNTEER_PASSWORD` | volunteer tests | A confirmed account an admin marked as volunteer. |
 | `E2E_ADMIN_EMAIL`, `E2E_ADMIN_PASSWORD`, `E2E_ADMIN_TOTP_SECRET` | admin tests | A **dedicated test admin** with two-step on. The secret is the text key (base32, letters and digits) shown under the QR code when two-step was set up. |
 | `E2E_ADMIN_TOTP_RECOVERY` | optional | A recovery code, used only if no secret is given. It works once, so give a secret instead if you can. |
@@ -91,12 +100,12 @@ Personas: `visitor`, `guest`, `member`, `volunteer`, `admin`, `edge`.
 
 | Persona | Needs | Writes (only with `E2E_ALLOW_WRITES=1`) |
 |---|---|---|
-| visitor | nothing | contact form, book request, event sign-up (all tagged) |
-| guest | nothing | G6 starts a checkout when payments are on (one unpaid order, never paid) |
-| member | member account | one tagged unconfirmed sign-up that can never log in (the sign-up form now asks for no password: M1 to M3 and M4 follow that; M2 and M2b are skipped while the form has no password field); a forum thread, reply and report; one charity vote and idea |
-| volunteer | volunteer account (the member and admin accounts too, for VO1 and VO7) | signs up for one shift and cancels it again |
+| guest | nothing (G51 also uses the account login) | contact form, book request, event sign-up (all tagged); G55 and G56 make one unconfirmed account through the membership form |
+| account | account-holder login (not a member) | one tagged unconfirmed sign-up that can never log in; AC24 starts a checkout when payments are on (one unpaid order, never paid); AC43 stores a pending two-step secret (nothing is switched on). AC53 presses Check my membership, which only reads HelloAsso (limited to 5 per 10 minutes) |
+| member | member login | a forum thread, reply and report; one charity vote and idea |
+| volunteer | volunteer login (the member and admin logins too, for VO1 and VO7) | signs up for one shift and cancels it again |
 | admin | test admin with two-step | one tagged test book (made-up ISBN, EUR 5.00, in the public shop), one tagged test member (disabled again). **Sells nothing.** |
-| edge | nothing (member account for E8) | double-click checkout test (payments on), a 6000-character contact message |
+| edge | nothing (account login for E2 and E8) | double-click checkout test (payments on), a 6000-character contact message |
 
 A persona whose variables are missing is **skipped, not failed**, and the
 report says which variables to set.
@@ -110,8 +119,8 @@ a dash (skipped, with the reason). At the end:
   logins or because writes are off), **Known** (a known problem, shown but not
   counted as a failure), **Manual** (cannot be automated) and **Total**.
 - `Coverage: automated N / manual M / total T tests`, and a line saying how
-  many steps of the manual script have an automated test. (Full local run: 154
-  automated, 63 manual-only, 217 tests in all.)
+  many steps of the manual script have an automated test. (Full local run: 176
+  automated, 70 manual-only, 246 tests in all.)
 - **FAILED**: each failure with the step id and what was wrong. A screenshot
   and the page's HTML are saved in `e2e/artifacts/` (not committed to git).
 - **Known issues**: tests marked as known problems. If one starts passing, the
@@ -125,24 +134,25 @@ safety guard refused to start.
 
 These need a person (an e-mailed link, a payment, a second person or browser,
 real time passing, or something that would be damaging to automate). They
-appear in the report as skipped tests starting with `manual:`. Of the 165
-steps in the manual script, **118 have an automated test** (some only for part
-of the step) and **47 are manual-only**:
+appear in the report as skipped tests starting with `manual:`. Of the 193
+steps in the manual script, **139 have an automated test** (some only for part
+of the step) and **54 are manual-only**:
 
 | Why | Steps |
 |---|---|
-| Needs an e-mailed link, a readable mailbox or an authenticator app | V29, V33, V35, V36, V38, M5, M6, M12, M17, M31, M32, G9, G10, A2, A3, A22, A37 |
-| HelloAsso payment (never done by the tests) | G8, G11, G12, G17, G18, G19, G20, G24, M13, A21, E4 |
-| Needs a second person, a second browser, or real time | G23, VO4, A5b, E7, G22, A23b |
-| Would lock out or change the test account, or sell a real book | M10, A18 |
-| Human or hardware | V24 (calendar app), V43 (private window), G13 (pickup at the shop) |
-| Other | V30 (sends five real e-mails), V34 (needs a request made by another test and an admin look), G21 (would hold more books), M27 (same as V23), M30 (needs a deleted account), A13 (photo scan needs the AI key), A41 (optional paid lookup) |
+| Needs an e-mailed link, a readable mailbox or an authenticator app | G29, G33, G35, G36, G38, AC2b, AC5, AC6, AC12, AC14, AC20, AC21, AC27, AC28, AC43b, A2, A3, A22, A37 |
+| HelloAsso payment (never done by the tests) | AC26, AC29, AC30, AC35, AC36, AC37, AC38, AC42, AC54, M1, A21, E4 |
+| Needs a second person, a second browser, or real time | AC40, AC41, VO4, A5b, E7, A23b, M14, M16 |
+| Would lock out or change the test account, or sell a real book | AC10, A18 |
+| Human or hardware | G24 (calendar app), G43 (private window), AC31 (pickup at the shop) |
+| An admin action, done when the test account is set up | M3 (Mark as Member), M13 and A42 (an admin-granted membership has no end date) |
+| Other | G30 (sends five real e-mails), G34 (needs a request made by another test and an admin look), AC39 (would hold more books), M11 (same as G23), AC19 (needs a deleted account), A13 (photo scan needs the AI key), A41 (optional paid lookup) |
 
 Parts of steps that are otherwise automated and stay manual are listed too, as
 their own skipped tests: A4b (lock-out after many wrong codes), A5c (recovery
 code), A14c (delete the test book), A28b (erase a member), A30b to A36b
 (create, publish and delete events, sessions, meetings, shifts, announcements,
-blog posts and votes), A39b (change the clearance price), M11b, M18b and M29b
+blog posts and votes), A39b (change the clearance price), AC11b, AC15b and AC18b
 (reset e-mail, changing the password for real, really deleting an account).
 
 ## Cleaning up
@@ -152,8 +162,8 @@ final list) and uses `example.invalid` e-mail addresses.
 
 - **Test book**: admin > Books & Orders > search the tag > open it > **Delete this book**.
 - **Test member** (left disabled): admin > Accounts > search the tag > **Erase Member**.
-- **Unconfirmed sign-up** (member test M3): same, **Erase Member**.
-- **Unpaid orders** (G6, E2): nothing to do; they expire by themselves after an
+- **Unconfirmed sign-up** (account test AC3): same, **Erase Member**.
+- **Unpaid orders** (AC24, E2): nothing to do; they expire by themselves after an
   hour and the book goes back on sale (admin > Orders shows them as expired).
 - **Book requests**: admin > Book Requests > **Waiting for email confirmation**
   > Delete (an unconfirmed request also expires by itself).
@@ -180,7 +190,7 @@ npm run e2e:local -- --serve            # leave the copy running so you can look
 ```
 
 This needs a local PostgreSQL, like `npm test`. It starts the app with the
-same helper the integration tests use, makes a member, a volunteer and a
+same helper the integration tests use, makes an account holder, a member, a volunteer and a
 two-step admin with random passwords, sample books/events/sessions, and a fake
 HelloAsso that only answers "here is a payment page address". It never sends
 e-mail and never contacts HelloAsso. `npm test` itself only runs a small test
@@ -192,31 +202,29 @@ that every step of the manual script has an e2e test.
 These are real findings from the first runs; the report keeps showing them
 until they are fixed.
 
-- **G6 fails when payments are on.** The page's Content-Security-Policy says
-  `form-action 'self'`, so Chrome refuses to follow the redirect from **Pay &
-  Buy** to HelloAsso. Payment cannot start. (Allowing the HelloAsso addresses in
-  `src/index.js` fixes it.) Preview mode hides this, because checkout is off.
 - Marked as known (do not fail): the Dashboard shows `NaN%` next to a sales or
   orders figure when last month had none (A6; `views/admin/index.ejs`, the trend
   helper divides by "0.00"; also a known todo in
-  `test/integration/adminCalendars.test.js`); prices read `€12.50` in French (V-FR12); the
+  `test/integration/adminCalendars.test.js`); prices read `€12.50` in French (G-FR12); the
   legal pages are only French after the page's script runs, not in the HTML the
-  server sends (V40b); the "session expired" page is English only (X6); admin
+  server sends (G40b); the "session expired" page is English only (X6); admin
   pages say `<html lang="fr">` when French is chosen although they are English
   only (A8b).
 
 Where the manual script and the site differ today, the tests follow the site:
-visitors are not shown a key icon (V3: `/dashboard` sends them to login); the
+guests are not shown a key icon (G3: `/dashboard` sends them to login); the
 search result cards show title, author and price but not the condition labels
-or Clearance badge (V12, V17: those are on the book page); a member who opens
-`/volunteer` ends on Member's Access, not the home page (VO1).
+or Clearance badge (G12, G17: those are on the book page); a member who opens
+`/volunteer` ends on Member's Access, not the home page (VO1); an account holder
+who opens any member page (`/dashboard`, `/forum`, `/meetings`, `/announcements`,
+`/volunteer`) lands on the home page, which is what AC44 to AC50 assert.
 
 ## For developers
 
 - `run.js` (entry point), `local.js` (throwaway local app), `helpers/guard.js`
   (the safety rules), `helpers/config.js` (variables), `helpers/harness.js`
   (browser, logins, screenshots, HelloAsso block), `helpers/summary-reporter.js`
-  (the final table), `specs/<persona>.e2e.js` (the tests).
+  (the final table), `specs/<persona>.e2e.js` (the tests; the persona to file list is `PERSONA_FILES` in `helpers/config.js`).
 - The spec files end in `.e2e.js` on purpose: `node --test` only discovers
   `*.test.js`, so `npm test` never picks them up.
 - One login per persona per run (cookies are copied into each test's private

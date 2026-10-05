@@ -66,7 +66,7 @@ test("an out-of-range err.status is a plain 500", async () => {
   await res.text();
 });
 
-test("the 500 page is French for a visitor who chose French, even without the language middleware", async () => {
+test("the 500 page is French for a person who chose French, even without the language middleware", async () => {
   const fr = await fetch(`${base}/boom/999`, { headers: { cookie: "umasbooks_lang=fr" } });
   assert.equal(fr.status, 500);
   const html = await fr.text();

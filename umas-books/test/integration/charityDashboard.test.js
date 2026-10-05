@@ -94,7 +94,7 @@ async function makeAnnouncement({ title, status = "published", at = new Date(Dat
   return t;
 }
 
-test("dashboard: anonymous visitors go to the membership page, non-members to the site root", async () => {
+test("dashboard: guests go to the membership page, non-members to the site root", async () => {
   const anon = await get(null, "/dashboard");
   assert.equal(anon.status, 302);
   assert.equal(anon.location, "/membership.html");
@@ -195,7 +195,7 @@ test("dashboard charity panel: 'no vote open' without an active round, 'Vote Now
   assert.ok(some.text.includes('href="/charity"'));
 });
 
-test("GET /charity: no round or a members-only round turns visitors away (anon -> /login, non-member -> /)", async () => {
+test("GET /charity: no round or a members-only round turns people away (anon -> /login, non-member -> /)", async () => {
   assert.equal((await get(null, "/charity")).location, "/login");
   assert.equal((await get(plain, "/charity")).location, "/");
   await makeRound({ visibleTo: "members" });

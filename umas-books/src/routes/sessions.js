@@ -10,7 +10,7 @@ const router = express.Router();
 // HelloAsso at checkout (checkout needs an account; browsing and the cart do not). Weekly Immersion is a
 // separate, off-calendar flow (see pre-registration.html). This used to
 // be duplicated as its own page at /immersion/calendar (same query,
-// different view) for visitors arriving from immersion.html — merged
+// different view) for people arriving from immersion.html — merged
 // back into this one route; see the redirect below. ?type=dropin filters
 // to just the bookable sessions, for anyone who only wants to see what
 // they can drop in on right now rather than the full program schedule.

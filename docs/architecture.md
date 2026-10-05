@@ -40,7 +40,7 @@ the backups are stored in Backblaze, not in the code repository.
 flowchart LR
   subgraph People
     direction TB
-    V[Visitors]
+    V[Guests]
     M[Members and volunteers]
     A[Admins]
   end
@@ -179,7 +179,7 @@ Conventions that hold across the code:
   failing `ROLLBACK` can't mask the original error.
 * **Comments explain why**, and reference the incident that caused the code.
 
-**Languages.** Everything visitors and members see is available in English and
+**Languages.** Everything guests and members see is available in English and
 French; admin screens stay English. A cookie, `umasbooks_lang`, is written by
 the EN/FR toggle in the page header. The `lang.js` middleware runs before the
 login check and reads only headers (so it never touches the session or the
@@ -916,7 +916,7 @@ flowchart TD
 | Email | one address only (no list separators), names stripped of links and angle brackets before going into mail |
 | Transport to the database | `rejectUnauthorized: false` is deliberate: Render's internal Postgres uses a per-instance self-signed certificate on a private network |
 | Supply chain | `npm audit` in CI; lockfile-exact builds; third-party Actions pinned by commit; weekly Dependabot pull requests, never auto-merged |
-| Caching | pages shown to a logged-in visitor are sent `no-store` (the Back button after logout shows nothing private); only `/img/` photos stay cacheable |
+| Caching | pages shown to a logged-in user are sent `no-store` (the Back button after logout shows nothing private); only `/img/` photos stay cacheable |
 
 **Personal data (GDPR).** Most personal data is keyed by email address, not by
 account id, so deleting a user row alone would leave orders, sign-ups and

@@ -2,7 +2,7 @@
 // under src/routes/admin/*.js is enumerated from the router stack (so a
 // route added later is covered automatically, and one registered WITHOUT
 // requireAdmin is caught), then exercised over HTTP against the real app as:
-//   - an anonymous visitor           -> must be bounced to /login (or 401/403)
+//   - a guest           -> must be bounced to /login (or 401/403)
 //   - a logged-in non-member user    -> must be refused
 //   - a logged-in member + volunteer -> must be refused (membership is not admin)
 // POSTs carry a valid CSRF token so a refusal is the authz check, not CSRF.

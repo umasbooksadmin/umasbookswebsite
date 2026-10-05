@@ -110,7 +110,7 @@ Date checked: ____ / ____ / ______ / Done by: ____________
 
 ## Have I Been Pwned: Pwned Passwords range API (password check)
 
-- **What they get (checked in `src/lib/passwordPolicy.js`):** only the **first 5 characters of the SHA-1 hash** of a new password, with the "Add-Padding" option. Never the email, never the full password. The site's server (not the visitor's browser) makes the request.
+- **What they get (checked in `src/lib/passwordPolicy.js`):** only the **first 5 characters of the SHA-1 hash** of a new password, with the "Add-Padding" option. Never the email, never the full password. The site's server (not the person's browser) makes the request.
 - **Action for Sharon:** none (no personal data is sent, so no DPA is needed). 
 
 Date checked: ____ / ____ / ______ / Done by: ____________

@@ -4,7 +4,7 @@
    partials/mkt_chrome_header.ejs, which both the marketing pages and the
    app pages render. Server-side French via tr(); on marketing pages
    assets/site.js re-applies the same strings (COMMON preview.*) when the
-   visitor toggles the language. Styled in public/site-header.css. */
+   person toggles the language. Styled in public/site-header.css. */
 if (locals.preview) {
   const t = typeof tr === 'function' ? tr : (en) => en;
 %>

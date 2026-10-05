@@ -1,3 +1,3 @@
-<%# Why the visitor was sent to log in / sign up (see src/lib/returnTo.js). Only known destinations get a note. %>
+<%# Why the person was sent to log in / sign up (see src/lib/returnTo.js). Only known destinations get a note. %>
 <% if (locals.returnTo === '/cart') { %><div role="status" class="notice-box"><%= tr('Log in or create an account to place your order. Your cart is kept.', 'Connectez-vous ou créez un compte pour passer votre commande. Votre panier est conservé.') %></div><% } %>
 <% if (locals.returnTo === '/membership.html') { %><div role="status" class="notice-box"><%= tr('Log in or create an account to become a member.', 'Connectez-vous ou créez un compte pour devenir membre.') %></div><% } %>

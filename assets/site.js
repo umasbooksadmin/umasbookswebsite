@@ -152,7 +152,7 @@
         form.querySelectorAll("[data-field]").forEach(function (el) {
           if ((el.type === "radio" || el.type === "checkbox") && !el.checked) return;
           // A multi-select's .value is only its first selected option —
-          // list every option the visitor picked instead.
+          // list every option the person picked instead.
           if (el.tagName === "SELECT" && el.multiple) {
             var picked = Array.prototype.filter.call(el.options, function (o) { return o.selected; })
               .map(function (o) { return (o.textContent || o.value).trim(); });
@@ -243,7 +243,7 @@
   // session already exists — the marketing site's static HTML always
   // renders "Log In" (see loadAdminLink's comment above), unlike
   // partials/header.ejs, which already does this swap server-side. A
-  // logged-in visitor clicking "Log In" would otherwise get silently
+  // logged-in user clicking "Log In" would otherwise get silently
   // redirected away by the server (GET /login sends an existing session
   // to / or /dashboard instead of showing the form) — this makes the
   // icon match what actually happens. A no-op wherever header.ejs

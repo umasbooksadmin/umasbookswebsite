@@ -7,8 +7,8 @@
 // icons and the Log In -> Log Out swap (assets/site.js, for the static
 // marketing pages that can't render session state server-side) — none
 // of which exist in the server's raw HTML response. A plain-HTTP crawl
-// is blind to all of it; a real browser sees exactly what a visitor
-// sees, because it runs the same JS a visitor's browser would.
+// is blind to all of it; a real browser sees exactly what a person
+// sees, because it runs the same JS a person's browser would.
 //
 // Usage: node crawler.js http://localhost:3099 routes.json > crawl.json
 

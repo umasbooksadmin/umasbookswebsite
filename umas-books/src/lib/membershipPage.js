@@ -53,7 +53,7 @@ async function membershipPageState(pool, session, now = new Date()) {
     memState: currentMember ? "member" : "form",
     memEmail: u.email,
     // ISO date (YYYY-MM-DD): reads the same in both languages, so it never
-    // goes stale when the visitor flips the language toggle.
+    // goes stale when the person flips the language toggle.
     memExpires: u.is_member && expires ? expires.toISOString().slice(0, 10) : null,
   };
 }

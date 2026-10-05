@@ -17,7 +17,7 @@ function isValidCsrfToken(token, expected) {
 
 // The token is created LAZILY: only when a view actually prints it, or
 // /api/csrf-token reads it. Creating it eagerly meant every request —
-// including every anonymous visitor and bot hitting a form-less marketing
+// including every guest and bot hitting a form-less marketing
 // page — modified req.session, so express-session INSERTed a `session`
 // row and issued a 30-day cookie for each of them.
 //

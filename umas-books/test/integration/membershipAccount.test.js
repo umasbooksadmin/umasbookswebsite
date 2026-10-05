@@ -45,7 +45,7 @@ const uniq = () => `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
 let ipSeq = Math.floor(Math.random() * 200) * 250;
 const nextIp = () => { ipSeq += 1; return `10.${(ipSeq >> 16) & 255}.${(ipSeq >> 8) & 255}.${ipSeq & 255}`; };
 
-function visitor(base = app.base, lang) {
+function guest(base = app.base, lang) {
   const jar = makeCookieJar();
   const ip = nextIp();
   const headers = (extra = {}) => ({
@@ -90,7 +90,7 @@ const NO_WIDGET = (html) => { assert.ok(!html.includes("<iframe"), "no iframe");
 
 test("a guest gets the name + email form and NO payment widget (EN and FR)", async () => {
   for (const [lang, heading, button] of [["en", "Become a member", "Continue to payment"], ["fr", "Devenir membre", "Continuer vers le paiement"]]) {
-    const { res, html } = await visitor(app.base, lang).page();
+    const { res, html } = await guest(app.base, lang).page();
     assert.equal(res.status, 200);
     assert.match(res.headers.get("cache-control"), /no-store/, "personal page, never cached");
     assert.ok(html.includes(heading) && html.includes(button), lang);
@@ -100,14 +100,14 @@ test("a guest gets the name + email form and NO payment widget (EN and FR)", asy
     assert.match(html, /name="_csrf"/);
     NO_WIDGET(html);
   }
-  const fr = (await visitor(app.base, "fr").page()).html;
+  const fr = (await guest(app.base, "fr").page()).html;
   assert.ok(fr.includes("Vous avez déjà un compte ?"));
   assert.ok(fr.includes("conditions d’adhésion"));
 });
 
 test("joining: one step creates the account (unconfirmed, no password) + confirmation email token back to this page, then the payment step shows", async () => {
   const email = `Join-${uniq()}@Example.TEST`;
-  const v = visitor();
+  const v = guest();
   const r = await v.post("/membership/join", { displayName: "Join Person", email });
   assert.equal(r.res.status, 303);
   assert.equal(r.location, "/membership.html", "the typed email is never put in a URL");
@@ -130,7 +130,7 @@ test("joining: one step creates the account (unconfirmed, no password) + confirm
   assert.match(html, /href="\/login\?returnTo=%2Fmembership\.html"/, "an existing account holder is pointed to log in first");
 
   // Another browser knows nothing of it.
-  assert.doesNotMatch((await visitor().page()).html, /haWidget/);
+  assert.doesNotMatch((await guest().page()).html, /haWidget/);
 
   // "Use a different email" forgets it.
   const reset = await v.post("/membership/join/reset");
@@ -143,7 +143,7 @@ test("joining: one step creates the account (unconfirmed, no password) + confirm
 
 test("French payment step", async () => {
   const email = `join-fr-${uniq()}@example.test`;
-  const v = visitor(app.base, "fr");
+  const v = guest(app.base, "fr");
   await v.post("/membership/join", { displayName: "Marie", email });
   const { html } = await v.page();
   assert.ok(html.includes("Étape suivante : réglez votre adhésion"));
@@ -158,9 +158,9 @@ test("an address that already has an account gets the IDENTICAL next page (no ex
   const existing = await createAccount(pool, { email: `taken-${uniq()}@example.test`, displayName: "Real Owner" });
   const fresh = `fresh-${uniq()}@example.test`;
 
-  const a = visitor();
+  const a = guest();
   await a.post("/membership/join", { displayName: "Someone Else", email: existing.email });
-  const b = visitor();
+  const b = guest();
   await b.post("/membership/join", { displayName: "Someone Else", email: fresh });
   const pageA = (await a.page()).html;
   const pageB = (await b.page()).html;
@@ -174,7 +174,7 @@ test("an address that already has an account gets the IDENTICAL next page (no ex
 });
 
 test("a badly formed address creates nothing and says so; names are required", async () => {
-  const v = visitor();
+  const v = guest();
   const r = await v.post("/membership/join", { displayName: "Multi", email: "a@x.com, b@y.com" });
   assert.equal(r.location, "/membership.html");
   const { html } = await v.page();
@@ -183,7 +183,7 @@ test("a badly formed address creates nothing and says so; names are required", a
   assert.equal((await userRows("a@x.com, b@y.com")).length, 0);
   assert.equal((await pool.query("SELECT 1 FROM users WHERE email LIKE '%a@x.com%'")).rowCount, 0);
 
-  const n = visitor();
+  const n = guest();
   await n.post("/membership/join", { displayName: "", email: `noname-${uniq()}@example.test` });
   assert.ok((await n.page()).html.includes('<div role="alert" class="error-box" data-i18n="mem.err.fields">'));
   await new Promise((r) => setTimeout(r, 150)); // the session write finishes just after the response
@@ -192,7 +192,7 @@ test("a badly formed address creates nothing and says so; names are required", a
 
 test("a logged-in account holder sees ONLY the payment form with their email, never a signup form; joining again creates no second account", async () => {
   const account = await createAccount(pool, { email: `holder-${uniq()}@example.test`, displayName: "Holder" });
-  const v = visitor();
+  const v = guest();
   await v.logIn(account);
   const { html } = await v.page();
   assert.match(html, /<iframe id="haWidget"/);
@@ -208,7 +208,7 @@ test("a logged-in account holder sees ONLY the payment form with their email, ne
   assert.equal(post.res.status, 303);
   assert.equal((await pool.query("SELECT count(*)::int AS n FROM users")).rows[0].n, before, "no account created for a logged-in person");
 
-  const fr = visitor(app.base, "fr");
+  const fr = guest(app.base, "fr");
   await fr.logIn(account);
   const frHtml = (await fr.page()).html;
   assert.ok(frHtml.includes("Utilisez la même adresse e-mail que votre compte ("));
@@ -227,7 +227,7 @@ test("a current member sees their status (until <date> or no end date), not the 
     const account = await createAccount(pool, {
       email: `mem-${c.name}-${uniq()}@example.test`, isMember: c.isMember === undefined ? true : c.isMember, memberExpiresAt: c.expires,
     });
-    const v = visitor();
+    const v = guest();
     await v.logIn(account);
     const { html } = await v.page();
     if (c.state === "member") {
@@ -245,14 +245,14 @@ test("a current member sees their status (until <date> or no end date), not the 
     }
   }
   const frAccount = await createAccount(pool, { email: `mem-fr-${uniq()}@example.test`, isMember: true, memberExpiresAt: new Date(Date.now() + 200 * day) });
-  const v = visitor(app.base, "fr");
+  const v = guest(app.base, "fr");
   await v.logIn(frAccount);
   assert.ok((await v.page()).html.includes('<span data-i18n="mem.member.until">Vous êtes membre jusqu’au</span>'));
 });
 
 test("preview mode: no join form, no widget, joining creates nothing", async () => {
   const email = `preview-join-${uniq()}@example.test`;
-  const v = visitor(preview.base);
+  const v = guest(preview.base);
   const { html } = await v.page();
   assert.ok(html.includes("Membership opens at launch"));
   NO_WIDGET(html);
@@ -271,9 +271,9 @@ test("preview mode: no join form, no widget, joining creates nothing", async () 
 });
 
 test("the login and signup pages keep a membership returnTo, and only local ones", async () => {
-  const ok = (await visitor().page("/login?returnTo=%2Fmembership.html")).html;
+  const ok = (await guest().page("/login?returnTo=%2Fmembership.html")).html;
   assert.match(ok, /<input type="hidden" name="returnTo" value="\/membership\.html">/);
   assert.ok(ok.includes("Log in or create an account to become a member."));
-  const evil = (await visitor().page("/login?returnTo=%2F%2Fevil.example")).html;
+  const evil = (await guest().page("/login?returnTo=%2F%2Fevil.example")).html;
   assert.doesNotMatch(evil, /name="returnTo"/);
 });

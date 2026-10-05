@@ -1,4 +1,4 @@
-// Responses to a logged-in visitor are no-store (even when the route sets
+// Responses to a logged-in user are no-store (even when the route sets
 // its own public Cache-Control); anonymous responses and /img/ keep theirs.
 
 const { test, before, after } = require("node:test");

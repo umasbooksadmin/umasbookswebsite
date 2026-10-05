@@ -5,7 +5,7 @@
 // until they happened to log back in, and changing a password (a reset
 // link, or a change from another device) never touched sessions that
 // were already open elsewhere. Re-fetching the real row here, on every
-// request from a logged-in visitor, and refreshing req.session.user in
+// request from a logged-in user, and refreshing req.session.user in
 // place, means requireAuth/requireAdmin/requireMember/requireVolunteer
 // below always see the current truth — no changes needed there, they
 // just keep reading req.session.user as before.
@@ -109,7 +109,7 @@ function requireAdmin(req, res, next) {
 
 // Being logged in isn't the same as being a member — the Member's Access
 // dashboard (forum, charity vote, meeting scheduling) is a paid
-// membership perk. A logged-in visitor who isn't a member (or admin) gets
+// membership perk. A logged-in user who isn't a member (or admin) gets
 // sent to the regular site instead, same as a logged-out one; their
 // account, cart and favorites stay unaffected since those only need
 // requireAuth. Volunteers are a superset of members (see requireVolunteer

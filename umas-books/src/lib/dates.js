@@ -8,7 +8,7 @@ const { SITE_TIME_ZONE } = require("./tz");
 
 // Formatters for one locale. The app-wide ones below stay en-GB (used by
 // emails and other non-request callers); middleware/lang.js builds
-// per-request ones with forLocale() so views follow the visitor's language.
+// per-request ones with forLocale() so views follow the person's language.
 // Same output shape in both locales (numeric dates, 24-hour clock); only the
 // words differ where a format has any (formatDateLong's month name).
 function forLocale(locale) {

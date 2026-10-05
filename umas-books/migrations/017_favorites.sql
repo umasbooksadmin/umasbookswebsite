@@ -1,7 +1,7 @@
 -- Server-side favorites for logged-in accounts, alongside (not
 -- replacing) the existing per-browser localStorage favorites that
--- anonymous visitors already use (see public/favorites.js) — this table
--- is what a logged-in visitor's favorite-toggle click also writes to,
+-- guests already use (see public/favorites.js) — this table
+-- is what a logged-in user's favorite-toggle click also writes to,
 -- so there's a real pool of "books members favorited" to draw a random
 -- recommendation from on the Browse Books page.
 

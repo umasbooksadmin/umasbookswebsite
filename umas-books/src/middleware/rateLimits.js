@@ -47,8 +47,8 @@ module.exports = {
   forumPostLimiter: limit({ windowMs: HOUR, max: 10 }),
   forumReplyLimiter: limit({ windowMs: HOUR, max: 30 }),
   charityIdeaLimiter: limit({ windowMs: HOUR, max: 10 }),
-  // /api/csrf-token creates a session row for every visitor that has no
-  // token yet. Visitors that already hold one are not counted, so normal
+  // /api/csrf-token creates a session row for every guest that has no
+  // token yet. Guests that already hold one are not counted, so normal
   // browsing (forms fetch the token once per page) never gets near this.
   csrfTokenLimiter: limit({
     windowMs: 10 * 60 * 1000,

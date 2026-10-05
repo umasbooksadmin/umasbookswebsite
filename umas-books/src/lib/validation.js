@@ -42,7 +42,7 @@ function parseId(value) {
   return n <= 2147483647 ? n : null;
 }
 
-// A visitor-supplied name made safe to drop into an email body or subject.
+// A user-supplied name made safe to drop into an email body or subject.
 // The name is free text, so on the public forms it is a way to get a link
 // or markup into a message that arrives from our own address (phishing
 // with our sender reputation). Strips URLs (http(s)://, www.), control

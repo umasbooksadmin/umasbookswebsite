@@ -13,7 +13,7 @@ services:
     name: umas-books
     runtime: node
     # Paid tier (matches the Render dashboard): always on, so no cold
-    # start for the first visitor after a quiet spell.
+    # start for the first person after a quiet spell.
     plan: 1c-2g
     region: frankfurt
     rootDir: umas-books

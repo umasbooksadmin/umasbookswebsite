@@ -1,4 +1,4 @@
-// Tier 2B: cut per-visitor database work. Covers
+// Tier 2B: cut per-request database work. Covers
 //  - the CSRF token being created lazily (no session row for form-less pages),
 //  - /api/session's JSON shape (cartCount folded in),
 //  - sessions being refreshed at most daily, not on every request,

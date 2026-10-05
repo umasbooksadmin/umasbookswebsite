@@ -525,7 +525,7 @@ screens stay English). Two languages only: `en` and `fr`.
   The contact page no longer uses `contact-i18n.js`; its topics are stored in English and labelled in the view.
 - **Emails:** `emailTr(lang)` from `src/lib/lang.js` returns `(en, fr) => string`.
   The language is stored on `users.lang` (set at signup, refreshed at each login
-  when the visitor has chosen a language; NULL for admin-created accounts) and
+  when the person has chosen a language; NULL for admin-created accounts) and
   `orders.lang` (set at checkout). The order confirmation, reservation
   confirmation/reminder and inactivity warning follow it (the legal blocks of the
   order email stay bilingual FR/EN in both languages); `sendResetLink`, the verification
@@ -544,7 +544,7 @@ screens stay English). Two languages only: `en` and `fr`.
 ## Dates and times (Europe/Paris)
 
 Uma's Books is in Albi, so every date and time an admin types and every one a
-visitor sees means **France time**, not UTC (Render's servers run in UTC).
+person sees means **France time**, not UTC (Render's servers run in UTC).
 `src/lib/tz.js` pins the process timezone to `Europe/Paris` (required first by
 `index.js`, `db.js`, `lib/dates.js` and `lib/calendar.js`), so a typed
 `2026-07-15T18:00` with no offset is read as 18:00 Paris and calendar grouping,

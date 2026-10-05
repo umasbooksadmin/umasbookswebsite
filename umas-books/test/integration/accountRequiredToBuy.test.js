@@ -93,7 +93,7 @@ const uniq = () => `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
 let ipSeq = Math.floor(Math.random() * 200) * 250;
 const nextIp = () => { ipSeq += 1; return `10.${(ipSeq >> 16) & 255}.${(ipSeq >> 8) & 255}.${ipSeq & 255}`; };
 
-function visitor(lang) {
+function guest(lang) {
   const jar = makeCookieJar();
   const ip = nextIp();
   const send = async (path, { method = "GET", form } = {}) => {
@@ -131,7 +131,7 @@ const login = (v, account, extra = {}) => v.post("/login", { email: account.emai
 // ---------- 1. a guest is stopped at checkout ----------
 
 test("guest POST /cart/checkout creates nothing and redirects to login with returnTo=/cart; the cart is kept", async () => {
-  const v = visitor();
+  const v = guest();
   const copy = await makeCopy();
   await v.post("/cart/add", { copyId: copy });
   const before = (await pool.query("SELECT count(*)::int AS n FROM orders")).rows[0].n;
@@ -147,9 +147,9 @@ test("guest POST /cart/checkout creates nothing and redirects to login with retu
 });
 
 test("guest GET /cart/checkout redirects to login too; a logged-in GET just goes back to the cart", async () => {
-  const guest = visitor();
-  assert.equal((await guest.get("/cart/checkout")).location, "/login?returnTo=%2Fcart");
-  const v = visitor();
+  const anon = guest();
+  assert.equal((await anon.get("/cart/checkout")).location, "/login?returnTo=%2Fcart");
+  const v = guest();
   const account = await createAccount(pool, { email: `getco-${uniq()}@example.test` });
   assert.equal((await login(v, account)).res.status, 302);
   assert.equal((await v.get("/cart/checkout")).location, "/cart");
@@ -157,7 +157,7 @@ test("guest GET /cart/checkout redirects to login too; a logged-in GET just goes
 
 test("a drop-in seat needs the account too (same checkout)", async () => {
   const { rows } = await pool.query("INSERT INTO classes (title, starts_at, capacity, dropin_price) VALUES ('Acct Session', $1, 5, 8) RETURNING id", [new Date(Date.now() + 7 * 86400000)]);
-  const v = visitor();
+  const v = guest();
   await v.post("/cart/add-dropin", { classId: rows[0].id });
   const r = await v.post("/cart/checkout", { name: "G", acceptCgv: "on", waiveWithdrawal: "on" });
   assert.equal(r.location, "/login?returnTo=%2Fcart");
@@ -172,7 +172,7 @@ test("the cart page: a guest sees the log-in-or-create-account block and no chec
     ["en", "Log in or create an account to check out", "Log in"],
     ["fr", "Connectez-vous ou créez un compte pour commander", "Se connecter"],
   ]) {
-    const g = visitor(lang);
+    const g = guest(lang);
     await g.post("/cart/add", { copyId: copy });
     const html = (await g.get("/cart")).text;
     assert.ok(html.includes(heading), `${lang}: heading`);
@@ -181,7 +181,7 @@ test("the cart page: a guest sees the log-in-or-create-account block and no chec
     assert.ok(!html.includes('action="/cart/checkout"'), `${lang}: no checkout form for a guest`);
   }
 
-  const v = visitor();
+  const v = guest();
   const account = await createAccount(pool, { email: `form-${uniq()}@example.test`, displayName: "Form Person" });
   await login(v, account);
   await v.post("/cart/add", { copyId: copy });
@@ -199,12 +199,12 @@ test("login and signup show the checkout note when sent from the cart (EN/FR), a
     ["fr", "Connectez-vous ou créez un compte pour passer votre commande. Votre panier est conservé."],
   ]) {
     for (const page of ["/login", "/signup"]) {
-      const html = (await visitor(lang).get(`${page}?returnTo=%2Fcart`)).text;
+      const html = (await guest(lang).get(`${page}?returnTo=%2Fcart`)).text;
       assert.ok(html.includes(note), `${lang} ${page}: note`);
       assert.match(html, /<input type="hidden" name="returnTo" value="\/cart">/);
     }
   }
-  const plain = (await visitor("en").get("/login")).text;
+  const plain = (await guest("en").get("/login")).text;
   assert.ok(!plain.includes("Your cart is kept"));
   assert.ok(!plain.includes('name="returnTo"'));
 });
@@ -212,7 +212,7 @@ test("login and signup show the checkout note when sent from the cart (EN/FR), a
 // ---------- 3. the cart survives login and signup ----------
 
 test("login regenerates the session (new session id) and keeps the cart; the person lands back on the cart", async () => {
-  const v = visitor();
+  const v = guest();
   const copy = await makeCopy();
   await v.post("/cart/add", { copyId: copy });
   await v.get("/login?returnTo=%2Fcart");
@@ -231,7 +231,7 @@ test("login regenerates the session (new session id) and keeps the cart; the per
 });
 
 test("signup -> confirm email -> choose password -> login returns to the cart with the items intact, then checkout works", async () => {
-  const v = visitor();
+  const v = guest();
   const copy = await makeCopy(9);
   await v.post("/cart/add", { copyId: copy });
   const email = `flow-${uniq()}@example.test`;
@@ -282,22 +282,22 @@ test("returnTo: open-redirect attempts are refused at login, signup and on the p
   const evil = ["//evil.example", "/\\evil.example", "https://evil.example", "/%5Cevil.example", "javascript:alert(1)", "evil.example", "/ok\nSet-Cookie: x=1"];
   const account = await createAccount(pool, { email: `redir-${uniq()}@example.test` });
   for (const target of evil) {
-    const v = visitor();
+    const v = guest();
     const r = await login(v, account, { returnTo: target });
     assert.equal(r.res.status, 302);
     assert.equal(r.location, "/", `login with returnTo ${JSON.stringify(target)} falls back to the usual landing page`);
 
-    const page = (await visitor().get(`/login?returnTo=${encodeURIComponent(target)}`)).text;
+    const page = (await guest().get(`/login?returnTo=${encodeURIComponent(target)}`)).text;
     assert.ok(!page.includes('name="returnTo"'), `login page drops ${JSON.stringify(target)}`);
 
     const email = `redir-signup-${uniq()}@example.test`;
-    await visitor().post("/signup", { displayName: "R", email, returnTo: target });
+    await guest().post("/signup", { displayName: "R", email, returnTo: target });
     await waitForMail(email); // the token row is written just before the mail goes out
     const { rows } = await pool.query("SELECT t.return_to FROM email_verification_tokens t JOIN users u ON u.id = t.user_id WHERE u.email = $1", [email]);
     assert.deepEqual(rows.map((t) => t.return_to), [null], `signup keeps nothing for ${JSON.stringify(target)}`);
   }
-  // A logged-in visitor opening /login?returnTo=<evil> is not bounced off-site either.
-  const v = visitor();
+  // A logged-in user opening /login?returnTo=<evil> is not bounced off-site either.
+  const v = guest();
   await login(v, account);
   assert.equal((await v.get("/login?returnTo=%2F%2Fevil.example")).location, "/");
   assert.equal((await v.get("/login?returnTo=%2Fcart")).location, "/cart");
@@ -306,7 +306,7 @@ test("returnTo: open-redirect attempts are refused at login, signup and on the p
 // ---------- 5. a logged-in checkout ----------
 
 test("logged-in checkout: order has user_id and the ACCOUNT's email; a posted email is ignored; the name is editable", async () => {
-  const v = visitor();
+  const v = guest();
   const account = await createAccount(pool, { email: `Owner-${uniq()}@Example.TEST`, displayName: "Account Name" });
   await login(v, account);
   const copy = await makeCopy(7);
@@ -326,7 +326,7 @@ test("logged-in checkout: order has user_id and the ACCOUNT's email; a posted em
 });
 
 test("the name defaults to the account's display name when the field is left empty", async () => {
-  const v = visitor();
+  const v = guest();
   const account = await createAccount(pool, { email: `defname-${uniq()}@example.test`, displayName: "Default Name" });
   await login(v, account);
   await v.post("/cart/add", { copyId: await makeCopy() });
@@ -335,7 +335,7 @@ test("the name defaults to the account's display name when the field is left emp
 });
 
 test("an account whose email was never confirmed cannot order (nothing is sent to or ordered under it)", async () => {
-  const v = visitor();
+  const v = guest();
   const account = await createAccount(pool, { email: `unconf-${uniq()}@example.test`, confirmed: false });
   // Not first_verification_pending: an old/admin-made account that never confirmed, so it can log in.
   assert.equal((await login(v, account)).res.status, 302);
@@ -353,12 +353,12 @@ test("an account whose email was never confirmed cannot order (nothing is sent t
 test("the checkout caps still apply per account email", async () => {
   const account = await createAccount(pool, { email: `cap-${uniq()}@example.test` });
   for (let i = 0; i < 2; i++) {
-    const v = visitor();
+    const v = guest();
     await login(v, account);
     await v.post("/cart/add", { copyId: await makeCopy() });
     assert.equal((await v.post("/cart/checkout", { name: "C", acceptCgv: "on" })).res.status, 302);
   }
-  const v = visitor();
+  const v = guest();
   await login(v, account);
   await v.post("/cart/add", { copyId: await makeCopy() });
   const r = await v.post("/cart/checkout", { name: "C", acceptCgv: "on" });
@@ -371,14 +371,14 @@ test("the checkout caps still apply per account email", async () => {
 
 test("preview mode: the 403 notice is never masked by the login redirect (order of checks: preview, then login)", async () => {
   process.env.PREVIEW_MODE = "true";
-  const guest = visitor();
+  const anon = guest();
   const copy = await makeCopy();
-  await guest.post("/cart/add", { copyId: copy });
-  const g = await guest.post("/cart/checkout", { name: "G", acceptCgv: "on" });
+  await anon.post("/cart/add", { copyId: copy });
+  const g = await anon.post("/cart/checkout", { name: "G", acceptCgv: "on" });
   assert.equal(g.res.status, 403, "a guest gets the preview refusal, not a redirect to login");
   assert.ok(g.text.includes("Online ordering opens when we launch."));
 
-  const v = visitor();
+  const v = guest();
   const account = await createAccount(pool, { email: `prev-${uniq()}@example.test` });
   await login(v, account);
   await v.post("/cart/add", { copyId: copy });
@@ -388,8 +388,8 @@ test("preview mode: the 403 notice is never masked by the login redirect (order 
   assert.equal((await ordersFor(account.email)).length, 0);
   assert.equal(await copyStatus(copy), "in_stock");
 
-  assert.equal((await guest.get("/cart/checkout")).location, "/cart", "GET in preview goes to the cart, which carries the notice");
-  const page = (await guest.get("/cart")).text;
+  assert.equal((await anon.get("/cart/checkout")).location, "/cart", "GET in preview goes to the cart, which carries the notice");
+  const page = (await anon.get("/cart")).text;
   assert.ok(page.includes("Online ordering opens when we launch."));
   assert.ok(!page.includes("Log in or create an account to check out"), "the preview notice is shown instead of the login block");
 });
@@ -407,7 +407,7 @@ test("an order created before this change (user_id NULL) still works by token: r
   await pool.query("INSERT INTO order_items (order_id, book_copy_id, item_title, price) VALUES ($1, $2, 'Old', 5)", [order.id, copy]);
   intents.set(String(order.checkout_intent_id), { id: order.checkout_intent_id, order: { id: 4242, payments: [{ state: "Authorized" }] } });
 
-  const anon = visitor(); // no login, no cart
+  const anon = guest(); // no login, no cart
   const r = await anon.get(`/cart/return?order=${order.access_token}`);
   assert.equal(r.res.status, 200);
   const { rows: after } = await pool.query("SELECT status, user_id FROM orders WHERE id = $1", [order.id]);
@@ -419,7 +419,7 @@ test("an order created before this change (user_id NULL) still works by token: r
 // ---------- 8. the page for a rate-limited / validated post ----------
 
 test("checkout errors are French for a French account holder", async () => {
-  const v = visitor("fr");
+  const v = guest("fr");
   const account = await createAccount(pool, { email: `fr-${uniq()}@example.test`, displayName: "" });
   await login(v, account);
   assert.match((await v.post("/cart/checkout", { name: "A", acceptCgv: "on" })).text, /Votre panier est vide/);

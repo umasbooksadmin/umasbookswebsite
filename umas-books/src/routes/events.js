@@ -66,7 +66,7 @@ function icsEscape(text) {
 }
 
 // "Add to My Calendar" — a plain .ics download rather than a Google/Apple/
-// Outlook API integration, so it works with any calendar app the visitor
+// Outlook API integration, so it works with any calendar app the person
 // already has and needs no OAuth or API keys. Public, like the rest of
 // the events feature: no account needed to sign up, so none is needed to
 // save the date either.

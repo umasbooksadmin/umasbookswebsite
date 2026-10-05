@@ -28,7 +28,7 @@ async function countWhere(table, col, value) {
 
 // ---------- authorization ----------
 
-test("a non-admin member is refused (403) and an anonymous visitor is sent to /login on every calendar screen", async () => {
+test("a non-admin member is refused (403) and a guest is sent to /login on every calendar screen", async () => {
   const title = `Blocked ${h.uniq()}`;
   const screens = [
     ["/admin/events", { title, date: DAY, startTime: "12:00" }, "events", "title"],

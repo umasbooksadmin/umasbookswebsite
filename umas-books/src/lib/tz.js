@@ -1,5 +1,5 @@
 // Uma's Books is in Albi: every date and time the admins type, and every
-// one shown to visitors, means FRANCE time (Europe/Paris), not UTC. Render's
+// one shown to people, means FRANCE time (Europe/Paris), not UTC. Render's
 // servers run in UTC, which used to make a typed "18:00" be saved as 18:00Z
 // (20:00 in Paris in summer) and shown inconsistently across pages.
 //

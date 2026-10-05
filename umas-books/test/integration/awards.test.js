@@ -325,7 +325,7 @@ test("the search API carries a short awards text (verified and approved only)", 
 
 // ------------------------------------------------------------------- admin
 
-test("every awards route refuses anonymous visitors and non-admins", async () => {
+test("every awards route refuses guests and non-admins", async () => {
   const member = { id: admin.id, email: "m@example.test", displayName: "M", isAdmin: false, isMember: true };
   const routes = [
     ["GET", "/admin/awards"], ["POST", "/admin/awards/approve-bulk"], ["POST", "/admin/awards/1/approve"],

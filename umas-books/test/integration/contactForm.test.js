@@ -133,7 +133,7 @@ test("validation failures return 400 with an error, echo the values, and send no
       const { res, text } = await post(fields);
       assert.equal(res.status, 400, JSON.stringify(fields));
       assert.match(text, /Please fill in your name, a valid email address and your message/);
-      // Whatever was entered is preserved for the visitor to correct.
+      // Whatever was entered is preserved for the person to correct.
       for (const v of [fields.name.trim(), fields.email.trim()].filter(Boolean)) assert.ok(text.includes(v), `echoes ${v}`);
     });
   }
@@ -149,7 +149,7 @@ test("honeypot: a filled hidden field looks like success to the bot but sends no
   });
 });
 
-test("when the mail transport fails the visitor sees a 500 page with the fallback address, and the app keeps serving", async () => {
+test("when the mail transport fails the person sees a 500 page with the fallback address, and the app keeps serving", async () => {
   await withContactApp(async ({ base, post }) => {
     sendImpl = async () => { throw new Error("SMTP down"); };
     const realError = console.error;
@@ -178,7 +178,7 @@ test("rate limit: the 6th submission from one client gets the 429 handler page a
     const { res, text } = await post({ ...valid, message: "sixth" });
     assert.equal(res.status, 429);
     assert.match(text, /Too many messages from this connection/);
-    assert.ok(text.includes("sixth"), "the visitor's message is echoed back so it isn't lost");
+    assert.ok(text.includes("sixth"), "the person's message is echoed back so it isn't lost");
     assert.equal(sent.length, 5);
     assert.ok(res.headers.get("ratelimit-limit") || res.headers.get("ratelimit"), "standard RateLimit headers present");
   });

@@ -66,10 +66,10 @@ async function post(jar, path, fields, { token = true } = {}) {
   return { res, text: await res.text() };
 }
 
-test("the form is CSRF protected, and a visitor with no account gets the neutral page and a stored, unconfirmed request", async () => {
+test("the form is CSRF protected, and a guest with no account gets the neutral page and a stored, unconfirmed request", async () => {
   const jar = makeCookieJar();
-  const email = `visitor-${uniq()}@example.test`;
-  const title = `Visitor Book ${uniq()}`;
+  const email = `guest-${uniq()}@example.test`;
+  const title = `Guest Book ${uniq()}`;
   const noToken = await post(jar, "/request-a-book", { title, email }, { token: false });
   assert.equal(noToken.res.status, 403);
   assert.equal((await pool.query("SELECT 1 FROM book_requests WHERE lower(email) = $1", [email])).rowCount, 0);

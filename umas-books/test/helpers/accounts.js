@@ -6,7 +6,7 @@
 //   sessionHeaders(account)
 //       for the IN-PROCESS harness (test/helpers/inProcessApp.js), whose
 //       session is injected from an `x-test-user` header: stands in for "this
-//       visitor has logged in as that account".
+//       person has logged in as that account".
 //   loginOverHttp(base, jar, account)
 //       for tests that boot the REAL app (startTestApp): performs the real
 //       POST /login (CSRF token and all) and leaves the session cookie in
@@ -52,7 +52,7 @@ async function loginOverHttp(base, jar, account, extraHeaders = {}) {
 
 module.exports = { createAccount, sessionHeaders, loginOverHttp, DEFAULT_PASSWORD };
 
-// In-process harness only: makes the visitor whose cookie jar this is a
+// In-process harness only: makes the person whose cookie jar this is a
 // logged-in session for `account` (one request carrying the x-test-user
 // header; the session then remembers it, like a real login would).
 async function logInInProcess(base, jar, account) {

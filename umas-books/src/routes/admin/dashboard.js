@@ -8,7 +8,7 @@ const router = express.Router();
 // ---------- Overview ----------
 
 // Every number on the dashboard is a real query against this app's own
-// data — there's no visitor-analytics/traffic tracking anywhere in this
+// data — there's no analytics/traffic tracking anywhere in this
 // app, so there's deliberately no "website traffic" stat here; showing
 // one would mean making it up. "This month" vs "last month" comparisons
 // use calendar-month boundaries in the server's local time.

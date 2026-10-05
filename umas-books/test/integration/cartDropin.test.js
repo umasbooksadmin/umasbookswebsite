@@ -54,14 +54,14 @@ beforeEach(async () => {
 
 const uniq = () => `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
 
-// Buying requires an account: sign this visitor in as a confirmed account.
+// Buying requires an account: sign this person in as a confirmed account.
 async function signIn(v, email, displayName = "Test Buyer") {
   const account = await createAccount(pool, { email, displayName });
   await logInInProcess(server.base, v.jar, account);
   return account;
 }
 
-function visitor() {
+function guest() {
   const jar = makeCookieJar();
   const send = async (path, { method = "GET", form } = {}) => {
     const res = await fetch(`${server.base}${path}`, {
@@ -96,8 +96,8 @@ async function makeCopy(price = 6) {
 const seats = async (classId) => (await pool.query("SELECT * FROM class_dropin_seats WHERE class_id = $1 ORDER BY id", [classId])).rows;
 const classTitle = async (id) => (await pool.query("SELECT title FROM classes WHERE id = $1", [id])).rows[0].title;
 
-test("/api/cart/count: 0 for a fresh visitor (no session created), then reflects lines added", async () => {
-  const v = visitor();
+test("/api/cart/count: 0 for a fresh guest (no session created), then reflects lines added", async () => {
+  const v = guest();
   const first = await v.get("/api/cart/count");
   assert.equal(first.res.headers.get("cache-control"), "no-store");
   assert.equal(JSON.parse(first.text).count, 0);
@@ -109,7 +109,7 @@ test("/api/cart/count: 0 for a fresh visitor (no session created), then reflects
 });
 
 test("add-dropin: a priced class goes in the cart (several seats allowed) and shows on /cart with its price and a label", async () => {
-  const v = visitor();
+  const v = guest();
   const cls = await makeClass({ price: 8.5, title: `Little Explorers <i>${uniq()}</i>` });
   const r = await v.post("/cart/add-dropin", { classId: cls });
   assert.equal(r.status, 302);
@@ -126,7 +126,7 @@ test("add-dropin: a priced class goes in the cart (several seats allowed) and sh
 });
 
 test("add-dropin: backTo is honoured only for local paths; unknown, unpriced, zero and junk class ids add nothing", async () => {
-  const v = visitor();
+  const v = guest();
   const cls = await makeClass();
   assert.equal((await v.post("/cart/add-dropin", { classId: cls, backTo: "/sessions?x=1" })).location, "/sessions?x=1");
   for (const evil of ["//evil.example", "/\\evil.example", "https://evil.example"]) {
@@ -141,26 +141,26 @@ test("add-dropin: backTo is honoured only for local paths; unknown, unpriced, ze
 test("add-dropin: stops at the seats left, counting sold and in-cart seats and what's already in this cart", async () => {
   const cls = await makeClass({ capacity: 3 });
   await pool.query("INSERT INTO class_dropin_seats (class_id, status) VALUES ($1, 'sold')", [cls]);
-  const v = visitor();
+  const v = guest();
   for (let i = 0; i < 4; i++) await v.post("/cart/add-dropin", { classId: cls });
   assert.equal(await v.count(), 2, "3 capacity - 1 sold = 2 seats");
 
   const full = await makeClass({ capacity: 1 });
   await pool.query("INSERT INTO class_dropin_seats (class_id, status) VALUES ($1, 'in_cart')", [full]);
-  const w = visitor();
+  const w = guest();
   await w.post("/cart/add-dropin", { classId: full });
   assert.equal(await w.count(), 0, "an in-cart hold by someone else also takes the seat");
 });
 
 test("add-dropin: a cart holds at most 20 lines", async () => {
   const cls = await makeClass();
-  const v = visitor();
+  const v = guest();
   for (let i = 0; i < 23; i++) await v.post("/cart/add-dropin", { classId: cls });
   assert.equal(await v.count(), 20);
 });
 
 test("cart page drops drop-in lines that stopped being sellable (price removed, class full, class deleted)", async () => {
-  const v = visitor();
+  const v = guest();
   const gonePrice = await makeClass();
   const filled = await makeClass({ capacity: 2 });
   const deleted = await makeClass();
@@ -179,7 +179,7 @@ test("cart page drops drop-in lines that stopped being sellable (price removed, 
 });
 
 test("remove: deletes just that drop-in line and a lineId that isn't in the cart is harmless", async () => {
-  const v = visitor();
+  const v = guest();
   const a = await makeClass();
   const b = await makeClass();
   await v.post("/cart/add-dropin", { classId: a });
@@ -196,7 +196,7 @@ test("remove: deletes just that drop-in line and a lineId that isn't in the cart
 });
 
 test("checkout of an empty cart re-renders the cart with an error and creates no order", async () => {
-  const v = visitor();
+  const v = guest();
   const email = `empty-${uniq()}@example.test`;
   await signIn(v, email);
   const r = await v.post("/cart/checkout", { acceptCgv: "on", waiveWithdrawal: "on", name: "Nobody" });
@@ -207,7 +207,7 @@ test("checkout of an empty cart re-renders the cart with an error and creates no
 });
 
 test("checkout validation: no name anywhere shows a message and holds nothing; a posted email is ignored", async () => {
-  const v = visitor();
+  const v = guest();
   await signIn(v, `nameless-${uniq()}@example.test`, "");
   const cls = await makeClass({ capacity: 5 });
   await v.post("/cart/add-dropin", { classId: cls });
@@ -219,7 +219,7 @@ test("checkout validation: no name anywhere shows a message and holds nothing; a
 
 test("checkout with HelloAsso unconfigured says so and holds nothing", async () => {
   configured = false;
-  const v = visitor();
+  const v = guest();
   const cls = await makeClass({ capacity: 5 });
   await v.post("/cart/add-dropin", { classId: cls });
   await signIn(v, `pat-${uniq()}@example.test`);
@@ -229,7 +229,7 @@ test("checkout with HelloAsso unconfigured says so and holds nothing", async () 
 });
 
 test("checkout: drop-in seats become in_cart rows tied to one order, with labelled order items and the right total", async () => {
-  const v = visitor();
+  const v = guest();
   const cls = await makeClass({ price: 8.5, capacity: 5, title: `Readers ${uniq()}` });
   await v.post("/cart/add-dropin", { classId: cls });
   await v.post("/cart/add-dropin", { classId: cls });
@@ -257,7 +257,7 @@ test("checkout: drop-in seats become in_cart rows tied to one order, with labell
 });
 
 test("checkout of a mixed cart locks the book copy and creates the seat in one order", async () => {
-  const v = visitor();
+  const v = guest();
   const cls = await makeClass({ price: 5, capacity: 3 });
   const copy = await makeCopy(6);
   await v.post("/cart/add", { copyId: copy });
@@ -274,7 +274,7 @@ test("checkout of a mixed cart locks the book copy and creates the seat in one o
 });
 
 test("checkout: a seat sold elsewhere after it was carted is pruned, so the buyer is charged only for what is still free", async () => {
-  const v = visitor();
+  const v = guest();
   const cls = await makeClass({ price: 5, capacity: 2 });
   await v.post("/cart/add-dropin", { classId: cls });
   await v.post("/cart/add-dropin", { classId: cls });
@@ -293,7 +293,7 @@ test("checkout: a seat sold elsewhere after it was carted is pruned, so the buye
 });
 
 test("checkout: when the last seat is taken after the cart check, the buyer is told and nothing is held or ordered", async () => {
-  const v = visitor();
+  const v = guest();
   const cls = await makeClass({ price: 5, capacity: 1 });
   await v.post("/cart/add-dropin", { classId: cls });
   const email = `race-${uniq()}@example.test`;

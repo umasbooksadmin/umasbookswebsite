@@ -77,7 +77,7 @@ async function post(jar, path, fields) {
 const threadCount = async () => Number((await pool.query("SELECT COUNT(*) FROM forum_threads")).rows[0].count);
 const replyCount = async () => Number((await pool.query("SELECT COUNT(*) FROM forum_replies")).rows[0].count);
 
-test("anonymous visitors are sent to /login for every forum page and cannot post", async () => {
+test("guests are sent to /login for every forum page and cannot post", async () => {
   const anon = makeCookieJar();
   const threadsBefore = await threadCount();
   for (const p of ["/forum", "/forum/new", "/forum/1"]) {

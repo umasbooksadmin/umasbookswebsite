@@ -44,7 +44,7 @@ router.post("/contact", contactLimiter, async (req, res) => {
     message: String(req.body.message || "").trim().slice(0, 5000),
   };
 
-  // Honeypot: real visitors never see or fill this field.
+  // Honeypot: real people never see or fill this field.
   if (req.body.website) return res.redirect("/contact?sent=1");
 
   if (!values.name || !values.message || !isEmail(values.email)) {
