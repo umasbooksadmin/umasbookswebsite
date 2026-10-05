@@ -60,7 +60,7 @@ const signupNotice = (req) =>
 const LOGIN_LOCK_THRESHOLD = 5;
 const LOGIN_LOCK_DURATION_MS = 15 * 60 * 1000;
 
-// Every visitor who can submit the login form already has a session (and
+// Every person who can submit the login form already has a session (and
 // thus a session ID) — rendering the form's CSRF token (see csrfProtection)
 // is what created it. Writing req.session.user onto that same,
 // already-existing session ID would mean a session fixed before login
@@ -70,7 +70,7 @@ const LOGIN_LOCK_DURATION_MS = 15 * 60 * 1000;
 // with it (csrfProtection issues a new one lazily, the next time a page
 // or /api/csrf-token reads it), but a cart
 // built up while still logged out is worth keeping.
-// Remember the language the visitor has chosen for later emails. Only when
+// Remember the language the person has chosen for later emails. Only when
 // they actually chose one (cookie present): a bare Accept-Language guess
 // must not overwrite a language stored earlier.
 async function refreshUserLang(req, userId) {
@@ -380,7 +380,7 @@ router.post("/login", loginLimiter, async (req, res) => {
     // Logging in doesn't make you a member — only actual members/admins
     // (and volunteers, a superset of members — see requireMember) land on
     // the Member's Access dashboard; everyone else goes to the regular
-    // site, same as a logged-out visitor.
+    // site, same as a guest.
     loginAs(req, res, user, user.is_admin ? "/admin" : (user.is_member || user.is_volunteer) ? "/dashboard" : "/");
   } catch (err) {
     console.error(err);

@@ -67,7 +67,7 @@ app.use(compression());
 
 // maxAge 7d on static files: filenames aren't content-hashed (about.css,
 // site.js, ... keep the same URL when they change), so a long immutable
-// cache isn't safe. 7 days is a compromise — repeat visitors stop
+// cache isn't safe. 7 days is a compromise — returning people stop
 // re-downloading every asset on each page view, at the cost of an edited
 // stylesheet/script taking up to a week to reach people who already have
 // the old one cached. Versioning the filenames would allow much longer.
@@ -181,7 +181,7 @@ app.use(
 // last saved more than a day ago (its stored cookie.expires is under
 // 29 days away), record a timestamp so express-session saves it once,
 // which pushes both the DB row's expiry and the cookie out by another
-// 30 days. An active visitor therefore stays logged in indefinitely; an
+// 30 days. An active person therefore stays logged in indefinitely; an
 // idle one still expires 30 days (give or take a day) after last visit.
 app.use((req, res, next) => {
   const expires = req.session && req.session.cookie && req.session.cookie.expires;
@@ -249,7 +249,7 @@ app.use(csrfProtection);
 app.get("/api/csrf-token", csrfTokenLimiter, csrfTokenEndpoint);
 
 // Same idea as /api/cart/count above: the marketing site's static HTML
-// has no server-side session rendering, so it can't know a visitor is
+// has no server-side session rendering, so it can't know a person is
 // logged in (to swap "Log In" for "Log Out"), a member (for the
 // Member's Access icon), or an admin (for the Admin link) the way the
 // EJS pages' shared header does (see partials/header.ejs) — this lets
@@ -286,7 +286,7 @@ const marketingCsp = [
   `form-action ${formActionSources.join(" ")}`,
   "frame-ancestors 'none'",
   // The HelloAsso membership widget iframe (views/marketing/membership.ejs)
-  // — without a frame-src, default-src 'self' blocks it and visitors see an
+  // — without a frame-src, default-src 'self' blocks it and people see an
   // empty box. The widget page itself is on www.helloasso.com; the payment
   // hub (paymenthub.helloassopay.com) loads inside that frame, not in ours.
   "frame-src https://www.helloasso.com",
@@ -295,7 +295,7 @@ const marketingCsp = [
 
 app.get("/", (req, res) => {
   // Only an actual member/volunteer/admin gets bounced to the Member's
-  // Access dashboard — a logged-in visitor who isn't gets the regular
+  // Access dashboard — a logged-in user who isn't gets the regular
   // homepage like anyone else (see requireMember), otherwise this and
   // /dashboard's own redirect would loop forever on each other.
   const u = req.session.user;

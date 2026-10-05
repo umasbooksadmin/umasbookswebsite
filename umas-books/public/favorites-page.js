@@ -6,7 +6,7 @@
   var list = document.getElementById("favorites-list");
   if (!list) return;
 
-  // The server renders <html lang="en|fr"> from the visitor's language.
+  // The server renders <html lang="en|fr"> from the person's language.
   var fr = (document.documentElement.lang || "").toLowerCase().indexOf("fr") === 0;
   function t(en, frText) { return fr ? frText : en; }
 

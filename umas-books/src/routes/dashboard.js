@@ -15,7 +15,7 @@ const LIVE_ANNOUNCEMENTS_WHERE = `
   status IN ('published', 'scheduled') AND published_at <= now() AND (expires_at IS NULL OR expires_at > now())
 `;
 
-// Not the shared requireMember middleware: a logged-out visitor clicking
+// Not the shared requireMember middleware: a guest clicking
 // "Member's Access" (which always links here — see the h-tools icon in
 // partials/header.ejs and every static marketing page) is more likely
 // looking to become a member than to log in to an account they don't

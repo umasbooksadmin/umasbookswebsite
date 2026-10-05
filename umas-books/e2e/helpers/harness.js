@@ -1,7 +1,7 @@
 // The small framework every scenario file uses.
 //
 //   const e2e = require("../helpers/harness");
-//   const s = e2e.persona("visitor");
+//   const s = e2e.persona("guest");
 //   s.test("V1 (must) home page ...", async (ctx) => { ... });
 //   s.write("V28 ...", fn)        needs E2E_ALLOW_WRITES=1, else skipped
 //   s.manual("V29 ...", "reason") skipped, counted as manual-only
@@ -80,8 +80,24 @@ async function performLogin(page, persona) {
   return new URL(page.url()).pathname;
 }
 
+class NotAnAccountHolder extends Error {}
+
+// The account-holder persona must NOT be a member, volunteer or admin, or
+// the "member pages are refused" tests would prove nothing. What the site
+// shows tells: /dashboard (Member's Access) opens for a member, volunteer or
+// admin and sends everyone else to the home page.
+async function requireNotMember(page) {
+  await page.goto(`${BASE}/dashboard`, { waitUntil: "domcontentloaded" });
+  if (new URL(page.url()).pathname === "/dashboard" || new URL(page.url()).pathname.startsWith("/admin")) {
+    throw new NotAnAccountHolder("the E2E_ACCOUNT_* login is a member, volunteer or admin: Member's Access opened for it. Use a plain account (confirmed email, NOT marked as member, volunteer or admin), or the account tests prove nothing. The account tests were skipped.");
+  }
+}
+
+const refused = {}; // persona -> why its login was refused (not tried again)
+
 async function sessionFor(persona) {
   if (sessions[persona]) return sessions[persona];
+  if (refused[persona]) throw refused[persona];
   const context = await browser.createBrowserContext();
   try {
     const page = await context.newPage();
@@ -90,7 +106,11 @@ async function sessionFor(persona) {
       const err = await page.$eval(".error-box", (e) => e.textContent.trim()).catch(() => "no message");
       throw new Error(`${persona} login did not work (${err}). Check the E2E_${persona.toUpperCase()}_* values.`);
     }
-    sessions[persona] = await context.cookies();
+    const cookies = await context.cookies();
+    if (persona === "account") {
+      try { await requireNotMember(page); } catch (err) { refused[persona] = err; throw err; }
+    }
+    sessions[persona] = cookies;
     return sessions[persona];
   } finally {
     await context.close();
@@ -122,8 +142,8 @@ async function makeCtx(opts, testName, t) {
   page.on("dialog", (d) => d.accept().catch(() => {})); // data-confirm / confirm() boxes
 
   if (opts.viewport) await page.setViewport(opts.viewport);
-  // A visitor who chose a language has it in BOTH the cookie and localStorage
-  // (assets/site.js writes both); lang: null is a visitor who has not chosen
+  // A guest who chose a language has it in BOTH the cookie and localStorage
+  // (assets/site.js writes both); lang: null is a guest who has not chosen
   // yet, so the site follows the browser's language (opts.browserLang).
   const lang = opts.lang === undefined ? "en" : opts.lang;
   if (lang) {
@@ -138,7 +158,16 @@ async function makeCtx(opts, testName, t) {
     }, bl);
   }
   // The login window's own language cookie must not override this test's.
-  if (opts.as) await context.setCookie(...(await sessionFor(opts.as)).filter((c) => c.name !== "umasbooks_lang"));
+  if (opts.as) {
+    try {
+      await context.setCookie(...(await sessionFor(opts.as)).filter((c) => c.name !== "umasbooks_lang"));
+    } catch (err) {
+      if (!(err instanceof NotAnAccountHolder)) throw err;
+      await context.close().catch(() => {});
+      t.skip(err.message);
+      throw new SkipSignal(err.message);
+    }
+  }
 
   const ctx = {
     base: BASE, page, context, blocked, consoleErrors, failedRequests, rule: guardResult.rule, preview: guardResult.preview,
@@ -208,7 +237,13 @@ function persona(name) {
     if (!o.skip && opts.write && !cfg.allowWrites()) o.skip = "needs E2E_ALLOW_WRITES=1 (this step creates data or sends email)";
     return test(testName, o, async (t) => {
       await ready();
-      const ctx = await makeCtx(opts, testName, t);
+      let ctx;
+      try {
+        ctx = await makeCtx(opts, testName, t);
+      } catch (err) {
+        if (err instanceof SkipSignal) return;
+        throw err;
+      }
       try {
         await fn(ctx, t);
       } catch (err) {

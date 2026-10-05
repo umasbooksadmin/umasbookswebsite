@@ -1,5 +1,5 @@
 // Fonts are self-hosted (assets/fonts): nothing the site serves may load
-// from Google's font hosts, since that sends visitors' IP addresses to Google.
+// from Google's font hosts, since that sends people's IP addresses to Google.
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");

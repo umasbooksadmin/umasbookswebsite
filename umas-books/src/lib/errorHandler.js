@@ -35,9 +35,9 @@ function redactedPath(req) {
 }
 
 // err.status/err.statusCode in 4xx (body-parser, multer's 413, a malformed
-// URI's 400...) is the visitor's problem, not a server fault: respond with
+// URI's 400...) is the person's problem, not a server fault: respond with
 // that status and a friendly message and send NO alert (an anonymous
-// visitor could otherwise burn the alert throttle at will). Anything else
+// person could otherwise burn the alert throttle at will). Anything else
 // is a 500 and alerts, with the subject carrying only method + redacted path.
 function errorHandler(err, req, res, next) {
   let raw = Number(err && (err.status || err.statusCode));

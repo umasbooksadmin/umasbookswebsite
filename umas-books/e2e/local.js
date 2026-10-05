@@ -71,6 +71,7 @@ async function seed(databaseUrl, creds) {
       [email, hash, name, !!flags.admin, !!flags.member, !!flags.volunteer, enc]
     );
   };
+  await user(creds.account.email, creds.account.password, "E2E Local Account Holder", {});
   await user(creds.member.email, creds.member.password, "E2E Local Member", { member: true });
   await user(creds.volunteer.email, creds.volunteer.password, "E2E Local Volunteer", { volunteer: true });
   await user(creds.admin.email, creds.admin.password, "E2E Local Admin", { admin: true, member: true }, creds.admin.totpSecret);
@@ -115,6 +116,7 @@ async function main() {
   const port = await freePort();
   const fake = await startFakeHelloAsso();
   const creds = {
+    account: { email: "e2e-account@example.test", password: secretPassword() },
     member: { email: "e2e-member@example.test", password: secretPassword() },
     volunteer: { email: "e2e-volunteer@example.test", password: secretPassword() },
     admin: { email: "e2e-admin@example.test", password: secretPassword(), totpSecret: totp.generateSecret() },
@@ -137,6 +139,7 @@ async function main() {
     const env = {
       ...process.env,
       E2E_BASE_URL: app.base,
+      E2E_ACCOUNT_EMAIL: creds.account.email, E2E_ACCOUNT_PASSWORD: creds.account.password,
       E2E_MEMBER_EMAIL: creds.member.email, E2E_MEMBER_PASSWORD: creds.member.password,
       E2E_VOLUNTEER_EMAIL: creds.volunteer.email, E2E_VOLUNTEER_PASSWORD: creds.volunteer.password,
       E2E_ADMIN_EMAIL: creds.admin.email, E2E_ADMIN_PASSWORD: creds.admin.password, E2E_ADMIN_TOTP_SECRET: creds.admin.totpSecret,

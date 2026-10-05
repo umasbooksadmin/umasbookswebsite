@@ -2,7 +2,7 @@
 // Entry point for `npm run e2e`.
 //
 //   E2E_BASE_URL=https://umasbooks.org npm run e2e
-//   E2E_BASE_URL=... npm run e2e -- --persona visitor,guest
+//   E2E_BASE_URL=... npm run e2e -- --persona guest,account
 //   E2E_BASE_URL=... E2E_ONLY=admin npm run e2e
 //
 // 1. checks the target with the safety guard (helpers/guard.js) and stops if
@@ -23,7 +23,7 @@ function parseArgs(argv) {
     else if (a.startsWith("--persona=") || a.startsWith("--only=")) out.push(a.slice(a.indexOf("=") + 1));
     else if (a === "--help" || a === "-h") { out.help = true; }
     else if (!a.startsWith("-")) out.push(a);
-    else { console.error(`Unknown option ${a}. Use --persona visitor,guest (choose from ${cfg.PERSONAS.join(", ")}).`); process.exit(2); }
+    else { console.error(`Unknown option ${a}. Use --persona guest,account (choose from ${cfg.PERSONAS.join(", ")}).`); process.exit(2); }
   }
   return out;
 }
@@ -59,9 +59,9 @@ async function main() {
   console.log(`Run tag:     ${process.env.E2E_RUN_ID}   (anything the tests create is named with this)`);
   console.log(`Personas:    ${personas.join(", ")}`);
   console.log(`Writes:      ${conf.allowWrites ? "ON (E2E_ALLOW_WRITES=1): tests may create tagged test data and send email" : "off (read-only plus cart add/remove)"}`);
-  console.log(`Logins:      member ${conf.member}, volunteer ${conf.volunteer}, admin ${conf.admin}\n`);
+  console.log(`Logins:      account ${conf.account}, member ${conf.member}, volunteer ${conf.volunteer}, admin ${conf.admin}\n`);
 
-  const files = personas.map((p) => path.join(__dirname, "specs", `${p}.e2e.js`));
+  const files = personas.flatMap((p) => cfg.PERSONA_FILES[p].map((f) => path.join(__dirname, "specs", f)));
   const res = spawnSync(process.execPath, [
     "--test", "--test-concurrency=1",
     "--test-reporter=spec", "--test-reporter-destination=stdout",

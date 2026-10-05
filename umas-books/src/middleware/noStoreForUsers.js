@@ -1,7 +1,7 @@
-// Pages rendered for a logged-in visitor carry their name, orders, admin
+// Pages rendered for a logged-in user carry their name, orders, admin
 // data... With no Cache-Control a browser or shared proxy is free to
 // heuristically cache them, and the Back button after logout can show the
-// previous user's page. So everything answered to a logged-in visitor is
+// previous user's page. So everything answered to a logged-in user is
 // `no-store`, except /img/ (cover/photo bytes, identical for everyone and
 // meant to be cached). Static assets are mounted before the session and
 // never reach this middleware; anonymous marketing pages keep whatever

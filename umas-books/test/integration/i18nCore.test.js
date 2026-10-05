@@ -117,7 +117,7 @@ async function postForm(path, fields, jar, headers = {}) {
 
 const userLang = async (email) => (await pool.query("SELECT lang FROM users WHERE email = $1", [email])).rows[0].lang;
 
-test("signup stores the visitor's language on the new account", async () => {
+test("signup stores the person's language on the new account", async () => {
   const emailFr = `signup-fr-${uniq()}@example.test`;
   const emailEn = `signup-en-${uniq()}@example.test`;
   const fields = (email) => ({ email, password: PASSWORD, displayName: "Lang Test" });
@@ -127,7 +127,7 @@ test("signup stores the visitor's language on the new account", async () => {
   assert.equal(await userLang(emailEn), "en");
 });
 
-test("login refreshes users.lang only when the visitor has chosen a language", async () => {
+test("login refreshes users.lang only when the person has chosen a language", async () => {
   const email = `login-lang-${uniq()}@example.test`;
   await pool.query(
     "INSERT INTO users (email, password_hash, display_name, lang) VALUES ($1, $2, 'Lang Login', 'en')",

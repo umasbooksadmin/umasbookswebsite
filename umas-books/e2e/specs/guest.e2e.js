@@ -1,4 +1,6 @@
-// Script 1 of docs/testing/manual-test-scripts.md: the visitor (no login).
+// Script 1 of docs/testing/manual-test-scripts.md: the guest (anyone not logged in).
+// A guest browses, fills a cart and can use the forms, but cannot buy: checkout
+// asks them to log in or create an account first (G50, G51).
 // Every test is named with its manual step id. Read-only except the contact
 // and book-request forms, which send email and so need E2E_ALLOW_WRITES=1.
 
@@ -6,8 +8,9 @@ const assert = require("node:assert/strict");
 const e2e = require("../helpers/harness");
 const { has, hasNot, stockedBook, addFirstCopyToCart, pageHtml, stripTags, cartLineCount } = require("../helpers/pages");
 const { testEmail } = require("../helpers/config");
+const cfg = require("../helpers/config");
 
-const s = e2e.persona("visitor");
+const s = e2e.persona("guest");
 
 const LEGAL = [
   { path: "/terms-of-sale.html", en: /Terms of Sale/i, fr: /Conditions générales de vente/i },
@@ -18,7 +21,7 @@ const LEGAL = [
 
 // ---- 1A. Home, menu, footer ----
 
-s.test("V1 (must) home page shows the menu, the header icons and the footer", async (ctx) => {
+s.test("G1 (must) home page shows the menu, the header icons and the footer", async (ctx) => {
   await ctx.goto("/", "networkidle2");
   const text = await ctx.text();
   for (const label of ["Home", "Browse Books", "English Programs", "Events"]) has(text, new RegExp(label, "i"));
@@ -30,7 +33,7 @@ s.test("V1 (must) home page shows the menu, the header icons and the footer", as
   for (const label of ["Contact Us", "Albi, France", "Privacy Policy", "Terms of Sale", "Legal Notice"]) has(footer, new RegExp(label, "i"));
 });
 
-s.test("V2 each footer link opens a page, no error page", async (ctx) => {
+s.test("G2 each footer link opens a page, no error page", async (ctx) => {
   await ctx.goto("/");
   const hrefs = await ctx.page.$$eval("footer a[href]", (as) => as.map((a) => a.getAttribute("href")).filter((h) => h && h !== "#"));
   assert.ok(hrefs.length >= 5, "footer links present");
@@ -41,18 +44,18 @@ s.test("V2 each footer link opens a page, no error page", async (ctx) => {
   }
 });
 
-s.test("V3 member access while logged out leads to the membership page or the login page", async (ctx) => {
+s.test("G3 member access while logged out leads to the membership page or the login page", async (ctx) => {
   // The manual script mentions a key icon; the header only shows it to members
-  // (partials/mkt_chrome_header.ejs). What a visitor must get is never an error.
+  // (partials/mkt_chrome_header.ejs). What a guest must get is never an error.
   await ctx.goto("/");
   const key = await ctx.page.$("a.h-tool[href='/dashboard']");
-  assert.equal(key, null, "visitors are not shown the member's key icon");
+  assert.equal(key, null, "guests are not shown the member's key icon");
   const res = await ctx.goto("/dashboard");
   assert.ok(res.status() < 400);
   assert.match(new URL(ctx.page.url()).pathname, /^\/(login|membership\.html)$/);
 });
 
-s.test("V4 the person icon opens the login page with its links", async (ctx) => {
+s.test("G4 the person icon opens the login page with its links", async (ctx) => {
   await ctx.goto("/");
   await Promise.all([ctx.page.waitForNavigation(), ctx.page.click("a.h-tool[href='/login']")]);
   assert.equal(new URL(ctx.page.url()).pathname, "/login");
@@ -63,7 +66,7 @@ s.test("V4 the person icon opens the login page with its links", async (ctx) => 
 
 // ---- 1B. Preview banner and payments off ----
 
-s.test("V5 (must) the preview banner is at the top of every page (preview mode only)", async (ctx) => {
+s.test("G5 (must) the preview banner is at the top of every page (preview mode only)", async (ctx) => {
   if (!ctx.preview) ctx.skip("the site is not in preview mode");
   for (const p of ["/", "/books.html", "/cart", "/login"]) {
     await ctx.goto(p);
@@ -74,7 +77,7 @@ s.test("V5 (must) the preview banner is at the top of every page (preview mode o
   }
 });
 
-s.test("V6 'Tell us what you think!' opens the contact form set to feedback (preview mode only)", async (ctx) => {
+s.test("G6 'Tell us what you think!' opens the contact form set to feedback (preview mode only)", async (ctx) => {
   if (!ctx.preview) ctx.skip("the site is not in preview mode");
   await ctx.goto("/");
   await Promise.all([ctx.page.waitForNavigation(), ctx.page.click(".preview-banner a")]);
@@ -83,7 +86,7 @@ s.test("V6 'Tell us what you think!' opens the contact form set to feedback (pre
   assert.equal(topic, "Feedback on the preview");
 });
 
-s.test("V7 (must) the cart in preview mode explains ordering is off and has no checkout form", async (ctx) => {
+s.test("G7 (must) the cart in preview mode explains ordering is off and has no checkout form", async (ctx) => {
   if (!ctx.preview) ctx.skip("the site is not in preview mode");
   const book = await stockedBook(ctx);
   await addFirstCopyToCart(ctx, book);
@@ -94,7 +97,7 @@ s.test("V7 (must) the cart in preview mode explains ordering is off and has no c
   assert.equal(await ctx.page.$("#email"), null, "no email field");
 });
 
-s.test("V8 (must) membership page says membership opens at launch and has no payment form (preview mode only)", async (ctx) => {
+s.test("G8 (must) membership page says membership opens at launch and has no payment form (preview mode only)", async (ctx) => {
   if (!ctx.preview) ctx.skip("the site is not in preview mode");
   await ctx.goto("/membership.html");
   has(await ctx.text(), /Membership opens at launch/i);
@@ -102,7 +105,7 @@ s.test("V8 (must) membership page says membership opens at launch and has no pay
   assert.deepEqual(ctx.blocked, [], "the page never even tried to load HelloAsso");
 });
 
-s.test("V9 robots.txt: Disallow: / in preview mode, and gone at launch", async (ctx) => {
+s.test("G9 robots.txt: Disallow: / in preview mode, and gone at launch", async (ctx) => {
   const res = await ctx.fetchRaw("/robots.txt");
   const body = await res.text();
   const disallowAll = /^Disallow:\s*\/\s*$/m.test(body);
@@ -110,7 +113,7 @@ s.test("V9 robots.txt: Disallow: / in preview mode, and gone at launch", async (
   else assert.ok(!disallowAll, "after launch robots.txt must not block the whole site (re-check at launch)");
 });
 
-s.test("V-FR5 FR check of V5, V7, V8: banner, cart notice and membership notice in French (preview mode only)", { lang: "fr" }, async (ctx) => {
+s.test("G-FR5 FR check of G5, G7, G8: banner, cart notice and membership notice in French (preview mode only)", { lang: "fr" }, async (ctx) => {
   if (!ctx.preview) ctx.skip("the site is not in preview mode");
   await ctx.goto("/");
   has(await ctx.page.$eval(".preview-banner", (b) => b.innerText), /Aperçu/);
@@ -121,19 +124,20 @@ s.test("V-FR5 FR check of V5, V7, V8: banner, cart notice and membership notice 
   await ctx.page.waitForFunction(() => /L.adhésion ouvrira au lancement/i.test(document.body.innerText));
 });
 
-s.test("V10 with preview off the banner is gone and the cart shows the checkout form (preview off only)", async (ctx) => {
+s.test("G10 with preview off the banner is gone and the cart shows the checkout form or the prompt to log in (preview off only)", async (ctx) => {
   if (ctx.preview) ctx.skip("the site is in preview mode");
   await ctx.goto("/");
   assert.equal(await ctx.page.$(".preview-banner"), null);
   const book = await stockedBook(ctx);
   await addFirstCopyToCart(ctx, book);
   const form = await ctx.page.$("form[action='/cart/checkout']");
-  if (!form) has(await ctx.text(), /Online payment isn.t switched on yet/);
+  // A guest sees the checkout form today; once buying needs an account (G50) they see a prompt to log in instead.
+  if (!form) has(await ctx.text(), /Online payment isn.t switched on yet|log in|sign up|create an account/);
 });
 
 // ---- 1C. Books ----
 
-s.test("V11 (must) Browse Books has search, genres, New In carousel and a recommendation area", async (ctx) => {
+s.test("G11 (must) Browse Books has search, genres, New In carousel and a recommendation area", async (ctx) => {
   await ctx.goto("/books.html", "networkidle2");
   const ph = await ctx.page.$eval("#shop-search-input", (i) => i.placeholder);
   has(ph, /Search by title, author, keyword, or genre/);
@@ -146,7 +150,7 @@ s.test("V11 (must) Browse Books has search, genres, New In carousel and a recomm
   assert.ok(await ctx.page.$(".bk-rec"), "recommendation section");
 });
 
-s.test("V12 search finds a book by title; a search with no match says so", async (ctx) => {
+s.test("G12 search finds a book by title; a search with no match says so", async (ctx) => {
   const book = await stockedBook(ctx);
   await ctx.goto("/books.html", "networkidle2");
   const word = book.title.split(/\s+/).sort((a, b) => b.length - a.length)[0];
@@ -169,7 +173,7 @@ s.test("V12 search finds a book by title; a search with no match says so", async
   assert.ok(empty.trim().length > 10, "a 'no results' message, not a blank page");
 });
 
-s.test("V13 genre buttons filter the list and change it when another is chosen", async (ctx) => {
+s.test("G13 genre buttons filter the list and change it when another is chosen", async (ctx) => {
   await ctx.goto("/books.html", "networkidle2");
   await ctx.page.waitForSelector("#bk-genre-list .bk-genre");
   const buttons = await ctx.page.$$("#bk-genre-list .bk-genre");
@@ -183,7 +187,7 @@ s.test("V13 genre buttons filter the list and change it when another is chosen",
   assert.notEqual(seen[0], seen[1], "the results heading changes with the genre");
 });
 
-s.test("V14 New In arrows and See All New In work", async (ctx) => {
+s.test("G14 New In arrows and See All New In work", async (ctx) => {
   await ctx.goto("/books.html", "networkidle2");
   await ctx.page.click("#bk-new-next");
   await ctx.page.click("#bk-new-prev");
@@ -192,7 +196,7 @@ s.test("V14 New In arrows and See All New In work", async (ctx) => {
   assert.equal(await ctx.page.$eval("#bk-results", (e) => e.hidden), false);
 });
 
-s.test("V15 (must) a book page shows cover, title, author, binding, price, copies and add to cart", async (ctx) => {
+s.test("G15 (must) a book page shows cover, title, author, binding, price, copies and add to cart", async (ctx) => {
   const book = await stockedBook(ctx);
   await ctx.goto(`/books/${book.id}`);
   assert.equal((await ctx.page.$$("h1")).length, 1);
@@ -210,7 +214,7 @@ s.test("V15 (must) a book page shows cover, title, author, binding, price, copie
   if (book.binding) has(text, /Binding/);
 });
 
-s.test("V16 (must) 'What the grades mean' lists the four grades", async (ctx) => {
+s.test("G16 (must) 'What the grades mean' lists the four grades", async (ctx) => {
   const book = await stockedBook(ctx);
   await ctx.goto(`/books/${book.id}`);
   await ctx.page.click(".grade-legend summary");
@@ -218,14 +222,14 @@ s.test("V16 (must) 'What the grades mean' lists the four grades", async (ctx) =>
   for (const g of ["New", "Like New", "Very Good", "Acceptable"]) has(legend, new RegExp(g));
 });
 
-s.test("V17 a clearance copy shows the Clearance badge on the book page", async (ctx) => {
+s.test("G17 a clearance copy shows the Clearance badge on the book page", async (ctx) => {
   const book = await stockedBook(ctx, (b) => b.clearance);
   await ctx.goto(`/books/${book.id}`);
   has(await ctx.text(), /Clearance/);
   assert.ok(await ctx.page.$(".clearance-badge"));
 });
 
-s.test("V18 a book with awards shows 'Awards & lists:'; one without shows nothing", async (ctx) => {
+s.test("G18 a book with awards shows 'Awards & lists:'; one without shows nothing", async (ctx) => {
   const list = await e2e.books();
   let withAwards = null;
   let without = null;
@@ -242,7 +246,7 @@ s.test("V18 a book with awards shows 'Awards & lists:'; one without shows nothin
   }
 });
 
-s.test("V19 a book with no copy in stock says it is unavailable", async (ctx) => {
+s.test("G19 a book with no copy in stock says it is unavailable", async (ctx) => {
   const id = await e2e.unavailableBookId();
   if (!id) ctx.skip("data: no out-of-stock book among the first 60 book ids");
   await ctx.goto(`/books/${id}`);
@@ -252,7 +256,7 @@ s.test("V19 a book with no copy in stock says it is unavailable", async (ctx) =>
   assert.equal(await ctx.page.$(".copy-table"), null);
 });
 
-s.test("V20 hearting a book lists it on the favorites page (kept in this browser only)", async (ctx) => {
+s.test("G20 hearting a book lists it on the favorites page (kept in this browser only)", async (ctx) => {
   const book = await stockedBook(ctx);
   await ctx.goto(`/books/${book.id}`);
   await ctx.page.click(".book-detail-cover-wrap .favorite-toggle");
@@ -261,7 +265,7 @@ s.test("V20 hearting a book lists it on the favorites page (kept in this browser
   await ctx.page.waitForFunction((t) => document.body.innerText.includes(t), {}, book.title);
 });
 
-s.test("V21 (must) a copy with no price shows 'Ask in the shop' and no Add to Cart", async (ctx) => {
+s.test("G21 (must) a copy with no price shows 'Ask in the shop' and no Add to Cart", async (ctx) => {
   const list = await e2e.books();
   // A book whose price is null has only unpriced copies; mixed books are found by scanning pages.
   const candidates = list.filter((b) => b.price == null);
@@ -279,7 +283,7 @@ s.test("V21 (must) a copy with no price shows 'Ask in the shop' and no Add to Ca
   assert.ok(unpriced.length && unpriced.every((r) => !r.btn), "the unpriced copy has no Add to Cart button");
 });
 
-s.test("V-FR11 FR check (books): search page, book page and grade legend in French", { lang: "fr" }, async (ctx) => {
+s.test("G-FR11 FR check (books): search page, book page and grade legend in French", { lang: "fr" }, async (ctx) => {
   await ctx.goto("/books.html", "networkidle2");
   has(await ctx.text(), /Parcourir les livres/);
   const book = await stockedBook(ctx);
@@ -294,7 +298,7 @@ s.test("V-FR11 FR check (books): search page, book page and grade legend in Fren
   assert.equal(await ctx.page.$eval("html", (h) => h.lang), "fr");
 });
 
-s.todo("V-FR12 French prices use the comma style 12,50 € on the book page", "known issue: prices show €12.50 in French on the book page, cart and order email (the 12,50 € style is only used in book-request emails)", { lang: "fr" }, async (ctx) => {
+s.todo("G-FR12 French prices use the comma style 12,50 € on the book page", "known issue: prices show €12.50 in French on the book page, cart and order email (the 12,50 € style is only used in book-request emails)", { lang: "fr" }, async (ctx) => {
   const book = await stockedBook(ctx);
   await ctx.goto(`/books/${book.id}`);
   has(await ctx.page.$eval(".book-detail-price", (e) => e.textContent), /\d+,\d\d\s*€/);
@@ -302,7 +306,7 @@ s.todo("V-FR12 French prices use the comma style 12,50 € on the book page", "k
 
 // ---- 1D. Events, English programs, blog ----
 
-s.test("V22 (must) the events page shows a calendar with Month / Week and Previous / Next", async (ctx) => {
+s.test("G22 (must) the events page shows a calendar with Month / Week and Previous / Next", async (ctx) => {
   await ctx.goto("/events");
   const text = await ctx.text();
   has(text, /Month/);
@@ -311,11 +315,11 @@ s.test("V22 (must) the events page shows a calendar with Month / Week and Previo
   has(text, /Everyone.s welcome/);
 });
 
-s.write("V23 sign up for an event with a tagged name; signing up again does not add a second place", async (ctx) => {
+s.write("G23 sign up for an event with a tagged name; signing up again does not add a second place", async (ctx) => {
   await ctx.goto("/events");
   if (!(await ctx.page.$("form[action*='/signup']"))) ctx.skip("data: no event with a sign-up form on the calendar this month");
   const email = testEmail("event");
-  const name = `${process.env.E2E_RUN_ID} Visitor`;
+  const name = `${process.env.E2E_RUN_ID} Guest`;
   const signUp = async () => {
     await ctx.goto("/events");
     // The sign-up form sits inside the event's collapsed <details>.
@@ -332,9 +336,9 @@ s.write("V23 sign up for an event with a tagged name; signing up again does not 
   hasNot(await ctx.text(), /Something went wrong/);
 });
 
-s.manual("V24 Add to My Calendar downloads an .ics file that opens in a calendar app", "a calendar app has to open the file; the download itself is checked by the .ics link test below");
+s.manual("G24 Add to My Calendar downloads an .ics file that opens in a calendar app", "a calendar app has to open the file; the download itself is checked by the .ics link test below");
 
-s.test("V24b the Add to My Calendar link serves a calendar file", async (ctx) => {
+s.test("G24b the Add to My Calendar link serves a calendar file", async (ctx) => {
   await ctx.goto("/events");
   const href = await ctx.page.$$eval("a[href*='.ics'], a[href*='/ics']", (as) => (as[0] ? as[0].getAttribute("href") : null));
   if (!href) ctx.skip("data: no event with an Add to My Calendar link");
@@ -344,7 +348,7 @@ s.test("V24b the Add to My Calendar link serves a calendar file", async (ctx) =>
   assert.match(await res.text(), /BEGIN:VCALENDAR/);
 });
 
-s.test("V25 English programs, programs and pre-registration pages open", async (ctx) => {
+s.test("G25 English programs, programs and pre-registration pages open", async (ctx) => {
   for (const p of ["/immersion.html", "/programs.html", "/pre-registration.html"]) {
     const res = await ctx.goto(p);
     assert.ok(res.status() < 400, `${p} ${res.status()}`);
@@ -356,7 +360,7 @@ s.test("V25 English programs, programs and pre-registration pages open", async (
   assert.ok(await ctx.page.$("form[data-mailto]") || mailto, "the pre-registration form is a mailto form");
 });
 
-s.test("V26 the sessions page lists upcoming sessions with filters and Month / Week", async (ctx) => {
+s.test("G26 the sessions page lists upcoming sessions with filters and Month / Week", async (ctx) => {
   await ctx.goto("/sessions");
   const text = await ctx.text();
   has(text, /Upcoming Sessions/);
@@ -365,7 +369,7 @@ s.test("V26 the sessions page lists upcoming sessions with filters and Month / W
   has(text, /Week/);
 });
 
-s.test("V27 the blog lists published posts; an unknown post says not found", async (ctx) => {
+s.test("G27 the blog lists published posts; an unknown post says not found", async (ctx) => {
   await ctx.goto("/blog.html", "networkidle2");
   assert.equal((await ctx.page.$$("h1")).length >= 1, true);
   const res = await ctx.goto("/blog.html?post=no-such-post-e2e", "networkidle2");
@@ -374,7 +378,7 @@ s.test("V27 the blog lists published posts; an unknown post says not found", asy
   assert.ok(links >= 1);
 });
 
-s.test("V-FR22 FR check: events, sessions and blog in French", { lang: "fr" }, async (ctx) => {
+s.test("G-FR22 FR check: events, sessions and blog in French", { lang: "fr" }, async (ctx) => {
   await ctx.goto("/events");
   const ev = await ctx.text();
   has(ev, /Événements/);
@@ -390,28 +394,28 @@ s.test("V-FR22 FR check: events, sessions and blog in French", { lang: "fr" }, a
 
 // ---- 1E. Contact form ----
 
-s.write("V28 (must) the contact form sends a tagged message", async (ctx) => {
+s.write("G28 (must) the contact form sends a tagged message", async (ctx) => {
   await ctx.goto("/contact");
   const tag = `${process.env.E2E_RUN_ID}`;
-  await ctx.page.type("#c-name", `${tag} Visitor`);
+  await ctx.page.type("#c-name", `${tag} Guest`);
   await ctx.page.type("#c-email", testEmail("contact"));
   await ctx.page.type("#c-message", `${tag} automated end-to-end test message: please ignore and delete.`);
   await Promise.all([ctx.page.waitForNavigation(), ctx.page.click("form[action='/contact'] button[type='submit']")]);
   has(await ctx.text(), /Thank you! Your message has been sent/);
-  ctx.created("contact message (email to the admin mailbox)", `${tag} Visitor`, "delete the email from the shop mailbox");
+  ctx.created("contact message (email to the admin mailbox)", `${tag} Guest`, "delete the email from the shop mailbox");
 });
 
-s.test("V28b the contact form lists the expected topics", async (ctx) => {
+s.test("G28b the contact form lists the expected topics", async (ctx) => {
   await ctx.goto("/contact");
   const topics = await ctx.page.$$eval("#c-topic option", (o) => o.map((x) => x.value));
   for (const t of ["General question", "Books & orders", "English programs", "Events", "Donating books", "Membership", "Other"]) assert.ok(topics.includes(t), t);
   if (ctx.preview) assert.ok(topics.includes("Feedback on the preview"));
 });
 
-s.manual("V29 the message arrives in the shop mailbox within 2 minutes with the right reply-to", "tests cannot read email");
-s.manual("V30 six messages in a row trigger the rate-limit message after the fifth", "sends five real emails to the shop mailbox; also changes the connection's rate-limit state");
+s.manual("G29 the message arrives in the shop mailbox within 2 minutes with the right reply-to", "tests cannot read email");
+s.manual("G30 six messages in a row trigger the rate-limit message after the fifth", "sends five real emails to the shop mailbox; also changes the connection's rate-limit state");
 
-s.write("V-FR28 FR check: the contact form answers in French", { lang: "fr" }, async (ctx) => {
+s.write("G-FR28 FR check: the contact form answers in French", { lang: "fr" }, async (ctx) => {
   await ctx.goto("/contact");
   const tag = `${process.env.E2E_RUN_ID}`;
   await ctx.page.type("#c-name", `${tag} Visiteur`);
@@ -424,7 +428,7 @@ s.write("V-FR28 FR check: the contact form answers in French", { lang: "fr" }, a
 
 // ---- 1F. Request a book ----
 
-s.write("V31 (must) a book request is sent and asks the visitor to confirm by email", async (ctx) => {
+s.write("G31 (must) a book request is sent and asks the guest to confirm by email", async (ctx) => {
   await ctx.goto("/request-a-book");
   const tag = process.env.E2E_RUN_ID;
   await ctx.page.type("#rb-title", `${tag} Pride and Prejudice`);
@@ -438,7 +442,7 @@ s.write("V31 (must) a book request is sent and asks the visitor to confirm by em
   ctx.created("book request (unconfirmed, expires by itself)", `${tag} Pride and Prejudice`, "admin Book Requests > Waiting for email confirmation > Delete");
 });
 
-s.test("V32 a request without a title, or with a 5-digit ISBN, shows a clear message", async (ctx) => {
+s.test("G32 a request without a title, or with a 5-digit ISBN, shows a clear message", async (ctx) => {
   await ctx.goto("/request-a-book");
   // Client-side `required` would stop an empty title: submit the form directly.
   await ctx.page.$eval("form[action='/request-a-book']", (f) => { f.noValidate = true; });
@@ -447,18 +451,18 @@ s.test("V32 a request without a title, or with a 5-digit ISBN, shows a clear mes
   has(await ctx.text(), /Please tell us the title of the book\./);
 });
 
-s.manual("V33 the confirmation email link and Confirm my request button", "needs the emailed link");
-s.manual("V34 an unconfirmed request appears under Waiting for email confirmation in admin", "needs a request made in V31 and an admin check; covered by A22 and A23 in the admin script");
-s.manual("V35 find-my-requests email, manage link and Cancel", "needs the emailed link");
-s.manual("V36 Cancel this request link from an email", "needs the emailed link");
+s.manual("G33 the confirmation email link and Confirm my request button", "needs the emailed link");
+s.manual("G34 an unconfirmed request appears under Waiting for email confirmation in admin", "needs a request made in G31 and an admin check; covered by A22 and A23 in the admin script");
+s.manual("G35 find-my-requests email, manage link and Cancel", "needs the emailed link");
+s.manual("G36 Cancel this request link from an email", "needs the emailed link");
 
-s.test("V37 a made-up my-requests link says it is not valid", async (ctx) => {
+s.test("G37 a made-up my-requests link says it is not valid", async (ctx) => {
   const res = await ctx.goto("/my-requests/abc");
   assert.ok(res.status() < 500);
   has(await ctx.text(), /This link is not valid/);
 });
 
-s.test("V-FR31 FR check: the request form and find-my-requests pages are in French", { lang: "fr" }, async (ctx) => {
+s.test("G-FR31 FR check: the request form and find-my-requests pages are in French", { lang: "fr" }, async (ctx) => {
   await ctx.goto("/request-a-book");
   const t1 = await ctx.text();
   has(t1, /Vous ne trouvez pas un livre/);
@@ -467,11 +471,11 @@ s.test("V-FR31 FR check: the request form and find-my-requests pages are in Fren
   has(await ctx.text(), /Envoyez-moi le lien/);
 });
 
-s.manual("V38 'Good news' email when an admin notifies (continues in A23)", "needs the emailed message");
+s.manual("G38 'Good news' email when an admin notifies (continues in A23)", "needs the emailed message");
 
 // ---- 1G. Legal pages and language toggle ----
 
-s.test("V39 (must) each legal page opens with full text and the seller identity", async (ctx) => {
+s.test("G39 (must) each legal page opens with full text and the seller identity", async (ctx) => {
   for (const l of LEGAL) {
     const res = await ctx.goto(l.path);
     assert.equal(res.status(), 200, l.path);
@@ -490,7 +494,7 @@ s.test("V39 (must) each legal page opens with full text and the seller identity"
   has(ml, /RNA/);
 });
 
-s.test("V40 (must) each legal page in French has French titles and no English paragraph left", { lang: "fr" }, async (ctx) => {
+s.test("G40 (must) each legal page in French has French titles and no English paragraph left", { lang: "fr" }, async (ctx) => {
   for (const l of LEGAL) {
     await ctx.goto(l.path);
     const text = await ctx.text();
@@ -499,7 +503,7 @@ s.test("V40 (must) each legal page in French has French titles and no English pa
   }
 });
 
-s.todo("V40b legal pages are French in the server's own HTML (no JavaScript needed)", "known gap: the legal pages are translated by the page's script, so the HTML the server sends is English; search engines and anyone with scripts off see English", { lang: "fr" }, async (ctx) => {
+s.todo("G40b legal pages are French in the server's own HTML (no JavaScript needed)", "known gap: the legal pages are translated by the page's script, so the HTML the server sends is English; search engines and anyone with scripts off see English", { lang: "fr" }, async (ctx) => {
   for (const l of LEGAL) {
     const { html } = await pageHtml(ctx, l.path, "fr");
     const text = stripTags(html);
@@ -517,7 +521,7 @@ const SWITCH_PAGES = [
   ["Membership terms", "/membership-terms.html"], ["404", "/no-such-page-e2e"],
 ];
 
-s.test("V41 (must) the language toggle works on every page type: FR then EN, kept after reload and navigation", async (ctx) => {
+s.test("G41 (must) the language toggle works on every page type: FR then EN, kept after reload and navigation", async (ctx) => {
   const book = await stockedBook(ctx);
   const pages = SWITCH_PAGES.concat([["Book page", `/books/${book.id}`]]);
   for (const [label, p] of pages) {
@@ -546,16 +550,16 @@ s.test("V41 (must) the language toggle works on every page type: FR then EN, kep
 
 // ---- 1H. Cookies, language memory, 404 ----
 
-s.test("V42 (must) a fresh visit shows no cookie-consent banner", async (ctx) => {
+s.test("G42 (must) a fresh visit shows no cookie-consent banner", async (ctx) => {
   await ctx.goto("/", "networkidle2");
   const html = (await ctx.html()).toLowerCase();
   hasNot(html, /cookie-banner|cookie-consent|accept (all )?cookies|accepter (tous )?les cookies/);
   assert.equal(await ctx.page.$("[id*='cookie' i][class*='banner' i], .cc-window, #onetrust-banner-sdk"), null);
 });
 
-s.manual("V43 closing a private window forgets the language and the cart", "needs a human to close and reopen a private window (the cookie behaviour is checked in E10 and V41)");
+s.manual("G43 closing a private window forgets the language and the cart", "needs a human to close and reopen a private window (the cookie behaviour is checked in E10 and G41)");
 
-s.test("V44 (must) the 404 page is friendly and the menu still works", async (ctx) => {
+s.test("G44 (must) the 404 page is friendly and the menu still works", async (ctx) => {
   const res = await ctx.goto("/no-such-page");
   assert.equal(res.status(), 404);
   const text = await ctx.text();
@@ -566,7 +570,7 @@ s.test("V44 (must) the 404 page is friendly and the menu still works", async (ct
   assert.ok(await ctx.page.$("header nav a"), "the menu is still there");
 });
 
-s.test("V44b the 404 page is in French", { lang: "fr" }, async (ctx) => {
+s.test("G44b the 404 page is in French", { lang: "fr" }, async (ctx) => {
   const res = await ctx.goto("/no-such-page");
   assert.equal(res.status(), 404);
   const text = await ctx.text();
@@ -575,7 +579,7 @@ s.test("V44b the 404 page is in French", { lang: "fr" }, async (ctx) => {
   has(text, /Retour à l.accueil/);
 });
 
-s.test("V45 /books/99999999 and /books/abc show the 404 page, not a crash", async (ctx) => {
+s.test("G45 /books/99999999 and /books/abc show the 404 page, not a crash", async (ctx) => {
   for (const p of ["/books/99999999", "/books/abc"]) {
     const res = await ctx.goto(p);
     assert.equal(res.status(), 404, p);
@@ -583,7 +587,7 @@ s.test("V45 /books/99999999 and /books/abc show the 404 page, not a crash", asyn
   }
 });
 
-s.test("V46 /admin and /account while logged out show the login page", async (ctx) => {
+s.test("G46 /admin and /account while logged out show the login page", async (ctx) => {
   for (const p of ["/admin", "/account"]) {
     await ctx.goto(p);
     assert.equal(new URL(ctx.page.url()).pathname, "/login", p);
@@ -591,11 +595,115 @@ s.test("V46 /admin and /account while logged out show the login page", async (ct
   }
 });
 
-s.test("V7b adding to the cart from a book page and removing it again works", async (ctx) => {
+s.test("G7b adding to the cart from a book page and removing it again works", async (ctx) => {
   const book = await stockedBook(ctx);
   await addFirstCopyToCart(ctx, book);
   assert.equal(await cartLineCount(ctx), 1);
   await Promise.all([ctx.page.waitForNavigation(), ctx.page.click(".cart-item form[action='/cart/remove'] button")]);
   assert.equal(await cartLineCount(ctx), 0);
   has(await ctx.text(), /Your cart is empty/);
+});
+
+// ---- 1J. The cart (a guest can fill one) ----
+
+s.test("G47 (must) add to cart shows the cart with the book, condition, price and Remove", async (ctx) => {
+  const book = await stockedBook(ctx);
+  await addFirstCopyToCart(ctx, book);
+  assert.equal(new URL(ctx.page.url()).pathname, "/cart");
+  const line = await ctx.page.$eval(".cart-item", (e) => e.innerText);
+  has(line, new RegExp(book.title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  has(line, /€\d+\.\d\d/);
+  has(line, /Remove/);
+  assert.ok(await ctx.page.$(".cart-item .condition-badge"), "condition label");
+  assert.ok(await ctx.page.$(".cart-item .cart-item-cover"), "cover or 'No cover'");
+  has(await ctx.page.$eval(".cart-total", (e) => e.innerText), /Total:\s*€\d+\.\d\d/);
+});
+
+s.test("G48 a second book can be added and removed; the total updates", async (ctx) => {
+  const list = (await e2e.books()).filter((b) => b.price != null);
+  if (list.length < 2) ctx.skip("data: fewer than two in-stock books");
+  await addFirstCopyToCart(ctx, list[0]);
+  const total = async () => Number((await ctx.page.$eval(".cart-total strong", (e) => e.textContent)).replace(/[^\d.]/g, ""));
+  const one = await total();
+  await addFirstCopyToCart(ctx, list[1], 2);
+  assert.equal(await cartLineCount(ctx), 2);
+  assert.ok((await total()) > one, "total grows");
+  await Promise.all([ctx.page.waitForNavigation(), ctx.page.click(".cart-item:last-child form[action='/cart/remove'] button")]);
+  assert.equal(await cartLineCount(ctx), 1);
+  assert.equal(await total(), one, "total back to one book");
+});
+
+s.test("G49 the cart icon number matches the lines in the cart", async (ctx) => {
+  const book = await stockedBook(ctx);
+  await addFirstCopyToCart(ctx, book);
+  for (const p of ["/", "/books.html", "/events"]) {
+    await ctx.goto(p, "networkidle2");
+    await ctx.page.waitForFunction(() => document.querySelector("[data-cart-count]").textContent.trim() === "1");
+  }
+});
+
+s.test("G48b the cart survives a reload and the back button", async (ctx) => {
+  const book = await stockedBook(ctx);
+  await addFirstCopyToCart(ctx, book);
+  await ctx.page.reload({ waitUntil: "domcontentloaded" });
+  assert.equal(await cartLineCount(ctx), 1);
+  await ctx.page.goBack();
+  hasNot(await ctx.text(), /Something went wrong|Your session expired/);
+  await ctx.goto("/cart");
+  assert.equal(await cartLineCount(ctx), 1);
+});
+
+// ---- 1I. Member pages and buying need a login ----
+
+s.test("G52 logged out, /forum shows the login page", { anon: true }, async (ctx) => {
+  await ctx.goto("/forum");
+  assert.equal(new URL(ctx.page.url()).pathname, "/login");
+});
+
+// Buying needs an account.
+//
+// NOTE (changing): until the pull request that makes checkout need an account
+// is merged, the site still lets a guest check out, so G50 and G51 fail today
+// and are shown as known issues. Once the site has the new behaviour they
+// pass, and the report says "NOW PASSES, remove the todo".
+
+// What the site does with a checkout request from someone who is not logged in.
+async function checkoutAsGuest(ctx) {
+  const res = await ctx.page.evaluate(async () => {
+    const { token } = await (await fetch("/api/csrf-token")).json();
+    const body = new URLSearchParams({ _csrf: token, name: "E2E guest check", email: "e2e@example.invalid", acceptCgv: "on" });
+    const r = await fetch("/cart/checkout", { method: "POST", body, redirect: "manual" });
+    return { type: r.type, status: r.status };
+  });
+  return res;
+}
+
+s.todo("G50 (must) checkout asks a guest to log in or create an account", "waiting for the pull request that makes buying need an account (checkout still accepts guests)", async (ctx) => {
+  if (ctx.preview) ctx.skip("preview mode: checkout is switched off for everyone");
+  const book = await stockedBook(ctx);
+  await addFirstCopyToCart(ctx, book);
+  // The cart offers a way to log in or sign up (a link or button) instead of a guest checkout form...
+  const text = await ctx.text();
+  assert.equal(await ctx.page.$("form[action='/cart/checkout'] input[name='acceptCgv']"), null, "a guest must not be shown the pay-and-buy form");
+  assert.ok(await ctx.page.$("a[href^='/login'], a[href^='/signup']"), "a way to log in or create an account");
+  has(text, /log in|sign up|create an account/);
+  // ...and a request sent anyway is turned away to the login page, never started.
+  const sent = await checkoutAsGuest(ctx);
+  assert.equal(sent.type, "opaqueredirect", `checkout answered ${sent.status} to a guest, expected a redirect to log in`);
+  assert.deepEqual(ctx.blocked, [], "no payment page was reached");
+});
+
+s.todo("G51 (must) after logging in from the cart, the guest is back on the cart with their items", "waiting for the pull request that makes buying need an account", { needs: ["account"] }, async (ctx) => {
+  if (ctx.preview) ctx.skip("preview mode: checkout is switched off for everyone");
+  const c = cfg.credentials("account");
+  const book = await stockedBook(ctx);
+  await addFirstCopyToCart(ctx, book);
+  const login = await ctx.page.$("a[href^='/login']");
+  assert.ok(login, "the cart offers a log in link to a guest");
+  await Promise.all([ctx.page.waitForNavigation(), login.click()]);
+  await ctx.page.type("form[action='/login'] #email", c.email);
+  await ctx.page.type("form[action='/login'] #password", c.password);
+  await Promise.all([ctx.page.waitForNavigation(), ctx.page.click("form[action='/login'] button[type='submit']")]);
+  assert.equal(new URL(ctx.page.url()).pathname, "/cart", "back on the cart after logging in");
+  assert.equal(await cartLineCount(ctx), 1, "the item is still in the cart");
 });

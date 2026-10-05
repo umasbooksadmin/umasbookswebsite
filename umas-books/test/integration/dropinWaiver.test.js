@@ -34,7 +34,7 @@ after(async () => {
 });
 beforeEach(() => { createdIntents.length = 0; });
 
-function visitor() {
+function guest() {
   const jar = makeCookieJar();
   const send = async (path, form) => {
     const res = await fetch(`${server.base}${path}`, {
@@ -66,17 +66,17 @@ const orders = async (email) => (await pool.query("SELECT * FROM orders WHERE bu
 const checkout = (v, email, extra = {}) => v.post("/cart/checkout", { name: "Waiver Buyer", email, acceptCgv: "on", ...extra });
 
 test("cart with a drop-in seat shows the waiver box; books-only cart does not", async () => {
-  const v = visitor();
+  const v = guest();
   await v.post("/cart/add-dropin", { classId: await makeClass() });
   assert.match((await v.get("/cart")).text, /name="waiveWithdrawal"/);
 
-  const b = visitor();
+  const b = guest();
   await b.post("/cart/add", { copyId: await makeCopy() });
   assert.doesNotMatch((await b.get("/cart")).text, /waiveWithdrawal/);
 });
 
 test("drop-in checkout without the box is refused: friendly error, no order, nothing locked", async () => {
-  const v = visitor();
+  const v = guest();
   const classId = await makeClass();
   await v.post("/cart/add-dropin", { classId });
   const email = `nowaiver-${uniq()}@example.test`;
@@ -90,7 +90,7 @@ test("drop-in checkout without the box is refused: friendly error, no order, not
 });
 
 test("drop-in checkout with the box is accepted and the waiver time is stored", async () => {
-  const v = visitor();
+  const v = guest();
   await v.post("/cart/add-dropin", { classId: await makeClass() });
   const email = `waiver-${uniq()}@example.test`;
   const { res } = await checkout(v, email, { waiveWithdrawal: "on" });
@@ -101,7 +101,7 @@ test("drop-in checkout with the box is accepted and the waiver time is stored", 
 });
 
 test("books-only checkout needs no box and stores no waiver time", async () => {
-  const v = visitor();
+  const v = guest();
   await v.post("/cart/add", { copyId: await makeCopy() });
   const email = `books-${uniq()}@example.test`;
   const { res } = await checkout(v, email);

@@ -444,10 +444,13 @@ secret** = same page, **Secrets** tab.
   example `E2E_BASE_URL=https://umasbooks.org npm run e2e` from the `umas-books`
   folder with the test accounts' details typed into that Terminal window. Set
   them for one run only, never in a file. Instructions and the list of
-  manual-only steps: `umas-books/e2e/README.md`. Clean up what they created
+  manual-only steps: `umas-books/e2e/README.md`. The tests follow the five
+  kinds of user (guest, account holder, member, volunteer, admin); the account
+  holder login must be a plain account that is not a member. Clean up what they created
   (the README lists how) before launch.
-- [ ] **Manual test scripts** run and passed (every **(must)** step, and the
-  manual-only steps the automated tests list), see
+- [ ] **Manual test scripts** run and passed, one script per kind of user (guest,
+  account holder, member, volunteer, admin, edge cases): every **(must)** step,
+  and the manual-only steps the automated tests list, see
   `docs/testing/manual-test-scripts.md`.
 
 ### Turning it on again

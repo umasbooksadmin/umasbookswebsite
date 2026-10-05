@@ -19,7 +19,7 @@ async function sendVerificationEmail(user, baseUrl, { choosePassword = false } =
   );
 
   const link = `${baseUrl}/verify-email/${rawToken}`;
-  // The account's stored language (users.lang; set from the visitor's choice
+  // The account's stored language (users.lang; set from the person's choice
   // at signup), English when unknown.
   // Callers that only have id/email/name (admin email change) don't carry the
   // language: look it up.

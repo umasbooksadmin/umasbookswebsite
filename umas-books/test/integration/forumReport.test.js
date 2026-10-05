@@ -104,7 +104,7 @@ test("a member can report a reply; with no base URL the link is omitted", async 
   }
 });
 
-test("non-members and logged-out visitors cannot report", async () => {
+test("non-members and guests cannot report", async () => {
   const plain = await report(good(), { "x-test-user": JSON.stringify({ id: memberId, isMember: false }) });
   assert.equal(plain.status, 302);
   assert.equal(plain.headers.get("location"), "/");

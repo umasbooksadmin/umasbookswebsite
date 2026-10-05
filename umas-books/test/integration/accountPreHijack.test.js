@@ -199,7 +199,7 @@ test("legitimate signup works in English and French: confirm, choose a password,
   for (const lang of ["en", "fr"]) {
     const email = `legit-${lang}-${uniq()}@example.test`;
     assert.equal((await signup(email, ATTACKER_PW, lang)).status, 200);
-    // No password exists yet; the login page offers the link again, in the visitor's language.
+    // No password exists yet; the login page offers the link again, in the person's language.
     assert.equal((await login(email, ATTACKER_PW, lang)).status, 401);
     const loginPage = await (await request("/login", { lang })).text();
     assert.match(loginPage, /action="\/resend-verification"/);

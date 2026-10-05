@@ -256,7 +256,7 @@ s.test("A20 (must) each report's Download CSV link serves a CSV file named umas-
   }
   assert.ok(checked >= 5, `CSV links checked: ${checked}`);
 });
-s.manual("A21 the sales report counts the online sale, the shop sale and the drop-in seat separately", "needs real paid sales (G8, G17, A18)");
+s.manual("A21 the sales report counts the online sale, the shop sale and the drop-in seat separately", "needs real paid sales (AC26, AC35, A18)");
 
 // ---- 5F. Book requests ----
 

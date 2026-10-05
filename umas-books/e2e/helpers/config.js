@@ -3,7 +3,19 @@
 // repository) and are never printed: describeConfig() is the only thing that
 // reports on them, and it says "set" / "not set", never a value.
 
-const PERSONAS = ["visitor", "guest", "member", "volunteer", "admin", "edge"];
+// The five kinds of user (see docs/testing/manual-test-scripts.md) plus the
+// edge and negative cases that cut across all of them.
+const PERSONAS = ["guest", "account", "member", "volunteer", "admin", "edge"];
+
+// The scenario files (specs/) that make up each persona, run in this order.
+const PERSONA_FILES = {
+  guest: ["guest.e2e.js"],
+  account: ["account.e2e.js"],
+  member: ["member.e2e.js"],
+  volunteer: ["volunteer.e2e.js"],
+  admin: ["admin.e2e.js"],
+  edge: ["edge.e2e.js"],
+};
 
 const truthy = (v) => ["1", "true", "yes"].includes(String(v || "").trim().toLowerCase());
 
@@ -22,7 +34,7 @@ function runId(env = process.env) {
   return env.E2E_RUN_ID || (env.E2E_RUN_ID = newRunId());
 }
 
-// Which personas to run: E2E_ONLY=visitor,guest (empty or unset = all).
+// Which personas to run: E2E_ONLY=guest,account (empty or unset = all).
 function selectedPersonas(env = process.env) {
   const raw = String(env.E2E_ONLY || "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
   if (!raw.length) return PERSONAS.slice();
@@ -34,6 +46,7 @@ function selectedPersonas(env = process.env) {
 // Credentials of a persona that needs them, or { missing: [names] }.
 function credentials(persona, env = process.env) {
   const need = {
+    account: ["E2E_ACCOUNT_EMAIL", "E2E_ACCOUNT_PASSWORD"],
     member: ["E2E_MEMBER_EMAIL", "E2E_MEMBER_PASSWORD"],
     volunteer: ["E2E_VOLUNTEER_EMAIL", "E2E_VOLUNTEER_PASSWORD"],
     admin: ["E2E_ADMIN_EMAIL", "E2E_ADMIN_PASSWORD"],
@@ -74,6 +87,7 @@ function describeConfig(env = process.env) {
     personas: selectedPersonas(env),
     allowWrites: allowWrites(env),
     allowLive: String(env.E2E_ALLOW_LIVE || "") === "1",
+    account: set("E2E_ACCOUNT_EMAIL") === "set" && set("E2E_ACCOUNT_PASSWORD") === "set" ? "credentials set" : "no credentials",
     member: set("E2E_MEMBER_EMAIL") === "set" && set("E2E_MEMBER_PASSWORD") === "set" ? "credentials set" : "no credentials",
     volunteer: set("E2E_VOLUNTEER_EMAIL") === "set" && set("E2E_VOLUNTEER_PASSWORD") === "set" ? "credentials set" : "no credentials",
     admin: skipReason("admin", env) ? "no credentials" : "credentials set",
@@ -81,6 +95,6 @@ function describeConfig(env = process.env) {
 }
 
 module.exports = {
-  PERSONAS, truthy, baseUrl, newRunId, runId, selectedPersonas, credentials, skipReason,
+  PERSONAS, PERSONA_FILES, truthy, baseUrl, newRunId, runId, selectedPersonas, credentials, skipReason,
   allowWrites, testEmail, describeConfig,
 };

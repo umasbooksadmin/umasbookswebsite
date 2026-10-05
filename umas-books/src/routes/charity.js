@@ -36,7 +36,7 @@ async function loadActiveRound(userId) {
 
 // Fully public route (no requireMember gate) so a round set to "visible to
 // everyone" (see the Vote Settings panel in /admin/charity) can actually
-// be seen by a logged-out visitor — voting and suggesting an idea still
+// be seen by a guest — voting and suggesting an idea still
 // require membership, enforced on those two POST routes below. With no
 // active round, or one still set to "members only", this keeps the prior
 // behavior of sending a non-member away.

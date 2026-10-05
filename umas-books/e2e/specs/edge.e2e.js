@@ -43,7 +43,7 @@ s.todo("X6 the expired-session page is translated when the site is in French", "
   hasNot(await ctx.text(), /Your session expired/);
 });
 
-s.write("E2 (must) two Pay & Buy requests at the same moment start ONE checkout, not two (payments on)", async (ctx) => {
+s.write("E2 (must) two Pay & Buy requests at the same moment start ONE checkout, not two (payments on; needs the account-holder login, because buying needs an account)", { as: "account" }, async (ctx) => {
   if (ctx.preview) ctx.skip("preview mode: there is no Pay & Buy button");
   const book = await stockedBook(ctx);
   await addFirstCopyToCart(ctx, book);
@@ -135,13 +135,13 @@ s.test("E6 in preview mode on a phone the banner does not cover the menu or the 
 
 s.manual("E7 changing the password in one browser logs the other browser out", "needs two real browsers and changes the account's password");
 
-s.test("E8 a logged-in member opening /admin sees 'Admins only.'; a visitor gets the login page", { anon: true, as: "member" }, async (ctx) => {
+s.test("E8 a logged-in account holder opening /admin sees 'Admins only.'; a guest gets the login page", { anon: true, as: "account" }, async (ctx) => {
   const res = await ctx.goto("/admin");
   assert.ok([401, 403].includes(res.status()), `status ${res.status()}`);
   has(await ctx.text(), /Admins only\./);
-  const visitor = await ctx.fetchRaw("/admin", { headers: { cookie: "" } });
-  assert.ok([301, 302, 303, 307].includes(visitor.status), "a visitor is redirected to the login page");
-  assert.match(visitor.headers.get("location") || "", /\/login/);
+  const guest = await ctx.fetchRaw("/admin", { headers: { cookie: "" } });
+  assert.ok([301, 302, 303, 307].includes(guest.status), "a guest is redirected to the login page");
+  assert.match(guest.headers.get("location") || "", /\/login/);
 });
 
 s.test("E9 a 300-character book request title is refused with a clear message (nothing is created)", async (ctx) => {

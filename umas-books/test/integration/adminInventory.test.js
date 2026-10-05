@@ -151,7 +151,7 @@ async function seedBook({ title = `Seed ${tag()}`, isbn = null, cover = "https:/
 
 // ------------------------------------------------------------------ access
 
-test("anonymous visitors are sent to /login and non-admins get 403 on every inventory route", async () => {
+test("guests are sent to /login and non-admins get 403 on every inventory route", async () => {
   const routes = [
     ["GET", "/admin/inventory"], ["GET", "/admin/inventory/new"], ["GET", "/admin/inventory/scan"], ["GET", "/admin/inventory/1"],
     ["POST", "/admin/inventory"], ["POST", "/admin/inventory/lookup"], ["POST", "/admin/inventory/generate-description"],

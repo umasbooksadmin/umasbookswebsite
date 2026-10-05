@@ -63,7 +63,7 @@ beforeEach(async () => {
   };
 });
 
-function visitor() {
+function guest() {
   const jar = makeCookieJar();
   const send = async (path, { method = "GET", form } = {}) => {
     const res = await fetch(`${server.base}${path}`, {
@@ -100,7 +100,7 @@ async function checkout(v, email, extra = {}) {
 }
 
 test("add to cart: in-stock copy is added once; unavailable/unknown/non-numeric ids are ignored", async () => {
-  const v = visitor();
+  const v = guest();
   const copy = await makeCopy();
   const sold = await makeCopy({ status: "sold" });
 
@@ -121,7 +121,7 @@ test("add to cart: in-stock copy is added once; unavailable/unknown/non-numeric 
 });
 
 test("add to cart: backTo is honoured only for same-origin paths", async () => {
-  const v = visitor();
+  const v = guest();
   const copy = await makeCopy();
   const ok = await v.post("/cart/add", { copyId: copy, backTo: "/books.html" });
   assert.equal(ok.res.headers.get("location"), "/books.html");
@@ -132,7 +132,7 @@ test("add to cart: backTo is honoured only for same-origin paths", async () => {
 });
 
 test("remove drops just that line", async () => {
-  const v = visitor();
+  const v = guest();
   const a = await makeCopy();
   const b = await makeCopy();
   await v.post("/cart/add", { copyId: a });
@@ -150,7 +150,7 @@ test("remove drops just that line", async () => {
 });
 
 test("a copy that sells while sitting in a cart is dropped from the cart view", async () => {
-  const v = visitor();
+  const v = guest();
   const copy = await makeCopy();
   await v.post("/cart/add", { copyId: copy });
   await pool.query("UPDATE book_copies SET status = 'sold' WHERE id = $1", [copy]);
@@ -160,7 +160,7 @@ test("a copy that sells while sitting in a cart is dropped from the cart view", 
 });
 
 test("checkout creates a pending order, locks the copies, calls HelloAsso and redirects to payment", async () => {
-  const v = visitor();
+  const v = guest();
   const a = await makeCopy({ price: 5 });
   const b = await makeCopy({ price: 3.25 });
   await v.post("/cart/add", { copyId: a });
@@ -199,7 +199,7 @@ test("checkout creates a pending order, locks the copies, calls HelloAsso and re
 });
 
 test("checkout validation: empty cart, missing name, bad email — no order, no HelloAsso call", async () => {
-  const v = visitor();
+  const v = guest();
   let r = await checkout(v, `empty-${uniq()}@example.test`);
   assert.equal(r.res.status, 200);
   assert.match(r.text, /Your cart is empty/);
@@ -216,7 +216,7 @@ test("checkout validation: empty cart, missing name, bad email — no order, no 
 });
 
 test("checkout without accepting the terms of sale is refused and locks nothing", async () => {
-  const v = visitor();
+  const v = guest();
   const copy = await makeCopy();
   await v.post("/cart/add", { copyId: copy });
   const email = `nocgv-${uniq()}@example.test`;
@@ -229,7 +229,7 @@ test("checkout without accepting the terms of sale is refused and locks nothing"
 
 test("checkout with HelloAsso unconfigured shows a message and locks nothing", async () => {
   configured = false;
-  const v = visitor();
+  const v = guest();
   const copy = await makeCopy();
   await v.post("/cart/add", { copyId: copy });
   const email = `unconf-${uniq()}@example.test`;
@@ -244,7 +244,7 @@ test("checkout with HelloAsso unconfigured shows a message and locks nothing", a
 
 test("when HelloAsso fails to create the intent the order is cancelled and the copies released", async () => {
   createIntentImpl = async () => { throw new Error("HelloAsso 503"); };
-  const v = visitor();
+  const v = guest();
   const copy = await makeCopy();
   await v.post("/cart/add", { copyId: copy });
   const email = `fail-${uniq()}@example.test`;
@@ -260,8 +260,8 @@ test("when HelloAsso fails to create the intent the order is cancelled and the c
 
 test("sold-out race: two simultaneous checkouts for the same copy — exactly one wins", async () => {
   const copy = await makeCopy();
-  const alice = visitor();
-  const bob = visitor();
+  const alice = guest();
+  const bob = guest();
   await alice.post("/cart/add", { copyId: copy });
   await bob.post("/cart/add", { copyId: copy });
 
@@ -289,7 +289,7 @@ test("sold-out race: two simultaneous checkouts for the same copy — exactly on
 });
 
 test("a copy taken between the cart read and the lock rolls the whole checkout back with a friendly message", async () => {
-  const v = visitor();
+  const v = guest();
   const mine = await makeCopy();
   const contested = await makeCopy();
   await v.post("/cart/add", { copyId: mine });
@@ -331,12 +331,12 @@ async function addToCart(v, ...ids) {
 test("checkout refuses a 3rd pending order for one email, with a friendly message and nothing locked", async () => {
   const email = `cap-email-${uniq()}@example.test`;
   for (let i = 0; i < 2; i++) {
-    const v = visitor();
+    const v = guest();
     await addToCart(v, await makeCopy());
     assert.equal((await checkout(v, email)).res.status, 302);
     await pool.query("UPDATE orders SET client_ip = NULL WHERE buyer_email = $1", [email]); // isolate the email cap
   }
-  const v = visitor();
+  const v = guest();
   const copy = await makeCopy();
   await addToCart(v, copy);
   const r = await checkout(v, email.toUpperCase());
@@ -349,11 +349,11 @@ test("checkout refuses a 3rd pending order for one email, with a friendly messag
 
 test("checkout refuses a 3rd pending order from one IP across different emails", async () => {
   for (let i = 0; i < 2; i++) {
-    const v = visitor();
+    const v = guest();
     await addToCart(v, await makeCopy());
     assert.equal((await checkout(v, `cap-ip-${uniq()}@example.test`)).res.status, 302);
   }
-  const v = visitor();
+  const v = guest();
   const copy = await makeCopy();
   await addToCart(v, copy);
   const email = `cap-ip-${uniq()}@example.test`;
@@ -368,12 +368,12 @@ test("checkout refuses a 3rd pending order from one IP across different emails",
 test("pending orders older than the hold, and paid/cancelled ones, don't count towards the cap", async () => {
   const email = `cap-old-${uniq()}@example.test`;
   for (let i = 0; i < 2; i++) {
-    const v = visitor();
+    const v = guest();
     await addToCart(v, await makeCopy());
     assert.equal((await checkout(v, email)).res.status, 302);
   }
   await pool.query("UPDATE orders SET created_at = now() - interval '3 hours' WHERE buyer_email = $1", [email]);
-  const v = visitor();
+  const v = guest();
   await addToCart(v, await makeCopy());
   assert.equal((await checkout(v, email)).res.status, 302);
 });
@@ -410,7 +410,7 @@ function spyOnConnect({ deadlocks }) {
 test("checkout locks copies in id order whatever order they were added to the cart", async () => {
   const low = await makeCopy();
   const high = await makeCopy();
-  const v = visitor();
+  const v = guest();
   await addToCart(v, high, low);
   const spy = spyOnConnect({ deadlocks: 0 });
   try {
@@ -425,7 +425,7 @@ test("checkout locks copies in id order whatever order they were added to the ca
 });
 
 test("checkout retries once when Postgres reports a deadlock", async () => {
-  const v = visitor();
+  const v = guest();
   const copy = await makeCopy();
   await addToCart(v, copy);
   const email = `retry-${uniq()}@example.test`;
@@ -442,7 +442,7 @@ test("checkout retries once when Postgres reports a deadlock", async () => {
 });
 
 test("a checkout that deadlocks twice says 'try again' and leaves nothing locked", async () => {
-  const v = visitor();
+  const v = guest();
   const copy = await makeCopy();
   await addToCart(v, copy);
   const email = `retry2-${uniq()}@example.test`;
@@ -480,7 +480,7 @@ const orderStatus = async (id) => (await pool.query("SELECT status FROM orders W
 const returnPath = (o) => `/cart/return?order=${o.access_token}`;
 
 test("/cart/return rejects a missing, malformed or unknown token with 404", async () => {
-  const v = visitor();
+  const v = guest();
   for (const p of ["/cart/return", "/cart/return?order=1", "/cart/return?order=not-a-uuid", "/cart/return?order=00000000-0000-4000-8000-000000000000"]) {
     assert.equal((await v.get(p)).res.status, 404, p);
   }
@@ -489,7 +489,7 @@ test("/cart/return rejects a missing, malformed or unknown token with 404", asyn
 test("/cart/return: HelloAsso says paid -> order paid, copies sold, confirmation email sent", async () => {
   const { order, copy, intentId } = await pendingOrder();
   intents.set(intentId, { order: { id: 4242, payments: [{ state: "Authorized" }] } });
-  const r = await visitor().get(returnPath(order));
+  const r = await guest().get(returnPath(order));
   assert.equal(r.res.status, 200);
   assert.match(r.text, /Thank you!/);
   assert.equal(await orderStatus(order.id), "paid");
@@ -504,7 +504,7 @@ test("/cart/return: HelloAsso says paid -> order paid, copies sold, confirmation
   assert.match(sentEmails[0].text, /Return Book/);
 
   // A refresh must not double-process or re-email.
-  await visitor().get(returnPath(order));
+  await guest().get(returnPath(order));
   await new Promise((r2) => setTimeout(r2, 100));
   assert.equal(sentEmails.length, 1);
 });
@@ -512,7 +512,7 @@ test("/cart/return: HelloAsso says paid -> order paid, copies sold, confirmation
 test("/cart/return: HelloAsso says refused -> order cancelled, copies back in stock", async () => {
   const { order, copy, intentId } = await pendingOrder();
   intents.set(intentId, { order: { payments: [{ state: "Refused" }] } });
-  const r = await visitor().get(returnPath(order));
+  const r = await guest().get(returnPath(order));
   assert.equal(r.res.status, 200);
   assert.match(r.text, /Payment not completed/);
   assert.equal(await orderStatus(order.id), "cancelled");
@@ -525,7 +525,7 @@ test("/cart/return: HelloAsso says refused -> order cancelled, copies back in st
 test("/cart/return: still pending at HelloAsso -> stays pending, copies stay held", async () => {
   const { order, copy, intentId } = await pendingOrder();
   intents.set(intentId, { order: { payments: [{ state: "Pending" }] } });
-  const r = await visitor().get(returnPath(order));
+  const r = await guest().get(returnPath(order));
   assert.match(r.text, /Confirming your payment/);
   assert.equal(await orderStatus(order.id), "pending");
   assert.equal((await copyRow(copy)).status, "in_cart");
@@ -533,7 +533,7 @@ test("/cart/return: still pending at HelloAsso -> stays pending, copies stay hel
 
 test("/cart/return: HelloAsso lookup error leaves the order pending for a later retry", async () => {
   const { order, copy } = await pendingOrder({ intentId: "never-registered" }); // fake API throws for it
-  const r = await visitor().get(returnPath(order));
+  const r = await guest().get(returnPath(order));
   assert.equal(r.res.status, 200);
   assert.match(r.text, /Confirming your payment/);
   assert.equal(await orderStatus(order.id), "pending");

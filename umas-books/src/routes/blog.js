@@ -12,7 +12,7 @@ const router = express.Router();
 router.get("/api/blog/posts", async (req, res) => {
   res.set("Access-Control-Allow-Origin", "*");
   res.set("Cross-Origin-Resource-Policy", "cross-origin");
-  // Public and identical for every visitor, so safe to cache; 5 minutes
+  // Public and identical for every person, so safe to cache; 5 minutes
   // keeps a newly published post from lingering long.
   res.set("Cache-Control", "public, max-age=300");
 

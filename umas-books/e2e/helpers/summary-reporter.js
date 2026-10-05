@@ -8,14 +8,15 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { stepIdOf, manualStepIds } = require("./steps");
 
-const PERSONA_ORDER = ["visitor", "guest", "member", "volunteer", "admin", "edge"];
+const PERSONA_ORDER = ["guest", "account", "member", "volunteer", "admin", "edge"];
 // node:test reports the file that CALLED test() (the harness), not the spec
-// file, so the persona comes from the test name's prefix: VO volunteer,
-// V visitor, G guest buyer, M member, A admin, E and X edge and cross-cutting.
+// file, so the persona comes from the test name's prefix: G guest, AC account
+// holder, M member, VO volunteer, A admin, E and X edge and cross-cutting.
 const personaOf = (name) => {
   const n = String(name);
   if (/^VO[\d-]/.test(n)) return "volunteer";
-  return { V: "visitor", G: "guest", M: "member", A: "admin", E: "edge", X: "edge" }[n[0]] || "other";
+  if (/^AC[\d-]/.test(n)) return "account";
+  return { G: "guest", M: "member", A: "admin", E: "edge", X: "edge" }[n[0]] || "other";
 };
 const pad = (s, n) => String(s).padEnd(n);
 const num = (s, n) => String(s).padStart(n);

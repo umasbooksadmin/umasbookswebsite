@@ -18,7 +18,7 @@ function makeCookieJar() {
 }
 
 // extraHeaders: e.g. { "x-forwarded-for": ip } for tests that simulate many
-// different clients — /api/csrf-token is rate limited per IP for visitors
+// different clients — /api/csrf-token is rate limited per IP for people
 // that have no session cookie yet.
 function fetchCsrfToken(base, cookieJar, extraHeaders = {}) {
   return fetch(`${base}/api/csrf-token`, { headers: { cookie: cookieJar.header(), ...extraHeaders } }).then(async (res) => {

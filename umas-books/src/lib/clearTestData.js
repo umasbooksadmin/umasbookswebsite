@@ -285,7 +285,7 @@ function buildPlan({ includeContent = false, keepMembers = false } = {}, have = 
     del("totp_recovery_codes", `user_id IN ${NON_ADMIN}`);
   }
   if (have.session) {
-    // Visitors without an account (carts of deleted books) always go; with an
+    // Guests without an account (carts of deleted books) always go; with an
     // account, only the ones of accounts that are going.
     const keepSession = keepMembers ? "(sess -> 'user' ->> 'id') IN (SELECT id::text FROM users)" : ADMIN_SESSION;
     del("session", `NOT COALESCE(${keepSession}, false)`);

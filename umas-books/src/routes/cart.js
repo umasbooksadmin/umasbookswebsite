@@ -108,7 +108,7 @@ async function loadCartItems(cart) {
 // Same-origin JSON for the site header's "Cart (n)" (assets/site.js).
 router.get("/api/cart/count", (req, res) => {
   res.set("Cache-Control", "no-store");
-  // Read without getCart() so a visitor with no cart doesn't get a session created.
+  // Read without getCart() so a person with no cart doesn't get a session created.
   res.json({ count: Array.isArray(req.session.cart) ? req.session.cart.length : 0 });
 });
 

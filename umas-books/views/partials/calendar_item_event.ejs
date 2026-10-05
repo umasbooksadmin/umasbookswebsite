@@ -2,7 +2,7 @@
 /* One day-cell's event card for views/events.ejs, rendered via
    partials/calendar_grid.ejs. `item` is a row from the events table;
    `qs` is the current calendar query string, carried through so the
-   sign-up form can send the visitor back to the same view. */
+   sign-up form can send the person back to the same view. */
 const e = item;
 const tones = ['tone-a', 'tone-b', 'tone-c', 'tone-d', 'tone-e', 'tone-f'];
 const full = e.capacity != null && e.signup_count >= e.capacity;

@@ -1,4 +1,4 @@
-// Per-request language. The visitor's choice lives in the `umasbooks_lang`
+// Per-request language. The person's choice lives in the `umasbooks_lang`
 // cookie (written by assets/site.js whenever the EN/FR toggle is used). No
 // cookie: fall back to the browser's Accept-Language. Sets:
 //   req.lang / res.locals.lang / res.locals.htmlLang   'en' | 'fr'

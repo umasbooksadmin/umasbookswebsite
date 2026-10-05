@@ -43,7 +43,7 @@ after(async () => {
 let ipSeq = Math.floor(Math.random() * 200) * 250;
 const nextIp = () => { ipSeq += 1; return `10.${(ipSeq >> 16) & 255}.${(ipSeq >> 8) & 255}.${ipSeq & 255}`; };
 
-function visitor(lang) {
+function guest(lang) {
   const jar = makeCookieJar();
   const ip = nextIp();
   const send = async (path, form) => {
@@ -72,7 +72,7 @@ test("TERMS_OF_SALE_VERSION is a date string", () => {
 });
 
 test("checkout stores cgv_accepted_at and the current cgv_version on the new order", async () => {
-  const v = visitor();
+  const v = guest();
   await v.post("/cart/add", { copyId: await makeCopy() });
   const email = `cgv-${uniq()}@example.test`;
   const before = Date.now();
@@ -85,7 +85,7 @@ test("checkout stores cgv_accepted_at and the current cgv_version on the new ord
 });
 
 test("checkout without the terms checkbox is refused: no order, nothing stored", async () => {
-  const v = visitor();
+  const v = guest();
   const copyId = await makeCopy();
   await v.post("/cart/add", { copyId });
   const email = `nocgv-${uniq()}@example.test`;
@@ -102,7 +102,7 @@ test("the paid confirmation email carries the acceptance line, in English and in
     ["en", /Terms of sale accepted on \d{1,2} \w+ \d{4} \(version 2026-10-04\)\./],
     ["fr", /Conditions générales de vente acceptées le \d{1,2} \S+ \d{4} \(version 2026-10-04\)\./],
   ]) {
-    const v = visitor(lang);
+    const v = guest(lang);
     await v.post("/cart/add", { copyId: await makeCopy() });
     const email = `cgvmail-${lang}-${uniq()}@example.test`;
     await v.post("/cart/checkout", { name: "Mail Buyer", email, acceptCgv: "on" });
@@ -117,7 +117,7 @@ test("the paid confirmation email carries the acceptance line, in English and in
 });
 
 test("the proof is in the member data export and survives erasure (anonymised order keeps it)", async () => {
-  const v = visitor();
+  const v = guest();
   await v.post("/cart/add", { copyId: await makeCopy() });
   const email = `cgvexp-${uniq()}@example.test`;
   await v.post("/cart/checkout", { name: "Export Buyer", email, acceptCgv: "on" });

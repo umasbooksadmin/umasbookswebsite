@@ -59,7 +59,7 @@ CSS never cost a database lookup (see `ARCHITECTURE.md`).
   admin area of the running site, not in files.
 - **Forms:** the volunteer and weekly-immersion pre-registration forms are still
   `data-mailto` forms handled by `assets/site.js`: submitting one opens the
-  visitor's own email client with the message pre-filled. The contact form,
+  person's own email client with the message pre-filled. The contact form,
   book reservations, checkout, event and session sign-ups are real server
   routes.
 

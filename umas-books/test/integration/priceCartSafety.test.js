@@ -73,7 +73,7 @@ const copyRow = async (id) => (await pool.query("SELECT * FROM book_copies WHERE
 const adminPost = (path, fields) => c.post(path, fields, { as: admin });
 const adminGet = (path) => c.get(path, { as: admin });
 
-function visitor() {
+function guest() {
   const jar = makeCookieJar();
   const send = async (path, { method = "GET", form, lang } = {}) => {
     const res = await fetch(`${server.base}${path}`, {
@@ -110,7 +110,7 @@ test("book page: a copy with no price or a 0 price has no Add to Cart button, on
   const noPrice = await makeCopy(bookId, { price: null });
   const zero = await makeCopy(bookId, { price: 0 });
 
-  const v = visitor();
+  const v = guest();
   const en = await v.get(`/books/${bookId}`);
   assert.equal(en.res.status, 200);
   assert.match(en.text, new RegExp(`name="copyId" value="${good}"`));
@@ -128,7 +128,7 @@ test("book page: a copy with no price or a 0 price has no Add to Cart button, on
 test("book page: when no copy has a price there is no price headline and no cart form at all", async () => {
   const bookId = await makeBook();
   await makeCopy(bookId, { price: null });
-  const page = await visitor().get(`/books/${bookId}`);
+  const page = await guest().get(`/books/${bookId}`);
   assert.equal(page.res.status, 200);
   assert.doesNotMatch(page.text, /action="\/cart\/add"/);
   assert.doesNotMatch(page.text, /Infinity/);
@@ -142,7 +142,7 @@ test("/cart/add ignores a copy without a real price (NULL or 0)", async () => {
   const noPrice = await makeCopy(bookId, { price: null });
   const zero = await makeCopy(bookId, { price: 0 });
   const good = await makeCopy(bookId, { price: 4 });
-  const v = visitor();
+  const v = guest();
   await v.post("/cart/add", { copyId: noPrice });
   await v.post("/cart/add", { copyId: zero });
   assert.equal(await v.count(), 0);
@@ -153,7 +153,7 @@ test("/cart/add ignores a copy without a real price (NULL or 0)", async () => {
 test("a copy whose price is removed while it sits in a cart drops out: the cart total never counts it as 0", async () => {
   const bookId = await makeBook();
   const copy = await makeCopy(bookId, { price: 9 });
-  const v = visitor();
+  const v = guest();
   await v.post("/cart/add", { copyId: copy });
   assert.match((await v.get("/cart")).text, /9\.00/);
   await pool.query("UPDATE book_copies SET price = NULL WHERE id = $1", [copy]);
@@ -173,7 +173,7 @@ test("a copy whose price is removed while it sits in a cart drops out: the cart 
 test("checkout lock: a price removed after the cart was read cannot be locked or ordered", async () => {
   const bookId = await makeBook();
   const copy = await makeCopy(bookId, { price: 12 });
-  const v = visitor();
+  const v = guest();
   await v.post("/cart/add", { copyId: copy });
   const email = `lockrace-${uniq()}@example.test`;
   // Fires inside the checkout transaction, after the cart was read (with its
@@ -203,7 +203,7 @@ test("checkout lock: a price removed after the cart was read cannot be locked or
 test("a copy with a real price still checks out normally", async () => {
   const bookId = await makeBook();
   const copy = await makeCopy(bookId, { price: 5.25 });
-  const v = visitor();
+  const v = guest();
   await v.post("/cart/add", { copyId: copy });
   const email = `ok-${uniq()}@example.test`;
   const res = await v.post("/cart/checkout", { name: "Buyer", email, acceptCgv: "on" });

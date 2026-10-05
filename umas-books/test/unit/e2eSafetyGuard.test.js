@@ -93,10 +93,11 @@ test("looksLikePreview needs both the header and the banner", () => {
 
 // ---- configuration ----
 
-test("a persona without its variables is skipped with a message naming them; visitor and guest need none", () => {
-  assert.equal(cfg.skipReason("visitor", {}), null);
+test("a persona without its variables is skipped with a message naming them; guest and edge need none", () => {
   assert.equal(cfg.skipReason("guest", {}), null);
   assert.equal(cfg.skipReason("edge", {}), null);
+  assert.match(cfg.skipReason("account", {}), /E2E_ACCOUNT_EMAIL, E2E_ACCOUNT_PASSWORD/);
+  assert.equal(cfg.skipReason("account", { E2E_ACCOUNT_EMAIL: "a@b.c", E2E_ACCOUNT_PASSWORD: "x" }), null);
   assert.match(cfg.skipReason("member", {}), /E2E_MEMBER_EMAIL, E2E_MEMBER_PASSWORD/);
   assert.match(cfg.skipReason("volunteer", { E2E_VOLUNTEER_EMAIL: "a@b.c" }), /E2E_VOLUNTEER_PASSWORD/);
   assert.equal(cfg.skipReason("member", { E2E_MEMBER_EMAIL: "a@b.c", E2E_MEMBER_PASSWORD: "x" }), null);
@@ -111,11 +112,11 @@ test("the admin needs a two-step secret (or a recovery code) as well as email an
 
 test("describeConfig never contains a secret value", () => {
   const env = {
-    E2E_BASE_URL: "http://localhost:3000", E2E_MEMBER_EMAIL: "member@example.test", E2E_MEMBER_PASSWORD: "S3cret-member-pw!",
+    E2E_BASE_URL: "http://localhost:3000", E2E_ACCOUNT_EMAIL: "account@example.test", E2E_ACCOUNT_PASSWORD: "S3cret-account-pw!", E2E_MEMBER_EMAIL: "member@example.test", E2E_MEMBER_PASSWORD: "S3cret-member-pw!",
     E2E_ADMIN_EMAIL: "admin@example.test", E2E_ADMIN_PASSWORD: "S3cret-admin-pw!", E2E_ADMIN_TOTP_SECRET: "JBSWY3DPEHPK3PXP", E2E_ADMIN_TOTP_RECOVERY: "ZZZZZ-YYYYY",
   };
   const text = JSON.stringify(cfg.describeConfig(env));
-  for (const secret of ["S3cret-member-pw!", "S3cret-admin-pw!", "JBSWY3DPEHPK3PXP", "ZZZZZ-YYYYY", "member@example.test", "admin@example.test"]) assert.ok(!text.includes(secret), `leaked ${secret}`);
+  for (const secret of ["S3cret-account-pw!", "account@example.test", "S3cret-member-pw!", "S3cret-admin-pw!", "JBSWY3DPEHPK3PXP", "ZZZZZ-YYYYY", "member@example.test", "admin@example.test"]) assert.ok(!text.includes(secret), `leaked ${secret}`);
 });
 
 test("test e-mail addresses use a placeholder domain and the run tag; writes are off unless E2E_ALLOW_WRITES is set", () => {
@@ -129,8 +130,10 @@ test("test e-mail addresses use a placeholder domain and the run tag; writes are
 
 test("E2E_ONLY selects personas and rejects unknown names", () => {
   assert.deepEqual(cfg.selectedPersonas({}), cfg.PERSONAS);
-  assert.deepEqual(cfg.selectedPersonas({ E2E_ONLY: "guest, visitor" }), ["visitor", "guest"]);
-  assert.throws(() => cfg.selectedPersonas({ E2E_ONLY: "visitor,hacker" }), /Unknown persona/);
+  assert.deepEqual(cfg.selectedPersonas({ E2E_ONLY: "account, guest" }), ["guest", "account"]);
+  assert.throws(() => cfg.selectedPersonas({ E2E_ONLY: "guest,hacker" }), /Unknown persona/);
+  assert.deepEqual(cfg.PERSONAS, ["guest", "account", "member", "volunteer", "admin", "edge"], "the five personas plus the edge cases");
+  for (const p of cfg.PERSONAS) for (const f of cfg.PERSONA_FILES[p]) assert.ok(fs.existsSync(path.join(E2E, "specs", f)), `${p}: specs/${f} exists`);
 });
 
 // ---- the suite stays out of `npm test` and in step with the manual script ----
@@ -155,13 +158,36 @@ test("every step of the manual test script has a test (or a manual-only placehol
   const named = new Set();
   for (const f of fs.readdirSync(specDir)) {
     const text = fs.readFileSync(path.join(specDir, f), "utf8");
-    for (const m of text.matchAll(/["'`]((?:VO|[VGMAE])\d+[a-z]?) /g)) named.add(m[1]);
+    for (const m of text.matchAll(/["'`]((?:VO|AC|[GMAE])\d+[a-z]?) /g)) named.add(m[1]);
   }
   const missing = ids.filter((id) => !named.has(id));
   assert.deepEqual(missing, [], `steps with no e2e test: ${missing.join(", ")}`);
-  assert.equal(stepIdOf("V12 book page shows condition grade"), "V12");
+  assert.equal(stepIdOf("G12 book page shows condition grade"), "G12");
+  assert.equal(stepIdOf("AC44 (must) /dashboard is refused"), "AC44");
   assert.equal(stepIdOf("VO3 (must) sign up"), "VO3");
   assert.equal(stepIdOf("A5b (must) x"), "A5b");
+});
+
+test("the 'old id -> new id' table at the top of the manual script loses nothing: every new id exists, and no old id is mapped twice", () => {
+  const text = fs.readFileSync(SCRIPT, "utf8");
+  const ids = new Set(manualStepIds(SCRIPT));
+  const pairs = [...text.matchAll(/\|\s*((?:VO|[VGMAE])\d+[a-z]?)\s*\|\s*((?:VO|AC|[GMAE])\d+[a-z]?)\s*(?=\|)/g)].map((m) => [m[1], m[2]]);
+  assert.ok(pairs.length > 60, `found only ${pairs.length} rows in the mapping table`);
+  const seenOld = new Set();
+  for (const [oldId, newId] of pairs) {
+    assert.ok(!seenOld.has(oldId), `old id ${oldId} appears twice in the mapping table`);
+    seenOld.add(oldId);
+    assert.ok(ids.has(newId), `${oldId} maps to ${newId}, which is not a step of the manual script`);
+  }
+});
+
+test("the manual script and the e2e suite know exactly the five kinds of user (plus edge cases), and the old word 'visitor' is gone", () => {
+  const text = fs.readFileSync(SCRIPT, "utf8");
+  for (const heading of ["Script 1. Guest", "Script 2. Account holder", "Script 3. Member", "Script 4. Volunteer", "Script 5. Admin", "Script 6. Edge"]) {
+    assert.ok(text.includes(`## ${heading}`), `missing "## ${heading}"`);
+  }
+  assert.ok(!/visitor/i.test(text), "the manual script still says 'visitor'");
+  for (const f of walk(E2E)) assert.ok(!/visitor/i.test(fs.readFileSync(f, "utf8")), `${path.relative(E2E, f)} still says 'visitor'`);
 });
 
 test("the specs never type into or open a HelloAsso page, and never read credentials from files", () => {

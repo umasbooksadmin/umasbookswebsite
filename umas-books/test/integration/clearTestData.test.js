@@ -35,7 +35,7 @@ before(async () => {
   db = new Client({ connectionString: app.databaseUrl, ssl: false });
   await db.connect();
   // connect-pg-simple creates this table on the first login; the app has had no
-  // visitor here, so make it exactly as the library would.
+  // login here, so make it exactly as the library would.
   await db.query(`CREATE TABLE IF NOT EXISTS "session" (
     "sid" varchar NOT NULL PRIMARY KEY, "sess" json NOT NULL, "expire" timestamp(6) NOT NULL)`);
 });

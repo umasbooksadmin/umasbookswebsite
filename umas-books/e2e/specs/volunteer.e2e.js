@@ -59,6 +59,14 @@ s.test("VO6 volunteers can open the forum, charity vote and meetings", { as: "vo
   }
 });
 
+s.test("VO8 (must) a volunteer reaches Member's Access and the announcements without being marked as a member", { as: "volunteer" }, async (ctx) => {
+  for (const p of ["/dashboard", "/announcements"]) {
+    const res = await ctx.goto(p);
+    assert.ok(res.status() < 400, `${p} ${res.status()}`);
+    assert.equal(new URL(ctx.page.url()).pathname, p, `${p} did not redirect: a volunteer passes every member check`);
+  }
+});
+
 s.test("VO7 admin: the volunteer shifts page opens", { anon: true, as: "admin" }, async (ctx) => {
   await ctx.goto("/admin/volunteer-shifts");
   assert.equal(new URL(ctx.page.url()).pathname, "/admin/volunteer-shifts");

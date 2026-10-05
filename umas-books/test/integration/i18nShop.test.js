@@ -45,7 +45,7 @@ beforeEach(async () => {
 
 const uniq = () => `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
 
-function visitor(lang) {
+function guest(lang) {
   const jar = makeCookieJar();
   const send = async (path, { method = "GET", form } = {}) => {
     const cookie = [jar.header(), lang ? `umasbooks_lang=${lang}` : ""].filter(Boolean).join("; ");
@@ -81,7 +81,7 @@ test("checkout form (HelloAsso on, book + drop-in seat) is fully translated", as
   const classId = await makeClass();
   const pages = {};
   for (const lang of ["en", "fr"]) {
-    const v = visitor(lang);
+    const v = guest(lang);
     await v.post("/cart/add", { copyId: copy.copyId });
     await v.post("/cart/add-dropin", { classId });
     pages[lang] = (await v.get("/cart")).text;
@@ -94,14 +94,14 @@ test("checkout form (HelloAsso on, book + drop-in seat) is fully translated", as
   assert.deepEqual(untranslated(pages.en, pages.fr, ALLOW), []);
 });
 
-test("checkout errors: French for a French visitor, English otherwise", async () => {
+test("checkout errors: French for a French user, English otherwise", async () => {
   const copy = await makeBookCopy();
   for (const [lang, empty, badEmail, noTerms] of [
     ["fr", /Votre panier est vide/, /Veuillez indiquer votre nom et une adresse e-mail valide/, /Veuillez accepter les conditions de vente/],
     ["en", /Your cart is empty\./, /Please enter your name and a valid email address\./, /Please accept the terms of sale to continue\./],
     [undefined, /Your cart is empty\./, /Please enter your name/, /Please accept the terms of sale/],
   ]) {
-    const v = visitor(lang);
+    const v = guest(lang);
     assert.match((await v.post("/cart/checkout", { name: "A", email: "a@example.test", acceptCgv: "on" })).text, empty);
     await v.post("/cart/add", { copyId: copy.copyId });
     assert.match((await v.post("/cart/checkout", { name: "", email: "nope", acceptCgv: "on" })).text, badEmail);
@@ -109,9 +109,9 @@ test("checkout errors: French for a French visitor, English otherwise", async ()
   }
 });
 
-test("the drop-in waiver error is French for a French visitor", async () => {
+test("the drop-in waiver error is French for a French user", async () => {
   const classId = await makeClass();
-  const v = visitor("fr");
+  const v = guest("fr");
   await v.post("/cart/add-dropin", { classId });
   const r = await v.post("/cart/checkout", { name: "A", email: "a@example.test", acceptCgv: "on" });
   assert.match(r.text, /Veuillez cocher la case confirmant/);
@@ -120,7 +120,7 @@ test("the drop-in waiver error is French for a French visitor", async () => {
 test("a French checkout stores lang=fr and the paid confirmation email is French (English buyer unchanged)", async () => {
   const pay = async (lang) => {
     const copy = await makeBookCopy();
-    const v = visitor(lang);
+    const v = guest(lang);
     await v.post("/cart/add", { copyId: copy.copyId });
     const email = `buyer-${lang}-${uniq()}@example.test`;
     const r = await v.post("/cart/checkout", { name: "Marie", email, acceptCgv: "on" });
@@ -143,8 +143,8 @@ test("cart_return (pending, payment provider silent) is translated", async () =>
   const { rows } = await pool.query(
     "INSERT INTO orders (buyer_name, buyer_email, total_amount, status) VALUES ('B', 'pending@example.test', 5, 'pending') RETURNING access_token"
   );
-  const en = (await visitor("en").get(`/cart/return?order=${rows[0].access_token}`)).text;
-  const fr = (await visitor("fr").get(`/cart/return?order=${rows[0].access_token}`)).text;
+  const en = (await guest("en").get(`/cart/return?order=${rows[0].access_token}`)).text;
+  const fr = (await guest("fr").get(`/cart/return?order=${rows[0].access_token}`)).text;
   assert.match(fr, /Confirmation de votre paiement/);
   assert.deepEqual(untranslated(en, fr, ALLOW), []);
 });

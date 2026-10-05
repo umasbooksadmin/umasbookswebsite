@@ -22,10 +22,10 @@
 
   function isFavorite(id) { return getFavorites().indexOf(id) !== -1; }
 
-  // Best-effort sync to the server for logged-in visitors (see
+  // Best-effort sync to the server for logged-in users (see
   // POST /api/favorites/toggle) — this is what gives the Browse Books
   // page's "recommended for you" pick a real pool of member favorites to
-  // draw from. Anonymous visitors' favorites stay local-only, same as
+  // draw from. Guests' favorites stay local-only, same as
   // before; the server silently no-ops for them. Never blocks the UI or
   // surfaces an error — a failed sync just means this toggle didn't
   // register server-side, which isn't worth interrupting anyone over.
