@@ -388,8 +388,8 @@ test("preview mode: the 403 notice is never masked by the login redirect (order 
   assert.equal((await ordersFor(account.email)).length, 0);
   assert.equal(await copyStatus(copy), "in_stock");
 
-  assert.equal((await guest.get("/cart/checkout")).location, "/cart", "GET in preview goes to the cart, which carries the notice");
-  const page = (await guest.get("/cart")).text;
+  assert.equal((await anon.get("/cart/checkout")).location, "/cart", "GET in preview goes to the cart, which carries the notice");
+  const page = (await anon.get("/cart")).text;
   assert.ok(page.includes("Online ordering opens when we launch."));
   assert.ok(!page.includes("Log in or create an account to check out"), "the preview notice is shown instead of the login block");
 });
