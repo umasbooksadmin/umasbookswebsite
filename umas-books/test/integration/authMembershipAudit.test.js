@@ -9,7 +9,7 @@ const assert = require("node:assert/strict");
 const bcrypt = require("bcryptjs");
 const { prepareDatabase, buildApp, listen, waitFor } = require("../helpers/inProcessApp");
 
-const db = prepareDatabase("authaudit");
+const db = prepareDatabase("authaudit", { isolated: true });
 
 // Stubs go in BEFORE the routes load (membership.js destructures them).
 const helloasso = require("../../src/lib/helloasso");

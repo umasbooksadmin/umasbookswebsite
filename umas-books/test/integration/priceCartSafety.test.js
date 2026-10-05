@@ -12,7 +12,7 @@ const { makeClient, makeUser, uniq } = require("../helpers/routeClient");
 const { makeCookieJar } = require("../helpers/httpClient");
 const { createAccount, logInInProcess } = require("../helpers/accounts");
 
-const db = prepareDatabase("price_safety");
+const db = prepareDatabase("price_safety", { isolated: true });
 
 const mailer = require("../../src/mailer");
 mailer.sendMail = async () => {};

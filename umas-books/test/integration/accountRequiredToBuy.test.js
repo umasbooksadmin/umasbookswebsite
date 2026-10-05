@@ -24,7 +24,7 @@ const { prepareDatabase, buildApp, listen } = require("../helpers/inProcessApp")
 const { makeCookieJar } = require("../helpers/httpClient");
 const { createAccount } = require("../helpers/accounts");
 
-const db = prepareDatabase("account_to_buy");
+const db = prepareDatabase("account_to_buy", { isolated: true });
 
 const mailer = require("../../src/mailer");
 const sentEmails = [];
@@ -61,7 +61,17 @@ before(async () => {
   const { isPreviewMode } = require("../../src/lib/preview");
   const previewLocals = express.Router();
   previewLocals.use((req, res, next) => { res.locals.preview = isPreviewMode(); next(); });
-  const app = buildApp([previewLocals, require("../../src/routes/auth"), require("../../src/routes/cart")]);
+  // A session store whose writes land late (like a busy database): only when a
+  // route awaits its own save before redirecting does the next request see the change.
+  const slowSave = express.Router();
+  slowSave.use((req, res, next) => {
+    if (req.get("x-slow-session")) {
+      const orig = req.session.save.bind(req.session);
+      req.session.save = (cb) => setTimeout(() => orig(cb), 150);
+    }
+    next();
+  });
+  const app = buildApp([slowSave, previewLocals, require("../../src/routes/auth"), require("../../src/routes/cart")]);
   app.set("trust proxy", true);
   server = await listen(app);
 });
@@ -415,4 +425,27 @@ test("checkout errors are French for a French account holder", async () => {
   assert.match((await v.post("/cart/checkout", { name: "A", acceptCgv: "on" })).text, /Votre panier est vide/);
   await v.post("/cart/add", { copyId: await makeCopy() });
   assert.match((await v.post("/cart/checkout", { name: "", acceptCgv: "on" })).text, /Veuillez indiquer votre nom\./);
+});
+
+// ---------- 9. cart edits are saved before the redirect ----------
+
+test("Add to cart / Remove: the session is saved BEFORE the redirect, so the cart is never empty right after (slow session store)", async () => {
+  const jar = makeCookieJar();
+  const ip = nextIp();
+  const call = async (path, form) => {
+    const res = await fetch(`${server.base}${path}`, {
+      method: form ? "POST" : "GET", redirect: "manual",
+      headers: { "x-forwarded-for": ip, "x-slow-session": "1", cookie: jar.header(), ...(form ? { "content-type": "application/x-www-form-urlencoded" } : {}) },
+      body: form ? new URLSearchParams(form).toString() : undefined,
+    });
+    jar.capture(res);
+    return res;
+  };
+  const count = async () => (await (await call("/api/cart/count")).json()).count;
+  const copy = await makeCopy();
+  assert.equal((await call("/cart/add", { copyId: copy })).status, 302);
+  assert.equal(await count(), 1, "the line is there on the very next request");
+  const lineId = Number((await (await call("/cart")).text()).match(/name="lineId" value="(\d+)"/)[1]);
+  assert.equal((await call("/cart/remove", { lineId })).status, 302);
+  assert.equal(await count(), 0, "and gone right after Remove");
 });

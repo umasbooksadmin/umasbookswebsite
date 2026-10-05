@@ -9,7 +9,7 @@
 const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const { startTestApp } = require("../helpers/testApp");
-const { makeCookieJar, fetchCsrfToken } = require("../helpers/httpClient");
+const { makeCookieJar, fetchCsrfToken, waitForCartCount } = require("../helpers/httpClient");
 const { createAccount, loginOverHttp } = require("../helpers/accounts");
 
 const PORT = 3418; // distinct from 3411-3417
@@ -18,7 +18,7 @@ let app;
 let pool;
 
 before(async () => {
-  app = await startTestApp({ port: PORT });
+  app = await startTestApp({ port: PORT, isolated: true });
   process.env.DATABASE_URL = app.databaseUrl;
   process.env.PGSSLMODE = process.env.PGSSLMODE || "disable";
   ({ pool } = require("../../src/db"));
@@ -60,6 +60,8 @@ test("a cart can't grow past 20 lines", async () => {
   for (let i = 0; i < 22; i++) {
     const c = await newCopy();
     await post(jar, "/cart/add", { copyId: c.id, backTo: "/cart" });
+    // The next add reads the session back: let this write land first.
+    await waitForCartCount(app.base, jar, Math.min(i + 1, 20));
   }
   const res = await fetch(`${app.base}/api/cart/count`, { headers: { cookie: jar.header() } });
   assert.equal((await res.json()).count, 20);
@@ -69,6 +71,7 @@ test("checkout ignores a posted (even multi-recipient) email: an order only ever
   const jar = makeCookieJar();
   const c = await newCopy();
   await post(jar, "/cart/add", { copyId: c.id, backTo: "/cart" });
+  await waitForCartCount(app.base, jar, 1);
   const before = (await pool.query("SELECT count(*)::int AS n FROM orders")).rows[0].n;
 
   // Logged out: redirected to log in, nothing created, nothing locked.

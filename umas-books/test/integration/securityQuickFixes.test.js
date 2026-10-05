@@ -15,7 +15,7 @@ const bcrypt = require("bcryptjs");
 // in production) instead of an unhandled rejection and a hung request.
 const { prepareDatabase, buildApp, listen, waitFor } = require("../helpers/inProcessApp");
 
-const db = prepareDatabase("secquick");
+const db = prepareDatabase("secquick", { isolated: true });
 
 // Stubs go in BEFORE the routes load (they destructure at require time).
 const mailer = require("../../src/mailer");
@@ -103,6 +103,10 @@ test("signup: the display name is capped at 100 characters", async () => {
   assert.equal(res.status, 200);
   const { rows } = await pool.query("SELECT display_name FROM users WHERE email = $1", [email]);
   assert.equal(rows[0].display_name.length, 100);
+  // A real signup sends its verification mail in the background. Wait for it,
+  // or it lands after the next test's beforeEach has cleared `sent` and is
+  // counted as mail that test "sent" (the create-member test below asserts none).
+  await waitFor(() => sent.some((m) => m.to === email), { message: "verification email for the capped-name signup" });
 });
 
 test("admin create-member: an invalid or multi-recipient email creates nothing and mails nobody", async () => {
@@ -118,6 +122,7 @@ test("admin create-member: an invalid or multi-recipient email creates nothing a
   const res = await post("/admin/members", { email: ok, displayName: "Invitee" }, adminHeader);
   assert.equal(res.status, 302);
   assert.equal(await count(ok), 1);
+  await waitFor(() => sent.length >= 1, { message: "invitation email for the real member" }); // sent in the background
   assert.equal(sent.length, 1);
   assert.equal(sent[0].to, ok);
 });

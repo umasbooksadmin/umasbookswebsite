@@ -8,7 +8,7 @@ const { prepareDatabase, buildApp, listen } = require("../helpers/inProcessApp")
 const { makeCookieJar } = require("../helpers/httpClient");
 const { createAccount, logInInProcess } = require("../helpers/accounts");
 
-const db = prepareDatabase("dropin_waiver");
+const db = prepareDatabase("dropin_waiver", { isolated: true });
 
 const mailer = require("../../src/mailer");
 mailer.sendMail = async () => {};

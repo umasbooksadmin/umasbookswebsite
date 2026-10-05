@@ -19,7 +19,7 @@ let app;
 let pool;
 
 before(async () => {
-  app = await startTestApp({ port: PORT });
+  app = await startTestApp({ port: PORT, isolated: true });
   process.env.DATABASE_URL = app.databaseUrl;
   process.env.PGSSLMODE = process.env.PGSSLMODE || "disable";
   ({ pool } = require("../../src/db"));

@@ -18,7 +18,7 @@ let app;
 let pool;
 
 before(async () => {
-  app = await startTestApp({ port: PORT });
+  app = await startTestApp({ port: PORT, isolated: true });
   // Reuse whichever database startTestApp decided on (an externally
   // supplied one in CI, or a freshly created one locally) for direct row
   // manipulation below — required() lazily, after DATABASE_URL is known,

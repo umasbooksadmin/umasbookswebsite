@@ -22,7 +22,7 @@ const { prepareDatabase, buildApp, listen } = require("../helpers/inProcessApp")
 const { makeCookieJar } = require("../helpers/httpClient");
 const { createAccount } = require("../helpers/accounts");
 
-const db = prepareDatabase("membership_check");
+const db = prepareDatabase("membership_check", { isolated: true });
 
 const mailer = require("../../src/mailer");
 const sentEmails = [];

@@ -4,10 +4,8 @@
 // CSRF (see inProcessApp.js), and gives tests logged-in admin / member
 // users backed by real `users` rows (created_by is a foreign key).
 //
-// In CI every file shares ONE database, so tests must use unique values
-// (uniq()) and never rely on global row counts. A file that has to do
-// something global (the charity screen deactivates every active round)
-// passes { isolated: true } to get its own throwaway database instead.
+// Pass { isolated: true } to get a throwaway database of the file's own even
+// when CI points every file at one shared database (see testDatabase.js).
 
 const path = require("node:path");
 const { prepareDatabase, buildApp, listen } = require("./inProcessApp");
@@ -17,28 +15,11 @@ const uniq = () => `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
 
 // routerNames: file names under src/routes/admin (without .js).
 function adminHarness(label, routerNames, { isolated = false } = {}) {
-  const sharedUrl = process.env.DATABASE_URL;
-  const db = prepareDatabase(label);
-  let isolatedName = null;
-  if (isolated && sharedUrl) {
-    // Same server, own database: prepareDatabase() above left DATABASE_URL
-    // pointing at the shared one, so re-point it before src/db loads.
-    isolatedName = `umasbooks_${label}_test_${Date.now()}`;
-    const u = new URL(sharedUrl);
-    u.pathname = `/${isolatedName}`;
-    process.env.DATABASE_URL = u.toString();
-  }
+  const db = prepareDatabase(label, { isolated });
   const { pool } = require("../../src/db");
 
   const h = { pool, uniq, base: null, admin: null, member: null };
   let server;
-
-  async function adminClient(url) {
-    const { Client } = require("pg");
-    const c = new Client({ connectionString: url });
-    await c.connect();
-    return c;
-  }
 
   async function makeUser(flags) {
     const email = `admin-content-${uniq()}@example.test`;
@@ -56,17 +37,7 @@ function adminHarness(label, routerNames, { isolated = false } = {}) {
   h.makeUser = makeUser;
 
   h.start = async () => {
-    if (isolatedName) {
-      const c = await adminClient(sharedUrl);
-      await c.query(`CREATE DATABASE "${isolatedName}"`);
-      await c.end();
-      const { execFileSync } = require("node:child_process");
-      execFileSync("node", ["src/migrate.js"], {
-        cwd: path.join(__dirname, "..", ".."), env: process.env, stdio: "inherit",
-      });
-    } else {
-      db.create();
-    }
+    db.create();
     h.admin = await makeUser({ admin: true });
     h.member = await makeUser({ member: true });
 
@@ -89,13 +60,7 @@ function adminHarness(label, routerNames, { isolated = false } = {}) {
   h.stop = async () => {
     if (server) await server.close();
     await pool.end();
-    if (isolatedName) {
-      const c = await adminClient(sharedUrl);
-      await c.query(`DROP DATABASE IF EXISTS "${isolatedName}" WITH (FORCE)`);
-      await c.end();
-    } else {
-      db.drop();
-    }
+    db.drop();
   };
 
   const headersFor = (user, extra) => ({ ...(user ? { "x-test-user": JSON.stringify(user) } : {}), ...extra });

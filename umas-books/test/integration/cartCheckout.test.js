@@ -12,7 +12,7 @@ const { prepareDatabase, buildApp, listen, waitFor } = require("../helpers/inPro
 const { makeCookieJar } = require("../helpers/httpClient");
 const { createAccount, sessionHeaders } = require("../helpers/accounts");
 
-const db = prepareDatabase("cart_checkout");
+const db = prepareDatabase("cart_checkout", { isolated: true });
 
 const mailer = require("../../src/mailer");
 const sentEmails = [];

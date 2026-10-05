@@ -800,8 +800,10 @@ flowchart LR
   are pinned to an exact commit, not a moving tag.
 * Tests use a real Postgres; locally every test file gets its own throwaway
   database, but **in CI all files share one database and run concurrently** —
-  tests must never do anything global to a shared table (use
-  `startTestApp({ isolated: true })`).
+  so every test file that gets a database must pass `isolated: true` (own
+  throwaway database on the same server); `test/unit/sharedDatabaseGuard.test.js`
+  enforces it. See "Writing tests that are safe on the shared CI database" in
+  `umas-books/README.md`.
 * The smoke crawl and the tests switch the admin two-step requirement off
   (`ADMIN_2FA_REQUIRED=false`); the setting is ignored when `NODE_ENV=production`.
 * Reproduce production's UTC environment on a Paris-timezone machine with

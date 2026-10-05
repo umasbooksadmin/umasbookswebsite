@@ -8,6 +8,7 @@ const { baseUrl } = require("../lib/baseUrl");
 const { isPreviewMode } = require("../lib/preview");
 const { TERMS_OF_SALE_VERSION } = require("../lib/legal");
 const { loadOrderItems, orderItemLabel } = require("../lib/orderItems");
+const { saveSession } = require("../lib/session");
 const { clean, parseId } = require("../lib/validation");
 const { CART_RETURN } = require("../lib/returnTo");
 const { checkoutLimiter, cartEditLimiter } = require("../middleware/rateLimits");
@@ -189,6 +190,7 @@ router.post("/cart/add", cartEditLimiter, async (req, res) => {
       }
     }
   }
+  await saveSession(req);
   res.redirect(backTo);
 });
 
@@ -211,14 +213,16 @@ router.post("/cart/add-dropin", cartEditLimiter, async (req, res) => {
       if (spotsLeft > 0 && cart.length < MAX_CART_LINES) cart.push({ kind: "dropin", lineId: nextLineId(req), classId });
     }
   }
+  await saveSession(req);
   res.redirect(backTo);
 });
 
-router.post("/cart/remove", (req, res) => {
+router.post("/cart/remove", async (req, res) => {
   // Only compared against the session's own lines, never sent to SQL.
   const lineId = Number(req.body.lineId);
   const cart = getCart(req);
   req.session.cart = cart.filter((l) => l.lineId !== lineId);
+  await saveSession(req);
   res.redirect("/cart");
 });
 
@@ -276,7 +280,10 @@ router.post("/cart/checkout", checkoutLimiter, async (req, res) => {
   // merely hides the form). Checked AFTER preview mode, so the preview notice
   // is never masked, and BEFORE anything else: a guest creates no order, no
   // lock, no HelloAsso call. The cart stays in the session.
-  if (account.state === "guest") return res.redirect(LOGIN_REQUIRED_URL);
+  if (account.state === "guest") {
+    await saveSession(req); // the pruned cart must be there when the login page loads
+    return res.redirect(LOGIN_REQUIRED_URL);
+  }
   if (account.state === "unconfirmed") {
     res.status(403);
     return renderCart({ error: req.tr("Please confirm your email address before ordering: open the link we sent you when you signed up.", "Veuillez confirmer votre adresse e-mail avant de commander : ouvrez le lien que nous vous avons envoyé lors de votre inscription.") });
@@ -444,6 +451,7 @@ router.post("/cart/checkout", checkoutLimiter, async (req, res) => {
   // already live — see persistCheckoutIntentId in lib/cart.js.
   await persistCheckoutIntentId(pool, order.id, intent.id);
   req.session.cart = [];
+  await saveSession(req);
   res.redirect(intent.redirectUrl);
 });
 
