@@ -43,6 +43,17 @@
 
   <% if (locals.preview) { %>
     <div role="status" class="notice-box"><%= tr('Online ordering opens when we launch. This is a preview, so you can fill a cart to see how it works, but nothing can be ordered yet.', 'La commande en ligne ouvrira au lancement. Ceci est un aperçu : vous pouvez remplir un panier pour voir comment cela fonctionne, mais rien ne peut encore être commandé.') %></div>
+  <% } else if (locals.checkoutState === 'guest') { %>
+    <div class="card" id="login-to-checkout">
+      <h2 class="section-title"><%= tr('Log in or create an account to check out', 'Connectez-vous ou créez un compte pour commander') %></h2>
+      <p class="muted"><%= tr('You need an account to place an order. Your cart is kept: you will come straight back here.', 'Un compte est nécessaire pour passer commande. Votre panier est conservé : vous reviendrez directement ici.') %></p>
+      <p>
+        <a class="btn" href="/login?returnTo=<%= encodeURIComponent('/cart') %>"><%= tr('Log in', 'Se connecter') %></a>
+        <a class="btn btn-outline" href="/signup?returnTo=<%= encodeURIComponent('/cart') %>"><%= tr('Create an account', 'Créer un compte') %></a>
+      </p>
+    </div>
+  <% } else if (locals.checkoutState === 'unconfirmed') { %>
+    <div role="status" class="notice-box"><%= tr('Please confirm your email address before ordering: open the link we sent you when you signed up.', 'Veuillez confirmer votre adresse e-mail avant de commander : ouvrez le lien que nous vous avons envoyé lors de votre inscription.') %></div>
   <% } else if (!helloassoReady) { %>
     <div role="status" class="notice-box"><%= tr("Online payment isn't switched on yet — please check back soon, or come by the shop to buy in person.", "Le paiement en ligne n’est pas encore activé : revenez bientôt, ou passez à la boutique pour acheter sur place.") %></div>
   <% } else { %>
@@ -51,9 +62,10 @@
       <form class="stack" method="post" action="/cart/checkout">
         <%- include('partials/csrf_field') %>
         <label for="name"><%= tr('Name', 'Nom') %></label>
-        <input id="name" name="name" type="text" required>
-        <label for="email"><%= tr('Email', 'E-mail') %></label>
-        <input id="email" name="email" type="email" required>
+        <input id="name" name="name" type="text" autocomplete="name" value="<%= locals.accountName || '' %>" required>
+        <label for="accountEmail"><%= tr('Email', 'E-mail') %></label>
+        <input id="accountEmail" type="email" value="<%= locals.accountEmail || '' %>" readonly aria-describedby="accountEmailHelp">
+        <p class="muted small" id="accountEmailHelp"><%= tr('This is your account email: your confirmation is sent there.', 'Voici l’adresse e-mail de votre compte : votre confirmation y sera envoyée.') %></p>
         <label for="phone"><%= tr('Phone (optional)', 'Téléphone (facultatif)') %></label>
         <input id="phone" name="phone" type="tel">
         <p class="muted small"><%= tr("You'll pay securely via HelloAsso, then come by Uma's Books to pick up your order.", "Vous paierez en toute sécurité via HelloAsso, puis vous passerez à Uma's Books pour retirer votre commande.") %></p>

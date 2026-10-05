@@ -3,8 +3,10 @@
 <h1><%= tr('Create your account', 'Créer votre compte') %></h1>
 <% if (error) { %><div role="alert" class="error-box"><%= error %></div><% } %>
 <% if (notice) { %><div role="status" class="notice-box"><%= notice %></div><% } %>
+<%- include('partials/return_note') %>
 <form class="stack" method="post" action="/signup">
   <%- include('partials/csrf_field') %>
+  <% if (locals.returnTo) { %><input type="hidden" name="returnTo" value="<%= locals.returnTo %>"><% } %>
   <label for="displayName"><%= tr('Name', 'Nom') %></label>
   <input id="displayName" name="displayName" type="text" autocomplete="name" required>
   <label for="email"><%= tr('Email', 'E-mail') %></label>
@@ -13,6 +15,6 @@
   <button class="btn" type="submit"><%= tr('Create account', 'Créer mon compte') %></button>
   <%- include('partials/privacy_note', { en: 'We use your details only to create and manage your account. See our', fr: 'Vos données servent uniquement à créer et gérer votre compte. Consultez notre' }) %>
 </form>
-<p class="muted small"><%= tr('Already a member?', 'Déjà membre ?') %> <a href="/login"><%= tr('Log in', 'Se connecter') %></a></p>
+<p class="muted small"><%= tr('Already a member?', 'Déjà membre ?') %> <a href="/login<%= locals.returnTo ? '?returnTo=' + encodeURIComponent(locals.returnTo) : '' %>"><%= tr('Log in', 'Se connecter') %></a></p>
 
 <%- include('partials/footer') %>

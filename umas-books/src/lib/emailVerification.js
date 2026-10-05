@@ -3,19 +3,20 @@ const { generateToken, hashToken } = require("./resetTokens");
 const { sendMail } = require("../mailer");
 const { emailSafeName } = require("./validation");
 const { emailTr } = require("./lang");
+const { safeReturnTo } = require("./returnTo");
 
 const TOKEN_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 // choosePassword: true for a new signup, whose link leads to "choose your
 // password" (it has none yet); false for a plain address confirmation.
-async function sendVerificationEmail(user, baseUrl, { choosePassword = false } = {}) {
+async function sendVerificationEmail(user, baseUrl, { choosePassword = false, returnTo = null, membership = false } = {}) {
   const rawToken = generateToken();
   const tokenHash = hashToken(rawToken);
   const expiresAt = new Date(Date.now() + TOKEN_TTL_MS);
 
   await pool.query(
-    "INSERT INTO email_verification_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, $3)",
-    [user.id, tokenHash, expiresAt]
+    "INSERT INTO email_verification_tokens (user_id, token_hash, expires_at, return_to) VALUES ($1, $2, $3, $4)",
+    [user.id, tokenHash, expiresAt, safeReturnTo(returnTo)]
   );
 
   const link = `${baseUrl}/verify-email/${rawToken}`;
@@ -30,10 +31,17 @@ async function sendVerificationEmail(user, baseUrl, { choosePassword = false } =
   }
   const tr = emailTr(lang);
   const name = emailSafeName(user.display_name);
+  // A membership sign-up pays first and confirms after: say what the link is for.
+  const memberLine = membership
+    ? tr(
+        "You started becoming a member: your membership is attached to your account as soon as you confirm, once your payment has gone through.\n\n",
+        "Vous avez commencé votre adhésion : elle est rattachée à votre compte dès que vous confirmez, une fois votre paiement effectué.\n\n"
+      )
+    : "";
   const text = choosePassword
     ? tr(
-        `Hi ${name},\n\nClick the link below to confirm your email address and choose your password (this link expires in 24 hours):\n${link}\n\nIf you didn't create an account at Uma's Books, you can safely ignore this email.`,
-        `Bonjour ${name},\n\nCliquez sur le lien ci-dessous pour confirmer votre adresse e-mail et choisir votre mot de passe (ce lien expire dans 24 heures) :\n${link}\n\nSi vous n'avez pas créé de compte sur Uma's Books, vous pouvez ignorer ce message.`
+        `Hi ${name},\n\n${memberLine}Click the link below to confirm your email address and choose your password (this link expires in 24 hours):\n${link}\n\nIf you didn't create an account at Uma's Books, you can safely ignore this email.`,
+        `Bonjour ${name},\n\n${memberLine}Cliquez sur le lien ci-dessous pour confirmer votre adresse e-mail et choisir votre mot de passe (ce lien expire dans 24 heures) :\n${link}\n\nSi vous n'avez pas créé de compte sur Uma's Books, vous pouvez ignorer ce message.`
       )
     : tr(
         `Hi ${name},\n\nConfirm this is your email address (this link expires in 24 hours):\n${link}\n\nIf you didn't create an account at Uma's Books, you can safely ignore this email.`,
@@ -41,7 +49,9 @@ async function sendVerificationEmail(user, baseUrl, { choosePassword = false } =
       );
   await sendMail({
     to: user.email,
-    subject: choosePassword
+    subject: membership
+      ? tr("Confirm your email to finish becoming a member of Uma's Books", "Confirmez votre adresse e-mail pour finaliser votre adhésion à Uma's Books")
+      : choosePassword
       ? tr("Confirm your email and choose your password for Uma's Books", "Confirmez votre adresse e-mail et choisissez votre mot de passe pour Uma's Books")
       : tr("Confirm your email for Uma's Books", "Confirmez votre adresse e-mail pour Uma's Books"),
     text,

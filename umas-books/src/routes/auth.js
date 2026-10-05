@@ -11,9 +11,12 @@ const { requireAuth } = require("../middleware/auth");
 const { isEmail, clean } = require("../lib/validation");
 const { baseUrl } = require("../lib/baseUrl");
 const { saveSession } = require("../lib/session");
+const { safeReturnTo } = require("../lib/returnTo");
 const totp = require("../lib/totp");
 const { audit } = require("../lib/audit");
-const { syncMembershipInBackground } = require("../lib/membership");
+const { syncMembershipInBackground, syncMembershipForEmail } = require("../lib/membership");
+const helloasso = require("../lib/helloasso");
+const { isPreviewMode } = require("../lib/preview");
 
 const router = express.Router();
 
@@ -78,6 +81,12 @@ async function refreshUserLang(req, userId) {
   await pool.query("UPDATE users SET lang = $1 WHERE id = $2", [req.lang, userId]);
 }
 
+// Where a fresh login lands: a validated returnTo (e.g. the cart a guest was
+// sent away from at checkout) wins, otherwise the role's usual home.
+function landingFor(user, returnTo) {
+  return safeReturnTo(returnTo) || (user.is_admin ? "/admin" : (user.is_member || user.is_volunteer) ? "/dashboard" : "/");
+}
+
 function loginAs(req, res, user, redirectTo) {
   const cart = req.session.cart;
   const cartSeq = req.session.cartSeq;
@@ -125,8 +134,44 @@ router.get("/signup", (req, res) => {
     const u = req.session.user;
     return res.redirect(u.isAdmin ? "/admin" : (u.isMember || u.isVolunteer) ? "/dashboard" : "/");
   }
+  res.locals.returnTo = safeReturnTo(req.query.returnTo);
   res.render("signup", { error: null, notice: null });
 });
+
+// The one place an account is created from a typed name + email: used by the
+// signup form (POST /signup) and by the membership page's "join" form (POST
+// /membership/join), so both behave identically (unusable password, email
+// confirmation first, neutral for an existing address). `membership` only
+// changes the wording of the confirmation email. Throws on a database error.
+async function registerAccount(req, { email, displayName, returnTo, membership = false }) {
+  // Unusable: random, never revealed. The hash still runs on both paths so
+  // response time doesn't differ between new and existing emails.
+  const hash = await bcrypt.hash(crypto.randomBytes(32).toString("hex"), 12);
+  const { rows: existing } = await pool.query("SELECT id, email, display_name, lang FROM users WHERE email = $1", [email]);
+  let created = null;
+  if (!existing.length) {
+    try {
+      const { rows } = await pool.query(
+        `INSERT INTO users (email, password_hash, display_name, lang, first_verification_pending) VALUES ($1, $2, $3, $4, TRUE)
+         RETURNING id, email, display_name, lang`,
+        [email, hash, displayName, req.lang]
+      );
+      created = rows[0];
+    } catch (err) {
+      // Lost a race with a concurrent signup for the same address.
+      if (err.code !== "23505") throw err;
+    }
+  }
+  const url = baseUrl(req);
+  if (created) {
+    // Not fatal — the account exists either way; it just can't be
+    // auto-matched to a future HelloAsso membership payment until
+    // verified (see syncMembershipForEmail in lib/membership.js).
+    sendVerificationEmail(created, url, { choosePassword: true, returnTo, membership }).catch((err) => console.error("Verification email failed:", err.message));
+  } else if (existing.length) {
+    sendSignupAttemptEmail(existing[0], url).catch((err) => console.error("Signup-attempt email failed:", err.message));
+  }
+}
 
 router.post("/signup", signupLimiter, async (req, res) => {
   const email = clean(req.body.email, 200).toLowerCase();
@@ -135,6 +180,10 @@ router.post("/signup", signupLimiter, async (req, res) => {
   // confirmation link leads to (GET /verify-email below). Nobody can set a
   // password on an address they merely typed in.
   const displayName = clean(req.body.displayName, 100);
+  // Where to send the person once confirmed and logged in (e.g. back to the
+  // cart): validated here, then carried inside the single-use tokens.
+  const returnTo = safeReturnTo(req.body.returnTo);
+  res.locals.returnTo = returnTo;
 
   if (!email || !displayName) {
     return res.status(400).render("signup", { error: req.tr("All fields are required.", "Tous les champs sont obligatoires."), notice: null });
@@ -155,37 +204,103 @@ router.post("/signup", signupLimiter, async (req, res) => {
   // bcrypt hash runs on both paths so response time doesn't differ, and
   // mail is sent in the background so a slow mail server can't either.
   try {
-    // Unusable: random, never revealed. The hash still runs on both paths so
-    // response time doesn't differ between new and existing emails.
-    const hash = await bcrypt.hash(crypto.randomBytes(32).toString("hex"), 12);
-    const { rows: existing } = await pool.query("SELECT id, email, display_name, lang FROM users WHERE email = $1", [email]);
-    let created = null;
-    if (!existing.length) {
-      try {
-        const { rows } = await pool.query(
-          `INSERT INTO users (email, password_hash, display_name, lang, first_verification_pending) VALUES ($1, $2, $3, $4, TRUE)
-           RETURNING id, email, display_name, lang`,
-          [email, hash, displayName, req.lang]
-        );
-        created = rows[0];
-      } catch (err) {
-        // Lost a race with a concurrent signup for the same address.
-        if (err.code !== "23505") throw err;
-      }
-    }
-    const url = baseUrl(req);
-    if (created) {
-      // Not fatal — the account exists either way; it just can't be
-      // auto-matched to a future HelloAsso membership payment until
-      // verified (see syncMembershipForEmail in lib/membership.js).
-      sendVerificationEmail(created, url, { choosePassword: true }).catch((err) => console.error("Verification email failed:", err.message));
-    } else if (existing.length) {
-      sendSignupAttemptEmail(existing[0], url).catch((err) => console.error("Signup-attempt email failed:", err.message));
-    }
+    await registerAccount(req, { email, displayName, returnTo });
     res.render("signup", { error: null, notice: signupNotice(req) });
   } catch (err) {
     console.error(err);
     res.status(500).render("signup", { error: req.tr("Something went wrong. Please try again.", "Une erreur est survenue. Veuillez réessayer."), notice: null });
+  }
+});
+
+// ---- Becoming a member (the page itself is views/marketing/membership.ejs,
+// its state in src/lib/membershipPage.js) -------------------------------------
+const MEMBERSHIP_PAGE = "/membership.html";
+const MEMBERSHIP_LOGIN_URL = `/login?returnTo=${encodeURIComponent(MEMBERSHIP_PAGE)}`;
+
+// A guest joins in ONE step: this creates the account exactly like POST
+// /signup does (registerAccount: unusable password, confirmation email, the
+// same neutral behaviour for an address that already has an account), then
+// the page shows the payment form. Pay first, confirm the email after: the
+// confirmation link (returnTo = this page) leads to "choose your password",
+// whose completion runs the membership sync for the confirmed address.
+//
+// ENUMERATION: the next page is IDENTICAL whether or not the address already
+// has an account (payment form always shown, same texts), so it reveals
+// nothing; an existing owner just gets the usual "someone tried to sign up"
+// email. Showing the form only for new addresses would be an existence oracle.
+// What this costs: someone who types another person's address and pays would
+// pay for THAT account's membership: no security issue (the money is theirs,
+// the membership goes to the real owner), only their own typo, and the page
+// asks them to log in first if they already have an account. The typed email
+// is kept only in the session (never in a URL) and expires after two hours.
+// A logged-in person is never given this form: they become a member on their
+// existing account, and this route does nothing for them.
+router.post("/membership/join", signupLimiter, async (req, res) => {
+  // Preview mode: sign-up and payment stay off; nothing is created.
+  if (isPreviewMode() || req.session.user) return res.redirect(303, MEMBERSHIP_PAGE);
+  const email = clean(req.body.email, 200).toLowerCase();
+  const displayName = clean(req.body.displayName, 100);
+  // A badly formed address is told so (this reveals nothing about accounts)
+  // and creates nothing; "a@x.com, b@y.com" never reaches the mailer.
+  if (!email || !displayName || !isEmail(email)) {
+    req.session.membershipFlash = { error: "fields", name: displayName, email: isEmail(email) ? email : "" };
+    return saveSession(req).then(() => res.redirect(303, MEMBERSHIP_PAGE), (err) => {
+      console.error(err);
+      res.status(500).type("text").send("Something went wrong. Please try again.");
+    });
+  }
+  try {
+    await registerAccount(req, { email, displayName, returnTo: MEMBERSHIP_PAGE, membership: true });
+    req.session.membershipJoin = { email, at: Date.now() };
+    await saveSession(req);
+    res.redirect(303, MEMBERSHIP_PAGE);
+  } catch (err) {
+    console.error(err);
+    res.status(500).type("text").send("Something went wrong. Please try again.");
+  }
+});
+
+// "Use a different email" on the payment step: forget the typed address.
+router.post("/membership/join/reset", (req, res) => {
+  delete req.session.membershipJoin;
+  res.redirect(303, MEMBERSHIP_PAGE);
+});
+
+// Per ACCOUNT (not per IP): each press asks HelloAsso.
+const membershipCheckLimiter = limit({
+  windowMs: 10 * MINUTE,
+  max: 5,
+  keyGenerator: (req) => `user:${req.session.user.id}`,
+});
+
+// "Check my membership": runs the same verified sync the webhook and the
+// backstop run, now, for THIS account's confirmed email (taken from the
+// account, never from the request), then reports the outcome on the page.
+router.post("/membership/check", (req, res, next) => {
+  if (!req.session.user) return res.redirect(303, MEMBERSHIP_LOGIN_URL);
+  next();
+}, membershipCheckLimiter, async (req, res) => {
+  const flash = async (check) => {
+    req.session.membershipFlash = { check };
+    await saveSession(req);
+    res.redirect(303, MEMBERSHIP_PAGE);
+  };
+  try {
+    const { rows } = await pool.query("SELECT email, email_verified_at, is_disabled FROM users WHERE id = $1", [req.session.user.id]);
+    const u = rows[0];
+    if (!u || u.is_disabled) return res.redirect(303, MEMBERSHIP_LOGIN_URL);
+    // The sync only ever attaches payments to a CONFIRMED address.
+    if (!u.email_verified_at) return await flash("unconfirmed");
+    if (!helloasso.isConfigured()) return await flash("error");
+    await syncMembershipForEmail(pool, u.email);
+    const { rows: after } = await pool.query("SELECT is_member, member_expires_at FROM users WHERE id = $1", [req.session.user.id]);
+    const exp = after[0].member_expires_at ? new Date(after[0].member_expires_at) : null;
+    const found = after[0].is_member && (!exp || exp > new Date());
+    if (found) req.session.user.isMember = true;
+    return await flash(found ? "found" : "notfound");
+  } catch (err) {
+    console.error("Membership check failed:", err.message);
+    try { return await flash("error"); } catch (e) { console.error(e); return res.status(500).type("text").send("Something went wrong. Please try again."); }
   }
 });
 
@@ -219,7 +334,7 @@ router.get("/verify-email/:token", async (req, res) => {
     // The token is the atomic gate: of concurrent clicks exactly one wins.
     const { rows: claimed } = await client.query(
       `UPDATE email_verification_tokens SET used_at = now()
-       WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now() RETURNING user_id`,
+       WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now() RETURNING user_id, return_to`,
       [tokenHash]
     );
     if (!claimed.length) {
@@ -231,8 +346,11 @@ router.get("/verify-email/:token", async (req, res) => {
       [claimed[0].user_id]
     );
     const user = users[0];
+    // Stored by us from a validated value; re-validated on the way out.
+    const returnTo = safeReturnTo(claimed[0].return_to);
+    const returnParam = returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : "";
     if (!user || user.email_verified_at) {
-      outcome = { redirect: "/login?verified=success" };
+      outcome = { redirect: `/login?verified=success${returnParam}` };
     } else if (user.first_verification_pending) {
       await client.query(
         `UPDATE users SET email_verified_at = now(), first_verification_pending = FALSE,
@@ -242,11 +360,11 @@ router.get("/verify-email/:token", async (req, res) => {
         [user.id, unusableHash]
       );
       await client.query("UPDATE password_reset_tokens SET used_at = now() WHERE user_id = $1 AND used_at IS NULL", [user.id]);
-      const rawReset = await createResetToken(client, user.id);
+      const rawReset = await createResetToken(client, user.id, returnTo);
       outcome = { redirect: `/reset-password/${rawReset}?confirmed=1`, noStore: true };
     } else {
       await client.query("UPDATE users SET email_verified_at = now() WHERE id = $1", [user.id]);
-      outcome = { redirect: "/login?verified=success", syncEmail: user.email };
+      outcome = { redirect: `/login?verified=success${returnParam}`, syncEmail: user.email };
     }
     await client.query("COMMIT");
   } catch (err) {
@@ -264,6 +382,8 @@ router.get("/verify-email/:token", async (req, res) => {
 // waiting for its first confirmation, at most once per cooldown.
 router.post("/resend-verification", resendLimiter, async (req, res) => {
   const email = (req.body.email || "").trim().toLowerCase();
+  const returnTo = safeReturnTo(req.body.returnTo);
+  res.locals.returnTo = returnTo;
   const notice = req.tr(
     "If that account is waiting for confirmation, we've sent a new link. Check your inbox.",
     "Si ce compte attend sa confirmation, nous avons envoyé un nouveau lien. Consultez votre boîte de réception."
@@ -279,7 +399,7 @@ router.post("/resend-verification", resendLimiter, async (req, res) => {
       );
       if (rows[0]) {
         // Background, like signup: response time can't reveal the account.
-        sendVerificationEmail(rows[0], baseUrl(req), { choosePassword: true }).catch((err) => console.error("Verification email failed:", err.message));
+        sendVerificationEmail(rows[0], baseUrl(req), { choosePassword: true, returnTo }).catch((err) => console.error("Verification email failed:", err.message));
       }
     } catch (err) {
       console.error(err);
@@ -291,8 +411,9 @@ router.post("/resend-verification", resendLimiter, async (req, res) => {
 router.get("/login", (req, res) => {
   if (req.session.user) {
     const u = req.session.user;
-    return res.redirect(u.isAdmin ? "/admin" : (u.isMember || u.isVolunteer) ? "/dashboard" : "/");
+    return res.redirect(safeReturnTo(req.query.returnTo) || (u.isAdmin ? "/admin" : (u.isMember || u.isVolunteer) ? "/dashboard" : "/"));
   }
+  res.locals.returnTo = safeReturnTo(req.query.returnTo);
   const notice =
     req.query.reset === "confirmed" ? req.tr("Password saved — your email is confirmed. Log in to get started.", "Mot de passe enregistré : votre adresse e-mail est confirmée. Connectez-vous pour commencer.") :
     req.query.reset === "success" ? req.tr("Password updated — log in with your new password.", "Mot de passe mis à jour : connectez-vous avec votre nouveau mot de passe.") :
@@ -303,6 +424,8 @@ router.get("/login", (req, res) => {
 });
 
 router.post("/login", loginLimiter, async (req, res) => {
+  const returnTo = safeReturnTo(req.body.returnTo);
+  res.locals.returnTo = returnTo;
   const email = (req.body.email || "").trim().toLowerCase();
   const password = req.body.password || "";
 
@@ -369,7 +492,7 @@ router.post("/login", loginLimiter, async (req, res) => {
     // session only remembers who is mid-login (for 5 minutes); loginAs
     // runs once the code checks out (POST /login/2fa below).
     if (user.totp_enabled_at) {
-      req.session.pending2fa = { userId: user.id, at: Date.now(), fails: 0 };
+      req.session.pending2fa = { userId: user.id, at: Date.now(), fails: 0, returnTo };
       await saveSession(req);
       return res.redirect("/login/2fa");
     }
@@ -381,7 +504,7 @@ router.post("/login", loginLimiter, async (req, res) => {
     // (and volunteers, a superset of members — see requireMember) land on
     // the Member's Access dashboard; everyone else goes to the regular
     // site, same as a guest.
-    loginAs(req, res, user, user.is_admin ? "/admin" : (user.is_member || user.is_volunteer) ? "/dashboard" : "/");
+    loginAs(req, res, user, landingFor(user, returnTo));
   } catch (err) {
     console.error(err);
     res.status(500).render("login", { error: req.tr("Something went wrong. Please try again.", "Une erreur est survenue. Veuillez réessayer."), notice: null });
@@ -421,6 +544,7 @@ router.post("/login/2fa", twoFactorLimiter, async (req, res) => {
     await countFailedAttempt(pending.userId);
     pending.fails += 1;
     if (pending.fails >= MAX_2FA_FAILS) {
+      res.locals.returnTo = safeReturnTo(pending.returnTo);
       req.session.pending2fa = null;
       await saveSession(req);
       return res.status(401).render("login", { error: req.tr("Too many wrong codes. Log in again.", "Trop de codes erronés. Veuillez vous reconnecter."), notice: null });
@@ -471,10 +595,11 @@ router.post("/login/2fa", twoFactorLimiter, async (req, res) => {
     }
     if (!accepted) return await fail();
 
+    const returnTo = pending.returnTo;
     req.session.pending2fa = null;
     await pool.query("UPDATE users SET last_login_at = now(), inactivity_warned_at = NULL, failed_login_attempts = 0, locked_until = NULL WHERE id = $1", [user.id]);
     await refreshUserLang(req, user.id);
-    loginAs(req, res, user, user.is_admin ? "/admin" : (user.is_member || user.is_volunteer) ? "/dashboard" : "/");
+    loginAs(req, res, user, landingFor(user, returnTo));
   } catch (err) {
     console.error(err);
     res.status(500).render("login", { error: req.tr("Something went wrong. Please try again.", "Une erreur est survenue. Veuillez réessayer."), notice: null });
@@ -538,6 +663,7 @@ router.post("/reset-password/:token", resetLimiter, async (req, res) => {
   const hash = await bcrypt.hash(newPassword, 12);
   const client = await pool.connect();
   let email;
+  let returnTo;
   try {
     await client.query("BEGIN");
     // The token is the atomic gate: of any number of concurrent requests
@@ -545,7 +671,7 @@ router.post("/reset-password/:token", resetLimiter, async (req, res) => {
     const { rows: claimed } = await client.query(
       `UPDATE password_reset_tokens SET used_at = now()
        WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now()
-       RETURNING user_id`,
+       RETURNING user_id, return_to`,
       [tokenHash]
     );
     if (!claimed.length) {
@@ -553,6 +679,7 @@ router.post("/reset-password/:token", resetLimiter, async (req, res) => {
       return invalid();
     }
     const userId = claimed[0].user_id;
+    returnTo = safeReturnTo(claimed[0].return_to);
     // password_changed_at is what forces every other open session (this
     // reset flow isn't run from within one) to log out on its next
     // request, see attachUser in middleware/auth.js. A completed reset
@@ -577,7 +704,8 @@ router.post("/reset-password/:token", resetLimiter, async (req, res) => {
   }
 
   if (email) syncMembershipInBackground(pool, email);
-  res.redirect(req.query.confirmed === "1" ? "/login?reset=confirmed" : "/login?reset=success");
+  const returnParam = returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : "";
+  res.redirect(`/login?reset=${req.query.confirmed === "1" ? "confirmed" : "success"}${returnParam}`);
 });
 
 router.get("/account/password", requireAuth, (req, res) => {

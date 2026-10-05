@@ -6,6 +6,7 @@ const { test, before, after, beforeEach } = require("node:test");
 const assert = require("node:assert/strict");
 const { prepareDatabase, buildApp, listen } = require("../helpers/inProcessApp");
 const { makeCookieJar } = require("../helpers/httpClient");
+const { createAccount, logInInProcess } = require("../helpers/accounts");
 
 const db = prepareDatabase("dropin_waiver", { isolated: true });
 
@@ -34,6 +35,13 @@ after(async () => {
 });
 beforeEach(() => { createdIntents.length = 0; });
 
+// Buying requires an account: sign this person in as a confirmed account.
+async function signIn(v, email, displayName = "Test Buyer") {
+  const account = await createAccount(pool, { email, displayName });
+  await logInInProcess(server.base, v.jar, account);
+  return account;
+}
+
 function guest() {
   const jar = makeCookieJar();
   const send = async (path, form) => {
@@ -46,7 +54,7 @@ function guest() {
     jar.capture(res);
     return { res, text: await res.text() };
   };
-  return { get: (p) => send(p), post: send };
+  return { jar, get: (p) => send(p), post: send };
 }
 
 const uniq = () => `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
@@ -63,14 +71,19 @@ async function makeCopy() {
   return rows[0].id;
 }
 const orders = async (email) => (await pool.query("SELECT * FROM orders WHERE buyer_email = $1", [email])).rows;
-const checkout = (v, email, extra = {}) => v.post("/cart/checkout", { name: "Waiver Buyer", email, acceptCgv: "on", ...extra });
+const checkout = async (v, email, extra = {}) => {
+  await signIn(v, email);
+  return v.post("/cart/checkout", { name: "Waiver Buyer", acceptCgv: "on", ...extra });
+};
 
 test("cart with a drop-in seat shows the waiver box; books-only cart does not", async () => {
   const v = guest();
+  await signIn(v, `waiverbox-${uniq()}@example.test`);
   await v.post("/cart/add-dropin", { classId: await makeClass() });
   assert.match((await v.get("/cart")).text, /name="waiveWithdrawal"/);
 
   const b = guest();
+  await signIn(b, `waiverbox2-${uniq()}@example.test`);
   await b.post("/cart/add", { copyId: await makeCopy() });
   assert.doesNotMatch((await b.get("/cart")).text, /waiveWithdrawal/);
 });

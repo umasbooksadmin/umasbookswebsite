@@ -7,6 +7,7 @@ const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const { prepareDatabase, buildApp, listen } = require("../helpers/inProcessApp");
 const { makeCookieJar } = require("../helpers/httpClient");
+const { createAccount, logInInProcess } = require("../helpers/accounts");
 
 const db = prepareDatabase("cgv_acceptance", { isolated: true });
 
@@ -43,6 +44,13 @@ after(async () => {
 let ipSeq = Math.floor(Math.random() * 200) * 250;
 const nextIp = () => { ipSeq += 1; return `10.${(ipSeq >> 16) & 255}.${(ipSeq >> 8) & 255}.${ipSeq & 255}`; };
 
+// Buying requires an account: sign this person in as a confirmed account.
+async function signIn(v, email, displayName = "Test Buyer") {
+  const account = await createAccount(pool, { email, displayName });
+  await logInInProcess(server.base, v.jar, account);
+  return account;
+}
+
 function guest(lang) {
   const jar = makeCookieJar();
   const ip = nextIp();
@@ -56,7 +64,7 @@ function guest(lang) {
     jar.capture(res);
     return { res, text: await res.text() };
   };
-  return { get: (p) => send(p), post: send };
+  return { jar, get: (p) => send(p), post: send };
 }
 
 const uniq = () => `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
@@ -75,8 +83,9 @@ test("checkout stores cgv_accepted_at and the current cgv_version on the new ord
   const v = guest();
   await v.post("/cart/add", { copyId: await makeCopy() });
   const email = `cgv-${uniq()}@example.test`;
+  await signIn(v, email);
   const before = Date.now();
-  const { res } = await v.post("/cart/checkout", { name: "Cgv Buyer", email, acceptCgv: "on" });
+  const { res } = await v.post("/cart/checkout", { name: "Cgv Buyer", acceptCgv: "on" });
   assert.equal(res.status, 302);
   const [order] = await orders(email);
   assert.ok(order.cgv_accepted_at instanceof Date);
@@ -89,7 +98,8 @@ test("checkout without the terms checkbox is refused: no order, nothing stored",
   const copyId = await makeCopy();
   await v.post("/cart/add", { copyId });
   const email = `nocgv-${uniq()}@example.test`;
-  const { res, text } = await v.post("/cart/checkout", { name: "No Cgv", email });
+  await signIn(v, email);
+  const { res, text } = await v.post("/cart/checkout", { name: "No Cgv" });
   assert.equal(res.status, 200);
   assert.match(text, /Please accept the terms of sale/);
   assert.equal((await orders(email)).length, 0);
@@ -97,15 +107,18 @@ test("checkout without the terms checkbox is refused: no order, nothing stored",
   assert.equal(rows[0].status, "in_stock");
 });
 
+// The version string changes whenever the terms change in substance. 2026-10-05:
+// the terms now say buying (books and drop-in seats) requires an account.
 test("the paid confirmation email carries the acceptance line, in English and in French", async () => {
   for (const [lang, line] of [
-    ["en", /Terms of sale accepted on \d{1,2} \w+ \d{4} \(version 2026-10-04\)\./],
-    ["fr", /Conditions générales de vente acceptées le \d{1,2} \S+ \d{4} \(version 2026-10-04\)\./],
+    ["en", /Terms of sale accepted on \d{1,2} \w+ \d{4} \(version 2026-10-05\)\./],
+    ["fr", /Conditions générales de vente acceptées le \d{1,2} \S+ \d{4} \(version 2026-10-05\)\./],
   ]) {
     const v = guest(lang);
     await v.post("/cart/add", { copyId: await makeCopy() });
     const email = `cgvmail-${lang}-${uniq()}@example.test`;
-    await v.post("/cart/checkout", { name: "Mail Buyer", email, acceptCgv: "on" });
+    await signIn(v, email);
+    await v.post("/cart/checkout", { name: "Mail Buyer", acceptCgv: "on" });
     const [order] = await orders(email);
     assert.equal(order.lang, lang);
     assert.equal(await markOrderPaid(pool, order), true);
@@ -120,10 +133,9 @@ test("the proof is in the member data export and survives erasure (anonymised or
   const v = guest();
   await v.post("/cart/add", { copyId: await makeCopy() });
   const email = `cgvexp-${uniq()}@example.test`;
-  await v.post("/cart/checkout", { name: "Export Buyer", email, acceptCgv: "on" });
-  const { rows: u } = await pool.query(
-    "INSERT INTO users (email, password_hash, display_name, email_verified_at) VALUES ($1, 'x', 'Export Buyer', now()) RETURNING id", [email]
-  );
+  const account = await signIn(v, email, "Export Buyer");
+  await v.post("/cart/checkout", { name: "Export Buyer", acceptCgv: "on" });
+  const u = [{ id: account.id }];
   const { buildMemberExport } = require("../../src/lib/memberExport");
   const data = await buildMemberExport(pool, u[0].id);
   assert.equal(data.orders.length, 1);

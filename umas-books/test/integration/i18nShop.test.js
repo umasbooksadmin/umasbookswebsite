@@ -7,6 +7,7 @@ const { test, before, after, beforeEach } = require("node:test");
 const assert = require("node:assert/strict");
 const { prepareDatabase, buildApp, listen } = require("../helpers/inProcessApp");
 const { makeCookieJar } = require("../helpers/httpClient");
+const { createAccount, logInInProcess } = require("../helpers/accounts");
 const { untranslated } = require("../helpers/i18nAudit");
 
 const db = prepareDatabase("i18n_shop", { isolated: true });
@@ -45,6 +46,13 @@ beforeEach(async () => {
 
 const uniq = () => `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
 
+// Buying requires an account: sign this person in as a confirmed account.
+async function signIn(v, email, displayName = "Test Buyer") {
+  const account = await createAccount(pool, { email, displayName });
+  await logInInProcess(server.base, v.jar, account);
+  return account;
+}
+
 function guest(lang) {
   const jar = makeCookieJar();
   const send = async (path, { method = "GET", form } = {}) => {
@@ -58,7 +66,7 @@ function guest(lang) {
     jar.capture(res);
     return { res, text: await res.text() };
   };
-  return { get: (p) => send(p), post: (p, form) => send(p, { method: "POST", form }) };
+  return { jar, get: (p) => send(p), post: (p, form) => send(p, { method: "POST", form }) };
 }
 
 async function makeBookCopy() {
@@ -82,6 +90,7 @@ test("checkout form (HelloAsso on, book + drop-in seat) is fully translated", as
   const pages = {};
   for (const lang of ["en", "fr"]) {
     const v = guest(lang);
+    await signIn(v, `form-${lang}-${uniq()}@example.test`);
     await v.post("/cart/add", { copyId: copy.copyId });
     await v.post("/cart/add-dropin", { classId });
     pages[lang] = (await v.get("/cart")).text;
@@ -96,24 +105,27 @@ test("checkout form (HelloAsso on, book + drop-in seat) is fully translated", as
 
 test("checkout errors: French for a French user, English otherwise", async () => {
   const copy = await makeBookCopy();
-  for (const [lang, empty, badEmail, noTerms] of [
-    ["fr", /Votre panier est vide/, /Veuillez indiquer votre nom et une adresse e-mail valide/, /Veuillez accepter les conditions de vente/],
-    ["en", /Your cart is empty\./, /Please enter your name and a valid email address\./, /Please accept the terms of sale to continue\./],
+  for (const [lang, empty, noName, noTerms] of [
+    ["fr", /Votre panier est vide/, /Veuillez indiquer votre nom\./, /Veuillez accepter les conditions de vente/],
+    ["en", /Your cart is empty\./, /Please enter your name\./, /Please accept the terms of sale to continue\./],
     [undefined, /Your cart is empty\./, /Please enter your name/, /Please accept the terms of sale/],
   ]) {
     const v = guest(lang);
-    assert.match((await v.post("/cart/checkout", { name: "A", email: "a@example.test", acceptCgv: "on" })).text, empty);
+    // An account without a display name, so a blank name field really is a missing name.
+    await signIn(v, `errs-${lang}-${uniq()}@example.test`, "");
+    assert.match((await v.post("/cart/checkout", { name: "A", acceptCgv: "on" })).text, empty);
     await v.post("/cart/add", { copyId: copy.copyId });
-    assert.match((await v.post("/cart/checkout", { name: "", email: "nope", acceptCgv: "on" })).text, badEmail);
-    assert.match((await v.post("/cart/checkout", { name: "A", email: "a@example.test" })).text, noTerms);
+    assert.match((await v.post("/cart/checkout", { name: "", acceptCgv: "on" })).text, noName);
+    assert.match((await v.post("/cart/checkout", { name: "A" })).text, noTerms);
   }
 });
 
 test("the drop-in waiver error is French for a French user", async () => {
   const classId = await makeClass();
   const v = guest("fr");
+  await signIn(v, `waiver-fr-${uniq()}@example.test`);
   await v.post("/cart/add-dropin", { classId });
-  const r = await v.post("/cart/checkout", { name: "A", email: "a@example.test", acceptCgv: "on" });
+  const r = await v.post("/cart/checkout", { name: "A", acceptCgv: "on" });
   assert.match(r.text, /Veuillez cocher la case confirmant/);
 });
 
@@ -123,7 +135,8 @@ test("a French checkout stores lang=fr and the paid confirmation email is French
     const v = guest(lang);
     await v.post("/cart/add", { copyId: copy.copyId });
     const email = `buyer-${lang}-${uniq()}@example.test`;
-    const r = await v.post("/cart/checkout", { name: "Marie", email, acceptCgv: "on" });
+    await signIn(v, email);
+    const r = await v.post("/cart/checkout", { name: "Marie", acceptCgv: "on" });
     assert.equal(r.res.status, 302);
     const { rows } = await pool.query("SELECT * FROM orders WHERE buyer_email = $1", [email]);
     assert.equal(rows[0].lang, lang);

@@ -22,6 +22,7 @@ const { guardJob } = require("./lib/jobGuard");
 const { drainAwards } = require("./lib/awards");
 const { purgeUnusedImages } = require("./lib/imageCleanup");
 const { purgeExpiredPersonalData } = require("./lib/privacy");
+const { membershipPageState } = require("./lib/membershipPage");
 const { expireStaleMemberships, reconcileRecentMemberships } = require("./lib/membership");
 const { alertOnError } = require("./lib/errorAlert");
 const { errorHandler } = require("./lib/errorHandler");
@@ -316,10 +317,18 @@ app.get("/admin/classes", (req, res) => res.redirect(301, "/admin/sessions" + qs
 app.get("/programs", (req, res) => res.redirect(301, "/sessions" + qs(req)));
 app.get("/admin/programs", (req, res) => res.redirect(301, "/admin/sessions" + qs(req)));
 
+// Becoming a member requires an account: the membership page shows the
+// HelloAsso payment widget only to a logged-in account holder (see
+// src/lib/membershipPage.js). Everyone else gets a login/signup prompt.
 MARKETING_PAGES.forEach((file) => {
-  app.get("/" + file, (req, res) => {
+  app.get("/" + file, async (req, res) => {
     res.set("Content-Security-Policy", marketingCsp);
     setMarketingSeoLocals(req, res, "/" + file);
+    if (file === "membership.html") {
+      // Personal (the account's email, membership end date): never cached.
+      res.set("Cache-Control", "private, no-store");
+      Object.assign(res.locals, await membershipPageState(pool, req.session));
+    }
     res.render("marketing/" + file.replace(/\.html$/, ""));
   });
 });

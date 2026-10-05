@@ -10,6 +10,7 @@ const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const { startTestApp } = require("../helpers/testApp");
 const { makeCookieJar, fetchCsrfToken, waitForCartCount } = require("../helpers/httpClient");
+const { createAccount, loginOverHttp } = require("../helpers/accounts");
 
 const PORT = 3418; // distinct from 3411-3417
 
@@ -66,16 +67,27 @@ test("a cart can't grow past 20 lines", async () => {
   assert.equal((await res.json()).count, 20);
 });
 
-test("checkout rejects an invalid email without creating an order, and is rate limited", async () => {
+test("checkout ignores a posted (even multi-recipient) email: an order only ever carries the logged-in account's own address; a guest creates nothing; rate limited", async () => {
   const jar = makeCookieJar();
   const c = await newCopy();
   await post(jar, "/cart/add", { copyId: c.id, backTo: "/cart" });
   await waitForCartCount(app.base, jar, 1);
   const before = (await pool.query("SELECT count(*)::int AS n FROM orders")).rows[0].n;
-  const res = await post(jar, "/cart/checkout", { name: "Buyer", email: "a@x.com, b@y.com" });
-  assert.equal(res.status, 200); // re-renders the cart with an error
-  assert.ok((await res.text()).includes("valid email"));
+
+  // Logged out: redirected to log in, nothing created, nothing locked.
+  const guest = await post(jar, "/cart/checkout", { name: "Buyer", email: "a@x.com, b@y.com", acceptCgv: "on" });
+  assert.equal(guest.status, 302);
+  assert.equal(guest.headers.get("location"), "/login?returnTo=%2Fcart");
   assert.equal((await pool.query("SELECT count(*)::int AS n FROM orders")).rows[0].n, before);
+  assert.equal(await copyStatus(c.id), "in_stock");
+
+  // Logged in: the posted email is ignored. (HelloAsso is not configured in
+  // this app, so the cart page answers instead of creating an order.)
+  const account = await createAccount(pool, { email: `abuse-${Date.now()}@example.test`, displayName: "Abuse Buyer" });
+  assert.equal((await loginOverHttp(app.base, jar, account)).status, 302);
+  const res = await post(jar, "/cart/checkout", { name: "Buyer", email: "a@x.com, b@y.com", acceptCgv: "on" });
+  assert.equal(res.status, 200);
+  assert.equal((await pool.query("SELECT count(*)::int AS n FROM orders WHERE buyer_email LIKE '%a@x.com%'")).rows[0].n, 0);
   assert.equal(await copyStatus(c.id), "in_stock");
 
   const statuses = [];

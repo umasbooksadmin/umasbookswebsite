@@ -7,7 +7,7 @@ const router = express.Router();
 
 // Fully public, no login required — Drop-In Immersion seats are bought
 // the same way books are (see src/routes/cart.js): add to cart, pay via
-// HelloAsso at checkout, no account needed. Weekly Immersion is a
+// HelloAsso at checkout (checkout needs an account; browsing and the cart do not). Weekly Immersion is a
 // separate, off-calendar flow (see pre-registration.html). This used to
 // be duplicated as its own page at /immersion/calendar (same query,
 // different view) for people arriving from immersion.html — merged
