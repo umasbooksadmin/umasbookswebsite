@@ -6,15 +6,12 @@
 
 const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
-const { execFileSync } = require("node:child_process");
-const path = require("node:path");
 const bcrypt = require("bcryptjs");
 
-const ROOT = path.join(__dirname, "..", "..");
-const OWNS_DATABASE = !process.env.DATABASE_URL;
-const TEST_DB = `umasbooks_revocation_test_${Date.now()}`;
-process.env.DATABASE_URL = process.env.DATABASE_URL || `postgres://localhost:5432/${TEST_DB}`;
-process.env.PGSSLMODE = process.env.PGSSLMODE || "disable";
+const { prepareDatabase } = require("../helpers/testDatabase");
+
+// Own database even on the shared CI one (see helpers/testDatabase.js).
+const db = prepareDatabase("revocation", { isolated: true });
 
 const helloasso = require("../../src/lib/helloasso");
 let mockedOrders = [];
@@ -25,13 +22,12 @@ const { pool } = require("../../src/db");
 const { syncMembershipForEmail } = require("../../src/lib/membership");
 
 before(() => {
-  if (OWNS_DATABASE) execFileSync("createdb", [TEST_DB], { stdio: "inherit" });
-  execFileSync("node", ["src/migrate.js"], { cwd: ROOT, env: process.env, stdio: "inherit" });
+  db.create();
 });
 
 after(async () => {
   await pool.end();
-  if (OWNS_DATABASE) execFileSync("dropdb", ["--if-exists", TEST_DB], { stdio: "inherit" });
+  db.drop();
 });
 
 // Order ids are global (UNIQUE) in a shared CI database, so keep them random.

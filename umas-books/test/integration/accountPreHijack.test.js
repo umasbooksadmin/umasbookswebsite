@@ -12,7 +12,7 @@ const assert = require("node:assert/strict");
 const bcrypt = require("bcryptjs");
 const { prepareDatabase, buildApp, listen, waitFor } = require("../helpers/inProcessApp");
 
-const db = prepareDatabase("prehijack");
+const db = prepareDatabase("prehijack", { isolated: true });
 
 const mailer = require("../../src/mailer");
 const sent = [];

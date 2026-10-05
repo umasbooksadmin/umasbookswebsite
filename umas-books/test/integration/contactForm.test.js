@@ -11,7 +11,7 @@ const assert = require("node:assert/strict");
 const path = require("node:path");
 const { prepareDatabase, buildApp, listen } = require("../helpers/inProcessApp");
 
-const db = prepareDatabase("contact");
+const db = prepareDatabase("contact", { isolated: true });
 
 const mailer = require("../../src/mailer");
 const sent = [];

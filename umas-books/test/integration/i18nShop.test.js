@@ -9,7 +9,7 @@ const { prepareDatabase, buildApp, listen } = require("../helpers/inProcessApp")
 const { makeCookieJar } = require("../helpers/httpClient");
 const { untranslated } = require("../helpers/i18nAudit");
 
-const db = prepareDatabase("i18n_shop");
+const db = prepareDatabase("i18n_shop", { isolated: true });
 
 const mailer = require("../../src/mailer");
 let sent = [];

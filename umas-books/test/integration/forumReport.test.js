@@ -8,7 +8,7 @@ const { test, before, after, beforeEach } = require("node:test");
 const assert = require("node:assert/strict");
 const { prepareDatabase, buildApp, listen } = require("../helpers/inProcessApp");
 
-const db = prepareDatabase("forum_report");
+const db = prepareDatabase("forum_report", { isolated: true });
 
 const mailer = require("../../src/mailer");
 const sent = [];

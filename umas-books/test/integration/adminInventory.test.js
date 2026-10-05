@@ -16,7 +16,7 @@ const multer = require("multer");
 const sharp = require("sharp");
 const { prepareDatabase, buildApp, listen } = require("../helpers/inProcessApp");
 
-const db = prepareDatabase("admin_inventory");
+const db = prepareDatabase("admin_inventory", { isolated: true });
 const { pool } = require("../../src/db");
 const IMG_URL = /^\/img\/[0-9a-f]{64}\.jpg$/;
 // Covers live in the images table and cover_url holds /img/<sha256>.jpg.

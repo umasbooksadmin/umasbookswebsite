@@ -12,7 +12,6 @@
 // anything requires src/db.
 
 const path = require("node:path");
-const { execFileSync } = require("node:child_process");
 
 const ROOT = path.join(__dirname, "..", "..");
 
@@ -23,24 +22,9 @@ if (!process.env.ADMIN_2FA_REQUIRED) process.env.ADMIN_2FA_REQUIRED = "false";
 // (lib/awards); the tests of that feature switch them on explicitly.
 if (!process.env.AWARDS_LOOKUPS) process.env.AWARDS_LOOKUPS = "off";
 
-// Own throwaway database locally (createdb/dropdb); in CI DATABASE_URL is
-// one shared database that every test file uses concurrently, so nothing
-// is created or dropped there.
-function prepareDatabase(label) {
-  const ownsDatabase = !process.env.DATABASE_URL;
-  const dbName = `umasbooks_${label}_test_${Date.now()}`;
-  process.env.DATABASE_URL = process.env.DATABASE_URL || `postgres://localhost:5432/${dbName}`;
-  process.env.PGSSLMODE = process.env.PGSSLMODE || "disable";
-  return {
-    create() {
-      if (ownsDatabase) execFileSync("createdb", [dbName], { stdio: "inherit" });
-      execFileSync("node", ["src/migrate.js"], { cwd: ROOT, env: process.env, stdio: "inherit" });
-    },
-    drop() {
-      if (ownsDatabase) execFileSync("dropdb", ["--if-exists", dbName], { stdio: "inherit" });
-    },
-  };
-}
+// Which database a file uses (own throwaway locally; the one shared CI
+// database unless it passes { isolated: true }) lives in testDatabase.js.
+const { prepareDatabase } = require("./testDatabase");
 
 // routers: express routers to mount. A request with an `x-test-user`
 // header (JSON) is treated as logged in as that session user.

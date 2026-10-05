@@ -51,11 +51,37 @@ The integration tests (`test/integration/`) boot the real app as a child
 process and hit it over HTTP. With no `DATABASE_URL` set they create (and
 drop) a throwaway `umasbooks_test_<port>_<timestamp>` database per test
 file, so a local Postgres with `createdb`/`dropdb` on your `PATH` is all
-they need. With `DATABASE_URL` set (as in CI) every file shares that one
-database and runs concurrently — a test that does something global to it
-must use `startTestApp({ port, isolated: true })`. Each test file uses its
-own fixed port (see the `PORT` constant at the top of the file); pick an
-unused one for a new file.
+they need. Each test file uses its own fixed port (see the `PORT` constant
+at the top of the file); pick an unused one for a new file.
+
+#### Writing tests that are safe on the shared CI database
+
+With `DATABASE_URL` set (as in CI) there is ONE Postgres database and node
+runs several test files against it at the same time, so anything global — row
+counts, the `session` table, `orders.client_ip` caps, `DELETE`/`TRUNCATE`,
+dropping `schema_migrations` — is visible to, or wrecked by, other files.
+That made the suite fail at random. The rule: **every test file that gets a
+database gets its own.** Pass `{ isolated: true }` to `startTestApp({ port,
+isolated: true })`, `prepareDatabase("label", { isolated: true })` (in-process
+tests) or `adminHarness(label, routers, { isolated: true })`; it creates a
+throwaway database on the same server and drops it afterwards (locally every
+file already has its own, so it is a no-op). `test/unit/sharedDatabaseGuard.test.js`
+fails if a new file forgets (a file may opt out with a `// shared-db-ok: <why>`
+comment, but then it must not contain a global destructive statement). Two
+more things to keep in mind:
+
+- **Wait for the thing you are testing, never sleep for it.** Fire-and-forget
+  work (a mail sent in the background, the awards check at intake) must be
+  awaited with `waitFor(...)` on its visible effect, or held open with a
+  promise "gate" in the stub — not a `setTimeout` and not a stopwatch
+  assertion, which a loaded CI machine overruns. A test that follows a
+  fire-and-forget mail with a "no mail was sent" check must first wait for
+  the mail it caused, or that mail lands in the next test's count.
+- **A 302 after a session change can arrive before the session is stored.**
+  express-session answers before its store write finishes (see
+  `src/lib/session.js`), so "POST `/cart/add`, then GET `/cart`" can see the
+  old cart. Use `waitForCartCount(base, jar, n)` from `test/helpers/httpClient.js`
+  between the two.
 
 ## What's included
 

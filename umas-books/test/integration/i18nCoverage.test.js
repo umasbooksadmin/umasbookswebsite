@@ -17,7 +17,7 @@ const assert = require("node:assert/strict");
 const { startTestApp } = require("../helpers/testApp");
 const { Client } = require("pg");
 const { untranslated } = require("../helpers/i18nAudit");
-const { makeCookieJar, fetchCsrfToken } = require("../helpers/httpClient");
+const { makeCookieJar, fetchCsrfToken, waitForCartCount } = require("../helpers/httpClient");
 
 const PORT = 3691;
 
@@ -62,6 +62,7 @@ const DYNAMIC_PAGES = {
       body: new URLSearchParams({ copyId: String(copyId), _csrf: token }).toString(),
     });
     assert.equal(add.status, 302);
+    await waitForCartCount(app.base, jar, 1); // the 302 can arrive before the session write lands
     return { path: "/cart", session: jar.header() };
   },
   "cart (empty)": async () => ({ path: "/cart" }),

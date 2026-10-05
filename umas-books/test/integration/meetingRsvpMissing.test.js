@@ -4,7 +4,7 @@ const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const { prepareDatabase, buildApp, listen } = require("../helpers/inProcessApp");
 
-const db = prepareDatabase("meeting_rsvp");
+const db = prepareDatabase("meeting_rsvp", { isolated: true });
 const { pool } = require("../../src/db");
 
 let server;

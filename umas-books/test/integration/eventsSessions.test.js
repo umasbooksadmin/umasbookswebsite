@@ -12,7 +12,7 @@ const assert = require("node:assert/strict");
 const { prepareDatabase, buildApp, listen } = require("../helpers/inProcessApp");
 const { makeClient, uniq } = require("../helpers/routeClient");
 
-const db = prepareDatabase("events_sessions");
+const db = prepareDatabase("events_sessions", { isolated: true });
 const { pool } = require("../../src/db");
 const { eventSignupLimiter } = require("../../src/middleware/rateLimits");
 

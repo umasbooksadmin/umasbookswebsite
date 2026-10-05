@@ -8,7 +8,7 @@ const { test, before, after, beforeEach } = require("node:test");
 const assert = require("node:assert/strict");
 const { prepareDatabase, buildApp, listen, waitFor } = require("../helpers/inProcessApp");
 
-const db = prepareDatabase("awards");
+const db = prepareDatabase("awards", { isolated: true });
 process.env.AWARDS_LOOKUPS = "on"; // the helper defaults to off; this file tests the lookups
 delete process.env.ANTHROPIC_API_KEY;
 delete process.env.AWARDS_AI;
@@ -20,7 +20,10 @@ const nyt = require("../../src/lib/awards/nyt");
 const ai = require("../../src/lib/awards/ai");
 
 const realFetch = global.fetch;
-const net = { wikidata: null, wikidataDelayMs: 0, calls: [] };
+// wikidataGate: a promise the stubbed Wikidata waits on before answering, so a
+// test can hold the lookup "in flight" for exactly as long as it needs (no
+// wall-clock delay for a slow CI machine to overrun).
+const net = { wikidata: null, wikidataGate: null, calls: [] };
 const jsonRes = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 const bind = (label, year, kind = "award") => ({
   awardLabel: { value: label }, ...(year ? { year: { value: String(year) } } : {}), kind: { value: kind },
@@ -31,7 +34,7 @@ global.fetch = async (url, init = {}) => {
   if (u.startsWith("http://127.0.0.1:")) return realFetch(url, init);
   net.calls.push(u);
   if (u.startsWith("https://query.wikidata.org/sparql")) {
-    if (net.wikidataDelayMs) await new Promise((r) => setTimeout(r, net.wikidataDelayMs));
+    if (net.wikidataGate) await net.wikidataGate;
     if (net.wikidata === "error") return jsonRes({}, 500);
     return jsonRes({ results: { bindings: net.wikidata || [] } });
   }
@@ -57,7 +60,7 @@ after(async () => {
 });
 beforeEach(() => {
   net.wikidata = null;
-  net.wikidataDelayMs = 0;
+  net.wikidataGate = null;
   net.calls.length = 0;
   nyt.resetGate();
   ai.resetAiUsage();
@@ -462,21 +465,32 @@ test("saving a new book returns at once while the awards check runs in the backg
   const isbn = isbn13();
   const title = `Intake ${tag()}`;
   net.wikidata = [bind("Intake Prize", 2022)];
-  net.wikidataDelayMs = 1500; // a slow Wikidata
-  const started = Date.now();
-  const res = await http("/admin/inventory", {
-    method: "POST",
-    form: { title, author: "Intake Author", isbn, condition: "very_good", price: "5", status: "in_stock", description: "d", descriptionFr: "d", coverUrl: "https://example.org/c.jpg" },
-  });
-  const elapsed = Date.now() - started;
-  assert.equal(res.status, 302);
-  assert.match(res.location, /^\/admin\/inventory\/\d+$/);
-  assert.ok(elapsed < 1200, `the save waited for the lookup (${elapsed} ms)`);
-  const bookId = Number(res.location.split("/").pop());
-  assert.equal((await bookRow(bookId)).awards_checked_at, null, "not finished yet");
-  await waitFor(async () => (await rowsOf(bookId)).length === 1, { timeoutMs: 10000, message: "background awards check" });
-  assert.equal((await rowsOf(bookId))[0].label, "Intake Prize");
-  assert.equal((await bookRow(bookId)).awards_check_state, "ok");
+  // Hold Wikidata "in flight": the stub will not answer until we open the gate.
+  // The save can only return while the gate is closed if it does not wait for
+  // the lookup, which is the claim — and unlike a stopwatch it cannot be
+  // overrun by a slow machine.
+  let openGate;
+  net.wikidataGate = new Promise((resolve) => { openGate = resolve; });
+  try {
+    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("the save waited for the awards lookup")), 15000).unref());
+    const res = await Promise.race([http("/admin/inventory", {
+      method: "POST",
+      form: { title, author: "Intake Author", isbn, condition: "very_good", price: "5", status: "in_stock", description: "d", descriptionFr: "d", coverUrl: "https://example.org/c.jpg" },
+    }), timeout]);
+    assert.equal(res.status, 302);
+    assert.match(res.location, /^\/admin\/inventory\/\d+$/);
+    const bookId = Number(res.location.split("/").pop());
+    assert.equal((await bookRow(bookId)).awards_checked_at, null, "not finished yet");
+    assert.equal((await rowsOf(bookId)).length, 0, "no award recorded while the lookup is still in flight");
+    openGate();
+    // The award row is written before the book's check state is stamped, so
+    // wait for the final state (the very last write), then assert on both.
+    await waitFor(async () => (await bookRow(bookId)).awards_check_state === "ok", { timeoutMs: 10000, message: "background awards check" });
+    assert.equal((await rowsOf(bookId)).length, 1);
+    assert.equal((await rowsOf(bookId))[0].label, "Intake Prize");
+  } finally {
+    openGate(); // never leave the background check parked if an assertion failed
+  }
 });
 
 test("a failing awards lookup never fails or loses the save", async () => {

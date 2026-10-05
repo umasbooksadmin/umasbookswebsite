@@ -14,7 +14,7 @@ const PORT = 3411; // distinct per test file — see test/helpers/testApp.js
 let app;
 
 before(async () => {
-  app = await startTestApp({ port: PORT });
+  app = await startTestApp({ port: PORT, isolated: true });
 });
 
 after(() => {

@@ -11,7 +11,7 @@ const { test, before, after, beforeEach, mock } = require("node:test");
 const assert = require("node:assert/strict");
 const { prepareDatabase } = require("../helpers/inProcessApp");
 
-const db = prepareDatabase("reservations_lib");
+const db = prepareDatabase("reservations_lib", { isolated: true });
 
 const mailer = require("../../src/mailer");
 const sentEmails = [];

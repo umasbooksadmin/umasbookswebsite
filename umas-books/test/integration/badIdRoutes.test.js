@@ -9,7 +9,7 @@ const { startTestApp } = require("../helpers/testApp");
 
 const PORT = 3851;
 let app;
-before(async () => { app = await startTestApp({ port: PORT }); });
+before(async () => { app = await startTestApp({ port: PORT, isolated: true }); });
 after(async () => { await app.stop(); });
 
 const BAD = ["abc", "1.5", "-1", "0", "99999999999", "1e3", "%20"];
