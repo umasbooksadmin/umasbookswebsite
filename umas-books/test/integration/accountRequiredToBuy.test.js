@@ -147,8 +147,8 @@ test("guest POST /cart/checkout creates nothing and redirects to login with retu
 });
 
 test("guest GET /cart/checkout redirects to login too; a logged-in GET just goes back to the cart", async () => {
-  const guest = guest();
-  assert.equal((await guest.get("/cart/checkout")).location, "/login?returnTo=%2Fcart");
+  const anon = guest();
+  assert.equal((await anon.get("/cart/checkout")).location, "/login?returnTo=%2Fcart");
   const v = guest();
   const account = await createAccount(pool, { email: `getco-${uniq()}@example.test` });
   assert.equal((await login(v, account)).res.status, 302);
@@ -371,10 +371,10 @@ test("the checkout caps still apply per account email", async () => {
 
 test("preview mode: the 403 notice is never masked by the login redirect (order of checks: preview, then login)", async () => {
   process.env.PREVIEW_MODE = "true";
-  const guest = guest();
+  const anon = guest();
   const copy = await makeCopy();
-  await guest.post("/cart/add", { copyId: copy });
-  const g = await guest.post("/cart/checkout", { name: "G", acceptCgv: "on" });
+  await anon.post("/cart/add", { copyId: copy });
+  const g = await anon.post("/cart/checkout", { name: "G", acceptCgv: "on" });
   assert.equal(g.res.status, 403, "a guest gets the preview refusal, not a redirect to login");
   assert.ok(g.text.includes("Online ordering opens when we launch."));
 

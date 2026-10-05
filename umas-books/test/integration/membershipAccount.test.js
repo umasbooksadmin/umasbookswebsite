@@ -90,7 +90,7 @@ const NO_WIDGET = (html) => { assert.ok(!html.includes("<iframe"), "no iframe");
 
 test("a guest gets the name + email form and NO payment widget (EN and FR)", async () => {
   for (const [lang, heading, button] of [["en", "Become a member", "Continue to payment"], ["fr", "Devenir membre", "Continuer vers le paiement"]]) {
-    const { res, html } = await person(app.base, lang).page();
+    const { res, html } = await guest(app.base, lang).page();
     assert.equal(res.status, 200);
     assert.match(res.headers.get("cache-control"), /no-store/, "personal page, never cached");
     assert.ok(html.includes(heading) && html.includes(button), lang);
@@ -100,7 +100,7 @@ test("a guest gets the name + email form and NO payment widget (EN and FR)", asy
     assert.match(html, /name="_csrf"/);
     NO_WIDGET(html);
   }
-  const fr = (await person(app.base, "fr").page()).html;
+  const fr = (await guest(app.base, "fr").page()).html;
   assert.ok(fr.includes("Vous avez déjà un compte ?"));
   assert.ok(fr.includes("conditions d’adhésion"));
 });
