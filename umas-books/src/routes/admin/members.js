@@ -293,8 +293,19 @@ router.post("/admin/members/:id/edit", requireAdmin, async (req, res) => {
   const displayName = clean(req.body.displayName, 100);
   const email = clean(req.body.email, 200).toLowerCase();
   if (displayName && isEmail(email)) {
-    const { rows: current } = await pool.query("SELECT email FROM users WHERE id = $1", [id]);
+    const { rows: current } = await pool.query("SELECT email, email_verified_at FROM users WHERE id = $1", [id]);
     const emailChanged = current[0] && current[0].email.toLowerCase() !== email;
+    // Orders are matched to an account by user_id, but orders placed before
+    // checkout needed an account have none and are found by email only. Link
+    // them to this account NOW (it proved the old address), so that after the
+    // change they stay with it, and whoever registers the old address later
+    // never sees them. Unproven (unverified) accounts link nothing.
+    if (emailChanged && current[0].email_verified_at) {
+      await pool.query(
+        "UPDATE orders SET user_id = $1 WHERE user_id IS NULL AND lower(buyer_email) = lower($2)",
+        [id, current[0].email]
+      );
+    }
     // A changed email is a brand-new, unproven address: verification is
     // cleared so syncMembershipForEmail (lib/membership.js) won't
     // attribute a HelloAsso payment to it until the new inbox's link is

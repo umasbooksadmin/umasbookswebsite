@@ -355,8 +355,8 @@ test("checkout refuses a 3rd pending order for one email, with a friendly messag
   assert.equal(createdIntents.length, 2);
 });
 
-test("checkout refuses a 3rd pending order from one IP across different emails", async () => {
-  for (let i = 0; i < 2; i++) {
+test("checkout refuses an 11th pending order from one IP across different emails (a shared wifi gets 10)", async () => {
+  for (let i = 0; i < 10; i++) {
     const v = guest();
     await addToCart(v, await makeCopy());
     assert.equal((await checkout(v, `cap-ip-${uniq()}@example.test`)).res.status, 302);
@@ -366,7 +366,9 @@ test("checkout refuses a 3rd pending order from one IP across different emails",
   await addToCart(v, copy);
   const email = `cap-ip-${uniq()}@example.test`;
   const r = await checkout(v, email);
-  assert.match(r.text, /already have unpaid orders/);
+  // The unpaid-order cap (200 + message) and the 10-per-hour checkout limiter (429) both stop at 10 per IP.
+  assert.ok([200, 429].includes(r.res.status), `status ${r.res.status}`);
+  assert.notEqual(r.res.status, 302);
   assert.equal((await orderByEmail(email)).length, 0);
   assert.equal((await copyRow(copy)).status, "in_stock");
   const { rows } = await pool.query("SELECT client_ip FROM orders WHERE client_ip IS NOT NULL LIMIT 1");

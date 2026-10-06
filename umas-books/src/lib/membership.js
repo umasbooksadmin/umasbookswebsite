@@ -185,15 +185,22 @@ async function syncMembershipForEmail(pool, email) {
   // is positive evidence of a refund/dispute.
   const returnedById = new Map(orders.map((o) => [Number(o.id), o]));
 
+  // A row can already exist without an owner: eraseMember() detaches a deleted
+  // account's payments (user_id NULL, payer email replaced) because the record
+  // must be kept for accounting. When the same person registers again and
+  // confirms their email, that orphan row is re-attached to the new account
+  // (only ever an orphan: a row owned by another account is never taken over),
+  // otherwise their paid membership would never be restored.
   for (const order of orders.filter(countsForMembership)) {
-    // A payment earlier recorded as unmatched is attached now that the
-    // account is confirmed; anything else already recorded is left alone.
+  // (A payment earlier recorded as UNMATCHED, user_id NULL, is attached here too.)
     await pool.query(
       `INSERT INTO membership_payments (user_id, helloasso_order_id, payer_email, amount_cents, paid_at)
        VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT (helloasso_order_id) DO UPDATE
-         SET user_id = EXCLUDED.user_id, unmatched_at = NULL, unmatched_reason = NULL, linked_at = now()
-         WHERE membership_payments.user_id IS NULL AND membership_payments.unmatched_at IS NOT NULL`,
+         SET user_id = EXCLUDED.user_id, payer_email = EXCLUDED.payer_email,
+             linked_at = CASE WHEN membership_payments.unmatched_at IS NOT NULL THEN now() ELSE membership_payments.linked_at END,
+             unmatched_at = NULL, unmatched_reason = NULL
+         WHERE membership_payments.user_id IS NULL`,
       [user.id, order.id, email, amountCents(order), new Date(order.date)]
     );
   }

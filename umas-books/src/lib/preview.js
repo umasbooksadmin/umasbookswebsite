@@ -4,6 +4,8 @@
 // membership payment widget are switched off, and search engines are told to
 // stay away. Unset (the default) means the site behaves normally.
 
+const { usesSandbox } = require("./helloassoHosts");
+
 function isPreviewMode(env = process.env) {
   const v = String((env && env.PREVIEW_MODE) || "").trim().toLowerCase();
   return v === "1" || v === "true";
@@ -14,6 +16,9 @@ function isPreviewMode(env = process.env) {
 function previewMiddleware(req, res, next) {
   const on = isPreviewMode();
   res.locals.preview = on;
+  // Live site (preview off) still pointed at the HelloAsso sandbox: every admin
+  // page shows a red banner (partials/admin_header.ejs).
+  res.locals.helloassoSandbox = !on && usesSandbox(process.env.HELLOASSO_API_BASE);
   if (on) res.set("X-Robots-Tag", "noindex, nofollow");
   next();
 }

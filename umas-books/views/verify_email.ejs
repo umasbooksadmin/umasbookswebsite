@@ -1,0 +1,22 @@
+<%- include('partials/header', { noindex: true, title: tr('Confirm your email', 'Confirmer votre adresse e-mail') }) %>
+
+<h1><%= tr('Confirm your email', 'Confirmer votre adresse e-mail') %></h1>
+<% if (state === 'ask') { %>
+  <p class="muted"><%= tr('Press the button to confirm your email address for your Uma’s Books account.', 'Appuyez sur le bouton pour confirmer votre adresse e-mail pour votre compte Uma’s Books.') %></p>
+  <form class="stack" method="post" action="/verify-email/<%= token %>">
+    <%- include('partials/csrf_field') %>
+    <button class="btn" type="submit"><%= tr('Confirm my email', 'Confirmer mon e-mail') %></button>
+  </form>
+<% } else { %>
+  <div role="alert" class="error-box"><%= tr("This confirmation link is not valid any more. It may have expired or already been used. If you already confirmed your email, you can log in; otherwise ask for a new link below.", "Ce lien de confirmation n'est plus valable. Il a peut-être expiré ou déjà été utilisé. Si vous avez déjà confirmé votre adresse, vous pouvez vous connecter ; sinon, demandez un nouveau lien ci-dessous.") %></div>
+  <h2><%= tr('Request a new confirmation link', 'Demander un nouveau lien de confirmation') %></h2>
+  <form class="stack" method="post" action="/resend-verification">
+    <%- include('partials/csrf_field') %>
+    <label for="resendEmail"><%= tr('Email', 'E-mail') %></label>
+    <input id="resendEmail" name="email" type="email" autocomplete="email" required>
+    <button class="btn" type="submit"><%= tr('Request a new confirmation link', 'Demander un nouveau lien de confirmation') %></button>
+  </form>
+  <p class="muted small"><a href="/forgot-password"><%= tr('Forgot your password?', 'Mot de passe oublié ?') %></a> &middot; <a href="/login"><%= tr('Log in', 'Se connecter') %></a></p>
+<% } %>
+
+<%- include('partials/footer') %>

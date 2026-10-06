@@ -18,6 +18,9 @@
 <% if (locals.preview) { %>
 <div class="admin-preview-note" role="status">PREVIEW MODE is ON: payments are disabled and the public site shows the coming-soon banner. Remove the PREVIEW_MODE setting in Render to launch.</div>
 <% } %>
+<% if (locals.helloassoSandbox) { %>
+<div class="admin-sandbox-note" role="alert">HelloAsso sandbox: payments are not real. The site is live but HELLOASSO_API_BASE still points at the HelloAsso sandbox. Fix it in Render &gt; Environment.</div>
+<% } %>
 <div class="admin-layout">
   <div class="admin-nav-backdrop" data-close-admin-nav></div>
   <aside class="admin-sidebar" id="admin-sidebar">

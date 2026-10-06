@@ -13,6 +13,7 @@ const { withTransaction } = require("../db");
 const { alertOnError } = require("./errorAlert");
 const { loadOrderItems } = require("./orderItems");
 const { buildOrderConfirmationText, orderConfirmationSubject } = require("./orderEmail");
+const { configuredBaseUrl } = require("./baseUrl");
 
 const CART_HOLD_TTL_MINUTES = 60;
 
@@ -157,7 +158,7 @@ async function queueOrderConfirmation(db, order, { kind = "order_confirmation" }
   if (isClient) await db.query("SAVEPOINT order_confirmation");
   try {
     const items = await loadOrderItems(db, order.id);
-    const base = process.env.APP_BASE_URL || process.env.RENDER_EXTERNAL_URL;
+    const base = configuredBaseUrl() || undefined;
     // Subject and body follow order.lang ('en' | 'fr' | null; null is English).
     const id = await enqueueEmail(db, {
       kind,

@@ -24,6 +24,7 @@ router.use(require("./reports"));
 router.use(require("./forum"));
 router.use(require("./pricing"));
 router.use(require("./audit"));
+router.use(require("./diagnostics"));
 router.use(emailOutbox);
 router.use(require("./requests"));
 
