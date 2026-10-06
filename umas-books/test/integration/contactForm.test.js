@@ -149,7 +149,7 @@ test("honeypot: a filled hidden field looks like success to the bot but sends no
   });
 });
 
-test("when the mail transport fails the person sees a 500 page with the fallback address, and the app keeps serving", async () => {
+test("when the mail transport fails the message is queued in the outbox, the person still sees success, and the worker retries", async () => {
   await withContactApp(async ({ base, post }) => {
     sendImpl = async () => { throw new Error("SMTP down"); };
     const realError = console.error;
@@ -160,11 +160,17 @@ test("when the mail transport fails the person sees a 500 page with the fallback
     } finally {
       console.error = realError;
     }
-    assert.equal(result.res.status, 500);
-    assert.match(result.text, /couldn(?:'|&#39;)t be sent just now/);
-    assert.ok(result.text.includes("admin@umasbooks.org"));
-    assert.ok(result.text.includes("Jean Dupont"), "entered values preserved");
+    assert.equal(result.res.status, 302, "stored for retry: not an error for the visitor");
     assert.equal((await fetch(`${base}/contact`)).status, 200);
+    const { rows } = await pool.query("SELECT id, status, attempts, to_email FROM email_outbox WHERE kind = 'contact' ORDER BY id DESC LIMIT 1");
+    assert.equal(rows[0].status, "pending");
+    assert.equal(rows[0].attempts, 1);
+    assert.equal(rows[0].to_email, EXPECTED_TO);
+    sendImpl = async (opts) => { sent.push(opts); };
+    await pool.query("UPDATE email_outbox SET next_try_at = now() WHERE id = $1", [rows[0].id]);
+    await require("../../src/lib/outbox").processOutbox(pool);
+    assert.equal(sent.length, 1, "delivered by the retry");
+    assert.match(sent[0].text, /Do you host readings\?/);
   });
 });
 

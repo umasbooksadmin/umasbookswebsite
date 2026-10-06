@@ -1,0 +1,48 @@
+<%# "Unmatched membership payments" on /admin/members. Data from routes/admin/members.js. %>
+<%
+  const linkNotices = {
+    linked: 'Payment linked and membership granted.',
+    payment_gone: 'That payment was already linked or no longer exists.',
+    no_account: 'Choose an account to link to.',
+    disabled: 'That account is disabled.'
+  };
+%>
+<% if (locals.linkNotice && linkNotices[linkNotice]) { %><div class="notice-box" role="status"><%= linkNotices[linkNotice] %></div><% } %>
+<% if (locals.unmatched && unmatched.length) { %>
+<div class="card" id="unmatched-payments">
+  <h2>Unmatched membership payments</h2>
+  <p class="muted small">These people paid for a membership on HelloAsso, but no confirmed account uses the email they typed there (often a typo, or another address). Find their account and link the payment: it grants the membership at once.</p>
+  <ul class="plain">
+    <% unmatched.forEach(p => { %>
+      <li style="margin-bottom:14px;">
+        <strong><%= p.payer_email %></strong> &middot; &euro;<%= (p.amount_cents / 100).toFixed(2) %> &middot; paid <%= formatDate(p.paid_at) %>
+        <span class="muted small">&middot; <%= p.unmatched_reason === 'unverified' ? 'an account has this email but it is not confirmed' : 'no account with this email' %></span>
+        <form method="get" action="/admin/members" style="margin-top:6px;">
+          <input type="hidden" name="linkPayment" value="<%= p.id %>">
+          <label class="muted small" for="link-q-<%= p.id %>">Find the account (email or name)</label>
+          <input id="link-q-<%= p.id %>" name="linkQ" type="search" value="<%= linkPaymentId === p.id ? linkQ : '' %>" required>
+          <button class="btn btn-outline btn-small" type="submit">Search</button>
+        </form>
+        <% if (linkPaymentId === p.id && linkCandidates) { %>
+          <% if (!linkCandidates.length) { %>
+            <p class="muted small">No active account matches.</p>
+          <% } else { %>
+            <ul class="plain nested">
+              <% linkCandidates.forEach(c => { %>
+                <li>
+                  <form method="post" action="/admin/members/unmatched/<%= p.id %>/link" style="display:inline">
+                    <%- include('csrf_field') %>
+                    <input type="hidden" name="userId" value="<%= c.id %>">
+                    <%= c.display_name %> &lt;<%= c.email %>&gt;<%= c.verified ? '' : ' (email not confirmed)' %><%= c.is_member ? ' (already a member)' : '' %>
+                    <button class="btn btn-small" type="submit">Link to account</button>
+                  </form>
+                </li>
+              <% }) %>
+            </ul>
+          <% } %>
+        <% } %>
+      </li>
+    <% }) %>
+  </ul>
+</div>
+<% } %>

@@ -110,7 +110,7 @@ router.get("/api/books/recommendation", async (req, res) => {
     `SELECT * FROM (
        SELECT DISTINCT b.id, b.title, b.authors, b.cover_url, b.description, b.description_fr
        FROM favorites f
-       JOIN users u ON u.id = f.user_id AND (u.is_member = true OR u.is_admin = true)
+       JOIN users u ON u.id = f.user_id AND ((u.is_member = true AND (u.member_expires_at IS NULL OR u.member_expires_at > now())) OR u.is_admin = true)
        JOIN books b ON b.id = f.book_id
        WHERE EXISTS (SELECT 1 FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock')
      ) AS candidates

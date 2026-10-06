@@ -23,6 +23,27 @@ const ALERT_TO = process.env.CONTACT_TO || "admin@umasbooks.org";
 const THROTTLE_MS = 15 * 60 * 1000;
 const MAX_ALERTS_PER_WINDOW = 6;
 
+// Alerts go straight through the mailer (not the outbox: the outbox's own
+// failure alert uses this, and a queue that alerts through itself would hide
+// exactly the outage it reports). One retry after a short pause covers a blip.
+let retryDelayMs = 2000;
+const setAlertRetryDelay = (ms) => { retryDelayMs = ms; };
+
+// Resolves true when the alert mail went out, false when both tries failed
+// (never throws).
+async function sendAdminAlert({ subject, text }) {
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      await sendMail({ to: ALERT_TO, subject, text });
+      return true;
+    } catch (err) {
+      console.error(`Admin alert email failed (attempt ${attempt}/2):`, err.message);
+      if (attempt === 1 && retryDelayMs > 0) await new Promise((r) => setTimeout(r, retryDelayMs));
+    }
+  }
+  return false;
+}
+
 const lastSentBySignature = new Map();
 let sentTimes = [];
 let suppressedCount = 0;
@@ -47,11 +68,10 @@ function body(err) {
 // order can't be fulfilled" (lib/cart.js).
 function alertOnError(label, err, { force = false } = {}) {
   const subject = `[umas-books] ${scrubPersonalData(label)}`;
-  const fail = (mailErr) => console.error("Error-alert email itself failed:", mailErr.message);
   if (force) {
     // Money alerts are NOT scrubbed: the admin needs the buyer's email and
     // the order/intent ids to refund by hand, and they only go to her own inbox.
-    return sendMail({ to: ALERT_TO, subject: `[umas-books] ${label}`, text: describe(err) }).catch(fail);
+    return sendAdminAlert({ subject: `[umas-books] ${label}`, text: describe(err) });
   }
   const now = Date.now();
   sentTimes = sentTimes.filter((t) => now - t < THROTTLE_MS);
@@ -70,7 +90,7 @@ function alertOnError(label, err, { force = false } = {}) {
   sentTimes.push(now);
   suppressedCount = 0;
 
-  return sendMail({ to: ALERT_TO, subject, text: `${body(err)}${suppressedNote}` }).catch(fail);
+  return sendAdminAlert({ subject, text: `${body(err)}${suppressedNote}` });
 }
 
-module.exports = { alertOnError, MAX_ALERTS_PER_WINDOW, ALERT_TO };
+module.exports = { alertOnError, sendAdminAlert, setAlertRetryDelay, MAX_ALERTS_PER_WINDOW, ALERT_TO };

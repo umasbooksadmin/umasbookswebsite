@@ -27,6 +27,7 @@
     <% if (order.status === 'paid' && order.collected_at) { %><span class="status-pill completed">Collected</span><% } %>
     <strong>&euro;<%= Number(order.total_amount).toFixed(2) %></strong>
   </div>
+  <%- include('../partials/admin_resend_confirmation', { o: order }) %>
   <h2 class="section-title">Items</h2>
   <ul class="plain">
     <% items.forEach(i => { %>

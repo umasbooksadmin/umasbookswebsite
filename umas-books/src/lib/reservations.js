@@ -7,7 +7,7 @@
 // (i.e. once a reservation is 11+ days old), tracked via
 // reminder_sent_at so it's only ever sent once per reservation.
 
-const mailer = require("../mailer");
+const { sendEmail } = require("./outbox");
 const { emailSafeName } = require("./validation");
 const { emailTr } = require("./lang");
 
@@ -63,7 +63,9 @@ async function sendPickupReminders(pool) {
       // to greet by, so fall back to a plain "Hi,".
       const legacy = copy.reserved_by_name === "Wishlist match";
       const greeting = legacy ? tr("Hi,", "Bonjour,") : tr(`Hi ${emailSafeName(copy.reserved_by_name)},`, `Bonjour ${emailSafeName(copy.reserved_by_name)},`);
-      await mailer.sendMail({
+      await sendEmail({
+        kind: "reservation_reminder",
+        lang: langRows[0] && langRows[0].lang,
         to: copy.reserved_by_email,
         subject: tr(`Reminder: your copy of "${copy.title}" is waiting for pickup`, `Rappel : votre exemplaire de « ${copy.title} » vous attend`),
         text: tr(

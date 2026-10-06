@@ -7,7 +7,7 @@
 // the users row alone leaves it all behind. eraseMember() handles both.
 
 const { withTransaction } = require("../db");
-const mailer = require("../mailer");
+const { sendEmail, purgeOutbox, eraseOutboxFor } = require("./outbox");
 const { emailSafeName } = require("./validation");
 const { emailTr } = require("./lang");
 const { CLEAR_PERSONAL_SQL } = require("./bookRequests");
@@ -25,6 +25,8 @@ const RETENTION = {
   clientIpDays: 2, // buyer IP kept on an order only for the checkout abuse caps
   unconfirmedRequestDays: 7, // book requests never confirmed by email
   bookRequestMonths: 12, // book requests nobody closed
+  outboxSentDays: 30, // stored copy (recipient, subject, body) of an email that was sent
+  outboxFailedDays: 90, // same for an email that could not be sent
   closedRequestDays: 30, // fulfilled/cancelled/expired book requests keep no contact details
 };
 
@@ -72,10 +74,11 @@ async function eraseMember(pool, userId, { client } = {}) {
       [email, ERASED_NAME, erasedEmail(userId), userId]
     );
     await db.query(
-      `UPDATE membership_payments SET payer_email = $2, user_id = NULL
+      `UPDATE membership_payments SET payer_email = $2, user_id = NULL, unmatched_at = NULL, unmatched_reason = NULL
        WHERE user_id = $3 OR lower(payer_email) = $1`,
       [email, erasedEmail(userId), userId]
     );
+    await eraseOutboxFor(db, email);
 
     // Book requests under this address or account: cancelled and stripped of
     // personal data (title/author/ISBN stay for anonymous demand counts).
@@ -193,6 +196,12 @@ async function purgeExpiredPersonalData(pool) {
     return r.rowCount;
   });
 
+  // Stored copies of sent emails (lib/outbox.js): recipient, subject and body
+  // are personal data, kept 30 days (90 for emails that could not be sent).
+  await step("emailOutbox", () =>
+    purgeOutbox(pool, { sentDays: RETENTION.outboxSentDays, failedDays: RETENTION.outboxFailedDays })
+  );
+
   await step("auditLog", async () => {
     const r = await pool.query(
       `DELETE FROM admin_audit_log WHERE at < now() - interval '${RETENTION.auditLogMonths} months'`
@@ -279,7 +288,9 @@ async function purgeExpiredPersonalData(pool) {
         const name = emailSafeName(u.display_name);
         const years = RETENTION.inactiveAccountYears;
         const days = RETENTION.inactivityWarningDays;
-        await mailer.sendMail({
+        await sendEmail({
+          kind: "inactivity_warning",
+          lang: u.lang,
           to: u.email,
           subject: tr("Your Uma's Books account will be deleted in 30 days", "Votre compte Uma's Books sera supprimé dans 30 jours"),
           text:

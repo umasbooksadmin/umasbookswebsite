@@ -4,6 +4,7 @@ const bcrypt = require("bcryptjs");
 const { limit, ipKey } = require("../middleware/rateLimits");
 const { pool } = require("../db");
 const { hashToken } = require("../lib/resetTokens");
+const { isActiveMember } = require("../lib/memberStatus");
 const { sendResetLink, createResetToken } = require("../lib/passwordReset");
 const { sendVerificationEmail, sendSignupAttemptEmail } = require("../lib/emailVerification");
 const { validateNewPassword } = require("../lib/passwordPolicy");
@@ -97,7 +98,7 @@ function loginAs(req, res, user, redirectTo) {
     }
     req.session.user = {
       id: user.id, email: user.email, displayName: user.display_name,
-      isAdmin: user.is_admin, isMember: user.is_member, isVolunteer: user.is_volunteer,
+      isAdmin: user.is_admin, isMember: isActiveMember(user), isVolunteer: user.is_volunteer,
       passwordChangedAt: user.password_changed_at.getTime(),
       totpEnabled: Boolean(user.totp_enabled_at),
     };
@@ -298,8 +299,7 @@ router.post("/membership/check", (req, res, next) => {
     if (!helloasso.isConfigured()) return await flash("error");
     await syncMembershipForEmail(pool, u.email);
     const { rows: after } = await pool.query("SELECT is_member, member_expires_at FROM users WHERE id = $1", [req.session.user.id]);
-    const exp = after[0].member_expires_at ? new Date(after[0].member_expires_at) : null;
-    const found = after[0].is_member && (!exp || exp > new Date());
+    const found = isActiveMember(after[0]);
     if (found) req.session.user.isMember = true;
     return await flash(found ? "found" : "notfound");
   } catch (err) {

@@ -149,3 +149,31 @@ test("the proof is in the member data export and survives erasure (anonymised or
   assert.equal(rows[0].cgv_version, TERMS_OF_SALE_VERSION);
   assert.ok(rows[0].cgv_accepted_at);
 });
+
+// The legal text (no-returns notice, pickup info, withdrawal block and form,
+// VAT line, acceptance line) must be in the QUEUED confirmation (outbox row)
+// and in the copy the admin "Resend confirmation" queues: same builder.
+test("the queued confirmation and the resent one both carry the legal text", async () => {
+  const { resendOrderConfirmation } = require("../../src/lib/cart");
+  const v = guest("fr");
+  await v.post("/cart/add", { copyId: await makeCopy() });
+  const email = `cgvq-${uniq()}@example.test`;
+  await signIn(v, email);
+  await v.post("/cart/checkout", { name: "Queue Buyer", acceptCgv: "on" });
+  const [order] = await orders(email);
+  assert.equal(await markOrderPaid(pool, order), true);
+  assert.deepEqual((await resendOrderConfirmation(pool, order.id)).ok, true);
+  const { rows } = await pool.query("SELECT body_text FROM email_outbox WHERE related_order_id = $1 AND kind = 'order_confirmation' ORDER BY id", [order.id]);
+  assert.equal(rows.length, 2, "one queued at payment, one by the resend");
+  for (const { body_text: t } of rows) {
+    for (const needle of [
+      "Used books: no returns or exchanges for a change of mind in the shop.",
+      "Livres d’occasion : pas de reprise ni d’échange pour simple changement d’avis en boutique.",
+      "À retirer sous 14 jours, du mardi au samedi, 10h–19h, rue Peyrolière, Albi.",
+      "WITHDRAWAL FORM / FORMULAIRE DE RÉTRACTATION",
+      "Conditions générales de vente acceptées le",
+      "TVA non applicable",
+      "CM2C",
+    ]) assert.ok(t.includes(needle), `missing: ${needle}`);
+  }
+});

@@ -7,7 +7,7 @@ const { audit } = require("../../lib/audit");
 const { sendResetLink } = require("../../lib/passwordReset");
 const { baseUrl } = require("../../lib/baseUrl");
 const { sendVerificationEmail } = require("../../lib/emailVerification");
-const { syncMembershipInBackground } = require("../../lib/membership");
+const { syncMembershipInBackground, linkUnmatchedPayment } = require("../../lib/membership");
 const { isEmail, clean, parseId } = require("../../lib/validation");
 const { eraseMember } = require("../../lib/privacy");
 const { buildMemberExport } = require("../../lib/memberExport");
@@ -101,7 +101,7 @@ router.get("/admin/members", requireAdmin, async (req, res) => {
     where.push(`(u.display_name ILIKE $${params.length} OR u.email ILIKE $${params.length})`);
   }
   if (role === "admin") where.push("u.is_admin = TRUE");
-  if (role === "member") where.push("u.is_member = TRUE");
+  if (role === "member") where.push("(u.is_member = TRUE AND (u.member_expires_at IS NULL OR u.member_expires_at > now()))");
   if (status === "active") where.push("u.is_disabled = FALSE");
   if (status === "inactive") where.push("u.is_disabled = TRUE");
   if (dateRange === "7d") where.push("u.created_at >= now() - interval '7 days'");
@@ -153,7 +153,25 @@ router.get("/admin/members", requireAdmin, async (req, res) => {
   const detail = viewId ? await loadMemberDetail(viewId) : null;
   const panel = ["overview", "activity", "edit"].includes(req.query.panel) ? req.query.panel : "overview";
 
+  // Membership payments that matched no confirmed account (lib/membership.js),
+  // and, when the admin is linking one, the accounts matching her email search.
+  const { rows: unmatched } = await pool.query(
+    `SELECT id, payer_email, amount_cents, paid_at, unmatched_reason, unmatched_at
+     FROM membership_payments WHERE user_id IS NULL AND unmatched_at IS NOT NULL ORDER BY paid_at DESC LIMIT 100`
+  );
+  const linkPaymentId = parseId(req.query.linkPayment);
+  const linkQ = String(req.query.linkQ || "").trim().slice(0, 100);
+  let linkCandidates = null;
+  if (linkPaymentId && linkQ) {
+    ({ rows: linkCandidates } = await pool.query(
+      `SELECT id, email, display_name, email_verified_at IS NOT NULL AS verified, is_member
+       FROM users WHERE NOT is_disabled AND (email ILIKE $1 OR display_name ILIKE $1) ORDER BY email LIMIT 10`,
+      [`%${linkQ.replace(/[\\%_]/g, "\\$&")}%`]
+    ));
+  }
+
   res.render("admin/members", {
+    unmatched, linkPaymentId, linkQ, linkCandidates, linkNotice: String(req.query.linkNotice || ""),
     // Accounts and the new Members quick-link both land here (the same
     // list, just pre-filtered) — this distinguishes which sidebar entry
     // should highlight without needing two separate routes.
@@ -218,6 +236,19 @@ router.get("/admin/members/:id/export.json", requireAdmin, async (req, res) => {
   res.set("Cache-Control", "no-store");
   res.set("Content-Disposition", `attachment; filename="member-${id}-data.json"`);
   res.type("application/json").send(JSON.stringify(data, null, 2));
+});
+
+// Attach an unmatched membership payment to the chosen account and grant the
+// membership, in one transaction (typo or different email on HelloAsso's form).
+router.post("/admin/members/unmatched/:id/link", requireAdmin, async (req, res) => {
+  const paymentId = Number(req.params.id);
+  const userId = parseId(req.body.userId);
+  const result = userId ? await linkUnmatchedPayment(pool, paymentId, userId) : { ok: false, reason: "no_account" };
+  await audit(req, {
+    action: "membership.link_payment", targetType: "membership_payment", targetId: paymentId,
+    detail: result.ok ? `linked to account #${userId}` : `refused: ${result.reason}`,
+  });
+  res.redirect(`/admin/members?linkNotice=${result.ok ? "linked" : encodeURIComponent(result.reason)}#unmatched-payments`);
 });
 
 router.post("/admin/members/:id/toggle-member", requireAdmin, async (req, res) => {

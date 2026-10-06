@@ -16,7 +16,7 @@
 // (lib/resetTokens.js) and appear in clear only inside emails.
 
 const { withTransaction } = require("../db");
-const mailer = require("../mailer");
+const { sendEmail } = require("./outbox");
 const { generateToken, hashToken } = require("./resetTokens");
 const { emailTr, normLang } = require("./lang");
 const { formatEuro } = require("./money");
@@ -324,7 +324,9 @@ async function sendConfirmationEmail({ to, request, confirmToken, manageToken, b
   const what = describeTr(tr, request.title, request.author);
   const confirmLink = `${base}/request-a-book/confirm/${confirmToken}`;
   const manageLink = `${base}/my-requests/${manageToken}`;
-  await mailer.sendMail({
+  await sendEmail({
+    kind: "book_request_confirm",
+    lang: request.lang,
     to,
     subject: tr("Please confirm your book request at Uma's Books", "Merci de confirmer votre demande de livre chez Uma's Books"),
     text: tr(
@@ -337,7 +339,9 @@ async function sendConfirmationEmail({ to, request, confirmToken, manageToken, b
 async function sendListEmail({ to, lang, token, base }) {
   const tr = emailTr(lang);
   const link = `${base}/my-requests/list/${token}`;
-  await mailer.sendMail({
+  await sendEmail({
+    kind: "book_request_list",
+    lang,
     to,
     subject: tr("Your book requests at Uma's Books", "Vos demandes de livres chez Uma's Books"),
     text: tr(
@@ -375,7 +379,9 @@ async function sendNotifyEmail({ request, copy, manageToken, base, hold }) {
   const holdFr = hold
     ? `Nous avons mis cet exemplaire de côté pour vous pendant ${LIMITS.holdDays} jours (jusqu'au ${until}). Passez à la boutique pour le récupérer et le régler sur place.`
     : "Les exemplaires partent au fur et à mesure : passez vite à la boutique ou ajoutez-le à votre panier en ligne.";
-  await mailer.sendMail({
+  await sendEmail({
+    kind: "book_request_notify",
+    lang,
     to: request.email,
     subject: tr(`Good news: "${title}" is now at Uma's Books`, `Bonne nouvelle : « ${title} » est arrivé chez Uma's Books`),
     text: tr(

@@ -358,6 +358,7 @@ src/` is the ground truth if this list ever drifts):
 | `HELLOASSO_API_BASE` | no (defaults to production) | set to HelloAsso's sandbox URL for testing |
 | `TRUST_PROXY_HOPS` | no (default 2 in production, 1 elsewhere) | integer 1 to 5, number of reverse proxies in front of the app (Cloudflare + Render edge = 2); decides `req.ip` (`src/lib/trustProxy.js`). Check on `/admin/diagnostics/client-ip` |
 | `APP_BASE_URL` | yes once preview is off | `https://umasbooks.org`; the only base URL used on a live site, and other Hosts are redirected to it (`src/middleware/canonicalHost.js`) |
+| `HELLOASSO_MEMBERSHIP_FORM_SLUG` | no | only orders of this HelloAsso form (its `formSlug`) grant membership; unset = any Membership-type form |
 | `PREVIEW_MODE` | no (off when unset) | `true` or `1` (any case) turns on [preview mode](#preview-mode): coming-soon banner, payments off, search engines kept out. Set in the Render dashboard, not in `render.yaml` |
 
 CI (`.github/workflows/ci.yml`) has its own separate set of throwaway
@@ -460,10 +461,14 @@ others. `lib/totp.js` (hand-rolled on `node:crypto`), `routes/twoFactor.js`
   `orders.client_ip` (kept only for the checkout abuse caps in `routes/cart.js`)
   is set to NULL when an order leaves `pending` (`lib/cart.js`), by the purge
   after 2 days (`clientIpDays`) and by `eraseMember`.
+  Stored copies of emails (`email_outbox`: recipient, subject, body) are
+  erased 30 days after sending, 90 for ones that could not be sent
+  (`outboxSentDays`/`outboxFailedDays`, step `emailOutbox`); `eraseMember`
+  erases and cancels the rows for that address.
   Contact details on `book_copies` that are no longer reserved (sold or
   cancelled) and on `expired`/`cancelled` orders are removed after 30 days.
   The warning email is claimed (`inactivity_warned_at` set) before it is
-  sent and released if the send fails, so overlapping instances don't
+  queued in the outbox (which owns the retry), so overlapping instances don't
   double-send. The `RETENTION` constants must match the privacy policy page.
 - Admin audit log: `lib/audit.js` `audit(req, {action, targetType, targetId,
   detail})` appends to `admin_audit_log` (migration 040) from sensitive admin
@@ -490,7 +495,8 @@ others. `lib/totp.js` (hand-rolled on `node:crypto`), `routes/twoFactor.js`
   export. Both write `member.self_export` / `member.self_erase` to the audit
   log with the member's id only (`actor_label` = `self`).
 - Not automated: contact-form messages live in the Gmail inbox (the policy
-  says they are kept until the sender asks us to delete them), and server
+  says they are kept until the sender asks us to delete them; the copy in
+  `email_outbox` goes after 30 days), and server
   logs sit with Render. Log lines never contain emails.
 
 
@@ -738,6 +744,48 @@ statuses).
   from HelloAsso clears the cached token and retries once. `/cart/return`
   also reconciles recently closed orders; a paid-but-unfulfillable one
   shows "we received your payment" rather than "nothing was charged".
+
+### Email outbox (`src/lib/outbox.js`, migration 062)
+
+All customer emails are **stored in `email_outbox` first**, then sent
+(`sendEmail`), so a Gmail outage, rate limit (~2000 messages/day) or revoked
+app password loses nothing. See `docs/architecture.md` §7 for the full design.
+Points for maintainers:
+
+- `enqueueEmail(db, msg)` accepts a transaction client; `markOrderPaid` and
+  `recoverLatePayment` queue the order confirmation inside the payment
+  transaction (in a savepoint: a failure building the text never undoes a
+  payment) and call `deliverNow` after commit. `markOrderPaid(pool, order,
+  { helloassoOrderId })` stamps `helloasso_order_id` in that same transaction.
+- `mailer.sendMail` is always called through the module object, so tests that
+  replace `mailer.sendMail` still see every mail.
+- Worker `processOutbox` runs every 60 s from `index.js` (advisory lock key
+  7243902, claim by pushing `next_try_at` 5 minutes ahead); backoff 1, 5, 15,
+  60, 240 min, 8 attempts, then `failed` plus one alert per hour
+  (`alertFailedEmails`, sent directly through `errorAlert.sendAdminAlert` with
+  one retry). Admin alert emails (`alertOnError`) stay on the direct path with
+  the same retry-once.
+- `orders.confirmation_sent_at` (migration 062) is set when a confirmation went
+  out; the dashboard flags paid orders without it after 30 minutes. The admin
+  routes live in `routes/admin/emailOutbox.js`: `/admin/email-outbox` and
+  `POST /admin/orders/:id/resend-confirmation` (button from the partial
+  `views/partials/admin_resend_confirmation.ejs`, included by
+  `views/admin/orders.ejs`).
+- One-time-link kinds (`TOKEN_KINDS`) lose their body when sent.
+- The goodbye email on self-deletion bypasses the outbox on purpose.
+
+### Membership payments (`src/lib/membership.js`, migration 063)
+
+`expiryFromPayments` chains payments (`max(paid_at, previous end) + 365 d`);
+only Authorized orders over 0 EUR on `HELLOASSO_MEMBERSHIP_FORM_SLUG` (when
+set) count; a result in the past grants nothing. A payer email with no
+confirmed account is stored in `membership_payments` with `user_id NULL`,
+`unmatched_at` set, and alerted (once an hour, from `alertUnmatchedPayments`,
+also run by the outbox tick); `/admin/members` lists them and
+`linkUnmatchedPayment` attaches one and grants in one transaction.
+`lib/memberStatus.js` is the one definition of "active member now"
+(`attachUser`, login, favorites, member counts) and `isoDateParis` formats end
+dates in Paris time.
 
 ## Deploy sequence
 

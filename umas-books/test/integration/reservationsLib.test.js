@@ -136,22 +136,26 @@ test("a legacy 'Wishlist match' reservation is greeted with a plain 'Hi,'", asyn
   assert.doesNotMatch(mail.text, /Wishlist/);
 });
 
-test("a mail failure leaves the copy unmarked (so it is retried) and doesn't stop other reminders", async () => {
+test("a mail failure doesn't stop other reminders: the failed one stays claimed and the outbox retries it exactly once", async () => {
   const bad = await reservedCopy({ age: "12 days" });
   const good = await reservedCopy({ age: "12 days" });
   sendImpl = async (opts) => { if (opts.to === bad.email) throw new Error("smtp 421"); };
   await assert.doesNotReject(sendPickupReminders(pool));
 
-  assert.equal((await copyRow(bad.id)).reminder_sent_at, null);
+  assert.ok((await copyRow(bad.id)).reminder_sent_at, "claimed: the email is in the outbox, which owns the retry");
   assert.ok((await copyRow(good.id)).reminder_sent_at);
   assert.equal(mailsTo(good.email).length, 1);
 
-  // next run (mail healthy again) retries the failed one and only that one
+  // the daily run does not queue a second reminder for the same copy
   sendImpl = async () => {};
   await sendPickupReminders(pool);
+  assert.equal(mailsTo(bad.email).length, 1, "only the failed first attempt so far");
+
+  // the outbox worker retries it once mail is healthy again
+  await pool.query("UPDATE email_outbox SET next_try_at = now() WHERE lower(to_email) = lower($1) AND status = 'pending'", [bad.email]);
+  await require("../../src/lib/outbox").processOutbox(pool);
   assert.equal(mailsTo(bad.email).length, 2, "first failed attempt + successful retry");
   assert.equal(mailsTo(good.email).length, 1, "not re-sent");
-  assert.ok((await copyRow(bad.id)).reminder_sent_at);
 });
 
 test("a reminder then expiry: after the copy is released and re-reserved, the new reservation is reminded afresh", async () => {

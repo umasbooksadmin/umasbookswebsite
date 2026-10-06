@@ -1,6 +1,6 @@
 const express = require("express");
 const { limit } = require("../middleware/rateLimits");
-const { sendMail } = require("../mailer");
+const { sendEmail } = require("../lib/outbox");
 const { isPreviewMode } = require("../lib/preview");
 const { isEmail, emailSafeName } = require("../lib/validation");
 
@@ -58,7 +58,8 @@ router.post("/contact", contactLimiter, async (req, res) => {
   }
 
   try {
-    await sendMail({
+    await sendEmail({
+      kind: "contact",
       to: CONTACT_TO,
       // {name, address} form, not a hand-built "Name <addr>" string: a name
       // containing "<boss@x.org>, y" would otherwise add extra Reply-To entries.

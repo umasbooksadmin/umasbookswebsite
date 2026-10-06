@@ -10,8 +10,9 @@ const { test, beforeEach } = require("node:test");
 const assert = require("node:assert/strict");
 
 const sent = [];
-// Must be replaced before the libs below destructure it.
-require("../../src/mailer").sendMail = async (opts) => { sent.push(opts); };
+// Must be replaced before the libs below destructure it. (The outbox itself,
+// store-then-send, is covered in outbox.test.js.)
+require("../../src/lib/outbox").sendEmail = async (opts) => { sent.push(opts); return { id: 1, sent: true }; };
 
 const { pool } = require("../../src/db");
 let langLookup = null;

@@ -1,6 +1,6 @@
 const { pool } = require("../db");
 const { generateToken, hashToken } = require("./resetTokens");
-const { sendMail } = require("../mailer");
+const { sendEmail } = require("./outbox");
 const { emailSafeName } = require("./validation");
 const { emailTr } = require("./lang");
 
@@ -25,7 +25,9 @@ async function sendResetLink(user, baseUrl) {
   const tr = emailTr(user.lang);
   const name = emailSafeName(user.display_name);
   const link = `${baseUrl}/reset-password/${rawToken}`;
-  await sendMail({
+  await sendEmail({
+    kind: "password_reset",
+    lang: user.lang,
     to: user.email,
     subject: tr("Reset your Uma's Books account password", "Réinitialisez le mot de passe de votre compte Uma's Books"),
     text: tr(

@@ -1,3 +1,4 @@
+const { isActiveMember } = require("../lib/memberStatus");
 // Role flags and disabled-status are cached into req.session.user at
 // login (see loginAs in routes/auth.js) rather than looked up per
 // request — left alone, that cache can go stale for the session cookie's
@@ -22,7 +23,7 @@ function attachUser(pool) {
     let rows;
     try {
       ({ rows } = await pool.query(
-        "SELECT is_admin, is_member, is_volunteer, is_disabled, password_changed_at, totp_enabled_at FROM users WHERE id = $1",
+        "SELECT is_admin, is_member, member_expires_at, is_volunteer, is_disabled, password_changed_at, totp_enabled_at FROM users WHERE id = $1",
         [req.session.user.id]
       ));
     } catch (err) {
@@ -57,7 +58,8 @@ function attachUser(pool) {
     }
 
     req.session.user.isAdmin = row.is_admin;
-    req.session.user.isMember = row.is_member;
+    // Not just the flag: the sweep that clears it only runs every 6 hours.
+    req.session.user.isMember = isActiveMember(row);
     req.session.user.isVolunteer = row.is_volunteer;
     req.session.user.totpEnabled = Boolean(row.totp_enabled_at);
 

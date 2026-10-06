@@ -63,6 +63,7 @@ asks you to. Always change **every** place listed, then check
 | `TOTP_ENCRYPTION_KEY` | Render env var only |
 | `GMAIL_USER`, `GMAIL_APP_PASSWORD` | Render env var **and** GitHub repository secrets (uptime alerts, backup emails) |
 | `HELLOASSO_CLIENT_ID`, `HELLOASSO_CLIENT_SECRET`, `HELLOASSO_ORG_SLUG`, `HELLOASSO_API_BASE` | Render env var only |
+| `HELLOASSO_MEMBERSHIP_FORM_SLUG` (optional, not a secret: the last part of your membership form's HelloAsso address) | Render env var only. When set, only payments on that form make someone a member; leave it unset to accept any membership form |
 | `PREVIEW_MODE` (not a secret; see section g) | Render env var only |
 | `BACKUP_S3_BUCKET`, `BACKUP_S3_ENDPOINT`, `BACKUP_S3_REGION` (and optional `BACKUP_S3_PREFIX`) | GitHub **repository variables** |
 | `BACKUP_S3_KEY_ID`, `BACKUP_S3_APPLICATION_KEY` | GitHub **repository secrets** |
@@ -721,7 +722,85 @@ order with no HelloAsso payment recorded) must be marked by hand as above.
   is not cancelled. Customers can also cancel their own unpaid order from their
   cart page ("Your unpaid orders").
 
-## l) The VAT line ("TVA non applicable") and the footer social links
+## l) Emails are not arriving (outbox)
+
+Every email the site sends (order confirmations, account and password links,
+book-request and reservation mails, forum notices, the contact form) is first
+saved in the **email outbox**, sent at once, and retried automatically if it
+fails: after 1, 5, 15 and 60 minutes, then every 4 hours, up to 8 tries.
+
+You are told in three ways: an email "N emails could not be sent" (at most one
+per hour), a **Needs attention** box on the admin dashboard, and the list at
+Admin > **Email outbox**.
+
+1. Admin > **Email outbox**. Look at the **Last error** column.
+   - "Invalid login", "535", "Username and Password not accepted": the Gmail
+     app password was revoked: go to section m) below.
+   - "daily limit", "550 5.4.5", "Daily user sending quota exceeded": Google
+     allows about 2000 messages a day from one mailbox. Nothing is lost: the
+     rows stay queued and go out when the limit resets (within 24 hours). If
+     it keeps happening, something is sending far too much: check the Render
+     logs.
+   - "timeout", "ECONNREFUSED": Gmail or the network was down; it retries by
+     itself.
+2. Once the cause is fixed, click **Retry now** on a row, or just wait: pending
+   rows are retried every minute when due. Rows that already gave up (status
+   **failed**) are not retried by themselves: use **Retry now** on each, then
+   **Mark failed as handled** to clear the warning.
+3. A buyer says they never got their confirmation: Admin > **Books & Orders** >
+   **View Orders**, find the order: it says "Confirmation: sent ..." or "NOT
+   SENT". Click **Resend confirmation**. The buyer can also open the order page
+   they saw after paying ("Order #N paid"), which is a printable proof.
+4. A person never got an account link: ask them to use "Forgot password" again
+   (or "Resend confirmation" on the login page) once mail works. Those mails
+   lose their text as soon as they are sent, so they cannot be resent from the
+   outbox; a new request creates a new link.
+
+The text of sent emails is erased after 30 days (failed ones after 90): old rows
+only show who/what/when.
+
+## m) Gmail password revoked
+
+Symptoms: "Invalid login" in the outbox errors, uptime/backup alert emails
+missing too, no confirmation emails. The outbox keeps every customer email
+safely for retry meanwhile (the alert email about it comes from the same Gmail
+account, so it may not arrive: look at the dashboard instead).
+
+1. Google account of `GMAIL_USER` > Security > 2-Step Verification > **App
+   passwords**: create a new app password (revoking one stops it working).
+2. Replace it in **both** places (section b, GMAIL_USER / GMAIL_APP_PASSWORD):
+   Render env var `GMAIL_APP_PASSWORD` (Save: the site restarts) **and** the
+   GitHub repository secret `GMAIL_APP_PASSWORD`.
+3. Admin > **Email outbox**: **Retry now** on the failed rows, then **Mark failed
+   as handled**. Pending rows go out by themselves within a minute.
+4. Send a test: run the **Send a test alert** workflow (section d).
+
+## n) A member paid with another email
+
+HelloAsso asks for an email on its own payment form. If it is typed with a
+typo, or is not the email of the person's site account, the payment cannot be
+matched: the person pays but is not a member on the site.
+
+You are told by an email "Membership payment from <email> matches no confirmed
+account" (at most one per hour) and by the dashboard box. Admin > **Accounts**
+(top of the page) lists **Unmatched membership payments**.
+
+1. Find which account the payer is (ask them, or look at the typed email: it is
+   usually a typo or a second address).
+2. Under the payment, type part of their account email or name > **Search** >
+   **Link to account** next to the right account. The payment is attached and
+   the membership is granted immediately (365 days from the payment, or from the
+   end of the current membership when renewing early).
+3. If the account's email is not confirmed ("email not confirmed" next to it),
+   the link still works, but ask the person to confirm their email.
+4. A payment more than a year old, or a payment of 0 EUR, never grants
+   membership. A person who simply has no account yet: ask them to create one
+   (any email); then link the payment.
+
+If an unmatched payment is really a mistake (not a member payment), leave it:
+it does nothing. It is erased with the other payment records after 10 years.
+
+## o) The VAT line ("TVA non applicable") and the footer social links
 
 **The VAT line.** The association does not charge VAT, and French law wants the
 legal article that says why written next to "TVA non applicable". Which article

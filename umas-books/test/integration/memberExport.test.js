@@ -95,7 +95,7 @@ test("admin downloads a member's data as JSON, without secrets", async () => {
   for (const section of [
     "user", "event_signups", "class_signups", "orders", "membership_payments", "favorites",
     "volunteer_signups", "meeting_rsvps", "forum_threads", "forum_replies",
-    "charity_votes", "charity_ideas", "book_reservations",
+    "charity_votes", "charity_ideas", "book_reservations", "emails_sent",
   ]) {
     assert.ok(section in data, `missing section ${section}`);
   }

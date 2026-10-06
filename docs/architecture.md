@@ -647,8 +647,8 @@ sequenceDiagram
   end
   W->>HA: look up the intent (authoritative)
   alt payment Authorized
-    W->>DB: one transaction: order paid (WHERE status = pending),<br/>copies and seats sold
-    W->>GM: order confirmation (after commit)
+    W->>DB: one transaction: order paid (WHERE status = pending),<br/>HelloAsso order id stamped, copies and seats sold,<br/>confirmation email queued in email_outbox
+    W->>GM: send the queued confirmation at once (best effort);<br/>the outbox worker retries if Gmail refuses
   else refused or abandoned
     W->>DB: one transaction: release copies,<br/>seats marked released, order closed
   end
@@ -659,7 +659,9 @@ What keeps it correct:
 | Concern | Mechanism |
 |---|---|
 | Double delivery / webhook racing the sweep | `UPDATE orders SET status='paid' … WHERE status='pending'`; the loser gets `rowCount = 0` and stops |
-| Crash between "paid" and "sold" | both happen in **one transaction** (`markOrderPaid`) |
+| Crash between "paid" and "sold" | both happen in **one transaction** (`markOrderPaid`), together with the HelloAsso order id and the queued confirmation email |
+| Gmail down, rate-limited or password revoked at payment time | the confirmation is **stored first** (`email_outbox`, same transaction as the payment), sent at once, and retried by the worker with backoff (below). A failure while *building* the confirmation never undoes a payment (savepoint): the order is paid without a confirmation, flagged on the admin dashboard after 30 minutes, with a *Resend confirmation* button on the orders list |
+| Buyer without the email | `/cart/return` shows **"Order #N paid"** with the items, total, date and a Print button: proof of payment even if no email ever arrives |
 | Abandoned checkouts | a hold lasts 60 minutes; every 10 minutes the sweep releases stale holds, including drop-in-only ones |
 | Releasing an order that actually paid | `releaseCartHold` locks the order row first; if already paid it finishes marking copies sold instead |
 | Drop-in seat rows | marked `released`, never deleted (`order_items` references them); capacity ignores released seats |
@@ -686,6 +688,37 @@ dashboard, and the order is then marked refunded in the admin
 | Refund done in HelloAsso only | `lib/orderSweeps.js` `detectRefundedOrders` (every 6 h, via `guardJob`): for paid orders of the last 30 days it re-reads the checkout intent with our own credentials (never a webhook body); no `Authorized` payment and one `Refunded` / `Refunding` / `Canceled` payment flags `orders.refund_detected_at`. One email per run for everything newly found (`refund_alert_sent_at` claim, handed back if the send fails). It never restocks: the admin marks the order refunded. A partial refund is not detected. A systemic HelloAsso failure stops the run and alerts once |
 | Pickup | "Mark collected" sets `collected_at` / `collected_by`. A paid order with at least one book and no `collected_at` is "awaiting pickup" (drop-in-only orders never are). Day 10: customer reminder email (EN/FR, only repeats the terms of sale: collect within 14 days of payment, write to us if you need longer; sent only inside days 10 to 14, never for an order flagged as refunded). Day 12: one admin email listing the uncollected orders. Each is claimed in the database first and sent once per order |
 | Admin view | `/admin/orders`: filters (status, awaiting pickup, over 14 days, refund detected, unpaid over 2 hours), Paris date range, search by number, email or name, 50 per page; `/admin/orders/:id` shows items, buyer, HelloAsso ids, Paris times, terms acceptance and history. The dashboard "Needs attention" box counts the three problem lists |
+
+### The email outbox
+
+Every customer email (order confirmation, signup/confirm/reset links,
+book-request and reservation mails, forum notices, inactivity warnings, the
+contact form to the shop) goes through `lib/outbox.js`: **store, then send**.
+
+- `enqueueEmail(db, msg)` inserts a row in `email_outbox`; `db` may be a
+  transaction client so the row commits or rolls back with the caller's work.
+- `sendEmail(msg)` = enqueue + an immediate send (waits at most 5 s), so mail is
+  still instant when Gmail works. It never throws on a send failure, only if the
+  row cannot be stored.
+- A row is **claimed** by pushing `next_try_at` 5 minutes ahead in one `UPDATE`,
+  so the fast path, the worker and two app instances never send the same row.
+- Worker (`processOutbox`, every 60 s, `guardJob` + advisory lock, batch of 20):
+  retries due rows with backoff **1, 5, 15, 60, 240 min** (240 repeating) up to
+  **8 attempts**, then `status = 'failed'` and **one alert email per hour**
+  ("N emails could not be sent": kinds, counts, last error with emails and long
+  numbers removed). Three failures in a row stop the batch (Gmail is refusing
+  everything). Alerts themselves go straight through the mailer with one retry
+  (`sendAdminAlert`), because the outbox cannot report its own outage.
+- `orders.confirmation_sent_at` is set when a confirmation really went out.
+- Admin (English): `/admin/email-outbox` (last 100 rows, retry now, mark failed
+  as handled), *Resend confirmation* in the orders list
+  (`POST /admin/orders/:id/resend-confirmation`, `routes/admin/emailOutbox.js`),
+  and a "Needs attention" box on the dashboard.
+- Retention: recipient/subject/body of **sent** rows are erased after 30 days,
+  of failed/handled rows after 90 (`RETENTION.outboxSentDays/outboxFailedDays`,
+  step `emailOutbox`); one-time-link mails lose their body as soon as they are
+  sent; erasing an account erases its rows. The goodbye email on self-deletion
+  is the one mail that bypasses the outbox (the address is erased right after).
 
 ---
 
@@ -719,13 +752,35 @@ flowchart LR
   T -- "account verified, password reset,<br/>or created by an admin" --> S
   S["syncMembershipForEmail<br/>asks HelloAsso for that payer's<br/>Membership orders (exact email match)"]
   S --> V{"Account exists with a<br/>VERIFIED email?"}
-  V -- no --> W["skip, log;<br/>retried when the account is verified"]
-  V -- yes --> R["record payment,<br/>member_expires_at = payment date + 365 days,<br/>is_member = true"]
+  V -- no --> W["record as UNMATCHED payment (user_id NULL),<br/>throttled admin alert, admin links it by hand"]
+  V -- yes --> R["record payment (amount &gt; 0, form slug if set),<br/>member_expires_at = max(paid_at, previous end) + 365 days,<br/>is_member = true unless already past"]
   R --> X["revoke only on positive evidence:<br/>order returned without an Authorized payment"]
 ```
 
 Manual admin grants (`/admin/members`) have no `member_expires_at` and are never
 touched by the sync or the expiry sweep.
+
+**Payment integrity.**
+
+- Only an `Authorized` order with an amount **above 0** counts; if
+  `HELLOASSO_MEMBERSHIP_FORM_SLUG` is set only that form counts.
+- **Renewal arithmetic** (`expiryFromPayments`): payments are chained oldest
+  first, each adding 365 days starting at `max(paid_at, previous end)`. Renewing
+  at day 300 therefore ends 730 days after the first payment; re-running a sync
+  never adds time twice (it is derived from the payments only). A result
+  already in the past grants nothing.
+- **Unmatched payments**: a payer email with no account, or an account whose
+  email is not confirmed, is stored in `membership_payments` with
+  `user_id NULL` and `unmatched_at` set (migration 063). The admin gets one
+  alert per hour ("Membership payment from <email> matches no confirmed
+  account"), `/admin/members` shows "Unmatched membership payments", and
+  **Link to account** (search an account by email or name) attaches the payment
+  and runs the grant in one transaction. The payment also attaches by itself if
+  the account is later confirmed.
+- **Access is checked live**: `attachUser` treats a member as active only while
+  `is_member AND (member_expires_at IS NULL OR member_expires_at > now())`
+  (`lib/memberStatus.js`); the 6-hourly sweep only tidies the flag.
+- End dates are shown as Paris calendar dates (never `toISOString()`).
 
 ---
 
@@ -744,6 +799,7 @@ flowchart LR
     B["hourly (every 6th tick)<br/>late-payment re-check"]
     C["every 6 h<br/>reservations, reminders,<br/>membership expiry + backstop"]
     OF["every 6 h<br/>refund detection,<br/>pickup reminders"]
+    OB["every 60 s<br/>email outbox retries,<br/>failure + unmatched-payment alerts"]
     P["daily and at boot<br/>retention purge,<br/>30-day inactivity warnings"]
     IC["daily and at boot<br/>unused-image cleanup"]
     AW["every 2 min (not at boot)<br/>awards drain, 5 books"]
@@ -777,6 +833,7 @@ flowchart LR
 | Late-payment re-check | web process | hourly | only orders closed in the last 7 days |
 | Reservation expiry, pickup reminder (day 11 of 14), membership expiry, membership backstop | web process | 6 h | read-time expiry also keeps pages right while idle |
 | Order follow-up: refund detection, day-10 customer pickup reminder, day-12 admin digest | web process | 6 h, first run 5 minutes after boot | asks HelloAsso about paid orders of the last 30 days (at most 200 per run); see §7, "Refunds, withdrawals and pickup" |
+| Email outbox worker | web process | 60 s (first run 15 s after boot) | retries unsent mail with backoff, one alert per hour when it gives up; also sends the throttled "membership payment matches no account" alert |
 | Retention purge | web process | daily, and at boot | see below; also clears ended book requests and expired "find my requests" links |
 | Unused-image cleanup | web process | daily, and at boot | deletes at most one batch of images older than 7 days that no row references (`lib/imageCleanup.js`) |
 | Awards drain | web process | 2 min, not at boot | looks up awards for a few books at a time (§6); a no-op when `AWARDS_LOOKUPS=off` |
@@ -789,7 +846,8 @@ flowchart LR
 event and class sign-ups 12 months after the date, expired reset and
 verification tokens after 7 days, orders and payment records after 10 years,
 contact details on ended reservations and on expired or cancelled orders after
-30 days, audit-log rows after 12 months, and book requests (never-confirmed ones
+30 days, stored copies of sent emails after 30 days (failed ones after 90),
+audit-log rows after 12 months, and book requests (never-confirmed ones
 after 7 days, open ones after 12 months, and the contact details of closed ones
 after 30 days). Accounts with no login for 3 years
 (never admins, never current members) get an email warning first and are
@@ -973,7 +1031,7 @@ flowchart TD
 | Payments | never trust webhook or return-URL content; amounts computed server-side; idempotent state change |
 | Output | EJS auto-escapes; the only unescaped output is sanitised rich text or fixed markup; `esc()` in client code |
 | Uploads | admin only, size-capped, decoded and re-encoded by `sharp` with a pixel cap; stored in the `images` table and served from `/img/<hash>.jpg` (hash-named, immutable, no cookie) |
-| Email | one address only (no list separators), names stripped of links and angle brackets before going into mail |
+| Email | one address only (no list separators), names stripped of links and angle brackets before going into mail; every customer email is stored in `email_outbox` first and retried (§7), stored copies are erased after 30 days |
 | Transport to the database | `rejectUnauthorized: false` is deliberate: Render's internal Postgres uses a per-instance self-signed certificate on a private network |
 | Supply chain | `npm audit` in CI; lockfile-exact builds; third-party Actions pinned by commit; weekly Dependabot pull requests, never auto-merged |
 | Caching | pages shown to a logged-in user are sent `no-store` (the Back button after logout shows nothing private); only `/img/` photos stay cacheable |
@@ -1015,6 +1073,7 @@ reservations behind. The code handles it in one place (`lib/privacy.js`):
 | `APP_BASE_URL` | recommended | absolute links in emails (verification, reset); Render's `RENDER_EXTERNAL_URL` is the fallback |
 | `GMAIL_USER`, `GMAIL_APP_PASSWORD` | recommended | all outgoing mail, including error alerts |
 | `HELLOASSO_CLIENT_ID`, `HELLOASSO_CLIENT_SECRET`, `HELLOASSO_ORG_SLUG` | for online payment | optional `HELLOASSO_API_BASE` |
+| `HELLOASSO_MEMBERSHIP_FORM_SLUG` | no | when set, only orders of that HelloAsso form (its `formSlug`) grant membership; unset = any Membership-type form of the organisation |
 | `ANTHROPIC_API_KEY`, `ANTHROPIC_WORKSPACE_ID` | optional | cover scan, book descriptions and genre in admin inventory; also needed (with the switches below) for AI price and awards lookups |
 | `PRICING_AI` | optional | `true` or `1` turns on the AI market-price lookup behind price suggestions (needs `ANTHROPIC_API_KEY`); off by default, rules still work without it |
 | `PRICING_AI_DAILY_MAX`, `PRICING_AI_MODEL` | optional | daily cap on price lookups (default 150) and model override |
