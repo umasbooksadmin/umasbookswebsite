@@ -11,6 +11,7 @@ const mailer = require("../mailer");
 const { emailSafeName } = require("./validation");
 const { emailTr } = require("./lang");
 const { CLEAR_PERSONAL_SQL } = require("./bookRequests");
+const { configuredBaseUrl } = require("./baseUrl");
 
 const RETENTION = {
   inactiveAccountYears: 3,
@@ -19,6 +20,7 @@ const RETENTION = {
   auditLogMonths: 12,
   tokenGraceDays: 7,
   inactivityWarningDays: 30,
+  unconfirmedAccountDays: 7, // self-signup accounts whose email was never confirmed (and that hold no data)
   closedOrderDays: 30, // also used for ended reservations
   clientIpDays: 2, // buyer IP kept on an order only for the checkout abuse caps
   unconfirmedRequestDays: 7, // book requests never confirmed by email
@@ -55,7 +57,10 @@ async function eraseMember(pool, userId, { client } = {}) {
       [email]
     );
 
-    // Orders: anonymise rather than delete (accounting). Unpaid ones have
+    // Orders: matched by user_id (an admin can change an account's email, and
+    // older orders keep the old address) and, for orders with no account
+    // (placed before checkout needed one), by the current email. An order that
+    // belongs to ANOTHER account is never touched just because the address matches. Anonymise rather than delete (accounting). Unpaid ones have
     // no accounting value, but deleting would fight the cart/expiry code,
     // so they are anonymised the same way. The access token is rotated so
     // an old emailed link stops working.
@@ -63,8 +68,8 @@ async function eraseMember(pool, userId, { client } = {}) {
       `UPDATE orders
        SET buyer_name = $2, buyer_email = $3, buyer_phone = NULL, client_ip = NULL,
            access_token = gen_random_uuid()
-       WHERE lower(buyer_email) = $1`,
-      [email, ERASED_NAME, erasedEmail(userId)]
+       WHERE user_id = $4 OR (user_id IS NULL AND lower(buyer_email) = $1)`,
+      [email, ERASED_NAME, erasedEmail(userId), userId]
     );
     await db.query(
       `UPDATE membership_payments SET payer_email = $2, user_id = NULL
@@ -100,7 +105,7 @@ async function eraseMember(pool, userId, { client } = {}) {
   return client ? run(client) : withTransaction(pool, run);
 }
 
-const appUrl = () => (process.env.APP_BASE_URL || process.env.RENDER_EXTERNAL_URL || "").replace(/\/$/, "");
+const appUrl = () => configuredBaseUrl();
 
 // Daily retention sweep. Each step is independent so one failure does not
 // stop the others; returns counts for logging (never any personal data).
@@ -220,6 +225,32 @@ async function purgeExpiredPersonalData(pool) {
     );
     const d = await pool.query("DELETE FROM book_request_list_tokens WHERE expires_at < now()");
     return a.rowCount + b.rowCount + c.rowCount + d.rowCount;
+  });
+
+  // Self-signup accounts whose email was never confirmed. They cannot log in,
+  // so they hold nothing of their own; but the address was typed by someone
+  // who may not own it, so we do not keep it. Only accounts that hold no data
+  // at all are removed (no orders, membership payment, sign-up, reservation or
+  // book request under the account or the address); anything else is left for
+  // a human. Deletion goes through eraseMember (same FK-safe path).
+  await step("unconfirmedAccounts", async () => {
+    const { rows } = await pool.query(
+      `SELECT u.id FROM users u
+       WHERE u.first_verification_pending AND u.email_verified_at IS NULL AND NOT u.is_admin
+         AND u.created_at < now() - interval '${RETENTION.unconfirmedAccountDays} days'
+         AND NOT EXISTS (SELECT 1 FROM orders o WHERE o.user_id = u.id OR lower(o.buyer_email) = lower(u.email))
+         AND NOT EXISTS (SELECT 1 FROM membership_payments m WHERE m.user_id = u.id OR lower(m.payer_email) = lower(u.email))
+         AND NOT EXISTS (SELECT 1 FROM event_signups s WHERE lower(s.email) = lower(u.email))
+         AND NOT EXISTS (SELECT 1 FROM class_signups s WHERE lower(s.email) = lower(u.email))
+         AND NOT EXISTS (SELECT 1 FROM book_copies c WHERE lower(c.reserved_by_email) = lower(u.email))
+         AND NOT EXISTS (SELECT 1 FROM book_requests r WHERE r.user_id = u.id OR lower(r.email) = lower(u.email))
+       LIMIT 200`
+    );
+    let n = 0;
+    for (const { id } of rows) {
+      if (await eraseMember(pool, id)) n += 1;
+    }
+    return n;
   });
 
   // Inactive accounts: warn by email first, delete 30 days later unless

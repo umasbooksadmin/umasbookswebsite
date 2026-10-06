@@ -13,6 +13,7 @@ const { withTransaction } = require("../db");
 const { alertOnError } = require("./errorAlert");
 const { loadOrderItems } = require("./orderItems");
 const { buildOrderConfirmationText, orderConfirmationSubject } = require("./orderEmail");
+const { configuredBaseUrl } = require("./baseUrl");
 
 const CART_HOLD_TTL_MINUTES = 60;
 
@@ -136,7 +137,7 @@ async function markOrderPaid(pool, order) {
 
 async function sendOrderConfirmation(pool, order) {
   const items = await loadOrderItems(pool, order.id);
-  const base = process.env.APP_BASE_URL || process.env.RENDER_EXTERNAL_URL;
+  const base = configuredBaseUrl() || undefined;
   // Subject and body follow order.lang ('en' | 'fr' | null; null is English).
   sendMail({
     to: order.buyer_email,
