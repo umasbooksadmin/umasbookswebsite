@@ -566,3 +566,29 @@ always white.
 
 Only copies that are **In Store** are listed. Nothing here changes prices; to
 change a price, open the book and use the price choices on the copy.
+
+## k) The VAT line ("TVA non applicable") and the footer social links
+
+**The VAT line.** The association does not charge VAT, and French law wants the
+legal article that says why written next to "TVA non applicable". Which article
+applies (for example 261-7-1° or 293 B of the Code général des impôts) is a
+question for the association's accountant, and it has **not** been answered
+yet, so the site shows just "TVA non applicable" everywhere: in the terms of
+sale, in the order confirmation email, next to the cart total ("Prix TTC, TVA
+non applicable") and under the price on every book page.
+
+Once the accountant answers:
+
+1. In the repository, open `umas-books/src/lib/legal.js` and set
+   `VAT_NOTICE_ARTICLE` to the article only, without "art." and without "du
+   CGI", for example `"293 B"`.
+2. Bump `TERMS_OF_SALE_VERSION` in the same file to the day of the change
+   (YYYY-MM-DD): the terms changed.
+3. Make a pull request as usual. The line then reads, in all four places,
+   "TVA non applicable, art. 293 B du CGI". Nothing else needs editing.
+
+**The footer social links.** The Instagram and Facebook icons are hidden until
+real pages exist. When they do, put the full addresses in `SOCIAL_LINKS` in the
+same file (`umas-books/src/lib/legal.js`, for example
+`instagram: "https://www.instagram.com/..."`); an empty value stays hidden.
+

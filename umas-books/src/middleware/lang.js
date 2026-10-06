@@ -4,6 +4,7 @@
 //   req.lang / res.locals.lang / res.locals.htmlLang   'en' | 'fr'
 //   req.langFromCookie                                 true when the cookie held a valid choice
 //   req.tr(en, fr, vars?) / res.locals.tr(...)         string for the active language
+//   res.locals.legalText / fillVat / socialLinks        shared legal sentences in the active language (lib/legalText.js)
 //   res.locals.eur(n)                                  euro amount in the active language (lib/money.js)
 //   res.locals.formatDate/formatDateTime/formatTime/formatDateLong   locale-aware
 // It reads headers only: no session, no database.
@@ -11,6 +12,8 @@ const { forLocale, LOCALES } = require("../lib/dates");
 const { translator, normLang } = require("../lib/lang");
 const { conditionLabel } = require("../lib/inventory");
 const { formatEuro } = require("../lib/money");
+const { legalFor, fillVat } = require("../lib/legalText");
+const { SOCIAL_LINKS } = require("../lib/legal");
 
 const COOKIE_NAME = "umasbooks_lang";
 
@@ -48,6 +51,9 @@ function langMiddleware(req, res, next) {
   res.locals.tr = tr;
   res.locals.eur = (n) => formatEuro(n, lang);
   res.locals.conditionLabel = (value) => conditionLabel(value, lang);
+  res.locals.legalText = legalFor(lang);
+  res.locals.fillVat = fillVat;
+  res.locals.socialLinks = SOCIAL_LINKS;
   Object.assign(res.locals, formatters[lang]);
 
   // A page cacheable by a shared cache (routes set `public, max-age`) now

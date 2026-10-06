@@ -76,3 +76,13 @@ test("the footer label is translated (English and French)", async () => {
   assert.match(siteJs, /"foot\.legal": "Legal Notice"/);
   assert.match(siteJs, /"foot\.legal": "Mentions légales"/);
 });
+
+test("the legal notice says the host's phone number is not published, and names the DSA point of contact (English and French)", async () => {
+  const en = (await get("/mentions-legales.html")).text;
+  assert.ok(en.includes("phone number not published by the host"));
+  assert.ok(en.includes("Digital Services Act") && en.includes("Arcom"));
+  const fr = await (await fetch(`${app.base}/mentions-legales.html`, { headers: { cookie: "umasbooks_lang=fr" } })).text();
+  assert.ok(fr.includes("téléphone non communiqué par l’hébergeur"));
+  assert.ok(fr.includes("règlement (UE) 2022/2065") && fr.includes("Arcom"));
+  assert.ok(fr.includes("Informations légales"), "the kicker is 'Informations légales'");
+});

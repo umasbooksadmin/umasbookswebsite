@@ -421,7 +421,8 @@ Details of the shop tables worth knowing:
   carry `publisher_price` and be priced between 95% and 100% of it, checked on
   the server when a copy is added or edited. Used copies are free-priced.
 * **Order extras.** `orders.withdrawal_waiver_at` records the buyer's tick-box
-  asking for a drop-in session to take place on its date (no withdrawal after);
+  confirming that a drop-in session takes place on its date (these dated leisure sessions have no
+  right of withdrawal anyway, art. L.221-28 12°; the box is kept as the buyer's confirmation);
   `orders.cgv_accepted_at` / `orders.cgv_version` record when the buyer accepted
   the terms of sale and which version (`TERMS_OF_SALE_VERSION` in
   `src/lib/legal.js`, bump it when the terms page changes); they are in the
@@ -633,7 +634,7 @@ What keeps it correct:
 | Overselling | atomic `UPDATE … WHERE status='in_stock'` and `FOR UPDATE` on class rows |
 | Hoarding stock without paying | a cart holds at most 20 lines; at most 2 unpaid orders per email and per IP address (`orders.client_ip`), checked under an advisory lock so two simultaneous checkouts cannot both slip through |
 | Anonymous orders | checkout requires a logged-in account with a confirmed email, enforced on the server; the order stores `user_id` and the account's email (a posted email is ignored). Orders from before this rule (`user_id` NULL) remain valid everywhere |
-| Terms and withdrawal | checkout requires accepting the terms of sale; a cart with a drop-in seat also requires the withdrawal waiver, whose time is stored on the order |
+| Terms and withdrawal | checkout requires accepting the terms of sale; a cart with a drop-in seat also requires the date-confirmation tick-box (`waiveWithdrawal`), whose time is stored on the order |
 
 ---
 

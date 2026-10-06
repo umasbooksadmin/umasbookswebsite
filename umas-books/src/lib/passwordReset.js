@@ -27,10 +27,10 @@ async function sendResetLink(user, baseUrl) {
   const link = `${baseUrl}/reset-password/${rawToken}`;
   await sendMail({
     to: user.email,
-    subject: tr("Reset your Uma's Books members password", "Réinitialisez votre mot de passe membre Uma's Books"),
+    subject: tr("Reset your Uma's Books account password", "Réinitialisez le mot de passe de votre compte Uma's Books"),
     text: tr(
-      `Hi ${name},\n\nSet a new password for your Uma's Books members account here (this link expires in 1 hour):\n${link}\n\nIf you didn't request this, you can safely ignore this email.`,
-      `Bonjour ${name},\n\nChoisissez un nouveau mot de passe pour votre compte membre Uma's Books ici (ce lien expire dans 1 heure) :\n${link}\n\nSi vous n'êtes pas à l'origine de cette demande, vous pouvez ignorer ce message.`
+      `Hi ${name},\n\nSet a new password for your Uma's Books account here (this link expires in 1 hour):\n${link}\n\nIf you didn't request this, you can safely ignore this email.`,
+      `Bonjour ${name},\n\nChoisissez un nouveau mot de passe pour votre compte Uma's Books ici (ce lien expire dans 1 heure) :\n${link}\n\nSi vous n'êtes pas à l'origine de cette demande, vous pouvez ignorer ce message.`
     ),
   });
 }

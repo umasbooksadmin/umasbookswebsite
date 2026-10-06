@@ -34,6 +34,7 @@
         <% if (isFinite(minPrice)) { %><%= eur(minPrice) %><% } %>
         <% if (copies.some(c => c.is_clearance)) { %><span class="clearance-badge"><%= tr('Clearance', 'Déstockage') %></span><% } %>
       </div>
+      <% if (isFinite(minPrice)) { %><p class="muted small book-vat" style="margin:0 0 8px;"><%= legalText.priceLine %></p><% } %>
 
       <div class="availability-box">
         <div class="availability-badge is-in-stock"><span class="dot"></span><%= tr('Available in Shop', 'Disponible en boutique') %></div>
@@ -72,8 +73,11 @@
           </tbody>
         </table>
 
+        <p class="muted small book-disclaimer"><%= legalText.bookFriendly %> <%= legalText.noReturns %> <a href="/terms-of-sale.html"><%= tr('Terms of sale', 'Conditions de vente') %></a></p>
+
         <details class="grade-legend">
           <summary><%= tr('What the grades mean', 'Que signifient les états ?') %></summary>
+          <p class="muted small"><%= legalText.gradeNote %></p>
           <dl>
             <% conditions.forEach(g => { %>
               <dt><span class="condition-badge condition-<%= g.value %>"><%= conditionLabel(g.value) %></span></dt>

@@ -107,12 +107,12 @@ test("checkout without the terms checkbox is refused: no order, nothing stored",
   assert.equal(rows[0].status, "in_stock");
 });
 
-// The version string changes whenever the terms change in substance. 2026-10-05:
+// The version string changes whenever the terms change in substance. 2026-10-06:
 // the terms now say buying (books and drop-in seats) requires an account.
 test("the paid confirmation email carries the acceptance line, in English and in French", async () => {
   for (const [lang, line] of [
-    ["en", /Terms of sale accepted on \d{1,2} \w+ \d{4} \(version 2026-10-05\)\./],
-    ["fr", /Conditions générales de vente acceptées le \d{1,2} \S+ \d{4} \(version 2026-10-05\)\./],
+    ["en", /Terms of sale accepted on \d{1,2} \w+ \d{4} \(version 2026-10-06\)\./],
+    ["fr", /Conditions générales de vente acceptées le \d{1,2} \S+ \d{4} \(version 2026-10-06\)\./],
   ]) {
     const v = guest(lang);
     await v.post("/cart/add", { copyId: await makeCopy() });
