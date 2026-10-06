@@ -478,8 +478,8 @@ test("saving a new book returns at once while the awards check runs in the backg
       form: { title, author: "Intake Author", isbn, condition: "very_good", price: "5", status: "in_stock", description: "d", descriptionFr: "d", coverUrl: "https://example.org/c.jpg" },
     }), timeout]);
     assert.equal(res.status, 302);
-    assert.match(res.location, /^\/admin\/inventory\/\d+$/);
-    const bookId = Number(res.location.split("/").pop());
+    assert.match(res.location, /^\/admin\/inventory\/\d+(\?label=\d+)?$/);
+    const bookId = Number(res.location.split("?")[0].split("/").pop());
     assert.equal((await bookRow(bookId)).awards_checked_at, null, "not finished yet");
     assert.equal((await rowsOf(bookId)).length, 0, "no award recorded while the lookup is still in flight");
     openGate();
@@ -501,7 +501,7 @@ test("a failing awards lookup never fails or loses the save", async () => {
     form: { title, author: "A", isbn: isbn13(), condition: "very_good", price: "5", status: "in_stock", description: "d", descriptionFr: "d", coverUrl: "https://example.org/c.jpg" },
   });
   assert.equal(res.status, 302);
-  const bookId = Number(res.location.split("/").pop());
+  const bookId = Number(res.location.split("?")[0].split("/").pop());
   await waitFor(async () => (await bookRow(bookId)).awards_check_state === "error", { timeoutMs: 10000 });
   assert.equal((await pool.query("SELECT COUNT(*)::int AS n FROM book_copies WHERE book_id = $1", [bookId])).rows[0].n, 1);
 });

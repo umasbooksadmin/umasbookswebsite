@@ -722,6 +722,47 @@ contact form to the shop) goes through `lib/outbox.js`: **store, then send**.
 
 ---
 
+### The till
+
+In-person sales, written for a non-developer who runs a physical till. Sales are
+in person only: online payment exists only for HelloAsso memberships and orders.
+
+- **Labels.** Every copy has a Code 128 (subset B) barcode of `UB-<copyId>`
+  (`src/lib/code128.js`, no dependency, unit tests against known vectors). The
+  label page `/admin/inventory/labels` prints it with the color chip, price,
+  title, author and ISBN ("No ISBN" for books without one). A book without an
+  ISBN works everywhere because the label, not the ISBN, identifies the copy.
+- **Scan order** (`lookupScan` in `src/lib/till.js`): `UB-<id>` copy label, then
+  an exact quick-item barcode, then `ORDER-<n>` (reservation: extension point in
+  `src/lib/tillReservations.js`), then an ISBN (10/13, `isbnVariants`), then
+  unknown. Only `in_stock` copies are sold; sold, reserved, in-cart and withdrawn
+  copies are refused with the reason.
+- **Data model** (migration `065_till.sql`): `till_sales` (one payment method per
+  sale, `sale_token` unique for idempotency, `status` completed/voided),
+  `till_sale_items` (kind book/manual/quick, copy or quick item, quantity,
+  `unit_price_cents`, category, original price and reason when overridden),
+  `till_quick_items` (name, price, category, active, order, optional stock,
+  optional unique-among-active barcode), `till_days` (opening float, counted cash,
+  expected, difference, closer, note: the row with `closed_at` locks voids),
+  plus `shop_sales.till_sale_id` and `book_copies.sold_at/sold_via`.
+- **Sale record.** One transaction: insert the sale (token conflict = the earlier
+  sale is returned), lock the copies and quick items `FOR UPDATE` in id order,
+  re-check status, price rules (used: any price, audited when changed; new books:
+  loi Lang 95-100% via `resolveCopyPricing`), compute the total in cents, cash
+  change or card confirmation, then write `till_sale_items`, one `shop_sales` row
+  per book copy (so the existing reports count a till sale exactly once) and mark
+  the copies sold. A void restocks copies and quick-item stock and deletes that
+  sale's `shop_sales` rows, so reports do not count it; the `till_sales` row stays
+  as `voided`.
+- **Card.** `src/lib/cardPayments.js` defines `startCharge(amountCents, saleToken)`
+  and ships `ManualCard` (a person charges the SumUp Solo and presses Card paid).
+  A SumUp Cloud API implementation is NOT written (see `docs/till-todos.md`).
+- **Day and money.** Days are Paris days. Expected cash = opening float + cash
+  sales (completed). Closing stores counted/expected/difference and locks voids
+  for that day. The Accounting export (`src/lib/accounting.js`) combines till
+  items, older "Sell in shop" sales (no till sale), paid online orders and
+  membership payments into rows by day, category and payment method.
+
 ## 8. Membership
 
 Membership is sold on a **HelloAsso-hosted form** (embedded as an iframe that is

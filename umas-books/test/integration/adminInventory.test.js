@@ -417,7 +417,7 @@ test("add: creates the book and one copy; garbage condition/status fall back to 
   });
   assert.equal(status, 302);
   const [book] = await bookByTitle(title);
-  assert.equal(location, `/admin/inventory/${book.id}`);
+  assert.match(location, new RegExp(`^/admin/inventory/${book.id}\\?label=\\d+$`)); // the copy id lets the page offer its label
   assert.equal(book.isbn, isbn);
   assert.equal(book.authors, "Au Thor");
   assert.equal(book.published_year, 1987);
@@ -460,7 +460,7 @@ test("add: missing optional fields become NULL / defaults; fromScan returns to t
   ai.fail = true; // no AI, no cover found: still saves
   const { status, location } = await post("/admin/inventory", { fields: { title, fromScan: "1" } });
   assert.equal(status, 302);
-  assert.equal(location, "/admin/inventory/scan?saved=1");
+  assert.match(location, /^\/admin\/inventory\/scan\?saved=1&label=\d+$/);
   const [book] = await bookByTitle(title);
   assert.deepEqual([book.isbn, book.authors, book.publisher, book.published_year, book.description, book.description_fr, book.cover_url, book.categories, book.categories_fr],
     [null, null, null, null, null, null, null, null, null]);
@@ -475,7 +475,7 @@ test("add: a missing description is generated and translated; a missing cover is
   ai.description = "Auto blurb.";
   const { location } = await post("/admin/inventory", { fields: { title, isbn, author: "Auto Author" } });
   const [book] = await bookByTitle(title);
-  assert.equal(location, `/admin/inventory/${book.id}`);
+  assert.match(location, new RegExp(`^/admin/inventory/${book.id}\\?label=\\d+$`)); // the copy id lets the page offer its label
   assert.equal(book.description, "Auto blurb.");
   assert.equal(book.description_fr, "FR: Auto blurb.");
   await storedImage(book.cover_url);
@@ -550,7 +550,7 @@ test("add: a second copy of an ISBN already in stock joins the existing book ins
   const isbn = isbn13();
   const b = await seedBook({ isbn, copies: [{ price: 6 }] });
   const { location } = await post("/admin/inventory", { fields: { title: b.title, isbn, price: "4", condition: "acceptable" } });
-  assert.equal(location, `/admin/inventory/${b.id}`);
+  assert.match(location, new RegExp(`^/admin/inventory/${b.id}\\?label=\\d+$`));
   assert.equal((await pool.query("SELECT count(*)::int AS n FROM books WHERE isbn = $1", [isbn])).rows[0].n, 1);
   const copies = await copiesOf(b.id);
   assert.equal(copies.length, 2);

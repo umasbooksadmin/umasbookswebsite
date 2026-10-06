@@ -94,6 +94,10 @@ async function plant() {
   const seat = await one("INSERT INTO class_dropin_seats (class_id, order_id) VALUES ($1, $2) RETURNING id", [cls, order]);
   await db.query("INSERT INTO order_items (order_id, class_dropin_seat_id, item_title, price) VALUES ($1, $2, 'Seat', 5)", [order, seat]);
   await db.query("INSERT INTO shop_sales (copy_id, price, sold_by) VALUES ($1, 4, $2)", [copy2, admin]);
+  const tillSale = await one("INSERT INTO till_sales (staff_user_id, payment_method, total_cents, sale_token) VALUES ($1, 'cash', 400, 'fixture-sale-token-0001') RETURNING id", [admin]);
+  await db.query("INSERT INTO till_sale_items (sale_id, kind, copy_id, description, quantity, unit_price_cents, category) VALUES ($1, 'book', $2, 'Test Book', 1, 400, 'books_used')", [tillSale, copy2]);
+  await db.query("INSERT INTO till_quick_items (name, price_cents, category) VALUES ('Tote', 1200, 'merchandise')");
+  await db.query("INSERT INTO till_days (day, opening_float_cents, opened_by) VALUES (current_date, 5000, $1)", [admin]);
   await db.query("INSERT INTO book_awards (book_id, label, kind, source, status) VALUES ($1, 'Prize', 'award', 'manual', 'approved')", [book]);
   await db.query("INSERT INTO book_requests (title, email, matched_copy_id, user_id) VALUES ('Wanted', 'asker@example.test', $1, $2)", [copy1, member]);
   await db.query("INSERT INTO book_request_list_tokens (email, token_hash, expires_at) VALUES ('asker@example.test', 'tok', now() + interval '1 day')");

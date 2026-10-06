@@ -123,7 +123,7 @@ function toCsv(section) {
     return c.type === "text" || c.type === "date" ? csvCell(cell) : cell;
   }).join(",");
   for (const row of section.rows) lines.push(asRow(row));
-  if (section.totals) lines.push(asRow(section.totals));
+  if (section.totals && section.csvTotals !== false) lines.push(asRow(section.totals));
   return "﻿" + lines.join("\r\n") + "\r\n";
 }
 
@@ -528,6 +528,7 @@ const REPORTS = [
   { slug: "sales", title: "Sales over time", summary: "Book sales online and in the shop by day, week, month or year, plus drop-in seats separately.", usesRange: true, usesGroup: true, run: salesReport },
   { slug: "sellthrough", title: "Sell-through by genre", summary: "Of the copies acquired in a period, how many have sold, and how fast.", usesRange: true, run: sellthroughReport },
   { slug: "membership", title: "Membership", summary: "Active members, new members and endings per month, and renewals due soon.", usesRange: true, run: membershipReport },
+  { slug: "accounting", title: "Accounting export", summary: "For the treasurer: one row per day, category and payment method (till, shop, online, membership), no customer data. Download the CSV.", usesRange: true, run: (db, ctx) => require("./accounting").accountingExportReport(db, ctx) },
   { slug: "intake", title: "Intake log", summary: "Copies added per month and by source, with acquisition cost, and the latest additions.", usesRange: true, run: intakeReport },
 ];
 

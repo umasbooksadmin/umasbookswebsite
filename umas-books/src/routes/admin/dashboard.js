@@ -43,9 +43,13 @@ router.get("/admin", requireAdmin, async (req, res) => {
     return [];
   });
 
+  // A past day with till sales that was never closed (counted and signed off).
+  const tillDays = await require("../../lib/till").unclosedDays(pool).catch(() => []);
+  const tillItems = tillDays.slice(0, 5).map((d) => ({ href: `/admin/till/day?day=${d}`, text: `Till: ${d} has sales but the day was never closed. Count the drawer and close it.` }));
+
   res.render("admin/index", {
     active: "overview",
-    outboxAttention: attentionFromMail,
+    outboxAttention: [...attentionFromMail, ...tillItems],
     stats: {
       ...sales,
       inStockCount: books.rows[0].in_stock,

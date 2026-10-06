@@ -278,6 +278,23 @@ rather than by a numbered migration), grouped by what they belong to:
   The sheet has an `@media print` stylesheet (menu hidden, chips keep their
   colors via `print-color-adjust: exact`). Mounted before the inventory router
   because `stickers` would otherwise be read as a book id.
+- **The till** — in-person sales (`src/routes/admin/till.js`, `src/routes/admin/labels.js`,
+  libs `till.js`, `tillScan.js`, `cardPayments.js`, `accounting.js`, `code128.js`;
+  views `views/admin/till/`, `views/admin/inventory/labels.ejs` and `label_sheet.ejs`;
+  scripts `public/till.js`, `till-day.js`, `labels.js`). Admin only, English. See
+  `docs/architecture.md` ("The till") for the data model.
+
+  | Route | Purpose |
+  |---|---|
+  | `GET /admin/inventory/labels` | pick copies (filters like the stickers page); `?id=<copyId>` (repeatable), `?all=1` render the print sheet; `?w=&h=` mm (default 50x25), `?layout=roll\|sheet`; audit `labels.print` |
+  | `GET /admin/till` | the till screen: scan box, lines, Cash / Card, quick items, today's sales with Void |
+  | `POST /admin/till/scan` | JSON: resolves a scanned code (order: `UB-` label, quick-item barcode, ISBN, unknown) |
+  | `POST /admin/till/sale` | JSON: records the sale in one transaction (`sale_token` makes it idempotent); audit `till.sale`, `till.price_override`, `till.sale_backdated` |
+  | `POST /admin/till/sales/:id/void` | same-day void with a reason; restocks copies and quick items; audit `till.void` |
+  | `GET /admin/till/sales/:id/receipt` | printable receipt (no customer data, "TVA non applicable") |
+  | `GET /admin/till/items`, `POST /admin/till/items[/:id]`, `POST /admin/till/items/:id/generate-code`, `GET /admin/till/items/:id/label` | "Other stock (not books)": quick items with optional barcode, stock and a Code 128 label for shop codes |
+  | `GET /admin/till/day[?day=][&format=csv]`, `POST /admin/till/day/open`, `POST /admin/till/day/close` | end of day: totals, opening float, count and close (locks voids), CSV; unclosed past days appear in the dashboard's Needs attention |
+  | `GET /admin/reports/accounting[?format=csv]` | Accounting export (`src/lib/accounting.js`): one row per Paris day, category and payment method; no customer data |
 - **Accounts & auth** — `users`, `password_reset_tokens`,
   `email_verification_tokens`
 - **Shop / checkout** — `books`, `book_copies`, `orders` (with `cgv_accepted_at` / `cgv_version`: proof of acceptance of the terms of sale, version from `src/lib/legal.js`), `order_items`
