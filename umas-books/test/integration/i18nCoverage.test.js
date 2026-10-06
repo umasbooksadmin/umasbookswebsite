@@ -79,7 +79,9 @@ const DYNAMIC_PAGES = {
 
 // "Éveil" is a program name, French in both languages; "Message" is the same word in French.
 // An award label is a proper name from an outside source, shown as it is in both languages.
-const EXTRA_ALLOWLIST = [/^I18n Shop (Book|Sold|Author|Class|Award)/, /^[ÉE]veil$/, "Message"];
+// "Cloudflare" is a company name and "umasbooks_lang" the literal name of our language cookie (a code
+// element in the legal notice): neither is translated.
+const EXTRA_ALLOWLIST = [/^I18n Shop (Book|Sold|Author|Class|Award)/, /^[ÉE]veil$/, "Message", "Cloudflare", "umasbooks_lang"];
 
 let app;
 let seeded;

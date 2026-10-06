@@ -33,6 +33,37 @@ file **and** its filename to `MARKETING_PAGES` — the array is the single
 source of truth for which routes exist; nothing scans the `views/`
 directory automatically.
 
+**Marketing forms (server-side).** `pre-registration.html` and `volunteer.html`
+carry real forms that `POST /pre-registration` and `POST /volunteer-signup`
+(`src/routes/marketingForms.js`, validation and email text in
+`src/lib/marketingForms.js`). Same pattern as `/contact`: the app-wide CSRF
+check (the page prints `csrfToken`, so it is `Cache-Control: private, no-store`),
+a honeypot field (`website`), a per-IP limiter (5 per 15 minutes, one counter per
+form, refused attempts count), then ONE email to `CONTACT_TO` through `deliver()`
+(the single place to swap for an outbox). Nothing is stored in the database and no
+form content is logged (a failure logs the error message only; the email subject
+carries no personal data). The pre-registration needs the child's name, date of
+birth, a session, at least one day and time, the guardian's name, email and phone,
+and a ticked "I am the parent or legal guardian of the child and I agree to be
+contacted about this program"; the volunteer form needs name, email and consent.
+Both say not to enter health information. A refused submission re-renders the
+page with status 400 (429 rate limited, 500 mail failure), the typed values, an
+error summary (`role="alert"`, `tabindex="-1"`, links to each field,
+`assets/form-errors.js` moves focus to it) and per-field errors
+(`aria-invalid`, `aria-describedby`). The messages are `form.err.*` keys in
+`assets/site.js` COMMON (EN + FR), so the language toggle and the French server
+render both work. Success redirects to `/<page>?sent=1`, which shows a thank-you
+panel. The repeated `days` / `times` fields are in `MULTI_VALUE_BODY_FIELDS` in
+`src/index.js` so the multi-selects are not collapsed to their first value. The
+mailbox keeps these emails 12 months (yearly manual cleanup, `docs/runbook.md`).
+
+**HelloAsso form is click-to-load.** `membership.html` renders a
+`#haWidgetHolder` with a "Show the HelloAsso form" button; `assets/membership-widget.js`
+creates the iframe only after the click (src taken from `data-src`, accepted only
+on `https://www.helloasso.com/`), so HelloAsso gets no request, IP address or
+cookie before the visitor chooses. The marketing CSP (`src/lib/marketingCsp.js`)
+keeps `frame-src https://www.helloasso.com` and has no external image host.
+
 Static assets are served directly from the repo root, not rendered:
 `/assets/*` (CSS/JS/images) and `/logo.png`. The app's own static assets
 (favicons, `admin.css`, `public/app.js`, …) are served separately from
@@ -336,6 +367,7 @@ src/` is the ground truth if this list ever drifts):
 | `AWARDS_AI_DAILY_MAX` | no (100) | most books the AI awards search may check per UTC day |
 | `AWARDS_AI_MODEL` | no (same model as book descriptions) | model for the AI awards search; must support web search |
 | `AWARDS_LOOKUPS` | no | `off` stops all awards lookups (kill switch) |
+| `COVER_BACKFILL` | no | `off` stops the background job that copies book covers to our own server (the test helpers set it) |
 | `ANTHROPIC_WORKSPACE_ID` | no | optional workspace header on Anthropic API calls |
 | `PRICING_AI` | no (off unless `1` or `true`) | turns on the AI market check behind price suggestions (also needs `ANTHROPIC_API_KEY`); without it prices come from the built-in rules only |
 | `PRICING_AI_MODEL` | no (defaults to the model used for book descriptions) | model for the market check; it must support the web search tool |
@@ -618,8 +650,33 @@ processed by sharp as before (see the `process*Image` functions in
 `src/lib/uploadImage.js`) and then handed to `src/lib/imageStore.js`:
 `saveImage(buffer) -> '/img/<sha256>.jpg'`. Rows store only that short URL
 (`books.cover_url`, `announcements.image_url`, `charities.image_url`,
-`blog_posts.image_url`); remote http(s) URLs (Open Library) are stored
-as-is and never copied.
+`blog_posts.image_url`). A cover address from Open Library / the Internet
+Archive is never printed in a page: it is downloaded once and stored too
+(next bullet), so `books.cover_url` is always one of our own `/img/` URLs or NULL.
+
+- **Covers on our own server (`src/lib/coverStore.js`, migration 059):** when a
+  book is added or edited the lookup's cover address is fetched by the server
+  (`prepareCover`), re-encoded with sharp (JPEG, at most 600 px wide, all
+  metadata removed, a 1x1 "no cover" placeholder refused) and stored with
+  `saveImage`, so the same bytes are stored once. The external address stays
+  only in `books.cover_source_url` (never rendered) so a failed download can be
+  retried; `cover_fetch_failures` / `cover_fetch_attempted_at` space retries out
+  (1 hour apart, 3 failures then nothing for a week). Fetching is SSRF-safe:
+  https only, no credentials or port, host in `ALLOWED_HOSTS`
+  (`covers.openlibrary.org`, `openlibrary.org`, `archive.org`, `*.archive.org`)
+  checked again on every redirect (followed manually, 3 at most), the name must
+  resolve to a public address, 8 s and 3 MB limits, content-type check, and the
+  bytes must decode as an image. A background job (`Cover backfill`, every 5
+  minutes, first run after 1 minute, `guardJob`, 20 books per run, books on the
+  shelves first, 0.5 s between downloads) copies the covers of books that existed
+  before; `COVER_BACKFILL=off` stops it (the test helper sets it). Routes print
+  covers through `localCover()`, so a stray external address is never rendered.
+  Cover `<img>`s carry `width`/`height` + CSS `aspect-ratio: 2 / 3` (no layout
+  shift), a neutral background, `loading="lazy"` in lists and `fetchpriority="high"`
+  on the book page's own cover; a failed load is swapped for a "No cover" box by
+  `public/app.js` (a capture-phase `error` listener on `img[data-cover]`, no
+  inline `onerror`, which the CSP blocks). Neither CSP lists an external image
+  host any more (`img-src 'self' data:`).
 
 - **Where the bytes live:** the `images` table (`id` = lowercase hex SHA-256
   of the bytes, `content_type`, `data` BYTEA, `byte_size`;
@@ -642,7 +699,7 @@ as-is and never copied.
   the hash (`If-None-Match` -> 304 without a DB read), `nosniff`. Anything
   not matching the strict pattern, or unknown, is 404. No rate limiter: the
   response is immutable and cacheable and a page legitimately loads dozens.
-  CSP `imgSrc` already allows `'self'`.
+  CSP `imgSrc` is `'self' data:` only.
 - **Legacy values:** the migration converted every `data:image/...;base64`
   value in those four columns (inside its transaction). Templates and APIs
   just print the column, so old data URIs and new short URLs both work.

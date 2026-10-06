@@ -146,7 +146,8 @@ test("payment not found yet: a clear message naming the email to use (EN and FR)
   const html = await press(v);
   assert.ok(html.includes(`<span data-i18n="mem.check.notFoundA">We have not found your payment yet. It can take a few minutes. Make sure you used the email</span> <strong>${account.email}</strong> <span data-i18n="mem.check.notFoundB">on the payment form.</span>`));
   assert.equal((await member(account.email)).is_member, false);
-  assert.match(html, /<iframe id="haWidget"/, "the form stays available");
+  assert.match(html, /<div id="haWidgetHolder"[^>]*data-src="https:\/\/www\.helloasso\.com\/[^"]*widget"/, "the form stays available (click to load)");
+  assert.ok(!html.includes("<iframe"), "no HelloAsso frame before the visitor clicks");
 
   const fr = guest("fr");
   await fr.login(account);

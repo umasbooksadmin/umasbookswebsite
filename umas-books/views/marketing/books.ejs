@@ -230,7 +230,7 @@
 
   function bookCard(b, withFavorite) {
     var cover = b.coverUrl
-      ? '<img class="cover" src="' + esc(b.coverUrl) + '" alt="" loading="lazy">'
+      ? '<img class="cover" src="' + esc(b.coverUrl) + '" alt="" width="200" height="300" loading="lazy" decoding="async" data-cover>'
       : '<div class="cover cover-none">' + esc(t('bk.nocover', 'No cover')) + '</div>';
     var price = b.price != null ? euro(b.price) : '';
     var fav = withFavorite
@@ -344,7 +344,7 @@
   var recCoverSlot = document.getElementById('bk-rec-cover-slot');
   function setRecCover(src) {
     recCoverSlot.innerHTML = src
-      ? '<img class="rec-cover" src="' + esc(src) + '" alt="' + esc(rec.title) + '">'
+      ? '<img class="rec-cover" src="' + esc(src) + '" alt="' + esc(rec.title) + '" width="172" height="258" decoding="async" data-cover>'
       : '<div class="rec-cover cover-none">' + esc(rec.title) + '</div>';
     var img = recCoverSlot.querySelector('img');
     if (img) img.addEventListener('error', function () { setRecCover(null); }, { once: true });

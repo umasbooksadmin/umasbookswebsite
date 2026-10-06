@@ -78,6 +78,8 @@ async function startTestApp({ port, isolated = false, env = {} }) {
       ADMIN_2FA_REQUIRED: "false",
       // The awards lookups (lib/awards) must never reach the network from a test.
       AWARDS_LOOKUPS: "off",
+      // The cover backfill (lib/coverStore) must never reach Open Library from a test.
+      COVER_BACKFILL: "off",
       ...env,
     },
     // stdout is piped (and echoed) so a test can wait for the server's own

@@ -57,7 +57,7 @@ flowchart LR
     HA["HelloAsso<br/>payments, membership form"]
     GM["Gmail SMTP<br/>all outgoing mail"]
     AN["Anthropic API (optional)<br/>cover scan, descriptions,<br/>price and awards web search"]
-    OL["Open Library, archive.org<br/>ISBN lookup, covers"]
+    OL["Open Library, archive.org<br/>ISBN lookup, cover download<br/>(server side only)"]
     WD["Wikidata, NYT Books API<br/>awards and best-seller lists"]
     PW["Have I Been Pwned<br/>breach check"]
   end
@@ -138,7 +138,7 @@ flowchart TB
 
   subgraph RT["src/routes"]
     direction LR
-    PUB["Public<br/>books, events, sessions, blog, contact,<br/>book requests, img, seo"]
+    PUB["Public<br/>books, events, sessions, blog, contact,<br/>pre-registration + volunteer forms,<br/>book requests, img, seo"]
     MEMB["Members<br/>dashboard, account, privacy, forum,<br/>charity, volunteer, meetings"]
     COM["Commerce<br/>cart, helloassoWebhook"]
     AUTH["auth.js, twoFactor.js<br/>signup, verify, login, two-step,<br/>reset, password"]
@@ -238,7 +238,7 @@ flowchart TD
   WH --> CS["csrfProtection<br/>every other POST"]
   CS --> API["/api/csrf-token, /api/session"]
   API --> MK["marketing pages, legal pages<br/>(MARKETING_PAGES list)"]
-  MK --> RM["route modules<br/>auth, two-step, dashboard, account, privacy,<br/>forum, charity, volunteer, meetings, events,<br/>blog, sessions, books, cart, contact,<br/>book requests, admin"]
+  MK --> RM["route modules<br/>auth, two-step, dashboard, account, privacy,<br/>forum, charity, volunteer, meetings, events,<br/>blog, sessions, books, cart, contact,<br/>marketing forms, book requests, admin"]
   RM --> NF["404 page"]
   NF --> ER["error handler<br/>log, alert email, 500 page"]
 ```
@@ -323,7 +323,7 @@ Key rules:
   `/api/csrf-token` saves the session before answering.
 * **Rate limits** are in memory (reset on restart) and mostly per IP: login 20
   failures / 15 min, sign-up 30/h, password reset requests 10 / 15 min, checkout 10/h, cart edits 60 / 15 min, event sign-up 10/h,
-  forum posts 10/h and replies 30/h, charity ideas 10/h, contact 5 / 15 min,
+  forum posts 10/h and replies 30/h, charity ideas 10/h, contact, pre-registration and volunteer forms 5 / 15 min each,
   webhook 300 / 5 min, book requests 5/day, "find my requests" 5/h (plus 3 a day
   per address). A few are per account instead: wrong two-step codes,
   wrong current password (password change, download or delete of your own data),
@@ -389,7 +389,7 @@ erDiagram
 | Awards | `book_awards` | awards, shortlists and best-seller lists per book, with `source` (`wikidata / nyt / ai / manual`) and review `status` (`verified / pending / approved / rejected`) |
 | Pricing | `pricing_settings`, `price_lookups` | one settings row (`id = 1`) holding every number the rules use; one cached market lookup per ISBN-13 |
 | Book requests | `book_requests`, `book_request_list_tokens` | customer "ask us for a book" requests, identified by an emailed link instead of an account; personal columns are cleared when a request ends |
-| Images | `images` | content-addressed: id is the SHA-256 of the bytes; `books.cover_url` and the announcement, charity and blog image columns hold only the short `/img/<hash>.jpg` URL |
+| Images | `images` | content-addressed: id is the SHA-256 of the bytes; `books.cover_url` and the announcement, charity and blog image columns hold only the short `/img/<hash>.jpg` URL. Book covers from Open Library / archive.org are downloaded once by the server (`lib/coverStore.js`), re-encoded and stored here; `books.cover_source_url` and `cover_fetch_*` only drive the download retries (migration 059) |
 | Admin | `admin_audit_log` | who, what, numeric target id, time and IP; no member emails or names; purged after 12 months |
 | Membership | `membership_payments` | one row per HelloAsso membership order; drives `member_expires_at` |
 | Programs and events | `events`, `event_signups`, `classes`, `class_signups` | a `classes` row is a program session; `dropin_price` set = bookable |
@@ -639,8 +639,9 @@ What keeps it correct:
 
 ## 8. Membership
 
-Membership is sold on a **HelloAsso-hosted form** (embedded as an iframe — the
-marketing CSP needs `frame-src https://www.helloasso.com`), not through our
+Membership is sold on a **HelloAsso-hosted form** (embedded as an iframe that is
+only created after the visitor clicks "Show the HelloAsso form", so HelloAsso sees
+nothing before that — the marketing CSP needs `frame-src https://www.helloasso.com`), not through our
 cart, so there is no local order row. The link back to an account is the **payer's
 email address**.
 
@@ -724,6 +725,7 @@ flowchart LR
 | Retention purge | web process | daily, and at boot | see below; also clears ended book requests and expired "find my requests" links |
 | Unused-image cleanup | web process | daily, and at boot | deletes at most one batch of images older than 7 days that no row references (`lib/imageCleanup.js`) |
 | Awards drain | web process | 2 min, not at boot | looks up awards for a few books at a time (§6); a no-op when `AWARDS_LOOKUPS=off` |
+| Cover backfill | web process | 5 min, first run after 1 min | copies up to 20 book covers from their Open Library / archive.org source address into the `images` table, books on the shelves first; at most 3 attempts a week per cover; off with `COVER_BACKFILL=off` (`lib/coverStore.js`) |
 | Uptime check | Actions | 30 min | emails on the **second** consecutive failure and on recovery |
 | Database backup | Actions | 03:00 UTC | full dump to Backblaze B2 (required); a second copy on the 1st of the month |
 | Restore test | Actions | monthly + manual | restores the newest Backblaze dump into a scratch Postgres and checks it |
@@ -893,7 +895,7 @@ Layers, outermost first. A request must pass every one that applies to it.
 flowchart TD
   NET["Internet"] --> TLS["Render edge: TLS, trust proxy = 1<br/>(real client IP)"]
   TLS --> HL["helmet: CSP, HSTS, no-referrer,<br/>frame-ancestors none"]
-  HL --> RL["Rate limits (per IP)<br/>login, checkout, cart, sign-ups,<br/>forum, contact, webhook"]
+  HL --> RL["Rate limits (per IP)<br/>login, checkout, cart, sign-ups,<br/>forum, contact + marketing forms, webhook"]
   RL --> SE["Session cookie: HttpOnly, Secure,<br/>SameSite=Lax; regenerated at login"]
   SE --> CF["CSRF token on every POST<br/>(webhook excepted: never trusts its body)"]
   CF --> AU["attachUser: role flags re-read from the DB<br/>every request; disabled, deleted or<br/>password-changed sessions drop"]
@@ -966,9 +968,10 @@ reservations behind. The code handles it in one place (`lib/privacy.js`):
 | `AWARDS_AI` | optional | `true` turns on AI web search for awards (needs `ANTHROPIC_API_KEY`); results wait for admin approval |
 | `AWARDS_AI_DAILY_MAX`, `AWARDS_AI_MODEL` | optional | daily cap on AI award checks (default 100) and model override |
 | `AWARDS_LOOKUPS` | optional | `off` stops every awards lookup (used by tests) |
+| `COVER_BACKFILL` | optional | `off` stops the background job that copies book covers to our own server (used by tests) |
 | `PREVIEW_MODE` | optional | `true` or `1` puts the site in preview: coming-soon banner, checkout and membership payment off, `noindex`. Unset to open the shop |
 | `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD` | first boot | creates the first admin if none exists (and the email is free); also creates sample content in that same run. Never blocks startup: a failure is logged and emailed |
-| `CONTACT_TO` | optional | contact-form and forum-report recipient (default `admin@umasbooks.org`) |
+| `CONTACT_TO` | optional | contact-form, volunteer sign-up, pre-registration and forum-report recipient (default `admin@umasbooks.org`) |
 | `TZ` | no | forced to `Europe/Paris` by `lib/tz.js` at startup |
 | `ADMIN_2FA_REQUIRED` | tests only | `false` turns the admin two-step requirement off in CI; ignored in production |
 

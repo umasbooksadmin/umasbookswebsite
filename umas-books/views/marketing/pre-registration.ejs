@@ -1,161 +1,3 @@
-<%- include('partials/mkt_header', {
-  title: "Pre-Registration — Uma's Books and Adventures",
-  description: "Pre-register your child for Weekly English Immersion sessions at Uma's Books in Albi.",
-  extraCss: ['assets/home.css', 'assets/preregistration.css'],
-  bodyClass: 'home',
-  activeNav: 'programs',
-}) %>
-  <section class="h-hero" style="min-height:0;">
-    <img class="art art-left" src="assets/img/hero-left.png" alt="">
-    <img class="art art-right" src="assets/img/hero-right.png" alt="">
-    <div class="preg-hero-copy">
-      <h1 data-i18n="preg.hero.t">Weekly English Immersion</h1>
-      <div class="preg-kicker" data-i18n="preg.hero.kicker">Pre-Registration</div>
-      <hr class="preg-rule">
-      <p class="preg-script" data-i18n="preg.hero.script">Stories, games, creativity and conversation — all in English.</p>
-      <p class="preg-sub" data-i18n="preg.hero.sub">For children, teens and adults in Albi.</p>
-    </div>
-  </section>
-
-  <div class="preg-layout">
-    <div>
-      <form class="preg-form" data-mailto="admin@umasbooks.org" data-subject="Weekly English Immersion — Pre-Registration" novalidate>
-        <div class="preg-section-title"><span class="num">1.</span> <span data-i18n="preg.s1.h">About Your Child</span></div>
-        <div class="preg-row">
-          <div class="field">
-            <label for="preg-first">
-              <span data-i18n="preg.f.first.l">Child’s first name</span> <span class="req">*</span>
-            </label>
-            <input id="preg-first" type="text" data-field="Child's first name" autocomplete="given-name" required>
-          </div>
-          <div class="field">
-            <label for="preg-last">
-              <span data-i18n="preg.f.last.l">Child’s last name</span> <span class="req">*</span>
-            </label>
-            <input id="preg-last" type="text" data-field="Child's last name" autocomplete="family-name" required>
-          </div>
-        </div>
-        <div class="preg-row">
-          <div class="field">
-            <label for="preg-dob">
-              <span data-i18n="preg.f.dob.l">Date of birth</span> <span class="req">*</span>
-            </label>
-            <input id="preg-dob" type="date" data-field="Date of birth" required>
-          </div>
-          <div class="field">
-            <label for="preg-session">
-              <span data-i18n="preg.f.session.l">Choose a session</span> <span class="req">*</span>
-            </label>
-            <select id="preg-session" data-field="Session" required>
-              <option value="" data-i18n="preg.f.session.ph">Select a session</option>
-              <option data-i18n="imm.s1.t">Little Explorers (Age 2–3)</option>
-              <option data-i18n="imm.s2.t">Éveil English (Age 3–5)</option>
-              <option data-i18n="imm.s3.t">Young Adventurers (Age 5–9)</option>
-              <option data-i18n="imm.s4.t">Young Readers (Age 9–14)</option>
-              <option data-i18n="imm.s5.t">Teen Literature (Age 14–17)</option>
-              <option data-i18n="imm.s6.t">English Café (Adult)</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="preg-section-title"><span class="num">2.</span> <span data-i18n="preg.s2.h">Preferred Availability</span></div>
-        <div class="preg-note" data-i18n="preg.s2.note">Let us know which days and times work best for you. We will propose a couple of time slots based on your preferences and availability.</div>
-        <div class="preg-row">
-          <div class="field">
-            <label for="preg-days">
-              <span data-i18n="preg.f.days.l">Preferred day(s)</span> <span class="req">*</span>
-            </label>
-            <select id="preg-days" data-field="Preferred day(s)" multiple required>
-              <option data-i18n="preg.day.tue">Tuesday</option>
-              <option data-i18n="preg.day.wed">Wednesday</option>
-              <option data-i18n="preg.day.thu">Thursday</option>
-              <option data-i18n="preg.day.fri">Friday</option>
-              <option data-i18n="preg.day.sat">Saturday</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="preg-times">
-              <span data-i18n="preg.f.times.l">Preferred time(s)</span> <span class="req">*</span>
-            </label>
-            <select id="preg-times" data-field="Preferred time(s)" multiple required>
-              <option data-i18n="preg.time.morning">Morning</option>
-              <option data-i18n="preg.time.earlyafternoon">Early afternoon</option>
-              <option data-i18n="preg.time.lateafternoon">Late afternoon</option>
-              <option data-i18n="preg.time.evening">Evening</option>
-            </select>
-          </div>
-        </div>
-        <p class="preg-field-hint" data-i18n="preg.multiselect.hint">Hold Cmd (Mac) or Ctrl (Windows) to select more than one.</p>
-
-        <div class="preg-section-title"><span class="num">3.</span> <span data-i18n="preg.s3.h">Parent / Guardian</span></div>
-        <div class="field">
-          <label for="preg-parent">
-            <span data-i18n="preg.f.parent.l">Your name</span> <span class="req">*</span>
-          </label>
-          <input id="preg-parent" type="text" data-field="Parent/guardian name" autocomplete="name" required>
-        </div>
-        <div class="field">
-          <label for="preg-email">
-            <span data-i18n="preg.f.email.l">Email address</span> <span class="req">*</span>
-          </label>
-          <input id="preg-email" type="email" data-field="Email address" autocomplete="email" required>
-        </div>
-        <div class="field">
-          <label for="preg-phone">
-            <span data-i18n="preg.f.phone.l">Phone number</span> <span class="req">*</span>
-          </label>
-          <input id="preg-phone" type="tel" data-field="Phone number" autocomplete="tel" required>
-        </div>
-
-        <div class="preg-section-title"><span class="num">4.</span> <span data-i18n="preg.s4.h">Additional Information</span> <span class="opt" data-i18n="preg.s4.opt">(optional)</span></div>
-        <div class="field">
-          <label for="preg-level" data-i18n="preg.f.level.l">English experience or level</label>
-          <input id="preg-level" type="text" data-field="English experience/level">
-        </div>
-        <div class="field">
-          <label for="preg-notes" data-i18n="preg.f.notes.l">Anything else you’d like to share with us? (interests, needs, etc.)</label>
-          <textarea id="preg-notes" data-field="Additional notes"></textarea>
-        </div>
-
-        <label class="preg-check">
-          <input type="checkbox" data-field="Wants updates" value="Yes">
-          <span data-i18n="preg.f.updates">I’d like to receive updates about the English Immersion program. (optional)</span>
-        </label>
-        <label class="preg-check">
-          <input type="checkbox" required>
-          <span data-i18n="preg.f.consent">I agree to be contacted about this pre-registration. <span class="req">*</span></span>
-        </label>
-
-        <p class="preg-form-hint preg-privacy" data-i18n-html="preg.privacy">If you are registering a child, the child’s details are provided by a parent or legal guardian and are used only to organise the activity. See our <a href="privacy-policy.html">Privacy Policy</a>.</p>
-
-        <button type="submit" class="preg-submit"><span data-i18n="preg.submit">Submit Pre-Registration</span> <span aria-hidden="true">&rarr;</span></button>
-        <p class="preg-form-hint" data-i18n="preg.hint">This opens your email app with your registration ready to send — we’ll be in touch soon with a few suggested time slots and next steps.</p>
-      </form>
-    </div>
-
-    <aside class="preg-sidebar">
-      <div class="preg-summary">
-        <div class="kicker" data-i18n="preg.summary.kicker">Weekly Immersion</div>
-        <div class="item">
-          <div class="big" data-i18n="imm.duration.v">1 hour</div>
-          <div class="small" data-i18n="imm.duration.n">per session</div>
-        </div>
-        <hr class="preg-rule">
-        <div class="item">
-          <div class="big" data-i18n="imm.weekly.cost.v">15 €</div>
-          <div class="small" data-i18n="preg.summary.cost.n">per session (billed monthly)</div>
-        </div>
-        <hr class="preg-rule">
-        <div class="item">
-          <div class="big" data-i18n="preg.summary.where.t">In Albi</div>
-          <div class="small" data-i18n="preg.summary.where.d">At Uma’s Books &amp; Adventures</div>
-        </div>
-        <hr class="preg-rule">
-        <p class="blurb" data-i18n="preg.summary.blurb">A welcoming, community-led program where children and adults explore English through books, stories and creative activities.</p>
-      </div>
-      <img class="preg-sidebar-art" src="assets/img/hero-left.png" alt="">
-    </aside>
-  </div>
 <% const pageI18nEn = {
   "meta.title": "Pre-Registration — Uma's Books and Adventures",
   "meta.description": "Pre-register your child for Weekly English Immersion sessions at Uma's Books in Albi.",
@@ -198,10 +40,17 @@
   "preg.f.level.l": "English experience or level",
   "preg.f.notes.l": "Anything else you’d like to share with us? (interests, needs, etc.)",
   "preg.f.updates": "I’d like to receive updates about the English Immersion program. (optional)",
-  "preg.f.consent": "I agree to be contacted about this pre-registration. *",
+  "preg.f.consent": "I am the parent or legal guardian of the child and I agree to be contacted about this program.",
+  "preg.f.consent.l": "Parent or guardian agreement",
+  "preg.health": "Do not enter health information here (allergies, medical conditions, disabilities): tell us in person.",
+  "preg.f.notes.hint": "Optional. Please keep it to interests and practical details.",
   "preg.submit": "Submit Pre-Registration",
-  "preg.privacy": "If you are registering a child, the child’s details are provided by a parent or legal guardian and are used only to organise the activity. See our <a href=\"privacy-policy.html\">Privacy Policy</a>.",
-  "preg.hint": "This opens your email app with your registration ready to send — we’ll be in touch soon with a few suggested time slots and next steps.",
+  "preg.privacy": "If you are registering a child, the child’s details are provided by a parent or legal guardian and are used only to organise the activity. They reach us by email only (nothing is stored on the website) and are deleted from our mailbox after 12 months. See our <a href=\"privacy-policy.html\">Privacy Policy</a>.",
+  "preg.hint": "We’ll be in touch by email or phone soon with a few suggested time slots and next steps.",
+  "preg.sent.h": "Thank you, your pre-registration has been sent",
+  "preg.sent.p": "We have received it and will contact you soon with a few suggested time slots and next steps. Nothing else is needed from you for now.",
+  "preg.sent.back": "Back to English programs",
+  "preg.hp": "Website",
   "preg.summary.kicker": "Weekly Immersion",
   "imm.duration.v": "1 hour",
   "imm.duration.n": "per session",
@@ -253,10 +102,17 @@
   "preg.f.level.l": "Niveau ou expérience en anglais",
   "preg.f.notes.l": "Autre chose à nous partager ? (intérêts, besoins, etc.)",
   "preg.f.updates": "Je souhaite recevoir des nouvelles du programme d’immersion anglaise. (facultatif)",
-  "preg.f.consent": "J’accepte d’être contacté(e) au sujet de cette pré-inscription. *",
+  "preg.f.consent": "Je suis le parent ou le représentant légal de l’enfant et j’accepte d’être contacté(e) au sujet de ce programme.",
+  "preg.f.consent.l": "Accord du parent ou représentant légal",
+  "preg.health": "Ne saisissez pas d’informations de santé ici (allergies, problèmes médicaux, handicap)\u00a0: dites-le-nous en personne.",
+  "preg.f.notes.hint": "Facultatif. Limitez-vous aux centres d’intérêt et aux détails pratiques.",
   "preg.submit": "Envoyer la pré-inscription",
-  "preg.privacy": "Si vous inscrivez un enfant, ses informations sont fournies par un parent ou un représentant légal et servent uniquement à organiser l’activité. Consultez notre <a href=\"privacy-policy.html\">Politique de confidentialité</a>.",
-  "preg.hint": "Cela ouvre votre application de messagerie avec votre pré-inscription prête à envoyer — nous reviendrons vers vous avec quelques créneaux proposés.",
+  "preg.privacy": "Si vous inscrivez un enfant, ses informations sont fournies par un parent ou un représentant légal et servent uniquement à organiser l’activité. Elles nous parviennent uniquement par e-mail (rien n’est enregistré sur le site) et sont supprimées de notre messagerie après 12 mois. Consultez notre <a href=\"privacy-policy.html\">Politique de confidentialité</a>.",
+  "preg.hint": "Nous vous recontacterons bientôt par e-mail ou par téléphone avec quelques créneaux proposés et les prochaines étapes.",
+  "preg.sent.h": "Merci, votre pré-inscription a bien été envoyée",
+  "preg.sent.p": "Nous l’avons bien reçue et nous vous recontacterons bientôt avec quelques créneaux proposés et les prochaines étapes. Vous n’avez rien d’autre à faire pour le moment.",
+  "preg.sent.back": "Retour aux programmes d’anglais",
+  "preg.hp": "Site web",
   "preg.summary.kicker": "Immersion hebdomadaire",
   "imm.duration.v": "1 heure",
   "imm.duration.n": "par séance",
@@ -266,4 +122,204 @@
   "preg.summary.where.d": "À Uma’s Books & Adventures",
   "preg.summary.blurb": "Un programme accueillant, porté par la communauté, où enfants et adultes découvrent l’anglais à travers les livres, les histoires et des activités créatives.",
 }; %>
-<%- include('partials/mkt_footer', { pageI18nEn, pageI18nFr }) %>
+<%
+/* Server-side form (routes/marketingForms.js, lib/marketingForms.js): POST /pre-registration.
+   res.locals.form = { values, errors, error, sent }: see routes/marketingForms.js. The dictionaries are
+   defined first because the error summary prints the English labels from them. */
+const F = locals.form || {};
+const V = { days: [], times: [], ...(F.values || {}) };
+const E = F.errors || {};
+const IDS = { childFirst: 'preg-first', childLast: 'preg-last', dob: 'preg-dob', session: 'preg-session', days: 'preg-days',
+  times: 'preg-times', parent: 'preg-parent', email: 'preg-email', phone: 'preg-phone', consent: 'preg-consent' };
+const _esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+// aria-invalid + aria-describedby (the error message, plus an optional hint) for one field.
+const aria = (k, hintId) => {
+  const ids = [hintId, E[k] ? IDS[k] + '-err' : null].filter(Boolean).join(' ');
+  return (E[k] ? ' aria-invalid="true"' : '') + (ids ? ' aria-describedby="' + ids + '"' : '');
+};
+const errP = (k) => (E[k]
+  ? '<p class="field-error" id="' + IDS[k] + '-err" data-i18n="form.err.' + E[k].key + '">' + _esc(formMsg('form.err.' + E[k].key)) + '</p>'
+  : '');
+const SESSION_OPTIONS = [['little-explorers', 'imm.s1.t'], ['eveil-english', 'imm.s2.t'], ['young-adventurers', 'imm.s3.t'],
+  ['young-readers', 'imm.s4.t'], ['teen-literature', 'imm.s5.t'], ['english-cafe', 'imm.s6.t']];
+const DAY_OPTIONS = [['tue', 'preg.day.tue'], ['wed', 'preg.day.wed'], ['thu', 'preg.day.thu'], ['fri', 'preg.day.fri'], ['sat', 'preg.day.sat']];
+const TIME_OPTIONS = [['morning', 'preg.time.morning'], ['earlyafternoon', 'preg.time.earlyafternoon'],
+  ['lateafternoon', 'preg.time.lateafternoon'], ['evening', 'preg.time.evening']];
+%>
+<%- include('partials/mkt_header', {
+  title: "Pre-Registration — Uma's Books and Adventures",
+  description: "Pre-register your child for Weekly English Immersion sessions at Uma's Books in Albi.",
+  extraCss: ['assets/home.css', 'assets/preregistration.css'],
+  bodyClass: 'home',
+  activeNav: 'programs',
+}) %>
+  <section class="h-hero" style="min-height:0;">
+    <img class="art art-left" src="assets/img/hero-left.png" alt="">
+    <img class="art art-right" src="assets/img/hero-right.png" alt="">
+    <div class="preg-hero-copy">
+      <h1 data-i18n="preg.hero.t">Weekly English Immersion</h1>
+      <div class="preg-kicker" data-i18n="preg.hero.kicker">Pre-Registration</div>
+      <hr class="preg-rule">
+      <p class="preg-script" data-i18n="preg.hero.script">Stories, games, creativity and conversation — all in English.</p>
+      <p class="preg-sub" data-i18n="preg.hero.sub">For children, teens and adults in Albi.</p>
+    </div>
+  </section>
+
+  <div class="preg-layout">
+    <div>
+      <% if (F.sent) { %>
+      <div class="form-success" id="form-sent" role="status" tabindex="-1" data-form-sent>
+        <h2 data-i18n="preg.sent.h">Thank you, your pre-registration has been sent</h2>
+        <p data-i18n="preg.sent.p">We have received it and will contact you soon with a few suggested time slots and next steps. Nothing else is needed from you for now.</p>
+        <p><a class="h-btn" href="immersion.html" data-i18n="preg.sent.back">Back to English programs</a></p>
+      </div>
+      <% } else { %>
+      <%- include('partials/form_summary', { form: F, ids: IDS, dict: pageI18nEn }) %>
+      <form class="preg-form" method="post" action="/pre-registration" novalidate>
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <div class="hp-field" aria-hidden="true">
+          <label for="preg-website" data-i18n="preg.hp">Website</label>
+          <input id="preg-website" name="website" type="text" tabindex="-1" autocomplete="off">
+        </div>
+        <div class="preg-section-title"><span class="num">1.</span> <span data-i18n="preg.s1.h">About Your Child</span></div>
+        <div class="preg-row">
+          <div class="field">
+            <label for="preg-first">
+              <span data-i18n="preg.f.first.l">Child’s first name</span> <span class="req" aria-hidden="true">*</span>
+            </label>
+            <input id="preg-first" name="childFirst" type="text" maxlength="80" autocomplete="given-name" required aria-required="true" value="<%= V.childFirst || '' %>"<%- aria('childFirst') %>>
+            <%- errP('childFirst') %>
+          </div>
+          <div class="field">
+            <label for="preg-last">
+              <span data-i18n="preg.f.last.l">Child’s last name</span> <span class="req" aria-hidden="true">*</span>
+            </label>
+            <input id="preg-last" name="childLast" type="text" maxlength="80" autocomplete="family-name" required aria-required="true" value="<%= V.childLast || '' %>"<%- aria('childLast') %>>
+            <%- errP('childLast') %>
+          </div>
+        </div>
+        <div class="preg-row">
+          <div class="field">
+            <label for="preg-dob">
+              <span data-i18n="preg.f.dob.l">Date of birth</span> <span class="req" aria-hidden="true">*</span>
+            </label>
+            <input id="preg-dob" name="dob" type="date" required aria-required="true" value="<%= V.dob || '' %>"<%- aria('dob') %>>
+            <%- errP('dob') %>
+          </div>
+          <div class="field">
+            <label for="preg-session">
+              <span data-i18n="preg.f.session.l">Choose a session</span> <span class="req" aria-hidden="true">*</span>
+            </label>
+            <select id="preg-session" name="session" required aria-required="true"<%- aria('session') %>>
+              <option value="" data-i18n="preg.f.session.ph">Select a session</option>
+              <% SESSION_OPTIONS.forEach(function (o) { %><option value="<%= o[0] %>"<%= V.session === o[0] ? ' selected' : '' %> data-i18n="<%= o[1] %>"><%= pageI18nEn[o[1]] %></option>
+              <% }) %>
+            </select>
+            <%- errP('session') %>
+          </div>
+        </div>
+
+        <div class="preg-section-title"><span class="num">2.</span> <span data-i18n="preg.s2.h">Preferred Availability</span></div>
+        <div class="preg-note" data-i18n="preg.s2.note">Let us know which days and times work best for you. We will propose a couple of time slots based on your preferences and availability.</div>
+        <div class="preg-row">
+          <div class="field">
+            <label for="preg-days">
+              <span data-i18n="preg.f.days.l">Preferred day(s)</span> <span class="req" aria-hidden="true">*</span>
+            </label>
+            <select id="preg-days" name="days" multiple required aria-required="true"<%- aria('days', 'preg-multi-hint') %>>
+              <% DAY_OPTIONS.forEach(function (o) { %><option value="<%= o[0] %>"<%= V.days.includes(o[0]) ? ' selected' : '' %> data-i18n="<%= o[1] %>"><%= pageI18nEn[o[1]] %></option>
+              <% }) %>
+            </select>
+            <%- errP('days') %>
+          </div>
+          <div class="field">
+            <label for="preg-times">
+              <span data-i18n="preg.f.times.l">Preferred time(s)</span> <span class="req" aria-hidden="true">*</span>
+            </label>
+            <select id="preg-times" name="times" multiple required aria-required="true"<%- aria('times', 'preg-multi-hint') %>>
+              <% TIME_OPTIONS.forEach(function (o) { %><option value="<%= o[0] %>"<%= V.times.includes(o[0]) ? ' selected' : '' %> data-i18n="<%= o[1] %>"><%= pageI18nEn[o[1]] %></option>
+              <% }) %>
+            </select>
+            <%- errP('times') %>
+          </div>
+        </div>
+        <p class="preg-field-hint" id="preg-multi-hint" data-i18n="preg.multiselect.hint">Hold Cmd (Mac) or Ctrl (Windows) to select more than one.</p>
+
+        <div class="preg-section-title"><span class="num">3.</span> <span data-i18n="preg.s3.h">Parent / Guardian</span></div>
+        <div class="field">
+          <label for="preg-parent">
+            <span data-i18n="preg.f.parent.l">Your name</span> <span class="req" aria-hidden="true">*</span>
+          </label>
+          <input id="preg-parent" name="parent" type="text" maxlength="120" autocomplete="name" required aria-required="true" value="<%= V.parent || '' %>"<%- aria('parent') %>>
+          <%- errP('parent') %>
+        </div>
+        <div class="field">
+          <label for="preg-email">
+            <span data-i18n="preg.f.email.l">Email address</span> <span class="req" aria-hidden="true">*</span>
+          </label>
+          <input id="preg-email" name="email" type="email" maxlength="200" autocomplete="email" required aria-required="true" value="<%= V.email || '' %>"<%- aria('email') %>>
+          <%- errP('email') %>
+        </div>
+        <div class="field">
+          <label for="preg-phone">
+            <span data-i18n="preg.f.phone.l">Phone number</span> <span class="req" aria-hidden="true">*</span>
+          </label>
+          <input id="preg-phone" name="phone" type="tel" maxlength="30" autocomplete="tel" required aria-required="true" value="<%= V.phone || '' %>"<%- aria('phone') %>>
+          <%- errP('phone') %>
+        </div>
+
+        <div class="preg-section-title"><span class="num">4.</span> <span data-i18n="preg.s4.h">Additional Information</span> <span class="opt" data-i18n="preg.s4.opt">(optional)</span></div>
+        <div class="field">
+          <label for="preg-level" data-i18n="preg.f.level.l">English experience or level</label>
+          <input id="preg-level" name="level" type="text" maxlength="200" value="<%= V.level || '' %>">
+        </div>
+        <div class="field">
+          <label for="preg-notes" data-i18n="preg.f.notes.l">Anything else you’d like to share with us? (interests, needs, etc.)</label>
+          <p class="preg-health" id="preg-notes-hint"><strong data-i18n="preg.health">Do not enter health information here (allergies, medical conditions, disabilities): tell us in person.</strong></p>
+          <textarea id="preg-notes" name="notes" maxlength="1000" aria-describedby="preg-notes-hint"><%= V.notes || '' %></textarea>
+        </div>
+
+        <label class="preg-check">
+          <input type="checkbox" name="updates" value="1"<%= V.updates ? ' checked' : '' %>>
+          <span data-i18n="preg.f.updates">I’d like to receive updates about the English Immersion program. (optional)</span>
+        </label>
+        <div class="preg-check-group">
+          <label class="preg-check" for="preg-consent">
+            <input id="preg-consent" type="checkbox" name="consent" value="1" required aria-required="true"<%= V.consent ? ' checked' : '' %><%- aria('consent') %>>
+            <span><span data-i18n="preg.f.consent">I am the parent or legal guardian of the child and I agree to be contacted about this program.</span> <span class="req" aria-hidden="true">*</span></span>
+          </label>
+          <%- errP('consent') %>
+        </div>
+
+        <p class="preg-form-hint preg-privacy" data-i18n-html="preg.privacy">If you are registering a child, the child’s details are provided by a parent or legal guardian and are used only to organise the activity. They reach us by email only (nothing is stored on the website) and are deleted from our mailbox after 12 months. See our <a href="privacy-policy.html">Privacy Policy</a>.</p>
+
+        <button type="submit" class="preg-submit"><span data-i18n="preg.submit">Submit Pre-Registration</span> <span aria-hidden="true">&rarr;</span></button>
+        <p class="preg-form-hint" data-i18n="preg.hint">We’ll be in touch by email or phone soon with a few suggested time slots and next steps.</p>
+      </form>
+      <% } %>
+    </div>
+
+    <aside class="preg-sidebar">
+      <div class="preg-summary">
+        <div class="kicker" data-i18n="preg.summary.kicker">Weekly Immersion</div>
+        <div class="item">
+          <div class="big" data-i18n="imm.duration.v">1 hour</div>
+          <div class="small" data-i18n="imm.duration.n">per session</div>
+        </div>
+        <hr class="preg-rule">
+        <div class="item">
+          <div class="big" data-i18n="imm.weekly.cost.v">15 €</div>
+          <div class="small" data-i18n="preg.summary.cost.n">per session (billed monthly)</div>
+        </div>
+        <hr class="preg-rule">
+        <div class="item">
+          <div class="big" data-i18n="preg.summary.where.t">In Albi</div>
+          <div class="small" data-i18n="preg.summary.where.d">At Uma’s Books &amp; Adventures</div>
+        </div>
+        <hr class="preg-rule">
+        <p class="blurb" data-i18n="preg.summary.blurb">A welcoming, community-led program where children and adults explore English through books, stories and creative activities.</p>
+      </div>
+      <img class="preg-sidebar-art" src="assets/img/hero-left.png" alt="">
+    </aside>
+  </div>
+<%- include('partials/mkt_footer', { pageI18nEn, pageI18nFr, extraScripts: ['assets/form-errors.js'] }) %>

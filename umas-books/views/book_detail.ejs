@@ -9,7 +9,8 @@
         <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 20s-7-4.4-9.5-8.8C.8 7.8 2.4 4.5 5.8 4c2-.3 3.7.7 4.8 2.4L12 8l1.4-1.6C14.5 4.7 16.2 3.7 18.2 4c3.4.5 5 3.8 3.3 7.2C19 15.6 12 20 12 20z"/></svg>
       </button>
       <% if (book.cover_url) { %>
-        <img src="<%= book.cover_url %>" alt="<%= tr('Cover of {title}', 'Couverture de {title}', { title: book.title }) %>" class="book-detail-cover">
+        <%# width/height + aspect-ratio reserve the space (no layout shift); the cover is the page's main image, so it loads first. A failed load is swapped for a placeholder by public/app.js. %>
+        <img src="<%= book.cover_url %>" alt="<%= tr('Cover of {title}', 'Couverture de {title}', { title: book.title }) %>" class="book-detail-cover" width="240" height="360" fetchpriority="high" decoding="async" data-cover>
       <% } else { %>
         <div class="book-detail-cover book-thumb-placeholder"><%= tr('No cover', 'Pas de couverture') %></div>
       <% } %>
@@ -121,7 +122,7 @@
         </button>
         <a class="book-card" href="/books/<%= b.id %>">
           <% if (b.cover_url) { %>
-            <img src="<%= b.cover_url %>" alt="" class="book-card-cover">
+            <img src="<%= b.cover_url %>" alt="" class="book-card-cover" width="200" height="300" loading="lazy" decoding="async" data-cover>
           <% } else { %>
             <div class="book-card-cover book-thumb-placeholder"><%= tr('No cover', 'Pas de couverture') %></div>
           <% } %>

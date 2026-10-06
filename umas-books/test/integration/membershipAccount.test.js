@@ -121,7 +121,8 @@ test("joining: one step creates the account (unconfirmed, no password) + confirm
   assert.deepEqual((await waitForToken(email)).map((t) => t.return_to), ["/membership.html"], "the confirmation link returns here");
 
   const { html } = await v.page();
-  assert.match(html, /<iframe id="haWidget" title="HelloAsso membership form"/);
+  assert.match(html, /<div id="haWidgetHolder"[^>]*data-src="https:\/\/www\.helloasso\.com\/[^"]*widget"/);
+  assert.ok(!html.includes("<iframe"), "no HelloAsso frame before the visitor clicks");
   assert.ok(html.includes(email.toLowerCase()), "the address to use on the payment form is shown");
   assert.ok(html.includes("Use this same email on the payment form:"));
   assert.ok(html.includes("We have emailed you a link: click it after paying to confirm your address and choose your password."));
@@ -195,7 +196,7 @@ test("a logged-in account holder sees ONLY the payment form with their email, ne
   const v = guest();
   await v.logIn(account);
   const { html } = await v.page();
-  assert.match(html, /<iframe id="haWidget"/);
+  assert.match(html, /<div id="haWidgetHolder"[^>]*data-src="https:\/\/www\.helloasso\.com\/[^"]*widget"/);
   assert.ok(html.includes(account.email), "their email is shown");
   assert.ok(html.includes("Use the same email as your account ("));
   assert.ok(html.includes("so your membership is linked to it."));
@@ -240,7 +241,7 @@ test("a current member sees their status (until <date> or no end date), not the 
         assert.ok(html.includes('data-i18n="mem.member.noend">You are a member, with no end date.</p>'), c.name);
       }
     } else {
-      assert.match(html, /<iframe id="haWidget"/, `${c.name}: renewal shows the form`);
+      assert.match(html, /<div id="haWidgetHolder"[^>]*data-src="https:\/\/www\.helloasso\.com\/[^"]*widget"/, `${c.name}: renewal shows the form`);
       assert.ok(!html.includes('data-i18n="mem.member.h"'), `${c.name}: no member status block`);
     }
   }

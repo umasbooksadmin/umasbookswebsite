@@ -201,7 +201,8 @@ test("every text column that looks image-bearing is listed in IMAGE_REFERENCES",
     `SELECT table_name || '.' || column_name AS k FROM information_schema.columns
       WHERE table_schema = 'public' AND table_name <> 'images'
         AND data_type IN ('text', 'character varying')
-        AND column_name ~* '(image|img|cover|photo|picture|thumb|avatar|logo|banner)'`
+        AND column_name ~* '(image|img|cover|photo|picture|thumb|avatar|logo|banner)'
+        AND column_name <> 'cover_source_url' -- an external address to download from (lib/coverStore.js), never an /img URL`
   );
   const missing = rows.map((r) => r.k).filter((k) => !listed.has(k));
   assert.deepEqual(missing, [], `add to IMAGE_REFERENCES in src/lib/imageCleanup.js: ${missing.join(", ")}`);
@@ -220,7 +221,7 @@ test("only the known upload handlers call saveImage, and the rich-text bodies ar
   })(path.join(ROOT, "src"));
   assert.deepEqual(
     files.sort(),
-    ["lib/imageStore.js", "routes/admin/announcements.js", "routes/admin/blog.js", "routes/admin/charity.js", "routes/admin/inventory.js"],
+    ["lib/coverStore.js", "lib/imageStore.js", "routes/admin/announcements.js", "routes/admin/blog.js", "routes/admin/charity.js", "routes/admin/inventory.js"],
     "a new saveImage caller: add the column it writes to IMAGE_REFERENCES (src/lib/imageCleanup.js), then update this list"
   );
   for (const k of ["books.cover_url", "announcements.image_url", "blog_posts.image_url", "charities.image_url",

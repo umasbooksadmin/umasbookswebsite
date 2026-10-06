@@ -49,7 +49,7 @@ test("privacy policy: states concrete retention periods, rights delay and CNIL",
 
 test("privacy policy: lists every processor", () => {
   for (const d of [en, fr]) {
-    for (const name of ["HelloAsso", "Google", "Render", "Backblaze", "Anthropic"]) {
+    for (const name of ["HelloAsso", "Google", "Render", "Cloudflare", "Backblaze", "Anthropic"]) {
       assert.match(d["pp.s4.list"], new RegExp(name));
     }
     // Backups no longer go to GitHub; the policy must not claim they do.
@@ -65,8 +65,11 @@ test("privacy policy: no vague retention wording remains", () => {
 test("privacy policy: promises the inactivity warning and keeps contact-form emails 12 months", () => {
   assert.match(en["pp.s5.list"], /30 days before deleting/);
   assert.match(fr["pp.s5.list"], /30 jours avant la suppression/);
-  assert.match(en["pp.s5.list"], /Messages you send us:<\/strong> emails received through the contact form are kept 12 months, then deleted, unless a conversation is still ongoing/);
-  assert.match(fr["pp.s5.list"], /formulaire de contact sont conservés 12 mois, puis supprimés, sauf si une conversation est encore en cours/);
+  assert.match(en["pp.s5.list"], /Messages you send us:<\/strong> emails received through the contact, volunteer sign-up and pre-registration forms are kept 12 months in our mailbox, then deleted, unless a conversation is still ongoing/);
+  assert.match(fr["pp.s5.list"], /formulaires de contact, de bénévolat et de pré-inscription sont conservés 12 mois dans notre messagerie, puis supprimés, sauf si une conversation est encore en cours/);
+  // The old "until you ask us to delete them" rule for volunteer/pre-registration emails is gone.
+  assert.doesNotMatch(en["pp.s5.list"], /until you ask us to delete them/);
+  assert.doesNotMatch(fr["pp.s5.list"], /jusqu’à ce que vous demandiez leur suppression/);
 });
 
 // Regression: the EN/FR dictionary strings once lost the space after every
@@ -117,4 +120,50 @@ test("privacy policy: says photos and videos are only taken with consent (parent
   assert.match(fr["pp.photos.p"], /ne prenons jamais de photos ni de vidéos de clients, de membres ou d’enfants sans leur consentement/);
   assert.match(fr["pp.photos.p"], /parent ou du représentant légal/);
   assert.match(fr["pp.photos.p"], /retirer votre consentement à tout moment/);
+});
+
+test("privacy policy: Cloudflare is a named recipient that sees visitor IP addresses; covers are served from our server, so no cover host is a recipient", () => {
+  assert.match(en["pp.s4.list"], /<strong>Cloudflare<\/strong>[^<]*sees visitors’ IP addresses/);
+  assert.match(fr["pp.s4.list"], /<strong>Cloudflare<\/strong>[^<]*adresse IP des visiteurs/);
+  for (const d of [en, fr]) {
+    assert.doesNotMatch(d["pp.s4.list"], /Open Library|Internet Archive|archive\.org/i, "not a recipient of visitor data any more");
+    assert.match(d["pp.s4.p2"], /Open Library/, "the server-side look-ups are still explained");
+  }
+  assert.match(en["pp.s4.p2"], /your browser never loads images from them/);
+  assert.match(fr["pp.s4.p2"], /votre navigateur ne charge jamais d’images depuis ces services/);
+  assert.match(en["pp.s3.p"], /Book covers are shown from our own server/);
+  assert.match(fr["pp.s3.p"], /Les couvertures de livres sont affichées depuis notre propre serveur/);
+});
+
+test("privacy policy: discloses the language cookie, the local-storage keys, the session cookie and the click-to-load HelloAsso form", () => {
+  for (const [d, show] of [[en, "Show the HelloAsso form"], [fr, "Afficher le formulaire HelloAsso"]]) {
+    const p = d["pp.s3.p"];
+    assert.match(p, /umasbooks_lang/);
+    assert.match(p, /umasbooks\.sid/);
+    assert.match(p, /umasbooks\.lang/);
+    assert.match(p, /umasbooks\.favorites/);
+    assert.ok(p.includes(show), show);
+    assert.match(p, /EN or FR|EN ou FR/);
+  }
+  assert.match(en["pp.s3.p"], /language cookie \(umasbooks_lang\) for one year/);
+  assert.match(fr["pp.s3.p"], /cookie de langue \(umasbooks_lang\) pour un an/);
+  assert.match(en["pp.s3.p"], /no consent banner is required/);
+  assert.match(en["pp.s3.p"], /not loaded until you click/);
+  assert.match(fr["pp.s3.p"], /ne se charge que lorsque vous cliquez/);
+  // The old "one session cookie" claim is gone from the policy.
+  assert.doesNotMatch(en["pp.s3.p"], /We use one session cookie to keep/);
+  assert.match(en["pp.s5.list"], /language cookie 1 year/);
+  assert.match(fr["pp.s5.list"], /cookie de langue 1 an/);
+});
+
+test("privacy policy: the forms send an email only (nothing stored), never ask for health information, and a child's data is a guardian's", () => {
+  assert.match(en["pp.s2.list"], /These forms send us an email and nothing is stored on the website itself/);
+  assert.match(en["pp.s2.list"], /do not enter health information/);
+  assert.match(fr["pp.s2.list"], /rien n’est enregistré sur le site lui-même/);
+  assert.match(fr["pp.s2.list"], /aucune information de santé/);
+  assert.doesNotMatch(en["pp.s2.list"], /open your own email application/);
+  assert.match(en["pp.s7.p"], /parent or legal guardian confirms/);
+  assert.match(fr["pp.s7.p"], /parent ou représentant légal confirme/);
+  assert.match(en["pp.s7.p"], /12 months in our mailbox/);
+  assert.match(fr["pp.s7.p"], /12 mois dans notre messagerie/);
 });
