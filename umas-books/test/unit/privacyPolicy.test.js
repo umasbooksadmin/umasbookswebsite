@@ -167,3 +167,17 @@ test("privacy policy: the forms send an email only (nothing stored), never ask f
   assert.match(en["pp.s7.p"], /12 months in our mailbox/);
   assert.match(fr["pp.s7.p"], /12 mois dans notre messagerie/);
 });
+
+test("privacy policy: books and seats are paid in the shop, only the membership is paid online (HelloAsso), and no IP address is kept with an order", () => {
+  assert.match(en["pp.s2.list"], /books and drop-in seats are not paid online/);
+  assert.match(en["pp.s2.list"], /Only the membership is paid online, through our payment provider HelloAsso/);
+  assert.match(fr["pp.s2.list"], /ne se paient pas en ligne/);
+  assert.match(fr["pp.s2.list"], /Seule l’adhésion se paie en ligne, via notre prestataire HelloAsso/);
+  assert.match(en["pp.s4.list"], /<strong>HelloAsso<\/strong>/, "HelloAsso stays in the list of recipients");
+  assert.match(en["pp.s5.list"], /held for 14 days \(21 if the shop extends the hold once\)/);
+  assert.match(fr["pp.s5.list"], /14 jours \(21 si la boutique prolonge/);
+  for (const d of [en, fr]) {
+    assert.doesNotMatch(d["pp.s2.list"], /abuse of the checkout|abus lors du paiement/);
+    assert.doesNotMatch(d["pp.s5.list"], /IP address kept with an order|Adresse IP conservée avec une commande/);
+  }
+});

@@ -39,7 +39,7 @@ function limit({ windowMs, max, ...options }) {
 const HOUR = 60 * 60 * 1000;
 
 module.exports = {
-  // Locks copies for an hour and calls HelloAsso.
+  // A reservation holds copies for two weeks (and seats until the session), so it is limited per IP.
   checkoutLimiter: limit({ windowMs: HOUR, max: 10 }),
   // Browsing users add a handful of items; this only stops scripted loops.
   cartEditLimiter: limit({ windowMs: 15 * 60 * 1000, max: 60 }),

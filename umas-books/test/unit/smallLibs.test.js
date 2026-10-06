@@ -38,10 +38,11 @@ test("spotsLeft: unlimited capacity is null, never negative, tolerates string co
   assert.equal(spotsLeft({ capacity: 0, seats_taken: 0 }), 0);
 });
 
-test("seatsTakenExpr counts both legacy sign-ups and in_cart/sold drop-in seats for the alias", () => {
+test("seatsTakenExpr counts both legacy sign-ups and in_cart/reserved/sold drop-in seats for the alias (a reserved seat holds its place; a released one does not)", () => {
   const sql = seatsTakenExpr("cl");
   assert.match(sql, /class_signups s WHERE s\.class_id = cl\.id/);
-  assert.match(sql, /class_dropin_seats d WHERE d\.class_id = cl\.id AND d\.status IN \('in_cart', 'sold'\)/);
+  assert.match(sql, /class_dropin_seats d WHERE d\.class_id = cl\.id AND d\.status IN \('in_cart', 'reserved', 'sold'\)/);
+  assert.doesNotMatch(sql, /released/);
 });
 
 test("inventory vocab: normalizers accept exactly the listed values", () => {

@@ -4,30 +4,6 @@
 
 <% if (locals.notice) { %><div role="status" class="notice-box"><%= notice %></div><% } %>
 
-<% if (locals.pendingOrders && pendingOrders.length) { %>
-  <div class="card" id="pending-orders">
-    <h2 class="section-title"><%= tr('Your unpaid orders', 'Vos commandes non payées') %></h2>
-    <p class="muted small"><%= tr('These items are held for you for about an hour while payment is pending. Finish paying, or cancel to release them.', 'Ces articles sont mis de côté pour vous pendant environ une heure, dans l’attente du paiement. Réglez la commande, ou annulez-la pour les libérer.') %></p>
-    <% pendingOrders.forEach(o => { %>
-      <div class="pending-order" style="display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between; padding:12px 0; border-top:1px solid var(--line, #e4e0d6);">
-        <div>
-          <div><strong><%= tr('Order', 'Commande') %> #<%= o.id %> &middot; <%= formatDateTime(o.created_at) %></strong></div>
-          <ul class="plain nested">
-            <% o.items.forEach(i => { %><li><%= i.label %> <span class="muted small">&middot; <%= eur(i.price) %></span></li><% }) %>
-          </ul>
-          <div class="muted small"><%= tr('Total:', 'Total :') %> <%= eur(o.total_amount) %></div>
-          <% if (!o.can_resume) { %><div class="muted small"><%= tr('The payment page has expired: cancel this order, then add the items to your cart again.', 'La page de paiement a expiré : annulez cette commande, puis ajoutez de nouveau les articles à votre panier.') %></div><% } %>
-        </div>
-        <% if (o.can_resume) { %><a class="btn btn-small" href="/cart/orders/<%= o.id %>/resume"><%= tr('Resume payment', 'Reprendre le paiement') %></a><% } %>
-        <form method="post" action="/cart/orders/<%= o.id %>/cancel">
-          <%- include('partials/csrf_field') %>
-          <button type="submit" class="btn-outline btn-small"><%= tr('Cancel this order', 'Annuler cette commande') %></button>
-        </form>
-      </div>
-    <% }) %>
-  </div>
-<% } %>
-
 <% if (error) { %><div role="alert" class="error-box"><%= error %></div><% } %>
 
 <% if (!items.length) { %>
@@ -69,24 +45,23 @@
   <p class="muted small cart-vat"><%= legalText.priceLine %></p>
 
   <% if (locals.preview) { %>
-    <div role="status" class="notice-box"><%= tr('Online ordering opens when we launch. This is a preview, so you can fill a cart to see how it works, but nothing can be ordered yet.', 'La commande en ligne ouvrira au lancement. Ceci est un aperçu : vous pouvez remplir un panier pour voir comment cela fonctionne, mais rien ne peut encore être commandé.') %></div>
+    <div role="status" class="notice-box"><%= tr('Online reservations open when we launch. This is a preview, so you can fill a cart to see how it works, but nothing can be reserved yet.', 'Les réservations en ligne ouvriront au lancement. Ceci est un aperçu : vous pouvez remplir un panier pour voir comment cela fonctionne, mais rien ne peut encore être réservé.') %></div>
   <% } else if (locals.checkoutState === 'guest') { %>
     <div class="card" id="login-to-checkout">
-      <h2 class="section-title"><%= tr('Log in or create an account to check out', 'Connectez-vous ou créez un compte pour commander') %></h2>
-      <p class="muted"><%= tr('You need an account to place an order. Your cart is kept: you will come straight back here.', 'Un compte est nécessaire pour passer commande. Votre panier est conservé : vous reviendrez directement ici.') %></p>
+      <h2 class="section-title"><%= tr('Log in or create an account to reserve', 'Connectez-vous ou créez un compte pour réserver') %></h2>
+      <p class="muted"><%= tr('You need an account to reserve. Your cart is kept: you will come straight back here.', 'Un compte est nécessaire pour réserver. Votre panier est conservé : vous reviendrez directement ici.') %></p>
       <p>
         <a class="btn" href="/login?returnTo=<%= encodeURIComponent('/cart') %>"><%= tr('Log in', 'Se connecter') %></a>
         <a class="btn btn-outline" href="/signup?returnTo=<%= encodeURIComponent('/cart') %>"><%= tr('Create an account', 'Créer un compte') %></a>
       </p>
     </div>
   <% } else if (locals.checkoutState === 'unconfirmed') { %>
-    <div role="status" class="notice-box"><%= tr('Please confirm your email address before ordering: open the link we sent you when you signed up.', 'Veuillez confirmer votre adresse e-mail avant de commander : ouvrez le lien que nous vous avons envoyé lors de votre inscription.') %></div>
-  <% } else if (!helloassoReady) { %>
-    <div role="status" class="notice-box"><%= tr("Online payment isn't switched on yet — please check back soon, or come by the shop to buy in person.", "Le paiement en ligne n’est pas encore activé : revenez bientôt, ou passez à la boutique pour acheter sur place.") %></div>
+    <div role="status" class="notice-box"><%= tr('Please confirm your email address before reserving: open the link we sent you when you signed up.', 'Veuillez confirmer votre adresse e-mail avant de réserver : ouvrez le lien que nous vous avons envoyé lors de votre inscription.') %></div>
   <% } else { %>
+    <% const hasBooks = items.some((i) => i.kind === 'book'); const hasSeats = items.some((i) => i.kind === 'dropin'); %>
     <div class="card">
-      <h2 class="section-title"><%= tr('Checkout', 'Paiement') %></h2>
-      <form class="stack" method="post" action="/cart/checkout">
+      <h2 class="section-title"><%= tr('Reservation', 'Réservation') %></h2>
+      <form class="stack" method="post" action="/cart/reserve">
         <%- include('partials/csrf_field') %>
         <label for="name"><%= tr('Name', 'Nom') %></label>
         <input id="name" name="name" type="text" autocomplete="name" value="<%= locals.accountName || '' %>" required>
@@ -95,12 +70,13 @@
         <p class="muted small" id="accountEmailHelp"><%= tr('This is your account email: your confirmation is sent there.', 'Voici l’adresse e-mail de votre compte : votre confirmation y sera envoyée.') %></p>
         <label for="phone"><%= tr('Phone (optional)', 'Téléphone (facultatif)') %></label>
         <input id="phone" name="phone" type="tel">
-        <p class="muted small"><%= tr("You'll pay securely via HelloAsso, then come by Uma's Books to pick up your order.", "Vous paierez en toute sécurité via HelloAsso, puis vous passerez à Uma's Books pour retirer votre commande.") %><% if (items.some((i) => i.kind === 'book')) { %> <%= legalText.pickup %><% } %></p>
-        <label class="ann-check"><input type="checkbox" name="acceptCgv" required> <span><%= tr('I have read and accept the', 'J’ai lu et j’accepte les') %> <a href="/terms-of-sale.html" target="_blank" rel="noopener"><%= tr('terms of sale', 'conditions de vente') %></a> <%= tr('(including the right of withdrawal).', '(y compris le droit de rétractation).') %></span></label>
-        <%- include('partials/privacy_note', { en: 'We use your details only to process your order. See our', fr: 'Vos données servent uniquement à traiter votre commande. Consultez notre' }) %>
-        <% if (items.some((i) => i.kind === 'dropin')) { %><%- include('partials/dropin_waiver') %><% } %>
+        <p class="muted small reserve-note" id="nothing-paid-online"><%= legalText.nothingPaidOnline %></p>
+        <% if (hasBooks) { %><p class="muted small"><%= legalText.pickup %></p><% } %>
+        <% if (hasSeats) { %><p class="muted small"><%= tr('Drop-in seats: you pay at the session. You can cancel a seat online until {hours} hours before it starts.', 'Places « drop-in » : vous réglez à la séance. Vous pouvez annuler une place en ligne jusqu’à {hours} heures avant le début.', { hours: limits.seatHours }) %></p><% } %>
+        <label class="ann-check"><input type="checkbox" name="acceptCgv" required> <span><%= tr('I have read and accept the', 'J’ai lu et j’accepte les') %> <a href="/terms-of-sale.html" target="_blank" rel="noopener"><%= tr('terms of sale', 'conditions de vente') %></a>.</span></label>
+        <%- include('partials/privacy_note', { en: 'We use your details only to process your reservation. See our', fr: 'Vos données servent uniquement à traiter votre réservation. Consultez notre' }) %>
         <p class="muted small no-returns-note"><%= legalText.noReturns %> <a href="/terms-of-sale.html" target="_blank" rel="noopener"><%= tr('Terms of sale', 'Conditions de vente') %></a></p>
-        <button class="btn" type="submit"><%= tr('Order with obligation to pay', 'Commander avec obligation de paiement') %></button>
+        <button class="btn" type="submit"><%= tr('Reserve (free, no commitment)', 'Réserver (gratuit, sans engagement)') %></button>
       </form>
     </div>
   <% } %>

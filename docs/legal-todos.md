@@ -36,13 +36,14 @@ billing dates and what happens if the association cancels a session, then
 add a short "Immersion program" section to the terms of sale (EN and FR) and
 bump `TERMS_OF_SALE_VERSION`.
 
-## 4. Orders that are never collected
+## 4. Reservations that are never collected (settled, for information)
 
-The terms ask buyers to collect within 14 days of payment and to write if they
-need longer; they promise nothing else (no automatic release, no refund). The
-software does not cancel a paid order after 14 days. TODO (the association):
-decide what happens to a paid order that is not collected (kept longer,
-offered again, refunded) and whether to write it in the terms.
+Books and drop-in seats are reserved online and paid in the shop, so there is
+no longer a paid order waiting to be collected. A reservation that is not
+collected lapses after 14 days (the shop can extend it once, by 7 days), with
+no penalty, and the books go back on sale; the terms of sale say so. Nothing to
+do unless the association wants a different rule (a deposit, a fee), which
+would need the terms to change first.
 
 ## 5. Photos
 
@@ -57,3 +58,38 @@ are published, and how long they are kept.
   page: replace it with a real label if you want).
 - The statutes of the association are "available on request" (membership
   terms): make sure a copy can really be sent.
+
+## 7. Click-and-collect reservation, payment in the shop: distance contract?
+
+Since the "reserve online, pay at the shop" change, nothing is paid on the
+website for books and drop-in seats (only the membership is paid online). A
+second legal review (October 2026) advised the following, which the site now
+applies: **a reservation is a free, non-binding hold; the sale is concluded and
+paid in the shop, in person, so it is not a distance contract.** Therefore the
+terms of sale, the cart and the reservation email show **no 14-day withdrawal
+notice and no model withdrawal form** for books and drop-in seats. Withdrawal
+text stays **only** for the online membership payment (membership terms, with
+the neutral sentence "applies where the law provides for it").
+
+**To confirm with a lawyer / the consumer mediator (CM2C):**
+
+- that a click-and-collect reservation with payment and handover in the shop is
+  not a distance contract (so no right of withdrawal for books, and none to
+  mention in the email), including when the customer reserved online and never
+  collects (no contract at all);
+- that the "no returns for a change of mind once bought in the shop" notice
+  (`NO_RETURNS` in `umas-books/src/lib/legalText.js`) is acceptable next to the
+  statement that the legal guarantees still apply;
+- that the drop-in seat needs no withdrawal waiver (nothing is paid online; the
+  checkbox was removed);
+- the list of what the terms of sale now state (seller identity and contact,
+  price TTC "TVA non applicable", unique copies, hold of 14 days (+7 once) with
+  automatic release and no fee or penalty, limits of 10 books and 3 reservations
+  per account, price honoured during the hold, payment in cash or card in the
+  shop, condition checked on the spot with the right to decline, opening hours
+  and address, reservation data kept 30 days after it ends).
+
+Until answered, do not put the withdrawal notice back without asking. If the
+lawyer says the opposite (a withdrawal right applies), ask for the terms of
+sale, the reservation email and `NO_RETURNS` to be changed together, and bump
+`TERMS_OF_SALE_VERSION`.

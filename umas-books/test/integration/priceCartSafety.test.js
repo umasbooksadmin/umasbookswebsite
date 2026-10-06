@@ -2,7 +2,8 @@
 // purchasable, admin money and number inputs are validated on the server, and
 // the admin status screens cannot overwrite a copy that changed under them.
 //
-// In-process (HelloAsso and mail stubbed); every value is unique because CI
+// In-process (mail stubbed; HelloAsso is no longer involved in buying: the
+// cart RESERVES, nothing is paid online); every value is unique because CI
 // shares one database between test files.
 
 const { test, before, after, beforeEach } = require("node:test");
@@ -16,13 +17,6 @@ const db = prepareDatabase("price_safety", { isolated: true });
 
 const mailer = require("../../src/mailer");
 mailer.sendMail = async () => {};
-const helloasso = require("../../src/lib/helloasso");
-helloasso.isConfigured = () => true;
-const createdIntents = [];
-helloasso.createCheckoutIntent = async (args) => {
-  createdIntents.push(args);
-  return { id: `intent-${uniq()}`, redirectUrl: "https://pay.example.test/checkout/1" };
-};
 
 // No outbound HTTP (book lookups, description generation): fail loudly.
 const realFetch = global.fetch;
@@ -53,7 +47,6 @@ after(async () => {
   db.drop();
 });
 beforeEach(() => {
-  createdIntents.length = 0;
   for (const key of ["127.0.0.1", "::ffff:127.0.0.1", "::1"]) checkoutLimiter.resetKey(key);
 });
 
@@ -170,24 +163,24 @@ test("a copy whose price is removed while it sits in a cart drops out: the cart 
   assert.doesNotMatch(page.text, new RegExp(`value="${copy}"`));
   assert.equal(await v.count(), 0, "the line is dropped from the session cart");
 
-  // Checkout of that cart: nothing to buy, no order, the copy is untouched.
+  // Reserving that cart: nothing to reserve, no order, the copy is untouched.
   const email = `nullprice-${uniq()}@example.test`;
   await signIn(v, email);
-  const res = await v.post("/cart/checkout", { name: "Buyer", acceptCgv: "on" });
+  const res = await v.post("/cart/reserve", { name: "Buyer", acceptCgv: "on" });
   assert.equal(res.res.status, 200);
   assert.match(res.text, /Your cart is empty/);
   assert.equal((await pool.query("SELECT 1 FROM orders WHERE buyer_email = $1", [email])).rowCount, 0);
   assert.equal((await copyRow(copy)).status, "in_stock");
 });
 
-test("checkout lock: a price removed after the cart was read cannot be locked or ordered", async () => {
+test("reservation lock: a price removed after the cart was read cannot be held or ordered", async () => {
   const bookId = await makeBook();
   const copy = await makeCopy(bookId, { price: 12 });
   const v = guest();
   await v.post("/cart/add", { copyId: copy });
   const email = `lockrace-${uniq()}@example.test`;
   await signIn(v, email);
-  // Fires inside the checkout transaction, after the cart was read (with its
+  // Fires inside the reservation transaction, after the cart was read (with its
   // price) and before the copy is locked: stands in for an admin blanking the price.
   const fn = `race_null_price_${Date.now()}`;
   await pool.query(`CREATE FUNCTION ${fn}() RETURNS trigger AS $$
@@ -197,31 +190,32 @@ test("checkout lock: a price removed after the cart was read cannot be locked or
     END; $$ LANGUAGE plpgsql`);
   await pool.query(`CREATE TRIGGER ${fn} BEFORE INSERT ON orders FOR EACH ROW EXECUTE FUNCTION ${fn}()`);
   try {
-    const res = await v.post("/cart/checkout", { name: "Buyer", acceptCgv: "on" });
-    assert.equal(res.res.status, 200, "no redirect to payment");
+    const res = await v.post("/cart/reserve", { name: "Buyer", acceptCgv: "on" });
+    assert.equal(res.res.status, 200, "no redirect to the reservation page");
     assert.match(res.text, /taken by someone else/);
-    assert.equal(createdIntents.length, 0, "no payment was started");
   } finally {
     await pool.query(`DROP TRIGGER IF EXISTS ${fn} ON orders`);
     await pool.query(`DROP FUNCTION IF EXISTS ${fn}()`);
   }
   const after = await copyRow(copy);
-  assert.equal(after.status, "in_stock", "the copy was not locked");
+  assert.equal(after.status, "in_stock", "the copy was not held");
   assert.equal((await pool.query("SELECT 1 FROM orders WHERE buyer_email = $1", [email])).rowCount, 0, "the order rolled back");
   assert.equal((await pool.query("SELECT 1 FROM order_items WHERE book_copy_id = $1", [copy])).rowCount, 0);
 });
 
-test("a copy with a real price still checks out normally", async () => {
+test("a copy with a real price is still reserved normally, at that price", async () => {
   const bookId = await makeBook();
   const copy = await makeCopy(bookId, { price: 5.25 });
   const v = guest();
   await v.post("/cart/add", { copyId: copy });
   const email = `ok-${uniq()}@example.test`;
   await signIn(v, email);
-  const res = await v.post("/cart/checkout", { name: "Buyer", acceptCgv: "on" });
+  const res = await v.post("/cart/reserve", { name: "Buyer", acceptCgv: "on" });
   assert.equal(res.res.status, 302);
-  assert.equal((await copyRow(copy)).status, "in_cart");
-  assert.equal(createdIntents.at(-1).amountCents, 525);
+  assert.equal((await copyRow(copy)).status, "reserved");
+  const [order] = (await pool.query("SELECT total_amount, status FROM orders WHERE buyer_email = $1", [email])).rows;
+  assert.equal(Number(order.total_amount), 5.25);
+  assert.equal(order.status, "reserved");
 });
 
 // ---------- reservations and book-request holds ----------
@@ -499,10 +493,10 @@ test("admin edit session: blank capacity keeps the current one (never unlimited)
   }
 });
 
-test("admin edit session: capacity cannot go below the seats already sold, nor the drop-in price be cleared while paid seats exist", async () => {
+test("admin edit session: capacity cannot go below the seats already reserved or sold, nor the drop-in price be cleared while such seats exist", async () => {
   const id = await makeClass({ capacity: 6, dropinPrice: 10 });
   await addSeats(id, 3, "sold");
-  await addSeats(id, 1, "in_cart");
+  await addSeats(id, 1, "reserved");
 
   const low = await adminPost(`/admin/sessions/${id}${MONTH}`, editFields({ capacity: "3" }));
   assert.equal(low.status, 400);
@@ -515,7 +509,7 @@ test("admin edit session: capacity cannot go below the seats already sold, nor t
 
   const cleared = await adminPost(`/admin/sessions/${id}${MONTH}`, editFields({ capacity: "4", dropinPrice: "" }));
   assert.equal(cleared.status, 400);
-  assert.match(cleared.text, /drop-in price can(?:'|&#39;)t be cleared: 4 paid drop-in seats/);
+  assert.match(cleared.text, /drop-in price can(?:'|&#39;)t be cleared: 4 drop-in seats are already reserved or paid/);
   assert.equal(Number((await classRow(id)).dropin_price), 10);
 
   const changed = await adminPost(`/admin/sessions/${id}${MONTH}`, editFields({ capacity: "4", dropinPrice: "12.5" }));

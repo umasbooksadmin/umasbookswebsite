@@ -1,26 +1,57 @@
-// Reservations expire after 2 weeks and revert to "in_stock" — called at
-// the top of any route that displays copy status (public book search/
-// detail, admin inventory) so the shown status is always accurate
-// regardless of whether the periodic backstop in index.js has run
-// recently (Render's free tier can sleep, so a timer alone isn't
-// reliable). A reminder email goes out 3 days before that deadline
-// (i.e. once a reservation is 11+ days old), tracked via
-// reminder_sent_at so it's only ever sent once per reservation.
+// Reservations: books and drop-in seats are RESERVED online and PAID IN PERSON
+// at the shop (Rue Peyrolière) or at the class session. Nothing is paid online.
+//
+// Two kinds of reservation share book_copies.status = 'reserved':
+//
+//  1. The older "held for someone" copies (an admin reserved a copy for a
+//     customer or for a book request: reserved_by_name/email/phone, reserved_at,
+//     no order). They expire RESERVATION_DAYS after reserved_at, with a reminder
+//     3 days before (expireStaleReservations / sendPickupReminders below).
+//  2. Online reservations: an ORDER with status 'reserved' (orders.reserved_until
+//     is its deadline) whose copies are 'reserved' with cart_order_id pointing at
+//     it, and whose drop-in seats are class_dropin_seats.status = 'reserved'.
+//     The order's deadline, not the copies' reserved_at, governs them (an admin
+//     can extend it once), so the copy-level sweeps skip copies that have an
+//     order. Everything that changes an order's items runs in one transaction
+//     with the order row locked first.
+//
+// expireStaleReservations is called at the top of any route that displays copy
+// status (public book search/detail, admin inventory, the cart) so the shown
+// status is always accurate regardless of whether the periodic backstop in
+// index.js has run recently (Render's free tier can sleep, so a timer alone
+// isn't reliable). Mail is only ever sent from the periodic jobs
+// (lib/orderSweeps.js), never from a page read.
 
 const { sendEmail } = require("./outbox");
 const { emailSafeName } = require("./validation");
 const { emailTr } = require("./lang");
+const legal = require("./legal");
 
-const RESERVATION_TTL_DAYS = 14;
-const REMINDER_AT_DAYS = RESERVATION_TTL_DAYS - 3;
+// Single source: lib/legal.js.
+const RESERVATION_DAYS = legal.RESERVATION_DAYS;
+const RESERVATION_TTL_DAYS = RESERVATION_DAYS; // the older name, still used by callers
+const REMINDER_AT_DAYS = RESERVATION_DAYS - 3;
+const { RESERVATION_EXTENSION_DAYS, MAX_RESERVED_COPIES, MAX_ACTIVE_RESERVATIONS, SEAT_CANCEL_HOURS } = legal;
+
+// A session is over at its end time, or this long after its start when it has
+// none. `c` is the classes alias.
+const SESSION_OVER_SQL = `COALESCE(c.ends_at, c.starts_at + interval '${legal.SEAT_FALLBACK_SESSION_HOURS} hours')`;
+
+// Loaded lazily: unit tests load this file without a database.
+const lazyDb = () => require("../db");
+
+// ---------- 1. copies held without an order (older kind) ----------
 
 async function expireStaleReservations(pool) {
   await pool.query(
     `UPDATE book_copies
      SET status = 'in_stock', reserved_by_name = NULL, reserved_by_email = NULL,
          reserved_by_phone = NULL, reserved_at = NULL, reminder_sent_at = NULL, updated_at = now()
-     WHERE status = 'reserved' AND reserved_at < now() - interval '${RESERVATION_TTL_DAYS} days'`
+     WHERE status = 'reserved' AND cart_order_id IS NULL AND reserved_at < now() - interval '${RESERVATION_DAYS} days'`
   );
+  // The reservations of online orders (their deadline is on the order).
+  await expireOrderReservations(pool);
+  await releaseEndedSeats(pool);
 }
 
 // Only meant to be called from the periodic backstop (not on every page
@@ -31,7 +62,7 @@ async function sendPickupReminders(pool) {
   // otherwise be retried forever), so they are skipped.
   const { rows: due } = await pool.query(
     `SELECT id FROM book_copies
-     WHERE status = 'reserved' AND reminder_sent_at IS NULL AND reserved_by_email IS NOT NULL
+     WHERE status = 'reserved' AND cart_order_id IS NULL AND reminder_sent_at IS NULL AND reserved_by_email IS NOT NULL
        AND reserved_at <= now() - interval '${REMINDER_AT_DAYS} days'`
   );
 
@@ -43,7 +74,7 @@ async function sendPickupReminders(pool) {
       `UPDATE book_copies c SET reminder_sent_at = now()
        FROM books b
        WHERE c.id = $1 AND b.id = c.book_id
-         AND c.status = 'reserved' AND c.reminder_sent_at IS NULL AND c.reserved_by_email IS NOT NULL
+         AND c.status = 'reserved' AND c.cart_order_id IS NULL AND c.reminder_sent_at IS NULL AND c.reserved_by_email IS NOT NULL
        RETURNING c.id, c.reserved_by_name, c.reserved_by_email, b.title`,
       [id]
     );
@@ -69,8 +100,8 @@ async function sendPickupReminders(pool) {
         to: copy.reserved_by_email,
         subject: tr(`Reminder: your copy of "${copy.title}" is waiting for pickup`, `Rappel : votre exemplaire de « ${copy.title} » vous attend`),
         text: tr(
-          `${greeting}\n\nJust a reminder that we're holding your reserved copy of "${copy.title}" at Uma's Books. Reservations are held for 2 weeks from when you reserved — please come by within the next 3 days to pick it up and pay in the shop, or it will go back on the shelf.\n\nUma's Books\nRue Peyrolière, 81000 Albi`,
-          `${greeting}\n\nPetit rappel : nous gardons votre exemplaire réservé de « ${copy.title} » à Uma's Books. Les réservations sont conservées 2 semaines à partir de la réservation. Merci de passer d’ici 3 jours pour le récupérer et le régler en boutique, faute de quoi il retournera en rayon.\n\nUma's Books\nRue Peyrolière, 81000 Albi`
+          `${greeting}\n\nJust a reminder that we're holding your reserved copy of "${copy.title}" at Uma's Books. Reservations are held for ${RESERVATION_DAYS / 7} weeks from when you reserved — please come by within the next 3 days to pick it up and pay in the shop, or it will go back on the shelf.\n\nUma's Books\nRue Peyrolière, 81000 Albi`,
+          `${greeting}\n\nPetit rappel : nous gardons votre exemplaire réservé de « ${copy.title} » à Uma's Books. Les réservations sont conservées ${RESERVATION_DAYS / 7} semaines à partir de la réservation. Merci de passer d’ici 3 jours pour le récupérer et le régler en boutique, faute de quoi il retournera en rayon.\n\nUma's Books\nRue Peyrolière, 81000 Albi`
         ),
       });
     } catch (err) {
@@ -84,5 +115,157 @@ async function sendPickupReminders(pool) {
   }
 }
 
+// ---------- 2. online reservations (orders with status 'reserved') ----------
 
-module.exports = { expireStaleReservations, sendPickupReminders, RESERVATION_TTL_DAYS };
+// Gives one reservation's books back to the shelf and its seats back to the
+// session, and closes the order as `status` ('cancelled' | 'expired') for
+// `reason` ('customer' | 'admin' | 'expired' | 'no_show' | 'account_erased').
+// ONE transaction, the order row locked first, so a release can never overlap
+// a collection (lib/orderActions.js collectReservation takes the same lock).
+// `guard(client, order)` runs under that lock and may return a result object to
+// return INSTEAD of releasing (e.g. { outcome: "too_late" }); returning nothing
+// lets the release go ahead.
+// Resolves { outcome: 'released', copies, seats, order } | { outcome: 'not_found' }
+// | { outcome: 'not_reserved', status } | whatever the guard returned.
+async function releaseReservation(pool, orderId, { status = "cancelled", reason, guard } = {}) {
+  const { withTransaction } = lazyDb();
+  return withTransaction(pool, async (client) => {
+    const { rows } = await client.query("SELECT * FROM orders WHERE id = $1 FOR UPDATE", [orderId]);
+    const order = rows[0];
+    if (!order) return { outcome: "not_found" };
+    if (order.status !== "reserved") return { outcome: "not_reserved", status: order.status };
+    if (guard) {
+      const refused = await guard(client, order);
+      if (refused) return refused;
+    }
+    const copies = await client.query(
+      `UPDATE book_copies
+       SET status = 'in_stock', reserved_by_name = NULL, reserved_by_email = NULL, reserved_by_phone = NULL,
+           reserved_at = NULL, reminder_sent_at = NULL, cart_order_id = NULL, cart_added_at = NULL, updated_at = now()
+       WHERE cart_order_id = $1 AND status = 'reserved'`,
+      [orderId]
+    );
+    const seats = await client.query(
+      "UPDATE class_dropin_seats SET status = 'released', updated_at = now() WHERE order_id = $1 AND status = 'reserved'",
+      [orderId]
+    );
+    await client.query(
+      "UPDATE orders SET status = $2, released_at = now(), release_reason = $3, client_ip = NULL WHERE id = $1",
+      [orderId, status, reason]
+    );
+    return { outcome: "released", copies: copies.rowCount, seats: seats.rowCount, order };
+  });
+}
+
+// Every order past its deadline is released (status 'expired'). The email that
+// tells the customer is sent by the periodic job (orderSweeps.js), once.
+async function expireOrderReservations(pool) {
+  const { rows } = await pool.query("SELECT id FROM orders WHERE status = 'reserved' AND reserved_until < now() ORDER BY id LIMIT 500");
+  let released = 0;
+  for (const { id } of rows) {
+    try {
+      const r = await releaseReservation(pool, id, {
+        status: "expired", reason: "expired",
+        // Re-checked under the lock: an admin may have extended it meanwhile.
+        guard: async (client, o) => (o.reserved_until && new Date(o.reserved_until).getTime() < Date.now() ? undefined : { outcome: "skipped" }),
+      });
+      if (r.outcome === "released") released++;
+    } catch (err) {
+      console.error(`Reservation expiry failed for order ${id}:`, err.message);
+    }
+  }
+  return released;
+}
+
+// A drop-in seat nobody came for: once its session is over and the seat was not
+// marked paid ('sold'), it is released. An order left with nothing reserved
+// closes as 'expired'. Per order, with the order row locked first.
+async function releaseEndedSeats(pool) {
+  const { withTransaction } = lazyDb();
+  const { rows } = await pool.query(
+    `SELECT DISTINCT s.order_id FROM class_dropin_seats s JOIN classes c ON c.id = s.class_id
+     WHERE s.status = 'reserved' AND s.order_id IS NOT NULL AND ${SESSION_OVER_SQL} < now()`
+  );
+  let released = 0;
+  for (const { order_id: orderId } of rows) {
+    try {
+      released += await withTransaction(pool, async (client) => {
+        const { rows: o } = await client.query("SELECT status FROM orders WHERE id = $1 FOR UPDATE", [orderId]);
+        if (!o[0]) return 0;
+        const r = await client.query(
+          `UPDATE class_dropin_seats s SET status = 'released', updated_at = now()
+           FROM classes c WHERE c.id = s.class_id AND s.order_id = $1 AND s.status = 'reserved' AND ${SESSION_OVER_SQL} < now()`,
+          [orderId]
+        );
+        if (o[0].status === "reserved") {
+          const { rows: left } = await client.query(
+            `SELECT (SELECT COUNT(*) FROM book_copies WHERE cart_order_id = $1 AND status = 'reserved')
+                  + (SELECT COUNT(*) FROM class_dropin_seats WHERE order_id = $1 AND status = 'reserved') AS n`,
+            [orderId]
+          );
+          if (Number(left[0].n) === 0) {
+            await client.query(
+              "UPDATE orders SET status = 'expired', released_at = now(), release_reason = 'expired', client_ip = NULL WHERE id = $1",
+              [orderId]
+            );
+          }
+        }
+        return r.rowCount;
+      });
+    } catch (err) {
+      console.error(`Seat release failed for order ${orderId}:`, err.message);
+    }
+  }
+  return released;
+}
+
+// The customer cancels their OWN reservation (owner-only: the caller passes the
+// logged-in user's id). A drop-in seat can only be cancelled until
+// SEAT_CANCEL_HOURS before its session starts; after that nothing changes and
+// the customer is told to contact the shop (outcome 'too_late').
+// Resolves { outcome: 'released' | 'not_found' | 'not_reserved' | 'too_late' }.
+async function cancelReservationAsCustomer(pool, orderId, userId) {
+  const { rows } = await pool.query("SELECT id FROM orders WHERE id = $1 AND user_id = $2", [orderId, userId]);
+  if (!rows.length) return { outcome: "not_found" }; // not theirs and not there: the same answer
+  return releaseReservation(pool, orderId, {
+    status: "cancelled", reason: "customer",
+    guard: async (client) => {
+      const { rows: late } = await client.query(
+        `SELECT 1 FROM class_dropin_seats s JOIN classes c ON c.id = s.class_id
+         WHERE s.order_id = $1 AND s.status = 'reserved' AND c.starts_at < now() + make_interval(hours => $2) LIMIT 1`,
+        [orderId, SEAT_CANCEL_HOURS]
+      );
+      return late.length ? { outcome: "too_late" } : undefined;
+    },
+  });
+}
+
+// An admin extends the deadline of a reservation holding books, ONCE, by
+// RESERVATION_EXTENSION_DAYS. Resolves { outcome: 'extended', until } |
+// 'not_found' | 'not_reserved' | 'already_extended' | 'no_books'.
+async function extendReservation(pool, orderId) {
+  const { withTransaction } = lazyDb();
+  return withTransaction(pool, async (client) => {
+    const { rows } = await client.query("SELECT * FROM orders WHERE id = $1 FOR UPDATE", [orderId]);
+    const order = rows[0];
+    if (!order) return { outcome: "not_found" };
+    if (order.status !== "reserved") return { outcome: "not_reserved", status: order.status };
+    if (order.reservation_extended_at) return { outcome: "already_extended" };
+    const { rows: books } = await client.query("SELECT 1 FROM book_copies WHERE cart_order_id = $1 AND status = 'reserved' LIMIT 1", [orderId]);
+    if (!books.length) return { outcome: "no_books" };
+    const { rows: upd } = await client.query(
+      `UPDATE orders SET reserved_until = GREATEST(reserved_until, now()) + make_interval(days => $2),
+              reservation_extended_at = now()
+       WHERE id = $1 RETURNING reserved_until`,
+      [orderId, RESERVATION_EXTENSION_DAYS]
+    );
+    return { outcome: "extended", until: upd[0].reserved_until };
+  });
+}
+
+module.exports = {
+  expireStaleReservations, sendPickupReminders, expireOrderReservations, releaseEndedSeats,
+  releaseReservation, cancelReservationAsCustomer, extendReservation,
+  RESERVATION_DAYS, RESERVATION_TTL_DAYS, RESERVATION_EXTENSION_DAYS, MAX_RESERVED_COPIES, MAX_ACTIVE_RESERVATIONS, SEAT_CANCEL_HOURS,
+  SESSION_OVER_SQL,
+};

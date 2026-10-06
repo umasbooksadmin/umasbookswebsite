@@ -5,18 +5,28 @@
 // two-step was set up). The default run only READS admin pages. With
 // E2E_ALLOW_WRITES=1 it also creates ONE tagged test book (with a made-up
 // ISBN, so it can never attach to a real book) and ONE tagged test member
-// (example.invalid address), disables the member, and sells nothing.
+// (example.invalid address), disables the member, and sells nothing. The order
+// steps (A24c to A24l) also need the account-holder login: they reserve a few
+// books with it, collect/refund/cancel them as the admin, and leave the shelves
+// as they were.
 // Admin pages are English only; the steps that publish public content or
 // send email to real people (events, announcements, blog, charity votes,
 // notifying requesters, selling) stay manual.
 
 const assert = require("node:assert/strict");
 const e2e = require("../helpers/harness");
-const { has, hasNot } = require("../helpers/pages");
+const { has, hasNot, reserveViaHttp } = require("../helpers/pages");
 const cfg = require("../helpers/config");
 
 const s = e2e.persona("admin");
 const TAG = () => process.env.E2E_RUN_ID;
+// A reservation made by the account-holder test login (plain HTTP), for the admin to work on; it is listed at the end of the run.
+async function e2e_reserve(ctx, who, count = 1) {
+  if (ctx.preview) ctx.skip("preview mode: reserving is off");
+  const r = await reserveViaHttp(ctx, who, count);
+  ctx.created(`reservation for the admin order tests (nothing paid; the test collects, refunds, cancels or expires it)`, `${TAG()} ${who} (order #${r.id})`, "admin Orders > Show: All orders > search the tag");
+  return r;
+}
 const REAL_ISBN = "9780141036144"; // from the manual script's test data (looked up only, never saved)
 const tagged = { id: null, title: null, isbn: null, location: null };
 const testMember = { id: null, email: null, name: null };
@@ -277,39 +287,184 @@ s.manual("A22 (must) adding a requested book matches the confirmed request on in
 s.manual("A23c (must) Notify, Notify and hold 7 days, Mark fulfilled, Match, Cancel and Delete a request", "sends email to the requester and changes real requests");
 s.manual("A23b a request hold ends by itself after 7 days", "needs real time to pass");
 
-// ---- 5G. Orders ----
+// ---- 5G. Orders and reservations ----
+//
+// Books and drop-in seats are reserved online and paid in the shop; the staff
+// record the payment here. The write tests below need the account-holder test
+// login as well (they make a reservation with it by plain HTTP, then work on it
+// as the admin) and E2E_ALLOW_WRITES=1. Each one ends the reservation it made
+// (collected and paid, refunded, cancelled or expired), so the shelves are as
+// they were; the records they leave are listed at the end of the run.
 
-s.test("A24a (must) the Orders page lists orders with status and totals", { as: "admin" }, async (ctx) => {
+s.test("A24a (must) the Orders page opens on the reservations waiting for pickup, with status and totals", { as: "admin" }, async (ctx) => {
   await admin(ctx, "/admin/orders");
   const text = await ctx.text();
   has(text, /\d+ orders?/);
+  has(text, /Pickup list/);
   hasNoNaN(text, "orders");
-  // After the guest tests in the same run (payments on, writes on), their unpaid order is here.
-  if (cfg.allowWrites() && !ctx.preview && /Test Buyer/.test(text)) has(text, /pending/i);
+  const options = await ctx.page.$$eval("#show option", (o) => o.map((x) => x.textContent));
+  for (const re of [/Reserved/, /Expiring in 3 days/, /Expired/, /All orders/, /Paid/, /Refunded/, /Cancelled/]) assert.ok(options.some((o) => re.test(o)), `the Show menu offers ${re}`);
+});
+
+// The site allows 10 reservation requests an hour from one address, and a full run shares them with the other
+// personas, so the order tests use three reservations in all: R1 (A24l, A24c, A24d), R2 (A24i, which leaves a
+// rest that A24j extends and cancels) and R3 (A24j, no-show).
+const state = { r1: null, rest: null };
+async function reservationOne(ctx) {
+  if (!state.r1) state.r1 = await e2e_reserve(ctx, "Collect");
+  return state.r1;
+}
+
+s.write("A24l collecting for less than the total needs a note (a discount at the till), and a payment method is required; nothing is recorded", { as: "admin", needs: ["account"] }, async (ctx) => {
+  const r = await reservationOne(ctx);
+  await ctx.goto(`/admin/orders/${r.id}`);
+  await ctx.page.select("#collect-form #method", "cash");
+  await ctx.page.$eval("#amountReceived", (i) => { i.value = "0.50"; });
+  await Promise.all([ctx.page.waitForNavigation({ waitUntil: "domcontentloaded" }), ctx.page.click("#collect-form button[type='submit']")]);
+  has(await ctx.text(), /please write a note saying why/);
+  has(await ctx.text(), /Reserved: awaiting pickup/);
+  // A method is required too (the browser's own check is lifted to send the request a script could send).
+  await ctx.goto(`/admin/orders/${r.id}`);
+  await Promise.all([ctx.page.waitForNavigation({ waitUntil: "domcontentloaded" }), ctx.page.$eval("#method", (m) => { m.removeAttribute("required"); m.form.requestSubmit(); })]);
+  has(await ctx.text(), /Choose how the customer paid/);
+});
+
+s.write("A24c (must) Mark collected and paid: choose how they paid, the books are sold, the order shows Paid and Collected, and Admin activity logs it", { as: "admin", needs: ["account"] }, async (ctx) => {
+  const r = await reservationOne(ctx);
+  await ctx.goto(`/admin/orders/${r.id}`);
+  let text = await ctx.text();
+  has(text, /Reserved: awaiting pickup/);
+  has(text, /Nothing was paid online\. The customer pays in the shop/);
+  has(text, /Books held until the end of/);
+  // Cash, the full amount, no note.
+  await ctx.page.select("#collect-form #method", "cash");
+  await Promise.all([ctx.page.waitForNavigation({ waitUntil: "domcontentloaded" }), ctx.page.click("#collect-form button[type='submit']")]);
+  text = await ctx.text();
+  has(text, /Collected and paid: the books and seats are sold and the order now counts as a sale/);
+  has(text, /Paid in the shop on .* by Cash/);
+  has(text, /Collected/);
+  assert.equal(await ctx.page.$("#collect-form"), null, "the collect form is gone");
+  has(text, /order\.collected_paid/);
+  // The customer's own page says collected.
+  const mine = await (await fetch(ctx.url(`/cart/return?order=${r.token}`))).text();
+  has(mine, /Reservation #\d+ collected/);
+});
+
+s.write("A24d (must) Mark refunded (after giving the money back in the shop): the order is Refunded, the books are back in stock, and it asks for a tick and a note", { as: "admin", needs: ["account"] }, async (ctx) => {
+  if (!state.r1) ctx.skip("needs A24c to have collected a reservation first");
+  const id = state.r1.id;
+  await ctx.goto(`/admin/orders/${id}`);
+  if (!(await ctx.page.$(`a[href='/admin/orders/${id}/refund']`))) ctx.skip("the reservation of A24c was not collected (A24c did not run)");
+  has(await ctx.text(), /Only AFTER you gave the money back to the customer \(cash, cheque or card\)/);
+  await ctx.goto(`/admin/orders/${id}/refund`);
+  has(await ctx.text(), /Do this only AFTER you gave the money back to the customer in the shop/);
+  assert.equal(await ctx.page.$eval("input[name='confirmRefunded']", (i) => i.required), true);
+  await ctx.page.type("#note", `${TAG()} refunded in cash at the shop (test)`);
+  await ctx.page.click("input[name='confirmRefunded']");
+  await Promise.all([ctx.page.waitForNavigation({ waitUntil: "domcontentloaded" }), ctx.page.click("form[action$='/refund'] button[type='submit']")]);
+  const text = await ctx.text();
+  has(text, /Marked as refunded\. The books are back on sale/);
+  has(text, /Refunded/);
+  has(text, /is now in_stock/);
+  has(text, /order\.refunded/);
+});
+
+s.test("A24h the Pickup list shows reservations by customer, with shelves and the amount to collect, and has a print version", { as: "admin" }, async (ctx) => {
+  await admin(ctx, "/admin/orders/pickup-list");
+  const text = await ctx.text();
+  has(text, /Pickup list/);
+  has(text, /customers? .* to collect in total/);
+  has(text, /Print/);
+  hasNoNaN(text, "pickup list");
+  await admin(ctx, "/admin/orders/pickup-list?print=1");
+  assert.ok(await ctx.page.$(".pickup-list-print"), "the print layout");
+  has(await ctx.text(), /Normal view/);
+});
+
+s.write("A24i Collect selected items (partial pickup): the chosen book is sold and the rest moves to a new reservation with the same deadline", { as: "admin", needs: ["account"] }, async (ctx) => {
+  const r = await e2e_reserve(ctx, "Partial", 2);
+  await ctx.goto(`/admin/orders/${r.id}`);
+  assert.ok(await ctx.page.$("#collect-selected-form"), "two items: the partial pickup form is shown");
+  await ctx.page.click("#collect-selected-form input[name='itemIds']"); // the first item
+  await ctx.page.select("#collect-selected-form #method-sel", "card");
+  await Promise.all([ctx.page.waitForNavigation({ waitUntil: "domcontentloaded" }), ctx.page.click("#collect-selected-form button[type='submit']")]);
+  const text = await ctx.text();
+  has(text, /Collected and paid for the selected items\. The other items stay reserved on a new reservation with the same deadline/);
+  has(text, /Related reservation/);
+  const links = await ctx.page.$$eval("p a[href^='/admin/orders/']", (as) => as.map((a) => a.getAttribute("href")));
+  const other = links.map((h) => Number(h.split("/").pop())).find((n) => n && n !== r.id);
+  assert.ok(other, "a link to the new reservation");
+  state.rest = { id: other };
+  await ctx.goto(`/admin/orders/${other}`);
+  has(await ctx.text(), /Reserved: awaiting pickup/);
+  // The paid half is refunded so its book goes back on the shelf.
+  await ctx.goto(`/admin/orders/${r.id}/refund`);
+  await ctx.page.type("#note", `${TAG()} partial pickup test, undone`);
+  await ctx.page.click("input[name='confirmRefunded']");
+  await Promise.all([ctx.page.waitForNavigation({ waitUntil: "domcontentloaded" }), ctx.page.click("form[action$='/refund'] button[type='submit']")]);
+  has(await ctx.text(), /Marked as refunded/);
+});
+
+s.write("A24j Extend by 7 days works once, then Cancel reservation and Mark no-show / expired put the books back on the shelf", { as: "admin", needs: ["account"] }, async (ctx) => {
+  if (!state.rest) ctx.skip("needs A24i to have left a reservation behind (the rest of a partial pickup)");
+  const a = state.rest;
+  // Extend: once.
+  await ctx.goto(`/admin/orders/${a.id}`);
+  const before = await ctx.page.$eval("#reservation-deadline", (e) => e.innerText);
+  await Promise.all([ctx.page.waitForNavigation({ waitUntil: "domcontentloaded" }), ctx.page.click(`form[action='/admin/orders/${a.id}/extend'] button`)]);
+  has(await ctx.text(), /The deadline was extended by 7 days\./);
+  const after = await ctx.page.$eval("#reservation-deadline", (e) => e.innerText);
+  assert.notEqual(after, before, "the deadline moved");
+  has(after, /Extended once on/);
+  assert.equal(await ctx.page.$(`form[action='/admin/orders/${a.id}/extend']`), null, "the Extend button is gone after one use");
+  // Cancel reservation.
+  await Promise.all([ctx.page.waitForNavigation({ waitUntil: "domcontentloaded" }), ctx.page.click(`form[action='/admin/orders/${a.id}/cancel-reservation'] button`)]);
+  has(await ctx.text(), /The reservation was cancelled: its books are back on the shelf/);
+  has(await ctx.text(), /Cancelled/);
+  // No-show, on a reservation of its own.
+  const b = await e2e_reserve(ctx, "No Show");
+  await ctx.goto(`/admin/orders/${b.id}`);
+  await Promise.all([ctx.page.waitForNavigation({ waitUntil: "domcontentloaded" }), ctx.page.click(`form[action='/admin/orders/${b.id}/no-show'] button`)]);
+  has(await ctx.text(), /Marked as no-show: the books are back on the shelf/);
+  has(await ctx.text(), /Expired/);
+  has(await (await fetch(ctx.url(`/cart/return?order=${b.token}`))).text(), /Reservation ended/);
+});
+
+s.test("A24k the Reservations report loads, has a CSV download and shows no names or emails", { as: "admin" }, async (ctx) => {
+  await admin(ctx, "/admin/reports");
+  has(await ctx.text(), /Reservations/);
+  await admin(ctx, "/admin/reports/reservations");
+  const text = await ctx.text();
+  has(text, /Reservations by month/);
+  hasNoNaN(text, "reservations report");
+  hasNot(text, /@/, "the report shows no email address");
+  if (/Nothing to show for this period/.test(text)) return; // no reservation in the period yet: the table and CSV link only appear with rows
+  for (const re of [/Reserved/, /Collected \(sold\)/, /Expired \/ no-show/, /Cancelled/, /Conversion/]) has(text, re);
+  const csv = await ctx.page.$eval("a[href*='format=csv']", (a) => a.getAttribute("href"));
+  const res = await ctx.fetchRaw(csv.replace(/&amp;/g, "&"));
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get("content-type") || "", /text\/csv/);
 });
 
 s.test("A24b (must) the Orders page filters, searches and opens an order", { as: "admin" }, async (ctx) => {
-  for (const q of ["show=uncollected", "show=refund_detected", "show=refunded", "show=overdue", "show=stale_pending", "show=paid&from=2020-01-01&to=2099-12-31", "q=%23999999999", "page=2"]) {
+  for (const q of ["show=expiring_soon", "show=expired", "show=past_deadline", "show=all", "show=refunded", "show=cancelled", "show=paid&from=2020-01-01&to=2099-12-31", "q=%23999999999", "page=2"]) {
     await admin(ctx, `/admin/orders?${q}`);
     const text = await ctx.text();
     hasNoNaN(text, `orders ${q}`);
     has(text, /\d+ orders?/);
   }
-  await admin(ctx, "/admin/orders");
-  const first = await ctx.page.$eval("a[href^='/admin/orders/']", (a) => a.getAttribute("href")).catch(() => null);
+  await admin(ctx, "/admin/orders?show=all");
+  const first = await ctx.page.$$eval("a[href^='/admin/orders/']", (as) => as.map((a) => a.getAttribute("href")).find((h) => /^\/admin\/orders\/\d+$/.test(h)) || null);
   if (!first) ctx.skip("no order exists yet");
   await ctx.goto(first);
   const text = await ctx.text();
-  has(text, /Payment \(HelloAsso\)/);
+  has(text, /Payment/);
   has(text, /Terms and history/);
+  has(text, /Actions/);
   hasNoNaN(text, "order page");
 });
 
-s.manual("A24c (must) Mark collected sets the time, writes to Admin activity and repeats safely", "changes a real order");
-s.manual("A24d (must) Mark refunded (after refunding in HelloAsso): books back in stock, seat released, out of the sales figures", "needs a real HelloAsso refund and changes a real order");
-s.manual("A24e a refund done in HelloAsso shows up by itself, with one alert email", "needs a real HelloAsso refund and up to 6 hours");
-s.manual("A24f the dashboard Needs attention box", "needs an old unpaid or uncollected order");
-s.manual("A24g Cancel unpaid order frees the books", "changes a real order");
+s.manual("A24f the dashboard Needs attention box (reservations expiring within 3 days, past the deadline)", "needs a reservation close to its deadline; the counts are covered by an automated test");
 
 // ---- 5H. Members and roles ----
 
@@ -497,7 +652,7 @@ for (const [name, path, re] of PAGES) {
   });
 }
 s.manual("A30b create, sign up for, edit and delete an event", "publishes a public event and sends nothing, but changes the real calendar; do by hand");
-s.manual("A31b create a session and check it can be bought as a drop-in", "changes the real sessions calendar and checkout; do by hand");
+s.manual("A31b create a session and check a drop-in seat can be reserved", "changes the real sessions calendar; do by hand");
 s.manual("A32b add a meeting with minutes, then delete it", "changes what members see; do by hand");
 s.manual("A33b add a weekly repeating shift, then delete it", "changes what volunteers see; do by hand");
 s.manual("A34b publish, schedule, pin, archive and delete announcements", "changes what members see; do by hand");
@@ -559,9 +714,9 @@ s.test("A43 the Email outbox page loads for an admin with its controls", { as: "
   has(text, /Pending:/);
   has(text, /Failed:/);
 });
-s.manual("A44 (must) Resend confirmation on a paid order sends a new confirmation email", "needs a paid order and a mailbox to read");
+s.manual("A44 (must) Resend confirmation on a reservation sends a new confirmation email", "needs a reservation and a mailbox to read");
 s.manual("A45 (must) an unmatched membership payment is alerted, listed under Accounts and can be linked to an account", "needs a real test payment on the HelloAsso membership form");
-s.manual("A46 the dashboard Needs attention box shows only when something is wrong", "needs a failed email or an unconfirmed paid order to see it; the rule is covered by an automated test");
+s.manual("A46 the dashboard Needs attention box shows only when something is wrong", "needs a failed email or a reservation whose confirmation was not sent; the rule is covered by an automated test");
 
 // ---- the till, copy labels, end of day, accounting export (steps A60-A69) ----
 
@@ -654,4 +809,5 @@ s.test("A70 the Other stock (not books) page is reachable from Inventory and has
   has(text, /Tote bags, bookmarks and anything else you sell that is not a book/);
   assert.ok(await ctx.page.$("#new-barcode"), "the barcode box is on the form");
 });
+s.manual("A71 (must) collecting a reservation at the till: scan ORDER-<n>, the lines load at the reserved prices, remove one for a partial pickup, pay cash or card; the order shows Paid and the rest stays reserved", "needs a reservation made by a customer and the till in use; the rule is covered by automated tests (tillReservations)");
 s.manual("A70b scanning an item's barcode with the scanner fills the Barcode box; at the till it adds the item", "needs the physical scanner (see A66)");

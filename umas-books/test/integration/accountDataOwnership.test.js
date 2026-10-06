@@ -53,10 +53,12 @@ async function pendingSignup({ daysOld, pending = true, verified = false }) {
   return { id: rows[0].id, email: e };
 }
 const exists = async (id) => (await pool.query("SELECT 1 FROM users WHERE id = $1", [id])).rowCount === 1;
-const orderFor = async ({ userId, buyerEmail }) =>
+// A collected-and-paid order by default, or an open reservation ('reserved').
+const orderFor = async ({ userId, buyerEmail, status = "paid" }) =>
   (await pool.query(
-    `INSERT INTO orders (buyer_name, buyer_email, total_amount, status, user_id, paid_at)
-     VALUES ('Buyer', $1, 10, 'paid', $2, now()) RETURNING id`, [buyerEmail, userId])).rows[0].id;
+    `INSERT INTO orders (buyer_name, buyer_email, total_amount, status, user_id, paid_at, reserved_until)
+     VALUES ('Buyer', $1, 10, $3, $2, CASE WHEN $3 = 'paid' THEN now() END, CASE WHEN $3 = 'reserved' THEN now() + interval '5 days' END) RETURNING id`,
+    [buyerEmail, userId, status])).rows[0].id;
 
 // ---------- 6. purge of unconfirmed accounts ----------
 
@@ -140,7 +142,7 @@ test("after an admin email change the account export still has its older orders,
   const sjar = makeCookieJar();
   assert.equal((await loginOverHttp(app.base, sjar, stranger)).status, 302);
   const page = await (await fetch(`${app.base}/account`, { headers: { cookie: sjar.header() } })).text();
-  assert.match(page, /No orders yet/, "the stranger's My Account shows no orders");
+  assert.match(page, /No reservations yet/, "the stranger's My Account shows no reservations or orders");
   assert.equal((await pool.query("SELECT 1 FROM orders WHERE id = ANY($1) AND buyer_email = $2", [[linked, legacy], oldEmail])).rowCount, 2);
 });
 
@@ -158,13 +160,16 @@ test("the account's own page lists orders by user_id after the email changed", a
   const oldEmail = email("pg");
   const owner = await createAccount(pool, { email: oldEmail });
   const id = await orderFor({ userId: owner.id, buyerEmail: oldEmail });
+  const reserved = await orderFor({ userId: owner.id, buyerEmail: oldEmail, status: "reserved" });
   const newEmail = email("pg-new");
   await adminEditEmail(jar, owner.id, newEmail);
   await pool.query("UPDATE users SET email_verified_at = now(), password_hash = $2 WHERE id = $1", [owner.id, await bcrypt.hash(owner.password, 4)]);
   const ojar = makeCookieJar();
   assert.equal((await loginOverHttp(app.base, ojar, { ...owner, email: newEmail })).status, 302);
   const page = await (await fetch(`${app.base}/account`, { headers: { cookie: ojar.header() } })).text();
-  assert.doesNotMatch(page, /No orders yet/, `order ${id} is listed for its owner`);
+  assert.doesNotMatch(page, /No reservations yet/, `order ${id} is listed for its owner`);
+  assert.equal((page.match(/class="status-pill /g) || []).length, 2, `orders ${id} and ${reserved} (a collected one and an open reservation) are both listed`);
+  assert.ok(page.includes(`action="/cart/reservations/${reserved}/cancel"`), "the open reservation can be cancelled from the owner's page");
 });
 
 test("erasing an account anonymises its orders by user_id and leaves another account's orders alone", async () => {
