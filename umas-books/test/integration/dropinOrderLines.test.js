@@ -15,7 +15,7 @@ const FORM = { "content-type": "application/x-www-form-urlencoded" };
 const STORED = "12 Dec, 18:00";
 const FRENCH = "12 déc., 18:00";
 
-let app, pool, user, orderToken;
+let app, pool, user, orderToken, reservedToken;
 
 before(async () => {
   app = await startTestApp({ port: PORT, isolated: true });
@@ -35,20 +35,24 @@ before(async () => {
     "INSERT INTO classes (title, starts_at, capacity, dropin_price) VALUES ('Dropin Lines Class', '2092-12-12T17:00:00Z', 10, 5) RETURNING id"
   );
   orderToken = await makeOrder(cls[0].id, "Dropin Lines Class");
+  reservedToken = await makeOrder(cls[0].id, "Dropin Lines Class", "reserved");
 });
 after(async () => {
   await pool.end();
   app.stop();
 });
 
-async function makeOrder(classId, title) {
+// A collected-and-paid order ('paid', seat 'sold') or an open reservation ('reserved', seat 'reserved').
+async function makeOrder(classId, title, status = "paid") {
   const { rows: o } = await pool.query(
-    "INSERT INTO orders (buyer_name, buyer_email, total_amount, status, lang) VALUES ('Ana', $1, 5, 'paid', 'fr') RETURNING id, access_token",
-    [user.email]
+    `INSERT INTO orders (buyer_name, buyer_email, total_amount, status, lang, user_id, reserved_until)
+     VALUES ('Ana', $1, 5, $2, 'fr', (SELECT id FROM users WHERE email = $1), CASE WHEN $2 = 'reserved' THEN now() + interval '5 days' END)
+     RETURNING id, access_token`,
+    [user.email, status]
   );
   const { rows: s } = await pool.query(
-    "INSERT INTO class_dropin_seats (class_id, status, order_id) VALUES ($1, 'sold', $2) RETURNING id",
-    [classId, o[0].id]
+    "INSERT INTO class_dropin_seats (class_id, status, order_id) VALUES ($1, $3, $2) RETURNING id",
+    [classId, o[0].id, status === "reserved" ? "reserved" : "sold"]
   );
   await pool.query(
     "INSERT INTO order_items (order_id, class_dropin_seat_id, item_title, price) VALUES ($1, $2, $3, 5)",
@@ -81,6 +85,16 @@ test("cart_return renders the drop-in line in the viewer's language", async () =
   assert.ok(en.includes(`Dropin Lines Class — ${STORED}`));
 });
 
+test("the reservation page (an open 'reserved' order) renders the seat line in the viewer's language", async () => {
+  const fr = await get(`/cart/return?order=${reservedToken}`, "fr");
+  assert.ok(fr.includes(`Dropin Lines Class — ${FRENCH}`), "French month and Paris time");
+  assert.ok(!fr.includes(STORED), "stored English label is not shown");
+  assert.match(fr, /Réservation n°\d+ confirmée/);
+  const en = await get(`/cart/return?order=${reservedToken}`, "en");
+  assert.ok(en.includes(`Dropin Lines Class — ${STORED}`));
+  assert.match(en, /Reservation #\d+ confirmed/);
+});
+
 test("account order history renders the drop-in line in the viewer's language", async () => {
   const jar = await loginJar("fr");
   const fr = await get("/account", "fr", jar);
@@ -88,6 +102,8 @@ test("account order history renders the drop-in line in the viewer's language", 
   assert.ok(!fr.includes(`Dropin Lines Class — ${STORED}`));
   const en = await get("/account", "en", jar);
   assert.ok(en.includes(`Dropin Lines Class — ${STORED}`));
+  // ...for the paid order and the open reservation alike (two lines on the page).
+  assert.equal(en.split(`Dropin Lines Class — ${STORED}`).length - 1, 2);
 });
 
 test("cart page shows the seat date in the viewer's language", async () => {

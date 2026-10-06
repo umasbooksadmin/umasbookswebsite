@@ -171,7 +171,7 @@ test("book page: the friendly used-book note, the no-returns notice that keeps l
   const b = await makeBook({ title: `${TAG} Disclaimer`, copies: [["very_good", 6]] });
   const en = (await page(`/books/${b.id}`, "en")).text;
   assert.ok(en.includes("Our second-hand books are sold as described, so please read the condition grade, and ask us if you have any question."));
-  assert.ok(en.includes("Used books: no returns or exchanges for a change of mind in the shop. For online orders, your statutory 14-day right of withdrawal and the legal guarantees still apply."));
+  assert.ok(en.includes("Used books: no returns or exchanges for a change of mind in the shop. The legal guarantees still apply, and so does the statutory right of withdrawal where the law provides for it."));
   assert.ok(en.includes("The grade is the description of the book: please read it before you buy."));
   assert.ok(en.includes("Price incl. tax, TVA non applicable"));
   assert.match(en, /class="muted small book-disclaimer">[^<]*<a href="\/terms-of-sale\.html">Terms of sale<\/a>/);

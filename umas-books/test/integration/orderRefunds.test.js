@@ -1,12 +1,15 @@
-// Refunds, withdrawals and pickup tracking in the admin (/admin/orders):
-//  - "Mark refunded (done in HelloAsso)": one transaction that puts the books
-//    back in stock and releases the drop-in seats, keeps the money out of the
-//    reports, is written to the audit log, repeats safely and refuses what it
-//    must refuse;
-//  - "Mark collected", the order list filters and paging, the detail page,
-//    "Cancel unpaid order", and the dashboard's Paris-time buckets.
-// Own throwaway database (counts below are exact); HelloAsso and the mailer
-// are stubbed before the routes are loaded.
+// Refunds and the order list in the admin (/admin/orders):
+//  - "Mark refunded": the refund was given back IN THE SHOP (cash, cheque or
+//    card; the app moves no money), so this only updates our records: one
+//    transaction that puts the books back in stock and releases the drop-in
+//    seats, keeps the money out of the reports, is written to the audit log,
+//    repeats safely and refuses what it must refuse;
+//  - the old "Mark collected" (orders paid online before reservations), the order
+//    list filters and paging, the detail page, "Cancel unpaid order" (a leftover
+//    'pending' order of the old online checkout), and the dashboard's Paris-time
+//    buckets and "needs attention" counts.
+// Own throwaway database (counts below are exact); the mailer is stubbed and
+// HelloAsso is never reachable (any call to it fails the test).
 
 const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
@@ -17,24 +20,23 @@ const { makeOrder } = require("../helpers/orderFixtures");
 const mailer = require("../../src/mailer");
 mailer.sendMail = async () => {};
 const helloasso = require("../../src/lib/helloasso");
-const intents = new Map();
-helloasso.getCheckoutIntent = async (id) => {
-  if (!intents.has(String(id))) throw new Error(`unknown intent ${id}`);
-  return intents.get(String(id));
-};
+const helloassoCalls = [];
+for (const name of Object.keys(helloasso)) {
+  if (typeof helloasso[name] === "function") helloasso[name] = async () => { helloassoCalls.push(name); throw new Error(`HelloAsso must not be called (${name})`); };
+}
 
 const h = adminHarness("order_refunds", ["orders", "dashboard", "reports", "members"], { isolated: true });
 const { seatsTakenExpr } = require("../../src/lib/classCapacity");
 const { salesStats, attentionCounts } = require("../../src/lib/dashboardStats");
 
 before(() => h.start());
-after(() => h.stop());
+after(() => { assert.deepEqual(helloassoCalls, [], "no HelloAsso call anywhere in this file"); return h.stop(); });
 
 const orderRow = async (id) => (await h.q("SELECT * FROM orders WHERE id = $1", [id]))[0];
 const copyStatuses = async (ids) => (await h.q("SELECT status FROM book_copies WHERE id = ANY($1::int[]) ORDER BY id", [ids])).map((r) => r.status);
 const auditRows = (id) => h.q("SELECT action, detail, actor_user_id FROM admin_audit_log WHERE target_type = 'order' AND target_id = $1 ORDER BY id", [id]);
 const seatsTaken = async (classId) => (await h.q(`SELECT ${seatsTakenExpr("classes")}::int AS n FROM classes WHERE id = $1`, [classId]))[0].n;
-const refundPost = (id, extra = {}) => h.post(`/admin/orders/${id}/refund`, { confirmHelloasso: "on", note: "Withdrew by email, refunded in HelloAsso on 3 Oct", ...extra });
+const refundPost = (id, extra = {}) => h.post(`/admin/orders/${id}/refund`, { confirmRefunded: "on", note: "Withdrew by email, refunded in cash at the shop on 3 Oct", ...extra });
 
 test("mark refunded: order refunded, books back in stock, seat released, audited, out of the sales report", async () => {
   const { order, copyIds, seatId, classId } = await makeOrder(h.pool, { books: 2, seat: true, paidDaysAgo: 1 });
@@ -75,7 +77,7 @@ test("a refunded order is out of revenue, the sales report shows it as its own l
   await h.pool.query("UPDATE orders SET refunded_at = '2031-03-12T10:00:00Z' WHERE id = $1", [gone.order.id]);
 
   const { text } = await h.get("/admin/reports/sales?from=2031-03-01&to=2031-03-31&group=month");
-  assert.match(text, /Refunds \(online orders refunded/);
+  assert.match(text, /Refunds \(orders refunded in the shop; not included in the sales above\)/);
   const csvBooks = (await h.get("/admin/reports/sales?from=2031-03-01&to=2031-03-31&group=month&format=csv&table=books")).text;
   assert.match(csvBooks, /"2031-03",1,5\.00,0,0\.00,5\.00/, "only the kept order is revenue");
   const csvRefunds = (await h.get("/admin/reports/sales?from=2031-03-01&to=2031-03-31&group=month&format=csv&table=refunds")).text;
@@ -140,18 +142,20 @@ test("mark refunded refuses an order that is not paid, and a missing confirmatio
   const noBox = await h.post(`/admin/orders/${order.id}/refund`, { note: "x" });
   assert.equal(noBox.res.status, 400);
   assert.match(noBox.text, /Tick the box/);
-  const noNote = await h.post(`/admin/orders/${order.id}/refund`, { confirmHelloasso: "on", note: "   " });
+  const noNote = await h.post(`/admin/orders/${order.id}/refund`, { confirmRefunded: "on", note: "   " });
   assert.equal(noNote.res.status, 400);
   assert.match(noNote.text, /write a note/);
   assert.equal((await orderRow(order.id)).status, "paid");
   assert.deepEqual(await copyStatuses(copyIds), ["sold"]);
 });
 
-test("the refund page carries the HelloAsso warning, and a member cannot reach any order action", async () => {
+test("the refund page says the refund must have been given in the shop first (no HelloAsso), and a member cannot reach any order action", async () => {
   const { order } = await makeOrder(h.pool, { paidDaysAgo: 1 });
   const page = await h.get(`/admin/orders/${order.id}/refund`);
   assert.equal(page.res.status, 200);
-  assert.match(page.text, /Do this only AFTER you refunded the payment in the HelloAsso dashboard/);
+  assert.match(page.text, /Do this only AFTER you gave the money back to the customer in the shop/);
+  assert.match(page.text, /name="confirmRefunded"/);
+  assert.doesNotMatch(page.text, /HelloAsso/i);
   assert.match(page.text, /name="note"[^>]*required/);
 
   for (const [method, path] of [["get", "/admin/orders"], ["get", `/admin/orders/${order.id}`], ["get", `/admin/orders/${order.id}/refund`]]) {
@@ -159,7 +163,7 @@ test("the refund page carries the HelloAsso warning, and a member cannot reach a
     assert.notEqual(r.res.status, 200, path);
   }
   for (const path of [`/admin/orders/${order.id}/refund`, `/admin/orders/${order.id}/collected`, `/admin/orders/${order.id}/cancel`]) {
-    const r = await h.post(path, { confirmHelloasso: "on", note: "n" }, { user: h.member });
+    const r = await h.post(path, { confirmRefunded: "on", note: "n" }, { user: h.member });
     assert.ok(!/notice=/.test(r.res.headers.get("location") || ""), `${path} must not act for a member`);
   }
   assert.equal((await orderRow(order.id)).status, "paid", "a member's POSTs changed nothing");
@@ -185,12 +189,12 @@ test("mark collected: sets who and when, audited, repeats safely, refused for an
   assert.equal((await orderRow(pending.id)).collected_at, null);
 });
 
-test("order list: status filter, 'paid and not collected', refund detected, search and Paris date range", async () => {
+test("order list: default view, status filter, 'paid online and not collected', search and Paris date range", async () => {
   const email = `list-${h.uniq()}@example.test`;
   const uncollected = await makeOrder(h.pool, { email, name: "Zelda Listbuyer", paidDaysAgo: 5 });
   const collected = await makeOrder(h.pool, { email, name: "Zelda Listbuyer", paidDaysAgo: 5, collected: true });
   const flagged = await makeOrder(h.pool, { name: "Flagged Person", paidDaysAgo: 2 });
-  await h.pool.query("UPDATE orders SET refund_detected_at = now() WHERE id = $1", [flagged.order.id]);
+  const reserved = await makeOrder(h.pool, { name: "Reserved Person", status: "reserved" });
   const refunded = await makeOrder(h.pool, { status: "refunded", paidDaysAgo: 8 });
   const dropinOnly = await makeOrder(h.pool, { books: 0, seat: true, paidDaysAgo: 20 });
 
@@ -202,8 +206,14 @@ test("order list: status filter, 'paid and not collected', refund detected, sear
   assert.ok(!unc.includes(dropinOnly.order.id), "a drop-in-only order never waits for pickup");
   assert.ok(!unc.includes(refunded.order.id));
 
-  const rd = ids((await h.get("/admin/orders?show=refund_detected")).text);
-  assert.deepEqual(rd, [flagged.order.id]);
+  // The default view is the reservations. The removed refund-detection view is an unknown value now: no error.
+  const def = ids((await h.get("/admin/orders")).text);
+  assert.ok(def.includes(reserved.order.id) && !def.includes(flagged.order.id), "default: reserved orders only");
+  const all = ids((await h.get("/admin/orders?show=all")).text);
+  assert.ok(all.includes(reserved.order.id) && all.includes(flagged.order.id) && all.includes(refunded.order.id));
+  const gone = await h.get("/admin/orders?show=refund_detected");
+  assert.equal(gone.res.status, 200);
+  assert.doesNotMatch(gone.text, /refund detected/i);
 
   const rf = ids((await h.get("/admin/orders?show=refunded")).text);
   assert.ok(rf.includes(refunded.order.id) && !rf.includes(uncollected.order.id));
@@ -226,8 +236,9 @@ test("order list: status filter, 'paid and not collected', refund detected, sear
   assert.equal((await h.get("/admin/orders?from=nope&to=2030-13-45&show=evil&page=-4")).res.status, 200);
 
   const page = (await h.get("/admin/orders")).text;
-  assert.match(page, /waiting for pickup/);
-  assert.match(page, /refund detected in HelloAsso/);
+  assert.match(page, /reserved, waiting for pickup/);
+  assert.match(page, /paid online and not collected \(old orders\)/);
+  assert.doesNotMatch(page, /refund detected|HelloAsso/i);
 });
 
 test("order list is paged by 50 and never silently capped", async () => {
@@ -239,19 +250,19 @@ test("order list is paged by 50 and never silently capped", async () => {
   const { rows } = await h.pool.query("SELECT COUNT(*)::int AS n FROM orders");
   const total = rows[0].n;
   const pages = Math.ceil(total / 50);
-  const countOn = async (p) => ((await h.get(`/admin/orders?page=${p}`)).text.match(/Order #\d+<\/strong>/g) || []).length;
+  const countOn = async (p) => ((await h.get(`/admin/orders?show=all&page=${p}`)).text.match(/Order #\d+<\/strong>/g) || []).length;
   assert.equal(await countOn(1), 50);
   assert.equal(await countOn(pages), total - 50 * (pages - 1));
-  const last = (await h.get(`/admin/orders?page=${pages}`)).text;
+  const last = (await h.get(`/admin/orders?show=all&page=${pages}`)).text;
   assert.match(last, new RegExp(`Page ${pages} of ${pages}`));
-  assert.match((await h.get("/admin/orders?page=2")).text, /href="\/admin\/orders\?page=3"/);
+  assert.match((await h.get("/admin/orders?show=all&page=2")).text, /href="\/admin\/orders\?show=all&amp;page=3"/);
   // a page far past the end shows the last page, not an empty one
-  assert.match((await h.get("/admin/orders?page=99999")).text, new RegExp(`Page ${pages} of ${pages}`));
+  assert.match((await h.get("/admin/orders?show=all&page=99999")).text, new RegExp(`Page ${pages} of ${pages}`));
   // old orders are reachable through the search
   assert.equal(((await h.get("/admin/orders?q=bulk-230@")).text.match(/Order #\d+<\/strong>/g) || []).length, 1);
 });
 
-test("order detail: items, buyer account, HelloAsso ids, Paris times, terms acceptance, history", async () => {
+test("order detail of an order paid online before reservations: items, account, payment reference, Paris times, terms acceptance, history, shop refund action", async () => {
   const { rows: u } = await h.pool.query(
     "INSERT INTO users (email, password_hash, display_name, email_verified_at) VALUES ($1, 'x', 'Detail Account', now()) RETURNING id", [`detail-${h.uniq()}@example.test`]
   );
@@ -262,40 +273,49 @@ test("order detail: items, buyer account, HelloAsso ids, Paris times, terms acce
   const { res, text } = await h.get(`/admin/orders/${order.id}`);
   assert.equal(res.status, 200);
   assert.match(text, /Fixture Drop-in seat/);
-  assert.match(text, /intent-detail-77/);
-  assert.match(text, /ha-order-5/);
+  assert.match(text, /An order from the old online checkout/);
+  assert.match(text, /payment reference <code>ha-order-5<\/code>/);
   assert.match(text, /Detail Account/);
   assert.match(text, /15\/07\/2030, 01:30/, "paid time is shown in Paris time");
-  assert.match(text, /02:20 \(version v-test\)|15\/07\/2030, 01:20 \(version v-test\)/);
+  assert.match(text, /15\/07\/2030, 01:20 \(version v-test\)/);
   assert.match(text, /admin log: order\.collected/);
-  assert.match(text, /Mark refunded \(done in HelloAsso\)/);
-  assert.match(text, /admin\.helloasso\.com/);
+  assert.match(text, /Mark refunded/);
+  assert.match(text, /Only AFTER you gave the money back to the customer/);
+  assert.doesNotMatch(text, /admin\.helloasso\.com|done in HelloAsso/);
 
   assert.equal((await h.get("/admin/orders/999999")).res.status, 404);
   assert.equal((await h.get("/admin/orders/abc")).res.status, 404);
   assert.equal((await h.get("/admin/orders/99999999999")).res.status, 404);
 });
 
-test("cancel unpaid order: frees the books, audited; an order that is in fact paid is not cancelled", async () => {
+test("order detail of a reservation: awaiting pickup, nothing paid online, the collect actions and no refund button", async () => {
+  const { order } = await makeOrder(h.pool, { status: "reserved", books: 2 });
+  const { res, text } = await h.get(`/admin/orders/${order.id}`);
+  assert.equal(res.status, 200);
+  assert.match(text, /Reserved: awaiting pickup/);
+  assert.match(text, /Nothing was paid online/);
+  assert.match(text, /Mark collected and paid/);
+  assert.doesNotMatch(text, /Mark refunded|HelloAsso/);
+});
+
+test("cancel unpaid order (a leftover 'pending' order): frees the books, audited, no payment lookup; any other status is left alone", async () => {
   const stuck = await makeOrder(h.pool, { status: "pending", createdMinutesAgo: 180, intentId: "intent-stuck-1" });
-  intents.set("intent-stuck-1", { id: 1, order: { payments: [{ state: "Pending" }] } });
   const r = await h.post(`/admin/orders/${stuck.order.id}/cancel`);
   assert.match(r.res.headers.get("location"), /notice=cancelled/);
   assert.equal((await orderRow(stuck.order.id)).status, "cancelled");
   assert.deepEqual(await copyStatuses(stuck.copyIds), ["in_stock"]);
   assert.equal((await auditRows(stuck.order.id))[0].action, "order.cancelled");
+  assert.deepEqual(helloassoCalls, [], "cancelling never asks HelloAsso");
 
-  const paidMeanwhile = await makeOrder(h.pool, { status: "pending", intentId: "intent-stuck-2" });
-  intents.set("intent-stuck-2", { id: 2, order: { id: 55, payments: [{ state: "Authorized" }] } });
-  const r2 = await h.post(`/admin/orders/${paidMeanwhile.order.id}/cancel`);
-  assert.match(r2.res.headers.get("location"), /notice=now-paid/);
-  assert.equal((await orderRow(paidMeanwhile.order.id)).status, "paid");
-  assert.deepEqual(await copyStatuses(paidMeanwhile.copyIds), ["sold"]);
-
-  // not pending: nothing happens
+  // Not pending: nothing happens (a paid order stays paid, a reservation stays reserved with its books held).
   const done = await makeOrder(h.pool, { status: "paid" });
   await h.post(`/admin/orders/${done.order.id}/cancel`);
   assert.equal((await orderRow(done.order.id)).status, "paid");
+  assert.deepEqual(await copyStatuses(done.copyIds), ["sold"]);
+  const res = await makeOrder(h.pool, { status: "reserved" });
+  await h.post(`/admin/orders/${res.order.id}/cancel`);
+  assert.equal((await orderRow(res.order.id)).status, "reserved");
+  assert.deepEqual(await copyStatuses(res.copyIds), ["reserved"]);
 });
 
 test("dashboard sales use the day an order was PAID in Paris time, and leave refunded orders out", async () => {
@@ -326,26 +346,31 @@ test("dashboard sales use the day an order was PAID in Paris time, and leave ref
   assert.equal(Number(stats.refundsAmountThisMonth), 10);
 });
 
-test("dashboard 'needs attention' counts and links: refund detected, 14 days uncollected, pending over 2 hours", async () => {
+test("dashboard 'needs attention' counts and links: expiring reservations, past the deadline, paid online and uncollected 14 days, pending over 2 hours", async () => {
   const before = await attentionCounts(h.pool);
   const overdue = await makeOrder(h.pool, { paidDaysAgo: 15 });
   await makeOrder(h.pool, { paidDaysAgo: 10 }); // not yet overdue
   await makeOrder(h.pool, { paidDaysAgo: 20, collected: true }); // collected
-  const flagged = await makeOrder(h.pool, { paidDaysAgo: 1 });
-  await h.pool.query("UPDATE orders SET refund_detected_at = now() WHERE id = $1", [flagged.order.id]);
+  await makeOrder(h.pool, { status: "reserved", reservedDays: 2 }); // expiring in 3 days
+  await makeOrder(h.pool, { status: "reserved", reservedDays: 9 }); // not yet
+  await makeOrder(h.pool, { status: "reserved", reservedDays: -1 }); // past the deadline
   await makeOrder(h.pool, { status: "pending", createdMinutesAgo: 150 });
   await makeOrder(h.pool, { status: "pending", createdMinutesAgo: 10 });
 
   const after = await attentionCounts(h.pool);
   assert.equal(after.overdue - before.overdue, 1);
-  assert.equal(after.refund_detected - before.refund_detected, 1);
+  assert.equal(after.expiring_soon - before.expiring_soon, 1);
+  assert.equal(after.past_deadline - before.past_deadline, 1);
   assert.equal(after.stale_pending - before.stale_pending, 1);
+  assert.equal(after.refund_detected, undefined, "the refund-detection count is gone");
 
   const { res, text } = await h.get("/admin");
   assert.equal(res.status, 200);
   assert.match(text, /id="needs-attention"/);
-  assert.match(text, /href="\/admin\/orders\?show=refund_detected"/);
+  assert.match(text, /href="\/admin\/orders\?show=expiring_soon"/);
+  assert.match(text, /href="\/admin\/orders\?show=past_deadline"/);
   assert.match(text, /href="\/admin\/orders\?show=overdue"/);
   assert.match(text, /href="\/admin\/orders\?show=stale_pending"/);
+  assert.doesNotMatch(text, /refund_detected/);
   assert.ok(overdue.order.id);
 });

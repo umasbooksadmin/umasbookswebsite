@@ -86,7 +86,7 @@ async function assertTranslated(jar, p, { status = 200 } = {}) {
   return { en: en.text, fr: fr.text };
 }
 
-test("/account (unverified and with an order) is fully translated", async () => {
+test("/account (unverified, with an order, with an open reservation, and empty) is fully translated", async () => {
   const unverified = await createUser({ verified: false });
   await assertTranslated(await loginJar(unverified.email), "/account");
 
@@ -105,9 +105,30 @@ test("/account (unverified and with an order) is fully translated", async () => 
   assert.match(pages.fr, /Payée/);
   assert.match(pages.fr, /Total\u00a0: 12,50/);
   assert.match(pages.en, /Total: €12\.50/);
+  // An open reservation (a book and a drop-in seat) on top of the collected order.
+  const { rows: r } = await pool.query(
+    `INSERT INTO orders (buyer_email, buyer_name, total_amount, status, user_id, reserved_until)
+     VALUES ($1, 'Ana', 20.5, 'reserved', $2, now() + interval '10 days') RETURNING id`,
+    [u.email, u.id]
+  );
+  const { rows: b2 } = await pool.query("INSERT INTO books (title, authors) VALUES ('Emma', 'A') RETURNING id");
+  const { rows: c2 } = await pool.query("INSERT INTO book_copies (book_id, status, price, cart_order_id) VALUES ($1, 'reserved', 12.5, $2) RETURNING id", [b2[0].id, r[0].id]);
+  await pool.query("INSERT INTO order_items (order_id, book_copy_id, item_title, price) VALUES ($1, $2, 'Emma', 12.5)", [r[0].id, c2[0].id]);
+  const { rows: cl } = await pool.query("INSERT INTO classes (title, starts_at, capacity, dropin_price) VALUES ('Emma', now() + interval '5 days', 5, 8) RETURNING id");
+  const { rows: seat } = await pool.query("INSERT INTO class_dropin_seats (class_id, status, order_id) VALUES ($1, 'reserved', $2) RETURNING id", [cl[0].id, r[0].id]);
+  await pool.query("INSERT INTO order_items (order_id, class_dropin_seat_id, item_title, price) VALUES ($1, $2, 'Emma — 1 Jan, 10:00', 8)", [r[0].id, seat[0].id]);
+  const withReservation = await assertTranslated(await loginJar(u.email), "/account");
+  assert.match(withReservation.fr, /Réservée/);
+  assert.match(withReservation.en, /Reserved/);
+  assert.match(withReservation.fr, /Annuler la réservation/);
+  assert.match(withReservation.en, /Cancel reservation/);
+  assert.match(withReservation.fr.replace(/[\u00a0\u202f]/g, " "), /Rien n’est payé en ligne : vous réglez à la boutique au retrait\./);
+  assert.match(withReservation.en, /Nothing is paid online: you pay at the shop when you collect\./);
+
   const none = await createUser();
   const empty = await assertTranslated(await loginJar(none.email), "/account");
-  assert.match(empty.fr, /Aucune commande pour le moment/);
+  assert.match(empty.fr, /Aucune réservation pour le moment/);
+  assert.match(empty.en, /No reservations yet/);
 });
 
 test("/account/password and the 2FA pages are fully translated", async () => {

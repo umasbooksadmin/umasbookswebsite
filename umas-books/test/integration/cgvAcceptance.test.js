@@ -1,175 +1,96 @@
-// Proof of acceptance of the terms of sale: checkout stores when (and which
-// version) in orders.cgv_accepted_at / cgv_version, in the same transaction
-// that creates the order; without the checkbox no order exists; the proof is
-// in the member data export and survives erasure (anonymised orders keep it).
+// Proof of acceptance of the terms of sale: the reservation stores when (and
+// which version) in orders.cgv_accepted_at / cgv_version, in the same
+// transaction that creates the order; without the checkbox no order exists; the
+// proof is in the member data export and survives erasure (anonymised orders
+// keep it); and the reservation confirmation e-mail carries it.
 
 const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
-const { prepareDatabase, buildApp, listen } = require("../helpers/inProcessApp");
-const { makeCookieJar } = require("../helpers/httpClient");
-const { createAccount, logInInProcess } = require("../helpers/accounts");
+const { reserveHarness } = require("../helpers/reserveHarness");
 
-const db = prepareDatabase("cgv_acceptance", { isolated: true });
-
-const sent = [];
-const mailer = require("../../src/mailer");
-mailer.sendMail = async (m) => { sent.push(m); };
-const helloasso = require("../../src/lib/helloasso");
-helloasso.isConfigured = () => true;
-let seq = 0;
-helloasso.createCheckoutIntent = async () => ({ id: `cgv-intent-${Date.now()}-${++seq}`, redirectUrl: `https://pay.example.test/${seq}` });
-
-const { pool } = require("../../src/db");
+const h = reserveHarness("cgv_acceptance");
+const { pool, uniq } = h;
 const { TERMS_OF_SALE_VERSION } = require("../../src/lib/legal");
-const { markOrderPaid } = require("../../src/lib/cart");
-
-let server;
-before(async () => {
-  db.create();
-  const app = buildApp([require("../../src/routes/cart")]);
-  app.set("trust proxy", true);
-  server = await listen(app);
-});
-after(async () => {
-  await server.close();
-  await pool.end();
-  db.drop();
-});
-
-// CI runs every test file against ONE shared database, concurrently, and
-// pending orders keep client_ip for the per-IP unpaid-order cap in
-// routes/cart.js. So this file's checkouts come from their own made-up client
-// addresses (trusted X-Forwarded-For) instead of 127.0.0.1: they can neither
-// hit nor fill the cap other files' 127.0.0.1 checkouts depend on.
-let ipSeq = Math.floor(Math.random() * 200) * 250;
-const nextIp = () => { ipSeq += 1; return `10.${(ipSeq >> 16) & 255}.${(ipSeq >> 8) & 255}.${ipSeq & 255}`; };
-
-// Buying requires an account: sign this person in as a confirmed account.
-async function signIn(v, email, displayName = "Test Buyer") {
-  const account = await createAccount(pool, { email, displayName });
-  await logInInProcess(server.base, v.jar, account);
-  return account;
-}
-
-function guest(lang) {
-  const jar = makeCookieJar();
-  const ip = nextIp();
-  const send = async (path, form) => {
-    const res = await fetch(`${server.base}${path}`, {
-      method: form ? "POST" : "GET",
-      redirect: "manual",
-      headers: { "x-forwarded-for": ip, cookie: [jar.header(), lang ? `umasbooks_lang=${lang}` : ""].filter(Boolean).join("; "), ...(form ? { "content-type": "application/x-www-form-urlencoded" } : {}) },
-      body: form ? new URLSearchParams(form).toString() : undefined,
-    });
-    jar.capture(res);
-    return { res, text: await res.text() };
-  };
-  return { jar, get: (p) => send(p), post: send };
-}
-
-const uniq = () => `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-async function makeCopy() {
-  const { rows: b } = await pool.query("INSERT INTO books (title, authors) VALUES ($1, 'A') RETURNING id", [`Cgv Book ${uniq()}`]);
-  const { rows } = await pool.query("INSERT INTO book_copies (book_id, status, price) VALUES ($1, 'in_stock', 5) RETURNING id", [b[0].id]);
-  return rows[0].id;
-}
-const orders = async (email) => (await pool.query("SELECT * FROM orders WHERE buyer_email = $1", [email])).rows;
+before(() => h.start());
+after(() => h.stop());
 
 test("TERMS_OF_SALE_VERSION is a date string", () => {
   assert.match(TERMS_OF_SALE_VERSION, /^\d{4}-\d{2}-\d{2}$/);
 });
 
-test("checkout stores cgv_accepted_at and the current cgv_version on the new order", async () => {
-  const v = guest();
-  await v.post("/cart/add", { copyId: await makeCopy() });
-  const email = `cgv-${uniq()}@example.test`;
-  await signIn(v, email);
+test("reserving stores cgv_accepted_at and the current cgv_version on the new order", async () => {
+  const buyer = await h.account();
   const before = Date.now();
-  const { res } = await v.post("/cart/checkout", { name: "Cgv Buyer", acceptCgv: "on" });
-  assert.equal(res.status, 302);
-  const [order] = await orders(email);
+  const { order, r } = await h.reserve(buyer, { copyIds: [await h.copy()], name: "Cgv Buyer" });
+  assert.equal(r.status, 302);
   assert.ok(order.cgv_accepted_at instanceof Date);
   assert.ok(Math.abs(order.cgv_accepted_at.getTime() - before) < 60_000);
   assert.equal(order.cgv_version, TERMS_OF_SALE_VERSION);
 });
 
-test("checkout without the terms checkbox is refused: no order, nothing stored", async () => {
-  const v = guest();
-  const copyId = await makeCopy();
+test("reserving without the terms checkbox is refused: no order, nothing stored, nothing held", async () => {
+  const buyer = await h.account();
+  const copyId = await h.copy();
+  const v = h.visitor(buyer);
   await v.post("/cart/add", { copyId });
-  const email = `nocgv-${uniq()}@example.test`;
-  await signIn(v, email);
-  const { res, text } = await v.post("/cart/checkout", { name: "No Cgv" });
-  assert.equal(res.status, 200);
+  const { status, text } = await v.post("/cart/reserve", { name: "No Cgv" });
+  assert.equal(status, 200);
   assert.match(text, /Please accept the terms of sale/);
-  assert.equal((await orders(email)).length, 0);
-  const { rows } = await pool.query("SELECT status FROM book_copies WHERE id = $1", [copyId]);
-  assert.equal(rows[0].status, "in_stock");
+  assert.equal((await h.ordersOf(buyer)).length, 0);
+  assert.equal(await h.copyStatus(copyId), "in_stock");
 });
 
-// The version string changes whenever the terms change in substance. 2026-10-06:
-// the terms now say buying (books and drop-in seats) requires an account.
-test("the paid confirmation email carries the acceptance line, in English and in French", async () => {
+// The version string changes whenever the terms change in substance.
+// 2026-10-07: online payment is gone, books and seats are reserved and paid at the shop.
+test("the reservation confirmation email carries the acceptance line and the current version, in English and in French", async () => {
   for (const [lang, line] of [
-    ["en", /Terms of sale accepted on \d{1,2} \w+ \d{4} \(version 2026-10-06\)\./],
-    ["fr", /Conditions générales de vente acceptées le \d{1,2} \S+ \d{4} \(version 2026-10-06\)\./],
+    ["en", new RegExp(`Terms of sale accepted on \\d{1,2} \\w+ \\d{4} \\(version ${TERMS_OF_SALE_VERSION}\\)\\.`)],
+    ["fr", new RegExp(`Conditions générales de vente acceptées le \\d{1,2} \\S+ \\d{4} \\(version ${TERMS_OF_SALE_VERSION}\\)\\.`)],
   ]) {
-    const v = guest(lang);
-    await v.post("/cart/add", { copyId: await makeCopy() });
-    const email = `cgvmail-${lang}-${uniq()}@example.test`;
-    await signIn(v, email);
-    await v.post("/cart/checkout", { name: "Mail Buyer", acceptCgv: "on" });
-    const [order] = await orders(email);
+    const buyer = await h.account();
+    const { order } = await h.reserve(buyer, { copyIds: [await h.copy()], lang, name: "Mail Buyer" });
     assert.equal(order.lang, lang);
-    assert.equal(await markOrderPaid(pool, order), true);
-    for (let i = 0; i < 50 && !sent.find((m) => m.to === email); i++) await new Promise((r) => setTimeout(r, 20));
-    const mail = sent.find((m) => m.to === email);
+    const mail = h.emailsTo(buyer.email)[0];
     assert.ok(mail, "confirmation sent");
     assert.match(mail.text, line, lang);
   }
+  assert.equal(TERMS_OF_SALE_VERSION, "2026-10-07", "bump this test with the terms");
 });
 
 test("the proof is in the member data export and survives erasure (anonymised order keeps it)", async () => {
-  const v = guest();
-  await v.post("/cart/add", { copyId: await makeCopy() });
   const email = `cgvexp-${uniq()}@example.test`;
-  const account = await signIn(v, email, "Export Buyer");
-  await v.post("/cart/checkout", { name: "Export Buyer", acceptCgv: "on" });
-  const u = [{ id: account.id }];
+  const account = await h.account({ email, displayName: "Export Buyer" });
+  await h.reserve(account, { copyIds: [await h.copy()], name: "Export Buyer" });
   const { buildMemberExport } = require("../../src/lib/memberExport");
-  const data = await buildMemberExport(pool, u[0].id);
+  const data = await buildMemberExport(pool, account.id);
   assert.equal(data.orders.length, 1);
   assert.equal(data.orders[0].cgv_version, TERMS_OF_SALE_VERSION);
   assert.ok(data.orders[0].cgv_accepted_at);
 
   const privacy = require("../../src/lib/privacy");
-  await privacy.eraseMember(pool, u[0].id);
+  await privacy.eraseMember(pool, account.id);
   const { rows } = await pool.query("SELECT buyer_email, cgv_accepted_at, cgv_version FROM orders WHERE id = $1", [data.orders[0].id]);
   assert.notEqual(rows[0].buyer_email, email);
   assert.equal(rows[0].cgv_version, TERMS_OF_SALE_VERSION);
   assert.ok(rows[0].cgv_accepted_at);
 });
 
-// The legal text (no-returns notice, pickup info, withdrawal block and form,
-// VAT line, acceptance line) must be in the QUEUED confirmation (outbox row)
-// and in the copy the admin "Resend confirmation" queues: same builder.
+// The legal text (no-returns notice, shop info, withdrawal block and form, VAT
+// line, acceptance line) must be in the QUEUED confirmation (outbox row) and in
+// the copy the admin "Resend confirmation" queues: same builder.
 test("the queued confirmation and the resent one both carry the legal text", async () => {
   const { resendOrderConfirmation } = require("../../src/lib/cart");
-  const v = guest("fr");
-  await v.post("/cart/add", { copyId: await makeCopy() });
-  const email = `cgvq-${uniq()}@example.test`;
-  await signIn(v, email);
-  await v.post("/cart/checkout", { name: "Queue Buyer", acceptCgv: "on" });
-  const [order] = await orders(email);
-  assert.equal(await markOrderPaid(pool, order), true);
+  const buyer = await h.account();
+  const { order } = await h.reserve(buyer, { copyIds: [await h.copy()], lang: "fr", name: "Queue Buyer" });
   assert.deepEqual((await resendOrderConfirmation(pool, order.id)).ok, true);
   const { rows } = await pool.query("SELECT body_text FROM email_outbox WHERE related_order_id = $1 AND kind = 'order_confirmation' ORDER BY id", [order.id]);
-  assert.equal(rows.length, 2, "one queued at payment, one by the resend");
-  for (const { body_text: t } of rows) {
+  assert.equal(rows.length, 2, "one queued at the reservation, one by the resend");
+  for (const { body_text } of rows) {
+    const t = body_text.replace(/[\u00a0\u202f]/g, " "); // French typography uses non-breaking spaces
     for (const needle of [
       "Used books: no returns or exchanges for a change of mind in the shop.",
-      "Livres d’occasion : pas de reprise ni d’échange pour simple changement d’avis en boutique.",
-      "À retirer sous 14 jours, du mardi au samedi, 10h–19h, rue Peyrolière, Albi.",
+      "Livres d’occasion : pas de reprise ni d’échange pour simple changement d’avis en boutique.",
+      "rue Peyrolière, 81000 Albi — ouvert du mardi au samedi, de 10 h à 19 h.",
       "WITHDRAWAL FORM / FORMULAIRE DE RÉTRACTATION",
       "Conditions générales de vente acceptées le",
       "TVA non applicable",

@@ -276,7 +276,7 @@ async function sendAdminPickupDigest(pool) {
           `These paid orders have not been marked collected, and were paid ${ADMIN_DIGEST_DAY} or more days ago. ` +
           `The terms of sale ask customers to collect within 14 days of payment and to write to us if they need longer.\n\n${lines}\n\n` +
           `If a customer collected, open the order and press "Mark collected". If they have not, see the runbook, "An order was not collected after 14 days". ` +
-          `This list is sent once per order; the full list is always at ${baseUrl()}/admin/orders?view=uncollected`,
+          `This list is sent once per order; the full list is always at ${baseUrl()}/admin/orders?show=uncollected`,
       });
     }
   );

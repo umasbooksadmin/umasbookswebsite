@@ -234,12 +234,17 @@ test("sessions: signups and sold drop-in seats are listed, signup deletion is sc
     "INSERT INTO orders (buyer_name, buyer_email, status, total_amount) VALUES ('Dropin Buyer', $1, 'paid', 9) RETURNING id", [`dropin-${u}@example.test`]
   );
   await h.q("INSERT INTO class_dropin_seats (class_id, status, order_id) VALUES ($1, 'sold', $2)", [c1, order]);
+  const [{ id: order2 }] = await h.q(
+    "INSERT INTO orders (buyer_name, buyer_email, status, total_amount, reserved_until) VALUES ('Reserved Buyer', $1, 'reserved', 9, '2031-05-22T12:00:00Z') RETURNING id", [`reserved-${u}@example.test`]
+  );
+  await h.q("INSERT INTO class_dropin_seats (class_id, status, order_id) VALUES ($1, 'reserved', $2)", [c1, order2]);
 
   const page = await h.get(`/admin/sessions?month=${MONTH}`);
   assert.equal(page.res.status, 200);
   assert.ok(page.text.includes(`cat-${u}@example.test`), "signup listed");
   assert.ok(page.text.includes(`dropin-${u}@example.test`), "sold drop-in buyer listed");
-  assert.ok(page.text.includes("2/4"), "signup + drop-in seat both count against capacity");
+  assert.ok(page.text.includes(`reserved-${u}@example.test`), "reserved drop-in buyer listed");
+  assert.ok(page.text.includes("3/4"), "signup + paid drop-in seat + reserved drop-in seat all count against capacity");
   assert.ok(!page.text.includes(`<script>alert('${marker}')`), "raw script tag must not appear");
   assert.ok(page.text.includes(`&lt;script&gt;alert(&#39;${marker}&#39;)&lt;/script&gt;`));
 
@@ -252,7 +257,7 @@ test("sessions: signups and sold drop-in seats are listed, signup deletion is sc
   await h.post(`/admin/sessions/${c1}/delete`);
   await h.post(`/admin/sessions/${c2}/delete`);
   assert.equal((await h.q("SELECT 1 FROM class_dropin_seats WHERE class_id = $1", [c1])).length, 0, "drop-in seats cascade with the class");
-  await h.q("DELETE FROM orders WHERE id = $1", [order]);
+  await h.q("DELETE FROM orders WHERE id = ANY($1::int[])", [[order, order2]]);
 });
 
 // ---------- meetings ----------
@@ -421,18 +426,29 @@ test("dashboard: with last-month paid sales the Total Sales tile shows a real pe
   }
 });
 
-test("orders page: lists a new order and escapes the buyer name", async () => {
+test("orders page: the default view lists the open reservations; the other orders appear under 'all'; the buyer name is escaped everywhere", async () => {
   const marker = `ord${Date.now()}`;
-  const [{ id }] = await h.q(
+  const [{ id: reserved }] = await h.q(
+    "INSERT INTO orders (buyer_name, buyer_email, status, total_amount, reserved_until) VALUES ($1, $2, 'reserved', 12.5, now() + interval '5 days') RETURNING id",
+    [`<b>${marker}r</b>`, `${marker}r@example.test`]
+  );
+  const [{ id: paid }] = await h.q(
     "INSERT INTO orders (buyer_name, buyer_email, status, total_amount) VALUES ($1, $2, 'paid', 12.5) RETURNING id",
-    [`<b>${marker}</b>`, `${marker}@example.test`]
+    [`<b>${marker}p</b>`, `${marker}p@example.test`]
   );
   try {
     const orders = await h.get("/admin/orders");
     assert.equal(orders.res.status, 200);
-    assert.ok(orders.text.includes(`&lt;b&gt;${marker}&lt;/b&gt;`), "buyer name shown, escaped");
-    assert.ok(!orders.text.includes(`<b>${marker}</b>`));
+    assert.ok(orders.text.includes(`&lt;b&gt;${marker}r&lt;/b&gt;`), "reservation shown (the default view), buyer name escaped");
+    assert.ok(!orders.text.includes(`<b>${marker}r</b>`));
+    assert.ok(!orders.text.includes(`${marker}p`), "a collected-and-paid order is not in the 'awaiting pickup' view");
+
+    const all = await h.get("/admin/orders?show=all");
+    assert.ok(all.text.includes(`&lt;b&gt;${marker}r&lt;/b&gt;`) && all.text.includes(`&lt;b&gt;${marker}p&lt;/b&gt;`), "both under 'all', escaped");
+    assert.ok(!all.text.includes(`<b>${marker}p</b>`));
+    const paidOnly = await h.get("/admin/orders?show=paid");
+    assert.ok(paidOnly.text.includes(`&lt;b&gt;${marker}p&lt;/b&gt;`) && !paidOnly.text.includes(`${marker}r@`));
   } finally {
-    await h.q("DELETE FROM orders WHERE id = $1", [id]);
+    await h.q("DELETE FROM orders WHERE id = ANY($1::int[])", [[reserved, paid]]);
   }
 });

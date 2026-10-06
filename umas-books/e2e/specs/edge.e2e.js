@@ -5,7 +5,7 @@
 
 const assert = require("node:assert/strict");
 const e2e = require("../helpers/harness");
-const { has, hasNot, stockedBook, addFirstCopyToCart, cartLineCount } = require("../helpers/pages");
+const { has, hasNot, stockedBook, addFirstCopyToCart, cartLineCount, cancelOpenReservations, openReservationCount } = require("../helpers/pages");
 const cfg = require("../helpers/config");
 
 const s = e2e.persona("edge");
@@ -44,23 +44,31 @@ s.test("X6 the expired-session page is translated when the site is in French", {
   has(await ctx.text(), /Votre session a expiré/);
 });
 
-s.write("E2 (must) two Order with obligation to pay requests at the same moment start ONE checkout, not two (payments on; needs the account-holder login, because buying needs an account)", { as: "account" }, async (ctx) => {
-  if (ctx.preview) ctx.skip("preview mode: there is no Order with obligation to pay button");
+let oldLink = null; // set by E2: the link of its one reservation, cancelled by E4
+
+s.write("E2 (must) two Reserve requests at the same moment make ONE reservation, not two (needs the account-holder login, because reserving needs an account)", { as: "account" }, async (ctx) => {
+  if (ctx.preview) ctx.skip("preview mode: there is no Reserve these books button");
   const book = await stockedBook(ctx);
+  await cancelOpenReservations(ctx);
   await addFirstCopyToCart(ctx, book);
-  if (!(await ctx.page.$("form[action='/cart/checkout']"))) ctx.skip("payments are not switched on");
+  if (!(await ctx.page.$("form[action='/cart/reserve']"))) ctx.skip("the cart has no reserve form");
   const tag = process.env.E2E_RUN_ID;
-  const email = cfg.testEmail("double-click");
   // What a double-click sends: the same form twice at once. Sent from the page with fetch (redirects are
-  // not followed, so nothing is opened and HelloAsso is never contacted by the browser).
-  const results = await ctx.page.evaluate(async (name, mail) => {
+  // not followed, so nothing is opened; HelloAsso is not involved at all).
+  const results = await ctx.page.evaluate(async (name) => {
     const { token } = await (await fetch("/api/csrf-token")).json();
-    const send = () => fetch("/cart/checkout", { method: "POST", redirect: "manual", body: new URLSearchParams({ _csrf: token, name, email: mail, acceptCgv: "on" }) }).then((r) => ({ type: r.type, status: r.status }));
+    const send = () => fetch("/cart/reserve", { method: "POST", redirect: "manual", body: new URLSearchParams({ _csrf: token, name, acceptCgv: "on" }) }).then((r) => ({ type: r.type, status: r.status }));
     return Promise.all([send(), send()]);
-  }, `${tag} Double Click`, email);
-  ctx.created("unpaid order from the double-submit test (never paid, expires by itself)", `${tag} Double Click <${email}>`, "admin Orders: there must be only ONE pending order for it");
+  }, `${tag} Double Click`);
+  ctx.created("reservation from the double-submit test (nothing paid; cancelled again by the test)", `${tag} Double Click`, "admin Orders: there must be only ONE reservation for it");
+  if (results.some((r) => r.status === 429)) ctx.skip("the site's limit of 10 reservation requests an hour from one address was reached: wait an hour, or run this persona on its own");
   const redirects = results.filter((r) => r.type === "opaqueredirect").length;
-  assert.equal(redirects, 1, `exactly one of the two requests may start a checkout; got ${JSON.stringify(results)}`);
+  const open = await openReservationCount(ctx);
+  // The one reservation's link (the Open button on the account page), kept for E4.
+  const href = await ctx.page.$eval("a[href^='/cart/return?order=']", (a) => a.getAttribute("href")).catch(() => null);
+  assert.equal(redirects, 1, `exactly one of the two requests may reserve; got ${JSON.stringify(results)}`);
+  assert.equal(open, 1, "exactly one open reservation");
+  oldLink = { href, bookId: book.id };
 });
 
 s.test("E2b double-clicking Add to Cart adds the copy once", async (ctx) => {
@@ -89,7 +97,17 @@ s.test("E3 (must) the back button after cart actions shows no error page and the
   assert.equal(await cartLineCount(ctx), 0, "the cart is empty");
 });
 
-s.manual("E4 (must) the HelloAsso page's back link returns to the cart", "needs the HelloAsso page, which the tests never load");
+s.write("E4 (must) after a reservation is cancelled, its old link says Reservation cancelled and the book is for sale again (cancels the reservation E2 made)", { as: "account" }, async (ctx) => {
+  if (!oldLink || !oldLink.href) ctx.skip("needs E2 (with E2E_ALLOW_WRITES=1) to have made a reservation first");
+  await ctx.goto(oldLink.href);
+  has(await ctx.text(), /Reservation #\d+ confirmed/);
+  await Promise.all([ctx.page.waitForNavigation({ waitUntil: "domcontentloaded" }), ctx.page.click("form[action^='/cart/reservations/'] button[type='submit']")]);
+  has(await ctx.text(), /Your reservation was cancelled and its items are available again\./);
+  await ctx.goto(oldLink.href);
+  has(await ctx.text(), /Reservation cancelled/);
+  assert.equal(await ctx.page.$("form[action^='/cart/reservations/']"), null, "nothing left to cancel");
+  await cancelOpenReservations(ctx); // safety net: leave nothing open
+});
 
 const MOBILE_PAGES = async (ctx) => {
   const book = await stockedBook(ctx);
@@ -109,13 +127,13 @@ for (const lang of ["en", "fr"]) {
     assert.ok(table.left >= -1 && table.right <= table.width + 1, `copies table ${JSON.stringify(table)} sticks out of the screen`);
     const small = await ctx.page.$$eval(".copy-table button, .copy-table a", (els) => els.map((e) => ({ text: e.textContent.trim().slice(0, 20), w: Math.round(e.getBoundingClientRect().width), h: Math.round(e.getBoundingClientRect().height) })).filter((r) => r.h < 24 || r.w < 24));
     assert.deepEqual(small, [], "Add to Cart buttons should be at least 24 px tall and wide (WCAG 2.2 AA minimum target size)");
-    // The cart and the checkout form.
+    // The cart (a guest sees the log-in prompt; an account holder sees the reserve form).
     await addFirstCopyToCart(ctx, book);
     await noOverflow(ctx, `cart (${lang})`);
-    if (await ctx.page.$("form[action='/cart/checkout']")) {
-      const reach = await ctx.page.$eval("form[action='/cart/checkout'] button[type='submit']", (b) => { b.scrollIntoView(); const r = b.getBoundingClientRect(); return r.left >= 0 && r.right <= window.innerWidth && r.height >= 24; });
-      assert.ok(reach, "Order with obligation to pay is reachable and at least 24 px tall");
-      await noOverflow(ctx, `checkout form (${lang})`);
+    if (await ctx.page.$("form[action='/cart/reserve']")) {
+      const reach = await ctx.page.$eval("form[action='/cart/reserve'] button[type='submit']", (b) => { b.scrollIntoView(); const r = b.getBoundingClientRect(); return r.left >= 0 && r.right <= window.innerWidth && r.height >= 24; });
+      assert.ok(reach, "Reserve these books is reachable and at least 24 px tall");
+      await noOverflow(ctx, `reserve form (${lang})`);
     }
   });
 }
