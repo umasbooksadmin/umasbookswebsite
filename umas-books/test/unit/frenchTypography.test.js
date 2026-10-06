@@ -11,8 +11,15 @@ test("straight apostrophes (and their HTML entities) become curly, in text only"
 });
 
 test("attributes, scripts, styles, textareas, code and comments are never touched", () => {
-  const html = `<a href="/x?q=l'a :" title="Total :">ok</a><script>var s = "l' :";</script><style>a::after{content:'x :'}</style><textarea>l' :</textarea><pre>l' :</pre><code>a ?</code><!-- l' : -->`;
+  const html = `<a href="/x?q=l'a :" data-title="Total :" value="l' :">ok</a><script>var s = "l' :";</script><style>a::after{content:'x :'}</style><textarea>l' :</textarea><pre>l' :</pre><code>a ?</code><!-- l' : -->`;
   assert.equal(fr(html), html);
+});
+
+test("spoken attributes (aria-label, alt, title, placeholder) get the curly apostrophe and the no-break space; others stay exact", () => {
+  assert.equal(
+    fr(`<button aria-label="Ajouter L'Étranger aux favoris" title="Total :" data-x="l'a" href="/a?x='1'">x</button><img alt="L&#39;été : beau" src="/i.jpg"><input placeholder="Nom d'usage ?">`),
+    `<button aria-label="Ajouter L’Étranger aux favoris" title="Total${NBSP}:" data-x="l'a" href="/a?x='1'">x</button><img alt="L’été${NBSP}: beau" src="/i.jpg"><input placeholder="Nom d’usage${NBSP}?">`
+  );
 });
 
 test("in headings a hyphenated imperative stays on one line; elsewhere (and in <title>/<option>) no markup is added", () => {
