@@ -58,7 +58,7 @@ async function enqueueEmail(db, msg) {
 }
 
 function errorText(err) {
-  return scrubPersonalData((err && err.message) || String(err)).slice(0, 500);
+  return scrubPersonalData((err && err.message) || String(err)).slice(0, 1000);
 }
 
 // One claimed row: send it and record the outcome. Resolves true when sent.

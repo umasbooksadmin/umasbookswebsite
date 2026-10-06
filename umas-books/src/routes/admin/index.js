@@ -8,6 +8,7 @@ const router = express.Router();
 const emailOutbox = require("./emailOutbox");
 router.use("/admin/orders", emailOutbox.resendNoticeLocals); // flash text after "Resend confirmation"
 router.use(require("./dashboard"));
+router.use(require("./orders"));
 router.use(require("./members"));
 router.use(require("./announcements"));
 router.use(require("./blog"));

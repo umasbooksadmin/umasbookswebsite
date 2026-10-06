@@ -25,6 +25,23 @@
   <% } %>
 </div>
 
+<div class="card" id="test-email">
+  <h2>Send a test email</h2>
+  <p class="muted small">Sends a real email to your own address (<%= user.email %>) the same way customer emails are sent, and shows the exact result here. Use it to see why mail is not arriving.</p>
+  <% if (!mailConfigured) { %><div class="error-box" role="alert">Mail is NOT configured on this server: GMAIL_USER or GMAIL_APP_PASSWORD is missing, so nothing is ever sent.</div><% } %>
+  <% if (test) { %>
+    <% if (test.status === 'sent') { %>
+      <div class="notice-box" role="status" id="test-result">Sent to <%= test.to_email %>. Check that inbox (and spam).</div>
+    <% } else { %>
+      <div class="error-box" role="alert" id="test-result">NOT sent (status <%= test.status %>, attempt <%= test.attempts %>). Error from the mail server:<br><code><%= test.last_error || '(none)' %></code></div>
+    <% } %>
+  <% } %>
+  <form method="post" action="/admin/email-outbox/test-email">
+    <%- include('../partials/csrf_field') %>
+    <button class="btn btn-small" type="submit">Send a test email to me</button>
+  </form>
+</div>
+
 <div class="card">
   <% if (!rows.length) { %>
     <p class="muted">No emails yet.</p>
@@ -41,7 +58,7 @@
             <td><%= r.purged_at ? '(erased)' : r.subject %></td>
             <td><span class="status-pill <%= r.status %>"><%= r.status %></span><%= r.status === 'sent' && r.sent_at ? ' ' + formatDateTime(r.sent_at) : '' %><%= r.status === 'pending' ? ' next ' + formatDateTime(r.next_try_at) : '' %></td>
             <td><%= r.attempts %></td>
-            <td class="small"><%= r.last_error || '' %></td>
+            <td class="small" style="white-space:pre-wrap;word-break:break-word"><%= r.last_error || '' %></td>
             <td>
               <% if (r.status !== 'sent' && !r.purged_at) { %>
                 <form method="post" action="/admin/email-outbox/<%= r.id %>/retry">

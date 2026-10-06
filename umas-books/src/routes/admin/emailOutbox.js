@@ -6,8 +6,10 @@ const express = require("express");
 const { pool } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
 const { audit } = require("../../lib/audit");
-const { retryNow, markFailedHandled } = require("../../lib/outbox");
+const { retryNow, markFailedHandled, sendEmail } = require("../../lib/outbox");
+const mailer = require("../../mailer");
 const { resendOrderConfirmation } = require("../../lib/cart");
+const { parseId } = require("../../lib/validation");
 const { validateIdParams } = require("../../middleware/idParams");
 
 const router = express.Router();
@@ -22,7 +24,14 @@ router.get("/admin/email-outbox", requireAdmin, async (req, res) => {
     pool.query("SELECT status, COUNT(*)::int AS n FROM email_outbox GROUP BY status"),
   ]);
   const byStatus = Object.fromEntries(counts.map((c) => [c.status, c.n]));
-  res.render("admin/email_outbox", { active: "email-outbox", rows, byStatus, notice: String(req.query.notice || "") });
+  // Result of "Send a test email": the row itself says sent / the exact error.
+  let test = null;
+  const testId = parseId(req.query.test);
+  if (testId) {
+    const { rows: t } = await pool.query("SELECT id, status, attempts, last_error, to_email FROM email_outbox WHERE id = $1 AND kind = 'test'", [testId]);
+    test = t[0] || null;
+  }
+  res.render("admin/email_outbox", { active: "email-outbox", rows, byStatus, notice: String(req.query.notice || ""), test, mailConfigured: mailer.isMailConfigured() });
 });
 
 router.post("/admin/email-outbox/:id/retry", requireAdmin, async (req, res) => {
@@ -30,6 +39,19 @@ router.post("/admin/email-outbox/:id/retry", requireAdmin, async (req, res) => {
   const r = await retryNow(pool, id);
   await audit(req, { action: "email.retry", targetType: "email_outbox", targetId: id });
   res.redirect(`/admin/email-outbox?notice=${r.ok ? (r.sent ? "retry-sent" : "retry-queued") : "retry-refused"}`);
+});
+
+// Sends a real email to the logged-in admin through the SAME path as customer
+// mail (stored in the outbox, then an immediate SMTP attempt), so the page can
+// show the exact error Gmail gives, or "sent".
+router.post("/admin/email-outbox/test-email", requireAdmin, async (req, res) => {
+  const to = req.session.user.email;
+  const r = await sendEmail(
+    { kind: "test", to, subject: "Uma's Books: test email", text: "This is a test email sent from /admin/email-outbox. If you can read it, the website can send mail." },
+    { db: pool, waitMs: 20000 }
+  );
+  await audit(req, { action: "email.test", targetType: "email_outbox", targetId: r.id });
+  res.redirect(`/admin/email-outbox?test=${r.id}`);
 });
 
 router.post("/admin/email-outbox/handled", requireAdmin, async (req, res) => {

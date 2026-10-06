@@ -12,7 +12,7 @@ const { test, before, after, beforeEach } = require("node:test");
 const assert = require("node:assert/strict");
 const { adminHarness } = require("../helpers/adminHarness");
 
-const h = adminHarness("email_outbox", ["dashboard", "emailOutbox"], { isolated: true });
+const h = adminHarness("email_outbox", ["dashboard", "orders", "emailOutbox"], { isolated: true });
 
 const mailer = require("../../src/mailer");
 const sent = [];
@@ -456,4 +456,33 @@ test("a failure loading the order lines after commit does not skip stamping the 
   assert.equal(o.status, "paid");
   assert.equal(o.helloasso_order_id, "HA-55");
   assert.equal(o.confirmation_sent_at, null, "flagged for the admin instead");
+});
+
+test("'Send a test email' goes through the outbox and shows 'sent', or the exact SMTP error", async () => {
+  const ok = await h.post("/admin/email-outbox/test-email");
+  assert.equal(ok.res.status, 302);
+  const loc = ok.res.headers.get("location");
+  assert.match(loc, /\/admin\/email-outbox\?test=\d+/);
+  assert.equal(sent.filter((m) => m.subject === "Uma's Books: test email" && m.to === h.admin.email).length, 1);
+  let page = await h.get(loc);
+  assert.match(page.text, /id="test-result"[^>]*>Sent to/);
+
+  failSends = true;
+  const realError = console.error;
+  console.error = () => {};
+  let bad;
+  try { bad = await h.post("/admin/email-outbox/test-email"); } finally { console.error = realError; }
+  page = await h.get(bad.res.headers.get("location"));
+  assert.match(page.text, /NOT sent/);
+  assert.match(page.text, /Invalid login for \[email\]: 535 password revoked/, "the real error, with personal data scrubbed");
+  assert.doesNotMatch(page.text, /jane\.doe@example\.org/);
+  assert.equal((await h.post("/admin/email-outbox/test-email", {}, { user: h.member })).res.status, 403);
+});
+
+test("the order detail page offers Resend confirmation for a paid order", async () => {
+  const { order } = await insertPendingOrder();
+  await cart.markOrderPaid(h.pool, order);
+  const { res, text } = await h.get(`/admin/orders/${order.id}`);
+  assert.equal(res.status, 200);
+  assert.match(text, new RegExp(`/admin/orders/${order.id}/resend-confirmation`));
 });

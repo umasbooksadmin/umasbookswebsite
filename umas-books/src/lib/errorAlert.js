@@ -93,4 +93,4 @@ function alertOnError(label, err, { force = false } = {}) {
   return sendAdminAlert({ subject, text: `${body(err)}${suppressedNote}` });
 }
 
-module.exports = { alertOnError, sendAdminAlert, setAlertRetryDelay, MAX_ALERTS_PER_WINDOW };
+module.exports = { alertOnError, sendAdminAlert, setAlertRetryDelay, MAX_ALERTS_PER_WINDOW, ALERT_TO };

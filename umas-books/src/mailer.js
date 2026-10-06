@@ -52,4 +52,6 @@ async function sendMail({ to, subject, text, html, replyTo, headers }) {
   });
 }
 
-module.exports = { sendMail, MAIL_TIMEOUT_MS };
+const isMailConfigured = () => Boolean(process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD);
+
+module.exports = { sendMail, isMailConfigured, MAIL_TIMEOUT_MS };
