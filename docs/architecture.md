@@ -420,6 +420,12 @@ Details of the shop tables worth knowing:
 * **Fixed price for new books (loi Lang).** A copy whose condition is `new` must
   carry `publisher_price` and be priced between 95% and 100% of it, checked on
   the server when a copy is added or edited. Used copies are free-priced.
+* **Refund and pickup columns (migration 060).** `orders.refunded_at`, `refund_note`,
+  `collected_at`, `collected_by` (user, `ON DELETE SET NULL`), `refund_detected_at`,
+  `refund_alert_sent_at`, `customer_pickup_reminder_sent_at`,
+  `pickup_reminder_sent_at`, `checkout_redirect_url`; see §7. Refunded orders are
+  accounting records: they are kept like paid ones (10 years) and anonymised only
+  when the account is erased.
 * **Order extras.** `orders.withdrawal_waiver_at` records the buyer's tick-box
   asking for a drop-in session to take place on its date (no withdrawal after);
   `orders.cgv_accepted_at` / `orders.cgv_version` record when the buyer accepted
@@ -634,6 +640,23 @@ What keeps it correct:
 | Hoarding stock without paying | a cart holds at most 20 lines; at most 2 unpaid orders per email and per IP address (`orders.client_ip`), checked under an advisory lock so two simultaneous checkouts cannot both slip through |
 | Anonymous orders | checkout requires a logged-in account with a confirmed email, enforced on the server; the order stores `user_id` and the account's email (a posted email is ignored). Orders from before this rule (`user_id` NULL) remain valid everywhere |
 | Terms and withdrawal | checkout requires accepting the terms of sale; a cart with a drop-in seat also requires the withdrawal waiver, whose time is stored on the order |
+| Buyer backs out of HelloAsso | the session cart is emptied before the redirect (the items now belong to the order), and the payment link is stored (`orders.checkout_redirect_url`). `/cart` lists the logged-in buyer's **own** unpaid orders: **Resume payment** (a redirect to the stored HelloAsso link, only while it is fresh, about 14 minutes, and only to a HelloAsso payment host) and **Cancel this order** (HelloAsso is asked first; an order that was in fact paid is never cancelled). Both are owner-only (another account gets a 404) |
+
+### Refunds, withdrawals and pickup
+
+The site cannot move money. A refund is made by a person in the HelloAsso
+dashboard, and the order is then marked refunded in the admin
+(`/admin/orders/:id`, `lib/orderActions.js`). Status values of `orders.status`
+(plain text, no constraint): `pending`, `paid`, `expired`, `cancelled`,
+`refunded`.
+
+| Concern | Mechanism |
+|---|---|
+| Mark refunded | one transaction with the order row locked: `paid` -> `refunded` (+ `refunded_at`, required `refund_note`); the copies this order sold go back `in_stock`, except a copy sold again since (a later shop sale or another paid order), which is left alone and named in the audit entry; its drop-in seats become `released` (capacity ignores them). Refuses any order that is not `paid`; a second call changes nothing; written to the admin audit log. The admin page has a confirmation step (warning, tick box, note) |
+| Refunded money in the figures | revenue, order counts, member totals and sell-through all read `status = 'paid'`, so a refunded order drops out by itself. The sales report shows refunds as their own table (by `refunded_at`), and the dashboard shows the month's refunds beside Total Sales. Dashboard and reports bucket by `paid_at` in Europe/Paris (`lib/dashboardStats.js`) |
+| Refund done in HelloAsso only | `lib/orderSweeps.js` `detectRefundedOrders` (every 6 h, via `guardJob`): for paid orders of the last 30 days it re-reads the checkout intent with our own credentials (never a webhook body); no `Authorized` payment and one `Refunded` / `Refunding` / `Canceled` payment flags `orders.refund_detected_at`. One email per run for everything newly found (`refund_alert_sent_at` claim, handed back if the send fails). It never restocks: the admin marks the order refunded. A partial refund is not detected. A systemic HelloAsso failure stops the run and alerts once |
+| Pickup | "Mark collected" sets `collected_at` / `collected_by`. A paid order with at least one book and no `collected_at` is "awaiting pickup" (drop-in-only orders never are). Day 10: customer reminder email (EN/FR, only repeats the terms of sale: collect within 14 days of payment, write to us if you need longer; sent only inside days 10 to 14, never for an order flagged as refunded). Day 12: one admin email listing the uncollected orders. Each is claimed in the database first and sent once per order |
+| Admin view | `/admin/orders`: filters (status, awaiting pickup, over 14 days, refund detected, unpaid over 2 hours), Paris date range, search by number, email or name, 50 per page; `/admin/orders/:id` shows items, buyer, HelloAsso ids, Paris times, terms acceptance and history. The dashboard "Needs attention" box counts the three problem lists |
 
 ---
 
@@ -691,6 +714,7 @@ flowchart LR
     A["every 10 min<br/>cart sweep"] 
     B["hourly (every 6th tick)<br/>late-payment re-check"]
     C["every 6 h<br/>reservations, reminders,<br/>membership expiry + backstop"]
+    OF["every 6 h<br/>refund detection,<br/>pickup reminders"]
     P["daily and at boot<br/>retention purge,<br/>30-day inactivity warnings"]
     IC["daily and at boot<br/>unused-image cleanup"]
     AW["every 2 min (not at boot)<br/>awards drain, 5 books"]
@@ -705,6 +729,8 @@ flowchart LR
   B --> HA["HelloAsso lookups"]
   C --> DB
   C --> HA
+  OF --> DB
+  OF --> HA
   D --> W["GET /healthz"]
   P --> DB
   E --> DB
@@ -721,6 +747,7 @@ flowchart LR
 | Cart hold expiry, order reconcile | web process | 10 min | also on boot |
 | Late-payment re-check | web process | hourly | only orders closed in the last 7 days |
 | Reservation expiry, pickup reminder (day 11 of 14), membership expiry, membership backstop | web process | 6 h | read-time expiry also keeps pages right while idle |
+| Order follow-up: refund detection, day-10 customer pickup reminder, day-12 admin digest | web process | 6 h, first run 5 minutes after boot | asks HelloAsso about paid orders of the last 30 days (at most 200 per run); see §7, "Refunds, withdrawals and pickup" |
 | Retention purge | web process | daily, and at boot | see below; also clears ended book requests and expired "find my requests" links |
 | Unused-image cleanup | web process | daily, and at boot | deletes at most one batch of images older than 7 days that no row references (`lib/imageCleanup.js`) |
 | Awards drain | web process | 2 min, not at boot | looks up awards for a few books at a time (§6); a no-op when `AWARDS_LOOKUPS=off` |
@@ -1028,6 +1055,13 @@ Deliberate trade-offs (revisit only if traffic or risk changes):
 Open items worth knowing:
 
 * Reservations hold a copy for two weeks. There is no public reservation form (the old `POST /books/:id/reserve` route was removed because anyone could hold copies under any email address); holds are made by admins or by the book-request flow.
+* A refund is never pushed to HelloAsso by the site and a refund made there is
+  only noticed within about 6 hours (and only for orders paid in the last 30
+  days, and only a full refund). Until the admin marks the order refunded, its
+  books stay marked sold.
+* Nothing in the terms of sale says what happens to a paid order not collected
+  after 14 days, so the site only reminds (customer day 10, admin day 12, the
+  dashboard) and never cancels or restocks by itself.
 * The 6-hourly membership backstop only looks at orders from the last 3 days;
   older missed payments rely on the webhook or account verification.
 * If the only admin loses their phone and recovery codes there is nobody to reset

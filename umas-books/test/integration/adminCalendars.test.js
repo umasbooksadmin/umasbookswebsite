@@ -14,7 +14,7 @@ const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const { adminHarness } = require("../helpers/adminHarness");
 
-const h = adminHarness("admincal", ["dashboard", "events", "sessions", "meetings", "volunteerShifts"], { isolated: true });
+const h = adminHarness("admincal", ["dashboard", "orders", "events", "sessions", "meetings", "volunteerShifts"], { isolated: true });
 before(h.start);
 after(h.stop);
 
@@ -378,7 +378,8 @@ test("volunteer shifts: missing role/date/times writes nothing; a <script> role 
 
 const lastMonthSales = async () => Number((await h.q(
   `SELECT COALESCE(SUM(total_amount), 0) AS s FROM orders WHERE status = 'paid'
-     AND created_at >= date_trunc('month', now() - interval '1 month') AND created_at < date_trunc('month', now())`
+     AND (paid_at AT TIME ZONE 'Europe/Paris') >= date_trunc('month', now() AT TIME ZONE 'Europe/Paris') - interval '1 month'
+     AND (paid_at AT TIME ZONE 'Europe/Paris') < date_trunc('month', now() AT TIME ZONE 'Europe/Paris')`
 ))[0].s);
 
 test("dashboard: /admin renders the welcome heading, stat tiles and links to every admin screen", async () => {
@@ -396,12 +397,11 @@ test("dashboard: /admin renders the welcome heading, stat tiles and links to eve
   assert.ok(m && Number(m[1]) >= 2);
 });
 
-// BUG: pg returns NUMERIC sums as strings, so `!prev` in views/admin/index.ejs's
-// pct() is false for "0.00" and the Total Sales tile shows "NaN%" whenever last
+// Regression: pg returns NUMERIC sums as strings, so `!prev` in views/admin/index.ejs's
+// pct() was false for "0.00" and the Total Sales tile showed "NaN%" whenever last
 // month had no paid sales (a new shop's first month, or any quiet month).
-test("dashboard: Total Sales trend never shows NaN% when last month had no sales", {
-  todo: "views/admin/index.ejs pct(): salesLastMonth is the string '0.00' (NUMERIC), so !prev is false and (now-prev)/prev = NaN -> renders 'NaN%'",
-}, async (t) => {
+// lib/dashboardStats.js now hands the view numbers.
+test("dashboard: Total Sales trend never shows NaN% when last month had no sales", async (t) => {
   if ((await lastMonthSales()) !== 0) return t.skip("another run left paid orders last month");
   const { text } = await h.get("/admin");
   assert.ok(!text.includes("NaN"), "no NaN anywhere on the dashboard");
@@ -409,8 +409,8 @@ test("dashboard: Total Sales trend never shows NaN% when last month had no sales
 
 test("dashboard: with last-month paid sales the Total Sales tile shows a real percentage trend", async () => {
   const [{ id }] = await h.q(
-    `INSERT INTO orders (buyer_name, buyer_email, status, total_amount, created_at)
-     VALUES ('Trend Buyer', 'trend@example.test', 'paid', 40, date_trunc('month', now()) - interval '3 days') RETURNING id`
+    `INSERT INTO orders (buyer_name, buyer_email, status, total_amount, created_at, paid_at)
+     VALUES ('Trend Buyer', 'trend@example.test', 'paid', 40, date_trunc('month', now()) - interval '3 days', date_trunc('month', now()) - interval '3 days') RETURNING id`
   );
   try {
     const { text } = await h.get("/admin");

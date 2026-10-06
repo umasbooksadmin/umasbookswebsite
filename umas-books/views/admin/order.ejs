@@ -1,0 +1,111 @@
+<%- include('../partials/admin_header', { title: 'Order #' + order.id, active: 'orders', pageTitle: 'Order #' + order.id, pageSub: 'All times are Paris time.' }) %>
+
+<p><a href="/admin/orders">&larr; All orders</a></p>
+
+<% if (notice) { %><div class="notice-box" role="status"><%= notice %></div><% } %>
+<% if (error) { %><div class="error-box" role="alert"><%= error %></div><% } %>
+
+<%
+  const hasBooks = items.some(i => i.book_copy_id != null);
+  const days = order.paid_at ? Math.floor((Date.now() - new Date(order.paid_at).getTime()) / 86400000) : null;
+  const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+%>
+
+<% if (order.status === 'paid' && order.refund_detected_at) { %>
+  <div class="error-box" role="alert" id="refund-detected">
+    <strong>HelloAsso shows this payment as refunded or canceled</strong> (found <%= formatDateTime(order.refund_detected_at) %>), but this order is still Paid, so its books are still marked sold.
+    Check the payment in the HelloAsso dashboard, then press &ldquo;Mark refunded&rdquo; below to put the books back on sale.
+  </div>
+<% } %>
+<% if (order.status === 'paid' && !order.collected_at && hasBooks && days !== null && days >= overdueDays) { %>
+  <div class="notice-box" role="status">Paid <%= days %> days ago and not collected. The terms of sale ask customers to collect within <%= overdueDays %> days of payment; see the runbook, &ldquo;An order was not collected after 14 days&rdquo;.</div>
+<% } %>
+
+<div class="card">
+  <div class="order-row">
+    <span class="status-pill <%= order.status %>"><%= cap(order.status) %></span>
+    <% if (order.status === 'paid' && order.collected_at) { %><span class="status-pill completed">Collected</span><% } %>
+    <strong>&euro;<%= Number(order.total_amount).toFixed(2) %></strong>
+  </div>
+  <h2 class="section-title">Items</h2>
+  <ul class="plain">
+    <% items.forEach(i => { %>
+      <li>
+        <%= i.item_title %> <span class="muted small">&middot; &euro;<%= Number(i.price).toFixed(2) %></span>
+        <% if (i.book_copy_id != null) { %>
+          <span class="muted small">&middot; copy #<%= i.book_copy_id %> is now <%= i.copy_status || 'missing' %><% if (i.book_id) { %> (<a href="/admin/inventory/<%= i.book_id %>">open book</a>)<% } %></span>
+        <% } else { %>
+          <span class="muted small">&middot; drop-in seat is now <%= i.seat_status || 'missing' %></span>
+        <% } %>
+      </li>
+    <% }) %>
+  </ul>
+</div>
+
+<div class="card">
+  <h2 class="section-title">Buyer</h2>
+  <p>
+    <%= order.buyer_name %> &middot; <%= order.buyer_email %><%= order.buyer_phone ? ' · ' + order.buyer_phone : '' %><br>
+    <% if (order.user_id) { %>
+      <span class="muted small">Account: <a href="/admin/members?view=<%= order.user_id %>"><%= order.account_name || order.account_email || ('#' + order.user_id) %></a></span>
+    <% } else { %>
+      <span class="muted small">No linked account (order placed before accounts were required, or the account was erased).</span>
+    <% } %>
+  </p>
+</div>
+
+<div class="card">
+  <h2 class="section-title">Payment (HelloAsso)</h2>
+  <p class="small">
+    Checkout intent: <code><%= order.checkout_intent_id || 'none recorded' %></code><br>
+    HelloAsso order: <code><%= order.helloasso_order_id || 'none recorded' %></code>
+  </p>
+  <p class="muted small">To find this payment, sign in to the <a href="https://admin.helloasso.com" target="_blank" rel="noopener noreferrer">HelloAsso dashboard</a> and search for the buyer&rsquo;s email or the amount on the payment date. Refunds are always done there; this site cannot move money.</p>
+</div>
+
+<div class="card">
+  <h2 class="section-title">Terms and history</h2>
+  <p class="small">
+    Terms of sale accepted: <%= order.cgv_accepted_at ? formatDateTime(order.cgv_accepted_at) + ' (version ' + order.cgv_version + ')' : 'not recorded (order placed before this was kept)' %><br>
+    Drop-in withdrawal waiver ticked: <%= order.withdrawal_waiver_at ? formatDateTime(order.withdrawal_waiver_at) : 'no drop-in seat in this order' %><br>
+    Language: <%= order.lang || 'en' %>
+  </p>
+  <ul class="plain" id="order-history">
+    <li><%= formatDateTime(order.created_at) %> &mdash; order created (unpaid)</li>
+    <% if (order.paid_at) { %><li><%= formatDateTime(order.paid_at) %> &mdash; paid</li><% } %>
+    <% if (order.refund_detected_at) { %><li><%= formatDateTime(order.refund_detected_at) %> &mdash; refund detected in HelloAsso</li><% } %>
+    <% if (order.collected_at) { %><li><%= formatDateTime(order.collected_at) %> &mdash; collected<%= order.collected_by_email ? ' (marked by ' + order.collected_by_email + ')' : '' %></li><% } %>
+    <% if (order.refunded_at) { %><li><%= formatDateTime(order.refunded_at) %> &mdash; marked refunded. Note: <%= order.refund_note %></li><% } %>
+    <% if (order.status === 'expired' || order.status === 'cancelled') { %><li>Ended as <%= order.status %> without payment</li><% } %>
+    <% history.forEach(h => { %><li class="muted small"><%= formatDateTime(h.at) %> &mdash; admin log: <%= h.action %><%= h.actor_label ? ' by ' + h.actor_label : '' %><%= h.detail ? ' (' + h.detail + ')' : '' %></li><% }) %>
+  </ul>
+</div>
+
+<div class="card">
+  <h2 class="section-title">Actions</h2>
+  <% if (order.status === 'paid') { %>
+    <% if (hasBooks && !order.collected_at) { %>
+      <form method="post" action="/admin/orders/<%= order.id %>/collected" style="margin-bottom:12px;">
+        <%- include('../partials/csrf_field') %>
+        <button class="btn" type="submit">Mark collected</button>
+        <span class="muted small">Press this when the customer has taken the books.</span>
+      </form>
+    <% } %>
+    <p>
+      <a class="btn btn-outline" href="/admin/orders/<%= order.id %>/refund">Mark refunded (done in HelloAsso)</a><br>
+      <span class="muted small">Only AFTER you refunded the payment in the HelloAsso dashboard. You will be asked to confirm.</span>
+    </p>
+  <% } else if (order.status === 'pending') { %>
+    <form method="post" action="/admin/orders/<%= order.id %>/cancel" data-confirm="Cancel this unpaid order? Its books and seats become available again.">
+      <%- include('../partials/csrf_field') %>
+      <button class="btn btn-outline" type="submit">Cancel unpaid order</button>
+      <span class="muted small">HelloAsso is asked first: an order that was paid in the meantime is not cancelled.</span>
+    </form>
+  <% } else if (order.status === 'refunded') { %>
+    <p class="muted">Refunded: nothing more to do.</p>
+  <% } else { %>
+    <p class="muted">This order ended without payment: nothing to do.</p>
+  <% } %>
+</div>
+
+<%- include('../partials/admin_footer') %>

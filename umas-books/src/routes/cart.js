@@ -8,6 +8,7 @@ const { baseUrl } = require("../lib/baseUrl");
 const { isPreviewMode } = require("../lib/preview");
 const { TERMS_OF_SALE_VERSION } = require("../lib/legal");
 const { loadOrderItems, orderItemLabel } = require("../lib/orderItems");
+const { helloassoPaymentOrigins } = require("../lib/helloassoHosts");
 const { saveSession } = require("../lib/session");
 const { clean, parseId } = require("../lib/validation");
 const { CART_RETURN } = require("../lib/returnTo");
@@ -146,6 +147,43 @@ router.get("/api/cart/count", (req, res) => {
   res.json({ count: Array.isArray(req.session.cart) ? req.session.cart.length : 0 });
 });
 
+// HelloAsso's own payment link stops working after about 15 minutes; resuming
+// is offered for a little less than that.
+const RESUME_WINDOW_MINUTES = 14;
+
+// The logged-in buyer's OWN unpaid orders still holding books or seats, for the
+// "finish or cancel" block on the cart page. Never anyone else's.
+async function loadOwnPendingOrders(req) {
+  const sessionUser = req.session && req.session.user;
+  if (!sessionUser) return [];
+  const { rows } = await pool.query(
+    `SELECT id, total_amount, created_at, checkout_redirect_url,
+            (checkout_redirect_url IS NOT NULL
+             AND created_at > now() - make_interval(mins => $2)) AS can_resume
+     FROM orders
+     WHERE user_id = $1 AND status = 'pending' AND created_at > now() - make_interval(mins => $3)
+     ORDER BY id DESC`,
+    [sessionUser.id, RESUME_WINDOW_MINUTES, CART_HOLD_TTL_MINUTES]
+  );
+  for (const o of rows) {
+    o.items = (await loadOrderItems(pool, o.id)).map((i) => ({ label: orderItemLabel(i, req.lang), price: Number(i.price) }));
+  }
+  return rows;
+}
+
+function cartNotice(req) {
+  switch (String(req.query.notice || "")) {
+    case "order-cancelled":
+      return req.tr("Your unpaid order was cancelled and its items are available again.", "Votre commande non payée a été annulée et ses articles sont de nouveau disponibles.");
+    case "order-paid":
+      return req.tr("Good news: that order was in fact paid, so it was not cancelled. You will find it in your account.", "Bonne nouvelle : cette commande a bien été payée, elle n’a donc pas été annulée. Vous la retrouverez dans votre compte.");
+    case "resume-expired":
+      return req.tr("The payment page for that order has expired. Cancel the order, then add the items to your cart again.", "La page de paiement de cette commande a expiré. Annulez la commande, puis ajoutez de nouveau les articles à votre panier.");
+    default:
+      return null;
+  }
+}
+
 router.get("/cart", async (req, res) => {
   await expireStaleReservations(pool);
   const cart = getCart(req);
@@ -159,7 +197,56 @@ router.get("/cart", async (req, res) => {
   }));
   const total = items.reduce((sum, i) => sum + i.price, 0);
   const account = await accountForCheckout(req);
-  res.render("cart", { items, total, error: null, helloassoReady: helloasso.isConfigured(), ...accountView(account) });
+  res.render("cart", {
+    items, total, error: null, notice: cartNotice(req), pendingOrders: await loadOwnPendingOrders(req),
+    helloassoReady: helloasso.isConfigured(), ...accountView(account),
+  });
+});
+
+const orderIdParam = (req) => parseId(req.params.id);
+
+// Back to HelloAsso's payment page for the buyer's own unpaid order, while its
+// link is still valid. A redirect, not a page: nothing is changed.
+router.get("/cart/orders/:id/resume", async (req, res) => {
+  const id = orderIdParam(req);
+  const sessionUser = req.session && req.session.user;
+  if (!sessionUser) return res.redirect(LOGIN_REQUIRED_URL);
+  if (!id) return res.status(404).render("404");
+  const { rows } = await pool.query(
+    `SELECT checkout_redirect_url, created_at > now() - make_interval(mins => $3) AS fresh
+     FROM orders WHERE id = $1 AND user_id = $2 AND status = 'pending'`,
+    [id, sessionUser.id, RESUME_WINDOW_MINUTES]
+  );
+  const order = rows[0];
+  if (!order) return res.status(404).render("404"); // not theirs, not pending, or not found: the same answer
+  let target = null;
+  try {
+    const url = new URL(order.checkout_redirect_url || "");
+    if (order.fresh && helloassoPaymentOrigins().includes(url.origin)) target = url.toString();
+  } catch { /* no usable link */ }
+  if (!target) return res.redirect("/cart?notice=resume-expired");
+  res.redirect(target);
+});
+
+// Cancels the buyer's own unpaid order and frees its items. HelloAsso is asked
+// first (reconcileOrder): an order that was in fact paid is never cancelled.
+router.post("/cart/orders/:id/cancel", cartEditLimiter, async (req, res) => {
+  const id = orderIdParam(req);
+  const sessionUser = req.session && req.session.user;
+  if (!sessionUser) return res.redirect(LOGIN_REQUIRED_URL);
+  if (!id) return res.status(404).render("404");
+  const { rows } = await pool.query("SELECT * FROM orders WHERE id = $1 AND user_id = $2", [id, sessionUser.id]);
+  const order = rows[0];
+  if (!order) return res.status(404).render("404");
+  if (order.status === "paid") return res.redirect("/cart?notice=order-paid");
+  if (order.status === "pending") {
+    const status = await reconcileOrder(pool, order);
+    if (status === "paid") return res.redirect("/cart?notice=order-paid");
+    if (status === "pending") await releaseCartHold(pool, id, "cancelled");
+    const { rows: after } = await pool.query("SELECT status FROM orders WHERE id = $1", [id]);
+    if (after[0] && after[0].status === "paid") return res.redirect("/cart?notice=order-paid");
+  }
+  res.redirect("/cart?notice=order-cancelled");
 });
 
 const LOGIN_REQUIRED_URL = `/login?returnTo=${encodeURIComponent(CART_RETURN)}`;
@@ -265,8 +352,11 @@ router.post("/cart/checkout", checkoutLimiter, async (req, res) => {
 
   const account = await accountForCheckout(req);
 
-  const renderCart = (extra) =>
-    res.render("cart", { items, total: items.reduce((sum, i) => sum + i.price, 0), helloassoReady: helloasso.isConfigured(), error: null, ...accountView(account), ...extra });
+  const renderCart = async (extra) =>
+    res.render("cart", {
+      items, total: items.reduce((sum, i) => sum + i.price, 0), helloassoReady: helloasso.isConfigured(), error: null, notice: null,
+      pendingOrders: await loadOwnPendingOrders(req), ...accountView(account), ...extra,
+    });
 
   // Preview mode (src/lib/preview.js): nothing can be ordered. Refuse before
   // any validation, lock, order row or HelloAsso call; the cart page itself
@@ -402,7 +492,7 @@ router.post("/cart/checkout", checkoutLimiter, async (req, res) => {
     });
   } catch (err) {
     if (err.message === "TOO_MANY_PENDING") {
-      return renderCart({ error: req.tr("You already have unpaid orders waiting for payment. Please finish or wait for them to expire (about an hour) before starting another.", "Vous avez déjà des commandes en attente de paiement. Veuillez les régler, ou attendre qu’elles expirent (environ une heure), avant d’en commencer une autre.") });
+      return renderCart({ error: req.tr("You already have unpaid orders waiting for payment. Please finish or cancel them (see \"Your unpaid orders\" just below), or wait for them to expire (about an hour), before starting another.", "Vous avez déjà des commandes en attente de paiement. Veuillez les régler ou les annuler (voir « Vos commandes non payées » ci-dessous), ou attendre qu’elles expirent (environ une heure), avant d’en commencer une autre.") });
     }
     if (err.message === "BUSY") {
       return renderCart({ error: req.tr("The shop is busy right now. Please try again in a moment.", "La boutique est très sollicitée en ce moment. Veuillez réessayer dans un instant.") });
@@ -450,6 +540,15 @@ router.post("/cart/checkout", checkoutLimiter, async (req, res) => {
   // the buyer is sent on to pay either way, since the payment link is
   // already live — see persistCheckoutIntentId in lib/cart.js.
   await persistCheckoutIntentId(pool, order.id, intent.id);
+  // So a buyer who backs out of HelloAsso can resume from the cart page while
+  // the link is valid (GET /cart/orders/:id/resume). Best effort.
+  await pool.query("UPDATE orders SET checkout_redirect_url = $1 WHERE id = $2", [String(intent.redirectUrl || ""), order.id]).catch((err) =>
+    console.error(`Could not store the payment link for order ${order.id}:`, err.message)
+  );
+  // The session cart is emptied before the redirect (the items are now held
+  // by the order, so a second checkout from the same cart must not happen).
+  // Backing out of HelloAsso lands on /cart, which lists this unpaid order
+  // with Resume payment / Cancel.
   req.session.cart = [];
   await saveSession(req);
   res.redirect(intent.redirectUrl);
