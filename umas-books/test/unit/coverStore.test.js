@@ -111,7 +111,8 @@ test("fetch: a request that never answers is aborted at the time limit", async (
     fetchCoverImage("https://covers.openlibrary.org/b/id/1-L.jpg", {
       lookup: publicLookup, timeoutMs: 80,
       fetchImpl: (u, { signal }) => new Promise((_, reject) => signal.addEventListener("abort", () => reject(new Error("aborted")))),
-    })
+    }),
+    /aborted/
   );
   assert.ok(Date.now() - started < 2000);
 });

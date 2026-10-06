@@ -122,7 +122,19 @@ async function readLimited(res, maxBytes) {
 
 // opts: fetchImpl (tests), lookup (tests), timeoutMs, maxBytes.
 async function fetchCoverImage(rawUrl, { fetchImpl = fetch, lookup = defaultLookup, timeoutMs = FETCH_TIMEOUT_MS, maxBytes = MAX_BYTES } = {}) {
-  const deadline = AbortSignal.timeout(timeoutMs); // one budget for all redirects and the body
+  // One budget for all redirects and the body. A normal (referenced) timer, not
+  // AbortSignal.timeout(), whose timer is unref'd: a stalled request must keep the
+  // process alive until the abort fires, and the timer is cleared when we are done.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(new Error("cover download timed out")), timeoutMs);
+  try {
+    return await fetchWithin(rawUrl, controller.signal, { fetchImpl, lookup, maxBytes });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function fetchWithin(rawUrl, deadline, { fetchImpl, lookup, maxBytes }) {
   let current = rawUrl;
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
     const u = parseAllowed(current);
