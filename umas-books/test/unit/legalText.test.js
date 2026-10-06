@@ -20,11 +20,11 @@ function dict(file, name) {
 test("the no-returns notice is the agreed wording, in English and in French", () => {
   assert.equal(
     legalText.NO_RETURNS.en,
-    "Used books: no returns or exchanges for a change of mind in the shop. For online orders, your statutory 14-day right of withdrawal and the legal guarantees still apply."
+    "Used books: no returns or exchanges for a change of mind in the shop. The legal guarantees still apply, and so does the statutory right of withdrawal where the law provides for it."
   );
   assert.equal(
     legalText.NO_RETURNS.fr,
-    `Livres d’occasion${NB}: pas de reprise ni d’échange pour simple changement d’avis en boutique. Pour les achats en ligne, votre droit légal de rétractation de 14 jours (art. L.221-18) et les garanties légales de conformité et des vices cachés restent applicables.`
+    `Livres d’occasion${NB}: pas de reprise ni d’échange pour simple changement d’avis en boutique. Les garanties légales de conformité et des vices cachés restent applicables, ainsi que le droit légal de rétractation lorsque la loi le prévoit.`
   );
 });
 
@@ -33,7 +33,7 @@ test("the terms of sale dictionaries, the order email and the legal strings carr
   const fr = dict("marketing/terms-of-sale.ejs", "pageI18nFr");
   assert.ok(en["ts.nr.p"].startsWith(legalText.NO_RETURNS.en), "EN terms clause starts with the notice");
   assert.ok(fr["ts.nr.p"].startsWith(legalText.NO_RETURNS.fr), "FR terms clause starts with the notice");
-  assert.match(en["ts.nr.p"], /This does not affect your legal rights as a consumer, including the right of withdrawal for online orders described below and the legal guarantees\.$/);
+  assert.match(en["ts.nr.p"], /This does not affect your legal rights as a consumer, including the right of withdrawal, where the law provides for it, described below, and the legal guarantees\.$/);
   assert.match(fr["ts.nr.p"], /Cela ne porte pas atteinte à vos droits légaux de consommateur/);
   assert.ok(LEGAL_RIGHTS.includes(legalText.NO_RETURNS.en) && LEGAL_RIGHTS.includes(legalText.NO_RETURNS.fr));
   // The English body of the page is the English dictionary (no second copy that can drift).
@@ -82,10 +82,10 @@ test("the VAT line is 'TVA non applicable' until VAT_NOTICE_ARTICLE is set, then
   }
 });
 
-test("the order email gives the pickup days and hours, in both languages", () => {
+test("the reservation email gives the shop days and hours, in both languages", () => {
   const o = { id: 1, buyer_name: "A", total_amount: 5, created_at: new Date() };
-  assert.match(buildOrderConfirmationText(o, [{ item_title: "B", price: 5 }], ""), /Pick up within 14 days, Tuesday to Saturday, 10:00–19:00, Rue Peyrolière, Albi\./);
-  assert.match(buildOrderConfirmationText({ ...o, lang: "fr" }, [{ item_title: "B", price: 5 }], ""), /À retirer sous 14 jours, du mardi au samedi, 10h–19h, rue Peyrolière, Albi\./);
+  assert.match(buildOrderConfirmationText(o, [{ item_title: "B", price: 5 }], ""), /open Tuesday to Saturday, 10:00 to 19:00\. Please quote reservation #1\./);
+  assert.match(buildOrderConfirmationText({ ...o, lang: "fr" }, [{ item_title: "B", price: 5 }], ""), /ouvert du mardi au samedi, de 10 h à 19 h\./);
 });
 
 test("the pickup hours match the opening hours in the home page's structured data", () => {
@@ -96,5 +96,5 @@ test("the pickup hours match the opening hours in the home page's structured dat
 });
 
 test("the terms of sale version was bumped for this change", () => {
-  assert.equal(legal.TERMS_OF_SALE_VERSION, "2026-10-06");
+  assert.equal(legal.TERMS_OF_SALE_VERSION, "2026-10-07");
 });

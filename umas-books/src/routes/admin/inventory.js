@@ -361,12 +361,18 @@ router.post("/admin/inventory/sell", requireAdmin, async (req, res) => {
 
   const result = await withTransaction(pool, async (client) => {
     const { rows } = await client.query(
-      `SELECT c.id, c.condition, c.price, c.publisher_price, c.status, b.title
+      `SELECT c.id, c.condition, c.price, c.publisher_price, c.status, c.cart_order_id, b.title
        FROM book_copies c JOIN books b ON b.id = c.book_id WHERE c.id = $1 FOR UPDATE OF c`,
       [copyId]
     );
     const copy = rows[0];
     if (!copy) return { error: "That copy could not be found.", status: 400 };
+    // A copy reserved online belongs to a reservation: it is sold from that order
+    // ("Mark collected and paid"), which also records the payment. Selling it here
+    // would leave the reservation holding a book that is gone.
+    if (copy.status === "reserved" && copy.cart_order_id) {
+      return { error: `Not sold: "${copy.title}" is reserved by order #${copy.cart_order_id}. Open that order to collect it (Mark collected and paid), or cancel the reservation first.`, status: 409 };
+    }
     if (!SELLABLE_STATUSES.includes(copy.status)) {
       return { error: `Not sold: this copy of "${copy.title}" is no longer for sale (it was already sold or withdrawn).`, status: 409 };
     }
@@ -812,7 +818,7 @@ router.post("/admin/inventory/:id/copies/:copyId", requireAdmin, async (req, res
 
   const outcome = await withTransaction(pool, async (client) => {
     const { rows } = await client.query(
-      "SELECT status, location, price, suggested_price, suggested_level, is_clearance FROM book_copies WHERE id = $1 AND book_id = $2 FOR UPDATE",
+      "SELECT status, cart_order_id, location, price, suggested_price, suggested_level, is_clearance FROM book_copies WHERE id = $1 AND book_id = $2 FOR UPDATE",
       [copyId, bookId]
     );
     const stored = rows[0];
@@ -827,7 +833,9 @@ router.post("/admin/inventory/:id/copies/:copyId", requireAdmin, async (req, res
       }
       // A sold copy or one in somebody's checkout keeps its status; the other
       // fields are still saved (and the page says so).
-      if (stored.status === "sold" || stored.status === "in_cart") keptStatus = true;
+      // A copy reserved online by a customer also keeps its status: it is released
+      // from its order page (Cancel reservation), never from here.
+      if (stored.status === "sold" || stored.status === "in_cart" || (stored.status === "reserved" && stored.cart_order_id)) keptStatus = true;
       else newStatus = wanted;
     }
     const startsReservation = newStatus === "reserved" && stored.status !== "reserved";
@@ -920,12 +928,18 @@ router.post("/admin/inventory/:id/copies/:copyId/use-price", requireAdmin, async
 router.post("/admin/inventory/:id/copies/:copyId/cancel-reservation", requireAdmin, async (req, res) => {
   const bookId = Number(req.params.id);
   const copyId = Number(req.params.copyId);
-  // Only a copy that is still reserved goes back to stock: one that was sold or
-  // put in a cart since the page was opened must not be put back on sale.
+  // Only a copy that is still reserved goes back to stock: one that was sold
+  // since the page was opened must not be put back on sale. A copy reserved
+  // online (it has an order) is released from that order's page instead.
+  const { rows: held } = await pool.query("SELECT cart_order_id FROM book_copies WHERE id = $1 AND book_id = $2 AND status = 'reserved'", [copyId, bookId]);
+  if (held[0] && held[0].cart_order_id) {
+    res.status(409);
+    return renderBook(res, bookId, `This copy is reserved by order #${held[0].cart_order_id}. Cancel or collect it from the order page (/admin/orders/${held[0].cart_order_id}).`);
+  }
   const { rowCount } = await pool.query(
     `UPDATE book_copies SET status='in_stock', reserved_by_name=NULL, reserved_by_email=NULL,
             reserved_by_phone=NULL, reserved_at=NULL, reminder_sent_at=NULL, updated_at=now()
-     WHERE id = $1 AND book_id = $2 AND status = 'reserved'`,
+     WHERE id = $1 AND book_id = $2 AND status = 'reserved' AND cart_order_id IS NULL`,
     [copyId, bookId]
   );
   if (!rowCount) {

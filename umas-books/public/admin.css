@@ -218,3 +218,8 @@
   .sticker-sheet tr { break-inside: avoid; }
   .sticker-chip { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
+
+/* Printable pickup list (/admin/orders/pickup-list?print=1) */
+.pickup-list-print { font-size: 13px; }
+.pickup-list-print .pickup-customer { padding: 6px 0; }
+@media print { .pickup-list .pickup-customer { break-inside: avoid; } }

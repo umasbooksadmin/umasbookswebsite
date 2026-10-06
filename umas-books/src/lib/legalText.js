@@ -5,17 +5,19 @@
 //
 // Rules for these texts:
 //  - The shop does not take back second-hand books for a change of mind in the
-//    shop, but the law still gives online buyers a 14-day right of withdrawal
-//    (Consumer Code art. L.221-18) and the legal guarantees. The text must
-//    NEVER say that those rights are waived.
+//    shop, but the legal guarantees still apply, and so does the statutory
+//    right of withdrawal wherever the law provides for it (whether a
+//    reservation paid in the shop is a distance contract is an open legal
+//    question: docs/legal-todos.md). The text must NEVER say that those rights
+//    are waived.
 //  - French typography: a no-break space (U+00A0) before ; : ! ? and %.
 const legal = require("./legal"); // read at call time, so one constant drives every page
 
 const NB = " ";
 
 const NO_RETURNS = {
-  en: "Used books: no returns or exchanges for a change of mind in the shop. For online orders, your statutory 14-day right of withdrawal and the legal guarantees still apply.",
-  fr: `Livres d’occasion${NB}: pas de reprise ni d’échange pour simple changement d’avis en boutique. Pour les achats en ligne, votre droit légal de rétractation de 14 jours (art. L.221-18) et les garanties légales de conformité et des vices cachés restent applicables.`,
+  en: "Used books: no returns or exchanges for a change of mind in the shop. The legal guarantees still apply, and so does the statutory right of withdrawal where the law provides for it.",
+  fr: `Livres d’occasion${NB}: pas de reprise ni d’échange pour simple changement d’avis en boutique. Les garanties légales de conformité et des vices cachés restent applicables, ainsi que le droit légal de rétractation lorsque la loi le prévoit.`,
 };
 
 // Shown on the book page next to the price, before the NO_RETURNS notice.
@@ -30,10 +32,16 @@ const GRADE_NOTE = {
   fr: `L’état indiqué est la description du livre${NB}: merci de le lire avant d’acheter.`,
 };
 
-// Where and when to collect an order of books.
+// Where and when to collect and pay for a reservation of books.
 const PICKUP = {
-  en: "Pick up within 14 days, Tuesday to Saturday, 10:00–19:00, Rue Peyrolière, Albi.",
-  fr: "À retirer sous 14 jours, du mardi au samedi, 10h–19h, rue Peyrolière, Albi.",
+  en: `We hold your books for ${legal.RESERVATION_DAYS} days. Pay and collect them at the shop, Tuesday to Saturday, 10:00–19:00, Rue Peyrolière, Albi.`,
+  fr: `Nous gardons vos livres ${legal.RESERVATION_DAYS} jours. Réglez-les et retirez-les à la boutique, du mardi au samedi, 10h–19h, rue Peyrolière, Albi.`,
+};
+
+// Under the cart's "Reserve" button: nothing is paid online.
+const NOTHING_PAID_ONLINE = {
+  en: `Nothing is paid online. We hold your books for ${legal.RESERVATION_DAYS} days: come to the shop and pay when you collect them.`,
+  fr: `Rien n’est payé en ligne. Nous gardons vos livres ${legal.RESERVATION_DAYS} jours${NB}: passez à la boutique et réglez-les au moment du retrait.`,
 };
 
 // "TVA non applicable" (+ ", art. <article> du CGI" once the accountant has
@@ -55,6 +63,7 @@ function legalFor(lang) {
     bookFriendly: BOOK_FRIENDLY[l],
     gradeNote: GRADE_NOTE[l],
     pickup: PICKUP[l],
+    nothingPaidOnline: NOTHING_PAID_ONLINE[l],
     vatNotice: vatNotice(),
     priceLine: priceLine(l),
   };
@@ -62,10 +71,18 @@ function legalFor(lang) {
 
 // Fills the {vat} placeholder in a page dictionary (the terms of sale put the
 // VAT line in their dictionaries as "{vat}" so it follows VAT_NOTICE_ARTICLE).
+// {days}, {copies}, {reservations} and {hours} carry the reservation policy
+// numbers of lib/legal.js the same way.
 function fillVat(dict) {
   const out = {};
-  for (const [k, v] of Object.entries(dict)) out[k] = typeof v === "string" ? v.split("{vat}").join(vatNotice()) : v;
+  const fills = {
+    "{vat}": vatNotice(), "{days}": legal.RESERVATION_DAYS, "{extension}": legal.RESERVATION_EXTENSION_DAYS,
+    "{copies}": legal.MAX_RESERVED_COPIES, "{reservations}": legal.MAX_ACTIVE_RESERVATIONS, "{hours}": legal.SEAT_CANCEL_HOURS,
+  };
+  for (const [k, v] of Object.entries(dict)) {
+    out[k] = typeof v === "string" ? Object.entries(fills).reduce((t, [token, value]) => t.split(token).join(String(value)), v) : v;
+  }
   return out;
 }
 
-module.exports = { NO_RETURNS, BOOK_FRIENDLY, GRADE_NOTE, PICKUP, vatNotice, priceLine, legalFor, fillVat };
+module.exports = { NO_RETURNS, BOOK_FRIENDLY, GRADE_NOTE, PICKUP, NOTHING_PAID_ONLINE, vatNotice, priceLine, legalFor, fillVat };

@@ -28,7 +28,7 @@ const OPTIONAL_GROUPS = [
   },
   {
     vars: ["HELLOASSO_CLIENT_ID", "HELLOASSO_CLIENT_SECRET", "HELLOASSO_ORG_SLUG"],
-    consequence: "online payment is disabled (checkout shows \"not set up yet\" and memberships cannot be reconciled)",
+    consequence: "online MEMBERSHIP payment cannot be reconciled (books and drop-in seats are reserved online and paid in the shop, so they are not affected)",
   },
 ];
 
@@ -56,28 +56,28 @@ function validateEnv(env = process.env) {
   const alerts = [];
   if (isPreviewMode(env)) {
     if (!isSet(env, "APP_BASE_URL") && !isSet(env, "RENDER_EXTERNAL_URL")) {
-      warnings.push("APP_BASE_URL / RENDER_EXTERNAL_URL not set - emailed links and payment return URLs will fail in production.");
+      warnings.push("APP_BASE_URL / RENDER_EXTERNAL_URL not set - emailed links will fail in production.");
     }
   } else {
     const base = isSet(env, "APP_BASE_URL") ? env.APP_BASE_URL.trim() : "";
     if (!base) {
-      const msg = "APP_BASE_URL is not set and preview mode is off - emailed links and payment return URLs have no canonical address (RENDER_EXTERNAL_URL is deliberately NOT used on a live site). Set APP_BASE_URL=https://umasbooks.org in Render > Environment.";
+      const msg = "APP_BASE_URL is not set and preview mode is off - emailed links have no canonical address (RENDER_EXTERNAL_URL is deliberately NOT used on a live site). Set APP_BASE_URL=https://umasbooks.org in Render > Environment.";
       warnings.push(msg);
       alerts.push({ label: "APP_BASE_URL missing", message: msg });
     } else if (!/^https:\/\/[^/\s]+/i.test(base)) {
-      const msg = `APP_BASE_URL is ${base}, which is not an https:// address - emailed links and payment return URLs must be https on a live site.`;
+      const msg = `APP_BASE_URL is ${base}, which is not an https:// address - emailed links must be https on a live site.`;
       warnings.push(msg);
       alerts.push({ label: "APP_BASE_URL missing (not https)", message: msg });
     }
     if (usesSandbox(env.HELLOASSO_API_BASE)) {
-      const msg = "HelloAsso is still in SANDBOX mode: real payments will not work. HELLOASSO_API_BASE points at the HelloAsso sandbox while preview mode is off. Remove it (or set the production API base) and use the production HelloAsso credentials in Render > Environment.";
+      const msg = "HelloAsso is still in SANDBOX mode: real membership payments will not work. HELLOASSO_API_BASE points at the HelloAsso sandbox while preview mode is off. Remove it (or set the production API base) and use the production HelloAsso credentials in Render > Environment.";
       warnings.push(msg);
-      alerts.push({ label: "HelloAsso is still in SANDBOX mode: real payments will not work", message: msg });
+      alerts.push({ label: "HelloAsso is still in SANDBOX mode: real membership payments will not work", message: msg });
     }
     const missingHa = OPTIONAL_GROUPS[1].vars.filter((name) => !isSet(env, name));
     if (missingHa.length > 0) {
-      const msg = `${missingHa.join(", ")} not set and preview mode is off - online payment and membership reconciliation do not work on the live site.`;
-      alerts.push({ label: "HelloAsso credentials missing: payments are disabled", message: msg });
+      const msg = `${missingHa.join(", ")} not set and preview mode is off - online membership payment and its reconciliation do not work on the live site.`;
+      alerts.push({ label: "HelloAsso credentials missing: membership payments are disabled", message: msg });
     }
     if (!isSet(env, "CONTACT_TO")) {
       warnings.push("CONTACT_TO is not set and preview mode is off - contact-form messages and error alerts go to the built-in default address (admin@umasbooks.org). Set CONTACT_TO if that is not the right inbox.");

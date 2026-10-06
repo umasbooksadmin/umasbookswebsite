@@ -76,39 +76,52 @@ test("terms of sale (English and French): used-book no-returns clause that keeps
   for (const [lang, needles] of [
     ["en", [
       "Second-hand books: no returns",
-      "Used books: no returns or exchanges for a change of mind in the shop. For online orders, your statutory 14-day right of withdrawal and the legal guarantees still apply.",
-      "This does not affect your legal rights as a consumer, including the right of withdrawal for online orders described below and the legal guarantees.",
+      "Used books: no returns or exchanges for a change of mind in the shop. The legal guarantees still apply, and so does the statutory right of withdrawal where the law provides for it.",
+      "This does not affect your legal rights as a consumer, including the right of withdrawal, where the law provides for it, described below, and the legal guarantees.",
+      "This right applies where the law provides for it.",
+      "Nothing is paid online, and reserving does not oblige you to buy.",
+      "We hold your books for 14 days",
+      "extend the hold once, by 7 days",
+      "at most 10 books and 3 open reservations",
+      "until 24 hours before the session starts",
+      "the sale is concluded at the shop",
+      "Only membership is",
       "81-766 of 10 August 1981",
       "a discount of at most 5 %",
       "We give no commercial guarantee beyond the legal guarantees",
       "we may withhold the refund until we have the book back or you have shown proof that you returned it",
       "Tuesday to Saturday, 10:00–19:00",
-      "Order with obligation to pay",
       "Prices are in euros and include all taxes",
     ]],
     ["fr", [
       "Livres d’occasion\u00a0: pas de reprise",
-      "Livres d’occasion\u00a0: pas de reprise ni d’échange pour simple changement d’avis en boutique. Pour les achats en ligne, votre droit légal de rétractation de 14 jours (art. L.221-18) et les garanties légales de conformité et des vices cachés restent applicables.",
+      "Livres d’occasion\u00a0: pas de reprise ni d’échange pour simple changement d’avis en boutique. Les garanties légales de conformité et des vices cachés restent applicables, ainsi que le droit légal de rétractation lorsque la loi le prévoit.",
       "Cela ne porte pas atteinte à vos droits légaux de consommateur",
+      "Ce droit s’applique lorsque la loi le prévoit.",
+      "Rien n’est payé en ligne, et réserver ne vous oblige pas à acheter.",
+      "Nous gardons vos livres 14 jours",
+      "la vente est conclue à la boutique",
+      "Seule l’adhésion se paie en ligne",
       "loi n°\u00a081-766 du 10 août 1981",
       "5\u00a0% au maximum",
       "Nous n’offrons aucune garantie commerciale en plus des garanties légales",
       "nous pouvons différer le remboursement jusqu’à la récupération du livre",
       "du mardi au samedi, de 10h à 19h",
-      "Commander avec obligation de paiement",
       "toutes taxes comprises",
     ]],
   ]) {
     const html = (await (await fetch(`${app.base}/terms-of-sale.html`, { headers: { cookie: `umasbooks_lang=${lang}` } })).text()).replace(/&#39;/g, "'").replace(/&quot;/g, '"');
     for (const n of needles) assert.ok(html.includes(n), `${lang}: missing ${n}`);
     assert.doesNotMatch(html, /waive|renounce|renonc/i, `${lang}: never says a legal right is waived`);
+    assert.doesNotMatch(html, /obligation to pay|obligation de paiement|one hour|une heure|pay online by card/i, `${lang}: no online-payment wording for books`);
     assert.doesNotMatch(html, /Last updated: 5 October|mise à jour\u00a0: 5 octobre/, `${lang}: date updated`);
   }
 });
 
-test("terms of sale: the drop-in text no longer contradicts itself (no right of withdrawal under L.221-28 12°, the checkbox only confirms the date)", async () => {
+test("terms of sale: the drop-in text has no waiver or checkout wording (no right of withdrawal under L.221-28 12°)", async () => {
   const html = await (await fetch(`${app.base}/terms-of-sale.html`)).text();
-  assert.ok(html.includes("the right of withdrawal does not apply to them (art. L.221-28, 12°); at checkout you only confirm that you want the session to take place on the date booked"));
+  assert.ok(html.includes("the right of withdrawal does not apply to them (art. L.221-28, 12°). If we cancel a session"));
+  assert.ok(!html.includes("at checkout"));
   assert.ok(!html.includes("because at checkout you expressly ask"));
 });
 

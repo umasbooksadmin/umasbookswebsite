@@ -332,7 +332,7 @@ async function salesReport(db, ctx) {
         key: "books", title: "Book sales",
         columns: [
           { key: "period", label: periodHeader, type: "text" },
-          { key: "online_items", label: "Online items", type: "int" }, { key: "online_revenue", label: "Online revenue", type: "eur" },
+          { key: "online_items", label: "Reserved-online items", type: "int" }, { key: "online_revenue", label: "Reserved-online revenue", type: "eur" },
           { key: "shop_items", label: "Shop items", type: "int" }, { key: "shop_revenue", label: "Shop revenue", type: "eur" },
           { key: "total_revenue", label: "Total revenue", type: "eur" }, { key: "average", label: "Average per item", type: "eur" },
         ],
@@ -344,13 +344,13 @@ async function salesReport(db, ctx) {
         rows: dropinRows, totals: { period: "Total", ...sumRows(dropinRows, ["seats", "revenue"]) },
       },
       {
-        key: "refunds", title: "Refunds (online orders refunded in HelloAsso; not included in the sales above)",
+        key: "refunds", title: "Refunds (orders refunded in the shop; not included in the sales above)",
         columns: [{ key: "period", label: periodHeader, type: "text" }, { key: "orders", label: "Orders refunded", type: "int" }, { key: "amount", label: "Amount refunded", type: "eur" }],
         rows: refundRows, totals: { period: "Total", ...sumRows(refundRows, ["orders", "amount"]) },
-        note: "Counted on the day the order was marked refunded. A refunded order no longer appears in the online sales and drop-in figures.",
+        note: "Counted on the day the order was marked refunded. A refunded order no longer appears in the reserved-online sales and drop-in figures.",
       },
     ],
-    notes: ["Online = paid orders, counted on the day they were paid. Shop = sales recorded with Sell in shop. Days are Paris days."],
+    notes: ["Reserved-online = books reserved on the website and paid in the shop (\"Mark collected and paid\"), counted on the day the payment was recorded. Shop = sales recorded with Sell in shop. Days are Paris days."],
   };
 }
 
@@ -636,10 +636,60 @@ async function accountsReport(db, ctx) {
   };
 }
 
+// ---------- Reservations ----------
+
+// Reservations made in the period (orders with a deadline, created in the
+// range), by month and in total: how many were reserved, how many ended in a
+// sale in the shop (collected: orders that are now paid or refunded), expired
+// (not collected in time, or marked no-show), cancelled, and still open; and the
+// conversion rate = collected / (collected + expired + cancelled), i.e. of the
+// reservations that are over, the share that became a sale. The rest of a
+// partly collected reservation (split_from_order_id) is not counted twice.
+// Revenue itself is in "Sales over time" (counted at the day paid).
+async function reservationsReport(db, ctx) {
+  const { rows } = await db.query(
+    `SELECT to_char(date_trunc('month', o.created_at AT TIME ZONE '${TZ}'), 'YYYY-MM') AS month,
+            COUNT(*)::int AS reserved,
+            COUNT(*) FILTER (WHERE o.status IN ('paid', 'refunded'))::int AS collected,
+            COUNT(*) FILTER (WHERE o.status = 'expired')::int AS expired,
+            COUNT(*) FILTER (WHERE o.status = 'cancelled')::int AS cancelled,
+            COUNT(*) FILTER (WHERE o.status = 'reserved')::int AS open,
+            COALESCE(SUM(o.total_amount) FILTER (WHERE o.status IN ('paid', 'refunded')), 0)::float8 AS collected_value
+     FROM orders o
+     WHERE o.reserved_until IS NOT NULL AND o.split_from_order_id IS NULL AND ${inRange("o.created_at", 1, 2)}
+     GROUP BY 1 ORDER BY 1`,
+    [ctx.from, ctx.to]
+  );
+  const rate = (r) => {
+    const over = r.collected + r.expired + r.cancelled;
+    return over ? (100 * r.collected) / over : null;
+  };
+  const byMonth = rows.map((r) => ({ ...r, collected_value: money(r.collected_value), conversion: rate(r) }));
+  const t = { reserved: 0, collected: 0, expired: 0, cancelled: 0, open: 0, collected_value: 0 };
+  for (const r of rows) for (const k of Object.keys(t)) t[k] += Number(r[k]);
+  const totals = { month: "Total", ...t, collected_value: money(t.collected_value), conversion: rate(t) };
+  const columns = [
+    { key: "month", label: "Month", type: "text" }, { key: "reserved", label: "Reserved", type: "int" },
+    { key: "collected", label: "Collected (sold)", type: "int" }, { key: "expired", label: "Expired / no-show", type: "int" },
+    { key: "cancelled", label: "Cancelled", type: "int" }, { key: "open", label: "Still open", type: "int" },
+    { key: "collected_value", label: "Value collected", type: "eur" }, { key: "conversion", label: "Conversion", type: "pct" },
+  ];
+  return {
+    sections: [
+      {
+        key: "reservations", title: "Reservations by month", columns, rows: byMonth, totals,
+        note: "Counted by the month the reservation was made (Paris time). Conversion = collected / (collected + expired + cancelled): of the reservations that are over, the share that became a sale. Customers pay in the shop; revenue is counted when the payment is recorded (see Sales over time).",
+      },
+    ],
+    notes: ["No names or email addresses appear in this report."],
+  };
+}
+
 const REPORTS = [
   { slug: "inventory", title: "Inventory on hand", summary: "Copies in stock and reserved, with their asking value, by genre, condition, location and source.", run: inventoryReport },
   { slug: "aging", title: "Aging stock", summary: "How long copies have been in stock (0-3, 3-6, 6-12, 12+ months), and the oldest ones.", run: agingReport },
-  { slug: "sales", title: "Sales over time", summary: "Book sales online and in the shop by day, week, month or year, plus drop-in seats separately.", usesRange: true, usesGroup: true, run: salesReport },
+  { slug: "sales", title: "Sales over time", summary: "Book sales (reserved online, paid in the shop) and walk-in shop sales by day, week, month or year, plus drop-in seats separately.", usesRange: true, usesGroup: true, run: salesReport },
+  { slug: "reservations", title: "Reservations", summary: "Reserved online, collected and paid in the shop, expired and cancelled, by month, with the conversion rate.", usesRange: true, run: reservationsReport },
   { slug: "sellthrough", title: "Sell-through by genre", summary: "Of the copies acquired in a period, how many have sold, and how fast.", usesRange: true, run: sellthroughReport },
   { slug: "membership", title: "Membership", summary: "Active members, new members and endings per month, and renewals due soon.", usesRange: true, run: membershipReport },
   { slug: "intake", title: "Intake log", summary: "Copies added per month and by source, with acquisition cost, and the latest additions.", usesRange: true, run: intakeReport },

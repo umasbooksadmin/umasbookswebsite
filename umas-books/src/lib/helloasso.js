@@ -1,12 +1,10 @@
-// Thin client for the HelloAsso Checkout API (OAuth2 client-credentials +
-// checkout-intents). Docs: https://dev.helloasso.com/docs/api-overview
-// and https://dev.helloasso.com/docs/int%C3%A9grer-le-paiement-sur-votre-site
+// Thin client for the HelloAsso API (OAuth2 client-credentials), used for
+// MEMBERSHIP payments only: books and drop-in seats are reserved on the site and
+// paid in the shop, so nothing here creates or looks up a checkout for an order.
+// Docs: https://dev.helloasso.com/docs/api-overview
 //
-// HelloAsso's own return-URL "code=succeeded" query param is explicitly
-// documented as unreliable (client-side, can be spoofed or missed if the
-// browser tab closes) — every caller of this module must treat
-// getCheckoutIntent()'s response as the only source of truth for whether
-// a payment actually went through, never the redirect itself.
+// Whatever a webhook or a return URL claims is never trusted: callers re-ask
+// HelloAsso's own API (findMembershipOrdersByEmail / listRecentMembershipOrders).
 
 const BASE_URL = process.env.HELLOASSO_API_BASE || "https://api.helloasso.com/v5";
 const CLIENT_ID = process.env.HELLOASSO_CLIENT_ID;
@@ -98,39 +96,9 @@ async function apiRequest(method, path, body) {
   }
 }
 
-// amountCents: total order amount in cents (HelloAsso wants integer cents,
-// not a decimal). itemName is shown to the payer on HelloAsso's page.
-// backUrl/errorUrl/returnUrl must all be HTTPS in production.
-async function createCheckoutIntent({ amountCents, itemName, backUrl, errorUrl, returnUrl, payer, metadata }) {
-  return apiRequest("POST", `/organizations/${ORG_SLUG}/checkout-intents`, {
-    totalAmount: amountCents,
-    initialAmount: amountCents,
-    itemName,
-    backUrl,
-    errorUrl,
-    returnUrl,
-    containsDonation: false,
-    payer,
-    metadata,
-  });
-}
-
-async function getCheckoutIntent(checkoutIntentId) {
-  return apiRequest("GET", `/organizations/${ORG_SLUG}/checkout-intents/${checkoutIntentId}`);
-}
-
-// A checkout intent's order is only genuinely paid once at least one of
-// its payments is in the "Authorized" state — see PaymentState in
-// HelloAsso's API reference. Pending/Refused/Canceled/etc. all mean "not
-// paid" as far as we're concerned.
-function isOrderPaid(checkoutIntent) {
-  const payments = checkoutIntent && checkoutIntent.order && checkoutIntent.order.payments;
-  return Array.isArray(payments) && payments.some((p) => p.state === "Authorized");
-}
-
 // Membership is sold through a HelloAsso-hosted "Adhésion" form rather
 // than a checkout intent we create ourselves, so there's no local order
-// to look up by id the way reconcileOrder does — the payer's email is
+// to look up by id — the payer's email is
 // the only link back to a site account. This mirrors this module's
 // existing rule of never trusting a webhook body: whatever the webhook
 // claims, syncMembershipForEmail (see lib/membership.js) re-verifies by
@@ -166,4 +134,4 @@ async function listRecentMembershipOrders() {
   return Array.isArray(data && data.data) ? data.data : [];
 }
 
-module.exports = { isConfigured, listRecentMembershipOrders, createCheckoutIntent, getCheckoutIntent, isOrderPaid, findMembershipOrdersByEmail };
+module.exports = { isConfigured, listRecentMembershipOrders, findMembershipOrdersByEmail };

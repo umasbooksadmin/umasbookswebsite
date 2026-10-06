@@ -10,7 +10,7 @@
 - Data protection officer (DPO): **no DPO required.** GDPR art. 37 only requires one for public bodies, large-scale regular monitoring of people, or large-scale processing of sensitive data; none of these applies (a small association; no tracking; no health data is collected, and the forms tell people not to send any).
 - DPIA screening (GDPR art. 35): **no DPIA required.** One-line screening on 6 October 2026: none of the CNIL high-risk criteria combine here (no large scale, no profiling or scoring, no sensitive data on purpose, no systematic monitoring, no data matching); children's names and birth dates reach us only as an email from their parent or guardian for a weekly activity. Re-screen if a feature starts storing children's data or any health data.
 
-**Last reviewed / Dernière révision:** 6 October 2026 (sections 6, 8 and the new Cloudflare, cookies and covers notes; the rest was confirmed by Sharon Bjeletich on 4 October 2026).
+**Last reviewed / Dernière révision:** 7 October 2026 (sections 2 and 3 rewritten for the reservation model; before that, 6 October 2026: sections 6, 8 and the new Cloudflare, cookies and covers notes; the rest was confirmed by Sharon Bjeletich on 4 October 2026).
 
 **Last checked against the code:** 4 October 2026 (every row below was compared with `umas-books/` on that date; the reservation, image-cleanup, backup-recipient, font and AI rows were corrected on that date).
 
@@ -35,35 +35,38 @@ Common to all activities: no sensitive data (health, religion, etc.) is collecte
 
 To answer an access or portability request ("a copy of my data"), use admin > Members > member > **Download data (JSON)**. Members can also do this themselves (and delete their account) at **My Account > Privacy** (`/account/privacy`, current password required); these self-service actions need a **confirmed email address** (an unconfirmed account is refused and can ask for the confirmation email again, so nobody can sign up with someone else's address and take or erase that person's orders) and are recorded in the audit log by member id only.
 
-## 2. Orders and payments / Commandes et paiements
+## 2. Reservations and payments in the shop / Réservations et paiements à la boutique
+
+*Since the "reserve online, pay at the shop" change (7 October 2026), nothing is paid on the website for books and drop-in seats. An account holder reserves online; the payment is taken in the shop (or at the session) and recorded by staff. Only the membership is paid online (section 5).*
 
 | | |
 |---|---|
-| Purpose | Sell books and drop-in sessions online; confirm orders; keep accounting records |
-| Data | Buyer name, email, phone (optional), items and prices, total, status, dates, the language chosen at checkout (`orders.lang`), the date the buyer ticked the confirmation that a drop-in session takes place on its date, proof of acceptance of the terms of sale (`orders.cgv_accepted_at` and `orders.cgv_version`: when, and which version of the terms; not personal data by itself, kept with the order and on anonymised orders for the 10-year accounting retention), an order access token, the HelloAsso checkout/order numbers, and the buyer's **IP address** (`orders.client_ip`). Card details never reach us (entered on HelloAsso). |
-| People | Online buyers: **orders are placed with an account** (login required to check out; browsing and filling a cart need none). `orders.user_id` links the order to the account (empty for orders placed before this rule, and after an account is erased); the order carries the account's confirmed email. |
+| Purpose | Let account holders reserve books and drop-in seats online; hold them; send confirmation and reminder emails; record the payment taken in the shop (accounting records) |
+| Data | Buyer name, email, phone (optional), items and prices, total, status (`reserved`, `paid`, `cancelled`, `expired`, `refunded`), dates, the language chosen when reserving (`orders.lang`), proof of acceptance of the terms of sale (`orders.cgv_accepted_at` and `orders.cgv_version`: when, and which version of the terms; not personal data by itself, kept with the order and on anonymised orders for the 10-year accounting retention), an order access token, the reservation deadline (`orders.reserved_until`, and `reservation_extended_at` when the shop extended it once), how and when a reservation ended without a sale (`released_at`, `release_reason`: customer, admin, expired, no_show, account_erased), and, once the staff record the payment in the shop, the payment method (cash, card at the shop, cheque or other: `payment_method`), the amount received (`amount_received`, with a note when lower than the total) and who collected it. Card details never reach us for books and seats (nothing is entered on the website). Older orders (before this change) may still carry the HelloAsso checkout/order numbers. No IP address is stored with an order any more (`orders.client_ip` is set to empty by the code; older values are still cleared by the daily purge). |
+| People | Account holders who reserve: **only an account holder can reserve** (login with a confirmed email required; browsing and filling a cart need none). `orders.user_id` links the order to the account (empty for orders from before this rule, and after an account is erased); the order carries the account's confirmed email. A staff member can also record an in-shop sale ("Sell in shop"). |
 | Legal basis | Contract; legal obligation (accounting, 10 years) |
-| Recipients / processors | HelloAsso (payment page, receives buyer name and email to create the payment); Render; Google Workspace/Gmail (confirmation emails); Backblaze (backups) |
-| Transfers outside EU | HelloAsso and Render: EU. Google/Backblaze as above. |
-| Retention | **10 years** (`accountingYears`), then the order and its items are deleted (automated daily). The IP address is only used to cap how many unpaid orders one address can open during the 60-minute hold; it is cleared the moment the order is paid, expires or is cancelled, and in any case **2 days** after the order (`clientIpDays`, automated daily); it is also cleared on erasure. Exception: orders still `pending` are never deleted by the purge (they turn into `expired` or `cancelled` within minutes or hours, and those *are* purged at 10 years). Unpaid (expired/cancelled) orders have no accounting value, so their name, email and phone are anonymised **30 days** after the order (automated daily). On an erasure request the buyer data (and the IP address) is replaced by "Erased" and the access link is rotated, but the amounts and items stay (legal obligation). |
-| Security | As in section 1; order pages need a secret link; payment data stays at HelloAsso |
+| Recipients / processors | Render; Google Workspace/Gmail (reservation confirmation and reminder emails); Backblaze (backups). **No payment provider**: HelloAsso is no longer involved in orders (old orders may still hold its numbers). |
+| Transfers outside EU | Render: EU. Google/Backblaze as above. |
+| Retention | Sales (`paid`, `refunded`): **10 years** (`accountingYears`), then the order and its items are deleted (automated daily). A reservation is held **14 days** (21 if the shop extends it once); a drop-in seat is held until the session is over. Reservations that ended without a sale (`expired`, `cancelled`, including no-show) have no accounting value, so their name, email and phone are anonymised **30 days** after the order (`closedOrderDays`, automated daily). Orders still `pending` (legacy, from the old online checkout) are never deleted by the purge. On an erasure request the buyer data is replaced by "Erased" and the access link is rotated, open reservations are cancelled and the books released, but the amounts and items of sales stay (legal obligation). |
+| Security | As in section 1; order pages need a secret link; no payment data is handled by the website for orders |
 
-## 3. Book reservations / Réservations de livres
+## 3. Book holds without an order / Livres mis de côté
 
 | | |
 |---|---|
-| Purpose | Hold a book for pickup and pay in the shop; send one pickup reminder |
+| Purpose | Hold a book for someone outside the online reservation (a copy an admin holds for a customer, or the book-request "notify and hold" flow); send one reminder. Online reservations (section 2) also copy the buyer's name, email and phone onto the reserved copy so the shelf list can show who it is for. |
 | Data | Name, email, phone, date of reservation and the date the reminder was sent (stored on the book copy: `reserved_by_name`, `reserved_by_email`, `reserved_by_phone`, `reserved_at`, `reminder_sent_at`) |
-| People | People who ask the shop to hold a book (entered by an admin), and book requesters whose request is held |
+| People | People for whom an admin holds a book, book requesters whose request is held, and account holders with an online reservation |
 | Legal basis | Contract (their request) |
 | Recipients / processors | Render; Google Workspace/Gmail (reminder email); Backblaze (backups) |
 | Transfers outside EU | Google, Backblaze as above |
-| Retention | **14 days** (`RESERVATION_TTL_DAYS` in `src/lib/reservations.js`). After that name, email, phone and date are cleared and the book goes back on the shelf. The job runs at start-up and every 6 hours. A reminder is emailed once, 3 days before the end (day 11). A reservation that ended another way (the book was sold in the shop, or the reservation was cancelled) keeps no contact details **30 days** after it ended (`closedOrderDays`, step `reservationContacts` of the daily purge). On an erasure request an active reservation is released and the contact details are cleared at once. **Automated.** |
+| Retention | Copies held without an order: **14 days** (`RESERVATION_DAYS` in `src/lib/legal.js`, used as `RESERVATION_TTL_DAYS` in `src/lib/reservations.js`). After that name, email, phone and date are cleared and the book goes back on the shelf. The job runs at start-up and every 6 hours. A reminder is emailed once, 3 days before the end (day 11). Online reservations follow the deadline on their order (section 2: 14 days, 21 if extended). A reservation that ended another way (the book was collected and paid, sold in the shop, cancelled or expired) keeps no contact details on the copy **30 days** after it ended (`closedOrderDays`, step `reservationContacts` of the daily purge). On an erasure request an active reservation is released and the contact details are cleared at once. **Automated.** |
 | Security | Reservation details are shown in the admin area only |
 
-Note: there is no public reservation route or form (the former `POST /books/:id/reserve` was removed: it let anyone hold copies and trigger email to any address). Reservations are made at the shop and entered by an admin, or created by the book-request "notify and hold" flow. If a public reservation form is ever added, it needs email verification, a per-email cap and the privacy note (`partials/privacy_note`).
+Note: the former public route `POST /books/:id/reserve`, which let anyone hold copies and trigger email to any address, stays removed. The only public way to reserve is the cart's "Reserve these books" button (`POST /cart/reserve`), which needs a logged-in account with a confirmed email address, and is limited to 10 copies and 3 open reservations per account.
 
 Inventory locations (`book_copies.location`, the shelf code where a physical copy sits) are not personal data and are not covered here.
+
 ## 3b. Book requests / Demandes de livres
 
 | | |
@@ -122,7 +125,7 @@ The weekly English Immersion pre-registration form on the website (`POST /pre-re
 
 | | |
 |---|---|
-| Purpose | Make sure the emails the website sends (order confirmations, account and password links, book-request and reservation mails, forum notices, the contact form to the shop) are delivered: each message is stored first, sent at once, and retried with a delay if Gmail refuses it. Lets an admin resend an order confirmation. |
+| Purpose | Make sure the emails the website sends (reservation confirmations and reminders, account and password links, book-request and reservation mails, forum notices, the contact form to the shop) are delivered: each message is stored first, sent at once, and retried with a delay if Gmail refuses it. Lets an admin resend a reservation confirmation. |
 | Data | Recipient address, subject, text of the email (which may contain a name, an order summary or a one-time link), kind of email, related order number, number of attempts, error text (email addresses and long numbers removed). Stored in `email_outbox` (`src/lib/outbox.js`). |
 | People | Everyone the website emails, and people writing through the contact form |
 | Legal basis | Contract (confirmations and links the person asked for); legitimate interest (reliable delivery) |

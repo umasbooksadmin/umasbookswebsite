@@ -1,7 +1,6 @@
 const express = require("express");
 const { limit } = require("../middleware/rateLimits");
 const { pool } = require("../db");
-const { reconcileOrder, adoptCheckoutIntent } = require("../lib/cart");
 const { syncMembershipForEmail } = require("../lib/membership");
 const { scrubPersonalData } = require("../lib/scrub");
 
@@ -40,69 +39,33 @@ function pick(obj, paths) {
 // app.use(csrfProtection) in index.js rather than after with the rest of
 // the app's routes.
 //
-// HelloAsso's docs don't publish the exact payload shape or a signature
-// to verify it with, so this handler never trusts the body's content —
-// it only uses it to find which of our orders to re-check, then asks
-// HelloAsso's own API (with our own credentials) for the real payment
-// state via reconcileOrder. That means a forged webhook call can, at
-// worst, make us re-verify an order we'd have re-verified anyway on the
-// periodic backstop (see reconcilePendingOrders in index.js) — it can
-// never mark anything paid on its own.
+// ONLY MEMBERSHIP is paid through HelloAsso (books and drop-in seats are
+// reserved on the site and paid in the shop), so this handles the Membership
+// form's payments and nothing about orders: an old notification that names one
+// of the old online-checkout orders is just logged.
 //
-// Same idea for the Membership branch below: the payer.email pulled from
-// the body is never trusted directly either — syncMembershipForEmail
-// re-asks HelloAsso's API for that email's real Authorized orders (now
-// filtered to an exact payer-email match, not HelloAsso's own fuzzy
-// userSearchKey — see lib/helloasso.js) and only ever applies them to a
-// local account whose email is itself verified (lib/membership.js). A
-// forged call here can, at worst, force an early re-check of one email
-// against HelloAsso's real records — never attribute a payment to an
-// account that hasn't proven it owns that email.
+// HelloAsso's docs don't publish the exact payload shape or a signature
+// to verify it with, so this handler never trusts the body's content: the
+// payer.email pulled from the body is only used to pick which email to
+// re-check, and syncMembershipForEmail re-asks HelloAsso's API (with our own
+// credentials) for that email's real Authorized orders (filtered to an exact
+// payer-email match, not HelloAsso's own fuzzy userSearchKey — see
+// lib/helloasso.js) and only ever applies them to a local account whose email
+// is itself verified (lib/membership.js). A forged call here can, at worst,
+// force an early re-check of one email against HelloAsso's real records —
+// never attribute a payment to an account that hasn't proven it owns that email.
 router.post("/webhooks/helloasso", webhookLimiter, express.json(), async (req, res) => {
   res.status(200).end(); // ack immediately — HelloAsso retries on non-200/timeout
 
   const body = req.body || {};
-  const orderId = Number(
-    (body.metadata && body.metadata.orderId) ||
-    (body.data && body.data.metadata && body.data.metadata.orderId) ||
-    body.orderId
-  );
-  const checkoutIntentId = String(
-    body.checkoutIntentId || (body.data && body.data.checkoutIntentId) || body.id || ""
-  );
-
   try {
-    let order = null;
-    if (orderId) {
-      const { rows } = await pool.query("SELECT * FROM orders WHERE id = $1", [orderId]);
-      order = rows[0];
-    } else if (checkoutIntentId) {
-      const { rows } = await pool.query("SELECT * FROM orders WHERE checkout_intent_id = $1", [checkoutIntentId]);
-      order = rows[0];
+    const formType = pick(body, ["data.formType", "data.order.formType"]);
+    const payerEmail = pick(body, ["data.payer.email"]);
+    if (formType === "Membership" && payerEmail) {
+      await syncMembershipForEmail(pool, payerEmail);
+    } else {
+      console.warn("HelloAsso webhook: not a membership payment, ignored:", scrubPersonalData(JSON.stringify(body)).slice(0, 500));
     }
-    if (!order) {
-      // Not one of our own shop/checkout orders — check whether it's a
-      // payment on the HelloAsso-hosted membership form instead (those
-      // aren't created through our API, so there's no local order row
-      // to match in the first place).
-      const formType = pick(body, ["data.formType", "data.order.formType"]);
-      const payerEmail = pick(body, ["data.payer.email"]);
-      if (formType === "Membership" && payerEmail) {
-        await syncMembershipForEmail(pool, payerEmail);
-      } else {
-        console.warn("HelloAsso webhook: couldn't match a local order to this notification:", scrubPersonalData(JSON.stringify(body)).slice(0, 500));
-      }
-      return;
-    }
-    // The order can predate its intent id being saved (see
-    // persistCheckoutIntentId in lib/cart.js); adopt it from the webhook
-    // only if HelloAsso itself confirms the intent belongs to this order.
-    if (!order.checkout_intent_id && checkoutIntentId) {
-      order = await adoptCheckoutIntent(pool, order, checkoutIntentId);
-    }
-    // Also covers orders we already expired/cancelled but that were paid
-    // late — reconcileOrder handles those (see "LATE PAYMENTS" there).
-    await reconcileOrder(pool, order);
   } catch (err) {
     console.error("HelloAsso webhook handling failed:", err.message);
   }
