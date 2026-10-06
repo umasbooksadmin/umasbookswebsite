@@ -11,7 +11,7 @@ const sent = [];
 let sendImpl;
 mailer.sendMail = async (opts) => { sent.push(opts); return sendImpl(opts); };
 
-const { alertOnError } = require("../../src/lib/errorAlert");
+const { alertOnError, sendAdminAlert, setAlertRetryDelay } = require("../../src/lib/errorAlert");
 
 const THROTTLE = 15 * 60 * 1000;
 // The module's clock is process-wide and starts at 0, so the first real
@@ -22,6 +22,7 @@ const advance = (ms) => { clock += ms; };
 beforeEach(() => {
   sent.length = 0;
   sendImpl = async () => {};
+  setAlertRetryDelay(0); // the real pause between the two tries would only slow the tests
   advance(10 * THROTTLE); // clears any throttle left by the previous test
   mock.method(Date, "now", () => clock);
   mock.method(console, "error", () => {});
@@ -98,8 +99,8 @@ test("a mail failure never throws or rejects (throttled and forced paths)", asyn
   sendImpl = async () => { throw new Error("smtp down"); };
   await assert.doesNotReject(alertOnError("x", new Error("e")));
   await assert.doesNotReject(alertOnError("y", new Error("e"), { force: true }));
-  assert.equal(sent.length, 2);
-  assert.equal(console.error.mock.callCount(), 2);
+  assert.equal(sent.length, 4, "each alert is tried twice");
+  assert.equal(console.error.mock.callCount(), 4);
   assert.match(String(console.error.mock.calls[0].arguments[1]), /smtp down/);
 });
 
@@ -108,7 +109,20 @@ test("a failed send still consumes the throttle slot (no retry storm)", async ()
   await alertOnError("x", new Error("e"));
   sendImpl = async () => {};
   await alertOnError("y", new Error("e"));
-  assert.equal(sent.length, 1);
+  assert.equal(sent.length, 2, "two tries for the first alert, none for the throttled second");
+});
+
+test("an alert that fails once is retried once and then delivered", async () => {
+  let calls = 0;
+  sendImpl = async () => { if (++calls === 1) throw new Error("blip"); };
+  assert.equal(await sendAdminAlert({ subject: "s", text: "t" }), true);
+  assert.equal(sent.length, 2);
+});
+
+test("sendAdminAlert resolves false (never throws) when both tries fail", async () => {
+  sendImpl = async () => { throw new Error("down"); };
+  assert.equal(await sendAdminAlert({ subject: "s", text: "t" }), false);
+  assert.equal(sent.length, 2);
 });
 
 test("scrubs email addresses and long digit runs from subject and body, keeps stack frames", async () => {

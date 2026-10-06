@@ -16,6 +16,7 @@
 // the backstop sync (src/lib/membership.js) are unchanged, and a payment made
 // before the account's email is confirmed attaches when it is confirmed.
 const { isEmail } = require("./validation");
+const { isActiveMember, isoDateParis } = require("./memberStatus");
 
 const RENEWAL_WINDOW_DAYS = 30;
 // How long a started join keeps showing the payment step (a refresh while
@@ -47,14 +48,14 @@ async function membershipPageState(pool, session, now = new Date()) {
   if (!u || u.is_disabled) return { ...out, memState: "guest" };
   const expires = u.member_expires_at ? new Date(u.member_expires_at) : null;
   const renewalFrom = new Date(now.getTime() + RENEWAL_WINDOW_DAYS * 24 * 60 * 60 * 1000);
-  const currentMember = u.is_member && (!expires || expires > renewalFrom);
+  const currentMember = isActiveMember(u, now) && (!expires || expires > renewalFrom);
   return {
     ...out,
     memState: currentMember ? "member" : "form",
     memEmail: u.email,
     // ISO date (YYYY-MM-DD): reads the same in both languages, so it never
     // goes stale when the person flips the language toggle.
-    memExpires: u.is_member && expires ? expires.toISOString().slice(0, 10) : null,
+    memExpires: u.is_member && expires ? isoDateParis(expires) : null,
   };
 }
 

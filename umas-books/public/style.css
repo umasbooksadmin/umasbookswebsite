@@ -310,3 +310,9 @@ form.stack select { font-family: 'Cormorant Garamond', Georgia, serif; font-size
 .book-facts dt, .book-facts dd { display: inline; margin: 0; }
 .book-facts dt { font-weight: 600; }
 .clearance-badge { display: inline-block; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #fff; background: #9b1c1c; padding: 2px 8px; border-radius: 3px; vertical-align: middle; }
+
+/* Order receipt (views/cart_return.ejs): print only the summary. */
+@media print {
+  body:has(.order-receipt) > :not(main) { display: none !important; }
+  body:has(.order-receipt) .no-print { display: none !important; }
+}

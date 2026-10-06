@@ -60,6 +60,7 @@ const TABLES = {
   charity_votes: "people",
   charity_ideas: "people",
   membership_payments: "people",
+  email_outbox: "people", // stored copies of sent/queued emails (recipient, subject, body)
   password_reset_tokens: "people",
   email_verification_tokens: "people",
   totp_recovery_codes: "people", // non-admins only: admins keep their codes
@@ -280,6 +281,7 @@ function buildPlan({ includeContent = false, keepMembers = false } = {}, have = 
     del("forum_replies", `${authorGone} OR thread_id IN (SELECT id FROM forum_threads WHERE ${authorGone})`);
     del("forum_threads", authorGone);
     del("membership_payments", `user_id IS NULL OR user_id IN ${NON_ADMIN}`);
+    del("email_outbox");
     del("password_reset_tokens", `user_id IN ${NON_ADMIN}`);
     del("email_verification_tokens", `user_id IN ${NON_ADMIN}`);
     del("totp_recovery_codes", `user_id IN ${NON_ADMIN}`);

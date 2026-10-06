@@ -1,6 +1,6 @@
 const { pool } = require("../db");
 const { generateToken, hashToken } = require("./resetTokens");
-const { sendMail } = require("../mailer");
+const { sendEmail } = require("./outbox");
 const { emailSafeName } = require("./validation");
 const { emailTr } = require("./lang");
 const { safeReturnTo } = require("./returnTo");
@@ -47,7 +47,9 @@ async function sendVerificationEmail(user, baseUrl, { choosePassword = false, re
         `Hi ${name},\n\nConfirm this is your email address (this link expires in 24 hours):\n${link}\n\nIf you didn't create an account at Uma's Books, you can safely ignore this email.`,
         `Bonjour ${name},\n\nVeuillez confirmer qu'il s'agit bien de votre adresse e-mail (ce lien expire dans 24 heures) :\n${link}\n\nSi vous n'avez pas créé de compte sur Uma's Books, vous pouvez ignorer ce message.`
       );
-  await sendMail({
+  await sendEmail({
+    kind: "verification",
+    lang,
     to: user.email,
     subject: membership
       ? tr("Confirm your email to finish becoming a member of Uma's Books", "Confirmez votre adresse e-mail pour finaliser votre adhésion à Uma's Books")
@@ -64,7 +66,9 @@ async function sendVerificationEmail(user, baseUrl, { choosePassword = false, re
 async function sendSignupAttemptEmail(user, baseUrl) {
   const tr = emailTr(user.lang);
   const name = emailSafeName(user.display_name);
-  await sendMail({
+  await sendEmail({
+    kind: "signup_attempt",
+    lang: user.lang,
     to: user.email,
     subject: tr("Someone tried to sign up with your email at Uma's Books", "Quelqu'un a tenté de s'inscrire avec votre adresse e-mail sur Uma's Books"),
     text: tr(

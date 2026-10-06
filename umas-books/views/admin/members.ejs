@@ -22,6 +22,8 @@
   const initials = (name) => (name || '?').split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
 %>
 
+<%- include('../partials/admin_unmatched_payments') %>
+
 <div class="admin-stats">
   <div class="admin-stat tone-blue"><div class="label">Total Members</div><div class="value" style="margin-bottom:0;"><%= stats.total_members %></div></div>
   <div class="admin-stat tone-rose"><div class="label">Admins</div><div class="value" style="margin-bottom:0;"><%= stats.total_admins %></div></div>

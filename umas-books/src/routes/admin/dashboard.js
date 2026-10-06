@@ -3,6 +3,7 @@ const { pool } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
 const { countUnusedImages } = require("../../lib/imageCleanup");
 const { salesStats, attentionCounts } = require("../../lib/dashboardStats");
+const { outboxAttention } = require("../../lib/outboxAttention");
 
 const router = express.Router();
 
@@ -32,13 +33,19 @@ router.get("/admin", requireAdmin, async (req, res) => {
         COUNT(*) FILTER (WHERE created_at >= date_trunc('month', now() - interval '1 month')
                             AND created_at < date_trunc('month', now()))::int AS new_last_month
       FROM users`),
-    pool.query("SELECT COUNT(*)::int AS n FROM users WHERE is_member = TRUE"),
+    pool.query("SELECT COUNT(*)::int AS n FROM users WHERE is_member = TRUE AND (member_expires_at IS NULL OR member_expires_at > now())"),
     // Read-only; a failure here must not take the dashboard down.
     countUnusedImages(pool).catch(() => 0),
   ]);
 
+  const attentionFromMail = await outboxAttention(pool).catch((err) => {
+    console.error("Needs-attention query failed:", err.message);
+    return [];
+  });
+
   res.render("admin/index", {
     active: "overview",
+    outboxAttention: attentionFromMail,
     stats: {
       ...sales,
       inStockCount: books.rows[0].in_stock,

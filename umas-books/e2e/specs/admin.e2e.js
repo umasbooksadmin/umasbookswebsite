@@ -533,3 +533,13 @@ s.test("A40 the Price stickers page loads with the 7-color legend, a CSV downloa
 s.manual("A41 online price check ('Listings found') when PRICING_AI is on", "depends on a setting and a paid lookup service; off by default");
 
 s.manual("A42 (must) Mark as Member gives no end date, and the member's membership page says so", "needs a look at the admin account page and the member's own membership page; the toggle itself is covered by A24");
+s.test("A43 the Email outbox page loads for an admin with its controls", { as: "admin" }, async (ctx) => {
+  await admin(ctx, "/admin/email-outbox");
+  const text = await ctx.text();
+  has(text, /Email outbox/);
+  has(text, /Pending:/);
+  has(text, /Failed:/);
+});
+s.manual("A44 (must) Resend confirmation on a paid order sends a new confirmation email", "needs a paid order and a mailbox to read");
+s.manual("A45 (must) an unmatched membership payment is alerted, listed under Accounts and can be linked to an account", "needs a real test payment on the HelloAsso membership form");
+s.manual("A46 the dashboard Needs attention box shows only when something is wrong", "needs a failed email or an unconfirmed paid order to see it; the rule is covered by an automated test");
