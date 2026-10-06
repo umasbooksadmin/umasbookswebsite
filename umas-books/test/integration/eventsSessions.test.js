@@ -305,3 +305,12 @@ test("/immersion/calendar permanently redirects to /sessions, carrying the query
   assert.equal(q.status, 301);
   assert.equal(q.location, "/sessions?type=dropin&month=2093-06");
 });
+
+test("GET /events: a priced event says it is paid on the day (events are never paid on the site); a free one does not", async () => {
+  const priced = await makeEvent(noon(2092, 3, 10), { title: `Priced ${uniq()}`, price: 8 });
+  const free = await makeEvent(noon(2092, 3, 11), { title: `Free ${uniq()}`, price: null });
+  const en = (await c.get("/events?month=2092-03")).text;
+  assert.match(en, /€8\.00 · Payment on the day/);
+  assert.equal((en.match(/Payment on the day/g) || []).length, 1, "only the priced event says it");
+  assert.ok(en.includes(`/events/${free.id}/signup`) && en.includes(`/events/${priced.id}/signup`));
+});

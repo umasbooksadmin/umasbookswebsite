@@ -95,10 +95,19 @@ test("checkout form (HelloAsso on, book + drop-in seat) is fully translated", as
     await v.post("/cart/add-dropin", { classId });
     pages[lang] = (await v.get("/cart")).text;
   }
-  assert.match(pages.en, /Pay &amp; Buy/);
-  assert.match(pages.fr, /<button class="btn" type="submit">Commander et payer<\/button>/);
-  assert.doesNotMatch(pages.fr, /Pay &amp; Buy/);
+  assert.match(pages.en, /<button class="btn" type="submit">Order with obligation to pay<\/button>/);
+  assert.match(pages.fr, /<button class="btn" type="submit">Commander avec obligation de paiement<\/button>/);
+  assert.doesNotMatch(pages.fr, /Order with obligation to pay/);
   assert.match(pages.fr, /conditions de vente/);
+  // No-returns notice (never a waiver of legal rights), tax line and pickup hours above the order button.
+  assert.ok(pages.en.includes("Used books: no returns or exchanges for a change of mind in the shop. For online orders, your statutory 14-day right of withdrawal and the legal guarantees still apply."));
+  assert.ok(pages.fr.includes("Livres d’occasion\u00a0: pas de reprise ni d’échange pour simple changement d’avis en boutique."));
+  assert.ok(pages.en.includes("Price incl. tax, TVA non applicable") && pages.fr.includes("Prix TTC, TVA non applicable"));
+  assert.ok(pages.en.includes("Pick up within 14 days, Tuesday to Saturday, 10:00–19:00, Rue Peyrolière, Albi."));
+  assert.ok(pages.fr.includes("À retirer sous 14 jours, du mardi au samedi, 10h–19h, rue Peyrolière, Albi."));
+  assert.ok(pages.en.indexOf("no-returns-note") < pages.en.indexOf("Order with obligation to pay</button>"), "the notice sits above the order button");
+  assert.doesNotMatch(pages.en, /waive the|renounce/i);
+  assert.ok(pages.en.includes("a drop-in session is a leisure activity on a fixed date, so the right of withdrawal does not apply to it (art. L.221-28, 12°)"));
   assert.match(pages.fr, /name="waiveWithdrawal"/);
   assert.deepEqual(untranslated(pages.en, pages.fr, ALLOW), []);
 });

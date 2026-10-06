@@ -17,7 +17,7 @@ test("order email states order number, Paris date, payment method, seller identi
   assert.match(t, /06 98 95 67 91/);
   assert.match(t, /admin@umasbooks\.org\nTVA non applicable/, "contact email sits in the seller block");
   assert.match(t, /https:\/\/shop\.test\/terms-of-sale\.html/);
-  assert.match(t, /Rue Peyrolière, 81000 Albi\) during opening hours/, "pickup is at the shop, not the registered office");
+  assert.match(t, /Pick up within 14 days, Tuesday to Saturday, 10:00–19:00, Rue Peyrolière, Albi\./, "pickup is at the shop (with the hours), not the registered office");
   assert.match(t, /- Emma — €12\.50/);
 });
 
@@ -42,9 +42,9 @@ test("French order: French subject and body, prices, date and addresses unchange
   assert.match(t, /Total : 12,50\u00a0€/);
   assert.match(t, /- Emma — 12,50\u00a0€/);
   assert.doesNotMatch(t, /€\d/, "no English-style price in a French email");
-  assert.match(t, /Rue Peyrolière, 81000 Albi\) pendant les heures d’ouverture/);
+  assert.match(t, /À retirer sous 14 jours, du mardi au samedi, 10h–19h, rue Peyrolière, Albi\./);
   assert.match(t, /Conditions de vente et votre droit de rétractation de 14 jours pour les livres : https:\/\/shop\.test\/terms-of-sale\.html/);
-  assert.doesNotMatch(t, /Thanks for your order|Come by Uma's Books|^Hi /m);
+  assert.doesNotMatch(t, /Thanks for your order|Pick up within|^Hi /m);
 });
 
 test("French order keeps the bilingual legal block, withdrawal form and seller identity verbatim", () => {
