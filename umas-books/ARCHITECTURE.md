@@ -467,7 +467,7 @@ actually uses.
   logs a clear message and exits 1.
   Covered by `test/integration/gracefulShutdown.test.js`.
 - **Background jobs** are tracked: `guardJob` records every run in the
-  `job_runs` table (migration 066); three failures in a row send one alert,
+  `job_runs` table (migration 072); three failures in a row send one alert,
   `/admin/diagnostics/jobs` shows the table, and the dashboard flags a job whose
   last success is older than 3x its interval (`src/lib/jobRuns.js`,
   `test/integration/jobRuns.test.js`).

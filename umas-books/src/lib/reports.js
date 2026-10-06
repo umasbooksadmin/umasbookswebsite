@@ -536,7 +536,7 @@ const ACCOUNTS_CSV_LIMIT = 50000;
 // 058), matched to the account with that email. The first version matched every order
 // to every account with a per-user EXISTS(... lower(buyer_email) = lower(email)):
 // 10 s for 5,000 accounts, headed for the 30 s statement timeout at about 10,000.
-// Needs idx_orders_user (058), idx_orders_legacy_buyer_email and idx_users_lower_email (067).
+// Needs idx_orders_user (058), idx_orders_legacy_buyer_email and idx_users_lower_email (073).
 const PAID_ORDERS_BY_ACCOUNT_SQL = `
   SELECT acct.uid, COUNT(*) AS n, SUM(acct.total_amount) AS spent
   FROM (

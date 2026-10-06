@@ -896,7 +896,7 @@ flowchart LR
 | Test alert | Actions | every Monday + manual | sends one email so a broken alert channel is noticed within a week |
 | Backup freshness check | Actions | 09:00 UTC daily + manual | emails if the newest nightly dump in Backblaze is older than 36 hours, empty, missing, or Backblaze cannot be reached; after the 3rd of the month also if the newest `monthly/` copy is over 35 days old (§12) |
 
-**Job tracking** (`lib/jobRuns.js`, table `job_runs`, migration 066). A job used
+**Job tracking** (`lib/jobRuns.js`, table `job_runs`, migration 072). A job used
 to fail with only a `console.error` that nobody read. Now `guardJob(name, fn,
 { pool, intervalMs })` records `last_run_at`, `last_success_at`,
 `consecutive_failures` and `last_error` (scrubbed of emails and long digit

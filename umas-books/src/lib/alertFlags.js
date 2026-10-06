@@ -1,5 +1,5 @@
 // "Send this alert at most once per period", remembered in the database
-// (table alert_flags, migration 066) so it holds across restarts and across
+// (table alert_flags, migration 072) so it holds across restarts and across
 // app instances. Used by:
 //   - the launch-guard alerts (lib/env.js sendLaunchAlerts): once per 24 h, not
 //     once per deploy/restart (a persistent banner on the admin pages shows

@@ -35,7 +35,7 @@ test("documentation-only changes: docs_only, no smoke crawl", () => {
 });
 
 test("code, views, public, migrations, scripts or marketing pages: smoke crawl runs", () => {
-  for (const f of ["umas-books/src/index.js", "umas-books/views/cart.ejs", "umas-books/public/style.css", "umas-books/migrations/066_x.sql",
+  for (const f of ["umas-books/src/index.js", "umas-books/views/cart.ejs", "umas-books/public/style.css", "umas-books/migrations/072_x.sql",
     "umas-books/scripts/sitemap/crawler.js", "umas-books/package-lock.json", "index.html", "assets/site.js", ".github/workflows/ci.yml", "render.yaml"]) {
     assert.deepEqual(decide([f]), { docs_only: "false", smoke_needed: "true" }, f);
   }
