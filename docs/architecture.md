@@ -719,7 +719,7 @@ touched by the sync or the expiry sweep.
   already in the past grants nothing.
 - **Unmatched payments**: a payer email with no account, or an account whose
   email is not confirmed, is stored in `membership_payments` with
-  `user_id NULL` and `unmatched_at` set (migration 061). The admin gets one
+  `user_id NULL` and `unmatched_at` set (migration 063). The admin gets one
   alert per hour ("Membership payment from <email> matches no confirmed
   account"), `/admin/members` shows "Unmatched membership payments", and
   **Link to account** (search an account by email or name) attaches the payment

@@ -724,7 +724,7 @@ statuses).
   also reconciles recently closed orders; a paid-but-unfulfillable one
   shows "we received your payment" rather than "nothing was charged".
 
-### Email outbox (`src/lib/outbox.js`, migration 059)
+### Email outbox (`src/lib/outbox.js`, migration 062)
 
 All customer emails are **stored in `email_outbox` first**, then sent
 (`sendEmail`), so a Gmail outage, rate limit (~2000 messages/day) or revoked
@@ -744,7 +744,7 @@ Points for maintainers:
   (`alertFailedEmails`, sent directly through `errorAlert.sendAdminAlert` with
   one retry). Admin alert emails (`alertOnError`) stay on the direct path with
   the same retry-once.
-- `orders.confirmation_sent_at` (migration 059) is set when a confirmation went
+- `orders.confirmation_sent_at` (migration 062) is set when a confirmation went
   out; the dashboard flags paid orders without it after 30 minutes. The admin
   routes live in `routes/admin/emailOutbox.js`: `/admin/email-outbox` and
   `POST /admin/orders/:id/resend-confirmation` (button from the partial
@@ -753,7 +753,7 @@ Points for maintainers:
 - One-time-link kinds (`TOKEN_KINDS`) lose their body when sent.
 - The goodbye email on self-deletion bypasses the outbox on purpose.
 
-### Membership payments (`src/lib/membership.js`, migration 061)
+### Membership payments (`src/lib/membership.js`, migration 063)
 
 `expiryFromPayments` chains payments (`max(paid_at, previous end) + 365 d`);
 only Authorized orders over 0 EUR on `HELLOASSO_MEMBERSHIP_FORM_SLUG` (when
