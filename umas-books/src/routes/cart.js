@@ -229,7 +229,12 @@ router.post("/cart/remove", async (req, res) => {
 // Most unpaid orders one email address, or one IP address, can have open
 // at once. Each one locks its copies for CART_HOLD_TTL_MINUTES, so without
 // this a script could lock the whole shelf without ever paying.
+// Per account (the order email is always the logged-in account's) the cap is
+// tight; per IP it is looser, because a household, a school or the shop's own
+// wifi legitimately shares one public IP, and a tight cap would lock real
+// customers out of checkout while the hold is open.
 const MAX_PENDING_ORDERS = 2;
+const MAX_PENDING_ORDERS_PER_IP = 10;
 
 // Run the checkout transaction, trying once more if Postgres picks it as
 // the loser of a deadlock (40P01): two overlapping carts that touch the
@@ -321,14 +326,14 @@ router.post("/cart/checkout", checkoutLimiter, async (req, res) => {
 
       const { rows: pendingRows } = await client.query(
         `SELECT
-           COUNT(*) FILTER (WHERE lower(buyer_email) = $1)::int AS by_email,
+           COUNT(*) FILTER (WHERE lower(buyer_email) = $1 OR user_id = $4)::int AS by_email,
            COUNT(*) FILTER (WHERE client_ip = $2)::int AS by_ip
          FROM orders
          WHERE status = 'pending' AND created_at > now() - make_interval(mins => $3)
-           AND (lower(buyer_email) = $1 OR client_ip = $2)`,
-        [email, clientIp, CART_HOLD_TTL_MINUTES]
+           AND (lower(buyer_email) = $1 OR user_id = $4 OR client_ip = $2)`,
+        [email, clientIp, CART_HOLD_TTL_MINUTES, account.user.id]
       );
-      if (pendingRows[0].by_email >= MAX_PENDING_ORDERS || pendingRows[0].by_ip >= MAX_PENDING_ORDERS) {
+      if (pendingRows[0].by_email >= MAX_PENDING_ORDERS || pendingRows[0].by_ip >= MAX_PENDING_ORDERS_PER_IP) {
         throw new Error("TOO_MANY_PENDING");
       }
 

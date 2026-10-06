@@ -265,7 +265,7 @@ rather than by a numbered migration), grouped by what they belong to:
 - **Account pre-hijack defence** (migration 055, `users.first_verification_pending`,
   set only by `POST /signup`): signup collects **no password** (the account gets
   a random unusable hash and cannot log in). The emailed link
-  (`GET /verify-email/:token`) verifies the email, bumps `password_changed_at`
+  (`GET /verify-email/:token` shows a "Confirm my email" button; its `POST` does the work, because mail scanners open GET links) verifies the email, bumps `password_changed_at`
   and redirects to `/reset-password/:token?confirmed=1`, a fresh single-use
   token, where the person chooses their password (policy and breach check
   apply); they then land on `/login?reset=confirmed`. So only the mailbox owner
@@ -342,6 +342,8 @@ src/` is the ground truth if this list ever drifts):
 | `PRICING_AI_DAILY_MAX` | no (defaults 150) | most AI market lookups per day, counted from the database so a restart cannot reset it; `0` switches lookups off |
 | `HELLOASSO_CLIENT_ID` / `HELLOASSO_CLIENT_SECRET` / `HELLOASSO_ORG_SLUG` | no (checkout shows "not set up yet" without them) | HelloAsso Checkout API credentials |
 | `HELLOASSO_API_BASE` | no (defaults to production) | set to HelloAsso's sandbox URL for testing |
+| `TRUST_PROXY_HOPS` | no (default 2 in production, 1 elsewhere) | integer 1 to 5, number of reverse proxies in front of the app (Cloudflare + Render edge = 2); decides `req.ip` (`src/lib/trustProxy.js`). Check on `/admin/diagnostics/client-ip` |
+| `APP_BASE_URL` | yes once preview is off | `https://umasbooks.org`; the only base URL used on a live site, and other Hosts are redirected to it (`src/middleware/canonicalHost.js`) |
 | `PREVIEW_MODE` | no (off when unset) | `true` or `1` (any case) turns on [preview mode](#preview-mode): coming-soon banner, payments off, search engines kept out. Set in the Render dashboard, not in `render.yaml` |
 
 CI (`.github/workflows/ci.yml`) has its own separate set of throwaway
@@ -370,6 +372,11 @@ actually uses.
   - the admin header shows a red reminder that preview mode is on.
 - To launch, delete the variable in Render: see the runbook, "Launching: turn
   preview mode off".
+- **Launch guards** (preview off, `src/lib/env.js`): warn at boot and send one
+  alert email when `APP_BASE_URL` is missing or not https, `HELLOASSO_API_BASE`
+  is the sandbox, or the HelloAsso credentials are missing (`CONTACT_TO` missing
+  only warns); the site keeps running. Sandbox also shows a red banner on every
+  admin page (`res.locals.helloassoSandbox`, `lib/preview.js`).
 
 ## Process lifecycle and operations
 

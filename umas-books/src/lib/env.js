@@ -17,6 +17,7 @@
 // silently re-key every admin's two-step secret if SESSION_SECRET is ever
 // rotated. Outside production that fallback is kept for convenience.
 const { isPreviewMode } = require("./preview");
+const { usesSandbox } = require("./helloassoHosts");
 const REQUIRED = ["DATABASE_URL", "SESSION_SECRET", "TOTP_ENCRYPTION_KEY"];
 
 const OPTIONAL_GROUPS = [
@@ -47,16 +48,48 @@ function validateEnv(env = process.env) {
   if (!isPreviewMode(env) && (!isSet(env, "GMAIL_USER") || !isSet(env, "GMAIL_APP_PASSWORD"))) {
     warnings.push("Gmail is not configured and preview mode is off - error alerts to the admin are DISABLED on a live site. Set GMAIL_USER and GMAIL_APP_PASSWORD.");
   }
-  if (!isSet(env, "APP_BASE_URL") && !isSet(env, "RENDER_EXTERNAL_URL")) {
-    warnings.push("APP_BASE_URL / RENDER_EXTERNAL_URL not set - emailed links and payment return URLs will fail in production.");
+  // Launch guards (preview OFF = the site is live): things that are harmless
+  // while the site is a preview but wrong for real members and real payments.
+  // None of them stops the boot (a crash would take the whole site down);
+  // each is a loud log line plus, for the serious ones, ONE alert email per
+  // boot (src/index.js sends `alerts` once the server is listening).
+  const alerts = [];
+  if (isPreviewMode(env)) {
+    if (!isSet(env, "APP_BASE_URL") && !isSet(env, "RENDER_EXTERNAL_URL")) {
+      warnings.push("APP_BASE_URL / RENDER_EXTERNAL_URL not set - emailed links and payment return URLs will fail in production.");
+    }
+  } else {
+    const base = isSet(env, "APP_BASE_URL") ? env.APP_BASE_URL.trim() : "";
+    if (!base) {
+      const msg = "APP_BASE_URL is not set and preview mode is off - emailed links and payment return URLs have no canonical address (RENDER_EXTERNAL_URL is deliberately NOT used on a live site). Set APP_BASE_URL=https://umasbooks.org in Render > Environment.";
+      warnings.push(msg);
+      alerts.push({ label: "APP_BASE_URL missing", message: msg });
+    } else if (!/^https:\/\/[^/\s]+/i.test(base)) {
+      const msg = `APP_BASE_URL is ${base}, which is not an https:// address - emailed links and payment return URLs must be https on a live site.`;
+      warnings.push(msg);
+      alerts.push({ label: "APP_BASE_URL missing (not https)", message: msg });
+    }
+    if (usesSandbox(env.HELLOASSO_API_BASE)) {
+      const msg = "HelloAsso is still in SANDBOX mode: real payments will not work. HELLOASSO_API_BASE points at the HelloAsso sandbox while preview mode is off. Remove it (or set the production API base) and use the production HelloAsso credentials in Render > Environment.";
+      warnings.push(msg);
+      alerts.push({ label: "HelloAsso is still in SANDBOX mode: real payments will not work", message: msg });
+    }
+    const missingHa = OPTIONAL_GROUPS[1].vars.filter((name) => !isSet(env, name));
+    if (missingHa.length > 0) {
+      const msg = `${missingHa.join(", ")} not set and preview mode is off - online payment and membership reconciliation do not work on the live site.`;
+      alerts.push({ label: "HelloAsso credentials missing: payments are disabled", message: msg });
+    }
+    if (!isSet(env, "CONTACT_TO")) {
+      warnings.push("CONTACT_TO is not set and preview mode is off - contact-form messages and error alerts go to the built-in default address (admin@umasbooks.org). Set CONTACT_TO if that is not the right inbox.");
+    }
   }
-  return { missing, warnings };
+  return { missing, warnings, alerts };
 }
 
 // Production only. Logs warnings; on missing required vars logs one clear
 // error and exits 1 (via the injectable `exit`, so it is unit-testable).
 function checkEnv({ env = process.env, log = console, exit = process.exit } = {}) {
-  if (env.NODE_ENV !== "production") return { missing: [], warnings: [] };
+  if (env.NODE_ENV !== "production") return { missing: [], warnings: [], alerts: [] };
   const result = validateEnv(env);
   for (const w of result.warnings) log.warn(`[env] WARNING: ${w}`);
   if (result.missing.length > 0) {
@@ -66,4 +99,10 @@ function checkEnv({ env = process.env, log = console, exit = process.exit } = {}
   return result;
 }
 
-module.exports = { validateEnv, checkEnv, REQUIRED, OPTIONAL_GROUPS };
+// Sends each launch-guard alert once. `send` is alertOnError in production
+// (force: never swallowed by the error-alert throttle); injectable for tests.
+function sendLaunchAlerts(alerts, send) {
+  for (const a of alerts || []) send(a.label, a.message, { force: true });
+}
+
+module.exports = { sendLaunchAlerts, validateEnv, checkEnv, REQUIRED, OPTIONAL_GROUPS };
