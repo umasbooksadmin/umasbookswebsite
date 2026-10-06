@@ -1,4 +1,5 @@
 const express = require("express");
+const { localCover } = require("../lib/coverStore");
 const { pool, withTransaction } = require("../db");
 const helloasso = require("../lib/helloasso");
 const { releaseCartHold, reconcileOrder, isRecentlyClosed, persistCheckoutIntentId, CART_HOLD_TTL_MINUTES } = require("../lib/cart");
@@ -106,7 +107,7 @@ async function loadCartItems(cart) {
       if (!r) continue; // no longer in stock — dropped, same as before
       items.push({
         kind: "book", lineId: line.lineId, copyId: r.id,
-        title: r.title, authors: r.authors, coverUrl: r.cover_url, price: Number(r.price), condition: r.condition,
+        title: r.title, authors: r.authors, coverUrl: localCover(r.cover_url), price: Number(r.price), condition: r.condition,
       });
     }
   }

@@ -32,7 +32,7 @@
     }
     list.innerHTML = books.map(function (b) {
       var cover = b.coverUrl
-        ? '<img src="' + esc(b.coverUrl) + '" alt="" class="book-card-cover">'
+        ? '<img src="' + esc(b.coverUrl) + '" alt="" class="book-card-cover" width="200" height="300" loading="lazy" decoding="async" data-cover>'
         : '<div class="book-card-cover book-thumb-placeholder">' + t("No cover", "Pas de couverture") + "</div>";
       var price = b.price != null ? '<span class="book-card-price">' + euro(b.price) + "</span>" : "";
       var availability = b.inStockCount > 0

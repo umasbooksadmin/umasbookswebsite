@@ -39,7 +39,7 @@
       <div class="cart-item">
         <% if (i.kind === 'book') { %>
           <% if (i.coverUrl) { %>
-            <img src="<%= i.coverUrl %>" alt="" class="cart-item-cover">
+            <img src="<%= i.coverUrl %>" alt="" class="cart-item-cover" width="48" height="72" loading="lazy" decoding="async" data-cover>
           <% } else { %>
             <div class="cart-item-cover book-thumb-placeholder"><%= tr('No cover', 'Pas de couverture') %></div>
           <% } %>

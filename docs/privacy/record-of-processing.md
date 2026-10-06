@@ -7,9 +7,10 @@
 - Siège: 5 rue Hippolyte Savary, 81000 Albi
 - Contact: admin@umasbooks.org
 - Represented by: the President
-- Data protection officer (DPO): none appointed (not required for a small association; no large-scale monitoring or sensitive data)
+- Data protection officer (DPO): **no DPO required.** GDPR art. 37 only requires one for public bodies, large-scale regular monitoring of people, or large-scale processing of sensitive data; none of these applies (a small association; no tracking; no health data is collected, and the forms tell people not to send any).
+- DPIA screening (GDPR art. 35): **no DPIA required.** One-line screening on 6 October 2026: none of the CNIL high-risk criteria combine here (no large scale, no profiling or scoring, no sensitive data on purpose, no systematic monitoring, no data matching); children's names and birth dates reach us only as an email from their parent or guardian for a weekly activity. Re-screen if a feature starts storing children's data or any health data.
 
-**Last reviewed / Dernière révision:** 4 October 2026, by Sharon Bjeletich (confirmed by the maintainer).
+**Last reviewed / Dernière révision:** 6 October 2026 (sections 6, 8 and the new Cloudflare, cookies and covers notes; the rest was confirmed by Sharon Bjeletich on 4 October 2026).
 
 **Last checked against the code:** 4 October 2026 (every row below was compared with `umas-books/` on that date; the reservation, image-cleanup, backup-recipient, font and AI rows were corrected on that date).
 
@@ -89,7 +90,7 @@ Inventory locations (`book_copies.location`, the shelf code where a physical cop
 | Retention | **12 months after the event or session date** (`signupMonths`). **Automated** (daily). Also deleted on erasure. |
 | Security | Rosters are in the admin area |
 
-The weekly English Immersion pre-registration form on the website only opens the person's own email app (a `mailto:` link). Nothing is stored by the website; the email arrives in our Gmail inbox (see section 6).
+The weekly English Immersion pre-registration form on the website (`POST /pre-registration`, `src/routes/marketingForms.js`) sends **one email** to admin@umasbooks.org (or `CONTACT_TO`) with the child's first and last name, date of birth, session, preferred days and times, the parent/guardian's name, email and phone, and optional level and notes. The parent or legal guardian must tick a statement that they are the child's parent or guardian and agree to be contacted; the form tells them not to enter health information. The only copy in the database is the email outbox row (section 6b: recipient, subject and text, so a failed send is retried; erased after 30 days, 90 if it could not be sent). The email arrives in our Gmail inbox and follows the 12-month rule in section 6.
 
 ## 5. Membership via HelloAsso / Adhésions
 
@@ -109,12 +110,12 @@ The weekly English Immersion pre-registration form on the website only opens the
 | | |
 |---|---|
 | Purpose | Answer questions; organise activities and volunteering; pre-registrations |
-| Data | Whatever the person writes: name, email, phone, message |
+| Data | Whatever the person writes: name, email, phone, message. Pre-registration: also a child's name and date of birth, session and availability (given by the parent/guardian). The forms forbid health information. |
 | People | Anyone writing to us |
 | Legal basis | Their request; legitimate interest in answering |
-| Recipients / processors | Google Workspace/Gmail only. The contact form sends an email to admin@umasbooks.org (or `CONTACT_TO`). The message passes through the email outbox (`email_outbox`, section 6b) so a failed send is retried; the copy in the database is erased after 30 days (`outboxSentDays`). The sender's address is the Reply-To. Other forms open the person's own mail app. |
+| Recipients / processors | Google Workspace/Gmail only. The contact form, the volunteer sign-up (`POST /volunteer-signup`) and the pre-registration (`POST /pre-registration`) each send an email to admin@umasbooks.org (or `CONTACT_TO`). Each form has a CSRF token, a honeypot, a per-IP rate limit (5 per 15 minutes) and server-side validation, and no personal data is written to the logs. The messages pass through the email outbox (`email_outbox`, section 6b) so a failed send is retried; the copy in the database is erased after 30 days (`outboxSentDays`). **Nothing else is stored in the database** (checked in `src/routes/contact.js` and `src/routes/marketingForms.js`). The sender's address is the Reply-To. |
 | Transfers outside EU | Google: US company; check the DPA and its transfer clauses (see checklist) |
-| Retention | The Gmail inbox (admin@umasbooks.org) is the only place they are kept. Emails received through the contact form are kept **12 months**, then deleted, unless a conversation is still ongoing (decided by the association; the public policy says the same). **NOT AUTOMATED:** the inbox is never cleaned by code; the yearly manual cleanup is in `docs/runbook.md`, section e) Yearly calendar. Other messages emailed to us (volunteer and pre-registration forms) are kept until the person asks us to delete them. |
+| Retention | The Gmail inbox (admin@umasbooks.org) is the only place they are kept. Emails received through the contact form, the volunteer sign-up and the pre-registration are kept **12 months** in the mailbox, then deleted, unless a conversation is still ongoing (decided by the association; the public policy says the same). **NOT AUTOMATED:** the inbox is never cleaned by code; the yearly manual cleanup is in `docs/runbook.md`, section e) Yearly calendar, and covers all three forms. (This replaces the old rule "until the person asks us to delete them", which did not meet the storage-limitation principle.) Each pre-registration and volunteer email ends with a reminder line giving the 12-month rule. |
 | Security | 2-step verification is required to create the app password the website uses to send mail (`README.md`, "Email"). Confirmed by Sharon Bjeletich on 4 October 2026: 2-step verification is on for every Google account that can open the admin@umasbooks.org inbox, and only Sharon Bjeletich has access to that inbox. |
 
 ## 6b. Email outbox / File d'attente des e-mails
@@ -148,13 +149,19 @@ The weekly English Immersion pre-registration form on the website only opens the
 | | |
 |---|---|
 | Purpose | Know when the site breaks; keep it running; limit abuse |
-| Data | Server logs at Render (technical details, IP addresses as seen by the host). Application log lines do not contain emails (see `ARCHITECTURE.md`). Request rate limits count requests per IP address in the application's memory only (lost at each restart, never written to the database). Error alert emails to admin@umasbooks.org contain an error message and technical stack trace, at most one every 15 minutes. |
+| Data | Server logs at Render (technical details, IP addresses as seen by the host). Application log lines do not contain emails or form contents (see `ARCHITECTURE.md`; the form routes log only an error message). Request rate limits count requests per IP address in the application's memory only (lost at each restart, never written to the database). Error alert emails to admin@umasbooks.org contain an error message and technical stack trace, at most one every 15 minutes. |
 | People | Guests and members (technical data only) |
 | Legal basis | Legitimate interest (security and reliability) |
-| Recipients / processors | Render (logs); Google Workspace/Gmail (alert emails) |
+| Recipients / processors | Render (logs); **Cloudflare** (see below); Google Workspace/Gmail (alert emails) |
 | Transfers outside EU | Render logs: the web service and database are in the Frankfurt region (`render.yaml`, `region: frankfurt`). Alert emails: Google. |
 | Retention | Policy says "a few weeks at most". **NOT controlled by our code.** It depends on the Render plan: the workspace is on the Pro plan, where platform logs are kept **14 days** (confirmed by Sharon Bjeletich on 4 October 2026; not visible in the code). Alert emails sit in the inbox until deleted (**NOT AUTOMATED**). |
 | Security | Logs are only available to people with Render access |
+
+**Cloudflare.** The website is served through Cloudflare, the content-delivery and security network Render places in front of its web services. Every request passes through it, so Cloudflare sees visitors' IP addresses, the pages they ask for and the content relayed to our host (including form contents, over HTTPS between the visitor and Cloudflare). We have no separate Cloudflare account and do not configure it; it is Render's sub-processor and is named in the public privacy policy as a recipient (US company: transfers rely on the standard contractual clauses / EU-US Data Privacy Framework, see `processors-checklist.md`).
+
+**Cookies and browser storage (all strictly necessary, no consent banner).** `umasbooks.sid`: session cookie, up to 30 days (login, cart, CSRF token). `umasbooks_lang`: language cookie, 1 year, stores only `en` or `fr` (`assets/site.js`). localStorage: `umasbooks.lang` (language) and `umasbooks.favorites` (favorite book ids of a visitor who is not logged in); these never leave the device. The HelloAsso membership form is an iframe that is created only after the visitor clicks "Show the HelloAsso form" (`assets/membership-widget.js`), so HelloAsso receives nothing (IP address, cookies) before that click; HelloAsso may set its own payment cookies afterwards.
+
+**Book covers are served from our own server.** A cover is downloaded once by our server from Open Library / the Internet Archive when a book is added (and by a gentle background job for older books: 20 every 5 minutes, at most 3 attempts a week for a cover that cannot be fetched), re-encoded (at most 600 px wide, metadata removed) and stored in the `images` table (`src/lib/coverStore.js`). Pages only use `/img/<hash>.jpg`; the Content-Security-Policy `img-src` is `'self' data:`, so visitors' browsers never contact Open Library or the Internet Archive and their IP addresses never reach them. Those two services only receive book details (title, author, ISBN) and cover requests from our server: no personal data.
 
 Uploaded images (book covers, blog, announcement and charity photos) are stored in the database table `images` and are not personal data. Images no longer used by anything are deleted automatically once they have been unused for at least 7 days (`src/lib/imageCleanup.js`, daily at start-up and every 24 hours; the list of columns that can hold an image is `IMAGE_REFERENCES`). They remain in older backups for the backup periods in section 9.
 

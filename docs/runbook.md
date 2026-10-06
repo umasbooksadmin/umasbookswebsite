@@ -262,9 +262,14 @@ two people at the mail provider.
   when they run out the backups stop. GitHub > your account/organisation >
   **Settings > Billing and plans** > set a spending limit / budget alert, and
   check usage once a quarter.
-- **Contact-form emails:** delete contact-form emails older than 12 months
-  from the admin@umasbooks.org mailbox (Gmail search: `older_than:12m`, review,
-  then delete). Keep any conversation that is still ongoing. This is what the
+- **Contact, volunteer and pre-registration emails:** delete the emails sent
+  by the website's contact form, volunteer sign-up and English Immersion
+  pre-registration (subjects start with `Website contact:`, `Website volunteer
+  sign-up` and `Website pre-registration:`) that are older than 12 months from
+  the admin@umasbooks.org mailbox (Gmail search:
+  `subject:(Website) older_than:12m`, review, then delete; also empty the Trash).
+  Keep any conversation that is still ongoing. The pre-registration emails hold
+  a child's name and date of birth, so do not skip them. This is what the
   privacy policy promises, and nothing does it automatically.
 - Also once a year: confirm the backup restore test emails are arriving, review
   Dependabot pull requests that have been waiting, and check the Backblaze

@@ -77,6 +77,18 @@ test("the footer label is translated (English and French)", async () => {
   assert.match(siteJs, /"foot\.legal": "Mentions légales"/);
 });
 
+test("the cookie sentence names both strictly necessary cookies (session and language) and the click-to-load HelloAsso form, EN and FR", async () => {
+  const en = (await get("/mentions-legales.html")).text;
+  assert.match(en, /two strictly necessary cookies/);
+  assert.match(en, /<code>umasbooks_lang<\/code>, kept for one year/);
+  assert.match(en, /after you click “Show the HelloAsso form”/);
+  assert.doesNotMatch(en, /only uses a strictly necessary session cookie/);
+  const fr = await (await fetch(`${app.base}/mentions-legales.html`, { headers: { cookie: "umasbooks_lang=fr" } })).text();
+  assert.match(fr, /deux cookies strictement nécessaires\u00a0: un cookie de session/);
+  assert.match(fr, /<code>umasbooks_lang<\/code>, conservé un an/);
+  assert.match(fr, /«\u00a0Afficher le formulaire HelloAsso\u00a0»/);
+});
+
 test("the legal notice says the host's phone number is not published, and names the DSA point of contact (English and French)", async () => {
   const en = (await get("/mentions-legales.html")).text;
   assert.ok(en.includes("phone number not published by the host"));

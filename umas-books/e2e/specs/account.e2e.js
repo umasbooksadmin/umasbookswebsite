@@ -544,10 +544,23 @@ async function membershipPage(ctx) {
 s.test("AC51 (must) the membership page shows an account holder only the payment form, with the account's email, and no sign-up form", { as: "account" }, async (ctx) => {
   await membershipPage(ctx);
   assert.equal(await ctx.page.$("form[action='/membership/join']"), null, "no sign-up form for a logged-in account");
-  assert.ok(await ctx.page.$("#haWidget"), "the payment form");
+  assert.ok(await ctx.page.$("#haWidgetHolder"), "the payment form (click to load)");
   const note = await ctx.page.$eval("#memAccountEmail", (e) => e.innerText);
   assert.ok(note.includes(accountCreds().email), "the account's own email is shown");
   assert.ok(await ctx.page.$("form[action='/membership/check'] button"), "the Check my membership button");
+});
+
+s.test("AC55 (must) the HelloAsso form only loads after the account holder presses Show the HelloAsso form", { as: "account" }, async (ctx) => {
+  await membershipPage(ctx);
+  assert.equal(await ctx.page.$("#haWidget"), null, "no HelloAsso frame before the click (nothing is requested from HelloAsso)");
+  assert.equal(await ctx.page.$("iframe"), null);
+  assert.equal(await ctx.page.$eval("#haShow", (b) => b.textContent.trim()), "Show the HelloAsso form");
+  await ctx.page.click("#haShow");
+  await ctx.page.waitForSelector("iframe#haWidget");
+  const src = await ctx.page.$eval("#haWidget", (f) => f.getAttribute("src"));
+  assert.match(src, /^https:\/\/www\.helloasso\.com\//);
+  assert.ok(await ctx.page.$eval("#haWidget", (f) => f.getAttribute("title")), "the frame has a title");
+  assert.equal(await ctx.page.$eval("#haGate", (g) => g.hidden), true, "the button is gone once the form is shown");
 });
 
 s.test("AC52 a membership sign-up request from a logged-in account does nothing", { as: "account" }, async (ctx) => {

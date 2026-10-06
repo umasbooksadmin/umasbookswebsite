@@ -24,6 +24,7 @@ const { processOutbox } = require("./lib/outbox");
 const { alertUnmatchedPayments } = require("./lib/membership");
 const { drainAwards } = require("./lib/awards");
 const { purgeUnusedImages } = require("./lib/imageCleanup");
+const { backfillCovers } = require("./lib/coverStore");
 const { purgeExpiredPersonalData } = require("./lib/privacy");
 const { membershipPageState } = require("./lib/membershipPage");
 const { expireStaleMemberships, reconcileRecentMemberships } = require("./lib/membership");
@@ -37,6 +38,7 @@ const seoRoutes = require("./routes/seo");
 const { MARKETING_PAGES, setMarketingSeoLocals } = seoRoutes;
 
 const { renderMarketing } = require("./lib/pageDictionary");
+const { buildMarketingCsp } = require("./lib/marketingCsp");
 const authRoutes = require("./routes/auth");
 const twoFactorRoutes = require("./routes/twoFactor");
 const dashboardRoutes = require("./routes/dashboard");
@@ -51,6 +53,7 @@ const blogRoutes = require("./routes/blog");
 const sessionsRoutes = require("./routes/sessions");
 const booksRoutes = require("./routes/books");
 const contactRoutes = require("./routes/contact");
+const marketingFormRoutes = require("./routes/marketingForms");
 const bookRequestRoutes = require("./routes/bookRequests");
 const cartRoutes = require("./routes/cart");
 const helloassoWebhookRoutes = require("./routes/helloassoWebhook");
@@ -124,7 +127,9 @@ app.use(
         scriptSrc: ["'self'"],
         styleSrc: ["'self'", "'unsafe-inline'"],
         fontSrc: ["'self'"],
-        imgSrc: ["'self'", "data:", "https://covers.openlibrary.org", "https://archive.org", "https://*.archive.org"],
+        // Book covers are copied to our own server (lib/coverStore.js), so no
+        // third-party image host is listed: visitors' browsers never call one.
+        imgSrc: ["'self'", "data:"],
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
         formAction: formActionSources,
@@ -144,7 +149,7 @@ app.use(express.urlencoded({ extended: false }));
 // already defend themselves with [].concat(...), so they're left alone;
 // everything else collapses to its first value, the same as a normal
 // single-submission form would send.
-const MULTI_VALUE_BODY_FIELDS = new Set(["optionIds", "ids"]);
+const MULTI_VALUE_BODY_FIELDS = new Set(["optionIds", "ids", "days", "times"]); // days/times: the pre-registration form
 app.use((req, res, next) => {
   if (req.body && typeof req.body === "object") {
     for (const key of Object.keys(req.body)) {
@@ -289,22 +294,7 @@ app.get("/api/session", (req, res) => {
 // carousel) predate this app and aren't nonce-tagged, so these routes
 // carry their own relaxed CSP instead of the strict app-wide one above;
 // the Members Area's own routes keep the stricter policy untouched.
-const marketingCsp = [
-  "default-src 'self'",
-  "script-src 'self' 'unsafe-inline'",
-  "style-src 'self' 'unsafe-inline'",
-  "font-src 'self'",
-  "img-src 'self' data: https://covers.openlibrary.org https://archive.org https://*.archive.org",
-  "object-src 'none'",
-  "base-uri 'self'",
-  `form-action ${formActionSources.join(" ")}`,
-  "frame-ancestors 'none'",
-  // The HelloAsso membership widget iframe (views/marketing/membership.ejs)
-  // — without a frame-src, default-src 'self' blocks it and people see an
-  // empty box. The widget page itself is on www.helloasso.com; the payment
-  // hub (paymenthub.helloassopay.com) loads inside that frame, not in ours.
-  "frame-src https://www.helloasso.com",
-].join("; ");
+const marketingCsp = buildMarketingCsp(formActionSources);
 
 
 app.get("/", (req, res, next) => {
@@ -337,6 +327,11 @@ MARKETING_PAGES.forEach((file) => {
   app.get("/" + file, async (req, res, next) => {
     res.set("Content-Security-Policy", marketingCsp);
     setMarketingSeoLocals(req, res, "/" + file);
+    if (marketingFormRoutes.FORM_PAGES.includes("/" + file)) {
+      // Server-side forms (routes/marketingForms.js): the page carries a CSRF token, so no shared cache.
+      marketingFormRoutes.prepareFormPage(res);
+      res.locals.form = { sent: req.query.sent === "1" };
+    }
     if (file === "membership.html") {
       // Personal (the account's email, membership end date): never cached.
       res.set("Cache-Control", "private, no-store");
@@ -361,6 +356,7 @@ app.use(sessionsRoutes);
 app.use(booksRoutes);
 app.use(cartRoutes);
 app.use(contactRoutes);
+app.use(marketingFormRoutes);
 app.use(bookRequestRoutes);
 app.use(adminRoutes);
 
@@ -521,6 +517,26 @@ const runAwardsDrain = guardJob("Awards check", async () => {
 });
 const awardsTimer = setInterval(runAwardsDrain, 2 * 60 * 1000);
 
+// Book covers on our own server (lib/coverStore.js): every 5 minutes copy up to 20
+// covers from their Open Library/Internet Archive source address into the image
+// store (books on the shelves first), one at a time with a pause between, each
+// with a time and size limit; a cover that keeps failing is tried at most 3
+// times a week. New books are copied when they are added; this catches the books
+// that existed before, and any download that failed. First tick after one minute
+// (not at boot, so a restart-heavy host never hammers anyone); off in tests
+// (COVER_BACKFILL=off) so they never reach the network.
+let coverTimer = null;
+let coverFirstTimer = null;
+if (process.env.COVER_BACKFILL !== "off") {
+  const runCoverBackfill = guardJob("Cover backfill", async () => {
+    const { processed, stored, failed } = await backfillCovers(pool);
+    if (processed) console.log(`Cover backfill: ${stored} stored, ${failed} failed, ${processed} tried.`);
+  });
+  coverFirstTimer = setTimeout(runCoverBackfill, 60 * 1000);
+  coverFirstTimer.unref();
+  coverTimer = setInterval(runCoverBackfill, 5 * 60 * 1000);
+}
+
 // Graceful shutdown. Render sends SIGTERM on every deploy and spin-down;
 // without a handler the process dies mid-request (an in-flight HelloAsso
 // webhook or checkout would be cut off). Order matters:
@@ -544,6 +560,8 @@ function shutdown(signal) {
   clearInterval(privacyTimer);
   clearInterval(imageCleanupTimer);
   clearInterval(awardsTimer);
+  clearInterval(coverTimer);
+  clearTimeout(coverFirstTimer);
   setTimeout(() => {
     console.error(`Shutdown did not finish within ${SHUTDOWN_TIMEOUT_MS / 1000}s - forcing exit.`);
     process.exit(1);

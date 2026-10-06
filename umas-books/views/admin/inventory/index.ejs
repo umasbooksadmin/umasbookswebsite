@@ -32,7 +32,7 @@
       <% books.forEach(b => { %>
         <li style="display:flex; gap:14px; align-items:center;">
           <% if (b.cover_url) { %>
-            <img src="<%= b.cover_url %>" alt="" class="book-thumb">
+            <img src="<%= b.cover_url %>" alt="" class="book-thumb" width="44" height="64" loading="lazy" decoding="async" data-cover>
           <% } else { %>
             <div class="book-thumb book-thumb-placeholder">No cover</div>
           <% } %>
