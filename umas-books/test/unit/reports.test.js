@@ -112,7 +112,7 @@ test("toCsv: BOM, header row, quoted text, bare numbers, totals row, CRLF", () =
 
 test("every report has a slug, title, one-line summary and a run function; slugs are unique", () => {
   const slugs = REPORTS.map((r) => r.slug);
-  assert.deepEqual(slugs, ["inventory", "aging", "sales", "sellthrough", "membership", "intake", "accounts"]);
+  assert.deepEqual(slugs, ["inventory", "aging", "sales", "sellthrough", "membership", "intake", "accounts", "accounting"]);
   assert.equal(new Set(slugs).size, slugs.length);
   for (const r of REPORTS) {
     assert.ok(r.title && r.summary && typeof r.run === "function");

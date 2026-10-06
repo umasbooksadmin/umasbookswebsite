@@ -44,6 +44,10 @@ const TABLES = {
   order_items: "shop",
   class_dropin_seats: "shop",
   shop_sales: "shop",
+  till_sales: "shop",
+  till_sale_items: "shop",
+  till_quick_items: "shop",
+  till_days: "shop",
   book_awards: "shop",
   book_requests: "shop",
   book_request_list_tokens: "shop",
@@ -249,7 +253,11 @@ function buildPlan({ includeContent = false, keepMembers = false } = {}, have = 
 
   // Shop data: always.
   del("order_items");
+  del("till_sale_items");
   del("shop_sales");
+  del("till_sales");
+  del("till_days");
+  del("till_quick_items");
   del("book_requests");
   del("book_request_list_tokens");
   del("class_dropin_seats");

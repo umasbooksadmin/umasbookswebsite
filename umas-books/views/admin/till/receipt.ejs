@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Receipt <%= sale.id %> — Uma's Books</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/till-receipt.css">
+</head>
+<body>
+<main class="receipt" data-receipt="<%= sale.id %>">
+  <h1>Uma's Books</h1>
+  <p class="r-small"><%= sellerLines.split('\n').join(' | ') %></p>
+  <p class="r-sale">Receipt no. <%= sale.id %><br><%= formatDateTime(sale.created_at) %></p>
+  <% if (sale.status === 'voided') { %><p class="r-void">VOIDED<%= sale.voided_at ? ' on ' + formatDateTime(sale.voided_at) : '' %></p><% } %>
+  <table>
+    <% items.forEach(i => { %>
+      <tr>
+        <td><%= i.description %><%= i.quantity > 1 ? ' x ' + i.quantity + ' @ ' + eur(i.unit_price_cents) : '' %></td>
+        <td class="r-amt"><%= eur(i.unit_price_cents * i.quantity) %></td>
+      </tr>
+    <% }) %>
+    <tr class="r-total"><td>Total</td><td class="r-amt"><%= eur(sale.total_cents) %></td></tr>
+    <tr><td>Paid by <%= sale.payment_method === 'cash' ? 'cash' : 'card' %></td><td></td></tr>
+    <% if (sale.payment_method === 'cash') { %>
+      <tr><td>Received</td><td class="r-amt"><%= eur(sale.cash_received_cents || 0) %></td></tr>
+      <tr><td>Change</td><td class="r-amt"><%= eur(sale.change_given_cents || 0) %></td></tr>
+    <% } %>
+  </table>
+  <p class="r-vat"><%= vat %></p>
+  <p class="r-small">Thank you! Merci de votre visite.</p>
+  <p class="no-print"><button type="button" data-print>Print</button> <a href="/admin/till">Back to the till</a></p>
+</main>
+<script src="/print-button.js"></script>
+</body>
+</html>

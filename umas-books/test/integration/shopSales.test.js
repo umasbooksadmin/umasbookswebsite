@@ -256,7 +256,7 @@ test("intake saves the chosen source; anything unknown is stored as NULL", async
   assert.equal(res.status, 302);
   assert.equal(await sourceOfTitle(withSource), "donation");
   // The scan flow comes back remembering both.
-  assert.match(res.headers.get("location"), /^\/admin\/inventory\/scan\?saved=1&location=A1&source=donation$/);
+  assert.match(res.headers.get("location"), /^\/admin\/inventory\/scan\?saved=1&label=\d+&location=A1&source=donation$/);
 
   const none = `Source None ${uniq()}`;
   await post("/admin/inventory", { ...INTAKE, title: none, source: "" });

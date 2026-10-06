@@ -29,6 +29,7 @@
     <nav class="admin-nav" aria-label="Admin">
       <a href="/">Home</a>
       <a href="/admin" class="<%= active === 'overview' ? 'is-active' : '' %>">Dashboard</a>
+      <a href="/admin/till" class="admin-nav-till <%= active === 'till' ? 'is-active' : '' %>"><strong>Till</strong></a>
       <a href="/admin/inventory" class="<%= (active === 'inventory' || active === 'orders') ? 'is-active' : '' %>">Books &amp; Orders</a>
       <a href="/admin/awards" class="<%= active === 'awards' ? 'is-active' : '' %>">Awards to review</a>
       <a href="/admin/requests" class="<%= active === 'requests' ? 'is-active' : '' %>">Book Requests</a>
