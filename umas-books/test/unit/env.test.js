@@ -1,6 +1,6 @@
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
-const { validateEnv, checkEnv } = require("../../src/lib/env");
+const { validateEnv, checkEnv, sendLaunchAlerts } = require("../../src/lib/env");
 
 const FULL = {
   NODE_ENV: "production",
@@ -12,7 +12,8 @@ const FULL = {
   HELLOASSO_CLIENT_ID: "id",
   HELLOASSO_CLIENT_SECRET: "secret",
   HELLOASSO_ORG_SLUG: "org",
-  RENDER_EXTERNAL_URL: "https://example.onrender.com",
+  APP_BASE_URL: "https://umasbooks.example",
+  CONTACT_TO: "admin@umasbooks.example",
 };
 
 function run(env) {
@@ -60,10 +61,74 @@ test("missing optional vars warn loudly but do not fail", () => {
   assert.match(logs.warn.join("\n"), /HELLOASSO_ORG_SLUG.*payment/is);
 });
 
-test("warns when neither APP_BASE_URL nor RENDER_EXTERNAL_URL is set", () => {
-  const env = { ...FULL };
+test("in preview, either APP_BASE_URL or RENDER_EXTERNAL_URL is enough; neither warns", () => {
+  const env = { ...FULL, PREVIEW_MODE: "true", RENDER_EXTERNAL_URL: "https://x.onrender.com" };
+  delete env.APP_BASE_URL;
+  assert.deepEqual(validateEnv(env).warnings, []);
   delete env.RENDER_EXTERNAL_URL;
   assert.match(validateEnv(env).warnings.join("\n"), /APP_BASE_URL/);
+  assert.deepEqual(validateEnv(env).alerts, []);
+});
+
+// ---- launch guards: preview OFF means the site is live ----
+const labels = (env) => validateEnv(env).alerts.map((a) => a.label);
+
+test("live site without APP_BASE_URL: warning + alert, RENDER_EXTERNAL_URL does not count", () => {
+  const env = { ...FULL, RENDER_EXTERNAL_URL: "https://x.onrender.com" };
+  delete env.APP_BASE_URL;
+  const r = validateEnv(env);
+  assert.match(r.warnings.join("\n"), /APP_BASE_URL is not set/);
+  assert.deepEqual(labels(env), ["APP_BASE_URL missing"]);
+});
+
+test("live site with a non-https APP_BASE_URL: warning + alert", () => {
+  const env = { ...FULL, APP_BASE_URL: "http://umasbooks.example" };
+  assert.match(validateEnv(env).warnings.join("\n"), /not an https/);
+  assert.match(labels(env)[0], /APP_BASE_URL missing/);
+});
+
+test("live site still on the HelloAsso sandbox: loud warning + alert, boot continues", () => {
+  const env = { ...FULL, HELLOASSO_API_BASE: "https://api.helloasso-sandbox.com/v5" };
+  assert.match(validateEnv(env).warnings.join("\n"), /SANDBOX/);
+  assert.deepEqual(labels(env), ["HelloAsso is still in SANDBOX mode: real payments will not work"]);
+  const { exitCode } = run(env);
+  assert.equal(exitCode, undefined);
+});
+
+test("live site with the production HelloAsso API base: no sandbox alert", () => {
+  assert.deepEqual(labels({ ...FULL, HELLOASSO_API_BASE: "https://api.helloasso.com/v5" }), []);
+});
+
+test("live site missing HelloAsso credentials: alert", () => {
+  for (const name of ["HELLOASSO_CLIENT_ID", "HELLOASSO_CLIENT_SECRET", "HELLOASSO_ORG_SLUG"]) {
+    const env = { ...FULL };
+    delete env[name];
+    const r = validateEnv(env);
+    assert.equal(r.alerts.length, 1, name);
+    assert.match(r.alerts[0].label, /HelloAsso credentials missing/);
+    assert.match(r.alerts[0].message, new RegExp(name));
+  }
+});
+
+test("live site without CONTACT_TO: warning only, no alert", () => {
+  const env = { ...FULL };
+  delete env.CONTACT_TO;
+  const r = validateEnv(env);
+  assert.match(r.warnings.join("\n"), /CONTACT_TO/);
+  assert.deepEqual(r.alerts, []);
+});
+
+test("in preview mode none of the launch guards fire", () => {
+  const env = { ...FULL, PREVIEW_MODE: "true", HELLOASSO_API_BASE: "https://api.helloasso-sandbox.com/v5", APP_BASE_URL: "http://x" };
+  delete env.CONTACT_TO;
+  delete env.HELLOASSO_CLIENT_ID;
+  const r = validateEnv(env);
+  assert.deepEqual(r.alerts, []);
+  assert.doesNotMatch(r.warnings.join("\n"), /SANDBOX|CONTACT_TO|https/);
+});
+
+test("a fully configured live site has no alerts", () => {
+  assert.deepEqual(validateEnv(FULL).alerts, []);
 });
 
 test("non-production environments are untouched", () => {
@@ -105,4 +170,16 @@ test("no 'alerts disabled' warning in preview mode, or when Gmail is configured"
   delete preview.GMAIL_USER;
   assert.doesNotMatch(validateEnv(preview).warnings.join("\n"), /error alerts .*DISABLED/i);
   assert.doesNotMatch(validateEnv(FULL).warnings.join("\n"), /DISABLED/);
+});
+
+test("sendLaunchAlerts sends each alert once, unthrottled; nothing when there are none", () => {
+  const sent = [];
+  const env = { ...FULL, HELLOASSO_API_BASE: "https://api.helloasso-sandbox.com/v5" };
+  delete env.HELLOASSO_ORG_SLUG;
+  sendLaunchAlerts(validateEnv(env).alerts, (label, msg, opts) => sent.push({ label, msg, opts }));
+  assert.equal(sent.length, 2);
+  assert.ok(sent.every((s) => s.opts.force === true));
+  assert.match(sent[0].label, /SANDBOX/);
+  sendLaunchAlerts([], () => assert.fail("no alerts"));
+  sendLaunchAlerts(undefined, () => assert.fail("no alerts"));
 });

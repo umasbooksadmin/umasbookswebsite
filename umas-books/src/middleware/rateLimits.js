@@ -10,8 +10,9 @@ const ipKey = (req) => ipKeyGenerator(req.ip, IPV6_SUBNET);
 
 // Per-IP cap for a public write endpoint. In-memory (one instance, resets
 // on restart) — a speed bump against scripts hammering these routes, not
-// a hard guarantee. express's `trust proxy` is set, so the IP is the real
-// client's behind Render's proxy.
+// a hard guarantee. express's `trust proxy` is set to the number of proxy
+// hops (TRUST_PROXY_HOPS, lib/trustProxy.js), so req.ip is the real client
+// behind Cloudflare + Render and a spoofed X-Forwarded-For prefix is ignored.
 function limit({ windowMs, max, ...options }) {
   return rateLimit({
     keyGenerator: ipKey,

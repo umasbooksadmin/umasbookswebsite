@@ -9,7 +9,7 @@ const router = express.Router();
 // Orders (books and paid drop-in seats alike — see src/routes/cart.js)
 // now require an account at checkout, and orders.user_id records which
 // one. Orders placed before that (guest checkout) have user_id NULL, so
-// this page still finds orders by the account's email address, matched
+// this page still finds those by the account's email address, matched
 // case-insensitively since HelloAsso/browsers don't normalize case on
 // what a buyer types in.
 //
@@ -42,9 +42,9 @@ router.get("/account", requireAuth, async (req, res) => {
        WHERE i.order_id = o.id
      ) AS items
      FROM orders o
-     WHERE lower(o.buyer_email) = lower($1)
+     WHERE o.user_id = $2 OR (o.user_id IS NULL AND lower(o.buyer_email) = lower($1))
      ORDER BY o.created_at DESC`,
-    [email]
+    [email, req.session.user.id]
   );
 
   for (const o of orders) o.items = (o.items || []).map((i) => ({ title: orderItemLabel(i, req.lang), price: i.price }));

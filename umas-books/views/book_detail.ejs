@@ -1,6 +1,6 @@
 <%- include('partials/header', { title: book.title, hideBackLink: true }) %>
 
-<p><a href="/books<%= backGenre ? '?genre=' + encodeURIComponent(backGenre) : '' %>">&larr; <%= backGenre ? tr('Back to {genre}', 'Retour à {genre}', { genre: backGenre }) : tr('Back to Books', 'Retour aux livres') %></a></p>
+<p><a href="/books.html<%= backGenre ? '?genre=' + encodeURIComponent(backGenre) : '' %>">&larr; <%= backGenre ? tr('Back to {genre}', 'Retour à {genre}', { genre: backGenre }) : tr('Back to Books', 'Retour aux livres') %></a></p>
 
 <div class="book-detail-grid">
   <div>

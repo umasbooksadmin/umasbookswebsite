@@ -8,6 +8,7 @@ const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const bcrypt = require("bcryptjs");
 const { prepareDatabase, buildApp, listen, waitFor } = require("../helpers/inProcessApp");
+const { clickConfirmationLink } = require("../helpers/httpClient");
 
 const db = prepareDatabase("authaudit", { isolated: true });
 
@@ -74,12 +75,12 @@ test("pay first, verify the account later: membership is granted without the web
   await addToken("email_verification_tokens", userId, raw);
 
   assert.equal(await isMember(email), false);
-  const res = await fetch(`${server.base}/verify-email/${raw}`, { redirect: "manual" });
+  const res = await clickConfirmationLink(server.base, `/verify-email/${raw}`);
   assert.equal(res.headers.get("location"), "/login?verified=success");
   await waitFor(() => isMember(email), { message: "membership after verification" });
 
-  const again = await fetch(`${server.base}/verify-email/${raw}`, { redirect: "manual" });
-  assert.equal(again.headers.get("location"), "/login?verified=invalid");
+  const again = await clickConfirmationLink(server.base, `/verify-email/${raw}`);
+  assert.equal(again.status, 400);
 });
 
 test("an unverified account stays unattributed (trust rule)", async () => {
@@ -109,7 +110,7 @@ test("a failing sync never fails the verification request", async () => {
   pool.query = (sql, ...rest) =>
     typeof sql === "string" && /FROM users WHERE lower\(email\)/.test(sql) ? Promise.reject(new Error("boom")) : q(sql, ...rest);
   try {
-    const res = await fetch(`${server.base}/verify-email/${raw}`, { redirect: "manual" });
+    const res = await clickConfirmationLink(server.base, `/verify-email/${raw}`);
     assert.equal(res.headers.get("location"), "/login?verified=success");
     await pause(200);
   } finally {

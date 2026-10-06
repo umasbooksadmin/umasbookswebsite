@@ -162,7 +162,7 @@ final list) and uses `example.invalid` e-mail addresses.
 
 - **Test book**: admin > Books & Orders > search the tag > open it > **Delete this book**.
 - **Test member** (left disabled): admin > Accounts > search the tag > **Erase Member**.
-- **Unconfirmed sign-up** (account test AC3): same, **Erase Member**.
+- **Unconfirmed sign-up** (account test AC3): same, **Erase Member** (it also deletes itself 7 days after sign-up if it holds no data).
 - **Unpaid orders** (AC24, E2): nothing to do; they expire by themselves after an
   hour and the book goes back on sale (admin > Orders shows them as expired).
 - **Book requests**: admin > Book Requests > **Waiting for email confirmation**

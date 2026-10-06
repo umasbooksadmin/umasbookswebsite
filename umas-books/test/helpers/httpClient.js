@@ -51,4 +51,28 @@ async function waitForCartCount(base, cookieJar, expected, { timeoutMs = 5000, h
   }
 }
 
-module.exports = { makeCookieJar, fetchCsrfToken, waitForCartCount };
+// What a person does with the emailed confirmation link: the link opens a page
+// with a "Confirm my email" button (a GET changes nothing, so mail scanners
+// that prefetch links cannot use the token up), and pressing the button POSTs.
+// Returns the POST response (redirect: "manual"). If the link is invalid the
+// GET answer (400) is returned instead: there is no button to press.
+// `link` is a path (/verify-email/<token>) or a full URL.
+async function clickConfirmationLink(base, link, { jar = makeCookieJar(), headers = {} } = {}) {
+  const path = link.startsWith("http") ? new URL(link).pathname : link;
+  const page = await fetch(`${base}${path}`, { redirect: "manual", headers: { cookie: jar.header(), ...headers } });
+  jar.capture(page);
+  if (page.status !== 200) return page;
+  const html = await page.text();
+  const csrf = (html.match(/name="_csrf" value="([^"]+)"/) || [])[1];
+  if (!csrf || !/Confirm my email/.test(html)) throw new Error("confirmation page has no button/CSRF field");
+  const res = await fetch(`${base}${path}`, {
+    method: "POST",
+    redirect: "manual",
+    headers: { cookie: jar.header(), "content-type": "application/x-www-form-urlencoded", ...headers },
+    body: new URLSearchParams({ _csrf: csrf }).toString(),
+  });
+  jar.capture(res);
+  return res;
+}
+
+module.exports = { makeCookieJar, fetchCsrfToken, waitForCartCount, clickConfirmationLink };

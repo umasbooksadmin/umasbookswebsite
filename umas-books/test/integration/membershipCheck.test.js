@@ -237,7 +237,7 @@ test("join -> pay on HelloAsso -> confirm email -> choose password: the membersh
   assert.equal((await member(email)).is_member, false);
 
   const confirmPath = new URL(mail.text.match(/https?:\/\/[^\s]+\/verify-email\/[0-9a-f]+/)[0]).pathname;
-  const confirm = await v.get(confirmPath);
+  const confirm = await v.post(confirmPath, { confirm: "1" });
   assert.match(confirm.location, /^\/reset-password\/[0-9a-f]+\?confirmed=1$/);
   assert.equal((await member(email)).is_member, false, "confirming alone is not enough: the password is chosen first");
   const choose = await v.post(confirm.location, { newPassword: "Correct-Horse-9!x" });

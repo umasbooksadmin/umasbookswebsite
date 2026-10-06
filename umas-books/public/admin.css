@@ -3,7 +3,7 @@
    defined globally in style.css. */
 
 /* Reminder strip shown while PREVIEW_MODE is on (partials/admin_header.ejs). */
-.admin-preview-note { background: #b3261e; color: #fff; text-align: center; font: 600 13px/1.4 system-ui, sans-serif; padding: 4px 12px; }
+.admin-preview-note, .admin-sandbox-note { background: #b3261e; color: #fff; text-align: center; font: 600 13px/1.4 system-ui, sans-serif; padding: 4px 12px; }
 
 .admin-layout { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
 
@@ -211,7 +211,7 @@
 .sticker-sheet { width: 100%; border-collapse: collapse; font-size: 14px; }
 .sticker-sheet th, .sticker-sheet td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--card-border); vertical-align: top; }
 @media print {
-  .admin-sidebar, .admin-nav-backdrop, .skip-link, .admin-preview-note, .no-print, .admin-topbar-tools, .admin-back-link { display: none !important; }
+  .admin-sidebar, .admin-nav-backdrop, .skip-link, .admin-preview-note, .admin-sandbox-note, .no-print, .admin-topbar-tools, .admin-back-link { display: none !important; }
   .admin-layout, .admin-main, main { display: block !important; margin: 0 !important; padding: 0 !important; width: auto !important; }
   .card { box-shadow: none !important; border: 0 !important; padding: 0 !important; }
   .sticker-sheet { font-size: 11pt; }
