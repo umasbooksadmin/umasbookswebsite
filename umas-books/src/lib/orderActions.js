@@ -89,10 +89,17 @@ const toCents = (v) => Math.round(Number(v) * 100);
 // only be LOWER (a discount given at the till, with a note).
 // outcome: "collected" | "not_found" | "not_reserved" | "method_required" |
 // "nothing_to_collect" | "amount_invalid" | "amount_too_high" | "note_required".
-async function collectReservation(pool, orderId, { adminUserId = null, method, amountReceived, note, itemIds } = {}) {
+async function collectReservation(pool, orderId, opts = {}) {
+  return withTransaction(pool, (client) => collectReservationTx(client, orderId, opts));
+}
+
+// The same, inside a transaction the caller already opened (the till collects a
+// reservation in the SAME transaction as its own sale rows: no duplicated logic).
+// On any outcome other than "collected" nothing was changed by this call.
+async function collectReservationTx(client, orderId, { adminUserId = null, method, amountReceived, note, itemIds } = {}) {
   if (!PAYMENT_METHODS.some((m) => m.value === method)) return { outcome: "method_required" };
   const cleanNote = String(note == null ? "" : note).trim().slice(0, NOTE_MAX);
-  return withTransaction(pool, async (client) => {
+  {
     const { rows } = await client.query("SELECT * FROM orders WHERE id = $1 FOR UPDATE", [orderId]);
     const order = rows[0];
     if (!order) return { outcome: "not_found" };
@@ -191,7 +198,7 @@ async function collectReservation(pool, orderId, { adminUserId = null, method, a
       outcome: "collected", total: received / 100, reservedTotal: subtotal / 100, items: selected.length,
       partial: rest.length > 0, newOrderId, dropped: inactive.map((i) => i.item_title),
     };
-  });
+  }
 }
 
 // "Cancel reservation" by an admin: books back in stock, seats released.
@@ -260,7 +267,7 @@ async function cancelUnpaidOrder(pool, orderId) {
 }
 
 module.exports = {
-  markOrderCollected, collectReservation, cancelReservationByAdmin, markReservationNoShow, extendReservation,
+  markOrderCollected, collectReservation, collectReservationTx, cancelReservationByAdmin, markReservationNoShow, extendReservation,
   markOrderRefunded, cancelUnpaidOrder,
   AWAITING_PICKUP, HAS_BOOKS, NOTE_MAX, ORDER_VIEWS, OVERDUE_DAYS, EXPIRING_SOON_DAYS, STALE_PENDING_HOURS, PAYMENT_METHODS,
 };

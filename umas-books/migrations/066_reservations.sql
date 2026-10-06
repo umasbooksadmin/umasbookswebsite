@@ -39,3 +39,9 @@ ALTER TABLE class_dropin_seats ADD COLUMN IF NOT EXISTS reminder_sent_at TIMESTA
 CREATE INDEX IF NOT EXISTS idx_orders_reserved_until ON orders (reserved_until) WHERE status = 'reserved';
 CREATE INDEX IF NOT EXISTS idx_orders_user_reserved ON orders (user_id) WHERE status = 'reserved';
 CREATE INDEX IF NOT EXISTS idx_class_dropin_seats_reserved ON class_dropin_seats (class_id) WHERE status = 'reserved';
+
+-- A till sale that collected a reservation (lib/tillReservations.js): which order
+-- each line belongs to, so such a sale is never voided from the till (the order is
+-- refunded instead) and the receipt/accounting rows can be traced to it.
+ALTER TABLE till_sale_items ADD COLUMN IF NOT EXISTS reservation_order_id INTEGER REFERENCES orders(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_till_sale_items_reservation ON till_sale_items (reservation_order_id) WHERE reservation_order_id IS NOT NULL;

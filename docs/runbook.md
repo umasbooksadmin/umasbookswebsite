@@ -677,6 +677,17 @@ reservation and press **Mark collected and paid** if you took the money (or
 leave it: the seat is released by itself once the session is over, and a
 reservation that is never collected simply ends as expired).
 
+**At the till.** If you use the till (`/admin/till`), you can collect the
+reservation there instead: type or scan **ORDER-** followed by the reservation
+number (or scan the **UB- label** of one of its books). All its lines appear at
+the reserved prices. Remove a line if the customer leaves that book or seat (a
+partial pickup: the rest stays reserved on a new reservation with the same
+deadline), then press **Cash** or **Card** as usual. The order is marked paid
+with that payment method, exactly as if you had pressed **Mark collected and
+paid** on its page. You can add walk-in books to the same sale. A till sale
+that collected a reservation cannot be voided at the till: to undo it, open the
+order and use **Mark refunded** after giving the money back.
+
 ### Reservations not collected
 
 You do not have to do anything for a reservation that nobody collects: after the

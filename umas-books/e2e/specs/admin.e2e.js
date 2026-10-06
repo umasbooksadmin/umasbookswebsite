@@ -809,4 +809,5 @@ s.test("A70 the Other stock (not books) page is reachable from Inventory and has
   has(text, /Tote bags, bookmarks and anything else you sell that is not a book/);
   assert.ok(await ctx.page.$("#new-barcode"), "the barcode box is on the form");
 });
+s.manual("A71 (must) collecting a reservation at the till: scan ORDER-<n>, the lines load at the reserved prices, remove one for a partial pickup, pay cash or card; the order shows Paid and the rest stays reserved", "needs a reservation made by a customer and the till in use; the rule is covered by automated tests (tillReservations)");
 s.manual("A70b scanning an item's barcode with the scanner fills the Barcode box; at the till it adds the item", "needs the physical scanner (see A66)");

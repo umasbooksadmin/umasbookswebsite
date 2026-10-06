@@ -738,10 +738,12 @@ in person only: online payment exists only for HelloAsso memberships and orders.
   title, author and ISBN ("No ISBN" for books without one). A book without an
   ISBN works everywhere because the label, not the ISBN, identifies the copy.
 - **Scan order** (`lookupScan` in `src/lib/till.js`): `UB-<id>` copy label, then
-  an exact quick-item barcode, then `ORDER-<n>` (reservation: extension point in
-  `src/lib/tillReservations.js`), then an ISBN (10/13, `isbnVariants`), then
-  unknown. Only `in_stock` copies are sold; sold, reserved, in-cart and withdrawn
-  copies are refused with the reason.
+  an exact quick-item barcode, then `ORDER-<n>` (a reservation to collect, or the label of a
+  reserved book: `src/lib/tillReservations.js`, paid through
+  `collectReservationTx` in the till's own transaction), then an ISBN (10/13, `isbnVariants`), then
+  unknown. Only `in_stock` copies are sold as plain books (a copy reserved by an order
+  is collected through its order: sold, in-cart and withdrawn copies are
+  refused with the reason).
 - **Data model** (migration `065_till.sql`): `till_sales` (one payment method per
   sale, `sale_token` unique for idempotency, `status` completed/voided),
   `till_sale_items` (kind book/manual/quick, copy or quick item, quantity,

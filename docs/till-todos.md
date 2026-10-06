@@ -23,11 +23,14 @@ reader, then poll or receive the webhook, inside the 60 second window; use the
 sale token as the client transaction id) needs: a SumUp API key, the paired
 reader id, and Render environment variables for them (not defined yet).
 
-## Later: collecting online reservations at the till
+## Done: collecting online reservations at the till
 
-See `src/lib/tillReservations.js`: scanning `ORDER-<n>` is recognised but says
-the feature is not available. It depends on the "reserve online, pay at the
-shop" feature.
+Scanning or typing `ORDER-<n>` (or the UB- label of a reserved book) loads the
+reservation into the sale; paying cash or card collects it through the same
+function as "Mark collected and paid" (`src/lib/tillReservations.js`). A sale
+that collected a reservation cannot be voided at the till: the order is
+refunded instead. Still open: the till receipt of such a sale is English only
+(a French receipt for the customer is a separate decision).
 
 ## Later: receipt printer, split payments
 
