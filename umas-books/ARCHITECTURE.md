@@ -409,7 +409,7 @@ src/` is the ground truth if this list ever drifts):
 | `HELLOASSO_CLIENT_ID` / `HELLOASSO_CLIENT_SECRET` / `HELLOASSO_ORG_SLUG` | no (checkout shows "not set up yet" without them) | HelloAsso Checkout API credentials |
 | `HELLOASSO_API_BASE` | no (defaults to production) | set to HelloAsso's sandbox URL for testing |
 | `TRUST_PROXY_HOPS` | no (default 2 in production, 1 elsewhere) | integer 1 to 5, number of reverse proxies in front of the app (Cloudflare + Render edge = 2); decides `req.ip` (`src/lib/trustProxy.js`). Check on `/admin/diagnostics/client-ip` |
-| `APP_BASE_URL` | yes once preview is off | `https://umasbooks.org`; the only base URL used on a live site, and other Hosts are redirected to it (`src/middleware/canonicalHost.js`) |
+| `APP_BASE_URL` | yes once preview is off | `https://umasbooks.org`; the only base URL used on a live site, and other Hosts are redirected to it (`src/middleware/canonicalHost.js`); other methods on another Host get 421, except `/healthz` and `/webhooks/helloasso` |
 | `HELLOASSO_MEMBERSHIP_FORM_SLUG` | no | only orders of this HelloAsso form (its `formSlug`) grant membership; unset = any Membership-type form |
 | `PREVIEW_MODE` | no (off when unset) | `true` or `1` (any case) turns on [preview mode](#preview-mode): coming-soon banner, payments off, search engines kept out. Set in the Render dashboard, not in `render.yaml` |
 
@@ -848,7 +848,21 @@ Points for maintainers:
   `POST /admin/orders/:id/resend-confirmation` (button from the partial
   `views/partials/admin_resend_confirmation.ejs`, included by
   `views/admin/orders.ejs`).
-- One-time-link kinds (`TOKEN_KINDS`) lose their body when sent.
+- One-time-link kinds (`TOKEN_KINDS`) lose their body when sent, when they fail,
+  and when their link lifetime (`TOKEN_LIFETIME_MINUTES`) passes while pending
+  (status `expired`, migration 068, swept first in every worker tick).
+- Throttle (`THROTTLED_KINDS`, `enqueueThrottled`, constants in `THROTTLE`):
+  1 mail per (recipient, kind) per 10 min, 5 per recipient per day, plus a
+  shop-wide hourly ceiling per kind; one advisory-locked transaction per
+  recipient. `sendEmail(msg, { throttle })`: undefined = full, `"skipInterval"`
+  for resend buttons and the book-request mails (own limits), `"off"` for admin actions.
+  A throttled mail returns `{ throttled: reason }` and stores nothing.
+- `email_outbox.subject_email` (migration 068) is the submitter of form mail
+  (kind `contact`); `eraseOutboxFor` and `listOutboxFor` match it as well as
+  `to_email`.
+- Data requests by address: `lib/privacyRequests.js` + `routes/admin/privacyRequests.js`
+  (`/admin/privacy`); shared logic lives in `memberExport.buildEmailSections` and
+  `privacy.eraseEmailKeyedData`.
 - The goodbye email on self-deletion bypasses the outbox on purpose.
 
 ### Membership payments (`src/lib/membership.js`, migration 063)

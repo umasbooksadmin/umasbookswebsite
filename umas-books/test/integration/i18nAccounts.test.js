@@ -215,9 +215,9 @@ test("signup in French: French notice and form copy, the account keeps the chose
   const { sendVerificationEmail } = require("../../src/lib/emailVerification");
   const before = sent.length;
   const created = (await pool.query("SELECT id, email, display_name, lang FROM users WHERE email = $1", [email])).rows[0];
-  await sendVerificationEmail(created, "https://shop.test");
+  await sendVerificationEmail(created, "https://shop.test", { throttle: "off" }); // the signup above already mailed this address
   assert.match(sent[before].subject, /^Confirmez votre adresse e-mail/);
-  await sendVerificationEmail(created, "https://shop.test", { choosePassword: true });
+  await sendVerificationEmail(created, "https://shop.test", { choosePassword: true, throttle: "off" });
   assert.match(sent[before + 1].subject, /^Confirmez votre adresse e-mail et choisissez votre mot de passe/);
 });
 

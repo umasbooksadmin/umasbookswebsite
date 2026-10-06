@@ -112,7 +112,7 @@ test("pre-registration: every required field is enforced, with an accessible err
     assert.match(text, /Enter a valid email address/);
     assert.match(text, /Tick this box to continue/);
     assert.match(text, /not in the future/);
-    assert.match(text, /<script src="assets\/form-errors\.js"><\/script>/, "focus-on-error script is loaded");
+    assert.match(text, /<script src="\/assets\/form-errors\.js\?v=[0-9a-f]+"><\/script>/, "focus-on-error script is loaded");
     // The day/time lists keep what was chosen (nothing here) and the page is not cacheable.
     assert.equal(res.headers.get("cache-control"), "private, no-store");
   });

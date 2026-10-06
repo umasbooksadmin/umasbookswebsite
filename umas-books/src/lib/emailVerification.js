@@ -9,7 +9,10 @@ const TOKEN_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 // choosePassword: true for a new signup, whose link leads to "choose your
 // password" (it has none yet); false for a plain address confirmation.
-async function sendVerificationEmail(user, baseUrl, { choosePassword = false, returnTo = null, membership = false } = {}) {
+// throttle: the per-recipient mail throttle mode (lib/outbox.js): undefined = full
+// throttle (signup: anyone can type any address); "skipInterval" for the resend
+// buttons, which have their own cooldown; "off" for an admin acting on purpose.
+async function sendVerificationEmail(user, baseUrl, { choosePassword = false, returnTo = null, membership = false, throttle } = {}) {
   const rawToken = generateToken();
   const tokenHash = hashToken(rawToken);
   const expiresAt = new Date(Date.now() + TOKEN_TTL_MS);
@@ -57,7 +60,7 @@ async function sendVerificationEmail(user, baseUrl, { choosePassword = false, re
       ? tr("Confirm your email and choose your password for Uma's Books", "Confirmez votre adresse e-mail et choisissez votre mot de passe pour Uma's Books")
       : tr("Confirm your email for Uma's Books", "Confirmez votre adresse e-mail pour Uma's Books"),
     text,
-  });
+  }, { throttle });
 }
 
 // Sent instead of a verification link when someone signs up with an

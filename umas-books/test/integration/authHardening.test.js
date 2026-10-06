@@ -124,8 +124,6 @@ test("a locked account answers login exactly like a wrong password, even for the
     const r = await login(email, "Wrong-Password-1");
     assert.equal(r.res.status, 401);
   }
-  const { rows } = await pool.query("SELECT locked_until FROM users WHERE email = $1", [email]);
-  assert.ok(rows[0].locked_until && new Date(rows[0].locked_until) > new Date(), "5 failures should lock the account");
 
   const lockedWrong = await login(email, "Wrong-Password-1");
   const lockedRight = await login(email, PASSWORD);
@@ -133,9 +131,10 @@ test("a locked account answers login exactly like a wrong password, even for the
     assert.equal(r.res.status, 401, "a locked account must not reveal itself with a distinct status");
     assert.equal(r.body, unknown.body, "...nor a distinct message");
   }
-  // The lockout itself still holds: the correct password didn't get in.
+  // The lockout holds (the correct password didn't get in) and is per (account, IP):
+  // the account row itself is not locked (see securityRound2.test.js for the other side).
   const after = await pool.query("SELECT locked_until FROM users WHERE email = $1", [email]);
-  assert.equal(new Date(after.rows[0].locked_until).getTime(), new Date(rows[0].locked_until).getTime(), "lock not extended or cleared");
+  assert.equal(after.rows[0].locked_until, null);
 });
 
 test("a disabled account is only told so after the correct password", async () => {

@@ -167,3 +167,16 @@ test("privacy policy: the forms send an email only (nothing stored), never ask f
   assert.match(en["pp.s7.p"], /12 months in our mailbox/);
   assert.match(fr["pp.s7.p"], /12 mois dans notre messagerie/);
 });
+
+test("privacy policy: requests need no account (write to us, we may ask for proof of the address) and the audit-log retention line is stated, EN and FR", () => {
+  assert.match(en["pp.s6.p1"], /write to us at/);
+  assert.match(en["pp.s6.p1"], /prove you own the address/);
+  assert.doesNotMatch(en["pp.s6.p1"], /from the address on your account/);
+  assert.match(fr["pp.s6.p1"], /écrivez-nous à/);
+  assert.match(fr["pp.s6.p1"], /prouver que cette adresse est bien la vôtre/);
+  assert.doesNotMatch(fr["pp.s6.p1"], /depuis l’adresse de votre compte/);
+  assert.match(en["pp.s5.list"], /Administrator action log:<\/strong> 12 months; the free-text note[^.]*erased after 6 months/);
+  assert.match(fr["pp.s5.list"], /Journal des actions des administrateurs\s*:<\/strong> 12 mois ; le texte libre[^.]*effacé au bout de 6 mois/);
+  // French punctuation: typographic apostrophe, no straight one in the new French text.
+  assert.doesNotMatch(fr["pp.s6.p1"], /écrivez-nous[^<]*'/);
+});

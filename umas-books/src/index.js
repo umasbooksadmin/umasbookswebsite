@@ -60,7 +60,7 @@ const helloassoWebhookRoutes = require("./routes/helloassoWebhook");
 const adminRoutes = require("./routes/admin");
 
 const { latestArrivals } = require("./lib/latestArrivals");
-const { assetUrl, versionedHeaders } = require("./lib/assetUrl");
+const { assetUrl, staticHeaders, STATIC_SECURITY_HEADERS } = require("./lib/assetUrl");
 
 const app = express();
 const isProd = process.env.NODE_ENV === "production";
@@ -89,17 +89,19 @@ app.use(compression());
 // query (assetUrl helper) so an edit is picked up at once. A URL carrying ?v=<content hash> (see lib/assetUrl.js, used by the page
 // templates) is immutable: one year. Without it, 7 days.
 const STATIC_MAX_AGE = "7d";
-app.use(express.static(path.join(__dirname, "..", "public"), { maxAge: STATIC_MAX_AGE, setHeaders: versionedHeaders }));
+// These mounts come before helmet (no session, no cost per request), so they set
+// the security headers helmet would have set themselves (staticHeaders).
+app.use(express.static(path.join(__dirname, "..", "public"), { maxAge: STATIC_MAX_AGE, setHeaders: staticHeaders }));
 
 // Marketing-site static assets live at the repo root, not under public/.
 // Mounted here — before the session store and attachUser — so image/CSS/JS
 // requests never cost a session read or a per-request user lookup.
 const marketingRoot = path.join(__dirname, "..", "..");
-app.use("/assets", express.static(path.join(marketingRoot, "assets"), { maxAge: STATIC_MAX_AGE, setHeaders: versionedHeaders }));
+app.use("/assets", express.static(path.join(marketingRoot, "assets"), { maxAge: STATIC_MAX_AGE, setHeaders: staticHeaders }));
 // Uploaded images (covers, blog/announcement/charity photos): content-addressed,
 // immutable, served from the DB with no session. See routes/img.js.
 app.use(require("./routes/img"));
-app.get("/logo.png", (req, res) => res.sendFile("logo.png", { root: marketingRoot, maxAge: STATIC_MAX_AGE }));
+app.get("/logo.png", (req, res) => res.sendFile("logo.png", { root: marketingRoot, maxAge: STATIC_MAX_AGE, headers: STATIC_SECURITY_HEADERS }));
 
 // For the external uptime check (see .github/workflows/uptime-check.yml)
 // to actually catch what happened on 2026-09-26 — the process was up
