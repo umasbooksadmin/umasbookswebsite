@@ -321,6 +321,34 @@ Key rules:
   grandfathered as verified.
 * **CSRF** — a per-session token created lazily, compared in constant time;
   `/api/csrf-token` saves the session before answering.
+* **Real client IP.** Production is visitor, Cloudflare, Render's own edge (also
+  Cloudflare), app: two trusted hops. `trust proxy` is set to the number
+  `TRUST_PROXY_HOPS` (`lib/trustProxy.js`; default 2 in production, 1 elsewhere
+  and in tests), so `req.ip` is the real visitor and every user of `req.ip`
+  (rate-limit key `ipKey`, `orders.client_ip`, the admin audit log, the webhook
+  limiter) follows. With one hop only the shared edge address was seen: one rate
+  limit bucket for everybody. The admin page `/admin/diagnostics/client-ip`
+  (English, admin only) shows what the app sees for your own request.
+* **Launch guards** (`lib/env.js`, `validateEnv().alerts`): with preview off the
+  boot warns, and sends one alert email per boot, when `APP_BASE_URL` is missing
+  or not https, when `HELLOASSO_API_BASE` is the sandbox, or when the HelloAsso
+  credentials are missing; a missing `CONTACT_TO` only warns. Nothing crashes the
+  site. A sandbox setup also puts a red banner on every admin page. On a live site
+  `lib/baseUrl.js` never falls back to `RENDER_EXTERNAL_URL`, and
+  `middleware/canonicalHost.js` 301-redirects GET/HEAD requests for any Host other
+  than `APP_BASE_URL`'s (never `/healthz`, never POST or webhooks).
+* **Confirmation link.** `GET /verify-email/:token` only shows a "Confirm my
+  email" button and consumes nothing (mail scanners prefetch links); the button
+  POSTs (CSRF protected) and does the work. One unusable password hash is
+  computed at startup, not per request, and both verbs share a 30 per 15 min per
+  IP limiter.
+* **Unconfirmed accounts** (self-signup, never confirmed) are deleted after 7
+  days by the daily purge, only when they hold no data.
+* **Orders follow the account.** Export, erasure and "My account" match orders
+  by `user_id`, and by email only for old orders that have no account; an admin
+  email change links such old orders to the account first. After an erasure the
+  membership payment stays, detached; the membership sync re-attaches it when the
+  same person registers again.
 * **Rate limits** are in memory (reset on restart) and mostly per IP: login 20
   failures / 15 min, sign-up 30/h, password reset requests 10 / 15 min, checkout 10/h, cart edits 60 / 15 min, event sign-up 10/h,
   forum posts 10/h and replies 30/h, charity ideas 10/h, contact 5 / 15 min,
@@ -420,6 +448,12 @@ Details of the shop tables worth knowing:
 * **Fixed price for new books (loi Lang).** A copy whose condition is `new` must
   carry `publisher_price` and be priced between 95% and 100% of it, checked on
   the server when a copy is added or edited. Used copies are free-priced.
+* **Refund and pickup columns (migration 060).** `orders.refunded_at`, `refund_note`,
+  `collected_at`, `collected_by` (user, `ON DELETE SET NULL`), `refund_detected_at`,
+  `refund_alert_sent_at`, `customer_pickup_reminder_sent_at`,
+  `pickup_reminder_sent_at`, `checkout_redirect_url`; see §7. Refunded orders are
+  accounting records: they are kept like paid ones (10 years) and anonymised only
+  when the account is erased.
 * **Order extras.** `orders.withdrawal_waiver_at` records the buyer's tick-box
   confirming that a drop-in session takes place on its date (these dated leisure sessions have no
   right of withdrawal anyway, art. L.221-28 12°; the box is kept as the buyer's confirmation);
@@ -635,6 +669,23 @@ What keeps it correct:
 | Hoarding stock without paying | a cart holds at most 20 lines; at most 2 unpaid orders per email and per IP address (`orders.client_ip`), checked under an advisory lock so two simultaneous checkouts cannot both slip through |
 | Anonymous orders | checkout requires a logged-in account with a confirmed email, enforced on the server; the order stores `user_id` and the account's email (a posted email is ignored). Orders from before this rule (`user_id` NULL) remain valid everywhere |
 | Terms and withdrawal | checkout requires accepting the terms of sale; a cart with a drop-in seat also requires the date-confirmation tick-box (`waiveWithdrawal`), whose time is stored on the order |
+| Buyer backs out of HelloAsso | the session cart is emptied before the redirect (the items now belong to the order), and the payment link is stored (`orders.checkout_redirect_url`). `/cart` lists the logged-in buyer's **own** unpaid orders: **Resume payment** (a redirect to the stored HelloAsso link, only while it is fresh, about 14 minutes, and only to a HelloAsso payment host) and **Cancel this order** (HelloAsso is asked first; an order that was in fact paid is never cancelled). Both are owner-only (another account gets a 404) |
+
+### Refunds, withdrawals and pickup
+
+The site cannot move money. A refund is made by a person in the HelloAsso
+dashboard, and the order is then marked refunded in the admin
+(`/admin/orders/:id`, `lib/orderActions.js`). Status values of `orders.status`
+(plain text, no constraint): `pending`, `paid`, `expired`, `cancelled`,
+`refunded`.
+
+| Concern | Mechanism |
+|---|---|
+| Mark refunded | one transaction with the order row locked: `paid` -> `refunded` (+ `refunded_at`, required `refund_note`); the copies this order sold go back `in_stock`, except a copy sold again since (a later shop sale or another paid order), which is left alone and named in the audit entry; its drop-in seats become `released` (capacity ignores them). Refuses any order that is not `paid`; a second call changes nothing; written to the admin audit log. The admin page has a confirmation step (warning, tick box, note) |
+| Refunded money in the figures | revenue, order counts, member totals and sell-through all read `status = 'paid'`, so a refunded order drops out by itself. The sales report shows refunds as their own table (by `refunded_at`), and the dashboard shows the month's refunds beside Total Sales. Dashboard and reports bucket by `paid_at` in Europe/Paris (`lib/dashboardStats.js`) |
+| Refund done in HelloAsso only | `lib/orderSweeps.js` `detectRefundedOrders` (every 6 h, via `guardJob`): for paid orders of the last 30 days it re-reads the checkout intent with our own credentials (never a webhook body); no `Authorized` payment and one `Refunded` / `Refunding` / `Canceled` payment flags `orders.refund_detected_at`. One email per run for everything newly found (`refund_alert_sent_at` claim, handed back if the send fails). It never restocks: the admin marks the order refunded. A partial refund is not detected. A systemic HelloAsso failure stops the run and alerts once |
+| Pickup | "Mark collected" sets `collected_at` / `collected_by`. A paid order with at least one book and no `collected_at` is "awaiting pickup" (drop-in-only orders never are). Day 10: customer reminder email (EN/FR, only repeats the terms of sale: collect within 14 days of payment, write to us if you need longer; sent only inside days 10 to 14, never for an order flagged as refunded). Day 12: one admin email listing the uncollected orders. Each is claimed in the database first and sent once per order |
+| Admin view | `/admin/orders`: filters (status, awaiting pickup, over 14 days, refund detected, unpaid over 2 hours), Paris date range, search by number, email or name, 50 per page; `/admin/orders/:id` shows items, buyer, HelloAsso ids, Paris times, terms acceptance and history. The dashboard "Needs attention" box counts the three problem lists |
 
 ---
 
@@ -692,6 +743,7 @@ flowchart LR
     A["every 10 min<br/>cart sweep"] 
     B["hourly (every 6th tick)<br/>late-payment re-check"]
     C["every 6 h<br/>reservations, reminders,<br/>membership expiry + backstop"]
+    OF["every 6 h<br/>refund detection,<br/>pickup reminders"]
     P["daily and at boot<br/>retention purge,<br/>30-day inactivity warnings"]
     IC["daily and at boot<br/>unused-image cleanup"]
     AW["every 2 min (not at boot)<br/>awards drain, 5 books"]
@@ -706,6 +758,8 @@ flowchart LR
   B --> HA["HelloAsso lookups"]
   C --> DB
   C --> HA
+  OF --> DB
+  OF --> HA
   D --> W["GET /healthz"]
   P --> DB
   E --> DB
@@ -722,6 +776,7 @@ flowchart LR
 | Cart hold expiry, order reconcile | web process | 10 min | also on boot |
 | Late-payment re-check | web process | hourly | only orders closed in the last 7 days |
 | Reservation expiry, pickup reminder (day 11 of 14), membership expiry, membership backstop | web process | 6 h | read-time expiry also keeps pages right while idle |
+| Order follow-up: refund detection, day-10 customer pickup reminder, day-12 admin digest | web process | 6 h, first run 5 minutes after boot | asks HelloAsso about paid orders of the last 30 days (at most 200 per run); see §7, "Refunds, withdrawals and pickup" |
 | Retention purge | web process | daily, and at boot | see below; also clears ended book requests and expired "find my requests" links |
 | Unused-image cleanup | web process | daily, and at boot | deletes at most one batch of images older than 7 days that no row references (`lib/imageCleanup.js`) |
 | Awards drain | web process | 2 min, not at boot | looks up awards for a few books at a time (§6); a no-op when `AWARDS_LOOKUPS=off` |
@@ -892,7 +947,7 @@ Layers, outermost first. A request must pass every one that applies to it.
 
 ```mermaid
 flowchart TD
-  NET["Internet"] --> TLS["Render edge: TLS, trust proxy = 1<br/>(real client IP)"]
+  NET["Internet"] --> TLS["Cloudflare + Render edge: TLS,<br/>trust proxy = 2 hops (TRUST_PROXY_HOPS)<br/>(real client IP)"]
   TLS --> HL["helmet: CSP, HSTS, no-referrer,<br/>frame-ancestors none"]
   HL --> RL["Rate limits (per IP)<br/>login, checkout, cart, sign-ups,<br/>forum, contact, webhook"]
   RL --> SE["Session cookie: HttpOnly, Secure,<br/>SameSite=Lax; regenerated at login"]
@@ -967,6 +1022,8 @@ reservations behind. The code handles it in one place (`lib/privacy.js`):
 | `AWARDS_AI` | optional | `true` turns on AI web search for awards (needs `ANTHROPIC_API_KEY`); results wait for admin approval |
 | `AWARDS_AI_DAILY_MAX`, `AWARDS_AI_MODEL` | optional | daily cap on AI award checks (default 100) and model override |
 | `AWARDS_LOOKUPS` | optional | `off` stops every awards lookup (used by tests) |
+| `TRUST_PROXY_HOPS` | optional | integer 1 to 5: how many reverse proxies sit in front of the app (default **2** in production: Cloudflare, then Render's own edge; 1 elsewhere). `req.ip` is the Nth address from the right of the chain, so a spoofed `X-Forwarded-For` prefix is ignored. Logged at boot; verify on `/admin/diagnostics/client-ip` |
+| `APP_BASE_URL` | required when preview is off | `https://umasbooks.org`. On a live site it is the only base URL used (no `RENDER_EXTERNAL_URL` fallback) and any other Host is redirected to it |
 | `PREVIEW_MODE` | optional | `true` or `1` puts the site in preview: coming-soon banner, checkout and membership payment off, `noindex`. Unset to open the shop |
 | `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD` | first boot | creates the first admin if none exists (and the email is free); also creates sample content in that same run. Never blocks startup: a failure is logged and emailed |
 | `CONTACT_TO` | optional | contact-form and forum-report recipient (default `admin@umasbooks.org`) |
@@ -1029,6 +1086,13 @@ Deliberate trade-offs (revisit only if traffic or risk changes):
 Open items worth knowing:
 
 * Reservations hold a copy for two weeks. There is no public reservation form (the old `POST /books/:id/reserve` route was removed because anyone could hold copies under any email address); holds are made by admins or by the book-request flow.
+* A refund is never pushed to HelloAsso by the site and a refund made there is
+  only noticed within about 6 hours (and only for orders paid in the last 30
+  days, and only a full refund). Until the admin marks the order refunded, its
+  books stay marked sold.
+* Nothing in the terms of sale says what happens to a paid order not collected
+  after 14 days, so the site only reminds (customer day 10, admin day 12, the
+  dashboard) and never cancels or restocks by itself.
 * The 6-hourly membership backstop only looks at orders from the last 3 days;
   older missed payments rely on the webhook or account verification.
 * If the only admin loses their phone and recovery codes there is nobody to reset

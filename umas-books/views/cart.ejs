@@ -2,6 +2,32 @@
 
 <h1><%= tr('Your Cart', 'Votre panier') %></h1>
 
+<% if (locals.notice) { %><div role="status" class="notice-box"><%= notice %></div><% } %>
+
+<% if (locals.pendingOrders && pendingOrders.length) { %>
+  <div class="card" id="pending-orders">
+    <h2 class="section-title"><%= tr('Your unpaid orders', 'Vos commandes non payées') %></h2>
+    <p class="muted small"><%= tr('These items are held for you for about an hour while payment is pending. Finish paying, or cancel to release them.', 'Ces articles sont mis de côté pour vous pendant environ une heure, dans l’attente du paiement. Réglez la commande, ou annulez-la pour les libérer.') %></p>
+    <% pendingOrders.forEach(o => { %>
+      <div class="pending-order" style="display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between; padding:12px 0; border-top:1px solid var(--line, #e4e0d6);">
+        <div>
+          <div><strong><%= tr('Order', 'Commande') %> #<%= o.id %> &middot; <%= formatDateTime(o.created_at) %></strong></div>
+          <ul class="plain nested">
+            <% o.items.forEach(i => { %><li><%= i.label %> <span class="muted small">&middot; <%= eur(i.price) %></span></li><% }) %>
+          </ul>
+          <div class="muted small"><%= tr('Total:', 'Total :') %> <%= eur(o.total_amount) %></div>
+          <% if (!o.can_resume) { %><div class="muted small"><%= tr('The payment page has expired: cancel this order, then add the items to your cart again.', 'La page de paiement a expiré : annulez cette commande, puis ajoutez de nouveau les articles à votre panier.') %></div><% } %>
+        </div>
+        <% if (o.can_resume) { %><a class="btn btn-small" href="/cart/orders/<%= o.id %>/resume"><%= tr('Resume payment', 'Reprendre le paiement') %></a><% } %>
+        <form method="post" action="/cart/orders/<%= o.id %>/cancel">
+          <%- include('partials/csrf_field') %>
+          <button type="submit" class="btn-outline btn-small"><%= tr('Cancel this order', 'Annuler cette commande') %></button>
+        </form>
+      </div>
+    <% }) %>
+  </div>
+<% } %>
+
 <% if (error) { %><div role="alert" class="error-box"><%= error %></div><% } %>
 
 <% if (!items.length) { %>

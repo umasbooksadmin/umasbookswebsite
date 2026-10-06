@@ -73,4 +73,4 @@ function alertOnError(label, err, { force = false } = {}) {
   return sendMail({ to: ALERT_TO, subject, text: `${body(err)}${suppressedNote}` }).catch(fail);
 }
 
-module.exports = { alertOnError, MAX_ALERTS_PER_WINDOW };
+module.exports = { alertOnError, MAX_ALERTS_PER_WINDOW, ALERT_TO };

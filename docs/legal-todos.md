@@ -10,7 +10,7 @@ The shop shows "TVA non applicable" (cart, book pages, terms of sale, order
 email). French rules want the article of the Code général des impôts as well.
 The accountant has not said whether it is **261-7-1°** or **293 B**. Do not
 guess. When the answer comes: set `VAT_NOTICE_ARTICLE` in
-`umas-books/src/lib/legal.js` (see `docs/runbook.md`, section k).
+`umas-books/src/lib/legal.js` (see `docs/runbook.md`, section l).
 
 ## 2. Membership fee: does the 14-day right of withdrawal apply?
 
@@ -52,7 +52,7 @@ are published, and how long they are kept.
 
 ## 6. Small items to confirm
 
-- The footer has no Instagram/Facebook icons until real addresses exist (runbook, section k).
+- The footer has no Instagram/Facebook icons until real addresses exist (runbook, section l).
 - The visit page still shows the kicker "Chapter Four" (it is used on that
   page: replace it with a real label if you want).
 - The statutes of the association are "available on request" (membership

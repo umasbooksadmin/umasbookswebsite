@@ -235,6 +235,9 @@ doesn't, the Gmail secrets (`GMAIL_USER`, `GMAIL_APP_PASSWORD`, both
 - **Errors in the running site** (`src/lib/errorAlert.js`) and the **contact
   form** (`src/routes/contact.js`): sent to the Render env var `CONTACT_TO`,
   or `admin@umasbooks.org` if it is not set.
+- **Refund found in HelloAsso** ("Order #N was refunded in HelloAsso: mark it
+  refunded in admin to restock") and the **day-12 list of uncollected orders**:
+  also sent to the same address; see section k.
 - All of these are *sent from* the Gmail account in `GMAIL_USER`.
 
 To add a second person: for the workflows, edit the `to:` line in those
@@ -421,6 +424,12 @@ secret** = same page, **Secrets** tab.
 - [ ] **`APP_BASE_URL`** (Render environment variable) is `https://umasbooks.org`,
   so emailed links and payment return URLs point at the real domain.
 - [ ] **`PREVIEW_MODE`** (Render environment variable) is deleted, as above.
+- [ ] **Real client IP.** Followed "Check the real client IP" below: req.ip is
+  your own public IP from mobile data and from home wifi.
+- [ ] **No launch alerts.** After the redeploy no email arrived titled
+  "APP_BASE_URL missing", "HelloAsso is still in SANDBOX mode" or "HelloAsso
+  credentials missing", and admin pages show no red HelloAsso sandbox banner.
+  Opening `https://umas-books-cmvv.onrender.com/` redirects to `https://umasbooks.org/`.
 - [ ] **`HELLOASSO_API_BASE`** (Render environment variable) is unset or the
   production address, **not** the sandbox one. The `HELLOASSO_*` client id,
   secret and organisation slug are the live ones.
@@ -452,6 +461,26 @@ secret** = same page, **Secrets** tab.
   account holder, member, volunteer, admin, edge cases): every **(must)** step,
   and the manual-only steps the automated tests list, see
   `docs/testing/manual-test-scripts.md`.
+
+### Check the real client IP
+
+Do this once after the deploy that introduced `TRUST_PROXY_HOPS`, and again if
+you ever change the Cloudflare or Render set-up. Rate limits, the per-IP order
+cap and the admin activity log all depend on the app seeing the visitor's real
+address and not a Cloudflare one.
+
+1. Log in as an admin, on your **phone on mobile data** (wifi off), and open
+   `https://umasbooks.org/admin/diagnostics/client-ip`.
+2. Search "what is my IP" in another tab. The **req.ip** line must be exactly
+   that address (your carrier's public IP).
+3. Do the same from **home wifi** (a laptop or phone on the wifi). Again
+   **req.ip** must be your own public IP, **not** a Cloudflare address.
+4. If it is wrong: Render > `umas-books` > Environment > add or change
+   **`TRUST_PROXY_HOPS`** (a Render environment variable), save, wait for the
+   redeploy, repeat from step 1. Normal value 2. If req.ip is still a
+   Cloudflare address, try 3; if it shows an address that is not yours but
+   neither is it Cloudflare, try 1. Never set it higher than needed: too many
+   hops let a visitor choose their own IP.
 
 ### Turning it on again
 
@@ -567,7 +596,132 @@ always white.
 Only copies that are **In Store** are listed. Nothing here changes prices; to
 change a price, open the book and use the price choices on the copy.
 
-## k) The VAT line ("TVA non applicable") and the footer social links
+## k) Refunds, withdrawals and orders not collected
+
+Online orders are paid through HelloAsso. **The website cannot move money:
+a refund is always done by a person in the HelloAsso dashboard.** The website
+then has to be told, so that the books go back on sale and the money stops
+counting as a sale. That second step is the **Mark refunded** button on the
+order page (admin > **Books & Orders** > **Orders**, then the order).
+
+What the terms of sale say (read them once: `/terms-of-sale.html`): books are
+collected at the shop "within 14 days of payment; if you need longer, write to
+us"; an online buyer may withdraw from a book purchase within 14 days of **collecting**
+it, by email, then bring the book back; we refund the full price by the same
+means of payment within 14 days of the notice (we may wait until we have the book
+back or the buyer shows proof of return, art. L.221-24). Drop-in sessions have no right of withdrawal,
+but if **we** cancel a session we refund in full. The shop itself does not take
+books back for a change of mind **in the shop** (the terms say: "Used books: no
+returns or exchanges for a change of mind in the shop. For online orders, your
+statutory 14-day right of withdrawal and the legal guarantees still apply").
+**Online orders always keep the 14-day withdrawal right**: never refuse a
+withdrawal email from an online buyer because the shop has a no-returns rule.
+
+### A customer withdraws within 14 days, or asks for a refund
+
+1. **Read the email.** A withdrawal is a clear email to admin@umasbooks.org
+   (the withdrawal form in the terms is optional). Note the order number. Open
+   the order: admin > **Orders** > type the number, email or name in **Search**.
+   Check it is **Paid** and the buyer is who wrote to you.
+2. **Get the book back** (withdrawal): the customer brings it to the shop in the
+   same condition. Look at it. You may keep the refund until you have it back,
+   but never later than 14 days after the email. If the order was **not
+   collected yet** you can refund straight away.
+3. **Refund the payment in the HelloAsso dashboard** (https://admin.helloasso.com,
+   sign in as the association): find the payment (search the buyer's email or
+   the amount and date; the order page shows the HelloAsso ids to match), open
+   it and use HelloAsso's refund button for the **full amount**. Button names
+   change from time to time: HelloAsso's help centre has a page on refunding a
+   payment. Do not refund twice. **Do not do step 4 before step 3.**
+4. **Tell the website.** Open the order, press **Mark refunded (done in
+   HelloAsso)**. The page shows a warning ("Do this only AFTER you refunded the
+   payment in the HelloAsso dashboard"). Tick the box, write a note (for
+   example "Withdrawal email 3 Oct, book returned 5 Oct, refunded in HelloAsso
+   6 Oct") and confirm.
+5. **What the website does, all at once:** the order becomes **Refunded**
+   (with the time and your note); every book of the order goes back **In stock**
+   (a book that was sold again meanwhile is left alone, the order page and
+   Admin activity say so); every drop-in seat of the order is **released**, so
+   it counts as free for that session again; the sale disappears from the
+   dashboard, the reports (a **Refunds** table in the sales report shows it on
+   its own) and the buyer's totals; a line `order.refunded` is written to
+   **Admin activity**. It is safe to press twice: the second time changes nothing.
+6. **Email the customer** to confirm (the website does not): the refund is
+   done, and it can take a few days to reach their account.
+7. **Put the book back on the shelf** in the shop, in the right place. It is
+   already listed as In stock online.
+
+A **partial** refund (only one book of several): HelloAsso may refund only part
+of the amount. Do **not** press Mark refunded (it would put **all** the books
+back on sale and take the whole order out of the figures). Write a note in your
+own records instead and ask the developer if you need the order split.
+
+### An order was not collected after 14 days
+
+The terms ask customers to collect "within 14 days of payment; if you need
+longer, write to us". **They do not say what happens after that**, so the shop
+has no written right to cancel a paid order or to sell the books again. Do not
+cancel it or put the books back on sale on your own.
+
+The website helps: on day 10 the customer gets a friendly reminder (it only
+repeats the terms: collect within 14 days, write to us if you need longer); on
+day 12 you get **one email** listing every order not collected; after 14 days
+the order is in the dashboard's **Needs attention** box and under admin >
+**Orders** > **Show: Not collected after 14 days**.
+
+1. Open the order and **contact the customer** (email, phone if given). Offer
+   to keep the books longer; they may simply have forgotten. If they come:
+   press **Mark collected** on the order.
+2. If they say they no longer want the books, treat it as a refund request: the
+   books are theirs to refund only if you agree (it is the association's
+   decision, the terms do not force it either way). If you refund: follow the
+   steps in "A customer withdraws within 14 days" from step 3 (nothing to get
+   back, the book never left the shop).
+3. If you cannot reach them and you are unsure what you may do, **do not
+   keep deciding silently**: ask an adviser. If the association wants a firm
+   rule (for example "unclaimed after N days: refund and restock"), it has to be
+   **added to the terms of sale first** (ask the developer: the terms version is
+   recorded on each order).
+4. Whatever is decided, put a note in the refund note or your own records so the
+   next volunteer knows.
+
+### A refund was done in HelloAsso and the site still shows Paid
+
+This happens when someone refunds in the HelloAsso dashboard and forgets the
+website (or a refund was made by HelloAsso itself). The books stay "sold" and
+the money still counts as a sale.
+
+The website looks for it by itself: every 6 hours it asks HelloAsso about the
+paid orders of the last 30 days. When a payment is refunded or canceled there,
+it **does not change anything** but:
+
+- sends **one email** to admin@umasbooks.org: "Order #N was refunded in
+  HelloAsso: mark it refunded in admin to restock" with a link (several orders
+  found in the same run come in one email);
+- shows a red box on the order page, adds it to the **Show: Refund detected in
+  HelloAsso** list and to the dashboard's **Needs attention** box.
+
+What to do: open the order from the link, **check in the HelloAsso dashboard**
+that the payment really was refunded (full amount), then press **Mark refunded
+(done in HelloAsso)** and write a note ("noticed by the website, refunded by
+...") as in step 4 above. If the refund was only partial, or was a mistake,
+do **not** press it; ask the developer.
+
+If the 6-hourly check cannot reach HelloAsso you get an error email ("HelloAsso
+refund check failing"); the check also depends on the HelloAsso credentials in
+Render (section b). A refund the check cannot see (older than 30 days, or an
+order with no HelloAsso payment recorded) must be marked by hand as above.
+
+### Other order buttons
+
+- **Mark collected**: when the customer has taken the books. Shows "Collected"
+  and leaves the "waiting for pickup" list. Drop-in-only orders never wait for pickup.
+- **Cancel unpaid order**: for an order stuck in **Pending** (someone started
+  paying and left). HelloAsso is asked first; if the order was in fact paid it
+  is not cancelled. Customers can also cancel their own unpaid order from their
+  cart page ("Your unpaid orders").
+
+## l) The VAT line ("TVA non applicable") and the footer social links
 
 **The VAT line.** The association does not charge VAT, and French law wants the
 legal article that says why written next to "TVA non applicable". Which article
@@ -591,4 +745,3 @@ Once the accountant answers:
 real pages exist. When they do, put the full addresses in `SOCIAL_LINKS` in the
 same file (`umas-books/src/lib/legal.js`, for example
 `instagram: "https://www.instagram.com/..."`); an empty value stays hidden.
-

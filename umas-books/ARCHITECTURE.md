@@ -252,7 +252,21 @@ rather than by a numbered migration), grouped by what they belong to:
 - **Shop / checkout** — `books`, `book_copies`, `orders` (with `cgv_accepted_at` / `cgv_version`: proof of acceptance of the terms of sale, version from `src/lib/legal.js`), `order_items`
   (an order line references *either* a book copy *or* a class drop-in
   seat, never both — see the `order_items_one_item_type` check
-  constraint)
+  constraint). `orders.status` is plain text: `pending`, `paid`, `expired`,
+  `cancelled`, `refunded` (migration 060). A refund is made by hand in the
+  HelloAsso dashboard; an admin then presses "Mark refunded" on
+  `/admin/orders/:id` (`src/lib/orderActions.js`), which in one transaction sets
+  `refunded` + `refunded_at` + `refund_note`, puts the order's sold copies back
+  `in_stock` (not a copy sold again since) and marks its drop-in seats
+  `released`. Pickup: `collected_at` / `collected_by` ("Mark collected").
+  `src/lib/orderSweeps.js` (every 6 h, started in `src/index.js`) re-reads each
+  paid order of the last 30 days from HelloAsso and flags `refund_detected_at`
+  (one alert email, `refund_alert_sent_at`; nothing is restocked automatically),
+  sends the day-10 customer reminder (`customer_pickup_reminder_sent_at`) and
+  the day-12 admin digest (`pickup_reminder_sent_at`), each once per order.
+  `checkout_redirect_url` lets the buyer resume payment from `/cart`.
+  Revenue everywhere counts `status = 'paid'` only, by `paid_at` in Paris time
+  (`src/lib/dashboardStats.js`, `src/lib/reports.js`).
 - **Legacy trust decision (one-time):** migration 032 marked every
   account that existed at the time as email-verified, since forcing
   re-verification would lock out real members. Email squatting that
@@ -265,7 +279,7 @@ rather than by a numbered migration), grouped by what they belong to:
 - **Account pre-hijack defence** (migration 055, `users.first_verification_pending`,
   set only by `POST /signup`): signup collects **no password** (the account gets
   a random unusable hash and cannot log in). The emailed link
-  (`GET /verify-email/:token`) verifies the email, bumps `password_changed_at`
+  (`GET /verify-email/:token` shows a "Confirm my email" button; its `POST` does the work, because mail scanners open GET links) verifies the email, bumps `password_changed_at`
   and redirects to `/reset-password/:token?confirmed=1`, a fresh single-use
   token, where the person chooses their password (policy and breach check
   apply); they then land on `/login?reset=confirmed`. So only the mailbox owner
@@ -342,6 +356,8 @@ src/` is the ground truth if this list ever drifts):
 | `PRICING_AI_DAILY_MAX` | no (defaults 150) | most AI market lookups per day, counted from the database so a restart cannot reset it; `0` switches lookups off |
 | `HELLOASSO_CLIENT_ID` / `HELLOASSO_CLIENT_SECRET` / `HELLOASSO_ORG_SLUG` | no (checkout shows "not set up yet" without them) | HelloAsso Checkout API credentials |
 | `HELLOASSO_API_BASE` | no (defaults to production) | set to HelloAsso's sandbox URL for testing |
+| `TRUST_PROXY_HOPS` | no (default 2 in production, 1 elsewhere) | integer 1 to 5, number of reverse proxies in front of the app (Cloudflare + Render edge = 2); decides `req.ip` (`src/lib/trustProxy.js`). Check on `/admin/diagnostics/client-ip` |
+| `APP_BASE_URL` | yes once preview is off | `https://umasbooks.org`; the only base URL used on a live site, and other Hosts are redirected to it (`src/middleware/canonicalHost.js`) |
 | `PREVIEW_MODE` | no (off when unset) | `true` or `1` (any case) turns on [preview mode](#preview-mode): coming-soon banner, payments off, search engines kept out. Set in the Render dashboard, not in `render.yaml` |
 
 CI (`.github/workflows/ci.yml`) has its own separate set of throwaway
@@ -370,6 +386,11 @@ actually uses.
   - the admin header shows a red reminder that preview mode is on.
 - To launch, delete the variable in Render: see the runbook, "Launching: turn
   preview mode off".
+- **Launch guards** (preview off, `src/lib/env.js`): warn at boot and send one
+  alert email when `APP_BASE_URL` is missing or not https, `HELLOASSO_API_BASE`
+  is the sandbox, or the HelloAsso credentials are missing (`CONTACT_TO` missing
+  only warns); the site keeps running. Sandbox also shows a red banner on every
+  admin page (`res.locals.helloassoSandbox`, `lib/preview.js`).
 
 ## Process lifecycle and operations
 

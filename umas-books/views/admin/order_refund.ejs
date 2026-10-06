@@ -1,0 +1,39 @@
+<%- include('../partials/admin_header', { title: 'Mark order #' + order.id + ' refunded', active: 'orders', pageTitle: 'Mark order #' + order.id + ' refunded', pageSub: 'Step 2 of 2: confirm' }) %>
+
+<p><a href="/admin/orders/<%= order.id %>">&larr; Back to the order</a></p>
+
+<% if (error) { %><div class="error-box" role="alert"><%= error %></div><% } %>
+
+<div class="error-box" role="alert">
+  <strong>Do this only AFTER you refunded the payment in the HelloAsso dashboard.</strong>
+  This page does not refund anyone: it only updates the website. If you have not refunded the payment yet, go to HelloAsso first.
+</div>
+
+<div class="card">
+  <p>Order #<%= order.id %> &middot; <%= order.buyer_name %> &middot; <strong>&euro;<%= Number(order.total_amount).toFixed(2) %></strong> &middot; <span class="status-pill <%= order.status %>"><%= order.status.charAt(0).toUpperCase() + order.status.slice(1) %></span></p>
+  <ul class="plain">
+    <% items.forEach(i => { %><li><%= i.item_title %> <span class="muted small">&middot; &euro;<%= Number(i.price).toFixed(2) %></span></li><% }) %>
+  </ul>
+  <p>When you confirm, in one step:</p>
+  <ul>
+    <li>the order becomes <strong>Refunded</strong> and no longer counts in sales, reports or the buyer&rsquo;s totals;</li>
+    <li>every book from this order goes back <strong>in stock</strong> (a book already sold again is left alone);</li>
+    <li>every drop-in seat is <strong>released</strong> (it stops counting against the session&rsquo;s capacity);</li>
+    <li>the action is written to Admin activity.</li>
+  </ul>
+  <p class="muted small">The customer is not emailed by the website: write to them yourself to confirm the refund.</p>
+
+  <% if (order.status === 'paid') { %>
+    <form class="stack" method="post" action="/admin/orders/<%= order.id %>/refund">
+      <%- include('../partials/csrf_field') %>
+      <label class="ann-check"><input type="checkbox" name="confirmHelloasso" required> <span>I have already refunded this payment in the HelloAsso dashboard.</span></label>
+      <label for="note">Note (required)</label>
+      <textarea id="note" name="note" required maxlength="<%= noteMax %>" placeholder="For example: customer withdrew by email on 3 Oct, refunded in HelloAsso on 4 Oct"><%= note %></textarea>
+      <button class="btn" type="submit">Yes, mark this order refunded</button>
+    </form>
+  <% } else { %>
+    <p class="notice-box" role="status">Only a paid order can be marked refunded (this one is <%= order.status %>).</p>
+  <% } %>
+</div>
+
+<%- include('../partials/admin_footer') %>

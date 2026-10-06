@@ -93,9 +93,9 @@ const uniq = () => `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
 let ipSeq = Math.floor(Math.random() * 200) * 250;
 const nextIp = () => { ipSeq += 1; return `10.${(ipSeq >> 16) & 255}.${(ipSeq >> 8) & 255}.${ipSeq & 255}`; };
 
-function guest(lang) {
+function guest(lang, fixedIp) {
   const jar = makeCookieJar();
-  const ip = nextIp();
+  const ip = fixedIp || nextIp();
   const send = async (path, { method = "GET", form } = {}) => {
     const res = await fetch(`${server.base}${path}`, {
       method,
@@ -247,7 +247,7 @@ test("signup -> confirm email -> choose password -> login returns to the cart wi
     "SELECT t.return_to FROM email_verification_tokens t JOIN users u ON u.id = t.user_id WHERE u.email = $1", [email]);
   assert.deepEqual(tok.map((t) => t.return_to), ["/cart"]);
 
-  const confirm = await v.get(new URL(confirmLink).pathname);
+  const confirm = await v.post(new URL(confirmLink).pathname, { confirm: "1" });
   assert.match(confirm.location, /^\/reset-password\/[0-9a-f]+\?confirmed=1$/);
   const resetPath = confirm.location;
   const choose = await v.post(resetPath, { newPassword: "Correct-Horse-9!x" });
@@ -365,6 +365,28 @@ test("the checkout caps still apply per account email", async () => {
   assert.equal(r.res.status, 200);
   assert.match(r.text, /already have unpaid orders/);
   assert.equal((await ordersFor(account.email)).length, 2);
+});
+
+test("the per-IP unpaid-order cap is 10 (a shared wifi), while one account still stops at 2", async () => {
+  const ip = nextIp();
+  for (let a = 0; a < 5; a++) {
+    const account = await createAccount(pool, { email: `wifi-${uniq()}-${a}@example.test` });
+    for (let i = 0; i < 2; i++) {
+      const v = guest(undefined, ip);
+      await login(v, account);
+      await v.post("/cart/add", { copyId: await makeCopy() });
+      assert.equal((await v.post("/cart/checkout", { name: "W", acceptCgv: "on" })).res.status, 302, `account ${a} order ${i}`);
+    }
+  }
+  const extra = await createAccount(pool, { email: `wifi-extra-${uniq()}@example.test` });
+  const v = guest(undefined, ip);
+  await login(v, extra);
+  await v.post("/cart/add", { copyId: await makeCopy() });
+  const r = await v.post("/cart/checkout", { name: "W", acceptCgv: "on" });
+  // Refused either by the unpaid-order cap (200 + message) or by the 10-per-hour
+  // checkout limiter that sits in front of it (429): both are 10 per IP.
+  assert.ok([200, 429].includes(r.res.status), `status ${r.res.status}`);
+  assert.equal((await ordersFor(extra.email)).length, 0, "the 11th unpaid order from one IP is refused");
 });
 
 // ---------- 6. preview mode keeps its own message ----------
