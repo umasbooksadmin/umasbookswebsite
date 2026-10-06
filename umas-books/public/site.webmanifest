@@ -1,12 +1,14 @@
 {
-  "name": "Uma's Books Members",
+  "name": "Uma's Books",
   "short_name": "Uma's Books",
+  "description": "Uma's Books & Adventures: a community English bookshop in Albi, France.",
   "icons": [
     { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
     { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
   ],
-  "theme_color": "#a05946",
-  "background_color": "#e9dfd3",
+  "theme_color": "#fffefb",
+  "background_color": "#fffefb",
   "display": "standalone",
-  "start_url": "/dashboard"
+  "start_url": "/",
+  "scope": "/"
 }

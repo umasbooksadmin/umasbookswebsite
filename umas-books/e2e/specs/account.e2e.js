@@ -256,13 +256,14 @@ async function needPayments(ctx) {
 
 // ---- 2F. Buying: cart, checkout, HelloAsso (never paid), drop-in seat ----
 
-s.test("AC22 (must) the checkout form has name, email, phone, terms checkbox with link, privacy note and Pay & Buy", { as: "account" }, async (ctx) => {
+s.test("AC22 (must) the checkout form has name, email, phone, terms checkbox with link, privacy note and Order with obligation to pay", { as: "account" }, async (ctx) => {
   const book = await stockedBook(ctx);
   await clearCart(ctx);
   await addFirstCopyToCart(ctx, book);
   await needPayments(ctx);
   const form = await ctx.page.$eval("form[action='/cart/checkout']", (f) => f.innerText);
-  for (const re of [/Name/, /Email/, /Phone \(optional\)/, /terms of sale/, /right of withdrawal/, /Pay & Buy/]) has(form, re);
+  for (const re of [/Name/, /Email/, /Phone \(optional\)/, /terms of sale/, /right of withdrawal/, /Used books: no returns or exchanges for a change of mind in the shop/, /Order with obligation to pay/]) has(form, re);
+  has(await ctx.text(), /Price incl\. tax, TVA non applicable/);
   const link = await ctx.page.$eval("form[action='/cart/checkout'] a[href='/terms-of-sale.html']", (a) => a.target);
   assert.equal(link, "_blank", "the terms open in a new tab");
   assert.ok(await ctx.page.$("form[action='/cart/checkout'] a[href='/privacy-policy.html']"), "privacy note links the policy");
@@ -292,10 +293,10 @@ s.test("AC-FR22 FR check (cart): the cart and checkout form are in French", { as
   await clearCart(ctx);
   await addFirstCopyToCart(ctx, book);
   const text = await ctx.text();
-  for (const re of [/Votre panier/, /Retirer/, /Total :/]) has(text, re);
+  for (const re of [/Votre panier/, /Retirer/, /Total\s:/]) has(text, re);
   if (ctx.preview) { has(text, /La commande en ligne ouvrira au lancement/); return; }
   if (!(await checkoutForm(ctx))) return;
-  for (const re of [/Paiement/, /Nom/, /E-mail/, /Téléphone \(facultatif\)/, /J.ai lu et j.accepte les conditions de vente/, /Commander et payer/, /Vous paierez en toute sécurité via HelloAsso, puis vous passerez à Uma's Books pour retirer votre commande/]) has(text, re);
+  for (const re of [/Paiement/, /Nom/, /E-mail/, /Téléphone \(facultatif\)/, /J.ai lu et j.accepte les conditions de vente/, /Commander avec obligation de paiement/, /Livres d’occasion\s:\spas de reprise ni d’échange/, /Prix TTC, TVA non applicable/, /Vous paierez en toute sécurité via HelloAsso, puis vous passerez à Uma.s Books pour retirer votre commande/, /À retirer sous 14 jours, du mardi au samedi, 10h–19h, rue Peyrolière, Albi/]) has(text, re);
 });
 
 s.test("AC24 (preview mode) checkout is refused by the server and never reaches HelloAsso", { as: "account" }, async (ctx) => {
@@ -315,7 +316,7 @@ s.test("AC24 (preview mode) checkout is refused by the server and never reaches 
   has(await ctx.text(), /Online ordering opens when we launch|cart/);
 });
 
-s.write("AC24 (must) with payments on, Pay & Buy starts a checkout that redirects to HelloAsso; the test stops there", { as: "account" }, async (ctx) => {
+s.write("AC24 (must) with payments on, Order with obligation to pay starts a checkout that redirects to HelloAsso; the test stops there", { as: "account" }, async (ctx) => {
   if (ctx.preview) ctx.skip("preview mode: checkout is off (asserted by the preview-mode AC24 test)");
   const book = await stockedBook(ctx);
   await ctx.goto(`/books/${book.id}`);
@@ -409,7 +410,7 @@ s.test("AC34 (must) a cart with a drop-in seat has the extra waiver checkbox, re
   assert.equal(required, true);
   const label = await ctx.page.$eval("input[name='waiveWithdrawal']", (i) => i.parentElement.innerText);
   has(label, /I ask for the session\(s\) to take place on the date booked/);
-  has(label, /no longer withdraw/);
+  has(label, /right of withdrawal does not apply/);
 });
 
 s.manual("AC35 pay for a drop-in seat and check the confirmation email", "needs a payment and a mailbox");
@@ -543,10 +544,23 @@ async function membershipPage(ctx) {
 s.test("AC51 (must) the membership page shows an account holder only the payment form, with the account's email, and no sign-up form", { as: "account" }, async (ctx) => {
   await membershipPage(ctx);
   assert.equal(await ctx.page.$("form[action='/membership/join']"), null, "no sign-up form for a logged-in account");
-  assert.ok(await ctx.page.$("#haWidget"), "the payment form");
+  assert.ok(await ctx.page.$("#haWidgetHolder"), "the payment form (click to load)");
   const note = await ctx.page.$eval("#memAccountEmail", (e) => e.innerText);
   assert.ok(note.includes(accountCreds().email), "the account's own email is shown");
   assert.ok(await ctx.page.$("form[action='/membership/check'] button"), "the Check my membership button");
+});
+
+s.test("AC55 (must) the HelloAsso form only loads after the account holder presses Show the HelloAsso form", { as: "account" }, async (ctx) => {
+  await membershipPage(ctx);
+  assert.equal(await ctx.page.$("#haWidget"), null, "no HelloAsso frame before the click (nothing is requested from HelloAsso)");
+  assert.equal(await ctx.page.$("iframe"), null);
+  assert.equal(await ctx.page.$eval("#haShow", (b) => b.textContent.trim()), "Show the HelloAsso form");
+  await ctx.page.click("#haShow");
+  await ctx.page.waitForSelector("iframe#haWidget");
+  const src = await ctx.page.$eval("#haWidget", (f) => f.getAttribute("src"));
+  assert.match(src, /^https:\/\/www\.helloasso\.com\//);
+  assert.ok(await ctx.page.$eval("#haWidget", (f) => f.getAttribute("title")), "the frame has a title");
+  assert.equal(await ctx.page.$eval("#haGate", (g) => g.hidden), true, "the button is gone once the form is shown");
 });
 
 s.test("AC52 a membership sign-up request from a logged-in account does nothing", { as: "account" }, async (ctx) => {

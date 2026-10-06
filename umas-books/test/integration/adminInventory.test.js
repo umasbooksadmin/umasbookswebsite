@@ -28,6 +28,9 @@ async function storedImage(url) {
   return rows[0].data;
 }
 const { requireAdmin } = require("../../src/middleware/auth");
+const coverStore = require("../../src/lib/coverStore");
+coverStore.setLookupForTests(async () => [{ address: "93.184.216.34", family: 4 }]); // no DNS in tests
+const KEEP_COVER = `/img/${"f".repeat(64)}.jpg`; // a stored cover some test books already have
 
 process.env.ANTHROPIC_API_KEY = "test-key-not-real";
 
@@ -37,6 +40,9 @@ const realFetch = global.fetch;
 const ai = {}; // per-test knobs, see resetStubs
 const anthropicCalls = []; // parsed request bodies
 const olCalls = []; // URLs
+const coverCalls = []; // cover downloads (always from the allowed hosts, always answered with `coverJpeg`)
+let coverJpeg;
+let coverFails = false;
 const openLibrary = { isbn: new Map(), search: [] };
 
 function resetStubs() {
@@ -45,6 +51,8 @@ function resetStubs() {
   ai.fail = false;
   anthropicCalls.length = 0;
   olCalls.length = 0;
+  coverCalls.length = 0;
+  coverFails = false;
   openLibrary.isbn.clear();
   openLibrary.search = [];
 }
@@ -74,6 +82,11 @@ global.fetch = async (url, init = {}) => {
     }
     if (u.includes("/search.json")) return jsonRes({ docs: openLibrary.search });
   }
+  if (u.startsWith("https://covers.openlibrary.org/")) {
+    coverCalls.push(u);
+    if (coverFails) return new Response("gone", { status: 404 });
+    return new Response(coverJpeg, { status: 200, headers: { "content-type": "image/jpeg" } });
+  }
   throw new Error(`test refused a real outbound request to ${u}`);
 };
 
@@ -83,6 +96,7 @@ let server;
 let adminId;
 before(async () => {
   db.create();
+  coverJpeg = await sharp({ create: { width: 400, height: 600, channels: 3, background: "#884422" } }).jpeg().toBuffer();
   const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
   const gate = express.Router();
   gate.use("/admin/inventory", requireAdmin, upload.fields([{ name: "photo", maxCount: 1 }, { name: "coverPhoto", maxCount: 1 }]));
@@ -132,7 +146,7 @@ const png = (w = 60, h = 40) => sharp({ create: { width: w, height: h, channels:
 const bookByTitle = async (title) => (await pool.query("SELECT * FROM books WHERE title = $1", [title])).rows;
 const copiesOf = async (bookId) => (await pool.query("SELECT * FROM book_copies WHERE book_id = $1 ORDER BY id", [bookId])).rows;
 
-async function seedBook({ title = `Seed ${tag()}`, isbn = null, cover = "https://img.example/c.jpg", description = "Existing description", descriptionFr = "Description existante", copies = [{}] } = {}) {
+async function seedBook({ title = `Seed ${tag()}`, isbn = null, cover = KEEP_COVER, description = "Existing description", descriptionFr = "Description existante", copies = [{}] } = {}) {
   const { rows } = await pool.query(
     "INSERT INTO books (isbn, title, authors, description, description_fr, cover_url) VALUES ($1, $2, 'Seed Author', $3, $4, $5) RETURNING id",
     [isbn, title, description, descriptionFr, cover]
@@ -268,7 +282,7 @@ test("lookup: a found ISBN pre-fills the add form (and the form escapes catalog 
   const isbn = isbn13();
   openLibrary.isbn.set(isbn, {
     title: 'Found "Book"><script>alert(1)</script>', authors: [{ name: "Ann Author" }], publishers: [{ name: "Pub House" }],
-    publish_date: "2001", cover: { large: "https://covers.example/x.jpg" }, subjects: [{ name: "Fantasy" }],
+    publish_date: "2001", cover: { large: "https://covers.openlibrary.org/b/id/61-L.jpg" }, subjects: [{ name: "Fantasy" }],
   });
   const { status, text } = await post("/admin/inventory/lookup", { fields: { isbn: `${isbn.slice(0, 3)}-${isbn.slice(3)}` } });
   assert.equal(status, 200);
@@ -277,7 +291,10 @@ test("lookup: a found ISBN pre-fills the add form (and the form escapes catalog 
   assert.ok(text.includes("Found &#34;Book&#34;&gt;&lt;script&gt;"));
   assert.ok(text.includes("Ann Author") && text.includes("Pub House") && text.includes("2001"));
   assert.ok(text.includes(`value="${isbn}"`));
-  assert.ok(text.includes("https://covers.example/x.jpg"));
+  // The catalog's cover address is copied to our server first: the form previews OUR copy.
+  assert.match(text, /src="\/img\/[0-9a-f]{64}\.jpg"/);
+  assert.ok(!text.includes("covers.openlibrary.org"), "the external address is never in the page");
+  assert.deepEqual(coverCalls, ["https://covers.openlibrary.org/b/id/61-L.jpg"]);
   assert.match(text, /name="fromScan" value="1"/);
   assert.doesNotMatch(text, /No catalog match/);
 });
@@ -395,7 +412,7 @@ test("add: creates the book and one copy; garbage condition/status fall back to 
     fields: {
       title: `  ${title}  `, author: "Au Thor", isbn: `${isbn.slice(0, 3)}-${isbn.slice(3)}`, publisher: "Pub", publishedYear: "1987",
       genre: " Mystery , mystery, Fiction ", description: "Given description", descriptionFr: "Description donnée",
-      coverUrl: "https://img.example/given.jpg", condition: "pristine", status: "lost", price: "8.50", acquisitionCost: "2", acquiredAt: "2026-01-15", copyNotes: " dog-eared ",
+      coverUrl: "https://covers.openlibrary.org/b/id/12-L.jpg", condition: "pristine", status: "lost", price: "8.50", acquisitionCost: "2", acquiredAt: "2026-01-15", copyNotes: " dog-eared ",
     },
   });
   assert.equal(status, 302);
@@ -408,7 +425,8 @@ test("add: creates the book and one copy; garbage condition/status fall back to 
   assert.equal(book.categories_fr, "Policier, Fiction");
   assert.equal(book.description, "Given description");
   assert.equal(book.description_fr, "Description donnée");
-  assert.equal(book.cover_url, "https://img.example/given.jpg");
+  await storedImage(book.cover_url); // an external address typed in is copied to our server
+  assert.equal(book.cover_source_url, "https://covers.openlibrary.org/b/id/12-L.jpg");
   assert.equal(book.created_by, adminId);
   const [copy] = await copiesOf(book.id);
   assert.equal(copy.condition, "very_good");
@@ -453,14 +471,15 @@ test("add: missing optional fields become NULL / defaults; fromScan returns to t
 test("add: a missing description is generated and translated; a missing cover is looked up by ISBN", async () => {
   const title = `Auto ${tag()}`;
   const isbn = isbn13();
-  openLibrary.isbn.set(isbn, { title, cover: { large: "https://covers.example/auto.jpg" } });
+  openLibrary.isbn.set(isbn, { title, cover: { large: "https://covers.openlibrary.org/b/id/62-L.jpg" } });
   ai.description = "Auto blurb.";
   const { location } = await post("/admin/inventory", { fields: { title, isbn, author: "Auto Author" } });
   const [book] = await bookByTitle(title);
   assert.equal(location, `/admin/inventory/${book.id}`);
   assert.equal(book.description, "Auto blurb.");
   assert.equal(book.description_fr, "FR: Auto blurb.");
-  assert.equal(book.cover_url, "https://covers.example/auto.jpg");
+  await storedImage(book.cover_url);
+  assert.equal(book.cover_source_url, "https://covers.openlibrary.org/b/id/62-L.jpg");
 });
 
 test("add: with no ISBN match the cover falls back to a title/author search", async () => {
@@ -468,7 +487,8 @@ test("add: with no ISBN match the cover falls back to a title/author search", as
   openLibrary.search = [{ title: "No cover" }, { title: "With cover", cover_i: 77 }];
   await post("/admin/inventory", { fields: { title, description: "d", descriptionFr: "d" } });
   const [book] = await bookByTitle(title);
-  assert.equal(book.cover_url, "https://covers.openlibrary.org/b/id/77-L.jpg");
+  await storedImage(book.cover_url);
+  assert.equal(book.cover_source_url, "https://covers.openlibrary.org/b/id/77-L.jpg");
 });
 
 test("add: an uploaded cover photo is stored as a resized JPEG in the image store, overriding the URL field", async () => {
@@ -542,25 +562,27 @@ test("add: a second copy of an ISBN already in stock joins the existing book ins
 test("add: a second copy backfills the existing book's missing description, translation and cover", async () => {
   const isbn = isbn13();
   const b = await seedBook({ isbn, cover: null, description: null, descriptionFr: null });
-  openLibrary.isbn.set(isbn, { title: b.title, cover: { large: "https://covers.example/backfill.jpg" } });
+  openLibrary.isbn.set(isbn, { title: b.title, cover: { large: "https://covers.openlibrary.org/b/id/63-L.jpg" } });
   ai.description = "Backfilled blurb.";
   await post("/admin/inventory", { fields: { title: b.title, isbn } });
   const [book] = (await pool.query("SELECT * FROM books WHERE id = $1", [b.id])).rows;
   assert.equal(book.description, "Backfilled blurb.");
   assert.equal(book.description_fr, "FR: Backfilled blurb.");
-  assert.equal(book.cover_url, "https://covers.example/backfill.jpg");
+  await storedImage(book.cover_url);
+  assert.equal(book.cover_source_url, "https://covers.openlibrary.org/b/id/63-L.jpg");
   assert.equal((await copiesOf(b.id)).length, 2);
 });
 
 test("add: a second copy never overwrites what the existing book already has", async () => {
   const isbn = isbn13();
-  const b = await seedBook({ isbn, cover: "https://img.example/keep.jpg", description: "Keep me", descriptionFr: null });
+  const b = await seedBook({ isbn, cover: KEEP_COVER, description: "Keep me", descriptionFr: null });
   await post("/admin/inventory", {
-    fields: { title: b.title, isbn, description: "Different description", coverUrl: "https://img.example/other.jpg" },
+    fields: { title: b.title, isbn, description: "Different description", coverUrl: "https://covers.openlibrary.org/b/id/64-L.jpg" },
   });
   const [book] = (await pool.query("SELECT * FROM books WHERE id = $1", [b.id])).rows;
   assert.equal(book.description, "Keep me");
-  assert.equal(book.cover_url, "https://img.example/keep.jpg");
+  assert.equal(book.cover_url, KEEP_COVER);
+  assert.equal(coverCalls.length, 0, "no download when the book already has a cover");
   assert.equal(book.description_fr, "FR: Keep me", "only the missing French text was filled in");
 });
 
@@ -573,16 +595,17 @@ test("edit: updates the book's fields, normalising ISBN and genres", async () =>
   const { status, location } = await post(`/admin/inventory/${b.id}`, {
     fields: {
       title: newTitle, author: "New Author", isbn: `${isbn.slice(0, 3)}-${isbn.slice(3)}`, publisher: "NP", publishedYear: "2010",
-      genre: "History,history, Poetry", description: "New description", descriptionFr: "Nouvelle description", coverUrl: "https://img.example/new.jpg",
+      genre: "History,history, Poetry", description: "New description", descriptionFr: "Nouvelle description", coverUrl: "https://covers.openlibrary.org/b/id/65-L.jpg",
     },
   });
   assert.equal(status, 302);
   assert.equal(location, `/admin/inventory/${b.id}`);
   const [book] = (await pool.query("SELECT * FROM books WHERE id = $1", [b.id])).rows;
   assert.deepEqual(
-    [book.title, book.authors, book.isbn, book.publisher, book.published_year, book.categories, book.categories_fr, book.description, book.description_fr, book.cover_url],
-    [newTitle, "New Author", isbn, "NP", 2010, "History, Poetry", "Histoire, Poésie", "New description", "Nouvelle description", "https://img.example/new.jpg"]
+    [book.title, book.authors, book.isbn, book.publisher, book.published_year, book.categories, book.categories_fr, book.description, book.description_fr, book.cover_source_url],
+    [newTitle, "New Author", isbn, "NP", 2010, "History, Poetry", "Histoire, Poésie", "New description", "Nouvelle description", "https://covers.openlibrary.org/b/id/65-L.jpg"]
   );
+  await storedImage(book.cover_url);
   assert.equal((await copiesOf(b.id)).length, 1, "copies untouched");
 });
 
@@ -598,19 +621,20 @@ test("edit: a blank title changes nothing (the redirect still happens)", async (
 test("edit: blanking the description regenerates it, blanking the cover looks one up", async () => {
   const b = await seedBook({ isbn: isbn13() });
   const isbn = (await pool.query("SELECT isbn FROM books WHERE id=$1", [b.id])).rows[0].isbn;
-  openLibrary.isbn.set(isbn, { title: b.title, cover: { large: "https://covers.example/edit.jpg" } });
+  openLibrary.isbn.set(isbn, { title: b.title, cover: { large: "https://covers.openlibrary.org/b/id/66-L.jpg" } });
   ai.description = "Regenerated.";
   await post(`/admin/inventory/${b.id}`, { fields: { title: b.title, isbn } });
   const [book] = (await pool.query("SELECT * FROM books WHERE id = $1", [b.id])).rows;
   assert.equal(book.description, "Regenerated.");
   assert.equal(book.description_fr, "FR: Regenerated.");
-  assert.equal(book.cover_url, "https://covers.example/edit.jpg");
+  await storedImage(book.cover_url);
+  assert.equal(book.cover_source_url, "https://covers.openlibrary.org/b/id/66-L.jpg");
 });
 
 test("edit: uploading a cover photo replaces the cover with a stored JPEG", async () => {
   const b = await seedBook();
   await post(`/admin/inventory/${b.id}`, {
-    fields: { title: b.title, description: "d", descriptionFr: "d", coverUrl: "https://img.example/old.jpg" },
+    fields: { title: b.title, description: "d", descriptionFr: "d", coverUrl: "https://covers.openlibrary.org/b/id/67-L.jpg" },
     files: { coverPhoto: { buffer: await png(), type: "image/png", name: "n.png" } },
   });
   const [book] = (await pool.query("SELECT cover_url FROM books WHERE id = $1", [b.id])).rows;
@@ -618,15 +642,40 @@ test("edit: uploading a cover photo replaces the cover with a stored JPEG", asyn
 });
 
 test("edit: a non-image upload is rejected and the existing cover is kept", async () => {
-  const b = await seedBook({ cover: "https://img.example/keep.jpg" });
+  const b = await seedBook({ cover: KEEP_COVER });
   const { status } = await post(`/admin/inventory/${b.id}`, {
     fields: { title: `Changed ${b.title}`, description: "d", descriptionFr: "d" },
     files: { coverPhoto: { buffer: Buffer.from("<html>not an image</html>"), type: "image/png", name: "x.png" } },
   });
   assert.equal(status, 500);
   const [book] = (await pool.query("SELECT * FROM books WHERE id = $1", [b.id])).rows;
-  assert.equal(book.cover_url, "https://img.example/keep.jpg");
+  assert.equal(book.cover_url, KEEP_COVER);
   assert.equal(book.title, b.title, "the whole edit was refused");
+});
+
+test("add: a cover address on a host we may not fetch from is dropped (never requested, never stored)", async () => {
+  const title = `Hostile ${tag()}`;
+  await post("/admin/inventory", { fields: { title, description: "d", descriptionFr: "d", coverUrl: "https://169.254.169.254/latest/meta-data" } });
+  const [book] = await bookByTitle(title);
+  assert.equal(book.cover_url, null);
+  assert.equal(book.cover_source_url, null);
+  assert.equal(coverCalls.length, 0);
+});
+
+test("add: when the cover download fails the book is still saved, shows no cover, and keeps the source for the background job", async () => {
+  const title = `Failing cover ${tag()}`;
+  coverFails = true;
+  const warn = console.warn;
+  console.warn = () => {};
+  try {
+    await post("/admin/inventory", { fields: { title, description: "d", descriptionFr: "d", coverUrl: "https://covers.openlibrary.org/b/id/68-L.jpg" } });
+  } finally {
+    console.warn = warn;
+  }
+  const [book] = await bookByTitle(title);
+  assert.equal(book.cover_url, null, "never an external address");
+  assert.equal(book.cover_source_url, "https://covers.openlibrary.org/b/id/68-L.jpg");
+  assert.equal(book.cover_fetch_failures, 0);
 });
 
 // ------------------------------------------------------------- copies / status

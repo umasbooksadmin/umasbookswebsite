@@ -141,14 +141,17 @@ test("the home page carries Bookstore JSON-LD built from facts on the site; othe
   assert.doesNotMatch(await (await get("/about.html")).text(), /application\/ld\+json/);
 });
 
-test("the HelloAsso iframe has a title (shown to a logged-in account: a guest gets the join form instead)", async () => {
+test("the HelloAsso form is click-to-load, with a title for the iframe it creates (shown to a logged-in account: a guest gets the join form instead)", async () => {
   const guest = await (await get("/membership.html")).text();
   assert.ok(!guest.includes("<iframe"), "no payment widget for a guest");
   const jar = makeCookieJar();
   const account = await createAccount(pool, { email: `a11y-${stamp}@example.test`, displayName: "A11y" });
   assert.equal((await loginOverHttp(app.base, jar, account)).status, 302);
   const html = await (await fetch(`${app.base}/membership.html`, { headers: { cookie: jar.header() } })).text();
-  assert.match(html, /<iframe id="haWidget" title="HelloAsso membership form"/);
+  assert.ok(!html.includes("<iframe"), "nothing is requested from HelloAsso before the click");
+  assert.match(html, /id="haWidgetHolder"[^>]*data-title-en="HelloAsso membership form" data-title-fr="Formulaire d’adhésion HelloAsso"/);
+  assert.match(html, /<button id="haShow" class="btn btn-maroon" type="button"[^>]*>Show the HelloAsso form<\/button>/);
+  assert.match(html, /<script src="assets\/membership-widget\.js"><\/script>/);
 });
 
 test("login, signup and password forms carry autocomplete tokens", async () => {

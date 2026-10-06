@@ -39,7 +39,7 @@
       <div class="cart-item">
         <% if (i.kind === 'book') { %>
           <% if (i.coverUrl) { %>
-            <img src="<%= i.coverUrl %>" alt="" class="cart-item-cover">
+            <img src="<%= i.coverUrl %>" alt="" class="cart-item-cover" width="48" height="72" loading="lazy" decoding="async" data-cover>
           <% } else { %>
             <div class="cart-item-cover book-thumb-placeholder"><%= tr('No cover', 'Pas de couverture') %></div>
           <% } %>
@@ -66,6 +66,7 @@
   </div>
 
   <div class="cart-total"><%= tr('Total:', 'Total :') %> <strong><%= eur(total) %></strong></div>
+  <p class="muted small cart-vat"><%= legalText.priceLine %></p>
 
   <% if (locals.preview) { %>
     <div role="status" class="notice-box"><%= tr('Online ordering opens when we launch. This is a preview, so you can fill a cart to see how it works, but nothing can be ordered yet.', 'La commande en ligne ouvrira au lancement. Ceci est un aperçu : vous pouvez remplir un panier pour voir comment cela fonctionne, mais rien ne peut encore être commandé.') %></div>
@@ -94,11 +95,12 @@
         <p class="muted small" id="accountEmailHelp"><%= tr('This is your account email: your confirmation is sent there.', 'Voici l’adresse e-mail de votre compte : votre confirmation y sera envoyée.') %></p>
         <label for="phone"><%= tr('Phone (optional)', 'Téléphone (facultatif)') %></label>
         <input id="phone" name="phone" type="tel">
-        <p class="muted small"><%= tr("You'll pay securely via HelloAsso, then come by Uma's Books to pick up your order.", "Vous paierez en toute sécurité via HelloAsso, puis vous passerez à Uma's Books pour retirer votre commande.") %></p>
+        <p class="muted small"><%= tr("You'll pay securely via HelloAsso, then come by Uma's Books to pick up your order.", "Vous paierez en toute sécurité via HelloAsso, puis vous passerez à Uma's Books pour retirer votre commande.") %><% if (items.some((i) => i.kind === 'book')) { %> <%= legalText.pickup %><% } %></p>
         <label class="ann-check"><input type="checkbox" name="acceptCgv" required> <span><%= tr('I have read and accept the', 'J’ai lu et j’accepte les') %> <a href="/terms-of-sale.html" target="_blank" rel="noopener"><%= tr('terms of sale', 'conditions de vente') %></a> <%= tr('(including the right of withdrawal).', '(y compris le droit de rétractation).') %></span></label>
         <%- include('partials/privacy_note', { en: 'We use your details only to process your order. See our', fr: 'Vos données servent uniquement à traiter votre commande. Consultez notre' }) %>
         <% if (items.some((i) => i.kind === 'dropin')) { %><%- include('partials/dropin_waiver') %><% } %>
-        <button class="btn" type="submit"><%= tr('Pay & Buy', 'Commander et payer') %></button>
+        <p class="muted small no-returns-note"><%= legalText.noReturns %> <a href="/terms-of-sale.html" target="_blank" rel="noopener"><%= tr('Terms of sale', 'Conditions de vente') %></a></p>
+        <button class="btn" type="submit"><%= tr('Order with obligation to pay', 'Commander avec obligation de paiement') %></button>
       </form>
     </div>
   <% } %>

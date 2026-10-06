@@ -1,4 +1,5 @@
 const express = require("express");
+const { localCover } = require("../lib/coverStore");
 const { pool } = require("../db");
 const { CONDITIONS, bindingLabel } = require("../lib/inventory");
 const { expireStaleReservations } = require("../lib/reservations");
@@ -8,6 +9,8 @@ const { loadPublicAwards, awardsTextSql } = require("../lib/awards/display");
 
 const { validateIdParams } = require("../middleware/idParams");
 
+const { latestArrivals } = require("../lib/latestArrivals");
+const { buildBookSeo } = require("../lib/bookSeo");
 const router = express.Router();
 // Garbage ids get the 404 page, not a Postgres 22P02 and a 500.
 validateIdParams(router, "id");
@@ -67,26 +70,13 @@ router.get("/api/books/latest-arrivals", async (req, res) => {
   const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 8, 1), 24);
   const daysParam = parseInt(req.query.days, 10);
   const days = Number.isInteger(daysParam) && daysParam >= 0 ? Math.min(daysParam, 365) : 7;
-  const windowClause = days > 0 ? "AND c.created_at >= now() - make_interval(days => $2)" : "";
-  const { rows } = await pool.query(
-    `SELECT b.id, b.title, b.authors, b.cover_url,
-            (SELECT MIN(price) FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock') AS min_price,
-            (SELECT MAX(c.created_at) FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock') AS newest_copy_at
-     FROM books b
-     WHERE EXISTS (
-       SELECT 1 FROM book_copies c
-       WHERE c.book_id = b.id AND c.status = 'in_stock' ${windowClause}
-     )
-     ORDER BY newest_copy_at DESC
-     LIMIT $1`,
-    days > 0 ? [limit, days] : [limit]
-  );
+  const rows = await latestArrivals(pool, { limit, days });
   res.json(
     rows.map((b) => ({
       id: b.id,
       title: b.title,
       author: b.authors,
-      coverUrl: b.cover_url,
+      coverUrl: localCover(b.cover_url),
       price: b.min_price != null ? Number(b.min_price) : null,
       url: `${baseUrl(req)}/books/${b.id}`,
     }))
@@ -123,7 +113,7 @@ router.get("/api/books/recommendation", async (req, res) => {
     id: b.id,
     title: b.title,
     author: b.authors,
-    coverUrl: b.cover_url,
+    coverUrl: localCover(b.cover_url),
     blurb: { en: b.description || "", fr: b.description_fr || b.description || "" },
     url: `${baseUrl(req)}/books/${b.id}`,
   });
@@ -217,7 +207,7 @@ router.get("/api/books/search", async (req, res) => {
       id: b.id,
       title: b.title,
       author: b.authors,
-      coverUrl: b.cover_url,
+      coverUrl: localCover(b.cover_url),
       price: b.min_price != null ? Number(b.min_price) : null,
       awards: b.awards || "",
       // Grades of the copies on the shelf, best first (value + English label).
@@ -258,7 +248,7 @@ router.get("/api/books/by-ids", async (req, res) => {
       id: b.id,
       title: b.title,
       author: b.authors,
-      coverUrl: b.cover_url,
+      coverUrl: localCover(b.cover_url),
       price: b.min_price != null ? Number(b.min_price) : null,
       inStockCount: b.in_stock_count,
       url: `/books/${b.id}`,
@@ -272,6 +262,7 @@ router.get("/books/:id", async (req, res) => {
   const { rows: bookRows } = await pool.query("SELECT * FROM books WHERE id = $1", [id]);
   const book = bookRows[0];
   if (!book) return res.status(404).render("404");
+  book.cover_url = localCover(book.cover_url); // only ever our own copy (lib/coverStore.js)
 
   const { rows: copies } = await pool.query(
     "SELECT * FROM book_copies WHERE book_id = $1 AND status = 'in_stock' ORDER BY price ASC NULLS LAST",
@@ -289,10 +280,18 @@ router.get("/books/:id", async (req, res) => {
        ORDER BY b.title ASC LIMIT 6`,
       [book.authors, id]
     );
-    moreByAuthor = rows;
+    moreByAuthor = rows.map((r) => ({ ...r, cover_url: localCover(r.cover_url) }));
   }
 
+  // Link previews and search results: description, cover as an absolute URL,
+  // schema.org Book + Offer (src/lib/bookSeo.js; read by partials/header.ejs).
+  const seo = buildBookSeo({ book, copies, base: res.locals.siteUrl, lang: req.lang, tr: req.tr });
+
   res.render("book_detail", {
+    description: seo.description,
+    ogImage: seo.ogImage || undefined,
+    ogType: "book",
+    jsonLd: seo.jsonLd,
     book,
     copies,
     awards: await loadPublicAwards(pool, id),

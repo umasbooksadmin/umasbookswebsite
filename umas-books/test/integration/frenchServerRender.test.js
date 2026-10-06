@@ -58,7 +58,7 @@ test("book page: prices are 12,50 € in French and €12.50 in English", async 
 
 test("cart and cart return page: French and English prices and total", async () => {
   const { copyId, order } = await seed();
-  for (const [lang, line, total] of [["fr", `12,50${NB}€`, `Total :`], ["en", "€12.50", "Total:"]]) {
+  for (const [lang, line, total] of [["fr", `12,50${NB}€`, `Total${NB}:`], ["en", "€12.50", "Total:"]]) {
     const jar = makeCookieJar();
     const token = await fetchCsrfToken(app.base, jar);
     const add = await fetch(`${app.base}/cart/add`, {

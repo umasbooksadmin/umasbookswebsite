@@ -1,3 +1,86 @@
+<% const pageI18nEn = {
+  "meta.title": "Volunteer — Uma's Books and Adventures",
+  "meta.description": "Volunteer at Uma's Books in Albi: help on the shop floor, sort and shelve donations, run events or support English and French speakers. All language levels welcome.",
+  "visit.hours.days": "Tue – Sat",
+  "visit.hours.time": "10:00–19:00",
+  "volunteer.kicker": "Get Involved",
+  "volunteer.title": "Volunteer With Us",
+  "volunteer.intro": "Uma’s is entirely volunteer-run — every hour on the shop floor, every sorted donation, every event, is someone giving their time. New volunteers, at any language level, are always welcome.",
+  "volunteer.shop.t": "Shop Floor",
+  "volunteer.shop.d": "Welcome visitors and mind the till during opening hours.",
+  "volunteer.sorting.t": "Sorting & Shelving",
+  "volunteer.sorting.d": "Sort donations and keep the collection organised.",
+  "volunteer.events.t": "Events & Language Exchange",
+  "volunteer.events.d": "Help run book club, language exchange, or story swaps.",
+  "volunteer.translation.t": "Bilingual Support",
+  "volunteer.translation.d": "Help visitors and paperwork move smoothly between English and French.",
+  "volunteer.schedule.title": "Shop Shifts",
+  "volunteer.schedule.day": "Days",
+  "volunteer.schedule.time": "Time",
+  "volunteer.schedule.note": "Shifts typically run 2–3 hours within opening hours — tell us what works for you below.",
+  "volunteer.form.title": "Volunteer Sign-up",
+  "volunteer.form.avail.l": "Availability",
+  "volunteer.form.submit": "Send Sign-up",
+  "volunteer.form.privacy": "We use your details only to reply and organise volunteering. They reach us by email only (nothing is stored on the website) and are deleted from our mailbox after 12 months. See our <a href=\"privacy-policy.html\">Privacy Policy</a>.",
+  "form.name.l": "Name",
+  "form.email.l": "Email",
+  "form.note.l": "Note (optional)",
+  "volunteer.form.consent": "I agree to be contacted about volunteering.",
+  "volunteer.form.consent.l": "Agreement to be contacted",
+  "volunteer.form.health": "Do not enter health information here: tell us in person.",
+  "volunteer.sent.h": "Thank you, your sign-up has been sent",
+  "volunteer.sent.p": "We have received it and will get back to you soon by email.",
+  "volunteer.hp": "Website",
+}; %>
+<% const pageI18nFr = {
+  "meta.title": "Bénévolat — Uma’s Books and Adventures",
+  "meta.description": "Devenez bénévole chez Uma’s Books à Albi : aidez en boutique, triez et rangez les dons, animez des événements ou accompagnez les anglophones et francophones. Tous les niveaux de langue sont bienvenus.",
+  "visit.hours.days": "Mar – Sam",
+  "visit.hours.time": "10h00–19h00",
+  "volunteer.kicker": "S’impliquer",
+  "volunteer.title": "Devenir bénévole",
+  "volunteer.intro": "Uma’s fonctionne entièrement grâce à des bénévoles — chaque heure en boutique, chaque don trié, chaque événement, c’est quelqu’un qui donne de son temps. Les nouveaux bénévoles, quel que soit leur niveau de langue, sont toujours les bienvenus.",
+  "volunteer.shop.t": "En boutique",
+  "volunteer.shop.d": "Accueillir les visiteurs et tenir la caisse pendant les heures d’ouverture.",
+  "volunteer.sorting.t": "Tri et rangement",
+  "volunteer.sorting.d": "Trier les dons et garder la collection organisée.",
+  "volunteer.events.t": "Événements et échange linguistique",
+  "volunteer.events.d": "Aider à animer le club de lecture, l’échange linguistique ou les trocs de livres.",
+  "volunteer.translation.t": "Soutien bilingue",
+  "volunteer.translation.d": "Aider les visiteurs et les démarches à circuler facilement entre l’anglais et le français.",
+  "volunteer.schedule.title": "Créneaux en boutique",
+  "volunteer.schedule.day": "Jours",
+  "volunteer.schedule.time": "Horaire",
+  "volunteer.schedule.note": "Les créneaux durent généralement 2 à 3 heures pendant les heures d’ouverture — indiquez-nous vos disponibilités ci-dessous.",
+  "volunteer.form.title": "Formulaire de bénévolat",
+  "volunteer.form.avail.l": "Disponibilités",
+  "volunteer.form.submit": "Envoyer ma candidature",
+  "volunteer.form.privacy": "Vos données servent uniquement à vous répondre et à organiser le bénévolat. Elles nous parviennent uniquement par e-mail (rien n’est enregistré sur le site) et sont supprimées de notre messagerie après 12 mois. Consultez notre <a href=\"privacy-policy.html\">politique de confidentialité</a>.",
+  "form.name.l": "Nom",
+  "form.email.l": "E-mail",
+  "form.note.l": "Remarque (facultatif)",
+  "volunteer.form.consent": "J’accepte d’être contacté(e) au sujet du bénévolat.",
+  "volunteer.form.consent.l": "Accord pour être contacté(e)",
+  "volunteer.form.health": "Ne saisissez pas d’informations de santé ici\u00a0: dites-le-nous en personne.",
+  "volunteer.sent.h": "Merci, votre candidature a bien été envoyée",
+  "volunteer.sent.p": "Nous l’avons bien reçue et nous vous répondrons bientôt par e-mail.",
+  "volunteer.hp": "Site web",
+}; %>
+<%
+/* Server-side form (routes/marketingForms.js): POST /volunteer-signup. res.locals.form = { values, errors, error, sent }. */
+const F = locals.form || {};
+const V = F.values || {};
+const E = F.errors || {};
+const IDS = { name: 'vol-name', email: 'vol-email', consent: 'vol-consent' };
+const _esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const aria = (k, hintId) => {
+  const ids = [hintId, E[k] ? IDS[k] + '-err' : null].filter(Boolean).join(' ');
+  return (E[k] ? ' aria-invalid="true"' : '') + (ids ? ' aria-describedby="' + ids + '"' : '');
+};
+const errP = (k) => (E[k]
+  ? '<p class="field-error" id="' + IDS[k] + '-err" data-i18n="form.err.' + E[k].key + '">' + _esc(formMsg('form.err.' + E[k].key)) + '</p>'
+  : '');
+%>
 <%- include('partials/mkt_header', {
   title: "Volunteer — Uma's Books and Adventures",
   description: "Volunteer at Uma's Books in Albi: help on the shop floor, sort and shelve donations, run events or support English and French speakers. All language levels welcome.",
@@ -40,85 +123,49 @@
       </table>
       <p class="form-hint" data-i18n="volunteer.schedule.note">Shifts typically run 2&ndash;3 hours within opening hours &mdash; tell us what works for you below.</p>
       <h3 class="form-title" data-i18n="volunteer.form.title">Volunteer Sign-up</h3>
-      <form class="formcard" data-mailto="admin@umasbooks.org" data-subject="Volunteer Sign-up" novalidate>
-        <div class="field">
-          <label for="vol-name" data-i18n="form.name.l">Name</label>
-          <input id="vol-name" type="text" data-field="Name" autocomplete="name">
+      <% if (F.sent) { %>
+      <div class="form-success" id="form-sent" role="status" tabindex="-1" data-form-sent>
+        <h2 data-i18n="volunteer.sent.h">Thank you, your sign-up has been sent</h2>
+        <p data-i18n="volunteer.sent.p">We have received it and will get back to you soon by email.</p>
+      </div>
+      <% } else { %>
+      <%- include('partials/form_summary', { form: F, ids: IDS, dict: pageI18nEn }) %>
+      <form class="formcard" method="post" action="/volunteer-signup" novalidate>
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <div class="hp-field" aria-hidden="true">
+          <label for="vol-website" data-i18n="volunteer.hp">Website</label>
+          <input id="vol-website" name="website" type="text" tabindex="-1" autocomplete="off">
         </div>
         <div class="field">
-          <label for="vol-email" data-i18n="form.email.l">Email</label>
-          <input id="vol-email" type="email" data-field="Email" autocomplete="email">
+          <label for="vol-name"><span data-i18n="form.name.l">Name</span> <span class="req" aria-hidden="true">*</span></label>
+          <input id="vol-name" name="name" type="text" maxlength="120" autocomplete="name" required aria-required="true" value="<%= V.name || '' %>"<%- aria('name') %>>
+          <%- errP('name') %>
+        </div>
+        <div class="field">
+          <label for="vol-email"><span data-i18n="form.email.l">Email</span> <span class="req" aria-hidden="true">*</span></label>
+          <input id="vol-email" name="email" type="email" maxlength="200" autocomplete="email" required aria-required="true" value="<%= V.email || '' %>"<%- aria('email') %>>
+          <%- errP('email') %>
         </div>
         <div class="field">
           <label for="vol-avail" data-i18n="volunteer.form.avail.l">Availability</label>
-          <input id="vol-avail" type="text" data-field="Availability">
+          <input id="vol-avail" name="availability" type="text" maxlength="300" value="<%= V.availability || '' %>">
         </div>
         <div class="field">
           <label for="vol-note" data-i18n="form.note.l">Note (optional)</label>
-          <textarea id="vol-note" data-field="Note"></textarea>
+          <p class="form-hint-inline" id="vol-note-hint"><strong data-i18n="volunteer.form.health">Do not enter health information here: tell us in person.</strong></p>
+          <textarea id="vol-note" name="note" maxlength="1000" aria-describedby="vol-note-hint"><%= V.note || '' %></textarea>
         </div>
-        <p class="form-hint" data-i18n="form.hint">This opens your email app with the message ready to send.</p>
-        <p class="form-hint" data-i18n-html="volunteer.form.privacy">We use your details only to reply and organise volunteering. See our <a href="privacy-policy.html">Privacy Policy</a>.</p>
+        <div class="field">
+          <label class="check-row" for="vol-consent">
+            <input id="vol-consent" type="checkbox" name="consent" value="1" required aria-required="true"<%= V.consent ? ' checked' : '' %><%- aria('consent') %>>
+            <span><span data-i18n="volunteer.form.consent">I agree to be contacted about volunteering.</span> <span class="req" aria-hidden="true">*</span></span>
+          </label>
+          <%- errP('consent') %>
+        </div>
+        <p class="form-hint" data-i18n-html="volunteer.form.privacy">We use your details only to reply and organise volunteering. They reach us by email only (nothing is stored on the website) and are deleted from our mailbox after 12 months. See our <a href="privacy-policy.html">Privacy Policy</a>.</p>
         <button type="submit" class="btn-submit" data-i18n="volunteer.form.submit">Send Sign-up</button>
       </form>
+      <% } %>
     </div>
   </div>
-<% const pageI18nEn = {
-  "meta.title": "Volunteer — Uma's Books and Adventures",
-  "meta.description": "Volunteer at Uma's Books in Albi: help on the shop floor, sort and shelve donations, run events or support English and French speakers. All language levels welcome.",
-  "visit.hours.days": "Tue – Sat",
-  "visit.hours.time": "10:00–19:00",
-  "volunteer.kicker": "Get Involved",
-  "volunteer.title": "Volunteer With Us",
-  "volunteer.intro": "Uma’s is entirely volunteer-run — every hour on the shop floor, every sorted donation, every event, is someone giving their time. New volunteers, at any language level, are always welcome.",
-  "volunteer.shop.t": "Shop Floor",
-  "volunteer.shop.d": "Welcome visitors and mind the till during opening hours.",
-  "volunteer.sorting.t": "Sorting & Shelving",
-  "volunteer.sorting.d": "Sort donations and keep the collection organised.",
-  "volunteer.events.t": "Events & Language Exchange",
-  "volunteer.events.d": "Help run book club, language exchange, or story swaps.",
-  "volunteer.translation.t": "Bilingual Support",
-  "volunteer.translation.d": "Help visitors and paperwork move smoothly between English and French.",
-  "volunteer.schedule.title": "Shop Shifts",
-  "volunteer.schedule.day": "Days",
-  "volunteer.schedule.time": "Time",
-  "volunteer.schedule.note": "Shifts typically run 2–3 hours within opening hours — tell us what works for you below.",
-  "volunteer.form.title": "Volunteer Sign-up",
-  "volunteer.form.avail.l": "Availability",
-  "volunteer.form.submit": "Send Sign-up",
-  "volunteer.form.privacy": "We use your details only to reply and organise volunteering. See our <a href=\"privacy-policy.html\">Privacy Policy</a>.",
-  "form.name.l": "Name",
-  "form.email.l": "Email",
-  "form.note.l": "Note (optional)",
-  "form.hint": "This opens your email app with the message ready to send.",
-}; %>
-<% const pageI18nFr = {
-  "meta.title": "Bénévolat — Uma’s Books and Adventures",
-  "meta.description": "Devenez bénévole chez Uma’s Books à Albi : aidez en boutique, triez et rangez les dons, animez des événements ou accompagnez les anglophones et francophones. Tous les niveaux de langue sont bienvenus.",
-  "visit.hours.days": "Mar – Sam",
-  "visit.hours.time": "10h00–19h00",
-  "volunteer.kicker": "S’impliquer",
-  "volunteer.title": "Devenir bénévole",
-  "volunteer.intro": "Uma’s fonctionne entièrement grâce à des bénévoles — chaque heure en boutique, chaque don trié, chaque événement, c’est quelqu’un qui donne de son temps. Les nouveaux bénévoles, quel que soit leur niveau de langue, sont toujours les bienvenus.",
-  "volunteer.shop.t": "En boutique",
-  "volunteer.shop.d": "Accueillir les visiteurs et tenir la caisse pendant les heures d’ouverture.",
-  "volunteer.sorting.t": "Tri et rangement",
-  "volunteer.sorting.d": "Trier les dons et garder la collection organisée.",
-  "volunteer.events.t": "Événements et échange linguistique",
-  "volunteer.events.d": "Aider à animer le club de lecture, l’échange linguistique ou les trocs de livres.",
-  "volunteer.translation.t": "Soutien bilingue",
-  "volunteer.translation.d": "Aider les visiteurs et les démarches à circuler facilement entre l’anglais et le français.",
-  "volunteer.schedule.title": "Créneaux en boutique",
-  "volunteer.schedule.day": "Jours",
-  "volunteer.schedule.time": "Horaire",
-  "volunteer.schedule.note": "Les créneaux durent généralement 2 à 3 heures pendant les heures d’ouverture — indiquez-nous vos disponibilités ci-dessous.",
-  "volunteer.form.title": "Formulaire de bénévolat",
-  "volunteer.form.avail.l": "Disponibilités",
-  "volunteer.form.submit": "Envoyer ma candidature",
-  "volunteer.form.privacy": "Vos données servent uniquement à vous répondre et à organiser le bénévolat. Consultez notre <a href=\"privacy-policy.html\">politique de confidentialité</a>.",
-  "form.name.l": "Nom",
-  "form.email.l": "E-mail",
-  "form.note.l": "Remarque (facultatif)",
-  "form.hint": "Cela ouvre votre application de messagerie avec le message prêt à envoyer.",
-}; %>
-<%- include('partials/mkt_footer', { pageI18nEn, pageI18nFr }) %>
+<%- include('partials/mkt_footer', { pageI18nEn, pageI18nFr, extraScripts: ['assets/form-errors.js'] }) %>

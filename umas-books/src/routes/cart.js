@@ -1,4 +1,5 @@
 const express = require("express");
+const { localCover } = require("../lib/coverStore");
 const { pool, withTransaction } = require("../db");
 const helloasso = require("../lib/helloasso");
 const { releaseCartHold, reconcileOrder, isRecentlyClosed, persistCheckoutIntentId, CART_HOLD_TTL_MINUTES } = require("../lib/cart");
@@ -106,7 +107,7 @@ async function loadCartItems(cart) {
       if (!r) continue; // no longer in stock — dropped, same as before
       items.push({
         kind: "book", lineId: line.lineId, copyId: r.id,
-        title: r.title, authors: r.authors, coverUrl: r.cover_url, price: Number(r.price), condition: r.condition,
+        title: r.title, authors: r.authors, coverUrl: localCover(r.cover_url), price: Number(r.price), condition: r.condition,
       });
     }
   }
@@ -390,7 +391,9 @@ router.post("/cart/checkout", checkoutLimiter, async (req, res) => {
   if (!name) return renderCart({ error: req.tr("Please enter your name.", "Veuillez indiquer votre nom.") });
   if (req.body.acceptCgv !== "on") return renderCart({ error: req.tr("Please accept the terms of sale to continue.", "Veuillez accepter les conditions de vente pour continuer.") });
   // Drop-in seats are dated leisure bookings: the buyer must expressly ask for
-  // the session to take place on the booked date (no withdrawal afterwards).
+  // the session to take place on the booked date. The box is kept (the buyer
+  // confirms the date); the right of withdrawal does not exist for these
+  // sessions anyway (Consumer Code art. L.221-28, 12°).
   const hasDropin = items.some((i) => i.kind === "dropin");
   if (hasDropin && req.body.waiveWithdrawal !== "on") {
     return renderCart({ error: req.tr("Please tick the box confirming you want the drop-in session(s) to take place on the date booked.", "Veuillez cocher la case confirmant que vous souhaitez que la ou les séances drop-in aient lieu à la date réservée.") });

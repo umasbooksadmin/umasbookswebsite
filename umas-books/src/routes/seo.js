@@ -12,7 +12,7 @@ const router = express.Router();
 const MARKETING_PAGES = require("../lib/marketingPages");
 
 // Dynamic public pages worth indexing (besides "/" and the pages above).
-const DYNAMIC_PAGES = ["/sessions", "/events"];
+const DYNAMIC_PAGES = ["/sessions", "/events", "/contact", "/request-a-book"];
 
 const MAX_BOOK_URLS = 5000; // the sitemap protocol allows 50,000 per file
 const SITEMAP_TTL_MS = 60 * 60 * 1000;
@@ -103,7 +103,23 @@ function setMarketingSeoLocals(req, res, pagePath) {
   res.locals.canonicalPath = pagePath;
 }
 
+// Members-only areas: their pages keep "Members" in the title and are not
+// advertised to search engines (see views/partials/header.ejs).
+const MEMBERS_AREA = /^\/(dashboard|forum|charity|meetings|announcements|admin)(\/|$)/;
+
+// Runs for every app-rendered page (after the language middleware): the
+// <head> reads siteUrl (absolute base, '' when unknown), canonicalPath (the
+// path WITHOUT its query string, so ?genre= / ?month= variants share one
+// canonical URL) and membersArea.
+function seoLocals(req, res, next) {
+  res.locals.siteUrl = safeBaseUrl(req);
+  res.locals.canonicalPath = req.path;
+  res.locals.membersArea = MEMBERS_AREA.test(req.path);
+  next();
+}
+
 module.exports = {
+  seoLocals,
   router,
   MARKETING_PAGES,
   setMarketingSeoLocals,

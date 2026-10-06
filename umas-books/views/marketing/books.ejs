@@ -12,10 +12,22 @@
       </div>
       <form class="bk-search" id="shop-search-form" role="search">
         <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg></span>
-        <input type="search" id="shop-search-input" data-i18n-attr="placeholder:bk.search.ph;aria-label:bk.search.ph" placeholder="Search by title, author, keyword, or genre…" aria-label="Search by title, author, keyword, or genre">
+        <input type="search" id="shop-search-input" data-i18n-attr="placeholder:bk.search.ph;aria-label:bk.search.label" placeholder="Search books…" aria-label="Search by title, author, keyword, or genre">
         <button type="submit" data-i18n="bk.search.submit">Search</button>
       </form>
     </section>
+
+    <noscript>
+      <section class="bk-noscript" aria-labelledby="bk-noscript-title">
+        <p data-i18n-html="bk.noscript">Searching and browsing by genre need JavaScript. Here are our newest books, or <a href="/request-a-book">ask us to look out for a title</a>.</p>
+        <h2 id="bk-noscript-title" data-i18n="bk.new.title">New In</h2>
+        <ul class="bk-noscript-list">
+          <% (typeof noscriptBooks !== 'undefined' ? noscriptBooks : []).forEach(b => { %>
+          <li><a href="/books/<%= b.id %>"><%= b.title %></a><% if (b.authors) { %> — <%= b.authors %><% } %><% if (b.min_price != null) { %> · <%= eur(b.min_price) %><% } %></li>
+          <% }) %>
+        </ul>
+      </section>
+    </noscript>
 
     <section class="bk-genres" aria-labelledby="bk-genres-label">
       <h2 class="label" id="bk-genres-label" data-i18n-html="bk.genres.label">Browse <br>by Genre</h2>
@@ -96,12 +108,14 @@
   "meta.title": "Books — Uma's Books and Adventures",
   "meta.description": "Browse pre-loved English books by genre or search by title, author or keyword, then pick them up at Uma's Books in Albi.",
   "bk.title": "Browse books",
-  "bk.search.ph": "Search by title, author, keyword, or genre…",
+  "bk.search.ph": "Search books…",
+  "bk.search.label": "Search by title, author, keyword, or genre",
+  "bk.noscript": "Searching and browsing by genre need JavaScript. Here are our newest books, or <a href=\"/request-a-book\">ask us to look out for a title</a>.",
+  "bk.fav.add": "Add {t} to favorites",
   "bk.search.submit": "Search",
   "bk.genres.label": "Browse <br>by Genre",
   "bk.results.for": "Results for “{q}”",
   "bk.results.new": "New In",
-  "bk.results.all": "All Genres",
   "bk.rec.kicker": "Our recommendation of the week",
   "bk.rec.cta": "View book",
   "bk.new.title": "New In",
@@ -144,12 +158,14 @@
   "meta.title": "Livres — Uma’s Books and Adventures",
   "meta.description": "Parcourez des livres anglais d’occasion par genre ou cherchez par titre, auteur ou mot-clé, puis venez les retirer chez Uma’s Books à Albi.",
   "bk.title": "Parcourir les livres",
-  "bk.search.ph": "Rechercher par titre, auteur, mot-clé ou genre…",
+  "bk.search.ph": "Rechercher…",
+  "bk.search.label": "Rechercher par titre, auteur, mot-clé ou genre",
+  "bk.noscript": "La recherche et la navigation par genre nécessitent JavaScript. Voici nos dernières nouveautés, ou <a href=\"/request-a-book\">demandez-nous de chercher un titre</a>.",
+  "bk.fav.add": "Ajouter {t} aux favoris",
   "bk.search.submit": "Rechercher",
   "bk.genres.label": "Parcourir <br>par genre",
   "bk.results.for": "Résultats pour « {q} »",
   "bk.results.new": "Nouveautés",
-  "bk.results.all": "Tous les genres",
   "bk.rec.kicker": "Notre coup de cœur de la semaine",
   "bk.rec.cta": "Voir le livre",
   "bk.new.title": "Nouveautés",
@@ -230,11 +246,11 @@
 
   function bookCard(b, withFavorite) {
     var cover = b.coverUrl
-      ? '<img class="cover" src="' + esc(b.coverUrl) + '" alt="" loading="lazy">'
+      ? '<img class="cover" src="' + esc(b.coverUrl) + '" alt="" width="200" height="300" loading="lazy" decoding="async" data-cover>'
       : '<div class="cover cover-none">' + esc(t('bk.nocover', 'No cover')) + '</div>';
     var price = b.price != null ? euro(b.price) : '';
     var fav = withFavorite
-      ? '<button type="button" class="favorite-toggle" data-book-id="' + esc(b.id) + '" aria-pressed="false" aria-label="' + esc(t('bk.fav', 'Favorite')) + '">' + HEART + '</button>'
+      ? '<button type="button" class="favorite-toggle" data-book-id="' + esc(b.id) + '" aria-pressed="false" aria-label="' + esc(t('bk.fav.add', 'Add {t} to favorites').replace('{t}', b.title)) + '">' + HEART + '</button>'
       : '';
     return '<div class="bk-book">' + fav +
       '<a href="' + esc(b.url) + '">' + cover +
@@ -344,7 +360,7 @@
   var recCoverSlot = document.getElementById('bk-rec-cover-slot');
   function setRecCover(src) {
     recCoverSlot.innerHTML = src
-      ? '<img class="rec-cover" src="' + esc(src) + '" alt="' + esc(rec.title) + '">'
+      ? '<img class="rec-cover" src="' + esc(src) + '" alt="' + esc(rec.title) + '" width="172" height="258" decoding="async" data-cover>'
       : '<div class="rec-cover cover-none">' + esc(rec.title) + '</div>';
     var img = recCoverSlot.querySelector('img');
     if (img) img.addEventListener('error', function () { setRecCover(null); }, { once: true });

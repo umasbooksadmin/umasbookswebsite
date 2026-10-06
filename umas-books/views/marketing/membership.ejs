@@ -178,8 +178,13 @@ const mt = (key) => (locals.lang === 'fr' ? memNewFr : memNewEn)[key];
         <p class="mem-widget-note" id="memAccountEmail"><span data-i18n="mem.acct.a"><%= mt('mem.acct.a') %></span><strong><%= locals.memEmail %></strong><span data-i18n="mem.acct.b"><%= mt('mem.acct.b') %></span></p>
       <% } %>
       <p class="mem-widget-note" data-i18n-html="mem.widget.p">Sign-up and payment are handled securely by HelloAsso below. Membership lasts 12 months from your payment date and your account is activated automatically once it goes through — no need to contact us. By joining you agree to our <a href="membership-terms.html">membership terms</a> and <a href="privacy-policy.html">privacy policy</a>.</p>
-      <iframe id="haWidget" title="HelloAsso membership form" allow="payment 'self' https://paymenthub.helloassopay.com https://helloasso.com" allowtransparency="true" scrolling="auto" src="https://www.helloasso.com/associations/umasbooks/adhesions/uma-s-books-memberships/widget" style="width: 100%; height: 750px; border: none;" onload="window.addEventListener('message', function(e) { const dataHeight = e.data.height; const haWidgetElement = document.getElementById('haWidget');
-  if (dataHeight > parseFloat(haWidgetElement.height || 0)) { haWidgetElement.height = dataHeight + 'px';}})"></iframe>
+      <%# Click-to-load: the HelloAsso iframe is created by assets/membership-widget.js only after the visitor presses the button (HelloAsso may set cookies and sees the IP address). %>
+      <div id="haWidgetHolder" class="mem-widget-holder" data-src="https://www.helloasso.com/associations/umasbooks/adhesions/uma-s-books-memberships/widget" data-title-en="HelloAsso membership form" data-title-fr="Formulaire d’adhésion HelloAsso">
+        <div id="haGate" class="mem-widget-gate">
+          <p class="mem-widget-note" data-i18n-html="mem.widget.gate">The payment form is provided by HelloAsso. It only loads when you press the button: HelloAsso then sees your IP address and may set its own cookies. See our <a href="privacy-policy.html">Privacy Policy</a>.</p>
+          <button id="haShow" class="btn btn-maroon" type="button" data-i18n="mem.widget.show">Show the HelloAsso form</button>
+        </div>
+      </div>
       <% if (memState === 'form') { %>
         <form method="post" action="/membership/check" class="mem-check">
           <%- include('../partials/csrf_field') %>
@@ -189,6 +194,7 @@ const mt = (key) => (locals.lang === 'fr' ? memNewFr : memNewEn)[key];
       <% } %>
       <p class="mem-widget-hint" data-i18n="mem.widget.hint">Already a member and just renewing? Use the same email address you use to log in here so your account updates automatically.</p>
       <p class="mem-widget-hint"><span data-i18n="mem.widget.directLabel">Having trouble with the form above?</span> <a href="https://www.helloasso.com/associations/umasbooks/adhesions/uma-s-books-memberships" target="_blank" rel="noopener" data-i18n="mem.widget.directLink">Open the membership page directly on HelloAsso</a>.</p>
+      <p class="mem-widget-hint" data-i18n="mem.widget.directNote">Your membership is linked to your account with the same email address, whichever way you pay.</p>
     <% } %>
   <% } %>
   </div>
@@ -214,9 +220,12 @@ const mt = (key) => (locals.lang === 'fr' ? memNewFr : memNewEn)[key];
   "mem.preview.h": "Membership opens at launch",
   "mem.preview.p": "This is a preview of Uma’s Books, so sign-up and payment are switched off for now. Come back when we open, or tell us what you think of the site.",
   "mem.widget.p": "Sign-up and payment are handled securely by HelloAsso below. Membership lasts 12 months from your payment date and your account is activated automatically once it goes through — no need to contact us. By joining you agree to our <a href=\"membership-terms.html\">membership terms</a> and <a href=\"privacy-policy.html\">privacy policy</a>.",
+  "mem.widget.show": "Show the HelloAsso form",
+  "mem.widget.gate": "The payment form is provided by HelloAsso. It only loads when you press the button: HelloAsso then sees your IP address and may set its own cookies. See our <a href=\"privacy-policy.html\">Privacy Policy</a>.",
   "mem.widget.hint": "Already a member and just renewing? Use the same email address you use to log in here so your account updates automatically.",
   "mem.widget.directLabel": "Having trouble with the form above?",
   "mem.widget.directLink": "Open the membership page directly on HelloAsso",
+  "mem.widget.directNote": "Your membership is linked to your account with the same email address, whichever way you pay.",
 }; %>
 <% const pageI18nFr = {
   "meta.title": "Adhésion — Uma’s Books and Adventures",
@@ -226,7 +235,7 @@ const mt = (key) => (locals.lang === 'fr' ? memNewFr : memNewEn)[key];
   "mem.hero.script": "Rejoignez notre communauté",
   "mem.hero.sub": "Une façon simple de soutenir notre association, de participer à ce que nous construisons, et de profiter d’opportunités réservées aux membres chez Uma’s Books & Adventures.",
   "mem.benefits.h": "Avantages de l’adhésion",
-  "mem.b1.t": "Votez pour notre association trimestrielle",
+  "mem.b1.t": "Votez pour notre œuvre caritative trimestrielle",
   "mem.b1.d": "Aidez à choisir l’association que notre communauté soutient chaque trimestre.",
   "mem.b2.t": "Forums de discussion",
   "mem.b2.d": "Échangez avec d’autres membres, partagez vos idées et parlez de livres.",
@@ -240,8 +249,11 @@ const mt = (key) => (locals.lang === 'fr' ? memNewFr : memNewEn)[key];
   "mem.preview.h": "L’adhésion ouvrira au lancement",
   "mem.preview.p": "Ceci est un aperçu d’Uma’s Books : l’inscription et le paiement sont désactivés pour le moment. Revenez à l’ouverture, ou dites-nous ce que vous pensez du site.",
   "mem.widget.p": "L’inscription et le paiement sont gérés en toute sécurité par HelloAsso ci-dessous. L’adhésion dure 12 mois à partir de la date de paiement et votre compte est activé automatiquement une fois le paiement effectué — inutile de nous contacter. En adhérant, vous acceptez nos <a href=\"membership-terms.html\">conditions d’adhésion</a> et notre <a href=\"privacy-policy.html\">politique de confidentialité</a>.",
+  "mem.widget.show": "Afficher le formulaire HelloAsso",
+  "mem.widget.gate": "Le formulaire de paiement est fourni par HelloAsso. Il ne se charge que lorsque vous appuyez sur le bouton\u00a0: HelloAsso voit alors votre adresse IP et peut déposer ses propres cookies. Consultez notre <a href=\"privacy-policy.html\">Politique de confidentialité</a>.",
   "mem.widget.hint": "Déjà membre et vous renouvelez simplement ? Utilisez la même adresse e-mail que celle de votre compte pour qu’il soit mis à jour automatiquement.",
   "mem.widget.directLabel": "Un souci avec le formulaire ci-dessus ?",
   "mem.widget.directLink": "Ouvrir la page d’adhésion directement sur HelloAsso",
+  "mem.widget.directNote": "Votre adhésion est rattachée au compte qui utilise la même adresse e-mail, quel que soit le moyen de paiement choisi.",
 }; %>
-<%- include('partials/mkt_footer', { pageI18nEn: { ...pageI18nEn, ...memNewEn }, pageI18nFr: { ...pageI18nFr, ...memNewFr } }) %>
+<%- include('partials/mkt_footer', { pageI18nEn: { ...pageI18nEn, ...memNewEn }, pageI18nFr: { ...pageI18nFr, ...memNewFr }, extraScripts: ['assets/membership-widget.js'] }) %>

@@ -109,6 +109,7 @@
   width: 100%; aspect-ratio: 2 / 3; object-fit: cover; display: block; background: var(--cream-alt);
   box-shadow: 0 2px 6px var(--shadow);
 }
+.bk-book .cover-missing { font-size: 16px; font-style: italic; color: var(--ink-soft); }
 .bk-book .cover-none {
   display: flex; align-items: center; justify-content: center; text-align: center; padding: 10px;
   color: var(--ink-soft); font-size: 16px; font-style: italic;
@@ -265,3 +266,7 @@ body:has(.bk-band) .mkt-footer { margin-top: 38px; }
 }
 
 .bk-covernote { font-size: 13px; opacity: .75; margin: 14px 0 0; }
+
+/* No-JavaScript fallback list (inside <noscript>, views/marketing/books.ejs). */
+.bk-noscript { max-width: 760px; margin: 24px auto; padding: 0 16px; }
+.bk-noscript-list { padding-left: 20px; line-height: 1.7; }

@@ -57,11 +57,14 @@ CSS never cost a database lookup (see `ARCHITECTURE.md`).
   fallback.
 - **Blog posts, announcements, books, events and sessions:** managed in the
   admin area of the running site, not in files.
-- **Forms:** the volunteer and weekly-immersion pre-registration forms are still
-  `data-mailto` forms handled by `assets/site.js`: submitting one opens the
-  person's own email client with the message pre-filled. The contact form,
-  book reservations, checkout, event and session sign-ups are real server
-  routes.
+- **Forms:** the volunteer sign-up and the weekly-immersion pre-registration
+  are server forms (`POST /volunteer-signup`, `POST /pre-registration`,
+  `umas-books/src/routes/marketingForms.js`), like the contact form: CSRF token,
+  honeypot, rate limit, server-side validation with an accessible error summary,
+  then one email to `CONTACT_TO`; nothing is stored. They no longer open the
+  visitor's email app (the old `data-mailto` handler is gone from
+  `assets/site.js`). Book reservations, checkout, event and session sign-ups are
+  server routes too.
 
 ## Changing the code
 

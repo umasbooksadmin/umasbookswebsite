@@ -23,6 +23,15 @@
       "nav.visit": "Visit Us",
       "nav.back": "← Back",
       "a11y.skip": "Skip to main content",
+      "form.err.title": "There is a problem",
+      "form.err.required": "This field is required.",
+      "form.err.email": "Enter a valid email address, like name@example.org.",
+      "form.err.date": "Enter a valid date (day, month and year), not in the future.",
+      "form.err.phone": "Enter a phone number we can reach you on (digits, spaces, + and - only).",
+      "form.err.choose": "Choose at least one option.",
+      "form.err.consent": "Tick this box to continue.",
+      "form.err.ratelimit": "Too many messages from this connection. Please try again in a little while, or email admin@umasbooks.org.",
+      "form.err.send": "Sorry, your message could not be sent just now. Please try again, or email admin@umasbooks.org.",
       "tool.favorites": "Favorites",
       "tool.login": "Log In",
       "tool.logout": "Log Out",
@@ -42,8 +51,6 @@
       "foot.privacy": "Privacy Policy",
       "foot.terms": "Terms of Sale",
       "foot.legal": "Legal Notice",
-      "foot.instagram.soon": "Instagram (coming soon)",
-      "foot.facebook.soon": "Facebook (coming soon)",
       "member.kicker": "Join our community",
       "member.t": "Become a Member <br>of Our Association",
       "member.d": "Members vote on the next charity to donate to, <br>volunteer opportunities, special events and more.",
@@ -57,6 +64,15 @@
       "nav.visit": "Nous rendre visite",
       "nav.back": "← Retour",
       "a11y.skip": "Aller au contenu principal",
+      "form.err.title": "Il y a un problème",
+      "form.err.required": "Ce champ est obligatoire.",
+      "form.err.email": "Saisissez une adresse e-mail valide, du type nom@exemple.org.",
+      "form.err.date": "Saisissez une date valide (jour, mois et année), qui ne soit pas dans le futur.",
+      "form.err.phone": "Saisissez un numéro de téléphone où nous pouvons vous joindre (chiffres, espaces, + et - uniquement).",
+      "form.err.choose": "Choisissez au moins une option.",
+      "form.err.consent": "Cochez cette case pour continuer.",
+      "form.err.ratelimit": "Trop de messages depuis cette connexion. Veuillez réessayer dans un moment, ou écrire à admin@umasbooks.org.",
+      "form.err.send": "Désolé, votre message n’a pas pu être envoyé pour le moment. Veuillez réessayer, ou écrire à admin@umasbooks.org.",
       "tool.favorites": "Favoris",
       "tool.login": "Connexion",
       "tool.logout": "Déconnexion",
@@ -76,8 +92,6 @@
       "foot.privacy": "Politique de confidentialité",
       "foot.terms": "Conditions générales de vente",
       "foot.legal": "Mentions légales",
-      "foot.instagram.soon": "Instagram (bientôt disponible)",
-      "foot.facebook.soon": "Facebook (bientôt disponible)",
       "member.kicker": "Rejoignez notre communauté",
       "member.t": "Devenez membre <br>de notre association",
       "member.d": "Les membres votent pour la prochaine association à soutenir, <br>participent au bénévolat, aux événements spéciaux et plus encore.",
@@ -100,6 +114,21 @@
         (location.protocol === "https:" ? "; Secure" : "");
     } catch (e) {}
   }
+
+  // Which language to start in. A choice the person made (localStorage) wins;
+  // then the cookie the server read; then the language the server already
+  // rendered into <html lang>; the browser's language is the last resort.
+  // Never flip a server-rendered page to the browser's language.
+  function resolveInitialLang(stored, cookie, htmlLang, navLang) {
+    var picks = [stored, cookie, htmlLang];
+    for (var i = 0; i < picks.length; i++) {
+      var l = String(picks[i] || "").toLowerCase().slice(0, 2);
+      if (l === "fr" || l === "en") return l;
+    }
+    return /^fr\b/i.test(navLang || "") ? "fr" : "en";
+  }
+  // Test hook (test/unit/siteLang.test.js evaluates this file in a vm).
+  if (typeof window !== "undefined") window.__umasResolveInitialLang = resolveInitialLang;
 
   function mergedDict(lang) {
     var page = (window.PAGE_I18N && window.PAGE_I18N[lang]) || {};
@@ -150,32 +179,6 @@
     });
     try { localStorage.setItem(STORE_KEY, lang); } catch (e) {}
     writeLangCookie(lang);
-  }
-
-  function wireMailtoForms() {
-    document.querySelectorAll("form[data-mailto]").forEach(function (form) {
-      form.addEventListener("submit", function (e) {
-        e.preventDefault();
-        var lines = [];
-        form.querySelectorAll("[data-field]").forEach(function (el) {
-          if ((el.type === "radio" || el.type === "checkbox") && !el.checked) return;
-          // A multi-select's .value is only its first selected option —
-          // list every option the person picked instead.
-          if (el.tagName === "SELECT" && el.multiple) {
-            var picked = Array.prototype.filter.call(el.options, function (o) { return o.selected; })
-              .map(function (o) { return (o.textContent || o.value).trim(); });
-            if (picked.length) lines.push(el.getAttribute("data-field") + ": " + picked.join(", "));
-            return;
-          }
-          var val = (el.value || "").trim();
-          if (val) lines.push(el.getAttribute("data-field") + ": " + val);
-        });
-        var address = form.getAttribute("data-mailto");
-        var subject = form.getAttribute("data-subject") || "";
-        var url = "mailto:" + address + "?subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(lines.join("\n"));
-        window.location.href = url;
-      });
-    });
   }
 
   // One shared /api/session request per page view (cart count, admin
@@ -293,13 +296,24 @@
     // A language chosen earlier (localStorage) must reach the server too:
     // fix a missing or differing cookie so the next request matches.
     if ((stored === "fr" || stored === "en") && readLangCookie() !== stored) writeLangCookie(stored);
-    var initial = stored || (/^fr\b/i.test(navigator.language || "") ? "fr" : "en");
+    var initial = resolveInitialLang(stored, readLangCookie(), document.documentElement.lang, navigator.language);
 
     document.querySelectorAll(".langtoggle button").forEach(function (b) {
-      b.addEventListener("click", function () { apply(b.getAttribute("data-lang")); });
+      b.addEventListener("click", function () {
+        var lang = b.getAttribute("data-lang") === "fr" ? "fr" : "en";
+        // Pages without a client-side dictionary (book page, cart, login,
+        // forms: server-rendered through tr()) can only change language by
+        // asking the server again: remember the choice, then reload.
+        if (!window.PAGE_I18N) {
+          var changed = lang !== document.documentElement.lang;
+          try { localStorage.setItem(STORE_KEY, lang); } catch (e) {}
+          writeLangCookie(lang);
+          if (changed) { location.reload(); return; }
+        }
+        apply(lang);
+      });
     });
 
-    wireMailtoForms();
     apply(initial);
     loadCartCount();
     loadAdminLink();

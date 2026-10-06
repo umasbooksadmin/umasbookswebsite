@@ -8,8 +8,8 @@
 <% const monWeeks = view === 'week' ? weeks : mondayFirstWeeks(weeks); %>
 
 <section class="fcal-hero">
-  <img class="art art-left" src="/assets/img/hero-left.png" alt="">
-  <img class="art art-right" src="/assets/img/hero-right.png" alt="">
+  <%- include('partials/picture', { src: '/assets/img/hero-left.png', alt: '', w: 322, h: 512, cls: 'art art-left', lazy: true }) %>
+  <%- include('partials/picture', { src: '/assets/img/hero-right.png', alt: '', w: 286, h: 512, cls: 'art art-right', lazy: true }) %>
   <div class="fcal-hero-copy">
     <div class="fcal-kicker"><%= tr('English Immersion', 'Immersion en anglais') %><div class="rule"></div></div>
     <h1 class="fcal-title"><%= tr('Upcoming Sessions', 'Prochaines séances') %></h1>
@@ -38,7 +38,7 @@
     <span class="fcal-legend-item"><span class="fcal-legend-swatch tone-e"></span> <%= tr('Teens', 'Ados') %></span>
     <span class="fcal-legend-item"><span class="fcal-legend-swatch tone-f"></span> <%= tr('Café / Adults', 'Café / Adultes') %></span>
   </div>
-  <%- include('partials/calendar_grid', { monWeeks, qs, itemPartial: 'calendar_item_session' }) %>
+  <%- include('partials/calendar_grid', { monWeeks, qs, itemPartial: 'calendar_item_session', emptyKind: 'sessions', nextUrl: '/sessions?' + nextHref }) %>
 </div>
 
 <%- include('partials/footer') %>

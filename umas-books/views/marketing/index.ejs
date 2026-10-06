@@ -37,8 +37,8 @@ if (_base) {
   jsonLd,
 }) %>
   <section class="h-hero">
-    <img class="art art-left" src="assets/img/hero-left.png" alt="">
-    <img class="art art-right" src="assets/img/hero-right.png" alt="">
+    <%- include('../partials/picture', { src: '/assets/img/hero-left.png', alt: '', w: 322, h: 512, cls: 'art art-left' }) %>
+    <%- include('../partials/picture', { src: '/assets/img/hero-right.png', alt: '', w: 286, h: 512, cls: 'art art-right' }) %>
     <div class="h-hero-copy">
       <h1><span class="line">Uma&rsquo;s Books</span> <span class="line"><span class="amp">&amp;</span> Adventures</span></h1>
       <div class="rule"></div>
@@ -48,7 +48,7 @@ if (_base) {
 
   <section class="h-cards">
     <article class="h-card">
-      <img class="medallion" src="assets/img/medallion-browse.png" alt="">
+      <%- include('../partials/picture', { src: '/assets/img/medallion-browse.png', alt: '', w: 184, h: 184, cls: 'medallion', lazy: true }) %>
       <h2 data-i18n="home.browse.t">Browse Books</h2>
       <div class="divider"></div>
       <p data-i18n="home.browse.d">Browse history, fiction, romance, and more English books online to pick up at the store.</p>
@@ -58,7 +58,7 @@ if (_base) {
     </article>
 
     <article class="h-card green">
-      <img class="medallion" src="assets/img/medallion-eveil.png" alt="">
+      <%- include('../partials/picture', { src: '/assets/img/medallion-eveil.png', alt: '', w: 184, h: 184, cls: 'medallion', lazy: true }) %>
       <h2 data-i18n="home.eveil.t">English Programs</h2>
       <div class="divider"></div>
       <p data-i18n="home.eveil.d">Play, learn and grow in English through stories, songs and creative activities.</p>
@@ -68,7 +68,7 @@ if (_base) {
     </article>
 
     <article class="h-card">
-      <img class="medallion" src="assets/img/medallion-events.png" alt="">
+      <%- include('../partials/picture', { src: '/assets/img/medallion-events.png', alt: '', w: 184, h: 184, cls: 'medallion', lazy: true }) %>
       <h2 data-i18n="home.events.t">Events</h2>
       <div class="divider"></div>
       <p data-i18n="home.events.d">Book clubs, author talks, storytime, cultural events and more. Join our community!</p>
@@ -78,7 +78,7 @@ if (_base) {
     </article>
 
     <article class="h-card gold">
-      <img class="medallion" src="assets/img/medallion-donate.png" alt="">
+      <%- include('../partials/picture', { src: '/assets/img/medallion-donate.png', alt: '', w: 184, h: 184, cls: 'medallion', lazy: true }) %>
       <h2 data-i18n="home.donate.t">Donate Books</h2>
       <div class="divider"></div>
       <p data-i18n="home.donate.d">Give your pre-loved English books a second life and help support our community programs.</p>
@@ -103,7 +103,7 @@ if (_base) {
       <div class="divider"></div>
       <p data-i18n="home.about.d">Uma&rsquo;s Books &amp; Adventures is a nonprofit association in Albi, France, offering pre-loved English-language books, cultural events, and children&rsquo;s programs. We believe in the power of stories to connect, inspire, and build a kinder, more open world.</p>
       <a class="h-btn" href="about.html"><span data-i18n="home.about.cta">Our story</span> <span class="arrow" aria-hidden="true">&rarr;</span></a>
-      <img class="sprig" src="assets/img/sprig.png" alt="">
+      <%- include('../partials/picture', { src: '/assets/img/sprig.png', alt: '', w: 274, h: 232, cls: 'sprig', lazy: true }) %>
     </div>
     <%- include('partials/mkt_member_band') %>
   </section>
@@ -124,7 +124,6 @@ if (_base) {
   "home.events.t": "Events",
   "home.events.d": "Book clubs, author talks, storytime, cultural events and more. Join our community!",
   "home.events.cta": "See what’s on",
-  "home.about.photo": "Inside the bookshop: a wooden table with books and a jug of greenery, shelves behind",
   "home.wn.t": "What’s New",
   "home.wn.sub": "Latest news, upcoming events, book recommendations and more.",
   "home.wn.viewall": "View All Posts",
@@ -148,7 +147,6 @@ if (_base) {
   "home.events.t": "Événements",
   "home.events.d": "Clubs de lecture, rencontres d’auteurs, heure du conte, événements culturels et plus encore. Rejoignez-nous !",
   "home.events.cta": "Voir le programme",
-  "home.about.photo": "L’intérieur de la librairie : une table en bois avec des livres et un pichet de verdure, des étagères derrière",
   "home.wn.t": "Quoi de neuf",
   "home.wn.sub": "Actualités, événements à venir, coups de cœur et plus encore.",
   "home.wn.viewall": "Voir tous les articles",

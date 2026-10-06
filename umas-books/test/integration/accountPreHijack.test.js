@@ -217,7 +217,7 @@ test("legitimate signup works in English and French: confirm, choose a password,
     const click = await pressConfirm(verifyPath, { lang });
     const resetPath = click.headers.get("location");
     const page = await (await request(resetPath, { lang })).text();
-    assert.match(page, lang === "fr" ? /Adresse confirmée : choisissez maintenant votre mot de passe/ : /Email confirmed: now choose your password/);
+    assert.match(page, lang === "fr" ? /Adresse confirmée\u00a0: choisissez maintenant votre mot de passe/ : /Email confirmed: now choose your password/);
     const set = await request(resetPath, { method: "POST", body: { newPassword: VICTIM_PW }, lang });
     assert.equal(set.headers.get("location"), "/login?reset=confirmed");
     const notice = await (await request("/login?reset=confirmed", { lang })).text();
