@@ -120,7 +120,7 @@ test("add-dropin: a priced class goes in the cart (several seats allowed) and sh
   assert.equal(page.status, 200);
   assert.equal((page.text.match(/Drop-in seat/g) || []).length, 2);
   assert.match(page.text, /8\.50/);
-  assert.match(page.text, /Total: <strong>&euro;17\.00/);
+  assert.match(page.text, /Total: <strong>€17\.00/);
   assert.ok(!page.text.includes("<i>"), "class title escaped");
   assert.equal((await seats(cls)).length, 0, "adding to the cart holds nothing in the database");
 });

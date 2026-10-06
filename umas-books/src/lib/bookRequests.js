@@ -19,6 +19,7 @@ const { withTransaction } = require("../db");
 const mailer = require("../mailer");
 const { generateToken, hashToken } = require("./resetTokens");
 const { emailTr, normLang } = require("./lang");
+const { formatEuro } = require("./money");
 const { emailSafeName } = require("./validation");
 const { normalizeIsbn } = require("./bookLookup");
 const { isbnVariants, isPurchasablePrice } = require("./inventory");
@@ -348,8 +349,7 @@ async function sendListEmail({ to, lang, token, base }) {
 
 function formatPrice(price, lang) {
   if (price === null || price === undefined) return null;
-  const n = Number(price).toFixed(2);
-  return lang === "fr" ? `${n.replace(".", ",")} €` : `€${n}`;
+  return formatEuro(price, lang) || null;
 }
 
 function formatDay(date, lang) {

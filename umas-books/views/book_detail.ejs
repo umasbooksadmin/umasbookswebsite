@@ -31,7 +31,7 @@
       <% const buyable = (c) => c.price != null && Number.isFinite(Number(c.price)) && Number(c.price) > 0; %>
       <% const minPrice = Math.min(...copies.filter(buyable).map(c => Number(c.price))); %>
       <div class="book-detail-price">
-        <% if (isFinite(minPrice)) { %>&euro;<%= minPrice.toFixed(2) %><% } %>
+        <% if (isFinite(minPrice)) { %><%= eur(minPrice) %><% } %>
         <% if (copies.some(c => c.is_clearance)) { %><span class="clearance-badge"><%= tr('Clearance', 'Déstockage') %></span><% } %>
       </div>
 
@@ -54,7 +54,7 @@
             <% copies.forEach(c => { %>
               <tr>
                 <td><span class="condition-badge condition-<%= c.condition %>"><%= conditionLabel(c.condition) %></span></td>
-                <td><%= buyable(c) ? '€' + Number(c.price).toFixed(2) : '' %><% if (c.is_clearance) { %> <span class="clearance-badge"><%= tr('Clearance', 'Déstockage') %></span><% } %></td>
+                <td><%= buyable(c) ? eur(c.price) : '' %><% if (c.is_clearance) { %> <span class="clearance-badge"><%= tr('Clearance', 'Déstockage') %></span><% } %></td>
                 <td>
                   <% if (buyable(c)) { %>
                   <form method="post" action="/cart/add">
@@ -127,7 +127,7 @@
           <% } %>
           <div class="book-card-body">
             <div class="book-card-title"><%= b.title %></div>
-            <% if (b.min_price != null) { %><div class="book-card-price">&euro;<%= Number(b.min_price).toFixed(2) %></div><% } %>
+            <% if (b.min_price != null) { %><div class="book-card-price"><%= eur(b.min_price) %></div><% } %>
           </div>
         </a>
       </div>

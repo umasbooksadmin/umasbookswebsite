@@ -1,6 +1,7 @@
 const { emailSafeName } = require("./validation");
 const { formatDate, forLocale, LOCALES } = require("./dates");
-const { emailTr } = require("./lang");
+const { emailTr, normLang } = require("./lang");
+const { formatEuro } = require("./money");
 const { orderItemLabel } = require("./orderItems");
 
 // The shop you pick up at (Rue Peyrolière) is NOT the association's
@@ -47,7 +48,8 @@ function orderConfirmationSubject(lang) {
 // in every language: that is what the Consumer Code notice requires on the
 // durable medium, so they are never reduced to one language.
 function buildOrderConfirmationText(order, items, base) {
-  const tr = emailTr(order.lang);
+  const lang = normLang(order.lang) || "en";
+  const tr = emailTr(lang);
   const root = base ? base.replace(/\/$/, "") : "";
   const termsLine = base
     ? tr(
@@ -63,13 +65,13 @@ function buildOrderConfirmationText(order, items, base) {
         `Conditions générales de vente acceptées le ${forLocale(LOCALES.fr).formatDateLong(order.cgv_accepted_at)} (version ${order.cgv_version}).\n\n`
       )
     : "";
-  const lines = items.map((i) => `- ${orderItemLabel(i, order.lang)} — €${Number(i.price).toFixed(2)}`).join("\n");
+  const lines = items.map((i) => `- ${orderItemLabel(i, order.lang)} — ${formatEuro(i.price, lang)}`).join("\n");
   const orderDate = formatDate(order.created_at || new Date());
   const name = emailSafeName(order.buyer_name);
-  const total = Number(order.total_amount).toFixed(2);
+  const total = formatEuro(order.total_amount, lang);
   const head = tr(
-    `Hi ${name},\n\nThanks for your order — payment received:\n\nOrder #${order.id} — ${orderDate}\nPaid online via HelloAsso\n\n${lines}\n\nTotal: €${total}\n\nCome by Uma's Books (Rue Peyrolière, 81000 Albi) during opening hours to pick up any books. Drop-in sessions need no pickup — just come along at the session time.\n\n`,
-    `Bonjour ${name},\n\nMerci pour votre commande — paiement reçu :\n\nCommande n° ${order.id} — ${orderDate}\nPayée en ligne via HelloAsso\n\n${lines}\n\nTotal : €${total}\n\nPassez à Uma's Books (Rue Peyrolière, 81000 Albi) pendant les heures d’ouverture pour récupérer vos livres. Les séances drop-in ne nécessitent aucun retrait : il vous suffit de venir à l’heure de la séance.\n\n`
+    `Hi ${name},\n\nThanks for your order — payment received:\n\nOrder #${order.id} — ${orderDate}\nPaid online via HelloAsso\n\n${lines}\n\nTotal: ${total}\n\nCome by Uma's Books (Rue Peyrolière, 81000 Albi) during opening hours to pick up any books. Drop-in sessions need no pickup — just come along at the session time.\n\n`,
+    `Bonjour ${name},\n\nMerci pour votre commande — paiement reçu :\n\nCommande n° ${order.id} — ${orderDate}\nPayée en ligne via HelloAsso\n\n${lines}\n\nTotal : ${total}\n\nPassez à Uma's Books (Rue Peyrolière, 81000 Albi) pendant les heures d’ouverture pour récupérer vos livres. Les séances drop-in ne nécessitent aucun retrait : il vous suffit de venir à l’heure de la séance.\n\n`
   );
   return `${head}${termsLine}${cgvLine}${LEGAL_RIGHTS}\n\n${WITHDRAWAL_FORM}\n\n${SELLER_LINES}`;
 }

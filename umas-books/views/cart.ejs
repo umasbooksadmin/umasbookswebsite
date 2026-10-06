@@ -29,7 +29,7 @@
             <div class="muted small"><%= tr('Drop-in seat', 'Place drop-in') %> &middot; <%= formatDateTime(i.startsAt) %></div>
           </div>
         <% } %>
-        <div class="cart-item-price">&euro;<%= i.price.toFixed(2) %></div>
+        <div class="cart-item-price"><%= eur(i.price) %></div>
         <form method="post" action="/cart/remove">
           <%- include('partials/csrf_field') %>
           <input type="hidden" name="lineId" value="<%= i.lineId %>">
@@ -39,7 +39,7 @@
     <% }) %>
   </div>
 
-  <div class="cart-total"><%= tr('Total:', 'Total :') %> <strong>&euro;<%= total.toFixed(2) %></strong></div>
+  <div class="cart-total"><%= tr('Total:', 'Total :') %> <strong><%= eur(total) %></strong></div>
 
   <% if (locals.preview) { %>
     <div role="status" class="notice-box"><%= tr('Online ordering opens when we launch. This is a preview, so you can fill a cart to see how it works, but nothing can be ordered yet.', 'La commande en ligne ouvrira au lancement. Ceci est un aperçu : vous pouvez remplir un panier pour voir comment cela fonctionne, mais rien ne peut encore être commandé.') %></div>

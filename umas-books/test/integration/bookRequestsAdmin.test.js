@@ -238,7 +238,7 @@ test("Notify writes to a French-speaking requester in French, with a French pric
   const mail = sent.find((x) => x.to === m.email);
   assert.match(mail.subject, /Bonne nouvelle/);
   assert.match(mail.text, /vous avez des questions|Pour toute question, répondez/);
-  assert.match(mail.text, /6,50 €/);
+  assert.match(mail.text, /6,50\u00a0€/);
   assert.match(mail.text, /passez vite à la boutique ou ajoutez-le à votre panier en ligne\./);
   assert.doesNotMatch(mail.text, /réservez-le en ligne/);
   assert.ok(!/Good news|reply to this email/.test(mail.subject + mail.text));

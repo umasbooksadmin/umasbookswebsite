@@ -32,6 +32,7 @@ const { healthzHandler } = require("./lib/health");
 const seoRoutes = require("./routes/seo");
 const { MARKETING_PAGES, setMarketingSeoLocals } = seoRoutes;
 
+const { renderMarketing } = require("./lib/pageDictionary");
 const authRoutes = require("./routes/auth");
 const twoFactorRoutes = require("./routes/twoFactor");
 const dashboardRoutes = require("./routes/dashboard");
@@ -294,7 +295,7 @@ const marketingCsp = [
 ].join("; ");
 
 
-app.get("/", (req, res) => {
+app.get("/", (req, res, next) => {
   // Only an actual member/volunteer/admin gets bounced to the Member's
   // Access dashboard — a logged-in user who isn't gets the regular
   // homepage like anyone else (see requireMember), otherwise this and
@@ -303,7 +304,7 @@ app.get("/", (req, res) => {
   if (u && (u.isAdmin || u.isMember || u.isVolunteer)) return res.redirect("/dashboard");
   res.set("Content-Security-Policy", marketingCsp);
   setMarketingSeoLocals(req, res, "/");
-  res.render("marketing/index");
+  renderMarketing(req, res, next, "marketing/index");
 });
 
 // The booking calendar used to be called "classes", then "programs"; send
@@ -321,7 +322,7 @@ app.get("/admin/programs", (req, res) => res.redirect(301, "/admin/sessions" + q
 // HelloAsso payment widget only to a logged-in account holder (see
 // src/lib/membershipPage.js). Everyone else gets a login/signup prompt.
 MARKETING_PAGES.forEach((file) => {
-  app.get("/" + file, async (req, res) => {
+  app.get("/" + file, async (req, res, next) => {
     res.set("Content-Security-Policy", marketingCsp);
     setMarketingSeoLocals(req, res, "/" + file);
     if (file === "membership.html") {
@@ -329,7 +330,7 @@ MARKETING_PAGES.forEach((file) => {
       res.set("Cache-Control", "private, no-store");
       Object.assign(res.locals, await membershipPageState(pool, req.session));
     }
-    res.render("marketing/" + file.replace(/\.html$/, ""));
+    renderMarketing(req, res, next, "marketing/" + file.replace(/\.html$/, ""));
   });
 });
 

@@ -4,8 +4,14 @@
   extraCss: ['assets/blog.css'],
 }) %>
   <div class="blog-page" id="blog-root"></div>
-<% const pageI18nEn = { "blog.title": "Blog" }; %>
-<% const pageI18nFr = { "blog.title": "Blog" }; %>
+<% const pageI18nEn = {
+  "meta.title": "Blog — Uma's Books and Adventures",
+  "meta.description": "News and stories from Uma's Books & Adventures, the community English bookshop in Albi, France.",
+  "blog.title": "Blog" }; %>
+<% const pageI18nFr = {
+  "meta.title": "Blog — Uma’s Books and Adventures",
+  "meta.description": "Actualités et histoires d’Uma’s Books & Adventures, la librairie anglophone et communautaire d’Albi, en France.",
+  "blog.title": "Blog" }; %>
 <%- include('partials/mkt_footer', {
   pageI18nEn, pageI18nFr,
   extraScripts: ['assets/blog-live.js', 'assets/blog.js'],

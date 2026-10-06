@@ -39,8 +39,9 @@ test("French order: French subject and body, prices, date and addresses unchange
   assert.match(t, /Merci pour votre commande — paiement reçu/);
   assert.match(t, /Commande n° 42 — 06\/03\/2026/);
   assert.match(t, /Payée en ligne via HelloAsso/);
-  assert.match(t, /Total : €12\.50/);
-  assert.match(t, /- Emma — €12\.50/);
+  assert.match(t, /Total : 12,50\u00a0€/);
+  assert.match(t, /- Emma — 12,50\u00a0€/);
+  assert.doesNotMatch(t, /€\d/, "no English-style price in a French email");
   assert.match(t, /Rue Peyrolière, 81000 Albi\) pendant les heures d’ouverture/);
   assert.match(t, /Conditions de vente et votre droit de rétractation de 14 jours pour les livres : https:\/\/shop\.test\/terms-of-sale\.html/);
   assert.doesNotMatch(t, /Thanks for your order|Come by Uma's Books|^Hi /m);
@@ -75,7 +76,7 @@ const dropin = {
 
 test("order email renders a drop-in line in the order's language, Paris time", () => {
   const fr = buildOrderConfirmationText({ ...order, lang: "fr" }, [dropin], "");
-  assert.match(fr, /- Éveil — 12 déc\., 18:00 — €5\.00/);
+  assert.match(fr, /- Éveil — 12 déc\., 18:00 — 5,00\u00a0€/);
   assert.ok(!fr.includes("12 Dec"));
   const en = buildOrderConfirmationText({ ...order, lang: "en" }, [dropin], "");
   assert.match(en, /- Éveil — 12 Dec, 18:00 — €5\.00/);
@@ -86,7 +87,7 @@ test("order email renders a drop-in line in the order's language, Paris time", (
 test("order email falls back to the stored title when the class is gone", () => {
   const gone = { ...dropin, item_title: "Old session — 12 Dec, 18:00", class_title: null, class_starts_at: null };
   const fr = buildOrderConfirmationText({ ...order, lang: "fr" }, [gone], "");
-  assert.match(fr, /- Old session — 12 Dec, 18:00 — €5\.00/);
+  assert.match(fr, /- Old session — 12 Dec, 18:00 — 5,00\u00a0€/);
 });
 
 // ------------------------------------------------- terms-of-sale acceptance

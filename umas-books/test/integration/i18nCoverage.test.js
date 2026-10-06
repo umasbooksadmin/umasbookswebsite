@@ -20,6 +20,7 @@ const { untranslated } = require("../helpers/i18nAudit");
 const { makeCookieJar, fetchCsrfToken, waitForCartCount } = require("../helpers/httpClient");
 
 const PORT = 3691;
+const MARKETING_PAGES = require("../../src/lib/marketingPages");
 
 // Append translated customer-facing pages here.
 const PAGES = [
@@ -43,6 +44,10 @@ const PAGES = [
   "/my-requests/list/not-a-real-token", // views/my_requests.ejs (invalid list link)
   "/request-a-book/confirm/not-a-real-token", // views/request_book_confirm.ejs (invalid link)
 ];
+
+// Every marketing page (views/marketing/*.ejs), including the home page: the
+// server must send the French text itself (lib/pageDictionary.js).
+for (const p of ["/", ...MARKETING_PAGES.map((f) => "/" + f)]) PAGES.push(p);
 
 // Pages that need seeded data or a session: each entry sets itself up against
 // the running app and returns { path, headers? } (headers carry a session cookie).

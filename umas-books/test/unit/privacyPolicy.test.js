@@ -105,3 +105,16 @@ test("privacy policy: the toggled dictionary text matches the static English mar
   }
   assert.ok(n >= 6);
 });
+
+test("privacy policy: says photos and videos are only taken with consent (parent or guardian for a child), in both languages", () => {
+  assert.match(src, /data-i18n="pp\.photos\.h"/);
+  assert.match(src, /We never take photographs or videos of customers, members or children without their consent/, "the static (server-sent) English text");
+  assert.match(en["pp.photos.h"], /^Photos and videos$/);
+  assert.match(fr["pp.photos.h"], /^Photos et vidéos$/);
+  assert.match(en["pp.photos.p"], /never take photographs or videos of customers, members or children without their consent/);
+  assert.match(en["pp.photos.p"], /parent or legal guardian/);
+  assert.match(en["pp.photos.p"], /withdraw your consent at any time/);
+  assert.match(fr["pp.photos.p"], /ne prenons jamais de photos ni de vidéos de clients, de membres ou d’enfants sans leur consentement/);
+  assert.match(fr["pp.photos.p"], /parent ou du représentant légal/);
+  assert.match(fr["pp.photos.p"], /retirer votre consentement à tout moment/);
+});

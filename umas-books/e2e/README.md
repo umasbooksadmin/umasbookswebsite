@@ -205,11 +205,11 @@ until they are fixed.
 - Marked as known (do not fail): the Dashboard shows `NaN%` next to a sales or
   orders figure when last month had none (A6; `views/admin/index.ejs`, the trend
   helper divides by "0.00"; also a known todo in
-  `test/integration/adminCalendars.test.js`); prices read `€12.50` in French (G-FR12); the
-  legal pages are only French after the page's script runs, not in the HTML the
-  server sends (G40b); the "session expired" page is English only (X6); admin
-  pages say `<html lang="fr">` when French is chosen although they are English
-  only (A8b).
+  `test/integration/adminCalendars.test.js`); admin pages say `<html lang="fr">`
+  when French is chosen although they are English only (A8b).
+- Fixed, now normal tests: French prices read `12,50 €` (G-FR12), the legal
+  pages are French in the HTML the server sends (G40b), and the "session
+  expired" page is translated (X6).
 
 Where the manual script and the site differ today, the tests follow the site:
 guests are not shown a key icon (G3: `/dashboard` sends them to login); the

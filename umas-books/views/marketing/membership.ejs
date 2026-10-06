@@ -34,17 +34,17 @@ const memNewEn = {
 };
 const memNewFr = {
   "mem.join.h": "Devenir membre",
-  "mem.join.p": "Dites-nous qui vous êtes : nous créons votre compte en une seule étape. Vous payez ensuite sur l’écran suivant, puis vous confirmez votre adresse e-mail.",
+  "mem.join.p": "Dites-nous qui vous êtes : nous créons votre compte en une seule étape. Vous payez ensuite sur l’écran suivant, puis vous confirmez votre adresse e-mail.",
   "mem.join.name": "Nom",
   "mem.join.email": "E-mail",
   "mem.join.btn": "Continuer vers le paiement",
   "mem.join.terms": "En continuant, vous acceptez nos <a href=\"membership-terms.html\">conditions d’adhésion</a> et notre <a href=\"privacy-policy.html\">politique de confidentialité</a>.",
-  "mem.join.haveAccount": "Vous avez déjà un compte ?",
+  "mem.join.haveAccount": "Vous avez déjà un compte ?",
   "mem.join.login": "Se connecter",
   "mem.err.fields": "Veuillez indiquer votre nom et une adresse e-mail valide.",
-  "mem.paid.h": "Étape suivante : réglez votre adhésion",
-  "mem.paid.emailed": "Nous vous avons envoyé un lien par e-mail : cliquez dessus après le paiement pour confirmer votre adresse et choisir votre mot de passe. Votre adhésion est rattachée à votre compte lorsque vous confirmez.",
-  "mem.paid.useEmail": "Utilisez cette même adresse e-mail sur le formulaire de paiement :",
+  "mem.paid.h": "Étape suivante : réglez votre adhésion",
+  "mem.paid.emailed": "Nous vous avons envoyé un lien par e-mail : cliquez dessus après le paiement pour confirmer votre adresse et choisir votre mot de passe. Votre adhésion est rattachée à votre compte lorsque vous confirmez.",
+  "mem.paid.useEmail": "Utilisez cette même adresse e-mail sur le formulaire de paiement :",
   "mem.paid.haveAccount": "Si vous avez déjà un compte, <a href=\"/login?returnTo=%2Fmembership.html\">connectez-vous</a> d’abord. Vous reviendrez sur cette page.",
   "mem.paid.other": "Utiliser une autre adresse e-mail",
   "mem.member.h": "Vous êtes membre",
@@ -53,14 +53,14 @@ const memNewFr = {
   "mem.member.renew": "Vous pourrez renouveler votre adhésion depuis cette page pendant les 30 derniers jours.",
   "mem.acct.a": "Utilisez la même adresse e-mail que votre compte (",
   "mem.acct.b": ") pour que votre adhésion y soit rattachée.",
-  "mem.check.hint": "Vous avez déjà payé ? Recherchez votre paiement maintenant.",
+  "mem.check.hint": "Vous avez déjà payé ? Recherchez votre paiement maintenant.",
   "mem.check.btn": "Vérifier mon adhésion",
-  "mem.check.found": "Adhésion trouvée : vous êtes membre jusqu’au",
-  "mem.check.foundNoEnd": "Adhésion trouvée : vous êtes membre, sans date de fin.",
+  "mem.check.found": "Adhésion trouvée : vous êtes membre jusqu’au",
+  "mem.check.foundNoEnd": "Adhésion trouvée : vous êtes membre, sans date de fin.",
   "mem.check.notFoundA": "Nous n’avons pas encore trouvé votre paiement. Cela peut prendre quelques minutes. Vérifiez que vous avez utilisé l’adresse e-mail",
   "mem.check.notFoundB": "sur le formulaire de paiement.",
   "mem.check.error": "Nous n’avons pas pu vérifier pour le moment. Veuillez réessayer dans quelques minutes.",
-  "mem.check.unconfirmed": "Veuillez d’abord confirmer votre adresse e-mail : ouvrez le lien que nous vous avons envoyé lors de votre inscription.",
+  "mem.check.unconfirmed": "Veuillez d’abord confirmer votre adresse e-mail : ouvrez le lien que nous vous avons envoyé lors de votre inscription.",
 };
 const mt = (key) => (locals.lang === 'fr' ? memNewFr : memNewEn)[key];
 %>
@@ -193,6 +193,8 @@ const mt = (key) => (locals.lang === 'fr' ? memNewFr : memNewEn)[key];
   <% } %>
   </div>
 <% const pageI18nEn = {
+  "meta.title": "Membership — Uma's Books and Adventures",
+  "meta.description": "Become a member of Uma's Books & Adventures: vote on our quarterly charity, join the discussion forum, and get access to special events.",
   "mem.hero.kicker": "Uma’s Books & Adventures",
   "mem.hero.t": "Membership",
   "mem.hero.script": "Become part of our community",
@@ -217,6 +219,8 @@ const mt = (key) => (locals.lang === 'fr' ? memNewFr : memNewEn)[key];
   "mem.widget.directLink": "Open the membership page directly on HelloAsso",
 }; %>
 <% const pageI18nFr = {
+  "meta.title": "Adhésion — Uma’s Books and Adventures",
+  "meta.description": "Devenez membre d’Uma’s Books & Adventures : votez pour notre association caritative du trimestre, rejoignez le forum de discussion et accédez aux événements spéciaux.",
   "mem.hero.kicker": "Uma’s Books & Adventures",
   "mem.hero.t": "Adhésion",
   "mem.hero.script": "Rejoignez notre communauté",
@@ -234,10 +238,10 @@ const mt = (key) => (locals.lang === 'fr' ? memNewFr : memNewEn)[key];
   "mem.b5.d": "Récupérez votre tote bag de membre chez Uma’s Books & Adventures. Nous vous préviendrons dès qu’il sera prêt.",
   "mem.form.h": "Rejoignez Uma’s Books & Adventures",
   "mem.preview.h": "L’adhésion ouvrira au lancement",
-  "mem.preview.p": "Ceci est un aperçu d’Uma’s Books : l’inscription et le paiement sont désactivés pour le moment. Revenez à l’ouverture, ou dites-nous ce que vous pensez du site.",
+  "mem.preview.p": "Ceci est un aperçu d’Uma’s Books : l’inscription et le paiement sont désactivés pour le moment. Revenez à l’ouverture, ou dites-nous ce que vous pensez du site.",
   "mem.widget.p": "L’inscription et le paiement sont gérés en toute sécurité par HelloAsso ci-dessous. L’adhésion dure 12 mois à partir de la date de paiement et votre compte est activé automatiquement une fois le paiement effectué — inutile de nous contacter. En adhérant, vous acceptez nos <a href=\"membership-terms.html\">conditions d’adhésion</a> et notre <a href=\"privacy-policy.html\">politique de confidentialité</a>.",
-  "mem.widget.hint": "Déjà membre et vous renouvelez simplement ? Utilisez la même adresse e-mail que celle de votre compte pour qu’il soit mis à jour automatiquement.",
-  "mem.widget.directLabel": "Un souci avec le formulaire ci-dessus ?",
+  "mem.widget.hint": "Déjà membre et vous renouvelez simplement ? Utilisez la même adresse e-mail que celle de votre compte pour qu’il soit mis à jour automatiquement.",
+  "mem.widget.directLabel": "Un souci avec le formulaire ci-dessus ?",
   "mem.widget.directLink": "Ouvrir la page d’adhésion directement sur HelloAsso",
 }; %>
 <%- include('partials/mkt_footer', { pageI18nEn: { ...pageI18nEn, ...memNewEn }, pageI18nFr: { ...pageI18nFr, ...memNewFr } }) %>

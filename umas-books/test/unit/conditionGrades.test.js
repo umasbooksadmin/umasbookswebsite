@@ -81,6 +81,6 @@ test("order lines carry the grade of the copy, in the order's language; drop-in 
 test("the order confirmation email shows the grade per book line in the order's language", () => {
   const order = { id: 7, lang: "fr", buyer_name: "Ana", total_amount: 9, created_at: new Date("2026-01-01") };
   const items = [{ item_title: "Dune", price: 9, copy_condition: "like_new" }];
-  assert.match(buildOrderConfirmationText(order, items, ""), /- Dune \(Comme neuf\) — €9\.00/);
+  assert.match(buildOrderConfirmationText(order, items, ""), /- Dune \(Comme neuf\) — 9,00\u00a0€/);
   assert.match(buildOrderConfirmationText({ ...order, lang: "en" }, items, ""), /- Dune \(Like New\) — €9\.00/);
 });

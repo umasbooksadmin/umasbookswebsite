@@ -8,6 +8,7 @@
    carousel once its script has loaded). */
 %>
 </main>
+<% if (typeof registerPageDict === 'function') registerPageDict(typeof pageI18nEn !== 'undefined' ? pageI18nEn : {}, typeof pageI18nFr !== 'undefined' ? pageI18nFr : {}); %>
 
 <%- include('../../partials/mkt_chrome_footer') %>
 
