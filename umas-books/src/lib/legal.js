@@ -39,6 +39,13 @@ const MEMBERSHIP_PRICE_EUR = "";
 // page, structured data). See docs/legal-todos.md ("give the street number").
 const SHOP_STREET_NUMBER = "";
 
+// Names. The OFFICIAL registered name (RNA, which cannot take apostrophes) is
+// "UMAS BOOKS": use it only in legal identity lines (legal notice publisher,
+// privacy policy controller, membership terms identity, terms of sale). The
+// public names ("Uma's Books", "Uma's Books and Adventures") stay as they are.
+const BRAND_LEGAL_NAME = "UMAS BOOKS";
+const BRAND_SHORT_NAME = "Uma's Books";
+
 // Opening days and hours of the shop. Machine format for structured data, then
 // the text printed on pages: English 10:00–19:00, French 10 h–19 h (a no-break
 // space between the number and "h").
@@ -70,7 +77,7 @@ function membershipPrice(lang) {
 
 module.exports = {
   TERMS_OF_SALE_VERSION, VAT_NOTICE_ARTICLE, SOCIAL_LINKS,
-  MEMBERSHIP_PRICE_EUR, SHOP_STREET_NUMBER,
+  MEMBERSHIP_PRICE_EUR, SHOP_STREET_NUMBER, BRAND_LEGAL_NAME, BRAND_SHORT_NAME,
   SHOP_OPENS, SHOP_CLOSES, SHOP_HOURS_EN, SHOP_HOURS_FR,
   shopStreet, shopHours, membershipPrice,
 };

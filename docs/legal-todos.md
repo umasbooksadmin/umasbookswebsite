@@ -31,12 +31,11 @@ says who has to decide or do it: *maintainer* (Sharon), *accountant* or
   it is empty the page keeps its earlier text. The price must always equal the
   one on HelloAsso (the membership terms say the amount is the one shown on the
   HelloAsso form). Check again each time the HelloAsso price changes.
-- [ ] **3. Confirm the name registered at the prefecture (RNA)** (owner:
-  maintainer). TODO(the association): confirm the exact name in the RNA extract.
-  The website uses "Uma's Books" in the legal pages and "Uma's Books and
-  Adventures" or "Uma's Books & Adventures" in page titles; the page titles were
-  left as they are on purpose. Use one spelling in the legal notice, the privacy
-  policy and the terms once the registered name is known.
+- [x] **3. Registered name** (done, 2026-10-06). The official registered name is
+  "UMAS BOOKS" (the register cannot take apostrophes). It is used only in the
+  legal identity lines (legal notice, privacy policy, membership terms, via
+  `BRAND_LEGAL_NAME` in `legal.js`); the public names "Uma's Books" and "Uma's
+  Books and Adventures" stay as they are everywhere else.
 - [ ] **4. Immersion program terms** (owner: maintainer, to write). The immersion
   pages give the price (15 EUR per session, billed monthly) and nothing else.
   TODO(the association): decide and write (a) cancellation by the family: 24 to
@@ -58,13 +57,10 @@ says who has to decide or do it: *maintainer* (Sharon), *accountant* or
 - [ ] **7. Statutes PDF ready to send** (owner: maintainer). The membership terms
   say the statutes are "available on request". Recommendation: keep an up to date
   PDF in the shared drive so any request is answered the same day.
-- [ ] **8. Mediator: confirm the CM2C adhesion is signed** (owner: maintainer).
-  The terms of sale name a consumer mediator. Naming a mediator without a signed
-  contract is a false statement. Recommendation: confirm the adhesion contract
-  with CM2C is signed and in force; if not, remove the sentence until it is. Also
-  verify CM2C's postal address against the official list of the CECMC
-  (Commission d'évaluation et de contrôle de la médiation de la consommation) and
-  correct the terms if they differ.
+- [x] **8a. CM2C adhesion** is signed and in place (confirmed by the maintainer, 2026-10-06).
+- [ ] **8b. Mediator address** (owner: maintainer). Verify CM2C's postal address
+  against the official list of the CECMC (Commission d'évaluation et de contrôle
+  de la médiation de la consommation) and correct the terms if they differ.
 - [ ] **9. Refreshments** (owner: maintainer). If drinks or food are served:
   recommendation: declare it to the mairie and the DDPP (hygiene rules), and find
   out which alcohol licence applies before serving any alcohol.

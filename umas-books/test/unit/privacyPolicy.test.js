@@ -32,6 +32,7 @@ test("privacy policy: every data-i18n key used in the markup exists in both lang
 
 test("privacy policy: names the controller exactly as in the legal notice", () => {
   for (const d of [en, fr]) {
+    assert.match(d["pp.s1.p"], /UMAS BOOKS/);
     assert.match(d["pp.s1.p"], /Uma’s Books/);
     assert.match(d["pp.s1.p"], /W811011706/);
     assert.match(d["pp.s1.p"], /109 441 147 00013/);
