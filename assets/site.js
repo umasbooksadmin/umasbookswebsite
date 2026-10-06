@@ -115,6 +115,21 @@
     } catch (e) {}
   }
 
+  // Which language to start in. A choice the person made (localStorage) wins;
+  // then the cookie the server read; then the language the server already
+  // rendered into <html lang>; the browser's language is the last resort.
+  // Never flip a server-rendered page to the browser's language.
+  function resolveInitialLang(stored, cookie, htmlLang, navLang) {
+    var picks = [stored, cookie, htmlLang];
+    for (var i = 0; i < picks.length; i++) {
+      var l = String(picks[i] || "").toLowerCase().slice(0, 2);
+      if (l === "fr" || l === "en") return l;
+    }
+    return /^fr\b/i.test(navLang || "") ? "fr" : "en";
+  }
+  // Test hook (test/unit/siteLang.test.js evaluates this file in a vm).
+  if (typeof window !== "undefined") window.__umasResolveInitialLang = resolveInitialLang;
+
   function mergedDict(lang) {
     var page = (window.PAGE_I18N && window.PAGE_I18N[lang]) || {};
     var out = {};
@@ -281,10 +296,22 @@
     // A language chosen earlier (localStorage) must reach the server too:
     // fix a missing or differing cookie so the next request matches.
     if ((stored === "fr" || stored === "en") && readLangCookie() !== stored) writeLangCookie(stored);
-    var initial = stored || (/^fr\b/i.test(navigator.language || "") ? "fr" : "en");
+    var initial = resolveInitialLang(stored, readLangCookie(), document.documentElement.lang, navigator.language);
 
     document.querySelectorAll(".langtoggle button").forEach(function (b) {
-      b.addEventListener("click", function () { apply(b.getAttribute("data-lang")); });
+      b.addEventListener("click", function () {
+        var lang = b.getAttribute("data-lang") === "fr" ? "fr" : "en";
+        // Pages without a client-side dictionary (book page, cart, login,
+        // forms: server-rendered through tr()) can only change language by
+        // asking the server again: remember the choice, then reload.
+        if (!window.PAGE_I18N) {
+          var changed = lang !== document.documentElement.lang;
+          try { localStorage.setItem(STORE_KEY, lang); } catch (e) {}
+          writeLangCookie(lang);
+          if (changed) { location.reload(); return; }
+        }
+        apply(lang);
+      });
     });
 
     apply(initial);

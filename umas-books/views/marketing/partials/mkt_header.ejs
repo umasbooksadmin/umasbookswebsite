@@ -57,16 +57,17 @@ const nav = [
 <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
 <link rel="manifest" href="/site.webmanifest">
+<meta name="theme-color" content="#fffefb">
 <% if (typeof jsonLd !== 'undefined' && jsonLd) { %><script type="application/ld+json"><%- JSON.stringify(jsonLd).replace(/</g, '\\u003c') %></script>
-<% } %><link rel="stylesheet" href="assets/site.css">
-<link rel="stylesheet" href="site-header.css">
-<% (typeof extraCss !== 'undefined' ? extraCss : []).forEach(href => { %><link rel="stylesheet" href="<%= href %>"><% }) %>
+<% } %><link rel="stylesheet" href="<%= assetUrl('/assets/site.css') %>">
+<link rel="stylesheet" href="<%= assetUrl('/site-header.css') %>">
+<% (typeof extraCss !== 'undefined' ? extraCss : []).forEach(href => { %><link rel="stylesheet" href="<%= assetUrl(href.charAt(0) === '/' ? href : '/' + href) %>"><% }) %>
 </head>
 <body<%- typeof bodyClass !== 'undefined' && bodyClass ? ' class="' + bodyClass + '"' : '' %>>
 <a class="skip-link" href="#main-content" data-i18n="a11y.skip"><%= _isFr ? 'Aller au contenu principal' : 'Skip to main content' %></a>
 
 <%- include('../../partials/mkt_chrome_header', { nav, activeNav: typeof activeNav !== 'undefined' ? activeNav : undefined }) %>
 <% if (typeof hideBackLink === 'undefined' || !hideBackLink) { %>
-<div class="site-back-bar"><a href="#" class="site-back-link" data-i18n="nav.back"><%= _isFr ? '← Retour' : '← Back' %></a></div>
+<div class="site-back-bar"><a href="<%= typeof backHref !== 'undefined' && backHref ? backHref : '/' %>" class="site-back-link" data-i18n="nav.back"><%= _isFr ? '← Retour' : '← Back' %></a></div>
 <% } %>
 <main id="main-content" tabindex="-1">

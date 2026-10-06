@@ -23,7 +23,7 @@
     <%- include('partials/csrf_field') %>
     <label for="c-name"><%= tr('Your name', 'Votre nom') %></label>
     <input id="c-name" name="name" type="text" autocomplete="name" maxlength="120" required value="<%= values.name || '' %>">
-    <label for="c-email"><%= tr('Your email', 'Votre email') %></label>
+    <label for="c-email"><%= tr('Your email', 'Votre e-mail') %></label>
     <input id="c-email" name="email" type="email" autocomplete="email" maxlength="200" required value="<%= values.email || '' %>">
     <label for="c-topic"><%= tr('Topic', 'Sujet') %></label>
     <select id="c-topic" name="topic">

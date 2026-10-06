@@ -6,6 +6,21 @@
    draw one day's item, so this file stays ignorant of what a "session"
    or an "event" actually is. */
 %>
+<%
+/* Optional params: emptyKind ('events' | 'sessions') and nextUrl (the link to
+   the next month/week). When no day has anything on it, say so instead of
+   leaving a blank grid (on phones the empty days are hidden entirely). */
+const _hasItems = monWeeks.some(week => week.some(day => day && day.items && day.items.length));
+const _isWeek = typeof view !== 'undefined' && view === 'week';
+if (!_hasItems && typeof nextUrl !== 'undefined') {
+  const _sessions = typeof emptyKind !== 'undefined' && emptyKind === 'sessions';
+  const _msg = _sessions
+    ? (_isWeek ? tr('No sessions this week:', 'Aucune séance cette semaine :') : tr('No sessions this month:', 'Aucune séance ce mois-ci :'))
+    : (_isWeek ? tr('No events this week:', 'Aucun événement cette semaine :') : tr('No events this month:', 'Aucun événement ce mois-ci :'));
+  const _link = _isWeek ? tr('see next week', 'voir la semaine suivante') : tr('see next month', 'voir le mois suivant');
+%>
+<p class="fcal-empty" role="status"><%= _msg %> <a href="<%= nextUrl %>"><%= _link %> ›</a></p>
+<% } %>
 <div class="fcal-grid">
   <% const weekdayNames = [tr('Mon', 'Lun'), tr('Tue', 'Mar'), tr('Wed', 'Mer'), tr('Thu', 'Jeu'), tr('Fri', 'Ven'), tr('Sat', 'Sam'), tr('Sun', 'Dim')]; %>
   <% weekdayNames.forEach(d => { %><div class="fcal-weekday"><%= d %></div><% }) %>

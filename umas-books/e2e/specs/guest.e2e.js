@@ -141,7 +141,7 @@ s.test("G10 with preview off the banner is gone and the cart shows the checkout 
 s.test("G11 (must) Browse Books has search, genres, New In carousel and a recommendation area", async (ctx) => {
   await ctx.goto("/books.html", "networkidle2");
   const ph = await ctx.page.$eval("#shop-search-input", (i) => i.placeholder);
-  has(ph, /Search by title, author, keyword, or genre/);
+  has(ph, /Search books/);
   await ctx.page.waitForSelector("#bk-genre-list .bk-genre");
   assert.ok((await ctx.page.$$("#bk-genre-list .bk-genre")).length >= 5, "genre buttons");
   const text = await ctx.text();
@@ -437,7 +437,7 @@ s.write("G-FR28 FR check: the contact form answers in French", { lang: "fr" }, a
   await ctx.page.type("#c-email", testEmail("contact-fr"));
   await ctx.page.type("#c-message", `${tag} message de test automatique : à ignorer et supprimer.`);
   await Promise.all([ctx.page.waitForNavigation(), ctx.page.click("form[action='/contact'] button[type='submit']")]);
-  has(await ctx.text(), /Merci ! Votre message a bien été envoyé/);
+  has(await ctx.text(), /Merci\s! Votre message a bien été envoyé/);
   ctx.created("contact message (email to the admin mailbox)", `${tag} Visiteur`, "delete the email from the shop mailbox");
 });
 
@@ -565,6 +565,23 @@ s.test("G41 (must) the language toggle works on every page type: FR then EN, kep
   await ctx.goto("/contact");
   assert.equal(await ctx.page.$eval("html", (h) => h.lang), "fr");
   has(await ctx.text(), /Nous contacter/);
+});
+
+s.test("G41b (must) a French guest with an English browser and empty localStorage stays in French (no flip), and FR on the cart switches the whole body", { lang: null, browserLang: "en-US" }, async (ctx) => {
+  await ctx.goto("/healthz"); // any page of the site, to be allowed to set its cookie
+  await ctx.page.evaluate(() => { document.cookie = "umasbooks_lang=fr; Path=/"; });
+  await ctx.goto("/books.html", "networkidle2");
+  assert.equal(await ctx.page.$eval("html", (h) => h.lang), "fr", "the server-rendered French is kept");
+  const cookie = (await ctx.cookies()).find((c) => c.name === "umasbooks_lang");
+  assert.equal(cookie && cookie.value, "fr", "the French cookie is not rewritten to English");
+  // A server-rendered page (no client dictionary): the toggle reloads, so the body changes too.
+  await ctx.goto("/cart");
+  await ctx.page.click(".langtoggle [data-lang='en']");
+  await ctx.page.waitForFunction(() => document.documentElement.lang === "en");
+  has(await ctx.text(), /Your Cart/);
+  await ctx.page.click(".langtoggle [data-lang='fr']");
+  await ctx.page.waitForFunction(() => document.documentElement.lang === "fr");
+  has(await ctx.text(), /Votre panier/);
 });
 
 // ---- 1H. Cookies, language memory, 404 ----

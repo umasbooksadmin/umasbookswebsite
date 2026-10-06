@@ -293,10 +293,10 @@ s.test("AC-FR22 FR check (cart): the cart and checkout form are in French", { as
   await clearCart(ctx);
   await addFirstCopyToCart(ctx, book);
   const text = await ctx.text();
-  for (const re of [/Votre panier/, /Retirer/, /Total :/]) has(text, re);
+  for (const re of [/Votre panier/, /Retirer/, /Total\s:/]) has(text, re);
   if (ctx.preview) { has(text, /La commande en ligne ouvrira au lancement/); return; }
   if (!(await checkoutForm(ctx))) return;
-  for (const re of [/Paiement/, /Nom/, /E-mail/, /Téléphone \(facultatif\)/, /J.ai lu et j.accepte les conditions de vente/, /Commander avec obligation de paiement/, /Livres d’occasion\s:\spas de reprise ni d’échange/, /Prix TTC, TVA non applicable/, /Vous paierez en toute sécurité via HelloAsso, puis vous passerez à Uma's Books pour retirer votre commande/, /À retirer sous 14 jours, du mardi au samedi, 10h–19h, rue Peyrolière, Albi/]) has(text, re);
+  for (const re of [/Paiement/, /Nom/, /E-mail/, /Téléphone \(facultatif\)/, /J.ai lu et j.accepte les conditions de vente/, /Commander avec obligation de paiement/, /Livres d’occasion\s:\spas de reprise ni d’échange/, /Prix TTC, TVA non applicable/, /Vous paierez en toute sécurité via HelloAsso, puis vous passerez à Uma.s Books pour retirer votre commande/, /À retirer sous 14 jours, du mardi au samedi, 10h–19h, rue Peyrolière, Albi/]) has(text, re);
 });
 
 s.test("AC24 (preview mode) checkout is refused by the server and never reaches HelloAsso", { as: "account" }, async (ctx) => {

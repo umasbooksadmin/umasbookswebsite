@@ -582,11 +582,11 @@ stateDiagram-v2
 ### Reports, copy source and in-shop sales
 
 * **Reports** (`/admin/reports`, `lib/reports.js`) are read-only and made of a few
-  aggregate queries each, never one query per book. Six reports: *Inventory on
+  aggregate queries each, never one query per book. Seven reports: *Inventory on
   hand* (by genre, condition, location and source), *Aging stock*, *Sales over
   time* (online plus in-shop by day, week, month or year, drop-in seats shown
-  apart), *Sell-through by genre*, *Membership* and *Intake log*. Date ranges
-  are Paris calendar days. Any table can be downloaded as CSV; no report shows
+  apart), *Sell-through by genre*, *Membership*, *Intake log* and *Accounts* (everyone with an account by type; same type definitions as the admin accounts list, `lib/accountTypes.js`). Date ranges
+  are Paris calendar days. Any table can be downloaded as CSV; no report except *Accounts* shows
   email addresses or buyer names, and every CSV download is written to the audit
   log (report name only).
 * **Sell in shop** (`/admin/inventory/sell`) records a counter sale: scan the ISBN,

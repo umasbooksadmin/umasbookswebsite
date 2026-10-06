@@ -287,7 +287,7 @@ test("the French page uses 'Prix et classements :' and keeps the label text", as
   const book = await seedBook();
   await addAward(book.id, "Prix Goncourt", { year: 1999 });
   const fr = await http(`/books/${book.id}`, { user: null, cookie: "umasbooks_lang=fr" });
-  assert.match(fr.text, /Prix et classements&nbsp;:|Prix et classements :/);
+  assert.match(fr.text, /Prix et classements(&nbsp;|\u00a0):/);
   assert.ok(fr.text.includes("Prix Goncourt (1999)"));
   assert.ok(!fr.text.includes("Awards &amp; lists"));
   const en = await http(`/books/${book.id}`, { user: null, cookie: "umasbooks_lang=en" });

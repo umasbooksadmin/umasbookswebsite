@@ -57,7 +57,7 @@ test("no app (non-marketing) view uses an inline event handler or inline script"
     if (file.includes(`${path.sep}marketing${path.sep}`)) continue; // marketingCsp allows inline
     const src = fs.readFileSync(file, "utf8");
     if (/\son(submit|click|change|input|load|error)\s*=/i.test(src)) offenders.push(`${file}: inline handler`);
-    if (/<script(?![^>]*\ssrc=)/i.test(src)) offenders.push(`${file}: inline <script>`);
+    if (/<script(?![^>]*\ssrc=)(?![^>]*ld\+json)/i.test(src)) offenders.push(`${file}: inline <script>`);
   }
   assert.deepEqual(offenders, []);
 });

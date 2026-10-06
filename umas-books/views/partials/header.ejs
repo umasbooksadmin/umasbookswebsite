@@ -2,13 +2,48 @@
 <html lang="<%= typeof htmlLang !== 'undefined' && htmlLang ? htmlLang : 'en' %>">
 <head>
 <meta charset="utf-8">
-<title><%= typeof title !== "undefined" ? title + " — " : "" %><%= typeof tr === 'function' ? tr("Uma's Books Members", "Uma’s Books — Espace membres") : "Uma's Books Members" %></title>
+<% /* Params: title, description, ogImage (absolute or site-relative), ogType,
+   jsonLd (object, emitted as application/ld+json), noindex, extraCss, hideBackLink.
+   Locals from middleware (src/middleware/seoLocals.js): siteUrl, canonicalPath (the
+   path WITHOUT the query string), membersArea (member-only page: keeps "Members"
+   in the title). Shared with the marketing head's SEO block. */
+const _t = typeof tr === 'function' ? tr : (en) => en;
+const _isFr = locals.lang === 'fr';
+const _members = !!locals.membersArea;
+const _siteName = _members ? _t("Uma's Books Members", "Uma’s Books — Espace membres") : _t("Uma's Books", "Uma’s Books");
+const _title = typeof title !== "undefined" ? title + " — " + _siteName : _siteName;
+const _indexable = !(typeof noindex !== "undefined" && noindex) && !_members;
+const _site = locals.siteUrl ? String(locals.siteUrl).replace(/\/+$/, '') : '';
+const _pageUrl = (_site && locals.canonicalPath) ? _site + locals.canonicalPath : '';
+const _desc = (typeof description !== "undefined" && description) ? description
+  : _t("Uma's Books & Adventures — a community English bookshop in Albi, France: pre-loved English books, English programs and events.", "Uma’s Books & Adventures — une librairie associative anglophone à Albi : livres anglais d’occasion, programmes d’anglais et événements.");
+const _abs = (u) => !u ? '' : /^https?:\/\//i.test(u) ? u : (_site ? _site + (u.charAt(0) === '/' ? '' : '/') + u : '');
+const _ogImage = (typeof ogImage !== "undefined" && ogImage) ? _abs(ogImage) : (_site ? _site + '/assets/img/logo-stamp-1280x720.png' : '');
+const _defaultImg = !(typeof ogImage !== "undefined" && ogImage);
+%><title><%= _title %></title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <% if (locals.preview) { %><meta name="robots" content="noindex, nofollow">
-<% } else if (typeof noindex !== "undefined" && noindex) { %><meta name="robots" content="noindex">
-<% } %><link rel="stylesheet" href="/style.css">
-<link rel="stylesheet" href="/site-header.css">
-<% if (typeof extraCss !== "undefined") { extraCss.forEach(function (href) { %><link rel="stylesheet" href="<%= href %>"><% }) } %>
+<% } else if (!_indexable) { %><meta name="robots" content="noindex">
+<% } %><% if (_indexable) { %><meta name="description" content="<%= _desc %>">
+<% if (_pageUrl) { %><link rel="canonical" href="<%= _pageUrl %>">
+<% } %><meta property="og:site_name" content="Uma's Books &amp; Adventures">
+<meta property="og:title" content="<%= typeof title !== "undefined" ? title : _siteName %>">
+<meta property="og:description" content="<%= _desc %>">
+<meta property="og:type" content="<%= typeof ogType !== "undefined" && ogType ? ogType : 'website' %>">
+<meta property="og:locale" content="<%= _isFr ? 'fr_FR' : 'en_GB' %>">
+<meta property="og:locale:alternate" content="<%= _isFr ? 'en_GB' : 'fr_FR' %>">
+<% if (_pageUrl) { %><meta property="og:url" content="<%= _pageUrl %>">
+<% } %><% if (_ogImage) { %><meta property="og:image" content="<%= _ogImage %>">
+<% if (_defaultImg) { %><meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="720">
+<% } %><meta name="twitter:image" content="<%= _ogImage %>">
+<% } %><meta name="twitter:card" content="<%= _ogImage ? (_defaultImg ? 'summary_large_image' : 'summary') : 'summary' %>">
+<meta name="twitter:title" content="<%= typeof title !== "undefined" ? title : _siteName %>">
+<meta name="twitter:description" content="<%= _desc %>">
+<% } %><% if (_indexable && typeof jsonLd !== 'undefined' && jsonLd) { %><script type="application/ld+json"><%- JSON.stringify(jsonLd).replace(/</g, '\\u003c') %></script>
+<% } %><link rel="stylesheet" href="<%= assetUrl('/style.css') %>">
+<link rel="stylesheet" href="<%= assetUrl('/site-header.css') %>">
+<% if (typeof extraCss !== "undefined") { extraCss.forEach(function (href) { %><link rel="stylesheet" href="<%= assetUrl(href) %>"><% }) } %>
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
@@ -27,6 +62,6 @@
   { key: 'events', href: '/events', i18n: 'nav.events', label: 'Events' },
 ] }) %>
 <% if (typeof hideBackLink === "undefined" || !hideBackLink) { %>
-<div class="site-back-bar"><a href="#" class="site-back-link">&larr; <%= typeof tr === 'function' ? tr('Back', 'Retour') : 'Back' %></a></div>
+<div class="site-back-bar"><a href="<%= typeof backHref !== 'undefined' && backHref ? backHref : '/' %>" class="site-back-link">&larr; <%= typeof tr === 'function' ? tr('Back', 'Retour') : 'Back' %></a></div>
 <% } %>
 <main id="main-content" tabindex="-1" class="<%= typeof mainClass !== 'undefined' ? mainClass : 'wrap' %>">
