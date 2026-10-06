@@ -171,9 +171,12 @@ rather than by a numbered migration), grouped by what they belong to:
   `src/lib/reports.js`, views `views/admin/reports/`): inventory on hand,
   aging stock, sales over time (online paid orders by `orders.paid_at` + shop
   sales; drop-in seats in a separate table), sell-through by genre,
-  membership, intake log. Read-only aggregate queries (no N+1, LIMITs on every
+  membership, intake log, accounts (everyone with an account by type, orders
+  and spend; paged by 50, filters by type/search/created date). Read-only aggregate queries (no N+1, LIMITs on every
   list, Paris day boundaries computed in SQL), `requireAdmin` throughout, no
-  member emails or buyer names. `?format=csv&table=<section>` (or a `.csv`
+  member emails or buyer names (except the Accounts report, whose job is the
+  list of accounts; its type definitions live in `src/lib/accountTypes.js`,
+  shared with `/admin/members`, so the two never disagree). `?format=csv&table=<section>` (or a `.csv`
   suffix) downloads a section: UTF-8 BOM, quoted text, cells starting with
   `= + - @` get a leading apostrophe; each download writes a `report.csv`
   audit row (slug only). Definitions: a copy is "sold" when its status is

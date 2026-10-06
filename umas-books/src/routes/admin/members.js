@@ -11,6 +11,7 @@ const { syncMembershipInBackground, linkUnmatchedPayment } = require("../../lib/
 const { isEmail, clean, parseId } = require("../../lib/validation");
 const { eraseMember } = require("../../lib/privacy");
 const { buildMemberExport } = require("../../lib/memberExport");
+const { parseTypeFilter, typeFilterSql, accountBadges, accountTypeCounts, FILTER_LABELS } = require("../../lib/accountTypes");
 
 const { validateIdParams } = require("../../middleware/idParams");
 
@@ -88,7 +89,7 @@ async function loadMemberDetail(userId) {
 
 router.get("/admin/members", requireAdmin, async (req, res) => {
   const q = clean(req.query.q, 100);
-  const role = ["admin", "member"].includes(req.query.role) ? req.query.role : "";
+  const role = parseTypeFilter(req.query.role);
   const status = ["active", "inactive"].includes(req.query.status) ? req.query.status : "";
   const dateRange = req.query.dateRange || "";
   const sort = ["name_asc", "name_desc"].includes(req.query.sort) ? req.query.sort : "newest";
@@ -100,8 +101,8 @@ router.get("/admin/members", requireAdmin, async (req, res) => {
     params.push(`%${q}%`);
     where.push(`(u.display_name ILIKE $${params.length} OR u.email ILIKE $${params.length})`);
   }
-  if (role === "admin") where.push("u.is_admin = TRUE");
-  if (role === "member") where.push("(u.is_member = TRUE AND (u.member_expires_at IS NULL OR u.member_expires_at > now()))");
+  // Shared definitions with the Accounts report: lib/accountTypes.js.
+  if (role) where.push(typeFilterSql(role, "u"));
   if (status === "active") where.push("u.is_disabled = FALSE");
   if (status === "inactive") where.push("u.is_disabled = TRUE");
   if (dateRange === "7d") where.push("u.created_at >= now() - interval '7 days'");
@@ -117,7 +118,7 @@ router.get("/admin/members", requireAdmin, async (req, res) => {
   const offset = (currentPage - 1) * MEMBERS_PAGE_SIZE;
 
   const { rows: members } = await pool.query(
-    `SELECT u.id, u.email, u.display_name, u.is_admin, u.is_member, u.is_volunteer, u.is_disabled, u.member_expires_at, u.created_at, u.last_login_at,
+    `SELECT u.id, u.email, u.display_name, u.is_admin, u.is_member, u.is_volunteer, u.is_disabled, u.member_expires_at, u.email_verified_at, u.created_at, u.last_login_at,
             (SELECT COUNT(*) FROM event_signups es WHERE lower(es.email) = lower(u.email))::int AS events_count,
             (SELECT COUNT(*) FROM class_signups cs WHERE lower(cs.email) = lower(u.email))::int AS programs_count,
             COALESCE(bo.book_count, 0)::int AS books_count,
@@ -131,7 +132,11 @@ router.get("/admin/members", requireAdmin, async (req, res) => {
      LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
     [...params, MEMBERS_PAGE_SIZE, offset]
   );
-  for (const m of members) m.total_spent = Number(m.books_spend) + Number(m.dropin_spend);
+  for (const m of members) {
+    m.total_spent = Number(m.books_spend) + Number(m.dropin_spend);
+    m.badges = accountBadges(m);
+  }
+  const typeCounts = await accountTypeCounts(pool);
 
   const { rows: statRows } = await pool.query(`
     SELECT
@@ -178,7 +183,10 @@ router.get("/admin/members", requireAdmin, async (req, res) => {
     active: role === "member" ? "members-filter" : "members",
     members,
     stats,
+    typeCounts,
+    filterLabels: FILTER_LABELS,
     detail,
+    detailBadges: detail ? accountBadges(detail.user) : null,
     panel,
     emailTaken: req.query.emailTaken === "1",
     filters: { q, role, status, dateRange, sort },
