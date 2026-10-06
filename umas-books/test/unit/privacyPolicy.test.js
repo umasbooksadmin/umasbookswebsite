@@ -176,7 +176,7 @@ test("privacy policy: requests need no account (write to us, we may ask for proo
   assert.match(fr["pp.s6.p1"], /prouver que cette adresse est bien la vôtre/);
   assert.doesNotMatch(fr["pp.s6.p1"], /depuis l’adresse de votre compte/);
   assert.match(en["pp.s5.list"], /Administrator action log:<\/strong> 12 months; the free-text note[^.]*erased after 6 months/);
-  assert.match(fr["pp.s5.list"], /Journal des actions des administrateurs\s*:<\/strong> 12 mois ; le texte libre[^.]*effacé au bout de 6 mois/);
+  assert.match(fr["pp.s5.list"], /Journal des actions des administrateurs\s*:<\/strong> 12 mois\u202f; le texte libre[^.]*effacé au bout de 6 mois/);
   // French punctuation: typographic apostrophe, no straight one in the new French text.
   assert.doesNotMatch(fr["pp.s6.p1"], /écrivez-nous[^<]*'/);
 });
