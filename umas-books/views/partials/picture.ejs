@@ -1,0 +1,8 @@
+<%
+/* A WebP-with-PNG-fallback image. Params: src (the PNG path, e.g.
+   '/assets/img/hero-left.png'; the .webp sits next to it), alt, w, h
+   (intrinsic size, stops layout shift), cls (optional class on the <img>),
+   lazy (optional: loading="lazy" for below-the-fold images). Both URLs carry
+   a content-hash version (lib/assetUrl.js) so they can be cached for a year. */
+const _webp = src.replace(/\.png$/, '.webp');
+%><picture><source srcset="<%= assetUrl(_webp) %>" type="image/webp"><img<%- typeof cls !== 'undefined' && cls ? ' class="' + cls + '"' : '' %> src="<%= assetUrl(src) %>" alt="<%= typeof alt !== 'undefined' ? alt : '' %>" width="<%= w %>" height="<%= h %>"<%- typeof lazy !== 'undefined' && lazy ? ' loading="lazy"' : '' %>></picture>

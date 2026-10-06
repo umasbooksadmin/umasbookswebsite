@@ -30,7 +30,7 @@ const { noStoreForUsers } = require("./middleware/noStoreForUsers");
 const { langMiddleware } = require("./middleware/lang");
 const { healthzHandler } = require("./lib/health");
 const seoRoutes = require("./routes/seo");
-const { MARKETING_PAGES, setMarketingSeoLocals } = seoRoutes;
+const { MARKETING_PAGES, setMarketingSeoLocals, seoLocals } = seoRoutes;
 
 const { renderMarketing } = require("./lib/pageDictionary");
 const authRoutes = require("./routes/auth");
@@ -52,6 +52,9 @@ const cartRoutes = require("./routes/cart");
 const helloassoWebhookRoutes = require("./routes/helloassoWebhook");
 const adminRoutes = require("./routes/admin");
 
+const { latestArrivals } = require("./lib/latestArrivals");
+const { assetUrl, versionedHeaders } = require("./lib/assetUrl");
+
 const app = express();
 const isProd = process.env.NODE_ENV === "production";
 
@@ -72,19 +75,21 @@ app.use(compression());
 // cache isn't safe. 7 days is a compromise — returning people stop
 // re-downloading every asset on each page view, at the cost of an edited
 // stylesheet/script taking up to a week to reach people who already have
-// the old one cached. Versioning the filenames would allow much longer.
+// the old one cached. Pages therefore link these files with a content-hash
+// query (assetUrl helper) so an edit is picked up at once. A URL carrying ?v=<content hash> (see lib/assetUrl.js, used by the page
+// templates) is immutable: one year. Without it, 7 days.
 const STATIC_MAX_AGE = "7d";
-app.use(express.static(path.join(__dirname, "..", "public"), { maxAge: STATIC_MAX_AGE }));
+app.use(express.static(path.join(__dirname, "..", "public"), { maxAge: STATIC_MAX_AGE, setHeaders: versionedHeaders }));
 
 // Marketing-site static assets live at the repo root, not under public/.
 // Mounted here — before the session store and attachUser — so image/CSS/JS
 // requests never cost a session read or a per-request user lookup.
 const marketingRoot = path.join(__dirname, "..", "..");
-app.use("/assets", express.static(path.join(marketingRoot, "assets"), { maxAge: STATIC_MAX_AGE }));
+app.use("/assets", express.static(path.join(marketingRoot, "assets"), { maxAge: STATIC_MAX_AGE, setHeaders: versionedHeaders }));
 // Uploaded images (covers, blog/announcement/charity photos): content-addressed,
 // immutable, served from the DB with no session. See routes/img.js.
 app.use(require("./routes/img"));
-app.get("/logo.png", (req, res) => res.sendFile("logo.png", { root: marketingRoot }));
+app.get("/logo.png", (req, res) => res.sendFile("logo.png", { root: marketingRoot, maxAge: STATIC_MAX_AGE }));
 
 // For the external uptime check (see .github/workflows/uptime-check.yml)
 // to actually catch what happened on 2026-09-26 — the process was up
@@ -103,6 +108,7 @@ app.use(seoRoutes.router);
 Object.assign(app.locals, require("./lib/dates"));
 // Session color-coding, used by the /sessions calendar.
 Object.assign(app.locals, require("./lib/sessionTone"));
+app.locals.assetUrl = assetUrl;
 app.locals.mondayFirstWeeks = require("./lib/calendar").mondayFirstWeeks;
 
 // form-action also governs the redirect after a form POST in Chromium, so the
@@ -196,6 +202,7 @@ app.use((req, res, next) => {
 // Language (cookie / Accept-Language -> req.lang, tr(), localised dates).
 // Reads headers only, so it never creates a session or touches the DB.
 app.use(langMiddleware);
+app.use(seoLocals);
 app.use(attachUser(pool));
 // Right after attachUser (it needs res.locals.user): logged-in responses are no-store.
 app.use(noStoreForUsers);
@@ -325,6 +332,11 @@ MARKETING_PAGES.forEach((file) => {
   app.get("/" + file, async (req, res, next) => {
     res.set("Content-Security-Policy", marketingCsp);
     setMarketingSeoLocals(req, res, "/" + file);
+    if (file === "books.html") {
+      // No-JavaScript fallback: the page fills its shelves from /api/books/*,
+      // so the server also lists the newest books inside <noscript>.
+      res.locals.noscriptBooks = await latestArrivals(pool, { limit: 12, days: 0 }).catch(() => []);
+    }
     if (file === "membership.html") {
       // Personal (the account's email, membership end date): never cached.
       res.set("Cache-Control", "private, no-store");

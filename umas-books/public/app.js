@@ -6,8 +6,14 @@
 document.addEventListener("click", function (e) {
   var backLink = e.target.closest(".site-back-link, .admin-back-link");
   if (backLink) {
-    e.preventDefault();
-    history.back();
+    // The public "Back" links are real links (to the home page), so they
+    // still work without JavaScript or when the page was opened directly
+    // (no earlier page of ours to go back to). With history, go back.
+    var hasHistory = history.length > 1 && document.referrer && document.referrer.indexOf(location.origin) === 0;
+    if (hasHistory || backLink.getAttribute("href") === "#") {
+      e.preventDefault();
+      history.back();
+    }
   }
 });
 

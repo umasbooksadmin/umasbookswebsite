@@ -11,6 +11,8 @@ const { forLocale, LOCALES } = require("../lib/dates");
 const { translator, normLang } = require("../lib/lang");
 const { conditionLabel } = require("../lib/inventory");
 const { formatEuro } = require("../lib/money");
+const { assetUrl } = require("../lib/assetUrl");
+const { installFrenchRender } = require("../lib/frenchTypography");
 
 const COOKIE_NAME = "umasbooks_lang";
 
@@ -46,9 +48,15 @@ function langMiddleware(req, res, next) {
   res.locals.lang = lang;
   res.locals.htmlLang = lang;
   res.locals.tr = tr;
+  res.locals.assetUrl = assetUrl; // versioned /assets, /style.css ... URLs (lib/assetUrl.js)
   res.locals.eur = (n) => formatEuro(n, lang);
   res.locals.conditionLabel = (value) => conditionLabel(value, lang);
   Object.assign(res.locals, formatters[lang]);
+
+  // French pages: no-break spaces before ; : ! ? » and curly apostrophes in the
+  // text of whatever view renders (lib/frenchTypography.js). The admin panel is
+  // English-only, so it is left alone.
+  if (lang === "fr" && !/^\/admin(\/|$)/.test(req.path)) installFrenchRender(res);
 
   // A page cacheable by a shared cache (routes set `public, max-age`) now
   // differs by language, so it must be cached per cookie / Accept-Language.

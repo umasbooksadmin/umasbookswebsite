@@ -39,7 +39,7 @@
         ? '<span class="availability-badge is-in-stock"><span class="dot"></span>' + b.inStockCount + " " + t("in stock", "en stock") + "</span>"
         : '<span class="availability-badge is-out">&middot; ' + t("Currently unavailable", "Actuellement indisponible") + "</span>";
       return '<div class="book-card-wrap">' +
-        '<button type="button" class="favorite-toggle" data-book-id="' + b.id + '" aria-pressed="true" aria-label="' + t("Favorite", "Favori") + '">' +
+        '<button type="button" class="favorite-toggle" data-book-id="' + b.id + '" aria-pressed="true" aria-label="' + esc(t("Add " + b.title + " to favorites", "Ajouter " + b.title + " aux favoris")) + '">' +
           '<svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 20s-7-4.4-9.5-8.8C.8 7.8 2.4 4.5 5.8 4c2-.3 3.7.7 4.8 2.4L12 8l1.4-1.6C14.5 4.7 16.2 3.7 18.2 4c3.4.5 5 3.8 3.3 7.2C19 15.6 12 20 12 20z"/></svg>' +
         "</button>" +
         '<a class="book-card" href="' + esc(b.url) + '">' + cover +

@@ -18,8 +18,8 @@ window.PAGE_I18N = <%- JSON.stringify({
   fr: (typeof pageI18nFr !== 'undefined' ? pageI18nFr : {}),
 }) %>;
 </script>
-<script src="assets/site.js"></script>
-<script src="/app.js"></script>
+<script src="<%= assetUrl('/assets/site.js') %>"></script>
+<script src="<%= assetUrl('/app.js') %>"></script>
 <% (typeof extraScripts !== 'undefined' ? extraScripts : []).forEach(src => { %><script src="<%= src %>"></script><% }) %>
 <% if (typeof extraInlineScript !== 'undefined' && extraInlineScript) { %><script><%- extraInlineScript %></script><% } %>
 </body>

@@ -292,10 +292,10 @@ s.test("AC-FR22 FR check (cart): the cart and checkout form are in French", { as
   await clearCart(ctx);
   await addFirstCopyToCart(ctx, book);
   const text = await ctx.text();
-  for (const re of [/Votre panier/, /Retirer/, /Total :/]) has(text, re);
+  for (const re of [/Votre panier/, /Retirer/, /Total\s:/]) has(text, re);
   if (ctx.preview) { has(text, /La commande en ligne ouvrira au lancement/); return; }
   if (!(await checkoutForm(ctx))) return;
-  for (const re of [/Paiement/, /Nom/, /E-mail/, /Téléphone \(facultatif\)/, /J.ai lu et j.accepte les conditions de vente/, /Commander et payer/, /Vous paierez en toute sécurité via HelloAsso, puis vous passerez à Uma's Books pour retirer votre commande/]) has(text, re);
+  for (const re of [/Paiement/, /Nom/, /E-mail/, /Téléphone \(facultatif\)/, /J.ai lu et j.accepte les conditions de vente/, /Commander et payer/, /Vous paierez en toute sécurité via HelloAsso, puis vous passerez à Uma.s Books pour retirer votre commande/]) has(text, re);
 });
 
 s.test("AC24 (preview mode) checkout is refused by the server and never reaches HelloAsso", { as: "account" }, async (ctx) => {

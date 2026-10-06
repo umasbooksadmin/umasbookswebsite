@@ -18,6 +18,7 @@
 const fs = require("fs");
 const path = require("path");
 const vm = require("vm");
+const { frenchTypography } = require("./frenchTypography");
 
 const SITE_JS = path.join(__dirname, "..", "..", "..", "assets", "site.js");
 let common = null;
@@ -116,7 +117,7 @@ function renderMarketing(req, res, next, view) {
   res.locals.registerPageDict = (en, fr) => { page = { en: en || {}, fr: fr || {} }; };
   res.render(view, (err, html) => {
     if (err) return next(err);
-    if (req.lang === "fr") html = applyPageDictionary(html, { ...commonDictionary("fr"), ...page.fr });
+    if (req.lang === "fr") html = frenchTypography(applyPageDictionary(html, { ...commonDictionary("fr"), ...page.fr }));
     res.send(html);
   });
 }
