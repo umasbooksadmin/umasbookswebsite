@@ -120,7 +120,7 @@ async function reserveViaHttp(ctx, who, count = 1) {
   const token = (where.match(/order=([0-9a-f-]{36})/i) || [])[1];
   assert.ok(token, `the reservation was not made (answered ${res.status}, ${where || "no redirect"})`);
   const page = await (await fetch(ctx.url(`/cart/return?order=${token}`))).text();
-  const id = Number((page.match(/Reservation #(\d+) confirmed/) || [])[1]);
+  const id = Number((page.match(/Reservation #(\d+) recorded/) || [])[1]);
   assert.ok(id, "the reservation page shows its number");
   return { id, token, copyIds: copyIds.map(Number) };
 }

@@ -100,7 +100,7 @@ s.test("E3 (must) the back button after cart actions shows no error page and the
 s.write("E4 (must) after a reservation is cancelled, its old link says Reservation cancelled and the book is for sale again (cancels the reservation E2 made)", { as: "account" }, async (ctx) => {
   if (!oldLink || !oldLink.href) ctx.skip("needs E2 (with E2E_ALLOW_WRITES=1) to have made a reservation first");
   await ctx.goto(oldLink.href);
-  has(await ctx.text(), /Reservation #\d+ confirmed/);
+  has(await ctx.text(), /Reservation #\d+ recorded/);
   await Promise.all([ctx.page.waitForNavigation({ waitUntil: "domcontentloaded" }), ctx.page.click("form[action^='/cart/reservations/'] button[type='submit']")]);
   has(await ctx.text(), /Your reservation was cancelled and its items are available again\./);
   await ctx.goto(oldLink.href);

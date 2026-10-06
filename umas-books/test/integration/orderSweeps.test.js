@@ -41,10 +41,6 @@ after(async () => { await pool.end(); db.drop(); });
 beforeEach(() => { sent.length = 0; failNextSends = 0; failTo = null; helloassoCalls.length = 0; });
 
 const orderRow = async (id) => (await pool.query("SELECT * FROM orders WHERE id = $1", [id])).rows[0];
-// Other tests' orders must not interfere: each test works on its own and only
-// looks at emails that mention its own order numbers.
-const mailsAbout = (id) => sent.filter((m) => (m.subject + m.text).includes(`#${id}`));
-
 test("runOrderFollowUps runs the reservation parts and the legacy parts, and never asks HelloAsso anything (no refund detection any more)", async () => {
   const res = await runOrderFollowUps(pool);
   for (const key of ["release", "reservationReminders", "seatReminders", "expiryNotices", "adminReservationDigest", "customerReminders", "adminDigest"]) {

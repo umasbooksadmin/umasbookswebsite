@@ -29,7 +29,6 @@ const crypto = require("node:crypto");
 const e2e = require("../helpers/harness");
 const { has, hasNot, stockedBook, addFirstCopyToCart, cancelOpenReservations, openReservationCount, pressReserve } = require("../helpers/pages");
 const cfg = require("../helpers/config");
-const { testEmail } = cfg;
 
 const s = e2e.persona("account");
 const accountCreds = () => cfg.credentials("account");
@@ -265,7 +264,7 @@ s.test("AC22 (must) the reserve form has name, email, phone, terms checkbox with
   await addFirstCopyToCart(ctx, book);
   await needReserve(ctx);
   const form = await ctx.page.$eval("form[action='/cart/reserve']", (f) => f.innerText);
-  for (const re of [/Name/, /Email/, /Phone \(optional\)/, /terms of sale/, /Nothing is paid online\. We hold your books for 14 days: come to the shop and pay when you collect them\./, /We hold your books for 14 days\. Pay and collect them at the shop, Tuesday to Saturday, 10:00–19:00/, /Used books: no returns or exchanges for a change of mind in the shop/, /Reserve (free, no commitment)/]) has(form, re);
+  for (const re of [/Name/, /Email/, /Phone \(optional\)/, /terms of sale/, /Nothing is paid online\. We hold your books for 14 days: come to the shop and pay when you collect them\./, /We hold your books for 14 days\. Pay and collect them at the shop, Tuesday to Saturday, 10:00–19:00/, /Used books are not taken back for a change of mind once bought in the shop/, /Reserve \(free, no commitment\)/]) has(form, re);
   hasNot(form, /Order with obligation to pay|HelloAsso|pay online by card/);
   has(await ctx.text(), /Price incl\. tax, TVA non applicable/);
   const link = await ctx.page.$eval("form[action='/cart/reserve'] a[href='/terms-of-sale.html']", (a) => a.target);
@@ -296,7 +295,7 @@ s.test("AC-FR22 FR check (cart): the cart and the reserve form are in French", {
   for (const re of [/Votre panier/, /Retirer/, /Total\s:/]) has(text, re);
   if (ctx.preview) { has(text, /Les réservations en ligne ouvriront au lancement/); return; }
   if (!(await reserveForm(ctx))) return;
-  for (const re of [/Réservation/, /Nom/, /E-mail/, /Téléphone \(facultatif\)/, /J.ai lu et j.accepte les conditions de vente/, /Réserver (gratuit, sans engagement)/, /Rien n’est payé en ligne\. Nous gardons vos livres 14 jours\s: passez à la boutique et réglez-les au moment du retrait\./, /Livres d’occasion\s:\spas de reprise ni d’échange/, /Prix TTC, TVA non applicable/, /Réglez-les et retirez-les à la boutique, du mardi au samedi, 10h–19h, rue Peyrolière, Albi/]) has(text, re);
+  for (const re of [/Réservation/, /Nom/, /E-mail/, /Téléphone \(facultatif\)/, /J.ai lu et j.accepte les conditions de vente/, /Réserver \(gratuit, sans engagement\)/, /Rien n’est payé en ligne\. Nous gardons vos livres 14 jours\s: passez à la boutique et réglez-les au moment du retrait\./, /Les livres d’occasion ne sont ni repris ni échangés/, /Prix TTC, TVA non applicable/, /Réglez-les et retirez-les à la boutique, du mardi au samedi, 10h–19h, rue Peyrolière, Albi/]) has(text, re);
   hasNot(text, /Commander avec obligation de paiement|HelloAsso/);
 });
 
@@ -331,7 +330,7 @@ s.write("AC24 (must) Reserve (free, no commitment) creates a reservation and lan
   assert.ok(r.ok, `expected the reservation page; the page says: ${(await ctx.text()).slice(0, 200)}`);
   assert.deepEqual(ctx.blocked, [], "nothing was sent to HelloAsso");
   const text = await ctx.text();
-  has(text, /Reservation #\d+ confirmed/);
+  has(text, /Reservation #\d+ recorded/);
   has(text, /Nothing is paid online/);
   hasNot(text, /HelloAsso|Order #\d+ paid/);
   assert.equal(await ctx.page.$("#cart-count, .cart-item"), null, "the cart was emptied");
@@ -349,7 +348,7 @@ s.test("AC26 (must) the reservation page shows the items, the total to pay at th
   if (!held) ctx.skip("needs the reservation test AC24 (with E2E_ALLOW_WRITES=1) to have made a reservation first");
   await ctx.goto(`/cart/return?order=${held.token}`);
   const text = await ctx.text();
-  for (const re of [/Reservation #\d+ confirmed/, /Total to pay at the shop:\s*€\d+\.\d\d/, /We hold your books until the end of .*\(Paris time\)/, /Pay and collect at the shop \(Rue Peyrolière, Tuesday to Saturday, 10:00 to 19:00\) and give this reservation number/, /A confirmation email is on its way to /, /Print this page/, /Cancel reservation/]) has(text, re);
+  for (const re of [/Reservation #\d+ recorded/, /Total to pay at the shop:\s*€\d+\.\d\d/, /We hold your books until the end of .*\(Paris time\)/, /Pay and collect at the shop \(Rue Peyrolière, Tuesday to Saturday, 10:00 to 19:00\) and give this reservation number/, /A confirmation email is on its way to /, /Print this page/, /Cancel reservation/]) has(text, re);
   assert.ok(await ctx.page.$("#reservation-deadline"), "the deadline is on the page");
   assert.ok(await ctx.page.$(`form[action^='/cart/reservations/'] button[type='submit']`), "the owner sees a Cancel reservation button");
 });
@@ -363,7 +362,7 @@ s.test("AC29 the reservation page opened in a second browser (anyone with the li
   const res = await fetch(ctx.url(`/cart/return?order=${held.token}`)); // no cookies: a stranger who has the link
   assert.equal(res.status, 200);
   const html = await res.text();
-  has(html, /Reservation #\d+ confirmed/);
+  has(html, /Reservation #\d+ recorded/);
   assert.ok(!/\/cart\/reservations\/\d+\/cancel/.test(html), "only the owner can cancel");
   const bad = await fetch(ctx.url("/cart/return?order=00000000-0000-0000-0000-000000000000"));
   assert.equal(bad.status, 404, "a made-up link shows nothing");
@@ -382,7 +381,7 @@ s.test("AC32 the Terms of Sale say to come within 14 days of reserving, and that
   await ctx.setLang("fr");
   await ctx.goto("/terms-of-sale.html");
   has(await ctx.text(), /dans les 14 jours suivant la réservation/);
-  has(await ctx.text(), /prend simplement fin, sans pénalité/);
+  has(await ctx.text(), /sans frais ni pénalité/);
 });
 
 async function addDropin(ctx) {
@@ -418,7 +417,7 @@ s.test("AC34 (must) a cart with a drop-in seat says you pay at the session and c
   await needReserve(ctx);
   const form = await ctx.page.$eval("form[action='/cart/reserve']", (f) => f.innerText);
   has(form, /Drop-in seats: you pay at the session\. You can cancel a seat online until 24 hours before it starts\./);
-  has(form, /Reserve (free, no commitment)/);
+  has(form, /Reserve \(free, no commitment\)/);
   assert.equal(await ctx.page.$("input[name='waiveWithdrawal']"), null, "nothing is paid online, so there is no waiver checkbox");
   hasNot(await ctx.text(), /I ask for the session\(s\) to take place on the date booked/);
 });

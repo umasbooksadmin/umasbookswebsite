@@ -434,11 +434,11 @@ test("French pages use French typography: no-break space before ':' and curly ap
   const v = h.visitor(buyer, { lang: "fr" });
   await v.post("/cart/add", { copyId: copy });
   const cart = (await v.get("/cart")).text;
-  assert.match(cart, /Total :/);
+  assert.match(cart, /Total\u00a0:/);
   assert.match(cart, /Rien n’est payé en ligne/);
   const { order } = await h.reserve(buyer, { copyIds: [await h.copy()], v: h.visitor(buyer, { lang: "fr" }) });
   const page = (await h.visitor(buyer, { lang: "fr" }).get(`/cart/return?order=${order.access_token}`)).text;
-  assert.match(page, /Total à régler à la boutique :/);
+  assert.match(page, /Total à régler à la boutique\u00a0:/);
   assert.match(page, /Nous gardons vos livres jusqu’à la fin de la journée du/);
   const plain = page.replace(/<script[\s\S]*?<\/script>/g, "").replace(/<[^>]+>/g, "").match(/[a-zé] [:?!;]/g); assert.equal(plain, null, "no plain space left before ; : ! ?");
 });

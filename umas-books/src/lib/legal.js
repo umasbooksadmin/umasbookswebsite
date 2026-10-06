@@ -1,3 +1,7 @@
+// The association's registered name and the name it trades under (the shop's public name).
+const BRAND_LEGAL_NAME = "UMAS BOOKS";
+const BRAND_SHORT_NAME = "Uma's Books";
+
 // Version of the terms of sale (views/marketing/terms-of-sale.ejs) that a
 // customer accepts when reserving. It is stored on every order
 // (orders.cgv_version, with orders.cgv_accepted_at) as proof of acceptance.
@@ -40,7 +44,7 @@ const VAT_NOTICE_ARTICLE = "";
 const SOCIAL_LINKS = { instagram: "", facebook: "" };
 
 module.exports = {
-  TERMS_OF_SALE_VERSION, VAT_NOTICE_ARTICLE, SOCIAL_LINKS,
+  BRAND_LEGAL_NAME, BRAND_SHORT_NAME, TERMS_OF_SALE_VERSION, VAT_NOTICE_ARTICLE, SOCIAL_LINKS,
   RESERVATION_DAYS, RESERVATION_EXTENSION_DAYS, MAX_RESERVED_COPIES, MAX_ACTIVE_RESERVATIONS,
   SEAT_CANCEL_HOURS, SEAT_REMINDER_HOURS, RESERVATION_REMINDER_DAYS_BEFORE, SEAT_FALLBACK_SESSION_HOURS,
 };
