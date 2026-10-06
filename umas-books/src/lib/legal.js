@@ -1,3 +1,5 @@
+const { formatEuro } = require("./money");
+
 // Version of the terms of sale (views/marketing/terms-of-sale.ejs) that a
 // buyer accepts at checkout. It is stored on every order
 // (orders.cgv_version, with orders.cgv_accepted_at) as proof of acceptance.
@@ -17,4 +19,58 @@ const VAT_NOTICE_ARTICLE = "";
 // empty until the real page exists: an empty one is not shown at all.
 const SOCIAL_LINKS = { instagram: "", facebook: "" };
 
-module.exports = { TERMS_OF_SALE_VERSION, VAT_NOTICE_ARTICLE, SOCIAL_LINKS };
+// ---------------------------------------------------------------------------
+// Facts shown on several legal pages and emails: ONE place to change each.
+// Every helper below reads the constant when it is called (not when the file
+// loads), so a test can change one and see every page follow.
+// ---------------------------------------------------------------------------
+
+// Membership price in euros as a number or a string ("20", "20.00"), shown on
+// the Membership page before the HelloAsso form loads. EMPTY on purpose until
+// the association confirms the price on its HelloAsso campaign: while it is
+// empty the page shows no price (it keeps the text that says the amount is on
+// the HelloAsso form). It must equal the price set on HelloAsso. See
+// docs/legal-todos.md ("set the membership price constant").
+const MEMBERSHIP_PRICE_EUR = "";
+
+// Street number of the shop (rue Peyrolière, Albi). EMPTY until the
+// association gives it: the shop address then reads "Rue Peyrolière" as before;
+// once set it reads "12 rue Peyrolière" everywhere (legal notice, emails, visit
+// page, structured data). See docs/legal-todos.md ("give the street number").
+const SHOP_STREET_NUMBER = "";
+
+// Opening days and hours of the shop. Machine format for structured data, then
+// the text printed on pages: English 10:00–19:00, French 10 h–19 h (a no-break
+// space between the number and "h").
+const SHOP_OPENS = "10:00";
+const SHOP_CLOSES = "19:00";
+const SHOP_HOURS_EN = "10:00–19:00";
+const SHOP_HOURS_FR = "10\u00a0h–19\u00a0h";
+
+// "Rue Peyrolière" or "12 rue Peyrolière". `capital` is for the start of a
+// sentence, a line or a field ("Rue Peyrolière, 81000 Albi"); inside a French
+// sentence leave it off to get "rue Peyrolière". With a number it is always
+// "12 rue Peyrolière" (the number comes first, so the word stays lowercase).
+function shopStreet(lang, capital = true) {
+  const n = String(module.exports.SHOP_STREET_NUMBER).trim();
+  if (n) return `${n} rue Peyrolière`;
+  return capital || lang !== "fr" ? "Rue Peyrolière" : "rue Peyrolière";
+}
+
+function shopHours(lang) {
+  return lang === "fr" ? module.exports.SHOP_HOURS_FR : module.exports.SHOP_HOURS_EN;
+}
+
+// The membership price as text for a language ("20,00 €" / "€20.00"), or "".
+function membershipPrice(lang) {
+  const raw = module.exports.MEMBERSHIP_PRICE_EUR;
+  if (raw === "" || raw === null || raw === undefined) return "";
+  return formatEuro(raw, lang === "fr" ? "fr" : "en");
+}
+
+module.exports = {
+  TERMS_OF_SALE_VERSION, VAT_NOTICE_ARTICLE, SOCIAL_LINKS,
+  MEMBERSHIP_PRICE_EUR, SHOP_STREET_NUMBER,
+  SHOP_OPENS, SHOP_CLOSES, SHOP_HOURS_EN, SHOP_HOURS_FR,
+  shopStreet, shopHours, membershipPrice,
+};

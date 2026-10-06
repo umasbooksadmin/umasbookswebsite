@@ -104,7 +104,7 @@ test("checkout form (HelloAsso on, book + drop-in seat) is fully translated", as
   assert.ok(pages.fr.includes("Livres d’occasion\u00a0: pas de reprise ni d’échange pour simple changement d’avis en boutique."));
   assert.ok(pages.en.includes("Price incl. tax, TVA non applicable") && pages.fr.includes("Prix TTC, TVA non applicable"));
   assert.ok(pages.en.includes("Pick up within 14 days, Tuesday to Saturday, 10:00–19:00, Rue Peyrolière, Albi."));
-  assert.ok(pages.fr.includes("À retirer sous 14 jours, du mardi au samedi, 10h–19h, rue Peyrolière, Albi."));
+  assert.ok(pages.fr.includes("À retirer sous 14 jours, du mardi au samedi, 10\u00a0h–19\u00a0h, rue Peyrolière, Albi."));
   assert.ok(pages.en.indexOf("no-returns-note") < pages.en.indexOf("Order with obligation to pay</button>"), "the notice sits above the order button");
   assert.doesNotMatch(pages.en, /waive the|renounce/i);
   assert.ok(pages.en.includes("a drop-in session is a leisure activity on a fixed date, so the right of withdrawal does not apply to it (art. L.221-28, 12°)"));

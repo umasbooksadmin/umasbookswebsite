@@ -2,8 +2,9 @@
 // ("mailto:"): the English Immersion pre-registration and the volunteer
 // sign-up. They now POST here, like /contact (routes/contact.js): CSRF token
 // (checked by the app-wide middleware), honeypot, per-IP rate limit, server-side
-// validation, then ONE email to the contact inbox. Nothing is stored in the
-// database; the email is kept 12 months in the mailbox and then deleted (privacy
+// validation, then ONE email to the contact inbox. The email is kept 12 months in
+// the mailbox and then deleted; a copy stays in the email outbox (30 days, 90 if
+// sending failed) and in the backups (up to 2 years), then it is erased (privacy
 // policy, docs/privacy/record-of-processing.md).
 //
 // The pages themselves are GET /pre-registration.html and /volunteer.html

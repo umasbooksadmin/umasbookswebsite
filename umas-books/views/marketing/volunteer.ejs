@@ -2,7 +2,7 @@
   "meta.title": "Volunteer — Uma's Books and Adventures",
   "meta.description": "Volunteer at Uma's Books in Albi: help on the shop floor, sort and shelve donations, run events or support English and French speakers. All language levels welcome.",
   "visit.hours.days": "Tue – Sat",
-  "visit.hours.time": "10:00–19:00",
+  "visit.hours.time": "{shopHours}",
   "volunteer.kicker": "Get Involved",
   "volunteer.title": "Volunteer With Us",
   "volunteer.intro": "Uma’s is entirely volunteer-run — every hour on the shop floor, every sorted donation, every event, is someone giving their time. New volunteers, at any language level, are always welcome.",
@@ -21,7 +21,7 @@
   "volunteer.form.title": "Volunteer Sign-up",
   "volunteer.form.avail.l": "Availability",
   "volunteer.form.submit": "Send Sign-up",
-  "volunteer.form.privacy": "We use your details only to reply and organise volunteering. They reach us by email only (nothing is stored on the website) and are deleted from our mailbox after 12 months. See our <a href=\"privacy-policy.html\">Privacy Policy</a>.",
+  "volunteer.form.privacy": "We use your details only to reply and organise volunteering. These forms send us an email. A copy stays in our outgoing-mail queue for up to 30 days (90 if sending failed) and in our backups (up to 2 years); then it is erased. The email is deleted from our mailbox after 12 months. See our <a href=\"privacy-policy.html\">Privacy Policy</a>.",
   "form.name.l": "Name",
   "form.email.l": "Email",
   "form.note.l": "Note (optional)",
@@ -36,7 +36,7 @@
   "meta.title": "Bénévolat — Uma’s Books and Adventures",
   "meta.description": "Devenez bénévole chez Uma’s Books à Albi : aidez en boutique, triez et rangez les dons, animez des événements ou accompagnez les anglophones et francophones. Tous les niveaux de langue sont bienvenus.",
   "visit.hours.days": "Mar – Sam",
-  "visit.hours.time": "10h00–19h00",
+  "visit.hours.time": "{shopHours}",
   "volunteer.kicker": "S’impliquer",
   "volunteer.title": "Devenir bénévole",
   "volunteer.intro": "Uma’s fonctionne entièrement grâce à des bénévoles — chaque heure en boutique, chaque don trié, chaque événement, c’est quelqu’un qui donne de son temps. Les nouveaux bénévoles, quel que soit leur niveau de langue, sont toujours les bienvenus.",
@@ -55,7 +55,7 @@
   "volunteer.form.title": "Formulaire de bénévolat",
   "volunteer.form.avail.l": "Disponibilités",
   "volunteer.form.submit": "Envoyer ma candidature",
-  "volunteer.form.privacy": "Vos données servent uniquement à vous répondre et à organiser le bénévolat. Elles nous parviennent uniquement par e-mail (rien n’est enregistré sur le site) et sont supprimées de notre messagerie après 12 mois. Consultez notre <a href=\"privacy-policy.html\">politique de confidentialité</a>.",
+  "volunteer.form.privacy": "Vos données servent uniquement à vous répondre et à organiser le bénévolat. Ces formulaires nous envoient un e-mail. Une copie reste dans notre file d’envoi 30 jours au plus (90 jours en cas d’échec), puis dans nos sauvegardes (jusqu’à 2 ans) avant d’être effacée. L’e-mail est supprimé de notre messagerie après 12 mois. Consultez notre <a href=\"privacy-policy.html\">politique de confidentialité</a>.",
   "form.name.l": "Nom",
   "form.email.l": "E-mail",
   "form.note.l": "Remarque (facultatif)",
@@ -118,7 +118,7 @@ const errP = (k) => (E[k]
           <tr><th data-i18n="volunteer.schedule.day">Days</th><th data-i18n="volunteer.schedule.time">Time</th></tr>
         </thead>
         <tbody>
-          <tr><td data-i18n="visit.hours.days">Tue &ndash; Sat</td><td data-i18n="visit.hours.time">10:00&ndash;19:00</td></tr>
+          <tr><td data-i18n="visit.hours.days">Tue &ndash; Sat</td><td data-i18n="visit.hours.time"><%= legalText.shopHours %></td></tr>
         </tbody>
       </table>
       <p class="form-hint" data-i18n="volunteer.schedule.note">Shifts typically run 2&ndash;3 hours within opening hours &mdash; tell us what works for you below.</p>
@@ -162,10 +162,10 @@ const errP = (k) => (E[k]
           </label>
           <%- errP('consent') %>
         </div>
-        <p class="form-hint" data-i18n-html="volunteer.form.privacy">We use your details only to reply and organise volunteering. They reach us by email only (nothing is stored on the website) and are deleted from our mailbox after 12 months. See our <a href="privacy-policy.html">Privacy Policy</a>.</p>
+        <p class="form-hint" data-i18n-html="volunteer.form.privacy">We use your details only to reply and organise volunteering. These forms send us an email. A copy stays in our outgoing-mail queue for up to 30 days (90 if sending failed) and in our backups (up to 2 years); then it is erased. The email is deleted from our mailbox after 12 months. See our <a href="privacy-policy.html">Privacy Policy</a>.</p>
         <button type="submit" class="btn-submit" data-i18n="volunteer.form.submit">Send Sign-up</button>
       </form>
       <% } %>
     </div>
   </div>
-<%- include('partials/mkt_footer', { pageI18nEn, pageI18nFr, extraScripts: ['assets/form-errors.js'] }) %>
+<%- include('partials/mkt_footer', { pageI18nEn: fillVat(pageI18nEn, 'en'), pageI18nFr: fillVat(pageI18nFr, 'fr'), extraScripts: ['assets/form-errors.js'] }) %>

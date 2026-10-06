@@ -118,14 +118,18 @@ test("footer: no placeholder social links while SOCIAL_LINKS is empty", async ()
   assert.ok(!html.includes("coming soon") || !html.includes("h-social"));
 });
 
-test("membership terms: statutes, neutral withdrawal statement, forum moderation (DSA), French kicker 'Informations légales'", async () => {
+test("membership terms: statutes, interim withdrawal statement (14 days, refund, membership ends), forum moderation (DSA), French kicker 'Informations légales'", async () => {
   const en = await (await fetch(`${app.base}/membership-terms.html`)).text();
   assert.ok(en.includes("governed by its statutes (available on request)"));
-  assert.ok(en.includes("The legal right of withdrawal for distance contracts applies where the law provides for it."));
+  assert.ok(en.includes("If you join online you may withdraw within 14 days by writing to admin@umasbooks.org; we will refund your payment and the membership then ends."));
+  assert.ok(en.includes("Last updated: 6 October 2026."), "the date has the day");
   assert.ok(en.includes("Forum moderation") && en.includes("Digital Services Act") && en.includes("Arcom"));
   const fr = await (await fetch(`${app.base}/membership-terms.html`, { headers: { cookie: "umasbooks_lang=fr" } })).text();
-  assert.ok(fr.includes("Cotisation versée à l’association, régie par ses statuts (disponibles sur demande)."));
-  assert.ok(fr.includes("Le droit légal de rétractation applicable aux contrats conclus à distance s’applique dans les cas prévus par la loi."));
+  assert.ok(fr.includes("La cotisation est versée à l’association et régie par ses statuts (disponibles sur demande)."));
+  assert.ok(!fr.includes("Cotisation versée à l’association, régie"), "the sentence fragment is gone");
+  assert.ok(fr.includes("voter pour l’œuvre caritative que nous soutenons") && !fr.includes("voter pour l’association"));
+  assert.ok(fr.includes("Dernière mise à jour\u00a0: 6 octobre 2026."));
+  assert.ok(fr.includes("Si vous adhérez en ligne, vous pouvez vous rétracter dans les 14 jours en écrivant à admin@umasbooks.org\u00a0; nous vous remboursons et l’adhésion prend fin."));
   assert.ok(fr.includes("Modération du forum") && fr.includes("Arcom"));
   assert.ok(fr.includes(">Informations légales<") && !fr.includes(">Mentions légales</span>"));
   const mem = await (await fetch(`${app.base}/membership.html`, { headers: { cookie: "umasbooks_lang=fr" } })).text();

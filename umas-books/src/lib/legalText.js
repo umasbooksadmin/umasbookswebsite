@@ -30,10 +30,16 @@ const GRADE_NOTE = {
   fr: `L’état indiqué est la description du livre${NB}: merci de le lire avant d’acheter.`,
 };
 
-// Where and when to collect an order of books.
+// Where and when to collect an order of books. Getters, so the opening hours
+// and the street (lib/legal.js SHOP_HOURS_*, SHOP_STREET_NUMBER) are read when
+// the text is used: callers keep writing PICKUP.en / PICKUP.fr.
 const PICKUP = {
-  en: "Pick up within 14 days, Tuesday to Saturday, 10:00–19:00, Rue Peyrolière, Albi.",
-  fr: "À retirer sous 14 jours, du mardi au samedi, 10h–19h, rue Peyrolière, Albi.",
+  get en() {
+    return `Pick up within 14 days, Tuesday to Saturday, ${legal.shopHours("en")}, ${legal.shopStreet("en")}, Albi.`;
+  },
+  get fr() {
+    return `À retirer sous 14 jours, du mardi au samedi, ${legal.shopHours("fr")}, ${legal.shopStreet("fr", false)}, Albi.`;
+  },
 };
 
 // "TVA non applicable" (+ ", art. <article> du CGI" once the accountant has
@@ -57,14 +63,37 @@ function legalFor(lang) {
     pickup: PICKUP[l],
     vatNotice: vatNotice(),
     priceLine: priceLine(l),
+    shopStreet: legal.shopStreet(l),
+    shopStreetInline: legal.shopStreet(l, false),
+    shopHours: legal.shopHours(l),
+    shopOpens: legal.SHOP_OPENS,
+    shopCloses: legal.SHOP_CLOSES,
+    membershipPrice: legal.membershipPrice(l),
   };
 }
 
-// Fills the {vat} placeholder in a page dictionary (the terms of sale put the
-// VAT line in their dictionaries as "{vat}" so it follows VAT_NOTICE_ARTICLE).
-function fillVat(dict) {
+// Fills the placeholders in a page dictionary: {vat} (VAT_NOTICE_ARTICLE),
+// {shopStreet} ("Rue Peyrolière" or "12 rue Peyrolière"), {shopStreetInline}
+// (the same, "rue" lowercase in the middle of a French sentence), {shopHours}
+// (SHOP_HOURS_EN / SHOP_HOURS_FR) and {membershipPrice} (MEMBERSHIP_PRICE_EUR,
+// "" when not set). Terms of sale, legal notice, visit and membership put them
+// in their dictionaries so one constant in lib/legal.js drives every page.
+// `lang` defaults to English: pass the dictionary's language for the last four.
+function fillVat(dict, lang = "en") {
+  const l = lang === "fr" ? "fr" : "en";
+  const fills = {
+    "{vat}": vatNotice(),
+    "{shopStreetInline}": legal.shopStreet(l, false),
+    "{shopStreet}": legal.shopStreet(l),
+    "{shopHours}": legal.shopHours(l),
+    "{membershipPrice}": legal.membershipPrice(l),
+  };
   const out = {};
-  for (const [k, v] of Object.entries(dict)) out[k] = typeof v === "string" ? v.split("{vat}").join(vatNotice()) : v;
+  for (const [k, v] of Object.entries(dict)) {
+    let t = v;
+    if (typeof t === "string") for (const [token, text] of Object.entries(fills)) t = t.split(token).join(text);
+    out[k] = t;
+  }
   return out;
 }
 

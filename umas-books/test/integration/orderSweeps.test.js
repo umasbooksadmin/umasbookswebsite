@@ -150,12 +150,12 @@ test("customer pickup reminder: day 10 to 14 only, once, EN or FR, never for a d
   assert.equal(to(due).length, 1);
   assert.match(to(due)[0].subject, /Your books are waiting at the shop/);
   assert.match(to(due)[0].text, /within 14 days of payment/);
-  assert.match(to(due)[0].text, /Tuesday to Saturday, 10:00 to 19:00/);
+  assert.match(to(due)[0].text, /Tuesday to Saturday, 10:00–19:00/);
   assert.match(to(due)[0].text, /Rue Peyrolière/);
   assert.match(to(due)[0].text, /write to us at admin@umasbooks\.org/);
   assert.equal(to(dueFr).length, 1);
   assert.match(to(dueFr)[0].subject, /Vos livres vous attendent à la boutique/);
-  assert.match(to(dueFr)[0].text, /du mardi au samedi, de 10 h à 19 h/);
+  assert.match(to(dueFr)[0].text, /du mardi au samedi, 10\u00a0h–19\u00a0h/);
   for (const o of [early, late, collected, dropinOnly, flagged, refunded]) assert.equal(to(o).length, 0);
 
   assert.ok((await orderRow(due.order.id)).customer_pickup_reminder_sent_at);

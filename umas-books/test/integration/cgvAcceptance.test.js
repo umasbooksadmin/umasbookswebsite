@@ -169,7 +169,7 @@ test("the queued confirmation and the resent one both carry the legal text", asy
     for (const needle of [
       "Used books: no returns or exchanges for a change of mind in the shop.",
       "Livres d’occasion : pas de reprise ni d’échange pour simple changement d’avis en boutique.",
-      "À retirer sous 14 jours, du mardi au samedi, 10h–19h, rue Peyrolière, Albi.",
+      "À retirer sous 14 jours, du mardi au samedi, 10\u00a0h–19\u00a0h, rue Peyrolière, Albi.",
       "WITHDRAWAL FORM / FORMULAIRE DE RÉTRACTATION",
       "Conditions générales de vente acceptées le",
       "TVA non applicable",

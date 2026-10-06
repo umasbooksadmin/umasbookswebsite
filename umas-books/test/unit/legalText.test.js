@@ -85,14 +85,16 @@ test("the VAT line is 'TVA non applicable' until VAT_NOTICE_ARTICLE is set, then
 test("the order email gives the pickup days and hours, in both languages", () => {
   const o = { id: 1, buyer_name: "A", total_amount: 5, created_at: new Date() };
   assert.match(buildOrderConfirmationText(o, [{ item_title: "B", price: 5 }], ""), /Pick up within 14 days, Tuesday to Saturday, 10:00–19:00, Rue Peyrolière, Albi\./);
-  assert.match(buildOrderConfirmationText({ ...o, lang: "fr" }, [{ item_title: "B", price: 5 }], ""), /À retirer sous 14 jours, du mardi au samedi, 10h–19h, rue Peyrolière, Albi\./);
+  assert.match(buildOrderConfirmationText({ ...o, lang: "fr" }, [{ item_title: "B", price: 5 }], ""), /À retirer sous 14 jours, du mardi au samedi, 10\u00a0h–19\u00a0h, rue Peyrolière, Albi\./);
 });
 
 test("the pickup hours match the opening hours in the home page's structured data", () => {
   const home = view("marketing/index.ejs");
   assert.match(home, /dayOfWeek: \["Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"\]/);
-  assert.match(home, /opens: "10:00"/);
-  assert.match(home, /closes: "19:00"/);
+  // The home page reads the same constants as the pickup line (lib/legal.js SHOP_OPENS / SHOP_CLOSES / SHOP_HOURS_*).
+  assert.match(home, /opens: legalText\.shopOpens/);
+  assert.match(home, /closes: legalText\.shopCloses/);
+  assert.equal(`${legal.SHOP_OPENS}–${legal.SHOP_CLOSES}`, legal.SHOP_HOURS_EN);
 });
 
 test("the terms of sale version was bumped for this change", () => {

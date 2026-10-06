@@ -42,7 +42,7 @@ test("French order: French subject and body, prices, date and addresses unchange
   assert.match(t, /Total : 12,50\u00a0€/);
   assert.match(t, /- Emma — 12,50\u00a0€/);
   assert.doesNotMatch(t, /€\d/, "no English-style price in a French email");
-  assert.match(t, /À retirer sous 14 jours, du mardi au samedi, 10h–19h, rue Peyrolière, Albi\./);
+  assert.match(t, /À retirer sous 14 jours, du mardi au samedi, 10\u00a0h–19\u00a0h, rue Peyrolière, Albi\./);
   assert.match(t, /Conditions de vente et votre droit de rétractation de 14 jours pour les livres : https:\/\/shop\.test\/terms-of-sale\.html/);
   assert.doesNotMatch(t, /Thanks for your order|Pick up within|^Hi /m);
 });

@@ -14,7 +14,7 @@
       <% }) %>
     </ul>
     <p><strong><%= tr('Total:', 'Total :') %> <%= eur(order.total_amount) %></strong></p>
-    <p class="muted small"><%= tr("Uma's Books — association loi 1901, 5 rue Hippolyte Savary, 81000 Albi — admin@umasbooks.org. Pick up at the shop (Rue Peyrolière) during opening hours and show this order number.", "Uma's Books — association loi 1901, 5 rue Hippolyte Savary, 81000 Albi — admin@umasbooks.org. Retrait à la boutique (Rue Peyrolière) pendant les heures d’ouverture, en indiquant ce numéro de commande.") %></p>
+    <p class="muted small"><%= tr("Uma's Books — association loi 1901, 5 rue Hippolyte Savary, 81000 Albi — admin@umasbooks.org. Pick up at the shop (" + legalText.shopStreet + ") during opening hours and show this order number.", "Uma's Books — association loi 1901, 5 rue Hippolyte Savary, 81000 Albi — admin@umasbooks.org. Retrait à la boutique (" + legalText.shopStreet + ") pendant les heures d’ouverture, en indiquant ce numéro de commande.") %></p>
   </div>
   <p class="muted small"><%= tr('A confirmation email is on its way to {email}. Come by Uma\'s Books during opening hours to pick up your order.', 'Un e-mail de confirmation vous est envoyé à l’adresse {email}. Passez à Uma\'s Books pendant les heures d’ouverture pour retirer votre commande.', { email: order.buyer_email }) %></p>
   <p class="no-print"><button type="button" class="btn" data-print><%= tr('Print this page', 'Imprimer cette page') %></button></p>
