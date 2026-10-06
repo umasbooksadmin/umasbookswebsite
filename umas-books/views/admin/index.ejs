@@ -14,6 +14,15 @@
   }
 %>
 
+<% if (locals.outboxAttention && outboxAttention.length) { %>
+<div class="notice-box" id="needs-attention" role="status">
+  <strong>Needs attention</strong>
+  <ul class="plain">
+    <% outboxAttention.forEach(a => { %><li><a href="<%= a.href %>"><%= a.text %></a></li><% }) %>
+  </ul>
+</div>
+<% } %>
+
 <div class="admin-stats">
   <div class="admin-stat tone-rose">
     <div class="label">Orders Today</div>

@@ -8,7 +8,7 @@
 // a checkout abandoned after ~45, so an hour is a safe margin.
 
 const { getCheckoutIntent, isOrderPaid } = require("./helloasso");
-const { sendMail } = require("../mailer");
+const { enqueueEmail, deliverNow } = require("./outbox");
 const { withTransaction } = require("../db");
 const { alertOnError } = require("./errorAlert");
 const { loadOrderItems } = require("./orderItems");
@@ -102,7 +102,12 @@ async function markCopiesSold(client, orderId) {
 // Resolves true if THIS call flipped the order to paid, false if it was no
 // longer 'pending' (another caller won, or it was expired/cancelled since
 // the caller's snapshot was read).
-async function markOrderPaid(pool, order) {
+//
+// `helloassoOrderId` (from the verified checkout intent) is stamped in the
+// SAME transaction as the status flip: it used to be written by a second
+// statement after the confirmation e-mail was prepared, so a failure there
+// (loading the order lines) left a paid order without it.
+async function markOrderPaid(pool, order, { helloassoOrderId = null } = {}) {
   // The WHERE clause here (not just the id) is the actual idempotency
   // boundary: reconcileOrder's own "order.status !== 'pending'" guard
   // only protects against a *sequential* re-call with a freshly-fetched
@@ -113,36 +118,76 @@ async function markOrderPaid(pool, order) {
   // enough 200 for. Postgres serializes two concurrent UPDATEs on the
   // same row, so only one of them ever sees status='pending' still true
   // and gets rowCount 1 — the loser sees 0 and bails before touching
-  // inventory or sending a second confirmation email.
+  // inventory or queueing a second confirmation email.
   //
-  // The status flip and the inventory change commit together: if the
-  // process died between them, the order would read 'paid' (so nothing
-  // would ever retry) while its copies sat in_cart, and the hold-expiry
-  // sweep would put a book someone already paid for back on sale.
+  // The status flip, the inventory change and the confirmation e-mail (queued
+  // in the e-mail outbox) commit together: if the process died between them,
+  // the order would read 'paid' (so nothing would ever retry) while its copies
+  // sat in_cart, and the hold-expiry sweep would put a book someone already
+  // paid for back on sale; and a paid order must never exist without its
+  // confirmation being queued. The confirmation is built inside a savepoint
+  // so that a failure while building it (it is only text) can never undo a
+  // payment: the order is then paid without a confirmation, which the admin
+  // dashboard flags after 30 minutes, with a "Resend confirmation" button.
+  let confirmationId = null;
   const won = await withTransaction(pool, async (client) => {
     const { rowCount } = await client.query(
-      "UPDATE orders SET status = 'paid', paid_at = now(), client_ip = NULL WHERE id = $1 AND status = 'pending'",
-      [order.id]
+      `UPDATE orders SET status = 'paid', paid_at = now(), client_ip = NULL,
+         helloasso_order_id = COALESCE($2, helloasso_order_id)
+       WHERE id = $1 AND status = 'pending'`,
+      [order.id, helloassoOrderId == null ? null : String(helloassoOrderId)]
     );
     if (rowCount === 0) return false;
     await markCopiesSold(client, order.id);
+    confirmationId = await queueOrderConfirmation(client, order);
     return true;
   });
   if (!won) return false;
 
-  await sendOrderConfirmation(pool, order);
+  // Instant mail on the happy path; if it cannot go now the outbox worker retries.
+  if (confirmationId) await deliverNow(pool, confirmationId);
   return true;
 }
 
-async function sendOrderConfirmation(pool, order) {
-  const items = await loadOrderItems(pool, order.id);
-  const base = process.env.APP_BASE_URL || process.env.RENDER_EXTERNAL_URL;
-  // Subject and body follow order.lang ('en' | 'fr' | null; null is English).
-  sendMail({
-    to: order.buyer_email,
-    subject: orderConfirmationSubject(order.lang),
-    text: buildOrderConfirmationText(order, items, base),
-  }).catch((err) => console.error(`Order confirmation email failed for order ${order.id}:`, err.message));
+// Queues (never sends) the order confirmation. Returns the outbox id, or null
+// when it could not be built or stored: the savepoint keeps the surrounding
+// transaction alive in that case.
+async function queueOrderConfirmation(db, order, { kind = "order_confirmation" } = {}) {
+  const isClient = typeof db.release === "function";
+  if (isClient) await db.query("SAVEPOINT order_confirmation");
+  try {
+    const items = await loadOrderItems(db, order.id);
+    const base = process.env.APP_BASE_URL || process.env.RENDER_EXTERNAL_URL;
+    // Subject and body follow order.lang ('en' | 'fr' | null; null is English).
+    const id = await enqueueEmail(db, {
+      kind,
+      lang: order.lang,
+      relatedOrderId: order.id,
+      to: order.buyer_email,
+      subject: orderConfirmationSubject(order.lang),
+      text: buildOrderConfirmationText(order, items, base),
+    });
+    if (isClient) await db.query("RELEASE SAVEPOINT order_confirmation");
+    return id;
+  } catch (err) {
+    console.error(`Order confirmation could not be queued for order ${order.id}:`, err.message);
+    if (isClient) await db.query("ROLLBACK TO SAVEPOINT order_confirmation");
+    return null;
+  }
+}
+
+// Admin "Resend confirmation": queue a fresh copy for a paid order and try to
+// send it now. Resolves { ok, sent } or { ok: false, reason }.
+async function resendOrderConfirmation(pool, orderId) {
+  const { rows } = await pool.query("SELECT * FROM orders WHERE id = $1", [orderId]);
+  const order = rows[0];
+  if (!order) return { ok: false, reason: "not_found" };
+  if (order.status !== "paid") return { ok: false, reason: "not_paid" };
+  if (/@erased\.invalid$/i.test(order.buyer_email)) return { ok: false, reason: "erased" };
+  const id = await queueOrderConfirmation(pool, order, { kind: "order_confirmation" });
+  if (!id) return { ok: false, reason: "queue_failed" };
+  const result = await deliverNow(pool, id);
+  return { ok: true, sent: result.sent, id };
 }
 
 // The single source of truth for "did this order get paid" — re-checks
@@ -232,12 +277,13 @@ async function recoverLatePayment(pool, order, intent) {
       "UPDATE orders SET status = 'paid', paid_at = now(), helloasso_order_id = $1, client_ip = NULL WHERE id = $2",
       [marker, order.id]
     );
-    return { outcome: "recovered", order: current };
+    const confirmationId = await queueOrderConfirmation(client, current);
+    return { outcome: "recovered", order: current, confirmationId };
   });
 
   if (result.outcome === "recovered") {
     console.warn(`Late payment recovered: order ${order.id} (was ${order.status}) is now paid.`);
-    await sendOrderConfirmation(pool, result.order);
+    if (result.confirmationId) await deliverNow(pool, result.confirmationId);
     return "paid";
   }
   if (result.outcome === "conflict") {
@@ -278,13 +324,8 @@ async function reconcileOrder(pool, order, { failFast = false } = {}) {
   }
 
   if (isOrderPaid(intent)) {
-    const won = await markOrderPaid(pool, order);
-    if (won) {
-      if (intent.order && intent.order.id) {
-        await pool.query("UPDATE orders SET helloasso_order_id = $1 WHERE id = $2", [String(intent.order.id), order.id]);
-      }
-      return "paid";
-    }
+    const won = await markOrderPaid(pool, order, { helloassoOrderId: intent.order && intent.order.id });
+    if (won) return "paid";
     // We lost: our snapshot said 'pending' but the row moved on (e.g. the
     // hold-expiry sweep expired it while we were asking HelloAsso). Never
     // report/stamp 'paid' on the strength of the stale snapshot - that
@@ -435,4 +476,4 @@ async function adoptCheckoutIntent(pool, order, intentId) {
   return rows[0] || order;
 }
 
-module.exports = { runCartMaintenance, isRecentlyClosed, getHelloAssoFailureStreak, resetHelloAssoFailureStreak, persistCheckoutIntentId, adoptCheckoutIntent, expireStaleCartHolds, releaseCartHold, markOrderPaid, reconcileOrder, reconcilePendingOrders, CART_HOLD_TTL_MINUTES };
+module.exports = { resendOrderConfirmation, queueOrderConfirmation, runCartMaintenance, isRecentlyClosed, getHelloAssoFailureStreak, resetHelloAssoFailureStreak, persistCheckoutIntentId, adoptCheckoutIntent, expireStaleCartHolds, releaseCartHold, markOrderPaid, reconcileOrder, reconcilePendingOrders, CART_HOLD_TTL_MINUTES };

@@ -28,7 +28,7 @@ function getTransporter() {
   return transporter;
 }
 
-async function sendMail({ to, subject, text, replyTo }) {
+async function sendMail({ to, subject, text, html, replyTo, headers }) {
   const t = getTransporter();
   if (!t) {
     // The body of a reset or verification mail is a live login link, so in
@@ -46,6 +46,8 @@ async function sendMail({ to, subject, text, replyTo }) {
     to,
     subject,
     text,
+    ...(html ? { html } : {}),
+    ...(headers && Object.keys(headers).length ? { headers } : {}),
     ...(replyTo ? { replyTo } : {}),
   });
 }

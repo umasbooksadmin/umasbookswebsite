@@ -2,16 +2,12 @@ const express = require("express");
 const { pool } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
 const { countUnusedImages } = require("../../lib/imageCleanup");
+const { outboxAttention } = require("../../lib/outboxAttention");
 
 const router = express.Router();
 
 // ---------- Overview ----------
 
-// Every number on the dashboard is a real query against this app's own
-// data — there's no analytics/traffic tracking anywhere in this
-// app, so there's deliberately no "website traffic" stat here; showing
-// one would mean making it up. "This month" vs "last month" comparisons
-// use calendar-month boundaries in the server's local time.
 router.get("/admin", requireAdmin, async (req, res) => {
   const [orders, sales, books, accounts, memberCount, unusedImages] = await Promise.all([
     pool.query(`
@@ -42,13 +38,19 @@ router.get("/admin", requireAdmin, async (req, res) => {
         COUNT(*) FILTER (WHERE created_at >= date_trunc('month', now() - interval '1 month')
                             AND created_at < date_trunc('month', now()))::int AS new_last_month
       FROM users`),
-    pool.query("SELECT COUNT(*)::int AS n FROM users WHERE is_member = TRUE"),
+    pool.query("SELECT COUNT(*)::int AS n FROM users WHERE is_member = TRUE AND (member_expires_at IS NULL OR member_expires_at > now())"),
     // Read-only; a failure here must not take the dashboard down.
     countUnusedImages(pool).catch(() => 0),
   ]);
 
+  const attentionFromMail = await outboxAttention(pool).catch((err) => {
+    console.error("Needs-attention query failed:", err.message);
+    return [];
+  });
+
   res.render("admin/index", {
     active: "overview",
+    outboxAttention: attentionFromMail,
     stats: {
       ordersToday: orders.rows[0].today,
       ordersThisMonth: orders.rows[0].this_month,

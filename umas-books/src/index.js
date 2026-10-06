@@ -19,6 +19,8 @@ const { csrfTokenLimiter } = require("./middleware/rateLimits");
 const { expireStaleReservations, sendPickupReminders } = require("./lib/reservations");
 const { runCartMaintenance: sweepCart } = require("./lib/cart");
 const { guardJob } = require("./lib/jobGuard");
+const { processOutbox } = require("./lib/outbox");
+const { alertUnmatchedPayments } = require("./lib/membership");
 const { drainAwards } = require("./lib/awards");
 const { purgeUnusedImages } = require("./lib/imageCleanup");
 const { purgeExpiredPersonalData } = require("./lib/privacy");
@@ -439,6 +441,17 @@ const runCartMaintenance = guardJob("Cart maintenance", () => {
 runCartMaintenance();
 const cartTimer = setInterval(runCartMaintenance, 10 * 60 * 1000);
 
+// Email outbox worker (lib/outbox.js): retries mail that could not be sent
+// right away, with backoff, and alerts the admin when it gives up. Also the
+// place that sends the throttled "membership payment matches no account" alert.
+const runOutbox = guardJob("Email outbox", async () => {
+  const r = await processOutbox(pool);
+  if (r.sent || r.failed) console.log(`Email outbox: ${r.sent} sent, ${r.failed} failed.`);
+  await alertUnmatchedPayments(pool);
+});
+setTimeout(runOutbox, 15 * 1000).unref();
+const outboxTimer = setInterval(runOutbox, 60 * 1000);
+
 // Retention purge: removes personal data past the periods promised in the
 // privacy policy (lib/privacy.js). Daily is plenty; it also runs once at
 // boot so a restart-heavy host still gets it.
@@ -488,6 +501,7 @@ function shutdown(signal) {
   console.log(`${signal} received - shutting down gracefully.`);
   clearInterval(reservationTimer);
   clearInterval(cartTimer);
+  clearInterval(outboxTimer);
   clearInterval(privacyTimer);
   clearInterval(imageCleanupTimer);
   clearInterval(awardsTimer);

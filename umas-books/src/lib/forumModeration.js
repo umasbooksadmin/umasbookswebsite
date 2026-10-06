@@ -2,7 +2,7 @@
 // statement of reasons emailed to the author of a hidden post (EU Digital
 // Services Act, art. 17). Routes: src/routes/admin/forum.js.
 
-const mailer = require("../mailer");
+const { sendEmail } = require("./outbox");
 const { emailTr } = require("./lang");
 const { emailSafeName } = require("./validation");
 
@@ -48,7 +48,9 @@ async function sendStatementOfReasons(pool, target, code, note) {
       ? tr("your discussion", "votre discussion")
       : tr("your reply", "votre réponse");
     const [reasonEn, reasonFr] = REASONS[code];
-    await mailer.sendMail({
+    await sendEmail({
+      kind: "forum_moderation",
+      lang: author.lang,
       to: author.email,
       replyTo: CONTEST_ADDRESS,
       subject: tr(

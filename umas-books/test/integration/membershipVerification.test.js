@@ -67,7 +67,10 @@ test("an unverified account is never granted membership, even with a real Author
   assert.equal(rows[0].member_expires_at, null);
 
   const { rows: payments } = await pool.query("SELECT * FROM membership_payments WHERE payer_email = $1", [email]);
-  assert.equal(payments.length, 0, "should not even record the payment against an unverified account");
+  assert.equal(payments.length, 1);
+  assert.equal(payments[0].user_id, null, "never attached to an unverified account: kept as an unmatched payment for the admin");
+  assert.ok(payments[0].unmatched_at);
+  assert.equal(payments[0].unmatched_reason, "unverified");
 });
 
 test("a verified account is granted membership from the same real order", async () => {

@@ -1,12 +1,23 @@
 <%- include('../partials/admin_header', { title: 'Orders', active: 'orders', pageTitle: 'Orders', pageSub: orders.length + ' order' + (orders.length === 1 ? '' : 's') }) %>
 
+<% const resendNotices = {
+  'resent': 'Confirmation sent.',
+  'resend-queued': 'Confirmation queued: it could not be sent right now, it will be retried automatically (see Email outbox).',
+  'resend-not_paid': 'Only paid orders have a confirmation.',
+  'resend-erased': 'This buyer was erased: there is no address to send to.',
+  'resend-not_found': 'Order not found.',
+  'resend-queue_failed': 'The confirmation could not be built. Check the logs.'
+}; %>
+<% if (locals.resendNotice && resendNotices[resendNotice]) { %><div class="notice-box" role="status"><%= resendNotices[resendNotice] %></div><% } %>
+<p class="muted small"><a href="/admin/email-outbox">Email outbox</a></p>
+
 <div class="card">
   <% if (!orders.length) { %>
     <p class="muted">No orders yet.</p>
   <% } else { %>
     <ul class="plain">
       <% orders.forEach(o => { %>
-        <li style="margin-bottom: 18px;">
+        <li style="margin-bottom: 18px;" id="order-<%= o.id %>">
           <div class="order-row">
             <strong><%= formatDateTime(o.created_at) %></strong>
             <span class="status-pill <%= o.status %>"><%= o.status.charAt(0).toUpperCase() + o.status.slice(1) %></span>
@@ -18,6 +29,7 @@
             <% }) %>
           </ul>
           <div class="muted small">Total: &euro;<%= Number(o.total_amount).toFixed(2) %></div>
+          <%- include('../partials/admin_resend_confirmation', { o }) %>
         </li>
       <% }) %>
     </ul>

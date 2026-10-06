@@ -128,6 +128,7 @@ async function plant() {
   await db.query("INSERT INTO membership_payments (helloasso_order_id, payer_email, paid_at, user_id) VALUES (1001, 'member@example.test', now(), $1)", [member]);
   await db.query("INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) VALUES ($1, 'rt', now() + interval '1 day')", [member]);
   await db.query("INSERT INTO email_verification_tokens (user_id, token_hash, expires_at) VALUES ($1, 'vt', now() + interval '1 day')", [member]);
+  await db.query("INSERT INTO email_outbox (to_email, subject, body_text, kind) VALUES ('member@example.test', 'Hello', 'Body', 'verification')");
   await db.query("INSERT INTO totp_recovery_codes (user_id, code_hash) VALUES ($1, 'admin-code-1'), ($1, 'admin-code-2'), ($2, 'member-code')", [admin, member]);
 
   // logs
@@ -276,7 +277,7 @@ test("a real run wipes shop, people and logs, and keeps admins, 2FA, pricing, co
   for (const [t, g] of Object.entries(ctd.TABLES)) {
     if (g === "shop" && t !== "images") assert.equal(await count(t), 0, t);
   }
-  for (const t of ["event_signups", "class_signups", "charity_ideas", "password_reset_tokens", "email_verification_tokens", "membership_payments", "favorites"]) {
+  for (const t of ["event_signups", "class_signups", "charity_ideas", "password_reset_tokens", "email_verification_tokens", "membership_payments", "email_outbox", "favorites"]) {
     assert.equal(await count(t), 0, t);
   }
   assert.deepEqual((await q("SELECT id, action FROM admin_audit_log")), [{ id: 1, action: "clear_test_data" }]);
