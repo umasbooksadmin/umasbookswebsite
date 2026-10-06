@@ -6,6 +6,7 @@ const router = express.Router();
 // distinct area of the admin panel and shares no routes or state with the
 // others. Order doesn't matter: paths don't overlap across domains.
 router.use(require("./dashboard"));
+router.use(require("./orders"));
 router.use(require("./members"));
 router.use(require("./announcements"));
 router.use(require("./blog"));

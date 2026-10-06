@@ -280,6 +280,29 @@ s.test("A24a (must) the Orders page lists orders with status and totals", { as: 
   if (cfg.allowWrites() && !ctx.preview && /Test Buyer/.test(text)) has(text, /pending/i);
 });
 
+s.test("A24b (must) the Orders page filters, searches and opens an order", { as: "admin" }, async (ctx) => {
+  for (const q of ["show=uncollected", "show=refund_detected", "show=refunded", "show=overdue", "show=stale_pending", "show=paid&from=2020-01-01&to=2099-12-31", "q=%23999999999", "page=2"]) {
+    await admin(ctx, `/admin/orders?${q}`);
+    const text = await ctx.text();
+    hasNoNaN(text, `orders ${q}`);
+    has(text, /\d+ orders?/);
+  }
+  await admin(ctx, "/admin/orders");
+  const first = await ctx.page.$eval("a[href^='/admin/orders/']", (a) => a.getAttribute("href")).catch(() => null);
+  if (!first) ctx.skip("no order exists yet");
+  await ctx.goto(first);
+  const text = await ctx.text();
+  has(text, /Payment \(HelloAsso\)/);
+  has(text, /Terms and history/);
+  hasNoNaN(text, "order page");
+});
+
+s.manual("A24c (must) Mark collected sets the time, writes to Admin activity and repeats safely", "changes a real order");
+s.manual("A24d (must) Mark refunded (after refunding in HelloAsso): books back in stock, seat released, out of the sales figures", "needs a real HelloAsso refund and changes a real order");
+s.manual("A24e a refund done in HelloAsso shows up by itself, with one alert email", "needs a real HelloAsso refund and up to 6 hours");
+s.manual("A24f the dashboard Needs attention box", "needs an old unpaid or uncollected order");
+s.manual("A24g Cancel unpaid order frees the books", "changes a real order");
+
 // ---- 5H. Members and roles ----
 
 s.test("A26 you cannot demote, disable or erase your own account", { as: "admin" }, async (ctx) => {

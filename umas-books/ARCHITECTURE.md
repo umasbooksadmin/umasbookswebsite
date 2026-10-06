@@ -252,7 +252,21 @@ rather than by a numbered migration), grouped by what they belong to:
 - **Shop / checkout** — `books`, `book_copies`, `orders` (with `cgv_accepted_at` / `cgv_version`: proof of acceptance of the terms of sale, version from `src/lib/legal.js`), `order_items`
   (an order line references *either* a book copy *or* a class drop-in
   seat, never both — see the `order_items_one_item_type` check
-  constraint)
+  constraint). `orders.status` is plain text: `pending`, `paid`, `expired`,
+  `cancelled`, `refunded` (migration 060). A refund is made by hand in the
+  HelloAsso dashboard; an admin then presses "Mark refunded" on
+  `/admin/orders/:id` (`src/lib/orderActions.js`), which in one transaction sets
+  `refunded` + `refunded_at` + `refund_note`, puts the order's sold copies back
+  `in_stock` (not a copy sold again since) and marks its drop-in seats
+  `released`. Pickup: `collected_at` / `collected_by` ("Mark collected").
+  `src/lib/orderSweeps.js` (every 6 h, started in `src/index.js`) re-reads each
+  paid order of the last 30 days from HelloAsso and flags `refund_detected_at`
+  (one alert email, `refund_alert_sent_at`; nothing is restocked automatically),
+  sends the day-10 customer reminder (`customer_pickup_reminder_sent_at`) and
+  the day-12 admin digest (`pickup_reminder_sent_at`), each once per order.
+  `checkout_redirect_url` lets the buyer resume payment from `/cart`.
+  Revenue everywhere counts `status = 'paid'` only, by `paid_at` in Paris time
+  (`src/lib/dashboardStats.js`, `src/lib/reports.js`).
 - **Legacy trust decision (one-time):** migration 032 marked every
   account that existed at the time as email-verified, since forcing
   re-verification would lock out real members. Email squatting that

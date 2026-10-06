@@ -1,15 +1,52 @@
-<%- include('../partials/admin_header', { title: 'Orders', active: 'orders', pageTitle: 'Orders', pageSub: orders.length + ' order' + (orders.length === 1 ? '' : 's') }) %>
+<%- include('../partials/admin_header', { title: 'Orders', active: 'orders', pageTitle: 'Orders', pageSub: total + ' order' + (total === 1 ? '' : 's') + (f.show || f.from || f.to || f.q ? ' match your filters' : ' in total') + '. Dates and times are Paris time.' }) %>
+
+<% if (notice) { %><div class="notice-box" role="status"><%= notice %></div><% } %>
+
+<div class="card">
+  <form class="stack" method="get" action="/admin/orders" style="flex-direction: row; gap: 8px; max-width: none; align-items: end; flex-wrap: wrap;">
+    <div>
+      <label for="show">Show</label>
+      <select id="show" name="show">
+        <option value="" <%= f.show === '' ? 'selected' : '' %>>All orders (<%= counts.total %>)</option>
+        <% Object.keys(SPECIAL).forEach(k => { %><option value="<%= k %>" <%= f.show === k ? 'selected' : '' %>><%= SPECIAL[k].label %> (<%= counts[k] %>)</option><% }) %>
+        <% STATUSES.forEach(s => { %><option value="<%= s %>" <%= f.show === s ? 'selected' : '' %>><%= cap(s) %> (<%= counts[s] %>)</option><% }) %>
+      </select>
+    </div>
+    <div>
+      <label for="from">Ordered from</label>
+      <input id="from" name="from" type="date" value="<%= f.from %>">
+    </div>
+    <div>
+      <label for="to">Ordered until</label>
+      <input id="to" name="to" type="date" value="<%= f.to %>">
+    </div>
+    <div>
+      <label for="q">Search</label>
+      <input id="q" name="q" type="search" value="<%= f.q %>" placeholder="Order number, email or name" maxlength="100">
+    </div>
+    <button class="btn" type="submit">Filter</button>
+    <% if (f.show || f.from || f.to || f.q) { %><a class="btn btn-outline" href="/admin/orders">Clear</a><% } %>
+  </form>
+  <p class="muted small" style="margin-bottom:0;">
+    <% if (counts.refund_detected > 0) { %><a href="/admin/orders?show=refund_detected"><strong><%= counts.refund_detected %> refund<%= counts.refund_detected === 1 ? '' : 's' %> detected in HelloAsso</strong></a> &middot; <% } %>
+    <a href="/admin/orders?show=uncollected"><%= counts.uncollected %> waiting for pickup</a>
+    <% if (counts.overdue > 0) { %> &middot; <a href="/admin/orders?show=overdue"><%= counts.overdue %> not collected after 14 days</a><% } %>
+  </p>
+</div>
 
 <div class="card">
   <% if (!orders.length) { %>
-    <p class="muted">No orders yet.</p>
+    <p class="muted"><%= (f.show || f.from || f.to || f.q) ? 'No order matches these filters.' : 'No orders yet.' %></p>
   <% } else { %>
     <ul class="plain">
       <% orders.forEach(o => { %>
         <li style="margin-bottom: 18px;">
           <div class="order-row">
-            <strong><%= formatDateTime(o.created_at) %></strong>
-            <span class="status-pill <%= o.status %>"><%= o.status.charAt(0).toUpperCase() + o.status.slice(1) %></span>
+            <a href="/admin/orders/<%= o.id %>"><strong>Order #<%= o.id %></strong></a>
+            <span class="muted small">&middot; <%= formatDateTime(o.created_at) %></span>
+            <span class="status-pill <%= o.status %>"><%= cap(o.status) %></span>
+            <% if (o.status === 'paid' && o.refund_detected_at) { %><span class="status-pill cancelled">Refund detected</span><% } %>
+            <% if (o.status === 'paid' && o.collected_at) { %><span class="status-pill completed">Collected</span><% } %>
           </div>
           <div class="muted small"><%= o.buyer_name %> &middot; <%= o.buyer_email %><%= o.buyer_phone ? ' · ' + o.buyer_phone : '' %></div>
           <ul class="plain nested">
@@ -21,6 +58,13 @@
         </li>
       <% }) %>
     </ul>
+    <% if (pages > 1) { %>
+      <nav aria-label="Pages" class="muted" style="display:flex; gap:12px; align-items:center;">
+        <% if (page > 1) { %><a href="/admin/orders<%= qs({ page: page - 1 }) %>">&larr; Newer</a><% } %>
+        <span>Page <%= page %> of <%= pages %></span>
+        <% if (page < pages) { %><a href="/admin/orders<%= qs({ page: page + 1 }) %>">Older &rarr;</a><% } %>
+      </nav>
+    <% } %>
   <% } %>
 </div>
 
