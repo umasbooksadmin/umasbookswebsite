@@ -612,12 +612,16 @@ order page (admin > **Books & Orders** > **Orders**, then the order).
 
 What the terms of sale say (read them once: `/terms-of-sale.html`): books are
 collected at the shop "within 14 days of payment; if you need longer, write to
-us"; a buyer may withdraw from a book purchase within 14 days of **collecting**
-it, by email, then bring the book back in the same condition; we refund the full
-price by the same means of payment within 14 days of the notice and no later
-than when we have the book back. Drop-in sessions have no right of withdrawal,
+us"; an online buyer may withdraw from a book purchase within 14 days of **collecting**
+it, by email, then bring the book back; we refund the full price by the same
+means of payment within 14 days of the notice (we may wait until we have the book
+back or the buyer shows proof of return, art. L.221-24). Drop-in sessions have no right of withdrawal,
 but if **we** cancel a session we refund in full. The shop itself does not take
-books back for a change of mind (that is only for online orders).
+books back for a change of mind **in the shop** (the terms say: "Used books: no
+returns or exchanges for a change of mind in the shop. For online orders, your
+statutory 14-day right of withdrawal and the legal guarantees still apply").
+**Online orders always keep the 14-day withdrawal right**: never refuse a
+withdrawal email from an online buyer because the shop has a no-returns rule.
 
 ### A customer withdraws within 14 days, or asks for a refund
 
@@ -801,3 +805,27 @@ account" (at most one per hour) and by the dashboard box. Admin > **Accounts**
 If an unmatched payment is really a mistake (not a member payment), leave it:
 it does nothing. It is erased with the other payment records after 10 years.
 
+## o) The VAT line ("TVA non applicable") and the footer social links
+
+**The VAT line.** The association does not charge VAT, and French law wants the
+legal article that says why written next to "TVA non applicable". Which article
+applies (for example 261-7-1° or 293 B of the Code général des impôts) is a
+question for the association's accountant, and it has **not** been answered
+yet, so the site shows just "TVA non applicable" everywhere: in the terms of
+sale, in the order confirmation email, next to the cart total ("Prix TTC, TVA
+non applicable") and under the price on every book page.
+
+Once the accountant answers:
+
+1. In the repository, open `umas-books/src/lib/legal.js` and set
+   `VAT_NOTICE_ARTICLE` to the article only, without "art." and without "du
+   CGI", for example `"293 B"`.
+2. Bump `TERMS_OF_SALE_VERSION` in the same file to the day of the change
+   (YYYY-MM-DD): the terms changed.
+3. Make a pull request as usual. The line then reads, in all four places,
+   "TVA non applicable, art. 293 B du CGI". Nothing else needs editing.
+
+**The footer social links.** The Instagram and Facebook icons are hidden until
+real pages exist. When they do, put the full addresses in `SOCIAL_LINKS` in the
+same file (`umas-books/src/lib/legal.js`, for example
+`instagram: "https://www.instagram.com/..."`); an empty value stays hidden.

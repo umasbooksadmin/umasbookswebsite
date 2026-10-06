@@ -455,7 +455,8 @@ Details of the shop tables worth knowing:
   accounting records: they are kept like paid ones (10 years) and anonymised only
   when the account is erased.
 * **Order extras.** `orders.withdrawal_waiver_at` records the buyer's tick-box
-  asking for a drop-in session to take place on its date (no withdrawal after);
+  confirming that a drop-in session takes place on its date (these dated leisure sessions have no
+  right of withdrawal anyway, art. L.221-28 12°; the box is kept as the buyer's confirmation);
   `orders.cgv_accepted_at` / `orders.cgv_version` record when the buyer accepted
   the terms of sale and which version (`TERMS_OF_SALE_VERSION` in
   `src/lib/legal.js`, bump it when the terms page changes); they are in the
@@ -669,7 +670,7 @@ What keeps it correct:
 | Overselling | atomic `UPDATE … WHERE status='in_stock'` and `FOR UPDATE` on class rows |
 | Hoarding stock without paying | a cart holds at most 20 lines; at most 2 unpaid orders per email and per IP address (`orders.client_ip`), checked under an advisory lock so two simultaneous checkouts cannot both slip through |
 | Anonymous orders | checkout requires a logged-in account with a confirmed email, enforced on the server; the order stores `user_id` and the account's email (a posted email is ignored). Orders from before this rule (`user_id` NULL) remain valid everywhere |
-| Terms and withdrawal | checkout requires accepting the terms of sale; a cart with a drop-in seat also requires the withdrawal waiver, whose time is stored on the order |
+| Terms and withdrawal | checkout requires accepting the terms of sale; a cart with a drop-in seat also requires the date-confirmation tick-box (`waiveWithdrawal`), whose time is stored on the order |
 | Buyer backs out of HelloAsso | the session cart is emptied before the redirect (the items now belong to the order), and the payment link is stored (`orders.checkout_redirect_url`). `/cart` lists the logged-in buyer's **own** unpaid orders: **Resume payment** (a redirect to the stored HelloAsso link, only while it is fresh, about 14 minutes, and only to a HelloAsso payment host) and **Cancel this order** (HelloAsso is asked first; an order that was in fact paid is never cancelled). Both are owner-only (another account gets a 404) |
 
 ### Refunds, withdrawals and pickup

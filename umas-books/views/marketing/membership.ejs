@@ -194,6 +194,7 @@ const mt = (key) => (locals.lang === 'fr' ? memNewFr : memNewEn)[key];
       <% } %>
       <p class="mem-widget-hint" data-i18n="mem.widget.hint">Already a member and just renewing? Use the same email address you use to log in here so your account updates automatically.</p>
       <p class="mem-widget-hint"><span data-i18n="mem.widget.directLabel">Having trouble with the form above?</span> <a href="https://www.helloasso.com/associations/umasbooks/adhesions/uma-s-books-memberships" target="_blank" rel="noopener" data-i18n="mem.widget.directLink">Open the membership page directly on HelloAsso</a>.</p>
+      <p class="mem-widget-hint" data-i18n="mem.widget.directNote">Your membership is linked to your account with the same email address, whichever way you pay.</p>
     <% } %>
   <% } %>
   </div>
@@ -224,6 +225,7 @@ const mt = (key) => (locals.lang === 'fr' ? memNewFr : memNewEn)[key];
   "mem.widget.hint": "Already a member and just renewing? Use the same email address you use to log in here so your account updates automatically.",
   "mem.widget.directLabel": "Having trouble with the form above?",
   "mem.widget.directLink": "Open the membership page directly on HelloAsso",
+  "mem.widget.directNote": "Your membership is linked to your account with the same email address, whichever way you pay.",
 }; %>
 <% const pageI18nFr = {
   "meta.title": "Adhésion — Uma’s Books and Adventures",
@@ -233,7 +235,7 @@ const mt = (key) => (locals.lang === 'fr' ? memNewFr : memNewEn)[key];
   "mem.hero.script": "Rejoignez notre communauté",
   "mem.hero.sub": "Une façon simple de soutenir notre association, de participer à ce que nous construisons, et de profiter d’opportunités réservées aux membres chez Uma’s Books & Adventures.",
   "mem.benefits.h": "Avantages de l’adhésion",
-  "mem.b1.t": "Votez pour notre association trimestrielle",
+  "mem.b1.t": "Votez pour notre œuvre caritative trimestrielle",
   "mem.b1.d": "Aidez à choisir l’association que notre communauté soutient chaque trimestre.",
   "mem.b2.t": "Forums de discussion",
   "mem.b2.d": "Échangez avec d’autres membres, partagez vos idées et parlez de livres.",
@@ -252,5 +254,6 @@ const mt = (key) => (locals.lang === 'fr' ? memNewFr : memNewEn)[key];
   "mem.widget.hint": "Déjà membre et vous renouvelez simplement ? Utilisez la même adresse e-mail que celle de votre compte pour qu’il soit mis à jour automatiquement.",
   "mem.widget.directLabel": "Un souci avec le formulaire ci-dessus ?",
   "mem.widget.directLink": "Ouvrir la page d’adhésion directement sur HelloAsso",
+  "mem.widget.directNote": "Votre adhésion est rattachée au compte qui utilise la même adresse e-mail, quel que soit le moyen de paiement choisi.",
 }; %>
 <%- include('partials/mkt_footer', { pageI18nEn: { ...pageI18nEn, ...memNewEn }, pageI18nFr: { ...pageI18nFr, ...memNewFr }, extraScripts: ['assets/membership-widget.js'] }) %>

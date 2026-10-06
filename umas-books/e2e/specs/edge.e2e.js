@@ -44,8 +44,8 @@ s.test("X6 the expired-session page is translated when the site is in French", {
   has(await ctx.text(), /Votre session a expiré/);
 });
 
-s.write("E2 (must) two Pay & Buy requests at the same moment start ONE checkout, not two (payments on; needs the account-holder login, because buying needs an account)", { as: "account" }, async (ctx) => {
-  if (ctx.preview) ctx.skip("preview mode: there is no Pay & Buy button");
+s.write("E2 (must) two Order with obligation to pay requests at the same moment start ONE checkout, not two (payments on; needs the account-holder login, because buying needs an account)", { as: "account" }, async (ctx) => {
+  if (ctx.preview) ctx.skip("preview mode: there is no Order with obligation to pay button");
   const book = await stockedBook(ctx);
   await addFirstCopyToCart(ctx, book);
   if (!(await ctx.page.$("form[action='/cart/checkout']"))) ctx.skip("payments are not switched on");
@@ -114,7 +114,7 @@ for (const lang of ["en", "fr"]) {
     await noOverflow(ctx, `cart (${lang})`);
     if (await ctx.page.$("form[action='/cart/checkout']")) {
       const reach = await ctx.page.$eval("form[action='/cart/checkout'] button[type='submit']", (b) => { b.scrollIntoView(); const r = b.getBoundingClientRect(); return r.left >= 0 && r.right <= window.innerWidth && r.height >= 24; });
-      assert.ok(reach, "Pay & Buy is reachable and at least 24 px tall");
+      assert.ok(reach, "Order with obligation to pay is reachable and at least 24 px tall");
       await noOverflow(ctx, `checkout form (${lang})`);
     }
   });

@@ -15,6 +15,6 @@
   <button class="btn" type="submit"><%= tr('Create account', 'Créer mon compte') %></button>
   <%- include('partials/privacy_note', { en: 'We use your details only to create and manage your account. See our', fr: 'Vos données servent uniquement à créer et gérer votre compte. Consultez notre' }) %>
 </form>
-<p class="muted small"><%= tr('Already a member?', 'Déjà membre ?') %> <a href="/login<%= locals.returnTo ? '?returnTo=' + encodeURIComponent(locals.returnTo) : '' %>"><%= tr('Log in', 'Se connecter') %></a></p>
+<p class="muted small"><%= tr('Already have an account?', 'Vous avez déjà un compte ?') %> <a href="/login<%= locals.returnTo ? '?returnTo=' + encodeURIComponent(locals.returnTo) : '' %>"><%= tr('Log in', 'Se connecter') %></a></p>
 
 <%- include('partials/footer') %>

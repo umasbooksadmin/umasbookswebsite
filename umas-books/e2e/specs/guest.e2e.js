@@ -37,6 +37,7 @@ s.test("G2 each footer link opens a page, no error page", async (ctx) => {
   await ctx.goto("/");
   const hrefs = await ctx.page.$$eval("footer a[href]", (as) => as.map((a) => a.getAttribute("href")).filter((h) => h && h !== "#"));
   assert.ok(hrefs.length >= 5, "footer links present");
+  assert.equal((await ctx.page.$$("footer a[href='#']")).length, 0, "no placeholder social links in the footer");
   for (const h of hrefs) {
     const res = await ctx.goto(h);
     assert.ok(res.status() < 400, `${h} answered ${res.status()}`);
@@ -212,6 +213,12 @@ s.test("G15 (must) a book page shows cover, title, author, binding, price, copie
   has(text, /by /);
   has(text, /cover images may not show|may not show the actual condition|Cover images/i);
   if (book.binding) has(text, /Binding/);
+  // The friendly used-book disclaimer and the price tax line; never a waiver of legal rights.
+  has(text, /Price incl\. tax, TVA non applicable/);
+  has(text, /Our second-hand books are sold as described, so please read the condition grade, and ask us if you have any question\./);
+  has(text, /Used books: no returns or exchanges for a change of mind in the shop\. For online orders, your statutory 14-day right of withdrawal and the legal guarantees still apply\./);
+  hasNot(text, /waive|renounce/i);
+  assert.ok(await ctx.page.$(".book-disclaimer a[href='/terms-of-sale.html']"), "the disclaimer links the terms");
 });
 
 s.test("G16 (must) 'What the grades mean' lists the four grades", async (ctx) => {
@@ -220,6 +227,7 @@ s.test("G16 (must) 'What the grades mean' lists the four grades", async (ctx) =>
   await ctx.page.click(".grade-legend summary");
   const legend = await ctx.page.$eval(".grade-legend", (d) => d.innerText);
   for (const g of ["New", "Like New", "Very Good", "Acceptable"]) has(legend, new RegExp(g));
+  has(legend, /The grade is the description of the book/);
 });
 
 s.test("G17 a clearance copy shows the Clearance badge on the book page", async (ctx) => {
@@ -295,6 +303,10 @@ s.test("G-FR11 FR check (books): search page, book page and grade legend in Fren
   await ctx.page.click(".grade-legend summary");
   const legend = await ctx.page.$eval(".grade-legend", (d) => d.innerText);
   for (const g of ["Neuf", "Comme neuf", "Très bon état", "État acceptable"]) has(legend, new RegExp(g));
+  has(legend, /L’état indiqué est la description du livre/);
+  has(text, /Prix TTC, TVA non applicable/);
+  has(text, /Nos livres d’occasion sont vendus tels que décrits/);
+  has(text, /Livres d’occasion\s:\spas de reprise ni d’échange pour simple changement d’avis en boutique\. Pour les achats en ligne, votre droit légal de rétractation de 14 jours \(art\. L\.221-18\) et les garanties légales de conformité et des vices cachés restent applicables\./);
   assert.equal(await ctx.page.$eval("html", (h) => h.lang), "fr");
 });
 
@@ -490,6 +502,10 @@ s.test("G39 (must) each legal page opens with full text and the seller identity"
   await ctx.goto("/terms-of-sale.html");
   const tos = await ctx.text();
   for (const re of [/14 days/i, /withdrawal/i, /mediat/i]) has(tos, re);
+  has(tos, /Second-hand books: no returns/);
+  has(tos, /This does not affect your legal rights as a consumer, including the right of withdrawal for online orders described below and the legal guarantees\./);
+  has(tos, /Tuesday to Saturday, 10:00–19:00/);
+  hasNot(tos, /waive|renounce/i);
   await ctx.goto("/mentions-legales.html");
   const ml = await ctx.text();
   has(ml, /Albi/);
