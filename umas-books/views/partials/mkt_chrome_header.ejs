@@ -23,7 +23,7 @@ const NAV_FR = { 'nav.home': 'Accueil', 'nav.books': 'Parcourir les livres', 'na
 <%- include('preview_banner') %>
 <header class="mkt-header">
   <div class="h-header-row">
-    <a class="h-logo" href="/"><img src="/assets/img/logo-wordmark-framed.png" alt="<%= t('Uma’s Books & Adventures — home', 'Uma’s Books & Adventures — accueil') %>" width="1774" height="887"></a>
+    <a class="h-logo" href="/"><picture><source srcset="<%= assetUrl('/assets/img/logo-wordmark-framed.webp') %>" type="image/webp"><img src="<%= assetUrl('/assets/img/logo-wordmark-framed.png') %>" alt="<%= t('Uma’s Books & Adventures — home', 'Uma’s Books & Adventures — accueil') %>" width="440" height="220"></picture></a>
     <nav class="h-nav" aria-label="<%= t('Main', 'Principal') %>">
       <% navItems.forEach(item => { %>
         <a href="<%= item.href %>"<%- (typeof activeNav !== 'undefined' && activeNav === item.key) ? ' class="is-active" aria-current="page"' : '' %> data-i18n="<%= item.i18n %>"><%= t(item.label, NAV_FR[item.i18n]) %></a>
@@ -52,6 +52,7 @@ const NAV_FR = { 'nav.home': 'Accueil', 'nav.books': 'Parcourir les livres', 'na
         <span aria-hidden="true">|</span>
         <button type="button" data-lang="fr"<%- isFrChrome ? ' class="is-active" aria-pressed="true"' : ' aria-pressed="false"' %>>FR</button>
       </div>
+      <noscript><span class="h-noscript"><%= t('JavaScript is needed to change language', 'JavaScript est nécessaire pour changer de langue') %></span></noscript>
     </div>
   </div>
 </header>

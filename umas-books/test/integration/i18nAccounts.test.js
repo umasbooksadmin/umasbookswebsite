@@ -103,7 +103,7 @@ test("/account (unverified and with an order) is fully translated", async () => 
   );
   const pages = await assertTranslated(await loginJar(u.email), "/account");
   assert.match(pages.fr, /Payée/);
-  assert.match(pages.fr, /Total : 12,50/);
+  assert.match(pages.fr, /Total\u00a0: 12,50/);
   assert.match(pages.en, /Total: €12\.50/);
   const none = await createUser();
   const empty = await assertTranslated(await loginJar(none.email), "/account");
@@ -144,7 +144,7 @@ test("/account/password and the 2FA pages are fully translated", async () => {
   await assertTranslated(jar2, "/login/2fa");
   const fail = await post(jar2, "/login/2fa", { code: "123456" }, "fr");
   assert.equal(fail.res.status, 401);
-  assert.match(fail.text, /Ce code n&#39;a pas fonctionné\. Veuillez réessayer\./);
+  assert.match(fail.text, /Ce code n’a pas fonctionné\. Veuillez réessayer\./);
 });
 
 test("/reset-password with a live token is fully translated, weak passwords get French messages", async () => {
@@ -176,7 +176,7 @@ test("French server messages: wrong password, notices, forgot-password, change p
   const wrongEn = await post(makeCookieJar(), "/login", { email: u.email, password: "Nope-Nope-1" }, "en");
   assert.match(wrongEn.text, /Incorrect email or password\./);
 
-  assert.match((await get(jar, "/login?reset=success", "fr")).text, /Mot de passe mis à jour : connectez-vous/);
+  assert.match((await get(jar, "/login?reset=success", "fr")).text, /Mot de passe mis à jour\u00a0: connectez-vous/);
   assert.match((await get(jar, "/login?verified=success", "fr")).text, /Adresse e-mail confirmée, merci/);
   assert.match((await get(jar, "/login?verified=invalid", "fr")).text, /Ce lien de confirmation est invalide ou a expiré\./);
   await assertTranslated(jar, "/login?verified=success");
@@ -207,7 +207,7 @@ test("signup in French: French notice and form copy, the account keeps the chose
   const email = `afr-signup-${uniq()}@example.test`;
   const ok = await post(jar, "/signup", { email, password: "Correct-Horse-1", displayName: "Ana" }, "fr");
   assert.equal(ok.res.status, 200);
-  assert.match(ok.text, /Merci ! Consultez votre boîte de réception/);
+  assert.match(ok.text, /Merci\u00a0! Consultez votre boîte de réception/);
   const { rows } = await pool.query("SELECT lang FROM users WHERE email = $1", [email]);
   assert.equal(rows[0].lang, "fr");
 

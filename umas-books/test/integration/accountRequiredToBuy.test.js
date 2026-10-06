@@ -174,7 +174,7 @@ test("the cart page: a guest sees the log-in-or-create-account block and no chec
   ]) {
     const g = guest(lang);
     await g.post("/cart/add", { copyId: copy });
-    const html = (await g.get("/cart")).text;
+    const html = (await g.get("/cart")).text.replace(/<span class="nobr">|<\/span>/g, ""); // French headings keep "Connectez-vous" on one line
     assert.ok(html.includes(heading), `${lang}: heading`);
     assert.ok(html.includes(`href="/login?returnTo=%2Fcart"`) && html.includes(loginLabel), `${lang}: login link carries returnTo`);
     assert.ok(html.includes(`href="/signup?returnTo=%2Fcart"`), `${lang}: signup link carries returnTo`);

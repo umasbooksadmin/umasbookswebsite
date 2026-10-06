@@ -112,8 +112,8 @@ test("book page (French): grades, legend and binding are in French", async () =>
   const { text } = await page(`/books/${b.id}`, "fr");
   assert.match(text, /condition-badge condition-very_good">Très bon état</);
   assert.match(text, /condition-badge condition-acceptable">État acceptable</);
-  assert.match(text, /Que signifient les états \?/);
-  assert.match(text, /Légère usure seulement : pages propres, sans annotations ni surlignage\./);
+  assert.match(text, /Que signifient les états\u00a0\?/);
+  assert.match(text, /Légère usure seulement\u00a0: pages propres, sans annotations ni surlignage\./);
   assert.match(text, /Visiblement utilisé mais complet et lisible/);
   assert.match(text, /Reliure :\s*<\/dt> <dd>Poche<\/dd>|Reliure[^<]*<\/dt> <dd>Poche/);
   assert.ok(!text.includes(">Very Good<") && !text.includes("Mass Market"), "no English grade or binding");

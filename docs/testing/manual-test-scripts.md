@@ -286,6 +286,8 @@ Use a private window. Time: 35 to 45 minutes. A guest browses, searches, fills a
 | Legal pages (4) | see G39 | [ ] | [ ] |
 | 404 page | `/no-such-page` | [ ] | [ ] |
 
+- [ ] **G41b (must).** With the browser set to English and no saved site data, set the language cookie to French (or choose FR once, then clear only the site's local storage) and open `/books.html`. **You should see:** the page stays in French (no flash of English, no jump). Then on `/cart` click **EN** then **FR**. **You should see:** the whole page, not only the header and footer, changes language.
+
 ### 1H. Cookies, language memory, 404
 
 - [ ] **G42 (must).** Visit any page in a fresh private window. **You should see:** **no** cookie-consent banner. (The privacy policy says the site uses one session cookie that is strictly necessary, plus your language choice in the browser, so no banner is required.)

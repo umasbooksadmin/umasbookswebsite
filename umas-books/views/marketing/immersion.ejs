@@ -6,8 +6,8 @@
   activeNav: 'programs',
 }) %>
   <section class="h-hero" style="min-height:0;">
-    <img class="art art-left" src="assets/img/hero-left.png" alt="">
-    <img class="art art-right" src="assets/img/hero-right.png" alt="">
+    <%- include('../partials/picture', { src: '/assets/img/hero-left.png', alt: '', w: 322, h: 512, cls: 'art art-left' }) %>
+    <%- include('../partials/picture', { src: '/assets/img/hero-right.png', alt: '', w: 286, h: 512, cls: 'art art-right' }) %>
     <div class="imm-hero-copy">
       <h1 data-i18n="imm.hero.t">English Immersion at Uma&rsquo;s Books</h1>
       <p class="imm-script" data-i18n="imm.hero.script">Stories, games, creativity and conversation — all in English.</p>
