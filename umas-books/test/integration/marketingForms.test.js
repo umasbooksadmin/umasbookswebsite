@@ -249,17 +249,22 @@ test("rate limit: invalid submissions count too, and the two forms have separate
   });
 });
 
-test("when the mail transport fails the person sees a 500 page with the fallback address and their values", async () => {
+test("when the mail transport fails the email is queued in the outbox, the person still sees success, and the worker retries", async () => {
   await withApp(async ({ post }) => {
     sendImpl = async () => { throw new Error("SMTP down"); };
     const realError = console.error;
     console.error = () => {};
     let r;
     try { r = await post(PRE, PREREG); } finally { console.error = realError; }
-    assert.equal(r.res.status, 500);
-    assert.match(r.text, /could not be sent just now/);
-    assert.ok(r.text.includes("admin@umasbooks.org"));
-    assert.ok(r.text.includes("Claire Martin"), "entered values preserved");
+    assert.equal(r.res.status, 302, "stored for retry: not an error for the visitor");
+    const { rows } = await pool.query("SELECT id, status, to_email FROM email_outbox WHERE kind = 'contact' AND subject LIKE 'Website pre-registration:%' ORDER BY id DESC LIMIT 1");
+    assert.equal(rows[0].status, "pending");
+    assert.equal(rows[0].to_email, EXPECTED_TO);
+    sendImpl = async (opts) => { sent.push(opts); };
+    await pool.query("UPDATE email_outbox SET next_try_at = now() WHERE id = $1", [rows[0].id]);
+    await require("../../src/lib/outbox").processOutbox(pool);
+    assert.equal(sent.length, 1, "delivered by the retry");
+    assert.match(sent[0].text, /First name: Léa/);
   });
 });
 

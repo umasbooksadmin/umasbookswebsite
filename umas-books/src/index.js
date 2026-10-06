@@ -18,7 +18,10 @@ const { csrfProtection, csrfTokenEndpoint } = require("./middleware/csrf");
 const { csrfTokenLimiter } = require("./middleware/rateLimits");
 const { expireStaleReservations, sendPickupReminders } = require("./lib/reservations");
 const { runCartMaintenance: sweepCart } = require("./lib/cart");
+const { runOrderFollowUps } = require("./lib/orderSweeps");
 const { guardJob } = require("./lib/jobGuard");
+const { processOutbox } = require("./lib/outbox");
+const { alertUnmatchedPayments } = require("./lib/membership");
 const { drainAwards } = require("./lib/awards");
 const { purgeUnusedImages } = require("./lib/imageCleanup");
 const { backfillCovers } = require("./lib/coverStore");
@@ -438,6 +441,20 @@ const runReservationMaintenance = guardJob("Reservation maintenance", async () =
 runReservationMaintenance();
 const reservationTimer = setInterval(runReservationMaintenance, 6 * 60 * 60 * 1000);
 
+// Follow-up for PAID online orders (lib/orderSweeps.js): ask HelloAsso whether
+// a recent payment was refunded there (one admin alert, nothing restocked
+// automatically), the day-10 customer pickup reminder and the day-12 admin
+// digest. Every 6 hours. Not run at boot: a restart-heavy host would repeat
+// the HelloAsso lookups on every restart, so the first run comes 5 minutes
+// after boot (unref'd: it never keeps the process alive) and then every 6 h.
+const runOrderFollowUpJob = guardJob("Order follow-up", async () => {
+  const results = await runOrderFollowUps(pool);
+  console.log("Order follow-up:", JSON.stringify(results));
+});
+const orderFollowUpFirstRun = setTimeout(runOrderFollowUpJob, 5 * 60 * 1000);
+orderFollowUpFirstRun.unref();
+const orderFollowUpTimer = setInterval(runOrderFollowUpJob, 6 * 60 * 60 * 1000);
+
 // Same idea for the online-checkout cart, but on a much shorter interval
 // than the reservation job above: a cart hold is only good for an hour
 // (see CART_HOLD_TTL_MINUTES in lib/cart.js) and a buyer who closes the
@@ -456,6 +473,17 @@ const runCartMaintenance = guardJob("Cart maintenance", () => {
 });
 runCartMaintenance();
 const cartTimer = setInterval(runCartMaintenance, 10 * 60 * 1000);
+
+// Email outbox worker (lib/outbox.js): retries mail that could not be sent
+// right away, with backoff, and alerts the admin when it gives up. Also the
+// place that sends the throttled "membership payment matches no account" alert.
+const runOutbox = guardJob("Email outbox", async () => {
+  const r = await processOutbox(pool);
+  if (r.sent || r.failed) console.log(`Email outbox: ${r.sent} sent, ${r.failed} failed.`);
+  await alertUnmatchedPayments(pool);
+});
+setTimeout(runOutbox, 15 * 1000).unref();
+const outboxTimer = setInterval(runOutbox, 60 * 1000);
 
 // Retention purge: removes personal data past the periods promised in the
 // privacy policy (lib/privacy.js). Daily is plenty; it also runs once at
@@ -525,7 +553,10 @@ function shutdown(signal) {
   shuttingDown = true;
   console.log(`${signal} received - shutting down gracefully.`);
   clearInterval(reservationTimer);
+  clearInterval(orderFollowUpTimer);
+  clearTimeout(orderFollowUpFirstRun);
   clearInterval(cartTimer);
+  clearInterval(outboxTimer);
   clearInterval(privacyTimer);
   clearInterval(imageCleanupTimer);
   clearInterval(awardsTimer);

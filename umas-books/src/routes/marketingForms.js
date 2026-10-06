@@ -16,7 +16,7 @@
 
 const express = require("express");
 const { limit } = require("../middleware/rateLimits");
-const { sendMail } = require("../mailer");
+const { sendEmail } = require("../lib/outbox");
 const { renderMarketing, commonDictionary } = require("../lib/pageDictionary");
 const { marketingCsp } = require("../lib/marketingCsp");
 const { setMarketingSeoLocals } = require("./seo");
@@ -26,9 +26,11 @@ const router = express.Router();
 
 const CONTACT_TO = process.env.CONTACT_TO || "admin@umasbooks.org";
 
-// ONE place that sends these emails: swap this body (e.g. for the outbox) without touching the routes.
+// ONE place that sends these emails. They go through the email outbox (lib/outbox.js)
+// like the contact form, so a failed send is retried; the copy in the database is
+// erased after 30 days (90 if it could not be sent).
 async function deliver(mail) {
-  await sendMail({ to: CONTACT_TO, ...mail });
+  await sendEmail({ kind: "contact", to: CONTACT_TO, ...mail });
 }
 
 const FORMS = [

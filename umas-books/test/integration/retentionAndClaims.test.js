@@ -12,7 +12,7 @@ const PORT = 3680;
 const PASSWORD = "RetentionTest1!";
 const FORM = { "content-type": "application/x-www-form-urlencoded" };
 
-let app, pool, privacy, reservations, mailer;
+let app, pool, privacy, reservations, mailer, processOutbox;
 let sent = [];
 let failSends = false;
 let sendDelayMs = 0; // widens the window in which overlapping runs race
@@ -27,6 +27,7 @@ before(async () => {
   await app.waitForLog(/Retention purge/);
   privacy = require("../../src/lib/privacy");
   reservations = require("../../src/lib/reservations");
+  ({ processOutbox } = require("../../src/lib/outbox"));
   mailer = require("../../src/mailer");
   mailer.sendMail = async (opts) => {
     if (sendDelayMs) await new Promise((r) => setTimeout(r, sendDelayMs));
@@ -133,7 +134,7 @@ async function reservedCopy({ email = `r-${uniq()}@example.test`, daysOld = 12 }
 }
 const reminderAt = async (id) => (await pool.query("SELECT reminder_sent_at FROM book_copies WHERE id=$1", [id])).rows[0].reminder_sent_at;
 
-test("pickup reminders: sent once, skipped without an email, claim released on failure", async () => {
+test("pickup reminders: sent once, skipped without an email, claim kept and the retry owned by the outbox on failure", async () => {
   const ok = await reservedCopy();
   const noEmail = await reservedCopy();
   await pool.query("UPDATE book_copies SET reserved_by_email = NULL WHERE id=$1", [noEmail.copyId]);
@@ -151,24 +152,28 @@ test("pickup reminders: sent once, skipped without an email, claim released on f
   try { await Promise.all([reservations.sendPickupReminders(pool), reservations.sendPickupReminders(pool)]); } finally { sendDelayMs = 0; }
   assert.equal(sent.filter((m) => m.to === racy.email).length, 1);
 
-  // A failed send hands the claim back so tomorrow's run retries.
+  // A failed send no longer hands the claim back: the reminder is safely in the
+  // email outbox, whose worker retries it (once, whatever the daily runs do).
   const flaky = await reservedCopy();
   failSends = true;
   try { await reservations.sendPickupReminders(pool); } finally { failSends = false; }
-  assert.equal(await reminderAt(flaky.copyId), null);
+  assert.ok(await reminderAt(flaky.copyId), "claim kept: the outbox owns the retry");
+  const { rows: queued } = await pool.query("SELECT id, status, attempts FROM email_outbox WHERE lower(to_email) = lower($1) AND kind = 'reservation_reminder'", [flaky.email]);
+  assert.equal(queued.length, 1);
+  assert.equal(queued[0].status, "pending");
+  assert.equal(queued[0].attempts, 1);
   sent = [];
   await reservations.sendPickupReminders(pool);
-  assert.equal(sent.filter((m) => m.to === flaky.email).length, 1);
+  assert.equal(sent.filter((m) => m.to === flaky.email).length, 0, "tomorrow's run does not send a second reminder");
+  await pool.query("UPDATE email_outbox SET next_try_at = now() WHERE id = $1", [queued[0].id]);
+  await processOutbox(pool);
+  assert.equal(sent.filter((m) => m.to === flaky.email).length, 1, "the outbox worker delivers it");
 });
 
-test("inactivity warnings: claimed before sending, once only, released if the send fails", async () => {
+test("inactivity warnings: claimed before sending, once only, queued for retry if the send fails", async () => {
   const a = await createUser({ yearsAgo: 4 });
   const b = await createUser({ yearsAgo: 4 });
   const mine = (m) => m.to === a.email || m.to === b.email;
-
-  failSends = true;
-  try { await privacy.purgeExpiredPersonalData(pool); } finally { failSends = false; }
-  assert.equal((await lastLogin(a.id)).inactivity_warned_at, null, "failed send leaves the account unwarned");
 
   sent = [];
   sendDelayMs = 100;
@@ -176,6 +181,20 @@ test("inactivity warnings: claimed before sending, once only, released if the se
   assert.equal(sent.filter((m) => m.to === a.email).length, 1, "overlapping sweeps warn each person once");
   assert.equal(sent.filter(mine).length, 2);
   assert.ok((await lastLogin(a.id)).inactivity_warned_at);
+
+  // A failed send is queued in the outbox for retry; the account counts as
+  // warned (the warning WILL go out), and the retry sends it exactly once.
+  const c = await createUser({ yearsAgo: 4 });
+  failSends = true;
+  try { await privacy.purgeExpiredPersonalData(pool); } finally { failSends = false; }
+  assert.ok((await lastLogin(c.id)).inactivity_warned_at, "queued for retry: the warning is on its way");
+  await pool.query("UPDATE email_outbox SET next_try_at = now() WHERE kind = 'inactivity_warning' AND status = 'pending'");
+  sent = [];
+  await processOutbox(pool);
+  assert.equal(sent.filter((m) => m.to === c.email).length, 1, "the retry delivers the warning");
+  sent = [];
+  await processOutbox(pool);
+  assert.equal(sent.length, 0, "and only once");
 });
 
 test("purge drops contact data from ended reservations and closed orders after 30 days", async () => {

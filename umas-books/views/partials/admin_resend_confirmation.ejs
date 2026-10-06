@@ -1,0 +1,9 @@
+<%# Resend-confirmation control for one paid order. Expects `o` (the order row).
+    Included by views/admin/orders.ejs; posts to routes/admin/emailOutbox.js. %>
+<% if (o.status === 'paid') { %>
+  <form method="post" action="/admin/orders/<%= o.id %>/resend-confirmation" class="inline-form" style="display:inline">
+    <%- include('csrf_field') %>
+    <span class="muted small">Confirmation: <%= o.confirmation_sent_at ? 'sent ' + formatDateTime(o.confirmation_sent_at) : 'NOT SENT' %></span>
+    <button class="btn btn-outline btn-small" type="submit">Resend confirmation</button>
+  </form>
+<% } %>

@@ -50,6 +50,13 @@ async function buildMemberExport(pool, userId) {
        FROM membership_payments WHERE user_id = $1 OR lower(payer_email) = $2 ORDER BY paid_at`,
       [userId, email]
     ),
+    // Copies of emails we sent to this address are kept 30 days (lib/outbox.js);
+    // the text is left out (it may hold a one-time link), the record is enough.
+    emails_sent: await q(
+      `SELECT id, kind, subject, status, created_at, sent_at FROM email_outbox
+       WHERE lower(to_email) = $1 AND purged_at IS NULL ORDER BY created_at`,
+      [email]
+    ),
     favorites: await q(
       `SELECT f.created_at, b.title, b.authors FROM favorites f JOIN books b ON b.id = f.book_id
        WHERE f.user_id = $1 ORDER BY f.created_at`,

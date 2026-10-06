@@ -1,0 +1,77 @@
+<%- include('../partials/admin_header', { title: 'Email outbox', active: 'email-outbox', pageTitle: 'Email outbox', pageSub: 'Every customer email is stored here, sent at once, and retried if it fails.' }) %>
+<%
+  const notices = {
+    'retry-sent': 'Sent.',
+    'retry-queued': 'It could not be sent right now. It stays queued and will be retried.',
+    'retry-refused': 'That email cannot be retried (already sent, or its content was purged).',
+    'handled': 'Failed emails marked as handled.'
+  };
+%>
+<% if (notice && notices[notice]) { %><div class="notice-box" role="status"><%= notices[notice] %></div><% } %>
+
+<div class="card">
+  <p class="small">
+    Pending: <strong><%= byStatus.pending || 0 %></strong> &middot;
+    Failed: <strong><%= byStatus.failed || 0 %></strong> &middot;
+    Handled: <%= byStatus.handled || 0 %> &middot;
+    Sent: <%= byStatus.sent || 0 %>
+  </p>
+  <p class="muted small">Pending mail is retried automatically after 1, 5, 15, 60 then every 240 minutes; after 8 attempts it is marked failed and you get one alert email per hour. If everything fails, check the Gmail account (see the runbook, "Emails are not arriving"). The content of sent emails is erased after 30 days (failed ones after 90).</p>
+  <% if (byStatus.failed) { %>
+    <form method="post" action="/admin/email-outbox/handled">
+      <%- include('../partials/csrf_field') %>
+      <button class="btn btn-outline btn-small" type="submit">Mark failed as handled</button>
+    </form>
+  <% } %>
+</div>
+
+<div class="card" id="test-email">
+  <h2>Send a test email</h2>
+  <p class="muted small">Sends a real email to your own address (<%= user.email %>) the same way customer emails are sent, and shows the exact result here. Use it to see why mail is not arriving.</p>
+  <% if (!mailConfigured) { %><div class="error-box" role="alert">Mail is NOT configured on this server: GMAIL_USER or GMAIL_APP_PASSWORD is missing, so nothing is ever sent.</div><% } %>
+  <% if (test) { %>
+    <% if (test.status === 'sent') { %>
+      <div class="notice-box" role="status" id="test-result">Sent to <%= test.to_email %>. Check that inbox (and spam).</div>
+    <% } else { %>
+      <div class="error-box" role="alert" id="test-result">NOT sent (status <%= test.status %>, attempt <%= test.attempts %>). Error from the mail server:<br><code><%= test.last_error || '(none)' %></code></div>
+    <% } %>
+  <% } %>
+  <form method="post" action="/admin/email-outbox/test-email">
+    <%- include('../partials/csrf_field') %>
+    <button class="btn btn-small" type="submit">Send a test email to me</button>
+  </form>
+</div>
+
+<div class="card">
+  <% if (!rows.length) { %>
+    <p class="muted">No emails yet.</p>
+  <% } else { %>
+    <table class="ann-table">
+      <thead><tr><th>#</th><th>Created</th><th>Kind</th><th>To</th><th>Subject</th><th>Status</th><th>Tries</th><th>Last error</th><th></th></tr></thead>
+      <tbody>
+        <% rows.forEach(r => { %>
+          <tr id="mail-<%= r.id %>">
+            <td><%= r.id %></td>
+            <td><%= formatDateTime(r.created_at) %></td>
+            <td><%= r.kind %><%= r.related_order_id ? ' (order #' + r.related_order_id + ')' : '' %></td>
+            <td><%= r.purged_at ? '(erased)' : r.to_email %></td>
+            <td><%= r.purged_at ? '(erased)' : r.subject %></td>
+            <td><span class="status-pill <%= r.status %>"><%= r.status %></span><%= r.status === 'sent' && r.sent_at ? ' ' + formatDateTime(r.sent_at) : '' %><%= r.status === 'pending' ? ' next ' + formatDateTime(r.next_try_at) : '' %></td>
+            <td><%= r.attempts %></td>
+            <td class="small" style="white-space:pre-wrap;word-break:break-word"><%= r.last_error || '' %></td>
+            <td>
+              <% if (r.status !== 'sent' && !r.purged_at) { %>
+                <form method="post" action="/admin/email-outbox/<%= r.id %>/retry">
+                  <%- include('../partials/csrf_field') %>
+                  <button class="btn btn-outline btn-small" type="submit">Retry now</button>
+                </form>
+              <% } %>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } %>
+</div>
+
+<%- include('../partials/admin_footer') %>

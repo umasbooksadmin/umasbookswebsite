@@ -362,7 +362,9 @@ s.manual("AC29 refreshing the Thank you page and opening it in a second browser"
 
 s.manual("AC30 admin sees the paid order and the books leave the shelves", "needs a paid order; the pending-order side is covered by A24a");
 
-s.manual("AC31 pickup: show the confirmation email, a volunteer hands over the books", "a human at the shop");
+s.manual("AC31 pickup: show the confirmation email, a volunteer hands over the books and presses Mark collected", "a human at the shop");
+
+s.manual("AC31a the day-10 customer pickup reminder email and the day-12 admin digest", "needs real time to pass (or an order moved back in a test database) and a readable mailbox");
 
 s.test("AC32 the Terms of Sale say to collect within 14 days of payment (EN and FR)", { as: "account" }, async (ctx) => {
   await ctx.goto("/terms-of-sale.html");
@@ -423,6 +425,8 @@ s.test("AC-FR34 FR check: the drop-in waiver reads in French", { as: "account", 
 });
 
 s.manual("AC38 abandon at the HelloAsso page and come back", "needs the HelloAsso page");
+
+s.manual("AC38a resume or cancel an unpaid order from the cart", "needs the HelloAsso page; the cancel and resume rules are covered by the app's own tests");
 
 s.manual("AC39 buying again straight away with the same email", "would create a second unpaid order that holds more books; protection against hoarding is covered by the app's own tests");
 
