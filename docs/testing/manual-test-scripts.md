@@ -542,8 +542,9 @@ Two-step verification is **always required** for admins on the real site.
 
 ### 5E. Reports and CSV
 
-- [ ] **A19 (must). Reports.** Open **Reports**. **You should see:** six: **Inventory on hand**, **Aging stock**, **Sales over time**, **Sell-through by genre**, **Membership**, **Intake log**. Open each: it shows tables; with **From / To / Group by** and **Show** where available ("Paris days. Without dates, the last 12 months are shown.").
-- [ ] **A20 (must). CSV.** On each report press **Download CSV** for at least one table. **You should see:** a file `umas-books-<report>-<table>.csv` that opens in a spreadsheet with the same numbers, and **no buyer names**. Each download is logged in **Admin activity** ("report.csv").
+- [ ] **A19 (must). Reports.** Open **Reports**. **You should see:** seven: **Inventory on hand**, **Aging stock**, **Sales over time**, **Sell-through by genre**, **Membership**, **Intake log**, **Accounts**. Open each: it shows tables; with **From / To / Group by** and **Show** where available ("Paris days. Without dates, the last 12 months are shown.").
+- [ ] **A20 (must). CSV.** On each report press **Download CSV** for at least one table. **You should see:** a file `umas-books-<report>-<table>.csv` that opens in a spreadsheet with the same numbers, and **no buyer names** (the **Accounts** report is the one exception: it lists names and emails). Each download is logged in **Admin activity** ("report.csv").
+- [ ] **A19b.** **Reports** > **Accounts**. **You should see:** a summary of counts (total accounts, admins, volunteers, members, expired members, account holders, unconfirmed, created in the last 7 and 30 days, with at least one paid order) and a table of all accounts with Name, Email, Type (Admin, Volunteer, Member, Account or Unconfirmed), Member until ("no end date" for a granted membership), Email confirmed, Created, Last login, Paid orders, Total spent (refunded orders not counted) and Disabled. Filter by **Type**, by name or email and by creation dates > **Show**; pages of 50; **Download CSV** gives the same filtered list with the same columns, logged in **Admin activity** as `report.csv`.
 - [ ] **A21.** Sales report after AC26, AC35 and A18. **You should see:** the online sale, the shop sale, and the drop-in seat counted separately.
 
 ### 5F. Book requests
@@ -575,7 +576,8 @@ Two-step verification is **always required** for admins on the real site.
 - [ ] **A26.** Demote the second admin (**Remove Admin**). **You should see:** they lose admin pages. You cannot demote yourself, and the last admin cannot be demoted or erased.
 - [ ] **A27.** **Edit** tab: change the Name and Email of a throwaway account. **You should see:** saved; an email already used is refused ("That email is already used by another account — nothing was changed."); a changed email needs a new confirmation.
 - [ ] **A28.** **Download data (JSON)** on an account. **You should see:** a JSON file. **Erase Member** on a throwaway account (cannot be undone). **You should see:** the account is gone (like AC18).
-- [ ] **A29.** **Members** menu (`/admin/members?role=member`) and filters (All Roles, Admin, Member; All Statuses; date ranges; sort). **You should see:** only paying members; **Clear Filters** resets.
+- [ ] **A29.** **Members** menu (`/admin/members?role=member`) and filters (All accounts, Admin, Volunteer, Member, Account holder, Unconfirmed, each with a count; All Statuses; date ranges; sort). **You should see:** only paying or granted members whose membership has not ended; **Clear Filters** resets.
+- [ ] **A29b.** **Accounts** menu (`/admin/members`). **You should see:** everyone with an account, not only members, with a **Role** pill on each: **Admin**, **Volunteer**, **Member** or **Account** (a confirmed account that is not a member), plus extra pills when several apply (for example Admin + Member), **Not confirmed** for an email never confirmed and **Membership expired** for a lapsed member. Each filter (Volunteer, Account holder, Unconfirmed...) lists the right people, and the footer reads "of N accounts".
 
 ### 5I. Events, English programs, meetings, shifts
 

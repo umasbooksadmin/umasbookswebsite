@@ -1,0 +1,3 @@
+<%# Role pills for one account: the primary type first, then everything else that is true (see lib/accountTypes.js). %>
+<% const pillClass = { Admin: 'trash', Volunteer: 'draft', Member: 'category', Account: 'published', Unconfirmed: 'archived', 'Not confirmed': 'archived', 'Membership expired': 'archived' }; %>
+<% badges.labels.forEach(function (l, i) { %><span class="status-pill <%= pillClass[l] || 'category' %>"<%- i ? ' style="margin-left:4px; opacity:.85;"' : '' %>><%= l %></span><% }) %>

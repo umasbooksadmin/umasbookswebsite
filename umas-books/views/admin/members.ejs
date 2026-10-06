@@ -3,7 +3,7 @@
   title: isMembersView ? 'Members' : 'Accounts',
   active: active,
   pageTitle: isMembersView ? 'Members' : 'Accounts',
-  pageSub: isMembersView ? 'Everyone with paid membership.' : 'Manage members, admins, and their activity.',
+  pageSub: isMembersView ? 'Everyone with paid membership.' : 'Everyone with an account: members, volunteers, admins and account holders.',
 }) %>
 
 <%
@@ -25,7 +25,7 @@
 <%- include('../partials/admin_unmatched_payments') %>
 
 <div class="admin-stats">
-  <div class="admin-stat tone-blue"><div class="label">Total Members</div><div class="value" style="margin-bottom:0;"><%= stats.total_members %></div></div>
+  <div class="admin-stat tone-blue"><div class="label">Total Accounts</div><div class="value" style="margin-bottom:0;"><%= stats.total_members %></div></div>
   <div class="admin-stat tone-rose"><div class="label">Admins</div><div class="value" style="margin-bottom:0;"><%= stats.total_admins %></div></div>
   <div class="admin-stat tone-green">
     <div class="label">Book Orders</div>
@@ -72,9 +72,9 @@
 <form class="ann-filters" method="get" action="/admin/members">
   <input type="text" name="q" value="<%= filters.q %>" placeholder="Search by name or email…">
   <select name="role">
-    <option value="">All Roles</option>
-    <option value="admin" <%= filters.role === 'admin' ? 'selected' : '' %>>Admin</option>
-    <option value="member" <%= filters.role === 'member' ? 'selected' : '' %>>Member</option>
+    <% Object.keys(filterLabels).forEach(function (v) { %>
+      <option value="<%= v %>" <%= filters.role === v ? 'selected' : '' %>><%= filterLabels[v] %> (<%= typeCounts[v] %>)</option>
+    <% }) %>
   </select>
   <select name="status">
     <option value="">All Statuses</option>
@@ -124,7 +124,7 @@
                   </div>
                 </div>
               </td>
-              <td><span class="status-pill <%= m.is_admin ? 'trash' : 'category' %>"><%= m.is_admin ? 'Admin' : 'Member' %></span></td>
+              <td><%- include('../partials/account_pills', { badges: m.badges }) %></td>
               <td><span class="status-pill <%= m.is_disabled ? 'archived' : 'published' %>"><%= m.is_disabled ? 'Inactive' : 'Active' %></span></td>
               <td><%= m.events_count %></td>
               <td><%= m.books_count %></td>
@@ -140,7 +140,7 @@
 
       <% if (pagination.totalPages > 1) { %>
         <div style="display:flex; justify-content:space-between; align-items:center; margin-top:14px;">
-          <span class="muted small">Showing <%= (pagination.page - 1) * pagination.pageSize + 1 %>&ndash;<%= Math.min(pagination.page * pagination.pageSize, pagination.totalMatching) %> of <%= pagination.totalMatching %> members</span>
+          <span class="muted small">Showing <%= (pagination.page - 1) * pagination.pageSize + 1 %>&ndash;<%= Math.min(pagination.page * pagination.pageSize, pagination.totalMatching) %> of <%= pagination.totalMatching %> accounts</span>
           <div style="display:flex; gap:6px;">
             <% for (let p = 1; p <= pagination.totalPages; p++) { %>
               <a class="btn btn-outline btn-small<%= p === pagination.page ? ' is-active' : '' %>" href="/admin/members?<%= membersQs({ page: p }) %>"><%= p %></a>
@@ -173,7 +173,7 @@
           <div style="margin-top:14px;">
             <div style="display:flex; justify-content:space-between; align-items:center;">
               <span class="muted small">Role</span>
-              <span class="status-pill <%= detail.user.is_admin ? 'trash' : 'category' %>"><%= detail.user.is_admin ? 'Admin' : 'Member' %></span>
+              <span><%- include('../partials/account_pills', { badges: detailBadges }) %></span>
             </div>
             <div style="display:flex; justify-content:space-between; margin-top:8px;"><span class="muted small">Member Since</span><span class="small"><%= formatDate(detail.user.created_at) %></span></div>
             <div style="display:flex; justify-content:space-between; margin-top:6px;"><span class="muted small">Last Login</span><span class="small"><%= detail.user.last_login_at ? formatDate(detail.user.last_login_at) : 'Never' %></span></div>

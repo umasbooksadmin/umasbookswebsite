@@ -1,7 +1,8 @@
 // Admin Reports (/admin/reports). Everything here only READS the database:
 // each report is a handful of aggregate queries (never one query per book),
 // every list has a LIMIT, and nothing returns an email address or a buyer's
-// name. Dates are Europe/Paris days (see lib/tz.js): a range "2026-01-01 to
+// name (the one exception is the Accounts report, the admins' list of who has
+// an account, which shows names and emails; see accountsReport). Dates are Europe/Paris days (see lib/tz.js): a range "2026-01-01 to
 // 2026-01-31" means from midnight Paris on the 1st to midnight Paris on the
 // 1st of February, whatever time zone the server runs in.
 //
@@ -12,6 +13,8 @@
 
 const { SITE_TIME_ZONE } = require("./tz");
 const { CONDITIONS, SOURCES } = require("./inventory");
+const { TYPE_LABELS, parseTypeFilter, typeFilterSql, typeCaseSql } = require("./accountTypes");
+const { activeMemberSql } = require("./memberStatus");
 
 const TZ = SITE_TIME_ZONE;
 const LIST_LIMIT = 500;
@@ -522,6 +525,117 @@ async function intakeReport(db, ctx) {
   };
 }
 
+// ---------- 7. accounts ----------
+
+const ACCOUNTS_PAGE_SIZE = 50;
+const ACCOUNTS_CSV_LIMIT = 50000;
+
+// Everyone with an account, by type. Types come from lib/accountTypes.js, the
+// same definitions as the admin accounts list. Orders are matched to an
+// account by email (the shop's only link, as on the members page); refunded
+// orders (status 'refunded') and unpaid ones are not counted.
+async function accountsReport(db, ctx) {
+  const q = ctx.query || {};
+  const type = parseTypeFilter(q.type);
+  const text = String(q.q || "").trim().slice(0, 100);
+  const from = validDay(q.from);
+  const to = validDay(q.to);
+  const page = Math.max(1, parseInt(q.page, 10) || 1);
+
+  const where = [];
+  const params = [];
+  const tf = typeFilterSql(type, "u");
+  if (tf) where.push(tf);
+  if (text) {
+    params.push(`%${text.replace(/[\\%_]/g, "\\$&")}%`);
+    where.push(`(u.display_name ILIKE $${params.length} OR u.email ILIKE $${params.length})`);
+  }
+  if (from) { params.push(from); where.push(`u.created_at >= ($${params.length}::date)::timestamp AT TIME ZONE '${TZ}'`); }
+  if (to) { params.push(to); where.push(`u.created_at < (($${params.length}::date) + 1)::timestamp AT TIME ZONE '${TZ}'`); }
+  const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+
+  const [summaryRes, countRes] = await Promise.all([
+    db.query(
+      `SELECT COUNT(*)::int AS total,
+              COUNT(*) FILTER (WHERE u.is_admin)::int AS admins,
+              COUNT(*) FILTER (WHERE u.is_volunteer)::int AS volunteers,
+              COUNT(*) FILTER (WHERE ${activeMemberSql("u")})::int AS members,
+              COUNT(*) FILTER (WHERE u.is_member AND NOT ${activeMemberSql("u")})::int AS expired,
+              COUNT(*) FILTER (WHERE ${typeFilterSql("account", "u")})::int AS holders,
+              COUNT(*) FILTER (WHERE u.email_verified_at IS NULL)::int AS unconfirmed,
+              COUNT(*) FILTER (WHERE u.created_at >= now() - interval '7 days')::int AS new7,
+              COUNT(*) FILTER (WHERE u.created_at >= now() - interval '30 days')::int AS new30,
+              COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM orders o WHERE o.status = 'paid' AND lower(o.buyer_email) = lower(u.email)))::int AS buyers
+       FROM users u`
+    ),
+    db.query(`SELECT COUNT(*)::int AS n FROM users u ${whereSql}`, params),
+  ]);
+  const s = summaryRes.rows[0];
+  const total = countRes.rows[0].n;
+  const pages = Math.max(1, Math.ceil(total / ACCOUNTS_PAGE_SIZE));
+  const current = Math.min(page, pages);
+  const limit = ctx.csv ? ACCOUNTS_CSV_LIMIT : ACCOUNTS_PAGE_SIZE;
+  const offset = ctx.csv ? 0 : (current - 1) * ACCOUNTS_PAGE_SIZE;
+
+  const { rows } = await db.query(
+    `SELECT u.display_name, u.email, ${typeCaseSql("u")} AS type,
+            u.is_member, u.member_expires_at,
+            to_char(u.member_expires_at AT TIME ZONE '${TZ}', 'YYYY-MM-DD') AS member_until,
+            u.email_verified_at IS NOT NULL AS confirmed,
+            to_char(u.created_at AT TIME ZONE '${TZ}', 'YYYY-MM-DD') AS created,
+            to_char(u.last_login_at AT TIME ZONE '${TZ}', 'YYYY-MM-DD') AS last_login,
+            COALESCE(ord.n, 0)::int AS orders, COALESCE(ord.spent, 0)::float8 AS spent, u.is_disabled
+     FROM users u
+     LEFT JOIN (
+       SELECT lower(buyer_email) AS email, COUNT(*) AS n, SUM(total_amount) AS spent
+       FROM orders WHERE status = 'paid' GROUP BY 1
+     ) ord ON ord.email = lower(u.email)
+     ${whereSql}
+     ORDER BY u.created_at DESC, u.id DESC
+     LIMIT ${limit} OFFSET ${offset}`,
+    params
+  );
+  const list = rows.map((r) => ({
+    name: r.display_name, email: r.email, type: TYPE_LABELS[r.type],
+    member_until: r.is_member ? (r.member_until || "no end date") : "",
+    confirmed: r.confirmed ? "yes" : "no",
+    created: r.created, last_login: r.last_login || "never",
+    orders: r.orders, spent: money(r.spent), disabled: r.is_disabled ? "yes" : "no",
+  }));
+  const summaryRows = [
+    ["Total accounts", s.total], ["Admins", s.admins], ["Volunteers", s.volunteers],
+    ["Members (paying or granted)", s.members], ["Members whose membership has expired", s.expired],
+    ["Account holders (not a member, admin or volunteer)", s.holders],
+    ["Unconfirmed (email never confirmed)", s.unconfirmed],
+    ["Created in the last 7 days", s.new7], ["Created in the last 30 days", s.new30],
+    ["With at least one paid order", s.buyers],
+  ].map(([label, count]) => ({ label, count }));
+  return {
+    sections: [
+      {
+        key: "summary", title: "Summary (all accounts)",
+        columns: [{ key: "label", label: "Measure", type: "text" }, { key: "count", label: "Accounts", type: "int" }],
+        rows: summaryRows, totals: null,
+        note: "An account can count in several lines (an admin who is also a volunteer, for example). Each account has one type in the list below: Admin, else Volunteer, else Member, else Account, else Unconfirmed.",
+      },
+      {
+        key: "accounts", title: `Accounts (${total})`,
+        columns: [
+          { key: "name", label: "Name", type: "text" }, { key: "email", label: "Email", type: "text" }, { key: "type", label: "Type", type: "text" },
+          { key: "member_until", label: "Member until", type: "text" }, { key: "confirmed", label: "Email confirmed", type: "text" },
+          { key: "created", label: "Created", type: "date" }, { key: "last_login", label: "Last login", type: "text" },
+          { key: "orders", label: "Paid orders", type: "int" }, { key: "spent", label: "Total spent", type: "eur" },
+          { key: "disabled", label: "Disabled", type: "text" },
+        ],
+        rows: list, totals: null,
+        pagination: ctx.csv ? null : { page: current, pages, total, pageSize: ACCOUNTS_PAGE_SIZE },
+        note: "Paid orders are matched to an account by email; refunded and unpaid orders are not counted. Dates are Paris days.",
+      },
+    ],
+    notes: ["This report shows names and email addresses. Handle the CSV with care."],
+  };
+}
+
 const REPORTS = [
   { slug: "inventory", title: "Inventory on hand", summary: "Copies in stock and reserved, with their asking value, by genre, condition, location and source.", run: inventoryReport },
   { slug: "aging", title: "Aging stock", summary: "How long copies have been in stock (0-3, 3-6, 6-12, 12+ months), and the oldest ones.", run: agingReport },
@@ -529,20 +643,21 @@ const REPORTS = [
   { slug: "sellthrough", title: "Sell-through by genre", summary: "Of the copies acquired in a period, how many have sold, and how fast.", usesRange: true, run: sellthroughReport },
   { slug: "membership", title: "Membership", summary: "Active members, new members and endings per month, and renewals due soon.", usesRange: true, run: membershipReport },
   { slug: "intake", title: "Intake log", summary: "Copies added per month and by source, with acquisition cost, and the latest additions.", usesRange: true, run: intakeReport },
+  { slug: "accounts", title: "Accounts", summary: "Everyone with an account by type (admin, volunteer, member, account holder, unconfirmed), with orders and spend. Shows names and emails.", filters: "accounts", csvTable: "accounts", run: accountsReport },
 ];
 
 const getReport = (slug) => REPORTS.find((r) => r.slug === slug) || null;
 
 // Runs a report for a request's query string.
-async function runReport(db, report, query = {}, now = new Date()) {
+async function runReport(db, report, query = {}, now = new Date(), { csv = false } = {}) {
   const range = parseDateRange(query, now);
-  const ctx = { ...range, group: parseGroup(query.group), today: todayParis(now) };
+  const ctx = { ...range, group: parseGroup(query.group), today: todayParis(now), query, csv };
   const result = await report.run(db, ctx);
   return { ...result, range, group: ctx.group };
 }
 
 module.exports = {
-  REPORTS, GROUPS, LIST_LIMIT, getReport, runReport,
+  REPORTS, GROUPS, LIST_LIMIT, ACCOUNTS_PAGE_SIZE, getReport, runReport,
   validDay, todayParis, subMonths, addDays, parseDateRange, parseGroup, agingCutoffs, agingBucket,
   formatCell, csvCell, toCsv,
 };

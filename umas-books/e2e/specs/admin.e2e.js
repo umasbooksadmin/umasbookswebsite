@@ -222,14 +222,14 @@ s.test("A18b the Sell in shop page opens (nothing is sold)", { as: "admin" }, as
 
 // ---- 5E. Reports and CSV ----
 
-const REPORTS = ["Inventory on hand", "Aging stock", "Sales over time", "Sell-through by genre", "Membership", "Intake log"];
+const REPORTS = ["Inventory on hand", "Aging stock", "Sales over time", "Sell-through by genre", "Membership", "Intake log", "Accounts"];
 
-s.test("A19 (must) the Reports page lists six reports and each opens with tables", { as: "admin" }, async (ctx) => {
+s.test("A19 (must) the Reports page lists seven reports and each opens with tables", { as: "admin" }, async (ctx) => {
   await admin(ctx, "/admin/reports");
   const text = await ctx.text();
   for (const r of REPORTS) has(text, new RegExp(r), "report list");
   const hrefs = await ctx.page.$$eval("a[href^='/admin/reports/']", (as) => as.map((a) => a.getAttribute("href")));
-  assert.ok(hrefs.length >= 6, `report links: ${hrefs.length}`);
+  assert.ok(hrefs.length >= 7, `report links: ${hrefs.length}`);
   for (const h of hrefs) {
     await admin(ctx, h);
     const t = await ctx.text();
@@ -238,7 +238,7 @@ s.test("A19 (must) the Reports page lists six reports and each opens with tables
   }
 });
 
-s.test("A20 (must) each report's Download CSV link serves a CSV file named umas-books-<report>-<table>.csv with no email addresses", { as: "admin" }, async (ctx) => {
+s.test("A20 (must) each report's Download CSV link serves a CSV file named umas-books-<report>-<table>.csv with no email addresses (except Accounts)", { as: "admin" }, async (ctx) => {
   await admin(ctx, "/admin/reports");
   const hrefs = await ctx.page.$$eval("a[href^='/admin/reports/']", (as) => as.map((a) => a.getAttribute("href")));
   let checked = 0;
@@ -251,10 +251,18 @@ s.test("A20 (must) each report's Download CSV link serves a CSV file named umas-
     assert.match(res.headers.get("content-type") || "", /text\/csv/);
     assert.match(res.headers.get("content-disposition") || "", /attachment; filename="umas-books-[a-z0-9_-]+\.csv"/);
     const body = await res.text();
-    assert.doesNotMatch(body, /[^\s,"]+@[^\s,"]+\.[a-z]{2,}/i, `${csv} contains an email address`);
+    // The Accounts report is the list of accounts, so it has emails by design.
+    if (!/\/accounts\?/.test(csv)) assert.doesNotMatch(body, /[^\s,"]+@[^\s,"]+\.[a-z]{2,}/i, `${csv} contains an email address`);
     checked++;
   }
   assert.ok(checked >= 5, `CSV links checked: ${checked}`);
+});
+s.test("A19b the Accounts report shows counts by type and a list with type pills, and downloads as CSV", { as: "admin" }, async (ctx) => {
+  await admin(ctx, "/admin/reports/accounts");
+  const text = await ctx.text();
+  hasNoNaN(text, "accounts report");
+  for (const re of [/Total accounts/, /Unconfirmed/, /Email confirmed/, /Paid orders/, /Download CSV/]) has(text, re);
+  for (const name of ["type", "q", "from", "to"]) assert.ok(await ctx.page.$(`[name='${name}']`), `filter ${name}`);
 });
 s.manual("A21 the sales report counts the online sale, the shop sale and the drop-in seat separately", "needs real paid sales (AC26, AC35, A18)");
 
@@ -324,6 +332,17 @@ s.test("A29 the Members menu and filters work, and Clear Filters resets them", {
   for (const name of ["q", "role", "status", "dateRange"]) assert.ok(await ctx.page.$(`[name='${name}']`), `filter ${name}`);
   await Promise.all([ctx.page.waitForNavigation(), ctx.page.click("a[href='/admin/members'].btn")]);
   assert.equal(new URL(ctx.page.url()).search, "");
+});
+
+s.test("A29b the accounts list shows a role pill per account and filters by type", { as: "admin" }, async (ctx) => {
+  await admin(ctx, "/admin/members");
+  const text = await ctx.text();
+  hasNoNaN(text, "accounts list");
+  for (const re of [/All accounts/, /Volunteer/, /Account holder/, /Unconfirmed/]) has(text, re);
+  for (const role of ["admin", "volunteer", "member", "account", "unconfirmed"]) {
+    await admin(ctx, `/admin/members?role=${role}`);
+    hasNoNaN(await ctx.text(), `role=${role}`);
+  }
 });
 
 s.write("A24 (must) create a tagged test member, mark it as member, and see it in the list", { as: "admin" }, async (ctx) => {
