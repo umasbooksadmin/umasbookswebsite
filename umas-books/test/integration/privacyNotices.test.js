@@ -45,16 +45,20 @@ test("forms that collect new personal data carry the privacy note (one-click but
   }
 });
 
-test("every mailto form on the marketing pages (volunteer, pre-registration) links to the privacy policy, EN + FR", () => {
+test("every form on the marketing pages (volunteer, pre-registration) links to the privacy policy, EN + FR, states the 12-month mailbox retention, and none is a mailto form", () => {
   const dir = path.join(__dirname, "../../views/marketing");
-  const forms = fs.readdirSync(dir).filter((f) => f.endsWith(".ejs") && /data-mailto=/.test(view(`marketing/${f}`)));
-  assert.ok(forms.includes("volunteer.ejs") && forms.includes("pre-registration.ejs"), forms.join(","));
+  const files = fs.readdirSync(dir).filter((f) => f.endsWith(".ejs"));
+  for (const f of files) assert.doesNotMatch(view(`marketing/${f}`), /data-mailto=/, `${f}: mailto forms are gone`);
+  const forms = files.filter((f) => /<form[^>]*action="\/(pre-registration|volunteer-signup)"/.test(view(`marketing/${f}`)));
+  assert.deepEqual(forms.sort(), ["pre-registration.ejs", "volunteer.ejs"]);
   for (const f of forms) {
     const src = view(`marketing/${f}`);
     assert.match(src, /privacy-policy\.html/, f);
     const [en, fr] = src.split("const pageI18nFr");
     assert.match(en.split("const pageI18nEn")[1], /\.privacy": "[^\n]*privacy-policy\.html/, `${f}: EN note`);
     assert.match(fr, /\.privacy": "[^\n]*privacy-policy\.html/, `${f}: FR note`);
+    assert.match(en.split("const pageI18nEn")[1], /\.privacy": "[^\n]*deleted from our mailbox after 12 months/, `${f}: EN retention`);
+    assert.match(fr, /\.privacy": "[^\n]*supprimées de notre messagerie après 12 mois/, `${f}: FR retention`);
   }
 });
 
@@ -80,7 +84,7 @@ test("alert and notice boxes carry ARIA roles in every view", () => {
 
 test("book cover has descriptive alt text", async () => {
   const { rows: b } = await pool.query(
-    "INSERT INTO books (title, authors, cover_url) VALUES ('Alt Book', 'A', 'https://example.test/c.jpg') RETURNING id");
+    "INSERT INTO books (title, authors, cover_url) VALUES ('Alt Book', 'A', $1) RETURNING id", [`/img/${"a".repeat(64)}.jpg`]);
   await pool.query("INSERT INTO book_copies (book_id, status, price) VALUES ($1, 'in_stock', 5)", [b[0].id]);
   assert.match(await get(`/books/${b[0].id}`), /alt="Cover of Alt Book"/);
 });

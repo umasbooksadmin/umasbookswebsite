@@ -277,3 +277,29 @@ document.addEventListener("change", function (e) {
     if (openMenu) closeMenu(openMenu);
   });
 })();
+
+// A book cover that fails to load (deleted image, network error) would show the
+// browser's broken-image frame. Swap it for the neutral "No cover" box of the
+// same size instead. Done here, not with an inline onerror attribute (the CSP
+// blocks inline handlers). Cover images carry data-cover. "error" does not
+// bubble, so listen in the capture phase; images that failed before this script
+// ran are caught on DOMContentLoaded.
+(function () {
+  function toPlaceholder(img) {
+    if (!img || img.tagName !== "IMG" || !img.hasAttribute("data-cover") || !img.parentNode) return;
+    var box = document.createElement("div");
+    box.className = img.className + " cover-none cover-missing book-thumb-placeholder";
+    var fr = document.documentElement.lang === "fr";
+    var alt = img.getAttribute("alt");
+    if (alt) { box.setAttribute("role", "img"); box.setAttribute("aria-label", alt); }
+    else box.setAttribute("aria-hidden", "true");
+    box.textContent = fr ? "Pas de couverture" : "No cover";
+    img.parentNode.replaceChild(box, img);
+  }
+  document.addEventListener("error", function (e) { toPlaceholder(e.target); }, true);
+  document.addEventListener("DOMContentLoaded", function () {
+    document.querySelectorAll("img[data-cover]").forEach(function (img) {
+      if (img.complete && img.naturalWidth === 0) toPlaceholder(img);
+    });
+  });
+})();

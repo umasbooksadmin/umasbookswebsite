@@ -8,7 +8,7 @@
 const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const { startTestApp } = require("../helpers/testApp");
-const { makeCookieJar, fetchCsrfToken } = require("../helpers/httpClient");
+const { makeCookieJar, fetchCsrfToken, clickConfirmationLink } = require("../helpers/httpClient");
 
 const PORT = 3413; // distinct from app.test.js (3411) and sessionStaleness (3412)
 
@@ -57,9 +57,8 @@ test("a new signup is unverified until the emailed link is used", async () => {
 });
 
 test("visiting an invalid verification link redirects with an error, a real one verifies and can't be reused", async () => {
-  const invalidRes = await fetch(`${app.base}/verify-email/not-a-real-token`, { redirect: "manual" });
-  assert.equal(invalidRes.status, 302);
-  assert.equal(invalidRes.headers.get("location"), "/login?verified=invalid");
+  const invalidRes = await clickConfirmationLink(app.base, "/verify-email/not-a-real-token");
+  assert.equal(invalidRes.status, 400);
 
   // Insert a real token directly — the actual raw token never leaves the
   // (unsent, since GMAIL_* isn't configured in tests) email body, so this
@@ -79,16 +78,15 @@ test("visiting an invalid verification link redirects with an error, a real one 
     [userRows[0].id, tokenHash]
   );
 
-  const firstUse = await fetch(`${app.base}/verify-email/${rawToken}`, { redirect: "manual" });
+  const firstUse = await clickConfirmationLink(app.base, `/verify-email/${rawToken}`);
   assert.equal(firstUse.status, 302);
   assert.equal(firstUse.headers.get("location"), "/login?verified=success");
 
   const { rows: afterVerify } = await pool.query("SELECT email_verified_at FROM users WHERE id = $1", [userRows[0].id]);
   assert.ok(afterVerify[0].email_verified_at);
 
-  const secondUse = await fetch(`${app.base}/verify-email/${rawToken}`, { redirect: "manual" });
-  assert.equal(secondUse.status, 302);
-  assert.equal(secondUse.headers.get("location"), "/login?verified=invalid");
+  const secondUse = await clickConfirmationLink(app.base, `/verify-email/${rawToken}`);
+  assert.equal(secondUse.status, 400);
 });
 
 test("an admin-created account is verified immediately, with no link to click", async () => {
@@ -199,8 +197,8 @@ test("an admin changing a member's email clears verification and burns old links
   assert.equal(rows[0].email, newEmail);
   assert.equal(rows[0].email_verified_at, null);
 
-  const oldLink = await fetch(`${app.base}/verify-email/${rawOld}`, { redirect: "manual" });
-  assert.equal(oldLink.headers.get("location"), "/login?verified=invalid");
+  const oldLink = await clickConfirmationLink(app.base, `/verify-email/${rawOld}`);
+  assert.equal(oldLink.status, 400);
   ({ rows } = await pool.query("SELECT email_verified_at FROM users WHERE id = $1", [u[0].id]));
   assert.equal(rows[0].email_verified_at, null, "an old-address link must not verify the new address");
 

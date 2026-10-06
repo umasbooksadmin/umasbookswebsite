@@ -262,9 +262,8 @@ test("Notify refuses when the copy is gone, there is no match, or the status is 
   assert.equal(sent.length, 0);
 });
 
-test("a failed email leaves the request, the copy and the old link as they were", async () => {
+test("a failed send does not undo the hold: the email is queued in the outbox and retried", async () => {
   const m = await matched();
-  const before = await get(m.id);
   const original = mailer.sendMail;
   mailer.sendMail = async () => { throw new Error("smtp down"); };
   let res;
@@ -273,11 +272,16 @@ test("a failed email leaves the request, the copy and the old link as they were"
   } finally {
     mailer.sendMail = original;
   }
-  assert.match(res.location, /error=/);
-  const after_ = await get(m.id);
-  assert.equal(after_.status, "matched");
-  assert.equal(after_.manage_token_hash, before.manage_token_hash);
-  assert.equal((await copy(m.copyId)).status, "in_stock", "the hold was released");
+  assert.match(res.location, /notice=held/);
+  assert.equal((await get(m.id)).status, "notified");
+  assert.equal((await copy(m.copyId)).status, "reserved");
+  const { rows } = await pool.query("SELECT id, status, attempts FROM email_outbox WHERE lower(to_email) = lower($1) AND kind = 'book_request_notify'", [m.email]);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].status, "pending", "waiting for the worker's retry");
+  sent.length = 0;
+  await pool.query("UPDATE email_outbox SET next_try_at = now() WHERE id = $1", [rows[0].id]);
+  await require("../../src/lib/outbox").processOutbox(pool);
+  assert.equal(sent.filter((x) => x.to === m.email).length, 1, "the retry delivers it");
 });
 
 test("Notify and hold: emails, reserves the copy so the hold ends in 7 days, and no pickup reminder is sent", async () => {

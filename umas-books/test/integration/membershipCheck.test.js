@@ -146,7 +146,8 @@ test("payment not found yet: a clear message naming the email to use (EN and FR)
   const html = await press(v);
   assert.ok(html.includes(`<span data-i18n="mem.check.notFoundA">We have not found your payment yet. It can take a few minutes. Make sure you used the email</span> <strong>${account.email}</strong> <span data-i18n="mem.check.notFoundB">on the payment form.</span>`));
   assert.equal((await member(account.email)).is_member, false);
-  assert.match(html, /<iframe id="haWidget"/, "the form stays available");
+  assert.match(html, /<div id="haWidgetHolder"[^>]*data-src="https:\/\/www\.helloasso\.com\/[^"]*widget"/, "the form stays available (click to load)");
+  assert.ok(!html.includes("<iframe"), "no HelloAsso frame before the visitor clicks");
 
   const fr = guest("fr");
   await fr.login(account);
@@ -236,7 +237,7 @@ test("join -> pay on HelloAsso -> confirm email -> choose password: the membersh
   assert.equal((await member(email)).is_member, false);
 
   const confirmPath = new URL(mail.text.match(/https?:\/\/[^\s]+\/verify-email\/[0-9a-f]+/)[0]).pathname;
-  const confirm = await v.get(confirmPath);
+  const confirm = await v.post(confirmPath, { confirm: "1" });
   assert.match(confirm.location, /^\/reset-password\/[0-9a-f]+\?confirmed=1$/);
   assert.equal((await member(email)).is_member, false, "confirming alone is not enough: the password is chosen first");
   const choose = await v.post(confirm.location, { newPassword: "Correct-Horse-9!x" });

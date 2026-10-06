@@ -2,7 +2,7 @@ require("dotenv").config({ quiet: true });
 // Site timezone (Europe/Paris) must be set before any date is created.
 require("./lib/tz");
 // Fail fast (production only) with one clear message, before db.js is loaded.
-require("./lib/env").checkEnv();
+const envCheck = require("./lib/env").checkEnv();
 const path = require("path");
 const express = require("express");
 const compression = require("compression");
@@ -18,9 +18,13 @@ const { csrfProtection, csrfTokenEndpoint } = require("./middleware/csrf");
 const { csrfTokenLimiter } = require("./middleware/rateLimits");
 const { expireStaleReservations, sendPickupReminders } = require("./lib/reservations");
 const { runCartMaintenance: sweepCart } = require("./lib/cart");
+const { runOrderFollowUps } = require("./lib/orderSweeps");
 const { guardJob } = require("./lib/jobGuard");
+const { processOutbox } = require("./lib/outbox");
+const { alertUnmatchedPayments } = require("./lib/membership");
 const { drainAwards } = require("./lib/awards");
 const { purgeUnusedImages } = require("./lib/imageCleanup");
+const { backfillCovers } = require("./lib/coverStore");
 const { purgeExpiredPersonalData } = require("./lib/privacy");
 const { membershipPageState } = require("./lib/membershipPage");
 const { expireStaleMemberships, reconcileRecentMemberships } = require("./lib/membership");
@@ -28,11 +32,13 @@ const { alertOnError } = require("./lib/errorAlert");
 const { errorHandler } = require("./lib/errorHandler");
 const { noStoreForUsers } = require("./middleware/noStoreForUsers");
 const { langMiddleware } = require("./middleware/lang");
+const { resolveTrustProxyHops } = require("./lib/trustProxy");
 const { healthzHandler } = require("./lib/health");
 const seoRoutes = require("./routes/seo");
 const { MARKETING_PAGES, setMarketingSeoLocals, seoLocals } = seoRoutes;
 
 const { renderMarketing } = require("./lib/pageDictionary");
+const { buildMarketingCsp } = require("./lib/marketingCsp");
 const authRoutes = require("./routes/auth");
 const twoFactorRoutes = require("./routes/twoFactor");
 const dashboardRoutes = require("./routes/dashboard");
@@ -47,6 +53,7 @@ const blogRoutes = require("./routes/blog");
 const sessionsRoutes = require("./routes/sessions");
 const booksRoutes = require("./routes/books");
 const contactRoutes = require("./routes/contact");
+const marketingFormRoutes = require("./routes/marketingForms");
 const bookRequestRoutes = require("./routes/bookRequests");
 const cartRoutes = require("./routes/cart");
 const helloassoWebhookRoutes = require("./routes/helloassoWebhook");
@@ -67,6 +74,9 @@ app.set("views", path.join(__dirname, "..", "views"));
 // gzip/deflate for text responses (HTML, JSON, CSS, JS, SVG);
 // compression() skips already-compressed types (images) on its own.
 // First, so static files and JSON endpoints below are all covered.
+// Live site only: any Host other than APP_BASE_URL's (e.g. the *.onrender.com
+// address) is redirected to the canonical one. See middleware/canonicalHost.js.
+app.use(require("./middleware/canonicalHost").canonicalHost());
 app.use(require("./lib/preview").previewMiddleware); // res.locals.preview + X-Robots-Tag (lib/preview.js)
 app.use(compression());
 
@@ -123,7 +133,9 @@ app.use(
         scriptSrc: ["'self'"],
         styleSrc: ["'self'", "'unsafe-inline'"],
         fontSrc: ["'self'"],
-        imgSrc: ["'self'", "data:", "https://covers.openlibrary.org", "https://archive.org", "https://*.archive.org"],
+        // Book covers are copied to our own server (lib/coverStore.js), so no
+        // third-party image host is listed: visitors' browsers never call one.
+        imgSrc: ["'self'", "data:"],
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
         formAction: formActionSources,
@@ -143,7 +155,7 @@ app.use(express.urlencoded({ extended: false }));
 // already defend themselves with [].concat(...), so they're left alone;
 // everything else collapses to its first value, the same as a normal
 // single-submission form would send.
-const MULTI_VALUE_BODY_FIELDS = new Set(["optionIds", "ids"]);
+const MULTI_VALUE_BODY_FIELDS = new Set(["optionIds", "ids", "days", "times"]); // days/times: the pre-registration form
 app.use((req, res, next) => {
   if (req.body && typeof req.body === "object") {
     for (const key of Object.keys(req.body)) {
@@ -161,7 +173,12 @@ if (!process.env.SESSION_SECRET) {
 
 const SESSION_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 const SESSION_REFRESH_AFTER_MS = 24 * 60 * 60 * 1000;
-app.set("trust proxy", 1);
+// Number of trusted proxy hops (TRUST_PROXY_HOPS, default 2 in production:
+// Cloudflare -> Render edge -> app). See lib/trustProxy.js.
+const { hops: trustProxyHops, error: trustProxyError } = resolveTrustProxyHops();
+if (trustProxyError) console.warn(`[proxy] WARNING: ${trustProxyError}`);
+console.log(`[proxy] trusting ${trustProxyHops} proxy hop(s) (TRUST_PROXY_HOPS)`);
+app.set("trust proxy", trustProxyHops);
 app.use(
   session({
     // disableTouch: connect-pg-simple's touch() is an UPDATE run at the
@@ -284,22 +301,7 @@ app.get("/api/session", (req, res) => {
 // carousel) predate this app and aren't nonce-tagged, so these routes
 // carry their own relaxed CSP instead of the strict app-wide one above;
 // the Members Area's own routes keep the stricter policy untouched.
-const marketingCsp = [
-  "default-src 'self'",
-  "script-src 'self' 'unsafe-inline'",
-  "style-src 'self' 'unsafe-inline'",
-  "font-src 'self'",
-  "img-src 'self' data: https://covers.openlibrary.org https://archive.org https://*.archive.org",
-  "object-src 'none'",
-  "base-uri 'self'",
-  `form-action ${formActionSources.join(" ")}`,
-  "frame-ancestors 'none'",
-  // The HelloAsso membership widget iframe (views/marketing/membership.ejs)
-  // — without a frame-src, default-src 'self' blocks it and people see an
-  // empty box. The widget page itself is on www.helloasso.com; the payment
-  // hub (paymenthub.helloassopay.com) loads inside that frame, not in ours.
-  "frame-src https://www.helloasso.com",
-].join("; ");
+const marketingCsp = buildMarketingCsp(formActionSources);
 
 
 app.get("/", (req, res, next) => {
@@ -337,6 +339,11 @@ MARKETING_PAGES.forEach((file) => {
       // so the server also lists the newest books inside <noscript>.
       res.locals.noscriptBooks = await latestArrivals(pool, { limit: 12, days: 0 }).catch(() => []);
     }
+    if (marketingFormRoutes.FORM_PAGES.includes("/" + file)) {
+      // Server-side forms (routes/marketingForms.js): the page carries a CSRF token, so no shared cache.
+      marketingFormRoutes.prepareFormPage(res);
+      res.locals.form = { sent: req.query.sent === "1" };
+    }
     if (file === "membership.html") {
       // Personal (the account's email, membership end date): never cached.
       res.set("Cache-Control", "private, no-store");
@@ -361,8 +368,17 @@ app.use(sessionsRoutes);
 app.use(booksRoutes);
 app.use(cartRoutes);
 app.use(contactRoutes);
+app.use(marketingFormRoutes);
 app.use(bookRequestRoutes);
 app.use(adminRoutes);
+
+// Extensionless marketing addresses (/books, /membership, /about ...) are what
+// people type and what old links use; the real pages end in ".html". Registered
+// AFTER every app route, so an app page that owns the plain name (/events,
+// /blog, /volunteer) keeps it. The query string is preserved (/books?genre=X).
+MARKETING_PAGES.forEach((file) => {
+  app.get("/" + file.replace(/\.html$/, ""), (req, res) => res.redirect(301, "/" + file + qs(req)));
+});
 
 app.use((req, res) => {
   res.status(404).render("404");
@@ -401,6 +417,11 @@ const server = app.listen(port, (err) => {
   if (!err) console.log(`umas-books listening on port ${port}`);
 });
 
+// Launch-guard alerts from lib/env.js (live site with a wrong setup): ONE
+// email per alert per boot. force skips the throttle so they are never
+// swallowed by an unrelated error alert; the text carries no personal data.
+require("./lib/env").sendLaunchAlerts(envCheck && envCheck.alerts, alertOnError);
+
 // Without a handler, a failed bind (most commonly EADDRINUSE) surfaces as
 // an uncaughtException with a stack trace and, in production, an alert
 // email that says nothing useful. Say what happened and exit non-zero.
@@ -432,6 +453,20 @@ const runReservationMaintenance = guardJob("Reservation maintenance", async () =
 runReservationMaintenance();
 const reservationTimer = setInterval(runReservationMaintenance, 6 * 60 * 60 * 1000);
 
+// Follow-up for PAID online orders (lib/orderSweeps.js): ask HelloAsso whether
+// a recent payment was refunded there (one admin alert, nothing restocked
+// automatically), the day-10 customer pickup reminder and the day-12 admin
+// digest. Every 6 hours. Not run at boot: a restart-heavy host would repeat
+// the HelloAsso lookups on every restart, so the first run comes 5 minutes
+// after boot (unref'd: it never keeps the process alive) and then every 6 h.
+const runOrderFollowUpJob = guardJob("Order follow-up", async () => {
+  const results = await runOrderFollowUps(pool);
+  console.log("Order follow-up:", JSON.stringify(results));
+});
+const orderFollowUpFirstRun = setTimeout(runOrderFollowUpJob, 5 * 60 * 1000);
+orderFollowUpFirstRun.unref();
+const orderFollowUpTimer = setInterval(runOrderFollowUpJob, 6 * 60 * 60 * 1000);
+
 // Same idea for the online-checkout cart, but on a much shorter interval
 // than the reservation job above: a cart hold is only good for an hour
 // (see CART_HOLD_TTL_MINUTES in lib/cart.js) and a buyer who closes the
@@ -450,6 +485,17 @@ const runCartMaintenance = guardJob("Cart maintenance", () => {
 });
 runCartMaintenance();
 const cartTimer = setInterval(runCartMaintenance, 10 * 60 * 1000);
+
+// Email outbox worker (lib/outbox.js): retries mail that could not be sent
+// right away, with backoff, and alerts the admin when it gives up. Also the
+// place that sends the throttled "membership payment matches no account" alert.
+const runOutbox = guardJob("Email outbox", async () => {
+  const r = await processOutbox(pool);
+  if (r.sent || r.failed) console.log(`Email outbox: ${r.sent} sent, ${r.failed} failed.`);
+  await alertUnmatchedPayments(pool);
+});
+setTimeout(runOutbox, 15 * 1000).unref();
+const outboxTimer = setInterval(runOutbox, 60 * 1000);
 
 // Retention purge: removes personal data past the periods promised in the
 // privacy policy (lib/privacy.js). Daily is plenty; it also runs once at
@@ -483,6 +529,26 @@ const runAwardsDrain = guardJob("Awards check", async () => {
 });
 const awardsTimer = setInterval(runAwardsDrain, 2 * 60 * 1000);
 
+// Book covers on our own server (lib/coverStore.js): every 5 minutes copy up to 20
+// covers from their Open Library/Internet Archive source address into the image
+// store (books on the shelves first), one at a time with a pause between, each
+// with a time and size limit; a cover that keeps failing is tried at most 3
+// times a week. New books are copied when they are added; this catches the books
+// that existed before, and any download that failed. First tick after one minute
+// (not at boot, so a restart-heavy host never hammers anyone); off in tests
+// (COVER_BACKFILL=off) so they never reach the network.
+let coverTimer = null;
+let coverFirstTimer = null;
+if (process.env.COVER_BACKFILL !== "off") {
+  const runCoverBackfill = guardJob("Cover backfill", async () => {
+    const { processed, stored, failed } = await backfillCovers(pool);
+    if (processed) console.log(`Cover backfill: ${stored} stored, ${failed} failed, ${processed} tried.`);
+  });
+  coverFirstTimer = setTimeout(runCoverBackfill, 60 * 1000);
+  coverFirstTimer.unref();
+  coverTimer = setInterval(runCoverBackfill, 5 * 60 * 1000);
+}
+
 // Graceful shutdown. Render sends SIGTERM on every deploy and spin-down;
 // without a handler the process dies mid-request (an in-flight HelloAsso
 // webhook or checkout would be cut off). Order matters:
@@ -499,10 +565,15 @@ function shutdown(signal) {
   shuttingDown = true;
   console.log(`${signal} received - shutting down gracefully.`);
   clearInterval(reservationTimer);
+  clearInterval(orderFollowUpTimer);
+  clearTimeout(orderFollowUpFirstRun);
   clearInterval(cartTimer);
+  clearInterval(outboxTimer);
   clearInterval(privacyTimer);
   clearInterval(imageCleanupTimer);
   clearInterval(awardsTimer);
+  clearInterval(coverTimer);
+  clearTimeout(coverFirstTimer);
   setTimeout(() => {
     console.error(`Shutdown did not finish within ${SHUTDOWN_TIMEOUT_MS / 1000}s - forcing exit.`);
     process.exit(1);

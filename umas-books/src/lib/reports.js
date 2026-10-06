@@ -311,6 +311,17 @@ async function salesReport(db, ctx) {
     params
   );
   const dropinRows = dropin.map((r) => ({ period: periodLabel(r.period, group), seats: r.seats, revenue: money(r.revenue) }));
+  // Refunds are their own line, counted on the day the admin marked the order
+  // refunded (orders.refunded_at). A refunded order is NOT in the sales above.
+  const { rows: refunds } = await db.query(
+    `SELECT to_char(date_trunc($1::text, o.refunded_at AT TIME ZONE '${TZ}'), 'YYYY-MM-DD') AS period,
+            COUNT(*)::int AS orders, COALESCE(SUM(o.total_amount), 0)::float8 AS amount
+     FROM orders o
+     WHERE o.status = 'refunded' AND o.refunded_at IS NOT NULL AND ${inRange("o.refunded_at", 2, 3)}
+     GROUP BY 1 ORDER BY 1`,
+    params
+  );
+  const refundRows = refunds.map((r) => ({ period: periodLabel(r.period, group), orders: r.orders, amount: money(r.amount) }));
   const periodHeader = group === "week" ? "Week starting (Monday)" : "Period";
   return {
     sections: [
@@ -328,6 +339,12 @@ async function salesReport(db, ctx) {
         key: "dropin", title: "Drop-in class seats (not included in the book sales above)",
         columns: [{ key: "period", label: periodHeader, type: "text" }, { key: "seats", label: "Seats sold", type: "int" }, { key: "revenue", label: "Revenue", type: "eur" }],
         rows: dropinRows, totals: { period: "Total", ...sumRows(dropinRows, ["seats", "revenue"]) },
+      },
+      {
+        key: "refunds", title: "Refunds (online orders refunded in HelloAsso; not included in the sales above)",
+        columns: [{ key: "period", label: periodHeader, type: "text" }, { key: "orders", label: "Orders refunded", type: "int" }, { key: "amount", label: "Amount refunded", type: "eur" }],
+        rows: refundRows, totals: { period: "Total", ...sumRows(refundRows, ["orders", "amount"]) },
+        note: "Counted on the day the order was marked refunded. A refunded order no longer appears in the online sales and drop-in figures.",
       },
     ],
     notes: ["Online = paid orders, counted on the day they were paid. Shop = sales recorded with Sell in shop. Days are Paris days."],

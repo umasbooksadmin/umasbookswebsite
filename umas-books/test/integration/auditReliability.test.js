@@ -43,8 +43,10 @@ test("/membership.html CSP allows the HelloAsso widget frame, and only that", as
   const sources = frameSrc(res.headers.get("content-security-policy"));
   assert.ok(sources, "marketing CSP has a frame-src");
   assert.deepEqual(sources, ["https://www.helloasso.com"]);
-  // The iframe in the page really points at that origin.
-  assert.match(await res.text(), /<iframe[^>]+src="https:\/\/www\.helloasso\.com\//);
+  // The page's click-to-load holder really points at that origin (the iframe itself is created by the visitor's click).
+  const html = await res.text();
+  assert.match(html, /id="haWidgetHolder"[^>]*data-src="https:\/\/www\.helloasso\.com\//);
+  assert.ok(!html.includes("<iframe"), "no frame (and no request to HelloAsso) before the click");
 });
 
 test("the app's own (non-marketing) CSP does not gain a HelloAsso frame-src", async () => {

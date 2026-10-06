@@ -7,7 +7,9 @@
 // or stream) — no caller changes.
 
 const crypto = require("node:crypto");
-const { pool } = require("../db");
+// The pool is loaded on first use, so the pure helpers below (isStoredImageUrl, sha256Hex)
+// can be required by code and unit tests that have no database.
+const defaultPool = () => require("../db").pool;
 
 const EXT_BY_TYPE = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
 const TYPE_BY_EXT = { jpg: "image/jpeg", png: "image/png", webp: "image/webp" };
@@ -22,7 +24,7 @@ function sha256Hex(buffer) {
 // Stores the bytes (identical bytes are stored once; a repeat only refreshes
 // created_at so lib/imageCleanup.js treats it as freshly uploaded) and
 // returns the URL to put in the row, e.g. /img/<64 hex>.jpg.
-async function saveImage(buffer, contentType = "image/jpeg", db = pool) {
+async function saveImage(buffer, contentType = "image/jpeg", db = defaultPool()) {
   const ext = EXT_BY_TYPE[contentType];
   if (!ext) throw new Error(`Unsupported image type: ${contentType}`);
   if (!Buffer.isBuffer(buffer) || buffer.length === 0) throw new Error("saveImage needs a non-empty Buffer");
@@ -36,7 +38,7 @@ async function saveImage(buffer, contentType = "image/jpeg", db = pool) {
 }
 
 // -> { id, contentType, data } or null.
-async function getImage(id, db = pool) {
+async function getImage(id, db = defaultPool()) {
   if (!/^[0-9a-f]{64}$/.test(id)) return null;
   const { rows } = await db.query("SELECT id, content_type, data FROM images WHERE id = $1", [id]);
   return rows[0] ? { id: rows[0].id, contentType: rows[0].content_type, data: rows[0].data } : null;

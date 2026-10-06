@@ -1,5 +1,6 @@
 const express = require("express");
 const { saveImage } = require("../../lib/imageStore");
+const { prepareCover } = require("../../lib/coverStore");
 const { sharpFromUpload, reencodeForVision } = require("../../lib/uploadImage");
 const { pool, withTransaction } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
@@ -456,6 +457,10 @@ router.post("/admin/inventory/lookup", requireAdmin, async (req, res) => {
     }
   }
 
+  // The catalog gives an Open Library address: copy the cover to our own server now
+  // so the preview (and the saved book) never load it from there (lib/coverStore.js).
+  if (book.coverUrl) book = { ...book, coverUrl: (await prepareCover(book.coverUrl)).cover };
+
   const defaultPricing = await getDefaultCopyPricing(book.isbn);
   // The price starts at the suggestion for the form's default condition.
   const { rows: stocked } = book.isbn ? await pool.query("SELECT b.binding FROM books b WHERE b.isbn = ANY($1) LIMIT 1", [isbnVariants(normalizeIsbn(book.isbn))]) : { rows: [] };
@@ -584,11 +589,14 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
         const genDescriptionFr = existing.description_fr
           ? null
           : (descriptionFr || (finalDescription ? await translateDescriptionToFrench(finalDescription) : null));
-        if (genDescription || genCoverUrl || genDescriptionFr) {
+        const genCover = await prepareCover(genCoverUrl);
+        if (genDescription || genCover.cover || genCover.source || genDescriptionFr) {
           await pool.query(
             `UPDATE books SET description = COALESCE($1, description), cover_url = COALESCE($2, cover_url),
+                    cover_source_url = COALESCE($5, cover_source_url),
+                    cover_fetch_failures = CASE WHEN $5::text IS NULL THEN cover_fetch_failures ELSE 0 END,
                     description_fr = COALESCE($3, description_fr), updated_at = now() WHERE id = $4`,
-            [genDescription, genCoverUrl, genDescriptionFr, bookId]
+            [genDescription, genCover.cover, genDescriptionFr, bookId, genCover.source]
           );
         }
       }
@@ -601,12 +609,14 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
       coverUrl || findCoverUrl({ isbn, title, author }),
     ]);
     descriptionFr = descriptionFr || (description ? await translateDescriptionToFrench(description) : null);
+    // Copy the cover to our server (an external address is only kept as the download source).
+    const cover = await prepareCover(coverUrl);
 
     const { rows } = await pool.query(
-      `INSERT INTO books (isbn, title, authors, publisher, published_year, description, description_fr, cover_url, categories, categories_fr, binding, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      `INSERT INTO books (isbn, title, authors, publisher, published_year, description, description_fr, cover_url, categories, categories_fr, binding, created_by, cover_source_url)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        ON CONFLICT DO NOTHING RETURNING id`,
-      [isbn || null, title, author, publisher, publishedYear, description, descriptionFr, coverUrl, genre, genreFr, binding, req.session.user.id]
+      [isbn || null, title, author, publisher, publishedYear, description, descriptionFr, cover.cover, genre, genreFr, binding, req.session.user.id, cover.source]
     );
     if (rows.length) {
       bookId = rows[0].id;
@@ -729,12 +739,15 @@ router.post("/admin/inventory/:id", requireAdmin, async (req, res) => {
       coverUrl || findCoverUrl({ isbn, title, author }),
     ]);
     descriptionFr = descriptionFr || (description ? await translateDescriptionToFrench(description) : null);
+    const cover = await prepareCover(coverUrl);
     try {
       await pool.query(
         `UPDATE books SET isbn=$1, title=$2, authors=$3, publisher=$4, published_year=$5,
-                description=$6, description_fr=$7, cover_url=$8, categories=$9, categories_fr=$10, binding=$11, updated_at=now()
+                description=$6, description_fr=$7, cover_url=$8, categories=$9, categories_fr=$10, binding=$11,
+                cover_source_url = COALESCE($13, cover_source_url),
+                cover_fetch_failures = CASE WHEN $13::text IS NULL THEN cover_fetch_failures ELSE 0 END, updated_at=now()
          WHERE id = $12`,
-        [isbn || null, title, author, publisher, publishedYear, description, descriptionFr, coverUrl, genre, genreFr, normalizeBinding(req.body.binding), id]
+        [isbn || null, title, author, publisher, publishedYear, description, descriptionFr, cover.cover, genre, genreFr, normalizeBinding(req.body.binding), id, cover.source]
       );
     } catch (err) {
       if (err.code !== "23505") throw err;

@@ -69,6 +69,10 @@ function request(path, { method = "GET", body, lang, jar } = {}) {
     body: body ? new URLSearchParams(body).toString() : undefined,
   });
 }
+// What pressing "Confirm my email" on the page behind the emailed link does
+// (the link itself only shows the button; see routes/auth.js). CSRF is not
+// checked by this in-process harness.
+const pressConfirm = (path, opts = {}) => request(path, { ...opts, method: "POST", body: { confirm: "1" } });
 // Signup collects no password: a "password" sent anyway is ignored.
 const signup = (email, password, lang) => request("/signup", { method: "POST", body: { email, ...(password ? { password } : {}), displayName: "Test Person" }, lang });
 // An account as the previous signup form created it (attacker's own password,
@@ -110,7 +114,7 @@ test("account created by the old signup form (attacker's own password): no sessi
   assert.match(await early.text(), /confirm your email first/i);
 
   // 3. The victim clicks the link: sent to choose a password, not to the login.
-  const click = await request(verifyPath);
+  const click = await pressConfirm(verifyPath);
   assert.equal(click.status, 302);
   const resetPath = click.headers.get("location");
   assert.match(resetPath, /^\/reset-password\/[0-9a-f]+\?confirmed=1$/);
@@ -140,7 +144,7 @@ test("account created by the old signup form (attacker's own password): no sessi
   assert.equal(ok.status, 302);
   assert.equal(ok.headers.get("location"), "/");
   // The link is single use.
-  assert.equal((await request(verifyPath)).headers.get("location"), "/login?verified=invalid");
+  assert.equal((await pressConfirm(verifyPath)).status, 400);
   assert.equal((await request(resetPath.split("?")[0], { method: "POST", body: { newPassword: "Another-One-3#" } })).status, 400);
 });
 
@@ -161,7 +165,7 @@ test("attacker scenario with the new signup: the attacker can set no password be
   assert.equal(early.headers.get("set-cookie"), null);
 
   // The mailbox owner confirms and chooses; only then does a password exist.
-  const resetPath = (await request(verifyPath)).headers.get("location");
+  const resetPath = (await pressConfirm(verifyPath)).headers.get("location");
   assert.equal((await login(victim, ATTACKER_PW)).status, 401);
   assert.equal((await request(resetPath, { method: "POST", body: { newPassword: VICTIM_PW } })).status, 302);
   assert.equal((await login(victim, ATTACKER_PW)).status, 401);
@@ -171,7 +175,7 @@ test("attacker scenario with the new signup: the attacker can set no password be
 test("the password chosen after confirming still goes through the password policy", async () => {
   const email = `policy-${uniq()}@example.test`;
   await signup(email);
-  const resetPath = (await request(await linkFor(email, "verify-email"))).headers.get("location");
+  const resetPath = (await pressConfirm(await linkFor(email, "verify-email"))).headers.get("location");
   const weak = await request(resetPath, { method: "POST", body: { newPassword: "abc" } });
   assert.equal(weak.status, 400);
   assert.match(await weak.text(), /at least 8 characters/);
@@ -186,7 +190,7 @@ test("membership attaches only after the victim has chosen the password", async 
   await signup(victim, ATTACKER_PW);
   const verifyPath = await linkFor(victim, "verify-email");
 
-  const click = await request(verifyPath);
+  const click = await pressConfirm(verifyPath);
   const resetPath = click.headers.get("location");
   await new Promise((r) => setTimeout(r, 400));
   assert.equal((await userRow(victim)).is_member, false, "no membership while the attacker's password is the only one");
@@ -210,7 +214,7 @@ test("legitimate signup works in English and French: confirm, choose a password,
     assert.match(mail.text, lang === "fr" ? /confirmer votre adresse e-mail et choisir votre mot de passe/ : /confirm your email address and choose your password/);
 
     const verifyPath = await linkFor(email, "verify-email");
-    const click = await request(verifyPath, { lang });
+    const click = await pressConfirm(verifyPath, { lang });
     const resetPath = click.headers.get("location");
     const page = await (await request(resetPath, { lang })).text();
     assert.match(page, lang === "fr" ? /Adresse confirmée\u00a0: choisissez maintenant votre mot de passe/ : /Email confirmed: now choose your password/);
@@ -239,7 +243,7 @@ test("admin-created and grandfathered (already verified) accounts are unaffected
   await pool.query("INSERT INTO email_verification_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, now() + interval '1 hour')",
     [rows[0].id, require("crypto").createHash("sha256").update(raw).digest("hex")]);
   const before = await userRow(changed);
-  const click = await request(`/verify-email/${raw}`);
+  const click = await pressConfirm(`/verify-email/${raw}`);
   assert.equal(click.headers.get("location"), "/login?verified=success");
   const after = await userRow(changed);
   assert.ok(after.email_verified_at);

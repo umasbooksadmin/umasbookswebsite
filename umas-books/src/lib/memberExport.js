@@ -40,13 +40,22 @@ async function buildMemberExport(pool, userId) {
               o.created_at, o.paid_at, o.cgv_accepted_at, o.cgv_version,
               COALESCE((SELECT json_agg(json_build_object('title', i.item_title, 'price', i.price) ORDER BY i.id)
                         FROM order_items i WHERE i.order_id = o.id), '[]'::json) AS items
-       FROM orders o WHERE lower(o.buyer_email) = $1 ORDER BY o.created_at`,
-      [email]
+       FROM orders o
+       WHERE o.user_id = $2 OR (o.user_id IS NULL AND lower(o.buyer_email) = $1)
+       ORDER BY o.created_at`,
+      [email, userId]
     ),
     membership_payments: await q(
       `SELECT id, helloasso_order_id, payer_email, amount_cents, paid_at, created_at
        FROM membership_payments WHERE user_id = $1 OR lower(payer_email) = $2 ORDER BY paid_at`,
       [userId, email]
+    ),
+    // Copies of emails we sent to this address are kept 30 days (lib/outbox.js);
+    // the text is left out (it may hold a one-time link), the record is enough.
+    emails_sent: await q(
+      `SELECT id, kind, subject, status, created_at, sent_at FROM email_outbox
+       WHERE lower(to_email) = $1 AND purged_at IS NULL ORDER BY created_at`,
+      [email]
     ),
     favorites: await q(
       `SELECT f.created_at, b.title, b.authors FROM favorites f JOIN books b ON b.id = f.book_id

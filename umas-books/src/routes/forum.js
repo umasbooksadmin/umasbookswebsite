@@ -3,7 +3,7 @@ const { pool } = require("../db");
 const { requireMember } = require("../middleware/auth");
 const { forumPostLimiter, forumReplyLimiter, limit } = require("../middleware/rateLimits");
 const { clean, parseId, emailSafeName } = require("../lib/validation");
-const { sendMail } = require("../mailer");
+const { sendEmail } = require("../lib/outbox");
 const { baseUrl } = require("../lib/baseUrl");
 const { unpackReason } = require("../lib/forumModeration");
 
@@ -165,7 +165,8 @@ router.post("/forum/report", requireMember, forumReportLimiter, async (req, res)
     excerpt,
   ];
   try {
-    await sendMail({
+    await sendEmail({
+      kind: "forum_report",
       to: REPORT_TO,
       subject: `Forum report: ${REPORT_REASONS[reasonKey]} (${kind} ${id})`,
       text: lines.join("\n") + "\n",

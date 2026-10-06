@@ -2,9 +2,8 @@
    (pre-registration.html), linked from the Preregister button on
    immersion.html. Reuses the Home page hero art (assets/home.css,
    loaded before this file); everything below is specific to this
-   page's two-column form layout. No backend — the form submits as a
-   mailto: (see form[data-mailto] in assets/site.js), same pattern as
-   the Volunteer and Wishlist pages. */
+   page's two-column form layout. The form posts to the server
+   (POST /pre-registration, routes/marketingForms.js), which emails it. */
 
 /* ---------- Hero ---------- */
 .preg-hero-copy { position: relative; z-index: 1; text-align: center; padding: 50px 24px 28px; max-width: 720px; margin: 0 auto; }

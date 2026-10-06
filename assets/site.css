@@ -459,3 +459,32 @@ body:not(.home) .mkt-footer { margin-top: 56px; }
 .btn-maroon, .btn-submit, .h-btn:not(.h-btn-outline), .bk-search button, .btn-outline:hover, .h-btn-outline:hover {
   font-weight: 700; -webkit-font-smoothing: auto; -moz-osx-font-smoothing: auto;
 }
+
+/* ---------- Server-side marketing forms (pre-registration, volunteer) ----------
+   Honeypot: off-screen, never shown. Errors: dark red on cream (9:1), never
+   colour alone (the summary lists them in words and the field says so). */
+.hp-field { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+.form-error-summary {
+  background: #fbeceb; border: 2px solid #8c1c13; color: #5e120c; border-radius: 4px;
+  padding: 16px 20px; margin: 0 0 24px; max-width: 62ch; text-align: left;
+}
+.form-error-summary:focus { outline: 3px solid #8c1c13; outline-offset: 2px; }
+.form-error-summary h2 { font-size: 20px; margin: 0 0 8px; color: #5e120c; text-transform: none; letter-spacing: normal; }
+.form-error-summary ul { margin: 0; padding-left: 20px; }
+.form-error-summary a { color: #5e120c; text-decoration: underline; }
+.field-error { color: #8c1c13; font-size: 15px; margin: 2px 0 0; font-weight: 600; }
+.field-error::before { content: "\26A0\00a0"; }
+input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="true"] { border: 2px solid #8c1c13 !important; }
+.form-success {
+  background: #eef3ea; border: 2px solid var(--green); border-radius: 4px; padding: 22px 24px; max-width: 62ch;
+}
+.form-success:focus { outline: 3px solid var(--green); outline-offset: 2px; }
+.form-success h2 { margin: 0 0 8px; font-size: 22px; text-transform: none; letter-spacing: normal; }
+.form-hint-inline, .preg-health { font-size: 15px; color: var(--ink); margin: 0; }
+.formcard .req, .preg-form .req { color: var(--maroon-dark); }
+.formcard .check-row { display: flex; align-items: flex-start; gap: 10px; text-transform: none; letter-spacing: 0; font-weight: 400; font-size: 16px; color: var(--ink); }
+.formcard .check-row input { width: auto; margin-top: 4px; }
+.preg-check-group { margin-bottom: 12px; }
+.mem-widget-holder { margin: 8px 0 0; }
+.mem-widget-gate { border: 1px solid var(--card-border); border-radius: 4px; padding: 18px 20px; background: #fbfaf7; }
+.mem-widget-gate .mem-widget-note { margin-bottom: 14px; }

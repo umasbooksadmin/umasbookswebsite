@@ -18,6 +18,9 @@
 <% if (locals.preview) { %>
 <div class="admin-preview-note" role="status">PREVIEW MODE is ON: payments are disabled and the public site shows the coming-soon banner. Remove the PREVIEW_MODE setting in Render to launch.</div>
 <% } %>
+<% if (locals.helloassoSandbox) { %>
+<div class="admin-sandbox-note" role="alert">HelloAsso sandbox: payments are not real. The site is live but HELLOASSO_API_BASE still points at the HelloAsso sandbox. Fix it in Render &gt; Environment.</div>
+<% } %>
 <div class="admin-layout">
   <div class="admin-nav-backdrop" data-close-admin-nav></div>
   <aside class="admin-sidebar" id="admin-sidebar">
@@ -41,6 +44,7 @@
       <a href="/admin/reports" class="<%= active === 'reports' ? 'is-active' : '' %>">Reports</a>
       <a href="/admin/pricing" class="<%= active === 'pricing' ? 'is-active' : '' %>">Pricing rules</a>
       <a href="/admin/audit" class="<%= active === 'audit' ? 'is-active' : '' %>">Admin activity</a>
+      <a href="/admin/email-outbox" class="<%= active === 'email-outbox' ? 'is-active' : '' %>">Email outbox</a>
     </nav>
     <a class="admin-view-site" href="/" target="_blank" rel="noopener">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6"/><path d="M15 3h6v6"/><path d="M10 14 21 3"/></svg>

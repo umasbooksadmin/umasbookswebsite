@@ -1,0 +1,22 @@
+<%
+/* The error summary above a marketing-site server form (pre-registration,
+   volunteer). Params: form ({ errors: { field: { key, label } }, error }),
+   ids (field name -> input id, for the links), dict (the page's English
+   dictionary, for the field labels). The messages themselves are the
+   form.err.* entries of assets/site.js COMMON (formMsg() = the English text;
+   the data-i18n hooks let the language toggle and the French server render
+   swap them). role="alert" announces it; assets/form-errors.js moves focus to it. */
+const _errs = (form && form.errors) || {};
+const _keys = Object.keys(_errs);
+if (_keys.length || (form && form.error)) {
+%>
+<div class="form-error-summary" id="form-errors" role="alert" tabindex="-1" data-form-errors>
+  <h2 data-i18n="form.err.title"><%= formMsg('form.err.title') %></h2>
+  <ul>
+    <% if (form.error) { %><li data-i18n="form.err.<%= form.error %>"><%= formMsg('form.err.' + form.error) %></li><% } %>
+    <% _keys.forEach(function (k) { const e = _errs[k]; %>
+    <li><a href="#<%= ids[k] %>"><span data-i18n="<%= e.label %>"><%= dict[e.label] %></span> — <span data-i18n="form.err.<%= e.key %>"><%= formMsg('form.err.' + e.key) %></span></a></li>
+    <% }) %>
+  </ul>
+</div>
+<% } %>

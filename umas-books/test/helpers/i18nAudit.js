@@ -83,7 +83,7 @@ const ALLOWLIST = [
   "Adventures", // the shop's name ("Uma's Books and Adventures") in the events hero
   "Contact", // the same word in French
   /^Render( Services, Inc\.)?$|^render\.com$|^cm2c\.net$|^Google$|^Backblaze$|^Anthropic$/, // processors named in the privacy policy and legal notice
-  "TVA non applicable", // French legal mention, required as is
+  /^TVA non applicable(, art\. .* du CGI)?$|^Prix TTC, TVA non applicable/, // French legal mention, required as is
   /^(Éveil English|Young Readers|Young Adventurers|Little Explorers|Teen Literature|English Café)$/, // programme names, English on purpose
   // The official consumer-law notice (Consumer Code art. D211-2) is French in both languages by law.
   /^(Le |La |Les |Toute |Si |Lorsque ).*(consommat|garantie|bien\b)/,

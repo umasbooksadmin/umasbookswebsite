@@ -10,8 +10,9 @@ const { test, beforeEach } = require("node:test");
 const assert = require("node:assert/strict");
 
 const sent = [];
-// Must be replaced before the libs below destructure it.
-require("../../src/mailer").sendMail = async (opts) => { sent.push(opts); };
+// Must be replaced before the libs below destructure it. (The outbox itself,
+// store-then-send, is covered in outbox.test.js.)
+require("../../src/lib/outbox").sendEmail = async (opts) => { sent.push(opts); return { id: 1, sent: true }; };
 
 const { pool } = require("../../src/db");
 let langLookup = null;
@@ -67,12 +68,12 @@ test("signup-attempt email in both languages", async () => {
 
 test("password reset email in both languages", async () => {
   await sendResetLink(user("fr"), "https://shop.test");
-  assert.equal(sent[0].subject, "Réinitialisez votre mot de passe membre Uma's Books");
+  assert.equal(sent[0].subject, "Réinitialisez le mot de passe de votre compte Uma's Books");
   assert.match(sent[0].text, /ce lien expire dans 1 heure/);
   assert.match(sent[0].text, /https:\/\/shop\.test\/reset-password\//);
   sent.length = 0;
   await sendResetLink(user("en"), "https://shop.test");
-  assert.equal(sent[0].subject, "Reset your Uma's Books members password");
+  assert.equal(sent[0].subject, "Reset your Uma's Books account password");
   assert.match(sent[0].text, /this link expires in 1 hour/);
 });
 

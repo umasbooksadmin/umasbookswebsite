@@ -37,6 +37,7 @@ s.test("G2 each footer link opens a page, no error page", async (ctx) => {
   await ctx.goto("/");
   const hrefs = await ctx.page.$$eval("footer a[href]", (as) => as.map((a) => a.getAttribute("href")).filter((h) => h && h !== "#"));
   assert.ok(hrefs.length >= 5, "footer links present");
+  assert.equal((await ctx.page.$$("footer a[href='#']")).length, 0, "no placeholder social links in the footer");
   for (const h of hrefs) {
     const res = await ctx.goto(h);
     assert.ok(res.status() < 400, `${h} answered ${res.status()}`);
@@ -212,6 +213,12 @@ s.test("G15 (must) a book page shows cover, title, author, binding, price, copie
   has(text, /by /);
   has(text, /cover images may not show|may not show the actual condition|Cover images/i);
   if (book.binding) has(text, /Binding/);
+  // The friendly used-book disclaimer and the price tax line; never a waiver of legal rights.
+  has(text, /Price incl\. tax, TVA non applicable/);
+  has(text, /Our second-hand books are sold as described, so please read the condition grade, and ask us if you have any question\./);
+  has(text, /Used books: no returns or exchanges for a change of mind in the shop\. For online orders, your statutory 14-day right of withdrawal and the legal guarantees still apply\./);
+  hasNot(text, /waive|renounce/i);
+  assert.ok(await ctx.page.$(".book-disclaimer a[href='/terms-of-sale.html']"), "the disclaimer links the terms");
 });
 
 s.test("G16 (must) 'What the grades mean' lists the four grades", async (ctx) => {
@@ -220,6 +227,7 @@ s.test("G16 (must) 'What the grades mean' lists the four grades", async (ctx) =>
   await ctx.page.click(".grade-legend summary");
   const legend = await ctx.page.$eval(".grade-legend", (d) => d.innerText);
   for (const g of ["New", "Like New", "Very Good", "Acceptable"]) has(legend, new RegExp(g));
+  has(legend, /The grade is the description of the book/);
 });
 
 s.test("G17 a clearance copy shows the Clearance badge on the book page", async (ctx) => {
@@ -295,6 +303,10 @@ s.test("G-FR11 FR check (books): search page, book page and grade legend in Fren
   await ctx.page.click(".grade-legend summary");
   const legend = await ctx.page.$eval(".grade-legend", (d) => d.innerText);
   for (const g of ["Neuf", "Comme neuf", "Très bon état", "État acceptable"]) has(legend, new RegExp(g));
+  has(legend, /L’état indiqué est la description du livre/);
+  has(text, /Prix TTC, TVA non applicable/);
+  has(text, /Nos livres d’occasion sont vendus tels que décrits/);
+  has(text, /Livres d’occasion\s:\spas de reprise ni d’échange pour simple changement d’avis en boutique\. Pour les achats en ligne, votre droit légal de rétractation de 14 jours \(art\. L\.221-18\) et les garanties légales de conformité et des vices cachés restent applicables\./);
   assert.equal(await ctx.page.$eval("html", (h) => h.lang), "fr");
 });
 
@@ -355,9 +367,12 @@ s.test("G25 English programs, programs and pre-registration pages open", async (
   }
   await ctx.goto("/immersion.html");
   has(await ctx.text(), /Preregister|Pre-register/i);
-  const mailto = await ctx.page.$("form[data-mailto]");
   await ctx.goto("/pre-registration.html");
-  assert.ok(await ctx.page.$("form[data-mailto]") || mailto, "the pre-registration form is a mailto form");
+  assert.ok(await ctx.page.$("form[action='/pre-registration'][method='post']"), "the pre-registration form posts to the server");
+  assert.equal(await ctx.page.$("form[data-mailto]"), null, "no mailto form any more");
+  await ctx.goto("/volunteer.html");
+  assert.ok(await ctx.page.$("form[action='/volunteer-signup'][method='post']"), "the volunteer form posts to the server");
+  assert.equal(await ctx.page.$("form[data-mailto]"), null, "no mailto form any more");
 });
 
 s.test("G26 the sessions page lists upcoming sessions with filters and Month / Week", async (ctx) => {
@@ -487,6 +502,10 @@ s.test("G39 (must) each legal page opens with full text and the seller identity"
   await ctx.goto("/terms-of-sale.html");
   const tos = await ctx.text();
   for (const re of [/14 days/i, /withdrawal/i, /mediat/i]) has(tos, re);
+  has(tos, /Second-hand books: no returns/);
+  has(tos, /This does not affect your legal rights as a consumer, including the right of withdrawal for online orders described below and the legal guarantees\./);
+  has(tos, /Tuesday to Saturday, 10:00–19:00/);
+  hasNot(tos, /waive|renounce/i);
   await ctx.goto("/mentions-legales.html");
   const ml = await ctx.text();
   has(ml, /Albi/);
@@ -775,7 +794,10 @@ s.test("G55 (must) submitting the form shows the payment step with the email to 
   const firstWrap = await wrap();
   for (const re of [/Next: pay for your membership/, /We have emailed you a link: click it after paying/, /Use this same email on the payment form:/]) has(first, re);
   assert.ok((await ctx.page.$eval("#memJoinedEmail", (e) => e.innerText)).includes(email), "the email to use on the payment form is shown");
-  assert.ok(await ctx.page.$("#haWidget"), "the HelloAsso payment form is shown now");
+  assert.equal(await ctx.page.$("#haWidget"), null, "nothing is loaded from HelloAsso before the click");
+  await ctx.page.click("#haShow");
+  await ctx.page.waitForSelector("#haWidget");
+  assert.ok(await ctx.page.$("#haWidget"), "the HelloAsso payment form is shown after the click");
   // The same address again (an account now exists): the page must be identical.
   await Promise.all([ctx.page.waitForNavigation(), ctx.page.click("form[action='/membership/join/reset'] button")]);
   await joinWith(ctx, email);
@@ -794,6 +816,90 @@ s.test("G56 'Use a different email' returns to the Name and Email form", async (
   await Promise.all([ctx.page.waitForNavigation(), ctx.page.click("form[action='/membership/join/reset'] button")]);
   assert.ok(await ctx.page.$(JOIN), "the form is back");
   assert.equal(await ctx.page.$("#haWidget"), null);
+});
+
+// ---- 1K. The pre-registration and volunteer forms (server-side) ----
+
+const ERR_SUMMARY = "#form-errors[role='alert']";
+
+s.test("G57 (must) the pre-registration form refuses an empty submission with an error summary, marked fields and focus on the summary", async (ctx) => {
+  await ctx.goto("/pre-registration.html");
+  has(await ctx.text(), /Do not enter health information here/);
+  await Promise.all([ctx.page.waitForNavigation(), ctx.page.click("form[action='/pre-registration'] button[type='submit']")]);
+  assert.ok(await ctx.page.$(ERR_SUMMARY), "error summary with role=alert");
+  has(await ctx.text(), /There is a problem/);
+  const links = await ctx.page.$$eval(`${ERR_SUMMARY} a`, (as) => as.map((a) => a.getAttribute("href")));
+  for (const id of ["#preg-first", "#preg-last", "#preg-dob", "#preg-session", "#preg-days", "#preg-times", "#preg-parent", "#preg-email", "#preg-phone", "#preg-consent"]) assert.ok(links.includes(id), `summary links to ${id}`);
+  assert.equal(await ctx.page.$eval("#preg-first", (i) => i.getAttribute("aria-invalid")), "true");
+  const describedBy = await ctx.page.$eval("#preg-first", (i) => i.getAttribute("aria-describedby"));
+  assert.ok(describedBy && await ctx.page.$(`#${describedBy.split(" ").pop()}`), "the field is described by its error text");
+  assert.equal(await ctx.page.evaluate(() => document.activeElement && document.activeElement.id), "form-errors", "focus is on the summary");
+});
+
+s.test("G58 (must) the pre-registration needs the parent or guardian box; a complete form is sent and shows a thank-you", async (ctx) => {
+  await ctx.goto("/pre-registration.html");
+  const fill = async () => {
+    await ctx.page.type("#preg-first", `${process.env.E2E_RUN_ID} Child`);
+    await ctx.page.type("#preg-last", "Test");
+    await ctx.page.$eval("#preg-dob", (i) => { i.value = "2018-04-12"; });
+    await ctx.page.select("#preg-session", "young-adventurers");
+    await ctx.page.select("#preg-days", "tue", "sat");
+    await ctx.page.select("#preg-times", "morning");
+    await ctx.page.type("#preg-parent", `${process.env.E2E_RUN_ID} Parent`);
+    await ctx.page.type("#preg-email", testEmail("preregistration"));
+    await ctx.page.type("#preg-phone", "0600000000");
+  };
+  await fill();
+  await Promise.all([ctx.page.waitForNavigation(), ctx.page.click("form[action='/pre-registration'] button[type='submit']")]);
+  const links = await ctx.page.$$eval(`${ERR_SUMMARY} a`, (as) => as.map((a) => a.getAttribute("href")));
+  assert.deepEqual(links, ["#preg-consent"], "only the consent is missing");
+  has(await ctx.text(), /Tick this box to continue/);
+  assert.equal(await ctx.page.$eval("#preg-first", (i) => i.value.includes("Child")), true, "what was typed is kept");
+  has(await ctx.page.$eval("label[for='preg-consent']", (l) => l.innerText), /I am the parent or legal guardian of the child and I agree to be contacted about this program/);
+  if (!cfg.allowWrites()) ctx.skip("needs E2E_ALLOW_WRITES=1 for the final submit (it sends an email to the shop mailbox)");
+  await ctx.page.click("#preg-consent");
+  await Promise.all([ctx.page.waitForNavigation(), ctx.page.click("form[action='/pre-registration'] button[type='submit']")]);
+  has(await ctx.text(), /Thank you, your pre-registration has been sent/);
+  ctx.created("pre-registration (email to the admin mailbox)", `${process.env.E2E_RUN_ID} Child`, "delete the email from the shop mailbox");
+});
+
+s.test("G59 (must) the volunteer form needs name, email and consent; a complete form is sent and shows a thank-you", async (ctx) => {
+  await ctx.goto("/volunteer.html");
+  has(await ctx.text(), /Do not enter health information here/);
+  await Promise.all([ctx.page.waitForNavigation(), ctx.page.click("form[action='/volunteer-signup'] button[type='submit']")]);
+  const links = await ctx.page.$$eval(`${ERR_SUMMARY} a`, (as) => as.map((a) => a.getAttribute("href")));
+  assert.deepEqual(links, ["#vol-name", "#vol-email", "#vol-consent"]);
+  assert.equal(await ctx.page.$eval("#vol-email", (i) => i.getAttribute("aria-invalid")), "true");
+  if (!cfg.allowWrites()) ctx.skip("needs E2E_ALLOW_WRITES=1 for the final submit (it sends an email to the shop mailbox)");
+  await ctx.page.type("#vol-name", `${process.env.E2E_RUN_ID} Volunteer`);
+  await ctx.page.type("#vol-email", testEmail("volunteer-form"));
+  await ctx.page.click("#vol-consent");
+  await Promise.all([ctx.page.waitForNavigation(), ctx.page.click("form[action='/volunteer-signup'] button[type='submit']")]);
+  has(await ctx.text(), /Thank you, your sign-up has been sent/);
+  ctx.created("volunteer sign-up (email to the admin mailbox)", `${process.env.E2E_RUN_ID} Volunteer`, "delete the email from the shop mailbox");
+});
+
+s.manual("G60 the pre-registration and volunteer emails arrive in the shop mailbox with the right reply-to, and are deleted after 12 months", "tests cannot read email; the 12-month cleanup is a yearly manual job (docs/runbook.md)");
+
+s.test("G-FR57 FR check (forms): the errors, the guardian statement and the health line are in French", { lang: "fr" }, async (ctx) => {
+  await ctx.goto("/pre-registration.html");
+  has(await ctx.text(), /Ne saisissez pas d’informations de santé ici/);
+  has(await ctx.page.$eval("label[for='preg-consent']", (l) => l.innerText), /Je suis le parent ou le représentant légal de l’enfant et j’accepte d’être contacté\(e\) au sujet de ce programme/);
+  await Promise.all([ctx.page.waitForNavigation(), ctx.page.click("form[action='/pre-registration'] button[type='submit']")]);
+  for (const re of [/Il y a un problème/, /Ce champ est obligatoire\./, /Cochez cette case pour continuer\./]) has(await ctx.text(), re);
+});
+
+s.test("G61 a book page shows the cover from our own server with its size reserved, and no request goes to Open Library", async (ctx) => {
+  const book = await stockedBook(ctx);
+  await ctx.goto(`/books/${book.id}`);
+  const cover = await ctx.page.$eval("img.book-detail-cover", (i) => ({ src: i.getAttribute("src"), w: i.getAttribute("width"), h: i.getAttribute("height"), prio: i.getAttribute("fetchpriority"), ok: i.complete && i.naturalWidth > 0 }))
+    .catch(() => null);
+  if (!cover) ctx.skip("data: this book has no cover");
+  assert.match(cover.src, /^\/img\/[0-9a-f]{64}\.jpg$/);
+  assert.ok(cover.w && cover.h, "width and height are set");
+  assert.equal(cover.prio, "high");
+  const { html } = await pageHtml(ctx, `/books/${book.id}`);
+  assert.doesNotMatch(html, /openlibrary\.org|archive\.org/);
 });
 
 s.test("G-FR55 FR check (membership): the form and the payment step are in French", { lang: "fr" }, async (ctx) => {

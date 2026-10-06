@@ -22,7 +22,7 @@ Result: ______________________  Date: ____ / ____ / ______  Done by: ___________
 
 ## Google Workspace (Gmail)
 
-- **What they get:** every email the site sends or receives: names, email addresses, phone numbers and message text from the contact form, order and reservation confirmations, reminders, password-reset and verification emails, and error alerts. Also the content of the inbox itself.
+- **What they get:** every email the site sends or receives: names, email addresses, phone numbers and message text from the contact, volunteer sign-up and pre-registration forms (including a child's name and date of birth, given by a parent or guardian), order and reservation confirmations, reminders, password-reset and verification emails, and error alerts. Also the content of the inbox itself.
 - **Role:** processor (for Workspace).
 - **Action for Sharon:** sign in to the Google Admin console (admin.google.com) as a super administrator and go to Account > Account settings > Legal and compliance, then accept the **Data Processing Amendment** (the exact wording of the menu may change slightly). Choose the option that applies to the association's contact for data protection (admin@umasbooks.org).
 - 2-step verification: confirmed on 4 October 2026 (Sharon Bjeletich) to be on for every Google account that can open the admin inbox; only Sharon Bjeletich has access to admin@umasbooks.org. Re-check it in the console at the yearly review.
@@ -101,10 +101,18 @@ Date checked: ____ / ____ / ______ / Done by: ____________
 - **What they get (`src/lib/awards/nyt.js`):** a book's ISBN-13 and our API key, only when `NYT_API_KEY` is set. **No personal data.**
 - **Action for Sharon:** none for the DPA. Keep to their terms (5 requests per minute, 500 per day; the code enforces both).
 
-## Open Library (book data)
+## Open Library / Internet Archive (book data and covers)
 
-- **What they get:** an ISBN or a title/author search when an admin adds a book (`src/lib/bookLookup.js`), and the cover image is fetched from their server. No personal data. Their server will see the Render server's IP address, not a person's.
+- **What they get:** an ISBN or a title/author search when an admin adds a book (`src/lib/bookLookup.js`), and a request for the cover image, both made **by our server** (`src/lib/coverStore.js`). No personal data: the request carries no visitor information. Their server sees the Render server's IP address, not a person's.
+- **Visitors' browsers never contact them.** Covers are copied to our own database and served from our own address; the site's Content-Security-Policy lists no external image host. (Before October 2026 covers were loaded straight from their servers in each visitor's browser, which sent visitor IP addresses to a US operator; that is fixed.)
 - **Action for Sharon:** none (no personal data). 
+
+Date checked: ____ / ____ / ______ / Done by: ____________
+
+## Cloudflare (network in front of Render)
+
+- **What they get:** the website is served through Cloudflare, the content-delivery and security network that Render uses at its edge. Every request from a visitor passes through it: it sees the visitor's **IP address**, the pages requested and the traffic relayed to our server (including what people type in forms). It is a sub-processor of Render, not something we configure.
+- **Action for Sharon:** nothing to sign separately if Render's own DPA (Render dashboard > Account/Workspace settings > look for the data processing addendum on Render's legal page) covers its sub-processors: check Render's sub-processor list names Cloudflare, and keep a copy of the DPA. The public privacy policy names Cloudflare as a recipient (US company; transfers under the standard contractual clauses or EU-US Data Privacy Framework).
 
 Date checked: ____ / ____ / ______ / Done by: ____________
 

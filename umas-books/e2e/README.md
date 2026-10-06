@@ -26,7 +26,7 @@ HelloAsso, judging whether something "looks right") are in the list too, as
 2. **It never pays.** The browser is blocked from loading any HelloAsso address,
    so a payment page is never even opened. In preview mode the tests check that
    checkout is switched off. With payments on, one test (AC24, only with
-   `E2E_ALLOW_WRITES=1`) presses **Pay & Buy**, checks that the site sends the
+   `E2E_ALLOW_WRITES=1`) presses **Order with obligation to pay**, checks that the site sends the
    browser towards the HelloAsso address, and stops there. That leaves one
    unpaid order that holds a book for 60 minutes; the site frees it by itself.
 3. **Passwords stay with you.** They are read only from variables you set in
@@ -162,7 +162,7 @@ final list) and uses `example.invalid` e-mail addresses.
 
 - **Test book**: admin > Books & Orders > search the tag > open it > **Delete this book**.
 - **Test member** (left disabled): admin > Accounts > search the tag > **Erase Member**.
-- **Unconfirmed sign-up** (account test AC3): same, **Erase Member**.
+- **Unconfirmed sign-up** (account test AC3): same, **Erase Member** (it also deletes itself 7 days after sign-up if it holds no data).
 - **Unpaid orders** (AC24, E2): nothing to do; they expire by themselves after an
   hour and the book goes back on sale (admin > Orders shows them as expired).
 - **Book requests**: admin > Book Requests > **Waiting for email confirmation**

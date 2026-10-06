@@ -355,8 +355,8 @@ test("checkout refuses a 3rd pending order for one email, with a friendly messag
   assert.equal(createdIntents.length, 2);
 });
 
-test("checkout refuses a 3rd pending order from one IP across different emails", async () => {
-  for (let i = 0; i < 2; i++) {
+test("checkout refuses an 11th pending order from one IP across different emails (a shared wifi gets 10)", async () => {
+  for (let i = 0; i < 10; i++) {
     const v = guest();
     await addToCart(v, await makeCopy());
     assert.equal((await checkout(v, `cap-ip-${uniq()}@example.test`)).res.status, 302);
@@ -366,7 +366,9 @@ test("checkout refuses a 3rd pending order from one IP across different emails",
   await addToCart(v, copy);
   const email = `cap-ip-${uniq()}@example.test`;
   const r = await checkout(v, email);
-  assert.match(r.text, /already have unpaid orders/);
+  // The unpaid-order cap (200 + message) and the 10-per-hour checkout limiter (429) both stop at 10 per IP.
+  assert.ok([200, 429].includes(r.res.status), `status ${r.res.status}`);
+  assert.notEqual(r.res.status, 302);
   assert.equal((await orderByEmail(email)).length, 0);
   assert.equal((await copyRow(copy)).status, "in_stock");
   const { rows } = await pool.query("SELECT client_ip FROM orders WHERE client_ip IS NOT NULL LIMIT 1");
@@ -500,6 +502,14 @@ test("/cart/return: HelloAsso says paid -> order paid, copies sold, confirmation
   const r = await guest().get(returnPath(order));
   assert.equal(r.res.status, 200);
   assert.match(r.text, /Thank you!/);
+  // The page is the buyer's proof of payment even without the email: order
+  // number, what was bought, the total, and a print button.
+  assert.match(r.text, new RegExp(`Order #${order.id} paid`));
+  assert.match(r.text, /id="order-summary"/);
+  assert.match(r.text, /Return Book/);
+  assert.match(r.text, /Total:[^<]*4\.00|Total:[^<]*4,00/);
+  assert.match(r.text, /data-print/);
+  assert.match(r.text, /print-button\.js/);
   assert.equal(await orderStatus(order.id), "paid");
   const c = await copyRow(copy);
   assert.equal(c.status, "sold");
@@ -515,6 +525,22 @@ test("/cart/return: HelloAsso says paid -> order paid, copies sold, confirmation
   await guest().get(returnPath(order));
   await new Promise((r2) => setTimeout(r2, 100));
   assert.equal(sentEmails.length, 1);
+});
+
+test("/cart/return: with Gmail down the buyer still gets the 'Order #N paid' proof, and the confirmation waits in the outbox", async () => {
+  const { order, intentId } = await pendingOrder();
+  intents.set(intentId, { order: { id: 4243, payments: [{ state: "Authorized" }] } });
+  const realSend = mailer.sendMail;
+  mailer.sendMail = async () => { throw new Error("smtp down"); };
+  const realError = console.error;
+  console.error = () => {};
+  let r;
+  try { r = await guest().get(returnPath(order)); } finally { console.error = realError; mailer.sendMail = realSend; }
+  assert.match(r.text, new RegExp(`Order #${order.id} paid`));
+  const { rows } = await pool.query("SELECT status, attempts FROM email_outbox WHERE related_order_id = $1", [order.id]);
+  assert.deepEqual(rows, [{ status: "pending", attempts: 1 }]);
+  const { rows: o } = await pool.query("SELECT confirmation_sent_at FROM orders WHERE id = $1", [order.id]);
+  assert.equal(o[0].confirmation_sent_at, null);
 });
 
 test("/cart/return: HelloAsso says refused -> order cancelled, copies back in stock", async () => {

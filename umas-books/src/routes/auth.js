@@ -4,6 +4,7 @@ const bcrypt = require("bcryptjs");
 const { limit, ipKey } = require("../middleware/rateLimits");
 const { pool } = require("../db");
 const { hashToken } = require("../lib/resetTokens");
+const { isActiveMember } = require("../lib/memberStatus");
 const { sendResetLink, createResetToken } = require("../lib/passwordReset");
 const { sendVerificationEmail, sendSignupAttemptEmail } = require("../lib/emailVerification");
 const { validateNewPassword } = require("../lib/passwordPolicy");
@@ -97,7 +98,7 @@ function loginAs(req, res, user, redirectTo) {
     }
     req.session.user = {
       id: user.id, email: user.email, displayName: user.display_name,
-      isAdmin: user.is_admin, isMember: user.is_member, isVolunteer: user.is_volunteer,
+      isAdmin: user.is_admin, isMember: isActiveMember(user), isVolunteer: user.is_volunteer,
       passwordChangedAt: user.password_changed_at.getTime(),
       totpEnabled: Boolean(user.totp_enabled_at),
     };
@@ -261,8 +262,12 @@ router.post("/membership/join", signupLimiter, async (req, res) => {
 });
 
 // "Use a different email" on the payment step: forget the typed address.
-router.post("/membership/join/reset", (req, res) => {
+router.post("/membership/join/reset", async (req, res) => {
   delete req.session.membershipJoin;
+  // Saved BEFORE redirecting: express-session answers a redirect before the
+  // store write lands, so the next page view could still see the old state
+  // (and show the payment step again instead of the form).
+  await saveSession(req);
   res.redirect(303, MEMBERSHIP_PAGE);
 });
 
@@ -294,8 +299,7 @@ router.post("/membership/check", (req, res, next) => {
     if (!helloasso.isConfigured()) return await flash("error");
     await syncMembershipForEmail(pool, u.email);
     const { rows: after } = await pool.query("SELECT is_member, member_expires_at FROM users WHERE id = $1", [req.session.user.id]);
-    const exp = after[0].member_expires_at ? new Date(after[0].member_expires_at) : null;
-    const found = after[0].is_member && (!exp || exp > new Date());
+    const found = isActiveMember(after[0]);
     if (found) req.session.user.isMember = true;
     return await flash(found ? "found" : "notfound");
   } catch (err) {
@@ -322,11 +326,36 @@ router.post("/membership/check", (req, res, next) => {
 // Only accounts flagged by POST /signup (first_verification_pending) take
 // this path: admin-created, grandfathered and admin-email-changed accounts
 // keep their passwords and just become verified.
-router.get("/verify-email/:token", async (req, res) => {
+// The link in the email only SHOWS a page with one button; the work happens on
+// the button's POST. Mail scanners (Outlook SafeLinks, antivirus) open every
+// link in a message with a GET, and a GET that changed state would use the
+// single-use token up before the person ever clicked (they would then see
+// "invalid or expired"). Same pattern as /request-a-book/confirm/:token.
+// Both verbs share one limiter: the route is unauthenticated.
+const verifyEmailLimiter = limit({ windowMs: 15 * MINUTE, max: 30 });
+
+// One hash, computed once at startup (cost 10, ~100 ms, a one-off) and reused
+// for every first confirmation: nobody knows what it is the hash of (random
+// bytes thrown away), which is all "unusable password" needs. Hashing inside
+// the request let anyone burn CPU by hitting the URL with random tokens.
+const UNUSABLE_PASSWORD_HASH = bcrypt.hashSync(crypto.randomBytes(32).toString("hex"), 10);
+
+const renderVerifyEmail = (res, state, token, status = 200) => {
+  res.set("Cache-Control", "no-store");
+  return res.status(status).render("verify_email", { state, token });
+};
+
+router.get("/verify-email/:token", verifyEmailLimiter, async (req, res) => {
+  // Read-only peek: nothing is consumed here.
+  const { rows } = await pool.query(
+    "SELECT 1 FROM email_verification_tokens WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now()",
+    [hashToken(req.params.token)]
+  );
+  return rows.length ? renderVerifyEmail(res, "ask", req.params.token) : renderVerifyEmail(res, "invalid", "", 400);
+});
+
+router.post("/verify-email/:token", verifyEmailLimiter, async (req, res) => {
   const tokenHash = hashToken(req.params.token);
-  // Computed before the transaction (bcrypt is slow); only used on the
-  // first-verification path.
-  const unusableHash = await bcrypt.hash(crypto.randomBytes(32).toString("hex"), 10);
   const client = await pool.connect();
   let outcome;
   try {
@@ -339,7 +368,7 @@ router.get("/verify-email/:token", async (req, res) => {
     );
     if (!claimed.length) {
       await client.query("ROLLBACK");
-      return res.redirect("/login?verified=invalid");
+      return renderVerifyEmail(res, "invalid", "", 400);
     }
     const { rows: users } = await client.query(
       "SELECT id, email, email_verified_at, first_verification_pending FROM users WHERE id = $1 FOR UPDATE",
@@ -357,7 +386,7 @@ router.get("/verify-email/:token", async (req, res) => {
                 password_hash = $2, password_changed_at = now(),
                 failed_login_attempts = 0, locked_until = NULL
          WHERE id = $1`,
-        [user.id, unusableHash]
+        [user.id, UNUSABLE_PASSWORD_HASH]
       );
       await client.query("UPDATE password_reset_tokens SET used_at = now() WHERE user_id = $1 AND used_at IS NULL", [user.id]);
       const rawReset = await createResetToken(client, user.id, returnTo);
