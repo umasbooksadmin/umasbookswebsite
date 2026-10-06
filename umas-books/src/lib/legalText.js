@@ -4,20 +4,20 @@
 // (see middleware/lang.js); emails and tests require this file directly.
 //
 // Rules for these texts:
-//  - The shop does not take back second-hand books for a change of mind in the
-//    shop, but the legal guarantees still apply, and so does the statutory
-//    right of withdrawal wherever the law provides for it (whether a
-//    reservation paid in the shop is a distance contract is an open legal
-//    question: docs/legal-todos.md). The text must NEVER say that those rights
-//    are waived.
+//  - A reservation is a free, non-binding hold; the sale is made and paid in the
+//    shop in person (so no distance-selling withdrawal notice or form is shown
+//    for books and seats: the lawyer is asked to confirm, docs/legal-todos.md).
+//    The shop does not take back second-hand books for a change of mind once
+//    bought in the shop, but the legal guarantees still apply. The text must
+//    NEVER say that the legal guarantees are waived.
 //  - French typography: a no-break space (U+00A0) before ; : ! ? and %.
 const legal = require("./legal"); // read at call time, so one constant drives every page
 
 const NB = " ";
 
 const NO_RETURNS = {
-  en: "Used books: no returns or exchanges for a change of mind in the shop. The legal guarantees still apply, and so does the statutory right of withdrawal where the law provides for it.",
-  fr: `Livres d’occasion${NB}: pas de reprise ni d’échange pour simple changement d’avis en boutique. Les garanties légales de conformité et des vices cachés restent applicables, ainsi que le droit légal de rétractation lorsque la loi le prévoit.`,
+  en: "Reserving is free and commits you to nothing. You pay and the sale is made in the shop, after you have seen the book. Used books are not taken back for a change of mind once bought in the shop; the legal guarantees still apply.",
+  fr: `Réserver est gratuit et ne vous engage à rien. Vous payez et la vente est conclue en boutique, après avoir vu le livre. Les livres d’occasion ne sont ni repris ni échangés pour simple changement d’avis une fois achetés en boutique${NB}; les garanties légales restent applicables.`,
 };
 
 // Shown on the book page next to the price, before the NO_RETURNS notice.

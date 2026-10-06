@@ -12,12 +12,16 @@ let app;
 before(async () => { app = await startTestApp({ port: PORT, isolated: true }); });
 after(() => app.stop());
 
-test("terms of sale page is served with withdrawal, guarantees, mediator and no-VAT wording", async () => {
+test("terms of sale page is served with guarantees, mediator, HelloAsso (membership only) and no-VAT wording, and no withdrawal notice for books", async () => {
   const res = await fetch(`${app.base}/terms-of-sale.html`);
   assert.equal(res.status, 200);
   const html = await res.text();
-  for (const needle of ["L.221-18", "14 days", "L.217-3", "1641", "CM2C", "TVA non applicable", "109 441 147 00013", "HelloAsso", "06 98 95 67 91"]) {
+  for (const needle of ["L.217-3", "1641", "CM2C", "TVA non applicable", "109 441 147 00013", "HelloAsso", "06 98 95 67 91"]) {
     assert.ok(html.includes(needle), `missing ${needle}`);
+  }
+  // A reservation is a free hold and the sale is made in the shop: no distance-selling withdrawal notice or form for books and seats.
+  for (const banned of ["L.221-18", "L.221-24", "L.221-28", "Withdrawal form", "withdraw from a book purchase"]) {
+    assert.ok(!html.includes(banned), `must not contain ${banned}`);
   }
 });
 
@@ -68,45 +72,49 @@ test("terms of sale: EN and FR dictionaries have the same keys and cover every s
   for (const k of [...src.matchAll(/data-i18n(?:-html)?="(ts\.[^"]+)"/g)].map((m) => m[1])) {
     assert.ok(k in en && k in fr, k);
   }
-  assert.match(fr["ts.s5.p"], /L\.221-18/);
   assert.match(fr["ts.s8.p"], /CM2C/);
 });
 
-test("terms of sale (English and French): used-book no-returns clause that keeps the legal rights, new books at the publisher's price, no commercial guarantee, L.221-24 refund timing", async () => {
+test("terms of sale (English and French): free non-binding reservation, price honoured, hold and limits, payment and condition check in the shop, no-returns clause that keeps the legal guarantees, new books at the publisher's price, no commercial guarantee", async () => {
   for (const [lang, needles] of [
     ["en", [
       "Second-hand books: no returns",
-      "Used books: no returns or exchanges for a change of mind in the shop. The legal guarantees still apply, and so does the statutory right of withdrawal where the law provides for it.",
-      "This does not affect your legal rights as a consumer, including the right of withdrawal, where the law provides for it, described below, and the legal guarantees.",
-      "This right applies where the law provides for it.",
+      "Reserving is free and commits you to nothing. You pay and the sale is made in the shop, after you have seen the book. Used books are not taken back for a change of mind once bought in the shop; the legal guarantees still apply.",
+      "This does not affect your legal rights as a consumer, including the legal guarantees.",
+      "The price shown when you reserve is honoured for the whole time the reservation is held.",
+      "released automatically, with no fee and no penalty",
+      "you pay there, in cash or by card, when you collect your books",
+      "You can check the condition of each book on the spot, and you are free to decline it: nothing is then due.",
+      "kept for 30 days after it ends",
+      "each a single copy",
       "Nothing is paid online, and reserving does not oblige you to buy.",
       "We hold your books for 14 days",
       "extend the hold once, by 7 days",
       "at most 10 books and 3 open reservations",
       "until 24 hours before the session starts",
-      "the sale is concluded at the shop",
       "Only membership is",
       "81-766 of 10 August 1981",
       "a discount of at most 5 %",
       "We give no commercial guarantee beyond the legal guarantees",
-      "we may withhold the refund until we have the book back or you have shown proof that you returned it",
       "Tuesday to Saturday, 10:00–19:00",
       "Prices are in euros and include all taxes",
     ]],
     ["fr", [
       "Livres d’occasion\u00a0: pas de reprise",
-      "Livres d’occasion\u00a0: pas de reprise ni d’échange pour simple changement d’avis en boutique. Les garanties légales de conformité et des vices cachés restent applicables, ainsi que le droit légal de rétractation lorsque la loi le prévoit.",
+      "Réserver est gratuit et ne vous engage à rien. Vous payez et la vente est conclue en boutique, après avoir vu le livre. Les livres d’occasion ne sont ni repris ni échangés pour simple changement d’avis une fois achetés en boutique\u00a0; les garanties légales restent applicables.",
       "Cela ne porte pas atteinte à vos droits légaux de consommateur",
-      "Ce droit s’applique lorsque la loi le prévoit.",
+      "Le prix affiché au moment de la réservation est garanti pendant toute la durée de la réservation.",
+      "sans frais ni pénalité",
+      "vous y payez, en espèces ou par carte",
+      "vous êtes libre de le refuser\u00a0: rien n’est alors dû",
+      "conservées 30 jours après sa fin",
       "Rien n’est payé en ligne, et réserver ne vous oblige pas à acheter.",
       "Nous gardons vos livres 14 jours",
-      "la vente est conclue à la boutique",
       "Seule l’adhésion se paie en ligne",
       "loi n°\u00a081-766 du 10 août 1981",
       "5\u00a0% au maximum",
       "Nous n’offrons aucune garantie commerciale en plus des garanties légales",
-      "nous pouvons différer le remboursement jusqu’à la récupération du livre",
-      "du mardi au samedi, de 10h à 19h",
+      "du mardi au samedi, de 10h à 19h\u00a0:",
       "toutes taxes comprises",
     ]],
   ]) {
@@ -118,11 +126,12 @@ test("terms of sale (English and French): used-book no-returns clause that keeps
   }
 });
 
-test("terms of sale: the drop-in text has no waiver or checkout wording (no right of withdrawal under L.221-28 12°)", async () => {
+test("terms of sale: the drop-in text has no waiver, checkout or withdrawal wording (the seat is reserved free and paid at the session)", async () => {
   const html = await (await fetch(`${app.base}/terms-of-sale.html`)).text();
-  assert.ok(html.includes("the right of withdrawal does not apply to them (art. L.221-28, 12°). If we cancel a session"));
+  assert.ok(html.includes("A drop-in seat is held until the session is over."));
+  assert.ok(html.includes("For a drop-in seat, come at the session time and pay there."));
   assert.ok(!html.includes("at checkout"));
-  assert.ok(!html.includes("because at checkout you expressly ask"));
+  assert.ok(!html.includes("right of withdrawal does not apply"));
 });
 
 test("footer: no placeholder social links while SOCIAL_LINKS is empty", async () => {

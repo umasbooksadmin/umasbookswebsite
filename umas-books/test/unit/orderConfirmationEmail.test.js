@@ -15,7 +15,7 @@ test("EN reservation confirmation: number, Paris date, items, prices, total, pay
   assert.match(t, /Total to pay at the shop: €12\.50/);
   assert.match(t, /PAY AT THE SHOP WHEN YOU COLLECT/);
   assert.match(t, /We hold your books until the end of 19 March 2026 \(Paris time\)\. After that they go back on sale\./);
-  assert.match(t, /Uma's Books, Rue Peyrolière, 81000 Albi — open Tuesday to Saturday, 10:00 to 19:00\. Please quote reservation #42\. Cash, card and cheque are accepted\./, "pickup is at the shop (with the hours), not the registered office");
+  assert.match(t, /Uma's Books, Rue Peyrolière, 81000 Albi — open Tuesday to Saturday, 10:00 to 19:00\. Please quote reservation #42\. You pay in cash or by card, after checking the book: you are free to decline it\./, "pickup is at the shop (with the hours), not the registered office");
   assert.match(t, /TO CANCEL\nLog in and open your account page, then press “Cancel reservation”: https:\/\/shop\.test\/account/);
   assert.match(t, /Terms of sale: https:\/\/shop\.test\/terms-of-sale\.html/);
 });
@@ -38,15 +38,15 @@ test("seller identity: RNA, SIRET, registered office, phone, e-mail, and 'TVA no
   assert.match(t, /admin@umasbooks\.org\nTVA non applicable/, "contact email sits in the seller block");
 });
 
-test("the confirmation carries the withdrawal information, the model form, guarantees and the mediator (CM2C), in French and English (L.221-13)", () => {
+test("the confirmation carries the no-returns notice, guarantees, the mediator (CM2C) and the VAT line in French and English, and NO withdrawal notice or form (a reservation is a free hold, the sale is made in the shop)", () => {
   const t = buildOrderConfirmationText({ id: 7, buyer_name: "A", total_amount: 5, created_at: new Date() }, [{ item_title: "B", price: 5 }], "");
-  for (const needle of ["L.221-18", "FORMULAIRE DE RÉTRACTATION", "WITHDRAWAL FORM", "Droit de rétractation", "Right of withdrawal", "CM2C", "1641", "TVA non applicable", "YOUR RIGHTS", "VOS DROITS"]) {
+  for (const needle of ["CM2C", "1641", "TVA non applicable", "YOUR RIGHTS", "VOS DROITS", "Reserving is free and commits you to nothing", "Réserver est gratuit et ne vous engage à rien"]) {
     assert.ok(t.includes(needle), `missing ${needle}`);
   }
-  // The right of withdrawal is stated as "where the law provides for it", never as a blanket promise to online orders.
-  assert.match(t, /this right applies where the law provides for it/);
-  assert.match(t, /ce droit s’applique lorsque la loi le prévoit/);
-  assert.match(t, /The legal guarantees still apply, and so does the statutory right of withdrawal where the law provides for it\./);
+  for (const banned of ["L.221-18", "WITHDRAWAL FORM", "FORMULAIRE DE RÉTRACTATION", "Right of withdrawal", "Droit de rétractation", "rétractation"]) {
+    assert.ok(!t.includes(banned), `must not contain ${banned}`);
+  }
+  assert.ok(!/proof of purchase|order confirmed/i.test(t), "it is a reservation, not a proof of purchase");
 });
 
 test("a reservation without a base URL still says where to cancel, and omits the terms link it cannot build", () => {
@@ -57,11 +57,11 @@ test("a reservation without a base URL still says where to cancel, and omits the
 
 // ------------------------------------------------------------ languages
 
-const { orderConfirmationSubject, LEGAL_RIGHTS, WITHDRAWAL_FORM, SELLER_LINES } = require("../../src/lib/orderEmail");
+const { orderConfirmationSubject, LEGAL_RIGHTS, SELLER_LINES } = require("../../src/lib/orderEmail");
 
 test("French reservation: French subject and body, prices, date, deadline, shop address and hours, how to cancel", () => {
   const t = buildOrderConfirmationText({ ...order, lang: "fr" }, items, "https://shop.test/");
-  assert.equal(orderConfirmationSubject("fr"), "Votre réservation chez Uma's Books est confirmée");
+  assert.equal(orderConfirmationSubject("fr"), "Votre réservation chez Uma's Books");
   assert.match(t, /^Bonjour Ada,/);
   assert.match(t, /Merci pour votre réservation\. Rien n’a été payé en ligne : vous réglez à la boutique au moment du retrait\./);
   assert.match(t, /Réservation n° 42 — 06\/03\/2026/);
@@ -70,27 +70,27 @@ test("French reservation: French subject and body, prices, date, deadline, shop 
   assert.doesNotMatch(t, /€\d/, "no English-style price in a French email");
   assert.match(t, /À RÉGLER À LA BOUTIQUE AU RETRAIT/);
   assert.match(t, /Nous gardons vos livres jusqu’à la fin de la journée du 19 mars 2026 \(heure de Paris\)\. Passé ce délai, ils sont remis en vente\./);
-  assert.match(t, /Uma's Books, rue Peyrolière, 81000 Albi — ouvert du mardi au samedi, de 10 h à 19 h\. Merci d’indiquer la réservation n° 42\. Espèces, carte bancaire et chèque sont acceptés\./);
+  assert.match(t, /Uma's Books, rue Peyrolière, 81000 Albi — ouvert du mardi au samedi, de 10 h à 19 h\. Merci d’indiquer la réservation n° 42\. Vous payez en espèces ou par carte, après avoir vérifié le livre : vous êtes libre de le refuser\./);
   assert.match(t, /POUR ANNULER\nConnectez-vous, ouvrez votre page de compte puis appuyez sur « Annuler la réservation » : https:\/\/shop\.test\/account/);
   assert.match(t, /Conditions de vente : https:\/\/shop\.test\/terms-of-sale\.html/);
   assert.doesNotMatch(t, /Thanks for your reservation|Pay at the shop|^Hi /im);
 });
 
-test("French reservation keeps the bilingual legal block, withdrawal form and seller identity verbatim", () => {
+test("French reservation keeps the bilingual legal block and seller identity verbatim", () => {
   const t = buildOrderConfirmationText({ ...order, lang: "fr" }, items, "");
-  for (const block of [LEGAL_RIGHTS, WITHDRAWAL_FORM, SELLER_LINES]) assert.ok(t.includes(block));
+  for (const block of [LEGAL_RIGHTS, SELLER_LINES]) assert.ok(t.includes(block));
   assert.match(t, /YOUR RIGHTS/);
   assert.match(t, /VOS DROITS/);
 });
 
 test("English is the default: a missing or unknown order.lang means English", () => {
-  assert.equal(orderConfirmationSubject("en"), "Your reservation at Uma's Books is confirmed");
+  assert.equal(orderConfirmationSubject("en"), "Your reservation at Uma's Books");
   const base = buildOrderConfirmationText(order, items, "https://shop.test/");
   assert.match(base, /^Hi Ada,\n\nThanks for your reservation\./);
   assert.match(base, /Total to pay at the shop: €12\.50/);
   for (const lang of [undefined, null, "", "de", "FR"]) {
     assert.equal(buildOrderConfirmationText({ ...order, lang }, items, "https://shop.test/"), base, `lang ${String(lang)}`);
-    assert.equal(orderConfirmationSubject(lang), "Your reservation at Uma's Books is confirmed");
+    assert.equal(orderConfirmationSubject(lang), "Your reservation at Uma's Books");
   }
   assert.equal(buildOrderConfirmationText({ ...order, lang: "en" }, items, "https://shop.test/"), base);
 });

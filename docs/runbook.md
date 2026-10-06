@@ -324,7 +324,7 @@ To launch:
 4. Click **Save changes**. Render redeploys the service by itself; wait until
    it shows **Live**.
 5. Check the site: no banner on the home page, a logged-in account holder can
-   press "Reserve these books" in the cart, `/membership.html` shows the
+   press "Reserve (free, no commitment)" in the cart, `/membership.html` shows the
    HelloAsso form, and
    `https://<your site>/robots.txt` no longer says `Disallow: /`. The red
    "PREVIEW MODE is ON" strip is gone from the admin screens.
@@ -480,7 +480,7 @@ secret** = same page, **Secrets** tab.
 
 Do this once after the deploy that introduced `TRUST_PROXY_HOPS`, and again if
 you ever change the Cloudflare or Render set-up. Rate limits (including the one on
-"Reserve these books") and the admin activity log all depend on the app seeing the visitor's real
+"Reserve (free, no commitment)") and the admin activity log all depend on the app seeing the visitor's real
 address and not a Cloudflare one.
 
 1. Log in as an admin, on your **phone on mobile data** (wifi off), and open
@@ -630,7 +630,7 @@ terms of sale, `/terms-of-sale.html`):
 - A customer can cancel their reservation from their account page; a seat only
   until **24 hours** before the session.
 - Customer emails: a confirmation right after reserving (with the deadline, the
-  shop address and the withdrawal information the law asks for), a reminder on
+  shop address and how to cancel; it is a reservation, not a proof of purchase), a reminder on
   day 10, a short "your reservation has ended" email if it lapses (no penalty),
   and a reminder 24 hours before a reserved drop-in seat.
 - You get one email "N reservations expiring within 2 days" (once per
@@ -733,22 +733,20 @@ order to collect it ... or cancel the reservation first").
 
 ### Refund after collecting
 
-Customers can change their mind after buying only where the law gives a right
-(see the terms of sale, "Right of withdrawal"; the shop itself does not take
-books back for a change of mind in the shop). The terms say: "Used books: no
-returns or exchanges for a change of mind in the shop. The legal guarantees
-still apply, and so does the statutory right of withdrawal where the law
-provides for it." **Whether that right applies to a reservation paid in the shop
-is an open legal question** (`docs/legal-todos.md`, section 7), so **never
-refuse a withdrawal email from a customer on the grounds of the no-returns
-rule**: answer, look at the book, and ask the association's adviser if you are
-unsure.
+A reservation is a free hold and the sale is made and paid in the shop, so the
+site shows no withdrawal notice or form for books and seats (a legal review
+asked for this; the lawyer is asked to confirm: `docs/legal-todos.md`, section
+7). The terms say: "Used books are not taken back for a change of mind once
+bought in the shop; the legal guarantees still apply." The legal guarantees
+(a book that does not match its description) always apply, so **never refuse a
+customer who writes about a book that does not match its description**: look at
+the book and ask the association's adviser if you are unsure.
 
 **The website cannot move money.** The refund is done **in the shop** (cash,
 cheque or card), then you record it:
 
 1. Read the customer's email to admin@umasbooks.org (a clear email is enough:
-   the withdrawal form in the terms is optional). Open the order: admin >
+   no form is needed). Open the order: admin >
    **Orders** > search. Check it is **Paid**.
 2. Get the book back (it can be kept until the book is back, but never later
    than 14 days after the email) and give the money back: cash, cheque or card.

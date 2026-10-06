@@ -16,44 +16,32 @@ const sellerLines = () =>
   `Uma's Books — association loi 1901, RNA W811011706, SIRET 109 441 147 00013, 5 rue Hippolyte Savary, 81000 Albi\nTél. / Phone : 06 98 95 67 91 — admin@umasbooks.org\n${vatNotice()}`;
 const SELLER_LINES = sellerLines();
 
-// Consumer Code art. L.221-13: a confirmation must carry the withdrawal
-// information and the model withdrawal form ON A DURABLE MEDIUM, a link to
-// the website does not count. Whether a reservation paid in the shop is a
-// distance contract at all is an open legal question (docs/legal-todos.md), so
-// the withdrawal information stays in the email, with the neutral sentence "this
-// right applies where the law provides for it". The essentials of the terms of
-// sale are in the email itself (the full terms stay at /terms-of-sale.html).
+// A reservation is a free, non-binding hold: the sale is made and paid in the shop
+// in person, so the email carries NO distance-selling withdrawal notice and NO
+// model withdrawal form (a legal review asked for this; the lawyer is asked to
+// confirm, docs/legal-todos.md). What stays: the no-returns notice, the legal
+// guarantees, the mediator and the seller identity. The full terms of sale stay
+// at /terms-of-sale.html.
 const LEGAL_RIGHTS = [
   "YOUR RIGHTS",
   NO_RETURNS.en,
-  "Right of withdrawal (books): this right applies where the law provides for it. Where it applies, you may withdraw from a book purchase without giving a reason within 14 days of collecting it (Consumer Code, art. L.221-18). Tell us by email to admin@umasbooks.org (you can use the form below), then return the book to the shop without delay and within 14 days of your notice, at your own cost (none if you bring it in person). We refund the full price, by the same means of payment, within 14 days of your notice; we may withhold the refund until we have the book back or you show proof that you returned it. Drop-in sessions are leisure activities on a specific date: no right of withdrawal (art. L.221-28, 12°); if we cancel a session we refund you in full.",
   "Legal guarantees: you keep the legal guarantee of conformity (art. L.217-3 et seq. of the Consumer Code) and the guarantee against hidden defects (arts. 1641 et seq. of the Civil Code). We give no commercial guarantee beyond these.",
   "Complaints: write to admin@umasbooks.org. If we cannot settle it, you may use our free consumer mediator: CM2C, 49 rue de Ponthieu, 75008 Paris, https://www.cm2c.net/declarer-un-litige.php",
   "",
   "VOS DROITS",
   NO_RETURNS.fr,
-  "Droit de rétractation (livres) : ce droit s’applique lorsque la loi le prévoit. Lorsqu’il s’applique, vous pouvez vous rétracter d’un achat de livre sans donner de motif dans un délai de 14 jours après l’avoir retiré (Code de la consommation, art. L.221-18). Informez-nous par e-mail à admin@umasbooks.org (vous pouvez utiliser le formulaire ci-dessous), puis rapportez le livre à la boutique sans retard excessif et au plus tard 14 jours après votre notification, à vos frais (aucun si vous le rapportez en personne). Nous vous remboursons l’intégralité du prix, par le même moyen de paiement, dans les 14 jours suivant votre notification ; nous pouvons différer le remboursement jusqu’à la récupération du livre ou jusqu’à ce que vous ayez fourni une preuve de son renvoi. Les séances « drop-in » sont des activités de loisirs à date déterminée : pas de droit de rétractation (art. L.221-28, 12°) ; si nous annulons une séance, nous vous remboursons intégralement.",
   "Garanties légales : vous conservez la garantie légale de conformité (art. L.217-3 et suivants du Code de la consommation) et la garantie contre les vices cachés (art. 1641 et suivants du Code civil). Nous n’offrons aucune garantie commerciale en plus de celles-ci.",
   "Réclamations : écrivez à admin@umasbooks.org. À défaut de règlement amiable, vous pouvez recourir gratuitement à notre médiateur de la consommation : CM2C, 49 rue de Ponthieu, 75008 Paris, https://www.cm2c.net/declarer-un-litige.php",
 ].join("\n\n").replace(/\n\n\n\n/g, "\n\n");
-
-const WITHDRAWAL_FORM = [
-  "WITHDRAWAL FORM / FORMULAIRE DE RÉTRACTATION",
-  "(Complete and send by email only if you wish to withdraw from the contract / à renvoyer par e-mail uniquement si vous souhaitez vous rétracter)",
-  "To / À l’attention de : Uma’s Books, 5 rue Hippolyte Savary, 81000 Albi, admin@umasbooks.org",
-  "I hereby give notice that I withdraw from my contract for the sale of the following book(s) / Je vous notifie par la présente ma rétractation du contrat portant sur la vente du ou des livre(s) suivant(s) : ________",
-  "Ordered on / collected on — Commandé le / retiré le : ________",
-  "Name / Nom : ________   Address / Adresse : ________   Date : ________",
-].join("\n");
 
 const SHOP_LINES = {
   en: "Uma's Books, Rue Peyrolière, 81000 Albi — open Tuesday to Saturday, 10:00 to 19:00.",
   fr: "Uma's Books, rue Peyrolière, 81000 Albi — ouvert du mardi au samedi, de 10 h à 19 h.",
 };
 
-// Subject of the reservation confirmation, in the order's language (English when unknown).
+// Subject of the reservation e-mail (a reservation, not an order confirmation or proof of purchase), in the order's language (English when unknown).
 function orderConfirmationSubject(lang) {
-  return emailTr(lang)("Your reservation at Uma's Books is confirmed", "Votre réservation chez Uma's Books est confirmée");
+  return emailTr(lang)("Your reservation at Uma's Books", "Votre réservation chez Uma's Books");
 }
 
 const hasBooks = (items) => items.some((i) => i.class_dropin_seat_id == null);
@@ -61,9 +49,8 @@ const hasSeats = (items) => items.some((i) => i.class_dropin_seat_id != null);
 
 // Plain-text body of the reservation confirmation. Pure (no I/O) so it can be
 // tested. Written in the order's language (order.lang; English when missing).
-// The legal blocks (rights, withdrawal form, seller identity) are bilingual FR/EN
-// in every language: that is what the Consumer Code notice requires on the
-// durable medium, so they are never reduced to one language.
+// The legal blocks (rights, seller identity) are bilingual FR/EN in every
+// language, so they are never reduced to one language.
 function buildOrderConfirmationText(order, items, base) {
   const lang = normLang(order.lang) || "en";
   const tr = emailTr(lang);
@@ -100,10 +87,10 @@ function buildOrderConfirmationText(order, items, base) {
       )
     : "";
   const head = tr(
-    `Hi ${name},\n\nThanks for your reservation. Nothing has been paid online: you pay at the shop when you collect.\n\nReservation #${order.id} — ${orderDate}\n\n${lines}\n\nTotal to pay at the shop: ${total}\n\nPAY AT THE SHOP WHEN YOU COLLECT\n${deadline}${seatNote}${SHOP_LINES.en} Please quote reservation #${order.id}. Cash, card and cheque are accepted.\n\nTO CANCEL\nLog in and open your account page, then press “Cancel reservation”: ${accountUrl}\n\n`,
-    `Bonjour ${name},\n\nMerci pour votre réservation. Rien n’a été payé en ligne : vous réglez à la boutique au moment du retrait.\n\nRéservation n° ${order.id} — ${orderDate}\n\n${lines}\n\nTotal à régler à la boutique : ${total}\n\nÀ RÉGLER À LA BOUTIQUE AU RETRAIT\n${deadline}${seatNote}${SHOP_LINES.fr} Merci d’indiquer la réservation n° ${order.id}. Espèces, carte bancaire et chèque sont acceptés.\n\nPOUR ANNULER\nConnectez-vous, ouvrez votre page de compte puis appuyez sur « Annuler la réservation » : ${accountUrl}\n\n`
+    `Hi ${name},\n\nThanks for your reservation. Nothing has been paid online: you pay at the shop when you collect.\n\nReservation #${order.id} — ${orderDate}\n\n${lines}\n\nTotal to pay at the shop: ${total}\n\nPAY AT THE SHOP WHEN YOU COLLECT\n${deadline}${seatNote}${SHOP_LINES.en} Please quote reservation #${order.id}. You pay in cash or by card, after checking the book: you are free to decline it.\n\nTO CANCEL\nLog in and open your account page, then press “Cancel reservation”: ${accountUrl}\n\n`,
+    `Bonjour ${name},\n\nMerci pour votre réservation. Rien n’a été payé en ligne : vous réglez à la boutique au moment du retrait.\n\nRéservation n° ${order.id} — ${orderDate}\n\n${lines}\n\nTotal à régler à la boutique : ${total}\n\nÀ RÉGLER À LA BOUTIQUE AU RETRAIT\n${deadline}${seatNote}${SHOP_LINES.fr} Merci d’indiquer la réservation n° ${order.id}. Vous payez en espèces ou par carte, après avoir vérifié le livre : vous êtes libre de le refuser.\n\nPOUR ANNULER\nConnectez-vous, ouvrez votre page de compte puis appuyez sur « Annuler la réservation » : ${accountUrl}\n\n`
   );
-  return `${head}${termsLine}${cgvLine}${LEGAL_RIGHTS}\n\n${WITHDRAWAL_FORM}\n\n${sellerLines()}`;
+  return `${head}${termsLine}${cgvLine}${LEGAL_RIGHTS}\n\n${sellerLines()}`;
 }
 
 // Day-10 reminder (RESERVATION_REMINDER_DAYS_BEFORE days before the deadline).
@@ -156,5 +143,5 @@ function buildSeatReminder(order, seatItem) {
 
 module.exports = {
   buildOrderConfirmationText, orderConfirmationSubject, buildReservationReminder, buildReservationExpiredNotice, buildSeatReminder,
-  SELLER_LINES, LEGAL_RIGHTS, WITHDRAWAL_FORM, SHOP_LINES,
+  SELLER_LINES, LEGAL_RIGHTS, SHOP_LINES,
 };

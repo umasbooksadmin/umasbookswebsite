@@ -375,7 +375,7 @@ test("/cart/return shows the reservation as the buyer's proof: number, items, to
   const g = h.visitor();
   const r = await g.get(`/cart/return?order=${order.access_token}`);
   assert.equal(r.status, 200);
-  assert.match(r.text, new RegExp(`Reservation #${order.id} confirmed`));
+  assert.match(r.text, new RegExp(`Reservation #${order.id} recorded`));
   assert.match(r.text, /id="order-summary"/);
   assert.match(r.text, /Proof Book/);
   assert.match(r.text, /Total to pay at the shop:[^<]*4\.00|Total to pay at the shop:[^<]*4,00/);
@@ -403,7 +403,7 @@ test("with Gmail down the buyer still gets the reservation page, and the confirm
   const { order, r } = result;
   assert.equal(r.status, 302, "the reservation is made even though the email could not be sent");
   const page = await h.visitor().get(`/cart/return?order=${order.access_token}`);
-  assert.match(page.text, new RegExp(`Reservation #${order.id} confirmed`));
+  assert.match(page.text, new RegExp(`Reservation #${order.id} recorded`));
   const { rows } = await pool.query("SELECT kind, status, attempts FROM email_outbox WHERE related_order_id = $1", [order.id]);
   assert.deepEqual(rows, [{ kind: "order_confirmation", status: "pending", attempts: 1 }]);
 });

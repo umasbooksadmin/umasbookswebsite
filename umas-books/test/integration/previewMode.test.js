@@ -198,7 +198,7 @@ async function adminJar(app, connectionString) {
 test("admin screens show the red reminder only in preview mode, and no customer banner", async () => {
   const pj = await adminJar(preview, preview.databaseUrl);
   const html = await (await fetch(`${preview.base}/admin`, { headers: { cookie: pj.header() } })).text();
-  assert.match(html, /class="admin-preview-note"[^>]*>PREVIEW MODE is ON: payments are disabled and the public site shows the coming-soon banner\. Remove the PREVIEW_MODE setting in Render to launch\./);
+  assert.match(html, /class="admin-preview-note"[^>]*>PREVIEW MODE is ON: online reservations and membership payments are disabled and the public site shows the coming-soon banner\. Remove the PREVIEW_MODE setting in Render to launch\./);
   assert.ok(!html.includes("preview-banner"));
 
   const nj = await adminJar(normal, normal.databaseUrl);

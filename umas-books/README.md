@@ -123,7 +123,7 @@ more things to keep in mind:
 - **Reservations** (`/cart`) — **needs an account**: guests can browse and
   fill the cart, then are asked to log in or sign up (the cart is kept and they
   return to it). Book copies and class drop-in seats are **reserved online and
-  paid in person**: "Reserve these books" holds the books for 14 days (an admin
+  paid in person**: "Reserve (free, no commitment)" holds the books for 14 days (an admin
   can extend once by 7 days) and a drop-in seat until the session is over; the
   customer pays at the shop when collecting, or at the session. At most 10
   books and 3 open reservations per account; the customer can cancel from

@@ -171,14 +171,14 @@ test("book page: the friendly used-book note, the no-returns notice that keeps l
   const b = await makeBook({ title: `${TAG} Disclaimer`, copies: [["very_good", 6]] });
   const en = (await page(`/books/${b.id}`, "en")).text;
   assert.ok(en.includes("Our second-hand books are sold as described, so please read the condition grade, and ask us if you have any question."));
-  assert.ok(en.includes("Used books: no returns or exchanges for a change of mind in the shop. The legal guarantees still apply, and so does the statutory right of withdrawal where the law provides for it."));
+  assert.ok(en.includes("Used books are not taken back for a change of mind once bought in the shop; the legal guarantees still apply."));
   assert.ok(en.includes("The grade is the description of the book: please read it before you buy."));
   assert.ok(en.includes("Price incl. tax, TVA non applicable"));
   assert.match(en, /class="muted small book-disclaimer">[^<]*<a href="\/terms-of-sale\.html">Terms of sale<\/a>/);
   assert.doesNotMatch(en, /waive|renounce/i);
   const fr = (await page(`/books/${b.id}`, "fr")).text;
   assert.ok(fr.includes("Nos livres d’occasion sont vendus tels que décrits\u00a0: lisez bien l’état indiqué, et posez-nous toutes vos questions."));
-  assert.ok(fr.includes("Livres d’occasion\u00a0: pas de reprise ni d’échange pour simple changement d’avis en boutique."));
+  assert.ok(fr.includes("Les livres d’occasion ne sont ni repris ni échangés pour simple changement d’avis une fois achetés en boutique"));
   assert.ok(fr.includes("L’état indiqué est la description du livre\u00a0: merci de le lire avant d’acheter."));
   assert.ok(fr.includes("Prix TTC, TVA non applicable"));
 });

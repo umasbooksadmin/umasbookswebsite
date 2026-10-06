@@ -75,7 +75,7 @@ test("the proof is in the member data export and survives erasure (anonymised or
   assert.ok(rows[0].cgv_accepted_at);
 });
 
-// The legal text (no-returns notice, shop info, withdrawal block and form, VAT
+// The legal text (no-returns notice, shop info, VAT
 // line, acceptance line) must be in the QUEUED confirmation (outbox row) and in
 // the copy the admin "Resend confirmation" queues: same builder.
 test("the queued confirmation and the resent one both carry the legal text", async () => {
@@ -87,11 +87,11 @@ test("the queued confirmation and the resent one both carry the legal text", asy
   assert.equal(rows.length, 2, "one queued at the reservation, one by the resend");
   for (const { body_text } of rows) {
     const t = body_text.replace(/[\u00a0\u202f]/g, " "); // French typography uses non-breaking spaces
+    assert.ok(!/FORMULAIRE DE RÉTRACTATION|WITHDRAWAL FORM|L\.221-18/.test(t), "no withdrawal notice or form in a reservation email");
     for (const needle of [
-      "Used books: no returns or exchanges for a change of mind in the shop.",
-      "Livres d’occasion : pas de reprise ni d’échange pour simple changement d’avis en boutique.",
+      "Used books are not taken back for a change of mind once bought in the shop; the legal guarantees still apply.",
+      "Les livres d’occasion ne sont ni repris ni échangés pour simple changement d’avis une fois achetés en boutique",
       "rue Peyrolière, 81000 Albi — ouvert du mardi au samedi, de 10 h à 19 h.",
-      "WITHDRAWAL FORM / FORMULAIRE DE RÉTRACTATION",
       "Conditions générales de vente acceptées le",
       "TVA non applicable",
       "CM2C",

@@ -62,7 +62,7 @@ const openReservationCount = async (ctx) => { await ctx.goto("/account"); return
 // hits the limit is skipped with this reason (wait an hour, or run the personas one by one).
 const RATE_LIMITED = "the site's limit of 10 reservation requests an hour from one address was reached: wait an hour, or run this persona on its own";
 
-// From the cart page, fills the reserve form (the name is the test tag) and presses "Reserve these books".
+// From the cart page, fills the reserve form (the name is the test tag) and presses "Reserve (free, no commitment)".
 // Lands on the reservation page (/cart/return?order=<token>) when it works, else back on the cart with a message.
 async function pressReserve(ctx, who) {
   const sel = "form[action='/cart/reserve']";

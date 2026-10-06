@@ -468,9 +468,7 @@ Details of the shop tables worth knowing:
   `class_dropin_seats.reminder_sent_at`. `orders.status` is plain text:
   `reserved`, `paid`, `refunded`, `expired`, `cancelled` and the legacy `pending`.
 * **Order extras.** `orders.withdrawal_waiver_at` is only set on old orders (the
-  drop-in tick-box of the old online checkout; there is no waiver step now,
-  and drop-in sessions are dated leisure activities with no right of withdrawal
-  anyway, art. L.221-28 12°);
+  drop-in tick-box of the old online checkout; there is no waiver step now);
   `orders.cgv_accepted_at` / `orders.cgv_version` record when the buyer accepted
   the terms of sale and which version (`TERMS_OF_SALE_VERSION` in
   `src/lib/legal.js`, bump it when the terms page changes); they are in the
@@ -691,7 +689,7 @@ The site cannot move money. Staff take the payment in person, then record it
 | Cancel, no-show, extend | "Cancel reservation" (`release_reason` admin) and "Mark no-show / expired" (`no_show`, status `expired`) release the items; "Extend by 7 days" works once and only while books are held |
 | Mark refunded | one transaction with the order row locked: `paid` -> `refunded` (+ `refunded_at`, required `refund_note`); the copies this order sold go back `in_stock`, except a copy sold again since, which is left alone and named in the audit entry; its drop-in seats become `released`. Refuses any order that is not `paid`; a second call changes nothing. The refund itself (cash, cheque, card) is done in the shop; the admin page has a confirmation step (warning, tick box, note) and the customer is not emailed |
 | Money in the figures | revenue counts `status = 'paid'` at **`paid_at`**, the day staff record the payment (not the day of the reservation), in Europe/Paris (`lib/dashboardStats.js`); reserved, expired and cancelled orders never count; refunded ones drop out and appear in a **Refunds** table. The **Reservations** report (`/admin/reports/reservations`, CSV) shows reserved / collected / expired / cancelled per month and the conversion rate |
-| Customer emails | all through the outbox, in the order's language: confirmation (with deadline, shop address, withdrawal information and form, terms version accepted), reminder on day 10 (`RESERVATION_REMINDER_DAYS_BEFORE` = 4 days before the deadline), "your reservation has ended" (no penalty), a reminder 24 hours before a reserved drop-in seat. Each is claimed in the database first (a `*_sent_at` column) and sent once |
+| Customer emails | all through the outbox, in the order's language: reservation e-mail (not a proof of purchase: deadline, shop address and hours, how to cancel, no-returns notice, legal guarantees, mediator, terms version accepted; no withdrawal notice or form), reminder on day 10 (`RESERVATION_REMINDER_DAYS_BEFORE` = 4 days before the deadline), "your reservation has ended" (no penalty), a reminder 24 hours before a reserved drop-in seat. Each is claimed in the database first (a `*_sent_at` column) and sent once |
 | Admin digest | one email listing the reservations expiring within 2 days (once per order). The dashboard "Needs attention" box counts reservations expiring within 3 days, those past the deadline and not yet released, and the old-checkout leftovers |
 | Admin view | `/admin/orders` opens on **Reserved: awaiting pickup**; filters (status, expiring in 3 days, expired, past the deadline, old-checkout leftovers), Paris date range, search by number, email or name, 50 per page; `/admin/orders/pickup-list` (and `?print=1`) lists open reservations by customer with shelf locations and the amount to collect; `/admin/orders/:id` shows items, buyer, payment, terms acceptance and history |
 | Preview mode | `POST /cart/reserve` is refused with a friendly notice before anything is validated or locked |
@@ -1205,10 +1203,12 @@ Open items worth knowing:
 * A reservation that is not collected costs nothing and has no penalty: after the deadline the
   items simply go back on sale (terms of sale and `docs/legal-todos.md` section
   4). A customer can reserve again straight away.
-* Whether the 14-day statutory withdrawal right applies to a reservation paid in
-  the shop is an open legal question (`docs/legal-todos.md`, section 7); the
-  terms and the confirmation email carry the neutral sentence "This right applies
-  where the law provides for it" until it is answered.
+* Whether a reservation paid in the shop is a distance contract (and so has a
+  withdrawal right) is an open legal question (`docs/legal-todos.md`, section 7).
+  Following a legal review, the site treats a reservation as a free, non-binding
+  hold and shows no withdrawal notice or form for books and seats (withdrawal
+  text stays only for the online membership payment); the lawyer is asked to
+  confirm.
 * Revenue is counted on the day staff record the payment (`paid_at`), not the day
   of the reservation; a payment recorded days after it was taken lands in the
   day it was recorded.

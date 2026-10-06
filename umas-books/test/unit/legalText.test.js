@@ -20,11 +20,11 @@ function dict(file, name) {
 test("the no-returns notice is the agreed wording, in English and in French", () => {
   assert.equal(
     legalText.NO_RETURNS.en,
-    "Used books: no returns or exchanges for a change of mind in the shop. The legal guarantees still apply, and so does the statutory right of withdrawal where the law provides for it."
+    "Reserving is free and commits you to nothing. You pay and the sale is made in the shop, after you have seen the book. Used books are not taken back for a change of mind once bought in the shop; the legal guarantees still apply."
   );
   assert.equal(
     legalText.NO_RETURNS.fr,
-    `Livres d’occasion${NB}: pas de reprise ni d’échange pour simple changement d’avis en boutique. Les garanties légales de conformité et des vices cachés restent applicables, ainsi que le droit légal de rétractation lorsque la loi le prévoit.`
+    `Réserver est gratuit et ne vous engage à rien. Vous payez et la vente est conclue en boutique, après avoir vu le livre. Les livres d’occasion ne sont ni repris ni échangés pour simple changement d’avis une fois achetés en boutique${NB}; les garanties légales restent applicables.`
   );
 });
 
@@ -33,7 +33,7 @@ test("the terms of sale dictionaries, the order email and the legal strings carr
   const fr = dict("marketing/terms-of-sale.ejs", "pageI18nFr");
   assert.ok(en["ts.nr.p"].startsWith(legalText.NO_RETURNS.en), "EN terms clause starts with the notice");
   assert.ok(fr["ts.nr.p"].startsWith(legalText.NO_RETURNS.fr), "FR terms clause starts with the notice");
-  assert.match(en["ts.nr.p"], /This does not affect your legal rights as a consumer, including the right of withdrawal, where the law provides for it, described below, and the legal guarantees\.$/);
+  assert.match(en["ts.nr.p"], /This does not affect your legal rights as a consumer, including the legal guarantees\.$/);
   assert.match(fr["ts.nr.p"], /Cela ne porte pas atteinte à vos droits légaux de consommateur/);
   assert.ok(LEGAL_RIGHTS.includes(legalText.NO_RETURNS.en) && LEGAL_RIGHTS.includes(legalText.NO_RETURNS.fr));
   // The English body of the page is the English dictionary (no second copy that can drift).

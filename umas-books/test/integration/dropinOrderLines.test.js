@@ -89,10 +89,10 @@ test("the reservation page (an open 'reserved' order) renders the seat line in t
   const fr = await get(`/cart/return?order=${reservedToken}`, "fr");
   assert.ok(fr.includes(`Dropin Lines Class — ${FRENCH}`), "French month and Paris time");
   assert.ok(!fr.includes(STORED), "stored English label is not shown");
-  assert.match(fr, /Réservation n°\d+ confirmée/);
+  assert.match(fr, /Réservation n°\d+ enregistrée/);
   const en = await get(`/cart/return?order=${reservedToken}`, "en");
   assert.ok(en.includes(`Dropin Lines Class — ${STORED}`));
-  assert.match(en, /Reservation #\d+ confirmed/);
+  assert.match(en, /Reservation #\d+ recorded/);
 });
 
 test("account order history renders the drop-in line in the viewer's language", async () => {

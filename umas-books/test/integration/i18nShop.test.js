@@ -35,9 +35,9 @@ test("reservation form (book + drop-in seat) is fully translated", async () => {
     await v.post("/cart/add-dropin", { classId });
     pages[lang] = (await v.get("/cart")).text;
   }
-  assert.match(pages.en, /<button class="btn" type="submit">Reserve these books<\/button>/);
-  assert.match(pages.fr, /<button class="btn" type="submit">Réserver ces livres<\/button>/);
-  assert.doesNotMatch(pages.fr, /Reserve these books/);
+  assert.match(pages.en, /<button class="btn" type="submit">Reserve \(free, no commitment\)<\/button>/);
+  assert.match(pages.fr, /<button class="btn" type="submit">Réserver \(gratuit, sans engagement\)<\/button>/);
+  assert.doesNotMatch(pages.fr, /Reserve \(free, no commitment\)/);
   assert.match(pages.fr, /conditions de vente/);
   // Nothing is paid online (never an "order with obligation to pay"), no-returns notice that
   // never waives legal rights, tax line, pickup hours: all above the button.
@@ -45,12 +45,12 @@ test("reservation form (book + drop-in seat) is fully translated", async () => {
   assert.ok(nb(pages.fr).includes("Rien n’est payé en ligne. Nous gardons vos livres 14 jours : passez à la boutique et réglez-les au moment du retrait."));
   assert.doesNotMatch(pages.en, /obligation to pay|Order with/);
   assert.doesNotMatch(pages.fr, /obligation de paiement/);
-  assert.ok(pages.en.includes("Used books: no returns or exchanges for a change of mind in the shop. The legal guarantees still apply, and so does the statutory right of withdrawal where the law provides for it."));
-  assert.ok(nb(pages.fr).includes("Livres d’occasion : pas de reprise ni d’échange pour simple changement d’avis en boutique."));
+  assert.ok(pages.en.includes("Used books are not taken back for a change of mind once bought in the shop; the legal guarantees still apply."));
+  assert.ok(nb(pages.fr).includes("Les livres d’occasion ne sont ni repris ni échangés pour simple changement d’avis une fois achetés en boutique"));
   assert.ok(pages.en.includes("Price incl. tax, TVA non applicable") && pages.fr.includes("Prix TTC, TVA non applicable"));
   assert.ok(pages.en.includes("Pay and collect them at the shop, Tuesday to Saturday, 10:00–19:00, Rue Peyrolière, Albi."));
   assert.ok(pages.fr.includes("du mardi au samedi, 10h–19h, rue Peyrolière, Albi."));
-  assert.ok(pages.en.indexOf("no-returns-note") < pages.en.indexOf("Reserve these books</button>"), "the notice sits above the reserve button");
+  assert.ok(pages.en.indexOf("no-returns-note") < pages.en.indexOf("Reserve (free, no commitment)</button>"), "the notice sits above the reserve button");
   assert.doesNotMatch(pages.en, /waive the|renounce/i);
   assert.ok(pages.en.includes("Drop-in seats: you pay at the session. You can cancel a seat online until 24 hours before it starts."));
   assert.ok(nb(pages.fr).includes("Places « drop-in » : vous réglez à la séance. Vous pouvez annuler une place en ligne jusqu’à 24 heures avant le début."));
@@ -58,9 +58,9 @@ test("reservation form (book + drop-in seat) is fully translated", async () => {
   assert.deepEqual(untranslated(pages.en, pages.fr, ALLOW), []);
 });
 
-test("a seats-only cart offers 'Reserve these seats' / « Réserver ces places »", async () => {
+test("a seats-only cart offers 'Reserve (free, no commitment)' / « Réserver (gratuit, sans engagement) »", async () => {
   const classId = await makeClass();
-  for (const [lang, label] of [["en", "Reserve these seats"], ["fr", "Réserver ces places"]]) {
+  for (const [lang, label] of [["en", "Reserve (free, no commitment)"], ["fr", "Réserver (gratuit, sans engagement)"]]) {
     const v = h.visitor(await h.account(), { lang });
     await v.post("/cart/add-dropin", { classId });
     assert.ok((await v.get("/cart")).text.includes(`type="submit">${label}</button>`), lang);
@@ -107,11 +107,11 @@ test("a French reservation stores lang=fr and its confirmation email is French (
     return sent.find((m) => m.to === buyer.email);
   };
   const fr = await reserve("fr");
-  assert.equal(fr.subject, "Votre réservation chez Uma's Books est confirmée");
+  assert.equal(fr.subject, "Votre réservation chez Uma's Books");
   assert.match(fr.text, /^Bonjour Marie,/);
   assert.match(fr.text, /YOUR RIGHTS/, "legal block stays bilingual");
   const en = await reserve("en");
-  assert.equal(en.subject, "Your reservation at Uma's Books is confirmed");
+  assert.equal(en.subject, "Your reservation at Uma's Books");
   assert.match(en.text, /^Hi Marie,/);
 });
 
@@ -120,8 +120,8 @@ test("the reservation page (reserved) and the page of a leftover 'pending' order
   const { order } = await h.reserve(buyer, { copyIds: [(await makeBookCopy()).copyId], classIds: [await makeClass()] });
   const en = (await h.visitor(buyer, { lang: "en" }).get(`/cart/return?order=${order.access_token}`)).text;
   const fr = (await h.visitor(buyer, { lang: "fr" }).get(`/cart/return?order=${order.access_token}`)).text;
-  assert.match(en, /Reservation #\d+ confirmed/);
-  assert.match(fr, /Réservation n°\d+ confirmée/);
+  assert.match(en, /Reservation #\d+ recorded/);
+  assert.match(fr, /Réservation n°\d+ enregistrée/);
   assert.match(nb(fr), /Rien n’est payé en ligne/);
   assert.match(fr, /Annuler la réservation/);
   assert.deepEqual(untranslated(en, fr, ALLOW), []);

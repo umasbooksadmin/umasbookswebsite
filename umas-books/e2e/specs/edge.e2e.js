@@ -47,7 +47,7 @@ s.test("X6 the expired-session page is translated when the site is in French", {
 let oldLink = null; // set by E2: the link of its one reservation, cancelled by E4
 
 s.write("E2 (must) two Reserve requests at the same moment make ONE reservation, not two (needs the account-holder login, because reserving needs an account)", { as: "account" }, async (ctx) => {
-  if (ctx.preview) ctx.skip("preview mode: there is no Reserve these books button");
+  if (ctx.preview) ctx.skip("preview mode: there is no Reserve (free, no commitment) button");
   const book = await stockedBook(ctx);
   await cancelOpenReservations(ctx);
   await addFirstCopyToCart(ctx, book);
@@ -132,7 +132,7 @@ for (const lang of ["en", "fr"]) {
     await noOverflow(ctx, `cart (${lang})`);
     if (await ctx.page.$("form[action='/cart/reserve']")) {
       const reach = await ctx.page.$eval("form[action='/cart/reserve'] button[type='submit']", (b) => { b.scrollIntoView(); const r = b.getBoundingClientRect(); return r.left >= 0 && r.right <= window.innerWidth && r.height >= 24; });
-      assert.ok(reach, "Reserve these books is reachable and at least 24 px tall");
+      assert.ok(reach, "Reserve (free, no commitment) is reachable and at least 24 px tall");
       await noOverflow(ctx, `reserve form (${lang})`);
     }
   });

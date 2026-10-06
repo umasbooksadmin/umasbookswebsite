@@ -259,13 +259,13 @@ async function needReserve(ctx) {
 
 // ---- 2F. Reserving: cart, reservation page, cancel (nothing is ever paid), drop-in seat ----
 
-s.test("AC22 (must) the reserve form has name, email, phone, terms checkbox with link, privacy note, 'nothing is paid online' and Reserve these books", { as: "account" }, async (ctx) => {
+s.test("AC22 (must) the reserve form has name, email, phone, terms checkbox with link, privacy note, 'nothing is paid online' and Reserve (free, no commitment)", { as: "account" }, async (ctx) => {
   const book = await stockedBook(ctx);
   await clearCart(ctx);
   await addFirstCopyToCart(ctx, book);
   await needReserve(ctx);
   const form = await ctx.page.$eval("form[action='/cart/reserve']", (f) => f.innerText);
-  for (const re of [/Name/, /Email/, /Phone \(optional\)/, /terms of sale/, /Nothing is paid online\. We hold your books for 14 days: come to the shop and pay when you collect them\./, /We hold your books for 14 days\. Pay and collect them at the shop, Tuesday to Saturday, 10:00–19:00/, /Used books: no returns or exchanges for a change of mind in the shop/, /Reserve these books/]) has(form, re);
+  for (const re of [/Name/, /Email/, /Phone \(optional\)/, /terms of sale/, /Nothing is paid online\. We hold your books for 14 days: come to the shop and pay when you collect them\./, /We hold your books for 14 days\. Pay and collect them at the shop, Tuesday to Saturday, 10:00–19:00/, /Used books: no returns or exchanges for a change of mind in the shop/, /Reserve (free, no commitment)/]) has(form, re);
   hasNot(form, /Order with obligation to pay|HelloAsso|pay online by card/);
   has(await ctx.text(), /Price incl\. tax, TVA non applicable/);
   const link = await ctx.page.$eval("form[action='/cart/reserve'] a[href='/terms-of-sale.html']", (a) => a.target);
@@ -296,7 +296,7 @@ s.test("AC-FR22 FR check (cart): the cart and the reserve form are in French", {
   for (const re of [/Votre panier/, /Retirer/, /Total\s:/]) has(text, re);
   if (ctx.preview) { has(text, /Les réservations en ligne ouvriront au lancement/); return; }
   if (!(await reserveForm(ctx))) return;
-  for (const re of [/Réservation/, /Nom/, /E-mail/, /Téléphone \(facultatif\)/, /J.ai lu et j.accepte les conditions de vente/, /Réserver ces livres/, /Rien n’est payé en ligne\. Nous gardons vos livres 14 jours\s: passez à la boutique et réglez-les au moment du retrait\./, /Livres d’occasion\s:\spas de reprise ni d’échange/, /Prix TTC, TVA non applicable/, /Réglez-les et retirez-les à la boutique, du mardi au samedi, 10h–19h, rue Peyrolière, Albi/]) has(text, re);
+  for (const re of [/Réservation/, /Nom/, /E-mail/, /Téléphone \(facultatif\)/, /J.ai lu et j.accepte les conditions de vente/, /Réserver (gratuit, sans engagement)/, /Rien n’est payé en ligne\. Nous gardons vos livres 14 jours\s: passez à la boutique et réglez-les au moment du retrait\./, /Livres d’occasion\s:\spas de reprise ni d’échange/, /Prix TTC, TVA non applicable/, /Réglez-les et retirez-les à la boutique, du mardi au samedi, 10h–19h, rue Peyrolière, Albi/]) has(text, re);
   hasNot(text, /Commander avec obligation de paiement|HelloAsso/);
 });
 
@@ -317,7 +317,7 @@ s.test("AC24 (preview mode) reserving is refused by the server and nothing is he
   has(await ctx.text(), /Online reservations open when we launch|cart/);
 });
 
-s.write("AC24 (must) Reserve these books creates a reservation and lands on its page; nothing is paid and HelloAsso is never involved", { as: "account" }, async (ctx) => {
+s.write("AC24 (must) Reserve (free, no commitment) creates a reservation and lands on its page; nothing is paid and HelloAsso is never involved", { as: "account" }, async (ctx) => {
   if (ctx.preview) ctx.skip("preview mode: reserving is off (asserted by the preview-mode AC24 test)");
   const book = await stockedBook(ctx);
   await cancelOpenReservations(ctx); // start from a clean account (a test login has no real reservations)
@@ -378,7 +378,7 @@ s.manual("AC31a the day-10 customer reminder, the admin 'expiring within 2 days'
 s.test("AC32 the Terms of Sale say to come within 14 days of reserving, and that nothing is paid online (EN and FR)", { as: "account" }, async (ctx) => {
   await ctx.goto("/terms-of-sale.html");
   has(await ctx.text(), /Please come within 14 days of reserving; if you need longer, write to us/);
-  has(await ctx.text(), /A reservation that is not collected in time simply lapses, without penalty/);
+  has(await ctx.text(), /released automatically, with no fee and no penalty/);
   await ctx.setLang("fr");
   await ctx.goto("/terms-of-sale.html");
   has(await ctx.text(), /dans les 14 jours suivant la réservation/);
@@ -418,7 +418,7 @@ s.test("AC34 (must) a cart with a drop-in seat says you pay at the session and c
   await needReserve(ctx);
   const form = await ctx.page.$eval("form[action='/cart/reserve']", (f) => f.innerText);
   has(form, /Drop-in seats: you pay at the session\. You can cancel a seat online until 24 hours before it starts\./);
-  has(form, /Reserve these seats/);
+  has(form, /Reserve (free, no commitment)/);
   assert.equal(await ctx.page.$("input[name='waiveWithdrawal']"), null, "nothing is paid online, so there is no waiver checkbox");
   hasNot(await ctx.text(), /I ask for the session\(s\) to take place on the date booked/);
 });

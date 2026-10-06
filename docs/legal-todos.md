@@ -62,31 +62,34 @@ are published, and how long they are kept.
 ## 7. Click-and-collect reservation, payment in the shop: distance contract?
 
 Since the "reserve online, pay at the shop" change, nothing is paid on the
-website for books and drop-in seats (only the membership is paid online). The
-customer reserves online, then pays and collects in the shop, where the sale is
-concluded. Question for the lawyer / the consumer mediator (CM2C): is such a
-click-and-collect reservation a distance contract (Consumer Code, art.
-L.221-1 et seq.), so that the 14-day right of withdrawal for books (art.
-L.221-18) applies, or is it an ordinary in-shop sale (no right of withdrawal),
-because the price is paid and the contract concluded in the shop? Also: does
-the answer change if the customer reserves a book and later does not collect
-it (no contract at all)? Nobody decided this; the site does not take a side.
+website for books and drop-in seats (only the membership is paid online). A
+second legal review (October 2026) advised the following, which the site now
+applies: **a reservation is a free, non-binding hold; the sale is concluded and
+paid in the shop, in person, so it is not a distance contract.** Therefore the
+terms of sale, the cart and the reservation email show **no 14-day withdrawal
+notice and no model withdrawal form** for books and drop-in seats. Withdrawal
+text stays **only** for the online membership payment (membership terms, with
+the neutral sentence "applies where the law provides for it").
 
-What the site shows meanwhile (do not remove until answered):
+**To confirm with a lawyer / the consumer mediator (CM2C):**
 
-- the terms of sale keep the withdrawal paragraph and the withdrawal form, with
-  one neutral sentence: "This right applies where the law provides for it."
-  (French: "Ce droit s'applique lorsque la loi le prévoit.");
-- the "no returns for a change of mind in the shop" sentence (single source:
-  `NO_RETURNS` in `umas-books/src/lib/legalText.js`) says the legal guarantees
-  and the statutory right of withdrawal "where the law provides for it" still
-  apply, and never says a right is waived;
-- the reservation confirmation email repeats the withdrawal information and
-  the withdrawal form, in French and English, with the same neutral sentence;
-- drop-in seats: the terms say the right of withdrawal does not apply to them
-  (art. L.221-28, 12°, leisure activity on a specific date); there is no waiver
-  checkbox any more, since nothing is paid online.
+- that a click-and-collect reservation with payment and handover in the shop is
+  not a distance contract (so no right of withdrawal for books, and none to
+  mention in the email), including when the customer reserved online and never
+  collects (no contract at all);
+- that the "no returns for a change of mind once bought in the shop" notice
+  (`NO_RETURNS` in `umas-books/src/lib/legalText.js`) is acceptable next to the
+  statement that the legal guarantees still apply;
+- that the drop-in seat needs no withdrawal waiver (nothing is paid online; the
+  checkbox was removed);
+- the list of what the terms of sale now state (seller identity and contact,
+  price TTC "TVA non applicable", unique copies, hold of 14 days (+7 once) with
+  automatic release and no fee or penalty, limits of 10 books and 3 reservations
+  per account, price honoured during the hold, payment in cash or card in the
+  shop, condition checked on the spot with the right to decline, opening hours
+  and address, reservation data kept 30 days after it ends).
 
-When the answer comes: if it applies, nothing to change; if it does not, ask
-for the terms (section "Right of withdrawal"), the email and `NO_RETURNS` to be
-simplified together, and bump `TERMS_OF_SALE_VERSION`.
+Until answered, do not put the withdrawal notice back without asking. If the
+lawyer says the opposite (a withdrawal right applies), ask for the terms of
+sale, the reservation email and `NO_RETURNS` to be changed together, and bump
+`TERMS_OF_SALE_VERSION`.

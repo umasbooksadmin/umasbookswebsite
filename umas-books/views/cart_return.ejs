@@ -2,7 +2,7 @@
 
 <% if (status === 'reserved') { %>
   <div class="order-receipt">
-  <h1><%= tr('Reservation #{n} confirmed', 'Réservation n°{n} confirmée', { n: order.id }) %></h1>
+  <h1><%= tr('Reservation #{n} recorded', 'Réservation n°{n} enregistrée', { n: order.id }) %></h1>
   <p class="muted"><%= legalText.nothingPaidOnline %></p>
   <div class="card" id="order-summary">
     <p class="small"><strong><%= tr('Reservation #{n}', 'Réservation n°{n}', { n: order.id }) %></strong>

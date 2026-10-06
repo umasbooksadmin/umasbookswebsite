@@ -192,8 +192,8 @@ test("the cart page: a guest sees the log-in-or-create-account block and no rese
 
 test("login and signup show the cart note when sent from the cart (EN/FR), and nothing for an unknown returnTo", async () => {
   for (const [lang, note] of [
-    ["en", "Log in or create an account to place your order. Your cart is kept."],
-    ["fr", "Connectez-vous ou créez un compte pour passer votre commande. Votre panier est conservé."],
+    ["en", "Log in or create an account to reserve. Your cart is kept."],
+    ["fr", "Connectez-vous ou créez un compte pour réserver. Votre panier est conservé."],
   ]) {
     for (const page of ["/login", "/signup"]) {
       const html = (await guest(lang).get(`${page}?returnTo=%2Fcart`)).text;

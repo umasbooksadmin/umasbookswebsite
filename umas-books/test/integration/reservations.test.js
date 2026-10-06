@@ -59,7 +59,7 @@ test("the cart is emptied by the reservation, and the reservation page shows the
   assert.equal(JSON.parse((await v.get("/api/cart/count")).text).count, 0);
   const page = await v.get(`/cart/return?order=${order.access_token}`);
   assert.equal(page.status, 200);
-  assert.match(page.text, new RegExp(`Reservation #${order.id} confirmed`));
+  assert.match(page.text, new RegExp(`Reservation #${order.id} recorded`));
   assert.match(page.text, /Nothing is paid online/);
   assert.match(page.text, /We hold your books until the end of/);
   assert.match(page.text, /Cancel reservation/, "the owner sees the cancel button");
@@ -85,12 +85,12 @@ test("a guest is sent to log in and creates nothing; the cart is kept", async ()
   assert.equal((await g.post("/cart/checkout", { name: "Guest", acceptCgv: "on" })).status, 404);
 });
 
-test("the cart page offers 'Reserve these books' (EN) / « Réserver ces livres » (FR) and no online payment", async () => {
+test("the cart page offers 'Reserve (free, no commitment)' (EN) / « Réserver (gratuit, sans engagement) » (FR) and no online payment", async () => {
   const buyer = await h.account();
   const copy = await h.copy();
   for (const [lang, button, note] of [
-    ["en", "Reserve these books", "Nothing is paid online. We hold your books for 14 days: come to the shop and pay when you collect them."],
-    ["fr", "Réserver ces livres", "Rien n’est payé en ligne. Nous gardons vos livres 14 jours"],
+    ["en", "Reserve (free, no commitment)", "Nothing is paid online. We hold your books for 14 days: come to the shop and pay when you collect them."],
+    ["fr", "Réserver (gratuit, sans engagement)", "Rien n’est payé en ligne. Nous gardons vos livres 14 jours"],
   ]) {
     const v = h.visitor(buyer, { lang });
     await v.post("/cart/add", { copyId: copy });
@@ -122,21 +122,24 @@ test("the confirmation e-mail goes through the outbox, in English and in French"
     assert.match(body, /TVA non applicable/);
     assert.match(body, /\/account/, "how to cancel: the account page link");
     if (lang === "en") {
-      assert.match(mail[0].subject, /reservation .*confirmed/i);
+      assert.match(mail[0].subject, /^Your reservation at Uma's Books$/);
       assert.match(body, /Nothing has been paid online/);
       assert.match(body, /€7\.25/);
       assert.match(body, /Pay at the shop|PAY AT THE SHOP/i);
       assert.match(body, /We hold your books until the end of \d{1,2} \w+ 20\d\d \(Paris time\)/);
-      assert.match(body, /Used books: no returns or exchanges for a change of mind in the shop/);
+      assert.match(body, /Reserving is free and commits you to nothing/);
+      assert.match(body, /Used books are not taken back for a change of mind once bought in the shop/);
+      assert.doesNotMatch(body, /withdraw|WITHDRAWAL/i, "no withdrawal notice or form");
       assert.match(body, /legal guarantee of conformity/);
       assert.match(body, new RegExp(`version ${TERMS_OF_SALE_VERSION}`));
     } else {
-      assert.match(mail[0].subject, /réservation .*confirmée/i);
+      assert.match(mail[0].subject, /^Votre réservation chez Uma's Books$/);
       assert.match(body, /Rien n’a été payé en ligne/);
       assert.match(body, /7,25\s€/);
       assert.match(body, /À RÉGLER À LA BOUTIQUE/);
       assert.match(body, /jusqu’à la fin de la journée du \d{1,2} \w+ 20\d\d \(heure de Paris\)/);
-      assert.match(body, /Livres d’occasion\s: pas de reprise ni d’échange/);
+      assert.match(body, /Réserver est gratuit et ne vous engage à rien/);
+      assert.doesNotMatch(body, /rétractation/i, "no withdrawal notice or form");
       assert.match(body, /garantie légale de conformité/);
     }
     assert.doesNotMatch(body, /HelloAsso|Paid online|Payée en ligne/);
@@ -200,7 +203,7 @@ test(`limits: at most ${MAX_RESERVED_COPIES} copies and ${MAX_ACTIVE_RESERVATION
   // exactly the maximum is fine, and then no more even for one book
   await v.post("/cart/remove", { lineId: 11 });
   const cart = (await v.get("/cart")).text;
-  assert.ok(cart.includes("Reserve these books"));
+  assert.ok(cart.includes("Reserve (free, no commitment)"));
   const keep = many.slice(0, MAX_RESERVED_COPIES);
   const w = h.visitor(a);
   for (const c of keep) await w.post("/cart/add", { copyId: c });

@@ -1,6 +1,6 @@
 // Script 1 of docs/testing/manual-test-scripts.md: the guest (anyone not logged in).
 // A guest browses, fills a cart and can use the forms, but cannot reserve:
-// "Reserve these books" asks them to log in or create an account first (G50,
+// "Reserve (free, no commitment)" asks them to log in or create an account first (G50,
 // G51). Books and drop-in seats are reserved online and paid in the shop; only
 // the membership is paid online.
 // Every test is named with its manual step id. Read-only except the contact
@@ -218,7 +218,7 @@ s.test("G15 (must) a book page shows cover, title, author, binding, price, copie
   // The friendly used-book disclaimer and the price tax line; never a waiver of legal rights.
   has(text, /Price incl\. tax, TVA non applicable/);
   has(text, /Our second-hand books are sold as described, so please read the condition grade, and ask us if you have any question\./);
-  has(text, /Used books: no returns or exchanges for a change of mind in the shop\. The legal guarantees still apply, and so does the statutory right of withdrawal where the law provides for it\./);
+  has(text, /Used books are not taken back for a change of mind once bought in the shop; the legal guarantees still apply\./);
   hasNot(text, /waive|renounce/i);
   assert.ok(await ctx.page.$(".book-disclaimer a[href='/terms-of-sale.html']"), "the disclaimer links the terms");
 });
@@ -308,7 +308,7 @@ s.test("G-FR11 FR check (books): search page, book page and grade legend in Fren
   has(legend, /L’état indiqué est la description du livre/);
   has(text, /Prix TTC, TVA non applicable/);
   has(text, /Nos livres d’occasion sont vendus tels que décrits/);
-  has(text, /Livres d’occasion\s:\spas de reprise ni d’échange pour simple changement d’avis en boutique\. Les garanties légales de conformité et des vices cachés restent applicables, ainsi que le droit légal de rétractation lorsque la loi le prévoit\./);
+  has(text, /Les livres d’occasion ne sont ni repris ni échangés pour simple changement d’avis une fois achetés en boutique/);
   assert.equal(await ctx.page.$eval("html", (h) => h.lang), "fr");
 });
 
@@ -503,10 +503,11 @@ s.test("G39 (must) each legal page opens with full text and the seller identity"
   }
   await ctx.goto("/terms-of-sale.html");
   const tos = await ctx.text();
-  for (const re of [/14 days/i, /withdrawal/i, /mediat/i]) has(tos, re);
+  for (const re of [/14 days/i, /mediat/i]) has(tos, re);
+  hasNot(tos, /Withdrawal form|L\.221-18/);
   has(tos, /Second-hand books: no returns/);
-  has(tos, /This does not affect your legal rights as a consumer, including the right of withdrawal, where the law provides for it, described below, and the legal guarantees\./);
-  has(tos, /This right applies where the law provides for it\./);
+  has(tos, /This does not affect your legal rights as a consumer, including the legal guarantees\./);
+  has(tos, /Reserving is free and commits you to nothing/);
   has(tos, /Nothing is paid online, and reserving does not oblige you to buy\./);
   has(tos, /Only membership is: it is paid online through HelloAsso/);
   hasNot(tos, /obligation to pay|pay online by card|one hour/i);
@@ -702,7 +703,7 @@ s.test("G52 logged out, /forum shows the login page", { anon: true }, async (ctx
   assert.equal(new URL(ctx.page.url()).pathname, "/login");
 });
 
-// Reserving needs an account: "Reserve these books" sends a guest to log in or sign up.
+// Reserving needs an account: "Reserve (free, no commitment)" sends a guest to log in or sign up.
 
 // What the site does with a reservation request from someone who is not logged in.
 async function reserveAsGuest(ctx) {
