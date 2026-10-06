@@ -6,10 +6,10 @@
   <div class="card">
     <ul class="plain">
       <% items.forEach(i => { %>
-        <li><%= i.label %> <span class="muted small">&middot; &euro;<%= Number(i.price).toFixed(2) %></span></li>
+        <li><%= i.label %> <span class="muted small">&middot; <%= eur(i.price) %></span></li>
       <% }) %>
     </ul>
-    <p><strong><%= tr('Total:', 'Total :') %> &euro;<%= Number(order.total_amount).toFixed(2) %></strong></p>
+    <p><strong><%= tr('Total:', 'Total :') %> <%= eur(order.total_amount) %></strong></p>
   </div>
   <p class="muted small"><%= tr('A confirmation email is on its way to {email}. Come by Uma\'s Books during opening hours to pick up your order.', 'Un e-mail de confirmation vous est envoyé à l’adresse {email}. Passez à Uma\'s Books pendant les heures d’ouverture pour retirer votre commande.', { email: order.buyer_email }) %></p>
 <% } else if (status === 'pending') { %>

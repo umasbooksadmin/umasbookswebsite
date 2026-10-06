@@ -101,7 +101,7 @@ test("a guest gets the name + email form and NO payment widget (EN and FR)", asy
     NO_WIDGET(html);
   }
   const fr = (await guest(app.base, "fr").page()).html;
-  assert.ok(fr.includes("Vous avez déjà un compte ?"));
+  assert.ok(fr.includes("Vous avez déjà un compte\u00a0?"));
   assert.ok(fr.includes("conditions d’adhésion"));
 });
 
@@ -146,9 +146,9 @@ test("French payment step", async () => {
   const v = guest(app.base, "fr");
   await v.post("/membership/join", { displayName: "Marie", email });
   const { html } = await v.page();
-  assert.ok(html.includes("Étape suivante : réglez votre adhésion"));
+  assert.ok(html.includes("Étape suivante\u00a0: réglez votre adhésion"));
   assert.ok(html.includes("Nous vous avons envoyé un lien par e-mail"));
-  assert.ok(html.includes("Utilisez cette même adresse e-mail sur le formulaire de paiement :"));
+  assert.ok(html.includes("Utilisez cette même adresse e-mail sur le formulaire de paiement\u00a0:"));
   assert.ok(html.includes("Utiliser une autre adresse e-mail"));
   const [u] = await userRows(email);
   assert.equal(u.lang, "fr", "the confirmation email will be French");

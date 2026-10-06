@@ -9,6 +9,9 @@
    Locals set by the marketing routes in src/index.js (res.locals):
    siteUrl (absolute base URL, '' when it can't be determined) and
    canonicalPath (this page's path, e.g. '/about.html'). */
+// The server renders the chosen language (lib/pageDictionary.js fills the data-i18n
+// hooks below from the page's FR dictionary: meta.title, meta.description).
+const _isFr = typeof lang !== 'undefined' && lang === 'fr';
 const _siteUrl = (typeof siteUrl !== 'undefined' && siteUrl) ? String(siteUrl).replace(/\/+$/, '') : '';
 const _path = (typeof canonicalPath !== 'undefined' && canonicalPath) ? canonicalPath : '/';
 const _desc = (typeof description !== 'undefined' && description)
@@ -29,26 +32,26 @@ const nav = [
 <html lang="<%= typeof htmlLang !== 'undefined' && htmlLang ? htmlLang : 'en' %>" data-theme="light">
 <head>
 <meta charset="utf-8">
-<title><%= title %></title>
+<title data-i18n="meta.title"><%= title %></title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="description" content="<%= _desc %>">
+<meta name="description" content="<%= _desc %>" data-i18n-attr="content:meta.description">
 <% if (locals.preview) { %><meta name="robots" content="noindex, nofollow">
 <% } %>
 <% if (_pageUrl) { %><link rel="canonical" href="<%= _pageUrl %>">
 <% } %><meta property="og:site_name" content="Uma's Books &amp; Adventures">
-<meta property="og:title" content="<%= title %>">
-<meta property="og:description" content="<%= _desc %>">
+<meta property="og:title" content="<%= title %>" data-i18n-attr="content:meta.title">
+<meta property="og:description" content="<%= _desc %>" data-i18n-attr="content:meta.description">
 <meta property="og:type" content="website">
-<meta property="og:locale" content="en_GB">
-<meta property="og:locale:alternate" content="fr_FR">
+<meta property="og:locale" content="<%= _isFr ? 'fr_FR' : 'en_GB' %>">
+<meta property="og:locale:alternate" content="<%= _isFr ? 'en_GB' : 'fr_FR' %>">
 <% if (_pageUrl) { %><meta property="og:url" content="<%= _pageUrl %>">
 <% } %><% if (_ogImage) { %><meta property="og:image" content="<%= _ogImage %>">
 <meta property="og:image:width" content="1280">
 <meta property="og:image:height" content="720">
 <meta property="og:image:alt" content="Uma's Books &amp; Adventures">
 <% } %><meta name="twitter:card" content="<%= _ogImage ? 'summary_large_image' : 'summary' %>">
-<meta name="twitter:title" content="<%= title %>">
-<meta name="twitter:description" content="<%= _desc %>">
+<meta name="twitter:title" content="<%= title %>" data-i18n-attr="content:meta.title">
+<meta name="twitter:description" content="<%= _desc %>" data-i18n-attr="content:meta.description">
 <% if (_ogImage) { %><meta name="twitter:image" content="<%= _ogImage %>">
 <% } %><link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
@@ -60,10 +63,10 @@ const nav = [
 <% (typeof extraCss !== 'undefined' ? extraCss : []).forEach(href => { %><link rel="stylesheet" href="<%= href %>"><% }) %>
 </head>
 <body<%- typeof bodyClass !== 'undefined' && bodyClass ? ' class="' + bodyClass + '"' : '' %>>
-<a class="skip-link" href="#main-content">Skip to main content</a>
+<a class="skip-link" href="#main-content" data-i18n="a11y.skip"><%= _isFr ? 'Aller au contenu principal' : 'Skip to main content' %></a>
 
 <%- include('../../partials/mkt_chrome_header', { nav, activeNav: typeof activeNav !== 'undefined' ? activeNav : undefined }) %>
 <% if (typeof hideBackLink === 'undefined' || !hideBackLink) { %>
-<div class="site-back-bar"><a href="#" class="site-back-link">&larr; Back</a></div>
+<div class="site-back-bar"><a href="#" class="site-back-link" data-i18n="nav.back"><%= _isFr ? '← Retour' : '← Back' %></a></div>
 <% } %>
 <main id="main-content" tabindex="-1">

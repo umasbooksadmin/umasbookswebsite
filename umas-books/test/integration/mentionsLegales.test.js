@@ -43,7 +43,7 @@ test("the legal notice page shows the publisher, director of publication and hos
   ]) {
     assert.ok(text.includes(fact), `legal notice should include: ${fact}`);
   }
-  assert.match(text, /<title>[^<]*Legal Notice/);
+  assert.match(text, /<title[^>]*>[^<]*Legal Notice/);
 });
 
 test("the French and English texts cover exactly the same keys", async () => {

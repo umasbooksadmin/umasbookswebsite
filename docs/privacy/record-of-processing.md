@@ -201,9 +201,22 @@ Fonts: the website serves its typefaces itself (self-hosted files in `assets/fon
 
 ---
 
+## 13. Photos and videos / Photos et vidéos
+
+| | |
+|---|---|
+| Purpose | TODO (the association): confirm why photos or videos are taken (for example documenting events, social media, the shop's walls) |
+| Data | Images of customers, members or children, only if taken at the shop or at events. **The website does not take, upload or keep any photo or video of people, and has no photo database.** |
+| People | Customers, members, children (via a parent or legal guardian) |
+| Legal basis | Consent. Taken only with the person's consent; for a child, the consent of a parent or legal guardian is asked first. Consent can be withdrawn at any time by writing to admin@umasbooks.org, after which the image is no longer used. This is promised in the public privacy policy ("Photos and videos" section). |
+| Recipients / processors | None through the website. TODO (the association): say where any photos are stored (phone, shared drive...) and whether any are published (website, Instagram, Facebook), then add the provider to `processors-checklist.md` |
+| Transfers outside EU | TODO (the association): depends on where the photos are stored or published |
+| Retention | TODO (the association): set how long photos are kept; stop using and delete an image when consent is withdrawn |
+| Security | TODO (the association): who may take and hold photos; keep consent records (a parent or guardian's agreement for a child) |
+
 ## Open points for the volunteer in charge / Points à traiter
 
-1. Fill in every item still marked **TODO (the association)** above (at present: who holds the Squarespace account and whether it has 2-step verification).
+1. Fill in every item still marked **TODO (the association)** above (at present: who holds the Squarespace account and whether it has 2-step verification, and section 13, photos and videos: purpose, where photos are stored, whether any are published, how long they are kept).
 2. Sign the data processing agreements listed in `processors-checklist.md`.
 3. The Backblaze lifecycle rules (30 days nightly, 730 days monthly) were confirmed by the maintainer on 4 October 2026; the code cannot see them, so re-check them in the B2 console at the yearly review.
 4. Re-read this file once a year, and whenever a new feature collects personal data.

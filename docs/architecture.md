@@ -186,8 +186,12 @@ login check and reads only headers (so it never touches the session or the
 database): French when the cookie says `fr`, otherwise the browser's
 `Accept-Language`, otherwise English. Views call `tr('English', 'Français')`
 and server code calls `req.tr(...)`. This covers the marketing pages too: they
-are EJS views rendered in the chosen language on the server (a small script
-only re-applies the strings after a client-side toggle), with localised dates. Emails follow the reader's stored language:
+are EJS views whose `data-i18n` hooks the server fills from the French
+dictionaries before sending (`lib/pageDictionary.js`), so the legal pages, titles,
+meta and Open Graph tags are French in the HTML itself (a small script only
+re-applies the same strings after a client-side toggle), with localised dates.
+Euro amounts go through one helper, `formatEuro` (`lib/money.js`): `12,50 €` in
+French, `€12.50` in English. Emails follow the reader's stored language:
 `users.lang` (set at signup, refreshed at login), `orders.lang` (set at
 checkout) and `book_requests.lang`; an empty value means English. Book
 descriptions have a French column (`description_fr`). Admin screens, and the
@@ -1010,9 +1014,12 @@ Deliberate trade-offs (revisit only if traffic or risk changes):
   Squarespace DNS). Plenty for this site; a transactional provider is not needed.
 * **Languages are English and French only**, and admin screens (and admin-only
   alert emails) are English only. French is rendered on the server everywhere
-  else; the marketing pages still carry small in-page dictionaries that a script
-  re-applies after a client-side toggle, so a new marketing string has to be added
-  in both places.
+  else. The marketing pages keep one EN and one FR dictionary each, used both by
+  the server (to send French HTML) and by the toggle script; a new marketing string
+  goes in both dictionaries, and a new page needs `meta.title` and
+  `meta.description` entries. French typography in the dictionaries (no-break space
+  before `; : ! ? €`) is enforced by a unit test; the many `tr()` strings in the
+  app views are not yet checked for it.
 * **Awards and price lookups depend on outside services.** Wikidata, the NYT
   API and the AI web searches can be slow, wrong or unavailable; every call has a
   timeout, failures are retried later, AI-found awards need an admin's approval

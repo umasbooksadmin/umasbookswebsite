@@ -298,7 +298,7 @@ s.test("G-FR11 FR check (books): search page, book page and grade legend in Fren
   assert.equal(await ctx.page.$eval("html", (h) => h.lang), "fr");
 });
 
-s.todo("G-FR12 French prices use the comma style 12,50 € on the book page", "known issue: prices show €12.50 in French on the book page, cart and order email (the 12,50 € style is only used in book-request emails)", { lang: "fr" }, async (ctx) => {
+s.test("G-FR12 French prices use the comma style 12,50 € on the book page", { lang: "fr" }, async (ctx) => {
   const book = await stockedBook(ctx);
   await ctx.goto(`/books/${book.id}`);
   has(await ctx.page.$eval(".book-detail-price", (e) => e.textContent), /\d+,\d\d\s*€/);
@@ -503,7 +503,7 @@ s.test("G40 (must) each legal page in French has French titles and no English pa
   }
 });
 
-s.todo("G40b legal pages are French in the server's own HTML (no JavaScript needed)", "known gap: the legal pages are translated by the page's script, so the HTML the server sends is English; search engines and anyone with scripts off see English", { lang: "fr" }, async (ctx) => {
+s.test("G40b legal pages are French in the server's own HTML (no JavaScript needed)", { lang: "fr" }, async (ctx) => {
   for (const l of LEGAL) {
     const { html } = await pageHtml(ctx, l.path, "fr");
     const text = stripTags(html);

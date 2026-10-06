@@ -9,6 +9,13 @@
   // The server renders <html lang="en|fr"> from the person's language.
   var fr = (document.documentElement.lang || "").toLowerCase().indexOf("fr") === 0;
   function t(en, frText) { return fr ? frText : en; }
+  // Same output as lib/money.js formatEuro: 12,50 € in French, €12.50 in English.
+  function euro(n) {
+    n = Number(n);
+    if (!isFinite(n)) return "";
+    if (!fr) return "€" + n.toFixed(2);
+    try { return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(n); } catch (e) { return n.toFixed(2).replace(".", ",") + "\u00a0€"; }
+  }
 
   function esc(s) {
     return String(s || "").replace(/[&<>"']/g, function (c) {
@@ -27,7 +34,7 @@
       var cover = b.coverUrl
         ? '<img src="' + esc(b.coverUrl) + '" alt="" class="book-card-cover">'
         : '<div class="book-card-cover book-thumb-placeholder">' + t("No cover", "Pas de couverture") + "</div>";
-      var price = b.price != null ? '<span class="book-card-price">€' + Number(b.price).toFixed(2) + "</span>" : "";
+      var price = b.price != null ? '<span class="book-card-price">' + euro(b.price) + "</span>" : "";
       var availability = b.inStockCount > 0
         ? '<span class="availability-badge is-in-stock"><span class="dot"></span>' + b.inStockCount + " " + t("in stock", "en stock") + "</span>"
         : '<span class="availability-badge is-out">&middot; ' + t("Currently unavailable", "Actuellement indisponible") + "</span>";

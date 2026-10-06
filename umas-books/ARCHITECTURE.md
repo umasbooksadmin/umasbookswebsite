@@ -532,13 +532,32 @@ screens stay English). Two languages only: `en` and `fr`.
   mails and the other account mails use `user.lang`; password-policy messages take a
   translator (`validateNewPassword(pw, req.tr)`). Use `normLang` / `pickLang` for untrusted values.
   NULL means English.
-- **Marketing pages** (`views/marketing`) keep their client-side dictionaries
-  (`data-i18n`, `pageI18nEn/Fr`); the shared header/footer chrome is also
-  rendered in French on the server.
+- **Marketing pages** (`views/marketing`) are written in English with
+  `data-i18n` / `data-i18n-html` / `data-i18n-attr` hooks and one EN and one FR
+  dictionary (`pageI18nEn/Fr` in the page, `COMMON` in `assets/site.js`). They are
+  rendered through `renderMarketing()` (`src/lib/pageDictionary.js`): when
+  `req.lang` is `fr`, `applyPageDictionary()` fills every hook from the French
+  dictionaries BEFORE the HTML is sent (the same swap `site.js` does in the
+  browser), so the legal pages, `<title>`, meta description, Open Graph and
+  Twitter tags, the skip and back links are French in the server HTML (search
+  engines, no-JavaScript clients, print). `og:locale` is `fr_FR` / `en_GB` and
+  `<html lang>` follows. The EN/FR toggle still swaps in place, from the same
+  dictionaries: there is one copy of every text. Each page needs `meta.title` and
+  `meta.description` entries in both dictionaries. French dictionaries use a
+  no-break space before `; : ! ? €` and inside `« »` (a unit test checks it).
+- **Euro amounts** are formatted by ONE helper, `formatEuro(amount, lang)` in
+  `src/lib/money.js` (French `12,50 €` with a no-break space, English `€12.50`;
+  null/NaN give an empty string). Views call `eur(n)` (set in `lang.js`), emails
+  and server code call `formatEuro`, and the two client scripts that build
+  prices (the books search in `views/marketing/books.ejs`, `public/favorites-page.js`) read
+  `<html lang>`. JSON APIs keep numbers. Never print a price with `toFixed(2)`
+  to a customer.
 - **Safety net:** `test/helpers/i18nAudit.js` (`visibleText`, `untranslated`,
   shared `ALLOWLIST` for brand names and legal identifiers) reports text that is
-  identical in the English and French render of a page. Append each translated
-  customer page to `PAGES` in `test/integration/i18nCoverage.test.js`.
+  identical in the English and French render of a page, including `aria-label`,
+  `alt`, `placeholder`, `title` and the meta description / Open Graph / Twitter
+  text. Append each translated customer page to `PAGES` in
+  `test/integration/i18nCoverage.test.js` (every marketing page is already there).
   `test/integration/i18nCore.test.js` covers the plumbing.
 
 ## Dates and times (Europe/Paris)

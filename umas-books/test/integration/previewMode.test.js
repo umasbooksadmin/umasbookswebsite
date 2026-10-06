@@ -19,7 +19,7 @@ const FORM = { "content-type": "application/x-www-form-urlencoded" };
 const PASSWORD = "PreviewMode1!Test";
 
 const EN_TEXT = "Preview — Uma’s Books is opening soon. You’re looking at a test version with sample books: nothing here is real yet and no payment is taken.";
-const FR_TEXT = "Aperçu — Uma’s Books ouvre bientôt. Vous découvrez une version de test avec des livres d’exemple : rien n’est réel pour l’instant et aucun paiement n’est pris.";
+const FR_TEXT = "Aperçu — Uma’s Books ouvre bientôt. Vous découvrez une version de test avec des livres d’exemple\u00a0: rien n’est réel pour l’instant et aucun paiement n’est pris.";
 const PAGES = ["/", "/books.html", "/membership.html", "/cart", "/login", "/contact", "/no-such-page"];
 
 let preview, normal, db, copyId;

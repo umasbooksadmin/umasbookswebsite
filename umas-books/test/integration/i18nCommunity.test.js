@@ -169,7 +169,7 @@ test("calendar headings, weekdays, prices and seat counts are French with the fr
   const fr = (await render(null, `/events?month=${MONTH}`, "fr")).text;
   assert.match(fr, /Mai 2092/);
   assert.match(fr, />Lun</);
-  assert.match(fr, /12,50 €/);
+  assert.match(fr, /12,50\u00a0€/);
   assert.match(fr, /Gratuit/);
   assert.match(fr, /0 inscrit/);
   assert.match(fr, /Complet/);

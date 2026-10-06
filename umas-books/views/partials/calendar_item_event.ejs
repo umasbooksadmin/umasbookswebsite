@@ -7,7 +7,7 @@ const e = item;
 const tones = ['tone-a', 'tone-b', 'tone-c', 'tone-d', 'tone-e', 'tone-f'];
 const full = e.capacity != null && e.signup_count >= e.capacity;
 const priceLabel = e.price != null
-  ? (lang === 'fr' ? Number(e.price).toFixed(2).replace('.', ',') + ' €' : '€' + Number(e.price).toFixed(2))
+  ? eur(e.price)
   : tr('Free', 'Gratuit');
 %>
 <details class="fcal-session <%= tones[e.id % tones.length] %>">

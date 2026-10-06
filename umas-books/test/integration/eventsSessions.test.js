@@ -245,10 +245,10 @@ test("GET /sessions: public; month view shows drop-in price, 'places left' count
   const open = await makeClass(noon(2093, 1, 14), { dropinPrice: 6 });
   const { status, text } = await c.get(`/sessions?month=${month}`);
   assert.equal(status, 200);
-  assert.match(card(text, five.title), /&euro;8\.00 · 2 places left/);
-  assert.match(card(text, one.title), /&euro;8\.50 · 1 place left/);
+  assert.match(card(text, five.title), /€8\.00 · 2 places left/);
+  assert.match(card(text, one.title), /€8\.50 · 1 place left/);
   assert.ok(!/places? left/.test(card(text, open.title).split("</summary>")[0]), "no capacity -> no seats line");
-  assert.match(card(text, open.title), /&euro;6\.00/);
+  assert.match(card(text, open.title), /€6\.00/);
   assert.match(text, new RegExp(`name="classId" value="${five.id}"`));
   assert.match(text, /name="backTo" value="\/sessions\?month=2093-01"/);
   assert.match(text, /January 2093/);

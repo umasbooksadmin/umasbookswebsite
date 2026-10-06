@@ -53,7 +53,16 @@ function csrfProtection(req, res, next) {
       if (req.path === "/logout") {
         return req.session.destroy(() => res.redirect("/"));
       }
-      return res.status(403).send("Your session expired or this form is out of date. Please go back and try again.");
+      // The site's own error page, in the person's language (req.tr). If the
+      // page itself cannot render, fall back to the plain English text.
+      const message = req.tr
+        ? req.tr(
+            "Your session expired or this form is out of date. Please go back and try again.",
+            "Votre session a expiré ou ce formulaire n’est plus à jour. Veuillez revenir en arrière et réessayer."
+          )
+        : "Your session expired or this form is out of date. Please go back and try again.";
+      res.status(403);
+      return res.render("error", { message }, (err, html) => (err ? res.send(message) : res.send(html)));
     }
   }
   next();

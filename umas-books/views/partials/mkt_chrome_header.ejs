@@ -13,6 +13,7 @@
    callers point "Events" at different places: the app links straight
    to the live calendar, marketing links to its own teaser page first),
    activeNav (optional — key of the nav item to mark current). */
+const isFrChrome = locals.lang === 'fr';
 const navItems = typeof nav !== 'undefined' ? nav : [];
 // Server-side French for the chrome (site.js re-applies the same strings
 // client-side on the marketing pages). Falls back to English without tr().
@@ -47,9 +48,9 @@ const NAV_FR = { 'nav.home': 'Accueil', 'nav.books': 'Parcourir les livres', 'na
         <a class="h-tool" href="/login"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="8" r="4.2"/><path d="M4 21c0-4.4 3.6-7.5 8-7.5s8 3.1 8 7.5z" stroke-linejoin="round"/></svg><span class="label"><span data-i18n="tool.login"><%= t('Log In', 'Connexion') %></span></span></a>
       <% } %>
       <div class="langtoggle" role="group" aria-label="Language / Langue">
-        <button type="button" data-lang="en" class="is-active" aria-pressed="true">EN</button>
+        <button type="button" data-lang="en"<%- isFrChrome ? ' aria-pressed="false"' : ' class="is-active" aria-pressed="true"' %>>EN</button>
         <span aria-hidden="true">|</span>
-        <button type="button" data-lang="fr" aria-pressed="false">FR</button>
+        <button type="button" data-lang="fr"<%- isFrChrome ? ' class="is-active" aria-pressed="true"' : ' aria-pressed="false"' %>>FR</button>
       </div>
     </div>
   </div>

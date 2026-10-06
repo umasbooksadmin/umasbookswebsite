@@ -4,11 +4,13 @@
 //   req.lang / res.locals.lang / res.locals.htmlLang   'en' | 'fr'
 //   req.langFromCookie                                 true when the cookie held a valid choice
 //   req.tr(en, fr, vars?) / res.locals.tr(...)         string for the active language
+//   res.locals.eur(n)                                  euro amount in the active language (lib/money.js)
 //   res.locals.formatDate/formatDateTime/formatTime/formatDateLong   locale-aware
 // It reads headers only: no session, no database.
 const { forLocale, LOCALES } = require("../lib/dates");
 const { translator, normLang } = require("../lib/lang");
 const { conditionLabel } = require("../lib/inventory");
+const { formatEuro } = require("../lib/money");
 
 const COOKIE_NAME = "umasbooks_lang";
 
@@ -44,6 +46,7 @@ function langMiddleware(req, res, next) {
   res.locals.lang = lang;
   res.locals.htmlLang = lang;
   res.locals.tr = tr;
+  res.locals.eur = (n) => formatEuro(n, lang);
   res.locals.conditionLabel = (value) => conditionLabel(value, lang);
   Object.assign(res.locals, formatters[lang]);
 

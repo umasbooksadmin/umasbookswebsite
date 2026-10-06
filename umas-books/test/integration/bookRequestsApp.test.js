@@ -98,7 +98,7 @@ test("the Books page links to the form in English and French", async () => {
   assert.match(en, /"bk\.band\.ask\.t":"Can't find a book\? Ask us"/);
   assert.match(en, /"bk\.empty\.ask"/);
   assert.match(en, /\/request-a-book">' \+ esc\(t\('bk\.empty\.ask'\)\)/, "the empty search result links to the form");
-  assert.match(en, /"bk\.band\.ask\.t":"Vous ne trouvez pas un livre \? Demandez-nous"/);
+  assert.match(en, /"bk\.band\.ask\.t":"Vous ne trouvez pas un livre\u00a0\? Demandez-nous"/);
 });
 
 test("My Account shows a non-member's book requests and lets them cancel one", async () => {

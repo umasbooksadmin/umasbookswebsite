@@ -34,13 +34,14 @@ s.test("E1 (must) a form sent after the session cookie was deleted shows the pla
   has(await ctx.text(), /Incorrect email or password\./);
 });
 
-s.todo("X6 the expired-session page is translated when the site is in French", "known: the 'session expired' page is a plain English text page even in French", { lang: "fr" }, async (ctx) => {
+s.test("X6 the expired-session page is translated when the site is in French", { lang: "fr" }, async (ctx) => {
   await ctx.goto("/login");
   await ctx.page.type("form[action='/login'] #email", cfg.testEmail("csrf-fr"));
   await ctx.page.type("form[action='/login'] #password", "Not-A-Real-Password-1!");
   await ctx.page.deleteCookie(...(await ctx.cookies()).filter((c) => c.name === "umasbooks.sid"));
   await Promise.all([ctx.page.waitForNavigation(), ctx.page.click("form[action='/login'] button[type='submit']")]);
   hasNot(await ctx.text(), /Your session expired/);
+  has(await ctx.text(), /Votre session a expiré/);
 });
 
 s.write("E2 (must) two Pay & Buy requests at the same moment start ONE checkout, not two (payments on; needs the account-holder login, because buying needs an account)", { as: "account" }, async (ctx) => {

@@ -93,6 +93,8 @@
     </div>
   </section>
 <% const pageI18nEn = {
+  "meta.title": "Books — Uma's Books and Adventures",
+  "meta.description": "Browse pre-loved English books by genre or search by title, author or keyword, then pick them up at Uma's Books in Albi.",
   "bk.title": "Browse books",
   "bk.search.ph": "Search by title, author, keyword, or genre…",
   "bk.search.submit": "Search",
@@ -139,11 +141,13 @@
   "g.all": "All Genres",
 }; %>
 <% const pageI18nFr = {
+  "meta.title": "Livres — Uma’s Books and Adventures",
+  "meta.description": "Parcourez des livres anglais d’occasion par genre ou cherchez par titre, auteur ou mot-clé, puis venez les retirer chez Uma’s Books à Albi.",
   "bk.title": "Parcourir les livres",
   "bk.search.ph": "Rechercher par titre, auteur, mot-clé ou genre…",
   "bk.search.submit": "Rechercher",
   "bk.genres.label": "Parcourir <br>par genre",
-  "bk.results.for": "Résultats pour « {q} »",
+  "bk.results.for": "Résultats pour « {q} »",
   "bk.results.new": "Nouveautés",
   "bk.results.all": "Tous les genres",
   "bk.rec.kicker": "Notre coup de cœur de la semaine",
@@ -165,10 +169,10 @@
   "bk.band.donate.t": "Donner des livres",
   "bk.band.donate.d": "Offrez un nouveau chapitre à vos livres. Aidez-nous à enrichir notre collection et à soutenir notre communauté.",
   "bk.band.donate.cta": "En savoir plus",
-  "bk.band.ask.t": "Vous ne trouvez pas un livre ? Demandez-nous",
+  "bk.band.ask.t": "Vous ne trouvez pas un livre ? Demandez-nous",
   "bk.band.ask.d": "Dites-nous ce que vous cherchez et nous vous écrirons si un exemplaire arrive. Aucun compte nécessaire.",
   "bk.band.ask.cta": "Demander",
-  "bk.empty.ask": "Introuvable ? Demandez-nous de le chercher pour vous.",
+  "bk.empty.ask": "Introuvable ? Demandez-nous de le chercher pour vous.",
   "g.fiction": "Fiction",
   "g.children": "Jeunesse",
   "g.ya": "Young Adult",
@@ -192,7 +196,15 @@
   var API = '/api/books';
 
   function lang() {
-    try { return localStorage.getItem('umasbooks.lang') === 'fr' ? 'fr' : 'en'; } catch (e) { return 'en'; }
+    // The server renders <html lang> from the person's language; the toggle keeps it current.
+    return (document.documentElement.lang || '').toLowerCase().indexOf('fr') === 0 ? 'fr' : 'en';
+  }
+  // Same output as lib/money.js formatEuro: 12,50 € in French, €12.50 in English.
+  function euro(n) {
+    n = Number(n);
+    if (!isFinite(n)) return '';
+    if (lang() !== 'fr') return '€' + n.toFixed(2);
+    try { return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(n); } catch (e) { return n.toFixed(2).replace('.', ',') + '\u00a0€'; }
   }
   function t(key, fallback) {
     var dict = (window.PAGE_I18N && window.PAGE_I18N[lang()]) || {};
@@ -220,7 +232,7 @@
     var cover = b.coverUrl
       ? '<img class="cover" src="' + esc(b.coverUrl) + '" alt="" loading="lazy">'
       : '<div class="cover cover-none">' + esc(t('bk.nocover', 'No cover')) + '</div>';
-    var price = b.price != null ? '€' + Number(b.price).toFixed(2) : '';
+    var price = b.price != null ? euro(b.price) : '';
     var fav = withFavorite
       ? '<button type="button" class="favorite-toggle" data-book-id="' + esc(b.id) + '" aria-pressed="false" aria-label="' + esc(t('bk.fav', 'Favorite')) + '">' + HEART + '</button>'
       : '';

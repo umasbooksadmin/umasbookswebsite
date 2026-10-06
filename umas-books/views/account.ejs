@@ -3,7 +3,7 @@
 <%
   const statusLabels = { pending: tr('Pending', 'En attente'), paid: tr('Paid', 'Payée'), cancelled: tr('Cancelled', 'Annulée'), expired: tr('Expired', 'Expirée') };
   const statusLabel = (st) => statusLabels[st] || (st.charAt(0).toUpperCase() + st.slice(1));
-  const money = (n) => (lang === 'fr' ? Number(n).toFixed(2).replace('.', ',') + '\u00a0€' : '€' + Number(n).toFixed(2));
+  const money = eur;
 %>
 <h1><%= tr('My Account', 'Mon compte') %></h1>
 <p class="small"><a href="/account/2fa"><%= tr('Two-step verification', 'Vérification en deux étapes') %></a></p>

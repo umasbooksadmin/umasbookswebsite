@@ -114,7 +114,7 @@ test("every marketing page has canonical, Open Graph, Twitter and favicon tags, 
     descriptions.set(description, p);
     assert.equal(meta(html, "property", "og:description"), description, `${p} og:description`);
     assert.equal(meta(html, "name", "twitter:description"), description, `${p} twitter:description`);
-    const title = html.match(/<title>([^<]*)<\/title>/)[1];
+    const title = html.match(/<title[^>]*>([^<]*)<\/title>/)[1];
     assert.equal(meta(html, "property", "og:title"), title, `${p} og:title`);
     assert.equal(meta(html, "name", "twitter:title"), title, `${p} twitter:title`);
     assert.equal(meta(html, "property", "og:type"), "website");
