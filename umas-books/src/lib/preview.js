@@ -19,6 +19,9 @@ function previewMiddleware(req, res, next) {
   // Live site (preview off) still pointed at the HelloAsso sandbox: every admin
   // page shows a red banner (partials/admin_header.ejs).
   res.locals.helloassoSandbox = !on && usesSandbox(process.env.HELLOASSO_API_BASE);
+  // Live site with a wrong setup (APP_BASE_URL missing, HelloAsso credentials
+  // missing...): a persistent red banner on every admin page (lib/env.js).
+  res.locals.launchAlerts = require("./env").launchBannerAlerts(process.env);
   if (on) res.set("X-Robots-Tag", "noindex, nofollow");
   next();
 }

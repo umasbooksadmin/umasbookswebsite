@@ -43,7 +43,11 @@ const OUTPUT_MAX_BYTES = 350 * 1024;
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const ACCEPTED_FORMATS = new Set(["jpeg", "png", "webp", "gif"]);
 
+// Open Library asks API clients to say who they are and how to reach them.
+const USER_AGENT = "UmasBooksInventory/1.0 (+https://umasbooks.org; admin@umasbooks.org)";
+
 const BATCH_SIZE = 20;
+const MAX_CONSECUTIVE_TRANSIENT = 3; // a batch stops after this many network-type errors in a row
 const MAX_FAILURES = 3; // per week
 const RETRY_SPACING = "1 hour";
 
@@ -121,6 +125,17 @@ async function readLimited(res, maxBytes) {
 }
 
 // opts: fetchImpl (tests), lookup (tests), timeoutMs, maxBytes.
+// A failure that says nothing about THIS cover: the other side was down or slow
+// or the network broke (5xx, 429, timeout, DNS/connection error). Such a failure
+// is not counted as a failed attempt (only a 404, a placeholder or an invalid image
+// is), and a run of them stops the batch. See backfillCovers.
+function transientError(message, cause) {
+  const err = new Error(message, cause ? { cause } : undefined);
+  err.transient = true;
+  return err;
+}
+const isTransient = (err) => Boolean(err && err.transient);
+
 async function fetchCoverImage(rawUrl, { fetchImpl = fetch, lookup = defaultLookup, timeoutMs = FETCH_TIMEOUT_MS, maxBytes = MAX_BYTES } = {}) {
   // One budget for all redirects and the body. A normal (referenced) timer, not
   // AbortSignal.timeout(), whose timer is unref'd: a stalled request must keep the
@@ -129,6 +144,9 @@ async function fetchCoverImage(rawUrl, { fetchImpl = fetch, lookup = defaultLook
   const timer = setTimeout(() => controller.abort(new Error("cover download timed out")), timeoutMs);
   try {
     return await fetchWithin(rawUrl, controller.signal, { fetchImpl, lookup, maxBytes });
+  } catch (err) {
+    if (!isTransient(err) && controller.signal.aborted) throw transientError("cover download timed out", err);
+    throw err;
   } finally {
     clearTimeout(timer);
   }
@@ -139,22 +157,42 @@ async function fetchWithin(rawUrl, deadline, { fetchImpl, lookup, maxBytes }) {
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
     const u = parseAllowed(current);
     if (!u) throw new Error("cover URL is not allowed");
-    await assertPublicHost(u.hostname, lookup);
-    const res = await fetchImpl(u.href, {
-      redirect: "manual",
-      signal: deadline,
-      headers: { "User-Agent": "UmasBooksInventory/1.0", Accept: "image/jpeg,image/png,image/webp,image/gif" },
-    });
+    try {
+      await assertPublicHost(u.hostname, lookup);
+    } catch (err) {
+      // The name did not resolve at all (DNS down): transient. "Resolves to a
+      // private address" is a refusal, not a network problem.
+      if (/public address/.test(err.message)) throw err;
+      throw transientError(`cover host lookup failed (${err.code || err.message})`, err);
+    }
+    let res;
+    try {
+      res = await fetchImpl(u.href, {
+        redirect: "manual",
+        signal: deadline,
+        headers: { "User-Agent": USER_AGENT, Accept: "image/jpeg,image/png,image/webp,image/gif" },
+      });
+    } catch (err) {
+      throw transientError(`cover request failed (${(err.cause && err.cause.code) || err.message})`, err);
+    }
     if (res.status >= 300 && res.status < 400) {
       const location = res.headers.get("location");
       if (!location) throw new Error("cover redirect without a location");
       current = new URL(location, u).href;
       continue;
     }
-    if (!res.ok) throw new Error(`cover request failed (${res.status})`);
+    if (!res.ok) {
+      const message = `cover request failed (${res.status})`;
+      throw res.status >= 500 || res.status === 429 ? transientError(message) : new Error(message);
+    }
     const type = String(res.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
     if (!ACCEPTED_TYPES.includes(type)) throw new Error(`cover has an unexpected content type (${type || "none"})`);
-    return readLimited(res, maxBytes);
+    try {
+      return await readLimited(res, maxBytes);
+    } catch (err) {
+      if (/too large/.test(err.message)) throw err;
+      throw transientError(`cover download interrupted (${err.message})`, err);
+    }
   }
   throw new Error("cover redirected too many times");
 }
@@ -214,10 +252,15 @@ function localCover(value) {
 const pause = (ms) => (ms > 0 ? new Promise((r) => setTimeout(r, ms)) : Promise.resolve());
 
 // One gentle batch for the background job (src/index.js): books that still lack a
-// stored cover and have a source address, books on the shelves first. A book that
-// failed is left alone for an hour; after MAX_FAILURES failures it is left alone
-// for a week (then it gets a fresh count).
-// -> { processed, stored, failed }
+// stored cover and have a source address, books on the shelves first. A book whose
+// cover is really bad (404, a placeholder image, not an image) counts a failed
+// attempt: left alone for an hour, and after MAX_FAILURES failures for a week
+// (then it gets a fresh count). A server error (5xx), a timeout or a network error
+// is NOT the book's fault: it is not counted as a failed attempt (the book is just
+// retried after an hour), and after MAX_CONSECUTIVE_TRANSIENT of them in a row the
+// batch stops so a down Open Library is not hammered. (Migration 059 lesson: a
+// run of outages must not permanently mark covers as failed.)
+// -> { processed, stored, failed, transient, stopped }
 async function backfillCovers(pool, { limit = BATCH_SIZE, delayMs = 500, ...fetchOpts } = {}) {
   const { rows } = await pool.query(
     `SELECT b.id, b.cover_source_url
@@ -232,7 +275,7 @@ async function backfillCovers(pool, { limit = BATCH_SIZE, delayMs = 500, ...fetc
       LIMIT $1`,
     [limit]
   );
-  let stored = 0, failed = 0;
+  let stored = 0, failed = 0, transient = 0, consecutiveTransient = 0, stopped = false;
   for (const [i, book] of rows.entries()) {
     if (!isAllowedCoverUrl(book.cover_source_url)) {
       // Not a host we may fetch from (e.g. a pasted address): never retry it.
@@ -249,7 +292,22 @@ async function backfillCovers(pool, { limit = BATCH_SIZE, delayMs = 500, ...fetc
         [url, book.id]
       );
       stored++;
+      consecutiveTransient = 0;
     } catch (err) {
+      if (isTransient(err)) {
+        transient++;
+        consecutiveTransient++;
+        console.warn(`Cover backfill: book ${book.id} not fetched (will retry, not counted as a failure): ${err.message}`);
+        // Only the timestamp moves (so the same book is not first in line on every tick).
+        await pool.query("UPDATE books SET cover_fetch_attempted_at = now() WHERE id = $1", [book.id]);
+        if (consecutiveTransient >= MAX_CONSECUTIVE_TRANSIENT) {
+          console.warn(`Cover backfill: ${consecutiveTransient} network errors in a row - stopping this batch.`);
+          stopped = true;
+          break;
+        }
+        continue;
+      }
+      consecutiveTransient = 0;
       failed++;
       console.warn(`Cover backfill: book ${book.id} failed: ${err.message}`);
       await pool.query(
@@ -261,10 +319,10 @@ async function backfillCovers(pool, { limit = BATCH_SIZE, delayMs = 500, ...fetc
       );
     }
   }
-  return { processed: rows.length, stored, failed };
+  return { processed: rows.length, stored, failed, transient, stopped };
 }
 
 module.exports = {
   ALLOWED_HOSTS, MAX_BYTES, BATCH_SIZE, MAX_FAILURES,
-  isAllowedCoverUrl, isPublicAddress, setLookupForTests, fetchCoverImage, reencodeCover, localizeCover, prepareCover, localCover, backfillCovers,
+  isAllowedCoverUrl, isPublicAddress, setLookupForTests, fetchCoverImage, reencodeCover, localizeCover, prepareCover, localCover, backfillCovers, USER_AGENT,
 };

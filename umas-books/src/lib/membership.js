@@ -284,13 +284,18 @@ async function reconcileRecentMemberships(pool) {
       .filter((o) => o.payer && typeof o.payer.email === "string" && new Date(o.date).getTime() >= cutoff)
       .map((o) => o.payer.email.toLowerCase())
   );
+  const failures = [];
   for (const email of emails) {
     try {
       await syncMembershipForEmail(pool, email);
     } catch (err) {
       console.error(`Membership reconciliation failed:`, err.message);
+      failures.push(err.message);
     }
   }
+  // One bad payer must not stop the others (the loop above carries on), but the
+  // run still counts as failed so the job tracker (lib/jobRuns.js) can alert.
+  if (failures.length) throw new Error(`${failures.length} of ${emails.size} membership check(s) failed; first: ${failures[0]}`);
 }
 
 module.exports = { alertUnmatchedPayments, linkUnmatchedPayment, expiryFromPayments, applyMembershipGrant, countsForMembership, syncMembershipForEmail, syncMembershipInBackground, expireStaleMemberships, reconcileRecentMemberships };

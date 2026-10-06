@@ -105,7 +105,7 @@ jobs:
           username: ${{ secrets.GMAIL_USER }}
           password: ${{ secrets.GMAIL_APP_PASSWORD }}
           subject: "[umas-books] Site health check failing (status ${{ steps.health.outputs.status }})"
-          to: admin@umasbooks.org
+          to: ${{ vars.ALERT_TO || 'admin@umasbooks.org' }}
           from: "Uma's Books Uptime Monitor <${{ secrets.GMAIL_USER }}>"
           body: |
             ${{ env.SITE_URL }}/healthz has failed two checks in a row (about 30 minutes apart), status ${{ steps.health.outputs.status }}.
@@ -126,7 +126,7 @@ jobs:
           username: ${{ secrets.GMAIL_USER }}
           password: ${{ secrets.GMAIL_APP_PASSWORD }}
           subject: "[umas-books] Site health check recovered"
-          to: admin@umasbooks.org
+          to: ${{ vars.ALERT_TO || 'admin@umasbooks.org' }}
           from: "Uma's Books Uptime Monitor <${{ secrets.GMAIL_USER }}>"
           body: |
             ${{ env.SITE_URL }}/healthz is responding normally again (status 200).

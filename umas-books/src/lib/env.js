@@ -72,12 +72,15 @@ function validateEnv(env = process.env) {
     if (usesSandbox(env.HELLOASSO_API_BASE)) {
       const msg = "HelloAsso is still in SANDBOX mode: real payments will not work. HELLOASSO_API_BASE points at the HelloAsso sandbox while preview mode is off. Remove it (or set the production API base) and use the production HelloAsso credentials in Render > Environment.";
       warnings.push(msg);
-      alerts.push({ label: "HelloAsso is still in SANDBOX mode: real payments will not work", message: msg });
+      alerts.push({ label: "HelloAsso is still in SANDBOX mode: real payments will not work", message: msg, code: "sandbox" });
     }
     const missingHa = OPTIONAL_GROUPS[1].vars.filter((name) => !isSet(env, name));
     if (missingHa.length > 0) {
       const msg = `${missingHa.join(", ")} not set and preview mode is off - online payment and membership reconciliation do not work on the live site.`;
       alerts.push({ label: "HelloAsso credentials missing: payments are disabled", message: msg });
+    }
+    if (!isSet(env, "ALERT_TO")) {
+      warnings.push("ALERT_TO is not set and preview mode is off - error alerts go to CONTACT_TO or the built-in default address (admin@umasbooks.org). Set ALERT_TO to one or more addresses (comma separated), ideally one on a different mail provider than the Gmail account that sends the alerts.");
     }
     if (!isSet(env, "CONTACT_TO")) {
       warnings.push("CONTACT_TO is not set and preview mode is off - contact-form messages and error alerts go to the built-in default address (admin@umasbooks.org). Set CONTACT_TO if that is not the right inbox.");
@@ -99,10 +102,42 @@ function checkEnv({ env = process.env, log = console, exit = process.exit } = {}
   return result;
 }
 
-// Sends each launch-guard alert once. `send` is alertOnError in production
-// (force: never swallowed by the error-alert throttle); injectable for tests.
-function sendLaunchAlerts(alerts, send) {
-  for (const a of alerts || []) send(a.label, a.message, { force: true });
+// Sends each launch-guard alert (`send` is alertOnError in production, with
+// force: never swallowed by the error-alert throttle; injectable for tests).
+// With a `pool`, each alert is emailed at most once per 24 hours (lib/alertFlags.js,
+// table alert_flags): without that, every deploy or restart of a misconfigured
+// live site sent up to three emails again. The problem stays visible meanwhile as
+// a persistent red banner on every admin page (launchBannerAlerts below).
+// Without a pool (unit tests) every alert is sent, once.
+const LAUNCH_ALERT_EVERY_MINUTES = 24 * 60;
+async function sendLaunchAlerts(alerts, send, pool) {
+  for (const a of alerts || []) {
+    if (!pool) {
+      send(a.label, a.message, { force: true });
+      continue;
+    }
+    const { claimAlertSlot, releaseAlertSlot } = require("./alertFlags");
+    const key = `launch:${a.label}`.slice(0, 120);
+    let claimed;
+    try {
+      claimed = await claimAlertSlot(pool, key, LAUNCH_ALERT_EVERY_MINUTES);
+    } catch (err) {
+      console.error("Launch alert throttle unavailable (sending anyway):", err.message);
+      claimed = true; // a duplicate email beats a silent misconfiguration
+    }
+    if (!claimed) continue;
+    const ok = await send(a.label, a.message, { force: true });
+    if (ok === false) await releaseAlertSlot(pool, key).catch(() => {});
+  }
 }
 
-module.exports = { sendLaunchAlerts, validateEnv, checkEnv, REQUIRED, OPTIONAL_GROUPS };
+// What the red banner on every admin page lists: the live-site misconfigurations
+// that also raise a launch alert, as they are RIGHT NOW (re-read from the
+// environment, so the banner disappears once it is fixed and the service
+// restarted). Production only. The HelloAsso sandbox problem has its own banner.
+function launchBannerAlerts(env = process.env) {
+  if (env.NODE_ENV !== "production") return [];
+  return validateEnv(env).alerts.filter((a) => a.code !== "sandbox").map((a) => ({ label: a.label, message: a.message }));
+}
+
+module.exports = { sendLaunchAlerts, launchBannerAlerts, LAUNCH_ALERT_EVERY_MINUTES, validateEnv, checkEnv, REQUIRED, OPTIONAL_GROUPS };

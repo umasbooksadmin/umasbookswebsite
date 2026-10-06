@@ -73,3 +73,45 @@ services:
         sync: false
       - key: HELLOASSO_API_BASE
         sync: false
+      # ---- Settings below were missing from this file: a Blueprint rebuild
+      # (new Render account, see docs/runbook.md "Rebuild everything if the
+      # Render account is lost") would have started a site with no canonical
+      # address, alerts to the wrong place and no proxy setting. ----
+      #
+      # The public address, no trailing slash. Used for emailed links, payment
+      # return URLs, the canonical-host redirect (the *.onrender.com address
+      # redirects here) and sitemap/SEO. Wrong or missing = broken links in mail.
+      - key: APP_BASE_URL
+        value: https://umasbooks.org
+      # Where contact-form messages and forum reports go (one address, or several
+      # separated by commas).
+      - key: CONTACT_TO
+        value: admin@umasbooks.org
+      # Where the site's ALERT emails go (errors, emails that cannot be sent,
+      # failing background jobs, launch warnings): one address or several
+      # separated by commas. Add a second one on a DIFFERENT mail provider than
+      # the Google account that sends the alerts. The GitHub workflows read the
+      # repository VARIABLE with the same name (Settings > Secrets and variables
+      # > Actions > Variables); keep the two the same.
+      - key: ALERT_TO
+        value: admin@umasbooks.org,sharonbje@gmail.com
+      # How many proxies sit in front of the app (decides the visitor's IP for
+      # rate limits and order caps). 2 = Render's edge plus its internal proxy.
+      # Verify after a deploy on /admin/diagnostics/client-ip. If a CDN is ever
+      # put in front of Render this number changes: re-check it.
+      - key: TRUST_PROXY_HOPS
+        value: "2"
+      # Optional: only payments on this HelloAsso form make someone a member (the
+      # last part of the form's HelloAsso address, e.g. adhesion-2026). Not a
+      # secret. Empty = any membership form of the organisation counts.
+      - key: HELLOASSO_MEMBERSHIP_FORM_SLUG
+        sync: false
+      # Background copy of book covers onto our own server. "off" disables it
+      # (tests do); anything else, or unset, leaves it on.
+      - key: COVER_BACKFILL
+        value: "on"
+      # PREVIEW_MODE is deliberately NOT in this file. The "coming soon" mode is
+      # switched on and off by hand in the Render dashboard (Environment), so a
+      # Blueprint sync can never switch a live site back into preview mode (or
+      # the other way round). For a rebuild, add it yourself while testing and
+      # delete it at launch: see docs/runbook.md section g.

@@ -12,7 +12,7 @@
       <tr><th scope="row">Trusted proxy hops (TRUST_PROXY_HOPS)</th><td><%= trustProxyHops %></td></tr>
     </tbody>
   </table>
-  <p>The <strong>req.ip</strong> value must be your own public IP address (search &ldquo;what is my IP&rdquo;), not a Cloudflare address. Check it once from a phone on mobile data and once from home wifi. If it is wrong, set <code>TRUST_PROXY_HOPS</code> in Render &gt; Environment (2 normally; 1 if the shown address is already your own but the list shows one extra address, 3 if it is still a Cloudflare address).</p>
+  <p>The <strong>req.ip</strong> value must be your own public IP address (search &ldquo;what is my IP&rdquo;), not an address of the hosting edge (Render/Cloudflare). Check it once from a phone on mobile data and once from home wifi. If it is wrong, set <code>TRUST_PROXY_HOPS</code> in Render &gt; Environment (2 normally; 1 if the shown address is already your own but the list shows one extra address, 3 if it is still an edge address).</p>
 </div>
 
 <%- include('../partials/admin_footer') %>

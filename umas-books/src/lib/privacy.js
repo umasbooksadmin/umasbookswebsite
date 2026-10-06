@@ -112,15 +112,21 @@ const appUrl = () => configuredBaseUrl();
 
 // Daily retention sweep. Each step is independent so one failure does not
 // stop the others; returns counts for logging (never any personal data).
-async function purgeExpiredPersonalData(pool) {
+// `onStep(name, err)` (optional) is told how every step went (err undefined on
+// success): src/index.js uses it to record each step in job_runs and to alert
+// after three failures in a row.
+async function purgeExpiredPersonalData(pool, { onStep } = {}) {
   const counts = {};
   const step = async (name, fn) => {
+    let failure;
     try {
       counts[name] = await fn();
     } catch (err) {
       counts[name] = "error";
+      failure = err;
       console.error(`Retention purge step "${name}" failed:`, err.message);
     }
+    if (onStep) await onStep(name, failure);
   };
 
   await step("signups", async () => {

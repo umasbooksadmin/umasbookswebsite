@@ -17,7 +17,8 @@
 //   processOutbox(pool)     the 60-second worker: retries due rows with
 //                           backoff 1, 5, 15, 60, 240 min (then every 240 min)
 //                           up to 8 attempts, then marks the row 'failed' and
-//                           sends ONE admin alert per hour.
+//                           sends ONE admin alert per hour. A row waiting over
+//                           60 minutes raises one "stuck" alert per 6 hours.
 //   purgeOutbox(pool)       retention: bodies are personal data (see privacy.js).
 //
 // A row is "claimed" by pushing next_try_at five minutes ahead in a single
@@ -26,6 +27,7 @@
 const mailer = require("../mailer");
 const { scrubPersonalData } = require("./scrub");
 const { sendAdminAlert } = require("./errorAlert");
+const { claimAlertSlot, releaseAlertSlot } = require("./alertFlags");
 
 const MAX_ATTEMPTS = 8;
 // Minutes to wait after the Nth failed attempt (1-based); the last value repeats.
@@ -33,6 +35,13 @@ const BACKOFF_MINUTES = [1, 5, 15, 60, 240];
 const LEASE_MINUTES = 5;
 const BATCH_SIZE = 20;
 const ALERT_EVERY_MINUTES = 60;
+// The backoff adds up to 801 minutes before a row becomes 'failed' (and alerts),
+// so a mail that cannot be sent would stay silent for most of a working day.
+// Any row still waiting after STUCK_AFTER_MINUTES raises one alert per
+// STUCK_ALERT_EVERY_MINUTES.
+const STUCK_AFTER_MINUTES = 60;
+const STUCK_ALERT_EVERY_MINUTES = 6 * 60;
+const STUCK_FLAG = "outbox-stuck";
 const FAST_PATH_WAIT_MS = 5000;
 const ADVISORY_KEY = 7243902;
 
@@ -195,6 +204,42 @@ async function alertFailedEmails(pool) {
   return true;
 }
 
+// One alert (at most every 6 hours, across restarts and instances: alert_flags)
+// when any email has been waiting more than an hour, whether it is pending its
+// first try or retrying. Lists counts per kind only: no addresses, no subjects.
+async function alertStuckEmails(pool) {
+  const { rows } = await pool.query(
+    `SELECT kind, COUNT(*)::int AS n, MIN(created_at) AS oldest,
+            (array_agg(last_error ORDER BY attempts DESC, id DESC) FILTER (WHERE last_error IS NOT NULL))[1] AS sample_error
+       FROM email_outbox
+      WHERE status = 'pending' AND created_at < now() - ($1 * interval '1 minute')
+      GROUP BY kind ORDER BY kind`,
+    [STUCK_AFTER_MINUTES]
+  );
+  if (!rows.length) return false;
+  if (!(await claimAlertSlot(pool, STUCK_FLAG, STUCK_ALERT_EVERY_MINUTES))) return false;
+
+  const total = rows.reduce((a, r) => a + r.n, 0);
+  const oldest = rows.reduce((a, r) => (new Date(r.oldest) < new Date(a) ? r.oldest : a), rows[0].oldest);
+  const minutes = Math.round((Date.now() - new Date(oldest).getTime()) / 60000);
+  const sample = rows.map((r) => r.sample_error).find(Boolean);
+  const base = (process.env.APP_BASE_URL || process.env.RENDER_EXTERNAL_URL || "").replace(/\/$/, "");
+  const text =
+    `${total} email${total === 1 ? " has" : "s have"} been waiting to be sent for more than ${STUCK_AFTER_MINUTES} minutes ` +
+    `(the oldest for ${minutes} minutes). The site keeps retrying, but something is wrong with sending.\n\n` +
+    rows.map((r) => `  ${r.kind}: ${r.n}`).join("\n") +
+    `\n\nLast error: ${scrubPersonalData(sample || "(none recorded yet)")}\n\n` +
+    `Check the Gmail account (password revoked? daily limit reached?) and that GMAIL_USER / GMAIL_APP_PASSWORD are set in Render, ` +
+    `then open ${base}/admin/email-outbox. This alert repeats at most every ${STUCK_ALERT_EVERY_MINUTES / 60} hours. ` +
+    `See docs/runbook.md, "Emails are not arriving".`;
+  const ok = await sendAdminAlert({ subject: `[umas-books] ${total} email${total === 1 ? " is" : "s are"} stuck in the outbox`, text });
+  if (!ok) {
+    await releaseAlertSlot(pool, STUCK_FLAG);
+    return false;
+  }
+  return true;
+}
+
 // The worker tick. Guarded by an advisory lock so only one app instance works
 // the queue at a time (the claim would make it safe anyway; this also keeps a
 // second instance from re-reading the same rows every minute).
@@ -223,6 +268,7 @@ async function processOutbox(pool, { limit = BATCH_SIZE } = {}) {
       }
     }
     await alertFailedEmails(pool).catch((err) => console.error("Outbox failure alert failed:", err.message));
+    await alertStuckEmails(pool).catch((err) => console.error("Outbox stuck-email alert failed:", err.message));
   } finally {
     if (locked) await client.query("SELECT pg_advisory_unlock($1)", [ADVISORY_KEY]).catch(() => {});
     client.release();
@@ -280,6 +326,6 @@ async function eraseOutboxFor(db, email) {
 }
 
 module.exports = {
-  enqueueEmail, sendEmail, deliverNow, processOutbox, alertFailedEmails, retryNow, markFailedHandled,
+  enqueueEmail, sendEmail, deliverNow, processOutbox, alertFailedEmails, alertStuckEmails, retryNow, markFailedHandled,
   purgeOutbox, eraseOutboxFor, MAX_ATTEMPTS, BACKOFF_MINUTES, TOKEN_KINDS,
 };

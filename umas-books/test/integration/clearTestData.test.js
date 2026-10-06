@@ -135,6 +135,10 @@ async function plant() {
   await db.query("INSERT INTO email_outbox (to_email, subject, body_text, kind) VALUES ('member@example.test', 'Hello', 'Body', 'verification')");
   await db.query("INSERT INTO totp_recovery_codes (user_id, code_hash) VALUES ($1, 'admin-code-1'), ($1, 'admin-code-2'), ($2, 'member-code')", [admin, member]);
 
+  // kept: operational bookkeeping, never cleared
+  await db.query("INSERT INTO job_runs (name, interval_seconds, last_run_at, last_success_at) VALUES ('Email outbox', 60, now(), now())");
+  await db.query("INSERT INTO alert_flags (key, last_sent_at) VALUES ('outbox-stuck', now())");
+
   // logs
   await db.query("INSERT INTO admin_audit_log (action, actor_label) VALUES ('test_one', 'a'), ('test_two', 'b'), ('test_three', 'c')");
 

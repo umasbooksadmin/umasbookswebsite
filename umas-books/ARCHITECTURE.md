@@ -392,8 +392,9 @@ src/` is the ground truth if this list ever drifts):
 | `PGSSLMODE` | no | set to `disable` for local dev (no TLS); any other value uses `{ rejectUnauthorized: false }` — see `src/db.js` |
 | `APP_BASE_URL` | no | overrides the auto-detected base URL (emailed links, HelloAsso return URLs) |
 | `RENDER_EXTERNAL_URL` | no | set automatically by Render; same purpose as `APP_BASE_URL` |
-| `GMAIL_USER` / `GMAIL_APP_PASSWORD` | no | outgoing email (password reset, email verification, contact form); logs to console instead of sending when unset |
-| `CONTACT_TO` | no (defaults `admin@umasbooks.org`) | where the Contact form delivers |
+| `GMAIL_USER` / `GMAIL_APP_PASSWORD` | no | outgoing email (password reset, email verification, contact form, every alert); when unset, development and tests log instead of sending, while **production throws** (the outbox keeps and retries the message rather than marking it sent) |
+| `CONTACT_TO` | no (defaults `admin@umasbooks.org`) | where the Contact form and forum reports deliver; one address or several separated by commas |
+| `ALERT_TO` | no (falls back to `CONTACT_TO`, then `admin@umasbooks.org`) | where every site alert goes (errors, failed/stuck email, failing background jobs, launch warnings); comma separated list. The GitHub workflows use the repository variable of the same name |
 | `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` | `SEED_ADMIN_PASSWORD` required the first time `npm run seed` creates an admin | one-time bootstrap of the first admin account; never blocks startup. `SEED_SAMPLE_CONTENT=true` forces sample content, `SEED_STRICT=true` makes a failure exit 1 (CI) |
 | `ANTHROPIC_API_KEY` | no | powers inventory photo-scan and auto-generated book descriptions |
 | `NYT_API_KEY` | no | New York Times Books API key (free from developer.nytimes.com); enables verified best-seller rows. Never logged |
@@ -401,17 +402,20 @@ src/` is the ground truth if this list ever drifts):
 | `AWARDS_AI_DAILY_MAX` | no (100) | most books the AI awards search may check per UTC day |
 | `AWARDS_AI_MODEL` | no (same model as book descriptions) | model for the AI awards search; must support web search |
 | `AWARDS_LOOKUPS` | no | `off` stops all awards lookups (kill switch) |
-| `COVER_BACKFILL` | no | `off` stops the background job that copies book covers to our own server (the test helpers set it) |
+| `COVER_BACKFILL` | no | `off` stops the background job that copies book covers to our own server (the test helpers set it). Only a 404, a placeholder or an invalid image counts as a failed attempt; 5xx, timeouts and network errors do not, and 3 in a row stop the batch |
 | `ANTHROPIC_WORKSPACE_ID` | no | optional workspace header on Anthropic API calls |
 | `PRICING_AI` | no (off unless `1` or `true`) | turns on the AI market check behind price suggestions (also needs `ANTHROPIC_API_KEY`); without it prices come from the built-in rules only |
 | `PRICING_AI_MODEL` | no (defaults to the model used for book descriptions) | model for the market check; it must support the web search tool |
 | `PRICING_AI_DAILY_MAX` | no (defaults 150) | most AI market lookups per day, counted from the database so a restart cannot reset it; `0` switches lookups off |
 | `HELLOASSO_CLIENT_ID` / `HELLOASSO_CLIENT_SECRET` / `HELLOASSO_ORG_SLUG` | no (checkout shows "not set up yet" without them) | HelloAsso Checkout API credentials |
 | `HELLOASSO_API_BASE` | no (defaults to production) | set to HelloAsso's sandbox URL for testing |
-| `TRUST_PROXY_HOPS` | no (default 2 in production, 1 elsewhere) | integer 1 to 5, number of reverse proxies in front of the app (Cloudflare + Render edge = 2); decides `req.ip` (`src/lib/trustProxy.js`). Check on `/admin/diagnostics/client-ip` |
+| `TRUST_PROXY_HOPS` | no (default 2 in production, 1 elsewhere) | integer 1 to 5, number of reverse proxies in front of the app (Render's edge and its internal proxy = 2; DNS points straight at Render, the association has no Cloudflare account; a real CDN added later changes this: re-check); decides `req.ip` (`src/lib/trustProxy.js`). Check on `/admin/diagnostics/client-ip` |
 | `APP_BASE_URL` | yes once preview is off | `https://umasbooks.org`; the only base URL used on a live site, and other Hosts are redirected to it (`src/middleware/canonicalHost.js`) |
 | `HELLOASSO_MEMBERSHIP_FORM_SLUG` | no | only orders of this HelloAsso form (its `formSlug`) grant membership; unset = any Membership-type form |
 | `PREVIEW_MODE` | no (off when unset) | `true` or `1` (any case) turns on [preview mode](#preview-mode): coming-soon banner, payments off, search engines kept out. Set in the Render dashboard, not in `render.yaml` |
+
+`render.yaml` lists every variable above that a rebuild needs (secrets as
+`sync: false`), except `PREVIEW_MODE`, which is deliberately left out.
 
 CI (`.github/workflows/ci.yml`) has its own separate set of throwaway
 values for these (a Postgres service container, a dummy
@@ -450,9 +454,11 @@ actually uses.
 - **Startup checks** (`src/lib/env.js`, production only): called first thing
   in `src/index.js`, before `db.js` loads. Missing `DATABASE_URL` /
   `SESSION_SECRET` → one error naming all of them, exit 1. Unset Gmail,
-  HelloAsso or base-URL variables → a loud `[env] WARNING` line, since
+  HelloAsso, base-URL or `ALERT_TO` variables → a loud `[env] WARNING` line, since
   those features otherwise fail silently (no Gmail also means no error-
-  alert emails). Test/dev are untouched.
+  alert emails). A live-site misconfiguration also raises a launch alert, at
+  most once per 24 h each (`alert_flags`), and a red banner on every admin page.
+  Test/dev are untouched.
 - **Graceful shutdown** (`src/index.js`): SIGTERM/SIGINT clear the two
   maintenance timers, `server.close()` (in-flight requests, e.g. a
   HelloAsso webhook, are allowed to finish; idle keep-alive sockets are
@@ -460,7 +466,16 @@ actually uses.
   exits 1 if requests do not drain. A listen failure (e.g. `EADDRINUSE`)
   logs a clear message and exits 1.
   Covered by `test/integration/gracefulShutdown.test.js`.
-- **Monitoring and backups** (all GitHub Actions, independent of Render):
+- **Background jobs** are tracked: `guardJob` records every run in the
+  `job_runs` table (migration 066); three failures in a row send one alert,
+  `/admin/diagnostics/jobs` shows the table, and the dashboard flags a job whose
+  last success is older than 3x its interval (`src/lib/jobRuns.js`,
+  `test/integration/jobRuns.test.js`).
+- **Monitoring and backups** (all GitHub Actions, independent of Render; every
+  alert goes to the repository variable `ALERT_TO`, default admin@umasbooks.org; a
+  weekly "Send a test alert" proves the channel; the restore test also checks
+  the dump holds the till, shop, outbox and audit tables and the newest migration;
+  the freshness check also watches the `monthly/` copy):
   `uptime-check.yml` polls `/healthz` every 30 minutes (Actions minutes are metered on a private repo) and emails once on
   the second consecutive failure and once on recovery;
   `nightly-db-backup.yml` uploads one complete `pg_dump` (image bytes
@@ -665,8 +680,8 @@ production's environment on a Paris-timezone dev machine.
 
 `src/migrate.js` applies each `.sql` file in `migrations/` exactly once, in
 filename order (`001_`, `002_`, …), and records it in the
-`schema_migrations` table. `npm run migrate` still runs on every deploy
-and restart (see below), but only files not yet recorded do anything. Each
+`schema_migrations` table. `npm run migrate` runs in Render's pre-deploy command (not at boot), and only
+files not yet recorded do anything. Each
 file runs in its own transaction together with its bookkeeping row, so a
 failing migration leaves no half-applied state, and an advisory lock stops
 two booting instances racing.
@@ -682,6 +697,18 @@ Rules: never edit or rename a migration that has been deployed — add a
 new numbered file instead. A database that predates the tracking table
 (production, at the time this was introduced) is detected on first run and
 all existing files are recorded as applied without being re-run.
+
+Numbering is enforced by `test/unit/migrationNumbering.test.js`: no duplicate
+number, strictly increasing in filename order, the newest file has the highest
+number, and the only gaps are the known ones (049, 051, 052, 061, 064). Check
+`main` and open pull requests for the next free number.
+
+**Migrations must be additive (expand) in the release that needs the old code to
+keep working; destructive steps (drop, rename, NOT NULL, data deletion) ship in
+a later release (contract).** A rollback runs the old code against the new
+database, and a backfill must never record an outage as a permanent result (the
+migration-059 lesson: only a 404, placeholder or invalid image counts as a failed
+cover attempt). Runbook section y) has the longer version.
 
 To add a migration: create the next-numbered `.sql` file and commit it.
 CI's `migration-test` and `test` jobs (`.github/workflows/ci.yml`) apply
@@ -840,7 +867,8 @@ Points for maintainers:
   7243902, claim by pushing `next_try_at` 5 minutes ahead); backoff 1, 5, 15,
   60, 240 min, 8 attempts, then `failed` plus one alert per hour
   (`alertFailedEmails`, sent directly through `errorAlert.sendAdminAlert` with
-  one retry). Admin alert emails (`alertOnError`) stay on the direct path with
+  one retry). `alertStuckEmails` adds one alert per 6 hours (flag in
+  `alert_flags`) when any row has waited over 60 minutes, with counts per kind only. Admin alert emails (`alertOnError`) stay on the direct path with
   the same retry-once.
 - `orders.confirmation_sent_at` (migration 062) is set when a confirmation went
   out; the dashboard flags paid orders without it after 30 minutes. The admin
