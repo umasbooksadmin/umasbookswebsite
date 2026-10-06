@@ -143,7 +143,7 @@ test("intake shows the banner: redirect and the book's admin page say how many c
   await request({ title });
   await request({ title: title.toUpperCase() });
   const book = await intake({ title });
-  assert.match(book.location, /\?requests=2$/);
+  assert.match(book.location, /\?label=\d+&requests=2$/);
   const page = await c.get(`/admin/inventory/${book.bookId}`, { as: admin });
   assert.match(page.text, /2 customers asked for this book/);
   assert.match(page.text, new RegExp(`/admin/requests\\?status=matched&amp;book=${book.bookId}`));

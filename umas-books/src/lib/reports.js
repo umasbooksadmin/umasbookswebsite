@@ -126,7 +126,7 @@ function toCsv(section) {
     return c.type === "text" || c.type === "date" ? csvCell(cell) : cell;
   }).join(",");
   for (const row of section.rows) lines.push(asRow(row));
-  if (section.totals) lines.push(asRow(section.totals));
+  if (section.totals && section.csvTotals !== false) lines.push(asRow(section.totals));
   return "﻿" + lines.join("\r\n") + "\r\n";
 }
 
@@ -694,6 +694,7 @@ const REPORTS = [
   { slug: "membership", title: "Membership", summary: "Active members, new members and endings per month, and renewals due soon.", usesRange: true, run: membershipReport },
   { slug: "intake", title: "Intake log", summary: "Copies added per month and by source, with acquisition cost, and the latest additions.", usesRange: true, run: intakeReport },
   { slug: "accounts", title: "Accounts", summary: "Everyone with an account by type (admin, volunteer, member, account holder, unconfirmed), with orders and spend. Shows names and emails.", filters: "accounts", csvTable: "accounts", run: accountsReport },
+  { slug: "accounting", title: "Accounting export", summary: "For the treasurer: one row per day, category and payment method (till, shop, online, membership), no customer data. Download the CSV.", usesRange: true, run: (db, ctx) => require("./accounting").accountingExportReport(db, ctx) },
 ];
 
 const getReport = (slug) => REPORTS.find((r) => r.slug === slug) || null;

@@ -223,3 +223,22 @@
 .pickup-list-print { font-size: 13px; }
 .pickup-list-print .pickup-customer { padding: 6px 0; }
 @media print { .pickup-list .pickup-customer { break-inside: avoid; } }
+/* Copy barcode labels (/admin/inventory/labels). Size comes from --lw / --lh (mm). */
+.label-sheet { display: flex; flex-wrap: wrap; gap: 4mm; }
+.copy-label { box-sizing: border-box; width: var(--lw, 50mm); height: var(--lh, 25mm); padding: 1mm 1.5mm; overflow: hidden; background: #fff; color: #000; border: 1px dashed #bbb; display: flex; flex-direction: column; justify-content: space-between; font-family: Arial, Helvetica, sans-serif; line-height: 1.1; }
+.copy-label .cl-bars { height: 38%; min-height: 4mm; }
+.copy-label .barcode { width: 100%; height: 100%; display: block; }
+.copy-label .cl-code { font-size: 6.5pt; text-align: center; letter-spacing: 0.05em; }
+.copy-label .cl-row { display: flex; align-items: center; justify-content: space-between; gap: 2mm; }
+.copy-label .cl-row .sticker-chip { font-size: 6.5pt; padding: 0 2mm; }
+.copy-label .cl-price { font-size: 10pt; }
+.copy-label .cl-title { font-size: 7pt; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.copy-label .cl-meta { font-size: 6pt; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media print {
+  .label-sheet { gap: 0; display: block; }
+  .label-sheet-sheet { display: flex; gap: 2mm; }
+  .copy-label { border: 0; break-inside: avoid; }
+  .label-sheet-sheet .copy-label { border: 0.2mm dotted #999; }
+}
+.admin-nav .admin-nav-till { background: var(--btn-bg); color: #fff; border-radius: 8px; }
+.admin-nav .admin-nav-till.is-active { background: var(--btn-bg-dark); }

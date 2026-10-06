@@ -1,0 +1,13 @@
+body { margin: 0; font-family: "Courier New", monospace; color: #000; background: #fff; }
+.receipt { max-width: 80mm; margin: 10px auto; padding: 0 4mm; font-size: 13px; }
+.receipt h1 { font-size: 20px; text-align: center; margin: 4px 0; }
+.receipt table { width: 100%; border-collapse: collapse; margin: 8px 0; }
+.receipt td { padding: 2px 0; vertical-align: top; }
+.r-amt { text-align: right; white-space: nowrap; padding-left: 8px; }
+.r-total td { border-top: 1px dashed #000; font-weight: 700; font-size: 15px; }
+.r-small { font-size: 11px; text-align: center; }
+.r-sale { text-align: center; }
+.r-vat { text-align: center; font-weight: 700; }
+.r-void { text-align: center; font-size: 22px; font-weight: 700; border: 2px solid #000; }
+.no-print button { font-size: 16px; padding: 8px 16px; }
+@media print { .no-print { display: none; } .receipt { margin: 0; } @page { margin: 4mm; } }

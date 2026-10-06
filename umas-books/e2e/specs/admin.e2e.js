@@ -232,14 +232,14 @@ s.test("A18b the Sell in shop page opens (nothing is sold)", { as: "admin" }, as
 
 // ---- 5E. Reports and CSV ----
 
-const REPORTS = ["Inventory on hand", "Aging stock", "Sales over time", "Sell-through by genre", "Membership", "Intake log", "Accounts"];
+const REPORTS = ["Inventory on hand", "Aging stock", "Sales over time", "Sell-through by genre", "Membership", "Intake log", "Accounts", "Accounting export"];
 
-s.test("A19 (must) the Reports page lists seven reports and each opens with tables", { as: "admin" }, async (ctx) => {
+s.test("A19 (must) the Reports page lists eight reports and each opens with tables", { as: "admin" }, async (ctx) => {
   await admin(ctx, "/admin/reports");
   const text = await ctx.text();
   for (const r of REPORTS) has(text, new RegExp(r), "report list");
   const hrefs = await ctx.page.$$eval("a[href^='/admin/reports/']", (as) => as.map((a) => a.getAttribute("href")));
-  assert.ok(hrefs.length >= 7, `report links: ${hrefs.length}`);
+  assert.ok(hrefs.length >= 8, `report links: ${hrefs.length}`);
   for (const h of hrefs) {
     await admin(ctx, h);
     const t = await ctx.text();
@@ -717,3 +717,96 @@ s.test("A43 the Email outbox page loads for an admin with its controls", { as: "
 s.manual("A44 (must) Resend confirmation on a reservation sends a new confirmation email", "needs a reservation and a mailbox to read");
 s.manual("A45 (must) an unmatched membership payment is alerted, listed under Accounts and can be linked to an account", "needs a real test payment on the HelloAsso membership form");
 s.manual("A46 the dashboard Needs attention box shows only when something is wrong", "needs a failed email or a reservation whose confirmation was not sent; the rule is covered by an automated test");
+
+// ---- the till, copy labels, end of day, accounting export (steps A60-A69) ----
+
+s.test("A60 (must) the Till page loads from the menu, the scan box has the focus and Cash / Card are there", { as: "admin" }, async (ctx) => {
+  await admin(ctx, "/admin");
+  assert.ok(await ctx.page.$("nav.admin-nav a[href='/admin/till']"), "the menu has a Till link");
+  await admin(ctx, "/admin/till");
+  const text = await ctx.text();
+  has(text, /Scan a label or a book barcode/);
+  has(text, /Cash/);
+  has(text, /Card/);
+  hasNoNaN(text, "/admin/till");
+  assert.equal(await ctx.page.evaluate(() => document.activeElement && document.activeElement.id), "scan", "the scan box has the focus");
+  // the focus comes back after a click elsewhere
+  await ctx.page.click("h1");
+  await new Promise((r) => setTimeout(r, 200));
+  assert.equal(await ctx.page.evaluate(() => document.activeElement && document.activeElement.id), "scan", "the scan box got the focus back");
+  // an unknown code shows a red message and sells nothing
+  await ctx.page.keyboard.type("not-a-code");
+  await ctx.page.keyboard.press("Enter");
+  await ctx.page.waitForFunction(() => /not recognised/.test(document.getElementById("till-msg").textContent), { timeout: 8000 });
+});
+
+s.test("A61 the copy labels page lists copies with a barcode label and print sizes", { as: "admin" }, async (ctx) => {
+  await admin(ctx, "/admin/inventory/labels?since=2000-01-01");
+  const text = await ctx.text();
+  has(text, /Copy labels/);
+  has(text, /Print labels for the ticked copies|No in-stock copies match/);
+  const href = await ctx.page.$$eval("input[name='id']", (is) => (is[0] ? is[0].value : null));
+  if (href) {
+    await admin(ctx, `/admin/inventory/labels?id=${href}&w=50&h=25`);
+    assert.ok(await ctx.page.$("svg.barcode"), "a barcode is drawn");
+    has(await ctx.text(), new RegExp(`UB-${href}`));
+  }
+  await admin(ctx, "/admin/inventory/stickers");
+  assert.ok(await ctx.page.$("a[href*='/admin/inventory/labels']"), "the stickers page links to the labels");
+});
+
+s.test("A62 the End of day page, Quick items page and the Accounting export report load", { as: "admin" }, async (ctx) => {
+  await admin(ctx, "/admin/till/day");
+  has(await ctx.text(), /Cash drawer/);
+  has(await ctx.text(), /Close the day/);
+  await admin(ctx, "/admin/till/items");
+  has(await ctx.text(), /Add an item/);
+  await admin(ctx, "/admin/reports/accounting");
+  const t = await ctx.text();
+  has(t, /Accounting export/);
+  hasNoNaN(t, "accounting export");
+  const csv = await ctx.page.$eval("a[href*='format=csv']", (a) => a.getAttribute("href"));
+  const res = await ctx.fetchRaw(csv.replace(/&amp;/g, "&"));
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get("content-type") || "", /text\/csv/);
+  const body = await res.text();
+  assert.match(body, /Date.*Category.*Payment method.*Count.*Total/);
+  assert.doesNotMatch(body, /[^\s,"]+@[^\s,"]+\.[a-z]{2,}/i, "the export has no email addresses");
+});
+
+s.write("A63 (must) sell the tagged test copy at the till with cash by scanning its label, then void it", { as: "admin" }, async (ctx) => {
+  if (!tagged.id) ctx.skip("needs A10b");
+  await admin(ctx, `/admin/inventory/${tagged.id}`);
+  const copyId = await ctx.page.$$eval("a[href*='/admin/inventory/labels?id=']", (as) => (as[0] ? as[0].getAttribute("href").split("id=").pop() : null));
+  assert.ok(copyId, "the copy has a Label link");
+  await admin(ctx, "/admin/till");
+  await ctx.page.keyboard.type(`UB-${copyId}`);
+  await ctx.page.keyboard.press("Enter");
+  await ctx.page.waitForFunction(() => document.querySelectorAll("#lines li").length === 1, { timeout: 8000 });
+  await ctx.page.click("#pay-cash");
+  await ctx.page.click("[data-amount='exact']");
+  await ctx.page.click("#cash-confirm");
+  await ctx.page.waitForFunction(() => !document.getElementById("done").hidden, { timeout: 8000 });
+  has(await ctx.text(), /Sale recorded/);
+  await Promise.all([ctx.page.waitForNavigation(), ctx.page.click("#next")]);
+  // void it again so the copy goes back on the shelf
+  await ctx.page.click("#recent details.till-void summary");
+  await ctx.page.type("#recent details[open] input[name='reason']", `${TAG()} test sale`);
+  await Promise.all([ctx.page.waitForNavigation(), ctx.page.click("#recent details[open] button[type='submit']")]);
+  has(await ctx.text(), /voided: its books are back in stock/);
+});
+s.manual("A64 (must) a card sale: Charge on the SumUp reader, then Card paid; the receipt page prints", "needs a SumUp reader and a real card payment");
+s.manual("A65 (must) Close the day: count the drawer, see over/short, closing locks voids", "closing is one-way (it locks that day's voids), so it is left for you to do by hand");
+s.manual("A66 (must) a barcode scanner typing into the till scan box (code appears, Enter adds the line)", "needs the physical scanner");
+s.manual("A67 a manual item and a quick item (tote bag) sold and shown on the receipt and in End of day by category", "selling is left for you to do by hand");
+s.manual("A68 a book with no ISBN: Enter the details by hand, print its label, sell it at the till", "creates a real book and a sale");
+s.manual("A69 (must) the Accounting export CSV imports into the treasurer's accounting software", "needs the treasurer: see docs/till-todos.md");
+s.test("A70 the Other stock (not books) page is reachable from Inventory and has the barcode box", { as: "admin" }, async (ctx) => {
+  await admin(ctx, "/admin/inventory");
+  await Promise.all([ctx.page.waitForNavigation(), ctx.page.click("a[href='/admin/till/items']")]);
+  const text = await ctx.text();
+  has(text, /Other stock \(not books\)/);
+  has(text, /Tote bags, bookmarks and anything else you sell that is not a book/);
+  assert.ok(await ctx.page.$("#new-barcode"), "the barcode box is on the form");
+});
+s.manual("A70b scanning an item's barcode with the scanner fills the Barcode box; at the till it adds the item", "needs the physical scanner (see A66)");

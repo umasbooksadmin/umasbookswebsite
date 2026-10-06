@@ -3,6 +3,7 @@
 <% if (error) { %><div role="alert" class="error-box"><%= error %></div><% } %>
 
 <div class="card">
+  <p class="muted small" id="no-isbn">No ISBN? That is fine: <strong>enter the details by hand</strong> below. The title is the only required field; add the author, genres, binding, condition and price yourself (the price suggestion says "Manual review" when it cannot decide). Every copy gets a label (UB-…) that the till scans, with or without an ISBN.</p>
   <% if (book.coverUrl) { %>
     <img src="<%= book.coverUrl %>" alt="" class="book-cover-preview">
   <% } %>

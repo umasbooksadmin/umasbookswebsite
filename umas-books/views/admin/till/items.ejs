@@ -1,0 +1,41 @@
+<%- include('../../partials/admin_header', { title: 'Other stock (not books)', active: active, pageTitle: 'Other stock (not books)', pageSub: 'Tote bags, bookmarks and anything else you sell that is not a book', mainWide: true, extraCss: ['/till.css'] }) %>
+<% if (error) { %><div role="alert" class="error-box"><%= error %></div><% } %>
+<% if (notice) { %><div role="status" class="notice-box"><%= notice %></div><% } %>
+
+<div class="card">
+  <p class="muted small">Things you sell often that are not books (a tote bag, a bookmark): they appear as big buttons on the <a href="/admin/till">till</a>. Leave Stock empty if you do not want to count them; when a number is set it goes down with each sale and the till refuses to sell at 0.</p>
+  <p class="muted small"><strong>Barcode (optional):</strong> the manufacturer's code on the item (8 to 14 digits) or a code the shop prints itself (like TOTE-GREEN). Click in the barcode box and scan the item with the scanner: it types the code for you. Scanning it at the till then adds one of it. No barcode on the item? Press <em>Generate a shop code</em> and print the label.</p>
+  <div class="section-title">Add an item</div>
+  <form class="till-item-form" method="post" action="/admin/till/items">
+    <%- include('../../partials/csrf_field') %>
+    <div><label for="new-name">Name</label><input id="new-name" name="name" type="text" maxlength="80" required></div>
+    <div><label for="new-price">Price (euros)</label><input id="new-price" name="price" type="text" inputmode="decimal" required style="width:100px"></div>
+    <div><label for="new-cat">Category</label><select id="new-cat" name="category"><% categories.forEach(c => { %><option value="<%= c.value %>"><%= c.label %></option><% }) %></select></div>
+    <div><label for="new-stock">Stock (optional)</label><input id="new-stock" name="stock" type="text" inputmode="numeric" style="width:90px"></div>
+    <div><label for="new-barcode">Barcode (scan it now)</label><input id="new-barcode" name="barcode" type="text" maxlength="32" autocomplete="off" style="width:200px" placeholder="optional"></div>
+    <div><label for="new-gen">Shop code</label><label class="small"><input id="new-gen" name="generate" type="checkbox" value="1" style="width:auto"> Generate (ITEM-n) if blank</label></div>
+    <div><label for="new-order">Order</label><input id="new-order" name="sortOrder" type="text" inputmode="numeric" value="0" style="width:70px"></div>
+    <button class="btn" type="submit">Add</button>
+  </form>
+</div>
+
+<div class="card">
+  <div class="section-title">Items (<%= items.length %>)</div>
+  <% if (!items.length) { %><p class="muted">None yet.</p><% } %>
+  <% items.forEach(i => { %>
+    <form class="till-item-form till-item-row <%= i.active ? '' : 'till-voided' %>" method="post" action="/admin/till/items/<%= i.id %>">
+      <%- include('../../partials/csrf_field') %>
+      <div><label for="n<%= i.id %>">Name</label><input id="n<%= i.id %>" name="name" type="text" maxlength="80" value="<%= i.name %>" required></div>
+      <div><label for="p<%= i.id %>">Price</label><input id="p<%= i.id %>" name="price" type="text" inputmode="decimal" value="<%= money(i.price_cents) %>" style="width:100px"></div>
+      <div><label for="c<%= i.id %>">Category</label><select id="c<%= i.id %>" name="category"><% categories.forEach(c => { %><option value="<%= c.value %>" <%= c.value === i.category ? 'selected' : '' %>><%= c.label %></option><% }) %></select></div>
+      <div><label for="s<%= i.id %>">Stock</label><input id="s<%= i.id %>" name="stock" type="text" inputmode="numeric" value="<%= i.stock === null ? '' : i.stock %>" style="width:90px"><%= i.stock !== null && i.stock <= 3 ? ' (low)' : '' %></div>
+      <div><label for="b<%= i.id %>">Barcode</label><input id="b<%= i.id %>" name="barcode" type="text" maxlength="32" autocomplete="off" value="<%= i.barcode || '' %>" style="width:180px"></div>
+      <div><label for="o<%= i.id %>">Order</label><input id="o<%= i.id %>" name="sortOrder" type="text" inputmode="numeric" value="<%= i.sort_order %>" style="width:70px"></div>
+      <div><label for="a<%= i.id %>">On the till</label><input id="a<%= i.id %>" name="active" type="checkbox" value="1" <%= i.active ? 'checked' : '' %> style="width:auto"></div>
+      <button class="btn btn-small" type="submit">Save</button>
+      <% if (!i.barcode) { %><button class="btn btn-outline btn-small" type="submit" formaction="/admin/till/items/<%= i.id %>/generate-code" formnovalidate>Generate a shop code</button><% } else if (!/^\d{8,14}$/.test(i.barcode)) { %><a class="btn btn-outline btn-small" href="/admin/till/items/<%= i.id %>/label" target="_blank" rel="noopener">Print barcode label</a><% } %>
+    </form>
+  <% }) %>
+  <p><a href="/admin/till">&larr; Back to the till</a></p>
+</div>
+<%- include('../../partials/admin_footer') %>

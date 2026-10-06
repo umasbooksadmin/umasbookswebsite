@@ -1,0 +1,28 @@
+<%- include('../../partials/admin_header', { title: 'Copy labels', active: active, pageTitle: 'Copy labels', mainWide: true }) %>
+<style>
+  :root { --lw: <%= size.w %>mm; --lh: <%= size.h %>mm; }
+  <% if (size.layout === 'roll') { %>@page { size: <%= size.w %>mm <%= size.h %>mm; margin: 0; }
+  @media print { .copy-label { break-after: page; } .copy-label:last-child { break-after: auto; } }
+  <% } else { %>@page { size: A4; margin: 8mm; }<% } %>
+</style>
+<div class="card no-print">
+  <p><%= labels.length %> label<%= labels.length === 1 ? '' : 's' %>, <%= size.w %> x <%= size.h %> mm, for <%= size.layout === 'roll' ? 'a label roll' : 'an A4 sheet' %>.
+  In the print window choose <strong>Actual size / 100%</strong> and no headers or footers.</p>
+  <% if (truncated) { %><p class="notice-box" role="status">Only the first <%= sheetLimit %> labels are shown: print in several batches.</p><% } %>
+  <p><button class="btn" type="button" data-print>Print</button>
+    <% if (typeof backUrl !== 'undefined') { %><a class="btn btn-outline" href="<%= backUrl %>">Back</a><% } else { %><a class="btn btn-outline" href="/admin/inventory/labels?since=<%= encodeURIComponent(filters.since) %>&amp;w=<%= size.w %>&amp;h=<%= size.h %>&amp;layout=<%= size.layout %>">Choose other copies</a><% } %></p>
+</div>
+<% if (!labels.length) { %><p class="muted">No such copies.</p><% } %>
+<div class="label-sheet label-sheet-<%= size.layout %>">
+  <% labels.forEach(l => { %>
+    <div class="copy-label" data-copy-label="<%= l.code %>">
+      <div class="cl-bars"><%- l.svg %></div>
+      <div class="cl-code"><%= l.code %></div>
+      <div class="cl-row"><% if (l.level) { %><%- include('../../partials/sticker_chip', { level: l.level, text: l.level.label }) %><% } else { %><span></span><% } %> <strong class="cl-price"><%= l.price %></strong></div>
+      <div class="cl-title"><%= l.title %></div>
+      <div class="cl-meta"><%= l.meta !== undefined ? l.meta : (l.author + (l.author ? ' · ' : '') + (l.isbn || 'No ISBN')) %></div>
+    </div>
+  <% }) %>
+</div>
+<script src="/print-button.js"></script>
+<%- include('../../partials/admin_footer') %>

@@ -101,7 +101,7 @@ test("intake saves a normalised location on the new copy", async () => {
   });
   assert.equal(res.status, 302);
   // The scan flow comes back with the same location, ready for the next book.
-  assert.match(res.headers.get("location"), /^\/admin\/inventory\/scan\?saved=1&location=FICTION%20A1$/);
+  assert.match(res.headers.get("location"), /^\/admin\/inventory\/scan\?saved=1&label=\d+&location=FICTION%20A1$/);
   const { rows } = await pool.query(
     "SELECT c.location FROM book_copies c JOIN books b ON b.id = c.book_id WHERE b.title = $1", [title]
   );

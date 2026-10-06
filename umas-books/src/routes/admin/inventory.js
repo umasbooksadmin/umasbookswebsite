@@ -169,6 +169,7 @@ router.get("/admin/inventory/scan", requireAdmin, async (req, res) => {
     active: "inventory",
     error: null,
     saved: req.query.saved === "1",
+    labelCopy: req.query.saved === "1" && /^\d{1,9}$/.test(String(req.query.label || "")) ? Number(req.query.label) : null,
     requestsMatched: req.query.saved === "1" ? Math.min(parseInt(req.query.requests, 10) || 0, 999) : 0,
     visionEnabled: !!process.env.ANTHROPIC_API_KEY,
     location: normalizeLocation(req.query.location) || "",
@@ -681,10 +682,10 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
 
   // The scan flow remembers the location and the source between books.
   if (req.body.fromScan === "1") {
-    const extra = `${location ? `&location=${encodeURIComponent(location)}` : ""}${source ? `&source=${source}` : ""}${requestsMatched ? `&requests=${requestsMatched}` : ""}`;
+    const extra = `&label=${copyRows[0].id}${location ? `&location=${encodeURIComponent(location)}` : ""}${source ? `&source=${source}` : ""}${requestsMatched ? `&requests=${requestsMatched}` : ""}`;
     return res.redirect(`/admin/inventory/scan?saved=1${extra}`);
   }
-  res.redirect(`/admin/inventory/${bookId}${requestsMatched ? `?requests=${requestsMatched}` : ""}`);
+  res.redirect(`/admin/inventory/${bookId}?label=${copyRows[0].id}${requestsMatched ? `&requests=${requestsMatched}` : ""}`);
 });
 
 // `overlay` keeps what was typed in a form that was refused: { book: {column:
@@ -714,7 +715,11 @@ async function renderBook(res, id, error = null, notice = null, overlay = {}) {
   res.render("admin/inventory/show", { active: "inventory", book, copies, awards, conditions: CONDITIONS, bindings: BINDINGS, statuses: STATUSES, sources: SOURCES, error, notice, locations: await getLocations(), requestCount: asked[0].n });
 }
 
-router.get("/admin/inventory/:id", requireAdmin, (req, res) => renderBook(res, Number(req.params.id), null, hasOrdersNotice(req)));
+router.get("/admin/inventory/:id", requireAdmin, (req, res) => {
+  // Right after adding a copy (the redirect carries its id): offer to print its barcode label.
+  if (/^\d{1,9}$/.test(String(req.query.label || ""))) res.locals.labelCopy = Number(req.query.label);
+  return renderBook(res, Number(req.params.id), null, hasOrdersNotice(req));
+});
 
 router.post("/admin/inventory/:id", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);

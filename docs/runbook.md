@@ -888,3 +888,155 @@ Once the accountant answers:
 real pages exist. When they do, put the full addresses in `SOCIAL_LINKS` in the
 same file (`umas-books/src/lib/legal.js`, for example
 `instagram: "https://www.instagram.com/..."`); an empty value stays hidden.
+
+## p) The till
+
+Written for the person who runs the shop. Nothing here needs a developer.
+
+### What to buy
+
+- **A barcode scanner**: any 2D (or 1D+2D) scanner that works as a **USB or
+  Bluetooth keyboard ("HID mode") and presses Enter after each code**. Most
+  cost 25 to 60 euros. Check the product page for "keyboard emulation / HID" and
+  "Enter (CR) suffix"; ask the seller to confirm it reads Code 128 and EAN-13.
+- **A tablet or a laptop** with a keyboard (any recent browser). A tablet needs
+  the scanner paired by Bluetooth or a USB adapter.
+- **A SumUp Solo card reader** (with its own SumUp account).
+- **A cash drawer** you can open by key or button. (Optional later: a receipt
+  printer; the receipt page prints on any printer today.)
+- **Labels**: a label printer, or sheets of sticky labels for any office printer.
+  A 50 x 25 mm label is the default; other sizes are set on the labels page.
+
+### Test the scanner
+
+1. Open **Till** in the admin menu: the cursor is in the big scan box.
+2. Scan any label (or a book's barcode). **The code must appear in the box and
+   the line must be added at once** (the scanner presses Enter by itself).
+3. If the code appears but nothing happens, the scanner has no Enter suffix:
+   see its manual ("add CR suffix"). If the characters are wrong (for example
+   digits turn into symbols), the scanner is set to the wrong keyboard layout
+   (set it to US layout, or the layout of the tablet).
+4. The page keeps the cursor in the scan box by itself. After a mistake the
+   screen shows a red message and beeps (untick "Beep on errors" to silence).
+
+### Printing copy labels
+
+Every copy gets a label with a barcode `UB-<number>`. After you add a copy
+there is a **Print label** button; later use **Books & Orders > book > Label**,
+or **Inventory > Labels**, or **Price stickers > Print labels**. Choose the
+size (width and height in millimetres) and **a label roll** (one label per
+page) or **a sheet of labels** (A4). In the print window choose **100% / actual
+size** and no headers or footers, and print one label to check before many.
+
+### Books with no ISBN
+
+Old books, local editions and some second-hand books have no barcode. They work
+like all others: **Add Book > "No ISBN? Enter the details by hand"**. Only the
+title is required; type the author, genres, binding, condition and price
+yourself (the price help says "Manual review": set the price by hand, or leave
+it empty and enter it at the till). Print the label and stick it on: the till
+sells it by scanning the label (`UB-...`). The label and till screens show
+"No ISBN" instead of a number.
+
+### Open the day
+
+At the start, on the Till page type the cash in the drawer (the **opening
+float**) and press **Save opening float**. You can also do it on **End of day**.
+
+### Selling
+
+1. Scan each book (its label `UB-...`, or its own ISBN barcode). If a title has
+   several copies in stock a big list asks which one (price, grade, place):
+   tap it. Prefer the label: it is exactly that copy.
+2. A copy with no price asks for one. For a **used** book you can change a
+   price by tapping it (type the agreed price, optional reason). A **new** book
+   must stay between 95% and 100% of the publisher's price (French fixed book
+   price law): the till refuses anything else.
+3. **Cash**: type what the customer gave (or tap Exact, 5, 10, 20, 50). The
+   big green **Change to give** appears. Open the drawer, press **Confirm sale**.
+4. **Card**: the screen says "Charge EUR x on the SumUp reader, then press Card
+   paid". Charge it on the reader; when the reader says approved, press **Card
+   paid** (you may type the last 4 digits or the terminal receipt number first).
+   If the reader says refused, press Back and try again or take cash.
+5. **Sale recorded**: press **Next customer** (or tick the 10 second automatic
+   option). **Receipt** prints a simple receipt with no customer data.
+6. A mistake before paying: **Remove** the line, or **Clear sale**.
+7. One method per sale: split payments are not possible; make two sales if you
+   must.
+
+### Selling things that are not books
+
+Tote bags, bookmarks, a coffee, a donation...: press **Manual item** (description
+of at most 80 characters, price above 0, quantity, category). They need no
+stock. For things you sell often, add them under **Inventory > Other stock (not
+books)** (or **Other stock (not books)** on the Till page): each becomes a big
+button on the till. Give an item a number in **Stock** if you want it counted: it
+goes down with each sale, the till refuses to sell it at 0 and the button says
+"low" at 3 or fewer. The category (Merchandise, Refreshments, Donation, Books
+(other), Other) decides which line of the accounting export it lands in. These
+lines also say "TVA non applicable" on the receipt; there is no VAT calculation.
+
+### Barcodes on items
+
+An item can have a barcode so the scanner adds it: on its row of **Other stock
+(not books)** click in the **Barcode** box and scan the item (the manufacturer's
+code, 8 to 14 digits, is typed for you), then **Save**. Scanning it at the till
+adds one; scan again for another one (or use + and - on the line). Items with
+no barcode: press **Generate a shop code** (it becomes `ITEM-<number>`), then
+**Print barcode label** and stick the label on the item. Rules: each active
+item needs its own code; a code cannot start with `UB-` (that is for books) or
+look like `ORDER-<number>`; if a code is also a book's ISBN you get a warning,
+and the till will add the item rather than the book (sell that book by its
+label).
+
+### Voiding a sale
+
+Only **today's** sales, only until the day is closed. On the Till page under
+**Today's sales** open **Void sale**, type the reason (required) and confirm.
+The books go back in stock and the sale no longer counts in reports. Older
+sales cannot be voided: tell the treasurer.
+
+### If the internet is down
+
+Write each sale on paper (what, price, cash or card, time). When the internet
+is back, enter them the same day: on the Till, put the books on the sale, open
+**Sale made earlier today** and type the time it was really sold, then pay. The
+sale keeps that time and the admin activity log records that the time was set
+by hand. Take only cash if the card reader needs the internet (or use the SumUp
+app on a phone with its mobile data).
+
+### If the card reader fails
+
+Take cash, or charge in the SumUp app on a phone. In both cases record the sale
+on the till as Cash or Card (put "app" in the card reference).
+
+### Closing the day (count the drawer)
+
+1. Open **End of day**. Check the numbers: sales by payment method, voided
+   sales, and **Expected cash in the drawer** (opening float + cash sales).
+2. Count all the cash in the drawer (coins and notes, including the float) and
+   type the total in **Counted cash**. The screen shows **over** or **short** as
+   you type.
+3. Add a note if there is a difference, then **Close the day**. This locks that
+   day's voids. **Print summary** prints a plain end-of-day sheet; **Download
+   CSV** gives the list of sales.
+4. Keep the float for tomorrow in the drawer and take the rest to the bank.
+   A day with sales that is not closed appears under **Needs attention** on the
+   Dashboard.
+
+### The accounting export for the treasurer
+
+**Reports > Accounting export**: choose the dates, **Download CSV**. One row per
+day, category (Books used, Books new, Merchandise, Refreshments, Class seats,
+Membership, Donation, Other) and payment method (Cash, Card at the till,
+HelloAsso), with the count and the total in euros. It never contains names or
+emails. Voided sales and refunded orders are left out. "Books (other)" manual
+items appear as Other. Whether Paheko's import accepts this layout is not
+confirmed: see `docs/till-todos.md`.
+
+### Later: the SumUp Cloud API
+
+Today the card is charged by hand (`ManualCard`). The code is ready for a SumUp
+implementation (`src/lib/cardPayments.js`) but nothing is connected and no
+environment variable is read. When it is built it will need a SumUp API key and
+a paired Solo reader as Render environment variables (names to be decided then).

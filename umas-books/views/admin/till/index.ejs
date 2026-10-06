@@ -1,0 +1,199 @@
+<%- include('../../partials/admin_header', { title: 'Till', active: active, pageTitle: 'Till', mainWide: true, extraCss: ['/till.css'] }) %>
+
+<% if (flash) { %><div class="notice-box" role="status"><%= flash %></div><% } %>
+<% if (error) { %><div class="error-box" role="alert"><%= error %></div><% } %>
+
+<% if (!summary.hasFloat) { %>
+<form class="till-open card" method="post" action="/admin/till/day/open">
+  <%- include('../../partials/csrf_field') %>
+  <input type="hidden" name="back" value="till">
+  <strong>Open the day:</strong>
+  <label for="openingFloat">cash in the drawer to start (euros)</label>
+  <input id="openingFloat" name="openingFloat" type="text" inputmode="decimal" value="0" autocomplete="off" style="width:110px">
+  <button class="btn" type="submit">Save opening float</button>
+  <span class="muted small">Needed to check the drawer at the end of the day. You can sell without it.</span>
+</form>
+<% } %>
+
+<div id="till" data-csrf="<%= csrfToken %>" data-token="<%= token %>" data-today="<%= today %>">
+  <div class="till-grid">
+    <section class="till-left" aria-label="Sale">
+      <form id="scan-form" autocomplete="off">
+        <label for="scan" class="till-scan-label">Scan a label or a book barcode</label>
+        <div class="till-scan-row">
+          <input id="scan" name="code" type="text" inputmode="none" autocomplete="off" autocapitalize="off" spellcheck="false" autofocus aria-describedby="till-msg" placeholder="UB-1234 or ISBN">
+          <button type="submit" class="btn till-btn">Add</button>
+        </div>
+      </form>
+      <div id="till-msg" class="till-msg" role="alert" aria-live="assertive" hidden></div>
+      <label class="till-beep"><input type="checkbox" id="beep" checked> Beep on errors</label>
+      <button type="button" class="btn btn-outline btn-small" id="toggle-keyboard" aria-pressed="false">Show on-screen keyboard</button>
+
+      <ul id="lines" class="till-lines" aria-label="Items on this sale"></ul>
+      <p id="empty" class="muted till-empty">Nothing yet. Scan a book, or tap a quick item.</p>
+    </section>
+
+    <aside class="till-right" aria-label="Payment">
+      <div class="till-total"><span>Total</span><strong id="total">€0.00</strong></div>
+      <div class="till-pay">
+        <button type="button" class="btn till-big" id="pay-cash" disabled>Cash</button>
+        <button type="button" class="btn till-big till-card" id="pay-card" disabled>Card</button>
+      </div>
+      <div class="till-tools">
+        <button type="button" class="btn btn-outline till-btn" id="manual-open">Manual item</button>
+        <button type="button" class="btn btn-outline till-btn" id="clear" disabled>Clear sale</button>
+      </div>
+      <details class="till-earlier">
+        <summary>Sale made earlier today (internet was down)</summary>
+        <label for="sold-at">Time it was sold (24h)</label>
+        <input id="sold-at" type="time" step="60">
+        <p class="muted small">Leave empty for now. Only for sales written on paper, entered later the same day.</p>
+      </details>
+      <% if (quickItems.length) { %>
+        <div class="till-quick-title">Quick items</div>
+        <div class="till-quick">
+          <% quickItems.forEach(q => { %>
+            <button type="button" class="btn btn-outline till-quick-btn" data-quick="<%= q.id %>" data-name="<%= q.name %>" data-price="<%= q.price_cents %>" data-category="<%= q.category %>" data-stock="<%= q.stock === null ? '' : q.stock %>">
+              <span><%= q.name %></span><strong><%= eur(q.price_cents) %></strong>
+              <% if (q.stock !== null) { %><small class="<%= q.stock <= 3 ? 'till-low' : '' %>"><%= q.stock %> left<%= q.stock <= 3 ? ' (low)' : '' %></small><% } %>
+            </button>
+          <% }) %>
+        </div>
+      <% } %>
+      <p class="small"><a href="/admin/till/items">Other stock (not books)</a> &middot; <a href="/admin/till/day">End of day</a></p>
+    </aside>
+  </div>
+
+  <%# ---- modals ---- %>
+  <div class="till-modal" id="picker" role="dialog" aria-modal="true" aria-labelledby="picker-title" hidden>
+    <div class="till-modal-box">
+      <h2 id="picker-title">Several copies in stock: which one?</h2>
+      <div id="picker-list" class="till-picker"></div>
+      <button type="button" class="btn btn-outline till-btn" data-close>Cancel</button>
+    </div>
+  </div>
+
+  <div class="till-modal" id="price-modal" role="dialog" aria-modal="true" aria-labelledby="price-title" hidden>
+    <form class="till-modal-box" id="price-form">
+      <h2 id="price-title">Price</h2>
+      <p id="price-hint" class="muted"></p>
+      <label for="price-input">Price (euros)</label>
+      <input id="price-input" type="text" inputmode="decimal" autocomplete="off">
+      <div id="price-reason-wrap">
+        <label for="price-reason">Reason (optional)</label>
+        <input id="price-reason" type="text" maxlength="120" autocomplete="off">
+      </div>
+      <p id="price-error" class="till-err" role="alert" hidden></p>
+      <div class="till-actions"><button class="btn till-btn" type="submit">OK</button><button type="button" class="btn btn-outline till-btn" data-close>Cancel</button></div>
+    </form>
+  </div>
+
+  <div class="till-modal" id="manual-modal" role="dialog" aria-modal="true" aria-labelledby="manual-title" hidden>
+    <form class="till-modal-box" id="manual-form">
+      <h2 id="manual-title">Manual item</h2>
+      <p class="muted small">Something that is not in stock: a tote bag, a coffee, a donation. No stock is counted.</p>
+      <label for="manual-desc">Description (required, 80 characters at most)</label>
+      <input id="manual-desc" type="text" maxlength="80" autocomplete="off">
+      <div class="till-two">
+        <div><label for="manual-price">Price (euros)</label><input id="manual-price" type="text" inputmode="decimal" autocomplete="off"></div>
+        <div><label for="manual-qty">Quantity</label><input id="manual-qty" type="number" min="1" max="99" value="1"></div>
+      </div>
+      <label for="manual-cat">Category</label>
+      <select id="manual-cat">
+        <% categories.forEach(c => { %><option value="<%= c.value %>"><%= c.label %></option><% }) %>
+      </select>
+      <p id="manual-error" class="till-err" role="alert" hidden></p>
+      <div class="till-actions"><button class="btn till-btn" type="submit">Add to sale</button><button type="button" class="btn btn-outline till-btn" data-close>Cancel</button></div>
+    </form>
+  </div>
+
+  <div class="till-modal" id="cash-modal" role="dialog" aria-modal="true" aria-labelledby="cash-title" hidden>
+    <div class="till-modal-box till-wide">
+      <h2 id="cash-title">Cash</h2>
+      <div class="till-cash">
+        <div>
+          <div class="till-row"><span>Total</span><strong id="cash-total">€0.00</strong></div>
+          <div class="till-row"><span>Received</span><strong id="cash-received" class="till-input-like">€0.00</strong></div>
+          <div class="till-row till-change-row"><span>Change to give</span><strong id="cash-change">€0.00</strong></div>
+          <p id="cash-note" class="till-err" role="status"></p>
+          <div class="till-quick-amounts">
+            <button type="button" class="btn btn-outline till-btn" data-amount="exact">Exact</button>
+            <button type="button" class="btn btn-outline till-btn" data-amount="500">5</button>
+            <button type="button" class="btn btn-outline till-btn" data-amount="1000">10</button>
+            <button type="button" class="btn btn-outline till-btn" data-amount="2000">20</button>
+            <button type="button" class="btn btn-outline till-btn" data-amount="5000">50</button>
+          </div>
+        </div>
+        <div class="till-keypad" role="group" aria-label="Keypad">
+          <% ['7','8','9','4','5','6','1','2','3','0','.','⌫'].forEach(k => { %><button type="button" class="btn btn-outline till-key" data-key="<%= k %>"><%= k %></button><% }) %>
+          <button type="button" class="btn btn-outline till-key till-key-clear" data-key="C">Clear</button>
+        </div>
+      </div>
+      <p id="cash-error" class="till-err" role="alert" hidden></p>
+      <div class="till-actions"><button type="button" class="btn till-big" id="cash-confirm" disabled>Confirm sale</button><button type="button" class="btn btn-outline till-btn" data-close>Back</button></div>
+    </div>
+  </div>
+
+  <div class="till-modal" id="card-modal" role="dialog" aria-modal="true" aria-labelledby="card-title" hidden>
+    <div class="till-modal-box">
+      <h2 id="card-title">Card</h2>
+      <p class="till-card-text" id="card-text"></p>
+      <label for="card-ref">Card reference (optional: last 4 digits or terminal receipt number)</label>
+      <input id="card-ref" type="text" maxlength="40" autocomplete="off">
+      <p id="card-error" class="till-err" role="alert" hidden></p>
+      <div class="till-actions"><button type="button" class="btn till-big till-card" id="card-confirm">Card paid</button><button type="button" class="btn btn-outline till-btn" data-close>Back</button></div>
+    </div>
+  </div>
+
+  <div class="till-modal" id="done" role="dialog" aria-modal="true" aria-labelledby="done-title" hidden>
+    <div class="till-modal-box till-done">
+      <h2 id="done-title">Sale recorded</h2>
+      <div class="till-row"><span>Total</span><strong id="done-total"></strong></div>
+      <div class="till-row till-change-row" id="done-change-row"><span>Change to give</span><strong id="done-change"></strong></div>
+      <div class="till-actions">
+        <button type="button" class="btn till-big" id="next">Next customer</button>
+        <a class="btn btn-outline till-btn" id="receipt" href="#" target="_blank" rel="noopener">Receipt</a>
+      </div>
+      <label class="till-beep"><input type="checkbox" id="auto-next"> Start the next customer automatically after 10 seconds</label>
+    </div>
+  </div>
+</div>
+
+<div class="card" id="recent">
+  <div class="section-title">Today's sales</div>
+  <% if (!recent.length) { %>
+    <p class="muted">No sales yet today.</p>
+  <% } else { %>
+    <table class="sticker-sheet till-recent">
+      <thead><tr><th>#</th><th>Time</th><th>Items</th><th>Paid by</th><th>Total</th><th></th></tr></thead>
+      <tbody>
+        <% recent.forEach(s => { %>
+          <tr class="<%= s.status === 'voided' ? 'till-voided' : '' %>">
+            <td><%= s.id %></td>
+            <td><%= formatTime(s.created_at) %></td>
+            <td><%= s.summary %></td>
+            <td><%= s.payment_method === 'cash' ? 'Cash' : 'Card' %></td>
+            <td><%= eur(s.total_cents) %><%= s.status === 'voided' ? ' (voided)' : '' %></td>
+            <td>
+              <a href="/admin/till/sales/<%= s.id %>/receipt" target="_blank" rel="noopener">Receipt</a>
+              <% if (s.status === 'completed' && !summary.closed) { %>
+                <details class="till-void"><summary>Void sale</summary>
+                  <form method="post" action="/admin/till/sales/<%= s.id %>/void">
+                    <%- include('../../partials/csrf_field') %>
+                    <label for="reason-<%= s.id %>">Reason (required)</label>
+                    <input id="reason-<%= s.id %>" name="reason" type="text" required maxlength="120" autocomplete="off">
+                    <button class="btn btn-small" type="submit">Void this sale and put the books back</button>
+                  </form>
+                </details>
+              <% } else if (s.status === 'voided') { %><span class="muted small"><%= s.void_reason %></span><% } %>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+    <% if (summary.closed) { %><p class="muted small">The day is closed: sales can no longer be voided.</p><% } %>
+  <% } %>
+</div>
+
+<script src="/till.js"></script>
+<%- include('../../partials/admin_footer') %>
