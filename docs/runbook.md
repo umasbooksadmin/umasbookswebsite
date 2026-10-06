@@ -857,6 +857,10 @@ Written for the person who runs the shop. Nothing here needs a developer.
    see its manual ("add CR suffix"). If the characters are wrong (for example
    digits turn into symbols), the scanner is set to the wrong keyboard layout
    (set it to US layout, or the layout of the tablet).
+   **The scanner suffix must be Enter, not Tab.** With a Tab suffix the cursor
+   leaves the scan box after each code and two scans run together into one
+   wrong code (for example `UB-12UB-13`). The Till page says the same at the
+   bottom of the payment column.
 4. The page keeps the cursor in the scan box by itself. After a mistake the
    screen shows a red message and beeps (untick "Beep on errors" to silence).
 
@@ -868,6 +872,18 @@ or **Inventory > Labels**, or **Price stickers > Print labels**. Choose the
 size (width and height in millimetres) and **a label roll** (one label per
 page) or **a sheet of labels** (A4). In the print window choose **100% / actual
 size** and no headers or footers, and print one label to check before many.
+The page title and menu are never printed: the first page of a roll is the
+first label.
+
+**Printer resolution (`dpi`).** Choose **203 dpi** (most label printers) or
+**300 dpi** (`&dpi=300` in the address). The barcode is drawn with a whole
+number of printer dots per narrowest bar: 3 dots at 203 dpi, 4 dots at 300 dpi.
+A bar of 2.6 dots would print as some bars of 2 and some of 3 dots and scan
+badly, so the width of the barcode follows from the length of the code (about
+42 mm for `UB-1234` at 203 dpi), not from the width of the label. If the label
+is too narrow the page shows a warning: the bars are then drawn with fewer
+dots per bar (never a fraction), the text is made smaller, and the warning says
+which width is needed. Use at least 45 mm labels for the standard size.
 
 ### Books with no ISBN
 
@@ -967,13 +983,39 @@ on the till as Cash or Card (put "app" in the card reference).
 
 ### The accounting export for the treasurer
 
-**Reports > Accounting export**: choose the dates, **Download CSV**. One row per
-day, category (Books used, Books new, Merchandise, Refreshments, Class seats,
-Membership, Donation, Other) and payment method (Cash, Card at the till,
-HelloAsso), with the count and the total in euros. It never contains names or
-emails. Voided sales and refunded orders are left out. "Books (other)" manual
-items appear as Other. Whether Paheko's import accepts this layout is not
-confirmed: see `docs/till-todos.md`.
+**Reports > Accounting export**: choose the dates, then **Download CSV**
+(comma separators and decimal points) or **Download for French Excel**
+(semicolon separators, decimal commas, UTF-8 with BOM, Windows line ends: French
+Excel opens it in columns with real numbers; the plain CSV opens as one column
+of text in French Excel). The same two downloads exist on the End of day page
+and on the other reports.
+
+**Giving the export to the treasurer.**
+
+1. At the start of each month download the previous month (first to last day)
+   with **Download for French Excel** and send the file. Row layout: Date,
+   Category, Payment method, Count, Total (EUR), Libellé, Compte débit,
+   Compte crédit, Journal. One row per Paris day, category and payment method
+   (Cash, Card at the till, HelloAsso, Other / not recorded). It never contains
+   names or emails.
+2. **Refunds.** A refunded online order keeps its row on the day it was paid and
+   gets a **negative** row (negative count and total, label "Remboursement ...")
+   on the day it was refunded. A month already sent is therefore not changed:
+   the correction is in the export of the month of the refund.
+3. **Cash over/short.** When a day is closed with a difference, one row
+   "Cash over/short" appears (positive: over, negative: short) with the accounts
+   658 / 758. The opening float is never revenue and appears nowhere.
+4. **Accounts.** The debit account, credit account and journal of each row come
+   from **Reports > Accounting export > Accounts mapping**
+   (`/admin/reports/accounting/mapping`), an editable table; each change is
+   recorded in Admin activity. Starting values: cash 530; cards and HelloAsso
+   511 (clearing account, to confirm: the treasurer may want 512); payment with
+   no recorded method 471; Books used, Books new, Merchandise, Refreshments
+   707; Class seats 706; Membership 756; Donation 754; Other 708; over 758,
+   short 658. **These are only a starting point: ask the treasurer to confirm
+   the account numbers and the import layout.** Nothing here was checked
+   against Paheko or any other software.
+5. Voided till sales and cancelled online orders are not in the export.
 
 ### Later: the SumUp Cloud API
 

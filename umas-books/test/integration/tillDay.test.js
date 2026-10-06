@@ -114,7 +114,7 @@ async function insertTillSale({ at, method = "cash", status = "completed", lines
   return rows[0].id;
 }
 
-test("accounting export: categories and methods, no personal data, voided and refunded excluded, linked from Reports", async () => {
+test("accounting export: categories and methods, no personal data, voided excluded, a refund adds a negative row, linked from Reports", async () => {
   const D = "2031-05-10"; // a quiet day, far from the other tests' data
   assert.match((await h.get("/admin/reports")).text, /Accounting export/);
   await insertTillSale({ at: `${D}T10:00:00+02:00`, lines: [{ cat: "books_used", qty: 3, cents: 500 }, { cat: "merchandise", qty: 2, cents: 750 }] });
@@ -126,7 +126,8 @@ test("accounting export: categories and methods, no personal data, voided and re
   await h.pool.query("INSERT INTO shop_sales (copy_id, price, sold_at, payment_method) VALUES ($1, 4, $2, 'card')", [legacyCopy, `${D}T13:00:00+02:00`]);
   // online: a paid order (1 used book + 1 seat), a refunded one (excluded)
   await makeOrder(h.pool, { status: "paid", paidAt: `${D}T14:00:00+02:00`, books: 1, seat: true, price: 6, name: "Secret Buyer", email: "secret-buyer@example.test" });
-  await makeOrder(h.pool, { status: "refunded", paidAt: `${D}T14:30:00+02:00`, books: 2, price: 6 });
+  const refunded = await makeOrder(h.pool, { status: "refunded", paidAt: `${D}T14:30:00+02:00`, books: 2, price: 6 });
+  await h.pool.query("UPDATE orders SET refunded_at = $2 WHERE id = $1", [refunded.order.id, `${D}T16:00:00+02:00`]);
   // membership
   await h.pool.query("INSERT INTO membership_payments (helloasso_order_id, payer_email, amount_cents, paid_at) VALUES (990001, 'payer-secret@example.test', 2000, $1)", [`${D}T15:00:00+02:00`]);
   await h.pool.query("INSERT INTO membership_payments (helloasso_order_id, payer_email, amount_cents, paid_at) VALUES (990002, 'no-amount@example.test', NULL, $1)", [`${D}T15:30:00+02:00`]);
@@ -136,9 +137,9 @@ test("accounting export: categories and methods, no personal data, voided and re
   assert.match(res.headers.get("content-type"), /text\/csv/);
   assert.equal(res.headers.get("cache-control"), "no-store");
   assert.ok(text.startsWith("\uFEFF"));
-  assert.match(text, /^\uFEFF"Date","Category","Payment method","Count","Total \(EUR\)"/);
+  assert.match(text, /^\uFEFF"Date","Category","Payment method","Count","Total \(EUR\)","Libellé","Compte débit","Compte crédit","Journal"/);
   assert.doesNotMatch(text, /@|Secret|secret|Total"/, "no emails, names, and no totals row in the import file");
-  const rows = csvRows(text).map((r) => r.map((c) => c.replace(/"/g, "")));
+  const rows = csvRows(text).map((r) => r.slice(0, 5).map((c) => c.replace(/"/g, "")));
   const get = (cat, method) => rows.find((r) => r[1] === cat && r[2] === method);
   assert.deepEqual(get("Books used", "Cash"), [D, "Books used", "Cash", "3", "15.00"]);
   assert.deepEqual(get("Merchandise", "Cash"), [D, "Merchandise", "Cash", "2", "15.00"]);
@@ -148,10 +149,12 @@ test("accounting export: categories and methods, no personal data, voided and re
   assert.deepEqual(get("Other", "Card at the till"), [D, "Other", "Card at the till", "1", "3.00"], "'Books (other)' goes to Other");
   // legacy shop sale: used book, card => joins "Books used / Card at the till"
   assert.deepEqual(get("Books used", "Card at the till"), [D, "Books used", "Card at the till", "1", "4.00"]);
-  assert.deepEqual(get("Books used", "HelloAsso"), [D, "Books used", "HelloAsso", "1", "6.00"]);
+  // the refunded order keeps its (positive) sale row and has a negative row at the refund
+  assert.deepEqual(get("Books used", "HelloAsso"), [D, "Books used", "HelloAsso", "3", "18.00"]);
+  assert.deepEqual(rows.find((r) => r[1] === "Books used" && r[2] === "HelloAsso" && r[3] === "-2"), [D, "Books used", "HelloAsso", "-2", "-12.00"]);
   assert.deepEqual(get("Class seats", "HelloAsso"), [D, "Class seats", "HelloAsso", "1", "6.00"]);
   assert.deepEqual(get("Membership", "HelloAsso"), [D, "Membership", "HelloAsso", "1", "20.00"]);
-  assert.equal(rows.length, 10, "nothing else: voided till sale and refunded order are excluded");
+  assert.equal(rows.length, 11, "nothing else: the voided till sale is excluded");
   // sorted by the category order
   assert.deepEqual(rows.map((r) => r[1]).filter((c, i, a) => a.indexOf(c) === i), ["Books used", "Books new", "Merchandise", "Refreshments", "Class seats", "Membership", "Donation", "Other"]);
   assert.equal((await h.audit("report.csv")).filter((a) => a.detail === "accounting").length, 1);

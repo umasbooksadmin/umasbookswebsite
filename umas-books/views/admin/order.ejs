@@ -69,7 +69,7 @@
   <p class="small">
     Terms of sale accepted: <%= order.cgv_accepted_at ? formatDateTime(order.cgv_accepted_at) + ' (version ' + order.cgv_version + ')' : 'not recorded (order placed before this was kept)' %><br>
     Drop-in withdrawal waiver ticked: <%= order.withdrawal_waiver_at ? formatDateTime(order.withdrawal_waiver_at) : 'no drop-in seat in this order' %><br>
-    Language: <%= order.lang || 'en' %>
+    Language: <%= order.lang === 'fr' ? 'French' : 'English' %>
   </p>
   <ul class="plain" id="order-history">
     <li><%= formatDateTime(order.created_at) %> &mdash; order created (unpaid)</li>

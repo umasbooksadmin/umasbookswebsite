@@ -7,6 +7,7 @@
 //   GET /admin/inventory/labels?id=12&id=13           the label sheet for those copies
 //   GET /admin/inventory/labels?all=1&since=...       the sheet for every copy the filters show
 //   &w=50&h=25 (mm, default 50x25)   &layout=roll|sheet (roll: one label per page, sheet: a grid)
+//   &dpi=203|300 (printer resolution, default 203): the barcode is sized in whole printer dots, see lib/code128.js fit()
 
 const express = require("express");
 const { pool } = require("../../db");
@@ -32,7 +33,7 @@ function parseSize(query) {
     const n = Number(typeof v === "string" ? v.replace(",", ".") : NaN);
     return Number.isFinite(n) ? Math.min(r.max, Math.max(r.min, Math.round(n * 10) / 10)) : r.def;
   };
-  return { w: one(query.w, SIZE.w), h: one(query.h, SIZE.h), layout: query.layout === "sheet" ? "sheet" : "roll" };
+  return { w: one(query.w, SIZE.w), h: one(query.h, SIZE.h), layout: query.layout === "sheet" ? "sheet" : "roll", dpi: code128.parseDpi(query.dpi) };
 }
 
 function parseIds(query) {
@@ -82,7 +83,7 @@ function labelFor(r) {
   const price = r.price != null ? Number(r.price) : (r.condition === "new" && r.publisher_price != null ? Number(r.publisher_price) : null);
   const code = copyCode(r.id);
   return {
-    id: r.id, code, svg: code128.svg(code, { height: 40 }), level,
+    id: r.id, code, level,
     price: price == null ? "" : `€${price.toFixed(2)}`,
     title: clip(r.title, 42), author: clip(r.authors, 30), isbn: r.isbn || "", conditionLabel: conditionLabel(r.condition),
   };
@@ -103,9 +104,9 @@ router.get("/admin/inventory/labels", requireAdmin, async (req, res) => {
       rows = f.rows.slice(0, SHEET_LIMIT);
       truncated = f.rows.length > SHEET_LIMIT;
     }
-    await audit(req, { action: "labels.print", targetType: "labels", detail: `${rows.length} label(s) ${size.w}x${size.h}mm ${size.layout}` });
+    await audit(req, { action: "labels.print", targetType: "labels", detail: `${rows.length} label(s) ${size.w}x${size.h}mm ${size.layout} ${size.dpi}dpi` });
     return res.render("admin/inventory/label_sheet", {
-      active: "inventory", mainWide: true, title: "Copy labels", pageTitle: "Copy labels",
+      active: "labels", mainWide: true, title: "Copy labels", pageTitle: "Copy labels",
       labels: rows.map(labelFor), size, truncated, sheetLimit: SHEET_LIMIT, filters, ids,
     });
   }
@@ -113,7 +114,7 @@ router.get("/admin/inventory/labels", requireAdmin, async (req, res) => {
   const { rows, truncated } = await loadFiltered(filters);
   const { rows: locs } = await pool.query("SELECT DISTINCT location FROM book_copies WHERE location IS NOT NULL ORDER BY 1");
   res.render("admin/inventory/labels", {
-    active: "inventory", mainWide: true, title: "Copy labels", pageTitle: "Copy labels",
+    active: "labels", mainWide: true, title: "Copy labels", pageTitle: "Copy labels",
     rows, truncated, rowLimit: LIST_LIMIT, filters, size, locations: locs.map((r) => r.location), conditionLabel, copyCode,
   });
 });

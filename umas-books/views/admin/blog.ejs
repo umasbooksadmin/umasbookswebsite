@@ -112,7 +112,7 @@
     <a class="btn btn-outline btn-small" href="/admin/blog">Clear Filters</a>
   </form>
 
-  <form method="post" action="/admin/blog/bulk">
+  <form data-confirm="Delete the selected items permanently? This can't be undone." data-confirm-field="bulkAction" data-confirm-values="delete" method="post" action="/admin/blog/bulk">
     <%- include('../partials/csrf_field') %>
     <input type="hidden" name="backQuery" value="<%= listQs %>">
     <div class="ann-bulk-row">
@@ -125,7 +125,7 @@
       <button class="btn btn-outline btn-small" type="submit">Apply</button>
     </div>
     <div style="overflow-x:auto;">
-    <table class="ann-table">
+    <div class="table-scroll"><table class="ann-table">
       <thead>
         <tr>
           <th><input type="checkbox" data-select-all="blog-rows"></th>
@@ -158,7 +158,7 @@
           </tr>
         <% }) %>
       </tbody>
-    </table>
+    </table></div>
     </div>
   </form>
   <% posts.forEach(p => { %>

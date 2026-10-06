@@ -281,6 +281,22 @@ async function resolveSoldAt(db, soldAtTime) {
   return { at: rows[0].t, adjusted: true };
 }
 
+// The receipt number of a sale: the next one of its Paris year, taken from the
+// counter row, which this transaction holds locked until it commits or rolls
+// back, so numbers are chronological, unique and gapless (sale ids may skip).
+async function assignReceiptNumber(client, saleId) {
+  const { rows } = await client.query(
+    `WITH y AS (SELECT id, EXTRACT(YEAR FROM created_at AT TIME ZONE 'Europe/Paris')::int AS yr FROM till_sales WHERE id = $1),
+          c AS (INSERT INTO till_receipt_counters (year, last_no) SELECT yr, 1 FROM y
+                ON CONFLICT (year) DO UPDATE SET last_no = till_receipt_counters.last_no + 1 RETURNING year, last_no)
+     UPDATE till_sales s SET receipt_year = c.year, receipt_no = c.last_no FROM c WHERE s.id = $1 RETURNING s.receipt_year, s.receipt_no`, [saleId]
+  );
+  return rows[0];
+}
+
+// "2026-0007"
+const receiptNumber = (sale) => (sale && sale.receipt_no ? `${sale.receipt_year}-${String(sale.receipt_no).padStart(4, "0")}` : String(sale.id));
+
 // input: { token, method, items, received, cardReference, cardConfirmed, soldAtTime, userId }
 // -> { saleId, totalCents, changeCents, duplicate, overrides: [{copyId, from, to}], adjusted }
 async function completeSale(pool, { token, method, items, received, cardReference, cardConfirmed, soldAtTime, userId }) {
@@ -302,6 +318,7 @@ async function completeSale(pool, { token, method, items, received, cardReferenc
       return { saleId: rows[0].id, totalCents: rows[0].total_cents, changeCents: rows[0].change_given_cents, duplicate: true, overrides: [], adjusted: false };
     }
     const saleId = ins.rows[0].id;
+    await assignReceiptNumber(client, saleId); // gapless per Paris year (migration 070)
     const { lines } = await buildLines(client, items);
     const totalCents = lines.reduce((a, l) => a + l.unitCents * l.quantity, 0);
     if (totalCents <= 0) throw new TillError("The total must be above 0.");
@@ -485,6 +502,6 @@ async function unclosedDays(db) {
 }
 
 module.exports = {
-  TillError, OTHER_CATEGORIES, EXPORT_CATEGORY, DESCRIPTION_MAX, MAX_QTY, eur, toCents, parseCents, cashChange, cleanText,
+  TillError, assignReceiptNumber, receiptNumber, OTHER_CATEGORIES, EXPORT_CATEGORY, DESCRIPTION_MAX, MAX_QTY, eur, toCents, parseCents, cashChange, cleanText,
   parseBarcode, checkBarcodeFree, SHOP_CODE_PREFIX, lookupScan, buildLines, completeSale, voidSale, daySummary, openDay, closeDay, unclosedDays,
 };

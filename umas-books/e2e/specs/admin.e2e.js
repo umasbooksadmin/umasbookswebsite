@@ -157,7 +157,7 @@ s.test("A10 (must) the copy form has condition, binding, source, location and th
   has(text, /Clearance EUR \d+\.\d\d/);
   has(text, /Custom/);
   assert.ok(await ctx.page.$("[data-ps-suggest]"), "Suggest price button");
-  has(text, /Why this price\?/);
+  assert.ok(await ctx.page.$("[data-ps-box] summary"), "the \"Why this price?\" box is in the page (hidden until a price is suggested)");
 });
 
 s.test("A12 (must) a New book needs the publisher's price and may be at most 5% off (refusals; nothing is saved)", { as: "admin" }, async (ctx) => {
@@ -648,10 +648,17 @@ s.manual("A68 a book with no ISBN: Enter the details by hand, print its label, s
 s.manual("A69 (must) the Accounting export CSV imports into the treasurer's accounting software", "needs the treasurer: see docs/till-todos.md");
 s.test("A70 the Other stock (not books) page is reachable from Inventory and has the barcode box", { as: "admin" }, async (ctx) => {
   await admin(ctx, "/admin/inventory");
-  await Promise.all([ctx.page.waitForNavigation(), ctx.page.click("a[href='/admin/till/items']")]);
+  await Promise.all([ctx.page.waitForNavigation(), ctx.page.click("main a[href='/admin/till/items']")]);
   const text = await ctx.text();
   has(text, /Other stock \(not books\)/);
   has(text, /Tote bags, bookmarks and anything else you sell that is not a book/);
   assert.ok(await ctx.page.$("#new-barcode"), "the barcode box is on the form");
 });
 s.manual("A70b scanning an item's barcode with the scanner fills the Barcode box; at the till it adds the item", "needs the physical scanner (see A66)");
+s.manual("A71 tablet layout: the till is one column at 768 and 1024 px and the menu is behind a button", "needs a tablet or a resized window; the CSS rules are covered by an automated test");
+s.manual("A72 the admin menu is grouped and the Till pill is only filled on the till", "visual check; the markup is covered by an automated test");
+s.manual("A73 a 3-label roll prints 3 pages with the first page a label, bars scan at 203 and 300 dpi", "needs a label printer");
+s.manual("A74 destructive buttons ask for confirmation (delete book/copy/event, remove sign-up, deactivate, make admin, close the day, void)", "the browser confirm dialog is left to a person; an automated test checks every destructive admin form carries data-confirm");
+s.manual("A75 the Add Book form focuses ISBN, shows no Manual review alert when blank, has a sticky Save bar", "layout check; the markup is covered by an automated test");
+s.manual("A76 the receipt is in French with a gapless number, and ANNUL\u00c9 when voided", "selling is left for you to do by hand; covered by an automated test");
+s.manual("A77 French Excel export opens in columns with decimal commas; refunds are negative rows; the mapping page edits accounts", "needs French Excel; the content is covered by an automated test");

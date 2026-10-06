@@ -57,7 +57,7 @@
         <textarea id="descriptionFr" name="descriptionFr"><%= book.description_fr || '' %></textarea>
         <div><button class="btn btn-small" type="submit">Save changes</button></div>
       </form>
-      <form method="post" action="/admin/inventory/<%= book.id %>/delete" style="margin-top:10px;">
+      <form data-confirm="Delete this book and all of its copies? This can't be undone." method="post" action="/admin/inventory/<%= book.id %>/delete" style="margin-top:10px;">
         <%- include('../../partials/csrf_field') %>
         <button class="btn btn-outline btn-small" type="submit">Delete this book</button>
       </form>
@@ -79,7 +79,7 @@
           <span class="muted small">&middot; <%= a.kind %> &middot; <%= a.source %>
             <% if (a.source_url) { %>&middot; <a href="<%= a.source_url %>" target="_blank" rel="noopener noreferrer">source</a><% } %></span>
           <% if (a.source === 'manual') { %>
-            <form method="post" action="/admin/awards/<%= a.id %>/remove" style="display:inline;">
+            <form data-confirm="Remove this award from the book?" method="post" action="/admin/awards/<%= a.id %>/remove" style="display:inline;">
               <%- include('../../partials/csrf_field') %>
               <button class="btn btn-outline btn-small" type="submit">Remove</button>
             </form>
@@ -140,7 +140,7 @@
                     &middot; auto-releases <%= formatDate(new Date(new Date(c.reserved_at).getTime() + 14 * 24 * 60 * 60 * 1000)) %>
                   </div>
                 <% } %>
-                <form method="post" action="/admin/inventory/<%= book.id %>/copies/<%= c.id %>/cancel-reservation" style="margin-top:6px;">
+                <form data-confirm="Cancel this reservation and put the copy back in stock?" method="post" action="/admin/inventory/<%= book.id %>/copies/<%= c.id %>/cancel-reservation" style="margin-top:6px;">
                   <%- include('../../partials/csrf_field') %>
                   <button class="btn btn-outline btn-small" type="submit">Cancel reservation &amp; return to stock</button>
                 </form>
@@ -189,7 +189,7 @@
             <form id="use-price-<%= c.id %>" method="post" action="/admin/inventory/<%= book.id %>/copies/<%= c.id %>/use-price">
               <%- include('../../partials/csrf_field') %>
             </form>
-            <form id="delete-copy-<%= c.id %>" method="post" action="/admin/inventory/<%= book.id %>/copies/<%= c.id %>/delete">
+            <form id="delete-copy-<%= c.id %>" data-confirm="Delete this copy? This can't be undone." method="post" action="/admin/inventory/<%= book.id %>/copies/<%= c.id %>/delete">
               <%- include('../../partials/csrf_field') %>
             </form>
           </details>
