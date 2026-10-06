@@ -40,8 +40,10 @@ async function buildMemberExport(pool, userId) {
               o.created_at, o.paid_at, o.cgv_accepted_at, o.cgv_version,
               COALESCE((SELECT json_agg(json_build_object('title', i.item_title, 'price', i.price) ORDER BY i.id)
                         FROM order_items i WHERE i.order_id = o.id), '[]'::json) AS items
-       FROM orders o WHERE lower(o.buyer_email) = $1 ORDER BY o.created_at`,
-      [email]
+       FROM orders o
+       WHERE o.user_id = $2 OR (o.user_id IS NULL AND lower(o.buyer_email) = $1)
+       ORDER BY o.created_at`,
+      [email, userId]
     ),
     membership_payments: await q(
       `SELECT id, helloasso_order_id, payer_email, amount_cents, paid_at, created_at

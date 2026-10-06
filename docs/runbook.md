@@ -424,6 +424,12 @@ secret** = same page, **Secrets** tab.
 - [ ] **`APP_BASE_URL`** (Render environment variable) is `https://umasbooks.org`,
   so emailed links and payment return URLs point at the real domain.
 - [ ] **`PREVIEW_MODE`** (Render environment variable) is deleted, as above.
+- [ ] **Real client IP.** Followed "Check the real client IP" below: req.ip is
+  your own public IP from mobile data and from home wifi.
+- [ ] **No launch alerts.** After the redeploy no email arrived titled
+  "APP_BASE_URL missing", "HelloAsso is still in SANDBOX mode" or "HelloAsso
+  credentials missing", and admin pages show no red HelloAsso sandbox banner.
+  Opening `https://umas-books-cmvv.onrender.com/` redirects to `https://umasbooks.org/`.
 - [ ] **`HELLOASSO_API_BASE`** (Render environment variable) is unset or the
   production address, **not** the sandbox one. The `HELLOASSO_*` client id,
   secret and organisation slug are the live ones.
@@ -455,6 +461,26 @@ secret** = same page, **Secrets** tab.
   account holder, member, volunteer, admin, edge cases): every **(must)** step,
   and the manual-only steps the automated tests list, see
   `docs/testing/manual-test-scripts.md`.
+
+### Check the real client IP
+
+Do this once after the deploy that introduced `TRUST_PROXY_HOPS`, and again if
+you ever change the Cloudflare or Render set-up. Rate limits, the per-IP order
+cap and the admin activity log all depend on the app seeing the visitor's real
+address and not a Cloudflare one.
+
+1. Log in as an admin, on your **phone on mobile data** (wifi off), and open
+   `https://umasbooks.org/admin/diagnostics/client-ip`.
+2. Search "what is my IP" in another tab. The **req.ip** line must be exactly
+   that address (your carrier's public IP).
+3. Do the same from **home wifi** (a laptop or phone on the wifi). Again
+   **req.ip** must be your own public IP, **not** a Cloudflare address.
+4. If it is wrong: Render > `umas-books` > Environment > add or change
+   **`TRUST_PROXY_HOPS`** (a Render environment variable), save, wait for the
+   redeploy, repeat from step 1. Normal value 2. If req.ip is still a
+   Cloudflare address, try 3; if it shows an address that is not yours but
+   neither is it Cloudflare, try 1. Never set it higher than needed: too many
+   hops let a visitor choose their own IP.
 
 ### Turning it on again
 

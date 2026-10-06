@@ -8,7 +8,7 @@
 const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const { startTestApp } = require("../helpers/testApp");
-const { makeCookieJar, fetchCsrfToken } = require("../helpers/httpClient");
+const { makeCookieJar, fetchCsrfToken, clickConfirmationLink } = require("../helpers/httpClient");
 
 const PORT = 3411; // distinct per test file — see test/helpers/testApp.js
 let app;
@@ -116,7 +116,7 @@ test("signup, confirm the email, choose a password, then login works end to end"
     const { rows } = await pool.query("SELECT id FROM users WHERE email = $1", [email]);
     await pool.query("INSERT INTO email_verification_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, now() + interval '1 hour')",
       [rows[0].id, crypto.createHash("sha256").update(raw).digest("hex")]);
-    const verify = await fetch(`${app.base}/verify-email/${raw}`, { redirect: "manual" });
+    const verify = await clickConfirmationLink(app.base, `/verify-email/${raw}`, { jar });
     const resetPath = verify.headers.get("location");
     assert.match(resetPath, /^\/reset-password\/[0-9a-f]+\?confirmed=1$/);
     // The signup password no longer works; the person chooses a new one.

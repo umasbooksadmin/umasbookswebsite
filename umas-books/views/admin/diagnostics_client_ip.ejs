@@ -1,0 +1,18 @@
+<%- include('../partials/admin_header', { title: 'Client IP check', active: active, pageTitle: 'Check the real client IP', pageSub: 'What the site sees for this very request. Nothing is stored.' }) %>
+
+<div class="card">
+  <table class="ann-table">
+    <tbody>
+      <tr><th scope="row">req.ip (used for rate limits, order caps and the admin log)</th><td><strong><%= reqIp %></strong></td></tr>
+      <tr><th scope="row">req.ips (trusted proxies seen)</th><td><%= reqIps.length ? reqIps.join(', ') : '(none)' %></td></tr>
+      <tr><th scope="row">Connection peer address</th><td><%= socketAddress %></td></tr>
+      <tr><th scope="row">X-Forwarded-For (raw)</th><td><%= xForwardedFor %></td></tr>
+      <tr><th scope="row">CF-Connecting-IP</th><td><%= cfConnectingIp %></td></tr>
+      <tr><th scope="row">True-Client-IP</th><td><%= trueClientIp %></td></tr>
+      <tr><th scope="row">Trusted proxy hops (TRUST_PROXY_HOPS)</th><td><%= trustProxyHops %></td></tr>
+    </tbody>
+  </table>
+  <p>The <strong>req.ip</strong> value must be your own public IP address (search &ldquo;what is my IP&rdquo;), not a Cloudflare address. Check it once from a phone on mobile data and once from home wifi. If it is wrong, set <code>TRUST_PROXY_HOPS</code> in Render &gt; Environment (2 normally; 1 if the shown address is already your own but the list shows one extra address, 3 if it is still a Cloudflare address).</p>
+</div>
+
+<%- include('../partials/admin_footer') %>

@@ -56,11 +56,19 @@ async function syncMembershipForEmail(pool, email) {
   // is positive evidence of a refund/dispute.
   const returnedById = new Map(orders.map((o) => [Number(o.id), o]));
 
+  // A row can already exist without an owner: eraseMember() detaches a deleted
+  // account's payments (user_id NULL, payer email replaced) because the record
+  // must be kept for accounting. When the same person registers again and
+  // confirms their email, that orphan row is re-attached to the new account
+  // (only ever an orphan: a row owned by another account is never taken over),
+  // otherwise their paid membership would never be restored.
   for (const order of orders.filter(isAuthorized)) {
     await pool.query(
       `INSERT INTO membership_payments (user_id, helloasso_order_id, payer_email, amount_cents, paid_at)
        VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (helloasso_order_id) DO NOTHING`,
+       ON CONFLICT (helloasso_order_id) DO UPDATE
+         SET user_id = EXCLUDED.user_id, payer_email = EXCLUDED.payer_email
+         WHERE membership_payments.user_id IS NULL`,
       [user.id, order.id, email, order.amount && order.amount.total, new Date(order.date)]
     );
   }
