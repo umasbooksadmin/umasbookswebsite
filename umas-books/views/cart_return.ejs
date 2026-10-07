@@ -20,7 +20,7 @@
     <% if (items.some((i) => i.isSeat)) { %>
       <p class="small"><%= tr('Drop-in seats: you pay at the session. A seat can be cancelled online until {hours} hours before the session.', 'Places « drop-in » : vous réglez à la séance. Une place peut être annulée en ligne jusqu’à {hours} heures avant la séance.', { hours: limits.seatHours }) %></p>
     <% } %>
-    <p class="muted small"><%= tr("Uma's Books — association loi 1901, 5 rue Hippolyte Savary, 81000 Albi — admin@umasbooks.org. Pay and collect at the shop (Rue Peyrolière, Tuesday to Saturday, 10:00 to 19:00) and give this reservation number.", "Uma's Books — association loi 1901, 5 rue Hippolyte Savary, 81000 Albi — admin@umasbooks.org. Réglez et retirez à la boutique (rue Peyrolière, du mardi au samedi, de 10 h à 19 h) en indiquant ce numéro de réservation.") %></p>
+    <p class="muted small"><%= tr("Uma's Books — association loi 1901, 5 rue Hippolyte Savary, 81000 Albi — admin@umasbooks.org. Pay and collect at the shop (" + legalText.shopStreet + ", Tuesday to Saturday, " + legalText.shopHours + ") and give this reservation number.", "Uma's Books — association loi 1901, 5 rue Hippolyte Savary, 81000 Albi — admin@umasbooks.org. Réglez et retirez à la boutique (" + legalText.shopStreetInline + ", du mardi au samedi, " + legalText.shopHours + ") en indiquant ce numéro de réservation.") %></p>
   </div>
   <p class="muted small"><%= tr('A confirmation email is on its way to {email}.', 'Un e-mail de confirmation vous est envoyé à l’adresse {email}.', { email: order.buyer_email }) %></p>
   <p class="no-print"><button type="button" class="btn" data-print><%= tr('Print this page', 'Imprimer cette page') %></button></p>

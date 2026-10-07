@@ -6,6 +6,21 @@ Rules used here: a step is only written out when we are confident of it. Otherwi
 
 Keep a copy (PDF or screenshot with the date) of each accepted DPA in the association's shared drive.
 
+## Status and where to accept each DPA / État d'avancement
+
+Tick the box and write the date when the agreement is accepted (or, for HelloAsso and Anthropic, when the check is done). "Click path" is where the vendor offers its agreement as far as we know; vendors rename menus, so where it says **check on the vendor's site**, search the vendor's legal or privacy page for "data processing agreement" instead of trusting the path. Keep a dated PDF or screenshot in the shared drive.
+
+| Vendor | What it is for | Click path to the DPA | Status |
+|---|---|---|---|
+| Google (Workspace / Gmail) | Mailbox: all site emails | Google Admin console (admin.google.com) > Account > Account settings > Legal and compliance > Data Processing Amendment. Needs a Workspace account (see the first item below). | [ ] accepted on ____ / ____ / ______ |
+| Render | Hosting and database | Render dashboard > Account/Workspace Settings, then the Legal / DPA page (render.com, footer "Legal"). **Check on the vendor's site** for the exact menu. | [ ] accepted on ____ / ____ / ______ |
+| Backblaze | Offsite backup (B2 bucket) | Backblaze account > Account > Legal (or backblaze.com footer "Legal" > Data Processing Addendum). **Check on the vendor's site.** | [ ] accepted on ____ / ____ / ______ |
+| GitHub | Runs the nightly backup job; the dump passes through it briefly | GitHub > Settings > (the organisation `umasbooksadmin`, or the personal account that owns it) > Data Protection Addendum, or docs.github.com "Site policy" > "GitHub Data Protection Agreement". Also confirm the DPF/SCC wording. **Check on the vendor's site.** | [ ] accepted on ____ / ____ / ______ |
+| Squarespace | Domain name and DNS (owner's details only) | squarespace.com footer "Legal" > Data Processing Addendum. **Check on the vendor's site.** | [ ] checked on ____ / ____ / ______ |
+| HelloAsso | Payments and memberships (independent controller) | HelloAsso legal documents (helloasso.com, footer "Mentions légales" / "Politique de confidentialité", and the organisation terms): confirm it acts as controller; no DPA is usually signed. **Check on the vendor's site.** | [ ] checked on ____ / ____ / ______ |
+| Anthropic | Book-cover and book-fact lookups (no personal data) | Anthropic privacy centre (privacy.anthropic.com) and anthropic.com/legal: DPA only needed if personal data is ever sent. **Check on the vendor's site.** | [ ] checked on ____ / ____ / ______ |
+| Cloudflare (Render's edge network) | Sees visitors' IP addresses in front of Render | Nothing to sign on our side: it is a sub-processor of Render. In Render's DPA, check the sub-processor list names Cloudflare. Cloudflare's own DPA is at cloudflare.com/cloudflare-customer-dpa. | [ ] checked on ____ / ____ / ______ |
+
 ---
 
 ## FIRST ITEM: is the mailbox a Google Workspace account?
@@ -22,7 +37,7 @@ Result: ______________________  Date: ____ / ____ / ______  Done by: ___________
 
 ## Google Workspace (Gmail)
 
-- **What they get:** every email the site sends or receives: names, email addresses, phone numbers and message text from the contact, volunteer sign-up and pre-registration forms (including a child's name and date of birth, given by a parent or guardian), order and reservation confirmations, reminders, password-reset and verification emails, and error alerts. Also the content of the inbox itself.
+- **What they get:** every email the site sends or receives: names, email addresses, phone numbers and message text from the contact, volunteer sign-up and pre-registration forms (including a child's name and year of birth, given by a parent or guardian), order and reservation confirmations, reminders, password-reset and verification emails, and error alerts. Also the content of the inbox itself.
 - **Role:** processor (for Workspace).
 - **Action for Sharon:** sign in to the Google Admin console (admin.google.com) as a super administrator and go to Account > Account settings > Legal and compliance, then accept the **Data Processing Amendment** (the exact wording of the menu may change slightly). Choose the option that applies to the association's contact for data protection (admin@umasbooks.org).
 - 2-step verification: confirmed on 4 October 2026 (Sharon Bjeletich) to be on for every Google account that can open the admin inbox; only Sharon Bjeletich has access to admin@umasbooks.org. Re-check it in the console at the yearly review.
@@ -37,11 +52,12 @@ Date accepted: ____ / ____ / ______ / Done by: ____________
 
 Date accepted: ____ / ____ / ______ / Done by: ____________
 
-## GitHub (code only)
+## GitHub (code, automatic checks and the backup job)
 
-- **What they get:** the code (no personal data) and the automatic checks. Database backups are NOT stored on GitHub (they go to Backblaze only). The repository holds no real personal data; make it private before real members arrive.
-- **Role:** processor.
-- **Action for Sharon:** look for the GitHub Data Protection Agreement on GitHub's legal page (docs.github.com, "Site policy" > "GitHub Customer Agreement" and its Data Protection Agreement). Follow the page to accept it for the account or organisation that owns the repository `umasbooksadmin`. If the page says it is part of the terms already accepted, note that and keep a copy.
+- **What they get:** the code (no personal data) and the automatic checks. **GitHub Actions also runs the nightly database backup job**: the job (GitHub Actions, United States) dumps the database, and that copy **passes through GitHub briefly (a transient copy on the runner) before it is uploaded to Backblaze**. It is not kept on GitHub: no backup is stored in the repository. The privacy policy names GitHub as a recipient for this reason.
+- **Role:** processor (GitHub Actions, USA).
+- **Action for Sharon:** accept the GitHub Data Protection Addendum (path in the status table above), and **confirm the transfer mechanism** (EU-US Data Privacy Framework certification and/or standard contractual clauses) in that document. Follow the page to accept it for the account or organisation that owns the repository `umasbooksadmin`. If the page says it is part of the terms already accepted, note that and keep a copy. Make the repository private before real members arrive.
+- TODO(the association): consider **encrypting the dump before upload** (for example with `gpg` or `age` in the backup workflow), so that the transient copy on GitHub is unreadable there. The key must then be kept safely outside GitHub, or a restore becomes impossible.
 - If the old `db-backups` branch is still there, delete it (GitHub > repository > Branches). Old backup commits may stay reachable on GitHub for a while after that; GitHub Support can purge them on request.
 
 Date accepted: ____ / ____ / ______ / Done by: ____________

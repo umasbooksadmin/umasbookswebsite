@@ -250,7 +250,29 @@ request. For site errors and the contact form, set `CONTACT_TO` in Render
 check by sending a test). Simplest option: make admin@umasbooks.org forward to
 two people at the mail provider.
 
-## e) Yearly calendar
+## e) Quarterly and yearly calendar
+
+### Every quarter (put it in the shared calendar: 1 January, 1 April, 1 July, 1 October)
+
+- **Mailbox cleanup (12-month promise).** The privacy policy promises that the
+  emails sent by the website's contact form, volunteer sign-up and English
+  Immersion pre-registration (subjects start with `Website contact:`,
+  `Website volunteer sign-up` and `Website pre-registration:`) are deleted from
+  the admin@umasbooks.org mailbox after 12 months. Nothing does it
+  automatically, and a yearly check would let some emails stay up to 24 months,
+  so do it **every quarter**:
+  1. In Gmail, search `older_than:12m` (to see only the website's emails, use
+     `subject:(Website) older_than:12m`).
+  2. Review the list. Keep any conversation that is still ongoing.
+  3. Delete the rest (select all, Delete).
+  4. Empty the Trash (Gmail > Trash > "Empty Trash now"), or the emails stay
+     another 30 days.
+  The pre-registration emails hold a child's name and year of birth, so do not
+  skip them.
+- **GitHub Actions minutes:** check usage (see the yearly list below for where).
+
+### Every year
+
 
 - **Domain renewal:** umasbooks.org (the maintainer's notes say it expires
   2027-08-22). Check the registrar and its auto-renew setting and payment
@@ -264,15 +286,6 @@ two people at the mail provider.
   when they run out the backups stop. GitHub > your account/organisation >
   **Settings > Billing and plans** > set a spending limit / budget alert, and
   check usage once a quarter.
-- **Contact, volunteer and pre-registration emails:** delete the emails sent
-  by the website's contact form, volunteer sign-up and English Immersion
-  pre-registration (subjects start with `Website contact:`, `Website volunteer
-  sign-up` and `Website pre-registration:`) that are older than 12 months from
-  the admin@umasbooks.org mailbox (Gmail search:
-  `subject:(Website) older_than:12m`, review, then delete; also empty the Trash).
-  Keep any conversation that is still ongoing. The pre-registration emails hold
-  a child's name and date of birth, so do not skip them. This is what the
-  privacy policy promises, and nothing does it automatically.
 - Also once a year: confirm the backup restore test emails are arriving, review
   Dependabot pull requests that have been waiting, and check the Backblaze
   and Render invoices.

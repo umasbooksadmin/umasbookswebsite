@@ -3,6 +3,7 @@
 // step, "Check my membership"). Kept together here so the server-rendered
 // text (mt) and the language toggle's dictionary come from one source.
 const memNewEn = {
+  "mem.price": "Membership fee: <strong>{membershipPrice}</strong> for 12 months, paid on the HelloAsso form.",
   "mem.join.h": "Become a member",
   "mem.join.p": "Tell us who you are and we create your account in one step. You then pay on the next screen, and confirm your email afterwards.",
   "mem.join.name": "Name",
@@ -33,6 +34,7 @@ const memNewEn = {
   "mem.check.unconfirmed": "Please confirm your email address first: open the link we sent you when you signed up.",
 };
 const memNewFr = {
+  "mem.price": "Cotisation\u00a0: <strong>{membershipPrice}</strong> pour 12 mois, à régler sur le formulaire HelloAsso.",
   "mem.join.h": "Devenir membre",
   "mem.join.p": "Dites-nous qui vous êtes : nous créons votre compte en une seule étape. Vous payez ensuite sur l’écran suivant, puis vous confirmez votre adresse e-mail.",
   "mem.join.name": "Nom",
@@ -135,6 +137,9 @@ const mt = (key) => (locals.lang === 'fr' ? memNewFr : memNewEn)[key];
     <% } else if (flash && flash.check === 'unconfirmed') { %>
       <div role="alert" class="error-box" data-i18n="mem.check.unconfirmed"><%= mt('mem.check.unconfirmed') %></div>
     <% } %>
+
+    <%# The price (lib/legal.js MEMBERSHIP_PRICE_EUR) is shown before the HelloAsso form loads; nothing is shown while the constant is empty. %>
+    <% if (memState !== 'member' && legalText.membershipPrice) { %><p class="mem-widget-note mem-price" data-i18n-html="mem.price"><%- mt('mem.price').split('{membershipPrice}').join(legalText.membershipPrice) %></p><% } %>
 
     <% if (memState === 'member') { %>
       <div class="mem-form-title" data-i18n="mem.member.h"><%= mt('mem.member.h') %></div>
@@ -256,4 +261,4 @@ const mt = (key) => (locals.lang === 'fr' ? memNewFr : memNewEn)[key];
   "mem.widget.directLink": "Ouvrir la page d’adhésion directement sur HelloAsso",
   "mem.widget.directNote": "Votre adhésion est rattachée au compte qui utilise la même adresse e-mail, quel que soit le moyen de paiement choisi.",
 }; %>
-<%- include('partials/mkt_footer', { pageI18nEn: { ...pageI18nEn, ...memNewEn }, pageI18nFr: { ...pageI18nFr, ...memNewFr }, extraScripts: ['assets/membership-widget.js'] }) %>
+<%- include('partials/mkt_footer', { pageI18nEn: fillVat({ ...pageI18nEn, ...memNewEn }, 'en'), pageI18nFr: fillVat({ ...pageI18nFr, ...memNewFr }, 'fr'), extraScripts: ['assets/membership-widget.js'] }) %>

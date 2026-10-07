@@ -17,7 +17,7 @@
   "ts.cx.h": "Cancelling a reservation",
   "ts.cx.p": "You can cancel a reservation yourself, free of charge, from your account page or from the reservation page. A drop-in seat can be cancelled online until {hours} hours before the session starts; after that, please contact us. You can also write to us at <a href=\"mailto:admin@umasbooks.org\">admin@umasbooks.org</a>.",
   "ts.s4.h": "Collecting and paying at the shop",
-  "ts.s4.p": "The sale is made at the shop (Rue Peyrolière, 81000 Albi), Tuesday to Saturday, 10:00–19:00: you pay there, in cash or by card, when you collect your books. Please give your reservation number or show your confirmation email. You can check the condition of each book on the spot, and you are free to decline it: nothing is then due. Please come within {days} days of reserving; if you need longer, write to us. For a drop-in seat, come at the session time and pay there.",
+  "ts.s4.p": "The sale is made at the shop ({shopStreet}, 81000 Albi), Tuesday to Saturday, {shopHours}: you pay there, in cash or by card, when you collect your books. Please give your reservation number or show your confirmation email. You can check the condition of each book on the spot, and you are free to decline it: nothing is then due. Please come within {days} days of reserving; if you need longer, write to us. For a drop-in seat, come at the session time and pay there.",
   "ts.mb.h": "Memberships: paid online",
   "ts.mb.p": "Books and drop-in seats are not paid online. Only membership is: it is paid online through HelloAsso, our secure payment provider, and we never see or store your card details. The right of withdrawal for that online payment is described in the <a href=\"membership-terms.html\">membership terms</a> and applies where the law provides for it.",
   "ts.s7.h": "Legal guarantees",
@@ -49,7 +49,7 @@
   "ts.cx.h": "Annuler une réservation",
   "ts.cx.p": "Vous pouvez annuler vous-même une réservation, gratuitement, depuis votre page de compte ou depuis la page de la réservation. Une place « drop-in » peut être annulée en ligne jusqu’à {hours} heures avant le début de la séance ; après cela, merci de nous contacter. Vous pouvez aussi nous écrire à <a href=\"mailto:admin@umasbooks.org\">admin@umasbooks.org</a>.",
   "ts.s4.h": "Retrait et paiement à la boutique",
-  "ts.s4.p": "La vente est conclue à la boutique (rue Peyrolière, 81000 Albi), du mardi au samedi, de 10h à 19h : vous y payez, en espèces ou par carte, au moment du retrait de vos livres. Merci d’indiquer votre numéro de réservation ou de montrer votre e-mail de confirmation. Vous pouvez vérifier l’état de chaque livre sur place et vous êtes libre de le refuser : rien n’est alors dû. Merci de venir dans les {days} jours suivant la réservation ; si vous avez besoin de plus de temps, écrivez-nous. Pour une place « drop-in », venez à l’heure de la séance et réglez sur place.",
+  "ts.s4.p": "La vente est conclue à la boutique ({shopStreetInline}, 81000 Albi), du mardi au samedi, {shopHours}\u00a0: vous y payez, en espèces ou par carte, au moment du retrait de vos livres. Merci d’indiquer votre numéro de réservation ou de montrer votre e-mail de confirmation. Vous pouvez vérifier l’état de chaque livre sur place et vous êtes libre de le refuser : rien n’est alors dû. Merci de venir dans les {days} jours suivant la réservation ; si vous avez besoin de plus de temps, écrivez-nous. Pour une place « drop-in », venez à l’heure de la séance et réglez sur place.",
   "ts.mb.h": "Adhésions : payées en ligne",
   "ts.mb.p": "Les livres et les places « drop-in » ne se paient pas en ligne. Seule l’adhésion se paie en ligne, via HelloAsso, notre prestataire de paiement sécurisé ; nous ne voyons ni ne conservons vos coordonnées bancaires. Le droit de rétractation pour ce paiement en ligne est décrit dans les <a href=\"membership-terms.html\">conditions d’adhésion</a> et s’applique lorsque la loi le prévoit.",
   "ts.s7.h": "Garanties légales",
@@ -61,7 +61,7 @@
   "ts.s9.h": "Données personnelles",
   "ts.s9.p": "Nous n’utilisons vos données que pour gérer votre réservation et enregistrer votre paiement. Les coordonnées d’une réservation qui ne débouche pas sur une vente sont conservées 30 jours après sa fin ; une vente est conservée comme l’exige la loi comptable. Consultez notre <a href=\"privacy-policy.html\">Politique de confidentialité</a> pour savoir ce que nous conservons, combien de temps, et connaître vos droits.",
   "ts.s10.h": "Autres dispositions",
-  "ts.s10.p": "Les textes, photos et le logo de ce site appartiennent à Uma’s Books ou à leurs titulaires et ne peuvent être copiés sans autorisation. Aucune des parties n’est responsable d’un manquement dû à un cas de force majeure. Les présentes conditions sont soumises au droit français ; à défaut de règlement amiable, les juridictions compétentes en vertu du droit français de la consommation sont seules compétentes.",
+  "ts.s10.p": "Les textes, photos et le logo de ce site appartiennent à Uma’s Books ou à leurs titulaires et ne peuvent être copiés sans autorisation. Aucune des parties n’est responsable d’un manquement dû à un cas de force majeure. Les présentes conditions sont soumises au droit français ; à défaut de règlement amiable, les juridictions compétentes en vertu du droit de la consommation s’appliquent.",
 }; %>
 <%- include('partials/mkt_header', {
   title: "Terms of Sale — Uma's Books",
@@ -75,28 +75,28 @@
     <div class="prose">
       <p class="muted small" data-i18n="ts.updated">Last updated: 7 October 2026.</p>
 
-      <p data-i18n-html="ts.intro"><%- fillVat(pageI18nEn)["ts.intro"] %></p>
+      <p data-i18n-html="ts.intro"><%- fillVat(pageI18nEn, "en")["ts.intro"] %></p>
 
       <h2 data-i18n="ts.s1.h">Products</h2>
-      <p data-i18n="ts.s1.p"><%- fillVat(pageI18nEn)["ts.s1.p"] %></p>
+      <p data-i18n="ts.s1.p"><%- fillVat(pageI18nEn, "en")["ts.s1.p"] %></p>
 
       <h2 data-i18n="ts.nr.h">Second-hand books: no returns</h2>
       <p data-i18n="ts.nr.p">Reserving is free and commits you to nothing. You pay and the sale is made in the shop, after you have seen the book. Used books are not taken back for a change of mind once bought in the shop; the legal guarantees still apply. Each book is sold as described: its condition grade is its description, so please read it, and ask us if you have any question. This does not affect your legal rights as a consumer, including the legal guarantees.</p>
 
       <h2 data-i18n="ts.s2.h">Prices</h2>
-      <p data-i18n-html="ts.s2.p"><%- fillVat(pageI18nEn)["ts.s2.p"] %></p>
+      <p data-i18n-html="ts.s2.p"><%- fillVat(pageI18nEn, "en")["ts.s2.p"] %></p>
 
       <h2 data-i18n="ts.s3.h">Reserving and paying</h2>
-      <p data-i18n="ts.s3.p"><%- fillVat(pageI18nEn)["ts.s3.p"] %></p>
+      <p data-i18n="ts.s3.p"><%- fillVat(pageI18nEn, "en")["ts.s3.p"] %></p>
 
       <h2 data-i18n="ts.cx.h">Cancelling a reservation</h2>
-      <p data-i18n-html="ts.cx.p"><%- fillVat(pageI18nEn)["ts.cx.p"] %></p>
+      <p data-i18n-html="ts.cx.p"><%- fillVat(pageI18nEn, "en")["ts.cx.p"] %></p>
 
       <h2 data-i18n="ts.s4.h">Collecting and paying at the shop</h2>
-      <p data-i18n="ts.s4.p"><%- fillVat(pageI18nEn)["ts.s4.p"] %></p>
+      <p data-i18n="ts.s4.p"><%- fillVat(pageI18nEn, "en")["ts.s4.p"] %></p>
 
       <h2 data-i18n="ts.mb.h">Memberships: paid online</h2>
-      <p data-i18n-html="ts.mb.p"><%- fillVat(pageI18nEn)["ts.mb.p"] %></p>
+      <p data-i18n-html="ts.mb.p"><%- fillVat(pageI18nEn, "en")["ts.mb.p"] %></p>
 
       <h2 data-i18n="ts.s7.h">Legal guarantees</h2>
       <p data-i18n="ts.s7.lead">As required by article D211-2 of the French Consumer Code, the official notice on the legal guarantees (the legal guarantee of conformity, Consumer Code art. L.217-3 et seq., and the guarantee against hidden defects, Civil Code art. 1641 et seq.) is reproduced below in French, which is the legally binding text. It applies whatever is said elsewhere in these terms.</p>
@@ -107,10 +107,10 @@
       <p data-i18n-html="ts.s8.p">Write to us first at <a href="mailto:admin@umasbooks.org">admin@umasbooks.org</a>. If we cannot settle it, you may use, free of charge, our consumer mediator: CM2C (Centre de la Médiation de la Consommation de Conciliateurs de Justice), 49 rue de Ponthieu, 75008 Paris — <a href="https://www.cm2c.net/declarer-un-litige.php">cm2c.net</a>.</p>
 
       <h2 data-i18n="ts.s9.h">Personal data</h2>
-      <p data-i18n-html="ts.s9.p"><%- fillVat(pageI18nEn)["ts.s9.p"] %></p>
+      <p data-i18n-html="ts.s9.p"><%- fillVat(pageI18nEn, "en")["ts.s9.p"] %></p>
 
       <h2 data-i18n="ts.s10.h">Other terms</h2>
       <p data-i18n="ts.s10.p">The texts, photos and logo on this site belong to Uma’s Books or their owners and may not be copied without permission. Neither party is liable for a failure caused by force majeure. These terms are governed by French law; if a dispute is not settled amicably, the courts competent under French consumer law apply.</p>
     </div>
   </div>
-<%- include('partials/mkt_footer', { pageI18nEn: fillVat(pageI18nEn), pageI18nFr: fillVat(pageI18nFr) }) %>
+<%- include('partials/mkt_footer', { pageI18nEn: fillVat(pageI18nEn, 'en'), pageI18nFr: fillVat(pageI18nFr, 'fr') }) %>

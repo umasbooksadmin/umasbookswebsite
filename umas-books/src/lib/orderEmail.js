@@ -34,9 +34,10 @@ const LEGAL_RIGHTS = [
   "Réclamations : écrivez à admin@umasbooks.org. À défaut de règlement amiable, vous pouvez recourir gratuitement à notre médiateur de la consommation : CM2C, 49 rue de Ponthieu, 75008 Paris, https://www.cm2c.net/declarer-un-litige.php",
 ].join("\n\n").replace(/\n\n\n\n/g, "\n\n");
 
+// Getters: the street number and the hours come from lib/legal.js when used.
 const SHOP_LINES = {
-  en: "Uma's Books, Rue Peyrolière, 81000 Albi — open Tuesday to Saturday, 10:00 to 19:00.",
-  fr: "Uma's Books, rue Peyrolière, 81000 Albi — ouvert du mardi au samedi, de 10 h à 19 h.",
+  get en() { return `Uma's Books, ${legal.shopStreet("en")}, 81000 Albi — open Tuesday to Saturday, ${legal.shopHours("en")}.`; },
+  get fr() { return `Uma's Books, ${legal.shopStreet("fr", false)}, 81000 Albi — ouvert du mardi au samedi, ${legal.shopHours("fr")}.`; },
 };
 
 // Subject of the reservation e-mail (a reservation, not an order confirmation or proof of purchase), in the order's language (English when unknown).

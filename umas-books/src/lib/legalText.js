@@ -32,10 +32,16 @@ const GRADE_NOTE = {
   fr: `L’état indiqué est la description du livre${NB}: merci de le lire avant d’acheter.`,
 };
 
-// Where and when to collect and pay for a reservation of books.
+// Where and when to collect and pay for a reservation of books. Getters, so the
+// opening hours and the street (lib/legal.js SHOP_HOURS_*, SHOP_STREET_NUMBER)
+// are read when the text is used: callers keep writing PICKUP.en / PICKUP.fr.
 const PICKUP = {
-  en: `We hold your books for ${legal.RESERVATION_DAYS} days. Pay and collect them at the shop, Tuesday to Saturday, 10:00–19:00, Rue Peyrolière, Albi.`,
-  fr: `Nous gardons vos livres ${legal.RESERVATION_DAYS} jours. Réglez-les et retirez-les à la boutique, du mardi au samedi, 10h–19h, rue Peyrolière, Albi.`,
+  get en() {
+    return `We hold your books for ${legal.RESERVATION_DAYS} days. Pay and collect them at the shop, Tuesday to Saturday, ${legal.shopHours("en")}, ${legal.shopStreet("en")}, Albi.`;
+  },
+  get fr() {
+    return `Nous gardons vos livres ${legal.RESERVATION_DAYS} jours. Réglez-les et retirez-les à la boutique, du mardi au samedi, ${legal.shopHours("fr")}, ${legal.shopStreet("fr", false)}, Albi.`;
+  },
 };
 
 // Under the cart's "Reserve" button: nothing is paid online.
@@ -66,19 +72,31 @@ function legalFor(lang) {
     nothingPaidOnline: NOTHING_PAID_ONLINE[l],
     vatNotice: vatNotice(),
     priceLine: priceLine(l),
+    shopStreet: legal.shopStreet(l),
+    shopStreetInline: legal.shopStreet(l, false),
+    shopHours: legal.shopHours(l),
+    shopOpens: legal.SHOP_OPENS,
+    shopCloses: legal.SHOP_CLOSES,
+    membershipPrice: legal.membershipPrice(l),
   };
 }
 
-// Fills the {vat} placeholder in a page dictionary (the terms of sale put the
-// VAT line in their dictionaries as "{vat}" so it follows VAT_NOTICE_ARTICLE).
-// {days}, {copies}, {reservations} and {hours} carry the reservation policy
-// numbers of lib/legal.js the same way.
-function fillVat(dict) {
-  const out = {};
+// Fills the placeholders in a page dictionary: {vat} (VAT_NOTICE_ARTICLE),
+// {shopStreet} ("Rue Peyrolière" or "12 rue Peyrolière"), {shopStreetInline}
+// (the same, "rue" lowercase in the middle of a French sentence), {shopHours}
+// (SHOP_HOURS_EN / SHOP_HOURS_FR) and {membershipPrice} (MEMBERSHIP_PRICE_EUR,
+// "" when not set), plus the reservation policy numbers {days}, {extension},
+// {copies}, {reservations} and {hours} (lib/legal.js). `lang` defaults to
+// English: pass the dictionary's language so the shop tokens come out right.
+function fillVat(dict, lang = "en") {
+  const l = lang === "fr" ? "fr" : "en";
   const fills = {
     "{vat}": vatNotice(), "{days}": legal.RESERVATION_DAYS, "{extension}": legal.RESERVATION_EXTENSION_DAYS,
     "{copies}": legal.MAX_RESERVED_COPIES, "{reservations}": legal.MAX_ACTIVE_RESERVATIONS, "{hours}": legal.SEAT_CANCEL_HOURS,
+    "{shopStreetInline}": legal.shopStreet(l, false), "{shopStreet}": legal.shopStreet(l),
+    "{shopHours}": legal.shopHours(l), "{membershipPrice}": legal.membershipPrice(l),
   };
+  const out = {};
   for (const [k, v] of Object.entries(dict)) {
     out[k] = typeof v === "string" ? Object.entries(fills).reduce((t, [token, value]) => t.split(token).join(String(value)), v) : v;
   }

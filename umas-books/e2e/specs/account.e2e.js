@@ -295,7 +295,7 @@ s.test("AC-FR22 FR check (cart): the cart and the reserve form are in French", {
   for (const re of [/Votre panier/, /Retirer/, /Total\s:/]) has(text, re);
   if (ctx.preview) { has(text, /Les réservations en ligne ouvriront au lancement/); return; }
   if (!(await reserveForm(ctx))) return;
-  for (const re of [/Réservation/, /Nom/, /E-mail/, /Téléphone \(facultatif\)/, /J.ai lu et j.accepte les conditions de vente/, /Réserver \(gratuit, sans engagement\)/, /Rien n’est payé en ligne\. Nous gardons vos livres 14 jours\s: passez à la boutique et réglez-les au moment du retrait\./, /Les livres d’occasion ne sont ni repris ni échangés/, /Prix TTC, TVA non applicable/, /Réglez-les et retirez-les à la boutique, du mardi au samedi, 10h–19h, rue Peyrolière, Albi/]) has(text, re);
+  for (const re of [/Réservation/, /Nom/, /E-mail/, /Téléphone \(facultatif\)/, /J.ai lu et j.accepte les conditions générales de vente \(CGV\)/, /Réserver \(gratuit, sans engagement\)/, /Rien n’est payé en ligne\. Nous gardons vos livres 14 jours\s: passez à la boutique et réglez-les au moment du retrait\./, /Les livres d’occasion ne sont ni repris ni échangés/, /Prix TTC, TVA non applicable/, /Réglez-les et retirez-les à la boutique, du mardi au samedi, 10\s?h–19\s?h, rue Peyrolière, Albi/]) has(text, re);
   hasNot(text, /Commander avec obligation de paiement|HelloAsso/);
 });
 
@@ -348,7 +348,7 @@ s.test("AC26 (must) the reservation page shows the items, the total to pay at th
   if (!held) ctx.skip("needs the reservation test AC24 (with E2E_ALLOW_WRITES=1) to have made a reservation first");
   await ctx.goto(`/cart/return?order=${held.token}`);
   const text = await ctx.text();
-  for (const re of [/Reservation #\d+ recorded/, /Total to pay at the shop:\s*€\d+\.\d\d/, /We hold your books until the end of .*\(Paris time\)/, /Pay and collect at the shop \(Rue Peyrolière, Tuesday to Saturday, 10:00 to 19:00\) and give this reservation number/, /A confirmation email is on its way to /, /Print this page/, /Cancel reservation/]) has(text, re);
+  for (const re of [/Reservation #\d+ recorded/, /Total to pay at the shop:\s*€\d+\.\d\d/, /We hold your books until the end of .*\(Paris time\)/, /Pay and collect at the shop \(Rue Peyrolière, Tuesday to Saturday, 10:00–19:00\) and give this reservation number/, /A confirmation email is on its way to /, /Print this page/, /Cancel reservation/]) has(text, re);
   assert.ok(await ctx.page.$("#reservation-deadline"), "the deadline is on the page");
   assert.ok(await ctx.page.$(`form[action^='/cart/reservations/'] button[type='submit']`), "the owner sees a Cancel reservation button");
 });

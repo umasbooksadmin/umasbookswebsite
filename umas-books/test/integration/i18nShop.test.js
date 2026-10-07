@@ -38,7 +38,7 @@ test("reservation form (book + drop-in seat) is fully translated", async () => {
   assert.match(pages.en, /<button class="btn" type="submit">Reserve \(free, no commitment\)<\/button>/);
   assert.match(pages.fr, /<button class="btn" type="submit">Réserver \(gratuit, sans engagement\)<\/button>/);
   assert.doesNotMatch(pages.fr, /Reserve \(free, no commitment\)/);
-  assert.match(pages.fr, /conditions de vente/);
+  assert.match(pages.fr, /conditions générales de vente \(CGV\)/);
   // Nothing is paid online (never an "order with obligation to pay"), no-returns notice that
   // never waives legal rights, tax line, pickup hours: all above the button.
   assert.ok(pages.en.includes("Nothing is paid online. We hold your books for 14 days: come to the shop and pay when you collect them."));
@@ -49,7 +49,7 @@ test("reservation form (book + drop-in seat) is fully translated", async () => {
   assert.ok(nb(pages.fr).includes("Les livres d’occasion ne sont ni repris ni échangés pour simple changement d’avis une fois achetés en boutique"));
   assert.ok(pages.en.includes("Price incl. tax, TVA non applicable") && pages.fr.includes("Prix TTC, TVA non applicable"));
   assert.ok(pages.en.includes("Pay and collect them at the shop, Tuesday to Saturday, 10:00–19:00, Rue Peyrolière, Albi."));
-  assert.ok(pages.fr.includes("du mardi au samedi, 10h–19h, rue Peyrolière, Albi."));
+  assert.ok(pages.fr.includes("du mardi au samedi, 10\u00a0h–19\u00a0h, rue Peyrolière, Albi."));
   assert.ok(pages.en.indexOf("no-returns-note") < pages.en.indexOf("Reserve (free, no commitment)</button>"), "the notice sits above the reserve button");
   assert.doesNotMatch(pages.en, /waive the|renounce/i);
   assert.ok(pages.en.includes("Drop-in seats: you pay at the session. You can cancel a seat online until 24 hours before it starts."));
@@ -70,7 +70,7 @@ test("a seats-only cart offers 'Reserve (free, no commitment)' / « Réserver (g
 test("reservation errors: French for a French user, English otherwise", async () => {
   const copy = await makeBookCopy();
   for (const [lang, empty, noName, noTerms] of [
-    ["fr", /Votre panier est vide/, /Veuillez indiquer votre nom\./, /Veuillez accepter les conditions de vente/],
+    ["fr", /Votre panier est vide/, /Veuillez indiquer votre nom\./, /Veuillez accepter les conditions générales de vente \(CGV\)/],
     ["en", /Your cart is empty\./, /Please enter your name\./, /Please accept the terms of sale to continue\./],
     [undefined, /Your cart is empty\./, /Please enter your name/, /Please accept the terms of sale/],
   ]) {

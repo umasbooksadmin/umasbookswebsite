@@ -291,7 +291,7 @@ router.post("/cart/reserve", checkoutLimiter, async (req, res) => {
 
   if (!items.length) return renderCart({ items: [], total: 0, error: req.tr("Your cart is empty.", "Votre panier est vide.") });
   if (!name) return renderCart({ error: req.tr("Please enter your name.", "Veuillez indiquer votre nom.") });
-  if (req.body.acceptCgv !== "on") return renderCart({ error: req.tr("Please accept the terms of sale to continue.", "Veuillez accepter les conditions de vente pour continuer.") });
+  if (req.body.acceptCgv !== "on") return renderCart({ error: req.tr("Please accept the terms of sale to continue.", "Veuillez accepter les conditions générales de vente (CGV) pour continuer.") });
 
   let order;
   try {

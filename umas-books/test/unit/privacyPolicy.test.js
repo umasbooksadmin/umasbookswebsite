@@ -32,6 +32,7 @@ test("privacy policy: every data-i18n key used in the markup exists in both lang
 
 test("privacy policy: names the controller exactly as in the legal notice", () => {
   for (const d of [en, fr]) {
+    assert.match(d["pp.s1.p"], /UMAS BOOKS/);
     assert.match(d["pp.s1.p"], /Uma’s Books/);
     assert.match(d["pp.s1.p"], /W811011706/);
     assert.match(d["pp.s1.p"], /109 441 147 00013/);
@@ -52,8 +53,8 @@ test("privacy policy: lists every processor", () => {
     for (const name of ["HelloAsso", "Google", "Render", "Cloudflare", "Backblaze", "Anthropic"]) {
       assert.match(d["pp.s4.list"], new RegExp(name));
     }
-    // Backups no longer go to GitHub; the policy must not claim they do.
-    assert.doesNotMatch(d["pp.s4.list"], /GitHub/);
+    // GitHub runs the backup job and the dump passes through it: it is named as a recipient.
+    assert.match(d["pp.s4.list"], /GitHub/);
   }
 });
 
@@ -156,16 +157,37 @@ test("privacy policy: discloses the language cookie, the local-storage keys, the
   assert.match(fr["pp.s5.list"], /cookie de langue 1 an/);
 });
 
-test("privacy policy: the forms send an email only (nothing stored), never ask for health information, and a child's data is a guardian's", () => {
-  assert.match(en["pp.s2.list"], /These forms send us an email and nothing is stored on the website itself/);
+test("privacy policy: the forms send an email, a copy stays in the outbox and backups, never ask for health information, and a child's data is a guardian's", () => {
+  assert.match(en["pp.s2.list"], /These forms send us an email\. A copy stays in our outgoing-mail queue for up to 30 days \(90 if sending failed\) and in our backups \(up to 2 years\); then it is erased\./);
+  assert.doesNotMatch(en["pp.s2.list"], /nothing is stored/);
   assert.match(en["pp.s2.list"], /do not enter health information/);
-  assert.match(fr["pp.s2.list"], /rien n’est enregistré sur le site lui-même/);
+  assert.match(fr["pp.s2.list"], /Ces formulaires nous envoient un e-mail\. Une copie reste dans notre file d’envoi 30 jours au plus \(90 jours en cas d’échec\), puis dans nos sauvegardes \(jusqu’à 2 ans\) avant d’être effacée\./);
+  assert.doesNotMatch(fr["pp.s2.list"], /rien n’est enregistré/);
   assert.match(fr["pp.s2.list"], /aucune information de santé/);
   assert.doesNotMatch(en["pp.s2.list"], /open your own email application/);
   assert.match(en["pp.s7.p"], /parent or legal guardian confirms/);
   assert.match(fr["pp.s7.p"], /parent ou représentant légal confirme/);
   assert.match(en["pp.s7.p"], /12 months in our mailbox/);
   assert.match(fr["pp.s7.p"], /12 mois dans notre messagerie/);
+});
+
+test("privacy policy: GitHub is a named recipient (backup job), the cookie, retention and photo lines are accurate", () => {
+  assert.match(en["pp.s4.list"], /<strong>GitHub<\/strong> \(United States\) — runs our automatic backup job; the database copy passes through it briefly before it is stored at Backblaze\./);
+  assert.match(fr["pp.s4.list"], /<strong>GitHub<\/strong> \(États-Unis\) — exécute notre sauvegarde automatique\u00a0; la copie de la base y transite brièvement avant d’être stockée chez Backblaze\./);
+  assert.match(en["pp.s3.p"], /keep you logged in, remember your cart and protect forms/);
+  assert.match(en["pp.s3.p"], /cart and login pages/);
+  assert.match(fr["pp.s3.p"], /mémoriser votre panier et protéger les formulaires/);
+  assert.match(en["pp.s5.list"], /Accounts with a current membership are not deleted automatically/);
+  assert.match(fr["pp.s5.list"], /Les comptes ayant une adhésion en cours ne sont pas supprimés automatiquement/);
+  assert.match(en["pp.s5.list"], /Render keeps platform logs for 14 days/);
+  assert.match(fr["pp.s5.list"], /Render conserve les journaux de la plateforme 14 jours/);
+  assert.doesNotMatch(en["pp.s5.list"], /a few weeks/);
+  assert.match(en["pp.photos.p"], /consent is the legal basis/);
+  assert.match(fr["pp.photos.p"], /le consentement est la base juridique/);
+  // Where photos are kept and for how long are NOT invented here: they are TODOs in docs/legal-todos.md.
+  assert.doesNotMatch(en["pp.photos.p"], /stored (on|at|in)|kept for/);
+  const todos = fs.readFileSync(path.join(__dirname, "../../../docs/legal-todos.md"), "utf8");
+  assert.match(todos, /Photos and videos[\s\S]*TODO\(the association\)[\s\S]*where they are stored/);
 });
 
 test("privacy policy: books and seats are paid in the shop, only the membership is paid online (HelloAsso), and no IP address is kept with an order", () => {

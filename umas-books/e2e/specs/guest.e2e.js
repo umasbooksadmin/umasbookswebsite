@@ -896,22 +896,62 @@ s.test("G57 (must) the pre-registration form refuses an empty submission with an
   assert.ok(await ctx.page.$(ERR_SUMMARY), "error summary with role=alert");
   has(await ctx.text(), /There is a problem/);
   const links = await ctx.page.$$eval(`${ERR_SUMMARY} a`, (as) => as.map((a) => a.getAttribute("href")));
-  for (const id of ["#preg-first", "#preg-last", "#preg-dob", "#preg-session", "#preg-days", "#preg-times", "#preg-parent", "#preg-email", "#preg-phone", "#preg-consent"]) assert.ok(links.includes(id), `summary links to ${id}`);
-  assert.equal(await ctx.page.$eval("#preg-first", (i) => i.getAttribute("aria-invalid")), "true");
-  const describedBy = await ctx.page.$eval("#preg-first", (i) => i.getAttribute("aria-describedby"));
+  for (const id of ["#preg-who", "#preg-session", "#preg-days", "#preg-times", "#preg-parent", "#preg-email", "#preg-phone", "#preg-consent"]) assert.ok(links.includes(id), `summary links to ${id}`);
+  assert.ok(!links.includes("#preg-first"), "the child fields are not demanded before 'a child' is chosen");
+  assert.equal(await ctx.page.$eval("#preg-parent", (i) => i.getAttribute("aria-invalid")), "true");
+  const describedBy = await ctx.page.$eval("#preg-parent", (i) => i.getAttribute("aria-describedby"));
   assert.ok(describedBy && await ctx.page.$(`#${describedBy.split(" ").pop()}`), "the field is described by its error text");
   assert.equal(await ctx.page.evaluate(() => document.activeElement && document.activeElement.id), "form-errors", "focus is on the summary");
 });
 
-s.test("G58 (must) the pre-registration needs the parent or guardian box; a complete form is sent and shows a thank-you", async (ctx) => {
+s.test("G25a the legal pages agree: opening hours, membership withdrawal wording, GitHub in the privacy policy", async (ctx) => {
+  await ctx.goto("/visit.html");
+  has(await ctx.text(), /10:00–19:00/);
+  await ctx.goto("/membership-terms.html");
+  has(await ctx.text(), /If you join online you may withdraw within 14 days by writing to admin@umasbooks\.org; we will refund your payment and the membership then ends\./);
+  has(await ctx.text(), /Last updated: 6 October 2026/);
+  await ctx.goto("/privacy-policy.html");
+  has(await ctx.text(), /GitHub \(United States\)/);
+  has(await ctx.text(), /Render keeps platform logs for 14 days/);
+  has(await ctx.text(), /protect forms/);
+});
+
+s.test("G25b FR check (legal pages): hours as 10 h–19 h, the withdrawal sentence and the GitHub line in French", { lang: "fr" }, async (ctx) => {
+  await ctx.goto("/visit.html");
+  has(await ctx.text(), /10\s?h–19\s?h/);
+  await ctx.goto("/membership-terms.html");
+  has(await ctx.text(), /vous pouvez vous rétracter dans les 14 jours en écrivant à admin@umasbooks\.org/);
+  await ctx.goto("/privacy-policy.html");
+  has(await ctx.text(), /GitHub \(États-Unis\)/);
+});
+
+s.manual("G25c the membership page shows the price before the HelloAsso form loads, and the shop address shows its street number", "needs MEMBERSHIP_PRICE_EUR and SHOP_STREET_NUMBER to be set in src/lib/legal.js (empty until the association gives them: docs/legal-todos.md); the helpers are covered by test/unit/legalConstants.test.js");
+
+s.test("G57a an adult registering for themselves is not asked for a child's details; checkboxes for days and times, no Ctrl/Cmd", async (ctx) => {
+  await ctx.goto("/pre-registration.html");
+  assert.equal(await ctx.page.$$eval("select[multiple]", (l) => l.length), 0, "no multi-select list");
+  assert.equal(await ctx.page.$$eval("input[type=checkbox][name=days]", (l) => l.length), 5);
+  assert.equal(await ctx.page.$$eval("input[type=checkbox][name=times]", (l) => l.length), 4);
+  has(await ctx.text(), /Who is registering\?/);
+  await ctx.page.click("input[name=who][value=self]");
+  assert.equal(await ctx.page.$eval("#preg-child-block", (d) => d.hidden), true, "the child section is hidden for an adult");
+  await Promise.all([ctx.page.waitForNavigation(), ctx.page.click("form[action='/pre-registration'] button[type='submit']")]);
+  const links = await ctx.page.$$eval(`${ERR_SUMMARY} a`, (as) => as.map((a) => a.getAttribute("href")));
+  for (const id of ["#preg-first", "#preg-last", "#preg-birthyear", "#preg-guardian"]) assert.ok(!links.includes(id), `${id} is not required for an adult`);
+  assert.ok(links.includes("#preg-session") && links.includes("#preg-consent"));
+});
+
+s.test("G58 (must) for a child the guardian box and the agreement are needed; a complete form is sent and shows a thank-you", async (ctx) => {
   await ctx.goto("/pre-registration.html");
   const fill = async () => {
+    await ctx.page.click("input[name=who][value=child]");
     await ctx.page.type("#preg-first", `${process.env.E2E_RUN_ID} Child`);
     await ctx.page.type("#preg-last", "Test");
-    await ctx.page.$eval("#preg-dob", (i) => { i.value = "2018-04-12"; });
+    await ctx.page.type("#preg-birthyear", String(new Date().getFullYear() - 8));
     await ctx.page.select("#preg-session", "young-adventurers");
-    await ctx.page.select("#preg-days", "tue", "sat");
-    await ctx.page.select("#preg-times", "morning");
+    await ctx.page.click("input[name=days][value=tue]");
+    await ctx.page.click("input[name=days][value=sat]");
+    await ctx.page.click("input[name=times][value=morning]");
     await ctx.page.type("#preg-parent", `${process.env.E2E_RUN_ID} Parent`);
     await ctx.page.type("#preg-email", testEmail("preregistration"));
     await ctx.page.type("#preg-phone", "0600000000");
@@ -919,11 +959,14 @@ s.test("G58 (must) the pre-registration needs the parent or guardian box; a comp
   await fill();
   await Promise.all([ctx.page.waitForNavigation(), ctx.page.click("form[action='/pre-registration'] button[type='submit']")]);
   const links = await ctx.page.$$eval(`${ERR_SUMMARY} a`, (as) => as.map((a) => a.getAttribute("href")));
-  assert.deepEqual(links, ["#preg-consent"], "only the consent is missing");
+  assert.deepEqual(links, ["#preg-guardian", "#preg-consent"], "only the two boxes are missing");
   has(await ctx.text(), /Tick this box to continue/);
   assert.equal(await ctx.page.$eval("#preg-first", (i) => i.value.includes("Child")), true, "what was typed is kept");
-  has(await ctx.page.$eval("label[for='preg-consent']", (l) => l.innerText), /I am the parent or legal guardian of the child and I agree to be contacted about this program/);
+  assert.equal(await ctx.page.$eval("input[name=days][value=sat]", (i) => i.checked), true, "the ticked days are kept");
+  has(await ctx.page.$eval("label[for='preg-guardian']", (l) => l.innerText), /I am the parent or legal guardian of the child\./);
+  has(await ctx.page.$eval("label[for='preg-consent']", (l) => l.innerText), /I agree to be contacted about this program\./);
   if (!cfg.allowWrites()) ctx.skip("needs E2E_ALLOW_WRITES=1 for the final submit (it sends an email to the shop mailbox)");
+  await ctx.page.click("#preg-guardian");
   await ctx.page.click("#preg-consent");
   await Promise.all([ctx.page.waitForNavigation(), ctx.page.click("form[action='/pre-registration'] button[type='submit']")]);
   has(await ctx.text(), /Thank you, your pre-registration has been sent/);
@@ -946,12 +989,13 @@ s.test("G59 (must) the volunteer form needs name, email and consent; a complete 
   ctx.created("volunteer sign-up (email to the admin mailbox)", `${process.env.E2E_RUN_ID} Volunteer`, "delete the email from the shop mailbox");
 });
 
-s.manual("G60 the pre-registration and volunteer emails arrive in the shop mailbox with the right reply-to, and are deleted after 12 months", "tests cannot read email; the 12-month cleanup is a yearly manual job (docs/runbook.md)");
+s.manual("G60 the pre-registration and volunteer emails arrive in the shop mailbox with the right reply-to, and are deleted after 12 months", "tests cannot read email; the 12-month cleanup is a quarterly manual job (docs/runbook.md, section e)");
 
 s.test("G-FR57 FR check (forms): the errors, the guardian statement and the health line are in French", { lang: "fr" }, async (ctx) => {
   await ctx.goto("/pre-registration.html");
   has(await ctx.text(), /Ne saisissez pas d’informations de santé ici/);
-  has(await ctx.page.$eval("label[for='preg-consent']", (l) => l.innerText), /Je suis le parent ou le représentant légal de l’enfant et j’accepte d’être contacté\(e\) au sujet de ce programme/);
+  has(await ctx.page.$eval("label[for='preg-guardian']", (l) => l.innerText), /Je suis le parent ou le représentant légal de l’enfant\./);
+  has(await ctx.page.$eval("label[for='preg-consent']", (l) => l.innerText), /J’accepte d’être contacté\(e\) au sujet de ce programme/);
   await Promise.all([ctx.page.waitForNavigation(), ctx.page.click("form[action='/pre-registration'] button[type='submit']")]);
   for (const re of [/Il y a un problème/, /Ce champ est obligatoire\./, /Cochez cette case pour continuer\./]) has(await ctx.text(), re);
 });
