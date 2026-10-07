@@ -79,7 +79,7 @@
 /* ---------- Feature card grid ---------- */
 .admin-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
 @media (max-width: 1100px) { .admin-cards { grid-template-columns: repeat(2, 1fr); } .admin-stats { grid-template-columns: repeat(2, 1fr); } }
-/* Below 640px the sidebar has nowhere to sit alongside the main content,
+/* Below 900px the sidebar has nowhere to sit alongside the main content,
    so it becomes an off-canvas drawer instead of just vanishing: the
    hamburger button in the topbar (hidden on desktop, see above) slides
    it in over a dimmed backdrop, both toggled by the same
@@ -87,19 +87,24 @@
 @media (max-width: 640px) {
   .admin-cards { grid-template-columns: 1fr; }
   .admin-stats { grid-template-columns: 1fr; }
+}
+/* The drawer starts at 900px (not 640px) so a tablet gets the full width for
+   the till and the tables instead of losing 240px to a permanent sidebar. */
+@media (max-width: 900px) {
   .admin-layout { grid-template-columns: 1fr; }
+  .admin-main { padding: 20px 18px 48px; }
   .admin-nav-toggle {
-    display: flex; align-items: center; justify-content: center; width: 40px; height: 40px;
+    display: flex; align-items: center; justify-content: center; width: 44px; height: 44px;
     border-radius: 50%; border: 1px solid var(--card-border); background: #fff; color: var(--ink);
     cursor: pointer; flex: 0 0 auto;
   }
   .admin-nav-toggle svg { width: 20px; height: 20px; }
   .admin-sidebar {
     display: flex; position: fixed; top: 0; left: 0; bottom: 0; width: 260px; max-width: 82vw;
-    z-index: 30; transform: translateX(-100%); transition: transform 0.2s ease; overflow-y: auto;
-    box-shadow: 2px 0 16px rgba(0,0,0,0.18);
+    z-index: 30; transform: translateX(-100%); transition: transform 0.2s ease, visibility 0s linear 0.2s; overflow-y: auto;
+    visibility: hidden;
   }
-  .admin-layout.is-nav-open .admin-sidebar { transform: translateX(0); }
+  .admin-layout.is-nav-open .admin-sidebar { transform: translateX(0); visibility: visible; transition: transform 0.2s ease; box-shadow: 2px 0 16px rgba(0,0,0,0.18); }
   .admin-nav-close {
     display: block; align-self: flex-end; width: 32px; height: 32px; margin-bottom: 8px;
     border: 0; background: none; font-size: 24px; line-height: 1; color: var(--ink-soft); cursor: pointer;
@@ -211,7 +216,9 @@
 .sticker-sheet { width: 100%; border-collapse: collapse; font-size: 14px; }
 .sticker-sheet th, .sticker-sheet td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--card-border); vertical-align: top; }
 @media print {
-  .admin-sidebar, .admin-nav-backdrop, .skip-link, .admin-preview-note, .admin-sandbox-note, .no-print, .admin-topbar-tools, .admin-back-link { display: none !important; }
+  /* The page title, back link, menu and search never print: on a label roll the heading would be printed as the first label. */
+  .admin-sidebar, .admin-nav-backdrop, .skip-link, .admin-preview-note, .admin-sandbox-note, .no-print, .admin-topbar, .admin-topbar-tools, .admin-back-link, .admin-nav-toggle { display: none !important; }
+  html, body { background: #fff !important; }
   .admin-layout, .admin-main, main { display: block !important; margin: 0 !important; padding: 0 !important; width: auto !important; }
   .card { box-shadow: none !important; border: 0 !important; padding: 0 !important; }
   .sticker-sheet { font-size: 11pt; }
@@ -225,20 +232,47 @@
 @media print { .pickup-list .pickup-customer { break-inside: avoid; } }
 /* Copy barcode labels (/admin/inventory/labels). Size comes from --lw / --lh (mm). */
 .label-sheet { display: flex; flex-wrap: wrap; gap: 4mm; }
-.copy-label { box-sizing: border-box; width: var(--lw, 50mm); height: var(--lh, 25mm); padding: 1mm 1.5mm; overflow: hidden; background: #fff; color: #000; border: 1px dashed #bbb; display: flex; flex-direction: column; justify-content: space-between; font-family: Arial, Helvetica, sans-serif; line-height: 1.1; }
-.copy-label .cl-bars { height: 38%; min-height: 4mm; }
-.copy-label .barcode { width: 100%; height: 100%; display: block; }
-.copy-label .cl-code { font-size: 6.5pt; text-align: center; letter-spacing: 0.05em; }
+.copy-label { box-sizing: border-box; width: var(--lw, 50mm); height: var(--lh, 25mm); padding: 1mm; overflow: hidden; background: #fff; color: #000; border: 1px dashed #bbb; display: flex; flex-direction: column; justify-content: space-between; font-family: Arial, Helvetica, sans-serif; line-height: 1.1; }
+.copy-label .cl-bars { height: 38%; min-height: 4mm; display: flex; justify-content: center; }
+.copy-label .barcode { height: 100%; display: block; flex: none; }
+.copy-label .cl-code { font-size: calc(6.5pt * var(--fs, 1)); text-align: center; letter-spacing: 0.05em; }
 .copy-label .cl-row { display: flex; align-items: center; justify-content: space-between; gap: 2mm; }
-.copy-label .cl-row .sticker-chip { font-size: 6.5pt; padding: 0 2mm; }
-.copy-label .cl-price { font-size: 10pt; }
-.copy-label .cl-title { font-size: 7pt; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.copy-label .cl-meta { font-size: 6pt; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.copy-label .cl-row .sticker-chip { font-size: calc(6.5pt * var(--fs, 1)); padding: 0 2mm; }
+.copy-label .cl-price { font-size: calc(10pt * var(--fs, 1)); }
+.copy-label .cl-title { font-size: calc(7pt * var(--fs, 1)); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.copy-label .cl-meta { font-size: calc(6pt * var(--fs, 1)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 @media print {
   .label-sheet { gap: 0; display: block; }
   .label-sheet-sheet { display: flex; gap: 2mm; }
   .copy-label { border: 0; break-inside: avoid; }
   .label-sheet-sheet .copy-label { border: 0.2mm dotted #999; }
 }
-.admin-nav .admin-nav-till { background: var(--btn-bg); color: #fff; border-radius: 8px; }
-.admin-nav .admin-nav-till.is-active { background: var(--btn-bg-dark); }
+.admin-nav .admin-nav-till { background: #fff; color: var(--btn-bg); border: 2px solid var(--btn-bg); border-radius: 8px; margin: 6px 0 2px; padding: 8px 12px; letter-spacing: 0.04em; }
+.admin-nav .admin-nav-till:hover { background: #eef2ea; }
+/* On the till the pill is filled (selected); elsewhere it is an outlined shortcut, so it never looks like the current page. */
+.admin-nav .admin-nav-till.is-active { background: var(--btn-bg-dark); border-color: var(--btn-bg-dark); color: #fff; font-weight: 700; }
+.admin-nav-heading { margin: 14px 0 2px; padding: 0 14px; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #5a5a50; }
+.admin-nav-group { display: flex; flex-direction: column; gap: 1px; }
+.admin-nav-group a { padding: 7px 14px 7px 22px; font-size: 15.5px; }
+
+/* Wide tables scroll inside their own box instead of widening the page (tablets, phones). */
+.table-scroll { max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.ann-list-col, .ann-panel, .ann-layout > * { min-width: 0; }
+.card { min-width: 0; max-width: 100%; box-sizing: border-box; }
+.admin-main input, .admin-main select, .admin-main textarea { max-width: 100%; box-sizing: border-box; }
+.admin-main form.stack, .admin-main .stack > div, .sticker-filters > div { min-width: 0; max-width: 100%; }
+.sticker-filters select, .sticker-filters input { max-width: 100%; }
+@media (max-width: 640px) {
+  .admin-main .calendar-grid { grid-template-columns: repeat(7, minmax(84px, 1fr)); overflow-x: auto; }
+  .admin-main .calendar-pill-body input, .admin-main .calendar-pill-body select { width: 100%; }
+}
+
+/* Add-book form: fields in two columns on tablets and up, Save buttons always in reach. */
+.intake-grid { display: grid; grid-template-columns: 1fr; gap: 0 18px; }
+@media (min-width: 700px) { .intake-grid { grid-template-columns: 1fr 1fr; } }
+.intake-grid .field { min-width: 0; }
+.intake-grid .field-wide { grid-column: 1 / -1; }
+.field > label { display: block; margin-top: 10px; }
+.form-actions-sticky { position: sticky; bottom: 0; z-index: 6; display: flex; flex-wrap: wrap; gap: 10px; padding: 12px 0; margin-top: 16px; background: var(--cream, #fffefb); border-top: 1px solid var(--card-border); box-shadow: 0 -6px 10px -8px rgba(0,0,0,0.25); }
+.form-actions-sticky .btn { min-height: 44px; }
+.intake-grid input:not([type=checkbox]):not([type=radio]), .intake-grid select { width: 100%; }

@@ -67,7 +67,7 @@
                     &middot; <%= s.signup_count %>/<%= s.capacity %> filled
                   </div>
                   <% if (s.notes) { %><div class="muted small"><%= s.notes %></div><% } %>
-                  <form method="post" action="/admin/volunteer-shifts/<%= s.id %>/delete?<%= qs %>" style="margin-top:8px;">
+                  <form data-confirm="Delete this shift and all of its sign-ups? This can't be undone." method="post" action="/admin/volunteer-shifts/<%= s.id %>/delete?<%= qs %>" style="margin-top:8px;">
                     <%- include('../partials/csrf_field') %>
                     <button class="btn btn-outline btn-small" type="submit">Delete</button>
                   </form>

@@ -85,7 +85,7 @@
   <h2 class="section-title">Terms and history</h2>
   <p class="small">
     Terms of sale accepted: <%= order.cgv_accepted_at ? formatDateTime(order.cgv_accepted_at) + ' (version ' + order.cgv_version + ')' : 'not recorded (order placed before this was kept)' %><br>
-    Language: <%= order.lang || 'en' %>
+    Language: <%= order.lang === 'fr' ? 'French' : 'English' %>
   </p>
   <ul class="plain" id="order-history">
     <li><%= formatDateTime(order.created_at) %> &mdash; <%= order.status === 'pending' ? 'order created (unpaid, old online checkout)' : 'reserved' %></li>

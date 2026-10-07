@@ -165,6 +165,7 @@
     var sum = total();
     var allPriced = lines.every(priceKnown);
     $("total").textContent = fmt(sum);
+    $("lines-status").textContent = lines.length ? lines.length + (lines.length === 1 ? " line" : " lines") + " on the sale, total " + fmt(sum) : "The sale is empty";
     $("empty").hidden = lines.length > 0;
     $("pay-cash").disabled = !(lines.length && allPriced && sum > 0);
     $("pay-card").disabled = $("pay-cash").disabled;
