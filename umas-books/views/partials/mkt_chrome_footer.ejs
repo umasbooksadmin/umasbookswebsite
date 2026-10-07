@@ -20,10 +20,10 @@
     </div>
     <% } %>
   </div>
-  <%# Map to the shop (hand-drawn, own file: no third-party map tiles, so no request leaves our origin). %>
+  <%# Map to the shop (coloured, own file: no third-party map tiles, so no request leaves our origin). %>
   <figure class="h-footer-map">
     <a href="/images/shop-map.jpg" data-i18n-attr="aria-label:foot.map.open" aria-label="<%= t('Open the map in full size', 'Ouvrir le plan en grand') %>">
-      <img src="/images/shop-map-420.jpg" srcset="/images/shop-map-420.jpg 420w, /images/shop-map.jpg 800w" sizes="(max-width: 460px) 100vw, 420px" width="800" height="960" loading="lazy" decoding="async" data-i18n-attr="alt:foot.map.alt" alt="<%= t('Map showing how to find Uma\'s Books and Adventures from Rue Peyrolière, Albi', 'Plan pour trouver Uma’s Books and Adventures depuis la rue Peyrolière, Albi') %>">
+      <img src="/images/shop-map-420.jpg" srcset="/images/shop-map-420.jpg 420w, /images/shop-map.jpg 800w" sizes="(max-width: 460px) 100vw, 420px" width="800" height="800" loading="lazy" decoding="async" data-i18n-attr="alt:foot.map.alt" alt="<%= t('Map showing the route to Uma\'s Books and Adventures from Rue de l\'Oulmet along Rue Peyrolière to the impasse, Albi', 'Plan de l’itinéraire vers Uma’s Books and Adventures depuis la rue de l’Oulmet, par la rue Peyrolière jusqu’à l’impasse, Albi') %>">
     </a>
     <figcaption data-i18n="foot.map.cap"><%= t('Albi, France: Rue Peyrolière', 'Albi, France : rue Peyrolière') %></figcaption>
   </figure>

@@ -20,15 +20,15 @@ const footerOf = (html) => html.match(/<footer class="mkt-footer">.*?<\/footer>/
 for (const page of ["/", "/visit.html", "/books"]) {
   test(`footer map on ${page}: English alt text, own file only, sized, lazy, link to the full image`, async () => {
     const f = footerOf(await (await get(page, "en")).text());
-    assert.match(f, /<img src="\/images\/shop-map-420\.jpg"[^>]*width="800" height="960" loading="lazy"/);
-    assert.match(f, /alt="Map showing how to find Uma&#39;s Books and Adventures from Rue Peyrolière, Albi"/);
+    assert.match(f, /<img src="\/images\/shop-map-420\.jpg"[^>]*width="800" height="800" loading="lazy"/);
+    assert.match(f, /alt="Map showing the route to Uma&#39;s Books and Adventures from Rue de l&#39;Oulmet along Rue Peyrolière to the impasse, Albi"/);
     assert.match(f, /<a href="\/images\/shop-map\.jpg"/);
     assert.match(f, /<figcaption[^>]*>Albi, France: Rue Peyrolière<\/figcaption>/);
     assert.ok(!/<img[^>]+src="https?:/.test(f), "no third-party image");
   });
   test(`footer map on ${page}: French alt text and caption with French typography`, async () => {
     const f = footerOf(await (await get(page, "fr")).text());
-    assert.match(f, /alt="Plan pour trouver Uma’s Books and Adventures depuis la rue Peyrolière, Albi"/);
+    assert.match(f, /alt="Plan de l’itinéraire vers Uma’s Books and Adventures depuis la rue de l’Oulmet, par la rue Peyrolière jusqu’à l’impasse, Albi"/);
     assert.ok(f.includes(`>Albi, France${NB}: rue Peyrolière</figcaption>`));
     assert.ok(f.includes('aria-label="Ouvrir le plan en grand"'));
   });

@@ -946,14 +946,14 @@ s.manual("G25c the membership page shows the price before the HelloAsso form loa
 s.test("G25d the footer shows the map to the shop, loaded from our own site, with English alt text", async (ctx) => {
   await ctx.goto("/visit.html");
   assert.ok(await ctx.page.$("footer.mkt-footer .h-footer-map img"), "map in the footer");
-  assert.equal(await ctx.page.$eval("footer.mkt-footer .h-footer-map img", (i) => i.alt), "Map showing how to find Uma's Books and Adventures from Rue Peyrolière, Albi");
+  assert.equal(await ctx.page.$eval("footer.mkt-footer .h-footer-map img", (i) => i.alt), "Map showing the route to Uma's Books and Adventures from Rue de l'Oulmet along Rue Peyrolière to the impasse, Albi");
   assert.equal(await ctx.page.$eval("footer.mkt-footer .h-footer-map img", (i) => i.getAttribute("loading")), "lazy");
   assert.equal(await ctx.page.$eval("footer.mkt-footer .h-footer-map img", (i) => new URL(i.currentSrc || i.src).origin === location.origin), true);
 });
 
 s.test("G25e FR check (footer map): French alt text and caption", { lang: "fr" }, async (ctx) => {
   await ctx.goto("/visit.html");
-  assert.equal(await ctx.page.$eval("footer.mkt-footer .h-footer-map img", (i) => i.alt), "Plan pour trouver Uma’s Books and Adventures depuis la rue Peyrolière, Albi");
+  assert.equal(await ctx.page.$eval("footer.mkt-footer .h-footer-map img", (i) => i.alt), "Plan de l’itinéraire vers Uma’s Books and Adventures depuis la rue de l’Oulmet, par la rue Peyrolière jusqu’à l’impasse, Albi");
   has(await ctx.page.$eval("footer.mkt-footer .h-footer-map figcaption", (c) => c.textContent), /Albi, France\s: rue Peyrolière/);
 });
 
