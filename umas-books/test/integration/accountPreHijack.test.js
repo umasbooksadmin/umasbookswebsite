@@ -209,7 +209,7 @@ test("legitimate signup works in English and French: confirm, choose a password,
     assert.match(loginPage, /action="\/resend-verification"/);
     assert.match(loginPage, lang === "fr" ? /Renvoyer le lien de confirmation/ : /Send me the confirmation link again/);
     // The signup mail says what the link is for.
-    const mail = sent.filter((m) => m.to === email).pop();
+    const mail = await waitFor(() => sent.filter((m) => m.to === email).pop(), { message: `signup mail to ${email}` });
     assert.match(mail.subject, lang === "fr" ? /Confirmez votre adresse e-mail et choisissez votre mot de passe/ : /Confirm your email and choose your password/);
     assert.match(mail.text, lang === "fr" ? /confirmer votre adresse e-mail et choisir votre mot de passe/ : /confirm your email address and choose your password/);
 

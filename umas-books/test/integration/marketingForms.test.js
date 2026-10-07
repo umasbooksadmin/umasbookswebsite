@@ -130,8 +130,8 @@ test("pre-registration: every required field is enforced for a child, with an ac
     assert.match(text, /Enter a valid email address/);
     assert.match(text, /Tick this box to continue/);
     assert.match(text, /Enter the year the child was born/);
-    assert.match(text, /<script src="assets\/form-errors\.js"><\/script>/, "focus-on-error script is loaded");
-    assert.match(text, /<script src="assets\/preregistration\.js"><\/script>/, "the who-is-registering script is loaded");
+    assert.match(text, /<script src="\/assets\/form-errors\.js\?v=[0-9a-f]+"><\/script>/, "focus-on-error script is loaded");
+    assert.match(text, /<script src="\/assets\/preregistration\.js\?v=[0-9a-f]+"><\/script>/, "the who-is-registering script is loaded");
     // The page is not cacheable.
     assert.equal(res.headers.get("cache-control"), "private, no-store");
   });
