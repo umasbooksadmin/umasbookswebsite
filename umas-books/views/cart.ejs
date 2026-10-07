@@ -69,7 +69,7 @@
         <input id="accountEmail" type="email" value="<%= locals.accountEmail || '' %>" readonly aria-describedby="accountEmailHelp">
         <p class="muted small" id="accountEmailHelp"><%= tr('This is your account email: your confirmation is sent there.', 'Voici l’adresse e-mail de votre compte : votre confirmation y sera envoyée.') %></p>
         <label for="phone"><%= tr('Phone (optional)', 'Téléphone (facultatif)') %></label>
-        <input id="phone" name="phone" type="tel">
+        <input id="phone" name="phone" type="tel" value="<%= locals.typedPhone || '' %>">
         <p class="muted small reserve-note" id="nothing-paid-online"><%= legalText.nothingPaidOnline %></p>
         <% if (hasBooks) { %><p class="muted small"><%= legalText.pickup %></p><% } %>
         <% if (hasSeats) { %><p class="muted small"><%= tr('Drop-in seats: you pay at the session. You can cancel a seat online until {hours} hours before it starts.', 'Places « drop-in » : vous réglez à la séance. Vous pouvez annuler une place en ligne jusqu’à {hours} heures avant le début.', { hours: limits.seatHours }) %></p><% } %>

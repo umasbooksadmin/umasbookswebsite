@@ -34,11 +34,24 @@ pool.query = async (sql) => {
 
 const authRouter = require("../../src/routes/auth");
 
+// A minimal in-memory session (cookie "sid"): the handlers answer 303 and leave their message in the
+// session for the GET page, so the stand-in must keep it between the two requests.
+const sessions = new Map();
 function makeServer() {
   const app = express();
   app.use(express.urlencoded({ extended: false }));
   app.use((req, res, next) => {
-    req.session = {};
+    let sid = /(?:^|;\s*)sid=([^;]+)/.exec(req.headers.cookie || "")?.[1];
+    if (!sid || !sessions.has(sid)) {
+      sid = `s${sessions.size + 1}-${Math.random().toString(36).slice(2)}`;
+      sessions.set(sid, {});
+      res.setHeader("set-cookie", `sid=${sid}; Path=/`);
+    }
+    req.session = sessions.get(sid);
+    req.session.save = (cb) => cb();
+    next();
+  });
+  app.use((req, res, next) => {
     req.tr = (en) => en;
     res.render = (view, locals) => res.json({ view, ...locals });
     next();
@@ -49,13 +62,22 @@ function makeServer() {
   });
 }
 
+// Answers with the 303 itself (status, location) and the JSON of the page it leads to (`json()`),
+// fetched in the same session like a browser would.
 async function post(base, path, body) {
-  return fetch(`${base}${path}`, {
+  const res = await fetch(`${base}${path}`, {
     method: "POST",
+    redirect: "manual",
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body,
     signal: AbortSignal.timeout(3000),
   });
+  const location = res.headers.get("location");
+  if (res.status !== 303) return res;
+  const cookie = (res.headers.getSetCookie()[0] || "").split(";")[0];
+  const page = await fetch(new URL(location, base), { redirect: "manual", headers: { cookie }, signal: AbortSignal.timeout(3000) });
+  const data = await page.json();
+  return { status: 303, location, json: async () => data };
 }
 
 test("forgot-password responds without waiting for the reset email to send", async () => {
@@ -63,7 +85,10 @@ test("forgot-password responds without waiting for the reset email to send", asy
   const { server, base } = await makeServer();
   try {
     const res = await post(base, "/forgot-password", "email=a%40example.test");
-    assert.equal(res.status, 200);
+    assert.equal(res.status, 303);
+    assert.equal(res.location, "/forgot-password");
+    assert.equal((await res.json()).view, "forgot_password");
+    assert.match((await res.json()).notice, /If an account exists/);
     assert.equal(resetCalls, 1);
   } finally {
     server.close();
@@ -78,7 +103,9 @@ test("signup responds without waiting for mail, and identically for new and exis
     const fresh = await post(base, "/signup", form("new@example.test"));
     existingUser = { id: 1, email: "old@example.test", display_name: "Old" };
     const dup = await post(base, "/signup", form("old@example.test"));
+    assert.equal(fresh.status, 303);
     assert.equal(fresh.status, dup.status);
+    assert.equal(fresh.location, dup.location);
     assert.deepEqual(await fresh.json(), await dup.json());
     assert.equal(verifyCalls, 1);
     assert.equal(attemptCalls, 1);

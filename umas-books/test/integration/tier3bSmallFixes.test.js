@@ -11,7 +11,7 @@ const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const bcrypt = require("bcryptjs");
 const { startTestApp } = require("../helpers/testApp");
-const { makeCookieJar, fetchCsrfToken } = require("../helpers/httpClient");
+const { makeCookieJar, fetchCsrfToken, withSeeOtherPage } = require("../helpers/httpClient");
 
 const PORT = 3470;
 const PASSWORD = "Tier3b-Test-Pass1!";
@@ -273,7 +273,8 @@ test("wrong current-password attempts on /account/password are throttled per acc
   for (let i = 0; i < 7; i++) {
     statuses.push((await post("/account/password", { currentPassword: "nope-nope-1", newPassword: "Another-Good-Pass2!" }, { jar, ip })).status);
   }
-  assert.deepEqual(statuses.slice(0, 5), [401, 401, 401, 401, 401]);
+  // A refusal is 303 back to the password page (Post/Redirect/Get), the message on the followed page.
+  assert.deepEqual(statuses.slice(0, 5), [303, 303, 303, 303, 303]);
   assert.equal(statuses[5], 429);
   // The correct password no longer gets a guess either while throttled.
   const right = await post("/account/password", { currentPassword: PASSWORD, newPassword: "Another-Good-Pass2!" }, { jar, ip });
@@ -282,7 +283,9 @@ test("wrong current-password attempts on /account/password are throttled per acc
   // Another account (even from the same IP) is unaffected.
   const other = await memberJar();
   const ok = await post("/account/password", { currentPassword: PASSWORD, newPassword: "Another-Good-Pass2!" }, { jar: other.jar, ip });
-  assert.equal(ok.status, 200);
+  assert.equal(ok.status, 303);
+  assert.equal(ok.headers.get("location"), "/account/password");
+  assert.match(await (await withSeeOtherPage(ok, { base: app.base, jar: other.jar, headers: { "x-forwarded-for": ip } })).text(), /Password updated/);
 });
 
 // ---------- 5. separate auth buckets ----------
@@ -304,14 +307,16 @@ test("repeated login failures from one IP are still limited, without touching si
   for (let i = 0; i < 23; i++) {
     statuses.push((await post("/login", { email: `ghost-${uniq()}@example.test`, password: "Wrong-Password-1" }, { ip })).status);
   }
-  assert.ok(statuses.slice(0, 20).every((s) => s === 401), `first 20 should be plain failures: ${statuses}`);
+  assert.ok(statuses.slice(0, 20).every((s) => s === 303), `first 20 should be plain failures: ${statuses}`);
   assert.equal(statuses[20], 429);
 
   // Same IP, other flows: their own buckets, still open.
   const forgot = await post("/forgot-password", { email: "nobody@example.test" }, { ip });
-  assert.equal(forgot.status, 200);
+  assert.equal(forgot.status, 303);
+  assert.equal(forgot.headers.get("location"), "/forgot-password");
   const signup = await post("/signup", { email: `s-${uniq()}@example.test`, password: "Correct-Horse-1", displayName: "S" }, { ip });
-  assert.equal(signup.status, 200);
+  assert.equal(signup.status, 303);
+  assert.equal(signup.headers.get("location"), "/signup");
 });
 
 test("forgot-password is still limited per IP", async () => {
@@ -320,6 +325,6 @@ test("forgot-password is still limited per IP", async () => {
   for (let i = 0; i < 12; i++) {
     statuses.push((await post("/forgot-password", { email: `f-${uniq()}@example.test` }, { ip })).status);
   }
-  assert.ok(statuses.slice(0, 10).every((s) => s === 200), `first 10 should pass: ${statuses}`);
+  assert.ok(statuses.slice(0, 10).every((s) => s === 303), `first 10 should pass: ${statuses}`);
   assert.ok(statuses.includes(429), `expected a 429, got ${statuses}`);
 });

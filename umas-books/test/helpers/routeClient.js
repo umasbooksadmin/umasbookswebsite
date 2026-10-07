@@ -17,11 +17,13 @@ function makeClient(base) {
     });
     // 303 = an admin form answered Post/Redirect/Get: follow it like the browser does, with the
     // session the POST started (any other answer is returned as is).
+    let seeOther;
     if (res.status === 303) {
+      seeOther = res.headers.get("location");
       const cookie = res.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
       res = await fetch(`${base}${res.headers.get("location")}`, { redirect: "manual", headers: { ...(as ? { "x-test-user": JSON.stringify(as) } : {}), ...headers, cookie } });
     }
-    return { res, status: res.status, location: res.headers.get("location"), text: await res.text() };
+    return { res, status: res.status, location: res.headers.get("location"), text: await res.text(), seeOther };
   }
   return {
     get: (path, opts) => send(path, opts),

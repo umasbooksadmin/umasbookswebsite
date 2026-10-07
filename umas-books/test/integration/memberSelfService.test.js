@@ -8,7 +8,7 @@ const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const bcrypt = require("bcryptjs");
 const { startTestApp } = require("../helpers/testApp");
-const { makeCookieJar, fetchCsrfToken } = require("../helpers/httpClient");
+const { makeCookieJar, fetchCsrfToken, withSeeOtherPage } = require("../helpers/httpClient");
 const { untranslated } = require("../helpers/i18nAudit");
 const { buildApp, listen } = require("../helpers/inProcessApp");
 
@@ -59,11 +59,13 @@ async function loginAs(user) {
 
 async function post(path, jar, fields, { lang } = {}) {
   const token = await fetchCsrfToken(app.base, jar);
-  return fetch(`${app.base}${path}`, {
+  const res = await fetch(`${app.base}${path}`, {
     method: "POST", redirect: "manual",
     headers: { ...FORM, cookie: jar.header() + (lang ? `; umasbooks_lang=${lang}` : "") },
     body: new URLSearchParams({ _csrf: token, ...fields }).toString(),
   });
+  // A refusal answers 303 to /account/privacy; the wrapper's text() is that page.
+  return withSeeOtherPage(res, { base: app.base, jar, headers: lang ? { cookie: `umasbooks_lang=${lang}` } : {} });
 }
 
 const get = (path, jar, lang) =>
@@ -96,7 +98,7 @@ test("the account page links to the privacy page", async () => {
 test("download: wrong password gives no JSON", async () => {
   const jar = await loginAs(await createUser());
   const res = await exportAs(jar, "not-the-password");
-  assert.equal(res.status, 401);
+  assert.equal(res.status, 303);
   assert.doesNotMatch(res.headers.get("content-type"), /json/);
   assert.equal(res.headers.get("content-disposition"), null);
   assert.match(await res.text(), /Current password is incorrect/);
@@ -104,7 +106,7 @@ test("download: wrong password gives no JSON", async () => {
 
 test("download: wrong password is throttled after 5 tries, even with the right password", async () => {
   const jar = await loginAs(await createUser());
-  for (let i = 0; i < 5; i++) assert.equal((await exportAs(jar, "nope")).status, 401);
+  for (let i = 0; i < 5; i++) assert.equal((await exportAs(jar, "nope")).status, 303);
   assert.equal((await exportAs(jar, PASSWORD)).status, 429);
   // The delete form shares the same throttle.
   assert.equal((await deleteAs(jar, { confirmation: "DELETE" })).status, 429);
@@ -158,11 +160,11 @@ test("download: audit row has the member id and no email or name", async () => {
 test("delete: wrong password or wrong confirmation word changes nothing", async () => {
   const me = await createUser();
   const jar = await loginAs(me);
-  assert.equal((await deleteAs(jar, { currentPassword: "nope", confirmation: "DELETE" })).status, 401);
+  assert.equal((await deleteAs(jar, { currentPassword: "nope", confirmation: "DELETE" })).status, 303);
   const noWord = await deleteAs(jar, { confirmation: "yes please" });
-  assert.equal(noWord.status, 400);
+  assert.equal(noWord.status, 303);
   assert.match(await noWord.text(), /Type DELETE/);
-  assert.equal((await deleteAs(jar, {})).status, 400);
+  assert.equal((await deleteAs(jar, {})).status, 303);
   assert.ok(await userExists(me.id));
   assert.equal((await get("/account", jar)).status, 200);
 });
@@ -222,7 +224,7 @@ test("delete: administrators are refused (another admin exists)", async () => {
   await createUser({ admin: true });
   const jar = await loginAs(admin);
   const res = await deleteAs(jar, { confirmation: "DELETE" });
-  assert.equal(res.status, 403);
+  assert.equal(res.status, 303);
   assert.match(await res.text(), /Administrators can(&#39;|')t delete their own account here: ask another administrator/);
   assert.ok(await userExists(admin.id));
 });
@@ -257,8 +259,9 @@ test("delete: the last administrator is refused", async () => {
       headers: { ...FORM, cookie: jar.header() },
       body: new URLSearchParams({ currentPassword: PASSWORD, confirmation: "DELETE", _csrf: token }).toString(),
     });
-    assert.equal(res.status, 403);
-    assert.match(await res.text(), /last administrator/);
+    assert.equal(res.status, 303);
+    const shown = await withSeeOtherPage(res, { base: solo.base, jar });
+    assert.match(await shown.text(), /last administrator/);
     assert.equal((await db.query("SELECT 1 FROM users WHERE id = $1", [rows[0].id])).rowCount, 1);
   } finally {
     await db.end();
@@ -269,7 +272,7 @@ test("delete: the last administrator is refused", async () => {
 test("wrong password is answered in French with the fr cookie", async () => {
   const jar = await loginAs(await createUser());
   const res = await exportAs(jar, "nope", { lang: "fr" });
-  assert.equal(res.status, 401);
+  assert.equal(res.status, 303);
   assert.match(await res.text(), /Le mot de passe actuel est incorrect/);
 });
 
@@ -354,7 +357,7 @@ test("unverified: the download is refused (403), no file, nothing logged", async
   await victimData(me.email);
   const jar = await loginAs(me);
   const res = await exportAs(jar, PASSWORD); // even with the right password
-  assert.equal(res.status, 403);
+  assert.equal(res.status, 303);
   assert.doesNotMatch(res.headers.get("content-type"), /json/);
   assert.equal(res.headers.get("content-disposition"), null);
   const html = await res.text();
@@ -370,7 +373,7 @@ test("unverified: the deletion is refused (403) and the account, orders and sign
   const orderId = await victimData(me.email);
   const jar = await loginAs(me);
   const res = await deleteAs(jar, { confirmation: "DELETE" });
-  assert.equal(res.status, 403);
+  assert.equal(res.status, 303);
   assert.match(await res.text(), /Confirm your email address first/);
   assert.equal(await userExists(me.id), true);
   const { rows: o } = await pool.query("SELECT buyer_name, buyer_email FROM orders WHERE id = $1", [orderId]);
@@ -384,7 +387,7 @@ test("unverified: the deletion is refused (403) and the account, orders and sign
 
 test("unverified: the refusal does not reveal whether the password was right, and does not count as a wrong password", async () => {
   const jar = await loginAs(await createUser({ verified: false }));
-  for (let i = 0; i < 7; i++) assert.equal((await exportAs(jar, "nope")).status, 403);
+  for (let i = 0; i < 7; i++) assert.equal((await exportAs(jar, "nope")).status, 303);
 });
 
 test("unverified: the page explains why, offers the resend button and hides both forms (EN and FR)", async () => {
@@ -414,7 +417,7 @@ test("verified: the page still shows both forms and no resend button", async () 
 test("unverified: once the address is confirmed the download works", async () => {
   const me = await createUser({ verified: false });
   const jar = await loginAs(me);
-  assert.equal((await exportAs(jar, PASSWORD)).status, 403);
+  assert.equal((await exportAs(jar, PASSWORD)).status, 303);
   await pool.query("UPDATE users SET email_verified_at = now() WHERE id = $1", [me.id]);
   const res = await exportAs(jar, PASSWORD);
   assert.equal(res.status, 200);

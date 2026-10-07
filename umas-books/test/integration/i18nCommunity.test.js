@@ -125,6 +125,14 @@ async function post(who, p, fields, lang) {
     headers: { ...FORM, cookie: langCookie({ jar }, lang) },
     body: new URLSearchParams({ ...fields, _csrf: token }).toString(),
   });
+  // A refused form answers 303 to a GET page (Post/Redirect/Get). Like a browser, follow it with
+  // the same session: `status` stays the POST's own, `text` is the page it leads to.
+  if (res.status === 303) {
+    jar.capture(res);
+    const location = res.headers.get("location");
+    const page = await fetch(`${app.base}${location}`, { redirect: "manual", headers: { cookie: langCookie({ jar }, lang) } });
+    return { status: 303, location, pageStatus: page.status, text: await page.text() };
+  }
   return { status: res.status, text: await res.text() };
 }
 
@@ -195,20 +203,23 @@ test("server messages are French with the fr cookie and English without", async 
   // Contact form validation.
   const bad = { name: "", email: "nope", message: "", topic: "Events" };
   const fr = await post(null, "/contact", bad, "fr");
-  assert.equal(fr.status, 400);
+  assert.equal(fr.status, 303);
+  assert.equal(fr.location, "/contact");
   assert.match(fr.text, /Veuillez indiquer votre nom, une adresse email valide et votre message\./);
   assert.match(fr.text, /<option value="Events"[^>]*>Événements<\/option>/);
   const en = await post(null, "/contact", bad, "en");
   assert.match(en.text, /Please fill in your name, a valid email address and your message\./);
   // Forum new-thread validation (members only).
   const frForum = await post(member, "/forum/new", { title: "", body: "" }, "fr");
-  assert.equal(frForum.status, 400);
+  assert.equal(frForum.status, 303);
+  assert.equal(frForum.location, "/forum/new");
   assert.match(frForum.text, /Le titre et le message sont tous deux obligatoires\./);
   const enForum = await post(member, "/forum/new", { title: "", body: "" }, "en");
   assert.match(enForum.text, /Title and message are both required\./);
   // Report without a reason: plain-text message.
   const noReason = await post(member, "/forum/report", { kind: "thread", id: String(threadId), reason: "bogus" }, "fr");
-  assert.equal(noReason.status, 400);
+  assert.equal(noReason.status, 303);
+  assert.equal(noReason.location, `/forum/${threadId}`);
   assert.match(noReason.text, /Veuillez choisir un motif/);
   // The report confirmation notice.
   const notice = await render(member, `/forum/${threadId}?reported=1`, "fr");

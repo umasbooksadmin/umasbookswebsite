@@ -155,7 +155,7 @@ test("a copy with no price (or 0) cannot be reserved: it never reaches the cart,
   await v.post("/cart/add", { copyId: none });
   assert.equal(JSON.parse((await v.get("/api/cart/count")).text).count, 0);
   const r = await v.post("/cart/reserve", { name: "X", acceptCgv: "on" });
-  assert.equal(r.status, 200);
+  assert.equal(r.seeOther, "/cart", "refused with 303 to the cart");
   assert.match(r.text, /Your cart is empty/);
   assert.equal(await h.copyStatus(free), "in_stock");
   assert.equal(await h.copyStatus(none), "in_stock");
@@ -165,7 +165,7 @@ test("a copy with no price (or 0) cannot be reserved: it never reaches the cart,
   await w.post("/cart/add", { copyId: ok });
   await h.pool.query("UPDATE book_copies SET price = NULL WHERE id = $1", [ok]);
   const r2 = await w.post("/cart/reserve", { name: "X", acceptCgv: "on" });
-  assert.equal(r2.status, 200);
+  assert.equal(r2.seeOther, "/cart");
   assert.equal(await h.copyStatus(ok), "in_stock");
   assert.equal(await h.pool.query("SELECT 1 FROM orders WHERE user_id = $1", [buyer.id]).then((q) => q.rowCount), 0);
 });
@@ -176,7 +176,7 @@ test("the terms box and the name are required; an unconfirmed account cannot res
   const v = h.visitor(buyer);
   await v.post("/cart/add", { copyId: copy });
   const noTerms = await v.post("/cart/reserve", { name: "A" });
-  assert.equal(noTerms.status, 200);
+  assert.equal(noTerms.seeOther, "/cart");
   assert.match(noTerms.text, /accept the terms of sale/);
   assert.equal(await h.copyStatus(copy), "in_stock");
 
@@ -184,7 +184,8 @@ test("the terms box and the name are required; an unconfirmed account cannot res
   const u = h.visitor(unconfirmed);
   await u.post("/cart/add", { copyId: copy });
   const r = await u.post("/cart/reserve", { name: "U", acceptCgv: "on" });
-  assert.equal(r.status, 403);
+  assert.equal(r.seeOther, "/cart");
+  assert.match(r.text, /confirm your email address before reserving/);
   assert.equal(await h.copyStatus(copy), "in_stock");
 });
 
@@ -196,7 +197,7 @@ test(`limits: at most ${MAX_RESERVED_COPIES} copies and ${MAX_ACTIVE_RESERVATION
   const v = h.visitor(a, { lang: "en" });
   for (const c of many) await v.post("/cart/add", { copyId: c });
   const tooMany = await v.post("/cart/reserve", { name: "A", acceptCgv: "on" });
-  assert.equal(tooMany.status, 200);
+  assert.equal(tooMany.seeOther, "/cart");
   assert.match(tooMany.text, new RegExp(`at most ${MAX_RESERVED_COPIES} books`));
   assert.equal((await h.ordersOf(a)).length, 0);
   assert.equal(await h.copyStatus(many[0]), "in_stock");
@@ -225,7 +226,7 @@ test(`limits: at most ${MAX_RESERVED_COPIES} copies and ${MAX_ACTIVE_RESERVATION
   const fr = h.visitor(b, { lang: "fr" });
   await fr.post("/cart/add", { copyId: extra });
   const refusedFr = await fr.post("/cart/reserve", { name: "B", acceptCgv: "on" });
-  assert.equal(refusedFr.status, 200);
+  assert.equal(refusedFr.seeOther, "/cart");
   assert.match(refusedFr.text, new RegExp(`${MAX_ACTIVE_RESERVATIONS} réservations en cours`));
   assert.equal(await h.copyStatus(extra), "in_stock");
   const en = h.visitor(b, { lang: "en" });
@@ -249,7 +250,7 @@ test("two accounts reserving the same single copy at the same moment: exactly on
     vy.post("/cart/reserve", { name: "Y", acceptCgv: "on" }),
   ]);
   const winners = [rx, ry].filter((r) => r.status === 302);
-  const losers = [rx, ry].filter((r) => r.status === 200);
+  const losers = [rx, ry].filter((r) => r.seeOther === "/cart");
   assert.equal(winners.length, 1, "one reservation");
   assert.equal(losers.length, 1);
   assert.match(losers[0].text, /taken by someone else|cart is empty/, "the loser is told it is gone (or its cart is now empty)");
@@ -281,7 +282,7 @@ test("a reservation is refused in preview mode: nothing is held, friendly notice
     const v = h.visitor(buyer, { lang });
     await v.post("/cart/add", { copyId: copy });
     const r = await v.post("/cart/reserve", { name: "P", acceptCgv: "on" });
-    assert.equal(r.status, 403);
+    assert.equal(r.seeOther, "/cart", lang);
     assert.ok(r.text.includes(notice), lang);
   }
   assert.equal(await h.copyStatus(copy), "in_stock");
@@ -289,7 +290,9 @@ test("a reservation is refused in preview mode: nothing is held, friendly notice
   // a guest in preview mode is not sent to log in either
   const g = h.visitor();
   await g.post("/cart/add", { copyId: copy });
-  assert.equal((await g.post("/cart/reserve", { name: "G", acceptCgv: "on" })).status, 403);
+  const gr = await g.post("/cart/reserve", { name: "G", acceptCgv: "on" });
+  assert.equal(gr.seeOther, "/cart");
+  assert.ok(gr.text.includes("Online reservations open when we launch"));
 });
 
 test("a drop-in seat is reserved too: capacity counts reserved seats, a full session refuses, the deadline is the end of the session", async () => {

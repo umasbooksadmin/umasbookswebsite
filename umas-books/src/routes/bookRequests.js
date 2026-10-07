@@ -13,6 +13,7 @@ const express = require("express");
 const { pool } = require("../db");
 const { requireAuth } = require("../middleware/auth");
 const { limit } = require("../middleware/rateLimits");
+const { redirectWithFlash, takePageFlash } = require("../lib/postRedirect");
 const { baseUrl } = require("../lib/baseUrl");
 const { isEmail } = require("../lib/validation");
 const { normLang } = require("../lib/lang");
@@ -44,6 +45,11 @@ function sentPage(res) {
   res.render("request_book_sent");
 }
 
+// Every answer to a POST here is a redirect to a GET page (lib/postRedirect.js), so Back
+// never shows "Confirm form resubmission": the thank-you pages have addresses of their own.
+const SENT_URL = "/request-a-book/sent";
+const CONFIRMED_URL = "/request-a-book/confirmed";
+
 // Fire-and-forget, so the response time does not depend on whether a mail was sent.
 function sendInBackground(label, promise) {
   promise.catch((err) => console.error(`${label} failed:`, err.message));
@@ -56,9 +62,8 @@ const requestLimiter = limit({
   windowMs: DAY,
   max: 5,
   handler: (req, res) =>
-    renderForm(req, res, {
-      status: 429,
-      values: req.body || {},
+    redirectWithFlash(req, res, "/request-a-book", "requestBook", {
+      values: formValues(req.body || {}),
       error: req.tr(
         "You have sent several requests today. Please try again tomorrow, or email admin@umasbooks.org.",
         "Vous avez envoyé plusieurs demandes aujourd'hui. Veuillez réessayer demain, ou écrire à admin@umasbooks.org."
@@ -66,7 +71,22 @@ const requestLimiter = limit({
     }),
 });
 
-router.get("/request-a-book", (req, res) => renderForm(req, res));
+// Only the form's own text fields (and only strings) go back into the session.
+function formValues(body) {
+  const out = {};
+  for (const k of ["title", "author", "isbn", "email", "name", "note"]) out[k] = typeof body[k] === "string" ? body[k].slice(0, 600) : "";
+  return out;
+}
+
+router.get("/request-a-book", (req, res) => {
+  const flash = takePageFlash(req, res, "requestBook");
+  renderForm(req, res, flash ? { error: flash.error, values: flash.values } : {});
+});
+router.get(SENT_URL, (req, res) => sentPage(res));
+router.get(CONFIRMED_URL, (req, res) => {
+  privatePage(res);
+  res.render("request_book_confirm", { state: "done", request: null, token: "" });
+});
 
 // A text field: trimmed; `tooLong` is set when it exceeds `max` (rejected, never silently cut).
 function field(body, name, max, problems) {
@@ -78,7 +98,7 @@ function field(body, name, max, problems) {
 router.post("/request-a-book", requestLimiter, async (req, res) => {
   const body = req.body || {};
   // Honeypot: people never see or fill this field; bots get the normal answer.
-  if (body.website) return sentPage(res);
+  if (body.website) return res.redirect(303, SENT_URL);
 
   const tooLong = [];
   const values = {
@@ -104,7 +124,7 @@ router.post("/request-a-book", requestLimiter, async (req, res) => {
       "Un champ est trop long. Les titres peuvent comporter jusqu'à 200 caractères et les notes jusqu'à 500."
     );
   }
-  if (error) return renderForm(req, res, { status: 400, error, values });
+  if (error) return redirectWithFlash(req, res, "/request-a-book", "requestBook", { error, values });
 
   const user = req.session && req.session.user;
   const lang = normLang(req.lang) || "en";
@@ -130,7 +150,7 @@ router.post("/request-a-book", requestLimiter, async (req, res) => {
       })
     );
   }
-  sentPage(res);
+  res.redirect(303, SENT_URL);
 });
 
 // ---------- double opt-in ----------
@@ -145,7 +165,8 @@ router.get("/request-a-book/confirm/:token", async (req, res) => {
 router.post("/request-a-book/confirm/:token", async (req, res) => {
   privatePage(res);
   const ok = TOKEN_RE.test(req.params.token) && (await br.confirmRequest(pool, req.params.token));
-  res.status(ok ? 200 : 400).render("request_book_confirm", { state: ok ? "done" : "invalid", request: null, token: "" });
+  // A dead link goes back to the link's own page, which says so.
+  res.redirect(303, ok ? CONFIRMED_URL : `/request-a-book/confirm/${encodeURIComponent(req.params.token)}`);
 });
 
 // ---------- one request, from its private link ----------
@@ -170,7 +191,7 @@ router.get("/my-requests/list/:token", async (req, res) => {
 router.post("/my-requests/list/:token/cancel-all", async (req, res) => {
   privatePage(res);
   const email = TOKEN_RE.test(req.params.token) ? await br.emailForListToken(pool, req.params.token) : null;
-  if (!email) return res.status(400).render("my_requests", { state: "invalid", requests: [], token: "", notice: null });
+  if (!email) return res.redirect(303, `/my-requests/list/${encodeURIComponent(req.params.token)}`);
   for (const r of await br.activeRequestsByEmail(pool, email)) {
     await br.cancelRequest(pool, r.id, { ownerSql: "AND lower(email) = $3", ownerParams: [email] });
   }
@@ -180,7 +201,7 @@ router.post("/my-requests/list/:token/cancel-all", async (req, res) => {
 router.post("/my-requests/list/:token/cancel/:id", async (req, res) => {
   privatePage(res);
   const email = TOKEN_RE.test(req.params.token) ? await br.emailForListToken(pool, req.params.token) : null;
-  if (!email) return res.status(400).render("my_requests", { state: "invalid", requests: [], token: "", notice: null });
+  if (!email) return res.redirect(303, `/my-requests/list/${encodeURIComponent(req.params.token)}`);
   const id = Number(req.params.id);
   if (Number.isInteger(id) && id > 0 && id <= 2147483647) {
     await br.cancelRequest(pool, id, { ownerSql: "AND lower(email) = $3", ownerParams: [email] });
@@ -198,7 +219,7 @@ router.get("/my-requests/:token", async (req, res) => {
 router.post("/my-requests/:token/cancel", async (req, res) => {
   privatePage(res);
   const request = await findByManageToken(req.params.token);
-  if (!request) return res.status(404).render("my_request", { request: null, token: "" });
+  if (!request) return res.redirect(303, `/my-requests/${encodeURIComponent(req.params.token)}`);
   await br.cancelRequest(pool, request.id);
   res.redirect(`/my-requests/${req.params.token}`);
 });
@@ -208,8 +229,7 @@ router.post("/my-requests/:token/cancel", async (req, res) => {
 const findIpLimiter = limit({
   windowMs: HOUR,
   max: 5,
-  handler: (req, res) =>
-    res.status(429).render("my_requests", { state: "limited", requests: [], token: "", notice: null }),
+  handler: (req, res) => redirectWithFlash(req, res, "/my-requests", "findRequests", { state: "limited" }),
 });
 
 // 3 a day per address. Answered exactly like a normal request, so the limit
@@ -227,7 +247,15 @@ function takeEmailAllowance(email) {
 router.get("/my-requests", (req, res) => {
   const u = req.session && req.session.user;
   res.set("Cache-Control", "no-store");
-  res.render("my_requests", { state: "form", requests: [], token: "", notice: null, email: u ? u.email : "" });
+  // POST /my-requests answers every valid address the same way: ?sent=1 shows "check your inbox"
+  // (nothing about the address is in the URL, and a reload shows it again). A bad address or
+  // the per-connection limit leave a one-time message instead.
+  if (req.query.sent === "1") return res.render("my_requests", { state: "sent", requests: [], token: "", notice: null });
+  const flash = takePageFlash(req, res, "findRequests");
+  if (flash && flash.state === "limited") {
+    return res.render("my_requests", { state: "limited", requests: [], token: "", notice: null });
+  }
+  res.render("my_requests", { state: "form", requests: [], token: "", notice: flash ? flash.notice : null, email: flash ? flash.email : u ? u.email : "" });
 });
 
 router.post("/my-requests", findIpLimiter, async (req, res) => {
@@ -235,7 +263,7 @@ router.post("/my-requests", findIpLimiter, async (req, res) => {
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
   res.set("Cache-Control", "no-store");
   if (!isEmail(email)) {
-    return res.status(400).render("my_requests", { state: "form", requests: [], token: "", notice: "bad-email", email: "" });
+    return redirectWithFlash(req, res, "/my-requests", "findRequests", { state: "form", notice: "bad-email", email: "" });
   }
   if (takeEmailAllowance(email)) {
     const requests = await br.activeRequestsByEmail(pool, email);
@@ -251,7 +279,7 @@ router.post("/my-requests", findIpLimiter, async (req, res) => {
       );
     }
   }
-  res.render("my_requests", { state: "sent", requests: [], token: "", notice: null });
+  res.redirect(303, "/my-requests?sent=1");
 });
 
 // ---------- My Account ----------

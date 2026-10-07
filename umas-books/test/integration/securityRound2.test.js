@@ -10,7 +10,7 @@ const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const bcrypt = require("bcryptjs");
 const { startTestApp } = require("../helpers/testApp");
-const { makeCookieJar, fetchCsrfToken } = require("../helpers/httpClient");
+const { makeCookieJar, fetchCsrfToken, withSeeOtherPage } = require("../helpers/httpClient");
 
 const PORT = 4301;
 const PASSWORD = "Round2Test-1!";
@@ -111,7 +111,8 @@ test("the page scripts the marketing pages load exist and parse", async () => {
 async function createUser(email) {
   await pool.query("INSERT INTO users (email, password_hash, display_name, email_verified_at) VALUES ($1, $2, 'Lock Test', now())", [email, await bcrypt.hash(PASSWORD, 8)]);
 }
-async function login(email, password, ip) {
+// A refused login answers 303 to /login, whose page (fetched with the same session) shows the message.
+async function attempt(email, password, ip) {
   const jar = makeCookieJar();
   const headers = { "x-forwarded-for": ip };
   const token = await fetchCsrfToken(app.base, jar, headers);
@@ -120,17 +121,30 @@ async function login(email, password, ip) {
     headers: { ...FORM, cookie: jar.header(), ...headers },
     body: new URLSearchParams({ email, password, _csrf: token }).toString(),
   });
-  await res.text();
-  return res.status;
+  jar.capture(res);
+  const seen = await withSeeOtherPage(res, { base: app.base, jar, headers });
+  const text = (await seen.text()).split(token).join("CSRF").replace(/(id="email"[^>]*value=")[^"]*"/, '$1"');
+  return { status: res.status, location: res.headers.get("location"), text };
 }
+const login = async (email, password, ip) => (await attempt(email, password, ip)).status;
 
 test("a stranger's wrong guesses lock only the stranger's address, never the owner", async () => {
   const email = `lock-${uniq()}@example.test`;
   await createUser(email);
   const stranger = "10.91.0.1";
-  for (let i = 0; i < 5; i++) assert.equal(await login(email, "Wrong-Password-9", stranger), 401);
-  // The stranger is now locked out of this account, even with the right password.
-  assert.equal(await login(email, PASSWORD, stranger), 401);
+  let wrongPage;
+  for (let i = 0; i < 5; i++) {
+    const r = await attempt(email, "Wrong-Password-9", stranger);
+    assert.equal(r.status, 303);
+    assert.equal(r.location, "/login");
+    wrongPage = r.text;
+  }
+  // The stranger is now locked out of this account, even with the right password:
+  // refused (303, never the 302 of a login) with exactly the page a wrong password gets.
+  const lockedOut = await attempt(email, PASSWORD, stranger);
+  assert.equal(lockedOut.status, 303);
+  assert.equal(lockedOut.location, "/login");
+  assert.equal(lockedOut.text, wrongPage);
   // The owner, from their own address, gets straight in.
   assert.equal(await login(email, PASSWORD, "10.91.0.2"), 302);
   // The account itself is not locked in the database.
@@ -141,8 +155,8 @@ test("a stranger's wrong guesses lock only the stranger's address, never the own
 test("the owner's own five typos still lock their own address for a while", async () => {
   const email = `typo-${uniq()}@example.test`;
   await createUser(email);
-  for (let i = 0; i < 5; i++) assert.equal(await login(email, "Wrong-Password-9", "10.91.0.3"), 401);
-  assert.equal(await login(email, PASSWORD, "10.91.0.3"), 401);
+  for (let i = 0; i < 5; i++) assert.equal(await login(email, "Wrong-Password-9", "10.91.0.3"), 303);
+  assert.equal(await login(email, PASSWORD, "10.91.0.3"), 303);
 });
 
 // ---------- 2 over HTTP ----------
@@ -158,13 +172,17 @@ test("signup: the same address twice gets the same neutral page, but only one ma
       headers: { ...FORM, cookie: jar.header(), ...headers },
       body: new URLSearchParams({ email, displayName: "Bomb Target", _csrf: token }).toString(),
     });
-    return { status: res.status, body: (await res.text()).split(token).join("CSRF") };
+    jar.capture(res);
+    const seen = await withSeeOtherPage(res, { base: app.base, jar, headers });
+    return { status: res.status, location: res.headers.get("location"), body: (await seen.text()).split(token).join("CSRF") };
   };
   const first = await post("10.92.0.1");
   const second = await post("10.92.0.2"); // a different IP: the per-IP limits do not help here
   const third = await post("10.92.0.3");
-  assert.equal(first.status, 200);
-  assert.deepEqual([second.status, third.status], [200, 200]);
+  assert.equal(first.status, 303);
+  assert.equal(first.location, "/signup");
+  assert.deepEqual([second.status, third.status], [303, 303]);
+  assert.deepEqual([second.location, third.location], ["/signup", "/signup"]);
   assert.equal(second.body, first.body, "neutral response unchanged");
   assert.equal(third.body, first.body);
   // The signup_attempt notice (account now exists) is a different kind: at most one more.

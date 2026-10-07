@@ -9,6 +9,7 @@
 <h1><%= thread.title %></h1>
 <div class="thread-meta"><%= thread.author_name || tr('Member', 'Membre') %> &middot; <%= formatDateTime(thread.created_at) %></div>
 <% if (typeof reported !== 'undefined' && reported) { %><div class="notice-box" role="status"><%= tr('Thanks, we will review it.', 'Merci, nous allons l’examiner.') %></div><% } %>
+<% if (typeof error !== 'undefined' && error) { %><div class="error-box" role="alert"><%= error %></div><% } %>
 <div class="card"><%= thread.body %></div>
 <% if (isAdmin) { %><%- include('partials/forum_moderation', { kind: 'thread', id: thread.id, hidden: !!thread.hidden, code: thread.hidden_code, note: thread.hidden_note }) %><% } %>
 <%- include('partials/forum_report', { kind: 'thread', id: thread.id }) %>

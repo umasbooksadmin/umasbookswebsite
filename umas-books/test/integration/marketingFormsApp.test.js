@@ -29,6 +29,12 @@ async function post(path, jar, fields, headers = {}) {
     body: body.toString(),
   });
   jar.capture(res);
+  // A refused form answers 303 (Post/Redirect/Get): `html` is the page the redirect leads to.
+  if (res.status === 303) {
+    const next = await fetch(`${app.base}${res.headers.get("location")}`, { headers: { cookie: jar.header(), ...headers } });
+    jar.capture(next);
+    return { res, html: await next.text() };
+  }
   return { res, html: await res.text() };
 }
 
@@ -70,7 +76,7 @@ test("pre-registration end to end: invalid -> 400 keeping both chosen days; vali
   const _csrf = tokenOf(html);
 
   const bad = await post("/pre-registration", jar, { ...PREREG, _csrf, email: "nope" });
-  assert.equal(bad.res.status, 400);
+  assert.equal(bad.res.status, 303);
   assert.match(bad.html, /role="alert"/);
   assert.match(bad.html, /<input type="checkbox" name="days" value="tue" checked/);
   assert.match(bad.html, /<input type="checkbox" name="days" value="sat" checked/, "the repeated days field was not collapsed to its first value");
@@ -97,6 +103,6 @@ test("volunteer end to end, with the CSRF token from the page", async () => {
   const sentPage = await page("/volunteer.html?sent=1", jar);
   assert.match(sentPage.html, /Thank you, your sign-up has been sent/);
   const noConsent = await post("/volunteer-signup", jar, { _csrf, name: "Sam", email: "sam@example.test" });
-  assert.equal(noConsent.res.status, 400);
+  assert.equal(noConsent.res.status, 303);
   assert.match(noConsent.html, /href="#vol-consent"/);
 });

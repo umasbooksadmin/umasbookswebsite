@@ -175,11 +175,16 @@ test("an error message on the login form is announced (role=alert)", async () =>
   const token = await fetchCsrfToken(app.base, jar);
   const res = await get("/login", {
     method: "POST",
+    redirect: "manual",
     headers: { "content-type": "application/x-www-form-urlencoded", cookie: jar.header() },
     body: new URLSearchParams({ _csrf: token, email: `nobody-${stamp}@example.test`, password: "wrong-password-1" }),
   });
-  assert.equal(res.status, 401);
-  assert.match(await res.text(), /<div role="alert" class="error-box">Incorrect email or password\./);
+  assert.equal(res.status, 303);
+  assert.equal(res.headers.get("location"), "/login");
+  jar.capture(res);
+  const page = await get("/login", { headers: { cookie: jar.header() } });
+  assert.equal(page.status, 200);
+  assert.match(await page.text(), /<div role="alert" class="error-box">Incorrect email or password\./);
 });
 
 test("every .error-box / .notice-box in the app views declares a live-region role", () => {

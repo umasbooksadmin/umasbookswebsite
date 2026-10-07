@@ -347,7 +347,7 @@ MARKETING_PAGES.forEach((file) => {
     if (marketingFormRoutes.FORM_PAGES.includes("/" + file)) {
       // Server-side forms (routes/marketingForms.js): the page carries a CSRF token, so no shared cache.
       marketingFormRoutes.prepareFormPage(res);
-      res.locals.form = { sent: req.query.sent === "1" };
+      marketingFormRoutes.setFormState(req, res, file);
     }
     if (file === "membership.html") {
       // Personal (the account's email, membership end date): never cached.

@@ -5,9 +5,9 @@
 <form class="stack" method="post" action="/forum/new">
   <%- include('partials/csrf_field') %>
   <label for="title"><%= tr('Title', 'Titre') %></label>
-  <input id="title" name="title" type="text" required>
+  <input id="title" name="title" type="text" value="<%= (locals.values && locals.values.title) || '' %>" required>
   <label for="body"><%= tr('Message', 'Message') %></label>
-  <textarea id="body" name="body" required></textarea>
+  <textarea id="body" name="body" required><%= (locals.values && locals.values.body) || '' %></textarea>
   <%- include('partials/privacy_note', { en: 'Your post is visible to other members and shows your name. See our', fr: 'Votre message est visible des autres membres et affiche votre nom. Consultez notre' }) %>
   <button class="btn" type="submit"><%= tr('Post', 'Publier') %></button>
 </form>

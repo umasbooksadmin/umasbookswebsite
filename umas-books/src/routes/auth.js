@@ -1,7 +1,8 @@
 const express = require("express");
 const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
-const { limit, ipKey } = require("../middleware/rateLimits");
+const { limit, ipKey, failureCounts, onlyMarkedFailures } = require("../middleware/rateLimits");
+const { redirectWithFlash, takePageFlash, withReturnTo } = require("../lib/postRedirect");
 const { pool } = require("../db");
 const { hashToken } = require("../lib/resetTokens");
 const { isActiveMember } = require("../lib/memberStatus");
@@ -30,10 +31,10 @@ const MINUTE = 60 * 1000;
 // failures (what guessing looks like); the per-account lockout below is
 // independent of these. Signup and forgot-password answer identically
 // whatever happens (no enumeration), so every request counts there.
-const loginLimiter = limit({ windowMs: 15 * MINUTE, max: 20, skipSuccessfulRequests: true });
+const loginLimiter = limit({ windowMs: 15 * MINUTE, max: 20, skipSuccessfulRequests: true, requestWasSuccessful: failureCounts });
 const signupLimiter = limit({ windowMs: 60 * MINUTE, max: 30 });
 const forgotLimiter = limit({ windowMs: 15 * MINUTE, max: 10 });
-const resetLimiter = limit({ windowMs: 15 * MINUTE, max: 20, skipSuccessfulRequests: true });
+const resetLimiter = limit({ windowMs: 15 * MINUTE, max: 20, skipSuccessfulRequests: true, requestWasSuccessful: failureCounts });
 // "Send me the confirmation link again": answers identically whatever the
 // account's state (no enumeration), so every request counts; on top of this
 // per-IP cap, an account is sent at most one link per RESEND_COOLDOWN_MS.
@@ -46,7 +47,7 @@ const passwordChangeLimiter = limit({
   windowMs: 15 * MINUTE,
   max: 5,
   skipSuccessfulRequests: true,
-  requestWasSuccessful: (req, res) => res.statusCode !== 401,
+  requestWasSuccessful: onlyMarkedFailures,
   keyGenerator: (req) => `user:${req.session.user.id}`,
 });
 
@@ -61,6 +62,20 @@ const signupNotice = (req) =>
     "Thanks! Check your inbox: we've emailed you a link to confirm your address and choose your password. If you already have an account, try logging in or resetting your password.",
     "Merci ! Consultez votre boîte de réception : nous vous avons envoyé un lien pour confirmer votre adresse et choisir votre mot de passe. Si vous avez déjà un compte, essayez de vous connecter ou de réinitialiser votre mot de passe."
   );
+
+const somethingWrong = (req) => req.tr("Something went wrong. Please try again.", "Une erreur est survenue. Veuillez réessayer.");
+
+// A refused or finished form goes back to its page by redirect (lib/postRedirect.js),
+// so Back never offers to resubmit it. The login page keeps the returnTo the form had
+// (already reduced to a local path); the message, and the typed e-mail (never a
+// password), travel once in the session.
+const backToLogin = (req, res, data, opts) => redirectWithFlash(req, res, withReturnTo("/login", res.locals.returnTo), "login", data, opts);
+const backToSignup = (req, res, data) => redirectWithFlash(req, res, withReturnTo("/signup", res.locals.returnTo), "signup", data);
+// When even the redirect cannot be prepared (the session store is down): a plain 500.
+const plainFailure = (req, res) => (err) => {
+  console.error(err);
+  if (!res.headersSent) res.status(500).type("text/plain").send(somethingWrong(req));
+};
 
 // Two-step code failures lock the account (countFailedAttempt below). Password
 // failures are throttled per (account, IP) pair plus a softer per-account total:
@@ -99,7 +114,7 @@ function loginAs(req, res, user, redirectTo) {
   req.session.regenerate((err) => {
     if (err) {
       console.error(err);
-      return res.status(500).render("login", { error: req.tr("Something went wrong. Please try again.", "Une erreur est survenue. Veuillez réessayer."), notice: null });
+      return backToLogin(req, res, { error: somethingWrong(req) }, { counted: true }).catch(plainFailure(req, res));
     }
     req.session.user = {
       id: user.id, email: user.email, displayName: user.display_name,
@@ -115,7 +130,7 @@ function loginAs(req, res, user, redirectTo) {
       () => res.redirect(redirectTo),
       (saveErr) => {
         console.error(saveErr);
-        res.status(500).render("login", { error: req.tr("Something went wrong. Please try again.", "Une erreur est survenue. Veuillez réessayer."), notice: null });
+        backToLogin(req, res, { error: somethingWrong(req) }, { counted: true }).catch(plainFailure(req, res));
       }
     );
   });
@@ -141,7 +156,8 @@ router.get("/signup", (req, res) => {
     return res.redirect(u.isAdmin ? "/admin" : (u.isMember || u.isVolunteer) ? "/dashboard" : "/");
   }
   res.locals.returnTo = safeReturnTo(req.query.returnTo);
-  res.render("signup", { error: null, notice: null });
+  const flash = takePageFlash(req, res, "signup") || {};
+  res.render("signup", { error: flash.error || null, notice: flash.notice || null, values: flash });
 });
 
 // The one place an account is created from a typed name + email: used by the
@@ -192,7 +208,7 @@ router.post("/signup", signupLimiter, async (req, res) => {
   res.locals.returnTo = returnTo;
 
   if (!email || !displayName) {
-    return res.status(400).render("signup", { error: req.tr("All fields are required.", "Tous les champs sont obligatoires."), notice: null });
+    return backToSignup(req, res, { error: req.tr("All fields are required.", "Tous les champs sont obligatoires."), displayName, email });
   }
 
   // Not a single plain address ("a@x.com, b@y.com" would make nodemailer
@@ -200,7 +216,7 @@ router.post("/signup", signupLimiter, async (req, res) => {
   // account, no mail, but the SAME neutral response as a real signup, so
   // this can't be told apart from one (signup stays enumeration-safe).
   if (!isEmail(email)) {
-    return res.render("signup", { error: null, notice: signupNotice(req) });
+    return backToSignup(req, res, { notice: signupNotice(req) });
   }
 
   // Identical response whether or not the email is registered — a
@@ -211,11 +227,11 @@ router.post("/signup", signupLimiter, async (req, res) => {
   // mail is sent in the background so a slow mail server can't either.
   try {
     await registerAccount(req, { email, displayName, returnTo });
-    res.render("signup", { error: null, notice: signupNotice(req) });
   } catch (err) {
     console.error(err);
-    res.status(500).render("signup", { error: req.tr("Something went wrong. Please try again.", "Une erreur est survenue. Veuillez réessayer."), notice: null });
+    return backToSignup(req, res, { error: somethingWrong(req), displayName, email }).catch(plainFailure(req, res));
   }
+  await backToSignup(req, res, { notice: signupNotice(req) });
 });
 
 // ---- Becoming a member (the page itself is views/marketing/membership.ejs,
@@ -373,7 +389,8 @@ router.post("/verify-email/:token", verifyEmailLimiter, async (req, res) => {
     );
     if (!claimed.length) {
       await client.query("ROLLBACK");
-      return renderVerifyEmail(res, "invalid", "", 400);
+      // Back to the link's own page, which answers "invalid or expired" (the token is no longer usable).
+      return res.redirect(303, `/verify-email/${encodeURIComponent(req.params.token)}`);
     }
     const { rows: users } = await client.query(
       "SELECT id, email, email_verified_at, first_verification_pending FROM users WHERE id = $1 FOR UPDATE",
@@ -439,7 +456,7 @@ router.post("/resend-verification", resendLimiter, async (req, res) => {
       console.error(err);
     }
   }
-  res.render("login", { error: null, notice });
+  await backToLogin(req, res, { notice });
 });
 
 router.get("/login", (req, res) => {
@@ -454,7 +471,14 @@ router.get("/login", (req, res) => {
     req.query.verified === "success" ? req.tr("Email confirmed — thanks!", "Adresse e-mail confirmée, merci !") :
     req.query.verified === "invalid" ? req.tr("That confirmation link is invalid or has expired.", "Ce lien de confirmation est invalide ou a expiré.") :
     null;
-  res.render("login", { error: null, notice });
+  // A refused or finished form (POST /login, /resend-verification...) left its message here.
+  const flash = takePageFlash(req, res, "login") || {};
+  res.render("login", {
+    error: flash.error || null,
+    notice: flash.notice || notice,
+    unverifiedEmail: flash.unverifiedEmail,
+    typedEmail: flash.email,
+  });
 });
 
 router.post("/login", loginLimiter, async (req, res) => {
@@ -479,8 +503,11 @@ router.post("/login", loginLimiter, async (req, res) => {
     // revealed; attempts during the lock aren't counted or extended.
     const clientKey = ipKey(req);
     const locked = Boolean(user && ((user.locked_until && new Date(user.locked_until) > new Date()) || loginThrottle.isBlocked(user.id, clientKey)));
+    // Every refusal below counts toward the per-IP limiter (counted: true), like the
+    // 401/403 it used to answer. The typed e-mail comes back; the password never does.
+    const refuse = (error, extra = {}) => backToLogin(req, res, { error, email, ...extra }, { counted: true });
     if (locked) {
-      return res.status(401).render("login", { error: req.tr("Incorrect email or password.", "E-mail ou mot de passe incorrect."), notice: null });
+      return refuse(req.tr("Incorrect email or password.", "E-mail ou mot de passe incorrect."));
     }
 
     if (!ok) {
@@ -489,27 +516,23 @@ router.post("/login", loginLimiter, async (req, res) => {
         // so parallel guesses cannot undercount): lib/loginThrottle.js.
         loginThrottle.recordFailure(user.id, clientKey);
       }
-      return res.status(401).render("login", { error: req.tr("Incorrect email or password.", "E-mail ou mot de passe incorrect."), notice: null });
+      return refuse(req.tr("Incorrect email or password.", "E-mail ou mot de passe incorrect."));
     }
 
     // Only someone who proved they know the password learns the account
     // is deactivated.
     if (user.is_disabled) {
-      return res.status(403).render("login", {
-        error: req.tr("This account has been deactivated. Contact us if you think this is a mistake.", "Ce compte a été désactivé. Contactez-nous si vous pensez qu'il s'agit d'une erreur."),
-        notice: null,
-      });
+      return refuse(req.tr("This account has been deactivated. Contact us if you think this is a mistake.", "Ce compte a été désactivé. Contactez-nous si vous pensez qu'il s'agit d'une erreur."));
     }
 
     // A self-signup account can't log in until its email is confirmed (see
     // the pre-hijack note above GET /verify-email). Only someone who
     // typed the right password learns this; the form offers a fresh link.
     if (user.first_verification_pending && !user.email_verified_at) {
-      return res.status(403).render("login", {
-        error: req.tr("Please confirm your email first: open the link we sent you. You can request a new one below.", "Veuillez d'abord confirmer votre adresse e-mail : ouvrez le lien que nous vous avons envoyé. Vous pouvez en demander un nouveau ci-dessous."),
-        notice: null,
-        unverifiedEmail: user.email,
-      });
+      return refuse(
+        req.tr("Please confirm your email first: open the link we sent you. You can request a new one below.", "Veuillez d'abord confirmer votre adresse e-mail : ouvrez le lien que nous vous avons envoyé. Vous pouvez en demander un nouveau ci-dessous."),
+        { unverifiedEmail: user.email }
+      );
     }
 
     // With two-step on, a right password must NOT wipe the failure count:
@@ -538,7 +561,7 @@ router.post("/login", loginLimiter, async (req, res) => {
     loginAs(req, res, user, landingFor(user, returnTo));
   } catch (err) {
     console.error(err);
-    res.status(500).render("login", { error: req.tr("Something went wrong. Please try again.", "Une erreur est survenue. Veuillez réessayer."), notice: null });
+    await backToLogin(req, res, { error: somethingWrong(req), email }, { counted: true }).catch(plainFailure(req, res));
   }
 });
 
@@ -550,7 +573,7 @@ const twoFactorLimiter = limit({
   windowMs: 15 * MINUTE,
   max: 10,
   skipSuccessfulRequests: true,
-  requestWasSuccessful: (req, res) => res.statusCode !== 401,
+  requestWasSuccessful: onlyMarkedFailures,
   keyGenerator: (req) => (req.session.pending2fa ? `2fa:${req.session.pending2fa.userId}` : `ip:${ipKey(req)}`),
 });
 
@@ -565,7 +588,8 @@ function pendingLogin(req) {
 
 router.get("/login/2fa", (req, res) => {
   if (!pendingLogin(req)) return res.redirect("/login");
-  res.render("login_2fa", { error: null });
+  const flash = takePageFlash(req, res, "login2fa") || {};
+  res.render("login_2fa", { error: flash.error || null });
 });
 
 router.post("/login/2fa", twoFactorLimiter, async (req, res) => {
@@ -578,10 +602,10 @@ router.post("/login/2fa", twoFactorLimiter, async (req, res) => {
       res.locals.returnTo = safeReturnTo(pending.returnTo);
       req.session.pending2fa = null;
       await saveSession(req);
-      return res.status(401).render("login", { error: req.tr("Too many wrong codes. Log in again.", "Trop de codes erronés. Veuillez vous reconnecter."), notice: null });
+      return backToLogin(req, res, { error: req.tr("Too many wrong codes. Log in again.", "Trop de codes erronés. Veuillez vous reconnecter.") }, { counted: true });
     }
-    await saveSession(req);
-    return res.status(401).render("login_2fa", { error: req.tr("That code didn't work. Try again.", "Ce code n'a pas fonctionné. Veuillez réessayer.") });
+    // The counter above lives in the session: the flash save below persists it too.
+    return redirectWithFlash(req, res, "/login/2fa", "login2fa", { error: req.tr("That code didn't work. Try again.", "Ce code n'a pas fonctionné. Veuillez réessayer.") }, { counted: true });
   };
 
   try {
@@ -593,7 +617,7 @@ router.post("/login/2fa", twoFactorLimiter, async (req, res) => {
     }
     if (user.locked_until && new Date(user.locked_until) > new Date()) {
       req.session.pending2fa = null;
-      return res.status(401).render("login", { error: req.tr("Too many wrong attempts. Try again in a few minutes.", "Trop de tentatives erronées. Veuillez réessayer dans quelques minutes."), notice: null });
+      return backToLogin(req, res, { error: req.tr("Too many wrong attempts. Try again in a few minutes.", "Trop de tentatives erronées. Veuillez réessayer dans quelques minutes.") }, { counted: true });
     }
     const code = String(req.body.code || "").trim();
 
@@ -633,12 +657,13 @@ router.post("/login/2fa", twoFactorLimiter, async (req, res) => {
     loginAs(req, res, user, landingFor(user, returnTo));
   } catch (err) {
     console.error(err);
-    res.status(500).render("login", { error: req.tr("Something went wrong. Please try again.", "Une erreur est survenue. Veuillez réessayer."), notice: null });
+    await backToLogin(req, res, { error: somethingWrong(req) }, { counted: true }).catch(plainFailure(req, res));
   }
 });
 
 router.get("/forgot-password", (req, res) => {
-  res.render("forgot_password", { notice: null, error: null });
+  const flash = takePageFlash(req, res, "forgot") || {};
+  res.render("forgot_password", { notice: flash.notice || null, error: null });
 });
 
 router.post("/forgot-password", forgotLimiter, async (req, res) => {
@@ -658,7 +683,7 @@ router.post("/forgot-password", forgotLimiter, async (req, res) => {
       console.error(err);
     }
   }
-  res.render("forgot_password", { notice, error: null });
+  await redirectWithFlash(req, res, "/forgot-password", "forgot", { notice });
 });
 
 router.get("/reset-password/:token", async (req, res) => {
@@ -670,14 +695,20 @@ router.get("/reset-password/:token", async (req, res) => {
   if (!rows.length) {
     return res.status(400).render("reset_password", { error: req.tr("This reset link is invalid or has expired.", "Ce lien de réinitialisation est invalide ou a expiré."), token: null });
   }
-  res.render("reset_password", { error: null, token: req.params.token, confirmed: req.query.confirmed === "1" });
+  // A refused password (too weak) left its message here (never the token or the password).
+  const flash = takePageFlash(req, res, "reset");
+  const error = flash ? flash.error : null;
+  res.render("reset_password", { error, token: req.params.token, confirmed: req.query.confirmed === "1" });
 });
 
 router.post("/reset-password/:token", resetLimiter, async (req, res) => {
   const newPassword = req.body.newPassword || "";
   const tokenHash = hashToken(req.params.token);
-  const invalid = () =>
-    res.status(400).render("reset_password", { error: req.tr("This reset link is invalid or has expired.", "Ce lien de réinitialisation est invalide ou a expiré."), token: null });
+  const confirmedParam = req.query.confirmed === "1" ? "?confirmed=1" : "";
+  const resetPage = `/reset-password/${encodeURIComponent(req.params.token)}${confirmedParam}`;
+  // A dead link: back to the link's own page, which says so (the token cannot be used any more).
+  // A weak password: back to the same page with the message (the typed password never comes back).
+  const invalid = () => { res.locals.failedAttempt = true; return res.redirect(303, resetPage); };
 
   // Cheap non-consuming look first, so a too-weak password doesn't burn
   // the link; the real gate is the atomic claim below.
@@ -688,7 +719,7 @@ router.post("/reset-password/:token", resetLimiter, async (req, res) => {
   if (!rows.length) return invalid();
   const passwordError = await validateNewPassword(newPassword, req.tr);
   if (passwordError) {
-    return res.status(400).render("reset_password", { error: passwordError, token: req.params.token, confirmed: req.query.confirmed === "1" });
+    return redirectWithFlash(req, res, resetPage, "reset", { error: passwordError }, { counted: true });
   }
 
   const hash = await bcrypt.hash(newPassword, 12);
@@ -740,7 +771,8 @@ router.post("/reset-password/:token", resetLimiter, async (req, res) => {
 });
 
 router.get("/account/password", requireAuth, (req, res) => {
-  res.render("change_password", { error: null, notice: null });
+  const flash = takePageFlash(req, res, "changePassword") || {};
+  res.render("change_password", { error: flash.error || null, notice: flash.notice || null });
 });
 
 router.post("/account/password", requireAuth, passwordChangeLimiter, async (req, res) => {
@@ -749,14 +781,15 @@ router.post("/account/password", requireAuth, passwordChangeLimiter, async (req,
 
   const passwordError = await validateNewPassword(newPassword, req.tr);
   if (passwordError) {
-    return res.status(400).render("change_password", { error: passwordError, notice: null });
+    return redirectWithFlash(req, res, "/account/password", "changePassword", { error: passwordError });
   }
 
   const { rows } = await pool.query("SELECT * FROM users WHERE id = $1", [req.session.user.id]);
   const user = rows[0];
   const ok = user && (await bcrypt.compare(currentPassword, user.password_hash));
   if (!ok) {
-    return res.status(401).render("change_password", { error: req.tr("Current password is incorrect.", "Le mot de passe actuel est incorrect."), notice: null });
+    // Only a wrong current password counts toward the limiter (counted).
+    return redirectWithFlash(req, res, "/account/password", "changePassword", { error: req.tr("Current password is incorrect.", "Le mot de passe actuel est incorrect.") }, { counted: true });
   }
 
   const hash = await bcrypt.hash(newPassword, 12);
@@ -771,8 +804,8 @@ router.post("/account/password", requireAuth, passwordChangeLimiter, async (req,
   req.session.user.passwordChangedAt = updated[0].password_changed_at.getTime();
   // Persist before responding, or a quick next request reads the old stamp
   // and logs this very session out — see lib/session.js.
-  await saveSession(req);
-  res.render("change_password", { error: null, notice: req.tr("Password updated.", "Mot de passe mis à jour.") });
+  // redirectWithFlash saves the session (with the re-stamped passwordChangedAt) before the redirect.
+  await redirectWithFlash(req, res, "/account/password", "changePassword", { notice: req.tr("Password updated.", "Mot de passe mis à jour.") });
 });
 
 router.post("/logout", (req, res) => {

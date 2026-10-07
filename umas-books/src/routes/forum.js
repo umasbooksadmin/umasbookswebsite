@@ -2,6 +2,7 @@ const express = require("express");
 const { pool } = require("../db");
 const { requireMember } = require("../middleware/auth");
 const { forumPostLimiter, forumReplyLimiter, limit } = require("../middleware/rateLimits");
+const { redirectWithFlash, takePageFlash } = require("../lib/postRedirect");
 const { clean, parseId, emailSafeName } = require("../lib/validation");
 const { sendEmail } = require("../lib/outbox");
 const { baseUrl } = require("../lib/baseUrl");
@@ -65,14 +66,16 @@ router.get("/forum", requireMember, async (req, res) => {
 });
 
 router.get("/forum/new", requireMember, (req, res) => {
-  res.render("forum_new", { error: null });
+  // A refused form (POST /forum/new) left its message and what was typed here, once.
+  const flash = takePageFlash(req, res, "forumNew") || {};
+  res.render("forum_new", { error: flash.error || null, values: flash });
 });
 
 router.post("/forum/new", requireMember, forumPostLimiter, async (req, res) => {
   const title = clean(req.body.title, MAX_THREAD_TITLE);
   const body = clean(req.body.body, MAX_POST_BODY);
   if (!title || !body) {
-    return res.status(400).render("forum_new", { error: req.tr("Title and message are both required.", "Le titre et le message sont tous deux obligatoires.") });
+    return redirectWithFlash(req, res, "/forum/new", "forumNew", { error: req.tr("Title and message are both required.", "Le titre et le message sont tous deux obligatoires."), title, body });
   }
   const { rows } = await pool.query(
     "INSERT INTO forum_threads (title, body, author_id) VALUES ($1, $2, $3) RETURNING id",
@@ -102,7 +105,9 @@ router.get("/forum/:id", requireMember, async (req, res) => {
 
   const replies = replyRows.map((r) => maskHidden(r, admin));
 
-  res.render("forum_thread", { thread, replies, error: null, reported: req.query.reported === "1" });
+  // A refused report (POST /forum/report) left its message here, once.
+  const flash = takePageFlash(req, res, "forumReport") || {};
+  res.render("forum_thread", { thread, replies, error: flash.error || null, reported: req.query.reported === "1" });
 });
 
 router.post("/forum/:id/replies", requireMember, forumReplyLimiter, async (req, res) => {
@@ -133,7 +138,6 @@ router.post("/forum/report", requireMember, forumReportLimiter, async (req, res)
   const id = parseId(String(req.body.id || ""));
   if (!kind || id === null) return res.status(404).render("404");
   const reasonKey = Object.prototype.hasOwnProperty.call(REPORT_REASONS, req.body.reason) ? req.body.reason : null;
-  if (!reasonKey) return res.status(400).type("text/plain").send(req.tr("Please choose a reason for the report.", "Veuillez choisir un motif pour le signalement."));
   const comment = clean(req.body.comment, MAX_REPORT_COMMENT);
 
   const { rows } = kind === "thread"
@@ -145,6 +149,9 @@ router.post("/forum/report", requireMember, forumReportLimiter, async (req, res)
          FROM forum_replies r LEFT JOIN users u ON u.id = r.author_id WHERE r.id = $1`, [id]);
   const target = rows[0];
   if (!target) return res.status(404).render("404");
+  const threadPage = `/forum/${target.thread_id}`;
+  // The report form has a required reason; a request without one is answered on the thread's page.
+  if (!reasonKey) return redirectWithFlash(req, res, threadPage, "forumReport", { error: req.tr("Please choose a reason for the report.", "Veuillez choisir un motif pour le signalement.") });
 
   // Never built from the Host header; with no configured base URL, no link.
   let link;
@@ -173,10 +180,10 @@ router.post("/forum/report", requireMember, forumReportLimiter, async (req, res)
     });
   } catch (err) {
     console.error("Forum report email failed:", err);
-    return res.status(500).type("text/plain").send(req.tr(
+    return redirectWithFlash(req, res, threadPage, "forumReport", { error: req.tr(
       "Sorry, your report couldn't be sent just now. Please email admin@umasbooks.org.",
       "Désolé, votre signalement n’a pas pu être envoyé pour le moment. Veuillez écrire à admin@umasbooks.org."
-    ));
+    ) });
   }
   res.redirect(`/forum/${target.thread_id}?reported=1`);
 });
