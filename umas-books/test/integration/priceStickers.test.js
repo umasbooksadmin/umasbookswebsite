@@ -94,7 +94,7 @@ test("a copy's page shows its sticker chip, with the right text for each color",
 });
 
 test("the add-book form for a NEW book shows the retail note and no used-book suggestion", async () => {
-  const res = await post("/admin/inventory/suggest", { title: "Neuf", condition: "new", publisherPrice: "14.00", binding: "paperback" });
+  const res = await post("/admin/inventory/suggest", { title: "Neuf", condition: "new", publisherPrice: "14.00", binding: "trade" });
   assert.equal(res.status, 200);
   const html = await res.text();
   assert.match(html, /New book: sell at the publisher&#39;s price \(max 5% off\)/);

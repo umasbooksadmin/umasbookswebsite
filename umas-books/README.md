@@ -212,17 +212,19 @@ Every copy gets one of four **condition** grades. Pick the first one that is
 true; if you hesitate between two, choose the lower one.
 
 - **New**: unread, as published. Must be sold at the publisher's price.
-- **Like New**: looks unread: no marks, no wear.
-- **Very Good**: light wear only: clean pages, no writing or highlighting.
+- **Very Good**: looks almost new: clean pages, no writing or highlighting, at most very light wear.
+- **Good**: normal wear from reading: a few creases or marks, still clean and complete.
 - **Acceptable**: clearly used but complete and readable: wear, creases or
   some markings.
 
 A book that is not fit to sell (pages missing, mouldy, falling apart) is not a
 grade: set its **status** to "Damaged / withdrawn" instead.
 
-The **binding** says what kind of book it is: **Hardcover**, **Paperback** or
-**Mass Market** (the small pocket paperback). It is filled in automatically
-when the scan finds it; check it, and choose "Not specified" if unsure.
+The **binding** says what kind of book it is: **Hardcover**, **Trade** (a
+normal paperback, in French "broché"), **Mass Market** (the small pocket
+paperback, "poche") or **Other** (board book, spiral-bound, anything else).
+It is filled in automatically when the scan finds it; check it, and choose
+"Not specified" if unsure.
 Customers see the grade of each copy, the binding, and a "What the grades
 mean" box on the book's page.
 
@@ -336,7 +338,7 @@ can always pick another price, and nothing is published until you save.
   have. **The condition of your copy does not change the price.**
   - A **new** book is always sold at the publisher's price (French law).
   - **Mass market** paperbacks are EUR 5.
-  - Other books: worth under EUR 6 online = EUR 5; EUR 6 to 19.99 = EUR 8;
+  - Other books (hardcover, trade and **Other**): worth under EUR 6 online = EUR 5; EUR 6 to 19.99 = EUR 8;
     EUR 20 to 49.99 = about three quarters of the online value. **Hardcovers
     are never under EUR 10.**
   - If we already have **2 or more copies** of the same book (in stock or

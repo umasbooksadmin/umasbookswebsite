@@ -33,7 +33,7 @@ async function seed() {
   try {
     const { rows: b } = await client.query("INSERT INTO books (title, authors) VALUES ('Price Check Book', 'Price Author') RETURNING id");
     const { rows: c } = await client.query(
-      "INSERT INTO book_copies (book_id, status, price, condition) VALUES ($1, 'in_stock', 12.5, 'very_good'), ($1, 'in_stock', 20, 'like_new') RETURNING id",
+      "INSERT INTO book_copies (book_id, status, price, condition) VALUES ($1, 'in_stock', 12.5, 'very_good'), ($1, 'in_stock', 20, 'good') RETURNING id",
       [b[0].id]
     );
     const { rows: o } = await client.query("INSERT INTO orders (buyer_name, buyer_email, total_amount, status) VALUES ('Buyer', 'buyer@example.test', 12.5, 'paid') RETURNING access_token");

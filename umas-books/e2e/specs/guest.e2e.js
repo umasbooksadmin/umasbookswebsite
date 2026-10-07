@@ -234,7 +234,7 @@ s.test("G16 (must) 'What the grades mean' lists the four grades", async (ctx) =>
   await ctx.goto(`/books/${book.id}`);
   await ctx.page.click(".grade-legend summary");
   const legend = await ctx.page.$eval(".grade-legend", (d) => d.innerText);
-  for (const g of ["New", "Like New", "Very Good", "Acceptable"]) has(legend, new RegExp(g));
+  for (const g of ["New", "Very Good", "Good", "Acceptable"]) has(legend, new RegExp(g));
   has(legend, /The grade is the description of the book/);
 });
 
@@ -326,7 +326,7 @@ s.test("G-FR11 FR check (books): search page, book page and grade legend in Fren
   has(text, /exemplaires? en rayon/);
   await ctx.page.click(".grade-legend summary");
   const legend = await ctx.page.$eval(".grade-legend", (d) => d.innerText);
-  for (const g of ["Neuf", "Comme neuf", "Très bon état", "État acceptable"]) has(legend, new RegExp(g));
+  for (const g of ["Neuf", "Très bon état", "Bon état", "État correct"]) has(legend, new RegExp(g));
   has(legend, /L’état indiqué est la description du livre/);
   has(text, /Prix TTC, TVA non applicable/);
   has(text, /Nos livres d’occasion sont vendus tels que décrits/);

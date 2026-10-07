@@ -117,7 +117,7 @@ const ENV = { ANTHROPIC_API_KEY: "test-key", PRICING_AI: "1" };
 test("request: same headers as the description call, the web search tool, only ISBN/title/author/binding in the prompt", async () => {
   const seen = [];
   const fetchImpl = async (url, init) => { seen.push({ url, init }); return reply(answer({ originalPrice: null, comparables: [comp()] }))(); };
-  const out = await fetchMarketData({ isbn: "0140449136", title: "The Odyssey", author: "Homer", binding: "paperback" }, { fetchImpl, env: { ...ENV, ANTHROPIC_WORKSPACE_ID: "ws_1", PRICING_AI_MODEL: "model-x" } });
+  const out = await fetchMarketData({ isbn: "0140449136", title: "The Odyssey", author: "Homer", binding: "trade" }, { fetchImpl, env: { ...ENV, ANTHROPIC_WORKSPACE_ID: "ws_1", PRICING_AI_MODEL: "model-x" } });
   assert.equal(out.comparables.length, 1);
   const { url, init } = seen[0];
   assert.equal(url, "https://api.anthropic.com/v1/messages");
@@ -129,7 +129,7 @@ test("request: same headers as the description call, the web search tool, only I
   assert.equal(body.model, "model-x");
   assert.deepEqual(body.tools, [{ type: "web_search_20250305", name: "web_search", max_uses: 4 }]);
   const prompt = body.messages[0].content;
-  assert.ok(prompt.includes("9780140449136") && prompt.includes("The Odyssey") && prompt.includes("Homer") && prompt.includes("paperback"));
+  assert.ok(prompt.includes("9780140449136") && prompt.includes("The Odyssey") && prompt.includes("Homer") && prompt.includes("trade paperback"));
   assert.match(prompt, /real URL/);
   assert.match(prompt, /THIS exact edition/);
   const noWs = await fetchMarketData({ isbn: "9780140449136" }, { fetchImpl, env: { ANTHROPIC_API_KEY: "k" } });

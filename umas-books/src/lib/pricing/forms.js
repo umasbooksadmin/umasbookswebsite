@@ -10,8 +10,9 @@ const { getSettings } = require("./settings");
 const { countHeldCopies, otherRepriceableCopies } = require("./clearance");
 const { levelText, levelKeyFor } = require("./intake");
 
-const BINDINGS = new Set(["hardcover", "paperback", "mass_market"]);
-const pricingBinding = (v) => (BINDINGS.has(v) ? v : null);
+const { normalizeBinding } = require("../inventory");
+// A known binding (legacy "paperback" = "trade"), or null.
+const pricingBinding = (v) => normalizeBinding(v);
 
 // What the price controls in the views need from the settings.
 async function priceUi(pool = defaultPool) {
