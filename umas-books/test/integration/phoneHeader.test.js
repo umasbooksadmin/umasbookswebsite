@@ -112,7 +112,7 @@ test("books.html without JavaScript: the script-filled sections are hidden by a 
 
 test("French browse page: the genre chips are translated (Jeune adulte, Documentaires)", async () => {
   const html = await get("/books.html", "fr");
-  const dict = JSON.parse(html.match(/PAGE_I18N = (\{.*\});/)[1]).fr;
+  const dict = JSON.parse(html.match(/<script type="application\/json" id="page-i18n-data">(.*?)<\/script>/s)[1]).fr;
   assert.equal(dict["g.ya"], "Jeune adulte");
   assert.equal(dict["g.nonfiction"], "Documentaires");
   assert.equal(dict["g.children"], "Jeunesse");

@@ -61,7 +61,7 @@
     <p class="muted">No sales recorded yet.</p>
   <% } else { %>
     <div style="overflow-x:auto;">
-      <table class="ann-table">
+      <div class="table-scroll"><table class="ann-table">
         <thead><tr><th>When</th><th>Book</th><th>Price</th><th>Paid by</th></tr></thead>
         <tbody>
           <% recent.forEach(s => { %>
@@ -73,7 +73,7 @@
             </tr>
           <% }) %>
         </tbody>
-      </table>
+      </table></div>
     </div>
   <% } %>
 </div>

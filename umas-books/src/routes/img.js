@@ -4,16 +4,26 @@
 // request never reads or sets a session cookie. The key is the SHA-256 of the
 // content, so the bytes behind a URL can never change: cache forever.
 //
-// No rate limiter on purpose: responses are immutable and cacheable (browsers
-// and any CDN stop asking), the lookup is one primary-key read, and a book
-// page legitimately fires dozens of image requests at once — a per-IP limit
-// would break normal browsing (shared school/library IPs) while protecting
-// almost nothing.
+// Rate limit: generous per-IP cap (300/min) on the requests that actually read
+// the database. A book page legitimately fires dozens of image requests at once
+// and a school or library shares one IP, so the cap is far above normal use; it
+// only stops a script walking the store. Malformed names (no DB read) and
+// If-None-Match hits (304, no DB read) are answered BEFORE the limiter and are
+// not counted. The query string plays no part: the route matches the path only
+// and the ETag is the content hash, so /img/<hash>.jpg?x=1 and ?x=2 are the same
+// image with the same validators (a CDN should be set to ignore the query string
+// for /img/*).
 
 const express = require("express");
 const { getImage, FILE_RE, TYPE_BY_EXT } = require("../lib/imageStore");
 
+const { limit } = require("../middleware/rateLimits");
+
 const router = express.Router();
+
+// Counted only for requests that reach the database (see above).
+const IMG_LIMIT_PER_MINUTE = 300;
+const imgLimiter = limit({ windowMs: 60 * 1000, max: IMG_LIMIT_PER_MINUTE });
 
 const IMMUTABLE = "public, max-age=31536000, immutable";
 
@@ -21,11 +31,11 @@ function notFound(res) {
   res.status(404).set("X-Content-Type-Options", "nosniff").type("text/plain").send("Not found");
 }
 
-router.get("/img/:file", async (req, res) => {
+// Step 1 (no database, not rate limited): validate the name, answer 304.
+function precheck(req, res, next) {
   const m = FILE_RE.exec(req.params.file);
   if (!m) return notFound(res);
-  const [, id, ext] = m;
-  const etag = `"${id}"`;
+  const etag = `"${m[1]}"`;
 
   // The hash IS the content, so a client that already holds it needs nothing.
   const inm = req.get("if-none-match");
@@ -33,7 +43,13 @@ router.get("/img/:file", async (req, res) => {
     res.set({ ETag: etag, "Cache-Control": IMMUTABLE });
     return res.status(304).end();
   }
+  req.imgKey = { id: m[1], ext: m[2], etag };
+  next();
+}
 
+// Step 2: the database read.
+router.get("/img/:file", precheck, imgLimiter, async (req, res) => {
+  const { id, ext, etag } = req.imgKey;
   const image = await getImage(id);
   // The extension must agree with what was stored (a .png URL can't serve a JPEG).
   if (!image || image.contentType !== TYPE_BY_EXT[ext]) return notFound(res);
@@ -51,3 +67,4 @@ router.get("/img/:file", async (req, res) => {
 });
 
 module.exports = router;
+module.exports.IMG_LIMIT_PER_MINUTE = IMG_LIMIT_PER_MINUTE;

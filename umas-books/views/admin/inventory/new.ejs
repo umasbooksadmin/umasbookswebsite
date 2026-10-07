@@ -22,37 +22,52 @@
 
     <img id="cover-preview" class="book-cover-preview" alt=""<% if (book.coverUrl) { %> src="<%= book.coverUrl %>"<% } else { %> hidden<% } %>>
 
+    <div class="intake-grid">
+    <div class="field field-wide">
     <label for="title">Title</label>
-    <input id="title" name="title" type="text" required autocomplete="off" autocapitalize="sentences" value="<%= book.title || '' %>">
+    <input id="title" name="title" type="text" required autocomplete="off" autocapitalize="sentences" value="<%= book.title || '' %>"<%= (fromScan && book.isbn && !book.title) ? ' autofocus' : '' %>>
+    </div>
 
+    <div class="field">
     <label for="author">Author</label>
     <input id="author" name="author" type="text" autocomplete="off" autocapitalize="words" value="<%= book.author || '' %>">
+    </div>
 
+    <div class="field">
     <label for="binding">Binding</label>
     <select id="binding" name="binding">
       <option value="">Not specified</option>
       <% bindings.forEach(b => { %><option value="<%= b.value %>" <%= b.value === book.binding ? 'selected' : '' %>><%= b.label %></option><% }) %>
     </select>
     <p class="muted small scan-binding-hint" id="binding-hint" data-binding-hint aria-live="polite"></p>
+    </div>
 
+    <div class="field">
     <label for="condition">Condition</label>
     <select id="condition" name="condition">
       <% conditions.forEach(c => { %><option value="<%= c.value %>" <%= c.value === (typeof selectedCondition !== 'undefined' ? selectedCondition : 'very_good') ? 'selected' : '' %>><%= c.label %></option><% }) %>
     </select>
+    </div>
 
+    <div class="field">
     <label for="location">Location</label>
     <input id="location" name="location" type="text" list="location-options" maxlength="40" value="<%= location %>" placeholder="e.g. FICTION-A1" data-location-input<%= typeof locationQueried !== 'undefined' && locationQueried ? '' : ' data-location-default' %> autocomplete="off" autocapitalize="characters" enterkeyhint="next">
+    </div>
     <%- include('../../partials/location_options') %>
 
+    <div class="field">
     <label for="source">Source</label>
     <select id="source" name="source">
       <option value="" <%= !source ? 'selected' : '' %>>Unknown</option>
       <% sources.forEach(s => { %><option value="<%= s.value %>" <%= s.value === source ? 'selected' : '' %>><%= s.label %></option><% }) %>
     </select>
+    </div>
+
+    </div>
 
     <%- include('_price_control', {
       idSuffix: '', mode: 'intake', condition: typeof selectedCondition !== 'undefined' ? selectedCondition : 'very_good', chipPublisherPrice: typeof publisherPriceValue !== 'undefined' ? publisherPriceValue : '', suggestAction: '/admin/inventory/suggest',
-      suggestion: typeof priceSuggestion !== 'undefined' ? priceSuggestion : null,
+      suggestion: (typeof priceSuggestion !== 'undefined' && (book.isbn || book.title)) ? priceSuggestion : null, // no "Manual review" alert on a blank form
       priceValue: defaultPricing.price,
       selected: typeof priceLevelSelected !== 'undefined' && priceLevelSelected !== undefined ? priceLevelSelected
         : (typeof priceSuggestion !== 'undefined' && priceSuggestion && priceSuggestion.price != null ? priceUi.keyFor(priceSuggestion.price, priceSuggestion.level === 'clearance') : ''),
@@ -127,9 +142,11 @@
     </div>
     </details>
 
-    <div class="scan-actions" data-scan-actions>
+    <div class="form-actions-sticky" data-scan-actions>
+    <div class="scan-actions">
       <button class="btn scan-save-suggested" type="submit" name="fast" value="1" data-scan-save-suggested hidden>Save (suggested price)</button>
       <button class="btn scan-save-next" type="submit" name="fast" value="1" data-scan-save-next>Save and add another</button>
+    </div>
     </div>
     <button class="btn btn-outline scan-save-view" type="submit" name="fast" value="0">Save book</button>
   </form>

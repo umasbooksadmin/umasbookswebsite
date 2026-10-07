@@ -693,7 +693,7 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
   const requestsMatched = await matchBookRequests(() => matchRequestsForCopy(pool, bookId, copyRows[0].id));
 
   // The one-screen add page (fast=1): back to a fresh form (a JSON answer for the fetch from the page itself).
-  if (req.body.fast !== "0" && (req.body.fast === "1" || req.body.fromScan === "1")) {
+  if (req.body.fast !== "0" && (req.body.fast === "1" || req.body.addAnother === "1" || req.body.fromScan === "1")) {
     const copyId = copyRows[0].id;
     if (wantsJson(req)) {
       return res.json({ ok: true, copyId, bookId, title, requests: requestsMatched, labelUrl: `/admin/inventory/labels?id=${copyId}` });

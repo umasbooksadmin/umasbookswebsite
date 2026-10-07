@@ -50,6 +50,15 @@ change). Follow "Restoring from a backup" in
 [`umas-books/README.md`](../umas-books/README.md#restoring-from-a-backup).
 Anything members did since that backup is lost.
 
+## Accounts and secrets inventory
+
+Services the site depends on, and which account owns each. Add a row when a
+new service is set up. (Secrets themselves are listed in section b).)
+
+| Service | Owner account | What it does / watches |
+|---|---|---|
+| UptimeRobot (free plan) | sharonbje@gmail.com | HTTP(s) monitor on `https://umasbooks.org/healthz` every 5 minutes; alerts by email and app. Independent of GitHub and Gmail. See section d) |
+
 ## b) Rotating secrets
 
 Rotate when a secret may have leaked, someone with access leaves, or a service
@@ -250,6 +259,42 @@ request. For site errors and the contact form, set `CONTACT_TO` in Render
 check by sending a test). Simplest option: make admin@umasbooks.org forward to
 two people at the mail provider.
 
+### External monitor: UptimeRobot
+
+A second, independent check watches the site from outside GitHub and Gmail, so
+an outage is still noticed if GitHub Actions or the Gmail account is itself the
+thing that broke.
+
+- **What it is:** UptimeRobot (free plan), account **sharonbje@gmail.com**, one
+  HTTP(s) monitor on `https://umasbooks.org/healthz`, every **5 minutes**.
+  Alerts go to that account's email and to the UptimeRobot app on the phone.
+- **Second layer:** the 30-minute GitHub check (`.github/workflows/uptime-check.yml`)
+  stays on. UptimeRobot is faster; GitHub also emails admin@umasbooks.org.
+- **Pause it for planned maintenance** (a database move, a long deploy): log in
+  at uptimerobot.com > the monitor > **Pause**, and **Resume** when finished.
+  Do not delete it. A paused monitor that is never resumed is the usual way
+  to lose monitoring, so write "resume UptimeRobot" in the maintenance notes.
+- **What an alert means:** `/healthz` did not answer 200 within the time limit:
+  the site is down, the database is unreachable, or `/healthz` is answering 503
+  (it caches its last result for 3 seconds).
+- **First three actions:** (1) open `https://umasbooks.org/healthz` yourself;
+  (2) Render dashboard > `umas-books` > **Events** and **Logs** (is a deploy
+  failing, is the database up?); (3) if the last deploy is the cause, roll back
+  (section a); if the database is down, check Render's status page, and see
+  "Emails are not arriving" (l) only afterwards. Note: since the live site
+  answers only `umasbooks.org`, a check of the `onrender.com` address answers
+  `/healthz` and nothing else, by design.
+
+### What to do when you receive alert X
+
+| Alert | Means | First actions |
+|---|---|---|
+| UptimeRobot "umasbooks.org is DOWN" (email or app) | `/healthz` not answering | Section d) "External monitor": open /healthz, Render Events and Logs, roll back (a) |
+| GitHub "Site down" email | The 30-minute GitHub check failed (second layer) | Same as above; if UptimeRobot said nothing, check the monitor is not paused |
+| Nightly backup failed / no fresh backup | Backup did not reach Backblaze | Section b), `DATABASE_URL` and Backblaze keys; re-run the workflow |
+| Errors in the running site | An unexpected error in the app | Render Logs for the time in the email; if repeated, roll back |
+| "N emails could not be sent" | Gmail refuses mail | Section l) and m) |
+
 ## e) Quarterly and yearly calendar
 
 ### Every quarter (put it in the shared calendar: 1 January, 1 April, 1 July, 1 October)
@@ -270,6 +315,7 @@ two people at the mail provider.
   The pre-registration emails hold a child's name and year of birth, so do not
   skip them.
 - **GitHub Actions minutes:** check usage (see the yearly list below for where).
+- **UptimeRobot:** check the monitors are still active and the plan is still free (section d).
 
 ### Every year
 
@@ -508,6 +554,21 @@ address and not a Cloudflare one.
    Cloudflare address, try 3; if it shows an address that is not yours but
    neither is it Cloudflare, try 1. Never set it higher than needed: too many
    hops let a visitor choose their own IP.
+
+5. **Check BOTH addresses, before launch.** Since the live site answers any
+   request that is not for `umasbooks.org` with a redirect (page views) or
+   `421 Misdirected Request` (form posts, anything but a page view), the
+   direct Render address can only be checked **while the site is still in
+   preview mode** (`PREVIEW_MODE` set). Repeat steps 1 to 3 on
+   `https://umas-books-cmvv.onrender.com/admin/diagnostics/client-ip` first,
+   then on `https://umasbooks.org/...`. On the Render address **req.ip** must
+   also be your own public IP (the chain there is shorter, so with a wrong hop
+   count a visitor could choose their own IP). After launch the Render address
+   only answers `/healthz` and the HelloAsso webhook; this is intended.
+
+### Rolling deploys and `?v=` file addresses
+
+Pages link their scripts and styles as `/file.js?v=<hash>`, and such a URL is cached for a year. During a deploy, old and new instances overlap, so a visitor can get old HTML (pointing at `?v=old`) from one instance and the file from another. Rule: a release must **add** the new files (they get a new `?v=`) and must not delete or rename a file that the previous release's HTML still links, until the next release. The marketing pages' scripts are `public/page-*.js` and `public/page-i18n.js`.
 
 ### Turning it on again
 
@@ -845,6 +906,16 @@ Admin > **Email outbox**.
 The text of sent emails is erased after 30 days (failed ones after 90): old rows
 only show who/what/when.
 
+Throttled mail is normal, not a fault: signup, forgot-password, membership
+join and book-request mails go to a given address at most once per 10 minutes
+per kind, five a day, with a shop-wide hourly cap (`THROTTLE` in
+`umas-books/src/lib/outbox.js`). The person sees the usual neutral answer; the
+server log line "Mail throttled (kind:reason)" counts them. If a genuine person
+says no mail came, ask them to wait 10 minutes and look in spam before trying
+again. A reset or confirmation mail that failed or whose link has expired shows
+no text in the outbox (blanked on purpose) and cannot be retried: the person
+asks again.
+
 ## m) Gmail password revoked
 
 Symptoms: "Invalid login" in the outbox errors, uptime/backup alert emails
@@ -938,6 +1009,10 @@ Written for the person who runs the shop. Nothing here needs a developer.
    see its manual ("add CR suffix"). If the characters are wrong (for example
    digits turn into symbols), the scanner is set to the wrong keyboard layout
    (set it to US layout, or the layout of the tablet).
+   **The scanner suffix must be Enter, not Tab.** With a Tab suffix the cursor
+   leaves the scan box after each code and two scans run together into one
+   wrong code (for example `UB-12UB-13`). The Till page says the same at the
+   bottom of the payment column.
 4. The page keeps the cursor in the scan box by itself. After a mistake the
    screen shows a red message and beeps (untick "Beep on errors" to silence).
 
@@ -949,6 +1024,18 @@ or **Inventory > Labels**, or **Price stickers > Print labels**. Choose the
 size (width and height in millimetres) and **a label roll** (one label per
 page) or **a sheet of labels** (A4). In the print window choose **100% / actual
 size** and no headers or footers, and print one label to check before many.
+The page title and menu are never printed: the first page of a roll is the
+first label.
+
+**Printer resolution (`dpi`).** Choose **203 dpi** (most label printers) or
+**300 dpi** (`&dpi=300` in the address). The barcode is drawn with a whole
+number of printer dots per narrowest bar: 3 dots at 203 dpi, 4 dots at 300 dpi.
+A bar of 2.6 dots would print as some bars of 2 and some of 3 dots and scan
+badly, so the width of the barcode follows from the length of the code (about
+42 mm for `UB-1234` at 203 dpi), not from the width of the label. If the label
+is too narrow the page shows a warning: the bars are then drawn with fewer
+dots per bar (never a fraction), the text is made smaller, and the warning says
+which width is needed. Use at least 45 mm labels for the standard size.
 
 ### Books with no ISBN
 
@@ -1048,13 +1135,39 @@ on the till as Cash or Card (put "app" in the card reference).
 
 ### The accounting export for the treasurer
 
-**Reports > Accounting export**: choose the dates, **Download CSV**. One row per
-day, category (Books used, Books new, Merchandise, Refreshments, Class seats,
-Membership, Donation, Other) and payment method (Cash, Card at the till,
-HelloAsso), with the count and the total in euros. It never contains names or
-emails. Voided sales and refunded orders are left out. "Books (other)" manual
-items appear as Other. Whether Paheko's import accepts this layout is not
-confirmed: see `docs/till-todos.md`.
+**Reports > Accounting export**: choose the dates, then **Download CSV**
+(comma separators and decimal points) or **Download for French Excel**
+(semicolon separators, decimal commas, UTF-8 with BOM, Windows line ends: French
+Excel opens it in columns with real numbers; the plain CSV opens as one column
+of text in French Excel). The same two downloads exist on the End of day page
+and on the other reports.
+
+**Giving the export to the treasurer.**
+
+1. At the start of each month download the previous month (first to last day)
+   with **Download for French Excel** and send the file. Row layout: Date,
+   Category, Payment method, Count, Total (EUR), Libellé, Compte débit,
+   Compte crédit, Journal. One row per Paris day, category and payment method
+   (Cash, Card at the till, HelloAsso, Other / not recorded). It never contains
+   names or emails.
+2. **Refunds.** A refunded online order keeps its row on the day it was paid and
+   gets a **negative** row (negative count and total, label "Remboursement ...")
+   on the day it was refunded. A month already sent is therefore not changed:
+   the correction is in the export of the month of the refund.
+3. **Cash over/short.** When a day is closed with a difference, one row
+   "Cash over/short" appears (positive: over, negative: short) with the accounts
+   658 / 758. The opening float is never revenue and appears nowhere.
+4. **Accounts.** The debit account, credit account and journal of each row come
+   from **Reports > Accounting export > Accounts mapping**
+   (`/admin/reports/accounting/mapping`), an editable table; each change is
+   recorded in Admin activity. Starting values: cash 530; cards and HelloAsso
+   511 (clearing account, to confirm: the treasurer may want 512); payment with
+   no recorded method 471; Books used, Books new, Merchandise, Refreshments
+   707; Class seats 706; Membership 756; Donation 754; Other 708; over 758,
+   short 658. **These are only a starting point: ask the treasurer to confirm
+   the account numbers and the import layout.** Nothing here was checked
+   against Paheko or any other software.
+5. Voided till sales and cancelled online orders are not in the export.
 
 ### Later: the SumUp Cloud API
 
@@ -1063,7 +1176,77 @@ implementation (`src/lib/cardPayments.js`) but nothing is connected and no
 environment variable is read. When it is built it will need a SumUp API key and
 a paired Solo reader as Render environment variables (names to be decided then).
 
-## q) Fast scanning of books (adding stock)
+## q) A data request (access or erasure)
+
+Someone writes to admin@umasbooks.org asking what we hold about them, or to be
+erased, with or without an account. The tool is admin > **Privacy requests**
+(`/admin/privacy`). The privacy policy promises an answer within one month.
+
+**1. Log it.** Add a line to `docs/privacy/requests-log.md` (date received, kind,
+deadline). No names or addresses in that file, only a number.
+
+**2. Check who is asking.** The request must come from the address concerned: reply
+to the message and ask them to answer from that address, or to send proof they own
+it (a message from it is enough). If they write from another address, ask for proof
+(never accept a request for someone else's data without it, and never send data to
+an address that was not the one on the request).
+
+**3. Deadline.** One month from receiving the request (and the proof). It can be
+extended by two further months if the request is complex or there are many, but you
+must tell the person within the first month, with the reason.
+
+**4. Search everywhere** (the tool covers the database only):
+- Admin > **Privacy requests**: type the address > **Look up**. It lists accounts,
+  orders, reservations, event and class sign-ups, book requests, membership payments
+  (and unmatched ones), stored emails (subject and date) and form mail.
+- **The Gmail inbox admin@umasbooks.org**: search the address and the person's name.
+  Contact, volunteer sign-up and pre-registration messages (a pre-registration holds a
+  child's name and date of birth) live there, not in the database after 30 days.
+- **Backblaze backups** are not searched: they age out by themselves (nightly dumps
+  30 days, monthly 2 years). Tell the person that when you answer an erasure.
+- Render logs hold no personal data by design (14 days).
+
+**5a. Access.** Press **Download everything (JSON)** and send the file as an
+attachment to the address (or a link that expires), plus any Gmail messages found.
+
+**5b. Erasure.** Press **Erase everything for this address**, type the address again
+and confirm. Accounts, sign-ups, reservations, book requests and stored emails are
+deleted; paid orders and payment records stay for 10 years with the name replaced by
+"Erased" (accounting law). Then delete the Gmail messages found (and empty the
+Trash). An administrator's address is refused: remove the role in Accounts first.
+
+**6. Answer and record.** Send the answer, and fill in the log line (date answered,
+what was done). The audit entries (`privacy.lookup`, `privacy.export`,
+`privacy.erase`) hold a code, never the address.
+
+Answer templates (adapt the details):
+
+*English, access:* "Hello, thank you for your request of [date]. We confirmed it came
+from your address. Attached is a file with the personal data we hold about you
+(accounts, orders, sign-ups, requests). [We also found N emails in our mailbox, listed
+below.] You can ask us to correct or erase anything. Uma's Books and Adventures, admin@umasbooks.org."
+
+*English, erasure:* "Hello, thank you for your request of [date]. We have erased the
+data held under your address, with one exception: orders and payments are kept without
+your name, email or phone for 10 years because French accounting law requires it.
+Backups containing older copies are deleted automatically within 30 days (nightly) and
+2 years (monthly archive); they are never used. Uma's Books and Adventures."
+
+*Français, accès :* « Bonjour, merci pour votre demande du [date]. Nous avons vérifié
+qu'elle provient bien de votre adresse. Vous trouverez en pièce jointe un fichier avec
+les données personnelles que nous détenons sur vous (comptes, commandes, inscriptions,
+demandes). [Nous avons aussi trouvé N messages dans notre boîte mail, listés
+ci-dessous.] Vous pouvez nous demander de corriger ou d'effacer toute donnée. Uma's Books
+and Adventures, admin@umasbooks.org. »
+
+*Français, effacement :* « Bonjour, merci pour votre demande du [date]. Nous avons
+effacé les données liées à votre adresse, à une exception : les commandes et paiements
+sont conservés 10 ans sans votre nom, e-mail ni téléphone, car la loi comptable
+française l'exige. Les sauvegardes contenant d'anciennes copies sont supprimées
+automatiquement sous 30 jours (quotidiennes) et 2 ans (archive mensuelle) ; elles ne
+sont jamais utilisées. Uma's Books and Adventures. »
+
+## r) Fast scanning of books (adding stock)
 
 For adding many books in a row: **Books & Orders > Scan a book** (the **Add Book** page,
 `/admin/inventory/new`). Details of what the page does: `umas-books/README.md`, "Fast scanning".
@@ -1101,4 +1284,3 @@ to the next field: set it to Enter.
   (it may have been saved).
 - "Not found: fill in by hand": Open Library does not know the ISBN. Type title and author.
 - "Too many lookups": the limit is 120 a minute per person; wait a minute.
-

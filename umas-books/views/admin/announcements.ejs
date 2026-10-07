@@ -50,7 +50,7 @@
 <div class="ann-layout">
   <div class="ann-list-col">
     <div class="card" style="padding:16px 18px;">
-      <form method="post" action="/admin/announcements/bulk">
+      <form data-confirm="Delete the selected items permanently? This can't be undone." data-confirm-field="bulkAction" data-confirm-values="delete" method="post" action="/admin/announcements/bulk">
         <%- include('../partials/csrf_field') %>
         <input type="hidden" name="backQuery" value="<%= currentQs %>">
         <div class="ann-bulk-row">
@@ -64,7 +64,7 @@
           <button class="btn btn-outline btn-small" type="submit">Apply</button>
         </div>
         <div style="overflow-x:auto;">
-        <table class="ann-table">
+        <div class="table-scroll"><table class="ann-table">
           <thead>
             <tr>
               <th><input type="checkbox" data-select-all="ann-rows"></th>
@@ -151,7 +151,7 @@
               </tr>
             <% }) %>
           </tbody>
-        </table>
+        </table></div>
         </div>
       </form>
     </div>

@@ -151,7 +151,7 @@ test("the HelloAsso form is click-to-load, with a title for the iframe it create
   assert.ok(!html.includes("<iframe"), "nothing is requested from HelloAsso before the click");
   assert.match(html, /id="haWidgetHolder"[^>]*data-title-en="HelloAsso membership form" data-title-fr="Formulaire d’adhésion HelloAsso"/);
   assert.match(html, /<button id="haShow" class="btn btn-maroon" type="button"[^>]*>Show the HelloAsso form<\/button>/);
-  assert.match(html, /<script src="assets\/membership-widget\.js"><\/script>/);
+  assert.match(html, /<script src="\/assets\/membership-widget\.js\?v=[0-9a-f]+"><\/script>/);
 });
 
 test("login, signup and password forms carry autocomplete tokens", async () => {

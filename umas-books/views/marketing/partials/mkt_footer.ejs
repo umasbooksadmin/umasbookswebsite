@@ -3,24 +3,24 @@
    pageI18nEn/pageI18nFr (objects of this page's own i18n strings — nav,
    footer and other cross-page strings already live in site.js's COMMON
    dict and don't need to be repeated here), extraScripts (array of
-   extra <script src> paths, e.g. ['assets/blog.js']), extraInlineScript
-   (a raw JS string for one more <script> block, e.g. to kick off a
-   carousel once its script has loaded). */
+   extra script file paths, e.g. ['assets/blog.js'] or '/page-home.js').
+   There are NO inline scripts any more: the marketing CSP forbids them. */
 %>
 </main>
 <% if (typeof registerPageDict === 'function') registerPageDict(typeof pageI18nEn !== 'undefined' ? pageI18nEn : {}, typeof pageI18nFr !== 'undefined' ? pageI18nFr : {}); %>
 
 <%- include('../../partials/mkt_chrome_footer') %>
 
-<script>
-window.PAGE_I18N = <%- JSON.stringify({
+<%# This page's strings as DATA: a type="application/json" block is never executed, so the
+    marketing CSP needs no 'unsafe-inline'. public/page-i18n.js reads it into window.PAGE_I18N
+    (before site.js). "<" is escaped so no string can close the element. %>
+<script type="application/json" id="page-i18n-data"><%- JSON.stringify({
   en: (typeof pageI18nEn !== 'undefined' ? pageI18nEn : {}),
   fr: (typeof pageI18nFr !== 'undefined' ? pageI18nFr : {}),
-}) %>;
-</script>
+}).replace(/</g, '\\u003c').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %></script>
+<script src="<%= assetUrl('/page-i18n.js') %>"></script>
 <script src="<%= assetUrl('/assets/site.js') %>"></script>
 <script src="<%= assetUrl('/app.js') %>"></script>
-<% (typeof extraScripts !== 'undefined' ? extraScripts : []).forEach(src => { %><script src="<%= src %>"></script><% }) %>
-<% if (typeof extraInlineScript !== 'undefined' && extraInlineScript) { %><script><%- extraInlineScript %></script><% } %>
+<% (typeof extraScripts !== 'undefined' ? extraScripts : []).forEach(src => { %><script src="<%= assetUrl(src.charAt(0) === '/' ? src : '/' + src) %>"></script><% }) %>
 </body>
 </html>

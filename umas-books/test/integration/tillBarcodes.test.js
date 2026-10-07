@@ -107,8 +107,7 @@ test("generated shop codes ITEM-<id>: by the checkbox and by the button; the lab
 
   const label = await h.get(`/admin/till/items/${b.id}/label?w=40&h=20`);
   assert.equal(label.res.status, 200);
-  const code128 = require("../../src/lib/code128");
-  assert.ok(label.text.includes(code128.svg(`ITEM-${b.id}`, { height: 40 }).slice(0, 120)), "the barcode of the shop code");
+  assert.match(label.text, new RegExp(`<svg class="barcode"[^>]*data-module-dots="3"[^>]*aria-label="Barcode ITEM-${b.id}"`), "the barcode of the shop code, in whole printer dots");
   assert.match(label.text, new RegExp(`Shop code ITEM-${b.id}`));
   assert.match(label.text, /--lw: 40mm; --lh: 20mm/);
   assert.match((await h.get("/admin/till/items")).text, new RegExp(`/admin/till/items/${b.id}/label`));

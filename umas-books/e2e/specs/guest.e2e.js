@@ -281,6 +281,22 @@ s.test("G20 hearting a book lists it on the favorites page (kept in this browser
   await ctx.page.waitForFunction((t) => document.body.innerText.includes(t), {}, book.title);
 });
 
+s.test("G80 (must) marketing pages work with no inline scripts: language toggle, books shelves, events schedule, blog", async (ctx) => {
+  const violations = [];
+  ctx.page.on("console", (m) => { if (/Content Security Policy/i.test(m.text())) violations.push(m.text()); });
+  await ctx.goto("/books.html", "networkidle2");
+  await ctx.page.waitForSelector("#bk-results .bk-book, #bk-genre-list .bk-genre", { timeout: 15000 });
+  assert.ok(await ctx.page.$("#bk-genre-list .bk-genre"), "the genre shelves are drawn by the external page script");
+  await ctx.page.click(".langtoggle [data-lang='fr']");
+  await ctx.page.waitForFunction(() => /Parcourir les livres/.test(document.body.innerText), { timeout: 10000 });
+  await ctx.goto("/events.html", "networkidle2");
+  await ctx.page.waitForSelector("#events-schedule .ev-item, #events-schedule .ev-empty", { timeout: 15000 });
+  await ctx.goto("/blog.html", "networkidle2");
+  await ctx.page.waitForSelector("#blog-root .blog-grid, #blog-root .blog-empty", { timeout: 15000 });
+  await ctx.goto("/", "networkidle2");
+  assert.deepEqual(violations, [], "no Content-Security-Policy violation on these pages");
+});
+
 s.test("G21 (must) a copy with no price shows 'Ask in the shop' and no Add to Cart", async (ctx) => {
   const list = await e2e.books();
   // A book whose price is null has only unpriced copies; mixed books are found by scanning pages.

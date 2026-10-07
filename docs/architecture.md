@@ -722,7 +722,19 @@ contact form to the shop) goes through `lib/outbox.js`: **store, then send**.
 - Retention: recipient/subject/body of **sent** rows are erased after 30 days,
   of failed/handled rows after 90 (`RETENTION.outboxSentDays/outboxFailedDays`,
   step `emailOutbox`); one-time-link mails lose their body as soon as they are
-  sent; erasing an account erases its rows. The goodbye email on self-deletion
+  sent, **when they fail**, and when their link lifetime passes while still
+  pending (reset 1 h, confirmation 24 h: status `expired`, never retried), so a
+  link never sits in a database dump; erasing an account erases its rows, and so
+  does erasing an address (rows are matched on `to_email` and on `subject_email`,
+  the submitter's address on form mail, migration 068).
+- **Per-recipient throttle** (`THROTTLED_KINDS`: verification, signup_attempt,
+  password_reset, book_request_confirm, book_request_list): at most 1 mail per
+  (recipient, kind) per 10 minutes, 5 per recipient per day, and a shop-wide
+  ceiling per kind per hour (`THROTTLE` constants; `MAIL_GLOBAL_PER_HOUR`
+  overrides, used by tests). A throttled request stores nothing and logs a
+  counter (`getThrottleCounts`, no address); the web response stays neutral.
+  Resend buttons and the two book-request mails (a person may ask for 3 books in a row) pass `throttle: "skipInterval"` (the 10-minute rule is skipped, the daily and hourly caps stay), admin actions
+  `"off"`; order and reservation mail is never throttled. The goodbye email on self-deletion
   is the one mail that bypasses the outbox (the address is erased right after).
 
 ---
@@ -1081,6 +1093,12 @@ flowchart TD
 | Email | one address only (no list separators), names stripped of links and angle brackets before going into mail; every customer email is stored in `email_outbox` first and retried (§7), stored copies are erased after 30 days |
 | Transport to the database | `rejectUnauthorized: false` is deliberate: Render's internal Postgres uses a per-instance self-signed certificate on a private network |
 | Supply chain | `npm audit` in CI; lockfile-exact builds; third-party Actions pinned by commit; weekly Dependabot pull requests, never auto-merged |
+| Direct-origin bypass | on a live site any request whose Host is not the host of `APP_BASE_URL` is redirected (GET/HEAD) or answered `421 Misdirected Request` (every other method), except `/healthz` and `/webhooks/helloasso`. The `onrender.com` address skips Cloudflare, so its proxy chain is shorter than `TRUST_PROXY_HOPS` assumes and a client-supplied `X-Forwarded-For` could otherwise become `req.ip` and defeat the per-IP limits (`middleware/canonicalHost.js`) |
+| Login lockout | per (account, IP) pair (5 wrong passwords, 15 minutes) plus a softer per-account total (20 in 15 minutes, refused only for addresses that never logged in to that account in the last 30 days), in memory (`lib/loginThrottle.js`): a stranger cannot lock the owner out. Two-step codes keep the per-account database lock |
+| Cover downloads | https only, two allowed hosts, every address class blocked by a `node:net` BlockList (private, loopback, link-local, CGNAT, multicast, reserved, IPv4-mapped in dotted and hex form, NAT64, 6to4, Teredo); the name is resolved once and the connection goes to that checked address with the real Host and TLS server name (no DNS rebinding window) (`lib/coverStore.js`) |
+| `/img` and static files | `/img` has a 300 per minute per IP limit on database reads (bad names and `If-None-Match` answers are free and never read the database). `public/`, `/assets` and `/logo.png` are mounted before helmet, so they set `nosniff`, `Referrer-Policy: no-referrer` and `Cross-Origin-Resource-Policy: cross-origin` themselves (`lib/assetUrl.js` `staticHeaders`). A `?v=` URL is immutable for a year, so on a deploy the new files must exist before old HTML stops pointing at them (the rolling deploy keeps serving old HTML from old instances that also have the old files; never delete a file a page still links in the same release) |
+| `/healthz` | the `SELECT 1` answer is cached for 3 seconds and a failed last check answers 503 (`lib/health.js`), so polling it cannot become a query loop |
+| Marketing CSP | the marketing pages share an origin with `/admin`, so `script-src` is `'self'` only (no `'unsafe-inline'`) and `script-src-attr 'none'`. The pages carry no inline script: their strings are a `<script type="application/json" id="page-i18n-data">` block read by `public/page-i18n.js`, and page code lives in `public/page-*.js` |
 | Caching | pages shown to a logged-in user are sent `no-store` (the Back button after logout shows nothing private); only `/img/` photos stay cacheable |
 
 **Personal data (GDPR).** Most personal data is keyed by email address, not by
@@ -1101,6 +1119,19 @@ reservations behind. The code handles it in one place (`lib/privacy.js`):
 * **Admin data export**: on a member's page an admin can download everything held
   about them as JSON (right of access). Password hashes, tokens and two-step
   secrets are never included.
+* **Requests without an account** (admin, `/admin/privacy`,
+  `lib/privacyRequests.js`): look an email address up, download everything held
+  under it (member exports for each account plus the address-keyed sections, via
+  `lib/memberExport.js`), or erase it (typed address, one transaction:
+  `eraseMember` for each account, `eraseEmailKeyedData` for the rest, outbox rows
+  by recipient and by `subject_email`; paid orders and payments anonymised). The
+  audit entry holds a keyed hash of the address, never the address; an
+  administrator's address is refused. Procedure: `docs/runbook.md`, "A data
+  request".
+* **Audit log retention:** free text (`detail`) is blanked after 6 months
+  (`RETENTION.auditDetailMonths`, a refund note or void reason can name a
+  customer); the row (action, admin, time) stays 12 months. The Accounts report
+  page view is logged (`reports.accounts.view`, once an hour per admin).
 * Contact-form messages stay in the Gmail inbox and server logs stay with Render;
   neither is purged automatically. The processing register and breach log are in
   `docs/privacy/`.

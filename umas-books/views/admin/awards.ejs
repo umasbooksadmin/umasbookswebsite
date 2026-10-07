@@ -26,7 +26,7 @@
       <%- include('../partials/csrf_field') %>
     </form>
     <div style="overflow-x:auto;">
-      <table class="ann-table">
+      <div class="table-scroll"><table class="ann-table">
         <thead>
           <tr>
             <th>Select</th>
@@ -58,7 +58,7 @@
             </tr>
           <% }) %>
         </tbody>
-      </table>
+      </table></div>
     </div>
     <p style="margin-top:12px;"><button class="btn btn-small" type="submit" form="bulk-approve">Approve selected</button></p>
   <% } %>

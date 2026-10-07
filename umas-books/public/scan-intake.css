@@ -48,7 +48,7 @@
 
 /* The Save bar sticks to the bottom of the screen; --kb-inset (scan-intake.js)
    lifts it above the on-screen keyboard, env() clears the home indicator. */
-.scan-intake .scan-actions {
+.scan-intake .form-actions-sticky[data-scan-actions] {
   position: sticky; bottom: 0; z-index: 5; background: var(--panel, #fff);
   padding: 10px 0 calc(10px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--card-border);
   transform: translateY(calc(-1 * var(--kb-inset, 0px)));
@@ -66,7 +66,6 @@
   .admin-topbar-tools { flex-wrap: wrap; gap: 10px; width: 100%; min-width: 0; }
   .admin-search { flex: 1 1 140px; min-width: 0; }
   .admin-search input { width: 100%; min-width: 0; font-size: 16px; min-height: 44px; }
-  .admin-nav-toggle { width: 44px; height: 44px; }
 }
 @media (min-width: 768px) {
   .scan-actions { flex-direction: row; }
@@ -75,5 +74,3 @@
 
 .scan-save-view { width: 100%; box-sizing: border-box; justify-content: center; text-align: center; margin-top: 4px; }
 @media (pointer: coarse) { .scan-hint .kbd-hint { display: none; } }
-/* The closed menu drawer's shadow leaked onto the left edge of the screen. */
-@media (max-width: 640px) { .admin-layout:not(.is-nav-open) .admin-sidebar { box-shadow: none; } }
