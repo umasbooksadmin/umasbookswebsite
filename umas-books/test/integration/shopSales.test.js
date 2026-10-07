@@ -6,7 +6,7 @@ const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const bcrypt = require("bcryptjs");
 const { startTestApp } = require("../helpers/testApp");
-const { makeCookieJar, fetchCsrfToken } = require("../helpers/httpClient");
+const { makeCookieJar, fetchCsrfToken, followSeeOther } = require("../helpers/httpClient");
 
 const PORT = 3791;
 const PASSWORD = "Shop-Sales-Test-1!";
@@ -47,7 +47,7 @@ async function post(path, fields, token) {
     body: new URLSearchParams({ ...fields, _csrf: csrf }).toString(),
   });
   jar.capture(res);
-  return res;
+  return followSeeOther(res, { base: app.base, jar, headers: { "x-forwarded-for": "10.79.1.1" } });
 }
 
 async function get(path, useJar = jar) {
@@ -143,7 +143,7 @@ test("an already sold copy is refused and nothing is recorded twice", async () =
   const copyId = await seedCopy(book.id);
   assert.equal((await record(copyId, "5")).status, 302);
   const again = await record(copyId, "5");
-  assert.equal(again.status, 409);
+  assert.equal(again.status, 200);
   assert.match(await again.text(), /no longer for sale/);
   assert.equal((await salesOf(copyId)).length, 1);
   // And scanning it finds nothing to sell.
@@ -164,7 +164,7 @@ test("a negative or missing price is refused", async () => {
   const copyId = await seedCopy(book.id);
   for (const price of ["-1", "", "abc"]) {
     const res = await record(copyId, price);
-    assert.equal(res.status, 400, `price "${price}"`);
+    assert.equal(res.status, 200, `price "${price}"`);
     assert.match(await res.text(), /Enter the price/);
   }
   assert.equal((await copyRow(copyId)).status, "in_stock");
@@ -197,7 +197,7 @@ test("a new book must sell at the publisher's price, at most 5% off", async () =
   const copyId = await seedCopy(book.id, { condition: "new", price: 20, publisherPrice: 20 });
   for (const price of ["15", "18.99", "20.01"]) {
     const res = await record(copyId, price);
-    assert.equal(res.status, 400, price);
+    assert.equal(res.status, 200, price);
     assert.match(await res.text(), /must be sold at the publisher(&#39;|')s price/);
   }
   assert.equal((await copyRow(copyId)).status, "in_stock");
@@ -227,7 +227,7 @@ test("two people selling the same single copy at once: exactly one sale goes thr
   await holder.query("COMMIT");
   holder.release();
   const race = await racing;
-  assert.deepEqual(race.map((r) => r.status).sort(), [302, 409], "one wins, the other is told it is gone");
+  assert.deepEqual(race.map((r) => r.status).sort(), [200, 302], "one wins (302), the other is told it is gone (its refusal page)");
   assert.equal((await salesOf(copyId)).length, 1, "only one shop_sales row");
   const audits = await pool.query("SELECT 1 FROM admin_audit_log WHERE action = 'copy.shop_sale' AND target_id = $1", [copyId]);
   assert.equal(audits.rowCount, 1);

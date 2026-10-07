@@ -4,6 +4,7 @@
 const express = require("express");
 const { pool, withTransaction } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
+const { setFlash, takeFlash } = require("../../lib/flash");
 const { audit } = require("../../lib/audit");
 const { validateIdParams } = require("../../middleware/idParams");
 const { getSettings, getSettingsAndRow, validateSettingsInput, saveSettings, NUMBER_FIELDS } = require("../../lib/pricing/settings");
@@ -78,12 +79,18 @@ async function renderSettings(res, { error = null, form = null, saved = false, q
 }
 
 router.get("/admin/pricing", requireAdmin, async (req, res) => {
+  // A refused save redirects here (Post/Redirect/Get) with the message and what was typed.
+  const f = takeFlash(req, "pricing");
+  if (f && f.error) return renderSettings(res, { error: String(f.error), form: f.form || null, query: req.query });
   await renderSettings(res, { saved: req.query.saved === "1", query: req.query });
 });
 
 router.post("/admin/pricing", requireAdmin, async (req, res) => {
   const parsed = validateSettingsInput(req.body);
-  if (parsed.error) return renderSettings(res.status(400), { error: parsed.error, form: typedValues(req.body) });
+  if (parsed.error) {
+    await setFlash(req, "pricing", { error: parsed.error, form: typedValues(req.body) });
+    return res.redirect(303, "/admin/pricing");
+  }
   const changed = await saveSettings(pool, parsed.values);
   if (changed.length) await audit(req, { action: "pricing.settings", detail: changed.join(", ") });
   res.redirect("/admin/pricing?saved=1");

@@ -3,7 +3,7 @@
 const { strict: assert } = require("node:assert");
 const bcrypt = require("bcryptjs");
 const { startTestApp } = require("./testApp");
-const { makeCookieJar, fetchCsrfToken } = require("./httpClient");
+const { makeCookieJar, fetchCsrfToken, followSeeOther } = require("./httpClient");
 
 const FORM = { "content-type": "application/x-www-form-urlencoded" };
 
@@ -22,7 +22,7 @@ async function tillHarness({ port, ip }) {
       body: new URLSearchParams({ ...fields, _csrf: csrf }).toString(),
     });
     jar.capture(res);
-    return res;
+    return followSeeOther(res, { base: h.app.base, jar, headers: { "x-forwarded-for": ip } });
   };
   h.get = async (path, jar = h.jar) => {
     const res = await fetch(`${h.app.base}${path}`, { redirect: "manual", headers: { cookie: jar.header(), "x-forwarded-for": ip } });
