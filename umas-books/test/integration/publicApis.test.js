@@ -1,12 +1,10 @@
 // Public JSON endpoints and the book detail page (src/routes/books.js,
 // src/routes/blog.js) against the real app: search q/genre/topic filters and
-// result cap, latest-arrivals limit/days clamping, genres, the weekly
-// recommendation's eligibility rules, by-ids, favorites toggle auth, book
+// result cap, latest-arrivals limit/days clamping, genres, by-ids, favorites toggle auth, book
 // detail 404s/escaping, and the blog feed hiding drafts and future posts.
 //
-// Own throwaway database (isolated:true) because latest-arrivals and the
-// recommendation are global "newest N" / "one pick" queries that other test
-// files' rows would otherwise crowd. Search results are filtered by a unique
+// Own throwaway database (isolated:true) because latest-arrivals is a
+// global "newest N" query that other test files' rows would otherwise crowd. Search results are filtered by a unique
 // per-run tag, so they don't depend on that.
 
 const { test, before, after } = require("node:test");
@@ -212,30 +210,17 @@ test("latest-arrivals: ?days= windows by copy age; days=0 removes the window; so
   assert.equal((await api("/api/books/latest-arrivals?days=-1&limit=24")).status, 200);
 });
 
-// -------------------------------------------------------- recommendation
+// ------------------------------------------- recommendation of the week (removed)
 
-test("recommendation: null with no eligible favorites; only member/admin favorites of in-stock books qualify; stable within the week", async () => {
-  const empty = await api("/api/books/recommendation");
-  assert.equal(empty.res.headers.get("access-control-allow-origin"), "*");
-  assert.equal(empty.res.headers.get("cache-control"), "public, max-age=300");
-  assert.equal(empty.json, null);
-
-  const plainUser = await makeLoggedInUser({ member: false });
-  const memberUser = await makeLoggedInUser({ member: true });
-  const nonMemberBook = await makeBook({ title: `${TAG} FavPlain` });
-  const soldBook = await makeBook({ title: `${TAG} FavSold`, copies: [{ status: "sold" }] });
-  await pool.query("INSERT INTO favorites (user_id, book_id) VALUES ($1, $2)", [plainUser.id, nonMemberBook.id]);
-  await pool.query("INSERT INTO favorites (user_id, book_id) VALUES ($1, $2)", [memberUser.id, soldBook.id]);
-  assert.equal((await api("/api/books/recommendation")).json, null, "non-member favorites and sold-out books don't qualify");
-
-  const pick = await makeBook({ title: `${TAG} FavPick`, description: "English blurb", authors: "Pick Author", coverUrl: "/p.png" });
-  await pool.query("INSERT INTO favorites (user_id, book_id) VALUES ($1, $2)", [memberUser.id, pick.id]);
-  const first = await api("/api/books/recommendation");
-  assert.deepEqual(first.json, {
-    id: pick.id, title: pick.title, author: "Pick Author", coverUrl: "/p.png",
-    blurb: { en: "English blurb", fr: "English blurb" }, url: `${app.base}/books/${pick.id}`,
-  });
-  assert.deepEqual((await api("/api/books/recommendation")).json, first.json);
+test("the 'recommendation of the week' feature is gone: the API route 404s and /books.html has no such section", async () => {
+  assert.equal((await api("/api/books/recommendation")).status, 404);
+  const html = await (await fetch(`${app.base}/books.html`)).text();
+  assert.doesNotMatch(html, /bk-rec|recommendation of the week|coup de c[œo]eur de la semaine/i);
+  assert.match(html, /bk-new/, "the New In section is still there");
+  const css = await (await fetch(`${app.base}${(html.match(/href="([^"]*\/books\.css[^"]*)"/) || [])[1]}`)).text();
+  assert.doesNotMatch(css, /\.bk-rec|rec-cover|recommendation of the week/i);
+  const js = await (await fetch(`${app.base}${(html.match(/src="([^"]*page-books\.js[^"]*)"/) || [])[1]}`)).text();
+  assert.doesNotMatch(js, /recommendation|bk-rec/i);
 });
 
 // ------------------------------------------------------- by-ids / favorites
