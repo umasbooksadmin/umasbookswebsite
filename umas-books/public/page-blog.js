@@ -1,0 +1,38 @@
+// Blog page (views/marketing/blog.ejs): list and single post. Needs assets/blog.js (UmasBlog). Was an inline <script>.
+(function () {
+  var root = document.getElementById('blog-root');
+  var B = window.UmasBlog;
+  function draw() {
+    var l = B.lang(), slug = new URLSearchParams(location.search).get('post');
+    if (slug) {
+      var p = B.posts().filter(function (x) { return x.slug === slug; })[0];
+      if (!p) {
+        root.innerHTML = '<div class="blog-post"><a class="back" href="blog.html">&larr; ' + B.esc(B.ui('back')) + '</a><p>' + B.esc(B.ui('notFound')) + '</p></div>';
+        return;
+      }
+      var title = B.pick(p.title, l);
+      document.title = title + ' — Uma\'s Books and Adventures';
+      var body = B.pick(p.body, l) || [];
+      var bodyHtml = Array.isArray(body) ? body.map(function (para) { return '<p>' + B.esc(para) + '</p>'; }).join('') : body;
+      root.innerHTML = '<article class="blog-post">' +
+        '<a class="back" href="blog.html">&larr; ' + B.esc(B.ui('back')) + '</a>' +
+        '<div class="blog-date">' + B.esc(B.fmtDate(p.date, l)) + '</div>' +
+        '<h1>' + B.esc(title) + '</h1>' +
+        B.image(p, 'blog-post-img') +
+        bodyHtml +
+      '</article>';
+      return;
+    }
+    document.title = "Blog — Uma's Books and Adventures";
+    var list = B.posts();
+    root.innerHTML = '<h1 class="blog-page-title" data-i18n="blog.title">Blog</h1>' +
+      (list.length
+        ? '<div class="blog-grid">' + list.map(function (p) { return B.card(p, l); }).join('') + '</div>'
+        : '<p class="blog-empty">' + B.esc(B.ui('empty')) + '</p>');
+  }
+  draw();
+  document.querySelectorAll('.langtoggle button').forEach(function (b) {
+    b.addEventListener('click', function () { setTimeout(draw, 0); });
+  });
+  window.addEventListener('umasposts:updated', draw);
+})();

@@ -42,7 +42,22 @@ test("live: the canonical host (any case) is served", async () => {
   } finally { s.close(); }
 });
 
-test("live: never /healthz, never POST or other methods (webhooks)", async () => {
+test("live: a POST (or any non-GET) to another host is 421, never served and never redirected", async () => {
+  const s = await boot(LIVE);
+  try {
+    for (const path of ["/login", "/signup", "/forgot-password", "/membership/join", "/admin/x"]) {
+      for (const m of ["POST", "PUT", "DELETE", "PATCH"]) {
+        const r = await s.request(m, path, "umas-books-cmvv.onrender.com");
+        assert.equal(r.status, 421, `${m} ${path}`);
+        assert.equal(r.location, undefined);
+      }
+    }
+    // The canonical host is unaffected.
+    assert.equal((await s.request("POST", "/login", "umasbooks.org")).status, 200);
+  } finally { s.close(); }
+});
+
+test("live: never /healthz or the HelloAsso webhook, on any host or method", async () => {
   const s = await boot(LIVE);
   try {
     assert.equal((await s.request("GET", "/healthz", "umas-books-cmvv.onrender.com")).status, 200);

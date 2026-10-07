@@ -22,6 +22,10 @@ if (!process.env.ADMIN_2FA_REQUIRED) process.env.ADMIN_2FA_REQUIRED = "false";
 // (lib/awards); the tests of that feature switch them on explicitly.
 if (!process.env.AWARDS_LOOKUPS) process.env.AWARDS_LOOKUPS = "off";
 
+// The shop-wide hourly mail ceiling (lib/outbox.js) counts the whole shared
+// database; a full test run must never trip it. Its own tests pass limits.
+if (!process.env.MAIL_GLOBAL_PER_HOUR) process.env.MAIL_GLOBAL_PER_HOUR = "100000";
+
 // Which database a file uses (own throwaway locally; the one shared CI
 // database unless it passes { isolated: true }) lives in testDatabase.js.
 const { prepareDatabase } = require("./testDatabase");

@@ -28,6 +28,8 @@
 //   backfillCovers(pool, opts)         one gentle batch for the background job
 
 const dns = require("node:dns");
+const https = require("node:https");
+const { Readable } = require("node:stream");
 const net = require("node:net");
 const sharp = require("sharp");
 const { saveImage, isStoredImageUrl } = require("./imageStore");
@@ -64,28 +66,54 @@ function isAllowedCoverUrl(raw) {
   return parseAllowed(raw) !== null;
 }
 
-// True for an address on the public internet (not loopback, private, link-local, ...).
+// Every address range a cover host must never resolve to. A node:net BlockList
+// (parsed once) instead of hand-written string tests, so each family is covered
+// by prefix: a missed edge case there is how "::ffff:7f00:1" gets past a regex.
+const BLOCKED = new net.BlockList();
+for (const [net4, prefix] of [
+  ["0.0.0.0", 8], // "this network"
+  ["10.0.0.0", 8], ["172.16.0.0", 12], ["192.168.0.0", 16], // private
+  ["100.64.0.0", 10], // CGNAT
+  ["127.0.0.0", 8], // loopback
+  ["169.254.0.0", 16], // link-local (cloud metadata lives here)
+  ["192.0.0.0", 24], ["192.0.2.0", 24], ["198.51.100.0", 24], ["203.0.113.0", 24], // IETF / documentation
+  ["192.88.99.0", 24], // 6to4 relay anycast
+  ["198.18.0.0", 15], // benchmarking
+  ["224.0.0.0", 4], // multicast
+  ["240.0.0.0", 4], // reserved, incl. 255.255.255.255
+]) BLOCKED.addSubnet(net4, prefix, "ipv4");
+for (const [net6, prefix] of [
+  ["::", 96], // unspecified, loopback and the deprecated IPv4-compatible range
+  ["64:ff9b::", 96], // NAT64: reaches any IPv4 host through a gateway
+  ["64:ff9b:1::", 48], // local-use NAT64
+  ["100::", 64], // discard-only
+  ["2001::", 32], // Teredo tunnelling
+  ["2001:db8::", 32], // documentation
+  ["2002::", 16], // 6to4: embeds any IPv4 address
+  ["fc00::", 7], // unique local
+  ["fe80::", 10], // link-local
+  ["fec0::", 10], // site-local (deprecated)
+  ["ff00::", 8], // multicast
+]) BLOCKED.addSubnet(net6, prefix, "ipv6");
+
+// True for an address on the public internet (not loopback, private, link-local,
+// multicast, reserved, or a tunnel/translation form of any of those).
 function isPublicAddress(ip) {
-  if (net.isIPv4(ip)) {
-    const [a, b] = ip.split(".").map(Number);
-    if (a === 0 || a === 10 || a === 127 || a >= 224) return false;
-    if (a === 100 && b >= 64 && b <= 127) return false;
-    if (a === 169 && b === 254) return false;
-    if (a === 172 && b >= 16 && b <= 31) return false;
-    if (a === 192 && b === 168) return false;
-    if (a === 192 && b === 0) return false;
-    if (a === 198 && (b === 18 || b === 19)) return false;
-    return true;
+  if (typeof ip !== "string") return false;
+  const bare = ip.replace(/^\[|\]$/g, "");
+  if (net.isIPv4(bare)) return !BLOCKED.check(bare, "ipv4");
+  if (!net.isIPv6(bare)) return false; // includes "fe80::1%eth0" (zone ids)
+  // Canonical form (compressed, lowercase, ::ffff:a.b.c.d turned into hex), so
+  // the dotted and hex spellings of an IPv4-mapped address are handled alike.
+  let canon;
+  try { canon = new URL(`http://[${bare}]/`).hostname.slice(1, -1); } catch { return false; }
+  const mapped = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(canon);
+  if (mapped) {
+    const hi = parseInt(mapped[1], 16);
+    const lo = parseInt(mapped[2], 16);
+    return isPublicAddress(`${hi >> 8}.${hi & 255}.${lo >> 8}.${lo & 255}`);
   }
-  if (net.isIPv6(ip)) {
-    const v = ip.toLowerCase();
-    const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(v);
-    if (mapped) return isPublicAddress(mapped[1]);
-    if (v === "::" || v === "::1") return false;
-    if (/^f[cd]/.test(v) || /^fe[89ab]/.test(v) || v.startsWith("ff")) return false;
-    return true;
-  }
-  return false;
+  return !BLOCKED.check(canon, "ipv6");
 }
 
 let lookupImpl = (hostname) => dns.promises.lookup(hostname, { all: true });
@@ -93,10 +121,42 @@ const defaultLookup = (hostname) => lookupImpl(hostname);
 // For tests that run the whole admin flow with a stubbed fetch and no DNS.
 function setLookupForTests(fn) { lookupImpl = fn || ((hostname) => dns.promises.lookup(hostname, { all: true })); }
 
-async function assertPublicHost(hostname, lookup) {
+// Resolves the name ONCE and returns the validated address to connect to. The
+// connection below goes to exactly that address, so a DNS answer that changes
+// between "check" and "connect" (DNS rebinding) cannot reach an internal host.
+async function resolvePublicAddress(hostname, lookup) {
   const addrs = await lookup(hostname);
   const list = Array.isArray(addrs) ? addrs : [addrs];
   if (!list.length || !list.every((a) => isPublicAddress(a.address))) throw new Error("cover host does not resolve to a public address");
+  return list[0].address;
+}
+
+// fetch() replacement that connects to `init.pinnedAddress` (already validated)
+// instead of resolving the name again. The URL, the Host header and the TLS
+// server name (SNI + certificate check) stay the real host name. Returns a
+// standard Response, redirects are not followed (the caller checks each hop).
+function pinnedFetch(href, init = {}) {
+  const u = new URL(href);
+  return new Promise((resolve, reject) => {
+    const req = https.request({
+      protocol: "https:",
+      host: init.pinnedAddress || u.hostname,
+      servername: u.hostname,
+      port: 443,
+      method: "GET",
+      path: u.pathname + u.search,
+      headers: { ...(init.headers || {}), Host: u.host },
+      signal: init.signal,
+    }, (res) => {
+      const headers = new Headers();
+      for (const [k, v] of Object.entries(res.headers)) headers.set(k, Array.isArray(v) ? v.join(", ") : String(v));
+      const bodyless = [101, 204, 205, 304].includes(res.statusCode);
+      if (bodyless) res.resume();
+      resolve(new Response(bodyless ? null : Readable.toWeb(res), { status: res.statusCode, headers }));
+    });
+    req.on("error", reject);
+    req.end();
+  });
 }
 
 // Reads at most maxBytes from a fetch Response body.
@@ -121,7 +181,13 @@ async function readLimited(res, maxBytes) {
 }
 
 // opts: fetchImpl (tests), lookup (tests), timeoutMs, maxBytes.
-async function fetchCoverImage(rawUrl, { fetchImpl = fetch, lookup = defaultLookup, timeoutMs = FETCH_TIMEOUT_MS, maxBytes = MAX_BYTES } = {}) {
+// The default transport. Normally pinnedFetch; a test that has replaced
+// global.fetch with its own function (the admin tests stub every outside call
+// there) keeps getting its stub, so no test can reach the network by accident.
+const defaultFetch = (href, init) =>
+  /\[native code\]/.test(Function.prototype.toString.call(globalThis.fetch)) ? pinnedFetch(href, init) : globalThis.fetch(href, init);
+
+async function fetchCoverImage(rawUrl, { fetchImpl = defaultFetch, lookup = defaultLookup, timeoutMs = FETCH_TIMEOUT_MS, maxBytes = MAX_BYTES } = {}) {
   // One budget for all redirects and the body. A normal (referenced) timer, not
   // AbortSignal.timeout(), whose timer is unref'd: a stalled request must keep the
   // process alive until the abort fires, and the timer is cleared when we are done.
@@ -139,8 +205,9 @@ async function fetchWithin(rawUrl, deadline, { fetchImpl, lookup, maxBytes }) {
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
     const u = parseAllowed(current);
     if (!u) throw new Error("cover URL is not allowed");
-    await assertPublicHost(u.hostname, lookup);
+    const pinnedAddress = await resolvePublicAddress(u.hostname, lookup);
     const res = await fetchImpl(u.href, {
+      pinnedAddress,
       redirect: "manual",
       signal: deadline,
       headers: { "User-Agent": "UmasBooksInventory/1.0", Accept: "image/jpeg,image/png,image/webp,image/gif" },
@@ -265,6 +332,7 @@ async function backfillCovers(pool, { limit = BATCH_SIZE, delayMs = 500, ...fetc
 }
 
 module.exports = {
+  pinnedFetch,
   ALLOWED_HOSTS, MAX_BYTES, BATCH_SIZE, MAX_FAILURES,
   isAllowedCoverUrl, isPublicAddress, setLookupForTests, fetchCoverImage, reencodeCover, localizeCover, prepareCover, localCover, backfillCovers,
 };

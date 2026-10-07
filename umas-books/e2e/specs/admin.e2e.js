@@ -717,6 +717,9 @@ s.test("A43 the Email outbox page loads for an admin with its controls", { as: "
 s.manual("A44 (must) Resend confirmation on a reservation sends a new confirmation email", "needs a reservation and a mailbox to read");
 s.manual("A45 (must) an unmatched membership payment is alerted, listed under Accounts and can be linked to an account", "needs a real test payment on the HelloAsso membership form");
 s.manual("A46 the dashboard Needs attention box shows only when something is wrong", "needs a failed email or a reservation whose confirmation was not sent; the rule is covered by an automated test");
+s.manual("A80 (must) Privacy requests: look up, download and erase everything held under an email address", "erases real data and needs a throwaway account; covered by the automated test privacyRequests.test.js");
+s.manual("A81 viewing the Accounts report page is written to the admin activity log once an hour", "needs a look at the Admin activity page; covered by the automated test privacyRequests.test.js");
+s.manual("A82 (must) the client IP check on both the Render address and umasbooks.org before launch", "needs the live hosts and your own public IP");
 
 // ---- the till, copy labels, end of day, accounting export (steps A60-A69) ----
 

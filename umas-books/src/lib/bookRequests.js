@@ -307,6 +307,12 @@ async function emailForListToken(db, token) {
 
 // ---------- emails ----------
 
+// The per-recipient mail throttle (lib/outbox.js) keeps its daily and shop-wide
+// caps for these two mails but skips the "1 per 10 minutes" rule: a person
+// legitimately asks for up to 3 books in a row (LIMITS.maxPendingPerEmail), each
+// with its own confirmation, and "find my requests" has its own 3-a-day limit.
+const BOOK_REQUEST_THROTTLE = "skipInterval";
+
 // A function: the street follows SHOP_STREET_NUMBER (lib/legal.js) when it is set.
 const shopAddress = () => `Uma's Books\n${legal.shopStreet("en")}, 81000 Albi`;
 
@@ -335,7 +341,7 @@ async function sendConfirmationEmail({ to, request, confirmToken, manageToken, b
       `${greeting(tr, request.name)}\n\nYou asked us to look out for ${what}. Please confirm your request (the link works for ${LIMITS.unconfirmedDays} days):\n${confirmLink}\n\nOnce confirmed, we'll email you if a copy arrives. We use your email only for this request.\n\nChanged your mind? You can cancel any time:\n${manageLink}\n\nIf you didn't make this request, just ignore this email and nothing will happen.\n\n${shopAddress()}`,
       `${greeting(tr, request.name)}\n\nVous nous avez demandé de chercher ${what}. Merci de confirmer votre demande (le lien est valable ${LIMITS.unconfirmedDays} jours) :\n${confirmLink}\n\nUne fois confirmée, nous vous écrirons si un exemplaire arrive. Votre adresse e-mail ne sert qu'à cette demande.\n\nVous avez changé d'avis ? Vous pouvez annuler à tout moment :\n${manageLink}\n\nSi vous n'êtes pas à l'origine de cette demande, ignorez simplement ce message : il ne se passera rien.\n\n${shopAddress()}`
     ),
-  });
+  }, { throttle: BOOK_REQUEST_THROTTLE });
 }
 
 async function sendListEmail({ to, lang, token, base }) {
@@ -350,7 +356,7 @@ async function sendListEmail({ to, lang, token, base }) {
       `Hi,\n\nHere is your private link to see and cancel your book requests (it works for ${LIMITS.listTokenDays} days):\n${link}\n\nIf you didn't ask for this, you can safely ignore this email.\n\n${shopAddress()}`,
       `Bonjour,\n\nVoici votre lien privé pour voir et annuler vos demandes de livres (il est valable ${LIMITS.listTokenDays} jours) :\n${link}\n\nSi vous n'êtes pas à l'origine de cette demande, vous pouvez ignorer ce message.\n\n${shopAddress()}`
     ),
-  });
+  }, { throttle: BOOK_REQUEST_THROTTLE });
 }
 
 function formatPrice(price, lang) {

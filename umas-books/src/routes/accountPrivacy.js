@@ -163,7 +163,7 @@ router.post("/account/privacy/resend-verification", requireAuth, resendLimiter, 
   );
   if (rows.length) return res.redirect(303, "/account/privacy?sent=wait");
   try {
-    await sendVerificationEmail(user, baseUrl(req));
+    await sendVerificationEmail(user, baseUrl(req), { throttle: "skipInterval" });
   } catch (err) {
     console.error(`Verification email failed for account ${user.id}:`, err.message);
     return page(req, res, {

@@ -12,7 +12,7 @@ before(async () => { app = await startTestApp({ port: PORT, isolated: true }); }
 after(async () => { await app.stop(); });
 
 const get = async (p, lang) => (await fetch(`${app.base}${p}`, { headers: lang ? { cookie: `umasbooks_lang=${lang}` } : {} })).text();
-const dictOf = (html) => JSON.parse(html.match(/window\.PAGE_I18N = (\{.*?\});\s*<\/script>/s)[1]);
+const dictOf = (html) => JSON.parse(html.match(/<script type="application\/json" id="page-i18n-data">(.*?)<\/script>/s)[1]);
 
 test("visit page: street and hours from the constants, in the page and in both dictionaries", async () => {
   const en = await get("/visit.html");
