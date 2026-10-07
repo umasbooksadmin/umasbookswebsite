@@ -19,6 +19,7 @@ const { parseSuggestedPrice, normalizeSuggestedLevel, priceBasisFor, priceFromLe
 
 const { setFlash, takeFlash } = require("../../lib/flash");
 const { validateIdParams } = require("../../middleware/idParams");
+const fastScan = require("../../lib/fastScan");
 const { parseMoney, parseWholeNumber } = require("../../lib/validation");
 
 const router = express.Router();
@@ -131,8 +132,13 @@ async function getLocations() {
   const { rows } = await pool.query(
     "SELECT DISTINCT location FROM book_copies WHERE location IS NOT NULL ORDER BY 1"
   );
-  return rows.map((r) => r.location);
+  // The shop floor is always offered, even before a copy has been put there.
+  return [...new Set([...rows.map((r) => r.location), fastScan.DEFAULT_LOCATION])].sort();
 }
+
+// The add-book page is also used by the scan-in-a-row script, which saves with
+// fetch and wants JSON back (a plain form post gets the redirect / page).
+const wantsJson = (req) => req.accepts(["html", "json"]) === "json";
 
 router.get("/admin/inventory", requireAdmin, async (req, res) => {
   await expireStaleReservations(pool);
@@ -172,10 +178,6 @@ router.get("/admin/inventory/scan", requireAdmin, async (req, res) => {
     labelCopy: req.query.saved === "1" && /^\d{1,9}$/.test(String(req.query.label || "")) ? Number(req.query.label) : null,
     requestsMatched: req.query.saved === "1" ? Math.min(parseInt(req.query.requests, 10) || 0, 999) : 0,
     visionEnabled: !!process.env.ANTHROPIC_API_KEY,
-    location: normalizeLocation(req.query.location) || "",
-    source: normalizeSource(req.query.source) || "",
-    sources: SOURCES,
-    locations: await getLocations(),
   });
 });
 
@@ -297,8 +299,8 @@ router.get("/admin/inventory/lookup", requireAdmin, async (req, res) => {
   const f = takeFlash(req, "lookup");
   if (!f) return res.redirect("/admin/inventory/scan");
   const visionEnabled = !!process.env.ANTHROPIC_API_KEY;
-  const location = normalizeLocation(f.location) || "";
-  const source = normalizeSource(f.source) || "";
+  const location = normalizeLocation(f.location) || fastScan.DEFAULT_LOCATION;
+  const source = normalizeSource(f.source) || fastScan.DEFAULT_SOURCE;
   if (!f.book) {
     return res.render("admin/inventory/scan", { active: "inventory", visionEnabled, location, source, sources: SOURCES, locations: await getLocations(), error: f.error || null });
   }
@@ -350,6 +352,7 @@ router.post("/admin/inventory/lookup", requireAdmin, async (req, res) => {
   } else {
     const isbn = (req.body.isbn || "").trim();
     if (!isbn) {
+    if (wantsJson(req)) return res.status(422).json({ ok: false, error: "Title is required." });
       return lookupDone(req, res, { location, source, error: "Enter an ISBN or choose a photo." });
     }
     book = await lookupByIsbn(isbn);
@@ -368,19 +371,25 @@ router.post("/admin/inventory/lookup", requireAdmin, async (req, res) => {
 
 router.get("/admin/inventory/new", requireAdmin, async (req, res) => {
   const suggestion = await prepareIntakeForm(res, {});
+  const d = fastScan.formDefaults(req.query);
+  const saved = await fastScan.savedCopy(pool, req.query.saved);
   res.render("admin/inventory/new", {
     active: "inventory",
-    book: { isbn: null, title: null, author: null, publisher: null, publishedYear: null, description: null, coverUrl: null, genre: null, genreFr: null, descriptionFr: null },
+    book: { isbn: null, title: null, author: null, publisher: null, publishedYear: null, description: null, coverUrl: null, genre: null, genreFr: null, descriptionFr: null, binding: d.binding },
     error: null,
     fromScan: false,
     conditions: CONDITIONS, bindings: BINDINGS,
     statuses: STATUSES,
     defaultPricing: { price: suggestion.price, acquisitionCost: 0 },
-    location: normalizeLocation(req.query.location) || "",
-    source: normalizeSource(req.query.source) || "",
+    location: d.location,
+    locationQueried: d.locationQueried,
+    queried: d.queried,
+    source: d.source,
     sources: SOURCES,
     locations: await getLocations(),
-    savedCopy: /^\d{1,9}$/.test(String(req.query.saved || "")) ? Number(req.query.saved) : null,
+    savedCopy: saved,
+    savedRequests: saved ? Math.min(parseInt(req.query.requests, 10) || 0, 999) : 0,
+    ...(d.condition ? { selectedCondition: d.condition } : {}),
   });
 });
 
@@ -426,6 +435,7 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
   };
 
   if (!title) {
+    if (wantsJson(req)) return res.status(422).json({ ok: false, error: "Title is required." });
     return intakeAgain({
       prep: { isbn, title: null, author, binding: req.body.binding, publisherPrice: req.body.publisherPrice },
       book: { isbn, title: null, author, publisher, publishedYear, description, descriptionFr, coverUrl, genre, genreFr, binding },
@@ -443,6 +453,7 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
   const costCheck = parseAcquisitionCost(req.body.acquisitionCost);
   const inputError = pricing.error || yearCheck.error || costCheck.error;
   if (inputError) {
+    if (wantsJson(req)) return res.status(422).json({ ok: false, error: inputError });
     return intakeAgain({
       prep: { isbn, title, author, binding: req.body.binding, condition, publisherPrice: req.body.publisherPrice },
       book: { isbn, title, author, publisher, publishedYear: yearCheck.error ? asTyped(req.body.publishedYear) : publishedYear, description, descriptionFr, coverUrl, genre, genreFr, binding },
@@ -566,14 +577,13 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
   // banner on the book's page and the scan screen tells the admin.
   const requestsMatched = await matchBookRequests(() => matchRequestsForCopy(pool, bookId, copyRows[0].id));
 
-  // The scan flow remembers the location and the source between books.
-  if (req.body.fromScan === "1") {
-    const extra = `&label=${copyRows[0].id}${location ? `&location=${encodeURIComponent(location)}` : ""}${source ? `&source=${source}` : ""}${requestsMatched ? `&requests=${requestsMatched}` : ""}`;
-    return res.redirect(`/admin/inventory/scan?saved=1${extra}`);
-  }
-  if (req.body.addAnother === "1") {
-    // "Save and add another": back to a blank form, keeping the location and the source for the next book.
-    return res.redirect(`/admin/inventory/new?saved=${copyRows[0].id}${location ? `&location=${encodeURIComponent(location)}` : ""}${source ? `&source=${source}` : ""}`);
+  // The one-screen add page (fast=1): back to a fresh form (a JSON answer for the fetch from the page itself).
+  if (req.body.fast !== "0" && (req.body.fast === "1" || req.body.addAnother === "1" || req.body.fromScan === "1")) {
+    const copyId = copyRows[0].id;
+    if (wantsJson(req)) {
+      return res.json({ ok: true, copyId, bookId, title, requests: requestsMatched, labelUrl: `/admin/inventory/labels?id=${copyId}` });
+    }
+    return res.redirect(`/admin/inventory/new?${fastScan.carryQuery({ location, source, binding, condition, copyId, requests: requestsMatched })}`);
   }
   res.redirect(`/admin/inventory/${bookId}?label=${copyRows[0].id}${requestsMatched ? `&requests=${requestsMatched}` : ""}`);
 });

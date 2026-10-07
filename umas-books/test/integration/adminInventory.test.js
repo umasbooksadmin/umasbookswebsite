@@ -465,12 +465,12 @@ test("add: valid condition and status values are kept (reserved/sold/donated/dam
   }
 });
 
-test("add: missing optional fields become NULL / defaults; fromScan returns to the scan page", async () => {
+test("add: missing optional fields become NULL / defaults; fromScan returns to the fast add page", async () => {
   const title = `Minimal ${tag()}`;
   ai.fail = true; // no AI, no cover found: still saves
   const { status, location } = await post("/admin/inventory", { fields: { title, fromScan: "1" } });
   assert.equal(status, 302);
-  assert.match(location, /^\/admin\/inventory\/scan\?saved=1&label=\d+$/);
+  assert.match(location, /^\/admin\/inventory\/new\?saved=\d+&condition=very_good$/);
   const [book] = await bookByTitle(title);
   assert.deepEqual([book.isbn, book.authors, book.publisher, book.published_year, book.description, book.description_fr, book.cover_url, book.categories, book.categories_fr],
     [null, null, null, null, null, null, null, null, null]);

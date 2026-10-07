@@ -1736,3 +1736,42 @@ fix was in two parts: keep the old value as a retry source (expand), and count
 only real failures (404, a placeholder, an invalid image) as failed attempts,
 never a 5xx, a timeout or a network error. Apply the same thinking to any
 backfill: *an outage must never be recorded as a permanent result*.
+
+## aa) Fast scanning of books (adding stock)
+
+For adding many books in a row: **Books & Reservations > Scan a book** (the **Add Book** page,
+`/admin/inventory/new`). Details of what the page does: `umas-books/README.md`, "Fast scanning".
+
+### The barcode scanner must send Enter
+
+A scanner like the one at the till is a keyboard: it types the digits and then a key
+called the **suffix**. For this page the suffix must be **Enter** (carriage return).
+Test it: click in the ISBN box, scan a book: the book should be looked up by itself.
+If the digits appear but nothing happens, the scanner sends no suffix: either set
+it to Enter (scan the "Add Enter suffix" barcode in the scanner's manual; the same
+setting as for the till, section p), or just wait: the page also looks up on its
+own 150 ms after a complete ISBN. A scanner that adds Tab instead of Enter moves the cursor
+to the next field: set it to Enter.
+
+### On a phone
+
+- **iPhone (Safari):** the keyboard only opens when you **tap** a box. When the page
+  opens or after a redirect the cursor blinks in the ISBN box but iOS keeps the
+  keyboard closed: tap the box once. After **Save and add another** the cursor goes back
+  to the ISBN box from the same tap, so the keyboard stays up. A Bluetooth scanner
+  needs no on-screen keyboard at all.
+- **Add it to the home screen** (Safari > Share > **Add to Home Screen**) to get a full
+  screen page without the browser bars, then sign in once.
+- **Landscape** gives two columns on a wide phone or a tablet; portrait is one column.
+- The page never zooms on tap (all fields are 16 px or bigger). If it does, send a screenshot.
+- Location, Source, Binding and Condition are the **last ones you used** (the browser on
+  that device remembers them; the first time ever: Store, Donation, Other, Very Good). If a
+  wrong one appears, it is the one remembered from the last book: pick the right one once.
+
+### If something is wrong
+
+- "No connection" under the ISBN box: the form still works by hand; scan again when
+  the Wi-Fi is back. If a Save says "No connection", check the book list before saving again
+  (it may have been saved).
+- "Not found: fill in by hand": Open Library does not know the ISBN. Type title and author.
+- "Too many lookups": the limit is 120 a minute per person; wait a minute.

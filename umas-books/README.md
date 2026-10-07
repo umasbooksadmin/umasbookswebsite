@@ -243,11 +243,12 @@ mean" box on the book's page.
 Each copy can have a location, such as `FICTION-A1`, meaning the shelf or box
 it sits on.
 
-- **Adding books:** on **Books & Reservations > Scan a book**, fill in **Current
-  location** first (pick one from the list, or type a new one; it is added to
-  the list as soon as a book is saved with it). Then scan the books one by one:
-  each new book is saved at that location, and the location stays filled in
-  for the next book. Change it whenever you move to another shelf.
+- **Adding books:** on **Books & Reservations > Scan a book** (the **Add Book** page),
+  scan or type the ISBN: the book is looked up at once and the form filled in
+  (see "Fast scanning" below). **Location** starts at `STORE` and keeps the last
+  one you used (pick one from the list, or type a new one; it is added to the
+  list as soon as a book is saved with it). Change it whenever you move to
+  another shelf.
 - **Moving books:** click **Move books**. Choose (or type) where the books are
   going, then scan each book's barcode. Each scan moves one copy of that book
   and the page lists what happened. If you have two copies of a book, scan it
@@ -312,8 +313,29 @@ shelves. Step by step: `docs/runbook.md`, section k.
 **Where a book came from**
 
 When you add books, choose **Source** (donation, purchase, job lot, other).
-On the scan page it stays the same for the next books until you change it. You
-can change it later on the book's page, on each copy.
+On the Add Book page it starts at **Donation** the first time and after that is
+the source of the last book you added (the browser remembers it). You can change
+it later on the book's page, on each copy.
+
+**Fast scanning (Add Book page)**
+
+`/admin/inventory/new` is made for adding many books in a row, on a phone or a
+computer: the cursor is in the **ISBN** box; a scanner (a keyboard that types
+the digits then presses Enter) or typing a complete 10 or 13 digit ISBN (hyphens
+ignored; it also looks up by itself 150 ms after the last digit) fills the form
+in place from `GET /admin/inventory/lookup?isbn=` (admin only, 120 a minute).
+**Save and add another** (or Ctrl/Cmd+Enter) saves without leaving the page and
+puts the cursor back in the empty ISBN box; **Save book** saves and opens the
+book. Location, Source, Binding and Condition are always the **last values
+used**: they are carried to the next form after a save and remembered by the
+browser (`localStorage`, per browser: it needs no database change and works the
+same on the phone and the laptop, but each device has its own memory). The very
+first time they are Store, Donation, the last binding in the list (Other) and
+Very Good. A binding found by Open Library is only shown as a hint. **Scan mode** (off by
+default) adds a one-tap **Save (suggested price)** for books new to the shop.
+Without JavaScript the **Look up** button and a normal form post still work (the
+page then comes back with a "Saved" line). `/admin/inventory/scan` is kept for
+photo scanning. Setup of the scanner and phone tips: `docs/runbook.md`, section aa.
 
 **Reports**
 

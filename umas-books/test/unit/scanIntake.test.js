@@ -1,0 +1,189 @@
+// public/scan-intake.js, the plain functions (no browser): what counts as a
+// complete ISBN, the 150 ms pause, the stale-answer guard, which fields a
+// lookup may fill, the remembered binding and the status messages.
+const { test } = require("node:test");
+const assert = require("node:assert/strict");
+const S = require("../../public/scan-intake.js");
+
+// A fake clock: timers run only when the test says so.
+function fakeClock() {
+  let now = 1000;
+  const timers = new Map();
+  let nextId = 1;
+  return {
+    now: () => now,
+    setTimeoutFn: (fn, ms) => { const id = nextId++; timers.set(id, { fn, at: now + ms }); return id; },
+    clearTimeoutFn: (id) => { timers.delete(id); },
+    advance(ms) {
+      now += ms;
+      for (const [id, t] of [...timers]) if (t.at <= now) { timers.delete(id); t.fn(); }
+    },
+    pending: () => timers.size,
+  };
+}
+
+test("isbnDigits ignores hyphens and spaces; isCompleteIsbn wants 10 or 13 characters", () => {
+  assert.equal(S.isbnDigits("978-0-14-312755-0"), "9780143127550");
+  assert.equal(S.isbnDigits(" 0 14 31 2755 x "), "014312755X");
+  assert.ok(S.isCompleteIsbn("9780143127550"));
+  assert.ok(S.isCompleteIsbn("978-0-14-312755-0"));
+  assert.ok(S.isCompleteIsbn("014312755X"));
+  assert.ok(S.isCompleteIsbn("0143127551"));
+  for (const bad of ["", "978", "97801431275", "978014312755", "97801431275500", "X143127551", "01431275X1", null, undefined, "abcdefghij"]) {
+    assert.equal(S.isCompleteIsbn(bad), false, `not complete: ${bad}`);
+  }
+});
+
+test("the watcher fires once, 150 ms after a complete value (a scanner that sends no Enter)", () => {
+  const clock = fakeClock();
+  const seen = [];
+  const w = S.createScanWatcher({ onComplete: (i) => seen.push(i), ...clock });
+  w.input("9780143127550");
+  clock.advance(149);
+  assert.deepEqual(seen, []);
+  clock.advance(1);
+  assert.deepEqual(seen, ["9780143127550"]);
+});
+
+test("the watcher does not fire at 10 digits of a 13-digit ISBN still being typed", () => {
+  const clock = fakeClock();
+  const seen = [];
+  const w = S.createScanWatcher({ onComplete: (i) => seen.push(i), ...clock });
+  let typed = "";
+  for (const ch of "9780143127550") {
+    typed += ch;
+    w.input(typed);
+    clock.advance(10); // keys arrive faster than the pause
+  }
+  assert.deepEqual(seen, [], "nothing fired while typing");
+  clock.advance(150);
+  assert.deepEqual(seen, ["9780143127550"], "one lookup, with all 13 digits");
+});
+
+test("a 10-digit ISBN followed by a pause is looked up (and a longer value later is a new scan)", () => {
+  const clock = fakeClock();
+  const seen = [];
+  const w = S.createScanWatcher({ onComplete: (i) => seen.push(i), ...clock });
+  w.input("0143127551");
+  clock.advance(200);
+  assert.deepEqual(seen, ["0143127551"]);
+});
+
+test("Enter looks up at once, cancels the pause timer, and is not repeated by it", () => {
+  const clock = fakeClock();
+  const seen = [];
+  const w = S.createScanWatcher({ onComplete: (i) => seen.push(i), ...clock });
+  w.input("978-0-14-312755-0");
+  assert.equal(clock.pending(), 1);
+  assert.equal(w.enter("978-0-14-312755-0"), true);
+  assert.equal(clock.pending(), 0, "timer cancelled");
+  clock.advance(500);
+  assert.deepEqual(seen, ["9780143127550"], "exactly one lookup");
+});
+
+test("Enter just after the pause fired does not look the same ISBN up twice; later it does", () => {
+  const clock = fakeClock();
+  const seen = [];
+  const w = S.createScanWatcher({ onComplete: (i) => seen.push(i), ...clock });
+  w.input("9780143127550");
+  clock.advance(150);
+  assert.equal(w.enter("9780143127550"), true, "a complete ISBN");
+  assert.equal(seen.length, 1);
+  clock.advance(2000);
+  w.enter("9780143127550");
+  assert.equal(seen.length, 2, "an Enter a while later is a deliberate second lookup");
+});
+
+test("Enter on an incomplete value does nothing and says so", () => {
+  const clock = fakeClock();
+  const seen = [];
+  const w = S.createScanWatcher({ onComplete: (i) => seen.push(i), ...clock });
+  assert.equal(w.enter("97801"), false);
+  assert.equal(w.enter(""), false);
+  assert.deepEqual(seen, []);
+});
+
+test("an edit cancels the pending lookup of the previous value", () => {
+  const clock = fakeClock();
+  const seen = [];
+  const w = S.createScanWatcher({ onComplete: (i) => seen.push(i), ...clock });
+  w.input("9780143127550");
+  clock.advance(100);
+  w.input("97801431275509"); // one more digit: not complete any more
+  clock.advance(500);
+  assert.deepEqual(seen, []);
+});
+
+test("stale-answer guard: only the newest lookup is current", () => {
+  const g = S.createRequestGuard();
+  const first = g.begin();
+  assert.ok(g.isCurrent(first));
+  const second = g.begin();
+  assert.equal(g.isCurrent(first), false, "the first answer arrives late and is ignored");
+  assert.ok(g.isCurrent(second));
+  g.cancel();
+  assert.equal(g.isCurrent(second), false, "cancel makes every answer on its way stale");
+});
+
+test("planFill fills untouched fields, empties them for a book without that data, and never touches an edited field", () => {
+  const book = { title: "New Title", author: "Ann", publisher: null, publishedYear: 2011, genre: "Fiction", genreFr: "Fiction", description: "Blurb", coverUrl: "/img/a.jpg" };
+  const plain = S.planFill(book, {});
+  assert.equal(plain.title, "New Title");
+  assert.equal(plain.publishedYear, "2011");
+  assert.equal(plain.publisher, "", "no publisher: the old one is cleared");
+  const kept = S.planFill(book, { title: true, author: true });
+  assert.ok(!("title" in kept) && !("author" in kept), "edited fields are not in the plan");
+  assert.equal(kept.genre, "Fiction");
+  const notFound = S.planFill(null, { title: true });
+  assert.ok(!("title" in notFound));
+  assert.equal(notFound.author, "", "a book that was not found clears what the last scan filled in");
+});
+
+test("binding: the lookup's answer is only a hint; it never replaces the selected (remembered) binding", () => {
+  const avail = ["hardcover", "trade", "mass_market", "other"];
+  const hint = { key: "hardcover", label: "Hardcover" };
+  const kept = S.chooseBinding({ current: "trade", hint, available: avail });
+  assert.equal(kept.value, "trade");
+  assert.equal(kept.helper, "Open Library says: Hardcover");
+  assert.equal(S.chooseBinding({ current: "other", hint, available: avail }).value, "other", "even on a first-ever form");
+  assert.equal(S.chooseBinding({ current: "", hint, available: avail }).value, "", "Not specified stays Not specified");
+  assert.equal(S.chooseBinding({ current: "trade", hint: null, available: avail }).helper, "");
+});
+
+test("a remembered 'paperback' is read as 'trade' when the list has no paperback", () => {
+  assert.equal(S.resolveBindingKey("paperback", ["hardcover", "trade", "mass_market", "other"]), "trade");
+  assert.equal(S.resolveBindingKey("paperback", ["hardcover", "paperback", "mass_market"]), "paperback");
+  assert.equal(S.resolveBindingKey("mass_market", ["hardcover", "trade", "mass_market", "other"]), "mass_market");
+  assert.equal(S.resolveBindingKey("spiral", ["hardcover"]), "");
+  assert.equal(S.resolveBindingKey("", ["hardcover"]), "");
+});
+
+test("lookupStatus: Found, Not found, Already in stock with the count", () => {
+  assert.deepEqual(S.lookupStatus({ found: true, book: { title: "Dune" }, existing: null }), { kind: "found", text: "Found: Dune" });
+  assert.deepEqual(S.lookupStatus({ found: false, book: null, existing: null }), { kind: "notfound", text: "Not found: fill in by hand" });
+  const two = S.lookupStatus({ found: true, book: { title: "Dune" }, existing: { copies: 2, title: "Dune" } });
+  assert.equal(two.kind, "stocked");
+  assert.match(two.text, /^Already in stock: 2 copies/);
+  assert.match(S.lookupStatus({ found: true, book: { title: "Dune" }, existing: { copies: 1, title: "Dune" } }).text, /^Already in stock: 1 copy\./);
+  // In the catalog of the shop but none left: an ordinary find.
+  assert.equal(S.lookupStatus({ found: true, book: { title: "Dune" }, existing: { copies: 0, title: "Dune" } }).kind, "found");
+});
+
+test("scan mode: one-tap save only for a new book with a price suggestion that needs no review", () => {
+  const ok = { found: true, book: { title: "Dune" }, existing: null, suggestion: { price: 5, needsReview: false } };
+  assert.equal(S.canOneTapSave(ok, true), true);
+  assert.equal(S.canOneTapSave(ok, false), false, "off by default");
+  assert.equal(S.canOneTapSave({ ...ok, existing: { copies: 1 } }, true), false, "already known to the shop");
+  assert.equal(S.canOneTapSave({ ...ok, suggestion: { price: null, needsReview: true } }, true), false);
+  assert.equal(S.canOneTapSave({ ...ok, suggestion: { price: 5, needsReview: true } }, true), false);
+  assert.equal(S.canOneTapSave({ ...ok, found: false, book: null }, true), false);
+  assert.equal(S.canOneTapSave(null, true), false);
+});
+
+test("keyboardInset: how much of the bottom the on-screen keyboard covers", () => {
+  assert.equal(S.keyboardInset(812, { height: 812, offsetTop: 0 }), 0);
+  assert.equal(S.keyboardInset(812, { height: 500, offsetTop: 0 }), 312);
+  assert.equal(S.keyboardInset(812, { height: 500, offsetTop: 40 }), 272);
+  assert.equal(S.keyboardInset(812, null), 0);
+  assert.equal(S.keyboardInset(500, { height: 600, offsetTop: 0 }), 0);
+});

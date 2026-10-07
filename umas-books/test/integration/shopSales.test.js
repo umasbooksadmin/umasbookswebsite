@@ -123,8 +123,8 @@ test("intake saves the chosen source; anything unknown is stored as NULL", async
   const res = await post("/admin/inventory", { ...INTAKE, title: withSource, source: "donation", location: "a1", fromScan: "1" });
   assert.equal(res.status, 302);
   assert.equal(await sourceOfTitle(withSource), "donation");
-  // The scan flow comes back remembering both.
-  assert.match(res.headers.get("location"), /^\/admin\/inventory\/scan\?saved=1&label=\d+&location=A1&source=donation$/);
+  // The add flow comes back remembering the location and the source.
+  assert.match(res.headers.get("location"), /^\/admin\/inventory\/new\?saved=\d+&location=A1&source=donation&condition=very_good$/);
 
   const none = `Source None ${uniq()}`;
   await post("/admin/inventory", { ...INTAKE, title: none, source: "" });
@@ -144,23 +144,15 @@ test("the database refuses a source outside the list", async () => {
   await assert.rejects(pool.query("INSERT INTO book_copies (book_id, source) VALUES ($1, 'stolen')", [book.id]), /check constraint/);
 });
 
-test("the source is remembered between books on the scan flow", async () => {
-  // Scan page: preselected from the carried value, mirrored into the photo form.
-  const { text } = await get("/admin/inventory/scan?saved=1&source=lot");
-  assert.match(text, /<select id="source" name="source"[^>]*data-source-input>[\s\S]*<option value="lot" selected>Job lot<\/option>/);
-  // Looking a book up carries it to the add-book form...
-  const res = await post("/admin/inventory/lookup", { isbn: "", source: "purchase", location: "x1" });
-  assert.equal(res.status, 200);
-  assert.match(await res.text(), /name="source"[^>]*data-source-input[\s\S]*<option value="purchase" selected>/);
-  const bookRes = await post("/admin/inventory/lookup", { isbn: "9780000000019", source: "purchase", location: "x1" });
-  const form = await bookRes.text();
-  assert.match(form, /<select id="source" name="source">[\s\S]*<option value="purchase" selected>Purchase<\/option>/);
+test("the source starts at Donation the first time, the source of the last book is carried in the address, and a refused save keeps what was chosen", async () => {
+  const { text } = await get("/admin/inventory/new");
+  assert.match(text, /<select id="source" name="source">[\s\S]*<option value="donation" selected>Donation<\/option>/);
   assert.match((await get("/admin/inventory/new?source=other")).text, /<option value="other" selected>Other<\/option>/);
-  // ...and a refused save (no title) keeps it too.
-  const bad = await post("/admin/inventory", { ...INTAKE, title: "", source: "donation" });
-  assert.match(await bad.text(), /<option value="donation" selected>Donation<\/option>/);
-  // The remembering script is the one already used for the location.
-  assert.match(text, /src="\/inventory-location\.js"/);
+  // ...and a refused save (no title) keeps the chosen one.
+  const bad = await post("/admin/inventory", { ...INTAKE, title: "", source: "purchase" });
+  assert.match(await bad.text(), /<option value="purchase" selected>Purchase<\/option>/);
+  // The photo page no longer has the batch controls (the book form owns them).
+  assert.doesNotMatch((await get("/admin/inventory/scan?saved=1&source=lot")).text, /Source of these books/);
 });
 
 test("the copy edit form shows and saves the source, and can clear it", async () => {

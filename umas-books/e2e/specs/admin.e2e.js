@@ -137,21 +137,91 @@ s.todo("A8b admin pages declare lang=\"en\" (they are English only)", "known gap
 
 // ---- 5C. Add books ----
 
-s.test("A9 (must) the ISBN lookup fills in the book form (title, author, publisher, binding, description) and the copy section", { as: "admin" }, async (ctx) => {
-  await admin(ctx, "/admin/inventory/scan");
-  for (const id of ["#location", "#source", "#isbn"]) assert.ok(await ctx.page.$(id), `scan field ${id}`);
-  await ctx.page.type("#location", "E2E-LOOKUP");
-  await ctx.page.select("#source", "donation");
-  await ctx.page.type("#isbn", REAL_ISBN);
-  await Promise.all([ctx.page.waitForNavigation(), ctx.page.$eval("#isbn", (i) => i.form.querySelector("button[type='submit']").click())]);
-  // Open Library may be unreachable from where this runs: the form must still appear.
-  const note = await ctx.page.$eval(".error-box", (e) => e.textContent).catch(() => "");
-  for (const id of ["#title", "#author", "#isbn", "#publisher", "#binding", "#genre", "#description", "#condition", "#location", "#source", "#publisherPrice"]) assert.ok(await ctx.page.$(id), `book form field ${id}`);
+s.test("A9 (must) scanning an ISBN looks the book up in place (no page reload) and fills in the book form and the copy section", { as: "admin" }, async (ctx) => {
+  await admin(ctx, "/admin/inventory/new");
+  await ctx.page.waitForSelector("#isbn[data-scan-active]"); // the page script is running
+  for (const id of ["#isbn", "#title", "#author", "#location", "#source"]) assert.ok(await ctx.page.$(id), `add-book field ${id}`);
+  assert.equal(await ctx.page.evaluate(() => document.activeElement && document.activeElement.id), "isbn", "the ISBN box has the cursor");
+  assert.equal(await ctx.page.$eval("#location", (i) => i.value), "STORE", "Location starts at Store");
+  assert.equal(await ctx.page.$eval("#source", (i) => i.value), "donation", "Source starts at Donation");
+  // A scanner types the digits and presses Enter: the page must look up, not submit.
+  await ctx.page.keyboard.type(REAL_ISBN);
+  await ctx.page.keyboard.press("Enter");
+  await ctx.page.waitForFunction(() => /^(Found|Already in stock|Not found|No connection|The lookup)/.test(document.getElementById("scan-status").textContent.trim()), { timeout: 20000 });
+  assert.equal(new URL(ctx.page.url()).pathname, "/admin/inventory/new", "no page change");
+  const status = await ctx.page.$eval("#scan-status", (e) => e.textContent.trim());
+  // Open Library may be unreachable from where this runs: the form must still be usable.
+  for (const id of ["#title", "#author", "#publisher", "#binding", "#genre", "#description", "#condition", "#location", "#source", "#publisherPrice"]) assert.ok(await ctx.page.$(id), `book form field ${id}`);
   has(await ctx.text(), /This copy/);
-  if (!note) {
-    assert.ok((await ctx.page.$eval("#title", (i) => i.value)).length > 0, "the lookup filled in a title");
-  } else console.log(`# A9 note: ${note.trim().slice(0, 120)}`);
-  // Nothing was saved: the form was only opened.
+  if (/^(Found|Already in stock)/.test(status)) assert.ok((await ctx.page.$eval("#title", (i) => i.value)).length > 0, "the lookup filled in a title");
+  else console.log(`# A9 note: ${status}`);
+  // Nothing was saved: the form was only filled in.
+});
+
+s.test("A9b (must) on a phone (375x812 and 320x640) the Add book page has no sideways scroll, nothing covers a field, fields are tall enough and at least 16 px, and the Save bar is on screen", { as: "admin" }, async (ctx) => {
+  for (const [width, height] of [[375, 812], [320, 640]]) {
+    await ctx.page.setViewport({ width, height, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+    await admin(ctx, "/admin/inventory/new");
+    const r = await ctx.page.evaluate(() => {
+      const problems = [];
+      if (document.documentElement.scrollWidth > innerWidth) problems.push(`sideways scroll: page ${document.documentElement.scrollWidth} px in a ${innerWidth} px window`);
+      const fields = [...document.querySelectorAll("input:not([type=hidden]):not([type=file]):not([type=radio]):not([type=checkbox]), select, textarea")];
+      for (const el of fields) {
+        const d = el.closest("details");
+        if (d && !d.open) continue;
+        const name = el.id || el.name;
+        if (el.readOnly || el.disabled || el.getAttribute("inputmode") === "none") problems.push(`${name} is readonly, disabled or inputmode none`);
+        el.scrollIntoView({ block: "center" });
+        const b = el.getBoundingClientRect();
+        const top = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+        if (top !== el && !el.contains(top)) problems.push(`${name} is covered by ${top ? top.tagName + "." + top.className : "nothing"}`);
+        if (b.height < 44 && !el.closest(".admin-search")) problems.push(`${name} is only ${Math.round(b.height)} px tall`);
+        if (parseFloat(getComputedStyle(el).fontSize) < 16) problems.push(`${name} has a font under 16 px (iOS zooms in)`);
+      }
+      const q = document.querySelector(".admin-search input");
+      if (q && parseFloat(getComputedStyle(q).fontSize) < 16) problems.push("the header search box has a font under 16 px");
+      window.scrollTo(0, 0);
+      const bar = document.querySelector("[data-scan-actions]").getBoundingClientRect();
+      if (bar.bottom > innerHeight + 1) problems.push(`the Save bar is below the screen (bottom ${Math.round(bar.bottom)} > ${innerHeight})`);
+      const isbnBox = document.getElementById("isbn").getBoundingClientRect();
+      if (isbnBox.top > 420) problems.push(`the ISBN box starts ${Math.round(isbnBox.top)} px down: it should be near the top`);
+      return problems;
+    });
+    assert.deepEqual(r, [], `${width}x${height}: ${r.join("; ")}`);
+  }
+});
+
+s.test("A9c Scan mode is off by default and is remembered by the browser (nothing is saved)", { as: "admin" }, async (ctx) => {
+  await admin(ctx, "/admin/inventory/new");
+  await ctx.page.evaluate(() => localStorage.removeItem("umas.scan.mode"));
+  await ctx.page.reload();
+  assert.equal(await ctx.page.$eval("#scan-mode", (i) => i.checked), false, "off by default");
+  assert.equal(await ctx.page.$eval("[data-scan-save-suggested]", (b) => b.hidden), true, "no one-tap button while it is off");
+  await ctx.page.click("#scan-mode");
+  await ctx.page.reload();
+  assert.equal(await ctx.page.$eval("#scan-mode", (i) => i.checked), true, "remembered");
+  await ctx.page.click("#scan-mode"); // leave it off for the next test
+});
+
+s.test("A9d Location, Source, Binding and Condition are the last values used (also after a reload); the first time they are Store, Donation, the last binding and Very Good (nothing is saved)", { as: "admin" }, async (ctx) => {
+  await admin(ctx, "/admin/inventory/new");
+  await ctx.page.waitForSelector("#isbn[data-scan-active]");
+  await ctx.page.evaluate(() => { for (const k of ["binding", "location", "source", "condition"]) localStorage.removeItem(`umas.inventory.${k}`); });
+  await ctx.page.reload();
+  assert.equal(await ctx.page.$eval("#source", (i) => i.value), "donation", "first time: Donation");
+  assert.equal(await ctx.page.$eval("#condition", (i) => i.value), "very_good", "first time: Very Good");
+  const last = await ctx.page.$eval("#binding", (i) => i.options[i.options.length - 1].value);
+  assert.equal(await ctx.page.$eval("#binding", (i) => i.value), last, "first time: the last binding in the list");
+  await ctx.page.select("#binding", "hardcover");
+  await ctx.page.select("#source", "purchase");
+  await ctx.page.select("#condition", "good");
+  await ctx.page.$eval("#location", (i) => { i.value = "E2E-LAST"; i.dispatchEvent(new Event("input", { bubbles: true })); });
+  await ctx.page.reload();
+  assert.equal(await ctx.page.$eval("#binding", (i) => i.value), "hardcover");
+  assert.equal(await ctx.page.$eval("#source", (i) => i.value), "purchase");
+  assert.equal(await ctx.page.$eval("#condition", (i) => i.value), "good");
+  assert.equal(await ctx.page.$eval("#location", (i) => i.value), "E2E-LAST");
+  await ctx.page.evaluate(() => { for (const k of ["binding", "location", "source", "condition"]) localStorage.removeItem(`umas.inventory.${k}`); });
 });
 
 s.test("A10 (must) the copy form has condition, binding, source, location and the price control with a suggestion", { as: "admin" }, async (ctx) => {
@@ -189,7 +259,7 @@ s.test("A12 (must) a New book needs the publisher's price and may be at most 5% 
   };
   has(await post("", ""), /New books need the publisher's price/);
   has(await post("11.00", "12.00"), /at most 5% off.*between .?11\.40 and .?12\.00|between .?11\.40/);
-  assert.equal(new URL(ctx.page.url()).pathname, "/admin/inventory", "still on the form: nothing was saved");
+  assert.equal(new URL(ctx.page.url()).pathname, "/admin/inventory/new/again", "still on the form: nothing was saved");
 });
 
 s.test("A14 (must) saving a book with an empty title says 'Title is required.' (nothing is saved)", { as: "admin" }, async (ctx) => {
@@ -210,7 +280,7 @@ s.test("A14a bad numbers are refused with a clear English error and what was typ
     await Promise.all([ctx.page.waitForNavigation(), ctx.page.$eval("form[method='post'][action='/admin/inventory']", (f) => [...f.querySelectorAll("button[type='submit']")].find((b) => /Save book/i.test(b.textContent)).click())]);
     const err = await ctx.page.$eval(".error-box", (e) => e.textContent.trim()).catch(() => "");
     assert.ok(err.length > 5, `price "${bad}" got no error message`);
-    assert.equal(new URL(ctx.page.url()).pathname, "/admin/inventory", `price "${bad}" must not save`);
+    assert.equal(new URL(ctx.page.url()).pathname, "/admin/inventory/new/again", `price "${bad}" must not save`);
     assert.equal(await ctx.page.$eval("#title", (i) => i.value), `${TAG()} bad number check`, "the title typed is still in the form");
   }
 });
@@ -558,11 +628,11 @@ s.write("A10b (must) create a tagged test book through the ISBN lookup, see a pr
   tagged.isbn = isbn13();
   tagged.title = `${TAG()} Test Book`;
   tagged.location = `E2E-${TAG().slice(4, 12)}`;
-  await admin(ctx, "/admin/inventory/scan");
-  await ctx.page.type("#location", tagged.location);
-  await ctx.page.select("#source", "donation");
-  await ctx.page.type("#isbn", REAL_ISBN);
-  await Promise.all([ctx.page.waitForNavigation(), ctx.page.$eval("#isbn", (i) => i.form.querySelector("button[type='submit']").click())]);
+  await admin(ctx, "/admin/inventory/new");
+  await ctx.page.waitForSelector("#isbn[data-scan-active]"); // the page script is running
+  await ctx.page.keyboard.type(REAL_ISBN);
+  await ctx.page.keyboard.press("Enter");
+  await ctx.page.waitForFunction(() => /^(Found|Already in stock|Not found|No connection|The lookup)/.test(document.getElementById("scan-status").textContent.trim()), { timeout: 20000 });
   // The lookup only pre-fills the form. Save it under a tagged title and a made-up ISBN so it can never join a real book.
   await ctx.page.$eval("#title", (i, v) => { i.value = v; }, tagged.title);
   await ctx.page.$eval("#isbn", (i, v) => { i.value = v; }, tagged.isbn);
@@ -575,8 +645,18 @@ s.write("A10b (must) create a tagged test book through the ISBN lookup, see a pr
   const label = await ctx.page.$eval("[data-ps-label]", (e) => e.textContent.trim());
   console.log(`# A10b price suggestion shown: ${label}`);
   await ctx.page.click("#priceLevel-5");
-  await Promise.all([ctx.page.waitForNavigation(), ctx.page.$eval("form[method='post'][action='/admin/inventory']", (f) => [...f.querySelectorAll("button[type='submit']")].find((b) => /Save book/i.test(b.textContent)).click())]);
-  has(await ctx.text(), /Book saved/);
+  const t0 = Date.now();
+  await ctx.page.click("[data-scan-save-next]");
+  await ctx.page.waitForFunction(() => /^Saved:/.test(document.getElementById("scan-saved").textContent.trim()), { timeout: 30000 });
+  console.log(`# A10b save and add another took ${Date.now() - t0} ms`);
+  // Back to a fresh form with the cursor in the empty ISBN box; the location and binding of this book are kept, the source is Donation again.
+  assert.equal(await ctx.page.evaluate(() => document.activeElement && document.activeElement.id), "isbn", "the cursor is back in the ISBN box");
+  assert.equal(await ctx.page.$eval("#isbn", (i) => i.value), "");
+  assert.equal(await ctx.page.$eval("#title", (i) => i.value), "");
+  assert.equal(await ctx.page.$eval("#location", (i) => i.value), tagged.location);
+  assert.equal(await ctx.page.$eval("#binding", (i) => i.value), "trade");
+  assert.equal(await ctx.page.$eval("#source", (i) => i.value), "donation");
+  has(await ctx.text(), /Print label UB-\d+/);
   ctx.created("test book (tagged title, made-up ISBN, one copy at EUR 5.00 in the public shop)", `${tagged.title} / ${tagged.isbn}`, "admin Books & Reservations > search the tag > Delete this book");
   await admin(ctx, `/admin/inventory?q=${encodeURIComponent(TAG())}`);
   const href = await ctx.page.$$eval("a[href^='/admin/inventory/']", (as, title) => (as.find((a) => a.textContent.includes(title)) || {}).getAttribute?.("href") || null, tagged.title);

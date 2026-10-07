@@ -101,7 +101,7 @@ test("intake saves a normalised location on the new copy", async () => {
   });
   assert.equal(res.status, 302);
   // The scan flow comes back with the same location, ready for the next book.
-  assert.match(res.headers.get("location"), /^\/admin\/inventory\/scan\?saved=1&label=\d+&location=FICTION%20A1$/);
+  assert.match(res.headers.get("location"), /^\/admin\/inventory\/new\?saved=\d+&location=FICTION\+A1&condition=very_good$/);
   const { rows } = await pool.query(
     "SELECT c.location FROM book_copies c JOIN books b ON b.id = c.book_id WHERE b.title = $1", [title]
   );
@@ -117,20 +117,15 @@ test("intake without a location stores NULL", async () => {
   assert.equal(rows[0].location, null);
 });
 
-test("scan page pre-fills the current location and offers locations already used in the dropdown", async () => {
+test("the Add book page pre-fills the carried location, starts at Store, and offers locations already used in the dropdown", async () => {
   const bookId = await seedBook(`Dropdown ${uniq()}`, isbn13());
   await seedCopy(bookId, { location: "ZZ-DROPDOWN" });
-  const { text } = await get("/admin/inventory/scan?location=poetry%20b2");
+  const { text } = await get("/admin/inventory/new?location=poetry%20b2");
   assert.match(text, /id="location"[^>]*list="location-options"[^>]*value="POETRY B2"/);
   assert.match(text, /<datalist id="location-options">[\s\S]*<option value="ZZ-DROPDOWN">[\s\S]*<\/datalist>/);
+  assert.match(text, /<datalist id="location-options">[\s\S]*<option value="STORE">[\s\S]*<\/datalist>/, "Store is offered even when no copy is there");
   assert.match(text, /src="\/inventory-location\.js"/);
-});
-
-test("lookup keeps the current location when it re-renders the scan page", async () => {
-  const res = await post("/admin/inventory/lookup", { isbn: "", location: "kids c3" });
-  const text = await res.text();
-  assert.equal(res.status, 200);
-  assert.match(text, /value="KIDS C3"/);
+  assert.match((await get("/admin/inventory/new")).text, /id="location"[^>]*value="STORE"/);
 });
 
 test("the add-book form is pre-filled with the carried location and a typed new one joins the list", async () => {

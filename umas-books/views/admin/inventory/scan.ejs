@@ -1,4 +1,4 @@
-<%- include('../../partials/admin_header', { title: 'Scan a Book', active: active, pageTitle: 'Scan a Book' }) %>
+<%- include('../../partials/admin_header', { title: 'Scan a Book', active: active, pageTitle: 'Scan a Book', extraCss: ['/scan-intake.css'] }) %>
 
 <% if (typeof saved !== "undefined" && saved) { %><div role="status" class="notice-box">Book saved &mdash; ready for the next one.<% if (typeof labelCopy !== "undefined" && labelCopy) { %> <a class="btn btn-small" href="/admin/inventory/labels?id=<%= labelCopy %>" target="_blank" rel="noopener">Print label UB-<%= labelCopy %></a><% } %></div><% } %>
 <% if (typeof requestsMatched !== "undefined" && requestsMatched > 0) { %><div role="status" class="notice-box"><%= requestsMatched %> customer<%= requestsMatched === 1 ? '' : 's' %> asked for this book. <a href="/admin/requests?status=matched">See the requests</a></div><% } %>
@@ -8,23 +8,13 @@
 
 <div class="card">
   <div class="section-title">Enter an ISBN</div>
-  <p class="muted small">Type the ISBN from the barcode, or scan it with a barcode-scanner device (which just types into the box below).</p>
+  <p class="muted small">The faster way to add many books is the <a href="/admin/inventory/new">Add book page</a>: it looks the ISBN up as soon as you scan it. This page is for a photo of the cover. New books start at the location Store and the source Donation: change them on the book form.</p>
   <form class="stack" method="post" action="/admin/inventory/lookup" enctype="multipart/form-data">
     <%- include('../../partials/csrf_field') %>
-    <label for="location">Current location</label>
-    <input id="location" name="location" type="text" list="location-options" maxlength="40" value="<%= location %>" placeholder="e.g. FICTION-A1 (stays the same until you change it)" data-location-input autocomplete="off">
-    <p class="muted small">Every book you add below is saved at this place. Pick one from the list or type a new one.</p>
-    <label for="source">Source of these books</label>
-    <select id="source" name="source" data-source-input>
-      <option value="" <%= !source ? 'selected' : '' %>>Unknown</option>
-      <% sources.forEach(s => { %><option value="<%= s.value %>" <%= s.value === source ? 'selected' : '' %>><%= s.label %></option><% }) %>
-    </select>
-    <p class="muted small">Where this batch came from (a donation, something the shop bought, a job lot). It stays the same until you change it.</p>
     <label for="isbn">ISBN</label>
     <input id="isbn" name="isbn" type="text" inputmode="numeric" placeholder="9780143127550" autofocus data-auto-submit-isbn>
     <button class="btn" type="submit">Look up</button>
   </form>
-  <%- include('../../partials/location_options') %>
 </div>
 
 <div class="card" id="no-isbn">
@@ -38,8 +28,6 @@
     <p class="muted small">Photograph the front cover, or the barcode/ISBN on the back &mdash; we'll read whatever's visible and look it up automatically.</p>
     <form class="stack" method="post" action="/admin/inventory/lookup" enctype="multipart/form-data">
       <%- include('../../partials/csrf_field') %>
-      <input type="hidden" name="location" value="<%= location %>" data-location-mirror>
-      <input type="hidden" name="source" value="<%= source %>" data-source-mirror>
       <button type="button" class="btn btn-outline" data-trigger-file="photo">Take or Choose Photo</button>
       <input id="photo" name="photo" type="file" accept="image/*" capture="environment" required class="file-input-hidden" data-file-name-target="photo-name" data-auto-submit-file>
       <span id="photo-name" class="muted small file-input-name">No photo selected</span>
@@ -49,5 +37,4 @@
   <% } %>
 </div>
 
-<script src="/inventory-location.js"></script>
 <%- include('../../partials/admin_footer') %>
