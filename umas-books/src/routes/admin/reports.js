@@ -28,6 +28,7 @@ router.get("/admin/reports", requireAdmin, (req, res) => {
 // ---------- the accounting export's account mapping ----------
 
 const accounting = require("../../lib/accounting");
+const { setFlash, takeFlash } = require("../../lib/flash");
 
 async function renderMapping(req, res, { status = 200, error = null, notice = null } = {}) {
   res.status(status).render("admin/reports/accounting_mapping", {
@@ -36,7 +37,11 @@ async function renderMapping(req, res, { status = 200, error = null, notice = nu
   });
 }
 
-router.get("/admin/reports/accounting/mapping", requireAdmin, (req, res) => renderMapping(req, res, { notice: req.query.saved === "1" ? "Saved." : null }));
+router.get("/admin/reports/accounting/mapping", requireAdmin, (req, res) => {
+  // A refused save redirects here (Post/Redirect/Get) with its message.
+  const f = takeFlash(req, "accounting-mapping");
+  return renderMapping(req, res, f && f.error ? { error: String(f.error) } : { notice: req.query.saved === "1" ? "Saved." : null });
+});
 
 router.post("/admin/reports/accounting/mapping", requireAdmin, async (req, res) => {
   const current = await accounting.loadMapping(pool);
@@ -46,7 +51,8 @@ router.post("/admin/reports/accounting/mapping", requireAdmin, async (req, res) 
     const get = (f) => String((req.body[`${f}_${i}`] ?? "")).trim();
     const next = { debit: get("debit"), credit: get("credit"), journal: get("journal") };
     if (!accounting.ACCOUNT_RE.test(next.debit) || !accounting.ACCOUNT_RE.test(next.credit) || !accounting.JOURNAL_RE.test(next.journal)) {
-      return renderMapping(req, res, { status: 400, error: `Row "${row.category} / ${row.method}": accounts are letters and digits only (at most 20), the journal at most 10.` });
+      await setFlash(req, "accounting-mapping", { error: `Row "${row.category} / ${row.method}": accounts are letters and digits only (at most 20), the journal at most 10.` });
+      return res.redirect(303, "/admin/reports/accounting/mapping");
     }
     if (next.debit !== row.debit || next.credit !== row.credit || next.journal !== row.journal) changes.push({ row, next });
   }

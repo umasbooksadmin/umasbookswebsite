@@ -6,7 +6,7 @@ const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const bcrypt = require("bcryptjs");
 const { startTestApp } = require("../helpers/testApp");
-const { makeCookieJar, fetchCsrfToken } = require("../helpers/httpClient");
+const { makeCookieJar, fetchCsrfToken, followSeeOther } = require("../helpers/httpClient");
 
 const PORT = 3791;
 const PASSWORD = "Shop-Sales-Test-1!";
@@ -45,7 +45,7 @@ async function post(path, fields, token) {
     body: new URLSearchParams({ ...fields, _csrf: csrf }).toString(),
   });
   jar.capture(res);
-  return res;
+  return followSeeOther(res, { base: app.base, jar, headers: { "x-forwarded-for": "10.79.1.1" } });
 }
 
 async function get(path, useJar = jar) {
