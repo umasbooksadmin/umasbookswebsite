@@ -36,7 +36,7 @@
 
   <div data-price-custom>
     <label for="price<%= sfx %>">Custom price (&euro;)</label>
-    <input id="price<%= sfx %>" name="price" type="number" step="0.01" min="0" value="<%= priceValue == null ? '' : priceValue %>"<%= ps && ps.needsReview && mode === 'intake' ? ' autofocus' : '' %>>
+    <input id="price<%= sfx %>" name="price" type="number" inputmode="decimal" step="0.01" min="0" value="<%= priceValue == null ? '' : priceValue %>"<%= ps && ps.needsReview && mode === 'intake' ? ' autofocus' : '' %>>
     <p class="muted small" data-price-help>Used when &ldquo;Custom...&rdquo; is selected, and for new books (which are sold at the publisher's price).</p>
   </div>
 

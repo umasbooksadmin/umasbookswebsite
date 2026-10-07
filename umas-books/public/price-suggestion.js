@@ -133,13 +133,13 @@
       return "custom";
     }
 
-    function fill(s) {
+    function fill(s, quiet) {
       var key = keyFor(s);
       for (var i = 0; i < radios.length; i++) radios[i].checked = radios[i].value === key;
       priceInput.value = s.price == null ? "" : s.price;
       syncVisibility();
       renderSticker();
-      if (s.price == null && !isNew() && mode === "intake") priceInput.focus();
+      if (s.price == null && !isNew() && mode === "intake" && !quiet) priceInput.focus();
     }
 
     function list(ul, items, build) {
@@ -253,7 +253,30 @@
     }
 
     var isbn = byId("isbn");
-    if (isbn && mode === "intake") isbn.addEventListener("change", function () { request(!dirty); });
+    // (On the one-screen add page the lookup brings the suggestion itself: see scan-intake.js.)
+    if (isbn && mode === "intake") isbn.addEventListener("change", function () { if (!isbn.hasAttribute("data-scan-active")) request(!dirty); });
+
+    // scan-intake.js hands over a suggestion it already has (ps:apply), or clears the control for the next book (ps:reset).
+    root.addEventListener("ps:apply", function (e) {
+      token++; // an answer still on its way is older than this one
+      last = e.detail;
+      show(e.detail);
+      if (!dirty) fill(e.detail, true); // quiet: the cursor stays in the ISBN box
+    });
+    root.addEventListener("ps:reset", function () {
+      token++;
+      dirty = false;
+      last = null;
+      for (var i = 0; i < radios.length; i++) radios[i].checked = false;
+      priceInput.value = "";
+      if (hiddenPrice) hiddenPrice.value = "";
+      if (hiddenLevel) hiddenLevel.value = "";
+      box.hidden = true;
+      Array.prototype.forEach.call(tags, function (t) { t.hidden = true; });
+      wasNew = isNew();
+      syncVisibility();
+      renderSticker();
+    });
 
     if (suggestBtn) {
       suggestBtn.addEventListener("click", function (e) {

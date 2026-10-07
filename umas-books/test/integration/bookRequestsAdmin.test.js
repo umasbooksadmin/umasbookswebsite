@@ -149,13 +149,13 @@ test("intake shows the banner: redirect and the book's admin page say how many c
   assert.match(page.text, new RegExp(`/admin/requests\\?status=matched&amp;book=${book.bookId}`));
   const quiet = await intake({ title: `Quiet ${uniq()}` });
   assert.ok(!(await c.get(`/admin/inventory/${quiet.bookId}`, { as: admin })).text.includes("asked for this book"));
-  // the scan flow carries the count to the scan screen
+  // the scan flow carries the count to the add page
   const t2 = `Scan ${uniq()}`;
   await request({ title: t2 });
   const res = await adminPost("/admin/inventory", {
     title: t2, price: "5", condition: "very_good", fromScan: "1", description: "d", descriptionFr: "d", coverUrl: "http://cover.example/c.jpg",
   });
-  assert.match(res.location, /^\/admin\/inventory\/scan\?saved=1.*&requests=1$/);
+  assert.match(res.location, /^\/admin\/inventory\/new\?saved=\d+.*&requests=1$/);
   assert.match((await c.get(res.location, { as: admin })).text, /1 customer asked for this book/);
 });
 

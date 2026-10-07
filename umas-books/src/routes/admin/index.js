@@ -20,6 +20,7 @@ router.use(require("./charity"));
 router.use(require("./priceSuggestions")); // before inventory: "price-suggestion" is not a book id
 router.use(require("./stickers")); // before inventory: "stickers" is not a book id
 router.use(require("./labels")); // before inventory: "labels" is not a book id
+router.use(require("./inventoryLookup")); // before inventory: "lookup" is not a book id
 router.use(require("./till"));
 router.use(require("./inventory"));
 router.use(require("./awards"));
