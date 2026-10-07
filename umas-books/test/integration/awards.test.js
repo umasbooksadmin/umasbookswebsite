@@ -532,6 +532,7 @@ test("migration 080 removes stored Wikidata awards and queues every book for a r
     assert.equal(row.awards_checked_at, null);
     assert.equal(row.awards_check_state, null);
   }
+});
 
 test("layout: description and awards sit in the top block beside the cover, before price and copies, in EN and FR, with or without them", async () => {
   const book = await seedBook();
