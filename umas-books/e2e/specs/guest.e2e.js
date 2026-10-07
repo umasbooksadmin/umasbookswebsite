@@ -943,6 +943,20 @@ s.test("G25b FR check (legal pages): hours as 14 h–19 h, the withdrawal senten
 
 s.manual("G25c the membership page shows the price before the HelloAsso form loads, and the shop address shows its street number", "needs MEMBERSHIP_PRICE_EUR and SHOP_STREET_NUMBER to be set in src/lib/legal.js (empty until the association gives them: docs/legal-todos.md); the helpers are covered by test/unit/legalConstants.test.js");
 
+s.test("G25d the footer shows the map to the shop, loaded from our own site, with English alt text", async (ctx) => {
+  await ctx.goto("/visit.html");
+  assert.ok(await ctx.page.$("footer.mkt-footer .h-footer-map img"), "map in the footer");
+  assert.equal(await ctx.page.$eval("footer.mkt-footer .h-footer-map img", (i) => i.alt), "Map showing how to find Uma's Books and Adventures from Rue Peyrolière, Albi");
+  assert.equal(await ctx.page.$eval("footer.mkt-footer .h-footer-map img", (i) => i.getAttribute("loading")), "lazy");
+  assert.equal(await ctx.page.$eval("footer.mkt-footer .h-footer-map img", (i) => new URL(i.currentSrc || i.src).origin === location.origin), true);
+});
+
+s.test("G25e FR check (footer map): French alt text and caption", { lang: "fr" }, async (ctx) => {
+  await ctx.goto("/visit.html");
+  assert.equal(await ctx.page.$eval("footer.mkt-footer .h-footer-map img", (i) => i.alt), "Plan pour trouver Uma’s Books and Adventures depuis la rue Peyrolière, Albi");
+  has(await ctx.page.$eval("footer.mkt-footer .h-footer-map figcaption", (c) => c.textContent), /Albi, France\s: rue Peyrolière/);
+});
+
 s.test("G57a an adult registering for themselves is not asked for a child's details; checkboxes for days and times, no Ctrl/Cmd", async (ctx) => {
   await ctx.goto("/pre-registration.html");
   assert.equal(await ctx.page.$$eval("select[multiple]", (l) => l.length), 0, "no multi-select list");
