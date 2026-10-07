@@ -89,7 +89,7 @@ async function refreshUserLang(req, userId) {
 // Where a fresh login lands: a validated returnTo (e.g. the cart a guest was
 // sent away from at checkout) wins, otherwise the role's usual home.
 function landingFor(user, returnTo) {
-  return safeReturnTo(returnTo) || (user.is_admin ? "/admin" : (user.is_member || user.is_volunteer) ? "/dashboard" : "/");
+  return safeReturnTo(returnTo) || (user.is_admin ? "/admin" : user.is_till ? "/admin/till" : (user.is_member || user.is_volunteer) ? "/dashboard" : "/");
 }
 
 function loginAs(req, res, user, redirectTo) {
@@ -103,7 +103,7 @@ function loginAs(req, res, user, redirectTo) {
     }
     req.session.user = {
       id: user.id, email: user.email, displayName: user.display_name,
-      isAdmin: user.is_admin, isMember: isActiveMember(user), isVolunteer: user.is_volunteer,
+      isAdmin: user.is_admin, isMember: isActiveMember(user), isVolunteer: user.is_volunteer, isTill: Boolean(user.is_till), tillActiveAt: Date.now(),
       passwordChangedAt: user.password_changed_at.getTime(),
       totpEnabled: Boolean(user.totp_enabled_at),
     };

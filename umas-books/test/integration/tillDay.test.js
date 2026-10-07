@@ -29,7 +29,7 @@ test("end of day: totals by payment method, voids excluded, expected cash = floa
   assert.match(decodeURIComponent(bad.headers.get("location")), /error=/);
   assert.equal((await h.post("/admin/till/day/open", { openingFloat: "50,50" })).status, 302);
 
-  await sellBook(5, "cash");
+  const first = await sellBook(5, "cash");
   await sellBook(7.5, "cash");
   await sellBook(12, "card");
   const voided = await sellBook(20, "cash");
@@ -45,6 +45,7 @@ test("end of day: totals by payment method, voids excluded, expected cash = floa
   // closing: counted cash required and valid
   assert.match(decodeURIComponent((await h.post("/admin/till/day/close", { day: today(), counted: "x" })).headers.get("location")), /error=/);
   assert.match(decodeURIComponent((await h.post("/admin/till/day/close", { day: "2999-01-01", counted: "10" })).headers.get("location")), /error=|day=/);
+  // no float is needed here (one was saved), so no confirmation is asked
   const close = await h.post("/admin/till/day/close", { day: today(), counted: "61.50", note: "short by a coin" });
   assert.equal(close.status, 302);
   const row = (await h.pool.query("SELECT * FROM till_days WHERE day = $1", [today()])).rows[0];
@@ -59,11 +60,14 @@ test("end of day: totals by payment method, voids excluded, expected cash = floa
   // closed: no second close, no float change, no more voids
   assert.match(decodeURIComponent((await h.post("/admin/till/day/close", { day: today(), counted: "63" })).headers.get("location")), /already closed/);
   assert.match(decodeURIComponent((await h.post("/admin/till/day/open", { openingFloat: "1" })).headers.get("location")), /already closed/);
-  const later = await sellBook(4, "cash");
-  const v = await h.post(`/admin/till/sales/${later.saleId}/void`, { reason: "late" });
+  const v = await h.post(`/admin/till/sales/${first.saleId}/void`, { reason: "late" });
   assert.match(decodeURIComponent(v.headers.get("location")), /day is closed/);
-  assert.equal((await h.copy(later.copyId)).status, "sold");
-  assert.match((await h.get(`/admin/till/day?day=${today()}`)).text, /1 sale\(s\) were made after the day was closed/);
+  assert.equal((await h.copy(first.copyId)).status, "sold");
+  // and a new sale on the closed day is refused (see tillCorrectness.test.js for reopening)
+  const book = await h.seedBook(`Late ${h.uniq()}`);
+  const late = await h.sale([h.book(await h.seedCopy(book.id, { price: 4 }))]);
+  assert.equal(late.status, 409);
+  assert.equal(late.body.code, "day_closed");
   assert.doesNotMatch((await h.get("/admin/till")).text, /Void sale/, "no void buttons on a closed day");
 });
 
@@ -81,14 +85,16 @@ test("end of day CSV: BOM, one row per sale, no customer data; audited, not cach
 });
 
 test("a past day with sales that was never closed shows in Needs attention until it is closed", async () => {
-  const r = await sellBook(3, "cash");
-  await h.pool.query("UPDATE till_sales SET created_at = now() - interval '3 days' WHERE id = $1", [r.saleId]);
-  const past = (await h.pool.query("SELECT (created_at AT TIME ZONE 'Europe/Paris')::date::text AS d FROM till_sales WHERE id = $1", [r.saleId])).rows[0].d;
+  const saleId = await insertTillSale({ at: new Date(Date.now() - 3 * 24 * 3600 * 1000), lines: [{ cat: "merchandise", qty: 1, cents: 300 }] });
+  const past = (await h.pool.query("SELECT (created_at AT TIME ZONE 'Europe/Paris')::date::text AS d FROM till_sales WHERE id = $1", [saleId])).rows[0].d;
   const dash = (await h.get("/admin")).text;
   assert.match(dash, new RegExp(`/admin/till/day\\?day=${past}`));
   assert.match(dash, /never closed/);
   assert.match((await h.get("/admin/till/day")).text, /Never closed/);
-  assert.equal((await h.post("/admin/till/day/close", { day: past, counted: "0" })).status, 302);
+  // no opening float was ever entered for that day: closing asks for confirmation first
+  const refused = await h.post("/admin/till/day/close", { day: past, counted: "0" });
+  assert.match(decodeURIComponent(refused.headers.get("location")), /did not enter an opening float/);
+  assert.equal((await h.post("/admin/till/day/close", { day: past, counted: "0", confirmNoFloat: "1" })).status, 302);
   assert.doesNotMatch((await h.get("/admin")).text, new RegExp(`day=${past}`));
 });
 
@@ -114,7 +120,7 @@ async function insertTillSale({ at, method = "cash", status = "completed", lines
   return rows[0].id;
 }
 
-test("accounting export: categories and methods, no personal data, voided and refunded excluded, linked from Reports", async () => {
+test("accounting export: categories and methods, no personal data, voided excluded, a refund adds a negative row, linked from Reports", async () => {
   const D = "2031-05-10"; // a quiet day, far from the other tests' data
   assert.match((await h.get("/admin/reports")).text, /Accounting export/);
   await insertTillSale({ at: `${D}T10:00:00+02:00`, lines: [{ cat: "books_used", qty: 3, cents: 500 }, { cat: "merchandise", qty: 2, cents: 750 }] });
@@ -126,7 +132,8 @@ test("accounting export: categories and methods, no personal data, voided and re
   await h.pool.query("INSERT INTO shop_sales (copy_id, price, sold_at, payment_method) VALUES ($1, 4, $2, 'card')", [legacyCopy, `${D}T13:00:00+02:00`]);
   // online: a paid order (1 used book + 1 seat), a refunded one (excluded)
   await makeOrder(h.pool, { status: "paid", paidAt: `${D}T14:00:00+02:00`, books: 1, seat: true, price: 6, name: "Secret Buyer", email: "secret-buyer@example.test" });
-  await makeOrder(h.pool, { status: "refunded", paidAt: `${D}T14:30:00+02:00`, books: 2, price: 6 });
+  const refunded = await makeOrder(h.pool, { status: "refunded", paidAt: `${D}T14:30:00+02:00`, books: 2, price: 6 });
+  await h.pool.query("UPDATE orders SET refunded_at = $2 WHERE id = $1", [refunded.order.id, `${D}T16:00:00+02:00`]);
   // membership
   await h.pool.query("INSERT INTO membership_payments (helloasso_order_id, payer_email, amount_cents, paid_at) VALUES (990001, 'payer-secret@example.test', 2000, $1)", [`${D}T15:00:00+02:00`]);
   await h.pool.query("INSERT INTO membership_payments (helloasso_order_id, payer_email, amount_cents, paid_at) VALUES (990002, 'no-amount@example.test', NULL, $1)", [`${D}T15:30:00+02:00`]);
@@ -136,9 +143,9 @@ test("accounting export: categories and methods, no personal data, voided and re
   assert.match(res.headers.get("content-type"), /text\/csv/);
   assert.equal(res.headers.get("cache-control"), "no-store");
   assert.ok(text.startsWith("\uFEFF"));
-  assert.match(text, /^\uFEFF"Date","Category","Payment method","Count","Total \(EUR\)"/);
+  assert.match(text, /^\uFEFF"Date","Category","Payment method","Count","Total \(EUR\)","Libellé","Compte débit","Compte crédit","Journal"/);
   assert.doesNotMatch(text, /@|Secret|secret|Total"/, "no emails, names, and no totals row in the import file");
-  const rows = csvRows(text).map((r) => r.map((c) => c.replace(/"/g, "")));
+  const rows = csvRows(text).map((r) => r.slice(0, 5).map((c) => c.replace(/"/g, "")));
   const get = (cat, method) => rows.find((r) => r[1] === cat && r[2] === method);
   assert.deepEqual(get("Books used", "Cash"), [D, "Books used", "Cash", "3", "15.00"]);
   assert.deepEqual(get("Merchandise", "Cash"), [D, "Merchandise", "Cash", "2", "15.00"]);
@@ -148,10 +155,12 @@ test("accounting export: categories and methods, no personal data, voided and re
   assert.deepEqual(get("Other", "Card at the till"), [D, "Other", "Card at the till", "1", "3.00"], "'Books (other)' goes to Other");
   // legacy shop sale: used book, card => joins "Books used / Card at the till"
   assert.deepEqual(get("Books used", "Card at the till"), [D, "Books used", "Card at the till", "1", "4.00"]);
-  assert.deepEqual(get("Books used", "HelloAsso"), [D, "Books used", "HelloAsso", "1", "6.00"]);
+  // the refunded order keeps its (positive) sale row and has a negative row at the refund
+  assert.deepEqual(get("Books used", "HelloAsso"), [D, "Books used", "HelloAsso", "3", "18.00"]);
+  assert.deepEqual(rows.find((r) => r[1] === "Books used" && r[2] === "HelloAsso" && r[3] === "-2"), [D, "Books used", "HelloAsso", "-2", "-12.00"]);
   assert.deepEqual(get("Class seats", "HelloAsso"), [D, "Class seats", "HelloAsso", "1", "6.00"]);
   assert.deepEqual(get("Membership", "HelloAsso"), [D, "Membership", "HelloAsso", "1", "20.00"]);
-  assert.equal(rows.length, 10, "nothing else: voided till sale and refunded order are excluded");
+  assert.equal(rows.length, 11, "nothing else: the voided till sale is excluded");
   // sorted by the category order
   assert.deepEqual(rows.map((r) => r[1]).filter((c, i, a) => a.indexOf(c) === i), ["Books used", "Books new", "Merchandise", "Refreshments", "Class seats", "Membership", "Donation", "Other"]);
   assert.equal((await h.audit("report.csv")).filter((a) => a.detail === "accounting").length, 1);

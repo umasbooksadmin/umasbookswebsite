@@ -264,7 +264,7 @@ s.test("AC22 (must) the reserve form has name, email, phone, terms checkbox with
   await addFirstCopyToCart(ctx, book);
   await needReserve(ctx);
   const form = await ctx.page.$eval("form[action='/cart/reserve']", (f) => f.innerText);
-  for (const re of [/Name/, /Email/, /Phone \(optional\)/, /terms of sale/, /Nothing is paid online\. We hold your books for 14 days: come to the shop and pay when you collect them\./, /We hold your books for 14 days\. Pay and collect them at the shop, Tuesday to Saturday, 10:00–19:00/, /Used books are not taken back for a change of mind once bought in the shop/, /Reserve \(free, no commitment\)/]) has(form, re);
+  for (const re of [/Name/, /Email/, /Phone \(optional\)/, /terms of sale/, /Nothing is paid online\. We hold your books for 14 days: come to the shop and pay when you collect them\./, /We hold your books for 14 days\. Pay and collect them at the shop, Rue Peyrolière, Albi\. Collect your books during our regular hours, Wednesday to Saturday, 14:00–19:00/, /Used books are not taken back for a change of mind once bought in the shop/, /Reserve \(free, no commitment\)/]) has(form, re);
   hasNot(form, /Order with obligation to pay|HelloAsso|pay online by card/);
   has(await ctx.text(), /Price incl\. tax, TVA non applicable/);
   const link = await ctx.page.$eval("form[action='/cart/reserve'] a[href='/terms-of-sale.html']", (a) => a.target);
@@ -295,7 +295,7 @@ s.test("AC-FR22 FR check (cart): the cart and the reserve form are in French", {
   for (const re of [/Votre panier/, /Retirer/, /Total\s:/]) has(text, re);
   if (ctx.preview) { has(text, /Les réservations en ligne ouvriront au lancement/); return; }
   if (!(await reserveForm(ctx))) return;
-  for (const re of [/Réservation/, /Nom/, /E-mail/, /Téléphone \(facultatif\)/, /J.ai lu et j.accepte les conditions générales de vente \(CGV\)/, /Réserver \(gratuit, sans engagement\)/, /Rien n’est payé en ligne\. Nous gardons vos livres 14 jours\s: passez à la boutique et réglez-les au moment du retrait\./, /Les livres d’occasion ne sont ni repris ni échangés/, /Prix TTC, TVA non applicable/, /Réglez-les et retirez-les à la boutique, du mardi au samedi, 10\s?h–19\s?h, rue Peyrolière, Albi/]) has(text, re);
+  for (const re of [/Réservation/, /Nom/, /E-mail/, /Téléphone \(facultatif\)/, /J.ai lu et j.accepte les conditions générales de vente \(CGV\)/, /Réserver \(gratuit, sans engagement\)/, /Rien n’est payé en ligne\. Nous gardons vos livres 14 jours\s: passez à la boutique et réglez-les au moment du retrait\./, /Les livres d’occasion ne sont ni repris ni échangés/, /Prix TTC, TVA non applicable/, /Réglez-les et retirez-les à la boutique, rue Peyrolière, Albi\. Venez retirer vos livres pendant nos horaires habituels, du mercredi au samedi, de 14\s?h à 19\s?h/]) has(text, re);
   hasNot(text, /Commander avec obligation de paiement|HelloAsso/);
 });
 
@@ -348,7 +348,7 @@ s.test("AC26 (must) the reservation page shows the items, the total to pay at th
   if (!held) ctx.skip("needs the reservation test AC24 (with E2E_ALLOW_WRITES=1) to have made a reservation first");
   await ctx.goto(`/cart/return?order=${held.token}`);
   const text = await ctx.text();
-  for (const re of [/Reservation #\d+ recorded/, /Total to pay at the shop:\s*€\d+\.\d\d/, /We hold your books until the end of .*\(Paris time\)/, /Pay and collect at the shop \(Rue Peyrolière, Tuesday to Saturday, 10:00–19:00\) and give this reservation number/, /A confirmation email is on its way to /, /Print this page/, /Cancel reservation/]) has(text, re);
+  for (const re of [/Reservation #\d+ recorded/, /Total to pay at the shop:\s*€\d+\.\d\d/, /We hold your books until the end of .*\(Paris time\)/, /Pay and collect at the shop \(Rue Peyrolière\) and give this reservation number\. Collect your books during our regular hours, Wednesday to Saturday, 14:00–19:00/, /A confirmation email is on its way to /, /Print this page/, /Cancel reservation/]) has(text, re);
   assert.ok(await ctx.page.$("#reservation-deadline"), "the deadline is on the page");
   assert.ok(await ctx.page.$(`form[action^='/cart/reservations/'] button[type='submit']`), "the owner sees a Cancel reservation button");
 });

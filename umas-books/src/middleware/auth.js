@@ -23,7 +23,7 @@ function attachUser(pool) {
     let rows;
     try {
       ({ rows } = await pool.query(
-        "SELECT is_admin, is_member, member_expires_at, is_volunteer, is_disabled, password_changed_at, totp_enabled_at FROM users WHERE id = $1",
+        "SELECT is_admin, is_member, member_expires_at, is_volunteer, is_till, is_disabled, password_changed_at, totp_enabled_at FROM users WHERE id = $1",
         [req.session.user.id]
       ));
     } catch (err) {
@@ -61,6 +61,7 @@ function attachUser(pool) {
     // Not just the flag: the sweep that clears it only runs every 6 hours.
     req.session.user.isMember = isActiveMember(row);
     req.session.user.isVolunteer = row.is_volunteer;
+    req.session.user.isTill = row.is_till;
     req.session.user.totpEnabled = Boolean(row.totp_enabled_at);
 
     // Inactivity clock (src/lib/privacy.js erases accounts with no login for
@@ -109,6 +110,30 @@ function requireAdmin(req, res, next) {
   next();
 }
 
+// The till (/admin/till): an admin, or an account holder an admin gave "Till access"
+// (users.is_till). Used ONLY on the till page and its scan / check / sale / void / receipt
+// routes; every other admin route stays requireAdmin. Admins keep two-step verification;
+// a till-only account does not need it, but its till session ends after 8 hours without
+// any till request (the cookie itself lasts 30 days).
+const TILL_IDLE_MS = 8 * 60 * 60 * 1000;
+const TILL_TOUCH_MS = 60 * 1000;
+function requireTillOrAdmin(req, res, next) {
+  const u = req.session.user;
+  if (!u) return res.redirect("/login");
+  if (u.isAdmin) return requireAdmin(req, res, next);
+  if (!u.isTill) return res.status(403).send("Admins only.");
+  const now = Date.now();
+  if (!u.tillActiveAt || now - u.tillActiveAt > TILL_IDLE_MS) {
+    req.session.user = null;
+    res.locals.user = null;
+    return res.redirect("/login");
+  }
+  // Written at most once a minute: a session write per scan would be wasteful.
+  if (now - u.tillActiveAt > TILL_TOUCH_MS) u.tillActiveAt = now;
+  res.locals.tillOnly = true;
+  next();
+}
+
 // Being logged in isn't the same as being a member — the Member's Access
 // dashboard (forum, charity vote, meeting scheduling) is a paid
 // membership perk. A logged-in user who isn't a member (or admin) gets
@@ -132,4 +157,4 @@ function requireVolunteer(req, res, next) {
   next();
 }
 
-module.exports = { admin2faRequired, attachUser, requireAuth, requireAdmin, requireMember, requireVolunteer };
+module.exports = { admin2faRequired, attachUser, requireAuth, requireAdmin, requireTillOrAdmin, TILL_IDLE_MS, requireMember, requireVolunteer };

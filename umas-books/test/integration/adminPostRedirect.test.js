@@ -24,6 +24,9 @@ const MAY_SEND = new Set([
   "/admin/privacy/export", // the JSON data-request download
   "/admin/inventory/generate-description", // JSON for public/app.js
   "/admin/till/sale", // JSON for the till's fetch()
+  "/admin/till/scan", // ditto
+  "/admin/till/release",
+  "/admin/till/check",
   "/admin/forum/hide", // plain-text 400 for a missing reason (no valid target yet)
 ]);
 
@@ -152,18 +155,13 @@ test("till items: a refused form redirects to the list with the message", async 
   assert.equal(r.status, 200);
 });
 
-test("inventory: sell lookup, move scan, lookup, suggest and refused forms all redirect", async () => {
+test("inventory: move scan, lookup, suggest and refused forms all redirect", async () => {
   const b = browser();
   const isbn = `9780${String(Date.now()).slice(-9)}`.slice(0, 13);
   const { rows: [book] } = await h.pool.query("INSERT INTO books (isbn, title, authors) VALUES ($1, 'Redirect Tester', 'A. Author') RETURNING id", [isbn]);
   const { rows: [copy] } = await h.pool.query("INSERT INTO book_copies (book_id, status, condition, price) VALUES ($1, 'in_stock', 'very_good', 6) RETURNING id", [book.id]);
 
-  let r = await b.submit("/admin/inventory/sell", { isbn });
-  assert.equal(r.target, "/admin/inventory/sell");
-  assert.ok(r.text.includes("Redirect Tester"));
-  r = await b.submit("/admin/inventory/sell", { copyId: copy.id, price: "abc", payment: "cash" });
-  assert.match(r.text, /Enter the price/);
-
+  let r;
   r = await b.submit("/admin/inventory/move", { dest: "Shelf Z", scan: isbn });
   assert.equal(r.target, "/admin/inventory/move");
   assert.match(r.text, /Moved: Redirect Tester/);

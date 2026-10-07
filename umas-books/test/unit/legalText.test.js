@@ -59,7 +59,7 @@ test("no customer-facing text says a legal right is waived, and none promises re
 });
 
 test("French strings use no-break spaces before : and %", () => {
-  for (const v of Object.values(legalText.legalFor("fr"))) assert.doesNotMatch(v, / [:;!?%]/);
+  for (const v of Object.values(legalText.legalFor("fr")).filter((x) => typeof x === "string")) assert.doesNotMatch(v, / [:;!?%]/);
 });
 
 test("the VAT line is 'TVA non applicable' until VAT_NOTICE_ARTICLE is set, then names the article, everywhere", () => {
@@ -84,13 +84,13 @@ test("the VAT line is 'TVA non applicable' until VAT_NOTICE_ARTICLE is set, then
 
 test("the reservation email gives the shop days and hours, in both languages", () => {
   const o = { id: 1, buyer_name: "A", total_amount: 5, created_at: new Date() };
-  assert.match(buildOrderConfirmationText(o, [{ item_title: "B", price: 5 }], ""), /open Tuesday to Saturday, 10:00–19:00\. Please quote reservation #1\./);
-  assert.match(buildOrderConfirmationText({ ...o, lang: "fr" }, [{ item_title: "B", price: 5 }], ""), /ouvert du mardi au samedi, 10\u00a0h–19\u00a0h\./);
+  assert.match(buildOrderConfirmationText(o, [{ item_title: "B", price: 5 }], ""), /Collect your books during our regular hours, Wednesday to Saturday, 14:00–19:00\..*only the regular hours are guaranteed\. Please quote reservation #1\./);
+  assert.match(buildOrderConfirmationText({ ...o, lang: "fr" }, [{ item_title: "B", price: 5 }], ""), /du mercredi au samedi, de 14\u00a0h à 19\u00a0h\..*seuls les horaires habituels sont garantis\./);
 });
 
 test("the pickup hours match the opening hours in the home page's structured data", () => {
   const home = view("marketing/index.ejs");
-  assert.match(home, /dayOfWeek: \["Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"\]/);
+  assert.match(home, /dayOfWeek: legalText\.shopOpenDays/);
   // The home page reads the same constants as the pickup line (lib/legal.js SHOP_OPENS / SHOP_CLOSES / SHOP_HOURS_*).
   assert.match(home, /opens: legalText\.shopOpens/);
   assert.match(home, /closes: legalText\.shopCloses/);
@@ -98,5 +98,5 @@ test("the pickup hours match the opening hours in the home page's structured dat
 });
 
 test("the terms of sale version was bumped for this change", () => {
-  assert.equal(legal.TERMS_OF_SALE_VERSION, "2026-10-08");
+  assert.equal(legal.TERMS_OF_SALE_VERSION, "2026-10-09");
 });

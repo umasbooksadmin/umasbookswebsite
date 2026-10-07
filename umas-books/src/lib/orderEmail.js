@@ -36,8 +36,8 @@ const LEGAL_RIGHTS = [
 
 // Getters: the street number and the hours come from lib/legal.js when used.
 const SHOP_LINES = {
-  get en() { return `Uma's Books, ${legal.shopStreet("en")}, 81000 Albi — open Tuesday to Saturday, ${legal.shopHours("en")}.`; },
-  get fr() { return `Uma's Books, ${legal.shopStreet("fr", false)}, 81000 Albi — ouvert du mardi au samedi, ${legal.shopHours("fr")}.`; },
+  get en() { return `Uma's Books, ${legal.shopStreet("en")}, 81000 Albi. ${legal.shopHoursFirm("en")}`; },
+  get fr() { return `Uma's Books, ${legal.shopStreet("fr", false)}, 81000 Albi. ${legal.shopHoursFirm("fr")}`; },
 };
 
 // Subject of the reservation e-mail (a reservation, not an order confirmation or proof of purchase), in the order's language (English when unknown).

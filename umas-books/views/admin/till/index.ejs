@@ -15,7 +15,7 @@
 </form>
 <% } %>
 
-<div id="till" data-csrf="<%= csrfToken %>" data-token="<%= token %>" data-today="<%= today %>">
+<div id="till" data-csrf="<%= csrfToken %>" data-token="<%= token %>" data-today="<%= today %>" data-admin="<%= isAdmin ? '1' : '0' %>" data-max-total="<%= maxTotalCents %>">
   <div class="till-grid">
     <section class="till-left" aria-label="Sale">
       <form id="scan-form" autocomplete="off">
@@ -30,11 +30,12 @@
       <button type="button" class="btn btn-outline btn-small" id="toggle-keyboard" aria-pressed="false">Show on-screen keyboard</button>
 
       <ul id="lines" class="till-lines" aria-label="Items on this sale"></ul>
+      <p id="lines-status" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></p>
       <p id="empty" class="muted till-empty">Nothing yet. Scan a book, or tap a quick item.</p>
     </section>
 
     <aside class="till-right" aria-label="Payment">
-      <div class="till-total"><span>Total</span><strong id="total">€0.00</strong></div>
+      <div class="till-total"><span>Total</span><strong id="total" aria-live="polite" aria-atomic="true">€0.00</strong></div>
       <div class="till-pay">
         <button type="button" class="btn till-big" id="pay-cash" disabled>Cash</button>
         <button type="button" class="btn till-big till-card" id="pay-card" disabled>Card</button>
@@ -43,12 +44,18 @@
         <button type="button" class="btn btn-outline till-btn" id="manual-open">Manual item</button>
         <button type="button" class="btn btn-outline till-btn" id="clear" disabled>Clear sale</button>
       </div>
+      <% if (isAdmin) { %>
       <details class="till-earlier">
-        <summary>Sale made earlier today (internet was down)</summary>
+        <summary>Sale made earlier (internet was down)</summary>
+        <label for="sold-at-day">Day</label>
+        <select id="sold-at-day"><option value="today">Today</option><option value="yesterday">Yesterday</option></select>
         <label for="sold-at">Time it was sold (24h)</label>
         <input id="sold-at" type="time" step="60">
-        <p class="muted small">Leave empty for now. Only for sales written on paper, entered later the same day.</p>
+        <label for="backdate-reason">Reason (required for an earlier time)</label>
+        <input id="backdate-reason" type="text" maxlength="120" autocomplete="off" placeholder="Internet was down">
+        <p class="muted small">Leave the time empty for now. Only for sales written on paper, entered later (today or yesterday). The reason is kept in the activity log.</p>
       </details>
+      <% } %>
       <% if (quickItems.length) { %>
         <div class="till-quick-title">Quick items</div>
         <div class="till-quick">
@@ -61,6 +68,7 @@
         </div>
       <% } %>
       <p class="small"><a href="/admin/till/items">Other stock (not books)</a> &middot; <a href="/admin/till/day">End of day</a></p>
+      <p class="muted small till-footer-hint" id="scanner-hint">Barcode scanner: set its suffix to <strong>Enter</strong>, not Tab. With a Tab suffix two scans run together into one wrong code.</p>
     </aside>
   </div>
 
@@ -80,7 +88,7 @@
       <label for="price-input">Price (euros)</label>
       <input id="price-input" type="text" inputmode="decimal" autocomplete="off">
       <div id="price-reason-wrap">
-        <label for="price-reason">Reason (optional)</label>
+        <label for="price-reason" id="price-reason-label">Reason (optional)</label>
         <input id="price-reason" type="text" maxlength="120" autocomplete="off">
       </div>
       <p id="price-error" class="till-err" role="alert" hidden></p>
@@ -114,7 +122,7 @@
         <div>
           <div class="till-row"><span>Total</span><strong id="cash-total">€0.00</strong></div>
           <div class="till-row"><span>Received</span><strong id="cash-received" class="till-input-like">€0.00</strong></div>
-          <div class="till-row till-change-row"><span>Change to give</span><strong id="cash-change">€0.00</strong></div>
+          <div class="till-row till-change-row" aria-live="polite" aria-atomic="true"><span>Change to give</span><strong id="cash-change">€0.00</strong></div>
           <p id="cash-note" class="till-err" role="status"></p>
           <div class="till-quick-amounts">
             <button type="button" class="btn btn-outline till-btn" data-amount="exact">Exact</button>
@@ -129,7 +137,19 @@
           <button type="button" class="btn btn-outline till-key till-key-clear" data-key="C">Clear</button>
         </div>
       </div>
+      <p id="cash-check" class="till-err" role="alert" hidden></p>
+      <div class="till-reopen" data-reopen hidden>
+        <% if (isAdmin) { %>
+        <label class="till-beep"><input type="checkbox" data-reopen-tick> Reopen this day to record this sale</label>
+        <label>Reason for reopening (required)</label>
+        <input type="text" maxlength="120" autocomplete="off" data-reopen-reason placeholder="Why this sale is added to a closed day">
+        <p class="muted small">The day will be open again: count the drawer and close it again afterwards.</p>
+        <% } else { %>
+        <p class="muted small">The day is closed. Ask an admin to reopen it.</p>
+        <% } %>
+      </div>
       <p id="cash-error" class="till-err" role="alert" hidden></p>
+      <div id="cash-restart" hidden><button type="button" class="btn btn-outline till-btn" data-restart>Restart the sale</button></div>
       <div class="till-actions"><button type="button" class="btn till-big" id="cash-confirm" disabled>Confirm sale</button><button type="button" class="btn btn-outline till-btn" data-close>Back</button></div>
     </div>
   </div>
@@ -140,8 +160,24 @@
       <p class="till-card-text" id="card-text"></p>
       <label for="card-ref">Card reference (optional: last 4 digits or terminal receipt number)</label>
       <input id="card-ref" type="text" maxlength="40" autocomplete="off">
+      <p id="card-check" class="till-err" role="alert" hidden></p>
+      <div class="till-reopen" data-reopen hidden>
+        <% if (isAdmin) { %>
+        <label class="till-beep"><input type="checkbox" data-reopen-tick> Reopen this day to record this sale</label>
+        <label>Reason for reopening (required)</label>
+        <input type="text" maxlength="120" autocomplete="off" data-reopen-reason placeholder="Why this sale is added to a closed day">
+        <p class="muted small">The day will be open again: count the drawer and close it again afterwards.</p>
+        <% } else { %>
+        <p class="muted small">The day is closed. Ask an admin to reopen it.</p>
+        <% } %>
+      </div>
+      <div id="card-charged" class="error-box" role="alert" hidden>
+        <strong>The card was already charged. Do NOT charge again.</strong>
+        Fix the problem below, then press Record card sale again, or ask an admin.
+      </div>
       <p id="card-error" class="till-err" role="alert" hidden></p>
-      <div class="till-actions"><button type="button" class="btn till-big till-card" id="card-confirm">Card paid</button><button type="button" class="btn btn-outline till-btn" data-close>Back</button></div>
+      <div id="card-restart" hidden><button type="button" class="btn btn-outline till-btn" data-restart>Restart the sale</button></div>
+      <div class="till-actions"><button type="button" class="btn till-big till-card" id="card-confirm">Card paid</button><button type="button" class="btn btn-outline till-btn" id="card-anyway" hidden>Record anyway</button><button type="button" class="btn btn-outline till-btn" id="card-back">Back</button></div>
     </div>
   </div>
 
@@ -149,7 +185,7 @@
     <div class="till-modal-box till-done">
       <h2 id="done-title">Sale recorded</h2>
       <div class="till-row"><span>Total</span><strong id="done-total"></strong></div>
-      <div class="till-row till-change-row" id="done-change-row"><span>Change to give</span><strong id="done-change"></strong></div>
+      <div class="till-row till-change-row" id="done-change-row" aria-live="polite" aria-atomic="true"><span>Change to give</span><strong id="done-change"></strong></div>
       <div class="till-actions">
         <button type="button" class="btn till-big" id="next">Next customer</button>
         <a class="btn btn-outline till-btn" id="receipt" href="#" target="_blank" rel="noopener">Receipt</a>
@@ -164,7 +200,7 @@
   <% if (!recent.length) { %>
     <p class="muted">No sales yet today.</p>
   <% } else { %>
-    <table class="sticker-sheet till-recent">
+    <div class="table-scroll"><table class="sticker-sheet till-recent">
       <thead><tr><th>#</th><th>Time</th><th>Items</th><th>Paid by</th><th>Total</th><th></th></tr></thead>
       <tbody>
         <% recent.forEach(s => { %>
@@ -178,19 +214,30 @@
               <a href="/admin/till/sales/<%= s.id %>/receipt" target="_blank" rel="noopener">Receipt</a>
               <% if (s.status === 'completed' && !summary.closed) { %>
                 <details class="till-void"><summary>Void sale</summary>
-                  <form method="post" action="/admin/till/sales/<%= s.id %>/void">
+                  <form data-confirm="Void this sale? The books go back into stock and the sale leaves the day's totals." method="post" action="/admin/till/sales/<%= s.id %>/void">
                     <%- include('../../partials/csrf_field') %>
+                    <% if (s.payment_method === 'card') { %><p class="till-err" role="note">This was a card payment: refund it on the SumUp reader or app yourself.</p><% } %>
                     <label for="reason-<%= s.id %>">Reason (required)</label>
                     <input id="reason-<%= s.id %>" name="reason" type="text" required maxlength="120" autocomplete="off">
+                    <% if (s.payment_method === 'card') { %><label class="till-beep"><input type="checkbox" name="refundConfirmed" value="1"> I refunded the card</label><% } %>
                     <button class="btn btn-small" type="submit">Void this sale and put the books back</button>
                   </form>
                 </details>
-              <% } else if (s.status === 'voided') { %><span class="muted small"><%= s.void_reason %></span><% } %>
+              <% } else if (s.status === 'voided') { %><span class="muted small"><%= s.void_reason %></span>
+                <% if (s.payment_method === 'card' && !s.refund_confirmed) { %>
+                  <form method="post" action="/admin/till/sales/<%= s.id %>/refunded">
+                    <%- include('../../partials/csrf_field') %>
+                    <input type="hidden" name="back" value="/admin/till">
+                    <span class="till-err">Card refund not confirmed.</span>
+                    <button class="btn btn-small" type="submit">I refunded the card</button>
+                  </form>
+                <% } %>
+              <% } %>
             </td>
           </tr>
         <% }) %>
       </tbody>
-    </table>
+    </table></div>
     <% if (summary.closed) { %><p class="muted small">The day is closed: sales can no longer be voided.</p><% } %>
   <% } %>
 </div>

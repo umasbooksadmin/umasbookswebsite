@@ -278,160 +278,14 @@ router.post("/admin/inventory/move", requireAdmin, async (req, res) => {
   res.redirect(303, "/admin/inventory/move");
 });
 
-// ---------- Sell in shop ----------
-// A book sold over the counter: scan (or type) the ISBN, check the price and
-// how it was paid, press "Record sale". The copy is marked sold and a
-// shop_sales row is written in ONE transaction, with the copy row locked, so
-// two people selling the same single copy cannot both succeed. Plain form
-// POSTs (a scanner types the code and presses Enter), no JavaScript needed.
-const SELLABLE_STATUSES = ["in_stock", "reserved"];
-const PAYMENT_METHODS = [
-  { value: "cash", label: "Cash" },
-  { value: "card", label: "Card" },
-  { value: "other", label: "Other" },
-];
-const PAYMENT_VALUES = new Set(PAYMENT_METHODS.map((m) => m.value));
-const SELL_LOG_LIMIT = 10;
-
-async function recentShopSales() {
-  const { rows } = await pool.query(
-    `SELECT s.id, s.price, s.sold_at, s.payment_method, b.title
-     FROM shop_sales s JOIN book_copies c ON c.id = s.copy_id JOIN books b ON b.id = c.book_id
-     ORDER BY s.sold_at DESC, s.id DESC LIMIT $1`,
-    [SELL_LOG_LIMIT]
-  );
-  return rows;
-}
-
-// Price to suggest for a copy: its asking price, or for a new book with no
-// asking price the publisher's price.
-function suggestedPrice(copy) {
-  if (copy.price != null) return Number(copy.price);
-  if (copy.condition === "new" && copy.publisher_price != null) return Number(copy.publisher_price);
-  return null;
-}
-
-async function renderSell(res, { status = 200, error = null, notice = null, isbn = "", copies = null, price = "" } = {}) {
-  const recent = await recentShopSales();
-  const list = copies ? copies.map((c) => ({ ...c, suggested: suggestedPrice(c) })) : null;
-  res.status(status).render("admin/inventory/sell", {
-    active: "inventory", error, notice, isbn, copies: list, price,
-    prefillFor: list && list.length ? list[0].id : "",
-    paymentMethods: PAYMENT_METHODS, recent, conditions: CONDITIONS,
-  });
-}
-
-// Step 1 of a sale: an ISBN was scanned or typed: show the copy (or copies) for sale.
-async function renderSellLookup(res, rawIsbn) {
-  const rawScan = String(rawIsbn || "").trim();
-  if (!rawScan) return renderSell(res, { error: "Scan or type an ISBN first." });
-  const scan = parseScan(rawScan);
-  if (scan.type !== "isbn") return renderSell(res, { error: `Not a book barcode: ${rawScan.slice(0, 40)}`, isbn: rawScan.slice(0, 40) });
-  const { rows: known } = await pool.query("SELECT 1 FROM books WHERE isbn = ANY($1) LIMIT 1", [isbnVariants(scan.isbn)]);
-  if (!known.length) return renderSell(res, { error: `Not in inventory: ${scan.isbn}`, isbn: scan.isbn });
-  const { rows: copies } = await pool.query(
-    `SELECT c.id, c.condition, c.price, c.publisher_price, c.location, c.status, b.title, b.authors
-     FROM book_copies c JOIN books b ON b.id = c.book_id
-     WHERE b.isbn = ANY($1) AND c.status = ANY($2)
-     ORDER BY c.created_at ASC, c.id ASC LIMIT 20`,
-    [isbnVariants(scan.isbn), SELLABLE_STATUSES]
-  );
-  if (!copies.length) {
-    return renderSell(res, { error: `No copy of that book is available to sell (all sold, in a cart or withdrawn): ${scan.isbn}`, isbn: scan.isbn });
-  }
-  const first = suggestedPrice(copies[0]);
-  return renderSell(res, { isbn: scan.isbn, copies, price: first != null ? first.toFixed(2) : "" });
-}
-
-router.get("/admin/inventory/sell", requireAdmin, async (req, res) => {
-  const f = takeFlash(req, "sell");
-  if (f && f.error) return renderSell(res, { error: String(f.error).slice(0, 500) });
-  if (f && typeof f.isbn === "string") {
-    await expireStaleReservations(pool);
-    return renderSellLookup(res, f.isbn);
-  }
-  let notice = null;
-  if (/^\d{1,9}$/.test(String(req.query.sold || ""))) {
-    const { rows } = await pool.query(
-      `SELECT s.price, b.title FROM shop_sales s JOIN book_copies c ON c.id = s.copy_id JOIN books b ON b.id = c.book_id WHERE s.id = $1`,
-      [Number(req.query.sold)]
-    );
-    if (rows.length) notice = `Sale recorded: ${rows[0].title} for €${Number(rows[0].price).toFixed(2)}.`;
-  }
-  await renderSell(res, { notice });
-});
-
-router.post("/admin/inventory/sell", requireAdmin, async (req, res) => {
-  await expireStaleReservations(pool);
-  const copyIdRaw = String(req.body.copyId || "");
-
-  // Step 1: an ISBN was scanned or typed: redirect to the page that shows the copies.
-  if (!copyIdRaw) {
-    await setFlash(req, "sell", { isbn: String(req.body.isbn || "").slice(0, 100) });
-    return res.redirect(303, "/admin/inventory/sell");
-  }
-
-  // Step 2: record the sale.
-  const sellError = async (error) => { await setFlash(req, "sell", { error }); return res.redirect(303, "/admin/inventory/sell"); };
-  if (!/^\d{1,9}$/.test(copyIdRaw)) return sellError("That copy could not be found.");
-  const copyId = Number(copyIdRaw);
-  const payment = PAYMENT_VALUES.has(req.body.payment) ? req.body.payment : null;
-  const rawPrice = String(req.body.price == null ? "" : req.body.price).trim();
-
-  const result = await withTransaction(pool, async (client) => {
-    const { rows } = await client.query(
-      `SELECT c.id, c.condition, c.price, c.publisher_price, c.status, c.cart_order_id, b.title
-       FROM book_copies c JOIN books b ON b.id = c.book_id WHERE c.id = $1 FOR UPDATE OF c`,
-      [copyId]
-    );
-    const copy = rows[0];
-    if (!copy) return { error: "That copy could not be found.", status: 400 };
-    // A copy reserved online belongs to a reservation: it is sold from that order
-    // ("Mark collected and paid"), which also records the payment. Selling it here
-    // would leave the reservation holding a book that is gone.
-    if (copy.status === "reserved" && copy.cart_order_id) {
-      return { error: `Not sold: "${copy.title}" is reserved by order #${copy.cart_order_id}. Open that order to collect it (Mark collected and paid), or cancel the reservation first.`, status: 409 };
-    }
-    if (!SELLABLE_STATUSES.includes(copy.status)) {
-      return { error: `Not sold: this copy of "${copy.title}" is no longer for sale (it was already sold or withdrawn).`, status: 409 };
-    }
-    // The price box was pre-filled for the first copy of the list; if another
-    // copy was picked and the price was left as suggested, use the picked
-    // copy's own asking price instead.
-    let priceText = rawPrice;
-    const prefillPrice = String(req.body.prefillPrice || "").trim();
-    if (prefillPrice !== "" && String(req.body.prefillFor || "") !== String(copyId) && rawPrice === prefillPrice) {
-      const own = suggestedPrice(copy);
-      priceText = own != null ? own.toFixed(2) : "";
-    }
-    // The price is typed at the counter (a copy with no asking price can be
-    // sold this way): it must still be real money (see parseMoney).
-    const typedPrice = parseMoney(priceText, { label: "Price" });
-    if (typedPrice.error) {
-      const ask = "Enter the price the book was sold for (a number, 0 or more).";
-      return { error: priceText === "" ? ask : `${ask} ${typedPrice.error}`, status: 400 };
-    }
-    // New books follow the fixed-price rule (publisher's price, at most 5% off).
-    const pricing = resolveCopyPricing(copy.condition, priceText, copy.publisher_price);
-    if (pricing.error) return { error: pricing.error, status: 400 };
-    const price = typedPrice.value;
-    const { rows: sale } = await client.query(
-      "INSERT INTO shop_sales (copy_id, price, sold_by, payment_method) VALUES ($1, $2, $3, $4) RETURNING id",
-      [copyId, price, req.session.user.id, payment]
-    );
-    await client.query(
-      `UPDATE book_copies SET status = 'sold', reserved_by_name = NULL, reserved_by_email = NULL,
-              reserved_by_phone = NULL, reserved_at = NULL, cart_order_id = NULL, cart_added_at = NULL, updated_at = now()
-       WHERE id = $1`,
-      [copyId]
-    );
-    return { saleId: sale[0].id, price };
-  });
-
-  if (result.error) return sellError(result.error);
-  await audit(req, { action: "copy.shop_sale", targetType: "book_copy", targetId: copyId, detail: `price ${result.price.toFixed(2)}` });
-  res.redirect(`/admin/inventory/sell?sold=${result.saleId}`);
-});
+// ---------- Sell in shop (retired) ----------
+// Sales are made at the Till (/admin/till). The old page is gone; its bookmarks and
+// anything posting to it land on the Till with a note. The shop_sales table and its old
+// rows stay: the reports and the accounting export still read them, and the till writes
+// one shop_sales row per book it sells.
+const sellRetired = (req, res) => res.redirect(302, "/admin/till?notice=sell-retired");
+router.get("/admin/inventory/sell", requireAdmin, sellRetired);
+router.post("/admin/inventory/sell", requireAdmin, sellRetired);
 
 // The lookup answers with a redirect to GET /admin/inventory/lookup (Post/Redirect/Get):
 // the result is carried once in the session, so Back never offers to resubmit it.
@@ -527,6 +381,7 @@ router.get("/admin/inventory/new", requireAdmin, async (req, res) => {
     source: normalizeSource(req.query.source) || "",
     sources: SOURCES,
     locations: await getLocations(),
+    savedCopy: /^\d{1,9}$/.test(String(req.query.saved || "")) ? Number(req.query.saved) : null,
   });
 });
 
@@ -716,6 +571,10 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
   if (req.body.fromScan === "1") {
     const extra = `&label=${copyRows[0].id}${location ? `&location=${encodeURIComponent(location)}` : ""}${source ? `&source=${source}` : ""}${requestsMatched ? `&requests=${requestsMatched}` : ""}`;
     return res.redirect(`/admin/inventory/scan?saved=1${extra}`);
+  }
+  if (req.body.addAnother === "1") {
+    // "Save and add another": back to a blank form, keeping the location and the source for the next book.
+    return res.redirect(`/admin/inventory/new?saved=${copyRows[0].id}${location ? `&location=${encodeURIComponent(location)}` : ""}${source ? `&source=${source}` : ""}`);
   }
   res.redirect(`/admin/inventory/${bookId}?label=${copyRows[0].id}${requestsMatched ? `&requests=${requestsMatched}` : ""}`);
 });

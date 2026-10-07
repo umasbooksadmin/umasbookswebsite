@@ -14,7 +14,7 @@
 // retail (white) chip needs a visible border.
 const LEVELS = [
   { key: "yellow", eur: 3, label: "Yellow", labelFr: "Jaune", hex: "#FFD93D", text: "#2B2B2B" },
-  { key: "green", eur: 5, label: "Green", labelFr: "Vert", hex: "#2E9E4F", text: "#FFFFFF" },
+  { key: "green", eur: 5, label: "Green", labelFr: "Vert", hex: "#237A3C", text: "#FFFFFF" },
   { key: "blue", eur: 8, label: "Blue", labelFr: "Bleu", hex: "#2F6FDE", text: "#FFFFFF" },
   { key: "red", eur: 10, label: "Red", labelFr: "Rouge", hex: "#D83B3B", text: "#FFFFFF" },
   { key: "purple", eur: null, label: "Purple", labelFr: "Violet", hex: "#7B4FD0", text: "#FFFFFF", special: true },

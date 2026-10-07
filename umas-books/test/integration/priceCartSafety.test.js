@@ -223,25 +223,19 @@ test("a copy with a real price is still reserved normally, at that price", async
 
 // ---------- in-shop sale ----------
 
-test("shop sale: an unpriced copy can be sold at a price typed at the counter; bad prices are refused", async () => {
+// The old "Sell in shop" page is retired (sales are made at the Till, whose price checks are
+// covered in till.test.js: bad prices, an unpriced copy, loi Lang). What stays true here: the old
+// URL cannot sell a copy at any price.
+test("shop sale: the retired /admin/inventory/sell page sells nothing, whatever price is posted", async () => {
   const bookId = await makeBook();
   const copy = await makeCopy(bookId, { price: null });
-  for (const [bad, message] of [["abc", /Price must be a number/], ["-1", /cannot be negative/], ["10000.01", /between/], ["1.234", /at most 2 decimals/], ["1e3", /Price must be a number/], ["NaN", /Price must be a number/]]) {
-    const res = await adminPost("/admin/inventory/sell", { copyId: String(copy), price: bad, payment: "cash" });
-    assert.equal(res.status, 200, bad);
-    assert.match(res.text, message, bad);
+  for (const price of ["abc", "-1", "", "12,50"]) {
+    const res = await adminPost("/admin/inventory/sell", { copyId: String(copy), price, payment: "cash" });
+    assert.equal(res.res.status, 302, price);
+    assert.equal(res.res.headers.get("location"), "/admin/till?notice=sell-retired");
   }
-  const blank = await adminPost("/admin/inventory/sell", { copyId: String(copy), price: "", payment: "cash" });
-  assert.equal(blank.status, 200);
-  assert.match(blank.text, /Enter the price the book was sold for/);
   assert.equal((await copyRow(copy)).status, "in_stock");
   assert.equal((await pool.query("SELECT 1 FROM shop_sales WHERE copy_id = $1", [copy])).rowCount, 0);
-
-  const ok = await adminPost("/admin/inventory/sell", { copyId: String(copy), price: "12,50", payment: "cash" });
-  assert.equal(ok.status, 302);
-  assert.equal((await copyRow(copy)).status, "sold");
-  const { rows } = await pool.query("SELECT price FROM shop_sales WHERE copy_id = $1", [copy]);
-  assert.equal(Number(rows[0].price), 12.5);
 });
 
 // ---------- admin: add a book ----------

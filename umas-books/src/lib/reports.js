@@ -117,17 +117,28 @@ function csvCell(value) {
   return `"${s.replace(/"/g, '""')}"`;
 }
 
+// Two CSV dialects. "neutral" (the default): comma separator, decimal point.
+// "fr" (for French Excel, which reads a comma file as ONE column of text):
+// semicolon separator, decimal comma, and always UTF-8 BOM + CRLF.
+function csvDialect(locale) {
+  return locale === "fr" ? { sep: ";", decimal: "," } : { sep: ",", decimal: "." };
+}
+const wantsFrenchCsv = (query = {}) => query.locale === "fr" || query.format === "csv-fr";
+const csvDecimal = (text, dialect) => (dialect.decimal === "," ? String(text).replace(".", ",") : String(text));
+
 // A section as CSV text: header row, data rows, then the totals row. UTF-8
 // BOM first so Excel reads accents correctly; CRLF line ends.
-function toCsv(section) {
-  const lines = [section.columns.map((c) => csvCell(c.label)).join(",")];
+function toCsv(section, { locale } = {}) {
+  const d = csvDialect(locale);
+  const lines = [section.columns.map((c) => csvCell(c.label)).join(d.sep)];
   const asRow = (row) => section.columns.map((c) => {
     const cell = formatCell(row[c.key], c.type, { csv: true });
-    return c.type === "text" || c.type === "date" ? csvCell(cell) : cell;
-  }).join(",");
+    if (c.type === "text" || c.type === "date") return csvCell(cell);
+    return c.type === "int" ? cell : csvDecimal(cell, d);
+  }).join(d.sep);
   for (const row of section.rows) lines.push(asRow(row));
   if (section.totals && section.csvTotals !== false) lines.push(asRow(section.totals));
-  return "﻿" + lines.join("\r\n") + "\r\n";
+  return "\uFEFF" + lines.join("\r\n") + "\r\n";
 }
 
 // ---------- SQL pieces ----------
@@ -350,7 +361,7 @@ async function salesReport(db, ctx) {
         note: "Counted on the day the order was marked refunded. A refunded order no longer appears in the reserved-online sales and drop-in figures.",
       },
     ],
-    notes: ["Reserved-online = books reserved on the website and paid in the shop (\"Mark collected and paid\"), counted on the day the payment was recorded. Shop = sales recorded with Sell in shop. Days are Paris days."],
+    notes: ["Reserved-online = books reserved on the website and paid in the shop (\"Mark collected and paid\"), counted on the day the payment was recorded. Shop = books sold at the Till (and older sales from the retired Sell in shop page). Days are Paris days."],
   };
 }
 
@@ -559,6 +570,7 @@ async function accountsReport(db, ctx) {
       `SELECT COUNT(*)::int AS total,
               COUNT(*) FILTER (WHERE u.is_admin)::int AS admins,
               COUNT(*) FILTER (WHERE u.is_volunteer)::int AS volunteers,
+              COUNT(*) FILTER (WHERE u.is_till)::int AS till,
               COUNT(*) FILTER (WHERE ${activeMemberSql("u")})::int AS members,
               COUNT(*) FILTER (WHERE u.is_member AND NOT ${activeMemberSql("u")})::int AS expired,
               COUNT(*) FILTER (WHERE ${typeFilterSql("account", "u")})::int AS holders,
@@ -579,7 +591,7 @@ async function accountsReport(db, ctx) {
 
   const { rows } = await db.query(
     `SELECT u.display_name, u.email, ${typeCaseSql("u")} AS type,
-            u.is_member, u.member_expires_at,
+            u.is_member, u.member_expires_at, u.is_till,
             to_char(u.member_expires_at AT TIME ZONE '${TZ}', 'YYYY-MM-DD') AS member_until,
             u.email_verified_at IS NOT NULL AS confirmed,
             to_char(u.created_at AT TIME ZONE '${TZ}', 'YYYY-MM-DD') AS created,
@@ -596,14 +608,14 @@ async function accountsReport(db, ctx) {
     params
   );
   const list = rows.map((r) => ({
-    name: r.display_name, email: r.email, type: TYPE_LABELS[r.type],
+    name: r.display_name, email: r.email, type: TYPE_LABELS[r.type] + (r.is_till ? " + Till" : ""),
     member_until: r.is_member ? (r.member_until || "no end date") : "",
     confirmed: r.confirmed ? "yes" : "no",
     created: r.created, last_login: r.last_login || "never",
     orders: r.orders, spent: money(r.spent), disabled: r.is_disabled ? "yes" : "no",
   }));
   const summaryRows = [
-    ["Total accounts", s.total], ["Admins", s.admins], ["Volunteers", s.volunteers],
+    ["Total accounts", s.total], ["Admins", s.admins], ["Volunteers", s.volunteers], ["Till access (can use the till without being an admin)", s.till],
     ["Members (paying or granted)", s.members], ["Members whose membership has expired", s.expired],
     ["Account holders (not a member, admin or volunteer)", s.holders],
     ["Unconfirmed (email never confirmed)", s.unconfirmed],
@@ -616,7 +628,7 @@ async function accountsReport(db, ctx) {
         key: "summary", title: "Summary (all accounts)",
         columns: [{ key: "label", label: "Measure", type: "text" }, { key: "count", label: "Accounts", type: "int" }],
         rows: summaryRows, totals: null,
-        note: "An account can count in several lines (an admin who is also a volunteer, for example). Each account has one type in the list below: Admin, else Volunteer, else Member, else Account, else Unconfirmed.",
+        note: "An account can count in several lines (an admin who is also a volunteer, for example). Each account has one type in the list below: Admin, else Volunteer, else Member, else Account, else Unconfirmed; \"+ Till\" is added when the account has Till access.",
       },
       {
         key: "accounts", title: `Accounts (${total})`,
@@ -710,5 +722,5 @@ async function runReport(db, report, query = {}, now = new Date(), { csv = false
 module.exports = {
   REPORTS, GROUPS, LIST_LIMIT, ACCOUNTS_PAGE_SIZE, getReport, runReport,
   validDay, todayParis, subMonths, addDays, parseDateRange, parseGroup, agingCutoffs, agingBucket,
-  formatCell, csvCell, toCsv,
+  formatCell, csvCell, toCsv, csvDialect, csvDecimal, wantsFrenchCsv,
 };
