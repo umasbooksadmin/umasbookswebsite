@@ -17,7 +17,7 @@ const jsonLd = {
   email: "admin@umasbooks.org",
   openingHoursSpecification: [{
     "@type": "OpeningHoursSpecification",
-    dayOfWeek: ["Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+    dayOfWeek: legalText.shopOpenDays,
     opens: legalText.shopOpens,
     closes: legalText.shopCloses,
   }],

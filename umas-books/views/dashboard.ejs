@@ -74,6 +74,7 @@
 <p class="dash-utility">
   <a href="/account/password"><%= tr('Change Password', 'Changer de mot de passe') %></a>
   <% if (user.isAdmin) { %>&middot; <a href="/admin">Admin</a><% } %>
+  <% if (user.isTill && !user.isAdmin) { %>&middot; <a href="/admin/till">Till</a><% } %>
 </p>
 
 <%- include('partials/footer') %>

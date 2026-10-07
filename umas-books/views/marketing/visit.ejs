@@ -1,6 +1,6 @@
 <%- include('partials/mkt_header', {
   title: "Visit — Uma's Books and Adventures",
-  description: "Visit Uma's Books & Adventures at " + legalText.shopStreet + ", 81000 Albi. Open Tuesday to Saturday, " + legalText.shopHours + ".",
+  description: "Visit Uma's Books & Adventures at " + legalText.shopStreet + ", 81000 Albi. Open " + legalText.shopDays + ", " + legalText.shopHours + ".",
 }) %>
   <div class="page-hero">
     <span class="kicker" data-i18n="visit.kicker">Chapter Four</span>
@@ -16,7 +16,8 @@
         <div class="visit-item">
           <span class="label" data-i18n="visit.hours.l">Hours</span>
           <span class="value">
-            <span class="hours-row"><span data-i18n="visit.hours.days">Tue &ndash; Sat</span><span data-i18n="visit.hours.time"><%= legalText.shopHours %></span></span>
+            <span class="hours-row"><span data-i18n="visit.hours.days"><%= legalText.shopDaysShort %></span><span data-i18n="visit.hours.time"><%= legalText.shopHours %></span></span>
+            <span class="hours-note muted small" data-i18n-html="visit.hours.note"><%- legalText.shopHoursShort %></span>
           </span>
         </div>
         <div class="visit-item">
@@ -28,26 +29,28 @@
   </div>
 <% const pageI18nEn = {
   "meta.title": "Visit — Uma's Books and Adventures",
-  "meta.description": "Visit Uma's Books & Adventures at {shopStreet}, 81000 Albi. Open Tuesday to Saturday, {shopHours}.",
+  "meta.description": "Visit Uma's Books & Adventures at {shopStreet}, 81000 Albi. Open {shopDays}, {shopHours}.",
   "visit.kicker": "Chapter Four",
   "visit.title": "Visit Us",
   "visit.where.l": "Where",
   "visit.where.v": "{shopStreet}, 81000 Albi",
   "visit.hours.l": "Hours",
-  "visit.hours.days": "Tue – Sat",
+  "visit.hours.days": "{shopDaysShort}",
   "visit.hours.time": "{shopHours}",
+  "visit.hours.note": "{shopHoursShort}",
   "visit.contact.l": "Contact",
 }; %>
 <% const pageI18nFr = {
   "meta.title": "Nous rendre visite — Uma’s Books and Adventures",
-  "meta.description": "Rendez-vous chez Uma’s Books & Adventures, {shopStreet}, 81000 Albi. Ouvert du mardi au samedi, {shopHours}.",
+  "meta.description": "Rendez-vous chez Uma’s Books & Adventures, {shopStreet}, 81000 Albi. Ouvert {shopDays}, {shopHours}.",
   "visit.kicker": "Chapitre quatre",
   "visit.title": "Nous rendre visite",
   "visit.where.l": "Où",
   "visit.where.v": "{shopStreet}, 81000 Albi",
   "visit.hours.l": "Horaires",
-  "visit.hours.days": "Mar – Sam",
+  "visit.hours.days": "{shopDaysShort}",
   "visit.hours.time": "{shopHours}",
+  "visit.hours.note": "{shopHoursShort}",
   "visit.contact.l": "Contact",
 }; %>
 <%- include('partials/mkt_footer', { pageI18nEn: fillVat(pageI18nEn, 'en'), pageI18nFr: fillVat(pageI18nFr, 'fr') }) %>

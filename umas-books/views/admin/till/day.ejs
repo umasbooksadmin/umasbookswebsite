@@ -47,18 +47,35 @@
       <% } %>
     </tbody>
   </table></div>
-  <% if (summary.salesAfterClose) { %><p class="error-box" role="alert"><%= summary.salesAfterClose %> sale(s) were made after the day was closed: they are not in the counted cash.</p><% } %>
+  <% if (summary.salesAfterClose) { %><p class="error-box" role="alert"><%= summary.salesAfterClose %> sale(s) were entered after the day was closed: they are not in the counted cash.</p><% } %>
+  <% if (summary.dayRow && summary.dayRow.reopened_at && !summary.closed) { %><p class="notice-box" role="status">This day was reopened (<%= summary.dayRow.reopen_reason %>). Count the drawer and close it again.</p><% } %>
 </div>
 
-<% if (!summary.closed) { %>
+<% if (summary.unrefunded.length) { %>
+<div class="card" id="unrefunded">
+  <div class="section-title">Voided card sales: refund the card</div>
+  <p class="error-box" role="alert">A voided card sale is not refunded automatically. Refund each one on the SumUp reader or app yourself, then tick it here.</p>
+  <ul>
+    <% summary.unrefunded.forEach(u => { %>
+      <li>Sale <a href="/admin/till/sales/<%= u.id %>/receipt"><%= u.id %></a> (<%= fmtMoney(u.total_cents) %>)
+        <form method="post" action="/admin/till/sales/<%= u.id %>/refunded" style="display:inline">
+          <%- include('../../partials/csrf_field') %>
+          <input type="hidden" name="back" value="/admin/till/day?day=<%= day %>">
+          <button class="btn btn-small" type="submit">I refunded the card</button>
+        </form></li>
+    <% }) %>
+  </ul>
+</div>
+<% } %>
+
+<% if (!summary.closed && canManage) { %>
 <div class="card no-print">
-  <% if (day === today) { %>
-    <form class="till-item-form" method="post" action="/admin/till/day/open">
-      <%- include('../../partials/csrf_field') %>
-      <div><label for="openingFloat">Opening float (cash in the drawer at the start, euros)</label><input id="openingFloat" name="openingFloat" type="text" inputmode="decimal" value="<%= money(summary.floatCents) %>" style="width:120px"></div>
-      <button class="btn btn-outline" type="submit">Save opening float</button>
-    </form>
-  <% } %>
+  <form class="till-item-form" method="post" action="/admin/till/day/open">
+    <%- include('../../partials/csrf_field') %>
+    <input type="hidden" name="day" value="<%= day %>">
+    <div><label for="openingFloat">Opening float (cash in the drawer at the start, euros)</label><input id="openingFloat" name="openingFloat" type="text" inputmode="decimal" value="<%= money(summary.floatCents) %>" style="width:120px"></div>
+    <button class="btn btn-outline" type="submit">Save opening float</button>
+  </form>
   <div class="section-title" style="margin-top:14px">Close the day</div>
   <p class="muted small">Count the cash in the drawer (all of it, including the float), type the total, and close. Closing locks voids for this day.</p>
   <form class="till-item-form" data-confirm="Closing locks voids for this day. Continue?" method="post" action="/admin/till/day/close" id="close-form">
@@ -66,11 +83,28 @@
     <input type="hidden" name="day" value="<%= day %>">
     <div><label for="counted">Counted cash (euros)</label><input id="counted" name="counted" type="text" inputmode="decimal" required style="width:140px" data-expected="<%= summary.expectedCashCents %>"></div>
     <div><label for="note">Note (optional)</label><input id="note" name="note" type="text" maxlength="300" style="width:320px"></div>
+    <% if (!summary.hasFloat) { %>
+      <label class="till-beep"><input type="checkbox" name="confirmNoFloat" value="1" id="confirm-no-float"> You did not enter an opening float: close with no opening float (it counts as &euro;0)</label>
+    <% } %>
     <button class="btn" type="submit">Close the day</button>
   </form>
   <p id="diff-live" class="till-err" role="status"></p>
 </div>
 <% } %>
+
+<% if (summary.closed && canManage) { %>
+<div class="card no-print">
+  <div class="section-title">Reopen this day</div>
+  <p class="muted small">If a sale has to be added or a void made, reopen the day with a reason. The counted cash is cleared and you close the day again afterwards.</p>
+  <form class="till-item-form" method="post" action="/admin/till/day/reopen" data-confirm="Reopen this day? The counted cash is cleared and the day must be closed again.">
+    <%- include('../../partials/csrf_field') %>
+    <input type="hidden" name="day" value="<%= day %>">
+    <div><label for="reopen-reason">Reason (required)</label><input id="reopen-reason" name="reason" type="text" required maxlength="120" style="width:320px"></div>
+    <button class="btn btn-outline" type="submit">Reopen the day</button>
+  </form>
+</div>
+<% } %>
+<% if (!canManage) { %><p class="muted small no-print">You can look at the end of day. Opening the float, closing and reopening the day are for an admin.</p><% } %>
 
 <div class="card">
   <div class="section-title">Sales (<%= sales.length %>)</div>
@@ -78,7 +112,7 @@
     <div class="table-scroll"><table class="sticker-sheet">
       <thead><tr><th>#</th><th>Time</th><th>Items</th><th>Paid by</th><th>Total</th><th>Status</th></tr></thead>
       <tbody><% sales.forEach(s => { %>
-        <tr class="<%= s.status === 'voided' ? 'till-voided' : '' %>"><td><a href="/admin/till/sales/<%= s.id %>/receipt"><%= s.id %></a></td><td><%= formatTime(s.created_at) %></td><td><%= s.summary %></td><td><%= s.payment_method %><%= s.card_reference ? ' (' + s.card_reference + ')' : '' %></td><td><%= fmtMoney(s.total_cents) %></td><td><%= s.status %><%= s.void_reason ? ': ' + s.void_reason : '' %></td></tr>
+        <tr class="<%= s.status === 'voided' ? 'till-voided' : '' %>"><td><a href="/admin/till/sales/<%= s.id %>/receipt"><%= s.id %></a></td><td><%= formatTime(s.created_at) %></td><td><%= s.summary %></td><td><%= s.payment_method %><%= s.card_reference ? ' (' + s.card_reference + ')' : '' %></td><td><%= fmtMoney(s.total_cents) %></td><td><%= s.status %><%= s.void_reason ? ': ' + s.void_reason : '' %><%= s.status === 'voided' && s.payment_method === 'card' ? (s.refund_confirmed ? ' (card refunded)' : ' (CARD REFUND NEEDED)') : '' %></td></tr>
       <% }) %></tbody>
     </table></div>
   <% } %>

@@ -23,6 +23,28 @@
     <h1 style="margin-bottom:4px;"><%= book.title %></h1>
     <p class="muted" style="margin-top:0;"><%= tr('by', 'de') %> <%= book.authors || tr('Unknown author', 'Auteur inconnu') %></p>
 
+    <% if (book.description) { %>
+      <h3 class="book-about-title"><%= tr('About this book', 'À propos de ce livre') %></h3>
+      <p class="book-about"><%= tr(book.description, book.description_fr) %></p>
+    <% } %>
+
+    <% if (typeof awards !== 'undefined' && awards.length) { %>
+      <section class="book-awards" aria-labelledby="book-awards-title">
+        <strong id="book-awards-title" class="book-awards-title"><%= tr('Awards & lists:', 'Prix et classements :') %></strong>
+        <ul class="book-awards-list">
+          <% awards.slice(0, 8).forEach((a) => { %><li><%= a %></li><% }) %>
+        </ul>
+        <% if (awards.length > 8) { %>
+          <details class="book-awards-more">
+            <summary><%= tr('Show all ({n})', 'Tout afficher ({n})', { n: awards.length }) %></summary>
+            <ul class="book-awards-list">
+              <% awards.slice(8).forEach((a) => { %><li><%= a %></li><% }) %>
+            </ul>
+          </details>
+        <% } %>
+      </section>
+    <% } %>
+
     <% if (bindingLabel) { %>
       <dl class="book-facts"><div><dt><%= tr('Binding', 'Reliure') %> :</dt> <dd><%= bindingLabel %></dd></div></dl>
     <% } %>
@@ -92,26 +114,6 @@
         <div class="availability-badge is-out">&middot; <%= tr('Currently unavailable', 'Actuellement indisponible') %></div>
         <p class="muted small" style="margin:6px 0 0;"><%= tr('All copies of this title are spoken for right now — check back soon.', 'Tous les exemplaires de ce titre sont réservés pour le moment : revenez bientôt.') %></p>
       </div>
-    <% } %>
-
-    <% if (typeof awards !== 'undefined' && awards.length) { %>
-      <div class="book-awards" style="margin-top:20px;">
-        <strong><%= tr('Awards & lists:', 'Prix et classements :') %></strong>
-        <% if (awards.length > 8) { %>
-          <%= awards.slice(0, 8).join(', ') %>
-          <details style="margin-top:6px;">
-            <summary style="cursor:pointer; color: var(--maroon);"><%= tr('Show all ({n})', 'Tout afficher ({n})', { n: awards.length }) %></summary>
-            <%= awards.join(', ') %>
-          </details>
-        <% } else { %>
-          <%= awards.join(', ') %>
-        <% } %>
-      </div>
-    <% } %>
-
-    <% if (book.description) { %>
-      <h3 style="margin-top:28px;"><%= tr('About this book', 'À propos de ce livre') %></h3>
-      <p><%= tr(book.description, book.description_fr) %></p>
     <% } %>
   </div>
 </div>

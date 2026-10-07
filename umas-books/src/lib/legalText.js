@@ -37,10 +37,10 @@ const GRADE_NOTE = {
 // are read when the text is used: callers keep writing PICKUP.en / PICKUP.fr.
 const PICKUP = {
   get en() {
-    return `We hold your books for ${legal.RESERVATION_DAYS} days. Pay and collect them at the shop, Tuesday to Saturday, ${legal.shopHours("en")}, ${legal.shopStreet("en")}, Albi.`;
+    return `We hold your books for ${legal.RESERVATION_DAYS} days. Pay and collect them at the shop, ${legal.shopStreet("en")}, Albi. ${legal.shopHoursFirm("en")}`;
   },
   get fr() {
-    return `Nous gardons vos livres ${legal.RESERVATION_DAYS} jours. Réglez-les et retirez-les à la boutique, du mardi au samedi, ${legal.shopHours("fr")}, ${legal.shopStreet("fr", false)}, Albi.`;
+    return `Nous gardons vos livres ${legal.RESERVATION_DAYS} jours. Réglez-les et retirez-les à la boutique, ${legal.shopStreet("fr", false)}, Albi. ${legal.shopHoursFirm("fr")}`;
   },
 };
 
@@ -75,6 +75,11 @@ function legalFor(lang) {
     shopStreet: legal.shopStreet(l),
     shopStreetInline: legal.shopStreet(l, false),
     shopHours: legal.shopHours(l),
+    shopDays: legal.shopDays(l),
+    shopDaysShort: legal.shopDaysShort(l),
+    shopHoursShort: legal.shopHoursShort(l, true),
+    shopHoursFirm: legal.shopHoursFirm(l),
+    shopOpenDays: legal.SHOP_OPEN_DAYS,
     shopOpens: legal.SHOP_OPENS,
     shopCloses: legal.SHOP_CLOSES,
     membershipPrice: legal.membershipPrice(l),
@@ -84,7 +89,7 @@ function legalFor(lang) {
 // Fills the placeholders in a page dictionary: {vat} (VAT_NOTICE_ARTICLE),
 // {shopStreet} ("Rue Peyrolière" or "12 rue Peyrolière"), {shopStreetInline}
 // (the same, "rue" lowercase in the middle of a French sentence), {shopHours}
-// (SHOP_HOURS_EN / SHOP_HOURS_FR) and {membershipPrice} (MEMBERSHIP_PRICE_EUR,
+// (SHOP_HOURS_EN / SHOP_HOURS_FR), {shopDays} / {shopDaysShort} (SHOP_DAYS_*), {shopHoursShort} / {shopHoursFirm} (the two "extra openings" texts) and {membershipPrice} (MEMBERSHIP_PRICE_EUR,
 // "" when not set), plus the reservation policy numbers {days}, {extension},
 // {copies}, {reservations} and {hours} (lib/legal.js). `lang` defaults to
 // English: pass the dictionary's language so the shop tokens come out right.
@@ -94,7 +99,8 @@ function fillVat(dict, lang = "en") {
     "{vat}": vatNotice(), "{days}": legal.RESERVATION_DAYS, "{extension}": legal.RESERVATION_EXTENSION_DAYS,
     "{copies}": legal.MAX_RESERVED_COPIES, "{reservations}": legal.MAX_ACTIVE_RESERVATIONS, "{hours}": legal.SEAT_CANCEL_HOURS,
     "{shopStreetInline}": legal.shopStreet(l, false), "{shopStreet}": legal.shopStreet(l),
-    "{shopHours}": legal.shopHours(l), "{membershipPrice}": legal.membershipPrice(l),
+    "{shopHours}": legal.shopHours(l), "{shopDaysShort}": legal.shopDaysShort(l), "{shopDays}": legal.shopDays(l),
+    "{shopHoursShort}": legal.shopHoursShort(l, true), "{shopHoursFirm}": legal.shopHoursFirm(l), "{membershipPrice}": legal.membershipPrice(l),
   };
   const out = {};
   for (const [k, v] of Object.entries(dict)) {
