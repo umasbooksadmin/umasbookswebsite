@@ -13,6 +13,8 @@ const DESTRUCTIVE = /delete|remove|deactivate|close|void|cancel|erase|archive|to
 // Forms that are allowed to POST a destructive-looking action without data-confirm.
 // "file: action fragment": why.
 const ALLOWED = {
+  "views/admin/privacy_requests.ejs: /admin/privacy/erase-confirm": "only opens the confirmation step (it deletes nothing)",
+  "views/admin/privacy_requests.ejs: /admin/privacy/erase": "the confirmation step itself: the admin must retype the address",
   "views/admin/order_refund.ejs: /refund": "this whole page is the refund confirmation step (amount, note, then a deliberate button)",
 };
 
