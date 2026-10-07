@@ -1,0 +1,5 @@
+/* Loaded only when JavaScript is off (<noscript> in views/marketing/books.ejs).
+   These sections are filled in by the page's script: without it they are an
+   empty "Browse by Genre" heading, an empty recommendation and a "Loading
+   books…" line. The server-rendered "New In" list in .bk-noscript stays. */
+.bk-genres, .bk-results, .bk-rec, .bk-new { display: none; }

@@ -95,7 +95,7 @@
 .bk-results-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
 .bk-results-head h2 { font-size: 32px; }
 .bk-link-btn {
-  background: none; border: 0; padding: 0; cursor: pointer; color: var(--ink);
+  background: none; border: 0; padding: 2px 0; min-height: 28px; cursor: pointer; color: var(--ink);
   font-family: 'Cormorant Garamond', Georgia, serif; font-size: 18px;
 }
 .bk-link-btn:hover { color: var(--maroon); }
@@ -237,7 +237,14 @@ body:has(.bk-band) .mkt-footer { margin-top: 38px; }
 .bk-genre .chip { width: 50px; height: 50px; }
 .bk-genre .chip svg { width: 24px; height: 24px; }
 .bk-genres .label { font-size: 21px; }
-@media (max-width: 760px) { .bk-genre { flex-basis: 66px; } }
+/* Phones: the chips scroll sideways. Each is as wide as its own label (up to 104px, then the
+   label wraps at spaces), so no label is ever cut off ("Documentaires", "Jeune adulte"). */
+@media (max-width: 760px) {
+  .bk-genre { flex: 0 0 auto; min-width: 66px; max-width: 104px; padding: 0 2px; overflow-wrap: break-word; }
+  /* The strip runs to the screen edge (a card cut by the edge of the SCREEN reads as 'scroll', one cut
+     by the page margin reads as clipped text) and ends with some air. */
+  .bk-genre-list { width: auto; margin: 0 -32px; padding: 0 32px 6px; scroll-padding-inline: 32px; }
+}
 
 /* Recommendation of the week: smaller text and cover */
 .bk-rec { gap: 32px; padding-top: 16px; padding-bottom: 16px; }

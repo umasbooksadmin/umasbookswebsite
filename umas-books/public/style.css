@@ -233,7 +233,10 @@ footer.site { text-align: center; padding: 30px 0; color: var(--ink-soft); font-
   padding: 18px 20px; margin: 16px 0;
 }
 @media (max-width: 700px) {
-  .book-detail-grid { grid-template-columns: 1fr; }
+  .book-detail-grid { grid-template-columns: 1fr; gap: 14px; }
+  /* A smaller cover on phones so the title and price show on the first screen (it was 240x360). */
+  .book-detail-cover-wrap { max-width: 150px; }
+  .book-detail-cover-wrap .favorite-toggle { top: 6px; right: 6px; }
 }
 
 .cart-list { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }

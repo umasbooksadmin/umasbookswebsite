@@ -25,7 +25,7 @@ const _defaultImg = !(typeof ogImage !== "undefined" && ogImage);
 <% if (locals.preview) { %><meta name="robots" content="noindex, nofollow">
 <% } else if (!_indexable) { %><meta name="robots" content="noindex">
 <% } %><% if (_indexable) { %><meta name="description" content="<%= _desc %>">
-<% if (_pageUrl) { %><link rel="canonical" href="<%= _pageUrl %>">
+<% if (_pageUrl) { %><link rel="canonical" href="<%= _pageUrl %>"><link rel="alternate" hreflang="x-default" href="<%= _pageUrl %>">
 <% } %><meta property="og:site_name" content="Uma's Books &amp; Adventures">
 <meta property="og:title" content="<%= typeof title !== "undefined" ? title : _siteName %>">
 <meta property="og:description" content="<%= _desc %>">

@@ -9,7 +9,10 @@ if (locals.preview) {
   const t = typeof tr === 'function' ? tr : (en) => en;
 %>
 <div class="preview-banner" role="region" aria-label="<%= t('Preview notice', 'Avis sur la version d’aperçu') %>">
-  <span data-i18n="preview.text"><%= t("Preview — Uma’s Books is opening soon. You’re looking at a test version with sample books: nothing here is real yet and no payment is taken.", "Aperçu — Uma’s Books ouvre bientôt. Vous découvrez une version de test avec des livres d’exemple : rien n’est réel pour l’instant et aucun paiement n’est pris.") %></span>
-  <a href="/contact?topic=feedback" data-i18n="preview.link"><%= t('Tell us what you think!', 'Dites-nous ce que vous en pensez !') %></a>
+  <%# On phones the notice is ONE line (clipped) with a More / Less toggle (a <details>: no JavaScript needed);
+      from 641px up the toggle is not shown and the full text is. %>
+  <details class="pb-d"><summary class="pb-more"><span class="pb-more-open" data-i18n="preview.more"><%= t('More', 'Plus') %></span><span class="pb-more-close" data-i18n="preview.less"><%= t('Less', 'Moins') %></span></summary></details>
+  <span class="pb-text" data-i18n="preview.text"><%= t("Preview — Uma’s Books is opening soon. You’re looking at a test version with sample books: nothing here is real yet and no payment is taken.", "Aperçu — Uma’s Books ouvre bientôt. Vous découvrez une version de test avec des livres d’exemple : rien n’est réel pour l’instant et aucun paiement n’est pris.") %></span>
+  <a class="pb-link" href="/contact?topic=feedback" data-i18n="preview.link"><%= t('Tell us what you think!', 'Dites-nous ce que vous en pensez !') %></a>
 </div>
 <% } %>

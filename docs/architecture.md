@@ -1171,6 +1171,16 @@ Deliberate trade-offs (revisit only if traffic or risk changes):
   7 days old and that no row references any more (a replaced cover is cleaned up
   after a week); re-uploads of the same file share one row. Object storage is the proper next step
   and would need no change to the URLs.
+* **No `hreflang` pairs.** English and French share ONE URL (the language comes from
+  the `umasbooks_lang` cookie, see section 4), so search engines cannot be told
+  "this is the French version of that page". Every page carries only
+  `<link rel="alternate" hreflang="x-default">` pointing at itself. Real pairs would
+  need separate URLs (`/fr/...`) per language: a larger change, not planned.
+* **Phone header = a `<details>` menu.** From 641px the nav is always visible
+  (`public/site-menu.js` opens it; without JavaScript a browser too old for
+  `::details-content` would show a closed menu on desktop). On phones the menu
+  and the preview banner's More link are native `<details>`, so they work without
+  JavaScript.
 * **Search is `ILIKE '%q%'`** over a few thousand books — fine now; trigram or
   full-text indexes when the catalogue grows.
 * **One Google Workspace mailbox** (`admin@umasbooks.org`) sends both human and
