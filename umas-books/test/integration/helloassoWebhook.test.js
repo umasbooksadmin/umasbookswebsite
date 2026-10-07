@@ -1,10 +1,11 @@
-// POST /webhooks/helloasso (src/routes/helloassoWebhook.js): order matching
-// by metadata.orderId and by checkoutIntentId, unmatched bodies, the
-// membership-form branch (only ever applied to a verified account),
+// POST /webhooks/helloasso (src/routes/helloassoWebhook.js): HelloAsso is used
+// for MEMBERSHIP payments only, so this route handles the membership-form
+// branch (only ever applied to a verified account) and IGNORES everything else
+// (old order notifications included) without any HelloAsso call; also
 // malformed/empty bodies, the immediate 200, and the rate limit.
 //
-// In-process (test/helpers/inProcessApp.js) so getCheckoutIntent and
-// findMembershipOrdersByEmail can be stubbed. The handler acks BEFORE it
+// In-process (test/helpers/inProcessApp.js) so findMembershipOrdersByEmail
+// can be stubbed. The handler acks BEFORE it
 // does any work, so effects are awaited with waitFor / by watching the
 // console.warn lines the handler emits rather than sleeping blindly.
 
@@ -19,19 +20,17 @@ const sentEmails = [];
 mailer.sendMail = async (opts) => { sentEmails.push(opts); };
 
 const helloasso = require("../../src/lib/helloasso");
-const intents = new Map();
-const intentLookups = [];
-let intentGate = null; // when set, lookups wait on it (slow-HelloAsso simulation)
-helloasso.getCheckoutIntent = async (id) => {
-  intentLookups.push(String(id));
-  if (intentGate) await intentGate;
-  if (!intents.has(String(id))) throw new Error(`unknown intent ${id}`);
-  return intents.get(String(id));
+const helloassoCalls = [];
+helloasso.getCheckoutIntent = async (id) => { // removed from the module: must never be reached
+  helloassoCalls.push(`getCheckoutIntent ${id}`);
+  throw new Error("an order lookup must not happen");
 };
 const membershipLookups = [];
 let membershipOrders = [];
+let membershipGate = null; // when set, lookups wait on it (slow-HelloAsso simulation)
 helloasso.findMembershipOrdersByEmail = async (email) => {
   membershipLookups.push(email);
+  if (membershipGate) await membershipGate;
   return membershipOrders;
 };
 
@@ -60,8 +59,7 @@ after(async () => {
 
 beforeEach(() => {
   sentEmails.length = 0;
-  intents.clear();
-  intentLookups.length = 0;
+  helloassoCalls.length = 0;
   membershipLookups.length = 0;
   membershipOrders = [];
   warnings.length = 0;
@@ -78,92 +76,58 @@ function post(body, { raw = false, contentType = "application/json" } = {}) {
   });
 }
 
-async function pendingOrder({ intentId = `wh-${uniq()}` } = {}) {
+async function pendingOrder() { // an old online-checkout order left in 'pending'
   const { rows: b } = await pool.query("INSERT INTO books (title) VALUES ($1) RETURNING id", [`Webhook Book ${uniq()}`]);
   const { rows: c } = await pool.query("INSERT INTO book_copies (book_id, status, price) VALUES ($1, 'in_stock', 6) RETURNING id", [b[0].id]);
   const { rows } = await pool.query(
     `INSERT INTO orders (buyer_name, buyer_email, total_amount, checkout_intent_id)
      VALUES ('Hook Buyer', $1, 6.00, $2) RETURNING *`,
-    [`hook-${uniq()}@example.test`, intentId]
+    [`hook-${uniq()}@example.test`, `wh-${uniq()}`]
   );
   const order = rows[0];
   await pool.query("UPDATE book_copies SET status = 'in_cart', cart_order_id = $1, cart_added_at = now() WHERE id = $2", [order.id, c[0].id]);
   await pool.query("INSERT INTO order_items (order_id, book_copy_id, item_title, price) VALUES ($1, $2, 'Hook Book', 6)", [order.id, c[0].id]);
-  return { order, copyId: c[0].id, intentId };
+  return { order, copyId: c[0].id, intentId: order.checkout_intent_id };
 }
 const orderRow = async (id) => (await pool.query("SELECT * FROM orders WHERE id = $1", [id])).rows[0];
 const copyStatus = async (id) => (await pool.query("SELECT status FROM book_copies WHERE id = $1", [id])).rows[0].status;
-const paidIntent = { order: { id: 9001, payments: [{ state: "Authorized" }] } };
+const IGNORED = /not a membership payment, ignored/;
 
-test("a webhook naming the order in metadata.orderId triggers reconcile and responds 200", async () => {
+test("an old order notification (metadata.orderId / checkoutIntentId) is ignored: 200, no HelloAsso call, the order and copies untouched, no email", async () => {
   const { order, copyId, intentId } = await pendingOrder();
-  intents.set(intentId, paidIntent);
-  const res = await post({ eventType: "Order", metadata: { orderId: order.id } });
-  assert.equal(res.status, 200);
-  await waitFor(async () => (await orderRow(order.id)).status === "paid", { message: "order to become paid" });
-  assert.equal(await copyStatus(copyId), "sold");
-  assert.deepEqual(intentLookups, [intentId], "state came from HelloAsso's API, using the order's own intent id");
-  await waitFor(() => sentEmails.length === 1, { message: "confirmation email" });
-  assert.equal(sentEmails[0].to, order.buyer_email);
-});
-
-test("orderId nested under data.metadata is also recognised", async () => {
-  const { order, intentId } = await pendingOrder();
-  intents.set(intentId, paidIntent);
-  assert.equal((await post({ data: { metadata: { orderId: order.id } } })).status, 200);
-  await waitFor(async () => (await orderRow(order.id)).status === "paid", { message: "order to become paid" });
-});
-
-test("a webhook carrying only a checkoutIntentId is matched through orders.checkout_intent_id", async () => {
-  const { order, copyId, intentId } = await pendingOrder();
-  intents.set(intentId, paidIntent);
-  const res = await post({ data: { checkoutIntentId: intentId } });
-  assert.equal(res.status, 200);
-  await waitFor(async () => (await orderRow(order.id)).status === "paid", { message: "order to become paid" });
-  assert.equal(await copyStatus(copyId), "sold");
-});
-
-test("a webhook whose intent is still pending leaves the order and copies alone", async () => {
-  const { order, copyId, intentId } = await pendingOrder();
-  intents.set(intentId, { order: { payments: [{ state: "Pending" }] } });
-  assert.equal((await post({ metadata: { orderId: order.id } })).status, 200);
-  await waitFor(() => intentLookups.length === 1, { message: "HelloAsso lookup" });
-  await new Promise((r) => setTimeout(r, 100));
-  assert.equal((await orderRow(order.id)).status, "pending");
+  const bodies = [
+    { eventType: "Order", metadata: { orderId: order.id } },
+    { data: { metadata: { orderId: order.id } } },
+    { data: { checkoutIntentId: intentId } },
+    { eventType: "Payment", data: { order: { formType: "Shop" }, payer: { email: order.buyer_email } }, metadata: { orderId: order.id } },
+  ];
+  for (const body of bodies) assert.equal((await post(body)).status, 200);
+  await waitFor(() => warnings.filter((w) => IGNORED.test(w)).length === bodies.length, { message: "an ignored warning per body" });
+  assert.deepEqual(helloassoCalls, [], "no order lookup at HelloAsso");
+  assert.equal(membershipLookups.length, 0);
+  const after = await orderRow(order.id);
+  assert.equal(after.status, "pending");
+  assert.equal(after.paid_at, null);
   assert.equal(await copyStatus(copyId), "in_cart");
-});
-
-test("a replayed webhook does not double-process the order", async () => {
-  const { order, intentId } = await pendingOrder();
-  intents.set(intentId, paidIntent);
-  await post({ metadata: { orderId: order.id } });
-  await waitFor(() => sentEmails.length === 1, { message: "first confirmation" });
-  await post({ metadata: { orderId: order.id } });
-  await new Promise((r) => setTimeout(r, 150));
-  assert.equal(sentEmails.length, 1);
+  assert.equal(sentEmails.length, 0);
+  assert.equal(errors.length, 0);
 });
 
 test("an unmatched body does nothing except log a warning", async () => {
   const res = await post({ eventType: "Order", data: { id: 1 }, metadata: { orderId: 999999999 } });
   assert.equal(res.status, 200);
-  await waitFor(() => warnings.some((w) => /couldn't match a local order/.test(w)), { message: "unmatched warning" });
-  assert.equal(intentLookups.length, 0);
+  await waitFor(() => warnings.some((w) => IGNORED.test(w)), { message: "ignored warning" });
+  assert.deepEqual(helloassoCalls, []);
   assert.equal(membershipLookups.length, 0);
   assert.equal(errors.length, 0);
 });
 
-test("the unmatched-body log line never contains the payer's email address or phone number", async () => {
+test("the ignored-body log line never contains the payer's email address or phone number", async () => {
   await post({ eventType: "Order", data: { formType: "Shop", payer: { email: "private.person@example.test", phone: "0612345678" } } });
-  await waitFor(() => warnings.some((w) => /couldn't match a local order/.test(w)), { message: "unmatched warning" });
-  const line = warnings.find((w) => /couldn't match a local order/.test(w));
+  await waitFor(() => warnings.some((w) => IGNORED.test(w)), { message: "ignored warning" });
+  const line = warnings.find((w) => IGNORED.test(w));
   assert.doesNotMatch(line, /private\.person|example\.test|0612345678/);
   assert.match(line, /\[email\]/);
-});
-
-test("an unknown checkoutIntentId with no order id is likewise just logged", async () => {
-  assert.equal((await post({ checkoutIntentId: "no-such-intent" })).status, 200);
-  await waitFor(() => warnings.some((w) => /couldn't match a local order/.test(w)), { message: "unmatched warning" });
-  assert.equal(intentLookups.length, 0);
 });
 
 // --- Membership-form payloads --------------------------------------------
@@ -212,7 +176,7 @@ test("membership-form payload with no matching account changes nothing", async (
 test("a non-Membership formType, or one without a payer email, never reaches the membership sync", async () => {
   await post({ data: { formType: "Shop", payer: { email: "shop@example.test" } } });
   await post({ data: { formType: "Membership" } });
-  await waitFor(() => warnings.filter((w) => /couldn't match a local order/.test(w)).length === 2, { message: "two unmatched warnings" });
+  await waitFor(() => warnings.filter((w) => IGNORED.test(w)).length === 2, { message: "two unmatched warnings" });
   assert.equal(membershipLookups.length, 0);
 });
 
@@ -229,13 +193,13 @@ test("an empty body and an empty JSON object are acked 200 and just logged", asy
   assert.equal((await post("", { raw: true, contentType: null })).status, 200);
   assert.equal((await post("", { raw: true })).status, 200); // JSON content type, zero bytes
   assert.equal((await post({})).status, 200);
-  await waitFor(() => warnings.filter((w) => /couldn't match a local order/.test(w)).length === 3, { message: "three unmatched warnings" });
+  await waitFor(() => warnings.filter((w) => IGNORED.test(w)).length === 3, { message: "three unmatched warnings" });
   assert.equal(errors.length, 0);
 });
 
 test("a JSON array body is acked and logged; a bare scalar is acked too — neither crashes the handler", async () => {
   assert.equal((await post([1, 2, 3])).status, 200);
-  await waitFor(() => warnings.some((w) => /couldn't match a local order/.test(w)), { message: "unmatched warning" });
+  await waitFor(() => warnings.some((w) => IGNORED.test(w)), { message: "unmatched warning" });
   // express.json (strict mode) rejects a non-object/array root; the webhook still acks it so HelloAsso doesn't retry.
   assert.equal((await post("null", { raw: true })).status, 200);
   assert.equal(errors.filter((e) => /webhook handling failed/.test(e)).length, 0);
@@ -247,28 +211,29 @@ test("malformed JSON is acked 200 (so HelloAsso doesn't retry it), logged, and t
   const res = await post("{ not json", { raw: true });
   assert.equal(res.status, 200);
   await waitFor(() => warnings.some((w) => /ignored an unreadable body/.test(w)), { message: "unreadable-body warning" });
-  assert.equal(intentLookups.length, 0);
+  assert.deepEqual(helloassoCalls, []);
+  assert.equal(membershipLookups.length, 0);
 
-  const { order, intentId } = await pendingOrder();
-  intents.set(intentId, paidIntent);
-  assert.equal((await post({ metadata: { orderId: order.id } })).status, 200, "server still works afterwards");
-  await waitFor(async () => (await orderRow(order.id)).status === "paid", { message: "order to become paid" });
+  const { id, email } = await makeUser({ verified: true });
+  membershipOrders = [authorizedOrder(Math.floor(Math.random() * 1e9))];
+  assert.equal((await post(membershipBody(email))).status, 200, "server still works afterwards");
+  await waitFor(async () => (await userRow(id)).is_member === true, { message: "membership granted" });
 });
 
-test("the 200 is sent immediately — before a slow HelloAsso lookup finishes", async () => {
-  const { order, intentId } = await pendingOrder();
-  intents.set(intentId, paidIntent);
+test("the 200 is sent immediately — before a slow HelloAsso membership lookup finishes", async () => {
+  const { id, email } = await makeUser({ verified: true });
+  membershipOrders = [authorizedOrder(Math.floor(Math.random() * 1e9))];
   let release;
-  intentGate = new Promise((r) => { release = r; });
+  membershipGate = new Promise((r) => { release = r; });
   try {
-    const res = await post({ metadata: { orderId: order.id } });
+    const res = await post(membershipBody(email));
     assert.equal(res.status, 200);
-    assert.equal((await orderRow(order.id)).status, "pending", "work has not completed when the ack arrives");
+    assert.equal((await userRow(id)).is_member, false, "work has not completed when the ack arrives");
   } finally {
-    intentGate = null;
+    membershipGate = null;
     release();
   }
-  await waitFor(async () => (await orderRow(order.id)).status === "paid", { message: "order to become paid after the lookup resumes" });
+  await waitFor(async () => (await userRow(id)).is_member === true, { message: "membership granted after the lookup resumes" });
 });
 
 // Keep last: the limiter is per-process and counts every request above too.
@@ -284,7 +249,7 @@ test("rate limit: callers past the cap get 429 and no further processing", async
   assert.ok(firstLimited > 100, `burst was limited too early (first 429 at request ${firstLimited})`);
   assert.ok(statuses.slice(0, firstLimited).every((s) => s === 200));
   assert.ok(statuses.slice(firstLimited).every((s) => s === 429), "once limited, stays limited");
-  const limited = await post({ metadata: { orderId: 1 } });
+  const limited = await post(membershipBody(`limited-${uniq()}@example.test`));
   assert.equal(limited.status, 429);
-  assert.equal(intentLookups.length, 0);
+  assert.equal(membershipLookups.length, 0, "no processing once limited");
 });

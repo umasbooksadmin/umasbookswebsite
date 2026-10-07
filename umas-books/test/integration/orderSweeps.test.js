@@ -1,9 +1,12 @@
-// The 6-hourly follow-up for paid online orders (lib/orderSweeps.js):
-//  - refund detection from HelloAsso's own checkout-intent lookup: flag only,
-//    ONE alert email per order, nothing restocked automatically;
+// The 6-hourly follow-up (lib/orderSweeps.js), the part for orders PAID ONLINE
+// before reservations replaced online payment (status 'paid', never collected):
 //  - the day-10 customer pickup reminder (EN/FR, once, only inside the 14-day
-//    window the terms of sale talk about) and the day-12 admin digest (once).
-// Own throwaway database; HelloAsso and the mailer are stubbed.
+//    window the terms of sale talk about) and the day-12 admin digest (once);
+//  - runOrderFollowUps as a whole: every part runs, and no HelloAsso lookup exists
+//    any more (there is no refund detection: refunds are recorded in the shop).
+// The reservation sweeps (reminders, expiry notices, admin digest of expiring
+// reservations) are in reservationSweeps.test.js.
+// Own throwaway database; the mailer is stubbed, HelloAsso must never be called.
 
 const { test, before, after, beforeEach } = require("node:test");
 const assert = require("node:assert/strict");
@@ -23,126 +26,48 @@ mailer.sendMail = async (opts) => {
   sent.push(opts);
 };
 const helloasso = require("../../src/lib/helloasso");
-const intents = new Map();
-let lookups = [];
-helloasso.getCheckoutIntent = async (id) => {
-  lookups.push(String(id));
-  const v = intents.get(String(id));
-  if (v instanceof Error) throw v;
-  if (!v) throw new Error(`unknown intent ${id}`);
-  return v;
-};
+const helloassoCalls = [];
+for (const name of Object.keys(helloasso)) {
+  if (typeof helloasso[name] === "function") helloasso[name] = async () => { helloassoCalls.push(name); throw new Error(`HelloAsso must not be called (${name})`); };
+}
 
 const { pool } = require("../../src/db");
 const {
-  detectRefundedOrders, sendCustomerPickupReminders, sendAdminPickupDigest, runOrderFollowUps, buildCustomerPickupReminder,
+  sendCustomerPickupReminders, sendAdminPickupDigest, runOrderFollowUps, buildCustomerPickupReminder,
 } = require("../../src/lib/orderSweeps");
 
 before(() => db.create());
 after(async () => { await pool.end(); db.drop(); });
-beforeEach(() => { sent.length = 0; lookups = []; failNextSends = 0; failTo = null; intents.clear(); });
+beforeEach(() => { sent.length = 0; failNextSends = 0; failTo = null; helloassoCalls.length = 0; });
 
 const orderRow = async (id) => (await pool.query("SELECT * FROM orders WHERE id = $1", [id])).rows[0];
-const refundedIntent = (state = "Refunded") => ({ id: 1, order: { id: 9, payments: [{ state }] } });
-const paidIntent = { id: 1, order: { id: 9, payments: [{ state: "Authorized" }] } };
-// Other tests' orders must not interfere: each test works on its own and only
-// looks at emails that mention its own order numbers.
-const mailsAbout = (id) => sent.filter((m) => (m.subject + m.text).includes(`#${id}`));
-
-test("a paid order refunded in HelloAsso is flagged and the admin is alerted ONCE; nothing is restocked", async () => {
-  const { order, copyIds } = await makeOrder(pool, { paidDaysAgo: 3, intentId: "sw-refund-1" });
-  intents.set("sw-refund-1", refundedIntent("Refunded"));
-
-  const first = await detectRefundedOrders(pool);
-  assert.ok(first.detected >= 1);
-  const row = await orderRow(order.id);
-  assert.ok(row.refund_detected_at);
-  assert.ok(row.refund_alert_sent_at);
-  assert.equal(row.status, "paid", "never marked refunded automatically");
-  assert.equal((await pool.query("SELECT status FROM book_copies WHERE id = $1", [copyIds[0]])).rows[0].status, "sold", "never restocked automatically");
-
-  const mails = mailsAbout(order.id);
-  assert.equal(mails.length, 1);
-  assert.equal(mails[0].subject, `Order #${order.id} was refunded in HelloAsso: mark it refunded in admin to restock`);
-  assert.match(mails[0].text, new RegExp(`/admin/orders/${order.id}`));
-
-  // Second and third runs: already flagged, no new lookup for it, no new email.
-  lookups = [];
-  await detectRefundedOrders(pool);
-  await detectRefundedOrders(pool);
-  assert.ok(!lookups.includes("sw-refund-1"));
-  assert.equal(mailsAbout(order.id).length, 1);
-});
-
-test("several refunds found in one run produce one email, and 'Canceled' and 'Refunding' count too", async () => {
-  const a = await makeOrder(pool, { paidDaysAgo: 1, intentId: "sw-multi-a" });
-  const b = await makeOrder(pool, { paidDaysAgo: 2, intentId: "sw-multi-b" });
-  intents.set("sw-multi-a", refundedIntent("Canceled"));
-  intents.set("sw-multi-b", refundedIntent("Refunding"));
-  await detectRefundedOrders(pool);
-  assert.ok((await orderRow(a.order.id)).refund_detected_at);
-  assert.ok((await orderRow(b.order.id)).refund_detected_at);
-  const mails = sent.filter((m) => m.text.includes(`#${a.order.id}`));
-  assert.equal(mails.length, 1);
-  assert.ok(mails[0].text.includes(`#${b.order.id}`));
-  assert.match(mails[0].subject, /orders were refunded in HelloAsso/);
-});
-
-test("orders still paid in HelloAsso (even after a canceled first attempt), lookup errors and old orders are not flagged", async () => {
-  const ok = await makeOrder(pool, { paidDaysAgo: 1, intentId: "sw-ok" });
-  intents.set("sw-ok", paidIntent);
-  const retried = await makeOrder(pool, { paidDaysAgo: 1, intentId: "sw-retried" });
-  intents.set("sw-retried", { id: 2, order: { payments: [{ state: "Canceled" }, { state: "Authorized" }] } });
-  const flaky = await makeOrder(pool, { paidDaysAgo: 1, intentId: "sw-flaky" });
-  intents.set("sw-flaky", Object.assign(new Error("HelloAsso API failed: 500"), { kind: "http" }));
-  const old = await makeOrder(pool, { paidDaysAgo: 45, intentId: "sw-old" });
-  intents.set("sw-old", refundedIntent());
-  const noIntent = await makeOrder(pool, { paidDaysAgo: 1, intentId: null });
-
-  await detectRefundedOrders(pool);
-  for (const o of [ok, retried, flaky, old, noIntent]) assert.equal((await orderRow(o.order.id)).refund_detected_at, null);
-  assert.ok(!lookups.includes("sw-old"), "orders paid more than 30 days ago are not re-checked");
-  assert.equal(mailsAbout(ok.order.id).length + mailsAbout(old.order.id).length, 0);
-});
-
-test("a failed alert email is retried by the next run (the claim is handed back)", async () => {
-  const { order } = await makeOrder(pool, { paidDaysAgo: 1, intentId: "sw-retry-mail" });
-  intents.set("sw-retry-mail", refundedIntent());
-  failNextSends = 1;
-  await detectRefundedOrders(pool);
-  let row = await orderRow(order.id);
-  assert.ok(row.refund_detected_at);
-  assert.equal(row.refund_alert_sent_at, null);
-  assert.equal(mailsAbout(order.id).length, 0);
-
-  await detectRefundedOrders(pool);
-  row = await orderRow(order.id);
-  assert.ok(row.refund_alert_sent_at);
-  assert.equal(mailsAbout(order.id).length, 1);
-});
-
-test("a systemic HelloAsso failure stops the refund check instead of timing out on every order", async () => {
-  const a = await makeOrder(pool, { paidDaysAgo: 1, intentId: "sw-down-a" });
-  const b = await makeOrder(pool, { paidDaysAgo: 1, intentId: "sw-down-b" });
-  const down = Object.assign(new Error("HelloAsso auth failed: 401"), { kind: "auth" });
-  intents.set("sw-down-a", down);
-  intents.set("sw-down-b", down);
+test("runOrderFollowUps runs the reservation parts and the legacy parts, and never asks HelloAsso anything (no refund detection any more)", async () => {
   const res = await runOrderFollowUps(pool);
-  assert.ok(!res.refunds.error);
-  assert.equal(lookups.filter((x) => x === "sw-down-a" || x === "sw-down-b").length, 1);
-  assert.equal((await orderRow(a.order.id)).refund_detected_at, null);
-  assert.equal((await orderRow(b.order.id)).refund_detected_at, null);
+  for (const key of ["release", "reservationReminders", "seatReminders", "expiryNotices", "adminReservationDigest", "customerReminders", "adminDigest"]) {
+    assert.ok(res[key] && !res[key].error, `${key} ran`);
+  }
+  assert.equal(res.refunds, undefined, "the refund-detection part is gone");
+  assert.deepEqual(helloassoCalls, []);
+  assert.equal(typeof require("../../src/lib/orderSweeps").detectRefundedOrders, "undefined");
 });
 
-test("customer pickup reminder: day 10 to 14 only, once, EN or FR, never for a drop-in-only or refund-flagged or collected order", async () => {
+test("a paid order whose old HelloAsso payment was refunded is NOT flagged or emailed: refunds are recorded by hand in the shop", async () => {
+  const { order } = await makeOrder(pool, { paidDaysAgo: 3, intentId: "sw-refund-1" });
+  await runOrderFollowUps(pool);
+  const row = await orderRow(order.id);
+  assert.equal(row.refund_detected_at, null);
+  assert.equal(row.status, "paid");
+  assert.equal(sent.filter((m) => /refunded in HelloAsso/i.test(m.subject)).length, 0);
+  assert.deepEqual(helloassoCalls, []);
+});
+
+test("customer pickup reminder (order paid online): day 10 to 14 only, once, EN or FR, never for a drop-in-only, refunded or collected order", async () => {
   const due = await makeOrder(pool, { paidDaysAgo: 11, lang: "en", name: "Edith Reader" });
   const dueFr = await makeOrder(pool, { paidDaysAgo: 10, lang: "fr", name: "Édith Lectrice" });
   const early = await makeOrder(pool, { paidDaysAgo: 5 });
   const late = await makeOrder(pool, { paidDaysAgo: 16 });
   const collected = await makeOrder(pool, { paidDaysAgo: 11, collected: true });
   const dropinOnly = await makeOrder(pool, { paidDaysAgo: 11, books: 0, seat: true });
-  const flagged = await makeOrder(pool, { paidDaysAgo: 11 });
-  await pool.query("UPDATE orders SET refund_detected_at = now() WHERE id = $1", [flagged.order.id]);
   const refunded = await makeOrder(pool, { status: "refunded", paidDaysAgo: 11 });
 
   await sendCustomerPickupReminders(pool);
@@ -156,7 +81,7 @@ test("customer pickup reminder: day 10 to 14 only, once, EN or FR, never for a d
   assert.equal(to(dueFr).length, 1);
   assert.match(to(dueFr)[0].subject, /Vos livres vous attendent à la boutique/);
   assert.match(to(dueFr)[0].text, /du mardi au samedi, 10\u00a0h–19\u00a0h/);
-  for (const o of [early, late, collected, dropinOnly, flagged, refunded]) assert.equal(to(o).length, 0);
+  for (const o of [early, late, collected, dropinOnly, refunded]) assert.equal(to(o).length, 0);
 
   assert.ok((await orderRow(due.order.id)).customer_pickup_reminder_sent_at);
   sent.length = 0;
@@ -184,7 +109,7 @@ test("a failed customer reminder is retried by the next run", async () => {
   assert.equal(sent.filter((m) => m.to === order.buyer_email).length, 1);
 });
 
-test("admin digest: day 12 and later, not collected, once per order, one email for the batch", async () => {
+test("admin digest (orders paid online): day 12 and later, not collected, once per order, one email for the batch", async () => {
   const a = await makeOrder(pool, { paidDaysAgo: 12, name: "Digest A" });
   const b = await makeOrder(pool, { paidDaysAgo: 20, name: "Digest B" });
   const young = await makeOrder(pool, { paidDaysAgo: 11 });
@@ -198,6 +123,7 @@ test("admin digest: day 12 and later, not collected, once per order, one email f
   assert.ok(text.includes(`#${a.order.id}`) && text.includes(`#${b.order.id}`));
   for (const o of [young, collected, dropinOnly]) assert.ok(!text.includes(`Order #${o.order.id}:`));
   assert.match(text, /\/admin\/orders\/\d+/);
+  assert.match(text, /\/admin\/orders\?show=uncollected/, "the link to the full list uses the real filter name");
 
   sent.length = 0;
   await sendAdminPickupDigest(pool);

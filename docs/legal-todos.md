@@ -14,16 +14,13 @@ says who has to decide or do it: *maintainer* (Sharon), *accountant* or
   on the website has no street number ("Rue Peyrolière, 81000 Albi").
   Recommendation: find the number, then set `SHOP_STREET_NUMBER` in
   `umas-books/src/lib/legal.js` (for example `"12"`). It then reads "12 rue
-  Peyrolière" in the legal notice, the visit page, the structured data and the
-  book-request emails. Places owned by the reservations/terms work that must use
-  the same helper (`shopStreet(lang, capital)` in `legal.js`, or the
-  `{shopStreet}` / `{shopStreetInline}` tokens in a page dictionary filled with
-  `fillVat(dict, lang)` from `legalText.js`): the terms of sale (section
-  "Collecting your order"), `src/lib/reservations.js`, `src/lib/orderEmail.js`,
-  `views/cart.ejs`, `views/cart_return.ejs`, and the French order and reservation
-  emails (write "rue Peyrolière" in lower case in the middle of a French
-  sentence: `shopStreet("fr", false)`). The pick-up line `PICKUP` in
-  `legalText.js` already follows the constant.
+  Peyrolière" everywhere the shop address appears: legal notice, visit page,
+  structured data, terms of sale (section 4), cart confirmation page, the order
+  and reservation emails, the pickup reminder and the book-request emails. They
+  all use `shopStreet(lang, capital)` in `legal.js` (or the `{shopStreet}` and
+  `{shopStreetInline}` tokens filled by `fillVat(dict, lang)` in `legalText.js`),
+  with "rue" in lower case in the middle of a French sentence. Do not write the
+  street by hand in a new text: use the helper.
 - [ ] **2. Set the membership price constant** (owner: maintainer). Set
   `MEMBERSHIP_PRICE_EUR` in `umas-books/src/lib/legal.js` (a number or a string,
   for example `"20"`) to the price configured on the HelloAsso membership form.
@@ -113,19 +110,55 @@ says who has to decide or do it: *maintainer* (Sharon), *accountant* or
   then ends." (French: « Si vous adhérez en ligne, vous pouvez vous rétracter
   dans les 14 jours en écrivant à admin@umasbooks.org ; nous vous remboursons et
   l’adhésion prend fin. »). Refunds are done in HelloAsso (runbook, section k).
-- [ ] **18. Terms of sale: "courts" sentence** (owner: lawyer, then whoever edits
-  the terms). The terms of sale are edited by the reservations work, so the
-  sentence was not changed here. Recommended replacement for the French sentence
-  that says the courts are "seules compétentes": « les juridictions compétentes en
-  vertu du droit de la consommation s’appliquent » (the consumer keeps the choice
-  of court). Apply it when the terms are next edited and bump
-  `TERMS_OF_SALE_VERSION`.
+- [x] **18. Terms of sale: "courts" sentence** (done 2026-10-07; the lawyer may
+  still review it). The French sentence that said the courts are "seules
+  compétentes" now reads « les juridictions compétentes en vertu du droit de la
+  consommation s’appliquent » (the consumer keeps the choice of court).
+  `TERMS_OF_SALE_VERSION` was bumped to 2026-10-08.
+- [ ] **19. Click-and-collect reservation, payment in the shop: distance
+  contract?** (owner: lawyer / consumer mediator). Details below.
 
 ## Closed or no longer needed
 
-- **Orders that are never collected** (owner: maintainer): moot once books are
-  reserved and paid in the shop (the reservations system); the terms ask buyers to
-  collect within 14 days and promise nothing more. If online payment for books
-  stays, decide what happens to a paid order that is not collected (kept longer,
-  offered again, refunded) and write it in the terms.
+- **Reservations that are never collected** (settled, for information): books and
+  drop-in seats are reserved online and paid in the shop, so no paid order waits
+  to be collected. A reservation that is not collected lapses after 14 days (the
+  shop can extend it once, by 7 days), with no penalty, and the books go back on
+  sale; the terms of sale say so. Nothing to do unless the association wants a
+  different rule (a deposit, a fee), which would need the terms to change first.
 - **Footer social icons**: none until real addresses exist (runbook, section o).
+
+## Item 19 in detail: click-and-collect reservation, payment in the shop
+
+Since the "reserve online, pay at the shop" change, nothing is paid on the
+website for books and drop-in seats (only the membership is paid online). A
+second legal review (October 2026) advised the following, which the site now
+applies: **a reservation is a free, non-binding hold; the sale is concluded and
+paid in the shop, in person, so it is not a distance contract.** Therefore the
+terms of sale, the cart and the reservation email show **no 14-day withdrawal
+notice and no model withdrawal form** for books and drop-in seats. Withdrawal
+text stays **only** for the online membership payment (membership terms, with
+the neutral sentence "applies where the law provides for it").
+
+**To confirm with a lawyer / the consumer mediator (CM2C):**
+
+- that a click-and-collect reservation with payment and handover in the shop is
+  not a distance contract (so no right of withdrawal for books, and none to
+  mention in the email), including when the customer reserved online and never
+  collects (no contract at all);
+- that the "no returns for a change of mind once bought in the shop" notice
+  (`NO_RETURNS` in `umas-books/src/lib/legalText.js`) is acceptable next to the
+  statement that the legal guarantees still apply;
+- that the drop-in seat needs no withdrawal waiver (nothing is paid online; the
+  checkbox was removed);
+- the list of what the terms of sale now state (seller identity and contact,
+  price TTC "TVA non applicable", unique copies, hold of 14 days (+7 once) with
+  automatic release and no fee or penalty, limits of 10 books and 3 reservations
+  per account, price honoured during the hold, payment in cash or card in the
+  shop, condition checked on the spot with the right to decline, opening hours
+  and address, reservation data kept 30 days after it ends).
+
+Until answered, do not put the withdrawal notice back without asking. If the
+lawyer says the opposite (a withdrawal right applies), ask for the terms of
+sale, the reservation email and `NO_RETURNS` to be changed together, and bump
+`TERMS_OF_SALE_VERSION`.

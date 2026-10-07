@@ -1,12 +1,12 @@
 // The email outbox (src/lib/outbox.js) and what is built on it:
-//  - a paid order and its confirmation are queued ATOMICALLY (one transaction);
+//  - a reservation and its confirmation are queued ATOMICALLY (one transaction);
 //  - sent at once when Gmail works; kept and retried with backoff when not;
 //  - after 8 attempts: failed + ONE throttled admin alert (no personal data);
 //  - retention purge of stored bodies; erasure of one person's rows;
 //  - the admin pages: outbox list, retry now, mark failed as handled,
-//    "Resend confirmation", and the "needs attention" dashboard item;
-//  - a failure while building the confirmation never undoes a payment, and the
-//    HelloAsso order id is stamped in the same transaction as the paid status.
+//    "Resend confirmation" (only for a reservation that is still open), and the
+//    "needs attention" dashboard item;
+//  - a failure while building or storing the confirmation never undoes a reservation.
 
 const { test, before, after, beforeEach } = require("node:test");
 const assert = require("node:assert/strict");
@@ -40,19 +40,38 @@ const msg = (over = {}) => ({ to: `buyer-${h.uniq()}@example.test`, subject: "He
 const makeDue = (id) => q("UPDATE email_outbox SET next_try_at = now() WHERE id = $1", [id]);
 const row = async (id) => (await q("SELECT * FROM email_outbox WHERE id = $1", [id]))[0];
 
-async function insertPendingOrder({ email = `order-${h.uniq()}@example.test`, lang = null } = {}) {
-  const [o] = await q(
-    `INSERT INTO orders (buyer_name, buyer_email, total_amount, status, checkout_intent_id, lang)
-     VALUES ('Outbox Buyer', $1, 5.00, 'pending', $2, $3) RETURNING *`,
-    [email, `intent-${h.uniq()}`, lang]
-  );
+// A real reservation (one book, held for a new account) made through createReservation.
+// `pool` lets a test inject a failing pool; the stored rows are the real thing.
+async function makeReservation({ email = `order-${h.uniq()}@example.test`, lang = null, pool = h.pool } = {}) {
+  const [u] = await q("INSERT INTO users (email, password_hash, display_name, email_verified_at) VALUES ($1, 'x', 'Outbox Buyer', now()) RETURNING id, email", [email]);
   const [b] = await q("INSERT INTO books (title, authors) VALUES ('Outbox Book', 'A') RETURNING id");
-  const [c] = await q(
-    "INSERT INTO book_copies (book_id, status, cart_order_id, cart_added_at, price) VALUES ($1, 'in_cart', $2, now(), 5.00) RETURNING id",
-    [b.id, o.id]
-  );
-  await q("INSERT INTO order_items (order_id, book_copy_id, item_title, price) VALUES ($1, $2, 'Outbox Book', 5.00)", [o.id, c.id]);
-  return { order: o, copyId: c.id };
+  const [c] = await q("INSERT INTO book_copies (book_id, status, price) VALUES ($1, 'in_stock', 5.00) RETURNING id", [b.id]);
+  const make = (p) => cart.createReservation(p, {
+    user: { id: u.id, email: u.email }, name: "Outbox Buyer", lang, acceptedVersion: "t",
+    items: [{ kind: "book", copyId: c.id, title: "Outbox Book", price: 5 }],
+  });
+  return { make: () => make(pool), copyId: c.id, user: u, email: u.email };
+}
+const quietly = async (fn) => {
+  const realError = console.error;
+  console.error = () => {};
+  try { return await fn(); } finally { console.error = realError; }
+};
+// A pool whose statements matching `re` really fail inside Postgres (division by
+// zero), which also aborts the open transaction, like a genuine error would.
+function poolFailingOn(re) {
+  return {
+    query: (sql, ...rest) => h.pool.query(sql, ...rest),
+    connect: async () => {
+      const client = await h.pool.connect();
+      return {
+        query: (sql, ...rest) => client.query(re.test(String(sql)) ? "SELECT 1/0" : sql, ...(re.test(String(sql)) ? [] : rest)),
+        release: (e) => client.release(e),
+        on: (...a) => client.on(...a),
+        removeListener: (...a) => client.removeListener(...a),
+      };
+    },
+  };
 }
 
 // ---------- store, send, retry ----------
@@ -135,54 +154,47 @@ test("one-time-link mail loses its body as soon as it is sent", async () => {
 
 // ---------- atomicity with the order ----------
 
-test("a paid order and its confirmation are queued in the same transaction; the confirmation is sent and stamped", async () => {
-  const { order } = await insertPendingOrder({ lang: "fr" });
-  assert.equal(await cart.markOrderPaid(h.pool, order, { helloassoOrderId: 777001 }), true);
-  const [o] = await q("SELECT status, helloasso_order_id, confirmation_sent_at FROM orders WHERE id = $1", [order.id]);
-  assert.equal(o.status, "paid");
-  assert.equal(o.helloasso_order_id, "777001", "stamped in the same transaction as the paid status");
+test("a reservation and its confirmation are queued in the same transaction; the confirmation is sent and stamped", async () => {
+  const r = await makeReservation({ lang: "fr" });
+  const order = await r.make();
+  assert.equal(order.status, "reserved");
+  const [o] = await q("SELECT status, confirmation_sent_at, checkout_intent_id, paid_at FROM orders WHERE id = $1", [order.id]);
+  assert.equal(o.status, "reserved");
+  assert.equal(o.checkout_intent_id, null);
+  assert.equal(o.paid_at, null);
   assert.ok(o.confirmation_sent_at);
   const rows = await q("SELECT * FROM email_outbox WHERE related_order_id = $1", [order.id]);
   assert.equal(rows.length, 1);
   assert.equal(rows[0].kind, "order_confirmation");
   assert.equal(rows[0].status, "sent");
+  assert.equal(rows[0].lang, "fr");
   assert.equal(sent.length, 1);
-  assert.equal(sent[0].to, order.buyer_email);
+  assert.equal(sent[0].to, r.email);
 });
 
-test("if the transaction fails after the confirmation was queued, neither the payment nor the confirmation exists", async () => {
-  const { order, copyId } = await insertPendingOrder();
-  // Fails the LAST statement of markOrderPaid's transaction would be too late to matter;
-  // fail the inventory statement and prove nothing (order, outbox row) was kept.
-  const failing = {
-    query: (sql, ...rest) => h.pool.query(sql, ...rest),
-    connect: async () => {
-      const client = await h.pool.connect();
-      return {
-        query: (sql, ...rest) => {
-          if (/INSERT INTO email_outbox/.test(String(sql))) return Promise.reject(Object.assign(new Error("injected after queueing"), { injected: true }));
-          return client.query(sql, ...rest);
-        },
-        release: (e) => client.release(e),
-        on: (...a) => client.on(...a),
-        removeListener: (...a) => client.removeListener(...a),
-      };
-    },
-  };
-  // A failure while queueing is contained by the savepoint: the order IS paid, no row, no confirmation.
-  const realError = console.error;
-  console.error = () => {};
-  try { assert.equal(await cart.markOrderPaid(failing, order, { helloassoOrderId: 777002 }), true); } finally { console.error = realError; }
+test("a failure while STORING the confirmation never undoes the reservation (savepoint): the books stay held, nothing is queued, the order is flagged", async () => {
+  const r = await makeReservation({ pool: poolFailingOn(/INSERT INTO email_outbox/) });
+  const order = await quietly(() => r.make());
+  assert.equal(order.status, "reserved", "a confirmation problem never undoes a reservation");
   assert.equal((await q("SELECT COUNT(*)::int AS n FROM email_outbox WHERE related_order_id = $1", [order.id]))[0].n, 0);
-  const [o] = await q("SELECT status, helloasso_order_id, confirmation_sent_at FROM orders WHERE id = $1", [order.id]);
-  assert.equal(o.status, "paid", "a confirmation problem never undoes a payment");
-  assert.equal(o.helloasso_order_id, "777002", "and the HelloAsso id is still stamped");
+  const [o] = await q("SELECT status, confirmation_sent_at FROM orders WHERE id = $1", [order.id]);
+  assert.equal(o.status, "reserved");
   assert.equal(o.confirmation_sent_at, null);
-  assert.equal((await q("SELECT status FROM book_copies WHERE id = $1", [copyId]))[0].status, "sold");
+  assert.equal((await q("SELECT status FROM book_copies WHERE id = $1", [r.copyId]))[0].status, "reserved");
+  assert.equal(sent.length, 0);
 });
 
-test("if the commit itself fails, the order is still pending and no confirmation was queued or sent", async () => {
-  const { order, copyId } = await insertPendingOrder();
+test("a failure loading the order lines while BUILDING the confirmation does not undo the reservation either; it is flagged for the admin", async () => {
+  const r = await makeReservation({ pool: poolFailingOn(/FROM order_items i/) });
+  const order = await quietly(() => r.make());
+  assert.equal(order.status, "reserved");
+  const [o] = await q("SELECT status, confirmation_sent_at FROM orders WHERE id = $1", [order.id]);
+  assert.equal(o.status, "reserved");
+  assert.equal(o.confirmation_sent_at, null, "flagged for the admin instead (see the dashboard)");
+  assert.equal((await q("SELECT status FROM book_copies WHERE id = $1", [r.copyId]))[0].status, "reserved");
+});
+
+test("if the commit itself fails, there is no reservation: no order, the book is back in stock, no confirmation queued or sent", async () => {
   const failingCommit = {
     query: (sql, ...rest) => h.pool.query(sql, ...rest),
     connect: async () => {
@@ -196,11 +208,12 @@ test("if the commit itself fails, the order is still pending and no confirmation
       };
     },
   };
+  const failing = await makeReservation({ pool: failingCommit });
   sent.length = 0;
-  await assert.rejects(cart.markOrderPaid(failingCommit, order, { helloassoOrderId: 1 }), /commit failed/);
-  assert.equal((await q("SELECT status FROM orders WHERE id = $1", [order.id]))[0].status, "pending");
-  assert.equal((await q("SELECT status FROM book_copies WHERE id = $1", [copyId]))[0].status, "in_cart");
-  assert.equal((await q("SELECT COUNT(*)::int AS n FROM email_outbox WHERE related_order_id = $1", [order.id]))[0].n, 0, "the confirmation is queued in the SAME transaction");
+  await assert.rejects(failing.make(), /commit failed/);
+  assert.equal((await q("SELECT COUNT(*)::int AS n FROM orders WHERE user_id = $1", [failing.user.id]))[0].n, 0);
+  assert.equal((await q("SELECT status, cart_order_id FROM book_copies WHERE id = $1", [failing.copyId]))[0].status, "in_stock");
+  assert.equal((await q("SELECT COUNT(*)::int AS n FROM email_outbox WHERE to_email = $1", [failing.email]))[0].n, 0, "the confirmation is queued in the SAME transaction");
   assert.equal(sent.length, 0);
 });
 
@@ -214,14 +227,12 @@ test("a rolled-back transaction leaves no outbox row (enqueue works inside the c
   assert.equal((await q("SELECT COUNT(*)::int AS n FROM email_outbox WHERE to_email = $1", [to]))[0].n, 0);
 });
 
-test("with Gmail down at payment time the order is paid and its confirmation waits in the queue, then is sent and stamped by the worker", async () => {
-  const { order } = await insertPendingOrder();
+test("with Gmail down at reservation time the order is reserved and its confirmation waits in the queue, then is sent and stamped by the worker", async () => {
+  const r = await makeReservation();
   failSends = true;
-  const realError = console.error;
-  console.error = () => {};
-  try { await cart.markOrderPaid(h.pool, order); } finally { console.error = realError; }
+  const order = await quietly(() => r.make());
   let [o] = await q("SELECT status, confirmation_sent_at FROM orders WHERE id = $1", [order.id]);
-  assert.equal(o.status, "paid");
+  assert.equal(o.status, "reserved");
   assert.equal(o.confirmation_sent_at, null);
   const [mail] = await q("SELECT id, status FROM email_outbox WHERE related_order_id = $1", [order.id]);
   assert.equal(mail.status, "pending");
@@ -375,13 +386,9 @@ test("admin 'retry now' sends a failed row; 'mark failed as handled' clears the 
   assert.equal((await q("SELECT COUNT(*)::int AS n FROM email_outbox WHERE status = 'failed'"))[0].n, 0);
 });
 
-test("resend confirmation: queues and sends a fresh copy for a paid order, refuses unpaid ones, is admin-only", async () => {
-  const { order } = await insertPendingOrder();
-  const unpaid = await h.post(`/admin/orders/${order.id}/resend-confirmation`);
-  assert.match(unpaid.res.headers.get("location"), /resend-not_paid/);
-  assert.equal(sent.length, 0);
-
-  await cart.markOrderPaid(h.pool, order);
+test("resend confirmation: queues and sends a fresh copy for a reserved order, refuses any other status, is admin-only", async () => {
+  const r = await makeReservation();
+  const order = await r.make();
   sent.length = 0;
   const forbidden = await h.post(`/admin/orders/${order.id}/resend-confirmation`, {}, { user: h.member });
   assert.equal(forbidden.res.status, 403);
@@ -392,16 +399,21 @@ test("resend confirmation: queues and sends a fresh copy for a paid order, refus
   assert.equal(sent.length, 1);
   assert.equal(sent[0].to, order.buyer_email);
   assert.equal((await q("SELECT COUNT(*)::int AS n FROM email_outbox WHERE related_order_id = $1", [order.id]))[0].n, 2);
+
+  // Once it is no longer an open reservation (paid in the shop, cancelled...), there is nothing to resend.
+  await q("UPDATE orders SET status = 'cancelled' WHERE id = $1", [order.id]);
+  sent.length = 0;
+  const closed = await h.post(`/admin/orders/${order.id}/resend-confirmation`);
+  assert.match(closed.res.headers.get("location"), /resend-not_reserved/);
+  assert.equal(sent.length, 0);
   const audit = await q("SELECT detail FROM admin_audit_log WHERE action = 'order.resend_confirmation' AND target_id = $1 ORDER BY id", [order.id]);
-  assert.deepEqual(audit.map((a) => a.detail), ["not_paid", "sent"], "refused and successful attempts are both recorded");
+  assert.deepEqual(audit.map((a) => a.detail), ["sent", "not_reserved"], "successful and refused attempts are both recorded");
 });
 
-test("the orders list offers 'Resend confirmation' for paid orders, with a NOT SENT marker when the mail never went", async () => {
-  const { order } = await insertPendingOrder();
+test("the orders list offers 'Resend confirmation' for reservations, with a NOT SENT marker when the mail never went", async () => {
+  const r = await makeReservation();
   failSends = true;
-  const realError = console.error;
-  console.error = () => {};
-  try { await cart.markOrderPaid(h.pool, order); } finally { console.error = realError; }
+  const order = await quietly(() => r.make());
   failSends = false;
   const { text } = await h.get("/admin/orders");
   assert.match(text, new RegExp(`/admin/orders/${order.id}/resend-confirmation`));
@@ -409,19 +421,17 @@ test("the orders list offers 'Resend confirmation' for paid orders, with a NOT S
   assert.match(text, /NOT SENT/);
 });
 
-test("dashboard 'needs attention': a paid order with no confirmation after 30 minutes, and failed mail", async () => {
-  const { order } = await insertPendingOrder();
+test("dashboard 'needs attention': a reservation with no confirmation after 30 minutes, and failed mail", async () => {
+  const r = await makeReservation();
   failSends = true;
-  const realError = console.error;
-  console.error = () => {};
-  try { await cart.markOrderPaid(h.pool, order); } finally { console.error = realError; }
+  const order = await quietly(() => r.make());
   failSends = false;
   let { text } = await h.get("/admin");
   assert.doesNotMatch(text, /have no confirmation email/, "not yet: it is recent");
-  await q("UPDATE orders SET paid_at = now() - interval '31 minutes' WHERE id = $1", [order.id]);
+  await q("UPDATE orders SET created_at = now() - interval '31 minutes' WHERE id = $1", [order.id]);
   ({ text } = await h.get("/admin"));
   assert.match(text, /id="needs-attention"/);
-  assert.match(text, /paid order\(s\) have no confirmation email sent after 30 minutes/);
+  assert.match(text, /reservation\(s\) have no confirmation email sent after 30 minutes/);
 
   await q("UPDATE orders SET confirmation_sent_at = now() WHERE id = $1", [order.id]);
   await q("UPDATE email_outbox SET status = 'handled' WHERE status IN ('pending', 'failed')");
@@ -431,31 +441,6 @@ test("dashboard 'needs attention': a paid order with no confirmation after 30 mi
   await q("UPDATE email_outbox SET status = 'failed', failed_at = now() WHERE id = $1", [id]);
   ({ text } = await h.get("/admin"));
   assert.match(text, /could not be sent after 8 attempts/);
-});
-
-test("a failure loading the order lines after commit does not skip stamping the HelloAsso order id ", async () => {
-  const { order } = await insertPendingOrder();
-  // Drive markOrderPaid with a pool whose order-lines query throws: the failure
-  // that used to skip the stamp.
-  const failingPool = {
-    query: (sql, ...rest) => h.pool.query(sql, ...rest),
-    connect: async () => {
-      const client = await h.pool.connect();
-      return {
-        query: (sql, ...rest) => (/FROM order_items i/.test(String(sql)) ? Promise.reject(new Error("order lines unavailable")) : client.query(sql, ...rest)),
-        release: (e) => client.release(e),
-        on: (...a) => client.on(...a),
-        removeListener: (...a) => client.removeListener(...a),
-      };
-    },
-  };
-  const realError = console.error;
-  console.error = () => {};
-  try { assert.equal(await cart.markOrderPaid(failingPool, order, { helloassoOrderId: "HA-55" }), true); } finally { console.error = realError; }
-  const [o] = await q("SELECT status, helloasso_order_id, confirmation_sent_at FROM orders WHERE id = $1", [order.id]);
-  assert.equal(o.status, "paid");
-  assert.equal(o.helloasso_order_id, "HA-55");
-  assert.equal(o.confirmation_sent_at, null, "flagged for the admin instead");
 });
 
 test("'Send a test email' goes through the outbox and shows 'sent', or the exact SMTP error", async () => {
@@ -479,9 +464,9 @@ test("'Send a test email' goes through the outbox and shows 'sent', or the exact
   assert.equal((await h.post("/admin/email-outbox/test-email", {}, { user: h.member })).res.status, 403);
 });
 
-test("the order detail page offers Resend confirmation for a paid order", async () => {
-  const { order } = await insertPendingOrder();
-  await cart.markOrderPaid(h.pool, order);
+test("the order detail page offers Resend confirmation for a reservation", async () => {
+  const r = await makeReservation();
+  const order = await r.make();
   const { res, text } = await h.get(`/admin/orders/${order.id}`);
   assert.equal(res.status, 200);
   assert.match(text, new RegExp(`/admin/orders/${order.id}/resend-confirmation`));

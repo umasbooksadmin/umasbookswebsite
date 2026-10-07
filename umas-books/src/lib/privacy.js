@@ -48,6 +48,27 @@ async function eraseMember(pool, userId, { client } = {}) {
     await db.query("DELETE FROM event_signups WHERE lower(email) = $1", [email]);
     await db.query("DELETE FROM class_signups WHERE lower(email) = $1", [email]);
 
+    // The person's open reservations (orders with status 'reserved'): books
+    // back on the shelf, seats freed, the order closed as cancelled. Done BEFORE
+    // the copy rows below are cleared and the order is anonymised.
+    await db.query(
+      `UPDATE class_dropin_seats SET status = 'released', updated_at = now()
+       WHERE status = 'reserved' AND order_id IN (
+         SELECT id FROM orders WHERE status = 'reserved' AND (user_id = $2 OR (user_id IS NULL AND lower(buyer_email) = $1)))`,
+      [email, userId]
+    );
+    await db.query(
+      `UPDATE book_copies SET status = 'in_stock', cart_order_id = NULL, updated_at = now()
+       WHERE status = 'reserved' AND cart_order_id IN (
+         SELECT id FROM orders WHERE status = 'reserved' AND (user_id = $2 OR (user_id IS NULL AND lower(buyer_email) = $1)))`,
+      [email, userId]
+    );
+    await db.query(
+      `UPDATE orders SET status = 'cancelled', released_at = now(), release_reason = 'account_erased'
+       WHERE status = 'reserved' AND (user_id = $2 OR (user_id IS NULL AND lower(buyer_email) = $1))`,
+      [email, userId]
+    );
+
     // An active reservation is released rather than kept without contact
     // details nobody could pick it up with.
     await db.query(

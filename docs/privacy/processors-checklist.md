@@ -79,9 +79,9 @@ Date accepted: ____ / ____ / ______ / Done by: ____________
 
 Date checked: ____ / ____ / ______ / Done by: ____________
 
-## HelloAsso (payments and memberships)
+## HelloAsso (memberships only)
 
-- **What they get:** for each online payment, the buyer's first name, last name and email (sent by the website when it creates the payment page), then card or bank details entered directly on HelloAsso's page (we never see these). For memberships, whatever the member types into HelloAsso's form. The website receives back: order number, payer email, amount and date.
+- **What they get:** the membership only. Books and drop-in seats are reserved on the website and paid in the shop, so HelloAsso receives nothing about them, and the website no longer creates payment pages for orders. For a membership, HelloAsso receives only what the visitor types into HelloAsso's own form (name, email, card or bank details, which we never see). The website receives back: order number, payer email, amount and date.
 - **Role:** HelloAsso is a French payment institution/platform for associations and acts as an **independent controller** for the payment data (our privacy policy says so). It collects the payment data for its own purposes (payment, its own legal duties). That is usually why a DPA is not signed with it.
 - **Action for Sharon:** read HelloAsso's privacy / legal pages ("Politique de confidentialité" and its terms for organisations) and confirm they describe themselves as controller for payment data. If they say they act as a processor for the association's membership data, look for their DPA there. Write down what you found below.
 - Make sure the HelloAsso account's own users (who can see member lists) are only people who need to.

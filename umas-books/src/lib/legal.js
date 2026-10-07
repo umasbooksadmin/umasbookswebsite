@@ -1,11 +1,37 @@
 const { formatEuro } = require("./money");
 
+// The association's registered name and the name it trades under (the shop's public name).
+const BRAND_LEGAL_NAME = "UMAS BOOKS";
+const BRAND_SHORT_NAME = "Uma's Books";
+
 // Version of the terms of sale (views/marketing/terms-of-sale.ejs) that a
-// buyer accepts at checkout. It is stored on every order
+// customer accepts when reserving. It is stored on every order
 // (orders.cgv_version, with orders.cgv_accepted_at) as proof of acceptance.
 // Bump it (to the date of the change, YYYY-MM-DD) whenever the terms of sale
 // text changes in a way that matters to buyers.
-const TERMS_OF_SALE_VERSION = "2026-10-06";
+const TERMS_OF_SALE_VERSION = "2026-10-08";
+
+// Reservation policy ("Reserve online, pay at the shop"): nothing is paid
+// online for books and drop-in seats. These numbers are the single source for
+// the code AND the customer-facing texts (cart, emails, terms of sale).
+//  - RESERVATION_DAYS: how long books are held; the deadline is shown to the
+//    customer in the confirmation email. An admin can extend it once.
+//  - MAX_RESERVED_COPIES / MAX_ACTIVE_RESERVATIONS: per account, at once.
+//  - SEAT_CANCEL_HOURS: a drop-in seat can be cancelled online until this many
+//    hours before the session starts.
+//  - SEAT_REMINDER_HOURS: the reminder email goes out this long before a session.
+//  - RESERVATION_REMINDER_DAYS_BEFORE: the book reminder goes out this many
+//    days before the deadline (day 10 of 14).
+const RESERVATION_DAYS = 14;
+const RESERVATION_EXTENSION_DAYS = 7;
+const MAX_RESERVED_COPIES = 10;
+const MAX_ACTIVE_RESERVATIONS = 3;
+const SEAT_CANCEL_HOURS = 24;
+const SEAT_REMINDER_HOURS = 24;
+const RESERVATION_REMINDER_DAYS_BEFORE = 4;
+// A drop-in seat is held until the class ends (classes.ends_at); when a class
+// has no end time, this many hours after it starts.
+const SEAT_FALLBACK_SESSION_HOURS = 3;
 
 // The article of the Code général des impôts (CGI) that exempts the
 // association from VAT, shown after "TVA non applicable" when it is set,
@@ -39,13 +65,6 @@ const MEMBERSHIP_PRICE_EUR = "";
 // page, structured data). See docs/legal-todos.md ("give the street number").
 const SHOP_STREET_NUMBER = "";
 
-// Names. The OFFICIAL registered name (RNA, which cannot take apostrophes) is
-// "UMAS BOOKS": use it only in legal identity lines (legal notice publisher,
-// privacy policy controller, membership terms identity, terms of sale). The
-// public names ("Uma's Books", "Uma's Books and Adventures") stay as they are.
-const BRAND_LEGAL_NAME = "UMAS BOOKS";
-const BRAND_SHORT_NAME = "Uma's Books";
-
 // Opening days and hours of the shop. Machine format for structured data, then
 // the text printed on pages: English 10:00–19:00, French 10 h–19 h (a no-break
 // space between the number and "h").
@@ -76,8 +95,10 @@ function membershipPrice(lang) {
 }
 
 module.exports = {
-  TERMS_OF_SALE_VERSION, VAT_NOTICE_ARTICLE, SOCIAL_LINKS,
-  MEMBERSHIP_PRICE_EUR, SHOP_STREET_NUMBER, BRAND_LEGAL_NAME, BRAND_SHORT_NAME,
+  BRAND_LEGAL_NAME, BRAND_SHORT_NAME, TERMS_OF_SALE_VERSION, VAT_NOTICE_ARTICLE, SOCIAL_LINKS,
+  RESERVATION_DAYS, RESERVATION_EXTENSION_DAYS, MAX_RESERVED_COPIES, MAX_ACTIVE_RESERVATIONS,
+  SEAT_CANCEL_HOURS, SEAT_REMINDER_HOURS, RESERVATION_REMINDER_DAYS_BEFORE, SEAT_FALLBACK_SESSION_HOURS,
+  MEMBERSHIP_PRICE_EUR, SHOP_STREET_NUMBER,
   SHOP_OPENS, SHOP_CLOSES, SHOP_HOURS_EN, SHOP_HOURS_FR,
   shopStreet, shopHours, membershipPrice,
 };

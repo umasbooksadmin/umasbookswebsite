@@ -1,6 +1,8 @@
 // Script 1 of docs/testing/manual-test-scripts.md: the guest (anyone not logged in).
-// A guest browses, fills a cart and can use the forms, but cannot buy: checkout
-// asks them to log in or create an account first (G50, G51).
+// A guest browses, fills a cart and can use the forms, but cannot reserve:
+// "Reserve (free, no commitment)" asks them to log in or create an account first (G50,
+// G51). Books and drop-in seats are reserved online and paid in the shop; only
+// the membership is paid online.
 // Every test is named with its manual step id. Read-only except the contact
 // and book-request forms, which send email and so need E2E_ALLOW_WRITES=1.
 
@@ -87,14 +89,14 @@ s.test("G6 'Tell us what you think!' opens the contact form set to feedback (pre
   assert.equal(topic, "Feedback on the preview");
 });
 
-s.test("G7 (must) the cart in preview mode explains ordering is off and has no checkout form", async (ctx) => {
+s.test("G7 (must) the cart in preview mode explains reservations are off and has no reserve form", async (ctx) => {
   if (!ctx.preview) ctx.skip("the site is not in preview mode");
   const book = await stockedBook(ctx);
   await addFirstCopyToCart(ctx, book);
   const text = await ctx.text();
-  has(text, /Online ordering opens when we launch/);
+  has(text, /Online reservations open when we launch/);
   has(text, /Total:/);
-  assert.equal(await ctx.page.$("form[action='/cart/checkout']"), null, "no checkout form in preview mode");
+  assert.equal(await ctx.page.$("form[action='/cart/reserve']"), null, "no reserve form in preview mode");
   assert.equal(await ctx.page.$("#email"), null, "no email field");
 });
 
@@ -120,20 +122,20 @@ s.test("G-FR5 FR check of G5, G7, G8: banner, cart notice and membership notice 
   has(await ctx.page.$eval(".preview-banner", (b) => b.innerText), /Aperçu/);
   const book = await stockedBook(ctx);
   await addFirstCopyToCart(ctx, book);
-  has(await ctx.text(), /La commande en ligne ouvrira au lancement/);
+  has(await ctx.text(), /Les réservations en ligne ouvriront au lancement/);
   await ctx.goto("/membership.html");
   await ctx.page.waitForFunction(() => /L.adhésion ouvrira au lancement/i.test(document.body.innerText));
 });
 
-s.test("G10 with preview off the banner is gone and the cart shows the checkout form or the prompt to log in (preview off only)", async (ctx) => {
+s.test("G10 with preview off the banner is gone and the cart shows the prompt to log in or create an account (preview off only)", async (ctx) => {
   if (ctx.preview) ctx.skip("the site is in preview mode");
   await ctx.goto("/");
   assert.equal(await ctx.page.$(".preview-banner"), null);
   const book = await stockedBook(ctx);
   await addFirstCopyToCart(ctx, book);
-  const form = await ctx.page.$("form[action='/cart/checkout']");
-  // A guest sees the checkout form today; once buying needs an account (G50) they see a prompt to log in instead.
-  if (!form) has(await ctx.text(), /Online payment isn.t switched on yet|log in|sign up|create an account/);
+  // A guest cannot reserve (G50): the cart offers to log in or create an account, never a reserve form.
+  assert.equal(await ctx.page.$("form[action='/cart/reserve']"), null, "a guest is not shown the reserve form");
+  has(await ctx.text(), /log in|sign up|create an account/);
 });
 
 // ---- 1C. Books ----
@@ -216,7 +218,7 @@ s.test("G15 (must) a book page shows cover, title, author, binding, price, copie
   // The friendly used-book disclaimer and the price tax line; never a waiver of legal rights.
   has(text, /Price incl\. tax, TVA non applicable/);
   has(text, /Our second-hand books are sold as described, so please read the condition grade, and ask us if you have any question\./);
-  has(text, /Used books: no returns or exchanges for a change of mind in the shop\. For online orders, your statutory 14-day right of withdrawal and the legal guarantees still apply\./);
+  has(text, /Used books are not taken back for a change of mind once bought in the shop; the legal guarantees still apply\./);
   hasNot(text, /waive|renounce/i);
   assert.ok(await ctx.page.$(".book-disclaimer a[href='/terms-of-sale.html']"), "the disclaimer links the terms");
 });
@@ -306,7 +308,7 @@ s.test("G-FR11 FR check (books): search page, book page and grade legend in Fren
   has(legend, /L’état indiqué est la description du livre/);
   has(text, /Prix TTC, TVA non applicable/);
   has(text, /Nos livres d’occasion sont vendus tels que décrits/);
-  has(text, /Livres d’occasion\s:\spas de reprise ni d’échange pour simple changement d’avis en boutique\. Pour les achats en ligne, votre droit légal de rétractation de 14 jours \(art\. L\.221-18\) et les garanties légales de conformité et des vices cachés restent applicables\./);
+  has(text, /Les livres d’occasion ne sont ni repris ni échangés pour simple changement d’avis une fois achetés en boutique/);
   assert.equal(await ctx.page.$eval("html", (h) => h.lang), "fr");
 });
 
@@ -501,9 +503,14 @@ s.test("G39 (must) each legal page opens with full text and the seller identity"
   }
   await ctx.goto("/terms-of-sale.html");
   const tos = await ctx.text();
-  for (const re of [/14 days/i, /withdrawal/i, /mediat/i]) has(tos, re);
+  for (const re of [/14 days/i, /mediat/i]) has(tos, re);
+  hasNot(tos, /Withdrawal form|L\.221-18/);
   has(tos, /Second-hand books: no returns/);
-  has(tos, /This does not affect your legal rights as a consumer, including the right of withdrawal for online orders described below and the legal guarantees\./);
+  has(tos, /This does not affect your legal rights as a consumer, including the legal guarantees\./);
+  has(tos, /Reserving is free and commits you to nothing/);
+  has(tos, /Nothing is paid online, and reserving does not oblige you to buy\./);
+  has(tos, /Only membership is: it is paid online through HelloAsso/);
+  hasNot(tos, /obligation to pay|pay online by card|one hour/i);
   has(tos, /Tuesday to Saturday, 10:00–19:00/);
   hasNot(tos, /waive|renounce/i);
   await ctx.goto("/mentions-legales.html");
@@ -689,43 +696,43 @@ s.test("G48b the cart survives a reload and the back button", async (ctx) => {
   assert.equal(await cartLineCount(ctx), 1);
 });
 
-// ---- 1I. Member pages and buying need a login ----
+// ---- 1I. Member pages and reserving need a login ----
 
 s.test("G52 logged out, /forum shows the login page", { anon: true }, async (ctx) => {
   await ctx.goto("/forum");
   assert.equal(new URL(ctx.page.url()).pathname, "/login");
 });
 
-// Buying needs an account (pull request #201): checkout sends a guest to log in or sign up.
+// Reserving needs an account: "Reserve (free, no commitment)" sends a guest to log in or sign up.
 
-// What the site does with a checkout request from someone who is not logged in.
-async function checkoutAsGuest(ctx) {
+// What the site does with a reservation request from someone who is not logged in.
+async function reserveAsGuest(ctx) {
   const res = await ctx.page.evaluate(async () => {
     const { token } = await (await fetch("/api/csrf-token")).json();
     const body = new URLSearchParams({ _csrf: token, name: "E2E guest check", email: "e2e@example.invalid", acceptCgv: "on" });
-    const r = await fetch("/cart/checkout", { method: "POST", body, redirect: "manual" });
+    const r = await fetch("/cart/reserve", { method: "POST", body, redirect: "manual" });
     return { type: r.type, status: r.status };
   });
   return res;
 }
 
-s.test("G50 (must) checkout asks a guest to log in or create an account", async (ctx) => {
-  if (ctx.preview) ctx.skip("preview mode: checkout is switched off for everyone");
+s.test("G50 (must) reserving asks a guest to log in or create an account", async (ctx) => {
+  if (ctx.preview) ctx.skip("preview mode: reservations are switched off for everyone");
   const book = await stockedBook(ctx);
   await addFirstCopyToCart(ctx, book);
-  // The cart offers a way to log in or sign up (a link or button) instead of a guest checkout form...
+  // The cart offers a way to log in or sign up (a link or button) instead of a guest reserve form...
   const text = await ctx.text();
-  assert.equal(await ctx.page.$("form[action='/cart/checkout'] input[name='acceptCgv']"), null, "a guest must not be shown the pay-and-buy form");
+  assert.equal(await ctx.page.$("form[action='/cart/reserve'] input[name='acceptCgv']"), null, "a guest must not be shown the reserve form");
   assert.ok(await ctx.page.$("a[href^='/login'], a[href^='/signup']"), "a way to log in or create an account");
   has(text, /log in|sign up|create an account/);
   // ...and a request sent anyway is turned away to the login page, never started.
-  const sent = await checkoutAsGuest(ctx);
-  assert.equal(sent.type, "opaqueredirect", `checkout answered ${sent.status} to a guest, expected a redirect to log in`);
+  const sent = await reserveAsGuest(ctx);
+  assert.equal(sent.type, "opaqueredirect", `reserve answered ${sent.status} to a guest, expected a redirect to log in`);
   assert.deepEqual(ctx.blocked, [], "no payment page was reached");
 });
 
 s.test("G51 (must) after logging in from the cart, the guest is back on the cart with their items", { needs: ["account"] }, async (ctx) => {
-  if (ctx.preview) ctx.skip("preview mode: checkout is switched off for everyone");
+  if (ctx.preview) ctx.skip("preview mode: reservations are switched off for everyone");
   const c = cfg.credentials("account");
   const book = await stockedBook(ctx);
   await addFirstCopyToCart(ctx, book);

@@ -46,9 +46,9 @@ async function renderSessions(res, calendarQuery, { error = null, notice = null,
 
   const { rows: dropinRows } = classIds.length
     ? await pool.query(
-        `SELECT d.id, d.class_id, o.buyer_name, o.buyer_email, d.created_at
+        `SELECT d.id, d.class_id, d.status, d.order_id, o.buyer_name, o.buyer_email, d.created_at
          FROM class_dropin_seats d JOIN orders o ON o.id = d.order_id
-         WHERE d.class_id = ANY($1) AND d.status = 'sold' ORDER BY d.created_at ASC`,
+         WHERE d.class_id = ANY($1) AND d.status IN ('reserved', 'sold') ORDER BY d.created_at ASC`,
         [classIds]
       )
     : { rows: [] };
@@ -139,7 +139,7 @@ router.post("/admin/sessions/:id", requireAdmin, async (req, res) => {
     await withTransaction(pool, async (client) => {
       const { rows } = await client.query(
         `SELECT c.capacity, c.dropin_price, ${seatsTakenExpr("c")}::int AS seats_taken,
-                (SELECT COUNT(*) FROM class_dropin_seats d WHERE d.class_id = c.id AND d.status IN ('in_cart', 'sold'))::int AS paid_seats
+                (SELECT COUNT(*) FROM class_dropin_seats d WHERE d.class_id = c.id AND d.status IN ('in_cart', 'reserved', 'sold'))::int AS paid_seats
          FROM classes c WHERE c.id = $1 FOR UPDATE OF c`,
         [id]
       );
@@ -154,7 +154,7 @@ router.post("/admin/sessions/:id", requireAdmin, async (req, res) => {
         return;
       }
       if (dropinPrice == null && cur.dropin_price != null && cur.paid_seats > 0) {
-        problem = `The drop-in price can't be cleared: ${cur.paid_seats} paid drop-in seat${cur.paid_seats === 1 ? " is" : "s are"} already booked or in a cart. Change the price instead.`;
+        problem = `The drop-in price can't be cleared: ${cur.paid_seats} drop-in seat${cur.paid_seats === 1 ? " is" : "s are"} already reserved or paid. Change the price instead.`;
         return;
       }
       await client.query(

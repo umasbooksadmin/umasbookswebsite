@@ -12,7 +12,8 @@
 // (session cookies copied into each window) so the site's login rate limits
 // are never a factor. A failing test saves a screenshot and the page HTML in
 // e2e/artifacts/. Requests to HelloAsso are always blocked at the browser:
-// the tests can never reach, let alone fill in, a payment page.
+// the tests can never reach, let alone fill in, a payment page (only the
+// membership is paid online; books and seats are reserved and paid in the shop).
 
 const { test, after } = require("node:test");
 const fs = require("node:fs");

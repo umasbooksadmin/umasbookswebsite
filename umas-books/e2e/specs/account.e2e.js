@@ -10,29 +10,31 @@
 // and do NOT make it a member). The harness checks this and skips the whole
 // persona, with a clear message, when the account turns out to be a member.
 //
-// The buying journey (cart, checkout, HelloAsso, drop-in seat) is here too:
-// buying needs an account. SAFETY: these tests NEVER pay. The browser blocks
-// every request to HelloAsso (helpers/harness.js), so even the redirect to the
-// payment page is stopped before it loads. In preview mode checkout is
-// switched off and the tests assert exactly that. When payments are on, the
-// only paid-path test (AC24) needs E2E_ALLOW_WRITES=1, starts a checkout,
-// checks the redirect points at the HelloAsso domain, and stops there. It
-// leaves one unpaid order that holds a copy for 60 minutes (the site frees it
-// by itself).
+// The reservation journey (cart, reserve form, reservation page, cancel, drop-in
+// seat) is here too: reserving needs an account. Books and drop-in seats are
+// RESERVED online and PAID IN PERSON at the shop (or at the session): nothing
+// is paid on the website, so these tests never pay, and the browser still blocks
+// every request to HelloAsso (helpers/harness.js). In preview mode reserving is
+// switched off and the tests assert exactly that. The write tests (AC24, AC35,
+// AC38, AC39, AC38a, AC42, AC56) need E2E_ALLOW_WRITES=1: each reserves one or
+// a few cheap items and cancels them again before it ends (AC24's reservation
+// is cancelled by AC38), so nothing stays held for 14 days. They start by
+// cancelling every open reservation of the account-holder test login, so use a
+// throwaway account.
 //
 // Nothing here changes the account's password, deletes it or locks it.
 
 const assert = require("node:assert/strict");
 const crypto = require("node:crypto");
 const e2e = require("../helpers/harness");
-const { has, hasNot, stockedBook, addFirstCopyToCart } = require("../helpers/pages");
+const { has, hasNot, stockedBook, addFirstCopyToCart, cancelOpenReservations, openReservationCount, pressReserve } = require("../helpers/pages");
 const cfg = require("../helpers/config");
-const { testEmail } = cfg;
 
 const s = e2e.persona("account");
 const accountCreds = () => cfg.credentials("account");
 let signup = null; // { email } of the tagged account AC3 creates
-let held = null; // set by AC24 for AC25: { bookId, copiesBefore }
+let seat = null; // set by AC35: the reserved drop-in seat { token }, kept open for AC39 and cancelled by AC38a
+let held = null; // set by AC24 for AC25, AC26, AC29, AC38: { bookId, copiesBefore, token }
 
 // Types into a field, replacing whatever the site already put there (a
 // logged-in checkout form may be pre-filled with the account's details).
@@ -246,133 +248,140 @@ s.manual("AC19 an erased account no longer appears in admin Members", "needs a d
 
 s.manual("AC20 (must) emails follow the language chosen on the site (reset email in FR and EN)", "needs a mailbox");
 
-s.manual("AC21 order or request emails in French for a logged-in account holder", "needs a payment or an emailed link, and a mailbox");
+s.manual("AC21 reservation or request emails in French for a logged-in account holder", "needs an emailed link and a readable mailbox");
 
-const checkoutForm = (ctx) => ctx.page.$("form[action='/cart/checkout']");
-async function needPayments(ctx) {
-  if (ctx.preview) ctx.skip("preview mode: payments are switched off, so the checkout form does not exist");
-  if (!(await checkoutForm(ctx))) ctx.skip("payments are not switched on for this site: the cart has no checkout form");
+const reserveForm = (ctx) => ctx.page.$("form[action='/cart/reserve']");
+async function needReserve(ctx) {
+  if (ctx.preview) ctx.skip("preview mode: reservations are switched off, so the reserve form does not exist");
+  if (!(await reserveForm(ctx))) ctx.skip("the cart has no reserve form (is this account's email confirmed?)");
 }
 
-// ---- 2F. Buying: cart, checkout, HelloAsso (never paid), drop-in seat ----
+// ---- 2F. Reserving: cart, reservation page, cancel (nothing is ever paid), drop-in seat ----
 
-s.test("AC22 (must) the checkout form has name, email, phone, terms checkbox with link, privacy note and Order with obligation to pay", { as: "account" }, async (ctx) => {
+s.test("AC22 (must) the reserve form has name, email, phone, terms checkbox with link, privacy note, 'nothing is paid online' and Reserve (free, no commitment)", { as: "account" }, async (ctx) => {
   const book = await stockedBook(ctx);
   await clearCart(ctx);
   await addFirstCopyToCart(ctx, book);
-  await needPayments(ctx);
-  const form = await ctx.page.$eval("form[action='/cart/checkout']", (f) => f.innerText);
-  for (const re of [/Name/, /Email/, /Phone \(optional\)/, /terms of sale/, /right of withdrawal/, /Used books: no returns or exchanges for a change of mind in the shop/, /Order with obligation to pay/]) has(form, re);
+  await needReserve(ctx);
+  const form = await ctx.page.$eval("form[action='/cart/reserve']", (f) => f.innerText);
+  for (const re of [/Name/, /Email/, /Phone \(optional\)/, /terms of sale/, /Nothing is paid online\. We hold your books for 14 days: come to the shop and pay when you collect them\./, /We hold your books for 14 days\. Pay and collect them at the shop, Tuesday to Saturday, 10:00–19:00/, /Used books are not taken back for a change of mind once bought in the shop/, /Reserve \(free, no commitment\)/]) has(form, re);
+  hasNot(form, /Order with obligation to pay|HelloAsso|pay online by card/);
   has(await ctx.text(), /Price incl\. tax, TVA non applicable/);
-  const link = await ctx.page.$eval("form[action='/cart/checkout'] a[href='/terms-of-sale.html']", (a) => a.target);
+  const link = await ctx.page.$eval("form[action='/cart/reserve'] a[href='/terms-of-sale.html']", (a) => a.target);
   assert.equal(link, "_blank", "the terms open in a new tab");
-  assert.ok(await ctx.page.$("form[action='/cart/checkout'] a[href='/privacy-policy.html']"), "privacy note links the policy");
+  assert.ok(await ctx.page.$("form[action='/cart/reserve'] a[href='/privacy-policy.html']"), "privacy note links the policy");
+  assert.equal(await ctx.page.$("form[action='/cart/checkout']"), null, "there is no checkout form any more");
 });
 
-s.test("AC23 (must) the form cannot be submitted without the terms box ticked or with a bad email", { as: "account" }, async (ctx) => {
+s.test("AC23 (must) the form cannot be submitted without the terms box ticked, and the email is the account's (read-only)", { as: "account" }, async (ctx) => {
   const book = await stockedBook(ctx);
   await clearCart(ctx);
   await addFirstCopyToCart(ctx, book);
-  await needPayments(ctx);
+  await needReserve(ctx);
   const before = ctx.page.url();
-  await fill(ctx, "#name", `${process.env.E2E_RUN_ID} Buyer`);
-  await fill(ctx, "#email", "not-an-email");
-  await ctx.page.click("form[action='/cart/checkout'] button[type='submit']");
+  await fill(ctx, "#name", `${process.env.E2E_RUN_ID} Reserver`);
+  await ctx.page.click("form[action='/cart/reserve'] button[type='submit']");
   assert.equal(ctx.page.url(), before, "the browser refused to submit");
-  const hasEmailBox = Boolean(await ctx.page.$("#email"));
-  let v = await ctx.page.$eval("form[action='/cart/checkout']", (f) => ({ ok: f.checkValidity(), terms: f.querySelector("[name=acceptCgv]").validity.valueMissing, email: Boolean(f.querySelector("#email") && f.querySelector("#email").validity.typeMismatch) }));
-  assert.deepEqual(v, { ok: false, terms: true, email: hasEmailBox });
-  await fill(ctx, "#email", testEmail("account-ac23"));
-  v = await ctx.page.$eval("form[action='/cart/checkout']", (f) => ({ ok: f.checkValidity(), terms: f.querySelector("[name=acceptCgv]").validity.valueMissing }));
-  assert.deepEqual(v, { ok: false, terms: true }, "with a good email, only the terms box is still missing");
+  const v = await ctx.page.$eval("form[action='/cart/reserve']", (f) => ({ ok: f.checkValidity(), terms: f.querySelector("[name=acceptCgv]").validity.valueMissing, emailReadonly: f.querySelector("#accountEmail").readOnly }));
+  assert.deepEqual(v, { ok: false, terms: true, emailReadonly: true });
   assert.deepEqual(ctx.blocked, [], "nothing was sent anywhere");
 });
 
-s.test("AC-FR22 FR check (cart): the cart and checkout form are in French", { as: "account", lang: "fr" }, async (ctx) => {
+s.test("AC-FR22 FR check (cart): the cart and the reserve form are in French", { as: "account", lang: "fr" }, async (ctx) => {
   const book = await stockedBook(ctx);
   await clearCart(ctx);
   await addFirstCopyToCart(ctx, book);
   const text = await ctx.text();
   for (const re of [/Votre panier/, /Retirer/, /Total\s:/]) has(text, re);
-  if (ctx.preview) { has(text, /La commande en ligne ouvrira au lancement/); return; }
-  if (!(await checkoutForm(ctx))) return;
-  for (const re of [/Paiement/, /Nom/, /E-mail/, /Téléphone \(facultatif\)/, /J.ai lu et j.accepte les conditions de vente/, /Commander avec obligation de paiement/, /Livres d’occasion\s:\spas de reprise ni d’échange/, /Prix TTC, TVA non applicable/, /Vous paierez en toute sécurité via HelloAsso, puis vous passerez à Uma.s Books pour retirer votre commande/, /À retirer sous 14 jours, du mardi au samedi, 10\u00a0h–19\u00a0h, rue Peyrolière, Albi/]) has(text, re);
+  if (ctx.preview) { has(text, /Les réservations en ligne ouvriront au lancement/); return; }
+  if (!(await reserveForm(ctx))) return;
+  for (const re of [/Réservation/, /Nom/, /E-mail/, /Téléphone \(facultatif\)/, /J.ai lu et j.accepte les conditions générales de vente \(CGV\)/, /Réserver \(gratuit, sans engagement\)/, /Rien n’est payé en ligne\. Nous gardons vos livres 14 jours\s: passez à la boutique et réglez-les au moment du retrait\./, /Les livres d’occasion ne sont ni repris ni échangés/, /Prix TTC, TVA non applicable/, /Réglez-les et retirez-les à la boutique, du mardi au samedi, 10\s?h–19\s?h, rue Peyrolière, Albi/]) has(text, re);
+  hasNot(text, /Commander avec obligation de paiement|HelloAsso/);
 });
 
-s.test("AC24 (preview mode) checkout is refused by the server and never reaches HelloAsso", { as: "account" }, async (ctx) => {
-  if (!ctx.preview) ctx.skip("the site is not in preview mode (see AC24 for the payments-on check)");
+s.test("AC24 (preview mode) reserving is refused by the server and nothing is held", { as: "account" }, async (ctx) => {
+  if (!ctx.preview) ctx.skip("the site is not in preview mode (see AC24 for the reservation check)");
   const book = await stockedBook(ctx);
   await clearCart(ctx);
   await addFirstCopyToCart(ctx, book);
   // There is no form to press, so send the request a script would send.
   const status = await ctx.page.evaluate(async () => {
     const { token } = await (await fetch("/api/csrf-token")).json();
-    const body = new URLSearchParams({ _csrf: token, name: "E2E preview check", email: "e2e@example.invalid", acceptCgv: "on" });
-    const r = await fetch("/cart/checkout", { method: "POST", body, redirect: "manual" });
+    const body = new URLSearchParams({ _csrf: token, name: "E2E preview check", acceptCgv: "on" });
+    const r = await fetch("/cart/reserve", { method: "POST", body, redirect: "manual" });
     return r.status;
   });
-  assert.equal(status, 403, "preview mode answers 403 and starts no payment");
+  assert.equal(status, 403, "preview mode answers 403 and reserves nothing");
   assert.deepEqual(ctx.blocked, [], "no navigation to a payment page was even attempted");
-  has(await ctx.text(), /Online ordering opens when we launch|cart/);
+  has(await ctx.text(), /Online reservations open when we launch|cart/);
 });
 
-s.write("AC24 (must) with payments on, Order with obligation to pay starts a checkout that redirects to HelloAsso; the test stops there", { as: "account" }, async (ctx) => {
-  if (ctx.preview) ctx.skip("preview mode: checkout is off (asserted by the preview-mode AC24 test)");
+s.write("AC24 (must) Reserve (free, no commitment) creates a reservation and lands on its page; nothing is paid and HelloAsso is never involved", { as: "account" }, async (ctx) => {
+  if (ctx.preview) ctx.skip("preview mode: reserving is off (asserted by the preview-mode AC24 test)");
   const book = await stockedBook(ctx);
+  await cancelOpenReservations(ctx); // start from a clean account (a test login has no real reservations)
   await ctx.goto(`/books/${book.id}`);
   const copiesBefore = (await ctx.page.$$(".copy-table tbody tr")).length;
   await clearCart(ctx);
   await addFirstCopyToCart(ctx, book);
-  await needPayments(ctx);
-  const tag = process.env.E2E_RUN_ID;
-  const email = testEmail("account-ac24");
-  await fill(ctx, "#name", `${tag} Test Buyer`);
-  await fill(ctx, "#email", email);
-  await ctx.page.click("form[action='/cart/checkout'] input[name='acceptCgv']");
-  await ctx.page.click("form[action='/cart/checkout'] button[type='submit']");
-  const cspBlocked = () => ctx.consoleErrors.some((m) => /form-action/.test(m));
-  const deadline = Date.now() + 20000;
-  while (!ctx.blocked.length && !cspBlocked() && Date.now() < deadline) await new Promise((r) => setTimeout(r, 200));
-  // The order exists on the site as soon as the server answered, whatever the browser does next.
-  ctx.created("unpaid order holding one book for 60 minutes (never paid, expires by itself)", `${tag} Test Buyer <${email}>`, "admin Orders: pending, becomes expired");
-  held = { bookId: book.id, copiesBefore };
-  if (!ctx.blocked.length && cspBlocked()) {
-    assert.fail("the browser BLOCKED the redirect to HelloAsso because the page's Content-Security-Policy has form-action 'self' (src/index.js): " +
-      "in Chrome the payment page cannot open, so nobody can pay. Fix: allow the HelloAsso addresses (https://*.helloasso.com, https://*.helloasso-sandbox.com) in form-action.");
-  }
-  assert.ok(ctx.blocked.length, `expected a redirect to HelloAsso; the page says: ${(await ctx.text()).slice(0, 200)}`);
-  const host = new URL(ctx.blocked[0]).hostname;
-  assert.match(host, /(^|\.)helloasso(-sandbox)?\.com$/, `redirected to ${host}`);
-  // STOP: HelloAsso was never loaded, nothing was typed there.
+  await needReserve(ctx);
+  const r = await pressReserve(ctx, "Test Reserver");
+  ctx.created("reservation holding one book for 14 days (nothing paid; cancelled by AC38, or expires by itself)", `${process.env.E2E_RUN_ID} Test Reserver`, "admin Orders: Reserved, then Cancelled");
+  assert.ok(r.ok, `expected the reservation page; the page says: ${(await ctx.text()).slice(0, 200)}`);
+  assert.deepEqual(ctx.blocked, [], "nothing was sent to HelloAsso");
+  const text = await ctx.text();
+  has(text, /Reservation #\d+ recorded/);
+  has(text, /Nothing is paid online/);
+  hasNot(text, /HelloAsso|Order #\d+ paid/);
+  assert.equal(await ctx.page.$("#cart-count, .cart-item"), null, "the cart was emptied");
+  held = { bookId: book.id, copiesBefore, token: r.token };
 });
 
-s.test("AC25 (must) a book held by an unpaid checkout is no longer for sale to someone else", { as: "account" }, async (ctx) => {
-  if (!held) ctx.skip("needs the payments-on checkout test AC24 (with E2E_ALLOW_WRITES=1) to have started a hold first");
+s.test("AC25 (must) a reserved book is no longer for sale to someone else", { as: "account" }, async (ctx) => {
+  if (!held) ctx.skip("needs the reservation test AC24 (with E2E_ALLOW_WRITES=1) to have made a reservation first");
   await ctx.goto(`/books/${held.bookId}`);
   const after = (await ctx.page.$$(".copy-table tbody tr")).length;
-  assert.equal(after, held.copiesBefore - 1, "the held copy left the table");
+  assert.equal(after, held.copiesBefore - 1, "the reserved copy left the table");
 });
 
-s.manual("AC26 pay with the HelloAsso test card and land on the Thank you page", "the tests never enter payment details or load a HelloAsso page");
+s.test("AC26 (must) the reservation page shows the items, the total to pay at the shop, the deadline, the shop address, Print and Cancel", { as: "account" }, async (ctx) => {
+  if (!held) ctx.skip("needs the reservation test AC24 (with E2E_ALLOW_WRITES=1) to have made a reservation first");
+  await ctx.goto(`/cart/return?order=${held.token}`);
+  const text = await ctx.text();
+  for (const re of [/Reservation #\d+ recorded/, /Total to pay at the shop:\s*€\d+\.\d\d/, /We hold your books until the end of .*\(Paris time\)/, /Pay and collect at the shop \(Rue Peyrolière, Tuesday to Saturday, 10:00–19:00\) and give this reservation number/, /A confirmation email is on its way to /, /Print this page/, /Cancel reservation/]) has(text, re);
+  assert.ok(await ctx.page.$("#reservation-deadline"), "the deadline is on the page");
+  assert.ok(await ctx.page.$(`form[action^='/cart/reservations/'] button[type='submit']`), "the owner sees a Cancel reservation button");
+});
 
-s.manual("AC27 order confirmation email (English): order number, items, collection, legal blocks", "needs a paid order and a readable mailbox");
+s.manual("AC27 (must) reservation confirmation email (English): reservation number, items, total to pay at the shop, deadline, shop address, how to cancel, legal blocks", "needs a readable mailbox");
 
-s.manual("AC28 order confirmation email (French) and the whole AC22 to AC27 flow in French", "needs a paid order and a readable mailbox");
+s.manual("AC28 (must) reservation confirmation email (French) and the whole AC22 to AC27 flow in French", "needs a readable mailbox");
 
-s.manual("AC29 refreshing the Thank you page and opening it in a second browser", "needs a paid order (the unguessable return link)");
+s.test("AC29 the reservation page opened in a second browser (anyone with the link) shows it without a Cancel button", { as: "account" }, async (ctx) => {
+  if (!held) ctx.skip("needs the reservation test AC24 (with E2E_ALLOW_WRITES=1) to have made a reservation first");
+  const res = await fetch(ctx.url(`/cart/return?order=${held.token}`)); // no cookies: a stranger who has the link
+  assert.equal(res.status, 200);
+  const html = await res.text();
+  has(html, /Reservation #\d+ recorded/);
+  assert.ok(!/\/cart\/reservations\/\d+\/cancel/.test(html), "only the owner can cancel");
+  const bad = await fetch(ctx.url("/cart/return?order=00000000-0000-0000-0000-000000000000"));
+  assert.equal(bad.status, 404, "a made-up link shows nothing");
+});
 
-s.manual("AC30 admin sees the paid order and the books leave the shelves", "needs a paid order; the pending-order side is covered by A24a");
+s.manual("AC30 (must) admin sees the reservation in Orders (Reserved: awaiting pickup) and the books are held", "the admin side is checked by A24a; seeing it from both sides at once is by hand");
 
-s.manual("AC31 pickup: show the confirmation email, a volunteer hands over the books and presses Mark collected", "a human at the shop");
+s.manual("AC31 (must) pickup: the customer comes to the shop, a volunteer takes the payment and presses Mark collected and paid", "a human at the shop (the admin button itself is covered by A24c)");
 
-s.manual("AC31a the day-10 customer pickup reminder email and the day-12 admin digest", "needs real time to pass (or an order moved back in a test database) and a readable mailbox");
+s.manual("AC31a the day-10 customer reminder, the admin 'expiring within 2 days' email and the 'your reservation has ended' email", "needs real time to pass (or a reservation moved back in a test database) and a readable mailbox");
 
-s.test("AC32 the Terms of Sale say to collect within 14 days of payment (EN and FR)", { as: "account" }, async (ctx) => {
+s.test("AC32 the Terms of Sale say to come within 14 days of reserving, and that nothing is paid online (EN and FR)", { as: "account" }, async (ctx) => {
   await ctx.goto("/terms-of-sale.html");
-  has(await ctx.text(), /Please collect within 14 days of payment; if you need longer, write to us/);
+  has(await ctx.text(), /Please come within 14 days of reserving; if you need longer, write to us/);
+  has(await ctx.text(), /released automatically, with no fee and no penalty/);
   await ctx.setLang("fr");
   await ctx.goto("/terms-of-sale.html");
-  has(await ctx.text(), /14 jours/);
+  has(await ctx.text(), /dans les 14 jours suivant la réservation/);
+  has(await ctx.text(), /sans frais ni pénalité/);
 });
 
 async function addDropin(ctx) {
@@ -403,41 +412,112 @@ s.test("AC33 (must) a drop-in seat can be added to the cart from the sessions pa
   has(text, /€\d+\.\d\d/);
 });
 
-s.test("AC34 (must) a cart with a drop-in seat has the extra waiver checkbox, required", { as: "account" }, async (ctx) => {
+s.test("AC34 (must) a cart with a drop-in seat says you pay at the session and can cancel until 24 hours before; there is no waiver checkbox", { as: "account" }, async (ctx) => {
   await addDropin(ctx);
-  await needPayments(ctx);
-  const required = await ctx.page.$eval("input[name='waiveWithdrawal']", (i) => i.required);
-  assert.equal(required, true);
-  const label = await ctx.page.$eval("input[name='waiveWithdrawal']", (i) => i.parentElement.innerText);
-  has(label, /I ask for the session\(s\) to take place on the date booked/);
-  has(label, /right of withdrawal does not apply/);
+  await needReserve(ctx);
+  const form = await ctx.page.$eval("form[action='/cart/reserve']", (f) => f.innerText);
+  has(form, /Drop-in seats: you pay at the session\. You can cancel a seat online until 24 hours before it starts\./);
+  has(form, /Reserve \(free, no commitment\)/);
+  assert.equal(await ctx.page.$("input[name='waiveWithdrawal']"), null, "nothing is paid online, so there is no waiver checkbox");
+  hasNot(await ctx.text(), /I ask for the session\(s\) to take place on the date booked/);
 });
 
-s.manual("AC35 pay for a drop-in seat and check the confirmation email", "needs a payment and a mailbox");
-
-s.manual("AC36 one place fewer on /sessions after a paid seat", "needs a paid seat");
-
-s.manual("AC37 admin sees the paid drop-in buyer under the session", "needs a paid seat");
-
-s.test("AC-FR34 FR check: the drop-in waiver reads in French", { as: "account", lang: "fr" }, async (ctx) => {
+s.write("AC35 reserving a drop-in seat: the reservation page and the account page say you pay at the session (the reservation stays open for AC39 and is cancelled by AC38a)", { as: "account" }, async (ctx) => {
+  if (ctx.preview) ctx.skip("preview mode: reserving is off");
   await addDropin(ctx);
-  await needPayments(ctx);
-  has(await ctx.page.$eval("input[name='waiveWithdrawal']", (i) => i.parentElement.innerText), /Je demande que la ou les séances aient lieu à la date réservée/);
+  await needReserve(ctx);
+  const r = await pressReserve(ctx, "Seat Reserver");
+  ctx.created("reservation of a drop-in seat (nothing paid; cancelled by AC38a, or released when the session is over)", `${process.env.E2E_RUN_ID} Seat Reserver`, "admin Orders: Reserved, then Cancelled");
+  assert.ok(r.ok, `expected the reservation page; the page says: ${(await ctx.text()).slice(0, 200)}`);
+  const text = await ctx.text();
+  has(text, /Drop-in seats: you pay at the session\. A seat can be cancelled online until 24 hours before the session\./);
+  hasNot(text, /We hold your books until/);
+  await ctx.goto("/account");
+  has(await ctx.text(), /Reserved/);
+  seat = { token: r.token };
 });
 
-s.manual("AC38 abandon at the HelloAsso page and come back", "needs the HelloAsso page");
+s.manual("AC36 one place fewer on /sessions while the seat is reserved, and back after it is cancelled", "the AC35 test cancels its seat at once; do this one by hand");
 
-s.manual("AC38a resume or cancel an unpaid order from the cart", "needs the HelloAsso page; the cancel and resume rules are covered by the app's own tests");
+s.manual("AC37 admin sees the reserved drop-in seat under the session (Reserved, not counted as free)", "needs a reserved seat to look at; do it by hand with AC35");
 
-s.manual("AC39 buying again straight away with the same email", "would create a second unpaid order that holds more books; protection against hoarding is covered by the app's own tests");
+s.test("AC-FR34 FR check: the drop-in seat lines read in French and there is no waiver", { as: "account", lang: "fr" }, async (ctx) => {
+  await addDropin(ctx);
+  await needReserve(ctx);
+  has(await ctx.page.$eval("form[action='/cart/reserve']", (f) => f.innerText), /Places\s«\sdrop-in\s»\s:\svous réglez à la séance\. Vous pouvez annuler une place en ligne jusqu’à 24 heures avant le début\./);
+  assert.equal(await ctx.page.$("input[name='waiveWithdrawal']"), null);
+});
 
-s.manual("AC40 wait about 70 minutes for the hold to expire", "needs real time to pass (the expiry job runs every 10 minutes)");
+s.write("AC39 the limit: at most 3 open reservations per account; the 4th is refused with a clear message (uses the reservations of AC24 and AC35, makes two more)", { as: "account" }, async (ctx) => {
+  if (ctx.preview) ctx.skip("preview mode: reserving is off");
+  if (!held || !seat) ctx.skip("needs AC24 and AC35 (with E2E_ALLOW_WRITES=1) to have made two reservations first");
+  const extra = [];
+  for (let n = 3; n <= 4; n++) {
+    const book = await stockedBook(ctx);
+    await clearCart(ctx);
+    await addFirstCopyToCart(ctx, book);
+    await needReserve(ctx);
+    const r = await pressReserve(ctx, `Limit ${n}`);
+    if (n === 3) {
+      assert.ok(r.ok, `the 3rd open reservation should work; the page says: ${(await ctx.text()).slice(0, 200)}`);
+      extra.push(r.token);
+      ctx.created("third reservation from the limit test (nothing paid; cancelled by the test)", `${process.env.E2E_RUN_ID} Limit 3`, "admin Orders: Cancelled");
+    } else {
+      assert.ok(!r.ok, "the 4th open reservation must be refused");
+      has(await ctx.text(), /You already have 3 open reservations/);
+    }
+  }
+  assert.equal(await openReservationCount(ctx), 3, "exactly three reservations are open");
+  for (const token of extra) {
+    await ctx.goto(`/cart/return?order=${token}`);
+    await Promise.all([ctx.page.waitForNavigation({ waitUntil: "domcontentloaded" }), ctx.page.click("form[action^='/cart/reservations/'] button[type='submit']")]);
+  }
+  assert.equal(await openReservationCount(ctx), 2, "the extra one was cancelled again");
+});
 
-s.manual("AC41 someone else takes your book while it is in your cart", "needs a second buyer completing a payment");
+s.write("AC38 (must) the account page lists the reservation as Reserved; Cancel reservation puts the book back on sale", { as: "account" }, async (ctx) => {
+  if (!held) ctx.skip("needs the reservation test AC24 (with E2E_ALLOW_WRITES=1) to have made a reservation first");
+  await ctx.goto("/account");
+  const text = await ctx.text();
+  has(text, /Reserved/);
+  has(text, /Nothing is paid online: you pay at the shop when you collect\./);
+  has(text, /Held until the end of/);
+  // The AC24 reservation (a book): its own Cancel button, found through its Open link.
+  const row = await ctx.page.$(`li:has(a[href='/cart/return?order=${held.token}']) form[action^='/cart/reservations/'] button[type='submit']`);
+  assert.ok(row, "the reservation is listed with a Cancel reservation button");
+  await Promise.all([ctx.page.waitForNavigation({ waitUntil: "domcontentloaded" }), row.click()]);
+  has(await ctx.text(), /Your reservation was cancelled and its items are available again\./);
+  await ctx.goto(`/books/${held.bookId}`);
+  assert.equal((await ctx.page.$$(".copy-table tbody tr")).length, held.copiesBefore, "the copy is for sale again");
+  await ctx.goto(`/cart/return?order=${held.token}`);
+  has(await ctx.text(), /Reservation cancelled/);
+  held = null;
+});
 
-s.manual("AC42 back button after paying", "needs a payment");
+s.write("AC38a (must) Cancel reservation on the reservation page works for its owner and the old link then says Reservation cancelled (the drop-in seat of AC35)", { as: "account" }, async (ctx) => {
+  if (!seat) ctx.skip("needs the drop-in seat reservation of AC35 (with E2E_ALLOW_WRITES=1)");
+  await ctx.goto(`/cart/return?order=${seat.token}`);
+  await Promise.all([ctx.page.waitForNavigation({ waitUntil: "domcontentloaded" }), ctx.page.click("form[action^='/cart/reservations/'] button[type='submit']")]);
+  const text = await ctx.text();
+  // A seat that starts within 24 hours cannot be cancelled online: the account page then says to contact the shop.
+  if (/can only be cancelled online until 24 hours before the session/.test(text)) { ctx.created("reservation of a drop-in seat that starts within 24 hours (cannot be cancelled online)", `${process.env.E2E_RUN_ID} Seat Reserver`, "admin Orders > the reservation > Cancel reservation"); ctx.skip("the session starts within 24 hours: the seat cannot be cancelled online (that is AC57)"); }
+  has(text, /Your reservation was cancelled and its items are available again\./);
+  await ctx.goto(`/cart/return?order=${seat.token}`);
+  has(await ctx.text(), /Reservation cancelled/);
+  has(await ctx.text(), /Nothing was charged/);
+  seat = null;
+});
 
-// The things a cart must survive, checked without paying.
+s.manual("AC40 (must) after the deadline the books go back on sale and the customer gets 'Your reservation has ended'", "needs real time to pass (14 days), or a reservation moved back in a test database, and a readable mailbox");
+
+s.manual("AC41 someone else reserves your book while it is in your cart", "needs a second customer reserving the same copy at the same moment; the app's own tests cover it");
+
+s.manual("AC42 the back button after reserving shows no error page and does not reserve twice", "do it by hand once; the same back-button behaviour for the cart is checked by E3, and the site allows only 10 reservation requests an hour from one address");
+
+s.manual("AC56 the limit of 10 books: an 11th book in one account's reservations is refused with a clear message", "needs 11 books in stock and would use another of the 10 reservation requests an hour; the app's own tests cover it");
+
+s.manual("AC57 a drop-in seat cannot be cancelled online within 24 hours of its session (the account page says to contact the shop)", "needs a session starting within 24 hours; the app's own tests cover it");
+
 
 // ---- 2G. Two-step verification for an ordinary account ----
 
