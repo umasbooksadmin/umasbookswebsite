@@ -116,7 +116,6 @@ const AWARDS_NOTICES = {
   "awards-slow": "The awards check is taking a while. It keeps running in the background: reload this page in a minute.",
   "awards-added": "Awards added.",
   "awards-removed": "Award removed.",
-  "awards-updated": "Award updated.",
 };
 const hasOrdersNotice = (req) => {
   if (req.query.notice === "has-orders") return HAS_ORDERS_MESSAGE;

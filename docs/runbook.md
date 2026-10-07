@@ -659,22 +659,19 @@ When a book is added, the website looks up awards and best-seller lists in
 the background (a few seconds, up to a couple of minutes) and shows them on the
 book page as "Awards & lists". Old books are filled in gradually.
 
-**What customers see.** Only entries that are *verified* (from Wikidata, from
-the New York Times list, or typed by an admin) or *approved* (suggested by AI,
-then approved by an admin). Nothing else is ever shown.
+**What customers see.** Every stored entry: found on Wikidata, found on the
+New York Times best-seller list, or typed by an admin. There is no review step
+and no AI source.
 
 **Volunteer how-to**
 
-1. **Check suggestions:** admin menu > **Awards to review**. For each line, click
-   *Open source*, read that the page really says this about this exact book, then
-   **Approve** or **Reject**. When unsure, reject. Several at once: tick them and
-   click **Approve selected**.
-2. **One book:** admin > Books & Reservations > the book > **Awards & lists**. You see
-   every entry, where it came from and its status. **Re-check now** looks again.
-   **Add awards (comma separated)** adds your own, for example
-   `Booker Prize (2019), Prix Goncourt (1999)`; they show at once, and you can
-   remove them again. **Hide from customers** rejects a wrong entry.
-3. Everything you approve, reject, add or remove is written to *Admin activity*.
+1. **One book:** admin > Books & Reservations > the book > **Awards & lists**. You see
+   every entry and where it came from. **Re-check now** looks again on Wikidata
+   and the New York Times. **Add awards (comma separated)** adds your own, for
+   example `Booker Prize (2019), Prix Goncourt (1999)`; they show at once, and you
+   can remove the ones you typed. Entries found automatically cannot be removed
+   by hand.
+2. Everything you add, remove or re-check is written to *Admin activity*.
 
 **Settings** (all optional; Render dashboard > the `umas-books` service >
 **Environment** > these are *environment variables*, not secrets in GitHub):
@@ -682,17 +679,15 @@ then approved by an admin). Nothing else is ever shown.
 | Variable | What it does |
 |---|---|
 | `NYT_API_KEY` | New York Times best-seller history. Get a free key at developer.nytimes.com (create an app and enable the *Books API*). Without it that source is simply skipped. |
-| `AWARDS_AI` | Set to `1` to let the AI search the web too. Needs `ANTHROPIC_API_KEY`. Leave unset to keep it off. |
-| `AWARDS_AI_DAILY_MAX` | Most books the AI checks per day (default 100). The *Awards to review* page shows today's count. |
-| `AWARDS_AI_MODEL` | Optional model name; the default is the one used for book descriptions. |
 | `AWARDS_LOOKUPS` | Set to `off` to stop all lookups at once. |
 
+The old `AWARDS_AI`, `AWARDS_AI_DAILY_MAX` and `AWARDS_AI_MODEL` variables do
+nothing any more; delete them in Render if they are set.
+
 **Known limits.** Wikidata coverage is patchy: no entry means "Wikidata does
-not know", not "this book won nothing". Wikidata and the NYT list are trusted
-as they are; AI suggestions need your approval because an AI can be wrong or
-make things up. A lookup that fails (internet problem, a limit reached) is tried
-again after a day. Only the book's title, author and ISBN are ever sent out; no
-member or customer data.
+not know", not "this book won nothing"; type the award in yourself if you know
+it. A lookup that fails (internet problem, a limit reached) is tried again after
+a day. Only the book's ISBN is sent out; no member or customer data.
 
 ## j) Price sticker colors
 

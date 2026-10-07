@@ -11,13 +11,11 @@ const { prepareDatabase, buildApp, listen, waitFor } = require("../helpers/inPro
 const db = prepareDatabase("awards", { isolated: true });
 process.env.AWARDS_LOOKUPS = "on"; // the helper defaults to off; this file tests the lookups
 delete process.env.ANTHROPIC_API_KEY;
-delete process.env.AWARDS_AI;
 delete process.env.NYT_API_KEY;
 
 const { pool } = require("../../src/db");
 const awards = require("../../src/lib/awards");
 const nyt = require("../../src/lib/awards/nyt");
-const ai = require("../../src/lib/awards/ai");
 
 const realFetch = global.fetch;
 // wikidataGate: a promise the stubbed Wikidata waits on before answering, so a
@@ -65,7 +63,6 @@ beforeEach(() => {
   net.wikidataGate = null;
   net.calls.length = 0;
   nyt.resetGate();
-  ai.resetAiUsage();
 });
 
 function uniq() { return `${Date.now()}-${Math.floor(Math.random() * 1e6)}`; }
@@ -102,9 +99,6 @@ async function http(path, { method = "GET", form, user = admin, cookie } = {}) {
 }
 const auditRows = async (action, targetId) =>
   (await pool.query("SELECT * FROM admin_audit_log WHERE action = $1 AND target_id = $2 ORDER BY id", [action, targetId])).rows;
-
-const AI_ENV = { ...process.env, ANTHROPIC_API_KEY: "k", AWARDS_AI: "1", AWARDS_AI_DAILY_MAX: "100" };
-const stubAi = (items, extra = {}) => async () => ({ items, error: false, called: true, ...extra });
 
 // ------------------------------------------------------------ orchestration
 
@@ -166,72 +160,23 @@ test("NYT runs only when a key is set; its rows are verified bestseller rows", a
   assert.ok(!net.calls.some((u) => u.includes("nytimes")));
 });
 
-test("AI findings are stored pending; trusted sources upgrade them; rejected ones never come back", async () => {
+test("AI settings no longer do anything: no AI call, no AI rows", async () => {
   const book = await seedBook();
-  const item = { label: "Booker Prize", year: 2019, kind: "award", source_url: "https://example.org/booker" };
-  const deps = { ...FAST, env: AI_ENV, ai: stubAi([item]), wikidata: async () => ({ items: [], error: false }) };
-  const res = await awards.checkBookAwards(pool, book.id, deps);
-  assert.equal(res.aiCalled, true);
-  let rows = await rowsOf(book.id);
-  assert.deepEqual(rows.map((r) => [r.source, r.status, r.source_url]), [["ai", "pending", "https://example.org/booker"]]);
-  assert.ok((await bookRow(book.id)).awards_ai_checked_at);
-
-  // Wikidata later confirms the same award: the pending AI row becomes verified.
-  await awards.checkBookAwards(pool, book.id, { ...deps, ai: stubAi([]), wikidata: async () => ({ items: [{ label: "booker prize", year: 2019, kind: "award", source_url: null }], error: false }) });
-  rows = await rowsOf(book.id);
-  assert.equal(rows.length, 1);
-  assert.deepEqual([rows[0].source, rows[0].status, rows[0].source_url], ["wikidata", "verified", "https://example.org/booker"]);
-
-  // A rejected suggestion is not offered again, in any year.
-  const other = await seedBook();
-  const id = await addAward(other.id, "Pulitzer Prize", { year: 2001, source: "ai", status: "rejected" });
-  await awards.checkBookAwards(pool, other.id, { ...deps, ai: stubAi([{ label: "Pulitzer Prize", year: 2002, kind: "award", source_url: "https://example.org/p" }]) });
-  const after = await rowsOf(other.id);
-  assert.deepEqual(after.map((r) => [r.id, r.status]), [[id, "rejected"]]);
+  net.wikidata = [];
+  const env = { ...process.env, ANTHROPIC_API_KEY: "k", AWARDS_AI: "1" };
+  const res = await awards.checkBookAwards(pool, book.id, { ...FAST, env });
+  assert.equal(res.state, "none");
+  assert.ok(net.calls.every((u) => !u.includes("anthropic")), "Anthropic is never asked about awards");
+  assert.equal((await rowsOf(book.id)).length, 0);
+  await assert.rejects(addAward(book.id, "Ai Row", { source: "ai", status: "pending" }), (e) => e.code === "23514");
 });
 
-test("AI is skipped when switched off, without a key, without an author, or over the daily cap", async () => {
-  const never = async () => assert.fail("AI must not run");
-  const base = { ...FAST, ai: never, wikidata: async () => ({ items: [], error: false }) };
-  const a = await seedBook();
-  await awards.checkBookAwards(pool, a.id, { ...base, env: { ...process.env, ANTHROPIC_API_KEY: "k", AWARDS_AI: "" } });
-  await awards.checkBookAwards(pool, a.id, { ...base, env: { ...process.env, ANTHROPIC_API_KEY: "", AWARDS_AI: "1" } });
-  const noAuthor = await seedBook({ authors: "" });
-  await awards.checkBookAwards(pool, noAuthor.id, { ...base, env: AI_ENV });
-  assert.equal((await bookRow(a.id)).awards_ai_checked_at, null);
-
-  // Cap: 2 books per day. The third is skipped and keeps its place in the AI backlog.
-  await pool.query("UPDATE books SET awards_ai_checked_at = NULL WHERE awards_ai_checked_at IS NOT NULL");
-  const env = { ...AI_ENV, AWARDS_AI_DAILY_MAX: "2" };
-  const ran = [];
-  const counting = async (b) => { ran.push(b.id); return { items: [], error: false, called: true }; };
-  const books = [await seedBook(), await seedBook(), await seedBook()];
-  const results = [];
-  for (const b of books) results.push(await awards.checkBookAwards(pool, b.id, { ...base, env, ai: counting }));
-  assert.deepEqual(ran, [books[0].id, books[1].id]);
-  assert.equal(results[2].aiCapped, true);
-  assert.equal((await bookRow(books[2].id)).awards_ai_checked_at, null);
-  assert.equal((await bookRow(books[2].id)).awards_check_state, "none", "the rest of the check still happened");
-
-  // A restart (memory counter reset) does not reset the cap: the database remembers.
-  ai.resetAiUsage();
-  const again = await seedBook();
-  const r = await awards.checkBookAwards(pool, again.id, { ...base, env, ai: counting });
-  assert.equal(r.aiCapped, true);
-  assert.equal(ran.length, 2);
-});
-
-test("an AI error marks the book 'error' (retried tomorrow), keeps what trusted sources found, and makes one call", async () => {
+test("a Wikidata or NYT row already on the book is not overwritten by a later lookup", async () => {
   const book = await seedBook();
-  let calls = 0;
-  const res = await awards.checkBookAwards(pool, book.id, {
-    ...FAST, env: AI_ENV,
-    wikidata: async () => ({ items: [{ label: "Locus Award", year: 2000, kind: "award", source_url: null }], error: false }),
-    ai: async () => { calls++; return { items: [], error: true, called: true }; },
-  });
-  assert.equal(res.state, "error");
-  assert.equal(calls, 1);
-  assert.equal((await rowsOf(book.id)).length, 1);
+  await addAward(book.id, "Booker Prize", { year: 2019, source: "manual", url: "https://example.org/mine" });
+  await awards.checkBookAwards(pool, book.id, { ...FAST, wikidata: async () => ({ items: [{ label: "booker prize", year: 2019, kind: "award", source_url: null }], error: false }) });
+  const rows = await rowsOf(book.id);
+  assert.deepEqual(rows.map((r) => [r.source, r.status]), [["manual", "verified"]]);
 });
 
 test("the kill switch stops every lookup and touches nothing", async () => {
@@ -256,7 +201,7 @@ test("the same award cannot be stored twice for one book (case-insensitive, per 
 
 // -------------------------------------------------------------- public page
 
-test("the book page shows verified and approved awards only, in order, and hides the line when there are none", async () => {
+test("the book page shows verified awards only, in order, and hides the line when there are none", async () => {
   const book = await seedBook();
   const empty = await http(`/books/${book.id}`, { user: null });
   assert.equal(empty.status, 200);
@@ -266,15 +211,13 @@ test("the book page shows verified and approved awards only, in order, and hides
   await addAward(book.id, "Shown Shortlist", { year: 2012, kind: "shortlist" });
   await addAward(book.id, "Shown Old Award", { year: 1999, kind: "award" });
   await addAward(book.id, "Shown New Award", { year: 2015, kind: "award" });
-  await addAward(book.id, "Approved Thing", { kind: "award", source: "ai", status: "approved" });
-  await addAward(book.id, "Hidden Pending", { source: "ai", status: "pending" });
-  await addAward(book.id, "Hidden Rejected", { source: "ai", status: "rejected" });
+  await addAward(book.id, "Typed By Admin", { kind: "award", source: "manual" });
   const page = await http(`/books/${book.id}`, { user: null });
   assert.match(page.text, /Awards &amp; lists:/);
   const block = page.text.match(/Awards &amp; lists:<\/strong>([\s\S]*?)<\/section>/)[1];
   const line = [...block.matchAll(/<li>([^<]*)<\/li>/g)].map((m) => m[1]).join(", ");
-  assert.equal(line, "Shown New Award (2015), Shown Old Award (1999), Approved Thing, Shown Shortlist (2012), Shown List (2010)");
-  assert.ok(!page.text.includes("Hidden Pending") && !page.text.includes("Hidden Rejected"));
+  assert.equal(line, "Shown New Award (2015), Shown Old Award (1999), Typed By Admin, Shown Shortlist (2012), Shown List (2010)");
+  
   assert.ok(!page.text.includes("Show all"), "5 entries: no expander");
 });
 
@@ -301,23 +244,22 @@ test("the French page uses 'Prix et classements :' and keeps the label text", as
 test("a label from an outside source is HTML-escaped on the book page and in the admin screens", async () => {
   const book = await seedBook();
   const evil = `<script>alert("x")</script> Prize`;
-  await addAward(book.id, evil, { year: 2001, source: "ai", status: "pending", url: "https://example.org/x" });
+  await addAward(book.id, evil, { year: 2001, source: "nyt", url: "https://example.org/x" });
   await addAward(book.id, evil + " 2", { year: 2001 });
   const page = await http(`/books/${book.id}`, { user: null });
   assert.ok(!page.text.includes("<script>alert"));
   assert.ok(page.text.includes("&lt;script&gt;alert(&#34;x&#34;)&lt;/script&gt; Prize 2 (2001)"));
-  for (const path of [`/admin/inventory/${book.id}`, "/admin/awards"]) {
+  for (const path of [`/admin/inventory/${book.id}`]) {
     const admin_ = await http(path);
     assert.equal(admin_.status, 200);
     assert.ok(!admin_.text.includes("<script>alert"), path);
   }
 });
 
-test("the search API carries a short awards text (verified and approved only)", async () => {
+test("the search API carries a short awards text (shown rows only)", async () => {
   const t = tag();
   const book = await seedBook({ title: `Searchable ${t}` });
   await addAward(book.id, "Visible Prize", { year: 2020 });
-  await addAward(book.id, "Secret Pending", { source: "ai", status: "pending" });
   const res = await fetch(`${server.base}/api/books/search?q=${t}`);
   const list = await res.json();
   assert.equal(list.length, 1);
@@ -332,8 +274,7 @@ test("the search API carries a short awards text (verified and approved only)", 
 test("every awards route refuses guests and non-admins", async () => {
   const member = { id: admin.id, email: "m@example.test", displayName: "M", isAdmin: false, isMember: true };
   const routes = [
-    ["GET", "/admin/awards"], ["POST", "/admin/awards/approve-bulk"], ["POST", "/admin/awards/1/approve"],
-    ["POST", "/admin/awards/1/reject"], ["POST", "/admin/awards/1/remove"],
+    ["POST", "/admin/awards/1/remove"],
     ["POST", "/admin/inventory/1/awards/check"], ["POST", "/admin/inventory/1/awards/add"],
   ];
   for (const [method, path] of routes) {
@@ -344,67 +285,12 @@ test("every awards route refuses guests and non-admins", async () => {
   }
 });
 
-test("approve and reject change status, record who decided, and write audit rows", async () => {
-  const book = await seedBook();
-  const a = await addAward(book.id, "Approve Me", { source: "ai", status: "pending", url: "https://example.org/a" });
-  const r = await addAward(book.id, "Reject Me", { source: "ai", status: "pending" });
-  const res = await http(`/admin/awards/${a}/approve`, { method: "POST" });
-  assert.equal(res.status, 302);
-  assert.equal(res.location, `/admin/inventory/${book.id}?notice=awards-updated`);
-  await http(`/admin/awards/${r}/reject`, { method: "POST", form: { returnTo: "review" } });
-  const rows = await rowsOf(book.id);
-  assert.equal(rows[0].status, "approved");
-  assert.equal(rows[0].decided_by, admin.id);
-  assert.ok(rows[0].decided_at);
-  assert.equal(rows[1].status, "rejected");
-  const [aud] = await auditRows("award.approve", a);
-  assert.equal(aud.detail, "Approve Me");
-  assert.equal(aud.actor_user_id, admin.id);
-  assert.equal((await auditRows("award.reject", r))[0].detail, "Reject Me");
-
-  await http(`/admin/awards/${a}/approve`, { method: "POST" }); // second click
-  assert.equal((await auditRows("award.approve", a)).length, 1, "no change, no second audit row");
-  assert.equal((await http("/admin/awards/abc/approve", { method: "POST" })).status, 404, "bad id is a 404");
-  assert.equal((await http("/admin/awards/99999999/approve", { method: "POST" })).status, 302);
-
-  // Approved rows show to customers; rejected ones do not.
-  const page = await http(`/books/${book.id}`, { user: null });
-  assert.ok(page.text.includes("Approve Me") && !page.text.includes("Reject Me"));
-});
-
-test("the review page lists pending suggestions with counts and bulk-approves the selected ones", async () => {
-  const book = await seedBook({ title: `Review ${tag()}` });
-  const ids = [];
-  for (const l of ["Bulk One", "Bulk Two", "Bulk Three"]) ids.push(await addAward(book.id, l, { source: "ai", status: "pending", url: "https://example.org/" + l.replace(" ", "") }));
-  const page = await http("/admin/awards");
-  assert.equal(page.status, 200);
-  for (const l of ["Bulk One", "Bulk Two", "Bulk Three", book.title]) assert.ok(page.text.includes(l), l);
-  assert.match(page.text, /Books checked for awards:/);
-  assert.match(page.text, /AI web search is switched off/);
-  assert.match(page.text, /href="https:\/\/example\.org\/BulkOne"/);
-
-  const res = await http("/admin/awards/approve-bulk", { method: "POST", form: { ids: [ids[0], ids[2], "junk", "-5"] } });
-  assert.equal(res.location, "/admin/awards?notice=awards-updated");
-  const rows = await rowsOf(book.id);
-  assert.deepEqual(rows.map((r) => r.status), ["approved", "pending", "approved"]);
-  assert.equal((await auditRows("award.approve", ids[0])).length, 1);
-  assert.equal((await auditRows("award.approve", ids[1])).length, 0);
-  const after = await http("/admin/awards");
-  assert.ok(!after.text.includes("Bulk One") && after.text.includes("Bulk Two"));
-});
-
-test("the review page shows today's AI usage against the cap when AI is on", async () => {
-  process.env.ANTHROPIC_API_KEY = "k";
-  process.env.AWARDS_AI = "1";
-  process.env.AWARDS_AI_DAILY_MAX = "37";
-  try {
-    const page = await http("/admin/awards");
-    assert.match(page.text, /AI web search today: <strong>\d+<\/strong> of <strong>37<\/strong>/);
-  } finally {
-    delete process.env.ANTHROPIC_API_KEY;
-    delete process.env.AWARDS_AI;
-    delete process.env.AWARDS_AI_DAILY_MAX;
+test("the review section is gone: no page, no approve/reject routes, no menu link", async () => {
+  for (const [method, path] of [["GET", "/admin/awards"], ["POST", "/admin/awards/approve-bulk"], ["POST", "/admin/awards/1/approve"], ["POST", "/admin/awards/1/reject"]]) {
+    assert.equal((await http(path, { method })).status, 404, `${method} ${path}`);
   }
+  assert.ok(!(await http("/admin")).text.includes("Awards to review"));
+  assert.ok(!(await http("/admin/inventory")).text.includes("/admin/awards\""));
 });
 
 test("manual add parses (year), dedupes, shows at once; remove deletes manual rows only; both are audited", async () => {
@@ -429,26 +315,16 @@ test("manual add parses (year), dedupes, shows at once; remove deletes manual ro
   assert.equal((await http(`/admin/inventory/99999999/awards/add`, { method: "POST", form: { awards: "x" } })).status, 404);
 });
 
-test("a typed-in award replaces a rejected AI suggestion of the same name", async () => {
+test("the book screen lists every row with source link and buttons, and no review controls", async () => {
   const book = await seedBook();
-  await addAward(book.id, "Edgar Award", { year: 2005, source: "ai", status: "rejected" });
-  await http(`/admin/inventory/${book.id}/awards/add`, { method: "POST", form: { awards: "Edgar Award (2005)" } });
-  const rows = await rowsOf(book.id);
-  assert.deepEqual(rows.map((r) => [r.source, r.status]), [["manual", "verified"]]);
-});
-
-test("the book screen lists every row with source link, badges and buttons", async () => {
-  const book = await seedBook();
-  await addAward(book.id, "Pending One", { source: "ai", status: "pending", url: "https://example.org/pending" });
-  await addAward(book.id, "Verified One", { year: 2000 });
+  await addAward(book.id, "Verified One", { year: 2000, url: "https://example.org/wd" });
   await addAward(book.id, "Manual One", { source: "manual" });
-  await addAward(book.id, "Rejected One", { source: "ai", status: "rejected" });
   const { text } = await http(`/admin/inventory/${book.id}`);
-  for (const s of ["Awards &amp; lists", "Pending One", "Verified One</strong> (2000)", "Manual One", "Rejected One", "Add awards (comma separated)", "Re-check now"]) assert.ok(text.includes(s), s);
-  assert.match(text, /href="https:\/\/example\.org\/pending"/);
-  assert.match(text, /status-pill pending">pending/);
+  for (const s of ["Awards &amp; lists", "Verified One</strong> (2000)", "Manual One", "Add awards (comma separated)", "Re-check now"]) assert.ok(text.includes(s), s);
+  assert.match(text, /href="https:\/\/example\.org\/wd"/);
   assert.match(text, /\/awards\/check/);
   assert.match(text, /Remove<\/button>/);
+  assert.ok(!/Approve|Reject|pending|status-pill/.test(text.split("Awards &amp; lists")[1].split("Copies (")[0]));
 });
 
 test("Re-check now runs the check, redirects with a notice, and the result shows up", async () => {
@@ -550,4 +426,33 @@ test("layout: description and awards sit in the top block beside the cover, befo
   const bare = await seedBook();
   const html = (await http(`/books/${bare.id}`, { user: null })).text;
   assert.ok(!html.includes("About this book") && !html.includes('class="book-awards"'));
+});
+
+// -------------------------------------------------------------- migration
+
+test("migration 077 removes AI, pending, approved and rejected rows and keeps the shown ones", async () => {
+  const sql = require("fs").readFileSync(require("path").join(__dirname, "../../migrations/077_awards_no_review.sql"), "utf8");
+  const book = await seedBook();
+  // Put the old constraints back so legacy rows can be inserted, as in production before this change.
+  await pool.query("ALTER TABLE book_awards DROP CONSTRAINT book_awards_source_check, DROP CONSTRAINT book_awards_status_check");
+  await pool.query("ALTER TABLE books ADD COLUMN IF NOT EXISTS awards_ai_checked_at TIMESTAMPTZ");
+  try {
+    await addAward(book.id, "Keep Wikidata", { source: "wikidata" });
+    await addAward(book.id, "Keep NYT", { source: "nyt", kind: "bestseller" });
+    await addAward(book.id, "Keep Manual", { source: "manual" });
+    await addAward(book.id, "Gone Pending", { source: "ai", status: "pending" });
+    await addAward(book.id, "Gone Approved", { source: "ai", status: "approved" });
+    await addAward(book.id, "Gone Rejected", { source: "wikidata", status: "rejected" });
+    await pool.query(sql);
+    assert.deepEqual((await rowsOf(book.id)).map((r) => r.label), ["Keep Wikidata", "Keep NYT", "Keep Manual"]);
+    const page = await http(`/books/${book.id}`, { user: null });
+    assert.ok(!page.text.includes("Gone "));
+    await pool.query(sql); // safe to run twice
+    await assert.rejects(addAward(book.id, "x", { source: "ai", status: "verified" }), (e) => e.code === "23514");
+    await assert.rejects(addAward(book.id, "y", { source: "wikidata", status: "pending" }), (e) => e.code === "23514");
+    const cols = await pool.query("SELECT 1 FROM information_schema.columns WHERE table_name = 'books' AND column_name = 'awards_ai_checked_at'");
+    assert.equal(cols.rowCount, 0);
+  } finally {
+    // the migration already restored the constraints and dropped the column
+  }
 });

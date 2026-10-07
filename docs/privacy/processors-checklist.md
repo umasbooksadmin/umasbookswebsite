@@ -103,10 +103,6 @@ Date checked: ____ / ____ / ______ / Done by: ____________
 
 Date checked: ____ / ____ / ______ / Done by: ____________
 
-### Anthropic API: award and best-seller search (optional, `AWARDS_AI`)
-
-- **What they get (checked in `src/lib/awards/ai.js`):** only a book's **title, author, ISBN and publication year** and a fixed instruction, with Anthropic's web search tool. **No personal data.** Off unless `AWARDS_AI` is set; results stay hidden until an admin approves them.
-
 ## Wikidata (awards by ISBN)
 
 - **What they get (`src/lib/awards/wikidata.js`):** a book's ISBN in a query to query.wikidata.org, sent by the server with the User-Agent `UmasBooks/1.0 (admin@umasbooks.org)`. **No personal data.** Their server sees the Render server's IP address.

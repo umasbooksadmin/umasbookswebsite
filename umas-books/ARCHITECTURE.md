@@ -151,25 +151,21 @@ rather than by a numbered migration), grouped by what they belong to:
   through hidden fields and `public/inventory-location.js` (localStorage);
   `/admin/inventory/move` moves one copy per scanned ISBN (`parseScan`), and
   each move writes a `copy.move` audit row (location codes only).
-- **Awards & best-seller lists** — `book_awards` (migration 050) plus
-  `books.awards_checked_at / awards_check_state / awards_ai_checked_at`. Code
-  in `src/lib/awards/`: `wikidata.js` (SPARQL by ISBN, awards P166 and
+- **Awards & best-seller lists** — `book_awards` (migration 050, tightened by
+  077) plus `books.awards_checked_at / awards_check_state`. Code in
+  `src/lib/awards/`: `wikidata.js` (SPARQL by ISBN, awards P166 and
   nominations P1411), `nyt.js` (optional, `NYT_API_KEY`, in-process 5/min and
-  500/day gate), `ai.js` (optional web search, off unless `AWARDS_AI` is on),
-  `index.js` (`checkBookAwards`, `drainAwards`), `display.js` (what customers
-  may see). **Trust model:** Wikidata, NYT and admin-typed rows are `verified`
-  and shown at once; AI rows are `pending` and hidden until an admin approves
-  them (`approved`) at `/admin/awards` or on the book's admin page; `rejected`
-  rows stay so a suggestion is never offered again. An AI item is kept only if
-  its https source URL really appeared in that response's search results. Every
-  lookup fails open and never blocks a save. A new book is checked in the
+  500/day gate), `index.js` (`checkBookAwards`, `drainAwards`), `display.js`
+  (what customers may see). **Trust model:** there is no review step and no AI
+  source. Every row is `verified` and shown at once: it came from Wikidata, the
+  NYT API, or an admin typed it (`manual`); migration 077 deletes the old AI,
+  pending, approved and rejected rows and its CHECK constraints forbid them.
+  Every lookup fails open and never blocks a save. A new book is checked in the
   background right after intake; a timer in `src/index.js` (every 2 minutes, 5
   books, via `guardJob`) checks never-checked books newest first, retries
-  failures after a day, gives an AI-only pass to books checked before AI was on
-  (bounded by `AWARDS_AI_DAILY_MAX`, counted in memory and in
-  `books.awards_ai_checked_at`), and refreshes yearly. Admin approve / reject /
-  add / remove / re-check write `award.*` audit rows (label only).
-  `AWARDS_LOOKUPS=off` is a kill switch (the test helpers set it).
+  failures after a day, and refreshes yearly. Admin add / remove / re-check
+  write `award.*` audit rows (label only). `AWARDS_LOOKUPS=off` is a kill
+  switch (the test helpers set it).
 - **Book requests** — `book_requests` and `book_request_list_tokens`
   (migration 047), replacing the retired wishlist. Public, no login or
   membership: `/request-a-book` (form; always answers "check your inbox"),
@@ -414,9 +410,6 @@ src/` is the ground truth if this list ever drifts):
 | `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` | `SEED_ADMIN_PASSWORD` required the first time `npm run seed` creates an admin | one-time bootstrap of the first admin account; never blocks startup. `SEED_SAMPLE_CONTENT=true` forces sample content, `SEED_STRICT=true` makes a failure exit 1 (CI) |
 | `ANTHROPIC_API_KEY` | no | powers inventory photo-scan and auto-generated book descriptions |
 | `NYT_API_KEY` | no | New York Times Books API key (free from developer.nytimes.com); enables verified best-seller rows. Never logged |
-| `AWARDS_AI` | no (off) | `1`/`true` lets the awards lookup also ask Claude with web search (needs `ANTHROPIC_API_KEY`); results stay hidden until an admin approves them |
-| `AWARDS_AI_DAILY_MAX` | no (100) | most books the AI awards search may check per UTC day |
-| `AWARDS_AI_MODEL` | no (same model as book descriptions) | model for the AI awards search; must support web search |
 | `AWARDS_LOOKUPS` | no | `off` stops all awards lookups (kill switch) |
 | `COVER_BACKFILL` | no | `off` stops the background job that copies book covers to our own server (the test helpers set it). Only a 404, a placeholder or an invalid image counts as a failed attempt; 5xx, timeouts and network errors do not, and 3 in a row stop the batch |
 | `ANTHROPIC_WORKSPACE_ID` | no | optional workspace header on Anthropic API calls |

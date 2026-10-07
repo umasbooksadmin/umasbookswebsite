@@ -544,7 +544,7 @@ Two-step verification is **always required** for admins on the real site.
 ### 5B. Dashboard and admin menu
 
 - [ ] **A6.** Open the **Dashboard**. **You should see:** figures (Collected Reservations Today, This Month, Sales this month, In-Stock Books, Added This Month, Total Accounts, Members) and tiles: Books & Reservations, English Programs, Bookstore Events, Account Section, Members, Volunteer Shifts, Meetings, Announcements, Charities, Blog; in preview mode a red strip "PREVIEW MODE is ON".
-- [ ] **A7.** Open every item of the left menu once: Dashboard, Books & Reservations, Awards to review, Book Requests, English Programs, Events, Volunteer Shifts, Meetings, Announcements, Accounts, Members, Charities, Blog, Reports, Pricing rules, Admin activity. **You should see:** each opens in English, no error.
+- [ ] **A7.** Open every item of the left menu once: Dashboard, Books & Reservations, Book Requests, English Programs, Events, Volunteer Shifts, Meetings, Announcements, Accounts, Members, Charities, Blog, Reports, Pricing rules, Admin activity. **You should see:** each opens in English, no error.
 - [ ] **A8.** Press **FR** (public pages) then return to an admin page. **You should see:** admin stays English; the public site is French.
 
 ### 5C. Add books: scan, manual, photo
@@ -560,7 +560,7 @@ Two-step verification is **always required** for admins on the real site.
 
 ### 5D. Awards, locations, sources, selling in shop
 
-- [ ] **A15 (must). Awards.** Open a book > **Awards & lists**: type `Booker Prize (2019)` in **Add awards (comma separated)** and press **Add**. **You should see:** it shows on the public book page at once under "Awards & lists:". **Remove** it: gone. **Re-check now** looks again online. In **Awards to review** (menu) each suggestion has **Open source**, **Approve**, **Reject**; **Approve selected** does several at once. Only verified or approved lines appear to customers. **You should see:** an entry in **Admin activity** for each action.
+- [ ] **A15 (must). Awards.** Open a book > **Awards & lists**: type `Booker Prize (2019)` in **Add awards (comma separated)** and press **Add**. **You should see:** it shows on the public book page at once under "Awards & lists:". **Remove** it: gone. **Re-check now** looks again on Wikidata and the New York Times (best-seller lists need the NYT key). Found entries are listed on the book page with their source and show to customers at once; there is no review step. **You should see:** an entry in **Admin activity** for each add, remove and re-check.
 - [ ] **A16 (must). Locations and Move books.** Open **Move books** (`/admin/inventory/move`): choose or type a new place ("Move books to"), scan or type an ISBN, press **Move**. **You should see:** "N moved so far" and the new place offered in lists. On **Books & Reservations** use the **Location** filter and see the copy there.
 - [ ] **A17. Copy source.** Check a copy's **Source** (Donation / Purchase / Job lot / Other / Unknown) on the book page and in the **Inventory on hand** report. **You should see:** it saved.
 - [ ] **A18 (must). Sell in shop is retired.** Open `/admin/inventory/sell` (an old bookmark). **You should see:** the Till, with the note "Sales are made at the Till now"; nothing is sold and there is no "Sell in shop" button in Books & Reservations or on the scan page. Old sales made there still appear in **Reports > Sales over time** and the accounting export.

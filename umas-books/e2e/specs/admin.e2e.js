@@ -219,10 +219,7 @@ s.manual("A13 photo scan of a cover or barcode", "needs a photo and the ANTHROPI
 
 // ---- 5D. Awards, locations, selling ----
 
-s.test("A15 (must) the Awards to review page opens with its approve and reject controls", { as: "admin" }, async (ctx) => {
-  await admin(ctx, "/admin/awards");
-  has(await ctx.text(), /Awards|review/);
-});
+s.manual("A15 (must) Re-check now on a book looks up awards online", "needs Wikidata/NYT and changes a real book; adding and removing a typed-in award is A15b");
 
 s.test("A18 (must) the retired Sell in shop address sends you to the Till (nothing is sold)", { as: "admin" }, async (ctx) => {
   const res = await ctx.goto("/admin/inventory/sell");
