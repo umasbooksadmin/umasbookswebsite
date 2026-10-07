@@ -58,7 +58,7 @@ test("every form on the marketing pages (volunteer, pre-registration) links to t
     assert.match(en.split("const pageI18nEn")[1], /\.privacy": "[^\n]*privacy-policy\.html/, `${f}: EN note`);
     assert.match(fr, /\.privacy": "[^\n]*privacy-policy\.html/, `${f}: FR note`);
     assert.match(en.split("const pageI18nEn")[1], /\.privacy": "[^\n]*deleted from our mailbox after 12 months/, `${f}: EN retention`);
-    assert.match(fr, /\.privacy": "[^\n]*supprimées de notre messagerie après 12 mois/, `${f}: FR retention`);
+    assert.match(fr, /\.privacy": "[^\n]*supprimée?s? de notre messagerie après 12 mois/, `${f}: FR retention`);
   }
 });
 

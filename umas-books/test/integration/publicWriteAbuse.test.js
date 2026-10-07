@@ -1,6 +1,6 @@
-// The public (no-login) write endpoints — cart/checkout, event signup —
-// used to have no rate limit and no email validation. A script could lock
-// every copy via checkout. (The public book-reserve route that used to be
+// The public write endpoints — cart reserve, event signup — used to have no
+// rate limit and no email validation. A script could hold every copy via the
+// cart's reserve step. (The public book-reserve route that used to be
 // here is gone; see securityQuickFixes.test.js.) See src/lib/validation.js and
 // src/middleware/rateLimits.js. One app instance shared by every test
 // here, so the per-IP limiters' budgets are spent in order — the
@@ -67,32 +67,34 @@ test("a cart can't grow past 20 lines", async () => {
   assert.equal((await res.json()).count, 20);
 });
 
-test("checkout ignores a posted (even multi-recipient) email: an order only ever carries the logged-in account's own address; a guest creates nothing; rate limited", async () => {
+test("reserve ignores a posted (even multi-recipient) email: a reservation only ever carries the logged-in account's own address; a guest creates nothing; rate limited", async () => {
   const jar = makeCookieJar();
   const c = await newCopy();
   await post(jar, "/cart/add", { copyId: c.id, backTo: "/cart" });
   await waitForCartCount(app.base, jar, 1);
   const before = (await pool.query("SELECT count(*)::int AS n FROM orders")).rows[0].n;
 
-  // Logged out: redirected to log in, nothing created, nothing locked.
-  const guest = await post(jar, "/cart/checkout", { name: "Buyer", email: "a@x.com, b@y.com", acceptCgv: "on" });
+  // Logged out: redirected to log in, nothing created, nothing held.
+  const guest = await post(jar, "/cart/reserve", { name: "Buyer", email: "a@x.com, b@y.com", acceptCgv: "on" });
   assert.equal(guest.status, 302);
   assert.equal(guest.headers.get("location"), "/login?returnTo=%2Fcart");
   assert.equal((await pool.query("SELECT count(*)::int AS n FROM orders")).rows[0].n, before);
   assert.equal(await copyStatus(c.id), "in_stock");
 
-  // Logged in: the posted email is ignored. (HelloAsso is not configured in
-  // this app, so the cart page answers instead of creating an order.)
+  // Logged in: the posted email is ignored; the reservation is under the account's own address.
   const account = await createAccount(pool, { email: `abuse-${Date.now()}@example.test`, displayName: "Abuse Buyer" });
   assert.equal((await loginOverHttp(app.base, jar, account)).status, 302);
-  const res = await post(jar, "/cart/checkout", { name: "Buyer", email: "a@x.com, b@y.com", acceptCgv: "on" });
-  assert.equal(res.status, 200);
-  assert.equal((await pool.query("SELECT count(*)::int AS n FROM orders WHERE buyer_email LIKE '%a@x.com%'")).rows[0].n, 0);
-  assert.equal(await copyStatus(c.id), "in_stock");
+  const res = await post(jar, "/cart/reserve", { name: "Buyer", email: "a@x.com, b@y.com", acceptCgv: "on" });
+  assert.equal(res.status, 302);
+  assert.match(res.headers.get("location"), /^\/cart\/return\?order=/);
+  assert.equal((await pool.query("SELECT count(*)::int AS n FROM orders WHERE buyer_email LIKE '%a@x.com%' OR buyer_email LIKE '%b@y.com%'")).rows[0].n, 0);
+  const { rows: mine } = await pool.query("SELECT buyer_email, status FROM orders WHERE user_id = $1", [account.id]);
+  assert.deepEqual(mine, [{ buyer_email: account.email, status: "reserved" }]);
+  assert.equal(await copyStatus(c.id), "reserved");
 
   const statuses = [];
-  for (let i = 0; i < 12; i++) statuses.push((await post(makeCookieJar(), "/cart/checkout", { name: "Bot", email: "bot@example.test" })).status);
-  assert.ok(statuses.includes(429), `expected a 429 within 12 checkouts, got ${statuses}`);
+  for (let i = 0; i < 12; i++) statuses.push((await post(makeCookieJar(), "/cart/reserve", { name: "Bot", email: "bot@example.test" })).status);
+  assert.ok(statuses.includes(429), `expected a 429 within 12 reservations, got ${statuses}`);
 });
 
 test("event signup rejects an invalid email, accepts a valid one, and is rate limited", async () => {

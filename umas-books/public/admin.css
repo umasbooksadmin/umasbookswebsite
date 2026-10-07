@@ -226,6 +226,10 @@
   .sticker-chip { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
 
+/* Printable pickup list (/admin/orders/pickup-list?print=1) */
+.pickup-list-print { font-size: 13px; }
+.pickup-list-print .pickup-customer { padding: 6px 0; }
+@media print { .pickup-list .pickup-customer { break-inside: avoid; } }
 /* Copy barcode labels (/admin/inventory/labels). Size comes from --lw / --lh (mm). */
 .label-sheet { display: flex; flex-wrap: wrap; gap: 4mm; }
 .copy-label { box-sizing: border-box; width: var(--lw, 50mm); height: var(--lh, 25mm); padding: 1mm; overflow: hidden; background: #fff; color: #000; border: 1px dashed #bbb; display: flex; flex-direction: column; justify-content: space-between; font-family: Arial, Helvetica, sans-serif; line-height: 1.1; }

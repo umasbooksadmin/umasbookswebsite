@@ -128,12 +128,15 @@
         meta.appendChild(el("span", "till-grade", l.conditionLabel));
         if (l.authors) meta.appendChild(el("span", "", l.authors));
         meta.appendChild(el("span", "muted", "UB-" + l.copyId));
+        if (l.reserved) meta.appendChild(el("span", "till-grade", "Reservation #" + l.orderId));
+      } else if (l.kind === "seat") {
+        meta.appendChild(el("span", "till-grade", "Drop-in seat, reservation #" + l.orderId));
       } else {
         meta.appendChild(el("span", "till-grade", l.kind === "quick" ? "Quick item" : "Manual item"));
       }
       main.appendChild(meta);
       li.appendChild(main);
-      if (l.kind !== "book") {
+      if (l.kind !== "book" && l.kind !== "seat") {
         var step = el("span", "till-step");
         var minus = el("button", "btn btn-outline till-step-btn", "-"); minus.type = "button"; minus.setAttribute("aria-label", "One less " + l.description);
         var plus = el("button", "btn btn-outline till-step-btn", "+"); plus.type = "button"; plus.setAttribute("aria-label", "One more " + l.description);
@@ -147,7 +150,7 @@
       }
       var priceBtn = el("button", "btn btn-outline till-line-price", priceKnown(l) ? fmt(l.priceCents * (l.quantity || 1)) : "Set price");
       priceBtn.type = "button";
-      if (l.kind === "book") {
+      if (l.kind === "book" && !l.reserved) {
         priceBtn.addEventListener("click", function () { askPrice(l); });
         if (l.overridden) priceBtn.title = "Price changed from " + fmt(l.askingCents);
         if (l.overridden) priceBtn.classList.add("till-overridden");
@@ -245,6 +248,23 @@
     showInfo("Added: " + line.title);
   }
 
+  // A reservation to collect (ORDER-<n>, or the label of a book it holds): all its
+  // lines go on the sale at the reserved prices. Remove a line to leave it reserved
+  // (a partial pickup).
+  function addReservation(j) {
+    var fresh = j.lines.filter(function (l) {
+      return !lines.some(function (x) { return x.reserved && x.orderId === l.orderId && x.itemId === l.itemId; });
+    });
+    if (!fresh.length) { showError("Reservation #" + j.order.id + " is already on this sale."); return; }
+    fresh.forEach(function (l) {
+      l.key = String(Date.now()) + Math.random();
+      if (l.kind === "book") l.askingCents = l.priceCents;
+      lines.push(l);
+    });
+    render();
+    showInfo("Reservation #" + j.order.id + " for " + j.order.name + ": " + fresh.length + " item(s). Remove what the customer leaves, then take payment.");
+  }
+
   function handleScan(code) {
     code = String(code).trim();
     if (!code) return Promise.resolve();
@@ -254,6 +274,7 @@
       if (j.type === "line") addBook(j.line);
       else if (j.type === "choose") chooseCopy(j.copies);
       else if (j.type === "quick") addQuick(j.item);
+      else if (j.type === "reservation") addReservation(j);
       else showError(j.message || "That code could not be read.");
     }).catch(function () { showError("Connection problem: the scan did not go through. Scan again."); });
   }
@@ -308,12 +329,13 @@
   // ---------- payment ----------
   function payload(method, extra) {
     var items = lines.map(function (l) {
+      if (l.reserved) return { kind: "reserved", orderId: l.orderId, itemId: l.itemId };
       if (l.kind === "book") return { kind: "book", copyId: l.copyId, price: l.overridden || !l.askingCents ? (l.priceCents / 100).toFixed(2) : "", reason: l.reason || "" };
       if (l.kind === "quick") return { kind: "quick", id: l.quickId, quantity: l.quantity };
       return { kind: "manual", description: l.description, price: (l.priceCents / 100).toFixed(2), quantity: l.quantity, category: l.category };
     });
     // A new book is always sent with its price (the server checks 95-100%).
-    lines.forEach(function (l, i) { if (l.kind === "book" && l.isNew) items[i].price = (l.priceCents / 100).toFixed(2); });
+    lines.forEach(function (l, i) { if (l.kind === "book" && l.isNew && !l.reserved) items[i].price = (l.priceCents / 100).toFixed(2); });
     var f = { token: token, method: method, items: JSON.stringify(items), soldAtTime: $("sold-at").value || "" };
     Object.keys(extra || {}).forEach(function (k) { f[k] = extra[k]; });
     return f;

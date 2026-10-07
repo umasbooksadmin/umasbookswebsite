@@ -1,5 +1,6 @@
 // Numbers on the admin dashboard (/admin). Sales are PAID orders only
-// (refunded, pending, expired and cancelled orders never count), bucketed on
+// (reserved, refunded, pending, expired and cancelled orders never count: a
+// reservation becomes a sale when it is collected and paid in the shop), bucketed on
 // the day they were PAID in Europe/Paris, like the reports (lib/reports.js):
 // an order paid at 00:30 on the 1st in Paris belongs to the new month even
 // though it is still the 30th in UTC, which is what the server clock reads.
@@ -42,13 +43,17 @@ async function salesStats(pool, now = new Date()) {
   };
 }
 
-// The "needs attention" box: three counts, each a link target on /admin/orders.
+// The "needs attention" box: counts, each a link target on /admin/orders.
+// Reservations expiring within 3 days, and reservations already past their
+// deadline that nobody collected (released automatically soon), plus the old
+// online-checkout leftovers.
 async function attentionCounts(pool) {
   const { rows } = await pool.query(
-    `SELECT COUNT(*) FILTER (WHERE ${ORDER_VIEWS.overdue.sql})::int AS overdue,
-            COUNT(*) FILTER (WHERE ${ORDER_VIEWS.refund_detected.sql})::int AS refund_detected,
+    `SELECT COUNT(*) FILTER (WHERE ${ORDER_VIEWS.expiring_soon.sql})::int AS expiring_soon,
+            COUNT(*) FILTER (WHERE ${ORDER_VIEWS.past_deadline.sql})::int AS past_deadline,
+            COUNT(*) FILTER (WHERE ${ORDER_VIEWS.overdue.sql})::int AS overdue,
             COUNT(*) FILTER (WHERE ${ORDER_VIEWS.stale_pending.sql})::int AS stale_pending
-     FROM orders o WHERE o.status IN ('paid', 'pending')`
+     FROM orders o WHERE o.status IN ('reserved', 'paid', 'pending')`
   );
   return rows[0];
 }

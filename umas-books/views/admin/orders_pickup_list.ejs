@@ -1,0 +1,37 @@
+<%- include('../partials/admin_header', { title: 'Pickup list', active: active, pageTitle: 'Pickup list', pageSub: 'Reservations waiting to be collected and paid, by customer. Paris time.', mainWide: true }) %>
+
+<div class="card no-print">
+  <p class="muted small">Every open reservation, grouped by customer, with the shelf of each book and the amount to collect. Print this page to take it to the shelves.</p>
+  <p>
+    <button class="btn btn-outline" type="button" data-print>Print</button>
+    <% if (print) { %><a class="btn btn-outline" href="/admin/orders/pickup-list">Normal view</a><% } else { %><a class="btn btn-outline" href="/admin/orders/pickup-list?print=1">Print version</a><% } %>
+    <a href="/admin/orders">&larr; Back to orders</a>
+  </p>
+</div>
+
+<div class="card pickup-list<%= print ? ' pickup-list-print' : '' %>" id="pickup-list">
+  <div class="section-title"><%= customers.length %> customer<%= customers.length === 1 ? '' : 's' %> &middot; &euro;<%= grandTotal.toFixed(2) %> to collect in total</div>
+  <% if (!customers.length) { %>
+    <p class="muted">No reservation is waiting for pickup.</p>
+  <% } else { %>
+    <% customers.forEach(c => { %>
+      <div class="pickup-customer" style="border-top:1px solid var(--line, #e4e0d6); padding:10px 0; break-inside:avoid;">
+        <strong><%= c.name %></strong> <span class="muted small">&middot; <%= c.email %><%= c.phone ? ' · ' + c.phone : '' %></span>
+        <% c.orders.forEach(o => { %>
+          <div class="small" style="margin-top:6px;">
+            Reservation #<%= o.id %> &middot; held until the end of <%= formatDate(lastDay({ reserved_until: o.until })) %>
+            <ul class="plain nested">
+              <% o.items.forEach(i => { %>
+                <li>&#9744; <%= i.title %> <span class="muted small">&middot; <%= i.seat ? 'drop-in seat (pay at the session)' : (i.location ? 'shelf ' + i.location : 'shelf not recorded') %> &middot; &euro;<%= i.price.toFixed(2) %></span></li>
+              <% }) %>
+            </ul>
+            <span class="muted small">Total: &euro;<%= o.total.toFixed(2) %></span>
+          </div>
+        <% }) %>
+        <div style="margin-top:4px;"><strong>To collect: &euro;<%= c.total.toFixed(2) %></strong></div>
+      </div>
+    <% }) %>
+  <% } %>
+</div>
+
+<%- include('../partials/admin_footer') %>

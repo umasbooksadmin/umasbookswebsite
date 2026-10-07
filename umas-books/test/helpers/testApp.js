@@ -80,6 +80,9 @@ async function startTestApp({ port, isolated = false, env = {} }) {
       AWARDS_LOOKUPS: "off",
       // The cover backfill (lib/coverStore) must never reach Open Library from a test.
       COVER_BACKFILL: "off",
+      // The shop-wide hourly mail ceiling (lib/outbox.js) counts the whole shared
+      // database; a full test run must never trip it. Its own tests lower it.
+      MAIL_GLOBAL_PER_HOUR: "100000",
       ...env,
     },
     // stdout is piped (and echoed) so a test can wait for the server's own

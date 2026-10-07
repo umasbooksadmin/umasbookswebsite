@@ -108,10 +108,10 @@ test("sold, reserved and in-cart copies are refused with the reason", async () =
   assert.match((await h.scan(only.isbn)).body.message, /already sold/);
 });
 
-test("scanning ORDER-<n> reports the reservation extension is not built yet", async () => {
-  const r = await h.scan("ORDER-5");
+test("scanning ORDER-<n> of an order that does not exist says so (collecting a real reservation is tested in tillReservations.test.js)", async () => {
+  const r = await h.scan("ORDER-999998");
   assert.equal(r.body.type, "error");
-  assert.match(r.body.message, /not available yet/);
+  assert.match(r.body.message, /No order 999998/);
 });
 
 // ---------- prices ----------

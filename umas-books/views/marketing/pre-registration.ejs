@@ -1,14 +1,22 @@
 <% const pageI18nEn = {
   "meta.title": "Pre-Registration — Uma's Books and Adventures",
-  "meta.description": "Pre-register your child for Weekly English Immersion sessions at Uma's Books in Albi.",
+  "meta.description": "Pre-register for Weekly English Immersion sessions at Uma's Books in Albi: children, teens and adults.",
   "preg.hero.t": "Weekly English Immersion",
   "preg.hero.kicker": "Pre-Registration",
   "preg.hero.script": "Stories, games, creativity and conversation — all in English.",
   "preg.hero.sub": "For children, teens and adults in Albi.",
-  "preg.s1.h": "About Your Child",
+  "preg.s0.h": "Who is registering?",
+  "preg.f.who.l": "Who is registering?",
+  "preg.who.self": "An adult, for themselves",
+  "preg.who.child": "A parent or guardian, for a child",
+  "preg.s1.h": "About the child (only if you are registering a child)",
+  "preg.s1.note": "Fill in this section only if you are registering a child. If you are registering for yourself, leave it empty.",
   "preg.f.first.l": "Child’s first name",
   "preg.f.last.l": "Child’s last name",
-  "preg.f.dob.l": "Date of birth",
+  "preg.f.birthyear.l": "Child’s year of birth",
+  "preg.f.birthyear.hint": "Four digits, for example 2017. We only ask for the year.",
+  "preg.f.guardian": "I am the parent or legal guardian of the child.",
+  "preg.f.guardian.l": "Parent or guardian statement",
   "preg.f.session.l": "Choose a session",
   "preg.f.session.ph": "Select a session",
   "imm.s1.t": "Little Explorers (Age 2–3)",
@@ -17,7 +25,7 @@
   "imm.s4.t": "Young Readers (Age 9–14)",
   "imm.s5.t": "Teen Literature (Age 14–17)",
   "imm.s6.t": "English Café (Adult)",
-  "preg.s2.h": "Preferred Availability",
+  "preg.s2.h": "Session and Availability",
   "preg.s2.note": "Let us know which days and times work best for you. We will propose a couple of time slots based on your preferences and availability.",
   "preg.f.days.l": "Preferred day(s)",
   "preg.f.times.l": "Preferred time(s)",
@@ -30,8 +38,10 @@
   "preg.time.earlyafternoon": "Early afternoon",
   "preg.time.lateafternoon": "Late afternoon",
   "preg.time.evening": "Evening",
-  "preg.multiselect.hint": "Hold Cmd (Mac) or Ctrl (Windows) to select more than one.",
-  "preg.s3.h": "Parent / Guardian",
+  "preg.days.hint": "Tick every day that suits you.",
+  "preg.times.hint": "Tick every time that suits you.",
+  "preg.s3.h": "Your Details",
+  "preg.s3.note": "The adult registering, or the parent or guardian of the child.",
   "preg.f.parent.l": "Your name",
   "preg.f.email.l": "Email address",
   "preg.f.phone.l": "Phone number",
@@ -40,12 +50,12 @@
   "preg.f.level.l": "English experience or level",
   "preg.f.notes.l": "Anything else you’d like to share with us? (interests, needs, etc.)",
   "preg.f.updates": "I’d like to receive updates about the English Immersion program. (optional)",
-  "preg.f.consent": "I am the parent or legal guardian of the child and I agree to be contacted about this program.",
-  "preg.f.consent.l": "Parent or guardian agreement",
+  "preg.f.consent": "I agree to be contacted about this program.",
+  "preg.f.consent.l": "Agreement to be contacted",
   "preg.health": "Do not enter health information here (allergies, medical conditions, disabilities): tell us in person.",
   "preg.f.notes.hint": "Optional. Please keep it to interests and practical details.",
   "preg.submit": "Submit Pre-Registration",
-  "preg.privacy": "If you are registering a child, the child’s details are provided by a parent or legal guardian and are used only to organise the activity. They reach us by email only (nothing is stored on the website) and are deleted from our mailbox after 12 months. See our <a href=\"privacy-policy.html\">Privacy Policy</a>.",
+  "preg.privacy": "If you are registering a child, the child’s details are provided by a parent or legal guardian and are used only to organise the activity. These forms send us an email. A copy stays in our outgoing-mail queue for up to 30 days (90 if sending failed) and in our backups (up to 2 years); then it is erased. The email is deleted from our mailbox after 12 months. See our <a href=\"privacy-policy.html\">Privacy Policy</a>.",
   "preg.hint": "We’ll be in touch by email or phone soon with a few suggested time slots and next steps.",
   "preg.sent.h": "Thank you, your pre-registration has been sent",
   "preg.sent.p": "We have received it and will contact you soon with a few suggested time slots and next steps. Nothing else is needed from you for now.",
@@ -62,15 +72,23 @@
 }; %>
 <% const pageI18nFr = {
   "meta.title": "Pré-inscription — Uma’s Books and Adventures",
-  "meta.description": "Pré-inscrivez votre enfant aux séances hebdomadaires d’immersion en anglais chez Uma’s Books à Albi.",
+  "meta.description": "Pré-inscrivez-vous, ou inscrivez votre enfant, aux séances hebdomadaires d’immersion en anglais chez Uma’s Books à Albi\u00a0: enfants, ados et adultes.",
   "preg.hero.t": "Immersion hebdomadaire en anglais",
   "preg.hero.kicker": "Pré-inscription",
   "preg.hero.script": "Histoires, jeux, créativité et conversation — le tout en anglais.",
   "preg.hero.sub": "Pour les enfants, les ados et les adultes à Albi.",
-  "preg.s1.h": "Votre enfant",
+  "preg.s0.h": "Qui s’inscrit\u00a0?",
+  "preg.f.who.l": "Qui s’inscrit\u00a0?",
+  "preg.who.self": "Un adulte, pour lui-même",
+  "preg.who.child": "Un parent ou un représentant légal, pour un enfant",
+  "preg.s1.h": "L’enfant (uniquement si vous inscrivez un enfant)",
+  "preg.s1.note": "Remplissez cette partie uniquement si vous inscrivez un enfant. Si vous vous inscrivez vous-même, laissez-la vide.",
   "preg.f.first.l": "Prénom de l’enfant",
   "preg.f.last.l": "Nom de l’enfant",
-  "preg.f.dob.l": "Date de naissance",
+  "preg.f.birthyear.l": "Année de naissance de l’enfant",
+  "preg.f.birthyear.hint": "Quatre chiffres, par exemple 2017. Nous demandons seulement l’année.",
+  "preg.f.guardian": "Je suis le parent ou le représentant légal de l’enfant.",
+  "preg.f.guardian.l": "Déclaration du parent ou représentant légal",
   "preg.f.session.l": "Choisissez une séance",
   "preg.f.session.ph": "Sélectionner une séance",
   "imm.s1.t": "Little Explorers (2–3 ans)",
@@ -79,7 +97,7 @@
   "imm.s4.t": "Young Readers (9–14 ans)",
   "imm.s5.t": "Teen Literature (14–17 ans)",
   "imm.s6.t": "English Café (Adultes)",
-  "preg.s2.h": "Disponibilités souhaitées",
+  "preg.s2.h": "Séance et disponibilités",
   "preg.s2.note": "Indiquez-nous les jours et horaires qui vous conviennent le mieux. Nous vous proposerons quelques créneaux selon vos préférences et disponibilités.",
   "preg.f.days.l": "Jour(s) préféré(s)",
   "preg.f.times.l": "Horaire(s) préféré(s)",
@@ -92,8 +110,10 @@
   "preg.time.earlyafternoon": "Début d’après-midi",
   "preg.time.lateafternoon": "Fin d’après-midi",
   "preg.time.evening": "Soir",
-  "preg.multiselect.hint": "Maintenez Cmd (Mac) ou Ctrl (Windows) pour en sélectionner plusieurs.",
-  "preg.s3.h": "Parent / Tuteur",
+  "preg.days.hint": "Cochez tous les jours qui vous conviennent.",
+  "preg.times.hint": "Cochez tous les horaires qui vous conviennent.",
+  "preg.s3.h": "Vos coordonnées",
+  "preg.s3.note": "L’adulte qui s’inscrit, ou le parent ou représentant légal de l’enfant.",
   "preg.f.parent.l": "Votre nom",
   "preg.f.email.l": "Adresse e-mail",
   "preg.f.phone.l": "Numéro de téléphone",
@@ -102,12 +122,12 @@
   "preg.f.level.l": "Niveau ou expérience en anglais",
   "preg.f.notes.l": "Autre chose à nous partager ? (intérêts, besoins, etc.)",
   "preg.f.updates": "Je souhaite recevoir des nouvelles du programme d’immersion anglaise. (facultatif)",
-  "preg.f.consent": "Je suis le parent ou le représentant légal de l’enfant et j’accepte d’être contacté(e) au sujet de ce programme.",
-  "preg.f.consent.l": "Accord du parent ou représentant légal",
+  "preg.f.consent": "J’accepte d’être contacté(e) au sujet de ce programme.",
+  "preg.f.consent.l": "Accord pour être contacté(e)",
   "preg.health": "Ne saisissez pas d’informations de santé ici (allergies, problèmes médicaux, handicap)\u00a0: dites-le-nous en personne.",
   "preg.f.notes.hint": "Facultatif. Limitez-vous aux centres d’intérêt et aux détails pratiques.",
   "preg.submit": "Envoyer la pré-inscription",
-  "preg.privacy": "Si vous inscrivez un enfant, ses informations sont fournies par un parent ou un représentant légal et servent uniquement à organiser l’activité. Elles nous parviennent uniquement par e-mail (rien n’est enregistré sur le site) et sont supprimées de notre messagerie après 12 mois. Consultez notre <a href=\"privacy-policy.html\">Politique de confidentialité</a>.",
+  "preg.privacy": "Si vous inscrivez un enfant, ses informations sont fournies par un parent ou un représentant légal et servent uniquement à organiser l’activité. Ces formulaires nous envoient un e-mail. Une copie reste dans notre file d’envoi 30 jours au plus (90 jours en cas d’échec), puis dans nos sauvegardes (jusqu’à 2 ans) avant d’être effacée. L’e-mail est supprimé de notre messagerie après 12 mois. Consultez notre <a href=\"privacy-policy.html\">Politique de confidentialité</a>.",
   "preg.hint": "Nous vous recontacterons bientôt par e-mail ou par téléphone avec quelques créneaux proposés et les prochaines étapes.",
   "preg.sent.h": "Merci, votre pré-inscription a bien été envoyée",
   "preg.sent.p": "Nous l’avons bien reçue et nous vous recontacterons bientôt avec quelques créneaux proposés et les prochaines étapes. Vous n’avez rien d’autre à faire pour le moment.",
@@ -128,14 +148,21 @@
    defined first because the error summary prints the English labels from them. */
 const F = locals.form || {};
 const V = { days: [], times: [], ...(F.values || {}) };
+const isChild = V.who === 'child';
 const E = F.errors || {};
-const IDS = { childFirst: 'preg-first', childLast: 'preg-last', dob: 'preg-dob', session: 'preg-session', days: 'preg-days',
-  times: 'preg-times', parent: 'preg-parent', email: 'preg-email', phone: 'preg-phone', consent: 'preg-consent' };
+const IDS = { who: 'preg-who', childFirst: 'preg-first', childLast: 'preg-last', birthYear: 'preg-birthyear', guardian: 'preg-guardian',
+  session: 'preg-session', days: 'preg-days', times: 'preg-times', parent: 'preg-parent', email: 'preg-email', phone: 'preg-phone',
+  consent: 'preg-consent' };
 const _esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 // aria-invalid + aria-describedby (the error message, plus an optional hint) for one field.
 const aria = (k, hintId) => {
   const ids = [hintId, E[k] ? IDS[k] + '-err' : null].filter(Boolean).join(' ');
   return (E[k] ? ' aria-invalid="true"' : '') + (ids ? ' aria-describedby="' + ids + '"' : '');
+};
+// A group of radios or checkboxes (a fieldset): described by its error; aria-invalid is not allowed on a group.
+const ariaGroup = (k, hintId) => {
+  const ids = [hintId, E[k] ? IDS[k] + '-err' : null].filter(Boolean).join(' ');
+  return ids ? ' aria-describedby="' + ids + '"' : '';
 };
 const errP = (k) => (E[k]
   ? '<p class="field-error" id="' + IDS[k] + '-err" data-i18n="form.err.' + E[k].key + '">' + _esc(formMsg('form.err.' + E[k].key)) + '</p>'
@@ -148,7 +175,7 @@ const TIME_OPTIONS = [['morning', 'preg.time.morning'], ['earlyafternoon', 'preg
 %>
 <%- include('partials/mkt_header', {
   title: "Pre-Registration — Uma's Books and Adventures",
-  description: "Pre-register your child for Weekly English Immersion sessions at Uma's Books in Albi.",
+  description: "Pre-register for Weekly English Immersion sessions at Uma's Books in Albi: children, teens and adults.",
   extraCss: ['assets/home.css', 'assets/preregistration.css'],
   bodyClass: 'home',
   activeNav: 'programs',
@@ -181,71 +208,84 @@ const TIME_OPTIONS = [['morning', 'preg.time.morning'], ['earlyafternoon', 'preg
           <label for="preg-website" data-i18n="preg.hp">Website</label>
           <input id="preg-website" name="website" type="text" tabindex="-1" autocomplete="off">
         </div>
-        <div class="preg-section-title"><span class="num">1.</span> <span data-i18n="preg.s1.h">About Your Child</span></div>
+        <div class="preg-section-title"><span class="num">1.</span> <span data-i18n="preg.s0.h">Who is registering?</span></div>
+        <%# Server-side validated and no-JS safe: both blocks below are always in the page; assets/preregistration.js only hides the child block for an adult. %>
+        <fieldset class="preg-fieldset" id="preg-who" tabindex="-1"<%- ariaGroup('who') %>>
+          <legend><span data-i18n="preg.f.who.l">Who is registering?</span> <span class="req" aria-hidden="true">*</span></legend>
+          <label class="preg-check"><input type="radio" name="who" value="self"<%= V.who === 'self' ? ' checked' : '' %> aria-required="true"> <span data-i18n="preg.who.self">An adult, for themselves</span></label>
+          <label class="preg-check"><input type="radio" name="who" value="child"<%= isChild ? ' checked' : '' %> aria-required="true"> <span data-i18n="preg.who.child">A parent or guardian, for a child</span></label>
+          <%- errP('who') %>
+        </fieldset>
+
+        <div id="preg-child-block" class="preg-child-block" data-child-block<%= V.who === 'self' ? ' hidden' : '' %>>
+        <div class="preg-section-title"><span class="num">2.</span> <span data-i18n="preg.s1.h">About the child (only if you are registering a child)</span></div>
+        <div class="preg-note" data-i18n="preg.s1.note">Fill in this section only if you are registering a child. If you are registering for yourself, leave it empty.</div>
         <div class="preg-row">
           <div class="field">
             <label for="preg-first">
               <span data-i18n="preg.f.first.l">Child’s first name</span> <span class="req" aria-hidden="true">*</span>
             </label>
-            <input id="preg-first" name="childFirst" type="text" maxlength="80" autocomplete="given-name" required aria-required="true" value="<%= V.childFirst || '' %>"<%- aria('childFirst') %>>
+            <input id="preg-first" name="childFirst" type="text" maxlength="80" autocomplete="off" data-child-field<%= isChild ? ' aria-required="true"' : '' %> value="<%= V.childFirst || '' %>"<%- aria('childFirst') %>>
             <%- errP('childFirst') %>
           </div>
           <div class="field">
             <label for="preg-last">
               <span data-i18n="preg.f.last.l">Child’s last name</span> <span class="req" aria-hidden="true">*</span>
             </label>
-            <input id="preg-last" name="childLast" type="text" maxlength="80" autocomplete="family-name" required aria-required="true" value="<%= V.childLast || '' %>"<%- aria('childLast') %>>
+            <input id="preg-last" name="childLast" type="text" maxlength="80" autocomplete="off" data-child-field<%= isChild ? ' aria-required="true"' : '' %> value="<%= V.childLast || '' %>"<%- aria('childLast') %>>
             <%- errP('childLast') %>
           </div>
         </div>
-        <div class="preg-row">
-          <div class="field">
-            <label for="preg-dob">
-              <span data-i18n="preg.f.dob.l">Date of birth</span> <span class="req" aria-hidden="true">*</span>
-            </label>
-            <input id="preg-dob" name="dob" type="date" required aria-required="true" value="<%= V.dob || '' %>"<%- aria('dob') %>>
-            <%- errP('dob') %>
-          </div>
-          <div class="field">
-            <label for="preg-session">
-              <span data-i18n="preg.f.session.l">Choose a session</span> <span class="req" aria-hidden="true">*</span>
-            </label>
-            <select id="preg-session" name="session" required aria-required="true"<%- aria('session') %>>
-              <option value="" data-i18n="preg.f.session.ph">Select a session</option>
-              <% SESSION_OPTIONS.forEach(function (o) { %><option value="<%= o[0] %>"<%= V.session === o[0] ? ' selected' : '' %> data-i18n="<%= o[1] %>"><%= pageI18nEn[o[1]] %></option>
-              <% }) %>
-            </select>
-            <%- errP('session') %>
-          </div>
+        <div class="field">
+          <label for="preg-birthyear">
+            <span data-i18n="preg.f.birthyear.l">Child’s year of birth</span> <span class="req" aria-hidden="true">*</span>
+          </label>
+          <p class="preg-field-hint" id="preg-birthyear-hint" data-i18n="preg.f.birthyear.hint">Four digits, for example 2017. We only ask for the year.</p>
+          <input id="preg-birthyear" name="birthYear" type="text" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" autocomplete="off" data-child-field<%= isChild ? ' aria-required="true"' : '' %> value="<%= V.birthYear || '' %>"<%- aria('birthYear', 'preg-birthyear-hint') %>>
+          <%- errP('birthYear') %>
+        </div>
+        <div class="preg-check-group">
+          <label class="preg-check" for="preg-guardian">
+            <input id="preg-guardian" type="checkbox" name="guardian" value="1" data-child-field<%= isChild ? ' aria-required="true"' : '' %><%= V.guardian ? ' checked' : '' %><%- aria('guardian') %>>
+            <span><span data-i18n="preg.f.guardian">I am the parent or legal guardian of the child.</span> <span class="req" aria-hidden="true">*</span></span>
+          </label>
+          <%- errP('guardian') %>
+        </div>
         </div>
 
-        <div class="preg-section-title"><span class="num">2.</span> <span data-i18n="preg.s2.h">Preferred Availability</span></div>
+        <div class="preg-section-title"><span class="num">3.</span> <span data-i18n="preg.s2.h">Session and Availability</span></div>
+        <div class="field">
+          <label for="preg-session">
+            <span data-i18n="preg.f.session.l">Choose a session</span> <span class="req" aria-hidden="true">*</span>
+          </label>
+          <select id="preg-session" name="session" required aria-required="true"<%- aria('session') %>>
+            <option value="" data-i18n="preg.f.session.ph">Select a session</option>
+            <% SESSION_OPTIONS.forEach(function (o) { %><option value="<%= o[0] %>"<%= V.session === o[0] ? ' selected' : '' %> data-i18n="<%= o[1] %>"><%= pageI18nEn[o[1]] %></option>
+            <% }) %>
+          </select>
+          <%- errP('session') %>
+        </div>
         <div class="preg-note" data-i18n="preg.s2.note">Let us know which days and times work best for you. We will propose a couple of time slots based on your preferences and availability.</div>
+        <%# Checkbox groups, not multi-select lists: no Ctrl/Cmd needed (WCAG 2.1.1, 3.3.2). %>
         <div class="preg-row">
-          <div class="field">
-            <label for="preg-days">
-              <span data-i18n="preg.f.days.l">Preferred day(s)</span> <span class="req" aria-hidden="true">*</span>
-            </label>
-            <select id="preg-days" name="days" multiple required aria-required="true"<%- aria('days', 'preg-multi-hint') %>>
-              <% DAY_OPTIONS.forEach(function (o) { %><option value="<%= o[0] %>"<%= V.days.includes(o[0]) ? ' selected' : '' %> data-i18n="<%= o[1] %>"><%= pageI18nEn[o[1]] %></option>
-              <% }) %>
-            </select>
+          <fieldset class="preg-fieldset" id="preg-days" tabindex="-1"<%- ariaGroup('days', 'preg-days-hint') %>>
+            <legend><span data-i18n="preg.f.days.l">Preferred day(s)</span> <span class="req" aria-hidden="true">*</span></legend>
+            <p class="preg-field-hint" id="preg-days-hint" data-i18n="preg.days.hint">Tick every day that suits you.</p>
+            <% DAY_OPTIONS.forEach(function (o) { %><label class="preg-check"><input type="checkbox" name="days" value="<%= o[0] %>"<%= V.days.includes(o[0]) ? ' checked' : '' %>> <span data-i18n="<%= o[1] %>"><%= pageI18nEn[o[1]] %></span></label>
+            <% }) %>
             <%- errP('days') %>
-          </div>
-          <div class="field">
-            <label for="preg-times">
-              <span data-i18n="preg.f.times.l">Preferred time(s)</span> <span class="req" aria-hidden="true">*</span>
-            </label>
-            <select id="preg-times" name="times" multiple required aria-required="true"<%- aria('times', 'preg-multi-hint') %>>
-              <% TIME_OPTIONS.forEach(function (o) { %><option value="<%= o[0] %>"<%= V.times.includes(o[0]) ? ' selected' : '' %> data-i18n="<%= o[1] %>"><%= pageI18nEn[o[1]] %></option>
-              <% }) %>
-            </select>
+          </fieldset>
+          <fieldset class="preg-fieldset" id="preg-times" tabindex="-1"<%- ariaGroup('times', 'preg-times-hint') %>>
+            <legend><span data-i18n="preg.f.times.l">Preferred time(s)</span> <span class="req" aria-hidden="true">*</span></legend>
+            <p class="preg-field-hint" id="preg-times-hint" data-i18n="preg.times.hint">Tick every time that suits you.</p>
+            <% TIME_OPTIONS.forEach(function (o) { %><label class="preg-check"><input type="checkbox" name="times" value="<%= o[0] %>"<%= V.times.includes(o[0]) ? ' checked' : '' %>> <span data-i18n="<%= o[1] %>"><%= pageI18nEn[o[1]] %></span></label>
+            <% }) %>
             <%- errP('times') %>
-          </div>
+          </fieldset>
         </div>
-        <p class="preg-field-hint" id="preg-multi-hint" data-i18n="preg.multiselect.hint">Hold Cmd (Mac) or Ctrl (Windows) to select more than one.</p>
 
-        <div class="preg-section-title"><span class="num">3.</span> <span data-i18n="preg.s3.h">Parent / Guardian</span></div>
+        <div class="preg-section-title"><span class="num">4.</span> <span data-i18n="preg.s3.h">Your Details</span></div>
+        <div class="preg-note" data-i18n="preg.s3.note">The adult registering, or the parent or guardian of the child.</div>
         <div class="field">
           <label for="preg-parent">
             <span data-i18n="preg.f.parent.l">Your name</span> <span class="req" aria-hidden="true">*</span>
@@ -268,7 +308,7 @@ const TIME_OPTIONS = [['morning', 'preg.time.morning'], ['earlyafternoon', 'preg
           <%- errP('phone') %>
         </div>
 
-        <div class="preg-section-title"><span class="num">4.</span> <span data-i18n="preg.s4.h">Additional Information</span> <span class="opt" data-i18n="preg.s4.opt">(optional)</span></div>
+        <div class="preg-section-title"><span class="num">5.</span> <span data-i18n="preg.s4.h">Additional Information</span> <span class="opt" data-i18n="preg.s4.opt">(optional)</span></div>
         <div class="field">
           <label for="preg-level" data-i18n="preg.f.level.l">English experience or level</label>
           <input id="preg-level" name="level" type="text" maxlength="200" value="<%= V.level || '' %>">
@@ -286,12 +326,12 @@ const TIME_OPTIONS = [['morning', 'preg.time.morning'], ['earlyafternoon', 'preg
         <div class="preg-check-group">
           <label class="preg-check" for="preg-consent">
             <input id="preg-consent" type="checkbox" name="consent" value="1" required aria-required="true"<%= V.consent ? ' checked' : '' %><%- aria('consent') %>>
-            <span><span data-i18n="preg.f.consent">I am the parent or legal guardian of the child and I agree to be contacted about this program.</span> <span class="req" aria-hidden="true">*</span></span>
+            <span><span data-i18n="preg.f.consent">I agree to be contacted about this program.</span> <span class="req" aria-hidden="true">*</span></span>
           </label>
           <%- errP('consent') %>
         </div>
 
-        <p class="preg-form-hint preg-privacy" data-i18n-html="preg.privacy">If you are registering a child, the child’s details are provided by a parent or legal guardian and are used only to organise the activity. They reach us by email only (nothing is stored on the website) and are deleted from our mailbox after 12 months. See our <a href="privacy-policy.html">Privacy Policy</a>.</p>
+        <p class="preg-form-hint preg-privacy" data-i18n-html="preg.privacy">If you are registering a child, the child’s details are provided by a parent or legal guardian and are used only to organise the activity. These forms send us an email. A copy stays in our outgoing-mail queue for up to 30 days (90 if sending failed) and in our backups (up to 2 years); then it is erased. The email is deleted from our mailbox after 12 months. See our <a href="privacy-policy.html">Privacy Policy</a>.</p>
 
         <button type="submit" class="preg-submit"><span data-i18n="preg.submit">Submit Pre-Registration</span> <span aria-hidden="true">&rarr;</span></button>
         <p class="preg-form-hint" data-i18n="preg.hint">We’ll be in touch by email or phone soon with a few suggested time slots and next steps.</p>
@@ -322,4 +362,4 @@ const TIME_OPTIONS = [['morning', 'preg.time.morning'], ['earlyafternoon', 'preg
       <img class="preg-sidebar-art" src="assets/img/hero-left.png" alt="">
     </aside>
   </div>
-<%- include('partials/mkt_footer', { pageI18nEn, pageI18nFr, extraScripts: ['assets/form-errors.js'] }) %>
+<%- include('partials/mkt_footer', { pageI18nEn, pageI18nFr, extraScripts: ['assets/form-errors.js', 'assets/preregistration.js'] }) %>

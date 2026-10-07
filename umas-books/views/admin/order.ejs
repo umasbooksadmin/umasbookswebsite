@@ -9,24 +9,32 @@
   const hasBooks = items.some(i => i.book_copy_id != null);
   const days = order.paid_at ? Math.floor((Date.now() - new Date(order.paid_at).getTime()) / 86400000) : null;
   const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+  const statusText = order.status === 'reserved' ? 'Reserved: awaiting pickup' : cap(order.status);
+  const activeItems = items.filter(i => i.active);
+  const methodLabel = (v) => (paymentMethods.find(m => m.value === v) || {}).label || v;
+  const fv = formValues || {};
 %>
 
-<% if (order.status === 'paid' && order.refund_detected_at) { %>
-  <div class="error-box" role="alert" id="refund-detected">
-    <strong>HelloAsso shows this payment as refunded or canceled</strong> (found <%= formatDateTime(order.refund_detected_at) %>), but this order is still Paid, so its books are still marked sold.
-    Check the payment in the HelloAsso dashboard, then press &ldquo;Mark refunded&rdquo; below to put the books back on sale.
-  </div>
-<% } %>
 <% if (order.status === 'paid' && !order.collected_at && hasBooks && days !== null && days >= overdueDays) { %>
-  <div class="notice-box" role="status">Paid <%= days %> days ago and not collected. The terms of sale ask customers to collect within <%= overdueDays %> days of payment; see the runbook, &ldquo;An order was not collected after 14 days&rdquo;.</div>
+  <div class="notice-box" role="status">Paid online <%= days %> days ago and not collected (an order from before reservations replaced online payment).</div>
+<% } %>
+<% if (order.status === 'reserved' && order.reserved_until && new Date(order.reserved_until) < new Date()) { %>
+  <div class="error-box" role="alert">This reservation is past its deadline and will be released automatically. If the customer is here now, you can still collect it.</div>
 <% } %>
 
 <div class="card">
   <div class="order-row">
-    <span class="status-pill <%= order.status %>"><%= cap(order.status) %></span>
+    <span class="status-pill <%= order.status %>"><%= statusText %></span>
     <% if (order.status === 'paid' && order.collected_at) { %><span class="status-pill completed">Collected</span><% } %>
     <strong>&euro;<%= Number(order.total_amount).toFixed(2) %></strong>
+    <% if (order.reserved_total != null) { %><span class="muted small">(reserved for &euro;<%= Number(order.reserved_total).toFixed(2) %>)</span><% } %>
   </div>
+  <% if (order.status === 'reserved') { %>
+    <p class="small" id="reservation-deadline">
+      <% if (hasBooks && lastDay) { %>Books held until the end of <strong><%= formatDate(lastDay) %></strong>.<% } else { %>Seat held until its session is over.<% } %>
+      <%= order.reservation_extended_at ? 'Extended once on ' + formatDate(order.reservation_extended_at) + '.' : '' %>
+    </p>
+  <% } %>
   <%- include('../partials/admin_resend_confirmation', { o: order }) %>
   <h2 class="section-title">Items</h2>
   <ul class="plain">
@@ -34,17 +42,22 @@
       <li>
         <%= i.item_title %> <span class="muted small">&middot; &euro;<%= Number(i.price).toFixed(2) %></span>
         <% if (i.book_copy_id != null) { %>
-          <span class="muted small">&middot; copy #<%= i.book_copy_id %> is now <%= i.copy_status || 'missing' %><% if (i.book_id) { %> (<a href="/admin/inventory/<%= i.book_id %>">open book</a>)<% } %></span>
+          <span class="muted small">&middot; copy #<%= i.book_copy_id %> is now <%= i.copy_status || 'missing' %><%= i.copy_location ? ', shelf ' + i.copy_location : '' %><% if (i.book_id) { %> (<a href="/admin/inventory/<%= i.book_id %>">open book</a>)<% } %></span>
         <% } else { %>
           <span class="muted small">&middot; drop-in seat is now <%= i.seat_status || 'missing' %></span>
         <% } %>
+        <% if (order.status === 'reserved' && !i.active) { %><span class="muted small">&middot; no longer held for this order (it will be dropped when you collect)</span><% } %>
       </li>
     <% }) %>
   </ul>
+  <% if (related && related.length) { %>
+    <p class="muted small">Related reservation<%= related.length === 1 ? '' : 's' %> (after a partial pickup):
+      <% related.forEach((r, n) => { %><%= n ? ', ' : '' %><a href="/admin/orders/<%= r.id %>">#<%= r.id %> (<%= r.status %>)</a><% }) %></p>
+  <% } %>
 </div>
 
 <div class="card">
-  <h2 class="section-title">Buyer</h2>
+  <h2 class="section-title">Customer</h2>
   <p>
     <%= order.buyer_name %> &middot; <%= order.buyer_email %><%= order.buyer_phone ? ' · ' + order.buyer_phone : '' %><br>
     <% if (order.user_id) { %>
@@ -56,51 +69,109 @@
 </div>
 
 <div class="card">
-  <h2 class="section-title">Payment (HelloAsso)</h2>
-  <p class="small">
-    Checkout intent: <code><%= order.checkout_intent_id || 'none recorded' %></code><br>
-    HelloAsso order: <code><%= order.helloasso_order_id || 'none recorded' %></code>
-  </p>
-  <p class="muted small">To find this payment, sign in to the <a href="https://admin.helloasso.com" target="_blank" rel="noopener noreferrer">HelloAsso dashboard</a> and search for the buyer&rsquo;s email or the amount on the payment date. Refunds are always done there; this site cannot move money.</p>
+  <h2 class="section-title">Payment</h2>
+  <% if (order.payment_method) { %>
+    <p class="small">Paid in the shop on <%= formatDateTime(order.paid_at) %> by <strong><%= methodLabel(order.payment_method) %></strong>: &euro;<%= Number(order.amount_received).toFixed(2) %> received.<%= order.payment_note ? ' Note: ' + order.payment_note : '' %></p>
+  <% } else if (order.status === 'reserved') { %>
+    <p class="small">Nothing was paid online. The customer pays in the shop (or at the session) when collecting.</p>
+  <% } else if (order.checkout_intent_id || order.helloasso_order_id) { %>
+    <p class="small">An order from the old online checkout (before reservations): paid online, payment reference <code><%= order.helloasso_order_id || order.checkout_intent_id %></code>.</p>
+  <% } else { %>
+    <p class="small">No payment was taken.</p>
+  <% } %>
 </div>
 
 <div class="card">
   <h2 class="section-title">Terms and history</h2>
   <p class="small">
     Terms of sale accepted: <%= order.cgv_accepted_at ? formatDateTime(order.cgv_accepted_at) + ' (version ' + order.cgv_version + ')' : 'not recorded (order placed before this was kept)' %><br>
-    Drop-in withdrawal waiver ticked: <%= order.withdrawal_waiver_at ? formatDateTime(order.withdrawal_waiver_at) : 'no drop-in seat in this order' %><br>
     Language: <%= order.lang === 'fr' ? 'French' : 'English' %>
   </p>
   <ul class="plain" id="order-history">
-    <li><%= formatDateTime(order.created_at) %> &mdash; order created (unpaid)</li>
+    <li><%= formatDateTime(order.created_at) %> &mdash; <%= order.status === 'pending' ? 'order created (unpaid, old online checkout)' : 'reserved' %></li>
     <% if (order.paid_at) { %><li><%= formatDateTime(order.paid_at) %> &mdash; paid</li><% } %>
-    <% if (order.refund_detected_at) { %><li><%= formatDateTime(order.refund_detected_at) %> &mdash; refund detected in HelloAsso</li><% } %>
     <% if (order.collected_at) { %><li><%= formatDateTime(order.collected_at) %> &mdash; collected<%= order.collected_by_email ? ' (marked by ' + order.collected_by_email + ')' : '' %></li><% } %>
     <% if (order.refunded_at) { %><li><%= formatDateTime(order.refunded_at) %> &mdash; marked refunded. Note: <%= order.refund_note %></li><% } %>
-    <% if (order.status === 'expired' || order.status === 'cancelled') { %><li>Ended as <%= order.status %> without payment</li><% } %>
+    <% if (order.released_at) { %><li><%= formatDateTime(order.released_at) %> &mdash; ended as <%= order.status %> (<%= (order.release_reason || '').replace('_', '-') %>) without payment</li><% } else if (order.status === 'expired' || order.status === 'cancelled') { %><li>Ended as <%= order.status %> without payment</li><% } %>
     <% history.forEach(h => { %><li class="muted small"><%= formatDateTime(h.at) %> &mdash; admin log: <%= h.action %><%= h.actor_label ? ' by ' + h.actor_label : '' %><%= h.detail ? ' (' + h.detail + ')' : '' %></li><% }) %>
   </ul>
 </div>
 
 <div class="card">
   <h2 class="section-title">Actions</h2>
-  <% if (order.status === 'paid') { %>
+  <% if (order.status === 'reserved') { %>
+    <% if (activeItems.length) { %>
+      <form class="stack" method="post" action="/admin/orders/<%= order.id %>/collect" id="collect-form" style="margin-bottom:18px;">
+        <%- include('../partials/csrf_field') %>
+        <strong>Mark collected and paid</strong>
+        <span class="muted small">Press this when the customer has taken everything that is still held and paid in the shop.</span>
+        <label for="method">How did they pay?</label>
+        <select id="method" name="method" required>
+          <option value="">Choose&hellip;</option>
+          <% paymentMethods.forEach(m => { %><option value="<%= m.value %>" <%= fv.method === m.value ? 'selected' : '' %>><%= m.label %></option><% }) %>
+        </select>
+        <label for="amountReceived">Amount received (&euro;)</label>
+        <input id="amountReceived" name="amountReceived" type="number" step="0.01" min="0" max="<%= activeItems.reduce((n, i) => n + Number(i.price), 0).toFixed(2) %>" value="<%= fv.amountReceived || activeItems.reduce((n, i) => n + Number(i.price), 0).toFixed(2) %>" required>
+        <p class="muted small" style="margin:0;">It can only be lowered (a discount given at the till); then a note is required.</p>
+        <label for="note">Note (required only if less than the total)</label>
+        <input id="note" name="note" type="text" maxlength="<%= 500 %>" value="<%= fv.note || '' %>">
+        <button class="btn" type="submit">Mark collected and paid</button>
+      </form>
+
+      <% if (activeItems.length > 1) { %>
+        <form class="stack" method="post" action="/admin/orders/<%= order.id %>/collect-selected" id="collect-selected-form" style="margin-bottom:18px;">
+          <%- include('../partials/csrf_field') %>
+          <strong>Collect selected items</strong>
+          <span class="muted small">The customer takes only some of the items: tick them. They are sold and paid; the others stay reserved on a new reservation with the same deadline.</span>
+          <% activeItems.forEach(i => { %>
+            <label class="ann-check"><input type="checkbox" name="itemIds" value="<%= i.id %>"> <span><%= i.item_title %> &middot; &euro;<%= Number(i.price).toFixed(2) %></span></label>
+          <% }) %>
+          <label for="method-sel">How did they pay?</label>
+          <select id="method-sel" name="method" required>
+            <option value="">Choose&hellip;</option>
+            <% paymentMethods.forEach(m => { %><option value="<%= m.value %>"><%= m.label %></option><% }) %>
+          </select>
+          <button class="btn btn-outline" type="submit">Collect selected items</button>
+        </form>
+      <% } %>
+    <% } else { %>
+      <p class="muted">Nothing is held for this order any more (its items were sold or released). You can cancel it.</p>
+    <% } %>
+
+    <div style="display:flex; flex-wrap:wrap; gap:12px;">
+      <% if (hasBooks && !order.reservation_extended_at) { %>
+        <form method="post" action="/admin/orders/<%= order.id %>/extend">
+          <%- include('../partials/csrf_field') %>
+          <button class="btn btn-outline" type="submit">Extend by <%= extensionDays %> days</button>
+          <span class="muted small">Once only.</span>
+        </form>
+      <% } %>
+      <form method="post" action="/admin/orders/<%= order.id %>/cancel-reservation" data-confirm="Cancel this reservation? Its books go back on the shelf and its seats are freed.">
+        <%- include('../partials/csrf_field') %>
+        <button class="btn btn-outline" type="submit">Cancel reservation</button>
+      </form>
+      <form method="post" action="/admin/orders/<%= order.id %>/no-show" data-confirm="Mark this reservation as a no-show? Its books go back on the shelf and its seats are freed.">
+        <%- include('../partials/csrf_field') %>
+        <button class="btn btn-outline" type="submit">Mark no-show / expired</button>
+      </form>
+    </div>
+  <% } else if (order.status === 'paid') { %>
     <% if (hasBooks && !order.collected_at) { %>
       <form method="post" action="/admin/orders/<%= order.id %>/collected" style="margin-bottom:12px;">
         <%- include('../partials/csrf_field') %>
         <button class="btn" type="submit">Mark collected</button>
-        <span class="muted small">Press this when the customer has taken the books.</span>
+        <span class="muted small">For an order paid online before reservations: press this when the customer has taken the books.</span>
       </form>
     <% } %>
     <p>
-      <a class="btn btn-outline" href="/admin/orders/<%= order.id %>/refund">Mark refunded (done in HelloAsso)</a><br>
-      <span class="muted small">Only AFTER you refunded the payment in the HelloAsso dashboard. You will be asked to confirm.</span>
+      <a class="btn btn-outline" href="/admin/orders/<%= order.id %>/refund">Mark refunded</a><br>
+      <span class="muted small">Only AFTER you gave the money back to the customer (cash, cheque or card). You will be asked to confirm.</span>
     </p>
   <% } else if (order.status === 'pending') { %>
     <form method="post" action="/admin/orders/<%= order.id %>/cancel" data-confirm="Cancel this unpaid order? Its books and seats become available again.">
       <%- include('../partials/csrf_field') %>
       <button class="btn btn-outline" type="submit">Cancel unpaid order</button>
-      <span class="muted small">HelloAsso is asked first: an order that was paid in the meantime is not cancelled.</span>
+      <span class="muted small">An unpaid order from the old online checkout; it can no longer be paid.</span>
     </form>
   <% } else if (order.status === 'refunded') { %>
     <p class="muted">Refunded: nothing more to do.</p>

@@ -12,7 +12,7 @@ const { parseMoney } = require("./validation");
 const inv = require("./inventory");
 const colors = require("./priceColors");
 const { parseTillScan } = require("./tillScan");
-const { loadReservation } = require("./tillReservations");
+const { loadReservation, reservationOfCopy, lockReservedLines, collectReserved } = require("./tillReservations");
 
 const TZ = SITE_TIME_ZONE;
 const MAX_LINES = 60;
@@ -61,7 +61,7 @@ function cashChange(totalCents, receivedCents) {
 
 const STATUS_REASON = {
   sold: "it is already sold",
-  reserved: "it is reserved for a customer",
+  reserved: "it is reserved for a customer (scan the reservation, ORDER-<number>, to collect it)",
   in_cart: "it is in someone's online cart",
   damaged: "it was withdrawn (damaged)",
   donated: "it was donated",
@@ -137,14 +137,16 @@ async function lookupScan(db, code, have = []) {
     }
   }
   if (scan.type === "unknown") return { type: "error", message: `Code not recognised: ${String(code).trim().slice(0, 40)}. Scan a copy label (UB-…) or a book barcode.` };
-  if (scan.type === "order") {
-    const r = await loadReservation(db, scan.orderId);
-    return { type: "error", message: r.error };
-  }
+  if (scan.type === "order") return reservationResult(db, scan.orderId);
   if (scan.type === "copy") {
     const { rows } = await db.query(`SELECT ${COPY_COLUMNS} FROM book_copies c JOIN books b ON b.id = c.book_id WHERE c.id = $1`, [scan.copyId]);
     if (!rows.length) return { type: "error", message: `Unknown label: UB-${scan.copyId}. No such copy.` };
     const r = rows[0];
+    // A book that an online reservation holds: the label opens that reservation.
+    if (r.status === "reserved") {
+      const orderId = await reservationOfCopy(db, r.id);
+      if (orderId) return reservationResult(db, orderId);
+    }
     if (onSale.has(r.id)) return { type: "error", message: `"${r.title}" is already on this sale.` };
     if (r.status !== "in_stock") return { type: "error", message: refusal(r.title, r.status) };
     return { type: "line", line: copyLine(r) };
@@ -165,6 +167,22 @@ async function lookupScan(db, code, have = []) {
   if (!free.length) return { type: "error", message: `"${stock[0].title}" is already on this sale (no other copy in stock).` };
   if (free.length === 1) return { type: "line", line: copyLine(free[0]) };
   return { type: "choose", copies: free.slice(0, 30).map(copyLine) };
+}
+
+// A reservation's lines for the till: books at the reserved price (nothing to
+// override), seats as plain lines. { type: "reservation", order, lines } or an error.
+async function reservationResult(db, orderId) {
+  const r = await loadReservation(db, orderId);
+  if (r.error) return { type: "error", message: r.error };
+  const lines = r.items.map((i) => {
+    const priceCents = toCents(i.price);
+    if (i.book_copy_id != null) {
+      const base = copyLine({ id: i.book_copy_id, condition: i.condition, price: i.price, publisher_price: i.publisher_price, location: i.location, is_clearance: i.is_clearance, title: i.title, authors: i.authors, isbn: i.isbn });
+      return { ...base, priceCents, reserved: true, orderId: r.order.id, itemId: i.item_id };
+    }
+    return { kind: "seat", description: i.item_title, title: i.item_title, quantity: 1, priceCents, reserved: true, orderId: r.order.id, itemId: i.item_id };
+  });
+  return { type: "reservation", order: r.order, lines };
 }
 
 // ---------- building lines ----------
@@ -194,9 +212,15 @@ async function buildLines(db, rawItems) {
     } else if (it.kind === "quick") {
       if (!/^\d{1,9}$/.test(String(it.id))) throw new TillError("A quick item could not be found.");
       quickIds.push(Number(it.id));
-    } else if (it.kind !== "manual") throw new TillError("A line could not be read.");
+    } else if (it.kind !== "manual" && it.kind !== "reserved") throw new TillError("A line could not be read.");
   }
   if (new Set(copyIds).size !== copyIds.length) throw new TillError("The same copy is on the sale twice.");
+
+  // Reserved lines first: their ORDERS are locked before any copy (the order every
+  // order action uses), and each must still be held for its order.
+  const reservedRows = await lockReservedLines(db, rawItems.filter((it) => it.kind === "reserved"), TillError);
+  const reservedCopyIds = [...reservedRows.values()].filter((r) => r.book_copy_id != null).map((r) => r.book_copy_id);
+  if (reservedCopyIds.some((id) => copyIds.includes(id))) throw new TillError("The same copy is on the sale twice.");
 
   const copies = new Map();
   if (copyIds.length) {
@@ -216,7 +240,15 @@ async function buildLines(db, rawItems) {
   const lines = [];
   const quickQty = new Map();
   for (const it of rawItems) {
-    if (it.kind === "book") {
+    if (it.kind === "reserved") {
+      const row = reservedRows.get(it);
+      const isBook = row.book_copy_id != null;
+      lines.push({
+        kind: "reserved", orderId: Number(it.orderId), itemId: Number(it.itemId), copyId: isBook ? row.book_copy_id : null,
+        description: row.item_title, quantity: 1, unitCents: toCents(row.price),
+        category: isBook ? (row.condition === "new" ? "books_new" : "books_used") : "other",
+      });
+    } else if (it.kind === "book") {
       const copy = copies.get(Number(it.copyId));
       if (!copy) throw new TillError("A copy could not be found.");
       if (copy.status !== "in_stock") throw new TillError(refusal(copy.title, copy.status), 409);
@@ -315,7 +347,7 @@ async function completeSale(pool, { token, method, items, received, cardReferenc
       // The same sale again (double click, retry): answer with the first one.
       const { rows } = await client.query("SELECT id, total_cents, change_given_cents FROM till_sales WHERE sale_token = $1", [token]);
       await client.query("ROLLBACK");
-      return { saleId: rows[0].id, totalCents: rows[0].total_cents, changeCents: rows[0].change_given_cents, duplicate: true, overrides: [], adjusted: false };
+      return { saleId: rows[0].id, totalCents: rows[0].total_cents, changeCents: rows[0].change_given_cents, duplicate: true, overrides: [], adjusted: false, collected: [] };
     }
     const saleId = ins.rows[0].id;
     await assignReceiptNumber(client, saleId); // gapless per Paris year (migration 070)
@@ -347,10 +379,16 @@ async function completeSale(pool, { token, method, items, received, cardReferenc
     const overrides = [];
     for (const l of lines) {
       await client.query(
-        `INSERT INTO till_sale_items (sale_id, kind, copy_id, quick_item_id, description, quantity, unit_price_cents, category, original_price_cents, override_reason)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-        [saleId, l.kind, l.copyId || null, l.quickId || null, l.description, l.quantity, l.unitCents, l.category, l.originalCents ?? null, l.reason ?? null]
+        `INSERT INTO till_sale_items (sale_id, kind, copy_id, quick_item_id, description, quantity, unit_price_cents, category, original_price_cents, override_reason, reservation_order_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+        [saleId, l.kind === "reserved" ? (l.copyId ? "book" : "manual") : l.kind, l.copyId || null, l.quickId || null, l.description, l.quantity, l.unitCents, l.category,
+          l.originalCents ?? null, l.reason ?? null, l.kind === "reserved" ? l.orderId : null]
       );
+      if (l.kind === "reserved") {
+        // Books and seats are sold by the order's own collection below (no shop_sales row:
+        // the Sales report counts the order once, at paid_at).
+        continue;
+      }
       if (l.kind === "book") {
         await client.query(
           "INSERT INTO shop_sales (copy_id, price, sold_at, sold_by, payment_method, till_sale_id) VALUES ($1, $2, COALESCE($3, now()), $4, $5, $6)",
@@ -367,8 +405,10 @@ async function completeSale(pool, { token, method, items, received, cardReferenc
         await client.query("UPDATE till_quick_items SET stock = stock - $2 WHERE id = $1 AND stock IS NOT NULL", [l.quickId, l.quantity]);
       }
     }
+    // Pay the reservations: the same function as the admin's "Mark collected and paid".
+    const collected = await collectReserved(client, lines.filter((l) => l.kind === "reserved"), { method, userId }, TillError);
     await client.query("COMMIT");
-    return { saleId, totalCents, changeCents, duplicate: false, overrides, adjusted };
+    return { saleId, totalCents, changeCents, duplicate: false, overrides, adjusted, collected };
   } catch (err) {
     await client.query("ROLLBACK").catch(() => {});
     throw err;
@@ -397,6 +437,10 @@ async function voidSale(pool, { saleId, reason, userId }) {
     const { rows: closed } = await client.query("SELECT 1 FROM till_days WHERE day = $1 AND closed_at IS NOT NULL", [sale.day]);
     if (closed.length) throw new TillError("The day is closed: sales can no longer be voided.", 409);
     const { rows: items } = await client.query("SELECT * FROM till_sale_items WHERE sale_id = $1 ORDER BY id", [saleId]);
+    const reservation = items.find((i) => i.reservation_order_id);
+    if (reservation) {
+      throw new TillError(`This sale collected reservation #${reservation.reservation_order_id}: it cannot be voided here. Open that order and use "Mark refunded" after giving the money back.`, 409);
+    }
     const copyIds = items.filter((i) => i.copy_id).map((i) => i.copy_id);
     if (copyIds.length) {
       await client.query("SELECT id FROM book_copies WHERE id = ANY($1) ORDER BY id FOR UPDATE", [copyIds]);

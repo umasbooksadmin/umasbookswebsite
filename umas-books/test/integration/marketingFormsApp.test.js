@@ -33,7 +33,7 @@ async function post(path, jar, fields, headers = {}) {
 }
 
 const PREREG = {
-  childFirst: "Léa", childLast: "Martin", dob: "2018-04-12", session: "young-adventurers",
+  who: "child", childFirst: "Léa", childLast: "Martin", birthYear: String(new Date().getFullYear() - 8), guardian: "1", session: "young-adventurers",
   days: ["tue", "sat"], times: ["morning", "evening"],
   parent: "Claire Martin", email: "claire@example.test", phone: "0612345678", consent: "1",
 };
@@ -72,8 +72,8 @@ test("pre-registration end to end: invalid -> 400 keeping both chosen days; vali
   const bad = await post("/pre-registration", jar, { ...PREREG, _csrf, email: "nope" });
   assert.equal(bad.res.status, 400);
   assert.match(bad.html, /role="alert"/);
-  assert.match(bad.html, /<option value="tue" selected/);
-  assert.match(bad.html, /<option value="sat" selected/, "the repeated days field was not collapsed to its first value");
+  assert.match(bad.html, /<input type="checkbox" name="days" value="tue" checked/);
+  assert.match(bad.html, /<input type="checkbox" name="days" value="sat" checked/, "the repeated days field was not collapsed to its first value");
 
   const ok = await post("/pre-registration", jar, { ...PREREG, _csrf });
   assert.equal(ok.res.status, 302);

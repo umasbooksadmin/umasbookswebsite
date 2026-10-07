@@ -86,6 +86,9 @@ router.post("/admin/till/sale", requireAdmin, saleLimiter, async (req, res) => {
       for (const o of r.overrides) {
         await audit(req, { action: "till.price_override", targetType: "book_copy", targetId: o.copyId, detail: `${money(o.from)} -> ${money(o.to)}${o.reason ? `: ${o.reason}` : ""} (sale ${r.saleId})` });
       }
+      for (const c of r.collected || []) {
+        await audit(req, { action: "order.collected_paid", targetType: "order", targetId: c.orderId, detail: `${req.body.method === "card" ? "card" : "cash"} at the till (sale ${r.saleId}), ${c.items} item(s)${c.partial ? `, rest moved to order #${c.newOrderId}` : ""}` });
+      }
       if (r.adjusted) await audit(req, { action: "till.sale_backdated", targetType: "till_sale", targetId: r.saleId, detail: `sold at ${String(req.body.soldAtTime).slice(0, 5)}` });
     }
     res.set("Cache-Control", "no-store").json({

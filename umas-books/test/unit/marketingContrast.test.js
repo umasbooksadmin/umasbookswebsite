@@ -37,9 +37,9 @@ test("events.css lets the schedule buttons wrap inside a 320px viewport", () => 
   assert.match(src, /@media \(max-width: 400px\)[^}]*\{[^}]*white-space: normal/s);
 });
 
-test("the mobile marketing nav wraps instead of scrolling links off-screen", () => {
+test("the phone nav is a Menu whose open panel stacks the links in a column (nothing scrolls off-screen)", () => {
   const src = fs.readFileSync(path.join(__dirname, "..", "..", "public", "site-header.css"), "utf8");
   const mobile = src.slice(src.indexOf("@media (max-width: 640px)"), src.indexOf("/* ---------- Footer"));
-  assert.match(mobile, /\.h-nav \{[^}]*flex-wrap: wrap/s);
+  assert.match(mobile, /\.h-menu-links \{[^}]*flex-direction: column/s);
   assert.doesNotMatch(mobile, /overflow-x:\s*auto/);
 });

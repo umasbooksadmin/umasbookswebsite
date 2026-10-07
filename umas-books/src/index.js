@@ -7,7 +7,6 @@ const path = require("path");
 const express = require("express");
 const compression = require("compression");
 const helmet = require("helmet");
-const { helloassoPaymentOrigins } = require("./lib/helloassoHosts");
 const multer = require("multer");
 const session = require("express-session");
 const pgSession = require("connect-pg-simple")(session);
@@ -60,7 +59,7 @@ const helloassoWebhookRoutes = require("./routes/helloassoWebhook");
 const adminRoutes = require("./routes/admin");
 
 const { latestArrivals } = require("./lib/latestArrivals");
-const { assetUrl, versionedHeaders } = require("./lib/assetUrl");
+const { assetUrl, staticHeaders, STATIC_SECURITY_HEADERS } = require("./lib/assetUrl");
 
 const app = express();
 const isProd = process.env.NODE_ENV === "production";
@@ -89,17 +88,19 @@ app.use(compression());
 // query (assetUrl helper) so an edit is picked up at once. A URL carrying ?v=<content hash> (see lib/assetUrl.js, used by the page
 // templates) is immutable: one year. Without it, 7 days.
 const STATIC_MAX_AGE = "7d";
-app.use(express.static(path.join(__dirname, "..", "public"), { maxAge: STATIC_MAX_AGE, setHeaders: versionedHeaders }));
+// These mounts come before helmet (no session, no cost per request), so they set
+// the security headers helmet would have set themselves (staticHeaders).
+app.use(express.static(path.join(__dirname, "..", "public"), { maxAge: STATIC_MAX_AGE, setHeaders: staticHeaders }));
 
 // Marketing-site static assets live at the repo root, not under public/.
 // Mounted here — before the session store and attachUser — so image/CSS/JS
 // requests never cost a session read or a per-request user lookup.
 const marketingRoot = path.join(__dirname, "..", "..");
-app.use("/assets", express.static(path.join(marketingRoot, "assets"), { maxAge: STATIC_MAX_AGE, setHeaders: versionedHeaders }));
+app.use("/assets", express.static(path.join(marketingRoot, "assets"), { maxAge: STATIC_MAX_AGE, setHeaders: staticHeaders }));
 // Uploaded images (covers, blog/announcement/charity photos): content-addressed,
 // immutable, served from the DB with no session. See routes/img.js.
 app.use(require("./routes/img"));
-app.get("/logo.png", (req, res) => res.sendFile("logo.png", { root: marketingRoot, maxAge: STATIC_MAX_AGE }));
+app.get("/logo.png", (req, res) => res.sendFile("logo.png", { root: marketingRoot, maxAge: STATIC_MAX_AGE, headers: STATIC_SECURITY_HEADERS }));
 
 // For the external uptime check (see .github/workflows/uptime-check.yml)
 // to actually catch what happened on 2026-09-26 — the process was up
@@ -122,9 +123,11 @@ app.locals.assetUrl = assetUrl;
 app.locals.code128 = require("./lib/code128"); // label barcodes sized in printer dots (views/admin/inventory/label_sheet.ejs)
 app.locals.mondayFirstWeeks = require("./lib/calendar").mondayFirstWeeks;
 
-// form-action also governs the redirect after a form POST in Chromium, so the
-// checkout's 302 to the HelloAsso payment page needs those origins listed.
-const formActionSources = ["'self'", ...helloassoPaymentOrigins()];
+// form-action also governs the redirect after a form POST in Chromium. Nothing
+// posts a form to, or redirects after a form POST to, another site: books and
+// seats are reserved here and paid in the shop, and the membership payment form
+// is a HelloAsso iframe/link (frame-src, marketing pages), not a form we post.
+const formActionSources = ["'self'"];
 
 app.use(
   helmet({
@@ -156,7 +159,7 @@ app.use(express.urlencoded({ extended: false }));
 // already defend themselves with [].concat(...), so they're left alone;
 // everything else collapses to its first value, the same as a normal
 // single-submission form would send.
-const MULTI_VALUE_BODY_FIELDS = new Set(["optionIds", "ids", "days", "times"]); // days/times: the pre-registration form
+const MULTI_VALUE_BODY_FIELDS = new Set(["optionIds", "ids", "days", "times", "itemIds"]); // days/times: the pre-registration form
 app.use((req, res, next) => {
   if (req.body && typeof req.body === "object") {
     for (const key of Object.keys(req.body)) {
@@ -454,12 +457,13 @@ const runReservationMaintenance = guardJob("Reservation maintenance", async () =
 runReservationMaintenance();
 const reservationTimer = setInterval(runReservationMaintenance, 6 * 60 * 60 * 1000);
 
-// Follow-up for PAID online orders (lib/orderSweeps.js): ask HelloAsso whether
-// a recent payment was refunded there (one admin alert, nothing restocked
-// automatically), the day-10 customer pickup reminder and the day-12 admin
-// digest. Every 6 hours. Not run at boot: a restart-heavy host would repeat
-// the HelloAsso lookups on every restart, so the first run comes 5 minutes
-// after boot (unref'd: it never keeps the process alive) and then every 6 h.
+// Follow-up for RESERVATIONS (lib/orderSweeps.js): releases reservations past
+// their deadline and seats whose session is over, the day-10 customer reminder,
+// the 24-hour drop-in seat reminder, the "your reservation has ended" email and
+// the admin digest of reservations expiring within 2 days. Every 6 hours. Not run
+// at boot: a restart-heavy host would repeat it on every restart, so the first run
+// comes 5 minutes after boot (unref'd: it never keeps the process alive) and then
+// every 6 h. (Releases also happen whenever a page reads copy status.)
 const runOrderFollowUpJob = guardJob("Order follow-up", async () => {
   const results = await runOrderFollowUps(pool);
   console.log("Order follow-up:", JSON.stringify(results));
@@ -468,22 +472,10 @@ const orderFollowUpFirstRun = setTimeout(runOrderFollowUpJob, 5 * 60 * 1000);
 orderFollowUpFirstRun.unref();
 const orderFollowUpTimer = setInterval(runOrderFollowUpJob, 6 * 60 * 60 * 1000);
 
-// Same idea for the online-checkout cart, but on a much shorter interval
-// than the reservation job above: a cart hold is only good for an hour
-// (see CART_HOLD_TTL_MINUTES in lib/cart.js) and a buyer who closes the
-// tab mid-payment is relying on this to notice their order never got
-// reconciled by the webhook or the /cart/return page.
-//
-// Every 6th tick (hourly, starting with the one at boot) the sweep also
-// re-checks orders expired/cancelled in the last 7 days for a payment that
-// landed after the hold lapsed — see "LATE PAYMENTS" in lib/cart.js.
-let cartMaintenanceTick = 0;
-// Sweeps run sequentially (expiry, then reconcile) and a slow run is not
-// overlapped by the next tick - see runCartMaintenance in lib/cart.js.
-const runCartMaintenance = guardJob("Cart maintenance", () => {
-  const includeClosed = cartMaintenanceTick++ % 6 === 0;
-  return sweepCart(pool, { includeClosed });
-});
+// Leftovers of the old online checkout (an unpaid order holding books 'in_cart'):
+// released after an hour, so nothing stays stuck (lib/cart.js). Nothing creates
+// such holds any more, and no payment provider is asked.
+const runCartMaintenance = guardJob("Cart maintenance", () => sweepCart(pool));
 runCartMaintenance();
 const cartTimer = setInterval(runCartMaintenance, 10 * 60 * 1000);
 

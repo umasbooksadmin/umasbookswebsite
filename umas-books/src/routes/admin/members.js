@@ -220,7 +220,7 @@ router.post("/admin/members", requireAdmin, async (req, res) => {
     [email, placeholderHash, displayName, isAdmin, isMember, isVolunteer]
   );
   try {
-    await sendResetLink(rows[0], baseUrl(req));
+    await sendResetLink(rows[0], baseUrl(req), { throttle: "off" });
   } catch (err) {
     console.error("Add Member invite email failed:", err.message);
   }
@@ -343,7 +343,7 @@ router.post("/admin/members/:id/edit", requireAdmin, async (req, res) => {
       await pool.query("UPDATE password_reset_tokens SET used_at = now() WHERE user_id = $1 AND used_at IS NULL", [id]);
       await pool.query("UPDATE email_verification_tokens SET used_at = now() WHERE user_id = $1 AND used_at IS NULL", [id]);
       try {
-        await sendVerificationEmail({ id, email, display_name: displayName }, baseUrl(req));
+        await sendVerificationEmail({ id, email, display_name: displayName }, baseUrl(req), { throttle: "off" });
       } catch (err) {
         console.error("Verification email after admin email change failed:", err.message);
       }

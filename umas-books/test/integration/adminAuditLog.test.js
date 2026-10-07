@@ -157,6 +157,10 @@ test("purge deletes audit rows older than 12 months and keeps newer ones", async
   );
   const counts = await privacy.purgeExpiredPersonalData(pool);
   assert.notEqual(counts.auditLog, "error");
-  const { rows } = await pool.query("SELECT action FROM admin_audit_log WHERE detail = $1", [marker]);
-  assert.deepEqual(rows.map((r) => r.action), ["test.recent"]);
+  // The 11-month row survives, but its free-text detail is blanked after 6 months
+  // (RETENTION.auditDetailMonths): so it is found by action, not by the marker.
+  const { rows } = await pool.query("SELECT action, detail FROM admin_audit_log WHERE action IN ('test.old', 'test.recent') AND (detail = $1 OR detail IS NULL) ORDER BY at", [marker]);
+  assert.ok(!rows.some((r) => r.action === "test.old"), "the 13-month row is deleted");
+  const recent = rows.filter((r) => r.action === "test.recent");
+  assert.ok(recent.length >= 1 && recent.every((r) => r.detail === null), "the 11-month row stays, without its free text");
 });

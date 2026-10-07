@@ -1,6 +1,8 @@
 // Script 1 of docs/testing/manual-test-scripts.md: the guest (anyone not logged in).
-// A guest browses, fills a cart and can use the forms, but cannot buy: checkout
-// asks them to log in or create an account first (G50, G51).
+// A guest browses, fills a cart and can use the forms, but cannot reserve:
+// "Reserve (free, no commitment)" asks them to log in or create an account first (G50,
+// G51). Books and drop-in seats are reserved online and paid in the shop; only
+// the membership is paid online.
 // Every test is named with its manual step id. Read-only except the contact
 // and book-request forms, which send email and so need E2E_ALLOW_WRITES=1.
 
@@ -29,6 +31,12 @@ s.test("G1 (must) home page shows the menu, the header icons and the footer", as
   assert.ok(await ctx.page.$("[data-cart-count]"), "cart count");
   const toggles = await ctx.page.$$eval(".langtoggle [data-lang]", (b) => b.map((x) => x.textContent.trim()));
   assert.deepEqual(toggles, ["EN", "FR"]);
+  // On a normal window the menu links are on screen (not folded into the phone "Menu" button) and the EN/FR buttons are easy to hit.
+  const links = await ctx.page.$$eval("header .h-nav a", (as) => as.map((a) => { const r = a.getBoundingClientRect(); return { t: a.textContent.trim(), shown: r.width > 0 && r.height > 0 }; }));
+  assert.equal(links.length, 4);
+  assert.deepEqual(links.filter((l) => !l.shown), [], "every menu link is visible on a desktop-size window");
+  const sizes = await ctx.page.$$eval(".langtoggle [data-lang]", (b) => b.map((x) => { const r = x.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; }));
+  for (const [w, h] of sizes) assert.ok(w >= 32 && h >= 32, `EN/FR buttons are ${w}x${h}: at least 32x32 with a mouse`);
   const footer = await ctx.page.$eval("footer", (f) => f.innerText);
   for (const label of ["Contact Us", "Albi, France", "Privacy Policy", "Terms of Sale", "Legal Notice"]) has(footer, new RegExp(label, "i"));
 });
@@ -87,14 +95,14 @@ s.test("G6 'Tell us what you think!' opens the contact form set to feedback (pre
   assert.equal(topic, "Feedback on the preview");
 });
 
-s.test("G7 (must) the cart in preview mode explains ordering is off and has no checkout form", async (ctx) => {
+s.test("G7 (must) the cart in preview mode explains reservations are off and has no reserve form", async (ctx) => {
   if (!ctx.preview) ctx.skip("the site is not in preview mode");
   const book = await stockedBook(ctx);
   await addFirstCopyToCart(ctx, book);
   const text = await ctx.text();
-  has(text, /Online ordering opens when we launch/);
+  has(text, /Online reservations open when we launch/);
   has(text, /Total:/);
-  assert.equal(await ctx.page.$("form[action='/cart/checkout']"), null, "no checkout form in preview mode");
+  assert.equal(await ctx.page.$("form[action='/cart/reserve']"), null, "no reserve form in preview mode");
   assert.equal(await ctx.page.$("#email"), null, "no email field");
 });
 
@@ -120,20 +128,20 @@ s.test("G-FR5 FR check of G5, G7, G8: banner, cart notice and membership notice 
   has(await ctx.page.$eval(".preview-banner", (b) => b.innerText), /Aperçu/);
   const book = await stockedBook(ctx);
   await addFirstCopyToCart(ctx, book);
-  has(await ctx.text(), /La commande en ligne ouvrira au lancement/);
+  has(await ctx.text(), /Les réservations en ligne ouvriront au lancement/);
   await ctx.goto("/membership.html");
   await ctx.page.waitForFunction(() => /L.adhésion ouvrira au lancement/i.test(document.body.innerText));
 });
 
-s.test("G10 with preview off the banner is gone and the cart shows the checkout form or the prompt to log in (preview off only)", async (ctx) => {
+s.test("G10 with preview off the banner is gone and the cart shows the prompt to log in or create an account (preview off only)", async (ctx) => {
   if (ctx.preview) ctx.skip("the site is in preview mode");
   await ctx.goto("/");
   assert.equal(await ctx.page.$(".preview-banner"), null);
   const book = await stockedBook(ctx);
   await addFirstCopyToCart(ctx, book);
-  const form = await ctx.page.$("form[action='/cart/checkout']");
-  // A guest sees the checkout form today; once buying needs an account (G50) they see a prompt to log in instead.
-  if (!form) has(await ctx.text(), /Online payment isn.t switched on yet|log in|sign up|create an account/);
+  // A guest cannot reserve (G50): the cart offers to log in or create an account, never a reserve form.
+  assert.equal(await ctx.page.$("form[action='/cart/reserve']"), null, "a guest is not shown the reserve form");
+  has(await ctx.text(), /log in|sign up|create an account/);
 });
 
 // ---- 1C. Books ----
@@ -216,7 +224,7 @@ s.test("G15 (must) a book page shows cover, title, author, binding, price, copie
   // The friendly used-book disclaimer and the price tax line; never a waiver of legal rights.
   has(text, /Price incl\. tax, TVA non applicable/);
   has(text, /Our second-hand books are sold as described, so please read the condition grade, and ask us if you have any question\./);
-  has(text, /Used books: no returns or exchanges for a change of mind in the shop\. For online orders, your statutory 14-day right of withdrawal and the legal guarantees still apply\./);
+  has(text, /Used books are not taken back for a change of mind once bought in the shop; the legal guarantees still apply\./);
   hasNot(text, /waive|renounce/i);
   assert.ok(await ctx.page.$(".book-disclaimer a[href='/terms-of-sale.html']"), "the disclaimer links the terms");
 });
@@ -273,6 +281,22 @@ s.test("G20 hearting a book lists it on the favorites page (kept in this browser
   await ctx.page.waitForFunction((t) => document.body.innerText.includes(t), {}, book.title);
 });
 
+s.test("G80 (must) marketing pages work with no inline scripts: language toggle, books shelves, events schedule, blog", async (ctx) => {
+  const violations = [];
+  ctx.page.on("console", (m) => { if (/Content Security Policy/i.test(m.text())) violations.push(m.text()); });
+  await ctx.goto("/books.html", "networkidle2");
+  await ctx.page.waitForSelector("#bk-results .bk-book, #bk-genre-list .bk-genre", { timeout: 15000 });
+  assert.ok(await ctx.page.$("#bk-genre-list .bk-genre"), "the genre shelves are drawn by the external page script");
+  await ctx.page.click(".langtoggle [data-lang='fr']");
+  await ctx.page.waitForFunction(() => /Parcourir les livres/.test(document.body.innerText), { timeout: 10000 });
+  await ctx.goto("/events.html", "networkidle2");
+  await ctx.page.waitForSelector("#events-schedule .ev-item, #events-schedule .ev-empty", { timeout: 15000 });
+  await ctx.goto("/blog.html", "networkidle2");
+  await ctx.page.waitForSelector("#blog-root .blog-grid, #blog-root .blog-empty", { timeout: 15000 });
+  await ctx.goto("/", "networkidle2");
+  assert.deepEqual(violations, [], "no Content-Security-Policy violation on these pages");
+});
+
 s.test("G21 (must) a copy with no price shows 'Ask in the shop' and no Add to Cart", async (ctx) => {
   const list = await e2e.books();
   // A book whose price is null has only unpriced copies; mixed books are found by scanning pages.
@@ -306,7 +330,7 @@ s.test("G-FR11 FR check (books): search page, book page and grade legend in Fren
   has(legend, /L’état indiqué est la description du livre/);
   has(text, /Prix TTC, TVA non applicable/);
   has(text, /Nos livres d’occasion sont vendus tels que décrits/);
-  has(text, /Livres d’occasion\s:\spas de reprise ni d’échange pour simple changement d’avis en boutique\. Pour les achats en ligne, votre droit légal de rétractation de 14 jours \(art\. L\.221-18\) et les garanties légales de conformité et des vices cachés restent applicables\./);
+  has(text, /Les livres d’occasion ne sont ni repris ni échangés pour simple changement d’avis une fois achetés en boutique/);
   assert.equal(await ctx.page.$eval("html", (h) => h.lang), "fr");
 });
 
@@ -501,9 +525,14 @@ s.test("G39 (must) each legal page opens with full text and the seller identity"
   }
   await ctx.goto("/terms-of-sale.html");
   const tos = await ctx.text();
-  for (const re of [/14 days/i, /withdrawal/i, /mediat/i]) has(tos, re);
+  for (const re of [/14 days/i, /mediat/i]) has(tos, re);
+  hasNot(tos, /Withdrawal form|L\.221-18/);
   has(tos, /Second-hand books: no returns/);
-  has(tos, /This does not affect your legal rights as a consumer, including the right of withdrawal for online orders described below and the legal guarantees\./);
+  has(tos, /This does not affect your legal rights as a consumer, including the legal guarantees\./);
+  has(tos, /Reserving is free and commits you to nothing/);
+  has(tos, /Nothing is paid online, and reserving does not oblige you to buy\./);
+  has(tos, /Only membership is: it is paid online through HelloAsso/);
+  hasNot(tos, /obligation to pay|pay online by card|one hour/i);
   has(tos, /Tuesday to Saturday, 10:00–19:00/);
   hasNot(tos, /waive|renounce/i);
   await ctx.goto("/mentions-legales.html");
@@ -582,6 +611,60 @@ s.test("G41b (must) a French guest with an English browser and empty localStorag
   await ctx.page.click(".langtoggle [data-lang='fr']");
   await ctx.page.waitForFunction(() => document.documentElement.lang === "fr");
   has(await ctx.text(), /Votre panier/);
+});
+
+const GUEST_PHONE = { width: 375, height: 812, deviceScaleFactor: 2, isMobile: true, hasTouch: true };
+
+s.test("G41c (must) on a phone the header is compact: logo and icons on one row, a Menu button for the links (Esc and an outside tap close it), EN/FR easy to tap", { viewport: GUEST_PHONE }, async (ctx) => {
+  await ctx.goto("/", "networkidle2");
+  const m = await ctx.page.evaluate(() => {
+    const box = (sel) => { const e = document.querySelector(sel); const r = e.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, w: r.width, h: r.height }; };
+    const logo = box(".h-logo"), cart = box("a.h-tool[href='/cart']");
+    return { header: box("header.mkt-header"), logoTop: logo.top, cartTop: cart.top, cartW: cart.w, cartH: cart.h, banner: document.querySelector(".preview-banner") ? box(".preview-banner").h : 0,
+      toggles: [...document.querySelectorAll(".langtoggle [data-lang]")].map((b) => { const r = b.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; }),
+      linksShownBeforeOpen: [...document.querySelectorAll("header .h-menu-links a")].filter((a) => a.checkVisibility({ contentVisibilityAuto: true, visibilityProperty: true })).length };
+  });
+  assert.ok(m.header.h < 140, `the header is ${Math.round(m.header.h)} px tall (it was 253): under 140 px`);
+  assert.ok(Math.abs(m.logoTop - m.cartTop) < 40, "the logo and the icons are on the same row");
+  assert.ok(m.cartW >= 36 && m.cartH >= 44, `cart button ${m.cartW}x${m.cartH}`);
+  for (const [w, h] of m.toggles) assert.ok(w >= 44 && h >= 44, `EN/FR buttons are ${w}x${h}: 44x44 on a touch screen`);
+  assert.equal(m.linksShownBeforeOpen, 0, "the links are folded into the Menu button");
+  if (ctx.preview) assert.ok(m.banner < 50, `the preview banner is ${Math.round(m.banner)} px: one line`);
+  // aria-expanded follows the <details> "toggle" event, which the browser fires a moment after the tap.
+  const expanded = (want) => ctx.page.waitForFunction((w) => document.querySelector("summary.h-menu-btn").getAttribute("aria-expanded") === w, { timeout: 3000 }, want).then(() => want, () => ctx.page.$eval("summary.h-menu-btn", (b) => b.getAttribute("aria-expanded")));
+  assert.equal(await expanded("false"), "false");
+  await ctx.page.tap("summary.h-menu-btn");
+  assert.equal(await expanded("true"), "true");
+  assert.equal(await ctx.page.$$eval("header .h-menu-links a", (as) => as.filter((a) => a.checkVisibility() && a.getBoundingClientRect().height >= 44).length), 4, "four links, each at least 44 px tall");
+  await ctx.page.keyboard.press("Escape");
+  assert.equal(await expanded("false"), "false", "Esc closes the menu");
+  assert.equal(await ctx.page.evaluate(() => document.activeElement.className), "h-menu-btn", "focus is back on the Menu button");
+  await ctx.page.tap("summary.h-menu-btn");
+  await ctx.page.mouse.click(300, 700);
+  assert.equal(await expanded("false"), "false", "a tap outside closes the menu");
+  await ctx.page.tap("summary.h-menu-btn");
+  assert.equal(await expanded("true"), "true");
+  const books = await ctx.page.$("header .h-menu-links a[href='/books.html'], header .h-menu-links a[href='books.html']");
+  await Promise.all([ctx.page.waitForNavigation(), books.tap()]);
+  assert.match(ctx.page.url(), /\/books\.html$/);
+});
+
+s.test("G41d (must) in French on a phone the genre chips on Browse Books are complete words (Jeune adulte, Documentaires) and the header stays compact", { viewport: GUEST_PHONE, lang: "fr" }, async (ctx) => {
+  await ctx.goto("/books.html", "networkidle2");
+  const chips = await ctx.page.$$eval(".bk-genre", (bs) => bs.map((b) => { const l = b.querySelector("span:last-child"); return { text: l.textContent.trim(), clipped: l.scrollWidth > l.clientWidth + 1 }; }));
+  assert.ok(chips.length >= 10, `${chips.length} genre chips`);
+  assert.deepEqual(chips.filter((c) => c.clipped).map((c) => c.text), [], "no chip label is cut off");
+  const texts = chips.map((c) => c.text);
+  assert.ok(texts.includes("Jeune adulte"), `chips: ${texts.join(" | ")}`);
+  assert.ok(!texts.includes("Young Adult"));
+  assert.ok((await ctx.page.$eval("header.mkt-header", (h) => h.getBoundingClientRect().height)) < 140);
+  assert.equal(await ctx.page.$eval("summary.h-menu-btn", (b) => b.textContent.trim()), "Menu");
+});
+
+s.test("G41e tap targets on a desktop window: carousel dots, footer links and 'Tell us what you think!' are at least 24x24", async (ctx) => {
+  await ctx.goto("/", "networkidle2");
+  const small = await ctx.page.$$eval("footer a, .wn-dot, .preview-banner a, main p a", (els) => els.filter((e) => e.getBoundingClientRect().width > 0).map((e) => { const r = e.getBoundingClientRect(); return { t: (e.className || e.textContent).toString().trim().slice(0, 24), w: Math.round(r.width), h: Math.round(r.height) }; }).filter((r) => r.w < 24 || r.h < 24));
+  assert.deepEqual(small, [], "targets under 24x24 (WCAG 2.2, 2.5.8)");
 });
 
 // ---- 1H. Cookies, language memory, 404 ----
@@ -689,43 +772,43 @@ s.test("G48b the cart survives a reload and the back button", async (ctx) => {
   assert.equal(await cartLineCount(ctx), 1);
 });
 
-// ---- 1I. Member pages and buying need a login ----
+// ---- 1I. Member pages and reserving need a login ----
 
 s.test("G52 logged out, /forum shows the login page", { anon: true }, async (ctx) => {
   await ctx.goto("/forum");
   assert.equal(new URL(ctx.page.url()).pathname, "/login");
 });
 
-// Buying needs an account (pull request #201): checkout sends a guest to log in or sign up.
+// Reserving needs an account: "Reserve (free, no commitment)" sends a guest to log in or sign up.
 
-// What the site does with a checkout request from someone who is not logged in.
-async function checkoutAsGuest(ctx) {
+// What the site does with a reservation request from someone who is not logged in.
+async function reserveAsGuest(ctx) {
   const res = await ctx.page.evaluate(async () => {
     const { token } = await (await fetch("/api/csrf-token")).json();
     const body = new URLSearchParams({ _csrf: token, name: "E2E guest check", email: "e2e@example.invalid", acceptCgv: "on" });
-    const r = await fetch("/cart/checkout", { method: "POST", body, redirect: "manual" });
+    const r = await fetch("/cart/reserve", { method: "POST", body, redirect: "manual" });
     return { type: r.type, status: r.status };
   });
   return res;
 }
 
-s.test("G50 (must) checkout asks a guest to log in or create an account", async (ctx) => {
-  if (ctx.preview) ctx.skip("preview mode: checkout is switched off for everyone");
+s.test("G50 (must) reserving asks a guest to log in or create an account", async (ctx) => {
+  if (ctx.preview) ctx.skip("preview mode: reservations are switched off for everyone");
   const book = await stockedBook(ctx);
   await addFirstCopyToCart(ctx, book);
-  // The cart offers a way to log in or sign up (a link or button) instead of a guest checkout form...
+  // The cart offers a way to log in or sign up (a link or button) instead of a guest reserve form...
   const text = await ctx.text();
-  assert.equal(await ctx.page.$("form[action='/cart/checkout'] input[name='acceptCgv']"), null, "a guest must not be shown the pay-and-buy form");
+  assert.equal(await ctx.page.$("form[action='/cart/reserve'] input[name='acceptCgv']"), null, "a guest must not be shown the reserve form");
   assert.ok(await ctx.page.$("a[href^='/login'], a[href^='/signup']"), "a way to log in or create an account");
   has(text, /log in|sign up|create an account/);
   // ...and a request sent anyway is turned away to the login page, never started.
-  const sent = await checkoutAsGuest(ctx);
-  assert.equal(sent.type, "opaqueredirect", `checkout answered ${sent.status} to a guest, expected a redirect to log in`);
+  const sent = await reserveAsGuest(ctx);
+  assert.equal(sent.type, "opaqueredirect", `reserve answered ${sent.status} to a guest, expected a redirect to log in`);
   assert.deepEqual(ctx.blocked, [], "no payment page was reached");
 });
 
 s.test("G51 (must) after logging in from the cart, the guest is back on the cart with their items", { needs: ["account"] }, async (ctx) => {
-  if (ctx.preview) ctx.skip("preview mode: checkout is switched off for everyone");
+  if (ctx.preview) ctx.skip("preview mode: reservations are switched off for everyone");
   const c = cfg.credentials("account");
   const book = await stockedBook(ctx);
   await addFirstCopyToCart(ctx, book);
@@ -829,22 +912,62 @@ s.test("G57 (must) the pre-registration form refuses an empty submission with an
   assert.ok(await ctx.page.$(ERR_SUMMARY), "error summary with role=alert");
   has(await ctx.text(), /There is a problem/);
   const links = await ctx.page.$$eval(`${ERR_SUMMARY} a`, (as) => as.map((a) => a.getAttribute("href")));
-  for (const id of ["#preg-first", "#preg-last", "#preg-dob", "#preg-session", "#preg-days", "#preg-times", "#preg-parent", "#preg-email", "#preg-phone", "#preg-consent"]) assert.ok(links.includes(id), `summary links to ${id}`);
-  assert.equal(await ctx.page.$eval("#preg-first", (i) => i.getAttribute("aria-invalid")), "true");
-  const describedBy = await ctx.page.$eval("#preg-first", (i) => i.getAttribute("aria-describedby"));
+  for (const id of ["#preg-who", "#preg-session", "#preg-days", "#preg-times", "#preg-parent", "#preg-email", "#preg-phone", "#preg-consent"]) assert.ok(links.includes(id), `summary links to ${id}`);
+  assert.ok(!links.includes("#preg-first"), "the child fields are not demanded before 'a child' is chosen");
+  assert.equal(await ctx.page.$eval("#preg-parent", (i) => i.getAttribute("aria-invalid")), "true");
+  const describedBy = await ctx.page.$eval("#preg-parent", (i) => i.getAttribute("aria-describedby"));
   assert.ok(describedBy && await ctx.page.$(`#${describedBy.split(" ").pop()}`), "the field is described by its error text");
   assert.equal(await ctx.page.evaluate(() => document.activeElement && document.activeElement.id), "form-errors", "focus is on the summary");
 });
 
-s.test("G58 (must) the pre-registration needs the parent or guardian box; a complete form is sent and shows a thank-you", async (ctx) => {
+s.test("G25a the legal pages agree: opening hours, membership withdrawal wording, GitHub in the privacy policy", async (ctx) => {
+  await ctx.goto("/visit.html");
+  has(await ctx.text(), /10:00–19:00/);
+  await ctx.goto("/membership-terms.html");
+  has(await ctx.text(), /If you join online you may withdraw within 14 days by writing to admin@umasbooks\.org; we will refund your payment and the membership then ends\./);
+  has(await ctx.text(), /Last updated: 6 October 2026/);
+  await ctx.goto("/privacy-policy.html");
+  has(await ctx.text(), /GitHub \(United States\)/);
+  has(await ctx.text(), /Render keeps platform logs for 14 days/);
+  has(await ctx.text(), /protect forms/);
+});
+
+s.test("G25b FR check (legal pages): hours as 10 h–19 h, the withdrawal sentence and the GitHub line in French", { lang: "fr" }, async (ctx) => {
+  await ctx.goto("/visit.html");
+  has(await ctx.text(), /10\s?h–19\s?h/);
+  await ctx.goto("/membership-terms.html");
+  has(await ctx.text(), /vous pouvez vous rétracter dans les 14 jours en écrivant à admin@umasbooks\.org/);
+  await ctx.goto("/privacy-policy.html");
+  has(await ctx.text(), /GitHub \(États-Unis\)/);
+});
+
+s.manual("G25c the membership page shows the price before the HelloAsso form loads, and the shop address shows its street number", "needs MEMBERSHIP_PRICE_EUR and SHOP_STREET_NUMBER to be set in src/lib/legal.js (empty until the association gives them: docs/legal-todos.md); the helpers are covered by test/unit/legalConstants.test.js");
+
+s.test("G57a an adult registering for themselves is not asked for a child's details; checkboxes for days and times, no Ctrl/Cmd", async (ctx) => {
+  await ctx.goto("/pre-registration.html");
+  assert.equal(await ctx.page.$$eval("select[multiple]", (l) => l.length), 0, "no multi-select list");
+  assert.equal(await ctx.page.$$eval("input[type=checkbox][name=days]", (l) => l.length), 5);
+  assert.equal(await ctx.page.$$eval("input[type=checkbox][name=times]", (l) => l.length), 4);
+  has(await ctx.text(), /Who is registering\?/);
+  await ctx.page.click("input[name=who][value=self]");
+  assert.equal(await ctx.page.$eval("#preg-child-block", (d) => d.hidden), true, "the child section is hidden for an adult");
+  await Promise.all([ctx.page.waitForNavigation(), ctx.page.click("form[action='/pre-registration'] button[type='submit']")]);
+  const links = await ctx.page.$$eval(`${ERR_SUMMARY} a`, (as) => as.map((a) => a.getAttribute("href")));
+  for (const id of ["#preg-first", "#preg-last", "#preg-birthyear", "#preg-guardian"]) assert.ok(!links.includes(id), `${id} is not required for an adult`);
+  assert.ok(links.includes("#preg-session") && links.includes("#preg-consent"));
+});
+
+s.test("G58 (must) for a child the guardian box and the agreement are needed; a complete form is sent and shows a thank-you", async (ctx) => {
   await ctx.goto("/pre-registration.html");
   const fill = async () => {
+    await ctx.page.click("input[name=who][value=child]");
     await ctx.page.type("#preg-first", `${process.env.E2E_RUN_ID} Child`);
     await ctx.page.type("#preg-last", "Test");
-    await ctx.page.$eval("#preg-dob", (i) => { i.value = "2018-04-12"; });
+    await ctx.page.type("#preg-birthyear", String(new Date().getFullYear() - 8));
     await ctx.page.select("#preg-session", "young-adventurers");
-    await ctx.page.select("#preg-days", "tue", "sat");
-    await ctx.page.select("#preg-times", "morning");
+    await ctx.page.click("input[name=days][value=tue]");
+    await ctx.page.click("input[name=days][value=sat]");
+    await ctx.page.click("input[name=times][value=morning]");
     await ctx.page.type("#preg-parent", `${process.env.E2E_RUN_ID} Parent`);
     await ctx.page.type("#preg-email", testEmail("preregistration"));
     await ctx.page.type("#preg-phone", "0600000000");
@@ -852,11 +975,14 @@ s.test("G58 (must) the pre-registration needs the parent or guardian box; a comp
   await fill();
   await Promise.all([ctx.page.waitForNavigation(), ctx.page.click("form[action='/pre-registration'] button[type='submit']")]);
   const links = await ctx.page.$$eval(`${ERR_SUMMARY} a`, (as) => as.map((a) => a.getAttribute("href")));
-  assert.deepEqual(links, ["#preg-consent"], "only the consent is missing");
+  assert.deepEqual(links, ["#preg-guardian", "#preg-consent"], "only the two boxes are missing");
   has(await ctx.text(), /Tick this box to continue/);
   assert.equal(await ctx.page.$eval("#preg-first", (i) => i.value.includes("Child")), true, "what was typed is kept");
-  has(await ctx.page.$eval("label[for='preg-consent']", (l) => l.innerText), /I am the parent or legal guardian of the child and I agree to be contacted about this program/);
+  assert.equal(await ctx.page.$eval("input[name=days][value=sat]", (i) => i.checked), true, "the ticked days are kept");
+  has(await ctx.page.$eval("label[for='preg-guardian']", (l) => l.innerText), /I am the parent or legal guardian of the child\./);
+  has(await ctx.page.$eval("label[for='preg-consent']", (l) => l.innerText), /I agree to be contacted about this program\./);
   if (!cfg.allowWrites()) ctx.skip("needs E2E_ALLOW_WRITES=1 for the final submit (it sends an email to the shop mailbox)");
+  await ctx.page.click("#preg-guardian");
   await ctx.page.click("#preg-consent");
   await Promise.all([ctx.page.waitForNavigation(), ctx.page.click("form[action='/pre-registration'] button[type='submit']")]);
   has(await ctx.text(), /Thank you, your pre-registration has been sent/);
@@ -879,12 +1005,13 @@ s.test("G59 (must) the volunteer form needs name, email and consent; a complete 
   ctx.created("volunteer sign-up (email to the admin mailbox)", `${process.env.E2E_RUN_ID} Volunteer`, "delete the email from the shop mailbox");
 });
 
-s.manual("G60 the pre-registration and volunteer emails arrive in the shop mailbox with the right reply-to, and are deleted after 12 months", "tests cannot read email; the 12-month cleanup is a yearly manual job (docs/runbook.md)");
+s.manual("G60 the pre-registration and volunteer emails arrive in the shop mailbox with the right reply-to, and are deleted after 12 months", "tests cannot read email; the 12-month cleanup is a quarterly manual job (docs/runbook.md, section e)");
 
 s.test("G-FR57 FR check (forms): the errors, the guardian statement and the health line are in French", { lang: "fr" }, async (ctx) => {
   await ctx.goto("/pre-registration.html");
   has(await ctx.text(), /Ne saisissez pas d’informations de santé ici/);
-  has(await ctx.page.$eval("label[for='preg-consent']", (l) => l.innerText), /Je suis le parent ou le représentant légal de l’enfant et j’accepte d’être contacté\(e\) au sujet de ce programme/);
+  has(await ctx.page.$eval("label[for='preg-guardian']", (l) => l.innerText), /Je suis le parent ou le représentant légal de l’enfant\./);
+  has(await ctx.page.$eval("label[for='preg-consent']", (l) => l.innerText), /J’accepte d’être contacté\(e\) au sujet de ce programme/);
   await Promise.all([ctx.page.waitForNavigation(), ctx.page.click("form[action='/pre-registration'] button[type='submit']")]);
   for (const re of [/Il y a un problème/, /Ce champ est obligatoire\./, /Cochez cette case pour continuer\./]) has(await ctx.text(), re);
 });
