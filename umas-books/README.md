@@ -185,8 +185,18 @@ the regular account password:
    marked `sync: false` in `render.yaml`, so Render won't auto-fill them —
    you add them once by hand).
 
-Until both are set, the app doesn't fail — it just logs what it would have
-sent to the console instead, which is enough for local development.
+Until both are set, local development just logs what it would have sent to the
+console. **In production the same mistake is not silent**: sending fails with a
+clear error, the email outbox keeps the message and retries it, the dashboard
+shows it under "Needs attention" and (after an hour) an alert is sent.
+
+**Alert recipients.** Alerts (errors, emails that cannot be sent, failing
+background jobs, launch warnings) go to `ALERT_TO` — one address or several
+separated by commas (default `admin@umasbooks.org`). Add a second address on a
+different mail provider than the Google account that sends them. The GitHub
+workflows (backup, uptime, freshness, restore test, weekly test alert) read the
+repository **variable** `ALERT_TO` (Settings > Secrets and variables > Actions >
+Variables). Contact-form messages go to `CONTACT_TO` (same format).
 
 There's no separate "customer" vs "admin" signup flow — the seed script
 creates the first admin; that account can then promote (or demote) other
@@ -212,17 +222,19 @@ Every copy gets one of four **condition** grades. Pick the first one that is
 true; if you hesitate between two, choose the lower one.
 
 - **New**: unread, as published. Must be sold at the publisher's price.
-- **Like New**: looks unread: no marks, no wear.
-- **Very Good**: light wear only: clean pages, no writing or highlighting.
+- **Very Good**: looks almost new: clean pages, no writing or highlighting, at most very light wear.
+- **Good**: normal wear from reading: a few creases or marks, still clean and complete.
 - **Acceptable**: clearly used but complete and readable: wear, creases or
   some markings.
 
 A book that is not fit to sell (pages missing, mouldy, falling apart) is not a
 grade: set its **status** to "Damaged / withdrawn" instead.
 
-The **binding** says what kind of book it is: **Hardcover**, **Paperback** or
-**Mass Market** (the small pocket paperback). It is filled in automatically
-when the scan finds it; check it, and choose "Not specified" if unsure.
+The **binding** says what kind of book it is: **Hardcover**, **Trade** (a
+normal paperback, in French "broché"), **Mass Market** (the small pocket
+paperback, "poche") or **Other** (board book, spiral-bound, anything else).
+It is filled in automatically when the scan finds it; check it, and choose
+"Not specified" if unsure.
 Customers see the grade of each copy, the binding, and a "What the grades
 mean" box on the book's page.
 
@@ -336,7 +348,7 @@ can always pick another price, and nothing is published until you save.
   have. **The condition of your copy does not change the price.**
   - A **new** book is always sold at the publisher's price (French law).
   - **Mass market** paperbacks are EUR 5.
-  - Other books: worth under EUR 6 online = EUR 5; EUR 6 to 19.99 = EUR 8;
+  - Other books (hardcover, trade and **Other**): worth under EUR 6 online = EUR 5; EUR 6 to 19.99 = EUR 8;
     EUR 20 to 49.99 = about three quarters of the online value. **Hardcovers
     are never under EUR 10.**
   - If we already have **2 or more copies** of the same book (in stock or
@@ -384,6 +396,30 @@ the old version keeps serving. `src/migrate.js` records each file in the
 `schema_migrations` table and applies it exactly once.
 Redeploying an older commit does **not** undo a migration; see
 [`docs/runbook.md`](../docs/runbook.md) before rolling back.
+
+### Environment variables
+
+Set in Render under the service's **Environment** tab. `render.yaml` lists every
+one, so a Blueprint rebuild starts correctly; values marked "by hand" are
+`sync: false` secrets you enter once.
+
+| Variable | What it is | In `render.yaml` |
+|---|---|---|
+| `DATABASE_URL` | the database connection | wired to `umas-books-db` |
+| `SESSION_SECRET`, `TOTP_ENCRYPTION_KEY` | session signing; encrypts admins' two-step secrets | generated |
+| `NODE_ENV` | `production` | `production` |
+| `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD` | first admin (delete the password after first login) | by hand |
+| `GMAIL_USER`, `GMAIL_APP_PASSWORD` | the mailbox that sends every email and alert | by hand |
+| `APP_BASE_URL` | public address, no trailing slash (emailed links, payment return, canonical redirect) | `https://umasbooks.org` |
+| `CONTACT_TO` | contact-form and forum-report recipient(s) | `admin@umasbooks.org` |
+| `ALERT_TO` | alert recipient(s), comma separated, no spaces | `admin@umasbooks.org,sharonbje@gmail.com` |
+| `TRUST_PROXY_HOPS` | proxies in front of the app (visitor IP) | `2` |
+| `HELLOASSO_CLIENT_ID`, `HELLOASSO_CLIENT_SECRET`, `HELLOASSO_ORG_SLUG` | online payment | by hand |
+| `HELLOASSO_API_BASE` | leave empty/unset for production (the sandbox address is only for tests) | by hand |
+| `HELLOASSO_MEMBERSHIP_FORM_SLUG` | optional: only this HelloAsso form grants membership | by hand |
+| `ANTHROPIC_API_KEY`, `ANTHROPIC_WORKSPACE_ID` | photo scanning and book descriptions | by hand |
+| `COVER_BACKFILL` | `off` stops the background cover copy (tests); otherwise on | `on` |
+| `PREVIEW_MODE` | `true` = coming-soon mode. **Deliberately not in `render.yaml`**: set and removed by hand in the dashboard | not in the file |
 
 Because `rootDir` is `umas-books`, Render by default only auto-deploys
 when a push changes files inside `umas-books/` — a push that only touches
@@ -483,8 +519,9 @@ private Backblaze B2 bucket as `store-backups/full/umas_books_full_<UTC
 timestamp>.dump` (kept 30 days; the 1st-of-month copy under
 `store-backups/monthly/` is kept 2 years). Once a month,
 `.github/workflows/backup-restore-test.yml` downloads the newest dump,
-restores it into a scratch Postgres and checks the data, emailing
-admin@umasbooks.org if that fails — so this procedure is exercised
+restores it into a scratch Postgres and checks the data (including that it is as
+new as the newest migration in the repository), emailing the alert
+address(es) (`ALERT_TO`) if that fails — so this procedure is exercised
 regularly, not just on a bad day.
 
 > **Each dump is complete** — book covers and other uploaded photos
@@ -553,12 +590,21 @@ an older `pg_restore` cannot read them) and the AWS CLI.
    database in the same Render account/region use its **Internal** URL), and
    save — Render redeploys. `render.yaml` normally wires `DATABASE_URL` to
    `umas-books-db`, so if you later re-sync the Blueprint, either restore
-   into `umas-books-db` itself or update `render.yaml` to match. Boot runs
-   `npm run migrate`, which applies any migrations newer than the dump.
-   Check `/healthz` returns 200.
+   into `umas-books-db` itself or update `render.yaml` to match. Migrations do
+   **not** run when the app boots: they run in Render's **pre-deploy command**
+   (`npm run migrate`, see `render.yaml`) the next time the service deploys, and
+   that applies any migrations newer than the dump. After pointing
+   `DATABASE_URL` at the restored database, trigger a deploy (**Manual Deploy >
+   Deploy latest commit**) and check the deploy log shows
+   "Running migration: ..." for each newer file (or "Migrations complete."),
+   then that `/healthz` returns 200.
 
 5. **Clean up:** `rm restore.dump`, and `dropdb umas_books_restored` if it
    was only a drill.
+
+**If the whole Render account is gone** (not just the data), restoring the
+database is only one step of several: see "Rebuild everything if the Render
+account is lost" in [`docs/runbook.md`](../docs/runbook.md).
 
 The database is on a paid Render plan (`render.yaml`), so it does not
 expire. These backups are the extra safety net on top of Render's own.

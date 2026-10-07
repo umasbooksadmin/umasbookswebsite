@@ -361,7 +361,7 @@ async function salesReport(db, ctx) {
         note: "Counted on the day the order was marked refunded. A refunded order no longer appears in the reserved-online sales and drop-in figures.",
       },
     ],
-    notes: ["Reserved-online = books reserved on the website and paid in the shop (\"Mark collected and paid\"), counted on the day the payment was recorded. Shop = sales recorded with Sell in shop. Days are Paris days."],
+    notes: ["Reserved-online = books reserved on the website and paid in the shop (\"Mark collected and paid\"), counted on the day the payment was recorded. Shop = books sold at the Till (and older sales from the retired Sell in shop page). Days are Paris days."],
   };
 }
 
@@ -541,9 +541,28 @@ async function intakeReport(db, ctx) {
 const ACCOUNTS_PAGE_SIZE = 50;
 const ACCOUNTS_CSV_LIMIT = 50000;
 
+// Paid orders per account, pre-aggregated once and hash-joined (see accountsReport).
+// An order belongs to the account in orders.user_id; the buyer email is used ONLY for
+// older orders that have no user_id (placed before accounts were required, migration
+// 058), matched to the account with that email. The first version matched every order
+// to every account with a per-user EXISTS(... lower(buyer_email) = lower(email)):
+// 10 s for 5,000 accounts, headed for the 30 s statement timeout at about 10,000.
+// Needs idx_orders_user (058), idx_orders_legacy_buyer_email and idx_users_lower_email (082).
+const PAID_ORDERS_BY_ACCOUNT_SQL = `
+  SELECT acct.uid, COUNT(*) AS n, SUM(acct.total_amount) AS spent
+  FROM (
+    SELECT o.user_id AS uid, o.total_amount FROM orders o
+     WHERE o.status = 'paid' AND o.user_id IS NOT NULL
+    UNION ALL
+    SELECT u2.id, o.total_amount FROM orders o
+      JOIN users u2 ON lower(u2.email) = lower(o.buyer_email)
+     WHERE o.status = 'paid' AND o.user_id IS NULL
+  ) acct
+  GROUP BY acct.uid`;
+
 // Everyone with an account, by type. Types come from lib/accountTypes.js, the
 // same definitions as the admin accounts list. Orders are matched to an
-// account by email (the shop's only link, as on the members page); refunded
+// account by orders.user_id (older orders without one: by email); refunded
 // orders (status 'refunded') and unpaid ones are not counted.
 async function accountsReport(db, ctx) {
   const q = ctx.query || {};
@@ -570,14 +589,16 @@ async function accountsReport(db, ctx) {
       `SELECT COUNT(*)::int AS total,
               COUNT(*) FILTER (WHERE u.is_admin)::int AS admins,
               COUNT(*) FILTER (WHERE u.is_volunteer)::int AS volunteers,
+              COUNT(*) FILTER (WHERE u.is_till)::int AS till,
               COUNT(*) FILTER (WHERE ${activeMemberSql("u")})::int AS members,
               COUNT(*) FILTER (WHERE u.is_member AND NOT ${activeMemberSql("u")})::int AS expired,
               COUNT(*) FILTER (WHERE ${typeFilterSql("account", "u")})::int AS holders,
               COUNT(*) FILTER (WHERE u.email_verified_at IS NULL)::int AS unconfirmed,
               COUNT(*) FILTER (WHERE u.created_at >= now() - interval '7 days')::int AS new7,
               COUNT(*) FILTER (WHERE u.created_at >= now() - interval '30 days')::int AS new30,
-              COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM orders o WHERE o.status = 'paid' AND lower(o.buyer_email) = lower(u.email)))::int AS buyers
-       FROM users u`
+              COUNT(ord.uid)::int AS buyers
+       FROM users u
+       LEFT JOIN (SELECT DISTINCT uid FROM (${PAID_ORDERS_BY_ACCOUNT_SQL}) paid) ord ON ord.uid = u.id`
     ),
     db.query(`SELECT COUNT(*)::int AS n FROM users u ${whereSql}`, params),
   ]);
@@ -590,31 +611,28 @@ async function accountsReport(db, ctx) {
 
   const { rows } = await db.query(
     `SELECT u.display_name, u.email, ${typeCaseSql("u")} AS type,
-            u.is_member, u.member_expires_at,
+            u.is_member, u.member_expires_at, u.is_till,
             to_char(u.member_expires_at AT TIME ZONE '${TZ}', 'YYYY-MM-DD') AS member_until,
             u.email_verified_at IS NOT NULL AS confirmed,
             to_char(u.created_at AT TIME ZONE '${TZ}', 'YYYY-MM-DD') AS created,
             to_char(u.last_login_at AT TIME ZONE '${TZ}', 'YYYY-MM-DD') AS last_login,
             COALESCE(ord.n, 0)::int AS orders, COALESCE(ord.spent, 0)::float8 AS spent, u.is_disabled
      FROM users u
-     LEFT JOIN (
-       SELECT lower(buyer_email) AS email, COUNT(*) AS n, SUM(total_amount) AS spent
-       FROM orders WHERE status = 'paid' GROUP BY 1
-     ) ord ON ord.email = lower(u.email)
+     LEFT JOIN (${PAID_ORDERS_BY_ACCOUNT_SQL}) ord ON ord.uid = u.id
      ${whereSql}
      ORDER BY u.created_at DESC, u.id DESC
      LIMIT ${limit} OFFSET ${offset}`,
     params
   );
   const list = rows.map((r) => ({
-    name: r.display_name, email: r.email, type: TYPE_LABELS[r.type],
+    name: r.display_name, email: r.email, type: TYPE_LABELS[r.type] + (r.is_till ? " + Till" : ""),
     member_until: r.is_member ? (r.member_until || "no end date") : "",
     confirmed: r.confirmed ? "yes" : "no",
     created: r.created, last_login: r.last_login || "never",
     orders: r.orders, spent: money(r.spent), disabled: r.is_disabled ? "yes" : "no",
   }));
   const summaryRows = [
-    ["Total accounts", s.total], ["Admins", s.admins], ["Volunteers", s.volunteers],
+    ["Total accounts", s.total], ["Admins", s.admins], ["Volunteers", s.volunteers], ["Till access (can use the till without being an admin)", s.till],
     ["Members (paying or granted)", s.members], ["Members whose membership has expired", s.expired],
     ["Account holders (not a member, admin or volunteer)", s.holders],
     ["Unconfirmed (email never confirmed)", s.unconfirmed],
@@ -627,7 +645,7 @@ async function accountsReport(db, ctx) {
         key: "summary", title: "Summary (all accounts)",
         columns: [{ key: "label", label: "Measure", type: "text" }, { key: "count", label: "Accounts", type: "int" }],
         rows: summaryRows, totals: null,
-        note: "An account can count in several lines (an admin who is also a volunteer, for example). Each account has one type in the list below: Admin, else Volunteer, else Member, else Account, else Unconfirmed.",
+        note: "An account can count in several lines (an admin who is also a volunteer, for example). Each account has one type in the list below: Admin, else Volunteer, else Member, else Account, else Unconfirmed; \"+ Till\" is added when the account has Till access.",
       },
       {
         key: "accounts", title: `Accounts (${total})`,
@@ -640,7 +658,7 @@ async function accountsReport(db, ctx) {
         ],
         rows: list, totals: null,
         pagination: ctx.csv ? null : { page: current, pages, total, pageSize: ACCOUNTS_PAGE_SIZE },
-        note: "Paid orders are matched to an account by email; refunded and unpaid orders are not counted. Dates are Paris days.",
+        note: "Paid orders are counted for the account that placed them (older orders without one: matched by email); refunded and unpaid orders are not counted. Dates are Paris days.",
       },
     ],
     notes: ["This report shows names and email addresses. Handle the CSV with care."],
@@ -719,6 +737,7 @@ async function runReport(db, report, query = {}, now = new Date(), { csv = false
 }
 
 module.exports = {
+  PAID_ORDERS_BY_ACCOUNT_SQL,
   REPORTS, GROUPS, LIST_LIMIT, ACCOUNTS_PAGE_SIZE, getReport, runReport,
   validDay, todayParis, subMonths, addDays, parseDateRange, parseGroup, agingCutoffs, agingBucket,
   formatCell, csvCell, toCsv, csvDialect, csvDecimal, wantsFrenchCsv,

@@ -5,6 +5,8 @@
 //   - a guest           -> must be bounced to /login (or 401/403)
 //   - a logged-in non-member user    -> must be refused
 //   - a logged-in member + volunteer -> must be refused (membership is not admin)
+//   - a logged-in "Till access" account (not admin) -> refused everywhere EXCEPT the exact
+//     list of till routes below (requireTillOrAdmin is allowed nowhere else)
 // POSTs carry a valid CSRF token so a refusal is the authz check, not CSRF.
 // A real admin hitting GET /admin is the control proving the harness reaches
 // the routes at all.
@@ -30,7 +32,8 @@ function collectRoutes(stack, out = []) {
         out.push({
           method: method.toUpperCase(),
           path: layer.route.path,
-          hasRequireAdmin: layer.route.stack.some((l) => l.handle === requireAdmin),
+          hasRequireAdmin: layer.route.stack.some((l) => l.handle === requireAdmin || l.handle === requireTillOrAdmin),
+          tillOrAdmin: layer.route.stack.some((l) => l.handle === requireTillOrAdmin),
         });
       }
     } else if (layer.handle && layer.handle.stack) {
@@ -41,13 +44,21 @@ function collectRoutes(stack, out = []) {
 }
 
 let requireAdmin;
+let requireTillOrAdmin;
+
+// The ONLY routes a till-only account may use: the till page and its scan / check / sale /
+// release / void / refund-tick / receipt calls, and the read-only end of day.
+const TILL_ROUTES = [
+  "GET /admin/till", "POST /admin/till/scan", "POST /admin/till/check", "POST /admin/till/sale", "POST /admin/till/release",
+  "POST /admin/till/sales/:id/void", "POST /admin/till/sales/:id/refunded", "GET /admin/till/sales/:id/receipt", "GET /admin/till/day",
+];
 
 before(async () => {
   app = await startTestApp({ port: PORT, isolated: true });
   process.env.DATABASE_URL = app.databaseUrl;
   process.env.PGSSLMODE = process.env.PGSSLMODE || "disable";
   ({ pool } = require("../../src/db"));
-  ({ requireAdmin } = require("../../src/middleware/auth"));
+  ({ requireAdmin, requireTillOrAdmin } = require("../../src/middleware/auth"));
   routes = collectRoutes(require("../../src/routes/admin").stack).map((r) => ({
     ...r,
     requestPath: r.path.replace(/:\w+/g, "1"),
@@ -64,9 +75,9 @@ const uniq = () => `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
 async function createUser(flags) {
   const email = `authz-${uniq()}@example.test`;
   await pool.query(
-    `INSERT INTO users (email, password_hash, display_name, is_admin, is_member, is_volunteer, email_verified_at)
-     VALUES ($1, $2, 'Authz Test', $3, $4, $5, now())`,
-    [email, await bcrypt.hash(PASSWORD, 10), !!flags.admin, !!flags.member, !!flags.volunteer]
+    `INSERT INTO users (email, password_hash, display_name, is_admin, is_member, is_volunteer, is_till, email_verified_at)
+     VALUES ($1, $2, 'Authz Test', $3, $4, $5, $6, now())`,
+    [email, await bcrypt.hash(PASSWORD, 10), !!flags.admin, !!flags.member, !!flags.volunteer, !!flags.till]
   );
   return email;
 }
@@ -109,6 +120,11 @@ test("every admin route has requireAdmin in its own handler chain", () => {
   assert.deepEqual(missing, []);
 });
 
+test("requireTillOrAdmin is used on exactly the till routes and nowhere else", () => {
+  const used = routes.filter((r) => r.tillOrAdmin).map((r) => `${r.method} ${r.path}`).sort();
+  assert.deepEqual(used, [...TILL_ROUTES].sort());
+});
+
 test("control: a real admin gets through to the admin dashboard", async () => {
   const jar = await loginJar(await createUser({ admin: true }));
   const res = await request(jar, { method: "GET", requestPath: "/admin" });
@@ -149,3 +165,15 @@ for (const identity of IDENTITIES) {
     assert.deepEqual(failures, []);
   });
 }
+
+test("authz matrix: a Till-access account (not admin) reaches ONLY the till routes", async () => {
+  const jar = await loginJar(await createUser({ till: true }));
+  const failures = [];
+  for (const route of routes) {
+    const res = await request(jar, route);
+    const allowed = TILL_ROUTES.includes(`${route.method} ${route.path}`);
+    const refused = res.status === 403 || res.status === 401 || (res.status === 302 && res.headers.get("location") === "/login");
+    if (allowed === refused) failures.push(`${route.method} ${route.path} -> ${res.status} (${allowed ? "should be allowed" : "should be refused"})`);
+  }
+  assert.deepEqual(failures, []);
+});

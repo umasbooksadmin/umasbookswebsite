@@ -1,13 +1,15 @@
 name: Send a test alert
 
-# Runs by itself on the 1st of every month, and by hand (Actions > "Send a
+# Runs by itself every Monday morning, and by hand (Actions > "Send a
 # test alert" > Run workflow), to prove that the failure-alert emails still
-# arrive, e.g. after the mail action is updated. The monthly run is there so a
-# revoked or expired Gmail app password is noticed within a month, not on the
-# day a real alert fails to arrive: if no test email shows up in
-# admin@umasbooks.org (or the run turns red in the Actions tab), fix the
+# arrive, e.g. after the mail action is updated. The weekly run is there so a
+# revoked or expired Gmail app password (or a locked Google account) is noticed
+# within a week, not on the day a real alert fails to arrive (it was monthly; a
+# month is too long for the only channel every other alert depends on). It is one
+# tiny job (about 1 billed minute a week): if no test email shows up in
+# the alert address(es) (or the run turns red in the Actions tab), fix the
 # GMAIL_USER / GMAIL_APP_PASSWORD secrets. It is safe unattended: it only
-# sends one email to the admin address and touches nothing else.
+# sends one email to the alert address(es) (repository variable ALERT_TO, default admin@umasbooks.org) and touches nothing else.
 # It sends the same kind of email the backup, restore-test and uptime
 # workflows send when something fails. Needs the repository secrets
 # GMAIL_USER and GMAIL_APP_PASSWORD (Settings > Secrets and variables >
@@ -15,7 +17,7 @@ name: Send a test alert
 
 on:
   schedule:
-    - cron: "17 7 1 * *"
+    - cron: "17 7 * * 1" # Mondays 07:17 UTC
   workflow_dispatch: {}
 
 permissions:
@@ -33,7 +35,7 @@ jobs:
           username: ${{ secrets.GMAIL_USER }}
           password: ${{ secrets.GMAIL_APP_PASSWORD }}
           subject: "[umas-books] TEST alert - the alert emails work"
-          to: admin@umasbooks.org
+          to: ${{ vars.ALERT_TO || 'admin@umasbooks.org' }}
           from: "Uma's Books Backup Monitor <${{ secrets.GMAIL_USER }}>"
           body: |
             This is a test. If you can read this, failure alerts from GitHub will reach you.

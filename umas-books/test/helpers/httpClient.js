@@ -17,6 +17,18 @@ function makeCookieJar() {
   };
 }
 
+// Admin forms answer a refused or "show the result" POST with 303 and a GET
+// page (Post/Redirect/Get, so Back never offers to resubmit it). A browser
+// follows that at once with the same session; this does the same. Any other
+// answer (200, 302, 4xx...) is returned untouched, so tests of ordinary
+// redirects still see them.
+async function followSeeOther(res, { base, jar, headers = {} }) {
+  if (res.status !== 303) return res;
+  const next = await fetch(new URL(res.headers.get("location"), base), { redirect: "manual", headers: { cookie: jar.header(), ...headers } });
+  jar.capture(next);
+  return next;
+}
+
 // extraHeaders: e.g. { "x-forwarded-for": ip } for tests that simulate many
 // different clients — /api/csrf-token is rate limited per IP for people
 // that have no session cookie yet.
@@ -75,4 +87,4 @@ async function clickConfirmationLink(base, link, { jar = makeCookieJar(), header
   return res;
 }
 
-module.exports = { makeCookieJar, fetchCsrfToken, waitForCartCount, clickConfirmationLink };
+module.exports = { makeCookieJar, followSeeOther, fetchCsrfToken, waitForCartCount, clickConfirmationLink };

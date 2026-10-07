@@ -17,9 +17,12 @@ const { backfillCovers, prepareCover, BATCH_SIZE, MAX_FAILURES } = require("../.
 const lookup = async () => [{ address: "93.184.216.34", family: 4 }];
 let image;
 let calls;
-let mode; // "ok" | "404" | "html"
+let mode; // "ok" | "404" | "html" | "500" | "network" | "placeholder"
 const fetchImpl = async (url) => {
   calls.push(url);
+  if (mode === "500") return new Response("down", { status: 503 });
+  if (mode === "network") throw new TypeError("fetch failed", { cause: Object.assign(new Error("connect ECONNREFUSED"), { code: "ECONNREFUSED" }) });
+  if (mode === "placeholder") return new Response(await sharp({ create: { width: 1, height: 1, channels: 3, background: "#fff" } }).gif().toBuffer(), { status: 200, headers: { "content-type": "image/gif" } });
   if (mode === "404") return new Response("nope", { status: 404 });
   if (mode === "html") return new Response("<html/>", { status: 200, headers: { "content-type": "text/html" } });
   return new Response(image, { status: 200, headers: { "content-type": "image/jpeg" } });
@@ -68,7 +71,7 @@ test("migration 059 moves external cover addresses to cover_source_url and keeps
 test("a batch stores the cover as a re-encoded /img JPEG and clears the failure state", async () => {
   const id = await addBook();
   const r = await run();
-  assert.deepEqual(r, { processed: 1, stored: 1, failed: 0 });
+  assert.deepEqual(r, { processed: 1, stored: 1, failed: 0, transient: 0, stopped: false });
   const b = await bookRow(id);
   assert.match(b.cover_url, /^\/img\/[0-9a-f]{64}\.jpg$/);
   assert.equal(b.cover_fetch_failures, 0);
@@ -102,7 +105,7 @@ test("identical bytes are stored once: two books with the same cover share one /
 test("a book that already has a cover, or no source, is not fetched", async () => {
   await addBook({ cover: `/img/${"c".repeat(64)}.jpg` });
   await addBook({ source: null });
-  assert.deepEqual(await run(), { processed: 0, stored: 0, failed: 0 });
+  assert.deepEqual(await run(), { processed: 0, stored: 0, failed: 0, transient: 0, stopped: false });
   assert.equal(calls.length, 0);
 });
 
@@ -124,7 +127,7 @@ test("a batch is at most 20 books and books on the shelves go first", async () =
 test("a failed download is counted, spaced out by an hour, and capped at 3 a week", async () => {
   mode = "404";
   const id = await addBook();
-  assert.deepEqual(await run(), { processed: 1, stored: 0, failed: 1 });
+  assert.deepEqual(await run(), { processed: 1, stored: 0, failed: 1, transient: 0, stopped: false });
   let b = await bookRow(id);
   assert.equal(b.cover_url, null);
   assert.equal(b.cover_fetch_failures, 1);
@@ -158,6 +161,66 @@ test("a failed download is counted, spaced out by an hour, and capped at 3 a wee
   b = await bookRow(id);
   assert.match(b.cover_url, /^\/img\//);
   assert.equal(b.cover_fetch_failures, 0);
+});
+
+test("a 5xx answer, a timeout or a network error is NOT a failed attempt (only 404, a placeholder or an invalid image is)", async () => {
+  const realWarn = console.warn;
+  console.warn = () => {};
+  try {
+    for (const m of ["500", "network"]) {
+      mode = m;
+      const id = await addBook();
+      const r = await run();
+      assert.equal(r.failed, 0, `${m}: not a failure`);
+      assert.equal(r.transient, 1);
+      const b = await bookRow(id);
+      assert.equal(b.cover_fetch_failures, 0, `${m}: failure counter untouched`);
+      assert.ok(b.cover_fetch_attempted_at, `${m}: spaced out by the hour`);
+      assert.equal((await run()).processed, 0, `${m}: not again within the hour`);
+      await pool.query("DELETE FROM books WHERE id = $1", [id]);
+    }
+    // a timeout: the request never answers
+    mode = "ok";
+    const id = await addBook();
+    const hang = (url, { signal }) => new Promise((_, reject) => signal.addEventListener("abort", () => reject(signal.reason)));
+    const r = await run({ fetchImpl: hang, timeoutMs: 30 });
+    assert.deepEqual([r.failed, r.transient], [0, 1]);
+    assert.equal((await bookRow(id)).cover_fetch_failures, 0);
+    await pool.query("DELETE FROM books WHERE id = $1", [id]);
+    // a placeholder image and a 404 DO count
+    mode = "placeholder";
+    const p = await addBook();
+    assert.equal((await run()).failed, 1);
+    assert.equal((await bookRow(p)).cover_fetch_failures, 1);
+  } finally {
+    console.warn = realWarn;
+  }
+});
+
+test("three network errors in a row stop the batch; the books not tried keep their state", async () => {
+  mode = "network";
+  const ids = [];
+  for (let i = 0; i < 6; i++) ids.push(await addBook());
+  const realWarn = console.warn;
+  console.warn = () => {};
+  let r;
+  try { r = await run(); } finally { console.warn = realWarn; }
+  assert.equal(r.stopped, true);
+  assert.equal(r.transient, 3);
+  assert.equal(calls.length, 3, "stopped after the third");
+  const untouched = (await Promise.all(ids.map(bookRow))).filter((b) => b.cover_fetch_attempted_at === null).length;
+  assert.equal(untouched, 3);
+  // a success in between resets the run
+  mode = "ok";
+  assert.equal((await run()).stopped, false);
+});
+
+test("the User-Agent names the site and a contact address (Open Library asks for it)", async () => {
+  const seen = [];
+  await addBook();
+  await run({ fetchImpl: async (url, init) => { seen.push(init.headers["User-Agent"]); return fetchImpl(url); } });
+  assert.match(seen[0], /https:\/\/umasbooks\.org/);
+  assert.match(seen[0], /admin@umasbooks\.org/);
 });
 
 test("a non-image answer counts as a failure and stores nothing", async () => {

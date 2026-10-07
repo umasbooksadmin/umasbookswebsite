@@ -3,13 +3,13 @@
 const { strict: assert } = require("node:assert");
 const bcrypt = require("bcryptjs");
 const { startTestApp } = require("./testApp");
-const { makeCookieJar, fetchCsrfToken } = require("./httpClient");
+const { makeCookieJar, fetchCsrfToken, followSeeOther } = require("./httpClient");
 
 const FORM = { "content-type": "application/x-www-form-urlencoded" };
 
-async function tillHarness({ port, ip }) {
+async function tillHarness({ port, ip, env = {}, loginAdmin = true }) {
   const h = { ip, jar: makeCookieJar(), n: 0 };
-  h.app = await startTestApp({ port, isolated: true });
+  h.app = await startTestApp({ port, isolated: true, env });
   process.env.DATABASE_URL = h.app.databaseUrl;
   process.env.PGSSLMODE = process.env.PGSSLMODE || "disable";
   h.pool = require("../../src/db").pool;
@@ -22,7 +22,7 @@ async function tillHarness({ port, ip }) {
       body: new URLSearchParams({ ...fields, _csrf: csrf }).toString(),
     });
     jar.capture(res);
-    return res;
+    return followSeeOther(res, { base: h.app.base, jar, headers: { "x-forwarded-for": ip } });
   };
   h.get = async (path, jar = h.jar) => {
     const res = await fetch(`${h.app.base}${path}`, { redirect: "manual", headers: { cookie: jar.header(), "x-forwarded-for": ip } });
@@ -41,7 +41,20 @@ async function tillHarness({ port, ip }) {
   );
   h.adminId = rows[0].id;
   h.email = email;
-  assert.equal((await h.post("/login", { email, password })).status, 302);
+  if (loginAdmin) assert.equal((await h.post("/login", { email, password })).status, 302);
+
+  // Another account (a till-only volunteer, a plain member...) with its own cookie jar.
+  h.makeUser = async ({ admin = false, till = false, member = false, name = "Till Helper" } = {}) => {
+    const mail = `till-user-${Date.now()}-${++h.n}@example.test`;
+    const { rows: u } = await h.pool.query(
+      `INSERT INTO users (email, password_hash, display_name, is_admin, is_till, is_member, email_verified_at) VALUES ($1, $2, $3, $4, $5, $6, now()) RETURNING id`,
+      [mail, await bcrypt.hash(password, 10), name, admin, till, member]
+    );
+    const jar = makeCookieJar();
+    const res = await h.post("/login", { email: mail, password }, jar);
+    assert.equal(res.status, 302);
+    return { id: u[0].id, email: mail, jar, location: res.headers.get("location") };
+  };
 
   h.stop = async () => { await h.pool.end(); h.app.stop(); };
   h.uniq = () => `${Date.now()}${++h.n}`;
@@ -63,8 +76,18 @@ async function tillHarness({ port, ip }) {
 
   h.scan = (code, have = []) => h.json("/admin/till/scan", { code, have: JSON.stringify(have) });
   // items: array of line objects as the page sends them.
-  h.sale = (items, { method = "cash", received = "100", token = h.token(), ...rest } = {}) =>
-    h.json("/admin/till/sale", { token, method, items: JSON.stringify(items), received, cardConfirmed: method === "card" ? "1" : "", ...rest });
+  // The page sends the total it showed (expectedTotalCents) with every confirm. Unless a test
+  // passes its own, the helper asks /admin/till/check what the server would charge and sends
+  // that, like a page whose prices are up to date; when the check refuses, it sends 1 and
+  // the sale itself reports the refusal.
+  h.sale = async (items, { method = "cash", received = "100", token = h.token(), jar = h.jar, ...rest } = {}) => {
+    const form = { token, method, items: JSON.stringify(items), received, cardConfirmed: method === "card" ? "1" : "", ...rest };
+    if (form.expectedTotalCents === undefined) {
+      const chk = await h.json("/admin/till/check", { method, items: JSON.stringify(items), ...rest }, jar);
+      form.expectedTotalCents = chk.body.ok ? String(chk.body.totalCents) : "1";
+    } else if (form.expectedTotalCents === null) delete form.expectedTotalCents;
+    return h.json("/admin/till/sale", form, jar);
+  };
   h.book = (copyId, price = "", reason = "") => ({ kind: "book", copyId, price, reason });
   h.audit = async (action) => (await h.pool.query("SELECT * FROM admin_audit_log WHERE action = $1 ORDER BY id", [action])).rows;
   return h;

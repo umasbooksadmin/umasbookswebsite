@@ -78,7 +78,7 @@ async function seed(databaseUrl, creds) {
     const { rows } = await db.query(
       `INSERT INTO books (isbn, title, authors, categories, categories_fr, binding, description, description_fr)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
-      [b.isbn || null, b.title, b.author, b.categories || "Fiction", b.categoriesFr || "Fiction", b.binding || "paperback", b.description || "A sample book.", b.descriptionFr || "Un livre d’exemple."]
+      [b.isbn || null, b.title, b.author, b.categories || "Fiction", b.categoriesFr || "Fiction", b.binding || "trade", b.description || "A sample book.", b.descriptionFr || "Un livre d’exemple."]
     );
     for (const c of copies) {
       await db.query(
@@ -91,8 +91,8 @@ async function seed(databaseUrl, creds) {
     }
     return rows[0].id;
   };
-  await book({ isbn: "9780141036144", title: "E2E Sample Gatsby", author: "Sample Author", categories: "Fiction, Classics", binding: "paperback" },
-    [{ condition: "very_good", price: 5 }, { condition: "like_new", price: 8 }, { condition: "acceptable", price: 1, clearance: true }]);
+  await book({ isbn: "9780141036144", title: "E2E Sample Gatsby", author: "Sample Author", categories: "Fiction, Classics", binding: "trade" },
+    [{ condition: "very_good", price: 5 }, { condition: "good", price: 8 }, { condition: "acceptable", price: 1, clearance: true }]);
   await book({ title: "E2E Sample Without A Price", author: "Other Author", binding: "hardcover" }, [{ condition: "very_good", price: null }]);
   await book({ title: "E2E Sample Sold Out", author: "Other Author" }, [{ price: 4, status: "sold" }]);
   await book({ title: "E2E Sample Award Winner", author: "Sample Author", categories: "Fiction" }, [{ price: 6 }], [{ label: "Booker Prize", year: 2019 }]);

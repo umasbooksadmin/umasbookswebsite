@@ -25,10 +25,9 @@ validateIdParams(router, "id");
 // listing page anymore, just the detail route past this point.
 
 // Logged-in people's favorites persist here too (see public/favorites.js),
-// alongside the localStorage list every person already gets — this is
-// what lets /api/books/recommendation draw its weekly pick from real
-// member favorites. Guests get a silent no-op: favoriting
-// stays client-only for them, same as before this existed.
+// alongside the localStorage list every person already gets, so a member's
+// favorites follow the account (data export, deletion). Guests get a silent
+// no-op: favoriting stays client-only for them.
 router.post("/api/favorites/toggle", async (req, res) => {
   if (!req.session.user) return res.status(204).end();
   const bookId = parseId(req.body.bookId);
@@ -81,42 +80,6 @@ router.get("/api/books/latest-arrivals", async (req, res) => {
       url: `${baseUrl(req)}/books/${b.id}`,
     }))
   );
-});
-
-// Public JSON, cross-origin — the marketing site's "Recommendation of
-// the Week" band. Drawn from books a member or admin has favorited (see
-// POST /api/favorites/toggle below), not hand-curated — same eligibility
-// as the /books page's own "Recommended for You". Picks deterministically
-// per ISO week (every request during the same week gets the same book,
-// so it doesn't change on every page load) rather than fully at random,
-// by hashing each candidate with the current year+week and taking the
-// smallest hash — a new pick "at random" each week without needing any
-// stored state. Same CORS treatment as /api/books/latest-arrivals.
-router.get("/api/books/recommendation", async (req, res) => {
-  res.set("Access-Control-Allow-Origin", "*");
-  res.set("Cross-Origin-Resource-Policy", "cross-origin");
-  res.set("Cache-Control", "public, max-age=300");
-  const { rows } = await pool.query(
-    `SELECT * FROM (
-       SELECT DISTINCT b.id, b.title, b.authors, b.cover_url, b.description, b.description_fr
-       FROM favorites f
-       JOIN users u ON u.id = f.user_id AND ((u.is_member = true AND (u.member_expires_at IS NULL OR u.member_expires_at > now())) OR u.is_admin = true)
-       JOIN books b ON b.id = f.book_id
-       WHERE EXISTS (SELECT 1 FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock')
-     ) AS candidates
-     ORDER BY md5(id::text || to_char(now(), 'IYYY-IW'))
-     LIMIT 1`
-  );
-  const b = rows[0];
-  if (!b) return res.json(null);
-  res.json({
-    id: b.id,
-    title: b.title,
-    author: b.authors,
-    coverUrl: localCover(b.cover_url),
-    blurb: { en: b.description || "", fr: b.description_fr || b.description || "" },
-    url: `${baseUrl(req)}/books/${b.id}`,
-  });
 });
 
 // Public JSON, cross-origin — consumed by the marketing site's Books

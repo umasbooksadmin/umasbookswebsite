@@ -3,7 +3,13 @@ const assert = require("node:assert/strict");
 const { normalizeCondition, normalizeStatus, normalizeGenres } = require("../../src/lib/inventory");
 
 test("normalizeCondition passes through a known value", () => {
-  assert.equal(normalizeCondition("like_new"), "like_new");
+  for (const c of ["new", "very_good", "good", "acceptable"]) assert.equal(normalizeCondition(c), c);
+});
+
+test("normalizeCondition accepts the old grade keys as aliases (like_new = very_good; fair and poor = acceptable)", () => {
+  assert.equal(normalizeCondition("like_new"), "very_good");
+  assert.equal(normalizeCondition("fair"), "acceptable");
+  assert.equal(normalizeCondition("poor"), "acceptable");
 });
 
 test("normalizeCondition defaults an unknown value to very_good", () => {

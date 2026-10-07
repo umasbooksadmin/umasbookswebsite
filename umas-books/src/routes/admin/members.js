@@ -118,7 +118,7 @@ router.get("/admin/members", requireAdmin, async (req, res) => {
   const offset = (currentPage - 1) * MEMBERS_PAGE_SIZE;
 
   const { rows: members } = await pool.query(
-    `SELECT u.id, u.email, u.display_name, u.is_admin, u.is_member, u.is_volunteer, u.is_disabled, u.member_expires_at, u.email_verified_at, u.created_at, u.last_login_at,
+    `SELECT u.id, u.email, u.display_name, u.is_admin, u.is_member, u.is_volunteer, u.is_till, u.is_disabled, u.member_expires_at, u.email_verified_at, u.created_at, u.last_login_at,
             (SELECT COUNT(*) FROM event_signups es WHERE lower(es.email) = lower(u.email))::int AS events_count,
             (SELECT COUNT(*) FROM class_signups cs WHERE lower(cs.email) = lower(u.email))::int AS programs_count,
             COALESCE(bo.book_count, 0)::int AS books_count,
@@ -275,6 +275,16 @@ router.post("/admin/members/:id/toggle-volunteer", requireAdmin, async (req, res
   const id = Number(req.params.id);
   await pool.query("UPDATE users SET is_volunteer = NOT is_volunteer WHERE id = $1", [id]);
   await audit(req, { action: "member.toggle_volunteer", targetType: "user", targetId: id });
+  res.redirect(`/admin/members?view=${id}${membersBackQuery(req)}`);
+});
+
+// "Till access": the account may use the till (/admin/till) without being an admin.
+router.post("/admin/members/:id/toggle-till", requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  const { rows } = await pool.query("UPDATE users SET is_till = NOT is_till WHERE id = $1 RETURNING is_till", [id]);
+  if (rows.length) {
+    await audit(req, { action: "member.toggle_till", targetType: "user", targetId: id, detail: rows[0].is_till ? "Till access given" : "Till access removed" });
+  }
   res.redirect(`/admin/members?view=${id}${membersBackQuery(req)}`);
 });
 

@@ -7,15 +7,17 @@ function normalizeIsbn(isbn) {
   return (isbn || "").replace(/[^0-9Xx]/g, "").toUpperCase();
 }
 
-// Open Library's free-text physical format ("Hardcover", "Mass Market
-// Paperback", "trade paperback"...) mapped to our three bindings, or null when
-// it is missing or something else (e.g. "Audio CD", "Spiral-bound").
+// A free-text physical format from Open Library or Google ("Hardcover", "Mass
+// Market Paperback", "trade paperback"...) mapped to our four bindings:
+// hardcover, mass_market (also "Poche"), trade (any other paperback or
+// softcover) or other (board book, spiral, audio...). null when missing.
 function mapBinding(physicalFormat) {
-  const f = String(physicalFormat == null ? "" : physicalFormat).toLowerCase();
-  if (f.includes("mass market")) return "mass_market";
-  if (f.includes("hardcover") || f.includes("hardback")) return "hardcover";
-  if (f.includes("paperback") || f.includes("softcover")) return "paperback";
-  return null;
+  const f = String(physicalFormat == null ? "" : physicalFormat).trim().toLowerCase();
+  if (!f) return null;
+  if (f.includes("mass market") || f.includes("mass-market") || f.includes("massmarket") || f === "poche" || f.includes("pocket")) return "mass_market";
+  if (f.includes("hardcover") || f.includes("hardback") || f.includes("hard cover") || f.includes("hard back") || f.includes("relié")) return "hardcover";
+  if (f.includes("paperback") || f.includes("softcover") || f.includes("soft cover") || f.includes("trade") || f.includes("broché") || f === "paper") return "trade";
+  return "other";
 }
 
 function extractYear(publishDate) {

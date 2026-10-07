@@ -324,8 +324,11 @@ Key rules:
   grandfathered as verified.
 * **CSRF** — a per-session token created lazily, compared in constant time;
   `/api/csrf-token` saves the session before answering.
-* **Real client IP.** Production is visitor, Cloudflare, Render's own edge (also
-  Cloudflare), app: two trusted hops. `trust proxy` is set to the number
+* **Real client IP.** Production is visitor, Render's edge (Render's edge is
+  Cloudflare-based, hence the `cloudflare` response header; the association has no
+  Cloudflare account of its own and DNS at Squarespace Domains points straight at
+  Render, an `A` record to `216.24.57.1`), Render's internal proxy, app: two
+  trusted hops. `trust proxy` is set to the number
   `TRUST_PROXY_HOPS` (`lib/trustProxy.js`; default 2 in production, 1 elsewhere
   and in tests), so `req.ip` is the real visitor and every user of `req.ip`
   (rate-limit key `ipKey`, the admin audit log, the webhook
@@ -431,11 +434,11 @@ erDiagram
 Details of the shop tables worth knowing:
 
 * **Condition grades and binding.** `book_copies.condition` is one of four
-  grades, `new`, `like_new`, `very_good` (the default) or `acceptable`,
+  grades, `new`, `very_good` (the default), `good` or `acceptable` (migration 078 turned `like_new` into `very_good`),
   enforced by a CHECK constraint (migration 048 remapped the old values; a copy
   that cannot be sold at all has status `damaged`, not a condition).
-  `books.binding` is `hardcover`, `paperback` or `mass_market` (optional; older
-  books are NULL until filled in). Both are shown in English and French.
+  `books.binding` is `hardcover`, `trade`, `mass_market` or `other` (optional; older
+  books are NULL until filled in; migration 077 renamed `paperback` to `trade`). Both are shown in English and French.
 * **Copy source.** `book_copies.source` records where a copy came from:
   `donation`, `purchase`, `lot` (job lot) or `other`; NULL means unknown (every
   copy added before migration 045). The Reports pages group by it.
@@ -602,11 +605,11 @@ stateDiagram-v2
   are Paris calendar days. Any table can be downloaded as CSV; no report except *Accounts* shows
   email addresses or buyer names, and every CSV download is written to the audit
   log (report name only).
-* **Sell in shop** (`/admin/inventory/sell`) records a counter sale: scan the ISBN,
-  choose the copy, confirm the price and an optional payment method (cash, card,
-  other). One transaction inserts a `shop_sales` row and sets the copy to `sold`;
-  only the admin's id is kept, never buyer details. New books keep the fixed-price
-  rule. The sale is audit-logged and joins online orders in the Sales report.
+* **Sell in shop** (`/admin/inventory/sell`) is **retired**: sales are made at the Till
+  (`/admin/till`, see "The till"). GET and POST on the old URL redirect (302) to
+  `/admin/till?notice=sell-retired`, which shows "Sales are made at the Till now". The
+  `shop_sales` table and its old rows stay (the till writes one `shop_sales` row per book it
+  sells, and the reports and the accounting export read them).
 * **Move books** (`/admin/inventory/move`) is described under inventory
   locations above.
 
@@ -711,7 +714,10 @@ contact form to the shop) goes through `lib/outbox.js`: **store, then send**.
   retries due rows with backoff **1, 5, 15, 60, 240 min** (240 repeating) up to
   **8 attempts**, then `status = 'failed'` and **one alert email per hour**
   ("N emails could not be sent": kinds, counts, last error with emails and long
-  numbers removed). Three failures in a row stop the batch (Gmail is refusing
+  numbers removed). A row that has waited **over 60 minutes** (pending or
+  retrying) raises one **"stuck in the outbox" alert per 6 hours**, counts per
+  kind only (the backoff takes 801 minutes to reach `failed`, which used to be a
+  long silence). Three failures in a row stop the batch (Gmail is refusing
   everything). Alerts themselves go straight through the mailer with one retry
   (`sendAdminAlert`), because the outbox cannot report its own outage.
 - `orders.confirmation_sent_at` is set when a confirmation really went out.
@@ -782,6 +788,60 @@ in person only: online payment exists only for HelloAsso memberships and orders.
   items, older "Sell in shop" sales (no till sale), paid online orders and
   membership payments into rows by day, category and payment method.
 
+#### Till correctness and money safety (migration `074_till_correctness.sql`)
+
+- **The amount shown is the amount recorded.** Every confirm carries
+  `expectedTotalCents` and each line's `expected` unit price. After re-pricing from the
+  database, `checkExpected` refuses a difference with **409 `price_changed`** (new total in the
+  answer) and nothing is recorded; for a card sale the page tells the cashier to cancel the
+  charge on the reader and restart. A confirm without an expected total is a 422.
+- **`POST /admin/till/check`** runs the same line building and validation as the sale
+  (`checkSale`, a read-only transaction, no locks, nothing written). The Cash and Card screens call
+  it when they open, so a refusal shows before the customer pays. After "Card paid" the page
+  freezes the charged total (kept in `sessionStorage`), and a failure shows the red "already
+  charged, do not charge again" box with Record card sale (check first) and Record anyway (same
+  token, same total, no check). The till routes always answer JSON (`jsonRoute`): a refusal has its
+  message, an unexpected failure is a JSON 500 with `serverError`, so the page can tell a server
+  rejection from a network failure (only the latter says "Connection problem", and only that one
+  is safe to retry blindly, because of the sale token).
+- **Replay.** `till_sales.basket_hash` (sha256 of the payment method and the lines as sent) is
+  stored with the unique sale token: the same token with another basket is a 409
+  `token_replay`, the same basket returns the first sale.
+- **Closed day.** A sale on a Paris day with `till_days.closed_at` is refused (409 `day_closed`)
+  unless an admin ticks "Reopen this day to record this sale" with a reason: the day is reopened
+  (`closed_at` and the counted figures cleared, `reopened_at/by`, `reopen_reason`) in the same
+  transaction as the sale, audited as `till.day_reopen`, and must be closed again. Backdating
+  (`soldAtTime`, `soldAtDay` today or yesterday) is admin-only, never in the future, always needs a
+  reason (`backdate_reason`, audited). Late entries are flagged by `till_sales.entered_at` (the
+  insertion time), not `created_at` (the time of the sale).
+- **Locks.** Sales and voids take a per-day advisory lock SHARED (`lockDay`), closing and reopening take
+  it EXCLUSIVE, and a void also reads `till_days ... FOR SHARE`, closing `FOR UPDATE`: a void or a
+  sale committing while the day is being closed waits, then sees the closed day, so the expected
+  cash cannot change after the count. Closing with no opening float needs `confirmNoFloat`; a past
+  unclosed day can be given a float (`POST /admin/till/day/open` with `day`).
+- **Limits and overrides.** `MAX_TOTAL_CENTS` = 1,000,000 per sale (422 "Sale total too large"),
+  quantity at most 99 and 60 lines. A book price change is free up to 20% above the asking
+  price; lower, or higher by more, needs a reason (stored on the item and in the audit entry) and
+  an admin. A book is never 0; only a manual Donation line may be 0.
+- **Card voids.** `till_sales.refund_confirmed` (+ `_at`, `_by`): staff tick "I refunded the card"
+  at void time or later (`POST /admin/till/sales/:id/refunded`); unticked voided card sales are in
+  the dashboard's Needs attention and on End of day.
+- **Expired carts.** A copy `in_cart` past `CART_HOLD_TTL_MINUTES` is offered with "Release this
+  copy from the expired cart and add it" (`POST /admin/till/release` calls the cart's own
+  `releaseCartHold`); a live hold is refused with the minutes left.
+- **Till role.** `users.is_till`. `requireTillOrAdmin` (`src/middleware/auth.js`) is used ONLY on
+  the till page, scan, check, sale, release, void, refund tick, receipt and the read-only end of
+  day (`test/integration/adminAuthzMatrix.test.js` pins the exact list); everything else is
+  `requireAdmin`. Admins still need two-step verification; a till-only account does not, but its
+  session ends after 8 hours without a till request (`tillActiveAt` in the session). Price overrides
+  beyond the rule, backdating, reopening/closing, the float and quick items stay admin-only.
+  Toggled on Admin > Accounts (`member.toggle_till`); shown as the "Till" pill, the "Till access"
+  filter and "+ Till" in the Accounts report (`src/lib/accountTypes.js`).
+- **One source of truth for sales figures.** `salesTotals` / `accountingRows` in
+  `src/lib/accounting.js` feed the Accounting export and the dashboard's "Sales this month"
+  (Till, Online, Membership breakdown, same Paris-day buckets); `test/integration/tillDashboardAgreement.test.js`
+  checks the dashboard, Reports (book sales), End of day and the export agree on one fixture.
+
 ## 8. Membership
 
 Membership is sold on a **HelloAsso-hosted form** (embedded as an iframe that is
@@ -850,7 +910,8 @@ touched by the sync or the expiry sweep.
 There is no job queue: a few `setInterval` timers in the web process, plus
 GitHub Actions for work that must survive the site being down. Each timer's job
 is wrapped by `guardJob` (`lib/jobGuard.js`): a run that is still in progress is
-never overlapped by the next tick, which is skipped with one log line.
+never overlapped by the next tick, which is skipped with one log line, and
+every run is recorded in the `job_runs` table (see "Job tracking" below).
 
 
 ```mermaid
@@ -863,6 +924,7 @@ flowchart LR
     P["daily and at boot<br/>retention purge,<br/>30-day inactivity warnings"]
     IC["daily and at boot<br/>unused-image cleanup"]
     AW["every 2 min (not at boot)<br/>awards drain, 5 books"]
+    JR[("job_runs<br/>last run, last success,<br/>failures in a row")]
   end
   subgraph gha["GitHub Actions (independent of Render)"]
     D["every 30 min<br/>uptime check"]
@@ -883,6 +945,8 @@ flowchart LR
   FR -->|"newest full/ dump older than 36 h,<br/>empty or unreachable: email"| BK
   IC --> DB
   AW --> DB
+  A -. "every run recorded" .-> JR
+  JR -. "3 failures in a row: one alert email" .-> OBX["alert to ALERT_TO"]
   AW --> EXT["Wikidata, NYT, Anthropic"]
 ```
 
@@ -895,11 +959,37 @@ flowchart LR
 | Retention purge | web process | daily, and at boot | see below; also clears ended book requests and expired "find my requests" links |
 | Unused-image cleanup | web process | daily, and at boot | deletes at most one batch of images older than 7 days that no row references (`lib/imageCleanup.js`) |
 | Awards drain | web process | 2 min, not at boot | looks up awards for a few books at a time (§6); a no-op when `AWARDS_LOOKUPS=off` |
-| Cover backfill | web process | 5 min, first run after 1 min | copies up to 20 book covers from their Open Library / archive.org source address into the `images` table, books on the shelves first; at most 3 attempts a week per cover; off with `COVER_BACKFILL=off` (`lib/coverStore.js`) |
-| Uptime check | Actions | 30 min | emails on the **second** consecutive failure and on recovery |
+| Cover backfill | web process | 5 min, first run after 1 min | copies up to 20 book covers from their Open Library / archive.org source address into the `images` table, books on the shelves first; at most 3 failed attempts a week per cover, where only a 404, a placeholder or an invalid image counts as failed (a 5xx, timeout or network error does not, and 3 in a row stop the batch); sends a User-Agent with the site and a contact address; off with `COVER_BACKFILL=off` (`lib/coverStore.js`) |
+| Uptime check | Actions | 30 min (about 1,440 billed minutes a month: see the runbook, section t) | emails on the **second** consecutive failure and on recovery |
 | Database backup | Actions | 03:00 UTC | full dump to Backblaze B2 (required); a second copy on the 1st of the month |
-| Restore test | Actions | monthly + manual | restores the newest Backblaze dump into a scratch Postgres and checks it |
-| Backup freshness check | Actions | 09:00 UTC daily + manual | emails if the newest nightly dump in Backblaze is older than 36 hours, empty, missing, or Backblaze cannot be reached (§12) |
+| Restore test | Actions | monthly + manual | restores the newest Backblaze dump into a scratch Postgres and checks it (key tables, newest migration, images) |
+| Test alert | Actions | every Monday + manual | sends one email so a broken alert channel is noticed within a week |
+| Backup freshness check | Actions | 09:00 UTC daily + manual | emails if the newest nightly dump in Backblaze is older than 36 hours, empty, missing, or Backblaze cannot be reached; after the 3rd of the month also if the newest `monthly/` copy is over 35 days old (§12) |
+
+**Job tracking** (`lib/jobRuns.js`, table `job_runs`, migration 081). A job used
+to fail with only a `console.error` that nobody read. Now `guardJob(name, fn,
+{ pool, intervalMs })` records `last_run_at`, `last_success_at`,
+`consecutive_failures` and `last_error` (scrubbed of emails and long digit
+runs) after every run. **Three failures in a row send one alert email** (through
+`alertOnError`, `force`, to `ALERT_TO`), and the first success afterwards sends
+one "recovered" note; if the database itself is down the in-memory counter still
+raises the alert. The reservation job is four tracked jobs (reservation expiry,
+pickup reminders, membership expiry, membership reconciliation; the last one now
+throws when a payer's check failed, after trying the others), and **every
+retention-purge step is its own row** (`Retention purge: tokens`, ...), fed by
+`purgeExpiredPersonalData(pool, { onStep })`. The admin page
+`/admin/diagnostics/jobs` (English, admin only) shows the table, and the
+dashboard's "Needs attention" box lists a job with 3+ failures in a row or no
+success for three times its interval (rows older than 30 days are ignored so a
+removed job cannot nag forever).
+
+**Once-per-period alerts** (`lib/alertFlags.js`, table `alert_flags`): an atomic
+`INSERT ... ON CONFLICT ... WHERE last_sent_at < now() - period` claims the
+slot, so the alert holds across restarts and instances, and the slot is handed
+back if the alert mail itself fails. Used for the launch-guard alerts (once per
+24 h each, instead of up to three emails on every deploy; a red banner on every
+admin page shows the problem meanwhile) and the "email stuck in the outbox"
+alert (any row pending over 60 minutes, once per 6 hours, counts per kind only).
 
 **The daily retention purge** keeps the promises on the privacy page. It removes
 event and class sign-ups 12 months after the date, expired reset and
@@ -1005,12 +1095,13 @@ flowchart TB
   subgraph monthly["Monthly restore test"]
     N["newest dump from Backblaze B2 (full/)"] --> RS["pg_restore into a scratch postgres:18"]
     RS --> CK["check key tables exist, row counts,<br/>at least one admin, image bytes present"]
-    CK --> E2["failure: email to admin"]
+    CK --> MG["newest migration in the dump >=<br/>newest migration file in the repo"]
+    MG --> E2["failure: email to the alert addresses"]
   end
 
   subgraph fresh["Backup freshness check, daily 09:00 UTC"]
-    FL["list newest dump under full/"] --> FQ{"exists, not empty,<br/>written within 36 hours?"}
-    FQ -- no --> E5["email to admin"]
+    FL["list newest dump under full/<br/>(and, after the 3rd, newest monthly/ under 35 days)"] --> FQ{"exists, not empty,<br/>fresh enough?"}
+    FQ -- no --> E5["email to the alert addresses"]
     FQ -- yes --> FOK["ok, nothing sent"]
   end
 
@@ -1027,12 +1118,37 @@ flowchart TB
 * **Retention in Backblaze** is set by two lifecycle rules on the bucket, not by
   the workflow: nightly dumps under `full/` are hidden after 30 days and the
   1st-of-the-month copies under `monthly/` after 730 days (about two years).
+* **Alert recipients.** Every alert (site and workflows) goes to `ALERT_TO`: one
+  address or several separated by commas (Render env var for the site, GitHub
+  repository **variable** of the same name for the workflows, default
+  `admin@umasbooks.org`). All alerts are still *sent from* one Gmail account, so a
+  second recipient on a **different provider** is advised, and a **weekly** test
+  alert (Mondays) proves the channel works. The runbook (section d, q) has the
+  click paths and a table of every alert with its first three actions.
+* **External monitor.** UptimeRobot (free) checks `/healthz` every 5 minutes and
+  alerts by email; the 30-minute GitHub uptime check stays as an independent
+  second layer. `ALERT_TO` is `admin@umasbooks.org,sharonbje@gmail.com` in both
+  Render and the GitHub variable.
+* **Mail not configured is a failure, not "sent".** `mailer.sendMail` throws in
+  production when `GMAIL_*` is unset (it only logs in tests and local
+  development), so the outbox keeps and retries the message instead of marking it
+  sent and blanking a login link.
+* **Restore test coverage.** The monthly restore test checks that these tables
+  exist after the restore: `users`, `books`, `book_copies`, `orders`,
+  `schema_migrations`, `till_sales`, `till_days`, `till_sale_items`,
+  `till_quick_items`, `shop_sales`, `email_outbox`, `membership_payments`,
+  `admin_audit_log`, `images`; compares the highest filename in `schema_migrations`
+  with the highest file in `umas-books/migrations` of the repository checkout (a
+  migration added in the last 30 hours is a warning, an older one means the dump
+  is stale); and the existing row, admin and image-byte checks.
 * **Freshness check.** The nightly workflow emails when it *fails*, but cannot email
   if it never runs at all (workflow disabled, schedule dropped, a GitHub outage).
   `.github/workflows/backup-freshness.yml` therefore runs six hours after the
   backup, looks at Backblaze itself, and emails `admin@umasbooks.org` if the newest
   `full/` dump is older than 36 hours, is empty, or is missing, or if Backblaze
-  cannot be reached or its settings are absent. It uses the same `BACKUP_S3_*`
+  cannot be reached or its settings are absent. From the 4th of each month it also
+  requires the newest `monthly/` object to be under 35 days old, so a silently
+  failing 1st-of-the-month copy is noticed. It uses the same `BACKUP_S3_*`
   settings and the Gmail secrets as the nightly job.
 * **Dumps never go into the code repository**: they contain member names,
   emails, order details and password hashes, so they live only in the private
@@ -1042,6 +1158,21 @@ flowchart TB
 * **Restore procedure**: `umas-books/README.md` → "Restoring from a backup".
 * **Application errors** go through `alertOnError` (one email per 15 minutes, so
   an outage can't flood the inbox); payment-money alerts bypass that throttle.
+  Failing background jobs, stuck emails and launch warnings have their own
+  once-per-outage / once-per-period alerts (section 9).
+* **Actions minutes.** The repository is private (Free plan: 2,000 minutes a
+  month; a full CI run is about 20 billed minutes, the uptime check about 1,440 a
+  month). CI keeps its six required check names and always runs them, but a
+  documentation-only pull request skips the install and test steps inside each
+  job and the 10-minute smoke crawl runs only when the app, views, public files,
+  migrations, scripts, package files, marketing pages or `.github/` changed (and
+  always on `main`): see the header of `.github/workflows/ci.yml` and
+  `.github/scripts/ci-changes.sh`. Measured numbers and the monthly usage check:
+  runbook section t.
+* **If the Render account is lost**: runbook section u) rebuilds everything from
+  GitHub, `render.yaml` (which now lists every environment variable) and the
+  newest Backblaze dump in 2 to 4 hours; sections v) and w) hold the accounts
+  inventory and the second-owner / recovery-code checklist.
 * **Offsite status**: Backblaze B2 is the only backup location and is required;
   the nightly job fails (and emails) if its settings are missing. The
   repository variables and secrets it needs are listed in `umas-books/README.md`.
@@ -1064,7 +1195,7 @@ Layers, outermost first. A request must pass every one that applies to it.
 
 ```mermaid
 flowchart TD
-  NET["Internet"] --> TLS["Cloudflare + Render edge: TLS,<br/>trust proxy = 2 hops (TRUST_PROXY_HOPS)<br/>(real client IP)"]
+  NET["Internet"] --> TLS["Render edge: TLS,<br/>trust proxy = 2 hops (TRUST_PROXY_HOPS)<br/>(real client IP)"]
   TLS --> HL["helmet: CSP, HSTS, no-referrer,<br/>frame-ancestors none"]
   HL --> RL["Rate limits (per IP)<br/>login, reserve, cart, sign-ups,<br/>forum, contact + marketing forms, webhook"]
   RL --> SE["Session cookie: HttpOnly, Secure,<br/>SameSite=Lax; regenerated at login"]
@@ -1160,23 +1291,29 @@ reservations behind. The code handles it in one place (`lib/privacy.js`):
 | `AWARDS_AI_DAILY_MAX`, `AWARDS_AI_MODEL` | optional | daily cap on AI award checks (default 100) and model override |
 | `AWARDS_LOOKUPS` | optional | `off` stops every awards lookup (used by tests) |
 | `COVER_BACKFILL` | optional | `off` stops the background job that copies book covers to our own server (used by tests) |
-| `TRUST_PROXY_HOPS` | optional | integer 1 to 5: how many reverse proxies sit in front of the app (default **2** in production: Cloudflare, then Render's own edge; 1 elsewhere). `req.ip` is the Nth address from the right of the chain, so a spoofed `X-Forwarded-For` prefix is ignored. Logged at boot; verify on `/admin/diagnostics/client-ip` |
+| `TRUST_PROXY_HOPS` | optional | integer 1 to 5: how many reverse proxies sit in front of the app (default **2** in production: Render's edge and its internal proxy; 1 elsewhere). The edge reports `cf-cache-status: DYNAMIC` for everything (the app sets its own `Cache-Control`); **a real CDN or caching rule added later changes the proxy chain, so re-check this value then**. `req.ip` is the Nth address from the right of the chain, so a spoofed `X-Forwarded-For` prefix is ignored. Logged at boot; verify on `/admin/diagnostics/client-ip` |
 | `APP_BASE_URL` | required when preview is off | `https://umasbooks.org`. On a live site it is the only base URL used (no `RENDER_EXTERNAL_URL` fallback) and any other Host is redirected to it |
 | `PREVIEW_MODE` | optional | `true` or `1` puts the site in preview: coming-soon banner, reservations and membership payment off, `noindex`. Unset to open the shop |
 | `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD` | first boot | creates the first admin if none exists (and the email is free); also creates sample content in that same run. Never blocks startup: a failure is logged and emailed |
-| `CONTACT_TO` | optional | contact-form, volunteer sign-up, pre-registration and forum-report recipient (default `admin@umasbooks.org`) |
+| `CONTACT_TO` | optional | contact-form, volunteer sign-up, pre-registration and forum-report recipient: one address or several separated by commas (default `admin@umasbooks.org`) |
+| `ALERT_TO` | recommended | recipient(s) of every site alert (errors, failed or stuck email, failing jobs, launch warnings), comma separated; falls back to `CONTACT_TO`, then `admin@umasbooks.org`. A warning is logged on a live site when unset |
 | `TZ` | no | forced to `Europe/Paris` by `lib/tz.js` at startup |
 | `ADMIN_2FA_REQUIRED` | tests only | `false` turns the admin two-step requirement off in CI; ignored in production |
 
 On Render, `render.yaml` declares the core variables (database, session secret,
-`TOTP_ENCRYPTION_KEY`, mail, HelloAsso, Anthropic, seed admin); the optional
-switches above (`PRICING_AI`, `AWARDS_AI`, `NYT_API_KEY`, `PREVIEW_MODE`, caps and
-model overrides) are added by hand in the service's environment settings.
+`TOTP_ENCRYPTION_KEY`, mail, HelloAsso, Anthropic, seed admin) and, so that a
+Blueprint rebuild starts correctly, `APP_BASE_URL`, `CONTACT_TO`, `ALERT_TO`,
+`TRUST_PROXY_HOPS`, `HELLOASSO_MEMBERSHIP_FORM_SLUG` and `COVER_BACKFILL`;
+`PREVIEW_MODE` is **deliberately absent** (set and removed by hand in the
+dashboard); the other optional switches above (`PRICING_AI`, `AWARDS_AI`,
+`NYT_API_KEY`, caps and model overrides) are added by hand in the service's
+environment settings.
 Startup validation (`lib/env.js`, production only) stops the boot if
 `DATABASE_URL`, `SESSION_SECRET` or `TOTP_ENCRYPTION_KEY` is missing and logs a warning when mail,
 payment or the base URL are not configured.
 
-GitHub (repository **secrets** unless noted): `DATABASE_URL` (the database's
+GitHub (repository **secrets** unless noted; the **variables** `ALERT_TO` and
+optional `SITE_URL` are the recipients and the address the uptime check watches): `DATABASE_URL` (the database's
 *external* URL, for backups), `GMAIL_USER`, `GMAIL_APP_PASSWORD`; required offsite
 backup (Backblaze B2), used by the nightly backup, the restore test and the
 freshness check: **repository variables** `BACKUP_S3_BUCKET`, `BACKUP_S3_ENDPOINT`,

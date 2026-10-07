@@ -5,7 +5,7 @@
 
 function makeClient(base) {
   async function send(path, { method = "GET", as = null, form, headers = {} } = {}) {
-    const res = await fetch(`${base}${path}`, {
+    let res = await fetch(`${base}${path}`, {
       method,
       redirect: "manual",
       headers: {
@@ -15,6 +15,12 @@ function makeClient(base) {
       },
       body: form ? new URLSearchParams(form).toString() : undefined,
     });
+    // 303 = an admin form answered Post/Redirect/Get: follow it like the browser does, with the
+    // session the POST started (any other answer is returned as is).
+    if (res.status === 303) {
+      const cookie = res.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
+      res = await fetch(`${base}${res.headers.get("location")}`, { redirect: "manual", headers: { ...(as ? { "x-test-user": JSON.stringify(as) } : {}), ...headers, cookie } });
+    }
     return { res, status: res.status, location: res.headers.get("location"), text: await res.text() };
   }
   return {

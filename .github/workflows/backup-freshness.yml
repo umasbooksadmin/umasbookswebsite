@@ -3,7 +3,8 @@ name: Backup freshness check
 # The nightly backup workflow emails when it FAILS, but cannot email if it
 # never runs at all (workflow disabled, schedule dropped, GitHub outage).
 # This separate daily check looks at Backblaze itself and emails if the
-# newest nightly dump is missing or older than MAX_AGE_HOURS.
+# newest nightly dump is missing or older than MAX_AGE_HOURS, and (from the 4th
+# of each month) if the long-term monthly/ copy is older than 35 days.
 # Needs the same BACKUP_S3_* repository variables/secrets as the nightly
 # backup, plus GMAIL_USER / GMAIL_APP_PASSWORD for the email.
 
@@ -59,6 +60,52 @@ jobs:
             exit 1
           fi
 
+      - name: Check the newest monthly copy in Backblaze
+        # The nightly job also keeps a long-term copy on the 1st of each month
+        # (monthly/, 2-year retention). If that upload silently stopped, the
+        # daily check above would stay green for a month or more. From the 4th
+        # of the month on, the newest monthly/ object must be under 35 days old
+        # (days 1-3 are skipped: the copy for this month may not exist yet, and
+        # the previous one is still under 35 days old for most of that time).
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_S3_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_APPLICATION_KEY }}
+          AWS_DEFAULT_REGION: ${{ vars.BACKUP_S3_REGION }}
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+          ENDPOINT: ${{ vars.BACKUP_S3_ENDPOINT }}
+          BUCKET: ${{ vars.BACKUP_S3_BUCKET }}
+          PREFIX: ${{ vars.BACKUP_S3_PREFIX }}
+          MAX_MONTHLY_AGE_DAYS: "35"
+        run: |
+          DAY_OF_MONTH=$((10#$(date -u +%d)))
+          if [ "$DAY_OF_MONTH" -le 3 ]; then
+            echo "Day $DAY_OF_MONTH of the month: the monthly copy check is skipped until the 4th."
+            exit 0
+          fi
+          PREFIX="${PREFIX:-store-backups}"
+          PREFIX="${PREFIX%/}"
+          NEWEST=$(aws s3api list-objects-v2 --endpoint-url "$ENDPOINT" --bucket "$BUCKET" \
+                     --prefix "${PREFIX}/monthly/umas_books_full_" --delimiter "/" \
+                     --query 'sort_by(Contents, &LastModified)[-1].[Key,LastModified,Size]' --output text)
+          if [ -z "$NEWEST" ] || [ "$NEWEST" = "None" ]; then
+            echo "::error::No monthly copies found under ${BUCKET}/${PREFIX}/monthly/."
+            exit 1
+          fi
+          KEY=$(echo "$NEWEST" | awk '{print $1}')
+          WHEN=$(echo "$NEWEST" | awk '{print $2}')
+          SIZE=$(echo "$NEWEST" | awk '{print $3}')
+          AGE_DAYS=$(( ( $(date -u +%s) - $(date -u -d "$WHEN" +%s) ) / 86400 ))
+          echo "Newest monthly copy: ${KEY} (${SIZE} bytes), written ${WHEN}, ${AGE_DAYS} days ago."
+          if [ "$SIZE" -le 0 ]; then
+            echo "::error::The newest monthly copy is empty."
+            exit 1
+          fi
+          if [ "$AGE_DAYS" -gt "$MAX_MONTHLY_AGE_DAYS" ]; then
+            echo "::error::The newest monthly copy is ${AGE_DAYS} days old (limit ${MAX_MONTHLY_AGE_DAYS}): the 1st-of-the-month copy was not written."
+            exit 1
+          fi
+
       - name: Alert admin if there is no fresh backup
         if: failure()
         uses: dawidd6/action-send-mail@67ce3558d613188179559c61d3565140cf389968 # v22
@@ -68,10 +115,10 @@ jobs:
           username: ${{ secrets.GMAIL_USER }}
           password: ${{ secrets.GMAIL_APP_PASSWORD }}
           subject: "[umas-books] No fresh database backup in Backblaze"
-          to: admin@umasbooks.org
+          to: ${{ vars.ALERT_TO || 'admin@umasbooks.org' }}
           from: "Uma's Books Backup Monitor <${{ secrets.GMAIL_USER }}>"
           body: |
-            The daily freshness check could not find a recent database backup in Backblaze (the newest nightly dump is missing, empty, or older than ${{ env.MAX_AGE_HOURS }} hours), or it could not reach Backblaze.
+            The daily freshness check could not find a recent database backup in Backblaze (the newest nightly dump is missing, empty, or older than ${{ env.MAX_AGE_HOURS }} hours; or, after the 3rd of the month, the long-term monthly copy is older than 35 days), or it could not reach Backblaze.
 
             Check the failed run for details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 

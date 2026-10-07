@@ -4,6 +4,7 @@
 const express = require("express");
 const { pool, withTransaction } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
+const { setFlash, takeFlash } = require("../../lib/flash");
 const { audit } = require("../../lib/audit");
 const { validateIdParams } = require("../../middleware/idParams");
 const { getSettings, getSettingsAndRow, validateSettingsInput, saveSettings, NUMBER_FIELDS } = require("../../lib/pricing/settings");
@@ -18,8 +19,8 @@ validateIdParams(router, "copyId");
 const REVIEW_PAGE = 200;
 const SAMPLE_VALUES = [2, 4, 5.5, 6, 12, 19.99, 20, 35, 49.99, 50, 80];
 const BINDING_COLUMNS = [
-  { value: "", label: "Binding unknown" }, { value: "paperback", label: "Paperback" },
-  { value: "hardcover", label: "Hardcover" }, { value: "mass_market", label: "Mass market" },
+  { value: "", label: "Binding unknown" }, { value: "hardcover", label: "Hardcover" },
+  { value: "trade", label: "Trade" }, { value: "mass_market", label: "Mass Market" }, { value: "other", label: "Other" },
 ];
 const SAMPLE_ISBN = "9780000000002"; // any valid-looking ISBN: samples are about the rules, not a real book
 
@@ -78,12 +79,18 @@ async function renderSettings(res, { error = null, form = null, saved = false, q
 }
 
 router.get("/admin/pricing", requireAdmin, async (req, res) => {
+  // A refused save redirects here (Post/Redirect/Get) with the message and what was typed.
+  const f = takeFlash(req, "pricing");
+  if (f && f.error) return renderSettings(res, { error: String(f.error), form: f.form || null, query: req.query });
   await renderSettings(res, { saved: req.query.saved === "1", query: req.query });
 });
 
 router.post("/admin/pricing", requireAdmin, async (req, res) => {
   const parsed = validateSettingsInput(req.body);
-  if (parsed.error) return renderSettings(res.status(400), { error: parsed.error, form: typedValues(req.body) });
+  if (parsed.error) {
+    await setFlash(req, "pricing", { error: parsed.error, form: typedValues(req.body) });
+    return res.redirect(303, "/admin/pricing");
+  }
   const changed = await saveSettings(pool, parsed.values);
   if (changed.length) await audit(req, { action: "pricing.settings", detail: changed.join(", ") });
   res.redirect("/admin/pricing?saved=1");

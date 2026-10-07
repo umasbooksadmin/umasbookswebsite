@@ -146,7 +146,7 @@ s.test("G10 with preview off the banner is gone and the cart shows the prompt to
 
 // ---- 1C. Books ----
 
-s.test("G11 (must) Browse Books has search, genres, New In carousel and a recommendation area", async (ctx) => {
+s.test("G11 (must) Browse Books has search, genres, New In carousel", async (ctx) => {
   await ctx.goto("/books.html", "networkidle2");
   const ph = await ctx.page.$eval("#shop-search-input", (i) => i.placeholder);
   has(ph, /Search books/);
@@ -156,7 +156,6 @@ s.test("G11 (must) Browse Books has search, genres, New In carousel and a recomm
   has(text, /New In/);
   has(text, /See All New In/);
   assert.ok(await ctx.page.$("#bk-new-prev") && await ctx.page.$("#bk-new-next"), "carousel arrows");
-  assert.ok(await ctx.page.$(".bk-rec"), "recommendation section");
 });
 
 s.test("G12 search finds a book by title; a search with no match says so", async (ctx) => {
@@ -234,7 +233,7 @@ s.test("G16 (must) 'What the grades mean' lists the four grades", async (ctx) =>
   await ctx.goto(`/books/${book.id}`);
   await ctx.page.click(".grade-legend summary");
   const legend = await ctx.page.$eval(".grade-legend", (d) => d.innerText);
-  for (const g of ["New", "Like New", "Very Good", "Acceptable"]) has(legend, new RegExp(g));
+  for (const g of ["New", "Very Good", "Good", "Acceptable"]) has(legend, new RegExp(g));
   has(legend, /The grade is the description of the book/);
 });
 
@@ -326,7 +325,7 @@ s.test("G-FR11 FR check (books): search page, book page and grade legend in Fren
   has(text, /exemplaires? en rayon/);
   await ctx.page.click(".grade-legend summary");
   const legend = await ctx.page.$eval(".grade-legend", (d) => d.innerText);
-  for (const g of ["Neuf", "Comme neuf", "Très bon état", "État acceptable"]) has(legend, new RegExp(g));
+  for (const g of ["Neuf", "Très bon état", "Bon état", "État correct"]) has(legend, new RegExp(g));
   has(legend, /L’état indiqué est la description du livre/);
   has(text, /Prix TTC, TVA non applicable/);
   has(text, /Nos livres d’occasion sont vendus tels que décrits/);

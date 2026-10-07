@@ -52,12 +52,10 @@ Anything members did since that backup is lost.
 
 ## Accounts and secrets inventory
 
-Services the site depends on, and which account owns each. Add a row when a
-new service is set up. (Secrets themselves are listed in section b).)
-
-| Service | Owner account | What it does / watches |
-|---|---|---|
-| UptimeRobot (free plan) | sharonbje@gmail.com | HTTP(s) monitor on `https://umasbooks.org/healthz` every 5 minutes; alerts by email and app. Independent of GitHub and Gmail. See section d) |
+The inventory (every service, its owner account, recovery email, 2FA, where the
+secret lives and who else has access, including UptimeRobot) is section v) at
+the end of this runbook. Add a row there when a new service is set up. The
+secrets themselves are listed in section b).
 
 ## b) Rotating secrets
 
@@ -228,36 +226,75 @@ fix it from the site. Before demoting anyone, check that another admin exists. S
 
 ## d) Where alerts go
 
-Everything goes to **one mailbox: admin@umasbooks.org**. If that mailbox is
-missed, nobody hears about an outage.
+Alerts go to **two addresses**: `admin@umasbooks.org,sharonbje@gmail.com`
+(comma, no spaces; the second is on a different provider, so a locked Google
+Workspace account cannot silence everything). Every alert is still *sent from*
+the one Google account in `GMAIL_USER`. The value is set in **both** places
+below; keep them identical.
 
-**Test the alert emails any time** (for example after Dependabot updates the
-mail action): GitHub > **Actions** > **Send a test alert** > **Run workflow**.
-An email titled "[umas-books] TEST alert" should arrive within a minute. If it
-doesn't, the Gmail secrets (`GMAIL_USER`, `GMAIL_APP_PASSWORD`, both
-*repository secrets*) or the mail action need attention.
+**Change or add an alert address (do both places, same value):**
 
-- **Site down** (and "recovered"): `.github/workflows/uptime-check.yml`, `to:`
-  is written in the workflow file.
+1. **GitHub repository variable** `ALERT_TO` (used by the backup, uptime,
+   freshness, restore-test and test-alert workflows): GitHub > the repo >
+   **Settings > Secrets and variables > Actions > Variables** tab > **New
+   repository variable** (or the pencil next to it if it exists). Name
+   `ALERT_TO`, value `admin@umasbooks.org,sharonbje@gmail.com` (signed in as
+   `umasbooksadmin`, the repository owner; comma, no spaces) > **Add variable**. It is a
+   *variable*, not a secret: addresses are not secret.
+2. **Render environment variable** `ALERT_TO` (used by the site's own alerts:
+   errors, emails that cannot be sent, failing background jobs, launch
+   warnings): Render dashboard > `umas-books` > **Environment** > **Add
+   Environment Variable** (or edit it) > Key `ALERT_TO`, value `admin@umasbooks.org,sharonbje@gmail.com` > **Save
+   changes** (the site restarts, about a minute).
+3. **Test it:** GitHub > **Actions** > **Send a test alert** > **Run workflow**.
+   Both addresses must receive "[umas-books] TEST alert" within a minute. That
+   proves the GitHub side. The site's own alerts use the Render value; they
+   arrive at both addresses the next time a real alert fires (the first
+   "[umas-books] Background job recovered" or error email is your proof): check
+   the **second** inbox's spam folder once and mark the sender "not spam".
+
+`CONTACT_TO` (the contact form and forum reports) is a separate setting with
+the same format; if `ALERT_TO` is not set in Render, the site falls back to
+`CONTACT_TO`, then to `admin@umasbooks.org`.
+
+**The weekly test alert.** GitHub > Actions > **Send a test alert** runs by
+itself every **Monday at about 07:17 UTC (09:17 in summer, 08:17 in winter in Paris)** (it used to be monthly: a
+revoked Gmail password or a locked Google account was only noticed after up to
+a month). **No test email on a Monday = the alert channel is broken**: go to
+section m). You can also run it by hand any time (Run workflow).
+
+**What each alert is, and what to do:** see section r) "When you receive an
+alert".
+
+- **Site down** (and "recovered"): `.github/workflows/uptime-check.yml`.
 - **Nightly backup failed / monthly restore test failed**:
-  `.github/workflows/nightly-db-backup.yml` and `backup-restore-test.yml`,
-  `to:` written in the file.
+  `.github/workflows/nightly-db-backup.yml` and `backup-restore-test.yml`.
 - **No fresh backup in Backblaze** (daily 09:00 UTC; catches the nightly
-  backup not running at all): `.github/workflows/backup-freshness.yml`.
-  Fails if the newest dump is missing, empty or older than 36 hours.
-- **Errors in the running site** (`src/lib/errorAlert.js`) and the **contact
-  form** (`src/routes/contact.js`): sent to the Render env var `CONTACT_TO`,
-  or `admin@umasbooks.org` if it is not set.
-- **Reservations about to lapse** ("N reservations expiring within 2 days",
-  once per reservation): also sent to the same address; see section k.
-- All of these are *sent from* the Gmail account in `GMAIL_USER`.
+  backup not running at all): `.github/workflows/backup-freshness.yml`. Fails
+  if the newest dump is missing, empty or older than 36 hours, or (after the 3rd
+  of the month) the long-term monthly copy is older than 35 days.
+- **Errors in the running site, emails stuck, failing background jobs, launch
+  warnings** (`src/lib/errorAlert.js`): the Render env var `ALERT_TO`.
+- **Contact form** (`src/routes/contact.js`): `CONTACT_TO`.
+- **Refund found in HelloAsso** and the **day-12 list of uncollected orders**:
+  `ALERT_TO`; see section k.
+- **Reservations about to lapse** ("N reservations expiring within 2 days", once per
+  reservation): also sent to `ALERT_TO`; see section k.
 
-To add a second person: for the workflows, edit the `to:` line in those
-files (the action accepts several addresses separated by commas) in a pull
-request. For site errors and the contact form, set `CONTACT_TO` in Render
-(it is one value shared by both; it may also accept a comma-separated list, but
-check by sending a test). Simplest option: make admin@umasbooks.org forward to
-two people at the mail provider.
+**DMARC report emails.** If your domain publishes a DMARC record with
+`rua=mailto:admin@umasbooks.org`, Google and others send a daily XML report
+to that mailbox. They are useful once in a while and noise the rest of the time,
+and they can bury a real alert. Make Gmail file them automatically (it does not
+delete them): Gmail > the gear > **See all settings > Filters and Blocked
+Addresses > Create a new filter**. In **Has the words** type
+`subject:"Report domain" OR from:noreply-dmarc-support@google.com OR
+subject:"DMARC"` > **Create filter** > tick **Skip the Inbox (Archive it)** and
+**Apply the label** > New label `DMARC reports` > also tick **Also apply
+filter to matching conversations** > **Create filter**. Expected result: the
+reports disappear from the inbox and collect under the `DMARC reports` label.
+Open that label once a quarter: reports showing `fail` for mail you did send
+mean SPF or DKIM is wrong (ask whoever manages the DNS at Squarespace Domains).
+**Never put a filter on the `[umas-books]` alerts.**
 
 ### External monitor: UptimeRobot
 
@@ -269,7 +306,7 @@ thing that broke.
   HTTP(s) monitor on `https://umasbooks.org/healthz`, every **5 minutes**.
   Alerts go to that account's email and to the UptimeRobot app on the phone.
 - **Second layer:** the 30-minute GitHub check (`.github/workflows/uptime-check.yml`)
-  stays on. UptimeRobot is faster; GitHub also emails admin@umasbooks.org.
+  stays on. UptimeRobot is faster; GitHub also emails ALERT_TO.
 - **Pause it for planned maintenance** (a database move, a long deploy): log in
   at uptimerobot.com > the monitor > **Pause**, and **Resume** when finished.
   Do not delete it. A paused monitor that is never resumed is the usual way
@@ -287,13 +324,8 @@ thing that broke.
 
 ### What to do when you receive alert X
 
-| Alert | Means | First actions |
-|---|---|---|
-| UptimeRobot "umasbooks.org is DOWN" (email or app) | `/healthz` not answering | Section d) "External monitor": open /healthz, Render Events and Logs, roll back (a) |
-| GitHub "Site down" email | The 30-minute GitHub check failed (second layer) | Same as above; if UptimeRobot said nothing, check the monitor is not paused |
-| Nightly backup failed / no fresh backup | Backup did not reach Backblaze | Section b), `DATABASE_URL` and Backblaze keys; re-run the workflow |
-| Errors in the running site | An unexpected error in the app | Render Logs for the time in the email; if repeated, roll back |
-| "N emails could not be sent" | Gmail refuses mail | Section l) and m) |
+The full table (every alert, who sends it, and the first three actions, including
+the UptimeRobot "DOWN" alert) is in section r) "When you receive an alert".
 
 ## e) Quarterly and yearly calendar
 
@@ -314,24 +346,27 @@ thing that broke.
      another 30 days.
   The pre-registration emails hold a child's name and year of birth, so do not
   skip them.
-- **GitHub Actions minutes:** check usage (see the yearly list below for where).
+- **GitHub Actions minutes:** also check the monthly usage (section t): GitHub > profile picture > Settings > Billing and plans > Usage this month.
 - **UptimeRobot:** check the monitors are still active and the plan is still free (section d).
 
 ### Every year
 
 
-- **Domain renewal:** umasbooks.org (the maintainer's notes say it expires
-  2027-08-22). Check the registrar and its auto-renew setting and payment
-  card a month before.
+- **Domain renewal:** umasbooks.org is registered at **Squarespace Domains** and
+  expires **2027-08-22** (the DNS is also managed there). Check auto-renew and
+  the payment card a month before, and that the registrant/recovery email
+  is one the association controls (section v).
 - **Node 22 end of life: April 2027.** Move to the next LTS before then. The
   version is set in three places and all must change together:
   `umas-books/.node-version`, `engines` in `umas-books/package.json`, and
   `NODE_VERSION` in `.github/workflows/ci.yml` (also check the other
   workflows for a Node version). Do it in one pull request and let CI test it.
 - **GitHub Actions minutes:** the repo is private, so minutes are metered and
-  when they run out the backups stop. GitHub > your account/organisation >
-  **Settings > Billing and plans** > set a spending limit / budget alert, and
-  check usage once a quarter.
+  when they run out the backups stop. Check usage **every month** and keep a
+  spending limit set: section t).
+- **Emergency access test (section w):** someone other than the usual person
+  logs into Render, GitHub, Backblaze, Squarespace and Google using only the
+  password-manager vault; refresh the accounts inventory (section v).
 - Also once a year: confirm the backup restore test emails are arriving, review
   Dependabot pull requests that have been waiting, and check the Backblaze
   and Render invoices.
@@ -508,7 +543,7 @@ secret** = same page, **Secrets** tab.
   receive contact-form messages and forum reports (default
   `admin@umasbooks.org`).
 - [ ] **Gmail alert test.** GitHub > Actions > **Send a test alert** > Run
-  workflow, and the email arrives (it also runs by itself monthly). Boot logs
+  workflow, and the email arrives (it also runs by itself every Monday). Boot logs
   must not show the `[env] WARNING ... error alerts ... DISABLED` line.
 - [ ] **Uptime check.** Optionally set the GitHub repository variable
   `SITE_URL` (for example `https://umasbooks.org`); unset, the uptime check
@@ -538,21 +573,32 @@ secret** = same page, **Secrets** tab.
 ### Check the real client IP
 
 Do this once after the deploy that introduced `TRUST_PROXY_HOPS`, and again if
-you ever change the Cloudflare or Render set-up. Rate limits (including the one on
-"Reserve (free, no commitment)") and the admin activity log all depend on the app seeing the visitor's real
-address and not a Cloudflare one.
+you ever change how traffic reaches Render (a new DNS set-up, a CDN or proxy in
+front of Render). Rate limits, the per-IP order cap and the admin activity log
+all depend on the app seeing the visitor's real address and not a proxy's.
+
+**What is in front of the site.** `umasbooks.org` DNS is at **Squarespace
+Domains** and points straight at Render (an `A` record to `216.24.57.1`). The
+`cloudflare` header you can see in a response is **Render's own edge** (Render
+uses Cloudflare technology): the association has **no Cloudflare account** and
+nothing to configure there, unless someone adds one later. The app sets its own
+`Cache-Control` headers; the edge reports `cf-cache-status: DYNAMIC` for
+everything, i.e. it caches nothing. **If a real CDN or caching rule is ever put
+in front of Render, the chain of proxies changes: re-do this check and adjust
+`TRUST_PROXY_HOPS` before relying on rate limits again.**
 
 1. Log in as an admin, on your **phone on mobile data** (wifi off), and open
    `https://umasbooks.org/admin/diagnostics/client-ip`.
 2. Search "what is my IP" in another tab. The **req.ip** line must be exactly
    that address (your carrier's public IP).
 3. Do the same from **home wifi** (a laptop or phone on the wifi). Again
-   **req.ip** must be your own public IP, **not** a Cloudflare address.
+   **req.ip** must be your own public IP, **not** an address of the hosting
+   edge (Render/Cloudflare ranges).
 4. If it is wrong: Render > `umas-books` > Environment > add or change
    **`TRUST_PROXY_HOPS`** (a Render environment variable), save, wait for the
-   redeploy, repeat from step 1. Normal value 2. If req.ip is still a
-   Cloudflare address, try 3; if it shows an address that is not yours but
-   neither is it Cloudflare, try 1. Never set it higher than needed: too many
+   redeploy, repeat from step 1. Normal value 2. If req.ip is still an edge
+   address, try 3; if it shows an address that is not yours but
+   neither is it an edge address, try 1. Never set it higher than needed: too many
    hops let a visitor choose their own IP.
 
 5. **Check BOTH addresses, before launch.** Since the live site answers any
@@ -875,9 +921,14 @@ book-request and reservation mails, forum notices, the contact form) is first
 saved in the **email outbox**, sent at once, and retried automatically if it
 fails: after 1, 5, 15 and 60 minutes, then every 4 hours, up to 8 tries.
 
-You are told in three ways: an email "N emails could not be sent" (at most one
-per hour), a **Needs attention** box on the admin dashboard, and the list at
-Admin > **Email outbox**.
+You are told in four ways: an email "N emails could not be sent" (when a mail
+gave up after 8 tries, at most one per hour), an email "N emails are stuck in
+the outbox" (when any mail has been waiting **more than an hour**, at most one
+every 6 hours, listing counts only), a **Needs attention** box on the admin
+dashboard, and the list at Admin > **Email outbox**. If `GMAIL_USER` /
+`GMAIL_APP_PASSWORD` are missing on the live site, sending **fails** with
+"Email is not configured" (it is never marked "sent"): the rows stay queued and
+go out after you set both in Render (section b).
 
 1. Admin > **Email outbox**. Look at the **Last error** column.
    - "Invalid login", "535", "Username and Password not accepted": the Gmail
@@ -1059,7 +1110,9 @@ sells it by scanning the label (`UB-...`). The label and till screens show
 ### Open the day
 
 At the start, on the Till page type the cash in the drawer (the **opening
-float**) and press **Save opening float**. You can also do it on **End of day**.
+float**) and press **Save opening float**. You can also do it on **End of day**,
+and there you can enter the float of a **past day that was never closed** (open
+that day with the date box, type the float, **Save opening float**).
 
 ### Selling
 
@@ -1067,15 +1120,27 @@ float**) and press **Save opening float**. You can also do it on **End of day**.
    several copies in stock a big list asks which one (price, grade, place):
    tap it. Prefer the label: it is exactly that copy.
 2. A copy with no price asks for one. For a **used** book you can change a
-   price by tapping it (type the agreed price, optional reason). A **new** book
-   must stay between 95% and 100% of the publisher's price (French fixed book
-   price law): the till refuses anything else.
+   price by tapping it (type the agreed price). Raising it by up to 20% needs no
+   reason; **a lower price, or one more than 20% above, needs a reason** (kept in
+   the admin activity log) and **only an admin can do it**. A book is never sold
+   for 0 (only a manual **Donation** line can be 0). A **new** book must stay
+   between 95% and 100% of the publisher's price (French fixed book price law):
+   the till refuses anything else, and a discount on it also needs a reason.
+   One sale is at most **EUR 10,000**: above that the till says "Sale total too
+   large".
 3. **Cash**: type what the customer gave (or tap Exact, 5, 10, 20, 50). The
-   big green **Change to give** appears. Open the drawer, press **Confirm sale**.
+   big green **Change to give** appears. Open the drawer, then **tap Confirm
+   sale**. The Enter key never confirms a payment, and a barcode scanned while
+   the Cash or Card screen is open is ignored (a note says "Finish or cancel
+   this payment first"). When the Cash or Card screen opens, the till first
+   checks the sale and shows any problem (a book sold meanwhile, a closed day...)
+   **before** the customer pays.
 4. **Card**: the screen says "Charge EUR x on the SumUp reader, then press Card
    paid". Charge it on the reader; when the reader says approved, press **Card
    paid** (you may type the last 4 digits or the terminal receipt number first).
-   If the reader says refused, press Back and try again or take cash.
+   If the reader says refused, press Back and try again or take cash. If the
+   till then cannot record the sale, see "The card was charged but the sale was
+   not recorded" below.
 5. **Sale recorded**: press **Next customer** (or tick the 10 second automatic
    option). **Receipt** prints a simple receipt with no customer data.
 6. A mistake before paying: **Remove** the line, or **Clear sale**.
@@ -1090,8 +1155,8 @@ stock. For things you sell often, add them under **Inventory > Other stock (not
 books)** (or **Other stock (not books)** on the Till page): each becomes a big
 button on the till. Give an item a number in **Stock** if you want it counted: it
 goes down with each sale, the till refuses to sell it at 0 and the button says
-"low" at 3 or fewer. The category (Merchandise, Refreshments, Donation, Books
-(other), Other) decides which line of the accounting export it lands in. These
+"low" at 3 or fewer. The category (Merchandise, Refreshments, Donation, "Other
+(not new books: scan new books so the price rules apply)", Other) decides which line of the accounting export it lands in. These
 lines also say "TVA non applicable" on the receipt; there is no VAT calculation.
 
 ### Barcodes on items
@@ -1103,9 +1168,10 @@ adds one; scan again for another one (or use + and - on the line). Items with
 no barcode: press **Generate a shop code** (it becomes `ITEM-<number>`), then
 **Print barcode label** and stick the label on the item. Rules: each active
 item needs its own code; a code cannot start with `UB-` (that is for books) or
-look like `ORDER-<number>`; if a code is also a book's ISBN you get a warning,
-and the till will add the item rather than the book (sell that book by its
-label).
+look like `ORDER-<number>`; **a code that is also a book's ISBN is refused**
+when you save the item (it would hide that book at the till: scanning would add
+the item instead of the book). Use a shop code (`ITEM-<number>` or your own,
+like `TOTE-GREEN`) for such an item.
 
 ### Voiding a sale
 
@@ -1114,13 +1180,23 @@ Only **today's** sales, only until the day is closed. On the Till page under
 The books go back in stock and the sale no longer counts in reports. Older
 sales cannot be voided: tell the treasurer.
 
+**A card sale is not refunded by the till.** The void form says "This was a card
+payment: refund it on the SumUp reader or app yourself". Refund the card in
+SumUp, then tick **I refunded the card** (on the void form, or afterwards on the
+Till page or **End of day**). Until it is ticked the voided sale shows in
+**Needs attention** on the Dashboard and on End of day, so a refund cannot be
+forgotten.
+
 ### If the internet is down
 
 Write each sale on paper (what, price, cash or card, time). When the internet
-is back, enter them the same day: on the Till, put the books on the sale, open
-**Sale made earlier today** and type the time it was really sold, then pay. The
-sale keeps that time and the admin activity log records that the time was set
-by hand. Take only cash if the card reader needs the internet (or use the SumUp
+is back, enter them (today or yesterday at the latest): on the Till, put the
+books on the sale, open **Sale made earlier**, choose Today or Yesterday, type
+the time it was really sold and **the reason** (required, for example "internet
+was down"), then pay. Only an admin can do this. The sale keeps that time, the
+admin activity log records the reason, and the sale is marked as entered later
+(it is recognised by the moment it was typed in, not the time of the sale). If
+that day was already closed, see "Reopening a closed day" below. Take only cash if the card reader needs the internet (or use the SumUp
 app on a phone with its mobile data).
 
 ### If the card reader fails
@@ -1136,11 +1212,72 @@ on the till as Cash or Card (put "app" in the card reference).
    type the total in **Counted cash**. The screen shows **over** or **short** as
    you type.
 3. Add a note if there is a difference, then **Close the day**. This locks that
-   day's voids. **Print summary** prints a plain end-of-day sheet; **Download
+   day's voids and refuses new sales for that day. If you never entered the
+   opening float, the till asks you to tick "close with no opening float (counts
+   as EUR 0)" (or save the float first). **Print summary** prints a plain end-of-day sheet; **Download
    CSV** gives the list of sales.
 4. Keep the float for tomorrow in the drawer and take the rest to the bank.
    A day with sales that is not closed appears under **Needs attention** on the
    Dashboard.
+
+### The card was charged but the sale was not recorded
+
+This is the one situation where money and the till can disagree, so read it once.
+
+- **Before the customer pays**, the Card screen checks the sale. If it shows a red
+  problem (a book sold meanwhile, the day is closed, a price changed), **do not charge
+  the card**: fix it first (Back, remove the line, rescan).
+- **"The price changed: new total EUR x. For a card sale do not charge again: cancel
+  the card charge on the reader and restart."** A price was edited between scanning
+  and confirming, so the amount on the reader would not match the sale. **Nothing was
+  recorded.** If the customer was already charged, cancel/refund the charge on the
+  SumUp reader or app, press **Restart the sale**, rescan, and charge again.
+- **"The card was already charged. Do NOT charge again."** (red box) means you pressed
+  **Card paid** and the server refused or failed afterwards. The sale on the screen is
+  kept (even if you reload the page). Read the message under the box, fix what it says
+  (for example tick "Reopen this day" if an admin has to), then press **Record card
+  sale** again: it checks the sale first and shows the reason. **Record anyway** sends
+  the same sale again with the same total and no check in front: use it when the check
+  itself keeps failing but you know the sale is fine, or ask an admin.
+- "Connection problem" means the answer never arrived: pressing the button again is
+  safe, the same sale cannot be recorded twice. If the server answered with an error
+  (it says so, with a code), that is not a connection problem: follow the message.
+- "This sale was already recorded with different items" means the screen was reused
+  for another basket: reload the till page and start the sale again.
+
+### Reopening a closed day
+
+A sale (also one "made earlier") on a closed day is refused. If it must be recorded:
+as an admin, open the Cash or Card screen, tick **Reopen this day to record this
+sale** and type a reason; or press **Reopen the day** (with a reason) on **End of day**.
+The day is open again, the counted cash is cleared and **you must close the day again**
+after recounting. Both are written to the admin activity log (`till.day_reopen`) with
+the old counted and expected cash. Late entries are shown on End of day ("sale(s) were
+entered after the day was closed").
+
+### Who can use the till (Till access)
+
+An admin can give any account **Till access**: **Admin > Accounts**, open the account,
+press **Till access: off (give)**. That account (for example a volunteer) then logs in
+as usual and lands on the Till: it can scan, sell, void today's sales, tick card
+refunds and look at End of day, **and nothing else**. Only admins can change a price
+beyond the rule, enter a sale with an earlier time, reopen/close the day, enter the
+float, manage quick items or open any other admin page. A Till-only account does not
+need two-step verification (admins still do) but its till session ends after **8
+hours without any till action**: log in again. Remove the access the same way; it
+stops at once. The list shows a **Till** pill; **Reports > Accounts** shows "+ Till".
+
+### "Sell in shop" is retired
+
+The old page (Books & Orders > Sell in shop) is gone: its address now sends you to the
+Till with "Sales are made at the Till now". Old sales recorded there are kept and still
+count in the reports and the accounting export.
+
+### A book in an abandoned online cart
+
+If you scan a copy that is "in someone's online cart" and the cart's hour has run out
+(nobody paid), the till offers **Release this copy from the expired cart and add it**.
+If the cart is still live it refuses and says how many minutes remain.
 
 ### The accounting export for the treasurer
 
@@ -1177,6 +1314,7 @@ and on the other reports.
    the account numbers and the import layout.** Nothing here was checked
    against Paheko or any other software.
 5. Voided till sales and cancelled online orders are not in the export.
+6. The manual category "Other (not new books: scan new books so the price rules apply)" appears as Other (it is not mapped to Books used: see `docs/till-todos.md`).
 
 ### Later: the SumUp Cloud API
 
@@ -1254,3 +1392,352 @@ sont conservés 10 ans sans votre nom, e-mail ni téléphone, car la loi comptab
 française l'exige. Les sauvegardes contenant d'anciennes copies sont supprimées
 automatiquement sous 30 jours (quotidiennes) et 2 ans (archive mensuelle) ; elles ne
 sont jamais utilisées. Uma's Books and Adventures. »
+
+## r) When you receive an alert: what to do
+
+Every alert email, who sends it, and the first three things to do. "Gmail
+sender" means the Google account in `GMAIL_USER`; GitHub workflow emails say
+"Uma's Books ... Monitor" in the sender name. All subjects start with
+`[umas-books]`. If you get **none** of them for a long time that is also a
+signal: the Monday test alert (section d) proves the channel works.
+
+| Subject (starts with) | Sent by | Means | First three actions |
+|---|---|---|---|
+| `TEST alert - the alert emails work` | GitHub, every Monday | The alert channel works. **Missing on a Monday = broken** | 1. Check spam. 2. Section m) (Gmail password revoked). 3. Run **Actions > Send a test alert > Run workflow** and read the run for an error |
+| `Site health check failing (status N)` | GitHub, every 30 min, on the 2nd failed check | The site is down, or up but cannot reach the database | 1. Open `https://umasbooks.org/healthz` (expect OK). 2. Render dashboard > `umas-books` > **Events** and **Logs**: a failed deploy? out of memory? 3. Render > the database `umas-books-db` is **Available**? If a bad deploy: section a) rollback |
+| UptimeRobot "Monitor is DOWN" (`umasbooks.org/healthz`) | UptimeRobot, within 5-10 min | The site or its database does not answer | Same three actions as "Site health check failing" above. Planned work: **Pause** the monitor first (UptimeRobot > Monitors > pause icon), **Resume** after. A "Monitor is UP" email = recovered |
+| `Site health check recovered` | GitHub | The outage is over | Nothing. Look in Render **Events** for the cause and note it |
+| `Nightly database backup failed` | GitHub, 03:00 UTC | No new backup tonight (older ones are safe) | 1. Open the run link in the email, read the red step. 2. "settings are missing" = a `BACKUP_S3_*` or `DATABASE_URL` secret changed (section b). 3. After the fix: **Actions > Nightly database backup > Run workflow**, confirm green and a new file in Backblaze |
+| `No fresh database backup in Backblaze` | GitHub, 09:00 UTC daily | The newest dump is missing, empty, over 36 h old, or (after the 3rd of the month) the monthly copy is over 35 days old | 1. **Actions > Nightly database backup**: is it enabled and green? (GitHub disables schedules after 60 days of repository inactivity or when minutes run out: section t). 2. Run it by hand. 3. Re-run **Backup freshness check** |
+| `Backup restore test FAILED` | GitHub, 1st of the month | The newest dump could not be restored or lacks tables or migrations | 1. Open the run, read the red message (it says which table, or "dump is OLDER than the repository"). 2. Run **Nightly database backup** by hand, then **Monthly backup restore test** by hand. 3. Still red: do not trust the backups; ask a developer, and keep a manual dump (section u, step 2) meanwhile |
+| `Error on GET /...` (or POST) | Gmail sender, the site | A page crashed (a 500). At most one per kind of error per 15 minutes | 1. Note the page and the time. 2. Render > **Logs**, search for the same time. 3. If it repeats or is on checkout/login, section a) rollback; otherwise send the text to the developer |
+| `Unhandled rejection` / `Uncaught exception (process restarting)` | Gmail sender | The site hit an unexpected error and may have restarted | 1. Check `/healthz` and Render > **Events** (restart count). 2. Render **Logs** around the time. 3. Repeating = rollback (section a) and call the developer |
+| `N emails could not be sent` | Gmail sender | Mails gave up after 8 tries over about 13 hours | Section l): 1. Admin > **Email outbox**, read **Last error**. 2. Fix the cause (usually section m). 3. **Retry now**, then **Mark failed as handled** |
+| `N emails are stuck in the outbox` | Gmail sender | Mails have waited more than an hour (it repeats at most every 6 h) | 1. Admin > **Email outbox** > **Last error**. 2. "Invalid login": section m). "not configured": set `GMAIL_USER` and `GMAIL_APP_PASSWORD` in Render. 3. Wait a minute after the fix: queued mail goes out by itself |
+| `Background job failing: <name>` | Gmail sender | A background job failed 3 times in a row (one email per outage) | Section s): 1. Admin > `/admin/diagnostics/jobs`, read **Last error**. 2. Render **Logs**, search the job name. 3. If it is `Email outbox` see l); `Retention purge: ...` or `Membership ...`: call the developer, nothing customer-facing is lost yet |
+| `Background job recovered: <name>` | Gmail sender | It works again | Nothing |
+| `APP_BASE_URL missing` / `... (not https)` | Gmail sender, at most once per 24 h per problem | The live site has no correct public address: emailed links and payment returns are wrong | 1. Render > Environment: set `APP_BASE_URL` to `https://umasbooks.org`. 2. Save (it restarts). 3. The red banner on admin pages disappears |
+| `HelloAsso is still in SANDBOX mode: real membership payments will not work` | Gmail sender, once per 24 h | `HELLOASSO_API_BASE` points at the test HelloAsso | 1. Render > Environment: delete `HELLOASSO_API_BASE`. 2. Check `HELLOASSO_CLIENT_ID/SECRET/ORG_SLUG` are the **production** ones. 3. Check a membership payment is recognised |
+| `HelloAsso credentials missing: membership payments are disabled` | Gmail sender, once per 24 h | Membership payments are not recognised on a live site | 1. Render > Environment: add the three `HELLOASSO_*` variables (section b). 2. Save. 3. Check a recent membership is recognised |
+| `N reservations expiring within 2 days` | Gmail sender, once per reservation | Reserved books are about to lapse | Section k): 1. Open the list it links to. 2. Contact the customers or extend/cancel. 3. Nothing else to do |
+| `N online orders not collected after 12 days` | Gmail sender | Old paid online orders waiting for pickup | Section k) |
+| `Membership payment from ... matches no confirmed account` | Gmail sender | Someone paid HelloAsso with an email no confirmed account uses | Section n) |
+| `Startup seed failed (site still started)` | Gmail sender | The first-admin seed failed on boot; the site still runs | 1. Render **Logs** `[seed] FAILED`. 2. If an admin can log in, ignore until the developer looks. 3. If no admin exists, section c) |
+| *(no subject you know)* Google "Security alert" / "Critical security alert" | Google | Someone signed in, or a password/app password changed | Check it was you; if not, change the Google password, revoke app passwords, then section b) for `GMAIL_APP_PASSWORD` |
+
+**Admin pages show a red bar at the top** ("The live site is not set up
+correctly", or "HelloAsso sandbox", or "PREVIEW MODE is ON"): it is the same
+information as the alert, shown on every admin page for as long as the problem
+exists. The launch alerts are emailed at most **once per 24 hours** (not once
+per deploy); the bar stays until you fix the setting.
+
+## s) Background jobs (retention purge, membership expiry, email retries...)
+
+The site runs a handful of tasks by itself. Admin > open
+`https://umasbooks.org/admin/diagnostics/jobs` (English; type the address, or
+follow the link in the dashboard's **Needs attention** box). It lists each job
+with: how often it runs, **Last run**, **Last success**, **Failed in a row**,
+**Status** and the **Last error** (email addresses and long numbers are removed
+from it).
+
+**Expected:** every row says **OK** and the last success is within a few
+intervals. A job is flagged **Needs attention** when it has failed **3 times in
+a row** (you also get one email, then one more "recovered" email), or its last
+success is older than **3 times its interval**.
+
+**If a row needs attention:**
+
+1. Read **Last error**. "timeout", "ECONNREFUSED", "HelloAsso ..." means an
+   outside service was down: wait one interval and reload; it usually recovers.
+2. Render > `umas-books` > **Logs**: search for the job name (for example
+   `Retention purge: tokens failed`) for the full error.
+3. Not an outside problem (a database error, the same error every time):
+   copy the row and the log lines to the developer. Nothing the customers see is
+   lost in the meantime, except that the job's work is not being done: for
+   `Retention purge: ...` it means personal data is not being deleted on time,
+   so do not leave it for weeks.
+
+The jobs: Reservation expiry, Pickup reminders, Membership expiry, Membership
+reconciliation (every 6 h); Order follow-up (6 h); Cart maintenance (10 min);
+Email outbox (1 min); Retention purge and one row per purge step, Image cleanup
+(daily); Awards check (2 min); Cover backfill (5 min). A row for a job that no
+longer exists stops flagging after 30 days.
+
+## t) GitHub Actions minutes (private repository)
+
+The repository is private, so Actions minutes are metered: the **Free plan
+includes 2,000 minutes a month**. Usage reached about **2,300 minutes in 6
+days** and GitHub blocked the jobs twice for billing. When minutes run out,
+**the backups, the uptime check and CI stop**. Every job is billed in whole
+minutes (a 20-second job costs 1).
+
+**Measured cost per run** (billed minutes, from the run history of 4-6
+October 2026; a re-measure takes 2 minutes with `gh run list` / the Actions tab):
+
+| Workflow | Runs | Billed minutes per run | Per month |
+|---|---|---|---|
+| CI (6 jobs: smoke-crawl 10, test 6, lint 1, migration-test 1, dependency-audit 1, secret-scan 1) | on every push to a pull request and every merge to main; about 50 a day in the busiest days | about **20** (docs-only change: about **6**; no smoke-crawl: about **10**) | the big one: 20 x number of pushes |
+| Site uptime check | every 30 min = 48 a day | 1 | about **1,440** |
+| Nightly database backup | daily | about 1-2 | about 45 |
+| Backup freshness check | daily | 1 | about 30-60 |
+| Monthly backup restore test | monthly | about 3-5 (estimate: one short run recorded) | about 5 |
+| Send a test alert | weekly | 1 | about 4 |
+
+**What was done to cut usage** (without changing the six required check
+names): a pull request that only changes documentation skips the install and
+the tests inside each job (they still report success, so merging is never
+blocked); the **smoke-crawl** (the longest job) runs only when the app, views,
+public files, migrations, scripts, package files, marketing pages or `.github/`
+change, and always on every merge to `main`; a new push to a pull request
+cancels the run still going; npm and the Chrome that the crawl downloads are
+cached. Why not a `paths:` filter on the whole workflow: a skipped required
+check stays "Pending" forever and blocks the merge.
+
+**The uptime check stays at every 30 minutes** (1,440 minutes a month on its
+own, most of the free allowance). To halve it, change the cron line in
+`.github/workflows/uptime-check.yml` to `0 * * * *` (hourly: 720 a month, an
+outage is still reported within about two hours), **now that** the free
+external monitor (UptimeRobot, every 5 minutes, see section d) watches
+`https://umasbooks.org/healthz`: it gives the fast detection and GitHub is the
+independent second opinion. Do not
+raise the frequency.
+
+**Every month (1st, 2 minutes):**
+
+1. GitHub > click your **profile picture** (top right) > **Settings** >
+   **Billing and plans** > **Usage this month**.
+2. Read **Actions** minutes used against the included amount (2,000 on Free).
+3. Over 70% before the 20th, or any warning banner: look at **Actions** for a
+   runaway workflow (many CI runs on one pull request), cancel it, and tell the
+   developer; do not just buy minutes.
+4. Make sure a **spending limit** exists: same page > **Spending limits** >
+   **Actions** > set a monthly limit of at least **10 USD** (about 1,250 extra
+   minutes at the Linux rate of 0.008 USD a minute), with an email alert at 75%. **With a limit of
+   0 USD GitHub stops the workflows, including the backups, when the free
+   minutes are used; a small limit costs little and keeps the backups running.**
+   The best fix for the long term is to make the repository **public** (public
+   repositories have unlimited minutes) *only if* it contains nothing private:
+   it does not hold member data (the dumps are in Backblaze, the secrets in
+   settings), but ask the developer to confirm before changing visibility.
+
+## u) Rebuild everything if the Render account is lost
+
+For: the Render account is suspended, locked, deleted, or its owner is not
+reachable, and the site is gone. **The data is safe in Backblaze** (nightly
+dumps, 30 days; monthly copies, 2 years); the code is on GitHub. **Time
+needed: 2 to 4 hours** (most of it waiting for DNS and the restore). Do it
+with a second person if you can. Have these ready: the password manager (section
+v), the Backblaze login, the GitHub login, the Squarespace login, the HelloAsso
+login.
+
+**What you need and where each comes from** (also section v):
+
+| Setting | Where the value comes from |
+|---|---|
+| `DATABASE_URL` | Render creates the new database; Blueprint wires it |
+| `SESSION_SECRET` | Generated by the Blueprint (everyone just logs in again) |
+| `TOTP_ENCRYPTION_KEY` | **The saved copy in the password manager** (section b). A new random key makes every admin's two-step secret unreadable: you would have to clear two-step for each admin (section c) |
+| `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD` | You choose; only used if the database has no admin. With a restored database you do not need them |
+| `GMAIL_USER`, `GMAIL_APP_PASSWORD` | Google Workspace admin (admin@umasbooks.org) > Security > App passwords (section m) |
+| `ANTHROPIC_API_KEY`, `ANTHROPIC_WORKSPACE_ID` | console.anthropic.com > API keys (or the saved copy) |
+| `HELLOASSO_CLIENT_ID`, `HELLOASSO_CLIENT_SECRET`, `HELLOASSO_ORG_SLUG` | HelloAsso back office > your organisation > API / Integration |
+| `HELLOASSO_MEMBERSHIP_FORM_SLUG` (optional) | The last part of the membership form's HelloAsso address |
+| `APP_BASE_URL`, `CONTACT_TO`, `ALERT_TO`, `TRUST_PROXY_HOPS`, `COVER_BACKFILL` | Already set to sensible values by `render.yaml` |
+| `PREVIEW_MODE` | **Not** in `render.yaml` on purpose. Leave it unset for the live site |
+| GitHub repository secrets/variables (`DATABASE_URL`, `GMAIL_*`, `BACKUP_S3_*`, `ALERT_TO`, `SITE_URL`) | Section b table; the new `DATABASE_URL` is the **External** URL of the new database |
+
+**Steps:**
+
+1. **Make sure you have a dump.** Backblaze > Buckets > the bucket > folder
+   `store-backups/full/` > the newest `umas_books_full_<date>.dump` (or from
+   `monthly/`). Download it to a computer you control (README "Restoring from a
+   backup" has the command-line version). Expected: a file of some megabytes.
+2. **New Render account** (or recovered): render.com > Sign up/log in. Add a
+   **payment method** (the plan in `render.yaml` is paid). Add a **second
+   owner** straight away (section w).
+3. **Blueprint:** Render dashboard > **New +** > **Blueprint** > connect GitHub
+   (authorize the `umasbooksadmin/umasbookswebsite` repository) > pick the
+   repo > Render reads `render.yaml` and proposes `umas-books-db` and
+   `umas-books`. Fill the "sync: false" values from the table above >
+   **Apply**. Expected: the database becomes **Available**; the first deploy of
+   the service may fail or start empty: that is fine.
+4. **Restore the data** into the new database: Render > `umas-books-db` >
+   **Connect** > copy the **External Database URL**, then on your computer (with
+   PostgreSQL 18 client tools, see the README):
+   `pg_restore --no-owner --no-privileges --exit-on-error -d "<external url>" restore.dump`.
+   If the database already has tables from the first deploy, drop and recreate
+   it empty first (ask for help if unsure: never restore over data you need).
+   Expected: no error output; it takes a few minutes.
+5. **Deploy:** Render > `umas-books` > **Manual Deploy > Deploy latest commit**.
+   The pre-deploy command `npm run migrate` applies any migration newer than
+   the dump (the log shows "Running migration: ..." and "Migrations complete").
+   Expected: **Live**, and `https://<service>.onrender.com/healthz` shows OK.
+6. **Check the data:** log in at the `.onrender.com` address as an admin; the
+   dashboard shows the books, accounts and orders you expect.
+7. **DNS at Squarespace:** Squarespace > **Domains** > `umasbooks.org` > **DNS
+   settings** > edit the `A` record (host `@`) to the new service's address: in
+   Render > `umas-books` > **Settings > Custom Domains** > add `umasbooks.org`
+   and `www.umasbooks.org`; Render shows the exact IP / CNAME to use (the old
+   one was `216.24.57.1`; a new service may have another). Remove the old
+   record. Expected: Render's custom domain turns **Verified** and the
+   certificate **Issued** within minutes to a few hours; `https://umasbooks.org`
+   loads the site.
+8. **HelloAsso webhook:** HelloAsso back office > your organisation >
+   **Integration / API > Notifications (webhook)**: set the notification URL to
+   `https://umasbooks.org/webhooks/helloasso` (the same as before; if the
+   address did not change, nothing to do). Expected: a small test payment makes
+   the order **Paid** and the confirmation email arrives.
+9. **Real client IP check:** section "Check the real client IP" (in g): from your
+   phone on mobile data, `/admin/diagnostics/client-ip` must show **your** IP;
+   adjust `TRUST_PROXY_HOPS` if not.
+10. **GitHub:** update the repository secrets/variables (section b table): the
+    **External** `DATABASE_URL` of the new database. Run **Actions > Nightly
+    database backup > Run workflow**: green, and a new file in Backblaze.
+11. **Final checks:** `/healthz`, a login, a password-reset email, a small
+    payment, the Monday test alert, `/admin/diagnostics/jobs` all **OK** after
+    10 minutes.
+12. **Write down what changed** (new service address, new owner) in section v.
+
+## v) Accounts and secrets inventory
+
+Fill this in once and keep it current (and a printed copy in the association's
+safe). It lists **accounts and where access lives**, never the secrets
+themselves (those live in the password manager). `TODO(the association)` =
+unknown from the repository: someone with the login must fill the cell.
+
+| Service | Owner account | Recovery email / phone | 2FA | Where the secret lives | Who else has access |
+|---|---|---|---|---|---|
+| **Render** (hosting, database) | TODO(the association): the login email of the Render account | TODO(the association) | TODO(the association) | Render dashboard > Environment; `TOTP_ENCRYPTION_KEY` copy in the password manager | TODO(the association): Render > Account/Workspace > Members (add a second owner, section w) |
+| **GitHub** (code, backups schedule, alerts) | Personal user `umasbooksadmin` (owner of the repository `umasbooksadmin/umasbookswebsite`) | TODO(the association) | TODO(the association) | Repository secrets: `DATABASE_URL`, `GMAIL_USER`, `GMAIL_APP_PASSWORD`, `BACKUP_S3_KEY_ID`, `BACKUP_S3_APPLICATION_KEY`; variables: `BACKUP_S3_*`, `ALERT_TO`, `SITE_URL` | Collaborators (Settings > Collaborators): `sharonbje`, `MelinaHartley` (not admins). A personal account cannot have a second owner: consider moving the repository to a **GitHub organisation** with two owners |
+| **Backblaze B2** (offsite backups) | TODO(the association) | TODO(the association) | TODO(the association) | Application key (keyID + applicationKey) in GitHub secrets; the master login in the password manager | TODO(the association) |
+| **Squarespace Domains** (registrar **and** DNS for umasbooks.org; expires **2027-08-22**) | TODO(the association): the Squarespace account email | TODO(the association) | TODO(the association) | Password manager | TODO(the association) |
+| **Google Workspace** (admin@umasbooks.org: mail, the sender of every alert) | The Workspace admin account (admin@umasbooks.org) | TODO(the association) | TODO(the association) | App password `GMAIL_APP_PASSWORD` in Render **and** GitHub; login in the password manager | TODO(the association): Admin console > Users > add a second **super admin** |
+| **HelloAsso** (payments, memberships) | TODO(the association): the organisation's HelloAsso login | TODO(the association) | TODO(the association) | API client id/secret in Render | TODO(the association) |
+| **Anthropic** (book photo scanning, descriptions) | TODO(the association): the console.anthropic.com account | TODO(the association) | TODO(the association) | `ANTHROPIC_API_KEY` in Render | TODO(the association) |
+| **UptimeRobot** (external monitor: `https://umasbooks.org/healthz` every 5 min, free plan, alerts by email and app) | `sharonbje@gmail.com` | TODO(the association) | TODO(the association) | Password manager | TODO(the association): add a second alert contact (My Settings > Alert Contacts) |
+| **Password manager** | TODO(the association) | TODO(the association) | TODO(the association) | Emergency kit in the safe | At least 2 people |
+| **Site admin accounts** (the website's own admin area) | See Admin > Accounts (filter Admins) | n/a | Required in production; recovery codes in the password manager (section w) | n/a | n/a |
+
+## w) Emergency access and "bus factor"
+
+The risk: one person holds every login, gets ill or unreachable, and nobody
+else can restart the site, read an alert or restore a backup. Do this once; it
+takes an afternoon.
+
+1. **A second owner on every service** (a second trusted person, with their own
+   login, never a shared password):
+   - **Render:** dashboard > the workspace > **Settings > Members > Invite** >
+     role **Admin/Owner**. Expected: they receive an invitation and can see the
+     `umas-books` service.
+   - **GitHub:** the repository is owned by the personal account
+     `umasbooksadmin`, so a second owner is not possible there; ask the
+     developer to **transfer the repository to a GitHub organisation** (Settings
+     > General > Danger zone > Transfer) with two owners, or at least keep a
+     second person as an **admin collaborator** (Settings > Collaborators) and
+     store the account's recovery codes (below).
+   - **Backblaze:** Account > **Admin > Users / Sub-accounts**: add a second
+     login (or share the 2FA recovery codes with the sealed envelope).
+   - **Squarespace Domains:** the domain's account > **Settings > Permissions**
+     (or the account's contributors): add a second person as **Admin**.
+   - **Google Workspace:** admin.google.com > **Directory > Users** > make a
+     second person **Super Admin** (Admin roles > Assign admin).
+2. **Recovery codes in the password manager.** For every service above, turn on
+   2FA, download the **recovery codes**, and store them in the shared password
+   manager vault. For the **website's own admin accounts**, each admin saves
+   the recovery codes shown when they set up two-step verification (the site
+   shows them once). Check that two people can open the vault.
+3. **The `TOTP_ENCRYPTION_KEY` copy** in the password manager (section b).
+4. **A sealed envelope** (or the vault's "emergency kit") with: the password
+   manager's master recovery, the domain registrar login, this runbook printed,
+   and the name of the developer to call.
+5. **Test once a year** (put it in the yearly calendar): someone other than the
+   usual person logs into Render, GitHub, Backblaze, Squarespace and Google
+   using only the vault.
+6. At least **two admins** on the website itself (Admin > Accounts), and never
+   demote the last one (section c).
+
+## x) A lost or broken scanner
+
+The till (section p) works **without a scanner**: every step also accepts the
+barcode typed by hand.
+
+1. **The scanner does nothing:** check it is plugged in / paired and charged;
+   open Notes or the till's scan box and scan a book: the number should appear.
+   If nothing appears, unplug and replug (or re-pair), then try another USB
+   port. Section p) "Test the scanner" has the settings (it must act as a
+   keyboard and press Enter after the code).
+2. **It types but the book is not found:** the code is not in the system. Look
+   the book up by title (Admin > Books & Orders) or add it (a book with no ISBN
+   gets a shop code, section p).
+3. **Lost or broken for the day:** carry on typing the number printed under the
+   barcode (digits only), or search by title in the till. A phone camera app
+   that reads barcodes can show the number to type.
+4. **Replace it:** any USB or Bluetooth **1D barcode scanner in keyboard mode**
+   that reads EAN-13 and Code 128 works (no driver, no software); buy a spare so
+   the shop never depends on one device. Keep the receipt for the accounts.
+5. **Nothing to deactivate:** the scanner holds no data and has no login, so a
+   lost one is only a hardware cost.
+
+## y) A takedown or abuse report (forum posts, images)
+
+Someone writes to say a **forum post, a picture, a book cover or a comment**
+should not be on the site (insulting, private information, a copyright claim, a
+child's photo, something illegal), or the forum's **Report** button sends you
+an email.
+
+1. **Act quickly, but first keep a record:** forward the email into a folder
+   "Takedowns" and write down the date/time, who reported, and the page address.
+   Take a screenshot of the content.
+2. **Hide it first, decide after:** log in as an admin, open the thread in the
+   **Forum**: an admin sees a **Hide** button on every post (and **Restore** on a
+   hidden one). A hidden post is no longer visible to members, and the action is
+   recorded in the admin activity log. For a **picture**: edit the item that shows it
+   (announcement, blog post, charity, book) in the admin and **remove or
+   replace the image**; the unused image is deleted by the daily cleanup after
+   7 days (Admin dashboard > unused images). Expected: reload the public page
+   in a private window: the content is gone.
+3. **Serious cases** (a minor, threats, personal data such as an address or a
+   phone number, apparent illegal content): hide it **at once**, do not
+   forward or reply publicly, and tell the association's president the same day.
+   If personal data was shown to others, also note it in
+   `docs/privacy/breach-log.md` (it explains when the data protection authority
+   must be told, within 72 hours). A person who asks for their own data to be
+   erased: see the privacy page and `docs/privacy`.
+4. **Answer the reporter** within a few days: that it was removed (or why it
+   was not), without naming the author. Keep it short and polite.
+5. **The author:** if the post broke the forum rules, you can disable or
+   delete the account from Admin > Accounts (it is in the admin audit log).
+6. **A copyright or legal letter** (formal notice, a lawyer, the police): do not
+   answer alone; remove the content, keep the letter and call the president
+   and, if needed, the association's insurer or lawyer. The legal contact
+   details are on the "Mentions légales" page.
+7. **Record it:** one line in the association's "incidents" list (date, what,
+   action). The audit log (Admin > Admin activity) already shows who hid what.
+
+## z) Making database changes safely (notes for developers)
+
+Migrations are files `umas-books/migrations/NNN_name.sql`, applied **once, in
+filename order**, in Render's pre-deploy command (`npm run migrate`), before the
+new code takes traffic. A unit test fails the build if two files share a
+number, a number goes backwards, or a number is skipped that is not on the
+known list (049, 051, 052, 061, 064). Take the next free number **after
+fetching `main` and checking open pull requests** (`gh pr list`), and rename
+yours if another one merges first.
+
+**Expand, then contract.** The old code keeps serving until the deploy
+finishes, and a rollback runs the **old code against the new database**.
+So a migration must be **additive (expand)** in the release that needs the old
+code to keep working: add tables, columns (nullable or with a default),
+indexes (`IF NOT EXISTS`). **Destructive steps ship in a later release**
+(contract): drop a column, rename, add a NOT NULL, or delete data only after
+the release that stopped using it has been live and stable. Never rename a
+column in one step: add the new one, write both, backfill, switch reads, and
+only later drop the old one.
+
+**Lesson from migration 059** (covers on our own server): it moved every
+external cover address in one step and the background job then marked covers
+as "failed" during an outage of the cover host, so they were not retried. The
+fix was in two parts: keep the old value as a retry source (expand), and count
+only real failures (404, a placeholder, an invalid image) as failed attempts,
+never a 5xx, a timeout or a network error. Apply the same thinking to any
+backfill: *an outage must never be recorded as a permanent result*.

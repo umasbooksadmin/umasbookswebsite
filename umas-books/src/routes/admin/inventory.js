@@ -17,6 +17,7 @@ const { prepareIntakeForm, priceUi, computeSuggestion } = require("../../lib/pri
 const { otherRepriceableCopies } = require("../../lib/pricing/clearance");
 const { parseSuggestedPrice, normalizeSuggestedLevel, priceBasisFor, priceFromLevelChoice } = require("../../lib/pricing/intake");
 
+const { setFlash, takeFlash } = require("../../lib/flash");
 const { validateIdParams } = require("../../middleware/idParams");
 const { parseMoney, parseWholeNumber } = require("../../lib/validation");
 
@@ -209,6 +210,9 @@ async function renderMove(res, { dest, log, moved }) {
 }
 
 router.get("/admin/inventory/move", requireAdmin, async (req, res) => {
+  // After a scan the POST redirects here with the running log (Post/Redirect/Get).
+  const f = takeFlash(req, "move");
+  if (f) return renderMove(res, { dest: normalizeLocation(f.dest), log: parseMoveLog(JSON.stringify(f.log)), moved: Math.max(0, Math.min(1e6, parseInt(f.moved, 10) || 0)) });
   await renderMove(res, { dest: normalizeLocation(req.query.dest), log: [], moved: 0 });
 });
 
@@ -270,153 +274,45 @@ router.post("/admin/inventory/move", requireAdmin, async (req, res) => {
       entries.push(entry);
     }
   }
-  await renderMove(res, { dest, log: [...entries.reverse(), ...log].slice(0, LOG_LIMIT), moved });
+  await setFlash(req, "move", { dest, log: [...entries.reverse(), ...log].slice(0, LOG_LIMIT), moved });
+  res.redirect(303, "/admin/inventory/move");
 });
 
-// ---------- Sell in shop ----------
-// A book sold over the counter: scan (or type) the ISBN, check the price and
-// how it was paid, press "Record sale". The copy is marked sold and a
-// shop_sales row is written in ONE transaction, with the copy row locked, so
-// two people selling the same single copy cannot both succeed. Plain form
-// POSTs (a scanner types the code and presses Enter), no JavaScript needed.
-const SELLABLE_STATUSES = ["in_stock", "reserved"];
-const PAYMENT_METHODS = [
-  { value: "cash", label: "Cash" },
-  { value: "card", label: "Card" },
-  { value: "other", label: "Other" },
-];
-const PAYMENT_VALUES = new Set(PAYMENT_METHODS.map((m) => m.value));
-const SELL_LOG_LIMIT = 10;
+// ---------- Sell in shop (retired) ----------
+// Sales are made at the Till (/admin/till). The old page is gone; its bookmarks and
+// anything posting to it land on the Till with a note. The shop_sales table and its old
+// rows stay: the reports and the accounting export still read them, and the till writes
+// one shop_sales row per book it sells.
+const sellRetired = (req, res) => res.redirect(302, "/admin/till?notice=sell-retired");
+router.get("/admin/inventory/sell", requireAdmin, sellRetired);
+router.post("/admin/inventory/sell", requireAdmin, sellRetired);
 
-async function recentShopSales() {
-  const { rows } = await pool.query(
-    `SELECT s.id, s.price, s.sold_at, s.payment_method, b.title
-     FROM shop_sales s JOIN book_copies c ON c.id = s.copy_id JOIN books b ON b.id = c.book_id
-     ORDER BY s.sold_at DESC, s.id DESC LIMIT $1`,
-    [SELL_LOG_LIMIT]
-  );
-  return rows;
+// The lookup answers with a redirect to GET /admin/inventory/lookup (Post/Redirect/Get):
+// the result is carried once in the session, so Back never offers to resubmit it.
+async function lookupDone(req, res, payload) {
+  await setFlash(req, "lookup", payload);
+  res.redirect(303, "/admin/inventory/lookup");
 }
 
-// Price to suggest for a copy: its asking price, or for a new book with no
-// asking price the publisher's price.
-function suggestedPrice(copy) {
-  if (copy.price != null) return Number(copy.price);
-  if (copy.condition === "new" && copy.publisher_price != null) return Number(copy.publisher_price);
-  return null;
-}
-
-async function renderSell(res, { status = 200, error = null, notice = null, isbn = "", copies = null, price = "" } = {}) {
-  const recent = await recentShopSales();
-  const list = copies ? copies.map((c) => ({ ...c, suggested: suggestedPrice(c) })) : null;
-  res.status(status).render("admin/inventory/sell", {
-    active: "inventory", error, notice, isbn, copies: list, price,
-    prefillFor: list && list.length ? list[0].id : "",
-    paymentMethods: PAYMENT_METHODS, recent, conditions: CONDITIONS,
-  });
-}
-
-router.get("/admin/inventory/sell", requireAdmin, async (req, res) => {
-  let notice = null;
-  if (/^\d{1,9}$/.test(String(req.query.sold || ""))) {
-    const { rows } = await pool.query(
-      `SELECT s.price, b.title FROM shop_sales s JOIN book_copies c ON c.id = s.copy_id JOIN books b ON b.id = c.book_id WHERE s.id = $1`,
-      [Number(req.query.sold)]
-    );
-    if (rows.length) notice = `Sale recorded: ${rows[0].title} for €${Number(rows[0].price).toFixed(2)}.`;
+router.get("/admin/inventory/lookup", requireAdmin, async (req, res) => {
+  const f = takeFlash(req, "lookup");
+  if (!f) return res.redirect("/admin/inventory/scan");
+  const visionEnabled = !!process.env.ANTHROPIC_API_KEY;
+  const location = normalizeLocation(f.location) || "";
+  const source = normalizeSource(f.source) || "";
+  if (!f.book) {
+    return res.render("admin/inventory/scan", { active: "inventory", visionEnabled, location, source, sources: SOURCES, locations: await getLocations(), error: f.error || null });
   }
-  await renderSell(res, { notice });
-});
-
-router.post("/admin/inventory/sell", requireAdmin, async (req, res) => {
-  await expireStaleReservations(pool);
-  const copyIdRaw = String(req.body.copyId || "");
-
-  // Step 1: an ISBN was scanned or typed: show the copy (or copies) for sale.
-  if (!copyIdRaw) {
-    const rawScan = String(req.body.isbn || "").trim();
-    if (!rawScan) return renderSell(res, { error: "Scan or type an ISBN first." });
-    const scan = parseScan(rawScan);
-    if (scan.type !== "isbn") return renderSell(res, { error: `Not a book barcode: ${rawScan.slice(0, 40)}`, isbn: rawScan.slice(0, 40) });
-    const { rows: known } = await pool.query("SELECT 1 FROM books WHERE isbn = ANY($1) LIMIT 1", [isbnVariants(scan.isbn)]);
-    if (!known.length) return renderSell(res, { error: `Not in inventory: ${scan.isbn}`, isbn: scan.isbn });
-    const { rows: copies } = await pool.query(
-      `SELECT c.id, c.condition, c.price, c.publisher_price, c.location, c.status, b.title, b.authors
-       FROM book_copies c JOIN books b ON b.id = c.book_id
-       WHERE b.isbn = ANY($1) AND c.status = ANY($2)
-       ORDER BY c.created_at ASC, c.id ASC LIMIT 20`,
-      [isbnVariants(scan.isbn), SELLABLE_STATUSES]
-    );
-    if (!copies.length) {
-      return renderSell(res, { error: `No copy of that book is available to sell (all sold, in a cart or withdrawn): ${scan.isbn}`, isbn: scan.isbn });
-    }
-    const first = suggestedPrice(copies[0]);
-    return renderSell(res, { isbn: scan.isbn, copies, price: first != null ? first.toFixed(2) : "" });
-  }
-
-  // Step 2: record the sale.
-  if (!/^\d{1,9}$/.test(copyIdRaw)) return renderSell(res, { status: 400, error: "That copy could not be found." });
-  const copyId = Number(copyIdRaw);
-  const payment = PAYMENT_VALUES.has(req.body.payment) ? req.body.payment : null;
-  const rawPrice = String(req.body.price == null ? "" : req.body.price).trim();
-
-  const result = await withTransaction(pool, async (client) => {
-    const { rows } = await client.query(
-      `SELECT c.id, c.condition, c.price, c.publisher_price, c.status, c.cart_order_id, b.title
-       FROM book_copies c JOIN books b ON b.id = c.book_id WHERE c.id = $1 FOR UPDATE OF c`,
-      [copyId]
-    );
-    const copy = rows[0];
-    if (!copy) return { error: "That copy could not be found.", status: 400 };
-    // A copy reserved online belongs to a reservation: it is sold from that order
-    // ("Mark collected and paid"), which also records the payment. Selling it here
-    // would leave the reservation holding a book that is gone.
-    if (copy.status === "reserved" && copy.cart_order_id) {
-      return { error: `Not sold: "${copy.title}" is reserved by order #${copy.cart_order_id}. Open that order to collect it (Mark collected and paid), or cancel the reservation first.`, status: 409 };
-    }
-    if (!SELLABLE_STATUSES.includes(copy.status)) {
-      return { error: `Not sold: this copy of "${copy.title}" is no longer for sale (it was already sold or withdrawn).`, status: 409 };
-    }
-    // The price box was pre-filled for the first copy of the list; if another
-    // copy was picked and the price was left as suggested, use the picked
-    // copy's own asking price instead.
-    let priceText = rawPrice;
-    const prefillPrice = String(req.body.prefillPrice || "").trim();
-    if (prefillPrice !== "" && String(req.body.prefillFor || "") !== String(copyId) && rawPrice === prefillPrice) {
-      const own = suggestedPrice(copy);
-      priceText = own != null ? own.toFixed(2) : "";
-    }
-    // The price is typed at the counter (a copy with no asking price can be
-    // sold this way): it must still be real money (see parseMoney).
-    const typedPrice = parseMoney(priceText, { label: "Price" });
-    if (typedPrice.error) {
-      const ask = "Enter the price the book was sold for (a number, 0 or more).";
-      return { error: priceText === "" ? ask : `${ask} ${typedPrice.error}`, status: 400 };
-    }
-    // New books follow the fixed-price rule (publisher's price, at most 5% off).
-    const pricing = resolveCopyPricing(copy.condition, priceText, copy.publisher_price);
-    if (pricing.error) return { error: pricing.error, status: 400 };
-    const price = typedPrice.value;
-    const { rows: sale } = await client.query(
-      "INSERT INTO shop_sales (copy_id, price, sold_by, payment_method) VALUES ($1, $2, $3, $4) RETURNING id",
-      [copyId, price, req.session.user.id, payment]
-    );
-    await client.query(
-      `UPDATE book_copies SET status = 'sold', reserved_by_name = NULL, reserved_by_email = NULL,
-              reserved_by_phone = NULL, reserved_at = NULL, cart_order_id = NULL, cart_added_at = NULL, updated_at = now()
-       WHERE id = $1`,
-      [copyId]
-    );
-    return { saleId: sale[0].id, price };
-  });
-
-  if (result.error) return renderSell(res, { status: result.status, error: result.error });
-  await audit(req, { action: "copy.shop_sale", targetType: "book_copy", targetId: copyId, detail: `price ${result.price.toFixed(2)}` });
-  res.redirect(`/admin/inventory/sell?sold=${result.saleId}`);
+  const book = f.book;
+  const defaultPricing = await getDefaultCopyPricing(book.isbn);
+  // The price starts at the suggestion for the form's default condition.
+  const { rows: stocked } = book.isbn ? await pool.query("SELECT b.binding FROM books b WHERE b.isbn = ANY($1) LIMIT 1", [isbnVariants(normalizeIsbn(book.isbn))]) : { rows: [] };
+  const suggestion = await prepareIntakeForm(res, { isbn: book.isbn, title: book.title, author: book.author, binding: book.binding || (stocked[0] && stocked[0].binding) });
+  defaultPricing.price = suggestion.price;
+  res.render("admin/inventory/new", { active: "inventory", book, error: f.error || null, fromScan: true, conditions: CONDITIONS, bindings: BINDINGS, statuses: STATUSES, defaultPricing, location, source, sources: SOURCES, locations: await getLocations() });
 });
 
 router.post("/admin/inventory/lookup", requireAdmin, async (req, res) => {
-  const visionEnabled = !!process.env.ANTHROPIC_API_KEY;
   const location = normalizeLocation(req.body.location) || "";
   const source = normalizeSource(req.body.source) || "";
   let book = null;
@@ -429,15 +325,15 @@ router.post("/admin/inventory/lookup", requireAdmin, async (req, res) => {
       photo = await reencodeForVision(scanPhoto.buffer);
     } catch (err) {
       console.warn("Scan photo could not be decoded:", err.message);
-      return res.render("admin/inventory/scan", {
-        active: "inventory", visionEnabled, location, source, sources: SOURCES, locations: await getLocations(),
+      return lookupDone(req, res, {
+        location, source,
         error: "That file couldn't be read as an image — try another photo, or enter details manually below.",
       });
     }
     const info = await extractBookInfoFromPhoto(photo.buffer, photo.mimeType);
     if (!info || (!info.isbn && !info.title)) {
-      return res.render("admin/inventory/scan", {
-        active: "inventory", visionEnabled, location, source, sources: SOURCES, locations: await getLocations(),
+      return lookupDone(req, res, {
+        location, source,
         error: "Couldn't read anything useful from that photo — try a clearer shot, or enter details manually below.",
       });
     }
@@ -455,7 +351,7 @@ router.post("/admin/inventory/lookup", requireAdmin, async (req, res) => {
   } else {
     const isbn = (req.body.isbn || "").trim();
     if (!isbn) {
-      return res.render("admin/inventory/scan", { active: "inventory", visionEnabled, location, source, sources: SOURCES, locations: await getLocations(), error: "Enter an ISBN or choose a photo." });
+      return lookupDone(req, res, { location, source, error: "Enter an ISBN or choose a photo." });
     }
     book = await lookupByIsbn(isbn);
     if (!book) {
@@ -468,12 +364,7 @@ router.post("/admin/inventory/lookup", requireAdmin, async (req, res) => {
   // so the preview (and the saved book) never load it from there (lib/coverStore.js).
   if (book.coverUrl) book = { ...book, coverUrl: (await prepareCover(book.coverUrl)).cover };
 
-  const defaultPricing = await getDefaultCopyPricing(book.isbn);
-  // The price starts at the suggestion for the form's default condition.
-  const { rows: stocked } = book.isbn ? await pool.query("SELECT b.binding FROM books b WHERE b.isbn = ANY($1) LIMIT 1", [isbnVariants(normalizeIsbn(book.isbn))]) : { rows: [] };
-  const suggestion = await prepareIntakeForm(res, { isbn: book.isbn, title: book.title, author: book.author, binding: book.binding || (stocked[0] && stocked[0].binding) });
-  defaultPricing.price = suggestion.price;
-  res.render("admin/inventory/new", { active: "inventory", book, error, fromScan: true, conditions: CONDITIONS, bindings: BINDINGS, statuses: STATUSES, defaultPricing, location, source, sources: SOURCES, locations: await getLocations() });
+  await lookupDone(req, res, { book, error, location, source });
 });
 
 router.get("/admin/inventory/new", requireAdmin, async (req, res) => {
@@ -525,20 +416,22 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
   const location = normalizeLocation(req.body.location);
   const source = normalizeSource(req.body.source);
 
+  // A refused save shows the add-book form again with what was typed (see GET /admin/inventory/new/again).
+  const intakeAgain = async (state) => {
+    await setFlash(req, "intake", { location: location || "", source: source || "", fromScan: req.body.fromScan === "1", priceLevel: req.body.priceLevel, ...state });
+    return res.redirect(303, "/admin/inventory/new/again");
+  };
+  const typedPricing = {
+    price: req.body.price ? asTyped(req.body.price) : 5,
+    acquisitionCost: req.body.acquisitionCost ? asTyped(req.body.acquisitionCost) : 0,
+  };
+
   if (!title) {
-    await prepareIntakeForm(res, { isbn, title: null, author, binding: req.body.binding, publisherPrice: req.body.publisherPrice });
-    res.locals.priceLevelSelected = req.body.priceLevel;
-    return res.render("admin/inventory/new", {
-      active: "inventory", location: location || "", source: source || "", sources: SOURCES, locations: await getLocations(),
+    return intakeAgain({
+      prep: { isbn, title: null, author, binding: req.body.binding, publisherPrice: req.body.publisherPrice },
       book: { isbn, title: null, author, publisher, publishedYear, description, descriptionFr, coverUrl, genre, genreFr, binding },
       error: "Title is required.",
-      fromScan: req.body.fromScan === "1",
-      conditions: CONDITIONS, bindings: BINDINGS,
-      statuses: STATUSES,
-      defaultPricing: {
-        price: req.body.price ? asTyped(req.body.price) : 5,
-        acquisitionCost: req.body.acquisitionCost ? asTyped(req.body.acquisitionCost) : 0,
-      },
+      defaultPricing: typedPricing,
     });
   }
 
@@ -551,21 +444,13 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
   const costCheck = parseAcquisitionCost(req.body.acquisitionCost);
   const inputError = pricing.error || yearCheck.error || costCheck.error;
   if (inputError) {
-    await prepareIntakeForm(res, { isbn, title, author, binding: req.body.binding, condition, publisherPrice: req.body.publisherPrice });
-    res.locals.priceLevelSelected = req.body.priceLevel;
-    return res.render("admin/inventory/new", {
-      active: "inventory", location: location || "", source: source || "", sources: SOURCES, locations: await getLocations(),
+    return intakeAgain({
+      prep: { isbn, title, author, binding: req.body.binding, condition, publisherPrice: req.body.publisherPrice },
       book: { isbn, title, author, publisher, publishedYear: yearCheck.error ? asTyped(req.body.publishedYear) : publishedYear, description, descriptionFr, coverUrl, genre, genreFr, binding },
       error: inputError,
-      fromScan: req.body.fromScan === "1",
-      conditions: CONDITIONS, bindings: BINDINGS,
-      statuses: STATUSES,
       selectedCondition: condition,
       publisherPriceValue: req.body.publisherPrice || "",
-      defaultPricing: {
-        price: req.body.price ? asTyped(req.body.price) : 5,
-        acquisitionCost: req.body.acquisitionCost ? asTyped(req.body.acquisitionCost) : 0,
-      },
+      defaultPricing: typedPricing,
     });
   }
 
@@ -638,6 +523,7 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
   }
 
   const status = normalizeStatus(req.body.status);
+
   const { price, publisherPrice } = pricing;
   const acquisitionCost = costCheck.value;
   const acquiredAt = req.body.acquiredAt || null;
@@ -720,10 +606,31 @@ async function renderBook(res, id, error = null, notice = null, overlay = {}) {
   res.render("admin/inventory/show", { active: "inventory", book, copies, awards, conditions: CONDITIONS, bindings: BINDINGS, statuses: STATUSES, sources: SOURCES, error, notice, locations: await getLocations(), requestCount: asked[0].n });
 }
 
-router.get("/admin/inventory/:id", requireAdmin, (req, res) => {
+// A refused book or copy form answers with a redirect to the book's page
+// (Post/Redirect/Get); the message, what was typed and a requested price
+// suggestion are carried once in the session and picked up by the GET below.
+async function bookBack(req, res, bookId, state) {
+  await setFlash(req, `book-${bookId}`, state);
+  res.redirect(303, `/admin/inventory/${bookId}`);
+}
+
+router.get("/admin/inventory/:id", requireAdmin, async (req, res) => {
   // Right after adding a copy (the redirect carries its id): offer to print its barcode label.
   if (/^\d{1,9}$/.test(String(req.query.label || ""))) res.locals.labelCopy = Number(req.query.label);
-  return renderBook(res, Number(req.params.id), null, hasOrdersNotice(req));
+  const id = Number(req.params.id);
+  const f = takeFlash(req, `book-${id}`);
+  if (f && f.suggest) {
+    const copy = await loadCopyForPricing(id, Number(f.suggest.copyId));
+    if (copy) {
+      const suggestion = await computeSuggestion({
+        isbn: copy.isbn, title: copy.title, author: copy.authors, binding: copy.binding,
+        condition: f.suggest.condition || copy.condition,
+        publisherPrice: f.suggest.publisherPrice != null ? f.suggest.publisherPrice : copy.publisher_price,
+      }, { copyId: copy.id });
+      res.locals.suggestFor = { copyId: copy.id, suggestion };
+    }
+  }
+  return renderBook(res, id, f && f.error ? String(f.error) : null, hasOrdersNotice(req), (f && f.overlay) || {});
 });
 
 router.post("/admin/inventory/:id", requireAdmin, async (req, res) => {
@@ -741,9 +648,9 @@ router.post("/admin/inventory/:id", requireAdmin, async (req, res) => {
   let coverUrl = (req.body.coverUrl || "").trim() || null;
 
   if (yearCheck.error) {
-    return renderBook(res, id, yearCheck.error, null, {
+    return bookBack(req, res, id, { error: yearCheck.error, overlay: {
       book: { isbn, title, authors: author, publisher, published_year: asTyped(req.body.publishedYear), description, description_fr: descriptionFr, cover_url: coverUrl },
-    });
+    } });
   }
 
   if (title) {
@@ -809,17 +716,15 @@ router.post("/admin/inventory/:id/copies/:copyId", requireAdmin, async (req, res
   const location = normalizeLocation(req.body.location);
   const source = normalizeSource(req.body.source);
   // What was typed, kept in the form when something below is refused.
-  const refused = (error, status = 200) => {
-    // 200 like the other refused inventory forms; 409 for a copy that changed.
-    res.status(status);
-    return renderBook(res, bookId, error, null, {
+  const refused = (error) => {
+    return bookBack(req, res, bookId, { error, overlay: {
       copy: {
         id: copyId, condition, notes, location, source,
         price: asTyped(choice.rawPrice), publisher_price: asTyped(req.body.publisherPrice), acquisition_cost: asTyped(req.body.acquisitionCost),
         ...(isStatusValue(req.body.status) ? { status: req.body.status } : {}),
         ...(isStatusValue(req.body.renderedStatus) ? { rendered_status: req.body.renderedStatus } : {}),
       },
-    });
+    } });
   };
   if (pricing.error) return refused(pricing.error);
   if (costCheck.error) return refused(costCheck.error);
@@ -874,7 +779,7 @@ router.post("/admin/inventory/:id/copies/:copyId", requireAdmin, async (req, res
     );
     return { before: stored, keptStatus };
   });
-  if (outcome.error) return refused(outcome.error, outcome.status);
+  if (outcome.error) return refused(outcome.error);
   if (outcome.before && (outcome.before.location || null) !== location) {
     await audit(req, {
       action: "copy.move", targetType: "book_copy", targetId: copyId,
@@ -901,13 +806,7 @@ router.post("/admin/inventory/:id/copies/:copyId/suggest", requireAdmin, async (
   const copyId = Number(req.params.copyId);
   const copy = await loadCopyForPricing(bookId, copyId);
   if (!copy) return res.redirect(`/admin/inventory/${bookId}`);
-  const suggestion = await computeSuggestion({
-    isbn: copy.isbn, title: copy.title, author: copy.authors, binding: copy.binding,
-    condition: req.body.condition || copy.condition,
-    publisherPrice: req.body.publisherPrice != null ? req.body.publisherPrice : copy.publisher_price,
-  }, { copyId });
-  res.locals.suggestFor = { copyId, suggestion };
-  return renderBook(res, bookId);
+  return bookBack(req, res, bookId, { suggest: { copyId, condition: req.body.condition, publisherPrice: req.body.publisherPrice } });
 });
 
 // "Use this price": the one button that stores a suggestion. The suggestion is
@@ -920,9 +819,9 @@ router.post("/admin/inventory/:id/copies/:copyId/use-price", requireAdmin, async
   const suggestion = await computeSuggestion({
     isbn: copy.isbn, title: copy.title, author: copy.authors, binding: copy.binding, condition: copy.condition, publisherPrice: copy.publisher_price,
   }, { copyId });
-  if (suggestion.price == null) return renderBook(res, bookId, suggestion.needsReview ? `${suggestion.reviewMessage}: set this price by hand.` : "No price could be suggested: set it by hand.");
+  if (suggestion.price == null) return bookBack(req, res, bookId, { error: suggestion.needsReview ? `${suggestion.reviewMessage}: set this price by hand.` : "No price could be suggested: set it by hand." });
   const pricing = resolveCopyPricing(copy.condition, suggestion.price, copy.publisher_price);
-  if (pricing.error) return renderBook(res, bookId, pricing.error);
+  if (pricing.error) return bookBack(req, res, bookId, { error: pricing.error });
   await pool.query(
     `UPDATE book_copies SET price=$1, suggested_price=$1, suggested_level=$2, price_basis='suggested', is_clearance=$3, updated_at=now()
      WHERE id = $4 AND book_id = $5`,
@@ -943,8 +842,7 @@ router.post("/admin/inventory/:id/copies/:copyId/cancel-reservation", requireAdm
   // online (it has an order) is released from that order's page instead.
   const { rows: held } = await pool.query("SELECT cart_order_id FROM book_copies WHERE id = $1 AND book_id = $2 AND status = 'reserved'", [copyId, bookId]);
   if (held[0] && held[0].cart_order_id) {
-    res.status(409);
-    return renderBook(res, bookId, `This copy is reserved by order #${held[0].cart_order_id}. Cancel or collect it from the order page (/admin/orders/${held[0].cart_order_id}).`);
+    return bookBack(req, res, bookId, { error: `This copy is reserved by order #${held[0].cart_order_id}. Cancel or collect it from the order page (/admin/orders/${held[0].cart_order_id}).` });
   }
   const { rowCount } = await pool.query(
     `UPDATE book_copies SET status='in_stock', reserved_by_name=NULL, reserved_by_email=NULL,
@@ -955,8 +853,7 @@ router.post("/admin/inventory/:id/copies/:copyId/cancel-reservation", requireAdm
   if (!rowCount) {
     const { rows } = await pool.query("SELECT status FROM book_copies WHERE id = $1 AND book_id = $2", [copyId, bookId]);
     if (rows.length) {
-      res.status(409);
-      return renderBook(res, bookId, `This reservation was already gone (the copy is now: ${statusLabelOf(rows[0].status)}). Nothing was changed.`);
+      return bookBack(req, res, bookId, { error: `This reservation was already gone (the copy is now: ${statusLabelOf(rows[0].status)}). Nothing was changed.` });
     }
   }
   res.redirect(`/admin/inventory/${bookId}`);

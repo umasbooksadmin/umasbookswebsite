@@ -124,7 +124,6 @@ test("cache headers: public JSON and static assets cacheable, per-user endpoints
   assert.equal(await cc("/api/books/latest-arrivals"), "public, max-age=60");
   assert.equal(await cc("/api/books/search?q=a"), "public, max-age=60");
   assert.equal(await cc("/api/books/genres"), "public, max-age=300");
-  assert.equal(await cc("/api/books/recommendation"), "public, max-age=300");
   assert.equal(await cc("/api/blog/posts"), "public, max-age=300");
   assert.match(await cc("/assets/site.js"), /max-age=604800/);
 

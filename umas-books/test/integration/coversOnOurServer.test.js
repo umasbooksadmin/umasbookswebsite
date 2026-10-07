@@ -103,7 +103,7 @@ test("no view, script or stylesheet loads an image from Open Library or the Inte
 
 test("every cover <img> in the views and public scripts has width, height, an aspect ratio class and a fallback hook", () => {
   // A cover <img> is on one source line (in the JS files it is a string literal inside a longer line).
-  const COVER_LINE = /<img\b.*(?:book-detail-cover|book-card-cover|cart-item-cover|book-thumb|class="cover"|class="rec-cover")/;
+  const COVER_LINE = /<img\b.*(?:book-detail-cover|book-card-cover|cart-item-cover|book-thumb|class="cover")/;
   const files = [
     path.join(ROOT, "views", "book_detail.ejs"), path.join(ROOT, "views", "cart.ejs"), path.join(ROOT, "views", "admin", "inventory", "index.ejs"),
     path.join(ROOT, "public", "page-books.js"), path.join(ROOT, "public", "favorites-page.js"),
@@ -117,7 +117,7 @@ test("every cover <img> in the views and public scripts has width, height, an as
       assert.match(line, /data-cover/, `${path.basename(f)}: fallback hook in ${line.trim()}`);
     }
   }
-  assert.ok(n >= 7, `found ${n} cover images`);
+  assert.ok(n >= 6, `found ${n} cover images`);
   // Lists load lazily; the one main image does not.
   assert.match(read(path.join(ROOT, "public", "page-books.js")), /class="cover" src="' \+ esc\(b\.coverUrl\) \+ '" alt="" width="200" height="300" loading="lazy"/);
   assert.match(read(path.join(ROOT, "public", "favorites-page.js")), /class="book-card-cover" width="200" height="300" loading="lazy"/);

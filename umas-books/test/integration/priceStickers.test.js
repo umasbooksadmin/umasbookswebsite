@@ -5,7 +5,7 @@ const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const bcrypt = require("bcryptjs");
 const { startTestApp } = require("../helpers/testApp");
-const { makeCookieJar, fetchCsrfToken } = require("../helpers/httpClient");
+const { makeCookieJar, fetchCsrfToken, followSeeOther } = require("../helpers/httpClient");
 
 const PORT = 3977;
 const PASSWORD = "Sticker-Test-1!";
@@ -68,7 +68,7 @@ async function post(path, fields) {
     body: new URLSearchParams({ ...fields, _csrf: token }).toString(),
   });
   jar.capture(res);
-  return res;
+  return followSeeOther(res, { base: app.base, jar, headers: { "x-forwarded-for": "10.77.0.1" } });
 }
 const get = (path, headers = {}) => fetch(`${app.base}${path}`, { redirect: "manual", headers: { cookie: jar.header(), ...headers } });
 
@@ -94,7 +94,7 @@ test("a copy's page shows its sticker chip, with the right text for each color",
 });
 
 test("the add-book form for a NEW book shows the retail note and no used-book suggestion", async () => {
-  const res = await post("/admin/inventory/suggest", { title: "Neuf", condition: "new", publisherPrice: "14.00", binding: "paperback" });
+  const res = await post("/admin/inventory/suggest", { title: "Neuf", condition: "new", publisherPrice: "14.00", binding: "trade" });
   assert.equal(res.status, 200);
   const html = await res.text();
   assert.match(html, /New book: sell at the publisher&#39;s price \(max 5% off\)/);
