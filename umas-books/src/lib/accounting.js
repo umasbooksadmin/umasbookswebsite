@@ -69,8 +69,14 @@ const METHOD_SQL = (col) => `CASE ${col} WHEN 'cash' THEN 'Cash' WHEN 'card' THE
 const CATEGORY_SQL = `CASE i.category WHEN 'books_used' THEN 'Books used' WHEN 'books_new' THEN 'Books new' WHEN 'merchandise' THEN 'Merchandise'
   WHEN 'refreshments' THEN 'Refreshments' WHEN 'donation' THEN 'Donation' ELSE 'Other' END`;
 
-async function accountingExportReport(db, ctx) {
-  const params = [ctx.from, ctx.to];
+const rank = (list, v) => { const i = list.indexOf(v); return i < 0 ? list.length : i; };
+
+// The lines of the export for a Paris date range, before the account mapping:
+// [{ date, category, method, count, cents, total (euros), refund }], sorted. The ONE place
+// that decides what counts as a sale: the Accounting export, the Dashboard's "Sales this
+// month" and the end-of-day figures all come from these lines (see salesTotals below).
+async function accountingRows(db, from, to) {
+  const params = [from, to];
   const { rows } = await db.query(
     `WITH lines AS (
        SELECT (s.created_at AT TIME ZONE '${TZ}')::date AS d, ${CATEGORY_SQL} AS category, ${METHOD_SQL("s.payment_method")} AS method,
@@ -111,15 +117,36 @@ async function accountingExportReport(db, ctx) {
     `SELECT to_char(day, 'YYYY-MM-DD') AS date, difference_cents FROM till_days
      WHERE closed_at IS NOT NULL AND difference_cents IS NOT NULL AND difference_cents <> 0 AND day >= $1::date AND day <= $2::date`, params
   );
+  return rows
+    .map((r) => ({ date: r.date, category: r.category, method: r.method, count: r.count, cents: Number(r.cents), total: Number(r.cents) / 100, refund: r.refund }))
+    .concat(diffs.map((r) => ({
+      date: r.date, category: OVER, method: r.difference_cents > 0 ? OVER_IN : OVER_OUT, count: 0, cents: r.difference_cents, total: r.difference_cents / 100, refund: false,
+    })))
+    .sort((a, b) => a.date.localeCompare(b.date) || rank(CATEGORY_ORDER, a.category) - rank(CATEGORY_ORDER, b.category) || rank(METHOD_ORDER, a.method) - rank(METHOD_ORDER, b.method) || Number(a.refund) - Number(b.refund));
+}
+
+// Totals for a range, in CENTS, split the way the Dashboard shows them (refunds are the
+// export's negative rows, so they are netted in; voided till sales are not in it at all):
+//   membership = the Membership category; online = the other HelloAsso rows (paid orders);
+//   till = everything taken in the shop (cash, card, older shop sales, cash over/short).
+async function salesTotals(db, from, to) {
+  const rows = await accountingRows(db, from, to);
+  const t = { totalCents: 0, tillCents: 0, onlineCents: 0, membershipCents: 0 };
+  for (const r of rows) {
+    t.totalCents += r.cents;
+    if (r.category === "Membership") t.membershipCents += r.cents;
+    else if (r.method === "HelloAsso") t.onlineCents += r.cents;
+    else t.tillCents += r.cents;
+  }
+  return t;
+}
+
+async function accountingExportReport(db, ctx) {
+  const params = [ctx.from, ctx.to];
+  const base = await accountingRows(db, ctx.from, ctx.to);
   const map = new Map((await loadMapping(db)).map((m) => [`${m.category}|${m.method}`, m]));
   const mapFor = (category, method) => map.get(`${category}|${method}`) || { ...(() => { const d = defaultMapping(category, method); return { debit: d.debit, credit: d.credit, journal: d.journal }; })() };
-  const rank = (list, v) => { const i = list.indexOf(v); return i < 0 ? list.length : i; };
-  const out = rows
-    .map((r) => ({ date: r.date, category: r.category, method: r.method, count: r.count, total: Number(r.cents) / 100, refund: r.refund }))
-    .concat(diffs.map((r) => ({
-      date: r.date, category: OVER, method: r.difference_cents > 0 ? OVER_IN : OVER_OUT, count: 0, total: r.difference_cents / 100, refund: false,
-    })))
-    .sort((a, b) => a.date.localeCompare(b.date) || rank(CATEGORY_ORDER, a.category) - rank(CATEGORY_ORDER, b.category) || rank(METHOD_ORDER, a.method) - rank(METHOD_ORDER, b.method) || Number(a.refund) - Number(b.refund))
+  const out = base
     .map((r) => {
       const m = mapFor(r.category, r.method);
       return { ...r, label: labelFor(r.category, r.method, r.date, r.refund), debit: m.debit, credit: m.credit, journal: m.journal };
@@ -158,5 +185,5 @@ async function accountingExportReport(db, ctx) {
 }
 
 module.exports = {
-  accountingExportReport, loadMapping, defaultMapping, mappingKeys, ACCOUNT_RE, JOURNAL_RE, CATEGORY_ORDER, METHOD_ORDER, OVER, OVER_IN, OVER_OUT,
+  accountingExportReport, accountingRows, salesTotals, loadMapping, defaultMapping, mappingKeys, ACCOUNT_RE, JOURNAL_RE, CATEGORY_ORDER, METHOD_ORDER, OVER, OVER_IN, OVER_OUT,
 };

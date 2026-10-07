@@ -99,11 +99,11 @@ s.manual("A5c using a recovery code to log in, and that it works only once", "sp
 
 // ---- 5B. Dashboard and menu ----
 
-s.todo("A6 the Dashboard shows the figures and tiles with no NaN", "known issue, also a todo in test/integration/adminCalendars.test.js: views/admin/index.ejs pct() shows NaN% when last month had no sales (salesLastMonth is the string '0.00')", { as: "admin" }, async (ctx) => {
+s.test("A6 the Dashboard shows the figures and tiles with no NaN", { as: "admin" }, async (ctx) => {
   await admin(ctx, "/admin");
   const text = await ctx.text();
   hasNoNaN(text, "the Dashboard");
-  for (const re of [/Orders Today/, /This Month/, /Total Sales/, /In-Stock Books/, /Added This Month/, /Total Accounts/, /Members/, /Books & Orders/, /English Programs/, /Bookstore Events/, /Account Section/, /Volunteer Shifts/, /Meetings/, /Announcements/, /Charities/, /Blog/]) has(text, re);
+  for (const re of [/Orders Today/, /This Month/, /Sales this month/, /In-Stock Books/, /Added This Month/, /Total Accounts/, /Members/, /Books & Orders/, /English Programs/, /Bookstore Events/, /Account Section/, /Volunteer Shifts/, /Meetings/, /Announcements/, /Charities/, /Blog/]) has(text, re);
   if (ctx.preview) has(text, /PREVIEW MODE is ON/);
 });
 
@@ -224,10 +224,15 @@ s.test("A15 (must) the Awards to review page opens with its approve and reject c
   has(await ctx.text(), /Awards|review/);
 });
 
-s.manual("A18 (must) sell in the shop: Find the book, Paid by, Record sale", "the tests sell nothing (a sale removes a real copy from the shelves)");
-s.test("A18b the Sell in shop page opens (nothing is sold)", { as: "admin" }, async (ctx) => {
-  await admin(ctx, "/admin/inventory/sell");
-  has(await ctx.text(), /Sell in shop|Find the book/);
+s.test("A18 (must) the retired Sell in shop address sends you to the Till (nothing is sold)", { as: "admin" }, async (ctx) => {
+  const res = await ctx.goto("/admin/inventory/sell");
+  assert.ok(res.status() < 400, `/admin/inventory/sell answered ${res.status()}`);
+  assert.equal(new URL(ctx.page.url()).pathname, "/admin/till", "the old address leads to the Till");
+  const text = await ctx.text();
+  has(text, /Sales are made at the Till now/);
+  has(text, /Scan a label or a book barcode/);
+  await admin(ctx, "/admin/inventory");
+  assert.equal(await ctx.page.$("a[href='/admin/inventory/sell']"), null, "no Sell in shop link in Books & Orders");
 });
 
 // ---- 5E. Reports and CSV ----
@@ -274,7 +279,7 @@ s.test("A19b the Accounts report shows counts by type and a list with type pills
   for (const re of [/Total accounts/, /Unconfirmed/, /Email confirmed/, /Paid orders/, /Download CSV/]) has(text, re);
   for (const name of ["type", "q", "from", "to"]) assert.ok(await ctx.page.$(`[name='${name}']`), `filter ${name}`);
 });
-s.manual("A21 the sales report counts the online sale, the shop sale and the drop-in seat separately", "needs real paid sales (AC26, AC35, A18)");
+s.manual("A21 the sales report counts the online sale, the shop sale and the drop-in seat separately", "needs real paid sales (AC26, AC35, A63)");
 
 // ---- 5F. Book requests ----
 
@@ -788,6 +793,8 @@ s.write("A63 (must) sell the tagged test copy at the till with cash by scanning 
   await ctx.page.waitForFunction(() => document.querySelectorAll("#lines li").length === 1, { timeout: 8000 });
   await ctx.page.click("#pay-cash");
   await ctx.page.click("[data-amount='exact']");
+  // the till checks the sale first (nothing is written); Confirm sale is enabled when that passes
+  await ctx.page.waitForFunction(() => !document.getElementById("cash-confirm").disabled, { timeout: 8000 });
   await ctx.page.click("#cash-confirm");
   await ctx.page.waitForFunction(() => !document.getElementById("done").hidden, { timeout: 8000 });
   has(await ctx.text(), /Sale recorded/);
@@ -821,3 +828,17 @@ s.manual("A74 destructive buttons ask for confirmation (delete book/copy/event, 
 s.manual("A75 the Add Book form focuses ISBN, shows no Manual review alert when blank, has a sticky Save bar", "layout check; the markup is covered by an automated test");
 s.manual("A76 the receipt is in French with a gapless number, and ANNUL\u00c9 when voided", "selling is left for you to do by hand; covered by an automated test");
 s.manual("A77 French Excel export opens in columns with decimal commas; refunds are negative rows; the mapping page edits accounts", "needs French Excel; the content is covered by an automated test");
+s.manual("A90 (must) a price changed under a card sale: new total shown, nothing recorded, restart", "needs a card sale and a second browser tab changing the price");
+s.manual("A91 (must) the card was charged but the sale is refused: red box, Record card sale, Record anyway", "needs a card sale and a change made while the card screen is open");
+s.manual("A92 (must) a sale on a closed day is refused; an admin reopens the day with a reason and closes it again", "closing is one-way (see A65), so it is left for you to do by hand");
+s.manual("A93 (must) a volunteer with Till access can use only the till; 8 hours idle logs out", "needs a second account in another browser and a wait of 8 hours");
+s.manual("A94 (must) a scan while the Cash screen is open is ignored with a note; 20. is accepted", "needs the physical scanner (see A66)");
+s.manual("A95 (must) voiding a card sale warns to refund the card and lists it until ticked", "needs a card sale (see A64)");
+s.test("A96 the Dashboard tile is Sales this month with a Till, Online, Membership line", { as: "admin" }, async (ctx) => {
+  await admin(ctx, "/admin");
+  const text = await ctx.text();
+  hasNoNaN(text, "the Dashboard");
+  has(text, /Sales this month/);
+  has(text, /Till €\d+\s*·\s*Online €\d+\s*·\s*Membership €\d+/);
+});
+s.manual("A97 backdating needs a reason, a basket above EUR 10,000 is refused, a price below asking needs a reason, an expired cart copy can be released", "selling is left for you to do by hand");

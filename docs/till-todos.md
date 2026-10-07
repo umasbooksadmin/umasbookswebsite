@@ -19,8 +19,13 @@ write a small conversion step.
 
 ## TODO(the association): "Books (other)" manual items
 
-A manual item with the category "Books (other)" appears under **Other** in the
-export. Say if it should be Books used or Books new instead.
+A manual item with the category "Books (other)" (now labelled "Other (not new books:
+scan new books so the price rules apply)") appears under **Other** in the export. It is
+deliberately NOT mapped to "Books used": a book typed by hand would skip the price rules
+(new books are held to the fixed book price law), so new books must be scanned. If the
+association agrees that these lines are used books for the accounts, map `books_other` to
+"Books used" in `EXPORT_CATEGORY` (`src/lib/till.js`) and `CATEGORY_SQL`
+(`src/lib/accounting.js`); until then it stays Other.
 
 ## Later: SumUp Cloud API
 

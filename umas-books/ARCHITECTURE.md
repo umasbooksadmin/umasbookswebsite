@@ -193,11 +193,9 @@ rather than by a numbered migration), grouped by what they belong to:
   `src/lib/inventory.js`; the table has a CHECK constraint.
 - **In-shop sales** — `shop_sales` (migration 046): one row per copy sold over
   the counter (price, `sold_at`, `sold_by` admin id, payment method; no buyer
-  data). `/admin/inventory/sell` (scan an ISBN, pick the copy, record) locks
-  the copy `FOR UPDATE`, refuses anything not `in_stock` and any copy reserved by an online order (`cart_order_id` set: it is collected or cancelled from its order page), and applies
-  the new-book price rule via `resolveCopyPricing`, inserts the sale and sets
-  the copy `sold` (clearing reservation contact fields) in ONE transaction,
-  then writes a `copy.shop_sale` audit row (price only).
+  data). The old "Sell in shop" page (`/admin/inventory/sell`) is **retired**: GET and POST redirect (302)
+  to `/admin/till?notice=sell-retired`. The table and its old rows stay; the till writes one row
+  per book it sells (none for a collected reservation), so the reports count a sale once.
 - **Reports** — `/admin/reports` (`src/routes/admin/reports.js`, SQL in
   `src/lib/reports.js`, views `views/admin/reports/`): inventory on hand,
   aging stock, sales over time (reservations collected and paid in the shop, by `orders.paid_at`, + walk-in shop
@@ -284,19 +282,23 @@ rather than by a numbered migration), grouped by what they belong to:
 - **The till** — in-person sales (`src/routes/admin/till.js`, `src/routes/admin/labels.js`,
   libs `till.js`, `tillScan.js`, `cardPayments.js`, `accounting.js`, `code128.js`;
   views `views/admin/till/`, `views/admin/inventory/labels.ejs` and `label_sheet.ejs`;
-  scripts `public/till.js`, `till-day.js`, `labels.js`). Admin only, English. See
-  `docs/architecture.md` ("The till") for the data model.
+  scripts `public/till.js`, `till-day.js`, `labels.js`). English. Admins, plus accounts with "Till access"
+  (`users.is_till`, `requireTillOrAdmin`, only on the till page and its scan/check/sale/release/void/receipt/read-only end-of-day routes).
+  See `docs/architecture.md` ("The till", "Till correctness and money safety") for the data model.
 
   | Route | Purpose |
   |---|---|
   | `GET /admin/inventory/labels` | pick copies (filters like the stickers page); `?id=<copyId>` (repeatable), `?all=1` render the print sheet; `?w=&h=` mm (default 50x25), `?layout=roll\|sheet`; audit `labels.print` |
   | `GET /admin/till` | the till screen: scan box, lines, Cash / Card, quick items, today's sales with Void |
   | `POST /admin/till/scan` | JSON: resolves a scanned code (order: `UB-` label, quick-item barcode, ISBN, unknown) |
-  | `POST /admin/till/sale` | JSON: records the sale in one transaction (`sale_token` makes it idempotent); audit `till.sale`, `till.price_override`, `till.sale_backdated` |
-  | `POST /admin/till/sales/:id/void` | same-day void with a reason; restocks copies and quick items; audit `till.void` |
+  | `POST /admin/till/check` | JSON: the sale's validation without writing (called when Cash / Card opens) |
+  | `POST /admin/till/sale` | JSON: records the sale in one transaction (`sale_token` + basket hash make it idempotent; `expectedTotalCents` must match; 409 `price_changed` / `day_closed` / `token_replay`); audit `till.sale`, `till.price_override`, `till.sale_backdated`, `till.day_reopen` |
+  | `POST /admin/till/release` | releases a copy from an EXPIRED online cart (the cart's release function); audit `till.release_cart` |
+  | `POST /admin/till/sales/:id/void` | same-day void with a reason; restocks copies and quick items; audit `till.void`; card sales carry the "I refunded the card" tick |
+  | `POST /admin/till/sales/:id/refunded` | ticks "I refunded the card" on a voided card sale; audit `till.refund_confirmed` |
   | `GET /admin/till/sales/:id/receipt` | printable receipt (no customer data, "TVA non applicable") |
   | `GET /admin/till/items`, `POST /admin/till/items[/:id]`, `POST /admin/till/items/:id/generate-code`, `GET /admin/till/items/:id/label` | "Other stock (not books)": quick items with optional barcode, stock and a Code 128 label for shop codes |
-  | `GET /admin/till/day[?day=][&format=csv]`, `POST /admin/till/day/open`, `POST /admin/till/day/close` | end of day: totals, opening float, count and close (locks voids), CSV; unclosed past days appear in the dashboard's Needs attention |
+  | `GET /admin/till/day[?day=][&format=csv]`, `POST /admin/till/day/open` (today or a past unclosed day), `POST /admin/till/day/close`, `POST /admin/till/day/reopen` | end of day: totals, opening float, count and close (locks voids, needs a confirmation if no float), reopen (admin, reason), CSV; unclosed past days and unrefunded voided card sales appear in the dashboard's Needs attention |
   | `GET /admin/reports/accounting[?format=csv]` | Accounting export (`src/lib/accounting.js`): one row per Paris day, category and payment method; no customer data |
 - **Accounts & auth** — `users`, `password_reset_tokens`,
   `email_verification_tokens`

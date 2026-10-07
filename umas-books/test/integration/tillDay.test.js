@@ -29,7 +29,7 @@ test("end of day: totals by payment method, voids excluded, expected cash = floa
   assert.match(decodeURIComponent(bad.headers.get("location")), /error=/);
   assert.equal((await h.post("/admin/till/day/open", { openingFloat: "50,50" })).status, 302);
 
-  await sellBook(5, "cash");
+  const first = await sellBook(5, "cash");
   await sellBook(7.5, "cash");
   await sellBook(12, "card");
   const voided = await sellBook(20, "cash");
@@ -45,6 +45,7 @@ test("end of day: totals by payment method, voids excluded, expected cash = floa
   // closing: counted cash required and valid
   assert.match(decodeURIComponent((await h.post("/admin/till/day/close", { day: today(), counted: "x" })).headers.get("location")), /error=/);
   assert.match(decodeURIComponent((await h.post("/admin/till/day/close", { day: "2999-01-01", counted: "10" })).headers.get("location")), /error=|day=/);
+  // no float is needed here (one was saved), so no confirmation is asked
   const close = await h.post("/admin/till/day/close", { day: today(), counted: "61.50", note: "short by a coin" });
   assert.equal(close.status, 302);
   const row = (await h.pool.query("SELECT * FROM till_days WHERE day = $1", [today()])).rows[0];
@@ -59,11 +60,14 @@ test("end of day: totals by payment method, voids excluded, expected cash = floa
   // closed: no second close, no float change, no more voids
   assert.match(decodeURIComponent((await h.post("/admin/till/day/close", { day: today(), counted: "63" })).headers.get("location")), /already closed/);
   assert.match(decodeURIComponent((await h.post("/admin/till/day/open", { openingFloat: "1" })).headers.get("location")), /already closed/);
-  const later = await sellBook(4, "cash");
-  const v = await h.post(`/admin/till/sales/${later.saleId}/void`, { reason: "late" });
+  const v = await h.post(`/admin/till/sales/${first.saleId}/void`, { reason: "late" });
   assert.match(decodeURIComponent(v.headers.get("location")), /day is closed/);
-  assert.equal((await h.copy(later.copyId)).status, "sold");
-  assert.match((await h.get(`/admin/till/day?day=${today()}`)).text, /1 sale\(s\) were made after the day was closed/);
+  assert.equal((await h.copy(first.copyId)).status, "sold");
+  // and a new sale on the closed day is refused (see tillCorrectness.test.js for reopening)
+  const book = await h.seedBook(`Late ${h.uniq()}`);
+  const late = await h.sale([h.book(await h.seedCopy(book.id, { price: 4 }))]);
+  assert.equal(late.status, 409);
+  assert.equal(late.body.code, "day_closed");
   assert.doesNotMatch((await h.get("/admin/till")).text, /Void sale/, "no void buttons on a closed day");
 });
 
@@ -81,14 +85,16 @@ test("end of day CSV: BOM, one row per sale, no customer data; audited, not cach
 });
 
 test("a past day with sales that was never closed shows in Needs attention until it is closed", async () => {
-  const r = await sellBook(3, "cash");
-  await h.pool.query("UPDATE till_sales SET created_at = now() - interval '3 days' WHERE id = $1", [r.saleId]);
-  const past = (await h.pool.query("SELECT (created_at AT TIME ZONE 'Europe/Paris')::date::text AS d FROM till_sales WHERE id = $1", [r.saleId])).rows[0].d;
+  const saleId = await insertTillSale({ at: new Date(Date.now() - 3 * 24 * 3600 * 1000), lines: [{ cat: "merchandise", qty: 1, cents: 300 }] });
+  const past = (await h.pool.query("SELECT (created_at AT TIME ZONE 'Europe/Paris')::date::text AS d FROM till_sales WHERE id = $1", [saleId])).rows[0].d;
   const dash = (await h.get("/admin")).text;
   assert.match(dash, new RegExp(`/admin/till/day\\?day=${past}`));
   assert.match(dash, /never closed/);
   assert.match((await h.get("/admin/till/day")).text, /Never closed/);
-  assert.equal((await h.post("/admin/till/day/close", { day: past, counted: "0" })).status, 302);
+  // no opening float was ever entered for that day: closing asks for confirmation first
+  const refused = await h.post("/admin/till/day/close", { day: past, counted: "0" });
+  assert.match(decodeURIComponent(refused.headers.get("location")), /did not enter an opening float/);
+  assert.equal((await h.post("/admin/till/day/close", { day: past, counted: "0", confirmNoFloat: "1" })).status, 302);
   assert.doesNotMatch((await h.get("/admin")).text, new RegExp(`day=${past}`));
 });
 
