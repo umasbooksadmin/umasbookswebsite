@@ -106,7 +106,7 @@ router.post("/admin/till/release", requireTillOrAdmin, scanLimiter, jsonRoute(as
   if (!/^\d{1,9}$/.test(String(req.body.copyId || ""))) throw new till.TillError("A copy could not be found.");
   const copyId = Number(req.body.copyId);
   const r = await till.releaseExpiredCartCopy(pool, copyId);
-  await audit(req, { action: "till.release_cart", targetType: "book_copy", targetId: copyId, detail: r.orderId ? `released from the expired cart of order ${r.orderId}` : "released from an expired cart" });
+  await audit(req, { action: "till.release_cart", targetType: "book_copy", targetId: copyId, detail: r.orderId ? `released from the expired cart of reservation ${r.orderId}` : "released from an expired cart" });
   res.json({ type: "line", line: r.line });
 }));
 
@@ -141,7 +141,7 @@ router.post("/admin/till/sale", requireTillOrAdmin, saleLimiter, jsonRoute(async
       await audit(req, { action: "till.price_override", targetType: "book_copy", targetId: o.copyId, detail: `${money(o.from)} -> ${money(o.to)}${o.reason ? `: ${o.reason}` : ""} (sale ${r.saleId})` });
     }
     for (const c of r.collected || []) {
-      await audit(req, { action: "order.collected_paid", targetType: "order", targetId: c.orderId, detail: `${req.body.method === "card" ? "card" : "cash"} at the till (sale ${r.saleId}), ${c.items} item(s)${c.partial ? `, rest moved to order #${c.newOrderId}` : ""}` });
+      await audit(req, { action: "order.collected_paid", targetType: "order", targetId: c.orderId, detail: `${req.body.method === "card" ? "card" : "cash"} at the till (sale ${r.saleId}), ${c.items} item(s)${c.partial ? `, rest moved to reservation #${c.newOrderId}` : ""}` });
     }
     if (r.adjusted) await audit(req, { action: "till.sale_backdated", targetType: "till_sale", targetId: r.saleId, detail: `sold at ${String(req.body.soldAtDay === "yesterday" ? "yesterday " : "")}${String(req.body.soldAtTime).slice(0, 5)}: ${r.backdateReason}` });
     if (r.reopened) {

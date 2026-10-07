@@ -274,19 +274,19 @@ test("/admin/orders: the default view is 'Reserved: awaiting pickup', with the '
 
   const def = (await admin.get("/admin/orders")).text;
   assert.match(def, /Reserved: awaiting pickup/);
-  assert.match(def, new RegExp(`Order #${soon.id}<`));
-  assert.match(def, new RegExp(`Order #${later.id}<`));
-  assert.doesNotMatch(def, new RegExp(`Order #${gone.id}<`), "expired ones are released as the list is read");
+  assert.match(def, new RegExp(`Reservation #${soon.id}<`));
+  assert.match(def, new RegExp(`Reservation #${later.id}<`));
+  assert.doesNotMatch(def, new RegExp(`Reservation #${gone.id}<`), "expired ones are released as the list is read");
   assert.equal((await h.order(gone.id)).status, "expired");
 
   const expiring = (await admin.get("/admin/orders?show=expiring_soon")).text;
-  assert.match(expiring, new RegExp(`Order #${soon.id}<`));
-  assert.doesNotMatch(expiring, new RegExp(`Order #${later.id}<`));
+  assert.match(expiring, new RegExp(`Reservation #${soon.id}<`));
+  assert.doesNotMatch(expiring, new RegExp(`Reservation #${later.id}<`));
   assert.match(expiring, /Expiring in 3 days/);
   const expired = (await admin.get("/admin/orders?show=expired")).text;
-  assert.match(expired, new RegExp(`Order #${gone.id}<`));
+  assert.match(expired, new RegExp(`Reservation #${gone.id}<`));
   const all = (await admin.get("/admin/orders?show=all")).text;
-  for (const o of [soon, later, gone]) assert.match(all, new RegExp(`Order #${o.id}<`));
+  for (const o of [soon, later, gone]) assert.match(all, new RegExp(`Reservation #${o.id}<`));
 });
 
 test("the order page shows the held items, the deadline and every action; a collected order shows its payment", async () => {
@@ -379,7 +379,7 @@ test("the retired 'Sell in shop' page sells nothing (a reserved copy stays reser
   const { rows: [{ book_id: bookId }] } = await h.pool.query("SELECT book_id FROM book_copies WHERE id = $1", [copy]);
   const cancel = await admin.post(`/admin/inventory/${bookId}/copies/${copy}/cancel-reservation`);
   assert.equal(cancel.status, 200);
-  assert.match(cancel.text, new RegExp(`reserved by order #${order.id}`));
+  assert.match(cancel.text, new RegExp(`reserved by reservation #${order.id}`));
   assert.equal((await copyRow(copy)).status, "reserved");
   const shown = (await admin.get(`/admin/inventory/${bookId}`)).text;
   assert.match(shown, new RegExp(`href="/admin/orders/${order.id}"`));

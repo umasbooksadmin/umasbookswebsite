@@ -276,7 +276,7 @@ alert".
 - **Errors in the running site, emails stuck, failing background jobs, launch
   warnings** (`src/lib/errorAlert.js`): the Render env var `ALERT_TO`.
 - **Contact form** (`src/routes/contact.js`): `CONTACT_TO`.
-- **Refund found in HelloAsso** and the **day-12 list of uncollected orders**:
+- **Refund found in HelloAsso** and the **day-12 list of uncollected reservations**:
   `ALERT_TO`; see section k.
 - **Reservations about to lapse** ("N reservations expiring within 2 days", once per
   reservation): also sent to `ALERT_TO`; see section k.
@@ -426,13 +426,13 @@ To launch:
 ### Clearing the test data
 
 `npm run clear-test-data` removes the test data before launch. It is the one
-command in this project that can destroy real orders and members, so it is
+command in this project that can destroy real reservations and members, so it is
 built to be hard to run by mistake: it does nothing unless you ask three
 separate times, and it only runs while `PREVIEW_MODE` is on.
 
 **What it removes**
 
-- **Shop data**: all books and copies, orders and order lines, in-shop sales,
+- **Shop data**: all books and copies, reservations and reservation lines, in-shop sales,
   awards, book requests, price look-ups, favourites, and pictures no longer used.
 - **People**: every account that is **not an admin**, and everything they own
   (sign-ups, RSVPs, forum posts, votes and ideas, membership payments, reset and
@@ -474,7 +474,7 @@ stays unless you add `--include-content`; non-admin accounts stay if you add
 4. **Dry run** (deletes nothing, safe to repeat): `npm run clear-test-data`.
    It prints the database host and name, then for every table how many rows
    **would** be deleted and how many would remain, grouped as Shop data, People,
-   Logs, Content and Always kept. Read it. Anything under *WARNING* (paid orders,
+   Logs, Content and Always kept. Read it. Anything under *WARNING* (paid reservations,
    accounts marked as members) is a reason to stop and ask. Add
    `-- --include-content` or `-- --keep-members` to the dry run to see those
    variants. Note the two dashes: `npm run clear-test-data -- --keep-members`.
@@ -507,7 +507,7 @@ which is the point of an undo.
 
 **Never run it on the live site.** Once `PREVIEW_MODE` is deleted the script
 refuses; `--allow-live` overrides that and exists only for a real emergency with
-a developer at your side, because after launch it would delete real orders (which
+a developer at your side, because after launch it would delete real reservations (which
 French accounting law makes you keep for 10 years) and real members.
 
 **New database tables.** The script refuses to run when the database has a table
@@ -563,7 +563,7 @@ secret** = same page, **Secrets** tab.
   (the README lists how) before launch.
 - [ ] **A real reservation, end to end.** As an account holder (not a member)
   reserve one cheap book, check the confirmation email arrives, then in admin >
-  **Orders** open the reservation and press **Mark collected and paid** (section
+  **Reservations** open the reservation and press **Mark collected and paid** (section
   k). The book shows as sold and the sale shows in the sales report.
 - [ ] **Manual test scripts** run and passed, one script per kind of user (guest,
   account holder, member, volunteer, admin, edge cases): every **(must)** step,
@@ -574,7 +574,7 @@ secret** = same page, **Secrets** tab.
 
 Do this once after the deploy that introduced `TRUST_PROXY_HOPS`, and again if
 you ever change how traffic reaches Render (a new DNS set-up, a CDN or proxy in
-front of Render). Rate limits, the per-IP order cap and the admin activity log
+front of Render). Rate limits, the per-IP reservation cap and the admin activity log
 all depend on the app seeing the visitor's real address and not a proxy's.
 
 **What is in front of the site.** `umasbooks.org` DNS is at **Squarespace
@@ -669,7 +669,7 @@ then approved by an admin). Nothing else is ever shown.
    *Open source*, read that the page really says this about this exact book, then
    **Approve** or **Reject**. When unsure, reject. Several at once: tick them and
    click **Approve selected**.
-2. **One book:** admin > Books & Orders > the book > **Awards & lists**. You see
+2. **One book:** admin > Books & Reservations > the book > **Awards & lists**. You see
    every entry, where it came from and its status. **Re-check now** looks again.
    **Add awards (comma separated)** adds your own, for example
    `Booker Prize (2019), Prix Goncourt (1999)`; they show at once, and you can
@@ -716,7 +716,7 @@ always white.
 
 **Printing the sticker sheet**
 
-1. Admin > **Books & Orders** > **Price stickers**.
+1. Admin > **Books & Reservations** > **Price stickers**.
 2. **Added since** defaults to the last 7 days: set an earlier date for older
    books. You can also narrow by **Location** and by **Color**.
 3. Each row shows the color, price, title, author, ISBN, condition, binding and
@@ -757,20 +757,20 @@ terms of sale, `/terms-of-sale.html`):
   reservation); the dashboard's **Needs attention** box also lists reservations
   expiring within 3 days.
 
-Everything is on **admin > Books & Orders > Orders** (`/admin/orders`). It opens
+Everything is on **admin > Books & Reservations > Reservations** (`/admin/orders`). It opens
 on **Reserved: awaiting pickup**. The **Show** menu has **Expiring in 3 days**,
 **Expired**, **Paid**, **Refunded**, **Cancelled** and the other lists; **Search**
-finds an order by number, email or name.
+finds a reservation by number, email or name.
 
 ### A customer comes to collect a reservation
 
 1. Ask for the name or the reservation number (it is in their email). Open
-   admin > **Orders** and search, or open the **Pickup list** (link under the
+   admin > **Reservations** and search, or open the **Pickup list** (link under the
    filters, or `/admin/orders/pickup-list`): every open reservation grouped by
    customer, with the **shelf** of each book and the **amount to collect**.
    **Print version** (`/admin/orders/pickup-list?print=1`) is made for paper:
    print it in the morning and tick the books as you fetch them.
-2. Fetch the books from the shelves (the order page also shows each copy's
+2. Fetch the books from the shelves (the reservation page also shows each copy's
    shelf).
 3. Take the payment in the shop, then open the reservation (`/admin/orders/<number>`)
    and fill **Mark collected and paid**: choose **How did they pay?** (Cash,
@@ -780,15 +780,15 @@ finds an order by number, email or name.
 4. What happens: the reservation becomes **Paid** and **Collected**, the books
    become **sold**, the sale counts in the dashboard and reports **from that
    day** (the day you press the button, not the day of the reservation), and the
-   payment method and amount are kept on the order.
-5. If the reservation is already past its deadline (red message on the order
+   payment method and amount are kept on the reservation.
+5. If the reservation is already past its deadline (red message on the reservation
    page) but the customer is standing in front of you with the books still on the
    shelf, you can still collect it.
 
-**The customer takes only some of the books** (partial pickup). On the order
+**The customer takes only some of the books** (partial pickup). On the reservation
 page use **Collect selected items**: tick the books being taken, choose how they
 paid, press the button. The ticked books are sold and paid. The books left
-behind move to a **new reservation** with the same deadline (the order page
+behind move to a **new reservation** with the same deadline (the reservation page
 then shows "Related reservations" linking the two). This button only appears
 when the reservation holds more than one item.
 
@@ -802,11 +802,11 @@ reservation there instead: type or scan **ORDER-** followed by the reservation
 number (or scan the **UB- label** of one of its books). All its lines appear at
 the reserved prices. Remove a line if the customer leaves that book or seat (a
 partial pickup: the rest stays reserved on a new reservation with the same
-deadline), then press **Cash** or **Card** as usual. The order is marked paid
+deadline), then press **Cash** or **Card** as usual. The reservation is marked paid
 with that payment method, exactly as if you had pressed **Mark collected and
 paid** on its page. You can add walk-in books to the same sale. A till sale
 that collected a reservation cannot be voided at the till: to undo it, open the
-order and use **Mark refunded** after giving the money back.
+reservation and use **Mark refunded** after giving the money back.
 
 ### Reservations not collected
 
@@ -850,8 +850,8 @@ If you want to act before that:
 
 A book reserved online belongs to its reservation. You cannot "sell" it from the
 inventory screens: **Sell in shop** and the inventory release buttons refuse it
-and say which order holds it ("Not sold: ... is reserved by order #N. Open that
-order to collect it ... or cancel the reservation first").
+and say which reservation holds it ("Not sold: ... is reserved by reservation #N. Open that
+reservation to collect it ... or cancel the reservation first").
 
 - **The reserving customer buys it:** collect the reservation as above.
 - **Someone else wants that copy in the shop:** if the shelf has no other
@@ -877,15 +877,15 @@ the book and ask the association's adviser if you are unsure.
 cheque or card), then you record it:
 
 1. Read the customer's email to admin@umasbooks.org (a clear email is enough:
-   no form is needed). Open the order: admin >
-   **Orders** > search. Check it is **Paid**.
+   no form is needed). Open the reservation: admin >
+   **Reservations** > search. Check it is **Paid**.
 2. Get the book back (it can be kept until the book is back, but never later
    than 14 days after the email) and give the money back: cash, cheque or card.
-3. **Only after you gave the money back**, open the order and press **Mark
+3. **Only after you gave the money back**, open the reservation and press **Mark
    refunded**. A confirmation page asks you to tick "I have already given the
    money back to the customer" and to write a note (for example "Withdrawal
    email 3 Oct, book returned 5 Oct, refunded in cash 5 Oct"). Confirm.
-4. What the website does at once: the order becomes **Refunded**; the books go
+4. What the website does at once: the reservation becomes **Refunded**; the books go
    back **In stock** (a book already sold again is left alone); drop-in seats are
    released; the sale leaves the dashboard, the reports (a **Refunds** table in
    the sales report shows it) and the buyer's totals; the action is written to
@@ -895,16 +895,16 @@ cheque or card), then you record it:
 
 A **partial** refund (one book of several): do **not** press Mark refunded (it
 would put **all** the books back on sale). Write a note in your own records and
-ask the developer if you need the order split.
+ask the developer if you need the reservation split.
 
-An order from before reservations existed that was **paid online on HelloAsso**
-(old orders only; none are created any more) must be refunded in the HelloAsso
+A reservation from before reservations existed that was **paid online on HelloAsso**
+(old reservations only; none are created any more) must be refunded in the HelloAsso
 dashboard (https://admin.helloasso.com) **before** you press Mark refunded.
 
-### Other order buttons and lists
+### Other reservation buttons and lists
 
-- **Show > Paid online and not collected (old orders)** and **Cancel unpaid
-  order** exist only for orders from the old online checkout (before
+- **Show > Paid online and not collected (old reservations)** and **Cancel unpaid
+  reservation** exist only for reservations from the old online checkout (before
   reservations). Nothing new creates them.
 - **Reservations report:** admin > **Reports** > **Reservations** (or
   `/admin/reports/reservations`): reserved, collected and paid, expired and
@@ -945,7 +945,7 @@ go out after you set both in Render (section b).
    **failed**) are not retried by themselves: use **Retry now** on each, then
    **Mark failed as handled** to clear the warning.
 3. A customer says they never got their reservation confirmation: Admin >
-   **Books & Orders** > **Orders**, find the reservation: it says "Confirmation:
+   **Books & Reservations** > **Reservations**, find the reservation: it says "Confirmation:
    sent ..." or "NOT SENT". Click **Resend confirmation** (only for a
    reservation that is still open). The customer can also open the reservation
    page from their account page, which shows the same details.
@@ -1015,7 +1015,7 @@ legal article that says why written next to "TVA non applicable". Which article
 applies (for example 261-7-1° or 293 B of the Code général des impôts) is a
 question for the association's accountant, and it has **not** been answered
 yet, so the site shows just "TVA non applicable" everywhere: in the terms of
-sale, in the order confirmation email, next to the cart total ("Prix TTC, TVA
+sale, in the reservation confirmation email, next to the cart total ("Prix TTC, TVA
 non applicable") and under the price on every book page.
 
 Once the accountant answers:
@@ -1079,7 +1079,7 @@ Written for the person who runs the shop. Nothing here needs a developer.
 ### Printing copy labels
 
 Every copy gets a label with a barcode `UB-<number>`. After you add a copy
-there is a **Print label** button; later use **Books & Orders > book > Label**,
+there is a **Print label** button; later use **Books & Reservations > book > Label**,
 or **Inventory > Labels**, or **Price stickers > Print labels**. Choose the
 size (width and height in millimetres) and **a label roll** (one label per
 page) or **a sheet of labels** (A4). In the print window choose **100% / actual
@@ -1269,7 +1269,7 @@ stops at once. The list shows a **Till** pill; **Reports > Accounts** shows "+ T
 
 ### "Sell in shop" is retired
 
-The old page (Books & Orders > Sell in shop) is gone: its address now sends you to the
+The old page (Books & Reservations > Sell in shop) is gone: its address now sends you to the
 Till with "Sales are made at the Till now". Old sales recorded there are kept and still
 count in the reports and the accounting export.
 
@@ -1296,7 +1296,7 @@ and on the other reports.
    Compte crédit, Journal. One row per Paris day, category and payment method
    (Cash, Card at the till, HelloAsso, Other / not recorded). It never contains
    names or emails.
-2. **Refunds.** A refunded online order keeps its row on the day it was paid and
+2. **Refunds.** A refunded online reservation keeps its row on the day it was paid and
    gets a **negative** row (negative count and total, label "Remboursement ...")
    on the day it was refunded. A month already sent is therefore not changed:
    the correction is in the export of the month of the refund.
@@ -1313,7 +1313,7 @@ and on the other reports.
    short 658. **These are only a starting point: ask the treasurer to confirm
    the account numbers and the import layout.** Nothing here was checked
    against Paheko or any other software.
-5. Voided till sales and cancelled online orders are not in the export.
+5. Voided till sales and cancelled online reservations are not in the export.
 6. The manual category "Other (not new books: scan new books so the price rules apply)" appears as Other (it is not mapped to Books used: see `docs/till-todos.md`).
 
 ### Later: the SumUp Cloud API
@@ -1344,7 +1344,7 @@ must tell the person within the first month, with the reason.
 
 **4. Search everywhere** (the tool covers the database only):
 - Admin > **Privacy requests**: type the address > **Look up**. It lists accounts,
-  orders, reservations, event and class sign-ups, book requests, membership payments
+  reservations, book holds, event and class sign-ups, book requests, membership payments
   (and unmatched ones), stored emails (subject and date) and form mail.
 - **The Gmail inbox admin@umasbooks.org**: search the address and the person's name.
   Contact, volunteer sign-up and pre-registration messages (a pre-registration holds a
@@ -1358,7 +1358,7 @@ attachment to the address (or a link that expires), plus any Gmail messages foun
 
 **5b. Erasure.** Press **Erase everything for this address**, type the address again
 and confirm. Accounts, sign-ups, reservations, book requests and stored emails are
-deleted; paid orders and payment records stay for 10 years with the name replaced by
+deleted; sales and payment records stay for 10 years with the name replaced by
 "Erased" (accounting law). Then delete the Gmail messages found (and empty the
 Trash). An administrator's address is refused: remove the role in Accounts first.
 
@@ -1370,24 +1370,24 @@ Answer templates (adapt the details):
 
 *English, access:* "Hello, thank you for your request of [date]. We confirmed it came
 from your address. Attached is a file with the personal data we hold about you
-(accounts, orders, sign-ups, requests). [We also found N emails in our mailbox, listed
+(accounts, reservations, sign-ups, requests). [We also found N emails in our mailbox, listed
 below.] You can ask us to correct or erase anything. Uma's Books and Adventures, admin@umasbooks.org."
 
 *English, erasure:* "Hello, thank you for your request of [date]. We have erased the
-data held under your address, with one exception: orders and payments are kept without
+data held under your address, with one exception: sales and payments are kept without
 your name, email or phone for 10 years because French accounting law requires it.
 Backups containing older copies are deleted automatically within 30 days (nightly) and
 2 years (monthly archive); they are never used. Uma's Books and Adventures."
 
 *Français, accès :* « Bonjour, merci pour votre demande du [date]. Nous avons vérifié
 qu'elle provient bien de votre adresse. Vous trouverez en pièce jointe un fichier avec
-les données personnelles que nous détenons sur vous (comptes, commandes, inscriptions,
+les données personnelles que nous détenons sur vous (comptes, réservations, inscriptions,
 demandes). [Nous avons aussi trouvé N messages dans notre boîte mail, listés
 ci-dessous.] Vous pouvez nous demander de corriger ou d'effacer toute donnée. Uma's Books
 and Adventures, admin@umasbooks.org. »
 
 *Français, effacement :* « Bonjour, merci pour votre demande du [date]. Nous avons
-effacé les données liées à votre adresse, à une exception : les commandes et paiements
+effacé les données liées à votre adresse, à une exception : les ventes et paiements
 sont conservés 10 ans sans votre nom, e-mail ni téléphone, car la loi comptable
 française l'exige. Les sauvegardes contenant d'anciennes copies sont supprimées
 automatiquement sous 30 jours (quotidiennes) et 2 ans (archive mensuelle) ; elles ne
@@ -1420,7 +1420,7 @@ signal: the Monday test alert (section d) proves the channel works.
 | `HelloAsso is still in SANDBOX mode: real membership payments will not work` | Gmail sender, once per 24 h | `HELLOASSO_API_BASE` points at the test HelloAsso | 1. Render > Environment: delete `HELLOASSO_API_BASE`. 2. Check `HELLOASSO_CLIENT_ID/SECRET/ORG_SLUG` are the **production** ones. 3. Check a membership payment is recognised |
 | `HelloAsso credentials missing: membership payments are disabled` | Gmail sender, once per 24 h | Membership payments are not recognised on a live site | 1. Render > Environment: add the three `HELLOASSO_*` variables (section b). 2. Save. 3. Check a recent membership is recognised |
 | `N reservations expiring within 2 days` | Gmail sender, once per reservation | Reserved books are about to lapse | Section k): 1. Open the list it links to. 2. Contact the customers or extend/cancel. 3. Nothing else to do |
-| `N online orders not collected after 12 days` | Gmail sender | Old paid online orders waiting for pickup | Section k) |
+| `N online reservations not collected after 12 days` | Gmail sender | Old paid online reservations waiting for pickup | Section k) |
 | `Membership payment from ... matches no confirmed account` | Gmail sender | Someone paid HelloAsso with an email no confirmed account uses | Section n) |
 | `Startup seed failed (site still started)` | Gmail sender | The first-admin seed failed on boot; the site still runs | 1. Render **Logs** `[seed] FAILED`. 2. If an admin can log in, ignore until the developer looks. 3. If no admin exists, section c) |
 | *(no subject you know)* Google "Security alert" / "Critical security alert" | Google | Someone signed in, or a password/app password changed | Check it was you; if not, change the Google password, revoke app passwords, then section b) for `GMAIL_APP_PASSWORD` |
@@ -1573,7 +1573,7 @@ login.
    the dump (the log shows "Running migration: ..." and "Migrations complete").
    Expected: **Live**, and `https://<service>.onrender.com/healthz` shows OK.
 6. **Check the data:** log in at the `.onrender.com` address as an admin; the
-   dashboard shows the books, accounts and orders you expect.
+   dashboard shows the books, accounts and reservations you expect.
 7. **DNS at Squarespace:** Squarespace > **Domains** > `umasbooks.org` > **DNS
    settings** > edit the `A` record (host `@`) to the new service's address: in
    Render > `umas-books` > **Settings > Custom Domains** > add `umasbooks.org`
@@ -1586,7 +1586,7 @@ login.
    **Integration / API > Notifications (webhook)**: set the notification URL to
    `https://umasbooks.org/webhooks/helloasso` (the same as before; if the
    address did not change, nothing to do). Expected: a small test payment makes
-   the order **Paid** and the confirmation email arrives.
+   the reservation **Paid** and the confirmation email arrives.
 9. **Real client IP check:** section "Check the real client IP" (in g): from your
    phone on mobile data, `/admin/diagnostics/client-ip` must show **your** IP;
    adjust `TRUST_PROXY_HOPS` if not.
@@ -1667,7 +1667,7 @@ barcode typed by hand.
    port. Section p) "Test the scanner" has the settings (it must act as a
    keyboard and press Enter after the code).
 2. **It types but the book is not found:** the code is not in the system. Look
-   the book up by title (Admin > Books & Orders) or add it (a book with no ISBN
+   the book up by title (Admin > Books & Reservations) or add it (a book with no ISBN
    gets a shop code, section p).
 3. **Lost or broken for the day:** carry on typing the number printed under the
    barcode (digits only), or search by title in the till. A phone camera app

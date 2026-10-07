@@ -75,7 +75,7 @@ router.get("/admin/sessions", requireAdmin, async (req, res) => {
   const f = takeFlash(req, "sessions");
   if (f && f.error) return renderSessions(res, req.query, { error: String(f.error), overlay: f.overlay || null });
   await renderSessions(res, req.query, {
-    notice: req.query.notice === "has-orders" ? "This item has orders, so it can't be deleted (mark it sold/archived instead)." : null,
+    notice: req.query.notice === "has-orders" ? "This item has reservations, so it can't be deleted (mark it sold/archived instead)." : null,
   });
 });
 

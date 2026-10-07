@@ -355,10 +355,10 @@ async function salesReport(db, ctx) {
         rows: dropinRows, totals: { period: "Total", ...sumRows(dropinRows, ["seats", "revenue"]) },
       },
       {
-        key: "refunds", title: "Refunds (orders refunded in the shop; not included in the sales above)",
-        columns: [{ key: "period", label: periodHeader, type: "text" }, { key: "orders", label: "Orders refunded", type: "int" }, { key: "amount", label: "Amount refunded", type: "eur" }],
+        key: "refunds", title: "Refunds (reservations refunded in the shop; not included in the sales above)",
+        columns: [{ key: "period", label: periodHeader, type: "text" }, { key: "orders", label: "Reservations refunded", type: "int" }, { key: "amount", label: "Amount refunded", type: "eur" }],
         rows: refundRows, totals: { period: "Total", ...sumRows(refundRows, ["orders", "amount"]) },
-        note: "Counted on the day the order was marked refunded. A refunded order no longer appears in the reserved-online sales and drop-in figures.",
+        note: "Counted on the day the reservation was marked refunded. A refunded reservation no longer appears in the reserved-online sales and drop-in figures.",
       },
     ],
     notes: ["Reserved-online = books reserved on the website and paid in the shop (\"Mark collected and paid\"), counted on the day the payment was recorded. Shop = books sold at the Till (and older sales from the retired Sell in shop page). Days are Paris days."],
@@ -415,7 +415,7 @@ async function sellthroughReport(db, ctx) {
       rows: out, totals,
     }],
     notes: [
-      "A copy counts as sold when its status is Sold. Days to sell run from the acquisition date to the shop sale or the day the online order was paid; sold copies with no recorded sale date are left out of the average.",
+      "A copy counts as sold when its status is Sold. Days to sell run from the acquisition date to the shop sale or the day the online reservation was paid; sold copies with no recorded sale date are left out of the average.",
     ],
   };
 }
@@ -637,7 +637,7 @@ async function accountsReport(db, ctx) {
     ["Account holders (not a member, admin or volunteer)", s.holders],
     ["Unconfirmed (email never confirmed)", s.unconfirmed],
     ["Created in the last 7 days", s.new7], ["Created in the last 30 days", s.new30],
-    ["With at least one paid order", s.buyers],
+    ["With at least one paid reservation", s.buyers],
   ].map(([label, count]) => ({ label, count }));
   return {
     sections: [
@@ -653,12 +653,12 @@ async function accountsReport(db, ctx) {
           { key: "name", label: "Name", type: "text" }, { key: "email", label: "Email", type: "text" }, { key: "type", label: "Type", type: "text" },
           { key: "member_until", label: "Member until", type: "text" }, { key: "confirmed", label: "Email confirmed", type: "text" },
           { key: "created", label: "Created", type: "date" }, { key: "last_login", label: "Last login", type: "text" },
-          { key: "orders", label: "Paid orders", type: "int" }, { key: "spent", label: "Total spent", type: "eur" },
+          { key: "orders", label: "Paid reservations", type: "int" }, { key: "spent", label: "Total spent", type: "eur" },
           { key: "disabled", label: "Disabled", type: "text" },
         ],
         rows: list, totals: null,
         pagination: ctx.csv ? null : { page: current, pages, total, pageSize: ACCOUNTS_PAGE_SIZE },
-        note: "Paid orders are counted for the account that placed them (older orders without one: matched by email); refunded and unpaid orders are not counted. Dates are Paris days.",
+        note: "Paid reservations are counted for the account that made them (older ones without an account: matched by email); refunded and unpaid reservations are not counted. Dates are Paris days.",
       },
     ],
     notes: ["This report shows names and email addresses. Handle the CSV with care."],
@@ -722,7 +722,7 @@ const REPORTS = [
   { slug: "sellthrough", title: "Sell-through by genre", summary: "Of the copies acquired in a period, how many have sold, and how fast.", usesRange: true, run: sellthroughReport },
   { slug: "membership", title: "Membership", summary: "Active members, new members and endings per month, and renewals due soon.", usesRange: true, run: membershipReport },
   { slug: "intake", title: "Intake log", summary: "Copies added per month and by source, with acquisition cost, and the latest additions.", usesRange: true, run: intakeReport },
-  { slug: "accounts", title: "Accounts", summary: "Everyone with an account by type (admin, volunteer, member, account holder, unconfirmed), with orders and spend. Shows names and emails.", filters: "accounts", csvTable: "accounts", run: accountsReport },
+  { slug: "accounts", title: "Accounts", summary: "Everyone with an account by type (admin, volunteer, member, account holder, unconfirmed), with reservations and spend. Shows names and emails.", filters: "accounts", csvTable: "accounts", run: accountsReport },
   { slug: "accounting", title: "Accounting export", summary: "For the treasurer: one row per day, category and payment method (till, shop, online, membership), no customer data. Download the CSV.", usesRange: true, run: (db, ctx) => require("./accounting").accountingExportReport(db, ctx) },
 ];
 

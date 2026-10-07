@@ -13,7 +13,7 @@ async function outboxAttention(db) {
     jobAttention(db),
   ]);
   const items = [];
-  if (orders.rows[0].n) items.push({ href: "/admin/orders", text: `${orders.rows[0].n} reservation(s) have no confirmation email sent after 30 minutes. Resend it from the orders list.` });
+  if (orders.rows[0].n) items.push({ href: "/admin/orders", text: `${orders.rows[0].n} reservation(s) have no confirmation email sent after 30 minutes. Resend it from the reservations list.` });
   if (failed.rows[0].n) items.push({ href: "/admin/email-outbox", text: `${failed.rows[0].n} email(s) could not be sent after 8 attempts.` });
   if (stuck.rows[0].n) items.push({ href: "/admin/email-outbox", text: `${stuck.rows[0].n} email(s) have been waiting to be sent for more than 30 minutes.` });
   if (unmatched.rows[0].n) items.push({ href: "/admin/members#unmatched-payments", text: `${unmatched.rows[0].n} membership payment(s) match no confirmed account.` });

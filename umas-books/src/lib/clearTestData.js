@@ -383,7 +383,7 @@ async function runClearTestData(db, { execute = false, includeContent = false, k
     const payments = await countRows(db, "membership_payments");
     if (paidOrders || payments) {
       report.warnings.push(
-        `${paidOrders} paid order(s) and ${payments} membership payment(s) will be deleted. ` +
+        `${paidOrders} paid reservation(s) and ${payments} membership payment(s) will be deleted. ` +
           "If any are REAL, French accounting law makes you keep them for 10 years: stop."
       );
     }

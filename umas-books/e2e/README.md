@@ -94,7 +94,7 @@ Personas: `guest`, `account`, `member`, `volunteer`, `admin`, `edge` (the five k
 | `E2E_ONLY` | optional | Which personas to run, comma separated. Same as `-- --persona`. |
 | `E2E_ALLOW_WRITES` | optional | `1` to allow tests that create tagged data or send e-mail to the shop mailbox. |
 | `E2E_ALLOW_LIVE` | optional | `1` to run on a site that is **not** in preview mode. Only set it on purpose. |
-| `E2E_ACCOUNT_EMAIL`, `E2E_ACCOUNT_PASSWORD` | account holder tests (also the reservation tests, G51, E2, E4, E8 and the admin order tests A24c to A24l) | A **confirmed account that is NOT a member, volunteer or admin**. The tests check this by opening Member's Access: if it opens, they skip every account test and say so. |
+| `E2E_ACCOUNT_EMAIL`, `E2E_ACCOUNT_PASSWORD` | account holder tests (also the reservation tests, G51, E2, E4, E8 and the admin reservation tests A24c to A24l) | A **confirmed account that is NOT a member, volunteer or admin**. The tests check this by opening Member's Access: if it opens, they skip every account test and say so. |
 | `E2E_MEMBER_EMAIL`, `E2E_MEMBER_PASSWORD` | member tests | A **confirmed account marked as member** (admin: Mark as Member). It does not need any order. |
 | `E2E_VOLUNTEER_EMAIL`, `E2E_VOLUNTEER_PASSWORD` | volunteer tests | A confirmed account an admin marked as volunteer. |
 | `E2E_ADMIN_EMAIL`, `E2E_ADMIN_PASSWORD`, `E2E_ADMIN_TOTP_SECRET` | admin tests | A **dedicated test admin** with two-step on. The secret is the text key (base32, letters and digits) shown under the QR code when two-step was set up. |
@@ -165,14 +165,14 @@ blog posts and votes), A39b (change the clearance price), AC11b, AC15b and AC18b
 Anything created is named with the run tag (shown at the start and in the
 final list) and uses `example.invalid` e-mail addresses.
 
-- **Test book**: admin > Books & Orders > search the tag > open it > **Delete this book**.
+- **Test book**: admin > Books & Reservations > search the tag > open it > **Delete this book**.
 - **Test member** (left disabled): admin > Accounts > search the tag > **Erase Member**.
 - **Unconfirmed sign-up** (account test AC3): same, **Erase Member** (it also deletes itself 7 days after sign-up if it holds no data).
 - **Reservations** (AC24, AC35, AC39, E2 for the account holder; A24c to A24j
   for the admin): each test ends the reservations it made (collected and
   refunded, cancelled or marked no-show), so the books are back on the shelves
-  and nothing is owed. If a test stopped half-way, admin > Orders > **Show: All
-  orders** > search the tag: press **Cancel reservation** (or **Mark refunded**
+  and nothing is owed. If a test stopped half-way, admin > Reservations > **Show: All
+  reservations** > search the tag: press **Cancel reservation** (or **Mark refunded**
   on one that was collected). A reservation left open frees itself after 14
   days. The account-holder tests **cancel every open reservation of the
   test account** when they start, so never use a real customer's account.
@@ -215,7 +215,7 @@ These are real findings from the first runs; the report keeps showing them
 until they are fixed.
 
 - Marked as known (do not fail): the Dashboard shows `NaN%` next to a sales or
-  orders figure when last month had none (A6; `views/admin/index.ejs`, the trend
+  reservations figure when last month had none (A6; `views/admin/index.ejs`, the trend
   helper divides by "0.00"; also a known todo in
   `test/integration/adminCalendars.test.js`); admin pages say `<html lang="fr">`
   when French is chosen although they are English only (A8b).

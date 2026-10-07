@@ -243,10 +243,10 @@ function buildCustomerPickupReminder(order, items) {
   const deadline = new Date(new Date(order.paid_at).getTime() + PICKUP_WINDOW_DAYS * 24 * 3600 * 1000);
   const lines = items.map((i) => `- ${orderItemLabel(i, lang)}`).join("\n");
   return {
-    subject: tr(`Your books are waiting at the shop (order #${order.id})`, `Vos livres vous attendent à la boutique (commande n° ${order.id})`),
+    subject: tr(`Your books are waiting at the shop (reservation #${order.id})`, `Vos livres vous attendent à la boutique (réservation n° ${order.id})`),
     text: tr(
-      `Hi ${name},\n\nYour books from order #${order.id} (paid on ${fmt.formatDateLong(order.paid_at)}) are waiting for you at Uma's Books:\n\n${lines}\n\nOur terms of sale ask you to collect them within 14 days of payment, that is by ${fmt.formatDateLong(deadline)}. The shop is at ${legal.shopStreet("en")}, 81000 Albi. ${legal.shopHoursFirm("en")} Please bring your confirmation email.\n\nIf you need more time, just write to us at admin@umasbooks.org.\n\nUma's Books`,
-      `Bonjour ${name},\n\nVos livres de la commande n° ${order.id} (payée le ${fmt.formatDateLong(order.paid_at)}) vous attendent à Uma's Books :\n\n${lines}\n\nNos conditions générales de vente (CGV) vous demandent de les retirer dans les 14 jours suivant le paiement, soit avant le ${fmt.formatDateLong(deadline)}. La boutique est située ${legal.shopStreet("fr", false)}, 81000 Albi. ${legal.shopHoursFirm("fr")} Merci de vous munir de votre e-mail de confirmation.\n\nSi vous avez besoin de plus de temps, écrivez-nous simplement à admin@umasbooks.org.\n\nUma's Books`
+      `Hi ${name},\n\nYour books from reservation #${order.id} (paid on ${fmt.formatDateLong(order.paid_at)}) are waiting for you at Uma's Books:\n\n${lines}\n\nOur terms of sale ask you to collect them within 14 days of payment, that is by ${fmt.formatDateLong(deadline)}. The shop is at ${legal.shopStreet("en")}, 81000 Albi. ${legal.shopHoursFirm("en")} Please bring your confirmation email.\n\nIf you need more time, just write to us at admin@umasbooks.org.\n\nUma's Books`,
+      `Bonjour ${name},\n\nVos livres de la réservation n° ${order.id} (payée le ${fmt.formatDateLong(order.paid_at)}) vous attendent à Uma's Books :\n\n${lines}\n\nNos conditions générales de vente (CGV) vous demandent de les retirer dans les 14 jours suivant le paiement, soit avant le ${fmt.formatDateLong(deadline)}. La boutique est située ${legal.shopStreet("fr", false)}, 81000 Albi. ${legal.shopHoursFirm("fr")} Merci de vous munir de votre e-mail de confirmation.\n\nSi vous avez besoin de plus de temps, écrivez-nous simplement à admin@umasbooks.org.\n\nUma's Books`
     ),
   };
 }
@@ -266,17 +266,17 @@ async function sendAdminPickupDigest(pool) {
         .map((o) => {
           const days = Math.floor((now - new Date(o.paid_at).getTime()) / (24 * 3600 * 1000));
           const flag = "";
-          return `- Order #${o.id}: ${o.buyer_name} <${o.buyer_email}>, ${formatEuro(o.total_amount, "en")}, paid ${parisDate(o.paid_at)} (${days} days ago)${flag}\n  ${adminLink(o.id)}`;
+          return `- Reservation #${o.id}: ${o.buyer_name} <${o.buyer_email}>, ${formatEuro(o.total_amount, "en")}, paid ${parisDate(o.paid_at)} (${days} days ago)${flag}\n  ${adminLink(o.id)}`;
         })
         .join("\n");
       await mailer.sendMail({
         to: ALERT_TO,
-        subject: `${orders.length} online order${orders.length === 1 ? "" : "s"} not collected after ${ADMIN_DIGEST_DAY} days`,
+        subject: `${orders.length} online reservation${orders.length === 1 ? "" : "s"} not collected after ${ADMIN_DIGEST_DAY} days`,
         text:
-          `These paid orders have not been marked collected, and were paid ${ADMIN_DIGEST_DAY} or more days ago. ` +
+          `These paid reservations have not been marked collected, and were paid ${ADMIN_DIGEST_DAY} or more days ago. ` +
           `The terms of sale ask customers to collect within 14 days of payment and to write to us if they need longer.\n\n${lines}\n\n` +
-          `If a customer collected, open the order and press "Mark collected". If they have not, see the runbook, "An order was not collected after 14 days". ` +
-          `This list is sent once per order; the full list is always at ${baseUrl()}/admin/orders?show=uncollected`,
+          `If a customer collected, open the reservation and press "Mark collected". If they have not, see the runbook, "A reservation was not collected after 14 days". ` +
+          `This list is sent once per reservation; the full list is always at ${baseUrl()}/admin/orders?show=uncollected`,
       });
     }
   );

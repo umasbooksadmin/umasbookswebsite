@@ -171,10 +171,10 @@ s.manual("AC12 using the same reset link twice", "needs the emailed link");
 
 // ---- 2C. My account, book requests, password, favorites ----
 
-s.test("AC13 (must) My Account shows orders, two-step, privacy and book requests", { as: "account" }, async (ctx) => {
+s.test("AC13 (must) My Account shows reservations, two-step, privacy and book requests", { as: "account" }, async (ctx) => {
   await ctx.goto("/account");
   const text = await ctx.text();
-  for (const re of [/My Account/, /Orders/, /Two-step verification/, /Privacy: download or delete my data/, /My book requests/]) has(text, re);
+  for (const re of [/My Account/, /My reservations/, /Two-step verification/, /Privacy: download or delete my data/, /My book requests/]) has(text, re);
 });
 
 s.manual("AC14 cancel a book request from My Account and ask for another", "needs a confirmed book request, which needs an emailed link");
@@ -331,13 +331,13 @@ s.write("AC24 (must) Reserve (free, no commitment) creates a reservation and lan
   await addFirstCopyToCart(ctx, book);
   await needReserve(ctx);
   const r = await pressReserve(ctx, "Test Reserver");
-  ctx.created("reservation holding one book for 14 days (nothing paid; cancelled by AC38, or expires by itself)", `${process.env.E2E_RUN_ID} Test Reserver`, "admin Orders: Reserved, then Cancelled");
+  ctx.created("reservation holding one book for 14 days (nothing paid; cancelled by AC38, or expires by itself)", `${process.env.E2E_RUN_ID} Test Reserver`, "admin Reservations: Reserved, then Cancelled");
   assert.ok(r.ok, `expected the reservation page; the page says: ${(await ctx.text()).slice(0, 200)}`);
   assert.deepEqual(ctx.blocked, [], "nothing was sent to HelloAsso");
   const text = await ctx.text();
   has(text, /Reservation #\d+ recorded/);
   has(text, /Nothing is paid online/);
-  hasNot(text, /HelloAsso|Order #\d+ paid/);
+  hasNot(text, /HelloAsso|Reservation #\d+ paid/);
   assert.equal(await ctx.page.$("#cart-count, .cart-item"), null, "the cart was emptied");
   held = { bookId: book.id, copiesBefore, token: r.token };
 });
@@ -373,7 +373,7 @@ s.test("AC29 the reservation page opened in a second browser (anyone with the li
   assert.equal(bad.status, 404, "a made-up link shows nothing");
 });
 
-s.manual("AC30 (must) admin sees the reservation in Orders (Reserved: awaiting pickup) and the books are held", "the admin side is checked by A24a; seeing it from both sides at once is by hand");
+s.manual("AC30 (must) admin sees the reservation in Reservations (Reserved: awaiting pickup) and the books are held", "the admin side is checked by A24a; seeing it from both sides at once is by hand");
 
 s.manual("AC31 (must) pickup: the customer comes to the shop, a volunteer takes the payment and presses Mark collected and paid", "a human at the shop (the admin button itself is covered by A24c)");
 
@@ -432,7 +432,7 @@ s.write("AC35 reserving a drop-in seat: the reservation page and the account pag
   await addDropin(ctx);
   await needReserve(ctx);
   const r = await pressReserve(ctx, "Seat Reserver");
-  ctx.created("reservation of a drop-in seat (nothing paid; cancelled by AC38a, or released when the session is over)", `${process.env.E2E_RUN_ID} Seat Reserver`, "admin Orders: Reserved, then Cancelled");
+  ctx.created("reservation of a drop-in seat (nothing paid; cancelled by AC38a, or released when the session is over)", `${process.env.E2E_RUN_ID} Seat Reserver`, "admin Reservations: Reserved, then Cancelled");
   assert.ok(r.ok, `expected the reservation page; the page says: ${(await ctx.text()).slice(0, 200)}`);
   const text = await ctx.text();
   has(text, /Drop-in seats: you pay at the session\. A seat can be cancelled online until 24 hours before the session\./);
@@ -466,7 +466,7 @@ s.write("AC39 the limit: at most 3 open reservations per account; the 4th is ref
     if (n === 3) {
       assert.ok(r.ok, `the 3rd open reservation should work; the page says: ${(await ctx.text()).slice(0, 200)}`);
       extra.push(r.token);
-      ctx.created("third reservation from the limit test (nothing paid; cancelled by the test)", `${process.env.E2E_RUN_ID} Limit 3`, "admin Orders: Cancelled");
+      ctx.created("third reservation from the limit test (nothing paid; cancelled by the test)", `${process.env.E2E_RUN_ID} Limit 3`, "admin Reservations: Cancelled");
     } else {
       assert.ok(!r.ok, "the 4th open reservation must be refused");
       has(await ctx.text(), /You already have 3 open reservations/);
@@ -505,7 +505,7 @@ s.write("AC38a (must) Cancel reservation on the reservation page works for its o
   await Promise.all([ctx.page.waitForNavigation({ waitUntil: "domcontentloaded" }), ctx.page.click("form[action^='/cart/reservations/'] button[type='submit']")]);
   const text = await ctx.text();
   // A seat that starts within 24 hours cannot be cancelled online: the account page then says to contact the shop.
-  if (/can only be cancelled online until 24 hours before the session/.test(text)) { ctx.created("reservation of a drop-in seat that starts within 24 hours (cannot be cancelled online)", `${process.env.E2E_RUN_ID} Seat Reserver`, "admin Orders > the reservation > Cancel reservation"); ctx.skip("the session starts within 24 hours: the seat cannot be cancelled online (that is AC57)"); }
+  if (/can only be cancelled online until 24 hours before the session/.test(text)) { ctx.created("reservation of a drop-in seat that starts within 24 hours (cannot be cancelled online)", `${process.env.E2E_RUN_ID} Seat Reserver`, "admin Reservations > the reservation > Cancel reservation"); ctx.skip("the session starts within 24 hours: the seat cannot be cancelled online (that is AC57)"); }
   has(text, /Your reservation was cancelled and its items are available again\./);
   await ctx.goto(`/cart/return?order=${seat.token}`);
   has(await ctx.text(), /Reservation cancelled/);

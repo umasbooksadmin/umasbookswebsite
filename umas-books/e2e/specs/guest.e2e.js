@@ -446,7 +446,7 @@ s.write("G28 (must) the contact form sends a tagged message", async (ctx) => {
 s.test("G28b the contact form lists the expected topics", async (ctx) => {
   await ctx.goto("/contact");
   const topics = await ctx.page.$$eval("#c-topic option", (o) => o.map((x) => x.value));
-  for (const t of ["General question", "Books & orders", "English programs", "Events", "Donating books", "Membership", "Other"]) assert.ok(topics.includes(t), t);
+  for (const t of ["General question", "Books & reservations", "English programs", "Events", "Donating books", "Membership", "Other"]) assert.ok(topics.includes(t), t);
   if (ctx.preview) assert.ok(topics.includes("Feedback on the preview"));
 });
 

@@ -242,8 +242,8 @@ async function expireStaleCartHolds(pool) {
   }
   if (failed.length > 0) {
     await alertOnError(
-      "Cart hold expiry failing for some orders",
-      `Could not release the expired cart hold for order(s): ${failed.join(", ")}. Other holds were released normally; these will be retried on the next sweep.`
+      "Cart hold expiry failing for some reservations",
+      `Could not release the expired cart hold for reservation(s): ${failed.join(", ")}. Other holds were released normally; these will be retried on the next sweep.`
     );
   }
 }

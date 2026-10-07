@@ -121,7 +121,7 @@ test("admin digest (orders paid online): day 12 and later, not collected, once p
   assert.equal(digests.length, 1);
   const text = digests[0].text;
   assert.ok(text.includes(`#${a.order.id}`) && text.includes(`#${b.order.id}`));
-  for (const o of [young, collected, dropinOnly]) assert.ok(!text.includes(`Order #${o.order.id}:`));
+  for (const o of [young, collected, dropinOnly]) assert.ok(!text.includes(`Reservation #${o.order.id}:`));
   assert.match(text, /\/admin\/orders\/\d+/);
   assert.match(text, /\/admin\/orders\?show=uncollected/, "the link to the full list uses the real filter name");
 

@@ -28,7 +28,7 @@
   <div class="admin-stat tone-blue"><div class="label">Total Accounts</div><div class="value" style="margin-bottom:0;"><%= stats.total_members %></div></div>
   <div class="admin-stat tone-rose"><div class="label">Admins</div><div class="value" style="margin-bottom:0;"><%= stats.total_admins %></div></div>
   <div class="admin-stat tone-green">
-    <div class="label">Book Orders</div>
+    <div class="label">Book Reservations</div>
     <div class="value" style="margin-bottom:2px;"><%= stats.book_order_count %></div>
     <div class="muted small">&euro;<%= Number(stats.book_order_total).toFixed(0) %> total</div>
   </div>
@@ -183,7 +183,7 @@
 
             <div class="section-title" style="font-size:15px; margin-top:16px;">Activity Summary</div>
             <div style="display:flex; justify-content:space-between; margin-top:6px;"><span class="small">Events Signed Up</span><span class="small"><%= detail.user.events_count %></span></div>
-            <div style="display:flex; justify-content:space-between; margin-top:4px;"><span class="small">Books Ordered</span><span class="small"><%= detail.user.books_count %> &middot; &euro;<%= Number(detail.user.books_spend).toFixed(0) %></span></div>
+            <div style="display:flex; justify-content:space-between; margin-top:4px;"><span class="small">Books Reserved</span><span class="small"><%= detail.user.books_count %> &middot; &euro;<%= Number(detail.user.books_spend).toFixed(0) %></span></div>
             <div style="display:flex; justify-content:space-between; margin-top:4px;"><span class="small">English Programs</span><span class="small"><%= detail.user.programs_count %></span></div>
             <div style="display:flex; justify-content:space-between; margin-top:4px;"><span class="small">Drop-in Sessions</span><span class="small"><%= detail.user.dropin_count %> &middot; &euro;<%= Number(detail.user.dropin_spend).toFixed(0) %></span></div>
 
@@ -227,7 +227,7 @@
                   <button class="btn btn-outline btn-small" type="submit">Reset Two-Step</button>
                 </form>
                 <% } %>
-                <form method="post" action="/admin/members/<%= detail.user.id %>/delete" data-confirm="Erase this member? Their account, sign-ups and reservations are deleted, and their name/email on past orders is anonymised. This can't be undone.">
+                <form method="post" action="/admin/members/<%= detail.user.id %>/delete" data-confirm="Erase this member? Their account, sign-ups and reservations are deleted, and their name/email on past reservations is anonymised. This can't be undone.">
                   <%- include('../partials/csrf_field') %>
                   <input type="hidden" name="backQuery" value="<%= listQs %>">
                   <button class="btn btn-outline btn-small ann-menu-danger" type="submit">Erase Member</button>
@@ -245,7 +245,7 @@
             <ul class="plain">
               <% detail.activity.forEach(a => { %>
                 <li>
-                  <strong><%= a.kind === 'order' ? 'Order' : a.kind === 'event' ? 'Event' : 'Program' %>:</strong> <%= a.label %>
+                  <strong><%= a.kind === 'order' ? 'Reservation' : a.kind === 'event' ? 'Event' : 'Program' %>:</strong> <%= a.label %>
                   <div class="muted small"><%= formatDateTime(a.at) %><%= a.amount != null ? ' · €' + Number(a.amount).toFixed(2) : '' %></div>
                 </li>
               <% }) %>

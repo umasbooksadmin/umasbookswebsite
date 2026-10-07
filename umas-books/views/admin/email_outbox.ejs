@@ -54,7 +54,7 @@
           <tr id="mail-<%= r.id %>">
             <td><%= r.id %></td>
             <td><%= formatDateTime(r.created_at) %></td>
-            <td><%= r.kind %><%= r.related_order_id ? ' (order #' + r.related_order_id + ')' : '' %></td>
+            <td><%= r.kind %><%= r.related_order_id ? ' (reservation #' + r.related_order_id + ')' : '' %></td>
             <td><%= r.purged_at ? '(erased)' : r.to_email %></td>
             <td><%= r.purged_at ? '(erased)' : r.subject %></td>
             <td><span class="status-pill <%= r.status %>"><%= r.status %></span><%= r.status === 'sent' && r.sent_at ? ' ' + formatDateTime(r.sent_at) : '' %><%= r.status === 'pending' ? ' next ' + formatDateTime(r.next_try_at) : '' %></td>

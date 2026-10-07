@@ -411,7 +411,7 @@ test("My Account lists a logged-in non-member's requests (by user id or verified
     const page = await c.get("/account", { as: user });
     assert.equal(page.status, 200);
     assert.match(page.text, /My book requests/);
-    assert.match(page.text, /Reservations and orders/, "the existing page is intact");
+    assert.match(page.text, /My reservations/, "the existing page is intact");
     assert.ok(page.text.includes("ById ") && page.text.includes("ByEmail "));
     assert.ok(!page.text.includes("Foreign "));
     assert.match(page.text, /We found a copy/);

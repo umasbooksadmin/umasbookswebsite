@@ -386,13 +386,13 @@ test("the account page lists the reservation with its status, the deadline and a
   const buyer = await h.account();
   const { v } = await h.reserve(buyer, { copyIds: [await h.copy({ title: `Listed Book ${h.uniq()}` })] });
   const en = (await v.get("/account")).text;
-  assert.match(en, /Reservations and orders/);
+  assert.match(en, /My reservations/);
   assert.match(en, /Reserved/);
   assert.match(en, /Held until the end of/);
   assert.match(en, /Cancel reservation/);
   const fr = h.visitor(buyer, { lang: "fr" });
   const html = (await fr.get("/account")).text;
-  assert.match(html, /Réservations et commandes/);
+  assert.match(html, /Mes réservations/);
   assert.match(html, /Annuler la réservation/);
   assert.match(html, /Gardée jusqu’à la fin de la journée du/);
 });

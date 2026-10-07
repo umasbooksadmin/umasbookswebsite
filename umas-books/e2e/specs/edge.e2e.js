@@ -60,7 +60,7 @@ s.write("E2 (must) two Reserve requests at the same moment make ONE reservation,
     const send = () => fetch("/cart/reserve", { method: "POST", body: new URLSearchParams({ _csrf: token, name, acceptCgv: "on" }) }).then((r) => ({ path: new URL(r.url).pathname, status: r.status }));
     return Promise.all([send(), send()]);
   }, `${tag} Double Click`);
-  ctx.created("reservation from the double-submit test (nothing paid; cancelled again by the test)", `${tag} Double Click`, "admin Orders: there must be only ONE reservation for it");
+  ctx.created("reservation from the double-submit test (nothing paid; cancelled again by the test)", `${tag} Double Click`, "admin Reservations: there must be only ONE reservation for it");
   if (results.some((r) => r.status === 429)) ctx.skip("the site's limit of 10 reservation requests an hour from one address was reached: wait an hour, or run this persona on its own");
   // Followed like a browser: the request that reserved lands on /cart/return, a refused one is sent back to /cart.
   const redirects = results.filter((r) => r.path === "/cart/return").length;
