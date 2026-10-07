@@ -96,7 +96,7 @@ test("terms of sale (English and French): free non-binding reservation, price ho
       "81-766 of 10 August 1981",
       "a discount of at most 5 %",
       "We give no commercial guarantee beyond the legal guarantees",
-      "Tuesday to Saturday, 10:00–19:00",
+      "Collect your books during our regular hours, Wednesday to Saturday, 14:00–19:00. We are sometimes open at other times when volunteers are available, but only the regular hours are guaranteed.",
       "Prices are in euros and include all taxes",
     ]],
     ["fr", [
@@ -114,7 +114,7 @@ test("terms of sale (English and French): free non-binding reservation, price ho
       "loi n°\u00a081-766 du 10 août 1981",
       "5\u00a0% au maximum",
       "Nous n’offrons aucune garantie commerciale en plus des garanties légales",
-      "du mardi au samedi, 10\u00a0h–19\u00a0h\u00a0:",
+      "Venez retirer vos livres pendant nos horaires habituels, du mercredi au samedi, de 14\u00a0h à 19\u00a0h. Nous sommes parfois ouverts à d’autres moments selon la disponibilité des bénévoles, mais seuls les horaires habituels sont garantis.",
       "toutes taxes comprises",
     ]],
   ]) {
@@ -134,10 +134,14 @@ test("terms of sale: the drop-in text has no waiver, checkout or withdrawal word
   assert.ok(!html.includes("right of withdrawal does not apply"));
 });
 
-test("footer: no placeholder social links while SOCIAL_LINKS is empty", async () => {
-  const html = await (await fetch(`${app.base}/terms-of-sale.html`)).text();
-  assert.ok(!/href="#"[^>]*aria-label="(Instagram|Facebook)"/.test(html));
-  assert.ok(!html.includes("coming soon") || !html.includes("h-social"));
+test("footer: the Instagram icon links to the real page (new tab, noopener noreferrer, named 'Instagram', clean URL); Facebook stays hidden; no placeholder links", async () => {
+  for (const headers of [{}, { cookie: "umasbooks_lang=fr" }]) {
+    const html = await (await fetch(`${app.base}/terms-of-sale.html`, { headers })).text();
+    assert.ok(html.includes('<a href="https://www.instagram.com/umas_books_adventures/" target="_blank" rel="noopener noreferrer" aria-label="Instagram">'));
+    assert.ok(!html.includes("instagram.com/umas_books_adventures/?"), "no tracking query string");
+    assert.ok(!/aria-label="Facebook"/.test(html), "no Facebook URL given: no icon");
+    assert.ok(!/href="#"[^>]*aria-label="(Instagram|Facebook)"/.test(html));
+  }
 });
 
 test("membership terms: statutes, interim withdrawal statement (14 days, refund, membership ends), forum moderation (DSA), French kicker 'Informations légales'", async () => {

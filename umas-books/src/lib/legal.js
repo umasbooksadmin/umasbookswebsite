@@ -9,7 +9,7 @@ const BRAND_SHORT_NAME = "Uma's Books";
 // (orders.cgv_version, with orders.cgv_accepted_at) as proof of acceptance.
 // Bump it (to the date of the change, YYYY-MM-DD) whenever the terms of sale
 // text changes in a way that matters to buyers.
-const TERMS_OF_SALE_VERSION = "2026-10-08";
+const TERMS_OF_SALE_VERSION = "2026-10-09";
 
 // Reservation policy ("Reserve online, pay at the shop"): nothing is paid
 // online for books and drop-in seats. These numbers are the single source for
@@ -43,7 +43,7 @@ const VAT_NOTICE_ARTICLE = "";
 
 // Social network pages shown as icons in the site footer. Leave a value
 // empty until the real page exists: an empty one is not shown at all.
-const SOCIAL_LINKS = { instagram: "", facebook: "" };
+const SOCIAL_LINKS = { instagram: "https://www.instagram.com/umas_books_adventures/", facebook: "" };
 
 // ---------------------------------------------------------------------------
 // Facts shown on several legal pages and emails: ONE place to change each.
@@ -65,13 +65,31 @@ const MEMBERSHIP_PRICE_EUR = "";
 // page, structured data). See docs/legal-todos.md ("give the street number").
 const SHOP_STREET_NUMBER = "";
 
-// Opening days and hours of the shop. Machine format for structured data, then
-// the text printed on pages: English 10:00–19:00, French 10 h–19 h (a no-break
-// space between the number and "h").
-const SHOP_OPENS = "10:00";
+// Opening days and hours of the shop: Wednesday to Saturday, 14:00 to 19:00.
+// Machine format for structured data (schema.org day names, 24-hour times),
+// then the text printed on pages: English 14:00–19:00, French 14 h–19 h (a
+// no-break space between the number and "h"). EVERY page, email and structured
+// data block reads these: never type the days or hours anywhere else.
+const SHOP_OPEN_DAYS = ["Wednesday", "Thursday", "Friday", "Saturday"];
+const SHOP_OPENS = "14:00";
 const SHOP_CLOSES = "19:00";
-const SHOP_HOURS_EN = "10:00–19:00";
-const SHOP_HOURS_FR = "10\u00a0h–19\u00a0h";
+const SHOP_HOURS_EN = "14:00–19:00";
+const SHOP_HOURS_FR = "14\u00a0h–19\u00a0h";
+// The days as text: "Wednesday to Saturday" / "du mercredi au samedi" (they
+// follow "open" / "ouvert" in a sentence), and the short form of the visit page.
+const SHOP_DAYS_EN = "Wednesday to Saturday";
+const SHOP_DAYS_FR = "du mercredi au samedi";
+const SHOP_DAYS_SHORT_EN = "Wed – Sat";
+const SHOP_DAYS_SHORT_FR = "Mer – Sam";
+// The French "from 14 h to 19 h" form used inside the two helper texts below.
+const SHOP_HOURS_FR_SPOKEN = "de 14\u00a0h à 19\u00a0h";
+
+// The shop may ALSO open at other times when volunteers are available, but ONLY
+// the regular hours above are guaranteed (and only they go in structured data).
+// The page where extra openings are announced: the association's Instagram
+// (the same address as SOCIAL_LINKS.instagram). When it is set, the SHORT text
+// ends "see our Instagram" with that word as a link; leave it EMPTY to drop it.
+const SHOP_EXTRA_HOURS_NOTE_URL = "https://www.instagram.com/umas_books_adventures/";
 
 // "Rue Peyrolière" or "12 rue Peyrolière". `capital` is for the start of a
 // sentence, a line or a field ("Rue Peyrolière, 81000 Albi"); inside a French
@@ -81,6 +99,42 @@ function shopStreet(lang, capital = true) {
   const n = String(module.exports.SHOP_STREET_NUMBER).trim();
   if (n) return `${n} rue Peyrolière`;
   return capital || lang !== "fr" ? "Rue Peyrolière" : "rue Peyrolière";
+}
+
+function shopDays(lang) {
+  return lang === "fr" ? module.exports.SHOP_DAYS_FR : module.exports.SHOP_DAYS_EN;
+}
+
+function shopDaysShort(lang) {
+  return lang === "fr" ? module.exports.SHOP_DAYS_SHORT_FR : module.exports.SHOP_DAYS_SHORT_EN;
+}
+
+// SHORT text, for the visit and volunteer pages and any "opening hours" display.
+// With `html` true, the word "Instagram" is a link to SHOP_EXTRA_HOURS_NOTE_URL
+// (a plain link, opening in a new tab: nothing is embedded). Without the
+// address it just says extra openings exist.
+function shopHoursShort(lang, html = false) {
+  const fr = lang === "fr";
+  const url = String(module.exports.SHOP_EXTRA_HOURS_NOTE_URL).trim();
+  const regular = fr
+    ? `Ouvert ${module.exports.SHOP_DAYS_FR}, ${module.exports.SHOP_HOURS_FR_SPOKEN}.`
+    : `Open ${module.exports.SHOP_DAYS_EN}, ${module.exports.SHOP_HOURS_EN}.`;
+  const extra = fr
+    ? "Ouvertures supplémentaires selon la disponibilité des bénévoles"
+    : "Extra opening hours when volunteers are available";
+  if (!url) return `${regular} ${extra}.`;
+  const word = html
+    ? `<a href="${url.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;")}" target="_blank" rel="noopener noreferrer">Instagram</a>`
+    : "Instagram";
+  return fr ? `${regular} ${extra}\u00a0: voir notre ${word}.` : `${regular} ${extra}: see our ${word}.`;
+}
+
+// FIRM text, for reservation, order and reminder emails, the cart and the
+// terms of sale: only the regular hours are promised.
+function shopHoursFirm(lang) {
+  return lang === "fr"
+    ? `Venez retirer vos livres pendant nos horaires habituels, ${module.exports.SHOP_DAYS_FR}, ${module.exports.SHOP_HOURS_FR_SPOKEN}. Nous sommes parfois ouverts à d’autres moments selon la disponibilité des bénévoles, mais seuls les horaires habituels sont garantis.`
+    : `Collect your books during our regular hours, ${module.exports.SHOP_DAYS_EN}, ${module.exports.SHOP_HOURS_EN}. We are sometimes open at other times when volunteers are available, but only the regular hours are guaranteed.`;
 }
 
 function shopHours(lang) {
@@ -99,6 +153,7 @@ module.exports = {
   RESERVATION_DAYS, RESERVATION_EXTENSION_DAYS, MAX_RESERVED_COPIES, MAX_ACTIVE_RESERVATIONS,
   SEAT_CANCEL_HOURS, SEAT_REMINDER_HOURS, RESERVATION_REMINDER_DAYS_BEFORE, SEAT_FALLBACK_SESSION_HOURS,
   MEMBERSHIP_PRICE_EUR, SHOP_STREET_NUMBER,
-  SHOP_OPENS, SHOP_CLOSES, SHOP_HOURS_EN, SHOP_HOURS_FR,
-  shopStreet, shopHours, membershipPrice,
+  SHOP_OPEN_DAYS, SHOP_OPENS, SHOP_CLOSES, SHOP_HOURS_EN, SHOP_HOURS_FR,
+  SHOP_DAYS_EN, SHOP_DAYS_FR, SHOP_DAYS_SHORT_EN, SHOP_DAYS_SHORT_FR, SHOP_HOURS_FR_SPOKEN, SHOP_EXTRA_HOURS_NOTE_URL,
+  shopStreet, shopHours, shopDays, shopDaysShort, shopHoursShort, shopHoursFirm, membershipPrice,
 };
