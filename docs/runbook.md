@@ -627,7 +627,7 @@ change a price, open the book and use the price choices on the copy.
 
 **How it works.** A customer with an account reserves books (and drop-in seats)
 on the website. **Nothing is paid online.** The customer comes to the shop
-(Rue Peyrolière, Tuesday to Saturday, 10:00 to 19:00), and you take the payment
+(Rue Peyrolière, Wednesday to Saturday, 14:00 to 19:00), and you take the payment
 yourself (cash, card machine or cheque). Then you record it on the website, so
 the books count as sold and the sale appears in the reports. For a drop-in seat
 the customer pays at the session. **Only the membership is still paid online
@@ -906,10 +906,19 @@ Once the accountant answers:
 3. Make a pull request as usual. The line then reads, in all four places,
    "TVA non applicable, art. 293 B du CGI". Nothing else needs editing.
 
-**The footer social links.** The Instagram and Facebook icons are hidden until
-real pages exist. When they do, put the full addresses in `SOCIAL_LINKS` in the
-same file (`umas-books/src/lib/legal.js`, for example
-`instagram: "https://www.instagram.com/..."`); an empty value stays hidden.
+**The footer social links.** The Instagram icon shows the association's page
+(`SOCIAL_LINKS.instagram` in `umas-books/src/lib/legal.js`); Facebook stays
+hidden until a real page exists (put the full address in `facebook`; an empty
+value stays hidden). Use the clean address, without the `?...` tracking part.
+
+**The shop opening hours.** Wednesday to Saturday, 14:00 to 19:00, set in ONE
+place: the `SHOP_*` constants in `umas-books/src/lib/legal.js`. Every page,
+email, reminder, the terms of sale and the structured data for search engines
+read them. The shop may also open at other times when volunteers are available,
+but only the regular hours are promised: the visit page says so and links to
+Instagram (`SHOP_EXTRA_HOURS_NOTE_URL`), emails and terms say only the regular
+hours are guaranteed. If the days or hours change, edit the constants and bump
+`TERMS_OF_SALE_VERSION`.
 
 ## p) The till
 

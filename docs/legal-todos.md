@@ -162,3 +162,17 @@ Until answered, do not put the withdrawal notice back without asking. If the
 lawyer says the opposite (a withdrawal right applies), ask for the terms of
 sale, the reservation email and `NO_RETURNS` to be changed together, and bump
 `TERMS_OF_SALE_VERSION`.
+
+## Opening hours (decided 2026-10-07)
+
+- [x] The shop is open **Wednesday to Saturday, 14:00 to 19:00**, set only in
+  `umas-books/src/lib/legal.js` (`SHOP_*`); `TERMS_OF_SALE_VERSION` was bumped
+  to 2026-10-09.
+- Extra openings are not promised. The shop may open at other times when
+  volunteers are available; only the regular hours are guaranteed (emails,
+  cart, terms of sale say so; the visit and volunteer pages mention extra
+  openings and link to Instagram; search-engine data lists the regular hours
+  only). Ask the lawyer to look at this wording together with the terms of sale.
+- The Instagram page is linked from the footer and the visit page (a plain
+  link, nothing embedded); the privacy policy says the link leads to Instagram,
+  a service of Meta. Facebook: no page yet, so no icon.
