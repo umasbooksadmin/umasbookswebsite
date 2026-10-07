@@ -430,8 +430,8 @@ test("layout: description and awards sit in the top block beside the cover, befo
 
 // -------------------------------------------------------------- migration
 
-test("migration 077 removes AI, pending, approved and rejected rows and keeps the shown ones", async () => {
-  const sql = require("fs").readFileSync(require("path").join(__dirname, "../../migrations/077_awards_no_review.sql"), "utf8");
+test("migration 079 removes AI, pending, approved and rejected rows and keeps the shown ones", async () => {
+  const sql = require("fs").readFileSync(require("path").join(__dirname, "../../migrations/079_awards_no_review.sql"), "utf8");
   const book = await seedBook();
   // Put the old constraints back so legacy rows can be inserted, as in production before this change.
   await pool.query("ALTER TABLE book_awards DROP CONSTRAINT book_awards_source_check, DROP CONSTRAINT book_awards_status_check");

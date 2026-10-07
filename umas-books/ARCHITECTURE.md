@@ -152,13 +152,13 @@ rather than by a numbered migration), grouped by what they belong to:
   `/admin/inventory/move` moves one copy per scanned ISBN (`parseScan`), and
   each move writes a `copy.move` audit row (location codes only).
 - **Awards & best-seller lists** — `book_awards` (migration 050, tightened by
-  077) plus `books.awards_checked_at / awards_check_state`. Code in
+  079) plus `books.awards_checked_at / awards_check_state`. Code in
   `src/lib/awards/`: `wikidata.js` (SPARQL by ISBN, awards P166 and
   nominations P1411), `nyt.js` (optional, `NYT_API_KEY`, in-process 5/min and
   500/day gate), `index.js` (`checkBookAwards`, `drainAwards`), `display.js`
   (what customers may see). **Trust model:** there is no review step and no AI
   source. Every row is `verified` and shown at once: it came from Wikidata, the
-  NYT API, or an admin typed it (`manual`); migration 077 deletes the old AI,
+  NYT API, or an admin typed it (`manual`); migration 079 deletes the old AI,
   pending, approved and rejected rows and its CHECK constraints forbid them.
   Every lookup fails open and never blocks a save. A new book is checked in the
   background right after intake; a timer in `src/index.js` (every 2 minutes, 5
