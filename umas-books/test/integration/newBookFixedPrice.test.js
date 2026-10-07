@@ -7,7 +7,7 @@ const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const bcrypt = require("bcryptjs");
 const { startTestApp } = require("../helpers/testApp");
-const { makeCookieJar, fetchCsrfToken } = require("../helpers/httpClient");
+const { makeCookieJar, fetchCsrfToken, followSeeOther } = require("../helpers/httpClient");
 
 const PORT = 3670;
 const PASSWORD = "FixedPrice-Test-1!";
@@ -46,7 +46,7 @@ async function post(path, fields) {
     body: new URLSearchParams({ ...fields, _csrf: token }).toString(),
   });
   jar.capture(res);
-  return res;
+  return followSeeOther(res, { base: app.base, jar, headers: { "x-forwarded-for": "10.67.0.1" } });
 }
 
 let n = 0;

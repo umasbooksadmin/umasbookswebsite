@@ -1,6 +1,7 @@
 const express = require("express");
 const { pool } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
+const { setFlash, takeFlash } = require("../../lib/flash");
 const { audit } = require("../../lib/audit");
 const { parseId, clean } = require("../../lib/validation");
 const { validDay } = require("../../lib/reports");
@@ -109,7 +110,7 @@ const NOTICES = {
   "reservation-cancelled": "The reservation was cancelled: its books are back on the shelf and its seats are free again.",
   "reservation-expired": "Marked as no-show: the books are back on the shelf and the seats are free again.",
   "reservation-extended": `The deadline was extended by ${RESERVATION_EXTENSION_DAYS} days.`,
-  "not-reserved": "This reservation is no longer open: nothing was changed. Reload the page.",
+  "not-reserved": "This reservation is no longer a reservation: nothing was changed. Reload the page.",
   refunded: "Marked as refunded. The books are back on sale and the reservation no longer counts as a sale.",
   "already-refunded": "This reservation was already marked refunded. Nothing was changed.",
   cancelled: "The unpaid reservation was cancelled and its books and seats are free again.",
@@ -159,7 +160,18 @@ async function renderOrder(req, res, { error = null, status = 200, formValues = 
   });
 }
 
-router.get("/admin/orders/:id", requireAdmin, (req, res, next) => (req.params.id === "pickup-list" ? next() : renderOrder(req, res)));
+// A refused action on an order redirects here (Post/Redirect/Get) and carries the
+// message (and what was typed in the payment form) once in the session.
+async function refusedBack(req, res, error, formValues) {
+  await setFlash(req, `order-${req.params.id}`, { error, formValues });
+  res.redirect(303, `/admin/orders/${req.params.id}`);
+}
+
+router.get("/admin/orders/:id", requireAdmin, (req, res, next) => {
+  if (req.params.id === "pickup-list") return next();
+  const f = takeFlash(req, `order-${req.params.id}`);
+  return renderOrder(req, res, f && f.error ? { error: String(f.error), formValues: f.formValues || {} } : {});
+});
 
 // One printable page for the staff: every reservation waiting, grouped by
 // customer, with where each book is shelved and what to collect. ?print=1 gives
@@ -227,7 +239,7 @@ async function collect(req, res, { selected }) {
   if (result.outcome === "not_found") return res.status(404).render("404");
   if (result.outcome === "not_reserved") return res.redirect(`/admin/orders/${id}?notice=not-reserved`);
   if (result.outcome !== "collected") {
-    return renderOrder(req, res, { status: 400, error: COLLECT_ERRORS[result.outcome] || "Could not record the payment.", formValues: { method, note, amountReceived: req.body.amountReceived || "" } });
+    return refusedBack(req, res, COLLECT_ERRORS[result.outcome] || "Could not record the payment.", { method, note, amountReceived: String(req.body.amountReceived || "").slice(0, 40) });
   }
   await audit(req, {
     action: "order.collected_paid", targetType: "order", targetId: id,
@@ -269,9 +281,9 @@ router.post("/admin/orders/:id/extend", requireAdmin, async (req, res) => {
   const message = {
     already_extended: "This reservation was already extended once: it cannot be extended again.",
     no_books: "Only a reservation holding books can be extended (a drop-in seat is held until its session).",
-    not_reserved: "This reservation is no longer open: nothing was changed.",
+    not_reserved: "This reservation is no longer a reservation: nothing was changed.",
   }[result.outcome] || "Could not extend this reservation.";
-  return renderOrder(req, res, { status: 409, error: message });
+  return refusedBack(req, res, message, {});
 });
 
 // Step 1: the warning and the form. Nothing changes until the POST below.
@@ -284,24 +296,33 @@ async function renderRefundConfirm(req, res, { error = null, note = "", status =
   return res.status(status).render("admin/order_refund", { active: "orders", order, items, error, note, noteMax: NOTE_MAX });
 }
 
-router.get("/admin/orders/:id/refund", requireAdmin, (req, res) => renderRefundConfirm(req, res));
+router.get("/admin/orders/:id/refund", requireAdmin, (req, res) => {
+  const f = takeFlash(req, `refund-${req.params.id}`);
+  return renderRefundConfirm(req, res, f ? { error: f.error ? String(f.error) : null, note: String(f.note || "") } : {});
+});
+
+// A refused refund goes back to the confirmation page (Post/Redirect/Get) with the note kept.
+const refundRefused = async (req, res, note, error) => {
+  await setFlash(req, `refund-${req.params.id}`, { error, note });
+  return res.redirect(303, `/admin/orders/${req.params.id}/refund`);
+};
 
 router.post("/admin/orders/:id/refund", requireAdmin, async (req, res) => {
   const id = parseId(req.params.id);
   if (!id) return res.status(404).render("404");
   const note = clean(req.body.note, NOTE_MAX) || "";
   if (req.body.confirmRefunded !== "on") {
-    return renderRefundConfirm(req, res, { status: 400, note, error: "Tick the box to confirm that you already gave the money back to the customer." });
+    return refundRefused(req, res, note, "Tick the box to confirm that you already gave the money back to the customer.");
   }
-  if (!note) return renderRefundConfirm(req, res, { status: 400, note, error: "Please write a note (for example how it was refunded: cash, cheque or card, and the date, or who asked for it)." });
+  if (!note) return refundRefused(req, res, note, "Please write a note (for example how it was refunded: cash, cheque or card, and the date, or who asked for it).");
 
   const result = await markOrderRefunded(pool, id, { note });
   if (result.outcome === "not_found") return res.status(404).render("404");
   if (result.outcome === "already") return res.redirect(`/admin/orders/${id}?notice=already-refunded`);
   if (result.outcome === "not_paid") {
-    return renderRefundConfirm(req, res, { status: 409, note, error: `Only a paid reservation can be marked refunded (this one is ${result.status}).` });
+    return refundRefused(req, res, note, `Only a paid reservation can be marked refunded (this one is ${result.status}).`);
   }
-  if (result.outcome === "note_required") return renderRefundConfirm(req, res, { status: 400, note, error: "Please write a note." });
+  if (result.outcome === "note_required") return refundRefused(req, res, note, "Please write a note.");
   await audit(req, {
     action: "order.refunded", targetType: "order", targetId: id,
     detail: `restocked ${result.restocked}${result.kept.length ? `, kept sold (resold) ${result.kept.length}` : ""}, seats released ${result.seatsReleased}; ${note}`,

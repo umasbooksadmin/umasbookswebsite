@@ -5,6 +5,7 @@ const { audit } = require("../../lib/audit");
 const { parseLocalDateTime } = require("../../lib/dates");
 const { groupByDate, resolveCalendarRange, calendarBackQuery } = require("../../lib/calendar");
 const { seatsTakenExpr } = require("../../lib/classCapacity");
+const { setFlash, takeFlash } = require("../../lib/flash");
 const { parseMoney, parseWholeNumber } = require("../../lib/validation");
 
 const { validateIdParams } = require("../../middleware/idParams");
@@ -62,7 +63,17 @@ async function renderSessions(res, calendarQuery, { error = null, notice = null,
   res.render("admin/sessions", { active: "sessions", notice, error, formOverlay: overlay, weeks, signupsByClass, dropinByClass, programTypes: PROGRAM_TYPES, view: range.view, ...range.nav });
 }
 
+// A refused form answers with a redirect back to the calendar (Post/Redirect/Get):
+// the message and what was typed are carried once in the session.
+async function refuseAndRedirect(req, res, calendarQuery, state) {
+  await setFlash(req, "sessions", state);
+  const backQuery = calendarBackQuery(calendarQuery);
+  res.redirect(303, backQuery ? `/admin/sessions?${backQuery}` : "/admin/sessions");
+}
+
 router.get("/admin/sessions", requireAdmin, async (req, res) => {
+  const f = takeFlash(req, "sessions");
+  if (f && f.error) return renderSessions(res, req.query, { error: String(f.error), overlay: f.overlay || null });
   await renderSessions(res, req.query, {
     notice: req.query.notice === "has-orders" ? "This item has reservations, so it can't be deleted (mark it sold/archived instead)." : null,
   });
@@ -84,8 +95,7 @@ router.post("/admin/sessions", requireAdmin, async (req, res) => {
 
   const inputError = capacityCheck.error || dropinCheck.error;
   if (inputError) {
-    res.status(400);
-    return renderSessions(res, req.body, {
+    return refuseAndRedirect(req, res, req.body, {
       error: inputError,
       overlay: {
         newDate: asTyped(date),
@@ -120,8 +130,7 @@ router.post("/admin/sessions/:id", requireAdmin, async (req, res) => {
   const programType = PROGRAM_TYPES.includes(req.body.programType) ? req.body.programType : null;
 
   const refuse = (error) => {
-    res.status(400);
-    return renderSessions(res, req.query, {
+    return refuseAndRedirect(req, res, req.query, {
       error,
       overlay: {
         classId: id,

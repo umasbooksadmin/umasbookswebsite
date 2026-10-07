@@ -231,7 +231,7 @@ Use a private window. Time: 35 to 45 minutes. A guest browses, searches, fills a
 
 ### 1C. Books: search, filters, book page
 
-- [ ] **G11 (must).** Open **Browse Books** (`/books.html`). **You should see:** a search box ("Search by title, author, keyword, or genre…"), genre buttons, a "New In" carousel with arrows and **See All New In**, and a book recommendation.
+- [ ] **G11 (must).** Open **Browse Books** (`/books.html`). **You should see:** a search box ("Search by title, author, keyword, or genre…"), genre buttons, a "New In" carousel with arrows and **See All New In**.
 - [ ] **G12.** Type part of a title you know (for example `Gatsby`) and press **Search**. **You should see:** a results grid with covers, titles, prices, condition labels. A search with no match should show a "no results" message, never an error or a blank page (report it if blank). (At most 60 books are listed.)
 - [ ] **G13.** Click a genre button. **You should see:** only books of that genre. Click another genre; the list changes.
 - [ ] **G14.** Click the arrows on "New In" and **See All New In**. **You should see:** the carousel moves; the full new-arrivals list opens.

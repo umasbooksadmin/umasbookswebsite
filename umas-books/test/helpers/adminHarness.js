@@ -76,11 +76,17 @@ function adminHarness(label, routerNames, { isolated = false } = {}) {
     for (const [k, v] of Object.entries(fields)) {
       for (const item of [].concat(v)) body.append(k, String(item));
     }
-    const res = await fetch(`${h.base}${p}`, {
+    let res = await fetch(`${h.base}${p}`, {
       method: "POST", redirect: "manual",
       headers: headersFor(user, { ...FORM, ...(image ? { "x-test-image": "1" } : {}) }),
       body: body.toString(),
     });
+    // 303 = a form answered Post/Redirect/Get: follow it like the browser does, with the session
+    // the POST started (any other answer is returned as is).
+    if (res.status === 303) {
+      const cookie = res.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
+      res = await fetch(`${h.base}${res.headers.get("location")}`, { redirect: "manual", headers: headersFor(user, { cookie }) });
+    }
     return { res, text: await res.text() };
   };
   h.q = async (sql, params) => (await pool.query(sql, params)).rows;
