@@ -1,49 +1,44 @@
-// Background follow-up for PAID online orders (index.js runs it every 6 hours):
+// Background follow-up for RESERVATIONS and the other order mail (index.js runs
+// it every 6 hours; every email is claimed in the database BEFORE it is sent, so
+// two instances overlapping during a deploy cannot both send, and the claim is
+// handed back when the send cannot even be stored).
 //
-//  1. Refund detection. A refund is done by hand in the HelloAsso dashboard,
-//     which tells us nothing. So we re-read each recent paid order's checkout
-//     intent from HelloAsso itself (authenticated lookup; a webhook body is
-//     never trusted) and, when its payment is Refunded/Canceled, flag the order
-//     (orders.refund_detected_at) and email the admin ONCE. Nothing is
-//     restocked automatically: the admin marks the order refunded
-//     (lib/orderActions.js), which is what puts the books back on sale.
-//  2. Customer pickup reminder, on day 10 after payment, once per order.
-//  3. Admin digest on day 12 of orders not collected, once per order.
-//
-// Every email is claimed in the database BEFORE it is sent (so two instances
-// overlapping during a deploy cannot both send) and the claim is handed back
-// when the send fails, so a later run tries again.
+//  0. Release: reservations past their deadline and seats whose session is over
+//     go back on sale (lib/reservations.js). The same release also runs on page
+//     reads; this makes it happen without any traffic.
+//  1. Customer reminder RESERVATION_REMINDER_DAYS_BEFORE days before the deadline
+//     (day 10 of 14), once per order (orders.customer_pickup_reminder_sent_at).
+//  2. Drop-in seat reminder SEAT_REMINDER_HOURS before the session, once per seat
+//     (class_dropin_seats.reminder_sent_at).
+//  3. "Your reservation has ended" email when a reservation expired, once
+//     (orders.expiry_notice_sent_at).
+//  4. Admin digest: reservations expiring within 2 days, once per order
+//     (orders.pickup_reminder_sent_at).
+//  5. Orders PAID ONLINE before reservations existed and never collected: the
+//     old day-10 customer reminder and day-12 admin digest (nothing new creates
+//     such orders).
+// There is NO payment-provider lookup here: refunds are done in the shop by hand.
+// Customer mail goes through the email outbox (retried when Gmail is down).
 
 const mailer = require("../mailer");
-const helloasso = require("./helloasso");
-const { alertOnError, ALERT_TO } = require("./errorAlert");
+const { ALERT_TO } = require("./errorAlert");
+const { sendEmail } = require("./outbox");
 const { emailTr, normLang } = require("./lang");
 const { forLocale, LOCALES } = require("./dates");
 const { emailSafeName } = require("./validation");
 const { formatEuro } = require("./money");
-const { loadOrderItems, orderItemLabel } = require("./orderItems");
+const { loadOrderItems, orderItemLabel, reservationLastDay } = require("./orderItems");
 const { AWAITING_PICKUP } = require("./orderActions");
+const { expireOrderReservations, releaseEndedSeats } = require("./reservations");
+const { buildReservationReminder, buildReservationExpiredNotice, buildSeatReminder } = require("./orderEmail");
+const legal = require("./legal");
 
-const REFUND_CHECK_DAYS = 30;
-const REFUND_CHECK_LIMIT = 200;
+const ADMIN_DIGEST_DAYS_BEFORE = 2;
+const EXPIRY_NOTICE_WINDOW_DAYS = 7;
+// Old online orders (see 5. above).
 const CUSTOMER_REMINDER_DAY = 10;
 const ADMIN_DIGEST_DAY = 12;
-// The terms of sale ask for collection within 14 days of payment. A customer
-// reminder only makes sense inside that window.
 const PICKUP_WINDOW_DAYS = 14;
-
-// HelloAsso payment states that mean "the money went back": Refunded and
-// Refunding (a refund in progress), and Canceled. A partial refund is not
-// detected (the payment stays Authorized).
-const REFUND_STATES = new Set(["Refunded", "Refunding", "Canceled"]);
-
-function isPaymentRefunded(intent) {
-  const payments = intent && intent.order && intent.order.payments;
-  if (!Array.isArray(payments)) return false;
-  // A buyer who retried (first attempt Canceled, second Authorized) is paid.
-  if (helloasso.isOrderPaid(intent)) return false;
-  return payments.some((p) => REFUND_STATES.has(p.state));
-}
 
 const baseUrl = () => (process.env.APP_BASE_URL || process.env.RENDER_EXTERNAL_URL || "").replace(/\/$/, "");
 const adminLink = (id) => `${baseUrl()}/admin/orders/${id}`;
@@ -75,68 +70,140 @@ async function claimAndSend(pool, { column, whereSql, params = [], limit = 500 }
   }
 }
 
-// ---------- 1. refund detection ----------
+// ---------- 0. release ----------
 
-async function detectRefundedOrders(pool) {
-  const { rows: toCheck } = await pool.query(
-    `SELECT id, checkout_intent_id FROM orders
-     WHERE status = 'paid' AND refund_detected_at IS NULL AND checkout_intent_id IS NOT NULL
-       AND paid_at > now() - interval '${REFUND_CHECK_DAYS} days'
-     ORDER BY paid_at LIMIT ${REFUND_CHECK_LIMIT}`
-  );
-  let detected = 0;
-  for (const order of toCheck) {
-    let intent;
-    try {
-      intent = await helloasso.getCheckoutIntent(order.checkout_intent_id);
-    } catch (err) {
-      console.error(`HelloAsso refund check failed for order ${order.id}:`, err.message);
-      if (err && (err.kind === "auth" || err.kind === "network")) {
-        // HelloAsso is unreachable or rejecting our credentials: the rest would only time out.
-        await alertOnError("HelloAsso refund check failing", `The refund check stopped after a HelloAsso ${err.kind} failure: ${err.message}`);
-        break;
-      }
-      continue;
-    }
-    if (!isPaymentRefunded(intent)) continue;
-    const { rowCount } = await pool.query(
-      "UPDATE orders SET refund_detected_at = now() WHERE id = $1 AND status = 'paid' AND refund_detected_at IS NULL",
-      [order.id]
+async function releaseDue(pool) {
+  const orders = await expireOrderReservations(pool);
+  const seats = await releaseEndedSeats(pool);
+  return { orders, seats };
+}
+
+// ---------- 1. customer reminder (day 10 of 14) ----------
+
+async function sendReservationReminders(pool) {
+  const due = `o.status = 'reserved' AND o.customer_pickup_reminder_sent_at IS NULL
+       AND o.buyer_email NOT LIKE '%@erased.invalid'
+       AND o.reserved_until > now()
+       AND o.reserved_until <= now() + interval '${legal.RESERVATION_REMINDER_DAYS_BEFORE} days'
+       AND EXISTS (SELECT 1 FROM order_items i WHERE i.order_id = o.id AND i.book_copy_id IS NOT NULL)`;
+  const { rows: candidates } = await pool.query(`SELECT o.id FROM orders o WHERE ${due} ORDER BY o.id LIMIT 200`);
+  let sent = 0;
+  for (const { id } of candidates) {
+    const { rows } = await pool.query(
+      `UPDATE orders o SET customer_pickup_reminder_sent_at = now() WHERE o.id = $1 AND ${due} RETURNING o.*`,
+      [id]
     );
-    if (rowCount) detected++;
+    const order = rows[0];
+    if (!order) continue;
+    try {
+      const items = await loadOrderItems(pool, order.id);
+      await sendEmail({ kind: "reservation_reminder", lang: order.lang, relatedOrderId: order.id, to: order.buyer_email, ...buildReservationReminder(order, items) });
+      sent++;
+    } catch (err) {
+      console.error(`Reservation reminder failed for order ${order.id}:`, err.message);
+      await pool.query("UPDATE orders SET customer_pickup_reminder_sent_at = NULL WHERE id = $1", [order.id]).catch(() => {});
+    }
   }
+  return { sent };
+}
 
-  // One email for everything newly detected (so a burst never floods the
-  // inbox), once per order.
-  const alert = await claimAndSend(
+// ---------- 2. drop-in seat reminder (24 h before) ----------
+
+async function sendSeatReminders(pool) {
+  const { rows: candidates } = await pool.query(
+    `SELECT s.id FROM class_dropin_seats s JOIN classes c ON c.id = s.class_id JOIN orders o ON o.id = s.order_id
+     WHERE s.status = 'reserved' AND s.reminder_sent_at IS NULL AND o.status = 'reserved'
+       AND o.buyer_email NOT LIKE '%@erased.invalid'
+       AND c.starts_at > now() AND c.starts_at <= now() + make_interval(hours => $1)
+     ORDER BY s.id LIMIT 200`,
+    [legal.SEAT_REMINDER_HOURS]
+  );
+  let sent = 0;
+  for (const { id } of candidates) {
+    const { rows } = await pool.query(
+      `UPDATE class_dropin_seats s SET reminder_sent_at = now()
+       FROM classes c WHERE c.id = s.class_id AND s.id = $1 AND s.status = 'reserved' AND s.reminder_sent_at IS NULL
+         AND c.starts_at > now() AND c.starts_at <= now() + make_interval(hours => $2)
+       RETURNING s.id, s.order_id`,
+      [id, legal.SEAT_REMINDER_HOURS]
+    );
+    if (!rows[0]) continue;
+    try {
+      const { rows: o } = await pool.query("SELECT * FROM orders WHERE id = $1 AND status = 'reserved'", [rows[0].order_id]);
+      if (!o[0]) throw new Error("order is no longer reserved");
+      const items = (await loadOrderItems(pool, o[0].id)).filter((i) => i.class_dropin_seat_id === id);
+      if (!items[0]) throw new Error("seat has no order line");
+      await sendEmail({ kind: "seat_reminder", lang: o[0].lang, relatedOrderId: o[0].id, to: o[0].buyer_email, ...buildSeatReminder(o[0], items[0]) });
+      sent++;
+    } catch (err) {
+      console.error(`Seat reminder failed for seat ${id}:`, err.message);
+      await pool.query("UPDATE class_dropin_seats SET reminder_sent_at = NULL WHERE id = $1", [id]).catch(() => {});
+    }
+  }
+  return { sent };
+}
+
+// ---------- 3. "your reservation has ended" ----------
+
+async function sendExpiryNotices(pool) {
+  // Only a reservation that lapsed by itself (not one the customer or the staff
+  // cancelled or marked no-show), and only when books were involved: a seat for a
+  // session that has passed needs no "back on sale" message.
+  const due = `o.status = 'expired' AND o.release_reason = 'expired' AND o.expiry_notice_sent_at IS NULL
+       AND o.buyer_email NOT LIKE '%@erased.invalid'
+       AND o.released_at > now() - interval '${EXPIRY_NOTICE_WINDOW_DAYS} days'
+       AND EXISTS (SELECT 1 FROM order_items i WHERE i.order_id = o.id AND i.book_copy_id IS NOT NULL)`;
+  const { rows: candidates } = await pool.query(`SELECT o.id FROM orders o WHERE ${due} ORDER BY o.id LIMIT 200`);
+  let sent = 0;
+  for (const { id } of candidates) {
+    const { rows } = await pool.query(`UPDATE orders o SET expiry_notice_sent_at = now() WHERE o.id = $1 AND ${due} RETURNING o.*`, [id]);
+    const order = rows[0];
+    if (!order) continue;
+    try {
+      const items = (await loadOrderItems(pool, order.id)).filter((i) => i.class_dropin_seat_id == null);
+      await sendEmail({ kind: "reservation_expired", lang: order.lang, relatedOrderId: order.id, to: order.buyer_email, ...buildReservationExpiredNotice(order, items) });
+      sent++;
+    } catch (err) {
+      console.error(`Reservation expiry notice failed for order ${order.id}:`, err.message);
+      await pool.query("UPDATE orders SET expiry_notice_sent_at = NULL WHERE id = $1", [order.id]).catch(() => {});
+    }
+  }
+  return { sent };
+}
+
+// ---------- 4. admin digest: reservations expiring within 2 days ----------
+
+async function sendAdminReservationDigest(pool) {
+  return claimAndSend(
     pool,
-    { column: "refund_alert_sent_at", whereSql: "o.status = 'paid' AND o.refund_detected_at IS NOT NULL" },
+    {
+      column: "pickup_reminder_sent_at",
+      whereSql: `o.status = 'reserved' AND o.reserved_until > now() AND o.reserved_until <= now() + interval '${ADMIN_DIGEST_DAYS_BEFORE} days'
+        AND EXISTS (SELECT 1 FROM order_items i WHERE i.order_id = o.id AND i.book_copy_id IS NOT NULL)`,
+    },
     async (orders) => {
-      const lines = orders.map((o) => `- Order #${o.id}: ${o.buyer_name}, ${formatEuro(o.total_amount, "en")}\n  ${adminLink(o.id)}`).join("\n");
-      const one = orders.length === 1;
+      const lines = orders
+        .map((o) => `- Reservation #${o.id}: ${o.buyer_name} <${o.buyer_email}>, ${formatEuro(o.total_amount, "en")}, held until the end of ${parisDate(reservationLastDay(o))}\n  ${adminLink(o.id)}`)
+        .join("\n");
       await mailer.sendMail({
         to: ALERT_TO,
-        subject: one
-          ? `Order #${orders[0].id} was refunded in HelloAsso: mark it refunded in admin to restock`
-          : `${orders.length} orders were refunded in HelloAsso: mark them refunded in admin to restock`,
+        subject: `${orders.length} reservation${orders.length === 1 ? "" : "s"} expiring within ${ADMIN_DIGEST_DAYS_BEFORE} days`,
         text:
-          `HelloAsso shows ${one ? "this order's payment" : "these orders' payments"} as refunded or canceled, but the site still shows ${one ? "it" : "them"} as Paid, ` +
-          `so the books are still marked sold.\n\n${lines}\n\n` +
-          `Open ${one ? "the order" : "each order"}, check the payment in the HelloAsso dashboard, then press "Mark refunded (done in HelloAsso)". ` +
-          `That puts the books back on sale and removes the order from the sales figures. Nothing was changed automatically.`,
+          `These reservations will be released automatically within ${ADMIN_DIGEST_DAYS_BEFORE} days if nobody collects them.\n\n${lines}\n\n` +
+          `If a customer asked for more time, open the reservation and press "Extend by ${legal.RESERVATION_EXTENSION_DAYS} days" (once). ` +
+          `See the runbook, "Reservations not collected". This list is sent once per reservation; the full list is always at ${baseUrl()}/admin/orders?show=expiring_soon`,
       });
     }
   );
-  return { checked: toCheck.length, detected, alerted: alert.sent };
 }
 
-// ---------- 2. customer pickup reminder (day 10) ----------
+// ---------- 5. orders paid online before reservations (old; nothing new creates them) ----------
+// Customer reminder on day 10 after payment.
 
 async function sendCustomerPickupReminders(pool) {
   const { rows: candidates } = await pool.query(
     `SELECT o.id FROM orders o
      WHERE ${AWAITING_PICKUP}
-       AND o.refund_detected_at IS NULL
        AND o.customer_pickup_reminder_sent_at IS NULL
        AND o.buyer_email NOT LIKE '%@erased.invalid'
        AND o.paid_at <= now() - interval '${CUSTOMER_REMINDER_DAY} days'
@@ -147,7 +214,7 @@ async function sendCustomerPickupReminders(pool) {
   for (const { id } of candidates) {
     const { rows } = await pool.query(
       `UPDATE orders o SET customer_pickup_reminder_sent_at = now()
-       WHERE o.id = $1 AND ${AWAITING_PICKUP} AND o.refund_detected_at IS NULL AND o.customer_pickup_reminder_sent_at IS NULL
+       WHERE o.id = $1 AND ${AWAITING_PICKUP} AND o.customer_pickup_reminder_sent_at IS NULL
        RETURNING o.*`,
       [id]
     );
@@ -178,13 +245,13 @@ function buildCustomerPickupReminder(order, items) {
   return {
     subject: tr(`Your books are waiting at the shop (order #${order.id})`, `Vos livres vous attendent à la boutique (commande n° ${order.id})`),
     text: tr(
-      `Hi ${name},\n\nYour books from order #${order.id} (paid on ${fmt.formatDateLong(order.paid_at)}) are waiting for you at Uma's Books:\n\n${lines}\n\nOur terms of sale ask you to collect them within 14 days of payment, that is by ${fmt.formatDateLong(deadline)}. We are open Tuesday to Saturday, 10:00 to 19:00, Rue Peyrolière, 81000 Albi. Please bring your confirmation email.\n\nIf you need more time, just write to us at admin@umasbooks.org.\n\nUma's Books`,
-      `Bonjour ${name},\n\nVos livres de la commande n° ${order.id} (payée le ${fmt.formatDateLong(order.paid_at)}) vous attendent à Uma's Books :\n\n${lines}\n\nNos conditions de vente vous demandent de les retirer dans les 14 jours suivant le paiement, soit avant le ${fmt.formatDateLong(deadline)}. Nous sommes ouverts du mardi au samedi, de 10 h à 19 h, Rue Peyrolière, 81000 Albi. Merci de vous munir de votre e-mail de confirmation.\n\nSi vous avez besoin de plus de temps, écrivez-nous simplement à admin@umasbooks.org.\n\nUma's Books`
+      `Hi ${name},\n\nYour books from order #${order.id} (paid on ${fmt.formatDateLong(order.paid_at)}) are waiting for you at Uma's Books:\n\n${lines}\n\nOur terms of sale ask you to collect them within 14 days of payment, that is by ${fmt.formatDateLong(deadline)}. The shop is at ${legal.shopStreet("en")}, 81000 Albi. ${legal.shopHoursFirm("en")} Please bring your confirmation email.\n\nIf you need more time, just write to us at admin@umasbooks.org.\n\nUma's Books`,
+      `Bonjour ${name},\n\nVos livres de la commande n° ${order.id} (payée le ${fmt.formatDateLong(order.paid_at)}) vous attendent à Uma's Books :\n\n${lines}\n\nNos conditions générales de vente (CGV) vous demandent de les retirer dans les 14 jours suivant le paiement, soit avant le ${fmt.formatDateLong(deadline)}. La boutique est située ${legal.shopStreet("fr", false)}, 81000 Albi. ${legal.shopHoursFirm("fr")} Merci de vous munir de votre e-mail de confirmation.\n\nSi vous avez besoin de plus de temps, écrivez-nous simplement à admin@umasbooks.org.\n\nUma's Books`
     ),
   };
 }
 
-// ---------- 3. admin digest (day 12) ----------
+// Admin digest on day 12 after payment.
 
 async function sendAdminPickupDigest(pool) {
   return claimAndSend(
@@ -198,7 +265,7 @@ async function sendAdminPickupDigest(pool) {
       const lines = orders
         .map((o) => {
           const days = Math.floor((now - new Date(o.paid_at).getTime()) / (24 * 3600 * 1000));
-          const flag = o.refund_detected_at ? " [refund detected in HelloAsso]" : "";
+          const flag = "";
           return `- Order #${o.id}: ${o.buyer_name} <${o.buyer_email}>, ${formatEuro(o.total_amount, "en")}, paid ${parisDate(o.paid_at)} (${days} days ago)${flag}\n  ${adminLink(o.id)}`;
         })
         .join("\n");
@@ -209,7 +276,7 @@ async function sendAdminPickupDigest(pool) {
           `These paid orders have not been marked collected, and were paid ${ADMIN_DIGEST_DAY} or more days ago. ` +
           `The terms of sale ask customers to collect within 14 days of payment and to write to us if they need longer.\n\n${lines}\n\n` +
           `If a customer collected, open the order and press "Mark collected". If they have not, see the runbook, "An order was not collected after 14 days". ` +
-          `This list is sent once per order; the full list is always at ${baseUrl()}/admin/orders?view=uncollected`,
+          `This list is sent once per order; the full list is always at ${baseUrl()}/admin/orders?show=uncollected`,
       });
     }
   );
@@ -219,7 +286,11 @@ async function sendAdminPickupDigest(pool) {
 async function runOrderFollowUps(pool) {
   const results = {};
   for (const [name, fn] of [
-    ["refunds", detectRefundedOrders],
+    ["release", releaseDue],
+    ["reservationReminders", sendReservationReminders],
+    ["seatReminders", sendSeatReminders],
+    ["expiryNotices", sendExpiryNotices],
+    ["adminReservationDigest", sendAdminReservationDigest],
     ["customerReminders", sendCustomerPickupReminders],
     ["adminDigest", sendAdminPickupDigest],
   ]) {
@@ -234,6 +305,6 @@ async function runOrderFollowUps(pool) {
 }
 
 module.exports = {
-  detectRefundedOrders, sendCustomerPickupReminders, sendAdminPickupDigest, runOrderFollowUps,
-  buildCustomerPickupReminder, isPaymentRefunded, REFUND_STATES,
+  releaseDue, sendReservationReminders, sendSeatReminders, sendExpiryNotices, sendAdminReservationDigest,
+  sendCustomerPickupReminders, sendAdminPickupDigest, runOrderFollowUps, buildCustomerPickupReminder,
 };

@@ -67,7 +67,7 @@
                     </div>
                   </form>
 
-                  <form method="post" action="/admin/meetings/<%= m.id %>/delete?<%= qs %>" style="margin-top:8px;">
+                  <form data-confirm="Delete this meeting and its RSVPs and minutes? This can't be undone." method="post" action="/admin/meetings/<%= m.id %>/delete?<%= qs %>" style="margin-top:8px;">
                     <%- include('../partials/csrf_field') %>
                     <button class="btn btn-outline btn-small" type="submit">Delete meeting</button>
                   </form>

@@ -17,7 +17,8 @@ async function createResetToken(db, userId, returnTo = null) {
   return rawToken;
 }
 
-async function sendResetLink(user, baseUrl) {
+// throttle: see lib/outbox.js ("off" for an admin sending an invite on purpose).
+async function sendResetLink(user, baseUrl, { throttle } = {}) {
   const rawToken = await createResetToken(pool, user.id);
 
   // user.lang ('en' | 'fr' | null) is the account's language; callers that
@@ -34,7 +35,7 @@ async function sendResetLink(user, baseUrl) {
       `Hi ${name},\n\nSet a new password for your Uma's Books account here (this link expires in 1 hour):\n${link}\n\nIf you didn't request this, you can safely ignore this email.`,
       `Bonjour ${name},\n\nChoisissez un nouveau mot de passe pour votre compte Uma's Books ici (ce lien expire dans 1 heure) :\n${link}\n\nSi vous n'êtes pas à l'origine de cette demande, vous pouvez ignorer ce message.`
     ),
-  });
+  }, { throttle });
 }
 
 module.exports = { sendResetLink, createResetToken };

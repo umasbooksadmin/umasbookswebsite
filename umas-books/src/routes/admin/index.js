@@ -30,5 +30,6 @@ router.use(require("./audit"));
 router.use(require("./diagnostics"));
 router.use(emailOutbox);
 router.use(require("./requests"));
+router.use(require("./privacyRequests"));
 
 module.exports = router;

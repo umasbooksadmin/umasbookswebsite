@@ -6,23 +6,17 @@
 // does. Secrets are never exported: any users column whose name suggests a
 // hash, token or secret is dropped, which also covers columns added later
 // (e.g. 2FA secrets).
+const { listOutboxFor } = require("./outbox");
+
 const SECRET_COLUMN = /hash|token|secret|totp/i;
 
-// Returns null when there is no such account.
-async function buildMemberExport(pool, userId) {
-  const { rows: userRows } = await pool.query("SELECT * FROM users WHERE id = $1", [userId]);
-  if (!userRows.length) return null;
-  const user = {};
-  for (const [key, value] of Object.entries(userRows[0])) {
-    if (!SECRET_COLUMN.test(key)) user[key] = value;
-  }
-  const email = userRows[0].email.toLowerCase();
+// The sections keyed by EMAIL (not by account): shared by the member export
+// (userId = the account) and the admin "Privacy requests" tool, which also
+// answers an address that has no account (userId = null; "user_id = NULL"
+// simply matches nothing). One place, so the two can never drift apart.
+async function buildEmailSections(pool, email, userId = null) {
   const q = async (sql, params) => (await pool.query(sql, params)).rows;
-
   return {
-    exported_at: new Date().toISOString(),
-    note: "Personal data held by Uma's Books about this account. Passwords and security secrets are never included.",
-    user,
     event_signups: await q(
       `SELECT s.id, e.title AS event_title, e.starts_at, s.name, s.email, s.created_at
        FROM event_signups s JOIN events e ON e.id = s.event_id
@@ -52,11 +46,40 @@ async function buildMemberExport(pool, userId) {
     ),
     // Copies of emails we sent to this address are kept 30 days (lib/outbox.js);
     // the text is left out (it may hold a one-time link), the record is enough.
-    emails_sent: await q(
-      `SELECT id, kind, subject, status, created_at, sent_at FROM email_outbox
-       WHERE lower(to_email) = $1 AND purged_at IS NULL ORDER BY created_at`,
+    emails_sent: await listOutboxFor(pool, email),
+    book_reservations: await q(
+      `SELECT c.id AS copy_id, b.title, c.status, c.reserved_by_name, c.reserved_by_email,
+              c.reserved_by_phone, c.reserved_at
+       FROM book_copies c JOIN books b ON b.id = c.book_id
+       WHERE lower(c.reserved_by_email) = $1 ORDER BY c.reserved_at`,
       [email]
     ),
+    // Book requests (routes/bookRequests.js): no token hashes, only what the person gave us.
+    book_requests: await q(
+      `SELECT id, title, author, isbn, note, admin_note, email, name, lang, status,
+              created_at, confirmed_at, notified_at, expires_at
+       FROM book_requests WHERE user_id = $1 OR lower(email) = $2 ORDER BY created_at`,
+      [userId, email]
+    ),
+  };
+}
+
+// Returns null when there is no such account.
+async function buildMemberExport(pool, userId) {
+  const { rows: userRows } = await pool.query("SELECT * FROM users WHERE id = $1", [userId]);
+  if (!userRows.length) return null;
+  const user = {};
+  for (const [key, value] of Object.entries(userRows[0])) {
+    if (!SECRET_COLUMN.test(key)) user[key] = value;
+  }
+  const email = userRows[0].email.toLowerCase();
+  const q = async (sql, params) => (await pool.query(sql, params)).rows;
+
+  return {
+    exported_at: new Date().toISOString(),
+    note: "Personal data held by Uma's Books about this account. Passwords and security secrets are never included.",
+    user,
+    ...(await buildEmailSections(pool, email, userId)),
     favorites: await q(
       `SELECT f.created_at, b.title, b.authors FROM favorites f JOIN books b ON b.id = f.book_id
        WHERE f.user_id = $1 ORDER BY f.created_at`,
@@ -96,21 +119,7 @@ async function buildMemberExport(pool, userId) {
        FROM charity_ideas WHERE submitted_by = $1 ORDER BY created_at`,
       [userId]
     ),
-    book_reservations: await q(
-      `SELECT c.id AS copy_id, b.title, c.status, c.reserved_by_name, c.reserved_by_email,
-              c.reserved_by_phone, c.reserved_at
-       FROM book_copies c JOIN books b ON b.id = c.book_id
-       WHERE lower(c.reserved_by_email) = $1 ORDER BY c.reserved_at`,
-      [email]
-    ),
-    // Book requests (routes/bookRequests.js): no token hashes, only what the person gave us.
-    book_requests: await q(
-      `SELECT id, title, author, isbn, note, admin_note, email, name, lang, status,
-              created_at, confirmed_at, notified_at, expires_at
-       FROM book_requests WHERE user_id = $1 OR lower(email) = $2 ORDER BY created_at`,
-      [userId, email]
-    ),
   };
 }
 
-module.exports = { buildMemberExport, SECRET_COLUMN };
+module.exports = { buildMemberExport, buildEmailSections, SECRET_COLUMN };

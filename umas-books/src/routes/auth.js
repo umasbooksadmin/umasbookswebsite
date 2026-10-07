@@ -18,6 +18,7 @@ const { audit } = require("../lib/audit");
 const { syncMembershipInBackground, syncMembershipForEmail } = require("../lib/membership");
 const helloasso = require("../lib/helloasso");
 const { isPreviewMode } = require("../lib/preview");
+const { loginThrottle } = require("../lib/loginThrottle");
 
 const router = express.Router();
 
@@ -61,6 +62,9 @@ const signupNotice = (req) =>
     "Merci ! Consultez votre boîte de réception : nous vous avons envoyé un lien pour confirmer votre adresse et choisir votre mot de passe. Si vous avez déjà un compte, essayez de vous connecter ou de réinitialiser votre mot de passe."
   );
 
+// Two-step code failures lock the account (countFailedAttempt below). Password
+// failures are throttled per (account, IP) pair plus a softer per-account total:
+// see lib/loginThrottle.js for why (a stranger must not lock the owner out).
 const LOGIN_LOCK_THRESHOLD = 5;
 const LOGIN_LOCK_DURATION_MS = 15 * 60 * 1000;
 
@@ -85,10 +89,11 @@ async function refreshUserLang(req, userId) {
 // Where a fresh login lands: a validated returnTo (e.g. the cart a guest was
 // sent away from at checkout) wins, otherwise the role's usual home.
 function landingFor(user, returnTo) {
-  return safeReturnTo(returnTo) || (user.is_admin ? "/admin" : (user.is_member || user.is_volunteer) ? "/dashboard" : "/");
+  return safeReturnTo(returnTo) || (user.is_admin ? "/admin" : user.is_till ? "/admin/till" : (user.is_member || user.is_volunteer) ? "/dashboard" : "/");
 }
 
 function loginAs(req, res, user, redirectTo) {
+  loginThrottle.recordSuccess(user.id, ipKey(req)); // clears this address's failures; remembers it as a usual one
   const cart = req.session.cart;
   const cartSeq = req.session.cartSeq;
   req.session.regenerate((err) => {
@@ -98,7 +103,7 @@ function loginAs(req, res, user, redirectTo) {
     }
     req.session.user = {
       id: user.id, email: user.email, displayName: user.display_name,
-      isAdmin: user.is_admin, isMember: isActiveMember(user), isVolunteer: user.is_volunteer,
+      isAdmin: user.is_admin, isMember: isActiveMember(user), isVolunteer: user.is_volunteer, isTill: Boolean(user.is_till), tillActiveAt: Date.now(),
       passwordChangedAt: user.password_changed_at.getTime(),
       totpEnabled: Boolean(user.totp_enabled_at),
     };
@@ -118,8 +123,8 @@ function loginAs(req, res, user, redirectTo) {
 
 // One atomic statement: a read-add-write in JS lets parallel wrong guesses
 // all read the same count and undercount past the lock threshold. Used for
-// wrong passwords AND wrong two-step codes, so guessing a code is capped
-// per account (not per cookie/IP) like guessing a password.
+// wrong two-step codes only, so guessing a code is capped per account (not per
+// cookie/IP). Wrong passwords use lib/loginThrottle.js (per account+IP pair).
 function countFailedAttempt(userId) {
   return pool.query(
     `UPDATE users
@@ -428,7 +433,7 @@ router.post("/resend-verification", resendLimiter, async (req, res) => {
       );
       if (rows[0]) {
         // Background, like signup: response time can't reveal the account.
-        sendVerificationEmail(rows[0], baseUrl(req), { choosePassword: true, returnTo }).catch((err) => console.error("Verification email failed:", err.message));
+        sendVerificationEmail(rows[0], baseUrl(req), { choosePassword: true, returnTo, throttle: "skipInterval" }).catch((err) => console.error("Verification email failed:", err.message));
       }
     } catch (err) {
       console.error(err);
@@ -472,20 +477,17 @@ router.post("/login", loginLimiter, async (req, res) => {
     // A locked account answers exactly like a wrong password (even for the
     // right one), so neither the lock nor the account's existence is
     // revealed; attempts during the lock aren't counted or extended.
-    const locked = Boolean(user && user.locked_until && new Date(user.locked_until) > new Date());
+    const clientKey = ipKey(req);
+    const locked = Boolean(user && ((user.locked_until && new Date(user.locked_until) > new Date()) || loginThrottle.isBlocked(user.id, clientKey)));
     if (locked) {
       return res.status(401).render("login", { error: req.tr("Incorrect email or password.", "E-mail ou mot de passe incorrect."), notice: null });
     }
 
     if (!ok) {
       if (user) {
-        // One atomic statement: a read-add-write in JS lets parallel
-        // wrong guesses all read the same count and write back the same
-        // +1, undercounting past the lock threshold. The row lock makes
-        // concurrent attempts count one by one; whichever one reaches the
-        // threshold sets the lock and resets the counter in the same
-        // statement (a later one, now seeing 0, simply counts again).
-        await countFailedAttempt(user.id);
+        // Counted per (account, IP) and per account in memory (synchronous,
+        // so parallel guesses cannot undercount): lib/loginThrottle.js.
+        loginThrottle.recordFailure(user.id, clientKey);
       }
       return res.status(401).render("login", { error: req.tr("Incorrect email or password.", "E-mail ou mot de passe incorrect."), notice: null });
     }

@@ -14,8 +14,9 @@
 //    gap is almost always a number taken by a branch that is still open or lost.
 //
 // Known gaps (never used on main): 049, 051, 052, 061, 064.
-// 066-071 are numbers taken by other open branches (reservations, privacy, till...):
-// they are allowed to be missing until those branches merge, and may be filled later.
+// 067, 069-073 were reserved by branches that renumbered or never used them; 077-079 are
+// taken by branches that were still open when this list was written. They may stay
+// missing, or be filled later (filling a listed gap is fine).
 // If you really must skip a number on purpose, add it to KNOWN_GAPS here in the same PR.
 
 const test = require("node:test");
@@ -24,7 +25,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const dir = path.join(__dirname, "..", "..", "migrations");
-const KNOWN_GAPS = new Set([49, 51, 52, 61, 64, 66, 67, 68, 69, 70, 71]);
+const KNOWN_GAPS = new Set([49, 51, 52, 61, 64, 67, 69, 70, 71, 72, 73, 77, 78, 79]);
 
 const files = fs.readdirSync(dir).filter((f) => f.endsWith(".sql")).sort();
 

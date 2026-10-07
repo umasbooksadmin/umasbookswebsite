@@ -91,7 +91,7 @@ test("live site with a non-https APP_BASE_URL: warning + alert", () => {
 test("live site still on the HelloAsso sandbox: loud warning + alert, boot continues", () => {
   const env = { ...FULL, HELLOASSO_API_BASE: "https://api.helloasso-sandbox.com/v5" };
   assert.match(validateEnv(env).warnings.join("\n"), /SANDBOX/);
-  assert.deepEqual(labels(env), ["HelloAsso is still in SANDBOX mode: real payments will not work"]);
+  assert.deepEqual(labels(env), ["HelloAsso is still in SANDBOX mode: real membership payments will not work"]);
   const { exitCode } = run(env);
   assert.equal(exitCode, undefined);
 });

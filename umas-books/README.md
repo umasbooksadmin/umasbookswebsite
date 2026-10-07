@@ -58,7 +58,7 @@ at the top of the file); pick an unused one for a new file.
 
 With `DATABASE_URL` set (as in CI) there is ONE Postgres database and node
 runs several test files against it at the same time, so anything global — row
-counts, the `session` table, `orders.client_ip` caps, `DELETE`/`TRUNCATE`,
+counts, the `session` table, `DELETE`/`TRUNCATE`,
 dropping `schema_migrations` — is visible to, or wrecked by, other files.
 That made the suite fail at random. The rule: **every test file that gets a
 database gets its own.** Pass `{ isolated: true }` to `startTestApp({ port,
@@ -117,13 +117,19 @@ more things to keep in mind:
 - **Membership** (`/membership.html`) — needs an account, created in one step
   on that page (name + email, then pay on HelloAsso and confirm the email
   afterwards); a logged-in account holder sees only the payment form and a
-  "Check my membership" button (`src/lib/membershipPage.js`).
-- **Online checkout** (`/cart`) — **needs an account**: guests can browse and
+  "Check my membership" button (`src/lib/membershipPage.js`). **The membership
+  is the only thing paid online** (`src/lib/helloasso.js`, webhook at
+  `/webhooks/helloasso`; payments are matched to accounts by email).
+- **Reservations** (`/cart`) — **needs an account**: guests can browse and
   fill the cart, then are asked to log in or sign up (the cart is kept and they
-  return to it). Book copies and class drop-in seats are
-  paid for through HelloAsso (`src/lib/helloasso.js`, webhook at
-  `/webhooks/helloasso`); membership payments are matched to accounts the
-  same way. See ARCHITECTURE.md's "Payment reliability" section.
+  return to it). Book copies and class drop-in seats are **reserved online and
+  paid in person**: "Reserve (free, no commitment)" holds the books for 14 days (an admin
+  can extend once by 7 days) and a drop-in seat until the session is over; the
+  customer pays at the shop when collecting, or at the session. At most 10
+  books and 3 open reservations per account; the customer can cancel from
+  their account page (a seat until 24 hours before the session). Nothing is
+  paid on the website. The numbers are in `src/lib/legal.js`. See
+  ARCHITECTURE.md's "Reservations" section.
 - **Inventory** (`/admin/inventory`, admin only) — full CRUD for the book
   catalog. Each title (`books`, with a genre/`categories` field) can have
   several individually-tracked physical copies (`book_copies`, each with
@@ -141,11 +147,12 @@ more things to keep in mind:
   the book's page).
 - **Book search** (`/books`, public, no login) — anyone can search
   in-stock inventory by title, author, or genre, and add copies to the
-  cart (the cart/checkout flow above). There is no public "reserve" form:
-  a copy is held (status `reserved`) only when an admin reserves it from
-  the book's admin page or a book request is notified with a hold; it
-  stays held until an admin cancels the reservation or marks it sold, or
-  it expires.
+  cart (the reservation flow above). A copy is held (status `reserved`) when
+  an account holder reserves it, when an admin reserves it from the book's
+  admin page, or when a book request is notified with a hold. An online
+  reservation is collected, cancelled or extended from its order page
+  (`/admin/orders/<id>`); the others stay held until an admin cancels the
+  reservation or marks it sold, or they expire.
 - **Admin** (`/admin`, admin accounts only) — a proper multi-page section
   with its own sub-nav (`views/partials/admin_subnav.ejs`): an overview
   with counts/links, plus dedicated pages for Books & Orders, English
@@ -292,8 +299,13 @@ the latest 12 months after it was made (the privacy policy says so).
 6. The list at the bottom shows the last 10 sales. If you made a mistake, ask
    the person who looks after the site to fix it.
 
-Books bought on the website are marked as sold automatically; do not record
-those here.
+A book reserved on the website is **not** sold here: it is collected from its
+order page. Admin > **Books & Orders** > **Orders** opens on the reservations
+waiting for pickup. When the customer comes, open the reservation, take the
+payment (cash, card or cheque), choose how they paid and press **Mark collected
+and paid** (**Collect selected items** if they take only some of the books).
+The **Pickup list** (and its print version) lists everything to fetch from the
+shelves. Step by step: `docs/runbook.md`, section k.
 
 **Where a book came from**
 
@@ -436,9 +448,9 @@ In production (`NODE_ENV=production`) the app checks its environment at
 boot: it refuses to start, naming every missing variable, if `DATABASE_URL`
 `SESSION_SECRET` or `TOTP_ENCRYPTION_KEY` is unset, and logs a loud `[env] WARNING` at startup
 if the Gmail or HelloAsso variables are unset (email, including error
-alerts, or online payment would then be silently off). On `SIGTERM` (every
+alerts, or online membership payment would then be silently off). On `SIGTERM` (every
 Render deploy/spin-down) it stops taking new connections, lets in-flight
-requests — notably HelloAsso webhooks — finish, closes the database pool and
+requests — notably HelloAsso membership webhooks — finish, closes the database pool and
 exits 0; after 10 seconds it exits anyway.
 
 ## Backups in Backblaze B2
@@ -604,7 +616,7 @@ locked-out admin, who gets alerts, the yearly checklist) are in
 - Passwords hashed with bcrypt (cost 12); reset tokens are 256-bit random,
   only a SHA-256 hash is ever stored, single-use, 1-hour expiry.
 - Session cookies are `httpOnly`, `secure` in production, `SameSite=Lax`.
-- CSP `form-action` lists the HelloAsso payment hosts (`src/lib/helloassoHosts.js`; sandbox hosts only when `HELLOASSO_API_BASE` is the sandbox) because Chrome enforces `form-action` on the redirect after a form POST, so `/cart/checkout`'s 302 to HelloAsso would otherwise be blocked.
+- CSP `form-action` is `'self'` only: nothing is paid online for books and seats, so no form of ours posts to another site and no redirect to another site follows a form POST. The HelloAsso membership form is an iframe the visitor loads by pressing a button, allowed by `frame-src` on the marketing pages (`src/lib/marketingCsp.js`).
 - **CSRF protection** — every form carries a per-session token
   (`src/middleware/csrf.js`); any POST without a matching token is
   rejected with 403. New forms must include
@@ -614,8 +626,22 @@ locked-out admin, who gets alerts, the yearly checklist) are in
   throughout the views) and Google Fonts' stylesheet host.
 - **Login hardening** — a login attempt against a nonexistent email still
   runs a same-cost bcrypt compare (against a fixed dummy hash) so response
-  timing can't be used to enumerate registered emails; 5 failed attempts
-  on one account locks it for 15 minutes.
+  timing can't be used to enumerate registered emails; 5 wrong passwords from
+  one address lock THAT address out of that account for 15 minutes (a stranger
+  cannot lock the owner out), and 20 across all addresses in 15 minutes refuse
+  new addresses for the rest of the window (`src/lib/loginThrottle.js`).
+- **Marketing pages CSP** — `script-src 'self'` and `script-src-attr 'none'`
+  there too (they share an origin with `/admin`); no inline scripts: page
+  strings are a JSON data block read by `public/page-i18n.js`.
+- **Live host** — any request for another Host than `APP_BASE_URL`'s (the
+  `onrender.com` address) is redirected (page views) or answered 421
+  (anything else), except `/healthz` and `/webhooks/helloasso`.
+- **Mail abuse** — signup, reset and book-request mails are throttled per
+  recipient (1 per 10 minutes per kind, 5 a day, a shop-wide hourly cap); links
+  in failed or lapsed mails are blanked (`src/lib/outbox.js`).
+- **Data requests** — admin > Privacy requests (`/admin/privacy`) looks up,
+  downloads or erases everything under an email address, with or without an
+  account (runbook, "A data request").
 - **Password requirements** — at least 8 characters, with an uppercase
   letter, a lowercase letter, a number, and a symbol (`src/lib/passwordPolicy.js`),
   enforced both client-side (`pattern`/`minlength` on the form inputs) and

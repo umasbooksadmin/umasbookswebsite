@@ -56,6 +56,18 @@ async function withApp(fn) {
 }
 
 const PREREG = {
+  who: "child", childFirst: "Léa", childLast: "Martin", birthYear: String(new Date().getFullYear() - 8), guardian: "1", session: "young-adventurers",
+  days: ["tue", "sat"], times: ["morning", "evening"],
+  parent: "Claire Martin", email: "claire@example.test", phone: "+33 6 12 34 56 78",
+  level: "Beginner", notes: "Loves dinosaurs", updates: "1", consent: "1",
+};
+// An adult registering for themselves: no child section, no guardian statement.
+const ADULT = {
+  who: "self", session: "english-cafe", days: ["wed"], times: ["evening"],
+  parent: "Sam Adult", email: "sam.adult@example.test", phone: "0612345678", consent: "1",
+};
+// A post from the OLD form (still open in a browser tab at deploy time): full date of birth, one consent box.
+const OLD_FORM = {
   childFirst: "Léa", childLast: "Martin", dob: "2018-04-12", session: "young-adventurers",
   days: ["tue", "sat"], times: ["morning", "evening"],
   parent: "Claire Martin", email: "claire@example.test", phone: "+33 6 12 34 56 78",
@@ -76,12 +88,13 @@ test("pre-registration: a valid submission sends ONE email to the contact inbox 
     assert.deepEqual(mail.replyTo, { name: "Claire Martin", address: "claire@example.test" });
     assert.equal(mail.subject, "Website pre-registration: Young Adventurers (Age 5–9)");
     for (const line of [
-      "First name: Léa", "Last name: Martin", "Date of birth: 2018-04-12", "Session: Young Adventurers (Age 5–9)",
+      "Registering: A parent or guardian, for a child", "First name: Léa", "Last name: Martin", `Year of birth: ${PREREG.birthYear}`, "Session: Young Adventurers (Age 5–9)",
       "Days: Tuesday, Saturday", "Times: Morning, Evening",
       "Name: Claire Martin", "Email: claire@example.test", "Phone: +33 6 12 34 56 78",
       "English level: Beginner", "Notes: Loves dinosaurs", "Wants program updates: yes",
-      "parent or legal guardian confirmed they agree to be contacted", "Site language: English", "12 months",
+      "parent or legal guardian confirmed they are the child's parent or legal guardian and agree to be contacted", "Site language: English", "12 months",
     ]) assert.ok(mail.text.includes(line), `email contains "${line}"`);
+    assert.ok(!/Date of birth/.test(mail.text), "no full date of birth is asked for or sent");
     // The subject (which a mail relay without credentials would log) has no personal data.
     assert.ok(!/Léa|Martin|claire/i.test(mail.subject));
   });
@@ -96,29 +109,88 @@ test("pre-registration: the email stays English for staff but notes the visitor'
   });
 });
 
-test("pre-registration: every required field is enforced, with an accessible error summary and field errors (EN)", async () => {
+test("pre-registration: every required field is enforced for a child, with an accessible error summary and field errors (EN)", async () => {
   await withApp(async ({ post }) => {
-    const { res, text } = await post(PRE, { website: "", childFirst: "  ", dob: "2999-01-01", email: "nope", phone: "12" });
+    const { res, text } = await post(PRE, { website: "", who: "child", childFirst: "  ", birthYear: "2999", email: "nope", phone: "12" });
     assert.equal(res.status, 400);
     assert.equal(sent.length, 0);
     // Summary: role=alert, first thing in the form area, links to each field.
     assert.match(text, /<div class="form-error-summary" id="form-errors" role="alert" tabindex="-1" data-form-errors>/);
-    for (const id of ["preg-first", "preg-last", "preg-dob", "preg-session", "preg-days", "preg-times", "preg-parent", "preg-email", "preg-phone", "preg-consent"]) {
+    for (const id of ["preg-first", "preg-last", "preg-birthyear", "preg-guardian", "preg-session", "preg-parent", "preg-email", "preg-phone", "preg-consent"]) {
       assert.ok(text.includes(`href="#${id}"`), `summary links to #${id}`);
       assert.match(text, new RegExp(`<[^>]*id="${id}"[^>]*aria-invalid="true"[^>]*aria-describedby="[^"]*${id}-err`), `${id} is aria-invalid and described by its error`);
       assert.ok(text.includes(`id="${id}-err"`), `${id} has its error text`);
     }
+    // The day and time groups are fieldsets (a group is described by its error; aria-invalid is not allowed on it).
+    for (const id of ["preg-days", "preg-times"]) {
+      assert.ok(text.includes(`href="#${id}"`), `summary links to #${id}`);
+      assert.match(text, new RegExp(`<fieldset[^>]*id="${id}"[^>]*aria-describedby="[^"]*${id}-err`), `${id} group is described by its error`);
+    }
     assert.match(text, /There is a problem/);
     assert.match(text, /Enter a valid email address/);
     assert.match(text, /Tick this box to continue/);
-    assert.match(text, /not in the future/);
-    assert.match(text, /<script src="assets\/form-errors\.js"><\/script>/, "focus-on-error script is loaded");
-    // The day/time lists keep what was chosen (nothing here) and the page is not cacheable.
+    assert.match(text, /Enter the year the child was born/);
+    assert.match(text, /<script src="\/assets\/form-errors\.js\?v=[0-9a-f]+"><\/script>/, "focus-on-error script is loaded");
+    assert.match(text, /<script src="\/assets\/preregistration\.js\?v=[0-9a-f]+"><\/script>/, "the who-is-registering script is loaded");
+    // The page is not cacheable.
     assert.equal(res.headers.get("cache-control"), "private, no-store");
   });
 });
 
-test("pre-registration: the consent checkbox is required on its own", async () => {
+test("pre-registration: an empty submission asks who is registering and does not demand child fields yet", async () => {
+  await withApp(async ({ post }) => {
+    const { res, text } = await post(PRE, {});
+    assert.equal(res.status, 400);
+    for (const id of ["preg-who", "preg-session", "preg-days", "preg-times", "preg-parent", "preg-email", "preg-phone", "preg-consent"]) {
+      assert.ok(text.includes(`href="#${id}"`), `summary links to #${id}`);
+    }
+    for (const id of ["preg-first", "preg-last", "preg-birthyear", "preg-guardian"]) {
+      assert.ok(!text.includes(`href="#${id}"`), `${id} is not reported before a child is chosen`);
+    }
+  });
+});
+
+test("pre-registration: an adult registering for themselves needs no child section and no guardian statement", async () => {
+  await withApp(async ({ post }) => {
+    const { res } = await post(PRE, ADULT);
+    assert.equal(res.status, 302);
+    assert.equal(sent.length, 1);
+    const t = sent[0].text;
+    assert.match(t, /Registering: An adult, for themselves/);
+    assert.match(t, /Adult registering\n {2}Name: Sam Adult/);
+    assert.doesNotMatch(t, /Child\n|First name|Year of birth|parent or legal guardian/i);
+    assert.match(t, /The person confirmed they agree to be contacted about this program\./);
+    // Child fields typed by mistake for an adult are ignored, not sent.
+    const mixed = await post(PRE, { ...ADULT, childFirst: "Ignored", childLast: "Kid", birthYear: "abc" });
+    assert.equal(mixed.res.status, 302);
+    assert.doesNotMatch(sent[1].text, /Ignored|Kid|abc/);
+  });
+});
+
+test("pre-registration: for a child the child's names, a plausible year of birth and the guardian statement are required (server-side)", async () => {
+  await withApp(async ({ post }) => {
+    const { res, text } = await post(PRE, { ...PREREG, childFirst: "", childLast: "", birthYear: "", guardian: "" });
+    assert.equal(res.status, 400);
+    for (const id of ["preg-first", "preg-last", "preg-birthyear", "preg-guardian"]) assert.match(text, new RegExp(`href="#${id}"`), id);
+    assert.doesNotMatch(text, /href="#preg-consent"/, "the agreement to be contacted is a separate box");
+    // Only the guardian box missing: the guardian error alone.
+    const g = await post(PRE, { ...PREREG, guardian: "" });
+    assert.equal(g.res.status, 400);
+    assert.match(g.text, /href="#preg-guardian"/);
+    assert.doesNotMatch(g.text, /href="#preg-first"/);
+    assert.equal(sent.length, 0);
+  });
+});
+
+test("pre-registration: an unknown 'who' is refused", async () => {
+  await withApp(async ({ post }) => {
+    const { res, text } = await post(PRE, { ...PREREG, who: "robot" });
+    assert.equal(res.status, 400);
+    assert.match(text, /href="#preg-who"/);
+  });
+});
+
+test("pre-registration: the agreement to be contacted is required on its own", async () => {
   await withApp(async ({ post }) => {
     const { res, text } = await post(PRE, { ...PREREG, consent: "" });
     assert.equal(res.status, 400);
@@ -136,24 +208,49 @@ test("pre-registration: refused values are echoed back; an unknown session, day 
     assert.match(text, /value="Léa"/);
     assert.match(text, /value="claire@example\.test"/);
     assert.match(text, /keep &lt;me&gt;/);
-    assert.match(text, /<option value="tue" selected/);
-    assert.doesNotMatch(text, /<option value="sat" selected/);
+    assert.match(text, /<input type="checkbox" name="days" value="tue" checked/);
+    assert.doesNotMatch(text, /<input type="checkbox" name="days" value="sat" checked/);
     assert.match(text, /href="#preg-session"/);
     assert.match(text, /href="#preg-times"/);
     assert.doesNotMatch(text, /href="#preg-days"/, "tue is valid, the unknown day is just dropped");
   });
 });
 
-test("pre-registration: dates must be real, past and plausible", async () => {
+test("pre-registration: the year of birth must be four digits, not in the future and plausible for a child", async () => {
+  const year = new Date().getFullYear();
+  const { validatePreRegistration } = require("../../src/lib/marketingForms");
+  for (const birthYear of [String(year + 1), "1800", String(year - 40), "abc", "", "98", "20188"]) {
+    const r = validatePreRegistration({ ...PREREG, birthYear });
+    assert.equal(r.ok, false, birthYear);
+    assert.ok(r.errors.birthYear, birthYear);
+  }
+  for (const birthYear of [String(year), String(year - 17), String(year - 19)]) assert.equal(validatePreRegistration({ ...PREREG, birthYear }).ok, true, birthYear);
+  // Through the real route (the rate limit allows 5 posts per file run, so only a few here).
   await withApp(async ({ post }) => {
-    for (const dob of ["2018-02-31", "1800-01-01", "tomorrow", "", "2018-4-2"]) {
-      const { res, text } = await post(PRE, { ...PREREG, dob });
-      assert.equal(res.status, 400, dob);
-      assert.match(text, /href="#preg-dob"/, dob);
-    }
+    const bad = await post(PRE, { ...PREREG, birthYear: "1800" });
+    assert.equal(bad.res.status, 400);
+    assert.match(bad.text, /href="#preg-birthyear"/);
     assert.equal(sent.length, 0);
   });
 });
+
+test("pre-registration: a post from the old form (full date of birth, one consent box) is still understood; only the year is kept", async () => {
+  await withApp(async ({ post }) => {
+    const { res } = await post(PRE, OLD_FORM);
+    assert.equal(res.status, 302);
+    assert.equal(sent.length, 1);
+    assert.match(sent[0].text, /Registering: A parent or guardian, for a child/);
+    assert.match(sent[0].text, /Year of birth: 2018/);
+    assert.doesNotMatch(sent[0].text, /2018-04-12|Date of birth/, "the day and month are not forwarded");
+    const bad = await post(PRE, { ...OLD_FORM, dob: "2018-02-31" });
+    assert.equal(bad.res.status, 400);
+    assert.match(bad.text, /href="#preg-birthyear"/);
+    assert.equal(sent.length, 1);
+    assert.equal(validateOld({ ...OLD_FORM, consent: "" }).ok, false, "the old single box was both statements: still required");
+  });
+});
+
+function validateOld(body) { return require("../../src/lib/marketingForms").validatePreRegistration(body); }
 
 test("pre-registration: the page is French when the visitor's language is French (summary, field errors, labels)", async () => {
   await withApp(async ({ post }) => {
@@ -163,18 +260,42 @@ test("pre-registration: the page is French when the visitor's language is French
     assert.match(text, /Saisissez une adresse e-mail valide/);
     assert.match(text, /Cochez cette case pour continuer/);
     assert.match(text, /Adresse e-mail<\/span> — <span data-i18n="form\.err\.email">/);
-    assert.match(text, /Je suis le parent ou le représentant légal de l’enfant et j’accepte d’être contacté\(e\) au sujet de ce programme\./);
+    assert.match(text, /J’accepte d’être contacté\(e\) au sujet de ce programme\./);
+    assert.match(text, /Je suis le parent ou le représentant légal de l’enfant\./);
+    assert.match(text, /Qui s’inscrit\u00a0\?/);
+    assert.match(text, /Année de naissance de l’enfant/);
     assert.match(text, /Ne saisissez pas d’informations de santé ici/);
   });
 });
 
-test("pre-registration: the form asks for the guardian statement, forbids health information, and has no mailto left", async () => {
+test("pre-registration: asks who is registering, shows both blocks (no-JS safe), uses checkboxes not multi-selects, forbids health information, no mailto", async () => {
   await withApp(async ({ post }) => {
     const { text } = await post(PRE, {});
-    assert.match(text, /I am the parent or legal guardian of the child and I agree to be contacted about this program\./);
+    assert.match(text, /Who is registering\?/);
+    assert.match(text, /<input type="radio" name="who" value="self"/);
+    assert.match(text, /<input type="radio" name="who" value="child"/);
+    assert.match(text, /An adult, for themselves/);
+    assert.match(text, /A parent or guardian, for a child/);
+    assert.match(text, /About the child \(only if you are registering a child\)/);
+    assert.match(text, /I am the parent or legal guardian of the child\./);
+    assert.match(text, /I agree to be contacted about this program\./);
+    assert.match(text, /Child’s year of birth/);
+    assert.doesNotMatch(text, /Date of birth|type="date"|name="dob"/);
+    // The child block is in the page and NOT hidden until an adult is chosen: nothing needs JavaScript.
+    assert.match(text, /<div id="preg-child-block" class="preg-child-block" data-child-block>/);
+    const adult = await post(PRE, { ...ADULT, consent: "" });
+    assert.match(adult.text, /<div id="preg-child-block" class="preg-child-block" data-child-block hidden>/);
+    // Days and times: checkbox groups in a fieldset with a legend, no multi-select (no Ctrl/Cmd needed).
+    assert.doesNotMatch(text, /<select[^>]*multiple|Hold Cmd/);
+    for (const day of ["tue", "wed", "thu", "fri", "sat"]) assert.match(text, new RegExp(`<input type="checkbox" name="days" value="${day}"`));
+    for (const t of ["morning", "earlyafternoon", "lateafternoon", "evening"]) assert.match(text, new RegExp(`<input type="checkbox" name="times" value="${t}"`));
+    assert.match(text, /<fieldset class="preg-fieldset" id="preg-days"[^>]*>\s*<legend>/);
     assert.match(text, /Do not enter health information here \(allergies, medical conditions, disabilities\): tell us in person\./);
     assert.doesNotMatch(text, /data-mailto|mailto:admin@umasbooks\.org\?subject|opens your email app/i);
     assert.match(text, /<form class="preg-form" method="post" action="\/pre-registration" novalidate>/);
+    // The privacy note tells the truth about the copies.
+    assert.match(text, /These forms send us an email\. A copy stays in our outgoing-mail queue for up to 30 days \(90 if sending failed\) and in our backups \(up to 2 years\); then it is erased\./);
+    assert.doesNotMatch(text, /nothing is stored/i);
   });
 });
 

@@ -6,7 +6,7 @@ English-language bookshop (and children's English program) in Albi, France.
 **This repository is one app.** The live site is a single Node.js/Express
 application in [`umas-books/`](umas-books/) that serves both the public
 marketing pages (home, about, books, events, English programs, …) and the
-members area (accounts, forum, checkout, admin). It runs on Render. Squarespace
+members area (accounts, forum, reservations, admin). It runs on Render. Squarespace
 has been retired, and there are no standalone `.html` pages in this repo — the
 pages are EJS templates under `umas-books/views/marketing/`.
 
@@ -15,7 +15,7 @@ Start here:
 - **[`umas-books/README.md`](umas-books/README.md)** — what each feature does,
   how to run it locally, configuration, deploy, and how to restore a backup.
 - **[`docs/architecture.md`](docs/architecture.md)** — the whole system in
-  diagrams: how it fits together, request flow, data model, payments, deploy,
+  diagrams: how it fits together, request flow, data model, reservations and payment, deploy,
   backups and security.
 - **[`docs/runbook.md`](docs/runbook.md)** — step-by-step: rolling back a deploy,
   rotating secrets, a locked-out admin, where alerts go, the yearly checklist.
@@ -63,8 +63,8 @@ CSS never cost a database lookup (see `ARCHITECTURE.md`).
   honeypot, rate limit, server-side validation with an accessible error summary,
   then one email to `CONTACT_TO`; nothing is stored. They no longer open the
   visitor's email app (the old `data-mailto` handler is gone from
-  `assets/site.js`). Book reservations, checkout, event and session sign-ups are
-  server routes too.
+  `assets/site.js`). Book reservations (reserve online, pay at the shop), event and
+  session sign-ups are server routes too; only the membership is paid online.
 
 ## Changing the code
 

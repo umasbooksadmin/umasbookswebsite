@@ -1,9 +1,37 @@
+const { formatEuro } = require("./money");
+
+// The association's registered name and the name it trades under (the shop's public name).
+const BRAND_LEGAL_NAME = "UMAS BOOKS";
+const BRAND_SHORT_NAME = "Uma's Books";
+
 // Version of the terms of sale (views/marketing/terms-of-sale.ejs) that a
-// buyer accepts at checkout. It is stored on every order
+// customer accepts when reserving. It is stored on every order
 // (orders.cgv_version, with orders.cgv_accepted_at) as proof of acceptance.
 // Bump it (to the date of the change, YYYY-MM-DD) whenever the terms of sale
 // text changes in a way that matters to buyers.
-const TERMS_OF_SALE_VERSION = "2026-10-06";
+const TERMS_OF_SALE_VERSION = "2026-10-09";
+
+// Reservation policy ("Reserve online, pay at the shop"): nothing is paid
+// online for books and drop-in seats. These numbers are the single source for
+// the code AND the customer-facing texts (cart, emails, terms of sale).
+//  - RESERVATION_DAYS: how long books are held; the deadline is shown to the
+//    customer in the confirmation email. An admin can extend it once.
+//  - MAX_RESERVED_COPIES / MAX_ACTIVE_RESERVATIONS: per account, at once.
+//  - SEAT_CANCEL_HOURS: a drop-in seat can be cancelled online until this many
+//    hours before the session starts.
+//  - SEAT_REMINDER_HOURS: the reminder email goes out this long before a session.
+//  - RESERVATION_REMINDER_DAYS_BEFORE: the book reminder goes out this many
+//    days before the deadline (day 10 of 14).
+const RESERVATION_DAYS = 14;
+const RESERVATION_EXTENSION_DAYS = 7;
+const MAX_RESERVED_COPIES = 10;
+const MAX_ACTIVE_RESERVATIONS = 3;
+const SEAT_CANCEL_HOURS = 24;
+const SEAT_REMINDER_HOURS = 24;
+const RESERVATION_REMINDER_DAYS_BEFORE = 4;
+// A drop-in seat is held until the class ends (classes.ends_at); when a class
+// has no end time, this many hours after it starts.
+const SEAT_FALLBACK_SESSION_HOURS = 3;
 
 // The article of the Code général des impôts (CGI) that exempts the
 // association from VAT, shown after "TVA non applicable" when it is set,
@@ -15,6 +43,117 @@ const VAT_NOTICE_ARTICLE = "";
 
 // Social network pages shown as icons in the site footer. Leave a value
 // empty until the real page exists: an empty one is not shown at all.
-const SOCIAL_LINKS = { instagram: "", facebook: "" };
+const SOCIAL_LINKS = { instagram: "https://www.instagram.com/umas_books_adventures/", facebook: "" };
 
-module.exports = { TERMS_OF_SALE_VERSION, VAT_NOTICE_ARTICLE, SOCIAL_LINKS };
+// ---------------------------------------------------------------------------
+// Facts shown on several legal pages and emails: ONE place to change each.
+// Every helper below reads the constant when it is called (not when the file
+// loads), so a test can change one and see every page follow.
+// ---------------------------------------------------------------------------
+
+// Membership price in euros as a number or a string ("20", "20.00"), shown on
+// the Membership page before the HelloAsso form loads. EMPTY on purpose until
+// the association confirms the price on its HelloAsso campaign: while it is
+// empty the page shows no price (it keeps the text that says the amount is on
+// the HelloAsso form). It must equal the price set on HelloAsso. See
+// docs/legal-todos.md ("set the membership price constant").
+const MEMBERSHIP_PRICE_EUR = "";
+
+// Street number of the shop (rue Peyrolière, Albi). EMPTY until the
+// association gives it: the shop address then reads "Rue Peyrolière" as before;
+// once set it reads "12 rue Peyrolière" everywhere (legal notice, emails, visit
+// page, structured data). See docs/legal-todos.md ("give the street number").
+const SHOP_STREET_NUMBER = "";
+
+// Opening days and hours of the shop: Wednesday to Saturday, 14:00 to 19:00.
+// Machine format for structured data (schema.org day names, 24-hour times),
+// then the text printed on pages: English 14:00–19:00, French 14 h–19 h (a
+// no-break space between the number and "h"). EVERY page, email and structured
+// data block reads these: never type the days or hours anywhere else.
+const SHOP_OPEN_DAYS = ["Wednesday", "Thursday", "Friday", "Saturday"];
+const SHOP_OPENS = "14:00";
+const SHOP_CLOSES = "19:00";
+const SHOP_HOURS_EN = "14:00–19:00";
+const SHOP_HOURS_FR = "14\u00a0h–19\u00a0h";
+// The days as text: "Wednesday to Saturday" / "du mercredi au samedi" (they
+// follow "open" / "ouvert" in a sentence), and the short form of the visit page.
+const SHOP_DAYS_EN = "Wednesday to Saturday";
+const SHOP_DAYS_FR = "du mercredi au samedi";
+const SHOP_DAYS_SHORT_EN = "Wed – Sat";
+const SHOP_DAYS_SHORT_FR = "Mer – Sam";
+// The French "from 14 h to 19 h" form used inside the two helper texts below.
+const SHOP_HOURS_FR_SPOKEN = "de 14\u00a0h à 19\u00a0h";
+
+// The shop may ALSO open at other times when volunteers are available, but ONLY
+// the regular hours above are guaranteed (and only they go in structured data).
+// The page where extra openings are announced: the association's Instagram
+// (the same address as SOCIAL_LINKS.instagram). When it is set, the SHORT text
+// ends "see our Instagram" with that word as a link; leave it EMPTY to drop it.
+const SHOP_EXTRA_HOURS_NOTE_URL = "https://www.instagram.com/umas_books_adventures/";
+
+// "Rue Peyrolière" or "12 rue Peyrolière". `capital` is for the start of a
+// sentence, a line or a field ("Rue Peyrolière, 81000 Albi"); inside a French
+// sentence leave it off to get "rue Peyrolière". With a number it is always
+// "12 rue Peyrolière" (the number comes first, so the word stays lowercase).
+function shopStreet(lang, capital = true) {
+  const n = String(module.exports.SHOP_STREET_NUMBER).trim();
+  if (n) return `${n} rue Peyrolière`;
+  return capital || lang !== "fr" ? "Rue Peyrolière" : "rue Peyrolière";
+}
+
+function shopDays(lang) {
+  return lang === "fr" ? module.exports.SHOP_DAYS_FR : module.exports.SHOP_DAYS_EN;
+}
+
+function shopDaysShort(lang) {
+  return lang === "fr" ? module.exports.SHOP_DAYS_SHORT_FR : module.exports.SHOP_DAYS_SHORT_EN;
+}
+
+// SHORT text, for the visit and volunteer pages and any "opening hours" display.
+// With `html` true, the word "Instagram" is a link to SHOP_EXTRA_HOURS_NOTE_URL
+// (a plain link, opening in a new tab: nothing is embedded). Without the
+// address it just says extra openings exist.
+function shopHoursShort(lang, html = false) {
+  const fr = lang === "fr";
+  const url = String(module.exports.SHOP_EXTRA_HOURS_NOTE_URL).trim();
+  const regular = fr
+    ? `Ouvert ${module.exports.SHOP_DAYS_FR}, ${module.exports.SHOP_HOURS_FR_SPOKEN}.`
+    : `Open ${module.exports.SHOP_DAYS_EN}, ${module.exports.SHOP_HOURS_EN}.`;
+  const extra = fr
+    ? "Ouvertures supplémentaires selon la disponibilité des bénévoles"
+    : "Extra opening hours when volunteers are available";
+  if (!url) return `${regular} ${extra}.`;
+  const word = html
+    ? `<a href="${url.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;")}" target="_blank" rel="noopener noreferrer">Instagram</a>`
+    : "Instagram";
+  return fr ? `${regular} ${extra}\u00a0: voir notre ${word}.` : `${regular} ${extra}: see our ${word}.`;
+}
+
+// FIRM text, for reservation, order and reminder emails, the cart and the
+// terms of sale: only the regular hours are promised.
+function shopHoursFirm(lang) {
+  return lang === "fr"
+    ? `Venez retirer vos livres pendant nos horaires habituels, ${module.exports.SHOP_DAYS_FR}, ${module.exports.SHOP_HOURS_FR_SPOKEN}. Nous sommes parfois ouverts à d’autres moments selon la disponibilité des bénévoles, mais seuls les horaires habituels sont garantis.`
+    : `Collect your books during our regular hours, ${module.exports.SHOP_DAYS_EN}, ${module.exports.SHOP_HOURS_EN}. We are sometimes open at other times when volunteers are available, but only the regular hours are guaranteed.`;
+}
+
+function shopHours(lang) {
+  return lang === "fr" ? module.exports.SHOP_HOURS_FR : module.exports.SHOP_HOURS_EN;
+}
+
+// The membership price as text for a language ("20,00 €" / "€20.00"), or "".
+function membershipPrice(lang) {
+  const raw = module.exports.MEMBERSHIP_PRICE_EUR;
+  if (raw === "" || raw === null || raw === undefined) return "";
+  return formatEuro(raw, lang === "fr" ? "fr" : "en");
+}
+
+module.exports = {
+  BRAND_LEGAL_NAME, BRAND_SHORT_NAME, TERMS_OF_SALE_VERSION, VAT_NOTICE_ARTICLE, SOCIAL_LINKS,
+  RESERVATION_DAYS, RESERVATION_EXTENSION_DAYS, MAX_RESERVED_COPIES, MAX_ACTIVE_RESERVATIONS,
+  SEAT_CANCEL_HOURS, SEAT_REMINDER_HOURS, RESERVATION_REMINDER_DAYS_BEFORE, SEAT_FALLBACK_SESSION_HOURS,
+  MEMBERSHIP_PRICE_EUR, SHOP_STREET_NUMBER,
+  SHOP_OPEN_DAYS, SHOP_OPENS, SHOP_CLOSES, SHOP_HOURS_EN, SHOP_HOURS_FR,
+  SHOP_DAYS_EN, SHOP_DAYS_FR, SHOP_DAYS_SHORT_EN, SHOP_DAYS_SHORT_FR, SHOP_HOURS_FR_SPOKEN, SHOP_EXTRA_HOURS_NOTE_URL,
+  shopStreet, shopHours, shopDays, shopDaysShort, shopHoursShort, shopHoursFirm, membershipPrice,
+};

@@ -234,12 +234,17 @@ test("sessions: signups and sold drop-in seats are listed, signup deletion is sc
     "INSERT INTO orders (buyer_name, buyer_email, status, total_amount) VALUES ('Dropin Buyer', $1, 'paid', 9) RETURNING id", [`dropin-${u}@example.test`]
   );
   await h.q("INSERT INTO class_dropin_seats (class_id, status, order_id) VALUES ($1, 'sold', $2)", [c1, order]);
+  const [{ id: order2 }] = await h.q(
+    "INSERT INTO orders (buyer_name, buyer_email, status, total_amount, reserved_until) VALUES ('Reserved Buyer', $1, 'reserved', 9, '2031-05-22T12:00:00Z') RETURNING id", [`reserved-${u}@example.test`]
+  );
+  await h.q("INSERT INTO class_dropin_seats (class_id, status, order_id) VALUES ($1, 'reserved', $2)", [c1, order2]);
 
   const page = await h.get(`/admin/sessions?month=${MONTH}`);
   assert.equal(page.res.status, 200);
   assert.ok(page.text.includes(`cat-${u}@example.test`), "signup listed");
   assert.ok(page.text.includes(`dropin-${u}@example.test`), "sold drop-in buyer listed");
-  assert.ok(page.text.includes("2/4"), "signup + drop-in seat both count against capacity");
+  assert.ok(page.text.includes(`reserved-${u}@example.test`), "reserved drop-in buyer listed");
+  assert.ok(page.text.includes("3/4"), "signup + paid drop-in seat + reserved drop-in seat all count against capacity");
   assert.ok(!page.text.includes(`<script>alert('${marker}')`), "raw script tag must not appear");
   assert.ok(page.text.includes(`&lt;script&gt;alert(&#39;${marker}&#39;)&lt;/script&gt;`));
 
@@ -252,7 +257,7 @@ test("sessions: signups and sold drop-in seats are listed, signup deletion is sc
   await h.post(`/admin/sessions/${c1}/delete`);
   await h.post(`/admin/sessions/${c2}/delete`);
   assert.equal((await h.q("SELECT 1 FROM class_dropin_seats WHERE class_id = $1", [c1])).length, 0, "drop-in seats cascade with the class");
-  await h.q("DELETE FROM orders WHERE id = $1", [order]);
+  await h.q("DELETE FROM orders WHERE id = ANY($1::int[])", [[order, order2]]);
 });
 
 // ---------- meetings ----------
@@ -386,7 +391,7 @@ test("dashboard: /admin renders the welcome heading, stat tiles and links to eve
   const { res, text } = await h.get("/admin");
   assert.equal(res.status, 200);
   assert.ok(text.includes("Welcome back, Admin Tester"));
-  for (const label of ["Orders Today", "Total Sales", "In-Stock Books", "Total Accounts", "Members"]) {
+  for (const label of ["Orders Today", "Sales this month", "In-Stock Books", "Total Accounts", "Members"]) {
     assert.ok(text.includes(label), label);
   }
   for (const href of ["/admin/sessions", "/admin/events", "/admin/volunteer-shifts", "/admin/meetings", "/admin/announcements", "/admin/charity"]) {
@@ -398,41 +403,59 @@ test("dashboard: /admin renders the welcome heading, stat tiles and links to eve
 });
 
 // Regression: pg returns NUMERIC sums as strings, so `!prev` in views/admin/index.ejs's
-// pct() was false for "0.00" and the Total Sales tile showed "NaN%" whenever last
+// pct() was false for "0.00" and the Sales this month tile showed "NaN%" whenever last
 // month had no paid sales (a new shop's first month, or any quiet month).
 // lib/dashboardStats.js now hands the view numbers.
-test("dashboard: Total Sales trend never shows NaN% when last month had no sales", async (t) => {
+test("dashboard: Sales this month trend never shows NaN% when last month had no sales", async (t) => {
   if ((await lastMonthSales()) !== 0) return t.skip("another run left paid orders last month");
   const { text } = await h.get("/admin");
   assert.ok(!text.includes("NaN"), "no NaN anywhere on the dashboard");
 });
 
-test("dashboard: with last-month paid sales the Total Sales tile shows a real percentage trend", async () => {
+test("dashboard: with last-month paid sales the Sales this month tile shows a real percentage trend", async () => {
   const [{ id }] = await h.q(
     `INSERT INTO orders (buyer_name, buyer_email, status, total_amount, created_at, paid_at)
      VALUES ('Trend Buyer', 'trend@example.test', 'paid', 40, date_trunc('month', now()) - interval '3 days', date_trunc('month', now()) - interval '3 days') RETURNING id`
   );
+  // The figure is the accounting export's: it counts the order's LINES.
+  const [{ id: bookId }] = await h.q("INSERT INTO books (title, authors) VALUES ('Trend Book', 'T') RETURNING id");
+  const [{ id: copyId }] = await h.q("INSERT INTO book_copies (book_id, status, price) VALUES ($1, 'sold', 40) RETURNING id", [bookId]);
+  await h.q("INSERT INTO order_items (order_id, book_copy_id, item_title, price) VALUES ($1, $2, 'Trend line', 40)", [id, copyId]);
   try {
     const { text } = await h.get("/admin");
     assert.ok(!text.includes("NaN"));
-    assert.match(text, /This Month &euro;\d+<\/span> <span class="trend-(up|down)">/);
+    assert.match(text, /Last month &euro;\d+<\/span> <span class="trend-(up|down)">/);
   } finally {
+    await h.q("DELETE FROM order_items WHERE order_id = $1", [id]);
     await h.q("DELETE FROM orders WHERE id = $1", [id]);
+    await h.q("DELETE FROM book_copies WHERE id = $1", [copyId]);
+    await h.q("DELETE FROM books WHERE id = $1", [bookId]);
   }
 });
 
-test("orders page: lists a new order and escapes the buyer name", async () => {
+test("orders page: the default view lists the open reservations; the other orders appear under 'all'; the buyer name is escaped everywhere", async () => {
   const marker = `ord${Date.now()}`;
-  const [{ id }] = await h.q(
+  const [{ id: reserved }] = await h.q(
+    "INSERT INTO orders (buyer_name, buyer_email, status, total_amount, reserved_until) VALUES ($1, $2, 'reserved', 12.5, now() + interval '5 days') RETURNING id",
+    [`<b>${marker}r</b>`, `${marker}r@example.test`]
+  );
+  const [{ id: paid }] = await h.q(
     "INSERT INTO orders (buyer_name, buyer_email, status, total_amount) VALUES ($1, $2, 'paid', 12.5) RETURNING id",
-    [`<b>${marker}</b>`, `${marker}@example.test`]
+    [`<b>${marker}p</b>`, `${marker}p@example.test`]
   );
   try {
     const orders = await h.get("/admin/orders");
     assert.equal(orders.res.status, 200);
-    assert.ok(orders.text.includes(`&lt;b&gt;${marker}&lt;/b&gt;`), "buyer name shown, escaped");
-    assert.ok(!orders.text.includes(`<b>${marker}</b>`));
+    assert.ok(orders.text.includes(`&lt;b&gt;${marker}r&lt;/b&gt;`), "reservation shown (the default view), buyer name escaped");
+    assert.ok(!orders.text.includes(`<b>${marker}r</b>`));
+    assert.ok(!orders.text.includes(`${marker}p`), "a collected-and-paid order is not in the 'awaiting pickup' view");
+
+    const all = await h.get("/admin/orders?show=all");
+    assert.ok(all.text.includes(`&lt;b&gt;${marker}r&lt;/b&gt;`) && all.text.includes(`&lt;b&gt;${marker}p&lt;/b&gt;`), "both under 'all', escaped");
+    assert.ok(!all.text.includes(`<b>${marker}p</b>`));
+    const paidOnly = await h.get("/admin/orders?show=paid");
+    assert.ok(paidOnly.text.includes(`&lt;b&gt;${marker}p&lt;/b&gt;`) && !paidOnly.text.includes(`${marker}r@`));
   } finally {
-    await h.q("DELETE FROM orders WHERE id = $1", [id]);
+    await h.q("DELETE FROM orders WHERE id = ANY($1::int[])", [[reserved, paid]]);
   }
 });

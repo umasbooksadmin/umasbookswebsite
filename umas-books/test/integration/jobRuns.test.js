@@ -1,5 +1,5 @@
 // Background-job tracking: lib/jobGuard.js + lib/jobRuns.js + the job_runs table
-// (migration 072), the admin page /admin/diagnostics/jobs and the dashboard's
+// (migration 081), the admin page /admin/diagnostics/jobs and the dashboard's
 // "Needs attention" item. Failing job stubs; alert mail goes to a stub.
 
 const { test, before, after, beforeEach } = require("node:test");

@@ -1,6 +1,6 @@
 // Background-job bookkeeping. Every periodic job in src/index.js runs through
 // guardJob (lib/jobGuard.js), which calls recordJobRun after each run. One row
-// per job in `job_runs` (migration 072):
+// per job in `job_runs` (migration 081):
 //
 //   last_run_at, last_success_at, consecutive_failures, last_error (scrubbed)
 //

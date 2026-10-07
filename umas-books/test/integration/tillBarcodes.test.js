@@ -64,7 +64,7 @@ test("uniqueness among ACTIVE items, case-insensitive, with a clear error; a dis
   await assert.rejects(h.pool.query("INSERT INTO till_quick_items (name, price_cents, category, barcode) VALUES ('x', 100, 'other', 'MUG-1')"), /uq_till_quick_items_barcode/);
 });
 
-test("collision rules: UB- and ORDER- are refused; an ISBN of a book is a warning", async () => {
+test("collision rules: UB- and ORDER- are refused; so is the ISBN of a book (it would hide the book at scan)", async () => {
   for (const code of ["UB-1234", "ub-9", "UB5", "ORDER-7"]) {
     const r = await addItem({ name: `Collide ${code}`, barcode: code });
     assert.equal(r.status, 400, code);
@@ -72,12 +72,25 @@ test("collision rules: UB- and ORDER- are refused; an ISBN of a book is a warnin
   }
   const book = await h.seedBook(`Collision Book ${h.uniq()}`);
   const c = await h.seedCopy(book.id, { price: 5 });
-  const r = await addItem({ name: "Same As ISBN", barcode: book.isbn });
-  assert.equal(r.status, 302);
-  assert.match(decode(r), /warning=.*also the ISBN of/);
-  assert.match((await h.get(decode(r))).text, /Note: This code is also the ISBN/);
-  // lookup order: the quick item wins over the book ISBN; the book stays sellable by its UB- label
-  assert.equal((await h.scan(book.isbn)).body.type, "quick");
+  const before = (await h.pool.query("SELECT COUNT(*)::int AS n FROM till_quick_items")).rows[0].n;
+  // the ISBN-13, its hyphenated form's digits and its ISBN-10 twin are all refused: nothing is saved
+  const variants = require("../../src/lib/inventory").isbnVariants(book.isbn);
+  assert.ok(variants.length >= 2, "an ISBN-13 and its ISBN-10 twin");
+  for (const code of variants) {
+    const r = await addItem({ name: `Same As ISBN ${code}`, barcode: code });
+    assert.equal(r.status, 400, code);
+    assert.match(await r.text(), /ISBN of[\s\S]*Collision Book/);
+  }
+  assert.equal((await h.pool.query("SELECT COUNT(*)::int AS n FROM till_quick_items")).rows[0].n, before, "no item was saved");
+  // editing an existing item to that code is refused too
+  const ok = await addItem({ name: "Edit me", barcode: "EDIT-ME-1" });
+  assert.equal(ok.status, 302);
+  const { rows } = await h.pool.query("SELECT id FROM till_quick_items WHERE name = 'Edit me'");
+  const edit = await h.post(`/admin/till/items/${rows[0].id}`, { name: "Edit me", price: "2", category: "other", active: "1", barcode: book.isbn });
+  assert.equal(edit.status, 400);
+  assert.equal((await h.pool.query("SELECT barcode FROM till_quick_items WHERE id = $1", [rows[0].id])).rows[0].barcode, "EDIT-ME-1");
+  // the book is scanned as a book, by ISBN and by its UB- label
+  assert.equal((await h.scan(book.isbn)).body.type, "line");
   const label = await h.scan(`UB-${c}`);
   assert.equal(label.body.type, "line");
   assert.equal(label.body.line.copyId, c);
@@ -107,8 +120,7 @@ test("generated shop codes ITEM-<id>: by the checkbox and by the button; the lab
 
   const label = await h.get(`/admin/till/items/${b.id}/label?w=40&h=20`);
   assert.equal(label.res.status, 200);
-  const code128 = require("../../src/lib/code128");
-  assert.ok(label.text.includes(code128.svg(`ITEM-${b.id}`, { height: 40 }).slice(0, 120)), "the barcode of the shop code");
+  assert.match(label.text, new RegExp(`<svg class="barcode"[^>]*data-module-dots="3"[^>]*aria-label="Barcode ITEM-${b.id}"`), "the barcode of the shop code, in whole printer dots");
   assert.match(label.text, new RegExp(`Shop code ITEM-${b.id}`));
   assert.match(label.text, /--lw: 40mm; --lh: 20mm/);
   assert.match((await h.get("/admin/till/items")).text, new RegExp(`/admin/till/items/${b.id}/label`));

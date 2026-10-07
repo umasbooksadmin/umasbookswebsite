@@ -123,7 +123,7 @@ ul.plain.nested li { padding: 4px 0; border-bottom: 0; }
   font-family: 'Montserrat', sans-serif; font-size: 12.5px; font-weight: 600; letter-spacing: 0.02em;
 }
 .status-pill.paid, .status-pill.upcoming, .status-pill.published { background: #eaf0e6; color: var(--green); }
-.status-pill.pending, .status-pill.scheduled { background: #faf3df; color: #8a6a1f; }
+.status-pill.pending, .status-pill.scheduled, .status-pill.reserved { background: #faf3df; color: #8a6a1f; }
 .status-pill.cancelled, .status-pill.expired, .status-pill.trash { background: #f5e6e4; color: var(--maroon-dark); }
 .status-pill.refunded { background: #e5edf3; color: #3d5f78; }
 .status-pill.completed, .status-pill.draft, .status-pill.archived { background: #efeee9; color: var(--ink-soft); }
@@ -227,13 +227,24 @@ footer.site { text-align: center; padding: 30px 0; color: var(--ink-soft); font-
   object-fit: cover; image-rendering: -webkit-optimize-contrast; background: #efe9dd; /* neutral box while the cover loads or if it fails */
 }
 .book-detail-kicker { font-family: 'Montserrat', sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--maroon); font-size: 12.5px; margin-bottom: 6px; }
+.book-awards { margin: 16px 0; padding: 14px 16px; background: #fbf6ea; border: 1px solid var(--card-border); border-left: 4px solid var(--gold); border-radius: 2px; }
+.book-awards-title { font-family: 'Montserrat', sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; font-size: 12px; color: var(--gold-dark); }
+.book-awards-list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 8px; }
+.book-awards-list li { background: var(--panel); border: 1px solid var(--gold); border-radius: 999px; padding: 3px 12px; font-size: 14px; line-height: 1.4; }
+.book-awards-more { margin-top: 8px; }
+.book-awards-more summary { cursor: pointer; color: var(--maroon); }
+.book-about-title { margin: 18px 0 6px; }
+.book-about { margin: 0; overflow-wrap: anywhere; }
 .book-detail-price { font-family: 'Montserrat', sans-serif; font-size: 24px; font-weight: 700; color: var(--maroon-dark); margin: 14px 0; }
 .availability-box {
   background: var(--cream); border: 1px solid var(--card-border); border-radius: 4px;
   padding: 18px 20px; margin: 16px 0;
 }
 @media (max-width: 700px) {
-  .book-detail-grid { grid-template-columns: 1fr; }
+  .book-detail-grid { grid-template-columns: 1fr; gap: 14px; }
+  /* A smaller cover on phones so the title and price show on the first screen (it was 240x360). */
+  .book-detail-cover-wrap { max-width: 150px; }
+  .book-detail-cover-wrap .favorite-toggle { top: 6px; right: 6px; }
 }
 
 .cart-list { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }

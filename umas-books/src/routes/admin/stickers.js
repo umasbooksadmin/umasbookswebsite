@@ -90,7 +90,7 @@ router.get("/admin/inventory/stickers", requireAdmin, async (req, res) => {
 
   const { rows: locs } = await pool.query("SELECT DISTINCT location FROM book_copies WHERE location IS NOT NULL ORDER BY 1");
   res.render("admin/inventory/stickers", {
-    active: "inventory", rows, truncated, rowLimit: ROW_LIMIT, filters, locations: locs.map((r) => r.location),
+    active: "stickers", rows, truncated, rowLimit: ROW_LIMIT, filters, locations: locs.map((r) => r.location),
     conditionLabel, bindingLabel, priceText,
   });
 });

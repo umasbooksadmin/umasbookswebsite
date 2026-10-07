@@ -95,7 +95,7 @@
   <div class="ann-list-col">
     <div class="card" style="padding:14px 16px;">
       <div style="overflow-x:auto;">
-      <table class="ann-table">
+      <div class="table-scroll"><table class="ann-table">
         <thead>
           <tr>
             <th>
@@ -135,7 +135,7 @@
             </tr>
           <% }) %>
         </tbody>
-      </table>
+      </table></div>
       </div>
 
       <% if (pagination.totalPages > 1) { %>
@@ -204,13 +204,18 @@
                 <input type="hidden" name="backQuery" value="<%= listQs %>">
                 <button class="btn btn-outline btn-small" type="submit"><%= detail.user.is_volunteer ? 'Remove Volunteer Status' : 'Mark as Volunteer' %></button>
               </form>
+              <form method="post" action="/admin/members/<%= detail.user.id %>/toggle-till">
+                <%- include('../partials/csrf_field') %>
+                <input type="hidden" name="backQuery" value="<%= listQs %>">
+                <button class="btn btn-outline btn-small" type="submit" id="toggle-till" aria-pressed="<%= detail.user.is_till ? 'true' : 'false' %>"><%= detail.user.is_till ? 'Till access: ON (remove)' : 'Till access: off (give)' %></button>
+              </form>
               <% if (detail.user.id !== user.id) { %>
-                <form method="post" action="/admin/members/<%= detail.user.id %>/toggle-admin">
+                <form data-confirm="<%= detail.user.is_admin ? 'Remove admin rights from this account?' : 'Make this account an admin? Admins can see and change everything, including member data.' %>" method="post" action="/admin/members/<%= detail.user.id %>/toggle-admin">
                   <%- include('../partials/csrf_field') %>
                   <input type="hidden" name="backQuery" value="<%= listQs %>">
                   <button class="btn btn-outline btn-small" type="submit"><%= detail.user.is_admin ? 'Remove Admin' : 'Make Admin' %></button>
                 </form>
-                <form method="post" action="/admin/members/<%= detail.user.id %>/toggle-disabled">
+                <form data-confirm="<%= detail.user.is_disabled ? 'Reactivate this account?' : 'Deactivate this account? The person will no longer be able to log in.' %>" method="post" action="/admin/members/<%= detail.user.id %>/toggle-disabled">
                   <%- include('../partials/csrf_field') %>
                   <input type="hidden" name="backQuery" value="<%= listQs %>">
                   <button class="btn btn-outline btn-small" type="submit"><%= detail.user.is_disabled ? 'Reactivate Account' : 'Deactivate Account' %></button>

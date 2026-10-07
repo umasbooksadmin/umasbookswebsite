@@ -24,7 +24,7 @@
     <p class="muted">Nothing to check.</p>
   <% } else { %>
     <div style="overflow-x:auto;">
-      <table class="ann-table">
+      <div class="table-scroll"><table class="ann-table">
         <thead><tr><th>Book</th><th>Price now</th><th>Suggested</th><th>Why listed</th><th></th></tr></thead>
         <tbody>
           <% rows.forEach(r => { %>
@@ -43,7 +43,7 @@
             </tr>
           <% }) %>
         </tbody>
-      </table>
+      </table></div>
     </div>
     <p class="muted small">
       <% if (offset > 0) { %><a href="/admin/pricing/review?offset=<%= Math.max(0, offset - pageSize) %>">&larr; Previous <%= pageSize %></a><% } %>
@@ -64,7 +64,7 @@
     <p class="muted">No candidates.</p>
   <% } else { %>
     <div style="overflow-x:auto;">
-      <table class="ann-table">
+      <div class="table-scroll"><table class="ann-table">
         <thead><tr><th>Book</th><th>Copy</th><th>Price now</th><th>Clearance price</th></tr></thead>
         <tbody>
           <% candidates.forEach(c => { %>
@@ -76,9 +76,9 @@
             </tr>
           <% }) %>
         </tbody>
-      </table>
+      </table></div>
     </div>
-    <form method="post" action="/admin/pricing/clearance" style="margin-top:12px;">
+    <form data-confirm="Apply clearance pricing to these <%= candidates.length %> copies?" method="post" action="/admin/pricing/clearance" style="margin-top:12px;">
       <%- include('../../partials/csrf_field') %>
       <button class="btn" type="submit">Apply clearance to these <%= candidates.length %> copies</button>
     </form>

@@ -6,14 +6,14 @@ async function outboxAttention(db) {
   const { jobAttention } = require("./jobRuns");
   const [orders, failed, stuck, unmatched, jobs] = await Promise.all([
     db.query(`SELECT COUNT(*)::int AS n FROM orders
-              WHERE status = 'paid' AND confirmation_sent_at IS NULL AND paid_at < now() - interval '30 minutes'`),
+              WHERE status = 'reserved' AND confirmation_sent_at IS NULL AND created_at < now() - interval '30 minutes'`),
     db.query("SELECT COUNT(*)::int AS n FROM email_outbox WHERE status = 'failed'"),
     db.query(`SELECT COUNT(*)::int AS n FROM email_outbox WHERE status = 'pending' AND created_at < now() - interval '30 minutes'`),
     db.query("SELECT COUNT(*)::int AS n FROM membership_payments WHERE user_id IS NULL AND unmatched_at IS NOT NULL"),
     jobAttention(db),
   ]);
   const items = [];
-  if (orders.rows[0].n) items.push({ href: "/admin/orders", text: `${orders.rows[0].n} paid order(s) have no confirmation email sent after 30 minutes. Resend it from the orders list.` });
+  if (orders.rows[0].n) items.push({ href: "/admin/orders", text: `${orders.rows[0].n} reservation(s) have no confirmation email sent after 30 minutes. Resend it from the orders list.` });
   if (failed.rows[0].n) items.push({ href: "/admin/email-outbox", text: `${failed.rows[0].n} email(s) could not be sent after 8 attempts.` });
   if (stuck.rows[0].n) items.push({ href: "/admin/email-outbox", text: `${stuck.rows[0].n} email(s) have been waiting to be sent for more than 30 minutes.` });
   if (unmatched.rows[0].n) items.push({ href: "/admin/members#unmatched-payments", text: `${unmatched.rows[0].n} membership payment(s) match no confirmed account.` });

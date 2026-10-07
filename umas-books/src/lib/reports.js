@@ -117,17 +117,28 @@ function csvCell(value) {
   return `"${s.replace(/"/g, '""')}"`;
 }
 
+// Two CSV dialects. "neutral" (the default): comma separator, decimal point.
+// "fr" (for French Excel, which reads a comma file as ONE column of text):
+// semicolon separator, decimal comma, and always UTF-8 BOM + CRLF.
+function csvDialect(locale) {
+  return locale === "fr" ? { sep: ";", decimal: "," } : { sep: ",", decimal: "." };
+}
+const wantsFrenchCsv = (query = {}) => query.locale === "fr" || query.format === "csv-fr";
+const csvDecimal = (text, dialect) => (dialect.decimal === "," ? String(text).replace(".", ",") : String(text));
+
 // A section as CSV text: header row, data rows, then the totals row. UTF-8
 // BOM first so Excel reads accents correctly; CRLF line ends.
-function toCsv(section) {
-  const lines = [section.columns.map((c) => csvCell(c.label)).join(",")];
+function toCsv(section, { locale } = {}) {
+  const d = csvDialect(locale);
+  const lines = [section.columns.map((c) => csvCell(c.label)).join(d.sep)];
   const asRow = (row) => section.columns.map((c) => {
     const cell = formatCell(row[c.key], c.type, { csv: true });
-    return c.type === "text" || c.type === "date" ? csvCell(cell) : cell;
-  }).join(",");
+    if (c.type === "text" || c.type === "date") return csvCell(cell);
+    return c.type === "int" ? cell : csvDecimal(cell, d);
+  }).join(d.sep);
   for (const row of section.rows) lines.push(asRow(row));
   if (section.totals && section.csvTotals !== false) lines.push(asRow(section.totals));
-  return "﻿" + lines.join("\r\n") + "\r\n";
+  return "\uFEFF" + lines.join("\r\n") + "\r\n";
 }
 
 // ---------- SQL pieces ----------
@@ -332,7 +343,7 @@ async function salesReport(db, ctx) {
         key: "books", title: "Book sales",
         columns: [
           { key: "period", label: periodHeader, type: "text" },
-          { key: "online_items", label: "Online items", type: "int" }, { key: "online_revenue", label: "Online revenue", type: "eur" },
+          { key: "online_items", label: "Reserved-online items", type: "int" }, { key: "online_revenue", label: "Reserved-online revenue", type: "eur" },
           { key: "shop_items", label: "Shop items", type: "int" }, { key: "shop_revenue", label: "Shop revenue", type: "eur" },
           { key: "total_revenue", label: "Total revenue", type: "eur" }, { key: "average", label: "Average per item", type: "eur" },
         ],
@@ -344,13 +355,13 @@ async function salesReport(db, ctx) {
         rows: dropinRows, totals: { period: "Total", ...sumRows(dropinRows, ["seats", "revenue"]) },
       },
       {
-        key: "refunds", title: "Refunds (online orders refunded in HelloAsso; not included in the sales above)",
+        key: "refunds", title: "Refunds (orders refunded in the shop; not included in the sales above)",
         columns: [{ key: "period", label: periodHeader, type: "text" }, { key: "orders", label: "Orders refunded", type: "int" }, { key: "amount", label: "Amount refunded", type: "eur" }],
         rows: refundRows, totals: { period: "Total", ...sumRows(refundRows, ["orders", "amount"]) },
-        note: "Counted on the day the order was marked refunded. A refunded order no longer appears in the online sales and drop-in figures.",
+        note: "Counted on the day the order was marked refunded. A refunded order no longer appears in the reserved-online sales and drop-in figures.",
       },
     ],
-    notes: ["Online = paid orders, counted on the day they were paid. Shop = sales recorded with Sell in shop. Days are Paris days."],
+    notes: ["Reserved-online = books reserved on the website and paid in the shop (\"Mark collected and paid\"), counted on the day the payment was recorded. Shop = books sold at the Till (and older sales from the retired Sell in shop page). Days are Paris days."],
   };
 }
 
@@ -536,7 +547,7 @@ const ACCOUNTS_CSV_LIMIT = 50000;
 // 058), matched to the account with that email. The first version matched every order
 // to every account with a per-user EXISTS(... lower(buyer_email) = lower(email)):
 // 10 s for 5,000 accounts, headed for the 30 s statement timeout at about 10,000.
-// Needs idx_orders_user (058), idx_orders_legacy_buyer_email and idx_users_lower_email (073).
+// Needs idx_orders_user (058), idx_orders_legacy_buyer_email and idx_users_lower_email (082).
 const PAID_ORDERS_BY_ACCOUNT_SQL = `
   SELECT acct.uid, COUNT(*) AS n, SUM(acct.total_amount) AS spent
   FROM (
@@ -578,6 +589,7 @@ async function accountsReport(db, ctx) {
       `SELECT COUNT(*)::int AS total,
               COUNT(*) FILTER (WHERE u.is_admin)::int AS admins,
               COUNT(*) FILTER (WHERE u.is_volunteer)::int AS volunteers,
+              COUNT(*) FILTER (WHERE u.is_till)::int AS till,
               COUNT(*) FILTER (WHERE ${activeMemberSql("u")})::int AS members,
               COUNT(*) FILTER (WHERE u.is_member AND NOT ${activeMemberSql("u")})::int AS expired,
               COUNT(*) FILTER (WHERE ${typeFilterSql("account", "u")})::int AS holders,
@@ -599,7 +611,7 @@ async function accountsReport(db, ctx) {
 
   const { rows } = await db.query(
     `SELECT u.display_name, u.email, ${typeCaseSql("u")} AS type,
-            u.is_member, u.member_expires_at,
+            u.is_member, u.member_expires_at, u.is_till,
             to_char(u.member_expires_at AT TIME ZONE '${TZ}', 'YYYY-MM-DD') AS member_until,
             u.email_verified_at IS NOT NULL AS confirmed,
             to_char(u.created_at AT TIME ZONE '${TZ}', 'YYYY-MM-DD') AS created,
@@ -613,14 +625,14 @@ async function accountsReport(db, ctx) {
     params
   );
   const list = rows.map((r) => ({
-    name: r.display_name, email: r.email, type: TYPE_LABELS[r.type],
+    name: r.display_name, email: r.email, type: TYPE_LABELS[r.type] + (r.is_till ? " + Till" : ""),
     member_until: r.is_member ? (r.member_until || "no end date") : "",
     confirmed: r.confirmed ? "yes" : "no",
     created: r.created, last_login: r.last_login || "never",
     orders: r.orders, spent: money(r.spent), disabled: r.is_disabled ? "yes" : "no",
   }));
   const summaryRows = [
-    ["Total accounts", s.total], ["Admins", s.admins], ["Volunteers", s.volunteers],
+    ["Total accounts", s.total], ["Admins", s.admins], ["Volunteers", s.volunteers], ["Till access (can use the till without being an admin)", s.till],
     ["Members (paying or granted)", s.members], ["Members whose membership has expired", s.expired],
     ["Account holders (not a member, admin or volunteer)", s.holders],
     ["Unconfirmed (email never confirmed)", s.unconfirmed],
@@ -633,7 +645,7 @@ async function accountsReport(db, ctx) {
         key: "summary", title: "Summary (all accounts)",
         columns: [{ key: "label", label: "Measure", type: "text" }, { key: "count", label: "Accounts", type: "int" }],
         rows: summaryRows, totals: null,
-        note: "An account can count in several lines (an admin who is also a volunteer, for example). Each account has one type in the list below: Admin, else Volunteer, else Member, else Account, else Unconfirmed.",
+        note: "An account can count in several lines (an admin who is also a volunteer, for example). Each account has one type in the list below: Admin, else Volunteer, else Member, else Account, else Unconfirmed; \"+ Till\" is added when the account has Till access.",
       },
       {
         key: "accounts", title: `Accounts (${total})`,
@@ -653,10 +665,60 @@ async function accountsReport(db, ctx) {
   };
 }
 
+// ---------- Reservations ----------
+
+// Reservations made in the period (orders with a deadline, created in the
+// range), by month and in total: how many were reserved, how many ended in a
+// sale in the shop (collected: orders that are now paid or refunded), expired
+// (not collected in time, or marked no-show), cancelled, and still open; and the
+// conversion rate = collected / (collected + expired + cancelled), i.e. of the
+// reservations that are over, the share that became a sale. The rest of a
+// partly collected reservation (split_from_order_id) is not counted twice.
+// Revenue itself is in "Sales over time" (counted at the day paid).
+async function reservationsReport(db, ctx) {
+  const { rows } = await db.query(
+    `SELECT to_char(date_trunc('month', o.created_at AT TIME ZONE '${TZ}'), 'YYYY-MM') AS month,
+            COUNT(*)::int AS reserved,
+            COUNT(*) FILTER (WHERE o.status IN ('paid', 'refunded'))::int AS collected,
+            COUNT(*) FILTER (WHERE o.status = 'expired')::int AS expired,
+            COUNT(*) FILTER (WHERE o.status = 'cancelled')::int AS cancelled,
+            COUNT(*) FILTER (WHERE o.status = 'reserved')::int AS open,
+            COALESCE(SUM(o.total_amount) FILTER (WHERE o.status IN ('paid', 'refunded')), 0)::float8 AS collected_value
+     FROM orders o
+     WHERE o.reserved_until IS NOT NULL AND o.split_from_order_id IS NULL AND ${inRange("o.created_at", 1, 2)}
+     GROUP BY 1 ORDER BY 1`,
+    [ctx.from, ctx.to]
+  );
+  const rate = (r) => {
+    const over = r.collected + r.expired + r.cancelled;
+    return over ? (100 * r.collected) / over : null;
+  };
+  const byMonth = rows.map((r) => ({ ...r, collected_value: money(r.collected_value), conversion: rate(r) }));
+  const t = { reserved: 0, collected: 0, expired: 0, cancelled: 0, open: 0, collected_value: 0 };
+  for (const r of rows) for (const k of Object.keys(t)) t[k] += Number(r[k]);
+  const totals = { month: "Total", ...t, collected_value: money(t.collected_value), conversion: rate(t) };
+  const columns = [
+    { key: "month", label: "Month", type: "text" }, { key: "reserved", label: "Reserved", type: "int" },
+    { key: "collected", label: "Collected (sold)", type: "int" }, { key: "expired", label: "Expired / no-show", type: "int" },
+    { key: "cancelled", label: "Cancelled", type: "int" }, { key: "open", label: "Still open", type: "int" },
+    { key: "collected_value", label: "Value collected", type: "eur" }, { key: "conversion", label: "Conversion", type: "pct" },
+  ];
+  return {
+    sections: [
+      {
+        key: "reservations", title: "Reservations by month", columns, rows: byMonth, totals,
+        note: "Counted by the month the reservation was made (Paris time). Conversion = collected / (collected + expired + cancelled): of the reservations that are over, the share that became a sale. Customers pay in the shop; revenue is counted when the payment is recorded (see Sales over time).",
+      },
+    ],
+    notes: ["No names or email addresses appear in this report."],
+  };
+}
+
 const REPORTS = [
   { slug: "inventory", title: "Inventory on hand", summary: "Copies in stock and reserved, with their asking value, by genre, condition, location and source.", run: inventoryReport },
   { slug: "aging", title: "Aging stock", summary: "How long copies have been in stock (0-3, 3-6, 6-12, 12+ months), and the oldest ones.", run: agingReport },
-  { slug: "sales", title: "Sales over time", summary: "Book sales online and in the shop by day, week, month or year, plus drop-in seats separately.", usesRange: true, usesGroup: true, run: salesReport },
+  { slug: "sales", title: "Sales over time", summary: "Book sales (reserved online, paid in the shop) and walk-in shop sales by day, week, month or year, plus drop-in seats separately.", usesRange: true, usesGroup: true, run: salesReport },
+  { slug: "reservations", title: "Reservations", summary: "Reserved online, collected and paid in the shop, expired and cancelled, by month, with the conversion rate.", usesRange: true, run: reservationsReport },
   { slug: "sellthrough", title: "Sell-through by genre", summary: "Of the copies acquired in a period, how many have sold, and how fast.", usesRange: true, run: sellthroughReport },
   { slug: "membership", title: "Membership", summary: "Active members, new members and endings per month, and renewals due soon.", usesRange: true, run: membershipReport },
   { slug: "intake", title: "Intake log", summary: "Copies added per month and by source, with acquisition cost, and the latest additions.", usesRange: true, run: intakeReport },
@@ -678,5 +740,5 @@ module.exports = {
   PAID_ORDERS_BY_ACCOUNT_SQL,
   REPORTS, GROUPS, LIST_LIMIT, ACCOUNTS_PAGE_SIZE, getReport, runReport,
   validDay, todayParis, subMonths, addDays, parseDateRange, parseGroup, agingCutoffs, agingBucket,
-  formatCell, csvCell, toCsv,
+  formatCell, csvCell, toCsv, csvDialect, csvDecimal, wantsFrenchCsv,
 };

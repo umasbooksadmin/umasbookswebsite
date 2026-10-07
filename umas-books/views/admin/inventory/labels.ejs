@@ -21,6 +21,13 @@
         <option value="sheet" <%= size.layout === 'sheet' ? 'selected' : '' %>>A sheet of labels (A4 grid)</option>
       </select>
     </div>
+    <div>
+      <label for="dpi">Printer resolution</label>
+      <select id="dpi" name="dpi">
+        <option value="203" <%= size.dpi === 203 ? 'selected' : '' %>>203 dpi (most label printers)</option>
+        <option value="300" <%= size.dpi === 300 ? 'selected' : '' %>>300 dpi</option>
+      </select>
+    </div>
     <button class="btn" type="submit">Show</button>
   </form>
   <%- include('../../partials/location_options') %>
@@ -28,7 +35,7 @@
 </div>
 
 <form class="card" method="get" action="/admin/inventory/labels">
-  <input type="hidden" name="w" value="<%= size.w %>"><input type="hidden" name="h" value="<%= size.h %>"><input type="hidden" name="layout" value="<%= size.layout %>">
+  <input type="hidden" name="w" value="<%= size.w %>"><input type="hidden" name="h" value="<%= size.h %>"><input type="hidden" name="layout" value="<%= size.layout %>"><input type="hidden" name="dpi" value="<%= size.dpi %>">
   <input type="hidden" name="since" value="<%= filters.since %>"><input type="hidden" name="location" value="<%= filters.location || '' %>"><input type="hidden" name="color" value="<%= filters.color || '' %>">
   <div class="section-title"><%= rows.length %> cop<%= rows.length === 1 ? 'y' : 'ies' %> in stock, added since <%= filters.since %></div>
   <% if (truncated) { %><p class="notice-box" role="status">Only the first <%= rowLimit %> copies are shown: choose a later date or a location.</p><% } %>
@@ -39,7 +46,7 @@
       <button class="btn" type="submit">Print labels for the ticked copies</button>
       <button class="btn btn-outline" type="submit" name="all" value="1">Print all <%= rows.length %> shown</button>
     </p>
-    <table class="sticker-sheet">
+    <div class="table-scroll"><table class="sticker-sheet">
       <thead><tr><th><input type="checkbox" aria-label="Tick all" data-tick-all></th><th>Code</th><th>Sticker</th><th>Price</th><th>Title</th><th>Author</th><th>ISBN</th><th>Location</th></tr></thead>
       <tbody>
         <% rows.forEach(r => { %>
@@ -55,7 +62,7 @@
           </tr>
         <% }) %>
       </tbody>
-    </table>
+    </table></div>
   <% } %>
 </form>
 <script src="/labels.js"></script>

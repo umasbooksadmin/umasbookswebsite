@@ -7,7 +7,9 @@ migration rules) see [`umas-books/ARCHITECTURE.md`](../umas-books/ARCHITECTURE.m
 for running and restoring it see [`umas-books/README.md`](../umas-books/README.md);
 for day-to-day operations see [`docs/runbook.md`](runbook.md).
 
-This describes `main` as of 4 October 2026.
+This describes `main` as of 7 October 2026: books and drop-in seats are
+**reserved online and paid in the shop** (nothing is paid online for them); only
+the membership is still paid online, through HelloAsso.
 
 ## Contents
 
@@ -17,7 +19,7 @@ This describes `main` as of 4 October 2026.
 4. [Request lifecycle](#4-request-lifecycle)
 5. [Accounts, sessions and roles](#5-accounts-sessions-and-roles)
 6. [Data model](#6-data-model)
-7. [Money: checkout and payment reliability](#7-money-checkout-and-payment-reliability)
+7. [Reservations and payment in the shop](#7-reservations-and-payment-in-the-shop)
 8. [Membership](#8-membership)
 9. [Background jobs](#9-background-jobs)
 10. [Dates and times](#10-dates-and-times)
@@ -54,7 +56,7 @@ flowchart LR
 
   subgraph External["Outside services"]
     direction TB
-    HA["HelloAsso<br/>payments, membership form"]
+    HA["HelloAsso<br/>membership payment only"]
     GM["Gmail SMTP<br/>all outgoing mail"]
     AN["Anthropic API (optional)<br/>cover scan, descriptions,<br/>price and awards web search"]
     OL["Open Library, archive.org<br/>ISBN lookup, cover download<br/>(server side only)"]
@@ -70,9 +72,9 @@ flowchart LR
 
   OFF[("Backblaze B2<br/>private bucket, EU")]
 
-  People -->|"browse, log in, buy"| W
+  People -->|"browse, log in, reserve, join"| W
   W -->|"API calls and mail"| External
-  HA -->|"webhook: a hint only"| W
+  HA -->|"membership webhook: a hint only"| W
   REPO -->|"merge deploys"| W
   ACT -->|"nightly pg_dump"| DB
   ACT -->|"GET /healthz"| W
@@ -86,7 +88,7 @@ to a private Backblaze B2 bucket that Render cannot touch. See §12.
 
 **Preview mode.** While the shop is still being shown to outsiders, setting
 `PREVIEW_MODE=true` puts the whole site in "coming soon" mode: a banner on every
-page, online checkout and the membership payment widget switched off, and
+page, online reservations and the membership payment widget switched off, and
 search engines told to stay away. See §3 and §13.
 
 **Why one app.** Squarespace was retired; the marketing pages are EJS views in
@@ -110,7 +112,7 @@ login, one database and one thing to monitor.
 | Languages | server-side English and French | `tr()` in views, cookie `umasbooks_lang`; emails follow the reader's stored language (§3) |
 | Mail | `nodemailer` over Google Workspace SMTP | one mailbox (`admin@umasbooks.org`) for human and system mail |
 | Optional AI | Anthropic API (Claude) | cover scan, book descriptions and genre, market price lookup, awards web search; every use is optional and off without `ANTHROPIC_API_KEY` |
-| Payments | HelloAsso (checkout intents + hosted membership form) | OAuth client credentials |
+| Payments | HelloAsso for the membership only (hosted membership form, payment lookups); books and seats are paid in the shop, no payment provider | OAuth client credentials |
 | Hosting | Render Blueprint (`render.yaml`) | web `1c-2g`, database `1c-2g`, Frankfurt; migrations run as the pre-deploy command |
 | CI/CD | GitHub Actions + Dependabot | six required checks; Render deploys on merge; actions pinned by commit |
 
@@ -140,7 +142,7 @@ flowchart TB
     direction LR
     PUB["Public<br/>books, events, sessions, blog, contact,<br/>pre-registration + volunteer forms,<br/>book requests, img, seo"]
     MEMB["Members<br/>dashboard, account, privacy, forum,<br/>charity, volunteer, meetings"]
-    COM["Commerce<br/>cart, helloassoWebhook"]
+    COM["Commerce<br/>cart and reservations, helloassoWebhook (membership)"]
     AUTH["auth.js, twoFactor.js<br/>signup, verify, login, two-step,<br/>reset, password"]
     ADM["admin/*<br/>members, inventory (scan, move, sell),<br/>pricing, price suggestions, awards, reports,<br/>requests, forum moderation, events, sessions,<br/>meetings, volunteer shifts, blog,<br/>announcements, charity, dashboard, audit"]
   end
@@ -193,7 +195,7 @@ re-applies the same strings after a client-side toggle), with localised dates.
 Euro amounts go through one helper, `formatEuro` (`lib/money.js`): `12,50 €` in
 French, `€12.50` in English. Emails follow the reader's stored language:
 `users.lang` (set at signup, refreshed at login), `orders.lang` (set at
-checkout) and `book_requests.lang`; an empty value means English. Book
+reservation) and `book_requests.lang`; an empty value means English. Book
 descriptions have a French column (`description_fr`). Admin screens, and the
 admin-only alert emails, stay English.
 
@@ -201,7 +203,7 @@ admin-only alert emails, stay English.
 request. When on, views get `res.locals.preview`: a "coming soon" banner is shown
 on every customer page, an `X-Robots-Tag: noindex, nofollow` header and a robots
 meta tag go out, `robots.txt` turns every crawler away, the sitemap is empty, the cart refuses
-checkout, the membership page shows a notice instead of the HelloAsso widget, and
+to reserve (a friendly notice), the membership page shows a notice instead of the HelloAsso widget, and
 the contact form offers a "Feedback on the preview" topic. Admin pages show a
 reminder that the mode is on. Unset (the default) means the site behaves
 normally.
@@ -277,10 +279,11 @@ Key rules:
   k-anonymity breach check; a locked account (5 failures, 15 min) answers like a
   wrong password; the lockout counter is one atomic `UPDATE`. Wrong two-step
   codes count toward the same lockout.
-* **Buying and joining need an account.** Guests browse and fill the cart
-  (session); `GET`/`POST /cart/checkout` send them to `/login?returnTo=/cart`
-  (preview mode is checked first, so its notice is never masked), and the order is
-  placed under the account's confirmed email with `orders.user_id`. The
+* **Reserving and joining need an account.** Guests browse and fill the cart
+  (session); `POST /cart/reserve` (and the old `GET /cart/checkout`, which only
+  redirects) send them to `/login?returnTo=/cart` (preview mode is checked
+  first, so its notice is never masked), and the reservation is placed under the
+  account's confirmed email with `orders.user_id`. The
   `returnTo` (local paths only, `lib/returnTo.js`) also rides inside the
   single-use email-verification and reset tokens (`return_to` columns), so
   signup -> confirm -> choose password -> login ends on the cart, and the cart
@@ -328,7 +331,7 @@ Key rules:
   trusted hops. `trust proxy` is set to the number
   `TRUST_PROXY_HOPS` (`lib/trustProxy.js`; default 2 in production, 1 elsewhere
   and in tests), so `req.ip` is the real visitor and every user of `req.ip`
-  (rate-limit key `ipKey`, `orders.client_ip`, the admin audit log, the webhook
+  (rate-limit key `ipKey`, the admin audit log, the webhook
   limiter) follows. With one hop only the shared edge address was seen: one rate
   limit bucket for everybody. The admin page `/admin/diagnostics/client-ip`
   (English, admin only) shows what the app sees for your own request.
@@ -353,7 +356,7 @@ Key rules:
   membership payment stays, detached; the membership sync re-attaches it when the
   same person registers again.
 * **Rate limits** are in memory (reset on restart) and mostly per IP: login 20
-  failures / 15 min, sign-up 30/h, password reset requests 10 / 15 min, checkout 10/h, cart edits 60 / 15 min, event sign-up 10/h,
+  failures / 15 min, sign-up 30/h, password reset requests 10 / 15 min, reserve 10/h, cart edits 60 / 15 min, event sign-up 10/h,
   forum posts 10/h and replies 30/h, charity ideas 10/h, contact, pre-registration and volunteer forms 5 / 15 min each,
   webhook 300 / 5 min, book requests 5/day, "find my requests" 5/h (plus 3 a day
   per address). A few are per account instead: wrong two-step codes,
@@ -416,13 +419,13 @@ erDiagram
 | Domain | Tables | Notes |
 |---|---|---|
 | Accounts | `users`, `email_verification_tokens`, `password_reset_tokens`, `totp_recovery_codes`, `session`, `schema_migrations` | tokens and recovery codes stored as hashes; `users` also holds `lang`, the encrypted two-step secret and `inactivity_warned_at`; `session` is created by the store |
-| Shop | `books`, `book_copies`, `orders`, `order_items`, `class_dropin_seats`, `shop_sales` | an order line is *either* a copy *or* a seat (CHECK constraint); copy status `in_stock / reserved / in_cart / sold / donated / damaged` (`in_cart` is set by checkout only); one row per ISBN (unique index); `shop_sales` is the over-the-counter equivalent of an online order line |
+| Shop | `books`, `book_copies`, `orders`, `order_items`, `class_dropin_seats`, `shop_sales` | an order line is *either* a copy *or* a seat (CHECK constraint); copy status `in_stock / reserved / in_cart / sold / donated / damaged` (`reserved` also covers a copy held by an online reservation, with `cart_order_id` pointing at its order; `in_cart` is a leftover of the old online checkout and nothing sets it any more); one row per ISBN (unique index); `shop_sales` is the over-the-counter equivalent of a collected reservation line |
 | Awards | `book_awards` | awards, shortlists and best-seller lists per book, with `source` (`wikidata / nyt / ai / manual`) and review `status` (`verified / pending / approved / rejected`) |
 | Pricing | `pricing_settings`, `price_lookups` | one settings row (`id = 1`) holding every number the rules use; one cached market lookup per ISBN-13 |
 | Book requests | `book_requests`, `book_request_list_tokens` | customer "ask us for a book" requests, identified by an emailed link instead of an account; personal columns are cleared when a request ends |
 | Images | `images` | content-addressed: id is the SHA-256 of the bytes; `books.cover_url` and the announcement, charity and blog image columns hold only the short `/img/<hash>.jpg` URL. Book covers from Open Library / archive.org are downloaded once by the server (`lib/coverStore.js`), re-encoded and stored here; `books.cover_source_url` and `cover_fetch_*` only drive the download retries (migration 059) |
 | Admin | `admin_audit_log` | who, what, numeric target id, time and IP; no member emails or names; purged after 12 months |
-| Membership | `membership_payments` | one row per HelloAsso membership order; drives `member_expires_at` |
+| Membership | `membership_payments` | one row per HelloAsso membership order (the only online payment); drives `member_expires_at` |
 | Programs and events | `events`, `event_signups`, `classes`, `class_signups` | a `classes` row is a program session; `dropin_price` set = bookable |
 | Community | `forum_threads`, `forum_replies`, `announcements`, `blog_posts`, `favorites` | rich text goes through `sanitize-html`; threads and replies carry `hidden_at / hidden_reason / hidden_by` for moderation |
 | Volunteering | `volunteer_shifts`, `volunteer_signups`, `meetings`, `meeting_rsvps` | |
@@ -452,20 +455,30 @@ Details of the shop tables worth knowing:
   carry `publisher_price` and be priced between 95% and 100% of it, checked on
   the server when a copy is added or edited. Used copies are free-priced.
 * **Refund and pickup columns (migration 060).** `orders.refunded_at`, `refund_note`,
-  `collected_at`, `collected_by` (user, `ON DELETE SET NULL`), `refund_detected_at`,
-  `refund_alert_sent_at`, `customer_pickup_reminder_sent_at`,
-  `pickup_reminder_sent_at`, `checkout_redirect_url`; see §7. Refunded orders are
-  accounting records: they are kept like paid ones (10 years) and anonymised only
-  when the account is erased.
-* **Order extras.** `orders.withdrawal_waiver_at` records the buyer's tick-box
-  confirming that a drop-in session takes place on its date (these dated leisure sessions have no
-  right of withdrawal anyway, art. L.221-28 12°; the box is kept as the buyer's confirmation);
+  `collected_at`, `collected_by` (user, `ON DELETE SET NULL`),
+  `customer_pickup_reminder_sent_at`, `pickup_reminder_sent_at`; see §7. Refunded
+  orders are accounting records: they are kept like paid ones (10 years) and
+  anonymised only when the account is erased. The columns of the old online
+  checkout (`refund_detected_at`, `refund_alert_sent_at`, `checkout_redirect_url`,
+  `checkout_intent_id`, `helloasso_order_id`) stay on old rows; nothing writes
+  them any more.
+* **Reservation columns (migration 066).** `orders.reserved_until` (the
+  deadline), `reservation_extended_at` (the one allowed extension),
+  `released_at` + `release_reason` (`customer`, `admin`, `expired`, `no_show`,
+  `account_erased`), `expiry_notice_sent_at`, the payment taken in the shop
+  (`payment_method`, `amount_received`, `payment_note`, `reserved_total`),
+  `split_from_order_id` (a partial pickup) and
+  `class_dropin_seats.reminder_sent_at`. `orders.status` is plain text:
+  `reserved`, `paid`, `refunded`, `expired`, `cancelled` and the legacy `pending`.
+* **Order extras.** `orders.withdrawal_waiver_at` is only set on old orders (the
+  drop-in tick-box of the old online checkout; there is no waiver step now);
   `orders.cgv_accepted_at` / `orders.cgv_version` record when the buyer accepted
   the terms of sale and which version (`TERMS_OF_SALE_VERSION` in
   `src/lib/legal.js`, bump it when the terms page changes); they are in the
   member data export and survive anonymisation;
-  `orders.client_ip` supports the pending-order cap in §7; `orders.lang` sets the
-  language of the confirmation email.
+  `orders.client_ip` is no longer written (the code sets it to NULL; the daily
+  purge still clears old values); `orders.lang` sets the language of the
+  confirmation email.
 
 ### Pricing: suggested prices for used books
 
@@ -592,11 +605,11 @@ stateDiagram-v2
   are Paris calendar days. Any table can be downloaded as CSV; no report except *Accounts* shows
   email addresses or buyer names, and every CSV download is written to the audit
   log (report name only).
-* **Sell in shop** (`/admin/inventory/sell`) records a counter sale: scan the ISBN,
-  choose the copy, confirm the price and an optional payment method (cash, card,
-  other). One transaction inserts a `shop_sales` row and sets the copy to `sold`;
-  only the admin's id is kept, never buyer details. New books keep the fixed-price
-  rule. The sale is audit-logged and joins online orders in the Sales report.
+* **Sell in shop** (`/admin/inventory/sell`) is **retired**: sales are made at the Till
+  (`/admin/till`, see "The till"). GET and POST on the old URL redirect (302) to
+  `/admin/till?notice=sell-retired`, which shows "Sales are made at the Till now". The
+  `shop_sales` table and its old rows stay (the till writes one `shop_sales` row per book it
+  sells, and the reports and the accounting export read them).
 * **Move books** (`/admin/inventory/move`) is described under inventory
   locations above.
 
@@ -621,76 +634,68 @@ migration — add a new numbered file.
 
 ---
 
-## 7. Money: checkout and payment reliability
+## 7. Reservations and payment in the shop
 
-Principle: **the webhook body is never trusted.** HelloAsso's notification and
-the buyer's return URL are only *hints to re-ask HelloAsso*; the authoritative
-payment state always comes from a server-to-server lookup with our own
-credentials.
+Principle: **nothing is paid on the website for books and drop-in seats.** An
+account holder *reserves*; the shop holds the items; the customer pays in person
+(at the shop when collecting books, at the session for a drop-in seat), and
+staff record the payment. The only online payment left is the membership (§8),
+where the webhook body is still never trusted.
 
 ```mermaid
 sequenceDiagram
   autonumber
-  actor B as Buyer
+  actor B as Customer (account holder)
   participant W as Web app
   participant DB as Postgres
-  participant HA as HelloAsso
   participant GM as Gmail
+  actor S as Shop staff
 
-  B->>W: POST /cart/checkout, logged in (name, terms ticked,<br/>drop-in waiver ticked if a seat is in the cart;<br/>email comes from the account)
-  W->>DB: one transaction: create order,<br/>lock copies and seats as in_cart
-  W->>HA: create checkout intent (10 s timeout)
-  W->>DB: save intent id (one retry, admin alert if it fails)
-  W-->>B: redirect to HelloAsso payment page
-  B->>HA: pays
-  par notification
-    HA->>W: POST /webhooks/helloasso (untrusted hint)
-  and return
-    B->>W: GET /cart/return
-  end
-  W->>HA: look up the intent (authoritative)
-  alt payment Authorized
-    W->>DB: one transaction: order paid (WHERE status = pending),<br/>HelloAsso order id stamped, copies and seats sold,<br/>confirmation email queued in email_outbox
-    W->>GM: send the queued confirmation at once (best effort);<br/>the outbox worker retries if Gmail refuses
-  else refused or abandoned
-    W->>DB: one transaction: release copies,<br/>seats marked released, order closed
-  end
+  B->>W: POST /cart/reserve, logged in (name, terms ticked;<br/>email comes from the account)
+  W->>DB: one transaction (per-account advisory lock): check limits,<br/>create order status reserved with reserved_until,<br/>lock copies (reserved) and seats (reserved),<br/>queue the confirmation in email_outbox
+  W->>GM: send the queued confirmation at once (best effort);<br/>the outbox worker retries if Gmail refuses
+  W-->>B: redirect to /cart/return?order=token (the reservation page)
+  Note over W,DB: every 6 h, and on page reads: reminders,<br/>release of reservations past their deadline
+  B->>S: comes to the shop, pays (cash, card or cheque)
+  S->>W: POST /admin/orders/:id/collect (method, amount)
+  W->>DB: one transaction: order paid and collected (paid_at = now),<br/>copies sold, seats sold
 ```
 
 What keeps it correct:
 
 | Concern | Mechanism |
 |---|---|
-| Double delivery / webhook racing the sweep | `UPDATE orders SET status='paid' … WHERE status='pending'`; the loser gets `rowCount = 0` and stops |
-| Crash between "paid" and "sold" | both happen in **one transaction** (`markOrderPaid`), together with the HelloAsso order id and the queued confirmation email |
-| Gmail down, rate-limited or password revoked at payment time | the confirmation is **stored first** (`email_outbox`, same transaction as the payment), sent at once, and retried by the worker with backoff (below). A failure while *building* the confirmation never undoes a payment (savepoint): the order is paid without a confirmation, flagged on the admin dashboard after 30 minutes, with a *Resend confirmation* button on the orders list |
-| Buyer without the email | `/cart/return` shows **"Order #N paid"** with the items, total, date and a Print button: proof of payment even if no email ever arrives |
-| Abandoned checkouts | a hold lasts 60 minutes; every 10 minutes the sweep releases stale holds, including drop-in-only ones |
-| Releasing an order that actually paid | `releaseCartHold` locks the order row first; if already paid it finishes marking copies sold instead |
+| Overselling | atomic `UPDATE … WHERE status='in_stock'` on the copies inside the reservation transaction (a mismatch rolls everything back as `SOLD_OUT`), copy rows locked in id order, class rows locked with `FOR UPDATE` and the seat count re-read |
+| Hoarding stock without paying | per account: at most `MAX_RESERVED_COPIES` (10) books and `MAX_ACTIVE_RESERVATIONS` (3) open reservations (`lib/legal.js`), checked under a per-account advisory lock so two simultaneous requests cannot slip past; a cart holds at most 20 lines; `POST /cart/reserve` is rate limited (10 an hour per address) |
+| Anonymous reservations | reserving requires a logged-in account with a confirmed email, enforced on the server (`routes/cart.js`); the order stores `user_id` and the account's email (a posted email is ignored). Guests keep a cart in their session but cannot reserve |
+| Terms | reserving requires accepting the terms of sale; the order stores the time and the version (`cgv_accepted_at`, `cgv_version`). There is no withdrawal waiver step: nothing is paid online |
+| Deadline | `orders.reserved_until` = the end of the 14th Paris day for books (`RESERVATION_DAYS`); for a seat-only order, the end of its session; an admin can extend a books reservation once by 7 days (`extendReservation`) |
+| Release | `lib/reservations.js` `expireOrderReservations` / `releaseEndedSeats` run at the top of every route that shows copy status and from the 6-hourly jobs, so a lapsed reservation is released even when the site was idle: the copies go back `in_stock`, the seats `released`, the order `expired` (`release_reason`) |
+| Customer cancel | `cancelReservationAsCustomer`: owner-only (another account gets the same "not found"), books at any time, seats until `SEAT_CANCEL_HOURS` (24) before the session; the release is one transaction with the order row locked |
+| Gmail down at reservation time | the confirmation is **stored first** (`email_outbox`, same transaction as the reservation), sent at once, and retried by the worker with backoff (below). A failure while *building* the confirmation never undoes a reservation (savepoint); *Resend confirmation* sits on the orders list |
+| Customer without the email | `/cart/return?order=<token>` and the account page show the reservation (what, deadline, how to cancel) |
 | Drop-in seat rows | marked `released`, never deleted (`order_items` references them); capacity ignores released seats |
-| Payment lands **after** the hold expired | hourly, orders closed in the last 7 days are re-checked; if every item can still be claimed the order is completed, otherwise nothing is changed and the admin gets an alert email naming order, buyer and amount for a manual refund |
-| Checkout crashes before saving the intent id | the same alert, with order and intent ids; the webhook may adopt the id if HelloAsso confirms the order id |
-| Overselling | atomic `UPDATE … WHERE status='in_stock'` and `FOR UPDATE` on class rows |
-| Hoarding stock without paying | a cart holds at most 20 lines; at most 2 unpaid orders per email and per IP address (`orders.client_ip`), checked under an advisory lock so two simultaneous checkouts cannot both slip through |
-| Anonymous orders | checkout requires a logged-in account with a confirmed email, enforced on the server; the order stores `user_id` and the account's email (a posted email is ignored). Orders from before this rule (`user_id` NULL) remain valid everywhere |
-| Terms and withdrawal | checkout requires accepting the terms of sale; a cart with a drop-in seat also requires the date-confirmation tick-box (`waiveWithdrawal`), whose time is stored on the order |
-| Buyer backs out of HelloAsso | the session cart is emptied before the redirect (the items now belong to the order), and the payment link is stored (`orders.checkout_redirect_url`). `/cart` lists the logged-in buyer's **own** unpaid orders: **Resume payment** (a redirect to the stored HelloAsso link, only while it is fresh, about 14 minutes, and only to a HelloAsso payment host) and **Cancel this order** (HelloAsso is asked first; an order that was in fact paid is never cancelled). Both are owner-only (another account gets a 404) |
+| Selling a reserved copy another way | the admin inventory (sell, release, status edits) refuses a copy reserved by an online order and names the order: it is collected or cancelled from its order page |
+| Leftovers of the old online checkout | `lib/cart.js` `runCartMaintenance` (every 10 min) only cleans up copies still `in_cart` from before the change; no payment provider is asked |
 
-### Refunds, withdrawals and pickup
+### Collecting, payment records, refunds and reminders
 
-The site cannot move money. A refund is made by a person in the HelloAsso
-dashboard, and the order is then marked refunded in the admin
-(`/admin/orders/:id`, `lib/orderActions.js`). Status values of `orders.status`
-(plain text, no constraint): `pending`, `paid`, `expired`, `cancelled`,
-`refunded`.
+The site cannot move money. Staff take the payment in person, then record it
+(`lib/orderActions.js`, `/admin/orders/:id`). Status values of `orders.status`
+(plain text, no constraint): `reserved`, `paid`, `refunded`, `expired`,
+`cancelled`, and `pending` (only on old online-checkout orders).
 
 | Concern | Mechanism |
 |---|---|
-| Mark refunded | one transaction with the order row locked: `paid` -> `refunded` (+ `refunded_at`, required `refund_note`); the copies this order sold go back `in_stock`, except a copy sold again since (a later shop sale or another paid order), which is left alone and named in the audit entry; its drop-in seats become `released` (capacity ignores them). Refuses any order that is not `paid`; a second call changes nothing; written to the admin audit log. The admin page has a confirmation step (warning, tick box, note) |
-| Refunded money in the figures | revenue, order counts, member totals and sell-through all read `status = 'paid'`, so a refunded order drops out by itself. The sales report shows refunds as their own table (by `refunded_at`), and the dashboard shows the month's refunds beside Total Sales. Dashboard and reports bucket by `paid_at` in Europe/Paris (`lib/dashboardStats.js`) |
-| Refund done in HelloAsso only | `lib/orderSweeps.js` `detectRefundedOrders` (every 6 h, via `guardJob`): for paid orders of the last 30 days it re-reads the checkout intent with our own credentials (never a webhook body); no `Authorized` payment and one `Refunded` / `Refunding` / `Canceled` payment flags `orders.refund_detected_at`. One email per run for everything newly found (`refund_alert_sent_at` claim, handed back if the send fails). It never restocks: the admin marks the order refunded. A partial refund is not detected. A systemic HelloAsso failure stops the run and alerts once |
-| Pickup | "Mark collected" sets `collected_at` / `collected_by`. A paid order with at least one book and no `collected_at` is "awaiting pickup" (drop-in-only orders never are). Day 10: customer reminder email (EN/FR, only repeats the terms of sale: collect within 14 days of payment, write to us if you need longer; sent only inside days 10 to 14, never for an order flagged as refunded). Day 12: one admin email listing the uncollected orders. Each is claimed in the database first and sent once per order |
-| Admin view | `/admin/orders`: filters (status, awaiting pickup, over 14 days, refund detected, unpaid over 2 hours), Paris date range, search by number, email or name, 50 per page; `/admin/orders/:id` shows items, buyer, HelloAsso ids, Paris times, terms acceptance and history. The dashboard "Needs attention" box counts the three problem lists |
+| Mark collected and paid | `collectReservation`: one transaction with the order row locked: `reserved` -> `paid` with `paid_at`, `collected_at` / `collected_by`, `payment_method` (cash / card at the shop / cheque / other), `amount_received` (it can only be **lowered** from the held total, with a note; `reserved_total` keeps the original), the held copies become `sold`, the held seats `sold`; items no longer held are dropped. Written to the admin audit log |
+| Partial pickup | "Collect selected items": the chosen items are sold and paid on this order; the rest moves to a **new** reserved order with the same deadline (`split_from_order_id` points back) |
+| Cancel, no-show, extend | "Cancel reservation" (`release_reason` admin) and "Mark no-show / expired" (`no_show`, status `expired`) release the items; "Extend by 7 days" works once and only while books are held |
+| Mark refunded | one transaction with the order row locked: `paid` -> `refunded` (+ `refunded_at`, required `refund_note`); the copies this order sold go back `in_stock`, except a copy sold again since, which is left alone and named in the audit entry; its drop-in seats become `released`. Refuses any order that is not `paid`; a second call changes nothing. The refund itself (cash, cheque, card) is done in the shop; the admin page has a confirmation step (warning, tick box, note) and the customer is not emailed |
+| Money in the figures | revenue counts `status = 'paid'` at **`paid_at`**, the day staff record the payment (not the day of the reservation), in Europe/Paris (`lib/dashboardStats.js`); reserved, expired and cancelled orders never count; refunded ones drop out and appear in a **Refunds** table. The **Reservations** report (`/admin/reports/reservations`, CSV) shows reserved / collected / expired / cancelled per month and the conversion rate |
+| Customer emails | all through the outbox, in the order's language: reservation e-mail (not a proof of purchase: deadline, shop address and hours, how to cancel, no-returns notice, legal guarantees, mediator, terms version accepted; no withdrawal notice or form), reminder on day 10 (`RESERVATION_REMINDER_DAYS_BEFORE` = 4 days before the deadline), "your reservation has ended" (no penalty), a reminder 24 hours before a reserved drop-in seat. Each is claimed in the database first (a `*_sent_at` column) and sent once |
+| Admin digest | one email listing the reservations expiring within 2 days (once per order). The dashboard "Needs attention" box counts reservations expiring within 3 days, those past the deadline and not yet released, and the old-checkout leftovers |
+| Admin view | `/admin/orders` opens on **Reserved: awaiting pickup**; filters (status, expiring in 3 days, expired, past the deadline, old-checkout leftovers), Paris date range, search by number, email or name, 50 per page; `/admin/orders/pickup-list` (and `?print=1`) lists open reservations by customer with shelf locations and the amount to collect; `/admin/orders/:id` shows items, buyer, payment, terms acceptance and history |
+| Preview mode | `POST /cart/reserve` is refused with a friendly notice before anything is validated or locked |
 
 ### The email outbox
 
@@ -723,7 +728,19 @@ contact form to the shop) goes through `lib/outbox.js`: **store, then send**.
 - Retention: recipient/subject/body of **sent** rows are erased after 30 days,
   of failed/handled rows after 90 (`RETENTION.outboxSentDays/outboxFailedDays`,
   step `emailOutbox`); one-time-link mails lose their body as soon as they are
-  sent; erasing an account erases its rows. The goodbye email on self-deletion
+  sent, **when they fail**, and when their link lifetime passes while still
+  pending (reset 1 h, confirmation 24 h: status `expired`, never retried), so a
+  link never sits in a database dump; erasing an account erases its rows, and so
+  does erasing an address (rows are matched on `to_email` and on `subject_email`,
+  the submitter's address on form mail, migration 068).
+- **Per-recipient throttle** (`THROTTLED_KINDS`: verification, signup_attempt,
+  password_reset, book_request_confirm, book_request_list): at most 1 mail per
+  (recipient, kind) per 10 minutes, 5 per recipient per day, and a shop-wide
+  ceiling per kind per hour (`THROTTLE` constants; `MAIL_GLOBAL_PER_HOUR`
+  overrides, used by tests). A throttled request stores nothing and logs a
+  counter (`getThrottleCounts`, no address); the web response stays neutral.
+  Resend buttons and the two book-request mails (a person may ask for 3 books in a row) pass `throttle: "skipInterval"` (the 10-minute rule is skipped, the daily and hourly caps stay), admin actions
+  `"off"`; order and reservation mail is never throttled. The goodbye email on self-deletion
   is the one mail that bypasses the outbox (the address is erased right after).
 
 ---
@@ -739,10 +756,12 @@ in person only: online payment exists only for HelloAsso memberships and orders.
   title, author and ISBN ("No ISBN" for books without one). A book without an
   ISBN works everywhere because the label, not the ISBN, identifies the copy.
 - **Scan order** (`lookupScan` in `src/lib/till.js`): `UB-<id>` copy label, then
-  an exact quick-item barcode, then `ORDER-<n>` (reservation: extension point in
-  `src/lib/tillReservations.js`), then an ISBN (10/13, `isbnVariants`), then
-  unknown. Only `in_stock` copies are sold; sold, reserved, in-cart and withdrawn
-  copies are refused with the reason.
+  an exact quick-item barcode, then `ORDER-<n>` (a reservation to collect, or the label of a
+  reserved book: `src/lib/tillReservations.js`, paid through
+  `collectReservationTx` in the till's own transaction), then an ISBN (10/13, `isbnVariants`), then
+  unknown. Only `in_stock` copies are sold as plain books (a copy reserved by an order
+  is collected through its order: sold, in-cart and withdrawn copies are
+  refused with the reason).
 - **Data model** (migration `065_till.sql`): `till_sales` (one payment method per
   sale, `sale_token` unique for idempotency, `status` completed/voided),
   `till_sale_items` (kind book/manual/quick, copy or quick item, quantity,
@@ -768,6 +787,60 @@ in person only: online payment exists only for HelloAsso memberships and orders.
   for that day. The Accounting export (`src/lib/accounting.js`) combines till
   items, older "Sell in shop" sales (no till sale), paid online orders and
   membership payments into rows by day, category and payment method.
+
+#### Till correctness and money safety (migration `074_till_correctness.sql`)
+
+- **The amount shown is the amount recorded.** Every confirm carries
+  `expectedTotalCents` and each line's `expected` unit price. After re-pricing from the
+  database, `checkExpected` refuses a difference with **409 `price_changed`** (new total in the
+  answer) and nothing is recorded; for a card sale the page tells the cashier to cancel the
+  charge on the reader and restart. A confirm without an expected total is a 422.
+- **`POST /admin/till/check`** runs the same line building and validation as the sale
+  (`checkSale`, a read-only transaction, no locks, nothing written). The Cash and Card screens call
+  it when they open, so a refusal shows before the customer pays. After "Card paid" the page
+  freezes the charged total (kept in `sessionStorage`), and a failure shows the red "already
+  charged, do not charge again" box with Record card sale (check first) and Record anyway (same
+  token, same total, no check). The till routes always answer JSON (`jsonRoute`): a refusal has its
+  message, an unexpected failure is a JSON 500 with `serverError`, so the page can tell a server
+  rejection from a network failure (only the latter says "Connection problem", and only that one
+  is safe to retry blindly, because of the sale token).
+- **Replay.** `till_sales.basket_hash` (sha256 of the payment method and the lines as sent) is
+  stored with the unique sale token: the same token with another basket is a 409
+  `token_replay`, the same basket returns the first sale.
+- **Closed day.** A sale on a Paris day with `till_days.closed_at` is refused (409 `day_closed`)
+  unless an admin ticks "Reopen this day to record this sale" with a reason: the day is reopened
+  (`closed_at` and the counted figures cleared, `reopened_at/by`, `reopen_reason`) in the same
+  transaction as the sale, audited as `till.day_reopen`, and must be closed again. Backdating
+  (`soldAtTime`, `soldAtDay` today or yesterday) is admin-only, never in the future, always needs a
+  reason (`backdate_reason`, audited). Late entries are flagged by `till_sales.entered_at` (the
+  insertion time), not `created_at` (the time of the sale).
+- **Locks.** Sales and voids take a per-day advisory lock SHARED (`lockDay`), closing and reopening take
+  it EXCLUSIVE, and a void also reads `till_days ... FOR SHARE`, closing `FOR UPDATE`: a void or a
+  sale committing while the day is being closed waits, then sees the closed day, so the expected
+  cash cannot change after the count. Closing with no opening float needs `confirmNoFloat`; a past
+  unclosed day can be given a float (`POST /admin/till/day/open` with `day`).
+- **Limits and overrides.** `MAX_TOTAL_CENTS` = 1,000,000 per sale (422 "Sale total too large"),
+  quantity at most 99 and 60 lines. A book price change is free up to 20% above the asking
+  price; lower, or higher by more, needs a reason (stored on the item and in the audit entry) and
+  an admin. A book is never 0; only a manual Donation line may be 0.
+- **Card voids.** `till_sales.refund_confirmed` (+ `_at`, `_by`): staff tick "I refunded the card"
+  at void time or later (`POST /admin/till/sales/:id/refunded`); unticked voided card sales are in
+  the dashboard's Needs attention and on End of day.
+- **Expired carts.** A copy `in_cart` past `CART_HOLD_TTL_MINUTES` is offered with "Release this
+  copy from the expired cart and add it" (`POST /admin/till/release` calls the cart's own
+  `releaseCartHold`); a live hold is refused with the minutes left.
+- **Till role.** `users.is_till`. `requireTillOrAdmin` (`src/middleware/auth.js`) is used ONLY on
+  the till page, scan, check, sale, release, void, refund tick, receipt and the read-only end of
+  day (`test/integration/adminAuthzMatrix.test.js` pins the exact list); everything else is
+  `requireAdmin`. Admins still need two-step verification; a till-only account does not, but its
+  session ends after 8 hours without a till request (`tillActiveAt` in the session). Price overrides
+  beyond the rule, backdating, reopening/closing, the float and quick items stay admin-only.
+  Toggled on Admin > Accounts (`member.toggle_till`); shown as the "Till" pill, the "Till access"
+  filter and "+ Till" in the Accounts report (`src/lib/accountTypes.js`).
+- **One source of truth for sales figures.** `salesTotals` / `accountingRows` in
+  `src/lib/accounting.js` feed the Accounting export and the dashboard's "Sales this month"
+  (Till, Online, Membership breakdown, same Paris-day buckets); `test/integration/tillDashboardAgreement.test.js`
+  checks the dashboard, Reports (book sales), End of day and the export agree on one fixture.
 
 ## 8. Membership
 
@@ -844,10 +917,9 @@ every run is recorded in the `job_runs` table (see "Job tracking" below).
 ```mermaid
 flowchart LR
   subgraph proc["Web process (setInterval)"]
-    A["every 10 min<br/>cart sweep"] 
-    B["hourly (every 6th tick)<br/>late-payment re-check"]
-    C["every 6 h<br/>reservations, reminders,<br/>membership expiry + backstop"]
-    OF["every 6 h<br/>refund detection,<br/>pickup reminders"]
+    A["every 10 min<br/>old-checkout leftovers"] 
+    C["every 6 h<br/>holds without an order, reminders,<br/>membership expiry + backstop"]
+    OF["every 6 h<br/>reservation release, reminders,<br/>admin digest"]
     OB["every 60 s<br/>email outbox retries,<br/>failure + unmatched-payment alerts"]
     P["daily and at boot<br/>retention purge,<br/>30-day inactivity warnings"]
     IC["daily and at boot<br/>unused-image cleanup"]
@@ -861,11 +933,10 @@ flowchart LR
     FR["09:00 UTC daily<br/>backup freshness check"]
   end
   A --> DB[("Postgres")]
-  B --> HA["HelloAsso lookups"]
   C --> DB
-  C --> HA
+  C --> HA["HelloAsso lookups<br/>(membership only)"]
   OF --> DB
-  OF --> HA
+  OF --> GMX["Gmail (via the outbox)"]
   D --> W["GET /healthz"]
   P --> DB
   E --> DB
@@ -881,22 +952,21 @@ flowchart LR
 
 | Job | Where | Cadence | Notes |
 |---|---|---|---|
-| Cart hold expiry, order reconcile | web process | 10 min | also on boot |
-| Late-payment re-check | web process | hourly | only orders closed in the last 7 days |
-| Reservation expiry, pickup reminder (day 11 of 14), membership expiry, membership backstop | web process | 6 h | read-time expiry also keeps pages right while idle |
-| Order follow-up: refund detection, day-10 customer pickup reminder, day-12 admin digest | web process | 6 h, first run 5 minutes after boot | asks HelloAsso about paid orders of the last 30 days (at most 200 per run); see §7, "Refunds, withdrawals and pickup" |
+| Leftover cleanup of the old online checkout | web process | 10 min | also on boot; releases any copy still `in_cart`; asks no payment provider |
+| Expiry of copies held without an order, their reminder (day 11 of 14), membership expiry, membership backstop | web process | 6 h | read-time expiry also keeps pages right while idle; the backstop is the only HelloAsso call left (membership) |
+| Reservation follow-up (`lib/orderSweeps.js`): release of reservations past their deadline and of ended seats, day-10 customer reminder, 24-hour seat reminder, "reservation ended" email, admin digest of reservations expiring within 2 days | web process | 6 h, first run 5 minutes after boot | no outside lookup; every email is claimed in the database before it is sent; see §7 |
 | Email outbox worker | web process | 60 s (first run 15 s after boot) | retries unsent mail with backoff, one alert per hour when it gives up; also sends the throttled "membership payment matches no account" alert |
 | Retention purge | web process | daily, and at boot | see below; also clears ended book requests and expired "find my requests" links |
 | Unused-image cleanup | web process | daily, and at boot | deletes at most one batch of images older than 7 days that no row references (`lib/imageCleanup.js`) |
 | Awards drain | web process | 2 min, not at boot | looks up awards for a few books at a time (§6); a no-op when `AWARDS_LOOKUPS=off` |
 | Cover backfill | web process | 5 min, first run after 1 min | copies up to 20 book covers from their Open Library / archive.org source address into the `images` table, books on the shelves first; at most 3 failed attempts a week per cover, where only a 404, a placeholder or an invalid image counts as failed (a 5xx, timeout or network error does not, and 3 in a row stop the batch); sends a User-Agent with the site and a contact address; off with `COVER_BACKFILL=off` (`lib/coverStore.js`) |
-| Uptime check | Actions | 30 min (about 1,440 billed minutes a month: see the runbook, section s) | emails on the **second** consecutive failure and on recovery |
+| Uptime check | Actions | 30 min (about 1,440 billed minutes a month: see the runbook, section t) | emails on the **second** consecutive failure and on recovery |
 | Database backup | Actions | 03:00 UTC | full dump to Backblaze B2 (required); a second copy on the 1st of the month |
 | Restore test | Actions | monthly + manual | restores the newest Backblaze dump into a scratch Postgres and checks it (key tables, newest migration, images) |
 | Test alert | Actions | every Monday + manual | sends one email so a broken alert channel is noticed within a week |
 | Backup freshness check | Actions | 09:00 UTC daily + manual | emails if the newest nightly dump in Backblaze is older than 36 hours, empty, missing, or Backblaze cannot be reached; after the 3rd of the month also if the newest `monthly/` copy is over 35 days old (§12) |
 
-**Job tracking** (`lib/jobRuns.js`, table `job_runs`, migration 072). A job used
+**Job tracking** (`lib/jobRuns.js`, table `job_runs`, migration 081). A job used
 to fail with only a `console.error` that nobody read. Now `guardJob(name, fn,
 { pool, intervalMs })` records `last_run_at`, `last_success_at`,
 `consecutive_failures` and `last_error` (scrubbed of emails and long digit
@@ -924,7 +994,7 @@ alert (any row pending over 60 minutes, once per 6 hours, counts per kind only).
 **The daily retention purge** keeps the promises on the privacy page. It removes
 event and class sign-ups 12 months after the date, expired reset and
 verification tokens after 7 days, orders and payment records after 10 years,
-contact details on ended reservations and on expired or cancelled orders after
+contact details on ended reservations and on expired or cancelled reservations after
 30 days, stored copies of sent emails after 30 days (failed ones after 90),
 audit-log rows after 12 months, and book requests (never-confirmed ones
 after 7 days, open ones after 12 months, and the contact details of closed ones
@@ -1098,10 +1168,10 @@ flowchart TB
   migrations, scripts, package files, marketing pages or `.github/` changed (and
   always on `main`): see the header of `.github/workflows/ci.yml` and
   `.github/scripts/ci-changes.sh`. Measured numbers and the monthly usage check:
-  runbook section s.
-* **If the Render account is lost**: runbook section t) rebuilds everything from
+  runbook section t.
+* **If the Render account is lost**: runbook section u) rebuilds everything from
   GitHub, `render.yaml` (which now lists every environment variable) and the
-  newest Backblaze dump in 2 to 4 hours; sections u) and v) hold the accounts
+  newest Backblaze dump in 2 to 4 hours; sections v) and w) hold the accounts
   inventory and the second-owner / recovery-code checklist.
 * **Offsite status**: Backblaze B2 is the only backup location and is required;
   the nightly job fails (and emails) if its settings are missing. The
@@ -1127,7 +1197,7 @@ Layers, outermost first. A request must pass every one that applies to it.
 flowchart TD
   NET["Internet"] --> TLS["Render edge: TLS,<br/>trust proxy = 2 hops (TRUST_PROXY_HOPS)<br/>(real client IP)"]
   TLS --> HL["helmet: CSP, HSTS, no-referrer,<br/>frame-ancestors none"]
-  HL --> RL["Rate limits (per IP)<br/>login, checkout, cart, sign-ups,<br/>forum, contact + marketing forms, webhook"]
+  HL --> RL["Rate limits (per IP)<br/>login, reserve, cart, sign-ups,<br/>forum, contact + marketing forms, webhook"]
   RL --> SE["Session cookie: HttpOnly, Secure,<br/>SameSite=Lax; regenerated at login"]
   SE --> CF["CSRF token on every POST<br/>(webhook excepted: never trusts its body)"]
   CF --> AU["attachUser: role flags re-read from the DB<br/>every request; disabled, deleted or<br/>password-changed sessions drop"]
@@ -1142,18 +1212,24 @@ flowchart TD
 | Secrets | environment variables only (`sync: false` on Render; GitHub secrets for CI); `.env` is git-ignored; a secret scan runs on every PR; startup fails fast in production if `DATABASE_URL`, `SESSION_SECRET` or `TOTP_ENCRYPTION_KEY` are missing |
 | Authentication | see §5; enumeration-resistant signup, login, reset; HIBP breach check; two-step verification mandatory for admins, secrets encrypted with `TOTP_ENCRYPTION_KEY` |
 | Authorization | admin guard (including two-step) before multer; admins cannot demote, disable or delete themselves |
-| Preview mode | `PREVIEW_MODE=true` switches checkout and the membership widget off, adds a banner, and sends `noindex, nofollow` (header, meta tag, `robots.txt`, empty sitemap), so an unfinished site cannot take payments or be indexed |
+| Preview mode | `PREVIEW_MODE=true` switches reservations and the membership widget off, adds a banner, and sends `noindex, nofollow` (header, meta tag, `robots.txt`, empty sitemap), so an unfinished site cannot take reservations or payments or be indexed |
 | Moderation | admins can hide forum posts with a reason code; the author gets a statement of reasons (EU Digital Services Act) and the action is audit-logged without the post text |
 | AI features | optional and off without `ANTHROPIC_API_KEY`; price and awards lookups have separate switches and daily caps; AI-found awards stay hidden until an admin approves them; a suggested price is never saved without a person confirming it |
 | Book requests | double opt-in by emailed link, tokens stored as hashes, rate-limited, personal data cleared when a request ends |
 | Admin audit log | member changes, erasure, data export, two-step resets, deletes, bulk deletes, book moves and repricing, shop sales, pricing-rule changes, award edits, book-request handling, forum hide and restore, report CSV downloads and admin logins are appended to `admin_audit_log` and shown read-only at `/admin/audit`; it keeps the admin's id and email, the action and a numeric target, never member emails or names; rows are purged after 12 months |
-| CSP form-action | lists `'self'` plus the HelloAsso payment hosts (`lib/helloassoHosts.js`; sandbox hosts only when `HELLOASSO_API_BASE` is the sandbox), because Chrome blocks a cross-origin redirect after a form POST unless `form-action` allows it (`/cart/checkout` answers 302 to HelloAsso) |
-| Payments | never trust webhook or return-URL content; amounts computed server-side; idempotent state change |
+| CSP form-action | `'self'` only: no form of ours posts to another site and no redirect to another site follows a form POST (books and seats are reserved here and paid in the shop). The HelloAsso membership form is an iframe the visitor loads by pressing a button, allowed by `frame-src` on the marketing pages (`lib/marketingCsp.js`); `lib/helloassoHosts.js` now only tells whether `HELLOASSO_API_BASE` is the sandbox |
+| Payments | membership only: never trust webhook or return-URL content, re-ask HelloAsso with our own credentials; reservation amounts computed server-side; idempotent state changes |
 | Output | EJS auto-escapes; the only unescaped output is sanitised rich text or fixed markup; `esc()` in client code |
 | Uploads | admin only, size-capped, decoded and re-encoded by `sharp` with a pixel cap; stored in the `images` table and served from `/img/<hash>.jpg` (hash-named, immutable, no cookie) |
 | Email | one address only (no list separators), names stripped of links and angle brackets before going into mail; every customer email is stored in `email_outbox` first and retried (§7), stored copies are erased after 30 days |
 | Transport to the database | `rejectUnauthorized: false` is deliberate: Render's internal Postgres uses a per-instance self-signed certificate on a private network |
 | Supply chain | `npm audit` in CI; lockfile-exact builds; third-party Actions pinned by commit; weekly Dependabot pull requests, never auto-merged |
+| Direct-origin bypass | on a live site any request whose Host is not the host of `APP_BASE_URL` is redirected (GET/HEAD) or answered `421 Misdirected Request` (every other method), except `/healthz` and `/webhooks/helloasso`. The `onrender.com` address skips Cloudflare, so its proxy chain is shorter than `TRUST_PROXY_HOPS` assumes and a client-supplied `X-Forwarded-For` could otherwise become `req.ip` and defeat the per-IP limits (`middleware/canonicalHost.js`) |
+| Login lockout | per (account, IP) pair (5 wrong passwords, 15 minutes) plus a softer per-account total (20 in 15 minutes, refused only for addresses that never logged in to that account in the last 30 days), in memory (`lib/loginThrottle.js`): a stranger cannot lock the owner out. Two-step codes keep the per-account database lock |
+| Cover downloads | https only, two allowed hosts, every address class blocked by a `node:net` BlockList (private, loopback, link-local, CGNAT, multicast, reserved, IPv4-mapped in dotted and hex form, NAT64, 6to4, Teredo); the name is resolved once and the connection goes to that checked address with the real Host and TLS server name (no DNS rebinding window) (`lib/coverStore.js`) |
+| `/img` and static files | `/img` has a 300 per minute per IP limit on database reads (bad names and `If-None-Match` answers are free and never read the database). `public/`, `/assets` and `/logo.png` are mounted before helmet, so they set `nosniff`, `Referrer-Policy: no-referrer` and `Cross-Origin-Resource-Policy: cross-origin` themselves (`lib/assetUrl.js` `staticHeaders`). A `?v=` URL is immutable for a year, so on a deploy the new files must exist before old HTML stops pointing at them (the rolling deploy keeps serving old HTML from old instances that also have the old files; never delete a file a page still links in the same release) |
+| `/healthz` | the `SELECT 1` answer is cached for 3 seconds and a failed last check answers 503 (`lib/health.js`), so polling it cannot become a query loop |
+| Marketing CSP | the marketing pages share an origin with `/admin`, so `script-src` is `'self'` only (no `'unsafe-inline'`) and `script-src-attr 'none'`. The pages carry no inline script: their strings are a `<script type="application/json" id="page-i18n-data">` block read by `public/page-i18n.js`, and page code lives in `public/page-*.js` |
 | Caching | pages shown to a logged-in user are sent `no-store` (the Back button after logout shows nothing private); only `/img/` photos stay cacheable |
 
 **Personal data (GDPR).** Most personal data is keyed by email address, not by
@@ -1162,7 +1238,7 @@ reservations behind. The code handles it in one place (`lib/privacy.js`):
 
 * **Erase member** (admin, Members page) deletes the account, its sign-ups and
   sessions, releases an active reservation, and *anonymises* paid orders and
-  HelloAsso payment rows, which French accounting law requires us to keep for 10
+  HelloAsso membership payment rows, which French accounting law requires us to keep for 10
   years. Forum posts keep their text without an author name.
 * **Retention**: the daily purge in §9 enforces the periods the privacy policy
   states; the policy page and the constants in the code must change together.
@@ -1174,6 +1250,19 @@ reservations behind. The code handles it in one place (`lib/privacy.js`):
 * **Admin data export**: on a member's page an admin can download everything held
   about them as JSON (right of access). Password hashes, tokens and two-step
   secrets are never included.
+* **Requests without an account** (admin, `/admin/privacy`,
+  `lib/privacyRequests.js`): look an email address up, download everything held
+  under it (member exports for each account plus the address-keyed sections, via
+  `lib/memberExport.js`), or erase it (typed address, one transaction:
+  `eraseMember` for each account, `eraseEmailKeyedData` for the rest, outbox rows
+  by recipient and by `subject_email`; paid orders and payments anonymised). The
+  audit entry holds a keyed hash of the address, never the address; an
+  administrator's address is refused. Procedure: `docs/runbook.md`, "A data
+  request".
+* **Audit log retention:** free text (`detail`) is blanked after 6 months
+  (`RETENTION.auditDetailMonths`, a refund note or void reason can name a
+  customer); the row (action, admin, time) stays 12 months. The Accounts report
+  page view is logged (`reports.accounts.view`, once an hour per admin).
 * Contact-form messages stay in the Gmail inbox and server logs stay with Render;
   neither is purged automatically. The processing register and breach log are in
   `docs/privacy/`.
@@ -1192,7 +1281,7 @@ reservations behind. The code handles it in one place (`lib/privacy.js`):
 | `PGSSLMODE` | no | `disable` for local/CI databases |
 | `APP_BASE_URL` | recommended | absolute links in emails (verification, reset); Render's `RENDER_EXTERNAL_URL` is the fallback |
 | `GMAIL_USER`, `GMAIL_APP_PASSWORD` | recommended | all outgoing mail, including error alerts |
-| `HELLOASSO_CLIENT_ID`, `HELLOASSO_CLIENT_SECRET`, `HELLOASSO_ORG_SLUG` | for online payment | optional `HELLOASSO_API_BASE` |
+| `HELLOASSO_CLIENT_ID`, `HELLOASSO_CLIENT_SECRET`, `HELLOASSO_ORG_SLUG` | for online membership payment | optional `HELLOASSO_API_BASE` |
 | `HELLOASSO_MEMBERSHIP_FORM_SLUG` | no | when set, only orders of that HelloAsso form (its `formSlug`) grant membership; unset = any Membership-type form of the organisation |
 | `ANTHROPIC_API_KEY`, `ANTHROPIC_WORKSPACE_ID` | optional | cover scan, book descriptions and genre in admin inventory; also needed (with the switches below) for AI price and awards lookups |
 | `PRICING_AI` | optional | `true` or `1` turns on the AI market-price lookup behind price suggestions (needs `ANTHROPIC_API_KEY`); off by default, rules still work without it |
@@ -1204,7 +1293,7 @@ reservations behind. The code handles it in one place (`lib/privacy.js`):
 | `COVER_BACKFILL` | optional | `off` stops the background job that copies book covers to our own server (used by tests) |
 | `TRUST_PROXY_HOPS` | optional | integer 1 to 5: how many reverse proxies sit in front of the app (default **2** in production: Render's edge and its internal proxy; 1 elsewhere). The edge reports `cf-cache-status: DYNAMIC` for everything (the app sets its own `Cache-Control`); **a real CDN or caching rule added later changes the proxy chain, so re-check this value then**. `req.ip` is the Nth address from the right of the chain, so a spoofed `X-Forwarded-For` prefix is ignored. Logged at boot; verify on `/admin/diagnostics/client-ip` |
 | `APP_BASE_URL` | required when preview is off | `https://umasbooks.org`. On a live site it is the only base URL used (no `RENDER_EXTERNAL_URL` fallback) and any other Host is redirected to it |
-| `PREVIEW_MODE` | optional | `true` or `1` puts the site in preview: coming-soon banner, checkout and membership payment off, `noindex`. Unset to open the shop |
+| `PREVIEW_MODE` | optional | `true` or `1` puts the site in preview: coming-soon banner, reservations and membership payment off, `noindex`. Unset to open the shop |
 | `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD` | first boot | creates the first admin if none exists (and the email is free); also creates sample content in that same run. Never blocks startup: a failure is logged and emailed |
 | `CONTACT_TO` | optional | contact-form, volunteer sign-up, pre-registration and forum-report recipient: one address or several separated by commas (default `admin@umasbooks.org`) |
 | `ALERT_TO` | recommended | recipient(s) of every site alert (errors, failed or stuck email, failing jobs, launch warnings), comma separated; falls back to `CONTACT_TO`, then `admin@umasbooks.org`. A warning is logged on a live site when unset |
@@ -1250,6 +1339,16 @@ Deliberate trade-offs (revisit only if traffic or risk changes):
   7 days old and that no row references any more (a replaced cover is cleaned up
   after a week); re-uploads of the same file share one row. Object storage is the proper next step
   and would need no change to the URLs.
+* **No `hreflang` pairs.** English and French share ONE URL (the language comes from
+  the `umasbooks_lang` cookie, see section 4), so search engines cannot be told
+  "this is the French version of that page". Every page carries only
+  `<link rel="alternate" hreflang="x-default">` pointing at itself. Real pairs would
+  need separate URLs (`/fr/...`) per language: a larger change, not planned.
+* **Phone header = a `<details>` menu.** From 641px the nav is always visible
+  (`public/site-menu.js` opens it; without JavaScript a browser too old for
+  `::details-content` would show a closed menu on desktop). On phones the menu
+  and the preview banner's More link are native `<details>`, so they work without
+  JavaScript.
 * **Search is `ILIKE '%q%'`** over a few thousand books — fine now; trigram or
   full-text indexes when the catalogue grows.
 * **One Google Workspace mailbox** (`admin@umasbooks.org`) sends both human and
@@ -1271,14 +1370,28 @@ Deliberate trade-offs (revisit only if traffic or risk changes):
 
 Open items worth knowing:
 
-* Reservations hold a copy for two weeks. There is no public reservation form (the old `POST /books/:id/reserve` route was removed because anyone could hold copies under any email address); holds are made by admins or by the book-request flow.
-* A refund is never pushed to HelloAsso by the site and a refund made there is
-  only noticed within about 6 hours (and only for orders paid in the last 30
-  days, and only a full refund). Until the admin marks the order refunded, its
-  books stay marked sold.
-* Nothing in the terms of sale says what happens to a paid order not collected
-  after 14 days, so the site only reminds (customer day 10, admin day 12, the
-  dashboard) and never cancels or restocks by itself.
+* Reserving is limited to account holders with a confirmed email, to 10 books and
+  3 open reservations per account, and books are held 14 days (7 more if an admin
+  extends once). The old public `POST /books/:id/reserve` route stays removed
+  (anyone could hold copies under any email address); copies can still be held
+  for someone by an admin or by the book-request flow, without an order.
+* The site never moves money for a reservation: the payment and any refund are
+  done in the shop, and staff record them (**Mark collected and paid**, **Mark
+  refunded**). Until a refund is marked, the books stay marked sold and the
+  sale still counts. A partial refund of an order cannot be recorded; the order
+  would have to be split by hand.
+* A reservation that is not collected costs nothing and has no penalty: after the deadline the
+  items simply go back on sale (terms of sale and `docs/legal-todos.md` section
+  4). A customer can reserve again straight away.
+* Whether a reservation paid in the shop is a distance contract (and so has a
+  withdrawal right) is an open legal question (`docs/legal-todos.md`, section 7).
+  Following a legal review, the site treats a reservation as a free, non-binding
+  hold and shows no withdrawal notice or form for books and seats (withdrawal
+  text stays only for the online membership payment); the lawyer is asked to
+  confirm.
+* Revenue is counted on the day staff record the payment (`paid_at`), not the day
+  of the reservation; a payment recorded days after it was taken lands in the
+  day it was recorded.
 * The 6-hourly membership backstop only looks at orders from the last 3 days;
   older missed payments rely on the webhook or account verification.
 * If the only admin loses their phone and recovery codes there is nobody to reset

@@ -21,9 +21,10 @@
     <div class="trend-row"><span>This Month <%= stats.ordersThisMonth %></span> <%- trend(stats.ordersThisMonth, stats.ordersLastMonth) %></div>
   </div>
   <div class="admin-stat tone-green">
-    <div class="label">Total Sales</div>
-    <div class="value">&euro;<%= Number(stats.salesToday).toFixed(0) %></div>
-    <div class="trend-row"><span>This Month &euro;<%= Number(stats.salesThisMonth).toFixed(0) %></span> <%- trend(stats.salesThisMonth, stats.salesLastMonth) %></div>
+    <div class="label">Sales this month</div>
+    <div class="value" id="sales-month">&euro;<%= Number(stats.salesThisMonth).toFixed(0) %></div>
+    <div class="trend-row"><span id="sales-breakdown">Till &euro;<%= Number(stats.salesBreakdown.till).toFixed(0) %> &middot; Online &euro;<%= Number(stats.salesBreakdown.online).toFixed(0) %> &middot; Membership &euro;<%= Number(stats.salesBreakdown.membership).toFixed(0) %></span></div>
+    <div class="trend-row"><span id="sales-today">Today &euro;<%= Number(stats.salesToday).toFixed(0) %> &middot; Last month &euro;<%= Number(stats.salesLastMonth).toFixed(0) %></span> <%- trend(stats.salesThisMonth, stats.salesLastMonth) %></div>
     <% if (stats.refundsThisMonth > 0) { %><div class="trend-row"><span id="refunds-line">Refunded this month: <%= stats.refundsThisMonth %> (&euro;<%= Number(stats.refundsAmountThisMonth).toFixed(0) %>), not included above</span></div><% } %>
   </div>
   <div class="admin-stat tone-blue">
@@ -44,12 +45,13 @@
 </div>
 
 <% const mailItems = locals.outboxAttention || []; %>
-<% if (attention.overdue > 0 || attention.refund_detected > 0 || attention.stale_pending > 0 || mailItems.length) { %>
+<% if (attention.expiring_soon > 0 || attention.past_deadline > 0 || attention.overdue > 0 || attention.stale_pending > 0 || mailItems.length) { %>
 <div class="error-box" role="alert" id="needs-attention">
   <strong>Needs attention</strong>
   <ul>
-    <% if (attention.refund_detected > 0) { %><li><a href="/admin/orders?show=refund_detected"><%= attention.refund_detected %> order<%= attention.refund_detected === 1 ? '' : 's' %> refunded in HelloAsso but still Paid</a>: mark <%= attention.refund_detected === 1 ? 'it' : 'them' %> refunded to restock.</li><% } %>
-    <% if (attention.overdue > 0) { %><li><a href="/admin/orders?show=overdue"><%= attention.overdue %> paid order<%= attention.overdue === 1 ? '' : 's' %> not collected after 14 days</a></li><% } %>
+    <% if (attention.expiring_soon > 0) { %><li><a href="/admin/orders?show=expiring_soon"><%= attention.expiring_soon %> reservation<%= attention.expiring_soon === 1 ? '' : 's' %> expiring in 3 days</a> and not collected</li><% } %>
+    <% if (attention.past_deadline > 0) { %><li><a href="/admin/orders?show=past_deadline"><%= attention.past_deadline %> reservation<%= attention.past_deadline === 1 ? '' : 's' %> past the deadline</a> and not collected (released automatically)</li><% } %>
+    <% if (attention.overdue > 0) { %><li><a href="/admin/orders?show=overdue"><%= attention.overdue %> order<%= attention.overdue === 1 ? '' : 's' %> paid online and not collected after 14 days</a> (old orders)</li><% } %>
     <% if (attention.stale_pending > 0) { %><li><a href="/admin/orders?show=stale_pending"><%= attention.stale_pending %> unpaid order<%= attention.stale_pending === 1 ? '' : 's' %> older than 2 hours</a> (its books may be stuck)</li><% } %>
     <% mailItems.forEach(a => { %><li><a href="<%= a.href %>"><%= a.text %></a></li><% }) %>
   </ul>

@@ -50,6 +50,13 @@ change). Follow "Restoring from a backup" in
 [`umas-books/README.md`](../umas-books/README.md#restoring-from-a-backup).
 Anything members did since that backup is lost.
 
+## Accounts and secrets inventory
+
+The inventory (every service, its owner account, recovery email, 2FA, where the
+secret lives and who else has access, including UptimeRobot) is section v) at
+the end of this runbook. Add a row there when a new service is set up. The
+secrets themselves are listed in section b).
+
 ## b) Rotating secrets
 
 Rotate when a secret may have leaked, someone with access leaves, or a service
@@ -128,13 +135,16 @@ alerts) stop, or the uptime and backup alert emails stop.
 4. Test: use "Forgot password" on the site for your own account, and run
    GitHub > Actions > **Uptime check** > Run workflow.
 
-**HELLOASSO_\*.** Render env vars only. If wrong, online payment stops (the
-site logs an `[env] WARNING` at boot).
+**HELLOASSO_\*.** Render env vars only. HelloAsso is used for the
+**membership only** (books and drop-in seats are reserved on the site and paid
+in the shop). If wrong, online membership payment and "Check my membership"
+stop (the site logs an `[env] WARNING` at boot).
 
 1. In HelloAsso, create a new API client (or regenerate the secret).
 2. Render > `umas-books` > Environment > update `HELLOASSO_CLIENT_ID` and
    `HELLOASSO_CLIENT_SECRET` > **Save**.
-3. Make a small test payment.
+3. Open the membership page and check the HelloAsso form still loads (press
+   "Show the HelloAsso form"). A real test needs a real membership payment.
 
 **BACKUP_S3_\* (Backblaze B2).** Two kinds, in GitHub: the key pair are
 **repository secrets**, the bucket/endpoint/region are **repository
@@ -253,16 +263,7 @@ revoked Gmail password or a locked Google account was only noticed after up to
 a month). **No test email on a Monday = the alert channel is broken**: go to
 section m). You can also run it by hand any time (Run workflow).
 
-**External monitor.** An independent monitor, **UptimeRobot** (free plan,
-account `sharonbje@gmail.com`), checks `https://umasbooks.org/healthz` every
-**5 minutes** (an HTTP(s) monitor) and alerts by email and in its app. It gives
-the fast detection; the GitHub uptime check (every 30 minutes) stays as a second,
-independent layer. **Planned maintenance:** UptimeRobot > **Monitors** > the
-monitor > **Pause** (the pause icon), and **Resume** afterwards, so a deploy does
-not page you. If the site is down you get the UptimeRobot email within about 5-10
-minutes and the GitHub one within about an hour.
-
-**What each alert is, and what to do:** see section q) "When you receive an
+**What each alert is, and what to do:** see section r) "When you receive an
 alert".
 
 - **Site down** (and "recovered"): `.github/workflows/uptime-check.yml`.
@@ -277,6 +278,8 @@ alert".
 - **Contact form** (`src/routes/contact.js`): `CONTACT_TO`.
 - **Refund found in HelloAsso** and the **day-12 list of uncollected orders**:
   `ALERT_TO`; see section k.
+- **Reservations about to lapse** ("N reservations expiring within 2 days", once per
+  reservation): also sent to `ALERT_TO`; see section k.
 
 **DMARC report emails.** If your domain publishes a DMARC record with
 `rua=mailto:admin@umasbooks.org`, Google and others send a daily XML report
@@ -293,35 +296,77 @@ Open that label once a quarter: reports showing `fail` for mail you did send
 mean SPF or DKIM is wrong (ask whoever manages the DNS at Squarespace Domains).
 **Never put a filter on the `[umas-books]` alerts.**
 
-## e) Yearly calendar
+### External monitor: UptimeRobot
+
+A second, independent check watches the site from outside GitHub and Gmail, so
+an outage is still noticed if GitHub Actions or the Gmail account is itself the
+thing that broke.
+
+- **What it is:** UptimeRobot (free plan), account **sharonbje@gmail.com**, one
+  HTTP(s) monitor on `https://umasbooks.org/healthz`, every **5 minutes**.
+  Alerts go to that account's email and to the UptimeRobot app on the phone.
+- **Second layer:** the 30-minute GitHub check (`.github/workflows/uptime-check.yml`)
+  stays on. UptimeRobot is faster; GitHub also emails ALERT_TO.
+- **Pause it for planned maintenance** (a database move, a long deploy): log in
+  at uptimerobot.com > the monitor > **Pause**, and **Resume** when finished.
+  Do not delete it. A paused monitor that is never resumed is the usual way
+  to lose monitoring, so write "resume UptimeRobot" in the maintenance notes.
+- **What an alert means:** `/healthz` did not answer 200 within the time limit:
+  the site is down, the database is unreachable, or `/healthz` is answering 503
+  (it caches its last result for 3 seconds).
+- **First three actions:** (1) open `https://umasbooks.org/healthz` yourself;
+  (2) Render dashboard > `umas-books` > **Events** and **Logs** (is a deploy
+  failing, is the database up?); (3) if the last deploy is the cause, roll back
+  (section a); if the database is down, check Render's status page, and see
+  "Emails are not arriving" (l) only afterwards. Note: since the live site
+  answers only `umasbooks.org`, a check of the `onrender.com` address answers
+  `/healthz` and nothing else, by design.
+
+### What to do when you receive alert X
+
+The full table (every alert, who sends it, and the first three actions, including
+the UptimeRobot "DOWN" alert) is in section r) "When you receive an alert".
+
+## e) Quarterly and yearly calendar
+
+### Every quarter (put it in the shared calendar: 1 January, 1 April, 1 July, 1 October)
+
+- **Mailbox cleanup (12-month promise).** The privacy policy promises that the
+  emails sent by the website's contact form, volunteer sign-up and English
+  Immersion pre-registration (subjects start with `Website contact:`,
+  `Website volunteer sign-up` and `Website pre-registration:`) are deleted from
+  the admin@umasbooks.org mailbox after 12 months. Nothing does it
+  automatically, and a yearly check would let some emails stay up to 24 months,
+  so do it **every quarter**:
+  1. In Gmail, search `older_than:12m` (to see only the website's emails, use
+     `subject:(Website) older_than:12m`).
+  2. Review the list. Keep any conversation that is still ongoing.
+  3. Delete the rest (select all, Delete).
+  4. Empty the Trash (Gmail > Trash > "Empty Trash now"), or the emails stay
+     another 30 days.
+  The pre-registration emails hold a child's name and year of birth, so do not
+  skip them.
+- **GitHub Actions minutes:** also check the monthly usage (section t): GitHub > profile picture > Settings > Billing and plans > Usage this month.
+- **UptimeRobot:** check the monitors are still active and the plan is still free (section d).
+
+### Every year
+
 
 - **Domain renewal:** umasbooks.org is registered at **Squarespace Domains** and
   expires **2027-08-22** (the DNS is also managed there). Check auto-renew and
   the payment card a month before, and that the registrant/recovery email
-  is one the association controls (section u).
+  is one the association controls (section v).
 - **Node 22 end of life: April 2027.** Move to the next LTS before then. The
   version is set in three places and all must change together:
   `umas-books/.node-version`, `engines` in `umas-books/package.json`, and
   `NODE_VERSION` in `.github/workflows/ci.yml` (also check the other
   workflows for a Node version). Do it in one pull request and let CI test it.
-- **GitHub Actions minutes: every month** (GitHub blocked the jobs twice for
-  billing): see section s). One minute on the 1st of the month: GitHub > your
-  profile picture > **Settings > Billing and plans > Usage this month** and
-  read "Actions minutes".
-- **Contact, volunteer and pre-registration emails:** delete the emails sent
-  by the website's contact form, volunteer sign-up and English Immersion
-  pre-registration (subjects start with `Website contact:`, `Website volunteer
-  sign-up` and `Website pre-registration:`) that are older than 12 months from
-  the admin@umasbooks.org mailbox (Gmail search:
-  `subject:(Website) older_than:12m`, review, then delete; also empty the Trash).
-  Keep any conversation that is still ongoing. The pre-registration emails hold
-  a child's name and date of birth, so do not skip them. This is what the
-  privacy policy promises, and nothing does it automatically.
-- **Quarterly: check the UptimeRobot monitors** are still active (not paused) and
-  the plan is still free (UptimeRobot > Monitors, and My Settings > Billing).
-- **Emergency access test (section v):** someone other than the usual person
+- **GitHub Actions minutes:** the repo is private, so minutes are metered and
+  when they run out the backups stop. Check usage **every month** and keep a
+  spending limit set: section t).
+- **Emergency access test (section w):** someone other than the usual person
   logs into Render, GitHub, Backblaze, Squarespace and Google using only the
-  password-manager vault; refresh the accounts inventory (section u).
+  password-manager vault; refresh the accounts inventory (section v).
 - Also once a year: confirm the backup restore test emails are arriving, review
   Dependabot pull requests that have been waiting, and check the Backblaze
   and Render invoices.
@@ -359,7 +404,7 @@ afterwards and confirm it is green.
 
 While the site holds only sample books and test data, the Render service runs
 in **preview mode**: every customer page shows a "coming soon" banner, online
-checkout and the membership payment form are switched off, and search engines
+online reservations and the membership payment form are switched off, and search engines
 are told to ignore the site. It is controlled by one **Render environment
 variable**, `PREVIEW_MODE` (an environment variable, not a secret file and not
 a GitHub secret or variable). It is deliberately not in `render.yaml`.
@@ -372,8 +417,9 @@ To launch:
    next to it).
 4. Click **Save changes**. Render redeploys the service by itself; wait until
    it shows **Live**.
-5. Check the site: no banner on the home page, the cart shows the checkout
-   form, `/membership.html` shows the HelloAsso form, and
+5. Check the site: no banner on the home page, a logged-in account holder can
+   press "Reserve (free, no commitment)" in the cart, `/membership.html` shows the
+   HelloAsso form, and
    `https://<your site>/robots.txt` no longer says `Disallow: /`. The red
    "PREVIEW MODE is ON" strip is gone from the admin screens.
 
@@ -479,7 +525,7 @@ secret** = same page, **Secrets** tab.
 - [ ] **Domain.** `https://umasbooks.org` (and `www`) is attached to the Render
   service (Settings > Custom Domains) with a valid certificate, and loads the site.
 - [ ] **`APP_BASE_URL`** (Render environment variable) is `https://umasbooks.org`,
-  so emailed links and payment return URLs point at the real domain.
+  so emailed links and the membership payment return URL point at the real domain.
 - [ ] **`PREVIEW_MODE`** (Render environment variable) is deleted, as above.
 - [ ] **Real client IP.** Followed "Check the real client IP" below: req.ip is
   your own public IP from mobile data and from home wifi.
@@ -490,8 +536,9 @@ secret** = same page, **Secrets** tab.
 - [ ] **`HELLOASSO_API_BASE`** (Render environment variable) is unset or the
   production address, **not** the sandbox one. The `HELLOASSO_*` client id,
   secret and organisation slug are the live ones.
-- [ ] **HelloAsso webhook.** In the HelloAsso back office the notification URL
-  is `https://umasbooks.org/webhooks/helloasso`.
+- [ ] **HelloAsso webhook (membership).** In the HelloAsso back office the
+  notification URL is `https://umasbooks.org/webhooks/helloasso`. It only
+  handles membership payments now; books and seats are not paid online.
 - [ ] **`CONTACT_TO`** (Render environment variable) is the mailbox that should
   receive contact-form messages and forum reports (default
   `admin@umasbooks.org`).
@@ -514,6 +561,10 @@ secret** = same page, **Secrets** tab.
   kinds of user (guest, account holder, member, volunteer, admin); the account
   holder login must be a plain account that is not a member. Clean up what they created
   (the README lists how) before launch.
+- [ ] **A real reservation, end to end.** As an account holder (not a member)
+  reserve one cheap book, check the confirmation email arrives, then in admin >
+  **Orders** open the reservation and press **Mark collected and paid** (section
+  k). The book shows as sold and the sale shows in the sales report.
 - [ ] **Manual test scripts** run and passed, one script per kind of user (guest,
   account holder, member, volunteer, admin, edge cases): every **(must)** step,
   and the manual-only steps the automated tests list, see
@@ -549,6 +600,21 @@ in front of Render, the chain of proxies changes: re-do this check and adjust
    address, try 3; if it shows an address that is not yours but
    neither is it an edge address, try 1. Never set it higher than needed: too many
    hops let a visitor choose their own IP.
+
+5. **Check BOTH addresses, before launch.** Since the live site answers any
+   request that is not for `umasbooks.org` with a redirect (page views) or
+   `421 Misdirected Request` (form posts, anything but a page view), the
+   direct Render address can only be checked **while the site is still in
+   preview mode** (`PREVIEW_MODE` set). Repeat steps 1 to 3 on
+   `https://umas-books-cmvv.onrender.com/admin/diagnostics/client-ip` first,
+   then on `https://umasbooks.org/...`. On the Render address **req.ip** must
+   also be your own public IP (the chain there is shorter, so with a wrong hop
+   count a visitor could choose their own IP). After launch the Render address
+   only answers `/healthz` and the HelloAsso webhook; this is intended.
+
+### Rolling deploys and `?v=` file addresses
+
+Pages link their scripts and styles as `/file.js?v=<hash>`, and such a URL is cached for a year. During a deploy, old and new instances overlap, so a visitor can get old HTML (pointing at `?v=old`) from one instance and the file from another. Rule: a release must **add** the new files (they get a new `?v=`) and must not delete or rename a file that the previous release's HTML still links, until the next release. The marketing pages' scripts are `public/page-*.js` and `public/page-i18n.js`.
 
 ### Turning it on again
 
@@ -664,134 +730,193 @@ always white.
 Only copies that are **In Store** are listed. Nothing here changes prices; to
 change a price, open the book and use the price choices on the copy.
 
-## k) Refunds, withdrawals and orders not collected
+## k) Reservations, collecting and paying in the shop, refunds
 
-Online orders are paid through HelloAsso. **The website cannot move money:
-a refund is always done by a person in the HelloAsso dashboard.** The website
-then has to be told, so that the books go back on sale and the money stops
-counting as a sale. That second step is the **Mark refunded** button on the
-order page (admin > **Books & Orders** > **Orders**, then the order).
+**How it works.** A customer with an account reserves books (and drop-in seats)
+on the website. **Nothing is paid online.** The customer comes to the shop
+(Rue Peyrolière, Wednesday to Saturday, 14:00 to 19:00), and you take the payment
+yourself (cash, card machine or cheque). Then you record it on the website, so
+the books count as sold and the sale appears in the reports. For a drop-in seat
+the customer pays at the session. **Only the membership is still paid online
+(HelloAsso, section n).**
 
-What the terms of sale say (read them once: `/terms-of-sale.html`): books are
-collected at the shop "within 14 days of payment; if you need longer, write to
-us"; an online buyer may withdraw from a book purchase within 14 days of **collecting**
-it, by email, then bring the book back; we refund the full price by the same
-means of payment within 14 days of the notice (we may wait until we have the book
-back or the buyer shows proof of return, art. L.221-24). Drop-in sessions have no right of withdrawal,
-but if **we** cancel a session we refund in full. The shop itself does not take
-books back for a change of mind **in the shop** (the terms say: "Used books: no
-returns or exchanges for a change of mind in the shop. For online orders, your
-statutory 14-day right of withdrawal and the legal guarantees still apply").
-**Online orders always keep the 14-day withdrawal right**: never refuse a
-withdrawal email from an online buyer because the shop has a no-returns rule.
+Rules the site applies by itself (they come from `src/lib/legal.js` and the
+terms of sale, `/terms-of-sale.html`):
 
-### A customer withdraws within 14 days, or asks for a refund
+- Books are held **14 days** (until the end of the 14th day, Paris time). You
+  can extend a reservation **once, by 7 days**.
+- A reserved drop-in seat is held until the session is over.
+- One account can hold at most **10 books** and **3 open reservations**.
+- A customer can cancel their reservation from their account page; a seat only
+  until **24 hours** before the session.
+- Customer emails: a confirmation right after reserving (with the deadline, the
+  shop address and how to cancel; it is a reservation, not a proof of purchase), a reminder on
+  day 10, a short "your reservation has ended" email if it lapses (no penalty),
+  and a reminder 24 hours before a reserved drop-in seat.
+- You get one email "N reservations expiring within 2 days" (once per
+  reservation); the dashboard's **Needs attention** box also lists reservations
+  expiring within 3 days.
 
-1. **Read the email.** A withdrawal is a clear email to admin@umasbooks.org
-   (the withdrawal form in the terms is optional). Note the order number. Open
-   the order: admin > **Orders** > type the number, email or name in **Search**.
-   Check it is **Paid** and the buyer is who wrote to you.
-2. **Get the book back** (withdrawal): the customer brings it to the shop in the
-   same condition. Look at it. You may keep the refund until you have it back,
-   but never later than 14 days after the email. If the order was **not
-   collected yet** you can refund straight away.
-3. **Refund the payment in the HelloAsso dashboard** (https://admin.helloasso.com,
-   sign in as the association): find the payment (search the buyer's email or
-   the amount and date; the order page shows the HelloAsso ids to match), open
-   it and use HelloAsso's refund button for the **full amount**. Button names
-   change from time to time: HelloAsso's help centre has a page on refunding a
-   payment. Do not refund twice. **Do not do step 4 before step 3.**
-4. **Tell the website.** Open the order, press **Mark refunded (done in
-   HelloAsso)**. The page shows a warning ("Do this only AFTER you refunded the
-   payment in the HelloAsso dashboard"). Tick the box, write a note (for
-   example "Withdrawal email 3 Oct, book returned 5 Oct, refunded in HelloAsso
-   6 Oct") and confirm.
-5. **What the website does, all at once:** the order becomes **Refunded**
-   (with the time and your note); every book of the order goes back **In stock**
-   (a book that was sold again meanwhile is left alone, the order page and
-   Admin activity say so); every drop-in seat of the order is **released**, so
-   it counts as free for that session again; the sale disappears from the
-   dashboard, the reports (a **Refunds** table in the sales report shows it on
-   its own) and the buyer's totals; a line `order.refunded` is written to
-   **Admin activity**. It is safe to press twice: the second time changes nothing.
-6. **Email the customer** to confirm (the website does not): the refund is
-   done, and it can take a few days to reach their account.
-7. **Put the book back on the shelf** in the shop, in the right place. It is
-   already listed as In stock online.
+Everything is on **admin > Books & Orders > Orders** (`/admin/orders`). It opens
+on **Reserved: awaiting pickup**. The **Show** menu has **Expiring in 3 days**,
+**Expired**, **Paid**, **Refunded**, **Cancelled** and the other lists; **Search**
+finds an order by number, email or name.
 
-A **partial** refund (only one book of several): HelloAsso may refund only part
-of the amount. Do **not** press Mark refunded (it would put **all** the books
-back on sale and take the whole order out of the figures). Write a note in your
-own records instead and ask the developer if you need the order split.
+### A customer comes to collect a reservation
 
-### An order was not collected after 14 days
+1. Ask for the name or the reservation number (it is in their email). Open
+   admin > **Orders** and search, or open the **Pickup list** (link under the
+   filters, or `/admin/orders/pickup-list`): every open reservation grouped by
+   customer, with the **shelf** of each book and the **amount to collect**.
+   **Print version** (`/admin/orders/pickup-list?print=1`) is made for paper:
+   print it in the morning and tick the books as you fetch them.
+2. Fetch the books from the shelves (the order page also shows each copy's
+   shelf).
+3. Take the payment in the shop, then open the reservation (`/admin/orders/<number>`)
+   and fill **Mark collected and paid**: choose **How did they pay?** (Cash,
+   Card at the shop, Cheque or Other). **Amount received** is filled in with the
+   total. You may only **lower** it (a discount given at the till), and then the
+   note is required. Press **Mark collected and paid**.
+4. What happens: the reservation becomes **Paid** and **Collected**, the books
+   become **sold**, the sale counts in the dashboard and reports **from that
+   day** (the day you press the button, not the day of the reservation), and the
+   payment method and amount are kept on the order.
+5. If the reservation is already past its deadline (red message on the order
+   page) but the customer is standing in front of you with the books still on the
+   shelf, you can still collect it.
 
-The terms ask customers to collect "within 14 days of payment; if you need
-longer, write to us". **They do not say what happens after that**, so the shop
-has no written right to cancel a paid order or to sell the books again. Do not
-cancel it or put the books back on sale on your own.
+**The customer takes only some of the books** (partial pickup). On the order
+page use **Collect selected items**: tick the books being taken, choose how they
+paid, press the button. The ticked books are sold and paid. The books left
+behind move to a **new reservation** with the same deadline (the order page
+then shows "Related reservations" linking the two). This button only appears
+when the reservation holds more than one item.
 
-The website helps: on day 10 the customer gets a friendly reminder (it only
-repeats the terms: collect within 14 days, write to us if you need longer); on
-day 12 you get **one email** listing every order not collected; after 14 days
-the order is in the dashboard's **Needs attention** box and under admin >
-**Orders** > **Show: Not collected after 14 days**.
+**A drop-in seat**: the customer pays at the session. After the session, open the
+reservation and press **Mark collected and paid** if you took the money (or
+leave it: the seat is released by itself once the session is over, and a
+reservation that is never collected simply ends as expired).
 
-1. Open the order and **contact the customer** (email, phone if given). Offer
-   to keep the books longer; they may simply have forgotten. If they come:
-   press **Mark collected** on the order.
-2. If they say they no longer want the books, treat it as a refund request: the
-   books are theirs to refund only if you agree (it is the association's
-   decision, the terms do not force it either way). If you refund: follow the
-   steps in "A customer withdraws within 14 days" from step 3 (nothing to get
-   back, the book never left the shop).
-3. If you cannot reach them and you are unsure what you may do, **do not
-   keep deciding silently**: ask an adviser. If the association wants a firm
-   rule (for example "unclaimed after N days: refund and restock"), it has to be
-   **added to the terms of sale first** (ask the developer: the terms version is
-   recorded on each order).
-4. Whatever is decided, put a note in the refund note or your own records so the
-   next volunteer knows.
+**At the till.** If you use the till (`/admin/till`), you can collect the
+reservation there instead: type or scan **ORDER-** followed by the reservation
+number (or scan the **UB- label** of one of its books). All its lines appear at
+the reserved prices. Remove a line if the customer leaves that book or seat (a
+partial pickup: the rest stays reserved on a new reservation with the same
+deadline), then press **Cash** or **Card** as usual. The order is marked paid
+with that payment method, exactly as if you had pressed **Mark collected and
+paid** on its page. You can add walk-in books to the same sale. A till sale
+that collected a reservation cannot be voided at the till: to undo it, open the
+order and use **Mark refunded** after giving the money back.
 
-### A refund was done in HelloAsso and the site still shows Paid
+### Reservations not collected
 
-This happens when someone refunds in the HelloAsso dashboard and forgets the
-website (or a refund was made by HelloAsso itself). The books stay "sold" and
-the money still counts as a sale.
+You do not have to do anything for a reservation that nobody collects: after the
+deadline the books go back on sale by themselves (they are released the next
+time anyone looks at the shop, and at the latest within 6 hours), the customer
+gets the "your reservation has ended" email, and there is no penalty and
+nothing to refund (nothing was paid).
 
-The website looks for it by itself: every 6 hours it asks HelloAsso about the
-paid orders of the last 30 days. When a payment is refunded or canceled there,
-it **does not change anything** but:
+If you want to act before that:
 
-- sends **one email** to admin@umasbooks.org: "Order #N was refunded in
-  HelloAsso: mark it refunded in admin to restock" with a link (several orders
-  found in the same run come in one email);
-- shows a red box on the order page, adds it to the **Show: Refund detected in
-  HelloAsso** list and to the dashboard's **Needs attention** box.
+1. Open **Show > Expiring in 3 days** (or follow the link in the "N reservations
+   expiring within 2 days" email). Contact the customer (email, phone if given).
+2. **They need more time:** open the reservation and press **Extend by 7 days**.
+   It works **once** per reservation; the button then disappears. Ask them to
+   come in the new period.
+3. **They say they do not want the books:** press **Cancel reservation** (see
+   below), or ask them to cancel from their account page.
+4. **They never answer and the deadline has passed:** you can leave it (it
+   releases itself) or press **Mark no-show / expired** to put the books back
+   on the shelf at once. The difference from "Cancel reservation" is only how it
+   is recorded: a no-show is counted as expired in the **Reservations** report.
+5. **Show > Expired** lists the reservations that lapsed. A customer who still
+   wants a released book must reserve it again on the website (if it is still
+   available).
 
-What to do: open the order from the link, **check in the HelloAsso dashboard**
-that the payment really was refunded (full amount), then press **Mark refunded
-(done in HelloAsso)** and write a note ("noticed by the website, refunded by
-...") as in step 4 above. If the refund was only partial, or was a mistake,
-do **not** press it; ask the developer.
+### Cancelling a reservation
 
-If the 6-hourly check cannot reach HelloAsso you get an error email ("HelloAsso
-refund check failing"); the check also depends on the HelloAsso credentials in
-Render (section b). A refund the check cannot see (older than 30 days, or an
-order with no HelloAsso payment recorded) must be marked by hand as above.
+- **The customer cancels:** from their account page (or the reservation page)
+  they press **Cancel reservation**. Books go back on sale at once; for a
+  drop-in seat this works until 24 hours before the session. Within 24 hours they
+  must write to you; you can then cancel it yourself.
+- **You cancel:** open the reservation and press **Cancel reservation**
+  (it asks you to confirm). The books go back on the shelf (listed as in stock
+  online) and the seats are freed. The customer is not emailed by the website:
+  write to them if it was your decision.
+- A cancelled or expired reservation never counts as a sale. Its customer's
+  name and contact details are anonymised 30 days later (privacy rule).
 
-### Other order buttons
+### Selling a book that is reserved
 
-- **Mark collected**: when the customer has taken the books. Shows "Collected"
-  and leaves the "waiting for pickup" list. Drop-in-only orders never wait for pickup.
-- **Cancel unpaid order**: for an order stuck in **Pending** (someone started
-  paying and left). HelloAsso is asked first; if the order was in fact paid it
-  is not cancelled. Customers can also cancel their own unpaid order from their
-  cart page ("Your unpaid orders").
+A book reserved online belongs to its reservation. You cannot "sell" it from the
+inventory screens: **Sell in shop** and the inventory release buttons refuse it
+and say which order holds it ("Not sold: ... is reserved by order #N. Open that
+order to collect it ... or cancel the reservation first").
+
+- **The reserving customer buys it:** collect the reservation as above.
+- **Someone else wants that copy in the shop:** if the shelf has no other
+  copy, ask the reserving customer, or cancel their reservation (**Cancel
+  reservation**; tell them) and then sell the book normally with **Sell in
+  shop**. Do not hand the book over before cancelling: the reservation would
+  still show it as held.
+- A book that is **not** reserved (In stock) is sold with **Sell in shop**
+  exactly as before.
+
+### Refund after collecting
+
+A reservation is a free hold and the sale is made and paid in the shop, so the
+site shows no withdrawal notice or form for books and seats (a legal review
+asked for this; the lawyer is asked to confirm: `docs/legal-todos.md`, section
+7). The terms say: "Used books are not taken back for a change of mind once
+bought in the shop; the legal guarantees still apply." The legal guarantees
+(a book that does not match its description) always apply, so **never refuse a
+customer who writes about a book that does not match its description**: look at
+the book and ask the association's adviser if you are unsure.
+
+**The website cannot move money.** The refund is done **in the shop** (cash,
+cheque or card), then you record it:
+
+1. Read the customer's email to admin@umasbooks.org (a clear email is enough:
+   no form is needed). Open the order: admin >
+   **Orders** > search. Check it is **Paid**.
+2. Get the book back (it can be kept until the book is back, but never later
+   than 14 days after the email) and give the money back: cash, cheque or card.
+3. **Only after you gave the money back**, open the order and press **Mark
+   refunded**. A confirmation page asks you to tick "I have already given the
+   money back to the customer" and to write a note (for example "Withdrawal
+   email 3 Oct, book returned 5 Oct, refunded in cash 5 Oct"). Confirm.
+4. What the website does at once: the order becomes **Refunded**; the books go
+   back **In stock** (a book already sold again is left alone); drop-in seats are
+   released; the sale leaves the dashboard, the reports (a **Refunds** table in
+   the sales report shows it) and the buyer's totals; the action is written to
+   **Admin activity**. Pressing twice changes nothing.
+5. Email the customer to confirm (the website does not), and put the book back
+   on the shelf.
+
+A **partial** refund (one book of several): do **not** press Mark refunded (it
+would put **all** the books back on sale). Write a note in your own records and
+ask the developer if you need the order split.
+
+An order from before reservations existed that was **paid online on HelloAsso**
+(old orders only; none are created any more) must be refunded in the HelloAsso
+dashboard (https://admin.helloasso.com) **before** you press Mark refunded.
+
+### Other order buttons and lists
+
+- **Show > Paid online and not collected (old orders)** and **Cancel unpaid
+  order** exist only for orders from the old online checkout (before
+  reservations). Nothing new creates them.
+- **Reservations report:** admin > **Reports** > **Reservations** (or
+  `/admin/reports/reservations`): reserved, collected and paid, expired and
+  cancelled, by month, and the conversion rate (collected out of the
+  reservations that are over). It can be downloaded as a spreadsheet (CSV).
+  Money is counted in **Sales over time** at the day you record the payment.
+- **Reservations are switched off in preview mode:** customers see a friendly
+  notice and nothing can be reserved (section g).
 
 ## l) Emails are not arriving (outbox)
 
-Every email the site sends (order confirmations, account and password links,
+Every email the site sends (reservation confirmations and reminders, account and password links,
 book-request and reservation mails, forum notices, the contact form) is first
 saved in the **email outbox**, sent at once, and retried automatically if it
 fails: after 1, 5, 15 and 60 minutes, then every 4 hours, up to 8 tries.
@@ -819,10 +944,11 @@ go out after you set both in Render (section b).
    rows are retried every minute when due. Rows that already gave up (status
    **failed**) are not retried by themselves: use **Retry now** on each, then
    **Mark failed as handled** to clear the warning.
-3. A buyer says they never got their confirmation: Admin > **Books & Orders** >
-   **View Orders**, find the order: it says "Confirmation: sent ..." or "NOT
-   SENT". Click **Resend confirmation**. The buyer can also open the order page
-   they saw after paying ("Order #N paid"), which is a printable proof.
+3. A customer says they never got their reservation confirmation: Admin >
+   **Books & Orders** > **Orders**, find the reservation: it says "Confirmation:
+   sent ..." or "NOT SENT". Click **Resend confirmation** (only for a
+   reservation that is still open). The customer can also open the reservation
+   page from their account page, which shows the same details.
 4. A person never got an account link: ask them to use "Forgot password" again
    (or "Resend confirmation" on the login page) once mail works. Those mails
    lose their text as soon as they are sent, so they cannot be resent from the
@@ -830,6 +956,16 @@ go out after you set both in Render (section b).
 
 The text of sent emails is erased after 30 days (failed ones after 90): old rows
 only show who/what/when.
+
+Throttled mail is normal, not a fault: signup, forgot-password, membership
+join and book-request mails go to a given address at most once per 10 minutes
+per kind, five a day, with a shop-wide hourly cap (`THROTTLE` in
+`umas-books/src/lib/outbox.js`). The person sees the usual neutral answer; the
+server log line "Mail throttled (kind:reason)" counts them. If a genuine person
+says no mail came, ask them to wait 10 minutes and look in spam before trying
+again. A reset or confirmation mail that failed or whose link has expired shows
+no text in the outbox (blanked on purpose) and cannot be retried: the person
+asks again.
 
 ## m) Gmail password revoked
 
@@ -892,10 +1028,19 @@ Once the accountant answers:
 3. Make a pull request as usual. The line then reads, in all four places,
    "TVA non applicable, art. 293 B du CGI". Nothing else needs editing.
 
-**The footer social links.** The Instagram and Facebook icons are hidden until
-real pages exist. When they do, put the full addresses in `SOCIAL_LINKS` in the
-same file (`umas-books/src/lib/legal.js`, for example
-`instagram: "https://www.instagram.com/..."`); an empty value stays hidden.
+**The footer social links.** The Instagram icon shows the association's page
+(`SOCIAL_LINKS.instagram` in `umas-books/src/lib/legal.js`); Facebook stays
+hidden until a real page exists (put the full address in `facebook`; an empty
+value stays hidden). Use the clean address, without the `?...` tracking part.
+
+**The shop opening hours.** Wednesday to Saturday, 14:00 to 19:00, set in ONE
+place: the `SHOP_*` constants in `umas-books/src/lib/legal.js`. Every page,
+email, reminder, the terms of sale and the structured data for search engines
+read them. The shop may also open at other times when volunteers are available,
+but only the regular hours are promised: the visit page says so and links to
+Instagram (`SHOP_EXTRA_HOURS_NOTE_URL`), emails and terms say only the regular
+hours are guaranteed. If the days or hours change, edit the constants and bump
+`TERMS_OF_SALE_VERSION`.
 
 ## p) The till
 
@@ -924,6 +1069,10 @@ Written for the person who runs the shop. Nothing here needs a developer.
    see its manual ("add CR suffix"). If the characters are wrong (for example
    digits turn into symbols), the scanner is set to the wrong keyboard layout
    (set it to US layout, or the layout of the tablet).
+   **The scanner suffix must be Enter, not Tab.** With a Tab suffix the cursor
+   leaves the scan box after each code and two scans run together into one
+   wrong code (for example `UB-12UB-13`). The Till page says the same at the
+   bottom of the payment column.
 4. The page keeps the cursor in the scan box by itself. After a mistake the
    screen shows a red message and beeps (untick "Beep on errors" to silence).
 
@@ -935,6 +1084,18 @@ or **Inventory > Labels**, or **Price stickers > Print labels**. Choose the
 size (width and height in millimetres) and **a label roll** (one label per
 page) or **a sheet of labels** (A4). In the print window choose **100% / actual
 size** and no headers or footers, and print one label to check before many.
+The page title and menu are never printed: the first page of a roll is the
+first label.
+
+**Printer resolution (`dpi`).** Choose **203 dpi** (most label printers) or
+**300 dpi** (`&dpi=300` in the address). The barcode is drawn with a whole
+number of printer dots per narrowest bar: 3 dots at 203 dpi, 4 dots at 300 dpi.
+A bar of 2.6 dots would print as some bars of 2 and some of 3 dots and scan
+badly, so the width of the barcode follows from the length of the code (about
+42 mm for `UB-1234` at 203 dpi), not from the width of the label. If the label
+is too narrow the page shows a warning: the bars are then drawn with fewer
+dots per bar (never a fraction), the text is made smaller, and the warning says
+which width is needed. Use at least 45 mm labels for the standard size.
 
 ### Books with no ISBN
 
@@ -949,7 +1110,9 @@ sells it by scanning the label (`UB-...`). The label and till screens show
 ### Open the day
 
 At the start, on the Till page type the cash in the drawer (the **opening
-float**) and press **Save opening float**. You can also do it on **End of day**.
+float**) and press **Save opening float**. You can also do it on **End of day**,
+and there you can enter the float of a **past day that was never closed** (open
+that day with the date box, type the float, **Save opening float**).
 
 ### Selling
 
@@ -957,15 +1120,27 @@ float**) and press **Save opening float**. You can also do it on **End of day**.
    several copies in stock a big list asks which one (price, grade, place):
    tap it. Prefer the label: it is exactly that copy.
 2. A copy with no price asks for one. For a **used** book you can change a
-   price by tapping it (type the agreed price, optional reason). A **new** book
-   must stay between 95% and 100% of the publisher's price (French fixed book
-   price law): the till refuses anything else.
+   price by tapping it (type the agreed price). Raising it by up to 20% needs no
+   reason; **a lower price, or one more than 20% above, needs a reason** (kept in
+   the admin activity log) and **only an admin can do it**. A book is never sold
+   for 0 (only a manual **Donation** line can be 0). A **new** book must stay
+   between 95% and 100% of the publisher's price (French fixed book price law):
+   the till refuses anything else, and a discount on it also needs a reason.
+   One sale is at most **EUR 10,000**: above that the till says "Sale total too
+   large".
 3. **Cash**: type what the customer gave (or tap Exact, 5, 10, 20, 50). The
-   big green **Change to give** appears. Open the drawer, press **Confirm sale**.
+   big green **Change to give** appears. Open the drawer, then **tap Confirm
+   sale**. The Enter key never confirms a payment, and a barcode scanned while
+   the Cash or Card screen is open is ignored (a note says "Finish or cancel
+   this payment first"). When the Cash or Card screen opens, the till first
+   checks the sale and shows any problem (a book sold meanwhile, a closed day...)
+   **before** the customer pays.
 4. **Card**: the screen says "Charge EUR x on the SumUp reader, then press Card
    paid". Charge it on the reader; when the reader says approved, press **Card
    paid** (you may type the last 4 digits or the terminal receipt number first).
-   If the reader says refused, press Back and try again or take cash.
+   If the reader says refused, press Back and try again or take cash. If the
+   till then cannot record the sale, see "The card was charged but the sale was
+   not recorded" below.
 5. **Sale recorded**: press **Next customer** (or tick the 10 second automatic
    option). **Receipt** prints a simple receipt with no customer data.
 6. A mistake before paying: **Remove** the line, or **Clear sale**.
@@ -980,8 +1155,8 @@ stock. For things you sell often, add them under **Inventory > Other stock (not
 books)** (or **Other stock (not books)** on the Till page): each becomes a big
 button on the till. Give an item a number in **Stock** if you want it counted: it
 goes down with each sale, the till refuses to sell it at 0 and the button says
-"low" at 3 or fewer. The category (Merchandise, Refreshments, Donation, Books
-(other), Other) decides which line of the accounting export it lands in. These
+"low" at 3 or fewer. The category (Merchandise, Refreshments, Donation, "Other
+(not new books: scan new books so the price rules apply)", Other) decides which line of the accounting export it lands in. These
 lines also say "TVA non applicable" on the receipt; there is no VAT calculation.
 
 ### Barcodes on items
@@ -993,9 +1168,10 @@ adds one; scan again for another one (or use + and - on the line). Items with
 no barcode: press **Generate a shop code** (it becomes `ITEM-<number>`), then
 **Print barcode label** and stick the label on the item. Rules: each active
 item needs its own code; a code cannot start with `UB-` (that is for books) or
-look like `ORDER-<number>`; if a code is also a book's ISBN you get a warning,
-and the till will add the item rather than the book (sell that book by its
-label).
+look like `ORDER-<number>`; **a code that is also a book's ISBN is refused**
+when you save the item (it would hide that book at the till: scanning would add
+the item instead of the book). Use a shop code (`ITEM-<number>` or your own,
+like `TOTE-GREEN`) for such an item.
 
 ### Voiding a sale
 
@@ -1004,13 +1180,23 @@ Only **today's** sales, only until the day is closed. On the Till page under
 The books go back in stock and the sale no longer counts in reports. Older
 sales cannot be voided: tell the treasurer.
 
+**A card sale is not refunded by the till.** The void form says "This was a card
+payment: refund it on the SumUp reader or app yourself". Refund the card in
+SumUp, then tick **I refunded the card** (on the void form, or afterwards on the
+Till page or **End of day**). Until it is ticked the voided sale shows in
+**Needs attention** on the Dashboard and on End of day, so a refund cannot be
+forgotten.
+
 ### If the internet is down
 
 Write each sale on paper (what, price, cash or card, time). When the internet
-is back, enter them the same day: on the Till, put the books on the sale, open
-**Sale made earlier today** and type the time it was really sold, then pay. The
-sale keeps that time and the admin activity log records that the time was set
-by hand. Take only cash if the card reader needs the internet (or use the SumUp
+is back, enter them (today or yesterday at the latest): on the Till, put the
+books on the sale, open **Sale made earlier**, choose Today or Yesterday, type
+the time it was really sold and **the reason** (required, for example "internet
+was down"), then pay. Only an admin can do this. The sale keeps that time, the
+admin activity log records the reason, and the sale is marked as entered later
+(it is recognised by the moment it was typed in, not the time of the sale). If
+that day was already closed, see "Reopening a closed day" below. Take only cash if the card reader needs the internet (or use the SumUp
 app on a phone with its mobile data).
 
 ### If the card reader fails
@@ -1026,21 +1212,109 @@ on the till as Cash or Card (put "app" in the card reference).
    type the total in **Counted cash**. The screen shows **over** or **short** as
    you type.
 3. Add a note if there is a difference, then **Close the day**. This locks that
-   day's voids. **Print summary** prints a plain end-of-day sheet; **Download
+   day's voids and refuses new sales for that day. If you never entered the
+   opening float, the till asks you to tick "close with no opening float (counts
+   as EUR 0)" (or save the float first). **Print summary** prints a plain end-of-day sheet; **Download
    CSV** gives the list of sales.
 4. Keep the float for tomorrow in the drawer and take the rest to the bank.
    A day with sales that is not closed appears under **Needs attention** on the
    Dashboard.
 
+### The card was charged but the sale was not recorded
+
+This is the one situation where money and the till can disagree, so read it once.
+
+- **Before the customer pays**, the Card screen checks the sale. If it shows a red
+  problem (a book sold meanwhile, the day is closed, a price changed), **do not charge
+  the card**: fix it first (Back, remove the line, rescan).
+- **"The price changed: new total EUR x. For a card sale do not charge again: cancel
+  the card charge on the reader and restart."** A price was edited between scanning
+  and confirming, so the amount on the reader would not match the sale. **Nothing was
+  recorded.** If the customer was already charged, cancel/refund the charge on the
+  SumUp reader or app, press **Restart the sale**, rescan, and charge again.
+- **"The card was already charged. Do NOT charge again."** (red box) means you pressed
+  **Card paid** and the server refused or failed afterwards. The sale on the screen is
+  kept (even if you reload the page). Read the message under the box, fix what it says
+  (for example tick "Reopen this day" if an admin has to), then press **Record card
+  sale** again: it checks the sale first and shows the reason. **Record anyway** sends
+  the same sale again with the same total and no check in front: use it when the check
+  itself keeps failing but you know the sale is fine, or ask an admin.
+- "Connection problem" means the answer never arrived: pressing the button again is
+  safe, the same sale cannot be recorded twice. If the server answered with an error
+  (it says so, with a code), that is not a connection problem: follow the message.
+- "This sale was already recorded with different items" means the screen was reused
+  for another basket: reload the till page and start the sale again.
+
+### Reopening a closed day
+
+A sale (also one "made earlier") on a closed day is refused. If it must be recorded:
+as an admin, open the Cash or Card screen, tick **Reopen this day to record this
+sale** and type a reason; or press **Reopen the day** (with a reason) on **End of day**.
+The day is open again, the counted cash is cleared and **you must close the day again**
+after recounting. Both are written to the admin activity log (`till.day_reopen`) with
+the old counted and expected cash. Late entries are shown on End of day ("sale(s) were
+entered after the day was closed").
+
+### Who can use the till (Till access)
+
+An admin can give any account **Till access**: **Admin > Accounts**, open the account,
+press **Till access: off (give)**. That account (for example a volunteer) then logs in
+as usual and lands on the Till: it can scan, sell, void today's sales, tick card
+refunds and look at End of day, **and nothing else**. Only admins can change a price
+beyond the rule, enter a sale with an earlier time, reopen/close the day, enter the
+float, manage quick items or open any other admin page. A Till-only account does not
+need two-step verification (admins still do) but its till session ends after **8
+hours without any till action**: log in again. Remove the access the same way; it
+stops at once. The list shows a **Till** pill; **Reports > Accounts** shows "+ Till".
+
+### "Sell in shop" is retired
+
+The old page (Books & Orders > Sell in shop) is gone: its address now sends you to the
+Till with "Sales are made at the Till now". Old sales recorded there are kept and still
+count in the reports and the accounting export.
+
+### A book in an abandoned online cart
+
+If you scan a copy that is "in someone's online cart" and the cart's hour has run out
+(nobody paid), the till offers **Release this copy from the expired cart and add it**.
+If the cart is still live it refuses and says how many minutes remain.
+
 ### The accounting export for the treasurer
 
-**Reports > Accounting export**: choose the dates, **Download CSV**. One row per
-day, category (Books used, Books new, Merchandise, Refreshments, Class seats,
-Membership, Donation, Other) and payment method (Cash, Card at the till,
-HelloAsso), with the count and the total in euros. It never contains names or
-emails. Voided sales and refunded orders are left out. "Books (other)" manual
-items appear as Other. Whether Paheko's import accepts this layout is not
-confirmed: see `docs/till-todos.md`.
+**Reports > Accounting export**: choose the dates, then **Download CSV**
+(comma separators and decimal points) or **Download for French Excel**
+(semicolon separators, decimal commas, UTF-8 with BOM, Windows line ends: French
+Excel opens it in columns with real numbers; the plain CSV opens as one column
+of text in French Excel). The same two downloads exist on the End of day page
+and on the other reports.
+
+**Giving the export to the treasurer.**
+
+1. At the start of each month download the previous month (first to last day)
+   with **Download for French Excel** and send the file. Row layout: Date,
+   Category, Payment method, Count, Total (EUR), Libellé, Compte débit,
+   Compte crédit, Journal. One row per Paris day, category and payment method
+   (Cash, Card at the till, HelloAsso, Other / not recorded). It never contains
+   names or emails.
+2. **Refunds.** A refunded online order keeps its row on the day it was paid and
+   gets a **negative** row (negative count and total, label "Remboursement ...")
+   on the day it was refunded. A month already sent is therefore not changed:
+   the correction is in the export of the month of the refund.
+3. **Cash over/short.** When a day is closed with a difference, one row
+   "Cash over/short" appears (positive: over, negative: short) with the accounts
+   658 / 758. The opening float is never revenue and appears nowhere.
+4. **Accounts.** The debit account, credit account and journal of each row come
+   from **Reports > Accounting export > Accounts mapping**
+   (`/admin/reports/accounting/mapping`), an editable table; each change is
+   recorded in Admin activity. Starting values: cash 530; cards and HelloAsso
+   511 (clearing account, to confirm: the treasurer may want 512); payment with
+   no recorded method 471; Books used, Books new, Merchandise, Refreshments
+   707; Class seats 706; Membership 756; Donation 754; Other 708; over 758,
+   short 658. **These are only a starting point: ask the treasurer to confirm
+   the account numbers and the import layout.** Nothing here was checked
+   against Paheko or any other software.
+5. Voided till sales and cancelled online orders are not in the export.
+6. The manual category "Other (not new books: scan new books so the price rules apply)" appears as Other (it is not mapped to Books used: see `docs/till-todos.md`).
 
 ### Later: the SumUp Cloud API
 
@@ -1049,7 +1323,77 @@ implementation (`src/lib/cardPayments.js`) but nothing is connected and no
 environment variable is read. When it is built it will need a SumUp API key and
 a paired Solo reader as Render environment variables (names to be decided then).
 
-## q) When you receive an alert: what to do
+## q) A data request (access or erasure)
+
+Someone writes to admin@umasbooks.org asking what we hold about them, or to be
+erased, with or without an account. The tool is admin > **Privacy requests**
+(`/admin/privacy`). The privacy policy promises an answer within one month.
+
+**1. Log it.** Add a line to `docs/privacy/requests-log.md` (date received, kind,
+deadline). No names or addresses in that file, only a number.
+
+**2. Check who is asking.** The request must come from the address concerned: reply
+to the message and ask them to answer from that address, or to send proof they own
+it (a message from it is enough). If they write from another address, ask for proof
+(never accept a request for someone else's data without it, and never send data to
+an address that was not the one on the request).
+
+**3. Deadline.** One month from receiving the request (and the proof). It can be
+extended by two further months if the request is complex or there are many, but you
+must tell the person within the first month, with the reason.
+
+**4. Search everywhere** (the tool covers the database only):
+- Admin > **Privacy requests**: type the address > **Look up**. It lists accounts,
+  orders, reservations, event and class sign-ups, book requests, membership payments
+  (and unmatched ones), stored emails (subject and date) and form mail.
+- **The Gmail inbox admin@umasbooks.org**: search the address and the person's name.
+  Contact, volunteer sign-up and pre-registration messages (a pre-registration holds a
+  child's name and date of birth) live there, not in the database after 30 days.
+- **Backblaze backups** are not searched: they age out by themselves (nightly dumps
+  30 days, monthly 2 years). Tell the person that when you answer an erasure.
+- Render logs hold no personal data by design (14 days).
+
+**5a. Access.** Press **Download everything (JSON)** and send the file as an
+attachment to the address (or a link that expires), plus any Gmail messages found.
+
+**5b. Erasure.** Press **Erase everything for this address**, type the address again
+and confirm. Accounts, sign-ups, reservations, book requests and stored emails are
+deleted; paid orders and payment records stay for 10 years with the name replaced by
+"Erased" (accounting law). Then delete the Gmail messages found (and empty the
+Trash). An administrator's address is refused: remove the role in Accounts first.
+
+**6. Answer and record.** Send the answer, and fill in the log line (date answered,
+what was done). The audit entries (`privacy.lookup`, `privacy.export`,
+`privacy.erase`) hold a code, never the address.
+
+Answer templates (adapt the details):
+
+*English, access:* "Hello, thank you for your request of [date]. We confirmed it came
+from your address. Attached is a file with the personal data we hold about you
+(accounts, orders, sign-ups, requests). [We also found N emails in our mailbox, listed
+below.] You can ask us to correct or erase anything. Uma's Books and Adventures, admin@umasbooks.org."
+
+*English, erasure:* "Hello, thank you for your request of [date]. We have erased the
+data held under your address, with one exception: orders and payments are kept without
+your name, email or phone for 10 years because French accounting law requires it.
+Backups containing older copies are deleted automatically within 30 days (nightly) and
+2 years (monthly archive); they are never used. Uma's Books and Adventures."
+
+*Français, accès :* « Bonjour, merci pour votre demande du [date]. Nous avons vérifié
+qu'elle provient bien de votre adresse. Vous trouverez en pièce jointe un fichier avec
+les données personnelles que nous détenons sur vous (comptes, commandes, inscriptions,
+demandes). [Nous avons aussi trouvé N messages dans notre boîte mail, listés
+ci-dessous.] Vous pouvez nous demander de corriger ou d'effacer toute donnée. Uma's Books
+and Adventures, admin@umasbooks.org. »
+
+*Français, effacement :* « Bonjour, merci pour votre demande du [date]. Nous avons
+effacé les données liées à votre adresse, à une exception : les commandes et paiements
+sont conservés 10 ans sans votre nom, e-mail ni téléphone, car la loi comptable
+française l'exige. Les sauvegardes contenant d'anciennes copies sont supprimées
+automatiquement sous 30 jours (quotidiennes) et 2 ans (archive mensuelle) ; elles ne
+sont jamais utilisées. Uma's Books and Adventures. »
+
+## r) When you receive an alert: what to do
 
 Every alert email, who sends it, and the first three things to do. "Gmail
 sender" means the Google account in `GMAIL_USER`; GitHub workflow emails say
@@ -1064,22 +1408,19 @@ signal: the Monday test alert (section d) proves the channel works.
 | UptimeRobot "Monitor is DOWN" (`umasbooks.org/healthz`) | UptimeRobot, within 5-10 min | The site or its database does not answer | Same three actions as "Site health check failing" above. Planned work: **Pause** the monitor first (UptimeRobot > Monitors > pause icon), **Resume** after. A "Monitor is UP" email = recovered |
 | `Site health check recovered` | GitHub | The outage is over | Nothing. Look in Render **Events** for the cause and note it |
 | `Nightly database backup failed` | GitHub, 03:00 UTC | No new backup tonight (older ones are safe) | 1. Open the run link in the email, read the red step. 2. "settings are missing" = a `BACKUP_S3_*` or `DATABASE_URL` secret changed (section b). 3. After the fix: **Actions > Nightly database backup > Run workflow**, confirm green and a new file in Backblaze |
-| `No fresh database backup in Backblaze` | GitHub, 09:00 UTC daily | The newest dump is missing, empty, over 36 h old, or (after the 3rd of the month) the monthly copy is over 35 days old | 1. **Actions > Nightly database backup**: is it enabled and green? (GitHub disables schedules after 60 days of repository inactivity or when minutes run out: section s). 2. Run it by hand. 3. Re-run **Backup freshness check** |
-| `Backup restore test FAILED` | GitHub, 1st of the month | The newest dump could not be restored or lacks tables or migrations | 1. Open the run, read the red message (it says which table, or "dump is OLDER than the repository"). 2. Run **Nightly database backup** by hand, then **Monthly backup restore test** by hand. 3. Still red: do not trust the backups; ask a developer, and keep a manual dump (section t, step 2) meanwhile |
+| `No fresh database backup in Backblaze` | GitHub, 09:00 UTC daily | The newest dump is missing, empty, over 36 h old, or (after the 3rd of the month) the monthly copy is over 35 days old | 1. **Actions > Nightly database backup**: is it enabled and green? (GitHub disables schedules after 60 days of repository inactivity or when minutes run out: section t). 2. Run it by hand. 3. Re-run **Backup freshness check** |
+| `Backup restore test FAILED` | GitHub, 1st of the month | The newest dump could not be restored or lacks tables or migrations | 1. Open the run, read the red message (it says which table, or "dump is OLDER than the repository"). 2. Run **Nightly database backup** by hand, then **Monthly backup restore test** by hand. 3. Still red: do not trust the backups; ask a developer, and keep a manual dump (section u, step 2) meanwhile |
 | `Error on GET /...` (or POST) | Gmail sender, the site | A page crashed (a 500). At most one per kind of error per 15 minutes | 1. Note the page and the time. 2. Render > **Logs**, search for the same time. 3. If it repeats or is on checkout/login, section a) rollback; otherwise send the text to the developer |
 | `Unhandled rejection` / `Uncaught exception (process restarting)` | Gmail sender | The site hit an unexpected error and may have restarted | 1. Check `/healthz` and Render > **Events** (restart count). 2. Render **Logs** around the time. 3. Repeating = rollback (section a) and call the developer |
 | `N emails could not be sent` | Gmail sender | Mails gave up after 8 tries over about 13 hours | Section l): 1. Admin > **Email outbox**, read **Last error**. 2. Fix the cause (usually section m). 3. **Retry now**, then **Mark failed as handled** |
 | `N emails are stuck in the outbox` | Gmail sender | Mails have waited more than an hour (it repeats at most every 6 h) | 1. Admin > **Email outbox** > **Last error**. 2. "Invalid login": section m). "not configured": set `GMAIL_USER` and `GMAIL_APP_PASSWORD` in Render. 3. Wait a minute after the fix: queued mail goes out by itself |
-| `Background job failing: <name>` | Gmail sender | A background job failed 3 times in a row (one email per outage) | Section r): 1. Admin > `/admin/diagnostics/jobs`, read **Last error**. 2. Render **Logs**, search the job name. 3. If it is `Email outbox` see l); `Retention purge: ...` or `Membership ...`: call the developer, nothing customer-facing is lost yet |
+| `Background job failing: <name>` | Gmail sender | A background job failed 3 times in a row (one email per outage) | Section s): 1. Admin > `/admin/diagnostics/jobs`, read **Last error**. 2. Render **Logs**, search the job name. 3. If it is `Email outbox` see l); `Retention purge: ...` or `Membership ...`: call the developer, nothing customer-facing is lost yet |
 | `Background job recovered: <name>` | Gmail sender | It works again | Nothing |
 | `APP_BASE_URL missing` / `... (not https)` | Gmail sender, at most once per 24 h per problem | The live site has no correct public address: emailed links and payment returns are wrong | 1. Render > Environment: set `APP_BASE_URL` to `https://umasbooks.org`. 2. Save (it restarts). 3. The red banner on admin pages disappears |
-| `HelloAsso is still in SANDBOX mode: real payments will not work` | Gmail sender, once per 24 h | `HELLOASSO_API_BASE` points at the test HelloAsso | 1. Render > Environment: delete `HELLOASSO_API_BASE`. 2. Check `HELLOASSO_CLIENT_ID/SECRET/ORG_SLUG` are the **production** ones. 3. Make a small real payment |
-| `HelloAsso credentials missing: payments are disabled` | Gmail sender, once per 24 h | Online payment is off on a live site | 1. Render > Environment: add the three `HELLOASSO_*` variables (section b). 2. Save. 3. Test a small payment |
-| `Paid order N could not be fulfilled - manual refund needed` | Gmail sender (never throttled) | A customer paid but the books were no longer available | 1. Open the order in Admin > Books & Orders. 2. Refund it in the HelloAsso dashboard. 3. Mark it refunded in admin and write to the customer (section k) |
-| `Checkout intent not saved for order N` | Gmail sender (never throttled) | A payment started but the site could not record it | 1. Admin > Books & Orders > find order N. 2. Ask HelloAsso whether the payment exists; if so reconcile (section k). 3. Tell the developer |
-| `HelloAsso refund check failing` | Gmail sender | The site cannot ask HelloAsso about refunds | 1. Check HelloAsso status and the `HELLOASSO_*` variables. 2. It retries every 6 h by itself. 3. Persisting more than a day: developer |
-| `Order #N was refunded in HelloAsso: mark it refunded in admin` | Gmail sender | A refund was made in HelloAsso; the site still shows Paid | Section k) "A refund was done in HelloAsso" |
-| `N online orders not collected after 12 days` | Gmail sender | Orders waiting for pickup | Section k) "An order was not collected after 14 days" |
+| `HelloAsso is still in SANDBOX mode: real membership payments will not work` | Gmail sender, once per 24 h | `HELLOASSO_API_BASE` points at the test HelloAsso | 1. Render > Environment: delete `HELLOASSO_API_BASE`. 2. Check `HELLOASSO_CLIENT_ID/SECRET/ORG_SLUG` are the **production** ones. 3. Check a membership payment is recognised |
+| `HelloAsso credentials missing: membership payments are disabled` | Gmail sender, once per 24 h | Membership payments are not recognised on a live site | 1. Render > Environment: add the three `HELLOASSO_*` variables (section b). 2. Save. 3. Check a recent membership is recognised |
+| `N reservations expiring within 2 days` | Gmail sender, once per reservation | Reserved books are about to lapse | Section k): 1. Open the list it links to. 2. Contact the customers or extend/cancel. 3. Nothing else to do |
+| `N online orders not collected after 12 days` | Gmail sender | Old paid online orders waiting for pickup | Section k) |
 | `Membership payment from ... matches no confirmed account` | Gmail sender | Someone paid HelloAsso with an email no confirmed account uses | Section n) |
 | `Startup seed failed (site still started)` | Gmail sender | The first-admin seed failed on boot; the site still runs | 1. Render **Logs** `[seed] FAILED`. 2. If an admin can log in, ignore until the developer looks. 3. If no admin exists, section c) |
 | *(no subject you know)* Google "Security alert" / "Critical security alert" | Google | Someone signed in, or a password/app password changed | Check it was you; if not, change the Google password, revoke app passwords, then section b) for `GMAIL_APP_PASSWORD` |
@@ -1090,7 +1431,7 @@ information as the alert, shown on every admin page for as long as the problem
 exists. The launch alerts are emailed at most **once per 24 hours** (not once
 per deploy); the bar stays until you fix the setting.
 
-## r) Background jobs (retention purge, membership expiry, email retries...)
+## s) Background jobs (retention purge, membership expiry, email retries...)
 
 The site runs a handful of tasks by itself. Admin > open
 `https://umasbooks.org/admin/diagnostics/jobs` (English; type the address, or
@@ -1122,7 +1463,7 @@ Email outbox (1 min); Retention purge and one row per purge step, Image cleanup
 (daily); Awards check (2 min); Cover backfill (5 min). A row for a job that no
 longer exists stops flagging after 30 days.
 
-## s) GitHub Actions minutes (private repository)
+## t) GitHub Actions minutes (private repository)
 
 The repository is private, so Actions minutes are metered: the **Free plan
 includes 2,000 minutes a month**. Usage reached about **2,300 minutes in 6
@@ -1179,7 +1520,7 @@ raise the frequency.
    it does not hold member data (the dumps are in Backblaze, the secrets in
    settings), but ask the developer to confirm before changing visibility.
 
-## t) Rebuild everything if the Render account is lost
+## u) Rebuild everything if the Render account is lost
 
 For: the Render account is suspended, locked, deleted, or its owner is not
 reachable, and the site is gone. **The data is safe in Backblaze** (nightly
@@ -1189,7 +1530,7 @@ with a second person if you can. Have these ready: the password manager (section
 v), the Backblaze login, the GitHub login, the Squarespace login, the HelloAsso
 login.
 
-**What you need and where each comes from** (also section u):
+**What you need and where each comes from** (also section v):
 
 | Setting | Where the value comes from |
 |---|---|
@@ -1213,7 +1554,7 @@ login.
    backup" has the command-line version). Expected: a file of some megabytes.
 2. **New Render account** (or recovered): render.com > Sign up/log in. Add a
    **payment method** (the plan in `render.yaml` is paid). Add a **second
-   owner** straight away (section v).
+   owner** straight away (section w).
 3. **Blueprint:** Render dashboard > **New +** > **Blueprint** > connect GitHub
    (authorize the `umasbooksadmin/umasbookswebsite` repository) > pick the
    repo > Render reads `render.yaml` and proposes `umas-books-db` and
@@ -1255,9 +1596,9 @@ login.
 11. **Final checks:** `/healthz`, a login, a password-reset email, a small
     payment, the Monday test alert, `/admin/diagnostics/jobs` all **OK** after
     10 minutes.
-12. **Write down what changed** (new service address, new owner) in section u.
+12. **Write down what changed** (new service address, new owner) in section v.
 
-## u) Accounts and secrets inventory
+## v) Accounts and secrets inventory
 
 Fill this in once and keep it current (and a printed copy in the association's
 safe). It lists **accounts and where access lives**, never the secrets
@@ -1266,7 +1607,7 @@ unknown from the repository: someone with the login must fill the cell.
 
 | Service | Owner account | Recovery email / phone | 2FA | Where the secret lives | Who else has access |
 |---|---|---|---|---|---|
-| **Render** (hosting, database) | TODO(the association): the login email of the Render account | TODO(the association) | TODO(the association) | Render dashboard > Environment; `TOTP_ENCRYPTION_KEY` copy in the password manager | TODO(the association): Render > Account/Workspace > Members (add a second owner, section v) |
+| **Render** (hosting, database) | TODO(the association): the login email of the Render account | TODO(the association) | TODO(the association) | Render dashboard > Environment; `TOTP_ENCRYPTION_KEY` copy in the password manager | TODO(the association): Render > Account/Workspace > Members (add a second owner, section w) |
 | **GitHub** (code, backups schedule, alerts) | Personal user `umasbooksadmin` (owner of the repository `umasbooksadmin/umasbookswebsite`) | TODO(the association) | TODO(the association) | Repository secrets: `DATABASE_URL`, `GMAIL_USER`, `GMAIL_APP_PASSWORD`, `BACKUP_S3_KEY_ID`, `BACKUP_S3_APPLICATION_KEY`; variables: `BACKUP_S3_*`, `ALERT_TO`, `SITE_URL` | Collaborators (Settings > Collaborators): `sharonbje`, `MelinaHartley` (not admins). A personal account cannot have a second owner: consider moving the repository to a **GitHub organisation** with two owners |
 | **Backblaze B2** (offsite backups) | TODO(the association) | TODO(the association) | TODO(the association) | Application key (keyID + applicationKey) in GitHub secrets; the master login in the password manager | TODO(the association) |
 | **Squarespace Domains** (registrar **and** DNS for umasbooks.org; expires **2027-08-22**) | TODO(the association): the Squarespace account email | TODO(the association) | TODO(the association) | Password manager | TODO(the association) |
@@ -1275,9 +1616,9 @@ unknown from the repository: someone with the login must fill the cell.
 | **Anthropic** (book photo scanning, descriptions) | TODO(the association): the console.anthropic.com account | TODO(the association) | TODO(the association) | `ANTHROPIC_API_KEY` in Render | TODO(the association) |
 | **UptimeRobot** (external monitor: `https://umasbooks.org/healthz` every 5 min, free plan, alerts by email and app) | `sharonbje@gmail.com` | TODO(the association) | TODO(the association) | Password manager | TODO(the association): add a second alert contact (My Settings > Alert Contacts) |
 | **Password manager** | TODO(the association) | TODO(the association) | TODO(the association) | Emergency kit in the safe | At least 2 people |
-| **Site admin accounts** (the website's own admin area) | See Admin > Accounts (filter Admins) | n/a | Required in production; recovery codes in the password manager (section v) | n/a | n/a |
+| **Site admin accounts** (the website's own admin area) | See Admin > Accounts (filter Admins) | n/a | Required in production; recovery codes in the password manager (section w) | n/a | n/a |
 
-## v) Emergency access and "bus factor"
+## w) Emergency access and "bus factor"
 
 The risk: one person holds every login, gets ill or unreachable, and nobody
 else can restart the site, read an alert or restore a backup. Do this once; it
@@ -1315,7 +1656,7 @@ takes an afternoon.
 6. At least **two admins** on the website itself (Admin > Accounts), and never
    demote the last one (section c).
 
-## w) A lost or broken scanner
+## x) A lost or broken scanner
 
 The till (section p) works **without a scanner**: every step also accepts the
 barcode typed by hand.
@@ -1337,7 +1678,7 @@ barcode typed by hand.
 5. **Nothing to deactivate:** the scanner holds no data and has no login, so a
    lost one is only a hardware cost.
 
-## x) A takedown or abuse report (forum posts, images)
+## y) A takedown or abuse report (forum posts, images)
 
 Someone writes to say a **forum post, a picture, a book cover or a comment**
 should not be on the site (insulting, private information, a copyright claim, a
@@ -1373,7 +1714,7 @@ an email.
 7. **Record it:** one line in the association's "incidents" list (date, what,
    action). The audit log (Admin > Admin activity) already shows who hid what.
 
-## y) Making database changes safely (notes for developers)
+## z) Making database changes safely (notes for developers)
 
 Migrations are files `umas-books/migrations/NNN_name.sql`, applied **once, in
 filename order**, in Render's pre-deploy command (`npm run migrate`), before the

@@ -48,6 +48,8 @@ const TABLES = {
   till_sale_items: "shop",
   till_quick_items: "shop",
   till_days: "shop",
+  till_receipt_counters: "shop", // per-year receipt numbers: restart with the sales
+  accounting_map: "kept", // the treasurer's account mapping is settings
   book_awards: "shop",
   book_requests: "shop",
   book_request_list_tokens: "shop",
@@ -258,6 +260,7 @@ function buildPlan({ includeContent = false, keepMembers = false } = {}, have = 
   del("till_sale_items");
   del("shop_sales");
   del("till_sales");
+  del("till_receipt_counters");
   del("till_days");
   del("till_quick_items");
   del("book_requests");

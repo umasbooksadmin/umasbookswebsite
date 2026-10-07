@@ -1,14 +1,11 @@
-// The HelloAsso payment-page origins the browser is sent to after a
-// checkout form POST. POST /cart/checkout answers 302 to the checkout
-// intent's redirectUrl, and Chromium browsers apply the CSP form-action
-// directive to that redirect too — so form-action must list these origins
-// or the redirect is blocked and nobody can pay.
+// HelloAsso is used for MEMBERSHIP payments only (books and drop-in seats are
+// reserved online and paid in the shop). The membership form is an iframe the
+// visitor loads by pressing a button (frame-src in lib/marketingCsp.js) plus a
+// plain link: no form of ours posts to HelloAsso and no redirect to it follows a
+// form POST, so form-action lists no HelloAsso host.
 //
-// An explicit allowlist, not a wildcard: production hosts always, sandbox
-// hosts only when HELLOASSO_API_BASE points at the sandbox API.
-
-const PRODUCTION_ORIGINS = ["https://www.helloasso.com", "https://checkout.helloasso.com"];
-const SANDBOX_ORIGINS = ["https://www.helloasso-sandbox.com", "https://checkout.helloasso-sandbox.com"];
+// usesSandbox() tells whether HELLOASSO_API_BASE points at the HelloAsso sandbox
+// (payments are not real): used by the launch guards and the admin banner.
 
 function usesSandbox(apiBase) {
   if (!apiBase) return false;
@@ -20,8 +17,4 @@ function usesSandbox(apiBase) {
   }
 }
 
-function helloassoPaymentOrigins(apiBase = process.env.HELLOASSO_API_BASE) {
-  return usesSandbox(apiBase) ? [...PRODUCTION_ORIGINS, ...SANDBOX_ORIGINS] : [...PRODUCTION_ORIGINS];
-}
-
-module.exports = { helloassoPaymentOrigins, usesSandbox, PRODUCTION_ORIGINS, SANDBOX_ORIGINS };
+module.exports = { usesSandbox };

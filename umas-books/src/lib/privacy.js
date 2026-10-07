@@ -18,6 +18,7 @@ const RETENTION = {
   signupMonths: 12,
   accountingYears: 10,
   auditLogMonths: 12,
+  auditDetailMonths: 6, // free-text detail of an audit row (a refund note or void reason can name a customer); the row itself stays to auditLogMonths
   tokenGraceDays: 7,
   inactivityWarningDays: 30,
   unconfirmedAccountDays: 7, // self-signup accounts whose email was never confirmed (and that hold no data)
@@ -35,18 +36,37 @@ const RETENTION = {
 const ERASED_NAME = "Erased";
 const erasedEmail = (id) => `erased-${id}@erased.invalid`;
 
-// Removes everything we hold about the account's email except what French
-// accounting law makes us keep (paid orders and payment records: amounts,
-// dates, items), which stays but is anonymised. Returns false if there is
-// no such account.
-async function eraseMember(pool, userId, { client } = {}) {
-  const run = async (db) => {
-    const { rows } = await db.query("SELECT id, email FROM users WHERE id = $1 FOR UPDATE", [userId]);
-    if (!rows.length) return false;
-    const email = rows[0].email.toLowerCase();
-
+// Everything held under an EMAIL ADDRESS rather than an account row: sign-ups,
+// reservations, orders and payments (anonymised, accounting), outbox messages,
+// book requests. Shared by eraseMember (userId = the account) and the admin
+// Privacy requests tool (lib/privacyRequests.js), which also answers an address
+// with no account (userId = null; "user_id = NULL" matches nothing).
+// replacementEmail: stands in for the address on anonymised rows; null gives
+// each row its own placeholder.
+async function eraseEmailKeyedData(db, email, { userId = null, replacementEmail = null } = {}) {
     await db.query("DELETE FROM event_signups WHERE lower(email) = $1", [email]);
     await db.query("DELETE FROM class_signups WHERE lower(email) = $1", [email]);
+
+    // The person's open reservations (orders with status 'reserved'): books
+    // back on the shelf, seats freed, the order closed as cancelled. Done BEFORE
+    // the copy rows below are cleared and the order is anonymised.
+    await db.query(
+      `UPDATE class_dropin_seats SET status = 'released', updated_at = now()
+       WHERE status = 'reserved' AND order_id IN (
+         SELECT id FROM orders WHERE status = 'reserved' AND (user_id = $2 OR (user_id IS NULL AND lower(buyer_email) = $1)))`,
+      [email, userId]
+    );
+    await db.query(
+      `UPDATE book_copies SET status = 'in_stock', cart_order_id = NULL, updated_at = now()
+       WHERE status = 'reserved' AND cart_order_id IN (
+         SELECT id FROM orders WHERE status = 'reserved' AND (user_id = $2 OR (user_id IS NULL AND lower(buyer_email) = $1)))`,
+      [email, userId]
+    );
+    await db.query(
+      `UPDATE orders SET status = 'cancelled', released_at = now(), release_reason = 'account_erased'
+       WHERE status = 'reserved' AND (user_id = $2 OR (user_id IS NULL AND lower(buyer_email) = $1))`,
+      [email, userId]
+    );
 
     // An active reservation is released rather than kept without contact
     // details nobody could pick it up with.
@@ -68,15 +88,15 @@ async function eraseMember(pool, userId, { client } = {}) {
     // an old emailed link stops working.
     await db.query(
       `UPDATE orders
-       SET buyer_name = $2, buyer_email = $3, buyer_phone = NULL, client_ip = NULL,
+       SET buyer_name = $2, buyer_email = COALESCE($3, 'erased-order-' || id || '@erased.invalid'), buyer_phone = NULL, client_ip = NULL,
            access_token = gen_random_uuid()
        WHERE user_id = $4 OR (user_id IS NULL AND lower(buyer_email) = $1)`,
-      [email, ERASED_NAME, erasedEmail(userId), userId]
+      [email, ERASED_NAME, replacementEmail, userId]
     );
     await db.query(
-      `UPDATE membership_payments SET payer_email = $2, user_id = NULL, unmatched_at = NULL, unmatched_reason = NULL
+      `UPDATE membership_payments SET payer_email = COALESCE($2, 'erased-payment-' || id || '@erased.invalid'), user_id = NULL, unmatched_at = NULL, unmatched_reason = NULL
        WHERE user_id = $3 OR lower(payer_email) = $1`,
-      [email, erasedEmail(userId), userId]
+      [email, replacementEmail, userId]
     );
     await eraseOutboxFor(db, email);
 
@@ -90,6 +110,20 @@ async function eraseMember(pool, userId, { client } = {}) {
       [email, userId]
     );
     await db.query("DELETE FROM book_request_list_tokens WHERE lower(email) = $1", [email]);
+
+}
+
+// Removes everything we hold about the account's email except what French
+// accounting law makes us keep (paid orders and payment records: amounts,
+// dates, items), which stays but is anonymised. Returns false if there is
+// no such account.
+async function eraseMember(pool, userId, { client } = {}) {
+  const run = async (db) => {
+    const { rows } = await db.query("SELECT id, email FROM users WHERE id = $1 FOR UPDATE", [userId]);
+    if (!rows.length) return false;
+    const email = rows[0].email.toLowerCase();
+
+    await eraseEmailKeyedData(db, email, { userId, replacementEmail: erasedEmail(userId) });
 
     // Logged-in sessions of this account.
     // (The table is created by connect-pg-simple on first use, so it may
@@ -207,6 +241,14 @@ async function purgeExpiredPersonalData(pool, { onStep } = {}) {
   await step("emailOutbox", () =>
     purgeOutbox(pool, { sentDays: RETENTION.outboxSentDays, failedDays: RETENTION.outboxFailedDays })
   );
+
+  await step("auditDetail", async () => {
+    const r = await pool.query(
+      `UPDATE admin_audit_log SET detail = NULL
+       WHERE detail IS NOT NULL AND at < now() - interval '${RETENTION.auditDetailMonths} months'`
+    );
+    return r.rowCount;
+  });
 
   await step("auditLog", async () => {
     const r = await pool.query(
@@ -346,4 +388,4 @@ async function purgeExpiredPersonalData(pool, { onStep } = {}) {
   return counts;
 }
 
-module.exports = { eraseMember, purgeExpiredPersonalData, RETENTION, ERASED_NAME, erasedEmail };
+module.exports = { eraseMember, eraseEmailKeyedData, purgeExpiredPersonalData, RETENTION, ERASED_NAME, erasedEmail };

@@ -1,6 +1,6 @@
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
-const { accountType, accountBadges, parseTypeFilter, typeFilterSql } = require("../../src/lib/accountTypes");
+const { accountType, accountBadges, parseTypeFilter, typeFilterSql, FILTER_LABELS } = require("../../src/lib/accountTypes");
 
 const NOW = new Date("2026-06-01T12:00:00Z");
 const confirmed = new Date("2026-01-01T00:00:00Z");
@@ -21,8 +21,17 @@ test("badges list everything that applies", () => {
   assert.deepEqual(accountBadges({ is_volunteer: true, email_verified_at: null }, NOW).labels, ["Volunteer", "Not confirmed"]);
 });
 
+test("Till access is a pill and a filter on top of the primary type, never a primary type", () => {
+  assert.equal(accountType({ is_till: true, email_verified_at: confirmed }, NOW), "account");
+  assert.deepEqual(accountBadges({ is_till: true, email_verified_at: confirmed }, NOW).labels, ["Account", "Till"]);
+  assert.deepEqual(accountBadges({ is_volunteer: true, is_member: true, is_till: true, email_verified_at: confirmed }, NOW).labels, ["Volunteer", "Member", "Till"]);
+  assert.equal(parseTypeFilter("till"), "till");
+  assert.equal(typeFilterSql("till", "u"), "u.is_till");
+  assert.equal(FILTER_LABELS.till, "Till access");
+});
+
 test("unknown filters are ignored and every real one has SQL", () => {
   assert.equal(parseTypeFilter("nope"), "");
   assert.equal(typeFilterSql("", "u"), null);
-  for (const t of ["admin", "volunteer", "member", "account", "unconfirmed"]) assert.ok(typeFilterSql(t, "u"));
+  for (const t of ["admin", "volunteer", "member", "account", "unconfirmed", "till"]) assert.ok(typeFilterSql(t, "u"));
 });

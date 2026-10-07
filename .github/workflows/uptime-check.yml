@@ -33,10 +33,11 @@ on:
 
 permissions:
   contents: read
+  actions: read # lets `gh run list` read this workflow's run history
 
 jobs:
   check:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       # The address to watch. Set the repository VARIABLE SITE_URL (Settings >
       # Secrets and variables > Actions > Variables tab > New repository
@@ -80,9 +81,14 @@ jobs:
         id: decide
         env:
           GH_TOKEN: ${{ github.token }}
+          # This job has no checkout, so `gh` cannot guess the repository: without
+          # this it failed with 'not a git repository', the error was swallowed
+          # and no alert was ever sent.
+          GH_REPO: ${{ github.repository }}
           STATUS: ${{ steps.health.outputs.status }}
         run: |
-          RUNS=$(gh run list --workflow=uptime-check.yml --branch=main --status=completed --limit 15 --json conclusion) || RUNS='[]'
+          GHFAIL=false
+          RUNS=$(gh run list --workflow=uptime-check.yml --branch=main --status=completed --limit 15 --json conclusion) || { RUNS='[]'; GHFAIL=true; echo "::warning::Could not read the run history; alerting on any failure instead."; }
           # Newest first. Keep only real outcomes, then take the first two.
           read -r P PP <<< "$(echo "$RUNS" | jq -r '[.[] | select(.conclusion == "success" or .conclusion == "failure") | .conclusion] | (.[0] // "success") + " " + (.[1] // "success")')"
           echo "Current status: $STATUS; previous run: $P; the one before: $PP"
@@ -90,6 +96,8 @@ jobs:
           RECOVERED=false
           if [ "$STATUS" != "200" ]; then
             if [ "$P" = "failure" ] && [ "$PP" = "success" ]; then ALERT=true; fi
+            # If the history is unreadable, over-alert rather than stay silent.
+            if [ "$GHFAIL" = "true" ]; then ALERT=true; fi
           else
             if [ "$P" = "failure" ] && [ "$PP" = "failure" ]; then RECOVERED=true; fi
           fi
