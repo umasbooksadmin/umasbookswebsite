@@ -36,6 +36,8 @@ global.fetch = async (url, init = {}) => {
   if (u.startsWith("https://query.wikidata.org/sparql")) {
     if (net.wikidataGate) await net.wikidataGate;
     if (net.wikidata === "error") return jsonRes({}, 500);
+    // The author-prize query (Nobel, a second request) finds nothing here.
+    if (decodeURIComponent(u).includes("wdt:P50")) return jsonRes({ results: { bindings: [] } });
     return jsonRes({ results: { bindings: net.wikidata || [] } });
   }
   throw new Error(`test refused a real outbound request to ${u}`);
@@ -70,7 +72,7 @@ function uniq() { return `${Date.now()}-${Math.floor(Math.random() * 1e6)}`; }
 let seq = 0;
 const tag = () => `Aw${Date.now().toString(36)}${++seq}`;
 const isbn13 = () => `979${String(Date.now()).slice(-7)}${String(++seq).padStart(3, "0")}`;
-const FAST = { gapMs: 0 }; // no politeness sleep in tests
+const FAST = { gapMs: 0, sleep: async () => {} }; // no politeness or retry sleep in tests
 
 async function seedBook({ title = `Book ${tag()}`, authors = "Some Author", isbn = isbn13(), inStock = true } = {}) {
   const { rows } = await pool.query("INSERT INTO books (title, authors, isbn) VALUES ($1, $2, $3) RETURNING id", [title, authors, isbn]);
@@ -269,7 +271,8 @@ test("the book page shows verified and approved awards only, in order, and hides
   await addAward(book.id, "Hidden Rejected", { source: "ai", status: "rejected" });
   const page = await http(`/books/${book.id}`, { user: null });
   assert.match(page.text, /Awards &amp; lists:/);
-  const line = page.text.match(/Awards &amp; lists:<\/strong>([\s\S]*?)<\/div>/)[1].replace(/\s+/g, " ").trim();
+  const block = page.text.match(/Awards &amp; lists:<\/strong>([\s\S]*?)<\/section>/)[1];
+  const line = [...block.matchAll(/<li>([^<]*)<\/li>/g)].map((m) => m[1]).join(", ");
   assert.equal(line, "Shown New Award (2015), Shown Old Award (1999), Approved Thing, Shown Shortlist (2012), Shown List (2010)");
   assert.ok(!page.text.includes("Hidden Pending") && !page.text.includes("Hidden Rejected"));
   assert.ok(!page.text.includes("Show all"), "5 entries: no expander");
@@ -281,6 +284,7 @@ test("more than 8 entries: the first 8 and a native details 'Show all' with ever
   const page = await http(`/books/${book.id}`, { user: null });
   assert.match(page.text, /<details[^>]*>\s*<summary[^>]*>Show all \(10\)<\/summary>/);
   assert.ok(page.text.includes("Prize Number 0 (2000)"));
+  assert.equal((page.text.match(/<li>Prize Number \d/g) || []).length, 10, "every entry appears once");
 });
 
 test("the French page uses 'Prix et classements :' and keeps the label text", async () => {
@@ -410,7 +414,7 @@ test("manual add parses (year), dedupes, shows at once; remove deletes manual ro
   const rows = await rowsOf(book.id);
   assert.deepEqual(rows.map((r) => [r.label, r.year, r.source, r.status]), [["Booker Prize", 2019, "manual", "verified"], ["Costa Award", null, "manual", "verified"]]);
   assert.equal((await auditRows("award.add", rows[0].id))[0].detail, "Booker Prize");
-  assert.ok((await http(`/books/${book.id}`, { user: null })).text.includes("Booker Prize (2019), Costa Award"));
+  assert.ok((await http(`/books/${book.id}`, { user: null })).text.includes("<li>Booker Prize (2019)</li><li>Costa Award</li>"));
 
   await http(`/admin/inventory/${book.id}/awards/add`, { method: "POST", form: { awards: "Booker Prize (2019)" } }); // again: no duplicate
   assert.equal((await rowsOf(book.id)).length, 2);
@@ -504,4 +508,46 @@ test("a failing awards lookup never fails or loses the save", async () => {
   const bookId = Number(res.location.split("?")[0].split("/").pop());
   await waitFor(async () => (await bookRow(bookId)).awards_check_state === "error", { timeoutMs: 10000 });
   assert.equal((await pool.query("SELECT COUNT(*)::int AS n FROM book_copies WHERE book_id = $1", [bookId])).rows[0].n, 1);
+});
+
+// ---------------------------------------------------- migration 080 (purge)
+
+test("migration 080 removes stored Wikidata awards and queues every book for a re-check, keeping other sources", async () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const sql = fs.readFileSync(path.join(__dirname, "../../migrations/080_purge_wikidata_awards.sql"), "utf8");
+  const a = await seedBook();
+  const b = await seedBook();
+  await addAward(a.id, "Grammy Award for Best Album", { year: 2001 }); // the wrong, stored-as-verified kind
+  await addAward(a.id, "Booker Prize", { year: 2019, source: "manual" });
+  await addAward(b.id, "NYT Best Seller", { kind: "bestseller", source: "nyt" });
+  await pool.query("UPDATE books SET awards_checked_at = now(), awards_check_state = 'ok' WHERE id = ANY($1)", [[a.id, b.id]]);
+
+  await pool.query(sql);
+
+  assert.deepEqual((await rowsOf(a.id)).map((r) => r.label), ["Booker Prize"]);
+  assert.deepEqual((await rowsOf(b.id)).map((r) => r.source), ["nyt"]);
+  for (const id of [a.id, b.id]) {
+    const row = await bookRow(id);
+    assert.equal(row.awards_checked_at, null);
+    assert.equal(row.awards_check_state, null);
+  }
+});
+
+test("layout: description and awards sit in the top block beside the cover, before price and copies, in EN and FR, with or without them", async () => {
+  const book = await seedBook();
+  await pool.query("UPDATE books SET description = 'Plain English blurb.', description_fr = 'Résumé en français.' WHERE id = $1", [book.id]);
+  await addAward(book.id, "Layout Prize", { year: 2020 });
+  for (const [lang, blurb, head] of [["en", "Plain English blurb.", "About this book"], ["fr", "Résumé en français.", "À propos de ce livre"]]) {
+    const html = (await http(`/books/${book.id}`, { user: null, cookie: `umasbooks_lang=${lang}` })).text;
+    const col = html.indexOf('<h1 style="margin-bottom:4px;"');
+    const at = (s) => html.indexOf(s, col); // the meta description in <head> repeats the blurb
+    assert.ok(col > 0 && at(`class="book-about-title">${head}`) > col && at(blurb) > at(head), `${lang}: description under the title`);
+    assert.ok(at('class="book-awards"') > at(blurb), `${lang}: awards after the description`);
+    const after = Math.min(...["book-detail-price", "availability-box"].map((c) => at(`class="${c}`)).filter((i) => i >= 0));
+    assert.ok(at('class="book-awards"') < after && at(blurb) < after, `${lang}: both before price and copies`);
+  }
+  const bare = await seedBook();
+  const html = (await http(`/books/${bare.id}`, { user: null })).text;
+  assert.ok(!html.includes("About this book") && !html.includes('class="book-awards"'));
 });

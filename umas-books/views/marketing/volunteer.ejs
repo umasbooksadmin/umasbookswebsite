@@ -1,8 +1,9 @@
 <% const pageI18nEn = {
   "meta.title": "Volunteer — Uma's Books and Adventures",
   "meta.description": "Volunteer at Uma's Books in Albi: help on the shop floor, sort and shelve donations, run events or support English and French speakers. All language levels welcome.",
-  "visit.hours.days": "Tue – Sat",
+  "visit.hours.days": "{shopDaysShort}",
   "visit.hours.time": "{shopHours}",
+  "visit.hours.note": "{shopHoursShort}",
   "volunteer.kicker": "Get Involved",
   "volunteer.title": "Volunteer With Us",
   "volunteer.intro": "Uma’s is entirely volunteer-run — every hour on the shop floor, every sorted donation, every event, is someone giving their time. New volunteers, at any language level, are always welcome.",
@@ -35,8 +36,9 @@
 <% const pageI18nFr = {
   "meta.title": "Bénévolat — Uma’s Books and Adventures",
   "meta.description": "Devenez bénévole chez Uma’s Books à Albi : aidez en boutique, triez et rangez les dons, animez des événements ou accompagnez les anglophones et francophones. Tous les niveaux de langue sont bienvenus.",
-  "visit.hours.days": "Mar – Sam",
+  "visit.hours.days": "{shopDaysShort}",
   "visit.hours.time": "{shopHours}",
+  "visit.hours.note": "{shopHoursShort}",
   "volunteer.kicker": "S’impliquer",
   "volunteer.title": "Devenir bénévole",
   "volunteer.intro": "Uma’s fonctionne entièrement grâce à des bénévoles — chaque heure en boutique, chaque don trié, chaque événement, c’est quelqu’un qui donne de son temps. Les nouveaux bénévoles, quel que soit leur niveau de langue, sont toujours les bienvenus.",
@@ -118,9 +120,10 @@ const errP = (k) => (E[k]
           <tr><th data-i18n="volunteer.schedule.day">Days</th><th data-i18n="volunteer.schedule.time">Time</th></tr>
         </thead>
         <tbody>
-          <tr><td data-i18n="visit.hours.days">Tue &ndash; Sat</td><td data-i18n="visit.hours.time"><%= legalText.shopHours %></td></tr>
+          <tr><td data-i18n="visit.hours.days"><%= legalText.shopDaysShort %></td><td data-i18n="visit.hours.time"><%= legalText.shopHours %></td></tr>
         </tbody>
       </table>
+      <p class="form-hint" data-i18n-html="visit.hours.note"><%- legalText.shopHoursShort %></p>
       <p class="form-hint" data-i18n="volunteer.schedule.note">Shifts typically run 2&ndash;3 hours within opening hours &mdash; tell us what works for you below.</p>
       <h3 class="form-title" data-i18n="volunteer.form.title">Volunteer Sign-up</h3>
       <% if (F.sent) { %>
