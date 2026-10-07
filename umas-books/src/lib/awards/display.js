@@ -1,9 +1,9 @@
-// What customers may see: only 'verified' (Wikidata / NYT / an admin) and
-// 'approved' (AI suggestion an admin accepted) rows. Pending and rejected
-// rows are never shown. Awards first, then shortlists, then lists; newest
+// What customers may see: only 'verified' rows from Wikidata, the NYT API or
+// an admin's own typing. Any other row is never shown. Awards first, then shortlists, then lists; newest
 // year first within each.
 
-const SHOWN_STATUSES = ["verified", "approved"];
+const SHOWN_STATUSES = ["verified"];
+const SHOWN_SOURCES = ["wikidata", "nyt", "manual"];
 
 const KIND_ORDER_SQL = "CASE kind WHEN 'award' THEN 0 WHEN 'shortlist' THEN 1 ELSE 2 END";
 const ORDER_SQL = `${KIND_ORDER_SQL}, year DESC NULLS LAST, lower(label)`;
@@ -16,9 +16,9 @@ function formatAward(row) {
 async function loadPublicAwards(pool, bookId) {
   const { rows } = await pool.query(
     `SELECT label, year FROM book_awards
-     WHERE book_id = $1 AND status = ANY($2)
+     WHERE book_id = $1 AND status = ANY($2) AND source = ANY($3)
      ORDER BY ${ORDER_SQL}`,
-    [bookId, SHOWN_STATUSES]
+    [bookId, SHOWN_STATUSES, SHOWN_SOURCES]
   );
   return rows.map(formatAward);
 }
@@ -30,8 +30,8 @@ function awardsTextSql(bookRef) {
   return `(SELECT string_agg(CASE WHEN a.year IS NULL THEN a.label ELSE a.label || ' (' || a.year || ')' END, ', '
                   ORDER BY a.ord)
            FROM (SELECT label, year, row_number() OVER (ORDER BY ${ORDER_SQL}) AS ord
-                 FROM book_awards WHERE book_id = ${bookRef} AND status IN ('verified', 'approved')) a
+                 FROM book_awards WHERE book_id = ${bookRef} AND status = 'verified' AND source IN ('wikidata', 'nyt', 'manual')) a
            WHERE a.ord <= 3)`;
 }
 
-module.exports = { SHOWN_STATUSES, ORDER_SQL, formatAward, loadPublicAwards, awardsTextSql };
+module.exports = { SHOWN_STATUSES, SHOWN_SOURCES, ORDER_SQL, formatAward, loadPublicAwards, awardsTextSql };

@@ -100,7 +100,7 @@ async function plant() {
   await db.query("INSERT INTO till_days (day, opening_float_cents, opened_by) VALUES (current_date, 5000, $1)", [admin]);
   await db.query("INSERT INTO till_receipt_counters (year, last_no) VALUES (2026, 7)");
   await db.query("INSERT INTO accounting_map (category, method, debit_account, credit_account) VALUES ('Books used', 'Cash', '530', '707')");
-  await db.query("INSERT INTO book_awards (book_id, label, kind, source, status) VALUES ($1, 'Prize', 'award', 'manual', 'approved')", [book]);
+  await db.query("INSERT INTO book_awards (book_id, label, kind, source, status) VALUES ($1, 'Prize', 'award', 'manual', 'verified')", [book]);
   await db.query("INSERT INTO book_requests (title, email, matched_copy_id, user_id) VALUES ('Wanted', 'asker@example.test', $1, $2)", [copy1, member]);
   await db.query("INSERT INTO book_request_list_tokens (email, token_hash, expires_at) VALUES ('asker@example.test', 'tok', now() + interval '1 day')");
   await db.query("INSERT INTO price_lookups (isbn) VALUES ('9780000000002')");
