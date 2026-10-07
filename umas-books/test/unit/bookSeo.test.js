@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const { buildBookSeo, itemCondition, absoluteUrl } = require("../../src/lib/bookSeo");
 const { translator } = require("../../src/lib/lang");
 
-const book = { id: 7, title: "Emma", authors: "Jane Austen", cover_url: "/img/abc", description: "A <comedy> of manners.", description_fr: "Une comédie de mœurs.", isbn: "9780141439587", binding: "paperback" };
+const book = { id: 7, title: "Emma", authors: "Jane Austen", cover_url: "/img/abc", description: "A <comedy> of manners.", description_fr: "Une comédie de mœurs.", isbn: "9780141439587", binding: "trade" };
 const copies = [
   { condition: "very_good", price: "4.50" },
   { condition: "new", price: "9.90" },

@@ -102,7 +102,7 @@ async function seed() {
   await client.connect();
   try {
     const { rows: b } = await client.query(
-      "INSERT INTO books (title, authors, description, description_fr, categories, categories_fr, binding) VALUES ('I18n Shop Book', 'I18n Shop Author', 'A plain English description.', 'Une description en français.', 'Fiction', 'Roman', 'paperback') RETURNING id"
+      "INSERT INTO books (title, authors, description, description_fr, categories, categories_fr, binding) VALUES ('I18n Shop Book', 'I18n Shop Author', 'A plain English description.', 'Une description en français.', 'Fiction', 'Roman', 'trade') RETURNING id"
     );
     await client.query("INSERT INTO books (title, authors) VALUES ('I18n Shop Book Two', 'I18n Shop Author')");
     await client.query("INSERT INTO book_awards (book_id, label, year, kind, source, status) VALUES ($1, 'I18n Shop Award Prize', 2020, 'award', 'wikidata', 'verified')", [b[0].id]);

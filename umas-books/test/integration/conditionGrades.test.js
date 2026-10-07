@@ -75,8 +75,8 @@ test("migration 048 remaps old grades, sets the default, and locks the column to
   await assert.rejects(pool.query("UPDATE book_copies SET condition = 'poor' WHERE id = $1", [ids.new]), { code: "23514" });
 });
 
-test("books.binding accepts the three bindings and NULL, and rejects anything else", async () => {
-  for (const ok of ["hardcover", "paperback", "mass_market", null]) {
+test("books.binding accepts the four bindings and NULL, and rejects anything else", async () => {
+  for (const ok of ["hardcover", "trade", "mass_market", "other", null]) {
     await pool.query("INSERT INTO books (title, binding) VALUES ($1, $2)", [`${TAG} binding ${ok}`, ok]);
   }
   await assert.rejects(pool.query("INSERT INTO books (title, binding) VALUES ($1, 'spiral')", [`${TAG} bad`]), { code: "23514" });
@@ -84,11 +84,39 @@ test("books.binding accepts the three bindings and NULL, and rejects anything el
   assert.equal(rows[0].binding, null, "existing books stay NULL");
 });
 
+test("migration 077 turns paperback into trade, keeps NULL, allows other, locks the four values (re-runnable)", async () => {
+  const sql = fs.readFileSync(path.join(__dirname, "..", "..", "migrations", "077_binding_trade_other.sql"), "utf8");
+  // Back to the pre-077 state: old check, old value, old pricing setting.
+  await pool.query("ALTER TABLE books DROP CONSTRAINT books_binding_check");
+  await pool.query("ALTER TABLE books ADD CONSTRAINT books_binding_check CHECK (binding IN ('hardcover', 'paperback', 'mass_market')) NOT VALID");
+  const ids = {};
+  for (const bnd of ["hardcover", "paperback", "mass_market", null]) {
+    const { rows } = await pool.query("INSERT INTO books (title, binding) VALUES ($1, $2) RETURNING id", [`${TAG} m077 ${bnd}`, bnd]);
+    ids[bnd] = rows[0].id;
+  }
+  await pool.query("ALTER TABLE pricing_settings DROP COLUMN fallback_trade");
+  await pool.query("UPDATE pricing_settings SET fallback_paperback = 9.5");
+
+  await pool.query(sql);
+  await pool.query("UPDATE pricing_settings SET fallback_trade = 7"); // edited after the migration
+  await pool.query(sql); // idempotent, and does not overwrite the edit
+
+  const { rows } = await pool.query("SELECT id, binding FROM books WHERE id = ANY($1)", [Object.values(ids)]);
+  const now = Object.fromEntries(Object.entries(ids).map(([old, id]) => [old, rows.find((r) => r.id === id).binding]));
+  assert.deepEqual(now, { hardcover: "hardcover", paperback: "trade", mass_market: "mass_market", null: null });
+  const { rows: [st] } = await pool.query("SELECT fallback_trade FROM pricing_settings WHERE id = 1");
+  assert.equal(Number(st.fallback_trade), 7);
+  await pool.query("UPDATE pricing_settings SET fallback_paperback = 9.5"); // (old column kept for the previous release)
+  await pool.query("INSERT INTO books (title, binding) VALUES ($1, 'other')", [`${TAG} m077 other`]);
+  await assert.rejects(pool.query("INSERT INTO books (title, binding) VALUES ($1, 'paperback')", [`${TAG} m077 old`]), { code: "23514" });
+  await assert.rejects(pool.query("INSERT INTO books (title, binding) VALUES ($1, 'spiral')", [`${TAG} m077 bad`]), { code: "23514" });
+});
+
 // ---------------------------------------------------------------- book page
 
 test("book page (English): every copy is listed with its grade and price, plus the legend and the binding", async () => {
   const b = await makeBook({
-    title: `${TAG} Multi`, binding: "paperback",
+    title: `${TAG} Multi`, binding: "trade",
     copies: [["acceptable", 3], ["new", 12], ["very_good", 6], ["like_new", 9]],
   });
   const { status, text } = await page(`/books/${b.id}`, "en");
@@ -103,7 +131,7 @@ test("book page (English): every copy is listed with its grade and price, plus t
   assert.match(text, /Looks unread: no marks, no wear\./);
   assert.match(text, /Light wear only: clean pages, no writing or highlighting\./);
   assert.match(text, /Clearly used but complete and readable: wear, creases or some markings\./);
-  assert.match(text, /Binding<\/dt> :\s*<dd>Paperback<\/dd>|Binding :<\/dt> <dd>Paperback/);
+  assert.match(text, /Binding<\/dt> :\s*<dd>Trade<\/dd>|Binding :<\/dt> <dd>Trade/);
   assert.ok(!/>Good<|>Fair<|>Poor</.test(text), "no old grade name");
 });
 

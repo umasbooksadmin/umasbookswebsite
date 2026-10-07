@@ -434,8 +434,8 @@ Details of the shop tables worth knowing:
   grades, `new`, `like_new`, `very_good` (the default) or `acceptable`,
   enforced by a CHECK constraint (migration 048 remapped the old values; a copy
   that cannot be sold at all has status `damaged`, not a condition).
-  `books.binding` is `hardcover`, `paperback` or `mass_market` (optional; older
-  books are NULL until filled in). Both are shown in English and French.
+  `books.binding` is `hardcover`, `trade`, `mass_market` or `other` (optional; older
+  books are NULL until filled in; migration 077 renamed `paperback` to `trade`). Both are shown in English and French.
 * **Copy source.** `book_copies.source` records where a copy came from:
   `donation`, `purchase`, `lot` (job lot) or `other`; NULL means unknown (every
   copy added before migration 045). The Reports pages group by it.

@@ -45,24 +45,24 @@ test("conditionLabel follows the language and leaves an unknown value as is", ()
   assert.equal(inv.conditionLabel("mystery", "fr"), "mystery");
 });
 
-test("BINDINGS and normalizeBinding: exactly three values, anything else is null", () => {
+test("BINDINGS and normalizeBinding: exactly four values, anything else is null", () => {
   assert.deepEqual(
     inv.BINDINGS.map((b) => [b.value, b.label, b.label_fr]),
-    [["hardcover", "Hardcover", "Relié"], ["paperback", "Paperback", "Broché"], ["mass_market", "Mass Market", "Poche"]]
+    [["hardcover", "Hardcover", "Relié"], ["trade", "Trade", "Broché (grand format)"], ["mass_market", "Mass Market", "Poche"], ["other", "Other", "Autre"]]
   );
   for (const b of inv.BINDINGS) assert.equal(inv.normalizeBinding(b.value), b.value);
-  for (const bad of ["", "Hardcover", "spiral", null, undefined, {}, ["paperback"]]) assert.equal(inv.normalizeBinding(bad), null);
-  assert.equal(inv.bindingLabel("paperback", "fr"), "Broché");
+  for (const bad of ["", "Hardcover", "spiral", null, undefined, {}, ["trade"]]) assert.equal(inv.normalizeBinding(bad), null);
+  assert.equal(inv.bindingLabel("trade", "fr"), "Broché (grand format)");
   assert.equal(inv.bindingLabel("mass_market", "en"), "Mass Market");
   assert.equal(inv.bindingLabel(null, "en"), null);
 });
 
-test("mapBinding turns Open Library's free-text format into one of the three bindings, or null", () => {
+test("mapBinding turns Open Library's free-text format into one of the four bindings, or null when missing", () => {
   const cases = [
     ["Hardcover", "hardcover"], ["hardback", "hardcover"], ["Library Binding, hardcover", "hardcover"],
-    ["Paperback", "paperback"], ["trade paperback", "paperback"], ["Softcover", "paperback"],
+    ["Paperback", "trade"], ["trade paperback", "trade"], ["Softcover", "trade"],
     ["Mass Market Paperback", "mass_market"], ["mass market paperback", "mass_market"], ["Mass market", "mass_market"],
-    ["Audio CD", null], ["Spiral-bound", null], ["", null], [null, null], [undefined, null], [42, null],
+    ["Audio CD", "other"], ["Spiral-bound", "other"], ["", null], [null, null], [undefined, null],
   ];
   for (const [input, expected] of cases) assert.equal(mapBinding(input), expected, String(input));
 });

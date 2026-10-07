@@ -128,10 +128,13 @@ rather than by a numbered migration), grouped by what they belong to:
   Migration 048 remapped the old grades (good to very_good, fair and poor to
   acceptable) and added a CHECK constraint. A copy that cannot be sold at all
   is not a grade: it gets the status `damaged`. `books.binding` (migration
-  048, NULL when unknown) is `hardcover`, `paperback` or `mass_market`
-  (`BINDINGS`, `normalizeBinding`); it belongs to the edition, is prefilled
+  048, NULL when unknown) is `hardcover`, `trade`, `mass_market` or `other`
+  (`BINDINGS`, `normalizeBinding`; migration 077 renamed `paperback` to
+  `trade`, and `normalizeBinding` still accepts `paperback` as an alias; the
+  pricing setting `fallback_paperback` became `fallback_trade`); it belongs to the edition, is prefilled
   from Open Library's `physical_format` (`mapBinding` in
-  `src/lib/bookLookup.js`) and never overwritten by a second copy.
+  `src/lib/bookLookup.js`: hardcover; mass market / poche; any other paperback is
+  trade; any other format is other) and never overwritten by a second copy.
 - **Fixed price for new books (loi Lang)** — a `book_copies` row with
   condition `new` must carry `publisher_price` (migration 041) and be priced
   between 95% and 100% of it; enforced server-side by `resolveCopyPricing`
@@ -235,7 +238,7 @@ rather than by a numbered migration), grouped by what they belong to:
   only ever *suggestions*; a volunteer accepts or changes them and nothing is
   published automatically. `rules.js` is the pure rules engine (no network,
   no database; the order of checks is written at its top): new = publisher
-  price; no ISBN = manual review; mass market = EUR 5; online value M (median
+  price; no ISBN = manual review; mass market = EUR 5 ("trade" and "other" follow the normal rules); online value M (median
   of used listings in EUR, outliers trimmed; else publisher price x 0.35; else a
   typical value by binding) under 6 = Rule A (EUR 5), under 20 = Rule B (EUR
   8), under 50 = Rule C (75% of M, rounded to 0.50), 50 or more = manual

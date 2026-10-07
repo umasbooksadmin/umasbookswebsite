@@ -37,9 +37,14 @@ const DEFAULT_CONDITION = "very_good";
 // copy; optional (NULL when nobody has said).
 const BINDINGS = [
   { value: "hardcover", label: "Hardcover", label_fr: "Relié" },
-  { value: "paperback", label: "Paperback", label_fr: "Broché" },
+  { value: "trade", label: "Trade", label_fr: "Broché (grand format)" },
   { value: "mass_market", label: "Mass Market", label_fr: "Poche" },
+  { value: "other", label: "Other", label_fr: "Autre" },
 ];
+
+// Old requests, imports and bookmarks may still say "paperback": it is now
+// called "trade" (migration 077 renamed the stored values).
+const BINDING_ALIASES = { paperback: "trade" };
 
 const STATUSES = [
   { value: "in_stock", label: "In Store" },
@@ -73,9 +78,11 @@ function normalizeCondition(value) {
 
 const BINDING_VALUES = new Set(BINDINGS.map((b) => b.value));
 
-// A known binding value, or null (blank, unknown, anything else).
+// A known binding value (the legacy "paperback" counts as "trade"), or null
+// (blank, unknown, anything else).
 function normalizeBinding(value) {
-  return BINDING_VALUES.has(value) ? value : null;
+  const v = BINDING_ALIASES[value] || value;
+  return BINDING_VALUES.has(v) ? v : null;
 }
 
 // Label of a grade/binding in the given language ("fr" or English); an
@@ -86,7 +93,7 @@ function conditionLabel(value, lang) {
 }
 
 function bindingLabel(value, lang) {
-  const b = BINDINGS.find((x) => x.value === value);
+  const b = BINDINGS.find((x) => x.value === normalizeBinding(value));
   return b ? (lang === "fr" ? b.label_fr : b.label) : null;
 }
 

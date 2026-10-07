@@ -25,14 +25,14 @@ test("Add Book: the page explains 'No ISBN?'; the title is the only required fie
 test("a book with no ISBN: saved by hand, labelled UB-<id>, and sold at the till by its label", async () => {
   const title = `Handmade Zine ${h.uniq()}`;
   const saved = await h.post("/admin/inventory", {
-    title, author: "Local Author", genre: "Poetry", binding: "paperback", condition: "like_new", price: "6.50", location: "ZINES",
+    title, author: "Local Author", genre: "Poetry", binding: "trade", condition: "like_new", price: "6.50", location: "ZINES",
   });
   assert.equal(saved.status, 302, "saved");
   const { rows: books } = await h.pool.query("SELECT * FROM books WHERE title = $1", [title]);
   assert.equal(books.length, 1);
   assert.equal(books[0].isbn, null);
   assert.equal(books[0].authors, "Local Author");
-  assert.equal(books[0].binding, "paperback");
+  assert.equal(books[0].binding, "trade");
   const { rows: copies } = await h.pool.query("SELECT * FROM book_copies WHERE book_id = $1", [books[0].id]);
   assert.equal(copies.length, 1);
   assert.equal(Number(copies[0].price), 6.5);

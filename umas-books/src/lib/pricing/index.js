@@ -12,7 +12,7 @@ const { lookupMarket } = require("./market");
 const { toIsbn13 } = require("./isbn");
 
 const OVERALL_TIMEOUT_MS = 12000;
-const BINDING_NAMES = { hardcover: "hardcover", paperback: "paperback", mass_market: "mass market paperback" };
+const BINDING_NAMES = { hardcover: "hardcover", trade: "trade paperback", mass_market: "mass market paperback", other: "book in another format" };
 
 function summaryLabel(s) {
   if (!s) return "";

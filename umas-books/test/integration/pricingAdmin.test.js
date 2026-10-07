@@ -67,7 +67,7 @@ const setMarket = (prices, original = null) => {
 
 const DEFAULTS_SQL = `UPDATE pricing_settings SET levels='[3,5,8,10]', mass_market_price=5, hardcover_min_price=10, hardcover_min_applies_to_clearance=false,
   a_max=6, a_price=5, b_max=20, b_price=8, c_max=50, c_factor=0.75, used_fraction=0.35, rounding_step=0.5,
-  fallback_hardcover=12, fallback_paperback=8, fallback_mass_market=4, fallback_unknown=8, usd_eur=0.92, gbp_eur=1.15,
+  fallback_hardcover=12, fallback_trade=8, fallback_mass_market=4, fallback_unknown=8, usd_eur=0.92, gbp_eur=1.15,
   clearance_after_copies=2, clearance_price=1, clearance_scope='extra', clearance_applies_to='set_a' WHERE id=1`;
 const { clearSettingsCache } = require("../../src/lib/pricing/settings");
 async function resetSettings() {
@@ -78,7 +78,7 @@ async function resetSettings() {
 const SETTINGS_FORM = {
   levels: "3, 5, 8, 10", mass_market_price: "5", hardcover_min_price: "10", a_max: "6", a_price: "5", b_max: "20", b_price: "8",
   c_max: "50", c_factor: "0.75", used_fraction: "0.35", rounding_step: "0.5",
-  fallback_hardcover: "12", fallback_paperback: "8", fallback_mass_market: "4", fallback_unknown: "8",
+  fallback_hardcover: "12", fallback_trade: "8", fallback_mass_market: "4", fallback_unknown: "8",
   usd_eur: "0.92", gbp_eur: "1.15", clearance_after_copies: "2", clearance_price: "1",
   clearance_scope: "extra", clearance_applies_to: "set_a",
 };
@@ -284,7 +284,7 @@ test("endpoint: new -> publisher price (none without it); mass market EUR 5 with
   assert.match(hc.rationale.join(" "), /Hardcover: minimum price EUR 10\.00/);
   assert.equal(market.calls.length, 1);
 
-  const review = await suggestion({ isbn: "", binding: "paperback" });
+  const review = await suggestion({ isbn: "", binding: "trade" });
   assert.deepEqual([review.price, review.needsReview, review.reviewMessage], [null, true, "Manual review: no ISBN barcode"]);
   const high = await suggestion({ isbn: isbn13() }); // answer still [3,4,5]
   assert.equal(high.price, 5);
@@ -532,9 +532,9 @@ test("pricing rules page: shows the rules, the calculator and the sample table",
   assert.match(text, /name="clearance_after_copies"[^>]*value="2"/);
   assert.match(text, /name="levels"[^>]*value="3, 5, 8, 10"/);
   assert.match(text, /<th>Hardcover<\/th>/);
-  assert.match(text, /<tr><td>5\.50<\/td><td>EUR 5\.00<\/td><td>EUR 5\.00<\/td><td>EUR 10\.00<\/td><td>EUR 5\.00<\/td>/, "5.50: unknown 5, paperback 5, hardcover floored to 10, mass market 5");
-  assert.match(text, /<tr><td>50\.00<\/td>(<td>Manual review<\/td>){3}<td>EUR 5\.00<\/td>/, "50: review except mass market");
-  assert.match(text, /Any value, no ISBN<\/td><td colspan="4">Manual review/);
+  assert.match(text, /<tr><td>5\.50<\/td><td>EUR 5\.00<\/td><td>EUR 10\.00<\/td><td>EUR 5\.00<\/td><td>EUR 5\.00<\/td><td>EUR 5\.00<\/td>/, "5.50: unknown 5, hardcover floored to 10, trade 5, mass market 5, other 5");
+  assert.match(text, /<tr><td>50\.00<\/td>(<td>Manual review<\/td>){3}<td>EUR 5\.00<\/td><td>Manual review<\/td>/, "50: review except mass market");
+  assert.match(text, /Any value, no ISBN<\/td><td colspan="5">Manual review/);
   assert.match(text, /Pricing rules<\/a>/, "in the admin menu");
 });
 
@@ -542,8 +542,8 @@ test("pricing rules calculator: market value, binding, copies in stock, ISBN", a
   const calc = async (q) => (await h.get(`/admin/pricing?${new URLSearchParams(q)}`)).text;
   assert.match(await calc({ calcMarket: "24", calcBinding: "hardcover" }), /EUR 18\.00<\/strong> &middot; Rule C/);
   assert.match(await calc({ calcMarket: "3", calcBinding: "hardcover" }), /EUR 10\.00<\/strong> &middot; Rule A \+ hardcover minimum/);
-  assert.match(await calc({ calcMarket: "3", calcBinding: "paperback", calcCopies: "2" }), /EUR 1\.00<\/strong> &middot; Clearance/);
-  assert.match(await calc({ calcMarket: "12", calcBinding: "paperback", calcCopies: "2" }), /EUR 8\.00<\/strong> &middot; Rule B/);
+  assert.match(await calc({ calcMarket: "3", calcBinding: "trade", calcCopies: "2" }), /EUR 1\.00<\/strong> &middot; Clearance/);
+  assert.match(await calc({ calcMarket: "12", calcBinding: "trade", calcCopies: "2" }), /EUR 8\.00<\/strong> &middot; Rule B/);
   assert.match(await calc({ calcMarket: "80", calcBinding: "mass_market" }), /EUR 5\.00<\/strong> &middot; Mass market price/);
   assert.match(await calc({ calcMarket: "60" }), /Manual review: online value EUR 50\.00 or more/);
   assert.match(await calc({ calcMarket: "5", calcIsbn: "no" }), /Manual review: no ISBN barcode/);
@@ -770,7 +770,7 @@ test("fails open: AI off, no key, no ISBN, a broken database, a broken fetch: al
   const brokenPool = { query: async () => { throw new Error("db down"); } };
   assert.equal(await lookupMarket(brokenPool, { isbn }, { fetchImpl: f, env: ENV }), null);
   const throwing = async () => { throw new Error("network down"); };
-  const out = await suggestPrice(h.pool, { isbn: isbn13(), binding: "paperback", condition: "like_new", existingCopies: 0 }, { fetchImpl: throwing, env: ENV, settings: DEFAULT_SETTINGS });
+  const out = await suggestPrice(h.pool, { isbn: isbn13(), binding: "trade", condition: "like_new", existingCopies: 0 }, { fetchImpl: throwing, env: ENV, settings: DEFAULT_SETTINGS });
   assert.deepEqual([out.price, out.ruleSet, out.confidence], [8, "B", "low"]);
 });
 

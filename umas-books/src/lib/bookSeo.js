@@ -69,7 +69,7 @@ function buildBookSeo({ book, copies, base, lang, tr }) {
   jsonLd.description = description;
   if (book.isbn) jsonLd.isbn = String(book.isbn);
   if (book.binding === "hardcover") jsonLd.bookFormat = "https://schema.org/Hardcover";
-  else if (book.binding === "paperback") jsonLd.bookFormat = "https://schema.org/Paperback";
+  else if (["trade", "mass_market", "paperback"].includes(book.binding)) jsonLd.bookFormat = "https://schema.org/Paperback";
   jsonLd.inLanguage = "en";
   if (offers.length) jsonLd.offers = offers.length === 1 ? offers[0] : offers;
 
