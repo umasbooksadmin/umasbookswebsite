@@ -51,14 +51,14 @@ test("scan an ISBN: one copy is added; several show a picker; hyphens ignored; I
 
   const many = await h.seedBook(`Many Copies ${h.uniq()}`);
   const m1 = await h.seedCopy(many.id, { price: 3, location: "A1", condition: "acceptable" });
-  const m2 = await h.seedCopy(many.id, { price: 10, location: "B2", condition: "like_new" });
+  const m2 = await h.seedCopy(many.id, { price: 10, location: "B2", condition: "good" });
   const r2 = await h.scan(many.isbn);
   assert.equal(r2.body.type, "choose");
   assert.deepEqual(r2.body.copies.map((c) => c.copyId).sort(), [m1, m2].sort());
   const pick = r2.body.copies.find((c) => c.copyId === m2);
   assert.equal(pick.priceCents, 1000);
   assert.equal(pick.location, "B2");
-  assert.equal(pick.conditionLabel, "Like New");
+  assert.equal(pick.conditionLabel, "Good");
   // one already on the sale: the other is added directly
   const r3 = await h.scan(many.isbn, [m1]);
   assert.equal(r3.body.type, "line");
@@ -150,7 +150,8 @@ test("new books follow loi Lang: 95-100% of the publisher price, enforced at the
   const mk = () => h.seedCopy(book.id, { condition: "new", price: 20, publisherPrice: 20 });
   for (const [price, status] of [["19", 200], ["20", 200], ["19.01", 200], ["18.99", 400], ["18", 400], ["20.01", 400], ["10", 400]]) {
     const c = await mk();
-    const r = await h.sale([h.book(c, price)], { received: "50" });
+    // below the asking price (even within the 5%) needs a reason
+    const r = await h.sale([h.book(c, price, "agreed discount")], { received: "50" });
     assert.equal(r.status, status, `price ${price}: ${JSON.stringify(r.body)}`);
     if (status === 400) assert.match(r.body.error, /publisher's price/);
   }
@@ -193,7 +194,7 @@ test("cash: received must cover the total; change is computed in cents and recor
 test("card (manual): needs the 'Card paid' confirmation; reference is stored; no cash fields", async () => {
   const book = await h.seedBook(`Card ${h.uniq()}`);
   const c = await h.seedCopy(book.id, { price: 6 });
-  const unconfirmed = await h.json("/admin/till/sale", { token: h.token(), method: "card", items: JSON.stringify([h.book(c)]) });
+  const unconfirmed = await h.json("/admin/till/sale", { token: h.token(), method: "card", items: JSON.stringify([h.book(c)]), expectedTotalCents: "600" });
   assert.equal(unconfirmed.status, 400);
   assert.match(unconfirmed.body.error, /not confirmed/);
   assert.equal((await h.copy(c)).status, "in_stock");
@@ -365,22 +366,38 @@ test("void works the same day only", async () => {
   assert.equal((await h.pool.query("SELECT status FROM till_sales WHERE id = $1", [r.body.saleId])).rows[0].status, "completed");
 });
 
-test("sale time can be set earlier today, never in the future, and is audited", async () => {
+test("sale time can be set earlier (admin, with a reason, today or yesterday), never in the future, and is audited", async () => {
   const book = await h.seedBook(`Backdate ${h.uniq()}`);
   const c = await h.seedCopy(book.id, { price: 5 });
-  assert.equal((await h.sale([h.book(c)], { soldAtTime: "25:99" })).status, 400);
+  const why = { backdateReason: "internet was down" };
+  assert.equal((await h.sale([h.book(c)], { soldAtTime: "25:99", ...why })).status, 400);
+  assert.equal((await h.sale([h.book(c)], { soldAtTime: "00:00" })).status, 422, "an earlier time always needs a reason");
+  assert.equal((await h.sale([h.book(c)], { soldAtTime: "00:00", soldAtDay: "last week", ...why })).status, 400, "only today or yesterday");
   const parisNow = new Date().toLocaleTimeString("en-GB", { timeZone: "Europe/Paris", hour: "2-digit", minute: "2-digit" });
   if (parisNow < "23:58") {
     const [hh, mm] = parisNow.split(":").map(Number);
     const future = `${String(Math.min(23, hh + (mm >= 59 ? 1 : 0))).padStart(2, "0")}:${String((mm + 1) % 60).padStart(2, "0")}`;
-    if (future > parisNow) assert.equal((await h.sale([h.book(c)], { soldAtTime: future })).status, 400, "future time refused");
+    if (future > parisNow) assert.equal((await h.sale([h.book(c)], { soldAtTime: future, ...why })).status, 400, "future time refused");
   }
-  const r = await h.sale([h.book(c)], { received: "5", soldAtTime: "00:00" });
+  const r = await h.sale([h.book(c)], { received: "5", soldAtTime: "00:00", ...why });
   assert.equal(r.status, 200, JSON.stringify(r.body));
-  const s = (await h.pool.query("SELECT adjusted_time, to_char(created_at AT TIME ZONE 'Europe/Paris', 'HH24:MI') AS t FROM till_sales WHERE id = $1", [r.body.saleId])).rows[0];
+  const s = (await h.pool.query("SELECT adjusted_time, backdate_reason, to_char(created_at AT TIME ZONE 'Europe/Paris', 'HH24:MI') AS t FROM till_sales WHERE id = $1", [r.body.saleId])).rows[0];
   assert.equal(s.adjusted_time, true);
   assert.equal(s.t, "00:00");
-  assert.equal((await h.audit("till.sale_backdated")).filter((a) => a.target_id === r.body.saleId).length, 1);
+  assert.equal(s.backdate_reason, "internet was down");
+  const audit = (await h.audit("till.sale_backdated")).filter((a) => a.target_id === r.body.saleId);
+  assert.equal(audit.length, 1);
+  assert.match(audit[0].detail, /internet was down/);
+
+  // yesterday works the same way
+  const c2 = await h.seedCopy(book.id, { price: 5 });
+  const y = await h.sale([h.book(c2)], { received: "5", soldAtTime: "10:15", soldAtDay: "yesterday", ...why });
+  assert.equal(y.status, 200, JSON.stringify(y.body));
+  const ys = (await h.pool.query("SELECT (created_at AT TIME ZONE 'Europe/Paris')::date = ((now() AT TIME ZONE 'Europe/Paris')::date - 1) AS yesterday FROM till_sales WHERE id = $1", [y.body.saleId])).rows[0];
+  assert.equal(ys.yesterday, true);
+  // entered_at is when it was typed in, not the time of the sale
+  const e = (await h.pool.query("SELECT entered_at > created_at + interval '1 hour' AS late FROM till_sales WHERE id = $1", [y.body.saleId])).rows[0];
+  assert.equal(e.late, true, "a backdated sale keeps its real entry time in entered_at");
 });
 
 // ---------- receipt ----------

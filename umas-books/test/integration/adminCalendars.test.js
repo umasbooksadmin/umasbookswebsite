@@ -391,7 +391,7 @@ test("dashboard: /admin renders the welcome heading, stat tiles and links to eve
   const { res, text } = await h.get("/admin");
   assert.equal(res.status, 200);
   assert.ok(text.includes("Welcome back, Admin Tester"));
-  for (const label of ["Orders Today", "Total Sales", "In-Stock Books", "Total Accounts", "Members"]) {
+  for (const label of ["Orders Today", "Sales this month", "In-Stock Books", "Total Accounts", "Members"]) {
     assert.ok(text.includes(label), label);
   }
   for (const href of ["/admin/sessions", "/admin/events", "/admin/volunteer-shifts", "/admin/meetings", "/admin/announcements", "/admin/charity"]) {
@@ -403,26 +403,33 @@ test("dashboard: /admin renders the welcome heading, stat tiles and links to eve
 });
 
 // Regression: pg returns NUMERIC sums as strings, so `!prev` in views/admin/index.ejs's
-// pct() was false for "0.00" and the Total Sales tile showed "NaN%" whenever last
+// pct() was false for "0.00" and the Sales this month tile showed "NaN%" whenever last
 // month had no paid sales (a new shop's first month, or any quiet month).
 // lib/dashboardStats.js now hands the view numbers.
-test("dashboard: Total Sales trend never shows NaN% when last month had no sales", async (t) => {
+test("dashboard: Sales this month trend never shows NaN% when last month had no sales", async (t) => {
   if ((await lastMonthSales()) !== 0) return t.skip("another run left paid orders last month");
   const { text } = await h.get("/admin");
   assert.ok(!text.includes("NaN"), "no NaN anywhere on the dashboard");
 });
 
-test("dashboard: with last-month paid sales the Total Sales tile shows a real percentage trend", async () => {
+test("dashboard: with last-month paid sales the Sales this month tile shows a real percentage trend", async () => {
   const [{ id }] = await h.q(
     `INSERT INTO orders (buyer_name, buyer_email, status, total_amount, created_at, paid_at)
      VALUES ('Trend Buyer', 'trend@example.test', 'paid', 40, date_trunc('month', now()) - interval '3 days', date_trunc('month', now()) - interval '3 days') RETURNING id`
   );
+  // The figure is the accounting export's: it counts the order's LINES.
+  const [{ id: bookId }] = await h.q("INSERT INTO books (title, authors) VALUES ('Trend Book', 'T') RETURNING id");
+  const [{ id: copyId }] = await h.q("INSERT INTO book_copies (book_id, status, price) VALUES ($1, 'sold', 40) RETURNING id", [bookId]);
+  await h.q("INSERT INTO order_items (order_id, book_copy_id, item_title, price) VALUES ($1, $2, 'Trend line', 40)", [id, copyId]);
   try {
     const { text } = await h.get("/admin");
     assert.ok(!text.includes("NaN"));
-    assert.match(text, /This Month &euro;\d+<\/span> <span class="trend-(up|down)">/);
+    assert.match(text, /Last month &euro;\d+<\/span> <span class="trend-(up|down)">/);
   } finally {
+    await h.q("DELETE FROM order_items WHERE order_id = $1", [id]);
     await h.q("DELETE FROM orders WHERE id = $1", [id]);
+    await h.q("DELETE FROM book_copies WHERE id = $1", [copyId]);
+    await h.q("DELETE FROM books WHERE id = $1", [bookId]);
   }
 });
 

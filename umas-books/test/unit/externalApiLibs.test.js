@@ -235,9 +235,9 @@ test("bookLookup: lookupByIsbn reports the binding from physical_format (also un
   handler = () => volumeReply({ title: "A", physical_format: "Hardcover" });
   assert.equal((await lookupByIsbn("9780140328721")).binding, "hardcover");
   handler = () => json({ records: { "/books/OL1M": { isbns: ["9780140328721"], data: { title: "A" }, details: { details: { physical_format: "paperback" } } } } });
-  assert.equal((await lookupByIsbn("9780140328721")).binding, "paperback");
+  assert.equal((await lookupByIsbn("9780140328721")).binding, "trade");
   handler = () => volumeReply({ title: "A", physical_format: "Audio CD" });
-  assert.equal((await lookupByIsbn("9780140328721")).binding, null);
+  assert.equal((await lookupByIsbn("9780140328721")).binding, "other");
   handler = () => volumeReply({ title: "A" });
   assert.equal((await lookupByIsbn("9780140328721")).binding, null);
 });

@@ -12,6 +12,7 @@
 const { TEXT_MODEL } = require("../bookDescription");
 const { DEFAULT_SETTINGS } = require("./rules");
 const { toIsbn13 } = require("./isbn");
+const { normalizeBinding } = require("../inventory");
 
 const TIMEOUT_MS = 12000;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -100,7 +101,7 @@ function parseMarketResponse(text, settings = DEFAULT_SETTINGS) {
 }
 
 function buildPrompt({ isbn13, title, author, binding }) {
-  const bindingText = { hardcover: "hardcover", paperback: "paperback", mass_market: "mass market paperback" }[binding] || "unknown";
+  const bindingText = { hardcover: "hardcover", trade: "trade paperback", mass_market: "mass market paperback", other: "other format" }[normalizeBinding(binding)] || "unknown";
   return `You help a small second-hand English-language bookshop in France price a book. Use web search to find what THIS exact edition currently sells for second-hand.
 
 ISBN-13: ${isbn13}

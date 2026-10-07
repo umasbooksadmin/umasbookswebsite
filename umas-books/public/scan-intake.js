@@ -212,7 +212,7 @@
     var keepAsIs = function (v) { return v === "-" ? "" : (v || null); };
     remember(BINDING_KEY, bindingSel, isSet("binding"), function (v) { return v === "-" ? "" : (v ? (resolveBindingKey(v, availableBindings) || null) : null); });
     remember(SOURCE_KEY, sourceSel, isSet("source"), keepAsIs);
-    remember(CONDITION_KEY, conditionSel, isSet("condition"), keepAsIs);
+    remember(CONDITION_KEY, conditionSel, isSet("condition"), function (v) { return v === "like_new" ? "very_good" : keepAsIs(v); }); // the old "like_new" grade is now very_good
     conditionSel.dispatchEvent(new Event("change", { bubbles: true })); // the price control follows a remembered condition
 
     // ---- fields edited by hand are never overwritten by a lookup

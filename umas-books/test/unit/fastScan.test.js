@@ -18,13 +18,13 @@ test("a fresh form starts at Store and Donation", () => {
 });
 
 test("a location, source, binding and condition in the query (the last entry) replace the starting values", () => {
-  const d = formDefaults({ location: " fiction  a1 ", binding: "hardcover", condition: "like_new", source: "lot" });
+  const d = formDefaults({ location: " fiction  a1 ", binding: "hardcover", condition: "good", source: "lot" });
   assert.equal(d.source, "lot");
   assert.deepEqual(d.queried, { binding: true, source: true, condition: true });
   assert.equal(d.location, "FICTION A1");
   assert.equal(d.locationQueried, true);
   assert.equal(d.binding, "hardcover");
-  assert.equal(d.condition, "like_new");
+  assert.equal(d.condition, "good");
   assert.equal(formDefaults({ location: "   " }).location, "STORE");
 });
 

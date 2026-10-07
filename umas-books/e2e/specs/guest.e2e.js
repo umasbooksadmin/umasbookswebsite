@@ -43,7 +43,7 @@ s.test("G1 (must) home page shows the menu, the header icons and the footer", as
 
 s.test("G2 each footer link opens a page, no error page", async (ctx) => {
   await ctx.goto("/");
-  const hrefs = await ctx.page.$$eval("footer a[href]", (as) => as.map((a) => a.getAttribute("href")).filter((h) => h && h !== "#"));
+  const hrefs = await ctx.page.$$eval("footer a[href]", (as) => as.map((a) => a.getAttribute("href")).filter((h) => h && h !== "#" && !/^https?:\/\//.test(h)));
   assert.ok(hrefs.length >= 5, "footer links present");
   assert.equal((await ctx.page.$$("footer a[href='#']")).length, 0, "no placeholder social links in the footer");
   for (const h of hrefs) {
@@ -234,7 +234,7 @@ s.test("G16 (must) 'What the grades mean' lists the four grades", async (ctx) =>
   await ctx.goto(`/books/${book.id}`);
   await ctx.page.click(".grade-legend summary");
   const legend = await ctx.page.$eval(".grade-legend", (d) => d.innerText);
-  for (const g of ["New", "Like New", "Very Good", "Acceptable"]) has(legend, new RegExp(g));
+  for (const g of ["New", "Very Good", "Good", "Acceptable"]) has(legend, new RegExp(g));
   has(legend, /The grade is the description of the book/);
 });
 
@@ -326,7 +326,7 @@ s.test("G-FR11 FR check (books): search page, book page and grade legend in Fren
   has(text, /exemplaires? en rayon/);
   await ctx.page.click(".grade-legend summary");
   const legend = await ctx.page.$eval(".grade-legend", (d) => d.innerText);
-  for (const g of ["Neuf", "Comme neuf", "Très bon état", "État acceptable"]) has(legend, new RegExp(g));
+  for (const g of ["Neuf", "Très bon état", "Bon état", "État correct"]) has(legend, new RegExp(g));
   has(legend, /L’état indiqué est la description du livre/);
   has(text, /Prix TTC, TVA non applicable/);
   has(text, /Nos livres d’occasion sont vendus tels que décrits/);
@@ -533,7 +533,7 @@ s.test("G39 (must) each legal page opens with full text and the seller identity"
   has(tos, /Nothing is paid online, and reserving does not oblige you to buy\./);
   has(tos, /Only membership is: it is paid online through HelloAsso/);
   hasNot(tos, /obligation to pay|pay online by card|one hour/i);
-  has(tos, /Tuesday to Saturday, 10:00–19:00/);
+  has(tos, /Wednesday to Saturday, 14:00–19:00/);
   hasNot(tos, /waive|renounce/i);
   await ctx.goto("/mentions-legales.html");
   const ml = await ctx.text();
@@ -922,7 +922,7 @@ s.test("G57 (must) the pre-registration form refuses an empty submission with an
 
 s.test("G25a the legal pages agree: opening hours, membership withdrawal wording, GitHub in the privacy policy", async (ctx) => {
   await ctx.goto("/visit.html");
-  has(await ctx.text(), /10:00–19:00/);
+  has(await ctx.text(), /14:00–19:00/);
   await ctx.goto("/membership-terms.html");
   has(await ctx.text(), /If you join online you may withdraw within 14 days by writing to admin@umasbooks\.org; we will refund your payment and the membership then ends\./);
   has(await ctx.text(), /Last updated: 6 October 2026/);
@@ -932,9 +932,9 @@ s.test("G25a the legal pages agree: opening hours, membership withdrawal wording
   has(await ctx.text(), /protect forms/);
 });
 
-s.test("G25b FR check (legal pages): hours as 10 h–19 h, the withdrawal sentence and the GitHub line in French", { lang: "fr" }, async (ctx) => {
+s.test("G25b FR check (legal pages): hours as 14 h–19 h, the withdrawal sentence and the GitHub line in French", { lang: "fr" }, async (ctx) => {
   await ctx.goto("/visit.html");
-  has(await ctx.text(), /10\s?h–19\s?h/);
+  has(await ctx.text(), /14\s?h–19\s?h/);
   await ctx.goto("/membership-terms.html");
   has(await ctx.text(), /vous pouvez vous rétracter dans les 14 jours en écrivant à admin@umasbooks\.org/);
   await ctx.goto("/privacy-policy.html");

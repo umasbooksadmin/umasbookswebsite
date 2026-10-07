@@ -54,7 +54,7 @@ test("the reservation confirmation email carries the acceptance line and the cur
     assert.ok(mail, "confirmation sent");
     assert.match(mail.text, line, lang);
   }
-  assert.equal(TERMS_OF_SALE_VERSION, "2026-10-08", "bump this test with the terms");
+  assert.equal(TERMS_OF_SALE_VERSION, "2026-10-09", "bump this test with the terms");
 });
 
 test("the proof is in the member data export and survives erasure (anonymised order keeps it)", async () => {
@@ -91,7 +91,7 @@ test("the queued confirmation and the resent one both carry the legal text", asy
     for (const needle of [
       "Used books are not taken back for a change of mind once bought in the shop; the legal guarantees still apply.",
       "Les livres d’occasion ne sont ni repris ni échangés pour simple changement d’avis une fois achetés en boutique",
-      "rue Peyrolière, 81000 Albi — ouvert du mardi au samedi, 10 h–19 h.",
+      "rue Peyrolière, 81000 Albi. Venez retirer vos livres pendant nos horaires habituels, du mercredi au samedi, de 14 h à 19 h.",
       "Conditions générales de vente acceptées le",
       "TVA non applicable",
       "CM2C",

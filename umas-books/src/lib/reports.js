@@ -361,7 +361,7 @@ async function salesReport(db, ctx) {
         note: "Counted on the day the order was marked refunded. A refunded order no longer appears in the reserved-online sales and drop-in figures.",
       },
     ],
-    notes: ["Reserved-online = books reserved on the website and paid in the shop (\"Mark collected and paid\"), counted on the day the payment was recorded. Shop = sales recorded with Sell in shop. Days are Paris days."],
+    notes: ["Reserved-online = books reserved on the website and paid in the shop (\"Mark collected and paid\"), counted on the day the payment was recorded. Shop = books sold at the Till (and older sales from the retired Sell in shop page). Days are Paris days."],
   };
 }
 
@@ -570,6 +570,7 @@ async function accountsReport(db, ctx) {
       `SELECT COUNT(*)::int AS total,
               COUNT(*) FILTER (WHERE u.is_admin)::int AS admins,
               COUNT(*) FILTER (WHERE u.is_volunteer)::int AS volunteers,
+              COUNT(*) FILTER (WHERE u.is_till)::int AS till,
               COUNT(*) FILTER (WHERE ${activeMemberSql("u")})::int AS members,
               COUNT(*) FILTER (WHERE u.is_member AND NOT ${activeMemberSql("u")})::int AS expired,
               COUNT(*) FILTER (WHERE ${typeFilterSql("account", "u")})::int AS holders,
@@ -590,7 +591,7 @@ async function accountsReport(db, ctx) {
 
   const { rows } = await db.query(
     `SELECT u.display_name, u.email, ${typeCaseSql("u")} AS type,
-            u.is_member, u.member_expires_at,
+            u.is_member, u.member_expires_at, u.is_till,
             to_char(u.member_expires_at AT TIME ZONE '${TZ}', 'YYYY-MM-DD') AS member_until,
             u.email_verified_at IS NOT NULL AS confirmed,
             to_char(u.created_at AT TIME ZONE '${TZ}', 'YYYY-MM-DD') AS created,
@@ -607,14 +608,14 @@ async function accountsReport(db, ctx) {
     params
   );
   const list = rows.map((r) => ({
-    name: r.display_name, email: r.email, type: TYPE_LABELS[r.type],
+    name: r.display_name, email: r.email, type: TYPE_LABELS[r.type] + (r.is_till ? " + Till" : ""),
     member_until: r.is_member ? (r.member_until || "no end date") : "",
     confirmed: r.confirmed ? "yes" : "no",
     created: r.created, last_login: r.last_login || "never",
     orders: r.orders, spent: money(r.spent), disabled: r.is_disabled ? "yes" : "no",
   }));
   const summaryRows = [
-    ["Total accounts", s.total], ["Admins", s.admins], ["Volunteers", s.volunteers],
+    ["Total accounts", s.total], ["Admins", s.admins], ["Volunteers", s.volunteers], ["Till access (can use the till without being an admin)", s.till],
     ["Members (paying or granted)", s.members], ["Members whose membership has expired", s.expired],
     ["Account holders (not a member, admin or volunteer)", s.holders],
     ["Unconfirmed (email never confirmed)", s.unconfirmed],
@@ -627,7 +628,7 @@ async function accountsReport(db, ctx) {
         key: "summary", title: "Summary (all accounts)",
         columns: [{ key: "label", label: "Measure", type: "text" }, { key: "count", label: "Accounts", type: "int" }],
         rows: summaryRows, totals: null,
-        note: "An account can count in several lines (an admin who is also a volunteer, for example). Each account has one type in the list below: Admin, else Volunteer, else Member, else Account, else Unconfirmed.",
+        note: "An account can count in several lines (an admin who is also a volunteer, for example). Each account has one type in the list below: Admin, else Volunteer, else Member, else Account, else Unconfirmed; \"+ Till\" is added when the account has Till access.",
       },
       {
         key: "accounts", title: `Accounts (${total})`,

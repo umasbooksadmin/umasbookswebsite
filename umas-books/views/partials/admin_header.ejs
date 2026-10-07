@@ -31,8 +31,9 @@
         const navLink = (href, label, keys, extra) => '<a href="' + href + '" class="' + ((extra || '') + (keys.includes(active) ? ' is-active' : '')).trim() + '"' + (keys.includes(active) ? ' aria-current="page"' : '') + '>' + label + '</a>';
       %>
       <a href="/">Home</a>
-      <%- navLink('/admin', 'Dashboard', ['overview']) %>
+      <% if (!locals.tillOnly) { %><%- navLink('/admin', 'Dashboard', ['overview']) %><% } %>
       <%- navLink('/admin/till', '<strong>Till</strong>', ['till'], 'admin-nav-till') %>
+      <% if (locals.tillOnly) { %><%- navLink('/admin/till/day', 'End of day', ['till-day']) %><% } else { %>
       <p class="admin-nav-heading" id="nav-sell">Sell</p>
       <div role="group" aria-labelledby="nav-sell" class="admin-nav-group">
         <%- navLink('/admin/inventory', 'Inventory', ['inventory']) %>
@@ -73,6 +74,7 @@
         <%- navLink('/admin/email-outbox', 'Email outbox', ['email-outbox']) %>
         <%- navLink('/admin/privacy', 'Privacy requests', ['privacy']) %>
       </div>
+    <% } %>
     </nav>
     <a class="admin-view-site" href="/" target="_blank" rel="noopener">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6"/><path d="M15 3h6v6"/><path d="M10 14 21 3"/></svg>
@@ -93,7 +95,7 @@
         <button type="button" class="admin-nav-toggle" data-toggle-admin-nav aria-label="Open menu" aria-expanded="false" aria-controls="admin-sidebar">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
         </button>
-        <% if (active === 'overview' || active === 'inventory') { %>
+        <% if (!locals.tillOnly && (active === 'overview' || active === 'inventory')) { %>
         <form class="admin-search" method="get" action="/admin/inventory" role="search">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
           <input type="text" name="q" placeholder="Search books…" aria-label="Search books">

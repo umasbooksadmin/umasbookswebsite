@@ -366,13 +366,13 @@ test("dashboard 'Needs attention': reservations expiring in 3 days and ones alre
   assert.match(html, /past the deadline/);
 });
 
-test("'Sell in shop' refuses a copy that an online reservation holds, and the copy page says where to go instead", async () => {
+test("the retired 'Sell in shop' page sells nothing (a reserved copy stays reserved), and the copy page says where to go instead", async () => {
   const buyer = await h.account();
   const copy = await h.copy({ price: 7 });
   const { order } = await h.reserve(buyer, { copyIds: [copy] });
   const r = await admin.post("/admin/inventory/sell", { copyId: String(copy), price: "7", payment: "cash" });
-  assert.equal(r.status, 409);
-  assert.match(r.text, new RegExp(`reserved by order #${order.id}`));
+  assert.equal(r.status, 302);
+  assert.equal(r.location, "/admin/till?notice=sell-retired");
   assert.equal((await copyRow(copy)).status, "reserved");
   assert.equal((await h.order(order.id)).status, "reserved");
 

@@ -20,7 +20,7 @@ test("Rule A / B / C boundaries (other bindings), every edge", () => {
     [6, "B", 8], [12, "B", 8], [19.99, "B", 8],
     [20, "C", 15], [24, "C", 18], [35, "C", 26.5], [49.99, "C", 37.5], // 75% rounded to the nearest 0.50
   ];
-  for (const binding of [null, "paperback"]) {
+  for (const binding of [null, "trade"]) {
     for (const [m, rule, price] of table) {
       const r = rules({ binding, marketEur: m });
       assert.deepEqual(summary(r), [rule, price], `${binding} market ${m}`);
@@ -80,17 +80,17 @@ test("mass market: EUR 5 whatever it is worth online, even above 50; no ISBN sti
 test("clearance: with 0/1/2/3/4 copies in stock, Set A and mass market go to EUR 1 from the third copy", () => {
   const cases = [
     // [binding, market value, existing copies, expected rule, price]
-    ["paperback", 3, 0, "A", 5], ["paperback", 3, 1, "A", 5], ["paperback", 3, 2, "clearance", 1], ["paperback", 3, 3, "clearance", 1], ["paperback", 3, 4, "clearance", 1],
+    ["trade", 3, 0, "A", 5], ["trade", 3, 1, "A", 5], ["trade", 3, 2, "clearance", 1], ["trade", 3, 3, "clearance", 1], ["trade", 3, 4, "clearance", 1],
     ["mass_market", 99, 1, "mass_market", 5], ["mass_market", 99, 2, "clearance", 1], ["mass_market", null, 4, "clearance", 1],
     // not Set A: stays at the normal price
-    ["paperback", 12, 3, "B", 8], ["paperback", 30, 3, "C", 22.5],
+    ["trade", 12, 3, "B", 8], ["trade", 30, 3, "C", 22.5],
   ];
   for (const [binding, m, n, rule, price] of cases) {
     const r = rules({ binding, marketEur: m, existingCopies: n });
     assert.deepEqual(summary(r), [rule, price], `${binding} ${m} with ${n}`);
     assert.equal(r.clearance, rule === "clearance");
   }
-  const c = rules({ binding: "paperback", marketEur: 3, existingCopies: 2 });
+  const c = rules({ binding: "trade", marketEur: 3, existingCopies: 2 });
   assert.deepEqual(c.normal, { ruleSet: "A", price: 5, level: 5 });
   assert.equal(c.level, "clearance");
 });
@@ -133,7 +133,7 @@ test("hardcover and clearance: a hardcover with 2+ copies in stock still goes to
 });
 
 test("paperback and unknown binding are unaffected by the floor and the mass market price", () => {
-  for (const binding of ["paperback", null, undefined, "other"]) {
+  for (const binding of ["trade", null, undefined, "other"]) {
     assert.equal(rules({ binding, marketEur: 3 }).price, 5);
     assert.equal(rules({ binding, marketEur: 12 }).price, 8);
   }
@@ -151,7 +151,7 @@ test("the value comes from listings: median, outliers trimmed from 4 listings, o
     [{ comparables: [], originalPrice: 20 }, 7, "original", "medium"], // 20 x 0.35
     [{ comparables: [] }, 8, "fallback", "low"],
     [{ comparables: [], binding: "hardcover" }, 12, "fallback", "low"],
-    [{ comparables: [], binding: "paperback" }, 8, "fallback", "low"],
+    [{ comparables: [], binding: "trade" }, 8, "fallback", "low"],
     [{ comparables: [], binding: "mass_market" }, 4, "fallback", "low"],
   ];
   for (const [opts, value, source, confidence] of cases) {
@@ -167,7 +167,7 @@ test("a rule decision is made from the listings: [5,6,7,8] -> median 6.5 -> Rule
   assert.deepEqual(summary(rules({ comparables: [5, 6, 7, 8] })), ["B", 8]);
   assert.deepEqual(summary(rules({ comparables: [2, 3, 4] })), ["A", 5]);
   assert.deepEqual(summary(rules({ comparables: [], binding: "hardcover" })), ["B", 10]); // value 12 -> B (8), floored to 10
-  assert.deepEqual(summary(rules({ comparables: [], binding: "paperback" })), ["B", 8]);
+  assert.deepEqual(summary(rules({ comparables: [], binding: "trade" })), ["B", 8]);
   assert.deepEqual(summary(rules({ comparables: [], originalPrice: 12 })), ["A", 5]); // 12 x 0.35 = 4.2
 });
 
@@ -200,7 +200,7 @@ test("every number is a setting: thresholds, prices, factor, step", () => {
 
 test("suggestPrice: names the rule that fired in plain English, never mentions condition as a factor, and never throws", async () => {
   const brokenPool = { query: async () => { throw new Error("db down"); } };
-  const r = await suggestPrice(brokenPool, { isbn: ISBN, binding: "paperback", condition: "very_good" }, { market: false });
+  const r = await suggestPrice(brokenPool, { isbn: ISBN, binding: "trade", condition: "very_good" }, { market: false });
   assert.equal(r.ruleSet, "B"); // fallback value 8 -> Rule B, using the built-in settings
   assert.equal(r.price, 8);
   assert.match(r.rationale.join(" "), /Rule B \(mid-range standard stock\)/);
@@ -218,7 +218,7 @@ test("suggestPrice: names the rule that fired in plain English, never mentions c
     assert.match(x.rationale.join(" "), pattern);
   }
   const all = { ...S, clearance: { ...S.clearance, appliesTo: "all_sets" } };
-  const cl = await suggestPrice(brokenPool, { isbn: ISBN, binding: "paperback", condition: "good", existingCopies: 2 }, { market: false, settings: all });
+  const cl = await suggestPrice(brokenPool, { isbn: ISBN, binding: "trade", condition: "good", existingCopies: 2 }, { market: false, settings: all });
   assert.match(cl.rationale.join(" "), /copy no\. 3 of this book in stock, so it is on clearance/);
   assert.match(cl.rationale.join(" "), /Clearance rule/);
   assert.equal(cl.price, 1);

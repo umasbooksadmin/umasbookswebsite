@@ -123,7 +123,7 @@ test("lookup: a catalog hit answers with the book, the binding hint and a price 
   assert.equal(j.book.author, "Ann Author");
   assert.equal(j.book.publisher, "Pub House");
   assert.equal(j.book.publishedYear, 2011);
-  assert.deepEqual(j.bindingHint, { key: "paperback", label: "Paperback" });
+  assert.deepEqual(j.bindingHint, { key: "trade", label: "Trade" });
   assert.equal("binding" in j.book, false, "the binding travels only as a hint");
   assert.equal(j.existing, null);
   assert.ok(j.suggestion && "price" in j.suggestion && "needsReview" in j.suggestion, "price suggestion data");
@@ -244,14 +244,14 @@ test("Store is treated like any other location: normalised on save, on the Move 
 
 test("Save and add another (no JavaScript): redirects back to a fresh form with a saved flag that carries location, source, binding and condition", async () => {
   const title = `Loop ${uniq()}`;
-  const r = await post("/admin/inventory", { form: copyBody(title, { fast: "1", location: "fiction a1", binding: "hardcover", condition: "like_new", source: "lot" }) });
+  const r = await post("/admin/inventory", { form: copyBody(title, { fast: "1", location: "fiction a1", binding: "hardcover", condition: "good", source: "lot" }) });
   assert.equal(r.status, 302);
   const u = new URL(r.location, "http://x");
   assert.equal(u.pathname, "/admin/inventory/new");
   assert.match(u.searchParams.get("saved"), /^\d+$/);
   assert.equal(u.searchParams.get("location"), "FICTION A1");
   assert.equal(u.searchParams.get("binding"), "hardcover");
-  assert.equal(u.searchParams.get("condition"), "like_new");
+  assert.equal(u.searchParams.get("condition"), "good");
   assert.equal(u.searchParams.get("source"), "lot");
 
   const page = (await get(r.location)).text;
@@ -264,7 +264,7 @@ test("Save and add another (no JavaScript): redirects back to a fresh form with 
   assert.match(page.match(/<input id="isbn"[^>]*>/)[0], /value=""/, "and is empty");
   assert.match(page, /id="location"[^>]*value="FICTION A1"/);
   assert.match(page, /<option value="hardcover" selected>/);
-  assert.match(page, /<option value="like_new" selected>/);
+  assert.match(page, /<option value="good" selected>/);
   assert.match(page, /<option value="lot" selected>/, "the source of the last book is kept");
   // A reload of the same address keeps the remembered values.
   const again = (await get(r.location)).text;
