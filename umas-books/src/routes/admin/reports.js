@@ -12,6 +12,15 @@ const router = express.Router();
 // of accounts, which needs them); every CSV download is written to the
 // admin activity log (slug only).
 
+async function auditAccountsView(req) {
+  const adminId = req.session.user.id;
+  const { rows } = await pool.query(
+    "SELECT 1 FROM admin_audit_log WHERE actor_user_id = $1 AND action = 'reports.accounts.view' AND at > now() - interval '1 hour' LIMIT 1",
+    [adminId]
+  );
+  if (!rows.length) await audit(req, { action: "reports.accounts.view", targetType: "report", detail: "accounts" });
+}
+
 router.get("/admin/reports", requireAdmin, (req, res) => {
   res.render("admin/reports/index", { active: "reports", reports: REPORTS });
 });
@@ -40,6 +49,11 @@ router.get("/admin/reports/:slug", requireAdmin, async (req, res) => {
     });
     return res.send(toCsv(section));
   }
+
+  // The Accounts report lists every account's email address: viewing the page
+  // is logged like the CSV download, once an hour per admin (a refresh or a
+  // filter change is not a new entry).
+  if (slug === "accounts") await auditAccountsView(req);
 
   res.render("admin/reports/show", {
     active: "reports", report, result, groups: GROUPS, formatCell,

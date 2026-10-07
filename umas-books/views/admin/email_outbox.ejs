@@ -14,9 +14,10 @@
     Pending: <strong><%= byStatus.pending || 0 %></strong> &middot;
     Failed: <strong><%= byStatus.failed || 0 %></strong> &middot;
     Handled: <%= byStatus.handled || 0 %> &middot;
+    Expired: <%= byStatus.expired || 0 %> &middot;
     Sent: <%= byStatus.sent || 0 %>
   </p>
-  <p class="muted small">Pending mail is retried automatically after 1, 5, 15, 60 then every 240 minutes; after 8 attempts it is marked failed and you get one alert email per hour. If everything fails, check the Gmail account (see the runbook, "Emails are not arriving"). The content of sent emails is erased after 30 days (failed ones after 90).</p>
+  <p class="muted small">Pending mail is retried automatically after 1, 5, 15, 60 then every 240 minutes; after 8 attempts it is marked failed and you get one alert email per hour. If everything fails, check the Gmail account (see the runbook, "Emails are not arriving"). The content of sent emails is erased after 30 days (failed ones after 90). A reset or confirmation link that was never sent is blanked when it fails or its link has expired (marked expired, not retried).</p>
   <% if (byStatus.failed) { %>
     <form method="post" action="/admin/email-outbox/handled">
       <%- include('../partials/csrf_field') %>
@@ -60,7 +61,7 @@
             <td><%= r.attempts %></td>
             <td class="small" style="white-space:pre-wrap;word-break:break-word"><%= r.last_error || '' %></td>
             <td>
-              <% if (r.status !== 'sent' && !r.purged_at) { %>
+              <% if (r.status !== 'sent' && r.status !== 'expired' && !r.purged_at) { %>
                 <form method="post" action="/admin/email-outbox/<%= r.id %>/retry">
                   <%- include('../partials/csrf_field') %>
                   <button class="btn btn-outline btn-small" type="submit">Retry now</button>

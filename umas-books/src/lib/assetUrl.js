@@ -49,4 +49,18 @@ function versionedHeaders(res) {
   }
 }
 
-module.exports = { assetUrl, versionedHeaders };
+// The static mounts sit before helmet in index.js, so they set the headers
+// helmet would otherwise add. "cross-origin" resource policy: these files are
+// public and may be embedded by the shop's own other hostnames.
+const STATIC_SECURITY_HEADERS = {
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "no-referrer",
+  "Cross-Origin-Resource-Policy": "cross-origin",
+};
+
+function staticHeaders(res) {
+  for (const [k, v] of Object.entries(STATIC_SECURITY_HEADERS)) res.setHeader(k, v);
+  versionedHeaders(res);
+}
+
+module.exports = { assetUrl, versionedHeaders, staticHeaders, STATIC_SECURITY_HEADERS };

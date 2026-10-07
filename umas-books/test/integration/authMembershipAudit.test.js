@@ -183,8 +183,6 @@ test("password reset race: 8 parallel POSTs with one token set exactly one passw
   assert.ok(await bcrypt.compare(passwords[winners[0][1]], rows[0].password_hash), "stored password is the winner's");
 });
 
-const lockState = async (userId) =>
-  (await pool.query("SELECT failed_login_attempts, locked_until FROM users WHERE id = $1", [userId])).rows[0];
 const wrongLogins = (email, n) =>
   Promise.all(Array.from({ length: n }, () => post("/login", { email, password: "wrong-password" })));
 
@@ -193,17 +191,14 @@ test("login lockout: concurrent wrong passwords below the threshold are all coun
   const userId = await createUser(email, { verified: true, password: "Right-Passw0rd-1!", cost: 12 });
   const results = await wrongLogins(email, 4);
   for (const r of results) assert.equal(r.status, 401);
-  const s = await lockState(userId);
-  assert.equal(s.failed_login_attempts, 4, "read-add-write would undercount here");
-  assert.equal(s.locked_until, null);
-
-  // One more crosses the threshold: locked, counter reset.
+  // One more crosses the threshold (5 per account+IP, counted in memory,
+  // lib/loginThrottle.js): if the 4 concurrent ones had been undercounted this
+  // would still be below it and the right password would get in.
   assert.equal((await wrongLogins(email, 1))[0].status, 401);
-  const locked = await lockState(userId);
-  assert.ok(locked.locked_until && new Date(locked.locked_until) > new Date());
-  assert.equal(locked.failed_login_attempts, 0);
-  // Locked: even the right password gets the same generic 401.
+  // Locked for this address: even the right password gets the same generic 401.
   assert.equal((await post("/login", { email, password: "Right-Passw0rd-1!" })).status, 401);
+  // ...without locking the account itself for anyone else.
+  assert.equal((await pool.query("SELECT locked_until FROM users WHERE id = $1", [userId])).rows[0].locked_until, null);
 });
 
 test("login lockout: a burst of concurrent wrong passwords cannot bypass the lock", async () => {
@@ -211,6 +206,6 @@ test("login lockout: a burst of concurrent wrong passwords cannot bypass the loc
   const userId = await createUser(email, { verified: true, password: "Right-Passw0rd-1!", cost: 12 });
   const results = await wrongLogins(email, 8);
   for (const r of results) assert.equal(r.status, 401);
-  const s = await lockState(userId);
-  assert.ok(s.locked_until && new Date(s.locked_until) > new Date(), "account is locked after >=5 concurrent failures");
+  assert.equal((await post("/login", { email, password: "Right-Passw0rd-1!" })).status, 401, "locked after >=5 concurrent failures, right password refused");
+  assert.ok(userId);
 });

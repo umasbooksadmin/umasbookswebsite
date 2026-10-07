@@ -582,8 +582,22 @@ locked-out admin, who gets alerts, the yearly checklist) are in
   throughout the views) and Google Fonts' stylesheet host.
 - **Login hardening** — a login attempt against a nonexistent email still
   runs a same-cost bcrypt compare (against a fixed dummy hash) so response
-  timing can't be used to enumerate registered emails; 5 failed attempts
-  on one account locks it for 15 minutes.
+  timing can't be used to enumerate registered emails; 5 wrong passwords from
+  one address lock THAT address out of that account for 15 minutes (a stranger
+  cannot lock the owner out), and 20 across all addresses in 15 minutes refuse
+  new addresses for the rest of the window (`src/lib/loginThrottle.js`).
+- **Marketing pages CSP** — `script-src 'self'` and `script-src-attr 'none'`
+  there too (they share an origin with `/admin`); no inline scripts: page
+  strings are a JSON data block read by `public/page-i18n.js`.
+- **Live host** — any request for another Host than `APP_BASE_URL`'s (the
+  `onrender.com` address) is redirected (page views) or answered 421
+  (anything else), except `/healthz` and `/webhooks/helloasso`.
+- **Mail abuse** — signup, reset and book-request mails are throttled per
+  recipient (1 per 10 minutes per kind, 5 a day, a shop-wide hourly cap); links
+  in failed or lapsed mails are blanked (`src/lib/outbox.js`).
+- **Data requests** — admin > Privacy requests (`/admin/privacy`) looks up,
+  downloads or erases everything under an email address, with or without an
+  account (runbook, "A data request").
 - **Password requirements** — at least 8 characters, with an uppercase
   letter, a lowercase letter, a number, and a symbol (`src/lib/passwordPolicy.js`),
   enforced both client-side (`pattern`/`minlength` on the form inputs) and

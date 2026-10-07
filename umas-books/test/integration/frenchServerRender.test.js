@@ -130,7 +130,7 @@ test("legal pages: Accept-Language French (no cookie) also gets French; English 
 
 test("the client-side toggle still has both dictionaries (and the FR page keeps the English one for toggling back)", async () => {
   const { html } = await get("/privacy-policy.html", "fr");
-  const m = html.match(/window\.PAGE_I18N = (\{.*\});\n<\/script>/);
+  const m = html.match(/<script type="application\/json" id="page-i18n-data">(.*?)<\/script>/s);
   assert.ok(m, "PAGE_I18N is still sent");
   const dict = JSON.parse(m[1]);
   assert.match(dict.en["pp.title"], /Privacy Policy/);

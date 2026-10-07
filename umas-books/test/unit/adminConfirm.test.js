@@ -51,13 +51,12 @@ for (const [view, messages] of Object.entries(DESTRUCTIVE)) {
   });
 }
 
-test("no app (non-marketing) view uses an inline event handler or inline script", () => {
+test("no view (app OR marketing) uses an inline event handler or inline script", () => {
   const offenders = [];
   for (const file of walk(path.join(ROOT, "views"))) {
-    if (file.includes(`${path.sep}marketing${path.sep}`)) continue; // marketingCsp allows inline
     const src = fs.readFileSync(file, "utf8");
     if (/\son(submit|click|change|input|load|error)\s*=/i.test(src)) offenders.push(`${file}: inline handler`);
-    if (/<script(?![^>]*\ssrc=)(?![^>]*ld\+json)/i.test(src)) offenders.push(`${file}: inline <script>`);
+    if (/<script(?![^>]*\ssrc=)(?![^>]*ld\+json)(?![^>]*application\/json)/i.test(src)) offenders.push(`${file}: inline <script>`);
   }
   assert.deepEqual(offenders, []);
 });

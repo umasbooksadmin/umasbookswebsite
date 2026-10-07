@@ -48,7 +48,7 @@ test("the legal notice page shows the publisher, director of publication and hos
 
 test("the French and English texts cover exactly the same keys", async () => {
   const { text } = await get("/mentions-legales.html");
-  const m = text.match(/window\.PAGE_I18N = (\{.*?\});\s*<\/script>/s);
+  const m = text.match(/<script type="application\/json" id="page-i18n-data">(.*?)<\/script>/s);
   assert.ok(m, "PAGE_I18N is embedded in the page");
   const i18n = JSON.parse(m[1]);
   const en = Object.keys(i18n.en).sort();
