@@ -200,14 +200,14 @@ Fonts: the website serves its typefaces itself (self-hosted files in `assets/fon
 
 | | |
 |---|---|
-| Purpose | Help administrators catalogue second-hand books: read a book's cover or barcode photo, write or translate a short description, suggest genres, suggest a used-book price, and find documented awards and best-seller lists |
-| Data | **No personal data about customers, members or volunteers.** What is sent (checked in `src/lib/coverVision.js`, `bookDescription.js`, `bookGenre.js`, `pricing/market.js` and `awards/ai.js`): book facts only (title, author, ISBN, publisher, year, binding, an existing description text), and, for a cover scan, the **photo of a book cover or barcode** that an administrator uploads. Results are cached per ISBN (`price_lookups`) and stored as book data; AI-found awards stay hidden until an administrator approves them. |
+| Purpose | Help administrators catalogue second-hand books: read a book's cover or barcode photo, write or translate a short description, suggest genres, suggest a used-book price |
+| Data | **No personal data about customers, members or volunteers.** What is sent (checked in `src/lib/coverVision.js`, `bookDescription.js`, `bookGenre.js`, and `pricing/market.js`): book facts only (title, author, ISBN, publisher, year, binding, an existing description text), and, for a cover scan, the **photo of a book cover or barcode** that an administrator uploads. Results are cached per ISBN (`price_lookups`) and stored as book data. |
 | People | None: the data is about books. Only administrators can trigger a lookup. (Rule for volunteers: photograph only the book, never people or documents; if a face or a written name ends up in a photo, retake it.) |
 | Legal basis | Legitimate interest (running the shop efficiently); no personal data involved |
-| Recipients / processors | **Anthropic** (AI service, API). Off unless `ANTHROPIC_API_KEY` is set; price lookups also need `PRICING_AI` and award lookups need `AWARDS_AI`. See `processors-checklist.md`. |
+| Recipients / processors | **Anthropic** (AI service, API). Off unless `ANTHROPIC_API_KEY` is set; price lookups also need `PRICING_AI`. See `processors-checklist.md`. |
 | Transfers outside EU | Anthropic is a US company. Because no personal data is sent, no transfer of personal data takes place; check Anthropic's terms if this ever changes. |
 | Retention | Book data is kept as long as the book is in the catalogue. Price-lookup cache: 30 days for a found price, 7 days for no result, 1 hour after a failure (`TTL_MS` in `src/lib/pricing/market.js`). Anthropic's own retention of API requests is set by Anthropic's terms (per Anthropic's privacy centre, confirmed 4 October 2026: inputs and outputs are deleted from Anthropic's systems within 30 days, except content flagged for usage-policy violations, which is kept longer; the site sends only book facts and cover photos, no personal data). |
-| Security | API key stored as a Render environment variable; the calls fail open (a failure never blocks an admin action); daily caps on lookups (`PRICING_AI_DAILY_MAX`, `AWARDS_AI_DAILY_MAX`) |
+| Security | API key stored as a Render environment variable; the calls fail open (a failure never blocks an admin action); daily caps on lookups (`PRICING_AI_DAILY_MAX`) |
 
 ## 12. Domain name and DNS / Nom de domaine et DNS
 

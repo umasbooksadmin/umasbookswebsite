@@ -58,7 +58,7 @@ flowchart LR
     direction TB
     HA["HelloAsso<br/>membership payment only"]
     GM["Gmail SMTP<br/>all outgoing mail"]
-    AN["Anthropic API (optional)<br/>cover scan, descriptions,<br/>price and awards web search"]
+    AN["Anthropic API (optional)<br/>cover scan, descriptions,<br/>price lookup"]
     OL["Open Library, archive.org<br/>ISBN lookup, cover download<br/>(server side only)"]
     WD["Wikidata, NYT Books API<br/>awards and best-seller lists"]
     PW["Have I Been Pwned<br/>breach check"]
@@ -111,7 +111,7 @@ login, one database and one thing to monitor.
 | Two-step login | TOTP authenticator app (`lib/totp.js`) | required for admins; the secret is encrypted in the database |
 | Languages | server-side English and French | `tr()` in views, cookie `umasbooks_lang`; emails follow the reader's stored language (§3) |
 | Mail | `nodemailer` over Google Workspace SMTP | one mailbox (`admin@umasbooks.org`) for human and system mail |
-| Optional AI | Anthropic API (Claude) | cover scan, book descriptions and genre, market price lookup, awards web search; every use is optional and off without `ANTHROPIC_API_KEY` |
+| Optional AI | Anthropic API (Claude) | cover scan, book descriptions and genre, market price lookup; every use is optional and off without `ANTHROPIC_API_KEY` |
 | Payments | HelloAsso for the membership only (hosted membership form, payment lookups); books and seats are paid in the shop, no payment provider | OAuth client credentials |
 | Hosting | Render Blueprint (`render.yaml`) | web `1c-2g`, database `1c-2g`, Frankfurt; migrations run as the pre-deploy command |
 | CI/CD | GitHub Actions + Dependabot | six required checks; Render deploys on merge; actions pinned by commit |
@@ -144,7 +144,7 @@ flowchart TB
     MEMB["Members<br/>dashboard, account, privacy, forum,<br/>charity, volunteer, meetings"]
     COM["Commerce<br/>cart and reservations, helloassoWebhook (membership)"]
     AUTH["auth.js, twoFactor.js<br/>signup, verify, login, two-step,<br/>reset, password"]
-    ADM["admin/*<br/>members, inventory (scan, move, sell),<br/>pricing, price suggestions, awards, reports,<br/>requests, forum moderation, events, sessions,<br/>meetings, volunteer shifts, blog,<br/>announcements, charity, dashboard, audit"]
+    ADM["admin/*<br/>members, inventory (scan, move, sell),<br/>pricing, price suggestions, awards (add, remove, re-check), reports,<br/>requests, forum moderation, events, sessions,<br/>meetings, volunteer shifts, blog,<br/>announcements, charity, dashboard, audit"]
   end
 
   subgraph LIB["src/lib"]
@@ -159,7 +159,7 @@ flowchart TB
     L8["bookLookup.js, coverVision.js,<br/>uploadImage.js, imageStore.js, health.js"]
     L9["totp.js, audit.js, privacy.js,<br/>memberExport.js, lang.js, inventory.js"]
     L10["pricing/*<br/>rules, market lookup, clearance, settings"]
-    L11["awards/*<br/>Wikidata, NYT, AI, display"]
+    L11["awards/*<br/>Wikidata, NYT, display"]
     L12["bookRequests.js, reports.js,<br/>forumModeration.js, orderEmail.js"]
     L13["jobGuard.js, imageCleanup.js,<br/>preview.js, errorHandler.js"]
   end
@@ -420,7 +420,7 @@ erDiagram
 |---|---|---|
 | Accounts | `users`, `email_verification_tokens`, `password_reset_tokens`, `totp_recovery_codes`, `session`, `schema_migrations` | tokens and recovery codes stored as hashes; `users` also holds `lang`, the encrypted two-step secret and `inactivity_warned_at`; `session` is created by the store |
 | Shop | `books`, `book_copies`, `orders`, `order_items`, `class_dropin_seats`, `shop_sales` | an order line is *either* a copy *or* a seat (CHECK constraint); copy status `in_stock / reserved / in_cart / sold / donated / damaged` (`reserved` also covers a copy held by an online reservation, with `cart_order_id` pointing at its order; `in_cart` is a leftover of the old online checkout and nothing sets it any more); one row per ISBN (unique index); `shop_sales` is the over-the-counter equivalent of a collected reservation line |
-| Awards | `book_awards` | awards, shortlists and best-seller lists per book, with `source` (`wikidata / nyt / ai / manual`) and review `status` (`verified / pending / approved / rejected`) |
+| Awards | `book_awards` | awards, shortlists and best-seller lists per book, with `source` (`wikidata / nyt / manual`); every row is `status = verified` and shown |
 | Pricing | `pricing_settings`, `price_lookups` | one settings row (`id = 1`) holding every number the rules use; one cached market lookup per ISBN-13 |
 | Book requests | `book_requests`, `book_request_list_tokens` | customer "ask us for a book" requests, identified by an emailed link instead of an account; personal columns are cleared when a request ends |
 | Images | `images` | content-addressed: id is the SHA-256 of the bytes; `books.cover_url` and the announcement, charity and blog image columns hold only the short `/img/<hash>.jpg` URL. Book covers from Open Library / archive.org are downloaded once by the server (`lib/coverStore.js`), re-encoded and stored here; `books.cover_source_url` and `cover_fetch_*` only drive the download retries (migration 059) |
@@ -540,23 +540,16 @@ flowchart LR
   JOB["Every 2 min:<br/>drainAwards, 5 books"] --> CHK
   CHK --> WD["Wikidata"]
   CHK --> NY["NYT Books API<br/>(only if NYT_API_KEY)"]
-  CHK --> AI["Claude web search<br/>(only if AWARDS_AI=true,<br/>daily cap)"]
   WD --> V["status: verified<br/>shown at once"]
   NY --> V
   MAN["Admin types one"] --> V
-  AI --> PEN["status: pending<br/>hidden"]
-  PEN --> ADM{"Admin review<br/>/admin/awards"}
-  ADM -- approve --> APP["approved: shown"]
-  ADM -- reject --> REJ["rejected: kept, never<br/>suggested again"]
 ```
 
-Customers only ever see `verified` and `approved` rows. The background drain
-takes never-checked books newest first, then retries errors after a day, then
-runs the AI step for books checked before AI was on, then refreshes books last
-checked over a year ago; it does not run at boot, so a restart never hammers
-Wikidata. `AWARDS_AI_DAILY_MAX` (default 100) caps AI checks per UTC day, counted
-in the database so it survives restarts. `AWARDS_LOOKUPS=off` stops every lookup
-(the tests use it so no test reaches the network).
+There is no review step and no AI source: customers see exactly what is stored.
+The background drain takes never-checked books newest first, then retries errors
+after a day, then refreshes books last checked over a year ago; it does not run
+at boot, so a restart never hammers Wikidata. `AWARDS_LOOKUPS=off` stops every
+lookup (the tests use it so no test reaches the network).
 
 ### Customer book requests
 
@@ -947,7 +940,7 @@ flowchart LR
   AW --> DB
   A -. "every run recorded" .-> JR
   JR -. "3 failures in a row: one alert email" .-> OBX["alert to ALERT_TO"]
-  AW --> EXT["Wikidata, NYT, Anthropic"]
+  AW --> EXT["Wikidata, NYT"]
 ```
 
 | Job | Where | Cadence | Notes |
@@ -1214,7 +1207,7 @@ flowchart TD
 | Authorization | admin guard (including two-step) before multer; admins cannot demote, disable or delete themselves |
 | Preview mode | `PREVIEW_MODE=true` switches reservations and the membership widget off, adds a banner, and sends `noindex, nofollow` (header, meta tag, `robots.txt`, empty sitemap), so an unfinished site cannot take reservations or payments or be indexed |
 | Moderation | admins can hide forum posts with a reason code; the author gets a statement of reasons (EU Digital Services Act) and the action is audit-logged without the post text |
-| AI features | optional and off without `ANTHROPIC_API_KEY`; price and awards lookups have separate switches and daily caps; AI-found awards stay hidden until an admin approves them; a suggested price is never saved without a person confirming it |
+| AI features | optional and off without `ANTHROPIC_API_KEY`; the price lookup has its own switch and daily cap; a suggested price is never saved without a person confirming it |
 | Book requests | double opt-in by emailed link, tokens stored as hashes, rate-limited, personal data cleared when a request ends |
 | Admin audit log | member changes, erasure, data export, two-step resets, deletes, bulk deletes, book moves and repricing, shop sales, pricing-rule changes, award edits, book-request handling, forum hide and restore, report CSV downloads and admin logins are appended to `admin_audit_log` and shown read-only at `/admin/audit`; it keeps the admin's id and email, the action and a numeric target, never member emails or names; rows are purged after 12 months |
 | CSP form-action | `'self'` only: no form of ours posts to another site and no redirect to another site follows a form POST (books and seats are reserved here and paid in the shop). The HelloAsso membership form is an iframe the visitor loads by pressing a button, allowed by `frame-src` on the marketing pages (`lib/marketingCsp.js`); `lib/helloassoHosts.js` now only tells whether `HELLOASSO_API_BASE` is the sandbox |
@@ -1283,12 +1276,10 @@ reservations behind. The code handles it in one place (`lib/privacy.js`):
 | `GMAIL_USER`, `GMAIL_APP_PASSWORD` | recommended | all outgoing mail, including error alerts |
 | `HELLOASSO_CLIENT_ID`, `HELLOASSO_CLIENT_SECRET`, `HELLOASSO_ORG_SLUG` | for online membership payment | optional `HELLOASSO_API_BASE` |
 | `HELLOASSO_MEMBERSHIP_FORM_SLUG` | no | when set, only orders of that HelloAsso form (its `formSlug`) grant membership; unset = any Membership-type form of the organisation |
-| `ANTHROPIC_API_KEY`, `ANTHROPIC_WORKSPACE_ID` | optional | cover scan, book descriptions and genre in admin inventory; also needed (with the switches below) for AI price and awards lookups |
+| `ANTHROPIC_API_KEY`, `ANTHROPIC_WORKSPACE_ID` | optional | cover scan, book descriptions and genre in admin inventory; also needed (with the switch below) for the AI price lookup |
 | `PRICING_AI` | optional | `true` or `1` turns on the AI market-price lookup behind price suggestions (needs `ANTHROPIC_API_KEY`); off by default, rules still work without it |
 | `PRICING_AI_DAILY_MAX`, `PRICING_AI_MODEL` | optional | daily cap on price lookups (default 150) and model override |
 | `NYT_API_KEY` | optional | enables best-seller lists from the New York Times Books API; without it that source is skipped |
-| `AWARDS_AI` | optional | `true` turns on AI web search for awards (needs `ANTHROPIC_API_KEY`); results wait for admin approval |
-| `AWARDS_AI_DAILY_MAX`, `AWARDS_AI_MODEL` | optional | daily cap on AI award checks (default 100) and model override |
 | `AWARDS_LOOKUPS` | optional | `off` stops every awards lookup (used by tests) |
 | `COVER_BACKFILL` | optional | `off` stops the background job that copies book covers to our own server (used by tests) |
 | `TRUST_PROXY_HOPS` | optional | integer 1 to 5: how many reverse proxies sit in front of the app (default **2** in production: Render's edge and its internal proxy; 1 elsewhere). The edge reports `cf-cache-status: DYNAMIC` for everything (the app sets its own `Cache-Control`); **a real CDN or caching rule added later changes the proxy chain, so re-check this value then**. `req.ip` is the Nth address from the right of the chain, so a spoofed `X-Forwarded-For` prefix is ignored. Logged at boot; verify on `/admin/diagnostics/client-ip` |
@@ -1305,7 +1296,7 @@ On Render, `render.yaml` declares the core variables (database, session secret,
 Blueprint rebuild starts correctly, `APP_BASE_URL`, `CONTACT_TO`, `ALERT_TO`,
 `TRUST_PROXY_HOPS`, `HELLOASSO_MEMBERSHIP_FORM_SLUG` and `COVER_BACKFILL`;
 `PREVIEW_MODE` is **deliberately absent** (set and removed by hand in the
-dashboard); the other optional switches above (`PRICING_AI`, `AWARDS_AI`,
+dashboard); the other optional switches above (`PRICING_AI`,
 `NYT_API_KEY`, caps and model overrides) are added by hand in the service's
 environment settings.
 Startup validation (`lib/env.js`, production only) stops the boot if
@@ -1364,9 +1355,9 @@ Deliberate trade-offs (revisit only if traffic or risk changes):
   before `; : ! ? €`) is enforced by a unit test; the many `tr()` strings in the
   app views are not yet checked for it.
 * **Awards and price lookups depend on outside services.** Wikidata, the NYT
-  API and the AI web searches can be slow, wrong or unavailable; every call has a
-  timeout, failures are retried later, AI-found awards need an admin's approval
-  and a price is only ever a suggestion. Daily caps bound the Anthropic cost.
+  API and the AI price search can be slow, wrong or unavailable; every call has a
+  timeout, failures are retried later, and a price is only ever a suggestion. The
+  daily cap bounds the Anthropic cost.
 
 Open items worth knowing:
 

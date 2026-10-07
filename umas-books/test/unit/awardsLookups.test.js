@@ -8,7 +8,6 @@ const assert = require("node:assert/strict");
 
 const wikidata = require("../../src/lib/awards/wikidata");
 const nyt = require("../../src/lib/awards/nyt");
-const ai = require("../../src/lib/awards/ai");
 const { parseManualAwards } = require("../../src/lib/awards/manual");
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -244,7 +243,7 @@ const NYT = {
   }],
 };
 
-beforeEach(() => { nyt.resetGate(); ai.resetAiUsage(); });
+beforeEach(() => { nyt.resetGate(); });
 
 test("nyt: maps ranks_history to one row per list and year", () => {
   assert.deepEqual(nyt.mapHistory(NYT).map((i) => [i.label, i.year, i.kind]), [
@@ -294,87 +293,9 @@ test("nyt: the API key never reaches the logs, even when the call fails", async 
   assert.ok(!logged.join("\n").includes("SECRET-KEY-999"));
 });
 
-// ---------------------------------------------------------------------- AI
-
-const URL_A = "https://www.thebookerprizes.com/winner";
-const good = (extra = {}) => JSON.stringify({ items: [{ label: "Booker Prize", year: 2019, kind: "award", source_url: URL_A, ...extra }] });
-
-test("ai: parses valid JSON and fenced JSON", () => {
-  assert.deepEqual(ai.parseAiItems(good()), [{ label: "Booker Prize", year: 2019, kind: "award", source_url: URL_A }]);
-  assert.equal(ai.parseAiItems("```json\n" + good() + "\n```").length, 1);
-  assert.equal(ai.parseAiItems("Here you go: " + good() + " Thanks.").length, 1);
-});
-
-test("ai: garbage, wrong shapes and empty lists give nothing", () => {
-  for (const text of ["", "no json at all", "{not json}", "[1,2]", '{"items":"x"}', '{"items":[null,3,"a"]}', '{"items":[]}']) {
-    assert.deepEqual(ai.parseAiItems(text), [], text);
-  }
-});
-
-test("ai: rejects http URLs, non-URLs, unknown kinds, over-long labels, marketing", () => {
-  assert.equal(ai.parseAiItems(good({ source_url: "http://example.com/x" })).length, 0);
-  assert.equal(ai.parseAiItems(good({ source_url: "javascript:alert(1)" })).length, 0);
-  assert.equal(ai.parseAiItems(good({ source_url: null })).length, 0);
-  assert.equal(ai.parseAiItems(good({ kind: "review" })).length, 0);
-  assert.equal(ai.parseAiItems(good({ label: "x".repeat(201) })).length, 0);
-  assert.equal(ai.parseAiItems(good({ label: "" })).length, 0);
-  assert.equal(ai.parseAiItems(good({ year: "nope" }))[0].year, null);
-  const dup = JSON.stringify({ items: [JSON.parse(good()).items[0], JSON.parse(good({ label: "booker prize" })).items[0]] });
-  assert.equal(ai.parseAiItems(dup).length, 1);
-  assert.match(ai.buildPrompt({ title: "T", author: "A" }), /Do NOT include publisher marketing/);
-});
-
-test("ai: a URL that never appeared in the search results is dropped", () => {
-  const seenUrls = new Set([URL_A]);
-  assert.equal(ai.parseAiItems(good(), seenUrls).length, 1);
-  assert.equal(ai.parseAiItems(good({ source_url: "https://invented.example/pulitzer" }), seenUrls).length, 0);
-  assert.equal(ai.parseAiItems(good(), new Set()).length, 0);
-});
-
-const ENV_ON = { ANTHROPIC_API_KEY: "ant-key", AWARDS_AI: "1" };
-const aiReply = (text, urls = [URL_A]) => json({
-  content: [
-    { type: "server_tool_use", name: "web_search", input: { query: "q" } },
-    { type: "web_search_tool_result", content: urls.map((url) => ({ type: "web_search_result", url, title: "t" })) },
-    { type: "text", text },
-  ],
-});
-
-test("ai: calls the Messages API with the web search tool and keeps backed items", async () => {
-  let sent;
-  const fetch = async (url, init) => { sent = { url: String(url), headers: init.headers, body: JSON.parse(init.body) }; return aiReply(good()); };
-  const res = await ai.lookupAiAwards({ title: "T", authors: "A", isbn: "9780306406157", published_year: 2019 }, { fetch, env: { ...ENV_ON, ANTHROPIC_WORKSPACE_ID: "ws_1", AWARDS_AI_MODEL: "model-x" } });
-  assert.equal(res.items.length, 1);
-  assert.equal(sent.url, "https://api.anthropic.com/v1/messages");
-  assert.equal(sent.headers["x-api-key"], "ant-key");
-  assert.equal(sent.headers["anthropic-workspace-id"], "ws_1");
-  assert.equal(sent.body.model, "model-x");
-  assert.deepEqual(sent.body.tools, [{ type: "web_search_20250305", name: "web_search", max_uses: 3 }]);
-});
-
-test("ai: a tool/API error or an error body returns [] and flags an error, with one call only", async () => {
-  let calls = 0;
-  const res = await ai.lookupAiAwards({ title: "T", authors: "A" }, { fetch: async () => { calls++; return json({ error: { message: "tool not supported" } }, 400); }, env: ENV_ON });
-  assert.deepEqual([res.items, res.error, calls], [[], true, 1]);
-  const body = await ai.lookupAiAwards({ title: "T", authors: "A" }, { fetch: async () => json({ type: "error", error: {} }), env: ENV_ON });
-  assert.equal(body.error, true);
-});
-
-test("ai: needs the key, the switch, a title and an author", async () => {
-  const never = async () => assert.fail("must not call the API");
-  for (const [book, env] of [
-    [{ title: "T", authors: "A" }, { ANTHROPIC_API_KEY: "k" }],
-    [{ title: "T", authors: "A" }, { AWARDS_AI: "1" }],
-    [{ title: "T", authors: "A" }, { ANTHROPIC_API_KEY: "k", AWARDS_AI: "0" }],
-    [{ title: "T", authors: "" }, ENV_ON],
-    [{ title: "", authors: "A" }, ENV_ON],
-  ]) {
-    assert.equal((await ai.lookupAiAwards(book, { fetch: never, env })).skipped, true);
-  }
-  assert.equal(ai.aiEnabled({ ANTHROPIC_API_KEY: "k", AWARDS_AI: "true" }), true);
-  assert.equal(ai.dailyMax({}), 100);
-  assert.equal(ai.dailyMax({ AWARDS_AI_DAILY_MAX: "7" }), 7);
-  assert.equal(ai.dailyMax({ AWARDS_AI_DAILY_MAX: "junk" }), 100);
+// The AI web-search source is gone: its module no longer exists.
+test("there is no AI awards module any more", () => {
+  assert.throws(() => require("../../src/lib/awards/ai"), /Cannot find module/);
 });
 
 // ------------------------------------------------------------ typed-in text
