@@ -15,7 +15,7 @@ test("EN reservation confirmation: number, Paris date, items, prices, total, pay
   assert.match(t, /Total to pay at the shop: €12\.50/);
   assert.match(t, /PAY AT THE SHOP WHEN YOU COLLECT/);
   assert.match(t, /We hold your books until the end of 19 March 2026 \(Paris time\)\. After that they go back on sale\./);
-  assert.match(t, /Uma's Books, Rue Peyrolière, 81000 Albi — open Tuesday to Saturday, 10:00–19:00\. Please quote reservation #42\. You pay in cash or by card, after checking the book: you are free to decline it\./, "pickup is at the shop (with the hours), not the registered office");
+  assert.match(t, /Uma's Books, Rue Peyrolière, 81000 Albi\. Collect your books during our regular hours, Wednesday to Saturday, 14:00–19:00\. We are sometimes open at other times when volunteers are available, but only the regular hours are guaranteed\. Please quote reservation #42\. You pay in cash or by card, after checking the book: you are free to decline it\./, "pickup is at the shop (with the hours), not the registered office");
   assert.match(t, /TO CANCEL\nLog in and open your account page, then press “Cancel reservation”: https:\/\/shop\.test\/account/);
   assert.match(t, /Terms of sale: https:\/\/shop\.test\/terms-of-sale\.html/);
 });
@@ -70,7 +70,7 @@ test("French reservation: French subject and body, prices, date, deadline, shop 
   assert.doesNotMatch(t, /€\d/, "no English-style price in a French email");
   assert.match(t, /À RÉGLER À LA BOUTIQUE AU RETRAIT/);
   assert.match(t, /Nous gardons vos livres jusqu’à la fin de la journée du 19 mars 2026 \(heure de Paris\)\. Passé ce délai, ils sont remis en vente\./);
-  assert.match(t, /Uma's Books, rue Peyrolière, 81000 Albi — ouvert du mardi au samedi, 10\u00a0h–19\u00a0h\. Merci d’indiquer la réservation n° 42\. Vous payez en espèces ou par carte, après avoir vérifié le livre : vous êtes libre de le refuser\./);
+  assert.match(t, /Uma's Books, rue Peyrolière, 81000 Albi\. Venez retirer vos livres pendant nos horaires habituels, du mercredi au samedi, de 14\u00a0h à 19\u00a0h\. Nous sommes parfois ouverts à d’autres moments selon la disponibilité des bénévoles, mais seuls les horaires habituels sont garantis\. Merci d’indiquer la réservation n° 42\. Vous payez en espèces ou par carte, après avoir vérifié le livre : vous êtes libre de le refuser\./);
   assert.match(t, /POUR ANNULER\nConnectez-vous, ouvrez votre page de compte puis appuyez sur « Annuler la réservation » : https:\/\/shop\.test\/account/);
   assert.match(t, /Conditions de vente : https:\/\/shop\.test\/terms-of-sale\.html/);
   assert.doesNotMatch(t, /Thanks for your reservation|Pay at the shop|^Hi /im);
