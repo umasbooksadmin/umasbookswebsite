@@ -36,6 +36,8 @@ global.fetch = async (url, init = {}) => {
   if (u.startsWith("https://query.wikidata.org/sparql")) {
     if (net.wikidataGate) await net.wikidataGate;
     if (net.wikidata === "error") return jsonRes({}, 500);
+    // The author-prize query (Nobel, a second request) finds nothing here.
+    if (decodeURIComponent(u).includes("wdt:P50")) return jsonRes({ results: { bindings: [] } });
     return jsonRes({ results: { bindings: net.wikidata || [] } });
   }
   throw new Error(`test refused a real outbound request to ${u}`);
@@ -70,7 +72,7 @@ function uniq() { return `${Date.now()}-${Math.floor(Math.random() * 1e6)}`; }
 let seq = 0;
 const tag = () => `Aw${Date.now().toString(36)}${++seq}`;
 const isbn13 = () => `979${String(Date.now()).slice(-7)}${String(++seq).padStart(3, "0")}`;
-const FAST = { gapMs: 0 }; // no politeness sleep in tests
+const FAST = { gapMs: 0, sleep: async () => {} }; // no politeness or retry sleep in tests
 
 async function seedBook({ title = `Book ${tag()}`, authors = "Some Author", isbn = isbn13(), inStock = true } = {}) {
   const { rows } = await pool.query("INSERT INTO books (title, authors, isbn) VALUES ($1, $2, $3) RETURNING id", [title, authors, isbn]);
@@ -504,4 +506,28 @@ test("a failing awards lookup never fails or loses the save", async () => {
   const bookId = Number(res.location.split("?")[0].split("/").pop());
   await waitFor(async () => (await bookRow(bookId)).awards_check_state === "error", { timeoutMs: 10000 });
   assert.equal((await pool.query("SELECT COUNT(*)::int AS n FROM book_copies WHERE book_id = $1", [bookId])).rows[0].n, 1);
+});
+
+// ---------------------------------------------------- migration 080 (purge)
+
+test("migration 080 removes stored Wikidata awards and queues every book for a re-check, keeping other sources", async () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const sql = fs.readFileSync(path.join(__dirname, "../../migrations/080_purge_wikidata_awards.sql"), "utf8");
+  const a = await seedBook();
+  const b = await seedBook();
+  await addAward(a.id, "Grammy Award for Best Album", { year: 2001 }); // the wrong, stored-as-verified kind
+  await addAward(a.id, "Booker Prize", { year: 2019, source: "manual" });
+  await addAward(b.id, "NYT Best Seller", { kind: "bestseller", source: "nyt" });
+  await pool.query("UPDATE books SET awards_checked_at = now(), awards_check_state = 'ok' WHERE id = ANY($1)", [[a.id, b.id]]);
+
+  await pool.query(sql);
+
+  assert.deepEqual((await rowsOf(a.id)).map((r) => r.label), ["Booker Prize"]);
+  assert.deepEqual((await rowsOf(b.id)).map((r) => r.source), ["nyt"]);
+  for (const id of [a.id, b.id]) {
+    const row = await bookRow(id);
+    assert.equal(row.awards_checked_at, null);
+    assert.equal(row.awards_check_state, null);
+  }
 });
