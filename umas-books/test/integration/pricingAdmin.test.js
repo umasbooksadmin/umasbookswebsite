@@ -67,7 +67,7 @@ const setMarket = (prices, original = null) => {
 
 const DEFAULTS_SQL = `UPDATE pricing_settings SET levels='[3,5,8,10]', mass_market_price=5, hardcover_min_price=10, hardcover_min_applies_to_clearance=false,
   a_max=6, a_price=5, b_max=20, b_price=8, c_max=50, c_factor=0.75, used_fraction=0.35, rounding_step=0.5,
-  fallback_hardcover=12, fallback_paperback=8, fallback_mass_market=4, fallback_unknown=8, usd_eur=0.92, gbp_eur=1.15,
+  fallback_hardcover=12, fallback_trade=8, fallback_mass_market=4, fallback_unknown=8, usd_eur=0.92, gbp_eur=1.15,
   clearance_after_copies=2, clearance_price=1, clearance_scope='extra', clearance_applies_to='set_a' WHERE id=1`;
 const { clearSettingsCache } = require("../../src/lib/pricing/settings");
 async function resetSettings() {
@@ -78,7 +78,7 @@ async function resetSettings() {
 const SETTINGS_FORM = {
   levels: "3, 5, 8, 10", mass_market_price: "5", hardcover_min_price: "10", a_max: "6", a_price: "5", b_max: "20", b_price: "8",
   c_max: "50", c_factor: "0.75", used_fraction: "0.35", rounding_step: "0.5",
-  fallback_hardcover: "12", fallback_paperback: "8", fallback_mass_market: "4", fallback_unknown: "8",
+  fallback_hardcover: "12", fallback_trade: "8", fallback_mass_market: "4", fallback_unknown: "8",
   usd_eur: "0.92", gbp_eur: "1.15", clearance_after_copies: "2", clearance_price: "1",
   clearance_scope: "extra", clearance_applies_to: "set_a",
 };
@@ -120,7 +120,7 @@ async function seedBook({ isbn = isbn13(), title = tag(), copies = [{}] } = {}) 
     const [row] = await h.q(
       `INSERT INTO book_copies (book_id, condition, price, status, is_clearance, suggested_level, created_at)
        VALUES ($1, $2, $3, $4, $5, $6, now() - ($7 || ' minutes')::interval) RETURNING id`,
-      [book.id, c.condition || "like_new", c.price === undefined ? 6 : c.price, c.status || "in_stock", Boolean(c.clearance), c.level || null, String(age--)]
+      [book.id, c.condition || "good", c.price === undefined ? 6 : c.price, c.status || "in_stock", Boolean(c.clearance), c.level || null, String(age--)]
     );
     ids.push(row.id);
   }
@@ -133,7 +133,7 @@ const auditRows = (action) => h.q("SELECT * FROM admin_audit_log WHERE action = 
 async function addCopy(fields) {
   const isbn = fields.isbn || isbn13();
   const r = await h.post("/admin/inventory", {
-    title: fields.title || tag(), isbn, condition: "like_new", status: "in_stock", description: "d", descriptionFr: "d", coverUrl: "/c.png", ...fields,
+    title: fields.title || tag(), isbn, condition: "good", status: "in_stock", description: "d", descriptionFr: "d", coverUrl: "/c.png", ...fields,
   });
   assert.equal(r.res.status, 302, r.text.slice(0, 300));
   return (await copiesOf(isbn)).pop();
@@ -208,7 +208,7 @@ test("the no-JavaScript 'Suggest price' button re-shows the form with everything
   setMarket([2, 3, 4]); // Rule A
   const isbn = isbn13();
   const r = await h.post("/admin/inventory/suggest", {
-    title: "My Title", author: "My Author", isbn, condition: "like_new", binding: "", location: "fiction a1", acquisitionCost: "1.5", copyNotes: "dog-eared", price: "99",
+    title: "My Title", author: "My Author", isbn, condition: "good", binding: "", location: "fiction a1", acquisitionCost: "1.5", copyNotes: "dog-eared", price: "99",
   });
   assert.equal(r.res.status, 200);
   assert.match(r.text, /value="My Title"/);
@@ -253,7 +253,7 @@ test("the Binding select feeds the pricing: the form exposes it, the no-JS butto
 test("endpoint: JSON, no-store, and the condition never changes the suggestion", async () => {
   const isbn = isbn13();
   setMarket([3, 4, 5]); // Rule A: EUR 5
-  const first = await json(`/admin/inventory/price-suggestion?${new URLSearchParams({ isbn, condition: "like_new" })}`);
+  const first = await json(`/admin/inventory/price-suggestion?${new URLSearchParams({ isbn, condition: "good" })}`);
   assert.equal(first.res.status, 200);
   assert.match(first.res.headers.get("content-type"), /json/);
   assert.equal(first.res.headers.get("cache-control"), "no-store");
@@ -262,7 +262,7 @@ test("endpoint: JSON, no-store, and the condition never changes the suggestion",
   assert.equal(first.body.comparables.length, 3);
   assert.ok(first.body.rationale.length >= 2);
   const results = [];
-  for (const condition of ["like_new", "very_good", "good", "acceptable", "fair", "poor", "", "nonsense"]) {
+  for (const condition of ["good", "very_good", "good", "acceptable", "fair", "poor", "", "nonsense"]) {
     const b = await suggestion({ isbn, condition });
     results.push(JSON.stringify([b.price, b.level, b.ruleSet, b.rationale]));
   }
@@ -289,7 +289,7 @@ test("endpoint: new -> publisher price (none without it); mass market EUR 5 with
   assert.match(hc.rationale.join(" "), /Hardcover: minimum price EUR 10\.00/);
   assert.equal(market.calls.length, 1);
 
-  const review = await suggestion({ isbn: "", binding: "paperback" });
+  const review = await suggestion({ isbn: "", binding: "trade" });
   assert.deepEqual([review.price, review.needsReview, review.reviewMessage], [null, true, "Manual review: no ISBN barcode"]);
   const high = await suggestion({ isbn: isbn13() }); // answer still [3,4,5]
   assert.equal(high.price, 5);
@@ -399,8 +399,8 @@ test("clearance counts for a mass market book with 0, 1, 2, 3 copies in stock (a
     const s = await suggestion({ isbn: book.isbn, binding: "mass_market" });
     assert.deepEqual([s.price, s.ruleSet], expectations[n], `${n} copies in stock`);
     if (s.ruleSet === "clearance") assert.match(s.rationale[0], new RegExp(`copy no\\. ${n + 1} `));
-    await h.q("INSERT INTO book_copies (book_id, condition, price, status) VALUES ($1, 'like_new', 5, 'in_stock')", [book.id]);
-    await h.q("INSERT INTO book_copies (book_id, condition, price, status) VALUES ($1, 'like_new', 5, 'sold')", [book.id]).catch(() => {});
+    await h.q("INSERT INTO book_copies (book_id, condition, price, status) VALUES ($1, 'good', 5, 'in_stock')", [book.id]);
+    await h.q("INSERT INTO book_copies (book_id, condition, price, status) VALUES ($1, 'good', 5, 'sold')", [book.id]).catch(() => {});
   }
   // new books are never on clearance
   assert.equal((await suggestion({ isbn: book.isbn, binding: "mass_market", condition: "new", publisherPrice: "9" })).ruleSet, "new");
@@ -473,7 +473,7 @@ test("copy edit page: 'Suggest price' shows the suggestion and does NOT touch th
   assert.match(page.text, /data-ps-box hidden/);
   assert.equal(market.calls.length, 0);
 
-  const shown = await h.post(`/admin/inventory/${book.id}/copies/${copyId}/suggest`, { condition: "like_new", price: "6.5" });
+  const shown = await h.post(`/admin/inventory/${book.id}/copies/${copyId}/suggest`, { condition: "good", price: "6.5" });
   assert.equal(shown.res.status, 200);
   assert.match(shown.text, /Suggested EUR 8\.00/);
   assert.match(shown.text, /Why this price\?/);
@@ -506,7 +506,7 @@ test("copy edit: saving with a level records the learning loop; clearance flag f
   const book = await seedBook({ copies: [{ price: 1, clearance: true }, { price: 1, clearance: true }] });
   const [a, b] = book.ids;
   const flag = async (id) => (await h.q("SELECT price, is_clearance, price_basis, suggested_price FROM book_copies WHERE id = $1", [id]))[0];
-  const post = (id, fields) => h.post(`/admin/inventory/${book.id}/copies/${id}`, { condition: "like_new", status: "in_stock", ...fields });
+  const post = (id, fields) => h.post(`/admin/inventory/${book.id}/copies/${id}`, { condition: "good", status: "in_stock", ...fields });
 
   // an older form without the price levels keeps the flag while the price is unchanged
   assert.equal((await post(a, { price: "1" })).res.status, 302);
@@ -537,9 +537,9 @@ test("pricing rules page: shows the rules, the calculator and the sample table",
   assert.match(text, /name="clearance_after_copies"[^>]*value="2"/);
   assert.match(text, /name="levels"[^>]*value="3, 5, 8, 10"/);
   assert.match(text, /<th>Hardcover<\/th>/);
-  assert.match(text, /<tr><td>5\.50<\/td><td>EUR 5\.00<\/td><td>EUR 5\.00<\/td><td>EUR 10\.00<\/td><td>EUR 5\.00<\/td>/, "5.50: unknown 5, paperback 5, hardcover floored to 10, mass market 5");
-  assert.match(text, /<tr><td>50\.00<\/td>(<td>Manual review<\/td>){3}<td>EUR 5\.00<\/td>/, "50: review except mass market");
-  assert.match(text, /Any value, no ISBN<\/td><td colspan="4">Manual review/);
+  assert.match(text, /<tr><td>5\.50<\/td><td>EUR 5\.00<\/td><td>EUR 10\.00<\/td><td>EUR 5\.00<\/td><td>EUR 5\.00<\/td><td>EUR 5\.00<\/td>/, "5.50: unknown 5, hardcover floored to 10, trade 5, mass market 5, other 5");
+  assert.match(text, /<tr><td>50\.00<\/td>(<td>Manual review<\/td>){3}<td>EUR 5\.00<\/td><td>Manual review<\/td>/, "50: review except mass market");
+  assert.match(text, /Any value, no ISBN<\/td><td colspan="5">Manual review/);
   assert.match(text, /Pricing rules<\/a>/, "in the admin menu");
 });
 
@@ -547,8 +547,8 @@ test("pricing rules calculator: market value, binding, copies in stock, ISBN", a
   const calc = async (q) => (await h.get(`/admin/pricing?${new URLSearchParams(q)}`)).text;
   assert.match(await calc({ calcMarket: "24", calcBinding: "hardcover" }), /EUR 18\.00<\/strong> &middot; Rule C/);
   assert.match(await calc({ calcMarket: "3", calcBinding: "hardcover" }), /EUR 10\.00<\/strong> &middot; Rule A \+ hardcover minimum/);
-  assert.match(await calc({ calcMarket: "3", calcBinding: "paperback", calcCopies: "2" }), /EUR 1\.00<\/strong> &middot; Clearance/);
-  assert.match(await calc({ calcMarket: "12", calcBinding: "paperback", calcCopies: "2" }), /EUR 8\.00<\/strong> &middot; Rule B/);
+  assert.match(await calc({ calcMarket: "3", calcBinding: "trade", calcCopies: "2" }), /EUR 1\.00<\/strong> &middot; Clearance/);
+  assert.match(await calc({ calcMarket: "12", calcBinding: "trade", calcCopies: "2" }), /EUR 8\.00<\/strong> &middot; Rule B/);
   assert.match(await calc({ calcMarket: "80", calcBinding: "mass_market" }), /EUR 5\.00<\/strong> &middot; Mass market price/);
   assert.match(await calc({ calcMarket: "60" }), /Manual review: online value EUR 50\.00 or more/);
   assert.match(await calc({ calcMarket: "5", calcIsbn: "no" }), /Manual review: no ISBN barcode/);
@@ -775,7 +775,7 @@ test("fails open: AI off, no key, no ISBN, a broken database, a broken fetch: al
   const brokenPool = { query: async () => { throw new Error("db down"); } };
   assert.equal(await lookupMarket(brokenPool, { isbn }, { fetchImpl: f, env: ENV }), null);
   const throwing = async () => { throw new Error("network down"); };
-  const out = await suggestPrice(h.pool, { isbn: isbn13(), binding: "paperback", condition: "like_new", existingCopies: 0 }, { fetchImpl: throwing, env: ENV, settings: DEFAULT_SETTINGS });
+  const out = await suggestPrice(h.pool, { isbn: isbn13(), binding: "trade", condition: "good", existingCopies: 0 }, { fetchImpl: throwing, env: ENV, settings: DEFAULT_SETTINGS });
   assert.deepEqual([out.price, out.ruleSet, out.confidence], [8, "B", "low"]);
 });
 

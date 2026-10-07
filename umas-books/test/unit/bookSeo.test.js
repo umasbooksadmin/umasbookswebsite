@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const { buildBookSeo, itemCondition, absoluteUrl } = require("../../src/lib/bookSeo");
 const { translator } = require("../../src/lib/lang");
 
-const book = { id: 7, title: "Emma", authors: "Jane Austen", cover_url: "/img/abc", description: "A <comedy> of manners.", description_fr: "Une comédie de mœurs.", isbn: "9780141439587", binding: "paperback" };
+const book = { id: 7, title: "Emma", authors: "Jane Austen", cover_url: "/img/abc", description: "A <comedy> of manners.", description_fr: "Une comédie de mœurs.", isbn: "9780141439587", binding: "trade" };
 const copies = [
   { condition: "very_good", price: "4.50" },
   { condition: "new", price: "9.90" },
@@ -14,7 +14,7 @@ const base = "https://books.example.test";
 
 test("grades map to schema.org conditions", () => {
   assert.equal(itemCondition("new"), "https://schema.org/NewCondition");
-  for (const g of ["like_new", "very_good", "acceptable"]) assert.equal(itemCondition(g), "https://schema.org/UsedCondition");
+  for (const g of ["very_good", "good", "acceptable"]) assert.equal(itemCondition(g), "https://schema.org/UsedCondition");
 });
 
 test("Book + Offer JSON-LD has the fields search engines need", () => {

@@ -157,9 +157,9 @@ s.test("A9 (must) the ISBN lookup fills in the book form (title, author, publish
 s.test("A10 (must) the copy form has condition, binding, source, location and the price control with a suggestion", { as: "admin" }, async (ctx) => {
   await admin(ctx, "/admin/inventory/new");
   const conditions = await ctx.page.$$eval("#condition option", (o) => o.map((x) => x.textContent.trim()));
-  for (const c of ["New", "Like New", "Very Good", "Acceptable"]) assert.ok(conditions.some((x) => x.toLowerCase() === c.toLowerCase()), `condition ${c} in ${conditions}`);
+  for (const c of ["New", "Very Good", "Good", "Acceptable"]) assert.ok(conditions.some((x) => x.toLowerCase() === c.toLowerCase()), `condition ${c} in ${conditions}`);
   const bindings = await ctx.page.$$eval("#binding option", (o) => o.map((x) => x.textContent.trim()));
-  for (const b of ["Hardcover", "Paperback", "Mass Market"]) assert.ok(bindings.some((x) => x.toLowerCase().includes(b.toLowerCase())), `binding ${b} in ${bindings}`);
+  for (const b of ["Hardcover", "Trade", "Mass Market", "Other"]) assert.ok(bindings.some((x) => x.toLowerCase().includes(b.toLowerCase())), `binding ${b} in ${bindings}`);
   assert.ok(await ctx.page.$("#source") && await ctx.page.$("#location"));
   const radios = await ctx.page.$$eval("input[name='priceLevel']", (r) => r.map((x) => x.value));
   assert.ok(radios.includes("clearance") && radios.includes("custom") && radios.length >= 4, `price choices: ${radios}`);
@@ -569,7 +569,7 @@ s.write("A10b (must) create a tagged test book through the ISBN lookup, see a pr
   // The lookup only pre-fills the form. Save it under a tagged title and a made-up ISBN so it can never join a real book.
   await ctx.page.$eval("#title", (i, v) => { i.value = v; }, tagged.title);
   await ctx.page.$eval("#isbn", (i, v) => { i.value = v; }, tagged.isbn);
-  await ctx.page.select("#binding", "paperback");
+  await ctx.page.select("#binding", "trade");
   await ctx.page.select("#condition", "very_good");
   await ctx.page.select("#source", "donation");
   await ctx.page.$eval("#location", (i, v) => { i.value = v; }, tagged.location);

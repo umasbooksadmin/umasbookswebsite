@@ -18,8 +18,8 @@ validateIdParams(router, "copyId");
 const REVIEW_PAGE = 200;
 const SAMPLE_VALUES = [2, 4, 5.5, 6, 12, 19.99, 20, 35, 49.99, 50, 80];
 const BINDING_COLUMNS = [
-  { value: "", label: "Binding unknown" }, { value: "paperback", label: "Paperback" },
-  { value: "hardcover", label: "Hardcover" }, { value: "mass_market", label: "Mass market" },
+  { value: "", label: "Binding unknown" }, { value: "hardcover", label: "Hardcover" },
+  { value: "trade", label: "Trade" }, { value: "mass_market", label: "Mass Market" }, { value: "other", label: "Other" },
 ];
 const SAMPLE_ISBN = "9780000000002"; // any valid-looking ISBN: samples are about the rules, not a real book
 
