@@ -12,7 +12,7 @@ const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
 const { startTestApp } = require("../helpers/testApp");
-const { makeCookieJar, fetchCsrfToken } = require("../helpers/httpClient");
+const { makeCookieJar, fetchCsrfToken, withSeeOtherPage } = require("../helpers/httpClient");
 
 const PORT = 4103;
 let app;
@@ -86,8 +86,11 @@ test("the button's POST verifies, kills sessions, and redirects to choose a pass
   assert.ok(rows[0].password_changed_at, "sessions are killed via password_changed_at");
 
   const again = await post(token);
-  assert.equal(again.status, 400);
-  const html = await again.text();
+  assert.equal(again.status, 303);
+  assert.equal(again.headers.get("location"), `/verify-email/${a.raw}`, "back to the link's own page");
+  const seen = await withSeeOtherPage(again, { base: app.base, jar, headers });
+  assert.equal(seen.page.status, 400);
+  const html = await seen.text();
   assert.match(html, /Request a new confirmation link/);
 });
 

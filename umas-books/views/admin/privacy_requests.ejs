@@ -2,7 +2,7 @@
 <%
   const c = records ? records.counts : null;
   const rows = c ? [
-    ['Accounts', c.accounts], ['Orders (kept anonymised if paid, 10 years)', c.orders], ['Book reservations', c.reservations],
+    ['Accounts', c.accounts], ['Reservations and sales (kept anonymised if paid, 10 years)', c.orders], ['Book reservations', c.reservations],
     ['Event sign-ups', c.eventSignups], ['Class sign-ups', c.classSignups], ['Book requests', c.bookRequests],
     ['Membership payments (kept anonymised)', c.membershipPayments], ['of which unmatched to an account', c.unmatchedPayments],
     ['Stored emails (subject and date only)', c.emails], ['of which contact / volunteer / pre-registration form mail', c.contactForms],
@@ -33,7 +33,7 @@
     <form method="post" action="/admin/privacy/erase">
       <%- include('../partials/csrf_field') %>
       <input type="hidden" name="email" value="<%= email %>">
-      <p>This cannot be undone. Accounts, sign-ups, reservations, book requests and stored emails are deleted; paid orders and payment records stay without any name, email or phone (10-year accounting rule). Type the address again to confirm.</p>
+      <p>This cannot be undone. Accounts, sign-ups, reservations, book requests and stored emails are deleted; sales and payment records stay without any name, email or phone (10-year accounting rule). Type the address again to confirm.</p>
       <label for="pr-confirm">Type the address</label>
       <input id="pr-confirm" type="text" name="confirmEmail" maxlength="200" required autocomplete="off">
       <button class="btn btn-small" type="submit">Erase everything for this address</button>

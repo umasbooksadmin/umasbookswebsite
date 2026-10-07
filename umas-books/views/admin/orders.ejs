@@ -1,4 +1,4 @@
-<%- include('../partials/admin_header', { title: 'Orders and reservations', active: 'orders', pageTitle: 'Orders and reservations', pageSub: total + ' order' + (total === 1 ? '' : 's') + (f.show || f.from || f.to || f.q ? ' match your filters' : ' in total') + '. Customers reserve online and pay in the shop. Dates and times are Paris time.' }) %>
+<%- include('../partials/admin_header', { title: 'Reservations', active: 'orders', pageTitle: 'Reservations', pageSub: total + ' reservation' + (total === 1 ? '' : 's') + (f.show || f.from || f.to || f.q ? ' match your filters' : ' in total') + '. Customers reserve online and pay in the shop. Dates and times are Paris time.' }) %>
 
 <% if (notice) { %><div class="notice-box" role="status"><%= notice %></div><% } %>
 
@@ -10,22 +10,22 @@
         <option value="reserved" <%= f.show === 'reserved' ? 'selected' : '' %>><%= cap('reserved') %> (<%= counts.reserved %>)</option>
         <option value="expiring_soon" <%= f.show === 'expiring_soon' ? 'selected' : '' %>><%= SPECIAL.expiring_soon.label %> (<%= counts.expiring_soon %>)</option>
         <option value="expired" <%= f.show === 'expired' ? 'selected' : '' %>><%= cap('expired') %> (<%= counts.expired %>)</option>
-        <option value="all" <%= f.show === '' ? 'selected' : '' %>>All orders (<%= counts.total %>)</option>
+        <option value="all" <%= f.show === '' ? 'selected' : '' %>>All reservations (<%= counts.total %>)</option>
         <% ['past_deadline', 'uncollected', 'overdue', 'stale_pending'].forEach(k => { %><option value="<%= k %>" <%= f.show === k ? 'selected' : '' %>><%= SPECIAL[k].label %> (<%= counts[k] %>)</option><% }) %>
         <% ['paid', 'refunded', 'cancelled', 'pending'].forEach(st => { %><option value="<%= st %>" <%= f.show === st ? 'selected' : '' %>><%= cap(st) %> (<%= counts[st] %>)</option><% }) %>
       </select>
     </div>
     <div>
-      <label for="from">Ordered from</label>
+      <label for="from">Reserved from</label>
       <input id="from" name="from" type="date" value="<%= f.from %>">
     </div>
     <div>
-      <label for="to">Ordered until</label>
+      <label for="to">Reserved until</label>
       <input id="to" name="to" type="date" value="<%= f.to %>">
     </div>
     <div>
       <label for="q">Search</label>
-      <input id="q" name="q" type="search" value="<%= f.q %>" placeholder="Order number, email or name" maxlength="100">
+      <input id="q" name="q" type="search" value="<%= f.q %>" placeholder="Reservation number, email or name" maxlength="100">
     </div>
     <button class="btn" type="submit">Filter</button>
     <% if (f.show !== 'reserved' || f.from || f.to || f.q) { %><a class="btn btn-outline" href="/admin/orders">Clear</a><% } %>
@@ -34,7 +34,7 @@
     <a href="/admin/orders"><%= counts.reserved %> reserved, waiting for pickup</a>
     <% if (counts.expiring_soon > 0) { %> &middot; <a href="/admin/orders?show=expiring_soon"><strong><%= counts.expiring_soon %> expiring in 3 days</strong></a><% } %>
     <% if (counts.past_deadline > 0) { %> &middot; <a href="/admin/orders?show=past_deadline"><%= counts.past_deadline %> past the deadline</a><% } %>
-    <% if (counts.uncollected > 0) { %> &middot; <a href="/admin/orders?show=uncollected"><%= counts.uncollected %> paid online and not collected (old orders)</a><% } %>
+    <% if (counts.uncollected > 0) { %> &middot; <a href="/admin/orders?show=uncollected"><%= counts.uncollected %> paid online and not collected (old reservations)</a><% } %>
     &middot; <a href="/admin/orders/pickup-list">Pickup list</a> (<a href="/admin/orders/pickup-list?print=1">print version</a>)
   </p>
 </div>
@@ -44,7 +44,7 @@
   'resend-queued': 'Confirmation queued: it could not be sent right now, it will be retried automatically (see Email outbox).',
   'resend-not_reserved': 'Only a reservation that is still open has a confirmation to resend.',
   'resend-erased': 'This buyer was erased: there is no address to send to.',
-  'resend-not_found': 'Order not found.',
+  'resend-not_found': 'Reservation not found.',
   'resend-queue_failed': 'The confirmation could not be built. Check the logs.'
 }; %>
 <% if (locals.resendNotice && resendNotices[resendNotice]) { %><div class="notice-box" role="status"><%= resendNotices[resendNotice] %></div><% } %>
@@ -52,13 +52,13 @@
 
 <div class="card">
   <% if (!orders.length) { %>
-    <p class="muted"><%= f.show === 'reserved' && !f.from && !f.to && !f.q ? 'No reservation is waiting for pickup.' : ((f.show || f.from || f.to || f.q) ? 'No order matches these filters.' : 'No orders yet.') %></p>
+    <p class="muted"><%= f.show === 'reserved' && !f.from && !f.to && !f.q ? 'No reservation is waiting for pickup.' : ((f.show || f.from || f.to || f.q) ? 'No reservation matches these filters.' : 'No reservations yet.') %></p>
   <% } else { %>
     <ul class="plain">
       <% orders.forEach(o => { %>
         <li style="margin-bottom: 18px;" id="order-<%= o.id %>">
           <div class="order-row">
-            <a href="/admin/orders/<%= o.id %>"><strong>Order #<%= o.id %></strong></a>
+            <a href="/admin/orders/<%= o.id %>"><strong>Reservation #<%= o.id %></strong></a>
             <span class="muted small">&middot; <%= formatDateTime(o.created_at) %></span>
             <span class="status-pill <%= o.status %>"><%= cap(o.status) %></span>
             <% if (o.status === 'reserved' && o.reserved_until && o.items && o.items.some(i => !i.seat)) { %><span class="muted small">held until the end of <%= formatDate(lastDay(o)) %></span><% } %>

@@ -146,7 +146,7 @@ s.test("G10 with preview off the banner is gone and the cart shows the prompt to
 
 // ---- 1C. Books ----
 
-s.test("G11 (must) Browse Books has search, genres, New In carousel and a recommendation area", async (ctx) => {
+s.test("G11 (must) Browse Books has search, genres, New In carousel", async (ctx) => {
   await ctx.goto("/books.html", "networkidle2");
   const ph = await ctx.page.$eval("#shop-search-input", (i) => i.placeholder);
   has(ph, /Search books/);
@@ -156,7 +156,6 @@ s.test("G11 (must) Browse Books has search, genres, New In carousel and a recomm
   has(text, /New In/);
   has(text, /See All New In/);
   assert.ok(await ctx.page.$("#bk-new-prev") && await ctx.page.$("#bk-new-next"), "carousel arrows");
-  assert.ok(await ctx.page.$(".bk-rec"), "recommendation section");
 });
 
 s.test("G12 search finds a book by title; a search with no match says so", async (ctx) => {
@@ -447,7 +446,7 @@ s.write("G28 (must) the contact form sends a tagged message", async (ctx) => {
 s.test("G28b the contact form lists the expected topics", async (ctx) => {
   await ctx.goto("/contact");
   const topics = await ctx.page.$$eval("#c-topic option", (o) => o.map((x) => x.value));
-  for (const t of ["General question", "Books & orders", "English programs", "Events", "Donating books", "Membership", "Other"]) assert.ok(topics.includes(t), t);
+  for (const t of ["General question", "Books & reservations", "English programs", "Events", "Donating books", "Membership", "Other"]) assert.ok(topics.includes(t), t);
   if (ctx.preview) assert.ok(topics.includes("Feedback on the preview"));
 });
 
@@ -942,6 +941,20 @@ s.test("G25b FR check (legal pages): hours as 14 h–19 h, the withdrawal senten
 });
 
 s.manual("G25c the membership page shows the price before the HelloAsso form loads, and the shop address shows its street number", "needs MEMBERSHIP_PRICE_EUR and SHOP_STREET_NUMBER to be set in src/lib/legal.js (empty until the association gives them: docs/legal-todos.md); the helpers are covered by test/unit/legalConstants.test.js");
+
+s.test("G25d the footer shows the map to the shop, loaded from our own site, with English alt text", async (ctx) => {
+  await ctx.goto("/visit.html");
+  assert.ok(await ctx.page.$("footer.mkt-footer .h-footer-map img"), "map in the footer");
+  assert.equal(await ctx.page.$eval("footer.mkt-footer .h-footer-map img", (i) => i.alt), "Map showing the route to Uma's Books and Adventures from Rue de l'Oulmet along Rue Peyrolière to the impasse, Albi");
+  assert.equal(await ctx.page.$eval("footer.mkt-footer .h-footer-map img", (i) => i.getAttribute("loading")), "lazy");
+  assert.equal(await ctx.page.$eval("footer.mkt-footer .h-footer-map img", (i) => new URL(i.currentSrc || i.src).origin === location.origin), true);
+});
+
+s.test("G25e FR check (footer map): French alt text and caption", { lang: "fr" }, async (ctx) => {
+  await ctx.goto("/visit.html");
+  assert.equal(await ctx.page.$eval("footer.mkt-footer .h-footer-map img", (i) => i.alt), "Plan de l’itinéraire vers Uma’s Books and Adventures depuis la rue de l’Oulmet, par la rue Peyrolière jusqu’à l’impasse, Albi");
+  has(await ctx.page.$eval("footer.mkt-footer .h-footer-map figcaption", (c) => c.textContent), /Albi, France\s: rue Peyrolière/);
+});
 
 s.test("G57a an adult registering for themselves is not asked for a child's details; checkboxes for days and times, no Ctrl/Cmd", async (ctx) => {
   await ctx.goto("/pre-registration.html");

@@ -14,6 +14,7 @@ const { limit } = require("../../middleware/rateLimits");
 const inventoryLib = require("../../lib/inventory");
 const { normalizeIsbn } = require("../../lib/bookLookup");
 const { parseId } = require("../../lib/validation");
+const { setFlash, takeFlash } = require("../../lib/flash");
 const { computeSuggestion, prepareIntakeForm, pricingBinding } = require("../../lib/pricing/forms");
 
 const { CONDITIONS, STATUSES, SOURCES, normalizeSource, normalizeCondition, normalizeGenres, normalizeLocation } = inventoryLib;
@@ -47,33 +48,53 @@ router.get("/admin/inventory/price-suggestion", requireAdmin, suggestionLimiter,
   res.json(suggestion);
 });
 
-// No-JavaScript version: shows the add-book form again with everything typed
-// so far and the price control set to the suggestion. (A chosen cover photo
+// The add-book form shown again with everything typed so far (a refused save,
+// or the no-JavaScript "Suggest price"). The POSTs redirect here (Post/Redirect/
+// Get) and carry what to show once in the session: flash.prep is what the price
+// suggestion is worked out from, the rest is display only. (A chosen cover photo
 // has to be picked again.)
+router.get("/admin/inventory/new/again", requireAdmin, async (req, res) => {
+  const f = takeFlash(req, "intake");
+  if (!f || !f.book) return res.redirect("/admin/inventory/new");
+  const suggestion = await prepareIntakeForm(res, f.prep || {});
+  if (f.priceLevel !== undefined) res.locals.priceLevelSelected = f.priceLevel;
+  if (f.copyNotes !== undefined) res.locals.copyNotesValue = f.copyNotes;
+  const { rows: locs } = await pool.query("SELECT DISTINCT location FROM book_copies WHERE location IS NOT NULL ORDER BY 1");
+  res.render("admin/inventory/new", {
+    active: "inventory", location: normalizeLocation(f.location) || "", source: normalizeSource(f.source) || "", sources: SOURCES, locations: locs.map((r) => r.location),
+    book: f.book,
+    error: f.error || null,
+    fromScan: f.fromScan === true,
+    conditions: CONDITIONS, bindings: inventoryLib.BINDINGS || [],
+    statuses: STATUSES,
+    ...(f.selectedCondition !== undefined ? { selectedCondition: f.selectedCondition } : {}),
+    ...(f.publisherPriceValue !== undefined ? { publisherPriceValue: f.publisherPriceValue } : {}),
+    defaultPricing: f.defaultPricing || { price: suggestion.price, acquisitionCost: f.acquisitionCost || 0 },
+  });
+});
+
+// No-JavaScript version: the add-book form again with the price control set to the suggestion.
 router.post("/admin/inventory/suggest", requireAdmin, async (req, res) => {
   const b = req.body;
   const isbn = b.isbn ? normalizeIsbn(b.isbn) : null;
   const binding = pricingBinding(b.binding);
   const condition = normalizeCondition(b.condition);
-  const suggestion = await prepareIntakeForm(res, { isbn, title: (b.title || "").trim(), author: (b.author || "").trim(), binding, condition, publisherPrice: b.publisherPrice });
-  res.locals.copyNotesValue = b.copyNotes || "";
-  const { rows: locs } = await pool.query("SELECT DISTINCT location FROM book_copies WHERE location IS NOT NULL ORDER BY 1");
-  res.render("admin/inventory/new", {
-    active: "inventory", location: normalizeLocation(b.location) || "", source: normalizeSource(b.source) || "", sources: SOURCES, locations: locs.map((r) => r.location),
+  await setFlash(req, "intake", {
+    prep: { isbn, title: (b.title || "").trim(), author: (b.author || "").trim(), binding, condition, publisherPrice: b.publisherPrice },
+    copyNotes: b.copyNotes || "",
+    location: normalizeLocation(b.location) || "", source: normalizeSource(b.source) || "",
     book: {
       isbn, title: (b.title || "").trim() || null, author: (b.author || "").trim() || null, publisher: (b.publisher || "").trim() || null,
       publishedYear: b.publishedYear ? Number(b.publishedYear) : null, description: (b.description || "").trim() || null,
       descriptionFr: (b.descriptionFr || "").trim() || null, coverUrl: (b.coverUrl || "").trim() || null,
       genre: normalizeGenres(b.genre), genreFr: (b.genreFr || "").trim() || null, binding,
     },
-    error: null,
     fromScan: b.fromScan === "1",
-    conditions: CONDITIONS, bindings: inventoryLib.BINDINGS || [],
-    statuses: STATUSES,
     selectedCondition: condition,
     publisherPriceValue: b.publisherPrice || "",
-    defaultPricing: { price: suggestion.price, acquisitionCost: b.acquisitionCost ? Number(b.acquisitionCost) : 0 },
+    acquisitionCost: b.acquisitionCost ? Number(b.acquisitionCost) : 0,
   });
+  res.redirect(303, "/admin/inventory/new/again");
 });
 
 module.exports = router;

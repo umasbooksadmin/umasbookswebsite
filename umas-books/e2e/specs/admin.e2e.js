@@ -24,7 +24,7 @@ const TAG = () => process.env.E2E_RUN_ID;
 async function e2e_reserve(ctx, who, count = 1) {
   if (ctx.preview) ctx.skip("preview mode: reserving is off");
   const r = await reserveViaHttp(ctx, who, count);
-  ctx.created(`reservation for the admin order tests (nothing paid; the test collects, refunds, cancels or expires it)`, `${TAG()} ${who} (order #${r.id})`, "admin Orders > Show: All orders > search the tag");
+  ctx.created(`reservation for the admin reservation tests (nothing paid; the test collects, refunds, cancels or expires it)`, `${TAG()} ${who} (reservation #${r.id})`, "admin Reservations > Show: All reservations > search the tag");
   return r;
 }
 const REAL_ISBN = "9780141036144"; // from the manual script's test data (looked up only, never saved)
@@ -103,7 +103,7 @@ s.test("A6 the Dashboard shows the figures and tiles with no NaN", { as: "admin"
   await admin(ctx, "/admin");
   const text = await ctx.text();
   hasNoNaN(text, "the Dashboard");
-  for (const re of [/Orders Today/, /This Month/, /Sales this month/, /In-Stock Books/, /Added This Month/, /Total Accounts/, /Members/, /Books & Orders/, /English Programs/, /Bookstore Events/, /Account Section/, /Volunteer Shifts/, /Meetings/, /Announcements/, /Charities/, /Blog/]) has(text, re);
+  for (const re of [/Collected Reservations Today/, /This Month/, /Sales this month/, /In-Stock Books/, /Added This Month/, /Total Accounts/, /Members/, /Books & Reservations/, /English Programs/, /Bookstore Events/, /Account Section/, /Volunteer Shifts/, /Meetings/, /Announcements/, /Charities/, /Blog/]) has(text, re);
   if (ctx.preview) has(text, /PREVIEW MODE is ON/);
 });
 
@@ -259,7 +259,7 @@ s.test("A12 (must) a New book needs the publisher's price and may be at most 5% 
   };
   has(await post("", ""), /New books need the publisher's price/);
   has(await post("11.00", "12.00"), /at most 5% off.*between .?11\.40 and .?12\.00|between .?11\.40/);
-  assert.equal(new URL(ctx.page.url()).pathname, "/admin/inventory", "still on the form: nothing was saved");
+  assert.equal(new URL(ctx.page.url()).pathname, "/admin/inventory/new/again", "still on the form: nothing was saved");
 });
 
 s.test("A14 (must) saving a book with an empty title says 'Title is required.' (nothing is saved)", { as: "admin" }, async (ctx) => {
@@ -280,7 +280,7 @@ s.test("A14a bad numbers are refused with a clear English error and what was typ
     await Promise.all([ctx.page.waitForNavigation(), ctx.page.$eval("form[method='post'][action='/admin/inventory']", (f) => [...f.querySelectorAll("button[type='submit']")].find((b) => /Save book/i.test(b.textContent)).click())]);
     const err = await ctx.page.$eval(".error-box", (e) => e.textContent.trim()).catch(() => "");
     assert.ok(err.length > 5, `price "${bad}" got no error message`);
-    assert.equal(new URL(ctx.page.url()).pathname, "/admin/inventory", `price "${bad}" must not save`);
+    assert.equal(new URL(ctx.page.url()).pathname, "/admin/inventory/new/again", `price "${bad}" must not save`);
     assert.equal(await ctx.page.$eval("#title", (i) => i.value), `${TAG()} bad number check`, "the title typed is still in the form");
   }
 });
@@ -302,7 +302,7 @@ s.test("A18 (must) the retired Sell in shop address sends you to the Till (nothi
   has(text, /Sales are made at the Till now/);
   has(text, /Scan a label or a book barcode/);
   await admin(ctx, "/admin/inventory");
-  assert.equal(await ctx.page.$("a[href='/admin/inventory/sell']"), null, "no Sell in shop link in Books & Orders");
+  assert.equal(await ctx.page.$("a[href='/admin/inventory/sell']"), null, "no Sell in shop link in Books & Reservations");
 });
 
 // ---- 5E. Reports and CSV ----
@@ -346,7 +346,7 @@ s.test("A19b the Accounts report shows counts by type and a list with type pills
   await admin(ctx, "/admin/reports/accounts");
   const text = await ctx.text();
   hasNoNaN(text, "accounts report");
-  for (const re of [/Total accounts/, /Unconfirmed/, /Email confirmed/, /Paid orders/, /Download CSV/]) has(text, re);
+  for (const re of [/Total accounts/, /Unconfirmed/, /Email confirmed/, /Paid reservations/, /Download CSV/]) has(text, re);
   for (const name of ["type", "q", "from", "to"]) assert.ok(await ctx.page.$(`[name='${name}']`), `filter ${name}`);
 });
 s.manual("A21 the sales report counts the online sale, the shop sale and the drop-in seat separately", "needs real paid sales (AC26, AC35, A63)");
@@ -362,7 +362,7 @@ s.manual("A22 (must) adding a requested book matches the confirmed request on in
 s.manual("A23c (must) Notify, Notify and hold 7 days, Mark fulfilled, Match, Cancel and Delete a request", "sends email to the requester and changes real requests");
 s.manual("A23b a request hold ends by itself after 7 days", "needs real time to pass");
 
-// ---- 5G. Orders and reservations ----
+// ---- 5G. Reservations ----
 //
 // Books and drop-in seats are reserved online and paid in the shop; the staff
 // record the payment here. The write tests below need the account-holder test
@@ -371,18 +371,18 @@ s.manual("A23b a request hold ends by itself after 7 days", "needs real time to 
 // (collected and paid, refunded, cancelled or expired), so the shelves are as
 // they were; the records they leave are listed at the end of the run.
 
-s.test("A24a (must) the Orders page opens on the reservations waiting for pickup, with status and totals", { as: "admin" }, async (ctx) => {
+s.test("A24a (must) the Reservations page opens on the reservations waiting for pickup, with status and totals", { as: "admin" }, async (ctx) => {
   await admin(ctx, "/admin/orders");
   const text = await ctx.text();
-  has(text, /\d+ orders?/);
+  has(text, /\d+ reservations?/);
   has(text, /Pickup list/);
-  hasNoNaN(text, "orders");
+  hasNoNaN(text, "reservations");
   const options = await ctx.page.$$eval("#show option", (o) => o.map((x) => x.textContent));
-  for (const re of [/Reserved/, /Expiring in 3 days/, /Expired/, /All orders/, /Paid/, /Refunded/, /Cancelled/]) assert.ok(options.some((o) => re.test(o)), `the Show menu offers ${re}`);
+  for (const re of [/Reserved/, /Expiring in 3 days/, /Expired/, /All reservations/, /Paid/, /Refunded/, /Cancelled/]) assert.ok(options.some((o) => re.test(o)), `the Show menu offers ${re}`);
 });
 
 // The site allows 10 reservation requests an hour from one address, and a full run shares them with the other
-// personas, so the order tests use three reservations in all: R1 (A24l, A24c, A24d), R2 (A24i, which leaves a
+// personas, so the reservation tests use three reservations in all: R1 (A24l, A24c, A24d), R2 (A24i, which leaves a
 // rest that A24j extends and cancels) and R3 (A24j, no-show).
 const state = { r1: null, rest: null };
 async function reservationOne(ctx) {
@@ -404,7 +404,7 @@ s.write("A24l collecting for less than the total needs a note (a discount at the
   has(await ctx.text(), /Choose how the customer paid/);
 });
 
-s.write("A24c (must) Mark collected and paid: choose how they paid, the books are sold, the order shows Paid and Collected, and Admin activity logs it", { as: "admin", needs: ["account"] }, async (ctx) => {
+s.write("A24c (must) Mark collected and paid: choose how they paid, the books are sold, the reservation shows Paid and Collected, and Admin activity logs it", { as: "admin", needs: ["account"] }, async (ctx) => {
   const r = await reservationOne(ctx);
   await ctx.goto(`/admin/orders/${r.id}`);
   let text = await ctx.text();
@@ -415,7 +415,7 @@ s.write("A24c (must) Mark collected and paid: choose how they paid, the books ar
   await ctx.page.select("#collect-form #method", "cash");
   await Promise.all([ctx.page.waitForNavigation({ waitUntil: "domcontentloaded" }), ctx.page.click("#collect-form button[type='submit']")]);
   text = await ctx.text();
-  has(text, /Collected and paid: the books and seats are sold and the order now counts as a sale/);
+  has(text, /Collected and paid: the books and seats are sold and the reservation now counts as a sale/);
   has(text, /Paid in the shop on .* by Cash/);
   has(text, /Collected/);
   assert.equal(await ctx.page.$("#collect-form"), null, "the collect form is gone");
@@ -425,7 +425,7 @@ s.write("A24c (must) Mark collected and paid: choose how they paid, the books ar
   has(mine, /Reservation #\d+ collected/);
 });
 
-s.write("A24d (must) Mark refunded (after giving the money back in the shop): the order is Refunded, the books are back in stock, and it asks for a tick and a note", { as: "admin", needs: ["account"] }, async (ctx) => {
+s.write("A24d (must) Mark refunded (after giving the money back in the shop): the reservation is Refunded, the books are back in stock, and it asks for a tick and a note", { as: "admin", needs: ["account"] }, async (ctx) => {
   if (!state.r1) ctx.skip("needs A24c to have collected a reservation first");
   const id = state.r1.id;
   await ctx.goto(`/admin/orders/${id}`);
@@ -521,22 +521,22 @@ s.test("A24k the Reservations report loads, has a CSV download and shows no name
   assert.match(res.headers.get("content-type") || "", /text\/csv/);
 });
 
-s.test("A24b (must) the Orders page filters, searches and opens an order", { as: "admin" }, async (ctx) => {
+s.test("A24b (must) the Reservations page filters, searches and opens a reservation", { as: "admin" }, async (ctx) => {
   for (const q of ["show=expiring_soon", "show=expired", "show=past_deadline", "show=all", "show=refunded", "show=cancelled", "show=paid&from=2020-01-01&to=2099-12-31", "q=%23999999999", "page=2"]) {
     await admin(ctx, `/admin/orders?${q}`);
     const text = await ctx.text();
-    hasNoNaN(text, `orders ${q}`);
-    has(text, /\d+ orders?/);
+    hasNoNaN(text, `reservations ${q}`);
+    has(text, /\d+ reservations?/);
   }
   await admin(ctx, "/admin/orders?show=all");
   const first = await ctx.page.$$eval("a[href^='/admin/orders/']", (as) => as.map((a) => a.getAttribute("href")).find((h) => /^\/admin\/orders\/\d+$/.test(h)) || null);
-  if (!first) ctx.skip("no order exists yet");
+  if (!first) ctx.skip("no reservation exists yet");
   await ctx.goto(first);
   const text = await ctx.text();
   has(text, /Payment/);
   has(text, /Terms and history/);
   has(text, /Actions/);
-  hasNoNaN(text, "order page");
+  hasNoNaN(text, "reservation page");
 });
 
 s.manual("A24f the dashboard Needs attention box (reservations expiring within 3 days, past the deadline)", "needs a reservation close to its deadline; the counts are covered by an automated test");
@@ -660,7 +660,7 @@ s.write("A10b (must) create a tagged test book through the ISBN lookup, see a pr
   assert.equal(await ctx.page.$eval("#binding", (i) => i.value), "trade");
   assert.equal(await ctx.page.$eval("#source", (i) => i.value), "donation");
   has(await ctx.text(), /Print label UB-\d+/);
-  ctx.created("test book (tagged title, made-up ISBN, one copy at EUR 5.00 in the public shop)", `${tagged.title} / ${tagged.isbn}`, "admin Books & Orders > search the tag > Delete this book");
+  ctx.created("test book (tagged title, made-up ISBN, one copy at EUR 5.00 in the public shop)", `${tagged.title} / ${tagged.isbn}`, "admin Books & Reservations > search the tag > Delete this book");
   await admin(ctx, `/admin/inventory?q=${encodeURIComponent(TAG())}`);
   const href = await ctx.page.$$eval("a[href^='/admin/inventory/']", (as, title) => (as.find((a) => a.textContent.includes(title)) || {}).getAttribute?.("href") || null, tagged.title);
   assert.ok(href, "the tagged book is listed");

@@ -135,7 +135,7 @@
               <div role="status" class="notice-box small" style="margin-top:10px;">
                 Reserved by <%= c.reserved_by_name %> &middot; <%= c.reserved_by_email %><%= c.reserved_by_phone ? ' · ' + c.reserved_by_phone : '' %>
                 <% if (c.cart_order_id) { %>
-                  <div class="muted small">Reserved online, order <a href="/admin/orders/<%= c.cart_order_id %>">#<%= c.cart_order_id %></a>: collect it or cancel it from the order page.</div>
+                  <div class="muted small">Reserved online, reservation <a href="/admin/orders/<%= c.cart_order_id %>">#<%= c.cart_order_id %></a>: collect it or cancel it from the reservation page.</div>
                 <% } else if (c.reserved_at) { %>
                   <div class="muted small">
                     <%= formatDateTime(c.reserved_at) %>

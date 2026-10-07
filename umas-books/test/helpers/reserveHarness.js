@@ -114,6 +114,12 @@ function reserveHarness(label, { isolated = true } = {}) {
         body: body ? body.toString() : undefined,
       });
       jar.capture(res);
+      // 303 = an admin form answered Post/Redirect/Get: follow it like the browser (see followSeeOther).
+      if (res.status === 303) {
+        const next = await fetch(`${h.base}${res.headers.get("location")}`, { redirect: "manual", headers: { "x-forwarded-for": ip, cookie: [jar.header(), lang ? `umasbooks_lang=${lang}` : ""].filter(Boolean).join("; "), ...identity } });
+        jar.capture(next);
+        return { res: next, status: next.status, text: await next.text(), location: next.headers.get("location"), seeOther: res.headers.get("location") };
+      }
       return { res, status: res.status, text: await res.text(), location: res.headers.get("location") };
     };
     return { jar, ip, get: (p) => send(p), post: (p, form = {}) => send(p, { method: "POST", form }) };

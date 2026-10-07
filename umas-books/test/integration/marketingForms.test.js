@@ -11,7 +11,9 @@
 const { test, before, after, beforeEach } = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("node:path");
+const express = require("express");
 const { prepareDatabase, buildApp, listen } = require("../helpers/inProcessApp");
+
 
 const db = prepareDatabase("mktforms", { isolated: true });
 
@@ -35,18 +37,46 @@ beforeEach(() => {
   sendImpl = async (opts) => { sent.push(opts); };
 });
 
+// The two form pages as src/index.js serves them (their GET shows what a refused POST left in the session).
+function pagesRouter(forms) {
+  const { renderMarketing } = require("../../src/lib/pageDictionary");
+  const { marketingCsp } = require("../../src/lib/marketingCsp");
+  const { setMarketingSeoLocals } = require("../../src/routes/seo");
+  const r = express.Router();
+  for (const file of ["pre-registration.html", "volunteer.html"]) {
+    r.get("/" + file, (req, res, next) => {
+      res.set("Content-Security-Policy", marketingCsp());
+      setMarketingSeoLocals(req, res, "/" + file);
+      forms.prepareFormPage(res);
+      forms.setFormState(req, res, file);
+      renderMarketing(req, res, next, "marketing/" + file.replace(/\.html$/, ""));
+    });
+  }
+  return r;
+}
+
 async function withApp(fn) {
   delete require.cache[ROUTE];
-  const server = await listen(buildApp([require(ROUTE)]));
+  const forms = require(ROUTE);
+  const server = await listen(buildApp([forms, pagesRouter(forms)]));
   try {
+    // A refused POST answers 303 and the page is the GET it points to (a browser follows it with the same
+    // session). `res` is the POST's own answer; `text` is the page the person ends up on.
+    let cookie = "";
     const post = async (pathname, fields, headers = {}) => {
       const body = new URLSearchParams();
       for (const [k, v] of Object.entries(fields)) for (const x of [].concat(v)) body.append(k, x);
       const res = await fetch(`${server.base}${pathname}`, {
         method: "POST", redirect: "manual",
-        headers: { "content-type": "application/x-www-form-urlencoded", ...headers },
+        headers: { "content-type": "application/x-www-form-urlencoded", ...headers, cookie: [cookie, headers.cookie].filter(Boolean).join("; ") },
         body: body.toString(),
       });
+      const set = res.headers.getSetCookie().map((c) => c.split(";")[0]);
+      if (set.length) cookie = set.join("; ");
+      if (res.status === 303) {
+        const page = await fetch(`${server.base}${res.headers.get("location")}`, { redirect: "manual", headers: { ...headers, cookie: [cookie, headers.cookie].filter(Boolean).join("; ") } });
+        return { res, text: await page.text(), page };
+      }
       return { res, text: await res.text() };
     };
     await fn({ base: server.base, post });
@@ -111,8 +141,9 @@ test("pre-registration: the email stays English for staff but notes the visitor'
 
 test("pre-registration: every required field is enforced for a child, with an accessible error summary and field errors (EN)", async () => {
   await withApp(async ({ post }) => {
-    const { res, text } = await post(PRE, { website: "", who: "child", childFirst: "  ", birthYear: "2999", email: "nope", phone: "12" });
-    assert.equal(res.status, 400);
+    const { res, text, page } = await post(PRE, { website: "", who: "child", childFirst: "  ", birthYear: "2999", email: "nope", phone: "12" });
+    assert.equal(res.status, 303);
+    assert.equal(res.headers.get("location"), "/pre-registration.html", "a refused form goes back to its page (Post/Redirect/Get)");
     assert.equal(sent.length, 0);
     // Summary: role=alert, first thing in the form area, links to each field.
     assert.match(text, /<div class="form-error-summary" id="form-errors" role="alert" tabindex="-1" data-form-errors>/);
@@ -133,14 +164,14 @@ test("pre-registration: every required field is enforced for a child, with an ac
     assert.match(text, /<script src="\/assets\/form-errors\.js\?v=[0-9a-f]+"><\/script>/, "focus-on-error script is loaded");
     assert.match(text, /<script src="\/assets\/preregistration\.js\?v=[0-9a-f]+"><\/script>/, "the who-is-registering script is loaded");
     // The page is not cacheable.
-    assert.equal(res.headers.get("cache-control"), "private, no-store");
+    assert.equal(page.headers.get("cache-control"), "private, no-store");
   });
 });
 
 test("pre-registration: an empty submission asks who is registering and does not demand child fields yet", async () => {
   await withApp(async ({ post }) => {
     const { res, text } = await post(PRE, {});
-    assert.equal(res.status, 400);
+    assert.equal(res.status, 303);
     for (const id of ["preg-who", "preg-session", "preg-days", "preg-times", "preg-parent", "preg-email", "preg-phone", "preg-consent"]) {
       assert.ok(text.includes(`href="#${id}"`), `summary links to #${id}`);
     }
@@ -170,12 +201,12 @@ test("pre-registration: an adult registering for themselves needs no child secti
 test("pre-registration: for a child the child's names, a plausible year of birth and the guardian statement are required (server-side)", async () => {
   await withApp(async ({ post }) => {
     const { res, text } = await post(PRE, { ...PREREG, childFirst: "", childLast: "", birthYear: "", guardian: "" });
-    assert.equal(res.status, 400);
+    assert.equal(res.status, 303);
     for (const id of ["preg-first", "preg-last", "preg-birthyear", "preg-guardian"]) assert.match(text, new RegExp(`href="#${id}"`), id);
     assert.doesNotMatch(text, /href="#preg-consent"/, "the agreement to be contacted is a separate box");
     // Only the guardian box missing: the guardian error alone.
     const g = await post(PRE, { ...PREREG, guardian: "" });
-    assert.equal(g.res.status, 400);
+    assert.equal(g.res.status, 303);
     assert.match(g.text, /href="#preg-guardian"/);
     assert.doesNotMatch(g.text, /href="#preg-first"/);
     assert.equal(sent.length, 0);
@@ -185,7 +216,7 @@ test("pre-registration: for a child the child's names, a plausible year of birth
 test("pre-registration: an unknown 'who' is refused", async () => {
   await withApp(async ({ post }) => {
     const { res, text } = await post(PRE, { ...PREREG, who: "robot" });
-    assert.equal(res.status, 400);
+    assert.equal(res.status, 303);
     assert.match(text, /href="#preg-who"/);
   });
 });
@@ -193,7 +224,7 @@ test("pre-registration: an unknown 'who' is refused", async () => {
 test("pre-registration: the agreement to be contacted is required on its own", async () => {
   await withApp(async ({ post }) => {
     const { res, text } = await post(PRE, { ...PREREG, consent: "" });
-    assert.equal(res.status, 400);
+    assert.equal(res.status, 303);
     assert.equal(sent.length, 0);
     assert.match(text, /href="#preg-consent"/);
     assert.doesNotMatch(text, /href="#preg-first"/, "only the consent is reported");
@@ -204,7 +235,7 @@ test("pre-registration: the agreement to be contacted is required on its own", a
 test("pre-registration: refused values are echoed back; an unknown session, day or time is not accepted", async () => {
   await withApp(async ({ post }) => {
     const { res, text } = await post(PRE, { ...PREREG, session: "free-money", days: ["sun", "tue"], times: ["midnight"], notes: "keep <me>" });
-    assert.equal(res.status, 400);
+    assert.equal(res.status, 303);
     assert.match(text, /value="Léa"/);
     assert.match(text, /value="claire@example\.test"/);
     assert.match(text, /keep &lt;me&gt;/);
@@ -228,7 +259,7 @@ test("pre-registration: the year of birth must be four digits, not in the future
   // Through the real route (the rate limit allows 5 posts per file run, so only a few here).
   await withApp(async ({ post }) => {
     const bad = await post(PRE, { ...PREREG, birthYear: "1800" });
-    assert.equal(bad.res.status, 400);
+    assert.equal(bad.res.status, 303);
     assert.match(bad.text, /href="#preg-birthyear"/);
     assert.equal(sent.length, 0);
   });
@@ -243,7 +274,7 @@ test("pre-registration: a post from the old form (full date of birth, one consen
     assert.match(sent[0].text, /Year of birth: 2018/);
     assert.doesNotMatch(sent[0].text, /2018-04-12|Date of birth/, "the day and month are not forwarded");
     const bad = await post(PRE, { ...OLD_FORM, dob: "2018-02-31" });
-    assert.equal(bad.res.status, 400);
+    assert.equal(bad.res.status, 303);
     assert.match(bad.text, /href="#preg-birthyear"/);
     assert.equal(sent.length, 1);
     assert.equal(validateOld({ ...OLD_FORM, consent: "" }).ok, false, "the old single box was both statements: still required");
@@ -255,7 +286,7 @@ function validateOld(body) { return require("../../src/lib/marketingForms").vali
 test("pre-registration: the page is French when the visitor's language is French (summary, field errors, labels)", async () => {
   await withApp(async ({ post }) => {
     const { res, text } = await post(PRE, { ...PREREG, email: "bad", consent: "" }, { cookie: "umasbooks_lang=fr" });
-    assert.equal(res.status, 400);
+    assert.equal(res.status, 303);
     assert.match(text, /<h2 data-i18n="form\.err\.title">Il y a un problème<\/h2>/);
     assert.match(text, /Saisissez une adresse e-mail valide/);
     assert.match(text, /Cochez cette case pour continuer/);
@@ -314,7 +345,7 @@ test("volunteer: a valid sign-up sends one email; name, email and consent are re
 
     for (const bad of [{ name: "" }, { email: "x" }, { email: "" }, { consent: "" }]) {
       const { res, text } = await post(VOL, { ...VOLUNTEER, ...bad });
-      assert.equal(res.status, 400, JSON.stringify(bad));
+      assert.equal(res.status, 303, JSON.stringify(bad));
       assert.match(text, /role="alert"/);
       assert.match(text, /aria-invalid="true"/);
     }
@@ -353,7 +384,7 @@ test("rate limit: the 6th submission from one client gets a 429 page with the pe
     for (let i = 1; i <= 5; i++) assert.equal((await post(PRE, PREREG)).res.status, 302, `submission ${i}`);
     assert.equal(sent.length, 5);
     const { res, text } = await post(PRE, { ...PREREG, parent: "Sixth Parent" });
-    assert.equal(res.status, 429);
+    assert.equal(res.status, 303);
     assert.match(text, /Too many messages from this connection/);
     assert.match(text, /role="alert"/);
     assert.ok(text.includes("Sixth Parent"), "values are kept so nothing typed is lost");
@@ -365,7 +396,7 @@ test("rate limit: the 6th submission from one client gets a 429 page with the pe
 test("rate limit: invalid submissions count too, and the two forms have separate counters", async () => {
   await withApp(async ({ post }) => {
     for (let i = 0; i < 5; i++) await post(PRE, { ...PREREG, email: "bad" });
-    assert.equal((await post(PRE, PREREG)).res.status, 429);
+    assert.equal((await post(PRE, PREREG)).res.status, 303);
     assert.equal((await post(VOL, VOLUNTEER)).res.status, 302, "the volunteer form is not affected");
   });
 });
@@ -415,6 +446,6 @@ test("no personal data reaches the logs, on success, refusal or mail failure", a
 test("a repeated field name (an array) never crashes the handlers", async () => {
   await withApp(async ({ post }) => {
     const { res } = await post(VOL, { ...VOLUNTEER, name: ["A", "B"], email: ["a@example.test", "b@example.test"] });
-    assert.ok([302, 400].includes(res.status));
+    assert.ok([302, 303].includes(res.status));
   });
 });

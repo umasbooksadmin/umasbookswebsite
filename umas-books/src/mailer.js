@@ -31,14 +31,17 @@ function getTransporter() {
 async function sendMail({ to, subject, text, html, replyTo, headers }) {
   const t = getTransporter();
   if (!t) {
-    // The body of a reset or verification mail is a live login link, so in
-    // production (where this only happens by misconfiguration) the logs get
-    // the recipient and subject only.
+    // PRODUCTION: refuse. Returning quietly here made the email outbox mark the
+    // row "sent" (and blank a login link's body) although nothing left the
+    // server. Throwing makes the outbox keep and retry the message, and the
+    // dashboard / failure alert show it. Only the recipient and subject are
+    // logged: the body of a reset or verification mail is a live login link.
     if (process.env.NODE_ENV === "production") {
-      console.warn("Email not configured — skipping send. Would have sent:", { to, subject });
-    } else {
-      console.warn("Email not configured — skipping send. Would have sent:\n", { to, subject }, "\n" + text);
+      console.error("Email not configured (GMAIL_USER / GMAIL_APP_PASSWORD) - NOT sent:", { to, subject });
+      throw new Error("Email is not configured on this server (GMAIL_USER / GMAIL_APP_PASSWORD are not set).");
     }
+    // Tests and local development: log only, so nothing needs credentials.
+    console.warn("Email not configured — skipping send. Would have sent:\n", { to, subject }, "\n" + text);
     return;
   }
   await t.sendMail({

@@ -160,8 +160,8 @@ async function accountingExportReport(db, ctx) {
     `SELECT COUNT(*)::int AS n FROM membership_payments WHERE amount_cents IS NULL AND ${inRange("paid_at", 1, 2)}`, params
   );
   const notes = [
-    "Days are Paris days. Voided till sales and cancelled online orders are not included. No customer data appears here.",
-    "A refunded online order keeps its row on the day it was paid and gets a NEGATIVE row (negative count and total) on the day it was refunded, so a month already given to the treasurer is corrected in the month of the refund.",
+    "Days are Paris days. Voided till sales and cancelled online reservations are not included. No customer data appears here.",
+    "A refunded online reservation keeps its row on the day it was paid and gets a NEGATIVE row (negative count and total) on the day it was refunded, so a month already given to the treasurer is corrected in the month of the refund.",
     "A closed day with a cash difference adds one \"Cash over/short\" row (positive: over, negative: short). The opening float is never revenue and is not in this export.",
     "Class seats and Books are paid online through HelloAsso; Membership comes from the HelloAsso membership payments; the till rows are Cash or Card at the till.",
     "Older \"Sell in shop\" sales paid by card are shown as Card at the till; those with no payment method as Other / not recorded.",

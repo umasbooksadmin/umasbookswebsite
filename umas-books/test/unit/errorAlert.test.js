@@ -165,3 +165,24 @@ test("one repeated error cannot swallow a different error, and the cap still hol
   await alertOnError("flood", new Error("distinct failure after the window"));
   assert.equal(sent.length, 7, "released after the window");
 });
+
+test("ALERT_TO: one address or several (comma separated); CONTACT_TO is only the fallback; default admin@umasbooks.org", () => {
+  const MODULE = require.resolve("../../src/lib/errorAlert");
+  const saved = { a: process.env.ALERT_TO, c: process.env.CONTACT_TO };
+  const load = (alert, contact) => {
+    if (alert === undefined) delete process.env.ALERT_TO; else process.env.ALERT_TO = alert;
+    if (contact === undefined) delete process.env.CONTACT_TO; else process.env.CONTACT_TO = contact;
+    delete require.cache[MODULE];
+    return require(MODULE).ALERT_TO;
+  };
+  try {
+    assert.equal(load(undefined, undefined), "admin@umasbooks.org");
+    assert.equal(load(undefined, "contact@example.test"), "contact@example.test");
+    assert.equal(load("a@one.test, b@two.test", "contact@example.test"), "a@one.test, b@two.test");
+    assert.equal(load("  ", undefined), "admin@umasbooks.org");
+  } finally {
+    if (saved.a === undefined) delete process.env.ALERT_TO; else process.env.ALERT_TO = saved.a;
+    if (saved.c === undefined) delete process.env.CONTACT_TO; else process.env.CONTACT_TO = saved.c;
+    delete require.cache[MODULE];
+  }
+});

@@ -88,6 +88,8 @@ const TABLES = {
   // kept
   schema_migrations: "kept",
   pricing_settings: "kept",
+  job_runs: "kept", // background-job bookkeeping (no personal data); clearing it would only hide a failing job
+  alert_flags: "kept", // "alert X was sent at T" markers (no personal data)
 };
 
 const IDENT_RE = /^[a-z_][a-z0-9_]*$/;
@@ -381,7 +383,7 @@ async function runClearTestData(db, { execute = false, includeContent = false, k
     const payments = await countRows(db, "membership_payments");
     if (paidOrders || payments) {
       report.warnings.push(
-        `${paidOrders} paid order(s) and ${payments} membership payment(s) will be deleted. ` +
+        `${paidOrders} paid reservation(s) and ${payments} membership payment(s) will be deleted. ` +
           "If any are REAL, French accounting law makes you keep them for 10 years: stop."
       );
     }

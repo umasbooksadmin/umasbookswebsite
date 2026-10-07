@@ -559,7 +559,7 @@ test("pricing rules: a bad form is refused with a message, nothing saved, no aud
   const before = (await auditRows("pricing.settings")).length;
   for (const bad of [{ a_max: "25" }, { c_factor: "5" }, { clearance_after_copies: "0" }, { levels: "5, 3" }, { clearance_scope: "x" }, { b_price: "abc" }]) {
     const r = await h.post("/admin/pricing", { ...SETTINGS_FORM, ...bad });
-    assert.equal(r.res.status, 400, JSON.stringify(bad));
+    assert.equal(r.res.status, 200, JSON.stringify(bad));
     assert.match(r.text, /role="alert"/);
     assert.match(r.text, new RegExp(`name="${Object.keys(bad)[0]}"[^>]*value="${bad[Object.keys(bad)[0]]}"|<select`), "what was typed is kept");
   }

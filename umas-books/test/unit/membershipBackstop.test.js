@@ -40,3 +40,27 @@ test("syncs each distinct recent payer once, skips old orders", async () => {
   ]);
   assert.deepEqual(looked, ["a@example.com"]);
 });
+
+test("a payer whose check fails does not stop the others, but the run fails (so the job tracker sees it)", async () => {
+  const looked = [];
+  global.fetch = async (url) => {
+    const u = String(url);
+    if (u.includes("/oauth2/token")) return { ok: true, json: async () => ({ access_token: "t", expires_in: 1800 }) };
+    if (u.includes("userSearchKey=")) {
+      looked.push(decodeURIComponent(new URL(u).searchParams.get("userSearchKey")));
+      return { ok: false, status: 500, text: async () => "boom", json: async () => ({}) };
+    }
+    return { ok: true, json: async () => ({ data: [
+      { id: 1, date: daysAgo(1), payer: { email: "one@example.com" } },
+      { id: 2, date: daysAgo(1), payer: { email: "two@example.com" } },
+    ] }) };
+  };
+  const realError = console.error;
+  console.error = () => {};
+  try {
+    await assert.rejects(() => reconcileRecentMemberships({ query: async () => ({ rows: [] }) }), /2 of 2 membership check\(s\) failed/);
+  } finally {
+    console.error = realError;
+  }
+  assert.deepEqual(looked.sort(), ["one@example.com", "two@example.com"], "every payer was still tried");
+});

@@ -51,9 +51,9 @@ test("uptime check reads SITE_URL (repository variable) with the live domain as 
   assert.match(src, /\[ "\$P" = "failure" \] && \[ "\$PP" = "success" \]/);
 });
 
-test("test-alert runs monthly and can still be started by hand", () => {
+test("test-alert runs weekly (Mondays) and can still be started by hand", () => {
   const src = read("test-alert.yml");
-  assert.match(src, /schedule:\s*\n\s*- cron: "[^"]+ 1 \* \*"/);
+  assert.match(src, /schedule:\s*\n\s*- cron: "[^"]+ \* \* 1"/);
   assert.match(src, /workflow_dispatch:/);
 });
 

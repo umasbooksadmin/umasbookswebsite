@@ -9,7 +9,7 @@ const assert = require("node:assert/strict");
 const crypto = require("node:crypto");
 const bcrypt = require("bcryptjs");
 const { startTestApp } = require("../helpers/testApp");
-const { makeCookieJar, fetchCsrfToken } = require("../helpers/httpClient");
+const { makeCookieJar, fetchCsrfToken, withSeeOtherPage } = require("../helpers/httpClient");
 
 const PORT = 3450;
 const PASSWORD = "HardeningTest1!";
@@ -41,8 +41,10 @@ async function createUser(email, { isAdmin = false, isMember = false, isDisabled
   return rows[0].id;
 }
 
-// Returns { res, body, jar } with the CSRF token value scrubbed from the
-// body so two responses can be compared for equality.
+// Returns { res, body, jar, location } with the CSRF token value scrubbed from the
+// body so two responses can be compared for equality. A refused form answers 303
+// (Post/Redirect/Get): `body` is then the page the redirect leads to, fetched with
+// the same session, and `location` is where it led.
 async function postForm(path, fields, jar = makeCookieJar()) {
   const token = await fetchCsrfToken(app.base, jar);
   const res = await fetch(`${app.base}${path}`, {
@@ -52,8 +54,10 @@ async function postForm(path, fields, jar = makeCookieJar()) {
     body: new URLSearchParams({ ...fields, _csrf: token }).toString(),
   });
   jar.capture(res);
-  const text = await res.text();
-  return { res, jar, body: text.split(token).join("CSRF") };
+  const seen = await withSeeOtherPage(res, { base: app.base, jar });
+  const text = await seen.text();
+  return { res, jar, location: res.headers.get("location"), // the form gives back what was typed (the email): blank that so bodies compare
+    body: text.split(token).join("CSRF").replace(/(id="(?:email|resendEmail)"[^>]*value=")[^"]*"/g, '$1"') };
 }
 
 const login = (email, password = PASSWORD, jar) => postForm("/login", { email, password }, jar);
@@ -84,9 +88,10 @@ test("signup responds identically for a new and an existing email, and never log
   const fresh = await postForm("/signup", fields(newEmail));
   const dup = await postForm("/signup", fields(oldEmail));
 
-  assert.equal(fresh.res.status, 200);
+  assert.equal(fresh.res.status, 303);
+  assert.equal(fresh.location, "/signup");
   assert.equal(dup.res.status, fresh.res.status);
-  assert.equal(dup.res.headers.get("location"), fresh.res.headers.get("location"));
+  assert.equal(dup.location, fresh.location);
   // Same page; only the echoed-nothing form is identical.
   assert.equal(dup.body, fresh.body, "the two responses must be byte-identical");
 
@@ -110,7 +115,8 @@ test("signup responds identically for a new and an existing email, and never log
   // ...and has no password until the email is confirmed and one is chosen
   // (account pre-hijack defence; see accountPreHijack.test.js).
   const loginRes = await login(newEmail, "Correct-Horse-1");
-  assert.equal(loginRes.res.status, 401);
+  assert.equal(loginRes.res.status, 303);
+  assert.equal(loginRes.location, "/login");
 });
 
 test("a locked account answers login exactly like a wrong password, even for the right one", async () => {
@@ -118,17 +124,19 @@ test("a locked account answers login exactly like a wrong password, even for the
   await createUser(email);
 
   const unknown = await login(`nobody-${uniq()}@example.test`, "Wrong-Password-1");
-  assert.equal(unknown.res.status, 401);
+  assert.equal(unknown.res.status, 303);
+  assert.equal(unknown.location, "/login");
 
   for (let i = 0; i < 5; i++) {
     const r = await login(email, "Wrong-Password-1");
-    assert.equal(r.res.status, 401);
+    assert.equal(r.res.status, 303);
   }
 
   const lockedWrong = await login(email, "Wrong-Password-1");
   const lockedRight = await login(email, PASSWORD);
   for (const r of [lockedWrong, lockedRight]) {
-    assert.equal(r.res.status, 401, "a locked account must not reveal itself with a distinct status");
+    assert.equal(r.res.status, 303, "a locked account must not reveal itself with a distinct status");
+    assert.equal(r.location, unknown.location, "...nor a distinct redirect");
     assert.equal(r.body, unknown.body, "...nor a distinct message");
   }
   // The lockout holds (the correct password didn't get in) and is per (account, IP):
@@ -143,11 +151,13 @@ test("a disabled account is only told so after the correct password", async () =
 
   const unknown = await login(`nobody-${uniq()}@example.test`, "Wrong-Password-1");
   const wrong = await login(email, "Wrong-Password-1");
-  assert.equal(wrong.res.status, 401);
+  assert.equal(wrong.res.status, 303);
+  assert.equal(wrong.location, unknown.location);
   assert.equal(wrong.body, unknown.body);
 
   const right = await login(email, PASSWORD);
-  assert.equal(right.res.status, 403);
+  assert.equal(right.res.status, 303);
+  assert.equal(right.location, "/login");
   assert.ok(right.body.includes("deactivated"));
   // ...and it still isn't logged in.
   const probe = await fetch(`${app.base}/account/password`, { redirect: "manual", headers: { cookie: right.jar.header() } });

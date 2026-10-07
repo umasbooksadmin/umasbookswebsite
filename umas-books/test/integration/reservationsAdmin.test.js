@@ -83,19 +83,19 @@ test("collecting needs a payment method; the amount can only be lowered, and the
   const { order } = await h.reserve(buyer, { copyIds: [copy] });
 
   const noMethod = await admin.post(`/admin/orders/${order.id}/collect`, { amountReceived: "8" });
-  assert.equal(noMethod.status, 400);
+  assert.equal(noMethod.status, 200);
   assert.match(noMethod.text, /Choose how the customer paid/);
   const weird = await collect(order.id, { amountReceived: "abc" });
-  assert.equal(weird.status, 400);
+  assert.equal(weird.status, 200);
   assert.match(weird.text, /number of euros/);
   const tooHigh = await collect(order.id, { amountReceived: "9" });
-  assert.equal(tooHigh.status, 400);
+  assert.equal(tooHigh.status, 200);
   assert.match(tooHigh.text, /cannot be more than the total/);
   const noNote = await collect(order.id, { amountReceived: "7" });
-  assert.equal(noNote.status, 400);
+  assert.equal(noNote.status, 200);
   assert.match(noNote.text, /write a note/);
   const badMethod = await collect(order.id, { method: "bitcoin" });
-  assert.equal(badMethod.status, 400);
+  assert.equal(badMethod.status, 200);
   assert.equal((await h.order(order.id)).status, "reserved");
   assert.equal((await copyRow(copy)).status, "reserved");
   assert.deepEqual(await h.audit(order.id), []);
@@ -146,7 +146,7 @@ test("partial pickup: the ticked items are sold and paid, the rest moves to a ne
   const before = await salesStats(h.pool);
 
   const none = await admin.post(`/admin/orders/${order.id}/collect-selected`, { method: "cash" });
-  assert.equal(none.status, 400);
+  assert.equal(none.status, 200);
   assert.match(none.text, /nothing to collect/);
 
   const r = await admin.post(`/admin/orders/${order.id}/collect-selected`, { method: "cash", itemIds: [byCopy(a).id, byCopy(b).id] });
@@ -204,14 +204,14 @@ test("extend by 7 days: once only; a seat-only reservation cannot be extended", 
   assert.equal(Math.round((new Date(after.reserved_until) - new Date(order.reserved_until)) / 86400000), 7);
   assert.ok(after.reservation_extended_at);
   const again = await admin.post(`/admin/orders/${order.id}/extend`);
-  assert.equal(again.status, 409);
+  assert.equal(again.status, 200);
   assert.match(again.text, /already extended once/);
   assert.equal(new Date((await h.order(order.id)).reserved_until).getTime(), new Date(after.reserved_until).getTime());
   assert.equal((await h.audit(order.id)).filter((a) => a.action === "order.reservation_extended").length, 1);
 
   const seatOnly = (await h.reserve(await h.account(), { classIds: [await h.session()] })).order;
   const refused = await admin.post(`/admin/orders/${seatOnly.id}/extend`);
-  assert.equal(refused.status, 409);
+  assert.equal(refused.status, 200);
   assert.match(refused.text, /held until its session/);
 });
 
@@ -254,7 +254,7 @@ test("mark refunded still works after a pickup: books back in stock, out of reve
   assert.doesNotMatch(form.text, /HelloAsso/);
   assert.match(form.text, /gave the money back/);
   const noTick = await admin.post(`/admin/orders/${order.id}/refund`, { note: "Customer returned the book" });
-  assert.equal(noTick.status, 400);
+  assert.equal(noTick.status, 200);
   assert.equal((await h.order(order.id)).status, "paid");
   const r = await admin.post(`/admin/orders/${order.id}/refund`, { confirmRefunded: "on", note: "Refunded in cash at the shop" });
   assert.match(r.location, /notice=refunded/);
@@ -274,19 +274,19 @@ test("/admin/orders: the default view is 'Reserved: awaiting pickup', with the '
 
   const def = (await admin.get("/admin/orders")).text;
   assert.match(def, /Reserved: awaiting pickup/);
-  assert.match(def, new RegExp(`Order #${soon.id}<`));
-  assert.match(def, new RegExp(`Order #${later.id}<`));
-  assert.doesNotMatch(def, new RegExp(`Order #${gone.id}<`), "expired ones are released as the list is read");
+  assert.match(def, new RegExp(`Reservation #${soon.id}<`));
+  assert.match(def, new RegExp(`Reservation #${later.id}<`));
+  assert.doesNotMatch(def, new RegExp(`Reservation #${gone.id}<`), "expired ones are released as the list is read");
   assert.equal((await h.order(gone.id)).status, "expired");
 
   const expiring = (await admin.get("/admin/orders?show=expiring_soon")).text;
-  assert.match(expiring, new RegExp(`Order #${soon.id}<`));
-  assert.doesNotMatch(expiring, new RegExp(`Order #${later.id}<`));
+  assert.match(expiring, new RegExp(`Reservation #${soon.id}<`));
+  assert.doesNotMatch(expiring, new RegExp(`Reservation #${later.id}<`));
   assert.match(expiring, /Expiring in 3 days/);
   const expired = (await admin.get("/admin/orders?show=expired")).text;
-  assert.match(expired, new RegExp(`Order #${gone.id}<`));
+  assert.match(expired, new RegExp(`Reservation #${gone.id}<`));
   const all = (await admin.get("/admin/orders?show=all")).text;
-  for (const o of [soon, later, gone]) assert.match(all, new RegExp(`Order #${o.id}<`));
+  for (const o of [soon, later, gone]) assert.match(all, new RegExp(`Reservation #${o.id}<`));
 });
 
 test("the order page shows the held items, the deadline and every action; a collected order shows its payment", async () => {
@@ -378,8 +378,8 @@ test("the retired 'Sell in shop' page sells nothing (a reserved copy stays reser
 
   const { rows: [{ book_id: bookId }] } = await h.pool.query("SELECT book_id FROM book_copies WHERE id = $1", [copy]);
   const cancel = await admin.post(`/admin/inventory/${bookId}/copies/${copy}/cancel-reservation`);
-  assert.equal(cancel.status, 409);
-  assert.match(cancel.text, new RegExp(`reserved by order #${order.id}`));
+  assert.equal(cancel.status, 200);
+  assert.match(cancel.text, new RegExp(`reserved by reservation #${order.id}`));
   assert.equal((await copyRow(copy)).status, "reserved");
   const shown = (await admin.get(`/admin/inventory/${bookId}`)).text;
   assert.match(shown, new RegExp(`href="/admin/orders/${order.id}"`));

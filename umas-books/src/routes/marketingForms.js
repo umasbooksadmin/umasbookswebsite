@@ -18,10 +18,9 @@
 const express = require("express");
 const { limit } = require("../middleware/rateLimits");
 const { sendEmail } = require("../lib/outbox");
-const { renderMarketing, commonDictionary } = require("../lib/pageDictionary");
-const { marketingCsp } = require("../lib/marketingCsp");
-const { setMarketingSeoLocals } = require("./seo");
+const { commonDictionary } = require("../lib/pageDictionary");
 const forms = require("../lib/marketingForms");
+const { redirectWithFlash, takePageFlash } = require("../lib/postRedirect");
 
 const router = express.Router();
 
@@ -60,13 +59,12 @@ function prepareFormPage(res) {
   res.set("Cache-Control", "private, no-store");
 }
 
-function showForm(cfg, req, res, next, status, form) {
-  res.status(status);
-  res.set("Content-Security-Policy", marketingCsp());
-  setMarketingSeoLocals(req, res, "/" + cfg.page);
-  prepareFormPage(res);
-  res.locals.form = form;
-  renderMarketing(req, res, next, cfg.view);
+// A refused submission goes back to the page by redirect (lib/postRedirect.js), so Back never offers
+// to resubmit the form: what was typed and the errors travel once in the session, and the page's GET
+// route (src/index.js, flashKey) shows them. The thank-you state is /<page>?sent=1, which a reload keeps.
+const flashKey = (page) => `marketingForm:${page}`;
+function refuseForm(cfg, req, res, form) {
+  return redirectWithFlash(req, res, `/${cfg.page}`, flashKey(cfg.page), form);
 }
 
 for (const cfg of FORMS) {
@@ -74,24 +72,24 @@ for (const cfg of FORMS) {
   const limiter = limit({
     windowMs: 15 * 60 * 1000,
     max: 5,
-    handler: (req, res, next) => {
+    handler: (req, res) => {
       const { values } = cfg.validate(req.body || {});
-      showForm(cfg, req, res, next, 429, { values, errors: {}, error: "ratelimit" });
+      return refuseForm(cfg, req, res, { values, errors: {}, error: "ratelimit" });
     },
   });
 
-  router.post(cfg.post, limiter, async (req, res, next) => {
+  router.post(cfg.post, limiter, async (req, res) => {
     // Honeypot: real people never see or fill this field. Looks like success to a bot.
     if (req.body.website) return res.redirect(`/${cfg.page}?sent=1`);
 
     const { values, errors, ok } = cfg.validate(req.body);
-    if (!ok) return showForm(cfg, req, res, next, 400, { values, errors, error: null });
+    if (!ok) return refuseForm(cfg, req, res, { values, errors, error: null });
 
     try {
       await deliver(cfg.buildEmail(values, req.lang));
     } catch (err) {
       console.error(`${cfg.name} email failed:`, err && err.message);
-      return showForm(cfg, req, res, next, 500, { values, errors: {}, error: "send" });
+      return refuseForm(cfg, req, res, { values, errors: {}, error: "send" });
     }
     res.redirect(`/${cfg.page}?sent=1`);
   });
@@ -100,3 +98,7 @@ for (const cfg of FORMS) {
 module.exports = router;
 module.exports.FORM_PAGES = FORM_PAGES;
 module.exports.prepareFormPage = prepareFormPage;
+// res.locals.form for a form page's GET: what a refused submission left (typed values, errors), or the thank-you state.
+module.exports.setFormState = (req, res, file) => {
+  res.locals.form = takePageFlash(req, res, flashKey(file)) || { sent: req.query.sent === "1" };
+};

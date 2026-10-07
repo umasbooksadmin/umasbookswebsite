@@ -150,12 +150,12 @@ more things to keep in mind:
   cart (the reservation flow above). A copy is held (status `reserved`) when
   an account holder reserves it, when an admin reserves it from the book's
   admin page, or when a book request is notified with a hold. An online
-  reservation is collected, cancelled or extended from its order page
+  reservation is collected, cancelled or extended from its reservation page
   (`/admin/orders/<id>`); the others stay held until an admin cancels the
   reservation or marks it sold, or they expire.
 - **Admin** (`/admin`, admin accounts only) — a proper multi-page section
   with its own sub-nav (`views/partials/admin_subnav.ejs`): an overview
-  with counts/links, plus dedicated pages for Books & Orders, English
+  with counts/links, plus dedicated pages for Books & Reservations, English
   Programs (`/admin/sessions`), Events, Volunteer Shifts, Meetings,
   Announcements, Accounts/Members, Charities, and Blog. Add a new admin area by adding a route in `src/routes/admin.js`,
   a view under
@@ -185,8 +185,18 @@ the regular account password:
    marked `sync: false` in `render.yaml`, so Render won't auto-fill them —
    you add them once by hand).
 
-Until both are set, the app doesn't fail — it just logs what it would have
-sent to the console instead, which is enough for local development.
+Until both are set, local development just logs what it would have sent to the
+console. **In production the same mistake is not silent**: sending fails with a
+clear error, the email outbox keeps the message and retries it, the dashboard
+shows it under "Needs attention" and (after an hour) an alert is sent.
+
+**Alert recipients.** Alerts (errors, emails that cannot be sent, failing
+background jobs, launch warnings) go to `ALERT_TO` — one address or several
+separated by commas (default `admin@umasbooks.org`). Add a second address on a
+different mail provider than the Google account that sends them. The GitHub
+workflows (backup, uptime, freshness, restore test, weekly test alert) read the
+repository **variable** `ALERT_TO` (Settings > Secrets and variables > Actions >
+Variables). Contact-form messages go to `CONTACT_TO` (same format).
 
 There's no separate "customer" vs "admin" signup flow — the seed script
 creates the first admin; that account can then promote (or demote) other
@@ -233,7 +243,7 @@ mean" box on the book's page.
 Each copy can have a location, such as `FICTION-A1`, meaning the shelf or box
 it sits on.
 
-- **Adding books:** on **Books & Orders > Scan a book** (the **Add Book** page),
+- **Adding books:** on **Books & Reservations > Scan a book** (the **Add Book** page),
   scan or type the ISBN: the book is looked up at once and the form filled in
   (see "Fast scanning" below). **Location** starts at `STORE` and keeps the last
   one you used (pick one from the list, or type a new one; it is added to the
@@ -257,7 +267,7 @@ needed. They get an email with a link and must press **Confirm** (until then
 the request is "unconfirmed" and is deleted after 7 days).
 
 1. **Adding books is the only thing you do first.** When you save a new book
-   in **Books & Orders**, any confirmed request for that title or ISBN turns to
+   in **Books & Reservations**, any confirmed request for that title or ISBN turns to
    **Matched**, and the book's page shows "N customers asked for this book".
 2. Open **Book Requests** in the admin menu (default view: Open, Matched and
    Notified). Each card shows the person's name and email, the title, and the
@@ -280,7 +290,7 @@ the latest 12 months after it was made (the privacy policy says so).
 
 **Selling a book in the shop**
 
-1. Click **Books & Orders**, then **Sell in shop**.
+1. Click **Books & Reservations**, then **Sell in shop**.
 2. Scan the book's barcode (or type the ISBN) and press Enter.
 3. Check the price (it is filled in for you, and you can change it), choose how
    it was paid, and press **Record sale** (or Enter again). The book is now
@@ -293,7 +303,7 @@ the latest 12 months after it was made (the privacy policy says so).
    the person who looks after the site to fix it.
 
 A book reserved on the website is **not** sold here: it is collected from its
-order page. Admin > **Books & Orders** > **Orders** opens on the reservations
+reservation page. Admin > **Books & Reservations** > **Reservations** opens on the reservations
 waiting for pickup. When the customer comes, open the reservation, take the
 payment (cash, card or cheque), choose how they paid and press **Mark collected
 and paid** (**Collect selected items** if they take only some of the books).
@@ -325,7 +335,7 @@ Very Good. A binding found by Open Library is only shown as a hint. **Scan mode*
 default) adds a one-tap **Save (suggested price)** for books new to the shop.
 Without JavaScript the **Look up** button and a normal form post still work (the
 page then comes back with a "Saved" line). `/admin/inventory/scan` is kept for
-photo scanning. Setup of the scanner and phone tips: `docs/runbook.md`, section r.
+photo scanning. Setup of the scanner and phone tips: `docs/runbook.md`, section aa.
 
 **Reports**
 
@@ -408,6 +418,30 @@ the old version keeps serving. `src/migrate.js` records each file in the
 `schema_migrations` table and applies it exactly once.
 Redeploying an older commit does **not** undo a migration; see
 [`docs/runbook.md`](../docs/runbook.md) before rolling back.
+
+### Environment variables
+
+Set in Render under the service's **Environment** tab. `render.yaml` lists every
+one, so a Blueprint rebuild starts correctly; values marked "by hand" are
+`sync: false` secrets you enter once.
+
+| Variable | What it is | In `render.yaml` |
+|---|---|---|
+| `DATABASE_URL` | the database connection | wired to `umas-books-db` |
+| `SESSION_SECRET`, `TOTP_ENCRYPTION_KEY` | session signing; encrypts admins' two-step secrets | generated |
+| `NODE_ENV` | `production` | `production` |
+| `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD` | first admin (delete the password after first login) | by hand |
+| `GMAIL_USER`, `GMAIL_APP_PASSWORD` | the mailbox that sends every email and alert | by hand |
+| `APP_BASE_URL` | public address, no trailing slash (emailed links, payment return, canonical redirect) | `https://umasbooks.org` |
+| `CONTACT_TO` | contact-form and forum-report recipient(s) | `admin@umasbooks.org` |
+| `ALERT_TO` | alert recipient(s), comma separated, no spaces | `admin@umasbooks.org,sharonbje@gmail.com` |
+| `TRUST_PROXY_HOPS` | proxies in front of the app (visitor IP) | `2` |
+| `HELLOASSO_CLIENT_ID`, `HELLOASSO_CLIENT_SECRET`, `HELLOASSO_ORG_SLUG` | online payment | by hand |
+| `HELLOASSO_API_BASE` | leave empty/unset for production (the sandbox address is only for tests) | by hand |
+| `HELLOASSO_MEMBERSHIP_FORM_SLUG` | optional: only this HelloAsso form grants membership | by hand |
+| `ANTHROPIC_API_KEY`, `ANTHROPIC_WORKSPACE_ID` | photo scanning and book descriptions | by hand |
+| `COVER_BACKFILL` | `off` stops the background cover copy (tests); otherwise on | `on` |
+| `PREVIEW_MODE` | `true` = coming-soon mode. **Deliberately not in `render.yaml`**: set and removed by hand in the dashboard | not in the file |
 
 Because `rootDir` is `umas-books`, Render by default only auto-deploys
 when a push changes files inside `umas-books/` — a push that only touches
@@ -507,15 +541,16 @@ private Backblaze B2 bucket as `store-backups/full/umas_books_full_<UTC
 timestamp>.dump` (kept 30 days; the 1st-of-month copy under
 `store-backups/monthly/` is kept 2 years). Once a month,
 `.github/workflows/backup-restore-test.yml` downloads the newest dump,
-restores it into a scratch Postgres and checks the data, emailing
-admin@umasbooks.org if that fails — so this procedure is exercised
+restores it into a scratch Postgres and checks the data (including that it is as
+new as the newest migration in the repository), emailing the alert
+address(es) (`ALERT_TO`) if that fails — so this procedure is exercised
 regularly, not just on a bad day.
 
 > **Each dump is complete** — book covers and other uploaded photos
 > included. Only login sessions are left out (everyone simply logs in again
 > after a restore).
 
-> **A dump contains member data** (names, emails, order details, password
+> **A dump contains member data** (names, emails, reservation details, password
 > hashes). Download it only to a machine you control, restore it only into
 > a database you control, never commit or share it, and delete the local
 > copy when you are done.
@@ -577,12 +612,21 @@ an older `pg_restore` cannot read them) and the AWS CLI.
    database in the same Render account/region use its **Internal** URL), and
    save — Render redeploys. `render.yaml` normally wires `DATABASE_URL` to
    `umas-books-db`, so if you later re-sync the Blueprint, either restore
-   into `umas-books-db` itself or update `render.yaml` to match. Boot runs
-   `npm run migrate`, which applies any migrations newer than the dump.
-   Check `/healthz` returns 200.
+   into `umas-books-db` itself or update `render.yaml` to match. Migrations do
+   **not** run when the app boots: they run in Render's **pre-deploy command**
+   (`npm run migrate`, see `render.yaml`) the next time the service deploys, and
+   that applies any migrations newer than the dump. After pointing
+   `DATABASE_URL` at the restored database, trigger a deploy (**Manual Deploy >
+   Deploy latest commit**) and check the deploy log shows
+   "Running migration: ..." for each newer file (or "Migrations complete."),
+   then that `/healthz` returns 200.
 
 5. **Clean up:** `rm restore.dump`, and `dropdb umas_books_restored` if it
    was only a drill.
+
+**If the whole Render account is gone** (not just the data), restoring the
+database is only one step of several: see "Rebuild everything if the Render
+account is lost" in [`docs/runbook.md`](../docs/runbook.md).
 
 The database is on a paid Render plan (`render.yaml`), so it does not
 expire. These backups are the extra safety net on top of Render's own.

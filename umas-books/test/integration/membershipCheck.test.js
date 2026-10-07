@@ -260,6 +260,9 @@ test("a membership join leaves an unconfirmed account that cannot log in before 
   // Nobody can log in with anything before confirming: the password is random and unknown.
   const v = guest();
   const r = await v.post("/login", { email, password: "Correct-Horse-9!x" });
-  assert.equal(r.res.status, 401);
+  assert.equal(r.res.status, 303);
+  assert.equal(r.res.headers.get("location"), "/login");
+  const page = await v.get("/login"); // the refusal the redirect leads to; no session came out of it
+  assert.match(page.text, /Incorrect email or password/);
   assert.ok(mail.text.includes("/verify-email/"));
 });

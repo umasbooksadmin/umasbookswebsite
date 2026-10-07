@@ -133,7 +133,7 @@ async function cartJar() {
   return jar;
 }
 
-test("cart: no reservation form, friendly notice; the reserve POST is refused (403, not a login redirect) and creates nothing", async () => {
+test("cart: no reservation form, friendly notice; the reserve POST is refused (303 to the cart, not a login redirect) and creates nothing", async () => {
   const jar = await cartJar();
   const page = await (await fetch(`${preview.base}/cart`, { headers: { cookie: jar.header() } })).text();
   assert.ok(page.includes("Preview Book"), "cart still lists the item");
@@ -150,8 +150,12 @@ test("cart: no reservation form, friendly notice; the reserve POST is refused (4
     method: "POST", redirect: "manual", headers: { ...FORM, cookie: jar.header() },
     body: new URLSearchParams({ name: "Buyer", email: "buyer@example.test", acceptCgv: "on", _csrf: token }).toString(),
   });
-  const body = await res.text();
-  assert.equal(res.status, 403);
+  jar.capture(res);
+  assert.equal(res.status, 303, "refused, not a login redirect");
+  assert.equal(res.headers.get("location"), "/cart");
+  const shown = await fetch(`${preview.base}/cart`, { redirect: "manual", headers: { cookie: jar.header() } });
+  assert.equal(shown.status, 200);
+  const body = await shown.text();
   assert.ok(body.includes("Online reservations open when we launch."));
   const { rows: orders } = await db.query("SELECT count(*)::int AS n FROM orders");
   assert.equal(orders[0].n, 0, "no order row");

@@ -32,7 +32,7 @@ async function withApp(fn) {
   delete require.cache[ROUTE];
   const server = await listen(buildApp([require(ROUTE), require("../../src/routes/account")]));
   try {
-    await fn(makeClient(server.base));
+    await fn(makeClient(server.base), server.base);
   } finally {
     await server.close();
   }
@@ -49,6 +49,7 @@ const LIST_RE = /\/my-requests\/list\/([a-f0-9]{64})/;
 // Submits the form, waits for the confirmation mail, returns its tokens.
 async function submit(c, fields, opts) {
   const res = await c.post("/request-a-book", fields, opts);
+  assert.equal(res.seeOther, "/request-a-book/sent", "answered with 303 to the thank-you page");
   assert.equal(res.status, 200);
   const mail = await waitFor(() => mailTo(fields.email)[0], { message: "confirmation email" });
   return { res, mail, confirm: tokenIn(mail, CONFIRM_RE), manage: tokenIn(mail, MANAGE_RE) };
@@ -58,6 +59,7 @@ async function openRequest(c, over = {}) {
   const fields = form(over);
   const { confirm, manage } = await submit(c, fields);
   const confirmed = await c.post(`/request-a-book/confirm/${confirm}`, {});
+  assert.equal(confirmed.seeOther, "/request-a-book/confirmed");
   assert.equal(confirmed.status, 200);
   sent.length = 0;
   return { fields, manage };
@@ -99,14 +101,40 @@ test("validation: title, one valid email, ISBN shape and field lengths", async (
     // A fresh app per case: every POST, valid or not, counts toward the 5-a-day limit.
     await withApp(async (c) => {
       const fields = form(over);
-      const { status, text } = await c.post("/request-a-book", fields);
-      assert.equal(status, 400, JSON.stringify(over).slice(0, 40));
+      // Refused with 303 back to the form (Post/Redirect/Get); the message and what was typed show there.
+      const { status, text, seeOther } = await c.post("/request-a-book", fields);
+      assert.equal(seeOther, "/request-a-book", JSON.stringify(over).slice(0, 40));
+      assert.equal(status, 200, "the followed form page");
       assert.match(text, message);
+      assert.ok(text.includes(`value="${fields.email}"`) || over.email !== undefined, "typed email kept");
       if (over.email === undefined) assert.equal(await row(fields.email), undefined, "nothing stored");
     });
   }
   await new Promise((r) => setTimeout(r, 100));
   assert.equal(sent.length, 0);
+});
+
+test("a refused form shows its message once: Location is the fixed form path, a reload no longer has it", async () => {
+  await withApp(async (c, base) => {
+    const { makeCookieJar } = require("../helpers/httpClient");
+    const jar = makeCookieJar();
+    const fields = form({ title: "" });
+    const post = await fetch(`${base}/request-a-book`, {
+      method: "POST", redirect: "manual",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams(fields).toString(),
+    });
+    jar.capture(post);
+    assert.equal(post.status, 303);
+    assert.equal(post.headers.get("location"), "/request-a-book");
+    const shown = await (await fetch(`${base}/request-a-book`, { headers: { cookie: jar.header() } })).text();
+    assert.match(shown, /Please tell us the title of the book\./);
+    assert.ok(shown.includes(`value="${fields.email}"`), "the typed email is kept");
+    const again = await (await fetch(`${base}/request-a-book`, { headers: { cookie: jar.header() } })).text();
+    assert.doesNotMatch(again, /Please tell us the title of the book\./);
+    assert.ok(!again.includes(fields.email));
+    assert.equal(await row(fields.email), undefined, "nothing stored");
+  });
 });
 
 test("the ISBN is normalised to digits and X; the 200-character title limit is inclusive", async () => {
@@ -133,6 +161,8 @@ test("honeypot: a filled hidden field gets the normal page but stores and sends 
     const normal = await c.post("/request-a-book", form());
     const trapped = await c.post("/request-a-book", fields);
     assert.equal(trapped.status, 200);
+    assert.equal(trapped.seeOther, "/request-a-book/sent");
+    assert.equal(trapped.seeOther, normal.seeOther);
     assert.equal(trapped.text, normal.text);
     assert.equal(await row(fields.email), undefined);
     await new Promise((r) => setTimeout(r, 100));
@@ -148,6 +178,7 @@ test("the answer is identical for a new request, a duplicate and an address over
     const dup = await c.post("/request-a-book", { title: "one", email });
     for (const t of ["Two", "Three"]) await c.post("/request-a-book", { title: t, email });
     const capped = await c.post("/request-a-book", { title: "Four", email });
+    assert.deepEqual([dup.seeOther, capped.seeOther], [first.res.seeOther, first.res.seeOther]);
     assert.equal(first.res.text, dup.text);
     assert.equal(first.res.text, capped.text);
     assert.match(first.res.text, /Check your inbox/);
@@ -169,13 +200,15 @@ test("at most 3 pending requests per email; a cancelled one frees a slot", async
   });
 });
 
-test("5 requests a day per connection: the 6th is refused with 429 and stores nothing", async () => {
+test("5 requests a day per connection: the 6th is refused (303 + message on the form, no 429) and stores nothing", async () => {
   await withApp(async (c) => {
-    for (let i = 0; i < 5; i++) assert.equal((await c.post("/request-a-book", form())).status, 200);
+    for (let i = 0; i < 5; i++) assert.equal((await c.post("/request-a-book", form())).seeOther, "/request-a-book/sent");
     const fields = form();
     const sixth = await c.post("/request-a-book", fields);
-    assert.equal(sixth.status, 429);
+    assert.equal(sixth.seeOther, "/request-a-book");
+    assert.equal(sixth.status, 200);
     assert.match(sixth.text, /several requests today/);
+    assert.ok(sixth.text.includes(fields.title), "what was typed is kept");
     assert.equal(await row(fields.email), undefined);
   });
 });
@@ -193,6 +226,7 @@ test("double opt-in: GET only shows a Confirm button; the POST confirms; a used 
     assert.equal((await row(fields.email)).status, "unconfirmed", "a GET (e.g. a mail scanner) must not confirm");
 
     const done = await c.post(`/request-a-book/confirm/${confirm}`, {});
+    assert.equal(done.seeOther, "/request-a-book/confirmed");
     assert.equal(done.status, 200);
     const r = await row(fields.email);
     assert.equal(r.status, "open");
@@ -201,10 +235,14 @@ test("double opt-in: GET only shows a Confirm button; the POST confirms; a used 
     const months = (await pool.query("SELECT round(extract(epoch FROM (expires_at - created_at)) / 86400 / 30.4)::int AS m FROM book_requests WHERE id = $1", [r.id])).rows[0].m;
     assert.equal(months, 12);
 
-    assert.equal((await c.post(`/request-a-book/confirm/${confirm}`, {})).status, 400);
+    const used = await c.post(`/request-a-book/confirm/${confirm}`, {});
+    assert.equal(used.seeOther, `/request-a-book/confirm/${confirm}`, "a dead link goes back to the link's own page");
+    assert.equal(used.status, 400);
     assert.equal((await c.get(`/request-a-book/confirm/${confirm}`)).status, 400);
     assert.equal((await c.get("/request-a-book/confirm/not-a-token")).status, 400);
-    assert.equal((await c.post("/request-a-book/confirm/not-a-token", {})).status, 400);
+    const bogus = await c.post("/request-a-book/confirm/not-a-token", {});
+    assert.equal(bogus.seeOther, "/request-a-book/confirm/not-a-token");
+    assert.equal(bogus.status, 400);
   });
 });
 
@@ -236,7 +274,9 @@ test("an unconfirmed request expires after 7 days: the link stops working and th
       [old.email]
     );
     assert.equal((await c.get(`/request-a-book/confirm/${confirm}`)).status, 400, "expired link is refused");
-    assert.equal((await c.post(`/request-a-book/confirm/${confirm}`, {})).status, 400);
+    const expired = await c.post(`/request-a-book/confirm/${confirm}`, {});
+    assert.equal(expired.seeOther, `/request-a-book/confirm/${confirm}`);
+    assert.equal(expired.status, 400);
     assert.equal((await row(old.email)).status, "unconfirmed");
 
     await privacy.purgeExpiredPersonalData(pool);
@@ -268,7 +308,9 @@ test("manage link: shows the status, cancel clears personal data and keeps title
     assert.equal((await c.get(`/my-requests/${manage}`)).status, 404);
 
     assert.equal((await c.get(`/my-requests/${"0".repeat(64)}`)).status, 404);
-    assert.equal((await c.post(`/my-requests/${"0".repeat(64)}/cancel`, {})).status, 404);
+    const deadCancel = await c.post(`/my-requests/${"0".repeat(64)}/cancel`, {});
+    assert.equal(deadCancel.seeOther, `/my-requests/${"0".repeat(64)}`, "a dead token goes back to the link's own page");
+    assert.equal(deadCancel.status, 404);
   });
 });
 
@@ -279,6 +321,8 @@ test("find my requests: always the same answer; a mail with a 30-day link only w
     const unknown = `nobody-${uniq()}@example.test`;
     const a = await c.post("/my-requests", { email: known.email });
     const b = await c.post("/my-requests", { email: unknown });
+    assert.equal(a.seeOther, "/my-requests?sent=1");
+    assert.equal(b.seeOther, "/my-requests?sent=1");
     assert.equal(a.status, 200);
     assert.equal(a.text, b.text);
     assert.match(a.text, /If requests exist for that address/);
@@ -294,7 +338,10 @@ test("find my requests: always the same answer; a mail with a 30-day link only w
     assert.equal(list.status, 200);
     assert.ok(list.text.includes(known.title));
     assert.match(list.text, /Cancel all/);
-    assert.equal((await c.post("/my-requests", { email: "not an email" })).status, 400);
+    const badEmail = await c.post("/my-requests", { email: "not an email" });
+    assert.equal(badEmail.seeOther, "/my-requests");
+    assert.equal(badEmail.status, 200);
+    assert.match(badEmail.text, /Please enter one valid email address\./);
   });
 });
 
@@ -326,7 +373,7 @@ test("the list link cancels one request or all of them, and only that address's 
   });
 });
 
-test("find my requests is limited to 3 mails a day per address (same answer) and 5 an hour per connection (429)", async () => {
+test("find my requests is limited to 3 mails a day per address (same answer) and 5 an hour per connection (303 + message)", async () => {
   await withApp(async (c) => {
     const email = `rq-${uniq()}@example.test`;
     await openRequest(c, { email });
@@ -337,9 +384,12 @@ test("find my requests is limited to 3 mails a day per address (same answer) and
     await new Promise((r) => setTimeout(r, 150));
     assert.equal(mailTo(email).length, 3, "no fourth mail");
     const fifth = await c.post("/my-requests", { email: `x-${uniq()}@example.test` });
+    assert.equal(fifth.seeOther, "/my-requests?sent=1");
     assert.equal(fifth.status, 200);
     const sixth = await c.post("/my-requests", { email: `y-${uniq()}@example.test` });
-    assert.equal(sixth.status, 429);
+    assert.equal(sixth.seeOther, "/my-requests", "limited: 303 to the page with a message, not a 429");
+    assert.equal(sixth.status, 200);
+    assert.match(sixth.text, /Too many attempts from this connection/);
   });
 });
 
@@ -361,7 +411,7 @@ test("My Account lists a logged-in non-member's requests (by user id or verified
     const page = await c.get("/account", { as: user });
     assert.equal(page.status, 200);
     assert.match(page.text, /My book requests/);
-    assert.match(page.text, /Reservations and orders/, "the existing page is intact");
+    assert.match(page.text, /My reservations/, "the existing page is intact");
     assert.ok(page.text.includes("ById ") && page.text.includes("ByEmail "));
     assert.ok(!page.text.includes("Foreign "));
     assert.match(page.text, /We found a copy/);

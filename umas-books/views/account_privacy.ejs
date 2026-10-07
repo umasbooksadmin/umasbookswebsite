@@ -8,8 +8,8 @@
 <div class="card">
   <div class="section-title"><%= tr('Confirm your email address first', 'Confirmez d’abord votre adresse e-mail') %></div>
   <p><%= tr(
-    'To protect your privacy, you can download or delete your data only once your email address is confirmed. Your orders, reservations, sign-ups and book requests are linked to your email address, so we must be sure the address is really yours before we hand over or erase anything. Otherwise, someone could sign up with another person’s address and take or erase that person’s data.',
-    'Pour protéger votre vie privée, vous ne pouvez télécharger ou supprimer vos données qu’une fois votre adresse e-mail confirmée. Vos commandes, réservations, inscriptions et demandes de livres sont liées à votre adresse e-mail : nous devons être certains qu’elle est bien la vôtre avant de communiquer ou d’effacer quoi que ce soit. Sinon, quelqu’un pourrait s’inscrire avec l’adresse d’une autre personne et récupérer ou effacer ses données.'
+    'To protect your privacy, you can download or delete your data only once your email address is confirmed. Your reservations, sign-ups and book requests are linked to your email address, so we must be sure the address is really yours before we hand over or erase anything. Otherwise, someone could sign up with another person’s address and take or erase that person’s data.',
+    'Pour protéger votre vie privée, vous ne pouvez télécharger ou supprimer vos données qu’une fois votre adresse e-mail confirmée. Vos réservations, inscriptions et demandes de livres sont liées à votre adresse e-mail : nous devons être certains qu’elle est bien la vôtre avant de communiquer ou d’effacer quoi que ce soit. Sinon, quelqu’un pourrait s’inscrire avec l’adresse d’une autre personne et récupérer ou effacer ses données.'
   ) %></p>
   <p><%= tr('We sent a confirmation link to {email} when you signed up. Click it, then come back to this page.', 'Nous avons envoyé un lien de confirmation à {email} lors de votre inscription. Cliquez dessus, puis revenez sur cette page.', { email: email }) %></p>
   <form class="stack" method="post" action="/account/privacy/resend-verification">
@@ -22,8 +22,8 @@
 <div class="card">
   <div class="section-title"><%= tr('Download my data', 'Télécharger mes données') %></div>
   <p><%= tr(
-    'You get one file (JSON) with everything we hold about you: your account details, orders, sign-ups, forum posts and so on. Your password and security codes are never included.',
-    'Vous recevez un fichier (JSON) avec tout ce que nous détenons sur vous : les informations de votre compte, vos commandes, vos inscriptions, vos messages du forum, etc. Votre mot de passe et vos codes de sécurité n’y figurent jamais.'
+    'You get one file (JSON) with everything we hold about you: your account details, reservations, sign-ups, forum posts and so on. Your password and security codes are never included.',
+    'Vous recevez un fichier (JSON) avec tout ce que nous détenons sur vous : les informations de votre compte, vos réservations, vos inscriptions, vos messages du forum, etc. Votre mot de passe et vos codes de sécurité n’y figurent jamais.'
   ) %></p>
   <form class="stack" method="post" action="/account/privacy/export">
     <%- include('partials/csrf_field') %>
@@ -54,8 +54,8 @@
         'Une adhésion payée en cours est perdue, sans remboursement.'
       ) %></li>
       <li><%= tr(
-        'Orders and payments already made are kept, but anonymised (no name or email), because French accounting law requires it.',
-        'Les commandes et paiements déjà réglés sont conservés, mais anonymisés (sans nom ni e-mail), car la loi comptable française l’exige.'
+        'Sales and payments already made are kept, but anonymised (no name or email), because French accounting law requires it.',
+        'Les ventes et paiements déjà réglés sont conservés, mais anonymisés (sans nom ni e-mail), car la loi comptable française l’exige.'
       ) %></li>
       <li><%= tr(
         'Forum posts and charity ideas you wrote stay, but without your name.',

@@ -106,7 +106,7 @@ router.post("/admin/till/release", requireTillOrAdmin, scanLimiter, jsonRoute(as
   if (!/^\d{1,9}$/.test(String(req.body.copyId || ""))) throw new till.TillError("A copy could not be found.");
   const copyId = Number(req.body.copyId);
   const r = await till.releaseExpiredCartCopy(pool, copyId);
-  await audit(req, { action: "till.release_cart", targetType: "book_copy", targetId: copyId, detail: r.orderId ? `released from the expired cart of order ${r.orderId}` : "released from an expired cart" });
+  await audit(req, { action: "till.release_cart", targetType: "book_copy", targetId: copyId, detail: r.orderId ? `released from the expired cart of reservation ${r.orderId}` : "released from an expired cart" });
   res.json({ type: "line", line: r.line });
 }));
 
@@ -141,7 +141,7 @@ router.post("/admin/till/sale", requireTillOrAdmin, saleLimiter, jsonRoute(async
       await audit(req, { action: "till.price_override", targetType: "book_copy", targetId: o.copyId, detail: `${money(o.from)} -> ${money(o.to)}${o.reason ? `: ${o.reason}` : ""} (sale ${r.saleId})` });
     }
     for (const c of r.collected || []) {
-      await audit(req, { action: "order.collected_paid", targetType: "order", targetId: c.orderId, detail: `${req.body.method === "card" ? "card" : "cash"} at the till (sale ${r.saleId}), ${c.items} item(s)${c.partial ? `, rest moved to order #${c.newOrderId}` : ""}` });
+      await audit(req, { action: "order.collected_paid", targetType: "order", targetId: c.orderId, detail: `${req.body.method === "card" ? "card" : "cash"} at the till (sale ${r.saleId}), ${c.items} item(s)${c.partial ? `, rest moved to reservation #${c.newOrderId}` : ""}` });
     }
     if (r.adjusted) await audit(req, { action: "till.sale_backdated", targetType: "till_sale", targetId: r.saleId, detail: `sold at ${String(req.body.soldAtDay === "yesterday" ? "yesterday " : "")}${String(req.body.soldAtTime).slice(0, 5)}: ${r.backdateReason}` });
     if (r.reopened) {
@@ -239,6 +239,10 @@ async function renderItems(res, { status = 200, error = null, notice = null } = 
   res.status(status).render("admin/till/items", { active: "till", title: "Other stock (not books)", pageTitle: "Other stock (not books)", pageSub: "Tote bags, bookmarks and anything else you sell that is not a book", items: rows, shopCode: till.SHOP_CODE_PREFIX, categories: till.OTHER_CATEGORIES, error, notice, money });
 }
 
+// A refused form redirects back to the list with the message (Post/Redirect/Get),
+// like the end-of-day form does: Back never offers to resubmit it.
+const itemsRefused = (res, message) => res.redirect(303, `/admin/till/items?error=${encodeURIComponent(String(message).slice(0, 200))}`);
+
 router.get("/admin/till/items", requireAdmin, (req, res) => renderItems(res, {
   notice: req.query.saved ? "Saved." : null,
   error: typeof req.query.error === "string" ? req.query.error.slice(0, 200) : null,
@@ -253,9 +257,9 @@ async function generateShopCode(id) {
 
 router.post("/admin/till/items", requireAdmin, writeLimiter, async (req, res) => {
   const f = parseItemForm(req.body);
-  if (f.error) return renderItems(res, { status: 400, error: f.error });
+  if (f.error) return itemsRefused(res, f.error);
   const chk = await barcodeChecks(f, null);
-  if (chk.error) return renderItems(res, { status: 400, error: chk.error });
+  if (chk.error) return itemsRefused(res, chk.error);
   let rows;
   try {
     ({ rows } = await pool.query(
@@ -263,7 +267,7 @@ router.post("/admin/till/items", requireAdmin, writeLimiter, async (req, res) =>
       [f.name, f.priceCents, f.category, f.stock, f.sort, f.barcode]
     ));
   } catch (err) {
-    if (err.code === "23505") return renderItems(res, { status: 409, error: TAKEN });
+    if (err.code === "23505") return itemsRefused(res, TAKEN);
     throw err;
   }
   let code = f.barcode;
@@ -274,10 +278,10 @@ router.post("/admin/till/items", requireAdmin, writeLimiter, async (req, res) =>
 
 router.post("/admin/till/items/:id", requireAdmin, writeLimiter, async (req, res) => {
   const f = parseItemForm(req.body);
-  if (f.error) return renderItems(res, { status: 400, error: f.error });
+  if (f.error) return itemsRefused(res, f.error);
   const active = req.body.active === "1";
   const chk = await barcodeChecks(f, Number(req.params.id), active);
-  if (chk.error) return renderItems(res, { status: 400, error: chk.error });
+  if (chk.error) return itemsRefused(res, chk.error);
   let rowCount;
   try {
     ({ rowCount } = await pool.query(
@@ -285,7 +289,7 @@ router.post("/admin/till/items/:id", requireAdmin, writeLimiter, async (req, res
       [Number(req.params.id), f.name, f.priceCents, f.category, f.stock, f.sort, active, f.barcode]
     ));
   } catch (err) {
-    if (err.code === "23505") return renderItems(res, { status: 409, error: TAKEN });
+    if (err.code === "23505") return itemsRefused(res, TAKEN);
     throw err;
   }
   if (!rowCount) return res.status(404).render("404");
@@ -296,12 +300,12 @@ router.post("/admin/till/items/:id", requireAdmin, writeLimiter, async (req, res
 router.post("/admin/till/items/:id/generate-code", requireAdmin, writeLimiter, async (req, res) => {
   const { rows } = await pool.query("SELECT id, barcode FROM till_quick_items WHERE id = $1", [Number(req.params.id)]);
   if (!rows.length) return res.status(404).render("404");
-  if (rows[0].barcode) return renderItems(res, { status: 409, error: "That item already has a barcode." });
+  if (rows[0].barcode) return itemsRefused(res, "That item already has a barcode.");
   let code;
   try {
     code = await generateShopCode(rows[0].id);
   } catch (err) {
-    if (err.code === "23505") return renderItems(res, { status: 409, error: TAKEN });
+    if (err.code === "23505") return itemsRefused(res, TAKEN);
     throw err;
   }
   await audit(req, { action: "till.item_code", targetType: "till_quick_item", targetId: rows[0].id, detail: `generated ${code}` });

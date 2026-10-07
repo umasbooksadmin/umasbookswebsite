@@ -391,7 +391,7 @@ test("dashboard: /admin renders the welcome heading, stat tiles and links to eve
   const { res, text } = await h.get("/admin");
   assert.equal(res.status, 200);
   assert.ok(text.includes("Welcome back, Admin Tester"));
-  for (const label of ["Orders Today", "Sales this month", "In-Stock Books", "Total Accounts", "Members"]) {
+  for (const label of ["Collected Reservations Today", "Sales this month", "In-Stock Books", "Total Accounts", "Members"]) {
     assert.ok(text.includes(label), label);
   }
   for (const href of ["/admin/sessions", "/admin/events", "/admin/volunteer-shifts", "/admin/meetings", "/admin/announcements", "/admin/charity"]) {

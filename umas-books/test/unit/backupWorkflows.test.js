@@ -55,5 +55,9 @@ test("restore test: downloads the newest dump from the full/ prefix, read-only",
   assert.match(restore, /--prefix "\$\{PREFIX\}\/full\/umas_books_full_"/);
   assert.match(restore, /^permissions:\n {2}contents: read$/m);
   assert.match(restore, /No backup dumps found/);
-  assert.doesNotMatch(restore, /actions\/checkout/);
+  // The only checkout is the sparse one of the migration files (to compare the
+  // dump's newest migration with the repository's); never the whole repository.
+  const checkouts = restore.match(/actions\/checkout@/g) || [];
+  assert.equal(checkouts.length, 1);
+  assert.match(restore, /sparse-checkout: umas-books\/migrations/);
 });

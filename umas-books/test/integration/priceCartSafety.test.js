@@ -35,6 +35,7 @@ before(async () => {
   server = await listen(buildApp([
     require("../../src/routes/books"),
     require("../../src/routes/cart"),
+    require("../../src/routes/admin/priceSuggestions"),
     require("../../src/routes/admin/inventory"),
     require("../../src/routes/admin/sessions"),
   ]));
@@ -87,6 +88,16 @@ function guest() {
       body: form ? new URLSearchParams(form).toString() : undefined,
     });
     jar.capture(res);
+    // 303 = Post/Redirect/Get: follow it like the browser, with the same session.
+    if (res.status === 303) {
+      const seeOther = res.headers.get("location");
+      const next = await fetch(`${server.base}${seeOther}`, {
+        redirect: "manual",
+        headers: { cookie: [jar.header(), lang ? `umasbooks_lang=${lang}` : ""].filter(Boolean).join("; ") },
+      });
+      jar.capture(next);
+      return { res: next, text: await next.text(), seeOther };
+    }
     return { res, text: await res.text() };
   };
   return {
@@ -167,7 +178,7 @@ test("a copy whose price is removed while it sits in a cart drops out: the cart 
   const email = `nullprice-${uniq()}@example.test`;
   await signIn(v, email);
   const res = await v.post("/cart/reserve", { name: "Buyer", acceptCgv: "on" });
-  assert.equal(res.res.status, 200);
+  assert.equal(res.seeOther, "/cart", "refused with 303 to the cart");
   assert.match(res.text, /Your cart is empty/);
   assert.equal((await pool.query("SELECT 1 FROM orders WHERE buyer_email = $1", [email])).rowCount, 0);
   assert.equal((await copyRow(copy)).status, "in_stock");
@@ -191,7 +202,7 @@ test("reservation lock: a price removed after the cart was read cannot be held o
   await pool.query(`CREATE TRIGGER ${fn} BEFORE INSERT ON orders FOR EACH ROW EXECUTE FUNCTION ${fn}()`);
   try {
     const res = await v.post("/cart/reserve", { name: "Buyer", acceptCgv: "on" });
-    assert.equal(res.res.status, 200, "no redirect to the reservation page");
+    assert.equal(res.seeOther, "/cart", "no redirect to the reservation page: back to the cart");
     assert.match(res.text, /taken by someone else/);
   } finally {
     await pool.query(`DROP TRIGGER IF EXISTS ${fn} ON orders`);
@@ -328,7 +339,7 @@ test("cancel reservation only returns a copy that is still reserved", async () =
   for (const id of [sold, inCart]) {
     const before = (await copyRow(id)).status;
     const res = await adminPost(`/admin/inventory/${bookId}/copies/${id}/cancel-reservation`, {});
-    assert.equal(res.status, 409);
+    assert.equal(res.status, 200);
     assert.match(res.text, /already gone/);
     assert.equal((await copyRow(id)).status, before, "must not be put back on sale");
   }
@@ -357,7 +368,7 @@ test("copy edit: a status change is refused when the copy changed since the form
     // The form was rendered while in stock; meanwhile the copy moved on.
     await pool.query("UPDATE book_copies SET status = $2, reserved_at = CASE WHEN $2 = 'reserved' THEN now() END WHERE id = $1", [copy, current]);
     const res = await adminPost(`/admin/inventory/${bookId}/copies/${copy}`, { condition: "very_good", status: "damaged", renderedStatus: "in_stock", price: "9", notes: "stale edit" });
-    assert.equal(res.status, 409, current);
+    assert.equal(res.status, 200, current);
     const label = { sold: "Sold", in_cart: "In a cart", reserved: "Reserved" }[current];
     assert.match(res.text, new RegExp(`This copy changed since you opened the form \\(now: ${label}\\)\\. Reload\\.`), current);
     const row = await copyRow(copy);
@@ -460,7 +471,7 @@ test("admin add session: bad drop-in price or capacity is refused, form values k
   for (const [over, message] of cases) {
     const title = `Refused class ${uniq()}`;
     const res = await adminPost("/admin/sessions", { title, date: "2031-06-10", month: "2031-06", startTime: "10:00", capacity: "5", dropinPrice: "", ...over });
-    assert.equal(res.status, 400, JSON.stringify(over));
+    assert.equal(res.status, 200, JSON.stringify(over));
     assert.match(res.text, message);
     assert.ok(res.text.includes(`value="${title}"`), "the typed title is kept in the add form");
     const [bad] = Object.values(over);
@@ -480,7 +491,7 @@ test("admin edit session: blank capacity keeps the current one (never unlimited)
 
   for (const [over, message] of [[{ dropinPrice: "-1" }, /cannot be negative/], [{ dropinPrice: "1.234" }, /at most 2 decimals/], [{ capacity: "0" }, /Capacity must be/], [{ capacity: "abc" }, /Capacity must be/]]) {
     const bad = await adminPost(`/admin/sessions/${id}${MONTH}`, editFields({ title: "Should not save", ...over }));
-    assert.equal(bad.status, 400, JSON.stringify(over));
+    assert.equal(bad.status, 200, JSON.stringify(over));
     assert.match(bad.text, message);
     assert.ok(bad.text.includes("Should not save"), "typed values are kept in the edit form");
     assert.equal((await classRow(id)).title, "Edited");
@@ -493,7 +504,7 @@ test("admin edit session: capacity cannot go below the seats already reserved or
   await addSeats(id, 1, "reserved");
 
   const low = await adminPost(`/admin/sessions/${id}${MONTH}`, editFields({ capacity: "3" }));
-  assert.equal(low.status, 400);
+  assert.equal(low.status, 200);
   assert.match(low.text, /Capacity can(?:'|&#39;)t be lowered to 3: 4 seats are already booked/);
   assert.equal((await classRow(id)).capacity, 6);
 
@@ -502,7 +513,7 @@ test("admin edit session: capacity cannot go below the seats already reserved or
   assert.equal((await classRow(id)).capacity, 4);
 
   const cleared = await adminPost(`/admin/sessions/${id}${MONTH}`, editFields({ capacity: "4", dropinPrice: "" }));
-  assert.equal(cleared.status, 400);
+  assert.equal(cleared.status, 200);
   assert.match(cleared.text, /drop-in price can(?:'|&#39;)t be cleared: 4 drop-in seats are already reserved or paid/);
   assert.equal(Number((await classRow(id)).dropin_price), 10);
 

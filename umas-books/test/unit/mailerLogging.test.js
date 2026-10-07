@@ -30,11 +30,12 @@ function logged() {
 }
 const allText = (m) => m.mock.calls.map((c) => c.arguments.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" ")).join("\n");
 
-test("production: unconfigured mail logs only recipient and subject, never the body", async () => {
+test("production: unconfigured mail THROWS (so the outbox retries it instead of marking it sent) and logs only recipient and subject", async () => {
   const { sendMail } = freshMailer("production");
   const warn = logged();
-  await sendMail(MSG);
-  const out = allText(warn);
+  const err = mock.method(console, "error", () => {});
+  await assert.rejects(() => sendMail(MSG), /not configured/i);
+  const out = allText(warn) + allText(err);
   assert.match(out, /someone@example\.test/);
   assert.match(out, /Reset your password/);
   assert.doesNotMatch(out, /SECRETTOKEN123|reset-password/);
@@ -43,6 +44,13 @@ test("production: unconfigured mail logs only recipient and subject, never the b
 test("non-production: the full body is still logged for local development", async () => {
   const { sendMail } = freshMailer("development");
   const warn = logged();
-  await sendMail(MSG);
+  await sendMail(MSG); // does not throw outside production
   assert.match(allText(warn), /SECRETTOKEN123/);
+});
+
+test("nodemailer accepts a comma-separated recipient list (ALERT_TO / CONTACT_TO may hold several addresses)", async () => {
+  const nodemailer = require("nodemailer");
+  const t = nodemailer.createTransport({ jsonTransport: true });
+  const info = await t.sendMail({ from: "a@example.test", to: "one@example.test, two@other.example", subject: "s", text: "t" });
+  assert.deepEqual(info.envelope.to, ["one@example.test", "two@other.example"]);
 });

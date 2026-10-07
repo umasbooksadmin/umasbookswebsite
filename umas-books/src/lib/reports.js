@@ -355,10 +355,10 @@ async function salesReport(db, ctx) {
         rows: dropinRows, totals: { period: "Total", ...sumRows(dropinRows, ["seats", "revenue"]) },
       },
       {
-        key: "refunds", title: "Refunds (orders refunded in the shop; not included in the sales above)",
-        columns: [{ key: "period", label: periodHeader, type: "text" }, { key: "orders", label: "Orders refunded", type: "int" }, { key: "amount", label: "Amount refunded", type: "eur" }],
+        key: "refunds", title: "Refunds (reservations refunded in the shop; not included in the sales above)",
+        columns: [{ key: "period", label: periodHeader, type: "text" }, { key: "orders", label: "Reservations refunded", type: "int" }, { key: "amount", label: "Amount refunded", type: "eur" }],
         rows: refundRows, totals: { period: "Total", ...sumRows(refundRows, ["orders", "amount"]) },
-        note: "Counted on the day the order was marked refunded. A refunded order no longer appears in the reserved-online sales and drop-in figures.",
+        note: "Counted on the day the reservation was marked refunded. A refunded reservation no longer appears in the reserved-online sales and drop-in figures.",
       },
     ],
     notes: ["Reserved-online = books reserved on the website and paid in the shop (\"Mark collected and paid\"), counted on the day the payment was recorded. Shop = books sold at the Till (and older sales from the retired Sell in shop page). Days are Paris days."],
@@ -415,7 +415,7 @@ async function sellthroughReport(db, ctx) {
       rows: out, totals,
     }],
     notes: [
-      "A copy counts as sold when its status is Sold. Days to sell run from the acquisition date to the shop sale or the day the online order was paid; sold copies with no recorded sale date are left out of the average.",
+      "A copy counts as sold when its status is Sold. Days to sell run from the acquisition date to the shop sale or the day the online reservation was paid; sold copies with no recorded sale date are left out of the average.",
     ],
   };
 }
@@ -541,9 +541,28 @@ async function intakeReport(db, ctx) {
 const ACCOUNTS_PAGE_SIZE = 50;
 const ACCOUNTS_CSV_LIMIT = 50000;
 
+// Paid orders per account, pre-aggregated once and hash-joined (see accountsReport).
+// An order belongs to the account in orders.user_id; the buyer email is used ONLY for
+// older orders that have no user_id (placed before accounts were required, migration
+// 058), matched to the account with that email. The first version matched every order
+// to every account with a per-user EXISTS(... lower(buyer_email) = lower(email)):
+// 10 s for 5,000 accounts, headed for the 30 s statement timeout at about 10,000.
+// Needs idx_orders_user (058), idx_orders_legacy_buyer_email and idx_users_lower_email (082).
+const PAID_ORDERS_BY_ACCOUNT_SQL = `
+  SELECT acct.uid, COUNT(*) AS n, SUM(acct.total_amount) AS spent
+  FROM (
+    SELECT o.user_id AS uid, o.total_amount FROM orders o
+     WHERE o.status = 'paid' AND o.user_id IS NOT NULL
+    UNION ALL
+    SELECT u2.id, o.total_amount FROM orders o
+      JOIN users u2 ON lower(u2.email) = lower(o.buyer_email)
+     WHERE o.status = 'paid' AND o.user_id IS NULL
+  ) acct
+  GROUP BY acct.uid`;
+
 // Everyone with an account, by type. Types come from lib/accountTypes.js, the
 // same definitions as the admin accounts list. Orders are matched to an
-// account by email (the shop's only link, as on the members page); refunded
+// account by orders.user_id (older orders without one: by email); refunded
 // orders (status 'refunded') and unpaid ones are not counted.
 async function accountsReport(db, ctx) {
   const q = ctx.query || {};
@@ -577,8 +596,9 @@ async function accountsReport(db, ctx) {
               COUNT(*) FILTER (WHERE u.email_verified_at IS NULL)::int AS unconfirmed,
               COUNT(*) FILTER (WHERE u.created_at >= now() - interval '7 days')::int AS new7,
               COUNT(*) FILTER (WHERE u.created_at >= now() - interval '30 days')::int AS new30,
-              COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM orders o WHERE o.status = 'paid' AND lower(o.buyer_email) = lower(u.email)))::int AS buyers
-       FROM users u`
+              COUNT(ord.uid)::int AS buyers
+       FROM users u
+       LEFT JOIN (SELECT DISTINCT uid FROM (${PAID_ORDERS_BY_ACCOUNT_SQL}) paid) ord ON ord.uid = u.id`
     ),
     db.query(`SELECT COUNT(*)::int AS n FROM users u ${whereSql}`, params),
   ]);
@@ -598,10 +618,7 @@ async function accountsReport(db, ctx) {
             to_char(u.last_login_at AT TIME ZONE '${TZ}', 'YYYY-MM-DD') AS last_login,
             COALESCE(ord.n, 0)::int AS orders, COALESCE(ord.spent, 0)::float8 AS spent, u.is_disabled
      FROM users u
-     LEFT JOIN (
-       SELECT lower(buyer_email) AS email, COUNT(*) AS n, SUM(total_amount) AS spent
-       FROM orders WHERE status = 'paid' GROUP BY 1
-     ) ord ON ord.email = lower(u.email)
+     LEFT JOIN (${PAID_ORDERS_BY_ACCOUNT_SQL}) ord ON ord.uid = u.id
      ${whereSql}
      ORDER BY u.created_at DESC, u.id DESC
      LIMIT ${limit} OFFSET ${offset}`,
@@ -620,7 +637,7 @@ async function accountsReport(db, ctx) {
     ["Account holders (not a member, admin or volunteer)", s.holders],
     ["Unconfirmed (email never confirmed)", s.unconfirmed],
     ["Created in the last 7 days", s.new7], ["Created in the last 30 days", s.new30],
-    ["With at least one paid order", s.buyers],
+    ["With at least one paid reservation", s.buyers],
   ].map(([label, count]) => ({ label, count }));
   return {
     sections: [
@@ -636,12 +653,12 @@ async function accountsReport(db, ctx) {
           { key: "name", label: "Name", type: "text" }, { key: "email", label: "Email", type: "text" }, { key: "type", label: "Type", type: "text" },
           { key: "member_until", label: "Member until", type: "text" }, { key: "confirmed", label: "Email confirmed", type: "text" },
           { key: "created", label: "Created", type: "date" }, { key: "last_login", label: "Last login", type: "text" },
-          { key: "orders", label: "Paid orders", type: "int" }, { key: "spent", label: "Total spent", type: "eur" },
+          { key: "orders", label: "Paid reservations", type: "int" }, { key: "spent", label: "Total spent", type: "eur" },
           { key: "disabled", label: "Disabled", type: "text" },
         ],
         rows: list, totals: null,
         pagination: ctx.csv ? null : { page: current, pages, total, pageSize: ACCOUNTS_PAGE_SIZE },
-        note: "Paid orders are matched to an account by email; refunded and unpaid orders are not counted. Dates are Paris days.",
+        note: "Paid reservations are counted for the account that made them (older ones without an account: matched by email); refunded and unpaid reservations are not counted. Dates are Paris days.",
       },
     ],
     notes: ["This report shows names and email addresses. Handle the CSV with care."],
@@ -705,7 +722,7 @@ const REPORTS = [
   { slug: "sellthrough", title: "Sell-through by genre", summary: "Of the copies acquired in a period, how many have sold, and how fast.", usesRange: true, run: sellthroughReport },
   { slug: "membership", title: "Membership", summary: "Active members, new members and endings per month, and renewals due soon.", usesRange: true, run: membershipReport },
   { slug: "intake", title: "Intake log", summary: "Copies added per month and by source, with acquisition cost, and the latest additions.", usesRange: true, run: intakeReport },
-  { slug: "accounts", title: "Accounts", summary: "Everyone with an account by type (admin, volunteer, member, account holder, unconfirmed), with orders and spend. Shows names and emails.", filters: "accounts", csvTable: "accounts", run: accountsReport },
+  { slug: "accounts", title: "Accounts", summary: "Everyone with an account by type (admin, volunteer, member, account holder, unconfirmed), with reservations and spend. Shows names and emails.", filters: "accounts", csvTable: "accounts", run: accountsReport },
   { slug: "accounting", title: "Accounting export", summary: "For the treasurer: one row per day, category and payment method (till, shop, online, membership), no customer data. Download the CSV.", usesRange: true, run: (db, ctx) => require("./accounting").accountingExportReport(db, ctx) },
 ];
 
@@ -720,6 +737,7 @@ async function runReport(db, report, query = {}, now = new Date(), { csv = false
 }
 
 module.exports = {
+  PAID_ORDERS_BY_ACCOUNT_SQL,
   REPORTS, GROUPS, LIST_LIMIT, ACCOUNTS_PAGE_SIZE, getReport, runReport,
   validDay, todayParis, subMonths, addDays, parseDateRange, parseGroup, agingCutoffs, agingBucket,
   formatCell, csvCell, toCsv, csvDialect, csvDecimal, wantsFrenchCsv,

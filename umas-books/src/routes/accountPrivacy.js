@@ -27,7 +27,8 @@ const bcrypt = require("bcryptjs");
 const { pool } = require("../db");
 const mailer = require("../mailer");
 const { requireAuth } = require("../middleware/auth");
-const { limit } = require("../middleware/rateLimits");
+const { limit, onlyMarkedFailures } = require("../middleware/rateLimits");
+const { redirectWithFlash, takePageFlash } = require("../lib/postRedirect");
 const { buildMemberExport } = require("../lib/memberExport");
 const { eraseMember } = require("../lib/privacy");
 const { audit } = require("../lib/audit");
@@ -46,7 +47,7 @@ const privacyLimiter = limit({
   windowMs: 15 * MINUTE,
   max: 5,
   skipSuccessfulRequests: true,
-  requestWasSuccessful: (req, res) => res.statusCode !== 401,
+  requestWasSuccessful: onlyMarkedFailures,
   keyGenerator: (req) => `user:${req.session.user.id}`,
   handler: (req, res) =>
     res
@@ -85,25 +86,28 @@ function page(req, res, { status = 200, error = null, notice = null, isAdmin = f
   return res.status(status).render("account_privacy", { error, notice, isAdmin, emailVerified, email });
 }
 
-// The 403 page for an unverified address. Nothing is exported or erased.
-function refuseUnverified(req, res, user) {
-  return page(req, res, {
-    status: 403,
-    isAdmin: Boolean(user.is_admin),
-    emailVerified: false,
-    email: user.email,
-    error: req.tr(
-      "Confirm your email address first. We can only give out or erase the orders, reservations, sign-ups and book requests linked to an address once it is confirmed as yours.",
-      "Confirmez d'abord votre adresse e-mail. Nous ne pouvons communiquer ou effacer les commandes, réservations, inscriptions et demandes de livres liées à une adresse qu'une fois celle-ci confirmée comme étant la vôtre."
-    ),
-  });
+// A refused or failed POST goes back to the page by redirect (lib/postRedirect.js), so Back never
+// offers to resubmit it; the message travels once in the session. `counted`: a wrong password,
+// which the per-account limiter counts.
+const backWithError = (req, res, error, opts) => redirectWithFlash(req, res, "/account/privacy", "accountPrivacy", { error }, opts);
+
+// The refusal for an unverified address. Nothing is exported or erased.
+function refuseUnverified(req, res) {
+  return backWithError(
+    req,
+    res,
+    req.tr(
+      "Confirm your email address first. We can only give out or erase the reservations, sign-ups and book requests linked to an address once it is confirmed as yours.",
+      "Confirmez d'abord votre adresse e-mail. Nous ne pouvons communiquer ou effacer les réservations, inscriptions et demandes de livres liées à une adresse qu'une fois celle-ci confirmée comme étant la vôtre."
+    )
+  );
 }
 
 const accountRow = async (id) =>
   (await pool.query("SELECT id, email, display_name, lang, is_admin, email_verified_at FROM users WHERE id = $1", [id])).rows[0];
 
-// The signed-in account if `currentPassword` is right, else renders the
-// 401 page (counted by the limiter) and returns null.
+// The signed-in account if `currentPassword` is right, else redirects back with the
+// message (a wrong password is counted by the limiter) and returns null.
 async function checkPassword(req, res) {
   const { rows } = await pool.query(
     "SELECT id, email, display_name, lang, is_admin, email_verified_at, password_hash FROM users WHERE id = $1",
@@ -113,16 +117,12 @@ async function checkPassword(req, res) {
   // Unverified: refused before the password is even looked at, so the page
   // can't be used to test passwords either.
   if (user && !user.email_verified_at) {
-    refuseUnverified(req, res, user);
+    await refuseUnverified(req, res);
     return null;
   }
   const ok = user && (await bcrypt.compare(String(req.body.currentPassword || ""), user.password_hash));
   if (!ok) {
-    page(req, res, {
-      status: 401,
-      error: req.tr("Current password is incorrect.", "Le mot de passe actuel est incorrect."),
-      isAdmin: Boolean(user && user.is_admin),
-    });
+    await backWithError(req, res, req.tr("Current password is incorrect.", "Le mot de passe actuel est incorrect."), { counted: true });
     return null;
   }
   return user;
@@ -142,8 +142,10 @@ router.get("/account/privacy", requireAuth, async (req, res) => {
             "Un lien de confirmation vient d'être envoyé. Vérifiez votre boîte de réception (et vos courriers indésirables), ou réessayez dans quelques minutes."
           )
         : null;
+  const flash = takePageFlash(req, res, "accountPrivacy") || {};
   page(req, res, {
     notice,
+    error: flash.error || null,
     isAdmin: Boolean(user && user.is_admin),
     emailVerified: Boolean(user && user.email_verified_at),
     email: user ? user.email : "",
@@ -166,13 +168,7 @@ router.post("/account/privacy/resend-verification", requireAuth, resendLimiter, 
     await sendVerificationEmail(user, baseUrl(req), { throttle: "skipInterval" });
   } catch (err) {
     console.error(`Verification email failed for account ${user.id}:`, err.message);
-    return page(req, res, {
-      status: 500,
-      isAdmin: Boolean(user.is_admin),
-      emailVerified: false,
-      email: user.email,
-      error: req.tr("Something went wrong. Please try again.", "Une erreur est survenue. Veuillez réessayer."),
-    });
+    return backWithError(req, res, req.tr("Something went wrong. Please try again.", "Une erreur est survenue. Veuillez réessayer."));
   }
   res.redirect(303, "/account/privacy?sent=1");
 });
@@ -202,8 +198,8 @@ function goodbyeEmail(user) {
       ) +
       "\n\n" +
       tr(
-        "As French law requires, accounting records of past paid orders and payments (amounts, dates and items) are kept, but anonymised: they no longer carry your name or email.",
-        "Comme l'exige la loi française, les pièces comptables des commandes et paiements déjà réglés (montants, dates et articles) sont conservées, mais anonymisées : elles ne portent plus votre nom ni votre adresse e-mail."
+        "As French law requires, accounting records of past sales and payments (amounts, dates and items) are kept, but anonymised: they no longer carry your name or email.",
+        "Comme l'exige la loi française, les pièces comptables des ventes et paiements déjà réglés (montants, dates et articles) sont conservées, mais anonymisées : elles ne portent plus votre nom ni votre adresse e-mail."
       ) +
       "\n\n" +
       tr(
@@ -219,11 +215,10 @@ router.post("/account/privacy/delete", requireAuth, privacyLimiter, async (req, 
 
   if (user.is_admin) {
     const { rows } = await pool.query("SELECT COUNT(*)::int AS n FROM users WHERE is_admin");
-    return page(req, res, {
-      status: 403,
-      isAdmin: true,
-      error:
-        rows[0].n <= 1
+    return backWithError(
+      req,
+      res,
+      rows[0].n <= 1
           ? req.tr(
               "This is the last administrator account, so it can't be deleted.",
               "C'est le dernier compte administrateur : il ne peut pas être supprimé."
@@ -231,19 +226,20 @@ router.post("/account/privacy/delete", requireAuth, privacyLimiter, async (req, 
           : req.tr(
               "Administrators can't delete their own account here: ask another administrator.",
               "Les administrateurs ne peuvent pas supprimer leur propre compte ici : demandez à un autre administrateur."
-            ),
-    });
+            )
+    );
   }
 
   const word = String(req.body.confirmation || "").trim().toLowerCase();
   if (!CONFIRM_WORDS.includes(word)) {
-    return page(req, res, {
-      status: 400,
-      error: req.tr(
+    return backWithError(
+      req,
+      res,
+      req.tr(
         "Type DELETE in the confirmation box to delete your account.",
         "Saisissez SUPPRIMER dans la case de confirmation pour supprimer votre compte."
-      ),
-    });
+      )
+    );
   }
 
   // The email goes first: afterwards the address is gone. A failed send must

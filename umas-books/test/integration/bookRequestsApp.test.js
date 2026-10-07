@@ -63,6 +63,13 @@ async function post(jar, path, fields, { token = true } = {}) {
     body: new URLSearchParams({ ...fields, ...(csrf ? { _csrf: csrf } : {}) }).toString(),
   });
   jar.capture(res);
+  // 303 = Post/Redirect/Get: `text` is the page the redirect leads to (same session), `seeOther` its path.
+  if (res.status === 303) {
+    const seeOther = res.headers.get("location");
+    const next = await fetch(`${app.base}${seeOther}`, { redirect: "manual", headers: { cookie: jar.header() } });
+    jar.capture(next);
+    return { res, text: await next.text(), seeOther, page: next };
+  }
   return { res, text: await res.text() };
 }
 
@@ -75,7 +82,9 @@ test("the form is CSRF protected, and a guest with no account gets the neutral p
   assert.equal((await pool.query("SELECT 1 FROM book_requests WHERE lower(email) = $1", [email])).rowCount, 0);
 
   const ok = await post(jar, "/request-a-book", { title, email, author: "Someone", isbn: "978-0-14-143951-8" });
-  assert.equal(ok.res.status, 200);
+  assert.equal(ok.res.status, 303);
+  assert.equal(ok.seeOther, "/request-a-book/sent");
+  assert.equal(ok.page.status, 200);
   assert.match(ok.text, /Check your inbox/);
   const { rows } = await pool.query("SELECT status, isbn, user_id, lang FROM book_requests WHERE lower(email) = $1", [email]);
   assert.equal(rows.length, 1);
@@ -125,6 +134,7 @@ test("My Account shows a non-member's book requests and lets them cancel one", a
   const form = await (await fetch(`${app.base}/request-a-book`, { headers: { cookie: jar.header() } })).text();
   assert.ok(form.includes(`value="${user.email}"`));
   const sent = await post(jar, "/request-a-book", { title: `Logged In ${uniq()}`, email: user.email });
+  assert.equal(sent.seeOther, "/request-a-book/sent");
   assert.match(sent.text, /Check your inbox/);
   assert.equal((await pool.query("SELECT user_id FROM book_requests WHERE lower(email) = $1 AND status = 'unconfirmed'", [user.email])).rows[0].user_id, user.id);
 });

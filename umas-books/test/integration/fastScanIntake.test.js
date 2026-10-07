@@ -61,11 +61,15 @@ const isbn13 = () => `979${String(Date.now()).slice(-7)}${String(++seq).padStart
 const adminHeader = () => ({ "x-test-user": JSON.stringify({ id: adminId, email: "a@example.test", displayName: "Admin", isAdmin: true }) });
 const memberHeader = () => ({ "x-test-user": JSON.stringify({ id: adminId, email: "m@example.test", displayName: "M", isAdmin: false, isMember: true }) });
 
+let cookie = ""; // the session cookie: the lookup page is shown once from the session after a redirect
 async function request(path, { method = "GET", form, headers = adminHeader() } = {}) {
   const h = { ...headers };
+  if (cookie) h.cookie = cookie;
   let body;
   if (form) { body = new URLSearchParams(form).toString(); h["content-type"] = "application/x-www-form-urlencoded"; }
   const res = await realFetch(`${server.base}${path}`, { method, redirect: "manual", headers: h, body, signal: AbortSignal.timeout(15000) });
+  const set = res.headers.getSetCookie().map((c) => c.split(";")[0]);
+  if (set.length) cookie = set.join("; ");
   return { res, text: await res.text(), status: res.status, location: res.headers.get("location") };
 }
 const get = (p, o) => request(p, o);
@@ -96,6 +100,13 @@ test("lookup: the route itself is admin only (mounted alone, without the gate in
     await alone.close();
   }
   assert.equal(olCalls.length, 0);
+});
+
+test("GET /admin/inventory/lookup without ?isbn= is the no-JavaScript result page, not the JSON endpoint (both live at that address)", async () => {
+  const r = await get("/admin/inventory/lookup");
+  assert.equal(r.status, 302);
+  assert.equal(r.location, "/admin/inventory/scan");
+  assert.match((await get("/admin/inventory/lookup?isbn=9780143127550", { headers: { ...adminHeader(), ...asJson } })).res.headers.get("content-type"), /json/);
 });
 
 test("lookup: an ISBN that is not 10 or 13 digits is refused with 400 and no catalog call", async () => {
@@ -224,7 +235,10 @@ test("the old scan page has no Current location or Source controls any more, and
   assert.doesNotMatch(text, /Source of these books/);
   assert.doesNotMatch(text, /id="location"|id="source"/);
   assert.match(text, /id="isbn"/);
-  const lookup = await post("/admin/inventory/lookup", { form: { isbn: isbn13() } });
+  const posted = await post("/admin/inventory/lookup", { form: { isbn: isbn13() } });
+  assert.equal(posted.status, 303, "Post/Redirect/Get");
+  assert.equal(posted.location, "/admin/inventory/lookup");
+  const lookup = await get(posted.location);
   assert.equal(lookup.status, 200);
   assert.match(lookup.text, /id="location"[^>]*value="STORE"/, "a lookup page also starts at Store");
   assert.match(lookup.text, /<option value="donation" selected>/);
@@ -306,8 +320,11 @@ test("Save book (fast=0) still opens the book; the old scan flow (fromScan) now 
 test("the old no-JavaScript Look up button posts to the lookup page and the form comes back filled, keeping Store and Donation", async () => {
   const isbn = isbn13();
   openLibrary.set(isbn, { title: "Posted Lookup", authors: [{ name: "Pat" }] });
-  const r = await post("/admin/inventory/lookup", { form: { isbn, location: "store", source: "donation" } });
+  const posted = await post("/admin/inventory/lookup", { form: { isbn, location: "store", source: "donation" } });
+  assert.equal(posted.status, 303);
+  const r = await get(posted.location); // the result is carried once in the session
   assert.equal(r.status, 200);
+  assert.equal((await get(posted.location)).status, 302, "shown once: a reload goes back to the scan page");
   assert.match(r.text, /name="title"[^>]*value="Posted Lookup"/);
   assert.match(r.text, /id="location"[^>]*value="STORE"/);
 });

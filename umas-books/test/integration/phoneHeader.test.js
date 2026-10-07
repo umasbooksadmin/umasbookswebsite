@@ -104,7 +104,7 @@ test("books.html without JavaScript: the script-filled sections are hidden by a 
   const html = await get("/books.html");
   assert.match(html, /<noscript><link rel="stylesheet" href="[^"]*books-nojs\.css[^"]*"><\/noscript>/);
   const css = await fetch(`${app.base}${(html.match(/href="([^"]*books-nojs\.css[^"]*)"/) || [])[1]}`).then((r) => r.text());
-  for (const cls of ["bk-genres", "bk-rec", "bk-new", "bk-results"]) assert.match(css, new RegExp(`\\.${cls}\\b[^{]*\\{[^}]*display:\\s*none`), `${cls} hidden`);
+  for (const cls of ["bk-genres", "bk-new", "bk-results"]) assert.match(css, new RegExp(`\\.${cls}\\b[^{]*\\{[^}]*display:\\s*none`), `${cls} hidden`);
   // The server-rendered list (inside <noscript>) is NOT among them.
   assert.doesNotMatch(css.replace(/\/\*[\s\S]*?\*\//g, ""), /bk-noscript/);
   assert.ok(html.includes('id="bk-genre-list"') && html.includes("Loading books"), "the sections the CSS hides do exist in the page (they are built by the script)");

@@ -29,7 +29,9 @@ const lookupLimiter = limit({
 
 const isValidIsbnShape = (s) => /^(\d{13}|\d{9}[\dX])$/.test(s);
 
-router.get("/admin/inventory/lookup", requireAdmin, lookupLimiter, async (req, res) => {
+// GET /admin/inventory/lookup with no ?isbn= is the page of the no-JavaScript lookup
+// (Post/Redirect/Get, in inventory.js): it is passed on. Only ?isbn= answers JSON here.
+router.get("/admin/inventory/lookup", requireAdmin, (req, res, next) => (req.query.isbn === undefined ? next("router") : next()), lookupLimiter, async (req, res) => {
   res.set("Cache-Control", "no-store");
   const isbn = normalizeIsbn(String(req.query.isbn == null ? "" : req.query.isbn).slice(0, 40));
   if (!isValidIsbnShape(isbn)) return res.status(400).json({ error: "Enter an ISBN of 10 or 13 digits." });

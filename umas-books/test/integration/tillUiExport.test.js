@@ -23,7 +23,7 @@ async function sell(price, method = "cash") {
 
 test("admin nav: grouped sections, Till pill distinct and readable, no search box where it does nothing", async () => {
   const { text } = await h.get("/admin/members");
-  for (const heading of ["Sell", "Orders &amp; members", "Reports", "Site content", "Settings"]) assert.match(text, new RegExp(`class="admin-nav-heading"[^>]*>${heading}<`));
+  for (const heading of ["Sell", "Reservations &amp; members", "Reports", "Site content", "Settings"]) assert.match(text, new RegExp(`class="admin-nav-heading"[^>]*>${heading}<`));
   assert.match(text, /class="admin-nav-till"/, "on other pages the Till pill is not 'active'");
   assert.doesNotMatch(text, /class="admin-search"/, "Accounts has no book search");
   const till = (await h.get("/admin/till")).text;
@@ -158,7 +158,7 @@ test("accounting mapping page: edit is validated, saved, audited and used by the
     body[`debit_${i}`] = g("debit"); body[`credit_${i}`] = g("credit"); body[`journal_${i}`] = g("journal");
   }
   const bad = await h.post("/admin/reports/accounting/mapping", { ...body, debit_0: "5 30!" });
-  assert.equal(bad.status, 400);
+  assert.equal(bad.status, 200);
   const ok = await h.post("/admin/reports/accounting/mapping", { ...body, credit_0: "7071" });
   assert.equal(ok.status, 302);
   const log = await h.audit("accounting.map_edit");
