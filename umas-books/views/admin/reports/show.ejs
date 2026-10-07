@@ -65,7 +65,7 @@
     <p class="muted">Nothing to show for this period.</p>
   <% } else { %>
     <div style="overflow-x:auto;">
-      <table class="ann-table">
+      <div class="table-scroll"><table class="ann-table">
         <thead>
           <tr>
             <% section.columns.forEach(c => { %><th<%- ['int', 'eur', 'pct', 'dec1'].includes(c.type) ? ' style="text-align:right;"' : '' %>><%= c.label %></th><% }) %>
@@ -83,7 +83,7 @@
             </tr>
           <% } %>
         </tbody>
-      </table>
+      </table></div>
     </div>
   <% } %>
   <% const acctQs = (extra) => ['type=' + encodeURIComponent(accountFilters.type), 'q=' + encodeURIComponent(accountFilters.q), 'from=' + accountFilters.from, 'to=' + accountFilters.to].concat(extra || []).join('&amp;'); %>
@@ -100,9 +100,12 @@
   <p style="margin-top:12px;">
     <% if (accountFilters) { %>
     <a class="btn btn-outline btn-small" href="/admin/reports/<%= report.slug %>?format=csv&amp;table=<%= section.key %>&amp;<%- acctQs() %>">Download CSV</a>
+    <a class="btn btn-outline btn-small" title="Semicolon separators and decimal commas, for Excel in French" href="/admin/reports/<%= report.slug %>?format=csv&amp;locale=fr&amp;table=<%= section.key %>&amp;<%- acctQs() %>">Download for French Excel</a>
     <% } else { %>
     <a class="btn btn-outline btn-small" href="/admin/reports/<%= report.slug %>?format=csv&amp;table=<%= section.key %>&amp;from=<%= query.from %>&amp;to=<%= query.to %>&amp;group=<%= query.group %>">Download CSV</a>
+    <a class="btn btn-outline btn-small" title="Semicolon separators and decimal commas, for Excel in French" href="/admin/reports/<%= report.slug %>?format=csv&amp;locale=fr&amp;table=<%= section.key %>&amp;from=<%= query.from %>&amp;to=<%= query.to %>&amp;group=<%= query.group %>">Download for French Excel</a>
     <% } %>
+    <% if (report.slug === 'accounting') { %><a class="btn btn-outline btn-small" href="/admin/reports/accounting/mapping">Accounts mapping</a><% } %>
   </p>
 </div>
 <% }) %>

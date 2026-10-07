@@ -25,6 +25,13 @@ document.addEventListener("click", function (e) {
 document.addEventListener("submit", function (e) {
   var form = e.target;
   var message = form && form.getAttribute ? form.getAttribute("data-confirm") : null;
+  // data-confirm-field="name" data-confirm-values="a,b": ask only when that field (a bulk-action select) has one of those values.
+  var field = message && form.getAttribute("data-confirm-field");
+  if (field) {
+    var control = form.elements[field];
+    var wanted = (form.getAttribute("data-confirm-values") || "").split(",");
+    if (!control || wanted.indexOf(control.value) < 0) message = null;
+  }
   if (message && !window.confirm(message)) {
     e.preventDefault();
     e.stopPropagation();

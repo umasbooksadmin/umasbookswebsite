@@ -70,4 +70,76 @@ function svg(text, { height = 40, title = null } = {}) {
   return `<svg class="barcode" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img" aria-label="Barcode ${label}"><path d="${d}" fill="#000"/></svg>`;
 }
 
-module.exports = { PATTERNS, values, modules, svg, START_B, STOP };
+// ---- Thermal label printers: whole printer dots per module --------------------
+// A printer prints whole dots. If a module (the narrowest bar) is 2.6 dots wide,
+// some bars come out 2 dots and some 3, and the barcode scans badly. So the
+// barcode is sized by an INTEGER number of dots per module: 3 dots at 203 dpi
+// (0.375 mm) or 4 dots at 300 dpi (0.339 mm), and its width follows from the
+// length of the code, never from the width of the label.
+const DPI = { default: 203, allowed: [203, 300] };
+const DEFAULT_DOTS = { 203: 3, 300: 4 };
+const MIN_DOTS = 2; // below this a thermal printer cannot print a reliable bar
+const LABEL_PADDING_MM = 2; // 1 mm of padding on each side of a label (admin.css .copy-label)
+
+function parseDpi(v) {
+  const n = Number(v);
+  return DPI.allowed.includes(n) ? n : DPI.default;
+}
+
+// How to draw `text` on a label `widthMm` wide at `dpi`. Returns
+// { dpi, moduleDots, quietModules, barModules, widthDots, widthMm, minWidthMm, warning, fontScale }.
+// When the label is too narrow for the code at the standard module size, the
+// module shrinks by whole dots down to MIN_DOTS and `warning` says so; when it
+// does not fit even then the fonts shrink with the label and the warning says
+// the label is too narrow. `warning` is null when everything fits.
+function fit(text, { dpi = DPI.default, widthMm = 50 } = {}) {
+  dpi = parseDpi(dpi);
+  const barModules = modules(text).length;
+  const wantDots = DEFAULT_DOTS[dpi];
+  const dotsFor = (mm) => Math.floor((mm * dpi) / 25.4 + 1e-9);
+  const avail = dotsFor(Math.max(0, widthMm - LABEL_PADDING_MM));
+  const minWidthMm = Math.ceil(((barModules + 2 * 6) * wantDots * 25.4 * 10) / dpi) / 10 + LABEL_PADDING_MM;
+  let moduleDots = wantDots;
+  while (moduleDots > MIN_DOTS && barModules * moduleDots > avail) moduleDots--;
+  const fitsBars = barModules * moduleDots <= avail;
+  const quietModules = fitsBars ? Math.min(QUIET, Math.floor((avail - barModules * moduleDots) / (2 * moduleDots))) : 0;
+  const widthDots = (barModules + 2 * quietModules) * moduleDots;
+  const mm = (dots) => Math.round((dots * 25.4 * 1000) / dpi) / 1000;
+  let warning = null;
+  if (!fitsBars) {
+    warning = `A ${widthMm} mm wide label is too narrow for ${text}: its barcode needs ${mm(barModules * MIN_DOTS)} mm even at ${MIN_DOTS} dots per module. Use a label at least ${minWidthMm} mm wide.`;
+  } else if (moduleDots < wantDots) {
+    warning = `A ${widthMm} mm wide label is too narrow for ${text} at ${wantDots} dots per module (${dpi} dpi), which needs ${minWidthMm} mm: the bars are ${moduleDots} dots wide instead, and the text is smaller. A label at least ${minWidthMm} mm wide scans best.`;
+  } else if (quietModules < 6) {
+    warning = `A ${widthMm} mm wide label leaves little white space either side of the barcode of ${text}: use a label at least ${minWidthMm} mm wide if it does not scan.`;
+  }
+  const tight = !fitsBars || moduleDots < wantDots || quietModules < 6;
+  return {
+    dpi, moduleDots, quietModules, barModules, widthDots, widthMm: mm(widthDots), minWidthMm, warning,
+    // Smaller title/code text on narrow labels, so the barcode keeps whole dots.
+    fontScale: tight ? Math.max(0.7, Math.min(1, widthMm / minWidthMm)) : Math.max(0.8, Math.min(1, widthMm / 50)),
+  };
+}
+
+// The barcode for a label: an <svg> whose width is a whole number of printer
+// dots (see fit) and whose bars are drawn on whole modules. Height fills its box.
+function svgForLabel(text, opts = {}) {
+  const f = fit(text, opts);
+  const bits = modules(text);
+  const q = f.quietModules;
+  const width = bits.length + 2 * q;
+  let d = "";
+  for (let i = 0; i < bits.length;) {
+    if (bits[i] === "1") {
+      let j = i;
+      while (j < bits.length && bits[j] === "1") j++;
+      d += `M${i + q} 0h${j - i}v1h-${j - i}z`;
+      i = j;
+    } else i++;
+  }
+  const label = String(text).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const markup = `<svg class="barcode" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} 1" preserveAspectRatio="none" shape-rendering="crispEdges" style="width:${f.widthMm}mm" data-dpi="${f.dpi}" data-module-dots="${f.moduleDots}" role="img" aria-label="Barcode ${label}"><path d="${d}" fill="#000"/></svg>`;
+  return { svg: markup, fit: f };
+}
+
+module.exports = { PATTERNS, values, modules, svg, svgForLabel, fit, parseDpi, DPI, DEFAULT_DOTS, MIN_DOTS, START_B, STOP };

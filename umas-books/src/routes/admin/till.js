@@ -14,8 +14,9 @@ const { audit } = require("../../lib/audit");
 const { expireStaleReservations } = require("../../lib/reservations");
 const till = require("../../lib/till");
 const { getCardProvider } = require("../../lib/cardPayments");
-const { todayParis, validDay, csvCell } = require("../../lib/reports");
-const { formatDateTime, formatTime } = require("../../lib/dates");
+const { todayParis, validDay, csvCell, csvDialect, csvDecimal, wantsFrenchCsv } = require("../../lib/reports");
+const { formatDateTime, formatTime, forLocale, LOCALES } = require("../../lib/dates");
+const { formatEuro } = require("../../lib/money");
 const { SELLER_LINES } = require("../../lib/orderEmail");
 const { vatNotice } = require("../../lib/legalText");
 const { SITE_TIME_ZONE } = require("../../lib/tz");
@@ -119,7 +120,9 @@ router.get("/admin/till/sales/:id/receipt", requireAdmin, async (req, res) => {
   if (!rows.length) return res.status(404).render("404");
   const { rows: items } = await pool.query("SELECT * FROM till_sale_items WHERE sale_id = $1 ORDER BY id", [rows[0].id]);
   res.render("admin/till/receipt", {
-    sale: rows[0], items, eur: till.eur, formatDateTime, sellerLines: SELLER_LINES, vat: vatNotice(),
+    // A receipt is a consumer document: French (loi Toubon), amounts and Paris date/time in French format.
+    sale: rows[0], items, eur: (c) => formatEuro(c / 100, "fr"), formatDateTime: forLocale(LOCALES.fr).formatDateTime, receiptNo: till.receiptNumber(rows[0]),
+    sellerLines: SELLER_LINES, vat: vatNotice(),
   });
 });
 
@@ -275,19 +278,21 @@ router.get("/admin/till/day", requireAdmin, async (req, res) => {
   const [summary, sales, unclosed] = await Promise.all([till.daySummary(pool, day), daySales(day), till.unclosedDays(pool)]);
   const catLabel = (k) => k === "books_used" ? "Books used" : k === "books_new" ? "Books new" : (till.OTHER_CATEGORIES.find((c) => c.value === k) || {}).label || k;
 
-  if (req.query.format === "csv") {
-    await audit(req, { action: "till.day_csv", targetType: "till_day", detail: day });
-    const head = ["Sale", "Time (Paris)", "Payment method", "Status", "Total (EUR)", "Items", "Card reference", "Void reason"].map(csvCell).join(",");
+  if (req.query.format === "csv" || req.query.format === "csv-fr") {
+    const french = wantsFrenchCsv(req.query);
+    const d = csvDialect(french ? "fr" : "en");
+    await audit(req, { action: "till.day_csv", targetType: "till_day", detail: french ? `${day} (French Excel)` : day });
+    const head = ["Sale", "Time (Paris)", "Payment method", "Status", "Total (EUR)", "Items", "Card reference", "Void reason"].map(csvCell).join(d.sep);
     const lines = sales.map((s) => [
-      s.id, csvCell(formatTime(s.created_at)), csvCell(s.payment_method), csvCell(s.status), money(s.total_cents),
+      s.id, csvCell(formatTime(s.created_at)), csvCell(s.payment_method), csvCell(s.status), csvDecimal(money(s.total_cents), d),
       csvCell(s.summary), csvCell(s.card_reference), csvCell(s.void_reason),
-    ].join(","));
+    ].join(d.sep));
     res.set({
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="umas-books-till-${day}.csv"`,
+      "Content-Disposition": `attachment; filename="umas-books-till-${day}${french ? "-fr" : ""}.csv"`,
       "Cache-Control": "no-store",
     });
-    return res.send("﻿" + [head, ...lines].join("\r\n") + "\r\n");
+    return res.send("\uFEFF" + [head, ...lines].join("\r\n") + "\r\n");
   }
 
   res.render("admin/till/day", {

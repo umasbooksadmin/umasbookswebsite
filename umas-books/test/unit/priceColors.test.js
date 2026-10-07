@@ -11,7 +11,7 @@ test("the scheme: every level has a key, label, hex and readable text color", ()
   const by = Object.fromEntries(LEVELS.map((l) => [l.key, l]));
   assert.deepEqual([by.yellow.eur, by.green.eur, by.blue.eur, by.red.eur, by.orange.eur], [3, 5, 8, 10, 1]);
   assert.deepEqual([by.yellow.hex, by.green.hex, by.blue.hex, by.red.hex, by.purple.hex, by.orange.hex, by.white.hex],
-    ["#FFD93D", "#2E9E4F", "#2F6FDE", "#D83B3B", "#7B4FD0", "#FF8A1F", "#FFFFFF"]);
+    ["#FFD93D", "#237A3C", "#2F6FDE", "#D83B3B", "#7B4FD0", "#FF8A1F", "#FFFFFF"]);
   for (const l of LEVELS) {
     assert.match(l.hex, /^#[0-9A-F]{6}$/);
     assert.ok(l.text && l.label && l.labelFr, l.key);
