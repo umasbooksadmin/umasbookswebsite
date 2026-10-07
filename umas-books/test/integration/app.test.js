@@ -8,7 +8,7 @@
 const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const { startTestApp } = require("../helpers/testApp");
-const { makeCookieJar, fetchCsrfToken, clickConfirmationLink } = require("../helpers/httpClient");
+const { makeCookieJar, fetchCsrfToken, clickConfirmationLink, withSeeOtherPage } = require("../helpers/httpClient");
 
 const PORT = 3411; // distinct per test file — see test/helpers/testApp.js
 let app;
@@ -50,8 +50,13 @@ test("a POST with a valid CSRF token reaches the real handler", async () => {
     body: `email=nobody@example.test&password=wrong&_csrf=${token}`,
   });
   // Wrong credentials against a real (nonexistent) account: reaches the
-  // auth logic and gets a real 401, not a CSRF-layer rejection.
-  assert.equal(res.status, 401);
+  // auth logic, which answers 303 back to the login page (the error shows
+  // there, once), not a CSRF-layer 403.
+  assert.equal(res.status, 303);
+  assert.equal(res.headers.get("location"), "/login");
+  jar.capture(res);
+  const page = await withSeeOtherPage(res, { base: app.base, jar });
+  assert.match(await page.text(), /Incorrect email or password\./);
 });
 
 test("a duplicate form field does not crash the request (regression)", async () => {
@@ -59,10 +64,12 @@ test("a duplicate form field does not crash the request (regression)", async () 
   const token = await fetchCsrfToken(app.base, jar);
   const res = await fetch(`${app.base}/login`, {
     method: "POST",
+    redirect: "manual",
     headers: { "content-type": "application/x-www-form-urlencoded", cookie: jar.header() },
     body: `email=a@example.test&email=b@example.test&password=wrong&_csrf=${token}`,
   });
-  assert.equal(res.status, 401); // not 500
+  assert.equal(res.status, 303); // the normal refusal (back to /login), not 500
+  assert.equal(res.headers.get("location"), "/login");
 });
 
 test("a protocol-relative backTo does not produce an off-site redirect (regression)", async () => {
@@ -91,7 +98,8 @@ test("signup, confirm the email, choose a password, then login works end to end"
   jar.capture(signupRes);
   // Signup no longer logs in (identical response for new and existing
   // emails — see authHardening.test.js).
-  assert.equal(signupRes.status, 200);
+  assert.equal(signupRes.status, 303);
+  assert.equal(signupRes.headers.get("location"), "/signup");
 
   const loginAttempt = async (password) => {
     const t = await fetchCsrfToken(app.base, jar);
@@ -104,7 +112,7 @@ test("signup, confirm the email, choose a password, then login works end to end"
   };
   // Signup stores no password: nothing logs in until the person confirms
   // and chooses one (account pre-hijack defence, see accountPreHijack.test.js).
-  assert.equal((await loginAttempt("Correct-Horse-1")).status, 401);
+  assert.equal((await loginAttempt("Correct-Horse-1")).status, 303, "refused: back to the login page");
 
   // The real raw token is only in the (unsent) mail; plant a known one.
   const crypto = require("node:crypto");
@@ -120,7 +128,7 @@ test("signup, confirm the email, choose a password, then login works end to end"
     const resetPath = verify.headers.get("location");
     assert.match(resetPath, /^\/reset-password\/[0-9a-f]+\?confirmed=1$/);
     // The signup password no longer works; the person chooses a new one.
-    assert.equal((await loginAttempt("Correct-Horse-1")).status, 401);
+    assert.equal((await loginAttempt("Correct-Horse-1")).status, 303, "refused: back to the login page");
     const t = await fetchCsrfToken(app.base, jar);
     const set = await fetch(`${app.base}${resetPath}`, {
       method: "POST",

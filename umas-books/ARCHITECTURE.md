@@ -500,6 +500,28 @@ actually uses.
   dump from B2, restores it into a scratch postgres:18 monthly and checks it. The manual restore procedure
   is in [README.md](README.md#restoring-from-a-backup).
 
+## Forms: Post/Redirect/Get (`src/lib/flash.js`, `src/lib/postRedirect.js`)
+
+A POST that renders a page itself leaves a POST in the browser history, and Back then shows "Confirm form
+resubmission". So every form handler, admin and customer, answers a refused or finished submission with a
+`303` to a fixed GET path; the message (and what was typed) travels once in the session: `redirectWithFlash`
+stores it (saved BEFORE the redirect, see `lib/session.js`), the page's GET reads it with `takePageFlash`
+(once, dropped after 10 minutes, page never cached). Rules:
+
+- Never put a password, a token, a recovery code or a two-step code in the flash or in a redirect URL; those
+  fields come back empty. A redirect target is a fixed internal path (a `returnTo` only after `safeReturnTo`, a
+  token only after `encodeURIComponent`).
+- Messages are translated when the POST is handled (the language cookie is the same on the GET).
+- Limiters that count only failures (`skipSuccessfulRequests`) can no longer read the failure from a 4xx
+  status: the handler passes `{ counted: true }` (sets `res.locals.failedAttempt`) and the limiter uses
+  `failureCounts` / `onlyMarkedFailures` from `middleware/rateLimits.js`. The generic limiter answer (429, plain
+  text) is the one thing that still renders from a POST.
+- Left as they are on purpose: JSON/`fetch()` endpoints (favourites, the till sale, HelloAsso webhook), file
+  downloads, the 404 page for a forged id, and the page that shows two-step recovery codes right after a
+  successful POST (the codes exist in plain text only there).
+- `test/integration/adminPostRedirect.test.js` and `customerPostRedirect.test.js` scan every write route and
+  fail when a new handler renders instead of redirecting (add it to the allow-list only with a reason).
+
 ## Two-step verification (admins)
 
 TOTP (RFC 6238, any authenticator app), mandatory for admins, optional for

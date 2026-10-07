@@ -11,6 +11,7 @@ const { test, before, after, beforeEach } = require("node:test");
 const assert = require("node:assert/strict");
 const bcrypt = require("bcryptjs");
 const { prepareDatabase, buildApp, listen, waitFor } = require("../helpers/inProcessApp");
+const { makeCookieJar, withSeeOtherPage } = require("../helpers/httpClient");
 
 const db = prepareDatabase("prehijack", { isolated: true });
 
@@ -57,18 +58,27 @@ const uniq = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const ATTACKER_PW = "Attacker-Pass-1!";
 const VICTIM_PW = "Victim-Chosen-2@";
 
-function request(path, { method = "GET", body, lang, jar } = {}) {
-  return fetch(`${server.base}${path}`, {
+// Every request has a session cookie jar (a refused form's message travels in the session across
+// the 303): a fresh one unless `jar` is given. The response carries it as `res.jar`.
+async function request(path, { method = "GET", body, lang, jar = makeCookieJar() } = {}) {
+  const langCookie = lang ? `umasbooks_lang=${lang}` : "";
+  const res = await fetch(`${server.base}${path}`, {
     method,
     redirect: "manual",
     headers: {
       ...(body ? { "content-type": "application/x-www-form-urlencoded" } : {}),
-      ...(lang ? { cookie: `umasbooks_lang=${lang}` } : {}),
-      ...(jar || {}),
+      cookie: [jar.header(), langCookie].filter(Boolean).join("; "),
     },
     body: body ? new URLSearchParams(body).toString() : undefined,
   });
+  jar.capture(res);
+  res.jar = jar;
+  res.langCookie = langCookie;
+  return res;
 }
+// A refused or finished form answers 303; this is the page it leads to (same session and language).
+// status stays 303, text() is the followed page, location the redirect target.
+const seen = (res) => withSeeOtherPage(res, { base: server.base, jar: res.jar, headers: res.langCookie ? { cookie: res.langCookie } : {} });
 // What pressing "Confirm my email" on the page behind the emailed link does
 // (the link itself only shows the button; see routes/auth.js). CSRF is not
 // checked by this in-process harness.
@@ -109,9 +119,11 @@ test("account created by the old signup form (attacker's own password): no sessi
 
   // 2. The attacker cannot log in: no redirect, no session cookie.
   const early = await login(victim, ATTACKER_PW);
-  assert.equal(early.status, 403);
-  assert.equal(early.headers.get("set-cookie"), null, "no session may be issued before verification");
-  assert.match(await early.text(), /confirm your email first/i);
+  assert.equal(early.status, 303);
+  assert.equal(early.headers.get("location"), "/login");
+  const earlyPage = await seen(early);
+  assert.match(await earlyPage.text(), /confirm your email first/i);
+  assert.equal((await (await fetch(`${server.base}/whoami`, { headers: { cookie: early.jar.header() } })).json()).user, null, "no session may be issued before verification");
 
   // 3. The victim clicks the link: sent to choose a password, not to the login.
   const click = await pressConfirm(verifyPath);
@@ -124,7 +136,7 @@ test("account created by the old signup form (attacker's own password): no sessi
   assert.ok(afterClick.email_verified_at);
   assert.ok(afterClick.password_changed_at > before.password_changed_at, "every existing session must be invalidated");
   assert.equal(await bcrypt.compare(ATTACKER_PW, afterClick.password_hash), false);
-  assert.equal((await login(victim, ATTACKER_PW)).status, 401);
+  assert.equal((await login(victim, ATTACKER_PW)).status, 303);
 
   // A session the attacker somehow held from before is dead too.
   const stale = JSON.stringify({ id: before.id, email: victim, passwordChangedAt: before.password_changed_at.getTime() });
@@ -139,13 +151,19 @@ test("account created by the old signup form (attacker's own password): no sessi
   assert.equal(set.headers.get("location"), "/login?reset=confirmed");
 
   // 5. Only the victim's new password works.
-  assert.equal((await login(victim, ATTACKER_PW)).status, 401);
+  assert.equal((await login(victim, ATTACKER_PW)).status, 303);
   const ok = await login(victim, VICTIM_PW);
   assert.equal(ok.status, 302);
   assert.equal(ok.headers.get("location"), "/");
   // The link is single use.
-  assert.equal((await pressConfirm(verifyPath)).status, 400);
-  assert.equal((await request(resetPath.split("?")[0], { method: "POST", body: { newPassword: "Another-One-3#" } })).status, 400);
+  const reused = await pressConfirm(verifyPath);
+  assert.equal(reused.status, 303);
+  assert.equal(reused.headers.get("location"), verifyPath);
+  assert.equal((await seen(reused)).page.status, 400, "the link's own page now says it is invalid");
+  const reusedReset = await request(resetPath.split("?")[0], { method: "POST", body: { newPassword: "Another-One-3#" } });
+  assert.equal(reusedReset.status, 303);
+  assert.equal(reusedReset.headers.get("location"), resetPath.split("?")[0]);
+  assert.equal((await seen(reusedReset)).page.status, 400);
 });
 
 test("attacker scenario with the new signup: the attacker can set no password before the mailbox owner clicks", async () => {
@@ -154,21 +172,21 @@ test("attacker scenario with the new signup: the attacker can set no password be
   assert.ok(!/name="password"/.test(page), "the signup form asks for no password");
 
   // Attacker tries anyway, sending a password field.
-  assert.equal((await signup(victim, ATTACKER_PW)).status, 200);
+  assert.equal((await signup(victim, ATTACKER_PW)).status, 303);
   const verifyPath = await linkFor(victim, "verify-email");
   const row = await userRow(victim);
   assert.equal(row.email_verified_at, null);
   assert.equal(row.first_verification_pending, true);
   assert.equal(await bcrypt.compare(ATTACKER_PW, row.password_hash), false, "the sent password was never stored");
   const early = await login(victim, ATTACKER_PW);
-  assert.equal(early.status, 401);
-  assert.equal(early.headers.get("set-cookie"), null);
+  assert.equal(early.status, 303);
+  assert.equal((await (await fetch(`${server.base}/whoami`, { headers: { cookie: early.jar.header() } })).json()).user, null, "no session user");
 
   // The mailbox owner confirms and chooses; only then does a password exist.
   const resetPath = (await pressConfirm(verifyPath)).headers.get("location");
-  assert.equal((await login(victim, ATTACKER_PW)).status, 401);
+  assert.equal((await login(victim, ATTACKER_PW)).status, 303);
   assert.equal((await request(resetPath, { method: "POST", body: { newPassword: VICTIM_PW } })).status, 302);
-  assert.equal((await login(victim, ATTACKER_PW)).status, 401);
+  assert.equal((await login(victim, ATTACKER_PW)).status, 303);
   assert.equal((await login(victim, VICTIM_PW)).status, 302);
 });
 
@@ -177,9 +195,10 @@ test("the password chosen after confirming still goes through the password polic
   await signup(email);
   const resetPath = (await pressConfirm(await linkFor(email, "verify-email"))).headers.get("location");
   const weak = await request(resetPath, { method: "POST", body: { newPassword: "abc" } });
-  assert.equal(weak.status, 400);
-  assert.match(await weak.text(), /at least 8 characters/);
-  assert.equal((await login(email, "abc")).status, 401);
+  assert.equal(weak.status, 303);
+  assert.equal(weak.headers.get("location"), resetPath);
+  assert.match(await (await seen(weak)).text(), /at least 8 characters/);
+  assert.equal((await login(email, "abc")).status, 303);
   // A rejected password doesn't burn the link.
   assert.equal((await request(resetPath, { method: "POST", body: { newPassword: VICTIM_PW } })).status, 302);
 });
@@ -202,9 +221,9 @@ test("membership attaches only after the victim has chosen the password", async 
 test("legitimate signup works in English and French: confirm, choose a password, log in", async () => {
   for (const lang of ["en", "fr"]) {
     const email = `legit-${lang}-${uniq()}@example.test`;
-    assert.equal((await signup(email, ATTACKER_PW, lang)).status, 200);
+    assert.equal((await signup(email, ATTACKER_PW, lang)).status, 303);
     // No password exists yet; the login page offers the link again, in the person's language.
-    assert.equal((await login(email, ATTACKER_PW, lang)).status, 401);
+    assert.equal((await login(email, ATTACKER_PW, lang)).status, 303);
     const loginPage = await (await request("/login", { lang })).text();
     assert.match(loginPage, /action="\/resend-verification"/);
     assert.match(loginPage, lang === "fr" ? /Renvoyer le lien de confirmation/ : /Send me the confirmation link again/);
@@ -254,14 +273,14 @@ test("admin-created and grandfathered (already verified) accounts are unaffected
 test("password reset still verifies the email and lifts the sign-in block", async () => {
   const email = `reset-verifies-${uniq()}@example.test`;
   await signup(email);
-  assert.equal((await login(email, ATTACKER_PW)).status, 401);
+  assert.equal((await login(email, ATTACKER_PW)).status, 303);
   await request("/forgot-password", { method: "POST", body: { email } });
   const resetPath = await linkFor(email, "reset-password");
   assert.equal((await request(resetPath, { method: "POST", body: { newPassword: VICTIM_PW } })).status, 302);
   const row = await userRow(email);
   assert.ok(row.email_verified_at);
   assert.equal(row.first_verification_pending, false);
-  assert.equal((await login(email, ATTACKER_PW)).status, 401);
+  assert.equal((await login(email, ATTACKER_PW)).status, 303);
   assert.equal((await login(email, VICTIM_PW)).status, 302);
 });
 
@@ -273,15 +292,17 @@ test("resend: sends a link for a waiting account, rate limited per account, neut
 
   // Inside the cooldown: no second mail, same answer.
   const cooled = await request("/resend-verification", { method: "POST", body: { email: waiting } });
-  const cooledBody = await cooled.text();
-  assert.equal(cooled.status, 200);
+  assert.equal(cooled.status, 303);
+  assert.equal(cooled.headers.get("location"), "/login");
+  const cooledBody = await (await seen(cooled)).text();
   await new Promise((r) => setTimeout(r, 200));
   assert.equal(sent.length, 0, "no second link inside the cooldown");
 
   // Cooldown over: sends.
   await pool.query("UPDATE email_verification_tokens SET created_at = now() - interval '10 minutes' WHERE user_id = $1", [(await userRow(waiting)).id]);
   const again = await request("/resend-verification", { method: "POST", body: { email: waiting } });
-  assert.equal(await again.text(), cooledBody, "identical response whether or not a mail went out");
+  assert.equal(again.status, 303);
+  assert.equal(await (await seen(again)).text(), cooledBody, "identical response whether or not a mail went out");
   await waitFor(() => sent.some((m) => m.to === waiting), { message: "resent link" });
 
   // Unknown, verified and malformed addresses: same page, no mail.
@@ -290,8 +311,9 @@ test("resend: sends a link for a waiting account, rate limited per account, neut
   await pool.query("INSERT INTO users (email, password_hash, display_name, email_verified_at) VALUES ($1, 'x', 'V', now())", [verified]);
   for (const email of [`nobody-${uniq()}@example.test`, verified, "", "garbage"]) {
     const r = await request("/resend-verification", { method: "POST", body: { email } });
-    assert.equal(r.status, 200);
-    assert.equal(await r.text(), cooledBody);
+    assert.equal(r.status, 303);
+    assert.equal(r.headers.get("location"), "/login");
+    assert.equal(await (await seen(r)).text(), cooledBody);
   }
   await new Promise((r) => setTimeout(r, 200));
   assert.equal(sent.length, 0);
@@ -307,7 +329,10 @@ test("login stays enumeration-neutral: unknown email and wrong password look the
   await signup(email, ATTACKER_PW);
   const wrong = await login(email, "Wrong-Pass-9!");
   const unknown = await login(`nobody-${uniq()}@example.test`, "Wrong-Pass-9!");
-  assert.equal(wrong.status, 401);
-  assert.equal(unknown.status, 401);
-  assert.equal(await wrong.text(), await unknown.text());
+  assert.equal(wrong.status, 303);
+  assert.equal(unknown.status, 303);
+  assert.equal(wrong.headers.get("location"), unknown.headers.get("location"));
+  // The page gives back what was typed (the email), nothing else differs.
+  const shape = async (res) => (await (await seen(res)).text()).replace(/(id="email"[^>]*value=")[^"]*"/, '$1"');
+  assert.equal(await shape(wrong), await shape(unknown));
 });

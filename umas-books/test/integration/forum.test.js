@@ -142,12 +142,19 @@ test("member happy path: post a thread (trimmed, attributed), view it, reply, se
   assert.deepEqual(replies, [{ body: "The Overstory!", author_id: memberId }]);
 });
 
-test("new-thread validation: missing or whitespace-only title/body -> 400 with an error, nothing saved", async () => {
+test("new-thread validation: missing or whitespace-only title/body -> 303 back to the form with an error, nothing saved", async () => {
   const before = await threadCount();
   for (const fields of [{ title: "", body: "x" }, { title: "x", body: "" }, { title: "   ", body: "   " }, {}]) {
-    const { res, text } = await post(memberJar, "/forum/new", fields);
-    assert.equal(res.status, 400, JSON.stringify(fields));
-    assert.match(text, /Title and message are both required/);
+    // Refused with 303 back to the form (Post/Redirect/Get); the error shows on that page, once.
+    const { res } = await post(memberJar, "/forum/new", fields);
+    assert.equal(res.status, 303, JSON.stringify(fields));
+    assert.equal(res.headers.get("location"), "/forum/new");
+    const shown = await get(memberJar, "/forum/new");
+    assert.equal(shown.res.status, 200);
+    assert.match(shown.text, /Title and message are both required/);
+    if (fields.title && fields.title.trim()) assert.ok(shown.text.includes(`value="${fields.title}"`), "typed title kept");
+    const reloaded = await get(memberJar, "/forum/new");
+    assert.doesNotMatch(reloaded.text, /Title and message are both required/, "the message shows only once");
   }
   assert.equal(await threadCount(), before);
 });

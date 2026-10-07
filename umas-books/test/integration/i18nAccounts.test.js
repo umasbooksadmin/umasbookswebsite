@@ -68,6 +68,12 @@ async function post(jar, p, fields, lang) {
     body: new URLSearchParams({ ...fields, _csrf: token }).toString(),
   });
   jar.capture(res);
+  // A refused (or finished) form answers 303 to a GET page; `text` is that page, fetched in the
+  // same session and language, like the browser would show it. Other answers are read as they are.
+  if (res.status === 303) {
+    const next = await get(jar, res.headers.get("location"), lang);
+    return { res, text: next.text, page: next.res, location: res.headers.get("location") };
+  }
   return { res, text: await res.text() };
 }
 async function loginJar(email, lang = "en") {
@@ -140,9 +146,11 @@ test("/account/password and the 2FA pages are fully translated", async () => {
 
   const secret = totp.decryptSecret((await pool.query("SELECT totp_secret_enc FROM users WHERE id=$1", [u.id])).rows[0].totp_secret_enc);
   const bad = await post(jar, "/account/2fa/enable", { password: "wrong", code: "000000" }, "fr");
-  assert.equal(bad.res.status, 400);
+  assert.equal(bad.res.status, 303);
+  assert.equal(bad.location, "/account/2fa");
   assert.match(bad.text, /Votre mot de passe ne correspond pas/);
   const wrongCode = await post(jar, "/account/2fa/enable", { password: PASSWORD, code: "000000" }, "fr");
+  assert.equal(wrongCode.res.status, 303);
   assert.match(wrongCode.text, /Ce code ne correspond pas/);
 
   const ok = await post(jar, "/account/2fa/enable", { password: PASSWORD, code: totp.hotp(secret, totp.currentStep()) }, "fr");
@@ -155,7 +163,8 @@ test("/account/password and the 2FA pages are fully translated", async () => {
   assert.match(status.en, /You have 10 unused recovery codes/);
 
   const wrong = await post(jar, "/account/2fa/disable", { code: "000000" }, "fr");
-  assert.equal(wrong.res.status, 400);
+  assert.equal(wrong.res.status, 303);
+  assert.equal(wrong.location, "/account/2fa");
   assert.match(wrong.text, /Ce code ne correspond pas\./);
 
   // Login with 2FA: the code page and its French error.
@@ -164,7 +173,8 @@ test("/account/password and the 2FA pages are fully translated", async () => {
   assert.equal(r.res.headers.get("location"), "/login/2fa");
   await assertTranslated(jar2, "/login/2fa");
   const fail = await post(jar2, "/login/2fa", { code: "123456" }, "fr");
-  assert.equal(fail.res.status, 401);
+  assert.equal(fail.res.status, 303);
+  assert.equal(fail.location, "/login/2fa");
   assert.match(fail.text, /Ce code n’a pas fonctionné\. Veuillez réessayer\./);
 });
 
@@ -181,7 +191,8 @@ test("/reset-password with a live token is fully translated, weak passwords get 
   assert.match(pages.fr, /8 caractères minimum, avec une majuscule/);
 
   const weak = await post(jar, `/reset-password/${raw}`, { newPassword: "abcdefghij" }, "fr");
-  assert.equal(weak.res.status, 400);
+  assert.equal(weak.res.status, 303);
+  assert.equal(weak.location, `/reset-password/${raw}`);
   assert.match(weak.text, /Le mot de passe doit contenir une lettre majuscule, un chiffre, un symbole\./);
   const weakEn = await post(jar, `/reset-password/${raw}`, { newPassword: "abcdefghij" }, "en");
   assert.match(weakEn.text, /Password must include an uppercase letter, a number, a symbol\./);
@@ -191,7 +202,8 @@ test("French server messages: wrong password, notices, forgot-password, change p
   const u = await createUser();
   const jar = makeCookieJar();
   const wrong = await post(jar, "/login", { email: u.email, password: "Nope-Nope-1" }, "fr");
-  assert.equal(wrong.res.status, 401);
+  assert.equal(wrong.res.status, 303);
+  assert.equal(wrong.location, "/login");
   assert.match(wrong.text, /E-mail ou mot de passe incorrect\./);
   assert.doesNotMatch(wrong.text, /Incorrect email or password/);
   const wrongEn = await post(makeCookieJar(), "/login", { email: u.email, password: "Nope-Nope-1" }, "en");
@@ -211,7 +223,8 @@ test("French server messages: wrong password, notices, forgot-password, change p
 
   const li = await loginJar(u.email, "fr");
   const wrongCurrent = await post(li, "/account/password", { currentPassword: "Nope-Nope-1", newPassword: "Another-Good-9" }, "fr");
-  assert.equal(wrongCurrent.res.status, 401);
+  assert.equal(wrongCurrent.res.status, 303);
+  assert.equal(wrongCurrent.location, "/account/password");
   assert.match(wrongCurrent.text, /Le mot de passe actuel est incorrect\./);
   const done = await post(li, "/account/password", { currentPassword: PASSWORD, newPassword: "Another-Good-9" }, "fr");
   assert.match(done.text, /Mot de passe mis à jour\./);
@@ -220,14 +233,16 @@ test("French server messages: wrong password, notices, forgot-password, change p
 test("signup in French: French notice and form copy, the account keeps the chosen language", async () => {
   const jar = makeCookieJar();
   const missing = await post(jar, "/signup", { email: "", password: "", displayName: "" }, "fr");
-  assert.equal(missing.res.status, 400);
+  assert.equal(missing.res.status, 303);
+  assert.equal(missing.location, "/signup");
   assert.match(missing.text, /Tous les champs sont obligatoires\./);
   const form = await post(jar, "/signup", { email: "", displayName: "" }, "fr");
   assert.match(form.text, /Nous vous enverrons par e-mail un lien pour confirmer votre adresse et choisir votre mot de passe\./);
 
   const email = `afr-signup-${uniq()}@example.test`;
   const ok = await post(jar, "/signup", { email, password: "Correct-Horse-1", displayName: "Ana" }, "fr");
-  assert.equal(ok.res.status, 200);
+  assert.equal(ok.res.status, 303);
+  assert.equal(ok.location, "/signup");
   assert.match(ok.text, /Merci\u00a0! Consultez votre boîte de réception/);
   const { rows } = await pool.query("SELECT lang FROM users WHERE email = $1", [email]);
   assert.equal(rows[0].lang, "fr");

@@ -118,7 +118,15 @@ test("bad ids, kinds and reasons are refused and send nothing", async () => {
   assert.equal((await report({ ...good(), id: "999999" })).status, 404);
   assert.equal((await report({ ...good(), kind: "reply", id: "999999" })).status, 404);
   assert.equal((await report({ ...good(), kind: "user" })).status, 404);
-  assert.equal((await report({ ...good(), reason: "dislike" })).status, 400);
+  // A missing/unknown reason: 303 back to the thread page, which shows the error once (cookie kept).
+  const bad = await report({ ...good(), reason: "dislike" });
+  assert.equal(bad.status, 303);
+  assert.equal(bad.headers.get("location"), `/forum/${threadId}`);
+  const cookie = bad.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
+  const shown = await (await fetch(`${server.base}/forum/${threadId}`, { headers: { ...member(), cookie } })).text();
+  assert.match(shown, /Please choose a reason for the report\./);
+  const reloaded = await (await fetch(`${server.base}/forum/${threadId}`, { headers: { ...member(), cookie } })).text();
+  assert.doesNotMatch(reloaded, /Please choose a reason for the report\./, "shown once");
   assert.equal(sent.length, 0);
 });
 

@@ -88,6 +88,16 @@ function guest() {
       body: form ? new URLSearchParams(form).toString() : undefined,
     });
     jar.capture(res);
+    // 303 = Post/Redirect/Get: follow it like the browser, with the same session.
+    if (res.status === 303) {
+      const seeOther = res.headers.get("location");
+      const next = await fetch(`${server.base}${seeOther}`, {
+        redirect: "manual",
+        headers: { cookie: [jar.header(), lang ? `umasbooks_lang=${lang}` : ""].filter(Boolean).join("; ") },
+      });
+      jar.capture(next);
+      return { res: next, text: await next.text(), seeOther };
+    }
     return { res, text: await res.text() };
   };
   return {
@@ -168,7 +178,7 @@ test("a copy whose price is removed while it sits in a cart drops out: the cart 
   const email = `nullprice-${uniq()}@example.test`;
   await signIn(v, email);
   const res = await v.post("/cart/reserve", { name: "Buyer", acceptCgv: "on" });
-  assert.equal(res.res.status, 200);
+  assert.equal(res.seeOther, "/cart", "refused with 303 to the cart");
   assert.match(res.text, /Your cart is empty/);
   assert.equal((await pool.query("SELECT 1 FROM orders WHERE buyer_email = $1", [email])).rowCount, 0);
   assert.equal((await copyRow(copy)).status, "in_stock");
@@ -192,7 +202,7 @@ test("reservation lock: a price removed after the cart was read cannot be held o
   await pool.query(`CREATE TRIGGER ${fn} BEFORE INSERT ON orders FOR EACH ROW EXECUTE FUNCTION ${fn}()`);
   try {
     const res = await v.post("/cart/reserve", { name: "Buyer", acceptCgv: "on" });
-    assert.equal(res.res.status, 200, "no redirect to the reservation page");
+    assert.equal(res.seeOther, "/cart", "no redirect to the reservation page: back to the cart");
     assert.match(res.text, /taken by someone else/);
   } finally {
     await pool.query(`DROP TRIGGER IF EXISTS ${fn} ON orders`);

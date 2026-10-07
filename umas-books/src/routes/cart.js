@@ -11,6 +11,7 @@ const { saveSession } = require("../lib/session");
 const { clean, parseId } = require("../lib/validation");
 const { CART_RETURN } = require("../lib/returnTo");
 const { checkoutLimiter, cartEditLimiter } = require("../middleware/rateLimits");
+const { redirectWithFlash, takePageFlash } = require("../lib/postRedirect");
 
 const router = express.Router();
 
@@ -167,8 +168,12 @@ router.get("/cart", async (req, res) => {
   }));
   const total = items.reduce((sum, i) => sum + i.price, 0);
   const account = await accountForCheckout(req);
+  // A refused reservation (POST /cart/reserve) left its message, and the name and phone typed, here once.
+  const flash = takePageFlash(req, res, "cart") || {};
+  const view = accountView(account);
+  if (flash.name) view.accountName = flash.name;
   res.render("cart", {
-    items, total, error: null, notice: cartNotice(req), ...accountView(account), limits: LIMITS,
+    items, total, error: flash.error || null, notice: cartNotice(req), ...view, typedPhone: flash.phone || "", limits: LIMITS,
   });
 });
 
@@ -261,19 +266,15 @@ router.post("/cart/reserve", checkoutLimiter, async (req, res) => {
 
   const account = await accountForCheckout(req);
 
-  const renderCart = (extra) =>
-    res.render("cart", {
-      items, total: items.reduce((sum, i) => sum + i.price, 0), error: null, notice: null,
-      ...accountView(account), limits: LIMITS, ...extra,
-    });
+  // A refusal goes back to the cart page by redirect (lib/postRedirect.js), so Back never offers
+  // to resubmit the form; the message and the typed name and phone travel once in the session,
+  // saved together with the cart pruned above.
+  const refuse = (error) => redirectWithFlash(req, res, "/cart", "cart", { error, name, phone: phone || "" });
 
   // Preview mode (src/lib/preview.js): nothing can be reserved. Refuse before
   // any validation, lock or order row; the cart page itself carries the
   // "ordering opens at launch" notice (views/cart.ejs).
-  if (isPreviewMode()) {
-    res.status(403);
-    return renderCart({});
-  }
+  if (isPreviewMode()) return refuse(null);
 
   // Reserving requires an account, enforced here on the server (the cart page
   // merely hides the form). Checked AFTER preview mode, so the preview notice
@@ -284,14 +285,13 @@ router.post("/cart/reserve", checkoutLimiter, async (req, res) => {
     return res.redirect(LOGIN_REQUIRED_URL);
   }
   if (account.state === "unconfirmed") {
-    res.status(403);
-    return renderCart({ error: req.tr("Please confirm your email address before reserving: open the link we sent you when you signed up.", "Veuillez confirmer votre adresse e-mail avant de réserver : ouvrez le lien que nous vous avons envoyé lors de votre inscription.") });
+    return refuse(req.tr("Please confirm your email address before reserving: open the link we sent you when you signed up.", "Veuillez confirmer votre adresse e-mail avant de réserver : ouvrez le lien que nous vous avons envoyé lors de votre inscription."));
   }
   if (!name) name = clean(account.user.display_name, 100);
 
-  if (!items.length) return renderCart({ items: [], total: 0, error: req.tr("Your cart is empty.", "Votre panier est vide.") });
-  if (!name) return renderCart({ error: req.tr("Please enter your name.", "Veuillez indiquer votre nom.") });
-  if (req.body.acceptCgv !== "on") return renderCart({ error: req.tr("Please accept the terms of sale to continue.", "Veuillez accepter les conditions générales de vente (CGV) pour continuer.") });
+  if (!items.length) return refuse(req.tr("Your cart is empty.", "Votre panier est vide."));
+  if (!name) return refuse(req.tr("Please enter your name.", "Veuillez indiquer votre nom."));
+  if (req.body.acceptCgv !== "on") return refuse(req.tr("Please accept the terms of sale to continue.", "Veuillez accepter les conditions générales de vente (CGV) pour continuer."));
 
   let order;
   try {
@@ -300,27 +300,24 @@ router.post("/cart/reserve", checkoutLimiter, async (req, res) => {
     });
   } catch (err) {
     if (err.message === "TOO_MANY_RESERVATIONS") {
-      return renderCart({ error: req.tr(`You already have ${MAX_ACTIVE_RESERVATIONS} open reservations, which is the most we can hold for one account. Please collect or cancel one first (see your account page).`, `Vous avez déjà ${MAX_ACTIVE_RESERVATIONS} réservations en cours, ce qui est le maximum pour un compte. Veuillez en retirer ou en annuler une avant d’en faire une autre (voir votre page de compte).`) });
+      return refuse(req.tr(`You already have ${MAX_ACTIVE_RESERVATIONS} open reservations, which is the most we can hold for one account. Please collect or cancel one first (see your account page).`, `Vous avez déjà ${MAX_ACTIVE_RESERVATIONS} réservations en cours, ce qui est le maximum pour un compte. Veuillez en retirer ou en annuler une avant d’en faire une autre (voir votre page de compte).`));
     }
     if (err.message === "TOO_MANY_COPIES") {
-      return renderCart({ error: req.tr(`We can hold at most ${MAX_RESERVED_COPIES} books at a time for one account, counting your other open reservations. Please remove some books from your cart, or collect or cancel a reservation first.`, `Nous pouvons garder au plus ${MAX_RESERVED_COPIES} livres à la fois pour un compte, vos autres réservations en cours comprises. Veuillez retirer des livres de votre panier, ou retirer ou annuler une réservation avant d’en faire une autre.`) });
+      return refuse(req.tr(`We can hold at most ${MAX_RESERVED_COPIES} books at a time for one account, counting your other open reservations. Please remove some books from your cart, or collect or cancel a reservation first.`, `Nous pouvons garder au plus ${MAX_RESERVED_COPIES} livres à la fois pour un compte, vos autres réservations en cours comprises. Veuillez retirer des livres de votre panier, ou retirer ou annuler une réservation avant d’en faire une autre.`));
     }
     if (err.message === "BUSY") {
-      return renderCart({ error: req.tr("The shop is busy right now. Please try again in a moment.", "La boutique est très sollicitée en ce moment. Veuillez réessayer dans un instant.") });
+      return refuse(req.tr("The shop is busy right now. Please try again in a moment.", "La boutique est très sollicitée en ce moment. Veuillez réessayer dans un instant."));
     }
     if (err.message !== "SOLD_OUT") {
       console.error("Reservation failed:", err.message);
-      return renderCart({ error: req.tr("Something went wrong making your reservation. Please try again.", "Une erreur est survenue lors de votre réservation. Veuillez réessayer.") });
+      return refuse(req.tr("Something went wrong making your reservation. Please try again.", "Une erreur est survenue lors de votre réservation. Veuillez réessayer."));
     }
     const fresh = await loadCartItems(cart);
     req.session.cart = fresh.map((i) => ({
       kind: i.kind, lineId: i.lineId,
       ...(i.kind === "book" ? { copyId: i.copyId } : { classId: i.classId }),
     }));
-    return renderCart({
-      items: fresh, total: fresh.reduce((sum, i) => sum + i.price, 0),
-      error: req.tr("Sorry, something in your cart was just taken by someone else. Please review your cart and try again.", "Désolé, un article de votre panier vient d’être pris par quelqu’un d’autre. Veuillez vérifier votre panier et réessayer."),
-    });
+    return refuse(req.tr("Sorry, something in your cart was just taken by someone else. Please review your cart and try again.", "Désolé, un article de votre panier vient d’être pris par quelqu’un d’autre. Veuillez vérifier votre panier et réessayer."));
   }
 
   // The items are now held by the reservation, so the cart is emptied (a second
