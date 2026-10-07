@@ -295,8 +295,8 @@ form.stack select { font-family: 'Cormorant Garamond', Georgia, serif; font-size
   color: var(--green); background: var(--panel); font-size: 13px; font-weight: 600; white-space: nowrap;
 }
 .condition-badge.condition-new { background: var(--green); color: #fff; }
-.condition-badge.condition-like_new { border-style: solid; }
-.condition-badge.condition-very_good { border-color: var(--gold-dark); color: var(--gold-dark); }
+.condition-badge.condition-very_good { border-style: solid; }
+.condition-badge.condition-good { border-color: var(--gold-dark); color: var(--gold-dark); }
 .condition-badge.condition-acceptable { border-color: var(--maroon-dark); border-style: dashed; color: var(--maroon-dark); }
 .visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 .copy-table { width: 100%; border-collapse: collapse; margin: 0 0 8px; }

@@ -12,7 +12,7 @@
 //   c2 Fantasy very_good    7.50  A1   purchase  120 days ago
 //   c3 Cooking  new      20.00  -    unknown   250 days ago
 //   c4 Cooking acceptable    3.00  B2   lot       500 days ago (reserved)
-//   c5 "=cmd"   like_new  4.00  A1   donation  800 days ago
+//   c5 "=cmd"   good  4.00  A1   donation  800 days ago
 //   c9 fantasy very_good    2.00  -    unknown   700 days ago
 // Sales / sell-through (2024), see the comments next to the expectations.
 
@@ -173,7 +173,7 @@ function ensureStock() {
       await copy(fantasy, { price: 7.5, location: "A1", source: "purchase", acquired: daysAgo(120), created: "2024-01-20", cost: 3 });
       await copy(cooking, { price: 20, publisherPrice: 20, condition: "new", acquired: daysAgo(250), created: "2024-02-05" });
       await copy(cooking, { price: 3, condition: "acceptable", status: "reserved", location: "B2", source: "lot", acquired: daysAgo(500), created: "2024-02-10", cost: 2 });
-      await copy(cmd, { price: 4, condition: "like_new", location: "A1", source: "donation", acquired: daysAgo(800), created: "2024-03-02", cost: 0.5 });
+      await copy(cmd, { price: 4, condition: "good", location: "A1", source: "donation", acquired: daysAgo(800), created: "2024-03-02", cost: 0.5 });
       await copy(lower, { price: 2, acquired: daysAgo(700), created: "2024-03-03" });
     })();
   }

@@ -5,7 +5,7 @@
 const { normalizeIsbn } = require("./bookLookup");
 const { parseMoney } = require("./validation");
 
-// The four condition grades: the single source of truth for the admin forms,
+// The four condition grades (New, Very Good, Good, Acceptable): the single source of truth for the admin forms,
 // the public pages, the cart and the emails. A copy that cannot be sold at all
 // is not a condition: it gets the status "damaged / withdrawn" instead.
 const CONDITIONS = [
@@ -15,21 +15,25 @@ const CONDITIONS = [
     description_fr: "Jamais lu, tel que publié (vendu au prix éditeur).",
   },
   {
-    value: "like_new", label: "Like New", label_fr: "Comme neuf",
-    description: "Looks unread: no marks, no wear.",
-    description_fr: "Comme jamais lu : ni marques ni usure.",
-  },
-  {
     value: "very_good", label: "Very Good", label_fr: "Très bon état",
-    description: "Light wear only: clean pages, no writing or highlighting.",
-    description_fr: "Légère usure seulement : pages propres, sans annotations ni surlignage.",
+    description: "Looks almost new: clean pages, no writing or highlighting, at most very light wear.",
+    description_fr: "Presque comme neuf : pages propres, sans annotations ni surlignage, au plus une très légère usure.",
   },
   {
-    value: "acceptable", label: "Acceptable", label_fr: "État acceptable",
+    value: "good", label: "Good", label_fr: "Bon état",
+    description: "Normal wear from reading: a few creases or marks, still clean and complete.",
+    description_fr: "Usure normale de lecture : quelques plis ou marques, mais propre et complet.",
+  },
+  {
+    value: "acceptable", label: "Acceptable", label_fr: "État correct",
     description: "Clearly used but complete and readable: wear, creases or some markings.",
     description_fr: "Visiblement utilisé mais complet et lisible : usure, plis ou quelques annotations.",
   },
 ];
+
+// Old grade keys (still in old links, imports or forms): "like_new" is now
+// "very_good" (migration 078); "fair" and "poor" were always "acceptable".
+const CONDITION_ALIASES = { like_new: "very_good", fair: "acceptable", poor: "acceptable" };
 
 const DEFAULT_CONDITION = "very_good";
 
@@ -73,7 +77,8 @@ const CONDITION_VALUES = new Set(CONDITIONS.map((c) => c.value));
 const STATUS_VALUES = new Set(STATUSES.map((s) => s.value));
 
 function normalizeCondition(value) {
-  return CONDITION_VALUES.has(value) ? value : DEFAULT_CONDITION;
+  const v = CONDITION_ALIASES[value] || value;
+  return CONDITION_VALUES.has(v) ? v : DEFAULT_CONDITION;
 }
 
 const BINDING_VALUES = new Set(BINDINGS.map((b) => b.value));
@@ -88,7 +93,7 @@ function normalizeBinding(value) {
 // Label of a grade/binding in the given language ("fr" or English); an
 // unknown value is returned as is.
 function conditionLabel(value, lang) {
-  const c = CONDITIONS.find((x) => x.value === value);
+  const c = CONDITIONS.find((x) => x.value === (CONDITION_ALIASES[value] || value));
   return c ? (lang === "fr" ? c.label_fr : c.label) : value;
 }
 

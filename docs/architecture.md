@@ -431,7 +431,7 @@ erDiagram
 Details of the shop tables worth knowing:
 
 * **Condition grades and binding.** `book_copies.condition` is one of four
-  grades, `new`, `like_new`, `very_good` (the default) or `acceptable`,
+  grades, `new`, `very_good` (the default), `good` or `acceptable` (migration 078 turned `like_new` into `very_good`),
   enforced by a CHECK constraint (migration 048 remapped the old values; a copy
   that cannot be sold at all has status `damaged`, not a condition).
   `books.binding` is `hardcover`, `trade`, `mass_market` or `other` (optional; older

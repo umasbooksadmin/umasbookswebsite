@@ -444,7 +444,7 @@ test("add: creates the book and one copy; garbage condition/status fall back to 
 });
 
 test("add: valid condition and status values are kept (reserved/sold/donated/damaged)", async () => {
-  for (const [condition, status] of [["like_new", "reserved"], ["very_good", "sold"], ["acceptable", "donated"], ["new", "damaged"]]) {
+  for (const [condition, status] of [["good", "reserved"], ["very_good", "sold"], ["acceptable", "donated"], ["new", "damaged"]]) {
     const title = `Vocab ${tag()}`;
     // A NEW book needs its publisher's price (French fixed-price law).
     const extra = condition === "new" ? { publisherPrice: "10", price: "10" } : {};
@@ -684,12 +684,12 @@ test("copy update: sets condition/status/price/cost/date/notes and normalises ba
   const b = await seedBook();
   const [copyId] = b.copyIds;
   const { status, location } = await post(`/admin/inventory/${b.id}/copies/${copyId}`, {
-    form: { condition: "like_new", status: "damaged", price: "11.25", acquisitionCost: "0.5", acquiredAt: "2026-02-01", notes: " signed " },
+    form: { condition: "good", status: "damaged", price: "11.25", acquisitionCost: "0.5", acquiredAt: "2026-02-01", notes: " signed " },
   });
   assert.equal(status, 302);
   assert.equal(location, `/admin/inventory/${b.id}`);
   let [c] = await copiesOf(b.id);
-  assert.deepEqual([c.condition, c.status, Number(c.price), Number(c.acquisition_cost), c.notes], ["like_new", "damaged", 11.25, 0.5, "signed"]);
+  assert.deepEqual([c.condition, c.status, Number(c.price), Number(c.acquisition_cost), c.notes], ["good", "damaged", 11.25, 0.5, "signed"]);
 
   // An unknown condition falls back to the default; an unknown status changes nothing.
   await post(`/admin/inventory/${b.id}/copies/${copyId}`, { form: { condition: "shiny", status: "borrowed", price: "", acquisitionCost: "", acquiredAt: "", notes: "" } });
@@ -780,13 +780,15 @@ test("delete book: removes the book and cascades to its copies", async () => {
 test("add/scan/edit forms offer the four grades (default Very Good) and the binding select", async () => {
   const { text } = await get("/admin/inventory/new");
   const options = (id) => [...text.slice(text.indexOf(`id="${id}"`)).split("</select>")[0].matchAll(/<option value="([^"]*)"[^>]*>([^<]*)</g)].map((m) => [m[1], m[2].trim()]);
-  assert.deepEqual(options("condition"), [["new", "New"], ["like_new", "Like New"], ["very_good", "Very Good"], ["acceptable", "Acceptable"]]);
+  assert.deepEqual(options("condition"), [["new", "New"], ["very_good", "Very Good"], ["good", "Good"], ["acceptable", "Acceptable"]]);
   assert.match(text, /<option value="very_good" selected>Very Good/);
   assert.deepEqual(options("binding"), [["", "Not specified"], ["hardcover", "Hardcover"], ["trade", "Trade"], ["mass_market", "Mass Market"], ["other", "Other"]]);
 
   const b = await seedBook();
   const show = await get(`/admin/inventory/${b.id}`);
-  assert.match(show.text, /<option value="very_good" selected>Very Good<\/option><option value="acceptable" >Acceptable<\/option>/);
+  assert.match(show.text, /<option value="very_good" selected>Very Good<\/option><option value="good" >Good<\/option><option value="acceptable" >Acceptable<\/option>/);
+  const copyConditions = [...show.text.slice(show.text.indexOf('name="condition"')).split("</select>")[0].matchAll(/<option value="([^"]*)"/g)].map((m) => m[1]);
+  assert.deepEqual(copyConditions, ["new", "very_good", "good", "acceptable"], "edit-copy form: exactly the four grades, in order");
   assert.match(show.text, /id="binding" name="binding"/);
   const editValues = [...show.text.slice(show.text.indexOf('id="binding"')).split("</select>")[0].matchAll(/<option value="([^"]*)"/g)].map((m) => m[1]);
   assert.deepEqual(editValues, ["", "hardcover", "trade", "mass_market", "other"], "edit form: placeholder plus exactly the four bindings, in order");

@@ -14,7 +14,7 @@ const base = "https://books.example.test";
 
 test("grades map to schema.org conditions", () => {
   assert.equal(itemCondition("new"), "https://schema.org/NewCondition");
-  for (const g of ["like_new", "very_good", "acceptable"]) assert.equal(itemCondition(g), "https://schema.org/UsedCondition");
+  for (const g of ["very_good", "good", "acceptable"]) assert.equal(itemCondition(g), "https://schema.org/UsedCondition");
 });
 
 test("Book + Offer JSON-LD has the fields search engines need", () => {

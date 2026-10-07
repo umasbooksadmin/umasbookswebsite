@@ -6,7 +6,7 @@ const { isPurchasablePrice } = require("./inventory");
 const SELLER = { "@type": "Organization", name: "Uma's Books" };
 
 // A copy's grade -> schema.org itemCondition. Only "new" is new; every used
-// grade (like new, very good, acceptable) is UsedCondition.
+// grade (very good, good, acceptable) is UsedCondition.
 function itemCondition(grade) {
   return grade === "new" ? "https://schema.org/NewCondition" : "https://schema.org/UsedCondition";
 }

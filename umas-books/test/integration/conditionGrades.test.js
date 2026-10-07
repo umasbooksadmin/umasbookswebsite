@@ -73,6 +73,33 @@ test("migration 048 remaps old grades, sets the default, and locks the column to
     await assert.rejects(pool.query("INSERT INTO book_copies (book_id, condition) VALUES ($1, $2)", [b.id, bad]), { code: "23514" }, bad);
   }
   await assert.rejects(pool.query("UPDATE book_copies SET condition = 'poor' WHERE id = $1", [ids.new]), { code: "23514" });
+  // Later migrations bring the table back to its current state for the tests below.
+  await pool.query(fs.readFileSync(path.join(__dirname, "..", "..", "migrations", "078_condition_good_not_like_new.sql"), "utf8"));
+});
+
+test("migration 078 turns like_new into very_good, makes good a grade again, locks the four grades (re-runnable)", async () => {
+  const sql = fs.readFileSync(path.join(__dirname, "..", "..", "migrations", "078_condition_good_not_like_new.sql"), "utf8");
+  // Back to the pre-078 state: the 048 check (new, like_new, very_good, acceptable).
+  await pool.query("ALTER TABLE book_copies DROP CONSTRAINT book_copies_condition_check");
+  await pool.query("ALTER TABLE book_copies ADD CONSTRAINT book_copies_condition_check CHECK (condition IN ('new', 'like_new', 'very_good', 'acceptable')) NOT VALID");
+  const { rows: [b] } = await pool.query("INSERT INTO books (title) VALUES ($1) RETURNING id", [`${TAG} m078`]);
+  const ids = {};
+  for (const c of ["new", "like_new", "very_good", "acceptable"]) {
+    const { rows } = await pool.query("INSERT INTO book_copies (book_id, condition) VALUES ($1, $2) RETURNING id", [b.id, c]);
+    ids[c] = rows[0].id;
+  }
+  await assert.rejects(pool.query("INSERT INTO book_copies (book_id, condition) VALUES ($1, 'good')", [b.id]), { code: "23514" }, "good not allowed before");
+
+  await pool.query(sql);
+  await pool.query(sql); // idempotent
+
+  const { rows } = await pool.query("SELECT id, condition FROM book_copies WHERE book_id = $1", [b.id]);
+  const now = Object.fromEntries(Object.entries(ids).map(([old, id]) => [old, rows.find((r) => r.id === id).condition]));
+  assert.deepEqual(now, { new: "new", like_new: "very_good", very_good: "very_good", acceptable: "acceptable" });
+  await pool.query("INSERT INTO book_copies (book_id, condition) VALUES ($1, 'good')", [b.id]);
+  for (const bad of ["like_new", "fair", "poor", "pristine", ""]) {
+    await assert.rejects(pool.query("INSERT INTO book_copies (book_id, condition) VALUES ($1, $2)", [b.id, bad]), { code: "23514" }, bad);
+  }
 });
 
 test("books.binding accepts the four bindings and NULL, and rejects anything else", async () => {
@@ -117,40 +144,40 @@ test("migration 077 turns paperback into trade, keeps NULL, allows other, locks 
 test("book page (English): every copy is listed with its grade and price, plus the legend and the binding", async () => {
   const b = await makeBook({
     title: `${TAG} Multi`, binding: "trade",
-    copies: [["acceptable", 3], ["new", 12], ["very_good", 6], ["like_new", 9]],
+    copies: [["acceptable", 3], ["new", 12], ["very_good", 6], ["good", 9]],
   });
   const { status, text } = await page(`/books/${b.id}`, "en");
   assert.equal(status, 200);
-  for (const [grade, price] of [["Acceptable", "3.00"], ["New", "12.00"], ["Very Good", "6.00"], ["Like New", "9.00"]]) {
+  for (const [grade, price] of [["Acceptable", "3.00"], ["New", "12.00"], ["Very Good", "6.00"], ["Good", "9.00"]]) {
     assert.match(text, new RegExp(`condition-badge condition-[a-z_]+">${grade}</span></td>\\s*<td>€${price}</td>`), grade);
   }
   for (const id of b.copyIds) assert.match(text, new RegExp(`name="copyId" value="${id}"`), "an add-to-cart form per copy");
   assert.match(text, /<details class="grade-legend">/);
   assert.match(text, /What the grades mean/);
   assert.match(text, /Unread, as published \(sold at the publisher(?:'|&#39;)s price\)\./);
-  assert.match(text, /Looks unread: no marks, no wear\./);
-  assert.match(text, /Light wear only: clean pages, no writing or highlighting\./);
+  assert.match(text, /Looks almost new: clean pages/);
+  assert.match(text, /Normal wear from reading: a few creases or marks/);
   assert.match(text, /Clearly used but complete and readable: wear, creases or some markings\./);
   assert.match(text, /Binding<\/dt> :\s*<dd>Trade<\/dd>|Binding :<\/dt> <dd>Trade/);
-  assert.ok(!/>Good<|>Fair<|>Poor</.test(text), "no old grade name");
+  assert.ok(!/>Like New<|>Fair<|>Poor</.test(text), "no old grade name");
 });
 
 test("book page (French): grades, legend and binding are in French", async () => {
   const b = await makeBook({ title: `${TAG} Multi FR`, binding: "mass_market", copies: [["very_good", 6], ["acceptable", 3]] });
   const { text } = await page(`/books/${b.id}`, "fr");
   assert.match(text, /condition-badge condition-very_good">Très bon état</);
-  assert.match(text, /condition-badge condition-acceptable">État acceptable</);
+  assert.match(text, /condition-badge condition-acceptable">État correct</);
   assert.match(text, /Que signifient les états\u00a0\?/);
-  assert.match(text, /Légère usure seulement\u00a0: pages propres, sans annotations ni surlignage\./);
+  assert.match(text, /Usure normale de lecture\u00a0: quelques plis ou marques/);
   assert.match(text, /Visiblement utilisé mais complet et lisible/);
   assert.match(text, /Reliure :\s*<\/dt> <dd>Poche<\/dd>|Reliure[^<]*<\/dt> <dd>Poche/);
   assert.ok(!text.includes(">Very Good<") && !text.includes("Mass Market"), "no English grade or binding");
 });
 
 test("book page: a single copy shows its grade too; no binding line when the book has none", async () => {
-  const b = await makeBook({ title: `${TAG} Single`, copies: [["like_new", 8]] });
+  const b = await makeBook({ title: `${TAG} Single`, copies: [["good", 8]] });
   const { text } = await page(`/books/${b.id}`, "en");
-  assert.match(text, /condition-badge condition-like_new">Like New</);
+  assert.match(text, /condition-badge condition-good">Good</);
   assert.match(text, /1 copy on our shelves/);
   assert.ok(!text.includes("book-facts"), "binding unknown: nothing shown");
 });
@@ -179,7 +206,7 @@ test("cart: the line shows the copy's grade in English and French", async () => 
   const en = await page("/cart", "en", { cookie: `umasbooks_lang=en; ${jar.header()}` });
   assert.match(en.text, /condition-badge condition-acceptable">Acceptable</);
   const fr = await page("/cart", "fr", { cookie: `umasbooks_lang=fr; ${jar.header()}` });
-  assert.match(fr.text, /condition-badge condition-acceptable">État acceptable</);
+  assert.match(fr.text, /condition-badge condition-acceptable">État correct</);
 });
 
 // ---------------------------------------------------------------------- API

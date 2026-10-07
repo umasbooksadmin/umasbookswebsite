@@ -92,7 +92,7 @@ async function seed(databaseUrl, creds) {
     return rows[0].id;
   };
   await book({ isbn: "9780141036144", title: "E2E Sample Gatsby", author: "Sample Author", categories: "Fiction, Classics", binding: "trade" },
-    [{ condition: "very_good", price: 5 }, { condition: "like_new", price: 8 }, { condition: "acceptable", price: 1, clearance: true }]);
+    [{ condition: "very_good", price: 5 }, { condition: "good", price: 8 }, { condition: "acceptable", price: 1, clearance: true }]);
   await book({ title: "E2E Sample Without A Price", author: "Other Author", binding: "hardcover" }, [{ condition: "very_good", price: null }]);
   await book({ title: "E2E Sample Sold Out", author: "Other Author" }, [{ price: 4, status: "sold" }]);
   await book({ title: "E2E Sample Award Winner", author: "Sample Author", categories: "Fiction" }, [{ price: 6 }], [{ label: "Booker Prize", year: 2019 }]);
