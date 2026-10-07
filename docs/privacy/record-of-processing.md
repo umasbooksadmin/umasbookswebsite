@@ -207,7 +207,7 @@ Fonts: the website serves its typefaces itself (self-hosted files in `assets/fon
 | Recipients / processors | **Anthropic** (AI service, API). Off unless `ANTHROPIC_API_KEY` is set; price lookups also need `PRICING_AI`. See `processors-checklist.md`. |
 | Transfers outside EU | Anthropic is a US company. Because no personal data is sent, no transfer of personal data takes place; check Anthropic's terms if this ever changes. |
 | Retention | Book data is kept as long as the book is in the catalogue. Price-lookup cache: 30 days for a found price, 7 days for no result, 1 hour after a failure (`TTL_MS` in `src/lib/pricing/market.js`). Anthropic's own retention of API requests is set by Anthropic's terms (per Anthropic's privacy centre, confirmed 4 October 2026: inputs and outputs are deleted from Anthropic's systems within 30 days, except content flagged for usage-policy violations, which is kept longer; the site sends only book facts and cover photos, no personal data). |
-| Security | API key stored as a Render environment variable; the calls fail open (a failure never blocks an admin action); daily caps on lookups (`PRICING_AI_DAILY_MAX`, `AWARDS_AI_DAILY_MAX`) |
+| Security | API key stored as a Render environment variable; the calls fail open (a failure never blocks an admin action); daily caps on lookups (`PRICING_AI_DAILY_MAX`) |
 
 ## 12. Domain name and DNS / Nom de domaine et DNS
 
