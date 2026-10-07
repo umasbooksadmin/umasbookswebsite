@@ -1,4 +1,4 @@
-// Admin Reports (/admin/reports): admin-only, six reports with totals that
+// Admin Reports (/admin/reports): admin-only, eight reports with totals that
 // match hand-computed numbers from seeded data, CSV downloads (BOM, quoting,
 // formula-injection escaping, audit row), date-range and group filters, and no
 // member emails anywhere. Runs on its own throwaway database so the global
@@ -205,7 +205,7 @@ test("reports require an admin: anonymous is redirected, a non-admin member gets
   }
   const ok = await get("/admin/reports");
   assert.equal(ok.res.status, 200);
-  for (const slug of ["inventory", "aging", "sales", "sellthrough", "membership", "intake"]) {
+  for (const slug of ["inventory", "aging", "sales", "reservations", "sellthrough", "membership", "intake"]) {
     assert.match(ok.text, new RegExp(`href="/admin/reports/${slug}"`));
   }
   assert.equal((await get("/admin/reports/nope")).res.status, 404);
@@ -218,10 +218,13 @@ test("the admin menu links to Reports", async () => {
 
 // ---------- 3. sales ----------
 
-test("sales report by month: online and shop revenue, averages, totals; drop-in seats kept apart", async () => {
+test("sales report by month: reserved-online and shop revenue, averages, totals; drop-in seats kept apart; refunds titled as shop refunds", async () => {
   const { text } = await get(`/admin/reports/sales?${Y2024}&group=month`);
   const [books, dropin] = tables(text);
-  // period, online items, online revenue, shop items, shop revenue, total, average
+  // period, reserved-online items, reserved-online revenue, shop items, shop revenue, total, average
+  assert.deepEqual(books[0], ["Period", "Reserved-online items", "Reserved-online revenue", "Shop items", "Shop revenue", "Total revenue", "Average per item"]);
+  assert.match(text, /Refunds \(orders refunded in the shop; not included in the sales above\)/);
+  assert.doesNotMatch(text, /HelloAsso|Online items|Online revenue/);
   assert.deepEqual(books[1], ["2024-03", "1", "€6.00", "1", "€7.50", "€13.50", "€6.75"]);
   // 22:30Z on 31 March is 1 April in Paris, so that sale belongs to April.
   assert.deepEqual(books[2], ["2024-04", "1", "€9.00", "2", "€9.00", "€18.00", "€6.00"]);
@@ -247,6 +250,47 @@ test("sales report: pending and cancelled orders never count, group switch, date
   // Nothing in range, and bad dates fall back to the defaults without an error.
   assert.match((await get("/admin/reports/sales?from=2023-01-01&to=2023-01-31")).text, /Nothing to show/);
   assert.equal((await get("/admin/reports/sales?from=banana&to=2024-13-45&group=century")).res.status, 200);
+});
+
+// ---------- reservations ----------
+
+test("reservations report: per month made, collected / expired / cancelled / open and the conversion rate; split orders and old online orders left out; no personal data", async () => {
+  // Reservations made in June and July 2024 (orders with a reserved_until). Paid ones carry a 2023 paid_at so
+  // the 2024 sales figures above are not affected.
+  const mk = async (status, createdAt, { split = false, deadline = true, total = 10 } = {}) => {
+    const { rows: main } = await pool.query("SELECT id FROM orders ORDER BY id LIMIT 1");
+    await pool.query(
+      `INSERT INTO orders (buyer_name, buyer_email, total_amount, status, created_at, paid_at, reserved_until, split_from_order_id)
+       VALUES ('Secret Reserver', 'reserver-secret@example.test', $1, $2, $3, CASE WHEN $2 IN ('paid', 'refunded') THEN '2023-12-01T10:00:00Z'::timestamptz END,
+               CASE WHEN $4::boolean THEN $3::timestamptz + interval '14 days' END, CASE WHEN $5::boolean THEN $6::int END)`,
+      [total, status, createdAt, deadline, split, main[0].id]
+    );
+  };
+  await mk("paid", "2024-06-03T10:00:00Z", { total: 10 });
+  await mk("paid", "2024-06-04T10:00:00Z", { total: 5 });
+  await mk("expired", "2024-06-05T10:00:00Z");
+  await mk("cancelled", "2024-06-06T10:00:00Z");
+  await mk("cancelled", "2024-06-09T10:00:00Z");
+  await mk("reserved", "2024-06-30T22:30:00Z"); // 00:30 on 1 July in Paris: a July reservation, still open
+  await mk("paid", "2024-06-07T10:00:00Z", { split: true, total: 99 }); // the remainder of a partial pickup: not a new reservation
+  await mk("paid", "2024-06-08T10:00:00Z", { deadline: false, total: 77 }); // an order paid online before reservations existed
+
+  const { res, text } = await get("/admin/reports/reservations?from=2024-06-01&to=2024-07-31");
+  assert.equal(res.status, 200);
+  const [t] = tables(text);
+  assert.deepEqual(t[0], ["Month", "Reserved", "Collected (sold)", "Expired / no-show", "Cancelled", "Still open", "Value collected", "Conversion"]);
+  // June: 5 reservations; 2 collected (EUR 15), 1 expired, 2 cancelled -> 2 of the 5 that are over became a sale.
+  assert.deepEqual(t[1], ["2024-06", "5", "2", "1", "2", "0", "€15.00", "40.0%"]);
+  assert.deepEqual(t[2].slice(0, 6), ["2024-07", "1", "0", "0", "0", "1"]);
+  assert.deepEqual(t.at(-1).slice(0, 7), ["Total", "6", "2", "1", "2", "1", "€15.00"]);
+  assert.doesNotMatch(text, /Secret Reserver|reserver-secret/, "no names or email addresses");
+
+  const lines = (await csv("/admin/reports/reservations?format=csv&from=2024-06-01&to=2024-07-31")).lines;
+  assert.equal(lines[0], '"Month","Reserved","Collected (sold)","Expired / no-show","Cancelled","Still open","Value collected","Conversion"');
+  assert.equal(lines[1].slice(0, 24), '"2024-06",5,2,1,2,0,15.0');
+  assert.ok(!lines.join("\n").includes("@"));
+  const { rows } = await pool.query("SELECT 1 FROM admin_audit_log WHERE action = 'report.csv' AND detail = 'reservations'");
+  assert.equal(rows.length, 1, "the download is logged with the slug only");
 });
 
 // ---------- 4. sell-through ----------
@@ -389,7 +433,7 @@ test("CSV: a title starting with = is escaped so a spreadsheet cannot run it", a
 
 test("CSV: the date range and the group choice apply to the download", async () => {
   const month = (await csv(`/admin/reports/sales?format=csv&${Y2024}&group=month`)).lines;
-  assert.equal(month[0], '"Period","Online items","Online revenue","Shop items","Shop revenue","Total revenue","Average per item"');
+  assert.equal(month[0], '"Period","Reserved-online items","Reserved-online revenue","Shop items","Shop revenue","Total revenue","Average per item"');
   assert.equal(month[1], '"2024-03",1,6.00,1,7.50,13.50,6.75');
   const april = (await csv("/admin/reports/sales?format=csv&from=2024-04-01&to=2024-04-30&group=year")).lines;
   assert.deepEqual(april.slice(1), ['"2024",1,9.00,2,9.00,18.00,6.00', '"Total",1,9.00,2,9.00,18.00,6.00']);

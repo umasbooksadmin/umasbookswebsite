@@ -84,3 +84,12 @@
   .preg-layout { grid-template-columns: 1fr; }
   .preg-sidebar { position: static; }
 }
+
+/* "Who is registering?", checkbox groups instead of multi-selects, child section. */
+.preg-fieldset { border: 0; margin: 0 0 16px; padding: 0; min-width: 0; flex: 1 1 0; }
+.preg-fieldset legend { font-size: 14.5px; color: var(--ink); padding: 0; margin-bottom: 6px; }
+.preg-fieldset legend .req { color: var(--maroon); }
+.preg-fieldset:focus { outline: 2px solid var(--maroon); outline-offset: 4px; }
+.preg-fieldset .preg-field-hint { margin-top: 0; margin-bottom: 8px; }
+.preg-fieldset .preg-check { margin-bottom: 8px; color: var(--ink); }
+.preg-child-block[hidden] { display: none; }

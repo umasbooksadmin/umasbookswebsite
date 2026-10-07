@@ -47,4 +47,11 @@ async function loadOrderItems(pool, orderId) {
   return rows;
 }
 
-module.exports = { ORDER_ITEMS_SQL, dropinLabel, orderItemLabel, loadOrderItems };
+// The LAST DAY a reservation can be collected, as an instant to format. An order's
+// reserved_until is the midnight that ENDS that day (Paris time), so the day to
+// show is the one a minute before it.
+function reservationLastDay(order) {
+  return order.reserved_until ? new Date(new Date(order.reserved_until).getTime() - 60 * 1000) : null;
+}
+
+module.exports = { ORDER_ITEMS_SQL, dropinLabel, orderItemLabel, loadOrderItems, reservationLastDay };

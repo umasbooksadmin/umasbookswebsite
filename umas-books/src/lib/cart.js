@@ -1,29 +1,222 @@
-// The online-checkout cart, separate from in-person reservations
-// (src/lib/reservations.js). Browsing/"add to cart" is just a list of
-// copy ids in the session — no inventory lock — so an abandoned cart
-// never ties up a copy someone else could reserve or buy. A copy is
-// only locked (status = 'in_cart') once checkout actually starts and we
-// have a real HelloAsso checkout intent, and that lock expires quickly:
-// HelloAsso's own redirect link is only valid ~15 minutes and considers
-// a checkout abandoned after ~45, so an hour is a safe margin.
+// The cart and the RESERVATION step. Nothing is paid online for books and
+// drop-in seats: the customer RESERVES, and pays in person at the shop (or at
+// the class session). See lib/reservations.js for the life of a reservation
+// (deadline, expiry, cancellation) and lib/orderActions.js for what the staff do
+// ("Mark collected and paid"). Membership is the only thing paid online
+// (HelloAsso, lib/membership.js): nothing in this file talks to HelloAsso.
+//
+// Browsing/"add to cart" is just a list of lines in the session — no inventory
+// lock — so an abandoned cart never ties up a copy someone else could reserve.
+// A copy is only held (status = 'reserved') once the customer presses
+// "Reserve these books" (createReservation below).
 
-const { getCheckoutIntent, isOrderPaid } = require("./helloasso");
 const { enqueueEmail, deliverNow } = require("./outbox");
 const { withTransaction } = require("../db");
 const { alertOnError } = require("./errorAlert");
-const { loadOrderItems } = require("./orderItems");
+const { loadOrderItems, dropinLabel } = require("./orderItems");
 const { buildOrderConfirmationText, orderConfirmationSubject } = require("./orderEmail");
 const { configuredBaseUrl } = require("./baseUrl");
+const { seatsTakenExpr } = require("./classCapacity");
+const { SITE_TIME_ZONE } = require("./tz");
+const { RESERVATION_DAYS, MAX_RESERVED_COPIES, MAX_ACTIVE_RESERVATIONS, SESSION_OVER_SQL } = require("./reservations");
 
+// ---------- the reservation ----------
+
+// Turns the cart's lines into a reservation, atomically: the order, its items,
+// the held copies and the held seats exist together or not at all.
+//   user:   { id, email } the confirmed account (the order is always under it)
+//   items:  cart lines as loaded by routes/cart.js (kind 'book' | 'dropin', price > 0)
+// Resolves the new order row. Rejects with an Error whose message is one of
+//   SOLD_OUT                 something in the cart was taken in the meantime
+//   TOO_MANY_RESERVATIONS    the account already has MAX_ACTIVE_RESERVATIONS open
+//   TOO_MANY_COPIES          the account would hold more than MAX_RESERVED_COPIES books
+//   BUSY                     deadlock twice in a row
+// (Anything else is an unexpected failure.)
+async function createReservation(pool, { user, name, phone = null, items, lang = null, hasDropin = false, acceptedVersion }) {
+  const bookItems = items.filter((i) => i.kind === "book");
+  const dropinItems = items.filter((i) => i.kind === "dropin");
+  const cents = items.reduce((sum, i) => sum + Math.round(Number(i.price) * 100), 0);
+  const total = cents / 100;
+  const email = String(user.email).toLowerCase();
+
+  const attempt = (client) => reserveInTransaction(client, { user, email, name, phone, bookItems, dropinItems, total, lang, hasDropin, acceptedVersion });
+  let order;
+  try {
+    order = await withTransaction(pool, attempt);
+  } catch (err) {
+    if (err.code !== "40P01") throw err;
+    // Postgres chose this one as the deadlock loser: everything rolled back, retry once.
+    console.warn("Reservation deadlock detected, retrying once");
+    try {
+      order = await withTransaction(pool, attempt);
+    } catch (retryErr) {
+      if (retryErr.code === "40P01") throw new Error("BUSY", { cause: retryErr });
+      throw retryErr;
+    }
+  }
+  // The confirmation was stored in the same transaction (outbox); send it now.
+  if (order.confirmationId) await deliverNow(pool, order.confirmationId);
+  return order;
+}
+
+async function reserveInTransaction(client, { user, email, name, phone, bookItems, dropinItems, total, lang, hasDropin, acceptedVersion }) {
+  // One reservation at a time per account, so the limits below cannot be raced past.
+  await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`reserve-user:${user.id}`]);
+
+  const { rows: usage } = await client.query(
+    `SELECT (SELECT COUNT(*) FROM orders WHERE user_id = $1 AND status = 'reserved')::int AS reservations,
+            (SELECT COUNT(*) FROM book_copies c JOIN orders o ON o.id = c.cart_order_id
+             WHERE o.user_id = $1 AND o.status = 'reserved' AND c.status = 'reserved')::int AS copies`,
+    [user.id]
+  );
+  if (usage[0].reservations >= MAX_ACTIVE_RESERVATIONS) throw new Error("TOO_MANY_RESERVATIONS");
+  if (usage[0].copies + bookItems.length > MAX_RESERVED_COPIES) throw new Error("TOO_MANY_COPIES");
+
+  // The deadline: the end of the RESERVATION_DAYS-th day (Paris time) for books.
+  // An order with only seats is set below, once its seats exist.
+  const { rows: orderRows } = await client.query(
+    `INSERT INTO orders (buyer_name, buyer_email, buyer_phone, total_amount, status, withdrawal_waiver_at, lang,
+                         cgv_accepted_at, cgv_version, user_id, reserved_until)
+     VALUES ($1, $2, $3, $4, 'reserved', CASE WHEN $5::boolean THEN now() END, $6, now(), $7, $8,
+             CASE WHEN $10::boolean THEN (((now() AT TIME ZONE '${SITE_TIME_ZONE}')::date + $9::int + 1)::timestamp AT TIME ZONE '${SITE_TIME_ZONE}') END)
+     RETURNING *`,
+    [name, email, phone, total, hasDropin, lang, acceptedVersion, user.id, RESERVATION_DAYS, bookItems.length > 0]
+  );
+  const order = orderRows[0];
+
+  if (bookItems.length) {
+    // Take the row locks in id order. Two carts sharing copies would
+    // otherwise each lock them in their own order and deadlock.
+    const copyIds = bookItems.map((i) => i.copyId).sort((a, b) => a - b);
+    await client.query("SELECT id FROM book_copies WHERE id = ANY($1::int[]) ORDER BY id FOR UPDATE", [copyIds]);
+    const { rows: held } = await client.query(
+      `UPDATE book_copies
+       SET status = 'reserved', reserved_by_name = $3, reserved_by_email = $4, reserved_by_phone = $5, reserved_at = now(),
+           reminder_sent_at = NULL, cart_order_id = $1, cart_added_at = NULL, updated_at = now()
+       WHERE id = ANY($2::int[]) AND status = 'in_stock' AND price IS NOT NULL AND price > 0 RETURNING id`,
+      [order.id, copyIds, name, email, phone]
+    );
+    if (held.length !== bookItems.length) {
+      // Someone else bought or reserved a copy between our read and this
+      // write: bail out cleanly rather than hold fewer books than were shown.
+      throw new Error("SOLD_OUT");
+    }
+    for (const i of bookItems) {
+      await client.query(
+        "INSERT INTO order_items (order_id, book_copy_id, item_title, price) VALUES ($1, $2, $3, $4)",
+        [order.id, i.copyId, i.title, i.price]
+      );
+    }
+  }
+
+  if (dropinItems.length) {
+    const wanted = new Map(); // classId -> requested seat count
+    for (const i of dropinItems) wanted.set(i.classId, (wanted.get(i.classId) || 0) + 1);
+
+    // Class rows are locked in id order too (see the copies above).
+    for (const [classId, count] of [...wanted].sort((a, b) => a[0] - b[0])) {
+      // Lock the class row so two simultaneous reservations for the same
+      // session can't both read the same "spots left" and oversell it.
+      // The lock and the count are TWO statements: a count computed in the
+      // same statement as FOR UPDATE would use a snapshot taken BEFORE the
+      // wait for the lock, and miss the seat the other reservation just
+      // committed (READ COMMITTED re-checks the locked row, not subselects).
+      await client.query("SELECT id FROM classes WHERE id = $1 FOR UPDATE", [classId]);
+      const { rows: clsRows } = await client.query(
+        `SELECT capacity, dropin_price, ${seatsTakenExpr("classes")}::int AS seats_taken
+         FROM classes WHERE id = $1`,
+        [classId]
+      );
+      const cls = clsRows[0];
+      const spotsLeft = cls && cls.dropin_price != null && Number(cls.dropin_price) > 0
+        ? (cls.capacity != null ? cls.capacity - cls.seats_taken : Infinity)
+        : 0;
+      if (!cls || spotsLeft < count) throw new Error("SOLD_OUT");
+
+      const item = dropinItems.find((i) => i.classId === classId);
+      for (let n = 0; n < count; n++) {
+        const { rows: seatRows } = await client.query(
+          `INSERT INTO class_dropin_seats (class_id, status, order_id) VALUES ($1, 'reserved', $2) RETURNING id`,
+          [classId, order.id]
+        );
+        await client.query(
+          "INSERT INTO order_items (order_id, class_dropin_seat_id, item_title, price) VALUES ($1, $2, $3, $4)",
+          [order.id, seatRows[0].id, dropinLabel(item.title, item.startsAt, "en"), item.price]
+        );
+      }
+    }
+    if (!bookItems.length) {
+      // Only seats: held until the last of the sessions is over.
+      await client.query(
+        `UPDATE orders SET reserved_until = (
+           SELECT MAX(${SESSION_OVER_SQL}) FROM class_dropin_seats s JOIN classes c ON c.id = s.class_id WHERE s.order_id = $1
+         ) WHERE id = $1`,
+        [order.id]
+      );
+    }
+  }
+
+  // The confirmation is stored in the same transaction: a reservation never
+  // exists without its confirmation being queued (the savepoint inside
+  // queueOrderConfirmation keeps a failure to BUILD the text from undoing the
+  // reservation).
+  const { rows: fresh } = await client.query("SELECT * FROM orders WHERE id = $1", [order.id]);
+  const confirmationId = await queueOrderConfirmation(client, fresh[0]);
+  return { ...fresh[0], confirmationId };
+}
+
+// ---------- confirmation e-mail (through the outbox) ----------
+
+// Queues (never sends) the reservation confirmation. Returns the outbox id, or
+// null when it could not be built or stored: the savepoint keeps the surrounding
+// transaction alive in that case.
+async function queueOrderConfirmation(db, order, { kind = "order_confirmation" } = {}) {
+  const isClient = typeof db.release === "function";
+  if (isClient) await db.query("SAVEPOINT order_confirmation");
+  try {
+    const items = await loadOrderItems(db, order.id);
+    const base = configuredBaseUrl() || undefined;
+    // Subject and body follow order.lang ('en' | 'fr' | null; null is English).
+    const id = await enqueueEmail(db, {
+      kind,
+      lang: order.lang,
+      relatedOrderId: order.id,
+      to: order.buyer_email,
+      subject: orderConfirmationSubject(order.lang),
+      text: buildOrderConfirmationText(order, items, base),
+    });
+    if (isClient) await db.query("RELEASE SAVEPOINT order_confirmation");
+    return id;
+  } catch (err) {
+    console.error(`Reservation confirmation could not be queued for order ${order.id}:`, err.message);
+    if (isClient) await db.query("ROLLBACK TO SAVEPOINT order_confirmation");
+    return null;
+  }
+}
+
+// Admin "Resend confirmation": queue a fresh copy for a reserved order and try to
+// send it now. Resolves { ok, sent } or { ok: false, reason }.
+async function resendOrderConfirmation(pool, orderId) {
+  const { rows } = await pool.query("SELECT * FROM orders WHERE id = $1", [orderId]);
+  const order = rows[0];
+  if (!order) return { ok: false, reason: "not_found" };
+  if (order.status !== "reserved") return { ok: false, reason: "not_reserved" };
+  if (/@erased\.invalid$/i.test(order.buyer_email)) return { ok: false, reason: "erased" };
+  const id = await queueOrderConfirmation(pool, order, { kind: "order_confirmation" });
+  if (!id) return { ok: false, reason: "queue_failed" };
+  const result = await deliverNow(pool, id);
+  return { ok: true, sent: result.sent, id };
+}
+
+// ---------- leftovers of the old online checkout ----------
+
+// Before reservations, checkout put books in 'in_cart' and an order in 'pending'
+// for up to an hour while the buyer paid at HelloAsso. Nothing creates those any
+// more; this only cleans up any that were still open when the change went live,
+// so no book stays stuck 'in_cart'. No HelloAsso lookup is made.
 const CART_HOLD_TTL_MINUTES = 60;
 
-// How long after an order was created we keep asking HelloAsso whether an
-// order we already expired/cancelled locally was paid after all.
-const LATE_PAYMENT_WINDOW_DAYS = 7;
-
 async function expireStaleCartHolds(pool) {
-  // Orders are discovered through BOTH kinds of hold: an abandoned
-  // checkout containing only a drop-in seat has no book copy to find it by.
   const { rows: stale } = await pool.query(
     `SELECT DISTINCT order_id FROM (
        SELECT cart_order_id AS order_id FROM book_copies
@@ -55,34 +248,24 @@ async function expireStaleCartHolds(pool) {
   }
 }
 
-// Puts a cart's copies back on the shelf, drops any drop-in session
-// seat holds outright (there's nothing to "return to stock" — the seat
-// row was only ever synthetic, see migrations/015_dropin_seats.sql), and
-// marks the order closed. Used both for TTL expiry above and for a
-// checkout that comes back non-paid (refused/canceled/abandoned).
-//
-// All in one transaction, with the order row locked first: a hold must
-// never be released for an order that is actually paid. If it is (a
-// payment that landed while this was running, or state left behind by an
-// interrupted markOrderPaid), finish marking its copies sold instead —
-// the paid-but-resold failure this guards against.
+// Puts a leftover old-style cart hold's copies back on the shelf and closes its
+// pending order. An order that is somehow already 'paid' is left alone.
 async function releaseCartHold(pool, orderId, status) {
   await withTransaction(pool, async (client) => {
     const { rows } = await client.query("SELECT status FROM orders WHERE id = $1 FOR UPDATE", [orderId]);
     if (rows[0] && rows[0].status === "paid") {
-      await markCopiesSold(client, orderId);
+      await client.query(
+        `UPDATE book_copies SET status = 'sold', cart_order_id = NULL, cart_added_at = NULL, updated_at = now() WHERE cart_order_id = $1`,
+        [orderId]
+      );
+      await client.query(`UPDATE class_dropin_seats SET status = 'sold', updated_at = now() WHERE order_id = $1 AND status = 'in_cart'`, [orderId]);
       return;
     }
     await client.query(
       `UPDATE book_copies SET status = 'in_stock', cart_order_id = NULL, cart_added_at = NULL, updated_at = now()
-       WHERE cart_order_id = $1`,
+       WHERE cart_order_id = $1 AND status = 'in_cart'`,
       [orderId]
     );
-    // Marked 'released', not deleted: order_items.class_dropin_seat_id
-    // references the seat row (no ON DELETE action), so deleting it threw
-    // a foreign-key error that rolled back this whole release. A released
-    // seat no longer counts toward capacity (see lib/classCapacity.js) or
-    // shows on the roster, and the expired order keeps its line items.
     await client.query(
       `UPDATE class_dropin_seats SET status = 'released', updated_at = now() WHERE order_id = $1 AND status = 'in_cart'`,
       [orderId]
@@ -91,390 +274,16 @@ async function releaseCartHold(pool, orderId, status) {
   });
 }
 
-async function markCopiesSold(client, orderId) {
-  await client.query(
-    `UPDATE book_copies SET status = 'sold', cart_order_id = NULL, cart_added_at = NULL, updated_at = now()
-     WHERE cart_order_id = $1`,
-    [orderId]
-  );
-  await client.query(`UPDATE class_dropin_seats SET status = 'sold', updated_at = now() WHERE order_id = $1`, [orderId]);
-}
-
-// Resolves true if THIS call flipped the order to paid, false if it was no
-// longer 'pending' (another caller won, or it was expired/cancelled since
-// the caller's snapshot was read).
-//
-// `helloassoOrderId` (from the verified checkout intent) is stamped in the
-// SAME transaction as the status flip: it used to be written by a second
-// statement after the confirmation e-mail was prepared, so a failure there
-// (loading the order lines) left a paid order without it.
-async function markOrderPaid(pool, order, { helloassoOrderId = null } = {}) {
-  // The WHERE clause here (not just the id) is the actual idempotency
-  // boundary: reconcileOrder's own "order.status !== 'pending'" guard
-  // only protects against a *sequential* re-call with a freshly-fetched
-  // order row. It does nothing for two calls racing concurrently on the
-  // same stale in-memory `order` — e.g. a live webhook delivery landing
-  // at the same moment as the periodic reconcilePendingOrders sweep
-  // (index.js), or HelloAsso retrying a webhook it didn't get a fast
-  // enough 200 for. Postgres serializes two concurrent UPDATEs on the
-  // same row, so only one of them ever sees status='pending' still true
-  // and gets rowCount 1 — the loser sees 0 and bails before touching
-  // inventory or queueing a second confirmation email.
-  //
-  // The status flip, the inventory change and the confirmation e-mail (queued
-  // in the e-mail outbox) commit together: if the process died between them,
-  // the order would read 'paid' (so nothing would ever retry) while its copies
-  // sat in_cart, and the hold-expiry sweep would put a book someone already
-  // paid for back on sale; and a paid order must never exist without its
-  // confirmation being queued. The confirmation is built inside a savepoint
-  // so that a failure while building it (it is only text) can never undo a
-  // payment: the order is then paid without a confirmation, which the admin
-  // dashboard flags after 30 minutes, with a "Resend confirmation" button.
-  let confirmationId = null;
-  const won = await withTransaction(pool, async (client) => {
-    const { rowCount } = await client.query(
-      `UPDATE orders SET status = 'paid', paid_at = now(), client_ip = NULL,
-         helloasso_order_id = COALESCE($2, helloasso_order_id)
-       WHERE id = $1 AND status = 'pending'`,
-      [order.id, helloassoOrderId == null ? null : String(helloassoOrderId)]
-    );
-    if (rowCount === 0) return false;
-    await markCopiesSold(client, order.id);
-    confirmationId = await queueOrderConfirmation(client, order);
-    return true;
-  });
-  if (!won) return false;
-
-  // Instant mail on the happy path; if it cannot go now the outbox worker retries.
-  if (confirmationId) await deliverNow(pool, confirmationId);
-  return true;
-}
-
-// Queues (never sends) the order confirmation. Returns the outbox id, or null
-// when it could not be built or stored: the savepoint keeps the surrounding
-// transaction alive in that case.
-async function queueOrderConfirmation(db, order, { kind = "order_confirmation" } = {}) {
-  const isClient = typeof db.release === "function";
-  if (isClient) await db.query("SAVEPOINT order_confirmation");
-  try {
-    const items = await loadOrderItems(db, order.id);
-    const base = configuredBaseUrl() || undefined;
-    // Subject and body follow order.lang ('en' | 'fr' | null; null is English).
-    const id = await enqueueEmail(db, {
-      kind,
-      lang: order.lang,
-      relatedOrderId: order.id,
-      to: order.buyer_email,
-      subject: orderConfirmationSubject(order.lang),
-      text: buildOrderConfirmationText(order, items, base),
-    });
-    if (isClient) await db.query("RELEASE SAVEPOINT order_confirmation");
-    return id;
-  } catch (err) {
-    console.error(`Order confirmation could not be queued for order ${order.id}:`, err.message);
-    if (isClient) await db.query("ROLLBACK TO SAVEPOINT order_confirmation");
-    return null;
-  }
-}
-
-// Admin "Resend confirmation": queue a fresh copy for a paid order and try to
-// send it now. Resolves { ok, sent } or { ok: false, reason }.
-async function resendOrderConfirmation(pool, orderId) {
-  const { rows } = await pool.query("SELECT * FROM orders WHERE id = $1", [orderId]);
-  const order = rows[0];
-  if (!order) return { ok: false, reason: "not_found" };
-  if (order.status !== "paid") return { ok: false, reason: "not_paid" };
-  if (/@erased\.invalid$/i.test(order.buyer_email)) return { ok: false, reason: "erased" };
-  const id = await queueOrderConfirmation(pool, order, { kind: "order_confirmation" });
-  if (!id) return { ok: false, reason: "queue_failed" };
-  const result = await deliverNow(pool, id);
-  return { ok: true, sent: result.sent, id };
-}
-
-// The single source of truth for "did this order get paid" — re-checks
-// with HelloAsso's own API rather than trusting a webhook payload or the
-// return-URL's code=succeeded param, both of which HelloAsso's docs say
-// aren't reliable enough to act on directly. Safe to call more than once
-// (markOrderPaid/releaseCartHold only touch orders still 'pending').
-//
-// LATE PAYMENTS: an order we already closed locally ('expired' by the
-// 60-minute hold, or 'cancelled') can still turn out to have been paid —
-// HelloAsso's own checkout outlives our hold, and a crash between
-// createCheckoutIntent and saving its id (see persistCheckoutIntentId)
-// leaves an order that expires with no intent recorded. So for up to
-// LATE_PAYMENT_WINDOW_DAYS after creation, closed orders that have an
-// intent id are re-checked too; if HelloAsso says paid, see
-// recoverLatePayment for the (deliberately conservative) policy.
-function isRecentlyClosed(order) {
-  return (
-    (order.status === "expired" || order.status === "cancelled") &&
-    !!order.checkout_intent_id &&
-    !order.helloasso_order_id && // set once we've recovered OR flagged it — never handle twice
-    Date.now() - new Date(order.created_at).getTime() < LATE_PAYMENT_WINDOW_DAYS * 24 * 3600 * 1000
-  );
-}
-
-// An expired/cancelled order was actually paid. Under one transaction with
-// row locks, re-claim every copy/seat the order covers and mark it paid —
-// all or nothing. If ANY item can no longer be claimed (resold to someone
-// else, reserved in-shop, drop-in seat gone), nothing is applied: we
-// can't fulfil the order as bought, and partially fulfilling money-taken
-// orders is worse than a human deciding. The admin gets an email naming
-// the order, buyer and amount to refund/handle by hand. No new order
-// status is introduced; instead helloasso_order_id doubles as the
-// "already handled" marker on a closed order (it's otherwise only ever
-// set together with status 'paid'), so neither the sweep nor webhook
-// retries re-alert or re-process the same order.
-async function recoverLatePayment(pool, order, intent) {
-  const marker = String((intent.order && intent.order.id) || `intent-${order.checkout_intent_id}`);
-
-  const result = await withTransaction(pool, async (client) => {
-    const { rows: locked } = await client.query("SELECT * FROM orders WHERE id = $1 FOR UPDATE", [order.id]);
-    const current = locked[0];
-    if (!current || !isRecentlyClosed(current)) return { outcome: "skip", status: current ? current.status : null };
-
-    const { rows: items } = await client.query(
-      "SELECT book_copy_id, class_dropin_seat_id, item_title FROM order_items WHERE order_id = $1",
-      [order.id]
-    );
-    const copyIds = items.filter((i) => i.book_copy_id != null).map((i) => i.book_copy_id);
-    const seatIds = items.filter((i) => i.class_dropin_seat_id != null).map((i) => i.class_dropin_seat_id);
-
-    const { rows: copies } = await client.query(
-      "SELECT id, status, cart_order_id FROM book_copies WHERE id = ANY($1::int[]) ORDER BY id FOR UPDATE",
-      [copyIds]
-    );
-    const { rows: seats } = await client.query(
-      // Only a seat still held ('in_cart') can be claimed. A 'released' one
-      // (the hold expired) has already been given back to the session's
-      // capacity, so reclaiming it could oversell — it counts as unavailable
-      // and the admin is alerted to refund instead.
-      "SELECT id FROM class_dropin_seats WHERE id = ANY($1::int[]) AND order_id = $2 AND status = 'in_cart' ORDER BY id FOR UPDATE",
-      [seatIds, order.id]
-    );
-    const copyOk = new Set(
-      copies.filter((c) => c.status === "in_stock" || (c.status === "in_cart" && c.cart_order_id === order.id)).map((c) => c.id)
-    );
-    const seatOk = new Set(seats.map((s) => s.id));
-    const unavailable = items.filter((i) =>
-      i.book_copy_id != null ? !copyOk.has(i.book_copy_id) : !seatOk.has(i.class_dropin_seat_id)
-    );
-
-    if (items.length === 0 || unavailable.length > 0) {
-      await client.query("UPDATE orders SET helloasso_order_id = $1 WHERE id = $2", [marker, order.id]);
-      return { outcome: "conflict", unavailable: unavailable.map((i) => i.item_title), order: current };
-    }
-
-    await client.query(
-      `UPDATE book_copies SET status = 'sold', cart_order_id = NULL, cart_added_at = NULL, updated_at = now()
-       WHERE id = ANY($1::int[])`,
-      [copyIds]
-    );
-    await client.query(
-      "UPDATE class_dropin_seats SET status = 'sold', updated_at = now() WHERE id = ANY($1::int[])",
-      [seatIds]
-    );
-    await client.query(
-      "UPDATE orders SET status = 'paid', paid_at = now(), helloasso_order_id = $1, client_ip = NULL WHERE id = $2",
-      [marker, order.id]
-    );
-    const confirmationId = await queueOrderConfirmation(client, current);
-    return { outcome: "recovered", order: current, confirmationId };
-  });
-
-  if (result.outcome === "recovered") {
-    console.warn(`Late payment recovered: order ${order.id} (was ${order.status}) is now paid.`);
-    if (result.confirmationId) await deliverNow(pool, result.confirmationId);
-    return "paid";
-  }
-  if (result.outcome === "conflict") {
-    const o = result.order;
-    const msg =
-      `Order ${o.id} was ${o.status} locally but HelloAsso shows it PAID (checkout intent ${o.checkout_intent_id}), ` +
-      `and these items can no longer be claimed: ${result.unavailable.join("; ") || "(order has no items)"}. ` +
-      `Nothing was changed. Buyer: ${o.buyer_name} <${o.buyer_email}>, amount: €${Number(o.total_amount).toFixed(2)}. ` +
-      `Please refund or fulfil this order manually in HelloAsso.`;
-    console.error(`LATE PAYMENT CONFLICT: ${msg}`);
-    await alertOnError(`Paid order ${o.id} could not be fulfilled — manual refund needed`, msg, { force: true });
-    return o.status;
-  }
-  return result.status || order.status;
-}
-
-// opts.failFast: rethrow a systemic HelloAsso failure (auth/network, see
-// isSystemicHelloAssoError) instead of swallowing it per order, so a sweep
-// can stop instead of trying every remaining order against a dead API.
-async function reconcileOrder(pool, order, { failFast = false } = {}) {
-  if (!order) return null;
-  const closed = isRecentlyClosed(order);
-  if ((order.status !== "pending" && !closed) || !order.checkout_intent_id) return order.status;
-
-  let intent;
-  try {
-    intent = await getCheckoutIntent(order.checkout_intent_id);
-  } catch (err) {
-    console.error(`HelloAsso lookup failed for order ${order.id}:`, err.message);
-    if (failFast && isSystemicHelloAssoError(err)) throw err;
-    return order.status; // transient API error — leave as is, a later pass will retry
-  }
-
-  if (closed) {
-    // Only a confirmed payment matters for an already-closed order; a
-    // still-unpaid/failed intent changes nothing (holds are already released).
-    return isOrderPaid(intent) ? recoverLatePayment(pool, order, intent) : order.status;
-  }
-
-  if (isOrderPaid(intent)) {
-    const won = await markOrderPaid(pool, order, { helloassoOrderId: intent.order && intent.order.id });
-    if (won) return "paid";
-    // We lost: our snapshot said 'pending' but the row moved on (e.g. the
-    // hold-expiry sweep expired it while we were asking HelloAsso). Never
-    // report/stamp 'paid' on the strength of the stale snapshot - that
-    // would also hide the order from isRecentlyClosed forever.
-    const { rows: fresh } = await pool.query("SELECT * FROM orders WHERE id = $1", [order.id]);
-    const current = fresh[0];
-    if (!current) return order.status;
-    if (current.status === "paid") return "paid"; // another caller won
-    if (isRecentlyClosed(current)) return recoverLatePayment(pool, current, intent);
-    return current.status;
-  }
-
-  const payments = (intent.order && intent.order.payments) || [];
-  const terminalFailure = payments.some((p) => ["Refused", "Canceled", "Error"].includes(p.state));
-  if (terminalFailure) {
-    await releaseCartHold(pool, order.id, "cancelled");
-    return "cancelled";
-  }
-
-  return "pending"; // still genuinely in progress (Pending/Registered/etc.)
-}
-
-// Periodic backstop (mirrors runReservationMaintenance in index.js) for
-// orders whose webhook and return-URL both missed — e.g. the buyer
-// closed the tab mid-payment and HelloAsso's notification didn't arrive
-// or wasn't recognized. Only bothers with orders old enough that the
-// checkout page (valid ~15 min) has definitely resolved one way or
-// another.
-//
-// `includeClosed` also re-checks orders expired/cancelled in the last
-// LATE_PAYMENT_WINDOW_DAYS (see "LATE PAYMENTS" above). That's one
-// HelloAsso call per such order, and abandoned carts are the common case,
-// so index.js only turns it on once an hour rather than every 10 minutes.
-function isSystemicHelloAssoError(err) {
-  return !!err && (err.kind === "auth" || err.kind === "network");
-}
-
-// Consecutive sweeps that hit a systemic HelloAsso failure; reset by any
-// sweep that gets through without one.
-let helloassoFailureStreak = 0;
-const getHelloAssoFailureStreak = () => helloassoFailureStreak;
-const resetHelloAssoFailureStreak = () => { helloassoFailureStreak = 0; };
-const FAILURE_ALERT_EVERY = 6; // ~hourly at the 10-minute cadence
-
-async function reconcilePendingOrders(pool, { includeClosed = true } = {}) {
-  const { rows: pending } = await pool.query(
-    `SELECT * FROM orders WHERE checkout_intent_id IS NOT NULL AND (
-       (status = 'pending' AND created_at < now() - interval '20 minutes')
-       OR ($1::boolean AND status IN ('expired', 'cancelled') AND helloasso_order_id IS NULL
-           AND created_at > now() - interval '${LATE_PAYMENT_WINDOW_DAYS} days')
-     ) ORDER BY id`,
-    [includeClosed]
-  );
-  let systemicError = null;
-  for (const order of pending) {
-    try {
-      await reconcileOrder(pool, order, { failFast: true });
-    } catch (err) {
-      if (isSystemicHelloAssoError(err)) {
-        // HelloAsso is unreachable or rejecting our credentials: every
-        // remaining order would burn its own 10 s timeout for nothing.
-        systemicError = err;
-        break;
-      }
-      console.error(`Order reconciliation failed for order ${order.id}:`, err.message);
-    }
-  }
-  if (!systemicError) {
-    helloassoFailureStreak = 0;
-    return;
-  }
-  helloassoFailureStreak++;
-  console.error(`Order reconciliation stopped early (HelloAsso ${systemicError.kind} failure, run ${helloassoFailureStreak} in a row).`);
-  // Mention the first failure, then only every FAILURE_ALERT_EVERY-th run.
-  if (helloassoFailureStreak === 1 || helloassoFailureStreak % FAILURE_ALERT_EVERY === 0) {
-    await alertOnError(
-      "HelloAsso reconciliation failing",
-      `Order reconciliation stopped after a HelloAsso ${systemicError.kind} failure: ${systemicError.message}. ` +
-        `${helloassoFailureStreak} consecutive run(s) have failed this way; pending payments are not being confirmed until it recovers.`
-    );
-  }
-}
-
-// The 10-minute cart job: the two sweeps run one after the other (never
-// concurrently) so the expiry sweep cannot release an order out from under
-// a reconcile that is about to mark it paid.
-async function runCartMaintenance(pool, { includeClosed }) {
+// The 10-minute job: only the leftover cleanup above is left of the old cart job.
+async function runCartMaintenance(pool) {
   try {
     await module.exports.expireStaleCartHolds(pool);
   } catch (err) {
     console.error("Cart hold expiry failed:", err);
   }
-  try {
-    await module.exports.reconcilePendingOrders(pool, { includeClosed });
-  } catch (err) {
-    console.error("Order reconciliation failed:", err);
-  }
 }
 
-// Checkout (routes/cart.js) creates the HelloAsso intent first and only
-// then can record its id on our order. If the process dies or the DB
-// blips in between, the buyer can still pay, but nothing links the
-// payment back to the order. So: retry the write once, and if it still
-// fails, log + alert the admin with both ids (the intent id is the only
-// thing that can reunite the two). Never throws — the buyer should still
-// be sent to pay; adoptCheckoutIntent (called from the webhook) can also
-// repair the link later. Returns true if the id was saved.
-async function persistCheckoutIntentId(pool, orderId, intentId, { retryDelayMs = 250 } = {}) {
-  const sql = "UPDATE orders SET checkout_intent_id = $1 WHERE id = $2";
-  let lastErr;
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      await pool.query(sql, [String(intentId), orderId]);
-      return true;
-    } catch (err) {
-      lastErr = err;
-      if (attempt === 0) await new Promise((r) => setTimeout(r, retryDelayMs));
-    }
-  }
-  const msg =
-    `Could not save HelloAsso checkout intent ${intentId} on local order ${orderId} ` +
-    `(${lastErr.message}). The buyer may still pay; if a payment arrives, match intent ${intentId} to order ${orderId} manually ` +
-    `(UPDATE orders SET checkout_intent_id = '${intentId}' WHERE id = ${orderId}).`;
-  console.error(msg);
-  await alertOnError(`Checkout intent not saved for order ${orderId}`, msg, { force: true });
-  return false;
-}
-
-// For a webhook that names an order which has no intent id recorded (the
-// gap persistCheckoutIntentId guards): the notification body is never
-// trusted, so the intent id it carries is only adopted after HelloAsso's
-// own API confirms that intent's metadata.orderId is this very order.
-async function adoptCheckoutIntent(pool, order, intentId) {
-  if (!order || order.checkout_intent_id || !intentId) return order;
-  let intent;
-  try {
-    intent = await getCheckoutIntent(intentId);
-  } catch (err) {
-    console.error(`HelloAsso lookup failed adopting intent ${intentId} for order ${order.id}:`, err.message);
-    return order;
-  }
-  const meta = (intent && (intent.metadata || (intent.order && intent.order.metadata))) || {};
-  if (Number(meta.orderId) !== order.id) return order;
-  const { rows } = await pool.query(
-    "UPDATE orders SET checkout_intent_id = $1 WHERE id = $2 AND checkout_intent_id IS NULL RETURNING *",
-    [String(intentId), order.id]
-  );
-  return rows[0] || order;
-}
-
-module.exports = { resendOrderConfirmation, queueOrderConfirmation, runCartMaintenance, isRecentlyClosed, getHelloAssoFailureStreak, resetHelloAssoFailureStreak, persistCheckoutIntentId, adoptCheckoutIntent, expireStaleCartHolds, releaseCartHold, markOrderPaid, reconcileOrder, reconcilePendingOrders, CART_HOLD_TTL_MINUTES };
+module.exports = {
+  createReservation, queueOrderConfirmation, resendOrderConfirmation,
+  runCartMaintenance, expireStaleCartHolds, releaseCartHold, CART_HOLD_TTL_MINUTES,
+};

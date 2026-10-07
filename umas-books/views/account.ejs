@@ -1,21 +1,22 @@
 <%- include('partials/header', { noindex: true, title: tr('My Account', 'Mon compte') }) %>
 
 <%
-  const statusLabels = { pending: tr('Pending', 'En attente'), paid: tr('Paid', 'Payée'), cancelled: tr('Cancelled', 'Annulée'), expired: tr('Expired', 'Expirée'), refunded: tr('Refunded', 'Remboursée') };
+  const statusLabels = { reserved: tr('Reserved', 'Réservée'), pending: tr('Pending', 'En attente'), paid: tr('Paid', 'Payée'), cancelled: tr('Cancelled', 'Annulée'), expired: tr('Expired', 'Expirée'), refunded: tr('Refunded', 'Remboursée') };
   const statusLabel = (st) => statusLabels[st] || (st.charAt(0).toUpperCase() + st.slice(1));
   const money = eur;
 %>
 <h1><%= tr('My Account', 'Mon compte') %></h1>
 <p class="small"><a href="/account/2fa"><%= tr('Two-step verification', 'Vérification en deux étapes') %></a></p>
 <p class="small"><a href="/account/privacy"><%= tr('Privacy: download or delete my data', 'Confidentialité : télécharger ou supprimer mes données') %></a></p>
-<p class="muted small"><%= tr('Orders and session sign-ups matched to {email}.', 'Commandes et inscriptions aux séances associées à {email}.', { email: email }) %></p>
+<% if (locals.notice) { %><div role="status" class="notice-box"><%= notice %></div><% } %>
+<p class="muted small"><%= tr('Reservations, orders and session sign-ups matched to {email}.', 'Réservations, commandes et inscriptions aux séances associées à {email}.', { email: email }) %></p>
 
 <div class="card">
-  <div class="section-title"><%= tr('Orders', 'Commandes') %></div>
+  <div class="section-title" id="reservations"><%= tr('Reservations and orders', 'Réservations et commandes') %></div>
   <% if (!emailVerified) { %>
-    <div role="status" class="notice-box"><%= tr('Confirm your email address to see your orders here — we sent a confirmation link to {email} when you signed up. Check your inbox (and spam folder). Your orders are never lost; they’ll appear as soon as the address is confirmed.', 'Confirmez votre adresse e-mail pour voir vos commandes ici : nous avons envoyé un lien de confirmation à {email} lors de votre inscription. Vérifiez votre boîte de réception (et vos courriers indésirables). Vos commandes ne sont jamais perdues : elles apparaîtront dès que l’adresse sera confirmée.', { email: email }) %></div>
+    <div role="status" class="notice-box"><%= tr('Confirm your email address to see your reservations here — we sent a confirmation link to {email} when you signed up. Check your inbox (and spam folder). Your reservations are never lost; they’ll appear as soon as the address is confirmed.', 'Confirmez votre adresse e-mail pour voir vos réservations ici : nous avons envoyé un lien de confirmation à {email} lors de votre inscription. Vérifiez votre boîte de réception (et vos courriers indésirables). Vos réservations ne sont jamais perdues : elles apparaîtront dès que l’adresse sera confirmée.', { email: email }) %></div>
   <% } else if (!orders.length) { %>
-    <p class="muted"><%= tr('No orders yet —', 'Aucune commande pour le moment :') %> <a href="/books.html"><%= tr('browse books', 'parcourir les livres') %></a> <%= tr('or', 'ou') %> <a href="/sessions"><%= tr('book a drop-in session', 'réserver une séance') %></a>.</p>
+    <p class="muted"><%= tr('No reservations yet —', 'Aucune réservation pour le moment :') %> <a href="/books.html"><%= tr('browse books', 'parcourir les livres') %></a> <%= tr('or', 'ou') %> <a href="/sessions"><%= tr('reserve a drop-in seat', 'réserver une place « drop-in »') %></a>.</p>
   <% } else { %>
     <ul class="plain">
       <% orders.forEach(o => { %>
@@ -30,6 +31,14 @@
             <% }) %>
           </ul>
           <div class="muted small"><%= tr('Total:', 'Total :') %> <%= money(o.total_amount) %></div>
+          <% if (o.status === 'reserved') { %>
+            <div class="muted small"><%= tr('Nothing is paid online: you pay at the shop when you collect.', 'Rien n’est payé en ligne : vous réglez à la boutique au retrait.') %><% if (o.reserved_until && (o.items || []).some((i) => !i.isSeat)) { %> <%= tr('Held until the end of {date}.', 'Gardée jusqu’à la fin de la journée du {date}.', { date: formatDateLong(lastDay(o)) }) %><% } %></div>
+            <form method="post" action="/cart/reservations/<%= o.id %>/cancel" data-confirm="<%= tr('Cancel this reservation? Its items become available to others.', 'Annuler cette réservation ? Ses articles redeviendront disponibles pour les autres.') %>">
+              <%- include('partials/csrf_field') %>
+              <a class="btn btn-outline btn-small" href="/cart/return?order=<%= o.access_token %>"><%= tr('Open', 'Ouvrir') %></a>
+              <button class="btn btn-outline btn-small" type="submit"><%= tr('Cancel reservation', 'Annuler la réservation') %></button>
+            </form>
+          <% } %>
         </li>
       <% }) %>
     </ul>

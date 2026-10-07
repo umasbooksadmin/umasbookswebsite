@@ -12,7 +12,7 @@ data, config, and how a change gets from a commit to production. See
 
 `umas-books` is a single Express process (`src/index.js`) that serves
 **both** the public marketing site (plain pages: About, Books, Events, …)
-**and** the members-area app (accounts, forum, admin, checkout, …). There
+**and** the members-area app (accounts, forum, admin, reservations, …). There
 is no separate marketing server — Squarespace was retired, and these
 pages now live in this repo's root and are rendered by this same process.
 That's why `render.yaml`'s `buildFilter` covers the whole repo, not just
@@ -74,7 +74,7 @@ Every marketing route sets its own restrictive CSP (`marketingCsp` in
 `src/index.js`) before rendering — stricter than default since these
 pages need no forms/scripts beyond the shared header's language toggle.
 
-Both CSPs (app-wide helmet and `marketingCsp`) list the HelloAsso payment hosts in `form-action` (`src/lib/helloassoHosts.js`): Chrome enforces `form-action` on the redirect after a form POST, so without them `/cart/checkout`'s 302 to HelloAsso is blocked.
+Both CSPs (app-wide helmet and `marketingCsp`) have `form-action 'self'` only (`formActionSources` in `src/index.js`): no form of ours posts to another site, and no redirect to another site follows a form POST, because books and seats are reserved here and paid in the shop (Chrome enforces `form-action` on the redirect after a POST, which is why HelloAsso hosts used to be listed there for the old online checkout). The HelloAsso membership form is an iframe/link allowed by `frame-src` instead; `src/lib/helloassoHosts.js` now only tells whether `HELLOASSO_API_BASE` is the sandbox.
 
 ## Legacy redirects
 
@@ -179,7 +179,7 @@ rather than by a numbered migration), grouped by what they belong to:
   (`isbnVariants`, 10 vs 13) or the same normalised title with an empty or
   overlapping author become `matched`. Admin → Book Requests
   (`routes/admin/requests.js`, English) has a one-click Notify and "Notify and hold
-  7 days" (reserves the copy with `reserved_at` back-dated 7 days so the standard 14-day
+  7 days" (holds the copy without an order, with `reserved_at` back-dated 7 days so the standard 14-day
   hold ends in 7, and `reminder_sent_at` set so the day-11 pickup reminder
   stays quiet); every action writes an audit row with ids only. Emails use the
   requester's `lang`. Personal columns are cleared on cancel, expiry, erasure
@@ -194,14 +194,14 @@ rather than by a numbered migration), grouped by what they belong to:
 - **In-shop sales** — `shop_sales` (migration 046): one row per copy sold over
   the counter (price, `sold_at`, `sold_by` admin id, payment method; no buyer
   data). `/admin/inventory/sell` (scan an ISBN, pick the copy, record) locks
-  the copy `FOR UPDATE`, refuses anything not `in_stock`/`reserved`, applies
+  the copy `FOR UPDATE`, refuses anything not `in_stock` and any copy reserved by an online order (`cart_order_id` set: it is collected or cancelled from its order page), and applies
   the new-book price rule via `resolveCopyPricing`, inserts the sale and sets
   the copy `sold` (clearing reservation contact fields) in ONE transaction,
   then writes a `copy.shop_sale` audit row (price only).
 - **Reports** — `/admin/reports` (`src/routes/admin/reports.js`, SQL in
   `src/lib/reports.js`, views `views/admin/reports/`): inventory on hand,
-  aging stock, sales over time (online paid orders by `orders.paid_at` + shop
-  sales; drop-in seats in a separate table), sell-through by genre,
+  aging stock, sales over time (reservations collected and paid in the shop, by `orders.paid_at`, + walk-in shop
+  sales; a reservations report (`/admin/reports/reservations`); drop-in seats in a separate table), sell-through by genre,
   membership, intake log, accounts (everyone with an account by type, orders
   and spend; paged by 50, filters by type/search/created date). Read-only aggregate queries (no N+1, LIMITs on every
   list, Paris day boundaries computed in SQL), `requireAdmin` throughout, no
@@ -218,7 +218,7 @@ rather than by a numbered migration), grouped by what they belong to:
 - **Price safety** — a copy is only purchasable online with a real price:
   `price IS NOT NULL AND price > 0` is required by the public book page (no
   Add to Cart, "Ask in the shop" instead), `/cart/add`, `loadCartItems`, the
-  checkout row lock (a null-price copy can never reach an order or a total of
+  reservation row lock (a null-price copy can never reach an order or a total of
   0), public reservations and book-request holds (`isPurchasablePrice` in
   `src/lib/inventory.js`). The in-shop sale takes the price typed at the counter,
   so an unpriced copy can still be sold over the counter. Every admin money
@@ -228,7 +228,7 @@ rather than by a numbered migration), grouped by what they belong to:
   `acquisition_cost`, `classes.dropin_price` NULL or 0 to under 100000) and
   sets out-of-range legacy values to NULL. The copy edit form posts the status
   it was rendered with and only changes the status when the copy still has it
-  (never a sold or in-cart copy); cancelling a reservation only matches a copy
+  (never a sold, in-cart or online-reserved copy); cancelling a reservation only matches a copy
   that is still `reserved`.
 
 - **Suggested prices** — `src/lib/pricing/` (migrations 053, 054). Prices are
@@ -300,24 +300,33 @@ rather than by a numbered migration), grouped by what they belong to:
   | `GET /admin/reports/accounting[?format=csv]` | Accounting export (`src/lib/accounting.js`): one row per Paris day, category and payment method; no customer data |
 - **Accounts & auth** — `users`, `password_reset_tokens`,
   `email_verification_tokens`
-- **Shop / checkout** — `books`, `book_copies`, `orders` (with `cgv_accepted_at` / `cgv_version`: proof of acceptance of the terms of sale, version from `src/lib/legal.js`), `order_items`
+- **Shop / reservations** — `books`, `book_copies`, `orders` (with `cgv_accepted_at` / `cgv_version`: proof of acceptance of the terms of sale, version from `src/lib/legal.js`), `order_items`
   (an order line references *either* a book copy *or* a class drop-in
   seat, never both — see the `order_items_one_item_type` check
-  constraint). `orders.status` is plain text: `pending`, `paid`, `expired`,
-  `cancelled`, `refunded` (migration 060). A refund is made by hand in the
-  HelloAsso dashboard; an admin then presses "Mark refunded" on
-  `/admin/orders/:id` (`src/lib/orderActions.js`), which in one transaction sets
-  `refunded` + `refunded_at` + `refund_note`, puts the order's sold copies back
-  `in_stock` (not a copy sold again since) and marks its drop-in seats
-  `released`. Pickup: `collected_at` / `collected_by` ("Mark collected").
-  `src/lib/orderSweeps.js` (every 6 h, started in `src/index.js`) re-reads each
-  paid order of the last 30 days from HelloAsso and flags `refund_detected_at`
-  (one alert email, `refund_alert_sent_at`; nothing is restocked automatically),
-  sends the day-10 customer reminder (`customer_pickup_reminder_sent_at`) and
-  the day-12 admin digest (`pickup_reminder_sent_at`), each once per order.
-  `checkout_redirect_url` lets the buyer resume payment from `/cart`.
-  Revenue everywhere counts `status = 'paid'` only, by `paid_at` in Paris time
-  (`src/lib/dashboardStats.js`, `src/lib/reports.js`).
+  constraint). Books and drop-in seats are RESERVED online and PAID IN PERSON;
+  nothing is paid online for them. `orders.status` is plain text: `reserved`,
+  `paid`, `refunded`, `expired`, `cancelled`, and `pending` (only on old
+  online-checkout orders). Migration 066 added `reserved_until`,
+  `reservation_extended_at`, `released_at` / `release_reason`,
+  `expiry_notice_sent_at`, `payment_method` / `amount_received` /
+  `payment_note` / `reserved_total`, `split_from_order_id` and
+  `class_dropin_seats.reminder_sent_at`. The life of a reservation is in
+  `src/lib/reservations.js` (deadline, release, customer cancel, extend), the staff
+  actions in `src/lib/orderActions.js` (`collectReservation`: "Mark collected
+  and paid" with payment method and amount, partial pickup into a new
+  reserved order, `markOrderRefunded`: a refund is made by hand in the shop and an
+  admin then presses "Mark refunded" on `/admin/orders/:id`, which in one
+  transaction sets `refunded` + `refunded_at` + `refund_note`, puts the order's
+  sold copies back `in_stock` (not a copy sold again since) and marks its
+  drop-in seats `released`), and the cart in `src/lib/cart.js`
+  (`createReservation`). `src/lib/orderSweeps.js` (every 6 h, started in
+  `src/index.js`, no payment-provider call) releases lapsed reservations, sends the
+  day-10 customer reminder (`customer_pickup_reminder_sent_at`), the 24-hour
+  drop-in seat reminder, the "reservation ended" email and the admin digest of
+  reservations expiring within 2 days (`pickup_reminder_sent_at`), each once.
+  Revenue everywhere counts `status = 'paid'` only, by `paid_at` (the day staff
+  record the payment) in Paris time (`src/lib/dashboardStats.js`,
+  `src/lib/reports.js`).
 - **Legacy trust decision (one-time):** migration 032 marked every
   account that existed at the time as email-verified, since forcing
   re-verification would lock out real members. Email squatting that
@@ -390,7 +399,7 @@ src/` is the ground truth if this list ever drifts):
 | `PORT` | no (defaults 3000) | HTTP listen port |
 | `NODE_ENV` | no | `production` turns on startup env validation (`src/lib/env.js`: fails fast listing every missing required var, warns about disabled email/payments), secure session cookies, and `src/lib/baseUrl.js` requiring `APP_BASE_URL`/`RENDER_EXTERNAL_URL` |
 | `PGSSLMODE` | no | set to `disable` for local dev (no TLS); any other value uses `{ rejectUnauthorized: false }` — see `src/db.js` |
-| `APP_BASE_URL` | no | overrides the auto-detected base URL (emailed links, HelloAsso return URLs) |
+| `APP_BASE_URL` | no | overrides the auto-detected base URL (emailed links, the membership payment return URL) |
 | `RENDER_EXTERNAL_URL` | no | set automatically by Render; same purpose as `APP_BASE_URL` |
 | `GMAIL_USER` / `GMAIL_APP_PASSWORD` | no | outgoing email (password reset, email verification, contact form); logs to console instead of sending when unset |
 | `CONTACT_TO` | no (defaults `admin@umasbooks.org`) | where the Contact form delivers |
@@ -406,7 +415,7 @@ src/` is the ground truth if this list ever drifts):
 | `PRICING_AI` | no (off unless `1` or `true`) | turns on the AI market check behind price suggestions (also needs `ANTHROPIC_API_KEY`); without it prices come from the built-in rules only |
 | `PRICING_AI_MODEL` | no (defaults to the model used for book descriptions) | model for the market check; it must support the web search tool |
 | `PRICING_AI_DAILY_MAX` | no (defaults 150) | most AI market lookups per day, counted from the database so a restart cannot reset it; `0` switches lookups off |
-| `HELLOASSO_CLIENT_ID` / `HELLOASSO_CLIENT_SECRET` / `HELLOASSO_ORG_SLUG` | no (checkout shows "not set up yet" without them) | HelloAsso Checkout API credentials |
+| `HELLOASSO_CLIENT_ID` / `HELLOASSO_CLIENT_SECRET` / `HELLOASSO_ORG_SLUG` | no (the membership sync is off without them) | HelloAsso API credentials, used for the membership only |
 | `HELLOASSO_API_BASE` | no (defaults to production) | set to HelloAsso's sandbox URL for testing |
 | `TRUST_PROXY_HOPS` | no (default 2 in production, 1 elsewhere) | integer 1 to 5, number of reverse proxies in front of the app (Cloudflare + Render edge = 2); decides `req.ip` (`src/lib/trustProxy.js`). Check on `/admin/diagnostics/client-ip` |
 | `APP_BASE_URL` | yes once preview is off | `https://umasbooks.org`; the only base URL used on a live site, and other Hosts are redirected to it (`src/middleware/canonicalHost.js`); other methods on another Host get 421, except `/healthz` and `/webhooks/helloasso` |
@@ -428,11 +437,11 @@ actually uses.
     included by `partials/mkt_chrome_header.ejs`; marketing pages also get the strings
     in `assets/site.js` COMMON `preview.*`), linking to `/contact?topic=feedback`
     (the contact form then offers a "Feedback on the preview" topic);
-  - payments are off: the cart shows a notice instead of the checkout form,
-    `POST /cart/checkout` answers 403 before locking or creating anything
-    (drop-in seats use the same route), and the membership page shows
+  - reservations and payments are off: the cart shows a notice instead of the
+    reserve form, `POST /cart/reserve` answers 403 before locking or creating
+    anything (drop-in seats use the same route), and the membership page shows
     "Membership opens at launch" instead of the HelloAsso widget. The webhook
-    and reconcile jobs are untouched (no payment can start);
+    and membership sync jobs are untouched (no payment can start);
   - search engines are kept out: `X-Robots-Tag: noindex, nofollow` on every
     response, a robots meta tag, `/robots.txt` disallowing everything and an
     empty `/sitemap.xml`;
@@ -500,8 +509,8 @@ others. `lib/totp.js` (hand-rolled on `node:crypto`), `routes/twoFactor.js`
 
 - `eraseMember(pool, userId)` (admin → Members → **Erase Member**): in one
   transaction deletes the account, its event/class sign-ups and sessions,
-  releases any active book reservation, and **anonymises** (never deletes)
-  paid orders and HelloAsso payment rows, which French accounting law makes
+  releases any active book reservation (an open order reservation is cancelled and its items freed), and **anonymises** (never deletes)
+  paid orders and HelloAsso membership payment rows, which French accounting law makes
   us keep for 10 years. Forum posts keep their text with no author name.
 - `purgeExpiredPersonalData(pool)` runs at boot and daily from `index.js`:
   sign-ups 12 months after the event, expired reset/verification tokens
@@ -510,9 +519,9 @@ others. `lib/totp.js` (hand-rolled on `node:crypto`), `routes/twoFactor.js`
   first (`users.inactivity_warned_at`), deleted 30 days later unless they log
   in, which clears the warning (any signed-in request also counts as
   activity: `attachUser` refreshes `last_login_at` at most once a day).
-  `orders.client_ip` (kept only for the checkout abuse caps in `routes/cart.js`)
-  is set to NULL when an order leaves `pending` (`lib/cart.js`), by the purge
-  after 2 days (`clientIpDays`) and by `eraseMember`.
+  `orders.client_ip` (used by the old online checkout's abuse caps) is no longer
+  written: reservations set it to NULL. The purge still clears old values after
+  2 days (`clientIpDays`), and so does `eraseMember`.
   Stored copies of emails (`email_outbox`: recipient, subject, body) are
   erased 30 days after sending, 90 for ones that could not be sent
   (`outboxSentDays`/`outboxFailedDays`, step `emailOutbox`); `eraseMember`
@@ -605,8 +614,8 @@ screens stay English). Two languages only: `en` and `fr`.
 - **Emails:** `emailTr(lang)` from `src/lib/lang.js` returns `(en, fr) => string`.
   The language is stored on `users.lang` (set at signup, refreshed at each login
   when the person has chosen a language; NULL for admin-created accounts) and
-  `orders.lang` (set at checkout). The order confirmation, reservation
-  confirmation/reminder and inactivity warning follow it (the legal blocks of the
+  `orders.lang` (set when reserving). The reservation
+  confirmation, reminders and inactivity warning follow it (the legal blocks of the
   order email stay bilingual FR/EN in both languages); `sendResetLink`, the verification
   mails and the other account mails use `user.lang`; password-policy messages take a
   translator (`validateNewPassword(pw, req.tr)`). Use `normLang` / `pickLang` for untrusted values.
@@ -759,68 +768,57 @@ Archive is never printed in a page: it is downloaded once and stored too
   committed to git); the workflow fails if `BACKUP_S3_*` is not configured
   (README, "Restoring from a backup").
 
-## Payment reliability (online checkout)
+## Reservations: reserve online, pay in the shop
 
-**Buying requires an account.** A guest can browse, search and fill the cart
-(a list of lines in the session), but `GET`/`POST /cart/checkout` redirect to
+**Reserving requires an account.** A guest can browse, search and fill the cart
+(a list of lines in the session, at most 20), but `POST /cart/reserve` (and the
+old `GET /cart/checkout`, which only redirects) send them to
 `/login?returnTo=/cart` (checked server-side, after the preview-mode refusal and
 before anything is validated, locked or created). Login regenerates the session
 but copies the cart across; the returnTo (local paths only, `src/lib/returnTo.js`)
 travels in the login form and, through signup, inside the single-use
 `email_verification_tokens.return_to` / `password_reset_tokens.return_to`, so
-signup -> confirm -> choose password -> login ends back on the cart. The order
-is placed under the account's confirmed email (`orders.user_id`, `buyer_email`
-from the `users` row, never from the form; an unconfirmed account is refused);
-the name is pre-filled from `display_name` and stored on the order. Orders from
-before this rule have `user_id` NULL and keep working by token (`/cart/return`,
-the webhook, recovery, exports by email).
+signup -> confirm -> choose password -> login ends back on the cart. The
+reservation is placed under the account's confirmed email (`orders.user_id`,
+`buyer_email` from the `users` row, never from the form; an unconfirmed account
+is refused); the name is pre-filled from `display_name` and stored on the order.
+Orders from before this rule have `user_id` NULL and keep working by token
+(`/cart/return`, exports by email).
 
-Order flow: checkout inserts a `pending` order and locks its copies/seats
-(`in_cart`), creates a HelloAsso checkout intent, then saves the intent id
-on the order. Orders become `paid` via the webhook, `/cart/return`, or the
-10-minute sweep — all through `reconcileOrder` (`src/lib/cart.js`), which
-re-asks HelloAsso rather than trusting any payload. Status values stay
-`pending`/`paid`/`cancelled`/`expired` (no CHECK constraint, no new
-statuses).
+Reservation flow (`createReservation`, `src/lib/cart.js`): one transaction,
+under a per-account advisory lock, checks the limits in `src/lib/legal.js`
+(`MAX_RESERVED_COPIES` 10 books, `MAX_ACTIVE_RESERVATIONS` 3 open reservations),
+inserts an order with status `reserved` and `reserved_until` (end of the 14th
+Paris day for books; the end of the session for a seat-only order), locks the
+copies in id order (`status = 'reserved'`, `cart_order_id` pointing at the
+order) and the class rows (seats `reserved`), inserts the order lines and queues
+the confirmation email in the outbox. Any mismatch is `SOLD_OUT` and rolls
+everything back. The customer lands on `/cart/return?order=<access_token>`, the
+reservation page (also the link in the email).
 
-- **Intent id gap.** If saving the intent id fails, `persistCheckoutIntentId`
-  retries once, then logs and force-alerts the admin with the order id and
-  intent id (the buyer is still redirected to pay). If HelloAsso's webhook
-  later names such an order, `adoptCheckoutIntent` records the intent id
-  only after HelloAsso confirms the intent's `metadata.orderId` matches.
-- **Late payments.** `reconcileOrder` also considers orders `expired` or
-  `cancelled` within the last 7 days (by `created_at`) that have an intent
-  id. If HelloAsso says paid, `recoverLatePayment` runs one transaction
-  with row locks: every copy still `in_stock` (or `in_cart` for this order)
-  and every drop-in seat row still held is marked `sold`, and the order
-  becomes `paid`. If any item can't be claimed (resold, reserved in shop,
-  seat gone), **nothing** is changed; the admin gets an unthrottled email
-  naming order id, buyer email and amount for a manual refund. Either way
-  `helloasso_order_id` is set on the closed order as the "already handled"
-  marker, so retries and sweeps never re-alert or re-process it.
-- **Sweep cost.** The periodic sweep includes closed orders only once an
-  hour (`index.js`), since each costs a HelloAsso API call.
-- **Drop-in seats on release.** Releasing an unpaid order marks its
-  `class_dropin_seats` rows `released` rather than deleting them:
-  `order_items.class_dropin_seat_id` references the seat (no ON DELETE
-  action), so a delete used to fail and roll back the whole release. A
-  released seat stops counting toward the session's capacity and is not on
-  the roster; the expired order keeps its line items. The expiry sweep
-  finds stale holds through book copies *and* seats (a drop-in-only
-  checkout has no copy). A late payment for a released seat is treated as
-  unclaimable (admin alert), since the capacity may already be resold.
-- **Sweeps and races.** `markOrderPaid` returns whether it won. If
-  `reconcileOrder` loses (the expiry sweep closed the order after its
-  snapshot), it re-reads the row and runs `recoverLatePayment` instead of
-  stamping `helloasso_order_id` and reporting paid. The cart job
-  (`runCartMaintenance`) runs expiry then reconcile sequentially; each
-  timer job is wrapped by `guardJob` so a slow run is skipped, not stacked.
-  One order failing to release no longer stops the expiry loop (alerted
-  once). The reconcile sweep stops at the first HelloAsso auth/network
-  failure and alerts (first run, then ~hourly while it persists). A 401
-  from HelloAsso clears the cached token and retries once. `/cart/return`
-  also reconciles recently closed orders; a paid-but-unfulfillable one
-  shows "we received your payment" rather than "nothing was charged".
+- **Release.** `expireOrderReservations` and `releaseEndedSeats`
+  (`src/lib/reservations.js`) run at the top of any route that shows copy status
+  and from the 6-hourly jobs: a reservation past its deadline becomes `expired`,
+  its copies `in_stock`, its seats `released`. Mail is only sent from the
+  periodic jobs, never from a page read.
+- **Customer cancel.** `POST /cart/reservations/:id/cancel`, owner-only (another
+  account gets the same "not found"), books at any time, seats until
+  `SEAT_CANCEL_HOURS` (24) before the session.
+- **Admin.** "Extend by 7 days" (once, only while books are held), "Cancel
+  reservation", "Mark no-show / expired", "Mark collected and paid" (payment
+  method cash / card at the shop / cheque / other; the amount received can only
+  be lowered, with a note, and `reserved_total` keeps the original), "Collect
+  selected items" (partial pickup: the rest moves to a new reserved order
+  with the same deadline, linked by `split_from_order_id`). Each runs in one
+  transaction with the order row locked first and writes an audit row (ids only).
+- **Drop-in seats on release.** Releasing marks `class_dropin_seats` rows
+  `released` rather than deleting them: `order_items.class_dropin_seat_id`
+  references the seat (no ON DELETE action). A released seat stops counting
+  toward the session's capacity and is not on the roster.
+- **Old online checkout.** `runCartMaintenance` (every 10 min) only releases
+  leftover `in_cart` holds from before the change; no payment provider is asked,
+  nothing creates a `pending` order any more, and `/webhooks/helloasso` only handles
+  membership payments (an old notification naming a checkout order is logged).
 
 ### Email outbox (`src/lib/outbox.js`, migration 062)
 
@@ -829,11 +827,10 @@ All customer emails are **stored in `email_outbox` first**, then sent
 app password loses nothing. See `docs/architecture.md` §7 for the full design.
 Points for maintainers:
 
-- `enqueueEmail(db, msg)` accepts a transaction client; `markOrderPaid` and
-  `recoverLatePayment` queue the order confirmation inside the payment
-  transaction (in a savepoint: a failure building the text never undoes a
-  payment) and call `deliverNow` after commit. `markOrderPaid(pool, order,
-  { helloassoOrderId })` stamps `helloasso_order_id` in that same transaction.
+- `enqueueEmail(db, msg)` accepts a transaction client; `createReservation`
+  queues the reservation confirmation inside the reservation transaction (in a
+  savepoint: a failure building the text never undoes a reservation) and calls
+  `deliverNow` after commit.
 - `mailer.sendMail` is always called through the module object, so tests that
   replace `mailer.sendMail` still see every mail.
 - Worker `processOutbox` runs every 60 s from `index.js` (advisory lock key
@@ -843,7 +840,7 @@ Points for maintainers:
   one retry). Admin alert emails (`alertOnError`) stay on the direct path with
   the same retry-once.
 - `orders.confirmation_sent_at` (migration 062) is set when a confirmation went
-  out; the dashboard flags paid orders without it after 30 minutes. The admin
+  out; the dashboard flags reservations without it after 30 minutes. The admin
   routes live in `routes/admin/emailOutbox.js`: `/admin/email-outbox` and
   `POST /admin/orders/:id/resend-confirmation` (button from the partial
   `views/partials/admin_resend_confirmation.ejs`, included by

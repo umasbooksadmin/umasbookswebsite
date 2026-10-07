@@ -52,9 +52,19 @@ const COMMON_GENRES_FR = [
 // e.g. from pickGenres/normalizeGenres) into French. A genre that isn't in
 // the taxonomy (the rare free-text fallback in pickGenres, or something a
 // staff member typed by hand) is kept as-is rather than dropped.
+// Short forms of the age-group genres (the browse page's chips, hand-typed tags):
+// not in the taxonomy above, but they must not stay English on a French page.
+const GENRE_ALIASES_FR = [
+  ["Young Adult", "Jeune adulte"], ["Young Adult Books", "Jeune adulte"],
+  ["Children's", "Jeunesse"], ["Children's Books", "Jeunesse"], ["Children", "Jeunesse"], ["Juvenile Fiction", "Fiction jeunesse"],
+];
+
 function translateGenresToFrench(genresCsv) {
   if (!genresCsv) return null;
-  const byLowerEn = new Map(COMMON_GENRES.map((g, i) => [g.toLowerCase(), COMMON_GENRES_FR[i]]));
+  const byLowerEn = new Map([
+    ...GENRE_ALIASES_FR.map(([en, fr]) => [en.toLowerCase(), fr]),
+    ...COMMON_GENRES.map((g, i) => [g.toLowerCase(), COMMON_GENRES_FR[i]]),
+  ]);
   return genresCsv.split(",").map((g) => {
     const trimmed = g.trim();
     return byLowerEn.get(trimmed.toLowerCase()) || trimmed;

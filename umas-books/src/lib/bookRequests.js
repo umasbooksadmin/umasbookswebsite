@@ -24,6 +24,7 @@ const { emailSafeName } = require("./validation");
 const { normalizeIsbn } = require("./bookLookup");
 const { isbnVariants, isPurchasablePrice } = require("./inventory");
 const { RESERVATION_TTL_DAYS } = require("./reservations");
+const legal = require("./legal");
 
 const ACTIVE_STATUSES = ["unconfirmed", "open", "matched", "notified"];
 // What counts toward the per-email cap on pending requests.
@@ -312,7 +313,8 @@ async function emailForListToken(db, token) {
 // with its own confirmation, and "find my requests" has its own 3-a-day limit.
 const BOOK_REQUEST_THROTTLE = "skipInterval";
 
-const SHOP_ADDRESS = "Uma's Books\nRue Peyrolière, 81000 Albi";
+// A function: the street follows SHOP_STREET_NUMBER (lib/legal.js) when it is set.
+const shopAddress = () => `Uma's Books\n${legal.shopStreet("en")}, 81000 Albi`;
 
 function greeting(tr, name) {
   const n = emailSafeName(name);
@@ -336,8 +338,8 @@ async function sendConfirmationEmail({ to, request, confirmToken, manageToken, b
     to,
     subject: tr("Please confirm your book request at Uma's Books", "Merci de confirmer votre demande de livre chez Uma's Books"),
     text: tr(
-      `${greeting(tr, request.name)}\n\nYou asked us to look out for ${what}. Please confirm your request (the link works for ${LIMITS.unconfirmedDays} days):\n${confirmLink}\n\nOnce confirmed, we'll email you if a copy arrives. We use your email only for this request.\n\nChanged your mind? You can cancel any time:\n${manageLink}\n\nIf you didn't make this request, just ignore this email and nothing will happen.\n\n${SHOP_ADDRESS}`,
-      `${greeting(tr, request.name)}\n\nVous nous avez demandé de chercher ${what}. Merci de confirmer votre demande (le lien est valable ${LIMITS.unconfirmedDays} jours) :\n${confirmLink}\n\nUne fois confirmée, nous vous écrirons si un exemplaire arrive. Votre adresse e-mail ne sert qu'à cette demande.\n\nVous avez changé d'avis ? Vous pouvez annuler à tout moment :\n${manageLink}\n\nSi vous n'êtes pas à l'origine de cette demande, ignorez simplement ce message : il ne se passera rien.\n\n${SHOP_ADDRESS}`
+      `${greeting(tr, request.name)}\n\nYou asked us to look out for ${what}. Please confirm your request (the link works for ${LIMITS.unconfirmedDays} days):\n${confirmLink}\n\nOnce confirmed, we'll email you if a copy arrives. We use your email only for this request.\n\nChanged your mind? You can cancel any time:\n${manageLink}\n\nIf you didn't make this request, just ignore this email and nothing will happen.\n\n${shopAddress()}`,
+      `${greeting(tr, request.name)}\n\nVous nous avez demandé de chercher ${what}. Merci de confirmer votre demande (le lien est valable ${LIMITS.unconfirmedDays} jours) :\n${confirmLink}\n\nUne fois confirmée, nous vous écrirons si un exemplaire arrive. Votre adresse e-mail ne sert qu'à cette demande.\n\nVous avez changé d'avis ? Vous pouvez annuler à tout moment :\n${manageLink}\n\nSi vous n'êtes pas à l'origine de cette demande, ignorez simplement ce message : il ne se passera rien.\n\n${shopAddress()}`
     ),
   }, { throttle: BOOK_REQUEST_THROTTLE });
 }
@@ -351,8 +353,8 @@ async function sendListEmail({ to, lang, token, base }) {
     to,
     subject: tr("Your book requests at Uma's Books", "Vos demandes de livres chez Uma's Books"),
     text: tr(
-      `Hi,\n\nHere is your private link to see and cancel your book requests (it works for ${LIMITS.listTokenDays} days):\n${link}\n\nIf you didn't ask for this, you can safely ignore this email.\n\n${SHOP_ADDRESS}`,
-      `Bonjour,\n\nVoici votre lien privé pour voir et annuler vos demandes de livres (il est valable ${LIMITS.listTokenDays} jours) :\n${link}\n\nSi vous n'êtes pas à l'origine de cette demande, vous pouvez ignorer ce message.\n\n${SHOP_ADDRESS}`
+      `Hi,\n\nHere is your private link to see and cancel your book requests (it works for ${LIMITS.listTokenDays} days):\n${link}\n\nIf you didn't ask for this, you can safely ignore this email.\n\n${shopAddress()}`,
+      `Bonjour,\n\nVoici votre lien privé pour voir et annuler vos demandes de livres (il est valable ${LIMITS.listTokenDays} jours) :\n${link}\n\nSi vous n'êtes pas à l'origine de cette demande, vous pouvez ignorer ce message.\n\n${shopAddress()}`
     ),
   }, { throttle: BOOK_REQUEST_THROTTLE });
 }
@@ -391,8 +393,8 @@ async function sendNotifyEmail({ request, copy, manageToken, base, hold }) {
     to: request.email,
     subject: tr(`Good news: "${title}" is now at Uma's Books`, `Bonne nouvelle : « ${title} » est arrivé chez Uma's Books`),
     text: tr(
-      `${greeting(tr, request.name)}\n\nYou asked us to look out for "${title}", and we now have a copy.${priceEn}\n${link}\n\n${holdEn}\n\nIf you have any questions, just reply to this email.\n\nNo longer interested? Cancel your request here:\n${manageLink}\n\n${SHOP_ADDRESS}`,
-      `${greeting(tr, request.name)}\n\nVous nous aviez demandé de chercher « ${title} » et nous en avons maintenant un exemplaire.${priceFr}\n${link}\n\n${holdFr}\n\nPour toute question, répondez simplement à ce message.\n\nCela ne vous intéresse plus ? Annulez votre demande ici :\n${manageLink}\n\n${SHOP_ADDRESS}`
+      `${greeting(tr, request.name)}\n\nYou asked us to look out for "${title}", and we now have a copy.${priceEn}\n${link}\n\n${holdEn}\n\nIf you have any questions, just reply to this email.\n\nNo longer interested? Cancel your request here:\n${manageLink}\n\n${shopAddress()}`,
+      `${greeting(tr, request.name)}\n\nVous nous aviez demandé de chercher « ${title} » et nous en avons maintenant un exemplaire.${priceFr}\n${link}\n\n${holdFr}\n\nPour toute question, répondez simplement à ce message.\n\nCela ne vous intéresse plus ? Annulez votre demande ici :\n${manageLink}\n\n${shopAddress()}`
     ),
   });
 }

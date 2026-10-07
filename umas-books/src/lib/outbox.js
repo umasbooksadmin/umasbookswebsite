@@ -7,7 +7,7 @@
 //
 //   enqueueEmail(db, msg)   inserts the row. `db` may be a transaction
 //                           client, so a paid order and its confirmation are
-//                           queued atomically (lib/cart.js markOrderPaid).
+//                           queued atomically (lib/cart.js createReservation).
 //   sendEmail(msg)          enqueue + immediate best-effort send, so people
 //                           still get instant mail. Never throws on a send
 //                           failure (the worker retries); throws only when

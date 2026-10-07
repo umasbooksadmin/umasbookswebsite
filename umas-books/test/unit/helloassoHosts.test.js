@@ -1,26 +1,23 @@
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
-const { helloassoPaymentOrigins } = require("../../src/lib/helloassoHosts");
+const hosts = require("../../src/lib/helloassoHosts");
+const { usesSandbox } = hosts;
 
-const PROD = ["https://www.helloasso.com", "https://checkout.helloasso.com"];
-const SANDBOX = ["https://www.helloasso-sandbox.com", "https://checkout.helloasso-sandbox.com"];
-
-test("production API base (or unset) allows only the production hosts", () => {
-  assert.deepEqual(helloassoPaymentOrigins("https://api.helloasso.com/v5"), PROD);
-  assert.deepEqual(helloassoPaymentOrigins(""), PROD);
-  assert.deepEqual(helloassoPaymentOrigins(undefined), PROD);
+test("only usesSandbox is exported: no payment-origin allowlist exists any more (nothing posts to HelloAsso)", () => {
+  assert.deepEqual(Object.keys(hosts), ["usesSandbox"]);
 });
 
-test("sandbox API base adds the sandbox hosts", () => {
-  assert.deepEqual(helloassoPaymentOrigins("https://api.helloasso-sandbox.com/v5"), [...PROD, ...SANDBOX]);
+test("a sandbox API base is recognised, production, unset and empty ones are not", () => {
+  assert.equal(usesSandbox("https://api.helloasso-sandbox.com/v5"), true);
+  assert.equal(usesSandbox("https://helloasso-sandbox.com"), true);
+  assert.equal(usesSandbox("https://api.helloasso.com/v5"), false);
+  assert.equal(usesSandbox(""), false);
+  assert.equal(usesSandbox(undefined), false);
 });
 
-test("garbage or look-alike bases never enable the sandbox hosts", () => {
-  assert.deepEqual(helloassoPaymentOrigins("not a url"), PROD);
-  assert.deepEqual(helloassoPaymentOrigins("https://evil.com/helloasso-sandbox.com"), PROD);
-  assert.deepEqual(helloassoPaymentOrigins("https://helloasso-sandbox.com.evil.com/v5"), PROD);
-});
-
-test("no wildcards in the allowlist", () => {
-  for (const o of helloassoPaymentOrigins("https://api.helloasso-sandbox.com/v5")) assert.ok(!o.includes("*"), o);
+test("garbage or look-alike bases are never taken for the sandbox", () => {
+  assert.equal(usesSandbox("not a url"), false);
+  assert.equal(usesSandbox("https://evil.com/helloasso-sandbox.com"), false);
+  assert.equal(usesSandbox("https://helloasso-sandbox.com.evil.com/v5"), false);
+  assert.equal(usesSandbox("https://nothelloasso-sandbox.com/v5"), false);
 });

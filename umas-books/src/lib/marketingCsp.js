@@ -34,7 +34,7 @@ function buildMarketingCsp(formActionSources) {
 // The same policy the marketing GET routes in src/index.js send, for the
 // responses of the marketing forms' POST routes (routes/marketingForms.js).
 function marketingCsp() {
-  return buildMarketingCsp(["'self'", ...require("./helloassoHosts").helloassoPaymentOrigins()]);
+  return buildMarketingCsp(["'self'"]);
 }
 
 module.exports = { buildMarketingCsp, marketingCsp };
