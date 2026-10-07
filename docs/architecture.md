@@ -602,11 +602,11 @@ stateDiagram-v2
   are Paris calendar days. Any table can be downloaded as CSV; no report except *Accounts* shows
   email addresses or buyer names, and every CSV download is written to the audit
   log (report name only).
-* **Sell in shop** (`/admin/inventory/sell`) records a counter sale: scan the ISBN,
-  choose the copy, confirm the price and an optional payment method (cash, card,
-  other). One transaction inserts a `shop_sales` row and sets the copy to `sold`;
-  only the admin's id is kept, never buyer details. New books keep the fixed-price
-  rule. The sale is audit-logged and joins online orders in the Sales report.
+* **Sell in shop** (`/admin/inventory/sell`) is **retired**: sales are made at the Till
+  (`/admin/till`, see "The till"). GET and POST on the old URL redirect (302) to
+  `/admin/till?notice=sell-retired`, which shows "Sales are made at the Till now". The
+  `shop_sales` table and its old rows stay (the till writes one `shop_sales` row per book it
+  sells, and the reports and the accounting export read them).
 * **Move books** (`/admin/inventory/move`) is described under inventory
   locations above.
 
@@ -781,6 +781,60 @@ in person only: online payment exists only for HelloAsso memberships and orders.
   for that day. The Accounting export (`src/lib/accounting.js`) combines till
   items, older "Sell in shop" sales (no till sale), paid online orders and
   membership payments into rows by day, category and payment method.
+
+#### Till correctness and money safety (migration `074_till_correctness.sql`)
+
+- **The amount shown is the amount recorded.** Every confirm carries
+  `expectedTotalCents` and each line's `expected` unit price. After re-pricing from the
+  database, `checkExpected` refuses a difference with **409 `price_changed`** (new total in the
+  answer) and nothing is recorded; for a card sale the page tells the cashier to cancel the
+  charge on the reader and restart. A confirm without an expected total is a 422.
+- **`POST /admin/till/check`** runs the same line building and validation as the sale
+  (`checkSale`, a read-only transaction, no locks, nothing written). The Cash and Card screens call
+  it when they open, so a refusal shows before the customer pays. After "Card paid" the page
+  freezes the charged total (kept in `sessionStorage`), and a failure shows the red "already
+  charged, do not charge again" box with Record card sale (check first) and Record anyway (same
+  token, same total, no check). The till routes always answer JSON (`jsonRoute`): a refusal has its
+  message, an unexpected failure is a JSON 500 with `serverError`, so the page can tell a server
+  rejection from a network failure (only the latter says "Connection problem", and only that one
+  is safe to retry blindly, because of the sale token).
+- **Replay.** `till_sales.basket_hash` (sha256 of the payment method and the lines as sent) is
+  stored with the unique sale token: the same token with another basket is a 409
+  `token_replay`, the same basket returns the first sale.
+- **Closed day.** A sale on a Paris day with `till_days.closed_at` is refused (409 `day_closed`)
+  unless an admin ticks "Reopen this day to record this sale" with a reason: the day is reopened
+  (`closed_at` and the counted figures cleared, `reopened_at/by`, `reopen_reason`) in the same
+  transaction as the sale, audited as `till.day_reopen`, and must be closed again. Backdating
+  (`soldAtTime`, `soldAtDay` today or yesterday) is admin-only, never in the future, always needs a
+  reason (`backdate_reason`, audited). Late entries are flagged by `till_sales.entered_at` (the
+  insertion time), not `created_at` (the time of the sale).
+- **Locks.** Sales and voids take a per-day advisory lock SHARED (`lockDay`), closing and reopening take
+  it EXCLUSIVE, and a void also reads `till_days ... FOR SHARE`, closing `FOR UPDATE`: a void or a
+  sale committing while the day is being closed waits, then sees the closed day, so the expected
+  cash cannot change after the count. Closing with no opening float needs `confirmNoFloat`; a past
+  unclosed day can be given a float (`POST /admin/till/day/open` with `day`).
+- **Limits and overrides.** `MAX_TOTAL_CENTS` = 1,000,000 per sale (422 "Sale total too large"),
+  quantity at most 99 and 60 lines. A book price change is free up to 20% above the asking
+  price; lower, or higher by more, needs a reason (stored on the item and in the audit entry) and
+  an admin. A book is never 0; only a manual Donation line may be 0.
+- **Card voids.** `till_sales.refund_confirmed` (+ `_at`, `_by`): staff tick "I refunded the card"
+  at void time or later (`POST /admin/till/sales/:id/refunded`); unticked voided card sales are in
+  the dashboard's Needs attention and on End of day.
+- **Expired carts.** A copy `in_cart` past `CART_HOLD_TTL_MINUTES` is offered with "Release this
+  copy from the expired cart and add it" (`POST /admin/till/release` calls the cart's own
+  `releaseCartHold`); a live hold is refused with the minutes left.
+- **Till role.** `users.is_till`. `requireTillOrAdmin` (`src/middleware/auth.js`) is used ONLY on
+  the till page, scan, check, sale, release, void, refund tick, receipt and the read-only end of
+  day (`test/integration/adminAuthzMatrix.test.js` pins the exact list); everything else is
+  `requireAdmin`. Admins still need two-step verification; a till-only account does not, but its
+  session ends after 8 hours without a till request (`tillActiveAt` in the session). Price overrides
+  beyond the rule, backdating, reopening/closing, the float and quick items stay admin-only.
+  Toggled on Admin > Accounts (`member.toggle_till`); shown as the "Till" pill, the "Till access"
+  filter and "+ Till" in the Accounts report (`src/lib/accountTypes.js`).
+- **One source of truth for sales figures.** `salesTotals` / `accountingRows` in
+  `src/lib/accounting.js` feed the Accounting export and the dashboard's "Sales this month"
+  (Till, Online, Membership breakdown, same Paris-day buckets); `test/integration/tillDashboardAgreement.test.js`
+  checks the dashboard, Reports (book sales), End of day and the export agree on one fixture.
 
 ## 8. Membership
 

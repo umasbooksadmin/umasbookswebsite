@@ -1059,7 +1059,9 @@ sells it by scanning the label (`UB-...`). The label and till screens show
 ### Open the day
 
 At the start, on the Till page type the cash in the drawer (the **opening
-float**) and press **Save opening float**. You can also do it on **End of day**.
+float**) and press **Save opening float**. You can also do it on **End of day**,
+and there you can enter the float of a **past day that was never closed** (open
+that day with the date box, type the float, **Save opening float**).
 
 ### Selling
 
@@ -1067,15 +1069,27 @@ float**) and press **Save opening float**. You can also do it on **End of day**.
    several copies in stock a big list asks which one (price, grade, place):
    tap it. Prefer the label: it is exactly that copy.
 2. A copy with no price asks for one. For a **used** book you can change a
-   price by tapping it (type the agreed price, optional reason). A **new** book
-   must stay between 95% and 100% of the publisher's price (French fixed book
-   price law): the till refuses anything else.
+   price by tapping it (type the agreed price). Raising it by up to 20% needs no
+   reason; **a lower price, or one more than 20% above, needs a reason** (kept in
+   the admin activity log) and **only an admin can do it**. A book is never sold
+   for 0 (only a manual **Donation** line can be 0). A **new** book must stay
+   between 95% and 100% of the publisher's price (French fixed book price law):
+   the till refuses anything else, and a discount on it also needs a reason.
+   One sale is at most **EUR 10,000**: above that the till says "Sale total too
+   large".
 3. **Cash**: type what the customer gave (or tap Exact, 5, 10, 20, 50). The
-   big green **Change to give** appears. Open the drawer, press **Confirm sale**.
+   big green **Change to give** appears. Open the drawer, then **tap Confirm
+   sale**. The Enter key never confirms a payment, and a barcode scanned while
+   the Cash or Card screen is open is ignored (a note says "Finish or cancel
+   this payment first"). When the Cash or Card screen opens, the till first
+   checks the sale and shows any problem (a book sold meanwhile, a closed day...)
+   **before** the customer pays.
 4. **Card**: the screen says "Charge EUR x on the SumUp reader, then press Card
    paid". Charge it on the reader; when the reader says approved, press **Card
    paid** (you may type the last 4 digits or the terminal receipt number first).
-   If the reader says refused, press Back and try again or take cash.
+   If the reader says refused, press Back and try again or take cash. If the
+   till then cannot record the sale, see "The card was charged but the sale was
+   not recorded" below.
 5. **Sale recorded**: press **Next customer** (or tick the 10 second automatic
    option). **Receipt** prints a simple receipt with no customer data.
 6. A mistake before paying: **Remove** the line, or **Clear sale**.
@@ -1090,8 +1104,8 @@ stock. For things you sell often, add them under **Inventory > Other stock (not
 books)** (or **Other stock (not books)** on the Till page): each becomes a big
 button on the till. Give an item a number in **Stock** if you want it counted: it
 goes down with each sale, the till refuses to sell it at 0 and the button says
-"low" at 3 or fewer. The category (Merchandise, Refreshments, Donation, Books
-(other), Other) decides which line of the accounting export it lands in. These
+"low" at 3 or fewer. The category (Merchandise, Refreshments, Donation, "Other
+(not new books: scan new books so the price rules apply)", Other) decides which line of the accounting export it lands in. These
 lines also say "TVA non applicable" on the receipt; there is no VAT calculation.
 
 ### Barcodes on items
@@ -1103,9 +1117,10 @@ adds one; scan again for another one (or use + and - on the line). Items with
 no barcode: press **Generate a shop code** (it becomes `ITEM-<number>`), then
 **Print barcode label** and stick the label on the item. Rules: each active
 item needs its own code; a code cannot start with `UB-` (that is for books) or
-look like `ORDER-<number>`; if a code is also a book's ISBN you get a warning,
-and the till will add the item rather than the book (sell that book by its
-label).
+look like `ORDER-<number>`; **a code that is also a book's ISBN is refused**
+when you save the item (it would hide that book at the till: scanning would add
+the item instead of the book). Use a shop code (`ITEM-<number>` or your own,
+like `TOTE-GREEN`) for such an item.
 
 ### Voiding a sale
 
@@ -1114,13 +1129,23 @@ Only **today's** sales, only until the day is closed. On the Till page under
 The books go back in stock and the sale no longer counts in reports. Older
 sales cannot be voided: tell the treasurer.
 
+**A card sale is not refunded by the till.** The void form says "This was a card
+payment: refund it on the SumUp reader or app yourself". Refund the card in
+SumUp, then tick **I refunded the card** (on the void form, or afterwards on the
+Till page or **End of day**). Until it is ticked the voided sale shows in
+**Needs attention** on the Dashboard and on End of day, so a refund cannot be
+forgotten.
+
 ### If the internet is down
 
 Write each sale on paper (what, price, cash or card, time). When the internet
-is back, enter them the same day: on the Till, put the books on the sale, open
-**Sale made earlier today** and type the time it was really sold, then pay. The
-sale keeps that time and the admin activity log records that the time was set
-by hand. Take only cash if the card reader needs the internet (or use the SumUp
+is back, enter them (today or yesterday at the latest): on the Till, put the
+books on the sale, open **Sale made earlier**, choose Today or Yesterday, type
+the time it was really sold and **the reason** (required, for example "internet
+was down"), then pay. Only an admin can do this. The sale keeps that time, the
+admin activity log records the reason, and the sale is marked as entered later
+(it is recognised by the moment it was typed in, not the time of the sale). If
+that day was already closed, see "Reopening a closed day" below. Take only cash if the card reader needs the internet (or use the SumUp
 app on a phone with its mobile data).
 
 ### If the card reader fails
@@ -1136,11 +1161,72 @@ on the till as Cash or Card (put "app" in the card reference).
    type the total in **Counted cash**. The screen shows **over** or **short** as
    you type.
 3. Add a note if there is a difference, then **Close the day**. This locks that
-   day's voids. **Print summary** prints a plain end-of-day sheet; **Download
+   day's voids and refuses new sales for that day. If you never entered the
+   opening float, the till asks you to tick "close with no opening float (counts
+   as EUR 0)" (or save the float first). **Print summary** prints a plain end-of-day sheet; **Download
    CSV** gives the list of sales.
 4. Keep the float for tomorrow in the drawer and take the rest to the bank.
    A day with sales that is not closed appears under **Needs attention** on the
    Dashboard.
+
+### The card was charged but the sale was not recorded
+
+This is the one situation where money and the till can disagree, so read it once.
+
+- **Before the customer pays**, the Card screen checks the sale. If it shows a red
+  problem (a book sold meanwhile, the day is closed, a price changed), **do not charge
+  the card**: fix it first (Back, remove the line, rescan).
+- **"The price changed: new total EUR x. For a card sale do not charge again: cancel
+  the card charge on the reader and restart."** A price was edited between scanning
+  and confirming, so the amount on the reader would not match the sale. **Nothing was
+  recorded.** If the customer was already charged, cancel/refund the charge on the
+  SumUp reader or app, press **Restart the sale**, rescan, and charge again.
+- **"The card was already charged. Do NOT charge again."** (red box) means you pressed
+  **Card paid** and the server refused or failed afterwards. The sale on the screen is
+  kept (even if you reload the page). Read the message under the box, fix what it says
+  (for example tick "Reopen this day" if an admin has to), then press **Record card
+  sale** again: it checks the sale first and shows the reason. **Record anyway** sends
+  the same sale again with the same total and no check in front: use it when the check
+  itself keeps failing but you know the sale is fine, or ask an admin.
+- "Connection problem" means the answer never arrived: pressing the button again is
+  safe, the same sale cannot be recorded twice. If the server answered with an error
+  (it says so, with a code), that is not a connection problem: follow the message.
+- "This sale was already recorded with different items" means the screen was reused
+  for another basket: reload the till page and start the sale again.
+
+### Reopening a closed day
+
+A sale (also one "made earlier") on a closed day is refused. If it must be recorded:
+as an admin, open the Cash or Card screen, tick **Reopen this day to record this
+sale** and type a reason; or press **Reopen the day** (with a reason) on **End of day**.
+The day is open again, the counted cash is cleared and **you must close the day again**
+after recounting. Both are written to the admin activity log (`till.day_reopen`) with
+the old counted and expected cash. Late entries are shown on End of day ("sale(s) were
+entered after the day was closed").
+
+### Who can use the till (Till access)
+
+An admin can give any account **Till access**: **Admin > Accounts**, open the account,
+press **Till access: off (give)**. That account (for example a volunteer) then logs in
+as usual and lands on the Till: it can scan, sell, void today's sales, tick card
+refunds and look at End of day, **and nothing else**. Only admins can change a price
+beyond the rule, enter a sale with an earlier time, reopen/close the day, enter the
+float, manage quick items or open any other admin page. A Till-only account does not
+need two-step verification (admins still do) but its till session ends after **8
+hours without any till action**: log in again. Remove the access the same way; it
+stops at once. The list shows a **Till** pill; **Reports > Accounts** shows "+ Till".
+
+### "Sell in shop" is retired
+
+The old page (Books & Orders > Sell in shop) is gone: its address now sends you to the
+Till with "Sales are made at the Till now". Old sales recorded there are kept and still
+count in the reports and the accounting export.
+
+### A book in an abandoned online cart
+
+If you scan a copy that is "in someone's online cart" and the cart's hour has run out
+(nobody paid), the till offers **Release this copy from the expired cart and add it**.
+If the cart is still live it refuses and says how many minutes remain.
 
 ### The accounting export for the treasurer
 
@@ -1177,6 +1263,7 @@ and on the other reports.
    the account numbers and the import layout.** Nothing here was checked
    against Paheko or any other software.
 5. Voided till sales and cancelled online orders are not in the export.
+6. The manual category "Other (not new books: scan new books so the price rules apply)" appears as Other (it is not mapped to Books used: see `docs/till-todos.md`).
 
 ### Later: the SumUp Cloud API
 

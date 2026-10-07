@@ -47,6 +47,16 @@ router.get("/admin", requireAdmin, async (req, res) => {
   const tillDays = await require("../../lib/till").unclosedDays(pool).catch(() => []);
   const tillItems = tillDays.slice(0, 5).map((d) => ({ href: `/admin/till/day?day=${d}`, text: `Till: ${d} has sales but the day was never closed. Count the drawer and close it.` }));
 
+  // Voided card sales: the card must be refunded by hand on the SumUp reader or app.
+  const unrefunded = await require("../../lib/till").unrefundedVoids(pool).catch(() => []);
+  if (unrefunded.length) {
+    const total = unrefunded.reduce((a, r) => a + r.total_cents, 0);
+    tillItems.push({
+      href: `/admin/till/day?day=${unrefunded[0].day}`,
+      text: `Till: ${unrefunded.length} voided card sale${unrefunded.length === 1 ? "" : "s"} (€${(total / 100).toFixed(2)}) not marked as refunded. Refund the card on the SumUp reader or app, then tick "I refunded the card".`,
+    });
+  }
+
   res.render("admin/index", {
     active: "overview",
     outboxAttention: [...attentionFromMail, ...tillItems],

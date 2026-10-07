@@ -9,6 +9,9 @@
 //   volunteer     = is_volunteer
 //   admin         = is_admin
 //   unconfirmed   = signed up but never confirmed the email (email_verified_at NULL)
+//   till          = is_till: "Till access" (may use /admin/till without being an admin). It is a
+//                   FLAG on top of the types above, not a primary type: an account shows its
+//                   primary type and, as well, the "Till" pill; the "Till access" filter lists them.
 //
 // An account has one PRIMARY type for display (highest of admin, volunteer,
 // member, then account; "unconfirmed" when it has none of those and has not
@@ -17,8 +20,9 @@
 // filter only lists confirmed accounts with no other role.
 const { isActiveMember, activeMemberSql } = require("./memberStatus");
 
-const TYPES = ["admin", "volunteer", "member", "account", "unconfirmed"];
-const TYPE_LABELS = { admin: "Admin", volunteer: "Volunteer", member: "Member", account: "Account", unconfirmed: "Unconfirmed" };
+// "till" is a filter and a pill, never a primary type (see accountType).
+const TYPES = ["admin", "volunteer", "member", "account", "unconfirmed", "till"];
+const TYPE_LABELS = { admin: "Admin", volunteer: "Volunteer", member: "Member", account: "Account", unconfirmed: "Unconfirmed", till: "Till" };
 
 // Filter dropdown labels (value "" = no filter).
 const FILTER_LABELS = {
@@ -28,6 +32,7 @@ const FILTER_LABELS = {
   member: "Member (paying or granted)",
   account: "Account holder (not a member)",
   unconfirmed: "Unconfirmed",
+  till: "Till access",
 };
 
 function parseTypeFilter(value) {
@@ -50,6 +55,7 @@ function accountBadges(row, now = new Date()) {
   if (row.is_admin) add("admin");
   if (row.is_volunteer) add("volunteer");
   if (isActiveMember(row, now)) add("member");
+  if (row.is_till) add("till");
   const labels = out.map((t) => TYPE_LABELS[t]);
   if (!row.email_verified_at && primary !== "unconfirmed") labels.push("Not confirmed");
   if (row.is_member && !isActiveMember(row, now) && primary !== "member") labels.push("Membership expired");
@@ -64,6 +70,7 @@ function typeFilterSql(type, alias = "u") {
     case "member": return activeMemberSql(alias);
     case "account": return `(${alias}.email_verified_at IS NOT NULL AND NOT ${alias}.is_admin AND NOT ${alias}.is_volunteer AND NOT ${activeMemberSql(alias)})`;
     case "unconfirmed": return `${alias}.email_verified_at IS NULL`;
+    case "till": return `${alias}.is_till`;
     default: return null;
   }
 }
