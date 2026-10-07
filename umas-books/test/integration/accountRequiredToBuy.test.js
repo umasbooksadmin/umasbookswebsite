@@ -434,7 +434,7 @@ test("an order created before the change (user_id NULL, still 'pending') still s
   const anon = guest(); // no login, no cart
   const r = await anon.get(`/cart/return?order=${order.access_token}`);
   assert.equal(r.res.status, 200);
-  assert.match(r.text, /Order not completed|Reservation/, "a page, not an error");
+  assert.match(r.text, /Reservation not completed|Reservation/, "a page, not an error");
   const { rows: after } = await pool.query("SELECT status, user_id FROM orders WHERE id = $1", [order.id]);
   assert.equal(after[0].status, "pending", "viewing it asks nobody and changes nothing");
   assert.equal(after[0].user_id, null, "still a guest-era order");

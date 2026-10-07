@@ -47,7 +47,7 @@ test("same per-account counts and totals as the old per-email query", async () =
   assert.deepEqual(newRows.find((r) => r.email === "Alice@Example.test"), { email: "Alice@Example.test", orders: 2, spent: 15.5 });
   const oldBuyers = (await pool.query(OLD_BUYERS)).rows[0].n;
   const rep = await accountsReport(pool, { query: {}, csv: false });
-  const buyersRow = rep.sections[0].rows.find((r) => r.label === "With at least one paid order");
+  const buyersRow = rep.sections[0].rows.find((r) => r.label === "With at least one paid reservation");
   assert.equal(buyersRow.count, oldBuyers);
   assert.equal(oldBuyers, 2);
   // and the listed numbers on the page
@@ -69,6 +69,6 @@ test("10,000 accounts and 10,000 orders: the report answers well inside the 30 s
   const ms = Date.now() - t0;
   console.log(`accountsReport at 10,000 accounts / 10,000 orders: ${ms} ms`);
   assert.ok(ms < 3000, `took ${ms} ms`);
-  const buyers = rep.sections[0].rows.find((r) => r.label === "With at least one paid order").count;
+  const buyers = rep.sections[0].rows.find((r) => r.label === "With at least one paid reservation").count;
   assert.ok(buyers >= 10000);
 });

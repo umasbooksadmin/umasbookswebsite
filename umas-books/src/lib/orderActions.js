@@ -51,9 +51,9 @@ const ORDER_VIEWS = {
     sql: "o.status = 'reserved' AND o.reserved_until < now()",
   },
   // Orders paid online before reservations replaced online payment.
-  uncollected: { label: "Paid online and not collected (old orders)", sql: AWAITING_PICKUP },
-  overdue: { label: `Paid online, not collected after ${OVERDUE_DAYS} days (old orders)`, sql: `${AWAITING_PICKUP} AND o.paid_at < now() - interval '${OVERDUE_DAYS} days'` },
-  stale_pending: { label: `Unpaid for over ${STALE_PENDING_HOURS} hours (old orders)`, sql: `o.status = 'pending' AND o.created_at < now() - interval '${STALE_PENDING_HOURS} hours'` },
+  uncollected: { label: "Paid online and not collected (old reservations)", sql: AWAITING_PICKUP },
+  overdue: { label: `Paid online, not collected after ${OVERDUE_DAYS} days (old reservations)`, sql: `${AWAITING_PICKUP} AND o.paid_at < now() - interval '${OVERDUE_DAYS} days'` },
+  stale_pending: { label: `Unpaid for over ${STALE_PENDING_HOURS} hours (old reservations)`, sql: `o.status = 'pending' AND o.created_at < now() - interval '${STALE_PENDING_HOURS} hours'` },
 };
 
 // Marks a paid order (old online checkout) collected. outcome: "collected" | "already" | "not_paid" | "not_found".

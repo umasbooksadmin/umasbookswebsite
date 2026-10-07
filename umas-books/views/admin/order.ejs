@@ -1,6 +1,6 @@
-<%- include('../partials/admin_header', { title: 'Order #' + order.id, active: 'orders', pageTitle: 'Order #' + order.id, pageSub: 'All times are Paris time.' }) %>
+<%- include('../partials/admin_header', { title: 'Reservation #' + order.id, active: 'orders', pageTitle: 'Reservation #' + order.id, pageSub: 'All times are Paris time.' }) %>
 
-<p><a href="/admin/orders">&larr; All orders</a></p>
+<p><a href="/admin/orders">&larr; All reservations</a></p>
 
 <% if (notice) { %><div class="notice-box" role="status"><%= notice %></div><% } %>
 <% if (error) { %><div class="error-box" role="alert"><%= error %></div><% } %>
@@ -16,7 +16,7 @@
 %>
 
 <% if (order.status === 'paid' && !order.collected_at && hasBooks && days !== null && days >= overdueDays) { %>
-  <div class="notice-box" role="status">Paid online <%= days %> days ago and not collected (an order from before reservations replaced online payment).</div>
+  <div class="notice-box" role="status">Paid online <%= days %> days ago and not collected (a reservation from before payment moved to the shop).</div>
 <% } %>
 <% if (order.status === 'reserved' && order.reserved_until && new Date(order.reserved_until) < new Date()) { %>
   <div class="error-box" role="alert">This reservation is past its deadline and will be released automatically. If the customer is here now, you can still collect it.</div>
@@ -46,7 +46,7 @@
         <% } else { %>
           <span class="muted small">&middot; drop-in seat is now <%= i.seat_status || 'missing' %></span>
         <% } %>
-        <% if (order.status === 'reserved' && !i.active) { %><span class="muted small">&middot; no longer held for this order (it will be dropped when you collect)</span><% } %>
+        <% if (order.status === 'reserved' && !i.active) { %><span class="muted small">&middot; no longer held for this reservation (it will be dropped when you collect)</span><% } %>
       </li>
     <% }) %>
   </ul>
@@ -63,7 +63,7 @@
     <% if (order.user_id) { %>
       <span class="muted small">Account: <a href="/admin/members?view=<%= order.user_id %>"><%= order.account_name || order.account_email || ('#' + order.user_id) %></a></span>
     <% } else { %>
-      <span class="muted small">No linked account (order placed before accounts were required, or the account was erased).</span>
+      <span class="muted small">No linked account (reservation made before accounts were required, or the account was erased).</span>
     <% } %>
   </p>
 </div>
@@ -75,7 +75,7 @@
   <% } else if (order.status === 'reserved') { %>
     <p class="small">Nothing was paid online. The customer pays in the shop (or at the session) when collecting.</p>
   <% } else if (order.checkout_intent_id || order.helloasso_order_id) { %>
-    <p class="small">An order from the old online checkout (before reservations): paid online, payment reference <code><%= order.helloasso_order_id || order.checkout_intent_id %></code>.</p>
+    <p class="small">A reservation from the old online payment flow: paid online, payment reference <code><%= order.helloasso_order_id || order.checkout_intent_id %></code>.</p>
   <% } else { %>
     <p class="small">No payment was taken.</p>
   <% } %>
@@ -84,11 +84,11 @@
 <div class="card">
   <h2 class="section-title">Terms and history</h2>
   <p class="small">
-    Terms of sale accepted: <%= order.cgv_accepted_at ? formatDateTime(order.cgv_accepted_at) + ' (version ' + order.cgv_version + ')' : 'not recorded (order placed before this was kept)' %><br>
+    Terms of sale accepted: <%= order.cgv_accepted_at ? formatDateTime(order.cgv_accepted_at) + ' (version ' + order.cgv_version + ')' : 'not recorded (reservation made before this was kept)' %><br>
     Language: <%= order.lang === 'fr' ? 'French' : 'English' %>
   </p>
   <ul class="plain" id="order-history">
-    <li><%= formatDateTime(order.created_at) %> &mdash; <%= order.status === 'pending' ? 'order created (unpaid, old online checkout)' : 'reserved' %></li>
+    <li><%= formatDateTime(order.created_at) %> &mdash; <%= order.status === 'pending' ? 'reservation created (unpaid, old online payment flow)' : 'reserved' %></li>
     <% if (order.paid_at) { %><li><%= formatDateTime(order.paid_at) %> &mdash; paid</li><% } %>
     <% if (order.collected_at) { %><li><%= formatDateTime(order.collected_at) %> &mdash; collected<%= order.collected_by_email ? ' (marked by ' + order.collected_by_email + ')' : '' %></li><% } %>
     <% if (order.refunded_at) { %><li><%= formatDateTime(order.refunded_at) %> &mdash; marked refunded. Note: <%= order.refund_note %></li><% } %>
@@ -135,7 +135,7 @@
         </form>
       <% } %>
     <% } else { %>
-      <p class="muted">Nothing is held for this order any more (its items were sold or released). You can cancel it.</p>
+      <p class="muted">Nothing is held for this reservation any more (its items were sold or released). You can cancel it.</p>
     <% } %>
 
     <div style="display:flex; flex-wrap:wrap; gap:12px;">
@@ -160,7 +160,7 @@
       <form method="post" action="/admin/orders/<%= order.id %>/collected" style="margin-bottom:12px;">
         <%- include('../partials/csrf_field') %>
         <button class="btn" type="submit">Mark collected</button>
-        <span class="muted small">For an order paid online before reservations: press this when the customer has taken the books.</span>
+        <span class="muted small">For a reservation paid online (old flow): press this when the customer has taken the books.</span>
       </form>
     <% } %>
     <p>
@@ -168,15 +168,15 @@
       <span class="muted small">Only AFTER you gave the money back to the customer (cash, cheque or card). You will be asked to confirm.</span>
     </p>
   <% } else if (order.status === 'pending') { %>
-    <form method="post" action="/admin/orders/<%= order.id %>/cancel" data-confirm="Cancel this unpaid order? Its books and seats become available again.">
+    <form method="post" action="/admin/orders/<%= order.id %>/cancel" data-confirm="Cancel this unpaid reservation? Its books and seats become available again.">
       <%- include('../partials/csrf_field') %>
-      <button class="btn btn-outline" type="submit">Cancel unpaid order</button>
-      <span class="muted small">An unpaid order from the old online checkout; it can no longer be paid.</span>
+      <button class="btn btn-outline" type="submit">Cancel unpaid reservation</button>
+      <span class="muted small">An unpaid reservation from the old online payment flow; it can no longer be paid.</span>
     </form>
   <% } else if (order.status === 'refunded') { %>
     <p class="muted">Refunded: nothing more to do.</p>
   <% } else { %>
-    <p class="muted">This order ended without payment: nothing to do.</p>
+    <p class="muted">This reservation ended without payment: nothing to do.</p>
   <% } %>
 </div>
 

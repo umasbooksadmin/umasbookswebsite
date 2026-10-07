@@ -131,7 +131,7 @@ test("the reservation page (reserved) and the page of a leftover 'pending' order
   );
   const enOld = (await h.visitor(null, { lang: "en" }).get(`/cart/return?order=${rows[0].access_token}`)).text;
   const frOld = (await h.visitor(null, { lang: "fr" }).get(`/cart/return?order=${rows[0].access_token}`)).text;
-  assert.match(frOld, /Commande non finalisée/);
+  assert.match(frOld, /Réservation non finalisée/);
   assert.deepEqual(untranslated(enOld, frOld, ALLOW), []);
 });
 

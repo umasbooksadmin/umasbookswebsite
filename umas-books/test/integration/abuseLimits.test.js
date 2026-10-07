@@ -16,7 +16,7 @@ const PORT = 3610; // distinct from the other test files' ports (3610-3619 are t
 const PASSWORD = "AbuseLimits1!";
 const FORM = { "content-type": "application/x-www-form-urlencoded" };
 const HUGE = "99999999999"; // past int4
-const NOTICE = /has orders, so it can&#39;t be deleted|has orders, so it can't be deleted/;
+const NOTICE = /has reservations, so it can&#39;t be deleted|has reservations, so it can't be deleted/;
 
 let app;
 let pool;

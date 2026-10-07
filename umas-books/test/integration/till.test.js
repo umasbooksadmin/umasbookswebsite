@@ -111,7 +111,7 @@ test("sold, reserved and in-cart copies are refused with the reason", async () =
 test("scanning ORDER-<n> of an order that does not exist says so (collecting a real reservation is tested in tillReservations.test.js)", async () => {
   const r = await h.scan("ORDER-999998");
   assert.equal(r.body.type, "error");
-  assert.match(r.body.message, /No order 999998/);
+  assert.match(r.body.message, /No reservation 999998/);
 });
 
 // ---------- prices ----------

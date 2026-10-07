@@ -9,7 +9,7 @@ const router = express.Router();
 // Where contact-form messages are delivered.
 const CONTACT_TO = process.env.CONTACT_TO || "admin@umasbooks.org";
 
-const TOPICS = ["General question", "Books & orders", "English programs", "Events", "Donating books", "Membership", "Other"];
+const TOPICS = ["General question", "Books & reservations", "English programs", "Events", "Donating books", "Membership", "Other"];
 // Only offered while the site is in preview mode (lib/preview.js), but always
 // accepted when posted. The stored value stays English like the others.
 const FEEDBACK_TOPIC = "Feedback on the preview";

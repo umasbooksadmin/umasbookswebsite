@@ -675,7 +675,7 @@ async function voidSale(pool, { saleId, reason, userId, refundConfirmed = false 
     const { rows: items } = await client.query("SELECT * FROM till_sale_items WHERE sale_id = $1 ORDER BY id", [saleId]);
     const reservation = items.find((i) => i.reservation_order_id);
     if (reservation) {
-      throw new TillError(`This sale collected reservation #${reservation.reservation_order_id}: it cannot be voided here. Open that order and use "Mark refunded" after giving the money back.`, 409);
+      throw new TillError(`This sale collected reservation #${reservation.reservation_order_id}: it cannot be voided here. Open that reservation and use "Mark refunded" after giving the money back.`, 409);
     }
     const copyIds = items.filter((i) => i.copy_id).map((i) => i.copy_id);
     if (copyIds.length) {

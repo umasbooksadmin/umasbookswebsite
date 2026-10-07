@@ -80,14 +80,14 @@ test("scanning the label of a book that a reservation holds opens that reservati
 test("scanning an order that is not open says why: paid, cancelled, expired, unknown", async () => {
   const paid = await reserve();
   await h.sale(asLines(paid.order, paid.lines));
-  assert.match((await h.scan(`ORDER-${paid.order.id}`)).body.message, new RegExp(`Order #${paid.order.id} was already collected and paid`));
+  assert.match((await h.scan(`ORDER-${paid.order.id}`)).body.message, new RegExp(`Reservation #${paid.order.id} was already collected and paid`));
   const gone = await reserve();
   await require("../../src/lib/reservations").releaseReservation(h.pool, gone.order.id, { status: "cancelled", reason: "admin" });
   assert.match((await h.scan(`ORDER-${gone.order.id}`)).body.message, /was cancelled/);
   const late = await reserve();
   await h.pool.query("UPDATE orders SET reserved_until = now() - interval '1 hour' WHERE id = $1", [late.order.id]);
   assert.match((await h.scan(`ORDER-${late.order.id}`)).body.message, /expired and was released/);
-  assert.match((await h.scan("ORDER-999999")).body.message, /No order 999999/);
+  assert.match((await h.scan("ORDER-999999")).body.message, /No reservation 999999/);
 });
 
 test("cash sale of a whole reservation: order paid through the shared collection (method, paid_at, books sold), till rows tagged, no shop_sales row, audited", async () => {
@@ -165,7 +165,7 @@ test("a reservation cancelled or collected elsewhere while the sale was being bu
   const before = (await h.pool.query("SELECT count(*)::int AS n FROM till_sales")).rows[0].n;
   const sale = await h.sale(asLines(r.order, r.lines));
   assert.equal(sale.status, 409);
-  assert.match(sale.body.error, /no longer a reservation/);
+  assert.match(sale.body.error, /no longer open/);
   assert.equal((await h.pool.query("SELECT count(*)::int AS n FROM till_sales")).rows[0].n, before);
   for (const c of r.copyIds) assert.equal((await h.copy(c)).status, "in_stock");
 
@@ -183,7 +183,7 @@ test("tampered lines are refused: an item of another order, a made-up item, the 
   const b = await reserve({ prices: [4] });
   const wrong = await h.sale([{ kind: "reserved", orderId: a.order.id, itemId: b.lines[0].id }]);
   assert.equal(wrong.status, 400);
-  assert.match(wrong.body.error, /does not belong to order/);
+  assert.match(wrong.body.error, /does not belong to reservation/);
   const missing = await h.sale([{ kind: "reserved", orderId: a.order.id, itemId: 999999 }]);
   assert.equal(missing.status, 400);
   const twice = await h.sale([...asLines(a.order, a.lines), ...asLines(a.order, a.lines)]);

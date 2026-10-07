@@ -9,10 +9,10 @@
 <p class="small"><a href="/account/2fa"><%= tr('Two-step verification', 'Vérification en deux étapes') %></a></p>
 <p class="small"><a href="/account/privacy"><%= tr('Privacy: download or delete my data', 'Confidentialité : télécharger ou supprimer mes données') %></a></p>
 <% if (locals.notice) { %><div role="status" class="notice-box"><%= notice %></div><% } %>
-<p class="muted small"><%= tr('Reservations, orders and session sign-ups matched to {email}.', 'Réservations, commandes et inscriptions aux séances associées à {email}.', { email: email }) %></p>
+<p class="muted small"><%= tr('Reservations and session sign-ups matched to {email}.', 'Réservations et inscriptions aux séances associées à {email}.', { email: email }) %></p>
 
 <div class="card">
-  <div class="section-title" id="reservations"><%= tr('Reservations and orders', 'Réservations et commandes') %></div>
+  <div class="section-title" id="reservations"><%= tr('My reservations', 'Mes réservations') %></div>
   <% if (!emailVerified) { %>
     <div role="status" class="notice-box"><%= tr('Confirm your email address to see your reservations here — we sent a confirmation link to {email} when you signed up. Check your inbox (and spam folder). Your reservations are never lost; they’ll appear as soon as the address is confirmed.', 'Confirmez votre adresse e-mail pour voir vos réservations ici : nous avons envoyé un lien de confirmation à {email} lors de votre inscription. Vérifiez votre boîte de réception (et vos courriers indésirables). Vos réservations ne sont jamais perdues : elles apparaîtront dès que l’adresse sera confirmée.', { email: email }) %></div>
   <% } else if (!orders.length) { %>

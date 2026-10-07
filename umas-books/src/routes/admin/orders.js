@@ -16,10 +16,10 @@ const router = express.Router();
 
 const PAGE_SIZE = 50;
 
-// The "Show" filter: an order status, or one of the work lists (lib/orderActions.js).
-// The default view is "Reserved: awaiting pickup"; show=all lists every order.
+// The "Show" filter: a reservation status, or one of the work lists (lib/orderActions.js).
+// The default view is "Reserved: awaiting pickup"; show=all lists every reservation.
 const STATUSES = ["reserved", "paid", "refunded", "expired", "cancelled", "pending"];
-const STATUS_LABELS = { reserved: "Reserved: awaiting pickup", pending: "Pending (old online checkout)" };
+const STATUS_LABELS = { reserved: "Reserved: awaiting pickup", pending: "Pending (old online payment flow)" };
 const SPECIAL = ORDER_VIEWS;
 const cap = (s) => STATUS_LABELS[s] || s.charAt(0).toUpperCase() + s.slice(1);
 const DEFAULT_VIEW = "reserved";
@@ -103,16 +103,16 @@ router.get("/admin/orders", requireAdmin, async (req, res) => {
 
 const NOTICES = {
   collected: "Marked as collected.",
-  "already-collected": "This order was already marked collected. Nothing changed.",
-  "collected-paid": "Collected and paid: the books and seats are sold and the order now counts as a sale.",
+  "already-collected": "This reservation was already marked collected. Nothing changed.",
+  "collected-paid": "Collected and paid: the books and seats are sold and the reservation now counts as a sale.",
   "collected-partial": "Collected and paid for the selected items. The other items stay reserved on a new reservation with the same deadline.",
   "reservation-cancelled": "The reservation was cancelled: its books are back on the shelf and its seats are free again.",
   "reservation-expired": "Marked as no-show: the books are back on the shelf and the seats are free again.",
   "reservation-extended": `The deadline was extended by ${RESERVATION_EXTENSION_DAYS} days.`,
-  "not-reserved": "This order is no longer a reservation: nothing was changed. Reload the page.",
-  refunded: "Marked as refunded. The books are back on sale and the order no longer counts as a sale.",
-  "already-refunded": "This order was already marked refunded. Nothing was changed.",
-  cancelled: "The unpaid order was cancelled and its books and seats are free again.",
+  "not-reserved": "This reservation is no longer open: nothing was changed. Reload the page.",
+  refunded: "Marked as refunded. The books are back on sale and the reservation no longer counts as a sale.",
+  "already-refunded": "This reservation was already marked refunded. Nothing was changed.",
+  cancelled: "The unpaid reservation was cancelled and its books and seats are free again.",
 };
 const noticeFor = (key) => NOTICES[String(key || "")] || null;
 
@@ -206,7 +206,7 @@ router.post("/admin/orders/:id/collected", requireAdmin, async (req, res) => {
 
 const COLLECT_ERRORS = {
   method_required: "Choose how the customer paid (cash, card at the shop, cheque or other).",
-  nothing_to_collect: "None of the selected items is still being held for this order, so there is nothing to collect. Reload the page.",
+  nothing_to_collect: "None of the selected items is still being held for this reservation, so there is nothing to collect. Reload the page.",
   amount_invalid: "The amount received must be a number of euros, zero or more.",
   amount_too_high: "The amount received cannot be more than the total. If the customer gave more, record the exact total and handle the difference at the till.",
   note_required: "When the amount received is lower than the total, please write a note saying why (for example a discount you gave).",
@@ -231,7 +231,7 @@ async function collect(req, res, { selected }) {
   }
   await audit(req, {
     action: "order.collected_paid", targetType: "order", targetId: id,
-    detail: `${method}, €${result.total.toFixed(2)} of €${result.reservedTotal.toFixed(2)}, ${result.items} item(s)${result.partial ? `, rest moved to order #${result.newOrderId}` : ""}${result.dropped.length ? `, dropped ${result.dropped.length} no longer held` : ""}${note ? `; ${note}` : ""}`,
+    detail: `${method}, €${result.total.toFixed(2)} of €${result.reservedTotal.toFixed(2)}, ${result.items} item(s)${result.partial ? `, rest moved to reservation #${result.newOrderId}` : ""}${result.dropped.length ? `, dropped ${result.dropped.length} no longer held` : ""}${note ? `; ${note}` : ""}`,
   });
   res.redirect(`/admin/orders/${id}?notice=${result.partial ? "collected-partial" : "collected-paid"}`);
 }
@@ -269,7 +269,7 @@ router.post("/admin/orders/:id/extend", requireAdmin, async (req, res) => {
   const message = {
     already_extended: "This reservation was already extended once: it cannot be extended again.",
     no_books: "Only a reservation holding books can be extended (a drop-in seat is held until its session).",
-    not_reserved: "This order is no longer a reservation: nothing was changed.",
+    not_reserved: "This reservation is no longer open: nothing was changed.",
   }[result.outcome] || "Could not extend this reservation.";
   return renderOrder(req, res, { status: 409, error: message });
 });
@@ -299,7 +299,7 @@ router.post("/admin/orders/:id/refund", requireAdmin, async (req, res) => {
   if (result.outcome === "not_found") return res.status(404).render("404");
   if (result.outcome === "already") return res.redirect(`/admin/orders/${id}?notice=already-refunded`);
   if (result.outcome === "not_paid") {
-    return renderRefundConfirm(req, res, { status: 409, note, error: `Only a paid order can be marked refunded (this one is ${result.status}).` });
+    return renderRefundConfirm(req, res, { status: 409, note, error: `Only a paid reservation can be marked refunded (this one is ${result.status}).` });
   }
   if (result.outcome === "note_required") return renderRefundConfirm(req, res, { status: 400, note, error: "Please write a note." });
   await audit(req, {
@@ -314,7 +314,7 @@ router.post("/admin/orders/:id/cancel", requireAdmin, async (req, res) => {
   if (!id) return res.status(404).render("404");
   const result = await cancelUnpaidOrder(pool, id);
   if (result.outcome === "not_found") return res.status(404).render("404");
-  if (result.outcome === "cancelled") await audit(req, { action: "order.cancelled", targetType: "order", targetId: id, detail: "unpaid order cancelled by admin" });
+  if (result.outcome === "cancelled") await audit(req, { action: "order.cancelled", targetType: "order", targetId: id, detail: "unpaid reservation cancelled by admin" });
   const notice = result.outcome === "cancelled" ? "cancelled" : "";
   res.redirect(`/admin/orders/${id}${notice ? `?notice=${notice}` : ""}`);
 });

@@ -143,7 +143,7 @@ test("the Accounts report: summary counts, one row per account, same types as th
   assert.equal(count("Account holders \\(not a member, admin or volunteer\\)"), 2);
   assert.equal(count("Unconfirmed \\(email never confirmed\\)"), 1);
   assert.equal(count("Created in the last 7 days"), 8);
-  assert.equal(count("With at least one paid order"), 1);
+  assert.equal(count("With at least one paid reservation"), 1);
   const rows = {};
   for (const tr of text.match(/<tr>[\s\S]*?<\/tr>/g) || []) {
     const c = [...tr.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)].map((m) => m[1].trim());
@@ -190,7 +190,7 @@ test("Accounts report CSV: BOM, headers, filtered rows, formula-safe, audited, n
   assert.match(res.headers.get("content-type"), /text\/csv/);
   assert.match(res.headers.get("content-disposition"), /umas-books-accounts-accounts\.csv/);
   assert.equal(res.headers.get("cache-control"), "no-store");
-  assert.ok(text.startsWith("﻿\"Name\",\"Email\",\"Type\",\"Member until\",\"Email confirmed\",\"Created\",\"Last login\",\"Paid orders\",\"Total spent\",\"Disabled\""));
+  assert.ok(text.startsWith("﻿\"Name\",\"Email\",\"Type\",\"Member until\",\"Email confirmed\",\"Created\",\"Last login\",\"Paid reservations\",\"Total spent\",\"Disabled\""));
   assert.match(text, /"'=HYPERLINK\(""x""\)"/);
   assert.ok(text.includes(u.holder.email) && text.includes(u.expired.email));
   assert.ok(!text.includes(u.paying.email), "filter applies to the CSV");

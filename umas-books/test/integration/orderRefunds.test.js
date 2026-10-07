@@ -77,16 +77,16 @@ test("a refunded order is out of revenue, the sales report shows it as its own l
   await h.pool.query("UPDATE orders SET refunded_at = '2031-03-12T10:00:00Z' WHERE id = $1", [gone.order.id]);
 
   const { text } = await h.get("/admin/reports/sales?from=2031-03-01&to=2031-03-31&group=month");
-  assert.match(text, /Refunds \(orders refunded in the shop; not included in the sales above\)/);
+  assert.match(text, /Refunds \(reservations refunded in the shop; not included in the sales above\)/);
   const csvBooks = (await h.get("/admin/reports/sales?from=2031-03-01&to=2031-03-31&group=month&format=csv&table=books")).text;
   assert.match(csvBooks, /"2031-03",1,5\.00,0,0\.00,5\.00/, "only the kept order is revenue");
   const csvRefunds = (await h.get("/admin/reports/sales?from=2031-03-01&to=2031-03-31&group=month&format=csv&table=refunds")).text;
-  assert.match(csvRefunds, /Orders refunded/);
+  assert.match(csvRefunds, /Reservations refunded/);
   assert.match(csvRefunds, /,1,7\.00/);
 
   // Member page totals: €5, not €12 (the page rounds to whole euros).
   const members = await h.get(`/admin/members?view=${u[0].id}`);
-  assert.match(members.text, /Books Ordered<\/span><span class="small">1 &middot; &euro;5</);
+  assert.match(members.text, /Books Reserved<\/span><span class="small">1 &middot; &euro;5</);
   assert.equal(kept.order.status, "paid");
 });
 
@@ -132,7 +132,7 @@ test("mark refunded refuses an order that is not paid, and a missing confirmatio
     const before = await copyStatuses(copyIds);
     const { res, text } = await refundPost(order.id);
     assert.equal(res.status, 409, status);
-    assert.match(text, /Only a paid order can be marked refunded/);
+    assert.match(text, /Only a paid reservation can be marked refunded/);
     assert.equal((await orderRow(order.id)).status, status);
     assert.deepEqual(await copyStatuses(copyIds), before);
     assert.equal((await auditRows(order.id)).length, 0);
@@ -198,7 +198,7 @@ test("order list: default view, status filter, 'paid online and not collected', 
   const refunded = await makeOrder(h.pool, { status: "refunded", paidDaysAgo: 8 });
   const dropinOnly = await makeOrder(h.pool, { books: 0, seat: true, paidDaysAgo: 20 });
 
-  const ids = (text) => [...text.matchAll(/Order #(\d+)<\/strong>/g)].map((m) => Number(m[1]));
+  const ids = (text) => [...text.matchAll(/Reservation #(\d+)<\/strong>/g)].map((m) => Number(m[1]));
 
   const unc = ids((await h.get("/admin/orders?show=uncollected")).text);
   assert.ok(unc.includes(uncollected.order.id));
@@ -237,7 +237,7 @@ test("order list: default view, status filter, 'paid online and not collected', 
 
   const page = (await h.get("/admin/orders")).text;
   assert.match(page, /reserved, waiting for pickup/);
-  assert.match(page, /paid online and not collected \(old orders\)/);
+  assert.match(page, /paid online and not collected \(old reservations\)/);
   assert.doesNotMatch(page, /refund detected|HelloAsso/i);
 });
 
@@ -250,7 +250,7 @@ test("order list is paged by 50 and never silently capped", async () => {
   const { rows } = await h.pool.query("SELECT COUNT(*)::int AS n FROM orders");
   const total = rows[0].n;
   const pages = Math.ceil(total / 50);
-  const countOn = async (p) => ((await h.get(`/admin/orders?show=all&page=${p}`)).text.match(/Order #\d+<\/strong>/g) || []).length;
+  const countOn = async (p) => ((await h.get(`/admin/orders?show=all&page=${p}`)).text.match(/Reservation #\d+<\/strong>/g) || []).length;
   assert.equal(await countOn(1), 50);
   assert.equal(await countOn(pages), total - 50 * (pages - 1));
   const last = (await h.get(`/admin/orders?show=all&page=${pages}`)).text;
@@ -259,7 +259,7 @@ test("order list is paged by 50 and never silently capped", async () => {
   // a page far past the end shows the last page, not an empty one
   assert.match((await h.get("/admin/orders?show=all&page=99999")).text, new RegExp(`Page ${pages} of ${pages}`));
   // old orders are reachable through the search
-  assert.equal(((await h.get("/admin/orders?q=bulk-230@")).text.match(/Order #\d+<\/strong>/g) || []).length, 1);
+  assert.equal(((await h.get("/admin/orders?q=bulk-230@")).text.match(/Reservation #\d+<\/strong>/g) || []).length, 1);
 });
 
 test("order detail of an order paid online before reservations: items, account, payment reference, Paris times, terms acceptance, history, shop refund action", async () => {
@@ -273,7 +273,7 @@ test("order detail of an order paid online before reservations: items, account, 
   const { res, text } = await h.get(`/admin/orders/${order.id}`);
   assert.equal(res.status, 200);
   assert.match(text, /Fixture Drop-in seat/);
-  assert.match(text, /An order from the old online checkout/);
+  assert.match(text, /A reservation from the old online payment flow/);
   assert.match(text, /payment reference <code>ha-order-5<\/code>/);
   assert.match(text, /Detail Account/);
   assert.match(text, /15\/07\/2030, 01:30/, "paid time is shown in Paris time");

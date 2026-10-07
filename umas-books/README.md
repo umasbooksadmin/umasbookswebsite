@@ -150,12 +150,12 @@ more things to keep in mind:
   cart (the reservation flow above). A copy is held (status `reserved`) when
   an account holder reserves it, when an admin reserves it from the book's
   admin page, or when a book request is notified with a hold. An online
-  reservation is collected, cancelled or extended from its order page
+  reservation is collected, cancelled or extended from its reservation page
   (`/admin/orders/<id>`); the others stay held until an admin cancels the
   reservation or marks it sold, or they expire.
 - **Admin** (`/admin`, admin accounts only) — a proper multi-page section
   with its own sub-nav (`views/partials/admin_subnav.ejs`): an overview
-  with counts/links, plus dedicated pages for Books & Orders, English
+  with counts/links, plus dedicated pages for Books & Reservations, English
   Programs (`/admin/sessions`), Events, Volunteer Shifts, Meetings,
   Announcements, Accounts/Members, Charities, and Blog. Add a new admin area by adding a route in `src/routes/admin.js`,
   a view under
@@ -243,7 +243,7 @@ mean" box on the book's page.
 Each copy can have a location, such as `FICTION-A1`, meaning the shelf or box
 it sits on.
 
-- **Adding books:** on **Books & Orders > Scan a book**, fill in **Current
+- **Adding books:** on **Books & Reservations > Scan a book**, fill in **Current
   location** first (pick one from the list, or type a new one; it is added to
   the list as soon as a book is saved with it). Then scan the books one by one:
   each new book is saved at that location, and the location stays filled in
@@ -266,7 +266,7 @@ needed. They get an email with a link and must press **Confirm** (until then
 the request is "unconfirmed" and is deleted after 7 days).
 
 1. **Adding books is the only thing you do first.** When you save a new book
-   in **Books & Orders**, any confirmed request for that title or ISBN turns to
+   in **Books & Reservations**, any confirmed request for that title or ISBN turns to
    **Matched**, and the book's page shows "N customers asked for this book".
 2. Open **Book Requests** in the admin menu (default view: Open, Matched and
    Notified). Each card shows the person's name and email, the title, and the
@@ -289,7 +289,7 @@ the latest 12 months after it was made (the privacy policy says so).
 
 **Selling a book in the shop**
 
-1. Click **Books & Orders**, then **Sell in shop**.
+1. Click **Books & Reservations**, then **Sell in shop**.
 2. Scan the book's barcode (or type the ISBN) and press Enter.
 3. Check the price (it is filled in for you, and you can change it), choose how
    it was paid, and press **Record sale** (or Enter again). The book is now
@@ -302,7 +302,7 @@ the latest 12 months after it was made (the privacy policy says so).
    the person who looks after the site to fix it.
 
 A book reserved on the website is **not** sold here: it is collected from its
-order page. Admin > **Books & Orders** > **Orders** opens on the reservations
+reservation page. Admin > **Books & Reservations** > **Reservations** opens on the reservations
 waiting for pickup. When the customer comes, open the reservation, take the
 payment (cash, card or cheque), choose how they paid and press **Mark collected
 and paid** (**Collect selected items** if they take only some of the books).
@@ -528,7 +528,7 @@ regularly, not just on a bad day.
 > included. Only login sessions are left out (everyone simply logs in again
 > after a restore).
 
-> **A dump contains member data** (names, emails, order details, password
+> **A dump contains member data** (names, emails, reservation details, password
 > hashes). Download it only to a machine you control, restore it only into
 > a database you control, never commit or share it, and delete the local
 > copy when you are done.

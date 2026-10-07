@@ -93,8 +93,8 @@ function refuseUnverified(req, res, user) {
     emailVerified: false,
     email: user.email,
     error: req.tr(
-      "Confirm your email address first. We can only give out or erase the orders, reservations, sign-ups and book requests linked to an address once it is confirmed as yours.",
-      "Confirmez d'abord votre adresse e-mail. Nous ne pouvons communiquer ou effacer les commandes, réservations, inscriptions et demandes de livres liées à une adresse qu'une fois celle-ci confirmée comme étant la vôtre."
+      "Confirm your email address first. We can only give out or erase the reservations, sign-ups and book requests linked to an address once it is confirmed as yours.",
+      "Confirmez d'abord votre adresse e-mail. Nous ne pouvons communiquer ou effacer les réservations, inscriptions et demandes de livres liées à une adresse qu'une fois celle-ci confirmée comme étant la vôtre."
     ),
   });
 }
@@ -202,8 +202,8 @@ function goodbyeEmail(user) {
       ) +
       "\n\n" +
       tr(
-        "As French law requires, accounting records of past paid orders and payments (amounts, dates and items) are kept, but anonymised: they no longer carry your name or email.",
-        "Comme l'exige la loi française, les pièces comptables des commandes et paiements déjà réglés (montants, dates et articles) sont conservées, mais anonymisées : elles ne portent plus votre nom ni votre adresse e-mail."
+        "As French law requires, accounting records of past sales and payments (amounts, dates and items) are kept, but anonymised: they no longer carry your name or email.",
+        "Comme l'exige la loi française, les pièces comptables des ventes et paiements déjà réglés (montants, dates et articles) sont conservées, mais anonymisées : elles ne portent plus votre nom ni votre adresse e-mail."
       ) +
       "\n\n" +
       tr(

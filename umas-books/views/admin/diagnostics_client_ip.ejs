@@ -3,7 +3,7 @@
 <div class="card">
   <div class="table-scroll"><table class="ann-table">
     <tbody>
-      <tr><th scope="row">req.ip (used for rate limits, order caps and the admin log)</th><td><strong><%= reqIp %></strong></td></tr>
+      <tr><th scope="row">req.ip (used for rate limits, reservation caps and the admin log)</th><td><strong><%= reqIp %></strong></td></tr>
       <tr><th scope="row">req.ips (trusted proxies seen)</th><td><%= reqIps.length ? reqIps.join(', ') : '(none)' %></td></tr>
       <tr><th scope="row">Connection peer address</th><td><%= socketAddress %></td></tr>
       <tr><th scope="row">X-Forwarded-For (raw)</th><td><%= xForwardedFor %></td></tr>

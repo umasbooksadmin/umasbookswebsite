@@ -454,7 +454,7 @@ test("--list-admins prints the admin e-mail addresses only", async () => {
 
 test("warnings flag real-looking data in the dry run", async () => {
   const report = await runDry();
-  assert.ok(report.warnings.some((w) => /paid order/.test(w) && /10 years/.test(w)));
+  assert.ok(report.warnings.some((w) => /paid reservation/.test(w) && /10 years/.test(w)));
   assert.ok(report.warnings.some((w) => /member or volunteer/.test(w)));
   const kept = await runDry({ keepMembers: true });
   assert.ok(!kept.warnings.some((w) => /member or volunteer/.test(w)));

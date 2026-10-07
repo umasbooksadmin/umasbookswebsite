@@ -108,9 +108,9 @@ const asTyped = (raw) => (typeof raw === "string" ? raw.slice(0, 40) : "");
 
 // order_items point at copies with no ON DELETE action, so anything that has
 // ever been ordered can't be deleted (Postgres 23503) — say so instead of 500.
-const HAS_ORDERS_MESSAGE = "This item has orders, so it can't be deleted (mark it sold/archived instead).";
+const HAS_ORDERS_MESSAGE = "This item has reservations, so it can't be deleted (mark it sold/archived instead).";
 const AWARDS_NOTICES = {
-  "status-kept": "Saved, but the status was not changed: that copy is sold or in a customer's checkout.",
+  "status-kept": "Saved, but the status was not changed: that copy is sold or in a customer's cart.",
   "awards-checked": "Awards check finished.",
   "awards-slow": "The awards check is taking a while. It keeps running in the background: reload this page in a minute.",
   "awards-added": "Awards added.",
@@ -811,7 +811,7 @@ router.post("/admin/inventory/:id/copies/:copyId/cancel-reservation", requireAdm
   const { rows: held } = await pool.query("SELECT cart_order_id FROM book_copies WHERE id = $1 AND book_id = $2 AND status = 'reserved'", [copyId, bookId]);
   if (held[0] && held[0].cart_order_id) {
     res.status(409);
-    return renderBook(res, bookId, `This copy is reserved by order #${held[0].cart_order_id}. Cancel or collect it from the order page (/admin/orders/${held[0].cart_order_id}).`);
+    return renderBook(res, bookId, `This copy is reserved by reservation #${held[0].cart_order_id}. Cancel or collect it from the reservation page (/admin/orders/${held[0].cart_order_id}).`);
   }
   const { rowCount } = await pool.query(
     `UPDATE book_copies SET status='in_stock', reserved_by_name=NULL, reserved_by_email=NULL,

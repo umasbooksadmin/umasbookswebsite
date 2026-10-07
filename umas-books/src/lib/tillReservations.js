@@ -21,7 +21,7 @@ const NOT_OPEN = {
   refunded: "was already collected and refunded",
   cancelled: "was cancelled",
   expired: "expired and was released",
-  pending: "is an old unpaid online order, not a reservation",
+  pending: "is an old unpaid online reservation that was never finalised",
 };
 
 // Rows of the reservation's items. A copy is held when it is 'reserved' FOR THIS
@@ -43,11 +43,11 @@ const held = (r, orderId) => (r.book_copy_id != null ? r.copy_status === "reserv
 async function loadReservation(db, orderId) {
   const { rows } = await db.query("SELECT id, status, buyer_name, buyer_email, reserved_until FROM orders WHERE id = $1", [orderId]);
   const order = rows[0];
-  if (!order) return { error: `No order ${orderId}.` };
-  if (order.status !== "reserved") return { error: `Order #${orderId} ${NOT_OPEN[order.status] || `is ${order.status}`}.` };
+  if (!order) return { error: `No reservation ${orderId}.` };
+  if (order.status !== "reserved") return { error: `Reservation #${orderId} ${NOT_OPEN[order.status] || `is ${order.status}`}.` };
   const { rows: all } = await db.query(ITEMS_SQL, [orderId]);
   const items = all.filter((r) => held(r, orderId));
-  if (!items.length) return { error: `Nothing is held for order #${orderId} any more (its books were sold or released). Cancel it from the order page.` };
+  if (!items.length) return { error: `Nothing is held for reservation #${orderId} any more (its books were sold or released). Cancel it from the reservation page.` };
   return { order: { id: order.id, name: order.buyer_name, email: order.buyer_email, reservedUntil: order.reserved_until }, items };
 }
 
@@ -74,16 +74,16 @@ async function lockReservedLines(db, rawLines, TillError) {
   const byId = new Map(orders.map((o) => [o.id, o]));
   for (const id of orderIds) {
     const o = byId.get(id);
-    if (!o) throw new TillError(`Order #${id} could not be found.`, 404);
-    if (o.status !== "reserved") throw new TillError(`Order #${id} is no longer a reservation (it ${NOT_OPEN[o.status] || `is ${o.status}`}). Reload the till.`, 409);
+    if (!o) throw new TillError(`Reservation #${id} could not be found.`, 404);
+    if (o.status !== "reserved") throw new TillError(`Reservation #${id} is no longer open (it ${NOT_OPEN[o.status] || `is ${o.status}`}). Reload the till.`, 409);
   }
   const rowsByOrder = new Map();
   for (const id of orderIds) rowsByOrder.set(id, new Map((await db.query(ITEMS_SQL, [id])).rows.map((r) => [r.item_id, r])));
   for (const it of rawLines) {
     const row = rowsByOrder.get(Number(it.orderId)).get(Number(it.itemId));
-    if (!row) throw new TillError(`A line does not belong to order #${it.orderId}.`);
+    if (!row) throw new TillError(`A line does not belong to reservation #${it.orderId}.`);
     if (!held(row, Number(it.orderId))) {
-      throw new TillError(`"${row.item_title}" is no longer held for order #${it.orderId} (it was sold or released). Reload the till.`, 409);
+      throw new TillError(`"${row.item_title}" is no longer held for reservation #${it.orderId} (it was sold or released). Reload the till.`, 409);
     }
     resolved.set(it, row);
   }
@@ -102,7 +102,7 @@ async function collectReserved(db, lines, { method, userId }, TillError) {
   for (const [orderId, itemIds] of [...byOrder].sort((a, b) => a[0] - b[0])) {
     const { collectReservationTx } = require("./orderActions"); // lazily: lib/till.js is also loaded without a database
     const r = await collectReservationTx(db, orderId, { adminUserId: userId, method, itemIds });
-    if (r.outcome !== "collected") throw new TillError(`Order #${orderId} could not be collected (${r.outcome}). Reload the till and try again.`, 409);
+    if (r.outcome !== "collected") throw new TillError(`Reservation #${orderId} could not be collected (${r.outcome}). Reload the till and try again.`, 409);
     collected.push({ orderId, total: r.total, items: r.items, partial: r.partial, newOrderId: r.newOrderId });
   }
   return collected;

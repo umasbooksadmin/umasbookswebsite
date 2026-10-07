@@ -64,7 +64,7 @@ async function renderSessions(res, calendarQuery, { error = null, notice = null,
 
 router.get("/admin/sessions", requireAdmin, async (req, res) => {
   await renderSessions(res, req.query, {
-    notice: req.query.notice === "has-orders" ? "This item has orders, so it can't be deleted (mark it sold/archived instead)." : null,
+    notice: req.query.notice === "has-orders" ? "This item has reservations, so it can't be deleted (mark it sold/archived instead)." : null,
   });
 });
 

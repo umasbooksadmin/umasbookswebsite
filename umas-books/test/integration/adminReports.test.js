@@ -223,7 +223,7 @@ test("sales report by month: reserved-online and shop revenue, averages, totals;
   const [books, dropin] = tables(text);
   // period, reserved-online items, reserved-online revenue, shop items, shop revenue, total, average
   assert.deepEqual(books[0], ["Period", "Reserved-online items", "Reserved-online revenue", "Shop items", "Shop revenue", "Total revenue", "Average per item"]);
-  assert.match(text, /Refunds \(orders refunded in the shop; not included in the sales above\)/);
+  assert.match(text, /Refunds \(reservations refunded in the shop; not included in the sales above\)/);
   assert.doesNotMatch(text, /HelloAsso|Online items|Online revenue/);
   assert.deepEqual(books[1], ["2024-03", "1", "€6.00", "1", "€7.50", "€13.50", "€6.75"]);
   // 22:30Z on 31 March is 1 April in Paris, so that sale belongs to April.
