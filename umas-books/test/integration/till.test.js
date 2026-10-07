@@ -51,14 +51,14 @@ test("scan an ISBN: one copy is added; several show a picker; hyphens ignored; I
 
   const many = await h.seedBook(`Many Copies ${h.uniq()}`);
   const m1 = await h.seedCopy(many.id, { price: 3, location: "A1", condition: "acceptable" });
-  const m2 = await h.seedCopy(many.id, { price: 10, location: "B2", condition: "like_new" });
+  const m2 = await h.seedCopy(many.id, { price: 10, location: "B2", condition: "good" });
   const r2 = await h.scan(many.isbn);
   assert.equal(r2.body.type, "choose");
   assert.deepEqual(r2.body.copies.map((c) => c.copyId).sort(), [m1, m2].sort());
   const pick = r2.body.copies.find((c) => c.copyId === m2);
   assert.equal(pick.priceCents, 1000);
   assert.equal(pick.location, "B2");
-  assert.equal(pick.conditionLabel, "Like New");
+  assert.equal(pick.conditionLabel, "Good");
   // one already on the sale: the other is added directly
   const r3 = await h.scan(many.isbn, [m1]);
   assert.equal(r3.body.type, "line");

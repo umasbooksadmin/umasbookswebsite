@@ -9,7 +9,7 @@ const { DEFAULT_SETTINGS } = require("../../src/lib/pricing/rules");
 const GOOD = {
   levels: "3, 5, 8, 10", mass_market_price: "5", hardcover_min_price: "10", a_max: "6", a_price: "5", b_max: "20", b_price: "8",
   c_max: "50", c_factor: "0.75", used_fraction: "0.35", rounding_step: "0.5",
-  fallback_hardcover: "12", fallback_paperback: "8", fallback_mass_market: "4", fallback_unknown: "8",
+  fallback_hardcover: "12", fallback_trade: "8", fallback_mass_market: "4", fallback_unknown: "8",
   usd_eur: "0.92", gbp_eur: "1.15", clearance_after_copies: "2", clearance_price: "1",
   clearance_scope: "extra", clearance_applies_to: "set_a",
 };
@@ -17,7 +17,7 @@ const GOOD = {
 const row = (over = {}) => ({
   levels: [3, 5, 8, 10], mass_market_price: "5.00", hardcover_min_price: "10.00", hardcover_min_applies_to_clearance: false,
   a_max: "6.00", a_price: "5.00", b_max: "20.00", b_price: "8.00", c_max: "50.00", c_factor: "0.75", used_fraction: "0.35", rounding_step: "0.50",
-  fallback_hardcover: "12.00", fallback_paperback: "8.00", fallback_mass_market: "4.00", fallback_unknown: "8.00",
+  fallback_hardcover: "12.00", fallback_trade: "8.00", fallback_mass_market: "4.00", fallback_unknown: "8.00",
   usd_eur: "0.9200", gbp_eur: "1.1500", clearance_after_copies: 2, clearance_price: "1.00", clearance_scope: "extra", clearance_applies_to: "set_a", ...over,
 });
 

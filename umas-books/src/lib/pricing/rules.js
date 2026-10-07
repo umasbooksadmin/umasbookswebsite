@@ -32,7 +32,7 @@ const DEFAULT_SETTINGS = Object.freeze({
   usedFraction: 0.35, // used value as a share of the publisher's price, when only that is known
   roundingStep: 0.5,
   // Typical used value, in EUR, when nothing at all is known about the book.
-  fallbackEur: Object.freeze({ hardcover: 12, paperback: 8, mass_market: 4, unknown: 8 }),
+  fallbackEur: Object.freeze({ hardcover: 12, trade: 8, mass_market: 4, unknown: 8 }),
   usdEur: 0.92, // 1 USD in EUR (to convert US listings)
   gbpEur: 1.15, // 1 GBP in EUR (to convert UK listings)
   // Clearance: once a book already has `afterCopies` copies in stock (in stock
@@ -90,7 +90,7 @@ function referenceFrom({ marketEur, comparables, originalPrice, binding, setting
   if (original) {
     return { valueEur: cents(original * settings.usedFraction), source: "original", used: 0, dropped: 0, confidence: "medium" };
   }
-  const known = ["hardcover", "paperback", "mass_market"].includes(binding);
+  const known = ["hardcover", "trade", "mass_market"].includes(binding);
   return { valueEur: settings.fallbackEur[known ? binding : "unknown"], source: "fallback", used: 0, dropped: 0, confidence: "low" };
 }
 

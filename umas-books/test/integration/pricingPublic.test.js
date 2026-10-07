@@ -33,7 +33,7 @@ async function makeBook(copies) {
   const title = `${TAG} Book ${++n}`;
   const { rows } = await pool.query("INSERT INTO books (title, authors) VALUES ($1, 'Pub Author') RETURNING id", [title]);
   for (const c of copies) {
-    await pool.query("INSERT INTO book_copies (book_id, status, price, condition, is_clearance) VALUES ($1, $2, $3, 'like_new', $4)", [rows[0].id, c.status || "in_stock", c.price, Boolean(c.clearance)]);
+    await pool.query("INSERT INTO book_copies (book_id, status, price, condition, is_clearance) VALUES ($1, $2, $3, 'good', $4)", [rows[0].id, c.status || "in_stock", c.price, Boolean(c.clearance)]);
   }
   return { id: rows[0].id, title };
 }
