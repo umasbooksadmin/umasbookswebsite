@@ -57,6 +57,19 @@ const COMMON_GENRES_FR = [
 const GENRE_ALIASES_FR = [
   ["Young Adult", "Jeune adulte"], ["Young Adult Books", "Jeune adulte"],
   ["Children's", "Jeunesse"], ["Children's Books", "Jeunesse"], ["Children", "Jeunesse"], ["Juvenile Fiction", "Fiction jeunesse"],
+  // Other tags that turn up from ISBN lookups, the browse page's topics and hand typing.
+  ["Nonfiction", "Non-fiction"], ["Juvenile Nonfiction", "Documentaires jeunesse"], ["Picture Books", "Albums illustrés"],
+  ["Memoir", "Mémoires"], ["Memoirs", "Mémoires"], ["Autobiography", "Autobiographie"], ["Biography & Autobiography", "Biographies et autobiographies"],
+  ["Crime", "Polar"], ["Detective", "Policier"], ["Mystery & Detective", "Policier"], ["Suspense", "Suspense"], ["Crime & Mystery", "Polar"], ["True Crime", "Faits divers"],
+  ["Sci-Fi", "Science-fiction"], ["Short Stories", "Nouvelles"], ["Graphic Novels", "Bandes dessinées"], ["Comics", "Bandes dessinées"], ["Comics & Graphic Novels", "Bandes dessinées"],
+  ["Literary Fiction", "Littérature générale"], ["Historical Fiction", "Roman historique"], ["Humour", "Humour"], ["Humor & Entertainment", "Humour"],
+  ["Self Help", "Développement personnel"], ["Self-Help", "Développement personnel"], ["Health", "Santé"], ["Health & Fitness", "Santé et forme"], ["Fitness", "Forme"], ["Wellness", "Bien-être"],
+  ["Psychology", "Psychologie"], ["Business", "Économie et gestion"], ["Education", "Éducation"], ["Science", "Sciences"], ["Nature", "Nature"], ["Language", "Langues"],
+  ["Social Science", "Sciences sociales"], ["Political Science", "Sciences politiques"], ["Music", "Musique"], ["Photography", "Photographie"], ["Antiques & Collectibles", "Antiquités et objets de collection"],
+  ["Performing Arts", "Arts du spectacle"], ["Arts & Crafts", "Arts et loisirs créatifs"], ["Crafts & Hobbies", "Loisirs créatifs"], ["Design", "Design"],
+  ["Gardening", "Jardinage"], ["Home & Garden", "Maison et jardin"], ["House & Home", "Maison"], ["Interior Design", "Décoration d'intérieur"],
+  ["Food & Drink", "Cuisine et boissons"], ["Cooking & Food", "Cuisine"], ["Wine", "Vin"], ["Baking", "Pâtisserie"],
+  ["Pets", "Animaux de compagnie"], ["Sports & Recreation", "Sports et loisirs"], ["Games", "Jeux"], ["Reference", "Ouvrages de référence"], ["Fairy Tales", "Contes"],
 ];
 
 function translateGenresToFrench(genresCsv) {
@@ -179,4 +192,4 @@ async function searchByTitleAuthor(title, author) {
   });
 }
 
-module.exports = { normalizeIsbn, mapBinding, lookupByIsbn, searchByTitleAuthor, COMMON_GENRES, translateGenresToFrench };
+module.exports = { normalizeIsbn, mapBinding, lookupByIsbn, searchByTitleAuthor, COMMON_GENRES, COMMON_GENRES_FR, GENRE_ALIASES_FR, translateGenresToFrench };
