@@ -117,17 +117,28 @@ function csvCell(value) {
   return `"${s.replace(/"/g, '""')}"`;
 }
 
+// Two CSV dialects. "neutral" (the default): comma separator, decimal point.
+// "fr" (for French Excel, which reads a comma file as ONE column of text):
+// semicolon separator, decimal comma, and always UTF-8 BOM + CRLF.
+function csvDialect(locale) {
+  return locale === "fr" ? { sep: ";", decimal: "," } : { sep: ",", decimal: "." };
+}
+const wantsFrenchCsv = (query = {}) => query.locale === "fr" || query.format === "csv-fr";
+const csvDecimal = (text, dialect) => (dialect.decimal === "," ? String(text).replace(".", ",") : String(text));
+
 // A section as CSV text: header row, data rows, then the totals row. UTF-8
 // BOM first so Excel reads accents correctly; CRLF line ends.
-function toCsv(section) {
-  const lines = [section.columns.map((c) => csvCell(c.label)).join(",")];
+function toCsv(section, { locale } = {}) {
+  const d = csvDialect(locale);
+  const lines = [section.columns.map((c) => csvCell(c.label)).join(d.sep)];
   const asRow = (row) => section.columns.map((c) => {
     const cell = formatCell(row[c.key], c.type, { csv: true });
-    return c.type === "text" || c.type === "date" ? csvCell(cell) : cell;
-  }).join(",");
+    if (c.type === "text" || c.type === "date") return csvCell(cell);
+    return c.type === "int" ? cell : csvDecimal(cell, d);
+  }).join(d.sep);
   for (const row of section.rows) lines.push(asRow(row));
   if (section.totals && section.csvTotals !== false) lines.push(asRow(section.totals));
-  return "﻿" + lines.join("\r\n") + "\r\n";
+  return "\uFEFF" + lines.join("\r\n") + "\r\n";
 }
 
 // ---------- SQL pieces ----------
@@ -710,5 +721,5 @@ async function runReport(db, report, query = {}, now = new Date(), { csv = false
 module.exports = {
   REPORTS, GROUPS, LIST_LIMIT, ACCOUNTS_PAGE_SIZE, getReport, runReport,
   validDay, todayParis, subMonths, addDays, parseDateRange, parseGroup, agingCutoffs, agingBucket,
-  formatCell, csvCell, toCsv,
+  formatCell, csvCell, toCsv, csvDialect, csvDecimal, wantsFrenchCsv,
 };

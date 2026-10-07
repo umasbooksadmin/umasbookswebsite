@@ -490,6 +490,7 @@ router.get("/admin/inventory/new", requireAdmin, async (req, res) => {
     source: normalizeSource(req.query.source) || "",
     sources: SOURCES,
     locations: await getLocations(),
+    savedCopy: /^\d{1,9}$/.test(String(req.query.saved || "")) ? Number(req.query.saved) : null,
   });
 });
 
@@ -684,6 +685,10 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
   if (req.body.fromScan === "1") {
     const extra = `&label=${copyRows[0].id}${location ? `&location=${encodeURIComponent(location)}` : ""}${source ? `&source=${source}` : ""}${requestsMatched ? `&requests=${requestsMatched}` : ""}`;
     return res.redirect(`/admin/inventory/scan?saved=1${extra}`);
+  }
+  if (req.body.addAnother === "1") {
+    // "Save and add another": back to a blank form, keeping the location and the source for the next book.
+    return res.redirect(`/admin/inventory/new?saved=${copyRows[0].id}${location ? `&location=${encodeURIComponent(location)}` : ""}${source ? `&source=${source}` : ""}`);
   }
   res.redirect(`/admin/inventory/${bookId}?label=${copyRows[0].id}${requestsMatched ? `&requests=${requestsMatched}` : ""}`);
 });

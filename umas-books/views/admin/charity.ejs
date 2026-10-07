@@ -224,7 +224,7 @@
                 <button class="btn btn-small" type="submit">Save</button>
               </form>
             </details>
-            <form method="post" action="/admin/charities/<%= c.id %>/archive" style="margin-top:6px;">
+            <form data-confirm="Archive this charity? It will no longer be offered in votes." method="post" action="/admin/charities/<%= c.id %>/archive" style="margin-top:6px;">
               <%- include('../partials/csrf_field') %>
               <input type="hidden" name="returnTab" value="library">
               <button class="btn btn-outline btn-small" type="submit">Archive</button>
@@ -267,7 +267,7 @@
     <a href="/admin/charity?tab=ideas&ideasTab=rejected" class="<%= ideasSubTab === 'rejected' ? 'is-active' : '' %>">Not Selected (<%= ideaCounts.rejected %>)</a>
   </div>
   <div style="overflow-x:auto;">
-  <table class="ann-table">
+  <div class="table-scroll"><table class="ann-table">
     <thead><tr><th>Idea</th><th>Submitted By</th><th>Description</th><th>Date</th><th>Actions</th></tr></thead>
     <tbody>
       <% if (!ideas.length) { %><tr><td colspan="5" class="muted" style="text-align:center; padding:20px;">Nothing here.</td></tr><% } %>
@@ -300,7 +300,7 @@
         </tr>
       <% }) %>
     </tbody>
-  </table>
+  </table></div>
   </div>
 <% } %>
 

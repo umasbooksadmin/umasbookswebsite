@@ -47,7 +47,7 @@
   <% if (!rows.length) { %>
     <p class="muted">No emails yet.</p>
   <% } else { %>
-    <table class="ann-table">
+    <div class="table-scroll"><table class="ann-table">
       <thead><tr><th>#</th><th>Created</th><th>Kind</th><th>To</th><th>Subject</th><th>Status</th><th>Tries</th><th>Last error</th><th></th></tr></thead>
       <tbody>
         <% rows.forEach(r => { %>
@@ -71,7 +71,7 @@
           </tr>
         <% }) %>
       </tbody>
-    </table>
+    </table></div>
   <% } %>
 </div>
 
