@@ -5,8 +5,8 @@
 <% if (error) { %><div class="error-box" role="alert"><%= error %></div><% } %>
 
 <div class="error-box" role="alert">
-  <strong>Do this only AFTER you refunded the payment in the HelloAsso dashboard.</strong>
-  This page does not refund anyone: it only updates the website. If you have not refunded the payment yet, go to HelloAsso first.
+  <strong>Do this only AFTER you gave the money back to the customer in the shop (cash, cheque or card).</strong>
+  This page does not refund anyone: it only updates the website. If you have not refunded the customer yet, do that first.
 </div>
 
 <div class="card">
@@ -26,9 +26,9 @@
   <% if (order.status === 'paid') { %>
     <form class="stack" method="post" action="/admin/orders/<%= order.id %>/refund">
       <%- include('../partials/csrf_field') %>
-      <label class="ann-check"><input type="checkbox" name="confirmHelloasso" required> <span>I have already refunded this payment in the HelloAsso dashboard.</span></label>
+      <label class="ann-check"><input type="checkbox" name="confirmRefunded" required> <span>I have already given the money back to the customer.</span></label>
       <label for="note">Note (required)</label>
-      <textarea id="note" name="note" required maxlength="<%= noteMax %>" placeholder="For example: customer withdrew by email on 3 Oct, refunded in HelloAsso on 4 Oct"><%= note %></textarea>
+      <textarea id="note" name="note" required maxlength="<%= noteMax %>" placeholder="For example: customer withdrew by email on 3 Oct, refunded in cash at the shop on 4 Oct"><%= note %></textarea>
       <button class="btn" type="submit">Yes, mark this order refunded</button>
     </form>
   <% } else { %>

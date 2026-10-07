@@ -3,15 +3,18 @@ const { pool } = require("../db");
 const { orderItemLabel } = require("../lib/orderItems");
 const { requireAuth } = require("../middleware/auth");
 const { activeRequestsForUser } = require("../lib/bookRequests");
+const { SEAT_CANCEL_HOURS } = require("../lib/legal");
+const { reservationLastDay } = require("../lib/orderItems");
 
 const router = express.Router();
 
-// Orders (books and paid drop-in seats alike — see src/routes/cart.js)
-// now require an account at checkout, and orders.user_id records which
+// Reservations and orders (books and drop-in seats alike — see
+// src/routes/cart.js) require an account, and orders.user_id records which
 // one. Orders placed before that (guest checkout) have user_id NULL, so
 // this page still finds those by the account's email address, matched
-// case-insensitively since HelloAsso/browsers don't normalize case on
-// what a buyer types in.
+// case-insensitively since browsers don't normalize case on what a person
+// types in. A reserved order is listed with its deadline and a
+// "Cancel reservation" button (POST /cart/reservations/:id/cancel).
 //
 // Because that link is *only* the email address, the orders list is shown
 // only once the account has proven it controls that address (email_verified_at,
@@ -20,7 +23,15 @@ const router = express.Router();
 // link), so without this check anyone could register a victim's email and read their order history. The email is read fresh from
 // the users row (not the session copy, which goes stale after an admin
 // edits it).
+const NOTICES = {
+  "reservation-cancelled": ["Your reservation was cancelled and its items are available again.", "Votre réservation a été annulée et ses articles sont de nouveau disponibles."],
+  "reservation-too-late": ["A drop-in seat can only be cancelled online until {hours} hours before the session. Please contact the shop.", "Une place « drop-in » ne peut être annulée en ligne que jusqu’à {hours} heures avant la séance. Merci de contacter la boutique."],
+  "reservation-not-open": ["That reservation is no longer open, so there was nothing to cancel.", "Cette réservation n’est plus en cours : il n’y avait rien à annuler."],
+};
+
 router.get("/account", requireAuth, async (req, res) => {
+  const n = NOTICES[String(req.query.notice || "")];
+  const notice = n ? req.tr(n[0], n[1], { hours: SEAT_CANCEL_HOURS }) : null;
   const { rows: userRows } = await pool.query("SELECT email, email_verified_at FROM users WHERE id = $1", [req.session.user.id]);
   const { email, email_verified_at: verifiedAt } = userRows[0];
 
@@ -29,7 +40,7 @@ router.get("/account", requireAuth, async (req, res) => {
   const bookRequests = await activeRequestsForUser(pool, req.session.user.id);
 
   if (!verifiedAt) {
-    return res.render("account", { orders: [], email, emailVerified: false, bookRequests });
+    return res.render("account", { orders: [], email, emailVerified: false, bookRequests, notice, lastDay: reservationLastDay });
   }
 
   const { rows: orders } = await pool.query(
@@ -47,8 +58,8 @@ router.get("/account", requireAuth, async (req, res) => {
     [email, req.session.user.id]
   );
 
-  for (const o of orders) o.items = (o.items || []).map((i) => ({ title: orderItemLabel(i, req.lang), price: i.price }));
-  res.render("account", { orders, email, emailVerified: true, bookRequests });
+  for (const o of orders) o.items = (o.items || []).map((i) => ({ title: orderItemLabel(i, req.lang), price: i.price, isSeat: i.classStartsAt != null }));
+  res.render("account", { orders, email, emailVerified: true, bookRequests, notice, lastDay: reservationLastDay });
 });
 
 module.exports = router;

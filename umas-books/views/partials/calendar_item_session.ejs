@@ -21,6 +21,7 @@ const full = sellsDropin && spotsLeft != null && spotsLeft <= 0;
       <% if (full) { %>
         <div class="fcal-session-cta" style="opacity:0.6; cursor:default;"><%= tr('Full', 'Complet') %></div>
       <% } else { %>
+        <p class="muted small"><%= tr('Reserve your seat online and pay at the session.', 'Réservez votre place en ligne et réglez à la séance.') %></p>
         <form method="post" action="/cart/add-dropin">
           <%- include('csrf_field') %>
           <input type="hidden" name="classId" value="<%= c.id %>">

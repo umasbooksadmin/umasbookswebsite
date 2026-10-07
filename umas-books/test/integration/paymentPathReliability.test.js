@@ -1,12 +1,14 @@
-// Payment-path reliability (src/lib/cart.js, src/routes/cart.js):
-//  1. a paid order is never lost to the hold-expiry sweep racing reconcileOrder;
-//  2. one order whose hold release throws does not stop the others expiring;
-//  3. /cart/return never tells a charged buyer "nothing was charged";
-//  4. the reconcile sweep stops after the first systemic HelloAsso failure
-//     and mentions a persistent outage once, not every run.
+// Reliability of the reservation path and of the leftover cleanup
+// (src/lib/cart.js, src/routes/cart.js). Nothing is paid online any more, so
+// there is no payment to lose: what must hold is
+//  1. a reservation is never lost to a mail outage: it stays 'reserved' and its
+//     confirmation stays in the outbox for the worker to retry;
+//  2. one leftover (old online checkout) order whose hold release throws does not
+//     stop the others being released, and the admin is alerted once;
+//  3. the periodic cart job survives a failing cleanup and never touches a fresh hold.
 //
-// In-process (test/helpers/inProcessApp.js). Mail, HelloAsso and the admin
-// alert are stubbed by overriding module exports BEFORE cart.js loads.
+// In-process (test/helpers/inProcessApp.js). Mail and the admin alert are
+// stubbed by overriding module exports BEFORE cart.js loads.
 
 const { test, before, after, beforeEach } = require("node:test");
 const assert = require("node:assert/strict");
@@ -16,28 +18,20 @@ const db = prepareDatabase("payment_path", { isolated: true });
 
 const mailer = require("../../src/mailer");
 const sentEmails = [];
-mailer.sendMail = async (opts) => { sentEmails.push(opts); };
+let mailDown = false;
+mailer.sendMail = async (opts) => {
+  if (mailDown) throw new Error("SMTP is down");
+  sentEmails.push(opts);
+};
 
 const errorAlert = require("../../src/lib/errorAlert");
 const alerts = []; // { label, body, opts }
 errorAlert.alertOnError = async (label, body, opts) => { alerts.push({ label, body: String(body), opts: opts || {} }); };
 
-const helloasso = require("../../src/lib/helloasso");
-const intents = new Map();
-const lookups = [];
-let intentHook = null; // async (id) => void, runs inside the lookup
-helloasso.getCheckoutIntent = async (id) => {
-  lookups.push(String(id));
-  if (intentHook) await intentHook(String(id));
-  if (!intents.has(String(id))) throw new Error(`unknown intent ${id}`);
-  const v = intents.get(String(id));
-  if (v instanceof Error) throw v;
-  return v;
-};
-
 const { pool } = require("../../src/db");
 const cart = require("../../src/lib/cart");
 const realRelease = cart.releaseCartHold;
+const { createAccount } = require("../helpers/accounts");
 
 let server;
 before(async () => {
@@ -53,106 +47,84 @@ after(async () => {
 beforeEach(() => {
   sentEmails.length = 0;
   alerts.length = 0;
-  lookups.length = 0;
-  intents.clear();
-  intentHook = null;
+  mailDown = false;
   cart.releaseCartHold = realRelease;
-  cart.resetHelloAssoFailureStreak();
 });
 
 let seq = 0;
 const uniq = () => `${Date.now()}-${++seq}-${Math.floor(Math.random() * 1e6)}`;
-const paid = (orderId) => ({ order: { id: 70000 + orderId, payments: [{ state: "Authorized" }] } });
 
-// An order with one copy. `held` = the copy is locked in_cart for it
-// (a live pending checkout); otherwise the copy is back in stock.
-async function makeOrder({ status = "pending", held = status === "pending", ageMinutes = 0 } = {}) {
+// A leftover of the old online checkout: a 'pending' order whose copy is 'in_cart'.
+async function makeLegacyOrder({ ageMinutes = 0 } = {}) {
   const u = uniq();
-  const intentId = `pp-${u}`;
   const { rows } = await pool.query(
     `INSERT INTO orders (buyer_name, buyer_email, total_amount, status, checkout_intent_id, created_at)
-     VALUES ('Pay Buyer', $1, 6.00, $2, $3, now() - ($4 || ' minutes')::interval) RETURNING *`,
-    [`pp-${u}@example.test`, status, intentId, String(ageMinutes)]
+     VALUES ('Pay Buyer', $1, 6.00, 'pending', $2, now() - ($3 || ' minutes')::interval) RETURNING *`,
+    [`pp-${u}@example.test`, `pp-${u}`, String(ageMinutes)]
   );
   const order = rows[0];
   const { rows: b } = await pool.query("INSERT INTO books (title, authors) VALUES ($1, 'A') RETURNING id", [`PP Book ${u}`]);
   const { rows: c } = await pool.query(
-    held
-      ? "INSERT INTO book_copies (book_id, status, price, cart_order_id, cart_added_at) VALUES ($1, 'in_cart', 6.00, $2, now() - ($3 || ' minutes')::interval) RETURNING id"
-      : "INSERT INTO book_copies (book_id, status, price) VALUES ($1, 'in_stock', 6.00) RETURNING id",
-    held ? [b[0].id, order.id, String(ageMinutes)] : [b[0].id]
+    "INSERT INTO book_copies (book_id, status, price, cart_order_id, cart_added_at) VALUES ($1, 'in_cart', 6.00, $2, now() - ($3 || ' minutes')::interval) RETURNING id",
+    [b[0].id, order.id, String(ageMinutes)]
   );
-  await pool.query("INSERT INTO order_items (order_id, book_copy_id, item_title, price) VALUES ($1, $2, $3, 6.00)", [
-    order.id, c[0].id, `PP Book ${u}`,
-  ]);
-  return { order, copyId: c[0].id, intentId };
+  await pool.query("INSERT INTO order_items (order_id, book_copy_id, item_title, price) VALUES ($1, $2, $3, 6.00)", [order.id, c[0].id, `PP Book ${u}`]);
+  return { order, copyId: c[0].id };
 }
 const orderRow = async (id) => (await pool.query("SELECT * FROM orders WHERE id = $1", [id])).rows[0];
 const copyStatus = async (id) => (await pool.query("SELECT status FROM book_copies WHERE id = $1", [id])).rows[0].status;
 
-// --- 1. stale snapshot race ---------------------------------------------
+// --- 1. a reservation survives a mail outage -----------------------------
 
-test("race: hold expires between the snapshot and markOrderPaid -> payment recovered, not lost", async () => {
-  const { order, copyId, intentId } = await makeOrder({ ageMinutes: 90 });
-  intents.set(intentId, paid(order.id));
-  // The expiry sweep lands while reconcileOrder is waiting on HelloAsso.
-  intentHook = async () => { await cart.releaseCartHold(pool, order.id, "expired"); };
+test("reserving while the mail server is down still reserves; the confirmation waits in the outbox", async () => {
+  mailDown = true;
+  const buyer = await createAccount(pool, { email: `pp-buyer-${uniq()}@example.test` });
+  const { rows: b } = await pool.query("INSERT INTO books (title, authors) VALUES ($1, 'A') RETURNING id", [`PP Mail Book ${uniq()}`]);
+  const { rows: c } = await pool.query("INSERT INTO book_copies (book_id, status, price) VALUES ($1, 'in_stock', 6.00) RETURNING id", [b[0].id]);
+  const realError = console.error;
+  console.error = () => {};
+  let order;
+  try {
+    order = await cart.createReservation(pool, {
+      user: { id: buyer.id, email: buyer.email }, name: "Pay Buyer", lang: "en", acceptedVersion: "t",
+      items: [{ kind: "book", copyId: c[0].id, title: "PP Mail Book", price: 6 }],
+    });
+  } finally {
+    console.error = realError;
+  }
+  assert.equal(order.status, "reserved");
+  assert.equal(await copyStatus(c[0].id), "reserved");
+  const { rows: outbox } = await pool.query("SELECT status, kind, attempts FROM email_outbox WHERE related_order_id = $1", [order.id]);
+  assert.equal(outbox.length, 1);
+  assert.equal(outbox[0].kind, "order_confirmation");
+  assert.notEqual(outbox[0].status, "sent", "not sent yet: the worker retries it");
+  assert.equal(sentEmails.length, 0);
 
-  const result = await cart.reconcileOrder(pool, order); // `order` is the stale 'pending' snapshot
-
-  const after = await orderRow(order.id);
-  assert.equal(result, "paid");
-  assert.equal(after.status, "paid");
-  assert.equal(await copyStatus(copyId), "sold");
-  assert.ok(after.helloasso_order_id);
-  assert.equal(sentEmails.filter((e) => e.to === order.buyer_email).length, 1);
-});
-
-test("race: expired AND the copy was resold meanwhile -> admin alerted, never 'expired + stamped + silent'", async () => {
-  const { order, copyId, intentId } = await makeOrder({ ageMinutes: 90 });
-  intents.set(intentId, paid(order.id));
-  intentHook = async () => {
-    await cart.releaseCartHold(pool, order.id, "expired");
-    await pool.query("UPDATE book_copies SET status = 'sold' WHERE id = $1", [copyId]);
-  };
-
-  await cart.reconcileOrder(pool, order);
-
-  const after = await orderRow(order.id);
-  const alerted = alerts.some((a) => a.opts.force && a.label.includes(`Paid order ${order.id}`));
-  assert.ok(alerted, "admin must be alerted");
-  assert.notEqual(after.status, "paid", "nothing is fulfilled when the copy is gone");
-});
-
-test("race: another caller already marked it paid -> returns paid, no second email", async () => {
-  const { order, intentId } = await makeOrder();
-  intents.set(intentId, paid(order.id));
-  intentHook = async () => { await cart.markOrderPaid(pool, order); };
-  sentEmails.length = 0;
-
-  assert.equal(await cart.reconcileOrder(pool, order), "paid");
-  assert.equal(sentEmails.filter((e) => e.to === order.buyer_email).length, 1);
-  assert.equal((await orderRow(order.id)).status, "paid");
-});
-
-test("markOrderPaid reports whether it won", async () => {
-  const { order } = await makeOrder();
-  assert.equal(await cart.markOrderPaid(pool, order), true);
-  assert.equal(await cart.markOrderPaid(pool, order), false);
+  // The mail server comes back: the worker delivers the stored confirmation.
+  mailDown = false;
+  await pool.query("UPDATE email_outbox SET next_try_at = now() - interval '1 minute' WHERE related_order_id = $1", [order.id]);
+  await require("../../src/lib/outbox").processOutbox(pool);
+  assert.equal(sentEmails.filter((e) => e.to === buyer.email).length, 1);
+  assert.equal((await pool.query("SELECT status FROM email_outbox WHERE related_order_id = $1", [order.id])).rows[0].status, "sent");
 });
 
 // --- 2. poison order ----------------------------------------------------
 
 test("expireStaleCartHolds: one order whose release throws does not stop the rest; alerts once", async () => {
-  const a = await makeOrder({ ageMinutes: 120 });
-  const poison = await makeOrder({ ageMinutes: 120 });
-  const b = await makeOrder({ ageMinutes: 120 });
+  const a = await makeLegacyOrder({ ageMinutes: 120 });
+  const poison = await makeLegacyOrder({ ageMinutes: 120 });
+  const b = await makeLegacyOrder({ ageMinutes: 120 });
   cart.releaseCartHold = async (p, id, status) => {
     if (id === poison.order.id) throw new Error("boom");
     return realRelease(p, id, status);
   };
-
-  await cart.expireStaleCartHolds(pool);
+  const realError = console.error;
+  console.error = () => {};
+  try {
+    await cart.expireStaleCartHolds(pool);
+  } finally {
+    console.error = realError;
+  }
 
   assert.equal((await orderRow(a.order.id)).status, "expired");
   assert.equal((await orderRow(b.order.id)).status, "expired");
@@ -164,109 +136,29 @@ test("expireStaleCartHolds: one order whose release throws does not stop the res
   assert.equal(alerts.length, 1, "a single alert, not one per failure");
 });
 
-// --- 3. /cart/return ----------------------------------------------------
+// --- 3. the periodic job ------------------------------------------------
 
-const getReturn = async (o) => {
-  const res = await fetch(`${server.base}/cart/return?order=${o.access_token}`);
-  return { status: res.status, text: await res.text() };
-};
-
-test("/cart/return: cancelled order that was paid after all -> paid page, never 'nothing was charged'", async () => {
-  const { order, copyId, intentId } = await makeOrder({ status: "cancelled" });
-  intents.set(intentId, paid(order.id));
-
-  const r = await getReturn(order);
-
-  assert.equal(r.status, 200);
-  assert.match(r.text, /Thank you!/);
-  assert.doesNotMatch(r.text, /nothing was charged/);
-  assert.equal((await orderRow(order.id)).status, "paid");
-  assert.equal(await copyStatus(copyId), "sold");
+test("expireStaleCartHolds: a hold younger than an hour is left alone, an older one is released, with no HelloAsso lookup", async () => {
+  const fresh = await makeLegacyOrder({ ageMinutes: 10 });
+  const stale = await makeLegacyOrder({ ageMinutes: 90 });
+  await cart.expireStaleCartHolds(pool);
+  assert.equal((await orderRow(fresh.order.id)).status, "pending");
+  assert.equal(await copyStatus(fresh.copyId), "in_cart");
+  assert.equal((await orderRow(stale.order.id)).status, "expired");
+  assert.equal(await copyStatus(stale.copyId), "in_stock");
 });
 
-test("/cart/return: paid but items can't be reclaimed -> 'we received your payment' message", async () => {
-  const { order, copyId, intentId } = await makeOrder({ status: "expired" });
-  await pool.query("UPDATE book_copies SET status = 'sold' WHERE id = $1", [copyId]);
-  intents.set(intentId, paid(order.id));
-
-  const r = await getReturn(order);
-
-  assert.equal(r.status, 200);
-  assert.match(r.text, /received your payment/);
-  assert.doesNotMatch(r.text, /nothing was charged/);
-  assert.ok(alerts.some((a) => a.opts.force));
-  // A refresh shows the same message without re-alerting.
-  alerts.length = 0;
-  const again = await getReturn(order);
-  assert.match(again.text, /received your payment/);
-  assert.equal(alerts.length, 0);
-});
-
-test("/cart/return: closed order that was really never paid still says nothing was charged", async () => {
-  const { order, intentId } = await makeOrder({ status: "cancelled" });
-  intents.set(intentId, { order: { payments: [{ state: "Refused" }] } });
-  const r = await getReturn(order);
-  assert.match(r.text, /nothing was charged/);
-});
-
-// --- 4. sweep stops on systemic HelloAsso failure -----------------------
-
-test("reconcilePendingOrders stops after the first network failure; alerts once for a persistent outage", async () => {
-  const orders = [];
-  for (let i = 0; i < 3; i++) orders.push(await makeOrder({ ageMinutes: 30 }));
-  const mine = new Set(orders.map((o) => o.intentId));
-  for (const o of orders) {
-    const err = new Error("HelloAsso request failed: fetch failed");
-    err.kind = "network";
-    intents.set(o.intentId, err);
-  }
-  const myLookups = () => lookups.filter((l) => mine.has(l)).length;
-
-  await cart.reconcilePendingOrders(pool, { includeClosed: false });
-
-  assert.equal(myLookups(), 1, "stops after the first systemic failure instead of trying every order");
-  assert.equal(alerts.filter((a) => a.label === "HelloAsso reconciliation failing").length, 1);
-  assert.equal(cart.getHelloAssoFailureStreak(), 1);
-
-  await cart.reconcilePendingOrders(pool, { includeClosed: false });
-  assert.equal(cart.getHelloAssoFailureStreak(), 2);
-  assert.equal(alerts.filter((a) => a.label === "HelloAsso reconciliation failing").length, 1, "not re-alerted on every run");
-
-  // Recovery resets the counter.
-  for (const o of orders) intents.set(o.intentId, { order: { payments: [{ state: "Pending" }] } });
-  await cart.reconcilePendingOrders(pool, { includeClosed: false });
-  assert.equal(cart.getHelloAssoFailureStreak(), 0);
-});
-
-test("reconcilePendingOrders: a non-systemic error on one order does not stop the sweep", async () => {
-  const orders = [];
-  for (let i = 0; i < 2; i++) orders.push(await makeOrder({ ageMinutes: 30 }));
-  intents.set(orders[0].intentId, Object.assign(new Error("HelloAsso API GET failed: 404"), { kind: "http" }));
-  intents.set(orders[1].intentId, { order: { id: 1, payments: [{ state: "Pending" }] } });
-  await cart.reconcilePendingOrders(pool, { includeClosed: false });
-  assert.ok(lookups.includes(orders[1].intentId));
-  assert.equal(cart.getHelloAssoFailureStreak(), 0);
-});
-
-test("runCartMaintenance runs expiry before reconcile, never concurrently", async () => {
-  const events = [];
+test("runCartMaintenance does not throw when the cleanup fails, and logs it", async () => {
   const origExpire = cart.expireStaleCartHolds;
-  const origReconcile = cart.reconcilePendingOrders;
-  cart.expireStaleCartHolds = async () => {
-    events.push("expire:start");
-    await new Promise((r) => setTimeout(r, 50));
-    events.push("expire:end");
-    throw new Error("expiry blew up"); // must not prevent the reconcile
-  };
-  cart.reconcilePendingOrders = async () => { events.push("reconcile"); };
+  const logged = [];
   const realErr = console.error;
-  console.error = () => {};
+  console.error = (...a) => logged.push(a.join(" "));
+  cart.expireStaleCartHolds = async () => { throw new Error("expiry blew up"); };
   try {
-    await cart.runCartMaintenance(pool, { includeClosed: false });
+    await cart.runCartMaintenance(pool);
   } finally {
     console.error = realErr;
     cart.expireStaleCartHolds = origExpire;
-    cart.reconcilePendingOrders = origReconcile;
   }
-  assert.deepEqual(events, ["expire:start", "expire:end", "reconcile"]);
+  assert.ok(logged.some((l) => /Cart hold expiry failed/.test(l)));
 });

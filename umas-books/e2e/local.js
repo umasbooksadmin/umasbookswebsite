@@ -4,8 +4,8 @@
 // for the run, so the suite itself can be checked without touching any real
 // site. Uses the same helpers as the integration tests (test/helpers/testApp).
 //
-//   npm run e2e:local                      payments on (a fake HelloAsso), writes on
-//   npm run e2e:local -- --preview         the app in preview mode (checkout off)
+//   npm run e2e:local                      reservations on (a fake HelloAsso for the membership lookups), writes on
+//   npm run e2e:local -- --preview         the app in preview mode (reserving off)
 //   npm run e2e:local -- --persona admin   only some personas
 //   npm run e2e:local -- --readonly        no E2E_ALLOW_WRITES
 //   npm run e2e:local -- --serve           leave the seeded app running to poke at
@@ -36,8 +36,9 @@ const freePort = () => new Promise((resolve) => {
   const s = net.createServer().listen(0, "127.0.0.1", () => { const p = s.address().port; s.close(() => resolve(p)); });
 });
 
-// A stand-in for HelloAsso's API: a token and a checkout intent whose
-// redirect points at a (never visited) HelloAsso address.
+// A stand-in for HelloAsso's API. Only the membership uses HelloAsso now
+// (books and seats are reserved and paid in the shop), so this answers a token
+// and nothing else (the membership lookups find no payments).
 function startFakeHelloAsso() {
   return new Promise((resolve) => {
     const server = http.createServer((req, res) => {
@@ -46,9 +47,6 @@ function startFakeHelloAsso() {
       req.on("end", () => {
         res.setHeader("content-type", "application/json");
         if (req.url.includes("/oauth2/token")) return res.end(JSON.stringify({ access_token: "fake", expires_in: 1800 }));
-        if (req.method === "POST" && req.url.includes("/checkout-intents")) {
-          return res.end(JSON.stringify({ id: 4242, redirectUrl: "https://checkout.helloasso.com/fake-e2e-checkout" }));
-        }
         res.statusCode = 404;
         res.end("{}");
       });

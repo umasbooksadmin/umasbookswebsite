@@ -1,12 +1,44 @@
-<%- include('partials/header', { noindex: true, title: tr('Order', 'Commande') }) %>
+<%- include('partials/header', { noindex: true, title: tr('Reservation', 'Réservation') }) %>
 
-<% if (status === 'paid') { %>
+<% if (status === 'reserved') { %>
   <div class="order-receipt">
-  <h1><%= tr('Order #{n} paid', 'Commande n°{n} payée', { n: order.id }) %></h1>
-  <p class="muted"><%= tr("Thank you! Your payment went through. Keep this page as proof of your order — you can print it or save it as a PDF.", 'Merci ! Votre paiement a bien été reçu. Conservez cette page comme preuve de commande : vous pouvez l’imprimer ou l’enregistrer en PDF.') %></p>
+  <h1><%= tr('Reservation #{n} recorded', 'Réservation n°{n} enregistrée', { n: order.id }) %></h1>
+  <p class="muted"><%= legalText.nothingPaidOnline %></p>
   <div class="card" id="order-summary">
-    <p class="small"><strong><%= tr('Order #{n}', 'Commande n°{n}', { n: order.id }) %></strong>
-      &middot; <%= tr('paid on', 'payée le') %> <%= formatDateTime(order.paid_at || order.created_at) %>
+    <p class="small"><strong><%= tr('Reservation #{n}', 'Réservation n°{n}', { n: order.id }) %></strong>
+      &middot; <%= tr('made on', 'faite le') %> <%= formatDateTime(order.created_at) %>
+      &middot; <%= tr('Name:', 'Nom :') %> <%= order.buyer_name %></p>
+    <ul class="plain">
+      <% items.forEach(i => { %>
+        <li><%= i.label %> <span class="muted small">&middot; <%= eur(i.price) %></span></li>
+      <% }) %>
+    </ul>
+    <p><strong><%= tr('Total to pay at the shop:', 'Total à régler à la boutique :') %> <%= eur(order.total_amount) %></strong></p>
+    <% if (items.some((i) => !i.isSeat) && lastDay) { %>
+      <p id="reservation-deadline"><strong><%= tr('We hold your books until the end of {date} (Paris time).', 'Nous gardons vos livres jusqu’à la fin de la journée du {date} (heure de Paris).', { date: formatDateLong(lastDay) }) %></strong></p>
+    <% } %>
+    <% if (items.some((i) => i.isSeat)) { %>
+      <p class="small"><%= tr('Drop-in seats: you pay at the session. A seat can be cancelled online until {hours} hours before the session.', 'Places « drop-in » : vous réglez à la séance. Une place peut être annulée en ligne jusqu’à {hours} heures avant la séance.', { hours: limits.seatHours }) %></p>
+    <% } %>
+    <p class="muted small"><%= tr("Uma's Books — association loi 1901, 5 rue Hippolyte Savary, 81000 Albi — admin@umasbooks.org. Pay and collect at the shop (Rue Peyrolière, Tuesday to Saturday, 10:00 to 19:00) and give this reservation number.", "Uma's Books — association loi 1901, 5 rue Hippolyte Savary, 81000 Albi — admin@umasbooks.org. Réglez et retirez à la boutique (rue Peyrolière, du mardi au samedi, de 10 h à 19 h) en indiquant ce numéro de réservation.") %></p>
+  </div>
+  <p class="muted small"><%= tr('A confirmation email is on its way to {email}.', 'Un e-mail de confirmation vous est envoyé à l’adresse {email}.', { email: order.buyer_email }) %></p>
+  <p class="no-print"><button type="button" class="btn" data-print><%= tr('Print this page', 'Imprimer cette page') %></button></p>
+  <% if (isOwner) { %>
+    <form method="post" action="/cart/reservations/<%= order.id %>/cancel" class="no-print" data-confirm="<%= tr('Cancel this reservation? Its items become available to others.', 'Annuler cette réservation ? Ses articles redeviendront disponibles pour les autres.') %>">
+      <%- include('partials/csrf_field') %>
+      <button type="submit" class="btn-outline"><%= tr('Cancel reservation', 'Annuler la réservation') %></button>
+    </form>
+  <% } %>
+  </div>
+  <script src="/print-button.js"></script>
+<% } else if (status === 'paid') { %>
+  <div class="order-receipt">
+  <h1><%= tr('Reservation #{n} collected', 'Réservation n°{n} retirée', { n: order.id }) %></h1>
+  <p class="muted"><%= tr('This reservation was collected and paid at the shop. Thank you!', 'Cette réservation a été retirée et réglée à la boutique. Merci !') %></p>
+  <div class="card" id="order-summary">
+    <p class="small"><strong><%= tr('Reservation #{n}', 'Réservation n°{n}', { n: order.id }) %></strong>
+      &middot; <%= tr('paid on', 'réglée le') %> <%= formatDateTime(order.paid_at || order.created_at) %>
       &middot; <%= tr('Name:', 'Nom :') %> <%= order.buyer_name %></p>
     <ul class="plain">
       <% items.forEach(i => { %>
@@ -14,22 +46,21 @@
       <% }) %>
     </ul>
     <p><strong><%= tr('Total:', 'Total :') %> <%= eur(order.total_amount) %></strong></p>
-    <p class="muted small"><%= tr("Uma's Books — association loi 1901, 5 rue Hippolyte Savary, 81000 Albi — admin@umasbooks.org. Pick up at the shop (Rue Peyrolière) during opening hours and show this order number.", "Uma's Books — association loi 1901, 5 rue Hippolyte Savary, 81000 Albi — admin@umasbooks.org. Retrait à la boutique (Rue Peyrolière) pendant les heures d’ouverture, en indiquant ce numéro de commande.") %></p>
   </div>
-  <p class="muted small"><%= tr('A confirmation email is on its way to {email}. Come by Uma\'s Books during opening hours to pick up your order.', 'Un e-mail de confirmation vous est envoyé à l’adresse {email}. Passez à Uma\'s Books pendant les heures d’ouverture pour retirer votre commande.', { email: order.buyer_email }) %></p>
   <p class="no-print"><button type="button" class="btn" data-print><%= tr('Print this page', 'Imprimer cette page') %></button></p>
   </div>
   <script src="/print-button.js"></script>
-<% } else if (status === 'pending') { %>
-  <h1><%= tr('Confirming your payment…', 'Confirmation de votre paiement…') %></h1>
-  <p class="muted"><%= tr("We haven't heard back from the payment provider yet. This is usually quick — refresh this page in a minute, or check your email for a confirmation.", 'Nous n’avons pas encore de réponse du prestataire de paiement. C’est généralement rapide : actualisez cette page dans une minute, ou consultez vos e-mails pour la confirmation.') %></p>
-<% } else if (paymentReceivedUnfulfilled) { %>
-  <h1><%= tr('We received your payment', 'Nous avons bien reçu votre paiement') %></h1>
-  <p class="muted"><%= tr("Your payment came through, but we couldn't complete your order automatically. We'll contact you at {email} shortly to sort it out — there's no need to pay again.", 'Votre paiement nous est bien parvenu, mais nous n’avons pas pu finaliser votre commande automatiquement. Nous vous contacterons très bientôt à l’adresse {email} pour régler cela : inutile de payer à nouveau.', { email: order.buyer_email }) %></p>
+<% } else if (status === 'cancelled') { %>
+  <h1><%= tr('Reservation cancelled', 'Réservation annulée') %></h1>
+  <p class="muted"><%= tr('This reservation was cancelled. Nothing was charged, and its items are available again.', 'Cette réservation a été annulée. Rien n’a été débité, et ses articles sont de nouveau disponibles.') %></p>
+  <p><a class="btn" href="/books.html"><%= tr('Back to Books', 'Retour aux livres') %></a></p>
+<% } else if (status === 'expired') { %>
+  <h1><%= tr('Reservation ended', 'Réservation terminée') %></h1>
+  <p class="muted"><%= tr('This reservation was not collected in time, so its items went back on sale. There is nothing to pay and no penalty. You can reserve them again if they are still available.', 'Cette réservation n’a pas été retirée à temps ; ses articles ont donc été remis en vente. Il n’y a rien à payer et aucune pénalité. Vous pouvez les réserver de nouveau s’ils sont encore disponibles.') %></p>
   <p><a class="btn" href="/books.html"><%= tr('Back to Books', 'Retour aux livres') %></a></p>
 <% } else { %>
-  <h1><%= tr('Payment not completed', 'Paiement non abouti') %></h1>
-  <p class="muted"><%= tr("Your payment didn't go through, so nothing was charged — any books are back in stock and any drop-in seats are open again for anyone else to buy.", 'Votre paiement n’a pas abouti : rien n’a donc été débité. Les livres sont de nouveau en stock et les places drop-in sont de nouveau disponibles pour tout le monde.') %></p>
+  <h1><%= tr('Order not completed', 'Commande non finalisée') %></h1>
+  <p class="muted"><%= tr('This order was never completed, so nothing was charged. Any books are back in stock.', 'Cette commande n’a jamais été finalisée ; rien n’a donc été débité. Les livres éventuels sont de nouveau en stock.') %></p>
   <p><a class="btn" href="/books.html"><%= tr('Back to Books', 'Retour aux livres') %></a></p>
 <% } %>
 

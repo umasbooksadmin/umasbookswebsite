@@ -1,6 +1,6 @@
-<%# Resend-confirmation control for one paid order. Expects `o` (the order row).
+<%# Resend-confirmation control for one reservation. Expects `o` (the order row).
     Included by views/admin/orders.ejs; posts to routes/admin/emailOutbox.js. %>
-<% if (o.status === 'paid') { %>
+<% if (o.status === 'reserved') { %>
   <form method="post" action="/admin/orders/<%= o.id %>/resend-confirmation" class="inline-form" style="display:inline">
     <%- include('csrf_field') %>
     <span class="muted small">Confirmation: <%= o.confirmation_sent_at ? 'sent ' + formatDateTime(o.confirmation_sent_at) : 'NOT SENT' %></span>

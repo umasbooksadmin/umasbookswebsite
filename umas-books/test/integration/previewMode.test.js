@@ -1,5 +1,5 @@
 // Preview mode (PREVIEW_MODE=true, src/lib/preview.js): the "coming soon"
-// banner on every customer page, checkout and the membership widget switched
+// banner on every customer page, reserving and the membership widget switched
 // off, search engines kept out, the admin reminder, and the contact topic.
 // A second app without the variable proves normal mode is unchanged.
 //
@@ -133,29 +133,36 @@ async function cartJar() {
   return jar;
 }
 
-test("cart: no checkout form, friendly notice; checkout POST is refused and creates nothing", async () => {
+test("cart: no reservation form, friendly notice; the reserve POST is refused (403, not a login redirect) and creates nothing", async () => {
   const jar = await cartJar();
   const page = await (await fetch(`${preview.base}/cart`, { headers: { cookie: jar.header() } })).text();
   assert.ok(page.includes("Preview Book"), "cart still lists the item");
-  assert.ok(page.includes("Online ordering opens when we launch."));
-  assert.ok(!page.includes('action="/cart/checkout"'), "no checkout form");
+  assert.ok(page.includes("Online reservations open when we launch."));
+  assert.ok(!page.includes('action="/cart/reserve"'), "no reservation form");
+  assert.ok(!page.includes('action="/cart/checkout"'), "and no old checkout form either");
   assert.ok(page.includes('action="/cart/remove"'), "remove still works");
 
   const fr = await (await fetch(`${preview.base}/cart`, { headers: { cookie: `${jar.header()}; umasbooks_lang=fr` } })).text();
-  assert.ok(fr.includes("La commande en ligne ouvrira au lancement."));
+  assert.ok(fr.includes("Les réservations en ligne ouvriront au lancement."));
 
   const token = await fetchCsrfToken(preview.base, jar);
-  const res = await fetch(`${preview.base}/cart/checkout`, {
+  const res = await fetch(`${preview.base}/cart/reserve`, {
     method: "POST", redirect: "manual", headers: { ...FORM, cookie: jar.header() },
     body: new URLSearchParams({ name: "Buyer", email: "buyer@example.test", acceptCgv: "on", _csrf: token }).toString(),
   });
   const body = await res.text();
   assert.equal(res.status, 403);
-  assert.ok(body.includes("Online ordering opens when we launch."));
+  assert.ok(body.includes("Online reservations open when we launch."));
   const { rows: orders } = await db.query("SELECT count(*)::int AS n FROM orders");
-  assert.equal(orders[0].n, 0, "no order row (so no HelloAsso call either)");
+  assert.equal(orders[0].n, 0, "no order row");
   const { rows: copy } = await db.query("SELECT status FROM book_copies WHERE id = $1", [copyId]);
-  assert.equal(copy[0].status, "in_stock", "copy was not locked");
+  assert.equal(copy[0].status, "in_stock", "copy was not held");
+  // The old online-payment endpoint does not exist any more, preview or not.
+  const old = await fetch(`${preview.base}/cart/checkout`, {
+    method: "POST", redirect: "manual", headers: { ...FORM, cookie: jar.header() },
+    body: new URLSearchParams({ name: "Buyer", acceptCgv: "on", _csrf: token }).toString(),
+  });
+  assert.equal(old.status, 404);
 });
 
 test("contact: feedback topic offered, pre-selected by ?topic=feedback, stored in English", async () => {
@@ -191,7 +198,7 @@ async function adminJar(app, connectionString) {
 test("admin screens show the red reminder only in preview mode, and no customer banner", async () => {
   const pj = await adminJar(preview, preview.databaseUrl);
   const html = await (await fetch(`${preview.base}/admin`, { headers: { cookie: pj.header() } })).text();
-  assert.match(html, /class="admin-preview-note"[^>]*>PREVIEW MODE is ON: payments are disabled and the public site shows the coming-soon banner\. Remove the PREVIEW_MODE setting in Render to launch\./);
+  assert.match(html, /class="admin-preview-note"[^>]*>PREVIEW MODE is ON: online reservations and membership payments are disabled and the public site shows the coming-soon banner\. Remove the PREVIEW_MODE setting in Render to launch\./);
   assert.ok(!html.includes("preview-banner"));
 
   const nj = await adminJar(normal, normal.databaseUrl);
