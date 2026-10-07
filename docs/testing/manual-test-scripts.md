@@ -302,6 +302,10 @@ Use a private window. Time: 35 to 45 minutes. A guest browses, searches, fills a
 
 - [ ] **G41b (must).** With the browser set to English and no saved site data, set the language cookie to French (or choose FR once, then clear only the site's local storage) and open `/books.html`. **You should see:** the page stays in French (no flash of English, no jump). Then on `/cart` click **EN** then **FR**. **You should see:** the whole page, not only the header and footer, changes language.
 
+- [ ] **G41c (must).** On a phone (or a browser window made 375 px wide), open the home page. **You should see:** a compact header, about 105 px tall: the logo and the four icons on one row, then a **Menu** button on the left and **EN | FR** on the right (in preview mode the banner above is one line with **More**). Tap **Menu**: Home, Browse Books, English Programs and Events drop down. Press Esc (or tap anywhere outside): the menu closes. Tap **More** on the banner: the whole notice and **Tell us what you think!** show; **Less** folds it again. The icons and EN / FR are easy to hit with a thumb.
+- [ ] **G41d (must).** On the same phone, switch to French and open **Parcourir les livres**. **You should see:** under "Parcourir par genre" a row of round genre buttons you can slide sideways; every label is a whole word (**Jeune adulte**, **Documentaires**), none cut off.
+- [ ] **G41e.** On a computer, open the home page. **You should see:** the **EN | FR** buttons are comfortable to click (not tiny), the dots under the "What's new" carousel are easy to click, and so are the footer links and **Tell us what you think!**.
+
 ### 1H. Cookies, language memory, 404
 
 - [ ] **G42 (must).** Visit any page in a fresh private window. **You should see:** **no** cookie-consent banner. (The privacy policy says the site uses one session cookie that is strictly necessary, plus your language choice in the browser, so no banner is required.)

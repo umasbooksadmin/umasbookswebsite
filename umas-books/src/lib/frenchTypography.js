@@ -12,7 +12,8 @@
 //   - in headings (h1-h3), a hyphenated imperative like "Demandez-nous" is
 //     kept on one line (wrapped in <span class="nobr">), so a title never
 //     breaks as "Demandez-" / "nous".
-// Never touched: tags and their attributes, <script>, <style>, <textarea>,
+// Attributes: only the spoken ones (aria-label, alt, title, placeholder) get the apostrophe and no-break fixes.
+// Never touched: other attributes (href, value, data-*...), <script>, <style>, <textarea>,
 // <pre>, <code>, comments (so URLs, JSON, JS and form values stay exact).
 
 const NBSP = " ";
@@ -34,6 +35,14 @@ function fixText(text, wrapHyphenated) { // wrapHyphenated: only inside headings
     .replace(/«[ ]+/g, "«" + NBSP);
   if (wrapHyphenated) t = t.replace(ENCLITIC, '<span class="nobr">$1</span>');
   return t;
+}
+
+// Words that screen readers speak and tooltips show: the same apostrophe and no-break-space rules as the
+// text, so a book called L'Étranger reads «Ajouter L’Étranger aux favoris». Only these attributes, only
+// double-quoted values (a URL, a form value or a data-* attribute is never touched).
+const SPOKEN_ATTR = /(\s(?:aria-label|aria-description|alt|title|placeholder)=")([^"]*)(")/gi;
+function fixAttributes(tag) {
+  return tag.replace(SPOKEN_ATTR, (_, a, v, z) => a + fixText(v, false) + z);
 }
 
 function frenchTypography(html) {
@@ -63,7 +72,7 @@ function frenchTypography(html) {
           out += open + fixText(m[2], false) + close;
         } else {
           if (kind === "tag") { const h = /^<(\/?)h[1-3]\b/i.exec(m[0]); if (h) inHeading = !h[1]; }
-          out += m[0];
+          out += kind === "tag" ? fixAttributes(m[0]) : m[0];
         }
         i += m[0].length;
         break;

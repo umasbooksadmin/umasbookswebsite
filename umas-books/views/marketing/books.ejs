@@ -4,6 +4,7 @@
   extraCss: ['assets/books.css'],
   activeNav: 'books',
 }) %>
+  <noscript><link rel="stylesheet" href="<%= assetUrl('/assets/books-nojs.css') %>"></noscript>
   <div class="bk-wrap">
     <section class="bk-top">
       <div class="bk-title-row">
@@ -191,7 +192,7 @@
   "bk.empty.ask": "Introuvable ? Demandez-nous de le chercher pour vous.",
   "g.fiction": "Fiction",
   "g.children": "Jeunesse",
-  "g.ya": "Young Adult",
+  "g.ya": "Jeune adulte",
   "g.nonfiction": "Documentaires",
   "g.classics": "Classiques",
   "g.mystery": "Polar & Thriller",

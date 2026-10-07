@@ -31,6 +31,12 @@ s.test("G1 (must) home page shows the menu, the header icons and the footer", as
   assert.ok(await ctx.page.$("[data-cart-count]"), "cart count");
   const toggles = await ctx.page.$$eval(".langtoggle [data-lang]", (b) => b.map((x) => x.textContent.trim()));
   assert.deepEqual(toggles, ["EN", "FR"]);
+  // On a normal window the menu links are on screen (not folded into the phone "Menu" button) and the EN/FR buttons are easy to hit.
+  const links = await ctx.page.$$eval("header .h-nav a", (as) => as.map((a) => { const r = a.getBoundingClientRect(); return { t: a.textContent.trim(), shown: r.width > 0 && r.height > 0 }; }));
+  assert.equal(links.length, 4);
+  assert.deepEqual(links.filter((l) => !l.shown), [], "every menu link is visible on a desktop-size window");
+  const sizes = await ctx.page.$$eval(".langtoggle [data-lang]", (b) => b.map((x) => { const r = x.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; }));
+  for (const [w, h] of sizes) assert.ok(w >= 32 && h >= 32, `EN/FR buttons are ${w}x${h}: at least 32x32 with a mouse`);
   const footer = await ctx.page.$eval("footer", (f) => f.innerText);
   for (const label of ["Contact Us", "Albi, France", "Privacy Policy", "Terms of Sale", "Legal Notice"]) has(footer, new RegExp(label, "i"));
 });
@@ -589,6 +595,60 @@ s.test("G41b (must) a French guest with an English browser and empty localStorag
   await ctx.page.click(".langtoggle [data-lang='fr']");
   await ctx.page.waitForFunction(() => document.documentElement.lang === "fr");
   has(await ctx.text(), /Votre panier/);
+});
+
+const GUEST_PHONE = { width: 375, height: 812, deviceScaleFactor: 2, isMobile: true, hasTouch: true };
+
+s.test("G41c (must) on a phone the header is compact: logo and icons on one row, a Menu button for the links (Esc and an outside tap close it), EN/FR easy to tap", { viewport: GUEST_PHONE }, async (ctx) => {
+  await ctx.goto("/", "networkidle2");
+  const m = await ctx.page.evaluate(() => {
+    const box = (sel) => { const e = document.querySelector(sel); const r = e.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, w: r.width, h: r.height }; };
+    const logo = box(".h-logo"), cart = box("a.h-tool[href='/cart']");
+    return { header: box("header.mkt-header"), logoTop: logo.top, cartTop: cart.top, cartW: cart.w, cartH: cart.h, banner: document.querySelector(".preview-banner") ? box(".preview-banner").h : 0,
+      toggles: [...document.querySelectorAll(".langtoggle [data-lang]")].map((b) => { const r = b.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; }),
+      linksShownBeforeOpen: [...document.querySelectorAll("header .h-menu-links a")].filter((a) => a.checkVisibility({ contentVisibilityAuto: true, visibilityProperty: true })).length };
+  });
+  assert.ok(m.header.h < 140, `the header is ${Math.round(m.header.h)} px tall (it was 253): under 140 px`);
+  assert.ok(Math.abs(m.logoTop - m.cartTop) < 40, "the logo and the icons are on the same row");
+  assert.ok(m.cartW >= 36 && m.cartH >= 44, `cart button ${m.cartW}x${m.cartH}`);
+  for (const [w, h] of m.toggles) assert.ok(w >= 44 && h >= 44, `EN/FR buttons are ${w}x${h}: 44x44 on a touch screen`);
+  assert.equal(m.linksShownBeforeOpen, 0, "the links are folded into the Menu button");
+  if (ctx.preview) assert.ok(m.banner < 50, `the preview banner is ${Math.round(m.banner)} px: one line`);
+  // aria-expanded follows the <details> "toggle" event, which the browser fires a moment after the tap.
+  const expanded = (want) => ctx.page.waitForFunction((w) => document.querySelector("summary.h-menu-btn").getAttribute("aria-expanded") === w, { timeout: 3000 }, want).then(() => want, () => ctx.page.$eval("summary.h-menu-btn", (b) => b.getAttribute("aria-expanded")));
+  assert.equal(await expanded("false"), "false");
+  await ctx.page.tap("summary.h-menu-btn");
+  assert.equal(await expanded("true"), "true");
+  assert.equal(await ctx.page.$$eval("header .h-menu-links a", (as) => as.filter((a) => a.checkVisibility() && a.getBoundingClientRect().height >= 44).length), 4, "four links, each at least 44 px tall");
+  await ctx.page.keyboard.press("Escape");
+  assert.equal(await expanded("false"), "false", "Esc closes the menu");
+  assert.equal(await ctx.page.evaluate(() => document.activeElement.className), "h-menu-btn", "focus is back on the Menu button");
+  await ctx.page.tap("summary.h-menu-btn");
+  await ctx.page.mouse.click(300, 700);
+  assert.equal(await expanded("false"), "false", "a tap outside closes the menu");
+  await ctx.page.tap("summary.h-menu-btn");
+  assert.equal(await expanded("true"), "true");
+  const books = await ctx.page.$("header .h-menu-links a[href='/books.html'], header .h-menu-links a[href='books.html']");
+  await Promise.all([ctx.page.waitForNavigation(), books.tap()]);
+  assert.match(ctx.page.url(), /\/books\.html$/);
+});
+
+s.test("G41d (must) in French on a phone the genre chips on Browse Books are complete words (Jeune adulte, Documentaires) and the header stays compact", { viewport: GUEST_PHONE, lang: "fr" }, async (ctx) => {
+  await ctx.goto("/books.html", "networkidle2");
+  const chips = await ctx.page.$$eval(".bk-genre", (bs) => bs.map((b) => { const l = b.querySelector("span:last-child"); return { text: l.textContent.trim(), clipped: l.scrollWidth > l.clientWidth + 1 }; }));
+  assert.ok(chips.length >= 10, `${chips.length} genre chips`);
+  assert.deepEqual(chips.filter((c) => c.clipped).map((c) => c.text), [], "no chip label is cut off");
+  const texts = chips.map((c) => c.text);
+  assert.ok(texts.includes("Jeune adulte"), `chips: ${texts.join(" | ")}`);
+  assert.ok(!texts.includes("Young Adult"));
+  assert.ok((await ctx.page.$eval("header.mkt-header", (h) => h.getBoundingClientRect().height)) < 140);
+  assert.equal(await ctx.page.$eval("summary.h-menu-btn", (b) => b.textContent.trim()), "Menu");
+});
+
+s.test("G41e tap targets on a desktop window: carousel dots, footer links and 'Tell us what you think!' are at least 24x24", async (ctx) => {
+  await ctx.goto("/", "networkidle2");
+  const small = await ctx.page.$$eval("footer a, .wn-dot, .preview-banner a, main p a", (els) => els.filter((e) => e.getBoundingClientRect().width > 0).map((e) => { const r = e.getBoundingClientRect(); return { t: (e.className || e.textContent).toString().trim().slice(0, 24), w: Math.round(r.width), h: Math.round(r.height) }; }).filter((r) => r.w < 24 || r.h < 24));
+  assert.deepEqual(small, [], "targets under 24x24 (WCAG 2.2, 2.5.8)");
 });
 
 // ---- 1H. Cookies, language memory, 404 ----
