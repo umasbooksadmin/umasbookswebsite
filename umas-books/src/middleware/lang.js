@@ -10,6 +10,7 @@
 // It reads headers only: no session, no database.
 const { forLocale, LOCALES } = require("../lib/dates");
 const { translator, normLang } = require("../lib/lang");
+const { genreLabel, genresLabel } = require("../lib/genres");
 const { conditionLabel } = require("../lib/inventory");
 const { formatEuro } = require("../lib/money");
 const { assetUrl } = require("../lib/assetUrl");
@@ -54,6 +55,8 @@ function langMiddleware(req, res, next) {
   res.locals.assetUrl = assetUrl; // versioned /assets, /style.css ... URLs (lib/assetUrl.js)
   res.locals.eur = (n) => formatEuro(n, lang);
   res.locals.conditionLabel = (value) => conditionLabel(value, lang);
+  res.locals.genreLabel = (genre) => genreLabel(genre, lang);
+  res.locals.genresLabel = (csv, storedFr) => genresLabel(csv, lang, storedFr);
   res.locals.legalText = legalFor(lang);
   res.locals.fillVat = fillVat;
   res.locals.socialLinks = SOCIAL_LINKS;
