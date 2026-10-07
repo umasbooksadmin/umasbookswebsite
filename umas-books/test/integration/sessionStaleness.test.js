@@ -9,7 +9,7 @@ const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const bcrypt = require("bcryptjs");
 const { startTestApp } = require("../helpers/testApp");
-const { makeCookieJar, fetchCsrfToken } = require("../helpers/httpClient");
+const { makeCookieJar, fetchCsrfToken, withSeeOtherPage } = require("../helpers/httpClient");
 
 const PORT = 3412; // distinct from app.test.js (3411)
 const PASSWORD = "StalenessTest1!";
@@ -105,7 +105,13 @@ test("changing a password logs out other sessions but keeps the one that made th
     headers: { "content-type": "application/x-www-form-urlencoded", cookie: jarA.header() },
     body: `currentPassword=${encodeURIComponent(PASSWORD)}&newPassword=${encodeURIComponent("NewStalenessTest1!")}&_csrf=${token}`,
   });
-  assert.equal(changeRes.status, 200);
+  // Success answers 303 back to the password page, whose notice says it worked (same session).
+  assert.equal(changeRes.status, 303);
+  assert.equal(changeRes.headers.get("location"), "/account/password");
+  jarA.capture(changeRes);
+  const changed = await withSeeOtherPage(changeRes, { base: app.base, jar: jarA });
+  assert.equal(changed.page.status, 200);
+  assert.match(await changed.text(), /Password updated/);
 
   const aAfter = await fetch(`${app.base}/announcements`, { headers: { cookie: jarA.header() }, redirect: "manual" });
   assert.equal(aAfter.status, 200, "the session that made the change should still work");

@@ -104,6 +104,17 @@ function guest(lang, fixedIp) {
       body: form ? new URLSearchParams(form).toString() : undefined,
     });
     jar.capture(res);
+    // 303 = Post/Redirect/Get: follow it like the browser, with the same session and IP;
+    // `seeOther` is the Location the POST answered with.
+    if (res.status === 303) {
+      const seeOther = res.headers.get("location");
+      const next = await fetch(`${server.base}${seeOther}`, {
+        redirect: "manual",
+        headers: { "x-forwarded-for": ip, cookie: [jar.header(), lang ? `umasbooks_lang=${lang}` : ""].filter(Boolean).join("; ") },
+      });
+      jar.capture(next);
+      return { res: next, text: await next.text(), location: next.headers.get("location"), seeOther };
+    }
     return { res, text: await res.text(), location: res.headers.get("location") };
   };
   return {
@@ -346,7 +357,8 @@ test("an account whose email was never confirmed cannot reserve (nothing is sent
   assert.ok(!page.includes('action="/cart/reserve"'));
   assert.match(page, /confirm your email address before reserving/);
   const r = await v.post("/cart/reserve", { name: "U", acceptCgv: "on" });
-  assert.equal(r.res.status, 403);
+  assert.equal(r.seeOther, "/cart", "refused with 303 to the cart");
+  assert.match(r.text, /confirm your email address before reserving/);
   assert.equal((await ordersFor(account.email)).length, 0);
   assert.equal(await copyStatus(copy), "in_stock");
 });
@@ -364,7 +376,7 @@ test("the reservation limits still apply per account: at most 3 open reservation
   const copy = await makeCopy();
   await v.post("/cart/add", { copyId: copy });
   const r = await v.post("/cart/reserve", { name: "C", acceptCgv: "on" });
-  assert.equal(r.res.status, 200);
+  assert.equal(r.seeOther, "/cart");
   assert.match(r.text, new RegExp(`already have ${MAX_ACTIVE_RESERVATIONS} open reservations`));
   assert.equal((await ordersFor(account.email)).length, MAX_ACTIVE_RESERVATIONS);
   assert.equal(await copyStatus(copy), "in_stock");
@@ -400,7 +412,7 @@ test("preview mode: the 403 notice is never masked by the login redirect (order 
   const copy = await makeCopy();
   await anon.post("/cart/add", { copyId: copy });
   const g = await anon.post("/cart/reserve", { name: "G", acceptCgv: "on" });
-  assert.equal(g.res.status, 403, "a guest gets the preview refusal, not a redirect to login");
+  assert.equal(g.seeOther, "/cart", "a guest gets the preview refusal on the cart, not a redirect to login");
   assert.ok(g.text.includes("Online reservations open when we launch."));
 
   const v = guest();
@@ -408,7 +420,7 @@ test("preview mode: the 403 notice is never masked by the login redirect (order 
   await login(v, account);
   await v.post("/cart/add", { copyId: copy });
   const a = await v.post("/cart/reserve", { name: "A", acceptCgv: "on" });
-  assert.equal(a.res.status, 403);
+  assert.equal(a.seeOther, "/cart");
   assert.ok(a.text.includes("Online reservations open when we launch."));
   assert.equal((await ordersFor(account.email)).length, 0);
   assert.equal(await copyStatus(copy), "in_stock");

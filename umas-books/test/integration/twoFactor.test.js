@@ -6,7 +6,7 @@ const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const bcrypt = require("bcryptjs");
 const { startTestApp } = require("../helpers/testApp");
-const { makeCookieJar, fetchCsrfToken } = require("../helpers/httpClient");
+const { makeCookieJar, fetchCsrfToken, withSeeOtherPage } = require("../helpers/httpClient");
 
 process.env.SESSION_SECRET = "test-session-secret-not-for-production"; // same as the app under test
 const totp = require("../../src/lib/totp");
@@ -48,7 +48,9 @@ async function post(jar, path, fields) {
     body: new URLSearchParams({ ...fields, _csrf: token }).toString(),
   });
   jar.capture(res);
-  return { res, text: await res.text() };
+  // A refused form answers 303 to a GET page; read the message from that page (same session).
+  const seen = await withSeeOtherPage(res, { base: app.base, jar });
+  return { res, text: await seen.text(), location: res.headers.get("location") };
 }
 async function get(jar, path) {
   const res = await fetch(`${app.base}${path}`, { redirect: "manual", headers: { cookie: jar.header() } });
@@ -73,10 +75,12 @@ async function enrol(user) {
   assert.match(page.text, /data:image\/png;base64/);
   const secret = await secretOf(user.id);
   const badPw = await post(jar, "/account/2fa/enable", { code: totp.hotp(secret, totp.currentStep()), password: "wrong" });
-  assert.equal(badPw.res.status, 400);
+  assert.equal(badPw.res.status, 303);
+  assert.equal(badPw.location, "/account/2fa");
   assert.equal((await pool.query("SELECT totp_enabled_at FROM users WHERE id=$1", [user.id])).rows[0].totp_enabled_at, null);
   const wrong = await post(jar, "/account/2fa/enable", { code: "000000", password: PASSWORD });
-  assert.equal(wrong.res.status, 400);
+  assert.equal(wrong.res.status, 303);
+  assert.equal(wrong.location, "/account/2fa");
   const ok = await post(jar, "/account/2fa/enable", { code: totp.hotp(secret, totp.currentStep()), password: PASSWORD });
   assert.equal(ok.res.status, 200);
   const codes = [...ok.text.matchAll(/<code>([A-Z2-7]{5}-[A-Z2-7]{5})<\/code>/g)].map((m) => m[1]);
@@ -111,7 +115,9 @@ test("login with two-step: password alone is not enough, a valid code is, a repl
   assert.match((await get(a.jar, "/admin")).res.headers.get("location"), /\/login/);
 
   const bad = await post(a.jar, "/login/2fa", { code: "123456" });
-  assert.equal(bad.res.status, 401);
+  assert.equal(bad.res.status, 303);
+  assert.equal(bad.location, "/login/2fa");
+  assert.match(bad.text, /That code didn&#39;t work|That code didn't work/);
 
   const code = nextCode(secret);
   const good = await post(a.jar, "/login/2fa", { code });
@@ -121,7 +127,7 @@ test("login with two-step: password alone is not enough, a valid code is, a repl
 
   const b = await passwordLogin(admin.email);
   const replay = await post(b.jar, "/login/2fa", { code });
-  assert.equal(replay.res.status, 401, "same code twice must fail");
+  assert.equal(replay.res.status, 303, "same code twice must fail");
 });
 
 test("recovery codes work once", async () => {
@@ -131,7 +137,7 @@ test("recovery codes work once", async () => {
   const ok = await post(a.jar, "/login/2fa", { code: codes[0].toLowerCase() });
   assert.equal(ok.res.status, 302);
   const b = await passwordLogin(admin.email);
-  assert.equal((await post(b.jar, "/login/2fa", { code: codes[0] })).res.status, 401);
+  assert.equal((await post(b.jar, "/login/2fa", { code: codes[0] })).res.status, 303);
 });
 
 test("five wrong codes end the pending login", async () => {
@@ -195,7 +201,7 @@ test("an undecryptable secret does not 500 the login; recovery codes still work"
   await pool.query("UPDATE users SET totp_secret_enc = 'AAAA.BBBB.CCCC' WHERE id=$1", [admin.id]);
   const a = await passwordLogin(admin.email);
   const bad = await post(a.jar, "/login/2fa", { code: "123456" });
-  assert.equal(bad.res.status, 401);
+  assert.equal(bad.res.status, 303);
   const ok = await post(a.jar, "/login/2fa", { code: codes[0] });
   assert.equal(ok.res.status, 302);
 });

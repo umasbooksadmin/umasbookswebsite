@@ -92,7 +92,7 @@ s.write("AC3 (must) sign up creates an unconfirmed account and shows the check-y
   ctx.created("unconfirmed account (cannot log in: its email is example.invalid)", `${process.env.E2E_RUN_ID} Test Account One <${email}>`, "admin Accounts > search the tag > Erase Member");
 });
 
-s.write("AC4 (must) logging in before confirming gives the neutral 'Incorrect email or password' (401), and the login page offers a new confirmation link", { anon: true }, async (ctx) => {
+s.write("AC4 (must) logging in before confirming gives the neutral 'Incorrect email or password', and the login page offers a new confirmation link", { anon: true }, async (ctx) => {
   if (!signup) ctx.skip("needs AC3 to have created the account");
   // No password exists yet, so any attempt is refused exactly like an unknown address: nothing is revealed.
   await ctx.goto("/login");
@@ -100,7 +100,9 @@ s.write("AC4 (must) logging in before confirming gives the neutral 'Incorrect em
   await ctx.page.type("form[action='/login'] #email", signup.email);
   await ctx.page.type("form[action='/login'] #password", `Zq9!${crypto.randomBytes(8).toString("hex")}`);
   const [res] = await Promise.all([ctx.page.waitForNavigation(), ctx.page.click("form[action='/login'] button[type='submit']")]);
-  assert.equal(res.status(), 401);
+  // The refusal is a redirect back to the login page (no "resend form" pop-up on Back), so the page we land on is a normal 200.
+  assert.equal(res.status(), 200);
+  assert.equal(new URL(ctx.page.url()).pathname, "/login");
   const text = await ctx.text();
   has(text, /Incorrect email or password\./);
   assert.ok(!/confirm your email/i.test(await ctx.page.$eval(".error-box", (e) => e.textContent)), "the error must not reveal that the account is waiting for confirmation");
@@ -214,7 +216,8 @@ s.test("AC17 (must) Download my data returns a JSON file with the account holder
     const r = await fetch("/account/privacy/export", { method: "POST", body: new URLSearchParams({ _csrf: token, currentPassword: password }) });
     return { status: r.status, disposition: r.headers.get("content-disposition"), body: await r.text() };
   }, accountCreds().password);
-  if (result.status === 403) ctx.skip("the account-holder test account's email is not confirmed yet");
+  // An unconfirmed address is refused by a redirect back to the privacy page (fetch follows it: a 200 page, no file).
+  if (!result.disposition && /Confirm your email address first/.test(result.body)) ctx.skip("the account-holder test account's email is not confirmed yet");
   assert.equal(result.status, 200);
   assert.match(result.disposition || "", /umasbooks-my-data\.json/);
   const data = JSON.parse(result.body);
@@ -226,15 +229,16 @@ s.test("AC18 (must) account deletion refuses a wrong password and a missing conf
   await ctx.goto("/account/privacy");
   const post = (password, word) => ctx.page.evaluate(async (pw, w) => {
     const { token } = await (await fetch("/api/csrf-token")).json();
-    const r = await fetch("/account/privacy/delete", { method: "POST", body: new URLSearchParams({ _csrf: token, currentPassword: pw, confirmation: w }), redirect: "manual" });
-    return { status: r.status, body: r.type === "opaqueredirect" ? "" : await r.text() };
+    // Redirects are followed, as a browser does: a refusal is a 303 back to the privacy page that shows the message.
+    const r = await fetch("/account/privacy/delete", { method: "POST", body: new URLSearchParams({ _csrf: token, currentPassword: pw, confirmation: w }) });
+    return { status: r.status, redirected: r.redirected, path: new URL(r.url).pathname, body: await r.text() };
   }, password, word);
   const wrongPassword = await post(`Wrong-${crypto.randomBytes(6).toString("hex")}!1`, "x");
-  assert.equal(wrongPassword.status, 401);
+  assert.ok(wrongPassword.redirected && wrongPassword.path === "/account/privacy", "a refusal redirects back to the privacy page");
   has(wrongPassword.body, /Current password is incorrect/);
   const noWord = await post(accountCreds().password, "not-the-word");
-  if (noWord.status === 403) ctx.skip("the account-holder test account is an admin or is unconfirmed: the deletion form says so");
-  assert.equal(noWord.status, 400);
+  if (/Administrators can.t delete|last administrator|Confirm your email address first/.test(noWord.body)) ctx.skip("the account-holder test account is an admin or is unconfirmed: the deletion form says so");
+  assert.ok(noWord.redirected && noWord.path === "/account/privacy");
   has(noWord.body, /Type DELETE in the confirmation box/);
   await ctx.goto("/account");
   assert.equal(new URL(ctx.page.url()).pathname, "/account", "still logged in, account intact");
@@ -305,13 +309,14 @@ s.test("AC24 (preview mode) reserving is refused by the server and nothing is he
   await clearCart(ctx);
   await addFirstCopyToCart(ctx, book);
   // There is no form to press, so send the request a script would send.
-  const status = await ctx.page.evaluate(async () => {
+  const result = await ctx.page.evaluate(async () => {
     const { token } = await (await fetch("/api/csrf-token")).json();
     const body = new URLSearchParams({ _csrf: token, name: "E2E preview check", acceptCgv: "on" });
-    const r = await fetch("/cart/reserve", { method: "POST", body, redirect: "manual" });
-    return r.status;
+    const r = await fetch("/cart/reserve", { method: "POST", body });
+    return { redirected: r.redirected, path: new URL(r.url).pathname, status: r.status };
   });
-  assert.equal(status, 403, "preview mode answers 403 and reserves nothing");
+  assert.ok(result.redirected && result.path === "/cart", "preview mode redirects back to the cart (and reserves nothing)");
+  assert.equal(result.status, 200);
   assert.deepEqual(ctx.blocked, [], "no navigation to a payment page was even attempted");
   has(await ctx.text(), /Online reservations open when we launch|cart/);
 });

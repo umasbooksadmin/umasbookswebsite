@@ -29,6 +29,24 @@ async function followSeeOther(res, { base, jar, headers = {} }) {
   return next;
 }
 
+// A form POST that was refused (or finished) answers 303 and a GET page shows the message
+// (Post/Redirect/Get). Wraps such an answer so a test can read it like the page a browser ends
+// up on: `status` stays 303 and `headers` are the POST's own, `text()` is the body of the page the
+// redirect leads to (fetched with the same session, plus any extra cookie in `headers`), and
+// `page` is that GET response. Any other answer is returned untouched.
+async function withSeeOtherPage(res, { base, jar, headers = {} }) {
+  if (res.status !== 303) return res;
+  const location = res.headers.get("location");
+  jar.capture(res);
+  const page = await fetch(new URL(location, base), {
+    redirect: "manual",
+    headers: { ...headers, cookie: [jar.header(), headers.cookie].filter(Boolean).join("; ") },
+  });
+  jar.capture(page);
+  const body = await page.text();
+  return { status: 303, headers: res.headers, location, page, ok: false, text: async () => body };
+}
+
 // extraHeaders: e.g. { "x-forwarded-for": ip } for tests that simulate many
 // different clients — /api/csrf-token is rate limited per IP for people
 // that have no session cookie yet.
@@ -87,4 +105,4 @@ async function clickConfirmationLink(base, link, { jar = makeCookieJar(), header
   return res;
 }
 
-module.exports = { makeCookieJar, followSeeOther, fetchCsrfToken, waitForCartCount, clickConfirmationLink };
+module.exports = { makeCookieJar, followSeeOther, withSeeOtherPage, fetchCsrfToken, waitForCartCount, clickConfirmationLink };

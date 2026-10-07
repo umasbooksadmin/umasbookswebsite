@@ -10,6 +10,7 @@ const { test, before, after, beforeEach } = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("node:path");
 const { prepareDatabase, buildApp, listen } = require("../helpers/inProcessApp");
+const { makeCookieJar } = require("../helpers/httpClient");
 
 const db = prepareDatabase("contact", { isolated: true });
 
@@ -37,16 +38,26 @@ async function withContactApp(fn) {
   delete require.cache[CONTACT_ROUTE];
   const server = await listen(buildApp([require(CONTACT_ROUTE)]));
   try {
+    // One browser session per test app: a refused form answers 303 to GET /contact and the message
+    // (and what was typed) comes back once in that session (Post/Redirect/Get).
+    const jar = makeCookieJar();
     const post = async (fields) => {
       const res = await fetch(`${server.base}/contact`, {
         method: "POST",
         redirect: "manual",
-        headers: { "content-type": "application/x-www-form-urlencoded" },
+        headers: { "content-type": "application/x-www-form-urlencoded", cookie: jar.header() },
         body: new URLSearchParams(fields).toString(),
       });
+      jar.capture(res);
+      if (res.status === 303) {
+        const seeOther = res.headers.get("location");
+        const page = await fetch(`${server.base}${seeOther}`, { redirect: "manual", headers: { cookie: jar.header() } });
+        jar.capture(page);
+        return { res, seeOther, page, text: await page.text() };
+      }
       return { res, text: await res.text() };
     };
-    await fn({ base: server.base, post });
+    await fn({ base: server.base, post, jar });
   } finally {
     await server.close();
   }
@@ -118,7 +129,7 @@ test("an unknown topic falls back to 'General question'; an over-long message is
   });
 });
 
-test("validation failures return 400 with an error, echo the values, and send nothing", async () => {
+test("validation failures answer 303 to /contact, which shows the error and echoes the values, and send nothing", async () => {
   const cases = [
     { ...valid, name: "" },
     { ...valid, name: "   " },
@@ -130,8 +141,10 @@ test("validation failures return 400 with an error, echo the values, and send no
   // One fresh app per case: the 5-per-window limiter counts failed attempts too.
   for (const fields of cases) {
     await withContactApp(async ({ post }) => {
-      const { res, text } = await post(fields);
-      assert.equal(res.status, 400, JSON.stringify(fields));
+      const { res, text, seeOther, page } = await post(fields);
+      assert.equal(res.status, 303, JSON.stringify(fields));
+      assert.equal(seeOther, "/contact");
+      assert.equal(page.status, 200);
       assert.match(text, /Please fill in your name, a valid email address and your message/);
       // Whatever was entered is preserved for the person to correct.
       for (const v of [fields.name.trim(), fields.email.trim()].filter(Boolean)) assert.ok(text.includes(v), `echoes ${v}`);
@@ -174,27 +187,34 @@ test("when the mail transport fails the message is queued in the outbox, the per
   });
 });
 
-test("rate limit: the 6th submission from one client gets the 429 handler page and sends nothing more", async () => {
-  await withContactApp(async ({ post }) => {
+test("rate limit: the 6th submission from one client is refused (303 + message on /contact, not a 429) and sends nothing more", async () => {
+  await withContactApp(async ({ post, base, jar }) => {
     for (let i = 1; i <= 5; i++) {
       const { res } = await post(valid);
       assert.equal(res.status, 302, `submission ${i} should be accepted`);
     }
     assert.equal(sent.length, 5);
-    const { res, text } = await post({ ...valid, message: "sixth" });
-    assert.equal(res.status, 429);
+    const { res, text, seeOther } = await post({ ...valid, message: "sixth" });
+    assert.equal(res.status, 303);
+    assert.equal(seeOther, "/contact");
     assert.match(text, /Too many messages from this connection/);
     assert.ok(text.includes("sixth"), "the person's message is echoed back so it isn't lost");
     assert.equal(sent.length, 5);
     assert.ok(res.headers.get("ratelimit-limit") || res.headers.get("ratelimit"), "standard RateLimit headers present");
+    // The message was in the session once: reloading the page no longer shows it.
+    const again = await (await fetch(`${base}/contact`, { headers: { cookie: jar.header() } })).text();
+    assert.doesNotMatch(again, /Too many messages from this connection/);
+    assert.ok(!again.includes("sixth"));
   });
 });
 
 test("invalid submissions count toward the rate limit too (bots can't probe validation for free)", async () => {
   await withContactApp(async ({ post }) => {
     for (let i = 0; i < 5; i++) await post({ ...valid, email: "bad" });
-    const { res } = await post(valid);
-    assert.equal(res.status, 429);
+    const { res, text, seeOther } = await post(valid);
+    assert.equal(res.status, 303);
+    assert.equal(seeOther, "/contact");
+    assert.match(text, /Too many messages from this connection/);
     assert.equal(sent.length, 0);
   });
 });

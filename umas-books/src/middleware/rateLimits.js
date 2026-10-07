@@ -38,7 +38,18 @@ function limit({ windowMs, max, ...options }) {
 
 const HOUR = 60 * 60 * 1000;
 
+// For limiters that only count failed attempts (skipSuccessfulRequests). A
+// refused form now answers 303 (Post/Redirect/Get, lib/postRedirect.js), so the
+// status code no longer says "failed": the handler marks it in
+// res.locals.failedAttempt. A 4xx/5xx status still counts, as before.
+const failureCounts = (req, res) => !res.locals.failedAttempt && res.statusCode < 400;
+// Same, for limiters that count ONLY the explicit mark (a wrong password, a
+// wrong code), not every other refusal.
+const onlyMarkedFailures = (req, res) => !res.locals.failedAttempt;
+
 module.exports = {
+  failureCounts,
+  onlyMarkedFailures,
   // A reservation holds copies for two weeks (and seats until the session), so it is limited per IP.
   checkoutLimiter: limit({ windowMs: HOUR, max: 10 }),
   // Browsing users add a handful of items; this only stops scripted loops.

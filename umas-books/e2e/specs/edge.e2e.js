@@ -30,7 +30,8 @@ s.test("E1 (must) a form sent after the session cookie was deleted shows the pla
   await ctx.page.type("form[action='/login'] #email", cfg.testEmail("csrf"));
   await ctx.page.type("form[action='/login'] #password", "Not-A-Real-Password-1!");
   const [again] = await Promise.all([ctx.page.waitForNavigation(), ctx.page.click("form[action='/login'] button[type='submit']")]);
-  assert.equal(again.status(), 401);
+  assert.equal(again.status(), 200, "a refused login redirects back to the login page");
+  assert.equal(new URL(ctx.page.url()).pathname, "/login");
   has(await ctx.text(), /Incorrect email or password\./);
 });
 
@@ -53,16 +54,16 @@ s.write("E2 (must) two Reserve requests at the same moment make ONE reservation,
   await addFirstCopyToCart(ctx, book);
   if (!(await ctx.page.$("form[action='/cart/reserve']"))) ctx.skip("the cart has no reserve form");
   const tag = process.env.E2E_RUN_ID;
-  // What a double-click sends: the same form twice at once. Sent from the page with fetch (redirects are
-  // not followed, so nothing is opened; HelloAsso is not involved at all).
+  // What a double-click sends: the same form twice at once. Sent from the page with fetch (HelloAsso is not involved at all).
   const results = await ctx.page.evaluate(async (name) => {
     const { token } = await (await fetch("/api/csrf-token")).json();
-    const send = () => fetch("/cart/reserve", { method: "POST", redirect: "manual", body: new URLSearchParams({ _csrf: token, name, acceptCgv: "on" }) }).then((r) => ({ type: r.type, status: r.status }));
+    const send = () => fetch("/cart/reserve", { method: "POST", body: new URLSearchParams({ _csrf: token, name, acceptCgv: "on" }) }).then((r) => ({ path: new URL(r.url).pathname, status: r.status }));
     return Promise.all([send(), send()]);
   }, `${tag} Double Click`);
   ctx.created("reservation from the double-submit test (nothing paid; cancelled again by the test)", `${tag} Double Click`, "admin Reservations: there must be only ONE reservation for it");
   if (results.some((r) => r.status === 429)) ctx.skip("the site's limit of 10 reservation requests an hour from one address was reached: wait an hour, or run this persona on its own");
-  const redirects = results.filter((r) => r.type === "opaqueredirect").length;
+  // Followed like a browser: the request that reserved lands on /cart/return, a refused one is sent back to /cart.
+  const redirects = results.filter((r) => r.path === "/cart/return").length;
   const open = await openReservationCount(ctx);
   // The one reservation's link (the Open button on the account page), kept for E4.
   const href = await ctx.page.$eval("a[href^='/cart/return?order=']", (a) => a.getAttribute("href")).catch(() => null);
@@ -168,9 +169,10 @@ s.test("E9 a 300-character book request title is refused with a clear message (n
   const r = await ctx.page.evaluate(async (title) => {
     const { token } = await (await fetch("/api/csrf-token")).json();
     const res = await fetch("/request-a-book", { method: "POST", body: new URLSearchParams({ _csrf: token, title, email: "e2e-too-long@example.invalid", website: "" }) });
-    return { status: res.status, body: await res.text() };
+    return { status: res.status, redirected: res.redirected, path: new URL(res.url).pathname, body: await res.text() };
   }, "T".repeat(300));
-  assert.ok(r.status >= 400 && r.status < 500, `status ${r.status}`);
+  // A refusal redirects back to the form with the message (Back never offers to resend it).
+  assert.ok(r.redirected && r.path === "/request-a-book", `redirected=${r.redirected} path=${r.path}`);
   has(r.body, /Something you typed is too long\. Titles can have up to 200 characters and notes up to 500\./);
 });
 
@@ -192,6 +194,22 @@ s.test("E10 (must) with the browser in French and no choice made, the first visi
   }
   has(await ctx.text(), /Panier/);
   // The mirror image: an English browser stays in English.
+});
+
+s.test("E11 (must) a refused form redirects to a page: the history entry is a GET, so Back never offers to resubmit it", { anon: true }, async (ctx) => {
+  await ctx.goto("/login");
+  await ctx.page.type("form[action='/login'] #email", cfg.testEmail("pgr"));
+  await ctx.page.type("form[action='/login'] #password", "Not-A-Real-Password-1!");
+  const [res] = await Promise.all([ctx.page.waitForNavigation(), ctx.page.click("form[action='/login'] button[type='submit']")]);
+  // The page we end on was reached by redirect and is a GET: nothing to "Confirm form resubmission" for.
+  assert.equal(res.request().method(), "GET");
+  assert.ok(res.request().redirectChain().length >= 1, "the POST answered a redirect");
+  has(await ctx.text(), /Incorrect email or password\./);
+  const typed = await ctx.page.$eval("form[action='/login'] #email", (e) => e.value);
+  assert.equal(typed, cfg.testEmail("pgr"), "the typed e-mail is back");
+  assert.equal(await ctx.page.$eval("form[action='/login'] #password", (e) => e.value), "", "the password is not");
+  await ctx.page.reload({ waitUntil: "domcontentloaded" });
+  hasNot(await ctx.text(), /Incorrect email or password\./);
 });
 
 s.test("E10b with the browser in English and no choice made, the first visit is in English", { lang: null, browserLang: "en-GB" }, async (ctx) => {

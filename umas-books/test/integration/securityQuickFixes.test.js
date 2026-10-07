@@ -14,6 +14,7 @@ const bcrypt = require("bcryptjs");
 // Must load before the routers: a rejected async handler becomes a 500 (as
 // in production) instead of an unhandled rejection and a hung request.
 const { prepareDatabase, buildApp, listen, waitFor } = require("../helpers/inProcessApp");
+const { makeCookieJar, withSeeOtherPage } = require("../helpers/httpClient");
 
 const db = prepareDatabase("secquick", { isolated: true });
 
@@ -56,6 +57,15 @@ function post(path, body, headers = {}) {
     body: form(body),
   });
 }
+// A form POST in its own session whose 303 is followed like a browser does: status stays 303,
+// `.text()` is the page the redirect leads to, `.location` the redirect target.
+async function postSeen(path, body) {
+  const jar = makeCookieJar();
+  const res = await post(path, body);
+  jar.capture(res);
+  const seen = await withSeeOtherPage(res, { base: server.base, jar });
+  return Object.assign(seen, { location: res.headers.get("location") });
+}
 const userHeader = (u) => ({ "x-test-user": JSON.stringify(u) });
 const adminHeader = userHeader({ id: 1, email: "a@x.test", displayName: "Admin Test", isAdmin: true });
 const count = async (email) => (await pool.query("SELECT count(*)::int AS n FROM users WHERE email = $1", [email])).rows[0].n;
@@ -73,8 +83,9 @@ async function createUser(flags = {}) {
 
 test("signup: a multi-recipient email creates no account, sends no mail, and looks like a normal signup", async () => {
   const good = `secquick-good-${uniq()}@example.test`;
-  const goodRes = await post("/signup", { email: good, password: "Correct-Horse-1", displayName: "Good" });
-  assert.equal(goodRes.status, 200);
+  const goodRes = await postSeen("/signup", { email: good, password: "Correct-Horse-1", displayName: "Good" });
+  assert.equal(goodRes.status, 303);
+  assert.equal(goodRes.location, "/signup");
   const goodBody = await goodRes.text();
   await waitFor(() => sent.length === 1, { message: "verification email for the real signup" });
   assert.equal(sent[0].to, good);
@@ -87,8 +98,9 @@ test("signup: a multi-recipient email creates no account, sends no mail, and loo
     "not-an-email",
   ];
   for (const email of bad) {
-    const res = await post("/signup", { email, password: "Correct-Horse-1", displayName: "Mallory" });
-    assert.equal(res.status, 200, email);
+    const res = await postSeen("/signup", { email, password: "Correct-Horse-1", displayName: "Mallory" });
+    assert.equal(res.status, 303, email);
+    assert.equal(res.location, goodRes.location, email);
     assert.equal(await res.text(), goodBody, `response for ${email} must be identical to a real signup`);
     assert.equal((await pool.query("SELECT 1 FROM users WHERE email = $1", [email.toLowerCase()])).rowCount, 0);
   }
@@ -100,7 +112,7 @@ test("signup: a multi-recipient email creates no account, sends no mail, and loo
 test("signup: the display name is capped at 100 characters", async () => {
   const email = `secquick-name-${uniq()}@example.test`;
   const res = await post("/signup", { email, password: "Correct-Horse-1", displayName: "N".repeat(500) });
-  assert.equal(res.status, 200);
+  assert.equal(res.status, 303);
   const { rows } = await pool.query("SELECT display_name FROM users WHERE email = $1", [email]);
   assert.equal(rows[0].display_name.length, 100);
   // A real signup sends its verification mail in the background. Wait for it,

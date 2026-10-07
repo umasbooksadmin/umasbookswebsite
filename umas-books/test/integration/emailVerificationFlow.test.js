@@ -37,8 +37,14 @@ test("a new signup is unverified until the emailed link is used", async () => {
     headers: { "content-type": "application/x-www-form-urlencoded", cookie: jar.header() },
     body: `email=${encodeURIComponent(email)}&password=${encodeURIComponent("Correct-Horse-1")}&displayName=Signup+Verify&_csrf=${token}`,
   });
-  // Neutral page, not a redirect/auto-login (same for existing emails).
-  assert.equal(signupRes.status, 200);
+  // Neutral answer, not an auto-login (same for existing emails): 303 back to /signup,
+  // whose page carries the neutral notice (same session).
+  assert.equal(signupRes.status, 303);
+  assert.equal(signupRes.headers.get("location"), "/signup");
+  jar.capture(signupRes);
+  const signupPage = await fetch(`${app.base}/signup`, { redirect: "manual", headers: { cookie: jar.header() } });
+  assert.equal(signupPage.status, 200);
+  assert.match(await signupPage.text(), /confirm|confirmation/i);
 
   const { rows } = await pool.query("SELECT email_verified_at FROM users WHERE email = $1", [email]);
   assert.equal(rows[0].email_verified_at, null);
