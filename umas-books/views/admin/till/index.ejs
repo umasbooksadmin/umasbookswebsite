@@ -30,11 +30,12 @@
       <button type="button" class="btn btn-outline btn-small" id="toggle-keyboard" aria-pressed="false">Show on-screen keyboard</button>
 
       <ul id="lines" class="till-lines" aria-label="Items on this sale"></ul>
+      <p id="lines-status" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></p>
       <p id="empty" class="muted till-empty">Nothing yet. Scan a book, or tap a quick item.</p>
     </section>
 
     <aside class="till-right" aria-label="Payment">
-      <div class="till-total"><span>Total</span><strong id="total">€0.00</strong></div>
+      <div class="till-total"><span>Total</span><strong id="total" aria-live="polite" aria-atomic="true">€0.00</strong></div>
       <div class="till-pay">
         <button type="button" class="btn till-big" id="pay-cash" disabled>Cash</button>
         <button type="button" class="btn till-big till-card" id="pay-card" disabled>Card</button>
@@ -61,6 +62,7 @@
         </div>
       <% } %>
       <p class="small"><a href="/admin/till/items">Other stock (not books)</a> &middot; <a href="/admin/till/day">End of day</a></p>
+      <p class="muted small till-footer-hint" id="scanner-hint">Barcode scanner: set its suffix to <strong>Enter</strong>, not Tab. With a Tab suffix two scans run together into one wrong code.</p>
     </aside>
   </div>
 
@@ -114,7 +116,7 @@
         <div>
           <div class="till-row"><span>Total</span><strong id="cash-total">€0.00</strong></div>
           <div class="till-row"><span>Received</span><strong id="cash-received" class="till-input-like">€0.00</strong></div>
-          <div class="till-row till-change-row"><span>Change to give</span><strong id="cash-change">€0.00</strong></div>
+          <div class="till-row till-change-row" aria-live="polite" aria-atomic="true"><span>Change to give</span><strong id="cash-change">€0.00</strong></div>
           <p id="cash-note" class="till-err" role="status"></p>
           <div class="till-quick-amounts">
             <button type="button" class="btn btn-outline till-btn" data-amount="exact">Exact</button>
@@ -149,7 +151,7 @@
     <div class="till-modal-box till-done">
       <h2 id="done-title">Sale recorded</h2>
       <div class="till-row"><span>Total</span><strong id="done-total"></strong></div>
-      <div class="till-row till-change-row" id="done-change-row"><span>Change to give</span><strong id="done-change"></strong></div>
+      <div class="till-row till-change-row" id="done-change-row" aria-live="polite" aria-atomic="true"><span>Change to give</span><strong id="done-change"></strong></div>
       <div class="till-actions">
         <button type="button" class="btn till-big" id="next">Next customer</button>
         <a class="btn btn-outline till-btn" id="receipt" href="#" target="_blank" rel="noopener">Receipt</a>
@@ -164,7 +166,7 @@
   <% if (!recent.length) { %>
     <p class="muted">No sales yet today.</p>
   <% } else { %>
-    <table class="sticker-sheet till-recent">
+    <div class="table-scroll"><table class="sticker-sheet till-recent">
       <thead><tr><th>#</th><th>Time</th><th>Items</th><th>Paid by</th><th>Total</th><th></th></tr></thead>
       <tbody>
         <% recent.forEach(s => { %>
@@ -178,7 +180,7 @@
               <a href="/admin/till/sales/<%= s.id %>/receipt" target="_blank" rel="noopener">Receipt</a>
               <% if (s.status === 'completed' && !summary.closed) { %>
                 <details class="till-void"><summary>Void sale</summary>
-                  <form method="post" action="/admin/till/sales/<%= s.id %>/void">
+                  <form data-confirm="Void this sale? The books go back into stock and the sale leaves the day's totals." method="post" action="/admin/till/sales/<%= s.id %>/void">
                     <%- include('../../partials/csrf_field') %>
                     <label for="reason-<%= s.id %>">Reason (required)</label>
                     <input id="reason-<%= s.id %>" name="reason" type="text" required maxlength="120" autocomplete="off">
@@ -190,7 +192,7 @@
           </tr>
         <% }) %>
       </tbody>
-    </table>
+    </table></div>
     <% if (summary.closed) { %><p class="muted small">The day is closed: sales can no longer be voided.</p><% } %>
   <% } %>
 </div>

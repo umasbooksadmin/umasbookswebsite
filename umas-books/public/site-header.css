@@ -114,7 +114,7 @@ header.mkt-header .h-tool svg { width: 22px; height: 22px; }
 header.mkt-header .h-tool:hover { color: var(--maroon); }
 header.mkt-header .h-tool.fav svg { color: var(--maroon); }
 header.mkt-header .h-tools form { margin: 0; display: flex; }
-header.mkt-header .langtoggle { display: inline-flex; align-items: center; gap: 12px; margin-top: 3px; }
+header.mkt-header .langtoggle { display: inline-flex; align-items: center; gap: 4px; margin-top: 0; }
 header.mkt-header .langtoggle button {
   position: relative;
   /* 32x32 for a mouse, 44x44 on a touch screen (see the pointer: coarse rule below). */
@@ -223,9 +223,13 @@ footer.mkt-footer .h-social { display: flex; gap: 14px; }
 footer.mkt-footer .h-social a { color: var(--ink); display: inline-flex; }
 footer.mkt-footer .h-social a:hover { color: var(--maroon); }
 footer.mkt-footer .h-social svg { width: 24px; height: 24px; }
+/* When the links wrap on a phone a vertical rule would start a line: no rules, a gap instead, and 44px tap rows. */
 @media (max-width: 760px) {
-  footer.mkt-footer li { padding: 4px 14px; font-size: 12.5px; }
+  footer.mkt-footer ul { gap: 0 4px; }
+  footer.mkt-footer li { padding: 0; font-size: 12.5px; border-left: 0; }
+  footer.mkt-footer li a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 10px; }
 }
+footer.mkt-footer .h-footer-util a, .preview-banner a { display: inline-flex; align-items: center; min-height: 32px; }
 footer.mkt-footer .h-footer-util {
   display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 22px; margin-top: 14px;
   font-size: 15px; font-style: italic;

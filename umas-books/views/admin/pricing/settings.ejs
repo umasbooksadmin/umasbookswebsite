@@ -96,7 +96,7 @@
   <% } %>
 
   <div style="overflow-x:auto; margin-top:16px;">
-    <table class="ann-table">
+    <div class="table-scroll"><table class="ann-table">
       <thead>
         <tr><th>Online value (EUR)</th><% bindingColumns.forEach(b => { %><th><%= b.label %></th><% }) %></tr>
       </thead>
@@ -106,7 +106,7 @@
         <% }) %>
         <tr><td>Any value, no ISBN</td><td colspan="<%= bindingColumns.length %>"><%= calc.noIsbn %></td></tr>
       </tbody>
-    </table>
+    </table></div>
   </div>
   <p class="muted small">With no copies in stock yet. A new book always takes the publisher's price.</p>
 </div>

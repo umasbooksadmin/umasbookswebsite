@@ -191,7 +191,12 @@ test("add-book page: AI off (the default) -> rules with the usual value for the 
   assert.match(text, /We found no price information/);
   assert.equal(market.calls.length, 0);
 
-  const manual = await h.get("/admin/inventory/new");
+  // A blank form shows no alert before anything is typed (and focuses the ISBN box, not the price) ...
+  const blank = await h.get("/admin/inventory/new");
+  assert.doesNotMatch(blank.text, /Manual review: no ISBN barcode/);
+  assert.doesNotMatch(blank.text, /name="price"[^>]*autofocus/);
+  // ... the notice appears once the price panel is evaluated for a title with no ISBN.
+  const manual = await h.post("/admin/inventory/suggest", { title: "Typed By Hand", condition: "very_good" });
   assert.match(manual.text, /Manual review: no ISBN barcode/);
   assert.match(manual.text, /name="price"[^>]*value=""/);
   assert.match(manual.text, /name="price"[^>]*autofocus/);

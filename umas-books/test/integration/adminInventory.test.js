@@ -261,11 +261,12 @@ test("scan page reflects whether photo scanning is configured and the saved flag
   }
 });
 
-test("new-book form renders: with no ISBN there is no suggested price (manual review)", async () => {
+test("new-book form renders: with no ISBN there is no suggested price, and no alert before anything is typed", async () => {
   const res = await get("/admin/inventory/new");
   assert.equal(res.status, 200);
   assert.match(res.text, /name="price"[^>]*value=""/);
-  assert.match(res.text, /Manual review: no ISBN barcode/);
+  assert.doesNotMatch(res.text, /<p class="error-box" data-ps-review role="alert"><span data-ps-review-text>Manual review/);
+  assert.match(res.text, /id="isbn"[^>]*autofocus/);
   assert.match(res.text, /name="acquisitionCost"[^>]*value="0"/);
 });
 

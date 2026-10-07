@@ -391,10 +391,10 @@ test("receipt: items, total, method, TVA line, shop identity, no customer data",
   const r = await h.sale([h.book(c), { kind: "manual", description: "Donation <b>", price: "2", quantity: 1, category: "donation" }], { received: "10" });
   const { res, text } = await h.get(`/admin/till/sales/${r.body.saleId}/receipt`);
   assert.equal(res.status, 200);
-  assert.match(text, /Receipt no\. /);
-  assert.match(text, /€7\.00/);
-  assert.match(text, /Paid by cash/);
-  assert.match(text, /Change<\/td>\s*<td class="r-amt">€3\.00/);
+  assert.match(text, /Ticket n° \d{4}-\d{4}/);
+  assert.match(text, /7,00\s€/);
+  assert.match(text, /Payé en espèces/);
+  assert.match(text, /Rendu<\/td>\s*<td class="r-amt">3,00\s€/);
   assert.match(text, /TVA non applicable/);
   assert.match(text, /SIRET/);
   assert.match(text, /Donation &lt;b&gt;/, "escaped");
