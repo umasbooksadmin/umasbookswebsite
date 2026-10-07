@@ -145,31 +145,6 @@
     showResults(API + '/latest-arrivals?days=0&limit=24', { key: 'bk.results.new' });
   });
 
-  var rec = null;
-  var recSection = document.querySelector('.bk-rec');
-  var recLink = document.getElementById('bk-rec-link');
-  var recCoverSlot = document.getElementById('bk-rec-cover-slot');
-  function setRecCover(src) {
-    recCoverSlot.innerHTML = src
-      ? '<img class="rec-cover" src="' + esc(src) + '" alt="' + esc(rec.title) + '" width="172" height="258" decoding="async" data-cover>'
-      : '<div class="rec-cover cover-none">' + esc(rec.title) + '</div>';
-    var img = recCoverSlot.querySelector('img');
-    if (img) img.addEventListener('error', function () { setRecCover(null); }, { once: true });
-  }
-  function renderRecText() {
-    if (!rec) return;
-    document.getElementById('bk-rec-title').textContent = rec.title;
-    document.getElementById('bk-rec-author').textContent = rec.author || '';
-    document.getElementById('bk-rec-blurb').textContent = (rec.blurb && (rec.blurb[lang()] || rec.blurb.en)) || '';
-  }
-  getJSON(API + '/recommendation', function (err, data) {
-    if (err || !data) { recSection.hidden = true; return; }
-    rec = data;
-    renderRecText();
-    setRecCover(rec.coverUrl);
-    recLink.setAttribute('href', rec.url);
-  });
-
   var track = document.getElementById('bk-new-track');
   getJSON(API + '/latest-arrivals?days=0&limit=12', function (err, books) {
     if (err) { track.innerHTML = '<p class="muted">' + esc(t('bk.error')) + '</p>'; return; }
@@ -182,6 +157,6 @@
   document.getElementById('bk-new-next').addEventListener('click', function () { page(1); });
 
   document.querySelectorAll('.langtoggle button').forEach(function (b) {
-    b.addEventListener('click', function () { setTimeout(function () { renderTitle(); if (rec) renderRecText(); }, 0); });
+    b.addEventListener('click', function () { setTimeout(function () { renderTitle(); }, 0); });
   });
 })();
