@@ -1,0 +1,33 @@
+<%- include('../partials/admin_header', { title: 'Background jobs', active: active, pageTitle: 'Background jobs', pageSub: 'The tasks the site runs by itself (sending queued emails, expiring memberships, deleting old personal data...). Read-only.' }) %>
+
+<div class="card">
+  <% if (!jobs.length) { %>
+    <p>No job has been recorded yet. The jobs report here after their first run (a few minutes after the site starts).</p>
+  <% } else { %>
+  <div style="overflow-x:auto">
+  <table class="ann-table">
+    <thead>
+      <tr><th scope="col">Job</th><th scope="col">Runs every</th><th scope="col">Last run</th><th scope="col">Last success</th><th scope="col">Failed in a row</th><th scope="col">Status</th><th scope="col">Last error</th></tr>
+    </thead>
+    <tbody>
+      <% const fmt = (d) => d ? new Date(d).toLocaleString('en-GB', { timeZone: 'Europe/Paris', dateStyle: 'medium', timeStyle: 'short' }) : 'never'; %>
+      <% const every = (s) => s % 86400 === 0 ? (s / 86400) + ' day(s)' : s % 3600 === 0 ? (s / 3600) + ' hour(s)' : s % 60 === 0 ? (s / 60) + ' min' : s + ' s'; %>
+      <% jobs.forEach(function (j) { %>
+      <tr>
+        <th scope="row"><%= j.name %></th>
+        <td><%= every(j.interval_seconds) %></td>
+        <td><%= fmt(j.last_run_at) %></td>
+        <td><%= fmt(j.last_success_at) %></td>
+        <td><%= j.consecutive_failures %></td>
+        <td><% if (j.needs_attention) { %><strong>Needs attention</strong><% } else { %>OK<% } %></td>
+        <td><%= j.last_error || '' %></td>
+      </tr>
+      <% }) %>
+    </tbody>
+  </table>
+  </div>
+  <% } %>
+  <p>A job is flagged when it has failed 3 times in a row, or has not succeeded for three times its interval. The first time it happens you get one alert email; you get one more when it recovers. Times are Paris time. What to do: <code>docs/runbook.md</code>, &ldquo;Background jobs&rdquo;.</p>
+</div>
+
+<%- include('../partials/admin_footer') %>

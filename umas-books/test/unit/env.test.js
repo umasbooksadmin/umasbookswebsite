@@ -14,6 +14,7 @@ const FULL = {
   HELLOASSO_ORG_SLUG: "org",
   APP_BASE_URL: "https://umasbooks.example",
   CONTACT_TO: "admin@umasbooks.example",
+  ALERT_TO: "admin@umasbooks.example, backup@other-provider.example",
 };
 
 function run(env) {
@@ -182,4 +183,24 @@ test("sendLaunchAlerts sends each alert once, unthrottled; nothing when there ar
   assert.match(sent[0].label, /SANDBOX/);
   sendLaunchAlerts([], () => assert.fail("no alerts"));
   sendLaunchAlerts(undefined, () => assert.fail("no alerts"));
+});
+
+test("launchBannerAlerts: production only, live-site problems only, the sandbox has its own banner", () => {
+  const { launchBannerAlerts } = require("../../src/lib/env");
+  const env = { ...FULL, NODE_ENV: "production", HELLOASSO_API_BASE: "https://api.helloasso-sandbox.com/v5" };
+  delete env.APP_BASE_URL;
+  delete env.PREVIEW_MODE;
+  const banner = launchBannerAlerts(env);
+  assert.ok(banner.some((a) => /APP_BASE_URL/.test(a.label)));
+  assert.ok(!banner.some((a) => /SANDBOX/.test(a.label)), "sandbox excluded (own banner)");
+  assert.deepEqual(launchBannerAlerts({ ...env, NODE_ENV: "test" }), [], "never outside production");
+  assert.deepEqual(launchBannerAlerts({ ...FULL, NODE_ENV: "production", PREVIEW_MODE: "true" }), [], "preview mode: nothing");
+});
+
+test("ALERT_TO unset on a live site is a warning (alerts then go to the default address)", () => {
+  const env = { ...FULL };
+  delete env.PREVIEW_MODE;
+  delete env.ALERT_TO;
+  assert.match(validateEnv(env).warnings.join("\n"), /ALERT_TO is not set/);
+  assert.doesNotMatch(validateEnv({ ...env, ALERT_TO: "a@one.test, b@two.test" }).warnings.join("\n"), /ALERT_TO is not set/);
 });

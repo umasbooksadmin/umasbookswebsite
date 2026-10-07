@@ -43,6 +43,16 @@ jobs:
       PGPASSWORD: postgres
       PGDATABASE: restore_test
     steps:
+      - name: Check out the migration files (to compare with the dump)
+        # Only umas-books/migrations, with history (no file contents beyond that
+        # folder): the sanity check below needs the highest migration number in
+        # the repository and when each newer file was added.
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: umas-books/migrations
+          fetch-depth: 0
+          filter: blob:none
+
       - name: Download the newest dump from Backblaze
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_S3_KEY_ID }}
@@ -101,8 +111,39 @@ jobs:
           PSQL="/usr/lib/postgresql/18/bin/psql -v ON_ERROR_STOP=1 -tA"
           fail=0
 
-          # Tables that must exist (a missing one makes the count query error).
-          for t in users books book_copies orders schema_migrations; do
+          # The dump must contain every migration the repository had when the
+          # dump was taken. Compares the newest filename recorded in the dump
+          # with the newest file in umas-books/migrations. A migration merged
+          # in the last 30 hours is not an error (the nightly dump simply
+          # predates it); an older one means the dump is stale or incomplete.
+          REPO_LATEST=$(ls umas-books/migrations/*.sql | xargs -n1 basename | sort | tail -1)
+          DUMP_LATEST=$($PSQL -c "SELECT max(filename) FROM public.schema_migrations" 2>/dev/null || echo "")
+          echo "newest migration in the repository: $REPO_LATEST; in the dump: ${DUMP_LATEST:-none}"
+          if [ -z "$DUMP_LATEST" ]; then
+            echo "::error::schema_migrations is empty or unreadable in the dump."
+            fail=1
+          elif [[ "$DUMP_LATEST" < "$REPO_LATEST" ]]; then
+            NOW=$(date -u +%s)
+            for f in $(ls umas-books/migrations/*.sql | xargs -n1 basename | sort); do
+              if [[ "$f" > "$DUMP_LATEST" ]]; then
+                ADDED=$(git log --diff-filter=A --format=%ct -- "umas-books/migrations/$f" | tail -1)
+                AGE_H=$(( (NOW - ${ADDED:-0}) / 3600 ))
+                if [ "$AGE_H" -gt 30 ]; then
+                  echo "::error::The dump is OLDER than the repository: it lacks migration $f, which was added ${AGE_H} hours ago (newest in the dump: $DUMP_LATEST). The nightly backup is stale, or it dumped the wrong database."
+                  fail=1
+                else
+                  echo "::warning::The dump predates migration $f (added ${AGE_H} hours ago): expected right after a deploy."
+                fi
+              fi
+            done
+          fi
+
+          # Tables that must exist (a missing one makes the count query error):
+          # the core ones, plus everything the till, the shop and the email
+          # outbox keep, so a dump that silently lost them cannot pass.
+          for t in users books book_copies orders schema_migrations \
+                   till_sales till_days till_sale_items till_quick_items shop_sales \
+                   email_outbox membership_payments admin_audit_log images; do
             if ! $PSQL -c "SELECT count(*) FROM public.$t" > /dev/null 2>&1; then
               echo "::error::Table public.$t is missing or unreadable after restore."
               fail=1
@@ -173,7 +214,7 @@ jobs:
           username: ${{ secrets.GMAIL_USER }}
           password: ${{ secrets.GMAIL_APP_PASSWORD }}
           subject: "[umas-books] Backup restore test FAILED"
-          to: admin@umasbooks.org
+          to: ${{ vars.ALERT_TO || 'admin@umasbooks.org' }}
           from: "Uma's Books Backup Monitor <${{ secrets.GMAIL_USER }}>"
           body: |
             The monthly test that restores the newest database backup into a scratch database did not pass.

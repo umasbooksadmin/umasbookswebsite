@@ -19,6 +19,7 @@ const { expireStaleReservations, sendPickupReminders } = require("./lib/reservat
 const { runCartMaintenance: sweepCart } = require("./lib/cart");
 const { runOrderFollowUps } = require("./lib/orderSweeps");
 const { guardJob } = require("./lib/jobGuard");
+const { recordJobRun } = require("./lib/jobRuns");
 const { processOutbox } = require("./lib/outbox");
 const { alertUnmatchedPayments } = require("./lib/membership");
 const { drainAwards } = require("./lib/awards");
@@ -421,10 +422,12 @@ const server = app.listen(port, (err) => {
   if (!err) console.log(`umas-books listening on port ${port}`);
 });
 
-// Launch-guard alerts from lib/env.js (live site with a wrong setup): ONE
-// email per alert per boot. force skips the throttle so they are never
+// Launch-guard alerts from lib/env.js (live site with a wrong setup). force skips the throttle so they are never
 // swallowed by an unrelated error alert; the text carries no personal data.
-require("./lib/env").sendLaunchAlerts(envCheck && envCheck.alerts, alertOnError);
+// At most once per 24 h per alert (lib/alertFlags.js), not once per deploy or
+// restart; while the problem exists a red banner on every admin page shows it.
+require("./lib/env").sendLaunchAlerts(envCheck && envCheck.alerts, alertOnError, pool)
+  .catch((err) => console.error("Launch alerts failed:", err.message));
 
 // Without a handler, a failed bind (most commonly EADDRINUSE) surfaces as
 // an uncaughtException with a stack trace and, in production, an alert
@@ -446,16 +449,21 @@ server.on("error", (err) => {
 // on its own). Pickup-reminder emails (3 days before expiry) only ever
 // run from here, not on page reads — sending mail is a side effect that
 // doesn't belong in a GET request's hot path.
-const runReservationMaintenance = guardJob("Reservation maintenance", async () => {
-  await Promise.allSettled([
-    expireStaleReservations(pool).catch((err) => console.error("Reservation expiry failed:", err)),
-    sendPickupReminders(pool).catch((err) => console.error("Pickup reminders failed:", err)),
-    expireStaleMemberships(pool).catch((err) => console.error("Membership expiry failed:", err)),
-    reconcileRecentMemberships(pool).catch((err) => console.error("Membership reconciliation failed:", err)),
-  ]);
-});
+//
+// Each of the four is its own tracked job (lib/jobGuard.js -> job_runs): a
+// failure used to be only a console.error; now three in a row alert the admin
+// and /admin/diagnostics/jobs shows when each last succeeded.
+const SIX_HOURS = 6 * 60 * 60 * 1000;
+const DAY = 24 * 60 * 60 * 1000;
+const maintenanceJobs = [
+  guardJob("Reservation expiry", () => expireStaleReservations(pool), { pool, intervalMs: SIX_HOURS }),
+  guardJob("Pickup reminders", () => sendPickupReminders(pool), { pool, intervalMs: SIX_HOURS }),
+  guardJob("Membership expiry", () => expireStaleMemberships(pool), { pool, intervalMs: SIX_HOURS }),
+  guardJob("Membership reconciliation", () => reconcileRecentMemberships(pool), { pool, intervalMs: SIX_HOURS }),
+];
+const runReservationMaintenance = () => Promise.all(maintenanceJobs.map((j) => j()));
 runReservationMaintenance();
-const reservationTimer = setInterval(runReservationMaintenance, 6 * 60 * 60 * 1000);
+const reservationTimer = setInterval(runReservationMaintenance, SIX_HOURS);
 
 // Follow-up for RESERVATIONS (lib/orderSweeps.js): releases reservations past
 // their deadline and seats whose session is over, the day-10 customer reminder,
@@ -467,7 +475,7 @@ const reservationTimer = setInterval(runReservationMaintenance, 6 * 60 * 60 * 10
 const runOrderFollowUpJob = guardJob("Order follow-up", async () => {
   const results = await runOrderFollowUps(pool);
   console.log("Order follow-up:", JSON.stringify(results));
-});
+}, { pool, intervalMs: SIX_HOURS });
 const orderFollowUpFirstRun = setTimeout(runOrderFollowUpJob, 5 * 60 * 1000);
 orderFollowUpFirstRun.unref();
 const orderFollowUpTimer = setInterval(runOrderFollowUpJob, 6 * 60 * 60 * 1000);
@@ -475,7 +483,7 @@ const orderFollowUpTimer = setInterval(runOrderFollowUpJob, 6 * 60 * 60 * 1000);
 // Leftovers of the old online checkout (an unpaid order holding books 'in_cart'):
 // released after an hour, so nothing stays stuck (lib/cart.js). Nothing creates
 // such holds any more, and no payment provider is asked.
-const runCartMaintenance = guardJob("Cart maintenance", () => sweepCart(pool));
+const runCartMaintenance = guardJob("Cart maintenance", () => sweepCart(pool), { pool, intervalMs: 10 * 60 * 1000 });
 runCartMaintenance();
 const cartTimer = setInterval(runCartMaintenance, 10 * 60 * 1000);
 
@@ -486,20 +494,24 @@ const runOutbox = guardJob("Email outbox", async () => {
   const r = await processOutbox(pool);
   if (r.sent || r.failed) console.log(`Email outbox: ${r.sent} sent, ${r.failed} failed.`);
   await alertUnmatchedPayments(pool);
-});
+}, { pool, intervalMs: 60 * 1000 });
 setTimeout(runOutbox, 15 * 1000).unref();
 const outboxTimer = setInterval(runOutbox, 60 * 1000);
 
 // Retention purge: removes personal data past the periods promised in the
 // privacy policy (lib/privacy.js). Daily is plenty; it also runs once at
 // boot so a restart-heavy host still gets it.
-function runPrivacyPurge() {
-  purgeExpiredPersonalData(pool)
-    .then((counts) => console.log("Retention purge:", JSON.stringify(counts)))
-    .catch((err) => console.error("Retention purge failed:", err));
-}
+// Every step is tracked on its own ("Retention purge: tokens", ...): a step
+// that fails every day is a privacy-policy breach in the making, so it alerts
+// like any other job (3 failures in a row) instead of only logging.
+const runPrivacyPurge = guardJob("Retention purge", async () => {
+  const counts = await purgeExpiredPersonalData(pool, {
+    onStep: (step, err) => recordJobRun(pool, `Retention purge: ${step}`, { intervalMs: DAY, error: err }),
+  });
+  console.log("Retention purge:", JSON.stringify(counts));
+});
 runPrivacyPurge();
-const privacyTimer = setInterval(runPrivacyPurge, 24 * 60 * 60 * 1000);
+const privacyTimer = setInterval(runPrivacyPurge, DAY);
 
 // Unused-image cleanup (lib/imageCleanup.js): not personal data, so its own
 // daily step. Removes at most one batch of images older than 7 days that no
@@ -507,9 +519,9 @@ const privacyTimer = setInterval(runPrivacyPurge, 24 * 60 * 60 * 1000);
 const runImageCleanup = guardJob("Image cleanup", async () => {
   const { deleted, bytes } = await purgeUnusedImages(pool);
   console.log("Image cleanup:", JSON.stringify({ deleted, bytes }));
-});
+}, { pool, intervalMs: DAY });
 runImageCleanup();
-const imageCleanupTimer = setInterval(runImageCleanup, 24 * 60 * 60 * 1000);
+const imageCleanupTimer = setInterval(runImageCleanup, DAY);
 
 // Awards & best-seller lists (lib/awards): every 2 minutes look up a few
 // books that have never been checked (newest first), plus retries of failed
@@ -519,7 +531,7 @@ const imageCleanupTimer = setInterval(runImageCleanup, 24 * 60 * 60 * 1000);
 const runAwardsDrain = guardJob("Awards check", async () => {
   const { processed } = await drainAwards(pool);
   if (processed) console.log(`Awards check: ${processed} book(s) checked.`);
-});
+}, { pool, intervalMs: 2 * 60 * 1000 });
 const awardsTimer = setInterval(runAwardsDrain, 2 * 60 * 1000);
 
 // Book covers on our own server (lib/coverStore.js): every 5 minutes copy up to 20
@@ -534,9 +546,9 @@ let coverTimer = null;
 let coverFirstTimer = null;
 if (process.env.COVER_BACKFILL !== "off") {
   const runCoverBackfill = guardJob("Cover backfill", async () => {
-    const { processed, stored, failed } = await backfillCovers(pool);
-    if (processed) console.log(`Cover backfill: ${stored} stored, ${failed} failed, ${processed} tried.`);
-  });
+    const { processed, stored, failed, transient } = await backfillCovers(pool);
+    if (processed) console.log(`Cover backfill: ${stored} stored, ${failed} failed, ${transient} not reachable (will retry), ${processed} tried.`);
+  }, { pool, intervalMs: 5 * 60 * 1000 });
   coverFirstTimer = setTimeout(runCoverBackfill, 60 * 1000);
   coverFirstTimer.unref();
   coverTimer = setInterval(runCoverBackfill, 5 * 60 * 1000);

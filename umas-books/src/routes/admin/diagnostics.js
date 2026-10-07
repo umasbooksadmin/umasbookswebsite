@@ -1,6 +1,8 @@
 const express = require("express");
 const { requireAdmin } = require("../../middleware/auth");
 const { resolveTrustProxyHops } = require("../../lib/trustProxy");
+const { pool } = require("../../db");
+const { listJobRuns } = require("../../lib/jobRuns");
 
 const router = express.Router();
 
@@ -23,6 +25,17 @@ router.get("/admin/diagnostics/client-ip", requireAdmin, (req, res) => {
     cfConnectingIp: header("cf-connecting-ip"),
     trueClientIp: header("true-client-ip"),
     trustProxyHops: resolveTrustProxyHops().hops,
+  });
+});
+
+// The background jobs (timers in src/index.js): when each last ran and last
+// succeeded, how many times in a row it has failed, and the last (scrubbed)
+// error. Read-only. English only (admin area). See docs/runbook.md, "Background jobs".
+router.get("/admin/diagnostics/jobs", requireAdmin, async (req, res) => {
+  res.set("Cache-Control", "no-store");
+  res.render("admin/diagnostics_jobs", {
+    active: "diagnostics",
+    jobs: await listJobRuns(pool),
   });
 });
 

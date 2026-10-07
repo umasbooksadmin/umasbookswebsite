@@ -11,6 +11,22 @@ on:
   pull_request:
   workflow_dispatch: {}
 
+# Actions minutes: the repository is private and the Free plan has 2,000 minutes
+# a month; a full run is about 20 billed minutes (smoke-crawl 10, test 6, the
+# other four 1 each). Every job below still ALWAYS runs and reports success, so
+# the six required check names never go missing or stay "Pending" (a workflow
+# skipped with `paths:` filters would block merges). Instead, the first step of
+# each job (.github/scripts/ci-changes.sh) looks at the files a pull request
+# changed and the slow steps inside the job are skipped when they cannot matter:
+#   - docs-only change (docs/**, *.md): lint, test, migration-test and
+#     dependency-audit skip their install and run steps (about 1 minute each);
+#   - smoke-crawl runs only when src/, views/, public/, migrations/, scripts/,
+#     e2e/, the package files, the marketing pages/assets, render.yaml or .github/
+#     changed, and ALWAYS on pushes to main and manual runs;
+#   - a new push to the same pull request cancels the run in progress (below).
+# secret-scan always runs in full (docs can contain a secret too).
+# docs/runbook.md, "GitHub Actions minutes" has the measured numbers.
+
 permissions:
   contents: read
 
@@ -31,7 +47,14 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2 # the PR merge commit and its parent: see .github/scripts/ci-changes.sh
+      - name: Decide how much CI this change needs
+        id: changes
+        working-directory: .
+        run: bash .github/scripts/ci-changes.sh
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        if: steps.changes.outputs.docs_only != 'true'
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -40,8 +63,10 @@ jobs:
       # puppeteer (it downloads Chrome, ~150 MB, which only the smoke-crawl
       # job uses). bcryptjs is pure JS and sharp ships prebuilt binaries as
       # optional dependencies, so nothing else needs one.
-      - run: npm ci --ignore-scripts
-      - run: npm run lint
+      - if: steps.changes.outputs.docs_only != 'true'
+        run: npm ci --ignore-scripts
+      - if: steps.changes.outputs.docs_only != 'true'
+        run: npm run lint
 
   test:
     # Unit tests (pure functions) plus integration tests that boot the
@@ -67,15 +92,25 @@ jobs:
       SESSION_SECRET: ci-test-session-secret
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2 # the PR merge commit and its parent: see .github/scripts/ci-changes.sh
+      - name: Decide how much CI this change needs
+        id: changes
+        working-directory: .
+        run: bash .github/scripts/ci-changes.sh
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        if: steps.changes.outputs.docs_only != 'true'
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: umas-books/package-lock.json
       # --ignore-scripts: skips puppeteer's Chrome download (see the lint job).
-      - run: npm ci --ignore-scripts
-      - run: npm run migrate
-      - run: npm test
+      - if: steps.changes.outputs.docs_only != 'true'
+        run: npm ci --ignore-scripts
+      - if: steps.changes.outputs.docs_only != 'true'
+        run: npm run migrate
+      - if: steps.changes.outputs.docs_only != 'true'
+        run: npm test
 
   migration-test:
     # Proves every migration applies cleanly, in order, to a brand-new
@@ -106,16 +141,26 @@ jobs:
       SEED_STRICT: "true"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2 # the PR merge commit and its parent: see .github/scripts/ci-changes.sh
+      - name: Decide how much CI this change needs
+        id: changes
+        working-directory: .
+        run: bash .github/scripts/ci-changes.sh
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        if: steps.changes.outputs.docs_only != 'true'
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: umas-books/package-lock.json
       # --ignore-scripts: skips puppeteer's Chrome download (see the lint job).
-      - run: npm ci --ignore-scripts
+      - if: steps.changes.outputs.docs_only != 'true'
+        run: npm ci --ignore-scripts
       - name: Apply every migration to a brand-new database
+        if: steps.changes.outputs.docs_only != 'true'
         run: npm run migrate
       - name: Seed against the freshly migrated schema
+        if: steps.changes.outputs.docs_only != 'true'
         run: npm run seed
 
   dependency-audit:
@@ -123,14 +168,23 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2 # the PR merge commit and its parent: see .github/scripts/ci-changes.sh
+      - name: Decide how much CI this change needs
+        id: changes
+        working-directory: .
+        run: bash .github/scripts/ci-changes.sh
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        if: steps.changes.outputs.docs_only != 'true'
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: umas-books/package-lock.json
       # --ignore-scripts: skips puppeteer's Chrome download (see the lint job).
-      - run: npm ci --ignore-scripts
-      - run: npm audit --audit-level=high
+      - if: steps.changes.outputs.docs_only != 'true'
+        run: npm ci --ignore-scripts
+      - if: steps.changes.outputs.docs_only != 'true'
+        run: npm audit --audit-level=high
 
   secret-scan:
     runs-on: ubuntu-latest
@@ -187,26 +241,40 @@ jobs:
       ADMIN_2FA_REQUIRED: "false"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2 # the PR merge commit and its parent: see .github/scripts/ci-changes.sh
+      - name: Decide how much CI this change needs
+        id: changes
+        working-directory: .
+        run: bash .github/scripts/ci-changes.sh
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        if: steps.changes.outputs.smoke_needed == 'true'
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: umas-books/package-lock.json
       - name: Cache the Chrome that puppeteer downloads
+        if: steps.changes.outputs.smoke_needed == 'true'
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/puppeteer
           key: puppeteer-${{ runner.os }}-${{ hashFiles('umas-books/package-lock.json') }}
-      - run: npm ci
-      - run: npm run migrate
+      - if: steps.changes.outputs.smoke_needed == 'true'
+        run: npm ci
+      - if: steps.changes.outputs.smoke_needed == 'true'
+        run: npm run migrate
       - name: Seed sample content (so the crawl has real pages to walk)
+        if: steps.changes.outputs.smoke_needed == 'true'
         run: npm run seed
-      - run: node scripts/sitemap/seed-crawl-accounts.js
+      - if: steps.changes.outputs.smoke_needed == 'true'
+        run: node scripts/sitemap/seed-crawl-accounts.js
 
       - name: Start the app
+        if: steps.changes.outputs.smoke_needed == 'true'
         run: nohup node src/index.js > server.log 2>&1 &
 
       - name: Wait for the app to be healthy
+        if: steps.changes.outputs.smoke_needed == 'true'
         run: |
           for _ in $(seq 1 40); do
             if curl -sf http://localhost:3099/healthz > /dev/null; then
@@ -216,10 +284,13 @@ jobs:
           done
           echo "App never became healthy:"; cat server.log; exit 1
 
-      - run: node scripts/sitemap/route-inventory.js . > routes.json
-      - run: node scripts/sitemap/crawler.js http://localhost:3099 routes.json > crawl.json
-      - run: node scripts/sitemap/assert-crawl-ok.js crawl.json
+      - if: steps.changes.outputs.smoke_needed == 'true'
+        run: node scripts/sitemap/route-inventory.js . > routes.json
+      - if: steps.changes.outputs.smoke_needed == 'true'
+        run: node scripts/sitemap/crawler.js http://localhost:3099 routes.json > crawl.json
+      - if: steps.changes.outputs.smoke_needed == 'true'
+        run: node scripts/sitemap/assert-crawl-ok.js crawl.json
 
       - name: Server log (always shown, for debugging a failure above)
-        if: always()
+        if: always() && steps.changes.outputs.smoke_needed == 'true'
         run: cat server.log
