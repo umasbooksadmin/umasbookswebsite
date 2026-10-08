@@ -22,7 +22,7 @@ const _ogImage = (typeof ogImage !== "undefined" && ogImage) ? _abs(ogImage) : (
 const _defaultImg = !(typeof ogImage !== "undefined" && ogImage);
 %><title><%= _title %></title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<% if (locals.preview) { %><meta name="robots" content="noindex, nofollow">
+<% if (locals.preview || locals.noindex) { %><meta name="robots" content="noindex, nofollow">
 <% } else if (!_indexable) { %><meta name="robots" content="noindex">
 <% } %><% if (_indexable) { %><meta name="description" content="<%= _desc %>">
 <% if (_pageUrl) { %><link rel="canonical" href="<%= _pageUrl %>"><link rel="alternate" hreflang="x-default" href="<%= _pageUrl %>">

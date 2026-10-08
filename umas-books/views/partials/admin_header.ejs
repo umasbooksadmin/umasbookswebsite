@@ -15,6 +15,9 @@
 </head>
 <body>
 <a class="skip-link" href="#admin-main-content">Skip to main content</a>
+<% if (locals.staging) { %>
+<div class="admin-preview-note" role="status">TEST SITE (staging): not the real Uma's Books. Email: <%= locals.stagingMailTo ? 'every message is redirected to ' + locals.stagingMailTo + ' (original recipient in the subject)' : 'NOT sent at all (STAGING_MAIL_TO is not set)' %>. HelloAsso: <%= locals.stagingHelloasso === 'sandbox' ? 'sandbox (payments are not real)' : 'not configured' %>.</div>
+<% } %>
 <% if (locals.preview) { %>
 <div class="admin-preview-note" role="status">PREVIEW MODE is ON: online reservations and membership payments are disabled and the public site shows the coming-soon banner. Remove the PREVIEW_MODE setting in Render to launch.</div>
 <% } %>
