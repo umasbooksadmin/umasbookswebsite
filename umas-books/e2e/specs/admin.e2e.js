@@ -692,7 +692,6 @@ s.write("A10b (must) create a tagged test book through the ISBN lookup, see a pr
   assert.equal(await ctx.page.$eval("#location", (i) => i.value), tagged.location);
   assert.equal(await ctx.page.$eval("#binding", (i) => i.value), "trade");
   assert.equal(await ctx.page.$eval("#source", (i) => i.value), "donation");
-  has(await ctx.text(), /Print label UB-\d+/);
   ctx.created("test book (tagged title, made-up ISBN, one copy at EUR 5.00 in the public shop)", `${tagged.title} / ${tagged.isbn}`, "admin Books & Reservations > search the tag > Delete this book");
   await admin(ctx, `/admin/inventory?q=${encodeURIComponent(TAG())}`);
   const href = await ctx.page.$$eval("a[href^='/admin/inventory/']", (as, title) => (as.find((a) => a.textContent.includes(title)) || {}).getAttribute?.("href") || null, tagged.title);
@@ -748,7 +747,7 @@ s.write("A15b (must) adding an award shows it on the public book page; removing 
   hasNot(await ctx.text(), /Booker Prize/);
 });
 
-s.write("A16 (must) Move books moves the tagged copy to a new place, and the Location filter finds it", { as: "admin" }, async (ctx) => {
+s.write("A16 (must) Move books moves the tagged copy to a new place, and the book list shows it", { as: "admin" }, async (ctx) => {
   if (!tagged.id) ctx.skip("needs A10b");
   const dest = `${tagged.location}-B`;
   await admin(ctx, "/admin/inventory/move");
@@ -756,8 +755,8 @@ s.write("A16 (must) Move books moves the tagged copy to a new place, and the Loc
   await ctx.page.type("#scan", tagged.isbn);
   await Promise.all([ctx.page.waitForNavigation(), ctx.page.$eval("#scan", (i) => i.form.querySelector("button[type='submit']").click())]);
   has(await ctx.text(), /1 moved so far|moved/);
-  await admin(ctx, `/admin/inventory?location=${encodeURIComponent(dest)}`);
-  has(await ctx.text(), new RegExp(TAG()));
+  await admin(ctx, `/admin/inventory?q=${encodeURIComponent(TAG())}`);
+  has(await ctx.text(), new RegExp(`Location: ${dest}`));
 });
 
 s.write("A17 the copy's Source is saved and visible on the book page", { as: "admin" }, async (ctx) => {
@@ -832,23 +831,6 @@ s.test("A39 (must) Pricing rules shows the rules and the Try it calculator, and 
   for (const re of [/Needs review/, /Priced differently from the suggestion|Clearance candidates/]) has(review, re);
 });
 s.manual("A39b change the Clearance price to 2, add a copy, then set it back to 1", "changes the real pricing settings; do by hand");
-s.test("A40 the Price stickers page loads with the 7-color legend, a CSV download, and a color chip on the add-book form", { as: "admin" }, async (ctx) => {
-  await admin(ctx, "/admin/inventory/stickers");
-  has(await ctx.text(), /Sticker colors/);
-  assert.equal((await ctx.page.$$(".sticker-legend [data-sticker-chip]")).length, 7, "the legend shows 7 colors");
-  const csv = await ctx.page.$eval("a[href*='format=csv']", (a) => a.getAttribute("href"));
-  assert.match(csv, /format=csv/);
-  const res = await ctx.fetchRaw(csv.replace(/&amp;/g, "&"));
-  assert.equal(res.status, 200);
-  assert.match(res.headers.get("content-type") || "", /text\/csv/);
-  assert.match(res.headers.get("content-disposition") || "", /umas-books-stickers-since-/);
-  await admin(ctx, "/admin/inventory/new");
-  const note = await ctx.page.$eval("[data-sticker-note]", (e) => e.textContent.trim());
-  assert.ok(/sticker/i.test(note), `sticker note on the add-book form: "${note}"`);
-  await ctx.page.click("#priceLevel-5");
-  await ctx.page.waitForFunction(() => /sticker, EUR|sticker, €|sticker/i.test(document.querySelector("[data-sticker-note]").textContent));
-  assert.ok(await ctx.page.$("[data-sticker-note] [data-sticker-chip]"), "a colored chip shows for the chosen price");
-});
 s.manual("A41 online price check ('Listings found') when PRICING_AI is on", "depends on a setting and a paid lookup service; off by default");
 
 s.manual("A42 (must) Mark as Member gives no end date, and the member's membership page says so", "needs a look at the admin account page and the member's own membership page; the toggle itself is covered by A24");
@@ -866,7 +848,7 @@ s.manual("A80 (must) Privacy requests: look up, download and erase everything he
 s.manual("A81 viewing the Accounts report page is written to the admin activity log once an hour", "needs a look at the Admin activity page; covered by the automated test privacyRequests.test.js");
 s.manual("A82 (must) the client IP check on both the Render address and umasbooks.org before launch", "needs the live hosts and your own public IP");
 
-// ---- the till, copy labels, end of day, accounting export (steps A60-A69) ----
+// ---- the till, end of day, accounting export (steps A60-A69) ----
 
 s.test("A60 (must) the Till page loads from the menu, the scan box has the focus and Cash / Card are there", { as: "admin" }, async (ctx) => {
   await admin(ctx, "/admin");
@@ -888,21 +870,6 @@ s.test("A60 (must) the Till page loads from the menu, the scan box has the focus
   await ctx.page.waitForFunction(() => /not recognised/.test(document.getElementById("till-msg").textContent), { timeout: 8000 });
 });
 
-s.test("A61 the copy labels page lists copies with a barcode label and print sizes", { as: "admin" }, async (ctx) => {
-  await admin(ctx, "/admin/inventory/labels?since=2000-01-01");
-  const text = await ctx.text();
-  has(text, /Copy labels/);
-  has(text, /Print labels for the ticked copies|No in-stock copies match/);
-  const href = await ctx.page.$$eval("input[name='id']", (is) => (is[0] ? is[0].value : null));
-  if (href) {
-    await admin(ctx, `/admin/inventory/labels?id=${href}&w=50&h=25`);
-    assert.ok(await ctx.page.$("svg.barcode"), "a barcode is drawn");
-    has(await ctx.text(), new RegExp(`UB-${href}`));
-  }
-  await admin(ctx, "/admin/inventory/stickers");
-  assert.ok(await ctx.page.$("a[href*='/admin/inventory/labels']"), "the stickers page links to the labels");
-});
-
 s.test("A62 the End of day page, Quick items page and the Accounting export report load", { as: "admin" }, async (ctx) => {
   await admin(ctx, "/admin/till/day");
   has(await ctx.text(), /Cash drawer/);
@@ -922,11 +889,11 @@ s.test("A62 the End of day page, Quick items page and the Accounting export repo
   assert.doesNotMatch(body, /[^\s,"]+@[^\s,"]+\.[a-z]{2,}/i, "the export has no email addresses");
 });
 
-s.write("A63 (must) sell the tagged test copy at the till with cash by scanning its label, then void it", { as: "admin" }, async (ctx) => {
+s.write("A63 (must) sell the tagged test copy at the till with cash by scanning its code (UB-number), then void it", { as: "admin" }, async (ctx) => {
   if (!tagged.id) ctx.skip("needs A10b");
   await admin(ctx, `/admin/inventory/${tagged.id}`);
-  const copyId = await ctx.page.$$eval("a[href*='/admin/inventory/labels?id=']", (as) => (as[0] ? as[0].getAttribute("href").split("id=").pop() : null));
-  assert.ok(copyId, "the copy has a Label link");
+  const copyId = await ctx.page.$$eval("input[id^='location-']", (is) => (is[0] ? is[0].id.split("-").pop() : null));
+  assert.ok(copyId, "the copy form is on the page");
   await admin(ctx, "/admin/till");
   await ctx.page.keyboard.type(`UB-${copyId}`);
   await ctx.page.keyboard.press("Enter");
@@ -949,7 +916,7 @@ s.manual("A64 (must) a card sale: Charge on the SumUp reader, then Card paid; th
 s.manual("A65 (must) Close the day: count the drawer, see over/short, closing locks voids", "closing is one-way (it locks that day's voids), so it is left for you to do by hand");
 s.manual("A66 (must) a barcode scanner typing into the till scan box (code appears, Enter adds the line)", "needs the physical scanner");
 s.manual("A67 a manual item and a quick item (tote bag) sold and shown on the receipt and in End of day by category", "selling is left for you to do by hand");
-s.manual("A68 a book with no ISBN: Enter the details by hand, print its label, sell it at the till", "creates a real book and a sale");
+s.manual("A68 a book with no ISBN: Enter the details by hand, sell it at the till", "creates a real book and a sale");
 s.manual("A69 (must) the Accounting export CSV imports into the treasurer's accounting software", "needs the treasurer: see docs/till-todos.md");
 s.test("A70 the Other stock (not books) page is reachable from Inventory and has the barcode box", { as: "admin" }, async (ctx) => {
   await admin(ctx, "/admin/inventory");
@@ -963,7 +930,6 @@ s.manual("A71 (must) collecting a reservation at the till: scan ORDER-<n>, the l
 s.manual("A70b scanning an item's barcode with the scanner fills the Barcode box; at the till it adds the item", "needs the physical scanner (see A66)");
 s.manual("A71 tablet layout: the till is one column at 768 and 1024 px and the menu is behind a button", "needs a tablet or a resized window; the CSS rules are covered by an automated test");
 s.manual("A72 the admin menu is grouped and the Till pill is only filled on the till", "visual check; the markup is covered by an automated test");
-s.manual("A73 a 3-label roll prints 3 pages with the first page a label, bars scan at 203 and 300 dpi", "needs a label printer");
 s.manual("A74 destructive buttons ask for confirmation (delete book/copy/event, remove sign-up, deactivate, make admin, close the day, void)", "the browser confirm dialog is left to a person; an automated test checks every destructive admin form carries data-confirm");
 s.manual("A75 the Add Book form focuses ISBN, shows no Manual review alert when blank, has a sticky Save bar", "layout check; the markup is covered by an automated test");
 s.manual("A76 the receipt is in French with a gapless number, and ANNUL\u00c9 when voided", "selling is left for you to do by hand; covered by an automated test");

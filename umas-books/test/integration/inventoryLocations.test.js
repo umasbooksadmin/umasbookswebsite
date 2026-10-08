@@ -284,7 +284,7 @@ test("each move writes one audit row with location codes only", async () => {
 
 // ---------- visibility ----------
 
-test("inventory list shows each book's in-stock locations and filters by location", async () => {
+test("inventory list shows each book's in-stock locations and has no Location search box", async () => {
   const mark = uniq();
   const inA = await seedBook(`Filter In ${mark}`, isbn13());
   await seedCopy(inA, { location: "FLT-B2" });
@@ -297,11 +297,8 @@ test("inventory list shows each book's in-stock locations and filters by locatio
   assert.match(all, /Filter In/);
   assert.match(all, /Location: FLT-A1, FLT-B2(?!, )/, "sold copies' locations are not listed");
 
-  const { text: filtered } = await get("/admin/inventory?location=flt-a1");
-  assert.match(filtered, /Filter In/);
-  assert.doesNotMatch(filtered, /Filter Out/);
-  assert.match(filtered, /name="location"[^>]*value="FLT-A1"/);
+  assert.doesNotMatch(all, /name="location"/, "the book search has no Location box");
 
-  const { text: combined } = await get(`/admin/inventory?q=nomatch-${mark}&location=FLT-A1`);
-  assert.doesNotMatch(combined, /Filter In/);
+  const { text: ignored } = await get(`/admin/inventory?q=${mark}&location=FLT-A1`);
+  assert.match(ignored, /Filter In/, "a leftover ?location= is ignored");
 });
