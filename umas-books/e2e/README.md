@@ -243,4 +243,3 @@ who opens any member page (`/dashboard`, `/forum`, `/meetings`, `/announcements`
   browser window). The admin's one-time code is computed with `src/lib/totp.js`
   and the code of a 30-second step is never used twice.
 - Each test file is a separate process; `run.js` runs them one after another.
-- To send a form POST that answers a redirect (a refusal or a "thanks"), use `ctx.postForm(action, fields)`, not `fetch()` in the page. The pages send `upgrade-insecure-requests`, so over plain http (`e2e:local`) Chrome upgrades a redirect that `fetch()` follows to https and the fetch fails with "Failed to fetch". `postForm` navigates like a real browser. When `fetch()` is needed (concurrent requests), use `redirect: "manual"`.

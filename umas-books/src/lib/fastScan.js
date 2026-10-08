@@ -22,16 +22,34 @@ function rememberedBinding(raw) {
   return null;
 }
 
-// The defaults of a fresh form, from the query string of the page.
-function formDefaults(query) {
+// What this admin entered on the last copy they saved: Location, Source,
+// Condition and the book's Binding (any may be null). A fresh browser (or phone)
+// has nothing remembered, so this is what its form starts with; only an admin who
+// never saved a copy gets the first-ever values (Store, Donation, Other, Very Good).
+async function lastUsed(pool, userId) {
+  if (!userId) return {};
+  const { rows } = await pool.query(
+    `SELECT c.location, c.source, c.condition, b.binding
+     FROM book_copies c JOIN books b ON b.id = c.book_id
+     WHERE c.created_by = $1 ORDER BY c.id DESC LIMIT 1`,
+    [userId]
+  );
+  return rows[0] || {};
+}
+
+// The defaults of a fresh form, from the query string of the page (a save
+// carries what was just used) and, failing that, the last copy this admin saved
+// (`last`, see lastUsed()); the first-ever values only when there is neither.
+function formDefaults(query, last) {
   const q = query || {};
+  const l = last || {};
   const queriedLocation = normalizeLocation(q.location);
   return {
-    location: queriedLocation || DEFAULT_LOCATION,
+    location: queriedLocation || normalizeLocation(l.location) || DEFAULT_LOCATION,
     locationQueried: Boolean(queriedLocation),
-    source: normalizeSource(q.source) || DEFAULT_SOURCE,
-    binding: rememberedBinding(q.binding) || firstUseBinding(),
-    condition: typeof q.condition === "string" && q.condition ? normalizeCondition(q.condition) : null,
+    source: normalizeSource(q.source) || normalizeSource(l.source) || DEFAULT_SOURCE,
+    binding: rememberedBinding(q.binding) || rememberedBinding(l.binding) || firstUseBinding(),
+    condition: typeof q.condition === "string" && q.condition ? normalizeCondition(q.condition) : (l.condition ? normalizeCondition(l.condition) : null),
     // Which values the address carried (the browser's memory fills in the others).
     queried: { binding: Boolean(rememberedBinding(q.binding)), source: Boolean(normalizeSource(q.source)), condition: typeof q.condition === "string" && Boolean(q.condition) },
   };
@@ -58,4 +76,4 @@ async function savedCopy(pool, rawId) {
   return rows[0] || null;
 }
 
-module.exports = { DEFAULT_LOCATION, DEFAULT_SOURCE, firstUseBinding, rememberedBinding, formDefaults, carryQuery, savedCopy };
+module.exports = { lastUsed, DEFAULT_LOCATION, DEFAULT_SOURCE, firstUseBinding, rememberedBinding, formDefaults, carryQuery, savedCopy };

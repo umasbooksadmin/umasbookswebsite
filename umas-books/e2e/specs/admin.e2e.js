@@ -206,7 +206,7 @@ s.test("A9c Scan mode is off by default and is remembered by the browser (nothin
 s.test("A9d Location, Source, Binding and Condition are the last values used (also after a reload); the first time they are Store, Donation, the last binding and Very Good (nothing is saved)", { as: "admin" }, async (ctx) => {
   await admin(ctx, "/admin/inventory/new");
   await ctx.page.waitForSelector("#isbn[data-scan-active]");
-  await ctx.page.evaluate(() => { for (const k of ["binding", "location", "source", "condition"]) localStorage.removeItem(`umas.inventory.${k}`); });
+  await ctx.page.evaluate(() => { for (const k of ["binding", "location", "source", "condition"]) localStorage.removeItem(`umas.inventory.${k}.v2`); });
   await ctx.page.reload();
   assert.equal(await ctx.page.$eval("#source", (i) => i.value), "donation", "first time: Donation");
   assert.equal(await ctx.page.$eval("#condition", (i) => i.value), "very_good", "first time: Very Good");
@@ -221,7 +221,7 @@ s.test("A9d Location, Source, Binding and Condition are the last values used (al
   assert.equal(await ctx.page.$eval("#source", (i) => i.value), "purchase");
   assert.equal(await ctx.page.$eval("#condition", (i) => i.value), "good");
   assert.equal(await ctx.page.$eval("#location", (i) => i.value), "E2E-LAST");
-  await ctx.page.evaluate(() => { for (const k of ["binding", "location", "source", "condition"]) localStorage.removeItem(`umas.inventory.${k}`); });
+  await ctx.page.evaluate(() => { for (const k of ["binding", "location", "source", "condition"]) localStorage.removeItem(`umas.inventory.${k}.v2`); });
 });
 
 s.test("A10 (must) the copy form has condition, binding, source, location and the price control with a suggestion", { as: "admin" }, async (ctx) => {
@@ -662,6 +662,33 @@ s.write("A10b (must) create a tagged test book through the ISBN lookup, see a pr
   assert.ok(href, "the tagged book is listed");
   tagged.id = href.split("/").pop();
   has(await ctx.text(), new RegExp(TAG()));
+});
+
+s.write("A10c (must) a new location can be typed (also on a phone); a fresh browser starts at the location, source, binding and condition used last, not at Store", { as: "admin" }, async (ctx) => {
+  if (!tagged.id) ctx.skip("needs A10b");
+  const clear = () => ctx.page.evaluate(() => { for (const k of ["binding", "location", "source", "condition"]) localStorage.removeItem(`umas.inventory.${k}.v2`); });
+  for (const phone of [false, true]) {
+    if (phone) await ctx.page.setViewport({ width: 375, height: 812, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+    await admin(ctx, "/admin/inventory/new");
+    await ctx.page.waitForSelector("#isbn[data-scan-active]");
+    await clear();
+    await ctx.page.reload();
+    await ctx.page.waitForSelector("#isbn[data-scan-active]");
+    assert.equal(await ctx.page.$eval("#location", (i) => i.value), tagged.location, "a fresh browser: the location of the last copy saved, not STORE");
+    assert.equal(await ctx.page.$eval("#binding", (i) => i.value), "trade", "a fresh browser: the last binding");
+    assert.equal(await ctx.page.$eval("#condition", (i) => i.value), "very_good");
+    // A location that is in no list yet: typed, not picked. It must stay as typed (upper case) and be remembered.
+    const fresh = `${tagged.location}-NEW${phone ? "P" : "D"}`;
+    await ctx.page.$eval("#location", (i) => { i.value = ""; });
+    await ctx.page.type("#location", fresh.toLowerCase());
+    assert.equal(await ctx.page.$eval("#location", (i) => i.readOnly || i.disabled), false, "the Location field is editable");
+    await ctx.page.keyboard.press("Enter");
+    assert.equal(await ctx.page.$eval("#location", (i) => i.value), fresh, "the new location is kept (upper case)");
+    await ctx.page.reload();
+    assert.equal(await ctx.page.$eval("#location", (i) => i.value), fresh, "remembered after a reload");
+    await clear();
+  }
+  await ctx.page.setViewport({ width: 1280, height: 800 });
 });
 
 s.write("A11 the tagged copy keeps the price chosen at intake and records the suggestion it was based on", { as: "admin" }, async (ctx) => {
