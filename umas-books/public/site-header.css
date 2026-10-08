@@ -37,6 +37,8 @@ header.mkt-header a:hover, footer.mkt-footer a:hover { text-decoration: none; }
   padding: 6px 16px; font: 500 15px/1.4 system-ui, -apple-system, 'Segoe UI', sans-serif;
   border-bottom: 1px solid #e3cf8f;
 }
+/* Test system (staging): red instead of yellow so nobody mistakes it for the real site; #4a0000 on #fbd5d5 is about 11:1. */
+.preview-banner.staging-banner { background: #fbd5d5; color: #4a0000; border-bottom-color: #d98c8c; }
 .preview-banner details.pb-d { display: none; }
 /* Link: an inline-block with padding so the tap target is at least 24px high (WCAG 2.2, 2.5.8). */
 .preview-banner a.pb-link {
@@ -223,11 +225,6 @@ footer.mkt-footer .h-social { display: flex; gap: 14px; }
 footer.mkt-footer .h-social a { color: var(--ink); display: inline-flex; }
 footer.mkt-footer .h-social a:hover { color: var(--maroon); }
 footer.mkt-footer .h-social svg { width: 24px; height: 24px; }
-/* Map to the shop: full width on phones, at most 420px on larger screens. */
-footer.mkt-footer .h-footer-map { margin: 22px auto 0; padding: 0 16px; max-width: 452px; text-align: center; }
-footer.mkt-footer .h-footer-map a { display: block; }
-footer.mkt-footer .h-footer-map img { display: block; width: 100%; max-width: 420px; height: auto; margin: 0 auto; border: 1px solid var(--ink); }
-footer.mkt-footer .h-footer-map figcaption { margin-top: 8px; font-size: 14px; font-style: italic; color: var(--ink-soft); }
 /* When the links wrap on a phone a vertical rule would start a line: no rules, a gap instead, and 44px tap rows. */
 @media (max-width: 760px) {
   footer.mkt-footer ul { gap: 0 4px; }

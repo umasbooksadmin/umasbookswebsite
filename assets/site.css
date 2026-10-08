@@ -349,7 +349,7 @@ img { max-width: 100%; display: block; }
 .arrival-card:hover { text-decoration: none; }
 .arrival-card:hover .arrival-title { color: var(--maroon); }
 .arrival-cover {
-  width: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 3px;
+  width: 100%; height: auto; aspect-ratio: 2 / 3; object-fit: contain; object-position: center; border-radius: 3px;
   border: 1px solid var(--card-border); margin-bottom: 8px; background: var(--cream-alt);
 }
 .arrival-cover-placeholder {

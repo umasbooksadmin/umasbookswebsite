@@ -7,7 +7,6 @@ let h;
 before(async () => { h = await tillHarness({ port: 4204, ip: "10.80.4.4" }); });
 after(async () => { await h.stop(); });
 
-const decode = (res) => decodeURIComponent(res.headers.get("location") || "");
 async function addItem(fields) {
   return h.post("/admin/till/items", { name: "Item", price: "5", category: "merchandise", ...fields });
 }
@@ -15,7 +14,6 @@ const itemBy = async (name) => (await h.pool.query("SELECT * FROM till_quick_ite
 
 test("the Other stock page is reachable from Inventory and the till, with its title and sub-heading", async () => {
   assert.match((await h.get("/admin/inventory")).text, /href="\/admin\/till\/items">Other stock \(not books\)</);
-  assert.match((await h.get("/admin/inventory")).text, /href="\/admin\/inventory\/labels">Labels</);
   assert.match((await h.get("/admin/till")).text, /href="\/admin\/till\/items">Other stock \(not books\)</);
   const page = (await h.get("/admin/till/items")).text;
   assert.match(page, /<h1>Other stock \(not books\)<\/h1>/);
@@ -105,7 +103,7 @@ test("lookup order: UB- label, then quick barcode, then ISBN, then unknown", asy
   assert.equal((await h.scan("TOTE-GREEN")).body.type, "quick");
 });
 
-test("generated shop codes ITEM-<id>: by the checkbox and by the button; the label is a Code 128 of the code", async () => {
+test("generated shop codes ITEM-<id>: by the checkbox and by the button", async () => {
   assert.equal((await addItem({ name: "Gen Bookmark", price: "1.5", generate: "1" })).status, 302);
   const a = await itemBy("Gen Bookmark");
   assert.equal(a.barcode, `ITEM-${a.id}`);
@@ -117,18 +115,6 @@ test("generated shop codes ITEM-<id>: by the checkbox and by the button; the lab
   assert.equal((await itemBy("Gen Later")).barcode, `ITEM-${b.id}`);
   assert.equal((await h.post(`/admin/till/items/${b.id}/generate-code`, {})).status, 200, "already has one");
   assert.equal((await h.scan(`item-${b.id}`)).body.item.name, "Gen Later");
-
-  const label = await h.get(`/admin/till/items/${b.id}/label?w=40&h=20`);
-  assert.equal(label.res.status, 200);
-  assert.match(label.text, new RegExp(`<svg class="barcode"[^>]*data-module-dots="3"[^>]*aria-label="Barcode ITEM-${b.id}"`), "the barcode of the shop code, in whole printer dots");
-  assert.match(label.text, new RegExp(`Shop code ITEM-${b.id}`));
-  assert.match(label.text, /--lw: 40mm; --lh: 20mm/);
-  assert.match((await h.get("/admin/till/items")).text, new RegExp(`/admin/till/items/${b.id}/label`));
-  // manufacturer-coded and code-less items have no label
-  const ean = await itemBy("EAN Item");
-  assert.match(decode(await fetch(`${h.app.base}/admin/till/items/${ean.id}/label`, { redirect: "manual", headers: { cookie: h.jar.header(), "x-forwarded-for": h.ip } })), /Only items with a shop code/);
-  assert.equal((await h.get("/admin/till/items/99999999/label")).res.status, 404);
-  assert.equal((await h.get(`/admin/till/items/${b.id}/label`, require("../helpers/httpClient").makeCookieJar())).res.status, 302);
 });
 
 test("stock: scanning refuses at 0, a sale decrements, a void restores the count", async () => {

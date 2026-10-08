@@ -335,7 +335,9 @@ test("blog: create stores trimmed fields, a unique slug (accents stripped, colli
   const r = await h.post("/admin/blog", {
     title, body: "<p>Hello</p><script>x()</script>", excerpt: "  short  ", category: "News", tags: " a, b ", status: "published", backQuery: "page=2",
   });
-  assert.equal(location(r), "/admin/blog?page=2");
+  // Saved, then back to the list (303 -> GET) with a visible confirmation.
+  assert.equal(r.res.status, 200);
+  assert.ok(r.text.includes("was published."), "a success notice is shown");
   const p = await blogByTitle(title);
   assert.ok(p);
   assert.ok(p.slug.startsWith("eveil-dete-"), `slug was ${p.slug}`);
@@ -380,8 +382,8 @@ test("blog: missing title or body writes nothing", async () => {
   const u = h.uniq();
   for (const fields of [{ title: "", body: "<p>x</p>" }, { title: `NoBody ${u}`, body: "" }, { title: `Script ${u}`, body: "<script>1</script>" }]) {
     const r = await h.post("/admin/blog", fields);
-    assert.equal(r.res.status, 302);
-    assert.equal(location(r), "/admin/blog");
+    assert.equal(r.res.status, 200);
+    assert.ok(r.text.includes("Nothing was saved."), "the admin is told why, in the page");
   }
   assert.equal((await h.q("SELECT 1 FROM blog_posts WHERE title LIKE $1", [`%${u}`])).length, 0);
 });
@@ -393,7 +395,8 @@ test("blog: update changes fields and status, keeps the slug, handles images, an
   assert.match(p.image_url, /^\/img\/[0-9a-f]{64}\.jpg$/);
 
   const r = await h.post(`/admin/blog/${p.id}`, { title: `${title} v2`, body: "<p>y</p>", status: "draft", tags: "t", backQuery: "status=draft" });
-  assert.equal(location(r), "/admin/blog?status=draft");
+  assert.equal(r.res.status, 200);
+  assert.ok(r.text.includes("was saved."));
   let row = (await h.q("SELECT * FROM blog_posts WHERE id = $1", [p.id]))[0];
   assert.equal(row.title, `${title} v2`);
   assert.equal(row.status, "draft");
@@ -414,6 +417,7 @@ test("blog: update changes fields and status, keeps the slug, handles images, an
   assert.equal((await h.q("SELECT title FROM blog_posts WHERE id = $1", [p.id]))[0].title, `${title} v3`);
 
   const del = await h.post(`/admin/blog/${p.id}/delete`, { backQuery: "page=3" });
+  assert.equal(del.res.status, 302);
   assert.equal(location(del), "/admin/blog?page=3");
   assert.equal((await h.q("SELECT 1 FROM blog_posts WHERE id = $1", [p.id])).length, 0);
 });

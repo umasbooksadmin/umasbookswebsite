@@ -1,4 +1,4 @@
-// Second review: admin nav, labels (dpi), French receipt with gapless numbering,
+// Second review: admin nav, French receipt with gapless numbering,
 // accounting export (refund rows, accounts, over/short, no float), mapping page,
 // French CSV, add-book form, order language.
 const { test, before, after } = require("node:test");
@@ -44,17 +44,7 @@ test("till page: live regions, scanner suffix hint", async () => {
   assert.match(text, /till-change-row" aria-live="polite"/);
 });
 
-test("labels: ?dpi= sizes the bars in whole dots, narrow labels warn, the page title is not printed", async () => {
-  const b = await h.seedBook(`Label ${h.uniq()}`);
-  const c = await h.seedCopy(b.id, { price: 5 });
-  const d203 = (await h.get(`/admin/inventory/labels?id=${c}&w=50&h=25`)).text;
-  assert.match(d203, /data-dpi="203" data-module-dots="3"/);
-  const d300 = (await h.get(`/admin/inventory/labels?id=${c}&w=50&h=25&dpi=300`)).text;
-  assert.match(d300, /data-dpi="300" data-module-dots="4"/);
-  assert.match((await h.get(`/admin/inventory/labels?id=${c}&w=50&h=25&dpi=999`)).text, /data-dpi="203"/);
-  const narrow = (await h.get(`/admin/inventory/labels?id=${c}&w=30&h=20`)).text;
-  assert.match(narrow, /data-barcode-warning/);
-  assert.doesNotMatch(d203, /data-barcode-warning/);
+test("printing hides the topbar and its heading", async () => {
   const css = require("node:fs").readFileSync(require("node:path").join(__dirname, "../../public/admin.css"), "utf8");
   const print = css.slice(css.indexOf("@media print"));
   assert.match(print, /\.admin-topbar,/, "the topbar (and its h1) is hidden when printing");

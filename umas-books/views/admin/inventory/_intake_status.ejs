@@ -4,7 +4,6 @@
 <div class="scan-saved" id="scan-saved" role="status" aria-live="polite" data-scan-saved<%= typeof savedCopy !== 'undefined' && savedCopy ? '' : ' hidden' %>>
   <% if (typeof savedCopy !== 'undefined' && savedCopy) { %>
     <span class="scan-saved-text">Saved: <strong><%= savedCopy.title %></strong>.</span>
-    <a class="btn btn-small btn-outline" href="/admin/inventory/labels?id=<%= savedCopy.id %>" target="_blank" rel="noopener">Print label UB-<%= savedCopy.id %></a>
     <% if (typeof savedRequests !== 'undefined' && savedRequests > 0) { %><span class="scan-saved-requests"><%= savedRequests %> customer<%= savedRequests === 1 ? '' : 's' %> asked for this book. <a href="/admin/requests?status=matched">See the requests</a></span><% } %>
   <% } %>
 </div>
