@@ -4,7 +4,7 @@
 // creates (with a featured image), edits, drafts, publishes and deletes posts,
 // and visitors see published posts on the public blog feed and pages exactly
 // as after launch. Runs the REAL app (real login, real CSRF, real multipart
-// upload). Port 4360 is reserved for this file.
+// upload). Port 4380 is reserved for this file.
 
 const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
@@ -19,7 +19,7 @@ let app, db, jar;
 const uniq = () => `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
 
 before(async () => {
-  app = await startTestApp({ port: 4360, isolated: true, env: { PREVIEW_MODE: "true" } });
+  app = await startTestApp({ port: 4380, isolated: true, env: { PREVIEW_MODE: "true" } });
   db = new Client({ connectionString: app.databaseUrl });
   await db.connect();
   const email = `blog-preview-${uniq()}@example.test`;
