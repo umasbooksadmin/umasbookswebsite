@@ -86,13 +86,8 @@
 
   <main id="admin-main-content" tabindex="-1" class="admin-main<%= typeof mainWide !== "undefined" && mainWide ? " is-wide" : "" %>">
     <div class="admin-topbar">
-      <div>
-        <% if (active !== "overview") { %>
-          <a href="#" class="admin-back-link">&larr; Back</a>
-        <% } %>
-        <h1><%= typeof pageTitle !== "undefined" ? pageTitle : "Dashboard" %></h1>
-        <% if (typeof pageSub !== "undefined") { %><p class="sub"><%= pageSub %></p><% } %>
-      </div>
+      <%# Phones and tablets only (admin.css): the sidebar logo sits inside the closed menu drawer there, so this small logo is the way back to the main page. %>
+      <a class="admin-topbar-brand" href="/"><picture><source srcset="/assets/img/logo-wordmark-framed.webp" type="image/webp"><img src="/assets/img/logo-wordmark-framed.png" alt="Uma's Books and Adventures" width="440" height="220"></picture></a>
       <div class="admin-topbar-tools">
         <button type="button" class="admin-nav-toggle" data-toggle-admin-nav aria-label="Open menu" aria-expanded="false" aria-controls="admin-sidebar">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
@@ -104,5 +99,12 @@
         </form>
         <% } %>
         <a class="admin-avatar" href="/account" title="<%= locals.user ? user.displayName : '' %>"><%= locals.user ? user.displayName.split(/\s+/).map(function(w){ return w[0]; }).slice(0,2).join('').toUpperCase() : '?' %></a>
+        <div class="admin-topbar-title">
+        <% if (active !== "overview") { %>
+          <a href="#" class="admin-back-link">&larr; Back</a>
+        <% } %>
+        <h1><%= typeof pageTitle !== "undefined" ? pageTitle : "Dashboard" %></h1>
+        <% if (typeof pageSub !== "undefined") { %><p class="sub"><%= pageSub %></p><% } %>
       </div>
+    </div>
     </div>
