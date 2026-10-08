@@ -223,7 +223,7 @@
     var keepAsIs = function (v) { return v === "-" ? "" : (v || null); };
     remember(BINDING_STORE_NAME, bindingSel, isSet("binding"), function (v) { return v === "-" ? "" : (v ? (resolveBindingKey(v, availableBindings) || null) : null); });
     remember(SOURCE_STORE_NAME, sourceSel, isSet("source"), keepAsIs);
-    remember(CONDITION_STORE_NAME, conditionSel, isSet("condition"), function (v) { return v === "like_new" ? "very_good" : keepAsIs(v); }); // the old "like_new" grade is now very_good
+    remember(CONDITION_STORE_NAME, conditionSel, isSet("condition"), keepAsIs);
     conditionSel.dispatchEvent(new Event("change", { bubbles: true })); // the price control follows a remembered condition
     started = true;
 

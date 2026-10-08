@@ -303,6 +303,7 @@ form.stack select { font-family: 'Cormorant Garamond', Georgia, serif; font-size
   color: var(--green); background: var(--panel); font-size: 13px; font-weight: 600; white-space: nowrap;
 }
 .condition-badge.condition-new { background: var(--green); color: #fff; }
+.condition-badge.condition-like_new { border-style: double; border-width: 4px; padding: 0 8px; }
 .condition-badge.condition-very_good { border-style: solid; }
 .condition-badge.condition-good { border-color: var(--gold-dark); color: var(--gold-dark); }
 .condition-badge.condition-acceptable { border-color: var(--maroon-dark); border-style: dashed; color: var(--maroon-dark); }
