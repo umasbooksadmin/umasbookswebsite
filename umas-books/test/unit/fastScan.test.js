@@ -46,3 +46,17 @@ test("the carry query keeps location, source, binding and condition", () => {
   assert.equal(q.has("requests"), false);
   assert.equal(new URLSearchParams(carryQuery({ copyId: 3, requests: 2 })).get("requests"), "2");
 });
+
+test("the last copy an admin saved is the starting point; the query wins; Store, Donation, Other only when there is nothing", () => {
+  const last = { location: "fiction a1", source: "purchase", condition: "good", binding: "hardcover" };
+  const d = formDefaults({}, last);
+  assert.deepEqual([d.location, d.source, d.binding, d.condition], ["FICTION A1", "purchase", "hardcover", "good"]);
+  assert.equal(d.locationQueried, false, "still replaceable by the browser's own memory");
+  assert.deepEqual(d.queried, { binding: false, source: false, condition: false });
+  const q = formDefaults({ location: "poetry", source: "lot" }, last);
+  assert.deepEqual([q.location, q.source, q.binding], ["POETRY", "lot", "hardcover"]);
+  // Missing or unusable pieces of the last copy fall back one by one.
+  const partial = formDefaults({}, { location: null, source: null, condition: "like_new", binding: "spiral" });
+  assert.deepEqual([partial.location, partial.source, partial.binding, partial.condition], ["STORE", "donation", firstUseBinding(), "very_good"]);
+  assert.deepEqual(formDefaults({}, {}), formDefaults({}));
+});

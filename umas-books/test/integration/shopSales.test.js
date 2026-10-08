@@ -145,6 +145,8 @@ test("the database refuses a source outside the list", async () => {
 });
 
 test("the source starts at Donation the first time, the source of the last book is carried in the address, and a refused save keeps what was chosen", async () => {
+  // "The first time": this admin has no saved copy yet (earlier tests in this file saved some; a later save is the starting point, see fastScanIntake.test.js).
+  await pool.query("UPDATE book_copies SET created_by = NULL");
   const { text } = await get("/admin/inventory/new");
   assert.match(text, /<select id="source" name="source">[\s\S]*<option value="donation" selected>Donation<\/option>/);
   assert.match((await get("/admin/inventory/new?source=other")).text, /<option value="other" selected>Other<\/option>/);

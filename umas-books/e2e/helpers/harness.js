@@ -178,28 +178,6 @@ async function makeCtx(opts, testName, t) {
       const res = await page.goto(ctx.url(p), { waitUntil: wait });
       return res;
     },
-    // Send a form POST the way a browser does (a real page navigation) and follow the redirect it answers.
-    // Not fetch(): on a plain-http site (e2e:local) Chrome upgrades a fetch() redirect target to https because
-    // the pages send upgrade-insecure-requests, and the fetch dies with "Failed to fetch". A navigation does not.
-    // The current page must be on the site (the CSRF token comes from it).
-    async postForm(action, fields) {
-      const { token } = await page.evaluate(async () => (await fetch("/api/csrf-token")).json());
-      const nav = page.waitForNavigation({ waitUntil: "domcontentloaded" });
-      await page.evaluate((a, f, tk) => {
-        const form = document.createElement("form");
-        form.method = "POST";
-        form.action = a;
-        for (const [k, v] of Object.entries({ _csrf: tk, ...f })) {
-          const i = document.createElement("input");
-          i.type = "hidden"; i.name = k; i.value = v;
-          form.appendChild(i);
-        }
-        document.body.appendChild(form);
-        form.submit();
-      }, action, fields, token);
-      const res = await nav;
-      return { status: res.status(), redirected: res.request().redirectChain().length > 0, path: new URL(page.url()).pathname, body: await ctx.text() };
-    },
     text: () => page.evaluate(() => document.body.innerText),
     html: () => page.content(),
     // Skip from inside a test (e.g. the site has no suitable sample data).

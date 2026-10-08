@@ -371,7 +371,7 @@ router.post("/admin/inventory/lookup", requireAdmin, async (req, res) => {
 
 router.get("/admin/inventory/new", requireAdmin, async (req, res) => {
   const suggestion = await prepareIntakeForm(res, {});
-  const d = fastScan.formDefaults(req.query);
+  const d = fastScan.formDefaults(req.query, await fastScan.lastUsed(pool, req.session.user.id));
   const saved = await fastScan.savedCopy(pool, req.query.saved);
   res.render("admin/inventory/new", {
     active: "inventory",

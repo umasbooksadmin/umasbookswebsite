@@ -328,3 +328,33 @@ test("the old no-JavaScript Look up button posts to the lookup page and the form
   assert.match(r.text, /name="title"[^>]*value="Posted Lookup"/);
   assert.match(r.text, /id="location"[^>]*value="STORE"/);
 });
+
+// ------------------------------------------- a new location, and the last values used
+
+test("a location typed for the first time is saved with the book, offered in the list, and is the next form's starting location (a fresh browser too)", async () => {
+  const title = `New Place ${uniq()}`;
+  const r = await post("/admin/inventory", { headers: { ...adminHeader(), ...asJson }, form: copyBody(title, { fast: "1", location: "  brand new  shelf-9 ", binding: "hardcover", condition: "good", source: "lot" }) });
+  assert.equal(r.status, 200, r.text);
+  const { rows } = await pool.query("SELECT c.location FROM book_copies c JOIN books b ON b.id = c.book_id WHERE b.title = $1", [title]);
+  assert.deepEqual(rows.map((x) => x.location), ["BRAND NEW SHELF-9"], "saved as typed, normalised");
+  // A visit with no query and nothing in the browser's memory: the server starts the form at the last values used.
+  const { text } = await get("/admin/inventory/new");
+  assert.match(text, /id="location"[^>]*value="BRAND NEW SHELF-9"/, "not STORE");
+  assert.match(text, /<datalist id="location-options">[\s\S]*<option value="BRAND NEW SHELF-9">[\s\S]*<\/datalist>/, "in the list afterwards");
+  assert.match(text, /<option value="lot" selected>/);
+  assert.match(text, /<option value="hardcover" selected>/);
+  assert.match(text.match(/<select id="condition"[\s\S]*?<\/select>/)[0], /<option value="good" selected>/);
+  // The page script may still replace these with the browser's own memory; they are not "carried by the address".
+  assert.match(text, /data-location-default/);
+  assert.match(text, /data-binding-set=""/);
+  // A query still wins over the last values.
+  assert.match((await get("/admin/inventory/new?location=other%20place")).text, /id="location"[^>]*value="OTHER PLACE"/);
+});
+
+test("another admin's last copy does not set this admin's starting values", async () => {
+  const { rows } = await pool.query("INSERT INTO users (email, password_hash, display_name, is_admin) VALUES ($1, 'x', 'Other Admin', true) RETURNING id", [`other-admin-${Date.now()}@example.test`]);
+  const other = { "x-test-user": JSON.stringify({ id: rows[0].id, email: "o@example.test", displayName: "Other", isAdmin: true }) };
+  const { text } = await get("/admin/inventory/new", { headers: other });
+  assert.match(text, /id="location"[^>]*value="STORE"/);
+  assert.match(text, /<option value="donation" selected>/);
+});
