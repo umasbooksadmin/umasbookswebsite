@@ -186,6 +186,9 @@
 .richtext-editor { min-height: 140px; padding: 10px 12px; font-size: 15.5px; }
 .richtext-editor:focus { outline: none; }
 .richtext-hidden { display: none; }
+.field-error { color: #90503f; font-size: 14px; margin-top: -6px; }
+.field-error[hidden] { display: none; }
+.richtext.richtext-invalid { outline: 2px solid #d4b4ab; outline-offset: 2px; }
 
 .stack label.ann-check {
   display: flex; align-items: flex-start; gap: 8px; font-family: 'Libre Baskerville', Georgia, serif;

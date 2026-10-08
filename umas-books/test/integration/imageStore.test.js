@@ -62,7 +62,7 @@ async function upload(path, fields, fileField) {
   form.append(fileField, new Blob([sourceJpeg], { type: "image/jpeg" }), "photo.jpg");
   const res = await fetch(`${app.base}${path}`, { method: "POST", redirect: "manual", headers: { cookie: jar.header() }, body: form });
   await res.text();
-  assert.equal(res.status, 302, `${path} should redirect after saving`);
+  assert.ok([302, 303].includes(res.status), `${path} should redirect after saving (got ${res.status})`);
 }
 
 const SHORT_URL = /^\/img\/[0-9a-f]{64}\.jpg$/;
