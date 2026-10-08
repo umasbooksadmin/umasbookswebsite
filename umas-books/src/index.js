@@ -51,6 +51,7 @@ const charityRoutes = require("./routes/charity");
 const volunteerRoutes = require("./routes/volunteer");
 const meetingsRoutes = require("./routes/meetings");
 const eventsRoutes = require("./routes/events");
+const { redirectWithFlash } = require("./lib/postRedirect");
 const blogRoutes = require("./routes/blog");
 const sessionsRoutes = require("./routes/sessions");
 const booksRoutes = require("./routes/books");
@@ -264,8 +265,20 @@ const charityUpload = multer({ storage: multer.memoryStorage(), limits: { fileSi
 app.use("/admin/charities", requireAdmin, charityUpload.fields([{ name: "image", maxCount: 1 }]));
 
 // Same again, for a blog post's featured image (see /admin/blog in routes/admin/blog.js).
-const blogUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
-app.use("/admin/blog", requireAdmin, blogUpload.fields([{ name: "image", maxCount: 1 }]));
+// 15 MB: a camera or phone photo is commonly 6-12 MB and is shrunk to 800x500 anyway.
+// A refused upload sends the admin back to the form with a sentence, not a bare error page.
+const blogUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
+const blogUploadFields = blogUpload.fields([{ name: "image", maxCount: 1 }]);
+app.use("/admin/blog", requireAdmin, (req, res, next) => {
+  blogUploadFields(req, res, (err) => {
+    if (!err) return next();
+    console.warn(`Blog upload refused: ${err.code || err.name}: ${err.message}`);
+    const message = err.code === "LIMIT_FILE_SIZE"
+      ? "The post was NOT saved: that picture is larger than 15 MB. Please choose a smaller picture and write the post again."
+      : "The post was NOT saved: the upload could not be read. Please try again, with or without the picture.";
+    redirectWithFlash(req, res, "/admin/blog", "adminBlog", { error: message }).catch(next);
+  });
+});
 
 // HelloAsso calls this server-to-server with no CSRF token, so it's
 // mounted ahead of the CSRF check below rather than with the rest of
