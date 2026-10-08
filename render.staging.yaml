@@ -55,11 +55,11 @@ services:
       # The one switch for everything above (src/lib/staging.js).
       - key: APP_ENV
         value: staging
-      # Keeps the site in "coming soon" mode: reservations and the membership
-      # payment form are off. Delete this variable in Render > Environment to
-      # test reservations (the red TEST SITE banner stays).
-      - key: PREVIEW_MODE
-        value: "true"
+      # PREVIEW_MODE is deliberately NOT set: on the test site reservations and
+      # the membership form WORK (membership payment only against the HelloAsso
+      # sandbox, see below). The red TEST SITE banner, noindex, robots.txt and
+      # the empty sitemap come from APP_ENV=staging, with or without it. Add
+      # PREVIEW_MODE=true in Render > Environment only to rehearse "coming soon".
       # Same as production (Render's edge plus its internal proxy).
       - key: TRUST_PROXY_HOPS
         value: "2"

@@ -1792,7 +1792,7 @@ Where each setting lives (see the comments in `render.staging.yaml`):
 | Setting | What it is | Value |
 |---|---|---|
 | `APP_ENV` | Render environment variable (in the file) | `staging` |
-| `PREVIEW_MODE` | Render environment variable (in the file) | `true`: reservations and membership payment are off. Delete it (staging service > Environment) to test reservations |
+| `PREVIEW_MODE` | not set (on purpose) | Reservations and the membership form work on the test site. The banner, noindex and robots rules come from `APP_ENV=staging` anyway. Add `PREVIEW_MODE=true` (staging service > Environment) only to rehearse the "coming soon" mode |
 | `NODE_ENV`, `TRUST_PROXY_HOPS` | Render environment variables (in the file) | `production`, `2` (same as the real site) |
 | `HELLOASSO_API_BASE` | Render environment variable (in the file) | the HelloAsso **sandbox** address |
 | `DATABASE_URL` | Render environment variable, wired to the staging database | automatic |

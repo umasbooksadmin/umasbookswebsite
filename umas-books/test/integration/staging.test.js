@@ -2,7 +2,7 @@
 // robots.txt, empty sitemap, the admin note, and the boot refusals. A second
 // app WITHOUT APP_ENV proves a normal site is unchanged.
 //
-// Ports 4360 (staging) and 4361 (normal) are reserved for this file.
+// Ports 4360 (staging, PREVIEW_MODE off), 4361 (normal) and 4362 (staging + preview) are reserved for this file.
 
 const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
@@ -10,15 +10,17 @@ const { spawnSync } = require("node:child_process");
 const path = require("node:path");
 const { startTestApp } = require("../helpers/testApp");
 
-let staging, normal;
+let staging, normal, stagingLive;
 
 before(async () => {
-  staging = await startTestApp({ port: 4360, isolated: true, env: { APP_ENV: "staging", PREVIEW_MODE: "true", STAGING_MAIL_TO: "me@example.org", HELLOASSO_API_BASE: "https://api.helloasso-sandbox.com/v5" } });
+  staging = await startTestApp({ port: 4360, isolated: true, env: { APP_ENV: "staging", PREVIEW_MODE: "", STAGING_MAIL_TO: "me@example.org", HELLOASSO_API_BASE: "https://api.helloasso-sandbox.com/v5" } });
+  stagingLive = await startTestApp({ port: 4362, isolated: true, env: { APP_ENV: "staging", PREVIEW_MODE: "true" } });
   normal = await startTestApp({ port: 4361, isolated: true, env: { APP_ENV: "", PREVIEW_MODE: "" } });
 });
 after(async () => {
   await staging.stop();
   await normal.stop();
+  await stagingLive.stop();
 });
 
 const get = (app, p, lang) => fetch(`${app.base}${p}`, { headers: lang ? { cookie: `umasbooks_lang=${lang}` } : {} });
@@ -87,4 +89,21 @@ test("boot: APP_ENV=staging with live HelloAsso credentials exits 1 with a clear
   // sandbox: the guard passes (the process then fails later on the unreachable database, not with the guard message)
   const ok = run({ ...live, HELLOASSO_API_BASE: "https://api.helloasso-sandbox.com/v5" }, "src/migrate.js");
   assert.ok(!/\[staging\] FATAL/.test(ok.stderr));
+});
+
+test("staging with PREVIEW_MODE off: banner, noindex, robots and sitemap still apply, and the preview restrictions do not (membership form shown, no preview banner or notice)", async () => {
+  const html = await (await get(staging, "/membership.html", "en")).text();
+  assert.ok(html.includes("staging-banner"));
+  assert.ok(!html.includes("Membership opens at launch") || !/mem-form-title"[^>]*>\s*Membership opens at launch/.test(html.replace(/<script[\s\S]*?<\/script>/g, "")), "membership form not switched off");
+  assert.match((await get(staging, "/cart")).headers.get("x-robots-tag") || "", /noindex/);
+  const cart = await (await get(staging, "/cart", "en")).text();
+  assert.ok(!cart.includes("Online reservations open when we launch"), "cart is not in preview mode");
+  assert.equal(await (await get(staging, "/robots.txt")).text(), "User-agent: *\nDisallow: /\n");
+  assert.ok(!(await (await get(staging, "/sitemap.xml")).text()).includes("<url>"));
+});
+
+test("staging with PREVIEW_MODE on keeps the red staging banner (not the yellow preview one)", async () => {
+  const html = await (await get(stagingLive, "/", "en")).text();
+  assert.ok(html.includes("staging-banner"));
+  assert.ok(!/class="preview-banner">/.test(html));
 });

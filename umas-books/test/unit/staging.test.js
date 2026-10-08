@@ -174,7 +174,7 @@ test("render.staging.yaml: separate file, staging names, no production secrets, 
   assert.match(y, /name: umas-books-staging-db/);
   assert.match(y, /name: umas-books-staging\n/);
   assert.match(y, /key: APP_ENV\n\s+value: staging/);
-  assert.match(y, /key: PREVIEW_MODE\n\s+value: "true"/);
+  assert.ok(!/key: PREVIEW_MODE/.test(y.replace(/#.*$/gm, "")), "PREVIEW_MODE is not set on staging, so reservations work");
   assert.match(y, /key: TRUST_PROXY_HOPS\n\s+value: "2"/);
   assert.match(y, /region: frankfurt/);
   assert.match(y, /healthCheckPath: \/healthz/);
