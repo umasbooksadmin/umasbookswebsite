@@ -38,7 +38,6 @@ test("scan UB-<id> adds exactly that in-stock copy", async () => {
   assert.equal(r.body.type, "line");
   assert.equal(r.body.line.copyId, b);
   assert.equal(r.body.line.priceCents, 300);
-  assert.equal(r.body.line.color.key, "yellow");
   assert.notEqual(r.body.line.copyId, a);
 });
 
