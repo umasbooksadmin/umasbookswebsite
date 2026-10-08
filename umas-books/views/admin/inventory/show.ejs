@@ -1,5 +1,4 @@
 <%- include('../../partials/admin_header', { title: book.title, active: active, pageTitle: book.title }) %>
-<% if (typeof labelCopy !== "undefined" && labelCopy) { %><div class="notice-box" role="status">Copy added. <a class="btn btn-small" href="/admin/inventory/labels?id=<%= labelCopy %>" target="_blank" rel="noopener">Print label UB-<%= labelCopy %></a></div><% } %>
 <% if (typeof notice !== "undefined" && notice) { %><div class="notice-box" role="status"><%= notice %></div><% } %>
 
 <% if (typeof requestCount !== "undefined" && requestCount > 0) { %><div class="notice-box" role="status"><%= requestCount %> customer<%= requestCount === 1 ? '' : 's' %> asked for this book. <a href="/admin/requests?status=matched&amp;book=<%= book.id %>">See the request<%= requestCount === 1 ? '' : 's' %></a></div><% } %>
@@ -114,9 +113,7 @@
           <details<%= (typeof suggestFor !== 'undefined' && suggestFor.copyId === c.id) || (typeof openCopyId !== 'undefined' && openCopyId === c.id) ? ' open' : '' %>>
             <summary style="cursor:pointer;">
               <%= conditionLabel %> &middot; <%= statusLabel %><%= c.price != null && c.price !== '' && Number.isFinite(Number(c.price)) ? ' · €' + Number(c.price).toFixed(2) : '' %><%= c.location ? ' · Location ' + c.location : '' %>
-              <% const stk = priceColors.colorFor(c); %> <%- include('../../partials/sticker_chip', { level: stk, text: stk.label }) %>
             </summary>
-            <p class="small"><a href="/admin/inventory/labels?id=<%= c.id %>">Label</a> (barcode UB-<%= c.id %>)</p>
             <% if (c.status === 'reserved' && c.reserved_by_name) { %>
               <div role="status" class="notice-box small" style="margin-top:10px;">
                 Reserved by <%= c.reserved_by_name %> &middot; <%= c.reserved_by_email %><%= c.reserved_by_phone ? ' · ' + c.reserved_by_phone : '' %>

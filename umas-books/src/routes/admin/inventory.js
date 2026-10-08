@@ -23,7 +23,6 @@ const fastScan = require("../../lib/fastScan");
 const { parseMoney, parseWholeNumber } = require("../../lib/validation");
 
 const router = express.Router();
-router.use("/admin/inventory", require("../../lib/priceColors").exposeToViews); // chips in the views
 // Garbage ids get the 404 page, not a Postgres 22P02 and a 500.
 validateIdParams(router, "id", "copyId");
 
@@ -143,16 +142,11 @@ const wantsJson = (req) => req.accepts(["html", "json"]) === "json";
 router.get("/admin/inventory", requireAdmin, async (req, res) => {
   await expireStaleReservations(pool);
   const q = (req.query.q || "").trim();
-  const location = normalizeLocation(req.query.location);
   const params = [];
   const conditions = [];
   if (q) {
     params.push(`%${q}%`);
     conditions.push(`(b.title ILIKE $${params.length} OR b.authors ILIKE $${params.length} OR b.isbn ILIKE $${params.length})`);
-  }
-  if (location) {
-    params.push(location);
-    conditions.push(`EXISTS (SELECT 1 FROM book_copies lc WHERE lc.book_id = b.id AND lc.location = $${params.length})`);
   }
   const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
   const { rows: books } = await pool.query(
@@ -166,7 +160,7 @@ router.get("/admin/inventory", requireAdmin, async (req, res) => {
     params
   );
   res.render("admin/inventory/index", {
-    active: "inventory", books, q, location: location || "", locations: await getLocations(), notice: hasOrdersNotice(req),
+    active: "inventory", books, q, notice: hasOrdersNotice(req),
   });
 });
 
@@ -175,7 +169,6 @@ router.get("/admin/inventory/scan", requireAdmin, async (req, res) => {
     active: "inventory",
     error: null,
     saved: req.query.saved === "1",
-    labelCopy: req.query.saved === "1" && /^\d{1,9}$/.test(String(req.query.label || "")) ? Number(req.query.label) : null,
     requestsMatched: req.query.saved === "1" ? Math.min(parseInt(req.query.requests, 10) || 0, 999) : 0,
     visionEnabled: !!process.env.ANTHROPIC_API_KEY,
   });
@@ -581,11 +574,11 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
   if (req.body.fast !== "0" && (req.body.fast === "1" || req.body.addAnother === "1" || req.body.fromScan === "1")) {
     const copyId = copyRows[0].id;
     if (wantsJson(req)) {
-      return res.json({ ok: true, copyId, bookId, title, requests: requestsMatched, labelUrl: `/admin/inventory/labels?id=${copyId}` });
+      return res.json({ ok: true, copyId, bookId, title, requests: requestsMatched });
     }
     return res.redirect(`/admin/inventory/new?${fastScan.carryQuery({ location, source, binding, condition, copyId, requests: requestsMatched })}`);
   }
-  res.redirect(`/admin/inventory/${bookId}?label=${copyRows[0].id}${requestsMatched ? `&requests=${requestsMatched}` : ""}`);
+  res.redirect(`/admin/inventory/${bookId}${requestsMatched ? `?requests=${requestsMatched}` : ""}`);
 });
 
 // `overlay` keeps what was typed in a form that was refused: { book: {column:
@@ -624,8 +617,6 @@ async function bookBack(req, res, bookId, state) {
 }
 
 router.get("/admin/inventory/:id", requireAdmin, async (req, res) => {
-  // Right after adding a copy (the redirect carries its id): offer to print its barcode label.
-  if (/^\d{1,9}$/.test(String(req.query.label || ""))) res.locals.labelCopy = Number(req.query.label);
   const id = Number(req.params.id);
   const f = takeFlash(req, `book-${id}`);
   if (f && f.suggest) {

@@ -269,10 +269,9 @@ test("Save and add another (no JavaScript): redirects back to a fresh form with 
   assert.equal(u.searchParams.get("source"), "lot");
 
   const page = (await get(r.location)).text;
-  const copyId = u.searchParams.get("saved");
   assert.match(page, /id="scan-saved"[^>]*role="status"/, "the message is announced");
   assert.match(page, new RegExp(`Saved: <strong>${title}</strong>`));
-  assert.match(page, new RegExp(`href="/admin/inventory/labels\\?id=${copyId}"[^>]*>Print label UB-${copyId}`));
+  assert.doesNotMatch(page, /Print label/);
   assert.doesNotMatch(page.match(/<div class="scan-saved"[\s\S]*?<\/div>/)[0], /autofocus/, "the message does not take the focus");
   assert.match(page.match(/<input id="isbn"[^>]*>/)[0], /autofocus/, "the ISBN box takes it");
   assert.match(page.match(/<input id="isbn"[^>]*>/)[0], /value=""/, "and is empty");
@@ -299,7 +298,7 @@ test("Save and add another by fetch (Accept: json) answers JSON; a missing title
   const j = JSON.parse(ok.text);
   assert.equal(j.ok, true);
   assert.equal(j.title, title);
-  assert.equal(j.labelUrl, `/admin/inventory/labels?id=${j.copyId}`);
+  assert.equal(j.labelUrl, undefined);
   const bad = await post("/admin/inventory", { headers: { ...adminHeader(), ...asJson }, form: copyBody("", { fast: "1" }) });
   assert.equal(bad.status, 422);
   assert.deepEqual(JSON.parse(bad.text), { ok: false, error: "Title is required." });
@@ -311,7 +310,7 @@ test("Save and add another by fetch (Accept: json) answers JSON; a missing title
 test("Save book (fast=0) still opens the book; the old scan flow (fromScan) now returns to the fast page", async () => {
   const t1 = `Open ${uniq()}`;
   const r1 = await post("/admin/inventory", { form: copyBody(t1, { fast: "0" }) });
-  assert.match(r1.location, /^\/admin\/inventory\/\d+\?label=\d+/);
+  assert.match(r1.location, /^\/admin\/inventory\/\d+$/);
   const t2 = `FromScan ${uniq()}`;
   const r2 = await post("/admin/inventory", { form: copyBody(t2, { fromScan: "1", fast: "1", location: "kids c3" }) });
   assert.match(r2.location, /^\/admin\/inventory\/new\?saved=\d+&location=KIDS\+C3/);

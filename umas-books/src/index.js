@@ -121,7 +121,6 @@ Object.assign(app.locals, require("./lib/dates"));
 // Session color-coding, used by the /sessions calendar.
 Object.assign(app.locals, require("./lib/sessionTone"));
 app.locals.assetUrl = assetUrl;
-app.locals.code128 = require("./lib/code128"); // label barcodes sized in printer dots (views/admin/inventory/label_sheet.ejs)
 app.locals.mondayFirstWeeks = require("./lib/calendar").mondayFirstWeeks;
 
 // form-action also governs the redirect after a form POST in Chromium. Nothing

@@ -86,7 +86,7 @@
 .till-line-meta > * { min-width: 0; overflow-wrap: break-word; }
 .till-lines, .till-line { max-width: 100%; box-sizing: border-box; }
 @media (min-width: 1100px) { .till-big { font-size: 28px; } }
-.till-item-form label, .sticker-filters label { display: block; }
+.till-item-form label, .filter-row label { display: block; }
 .till-step { display: inline-flex; align-items: center; gap: 6px; }
 .till-step-btn { min-height: 48px; min-width: 48px; font-size: 22px; padding: 0; }
 
