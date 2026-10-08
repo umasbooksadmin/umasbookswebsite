@@ -172,12 +172,22 @@
     // "change" alone (the lookup brings the price suggestion with it).
     isbn.setAttribute("data-scan-active", "1");
 
-    var BINDING_KEY = "umas.inventory.binding";
-    var SOURCE_KEY = "umas.inventory.source";
-    var CONDITION_KEY = "umas.inventory.condition";
-    var MODE_KEY = "umas.scan.mode";
+    var BINDING_STORE_NAME = "umas.inventory.binding.v2";
+    var SOURCE_STORE_NAME = "umas.inventory.source.v2";
+    var CONDITION_STORE_NAME = "umas.inventory.condition.v2";
+    var LOCATION_STORE_NAME = "umas.inventory.location.v2"; // same name as inventory-location.js
+    var MODE_STORE_NAME = "umas.scan.mode";
     function store(key, value) { try { if (value) localStorage.setItem(key, value); else localStorage.removeItem(key); } catch (e) { /* storage blocked: fine */ } }
     function recall(key) { try { return localStorage.getItem(key) || ""; } catch (e) { return ""; } }
+
+    function normalizeLoc(v) { return String(v || "").replace(/\s+/g, " ").trim().toUpperCase().slice(0, 40); }
+    // A location typed for the first time joins the dropdown at once (the server lists it from the next page load on).
+    function addLocationOption(v) {
+      var list = document.getElementById("location-options");
+      if (!list || !v) return;
+      for (var k = 0; k < list.options.length; k++) if (list.options[k].value === v) return;
+      var o = document.createElement("option"); o.value = v; list.appendChild(o);
+    }
 
     var guard = createRequestGuard();
     var touched = {};
@@ -202,18 +212,20 @@
     // starts as the last value used in this browser, unless the address carried one
     // (after a save without JavaScript). The very first time the server's starting values stay.
     function optionValues(sel) { var out = []; for (var k = 0; k < sel.options.length; k++) out.push(sel.options[k].value); return out; }
+    var started = false; // true once the page has finished its own set-up: later changes are a person's choices
     function remember(key, sel, fromServer, resolve) {
       var saved = resolve(recall(key));
       if (!fromServer && saved !== null && optionValues(sel).indexOf(saved) !== -1) sel.value = saved;
-      store(key, sel.value || "-"); // "-" is a deliberate empty choice (Unknown, Not specified)
-      sel.addEventListener("change", function () { store(key, sel.value || "-"); });
+      // Only a choice made by a person is stored (below, and when a book is saved): the starting value is not.
+      sel.addEventListener("change", function (e) { if (e.isTrusted || started) store(key, sel.value || "-"); });
     }
     var isSet = function (n) { return rootEl.getAttribute("data-" + n + "-set") === "1"; };
     var keepAsIs = function (v) { return v === "-" ? "" : (v || null); };
-    remember(BINDING_KEY, bindingSel, isSet("binding"), function (v) { return v === "-" ? "" : (v ? (resolveBindingKey(v, availableBindings) || null) : null); });
-    remember(SOURCE_KEY, sourceSel, isSet("source"), keepAsIs);
-    remember(CONDITION_KEY, conditionSel, isSet("condition"), keepAsIs);
+    remember(BINDING_STORE_NAME, bindingSel, isSet("binding"), function (v) { return v === "-" ? "" : (v ? (resolveBindingKey(v, availableBindings) || null) : null); });
+    remember(SOURCE_STORE_NAME, sourceSel, isSet("source"), keepAsIs);
+    remember(CONDITION_STORE_NAME, conditionSel, isSet("condition"), keepAsIs);
     conditionSel.dispatchEvent(new Event("change", { bubbles: true })); // the price control follows a remembered condition
+    started = true;
 
     // ---- fields edited by hand are never overwritten by a lookup
     Object.keys(FILL_FIELDS).forEach(function (name) {
@@ -373,7 +385,8 @@
         .then(function (res) {
           done();
           if (res.body && res.body.ok) {
-            store(BINDING_KEY, keep.binding || "-"); store(SOURCE_KEY, keep.source || "-"); store(CONDITION_KEY, keep.condition);
+            store(BINDING_STORE_NAME, keep.binding || "-"); store(SOURCE_STORE_NAME, keep.source || "-"); store(CONDITION_STORE_NAME, keep.condition);
+            store(LOCATION_STORE_NAME, normalizeLoc(keep.location)); addLocationOption(normalizeLoc(keep.location));
             var scanned = isbn.value !== savedIsbnValue ? isbn.value : ""; // scanned while saving
             resetForm(keep);
             showSaved(res.body);
@@ -421,8 +434,8 @@
 
     // ---- scan mode
     if (scanModeBox) {
-      scanModeBox.checked = recall(MODE_KEY) === "1";
-      scanModeBox.addEventListener("change", function () { store(MODE_KEY, scanModeBox.checked ? "1" : ""); updateSuggestedButton(); });
+      scanModeBox.checked = recall(MODE_STORE_NAME) === "1";
+      scanModeBox.addEventListener("change", function () { store(MODE_STORE_NAME, scanModeBox.checked ? "1" : ""); updateSuggestedButton(); });
     }
     // A price chosen by hand means the "suggested price" button no longer says what it does.
     if (priceRoot) {
