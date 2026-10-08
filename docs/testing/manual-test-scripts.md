@@ -489,6 +489,7 @@ who bought, AC13). Preview mode does not matter except M1.
 
 - [ ] **M4 (must).** As a member (M1 or M3), open the key icon. **You should see:** "Member's Access" with Announcements, "Charity We Support", Community Forum, Meetings Calendar, Volunteer Sign Up (that one only works for volunteers) and "Change Password".
 - [ ] **M12 (must).** Open **View All Announcements** (`/announcements`). **You should see:** the published announcements, pinned ones first; a draft or scheduled one is not shown (admin A34).
+- [ ] **M17 (must). Home is always the public home page.** While logged in as a member (and again as an admin), press **Home** in the menu, the logo, or open `/`. **You should see:** the same public Home page a guest sees (not Member's Access and not the admin Dashboard), with **Member's Access** (key icon; for an admin also **Admin**) and **Log Out** still in the icons at the top right. Press **Member's Access**: you reach the member area. In FR the page and those labels are in French. Logging in still takes you to Member's Access (or the admin Dashboard) as before.
 
 ### 3C. Forum, charity vote, meetings
 

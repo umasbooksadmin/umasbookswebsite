@@ -11,7 +11,7 @@
 
 const assert = require("node:assert/strict");
 const e2e = require("../helpers/harness");
-const { has } = require("../helpers/pages");
+const { has, hasNot } = require("../helpers/pages");
 const cfg = require("../helpers/config");
 
 const s = e2e.persona("member");
@@ -44,6 +44,14 @@ s.test("M12 (must) the Announcements page opens for a member", { as: "member" },
   await ctx.goto("/announcements");
   assert.equal(new URL(ctx.page.url()).pathname, "/announcements", "the member test account must be a member (admin: Mark as Member)");
   has(await ctx.text(), /Announcements/);
+});
+
+s.test("M17 (must) Home shows the public home page to a logged-in member, with Member's Access still in the header", { as: "member" }, async (ctx) => {
+  await ctx.goto("/");
+  assert.equal(new URL(ctx.page.url()).pathname, "/", "Home must not redirect a member to Member's Access");
+  assert.ok(await ctx.page.$("a.h-tool[href='/dashboard']"), "Member's Access link in the header");
+  assert.ok(await ctx.page.$("form[action='/logout']"), "Log Out in the header");
+  hasNot(await ctx.text(), /Welcome back/, "the public home page, not Member's Access");
 });
 
 s.write("M5 (must) start a forum thread with a tagged title", { as: "member" }, async (ctx) => {
