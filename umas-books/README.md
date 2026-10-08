@@ -218,10 +218,11 @@ ISBN entry and manual add still work fully.
 
 ### How to describe a book (for volunteers)
 
-Every copy gets one of four **condition** grades. Pick the first one that is
+Every copy gets one of five **condition** grades. Pick the first one that is
 true; if you hesitate between two, choose the lower one.
 
 - **New**: unread, as published. Must be sold at the publisher's price.
+- **Like New**: as new: no marks or wear, possibly read once.
 - **Very Good**: looks almost new: clean pages, no writing or highlighting, at most very light wear.
 - **Good**: normal wear from reading: a few creases or marks, still clean and complete.
 - **Acceptable**: clearly used but complete and readable: wear, creases or

@@ -227,7 +227,7 @@ s.test("A9d Location, Source, Binding and Condition are the last values used (al
 s.test("A10 (must) the copy form has condition, binding, source, location and the price control with a suggestion", { as: "admin" }, async (ctx) => {
   await admin(ctx, "/admin/inventory/new");
   const conditions = await ctx.page.$$eval("#condition option", (o) => o.map((x) => x.textContent.trim()));
-  for (const c of ["New", "Very Good", "Good", "Acceptable"]) assert.ok(conditions.some((x) => x.toLowerCase() === c.toLowerCase()), `condition ${c} in ${conditions}`);
+  for (const c of ["New", "Like New", "Very Good", "Good", "Acceptable"]) assert.ok(conditions.some((x) => x.toLowerCase() === c.toLowerCase()), `condition ${c} in ${conditions}`);
   const bindings = await ctx.page.$$eval("#binding option", (o) => o.map((x) => x.textContent.trim()));
   for (const b of ["Hardcover", "Trade", "Mass Market", "Other"]) assert.ok(bindings.some((x) => x.toLowerCase().includes(b.toLowerCase())), `binding ${b} in ${bindings}`);
   assert.ok(await ctx.page.$("#source") && await ctx.page.$("#location"));
