@@ -40,10 +40,6 @@
     var useBtn = root.querySelector("[data-ps-use]");
     var tags = root.querySelectorAll("[data-suggested-tag]");
 
-    var note = root.querySelector("[data-sticker-note]");
-    var stickerCfg = null;
-    try { stickerCfg = JSON.parse(root.getAttribute("data-sticker-levels") || "null"); } catch (e) { stickerCfg = null; }
-
     var dirty = false;
     var token = 0;
     var last = null;
@@ -66,62 +62,6 @@
       customBox.hidden = !showCustom;
     }
 
-    // ---- Sticker color chip (scheme comes from lib/priceColors via data-sticker-levels) ----
-    function stickerLevel(key) {
-      if (!stickerCfg) return null;
-      for (var i = 0; i < stickerCfg.levels.length; i++) if (stickerCfg.levels[i].key === key) return stickerCfg.levels[i];
-      return null;
-    }
-
-    function eurText(n) { return "EUR " + Number(n).toFixed(2).replace(/\.00$/, ""); }
-
-    // Same order as colorFor(): clearance, new, an exact standard price, else custom.
-    function currentSticker() {
-      if (!stickerCfg) return null;
-      var chosen = checkedRadio();
-      var raw = priceInput.value;
-      var hasPrice = raw !== "" && isFinite(Number(raw));
-      if (isNew()) {
-        // The sticker carries the publisher's price when known.
-        if (publisher && publisher.value !== "" && isFinite(Number(publisher.value))) { raw = publisher.value; hasPrice = true; }
-        return { level: stickerLevel("white"), price: hasPrice ? Number(raw) : null };
-      }
-      if (chosen && chosen.value === "clearance") return { level: stickerLevel("orange"), price: null };
-      if (!hasPrice) return { level: null, price: null };
-      var cents = Math.round(Number(raw) * 100);
-      for (var i = 0; i < stickerCfg.levels.length; i++) {
-        var l = stickerCfg.levels[i];
-        if (l.eur != null && !l.clearance && !l.retail && !l.special && l.eur * 100 === cents) return { level: l, price: Number(raw) };
-      }
-      return { level: stickerLevel("purple"), price: Number(raw) };
-    }
-
-    function chipText(level, price) {
-      var priced = price != null;
-      if (level.retail) return "White sticker: publisher price" + (priced ? " " + eurText(price) : "") + ", write it on the sticker";
-      if (level.clearance) return level.label + " sticker, clearance " + eurText(level.eur);
-      if (level.special) return level.label + " sticker, custom price" + (priced ? " " + eurText(price) : "");
-      return level.label + " sticker, " + eurText(level.eur);
-    }
-
-    function renderSticker() {
-      if (!note || !stickerCfg) return;
-      var s = currentSticker();
-      while (note.firstChild) note.removeChild(note.firstChild);
-      if (!s || !s.level) {
-        note.appendChild(document.createTextNode("Sticker color: choose a price."));
-        return;
-      }
-      var chip = document.createElement("span");
-      chip.className = "sticker-chip";
-      chip.setAttribute("data-sticker-chip", s.level.key);
-      chip.style.background = s.level.hex;
-      chip.style.color = s.level.text;
-      if (s.level.border) chip.style.borderColor = s.level.border;
-      chip.textContent = chipText(s.level, s.price);
-      note.appendChild(chip);
-    }
-
     function keyFor(s) {
       if (isNew()) return ""; // a new book never takes a used-book level
       if (!s || s.price == null) return "";
@@ -138,7 +78,6 @@
       for (var i = 0; i < radios.length; i++) radios[i].checked = radios[i].value === key;
       priceInput.value = s.price == null ? "" : s.price;
       syncVisibility();
-      renderSticker();
       if (s.price == null && !isNew() && mode === "intake" && !quiet) priceInput.focus();
     }
 
@@ -217,7 +156,6 @@
         var price = r.getAttribute("data-price");
         if (price !== "" && price !== null) priceInput.value = price;
         syncVisibility();
-        renderSticker();
         if (r.value === "custom") priceInput.focus();
       });
     });
@@ -226,7 +164,6 @@
       dirty = true;
       for (var i = 0; i < radios.length; i++) radios[i].checked = radios[i].value === "custom";
       syncVisibility();
-      renderSticker();
     });
 
     if (binding) binding.addEventListener("change", function () { request(mode === "intake" && !dirty); });
@@ -234,7 +171,6 @@
     if (condition) {
       condition.addEventListener("change", function () {
         syncVisibility();
-        renderSticker();
         // Only New is priced differently; any other change leaves the price alone.
         if (isNew() !== wasNew) {
           wasNew = isNew();
@@ -245,7 +181,6 @@
 
     if (publisher) {
       publisher.addEventListener("input", function () {
-        renderSticker();
         if (!isNew()) return;
         clearTimeout(timer);
         timer = setTimeout(function () { request(mode === "intake" && !dirty); }, 500);
@@ -275,7 +210,6 @@
       Array.prototype.forEach.call(tags, function (t) { t.hidden = true; });
       wasNew = isNew();
       syncVisibility();
-      renderSticker();
     });
 
     if (suggestBtn) {
@@ -297,6 +231,5 @@
     }
 
     syncVisibility();
-    renderSticker();
   });
 })();

@@ -33,7 +33,7 @@
       <div><label for="o<%= i.id %>">Order</label><input id="o<%= i.id %>" name="sortOrder" type="text" inputmode="numeric" value="<%= i.sort_order %>" style="width:70px"></div>
       <div><label for="a<%= i.id %>">On the till</label><input id="a<%= i.id %>" name="active" type="checkbox" value="1" <%= i.active ? 'checked' : '' %> style="width:auto"></div>
       <button class="btn btn-small" type="submit">Save</button>
-      <% if (!i.barcode) { %><button class="btn btn-outline btn-small" type="submit" formaction="/admin/till/items/<%= i.id %>/generate-code" formnovalidate>Generate a shop code</button><% } else if (!/^\d{8,14}$/.test(i.barcode)) { %><a class="btn btn-outline btn-small" href="/admin/till/items/<%= i.id %>/label" target="_blank" rel="noopener">Print barcode label</a><% } %>
+      <% if (!i.barcode) { %><button class="btn btn-outline btn-small" type="submit" formaction="/admin/till/items/<%= i.id %>/generate-code" formnovalidate>Generate a shop code</button><% } %>
     </form>
   <% }) %>
   <p><a href="/admin/till">&larr; Back to the till</a></p>

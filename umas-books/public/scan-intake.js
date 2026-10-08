@@ -303,14 +303,6 @@
       span.appendChild(b);
       span.appendChild(document.createTextNode("."));
       savedEl.appendChild(span);
-      var a = document.createElement("a");
-      a.className = "btn btn-small btn-outline";
-      a.href = data.labelUrl;
-      a.target = "_blank";
-      a.rel = "noopener";
-      a.textContent = "Print label UB-" + data.copyId;
-      savedEl.appendChild(document.createTextNode(" "));
-      savedEl.appendChild(a);
       if (data.requests > 0) {
         var r = document.createElement("span");
         r.className = "scan-saved-requests";

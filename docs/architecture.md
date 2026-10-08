@@ -743,12 +743,10 @@ contact form to the shop) goes through `lib/outbox.js`: **store, then send**.
 In-person sales, written for a non-developer who runs a physical till. Sales are
 in person only: online payment exists only for HelloAsso memberships and orders.
 
-- **Labels.** Every copy has a Code 128 (subset B) barcode of `UB-<copyId>`
-  (`src/lib/code128.js`, no dependency, unit tests against known vectors). The
-  label page `/admin/inventory/labels` prints it with the color chip, price,
-  title, author and ISBN ("No ISBN" for books without one). A book without an
-  ISBN works everywhere because the label, not the ISBN, identifies the copy.
-- **Scan order** (`lookupScan` in `src/lib/till.js`): `UB-<id>` copy label, then
+- **Copy codes.** Every copy can be found at the till by the code `UB-<copyId>`.
+  There is no label printing in the site (the labels and price sticker pages were
+  removed), so a book without an ISBN is sold by typing its `UB-` code.
+- **Scan order** (`lookupScan` in `src/lib/till.js`): `UB-<id>` copy code, then
   an exact quick-item barcode, then `ORDER-<n>` (a reservation to collect, or the label of a
   reserved book: `src/lib/tillReservations.js`, paid through
   `collectReservationTx` in the till's own transaction), then an ISBN (10/13, `isbnVariants`), then

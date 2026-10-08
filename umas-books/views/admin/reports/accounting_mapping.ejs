@@ -5,7 +5,7 @@
   <p class="muted small">Each row of the <a href="/admin/reports/accounting">Accounting export</a> takes its debit account, credit account and journal from this table. The values shown are a starting point: <strong>ask the treasurer to confirm them</strong> (in particular 511 or 512 for cards and HelloAsso, and 471 for payments with no recorded method). Every change is written to the admin activity log.</p>
   <form method="post" action="/admin/reports/accounting/mapping">
     <%- include('../../partials/csrf_field') %>
-    <div class="table-scroll"><table class="sticker-sheet">
+    <div class="table-scroll"><table class="report-table">
       <thead><tr><th>Category</th><th>Payment method</th><th>Debit account</th><th>Credit account</th><th>Journal</th></tr></thead>
       <tbody>
         <% rows.forEach((r, i) => { %>

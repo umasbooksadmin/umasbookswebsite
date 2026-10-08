@@ -11,7 +11,7 @@ after(async () => { await h.stop(); });
 // ---------- access and page ----------
 
 test("till pages need an admin; the till page has an autofocused scan box and no inline script", async () => {
-  for (const path of ["/admin/till", "/admin/till/day", "/admin/till/items", "/admin/inventory/labels", "/admin/till/sales/1/receipt"]) {
+  for (const path of ["/admin/till", "/admin/till/day", "/admin/till/items", "/admin/till/sales/1/receipt"]) {
     const { res } = await h.get(path, makeCookieJar());
     assert.equal(res.status, 302, path);
     assert.match(res.headers.get("location"), /login/);
@@ -429,36 +429,20 @@ test("audit entries exist for sale, void and override (no customer data)", async
   }
 });
 
-// ---------- labels ----------
+// ---------- removed sections ----------
 
-test("labels page: filters, selection, barcode svg of UB-<id>, size from the query, print layouts", async () => {
-  const book = await h.seedBook(`Label Book ${h.uniq()}`);
+test("the price stickers and labels sections are gone: no pages, no links", async () => {
+  const book = await h.seedBook(`Gone Book ${h.uniq()}`);
   const c = await h.seedCopy(book.id, { price: 5, location: "LBL1" });
-  const list = await h.get("/admin/inventory/labels?location=LBL1");
-  assert.equal(list.res.status, 200);
-  assert.match(list.text, new RegExp(`UB-${c}`));
-  assert.match(list.text, new RegExp(`name="id" value="${c}"`));
-  const sheet = await h.get(`/admin/inventory/labels?id=${c}`);
-  assert.equal(sheet.res.status, 200);
-  assert.match(sheet.text, new RegExp(`data-copy-label="UB-${c}"`));
-  assert.match(sheet.text, /<svg class="barcode"[^>]*aria-label="Barcode UB-/);
-  assert.match(sheet.text, /--lw: 50mm; --lh: 25mm/, "default 50x25");
-  assert.match(sheet.text, /@page \{ size: 50mm 25mm/);
-  assert.match(sheet.text, /Green/, "price color chip");
-  assert.match(sheet.text, /€5\.00/);
-  const big = await h.get(`/admin/inventory/labels?id=${c}&w=70&h=37&layout=sheet`);
-  assert.match(big.text, /--lw: 70mm; --lh: 37mm/);
-  assert.match(big.text, /size: A4/);
-  const clamp = await h.get(`/admin/inventory/labels?id=${c}&w=9999&h=abc`);
-  assert.match(clamp.text, /--lw: 210mm; --lh: 25mm/);
-  const all = await h.get("/admin/inventory/labels?all=1&location=LBL1");
-  assert.match(all.text, new RegExp(`UB-${c}`));
-  assert.equal((await h.audit("labels.print")).length >= 3, true);
-  // linked from the stickers page, the copy page
-  assert.match((await h.get("/admin/inventory/stickers")).text, /href="\/admin\/inventory\/labels\?/);
-  assert.match((await h.get(`/admin/inventory/${book.id}`)).text, new RegExp(`href="/admin/inventory/labels\\?id=${c}">Label</a>`));
-  assert.match((await h.get(`/admin/inventory/${book.id}?label=${c}`)).text, new RegExp(`Print label UB-${c}`));
-  assert.match((await h.get(`/admin/inventory/scan?saved=1&label=${c}`)).text, new RegExp(`Print label UB-${c}`));
-  // stickers page itself is unchanged
-  assert.match((await h.get("/admin/inventory/stickers")).text, /Price stickers/);
+  for (const path of ["/admin/inventory/stickers", "/admin/inventory/stickers?format=csv", "/admin/inventory/labels", `/admin/inventory/labels?id=${c}`, "/admin/till/items/1/label"]) {
+    assert.notEqual((await h.get(path)).res.status, 200, path);
+  }
+  const pages = [
+    "/admin/inventory", "/admin/inventory/scan", "/admin/inventory/scan?saved=1&label=" + c, "/admin/till", "/admin/till/items",
+    `/admin/inventory/${book.id}`, `/admin/inventory/${book.id}?label=${c}`,
+  ];
+  for (const path of pages) {
+    const { text } = await h.get(path);
+    assert.doesNotMatch(text, /inventory\/(labels|stickers)|Price stickers?|Print label|sticker-chip|data-sticker/i, path);
+  }
 });

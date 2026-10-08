@@ -1,7 +1,0 @@
-<%# Static legend of the sticker colors, reused on the sticker sheet and anywhere a copy's price is edited. %>
-<% const _colors = priceColors; %>
-<ul class="sticker-legend" aria-label="Price sticker colors">
-  <% _colors.LEVELS.forEach(lv => { %>
-    <li><%- include('sticker_chip', { level: lv, text: lv.label }) %> <span class="muted small"><%= _colors.meaning(lv) %></span></li>
-  <% }) %>
-</ul>
