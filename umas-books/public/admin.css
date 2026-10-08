@@ -48,6 +48,9 @@
    regular content width leaves them narrow — this lets that one row use
    the full available width instead. */
 .admin-main.is-wide { max-width: none; }
+.admin-topbar-brand { display: none; }
+.admin-topbar-tools { order: 2; }
+.admin-topbar-title { order: 1; }
 .admin-topbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 26px; flex-wrap: wrap; }
 .admin-back-link { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: var(--maroon); text-decoration: none; margin-bottom: 8px; }
 .admin-back-link:hover { text-decoration: underline; }
@@ -113,6 +116,20 @@
     display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 20;
   }
   .admin-layout.is-nav-open .admin-nav-backdrop { display: block; }
+  /* The sidebar logo is inside the closed drawer here, so the topbar gets a small
+     logo (same file and size as the compact phone header) that links to the main
+     page. Row 1: logo, menu button, avatar. Row 2: search (if the page has one).
+     Row 3: Back link and title. The tools wrapper dissolves so its three items
+     can take part in that wrapping. */
+  .admin-topbar { gap: 8px 12px; margin-bottom: 18px; }
+  .admin-topbar-brand { display: block; order: 1; flex: 0 1 104px; min-width: 72px; min-height: 44px; margin-right: auto; line-height: 0; }
+  .admin-topbar-brand img { display: block; width: 100%; max-width: 104px; height: auto; }
+  .admin-topbar-tools { display: contents; }
+  .admin-nav-toggle { order: 2; }
+  .admin-avatar { order: 3; width: 44px; height: 44px; flex: 0 0 auto; }
+  .admin-search { order: 4; flex: 1 0 100%; box-sizing: border-box; }
+  .admin-search input { flex: 1 1 auto; width: auto; min-width: 0; }
+  .admin-topbar-title { order: 5; flex: 1 0 100%; }
 }
 
 .admin-card { background: #fff; border: 1px solid var(--card-border); border-radius: 10px; padding: 26px 24px; }

@@ -191,6 +191,42 @@ s.test("A9b (must) on a phone (375x812 and 320x640) the Add book page has no sid
   }
 });
 
+s.test("A9e (must) on a phone (375 px, and 320 px) every admin page has the logo at the top, linking to the main page, easy to tap, with no sideways scroll", { as: "admin" }, async (ctx) => {
+  for (const [width, height] of [[375, 812], [320, 640]]) {
+    await ctx.page.setViewport({ width, height, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+    for (const p of ["/admin", "/admin/inventory", "/admin/inventory/new", "/admin/till", "/admin/orders", "/admin/reports"]) {
+      await admin(ctx, p);
+      const r = await ctx.page.evaluate(() => {
+        const a = document.querySelector(".admin-topbar-brand");
+        if (!a) return { problems: ["no logo link in the top bar"] };
+        const problems = [];
+        const b = a.getBoundingClientRect();
+        const cs = getComputedStyle(a);
+        if (cs.display === "none" || cs.visibility === "hidden") problems.push("the logo link is hidden");
+        if (a.getAttribute("href") !== "/") problems.push(`it links to ${a.getAttribute("href")}, not /`);
+        const img = a.querySelector("img");
+        if (!img || img.alt !== "Uma's Books and Adventures") problems.push(`the logo image is named "${img && img.alt}"`);
+        if (!img || !img.complete || img.naturalWidth === 0) problems.push("the logo image did not load");
+        if (b.height < 44 || b.width < 44) problems.push(`the tap target is ${Math.round(b.width)}x${Math.round(b.height)} px`);
+        if (b.bottom > 120) problems.push(`the logo is ${Math.round(b.bottom)} px down: it should be at the very top`);
+        if (b.left < 0 || b.right > innerWidth) problems.push("the logo is partly off the screen");
+        const top = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+        if (!a.contains(top)) problems.push(`the logo is covered by ${top ? top.tagName + "." + top.className : "nothing"}`);
+        if (document.documentElement.scrollWidth > innerWidth) problems.push(`sideways scroll: page ${document.documentElement.scrollWidth} px in a ${innerWidth} px window`);
+        return { problems };
+      });
+      assert.deepEqual(r.problems, [], `${p} at ${width} px: ${r.problems.join("; ")}`);
+    }
+  }
+  // Tapping it leaves the admin area for the main page. The site itself sends a signed-in admin, member or
+  // volunteer from "/" on to Member's Access (/dashboard), so either address is the right landing.
+  await ctx.page.setViewport({ width: 375, height: 812, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+  await admin(ctx, "/admin/inventory/new");
+  await Promise.all([ctx.page.waitForNavigation({ waitUntil: "domcontentloaded" }), ctx.page.click(".admin-topbar-brand")]);
+  const landed = new URL(ctx.page.url()).pathname;
+  assert.ok(landed === "/" || landed === "/dashboard", `the logo opens the main page (the browser is on ${ctx.page.url()})`);
+});
+
 s.test("A9c Scan mode is off by default and is remembered by the browser (nothing is saved)", { as: "admin" }, async (ctx) => {
   await admin(ctx, "/admin/inventory/new");
   await ctx.page.evaluate(() => localStorage.removeItem("umas.scan.mode"));
