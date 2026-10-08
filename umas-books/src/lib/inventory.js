@@ -40,15 +40,17 @@ const DEFAULT_CONDITION = "very_good";
 // How the book is bound. A property of the edition (books.binding), not of a
 // copy; optional (NULL when nobody has said).
 const BINDINGS = [
-  { value: "hardcover", label: "Hardcover", label_fr: "Relié" },
-  { value: "trade", label: "Trade", label_fr: "Broché (grand format)" },
   { value: "mass_market", label: "Mass Market", label_fr: "Poche" },
+  { value: "trade", label: "Trade", label_fr: "Broché (grand format)" },
+  { value: "hardcover", label: "Hardback", label_fr: "Relié" },
   { value: "other", label: "Other", label_fr: "Autre" },
 ];
 
-// Old requests, imports and bookmarks may still say "paperback": it is now
-// called "trade" (migration 077 renamed the stored values).
-const BINDING_ALIASES = { paperback: "trade" };
+// The stored key "hardcover" is shown as "Hardback"; "hardback" is read as
+// the same key. Old requests, imports and bookmarks may still say
+// "paperback": it is now called "trade" (migration 077 renamed the stored
+// values).
+const BINDING_ALIASES = { paperback: "trade", hardback: "hardcover" };
 
 const STATUSES = [
   { value: "in_stock", label: "In Store" },

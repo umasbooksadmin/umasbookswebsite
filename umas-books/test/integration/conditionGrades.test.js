@@ -218,7 +218,7 @@ test("search API: results carry the grades on the shelf and the binding", async 
   const hit = (await res.json()).find((x) => x.id === b.id);
   assert.deepEqual(hit.conditions, [{ value: "new", label: "New" }, { value: "acceptable", label: "Acceptable" }]);
   assert.equal(hit.binding, "hardcover");
-  assert.equal(hit.bindingLabel, "Hardcover");
+  assert.equal(hit.bindingLabel, "Hardback");
   assert.equal(hit.price, 3);
 });
 

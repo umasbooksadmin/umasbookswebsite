@@ -130,9 +130,9 @@ rather than by a numbered migration), grouped by what they belong to:
   New / Very Good / Good / Acceptable (like_new became very_good, and
   `normalizeCondition` still accepts like_new, fair and poor as aliases). A copy that cannot be sold at all
   is not a grade: it gets the status `damaged`. `books.binding` (migration
-  048, NULL when unknown) is `hardcover`, `trade`, `mass_market` or `other`
-  (`BINDINGS`, `normalizeBinding`; migration 077 renamed `paperback` to
-  `trade`, and `normalizeBinding` still accepts `paperback` as an alias; the
+  048, NULL when unknown) is `mass_market`, `trade`, `hardcover` (shown as "Hardback") or `other`,
+  in that display order (`BINDINGS`, `normalizeBinding`; migration 077 renamed `paperback` to
+  `trade`, and `normalizeBinding` still accepts `paperback` as an alias, and `hardback` for `hardcover`; the
   pricing setting `fallback_paperback` became `fallback_trade`); it belongs to the edition, is prefilled
   from Open Library's `physical_format` (`mapBinding` in
   `src/lib/bookLookup.js`: hardcover; mass market / poche; any other paperback is
@@ -238,7 +238,7 @@ rather than by a numbered migration), grouped by what they belong to:
   of used listings in EUR, outliers trimmed; else publisher price x 0.35; else a
   typical value by binding) under 6 = Rule A (EUR 5), under 20 = Rule B (EUR
   8), under 50 = Rule C (75% of M, rounded to 0.50), 50 or more = manual
-  review; hardcovers never below EUR 10; clearance (EUR 1) when 2+ copies of
+  review; hardbacks (key `hardcover`) never below EUR 10; clearance (EUR 1) when 2+ copies of
   the book are already in stock (Rule A / mass market, by default). The
   copy's condition never changes the price. Every number is a setting in
   `pricing_settings` (single row, `settings.js`, 60 s cache) edited at

@@ -26,7 +26,7 @@
           <li><strong>Rule C</strong> (high value, collectible): from Rule B's limit up to Rule 3's limit &rarr; <%- num('c_factor') %> &times; the online value, rounded to the nearest <%- num('rounding_step') %> EUR.</li>
         </ul>
       </li>
-      <li><strong>Hardcover minimum:</strong> a hardcover is never suggested below <%- num('hardcover_min_price') %> EUR (so hardcovers in Rules A and B become this price).</li>
+      <li><strong>Hardback minimum:</strong> a hardback is never suggested below <%- num('hardcover_min_price') %> EUR (so hardbacks in Rules A and B become this price).</li>
     </ol>
   </div>
 
@@ -43,7 +43,7 @@
         <option value="set_a" <%= form.clearance_applies_to === 'set_a' ? 'selected' : '' %>>Rule A and mass market books only</option>
         <option value="all_sets" <%= form.clearance_applies_to === 'all_sets' ? 'selected' : '' %>>All books (except new books and books needing review)</option>
       </select>
-      <label class="ann-check"><input type="checkbox" name="hardcover_min_applies_to_clearance" value="1" <%= form.hardcover_min_applies_to_clearance ? 'checked' : '' %>> The hardcover minimum also applies on clearance</label>
+      <label class="ann-check"><input type="checkbox" name="hardcover_min_applies_to_clearance" value="1" <%= form.hardcover_min_applies_to_clearance ? 'checked' : '' %>> The hardback minimum also applies on clearance</label>
       <p class="muted small">New books are never put on clearance: French law fixes their price.</p>
     </div>
   </div>
@@ -58,9 +58,9 @@
       <%- num('used_fraction') %>
       <label>When nothing at all is known, the book's online value is taken to be (EUR)</label>
       <div class="muted small">
-        Hardcover <%- num('fallback_hardcover') %>
+        Mass Market <%- num('fallback_mass_market') %>
         Trade <%- num('fallback_trade') %>
-        Mass market <%- num('fallback_mass_market') %>
+        Hardback <%- num('fallback_hardcover') %>
         Unknown or other binding <%- num('fallback_unknown') %>
       </div>
       <label>Exchange rates, for listings in other currencies</label>

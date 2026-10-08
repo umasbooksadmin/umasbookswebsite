@@ -12,7 +12,7 @@ const { lookupMarket } = require("./market");
 const { toIsbn13 } = require("./isbn");
 
 const OVERALL_TIMEOUT_MS = 12000;
-const BINDING_NAMES = { hardcover: "hardcover", trade: "trade paperback", mass_market: "mass market paperback", other: "book in another format" };
+const BINDING_NAMES = { hardcover: "hardback", trade: "trade paperback", mass_market: "mass market paperback", other: "book in another format" };
 
 function summaryLabel(s) {
   if (!s) return "";
@@ -83,7 +83,7 @@ function rationaleFor(r, { comparables, settings, binding, copyNumber }) {
     out.unshift(`This is copy no. ${copyNumber} of this book in stock, so it is on clearance.`);
   }
   out.push(ruleSentence(r, settings));
-  if (r.floorApplied) out.push(`Hardcover: minimum price ${eur(settings.hardcoverMinPrice)}, so the price is raised to ${eur(r.price)}.`);
+  if (r.floorApplied) out.push(`Hardback: minimum price ${eur(settings.hardcoverMinPrice)}, so the price is raised to ${eur(r.price)}.`);
   out.push("The copy's condition does not change the price.");
   return out;
 }
@@ -162,7 +162,7 @@ function ruleName(r) {
     new: "New book: publisher's price", review: r.reviewMessage || "Manual review", clearance: "Clearance",
     mass_market: "Mass market price", A: "Rule A", B: "Rule B", C: "Rule C",
   };
-  return (names[r.ruleSet] || r.ruleSet) + (r.floorApplied ? " + hardcover minimum" : "");
+  return (names[r.ruleSet] || r.ruleSet) + (r.floorApplied ? " + hardback minimum" : "");
 }
 
 module.exports = { suggestPrice, suggestPriceWithTimeout, summaryLabel, ruleName };
