@@ -111,6 +111,24 @@
   <p class="muted small">With no copies in stock yet. A new book always takes the publisher's price.</p>
 </div>
 
+<div class="card color-chart" id="price-colors">
+  <div class="section-title">Price sticker colours</div>
+  <p class="muted small no-print">The colour of the sticker on a book shows its price. The prices follow the saved rules above.</p>
+  <div class="table-scroll"><table class="ann-table report-table" aria-label="Price sticker colours">
+    <thead><tr><th>Sticker colour</th><th>Price</th><th>When to use</th></tr></thead>
+    <tbody>
+      <% colorChart.forEach(c => { %>
+        <tr data-color="<%= c.key %>">
+          <td><span class="color-swatch" aria-hidden="true" style="background:<%= c.hex %>;<%= c.border ? ' border-color:' + c.border + ';' : '' %>"></span> <strong><%= c.name %></strong></td>
+          <td><%= c.price %></td>
+          <td><%= c.when %></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table></div>
+  <p class="no-print"><button class="btn btn-small" type="button" onclick="window.print()">Print this chart</button></p>
+</div>
+
 <p><a href="/admin/pricing/review">Price check: books priced differently from the suggestion &rarr;</a></p>
 
 <%- include('../../partials/admin_footer') %>

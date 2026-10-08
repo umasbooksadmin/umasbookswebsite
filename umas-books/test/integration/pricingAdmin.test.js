@@ -543,6 +543,26 @@ test("pricing rules page: shows the rules, the calculator and the sample table",
   assert.match(text, /Pricing rules<\/a>/, "in the admin menu");
 });
 
+test("pricing rules page: price colour chart lists every colour by name and follows the saved prices", async () => {
+  const rowOf = (text, key) => (text.match(new RegExp(`<tr data-color="${key}">[\\s\\S]*?</tr>`)) || [""])[0];
+  let text = (await h.get("/admin/pricing")).text;
+  assert.match(text, /Price sticker colours/);
+  const expect = { orange: "EUR 1", yellow: "EUR 3", green: "EUR 5", blue: "EUR 8", red: "EUR 10", purple: "Special price", white: "Publisher&#39;s price" };
+  for (const [k, price] of Object.entries(expect)) {
+    const row = rowOf(text, k);
+    assert.match(row, new RegExp(`<strong>${k[0].toUpperCase() + k.slice(1)}</strong>`), `${k} name in text`);
+    assert.ok(row.includes(price), `${k} price ${price}`);
+  }
+  assert.match(rowOf(text, "green"), /#237A3C/);
+  assert.match(text, /@media print|Print this chart/);
+  // Changing a level price and the clearance price in the settings changes the chart.
+  await h.post("/admin/pricing", { ...SETTINGS_FORM, levels: "3, 6, 8, 10", clearance_price: "2" });
+  text = (await h.get("/admin/pricing")).text;
+  assert.ok(rowOf(text, "green").includes("EUR 6"), "green follows the 2nd standard price");
+  assert.ok(rowOf(text, "orange").includes("EUR 2"), "orange follows the clearance price");
+  await resetSettings();
+});
+
 test("pricing rules calculator: market value, binding, copies in stock, ISBN", async () => {
   const calc = async (q) => (await h.get(`/admin/pricing?${new URLSearchParams(q)}`)).text;
   assert.match(await calc({ calcMarket: "24", calcBinding: "hardcover" }), /EUR 18\.00<\/strong> &middot; Rule C/);

@@ -822,6 +822,8 @@ s.test("A39 (must) Pricing rules shows the rules and the Try it calculator, and 
   has(text, /Clearance options/);
   has(text, /Other numbers/);
   has(text, /Try it/);
+  has(text, /Price sticker colours/);
+  for (const c of ["Orange", "Yellow", "Green", "Blue", "Red", "Purple", "White"]) has(text, new RegExp(c));
   await ctx.page.$eval("#calcMarket", (i) => { i.value = "10"; });
   await ctx.page.select("#calcBinding", "mass_market");
   await Promise.all([ctx.page.waitForNavigation(), ctx.page.click("form[action='/admin/pricing'][method='get'] button[type='submit']")]);
