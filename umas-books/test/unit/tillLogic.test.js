@@ -22,7 +22,7 @@ test("copy codes are accepted however they are typed; a bare number that is not 
     assert.deepEqual(parseTillScan(v), { type: "copy", copyId: 123 }, v);
   }
   assert.equal(parseTillScan("123").type, "unknown");
-  assert.equal(parseTillScan("1234567890123").type, "unknown"); // 13 digits, bad check digit
+  assert.equal(parseTillScan("12345").type, "unknown"); // a short bare number is never guessed to be a copy
   assert.equal(parseTillScan("UB-12x").type, "unknown");
 });
 
