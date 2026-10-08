@@ -28,7 +28,20 @@ function getTransporter() {
   return transporter;
 }
 
-async function sendMail({ to, subject, text, html, replyTo, headers }) {
+async function sendMail(mail) {
+  // Staging (APP_ENV=staging, lib/staging.js): never reaches a real recipient.
+  // This is the single choke point: the outbox, the sweeps, the alerts and the
+  // privacy mails all send through here.
+  const staging = require("./lib/staging");
+  if (staging.isStaging()) {
+    const redirected = staging.stagingMail(mail);
+    if (!redirected) {
+      console.warn("[staging] STAGING_MAIL_TO is not set - email NOT sent:", { to: mail.to, subject: mail.subject });
+      return;
+    }
+    mail = redirected;
+  }
+  const { to, subject, text, html, replyTo, headers } = mail;
   const t = getTransporter();
   if (!t) {
     // PRODUCTION: refuse. Returning quietly here made the email outbox mark the

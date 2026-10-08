@@ -3,6 +3,8 @@ require("dotenv").config({ quiet: true });
 require("./lib/tz");
 // Fail fast (production only) with one clear message, before db.js is loaded.
 const envCheck = require("./lib/env").checkEnv();
+// Test system (APP_ENV=staging) only: refuse live HelloAsso keys / the production database.
+require("./lib/staging").enforceStagingBoot();
 const path = require("path");
 const express = require("express");
 const compression = require("compression");

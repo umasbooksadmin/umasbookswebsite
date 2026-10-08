@@ -37,6 +37,8 @@ header.mkt-header a:hover, footer.mkt-footer a:hover { text-decoration: none; }
   padding: 6px 16px; font: 500 15px/1.4 system-ui, -apple-system, 'Segoe UI', sans-serif;
   border-bottom: 1px solid #e3cf8f;
 }
+/* Test system (staging): red instead of yellow so nobody mistakes it for the real site; #4a0000 on #fbd5d5 is about 11:1. */
+.preview-banner.staging-banner { background: #fbd5d5; color: #4a0000; border-bottom-color: #d98c8c; }
 .preview-banner details.pb-d { display: none; }
 /* Link: an inline-block with padding so the tap target is at least 24px high (WCAG 2.2, 2.5.8). */
 .preview-banner a.pb-link {
