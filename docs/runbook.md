@@ -689,42 +689,6 @@ not know", not "this book won nothing"; type the award in yourself if you know
 it. A lookup that fails (internet problem, a limit reached) is tried again after
 a day. Only the book's ISBN is sent out; no member or customer data.
 
-## j) Price sticker colors
-
-Every used book gets a colored price sticker so customers and volunteers can
-read the price at a glance. The color follows the price: you never choose it
-separately, and the admin screens show it as a small colored chip next to the
-price.
-
-| Sticker | Meaning |
-|---|---|
-| Yellow | EUR 3 |
-| Green | EUR 5 |
-| Blue | EUR 8 |
-| Red | EUR 10 |
-| Purple | Custom / special price (any other price on a used book) |
-| Orange | Clearance (EUR 1) |
-| White | New book: sold at the publisher's price (loi Lang). Write the price on the sticker; a discount of up to 5% is allowed |
-
-If a copy is on clearance it is orange whatever its price. A new book is
-always white.
-
-**Printing the sticker sheet**
-
-1. Admin > **Books & Reservations** > **Price stickers**.
-2. **Added since** defaults to the last 7 days: set an earlier date for older
-   books. You can also narrow by **Location** and by **Color**.
-3. Each row shows the color, price, title, author, ISBN, condition, binding and
-   location. Rows are sorted by location, then color, so you can stick all the
-   stickers of one shelf together.
-4. Click **Print** (menu and buttons are left out, colors are kept; if the
-   colors come out gray, tick "Background graphics" in the print dialog) or
-   **Download CSV** to open it in a spreadsheet. CSV downloads are written to
-   *Admin activity*.
-
-Only copies that are **In Store** are listed. Nothing here changes prices; to
-change a price, open the book and use the price choices on the copy.
-
 ## k) Reservations, collecting and paying in the shop, refunds
 
 **How it works.** A customer with an account reserves books (and drop-in seats)
@@ -1052,8 +1016,6 @@ Written for the person who runs the shop. Nothing here needs a developer.
 - **A SumUp Solo card reader** (with its own SumUp account).
 - **A cash drawer** you can open by key or button. (Optional later: a receipt
   printer; the receipt page prints on any printer today.)
-- **Labels**: a label printer, or sheets of sticky labels for any office printer.
-  A 50 x 25 mm label is the default; other sizes are set on the labels page.
 
 ### Test the scanner
 
@@ -1071,36 +1033,14 @@ Written for the person who runs the shop. Nothing here needs a developer.
 4. The page keeps the cursor in the scan box by itself. After a mistake the
    screen shows a red message and beeps (untick "Beep on errors" to silence).
 
-### Printing copy labels
-
-Every copy gets a label with a barcode `UB-<number>`. After you add a copy
-there is a **Print label** button; later use **Books & Reservations > book > Label**,
-or **Inventory > Labels**, or **Price stickers > Print labels**. Choose the
-size (width and height in millimetres) and **a label roll** (one label per
-page) or **a sheet of labels** (A4). In the print window choose **100% / actual
-size** and no headers or footers, and print one label to check before many.
-The page title and menu are never printed: the first page of a roll is the
-first label.
-
-**Printer resolution (`dpi`).** Choose **203 dpi** (most label printers) or
-**300 dpi** (`&dpi=300` in the address). The barcode is drawn with a whole
-number of printer dots per narrowest bar: 3 dots at 203 dpi, 4 dots at 300 dpi.
-A bar of 2.6 dots would print as some bars of 2 and some of 3 dots and scan
-badly, so the width of the barcode follows from the length of the code (about
-42 mm for `UB-1234` at 203 dpi), not from the width of the label. If the label
-is too narrow the page shows a warning: the bars are then drawn with fewer
-dots per bar (never a fraction), the text is made smaller, and the warning says
-which width is needed. Use at least 45 mm labels for the standard size.
-
 ### Books with no ISBN
 
 Old books, local editions and some second-hand books have no barcode. They work
 like all others: **Add Book > "No ISBN? Enter the details by hand"**. Only the
 title is required; type the author, genres, binding, condition and price
 yourself (the price help says "Manual review": set the price by hand, or leave
-it empty and enter it at the till). Print the label and stick it on: the till
-sells it by scanning the label (`UB-...`). The label and till screens show
-"No ISBN" instead of a number.
+it empty and enter it at the till). The till finds it by its copy code
+(`UB-<number>`, the copy's number) or by searching its title.
 
 ### Open the day
 
@@ -1160,8 +1100,7 @@ An item can have a barcode so the scanner adds it: on its row of **Other stock
 (not books)** click in the **Barcode** box and scan the item (the manufacturer's
 code, 8 to 14 digits, is typed for you), then **Save**. Scanning it at the till
 adds one; scan again for another one (or use + and - on the line). Items with
-no barcode: press **Generate a shop code** (it becomes `ITEM-<number>`), then
-**Print barcode label** and stick the label on the item. Rules: each active
+no barcode: press **Generate a shop code** (it becomes `ITEM-<number>`) and write the code on the item. Rules: each active
 item needs its own code; a code cannot start with `UB-` (that is for books) or
 look like `ORDER-<number>`; **a code that is also a book's ISBN is refused**
 when you save the item (it would hide that book at the till: scanning would add

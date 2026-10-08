@@ -1,4 +1,0 @@
-<%
-  // A colored sticker chip. Params: level (from lib/priceColors), text (optional, defaults to the level name).
-  const _lv = level;
-%><span class="sticker-chip" data-sticker-chip="<%= _lv.key %>" style="background:<%= _lv.hex %>; color:<%= _lv.text %>;<%= _lv.border ? ' border-color:' + _lv.border + ';' : '' %>"><%= typeof text !== 'undefined' && text ? text : _lv.label %></span>

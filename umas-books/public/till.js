@@ -153,10 +153,6 @@
       main.appendChild(el("strong", "till-line-title", l.title || l.description));
       var meta = el("span", "till-line-meta");
       if (l.kind === "book") {
-        var chip = el("span", "sticker-chip", l.color.label);
-        chip.style.background = l.color.hex; chip.style.color = l.color.text;
-        if (l.color.border) chip.style.borderColor = l.color.border;
-        meta.appendChild(chip);
         meta.appendChild(el("span", "till-grade", l.conditionLabel));
         if (l.authors) meta.appendChild(el("span", "", l.authors));
         meta.appendChild(el("span", "muted", "UB-" + l.copyId));
@@ -278,11 +274,7 @@
     copies.forEach(function (c) {
       var b = el("button", "btn btn-outline till-pick");
       b.type = "button";
-      var chip = el("span", "sticker-chip", c.color.label);
-      chip.style.background = c.color.hex; chip.style.color = c.color.text;
-      if (c.color.border) chip.style.borderColor = c.color.border;
       b.appendChild(el("strong", "", c.priceCents != null ? fmt(c.priceCents) : "No price"));
-      b.appendChild(chip);
       b.appendChild(el("span", "", c.conditionLabel));
       b.appendChild(el("span", "muted", c.location ? "Location " + c.location : "No location"));
       b.appendChild(el("span", "muted", "UB-" + c.copyId));

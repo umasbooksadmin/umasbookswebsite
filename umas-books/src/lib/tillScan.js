@@ -1,6 +1,6 @@
 // What the till's scan box typed: a keyboard-wedge scanner types the code then
 // Enter. Recognised, in this order:
-//   UB-<id>      a copy label (this shop's own barcode, see lib/code128.js)
+//   UB-<id>      a copy code (this shop's own barcode for a copy)
 //   ORDER-<n>    a reservation to collect (collected through lib/tillReservations.js)
 //   an ISBN      10 or 13 digits, hyphens and spaces ignored
 // Anything else is "unknown".

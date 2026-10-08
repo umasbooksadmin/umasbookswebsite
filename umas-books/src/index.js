@@ -122,7 +122,6 @@ Object.assign(app.locals, require("./lib/dates"));
 // Session color-coding, used by the /sessions calendar.
 Object.assign(app.locals, require("./lib/sessionTone"));
 app.locals.assetUrl = assetUrl;
-app.locals.code128 = require("./lib/code128"); // label barcodes sized in printer dots (views/admin/inventory/label_sheet.ejs)
 app.locals.mondayFirstWeeks = require("./lib/calendar").mondayFirstWeeks;
 
 // form-action also governs the redirect after a form POST in Chromium. Nothing
@@ -323,12 +322,10 @@ const marketingCsp = buildMarketingCsp(formActionSources);
 
 
 app.get("/", (req, res, next) => {
-  // Only an actual member/volunteer/admin gets bounced to the Member's
-  // Access dashboard — a logged-in user who isn't gets the regular
-  // homepage like anyone else (see requireMember), otherwise this and
-  // /dashboard's own redirect would loop forever on each other.
-  const u = req.session.user;
-  if (u && (u.isAdmin || u.isMember || u.isVolunteer)) return res.redirect("/dashboard");
+  // Home is the public home page for everyone, signed in or not: the header's
+  // Member's Access / Admin links (partials/mkt_chrome_header.ejs) are how a
+  // signed-in person reaches their area. Signed-in responses are no-store
+  // (middleware/noStoreForUsers.js), so the user-specific header is never cached.
   res.set("Content-Security-Policy", marketingCsp);
   setMarketingSeoLocals(req, res, "/");
   renderMarketing(req, res, next, "marketing/index");
