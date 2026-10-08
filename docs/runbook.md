@@ -423,6 +423,18 @@ To launch:
    `https://<your site>/robots.txt` no longer says `Disallow: /`. The red
    "PREVIEW MODE is ON" strip is gone from the admin screens.
 
+**What preview mode does not touch: the blog.** Admins can write, edit,
+publish and delete blog posts (with their featured image) while the site is in
+preview mode, exactly as after launch, and a published post shows on the
+public blog at once (behind the coming-soon banner). Drafts and scheduled
+posts stay hidden from visitors; in **Admin > Blog** their **Preview on site**
+link opens the real blog page with that post, visible only to a logged-in
+admin. Only reservations (cart/reserve), the membership payment form and
+search-engine indexing are switched off by `PREVIEW_MODE`. If a new post does
+not appear for a visitor, check its **Status** is Published and its **Publish
+Date** is not in the future; the public list is cached by browsers for up to 5
+minutes (not for a logged-in admin).
+
 ### Clearing the test data
 
 `npm run clear-test-data` removes the test data before launch. It is the one
