@@ -83,7 +83,7 @@ test("bulk actions confirm only for the destructive choice (app.js data-confirm-
   const listeners = [];
   const asked = [];
   const document = { addEventListener: (type, fn, capture) => listeners.push({ type, fn, capture: Boolean(capture) }), querySelector: () => null, querySelectorAll: () => [], getElementById: () => null };
-  vm.runInNewContext(fs.readFileSync(path.join(ROOT, "public", "app.js"), "utf8"), { document, window: { confirm: (m) => { asked.push(m); return false; } }, history: {}, setTimeout, clearTimeout });
+  vm.runInNewContext(fs.readFileSync(path.join(ROOT, "public", "app.js"), "utf8"), { document, window: { addEventListener() {}, confirm: (m) => { asked.push(m); return false; } }, history: {}, setTimeout, clearTimeout });
   const submit = listeners.find((l) => l.type === "submit" && l.capture).fn;
   const attrs = { "data-confirm": "Delete the selected items?", "data-confirm-field": "bulkAction", "data-confirm-values": "delete" };
   const make = (value) => ({ preventDefault() { this.prevented = true; }, stopPropagation() {}, target: { getAttribute: (n) => attrs[n] || null, elements: { bulkAction: { value } } } });

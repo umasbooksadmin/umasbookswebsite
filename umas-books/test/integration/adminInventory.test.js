@@ -238,6 +238,20 @@ test("show page renders the book and its copies; unknown and garbage ids give th
   assert.equal((await post("/admin/inventory/1/copies/abc/delete", { form: {} })).status, 404);
 });
 
+test("show page shows each copy's Till code (UB-<copy id>), also for a book with no ISBN", async () => {
+  for (const isbn of [null, isbn13()]) {
+    const b = await seedBook({ isbn, copies: [{}, { price: 9 }, { status: "sold" }] });
+    const { text, status } = await get(`/admin/inventory/${b.id}`);
+    assert.equal(status, 200);
+    for (const id of b.copyIds) {
+      assert.ok(text.includes(`Till code: <code`) && text.includes(`>UB-${id}</code>`), `UB-${id} shown`);
+      assert.ok(text.includes(`data-copy-text="UB-${id}"`), `UB-${id} has a Copy button`);
+    }
+    assert.match(text, /Type this code in the Till scan box/);
+    assert.match(text, /<script src="\/copy-text\.js"><\/script>/);
+  }
+});
+
 test("show page releases an expired reservation but keeps a fresh one", async () => {
   const day = 86400000;
   const b = await seedBook({

@@ -77,7 +77,7 @@ function loadAppJs(confirmAnswer) {
     querySelectorAll: () => [],
     getElementById: () => null,
   };
-  const window = { confirm: (m) => { asked.push(m); return confirmAnswer; } };
+  const window = { addEventListener() {}, confirm: (m) => { asked.push(m); return confirmAnswer; } };
   vm.runInNewContext(read("public/app.js"), { document, window, history: {}, setTimeout, clearTimeout });
   return { listeners, asked };
 }
@@ -130,7 +130,7 @@ function runPasswordToggle(lang) {
     querySelectorAll: () => [],
     getElementById: (id) => (id === "pw" ? input : null),
   };
-  vm.runInNewContext(read("public/app.js"), { document, window: {}, history: {}, setTimeout, clearTimeout });
+  vm.runInNewContext(read("public/app.js"), { document, window: { addEventListener() {} }, history: {}, setTimeout, clearTimeout });
   const click = { target: { closest: (sel) => (sel === "[data-toggle-password]" ? btn : null) } };
   const press = () => { for (const l of listeners.filter((x) => x.type === "click")) l.fn(click); };
   return { input, attrs, btn, press };

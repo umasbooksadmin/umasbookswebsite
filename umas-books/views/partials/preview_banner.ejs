@@ -5,7 +5,15 @@
    app pages render. Server-side French via tr(); on marketing pages
    assets/site.js re-applies the same strings (COMMON preview.*) when the
    person toggles the language. Styled in public/site-header.css. */
-if (locals.preview) {
+if (locals.staging) {
+  const t = typeof tr === 'function' ? tr : (en) => en;
+%>
+<%# Test system (APP_ENV=staging, src/lib/staging.js): same strip, red, no feedback link. %>
+<div class="preview-banner staging-banner" role="region" aria-label="<%= t('Test site notice', 'Avis sur le site de test') %>">
+  <details class="pb-d"><summary class="pb-more"><span class="pb-more-open" data-i18n="preview.more"><%= t('More', 'Plus') %></span><span class="pb-more-close" data-i18n="preview.less"><%= t('Less', 'Moins') %></span></summary></details>
+  <span class="pb-text" data-i18n="staging.text"><%= t("TEST SITE: not the real Uma’s Books. Nothing here is real, no email goes to real people and no payment is taken.", "SITE DE TEST : ce n’est pas le vrai site d’Uma’s Books. Rien n’est réel ici, aucun e-mail n’est envoyé à de vraies personnes et aucun paiement n’est pris.") %></span>
+</div>
+<% } else if (locals.preview) {
   const t = typeof tr === 'function' ? tr : (en) => en;
 %>
 <div class="preview-banner" role="region" aria-label="<%= t('Preview notice', 'Avis sur la version d’aperçu') %>">

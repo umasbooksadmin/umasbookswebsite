@@ -6,6 +6,7 @@ const { requireAdmin } = require("../../middleware/auth");
 const { audit } = require("../../lib/audit");
 const { sanitizeHtml } = require("../../lib/sanitizeHtml");
 
+const { redirectWithFlash, takePageFlash } = require("../../lib/postRedirect");
 const { validateIdParams } = require("../../middleware/idParams");
 const { parseId } = require("../../lib/validation");
 
@@ -68,6 +69,54 @@ function blogBackQuery(req) {
   return req.body.backQuery ? `?${req.body.backQuery}` : "";
 }
 
+// What the form sent, cleaned the same way for create and edit. `error` is a
+// sentence for the admin (shown above the form); `values` is what to put back
+// in the form when something is wrong so nothing typed is lost.
+function readBlogForm(req) {
+  const title = (req.body.title || "").trim();
+  const excerpt = (req.body.excerpt || "").trim() || null;
+  const body = sanitizeHtml((req.body.body || "").trim());
+  const category = BLOG_CATEGORIES.includes(req.body.category) ? req.body.category : null;
+  const tags = (req.body.tags || "").trim() || null;
+  const status = BLOG_STATUSES.includes(req.body.status) ? req.body.status : "published";
+  const dateStr = typeof req.body.publishDate === "string" ? req.body.publishDate.trim() : "";
+  const values = { title, excerpt: excerpt || "", body, category: category || "", tags: tags || "", status, publishDate: dateStr };
+
+  let error = null;
+  // An editor with only empty paragraphs/line breaks counts as empty.
+  const bodyText = body.replace(/<[^>]*>/g, "").replace(/&nbsp;|\s/g, "");
+  if (!title) error = "Please give the post a title. Nothing was saved.";
+  else if (!bodyText && status !== "draft") error = "Please write some content before publishing or scheduling the post (a draft may stay empty). Nothing was saved.";
+  else if (dateStr && (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr) || Number.isNaN(new Date(dateStr).getTime()))) {
+    error = "The publish date is not a valid date (use the date picker, or year-month-day like 2026-10-31). Nothing was saved.";
+  }
+  const publishedAt = error ? null : resolveBlogPublishedAt(status, dateStr);
+  return { title, excerpt, body, category, tags, status, publishedAt, values, error };
+}
+
+// The admin sees the reason, with what they typed still in the form. The
+// browser is sent to the form (303) rather than shown a page of its own.
+function refuseBlogForm(req, res, form, message, editId) {
+  const backQuery = blogBackQuery(req);
+  const path = editId ? `/admin/blog?edit=${editId}${backQuery ? `&${backQuery.slice(1)}` : ""}` : `/admin/blog${backQuery}`;
+  return redirectWithFlash(req, res, path, "adminBlog", { error: message || form.error, values: form.values, editId: editId || null });
+}
+
+const IMAGE_PROBLEM =
+  "The post was NOT saved because that picture could not be read. Please choose a JPG, PNG or WebP image (a photo in iPhone HEIC format must be saved as JPG first). Nothing else was changed; your text is still in the form.";
+
+// Returns the stored image URL, or null (with the refusal already sent) when
+// the picture cannot be decoded.
+async function storeBlogImage(req, res, form, imageFile, editId) {
+  try {
+    return await processBlogImage(imageFile);
+  } catch (err) {
+    console.warn(`Blog image refused (${imageFile.mimetype}, ${imageFile.size} bytes): ${err.message}`);
+    await refuseBlogForm(req, res, form, IMAGE_PROBLEM, editId);
+    return null;
+  }
+}
+
 router.get("/admin/blog", requireAdmin, async (req, res) => {
   const status = BLOG_STATUSES.includes(req.query.status) ? req.query.status : "";
   const category = BLOG_CATEGORIES.includes(req.query.category) ? req.query.category : "";
@@ -113,10 +162,26 @@ router.get("/admin/blog", requireAdmin, async (req, res) => {
     editing = rows[0] || null;
   }
 
+  // A refused save (or a saved one) left a message and what was typed.
+  const flash = takePageFlash(req, res, "adminBlog") || {};
+  const keepTyped = flash.values && (flash.editId || null) === (editing ? editing.id : null);
+  const today = new Date().toISOString().slice(0, 10);
+  const base = editing
+    ? {
+        title: editing.title, excerpt: editing.excerpt || "", body: editing.body, category: editing.category || "",
+        tags: editing.tags || "", status: editing.status,
+        publishDate: editing.published_at ? new Date(editing.published_at).toISOString().slice(0, 10) : today,
+      }
+    : { title: "", excerpt: "", body: "", category: "", tags: "", status: "published", publishDate: today };
+  const formValues = keepTyped ? { ...base, ...flash.values } : base;
+
   res.render("admin/blog", {
     active: "blog",
     posts,
     editing,
+    formValues,
+    flashError: flash.error || null,
+    flashNotice: flash.notice || null,
     categories: BLOG_CATEGORIES,
     filters: { status, category, q, dateRange },
     pagination: { page: currentPage, totalPages, totalMatching, pageSize: BLOG_PAGE_SIZE },
@@ -124,27 +189,24 @@ router.get("/admin/blog", requireAdmin, async (req, res) => {
 });
 
 router.post("/admin/blog", requireAdmin, async (req, res) => {
-  const title = (req.body.title || "").trim();
-  const excerpt = (req.body.excerpt || "").trim() || null;
-  const body = sanitizeHtml((req.body.body || "").trim());
-  const category = BLOG_CATEGORIES.includes(req.body.category) ? req.body.category : null;
-  const tags = (req.body.tags || "").trim() || null;
-  const status = BLOG_STATUSES.includes(req.body.status) ? req.body.status : "published";
-  const publishedAt = resolveBlogPublishedAt(status, req.body.publishDate);
-  const backQuery = blogBackQuery(req);
-
-  if (!title || !body) return res.redirect(`/admin/blog${backQuery}`);
+  const form = readBlogForm(req);
+  if (form.error) return refuseBlogForm(req, res, form, null, null);
 
   const imageFile = req.files && req.files.image && req.files.image[0];
-  const imageUrl = imageFile ? await processBlogImage(imageFile) : null;
-  const slug = await uniqueBlogSlug(slugifyTitle(title));
+  let imageUrl = null;
+  if (imageFile) {
+    imageUrl = await storeBlogImage(req, res, form, imageFile, null);
+    if (!imageUrl) return;
+  }
+  const slug = await uniqueBlogSlug(slugifyTitle(form.title));
 
   await pool.query(
     `INSERT INTO blog_posts (slug, title, excerpt, body, category, tags, status, published_at, image_url, created_by)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-    [slug, title, excerpt, body, category, tags, status, publishedAt, imageUrl, req.session.user.id]
+    [slug, form.title, form.excerpt, form.body, form.category, form.tags, form.status, form.publishedAt, imageUrl, req.session.user.id]
   );
-  res.redirect(`/admin/blog${backQuery}`);
+  const word = form.status === "draft" ? "saved as a draft" : form.status === "scheduled" ? "scheduled" : "published";
+  return redirectWithFlash(req, res, `/admin/blog${blogBackQuery(req)}`, "adminBlog", { notice: `"${form.title}" was ${word}.` });
 });
 
 // Registered before /:id: otherwise :id matches the literal "bulk" and the
@@ -170,34 +232,31 @@ router.post("/admin/blog/bulk", requireAdmin, async (req, res) => {
 
 router.post("/admin/blog/:id", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
-  const title = (req.body.title || "").trim();
-  const excerpt = (req.body.excerpt || "").trim() || null;
-  const body = sanitizeHtml((req.body.body || "").trim());
-  const category = BLOG_CATEGORIES.includes(req.body.category) ? req.body.category : null;
-  const tags = (req.body.tags || "").trim() || null;
-  const status = BLOG_STATUSES.includes(req.body.status) ? req.body.status : "published";
-  const publishedAt = resolveBlogPublishedAt(status, req.body.publishDate);
-  const backQuery = blogBackQuery(req);
-
-  if (!title || !body) return res.redirect(`/admin/blog${backQuery}`);
+  const form = readBlogForm(req);
+  if (form.error) return refuseBlogForm(req, res, form, null, id);
 
   const imageFile = req.files && req.files.image && req.files.image[0];
   const clearImage = !imageFile && req.body.removeImage === "on";
 
+  let result;
   if (imageFile) {
-    const imageUrl = await processBlogImage(imageFile);
-    await pool.query(
+    const imageUrl = await storeBlogImage(req, res, form, imageFile, id);
+    if (!imageUrl) return;
+    result = await pool.query(
       `UPDATE blog_posts SET title=$1, excerpt=$2, body=$3, category=$4, tags=$5, status=$6, published_at=$7, image_url=$8, updated_at=now() WHERE id=$9`,
-      [title, excerpt, body, category, tags, status, publishedAt, imageUrl, id]
+      [form.title, form.excerpt, form.body, form.category, form.tags, form.status, form.publishedAt, imageUrl, id]
     );
   } else {
-    await pool.query(
+    result = await pool.query(
       `UPDATE blog_posts SET title=$1, excerpt=$2, body=$3, category=$4, tags=$5, status=$6, published_at=$7,
          image_url = CASE WHEN $8 THEN NULL ELSE image_url END, updated_at=now() WHERE id=$9`,
-      [title, excerpt, body, category, tags, status, publishedAt, clearImage, id]
+      [form.title, form.excerpt, form.body, form.category, form.tags, form.status, form.publishedAt, clearImage, id]
     );
   }
-  res.redirect(`/admin/blog${backQuery}`);
+  if (!result.rowCount) {
+    return redirectWithFlash(req, res, `/admin/blog${blogBackQuery(req)}`, "adminBlog", { error: "That post no longer exists (it may have been deleted). Nothing was saved." });
+  }
+  return redirectWithFlash(req, res, `/admin/blog${blogBackQuery(req)}`, "adminBlog", { notice: `"${form.title}" was saved.` });
 });
 
 router.post("/admin/blog/:id/delete", requireAdmin, async (req, res) => {
