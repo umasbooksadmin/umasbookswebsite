@@ -24,8 +24,6 @@ const { formatEuro } = require("../../lib/money");
 const { SELLER_LINES } = require("../../lib/orderEmail");
 const { vatNotice } = require("../../lib/legalText");
 const { SITE_TIME_ZONE } = require("../../lib/tz");
-const code128 = require("../../lib/code128");
-const { parseSize } = require("./labels");
 
 const router = express.Router();
 validateIdParams(router, "id");
@@ -310,23 +308,6 @@ router.post("/admin/till/items/:id/generate-code", requireAdmin, writeLimiter, a
   }
   await audit(req, { action: "till.item_code", targetType: "till_quick_item", targetId: rows[0].id, detail: `generated ${code}` });
   res.redirect("/admin/till/items?saved=1");
-});
-
-// The Code 128 label of an item's own shop code (items with a manufacturer barcode have it printed on the item).
-router.get("/admin/till/items/:id/label", requireAdmin, async (req, res) => {
-  const { rows } = await pool.query("SELECT * FROM till_quick_items WHERE id = $1", [Number(req.params.id)]);
-  const it = rows[0];
-  if (!it) return res.status(404).render("404");
-  if (!it.barcode || /^\d{8,14}$/.test(it.barcode)) {
-    return res.redirect("/admin/till/items?error=" + encodeURIComponent("Only items with a shop code need a label. Generate a shop code first."));
-  }
-  const size = parseSize(req.query);
-  await audit(req, { action: "labels.print", targetType: "till_quick_item", targetId: it.id, detail: `item ${it.barcode} ${size.w}x${size.h}mm ${size.layout}` });
-  res.render("admin/inventory/label_sheet", {
-    active: "till", mainWide: true, title: "Item label", pageTitle: "Item label",
-    labels: [{ id: it.id, code: it.barcode, svg: code128.svg(it.barcode, { height: 40 }), level: null, price: `€${(it.price_cents / 100).toFixed(2)}`, title: it.name.slice(0, 42), author: "", isbn: "", meta: `Shop code ${it.barcode}` }],
-    size, truncated: false, sheetLimit: 1, filters: {}, ids: [], backUrl: "/admin/till/items",
-  });
 });
 
 // ---------- end of day ----------

@@ -358,7 +358,7 @@ test("saving a new book returns at once while the awards check runs in the backg
       form: { title, author: "Intake Author", isbn, condition: "very_good", price: "5", status: "in_stock", description: "d", descriptionFr: "d", coverUrl: "https://example.org/c.jpg" },
     }), timeout]);
     assert.equal(res.status, 302);
-    assert.match(res.location, /^\/admin\/inventory\/\d+(\?label=\d+)?$/);
+    assert.match(res.location, /^\/admin\/inventory\/\d+$/);
     const bookId = Number(res.location.split("?")[0].split("/").pop());
     assert.equal((await bookRow(bookId)).awards_checked_at, null, "not finished yet");
     assert.equal((await rowsOf(bookId)).length, 0, "no award recorded while the lookup is still in flight");

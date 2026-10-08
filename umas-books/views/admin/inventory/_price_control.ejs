@@ -3,7 +3,7 @@
   // marked), clearance and custom, plus the "Why this price?" details.
   // Params: idSuffix, mode ('intake' | 'edit'), suggestion (or null), priceValue,
   // selected (radio key, or '' for none), suggestAction, bookId + copyId (edit).
-  // condition + isClearance (optional) set the first sticker chip; the script keeps it in step.
+  // condition + isClearance (optional) choose the starting level.
   // priceUi (levels, clearance price) comes from the route.
   const ui = typeof priceUi !== 'undefined' ? priceUi : { levels: [3, 5, 8, 10], clearancePrice: 1, keyFor: () => '' };
   const sfx = idSuffix || '';
@@ -16,11 +16,8 @@
     .concat([{ key: 'custom', label: 'Custom...', price: '' }]);
   const checkedKey = selected || '';
   const shown = ps && ps.price != null;
-  const chipPublisher = typeof chipPublisherPrice !== 'undefined' && chipPublisherPrice !== '' ? chipPublisherPrice : null;
-  const stickerPrice = copyCondition === 'new' && chipPublisher != null ? chipPublisher : priceValue;
-  const stickerLevel = priceColors.colorFor({ price: priceValue, condition: copyCondition, isClearance: copyIsClearance });
 %>
-<div class="price-control" data-price-suggestion data-ps-mode="<%= mode %>" data-ps-suffix="<%= sfx %>"<% if (typeof copyId !== 'undefined' && copyId) { %> data-ps-copy-id="<%= copyId %>"<% } %> data-sticker-levels="<%= JSON.stringify(priceColors.clientConfig()) %>">
+<div class="price-control" data-price-suggestion data-ps-mode="<%= mode %>" data-ps-suffix="<%= sfx %>"<% if (typeof copyId !== 'undefined' && copyId) { %> data-ps-copy-id="<%= copyId %>"<% } %>>
   <fieldset class="price-levels" data-price-levels>
     <legend>Price</legend>
     <% options.forEach(o => { %>
@@ -31,8 +28,6 @@
       </label>
     <% }) %>
   </fieldset>
-
-  <p class="sticker-note" data-sticker-note aria-live="polite"><% if (stickerLevel.key === 'purple' && (priceValue == null || priceValue === '')) { %>Sticker color: choose a price.<% } else { %><%- include('../../partials/sticker_chip', { level: stickerLevel, text: priceColors.chipText(stickerLevel, stickerPrice) }) %><% } %></p>
 
   <div data-price-custom>
     <label for="price<%= sfx %>">Custom price (&euro;)</label>

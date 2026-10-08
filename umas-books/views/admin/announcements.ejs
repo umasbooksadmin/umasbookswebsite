@@ -172,7 +172,7 @@
         <p class="muted small" style="margin:-6px 0 0;"><span id="ann-excerpt-count"><%= editing && editing.excerpt ? editing.excerpt.length : 0 %></span>/200</p>
 
         <label for="ann-content">Content</label>
-        <div class="richtext">
+        <div class="richtext" data-richtext-required="Please write some content for the announcement.">
           <div class="richtext-toolbar">
             <button type="button" data-cmd="bold"><strong>B</strong></button>
             <button type="button" data-cmd="italic"><em>I</em></button>
@@ -184,7 +184,8 @@
           </div>
           <div class="richtext-editor" contenteditable="true"><%- editing ? editing.body : '' %></div>
         </div>
-        <textarea name="body" class="richtext-hidden" required><%= editing ? editing.body : '' %></textarea>
+        <textarea name="body" class="richtext-hidden"><%= editing ? editing.body : '' %></textarea>
+        <div class="field-error" role="alert" hidden>Please write some content for the announcement.</div>
 
         <label>Featured Image</label>
         <% if (editing && editing.image_url) { %>

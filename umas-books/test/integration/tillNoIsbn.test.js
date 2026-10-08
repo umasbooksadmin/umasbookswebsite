@@ -37,7 +37,6 @@ test("a book with no ISBN: saved by hand, labelled UB-<id>, and sold at the till
   assert.equal(copies.length, 1);
   assert.equal(Number(copies[0].price), 6.5);
   const id = copies[0].id;
-  assert.match(saved.headers.get("location"), new RegExp(`label=${id}`), "the redirect offers the label");
 
   // a second copy of another no-ISBN book never merges into the first
   const second = await h.post("/admin/inventory", { title: `${title} B`, condition: "very_good", price: "" });
@@ -48,14 +47,7 @@ test("a book with no ISBN: saved by hand, labelled UB-<id>, and sold at the till
   const { rows: c2 } = await h.pool.query("SELECT price FROM book_copies WHERE book_id = $1", [b2[0].id]);
   assert.equal(c2[0].price, null, "no price: left for the till to ask");
 
-  // label: barcode, "No ISBN"
-  const label = (await h.get(`/admin/inventory/labels?id=${id}`)).text;
-  assert.match(label, new RegExp(`data-copy-label="UB-${id}"`));
-  assert.match(label, /No ISBN/);
-  assert.match(label, new RegExp(title));
-  assert.match((await h.get(`/admin/inventory/labels?location=ZINES&since=2000-01-01`)).text, /No ISBN/);
-
-  // till: scanning the label works; scanning nothing else could
+  // till: scanning the copy code works; scanning nothing else could
   const scanned = await h.scan(`UB-${id}`);
   assert.equal(scanned.body.type, "line");
   assert.equal(scanned.body.line.isbn, "");

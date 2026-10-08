@@ -15,6 +15,9 @@
   const statusLabels = { draft: 'Draft', scheduled: 'Scheduled', published: 'Published' };
 %>
 
+<% if (flashNotice) { %><div class="notice-box" role="status" id="blog-notice"><%= flashNotice %></div><% } %>
+
+
 <% if (locals.preview) { %>
 <p class="muted small" role="note">Blog posts are not affected by preview mode: you can write, edit, publish and delete posts as usual, and a published post shows on the public blog straight away (behind the coming-soon banner). Only reservations and membership payments are switched off.</p>
 <% } %>
@@ -23,15 +26,17 @@
     <div class="section-title"><%= editing ? 'Edit Post' : 'Write a New Post' %></div>
     <% if (editing) { %><a href="/admin/blog?<%= listQs %>" class="small">Cancel edit</a><% } %>
   </div>
-  <form class="stack" method="post" action="<%= editing ? '/admin/blog/' + editing.id : '/admin/blog' %>" enctype="multipart/form-data" id="blog-form">
+  <% if (flashError) { %><div class="error-box" role="alert" id="blog-error"><%= flashError %></div><% } %>
+  <div class="error-box" role="alert" id="blog-client-error" hidden></div>
+  <form class="stack" method="post" action="<%= editing ? '/admin/blog/' + editing.id : '/admin/blog' %>" enctype="multipart/form-data" id="blog-form" data-saving-text="Saving&hellip; please wait">
     <%- include('../partials/csrf_field') %>
     <input type="hidden" name="backQuery" value="<%= listQs %>">
 
     <label for="blog-title">Title</label>
-    <input id="blog-title" name="title" type="text" required value="<%= editing ? editing.title : '' %>">
+    <input id="blog-title" name="title" type="text" required value="<%= formValues.title %>">
 
     <label for="blog-content">Content</label>
-    <div class="richtext">
+    <div class="richtext" data-richtext-required="Please write some content for the post." data-richtext-skip-when="status=draft">
       <div class="richtext-toolbar">
         <button type="button" data-cmd="bold"><strong>B</strong></button>
         <button type="button" data-cmd="italic"><em>I</em></button>
@@ -41,25 +46,26 @@
         <button type="button" data-cmd="formatBlock" data-arg="blockquote">&ldquo;&rdquo;</button>
         <button type="button" data-cmd="createLink">Link</button>
       </div>
-      <div class="richtext-editor" contenteditable="true"><%- editing ? editing.body : '' %></div>
+      <div class="richtext-editor" contenteditable="true"><%- formValues.body %></div>
     </div>
-    <textarea name="body" class="richtext-hidden" required><%= editing ? editing.body : '' %></textarea>
+    <textarea name="body" class="richtext-hidden"><%= formValues.body %></textarea>
+    <div class="field-error" id="blog-body-error" role="alert" hidden>Please write some content before publishing or scheduling (a draft may stay empty).</div>
 
     <label for="blog-excerpt">Excerpt (optional)</label>
-    <textarea id="blog-excerpt" name="excerpt" placeholder="A short summary shown on the blog list…"><%= editing ? (editing.excerpt || '') : '' %></textarea>
+    <textarea id="blog-excerpt" name="excerpt" placeholder="A short summary shown on the blog list…"><%= formValues.excerpt %></textarea>
 
     <div class="mem-row" style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
       <div>
         <label for="blog-date">Publish Date</label>
-        <input id="blog-date" name="publishDate" type="date" aria-describedby="blog-date-hint" value="<%= editing && editing.published_at ? new Date(editing.published_at).toISOString().slice(0,10) : new Date().toISOString().slice(0,10) %>">
+        <input id="blog-date" name="publishDate" type="date" aria-describedby="blog-date-hint" value="<%= formValues.publishDate %>">
         <span id="blog-date-hint" class="muted small">A post is public only once this date has arrived.</span>
       </div>
       <div>
         <label for="blog-status">Status</label>
         <select id="blog-status" name="status">
-          <option value="draft" <%= editing && editing.status === 'draft' ? 'selected' : '' %>>Draft</option>
-          <option value="scheduled" <%= editing && editing.status === 'scheduled' ? 'selected' : '' %>>Scheduled</option>
-          <option value="published" <%= !editing || editing.status === 'published' ? 'selected' : '' %>>Published</option>
+          <option value="draft" <%= formValues.status === 'draft' ? 'selected' : '' %>>Draft</option>
+          <option value="scheduled" <%= formValues.status === 'scheduled' ? 'selected' : '' %>>Scheduled</option>
+          <option value="published" <%= formValues.status === 'published' ? 'selected' : '' %>>Published</option>
         </select>
       </div>
     </div>
@@ -70,17 +76,17 @@
       <label class="ann-check"><input type="checkbox" name="removeImage"> <span>Remove current image</span></label>
     <% } %>
     <button type="button" class="btn btn-outline" data-trigger-file="blog-image" style="align-self:flex-start;">Upload an image</button>
-    <input id="blog-image" name="image" type="file" accept="image/*" class="file-input-hidden" data-file-name-target="blog-image-name">
-    <span id="blog-image-name" class="muted small file-input-name">No image selected (JPG/PNG, max 5MB)</span>
+    <input id="blog-image" name="image" type="file" accept="image/*" class="file-input-hidden" data-file-name-target="blog-image-name" data-max-bytes="15728640" data-max-label="15 MB">
+    <span id="blog-image-name" class="muted small file-input-name">No image selected (JPG, PNG or WebP, max 15 MB)</span>
 
     <label for="blog-category">Category</label>
     <select id="blog-category" name="category">
       <option value="">Select a category…</option>
-      <% categories.forEach(c => { %><option value="<%= c %>" <%= editing && editing.category === c ? 'selected' : '' %>><%= c %></option><% }) %>
+      <% categories.forEach(c => { %><option value="<%= c %>" <%= formValues.category === c ? 'selected' : '' %>><%= c %></option><% }) %>
     </select>
 
     <label for="blog-tags">Tags (optional, comma-separated)</label>
-    <input id="blog-tags" name="tags" type="text" placeholder="books, community, events" value="<%= editing ? (editing.tags || '') : '' %>">
+    <input id="blog-tags" name="tags" type="text" placeholder="books, community, events" value="<%= formValues.tags %>">
 
     <div style="display:flex; gap:10px; margin-top:6px;">
       <button class="btn" type="submit"><%= editing ? 'Save Changes' : 'Publish Post' %></button>

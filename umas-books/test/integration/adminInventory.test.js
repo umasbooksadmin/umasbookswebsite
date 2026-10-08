@@ -238,6 +238,20 @@ test("show page renders the book and its copies; unknown and garbage ids give th
   assert.equal((await post("/admin/inventory/1/copies/abc/delete", { form: {} })).status, 404);
 });
 
+test("show page shows each copy's Till code (UB-<copy id>), also for a book with no ISBN", async () => {
+  for (const isbn of [null, isbn13()]) {
+    const b = await seedBook({ isbn, copies: [{}, { price: 9 }, { status: "sold" }] });
+    const { text, status } = await get(`/admin/inventory/${b.id}`);
+    assert.equal(status, 200);
+    for (const id of b.copyIds) {
+      assert.ok(text.includes(`Till code: <code`) && text.includes(`>UB-${id}</code>`), `UB-${id} shown`);
+      assert.ok(text.includes(`data-copy-text="UB-${id}"`), `UB-${id} has a Copy button`);
+    }
+    assert.match(text, /Type this code in the Till scan box/);
+    assert.match(text, /<script src="\/copy-text\.js"><\/script>/);
+  }
+});
+
 test("show page releases an expired reservation but keeps a fresh one", async () => {
   const day = 86400000;
   const b = await seedBook({
@@ -427,7 +441,7 @@ test("add: creates the book and one copy; garbage condition/status fall back to 
   });
   assert.equal(status, 302);
   const [book] = await bookByTitle(title);
-  assert.match(location, new RegExp(`^/admin/inventory/${book.id}\\?label=\\d+$`)); // the copy id lets the page offer its label
+  assert.match(location, new RegExp(`^/admin/inventory/${book.id}$`)); // the copy id lets the page offer its label
   assert.equal(book.isbn, isbn);
   assert.equal(book.authors, "Au Thor");
   assert.equal(book.published_year, 1987);
@@ -485,7 +499,7 @@ test("add: a missing description is generated and translated; a missing cover is
   ai.description = "Auto blurb.";
   const { location } = await post("/admin/inventory", { fields: { title, isbn, author: "Auto Author" } });
   const [book] = await bookByTitle(title);
-  assert.match(location, new RegExp(`^/admin/inventory/${book.id}\\?label=\\d+$`)); // the copy id lets the page offer its label
+  assert.match(location, new RegExp(`^/admin/inventory/${book.id}$`)); // the copy id lets the page offer its label
   assert.equal(book.description, "Auto blurb.");
   assert.equal(book.description_fr, "FR: Auto blurb.");
   await storedImage(book.cover_url);
@@ -560,7 +574,7 @@ test("add: a second copy of an ISBN already in stock joins the existing book ins
   const isbn = isbn13();
   const b = await seedBook({ isbn, copies: [{ price: 6 }] });
   const { location } = await post("/admin/inventory", { fields: { title: b.title, isbn, price: "4", condition: "acceptable" } });
-  assert.match(location, new RegExp(`^/admin/inventory/${b.id}\\?label=\\d+$`));
+  assert.match(location, new RegExp(`^/admin/inventory/${b.id}$`));
   assert.equal((await pool.query("SELECT count(*)::int AS n FROM books WHERE isbn = $1", [isbn])).rows[0].n, 1);
   const copies = await copiesOf(b.id);
   assert.equal(copies.length, 2);

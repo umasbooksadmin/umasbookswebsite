@@ -79,7 +79,7 @@ test("admin creates a published post with an image; it shows to visitors; edit, 
   const png = await sharp({ create: { width: 60, height: 40, channels: 3, background: "#369" } }).png().toBuffer();
 
   let res = await adminPost("/admin/blog", { title, body: "<p>Hello from preview</p>", status: "published", publishDate: "2020-01-02", category: "News" }, png);
-  assert.equal(res.status, 302);
+  assert.equal(res.status, 303, "saved, then redirected to a GET page (post/redirect/get)");
   assert.equal(res.headers.get("location"), "/admin/blog");
   const row = await postByTitle(title);
   assert.ok(row, "row created");
@@ -101,7 +101,7 @@ test("admin creates a published post with an image; it shows to visitors; edit, 
 
   // Edit.
   res = await adminPost(`/admin/blog/${row.id}`, { title: `${title} edited`, body: "<p>Changed</p>", status: "published", publishDate: "2020-01-02" });
-  assert.equal(res.status, 302);
+  assert.equal(res.status, 303);
   assert.equal(res.headers.get("location"), "/admin/blog");
   assert.equal((await postByTitle(`${title} edited`)).body, "<p>Changed</p>");
   assert.equal((await postByTitle(`${title} edited`)).image_url, row.image_url, "image kept when not replaced");

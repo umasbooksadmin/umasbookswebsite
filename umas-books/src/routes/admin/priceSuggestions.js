@@ -20,7 +20,6 @@ const { computeSuggestion, prepareIntakeForm, pricingBinding } = require("../../
 const { CONDITIONS, STATUSES, SOURCES, normalizeSource, normalizeCondition, normalizeGenres, normalizeLocation } = inventoryLib;
 
 const router = express.Router();
-router.use("/admin/inventory", require("../../lib/priceColors").exposeToViews); // chips in the views
 
 // 30 a minute per person: a lookup can cost an AI call.
 const suggestionLimiter = limit({

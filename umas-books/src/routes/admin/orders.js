@@ -175,7 +175,7 @@ router.get("/admin/orders/:id", requireAdmin, (req, res, next) => {
 
 // One printable page for the staff: every reservation waiting, grouped by
 // customer, with where each book is shelved and what to collect. ?print=1 gives
-// the compact layout for paper (stickers page conventions: Print button, the
+// the compact layout for paper (print conventions: Print button, the
 // admin chrome is hidden by print CSS).
 router.get("/admin/orders/pickup-list", requireAdmin, async (req, res) => {
   await expireStaleReservations(pool);
