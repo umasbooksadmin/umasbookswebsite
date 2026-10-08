@@ -23,7 +23,6 @@ function previewMiddleware(req, res, next) {
   // admin note; its HelloAsso sandbox is expected, so no "live site" warning.
   const staging = isStaging();
   res.locals.staging = staging;
-  res.locals.noindex = on || staging;
   res.locals.helloassoSandbox = !on && !staging && usesSandbox(process.env.HELLOASSO_API_BASE);
   res.locals.stagingHelloasso = staging ? (usesSandbox(process.env.HELLOASSO_API_BASE) ? "sandbox" : "off") : "";
   res.locals.stagingMailTo = staging ? String(process.env.STAGING_MAIL_TO || "").trim() : "";

@@ -35,7 +35,7 @@ const nav = [
 <title data-i18n="meta.title"><%= title %></title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="description" content="<%= _desc %>" data-i18n-attr="content:meta.description">
-<% if (locals.preview || locals.noindex) { %><meta name="robots" content="noindex, nofollow">
+<% if (locals.preview || locals.staging) { %><meta name="robots" content="noindex, nofollow">
 <% } %>
 <% if (_pageUrl) { %><link rel="canonical" href="<%= _pageUrl %>"><link rel="alternate" hreflang="x-default" href="<%= _pageUrl %>">
 <% } %><meta property="og:site_name" content="Uma's Books &amp; Adventures">

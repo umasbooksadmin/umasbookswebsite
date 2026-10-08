@@ -25,7 +25,7 @@ const get = (app, p, lang) => fetch(`${app.base}${p}`, { headers: lang ? { cooki
 const bannerOf = (html) => (html.match(/<div class="preview-banner staging-banner"[\s\S]*?<\/div>/) || [""])[0];
 const unescape = (s) => s.replace(/&#39;/g, "'").replace(/&amp;/g, "&");
 const EN = "TEST SITE: not the real Uma’s Books. Nothing here is real, no email goes to real people and no payment is taken.";
-const FR = "SITE DE TEST : ce n’est pas le vrai site d’Uma’s Books. Rien n’est réel ici, aucun e-mail n’est envoyé à de vraies personnes et aucun paiement n’est pris.";
+const FR = "SITE DE TEST\u00a0: ce n’est pas le vrai site d’Uma’s Books. Rien n’est réel ici, aucun e-mail n’est envoyé à de vraies personnes et aucun paiement n’est pris.";
 
 test("staging: banner on every page type, English and French (French typography: no-break space before the colon)", async () => {
   for (const p of ["/", "/books.html", "/membership.html", "/cart", "/login", "/contact", "/no-such-page"]) {
@@ -33,7 +33,7 @@ test("staging: banner on every page type, English and French (French typography:
     const fr = await (await get(staging, p, "fr")).text();
     assert.ok(unescape(bannerOf(en)).includes(EN), `${p} en`);
     assert.ok(unescape(bannerOf(fr)).includes(FR), `${p} fr`);
-    assert.match(bannerOf(fr), /SITE DE TEST :/, `${p} fr nbsp`);
+    assert.match(bannerOf(fr), /SITE DE TEST\u00a0:/, `${p} fr nbsp`);
     assert.match(bannerOf(en), /role="region"/);
     assert.ok(en.indexOf("staging-banner") < en.indexOf("<header"), `${p} banner before header`);
     assert.match(en, /<meta name="robots" content="noindex, nofollow">/, `${p} robots meta`);
@@ -54,7 +54,7 @@ test("staging: X-Robots-Tag noindex, robots.txt disallows all, sitemap is empty"
 test("staging also has the site-wide site.js French string for the banner (language switch on marketing pages)", async () => {
   const js = await (await get(staging, "/assets/site.js")).text();
   assert.ok(js.includes('"staging.text": "TEST SITE: not the real Uma’s Books.'));
-  assert.ok(js.includes('"staging.text": "SITE DE TEST : ce n’est pas le vrai site'));
+  assert.ok(js.includes('"staging.text": "SITE DE TEST\u00a0: ce n’est pas le vrai site'));
 });
 
 test("without APP_ENV: no staging banner, no noindex, robots.txt and sitemap as before", async () => {

@@ -565,6 +565,9 @@ secret** = same page, **Secrets** tab.
   reserve one cheap book, check the confirmation email arrives, then in admin >
   **Reservations** open the reservation and press **Mark collected and paid** (section
   k). The book shows as sold and the sale shows in the sales report.
+- [ ] **Test system rehearsal.** The change that goes live was first on the test
+  system (section aa), the staging smoke script passed there, and the production
+  deploy was pressed by hand afterwards (if production is on manual deploys).
 - [ ] **Manual test scripts** run and passed, one script per kind of user (guest,
   account holder, member, volunteer, admin, edge cases): every **(must)** step,
   and the manual-only steps the automated tests list, see
@@ -1714,3 +1717,174 @@ to the next field: set it to Enter.
   (it may have been saved).
 - "Not found: fill in by hand": Open Library does not know the ISBN. Type title and author.
 - "Too many lookups": the limit is 120 a minute per person; wait a minute.
+
+## aa) Test system (staging)
+
+### What it is
+
+A second copy of the website on Render, **completely separate from the real
+site**: its own web service (`umas-books-staging`), its own **empty** database
+(`umas-books-staging-db`), the same code. Use it to try a change (or rehearse
+the launch) before the real site gets it. It has no custom domain: its address
+is the `https://umas-books-staging-xxxx.onrender.com` address Render shows on
+the service page. It is deliberately safe to break.
+
+What the code does on the test site (all switched on by one setting,
+`APP_ENV=staging`; the real site does not have it and behaves exactly as
+before):
+
+- **No real email, ever.** Every message the site sends (confirmations, reset
+  links, reminders, contact form, admin alerts and digests) is sent to **one**
+  address, `STAGING_MAIL_TO`. The subject starts with `[STAGING]` and ends with
+  `(to: the original recipient)`; the first line of the body says the same. If
+  `STAGING_MAIL_TO` is empty, nothing is sent at all (the Render log says
+  `[staging] STAGING_MAIL_TO is not set - email NOT sent`).
+- **A red banner on every page**: "TEST SITE: not the real Uma's Books" (French:
+  "SITE DE TEST : ce n'est pas le vrai site d'Uma's Books"), and a note at the top
+  of every admin page. Search engines are told to stay away (`noindex`,
+  `robots.txt` says `Disallow: /`, empty sitemap).
+- **HelloAsso sandbox only.** The service **refuses to start** (clear message in
+  the Render logs, deploy shown as failed) if HelloAsso credentials are set and
+  `HELLOASSO_API_BASE` is not the sandbox address.
+- **Cannot touch the real database.** If you set `PRODUCTION_DATABASE_HOST`,
+  the service (and its migrate and seed steps) refuse to start when the staging
+  `DATABASE_URL` is that host.
+
+### One-time set-up (about 20 minutes)
+
+The staging resources are in **`render.staging.yaml`**, a separate file that the
+existing Render Blueprint does not read: merging it creates nothing and costs
+nothing. They exist only after you do this once. **Cost:** a web service plus a
+paid Postgres database, billed by Render every month (check Render pricing
+before step 4; the free Postgres tier is deleted after 30 days, so the file asks
+for the cheapest paid one).
+
+1. **Prepare the values you will type** (they are secrets or private):
+   - `STAGING_MAIL_TO`: your own email address, the only one the test site may
+     write to.
+   - `GMAIL_USER` and `GMAIL_APP_PASSWORD`: a **separate** Gmail account used
+     only for the test site and its app password (Google account > Security >
+     2-Step Verification > App passwords). Do **not** reuse the real shop's
+     sender or password. Without them the test site cannot send even the
+     redirected mail.
+   - `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD`: the test site's first admin.
+     Use your own email and a **new** password that is not the real site's.
+   - `PRODUCTION_DATABASE_HOST`: Render dashboard > `umas-books-db` > **Info** >
+     the **Hostname** (starts with `dpg-`). It is not a password; it is the
+     extra lock described above.
+2. Render dashboard > **New +** > **Blueprint**.
+3. Pick the repository `umasbooksadmin/umasbookswebsite`. Give the Blueprint a
+   name such as `umas-books-staging`, **Branch** `main`, and set **Blueprint
+   file path** to `render.staging.yaml` (not the default `render.yaml`).
+4. Render lists what it will create: the service `umas-books-staging` and the
+   database `umas-books-staging-db`. Check that it does **not** mention
+   `umas-books` or `umas-books-db`. Fill the six boxes Render shows
+   (`STAGING_MAIL_TO`, `GMAIL_USER`, `GMAIL_APP_PASSWORD`, `SEED_ADMIN_EMAIL`,
+   `SEED_ADMIN_PASSWORD`, `PRODUCTION_DATABASE_HOST`: all **secrets**, typed in
+   Render, never stored in the repository), then **Apply** (Deploy Blueprint).
+5. Wait for the first deploy (a few minutes). Open the service
+   `umas-books-staging` > its address at the top. You should see the red banner.
+6. **Delete the seed password**: `umas-books-staging` > **Environment** > the bin
+   icon next to `SEED_ADMIN_PASSWORD` > **Save**.
+
+Where each setting lives (see the comments in `render.staging.yaml`):
+
+| Setting | What it is | Value |
+|---|---|---|
+| `APP_ENV` | Render environment variable (in the file) | `staging` |
+| `PREVIEW_MODE` | Render environment variable (in the file) | `true`: reservations and membership payment are off. Delete it (staging service > Environment) to test reservations |
+| `NODE_ENV`, `TRUST_PROXY_HOPS` | Render environment variables (in the file) | `production`, `2` (same as the real site) |
+| `HELLOASSO_API_BASE` | Render environment variable (in the file) | the HelloAsso **sandbox** address |
+| `DATABASE_URL` | Render environment variable, wired to the staging database | automatic |
+| `SESSION_SECRET`, `TOTP_ENCRYPTION_KEY` | Render environment variables, generated by Render | different from the real site |
+| `STAGING_MAIL_TO`, `GMAIL_USER`, `GMAIL_APP_PASSWORD`, `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD`, `PRODUCTION_DATABASE_HOST` | **Secrets** (`sync: false`: you type them in Render) | yours |
+| GitHub settings | none | the nightly and monthly Backblaze backup workflows and the uptime check are GitHub Actions for the **real** site only; they never touch the test site |
+
+Not copied on purpose: the real `ANTHROPIC_*`, live `HELLOASSO_*`, `ALERT_TO`,
+`CONTACT_TO` and `APP_BASE_URL` (the test site uses its own address; alerts and
+contact mail would be redirected to `STAGING_MAIL_TO` anyway). HelloAsso
+**sandbox** credentials (`HELLOASSO_CLIENT_ID`, `HELLOASSO_CLIENT_SECRET`,
+`HELLOASSO_ORG_SLUG`) can be added later in `umas-books-staging` > Environment,
+only if you want to test membership payment.
+
+### Create the first admin
+
+Nothing is created with a default password. On the first start of an **empty**
+database the seed (`npm run seed`, part of the start command, same as the real
+site) creates one admin from the `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` you
+typed (section c explains the mechanism: it only runs when no admin exists and it
+never resets a password). It also adds a sample announcement and a sample charity
+vote (no personal data). Then:
+
+1. Open the test site > **Log in** with that email and password.
+2. Enrol two-step verification when asked (admins must, as on the real site).
+3. Delete `SEED_ADMIN_PASSWORD` (step 6 above) if you have not yet.
+
+If no admin exists later (the password was too weak, the seed warned in the log):
+`umas-books-staging` > **Shell** > `psql "$DATABASE_URL"`, then
+`UPDATE users SET is_admin = TRUE WHERE email = 'you@example.org';` (section c).
+Check the page title says `umas-books-staging` before typing anything in a Shell.
+
+### Load fake data
+
+There is no copy of the real data and there must never be one. The database
+starts empty. Fill it by hand with fake data: add the test books of
+`docs/testing/manual-test-scripts.md` ("Test data": real ISBNs, no people) in
+Admin > **Add book**, and create throwaway accounts with made-up names such as
+`Test Buyer` and addresses like `YOU+account1@gmail.com`. Their emails all land
+in your `STAGING_MAIL_TO` mailbox anyway. To start again from scratch:
+`umas-books-staging` > **Shell** > `psql "$DATABASE_URL" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"`, then
+**Manual Deploy** > **Deploy latest commit** (migrations and the seed rebuild an
+empty site). Do this only in the staging Shell.
+
+### Test an email
+
+1. On the test site (not logged in) open **Contact** and send a message, or
+   create an account with a made-up address (for example `nobody@example.test`).
+2. Within a couple of minutes a message arrives in the `STAGING_MAIL_TO` mailbox,
+   subject `[STAGING] ... (to: nobody@example.test)`. Links in it open the test
+   site.
+3. Nothing arrives: staging service > **Logs**. `STAGING_MAIL_TO is not set`
+   means the variable is empty; a Gmail error means `GMAIL_USER` /
+   `GMAIL_APP_PASSWORD` are wrong. Section l (outbox) works the same here.
+4. If a mail addressed to a real person ever reaches that person, switch the test service off (Suspend) and tell the developer.
+
+### Deploys and promoting a change to the real site
+
+- The test site **redeploys by itself on every merge to `main`** (`autoDeploy`
+  in `render.staging.yaml`).
+- **Today the real site also redeploys on every merge to `main`.** Both start
+  at the same moment, so the test site cannot protect production yet. To make
+  production wait for you (optional; this was not changed by the staging pull
+  request): Render > `umas-books` > **Settings** > **Build & Deploy** >
+  **Auto-Deploy** > **Off** (the wording may differ slightly, for example
+  "Auto-Deploy: No" or "Off"), **Save**. From then on a merge changes nothing on
+  the real site until you press **Manual Deploy** > **Deploy latest commit**.
+  Turn it back to on the same way. (Section a also covers rolling back.)
+- Routine once production is on manual deploys: merge to `main` > wait for the
+  test site to finish deploying > run the **staging smoke script**
+  (`docs/testing/manual-test-scripts.md`, "Staging smoke script") > only then
+  press **Manual Deploy** on `umas-books`.
+- Database migrations run on the test site first (it has its own database), so a
+  broken migration shows up there before it can touch real data.
+
+### Costs
+
+Two paid Render resources (one web service, one Postgres database), billed
+monthly: **check Render pricing** for the current figures. To stop paying:
+suspend or delete `umas-books-staging` and `umas-books-staging-db` in Render. The
+test site is not backed up (it holds nothing worth keeping).
+
+### What NEVER to do
+
+- **Never copy real member data** to the test site: no restore of a production
+  backup, no export of members, orders or emails, no real names or addresses
+  typed in "just to see".
+- Never paste a production secret (`TOTP_ENCRYPTION_KEY`, `GMAIL_APP_PASSWORD`,
+  the live HelloAsso keys, `ANTHROPIC_API_KEY`) into the test service. The test
+  site must not share the real site's database, Gmail sender or HelloAsso keys.
+- Never point the test service's `DATABASE_URL` at `umas-books-db`, and never
+  delete `PRODUCTION_DATABASE_HOST`.
+- Never attach `umasbooks.org` (or any custom domain) to the test service.
+- Never enter a real card on the test site.
+- Never remove `APP_ENV=staging` from the test service.
