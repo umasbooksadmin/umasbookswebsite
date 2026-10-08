@@ -758,6 +758,8 @@ for (const [name, path, re] of PAGES) {
     const text = await ctx.text();
     has(text, re);
     hasNoNaN(text, path);
+    // Preview mode must not get in the way of the blog: the screen says so.
+    if (ctx.preview && path === "/admin/blog") has(text, /Blog posts are not affected by preview mode/);
   });
 }
 s.manual("A30b create, sign up for, edit and delete an event", "publishes a public event and sends nothing, but changes the real calendar; do by hand");
@@ -765,7 +767,7 @@ s.manual("A31b create a session and check a drop-in seat can be reserved", "chan
 s.manual("A32b add a meeting with minutes, then delete it", "changes what members see; do by hand");
 s.manual("A33b add a weekly repeating shift, then delete it", "changes what volunteers see; do by hand");
 s.manual("A34b publish, schedule, pin, archive and delete announcements", "changes what members see; do by hand");
-s.manual("A35b publish a blog post and upload a featured image", "publishes to the public blog; do by hand");
+s.manual("A35b publish a blog post and upload a featured image", "publishes to the public blog (this works in preview mode too); do by hand");
 s.manual("A36b start, run and close a charity vote", "changes the members' vote; do by hand");
 s.manual("A37 (must) hide a forum post with a statement of reasons and restore it", "needs a forum post by someone else, and sends the author an email");
 

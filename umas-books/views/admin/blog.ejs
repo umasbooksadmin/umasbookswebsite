@@ -15,6 +15,9 @@
   const statusLabels = { draft: 'Draft', scheduled: 'Scheduled', published: 'Published' };
 %>
 
+<% if (locals.preview) { %>
+<p class="muted small" role="note">Blog posts are not affected by preview mode: you can write, edit, publish and delete posts as usual, and a published post shows on the public blog straight away (behind the coming-soon banner). Only reservations and membership payments are switched off.</p>
+<% } %>
 <div class="card">
   <div style="display:flex; justify-content:space-between; align-items:baseline;">
     <div class="section-title"><%= editing ? 'Edit Post' : 'Write a New Post' %></div>
@@ -48,7 +51,8 @@
     <div class="mem-row" style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
       <div>
         <label for="blog-date">Publish Date</label>
-        <input id="blog-date" name="publishDate" type="date" value="<%= editing && editing.published_at ? new Date(editing.published_at).toISOString().slice(0,10) : new Date().toISOString().slice(0,10) %>">
+        <input id="blog-date" name="publishDate" type="date" aria-describedby="blog-date-hint" value="<%= editing && editing.published_at ? new Date(editing.published_at).toISOString().slice(0,10) : new Date().toISOString().slice(0,10) %>">
+        <span id="blog-date-hint" class="muted small">A post is public only once this date has arrived.</span>
       </div>
       <div>
         <label for="blog-status">Status</label>
@@ -152,7 +156,7 @@
             <td class="muted small"><%= p.published_at ? formatDate(p.published_at) : '—' %></td>
             <td style="white-space:nowrap;">
               <a class="btn btn-outline btn-small" href="/admin/blog?edit=<%= p.id %>&<%= listQs %>">Edit</a>
-              <% if (p.status === 'published') { %><a class="btn btn-outline btn-small" href="/blog.html?post=<%= p.slug %>" target="_blank" rel="noopener">View</a><% } %>
+              <% if (p.status === 'published' && p.published_at && new Date(p.published_at) <= new Date()) { %><a class="btn btn-outline btn-small" href="/blog.html?post=<%= p.slug %>" target="_blank" rel="noopener">View</a><% } else { %><a class="btn btn-outline btn-small" href="/blog.html?post=<%= p.slug %>&preview=1" target="_blank" rel="noopener" title="Only you can see this: it is not public yet">Preview on site</a><% } %>
               <button type="submit" form="blog-delete-<%= p.id %>" class="btn btn-outline btn-small ann-menu-danger">Delete</button>
             </td>
           </tr>

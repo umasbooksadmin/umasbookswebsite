@@ -3,6 +3,8 @@
 // every customer page shows a "coming soon" banner, online checkout and the
 // membership payment widget are switched off, and search engines are told to
 // stay away. Unset (the default) means the site behaves normally.
+// It does NOT touch the blog: admins create, edit, publish and delete posts and
+// visitors see published ones as after launch (test/integration/blogPreviewMode.test.js).
 
 const { usesSandbox } = require("./helloassoHosts");
 
