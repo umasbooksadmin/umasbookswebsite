@@ -1837,6 +1837,71 @@ in your `STAGING_MAIL_TO` mailbox anyway. To start again from scratch:
 **Manual Deploy** > **Deploy latest commit** (migrations and the seed rebuild an
 empty site). Do this only in the staging Shell.
 
+### Demo people and reservations
+
+A script fills the test site with **fake people and fake reservations** so you
+can click through every kind of user straight away. It does **not** create real
+books: scan those yourself with the ISBN lookup (Admin > **Add book**).
+
+**It only works on the test system.** It refuses to run unless the service has
+`APP_ENV=staging` (or, for the developer, `DEMO_ALLOW_LOCAL=1` with a localhost
+database). It also refuses when `DATABASE_URL` is the production database, and
+when the site holds more than 50 accounts and any of them is not a demo account
+(that looks like real data). It sends **no email** and contacts no outside
+service.
+
+**Run it**
+
+1. Render dashboard > `umas-books-staging` > **Shell**. Check the page title
+   says `umas-books-staging` before typing anything.
+2. Type `npm run demo:load -- --yes` and press Enter. (Without `--yes` it only
+   prints what it would do and changes nothing.)
+3. At the end it prints a **LOGINS** list: one random password per account.
+   **It is shown once**: copy it into your password manager now. Only the
+   scrambled form is stored. To set new passwords later:
+   `npm run demo:load -- --yes --reset-passwords`. To choose one password for
+   all five instead: set `DEMO_PASSWORD` (12 or more characters) in the Shell
+   command and add `--password-from-env`.
+4. Running it again is safe: nothing is created twice, existing accounts keep
+   their password.
+
+**What it creates** (everything is marked "demo")
+
+| Account (all `@example.com`, confirmed, can log in) | Is |
+|---|---|
+| `demo.account@example.com` | account holder, not a member |
+| `demo.member@example.com` | member, membership valid for a year |
+| `demo.expired@example.com` | member whose membership **expired** a month ago |
+| `demo.volunteer@example.com` | volunteer |
+| `demo.account2@example.com` | second account holder |
+
+No admin is created (the seed makes yours from `SEED_ADMIN_EMAIL` /
+`SEED_ADMIN_PASSWORD`). Three reservations, made with the site's own
+reservation and till code: an **open** one (`demo.account`), one that
+**expires in 2 days**, inside the reminder window (`demo.member`), and one
+**collected and paid in cash at the till**, with a receipt number
+(`demo.account2`). They need books: when the shop has **4 or more real in-stock
+copies** the open and expiring ones reserve real copies; otherwise the script
+makes up to 3 clearly fake books called `DEMO Book One (fake)` ... with at most
+6 copies. The paid one always uses a fake copy.
+
+**Log in** at the test site's `/login` with an address above and its password.
+Reservations show under **My account**; as admin look in **Reservations** and
+the till receipts.
+
+**Remove it**: Render > `umas-books-staging` > **Shell** >
+`npm run demo:remove -- --yes`. It deletes the five accounts, their
+reservations (open ones are released first, so real books go back on the shelf),
+the till receipt of the paid one and the fake books. Real books, other accounts
+and the admin are not touched. (The receipt counter does not go back, so the
+next receipt number has a gap: harmless on a test site.)
+
+**Good to know.** The expiring reservation is real for the site's reminder job:
+within a day or so it may send the pickup reminder, which on the test site goes
+to your `STAGING_MAIL_TO` mailbox (subject `[STAGING] ... (to:
+demo.member@example.com)`). That is the reminder working, not the script
+sending mail.
+
 ### Test an email
 
 1. On the test site (not logged in) open **Contact** and send a message, or
