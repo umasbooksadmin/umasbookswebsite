@@ -54,7 +54,7 @@ this table lists every step whose id changed. Ids that are not listed (`VO1` to
   (member status text, renewal window), `A42` (Mark as Member gives no end date).
   The pre-registration and volunteer forms became server forms (they no longer
   open your email app): `G57` to `G60` and the FR check (forms) in 1K; `G61`
-  (book covers served from this site); `AC55` (the HelloAsso form loads only
+  (book covers served from this site), `G62` (covers shown whole); `AC55` (the HelloAsso form loads only
   after you press **Show the HelloAsso form**).
 * `AC2` (old `M2`, a weak password typed on the sign-up form) now checks that
   the sign-up form has no password box; the weak and breached password checks
@@ -352,6 +352,8 @@ These two forms send an email to the shop mailbox (`CONTACT_TO`). The emails are
 - [ ] **G60.** Check the email from G58 and G59. **You should see:** it arrived within 2 minutes, in English, with your own address as the reply-to, a line "Site language: ..." and a last line reminding that it is deleted after 12 months.
 - [ ] **FR check (forms).** Switch to FR on G57. **You should see:** "Il y a un problème", "Ce champ est obligatoire.", "Qui s’inscrit ?", "Je suis le parent ou le représentant légal de l’enfant.", "J’accepte d’être contacté(e) au sujet de ce programme.", "Ne saisissez pas d’informations de santé ici…" and, after a good submission, "Merci, votre pré-inscription a bien été envoyée".
 - [ ] **G61.** Open a book page that has a cover. **You should see:** the cover appears in a box that was already the right size (the text below does not jump when it loads), the cover comes from this site (its address starts with `/img/`), and nothing is requested from openlibrary.org or archive.org (browser developer tools, Network tab). A book whose cover could not be copied shows a grey "No cover" box, never a broken-image icon.
+
+- [ ] **G62.** Open **Browse Books** (`/books.html`) and look at the "New In" carousel and a search result grid (also at phone width). **You should see:** every cover shown whole, scaled to fit inside the same upright box, centred on a pale background (a wide or very tall cover leaves pale bars at the sides or top and bottom, but nothing is cut off); a book without a cover shows a "No cover" box of the same size; the page never scrolls sideways.
 
 ## Script 2. Account holder (logged in, not a member)
 
