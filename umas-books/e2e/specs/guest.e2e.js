@@ -1042,6 +1042,20 @@ s.test("G61 a book page shows the cover from our own server with its size reserv
   assert.doesNotMatch(html, /openlibrary\.org|archive\.org/);
 });
 
+s.test("G62 New In covers are shown whole (contain, 2:3 box, no horizontal overflow)", async (ctx) => {
+  await ctx.goto("/books.html", "networkidle2");
+  const covers = await ctx.page.$$eval("#bk-new-track img.cover", (imgs) => imgs.map((i) => {
+    const r = i.getBoundingClientRect();
+    return { fit: getComputedStyle(i).objectFit, ratio: r.height ? r.width / r.height : 0 };
+  }));
+  if (!covers.length) ctx.skip("data: no New In covers on the site");
+  for (const c of covers) {
+    assert.equal(c.fit, "contain");
+    assert.ok(Math.abs(c.ratio - 2 / 3) < 0.03, `box ratio ${c.ratio}`);
+  }
+  assert.ok(await ctx.page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "no horizontal overflow");
+});
+
 s.test("G-FR55 FR check (membership): the form and the payment step are in French", { lang: "fr" }, async (ctx) => {
   await joinPage(ctx);
   const text = await ctx.text();
