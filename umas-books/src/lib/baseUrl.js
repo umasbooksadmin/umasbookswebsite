@@ -1,4 +1,4 @@
-const { isPreviewMode } = require("./preview");
+const { isNonLive } = require("./preview");
 
 // The app's own public base URL — needed only where an *absolute* URL is
 // unavoidable (HelloAsso return/webhook URLs, and JSON API responses meant
@@ -21,7 +21,7 @@ const { isPreviewMode } = require("./preview");
 // end up in a member's email or a payment return URL. Missing = loud error
 // (and checkEnv already warned and emailed the admin at boot).
 function isLive(env = process.env) {
-  return env.NODE_ENV === "production" && !isPreviewMode(env);
+  return env.NODE_ENV === "production" && !isNonLive(env);
 }
 
 // The configured public base URL without a trailing slash, or "" when there

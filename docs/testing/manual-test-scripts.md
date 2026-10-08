@@ -682,10 +682,28 @@ Two-step verification is **always required** for admins on the real site.
 - [ ] **E10.** Visit the site with the browser language set to French and no choice made. **You should see:** the site in French on the first visit.
 - [ ] **E11 (must). Back button after a refused form.** Submit forms the wrong way, one after the other: log in with a wrong password; send the contact form with the e-mail field left as `abc` (switch off the browser's own check by removing the `required`/type in the developer tools, or use a different browser that lets it through); send a book request without a title; in the cart (logged in, empty) press **Reserve**; change the password with a wrong current password. After each, press the browser **back button**, then **forward**. **You should see:** never the browser's "Confirm form resubmission" box and never a re-sent form; the message is shown once under the form (a reload of that page shows the form without it), what you typed (but never a password) is still in the fields, and the page is in the language you chose (French: fully French). **Known:** the page that shows your **recovery codes** right after turning two-step on or asking for new codes is the one place that still answers the button press directly (the codes are shown only once and are never stored), so going back to it may ask to resubmit.
 
+## Staging smoke script (test system, before a production deploy)
+
+Run this on the **test site** (runbook section aa), never on the real site. About
+15 minutes. Step ids start with **S** (they are not part of the five kinds of
+user, so the automated e2e coverage list does not include them).
+
+- [ ] **S1 (must). It is the test site.** Open the test site's address. **You should see:** the red banner "TEST SITE: not the real Uma's Books" at the top. In French (**FR**): "SITE DE TEST : ce n'est pas le vrai site d'Uma's Books...". On any other page (a book, the cart, the login page) the banner is there too.
+- [ ] **S2 (must). Search engines are kept out.** Open `/robots.txt`. **You should see:** `Disallow: /`. Open `/sitemap.xml`. **You should see:** an empty list (no addresses).
+- [ ] **S3 (must). It is its own site.** Log in as the test admin (two-step verification). **You should see:** a note at the top of every admin page starting "TEST SITE (staging)", naming `STAGING_MAIL_TO` and "HelloAsso: sandbox" (or "not configured"), and **no** real members, orders or books from the real site.
+- [ ] **S4 (must). Email goes only to you.** Send a message with the **Contact** form using a made-up address (`nobody@example.test`). **You should see:** within 2 minutes, one email in the `STAGING_MAIL_TO` mailbox with a subject like `[STAGING] ... (to: ...)` and a first line "[TEST SITE] This email was addressed to: ...". No other mailbox receives anything.
+- [ ] **S5.** Create an account with `YOU+staging1@gmail.com`. **You should see:** the confirmation email in your `STAGING_MAIL_TO` mailbox (subject `[STAGING]...`); its link opens the **test** site (not umasbooks.org).
+- [ ] **S5b (must). Reservations work on the test site.** Logged in as a throwaway account holder, add a test book to the cart and press **Reserve (free, no commitment)**. **You should see:** the reservation page, and the confirmation email in your `STAGING_MAIL_TO` mailbox. In admin > Reservations, press **Mark collected and paid** (runbook section k).
+- [ ] **S5c.** Open `/membership.html`. **You should see:** the membership form (not "Membership opens at launch"). Pay only with the HelloAsso **sandbox** test card, and only if sandbox credentials were added; the test site refuses to start with live HelloAsso keys, so a real payment cannot happen here.
+- [ ] **S6.** Run the **(must)** steps of scripts 1 and 5 that touch what the change to be deployed touches (ask the developer which).
+- [ ] **S7.** Render > `umas-books-staging` > **Logs** show no `[staging] FATAL` and no repeated errors, and the last deploy is "Live".
+- [ ] **S8 (before deploying to production).** Everything above passed: then, and only then, deploy `umas-books` (runbook section aa, "Deploys and promoting a change").
+
 ## Reset after testing
 
 - **Test accounts and reservations:** delete throwaway accounts from **Accounts** > the person > **Erase Member**; cancel your own open book requests (**My book requests**).
 - **Test books, reservations, forum posts, sample data:** run the clearing script: runbook section g, "Clearing the test data" (`npm run clear-test-data`: back up first, dry run first, then the real run). It removes the shop, all non-admin accounts and their data, and the audit log, and keeps admins, pricing rules and (unless told otherwise) content. Do not launch with test reservations or test accounts in the shop.
+- **Test system (staging):** this whole set of scripts can be run there instead of on the real site (runbook section aa); it has its own empty database and sends all email only to you.
 - **Preview mode:** put `PREVIEW_MODE` back on (runbook section g, "Turning it on again") whenever the site holds test data again, and at launch the runbook checklist says `HELLOASSO_API_BASE` must be unset or the production address, **not** the sandbox one, so switch it back (and the HelloAsso keys to the live ones) only when you are ready to launch.
 - **Emails:** delete the test emails from the shop mailbox.
 
