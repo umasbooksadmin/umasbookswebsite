@@ -57,18 +57,17 @@ s.write("E2 (must) two Reserve requests at the same moment make ONE reservation,
   // What a double-click sends: the same form twice at once. Sent from the page with fetch (HelloAsso is not involved at all).
   const results = await ctx.page.evaluate(async (name) => {
     const { token } = await (await fetch("/api/csrf-token")).json();
-    // redirect: "manual": over plain http (e2e:local) Chrome upgrades a followed redirect to https and the fetch fails.
-    // A reservation and a refusal both answer a redirect, so the invariant is checked by the open-reservation count below.
-    const send = () => fetch("/cart/reserve", { method: "POST", redirect: "manual", body: new URLSearchParams({ _csrf: token, name, acceptCgv: "on" }) }).then((r) => ({ type: r.type, status: r.status }));
+    const send = () => fetch("/cart/reserve", { method: "POST", body: new URLSearchParams({ _csrf: token, name, acceptCgv: "on" }) }).then((r) => ({ path: new URL(r.url).pathname, status: r.status }));
     return Promise.all([send(), send()]);
   }, `${tag} Double Click`);
   ctx.created("reservation from the double-submit test (nothing paid; cancelled again by the test)", `${tag} Double Click`, "admin Reservations: there must be only ONE reservation for it");
   if (results.some((r) => r.status === 429)) ctx.skip("the site's limit of 10 reservation requests an hour from one address was reached: wait an hour, or run this persona on its own");
-  const redirects = results.filter((r) => r.type === "opaqueredirect").length;
+  // Followed like a browser: the request that reserved lands on /cart/return, a refused one is sent back to /cart.
+  const redirects = results.filter((r) => r.path === "/cart/return").length;
   const open = await openReservationCount(ctx);
   // The one reservation's link (the Open button on the account page), kept for E4.
   const href = await ctx.page.$eval("a[href^='/cart/return?order=']", (a) => a.getAttribute("href")).catch(() => null);
-  assert.equal(redirects, 2, `both requests are answered by a redirect (to the reservation or back to the cart); got ${JSON.stringify(results)}`);
+  assert.equal(redirects, 1, `exactly one of the two requests may reserve; got ${JSON.stringify(results)}`);
   assert.equal(open, 1, "exactly one open reservation");
   oldLink = { href, bookId: book.id };
 });
@@ -167,7 +166,11 @@ s.test("E8 a logged-in account holder opening /admin sees 'Admins only.'; a gues
 
 s.test("E9 a 300-character book request title is refused with a clear message (nothing is created)", async (ctx) => {
   await ctx.goto("/request-a-book");
-  const r = await ctx.postForm("/request-a-book", { title: "T".repeat(300), email: "e2e-too-long@example.invalid", website: "" });
+  const r = await ctx.page.evaluate(async (title) => {
+    const { token } = await (await fetch("/api/csrf-token")).json();
+    const res = await fetch("/request-a-book", { method: "POST", body: new URLSearchParams({ _csrf: token, title, email: "e2e-too-long@example.invalid", website: "" }) });
+    return { status: res.status, redirected: res.redirected, path: new URL(res.url).pathname, body: await res.text() };
+  }, "T".repeat(300));
   // A refusal redirects back to the form with the message (Back never offers to resend it).
   assert.ok(r.redirected && r.path === "/request-a-book", `redirected=${r.redirected} path=${r.path}`);
   has(r.body, /Something you typed is too long\. Titles can have up to 200 characters and notes up to 500\./);
