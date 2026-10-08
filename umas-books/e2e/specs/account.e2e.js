@@ -227,12 +227,11 @@ s.test("AC17 (must) Download my data returns a JSON file with the account holder
 s.test("AC18 (must) account deletion refuses a wrong password and a missing confirmation word (nothing is deleted)", { as: "account" }, async (ctx) => {
   // NEVER submits the right password together with the confirmation word.
   await ctx.goto("/account/privacy");
-  const post = (password, word) => ctx.page.evaluate(async (pw, w) => {
-    const { token } = await (await fetch("/api/csrf-token")).json();
-    // Redirects are followed, as a browser does: a refusal is a 303 back to the privacy page that shows the message.
-    const r = await fetch("/account/privacy/delete", { method: "POST", body: new URLSearchParams({ _csrf: token, currentPassword: pw, confirmation: w }) });
-    return { status: r.status, redirected: r.redirected, path: new URL(r.url).pathname, body: await r.text() };
-  }, password, word);
+  // Sent as a form navigation (ctx.postForm) so the redirect is followed as a browser does: a refusal is a 303 back to the privacy page that shows the message.
+  const post = async (password, word) => {
+    await ctx.goto("/account/privacy");
+    return ctx.postForm("/account/privacy/delete", { currentPassword: password, confirmation: word });
+  };
   const wrongPassword = await post(`Wrong-${crypto.randomBytes(6).toString("hex")}!1`, "x");
   assert.ok(wrongPassword.redirected && wrongPassword.path === "/account/privacy", "a refusal redirects back to the privacy page");
   has(wrongPassword.body, /Current password is incorrect/);
@@ -309,12 +308,7 @@ s.test("AC24 (preview mode) reserving is refused by the server and nothing is he
   await clearCart(ctx);
   await addFirstCopyToCart(ctx, book);
   // There is no form to press, so send the request a script would send.
-  const result = await ctx.page.evaluate(async () => {
-    const { token } = await (await fetch("/api/csrf-token")).json();
-    const body = new URLSearchParams({ _csrf: token, name: "E2E preview check", acceptCgv: "on" });
-    const r = await fetch("/cart/reserve", { method: "POST", body });
-    return { redirected: r.redirected, path: new URL(r.url).pathname, status: r.status };
-  });
+  const result = await ctx.postForm("/cart/reserve", { name: "E2E preview check", acceptCgv: "on" });
   assert.ok(result.redirected && result.path === "/cart", "preview mode redirects back to the cart (and reserves nothing)");
   assert.equal(result.status, 200);
   assert.deepEqual(ctx.blocked, [], "no navigation to a payment page was even attempted");
