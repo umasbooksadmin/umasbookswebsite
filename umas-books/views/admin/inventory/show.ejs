@@ -114,6 +114,13 @@
             <summary style="cursor:pointer;">
               <%= conditionLabel %> &middot; <%= statusLabel %><%= c.price != null && c.price !== '' && Number.isFinite(Number(c.price)) ? ' · €' + Number(c.price).toFixed(2) : '' %><%= c.location ? ' · Location ' + c.location : '' %>
             </summary>
+            <% const tillCode = 'UB-' + c.id; %>
+            <div class="till-code" style="margin-top:10px;">
+              Till code: <code class="till-code-value" style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:1.05em;"><%= tillCode %></code>
+              <button type="button" class="btn btn-outline btn-small" data-copy-text="<%= tillCode %>">Copy</button>
+              <span class="muted small" data-copy-status role="status"></span>
+              <div class="muted small">Type this code in the Till scan box.</div>
+            </div>
             <% if (c.status === 'reserved' && c.reserved_by_name) { %>
               <div role="status" class="notice-box small" style="margin-top:10px;">
                 Reserved by <%= c.reserved_by_name %> &middot; <%= c.reserved_by_email %><%= c.reserved_by_phone ? ' · ' + c.reserved_by_phone : '' %>
@@ -188,4 +195,5 @@
 
 <%- include('../../partials/location_options') %>
 <script src="/price-suggestion.js"></script>
+<script src="/copy-text.js"></script>
 <%- include('../../partials/admin_footer') %>

@@ -17,6 +17,15 @@ test("scan parsing: copy labels, ISBN-10/13 with hyphens, orders, unknown", () =
   assert.equal(parseTillScan("123").type, "unknown");
 });
 
+test("copy codes are accepted however they are typed; a bare number that is not an ISBN stays unknown", () => {
+  for (const v of ["UB-123", "ub-123", "Ub-123", "ub123", "UB123", "UB 123", "ub 123", "  ub_123 "]) {
+    assert.deepEqual(parseTillScan(v), { type: "copy", copyId: 123 }, v);
+  }
+  assert.equal(parseTillScan("123").type, "unknown");
+  assert.equal(parseTillScan("1234567890123").type, "unknown"); // 13 digits, bad check digit
+  assert.equal(parseTillScan("UB-12x").type, "unknown");
+});
+
 test("cash change is exact in cents (no float drift)", () => {
   assert.deepEqual(till.cashChange(1010, 2000), { changeCents: 990 });
   assert.deepEqual(till.cashChange(1000, 1000), { changeCents: 0 });
