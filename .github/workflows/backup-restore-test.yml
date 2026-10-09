@@ -11,6 +11,20 @@ name: Monthly backup restore test
 # needs READ access: listFiles + readFiles) and the GMAIL_USER /
 # GMAIL_APP_PASSWORD repo secrets for the failure email. The README section
 # "Restoring from a backup" has the manual version of these same steps.
+#
+# ENCRYPTED backups (<name>.dump.age, see nightly-db-backup.yml). Two modes:
+#   - DEFAULT, "integrity only": nothing is decrypted. The job checks that the
+#     object exists, starts with the age header, and that its size is within
+#     +-50% of the previous monthly copy. It does NOT restore anything: the
+#     owner does a manual decrypt-and-restore drill every quarter (runbook,
+#     "Restore drill"). Safest: GitHub never holds the private key.
+#   - FULL restore, only if the repository SECRET BACKUP_AGE_IDENTITY (the age
+#     PRIVATE key) is provided: decrypts, restores into the scratch database and
+#     runs the data checks below. Trade-off: anyone who can read this secret (a
+#     GitHub compromise, a malicious workflow change) could decrypt every
+#     backup. Runbook, "Encrypting the backups", explains why the default is
+#     recommended.
+# Old UNENCRYPTED dumps (<name>.dump) are still restored in full, as before.
 
 on:
   schedule:
@@ -53,7 +67,7 @@ jobs:
           fetch-depth: 0
           filter: blob:none
 
-      - name: Download the newest dump from Backblaze
+      - name: Find the newest dump and decide how to test it
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_S3_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_APPLICATION_KEY }}
@@ -64,6 +78,8 @@ jobs:
           BUCKET: ${{ vars.BACKUP_S3_BUCKET }}
           REGION: ${{ vars.BACKUP_S3_REGION }}
           PREFIX: ${{ vars.BACKUP_S3_PREFIX }}
+          # Only to learn whether the secret exists; the value is not used here.
+          HAVE_IDENTITY: ${{ secrets.BACKUP_AGE_IDENTITY != '' && 'yes' || 'no' }}
         run: |
           if [ -z "$BUCKET" ] || [ -z "$ENDPOINT" ] || [ -z "$REGION" ] || [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
             echo "::error::Offsite backup settings are missing. Set BACKUP_S3_BUCKET, BACKUP_S3_ENDPOINT, BACKUP_S3_REGION (repository variables) and BACKUP_S3_KEY_ID, BACKUP_S3_APPLICATION_KEY (repository secrets)."
@@ -72,7 +88,8 @@ jobs:
           PREFIX="${PREFIX:-store-backups}"
           PREFIX="${PREFIX%/}"
           # --delimiter keeps the lookup to direct children of full/;
-          # filenames embed a UTC timestamp, so sorting by key is chronological.
+          # filenames embed a UTC timestamp, so sorting by key is chronological
+          # (".dump" and ".dump.age" both match the prefix).
           KEY=$(aws s3api list-objects-v2 --endpoint-url "$ENDPOINT" --bucket "$BUCKET" \
                   --prefix "${PREFIX}/full/umas_books_full_" --delimiter "/" \
                   --query 'sort_by(Contents, &Key)[-1].Key' --output text || true)
@@ -80,13 +97,127 @@ jobs:
             echo "::error::No backup dumps found under ${BUCKET}/${PREFIX}/full/ — has the nightly backup ever run successfully?"
             exit 1
           fi
-          echo "Newest dump: ${BUCKET}/${KEY}"
-          aws s3 cp "s3://${BUCKET}/${KEY}" restore.dump --endpoint-url "$ENDPOINT" --only-show-errors
-          test -s restore.dump || { echo "::error::Downloaded dump is empty."; exit 1; }
-          echo "Downloaded ($(du -h restore.dump | cut -f1))"
+          SIZE=$(aws s3api head-object --endpoint-url "$ENDPOINT" --bucket "$BUCKET" --key "$KEY" --query ContentLength --output text)
+          echo "Newest dump: ${BUCKET}/${KEY} (${SIZE} bytes)"
+          if [ "${SIZE:-0}" -lt 1024 ]; then
+            echo "::error::The newest dump is only ${SIZE} bytes: empty or truncated."
+            exit 1
+          fi
+          # The first bytes decide what the object is.
+          aws s3api get-object --endpoint-url "$ENDPOINT" --bucket "$BUCKET" --key "$KEY" --range bytes=0-31 head.bin > /dev/null
+          if [[ "$KEY" == *.age ]]; then
+            if [ "$(head -c 21 head.bin)" != "age-encryption.org/v1" ]; then
+              echo "::error::${KEY} is named .age but does not start with the age header: it is not a valid encrypted backup."
+              exit 1
+            fi
+            if [ "$HAVE_IDENTITY" = "yes" ]; then
+              echo "MODE=full-encrypted" >> "$GITHUB_ENV"
+            else
+              echo "MODE=integrity-only" >> "$GITHUB_ENV"
+            fi
+          else
+            if [ "$(head -c 5 head.bin)" != "PGDMP" ]; then
+              echo "::error::${KEY} does not look like a pg_dump custom-format file."
+              exit 1
+            fi
+            echo "::warning::The newest backup is NOT encrypted (BACKUP_AGE_RECIPIENT is not set): see docs/runbook.md, 'Encrypting the backups'."
+            echo "MODE=full-plain" >> "$GITHUB_ENV"
+          fi
+          echo "KEY=${KEY}" >> "$GITHUB_ENV"
+          echo "SIZE=${SIZE}" >> "$GITHUB_ENV"
+
+      - name: Integrity checks without decryption (default for encrypted backups)
+        if: env.MODE == 'integrity-only'
+        # Size within +-50% of the previous monthly copy (the monthly/ copy of the
+        # SAME file is skipped: it was written at 03:00 today, before this job).
+        # Nothing is decrypted or restored here: do the quarterly restore drill.
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_S3_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_APPLICATION_KEY }}
+          AWS_DEFAULT_REGION: ${{ vars.BACKUP_S3_REGION }}
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+          ENDPOINT: ${{ vars.BACKUP_S3_ENDPOINT }}
+          BUCKET: ${{ vars.BACKUP_S3_BUCKET }}
+          PREFIX: ${{ vars.BACKUP_S3_PREFIX }}
+        run: |
+          PREFIX="${PREFIX:-store-backups}"
+          PREFIX="${PREFIX%/}"
+          BASE=$(basename "$KEY")
+          PREV=$(aws s3api list-objects-v2 --endpoint-url "$ENDPOINT" --bucket "$BUCKET" \
+                   --prefix "${PREFIX}/monthly/umas_books_full_" --delimiter "/" --output json \
+                 | jq -r --arg b "$BASE" '[.Contents[]? | select(.Key | endswith($b) | not)] | sort_by(.LastModified) | last | if . == null then "" else "\(.Key) \(.Size)" end')
+          {
+            echo "## Backup integrity check (encrypted backup, NOT restored)"
+            echo
+            echo "- Newest nightly dump: \`${KEY}\` (${SIZE} bytes), valid age header."
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ -z "$PREV" ]; then
+            echo "::notice::No earlier monthly copy to compare the size with (first month). Size check skipped."
+            echo "- No earlier monthly copy: size comparison skipped." >> "$GITHUB_STEP_SUMMARY"
+          else
+            PREV_KEY=${PREV% *}
+            PREV_SIZE=${PREV##* }
+            LO=$(( PREV_SIZE / 2 ))
+            HI=$(( PREV_SIZE * 3 / 2 ))
+            echo "Previous monthly copy: ${PREV_KEY} (${PREV_SIZE} bytes); allowed range ${LO}-${HI}."
+            echo "- Previous monthly copy \`${PREV_KEY}\` is ${PREV_SIZE} bytes; allowed range ${LO} to ${HI}." >> "$GITHUB_STEP_SUMMARY"
+            if [ "$SIZE" -lt "$LO" ] || [ "$SIZE" -gt "$HI" ]; then
+              echo "::error::The newest dump (${SIZE} bytes) is outside +-50% of last month's (${PREV_SIZE} bytes): it may be truncated, or the data changed hugely. Investigate."
+              exit 1
+            fi
+          fi
+          {
+            echo
+            echo "**No restore was performed**: the file was not decrypted. Do the manual restore drill this quarter (docs/runbook.md, section 'Restore drill')."
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::notice::Integrity checks passed; backup NOT decrypted or restored (no BACKUP_AGE_IDENTITY). Remember the quarterly manual restore drill."
+
+      - name: Download the dump
+        if: env.MODE == 'full-plain' || env.MODE == 'full-encrypted'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_S3_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_APPLICATION_KEY }}
+          AWS_DEFAULT_REGION: ${{ vars.BACKUP_S3_REGION }}
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+          ENDPOINT: ${{ vars.BACKUP_S3_ENDPOINT }}
+          BUCKET: ${{ vars.BACKUP_S3_BUCKET }}
+        run: |
+          aws s3 cp "s3://${BUCKET}/${KEY}" download.bin --endpoint-url "$ENDPOINT" --only-show-errors
+          test -s download.bin || { echo "::error::Downloaded dump is empty."; exit 1; }
+          echo "Downloaded ($(du -h download.bin | cut -f1))"
+          echo "DUMP=download.bin" >> "$GITHUB_ENV"
+
+      - name: Install age and decrypt (only with the BACKUP_AGE_IDENTITY secret)
+        if: env.MODE == 'full-encrypted'
+        # Same pinned, checksum-verified age release as nightly-db-backup.yml
+        # (a test keeps the two in step). The private key is written to a
+        # temporary file readable only by this step's user and deleted at once.
+        env:
+          AGE_VERSION: "1.3.2"
+          AGE_SHA256: cbe24006683f8eb669266162894b9a522a1af52f2665fbc63a4bb032ed26ac10
+          BACKUP_AGE_IDENTITY: ${{ secrets.BACKUP_AGE_IDENTITY }}
+        run: |
+          curl -fsSL --retry 3 -o age.tgz "https://github.com/FiloSottile/age/releases/download/v${AGE_VERSION}/age-v${AGE_VERSION}-linux-amd64.tar.gz"
+          echo "${AGE_SHA256}  age.tgz" | sha256sum --check --strict -
+          tar -xzf age.tgz age/age
+          sudo install -m 0755 age/age /usr/local/bin/age
+          rm -rf age age.tgz
+          umask 077
+          IDFILE="$RUNNER_TEMP/age-identity.txt"
+          printf '%s\n' "$BACKUP_AGE_IDENTITY" > "$IDFILE"
+          if ! age -d -i "$IDFILE" -o restore.dump download.bin; then
+            rm -f "$IDFILE" restore.dump
+            echo "::error::Could not decrypt the newest backup with BACKUP_AGE_IDENTITY: wrong key, or the backup was encrypted for a different key. A backup you cannot decrypt is not a backup."
+            exit 1
+          fi
+          rm -f "$IDFILE" download.bin
+          test -s restore.dump || { echo "::error::Decrypted dump is empty."; exit 1; }
           echo "DUMP=restore.dump" >> "$GITHUB_ENV"
 
       - name: Install matching PostgreSQL client tools
+        if: env.MODE == 'full-plain' || env.MODE == 'full-encrypted'
         # Same reasoning as nightly-db-backup.yml: pg_restore from an older
         # client can't read a dump made by a newer pg_dump, and the bare
         # `pg_restore` on PATH resolves to Ubuntu's older default. Use the
@@ -100,6 +231,7 @@ jobs:
           sudo apt-get install -y postgresql-client-18
 
       - name: Restore the dump
+        if: env.MODE == 'full-plain' || env.MODE == 'full-encrypted'
         # Same flags the manual procedure in the README uses. --exit-on-error
         # makes any problem fail this job instead of being skipped silently.
         run: |
@@ -107,6 +239,7 @@ jobs:
             --dbname="$PGDATABASE" "$DUMP"
 
       - name: Sanity-check the restored data
+        if: env.MODE == 'full-plain' || env.MODE == 'full-encrypted'
         run: |
           PSQL="/usr/lib/postgresql/18/bin/psql -v ON_ERROR_STOP=1 -tA"
           fail=0
@@ -222,3 +355,5 @@ jobs:
             Check the failed run for details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
             Until this is resolved, do not assume the backups in Backblaze are restorable.
+
+            (Encrypted backups are only checked without decryption unless the secret BACKUP_AGE_IDENTITY is set; see docs/runbook.md, "Encrypting the backups".)

@@ -45,8 +45,8 @@ test("nightly backup: fails when the offsite settings are missing", () => {
 });
 
 test("nightly backup: uploads to the full/ and monthly/ prefixes", () => {
-  assert.match(nightly, /\$\{PREFIX\}\/full\/\$\(basename "\$FILE"\)/);
-  assert.match(nightly, /\$\{PREFIX\}\/monthly\/\$\(basename "\$FILE"\)/);
+  assert.match(nightly, /\$\{PREFIX\}\/full\/\$\(basename "\$UPLOAD"\)/);
+  assert.match(nightly, /\$\{PREFIX\}\/monthly\/\$\(basename "\$UPLOAD"\)/);
   assert.match(nightly, /umas_books_full_\$\{STAMP\}\.dump/);
   assert.match(nightly, /date -u \+%d\)" = "01"/);
 });

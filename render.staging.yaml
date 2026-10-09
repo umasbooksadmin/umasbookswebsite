@@ -13,8 +13,9 @@
 # Safety rules built in (src/lib/staging.js, switched on by APP_ENV=staging):
 #   - no email reaches a real person: every message goes to STAGING_MAIL_TO,
 #     or is not sent at all when that is empty;
-#   - the service refuses to start with live HelloAsso credentials, or when
-#     DATABASE_URL is the production database host (PRODUCTION_DATABASE_HOST);
+#   - the service refuses to start with live HelloAsso credentials, when
+#     PRODUCTION_DATABASE_HOST is not set (REQUIRED, see the bottom of this
+#     file), or when DATABASE_URL is the production database host;
 #   - red "TEST SITE" banner, noindex, robots.txt Disallow, empty sitemap.
 # No production secret belongs in this file or in the staging Environment.
 
@@ -95,8 +96,10 @@ services:
         sync: false
       - key: SEED_ADMIN_PASSWORD
         sync: false
-      # Extra safety: the PRODUCTION database host name (Render > umas-books-db >
-      # Info > Hostname, the "dpg-..." part). Staging refuses to start if its
-      # DATABASE_URL ever points there. Not a password, but kept out of the repo.
+      # REQUIRED. The PRODUCTION database host name (Render > umas-books-db >
+      # Info > Hostname, the "dpg-..." part). This is the lock that stops the test
+      # site from ever running against the real database: staging REFUSES TO START
+      # if this is empty/missing, or if its DATABASE_URL points at that host. Not a
+      # password, but kept out of the repo. Never delete it.
       - key: PRODUCTION_DATABASE_HOST
         sync: false

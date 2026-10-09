@@ -74,6 +74,9 @@ const isProd = process.env.NODE_ENV === "production";
 // Helmet turns this off too, but it is mounted after /healthz and the
 // static mounts, which would otherwise still answer "X-Powered-By: Express".
 app.disable("x-powered-by");
+// First of all, so every response (static files, /healthz, images, redirects,
+// pages) carries it. See lib/permissionsPolicy.js.
+app.use(require("./lib/permissionsPolicy").permissionsPolicy);
 
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "..", "views"));
