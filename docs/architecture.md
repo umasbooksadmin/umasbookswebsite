@@ -448,8 +448,9 @@ Details of the shop tables worth knowing:
   volunteer kept the suggested price (see "Pricing" below). The data is collected but nothing
   reads it back yet.
 * **Inventory locations.** `book_copies.location` is free text per physical copy
-  (trimmed, upper-case); there is no locations table, the drop-down is simply the
-  distinct values already used. The admin **Move books** page moves one copy per
+  (trimmed, capitals kept as typed; "Store" and "STORE" are the same place when
+  matching and listing); there is no locations table, the drop-down is simply the
+  distinct values already used, one per case-insensitive name. The admin **Move books** page moves one copy per
   scanned ISBN and writes each move to the audit log.
 * **Fixed price for new books (loi Lang).** A copy whose condition is `new` must
   carry `publisher_price` and be priced between 95% and 100% of it, checked on

@@ -8,7 +8,7 @@ const { audit } = require("../../lib/audit");
 const { normalizeIsbn, lookupByIsbn, searchByTitleAuthor, translateGenresToFrench } = require("../../lib/bookLookup");
 const { extractBookInfoFromPhoto } = require("../../lib/coverVision");
 const { generateBookDescription, translateDescriptionToFrench } = require("../../lib/bookDescription");
-const { CONDITIONS, BINDINGS, STATUSES, SOURCES, normalizeSource, normalizeCondition, normalizeBinding, resolveCopyPricing, normalizeStatus, normalizeGenres, normalizeLocation, parseScan, isbnVariants } = require("../../lib/inventory");
+const { CONDITIONS, BINDINGS, STATUSES, SOURCES, normalizeSource, normalizeCondition, normalizeBinding, resolveCopyPricing, normalizeStatus, normalizeGenres, normalizeLocation, uniqueLocations, locationKey, parseScan, isbnVariants } = require("../../lib/inventory");
 const { expireStaleReservations } = require("../../lib/reservations");
 const { checkBookAwardsInBackground } = require("../../lib/awards");
 const { matchRequestsForCopy, matchRequestsForBook } = require("../../lib/bookRequests");
@@ -125,14 +125,17 @@ const hasOrdersNotice = (req) => {
 };
 
 // Locations already in use, for the combo box (<datalist>) on every screen
-// that has a location field. Values are stored normalised, so DISTINCT is
-// already case-insensitive.
+// that has a location field. Values are kept as typed, so "Store" and "STORE"
+// are different strings in the table but one place here: one entry per
+// case-insensitive name, shown in its most common (then most recent) spelling.
 async function getLocations() {
   const { rows } = await pool.query(
-    "SELECT DISTINCT location FROM book_copies WHERE location IS NOT NULL ORDER BY 1"
+    "SELECT location, COUNT(*)::int AS count, MAX(updated_at) AS last FROM book_copies WHERE location IS NOT NULL GROUP BY location"
   );
   // The shop floor is always offered, even before a copy has been put there.
-  return [...new Set([...rows.map((r) => r.location), fastScan.DEFAULT_LOCATION])].sort();
+  const taken = new Set(rows.map((r) => locationKey(r.location)));
+  const entries = taken.has(locationKey(fastScan.DEFAULT_LOCATION)) ? rows : [...rows, fastScan.DEFAULT_LOCATION];
+  return uniqueLocations(entries);
 }
 
 // The add-book page is also used by the scan-in-a-row script, which saves with
@@ -152,13 +155,15 @@ router.get("/admin/inventory", requireAdmin, async (req, res) => {
   const { rows: books } = await pool.query(
     `SELECT b.*, COUNT(c.id)::int AS copy_count,
             COUNT(c.id) FILTER (WHERE c.status = 'in_stock')::int AS in_stock_count,
-            string_agg(DISTINCT c.location, ', ' ORDER BY c.location)
-              FILTER (WHERE c.status = 'in_stock' AND c.location IS NOT NULL) AS locations
+            array_agg(DISTINCT c.location)
+              FILTER (WHERE c.status = 'in_stock' AND c.location IS NOT NULL) AS location_list
      FROM books b LEFT JOIN book_copies c ON c.book_id = b.id
      ${where}
      GROUP BY b.id ORDER BY b.title ASC LIMIT 200`,
     params
   );
+  // One entry per place, whatever its capitals ("Store" and "STORE" are one).
+  for (const b of books) b.locations = b.location_list ? uniqueLocations(b.location_list).join(", ") : null;
   res.render("admin/inventory/index", {
     active: "inventory", books, q, notice: hasOrdersNotice(req),
   });
