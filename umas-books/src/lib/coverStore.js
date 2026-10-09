@@ -297,7 +297,7 @@ async function localizeCover(rawUrl, opts = {}) {
 //   cover   the /img URL to show, or null
 //   source  an allowed external address to retry later (the backfill), or null
 // Never throws: a failed download leaves cover null and the backfill tries again.
-async function prepareCover(rawUrl, opts = {}) {
+async function prepareCoverNow(rawUrl, opts = {}) {
   const url = typeof rawUrl === "string" ? rawUrl.trim() : "";
   if (!url) return { cover: null, source: null };
   if (isStoredImageUrl(url)) return { cover: url, source: null };
@@ -309,6 +309,31 @@ async function prepareCover(rawUrl, opts = {}) {
     return { cover: null, source: url };
   }
 }
+
+// The same address is asked for twice in a row on the scan page (the lookup shows the
+// cover, the save looks again), and a lookup that gave up waiting leaves its download
+// running: calls for one address share one download while it runs, and a download that
+// worked is remembered for 10 minutes (SCAN_CACHE_TTL_MS, 0 = off). Failures are not
+// remembered. Calls with options (tests) are never shared.
+const coverMemo = new Map(); // address -> { promise, expires }
+const MEMO_MAX = 100;
+async function prepareCover(rawUrl, opts = {}) {
+  const ttl = process.env.SCAN_CACHE_TTL_MS === undefined || process.env.SCAN_CACHE_TTL_MS === "" ? 10 * 60 * 1000 : Number(process.env.SCAN_CACHE_TTL_MS);
+  const url = typeof rawUrl === "string" ? rawUrl.trim() : "";
+  if (!url || Object.keys(opts).length || !(ttl > 0) || isStoredImageUrl(url)) return prepareCoverNow(rawUrl, opts);
+  const hit = coverMemo.get(url);
+  if (hit && hit.expires > Date.now()) return hit.promise;
+  const entry = { promise: null, expires: Date.now() + ttl };
+  entry.promise = prepareCoverNow(url).then((r) => {
+    if (!r.cover) coverMemo.delete(url); // a failure may be tried again at once
+    return r;
+  });
+  coverMemo.delete(url);
+  coverMemo.set(url, entry);
+  while (coverMemo.size > MEMO_MAX) coverMemo.delete(coverMemo.keys().next().value);
+  return entry.promise;
+}
+function clearCoverMemo() { coverMemo.clear(); }
 
 // A cover address that is safe to print in a page: one on our own origin (a stored
 // /img/<hash>.jpg, or any other path starting with a single slash), or nothing.
@@ -393,5 +418,5 @@ async function backfillCovers(pool, { limit = BATCH_SIZE, delayMs = 500, ...fetc
 module.exports = {
   pinnedFetch,
   ALLOWED_HOSTS, MAX_BYTES, BATCH_SIZE, MAX_FAILURES,
-  isAllowedCoverUrl, isPublicAddress, setLookupForTests, fetchCoverImage, reencodeCover, localizeCover, prepareCover, localCover, backfillCovers, USER_AGENT,
+  isAllowedCoverUrl, isPublicAddress, setLookupForTests, fetchCoverImage, reencodeCover, localizeCover, prepareCover, clearCoverMemo, localCover, backfillCovers, USER_AGENT,
 };

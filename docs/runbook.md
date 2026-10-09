@@ -1490,6 +1490,7 @@ login.
 | `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD` | You choose; only used if the database has no admin. With a restored database you do not need them |
 | `GMAIL_USER`, `GMAIL_APP_PASSWORD` | Google Workspace admin (admin@umasbooks.org) > Security > App passwords (section m) |
 | `ANTHROPIC_API_KEY`, `ANTHROPIC_WORKSPACE_ID` | console.anthropic.com > API keys (or the saved copy) |
+| `ISBNDB_API_KEY` (optional) | isbndb.com > your account > API (section aa, "ISBNdb"). Added by hand in Render, not in `render.yaml` |
 | `HELLOASSO_CLIENT_ID`, `HELLOASSO_CLIENT_SECRET`, `HELLOASSO_ORG_SLUG` | HelloAsso back office > your organisation > API / Integration |
 | `HELLOASSO_MEMBERSHIP_FORM_SLUG` (optional) | The last part of the membership form's HelloAsso address |
 | `APP_BASE_URL`, `CONTACT_TO`, `ALERT_TO`, `TRUST_PROXY_HOPS`, `COVER_BACKFILL` | Already set to sensible values by `render.yaml` |
@@ -1696,6 +1697,74 @@ backfill: *an outage must never be recorded as a permanent result*.
 
 For adding many books in a row: **Books & Reservations > Scan a book** (the **Add Book** page,
 `/admin/inventory/new`). Details of what the page does: `umas-books/README.md`, "Fast scanning".
+
+### Scan speed (how fast Add a book is, and the knobs)
+
+What happens, in order, and what was slow. **Looking up** (the ISBN typed or scanned): the catalogs are asked
+**at the same time**: Open Library first, the French national library (BnF) for French ISBNs, Google Books, and
+Open Library's second service when the first has nothing; the answer is given as soon as one is complete (title, author,
+publisher, year), or 0.3 s after the first title, or after 4 s ("Catalog is slow right now: fill in by hand, or scan
+again"). An ISBN-10 and its ISBN-13 are both tried. Answers are kept in memory for 10 minutes ("not in any catalog" for 2),
+so scanning the same book again, or saving a book just looked up, asks nobody. The cover preview and the price are
+fetched in parallel and each is given a short wait (1.2 s and 3 s): a slower one is left out of that answer
+(the preview has no cover; the price then comes from the shop's rules alone) and finishes in the background.
+**Saving**: the copy is written and the page answers at once; the cover download, the search for a cover, the
+description (AI) and its French translation, and the awards check all happen **after** the answer
+(`src/lib/bookFill.js`). Nothing already stored is overwritten; a cover that could not be fetched keeps its source
+address for the 5-minute cover job. Before this change the save waited for all of it (3 to 20 seconds per book).
+
+Measure it: every answer of `GET /admin/inventory/lookup` and `POST /admin/inventory` carries a `Server-Timing`
+header (browser developer tools > Network > the request > Timing; for example `catalog;dur=640, cover;dur=410,
+price;dur=3, total;dur=1100`), and a request slower than 1.5 s is written to the Render log as `[slow scan.lookup]`
+or `[slow scan.save]` with its steps. To time the real services from a computer: `node scripts/profile-lookup.js`
+(hit rate and p50/p95 for 36 real ISBNs, no database needed) and `node scripts/profile-scan.js` (lookup then save, needs a
+scratch database: never a real one).
+
+Settings (all optional environment variables; the defaults are right):
+
+| Variable | Default | What it does |
+|---|---|---|
+| `SCAN_LOOKUP_TIMEOUT_MS` | `4000` | give up on the catalogs after this long |
+| `SCAN_LOOKUP_HEDGE_MS` | `1500` | send Open Library's request a second time if the first has not answered by then (`0` = off) |
+| `SCAN_LOOKUP_GRACE_MS` | `300` | after the first title, wait this long for the others to fill in missing fields |
+| `SCAN_LOOKUP_SOURCES` | `openlibrary,bnf,google,openlibrary-data,isbndb` | which catalogs to use; remove one to switch it off (ISBNdb also needs its key) |
+| `SCAN_CACHE_TTL_MS` | `600000` | memory of answers (and downloaded covers); `0` = no memory |
+| `SCAN_NEGATIVE_TTL_MS` | `120000` | memory of "not in any catalog" |
+| `SCAN_COVER_WAIT_MS`, `SCAN_PRICE_WAIT_MS` | `1200`, `3000` | how long the lookup waits for the cover preview / the price check (`PRICING_AI`) |
+| `SCAN_SLOW_LOG_MS` | `1500` | requests slower than this are logged (`off` = never) |
+| `GOOGLE_BOOKS_API_KEY` | none | optional: Google's free keyless use is capped and often answers "quota"; a key from Google Cloud (Books API) removes that |
+
+If it still feels slow, note **which step** (after typing the ISBN: the lookup; after pressing Save), the device, and
+the seconds, then look at the `Server-Timing` header of that request: the biggest number is the culprit.
+
+Where the book facts come from, and what each source's rules allow: Open Library, the BnF and Google Books are free
+services used as their documentation describes, with a User-Agent that names the shop and an address to write to; nothing is stored beyond
+the fields the app already keeps for a book.
+
+#### ISBNdb (optional, paid): finding books the free catalogs miss
+
+ISBNdb has the largest ISBN database but is a paid service. It is **off** unless `ISBNDB_API_KEY` is set, and then it is
+only asked as a **last resort**: when the free catalogs found no title, or left out the author, publisher or year. A complete
+free answer costs nothing, so the paid calls stay few. Nothing else changes: remove the variable and it is off again.
+
+1. Sign up at isbndb.com > Pricing, choose a plan (check ISBNdb pricing and the plan's daily quota there), and create the API key (account page > API).
+   You must do this yourself; nobody else should hold the key.
+2. Render dashboard > umas-books > Environment > Add Environment Variable: `ISBNDB_API_KEY` = the key (a secret: it is never shown on a page, never logged, never sent to a browser).
+   Do the same on the test system (`umas-books-staging`) if you want it there. Save: Render restarts the site.
+   Keep a copy of the key in the password manager (section b).
+3. Premium plans use another address: also add `ISBNDB_API_BASE` = the host shown in your ISBNdb account (for example `https://api.premium.isbndb.com`).
+   Only an `https://...isbndb.com` address is accepted; leave it unset for the usual `https://api2.isbndb.com`.
+4. Check: **Admin > `/admin/diagnostics/lookup`** shows ISBNdb as "Key set", then "Working" after the first lookup that needed it,
+   or **"Key refused"** (wrong key or subscription lapsed) or **"Quota reached"**. The person scanning never sees these; the lookup simply goes on without ISBNdb
+   (paused 30 minutes after a refusal, 1 minute to 30 minutes after a quota answer).
+5. Speed limit: at most one request a second (`ISBNDB_MIN_INTERVAL_MS`, default `1000`; raise the speed only if your plan says so). A request that would wait more than 2.5 s is skipped.
+
+What ISBNdb's terms (isbndb.com/terms-and-conditions, read in October 2026) permit: a subscriber may use the data to run its own site and shop,
+show it to its own users, and download, store and cache it "to the extent necessary" to operate that site **while the subscription lasts**.
+It may not be redistributed, resold, handed over in bulk, or used to build a database or product of its own for others. What the app does:
+results live in memory for minutes only; only the fields the app stores for a saved book (title, author, publisher, year, description, genre,
+binding) are used; **ISBNdb's cover images are never used or stored** (their terms say rights in covers stay with their owners); no scraping,
+only the documented API with the key in the `Authorization` header. If the subscription ends, remove the key; books already saved keep the facts a person confirmed and saved.
 
 ### The barcode scanner must send Enter
 

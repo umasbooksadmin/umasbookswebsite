@@ -1,6 +1,7 @@
 const express = require("express");
 const { saveImage } = require("../../lib/imageStore");
-const { prepareCover } = require("../../lib/coverStore");
+const { prepareCover, isAllowedCoverUrl } = require("../../lib/coverStore");
+const { isStoredImageUrl } = require("../../lib/imageStore");
 const { sharpFromUpload, reencodeForVision } = require("../../lib/uploadImage");
 const { pool, withTransaction } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
@@ -20,6 +21,9 @@ const { parseSuggestedPrice, normalizeSuggestedLevel, priceBasisFor, priceFromLe
 const { setFlash, takeFlash } = require("../../lib/flash");
 const { validateIdParams } = require("../../middleware/idParams");
 const fastScan = require("../../lib/fastScan");
+const { serverTiming } = require("../../lib/timing");
+const { runAfterResponse } = require("../../lib/afterResponse");
+const { fillBookGaps, findCoverUrl } = require("../../lib/bookFill");
 const { parseMoney, parseWholeNumber } = require("../../lib/validation");
 
 const router = express.Router();
@@ -55,21 +59,6 @@ function learningFields(price, body, stored = {}) {
   const suggestedPrice = posted ? parseSuggestedPrice(body.suggestedPrice) : (stored.suggested_price != null ? Number(stored.suggested_price) : null);
   const suggestedLevel = posted ? normalizeSuggestedLevel(body.suggestedLevel) : (stored.suggested_level || null);
   return { suggestedPrice, suggestedLevel, priceBasis: priceBasisFor(price, suggestedPrice, suggestedLevel) };
-}
-
-// Best-effort cover lookup for books saved without one — tries the ISBN
-// first (most precise), then falls back to a title/author search.
-async function findCoverUrl({ isbn, title, author }) {
-  if (isbn) {
-    const byIsbn = await lookupByIsbn(isbn);
-    if (byIsbn && byIsbn.coverUrl) return byIsbn.coverUrl;
-  }
-  if (title) {
-    const candidates = await searchByTitleAuthor(title, author);
-    const withCover = candidates.find((c) => c.coverUrl);
-    if (withCover) return withCover.coverUrl;
-  }
-  return null;
 }
 
 // Render has no persistent disk, so an uploaded cover photo can't be
@@ -405,7 +394,7 @@ router.post("/admin/inventory/generate-description", requireAdmin, async (req, r
   res.json({ description, descriptionFr });
 });
 
-router.post("/admin/inventory", requireAdmin, async (req, res) => {
+router.post("/admin/inventory", requireAdmin, serverTiming("scan.save"), async (req, res) => {
   const title = (req.body.title || "").trim();
   const author = (req.body.author || "").trim() || null;
   const isbn = req.body.isbn ? normalizeIsbn(req.body.isbn) : null;
@@ -445,7 +434,7 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
   // Fixed-price rule for new books (see lib/inventory.js). Checked before
   // anything is saved so a refused copy leaves no half-created book behind.
   const condition = normalizeCondition(req.body.condition);
-  const settings = await getSettings(pool);
+  const settings = await req.timing.time("settings", () => getSettings(pool));
   const choice = priceFromLevelChoice(condition, req.body, settings);
   const pricing = resolveCopyPricing(condition, choice.rawPrice, req.body.publisherPrice);
   const costCheck = parseAcquisitionCost(req.body.acquisitionCost);
@@ -471,8 +460,9 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
   // into a separate single-copy book instead of accumulating on one.
   let bookId = null;
   let isNewBook = false;
+  let fillAfterSave = false;
   if (isbn) {
-    const { rows: existingRows } = await pool.query("SELECT * FROM books WHERE isbn = $1", [isbn]);
+    const { rows: existingRows } = await req.timing.time("db", () => pool.query("SELECT * FROM books WHERE isbn = $1", [isbn]));
     if (existingRows.length) {
       const existing = existingRows[0];
       bookId = existing.id;
@@ -481,44 +471,27 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
       if (binding && !existing.binding) {
         await pool.query("UPDATE books SET binding = $1, updated_at = now() WHERE id = $2", [binding, bookId]);
       }
-      if (!existing.description || !existing.cover_url || !existing.description_fr) {
-        const [genDescription, genCoverUrl] = await Promise.all([
-          existing.description ? null : (description || generateBookDescription({ title, author, publisher, publishedYear })),
-          existing.cover_url ? null : (coverUrl || findCoverUrl({ isbn, title, author })),
-        ]);
-        const finalDescription = existing.description || genDescription;
-        const genDescriptionFr = existing.description_fr
-          ? null
-          : (descriptionFr || (finalDescription ? await translateDescriptionToFrench(finalDescription) : null));
-        const genCover = await prepareCover(genCoverUrl);
-        if (genDescription || genCover.cover || genCover.source || genDescriptionFr) {
-          await pool.query(
-            `UPDATE books SET description = COALESCE($1, description), cover_url = COALESCE($2, cover_url),
-                    cover_source_url = COALESCE($5, cover_source_url),
-                    cover_fetch_failures = CASE WHEN $5::text IS NULL THEN cover_fetch_failures ELSE 0 END,
-                    description_fr = COALESCE($3, description_fr), updated_at = now() WHERE id = $4`,
-            [genDescription, genCover.cover, genDescriptionFr, bookId, genCover.source]
-          );
-        }
-      }
+      // A description, a French text or a cover the book still lacks is fetched AFTER the answer (lib/bookFill.js).
+      if (!existing.description || !existing.cover_url || !existing.description_fr) fillAfterSave = true;
     }
   }
 
   if (!bookId) {
-    [description, coverUrl] = await Promise.all([
-      description || generateBookDescription({ title, author, publisher, publishedYear }),
-      coverUrl || findCoverUrl({ isbn, title, author }),
-    ]);
-    descriptionFr = descriptionFr || (description ? await translateDescriptionToFrench(description) : null);
-    // Copy the cover to our server (an external address is only kept as the download source).
-    const cover = await prepareCover(coverUrl);
+    // Only what is already known is stored now. The AI description, its French translation, the search for a
+    // cover and the cover download all happen after the answer (fillBookGaps, below): they used to hold the
+    // save back for 3 to 20 seconds. A cover address that is not yet a copy on our server is kept as the source.
+    const cover = coverUrl && isStoredImageUrl(coverUrl)
+      ? { cover: coverUrl, source: null }
+      : { cover: null, source: coverUrl && isAllowedCoverUrl(coverUrl) ? coverUrl : null };
+    fillAfterSave = true;
 
-    const { rows } = await pool.query(
+    const { rows } = await req.timing.time("db", () => pool.query(
       `INSERT INTO books (isbn, title, authors, publisher, published_year, description, description_fr, cover_url, categories, categories_fr, binding, created_by, cover_source_url)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        ON CONFLICT DO NOTHING RETURNING id`,
       [isbn || null, title, author, publisher, publishedYear, description, descriptionFr, cover.cover, genre, genreFr, binding, req.session.user.id, cover.source]
-    );
+
+    ));
     if (rows.length) {
       bookId = rows[0].id;
       isNewBook = true;
@@ -547,7 +520,7 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
   const repriceOthers = settings.clearance.scope === "all" && isClearance && req.body.repriceOthers === "1"
     ? await otherRepriceableCopies(pool, isbn)
     : [];
-  const copyRows = await withTransaction(pool, async (client) => {
+  const copyRows = await req.timing.time("db", () => withTransaction(pool, async (client) => {
     const { rows } = await client.query(
       `INSERT INTO book_copies (book_id, condition, price, publisher_price, acquisition_cost, acquired_at, status, notes, location, source, created_by,
                                 suggested_price, suggested_level, price_basis, is_clearance)
@@ -559,7 +532,7 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
       await client.query("UPDATE book_copies SET price = $1, is_clearance = true, updated_at = now() WHERE id = $2", [settings.clearance.price, other.id]);
     }
     return rows;
-  });
+  }));
   for (const other of repriceOthers) {
     await audit(req, {
       action: "copy.reprice", targetType: "book_copy", targetId: other.id,
@@ -571,9 +544,15 @@ router.post("/admin/inventory", requireAdmin, async (req, res) => {
   // appear within seconds. Never awaited: it must not delay or fail the save.
   if (isNewBook) checkBookAwardsInBackground(pool, bookId);
 
+  // Cover, description and translation: fetched now that the copy is saved and the answer is on its way.
+  if (fillAfterSave) {
+    const hints = { isbn, title, author, publisher, publishedYear, description, descriptionFr, coverUrl };
+    runAfterResponse(`fill book ${bookId}`, () => fillBookGaps(pool, bookId, hints));
+  }
+
   // Customers who asked for this book (Requests page): matched now, the
   // banner on the book's page and the scan screen tells the admin.
-  const requestsMatched = await matchBookRequests(() => matchRequestsForCopy(pool, bookId, copyRows[0].id));
+  const requestsMatched = await req.timing.time("requests", () => matchBookRequests(() => matchRequestsForCopy(pool, bookId, copyRows[0].id)));
 
   // The one-screen add page (fast=1): back to a fresh form (a JSON answer for the fetch from the page itself).
   if (req.body.fast !== "0" && (req.body.fast === "1" || req.body.addAnother === "1" || req.body.fromScan === "1")) {
