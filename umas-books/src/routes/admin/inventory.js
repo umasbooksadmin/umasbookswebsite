@@ -148,7 +148,7 @@ router.get("/admin/inventory", requireAdmin, async (req, res) => {
               FILTER (WHERE c.status = 'in_stock' AND c.location IS NOT NULL) AS location_list
      FROM books b LEFT JOIN book_copies c ON c.book_id = b.id
      ${where}
-     GROUP BY b.id ORDER BY b.title ASC LIMIT 200`,
+     GROUP BY b.id ORDER BY b.title_sort, b.title, b.id LIMIT 200`,
     params
   );
   // One entry per place, whatever its capitals ("Store" and "STORE" are one).

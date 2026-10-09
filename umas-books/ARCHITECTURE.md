@@ -734,6 +734,20 @@ every migration to a brand-new database on every run, and
 `test/integration/migrationTracking.test.js` proves a second run changes
 nothing.
 
+## Alphabetical order of titles (`books.title_sort`)
+
+Every "sort by title" uses `ORDER BY b.title_sort, b.title, b.id`, never `b.title`:
+`/api/books/search` (the shop and Browse Books), "More by this author" on the book
+page, and the admin Inventory list. `books.title_sort` (migration 086) is a STORED
+generated column: the title lower-cased, with leading punctuation dropped and one
+leading whole-word "The" dropped (`The Hobbit` -> `hobbit`; `Theory` untouched; a title
+that is only "The" keeps itself). It follows title edits by itself and has an index
+`(title_sort, title, id)`, so the catalogue query reads in index order and stops at its
+LIMIT. `src/lib/titleSort.js` (`sortTitleKey`, `compareTitles`) is the JavaScript twin for
+sorting in code; `test/integration/titleSortOrder.test.js` checks the two agree. "A"/"An"
+and French articles are deliberately not ignored. New code that lists books by title
+must use the column, not `title`.
+
 ## Images
 
 Uploaded photos (book covers, blog/announcement/charity images) are

@@ -14,6 +14,18 @@ const cfg = require("../helpers/config");
 
 const s = e2e.persona("guest");
 
+// Titles are in A-Z order when each one's first letter (after dropping punctuation and one leading
+// "The") never goes backwards. Checking only the first letter keeps this independent of how the
+// database orders punctuation and accents; the unit and integration tests check the full order.
+const { sortTitleKey } = require("../../src/lib/titleSort");
+const firstChar = (t) => sortTitleKey(t).charAt(0);
+function assertAlphabetical(titles) {
+  const c = new Intl.Collator("en", { sensitivity: "base" });
+  for (let i = 1; i < titles.length; i++) {
+    assert.ok(c.compare(firstChar(titles[i - 1]), firstChar(titles[i])) <= 0, `"${titles[i - 1]}" is listed before "${titles[i]}"`);
+  }
+}
+
 const LEGAL = [
   { path: "/terms-of-sale.html", en: /Terms of Sale/i, fr: /Conditions générales de vente/i },
   { path: "/privacy-policy.html", en: /Privacy Policy/i, fr: /Politique de confidentialité/i },
@@ -179,6 +191,13 @@ s.test("G12 search finds a book by title; a search with no match says so", async
   const empty = await ctx.page.$eval("#bk-results-grid", (e) => e.innerText);
   hasNot(empty, /Loading books/);
   assert.ok(empty.trim().length > 10, "a 'no results' message, not a blank page");
+});
+
+s.test("G12a (must) results are in A-Z order, ignoring a leading The (the title is still shown in full)", async (ctx) => {
+  await ctx.goto("/books.html", "networkidle2");
+  const titles = await ctx.page.evaluate(async () => (await (await fetch("/api/books/search")).json()).map((b) => b.title));
+  if (titles.length < 2) ctx.skip("data: fewer than two books in stock");
+  assertAlphabetical(titles);
 });
 
 s.test("G13 genre buttons filter the list and change it when another is chosen", async (ctx) => {
