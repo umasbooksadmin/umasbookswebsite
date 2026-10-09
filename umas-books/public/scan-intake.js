@@ -279,7 +279,8 @@
           }
           fillForm(res.body);
           var st = lookupStatus(res.body);
-          setStatus(st.kind, st.text);
+          // The shared daily limit of the paid AI helpers was reached: the lookup itself still worked.
+          setStatus(st.kind, st.text + (res.body.aiNotice ? " " + res.body.aiNotice : ""));
           refocusIsbn();
         })
         .catch(function () {

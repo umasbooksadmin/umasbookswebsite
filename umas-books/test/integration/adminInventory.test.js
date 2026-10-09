@@ -118,7 +118,8 @@ beforeEach(resetStubs);
 function RUN() { return `${Date.now()}-${Math.floor(Math.random() * 1e6)}`; }
 let seq = 0;
 const tag = () => `${RUN().replace(/-/g, "x")}q${++seq}`; // alphanumeric, unique, safe in titles and ISBN-ish searches
-const isbn13 = () => `979${String(Date.now()).slice(-7)}${String(++seq).padStart(3, "0")}`; // 13 digits, unique
+const { isbn13From } = require("../helpers/isbn");
+const isbn13 = () => isbn13From(`979${String(Date.now()).slice(-5)}${String(++seq).padStart(4, "0")}`); // 13 digits, unique, a real check digit (the lookup refuses a wrong one)
 
 const adminHeader = () => ({ "x-test-user": JSON.stringify({ id: adminId, email: "a@example.test", displayName: "Admin", isAdmin: true }) });
 const memberHeader = () => ({ "x-test-user": JSON.stringify({ id: adminId, email: "m@example.test", displayName: "M", isAdmin: false, isMember: true }) });

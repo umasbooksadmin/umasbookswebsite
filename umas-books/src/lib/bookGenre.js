@@ -9,10 +9,16 @@ const { COMMON_GENRES } = require("./bookLookup");
 const { normalizeGenres } = require("./inventory");
 
 const { recordCall } = require("./aiUsageStats");
+const { getAiLimits, clampText, MAX_TITLE, MAX_AUTHOR, MAX_DESCRIPTION } = require("./aiLimits");
 
 const TEXT_MODEL = "claude-haiku-4-5-20251001";
 
-async function generateBookGenres({ title, author, description, existingGenres }) {
+async function generateBookGenres(input) {
+  // Bounded text only goes to the paid API.
+  const title = clampText(input.title, MAX_TITLE);
+  const author = clampText(input.author, MAX_AUTHOR);
+  const description = clampText(input.description, MAX_DESCRIPTION);
+  const existingGenres = clampText(input.existingGenres, 300);
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     console.warn("AI genre skipped: ANTHROPIC_API_KEY not set.");
@@ -35,6 +41,12 @@ ${COMMON_GENRES.join(", ")}
 Title: "${title}"${details ? `\n${details}` : ""}
 
 Respond with ONLY a comma-separated list of the genres you chose from that list, most-relevant first (e.g. "Fantasy, Young Adult Fiction"). No preamble, no explanation, no genres outside the list. If you don't recognize the book and the title gives no clue, respond with "Fiction".`;
+
+  const slot = await getAiLimits().acquireAiCall(); // the shared daily cap (lib/aiLimits.js)
+  if (!slot.ok) {
+    console.warn(`AI genre skipped: ${slot.message}`);
+    return null;
+  }
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8000);
