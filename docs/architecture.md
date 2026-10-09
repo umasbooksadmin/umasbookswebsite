@@ -841,7 +841,7 @@ in person only: online payment exists only for HelloAsso memberships and orders.
   filter and "+ Till" in the Accounts report (`src/lib/accountTypes.js`).
 - **One source of truth for sales figures.** `salesTotals` / `accountingRows` in
   `src/lib/accounting.js` feed the Accounting export and the dashboard's "Sales this month"
-  (Till, Online, Membership breakdown, same Paris-day buckets); `test/integration/tillDashboardAgreement.test.js`
+  (In person, Old online orders, Membership breakdown, same Paris-day buckets); `test/integration/tillDashboardAgreement.test.js`
   checks the dashboard, Reports (book sales), End of day and the export agree on one fixture.
 
 ## 8. Membership

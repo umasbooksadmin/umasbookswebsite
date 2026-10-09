@@ -12,7 +12,7 @@ const { makeOrder } = require("../helpers/orderFixtures");
 let h;
 let cart;
 before(async () => {
-  h = await tillHarness({ port: 4362, ip: "10.82.6.6" });
+  h = await tillHarness({ port: 4396, ip: "10.82.6.6" });
   cart = require("../../src/lib/cart");
 });
 after(async () => { await h.stop(); });
@@ -46,7 +46,7 @@ const paris = async () => (await h.pool.query("SELECT (now() AT TIME ZONE 'Europ
 async function exportRows(day) {
   const res = await fetch(`${h.app.base}/admin/reports/accounting?from=${day}&to=${day}&format=csv`, { headers: { cookie: h.jar.header(), "x-forwarded-for": h.ip } });
   assert.equal(res.status, 200);
-  const text = Buffer.from(await res.arrayBuffer()).toString("utf8").replace(/^﻿/, "").trim();
+  const text = Buffer.from(await res.arrayBuffer()).toString("utf8").replace(/^\uFEFF/, "").trim();
   const split = (l) => (l.match(/("([^"]|"")*"|[^,]*)(,|$)/g) || []).filter((x, i, a) => i < a.length - 1 || x !== "").map((c) => c.replace(/,$/, "").replace(/^"|"$/g, "").replace(/""/g, '"'));
   return text.split("\r\n").slice(1).map(split)
     .map(([date, category, method, count, total, , debit, credit]) => ({ date, category, method, count: Number(count), cents: Math.round(Number(total) * 100), debit, credit }));
