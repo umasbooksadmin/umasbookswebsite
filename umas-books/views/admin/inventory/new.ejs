@@ -19,6 +19,11 @@
     <p class="muted small scan-hint"><span class="kbd-hint">Press <kbd>Enter</kbd> after the barcode to look it up. <kbd>Ctrl</kbd>/<kbd>Cmd</kbd>+<kbd>Enter</kbd> saves and starts the next book.</span> <a href="/admin/inventory/scan">Scan with a photo instead</a></p>
     <% } %>
 
+    <details class="scan-kbd-help muted small">
+      <summary>On-screen keyboard not showing?</summary>
+      <p>A Bluetooth scanner counts as a hardware keyboard and hides the on-screen keyboard. Turn the scanner off, or switch it to its non-keyboard mode, or use the keyboard button in the AssistiveTouch menu (Settings &gt; Accessibility &gt; Touch &gt; AssistiveTouch; menu &gt; Device &gt; More &gt; Keyboard).</p>
+    </details>
+
     <img id="cover-preview" class="book-cover-preview" alt=""<% if (book.coverUrl) { %> src="<%= book.coverUrl %>"<% } else { %> hidden<% } %>>
 
     <div class="intake-grid">

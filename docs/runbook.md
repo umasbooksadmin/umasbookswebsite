@@ -1707,6 +1707,29 @@ backfill: *an outage must never be recorded as a permanent result*.
 For adding many books in a row: **Books & Reservations > Scan a book** (the **Add Book** page,
 `/admin/inventory/new`). Details of what the page does: `umas-books/README.md`, "Fast scanning".
 
+### The on-screen keyboard does not come up on an iPhone or iPad
+
+The page never hides the keyboard: tapping any box (Title, Author, Location, Price, Description) opens it, and the
+cursor goes back to the ISBN box by itself only when no other box is in use (a fix made when this was reported).
+The usual cause is the scanner: **a Bluetooth scanner in keyboard (HID) mode counts as a hardware keyboard, and
+iOS then does not show the on-screen keyboard.** The Add Book page has a small "On-screen keyboard not showing?"
+help line under the ISBN box on touch screens (it cannot detect the scanner; no page can do that reliably).
+
+Ways to get the keyboard back (the first three are from Apple's documentation, the last are general):
+
+- **AssistiveTouch**: Settings > Accessibility > Touch > AssistiveTouch, switch it on. Then tap the floating button >
+  Device > More > **Keyboard** to show the on-screen keyboard while the hardware keyboard is connected.
+- **Keyboard button (iPad)**: with a hardware keyboard attached, tap a text box and use the keyboard icon on the
+  shortcut bar / bottom right, if it is shown.
+- **Turn the scanner off, or turn Bluetooth off** (Settings > Bluetooth), type, then switch back on and scan.
+- **Scanner modes (general; check your scanner's manual for "keyboard toggle")**: many scanners can be set, with a
+  setup barcode in the manual or a trigger-key press sequence, to toggle the virtual keyboard, or to switch between
+  HID (types like a keyboard) and SPP/serial. In SPP mode the scanner sends nothing to Safari: it needs a vendor app,
+  so scanning into this page needs HID mode. Brands such as Eyoyo, Netum, Inateck, Socket Mobile and Tera differ;
+  steps are not given here because they depend on the model.
+- If the phone uses its **camera** (no scanner connected) and the keyboard is missing, reload the page, tap the box
+  once more; if it still fails, note the iOS version and tell the developer.
+
 ### Scan speed (how fast Add a book is, and the knobs)
 
 What happens, in order, and what was slow. **Looking up** (the ISBN typed or scanned): the catalogs are asked
