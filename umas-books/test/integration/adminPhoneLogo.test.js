@@ -71,3 +71,41 @@ test("the stylesheet hides the top-bar logo on desktop and shows it, 44 px tall 
   assert.ok(phone, "the 900px block");
   assert.match(phone[1], /\.admin-topbar-brand \{[^}]*display: block;[^}]*min-height: 44px/, "shown with a 44 px touch target");
 });
+
+// The page title (Back link + h1) must be a SIBLING of the tools wrapper, not inside it. Inside, the
+// desktop/tablet flex row laid it out after the search box and the initials, so "Inventory" sat on the
+// right (and off screen on a narrow window above 900 px, e.g. a phone turned sideways).
+function topbarChildren(html) {
+  const start = html.indexOf('<div class="admin-topbar">');
+  assert.ok(start >= 0, "no top bar");
+  let depth = 0;
+  const kids = [];
+  const re = /<div\b[^>]*>|<\/div>/g;
+  re.lastIndex = start;
+  let m;
+  while ((m = re.exec(html))) {
+    if (m[0] === "</div>") { depth--; if (depth === 0) break; continue; }
+    depth++;
+    if (depth === 2) kids.push(m[0]);
+  }
+  return kids;
+}
+
+test("the page title is a direct child of the top bar, next to (not inside) the tools wrapper", async () => {
+  for (const v of [{ active: "inventory", pageTitle: "Inventory" }, { active: "overview", pageTitle: "Dashboard" }, { active: "till", pageTitle: "Till", tillOnly: true }]) {
+    const html = await ejs.renderFile(PARTIAL, { user: { displayName: "Admin Tester" }, ...v });
+    const kids = topbarChildren(html);
+    assert.ok(kids.some((k) => k.includes("admin-topbar-tools")), "tools wrapper is a direct child");
+    assert.ok(kids.some((k) => k.includes("admin-topbar-title")), `${JSON.stringify(v)}: the title wrapper must be a direct child of .admin-topbar, not inside .admin-topbar-tools`);
+    const tools = html.match(/<div class="admin-topbar-tools">([\s\S]*?)<div class="admin-topbar-title">/);
+    assert.ok(tools && !/<h1>/.test(tools[1]) && (tools[1].match(/<div\b/g) || []).length + 1 === (tools[1].match(/<\/div>/g) || []).length, "the tools wrapper is closed before the title starts");
+  }
+});
+
+test("the stylesheet keeps the title on the left: before the tools on desktop, never right-aligned", () => {
+  const css = fs.readFileSync(path.join(ROOT, "public", "admin.css"), "utf8");
+  assert.match(css, /^\.admin-topbar-title \{ order: 1; min-width: 0; \}/m);
+  assert.match(css, /^\.admin-topbar-tools \{ order: 2; \}/m);
+  const rule = (css.match(/^\.admin-topbar-title\b[^{]*\{[^}]*\}/gm) || []).join("\n");
+  assert.doesNotMatch(rule, /margin-left:\s*auto|text-align:\s*(right|end)/);
+});
