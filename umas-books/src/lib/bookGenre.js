@@ -8,6 +8,8 @@
 const { COMMON_GENRES } = require("./bookLookup");
 const { normalizeGenres } = require("./inventory");
 
+const { recordCall } = require("./aiUsageStats");
+
 const TEXT_MODEL = "claude-haiku-4-5-20251001";
 
 async function generateBookGenres({ title, author, description, existingGenres }) {
@@ -37,6 +39,8 @@ Respond with ONLY a comma-separated list of the genres you chose from that list,
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8000);
 
+  const t0 = Date.now();
+  let recorded = false; // usage statistics (counts only), see lib/aiUsageStats.js
   try {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -55,11 +59,16 @@ Respond with ONLY a comma-separated list of the genres you chose from that list,
     });
 
     if (!res.ok) {
-      console.warn("AI genre request failed:", res.status, await res.text().catch(() => ""));
+      const body = await res.text().catch(() => "");
+      recorded = true;
+      recordCall("genre", { status: res.status, bodyText: body, ms: Date.now() - t0 });
+      console.warn("AI genre request failed:", res.status, body);
       return null;
     }
 
     const data = await res.json();
+    recorded = true;
+    recordCall("genre", { status: res.status, data, ms: Date.now() - t0 });
     const text = data.content && data.content[0] && data.content[0].text;
     if (!text) {
       console.warn("AI genre skipped: unexpected response shape:", JSON.stringify(data).slice(0, 500));
@@ -76,6 +85,7 @@ Respond with ONLY a comma-separated list of the genres you chose from that list,
       .filter(Boolean);
     return normalizeGenres(picked.join(", "));
   } catch (err) {
+    if (!recorded) recordCall("genre", { failed: true, ms: Date.now() - t0 });
     console.warn("AI genre skipped:", err.name === "AbortError" ? "request timed out" : err.message);
     return null;
   } finally {

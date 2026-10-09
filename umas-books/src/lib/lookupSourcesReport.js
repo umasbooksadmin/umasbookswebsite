@@ -118,7 +118,9 @@ async function run(db, ctx) {
     ...SHOWN.map((c) => ({ key: c, label: COLUMN_LABELS[c], type: "int" })),
     { key: "avg_ms", label: "Average response (ms)", type: "int" },
   ];
+  const ai = await require("./aiUsageReport").build(db, period, { csv: ctx.csv });
   return {
+    banner: ai.banner,
     sections: [
       {
         key: "sources", title: `Per source: ${period.label.toLowerCase()}`, columns: cols([{ key: "source", label: "Source", type: "text" }]), rows: sourceRows,
@@ -131,10 +133,12 @@ async function run(db, ctx) {
         key: "daily", title: "Per day", columns: cols([{ key: "day", label: "Day (Paris)", type: "text" }, { key: "source", label: "Source", type: "text" }]), rows: dayRows,
         note: dailyTotal > dayRows.length ? `The latest ${dayRows.length} of ${dailyTotal} rows are shown here; the CSV has all of them.` : undefined,
       },
+      ...ai.sections,
     ],
     notes: [
       "How to read this: each time someone scans or saves an ISBN, the site asks several book catalogs at the same time. \"Asked\" is how many times a catalog was asked. \"Supplied the title\" means its answer was the one whose title was used (the first catalog in priority order that had one). \"Only filled missing fields\" means another catalog gave the title but this one added something it lacked (author, publisher, year, description...). \"Answered, nothing new\" means it had the book but nothing of it was needed. \"Found nothing\" means it does not know the ISBN. \"Errors / timeouts\" are failures, \"Refused\" are answers like quota reached or key refused, and \"Cut short\" means the answer was already given and the site stopped waiting for it. The average is the time the catalog took to answer. Use this to decide whether Google Books or ISBNdb is worth keeping: a catalog that rarely supplies the title or fills a gap costs time or money for nothing.",
       "No ISBNs, titles or people are recorded: only counts per day and catalog. Counts are saved about every 30 seconds. Rows older than 36 months are deleted.",
+      ...ai.notes,
     ],
   };
 }

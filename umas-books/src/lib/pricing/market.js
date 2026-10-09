@@ -13,6 +13,7 @@ const { TEXT_MODEL } = require("../bookDescription");
 const { DEFAULT_SETTINGS } = require("./rules");
 const { toIsbn13 } = require("./isbn");
 const { normalizeBinding } = require("../inventory");
+const { recordCall } = require("../aiUsageStats");
 
 const TIMEOUT_MS = 12000;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -128,6 +129,8 @@ async function fetchMarketData(query, { fetchImpl, env = process.env, settings =
   const doFetch = fetchImpl || globalThis.fetch;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const t0 = Date.now();
+  let recorded = false; // usage statistics (counts only), see lib/aiUsageStats.js
   try {
     const res = await doFetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -146,10 +149,15 @@ async function fetchMarketData(query, { fetchImpl, env = process.env, settings =
       }),
     });
     if (!res.ok) {
+      const body = typeof res.text === "function" ? await res.text().catch(() => "") : "";
+      recorded = true;
+      recordCall("price", { status: res.status, bodyText: body, ms: Date.now() - t0 });
       console.warn("Price check request failed:", res.status);
       return null;
     }
     const data = await res.json();
+    recorded = true;
+    recordCall("price", { status: res.status, data, ms: Date.now() - t0 });
     const blocks = Array.isArray(data.content) ? data.content.filter((b) => b && b.type === "text" && typeof b.text === "string") : [];
     // Web search adds narration blocks; the JSON answer is normally the last text.
     for (let i = blocks.length - 1; i >= 0; i--) {
@@ -160,6 +168,7 @@ async function fetchMarketData(query, { fetchImpl, env = process.env, settings =
     if (!joined) console.warn("Price check skipped: answer was not usable JSON.");
     return joined;
   } catch (err) {
+    if (!recorded) recordCall("price", { failed: true, ms: Date.now() - t0 });
     console.warn("Price check skipped:", err.name === "AbortError" ? "request timed out" : err.message);
     return null;
   } finally {
