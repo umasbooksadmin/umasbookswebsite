@@ -244,7 +244,7 @@ test("ISBNdb: requests are spaced by the rate limit however many scans run toget
   process.env.ISBNDB_MIN_INTERVAL_MS = "120";
   const stamps = [];
   const f = internet({ isbndb: () => { stamps.push(performance.now()); return json({}, 404); } });
-  await Promise.all(["9791090636071", "9791090636072", "9791090636073"].map((i) => run(i, f, { timeoutMs: 3000 })));
+  await Promise.all(["9791090636071", "9791090636088", "9791090636095"].map((i) => run(i, f, { timeoutMs: 3000 })));
   assert.equal(stamps.length, 3);
   assert.ok(stamps[1] - stamps[0] >= 100 && stamps[2] - stamps[1] >= 100, `spaced: ${stamps.map((s) => (s - stamps[0]).toFixed(0)).join(", ")}`);
 

@@ -6,7 +6,7 @@ const { sharpFromUpload, reencodeForVision } = require("../../lib/uploadImage");
 const { pool, withTransaction } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
 const { audit } = require("../../lib/audit");
-const { normalizeIsbn, lookupByIsbn, searchByTitleAuthor, translateGenresToFrench } = require("../../lib/bookLookup");
+const { normalizeIsbn, isValidIsbn, lookupByIsbn, searchByTitleAuthor, translateGenresToFrench } = require("../../lib/bookLookup");
 const { extractBookInfoFromPhoto } = require("../../lib/coverVision");
 const { generateBookDescription, translateDescriptionToFrench } = require("../../lib/bookDescription");
 const { CONDITIONS, BINDINGS, STATUSES, SOURCES, normalizeSource, normalizeCondition, normalizeBinding, resolveCopyPricing, normalizeStatus, normalizeGenres, normalizeLocation, uniqueLocations, locationKey, parseScan, isbnVariants } = require("../../lib/inventory");
@@ -22,6 +22,8 @@ const { setFlash, takeFlash } = require("../../lib/flash");
 const { validateIdParams } = require("../../middleware/idParams");
 const fastScan = require("../../lib/fastScan");
 const { serverTiming } = require("../../lib/timing");
+const { aiAdminLimiter, AI_LIMIT_MESSAGE } = require("../../middleware/rateLimits");
+const { getAiLimits, clampText, MAX_TITLE, MAX_AUTHOR } = require("../../lib/aiLimits");
 const { runAfterResponse } = require("../../lib/afterResponse");
 const { fillBookGaps, findCoverUrl } = require("../../lib/bookFill");
 const { parseMoney, parseWholeNumber } = require("../../lib/validation");
@@ -130,6 +132,7 @@ async function getLocations() {
 // The add-book page is also used by the scan-in-a-row script, which saves with
 // fetch and wants JSON back (a plain form post gets the redirect / page).
 const wantsJson = (req) => req.accepts(["html", "json"]) === "json";
+const ISBN_NOT_VALID = "That ISBN is not valid: check the digits.";
 
 router.get("/admin/inventory", requireAdmin, async (req, res) => {
   await expireStaleReservations(pool);
@@ -318,7 +321,19 @@ router.get("/admin/inventory/lookup", requireAdmin, async (req, res) => {
   res.render("admin/inventory/new", { active: "inventory", book, error: f.error || null, fromScan: true, conditions: CONDITIONS, bindings: BINDINGS, statuses: STATUSES, defaultPricing, location, source, sources: SOURCES, locations: await getLocations() });
 });
 
-router.post("/admin/inventory/lookup", requireAdmin, async (req, res) => {
+// 10 a minute per admin for the requests that call the AI (a cover photo). Typing an ISBN calls no AI: not counted.
+// The page shows the message (the no-JavaScript form posts here and gets the same page back with the message).
+const photoLookupLimiter = aiAdminLimiter({
+  skip: (req) => !(req.files && req.files.photo && req.files.photo[0]),
+  handler: async (req, res) => {
+    const payload = { location: normalizeLocation(req.body && req.body.location) || "", source: normalizeSource(req.body && req.body.source) || "", error: AI_LIMIT_MESSAGE };
+    if (wantsJson(req)) return res.status(429).json({ ok: false, error: AI_LIMIT_MESSAGE });
+    return lookupDone(req, res, payload);
+  },
+});
+const descriptionLimiter = aiAdminLimiter();
+
+router.post("/admin/inventory/lookup", requireAdmin, photoLookupLimiter, async (req, res) => {
   const location = normalizeLocation(req.body.location) || "";
   const source = normalizeSource(req.body.source) || "";
   let book = null;
@@ -338,9 +353,11 @@ router.post("/admin/inventory/lookup", requireAdmin, async (req, res) => {
     }
     const info = await extractBookInfoFromPhoto(photo.buffer, photo.mimeType);
     if (!info || (!info.isbn && !info.title)) {
+      // At the shared daily AI cap the photo was not read at all: say so (lib/aiLimits.js).
+      const cap = !info ? await getAiLimits().status() : { reached: false };
       return lookupDone(req, res, {
         location, source,
-        error: "Couldn't read anything useful from that photo — try a clearer shot, or enter details manually below.",
+        error: cap.reached ? `${cap.message} Enter the ISBN or the details by hand.` : "Couldn't read anything useful from that photo — try a clearer shot, or enter details manually below.",
       });
     }
     if (info.isbn) {
@@ -351,7 +368,7 @@ router.post("/admin/inventory/lookup", requireAdmin, async (req, res) => {
       book = candidates[0] || null;
     }
     if (!book) {
-      book = { isbn: info.isbn ? normalizeIsbn(info.isbn) : null, title: info.title, author: info.author, publisher: null, publishedYear: null, description: null, coverUrl: null, genre: null, genreFr: null, descriptionFr: null };
+      book = { isbn: info.isbn && isValidIsbn(normalizeIsbn(info.isbn)) ? normalizeIsbn(info.isbn) : null, title: info.title, author: info.author, publisher: null, publishedYear: null, description: null, coverUrl: null, genre: null, genreFr: null, descriptionFr: null };
       error = "Found some details from the photo, but no catalog match — check everything below before saving.";
     }
   } else {
@@ -360,6 +377,8 @@ router.post("/admin/inventory/lookup", requireAdmin, async (req, res) => {
     if (wantsJson(req)) return res.status(422).json({ ok: false, error: "Title is required." });
       return lookupDone(req, res, { location, source, error: "Enter an ISBN or choose a photo." });
     }
+    // A number with a wrong check digit is not an ISBN: no catalog is asked.
+    if (!isValidIsbn(normalizeIsbn(isbn))) return lookupDone(req, res, { location, source, error: ISBN_NOT_VALID });
     book = await lookupByIsbn(isbn);
     if (!book) {
       book = { isbn: normalizeIsbn(isbn), title: null, author: null, publisher: null, publishedYear: null, description: null, coverUrl: null, genre: null, genreFr: null, descriptionFr: null };
@@ -398,16 +417,21 @@ router.get("/admin/inventory/new", requireAdmin, async (req, res) => {
   });
 });
 
-router.post("/admin/inventory/generate-description", requireAdmin, async (req, res) => {
-  const title = (req.body.title || "").trim();
-  const author = (req.body.author || "").trim() || null;
-  const publisher = (req.body.publisher || "").trim() || null;
+router.post("/admin/inventory/generate-description", requireAdmin, descriptionLimiter, async (req, res) => {
+  // Only a bounded amount of text goes to the paid AI (a title in a request can be up to 100 KB).
+  const title = clampText(req.body.title, MAX_TITLE);
+  const author = clampText(req.body.author, MAX_AUTHOR) || null;
+  const publisher = clampText(req.body.publisher, MAX_AUTHOR) || null;
   const publishedYear = parsePublishedYear(req.body.publishedYear).value ?? null;
 
   if (!title) return res.status(400).json({ error: "Enter a title first." });
 
   const description = await generateBookDescription({ title, author, publisher, publishedYear });
-  if (!description) return res.status(502).json({ error: "Couldn't generate a description — try again, or write one manually." });
+  if (!description) {
+    const cap = await getAiLimits().status();
+    if (cap.reached) return res.status(429).json({ error: `${cap.message} Write the description by hand.`, aiLimit: true });
+    return res.status(502).json({ error: "Couldn't generate a description — try again, or write one manually." });
+  }
   const descriptionFr = await translateDescriptionToFrench(description);
   res.json({ description, descriptionFr });
 });

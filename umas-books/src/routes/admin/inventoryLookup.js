@@ -11,11 +11,12 @@ const express = require("express");
 const { pool } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
 const { limit } = require("../../middleware/rateLimits");
-const { normalizeIsbn, lookupByIsbnDetailed } = require("../../lib/bookLookup");
+const { normalizeIsbn, isValidIsbn, lookupByIsbnDetailed } = require("../../lib/bookLookup");
 const { isbnVariants, bindingLabel } = require("../../lib/inventory");
 const { prepareCover } = require("../../lib/coverStore");
 const { computeSuggestion } = require("../../lib/pricing/forms");
 const { serverTiming } = require("../../lib/timing");
+const { getAiLimits } = require("../../lib/aiLimits");
 
 const router = express.Router();
 
@@ -47,6 +48,8 @@ router.get("/admin/inventory/lookup", requireAdmin, (req, res, next) => (req.que
   res.set("Cache-Control", "no-store");
   const isbn = normalizeIsbn(String(req.query.isbn == null ? "" : req.query.isbn).slice(0, 40));
   if (!isValidIsbnShape(isbn)) return res.status(400).json({ error: "Enter an ISBN of 10 or 13 digits." });
+  // Right shape, wrong check digit: a typo or a made-up number. No catalog, no AI, nothing paid is asked.
+  if (!isValidIsbn(isbn)) return res.status(400).json({ error: "That ISBN is not valid: check the digits." });
 
   // The shop's own record and the catalog do not depend on each other: asked together.
   const [stockedResult, catalog] = await Promise.all([
@@ -116,6 +119,8 @@ router.get("/admin/inventory/lookup", requireAdmin, (req, res, next) => (req.que
     suggestion,
     // "slow": the catalog did not answer in time (fill in by hand, or scan again).
     catalog: catalog.state,
+    // Set when this process had to skip an AI call today because the shared daily cap was reached (lib/aiLimits.js).
+    aiNotice: getAiLimits().reachedToday().reached ? getAiLimits().reachedToday().message : undefined,
   });
 });
 
