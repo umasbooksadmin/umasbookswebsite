@@ -1,4 +1,4 @@
-// The binding options are exactly: Hardcover, Trade, Mass Market, Other
+// The binding options are exactly: Mass Market, Trade, Hardback, Other
 // (the maintainer's words). Option keys and order, English and French labels,
 // the legacy "paperback" alias, the catalogue-format mapping table and how
 // the pricing rules treat "trade" and "other". The add/edit form markup and
@@ -13,14 +13,30 @@ const { suggestFromRules, DEFAULT_SETTINGS } = require("../../src/lib/pricing/ru
 const { pricingBinding } = require("../../src/lib/pricing/forms");
 
 test("exactly four bindings, in order, with their English and French labels", () => {
-  assert.deepEqual(inv.BINDINGS.map((b) => b.value), ["hardcover", "trade", "mass_market", "other"]);
-  assert.deepEqual(inv.BINDINGS.map((b) => b.label), ["Hardcover", "Trade", "Mass Market", "Other"]);
-  assert.deepEqual(inv.BINDINGS.map((b) => b.label_fr), ["Relié", "Broché (grand format)", "Poche", "Autre"]);
+  assert.deepEqual(inv.BINDINGS.map((b) => b.value), ["mass_market", "trade", "hardcover", "other"]);
+  assert.deepEqual(inv.BINDINGS.map((b) => b.label), ["Mass Market", "Trade", "Hardback", "Other"]);
+  assert.deepEqual(inv.BINDINGS.map((b) => b.label_fr), ["Poche", "Broché (grand format)", "Relié", "Autre"]);
   for (const b of inv.BINDINGS) {
     assert.equal(inv.bindingLabel(b.value, "en"), b.label);
     assert.equal(inv.bindingLabel(b.value, "fr"), b.label_fr);
     assert.equal(inv.bindingLabel(b.value), b.label, "English by default");
   }
+});
+
+test("a first-ever form starts on the LAST option of the list (still Other), whatever the order", () => {
+  const { firstUseBinding, formDefaults } = require("../../src/lib/fastScan");
+  assert.equal(firstUseBinding(), inv.BINDINGS[inv.BINDINGS.length - 1].value);
+  assert.equal(firstUseBinding(), "other");
+  assert.equal(formDefaults({}).binding, "other");
+  assert.equal(formDefaults({ binding: "hardback" }).binding, "hardcover");
+});
+
+test("hardcover and hardback both normalise to the stored key hardcover, labelled Hardback", () => {
+  assert.equal(inv.normalizeBinding("hardcover"), "hardcover");
+  assert.equal(inv.normalizeBinding("hardback"), "hardcover");
+  assert.equal(pricingBinding("hardback"), "hardcover");
+  assert.equal(inv.bindingLabel("hardback", "en"), "Hardback");
+  assert.equal(inv.bindingLabel("hardcover", "fr"), "Relié");
 });
 
 test("the legacy value paperback is an alias of trade; unknown values are null", () => {
