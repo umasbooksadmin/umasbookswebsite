@@ -203,7 +203,7 @@ s.test("A9g (must) on a phone (390 px, touch) after a lookup, tapping each text 
   });
   await ctx.page.type("#isbn", REAL_ISBN);
   await ctx.page.keyboard.press("Enter");
-  await ctx.page.evaluate(() => { const d = document.querySelector("details"); if (d) d.open = true; });
+  await ctx.page.evaluate(() => { document.querySelectorAll("details").forEach((d) => { d.open = true; }); });
   const ids = ["title", "author", "location", "publisherPrice", "description"];
   for (const id of ids) {
     if (!(await ctx.page.$(`#${id}`))) continue;
