@@ -23,7 +23,12 @@ name: Nightly database backup
 on:
   schedule:
     - cron: "0 3 * * *" # 03:00 UTC nightly
-  workflow_dispatch: {} # allows a manual "Run workflow" from the Actions tab
+  workflow_dispatch: # allows a manual "Run workflow" from the Actions tab
+    inputs:
+      force_monthly:
+        description: "Also write the long-term monthly/ copy now, even if it is not the 1st and one already exists this month (default: no)"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -139,6 +144,7 @@ jobs:
           PREFIX: ${{ vars.BACKUP_S3_PREFIX }}
           ENCRYPT: ${{ steps.enc.outputs.encrypt }}
           BACKUP_AGE_RECIPIENT: ${{ vars.BACKUP_AGE_RECIPIENT }}
+          FORCE_MONTHLY: ${{ inputs.force_monthly }}
         run: |
           if [ -z "$DATABASE_URL" ]; then
             echo "::error::DATABASE_URL secret is not set — see this workflow's comments for how to add it."
@@ -191,12 +197,29 @@ jobs:
           # The CLI exits non-zero if an upload fails.
           aws s3 cp "$UPLOAD" "s3://${BUCKET}/${PREFIX}/full/$(basename "$UPLOAD")" --endpoint-url "$ENDPOINT" --only-show-errors
           echo "Uploaded ($(du -h "$UPLOAD" | cut -f1)) to ${BUCKET}/${PREFIX}/full/$(basename "$UPLOAD")"
-          # On the 1st of the month (UTC) also keep a long-term copy.
-          if [ "$(date -u +%d)" = "01" ]; then
+          # Long-term copy (monthly/): at most ONE per calendar month (UTC). It is
+          # written when none exists yet this month AND (today is the 1st, OR no
+          # monthly copy exists at all: bootstrap, so the first month is covered
+          # at once). A manual run with force_monthly=true writes it regardless.
+          # The list query is null-safe: an empty folder returns "Contents: null".
+          NEWEST_MONTHLY=$(aws s3api list-objects-v2 --endpoint-url "$ENDPOINT" --bucket "$BUCKET" \
+                             --prefix "${PREFIX}/monthly/umas_books_full_" --delimiter "/" \
+                             --query 'sort_by(Contents || `[]`, &LastModified)[-1].LastModified' --output text)
+          THIS_MONTH=$(date -u +%Y-%m)
+          WRITE_MONTHLY=no
+          if [ "$FORCE_MONTHLY" = "true" ]; then
+            WRITE_MONTHLY=yes
+          elif [ -z "$NEWEST_MONTHLY" ] || [ "$NEWEST_MONTHLY" = "None" ]; then
+            WRITE_MONTHLY=yes # bootstrap: no monthly copy exists at all
+          elif [ "$(date -u +%d)" = "01" ] && [ "${NEWEST_MONTHLY:0:7}" != "$THIS_MONTH" ]; then
+            WRITE_MONTHLY=yes
+          fi
+          if [ "$WRITE_MONTHLY" = "yes" ]; then
             aws s3 cp "$UPLOAD" "s3://${BUCKET}/${PREFIX}/monthly/$(basename "$UPLOAD")" --endpoint-url "$ENDPOINT" --only-show-errors
             echo "Monthly copy written."
+          else
+            echo "No monthly copy needed today (newest: ${NEWEST_MONTHLY})."
           fi
-
       - name: Alert admin if any step above failed
         # `if: failure()` here means "some earlier step in this job
         # failed" — a missed backup only gets one shot until the next

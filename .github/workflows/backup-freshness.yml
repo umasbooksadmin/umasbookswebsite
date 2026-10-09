@@ -5,6 +5,8 @@ name: Backup freshness check
 # This separate daily check looks at Backblaze itself and emails if the
 # newest nightly dump is missing or older than MAX_AGE_HOURS, and (from the 4th
 # of each month) if the long-term monthly/ copy is older than 35 days.
+# Before the FIRST monthly copy exists the check only shows a notice (until the
+# oldest backup is 35 days old); the nightly job writes the first copy at once.
 # Needs the same BACKUP_S3_* repository variables/secrets as the nightly
 # backup, plus GMAIL_USER / GMAIL_APP_PASSWORD for the email.
 # Encrypted backups (<name>.dump.age) are recognised: the first bytes of the
@@ -46,7 +48,7 @@ jobs:
           PREFIX="${PREFIX%/}"
           NEWEST=$(aws s3api list-objects-v2 --endpoint-url "$ENDPOINT" --bucket "$BUCKET" \
                      --prefix "${PREFIX}/full/umas_books_full_" --delimiter "/" \
-                     --query 'sort_by(Contents, &LastModified)[-1].[Key,LastModified,Size]' --output text)
+                     --query 'sort_by(Contents || `[]`, &LastModified)[-1].[Key,LastModified,Size]' --output text)
           if [ -z "$NEWEST" ] || [ "$NEWEST" = "None" ]; then
             echo "::error::No backup dumps found under ${BUCKET}/${PREFIX}/full/."
             exit 1
@@ -98,18 +100,31 @@ jobs:
           MAX_MONTHLY_AGE_DAYS: "35"
         run: |
           DAY_OF_MONTH=$((10#$(date -u +%d)))
-          if [ "$DAY_OF_MONTH" -le 3 ]; then
-            echo "Day $DAY_OF_MONTH of the month: the monthly copy check is skipped until the 4th."
-            exit 0
-          fi
           PREFIX="${PREFIX:-store-backups}"
           PREFIX="${PREFIX%/}"
+          # Null-safe: an empty monthly/ folder makes the API return "Contents: null".
           NEWEST=$(aws s3api list-objects-v2 --endpoint-url "$ENDPOINT" --bucket "$BUCKET" \
                      --prefix "${PREFIX}/monthly/umas_books_full_" --delimiter "/" \
-                     --query 'sort_by(Contents, &LastModified)[-1].[Key,LastModified,Size]' --output text)
+                     --query 'sort_by(Contents || `[]`, &LastModified)[-1].[Key,LastModified,Size]' --output text)
           if [ -z "$NEWEST" ] || [ "$NEWEST" = "None" ]; then
-            echo "::error::No monthly copies found under ${BUCKET}/${PREFIX}/monthly/."
+            # No monthly copy at all. Fine while the system has not had a chance
+            # to make one; a failure once backups are older than the limit.
+            OLDEST=$(aws s3api list-objects-v2 --endpoint-url "$ENDPOINT" --bucket "$BUCKET" \
+                       --prefix "${PREFIX}/full/umas_books_full_" --delimiter "/" \
+                       --query 'sort_by(Contents || `[]`, &LastModified)[0].LastModified' --output text)
+            if [ -n "$OLDEST" ] && [ "$OLDEST" != "None" ]; then
+              OLDEST_DAYS=$(( ( $(date -u +%s) - $(date -u -d "$OLDEST" +%s) ) / 86400 ))
+              if [ "$OLDEST_DAYS" -lt "$MAX_MONTHLY_AGE_DAYS" ]; then
+                echo "::notice title=No monthly copy yet::No monthly copy yet: the first one is written by the nightly backup on the 1st of next month (or the next nightly run, which writes one when none exists). Oldest backup is ${OLDEST_DAYS} days old."
+                exit 0
+              fi
+            fi
+            echo "::error::No monthly copies found under ${BUCKET}/${PREFIX}/monthly/, although backups have existed for ${MAX_MONTHLY_AGE_DAYS} days or more."
             exit 1
+          fi
+          if [ "$DAY_OF_MONTH" -le 3 ]; then
+            echo "Day $DAY_OF_MONTH of the month: the monthly copy age check is skipped until the 4th."
+            exit 0
           fi
           KEY=$(echo "$NEWEST" | awk '{print $1}')
           WHEN=$(echo "$NEWEST" | awk '{print $2}')
