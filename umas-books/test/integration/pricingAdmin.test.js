@@ -323,6 +323,21 @@ test("endpoint: 30 a minute per person, then 429 as JSON; another person is not 
 
 // ---------------------------------------------------------------- learning loop
 
+test("Save book (fast=0) and Save and add another (fast=1) store the same price and suggestion fields", async () => {
+  const cases = [
+    { priceLevel: "8", price: "8", suggestedPrice: "8", suggestedLevel: "8" },
+    { priceLevel: "custom", price: "11", suggestedPrice: "8", suggestedLevel: "8" },
+    { priceLevel: "clearance", price: "1", suggestedPrice: "1", suggestedLevel: "clearance" },
+    { priceLevel: "custom", price: "5" },
+  ];
+  const pick = (c) => [c.price == null ? null : Number(c.price), c.suggested_price == null ? null : Number(c.suggested_price), c.suggested_level, c.price_basis, c.is_clearance];
+  for (const c of cases) {
+    const a = await addCopy({ ...c, fast: "0" });
+    const b = await addCopy({ ...c, fast: "1" });
+    assert.deepEqual(pick(b), pick(a), JSON.stringify(c));
+  }
+});
+
 test("saving a copy records what was suggested: suggested / adjusted / manual / review", async () => {
   const kept = await addCopy({ priceLevel: "8", price: "8", suggestedPrice: "8", suggestedLevel: "8" });
   assert.deepEqual([Number(kept.price), Number(kept.suggested_price), kept.suggested_level, kept.price_basis, kept.is_clearance], [8, 8, "8", "suggested", false]);
