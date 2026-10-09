@@ -3,6 +3,8 @@
 // Fails open (returns null) on any error or missing config, so the
 // caller falls back to manual entry rather than blocking the scan flow.
 
+const { recordCall } = require("./aiUsageStats");
+
 const VISION_MODEL = "claude-haiku-4-5-20251001";
 
 const PROMPT = `This is a photo of a physical book, either its front cover or its back cover/barcode area. Extract whatever of the following you can actually see:
@@ -34,6 +36,8 @@ async function extractBookInfoFromPhoto(buffer, mimeType) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 20000);
 
+  const t0 = Date.now();
+  let recorded = false; // usage statistics (counts only), see lib/aiUsageStats.js
   try {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -60,11 +64,16 @@ async function extractBookInfoFromPhoto(buffer, mimeType) {
     });
 
     if (!res.ok) {
-      console.warn("Vision API request failed:", res.status, await res.text().catch(() => ""));
+      const body = await res.text().catch(() => "");
+      recorded = true;
+      recordCall("cover", { status: res.status, bodyText: body, ms: Date.now() - t0 });
+      console.warn("Vision API request failed:", res.status, body);
       return null;
     }
 
     const data = await res.json();
+    recorded = true;
+    recordCall("cover", { status: res.status, data, ms: Date.now() - t0 });
     const text = data.content && data.content[0] && data.content[0].text;
     if (!text) {
       console.warn("Vision extraction skipped: unexpected response shape:", JSON.stringify(data).slice(0, 500));
@@ -83,6 +92,7 @@ async function extractBookInfoFromPhoto(buffer, mimeType) {
       author: parsed.author || null,
     };
   } catch (err) {
+    if (!recorded) recordCall("cover", { failed: true, ms: Date.now() - t0 });
     console.warn("Vision extraction skipped:", err.name === "AbortError" ? "request timed out" : err.message);
     return null;
   } finally {

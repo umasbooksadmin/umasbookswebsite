@@ -147,7 +147,11 @@ more things to keep in mind:
   the book's page). The report **Reports > Book lookup sources used**
   (`/admin/reports/lookup-sources`) counts how often each catalog (Open
   Library, BnF, Google Books, ISBNdb) was used, supplied the title or failed
-  (counts only, see `docs/runbook.md`, "Which catalogs are used").
+  (counts only, see `docs/runbook.md`, "Which catalogs are used"). The same
+  report ends with **AI usage**: calls, errors, tokens and an estimated cost
+  per AI feature (description, French translation, genres, cover photo,
+  price check), and a red banner when the Anthropic credit has run out
+  (`docs/runbook.md`, "AI usage").
 - **Book search** (`/books`, public, no login) — anyone can search
   in-stock inventory by title, author, or genre, and add copies to the
   cart (the reservation flow above). A copy is held (status `reserved`) when

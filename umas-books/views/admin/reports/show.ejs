@@ -70,6 +70,8 @@
 </div>
 <% } %>
 
+<% if (result.banner) { %><div class="card" role="alert" style="border: 2px solid #b00020; background: #fdecea; color: #7a0014;"><strong><%= result.banner.text %></strong></div><% } %>
+
 <% result.notes.forEach(n => { %><p class="muted small"><%= n %></p><% }) %>
 
 <% result.sections.forEach((section, idx) => { %>
@@ -83,18 +85,18 @@
       <div class="table-scroll"><table class="ann-table">
         <thead>
           <tr>
-            <% section.columns.forEach(c => { %><th<%- ['int', 'eur', 'pct', 'dec1'].includes(c.type) ? ' style="text-align:right;"' : '' %>><%= c.label %></th><% }) %>
+            <% section.columns.forEach(c => { %><th<%- ['int', 'eur', 'usd', 'eur4', 'pct', 'dec1'].includes(c.type) ? ' style="text-align:right;"' : '' %>><%= c.label %></th><% }) %>
           </tr>
         </thead>
         <tbody>
           <% section.rows.forEach(row => { %>
             <tr>
-              <% section.columns.forEach(c => { %><td<%- ['int', 'eur', 'pct', 'dec1'].includes(c.type) ? ' style="text-align:right;"' : '' %>><%= formatCell(row[c.key], c.type) || '–' %></td><% }) %>
+              <% section.columns.forEach(c => { %><td<%- ['int', 'eur', 'usd', 'eur4', 'pct', 'dec1'].includes(c.type) ? ' style="text-align:right;"' : '' %>><%= formatCell(row[c.key], c.type) || '–' %></td><% }) %>
             </tr>
           <% }) %>
           <% if (section.totals) { %>
             <tr>
-              <% section.columns.forEach(c => { %><td<%- ['int', 'eur', 'pct', 'dec1'].includes(c.type) ? ' style="text-align:right;"' : '' %>><strong><%= formatCell(section.totals[c.key], c.type) || '–' %></strong></td><% }) %>
+              <% section.columns.forEach(c => { %><td<%- ['int', 'eur', 'usd', 'eur4', 'pct', 'dec1'].includes(c.type) ? ' style="text-align:right;"' : '' %>><strong><%= formatCell(section.totals[c.key], c.type) || '–' %></strong></td><% }) %>
             </tr>
           <% } %>
         </tbody>

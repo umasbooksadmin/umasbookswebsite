@@ -554,6 +554,16 @@ const runLookupStatsPrune = guardJob("Lookup statistics retention", async () => 
 runLookupStatsPrune();
 const lookupStatsTimer = setInterval(runLookupStatsPrune, DAY);
 
+// AI usage statistics (lib/aiUsageStats.js, same report): call/token counts per feature, same batching and retention.
+const aiUsageStats = require("./lib/aiUsageStats");
+aiUsageStats.getStats().start();
+const runAiUsagePrune = guardJob("AI usage statistics retention", async () => {
+  const removed = await aiUsageStats.pruneAiUsageStats(pool);
+  if (removed) console.log("AI usage statistics retention:", JSON.stringify({ removed }));
+}, { pool, intervalMs: DAY });
+runAiUsagePrune();
+const aiUsageStatsTimer = setInterval(runAiUsagePrune, DAY);
+
 // Awards & best-seller lists (lib/awards): every 2 minutes look up a few
 // books that have never been checked (newest first), plus retries of failed
 // checks and a yearly refresh. This also back-fills old books gradually. No
@@ -609,6 +619,7 @@ function shutdown(signal) {
   clearInterval(imageCleanupTimer);
   clearInterval(awardsTimer);
   clearInterval(lookupStatsTimer);
+  clearInterval(aiUsageStatsTimer);
   clearInterval(coverTimer);
   clearTimeout(coverFirstTimer);
   setTimeout(() => {
@@ -617,7 +628,7 @@ function shutdown(signal) {
   }, SHUTDOWN_TIMEOUT_MS).unref();
   server.close(() => {
     // the lookup counts still in memory go to the database before the pool closes (never fails the shutdown)
-    lookupStats.getStats().stop().catch(() => {}).then(() => pool.end()).then(
+    Promise.all([lookupStats.getStats().stop().catch(() => {}), aiUsageStats.getStats().stop().catch(() => {})]).then(() => pool.end()).then(
       () => {
         console.log("Shutdown complete.");
         process.exit(0);

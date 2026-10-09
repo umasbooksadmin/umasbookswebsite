@@ -4,9 +4,11 @@
 // open (return null) on any error or missing config, so a book can
 // still be saved without one rather than blocking the save.
 
+const { recordCall } = require("./aiUsageStats");
+
 const TEXT_MODEL = "claude-haiku-4-5-20251001";
 
-async function callClaude(prompt, { maxTokens = 200, label }) {
+async function callClaude(prompt, { maxTokens = 200, label, feature = "description" }) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     console.warn(`${label} skipped: ANTHROPIC_API_KEY not set.`);
@@ -16,6 +18,8 @@ async function callClaude(prompt, { maxTokens = 200, label }) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8000);
 
+  const t0 = Date.now();
+  let recorded = false; // usage statistics (counts only), see lib/aiUsageStats.js
   try {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -34,11 +38,16 @@ async function callClaude(prompt, { maxTokens = 200, label }) {
     });
 
     if (!res.ok) {
-      console.warn(`${label} request failed:`, res.status, await res.text().catch(() => ""));
+      const body = await res.text().catch(() => "");
+      recorded = true;
+      recordCall(feature, { status: res.status, bodyText: body, ms: Date.now() - t0 });
+      console.warn(`${label} request failed:`, res.status, body);
       return null;
     }
 
     const data = await res.json();
+    recorded = true;
+    recordCall(feature, { status: res.status, data, ms: Date.now() - t0 });
     const text = data.content && data.content[0] && data.content[0].text;
     if (!text) {
       console.warn(`${label} skipped: unexpected response shape:`, JSON.stringify(data).slice(0, 500));
@@ -46,6 +55,7 @@ async function callClaude(prompt, { maxTokens = 200, label }) {
     }
     return text.trim();
   } catch (err) {
+    if (!recorded) recordCall(feature, { failed: true, ms: Date.now() - t0 });
     console.warn(`${label} skipped:`, err.name === "AbortError" ? "request timed out" : err.message);
     return null;
   } finally {
@@ -83,7 +93,7 @@ async function translateDescriptionToFrench(englishText) {
 
 "${englishText}"`;
 
-  return callClaude(prompt, { maxTokens: 250, label: "AI description (French)" });
+  return callClaude(prompt, { maxTokens: 250, label: "AI description (French)", feature: "translation" });
 }
 
 module.exports = { generateBookDescription, translateDescriptionToFrench, TEXT_MODEL };

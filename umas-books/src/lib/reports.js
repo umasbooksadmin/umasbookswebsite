@@ -97,6 +97,8 @@ function formatCell(value, type, { csv = false } = {}) {
   if (value === null || value === undefined || value === "") return "";
   switch (type) {
     case "int": return String(Math.round(Number(value)));
+    case "usd": return csv ? Number(value).toFixed(4) : `$${Number(value).toFixed(4)}`;
+    case "eur4": return csv ? Number(value).toFixed(4) : `€${Number(value).toFixed(4)}`;
     case "eur": return csv ? Number(value).toFixed(2) : `€${Number(value).toFixed(2)}`;
     case "pct": return Number(value).toFixed(1) + (csv ? "" : "%");
     case "dec1": return Number(value).toFixed(1);
@@ -724,7 +726,7 @@ const REPORTS = [
   { slug: "intake", title: "Intake log", summary: "Copies added per month and by source, with acquisition cost, and the latest additions.", usesRange: true, run: intakeReport },
   { slug: "accounts", title: "Accounts", summary: "Everyone with an account by type (admin, volunteer, member, account holder, unconfirmed), with reservations and spend. Shows names and emails.", filters: "accounts", csvTable: "accounts", run: accountsReport },
   { slug: "accounting", title: "Accounting export", summary: "For the treasurer: one row per day, category and payment method (till, shop, online, membership), no customer data. Download the CSV.", usesRange: true, run: (db, ctx) => require("./accounting").accountingExportReport(db, ctx) },
-  { slug: "lookup-sources", title: "Book lookup sources used", summary: "How often each book catalog (Open Library, BnF, Google Books, Open Library data API, ISBNdb) was asked, supplied the title, failed or was slow, with cache hits and ISBNs not found. Counts only.", usesPeriod: true, csvTable: "sources", run: (db, ctx) => require("./lookupSourcesReport").run(db, ctx) },
+  { slug: "lookup-sources", title: "Book lookup sources used", summary: "How often each book catalog (Open Library, BnF, Google Books, Open Library data API, ISBNdb) was asked, supplied the title, failed or was slow, with cache hits and ISBNs not found; then what the AI features used (calls, tokens, errors, credit). Counts only.", usesPeriod: true, csvTable: "sources", run: (db, ctx) => require("./lookupSourcesReport").run(db, ctx) },
 ];
 
 const getReport = (slug) => REPORTS.find((r) => r.slug === slug) || null;
