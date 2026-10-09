@@ -47,10 +47,10 @@ test("admin download: French-Excel CSV, one row per copy, no personal data", asy
   assert.equal(res.status, 200);
   assert.match(res.headers.get("content-type"), /text\/csv/);
   assert.match(res.headers.get("content-disposition"), /attachment; filename="inventory_\d{4}-\d\d-\d\d\.csv"/);
-  assert.ok(text.startsWith("﻿"));
+  assert.ok(text.startsWith("\uFEFF"));
   const lines = text.split("\r\n");
   assert.equal(lines.length, 6); // header, 4 copies, trailing empty
-  assert.match(lines[0], /^"?﻿?"ISBN-13";"ISBN-10";"Title"/);
+  assert.match(lines[0], /^\uFEFF"ISBN-13";"ISBN-10";"Title"/);
   for (const secret of SECRETS) assert.ok(!text.includes(secret), secret);
   assert.match(text, /"Reserved"/);
   assert.match(text, /"'=SUM\(A1\)"/); // formula neutralised
