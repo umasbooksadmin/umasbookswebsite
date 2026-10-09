@@ -353,6 +353,7 @@ These two forms send an email to the shop mailbox (`CONTACT_TO`). The emails are
 - [ ] **G61.** Open a book page that has a cover. **You should see:** the cover appears in a box that was already the right size (the text below does not jump when it loads), the cover comes from this site (its address starts with `/img/`), and nothing is requested from openlibrary.org or archive.org (browser developer tools, Network tab). A book whose cover could not be copied shows a grey "No cover" box, never a broken-image icon.
 
 - [ ] **G62.** Open **Browse Books** (`/books.html`) and look at the "New In" carousel and a search result grid (also at phone width). **You should see:** every cover shown whole, scaled to fit inside the same upright box, centred on a pale background (a wide or very tall cover leaves pale bars at the sides or top and bottom, but nothing is cut off); a book without a cover shows a "No cover" box of the same size; the page never scrolls sideways.
+- [ ] **G81 (must). Nothing wider than the phone screen.** On a phone (or a browser window 375 and 320 pixels wide), open the home page, **About**, **Browse Books**, **Events**, **Programs**, **Membership**, **Visit**, **Volunteer**, the legal pages, **Sessions**, **Contact**, **Request a book**, the cart and the login page, in English and in French. **You should see:** every page fits the screen width: no sideways scroll and no text or button cut off at the right edge (a carousel you swipe on purpose is fine).
 
 ## Script 2. Account holder (logged in, not a member)
 
