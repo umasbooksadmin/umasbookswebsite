@@ -54,6 +54,17 @@ file, so a local Postgres with `createdb`/`dropdb` on your `PATH` is all
 they need. Each test file uses its own fixed port (see the `PORT` constant
 at the top of the file); pick an unused one for a new file.
 
+#### French (the second language of the whole customer side)
+
+Everything customers see must be French when they choose French. A test
+(`test/integration/i18nCrawler.test.js`) checks it page by page, form message by form
+message and email by email, and fails when a new English text appears on the French side.
+Write every customer-facing text as `tr('English', 'Français')` (views, routes) or in the
+page's EN and FR dictionaries (marketing pages). `node scripts/i18n-audit.js` shows what is
+left; [`../docs/i18n-audit.md`](../docs/i18n-audit.md) has the "definition of done" and the
+allow-list rules, and [`../docs/testing/french-review.md`](../docs/testing/french-review.md)
+is the list of screens and emails to read when you review the French.
+
 #### Writing tests that are safe on the shared CI database
 
 With `DATABASE_URL` set (as in CI) there is ONE Postgres database and node

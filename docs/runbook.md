@@ -2231,3 +2231,29 @@ between `Hamlet` and `Hunger Games`. The title shown is never changed.
 * `books.title_sort` is a generated column: it updates itself when a title is edited,
   and there is nothing to run by hand. If a title looks mis-sorted, check
   `SELECT title, title_sort FROM books WHERE id = ...`.
+
+## ac) Reviewing the French (and what to do when a French text is wrong)
+
+The whole customer side (pages, messages after a form, emails) is French when a visitor picks
+French; the admin screens and the emails sent to the admins stay English. A test fails if a new
+English text slips into the French version.
+
+* **To review**: `docs/testing/french-review.md` is a 30-item checklist (which screen, which URL,
+  how to get each email on the test system). About an hour.
+* **A text is wrong or awkward**: it is written in the place where it appears, as
+  `tr('English', 'Français')` in `views/*.ejs` and `src/routes/*.js`, in the page's French dictionary
+  (`views/marketing/*.ejs`, `pageI18nFr`) or in `assets/site.js` (shared). Search for a few of its
+  words. Fix the French only; leave the English as it is. A developer runs `npm test` and
+  `npm run lint` before it goes live. Emails use `tr(...)` too (`src/lib/orderEmail.js`,
+  `emailVerification.js`, `passwordReset.js`, `bookRequests.js`, `privacy.js`).
+* **Words we use**: vous everywhere; réservation, adhésion / adhérent(e), bénévole, librairie,
+  livre d'occasion, état (Neuf, Comme neuf, Très bon état, Bon état, État correct), panier, retrait en
+  boutique, régler sur place, mot de passe, e-mail (with the hyphen, as on the legal pages),
+  Se connecter, Créer un compte, Espace membres. Prices `12,50 €`; 0 and 1 are singular (`0 vote`).
+* **What is deliberately not translated**: the shop's name "Uma's Books and Adventures", legal
+  entity names, book titles, authors and publishers, award names, and anything people or admins
+  write themselves (forum posts, announcements, blog posts, event and session descriptions).
+  Those are stored in one language. The list with reasons is in `docs/i18n-audit.md`.
+* **Counts**: `cd umas-books && node scripts/i18n-audit.js` prints every page that still has English in
+  its French version (should say `TOTAL flagged: 0`); `--write` updates the table in
+  `docs/i18n-audit.md`.

@@ -195,7 +195,9 @@ re-applies the same strings after a client-side toggle), with localised dates.
 Euro amounts go through one helper, `formatEuro` (`lib/money.js`): `12,50 €` in
 French, `€12.50` in English. Emails follow the reader's stored language:
 `users.lang` (set at signup, refreshed at login), `orders.lang` (set at
-reservation) and `book_requests.lang`; an empty value means English. Book
+reservation) and `book_requests.lang`; an empty value means English. French mails
+carry the same no-break spaces as the pages. A crawler test reads every customer page,
+form message and email in French and fails on English left in them (`docs/i18n-audit.md`). Book
 descriptions have a French column (`description_fr`). Admin screens, and the
 admin-only alert emails, stay English.
 
@@ -1355,8 +1357,8 @@ Deliberate trade-offs (revisit only if traffic or risk changes):
   the server (to send French HTML) and by the toggle script; a new marketing string
   goes in both dictionaries, and a new page needs `meta.title` and
   `meta.description` entries. French typography in the dictionaries (no-break space
-  before `; : ! ? €`) is enforced by a unit test; the many `tr()` strings in the
-  app views are not yet checked for it.
+  before `; : ! ? €`) is enforced by a unit test; the `tr()` strings in the app views get
+  the same spacing from `lib/frenchTypography.js` when the page is sent.
 * **Awards and price lookups depend on outside services.** Wikidata, the NYT
   API and the AI price search can be slow, wrong or unavailable; every call has a
   timeout, failures are retried later, and a price is only ever a suggestion. The

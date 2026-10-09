@@ -1,0 +1,398 @@
+[
+ {
+  "file": "src/routes/bookRequests.js",
+  "text": "Book request confirmation email"
+ },
+ {
+  "file": "src/routes/bookRequests.js",
+  "text": "AND lower(email) = $3"
+ },
+ {
+  "file": "src/routes/bookRequests.js",
+  "text": "Book request list email"
+ },
+ {
+  "file": "src/routes/books.js",
+  "text": "OR (${} <> '' AND length(${}) >= 10 AND regexp_replace(COALESCE(b.isbn, ''), '[^0-9Xx]', '', 'g') = ${}))"
+ },
+ {
+  "file": "src/routes/books.js",
+  "text": "(b.categories ILIKE ${} AND b.categories NOT ILIKE '%non-fiction%' AND b.categories NOT ILIKE '%nonfiction%')"
+ },
+ {
+  "file": "src/routes/contact.js",
+  "text": "General question"
+ },
+ {
+  "file": "src/routes/contact.js",
+  "text": "English programs"
+ },
+ {
+  "file": "src/routes/contact.js",
+  "text": "Donating books"
+ },
+ {
+  "file": "src/routes/contact.js",
+  "text": "Feedback on the preview"
+ },
+ {
+  "file": "src/routes/contact.js",
+  "text": "), address: values.email }, subject: `Website contact: ${values.topic} — ${emailSafeName(values.name)}`, text: `New message from the website contact formnn` + `"
+ },
+ {
+  "file": "src/routes/dashboard.js",
+  "text": "status IN ('published', 'scheduled') AND published_at <= now() AND (expires_at IS NULL OR expires_at > now())"
+ },
+ {
+  "file": "src/routes/events.js",
+  "text": "PRODID:-//Uma's Books and Adventures//Events//EN"
+ },
+ {
+  "file": "src/routes/forum.js",
+  "text": "Illegal content"
+ },
+ {
+  "file": "src/routes/forum.js",
+  "text": "A forum {} was reported."
+ },
+ {
+  "file": "src/routes/forum.js",
+  "text": "Reported by: {} (member #{})"
+ },
+ {
+  "file": "src/routes/forum.js",
+  "text": "Author of the post: {}"
+ },
+ {
+  "file": "src/routes/forum.js",
+  "text": "Text reported (first 300 characters):"
+ },
+ {
+  "file": "src/routes/forum.js",
+  "text": "Forum report: {} ({} {})"
+ },
+ {
+  "file": "src/routes/marketingForms.js",
+  "text": "Volunteer sign-up"
+ },
+ {
+  "file": "src/routes/seo.js",
+  "text": ", ]; if (base) lines.push("
+ },
+ {
+  "file": "src/routes/seo.js",
+  "text": "+ f), ...DYNAMIC_PAGES] .map((p) => ` <url><loc>${xmlEscape(base + p)}</loc></url>`); for (const b of bookRows) { const lastmod = b.updated_at ? `<lastmod>${new"
+ },
+ {
+  "file": "src/routes/seo.js",
+  "text": "Sitemap unavailable: base URL is not configured."
+ },
+ {
+  "file": "src/lib/cart.js",
+  "text": "Cart hold expiry failing for some reservations"
+ },
+ {
+  "file": "src/lib/cart.js",
+  "text": "Could not release the expired cart hold for reservation(s): {}. Other holds were released normally; these will be retried on the next sweep."
+ },
+ {
+  "file": "src/lib/errorHandler.js",
+  "text": "Vous n’avez pas l’autorisation d’effectuer cette action."
+ },
+ {
+  "file": "src/lib/errorHandler.js",
+  "text": "Page introuvable."
+ },
+ {
+  "file": "src/lib/errorHandler.js",
+  "text": "Ce type de fichier n’est pas pris en charge."
+ },
+ {
+  "file": "src/lib/errorHandler.js",
+  "text": "Error on {}"
+ },
+ {
+  "file": "src/lib/orderEmail.js",
+  "text": "YOUR RIGHTS"
+ },
+ {
+  "file": "src/lib/orderEmail.js",
+  "text": "Legal guarantees: you keep the legal guarantee of conformity (art. L.217-3 et seq. of the Consumer Code) and the guarantee against hidden defects (arts. 1641 et"
+ },
+ {
+  "file": "src/lib/orderSweeps.js",
+  "text": "o.status = 'reserved' AND o.customer_pickup_reminder_sent_at IS NULL AND o.buyer_email NOT LIKE '%@erased.invalid' AND o.reserved_until > now() AND o.reserved_u"
+ },
+ {
+  "file": "src/lib/orderSweeps.js",
+  "text": "o.status = 'expired' AND o.release_reason = 'expired' AND o.expiry_notice_sent_at IS NULL AND o.buyer_email NOT LIKE '%@erased.invalid' AND o.released_at > now("
+ },
+ {
+  "file": "src/lib/orderSweeps.js",
+  "text": "o.status = 'reserved' AND o.reserved_until > now() AND o.reserved_until <= now() + interval '{} days' AND EXISTS (SELECT 1 FROM order_items i WHERE i.order_id ="
+ },
+ {
+  "file": "src/lib/orderSweeps.js",
+  "text": "- Reservation #{}: {} <{}>, {}, held until the end of {}n {}"
+ },
+ {
+  "file": "src/lib/orderSweeps.js",
+  "text": "These reservations will be released automatically within {} days if nobody collects them.nn{}nn"
+ },
+ {
+  "file": "src/lib/orderSweeps.js",
+  "text": "If a customer asked for more time, open the reservation and press \"Extend by {} days\" (once)."
+ },
+ {
+  "file": "src/lib/orderSweeps.js",
+  "text": "See the runbook, \"Reservations not collected\". This list is sent once per reservation; the full list is always at {}/admin/orders?show=expiring_soon"
+ },
+ {
+  "file": "src/lib/orderSweeps.js",
+  "text": "These paid reservations have not been marked collected, and were paid {} or more days ago."
+ },
+ {
+  "file": "src/lib/orderSweeps.js",
+  "text": "The terms of sale ask customers to collect within 14 days of payment and to write to us if they need longer.nn{}nn"
+ },
+ {
+  "file": "src/lib/orderSweeps.js",
+  "text": "If a customer collected, open the reservation and press \"Mark collected\". If they have not, see the runbook, \"A reservation was not collected after 14 days\"."
+ },
+ {
+  "file": "src/lib/orderSweeps.js",
+  "text": "This list is sent once per reservation; the full list is always at {}/admin/orders?show=uncollected"
+ },
+ {
+  "file": "src/lib/bookRequests.js",
+  "text": "We've set this copy aside for you for {} days (until {}). Come by the shop to pick it up and pay in person."
+ },
+ {
+  "file": "src/lib/bookRequests.js",
+  "text": "Only a matched request can be notified. Match it to a book first."
+ },
+ {
+  "file": "src/lib/bookRequests.js",
+  "text": "This request has no email address any more."
+ },
+ {
+  "file": "src/lib/bookRequests.js",
+  "text": "The matched copy no longer exists. Match the request to a book again."
+ },
+ {
+  "file": "src/lib/bookRequests.js",
+  "text": "That copy has no price yet, so it can't be held. Set its price first. Nothing was sent."
+ },
+ {
+  "file": "src/lib/bookRequests.js",
+  "text": "That copy is no longer in stock, so it can't be held. Nothing was sent."
+ },
+ {
+  "file": "src/lib/bookRequests.js",
+  "text": "That copy is no longer in stock. Nothing was sent."
+ },
+ {
+  "file": "src/lib/bookRequests.js",
+  "text": "That request changed while you were working. Please reload."
+ },
+ {
+  "file": "src/lib/bookRequests.js",
+  "text": "The email could not be sent, so nothing was changed. Please try again."
+ },
+ {
+  "file": "src/lib/bookRequests.js",
+  "text": "Book request"
+ },
+ {
+  "file": "src/lib/privacy.js",
+  "text": "NOT is_admin AND (member_expires_at IS NULL OR member_expires_at < now()) AND COALESCE(last_login_at, created_at) < now() - interval '{} years' + interval '{} d"
+ },
+ {
+  "file": "src/lib/membership.js",
+  "text": "[umas-books] Membership payment from {} matches no confirmed account"
+ },
+ {
+  "file": "src/lib/membership.js",
+  "text": "The person paid on HelloAsso but no confirmed site account uses that email (often a typo, or another address than their account's)."
+ },
+ {
+  "file": "src/lib/membership.js",
+  "text": "Open {}/admin/members#unmatched-payments, find their account and use \"Link to account\". See docs/runbook.md, \"A member paid with another email\"."
+ },
+ {
+  "file": "src/lib/marketingForms.js",
+  "text": "Early afternoon"
+ },
+ {
+  "file": "src/lib/marketingForms.js",
+  "text": "Late afternoon"
+ },
+ {
+  "file": "src/lib/marketingForms.js",
+  "text": "An adult, for themselves"
+ },
+ {
+  "file": "src/lib/marketingForms.js",
+  "text": "A parent or guardian, for a child"
+ },
+ {
+  "file": "src/lib/marketingForms.js",
+  "text": "Website pre-registration: {}"
+ },
+ {
+  "file": "src/lib/marketingForms.js",
+  "text": "+ ` First name: ${c(v.childFirst)}n Last name: ${c(v.childLast)}n Year of birth: ${v.birthYear}nn` :"
+ },
+ {
+  "file": "src/lib/marketingForms.js",
+  "text": "s parent or legal guardian and agree to be contacted about this program.n\" : \"The person confirmed they agree to be contacted about this program.n\") + `Site lan"
+ },
+ {
+  "file": "src/lib/forumModeration.js",
+  "text": "Illegal content"
+ },
+ {
+  "file": "src/lib/forumModeration.js",
+  "text": "Contenu illicite"
+ },
+ {
+  "file": "src/lib/reservations.js",
+  "text": "Wishlist match"
+ },
+ {
+  "file": "src/lib/legalText.js",
+  "text": "Price incl. tax, {}"
+ },
+ {
+  "file": "src/lib/inventory.js",
+  "text": "Comme neuf"
+ },
+ {
+  "file": "src/lib/inventory.js",
+  "text": "Usure normale de lecture : quelques plis ou marques, mais propre et complet."
+ },
+ {
+  "file": "src/lib/inventory.js",
+  "text": "New books need the publisher's price (prix éditeur): French law requires them to be sold at that price."
+ },
+ {
+  "file": "src/lib/inventory.js",
+  "text": "A new book must be sold at the publisher's price (€{}), with at most 5% off: the price must be between €{} and €{}."
+ },
+ {
+  "file": "src/lib/privacyRequests.js",
+  "text": "Personal data held by Uma's Books under this email address. Passwords and security secrets are never included. Message texts are not included (they may hold one"
+ },
+ {
+  "file": "src/lib/returnTo.js",
+  "text": "()*+,;=:@%/?#]*$/; function safeReturnTo(value) { if (typeof value !== \"string\" || value.length > 200) return null; if (!SAFE_RE.test(value)) return null; if (v"
+ },
+ {
+  "file": "src/lib/charityCategories.js",
+  "text": "Femmes et famille"
+ },
+ {
+  "file": "src/lib/accountTypes.js",
+  "text": "All accounts"
+ },
+ {
+  "file": "src/lib/accountTypes.js",
+  "text": "Account holder (not a member)"
+ },
+ {
+  "file": "src/lib/accountTypes.js",
+  "text": "Till access"
+ },
+ {
+  "file": "src/lib/accountTypes.js",
+  "text": "Not confirmed"
+ },
+ {
+  "file": "src/lib/accountTypes.js",
+  "text": "Membership expired"
+ },
+ {
+  "file": "src/lib/accountTypes.js",
+  "text": "(CASE WHEN {}.is_admin THEN 'admin' WHEN {}.is_volunteer THEN 'volunteer' WHEN {} THEN 'member' WHEN {}.email_verified_at IS NOT NULL THEN 'account' ELSE 'uncon"
+ },
+ {
+  "file": "src/lib/bookDescription.js",
+  "text": "published by {}"
+ },
+ {
+  "file": "src/lib/bookDescription.js",
+  "text": "Write a short, appealing back-cover-style description (2-3 sentences, no more than 60 words) for this second-hand book, for a bookshop's website: Title: \"{}\" {}"
+ },
+ {
+  "file": "src/lib/bookDescription.js",
+  "text": "Translate this English bookshop back-cover description to French. Keep the same tone and length. Respond with ONLY the French translation, no preamble, no quote"
+ },
+ {
+  "file": "src/index.js",
+  "text": "The post was NOT saved: that picture is larger than 15 MB. Please choose a smaller picture and write the post again."
+ },
+ {
+  "file": "src/index.js",
+  "text": "The post was NOT saved: the upload could not be read. Please try again, with or without the picture."
+ },
+ {
+  "file": "src/index.js",
+  "text": "Unhandled rejection"
+ },
+ {
+  "file": "src/index.js",
+  "text": "Uncaught exception (process restarting)"
+ },
+ {
+  "file": "src/index.js",
+  "text": "Reservation expiry"
+ },
+ {
+  "file": "src/index.js",
+  "text": "Pickup reminders"
+ },
+ {
+  "file": "src/index.js",
+  "text": "Membership expiry"
+ },
+ {
+  "file": "src/index.js",
+  "text": "Membership reconciliation"
+ },
+ {
+  "file": "src/index.js",
+  "text": "Order follow-up"
+ },
+ {
+  "file": "src/index.js",
+  "text": "Cart maintenance"
+ },
+ {
+  "file": "src/index.js",
+  "text": "Email outbox"
+ },
+ {
+  "file": "src/index.js",
+  "text": "Retention purge"
+ },
+ {
+  "file": "src/index.js",
+  "text": "Retention purge: {}"
+ },
+ {
+  "file": "src/index.js",
+  "text": "Image cleanup"
+ },
+ {
+  "file": "src/index.js",
+  "text": "Lookup statistics retention"
+ },
+ {
+  "file": "src/index.js",
+  "text": "Awards check"
+ },
+ {
+  "file": "src/index.js",
+  "text": "Cover backfill"
+ }
+]
