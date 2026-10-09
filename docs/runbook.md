@@ -2261,3 +2261,30 @@ English text slips into the French version.
 * **Counts**: `cd umas-books && node scripts/i18n-audit.js` prints every page that still has English in
   its French version (should say `TOTAL flagged: 0`); `--write` updates the table in
   `docs/i18n-audit.md`.
+
+## Database connections
+
+How many connections to Postgres the site opens, what limits them, and what to do when the log says the pool is saturated.
+
+**The limits.**
+- The Render Postgres plan in `render.yaml` is `1c-2g` (2 GB RAM). Render sets the connection limit from the plan's RAM: **100 simultaneous connections** for a database under 8 GB (200 from 8 GB, 400 from 16 GB, 500 from 32 GB; the old "legacy" plans had 97/197/397). Render does **not** put a connection pooler in front, and when the limit is reached new connections are **refused** (they do not queue). I took these numbers from Render's documentation page "Connecting to Render Postgres" (checked 2026-10); I could not read the live value from the database. To check it yourself: Render dashboard > the database > **Connect** > use the `psql` command, then run `SHOW max_connections;`. Keep about 10 below the number for Postgres's own use.
+- Each app instance has its own pool. During a deploy **two instances overlap** for a minute or two, plus the pre-deploy migration (1 connection), the nightly backup (1) and any `psql` session you have open. With the default of 20 per instance that is about 20 + 20 + 3 = 43 of 100.
+
+**The knobs** (Render environment variables; see section b for where):
+
+| Variable | Default | What it does |
+|---|---|---|
+| `DB_POOL_MAX` | `20` | Most connections ONE instance keeps open. Whole number 2 to 50. Anything else is ignored with a warning in the log (`DB_POOL_MAX="..." is not a whole number from 2 to 50; using 20`), so a typo cannot stop the site. Keep `instances x DB_POOL_MAX` (times 2 during a deploy) well under 100. |
+| `DASHBOARD_COUNTS_CACHE_SECONDS` | `30` on the live site, `0` elsewhere | How long the admin dashboard reuses the book, account, member and unused-image counts (never sales, orders or "needs attention"). `0` = always fresh. |
+
+Fixed in `src/db.js`: wait at most **10 s** for a free connection (then the request fails with "timeout exceeded when trying to connect"), close connections idle for 30 s, end any single query after **30 s** (`statement_timeout`), end a transaction left idle for 30 s. Migrations lift the 30 s limit for their own connection.
+
+**The log line.** If callers have been waiting for a connection for more than 2 seconds, the site writes (at most once a minute) a line like
+
+`DB pool saturated: waiting=4 total=20 idle=0 max=20 (callers have waited 3s for a connection; see docs/runbook.md, "Database connections")`
+
+- `waiting` = requests/jobs queued for a connection right now; `total` = connections open; `idle` = open but free; `max` = `DB_POOL_MAX`.
+- One line during a traffic burst (a mailing, a busy launch hour) is harmless: the queue cleared on its own.
+- Lines every minute for a long time, or users seeing "Something went wrong" with `timeout exceeded when trying to connect` in the logs: something is holding connections or the load is higher than the pool. First look at Render > the service > **Logs** for slow-query or job errors at the same time; then raise `DB_POOL_MAX` one step (for example 20 to 30) if `instances x max x 2` stays under about 90, and redeploy. Raising it is not a cure for a query that never finishes: the 30 s limit ends those.
+
+**What the code does to stay inside the pool** (for developers): the admin dashboard runs its queries at most 3 at a time (`lib/runLimited.js`); the email outbox worker holds **no** connection while it talks to Gmail (it claims rows with one `UPDATE`, sends, and records each result with a short statement; a row whose worker died is picked up again when its 5-minute lease ends); every `pool.connect()` is released in a `finally`. `node scripts/load-dashboard.js` (local database only, not part of CI) fires 30 dashboard requests plus an outbox batch with a slow fake mail server and prints the pool's waiting counts.
