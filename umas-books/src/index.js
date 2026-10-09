@@ -15,6 +15,7 @@ const pgSession = require("connect-pg-simple")(session);
 
 const { pool } = require("./db");
 const { attachUser, requireAdmin } = require("./middleware/auth");
+const { resolveAdminSessionConfig, enforceAdminSession } = require("./lib/adminSession");
 const { csrfProtection, csrfTokenEndpoint } = require("./middleware/csrf");
 const { csrfTokenLimiter } = require("./middleware/rateLimits");
 const { expireStaleReservations, sendPickupReminders } = require("./lib/reservations");
@@ -180,6 +181,8 @@ if (!process.env.SESSION_SECRET) {
 
 const SESSION_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 const SESSION_REFRESH_AFTER_MS = 24 * 60 * 60 * 1000;
+const adminSessionConfig = resolveAdminSessionConfig();
+for (const w of adminSessionConfig.warnings) console.warn(`[session] WARNING: ${w}`);
 // Number of trusted proxy hops (TRUST_PROXY_HOPS, default 2 in production:
 // Cloudflare -> Render edge -> app). See lib/trustProxy.js.
 const { hops: trustProxyHops, error: trustProxyError } = resolveTrustProxyHops();
@@ -228,6 +231,10 @@ app.use((req, res, next) => {
 app.use(langMiddleware);
 app.use(seoLocals);
 app.use(attachUser(pool));
+// Admin / till sessions: 8-hour idle and 7-day absolute limits (lib/adminSession.js).
+// After attachUser (it needs the fresh role flags), before anything else that
+// acts on the user, so an expired admin is signed out on ANY page, not only /admin.
+app.use(enforceAdminSession(adminSessionConfig));
 // Right after attachUser (it needs res.locals.user): logged-in responses are no-store.
 app.use(noStoreForUsers);
 app.use((req, res, next) => {

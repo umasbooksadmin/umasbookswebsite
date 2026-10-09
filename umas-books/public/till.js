@@ -262,6 +262,8 @@
         return r.text().then(function (t) {
           var j = null;
           try { j = JSON.parse(t); } catch (e) { j = null; }
+          // The admin session ended (8 hours idle or 7 days): say so loudly and keep the sale.
+          if (r.status === 401 && j && j.error === "session_expired") { showSessionEnded(j.loginUrl); j = null; }
           return { status: r.status, json: j, redirected: r.redirected };
         });
       });
@@ -342,10 +344,36 @@
     $("picker-title").textContent = "This copy is in an expired cart";
     show("picker");
   }
+  // A banner that stays until dismissed. The login opens in a NEW tab so this page, and the
+  // sale on it, stay put; the sale is also kept in sessionStorage. The page's CSRF token belonged
+  // to the old session, so "I have logged in" fetches a fresh one before the next request.
+  function showSessionEnded(loginUrl) {
+    if ($("till-signed-out")) return;
+    var b = el("div", "till-msg till-msg-error"); b.id = "till-signed-out";
+    b.setAttribute("role", "alert");
+    b.style.position = "fixed"; b.style.left = "0"; b.style.right = "0"; b.style.top = "0"; b.style.zIndex = "2100";
+    b.style.padding = "14px 20px"; b.style.fontWeight = "700"; b.style.textAlign = "center";
+    b.appendChild(el("span", "", "Signed out: your session ended. The sale on the screen is kept; if the customer already paid by card, do not charge again. "));
+    var a = el("a", "", "Log in again (opens a new tab)");
+    a.href = /^\/[^/\\]/.test(loginUrl || "") ? loginUrl : "/login?returnTo=%2Fadmin%2Ftill";
+    a.target = "_blank"; a.rel = "noopener"; a.style.color = "inherit"; a.style.textDecoration = "underline";
+    b.appendChild(a);
+    var done = el("button", "btn btn-outline", "I have logged in: continue");
+    done.type = "button"; done.style.marginLeft = "12px";
+    done.addEventListener("click", function () {
+      fetch("/api/csrf-token", { credentials: "same-origin", headers: { Accept: "application/json" } })
+        .then(function (r) { return r.json(); })
+        .then(function (j) { if (j && j.token) csrf = j.token; b.remove(); showInfo("Back online. Scan again, or continue the sale."); })
+        .catch(function () { showError("Connection problem. Try again."); });
+    });
+    b.appendChild(done);
+    document.body.appendChild(b);
+    beep();
+  }
   // A reply that is not the till's JSON: the till session ended, or the server failed.
   function sessionProblem(r) {
     if (r.json) return null;
-    if (r.redirected || r.status === 401 || r.status === 403) return "Your till session ended. Log in again (the sale on the screen is kept).";
+    if (r.redirected || r.status === 401 || r.status === 403) return "Signed out: log in again (the link at the top of the screen). The sale on the screen is kept.";
     return "The server had a problem (error " + r.status + "). Nothing was confirmed.";
   }
   $("scan-form").addEventListener("submit", function (e) {
