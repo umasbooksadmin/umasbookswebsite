@@ -31,6 +31,7 @@ const { drainAwards } = require("./lib/awards");
 const { purgeUnusedImages } = require("./lib/imageCleanup");
 const { backfillCovers } = require("./lib/coverStore");
 const { purgeExpiredPersonalData } = require("./lib/privacy");
+const { cleanOrderPhones, sendMailboxCleanupReminder } = require("./lib/privacyMaintenance");
 const { membershipPageState } = require("./lib/membershipPage");
 const { expireStaleMemberships, reconcileRecentMemberships } = require("./lib/membership");
 const { alertOnError } = require("./lib/errorAlert");
@@ -222,6 +223,7 @@ app.use(
   })
 );
 app.use(sessionLifetime);
+app.use(require("./lib/flash").flashHousekeeping); // drops typed form values nobody picked up within 10 minutes
 
 // Sliding expiry without per-request writes: if the session was last saved long
 // enough ago that fewer than (lifetime - REFRESH_AFTER) remain, record a
@@ -554,6 +556,21 @@ const runPrivacyPurge = guardJob("Retention purge", async () => {
 runPrivacyPurge();
 const privacyTimer = setInterval(runPrivacyPurge, DAY);
 
+// Buyer phone numbers (lib/privacyMaintenance.js): removed from an order once it is closed or
+// collected and paid, and at the latest 30 days after it was made. Every 6 hours, one batch per run.
+const runOrderPhoneCleanup = guardJob("Order phone cleanup", async () => {
+  const r = await cleanOrderPhones(pool);
+  if (r.orders || r.copies) console.log("Order phone cleanup:", JSON.stringify(r));
+}, { pool, intervalMs: SIX_HOURS });
+setTimeout(runOrderPhoneCleanup, 60 * 1000).unref();
+const orderPhoneCleanupTimer = setInterval(runOrderPhoneCleanup, SIX_HOURS);
+
+// Monthly reminder to empty the shop mailbox of contact-form emails older than 12 months (the privacy
+// policy promises it; it is a manual task). Checked daily; alert_flags makes it one email per 30 days.
+const runMailboxReminder = guardJob("Contact mailbox reminder", () => sendMailboxCleanupReminder(pool), { pool, intervalMs: DAY });
+setTimeout(runMailboxReminder, 90 * 1000).unref();
+const mailboxReminderTimer = setInterval(runMailboxReminder, DAY);
+
 // Unused-image cleanup (lib/imageCleanup.js): not personal data, so its own
 // daily step. Removes at most one batch of images older than 7 days that no
 // row references any more. Counts only in the log line.
@@ -649,6 +666,8 @@ function shutdown(signal) {
   clearInterval(cartTimer);
   clearInterval(outboxTimer);
   clearInterval(privacyTimer);
+  clearInterval(orderPhoneCleanupTimer);
+  clearInterval(mailboxReminderTimer);
   clearInterval(imageCleanupTimer);
   clearInterval(awardsTimer);
   clearInterval(guestSessionPruneTimer);

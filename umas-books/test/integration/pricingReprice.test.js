@@ -156,6 +156,10 @@ test("confirm A: Trade copies go to 5.00 in one run, recorded on the copy, audit
 
   const [run] = await runs();
   assert.deepEqual([run.group_key, Number(run.new_price), run.copies_changed, run.actor_user_id], ["trade", 5, 3, h.admin.id]);
+  // Privacy: the run records the account and a role, never the administrator's email.
+  assert.deepEqual([run.actor_role, run.actor_label], ["admin", null]);
+  assert.ok(!JSON.stringify(run).includes("@"), "no email anywhere in the run row");
+  assert.doesNotMatch(r.text, /@/, "the result page shows no email either");
   const items = await h.q("SELECT * FROM price_reprice_items WHERE run_id = $1 ORDER BY copy_id", [run.id]);
   assert.equal(items.length, 3);
   const withHistory = items.find((i) => i.copy_id === w.trade.ids[10]);
@@ -244,7 +248,7 @@ test("a copy locked by another transaction is skipped, not waited for, and is pi
     await other.query("BEGIN");
     await other.query("SELECT id FROM book_copies WHERE id = $1 FOR UPDATE", [t.ids[0]]); // e.g. a reservation in progress
     const started = Date.now();
-    const result = await reprice.applyGroup(h.pool, "trade", settings, { id: h.admin.id, label: "x" });
+    const result = await reprice.applyGroup(h.pool, "trade", settings, { id: h.admin.id, role: "admin" });
     assert.ok(Date.now() - started < 3000, "did not wait for the lock");
     assert.equal(result.changed, 1);
     assert.equal(await priceOf(t.ids[0]), 8);
@@ -253,7 +257,7 @@ test("a copy locked by another transaction is skipped, not waited for, and is pi
     await other.query("ROLLBACK");
     other.release();
   }
-  const again = await reprice.applyGroup(h.pool, "trade", settings, { id: h.admin.id, label: "x" });
+  const again = await reprice.applyGroup(h.pool, "trade", settings, { id: h.admin.id, role: "admin" });
   assert.equal(again.changed, 1);
   assert.equal(await priceOf(t.ids[0]), 5);
 });
@@ -263,7 +267,7 @@ test("a group is all or nothing: a failure while recording rolls every price bac
   const settings = await require("../../src/lib/pricing/settings").getSettings(h.pool);
   await h.q("ALTER TABLE price_reprice_items RENAME TO price_reprice_items_x");
   try {
-    await assert.rejects(reprice.applyGroup(h.pool, "trade", settings, { id: h.admin.id, label: "x" }));
+    await assert.rejects(reprice.applyGroup(h.pool, "trade", settings, { id: h.admin.id, role: "admin" }));
   } finally {
     await h.q("ALTER TABLE price_reprice_items_x RENAME TO price_reprice_items");
   }
@@ -344,4 +348,25 @@ test("a fresh database ends with the new defaults (migrations run in order)", as
   await h.q("DELETE FROM pricing_settings");
   await h.q("INSERT INTO pricing_settings (id) VALUES (1)");
   assert.deepEqual(num(await settingsRow()), { levels: [3, 5, 10], b_price: 10, fallback_trade: 5, fallback_mass_market: 5, fallback_unknown: 5, fallback_hardcover: 12, trade_price: 5, mass_market_price: 5 });
+});
+
+test("migration 090: reprice run labels older than 12 months are erased, newer ones stay until the purge; the admin FK is SET NULL", async () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const sql = fs.readFileSync(path.join(__dirname, "../../migrations/090_privacy_reprice_actor.sql"), "utf8");
+  await h.q("DELETE FROM price_reprice_runs");
+  await h.q(
+    `INSERT INTO price_reprice_runs (group_key, new_price, copies_changed, actor_user_id, actor_label, created_at) VALUES
+       ('trade', 5, 1, $1, 'old-admin@example.test', now() - interval '13 months'),
+       ('trade', 5, 1, $1, 'recent-admin@example.test', now() - interval '2 months')`,
+    [h.admin.id]
+  );
+  await h.pool.query(sql);
+  await h.pool.query(sql); // idempotent
+  const rows = await h.q("SELECT actor_label FROM price_reprice_runs ORDER BY created_at");
+  assert.deepEqual(rows.map((r) => r.actor_label), [null, "recent-admin@example.test"]);
+  const [fk] = await h.q(
+    "SELECT confdeltype::text AS t FROM pg_constraint WHERE conname = 'price_reprice_runs_actor_user_fk'"
+  );
+  assert.equal(fk.t, "n", "ON DELETE SET NULL");
 });
