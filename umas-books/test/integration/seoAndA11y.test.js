@@ -184,7 +184,7 @@ test("an error message on the login form is announced (role=alert)", async () =>
   jar.capture(res);
   const page = await get("/login", { headers: { cookie: jar.header() } });
   assert.equal(page.status, 200);
-  assert.match(await page.text(), /<div role="alert" class="error-box">Incorrect email or password\./);
+  assert.match(await page.text(), /<div role="alert" class="error-box" id="login-error">Incorrect email or password\./);
 });
 
 test("every .error-box / .notice-box in the app views declares a live-region role", () => {
