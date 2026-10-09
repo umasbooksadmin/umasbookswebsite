@@ -449,6 +449,18 @@ s.test("A19c the Book lookup sources used report has the explanation, the period
   assert.match(res.headers.get("content-disposition") || "", /attachment; filename="umas-books-lookup-sources-sources-all\.csv"/);
   assert.doesNotMatch(await res.text(), /[^\s,"]+@[^\s,"]+\.[a-z]{2,}/i, "no email address in the CSV");
 });
+s.test("A19d the report also has the AI usage tables (per feature, month, day), the cost-estimate note and an AI CSV", { as: "admin" }, async (ctx) => {
+  await admin(ctx, "/admin/reports/lookup-sources");
+  const text = await ctx.text();
+  hasNoNaN(text, "AI usage");
+  for (const re of [/AI usage per feature/, /AI usage per month/, /AI usage per day/, /Description/, /French translation/, /Genre suggestion/, /Cover photo reading/, /Price check \(web search\)/, /Credit balance too low \/ billing/, /Input tokens/, /Output tokens/, /Estimated cost/]) has(text, re);
+  const res = await ctx.fetchRaw("/admin/reports/lookup-sources?format=csv&table=ai&period=all");
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get("content-disposition") || "", /attachment; filename="umas-books-lookup-sources-ai-all\.csv"/);
+  const body = await res.text();
+  assert.match(body, /"Feature","Calls made"/);
+  assert.doesNotMatch(body, /[^\s,"]+@[^\s,"]+\.[a-z]{2,}/i, "no email address in the CSV");
+});
 s.manual("A21 the sales report counts the online sale, the shop sale and the drop-in seat separately", "needs real paid sales (AC26, AC35, A63)");
 
 // ---- 5F. Book requests ----

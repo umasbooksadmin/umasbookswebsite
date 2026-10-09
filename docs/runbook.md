@@ -1828,6 +1828,46 @@ results live in memory for minutes only; only the fields the app stores for a sa
 binding) are used; **ISBNdb's cover images are never used or stored** (their terms say rights in covers stay with their owners); no scraping,
 only the documented API with the key in the `Authorization` header. If the subscription ends, remove the key; books already saved keep the facts a person confirmed and saved.
 
+### AI usage (what uses the Anthropic credit)
+
+**Reports > Book lookup sources used** (`/admin/reports/lookup-sources`) has, under the catalog tables, an **AI usage** part: how often the
+site called the Anthropic API (the paid AI service), per feature, over the same **Period** menu (Last 30 days by default), with a table per month
+and per day and its own **Download CSV** links (tables `ai`, `ai_monthly`, `ai_daily`). Counts only: no prompt, title, ISBN, text, photo or person is stored.
+
+**Red banner.** If Anthropic refused a call in the last 24 hours because the credit is used up, the top of the page shows
+"Anthropic API credit ran out at <time>: top up at console.anthropic.com > Billing". Top up there (Settings > Billing > buy credit, or turn on
+auto-reload so it cannot run dry again), then wait: the banner disappears 24 hours after the last refused call, and the **Credit balance too low / billing**
+column keeps the count. Nothing needs restarting.
+
+**What each feature costs in calls**
+
+| Feature | One call each time... | Notes |
+|---|---|---|
+| Description | a book is added or saved with no description, or **Generate** is pressed on the book's page | the biggest everyday user: every book saved without a description |
+| French translation | a description is translated to French (right after a description is generated, when a book is saved with an English description only, and by the French back-fill script) | one call per description |
+| Genre suggestion | genres are suggested for a book that has none, and by the French back-fill script | small calls |
+| Cover photo reading | an admin uploads a photo of a cover or barcode (the camera "photo" path of Scan a book) | the most tokens per call: the photo counts as input |
+| Price check (web search) | a price suggestion needs an online check (only when `PRICING_AI` is on); capped by `PRICING_AI_DAILY_MAX` (150 a day), cached 30 days per ISBN | the most expensive per call: long input, web searches billed on top |
+
+**Columns.** Calls made = Succeeded + Failed (error: timeouts, no connection, other HTTP errors) + Refused (rate limit, HTTP 429) + Credit balance too low / billing
+(HTTP 400/402 whose message mentions the credit balance, or error type `billing_error`). Input and output tokens come from the `usage` field of each answer;
+**Web searches** from `server_tool_use.web_search_requests`. **Average response (ms)** is how long Anthropic took.
+
+**The cost estimate.** It is computed from the token counts only, with the prices kept in one object, `AI_PRICES`, at the top of `src/lib/aiUsageStats.js`
+(currently `claude-haiku-4-5`: 1 USD per million input tokens, 5 USD per million output tokens; last checked 2026-10-09; euros at the rate in the price settings).
+It is **a floor, not the bill**: web searches are billed on top and are not priced here, cache tokens (the site does not use them) are not priced, and if
+`PRICING_AI_MODEL` is set to another model the Price check estimate is wrong. **Check Anthropic's price list** when the model changes, and compare with the
+invoice at console.anthropic.com > Billing (Usage shows the same by day). To change a price, edit `AI_PRICES` (and its date) and deploy.
+
+**When the credit is out, what keeps working:** scanning by ISBN (the catalogs are free), saving a book (with no description), the till, reservations,
+the shop pages and everything else. Only the AI extras stop: descriptions, French translations, genre suggestions, reading a cover photo (type the ISBN
+instead) and online price checks (the price rules still suggest a price). Books saved meanwhile simply have no description; press **Generate** later.
+
+**If a feature uses far more than expected**, look at the daily table for the day it started, then at that feature's row: many calls with few
+successes means retries on errors; very large input tokens on Cover photo reading means large photos. To stop the price check at once set `PRICING_AI_DAILY_MAX=0`
+(or `PRICING_AI` off); to stop everything remove `ANTHROPIC_API_KEY`. The counts are saved about every 30 seconds (a restart can lose the last ~30 s),
+rows older than 36 months are deleted by the daily job "AI usage statistics retention" (`/admin/diagnostics/jobs`). No alert or email is sent by this page.
+
 ### The barcode scanner must send Enter
 
 A scanner like the one at the till is a keyboard: it types the digits and then a key

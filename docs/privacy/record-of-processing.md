@@ -222,6 +222,19 @@ Fonts: the website serves its typefaces itself (self-hosted files in `assets/fon
 | Retention | Daily rows older than 36 months are deleted by a daily job ("Lookup statistics retention" in `src/index.js`, visible on `/admin/diagnostics/jobs`). |
 | Security | Admin-only page and CSV (the CSV download is logged in the administrator action log); the counts are held in memory and saved in batches, never blocking a lookup. |
 
+### 11b (continued). AI usage statistics / Statistiques d'utilisation de l'IA
+
+| | |
+|---|---|
+| Purpose | Technical statistics so the maintainer can see what uses the Anthropic API credit and notice when it runs out: section "AI usage" of the report "Book lookup sources used" |
+| Data | **Aggregate technical statistics, no personal data**: per day and per feature (description, French translation, genre, cover photo, price check), the number of calls, how many succeeded, failed, were refused (rate limit) or hit a credit/billing error, the token counts, the number of web searches, the total response time and the time of the last credit error. **No prompt, title, ISBN, description text, photo, user or administrator identifier, IP address or API key** is stored (`ai_usage_stats`, `src/lib/aiUsageStats.js`). |
+| People | None. Only administrators can see the report. |
+| Legal basis | Legitimate interest (running the shop and its costs); no personal data involved |
+| Recipients / processors | None beyond the database host already listed (Render). (The AI calls themselves are described in section 11.) |
+| Transfers outside EU | None specific to this data. |
+| Retention | Daily rows older than 36 months are deleted by a daily job ("AI usage statistics retention" in `src/index.js`). Kept by "Clear test data" (not personal data). |
+| Security | Admin-only page and CSV (the CSV download is logged in the administrator action log); the counts are held in memory and saved in batches, never blocking or changing an AI call. |
+
 ## 12. Domain name and DNS / Nom de domaine et DNS
 
 | | |
