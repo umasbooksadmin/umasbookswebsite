@@ -12,6 +12,13 @@ name: Nightly database backup
 # External Connection String), plus the BACKUP_S3_* settings described in
 # the "Check the offsite settings" step below. If any of them is missing
 # the job FAILS (and the alert email fires) rather than skipping the backup.
+#
+# ENCRYPTION: each dump is encrypted on the runner with age BEFORE it is
+# uploaded, when the repository VARIABLE BACKUP_AGE_RECIPIENT (an age PUBLIC
+# key, "age1...") is set. This job never holds the private key. If the variable
+# is not set the backup still runs, UNENCRYPTED, with a prominent warning in
+# the job summary, the failure email and a weekly reminder email. Set-up and
+# restore: docs/runbook.md section "Encrypting the backups".
 
 on:
   schedule:
@@ -52,6 +59,53 @@ jobs:
             exit 1
           fi
 
+      - name: Check the encryption setting
+        # Repository VARIABLE (not a secret: it is a public key) BACKUP_AGE_RECIPIENT.
+        # Unset = the backup still runs but is NOT encrypted, loudly. Set but
+        # malformed (e.g. the private key pasted by mistake) = the job FAILS:
+        # a typo must never silently produce plaintext backups.
+        id: enc
+        env:
+          BACKUP_AGE_RECIPIENT: ${{ vars.BACKUP_AGE_RECIPIENT }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ -z "${BACKUP_AGE_RECIPIENT//[[:space:]]/}" ]; then
+            echo "::warning title=Backups are not encrypted::BACKUP_AGE_RECIPIENT is not set: tonight's dump is uploaded UNENCRYPTED. See docs/runbook.md, section 'Encrypting the backups'."
+            {
+              echo "## WARNING: backups are NOT encrypted"
+              echo
+              echo "The repository variable \`BACKUP_AGE_RECIPIENT\` is not set, so this dump (members' personal data and password hashes) was uploaded to Backblaze **unencrypted**."
+              echo "Fix: docs/runbook.md, section *Encrypting the backups*."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "encrypt=false" >> "$GITHUB_OUTPUT"
+            # One reminder email a week (Mondays, UTC) and on manual runs; the
+            # failure email below carries the same warning every time.
+            if [ "$(date -u +%u)" = "1" ] || [ "$EVENT" = "workflow_dispatch" ]; then
+              echo "nag=true" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            n=$(bash .github/scripts/encrypt-dump.sh --check)
+            echo "encrypt=true" >> "$GITHUB_OUTPUT"
+            echo "## Backups are encrypted with age (${n} recipient(s))" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Install age (pinned release, checksum verified)
+        if: steps.enc.outputs.encrypt == 'true'
+        # Pinned version and SHA-256 of the linux-amd64 tarball (the digest GitHub
+        # records for the release asset; also re-computed by hand when pinned).
+        # To upgrade: change both values, from the release page
+        # https://github.com/FiloSottile/age/releases (never just the version).
+        env:
+          AGE_VERSION: "1.3.2"
+          AGE_SHA256: cbe24006683f8eb669266162894b9a522a1af52f2665fbc63a4bb032ed26ac10
+        run: |
+          curl -fsSL --retry 3 -o age.tgz "https://github.com/FiloSottile/age/releases/download/v${AGE_VERSION}/age-v${AGE_VERSION}-linux-amd64.tar.gz"
+          echo "${AGE_SHA256}  age.tgz" | sha256sum --check --strict -
+          tar -xzf age.tgz age/age
+          sudo install -m 0755 age/age /usr/local/bin/age
+          rm -rf age age.tgz
+          age --version
+
       - name: Install matching PostgreSQL client tools
         # Ubuntu's default apt package can lag behind Render's server
         # version, and pg_dump refuses to dump a server newer than itself.
@@ -70,6 +124,7 @@ jobs:
           sudo apt-get install -y postgresql-client-18
 
       - name: Dump database and upload to Backblaze
+        id: dump
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_S3_KEY_ID }}
@@ -82,6 +137,8 @@ jobs:
           ENDPOINT: ${{ vars.BACKUP_S3_ENDPOINT }}
           BUCKET: ${{ vars.BACKUP_S3_BUCKET }}
           PREFIX: ${{ vars.BACKUP_S3_PREFIX }}
+          ENCRYPT: ${{ steps.enc.outputs.encrypt }}
+          BACKUP_AGE_RECIPIENT: ${{ vars.BACKUP_AGE_RECIPIENT }}
         run: |
           if [ -z "$DATABASE_URL" ]; then
             echo "::error::DATABASE_URL secret is not set — see this workflow's comments for how to add it."
@@ -99,12 +156,21 @@ jobs:
           # remote database over the internet can hit an ordinary transient
           # network blip.
           for attempt in 1 2 3; do
+            # pg_dump's error text goes to a file (and is shown): it never
+            # contains the connection string, so no secret reaches the log.
             if /usr/lib/postgresql/18/bin/pg_dump --no-owner --no-privileges --format=custom \
                  --exclude-table-data=session \
-                 --file="$FILE" "$DATABASE_URL"; then
+                 --file="$FILE" "$DATABASE_URL" 2> pg_dump.err; then
               break
             fi
+            cat pg_dump.err
             echo "pg_dump attempt $attempt failed."
+            if grep -qi 'permission denied' pg_dump.err; then
+              # Grants are missing: retrying cannot help. Say so clearly.
+              echo "denied=true" >> "$GITHUB_OUTPUT"
+              echo "::error title=Backup user lacks read permission::pg_dump reported 'permission denied'. The backup database user is missing SELECT grants. Re-run the GRANT lines in docs/runbook.md, section ad), box 'permission denied for table ...' (A read-only database user for the backup). No backup was taken."
+              exit 1
+            fi
             if [ "$attempt" = 3 ]; then
               echo "::error::pg_dump failed after 3 attempts."
               exit 1
@@ -113,14 +179,21 @@ jobs:
             sleep 10
           done
           test -s "$FILE" || { echo "::error::$FILE is missing or empty."; exit 1; }
+          # Encrypt BEFORE anything leaves the runner (see .github/scripts/encrypt-dump.sh:
+          # writes $FILE.age, verifies the age header, deletes the plaintext).
+          UPLOAD="$FILE"
+          if [ "$ENCRYPT" = "true" ]; then
+            bash .github/scripts/encrypt-dump.sh "$FILE"
+            UPLOAD="$FILE.age"
+          fi
           # The prefix and folder names below are what the bucket's lifecycle
           # rules match (full/ = 30 days, monthly/ = 730 days) — don't rename.
           # The CLI exits non-zero if an upload fails.
-          aws s3 cp "$FILE" "s3://${BUCKET}/${PREFIX}/full/$(basename "$FILE")" --endpoint-url "$ENDPOINT" --only-show-errors
-          echo "Uploaded ($(du -h "$FILE" | cut -f1)) to ${BUCKET}/${PREFIX}/full/$(basename "$FILE")"
+          aws s3 cp "$UPLOAD" "s3://${BUCKET}/${PREFIX}/full/$(basename "$UPLOAD")" --endpoint-url "$ENDPOINT" --only-show-errors
+          echo "Uploaded ($(du -h "$UPLOAD" | cut -f1)) to ${BUCKET}/${PREFIX}/full/$(basename "$UPLOAD")"
           # On the 1st of the month (UTC) also keep a long-term copy.
           if [ "$(date -u +%d)" = "01" ]; then
-            aws s3 cp "$FILE" "s3://${BUCKET}/${PREFIX}/monthly/$(basename "$FILE")" --endpoint-url "$ENDPOINT" --only-show-errors
+            aws s3 cp "$UPLOAD" "s3://${BUCKET}/${PREFIX}/monthly/$(basename "$UPLOAD")" --endpoint-url "$ENDPOINT" --only-show-errors
             echo "Monthly copy written."
           fi
 
@@ -146,4 +219,27 @@ jobs:
 
             Check the failed run for details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
+            ${{ steps.dump.outputs.denied == 'true' && 'LIKELY CAUSE: pg_dump reported "permission denied". The read-only backup database user is missing SELECT grants (for example after Render restored the database). Re-run the GRANT lines in docs/runbook.md, section "A read-only database user for the backup", box "permission denied for table ...".' || '' }}
+
             Previous backups in Backblaze are unaffected, so nothing already saved is lost — but there won't be a new one until this is fixed and the workflow runs again.
+            ${{ steps.enc.outputs.encrypt == 'false' && 'ALSO: backups are not encrypted (the repository variable BACKUP_AGE_RECIPIENT is not set). See docs/runbook.md, section Encrypting the backups.' || '' }}
+
+      - name: Remind the admin that backups are not encrypted
+        # Weekly (Mondays UTC) and on manual runs, only while BACKUP_AGE_RECIPIENT
+        # is unset and the backup itself succeeded (a failure sends the email above).
+        if: success() && steps.enc.outputs.nag == 'true'
+        uses: dawidd6/action-send-mail@67ce3558d613188179559c61d3565140cf389968 # v22
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.GMAIL_USER }}
+          password: ${{ secrets.GMAIL_APP_PASSWORD }}
+          subject: "[umas-books] Database backups are NOT encrypted"
+          to: ${{ vars.ALERT_TO || 'admin@umasbooks.org' }}
+          from: "Uma's Books Backup Monitor <${{ secrets.GMAIL_USER }}>"
+          body: |
+            The nightly database backups in Backblaze are stored WITHOUT encryption: they contain all members' personal data and password hashes.
+
+            Fix (about 15 minutes, once): follow docs/runbook.md, section "Encrypting the backups": create an age key pair on your Mac and save its PUBLIC key as the repository variable BACKUP_AGE_RECIPIENT.
+
+            This reminder is sent every Monday until the variable is set. Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}

@@ -74,3 +74,11 @@ test("README documents every variable render.yaml declares", () => {
   const readme = fs.readFileSync(path.join(repo, "umas-books", "README.md"), "utf8");
   for (const m of y.matchAll(/^\s+- key: (\w+)/gm)) assert.ok(readme.includes("`" + m[1] + "`"), `README mentions ${m[1]}`);
 });
+
+test("render.yaml declares the optional API keys and settings as sync:false (a rebuild prompts, nothing is overwritten) and does not touch autoDeploy", () => {
+  const y = fs.readFileSync(path.join(repo, "render.yaml"), "utf8");
+  for (const k of ["NYT_API_KEY", "ISBNDB_API_KEY", "GOOGLE_BOOKS_API_KEY", "ANTHROPIC_API_KEY", "PRICING_AI", "PRICING_AI_DAILY_MAX", "PRICING_AI_MODEL", "ADMIN_SESSION_IDLE_HOURS", "ADMIN_SESSION_MAX_DAYS"]) {
+    assert.match(y, new RegExp(`key: ${k}\\n\\s+sync: false`), `${k} is sync:false`);
+  }
+  assert.ok(!/autoDeploy/.test(y), "render.yaml leaves autoDeploy alone");
+});

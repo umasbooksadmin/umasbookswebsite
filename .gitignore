@@ -5,3 +5,5 @@
 _sqs_harness.html
 node_modules/
 __pycache__/
+
+*.out
