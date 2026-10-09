@@ -7,7 +7,7 @@
 //
 // Both are ATOMIC: a call takes its slot with a single statement
 //     INSERT ... ON CONFLICT DO UPDATE SET calls = calls + 1 WHERE calls < cap RETURNING calls
-// on table ai_daily_cap (migration 088), so any number of concurrent requests (or instances) together can never use
+// on table ai_daily_cap (migration 089), so any number of concurrent requests (or instances) together can never use
 // more slots than the cap. No slot is ever taken for a call that is not made (no API key, nothing to ask).
 //
 // At the cap the AI call is SKIPPED, not failed: the caller gets null exactly as for any other AI problem, so a book
