@@ -2411,11 +2411,39 @@ Database URL**, and from your Mac run `psql "<that URL>"`, then (choose a long
 password made of letters and digits only, so it needs no escaping, e.g. the
 output of `openssl rand -hex 24`):
 
+Run it connected as the **owner / application role** (the one in Render's own
+`DATABASE_URL`, which also runs the migrations), not as a superuser:
+
 ```sql
 CREATE ROLE backup_ro LOGIN PASSWORD 'PASTE_THE_RANDOM_PASSWORD' CONNECTION LIMIT 2;
-GRANT CONNECT ON DATABASE umas_books TO backup_ro;
-GRANT pg_read_all_data TO backup_ro;      -- PostgreSQL 14 or newer: read every table and sequence
 ALTER ROLE backup_ro SET default_transaction_read_only = on;
+GRANT CONNECT ON DATABASE umas_books TO backup_ro;
+GRANT USAGE ON SCHEMA public TO backup_ro;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO backup_ro;
+GRANT SELECT ON ALL SEQUENCES IN SCHEMA public TO backup_ro;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO backup_ro;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON SEQUENCES TO backup_ro;
+```
+
+Do **not** use `GRANT pg_read_all_data TO backup_ro`: on Render's managed
+PostgreSQL the owner role is not a superuser, the grant does not take effect,
+and `pg_dump` then fails with `permission denied for table users`.
+
+Each `GRANT` must answer `GRANT` (and each `ALTER DEFAULT PRIVILEGES` must answer
+`ALTER DEFAULT PRIVILEGES`); any `ERROR` or `WARNING` line means that grant did
+not happen, so read it before going on. The first four lines cover everything
+that exists today. The last two matter because tables created later by
+migrations (run by the owner role) become readable by `backup_ro`
+automatically; without them the backup would break at the next migration that
+adds a table. `ALTER DEFAULT PRIVILEGES` only applies to objects created by the
+role that runs it, so it must be run as the owner/application role that runs
+the migrations (the role in Render's `DATABASE_URL`).
+
+Check it before going further (all in the same `psql` session):
+
+```sql
+SELECT has_table_privilege('backup_ro', 'public.users', 'SELECT');   -- must be t
+\ddp                                                                  -- lists the default privileges for backup_ro
 ```
 
 (The Render database is PostgreSQL 18 and `umas_books` is its database name;
@@ -2429,6 +2457,31 @@ password replaced, keeping the host and database name:
 ```
 postgresql://backup_ro:THE_RANDOM_PASSWORD@dpg-XXXXXXXX-a.frankfurt-postgres.render.com/umas_books
 ```
+
+**Test the backup user before putting it in GitHub** (from your Mac, with the
+real password; this only reads):
+
+```bash
+psql "postgresql://backup_ro:THE_RANDOM_PASSWORD@dpg-XXXXXXXX-a.frankfurt-postgres.render.com/umas_books" -c "select count(*) from users"
+/usr/lib/postgresql/18/bin/pg_dump --schema-only -f /dev/null "postgresql://backup_ro:THE_RANDOM_PASSWORD@dpg-XXXXXXXX-a.frankfurt-postgres.render.com/umas_books"
+```
+
+(Use whichever `pg_dump` is version 18 on your Mac, e.g. `pg_dump --version`.)
+Both must finish without an error. The backup runs `pg_dump` with
+`--exclude-table-data=session`, which skips the *rows* of the `session` table
+but still needs to read its definition, so the user must be able to read the
+`session` table (and every other table) too; the `GRANT ... ALL TABLES` line
+covers it.
+
+> **Troubleshooting: `permission denied for table ...` in the backup log**
+> (for example `pg_dump: error: query failed: ERROR: permission denied for table users`
+> followed by `LOCK TABLE public.users, ... IN ACCESS SHARE MODE`). It means
+> `backup_ro` lacks `SELECT` on that table: the grants are missing or were never
+> applied. The workflow's red annotation and the alert email point here. Fix:
+> connect as the owner role, re-run the `GRANT` and `ALTER DEFAULT PRIVILEGES`
+> lines above, check that every one answered `GRANT` / `ALTER DEFAULT PRIVILEGES`
+> with no error, confirm `has_table_privilege(...)` returns `t`, run the two test
+> commands above, then run **Nightly database backup** by hand.
 
 Put it in the GitHub **repository secret** `DATABASE_URL` (Settings > Secrets and
 variables > Actions > Secrets > pencil icon on `DATABASE_URL`; paste; Update).
@@ -2464,6 +2517,7 @@ belongs to the website itself.
 | When | What | Where |
 |---|---|---|
 | Every year (1 October), and straight away if anything leaks | New password for `backup_ro`: `ALTER ROLE backup_ro PASSWORD 'new';` in `psql`, then update the GitHub secret `DATABASE_URL`, run the backup by hand | Render database, GitHub **secret** |
+| After Render restores or recreates the database (and after any change of the owner role) | Re-run the `GRANT` and `ALTER DEFAULT PRIVILEGES` lines for `backup_ro` (box "permission denied for table ..." above; recreate the role first if it is gone), check `has_table_privilege` returns `t`, run the backup by hand | Render database, as the owner role |
 | Every year | New Backblaze application key, update `BACKUP_S3_KEY_ID` and `BACKUP_S3_APPLICATION_KEY` (section b), delete the old key | Backblaze, GitHub **secrets** |
 | Only if someone who held the private key leaves, or it may have leaked | New age key pair (set-up steps 2 to 5 again). **Keep the old private key** as long as old backups exist (up to 2 years for `monthly/`), or re-encrypt those; add the new one to the password manager as a second note | GitHub **variable** |
 | Every quarter | Restore drill | your Mac |

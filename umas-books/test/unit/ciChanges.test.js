@@ -71,6 +71,14 @@ test("ci.yml keeps the six required checks, always running, with no workflow-lev
   assert.match(ci, /ci-changes\.sh/);
 });
 
+test("test and smoke-crawl jobs have 25 minutes, and the test job reports its duration", () => {
+  const block = (name) => ci.slice(ci.indexOf(`\n  ${name}:\n`)).split(/\n {2}[a-z-]+:\n/)[1];
+  assert.match(block("test"), /timeout-minutes: 25\b/);
+  assert.match(block("smoke-crawl"), /timeout-minutes: 25\b/);
+  assert.match(block("test"), /Test suite duration[\s\S]*GITHUB_STEP_SUMMARY/);
+  assert.match(block("test"), /exit "\$status"/, "the suite's exit code is preserved");
+});
+
 test("smoke-crawl keeps the puppeteer and npm caches", () => {
   assert.match(ci, /path: ~\/\.cache\/puppeteer/);
   assert.ok((ci.match(/cache: npm/g) || []).length >= 5);
