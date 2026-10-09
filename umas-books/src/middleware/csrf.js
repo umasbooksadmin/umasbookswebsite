@@ -44,7 +44,7 @@ async function renderLogoutConfirm(req, res, status = 200) {
   }
   res.set("Cache-Control", "no-store");
   res.status(status);
-  const message = "Please try again";
+  const message = req.tr ? req.tr("Please try again", "Veuillez réessayer") : "Please try again";
   res.render("logout_confirm", {}, (err, html) => (err ? res.send(message) : res.send(html)));
 }
 

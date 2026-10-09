@@ -105,7 +105,7 @@ async function reserveInTransaction(client, { user, email, name, phone, bookItem
     // reservation is refused (PRICE_CHANGED, rolled back) and they confirm again at the new one.
     const priceChanges = [];
     for (const row of locked) {
-      if (row.status !== "in_stock" || row.price == null) continue; // taken: the UPDATE below says SOLD_OUT
+      if (row.status !== "in_stock" || row.price == null || Number(row.price) <= 0) continue; // taken or not for sale: the UPDATE below says SOLD_OUT
       const item = bookItems.find((i) => i.copyId === row.id);
       if (item && Math.round(Number(row.price) * 100) !== Math.round(Number(item.price) * 100)) {
         priceChanges.push({ kind: "book", id: row.id, title: item.title, oldPrice: Number(item.price), newPrice: Number(row.price) });
