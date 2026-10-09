@@ -1,17 +1,20 @@
 <%- include('partials/header', { noindex: true, title: tr('Log In', 'Connexion') }) %>
 
 <h1><%= tr('Log in', 'Connexion') %></h1>
-<% if (error) { %><div role="alert" class="error-box"><%= error %></div><% } %>
+<% /* After a refused log-in the typed e-mail is back (never the password): focus goes to the password box, or to the e-mail box when there is none to keep. */
+const _pwFocus = !!(error && locals.typedEmail);
+const _emailFocus = !!(error && !locals.typedEmail); %>
+<% if (error) { %><div role="alert" class="error-box" id="login-error"><%= error %></div><% } %>
 <% if (notice) { %><div role="status" class="notice-box"><%= notice %></div><% } %>
 <%- include('partials/return_note') %>
 <form class="stack" method="post" action="/login">
   <%- include('partials/csrf_field') %>
   <% if (locals.returnTo) { %><input type="hidden" name="returnTo" value="<%= locals.returnTo %>"><% } %>
   <label for="email"><%= tr('Email', 'E-mail') %></label>
-  <input id="email" name="email" type="email" autocomplete="username" value="<%= locals.typedEmail || '' %>" required>
+  <input id="email" name="email" type="email" autocomplete="username" value="<%= locals.typedEmail || '' %>"<%- error ? ' aria-describedby="login-error"' : '' %><%- _emailFocus ? ' autofocus' : '' %> required>
   <label for="password"><%= tr('Password', 'Mot de passe') %></label>
   <div class="password-field">
-    <input id="password" name="password" type="password" autocomplete="current-password" required>
+    <input id="password" name="password" type="password" autocomplete="current-password"<%- error ? ' aria-describedby="login-error"' : '' %><%- _pwFocus ? ' aria-invalid="true" autofocus' : '' %> required>
     <button type="button" class="password-toggle" data-toggle-password="password" aria-label="<%= tr('Show password', 'Afficher le mot de passe') %>" aria-pressed="false"><%= tr('Show', 'Afficher') %></button>
   </div>
   <button class="btn" type="submit"><%= tr('Log in', 'Se connecter') %></button>

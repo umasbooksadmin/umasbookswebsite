@@ -101,6 +101,14 @@
   var input = document.getElementById('shop-search-input');
   var lastTitle = null;
 
+  // The search / genre state lives in the address (public/books-state.js): a genre tap or a search
+  // adds a history entry, so Back returns to the previous results, and the address can be shared.
+  var S = window.UmasBooksState;
+  var SLUGS = GENRES.map(function (g) { return g.key.replace(/^g\./, ''); });
+  var current = S.empty();
+  var cache = {};       // url -> books: Back / Forward re-shows results without asking the server again (the search limit is per minute)
+  var requestSeq = 0;   // only the latest request may draw
+
   function setActiveGenre(index) {
     genreList.querySelectorAll('.bk-genre').forEach(function (el) {
       var on = String(index) === el.getAttribute('data-index');
@@ -114,42 +122,97 @@
       ? t('bk.results.for', 'Results for “{q}”').replace('{q}', lastTitle.q)
       : t(lastTitle.key);
   }
-  function showResults(url, title) {
+  function reducedMotion() {
+    try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; }
+  }
+  function scrollToResults() {
+    resultsEl.scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth', block: 'start' });
+    // Focus the heading so a keyboard / screen reader user lands on the results too (no second scroll).
+    resultsTitle.setAttribute('tabindex', '-1');
+    try { resultsTitle.focus({ preventScroll: true }); } catch (e) { /* old browser: the scroll is enough */ }
+  }
+  function drawBooks(books) {
+    if (!books.length) { resultsGrid.innerHTML = '<p class="muted">' + esc(t('bk.empty')) + ' <a href="/request-a-book">' + esc(t('bk.empty.ask')) + '</a></p>'; return; }
+    resultsGrid.innerHTML = books.map(function (b) { return bookCard(b, true); }).join('');
+    syncFavorites(resultsGrid);
+  }
+  function showResults(url, title, scroll) {
     lastTitle = title;
     renderTitle();
     resultsEl.hidden = false;
+    var mine = ++requestSeq;
+    if (cache[url]) {
+      drawBooks(cache[url]);
+      if (scroll) scrollToResults();
+      return;
+    }
     resultsGrid.innerHTML = '<p class="muted">' + esc(t('bk.loading', 'Loading books…')) + '</p>';
-    resultsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (scroll) scrollToResults();
     getJSON(url, function (err, books) {
+      if (mine !== requestSeq) return;
       if (err) { resultsGrid.innerHTML = '<p class="muted">' + esc(t(err.rateLimited ? 'bk.ratelimited' : 'bk.error')) + '</p>'; return; }
-      if (!books.length) { resultsGrid.innerHTML = '<p class="muted">' + esc(t('bk.empty')) + ' <a href="/request-a-book">' + esc(t('bk.empty.ask')) + '</a></p>'; return; }
-      resultsGrid.innerHTML = books.map(function (b) { return bookCard(b, true); }).join('');
-      syncFavorites(resultsGrid);
+      cache[url] = books;
+      drawBooks(books);
     });
+  }
+
+  // Put a state on the screen (no history change here).
+  function render(state, scroll) {
+    current = state;
+    if (state.q) {
+      input.value = state.q;
+      setActiveGenre(null);
+      showResults(API + '/search?q=' + encodeURIComponent(state.q), { q: state.q }, scroll);
+    } else if (state.genre) {
+      var i = SLUGS.indexOf(state.genre);
+      var g = GENRES[i];
+      input.value = '';
+      setActiveGenre(i);
+      showResults(API + '/search?q=' + (g.topic ? '&topic=' + encodeURIComponent(g.topic) : ''), { key: g.key }, scroll);
+    } else if (state.isNew) {
+      input.value = '';
+      setActiveGenre(null);
+      showResults(API + '/latest-arrivals?days=0&limit=24', { key: 'bk.results.new' }, scroll);
+    } else {
+      input.value = '';
+      setActiveGenre(null);
+      requestSeq++;
+      lastTitle = null;
+      resultsEl.hidden = true;
+    }
+  }
+  // A person's choice: a new history entry (Back undoes it), unless it is what is already shown.
+  function choose(state) {
+    var url = location.pathname + S.serialize(state);
+    if (S.same(state, current)) history.replaceState(state, '', url);
+    else history.pushState(state, '', url);
+    render(state, true);
   }
 
   genreList.addEventListener('click', function (e) {
     var btn = e.target.closest('.bk-genre');
     if (!btn) return;
-    var g = GENRES[Number(btn.getAttribute('data-index'))];
-    input.value = '';
-    setActiveGenre(btn.getAttribute('data-index'));
-    showResults(API + '/search?q=' + (g.topic ? '&topic=' + encodeURIComponent(g.topic) : ''), { key: g.key });
+    var g = SLUGS[Number(btn.getAttribute('data-index'))];
+    choose({ q: '', genre: g, isNew: false });
   });
 
+  // Searching is on submit, not on every key, so nothing is written to the address while typing.
   form.addEventListener('submit', function (e) {
     e.preventDefault();
-    var q = input.value.trim();
+    var q = input.value.replace(/\s+/g, ' ').trim().slice(0, S.MAX_Q);
     if (!q) { input.focus(); return; }
-    setActiveGenre(null);
-    showResults(API + '/search?q=' + encodeURIComponent(q), { q: q });
+    choose({ q: q, genre: '', isNew: false });
   });
 
   document.getElementById('bk-new-all').addEventListener('click', function () {
-    input.value = '';
-    setActiveGenre(null);
-    showResults(API + '/latest-arrivals?days=0&limit=24', { key: 'bk.results.new' });
+    choose({ q: '', genre: '', isNew: true });
   });
+
+  // Back / Forward, and the address typed or shared: the screen follows the address.
+  window.addEventListener('popstate', function () {
+    render(S.parse(location.search, SLUGS), false);
+  });
+  render(S.parse(location.search, SLUGS), true);
 
   var track = document.getElementById('bk-new-track');
   getJSON(API + '/latest-arrivals?days=0&limit=12', function (err, books) {
