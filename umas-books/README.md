@@ -337,8 +337,7 @@ used**: they are carried to the next form after a save and remembered by the
 browser (`localStorage`, per browser: it needs no database change and works the
 same on the phone and the laptop, but each device has its own memory). The very
 first time they are Store, Donation, the last binding in the list (Other) and
-Very Good. A binding found by Open Library is only shown as a hint. **Scan mode** (off by
-default) adds a one-tap **Save (suggested price)** for books new to the shop.
+Very Good. A binding found by Open Library is only shown as a hint.
 Without JavaScript the **Look up** button and a normal form post still work (the
 page then comes back with a "Saved" line). `/admin/inventory/scan` is kept for
 photo scanning. Setup of the scanner and phone tips: `docs/runbook.md`, section aa.

@@ -818,6 +818,15 @@ test("add/scan/edit forms offer the five grades (default Very Good) and the bind
   assert.deepEqual(editValues, ["", "mass_market", "trade", "hardcover", "other"], "edit form: placeholder plus exactly the four bindings, in order");
 });
 
+test("Add Book page: no Scan mode and no suggested-price save button; both save buttons remain", async () => {
+  const { text } = await get("/admin/inventory/new");
+  assert.doesNotMatch(text, /scan mode/i);
+  assert.doesNotMatch(text, /Save \(suggested price/i);
+  assert.doesNotMatch(text, /data-scan-save-suggested|data-scan-mode/);
+  assert.match(text, /<button[^>]*name="fast" value="1"[^>]*>Save and add another<\/button>/);
+  assert.match(text, /<button[^>]*name="fast" value="0">Save book<\/button>/);
+});
+
 test("add: binding is saved; an invalid or blank binding is ignored (NULL)", async () => {
   for (const [sent, stored] of [["hardcover", "hardcover"], ["mass_market", "mass_market"], ["spiral", null], ["", null], ["Paperback", null], ["paperback", "trade"], ["other", "other"]]) {
     const title = `Bind ${tag()}`;

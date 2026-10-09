@@ -28,7 +28,6 @@
 .scan-saved[hidden] { display: none; }
 .scan-saved a.btn { min-height: 44px; display: inline-flex; align-items: center; }
 
-.scan-mode-toggle { display: flex; gap: 10px; align-items: center; text-transform: none !important; letter-spacing: 0 !important; font-size: 15px !important; min-height: 44px; }
 .scan-hint kbd { font-family: inherit; border: 1px solid var(--card-border); border-radius: 3px; padding: 0 4px; background: #fff; }
 .scan-binding-hint:empty { display: none; }
 
@@ -37,7 +36,6 @@
 
 .scan-actions { display: flex; flex-direction: column; gap: 8px; }
 .scan-actions .btn, .scan-save-view { min-height: 48px; justify-content: center; text-align: center; box-sizing: border-box; }
-.scan-actions .scan-save-suggested { min-height: 64px; font-size: 18px; }
 .scan-actions [hidden] { display: none; }
 
 /* Price choices: big, wrapping buttons */

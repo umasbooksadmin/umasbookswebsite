@@ -16,7 +16,6 @@
     </div>
     <p class="scan-status" id="scan-status" role="status" aria-live="polite" data-scan-status></p>
     <% if (!fromScan) { %>
-    <label class="scan-mode-toggle" for="scan-mode"><input type="checkbox" id="scan-mode" data-scan-mode> Scan mode: one tap saves a new book at the suggested price</label>
     <p class="muted small scan-hint"><span class="kbd-hint">Press <kbd>Enter</kbd> after the barcode to look it up. <kbd>Ctrl</kbd>/<kbd>Cmd</kbd>+<kbd>Enter</kbd> saves and starts the next book.</span> <a href="/admin/inventory/scan">Scan with a photo instead</a></p>
     <% } %>
 
@@ -144,7 +143,6 @@
 
     <div class="form-actions-sticky" data-scan-actions>
     <div class="scan-actions">
-      <button class="btn scan-save-suggested" type="submit" name="fast" value="1" data-scan-save-suggested hidden>Save (suggested price)</button>
       <button class="btn scan-save-next" type="submit" name="fast" value="1" data-scan-save-next>Save and add another</button>
     </div>
     </div>

@@ -128,15 +128,6 @@
     return { kind: "notfound", text: "Not found: fill in by hand" };
   }
 
-  // Scan mode: one tap saves a book that is new to the shop when a price
-  // was suggested and nobody needs to review it.
-  function canOneTapSave(result, scanMode) {
-    if (!scanMode || !result || !result.found || !result.book || !result.book.title) return false;
-    if (result.existing) return false;
-    var s = result.suggestion;
-    return Boolean(s && s.price != null && !s.needsReview);
-  }
-
   // How far the on-screen keyboard covers the bottom of the page, from the
   // layout height (window.innerHeight) and the visual viewport.
   function keyboardInset(innerHeight, vv) {
@@ -156,8 +147,6 @@
     var savedEl = document.getElementById("scan-saved");
     var lookupButton = $("[data-scan-lookup-button]");
     var saveNext = $("[data-scan-save-next]");
-    var saveSuggested = $("[data-scan-save-suggested]");
-    var scanModeBox = $("[data-scan-mode]");
     var coverImg = document.getElementById("cover-preview");
     var bindingSel = document.getElementById("binding");
     var bindingHint = document.getElementById("binding-hint");
@@ -176,7 +165,6 @@
     var SOURCE_STORE_NAME = "umas.inventory.source.v2";
     var CONDITION_STORE_NAME = "umas.inventory.condition.v2";
     var LOCATION_STORE_NAME = "umas.inventory.location.v3"; // same name as inventory-location.js
-    var MODE_STORE_NAME = "umas.scan.mode";
     function store(key, value) { try { if (value) localStorage.setItem(key, value); else localStorage.removeItem(key); } catch (e) { /* storage blocked: fine */ } }
     function recall(key) { try { return localStorage.getItem(key) || ""; } catch (e) { return ""; } }
 
@@ -194,7 +182,6 @@
     var inFlight = false;
     var saving = false;
     var pendingIsbn = "";
-    var lastResult = null;
 
     function setStatus(kind, text) {
       statusEl.className = "scan-status" + (kind ? " is-" + kind : "");
@@ -247,21 +234,12 @@
       if (priceRoot && result.suggestion) priceRoot.dispatchEvent(new CustomEvent("ps:apply", { detail: result.suggestion }));
     }
 
-    function updateSuggestedButton() {
-      if (!saveSuggested) return;
-      var on = canOneTapSave(lastResult, scanModeBox && scanModeBox.checked);
-      saveSuggested.hidden = !on;
-      if (on) saveSuggested.textContent = "Save (suggested price EUR " + Number(lastResult.suggestion.price).toFixed(2) + ")";
-    }
-
     // ---- lookup
     function runLookup(raw) {
       var digits = isbnDigits(raw);
       if (saving) { pendingIsbn = digits; return; }
       var id = guard.begin();
       inFlight = true;
-      lastResult = null;
-      updateSuggestedButton();
       setStatus("loading", "Looking up…");
       fetch("/admin/inventory/lookup?isbn=" + encodeURIComponent(digits) + "&binding=" + encodeURIComponent(bindingSel.value), { credentials: "same-origin", headers: { Accept: "application/json" } })
         .then(function (r) {
@@ -276,11 +254,9 @@
             setStatus("error", msg);
             return;
           }
-          lastResult = res.body;
           fillForm(res.body);
           var st = lookupStatus(res.body);
           setStatus(st.kind, st.text);
-          updateSuggestedButton();
           focusIsbn();
         })
         .catch(function () {
@@ -352,13 +328,11 @@
       var photo = form.elements.coverPhoto; if (photo) photo.value = "";
       var photoName = document.getElementById("coverPhoto-name"); if (photoName) photoName.textContent = "No photo selected";
       touched = {};
-      lastResult = null;
       coverImg.hidden = true; coverImg.removeAttribute("src");
       bindingHint.textContent = "";
       errorEl.hidden = true;
       if (priceRoot) priceRoot.dispatchEvent(new CustomEvent("ps:reset"));
       conditionSel.dispatchEvent(new Event("change", { bubbles: true }));
-      updateSuggestedButton();
     }
 
     function saveInPlace(submitter) {
@@ -441,17 +415,6 @@
       }
     });
 
-    // ---- scan mode
-    if (scanModeBox) {
-      scanModeBox.checked = recall(MODE_STORE_NAME) === "1";
-      scanModeBox.addEventListener("change", function () { store(MODE_STORE_NAME, scanModeBox.checked ? "1" : ""); updateSuggestedButton(); });
-    }
-    // A price chosen by hand means the "suggested price" button no longer says what it does.
-    if (priceRoot) {
-      priceRoot.addEventListener("change", function (e) { if (e.isTrusted && saveSuggested) saveSuggested.hidden = true; });
-      priceRoot.addEventListener("input", function (e) { if (e.isTrusted && saveSuggested) saveSuggested.hidden = true; });
-    }
-
     // ---- the details are folded on a phone; a New book needs the publisher's price
     if (more && window.matchMedia && window.matchMedia("(max-width: 640px)").matches && !rootEl.hasAttribute("data-had-error")) more.open = false;
     conditionSel.addEventListener("change", function () { if (conditionSel.value === "new" && more) more.open = true; });
@@ -480,6 +443,6 @@
   return {
     isbnDigits: isbnDigits, isCompleteIsbn: isCompleteIsbn, createScanWatcher: createScanWatcher, createRequestGuard: createRequestGuard,
     planFill: planFill, resolveBindingKey: resolveBindingKey, chooseBinding: chooseBinding, lookupStatus: lookupStatus,
-    canOneTapSave: canOneTapSave, keyboardInset: keyboardInset, FILL_FIELDS: FILL_FIELDS, init: init,
+    keyboardInset: keyboardInset, FILL_FIELDS: FILL_FIELDS, init: init,
   };
 });
