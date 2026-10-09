@@ -27,6 +27,20 @@ function streamOf(n, { onPull } = {}) {
   });
 }
 
+// A VALID json answer made huge by one padding field, streamed without a Content-Length: without a size cap it would
+// parse and be used, so only the cap can refuse it.
+function bigValidJson(obj, extraBytes) {
+  const bytes = new TextEncoder().encode(JSON.stringify({ ...obj, pad: "x".repeat(extraBytes) }));
+  let at = 0;
+  return new ReadableStream({
+    pull(controller) {
+      if (at >= bytes.length) return controller.close();
+      controller.enqueue(bytes.slice(at, at + 65536));
+      at += 65536;
+    },
+  });
+}
+
 const saved = {};
 beforeEach(() => { for (const k of ["ISBNDB_API_KEY", "SCAN_LOOKUP_SOURCES", "SCAN_CACHE_TTL_MS"]) { saved[k] = process.env[k]; delete process.env[k]; } sources.resetSourcePauses(); });
 afterEach(() => { for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; } });
@@ -53,7 +67,7 @@ test("lookup: an oversized Open Library answer is 'source failed' (counted as an
   process.env.SCAN_LOOKUP_SOURCES = "openlibrary";
   const recorded = [];
   const stats = { record: (name, delta) => recorded.push([name, delta]) };
-  const fetchImpl = async () => new Response(streamOf(DEFAULT_MAX_BYTES + 5000), { status: 200, headers: { "content-type": "application/json" } });
+  const fetchImpl = async () => new Response(bigValidJson(brief(ISBN, { title: "Would be used without the cap" }), DEFAULT_MAX_BYTES + 5000), { status: 200, headers: { "content-type": "application/json" } });
   const r = await lookupByIsbnDetailed(ISBN, { fetchImpl, cache: false, stats, hedgeMs: 0, timeoutMs: 1500 });
   assert.equal(r.book, null);
   assert.notEqual(r.state, "found");
@@ -64,7 +78,7 @@ test("lookup: an oversized Open Library answer is 'source failed' (counted as an
 test("lookup: an oversized answer from one source does not hide a good one", async () => {
   process.env.SCAN_LOOKUP_SOURCES = "openlibrary,google";
   const fetchImpl = async (url) => {
-    if (String(url).includes("openlibrary.org")) return new Response("{}", { headers: { "content-length": "99999999" } });
+    if (String(url).includes("openlibrary.org")) return new Response(bigValidJson(brief(ISBN, { title: "Huge OL" }), DEFAULT_MAX_BYTES + 100));
     return json({ totalItems: 1, items: [{ volumeInfo: { title: "From Google", industryIdentifiers: [{ identifier: ISBN }] } }] });
   };
   const r = await lookupByIsbnDetailed(ISBN, { fetchImpl, cache: false, stats: { record() {} }, hedgeMs: 0, timeoutMs: 1500, graceMs: 20, lateMs: 30 });
@@ -87,15 +101,15 @@ test("ISBNdb and Google answers are size-limited too", async () => {
   const forms = sources.isbnForms(ISBN);
   const signal = new AbortController().signal;
   const helpers = { pickGenres: () => null };
-  const hugeIsbndb = await sources.isbndb({ forms, fetchImpl: async () => new Response(streamOf(DEFAULT_MAX_BYTES + 1)), signal, helpers });
+  const hugeIsbndb = await sources.isbndb({ forms, fetchImpl: async () => new Response(bigValidJson({ book: { title: "Huge" } }, DEFAULT_MAX_BYTES + 1)), signal, helpers });
   assert.equal(hugeIsbndb.state, "error");
-  const hugeGoogle = await sources.googleBooks({ forms, fetchImpl: async () => new Response(streamOf(DEFAULT_MAX_BYTES + 1)), signal, helpers });
+  const hugeGoogle = await sources.googleBooks({ forms, fetchImpl: async () => new Response(bigValidJson({ items: [] }, DEFAULT_MAX_BYTES + 1)), signal, helpers });
   assert.equal(hugeGoogle.state, "error");
   delete process.env.ISBNDB_MIN_INTERVAL_MS;
 });
 
 test("awards fetchers (Wikidata, NYT) share the limit: an oversized answer is a failed request", async () => {
-  const big = await requestJson("https://example.test/x", { fetch: async () => new Response(streamOf(DEFAULT_MAX_BYTES + 1)) });
+  const big = await requestJson("https://example.test/x", { fetch: async () => new Response(bigValidJson({ a: 1 }, DEFAULT_MAX_BYTES + 1)) });
   assert.equal(big.ok, false);
   assert.match(big.error, /too large/);
   const fine = await requestJson("https://example.test/x", { fetch: async () => json({ a: 1 }) });

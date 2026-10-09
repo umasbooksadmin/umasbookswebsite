@@ -318,7 +318,7 @@ test("POST generate-description: friendly message at the daily cap (HTTP 429 JSO
   } finally { restore(); }
 });
 
-test("POST generate-description: a 100 KB title is clamped; the 11th request in a minute gets a friendly JSON 429; another admin is not affected", async () => {
+test("POST generate-description: a huge title is clamped; the 11th request in a minute gets a friendly JSON 429; another admin is not affected", async () => {
   const me = await freshAdmin();
   const big = "T".repeat(60000);
   const first = await request("/admin/inventory/generate-description", { method: "POST", userId: me, form: { title: big, author: "A".repeat(30000) } });
