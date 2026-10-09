@@ -156,7 +156,7 @@ test("pickup reminder follows the member's language (English when unknown)", asy
     return sent.find((m) => m.to === email);
   };
   const fr = await remind(await makeUser("fr"));
-  assert.match(fr.subject, /^Rappel : votre exemplaire de « I18n Shop Book/);
+  assert.match(fr.subject, /^Rappel\u00a0: votre exemplaire de «\u00a0I18n Shop Book/);
   assert.match(fr.text, /^Bonjour Jean Dupont,/);
   const none = await remind(`nobody-${uniq()}@example.test`);
   assert.match(none.subject, /^Reminder: your copy of/);

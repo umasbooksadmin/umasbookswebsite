@@ -170,7 +170,7 @@ test("the author's language is used: French", async () => {
   const m = sent[0];
   assert.equal(m.to, frAuthor.email);
   assert.match(m.subject, /a été retiré du forum/);
-  assert.match(m.text, /Motif : Harcèlement/);
+  assert.match(m.text, /Motif\u00a0: Harcèlement/);
   assert.match(m.text, /modérateurs/);
   assert.match(m.text, /plainte/);
   assert.ok(m.text.includes(`"${"x".repeat(100)}"`) && !m.text.includes("x".repeat(101)), "first 100 characters of a reply");
