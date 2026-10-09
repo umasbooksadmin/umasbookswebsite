@@ -88,8 +88,8 @@ test("the queued confirmation and the resent one both carry the legal text", asy
   for (const { body_text } of rows) {
     const t = body_text.replace(/[\u00a0\u202f]/g, " "); // French typography uses non-breaking spaces
     assert.ok(!/FORMULAIRE DE RÉTRACTATION|WITHDRAWAL FORM|L\.221-18/.test(t), "no withdrawal notice or form in a reservation email");
+    assert.ok(!t.includes("Used books are not taken back"), "a French reservation carries the French legal text only");
     for (const needle of [
-      "Used books are not taken back for a change of mind once bought in the shop; the legal guarantees still apply.",
       "Les livres d’occasion ne sont ni repris ni échangés pour simple changement d’avis une fois achetés en boutique",
       "rue Peyrolière, 81000 Albi. Venez retirer vos livres pendant nos horaires habituels, du mercredi au samedi, de 14 h à 19 h.",
       "Conditions générales de vente acceptées le",
