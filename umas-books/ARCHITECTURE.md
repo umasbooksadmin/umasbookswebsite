@@ -639,8 +639,10 @@ screens stay English). Two languages only: `en` and `fr`.
   The language is stored on `users.lang` (set at signup, refreshed at each login
   when the person has chosen a language; NULL for admin-created accounts) and
   `orders.lang` (set when reserving). The reservation
-  confirmation, reminders and inactivity warning follow it (the legal blocks of the
-  order email stay bilingual FR/EN in both languages); `sendResetLink`, the verification
+  confirmation, reminders and inactivity warning follow it (the legal block and seller
+  lines of the order email are French only in a French mail; the English mail keeps the
+  bilingual block); French mail text gets the same no-break space before `; : ! ? »` as
+  the pages (`emailTr()` applies `frenchPlainText()`); `sendResetLink`, the verification
   mails and the other account mails use `user.lang`; password-policy messages take a
   translator (`validateNewPassword(pw, req.tr)`). Use `normLang` / `pickLang` for untrusted values.
   NULL means English.
@@ -664,7 +666,21 @@ screens stay English). Two languages only: `en` and `fr`.
   prices (the books search in `views/marketing/books.ejs`, `public/favorites-page.js`) read
   `<html lang>`. JSON APIs keep numbers. Never print a price with `toFixed(2)`
   to a customer.
-- **Safety net:** `test/helpers/i18nAudit.js` (`visibleText`, `untranslated`,
+- **Is the French complete? (the crawler).** `test/integration/i18nCrawler.test.js` boots the
+  app, seeds one of everything, and reads every customer page as a guest, an account holder, a
+  member and a volunteer, plus refused and successful form posts, the JSON APIs, error pages and
+  the emails the app sends (captured at the mailer by `test/helpers/mailCapture.js`), in English
+  and in French. It fails on English text in the French render (identical to the English page, a
+  known English `tr()` string, or English function words). Legitimate same-in-both-languages text
+  is listed with a reason in `test/i18n-allowlist.js`. Two source-level tests sit under it:
+  `test/unit/frenchWording.test.js` (every `tr(en, fr)` pair and marketing dictionary has real
+  French, "e-mail" spelled with a hyphen, same placeholders) and `test/unit/frenchSourceScan.test.js`
+  (no new English sentence outside `tr()` in customer-facing server code, baseline in
+  `test/i18n-source-baseline.json`). `node scripts/i18n-audit.js` prints what is left and
+  `--write` refreshes `docs/i18n-audit.md`, which also holds the "definition of done" for a new
+  text and the review checklist (`docs/testing/french-review.md`). The admin area, emails to the
+  admins and stored content (blog posts, announcements, forum posts, event texts) are out of scope.
+- **Older per-page net:** `test/helpers/i18nAudit.js` (`visibleText`, `untranslated`,
   shared `ALLOWLIST` for brand names and legal identifiers) reports text that is
   identical in the English and French render of a page, including `aria-label`,
   `alt`, `placeholder`, `title` and the meta description / Open Graph / Twitter
