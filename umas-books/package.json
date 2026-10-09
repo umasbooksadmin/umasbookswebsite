@@ -13,6 +13,8 @@
     "seed": "node src/seed.js",
     "backfill-french-content": "node src/backfillFrenchContent.js",
     "clear-test-data": "node scripts/clear-test-data.js",
+    "demo:load": "node scripts/demo-data.js load",
+    "demo:remove": "node scripts/demo-data.js remove",
     "lint": "eslint .",
     "test": "node --test",
     "e2e": "node e2e/run.js",
