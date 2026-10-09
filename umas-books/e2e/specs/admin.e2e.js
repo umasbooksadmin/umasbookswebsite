@@ -1012,4 +1012,5 @@ s.test("A96 the Dashboard tile is Sales this month with a Till, Online, Membersh
   has(text, /Sales this month/);
   has(text, /Till €\d+\s*·\s*Online €\d+\s*·\s*Membership €\d+/);
 });
+s.manual("A98 admin sessions end after 8 hours idle or 7 days (needs the database to age the session; covered by test/integration/adminSessionTimeouts.test.js)", "waiting 8 hours is left for you, or the integration test, to do");
 s.manual("A97 backdating needs a reason, a basket above EUR 10,000 is refused, a price below asking needs a reason, an expired cart copy can be released", "selling is left for you to do by hand");

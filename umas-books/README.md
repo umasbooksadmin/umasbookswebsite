@@ -440,6 +440,7 @@ one, so a Blueprint rebuild starts correctly; values marked "by hand" are
 | `APP_BASE_URL` | public address, no trailing slash (emailed links, payment return, canonical redirect) | `https://umasbooks.org` |
 | `CONTACT_TO` | contact-form and forum-report recipient(s) | `admin@umasbooks.org` |
 | `ALERT_TO` | alert recipient(s), comma separated, no spaces | `admin@umasbooks.org,sharonbje@gmail.com` |
+| `ADMIN_SESSION_IDLE_HOURS`, `ADMIN_SESSION_MAX_DAYS` | optional: admin and Till accounts are signed out after this many idle hours (0.25 to 72) / days since login (1 to 30); everyone else keeps 30 days (runbook section ab) | `8` / `7` (defaults, not in the file) |
 | `TRUST_PROXY_HOPS` | proxies in front of the app (visitor IP) | `2` |
 | `HELLOASSO_CLIENT_ID`, `HELLOASSO_CLIENT_SECRET`, `HELLOASSO_ORG_SLUG` | online payment | by hand |
 | `HELLOASSO_API_BASE` | leave empty/unset for production (the sandbox address is only for tests) | by hand |
