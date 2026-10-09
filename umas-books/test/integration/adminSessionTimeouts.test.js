@@ -17,8 +17,8 @@ let shortApp; // ADMIN_SESSION_MAX_DAYS=1
 let pool;
 
 before(async () => {
-  app = await startTestApp({ port: PORT });
-  shortApp = await startTestApp({ port: PORT_SHORT, env: { ADMIN_SESSION_MAX_DAYS: "1", ADMIN_SESSION_IDLE_HOURS: "bogus" } });
+  app = await startTestApp({ port: PORT, isolated: true });
+  shortApp = await startTestApp({ port: PORT_SHORT, isolated: true, env: { ADMIN_SESSION_MAX_DAYS: "1", ADMIN_SESSION_IDLE_HOURS: "bogus" } });
   process.env.DATABASE_URL = app.databaseUrl;
   process.env.PGSSLMODE = process.env.PGSSLMODE || "disable";
   ({ pool } = require("../../src/db"));
