@@ -649,11 +649,27 @@ async function checkSale(pool, input) {
 
 const parisDay = (ts) => `(${ts} AT TIME ZONE '${TZ}')::date`;
 
+// Void rules by role (a till-only account has no two-step verification, so a void is a theft
+// vector: the till drawer is short by exactly the voided cash, or the card sale is "refunded" on
+// paper only):
+//   * a CARD sale can only be voided by an ADMIN, and only an admin may tick "I refunded the card";
+//   * a till-only account may void a CASH sale of today, with a reason of at least
+//     TILL_VOID_REASON_MIN characters, and at most maxTillVoidsPerDay() times per day (Paris day,
+//     counted per account); beyond that an admin must do it;
+//   * every void is listed (who, when, amount, reason) in Needs attention, on the End of day page
+//     and in its CSV.
+const TILL_VOID_REASON_MIN = 5;
+function maxTillVoidsPerDay(env = process.env) {
+  const raw = String(env.TILL_MAX_VOIDS_PER_DAY == null ? "" : env.TILL_MAX_VOIDS_PER_DAY).trim();
+  return /^\d{1,3}$/.test(raw) ? Number(raw) : 3;
+}
+
 // refundConfirmed: for a CARD sale, staff ticked "I refunded the card" (on the reader or
 // in the SumUp app). Unticked voided card sales stay in Needs attention.
-async function voidSale(pool, { saleId, reason, userId, refundConfirmed = false }) {
+async function voidSale(pool, { saleId, reason, userId, refundConfirmed = false, isAdmin = false }) {
   const why = cleanText(reason, REASON_MAX);
   if (!why) throw new TillError("A reason is required to void a sale.");
+  if (!isAdmin && why.length < TILL_VOID_REASON_MIN) throw new TillError(`Give a real reason for the void (at least ${TILL_VOID_REASON_MIN} characters).`);
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -663,6 +679,9 @@ async function voidSale(pool, { saleId, reason, userId, refundConfirmed = false 
     const sale = rows[0];
     if (!sale) throw new TillError("That sale could not be found.", 404);
     if (sale.status === "voided") throw new TillError("That sale is already voided.", 409);
+    if (!isAdmin && sale.payment_method === "card") {
+      throw new TillError("Only an admin can void a card sale (the card has to be refunded too). Ask an admin.", 403);
+    }
     if (!sale.same_day) throw new TillError("Only a sale made today can be voided. For an older sale, record the correction with your treasurer.", 409);
     // Shared with sales, exclusive against closing the day: a void that commits while the
     // day is being closed cannot change the expected cash after it was counted.
@@ -670,6 +689,16 @@ async function voidSale(pool, { saleId, reason, userId, refundConfirmed = false 
     const { rows: closed } = await client.query("SELECT 1 FROM till_days WHERE day = $1 AND closed_at IS NOT NULL FOR SHARE", [sale.day]);
     if (closed.length) throw new TillError("The day is closed: sales can no longer be voided.", 409);
     const { rows: items } = await client.query("SELECT * FROM till_sale_items WHERE sale_id = $1 ORDER BY id", [saleId]);
+    if (!isAdmin) {
+      // One void at a time per account, so the daily limit cannot be raced past.
+      await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`till-void:${userId}`]);
+      const { rows: used } = await client.query(
+        `SELECT COUNT(*)::int AS n FROM till_sales WHERE status = 'voided' AND voided_by = $1 AND ${parisDay("voided_at")} = ${parisDay("now()")}`, [userId]);
+      const max = maxTillVoidsPerDay();
+      if (used[0].n >= max) {
+        throw new TillError(`You have already voided ${max} sale${max === 1 ? "" : "s"} today, which is the most a till account can. Ask an admin to void this one.`, 403);
+      }
+    }
     const reservation = items.find((i) => i.reservation_order_id);
     if (reservation) {
       throw new TillError(`This sale collected reservation #${reservation.reservation_order_id}: it cannot be voided here. Open that reservation and use "Mark refunded" after giving the money back.`, 409);
@@ -687,7 +716,7 @@ async function voidSale(pool, { saleId, reason, userId, refundConfirmed = false 
         await client.query("UPDATE till_quick_items SET stock = stock + $2 WHERE id = $1 AND stock IS NOT NULL", [i.quick_item_id, i.quantity]);
       }
     }
-    const refunded = sale.payment_method === "card" && refundConfirmed === true;
+    const refunded = isAdmin && sale.payment_method === "card" && refundConfirmed === true;
     await client.query(
       `UPDATE till_sales SET status = 'voided', voided_at = now(), void_reason = $2, voided_by = $3,
               refund_confirmed = $4, refund_confirmed_at = CASE WHEN $4 THEN now() END, refund_confirmed_by = CASE WHEN $4 THEN $3::int END
@@ -704,7 +733,8 @@ async function voidSale(pool, { saleId, reason, userId, refundConfirmed = false 
 }
 
 // Staff ticked "I refunded the card" for a voided card sale (later, after the void).
-async function confirmRefund(db, { saleId, userId }) {
+async function confirmRefund(db, { saleId, userId, isAdmin = false }) {
+  if (!isAdmin) throw new TillError("Only an admin can confirm that a card was refunded.", 403);
   const { rows } = await db.query(
     `UPDATE till_sales SET refund_confirmed = true, refund_confirmed_at = now(), refund_confirmed_by = $2
      WHERE id = $1 AND status = 'voided' AND payment_method = 'card' AND NOT refund_confirmed RETURNING total_cents`,
@@ -722,6 +752,18 @@ async function unrefundedVoids(db, day = null) {
        AND ($1::date IS NULL OR ${parisDay("created_at")} = $1::date)
      ORDER BY created_at, id`, [day]
   );
+  return rows;
+}
+
+// Every void of a Paris day (all roles), newest first: who, when, how much, why. Feeds Needs
+// attention, the End of day page and its CSV.
+async function voidsOfDay(db, day) {
+  const { rows } = await db.query(
+    `SELECT s.id, s.voided_at, s.payment_method, s.total_cents, s.void_reason, s.refund_confirmed, s.voided_by,
+            COALESCE(NULLIF(u.display_name, ''), u.email, 'unknown') AS voided_by_name, COALESCE(u.is_admin, false) AS by_admin
+     FROM till_sales s LEFT JOIN users u ON u.id = s.voided_by
+     WHERE s.status = 'voided' AND ${parisDay("s.voided_at")} = $1::date
+     ORDER BY s.voided_at DESC, s.id DESC`, [day]);
   return rows;
 }
 
@@ -743,6 +785,7 @@ async function daySummary(db, day) {
     `SELECT COUNT(*)::int AS n FROM till_sales s JOIN till_days d ON d.day = $1::date AND d.closed_at IS NOT NULL
      WHERE ${parisDay("s.created_at")} = $1::date AND s.status = 'completed' AND s.entered_at > d.closed_at`, [day]);
   const unrefunded = await unrefundedVoids(db, day);
+  const voidList = await voidsOfDay(db, day);
   const pick = (method, status) => totals.find((t) => t.payment_method === method && t.status === status) || { n: 0, total: 0 };
   const cash = pick("cash", "completed");
   const card = pick("card", "completed");
@@ -753,7 +796,7 @@ async function daySummary(db, day) {
     day, cash, card, voided, categories: cats,
     count: cash.n + card.n, total: cash.total + card.total,
     dayRow: row, hasFloat: !!row, floatCents, expectedCashCents: floatCents + cash.total,
-    closed: !!(row && row.closed_at), salesAfterClose: after[0].n, unrefunded,
+    closed: !!(row && row.closed_at), salesAfterClose: after[0].n, unrefunded, voidList,
   };
 }
 
@@ -848,5 +891,5 @@ async function unclosedDays(db) {
 module.exports = {
   TillError, assignReceiptNumber, receiptNumber, OTHER_CATEGORIES, EXPORT_CATEGORY, DESCRIPTION_MAX, MAX_QTY, MAX_TOTAL_CENTS, OVERRIDE_UP_PERCENT, eur, toCents, parseCents, cashChange, cleanText,
   parseBarcode, checkBarcodeFree, SHOP_CODE_PREFIX, lookupScan, releaseExpiredCartCopy, buildLines, completeSale, checkSale, voidSale, confirmRefund,
-  unrefundedVoids, daySummary, openDay, closeDay, reopenDay, unclosedDays, basketHash,
+  unrefundedVoids, voidsOfDay, maxTillVoidsPerDay, TILL_VOID_REASON_MIN, daySummary, openDay, closeDay, reopenDay, unclosedDays, basketHash,
 };
