@@ -111,7 +111,7 @@ const isMonthlyRunTime = (now = new Date()) => { const p = parisParts(now); retu
 const eurText = (cents) => {
   const neg = cents < 0;
   const abs = Math.abs(cents);
-  const whole = String(Math.floor(abs / 100)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  const whole = String(Math.floor(abs / 100)).replace(/\B(?=(\d{3})+(?!\d))/g, "\u00A0");
   return `${neg ? "-" : ""}${whole},${pad(abs % 100)}`;
 };
 const receiptText = (year, no) => (no ? `${year}-${String(no).padStart(4, "0")}` : "");
@@ -124,7 +124,7 @@ const EMAIL_RE = /[^\s@]+@[^\s@]+/;
 const PHONE_RES = [/(?:\+|\b00)\d[\d .-]{7,}\d/, /\b0[1-9](?:[ .-]?\d{2}){4}\b/, /\d{10,}/];
 function assertNoPersonalData(name, text, expectedHeader) {
   if (expectedHeader) {
-    const first = text.replace(/^﻿/, "").split("\r\n")[0];
+    const first = text.replace(/^\uFEFF/, "").split("\r\n")[0];
     const header = first.split(";").map((c) => c.replace(/^"|"$/g, "").replace(/""/g, '"'));
     if (JSON.stringify(header) !== JSON.stringify(expectedHeader)) {
       throw new Error(`${name}: the columns are not the expected list (a column was added or changed). Refusing to write it until it is reviewed for personal data.`);

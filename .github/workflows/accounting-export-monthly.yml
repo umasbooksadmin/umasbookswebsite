@@ -1,0 +1,177 @@
+name: Monthly accounting export
+
+# French accounting records must be kept 10 years, while the database backups only keep
+# 30 days (nightly) and 2 years (monthly). On the 1st of each month at 07:00 Paris time this
+# produces the accounting files of the PREVIOUS Paris month with the app's own accounting
+# code (umas-books/src/lib/accounting.js, the same as Admin > Reports > Accounting export):
+#   accounting_YYYY-MM.csv  the accounting export (French Excel CSV)
+#   till_days_YYYY-MM.csv   the till's end-of-day summary, one row per day
+#   summary_YYYY-MM.txt     totals by account and method, counts, receipt range, days not closed
+# and (1) emails the two CSVs, (2) stores all three in Backblaze under
+# accounting-exports/YYYY/ (plain, NOT encrypted: they hold no personal data and must stay
+# readable for 10 years without any key). Re-running a month overwrites the same files.
+#
+# The two cron lines (05:00 and 06:00 UTC) cover summer and winter time: the first step lets
+# only the run that is 07:xx in Paris on the 1st through. Manual run: Actions > this workflow
+# > Run workflow (optionally a month YYYY-MM; the time check is skipped).
+#
+# Needs: repository SECRET DATABASE_URL (the read-only backup_ro user), the BACKUP_S3_*
+# variables/secrets of the nightly backup, GMAIL_USER / GMAIL_APP_PASSWORD. Optional repository
+# VARIABLE ACCOUNTING_TO (the treasurer's address, comma separated); else ALERT_TO.
+# Nothing is uploaded as a GitHub artifact and no data row is ever printed in the log.
+# Docs: docs/runbook.md, section "Keeping records for 10 years".
+
+on:
+  schedule:
+    - cron: "0 5 1 * *" # 05:00 UTC = 07:00 Paris in summer (CEST)
+    - cron: "0 6 1 * *" # 06:00 UTC = 07:00 Paris in winter (CET)
+  workflow_dispatch:
+    inputs:
+      month:
+        description: "Month to export, YYYY-MM (empty = the previous month)"
+        required: false
+        default: ""
+        type: string
+      ignore_time_check:
+        description: "Run now even if it is not 07:00 Paris on the 1st"
+        required: false
+        default: true
+        type: boolean
+      allow_current_month:
+        description: "Test only: allow the current (unfinished) month"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: accounting-export
+  cancel-in-progress: false
+
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Only run at 07:00 Paris time on the 1st
+        id: gate
+        env:
+          IGNORE: ${{ inputs.ignore_time_check }}
+        run: |
+          HOUR=$((10#$(TZ=Europe/Paris date +%H)))
+          DAY=$((10#$(TZ=Europe/Paris date +%d)))
+          if [ "$IGNORE" = "true" ] || { [ "$HOUR" = "7" ] && [ "$DAY" = "1" ]; }; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Paris time is day $DAY, hour $HOUR: not 07:00 on the 1st. Nothing to do (the other schedule line covers it)."
+          fi
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.gate.outputs.run == 'true'
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        if: steps.gate.outputs.run == 'true'
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: umas-books/package-lock.json
+
+      - name: Install dependencies
+        if: steps.gate.outputs.run == 'true'
+        working-directory: umas-books
+        run: npm ci --ignore-scripts
+
+      - name: Check the settings are present
+        if: steps.gate.outputs.run == 'true'
+        env:
+          BUCKET: ${{ vars.BACKUP_S3_BUCKET }}
+          ENDPOINT: ${{ vars.BACKUP_S3_ENDPOINT }}
+          REGION: ${{ vars.BACKUP_S3_REGION }}
+          KEY_ID: ${{ secrets.BACKUP_S3_KEY_ID }}
+          APP_KEY: ${{ secrets.BACKUP_S3_APPLICATION_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -z "$BUCKET" ] || [ -z "$ENDPOINT" ] || [ -z "$REGION" ] || [ -z "$KEY_ID" ] || [ -z "$APP_KEY" ] || [ -z "$DATABASE_URL" ]; then
+            echo "::error::Settings are missing. Set BACKUP_S3_BUCKET, BACKUP_S3_ENDPOINT, BACKUP_S3_REGION (repository variables) and BACKUP_S3_KEY_ID, BACKUP_S3_APPLICATION_KEY, DATABASE_URL (repository secrets). Nothing was exported."
+            exit 1
+          fi
+
+      - name: Produce the accounting files (read-only)
+        id: export
+        if: steps.gate.outputs.run == 'true'
+        working-directory: umas-books
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          MONTH: ${{ inputs.month }}
+          ALLOW_CURRENT: ${{ inputs.allow_current_month }}
+        run: |
+          ARGS=(--out "$GITHUB_WORKSPACE/accounting-out")
+          if [ -n "$MONTH" ]; then ARGS+=(--month "$MONTH"); fi
+          if [ "$ALLOW_CURRENT" = "true" ]; then ARGS+=(--force); fi
+          node scripts/export-accounting-month.js "${ARGS[@]}"
+
+      - name: Store the files in Backblaze (plain, kept 10 years)
+        if: steps.gate.outputs.run == 'true'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_S3_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_APPLICATION_KEY }}
+          AWS_DEFAULT_REGION: ${{ vars.BACKUP_S3_REGION }}
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+          ENDPOINT: ${{ vars.BACKUP_S3_ENDPOINT }}
+          BUCKET: ${{ vars.BACKUP_S3_BUCKET }}
+          LABEL: ${{ steps.export.outputs.label }}
+          FOLDER: ${{ steps.export.outputs.folder }}
+          TOTAL: ${{ steps.export.outputs.total }}
+          ROWS: ${{ steps.export.outputs.rows }}
+        run: |
+          # Fixed folder names (the bucket lifecycle rule for accounting-exports/ keeps them 10 years).
+          # Plain files on purpose: no personal data, and readable without any key.
+          cd "$GITHUB_WORKSPACE/accounting-out"
+          for f in "accounting_${LABEL}.csv" "till_days_${LABEL}.csv" "summary_${LABEL}.txt"; do
+            test -s "$f" || { echo "::error::$f is missing or empty."; exit 1; }
+            case "$f" in *.csv) TYPE="text/csv; charset=utf-8" ;; *) TYPE="text/plain; charset=utf-8" ;; esac
+            aws s3 cp "$f" "s3://${BUCKET}/accounting-exports/${FOLDER}/${f}" --endpoint-url "$ENDPOINT" --content-type "$TYPE" --only-show-errors
+            echo "Stored accounting-exports/${FOLDER}/${f}"
+          done
+          {
+            echo "## Accounting export ${LABEL}"
+            echo
+            echo "- ${ROWS} accounting rows, total ${TOTAL} EUR"
+            echo "- Stored in Backblaze: accounting-exports/${FOLDER}/ (3 files)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Email the two CSV files
+        if: steps.gate.outputs.run == 'true'
+        uses: dawidd6/action-send-mail@67ce3558d613188179559c61d3565140cf389968 # v22
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.GMAIL_USER }}
+          password: ${{ secrets.GMAIL_APP_PASSWORD }}
+          subject: "[umas-books] Accounting export ${{ steps.export.outputs.label }}"
+          to: ${{ vars.ACCOUNTING_TO || vars.ALERT_TO || 'admin@umasbooks.org' }}
+          from: "Uma's Books Accounting <${{ secrets.GMAIL_USER }}>"
+          body: file://accounting-out/email_body.txt
+          attachments: accounting-out/accounting_*.csv,accounting-out/till_days_*.csv
+
+      - name: Alert admin if any step above failed
+        if: failure()
+        uses: dawidd6/action-send-mail@67ce3558d613188179559c61d3565140cf389968 # v22
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.GMAIL_USER }}
+          password: ${{ secrets.GMAIL_APP_PASSWORD }}
+          subject: "[umas-books] Monthly accounting export failed"
+          to: ${{ vars.ALERT_TO || 'admin@umasbooks.org' }}
+          from: "Uma's Books Backup Monitor <${{ secrets.GMAIL_USER }}>"
+          body: |
+            The monthly accounting export did not complete successfully, so the accounting files for last month were not produced (or not fully stored).
+
+            Check the failed run for details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+            Once the cause is fixed, open the "Monthly accounting export" workflow in the Actions tab, click "Run workflow" and leave the month empty (or type it as YYYY-MM): the files are simply written again.

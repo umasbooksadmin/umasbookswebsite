@@ -61,7 +61,7 @@ test("September: the files exist, the CSV is the admin export's own, boundaries 
   // same function as Admin > Reports > Accounting export
   const admin = await accounting.accountingExportReport(pool, { from: "2026-09-01", to: "2026-09-30" });
   assert.equal(csv, reports.toCsv(admin.sections[0], { locale: "fr" }));
-  assert.ok(csv.startsWith("﻿"), "UTF-8 BOM");
+  assert.ok(csv.startsWith("\uFEFF"), "UTF-8 BOM");
   assert.ok(csv.includes("\r\n") && !/[^\r]\n/.test(csv), "CRLF");
   assert.match(csv.split("\r\n")[0], /^\uFEFF"Date";"Category"/);
   assert.match(csv, /;12,50;|;10,00;/, "decimal comma");
@@ -87,7 +87,7 @@ test("the refund is a negative row in October, not in September", async () => {
 
 test("till days: one row per day, float, counted, difference, totals, receipt range, closed", async () => {
   const { d, r } = await run(["--month", "2026-09"]);
-  const lines = read(d, "till_days_2026-09.csv").replace(/^﻿/, "").split("\r\n").filter(Boolean);
+  const lines = read(d, "till_days_2026-09.csv").replace(/^\uFEFF/, "").split("\r\n").filter(Boolean);
   assert.equal(lines[0], ax.TILL_HEADER.map((h) => `"${h}"`).join(";"));
   assert.equal(lines.length, 1 + 2, "1 and 10 September (the 30 September 22:30Z sale is 1 October in Paris)");
   const by = Object.fromEntries(lines.slice(1).map((l) => [l.split(";")[0].replace(/"/g, ""), l.split(";")]));
@@ -114,7 +114,7 @@ test("no personal data in any file, though the seed has names, emails and a phon
       assert.doesNotMatch(text, /\d{2}[ .]\d{2}[ .]\d{2}[ .]\d{2}[ .]\d{2}|\d{10,}/, f);
       for (const p of PII) assert.ok(!text.includes(p), `${f} contains ${p}`);
     }
-    const csv = read(d, `accounting_${month}.csv`).replace(/^﻿/, "");
+    const csv = read(d, `accounting_${month}.csv`).replace(/^\uFEFF/, "");
     assert.deepEqual(csv.split("\r\n")[0].split(";").map((c) => c.replace(/"/g, "")), ax.ACCOUNTING_HEADER);
   }
 });
@@ -122,9 +122,9 @@ test("no personal data in any file, though the seed has names, emails and a phon
 test("an empty month succeeds with headers only and a 'no sales' summary", async () => {
   const { d, r } = await run(["--month", "2026-07"]);
   assert.equal(r.stats.accountingRows, 0);
-  const csv = read(d, "accounting_2026-07.csv").replace(/^﻿/, "");
+  const csv = read(d, "accounting_2026-07.csv").replace(/^\uFEFF/, "");
   assert.equal(csv.split("\r\n").filter(Boolean).length, 1);
-  assert.equal(read(d, "till_days_2026-07.csv").replace(/^﻿/, "").split("\r\n").filter(Boolean).length, 1);
+  assert.equal(read(d, "till_days_2026-07.csv").replace(/^\uFEFF/, "").split("\r\n").filter(Boolean).length, 1);
   assert.match(read(d, "summary_2026-07.txt"), /No sales were recorded in this period/);
   assert.match(read(d, "email_body.txt"), /overstated/);
   assert.match(read(d, "email_body.txt"), /No sales were recorded/);

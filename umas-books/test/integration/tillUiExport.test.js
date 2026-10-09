@@ -182,3 +182,10 @@ test("order page shows the language in words, add-book form: no alert on a blank
   assert.match(form, /class="form-actions-sticky"[\s\S]*Save and add another/);
   assert.match(form, /data-ps-box hidden/);
 });
+
+test("accounting export page: the hint about the monthly email and the 10-year copy", async () => {
+  const page = await h.get("/admin/reports/accounting");
+  assert.match(page.text, /The previous month is also emailed to you on the 1st at 07:00 and stored for 10 years/);
+  const other = await h.get("/admin/reports/accounts");
+  assert.doesNotMatch(other.text, /stored for 10 years/);
+});

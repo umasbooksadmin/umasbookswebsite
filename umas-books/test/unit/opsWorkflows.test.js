@@ -20,7 +20,10 @@ test("every workflow that emails sends to the ALERT_TO variable (default admin@u
   for (const f of workflows) {
     for (const m of read(f).matchAll(/^\s*to:\s*(.+)$/gm)) {
       found++;
-      assert.equal(m[1].trim(), "${{ vars.ALERT_TO || 'admin@umasbooks.org' }}", `${f}: ${m[1]}`);
+      // The ONE exception: the accounting files go to the treasurer's ACCOUNTING_TO, falling back to ALERT_TO.
+      const accountingMail = "${{ vars.ACCOUNTING_TO || vars.ALERT_TO || 'admin@umasbooks.org' }}";
+      const ok = m[1].trim() === "${{ vars.ALERT_TO || 'admin@umasbooks.org' }}" || (m[1].trim() === accountingMail && /^(accounting-export-monthly|nightly-db-backup)\.yml$/.test(f));
+      assert.ok(ok, `${f}: ${m[1]}`);
     }
   }
   assert.ok(found >= 6);
