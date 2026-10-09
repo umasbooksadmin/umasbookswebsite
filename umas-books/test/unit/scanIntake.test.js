@@ -176,3 +176,18 @@ test("keyboardInset: how much of the bottom the on-screen keyboard covers", () =
   assert.equal(S.keyboardInset(812, null), 0);
   assert.equal(S.keyboardInset(500, { height: 600, offsetTop: 0 }), 0);
 });
+
+test("shouldRefocusIsbn: the cursor never leaves a field the person is using (the keyboard would close)", () => {
+  const isbn = { tagName: "INPUT", type: "text" };
+  const el = (tagName, extra) => Object.assign({ tagName }, extra);
+  assert.equal(S.shouldRefocusIsbn(null, isbn), true, "nothing focused");
+  assert.equal(S.shouldRefocusIsbn(isbn, isbn), true, "already the ISBN box");
+  assert.equal(S.shouldRefocusIsbn(el("BODY"), isbn), true);
+  assert.equal(S.shouldRefocusIsbn(el("BUTTON"), isbn), true, "a button (Save) may give the cursor back");
+  assert.equal(S.shouldRefocusIsbn(el("INPUT", { type: "submit" }), isbn), true);
+  assert.equal(S.shouldRefocusIsbn(el("INPUT", { type: "checkbox" }), isbn), true);
+  for (const type of ["text", "search", "number", "email", "url", "tel"]) assert.equal(S.shouldRefocusIsbn(el("INPUT", { type }), isbn), false, `input ${type}`);
+  assert.equal(S.shouldRefocusIsbn(el("TEXTAREA"), isbn), false, "description");
+  assert.equal(S.shouldRefocusIsbn(el("SELECT"), isbn), false, "condition select");
+  assert.equal(S.shouldRefocusIsbn(el("DIV", { isContentEditable: true }), isbn), false);
+});

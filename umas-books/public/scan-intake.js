@@ -30,6 +30,22 @@
     return /^\d{13}$/.test(d) || /^\d{9}[\dX]$/.test(d);
   }
 
+  // May the script move the cursor to the ISBN box? Not when the person is in another
+  // field (text box, select, textarea, editable element): moving the focus away from a
+  // field just tapped closes the phone keyboard. A button, a link or nothing focused is fine.
+  function shouldRefocusIsbn(active, isbnEl) {
+    if (!active || active === isbnEl) return true;
+    var tag = String(active.tagName || "").toUpperCase();
+    if (tag === "BODY" || tag === "HTML") return true;
+    if (tag === "TEXTAREA" || tag === "SELECT") return false;
+    if (active.isContentEditable) return false;
+    if (tag === "INPUT") {
+      var type = String(active.type || "text").toLowerCase();
+      return ["button", "submit", "reset", "checkbox", "radio", "image", "file", "hidden"].indexOf(type) !== -1;
+    }
+    return true;
+  }
+
   // Decides when a scan is finished. A scanner types the digits then presses
   // Enter, but some skip the Enter, so a complete value also counts once the
   // typing has paused (150 ms). A 13-digit ISBN passes through 10 digits on
@@ -192,6 +208,12 @@
     function focusIsbn() {
       try { isbn.focus({ preventScroll: false }); isbn.select(); } catch (e) { /* fine */ }
     }
+    // The cursor goes back to the ISBN box by itself (after a lookup, on load, after a save)
+    // only when no other field is in use: a person who tapped Title, Location or Price while
+    // the lookup ran must keep that field, and its keyboard.
+    function refocusIsbn() {
+      if (shouldRefocusIsbn(document.activeElement, isbn)) focusIsbn();
+    }
 
     // ---- remembered binding (the last one entered) and location
     var availableBindings = [];
@@ -258,7 +280,7 @@
           fillForm(res.body);
           var st = lookupStatus(res.body);
           setStatus(st.kind, st.text);
-          focusIsbn();
+          refocusIsbn();
         })
         .catch(function () {
           if (!guard.isCurrent(id)) return;
@@ -376,7 +398,7 @@
             showSaved(res.body);
             setStatus("", "Ready for the next book: scan the barcode.");
             isbn.value = scanned || pendingIsbn || "";
-            focusIsbn();
+            refocusIsbn();
             if (isCompleteIsbn(isbn.value)) runLookup(isbn.value);
             pendingIsbn = "";
             return;
@@ -433,8 +455,8 @@
 
     // ---- cursor in the ISBN box, on load and when the page is shown again
     focusIsbn();
-    window.addEventListener("load", focusIsbn);
-    window.addEventListener("pageshow", focusIsbn);
+    window.addEventListener("load", refocusIsbn);
+    window.addEventListener("pageshow", refocusIsbn);
     if (savedEl && !savedEl.hidden && window.matchMedia && window.matchMedia("(pointer: coarse)").matches) {
       // Without a tap, iOS Safari shows the cursor but not the keyboard.
       setStatus("", "Ready for the next book: scan it, or tap the ISBN box to type.");
@@ -442,7 +464,7 @@
   }
 
   return {
-    isbnDigits: isbnDigits, isCompleteIsbn: isCompleteIsbn, createScanWatcher: createScanWatcher, createRequestGuard: createRequestGuard,
+    isbnDigits: isbnDigits, isCompleteIsbn: isCompleteIsbn, createScanWatcher: createScanWatcher, createRequestGuard: createRequestGuard, shouldRefocusIsbn: shouldRefocusIsbn,
     planFill: planFill, resolveBindingKey: resolveBindingKey, chooseBinding: chooseBinding, lookupStatus: lookupStatus,
     keyboardInset: keyboardInset, FILL_FIELDS: FILL_FIELDS, init: init,
   };

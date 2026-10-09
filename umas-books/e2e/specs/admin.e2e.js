@@ -191,6 +191,34 @@ s.test("A9b (must) on a phone (375x812 and 320x640) the Add book page has no sid
   }
 });
 
+s.test("A9g (must) on a phone (390 px, touch) after a lookup, tapping each text field keeps the cursor in it for 1.5 s (the keyboard stays up)", { as: "admin" }, async (ctx) => {
+  await ctx.page.setViewport({ width: 390, height: 844, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
+  await admin(ctx, "/admin/inventory/new");
+  await ctx.page.waitForSelector("#isbn[data-scan-active]");
+  await ctx.page.evaluate(() => { // the lookup answer is slow on purpose: the person taps a field meanwhile
+    const real = window.fetch;
+    window.fetch = (...a) => (String(a[0]).includes("/admin/inventory/lookup") ? new Promise((r) => setTimeout(r, 800)).then(() => real(...a)) : real(...a));
+    window.__focusLog = [];
+    document.addEventListener("focusin", (e) => window.__focusLog.push({ id: e.target.id, t: Math.round(performance.now()) }));
+  });
+  await ctx.page.type("#isbn", REAL_ISBN);
+  await ctx.page.keyboard.press("Enter");
+  await ctx.page.evaluate(() => { const d = document.querySelector("details"); if (d) d.open = true; });
+  const ids = ["title", "author", "location", "publisherPrice", "description"];
+  for (const id of ids) {
+    if (!(await ctx.page.$(`#${id}`))) continue;
+    await ctx.page.evaluate((i) => document.getElementById(i).scrollIntoView({ block: "center" }), id);
+    await ctx.page.tap(`#${id}`);
+    await new Promise((r) => setTimeout(r, 1500));
+    const r = await ctx.page.evaluate((i) => { const el = document.getElementById(i); return { active: document.activeElement && document.activeElement.id, ro: el.readOnly, dis: el.disabled, im: el.getAttribute("inputmode") }; }, id);
+    assert.equal(r.active, id, `after tapping #${id} the cursor must stay in it (was in #${r.active})`);
+    assert.ok(!r.ro && !r.dis && r.im !== "none", `#${id} is readonly, disabled or inputmode none`);
+  }
+  await ctx.page.waitForFunction(() => /^(Found|Already in stock|Not found|No connection|The lookup)/.test(document.getElementById("scan-status").textContent.trim()), { timeout: 20000 });
+  await new Promise((r) => setTimeout(r, 500));
+  assert.equal(await ctx.page.evaluate(() => document.activeElement.id), "description", "the finished lookup did not take the cursor away");
+});
+
 s.test("A9e (must) on a phone (375 px, and 320 px) every admin page has the logo at the top, linking to the main page, easy to tap, with no sideways scroll", { as: "admin" }, async (ctx) => {
   for (const [width, height] of [[375, 812], [320, 640]]) {
     await ctx.page.setViewport({ width, height, deviceScaleFactor: 2, isMobile: true, hasTouch: true });

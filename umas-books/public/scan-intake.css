@@ -72,3 +72,8 @@
 
 .scan-save-view { width: 100%; box-sizing: border-box; justify-content: center; text-align: center; margin-top: 4px; }
 @media (pointer: coarse) { .scan-hint .kbd-hint { display: none; } }
+
+/* Help for "no on-screen keyboard" (a Bluetooth scanner hides it on iOS): only on touch screens. */
+.scan-kbd-help { display: none; margin: 0 0 10px; }
+@media (pointer: coarse) { .scan-kbd-help { display: block; } }
+.scan-kbd-help summary { cursor: pointer; min-height: 32px; }
