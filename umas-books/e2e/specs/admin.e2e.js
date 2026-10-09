@@ -902,6 +902,7 @@ s.test("A39 (must) Pricing rules shows the rules and the Try it calculator, and 
   has(text, /Try it/);
   has(text, /Price sticker colours/);
   for (const c of ["Orange", "Yellow", "Green", "Blue", "Red", "Purple", "White"]) has(text, new RegExp(c));
+  for (const k of ["Clearance", "Children's", "Mass Market", "Trade", "Hardback"]) has(text, new RegExp(k));
   await ctx.page.$eval("#calcMarket", (i) => { i.value = "10"; });
   await ctx.page.select("#calcBinding", "mass_market");
   await Promise.all([ctx.page.waitForNavigation(), ctx.page.click("form[action='/admin/pricing'][method='get'] button[type='submit']")]);
@@ -909,6 +910,13 @@ s.test("A39 (must) Pricing rules shows the rules and the Try it calculator, and 
   await admin(ctx, "/admin/pricing/review");
   const review = await ctx.text();
   for (const re of [/Needs review/, /Priced differently from the suggestion|Clearance candidates/]) has(review, re);
+  // The one-off Reprice tool: a preview only (the confirm buttons are not pressed here: they change prices).
+  await admin(ctx, "/admin/pricing");
+  has(await ctx.text(), /Trade paperbacks/);
+  await admin(ctx, "/admin/pricing/reprice");
+  const rp = await ctx.text();
+  for (const re of [/Group A: Trade copies/, /Group B: Mass Market copies/, /Group C: /, /Earlier runs/]) has(rp, re);
+  hasNot(rp, /EUR 8\.00 \(/);
 });
 s.manual("A39b change the Clearance price to 2, add a copy, then set it back to 1", "changes the real pricing settings; do by hand");
 s.manual("A41 online price check ('Listings found') when PRICING_AI is on", "depends on a setting and a paid lookup service; off by default");

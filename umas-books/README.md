@@ -369,7 +369,7 @@ noted in **Admin activity**.
 When you add a book, the shop suggests a price. It is only a suggestion: you
 can always pick another price, and nothing is published until you save.
 
-- **What you see:** next to the price, a line such as *Suggested EUR 8.00
+- **What you see:** next to the price, a line such as *Suggested EUR 10.00
   (range 5.00-10.00, medium confidence)* and the matching choice marked
   *Suggested*. Click **Why this price?** to read the reasons and, when the
   online check found them, links to the listings it used.
@@ -377,10 +377,12 @@ can always pick another price, and nothing is published until you save.
   used copies typically sell for), its binding, and how many copies we already
   have. **The condition of your copy does not change the price.**
   - A **new** book is always sold at the publisher's price (French law).
-  - **Mass market** paperbacks are EUR 5.
-  - Other books (hardback, trade and **Other**): worth under EUR 6 online = EUR 5; EUR 6 to 19.99 = EUR 8;
+  - **Mass market** and **Trade** paperbacks are a flat EUR 5, whatever they
+    are worth online and whatever their condition.
+  - Other books (hardback and **Other**): worth under EUR 6 online = EUR 5; EUR 6 to 19.99 = EUR 10;
     EUR 20 to 49.99 = about three quarters of the online value. **Hardbacks
-    are never under EUR 10.**
+    are never under EUR 10.** The standard prices are EUR 3, 5 and 10 (EUR 8 was
+    retired; a book that would have been EUR 8 is now EUR 10, or EUR 5 for trade).
   - If we already have **2 or more copies** of the same book (in stock or
     reserved), the next one goes to the **clearance** bin at EUR 1 (this
     applies to the cheaper books; see the rules page).
@@ -402,6 +404,14 @@ can always pick another price, and nothing is published until you save.
   the books waiting for review; and previews **clearance candidates** (books
   with more than 2 copies whose extra copies are not on clearance yet) with a
   button to apply clearance after you have looked at the list.
+- **Reprice** (reached from the Pricing rules page): a one-off tool for the
+  change to flat EUR 5 Trade and Mass Market prices and the end of EUR 8. It
+  previews three groups of copies already in stock (A: Trade not at EUR 5,
+  B: Mass Market not at EUR 5, C: any other binding at exactly EUR 8, which
+  moves to EUR 10), each with its own confirm button. Clearance, new, reserved,
+  sold and in-cart copies are never touched. Each confirmed group is one
+  transaction, is logged in Admin activity, and can be downloaded as a CSV
+  (price before and after) so it can be reversed by hand.
 - **Privacy:** when the online check is switched on, only the book's ISBN,
   title, author and binding are sent to the AI service (Anthropic), to find
   prices for that exact edition. No names, emails or anything about members or

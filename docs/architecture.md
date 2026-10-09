@@ -495,13 +495,13 @@ flowchart TD
   NEW -- no --> ISBN{"Has an ISBN?"}
   ISBN -- no --> REV["Manual review:<br/>no price suggested"]
   ISBN -- yes --> MKT["Market value in EUR<br/>1. cached or fresh AI web lookup (optional)<br/>2. else publisher price x 35%<br/>3. else typical value by binding"]
-  MKT --> HI{"Not mass market and<br/>value 50 EUR or more?"}
+  MKT --> HI{"Not mass market or trade and<br/>value 50 EUR or more?"}
   HI -- yes --> REV
-  HI -- no --> CLR{"Book already has 2 or more<br/>copies, and Rule A or mass market?"}
+  HI -- no --> CLR{"Book already has 2 or more<br/>copies, and Rule A, mass market or trade?"}
   CLR -- yes --> CP["Clearance: EUR 1"]
-  CLR -- no --> MM{"Mass market?"}
+  CLR -- no --> MM{"Mass market or trade?"}
   MM -- yes --> P5["EUR 5"]
-  MM -- no --> RS["Rule A under 6: EUR 5<br/>Rule B under 20: EUR 8<br/>Rule C under 50: 75% of value,<br/>rounded to 0.50"]
+  MM -- no --> RS["Rule A under 6: EUR 5<br/>Rule B under 20: EUR 10<br/>Rule C under 50: 75% of value,<br/>rounded to 0.50"]
   RS --> HC["Hardback floor:<br/>raised to EUR 10"]
 ```
 
@@ -509,8 +509,8 @@ flowchart TD
   they always answer instantly and are fully unit-tested. First match wins, as in
   the diagram; the thresholds shown are the defaults.
 * **All the numbers live in one database row** (`pricing_settings`, `id = 1`),
-  edited by admins on `/admin/pricing`: the standard price levels (3, 5, 8, 10
-  EUR), the mass-market price (EUR 5), the hardback floor (EUR 10, optionally
+  edited by admins on `/admin/pricing`: the standard price levels (3, 5, 10
+  EUR; EUR 8 was retired), the mass-market and trade prices (each a flat EUR 5), the hardback floor (EUR 10, optionally
   applied to clearance too), the Rule A/B/C limits, the clearance count, price and
   scope, the rounding step, fallback values by binding and the USD and GBP rates.
 * **Clearance** applies when the shop already holds two or more copies of a book

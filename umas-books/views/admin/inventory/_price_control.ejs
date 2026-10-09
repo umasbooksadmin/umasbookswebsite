@@ -5,7 +5,7 @@
   // selected (radio key, or '' for none), suggestAction, bookId + copyId (edit).
   // condition + isClearance (optional) choose the starting level.
   // priceUi (levels, clearance price) comes from the route.
-  const ui = typeof priceUi !== 'undefined' ? priceUi : { levels: [3, 5, 8, 10], clearancePrice: 1, keyFor: () => '' };
+  const ui = typeof priceUi !== 'undefined' ? priceUi : { levels: [3, 5, 10], clearancePrice: 1, keyFor: () => '' };
   const sfx = idSuffix || '';
   const ps = suggestion || null;
   const copyCondition = typeof condition !== 'undefined' ? condition : '';

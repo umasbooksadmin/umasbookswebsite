@@ -65,9 +65,9 @@ const setMarket = (prices, original = null) => {
   };
 };
 
-const DEFAULTS_SQL = `UPDATE pricing_settings SET levels='[3,5,8,10]', mass_market_price=5, hardcover_min_price=10, hardcover_min_applies_to_clearance=false,
-  a_max=6, a_price=5, b_max=20, b_price=8, c_max=50, c_factor=0.75, used_fraction=0.35, rounding_step=0.5,
-  fallback_hardcover=12, fallback_trade=8, fallback_mass_market=4, fallback_unknown=8, usd_eur=0.92, gbp_eur=1.15,
+const DEFAULTS_SQL = `UPDATE pricing_settings SET levels='[3,5,10]', mass_market_price=5, trade_price=5, hardcover_min_price=10, hardcover_min_applies_to_clearance=false,
+  a_max=6, a_price=5, b_max=20, b_price=10, c_max=50, c_factor=0.75, used_fraction=0.35, rounding_step=0.5,
+  fallback_hardcover=12, fallback_trade=5, fallback_mass_market=5, fallback_unknown=5, usd_eur=0.92, gbp_eur=1.15,
   clearance_after_copies=2, clearance_price=1, clearance_scope='extra', clearance_applies_to='set_a' WHERE id=1`;
 const { clearSettingsCache } = require("../../src/lib/pricing/settings");
 async function resetSettings() {
@@ -76,9 +76,9 @@ async function resetSettings() {
 }
 
 const SETTINGS_FORM = {
-  levels: "3, 5, 8, 10", mass_market_price: "5", hardcover_min_price: "10", a_max: "6", a_price: "5", b_max: "20", b_price: "8",
+  levels: "3, 5, 10", mass_market_price: "5", trade_price: "5", hardcover_min_price: "10", a_max: "6", a_price: "5", b_max: "20", b_price: "10",
   c_max: "50", c_factor: "0.75", used_fraction: "0.35", rounding_step: "0.5",
-  fallback_hardcover: "12", fallback_trade: "8", fallback_mass_market: "4", fallback_unknown: "8",
+  fallback_hardcover: "12", fallback_trade: "5", fallback_mass_market: "5", fallback_unknown: "5",
   usd_eur: "0.92", gbp_eur: "1.15", clearance_after_copies: "2", clearance_price: "1",
   clearance_scope: "extra", clearance_applies_to: "set_a",
 };
@@ -162,15 +162,16 @@ test("every pricing and suggestion route: anonymous -> /login, member -> 403", a
 
 test("add-book page after an ISBN lookup: suggestion, price pre-filled, 'Why this price?' with listing links", async () => {
   const isbn = isbn13();
-  setMarket([12, 14, 16]); // median 14 -> Rule B -> EUR 8
+  setMarket([12, 14, 16]); // median 14 -> Rule B -> EUR 10
   const { res, text } = await h.post("/admin/inventory/lookup", { isbn });
   assert.equal(res.status, 200);
-  assert.match(text, /Suggested EUR 8\.00 \(range 5\.00-10\.00, medium confidence\)/);
-  assert.match(text, /name="price"[^>]*value="8"/);
-  assert.match(text, /name="suggestedPrice" value="8"/);
-  assert.match(text, /name="suggestedLevel" value="8"/);
-  assert.match(text, /value="8" data-price="8" checked/, "the EUR 8 option is selected");
-  assert.match(text, /data-suggested-tag="8">Suggested</, "and labelled Suggested");
+  assert.match(text, /Suggested EUR 10\.00 \(range 5\.00-10\.00, medium confidence\)/);
+  assert.match(text, /name="price"[^>]*value="10"/);
+  assert.match(text, /name="suggestedPrice" value="10"/);
+  assert.match(text, /name="suggestedLevel" value="10"/);
+  assert.match(text, /value="10" data-price="10" checked/, "the EUR 10 option is selected");
+  assert.doesNotMatch(text, /value="8" data-price="8"/, "EUR 8 is no longer offered");
+  assert.match(text, /data-suggested-tag="10">Suggested</, "and labelled Suggested");
   assert.match(text, /<summary>Why this price\?<\/summary>/);
   assert.match(text, /Rule B \(mid-range standard stock\)/);
   assert.match(text, /Based on 3 used listings \(AbeBooks, eBay\), the market value is about EUR 14\.00/);
@@ -187,7 +188,7 @@ test("add-book page after an ISBN lookup: suggestion, price pre-filled, 'Why thi
 test("add-book page: AI off (the default) -> rules with the usual value for the binding, no call; no ISBN -> manual review", async () => {
   process.env.PRICING_AI = "0";
   const { text } = await h.post("/admin/inventory/lookup", { isbn: isbn13() });
-  assert.match(text, /Suggested EUR 8\.00 \(range 5\.00-10\.00, low confidence\)/);
+  assert.match(text, /Suggested EUR 5\.00 \(range 3\.00-10\.00, low confidence\)/);
   assert.match(text, /We found no price information/);
   assert.equal(market.calls.length, 0);
 
@@ -258,7 +259,7 @@ test("endpoint: JSON, no-store, and the condition never changes the suggestion",
   assert.match(first.res.headers.get("content-type"), /json/);
   assert.equal(first.res.headers.get("cache-control"), "no-store");
   assert.deepEqual([first.body.price, first.body.ruleSet, first.body.level, first.body.levelText], [5, "A", 5, "5"]);
-  assert.equal(first.body.label, "Suggested EUR 5.00 (range 3.00-8.00, medium confidence)");
+  assert.equal(first.body.label, "Suggested EUR 5.00 (range 3.00-10.00, medium confidence)");
   assert.equal(first.body.comparables.length, 3);
   assert.ok(first.body.rationale.length >= 2);
   const results = [];
@@ -325,8 +326,8 @@ test("endpoint: 30 a minute per person, then 429 as JSON; another person is not 
 
 test("Save book (fast=0) and Save and add another (fast=1) store the same price and suggestion fields", async () => {
   const cases = [
-    { priceLevel: "8", price: "8", suggestedPrice: "8", suggestedLevel: "8" },
-    { priceLevel: "custom", price: "11", suggestedPrice: "8", suggestedLevel: "8" },
+    { priceLevel: "10", price: "10", suggestedPrice: "10", suggestedLevel: "10" },
+    { priceLevel: "custom", price: "11", suggestedPrice: "10", suggestedLevel: "10" },
     { priceLevel: "clearance", price: "1", suggestedPrice: "1", suggestedLevel: "clearance" },
     { priceLevel: "custom", price: "5" },
   ];
@@ -339,14 +340,14 @@ test("Save book (fast=0) and Save and add another (fast=1) store the same price 
 });
 
 test("saving a copy records what was suggested: suggested / adjusted / manual / review", async () => {
-  const kept = await addCopy({ priceLevel: "8", price: "8", suggestedPrice: "8", suggestedLevel: "8" });
-  assert.deepEqual([Number(kept.price), Number(kept.suggested_price), kept.suggested_level, kept.price_basis, kept.is_clearance], [8, 8, "8", "suggested", false]);
+  const kept = await addCopy({ priceLevel: "10", price: "10", suggestedPrice: "10", suggestedLevel: "10" });
+  assert.deepEqual([Number(kept.price), Number(kept.suggested_price), kept.suggested_level, kept.price_basis, kept.is_clearance], [10, 10, "10", "suggested", false]);
 
-  const changed = await addCopy({ priceLevel: "custom", price: "11", suggestedPrice: "8", suggestedLevel: "8" });
-  assert.deepEqual([Number(changed.price), Number(changed.suggested_price), changed.price_basis], [11, 8, "adjusted"]);
+  const changed = await addCopy({ priceLevel: "custom", price: "11", suggestedPrice: "10", suggestedLevel: "10" });
+  assert.deepEqual([Number(changed.price), Number(changed.suggested_price), changed.price_basis], [11, 10, "adjusted"]);
 
-  const otherLevel = await addCopy({ priceLevel: "10", price: "8", suggestedPrice: "8", suggestedLevel: "8" });
-  assert.deepEqual([Number(otherLevel.price), otherLevel.price_basis], [10, "adjusted"], "the chosen level wins over the price box");
+  const otherLevel = await addCopy({ priceLevel: "5", price: "8", suggestedPrice: "10", suggestedLevel: "10" });
+  assert.deepEqual([Number(otherLevel.price), otherLevel.price_basis], [5, "adjusted"], "the chosen level wins over the price box");
 
   const manual = await addCopy({ priceLevel: "5", price: "5" });
   assert.deepEqual([Number(manual.price), manual.suggested_price, manual.suggested_level, manual.price_basis], [5, null, null, "manual"]);
@@ -365,8 +366,10 @@ test("tampered hidden fields are ignored beyond numeric validation; the chosen l
     assert.equal(c.suggested_level, null);
     assert.equal(c.price_basis, "manual");
   }
-  const level = await addCopy({ priceLevel: "8", price: "99" });
-  assert.equal(Number(level.price), 8);
+  const level = await addCopy({ priceLevel: "10", price: "99" });
+  assert.equal(Number(level.price), 10);
+  const retired = await addCopy({ priceLevel: "8", price: "4.20" });
+  assert.equal(Number(retired.price), 4.2, "EUR 8 is no longer a level: it is treated as Custom");
   const notALevel = await addCopy({ priceLevel: "7", price: "4.20" });
   assert.equal(Number(notALevel.price), 4.2, "an unknown level is treated as Custom");
   const clearance = await addCopy({ priceLevel: "clearance", price: "99" });
@@ -433,7 +436,7 @@ test("pricing an existing copy: only the copies before it count, so copy no. 3 i
 test("clearance rule set: Rule A only by default; every rule when set so; never over manual review", async () => {
   setMarket([12, 14, 16]); // Rule B
   const b = await seedBook({ copies: [{}, {}] });
-  assert.equal((await suggestion({ isbn: b.isbn })).price, 8, "Rule B book is not on clearance by default");
+  assert.equal((await suggestion({ isbn: b.isbn })).price, 10, "Rule B book is not on clearance by default");
   await h.post("/admin/pricing", { ...SETTINGS_FORM, clearance_applies_to: "all_sets" });
   const all = await suggestion({ isbn: b.isbn });
   assert.deepEqual([all.price, all.ruleSet], [1, "clearance"]);
@@ -478,7 +481,7 @@ test("ticking 'reprice the others' does nothing unless the copy is a clearance c
 // ------------------------------------------------------------- the copy edit page
 
 test("copy edit page: 'Suggest price' shows the suggestion and does NOT touch the stored price; 'Use this price' saves it and audits", async () => {
-  setMarket([12, 14, 16]); // Rule B: 8
+  setMarket([12, 14, 16]); // Rule B: 10
   const book = await seedBook({ copies: [{ price: 6.5 }] });
   const copyId = book.ids[0];
   const page = await h.get(`/admin/inventory/${book.id}`);
@@ -490,7 +493,7 @@ test("copy edit page: 'Suggest price' shows the suggestion and does NOT touch th
 
   const shown = await h.post(`/admin/inventory/${book.id}/copies/${copyId}/suggest`, { condition: "good", price: "6.5" });
   assert.equal(shown.res.status, 200);
-  assert.match(shown.text, /Suggested EUR 8\.00/);
+  assert.match(shown.text, /Suggested EUR 10\.00/);
   assert.match(shown.text, /Why this price\?/);
   assert.match(shown.text, /Use this price/);
   assert.match(shown.text, /target="_blank" rel="noopener"/);
@@ -500,9 +503,9 @@ test("copy edit page: 'Suggest price' shows the suggestion and does NOT touch th
   const used = await h.post(`/admin/inventory/${book.id}/copies/${copyId}/use-price`, {});
   assert.equal(used.res.status, 302);
   const [afterUse] = await h.q("SELECT price, suggested_price, suggested_level, price_basis, is_clearance FROM book_copies WHERE id = $1", [copyId]);
-  assert.deepEqual([Number(afterUse.price), Number(afterUse.suggested_price), afterUse.suggested_level, afterUse.price_basis, afterUse.is_clearance], [8, 8, "8", "suggested", false]);
+  assert.deepEqual([Number(afterUse.price), Number(afterUse.suggested_price), afterUse.suggested_level, afterUse.price_basis, afterUse.is_clearance], [10, 10, "10", "suggested", false]);
   const audit = (await auditRows("copy.reprice")).find((a) => a.target_id === copyId);
-  assert.equal(audit.detail, "price 6.50 -> 8.00");
+  assert.equal(audit.detail, "price 6.50 -> 10.00");
 });
 
 test("'Use this price' never trusts the page: the suggestion is worked out again; a copy that needs review is not repriced", async () => {
@@ -537,7 +540,7 @@ test("copy edit: saving with a level records the learning loop; clearance flag f
   const marked = await flag(b);
   assert.deepEqual([Number(marked.price), marked.is_clearance, marked.price_basis, Number(marked.suggested_price)], [1, true, "suggested", 1]);
   // an edit that does not carry a suggestion keeps the stored one
-  await post(b, { priceLevel: "8" });
+  await post(b, { priceLevel: "10" });
   const kept = await flag(b);
   assert.deepEqual([Number(kept.suggested_price), kept.price_basis, kept.is_clearance], [1, "adjusted", false]);
 });
@@ -550,10 +553,15 @@ test("pricing rules page: shows the rules, the calculator and the sample table",
   assert.match(text, /Pricing rules/);
   assert.match(text, /name="a_max"[^>]*value="6"/);
   assert.match(text, /name="clearance_after_copies"[^>]*value="2"/);
-  assert.match(text, /name="levels"[^>]*value="3, 5, 8, 10"/);
+  assert.match(text, /name="levels"[^>]*value="3, 5, 10"/);
+  assert.match(text, /name="trade_price"[^>]*value="5"/);
+  assert.match(text, /Trade paperbacks/);
+  assert.match(text, /href="\/admin\/pricing\/reprice"/, "link to the Reprice tool");
   assert.match(text, /<th>Mass Market<\/th><th>Trade<\/th><th>Hardback<\/th><th>Other<\/th>/);
   assert.match(text, /<tr><td>5\.50<\/td><td>EUR 5\.00<\/td><td>EUR 5\.00<\/td><td>EUR 5\.00<\/td><td>EUR 10\.00<\/td><td>EUR 5\.00<\/td>/, "5.50: unknown 5, mass market 5, trade 5, hardback floored to 10, other 5");
-  assert.match(text, /<tr><td>50\.00<\/td><td>Manual review<\/td><td>EUR 5\.00<\/td>(<td>Manual review<\/td>){3}/, "50: review except mass market");
+  assert.match(text, /<tr><td>50\.00<\/td><td>Manual review<\/td><td>EUR 5\.00<\/td><td>EUR 5\.00<\/td>(<td>Manual review<\/td>){2}/, "50: review except mass market and trade");
+  assert.match(text, /<tr><td>12\.00<\/td><td>EUR 10\.00<\/td><td>EUR 5\.00<\/td><td>EUR 5\.00<\/td><td>EUR 10\.00<\/td><td>EUR 10\.00<\/td>/, "12: the old EUR 8 band is now 10 (trade and mass market stay 5)");
+  assert.doesNotMatch(text, /EUR 8\.00/, "no sample price is EUR 8 any more");
   assert.match(text, /Any value, no ISBN<\/td><td colspan="5">Manual review/);
   assert.match(text, /Pricing rules<\/a>/, "in the admin menu");
 });
@@ -562,19 +570,26 @@ test("pricing rules page: price colour chart lists every colour by name and foll
   const rowOf = (text, key) => (text.match(new RegExp(`<tr data-color="${key}">[\\s\\S]*?</tr>`)) || [""])[0];
   let text = (await h.get("/admin/pricing")).text;
   assert.match(text, /Price sticker colours/);
-  const expect = { orange: "EUR 1", yellow: "EUR 3", green: "EUR 5", blue: "EUR 8", red: "EUR 10", purple: "Special price", white: "Publisher&#39;s price" };
+  const expect = { orange: "1 euro", yellow: "3 euro", green: "5 euro", blue: "5 euro", red: "10 euro", purple: "Special price", white: "Publisher&#39;s price" };
   for (const [k, price] of Object.entries(expect)) {
     const row = rowOf(text, k);
     assert.match(row, new RegExp(`<strong>${k[0].toUpperCase() + k.slice(1)}</strong>`), `${k} name in text`);
     assert.ok(row.includes(price), `${k} price ${price}`);
   }
   assert.match(rowOf(text, "green"), /#237A3C/);
+  for (const [k, kind] of [["orange", "Clearance"], ["yellow", "Children&#39;s"], ["green", "Mass Market"], ["blue", "Trade"], ["red", "Hardback"]]) {
+    assert.ok(rowOf(text, k).includes(kind), `${k} is ${kind}`);
+  }
+  assert.doesNotMatch(rowOf(text, "blue"), /8 euro|No longer used/);
   assert.match(text, /@media print|Print this chart/);
   // Changing a level price and the clearance price in the settings changes the chart.
-  await h.post("/admin/pricing", { ...SETTINGS_FORM, levels: "3, 6, 8, 10", clearance_price: "2" });
+  await h.post("/admin/pricing", { ...SETTINGS_FORM, levels: "4, 12", clearance_price: "2", mass_market_price: "6", trade_price: "7" });
   text = (await h.get("/admin/pricing")).text;
-  assert.ok(rowOf(text, "green").includes("EUR 6"), "green follows the 2nd standard price");
-  assert.ok(rowOf(text, "orange").includes("EUR 2"), "orange follows the clearance price");
+  assert.ok(rowOf(text, "yellow").includes("4 euro"), "yellow follows the lowest standard price");
+  assert.ok(rowOf(text, "red").includes("12 euro"), "red follows the highest standard price");
+  assert.ok(rowOf(text, "green").includes("6 euro"), "green follows the Mass Market price");
+  assert.ok(rowOf(text, "blue").includes("7 euro"), "blue follows the Trade price");
+  assert.ok(rowOf(text, "orange").includes("2 euro"), "orange follows the clearance price");
   await resetSettings();
 });
 
@@ -583,7 +598,9 @@ test("pricing rules calculator: market value, binding, copies in stock, ISBN", a
   assert.match(await calc({ calcMarket: "24", calcBinding: "hardcover" }), /EUR 18\.00<\/strong> &middot; Rule C/);
   assert.match(await calc({ calcMarket: "3", calcBinding: "hardcover" }), /EUR 10\.00<\/strong> &middot; Rule A \+ hardback minimum/);
   assert.match(await calc({ calcMarket: "3", calcBinding: "trade", calcCopies: "2" }), /EUR 1\.00<\/strong> &middot; Clearance/);
-  assert.match(await calc({ calcMarket: "12", calcBinding: "trade", calcCopies: "2" }), /EUR 8\.00<\/strong> &middot; Rule B/);
+  assert.match(await calc({ calcMarket: "12", calcBinding: "other", calcCopies: "2" }), /EUR 10\.00<\/strong> &middot; Rule B/);
+  assert.match(await calc({ calcMarket: "12", calcBinding: "trade", calcCopies: "1" }), /EUR 5\.00<\/strong> &middot; Trade price/);
+  assert.match(await calc({ calcMarket: "80", calcBinding: "trade" }), /EUR 5\.00<\/strong> &middot; Trade price/);
   assert.match(await calc({ calcMarket: "80", calcBinding: "mass_market" }), /EUR 5\.00<\/strong> &middot; Mass market price/);
   assert.match(await calc({ calcMarket: "60" }), /Manual review: online value EUR 50\.00 or more/);
   assert.match(await calc({ calcMarket: "5", calcIsbn: "no" }), /Manual review: no ISBN barcode/);
@@ -626,7 +643,7 @@ test("pricing rules: saving changes the rules at once, is audited with the chang
 
 test("price check: lists in-stock copies priced differently from the suggestion; 'Use suggested' updates and audits", async () => {
   const book = await seedBook({ copies: [
-    { price: 8 }, // what the rules suggest: not listed
+    { price: 5 }, // what the rules suggest (nothing known online: fallback value 5, Rule A): not listed
     { price: 3 }, // a standard price, but not the suggestion
     { price: 13.37 }, // not a standard price
     { price: 1, clearance: true }, // clearance copy at the clearance price: fine
@@ -645,8 +662,8 @@ test("price check: lists in-stock copies priced differently from the suggestion;
   assert.equal(used.res.status, 302);
   assert.equal(used.res.headers.get("location"), "/admin/pricing/review?offset=0");
   const [row] = await h.q("SELECT price, suggested_price, price_basis, is_clearance FROM book_copies WHERE id = $1", [three]);
-  assert.deepEqual([Number(row.price), Number(row.suggested_price), row.price_basis, row.is_clearance], [8, 8, "suggested", false]);
-  assert.equal((await auditRows("copy.reprice")).find((a) => a.target_id === three).detail, "price 3.00 -> 8.00");
+  assert.deepEqual([Number(row.price), Number(row.suggested_price), row.price_basis, row.is_clearance], [5, 5, "suggested", false]);
+  assert.equal((await auditRows("copy.reprice")).find((a) => a.target_id === three).detail, "price 3.00 -> 5.00");
 
   // copies that are not eligible are left alone
   for (const id of [newCopy, sold]) await h.post(`/admin/pricing/review/${id}`, {});
@@ -810,15 +827,15 @@ test("fails open: AI off, no key, no ISBN, a broken database, a broken fetch: al
   const brokenPool = { query: async () => { throw new Error("db down"); } };
   assert.equal(await lookupMarket(brokenPool, { isbn }, { fetchImpl: f, env: ENV }), null);
   const throwing = async () => { throw new Error("network down"); };
-  const out = await suggestPrice(h.pool, { isbn: isbn13(), binding: "trade", condition: "good", existingCopies: 0 }, { fetchImpl: throwing, env: ENV, settings: DEFAULT_SETTINGS });
-  assert.deepEqual([out.price, out.ruleSet, out.confidence], [8, "B", "low"]);
+  const out = await suggestPrice(h.pool, { isbn: isbn13(), binding: "hardcover", condition: "good", existingCopies: 0 }, { fetchImpl: throwing, env: ENV, settings: DEFAULT_SETTINGS });
+  assert.deepEqual([out.price, out.ruleSet, out.confidence], [10, "B", "low"]);
 });
 
 test("combiner with listings: 4+ listings trim outliers; one listing; the median drives the rule", async () => {
   const env = ENV;
   const run = async (prices, input = {}) => suggestPrice(h.pool, { isbn: isbn13(), condition: "good", existingCopies: 0, ...input }, { fetchImpl: fakeFetch(answerWith(prices)), env });
   const trimmed = await run([5, 6, 7, 8, 300]); // 300 is dropped
-  assert.deepEqual([trimmed.price, trimmed.confidence], [8, "high"]);
+  assert.deepEqual([trimmed.price, trimmed.confidence], [10, "high"]);
   assert.match(trimmed.rationale.join(" "), /1 unusually high or low listing was ignored/);
   const single = await run([4]);
   assert.deepEqual([single.price, single.confidence], [5, "medium"]);

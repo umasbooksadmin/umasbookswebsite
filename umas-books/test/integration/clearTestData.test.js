@@ -104,6 +104,8 @@ async function plant() {
   await db.query("INSERT INTO book_requests (title, email, matched_copy_id, user_id) VALUES ('Wanted', 'asker@example.test', $1, $2)", [copy1, member]);
   await db.query("INSERT INTO book_request_list_tokens (email, token_hash, expires_at) VALUES ('asker@example.test', 'tok', now() + interval '1 day')");
   await db.query("INSERT INTO price_lookups (isbn) VALUES ('9780000000002')");
+  const { rows: [rr] } = await db.query("INSERT INTO price_reprice_runs (group_key, new_price, copies_changed) VALUES ('trade', 5, 1) RETURNING id");
+  await db.query("INSERT INTO price_reprice_items (run_id, copy_id, new_price) VALUES ($1, 1, 5)", [rr.id]);
   await db.query("INSERT INTO favorites (user_id, book_id) VALUES ($1, $2)", [member, book]);
 
   // content

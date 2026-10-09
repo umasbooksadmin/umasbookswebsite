@@ -13,9 +13,11 @@ const { ruleName } = require("../../lib/pricing");
 const { clearanceCandidates, cachedComparables, rulesSuggestionFor } = require("../../lib/pricing/clearance");
 const { colorChartRows } = require("../../lib/pricing/colorChart");
 const { levelText } = require("../../lib/pricing/intake");
+const reprice = require("../../lib/pricing/reprice");
+const { csvCell } = require("../../lib/reports");
 
 const router = express.Router();
-validateIdParams(router, "copyId");
+validateIdParams(router, "copyId", "runId");
 
 const REVIEW_PAGE = 200;
 const SAMPLE_VALUES = [2, 4, 5.5, 6, 12, 19.99, 20, 35, 49.99, 50, 80];
@@ -112,6 +114,8 @@ async function reviewRows(settings) {
   const levels = settings.levels.map(Number);
   if (!levels.includes(Number(settings.aPrice))) levels.push(Number(settings.aPrice));
   if (!levels.includes(Number(settings.bPrice))) levels.push(Number(settings.bPrice));
+  if (!levels.includes(Number(settings.tradePrice))) levels.push(Number(settings.tradePrice));
+  if (!levels.includes(Number(settings.massMarketPrice))) levels.push(Number(settings.massMarketPrice));
   const out = [];
   for (const r of rows) {
     const price = Number(r.price);
@@ -189,6 +193,66 @@ router.post("/admin/pricing/clearance", requireAdmin, async (req, res) => {
     });
   }
   res.redirect(`/admin/pricing/review?cleared=${candidates.length}`);
+});
+
+// ---------- Reprice (one-off: Trade and Mass Market at a flat price, no EUR 8) ----------
+
+function repriceRunLabel(run) {
+  const g = reprice.groupByKey(run.group_key);
+  return `${g ? g.letter : "?"}: ${g ? g.title : run.group_key}`;
+}
+
+router.get("/admin/pricing/reprice", requireAdmin, async (req, res) => {
+  const settings = await getSettings(pool);
+  const groups = await reprice.previewGroups(pool, settings);
+  const none = reprice.groupByKey(String(req.query.none || ""));
+  res.render("admin/pricing/reprice", {
+    active: "pricing", money, groups, runs: await reprice.recentRuns(pool), repriceRunLabel,
+    notice: none ? `Group ${none.letter}: nothing left to change (a second run finds nothing).` : null,
+  });
+});
+
+// Applies ONE group (recomputed here: the page is only a preview).
+router.post("/admin/pricing/reprice/:group", requireAdmin, async (req, res) => {
+  const group = reprice.groupByKey(req.params.group);
+  if (!group) return res.status(404).render("404");
+  const settings = await getSettings(pool);
+  const user = req.session && req.session.user;
+  const result = await reprice.applyGroup(pool, group.key, settings, { id: user ? user.id : null, label: user ? user.email : null });
+  if (!result.runId) return res.redirect(303, `/admin/pricing/reprice?none=${group.key}`);
+  await audit(req, {
+    action: "pricing.reprice", targetType: "price_reprice_run", targetId: result.runId,
+    detail: `Group ${group.letter} (${group.key}): ${result.changed} copies -> ${Number(result.target).toFixed(2)}`,
+  });
+  res.redirect(303, `/admin/pricing/reprice/runs/${result.runId}`);
+});
+
+router.get("/admin/pricing/reprice/runs/:runId", requireAdmin, async (req, res) => {
+  const run = await reprice.getRun(pool, Number(req.params.runId));
+  if (!run) return res.status(404).render("404");
+  const items = await reprice.runItems(pool, run.id);
+  res.render("admin/pricing/reprice_result", { active: "pricing", run, items: items.slice(0, 200), total: items.length, money, label: repriceRunLabel(run) });
+});
+
+// Before/after of every copy a run changed, so a revert is possible.
+router.get("/admin/pricing/reprice/runs/:runId/export.csv", requireAdmin, async (req, res) => {
+  const run = await reprice.getRun(pool, Number(req.params.runId));
+  if (!run) return res.status(404).render("404");
+  const items = await reprice.runItems(pool, run.id);
+  const header = ["run", "group", "copy_id", "book_id", "title", "binding", "old_price", "new_price", "old_suggested_price", "old_suggested_level", "old_price_basis"];
+  const num = (v) => ({ bare: v == null ? "" : Number(v).toFixed(2) }); // prices are written as plain numbers
+  const lines = [header.map(csvCell).join(",")];
+  for (const i of items) {
+    lines.push([run.id, run.group_key, i.copy_id, i.book_id, i.title, i.binding, num(i.old_price), num(i.new_price), num(i.old_suggested_price), i.old_suggested_level, i.old_price_basis]
+      .map((v) => (v && typeof v === "object" ? v.bare : typeof v === "number" ? v : csvCell(v))).join(","));
+  }
+  await audit(req, { action: "pricing.reprice.csv", targetType: "price_reprice_run", targetId: run.id, detail: `${items.length} copies` });
+  res.set({
+    "Content-Type": "text/csv; charset=utf-8",
+    "Content-Disposition": `attachment; filename="umas-books-reprice-run-${run.id}-${run.group_key}.csv"`,
+    "Cache-Control": "no-store",
+  });
+  res.send("\uFEFF" + lines.join("\r\n") + "\r\n");
 });
 
 module.exports = router;

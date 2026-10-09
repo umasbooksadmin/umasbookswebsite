@@ -330,7 +330,7 @@ test("lookup: the price starts at the suggestion; the acquisition cost defaults 
   await seedBook({ isbn, copies: [{ price: 12.5, cost: 3.25 }] });
   openLibrary.isbn.set(isbn, { title: "Known" });
   const { text } = await followPost("/admin/inventory/lookup", { fields: { isbn } });
-  assert.match(text, /name="price"[^>]*value="8"/); // nothing known about the book online: the usual EUR 8 (Rule B)
+  assert.match(text, /name="price"[^>]*value="5"/); // nothing known about the book online: the usual EUR 5 (Rule A, fallback value 5)
   assert.match(text, /name="acquisitionCost"[^>]*value="3.25"/);
 });
 
@@ -339,7 +339,7 @@ test("lookup: an unknown ISBN says so and still offers the normalised ISBN for m
   const { text } = await followPost("/admin/inventory/lookup", { fields: { isbn: ` ${isbn.slice(0, 3)} ${isbn.slice(3)} ` } });
   assert.match(text, /No catalog match for that ISBN/);
   assert.ok(text.includes(`value="${isbn}"`));
-  assert.match(text, /name="price"[^>]*value="8"/);
+  assert.match(text, /name="price"[^>]*value="5"/);
 });
 
 // ---------------------------------------------------------------- photo scan

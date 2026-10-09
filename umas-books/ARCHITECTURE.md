@@ -230,16 +230,16 @@ rather than by a numbered migration), grouped by what they belong to:
   (never a sold, in-cart or online-reserved copy); cancelling a reservation only matches a copy
   that is still `reserved`.
 
-- **Suggested prices** — `src/lib/pricing/` (migrations 053, 054). Prices are
+- **Suggested prices** — `src/lib/pricing/` (migrations 053, 054, 085). Prices are
   only ever *suggestions*; a volunteer accepts or changes them and nothing is
   published automatically. `rules.js` is the pure rules engine (no network,
   no database; the order of checks is written at its top): new = publisher
-  price; no ISBN = manual review; mass market = EUR 5 ("trade" and "other" follow the normal rules); online value M (median
+  price; no ISBN = manual review; mass market and trade = a flat EUR 5 each (settings `mass_market_price`, `trade_price`, migration 085; "other" and hardback follow the normal rules); online value M (median
   of used listings in EUR, outliers trimmed; else publisher price x 0.35; else a
   typical value by binding) under 6 = Rule A (EUR 5), under 20 = Rule B (EUR
-  8), under 50 = Rule C (75% of M, rounded to 0.50), 50 or more = manual
+  10; EUR 8 was retired, the standard levels are 3, 5, 10), under 50 = Rule C (75% of M, rounded to 0.50), 50 or more = manual
   review; hardbacks (key `hardcover`) never below EUR 10; clearance (EUR 1) when 2+ copies of
-  the book are already in stock (Rule A / mass market, by default). The
+  the book are already in stock (Rule A / mass market / trade, by default). The
   copy's condition never changes the price. Every number is a setting in
   `pricing_settings` (single row, `settings.js`, 60 s cache) edited at
   `/admin/pricing` (audit `pricing.settings`, changed keys only).
@@ -255,7 +255,15 @@ rather than by a numbered migration), grouped by what they belong to:
   `price_basis`), and `is_clearance` marks clearance copies (shown to the public
   as a badge). `/admin/pricing/review` is the price check (copies that differ
   from the suggestion, copies needing review, clearance candidates; audit
-  `copy.reprice`).
+  `copy.reprice`). `/admin/pricing/reprice` (`reprice.js`) is the one-off
+  Reprice tool: it previews three groups of plain in-stock copies (trade not at
+  the trade price, mass market not at the mass market price, any other binding
+  at exactly EUR 8 -> EUR 10), each applied by its own confirm button in one
+  transaction (rows locked `FOR UPDATE SKIP LOCKED`, conditions re-checked in
+  the UPDATE), with `price_reprice_runs`/`price_reprice_items` holding the
+  before/after per copy (CSV download), `price_basis = 'repriced'` on the copy
+  and one audit row (`pricing.reprice`) per run. Clearance, new, reserved,
+  sold, in-cart and request-held copies are never touched.
 - **New books in the price control** — for new books the suggestion panel says
   "New book: sell at the publisher's price (max 5% off)" and never proposes a
   used level (`summaryLabel` in `lib/pricing/index.js`; the loi Lang rules in

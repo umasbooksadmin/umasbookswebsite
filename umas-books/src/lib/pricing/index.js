@@ -52,7 +52,7 @@ function ruleSentence(r, settings) {
   const c = settings.clearance;
   switch (r.ruleSet) {
     case "A":
-      return `Rule A (popular books, plenty of supply): market value under ${eur(settings.aMax)} (this includes ${eur(5)} to ${eur(settings.aMax - 0.01)}), so the price is ${eur(settings.aPrice)}.`;
+      return `Rule A (popular books, plenty of supply): market value under ${eur(settings.aMax)} (up to ${eur(settings.aMax - 0.01)}), so the price is ${eur(settings.aPrice)}.`;
     case "B":
       return `Rule B (mid-range standard stock): market value from ${eur(settings.aMax)} to ${eur(settings.bMax - 0.01)}, so the price is ${eur(settings.bPrice)}.`;
     case "C":
@@ -60,7 +60,9 @@ function ruleSentence(r, settings) {
     case "clearance":
       return `Clearance rule: the shop already holds ${c.afterCopies} or more copies of this book, so this copy goes to the clearance bin at ${eur(c.price)}. Without it, the price would be ${eur(r.normal.price)}.`;
     case "mass_market":
-      return `Mass market paperbacks are priced at ${eur(settings.massMarketPrice)}.`;
+      return `Mass market paperbacks are priced at ${eur(settings.massMarketPrice)}, whatever they are worth online.`;
+    case "trade":
+      return `Trade paperbacks are priced at ${eur(settings.tradePrice)}, whatever they are worth online.`;
     default:
       return "";
   }
@@ -116,8 +118,8 @@ async function suggestPrice(pool, input = {}, opts = {}) {
     const settings = opts.settings || (await getSettings(pool));
     const isNew = input.condition === "new";
     let market = null;
-    // Mass market books have one price whatever they are worth, so no lookup is needed.
-    if (!isNew && input.binding !== "mass_market" && toIsbn13(input.isbn) && opts.market !== false) {
+    // Mass market and trade books have one price whatever they are worth, so no lookup is needed.
+    if (!isNew && input.binding !== "mass_market" && input.binding !== "trade" && toIsbn13(input.isbn) && opts.market !== false) {
       market = await lookupMarket(pool, input, { fetchImpl: opts.fetchImpl, env: opts.env, settings, now: opts.now });
     }
     const comparables = market ? market.comparables : [];
@@ -160,7 +162,7 @@ function ruleName(r) {
   if (!r) return "New book: publisher's price needed";
   const names = {
     new: "New book: publisher's price", review: r.reviewMessage || "Manual review", clearance: "Clearance",
-    mass_market: "Mass market price", A: "Rule A", B: "Rule B", C: "Rule C",
+    mass_market: "Mass market price", trade: "Trade price", A: "Rule A", B: "Rule B", C: "Rule C",
   };
   return (names[r.ruleSet] || r.ruleSet) + (r.floorApplied ? " + hardback minimum" : "");
 }

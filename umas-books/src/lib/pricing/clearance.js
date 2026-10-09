@@ -93,7 +93,7 @@ async function clearanceCandidates(pool, settings) {
       ruleSetOf.set(r.book_id, s ? s.ruleSet : "review");
     }
     const rs = ruleSetOf.get(r.book_id);
-    if (rs === "review" || (settings.clearance.appliesTo === "set_a" && rs !== "A" && rs !== "mass_market")) continue;
+    if (rs === "review" || (settings.clearance.appliesTo === "set_a" && rs !== "A" && rs !== "mass_market" && rs !== "trade")) continue;
     out.push({ id: r.id, bookId: r.book_id, title: r.title, price: r.price != null ? Number(r.price) : null, condition: r.condition, position: r.pos, total: r.total, ruleSet: rs });
     if (out.length >= CANDIDATE_LIMIT) break;
   }
