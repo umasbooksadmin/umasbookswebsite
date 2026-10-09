@@ -528,6 +528,16 @@ Render deploy/spin-down) it stops taking new connections, lets in-flight
 requests — notably HelloAsso membership webhooks — finish, closes the database pool and
 exits 0; after 10 seconds it exits anyway.
 
+## Nightly inventory export
+
+Every evening at 21:00 (Paris) the *Nightly inventory export* workflow
+(`.github/workflows/inventory-export.yml`, script `scripts/export-inventory-csv.js`,
+columns and format in `src/lib/inventoryExport.js`) emails a CSV of all inventory (one
+row per copy, plus one row per book) to the alert addresses and stores it in the Backblaze
+bucket under `inventory-exports/`. No customer data in it. The same file is
+available any time from Admin > Inventory > **Download all inventory (CSV)**. Set-up and how
+to open it in Excel: `docs/runbook.md`, section af.
+
 ## Backups in Backblaze B2
 
 The nightly workflow uploads one complete dump (image bytes included, login

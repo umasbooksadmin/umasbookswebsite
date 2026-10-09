@@ -2411,11 +2411,39 @@ Database URL**, and from your Mac run `psql "<that URL>"`, then (choose a long
 password made of letters and digits only, so it needs no escaping, e.g. the
 output of `openssl rand -hex 24`):
 
+Run it connected as the **owner / application role** (the one in Render's own
+`DATABASE_URL`, which also runs the migrations), not as a superuser:
+
 ```sql
 CREATE ROLE backup_ro LOGIN PASSWORD 'PASTE_THE_RANDOM_PASSWORD' CONNECTION LIMIT 2;
-GRANT CONNECT ON DATABASE umas_books TO backup_ro;
-GRANT pg_read_all_data TO backup_ro;      -- PostgreSQL 14 or newer: read every table and sequence
 ALTER ROLE backup_ro SET default_transaction_read_only = on;
+GRANT CONNECT ON DATABASE umas_books TO backup_ro;
+GRANT USAGE ON SCHEMA public TO backup_ro;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO backup_ro;
+GRANT SELECT ON ALL SEQUENCES IN SCHEMA public TO backup_ro;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO backup_ro;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON SEQUENCES TO backup_ro;
+```
+
+Do **not** use `GRANT pg_read_all_data TO backup_ro`: on Render's managed
+PostgreSQL the owner role is not a superuser, the grant does not take effect,
+and `pg_dump` then fails with `permission denied for table users`.
+
+Each `GRANT` must answer `GRANT` (and each `ALTER DEFAULT PRIVILEGES` must answer
+`ALTER DEFAULT PRIVILEGES`); any `ERROR` or `WARNING` line means that grant did
+not happen, so read it before going on. The first four lines cover everything
+that exists today. The last two matter because tables created later by
+migrations (run by the owner role) become readable by `backup_ro`
+automatically; without them the backup would break at the next migration that
+adds a table. `ALTER DEFAULT PRIVILEGES` only applies to objects created by the
+role that runs it, so it must be run as the owner/application role that runs
+the migrations (the role in Render's `DATABASE_URL`).
+
+Check it before going further (all in the same `psql` session):
+
+```sql
+SELECT has_table_privilege('backup_ro', 'public.users', 'SELECT');   -- must be t
+\ddp                                                                  -- lists the default privileges for backup_ro
 ```
 
 (The Render database is PostgreSQL 18 and `umas_books` is its database name;
@@ -2429,6 +2457,31 @@ password replaced, keeping the host and database name:
 ```
 postgresql://backup_ro:THE_RANDOM_PASSWORD@dpg-XXXXXXXX-a.frankfurt-postgres.render.com/umas_books
 ```
+
+**Test the backup user before putting it in GitHub** (from your Mac, with the
+real password; this only reads):
+
+```bash
+psql "postgresql://backup_ro:THE_RANDOM_PASSWORD@dpg-XXXXXXXX-a.frankfurt-postgres.render.com/umas_books" -c "select count(*) from users"
+/usr/lib/postgresql/18/bin/pg_dump --schema-only -f /dev/null "postgresql://backup_ro:THE_RANDOM_PASSWORD@dpg-XXXXXXXX-a.frankfurt-postgres.render.com/umas_books"
+```
+
+(Use whichever `pg_dump` is version 18 on your Mac, e.g. `pg_dump --version`.)
+Both must finish without an error. The backup runs `pg_dump` with
+`--exclude-table-data=session`, which skips the *rows* of the `session` table
+but still needs to read its definition, so the user must be able to read the
+`session` table (and every other table) too; the `GRANT ... ALL TABLES` line
+covers it.
+
+> **Troubleshooting: `permission denied for table ...` in the backup log**
+> (for example `pg_dump: error: query failed: ERROR: permission denied for table users`
+> followed by `LOCK TABLE public.users, ... IN ACCESS SHARE MODE`). It means
+> `backup_ro` lacks `SELECT` on that table: the grants are missing or were never
+> applied. The workflow's red annotation and the alert email point here. Fix:
+> connect as the owner role, re-run the `GRANT` and `ALTER DEFAULT PRIVILEGES`
+> lines above, check that every one answered `GRANT` / `ALTER DEFAULT PRIVILEGES`
+> with no error, confirm `has_table_privilege(...)` returns `t`, run the two test
+> commands above, then run **Nightly database backup** by hand.
 
 Put it in the GitHub **repository secret** `DATABASE_URL` (Settings > Secrets and
 variables > Actions > Secrets > pencil icon on `DATABASE_URL`; paste; Update).
@@ -2464,6 +2517,7 @@ belongs to the website itself.
 | When | What | Where |
 |---|---|---|
 | Every year (1 October), and straight away if anything leaks | New password for `backup_ro`: `ALTER ROLE backup_ro PASSWORD 'new';` in `psql`, then update the GitHub secret `DATABASE_URL`, run the backup by hand | Render database, GitHub **secret** |
+| After Render restores or recreates the database (and after any change of the owner role) | Re-run the `GRANT` and `ALTER DEFAULT PRIVILEGES` lines for `backup_ro` (box "permission denied for table ..." above; recreate the role first if it is gone), check `has_table_privilege` returns `t`, run the backup by hand | Render database, as the owner role |
 | Every year | New Backblaze application key, update `BACKUP_S3_KEY_ID` and `BACKUP_S3_APPLICATION_KEY` (section b), delete the old key | Backblaze, GitHub **secrets** |
 | Only if someone who held the private key leaves, or it may have leaked | New age key pair (set-up steps 2 to 5 again). **Keep the old private key** as long as old backups exist (up to 2 years for `monthly/`), or re-encrypt those; add the new one to the password manager as a second note | GitHub **variable** |
 | Every quarter | Restore drill | your Mac |
@@ -2568,3 +2622,33 @@ ISBN or person is ever stored in it; rows older than 40 days are deleted by the 
   verified; and at most **120 checks per 10 minutes** are made for all emails together (the surplus is acknowledged, logged once, and a real payment
   among it is picked up by the membership reconciliation job, which runs every 6 hours: `/admin/diagnostics/jobs`, "Membership reconciliation"). The
   counters are in memory (one server process), so a restart only forgets them. Real payments are not affected; the sync itself is idempotent.
+
+## af) Nightly inventory export
+
+**What.** Every evening at **21:00 Paris time** a GitHub workflow (*Nightly inventory export*) exports **all inventory** as a CSV and sends it two ways: **emailed** to the alert addresses (the `ALERT_TO` variable: it should list admin@umasbooks.org and sharonbje@gmail.com, separated by commas) and **stored** in the private Backblaze bucket (the backup bucket), folder `inventory-exports/`:
+
+| File | What |
+|---|---|
+| `inventory_YYYY-MM-DD.csv` | One row per **copy** (the day's file) |
+| `inventory_latest.csv` | The same file, overwritten every night |
+| `inventory_books_YYYY-MM-DD.csv` | One row per **book**, with copy totals (in store, reserved, sold) |
+
+Both dated files are attached to the email (subject `[umas-books] Inventory export YYYY-MM-DD (N copies)`; the body gives the counts). Above 15 MB only the per-book file is attached and the email says where the full one is. The CSV is **not** kept in GitHub (no Actions artifact; the job log shows counts only).
+
+**Columns (per copy):** ISBN-13, ISBN-10, Title, Author(s), Publisher, Year, Binding (Mass Market / Trade / Hardback / Other), Condition (New / Like New / Very Good / Good / Acceptable), Price (EUR), Location, Source, Status (In Store / Reserved / Sold / Donated / Damaged / withdrawn), Date added, Copy ID, Till code (`UB-<copy id>`), Book ID, Genres, Clearance (Yes/No), Publisher price (EUR), Notes, Date sold (when known). The app stores one ISBN per book: the other form is computed from it (an ISBN-10 exists only for 978- numbers). There is no subtitle or language column because the database does not hold them. **No customer data**: no buyer or reservation-holder name, email or phone, only the status. (The *Notes* column is the free-text note an admin typed on the copy: do not type personal data there.)
+
+**Format (one dialect, for French Excel; the same as the accounting export):** UTF-8 with a byte-order mark, **semicolon** separator, **decimal comma** (`4,50`), text in quotes, CRLF line ends, dates as `YYYY-MM-DD` (Paris days). A cell starting with `=`, `+`, `-` or `@` gets a leading apostrophe so Excel cannot run it as a formula.
+
+**Open in Excel (French settings).** Double-click the file, or Excel > File > Open. Accents and prices should look right. If everything is in one column: Data > From Text/CSV, delimiter *Semicolon*, encoding *UTF-8*. Excel may show a long ISBN as `9,78E+12` in a narrow column (widen it), and it drops the leading zero of an ISBN-10 such as `0306406152`; to keep it, import with Data > From Text/CSV and set the column type to *Text*.
+
+**Any time, from the website.** *Inventory* page > **Download all inventory (CSV)** (admins only; the link beside it gives the per-book file). Same columns and format, as of now. Each download is written to *Admin activity* (`inventory.csv`).
+
+**Run it by hand.** GitHub > Actions > *Nightly inventory export* > Run workflow (the box *Run now, even if it is not 21:00 in Paris* is ticked by default). It emails and uploads as usual.
+
+**How the 21:00 works.** GitHub schedules are in UTC, so the workflow is scheduled at 19:00 **and** 20:00 UTC and the first step lets only the run that falls in the 21:00 hour of Paris continue (the other one ends at once, green, with a notice). GitHub can start a scheduled run late (usually minutes); the file then arrives a little after 21:00. A delay of more than an hour skips that night.
+
+**Owner steps (once).** Nothing new to configure: it uses the existing secrets (`DATABASE_URL`, `BACKUP_S3_KEY_ID`, `BACKUP_S3_APPLICATION_KEY`, `GMAIL_USER`, `GMAIL_APP_PASSWORD`, all repository secrets) and variables (`BACKUP_S3_BUCKET`, `BACKUP_S3_ENDPOINT`, `BACKUP_S3_REGION`, `ALERT_TO`, all repository variables). Two checks:
+1. **Repository variable** `ALERT_TO` (Settings > Secrets and variables > Actions > Variables): make sure it lists both addresses, comma-separated. The inventory email goes to the same list as the other alerts.
+2. **Backblaze bucket setting** (Buckets > the backup bucket > Lifecycle Settings > custom rule): File Path `inventory-exports/`, *Days Till Hide* `90`, *Days Till Delete* `1`. Without it the daily files pile up for ever (a few MB a day). `inventory_latest.csv` is rewritten every night, so it always stays recent.
+
+**If it fails.** An email "[umas-books] Nightly inventory export failed" arrives; open the run link. The database user is the same read-only user as the backup: "permission denied" means its SELECT grants need re-running (section ad, *A read-only database user for the backup*; it must be able to read `books` and `book_copies`). Missing Backblaze or Gmail settings are named in the log. Meanwhile the website button gives the current file.

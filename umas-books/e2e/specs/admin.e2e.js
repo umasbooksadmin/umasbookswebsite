@@ -404,6 +404,8 @@ s.test("A18 (must) the retired Sell in shop address sends you to the Till (nothi
 
 const REPORTS = ["Inventory on hand", "Aging stock", "Sales over time", "Sell-through by genre", "Membership", "Intake log", "Accounts", "Accounting export", "Book lookup sources used"];
 
+s.manual("A19f Inventory CSV: the Download all inventory button and the nightly email", "the nightly email and the Backblaze copy need GitHub Actions, the mailbox and Backblaze; the download itself is covered by test/integration/inventoryExport.test.js");
+
 s.test("A19 (must) the Reports page lists the reports (nine) and each opens with tables", { as: "admin" }, async (ctx) => {
   await admin(ctx, "/admin/reports");
   const text = await ctx.text();
