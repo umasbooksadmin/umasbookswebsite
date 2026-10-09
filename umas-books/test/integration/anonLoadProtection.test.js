@@ -30,6 +30,9 @@ before(async () => {
   process.env.DATABASE_URL = app.databaseUrl;
   process.env.PGSSLMODE = process.env.PGSSLMODE || "disable";
   ({ pool } = require("../../src/db"));
+  // connect-pg-simple creates the `session` table lazily, after the first response: wait for it.
+  await (await fetch(`${app.base}/api/csrf-token`, { headers: { "x-forwarded-for": "10.250.250.250" } })).text();
+  await waitFor(async () => (await pool.query("SELECT to_regclass('public.session') AS t")).rows[0].t !== null);
 });
 after(async () => {
   await pool.end();
@@ -38,7 +41,16 @@ after(async () => {
 
 const sessionRows = async () => Number((await pool.query("SELECT count(*) FROM session")).rows[0].count);
 const sidOf = (jar) => decodeURIComponent(jar.header().match(/umasbooks\.sid=s%3A([^.;]+)/)[1]);
+async function waitFor(check, ms = 5000) {
+  const end = Date.now() + ms;
+  while (!(await check())) {
+    if (Date.now() > end) throw new Error("condition never became true");
+    await new Promise((r) => setTimeout(r, 25));
+  }
+}
 async function expiresInMs(jar) {
+  // the row is written just after the response is sent
+  await waitFor(async () => Number((await pool.query("SELECT count(*) FROM session WHERE sid = $1", [sidOf(jar)])).rows[0].count) > 0);
   const { rows } = await pool.query("SELECT (extract(epoch FROM (expire::timestamptz - now())) * 1000)::float8 AS ms FROM session WHERE sid = $1", [sidOf(jar)]);
   return rows[0].ms;
 }
@@ -302,6 +314,7 @@ test("an existing guest session is not rewritten on every request (no per-reques
   await first.text();
   const sid = sidOf(jar);
   const read = async () => (await pool.query("SELECT expire, sess FROM session WHERE sid = $1", [sid])).rows[0];
+  await waitFor(async () => (await read()) !== undefined);
   const a = await read();
   for (let i = 0; i < 5; i++) await (await get("/login", { jar, ip: addr })).text();
   const b = await read();
