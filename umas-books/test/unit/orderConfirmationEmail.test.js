@@ -57,7 +57,7 @@ test("a reservation without a base URL still says where to cancel, and omits the
 
 // ------------------------------------------------------------ languages
 
-const { orderConfirmationSubject, LEGAL_RIGHTS, SELLER_LINES } = require("../../src/lib/orderEmail");
+const { orderConfirmationSubject, LEGAL_RIGHTS, LEGAL_RIGHTS_FRENCH_ONLY, SELLER_LINES, sellerLines } = require("../../src/lib/orderEmail");
 
 test("French reservation: French subject and body, prices, date, deadline, shop address and hours, how to cancel", () => {
   const t = buildOrderConfirmationText({ ...order, lang: "fr" }, items, "https://shop.test/");
@@ -76,11 +76,16 @@ test("French reservation: French subject and body, prices, date, deadline, shop 
   assert.doesNotMatch(t, /Thanks for your reservation|Pay at the shop|^Hi /im);
 });
 
-test("French reservation keeps the bilingual legal block and seller identity verbatim", () => {
+test("French reservation: the legal block and the seller identity are in French only; the English email keeps the bilingual block", () => {
   const t = buildOrderConfirmationText({ ...order, lang: "fr" }, items, "");
-  for (const block of [LEGAL_RIGHTS, SELLER_LINES]) assert.ok(t.includes(block));
-  assert.match(t, /YOUR RIGHTS/);
+  for (const block of [LEGAL_RIGHTS_FRENCH_ONLY, sellerLines("fr")]) assert.ok(t.includes(block));
   assert.match(t, /VOS DROITS/);
+  assert.doesNotMatch(t, /YOUR RIGHTS|Reserving is free|Legal guarantees:|Complaints:|Phone/);
+  assert.match(t, /Tél\. : 06 98 95 67 91/);
+  const en = buildOrderConfirmationText({ ...order, lang: "en" }, items, "");
+  for (const block of [LEGAL_RIGHTS, SELLER_LINES]) assert.ok(en.includes(block));
+  assert.match(en, /YOUR RIGHTS/);
+  assert.match(en, /VOS DROITS/);
 });
 
 test("English is the default: a missing or unknown order.lang means English", () => {

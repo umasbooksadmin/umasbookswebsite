@@ -270,7 +270,7 @@ router.post("/membership/join", signupLimiter, async (req, res) => {
     req.session.membershipFlash = { error: "fields", name: displayName, email: isEmail(email) ? email : "" };
     return saveSession(req).then(() => res.redirect(303, MEMBERSHIP_PAGE), (err) => {
       console.error(err);
-      res.status(500).type("text").send("Something went wrong. Please try again.");
+      res.status(500).type("text").send(somethingWrong(req));
     });
   }
   try {
@@ -280,7 +280,7 @@ router.post("/membership/join", signupLimiter, async (req, res) => {
     res.redirect(303, MEMBERSHIP_PAGE);
   } catch (err) {
     console.error(err);
-    res.status(500).type("text").send("Something went wrong. Please try again.");
+    res.status(500).type("text").send(somethingWrong(req));
   }
 });
 
@@ -327,7 +327,7 @@ router.post("/membership/check", (req, res, next) => {
     return await flash(found ? "found" : "notfound");
   } catch (err) {
     console.error("Membership check failed:", err.message);
-    try { return await flash("error"); } catch (e) { console.error(e); return res.status(500).type("text").send("Something went wrong. Please try again."); }
+    try { return await flash("error"); } catch (e) { console.error(e); return res.status(500).type("text").send(somethingWrong(req)); }
   }
 });
 

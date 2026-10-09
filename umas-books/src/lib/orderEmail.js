@@ -12,8 +12,10 @@ const { NO_RETURNS, vatNotice } = require("./legalText");
 // The shop's identity block for order emails (French consumer-law
 // mentions: who sells, and that VAT does not apply; the VAT line follows
 // VAT_NOTICE_ARTICLE in lib/legal.js).
-const sellerLines = () =>
-  `Uma's Books — association loi 1901, RNA W811011706, SIRET 109 441 147 00013, 5 rue Hippolyte Savary, 81000 Albi\nTél. / Phone : 06 98 95 67 91 — admin@umasbooks.org\n${vatNotice()}`;
+// In French the block is French only (the English email keeps the bilingual
+// block: the legal text is French, an English reader gets both).
+const sellerLines = (lang = "en") =>
+  `Uma's Books — association loi 1901, RNA W811011706, SIRET 109 441 147 00013, 5 rue Hippolyte Savary, 81000 Albi\n${lang === "fr" ? "Tél." : "Tél. / Phone"} : 06 98 95 67 91 — admin@umasbooks.org\n${vatNotice()}`;
 const SELLER_LINES = sellerLines();
 
 // A reservation is a free, non-binding hold: the sale is made and paid in the shop
@@ -22,17 +24,21 @@ const SELLER_LINES = sellerLines();
 // confirm, docs/legal-todos.md). What stays: the no-returns notice, the legal
 // guarantees, the mediator and the seller identity. The full terms of sale stay
 // at /terms-of-sale.html.
-const LEGAL_RIGHTS = [
+const LEGAL_RIGHTS_EN = [
   "YOUR RIGHTS",
   NO_RETURNS.en,
   "Legal guarantees: you keep the legal guarantee of conformity (art. L.217-3 et seq. of the Consumer Code) and the guarantee against hidden defects (arts. 1641 et seq. of the Civil Code). We give no commercial guarantee beyond these.",
   "Complaints: write to admin@umasbooks.org. If we cannot settle it, you may use our free consumer mediator: CM2C, 49 rue de Ponthieu, 75008 Paris, https://www.cm2c.net/declarer-un-litige.php",
-  "",
+];
+const LEGAL_RIGHTS_FR = [
   "VOS DROITS",
   NO_RETURNS.fr,
   "Garanties légales : vous conservez la garantie légale de conformité (art. L.217-3 et suivants du Code de la consommation) et la garantie contre les vices cachés (art. 1641 et suivants du Code civil). Nous n’offrons aucune garantie commerciale en plus de celles-ci.",
   "Réclamations : écrivez à admin@umasbooks.org. À défaut de règlement amiable, vous pouvez recourir gratuitement à notre médiateur de la consommation : CM2C, 49 rue de Ponthieu, 75008 Paris, https://www.cm2c.net/declarer-un-litige.php",
-].join("\n\n").replace(/\n\n\n\n/g, "\n\n");
+];
+// English email: the English block, then the French one (as before). French email: French only.
+const LEGAL_RIGHTS = [...LEGAL_RIGHTS_EN, "", ...LEGAL_RIGHTS_FR].join("\n\n").replace(/\n\n\n\n/g, "\n\n");
+const LEGAL_RIGHTS_FRENCH_ONLY = LEGAL_RIGHTS_FR.join("\n\n");
 
 // Getters: the street number and the hours come from lib/legal.js when used.
 const SHOP_LINES = {
@@ -91,7 +97,7 @@ function buildOrderConfirmationText(order, items, base) {
     `Hi ${name},\n\nThanks for your reservation. Nothing has been paid online: you pay at the shop when you collect.\n\nReservation #${order.id} — ${orderDate}\n\n${lines}\n\nTotal to pay at the shop: ${total}\n\nPAY AT THE SHOP WHEN YOU COLLECT\n${deadline}${seatNote}${SHOP_LINES.en} Please quote reservation #${order.id}. You pay in cash or by card, after checking the book: you are free to decline it.\n\nTO CANCEL\nLog in and open your account page, then press “Cancel reservation”: ${accountUrl}\n\n`,
     `Bonjour ${name},\n\nMerci pour votre réservation. Rien n’a été payé en ligne : vous réglez à la boutique au moment du retrait.\n\nRéservation n° ${order.id} — ${orderDate}\n\n${lines}\n\nTotal à régler à la boutique : ${total}\n\nÀ RÉGLER À LA BOUTIQUE AU RETRAIT\n${deadline}${seatNote}${SHOP_LINES.fr} Merci d’indiquer la réservation n° ${order.id}. Vous payez en espèces ou par carte, après avoir vérifié le livre : vous êtes libre de le refuser.\n\nPOUR ANNULER\nConnectez-vous, ouvrez votre page de compte puis appuyez sur « Annuler la réservation » : ${accountUrl}\n\n`
   );
-  return `${head}${termsLine}${cgvLine}${LEGAL_RIGHTS}\n\n${sellerLines()}`;
+  return `${head}${termsLine}${cgvLine}${lang === "fr" ? LEGAL_RIGHTS_FRENCH_ONLY : LEGAL_RIGHTS}\n\n${sellerLines(lang)}`;
 }
 
 // Day-10 reminder (RESERVATION_REMINDER_DAYS_BEFORE days before the deadline).
@@ -144,5 +150,5 @@ function buildSeatReminder(order, seatItem) {
 
 module.exports = {
   buildOrderConfirmationText, orderConfirmationSubject, buildReservationReminder, buildReservationExpiredNotice, buildSeatReminder,
-  SELLER_LINES, LEGAL_RIGHTS, SHOP_LINES,
+  SELLER_LINES, LEGAL_RIGHTS, LEGAL_RIGHTS_FRENCH_ONLY, SHOP_LINES, sellerLines,
 };

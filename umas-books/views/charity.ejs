@@ -30,7 +30,7 @@
                   <% if (o.website_url && /^https?:\/\//i.test(o.website_url)) { %><div class="small"><a href="<%= o.website_url %>" target="_blank" rel="noopener"><%= o.website_url %></a></div><% } %>
                   <% if (charity.showResults) { %>
                     <div class="vote-bar" style="margin-top:6px;"><span style="width: <%= total ? Math.round(o.vote_count / total * 100) : 0 %>%;"></span></div>
-                    <div class="muted small"><%= o.vote_count == 1 ? tr('1 vote', '1 vote') : tr('{n} votes', '{n} votes', { n: o.vote_count }) %></div>
+                    <div class="muted small"><%= o.vote_count == 1 ? tr('1 vote', '1 vote') : tr('{n} votes', o.vote_count < 2 ? '{n} vote' : '{n} votes', { n: o.vote_count }) %></div>
                   <% } %>
                 </span>
               </label>
@@ -50,7 +50,7 @@
             <% if (o.description) { %><div class="muted small"><%= o.description %></div><% } %>
             <% if (charity.showResults) { %>
               <div class="vote-bar" style="margin-top:6px;"><span style="width: <%= total ? Math.round(o.vote_count / total * 100) : 0 %>%;"></span></div>
-              <div class="muted small"><%= o.vote_count == 1 ? tr('1 vote', '1 vote') : tr('{n} votes', '{n} votes', { n: o.vote_count }) %></div>
+              <div class="muted small"><%= o.vote_count == 1 ? tr('1 vote', '1 vote') : tr('{n} votes', o.vote_count < 2 ? '{n} vote' : '{n} votes', { n: o.vote_count }) %></div>
             <% } %>
           </div>
         </div>

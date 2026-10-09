@@ -94,6 +94,10 @@ function admin2faRequired() {
   return process.env.NODE_ENV === "production" || process.env.ADMIN_2FA_REQUIRED !== "false";
 }
 
+// A customer who reaches an admin address gets the refusal in their own language.
+// The admin screens themselves stay English.
+const adminsOnly = (req) => (req.tr ? req.tr("Admins only.", "Réservé aux administrateurs.") : "Admins only.");
+
 function requireAuth(req, res, next) {
   if (!req.session.user) {
     return res.redirect("/login");
@@ -103,7 +107,7 @@ function requireAuth(req, res, next) {
 
 function requireAdmin(req, res, next) {
   if (!req.session.user) return res.redirect("/login");
-  if (!req.session.user.isAdmin) return res.status(403).send("Admins only.");
+  if (!req.session.user.isAdmin) return res.status(403).send(adminsOnly(req));
   // Admins must have two-step verification: until it is set up, the only
   // thing an admin session can do is reach the setup page.
   if (admin2faRequired() && !req.session.user.totpEnabled) return res.redirect("/account/2fa?required=1");
@@ -121,7 +125,7 @@ function requireTillOrAdmin(req, res, next) {
   const u = req.session.user;
   if (!u) return res.redirect("/login");
   if (u.isAdmin) return requireAdmin(req, res, next);
-  if (!u.isTill) return res.status(403).send("Admins only.");
+  if (!u.isTill) return res.status(403).send(adminsOnly(req));
   const now = Date.now();
   if (!u.tillActiveAt || now - u.tillActiveAt > TILL_IDLE_MS) {
     req.session.user = null;

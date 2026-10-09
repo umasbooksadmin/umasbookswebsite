@@ -17,7 +17,7 @@ const payOnTheDay = e.price != null ? tr('Payment on the day', 'Paiement sur pla
     <div class="fcal-session-title"><%= e.title %></div>
     <div class="fcal-session-time"><%= formatTime(e.starts_at) %></div>
     <div class="fcal-session-seats">
-      <%= priceLabel %> &middot; <%= tr('{n} going', e.signup_count == 1 ? '{n} inscrit' : '{n} inscrits', { n: e.signup_count }) %>
+      <%= priceLabel %> &middot; <%= tr('{n} going', e.signup_count < 2 ? '{n} inscrit' : '{n} inscrits', { n: e.signup_count }) %>
     </div>
   </summary>
   <div class="fcal-session-details">

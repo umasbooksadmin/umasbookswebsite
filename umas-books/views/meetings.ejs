@@ -34,7 +34,7 @@
                 <div class="calendar-pill-body">
                   <div class="muted small">
                     <%= formatDateTime(m.scheduled_at) %><%= m.location ? ' · ' + m.location : '' %>
-                    &middot; <%= tr('{n} going', m.rsvp_count == 1 ? '{n} participant' : '{n} participants', { n: m.rsvp_count }) %>
+                    &middot; <%= tr('{n} going', m.rsvp_count < 2 ? '{n} participant' : '{n} participants', { n: m.rsvp_count }) %>
                   </div>
                   <% if (m.agenda) { %><div class="muted small" style="margin-top:6px;"><em><%= tr('Agenda:', 'Ordre du jour :') %></em> <%= m.agenda %></div><% } %>
                   <% if (going) { %>

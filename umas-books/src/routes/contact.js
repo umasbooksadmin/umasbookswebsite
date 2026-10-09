@@ -67,7 +67,7 @@ router.post("/contact", contactLimiter, async (req, res) => {
       values,
       error: req.tr(
         "Please fill in your name, a valid email address and your message.",
-        "Veuillez indiquer votre nom, une adresse email valide et votre message."
+        "Veuillez indiquer votre nom, une adresse e-mail valide et votre message."
       ),
     });
   }

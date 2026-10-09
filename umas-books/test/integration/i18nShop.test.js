@@ -109,7 +109,8 @@ test("a French reservation stores lang=fr and its confirmation email is French (
   const fr = await reserve("fr");
   assert.equal(fr.subject, "Votre réservation chez Uma's Books");
   assert.match(fr.text, /^Bonjour Marie,/);
-  assert.match(fr.text, /YOUR RIGHTS/, "legal block stays bilingual");
+  assert.match(fr.text, /VOS DROITS/, "the legal block is French");
+  assert.doesNotMatch(fr.text, /YOUR RIGHTS/, "and French only");
   const en = await reserve("en");
   assert.equal(en.subject, "Your reservation at Uma's Books");
   assert.match(en.text, /^Hi Marie,/);

@@ -1,7 +1,7 @@
 const express = require("express");
 const { localCover } = require("../lib/coverStore");
 const { pool } = require("../db");
-const { CONDITIONS, bindingLabel } = require("../lib/inventory");
+const { CONDITIONS, bindingLabel, conditionLabel } = require("../lib/inventory");
 const { expireStaleReservations } = require("../lib/reservations");
 const { baseUrl } = require("../lib/baseUrl");
 const { clean, parseId } = require("../lib/validation");
@@ -173,10 +173,10 @@ router.get("/api/books/search", async (req, res) => {
       coverUrl: localCover(b.cover_url),
       price: b.min_price != null ? Number(b.min_price) : null,
       awards: b.awards || "",
-      // Grades of the copies on the shelf, best first (value + English label).
-      conditions: CONDITIONS.filter((c) => (b.conditions || []).includes(c.value)).map((c) => ({ value: c.value, label: c.label })),
+      // Grades of the copies on the shelf, best first (value + label in the visitor's language).
+      conditions: CONDITIONS.filter((c) => (b.conditions || []).includes(c.value)).map((c) => ({ value: c.value, label: conditionLabel(c.value, req.lang) })),
       binding: b.binding || null,
-      bindingLabel: bindingLabel(b.binding, "en"),
+      bindingLabel: bindingLabel(b.binding, req.lang),
       clearance: b.clearance === true,
       url: `${baseUrl(req)}/books/${b.id}`,
     }))
