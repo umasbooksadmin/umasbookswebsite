@@ -162,7 +162,7 @@ router.get("/api/books/search", async (req, res) => {
             EXISTS (SELECT 1 FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock' AND c.is_clearance) AS clearance
      FROM books b
      WHERE EXISTS (SELECT 1 FROM book_copies c WHERE c.book_id = b.id AND ${clauses.join(" AND ")})
-     ORDER BY b.title ASC LIMIT 60`,
+     ORDER BY b.title_sort, b.title, b.id LIMIT 60`,
     params
   );
   res.json(
@@ -240,7 +240,7 @@ router.get("/books/:id", async (req, res) => {
        FROM books b
        WHERE b.authors = $1 AND b.id != $2
          AND EXISTS (SELECT 1 FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock')
-       ORDER BY b.title ASC LIMIT 6`,
+       ORDER BY b.title_sort, b.title, b.id LIMIT 6`,
       [book.authors, id]
     );
     moreByAuthor = rows.map((r) => ({ ...r, cover_url: localCover(r.cover_url) }));

@@ -250,6 +250,13 @@ It is filled in automatically when the scan finds it; check it, and choose
 Customers see the grade of each copy, the binding, and a "What the grades
 mean" box on the book's page.
 
+### Alphabetical order (for volunteers)
+
+Alphabetical order ignores a leading "The": `The Hobbit` is listed under H, between
+`Hamlet` and `Hunger Games`. This applies to the shop's book search, "More by this
+author" and the admin inventory list. The title is still shown in full. "A", "An" and
+the French "Le", "La", "Les", "L'" are not ignored.
+
 ### How to use locations (for volunteers)
 
 Each copy can have a location, such as `Store` or `Fiction A1`, meaning the shelf or box
