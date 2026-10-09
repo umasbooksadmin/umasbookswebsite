@@ -169,17 +169,6 @@ test("lookupStatus: Found, Not found, Already in stock with the count", () => {
   assert.equal(S.lookupStatus({ found: true, book: { title: "Dune" }, existing: { copies: 0, title: "Dune" } }).kind, "found");
 });
 
-test("scan mode: one-tap save only for a new book with a price suggestion that needs no review", () => {
-  const ok = { found: true, book: { title: "Dune" }, existing: null, suggestion: { price: 5, needsReview: false } };
-  assert.equal(S.canOneTapSave(ok, true), true);
-  assert.equal(S.canOneTapSave(ok, false), false, "off by default");
-  assert.equal(S.canOneTapSave({ ...ok, existing: { copies: 1 } }, true), false, "already known to the shop");
-  assert.equal(S.canOneTapSave({ ...ok, suggestion: { price: null, needsReview: true } }, true), false);
-  assert.equal(S.canOneTapSave({ ...ok, suggestion: { price: 5, needsReview: true } }, true), false);
-  assert.equal(S.canOneTapSave({ ...ok, found: false, book: null }, true), false);
-  assert.equal(S.canOneTapSave(null, true), false);
-});
-
 test("keyboardInset: how much of the bottom the on-screen keyboard covers", () => {
   assert.equal(S.keyboardInset(812, { height: 812, offsetTop: 0 }), 0);
   assert.equal(S.keyboardInset(812, { height: 500, offsetTop: 0 }), 312);

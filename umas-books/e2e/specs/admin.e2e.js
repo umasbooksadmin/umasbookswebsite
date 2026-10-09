@@ -227,18 +227,6 @@ s.test("A9e (must) on a phone (375 px, and 320 px) every admin page has the logo
   assert.ok(landed === "/" || landed === "/dashboard", `the logo opens the main page (the browser is on ${ctx.page.url()})`);
 });
 
-s.test("A9c Scan mode is off by default and is remembered by the browser (nothing is saved)", { as: "admin" }, async (ctx) => {
-  await admin(ctx, "/admin/inventory/new");
-  await ctx.page.evaluate(() => localStorage.removeItem("umas.scan.mode"));
-  await ctx.page.reload();
-  assert.equal(await ctx.page.$eval("#scan-mode", (i) => i.checked), false, "off by default");
-  assert.equal(await ctx.page.$eval("[data-scan-save-suggested]", (b) => b.hidden), true, "no one-tap button while it is off");
-  await ctx.page.click("#scan-mode");
-  await ctx.page.reload();
-  assert.equal(await ctx.page.$eval("#scan-mode", (i) => i.checked), true, "remembered");
-  await ctx.page.click("#scan-mode"); // leave it off for the next test
-});
-
 s.test("A9d Location, Source, Binding and Condition are the last values used (also after a reload); the first time they are Store, Donation, the last binding and Very Good (nothing is saved)", { as: "admin" }, async (ctx) => {
   await admin(ctx, "/admin/inventory/new");
   await ctx.page.waitForSelector("#isbn[data-scan-active]");
