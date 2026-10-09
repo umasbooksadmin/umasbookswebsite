@@ -86,7 +86,7 @@ test("Dashboard, Reports, End of day and the accounting export agree on one fixt
   const html = (await h.get("/admin")).text;
   assert.match(html, /Sales this month/);
   assert.ok(html.includes(`id="sales-month">&euro;${(sumCents(rows) / 100).toFixed(0)}<`), "the tile shows the export's number");
-  assert.match(html, /Till &euro;\d+ &middot; Online &euro;\d+ &middot; Membership &euro;\d+/);
+  assert.match(html, /In person &euro;\d+ &middot; Old online orders &euro;\d+ &middot; Membership &euro;\d+/);
   assert.ok(html.includes(`Last month &euro;${(sumCents(lastRows) / 100).toFixed(0)}`));
 
   // End of day (till sales of the day only) = the export's Cash + Card at the till rows of that day

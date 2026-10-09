@@ -382,7 +382,7 @@ noted in **Admin activity**.
   condition, place and source.
 - **Aging stock:** how long books have been on the shelves, and a list of the
   oldest.
-- **Sales over time:** online and shop sales by day, week, month or year.
+- **Sales over time:** reserved-online (paid in the shop) and walk-in shop sales by day, week, month or year.
   Drop-in class seats are shown separately.
 - **Sell-through by genre:** of the books added in a period, how many sold and
   how fast.

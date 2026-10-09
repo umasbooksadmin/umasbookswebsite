@@ -1084,12 +1084,12 @@ s.manual("A92 (must) a sale on a closed day is refused; an admin reopens the day
 s.manual("A93 (must) a volunteer with Till access can use only the till; 8 hours idle logs out", "needs a second account in another browser and a wait of 8 hours");
 s.manual("A94 (must) a scan while the Cash screen is open is ignored with a note; 20. is accepted", "needs the physical scanner (see A66)");
 s.manual("A95 (must) voiding a card sale warns to refund the card and lists it until ticked", "needs a card sale (see A64)");
-s.test("A96 the Dashboard tile is Sales this month with a Till, Online, Membership line", { as: "admin" }, async (ctx) => {
+s.test("A96 the Dashboard tile is Sales this month with a In person, Old online orders, Membership line", { as: "admin" }, async (ctx) => {
   await admin(ctx, "/admin");
   const text = await ctx.text();
   hasNoNaN(text, "the Dashboard");
   has(text, /Sales this month/);
-  has(text, /Till €\d+\s*·\s*Online €\d+\s*·\s*Membership €\d+/);
+  has(text, /In person €\d+\s*·\s*Old online orders €\d+\s*·\s*Membership €\d+/);
 });
 s.manual("A98 admin sessions end after 8 hours idle or 7 days (needs the database to age the session; covered by test/integration/adminSessionTimeouts.test.js)", "waiting 8 hours is left for you, or the integration test, to do");
 s.manual("A97 backdating needs a reason, a basket above EUR 10,000 is refused, a price below asking needs a reason, an expired cart copy can be released", "selling is left for you to do by hand");
