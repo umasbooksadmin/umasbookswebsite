@@ -14,7 +14,9 @@
       document.title = title + ' — Uma\'s Books and Adventures';
       var body = B.pick(p.body, l) || [];
       var bodyHtml = Array.isArray(body) ? body.map(function (para) { return '<p>' + B.esc(para) + '</p>'; }).join('') : body;
-      root.innerHTML = '<article class="blog-post">' +
+      var note = p.live === false
+        ? '<p class="blog-empty" role="status"><strong>Admin preview:</strong> this post is not public yet (' + B.esc(p.status) + ').</p>' : '';
+      root.innerHTML = '<article class="blog-post">' + note +
         '<a class="back" href="blog.html">&larr; ' + B.esc(B.ui('back')) + '</a>' +
         '<div class="blog-date">' + B.esc(B.fmtDate(p.date, l)) + '</div>' +
         '<h1>' + B.esc(title) + '</h1>' +

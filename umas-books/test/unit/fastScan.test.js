@@ -56,7 +56,7 @@ test("the last copy an admin saved is the starting point; the query wins; Store,
   const q = formDefaults({ location: "poetry", source: "lot" }, last);
   assert.deepEqual([q.location, q.source, q.binding], ["POETRY", "lot", "hardcover"]);
   // Missing or unusable pieces of the last copy fall back one by one.
-  const partial = formDefaults({}, { location: null, source: null, condition: "like_new", binding: "spiral" });
+  const partial = formDefaults({}, { location: null, source: null, condition: "pristine", binding: "spiral" });
   assert.deepEqual([partial.location, partial.source, partial.binding, partial.condition], ["STORE", "donation", firstUseBinding(), "very_good"]);
   assert.deepEqual(formDefaults({}, {}), formDefaults({}));
 });

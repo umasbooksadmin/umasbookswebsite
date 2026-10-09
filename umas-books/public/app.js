@@ -76,6 +76,15 @@ document.addEventListener("change", function (e) {
   var input = e.target.closest("input[type=file][data-file-name-target]");
   if (!input) return;
   var target = document.getElementById(input.getAttribute("data-file-name-target"));
+  var chosen = input.files && input.files[0];
+  var maxBytes = Number(input.getAttribute("data-max-bytes")) || 0;
+  if (chosen && maxBytes && chosen.size > maxBytes) {
+    // Tell them now, before anything typed is sent and lost.
+    window.alert("That picture is " + (chosen.size / 1048576).toFixed(1) + " MB; the limit is " + (input.getAttribute("data-max-label") || "smaller") + ". Please choose a smaller one (or resize it first).");
+    input.value = "";
+    if (target) target.textContent = "No image selected";
+    return;
+  }
   if (target) {
     var file = input.files && input.files[0];
     target.textContent = file ? file.name : "No photo selected";
@@ -211,14 +220,71 @@ document.addEventListener("click", function (e) {
   }
   document.execCommand(cmd, false, arg);
 });
+// The hidden textarea must NOT be `required`: a required control that is
+// display:none can never be focused, so the browser (Safari and Chrome alike)
+// refuses to submit and shows nothing at all. Emptiness is checked here
+// instead, with a visible message (a .field-error right after the textarea).
 document.addEventListener("submit", function (e) {
   var richtexts = e.target.querySelectorAll ? e.target.querySelectorAll(".richtext") : [];
+  var firstEmpty = null;
   richtexts.forEach(function (wrap) {
     var editor = wrap.querySelector(".richtext-editor");
     var hidden = wrap.nextElementSibling;
     if (editor && hidden && hidden.classList.contains("richtext-hidden")) {
       hidden.value = editor.innerHTML.trim();
+      var message = wrap.getAttribute("data-richtext-required");
+      var note = hidden.nextElementSibling;
+      if (note && !note.classList.contains("field-error")) note = null;
+      // data-richtext-skip-when="status=draft": empty is fine while that field has that value.
+      var skip = wrap.getAttribute("data-richtext-skip-when");
+      if (skip && e.target.elements) {
+        var kv = skip.split("=");
+        var field = e.target.elements[kv[0]];
+        if (field && field.value === kv[1]) message = null;
+      }
+      var empty = !!message && !editor.textContent.replace(/\u00a0/g, " ").trim() && !editor.querySelector("img");
+      if (note) note.hidden = !empty;
+      wrap.classList.toggle("richtext-invalid", empty);
+      if (empty && !firstEmpty) firstEmpty = editor;
     }
+  });
+  if (firstEmpty) {
+    e.preventDefault();
+    firstEmpty.focus();
+    if (firstEmpty.scrollIntoView) firstEmpty.scrollIntoView({ block: "center" });
+  }
+});
+document.addEventListener("input", function (e) {
+  var editor = e.target.closest && e.target.closest(".richtext-editor");
+  if (!editor) return;
+  var wrap = editor.closest(".richtext");
+  var note = wrap && wrap.nextElementSibling && wrap.nextElementSibling.nextElementSibling;
+  if (note && note.classList.contains("field-error")) note.hidden = true;
+  if (wrap) wrap.classList.remove("richtext-invalid");
+});
+
+// A form with data-saving-text shows that text on its submit button once the
+// browser really is sending it (not when validation stopped it), so a slow
+// save (a big photo) is visibly working and cannot be sent twice.
+document.addEventListener("submit", function (e) {
+  var form = e.target;
+  var text = form.getAttribute && form.getAttribute("data-saving-text");
+  if (!text) return;
+  setTimeout(function () {
+    if (e.defaultPrevented) return;
+    form.querySelectorAll("button[type=submit]").forEach(function (btn) {
+      btn.setAttribute("data-idle-label", btn.innerHTML);
+      btn.innerHTML = text;
+      btn.disabled = true;
+    });
+  }, 0);
+});
+// Back/forward cache restores the page as it was left: undo the "Saving" state.
+window.addEventListener("pageshow", function () {
+  document.querySelectorAll("button[data-idle-label]").forEach(function (btn) {
+    btn.innerHTML = btn.getAttribute("data-idle-label");
+    btn.removeAttribute("data-idle-label");
+    btn.disabled = false;
   });
 });
 

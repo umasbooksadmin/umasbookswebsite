@@ -801,18 +801,18 @@ test("delete book: removes the book and cascades to its copies", async () => {
 
 // ------------------------------------------------ condition grades, binding
 
-test("add/scan/edit forms offer the four grades (default Very Good) and the binding select", async () => {
+test("add/scan/edit forms offer the five grades (default Very Good) and the binding select", async () => {
   const { text } = await get("/admin/inventory/new");
   const options = (id) => [...text.slice(text.indexOf(`id="${id}"`)).split("</select>")[0].matchAll(/<option value="([^"]*)"[^>]*>([^<]*)</g)].map((m) => [m[1], m[2].trim()]);
-  assert.deepEqual(options("condition"), [["new", "New"], ["very_good", "Very Good"], ["good", "Good"], ["acceptable", "Acceptable"]]);
+  assert.deepEqual(options("condition"), [["new", "New"], ["like_new", "Like New"], ["very_good", "Very Good"], ["good", "Good"], ["acceptable", "Acceptable"]]);
   assert.match(text, /<option value="very_good" selected>Very Good/);
   assert.deepEqual(options("binding"), [["", "Not specified"], ["hardcover", "Hardcover"], ["trade", "Trade"], ["mass_market", "Mass Market"], ["other", "Other"]]);
 
   const b = await seedBook();
   const show = await get(`/admin/inventory/${b.id}`);
-  assert.match(show.text, /<option value="very_good" selected>Very Good<\/option><option value="good" >Good<\/option><option value="acceptable" >Acceptable<\/option>/);
+  assert.match(show.text, /<option value="like_new" >Like New<\/option><option value="very_good" selected>Very Good<\/option><option value="good" >Good<\/option><option value="acceptable" >Acceptable<\/option>/);
   const copyConditions = [...show.text.slice(show.text.indexOf('name="condition"')).split("</select>")[0].matchAll(/<option value="([^"]*)"/g)].map((m) => m[1]);
-  assert.deepEqual(copyConditions, ["new", "very_good", "good", "acceptable"], "edit-copy form: exactly the four grades, in order");
+  assert.deepEqual(copyConditions, ["new", "like_new", "very_good", "good", "acceptable"], "edit-copy form: exactly the five grades, in order");
   assert.match(show.text, /id="binding" name="binding"/);
   const editValues = [...show.text.slice(show.text.indexOf('id="binding"')).split("</select>")[0].matchAll(/<option value="([^"]*)"/g)].map((m) => m[1]);
   assert.deepEqual(editValues, ["", "hardcover", "trade", "mass_market", "other"], "edit form: placeholder plus exactly the four bindings, in order");
