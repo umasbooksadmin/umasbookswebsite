@@ -270,6 +270,7 @@
         .then(function (res) {
           if (!guard.isCurrent(id)) return; // a newer scan is on its way
           inFlight = false;
+          if (res.status === 401 && res.body && res.body.error === "session_expired") { signedOut(res.body.loginUrl); setStatus("error", "Signed out: log in again."); return; }
           if (!res.body || !res.body.ok) {
             var msg = res.body && res.body.error ? res.body.error : (res.status === 429 ? "Too many lookups: wait a minute." : "The lookup did not work. Fill in by hand, or scan again.");
             setStatus("error", msg);
@@ -304,6 +305,17 @@
     errorEl.setAttribute("role", "alert");
     errorEl.hidden = true;
     statusEl.parentNode.insertBefore(errorEl, statusEl.nextSibling);
+    // The admin session ended (8 hours idle, or 7 days). Say so, with a link; the form keeps what was typed.
+    // The login opens in a new tab, then reload this page: the old page's form token belongs to the old session.
+    function signedOut(loginUrl) {
+      var safe = /^\/[^/\\]/.test(loginUrl || "") ? loginUrl : "/login?returnTo=%2Fadmin%2Finventory%2Fscan";
+      errorEl.textContent = "Signed out: your session ended and this book was NOT saved. ";
+      var a = document.createElement("a");
+      a.href = safe; a.target = "_blank"; a.rel = "noopener"; a.textContent = "Log in again (opens a new tab)";
+      errorEl.appendChild(a);
+      errorEl.appendChild(document.createTextNode(", then reload this page and save the book again."));
+      errorEl.hidden = false;
+    }
 
     function showSaved(data) {
       while (savedEl.firstChild) savedEl.removeChild(savedEl.firstChild);
@@ -376,6 +388,11 @@
         })
         .then(function (res) {
           done();
+          if (res.status === 401 && res.body && res.body.error === "session_expired") {
+            signedOut(res.body.loginUrl);
+            setStatus("error", "Not saved: signed out.");
+            return;
+          }
           if (res.body && res.body.ok) {
             store(BINDING_STORE_NAME, keep.binding || "-"); store(SOURCE_STORE_NAME, keep.source || "-"); store(CONDITION_STORE_NAME, keep.condition);
             store(LOCATION_STORE_NAME, normalizeLoc(keep.location)); addLocationOption(normalizeLoc(keep.location));

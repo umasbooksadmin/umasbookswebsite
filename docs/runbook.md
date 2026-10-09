@@ -1213,7 +1213,8 @@ refunds and look at End of day, **and nothing else**. Only admins can change a p
 beyond the rule, enter a sale with an earlier time, reopen/close the day, enter the
 float, manage quick items or open any other admin page. A Till-only account does not
 need two-step verification (admins still do) but its till session ends after **8
-hours without any till action**: log in again. Remove the access the same way; it
+hours without any till action**: log in again (and, like admins, after 7 days; see
+"Admin sessions: how long they last"). Remove the access the same way; it
 stops at once. The list shows a **Till** pill; **Reports > Accounts** shows "+ Till".
 
 ### "Sell in shop" is retired
@@ -1965,3 +1966,57 @@ test site is not backed up (it holds nothing worth keeping).
 - Never attach `umasbooks.org` (or any custom domain) to the test service.
 - Never enter a real card on the test site.
 - Never remove `APP_ENV=staging` from the test service.
+
+## ab) Admin sessions: how long they last
+
+Customers, members and volunteers stay logged in for up to 30 days. **Admins and
+Till accounts** are signed out sooner, so a forgotten laptop or a borrowed till
+tablet cannot be used for long:
+
+* **Idle limit: 8 hours** with no request at all (a whole shop shift fits). The
+  last-activity time is saved at most every 5 minutes, so the real cut-off is
+  between 7 h 55 and 8 h of silence.
+* **Absolute limit: 7 days** after the login, even if the admin keeps working.
+
+This applies on every page, not only `/admin`: an admin reading the public shop is
+still an admin session. When the limit is reached the session is deleted and the
+person is sent to `/login` with "You were signed out after a period of inactivity.
+Please log in again." (also in French), and after logging in they return to the page
+they had asked for. The Till and the book-scan page get a short JSON answer instead
+(`401 {"error":"session_expired"}`) and show a red "Signed out" bar with a login
+link; the sale on the Till screen is kept in the browser, so log in in the new tab,
+press **I have logged in: continue**, and carry on. Nothing is lost silently.
+
+**Changing the limits** (Render environment variables; Render > `umas-books` >
+Environment, save, wait for the redeploy; both are optional):
+
+| Render environment variable | Default | Allowed |
+|---|---|---|
+| `ADMIN_SESSION_IDLE_HOURS` | `8` | 0.25 to 72 |
+| `ADMIN_SESSION_MAX_DAYS` | `7` | 1 to 30 |
+
+A value outside the range, or not a number, is ignored (the default is used) and the
+service log shows `[session] WARNING: ...` at startup. Deploying with new values does
+not log anyone out by itself; the new limits apply at their next request.
+
+**Testing it** (needs database access: Render > `umas-books-db` > Connect, or on the
+test system). Log in as the admin to test, then make that session look old (it ends
+at the admin's very next request):
+
+```sql
+-- idle: pretend the last request was 9 hours ago (use the admin's own session)
+UPDATE session SET sess = (sess::jsonb || jsonb_build_object('adminLastActivity', (extract(epoch FROM now() - interval '9 hours') * 1000)::bigint))::json
+ WHERE sess::jsonb -> 'user' ->> 'email' = 'ADMIN@EXAMPLE.ORG';
+-- absolute: pretend the login was 8 days ago (replace adminLastActivity with adminLoginAt and '9 hours' with '8 days')
+```
+
+The automated test (`test/integration/adminSessionTimeouts.test.js`) does the same.
+A person promoted to admin while logged in starts their 8 hours / 7 days at that
+moment. Removing admin rights stops access at once anyway (see
+`attachUser`); there is no "remember me" option for admins.
+
+**Sensitive actions and passwords.** No admin action asks for the password again.
+They are protected by a confirm box or a typed confirmation, and by the limits above:
+erasing a privacy request (type the address), "Mark refunded" (tick a box), make or
+remove admin, deactivate or erase an account, reset two-step, delete a book or copy
+(each a confirm box). Closing the day only asks for the counted cash.
