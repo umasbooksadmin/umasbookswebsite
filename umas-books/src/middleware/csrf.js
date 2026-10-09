@@ -33,6 +33,21 @@ function ensureToken(req) {
   return req.session.csrfToken;
 }
 
+// The "Please try again" / confirm page for /logout. Nothing is destroyed here. The session is saved
+// before the page goes out so the token printed on its button is already stored when it is pressed.
+async function renderLogoutConfirm(req, res, status = 200) {
+  try {
+    ensureToken(req);
+    await saveSession(req);
+  } catch (err) {
+    console.error("Logout confirmation could not save the session:", err.message);
+  }
+  res.set("Cache-Control", "no-store");
+  res.status(status);
+  const message = "Please try again";
+  res.render("logout_confirm", {}, (err, html) => (err ? res.send(message) : res.send(html)));
+}
+
 function csrfProtection(req, res, next) {
   res.locals.csrfToken = {
     toString: () => ensureToken(req),
@@ -43,15 +58,15 @@ function csrfProtection(req, res, next) {
   if (req.method === "POST") {
     const token = req.body && req.body._csrf;
     if (!isValidCsrfToken(token, req.session.csrfToken)) {
-      // A double-click (or any near-simultaneous double submit) on the
-      // Log Out button races two POSTs against the same token: the first
-      // destroys the session, so the second always looks like a stale
-      // token here. That's harmless for this one route — the user
-      // already got what they wanted — so treat it as "already logged
-      // out" instead of showing a dead-end error for a request that
-      // succeeded a moment earlier.
+      // /logout never destroys a session without a valid token. A double-click (or any
+      // near-simultaneous double submit) races two POSTs against the same token: the first
+      // destroys the session, so the second finds no one logged in: the person already got
+      // what they wanted, so just send them home. A request that IS still logged in but has a
+      // wrong or missing token (a stale page, or a forged cross-site POST) gets a friendly
+      // "please try again" page with a confirm button carrying a fresh token.
       if (req.path === "/logout") {
-        return req.session.destroy(() => res.redirect("/"));
+        if (!req.session.user) return res.redirect("/");
+        return renderLogoutConfirm(req, res, 403);
       }
       // The site's own error page, in the person's language (req.tr). If the
       // page itself cannot render, fall back to the plain English text.
@@ -80,4 +95,4 @@ async function csrfTokenEndpoint(req, res) {
   res.json({ token });
 }
 
-module.exports = { csrfProtection, isValidCsrfToken, ensureToken, csrfTokenEndpoint };
+module.exports = { csrfProtection, renderLogoutConfirm, isValidCsrfToken, ensureToken, csrfTokenEndpoint };

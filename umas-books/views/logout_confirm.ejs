@@ -1,0 +1,11 @@
+<%- include('partials/header', { noindex: true, title: tr('Log out', 'Se déconnecter') }) %>
+
+<h1><%= tr('Please try again', 'Veuillez réessayer') %></h1>
+<p class="muted"><%= tr('We could not confirm that request, so you are still logged in. Press the button to log out.', 'Nous n’avons pas pu confirmer cette demande : vous êtes toujours connecté(e). Appuyez sur le bouton pour vous déconnecter.') %></p>
+<form method="post" action="/logout">
+  <%- include('partials/csrf_field') %>
+  <button class="btn" type="submit"><%= tr('Log out', 'Se déconnecter') %></button>
+  <a class="btn btn-outline" href="/"><%= tr('Stay logged in', 'Rester connecté(e)') %></a>
+</form>
+
+<%- include('partials/footer') %>
