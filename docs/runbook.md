@@ -2164,7 +2164,15 @@ test site is not backed up (it holds nothing worth keeping).
 
 ## ab) Admin sessions: how long they last
 
-Customers, members and volunteers stay logged in for up to 30 days. **Admins and
+Customers, members and volunteers stay logged in for up to 30 days. Visitors who
+are NOT logged in get a much shorter session (`src/lib/sessionLifetime.js`): **2 hours**,
+or **24 hours** while they have something in the cart. This is what keeps a flood of
+anonymous page loads from filling the `session` table: expired rows are deleted every
+15 minutes, a job ("Guest session prune", `/admin/diagnostics/jobs`) also deletes guest
+rows that would outlive 24 hours, and one IP address can create at most 60 stored guest
+sessions per 10 minutes (further cookie-less page loads from it get a 429 "Too many
+requests" until the window passes; people who already have a session cookie are not
+affected). Logging in switches the session to the 30 days above. **Admins and
 Till accounts** are signed out sooner, so a forgotten laptop or a borrowed till
 tablet cannot be used for long:
 
