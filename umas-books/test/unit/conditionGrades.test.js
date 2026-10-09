@@ -54,7 +54,7 @@ test("conditionLabel follows the language and leaves an unknown value as is", ()
 test("BINDINGS and normalizeBinding: exactly four values, anything else is null", () => {
   assert.deepEqual(
     inv.BINDINGS.map((b) => [b.value, b.label, b.label_fr]),
-    [["hardcover", "Hardcover", "Relié"], ["trade", "Trade", "Broché (grand format)"], ["mass_market", "Mass Market", "Poche"], ["other", "Other", "Autre"]]
+    [["mass_market", "Mass Market", "Poche"], ["trade", "Trade", "Broché (grand format)"], ["hardcover", "Hardback", "Relié"], ["other", "Other", "Autre"]]
   );
   for (const b of inv.BINDINGS) assert.equal(inv.normalizeBinding(b.value), b.value);
   for (const bad of ["", "Hardcover", "spiral", null, undefined, {}, ["trade"]]) assert.equal(inv.normalizeBinding(bad), null);

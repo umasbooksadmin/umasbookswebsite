@@ -437,7 +437,7 @@ Details of the shop tables worth knowing:
   grades, `new`, `like_new`, `very_good` (the default), `good` or `acceptable` (migration 078 turned `like_new` into `very_good`; migration 083 made `like_new` a grade again, converting no rows back),
   enforced by a CHECK constraint (migration 048 remapped the old values; a copy
   that cannot be sold at all has status `damaged`, not a condition).
-  `books.binding` is `hardcover`, `trade`, `mass_market` or `other` (optional; older
+  `books.binding` is `hardcover` (shown as "Hardback"), `trade`, `mass_market` or `other`, listed as Mass Market, Trade, Hardback, Other (optional; older
   books are NULL until filled in; migration 077 renamed `paperback` to `trade`). Both are shown in English and French.
 * **Copy source.** `book_copies.source` records where a copy came from:
   `donation`, `purchase`, `lot` (job lot) or `other`; NULL means unknown (every
@@ -501,7 +501,7 @@ flowchart TD
   CLR -- no --> MM{"Mass market?"}
   MM -- yes --> P5["EUR 5"]
   MM -- no --> RS["Rule A under 6: EUR 5<br/>Rule B under 20: EUR 8<br/>Rule C under 50: 75% of value,<br/>rounded to 0.50"]
-  RS --> HC["Hardcover floor:<br/>raised to EUR 10"]
+  RS --> HC["Hardback floor:<br/>raised to EUR 10"]
 ```
 
 * **Rules are pure functions** (`pricing/rules.js`, no network or database), so
@@ -509,7 +509,7 @@ flowchart TD
   the diagram; the thresholds shown are the defaults.
 * **All the numbers live in one database row** (`pricing_settings`, `id = 1`),
   edited by admins on `/admin/pricing`: the standard price levels (3, 5, 8, 10
-  EUR), the mass-market price (EUR 5), the hardcover floor (EUR 10, optionally
+  EUR), the mass-market price (EUR 5), the hardback floor (EUR 10, optionally
   applied to clearance too), the Rule A/B/C limits, the clearance count, price and
   scope, the rounding step, fallback values by binding and the USD and GBP rates.
 * **Clearance** applies when the shop already holds two or more copies of a book
