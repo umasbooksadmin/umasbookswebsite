@@ -154,7 +154,9 @@ app.use(
     },
   })
 );
+app.use(require("./middleware/stripNul").rejectNulInPath);
 app.use(express.urlencoded({ extended: false }));
+app.use(require("./middleware/stripNul").stripNulFromInput);
 
 // A repeated form-field name (e.g. two inputs both named "email", or a
 // scanner/extension re-submitting one) makes the urlencoded parser above
@@ -256,6 +258,7 @@ app.use(attachUser(pool));
 app.use(enforceAdminSession(adminSessionConfig));
 // Right after attachUser (it needs res.locals.user): logged-in responses are no-store.
 app.use(noStoreForUsers);
+app.use(require("./middleware/noStoreForUsers").noStoreForTokenPages);
 app.use((req, res, next) => {
   res.locals.cartCount = Array.isArray(req.session.cart) ? req.session.cart.length : 0;
   next();

@@ -8,6 +8,7 @@ const { clean, parseId } = require("../lib/validation");
 const { loadPublicAwards, awardsTextSql } = require("../lib/awards/display");
 
 const { validateIdParams } = require("../middleware/idParams");
+const { bookSearchLimiter } = require("../middleware/rateLimits");
 
 const { latestArrivals } = require("../lib/latestArrivals");
 const { buildBookSeo } = require("../lib/bookSeo");
@@ -103,7 +104,14 @@ router.get("/api/books/genres", async (req, res) => {
   res.json(rows.map((r) => r.genre));
 });
 
-router.get("/api/books/search", async (req, res) => {
+// A free-text search shorter than this matches nearly everything and cannot use the
+// trigram indexes (migrations/088): answered with an empty list without touching the database.
+const SEARCH_MIN_LENGTH = 2;
+// The description is only searched from this length: shorter text (pg_trgm needs 3 characters)
+// would scan every description of the catalogue.
+const SEARCH_DESCRIPTION_MIN_LENGTH = 3;
+
+router.get("/api/books/search", bookSearchLimiter, async (req, res) => {
   res.set("Access-Control-Allow-Origin", "*");
   res.set("Cross-Origin-Resource-Policy", "cross-origin");
   res.set("Cache-Control", "public, max-age=60");
@@ -119,6 +127,8 @@ router.get("/api/books/search", async (req, res) => {
     .filter(Boolean)
     .slice(0, 10);
 
+  if (q && q.length < SEARCH_MIN_LENGTH) return res.json([]);
+
   const clauses = ["c.status = 'in_stock'"];
   const params = [];
   if (q) {
@@ -128,7 +138,7 @@ router.get("/api/books/search", async (req, res) => {
     const isbn = params.length;
     clauses.push(
       // title, author, keyword (the book's description) or genre (categories)
-      `(b.title ILIKE $${n} OR b.authors ILIKE $${n} OR b.description ILIKE $${n} OR b.categories ILIKE $${n}` +
+      `(b.title ILIKE $${n} OR b.authors ILIKE $${n}${q.length >= SEARCH_DESCRIPTION_MIN_LENGTH ? ` OR b.description ILIKE $${n}` : ""} OR b.categories ILIKE $${n}` +
         ` OR ($${isbn} <> '' AND length($${isbn}) >= 10 AND regexp_replace(COALESCE(b.isbn, ''), '[^0-9Xx]', '', 'g') = $${isbn}))`
     );
   }
