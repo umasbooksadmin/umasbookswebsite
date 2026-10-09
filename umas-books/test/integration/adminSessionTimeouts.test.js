@@ -50,6 +50,10 @@ async function login(base, email, returnTo) {
   });
   jar.capture(res);
   assert.equal(res.status, 302, "login should succeed");
+  // express-session also saves again AFTER the redirect went out (the session hash it compares
+  // with predates loginAs' own save). On a slow runner that late write could land after a test
+  // has aged the session row and silently undo it; let it finish first.
+  await new Promise((r) => setTimeout(r, 400));
   return { jar, location: res.headers.get("location") };
 }
 
@@ -124,7 +128,12 @@ test("an admin active within 8 hours stays signed in, for a whole day of shifts,
 
   await patchSess(jar, { adminLastActivity: Date.now() - 7 * H });
   assert.equal((await get(app.base, jar, "/admin")).status, 200);
-  const touched = (await readSess(jar)).adminLastActivity;
+  // express-session saves after the response went out: poll briefly instead of reading at once.
+  let touched = 0;
+  for (let i = 0; i < 50 && !(touched > Date.now() - 60000); i++) {
+    touched = (await readSess(jar)).adminLastActivity;
+    if (!(touched > Date.now() - 60000)) await new Promise((r) => setTimeout(r, 100));
+  }
   assert.ok(touched > Date.now() - 60000, "stale activity is refreshed");
 });
 
@@ -188,7 +197,8 @@ test("promoted to admin mid-session: the rule applies from that moment", async (
   assert.equal((await readSess(jar)).adminLoginAt, undefined);
   await pool.query("UPDATE users SET is_admin = TRUE WHERE id = $1", [id]);
   assert.equal((await get(app.base, jar, "/admin")).status, 200);
-  const sess = await readSess(jar);
+  let sess = await readSess(jar);
+  for (let i = 0; i < 50 && !(sess.adminLoginAt > 0); i++) { await new Promise((r) => setTimeout(r, 100)); sess = await readSess(jar); }
   assert.ok(sess.adminLoginAt > Date.now() - 60000, "clocks start now");
   await patchSess(jar, { adminLastActivity: Date.now() - 9 * H });
   assert.equal((await get(app.base, jar, "/admin")).status, 303);
