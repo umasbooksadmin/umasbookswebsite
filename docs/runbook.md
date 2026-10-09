@@ -342,17 +342,19 @@ the UptimeRobot "DOWN" alert) is in section r) "When you receive an alert".
   emails sent by the website's contact form, volunteer sign-up and English
   Immersion pre-registration (subjects start with `Website contact:`,
   `Website volunteer sign-up` and `Website pre-registration:`) are deleted from
-  the admin@umasbooks.org mailbox after 12 months. Nothing does it
-  automatically, and a yearly check would let some emails stay up to 24 months,
-  so do it **every quarter**:
-  1. In Gmail, search `older_than:12m` (to see only the website's emails, use
-     `subject:(Website) older_than:12m`).
+  the admin@umasbooks.org mailbox after 12 months. Gmail cannot be cleaned by the
+  website, so the website **emails a reminder to `ALERT_TO` once a month**
+  (subject "Monthly reminder: delete contact-form emails older than 12 months";
+  job `Contact mailbox reminder`, remembered in `alert_flags`, listed under
+  "Alerts sent" on `/admin/diagnostics/jobs`). When it arrives:
+  1. In Gmail, search `older_than:1y` (to see only the website's emails, use
+     `subject:(Website) older_than:1y`).
   2. Review the list. Keep any conversation that is still ongoing.
   3. Delete the rest (select all, Delete).
   4. Empty the Trash (Gmail > Trash > "Empty Trash now"), or the emails stay
      another 30 days.
   The pre-registration emails hold a child's name and year of birth, so do not
-  skip them.
+  skip them. If no reminder arrives for two months, check the job row.
 - **Backup restore drill (section ad):** decrypt the newest backup on your Mac,
   restore it into a scratch database, look at the counts, delete it. The
   monthly GitHub restore test does *not* decrypt anything unless you gave it the
@@ -1463,9 +1465,39 @@ success is older than **3 times its interval**.
 
 The jobs: Reservation expiry, Pickup reminders, Membership expiry, Membership
 reconciliation (every 6 h); Order follow-up (6 h); Cart maintenance (10 min);
-Email outbox (1 min); Retention purge and one row per purge step, Image cleanup
+Email outbox (1 min); Order phone cleanup (6 h); Contact mailbox reminder (daily check, one email a month); Retention purge and one row per purge step, Image cleanup
 (daily); Awards check (2 min); Cover backfill (5 min). A row for a job that no
 longer exists stops flagging after 30 days.
+
+### Retention rules (what is kept how long, and which job removes it)
+
+Single table; the code constants are in `src/lib/privacy.js` (`RETENTION`) and
+`src/lib/privacyMaintenance.js`. The public policy and
+`docs/privacy/record-of-processing.md` must say the same; change them together.
+
+| Data | Kept | Removed by |
+|---|---|---|
+| Buyer **phone** on an order | Until the reservation is collected and paid, cancelled or expired; at the latest 30 days after the order was made | Job `Order phone cleanup` (every 6 h, 500 rows per run) |
+| Phone on a held book copy | While the hold lasts; at the latest 30 days | `Order phone cleanup` (and the hold ending clears it at once) |
+| Name + email on a **paid** order, payment records | 10 years (accounting law); the phone is NOT part of this | `Retention purge: accounting` (daily) |
+| Name + email + phone on a **cancelled / expired** (never paid) order | 30 days after the order was made, then anonymised (`Erased`) | `Retention purge: closedOrders` |
+| Contact details on a closed or uncollected book hold | 30 days | `Retention purge: reservationContacts` |
+| Buyer IP on an order | 2 days at most | `Retention purge: clientIps` |
+| Event / class sign-ups | 12 months after the event | `Retention purge: signups` |
+| Book requests | unconfirmed 7 days; open 12 months; closed 30 days | `Retention purge: bookRequests` |
+| Copies of sent emails (outbox) | 30 days (90 if never sent) | `Retention purge: emailOutbox` |
+| Admin action log | 12 months; free-text detail 6 months; administrator's email label cleared on erase | `Retention purge: auditLog`, `auditDetail`, `eraseMember` |
+| Price-reprice run: administrator | Account id + role "admin" only (no email since migration 090); older labels cleared at 12 months | migration 090, `Retention purge: repriceActors` |
+| Unconfirmed accounts / inactive accounts | 7 days / 3 years without login (warned 30 days before) | `unconfirmedAccounts`, `inactivityWarnings`, `inactiveAccounts` |
+| Sessions | Guest 2 h (24 h with a cart); logged in 30 days; admin / till 8 h idle, 7 days at most | session expiry, `Guest session prune`, `lib/adminSession.js` |
+| One-time page state (typed values after a refused form) | 10 minutes; dropped on the next request after that | `lib/flash.js` (`flashHousekeeping`) |
+| Contact / volunteer / pre-registration emails in Gmail | 12 months | **Manual**, prompted by the monthly `Contact mailbox reminder` email |
+| Render platform logs | 14 days on the Pro plan (Render docs: Hobby 7, Pro 14, Scale 30; the workspace is on Pro) | Render |
+| Backups | nightly 30 days, monthly 2 years | backup job |
+
+A test (`test/integration/privacyTidyUp.test.js`, "coverage") lists every column
+that can hold a person's data and fails when a new table or column appears
+without a decision (erased and exported, or allowed with a reason).
 
 ## t) GitHub Actions minutes (private repository)
 
