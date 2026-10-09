@@ -63,6 +63,7 @@
       <h2 class="section-title"><%= tr('Reservation', 'Réservation') %></h2>
       <form class="stack" method="post" action="/cart/reserve">
         <%- include('partials/csrf_field') %>
+        <% items.filter((i) => i.kind === 'book').forEach((i) => { %><input type="hidden" name="seenPrice_<%= i.copyId %>" value="<%= i.price.toFixed(2) %>"><% }) %>
         <label for="name"><%= tr('Name', 'Nom') %></label>
         <input id="name" name="name" type="text" autocomplete="name" value="<%= locals.accountName || '' %>" required>
         <label for="accountEmail"><%= tr('Email', 'E-mail') %></label>

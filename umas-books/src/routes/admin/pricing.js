@@ -206,19 +206,34 @@ router.get("/admin/pricing/reprice", requireAdmin, async (req, res) => {
   const settings = await getSettings(pool);
   const groups = await reprice.previewGroups(pool, settings);
   const none = reprice.groupByKey(String(req.query.none || ""));
+  const stale = reprice.groupByKey(String(req.query.stale || ""));
+  const was = Math.max(0, parseInt(req.query.was, 10) || 0);
+  const now = Math.max(0, parseInt(req.query.now, 10) || 0);
   res.render("admin/pricing/reprice", {
     active: "pricing", money, groups, runs: await reprice.recentRuns(pool), repriceRunLabel,
     notice: none ? `Group ${none.letter}: nothing left to change (a second run finds nothing).` : null,
+    error: stale ? `Group ${stale.letter} was NOT changed: the copies in it are no longer the ones you previewed (you confirmed ${was}, there are now ${now}, or they are different copies). Nothing was applied. Review the new preview below and confirm again.` : null,
   });
 });
 
-// Applies ONE group (recomputed here: the page is only a preview).
+// Applies ONE group, but only if the live set is EXACTLY the one previewed: the confirm form posts
+// the previewed count and a hash of the previewed copy ids (src/lib/pricing/reprice.js).
 router.post("/admin/pricing/reprice/:group", requireAdmin, async (req, res) => {
   const group = reprice.groupByKey(req.params.group);
   if (!group) return res.status(404).render("404");
   const settings = await getSettings(pool);
   const user = req.session && req.session.user;
-  const result = await reprice.applyGroup(pool, group.key, settings, { id: user ? user.id : null, role: "admin" });
+  const expectedCount = String(req.body.expectedCount || "");
+  const expectedHash = String(req.body.expectedHash || "");
+  if (!/^\d+$/.test(expectedCount) || !/^[0-9a-f]{64}$/.test(expectedHash)) {
+    // A form without the previewed count and hash is never applied: re-preview.
+    return res.redirect(303, `/admin/pricing/reprice?stale=${group.key}&was=0&now=0`);
+  }
+  const result = await reprice.applyGroup(pool, group.key, settings, { id: user ? user.id : null, role: "admin" }, { count: Number(expectedCount), hash: expectedHash });
+  if (result.mismatch) {
+    await audit(req, { action: "pricing.reprice.refused", detail: `Group ${group.letter} (${group.key}): previewed ${result.expectedCount}, live ${result.liveCount}` });
+    return res.redirect(303, `/admin/pricing/reprice?stale=${group.key}&was=${result.expectedCount}&now=${result.liveCount}`);
+  }
   if (!result.runId) return res.redirect(303, `/admin/pricing/reprice?none=${group.key}`);
   await audit(req, {
     action: "pricing.reprice", targetType: "price_reprice_run", targetId: result.runId,
@@ -231,7 +246,38 @@ router.get("/admin/pricing/reprice/runs/:runId", requireAdmin, async (req, res) 
   const run = await reprice.getRun(pool, Number(req.params.runId));
   if (!run) return res.status(404).render("404");
   const items = await reprice.runItems(pool, run.id);
-  res.render("admin/pricing/reprice_result", { active: "pricing", run, items: items.slice(0, 200), total: items.length, money, label: repriceRunLabel(run) });
+  const isLast = (await reprice.lastRunId(pool)) === run.id;
+  res.render("admin/pricing/reprice_result", {
+    active: "pricing", run, items: items.slice(0, 200), total: items.length, money, label: repriceRunLabel(run), isLast,
+    notice: req.query.undone != null ? `Undone: ${Math.max(0, parseInt(req.query.undone, 10) || 0)} copies back at their previous price, ${Math.max(0, parseInt(req.query.skipped, 10) || 0)} left alone (sold, reserved or changed since).` : null,
+    error: req.query.undostale ? "Nothing was undone: the copies that can be restored are no longer the ones you previewed. Review the preview and confirm again." : null,
+  });
+});
+
+// "Undo this run": preview first (how many copies go back, how many are left alone), then confirm.
+// Only the LAST run can be undone, and only copies still at the price the run set and still in stock.
+router.get("/admin/pricing/reprice/runs/:runId/undo", requireAdmin, async (req, res) => {
+  const run = await reprice.getRun(pool, Number(req.params.runId));
+  if (!run) return res.status(404).render("404");
+  const isLast = (await reprice.lastRunId(pool)) === run.id;
+  const undo = isLast ? await reprice.previewUndo(pool, run.id) : null;
+  res.render("admin/pricing/reprice_undo", { active: "pricing", run, label: repriceRunLabel(run), isLast, undo, money });
+});
+
+router.post("/admin/pricing/reprice/runs/:runId/undo", requireAdmin, async (req, res) => {
+  const run = await reprice.getRun(pool, Number(req.params.runId));
+  if (!run) return res.status(404).render("404");
+  const expectedCount = String(req.body.expectedCount || "");
+  const expectedHash = String(req.body.expectedHash || "");
+  if (!/^\d+$/.test(expectedCount) || !/^[0-9a-f]{64}$/.test(expectedHash)) return res.redirect(303, `/admin/pricing/reprice/runs/${run.id}/undo`);
+  const result = await reprice.undoRun(pool, run.id, { count: Number(expectedCount), hash: expectedHash });
+  if (result.notLast) return res.redirect(303, `/admin/pricing/reprice/runs/${run.id}/undo`);
+  if (result.mismatch) return res.redirect(303, `/admin/pricing/reprice/runs/${run.id}?undostale=1`);
+  await audit(req, {
+    action: "pricing.reprice.undo", targetType: "price_reprice_run", targetId: run.id,
+    detail: `Group ${run.group_key}: ${result.restored} copies restored, ${result.skipped} left alone`,
+  });
+  res.redirect(303, `/admin/pricing/reprice/runs/${run.id}?undone=${result.restored}&skipped=${result.skipped}`);
 });
 
 // Before/after of every copy a run changed, so a revert is possible.

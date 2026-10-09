@@ -322,3 +322,5 @@ s.test("X7 safety self-check: the test browser cannot open any HelloAsso page", 
   const framed = await ctx.page.$$eval("iframe", (f) => f.map((x) => x.src).filter((u) => /helloasso/.test(u)));
   for (const url of framed) assert.ok(ctx.blocked.some((b) => b.startsWith(url.split("?")[0])), `iframe ${url} was not blocked`);
 });
+
+s.manual("E12 a logout with a stale page shows 'Please try again' and does not log out (covered by test/integration/logoutCsrf.test.js)", "needs a page that has gone stale in another tab");
