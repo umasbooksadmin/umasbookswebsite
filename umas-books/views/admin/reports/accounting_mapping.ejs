@@ -2,7 +2,7 @@
 <% if (error) { %><div role="alert" class="error-box"><%= error %></div><% } %>
 <% if (notice) { %><div role="status" class="notice-box"><%= notice %></div><% } %>
 <div class="card">
-  <p class="muted small">Each row of the <a href="/admin/reports/accounting">Accounting export</a> takes its debit account, credit account and journal from this table. The values shown are a starting point: <strong>ask the treasurer to confirm them</strong> (in particular 511 or 512 for cards and HelloAsso, and 471 for payments with no recorded method). Every change is written to the admin activity log.</p>
+  <p class="muted small">Each row of the <a href="/admin/reports/accounting">Accounting export</a> takes its debit account, credit account and journal from this table. The values shown are a starting point: <strong>ask the treasurer to confirm them</strong> (in particular 511 or 512 for cards, cheques and HelloAsso, and 471 for payments with no recorded method). Every change is written to the admin activity log.</p>
   <form method="post" action="/admin/reports/accounting/mapping">
     <%- include('../../partials/csrf_field') %>
     <div class="table-scroll"><table class="report-table">
