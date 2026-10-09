@@ -67,6 +67,17 @@ module.exports = {
     max: 60,
     skip: (req) => Boolean(req.session && req.session.csrfToken),
   }),
+  // GET /api/books/search runs ILIKE over the whole catalogue. Per IP, per minute; a person typing searches by
+  // hand never gets near 60. Answers JSON (the Books page script shows a "wait a moment" line), never cached.
+  bookSearchLimiter: limit({
+    windowMs: 60 * 1000,
+    max: 60,
+    handler: (req, res) => {
+      res.set("Cache-Control", "no-store");
+      res.set("Access-Control-Allow-Origin", "*");
+      res.status(429).json({ error: "rate_limited" });
+    },
+  }),
   limit,
   ipKey,
   IPV6_SUBNET,

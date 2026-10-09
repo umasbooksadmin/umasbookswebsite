@@ -369,6 +369,10 @@
  },
  {
   "file": "src/index.js",
+  "text": "Guest session prune"
+ },
+ {
+  "file": "src/index.js",
   "text": "Email outbox"
  },
  {

@@ -24,4 +24,17 @@ function noStoreForUsers(req, res, next) {
   next();
 }
 
-module.exports = { noStoreForUsers };
+// Pages reached through a secret link in the URL show (or act on) one person's
+// data to whoever holds the link, logged in or not: the reservation page
+// (/cart/return?order=<token>: name and email), the book-request pages
+// (/my-requests/..., /request-a-book/confirm/<token>), password reset and email
+// verification. They must never sit in a shared cache or the browser's back/forward
+// cache, so they are `private, no-store` for every visitor. Set before the route runs,
+// so a route's own stricter header (some already send `no-store`) still wins.
+const TOKEN_PAGE = /^\/(cart\/return|my-requests|request-a-book\/confirm|reset-password|verify-email)(\/|$)/;
+function noStoreForTokenPages(req, res, next) {
+  if (TOKEN_PAGE.test(req.path)) res.set("Cache-Control", "private, no-store");
+  next();
+}
+
+module.exports = { noStoreForUsers, noStoreForTokenPages, TOKEN_PAGE };
