@@ -8,7 +8,7 @@ const { BINDINGS, normalizeBinding, normalizeCondition, normalizeLocation, norma
 // Location, Source, Binding and Condition is the last value used: carried by the
 // query after a save, and remembered by the browser (public/scan-intake.js,
 // public/inventory-location.js) for later visits.
-const DEFAULT_LOCATION = "STORE";
+const DEFAULT_LOCATION = "Store";
 const DEFAULT_SOURCE = "donation";
 // The binding of a first-ever form is the last option of the list ("Other").
 const firstUseBinding = () => (BINDINGS.length ? BINDINGS[BINDINGS.length - 1].value : null);
