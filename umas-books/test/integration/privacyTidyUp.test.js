@@ -195,7 +195,6 @@ test("mailbox reminder: one email per 30 days to ALERT_TO, no personal data; a f
 // live in lib/privacy.js and lib/memberExport.js (grep'd below).
 const PERSONAL_COLUMN = /(^|_)(user_id|email|phone|contact|author_id|submitted_by|created_by|decided_by|hidden_by|collected_by|sold_by|opened_by|closed_by|reopened_by|voided_by|confirmed_by|staff_user_id|actor_user_id|actor_label|client_ip|ip|name)$/;
 const CASCADE = (exportSection) => ({ erase: "cascade", export: exportSection });
-const SETNULL = (why) => ({ erase: "setnull", allow: why });
 const SQL = (exportSection) => ({ erase: "sql", export: exportSection });
 const STAFF = { erase: "setnull", allow: "administrator/staff account that did the action (an internal record, not the customer's data); SET NULL when that account is erased" };
 const NOT_PERSON = (why) => ({ allow: why });
