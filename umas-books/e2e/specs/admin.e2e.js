@@ -227,6 +227,42 @@ s.test("A9e (must) on a phone (375 px, and 320 px) every admin page has the logo
   assert.ok(landed === "/" || landed === "/dashboard", `the logo opens the main page (the browser is on ${ctx.page.url()})`);
 });
 
+s.test("A9f (must) the page title (Back link and heading) is on the left and fully on screen on phones (320 to 430 px), on a sideways phone and on a computer, with nothing past the right edge", { as: "admin" }, async (ctx) => {
+  for (const width of [320, 360, 375, 390, 430, 932, 1200]) {
+    const phone = width < 900;
+    await ctx.page.setViewport({ width, height: 812, deviceScaleFactor: 2, isMobile: phone, hasTouch: phone });
+    for (const p of ["/admin/inventory/new", "/admin/inventory", "/admin/inventory/scan", "/admin/orders"]) {
+      await admin(ctx, p);
+      const r = await ctx.page.evaluate(() => {
+        const problems = [];
+        const h1 = document.querySelector(".admin-topbar h1");
+        const back = document.querySelector(".admin-back-link");
+        const main = document.querySelector(".admin-main").getBoundingClientRect();
+        const h = h1.getBoundingClientRect();
+        if (h.left >= innerWidth / 2) problems.push(`the title starts at ${Math.round(h.left)} px, right of the middle of the ${innerWidth} px screen`);
+        if (h.left > main.left + 40) problems.push(`the title starts ${Math.round(h.left - main.left)} px in from the page content: it should line up with it`);
+        if (back && back.getBoundingClientRect().left > main.left + 40) problems.push("the Back link is not at the left of the page content");
+        if (h1.closest(".admin-topbar-tools")) problems.push("the title is inside the tools wrapper (menu button, search, initials), which pushes it to the right");
+        const av = document.querySelector(".admin-avatar").getBoundingClientRect();
+        if (av.left < h.left) problems.push("the initials are left of the title");
+        if (document.documentElement.scrollWidth > innerWidth) problems.push(`sideways scroll: page ${document.documentElement.scrollWidth} px in a ${innerWidth} px window`);
+        for (const el of document.querySelectorAll("body *")) {
+          const cs = getComputedStyle(el);
+          if (cs.position === "fixed" || cs.display === "none" || cs.visibility === "hidden" || el.closest(".admin-sidebar, .skip-link, [hidden]")) continue;
+          const b = el.getBoundingClientRect();
+          if (b.width > 0 && b.right > innerWidth + 1) {
+            let scrolls = false;
+            for (let a = el.parentElement; a && a !== document.body; a = a.parentElement) if (/auto|scroll/.test(getComputedStyle(a).overflowX)) scrolls = true;
+            if (!scrolls) problems.push(`${el.tagName}.${el.className} ends at ${Math.round(b.right)} px, past the ${innerWidth} px screen`);
+          }
+        }
+        return problems.slice(0, 5);
+      });
+      assert.deepEqual(r, [], `${p} at ${width} px: ${r.join("; ")}`);
+    }
+  }
+});
+
 s.test("A9c Scan mode is off by default and is remembered by the browser (nothing is saved)", { as: "admin" }, async (ctx) => {
   await admin(ctx, "/admin/inventory/new");
   await ctx.page.evaluate(() => localStorage.removeItem("umas.scan.mode"));
