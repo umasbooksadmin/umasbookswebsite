@@ -806,7 +806,7 @@ test("add/scan/edit forms offer the five grades (default Very Good) and the bind
   const options = (id) => [...text.slice(text.indexOf(`id="${id}"`)).split("</select>")[0].matchAll(/<option value="([^"]*)"[^>]*>([^<]*)</g)].map((m) => [m[1], m[2].trim()]);
   assert.deepEqual(options("condition"), [["new", "New"], ["like_new", "Like New"], ["very_good", "Very Good"], ["good", "Good"], ["acceptable", "Acceptable"]]);
   assert.match(text, /<option value="very_good" selected>Very Good/);
-  assert.deepEqual(options("binding"), [["", "Not specified"], ["hardcover", "Hardcover"], ["trade", "Trade"], ["mass_market", "Mass Market"], ["other", "Other"]]);
+  assert.deepEqual(options("binding"), [["", "Not specified"], ["mass_market", "Mass Market"], ["trade", "Trade"], ["hardcover", "Hardback"], ["other", "Other"]]);
 
   const b = await seedBook();
   const show = await get(`/admin/inventory/${b.id}`);
@@ -815,7 +815,7 @@ test("add/scan/edit forms offer the five grades (default Very Good) and the bind
   assert.deepEqual(copyConditions, ["new", "like_new", "very_good", "good", "acceptable"], "edit-copy form: exactly the five grades, in order");
   assert.match(show.text, /id="binding" name="binding"/);
   const editValues = [...show.text.slice(show.text.indexOf('id="binding"')).split("</select>")[0].matchAll(/<option value="([^"]*)"/g)].map((m) => m[1]);
-  assert.deepEqual(editValues, ["", "hardcover", "trade", "mass_market", "other"], "edit form: placeholder plus exactly the four bindings, in order");
+  assert.deepEqual(editValues, ["", "mass_market", "trade", "hardcover", "other"], "edit form: placeholder plus exactly the four bindings, in order");
 });
 
 test("Add Book page: no Scan mode and no suggested-price save button; both save buttons remain", async () => {
@@ -872,5 +872,5 @@ test("scan: the binding found by the catalogue lookup prefills the form; nothing
   const isbn2 = isbn13();
   openLibrary.isbn.set(isbn2, { title: `Scan ${tag()}` });
   const none = (await followPost("/admin/inventory/lookup", { fields: { isbn: isbn2 } })).text;
-  assert.ok(!/<option value="[a-z_]+" selected>(Hardcover|Trade|Mass Market|Other)/.test(none));
+  assert.ok(!/<option value="[a-z_]+" selected>(Mass Market|Trade|Hardback|Other)/.test(none));
 });

@@ -25,6 +25,22 @@ function hostOf(url) {
   }
 }
 
+// A message when DATABASE_URL points at the PRODUCTION database host
+// (PRODUCTION_DATABASE_HOST, when set), else null. Shared by the boot guard
+// above and the demo-data script (lib/demoData.js).
+function productionHostProblem(env = process.env) {
+  const prodHost = String(env.PRODUCTION_DATABASE_HOST || "").trim().toLowerCase();
+  if (!prodHost) return null;
+  const dbHost = hostOf(env.DATABASE_URL);
+  // Compare on the first label too: Render shows the same database as
+  // "dpg-xxxx-a" (internal) and "dpg-xxxx-a.frankfurt-postgres.render.com" (external).
+  const first = (h) => h.split(".")[0];
+  if (dbHost && (dbHost === prodHost || first(dbHost) === first(prodHost))) {
+    return `DATABASE_URL points at the PRODUCTION database host (${prodHost}). Staging must have its own database.`;
+  }
+  return null;
+}
+
 // Pure: what makes a staging boot unsafe. Empty list = fine (always empty
 // outside staging).
 function stagingBootProblems(env = process.env) {
@@ -38,16 +54,8 @@ function stagingBootProblems(env = process.env) {
       "A staging site must never hold live HelloAsso credentials: use sandbox credentials with HELLOASSO_API_BASE=https://api.helloasso-sandbox.com/v5, or remove the HELLOASSO_* variables."
     );
   }
-  const prodHost = String(env.PRODUCTION_DATABASE_HOST || "").trim().toLowerCase();
-  if (prodHost) {
-    const dbHost = hostOf(env.DATABASE_URL);
-    // Compare on the first label too: Render shows the same database as
-    // "dpg-xxxx-a" (internal) and "dpg-xxxx-a.frankfurt-postgres.render.com" (external).
-    const first = (h) => h.split(".")[0];
-    if (dbHost && (dbHost === prodHost || first(dbHost) === first(prodHost))) {
-      problems.push(`DATABASE_URL points at the PRODUCTION database host (${prodHost}). Staging must have its own database.`);
-    }
-  }
+  const prodProblem = productionHostProblem(env);
+  if (prodProblem) problems.push(prodProblem);
   return problems;
 }
 
@@ -81,4 +89,4 @@ function stagingMail(mail, env = process.env) {
   };
 }
 
-module.exports = { isStaging, stagingBootProblems, enforceStagingBoot, stagingMail };
+module.exports = { isStaging, hostOf, productionHostProblem, stagingBootProblems, enforceStagingBoot, stagingMail };

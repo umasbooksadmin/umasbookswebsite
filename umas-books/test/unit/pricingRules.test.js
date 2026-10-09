@@ -209,7 +209,7 @@ test("suggestPrice: names the rule that fired in plain English, never mentions c
 
   const cases = [
     [{ binding: "mass_market" }, /Mass market paperbacks are priced at EUR 5\.00\./],
-    [{ binding: "hardcover" }, /Hardcover: minimum price EUR 10\.00/],
+    [{ binding: "hardcover" }, /Hardback: minimum price EUR 10\.00/],
     [{ isbn: "" }, /Manual review: no ISBN barcode/],
     [{ condition: "new", publisherPrice: "14.00" }, /publisher's price, EUR 14\.00/],
   ];
