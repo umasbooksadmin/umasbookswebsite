@@ -5,7 +5,7 @@ const assert = require("node:assert/strict");
 const {
   lifetimeFor, applyLifetime, sessionLifetime, LOGGED_IN_MAX_AGE_MS, GUEST_CART_MAX_AGE_MS, GUEST_MAX_AGE_MS,
 } = require("../../src/lib/sessionLifetime");
-const { createAnonSessionGuard } = require("../../src/lib/anonSessionGuard");
+const { createAnonSessionGuard, limitFromEnv } = require("../../src/lib/anonSessionGuard");
 const { stripNulDeep, rejectNulInPath, stripNulFromInput } = require("../../src/middleware/stripNul");
 const { clean } = require("../../src/lib/validation");
 
@@ -130,4 +130,10 @@ test("NUL: clean() and the request filters remove it, a NUL in the path is a 400
   let passed = false;
   rejectNulInPath({ url: "/api/books/search?q=a%00b" }, fakeRes(), () => { passed = true; });
   assert.ok(passed, "a NUL in the QUERY STRING is stripped, not refused");
+});
+
+test("ANON_SESSION_LIMIT: a whole number from 1 to 1,000,000, otherwise the default 60", () => {
+  assert.equal(limitFromEnv({}), 60);
+  assert.equal(limitFromEnv({ ANON_SESSION_LIMIT: "500" }), 500);
+  for (const bad of ["0", "-3", "abc", "1.5", "2000000", ""]) assert.equal(limitFromEnv({ ANON_SESSION_LIMIT: bad }), 60, bad);
 });

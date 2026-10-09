@@ -29,7 +29,15 @@ function genid(req) {
   return crypto.randomBytes(24).toString("base64url");
 }
 
-function createAnonSessionGuard({ windowMs = DEFAULT_WINDOW_MS, max = DEFAULT_MAX, now = Date.now, keyOf } = {}) {
+// ANON_SESSION_LIMIT: optional whole number 1 to 1,000,000, stored guest sessions per IP per 10 minutes.
+// Only for tests that act as hundreds of visitors from one address (the local end-to-end run); leave it
+// unset on the live site.
+function limitFromEnv(env = process.env) {
+  const n = Number(String(env.ANON_SESSION_LIMIT || "").trim());
+  return Number.isInteger(n) && n >= 1 && n <= 1000000 ? n : DEFAULT_MAX;
+}
+
+function createAnonSessionGuard({ windowMs = DEFAULT_WINDOW_MS, max = limitFromEnv(), now = Date.now, keyOf } = {}) {
   const hits = new Map(); // key -> { start, count }
   const key = keyOf || ipKey;
 
@@ -80,4 +88,4 @@ function createAnonSessionGuard({ windowMs = DEFAULT_WINDOW_MS, max = DEFAULT_MA
   return middleware;
 }
 
-module.exports = { genid, createAnonSessionGuard, DEFAULT_WINDOW_MS, DEFAULT_MAX };
+module.exports = { genid, createAnonSessionGuard, limitFromEnv, DEFAULT_WINDOW_MS, DEFAULT_MAX };
