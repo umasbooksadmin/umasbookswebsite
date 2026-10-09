@@ -144,9 +144,9 @@ rather than by a numbered migration), grouped by what they belong to:
   free-priced and store `publisher_price` NULL.
 - **Inventory locations** — `book_copies.location` (migration 043) is free
   text per physical copy, normalised by `normalizeLocation` in
-  `src/lib/inventory.js` (trimmed, spaces collapsed, upper-case, 40 chars).
+  `src/lib/inventory.js` (trimmed, spaces collapsed, 40 chars; capitals are kept as typed, and `sameLocation`/`uniqueLocations` compare case-insensitively).
   There is no locations table: the dropdown (a `<datalist>`, partial
-  `location_options`) is `SELECT DISTINCT location`, so a newly typed place
+  `location_options`) is the distinct locations folded case-insensitively (`getLocations`, most common spelling shown), so a newly typed place
   appears from then on. The scan/add flow carries the current location
   through hidden fields and `public/inventory-location.js` (localStorage);
   `/admin/inventory/move` moves one copy per scanned ISBN (`parseScan`), and

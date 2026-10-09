@@ -58,9 +58,9 @@ router.get("/admin/inventory/new/again", requireAdmin, async (req, res) => {
   const suggestion = await prepareIntakeForm(res, f.prep || {});
   if (f.priceLevel !== undefined) res.locals.priceLevelSelected = f.priceLevel;
   if (f.copyNotes !== undefined) res.locals.copyNotesValue = f.copyNotes;
-  const { rows: locs } = await pool.query("SELECT DISTINCT location FROM book_copies WHERE location IS NOT NULL ORDER BY 1");
+  const { rows: locs } = await pool.query("SELECT location, COUNT(*)::int AS count, MAX(updated_at) AS last FROM book_copies WHERE location IS NOT NULL GROUP BY location");
   res.render("admin/inventory/new", {
-    active: "inventory", location: normalizeLocation(f.location) || "", source: normalizeSource(f.source) || "", sources: SOURCES, locations: locs.map((r) => r.location),
+    active: "inventory", location: normalizeLocation(f.location) || "", source: normalizeSource(f.source) || "", sources: SOURCES, locations: inventoryLib.uniqueLocations(locs),
     book: f.book,
     error: f.error || null,
     fromScan: f.fromScan === true,

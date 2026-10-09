@@ -1042,6 +1042,35 @@ s.test("G62 New In covers are shown whole (contain, 2:3 box, no horizontal overf
   assert.ok(await ctx.page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "no horizontal overflow");
 });
 
+s.test("G81 (must) on a phone (375 px and 320 px) no public page is wider than the screen, in English and in French", async (ctx) => {
+  const pages = ["/", "/about.html", "/books.html", "/events.html", "/programs.html", "/membership.html", "/visit.html", "/volunteer.html", "/privacy-policy.html", "/terms-of-sale.html", "/sessions", "/events", "/contact", "/request-a-book", "/cart", "/login", "/signup"];
+  // Regions that scroll sideways on purpose (a carousel, a table in a scrolling wrapper) are skipped: anything inside an overflow-x auto/scroll/hidden ancestor.
+  for (const lang of ["en", "fr"]) {
+    await ctx.page.setCookie({ name: "umasbooks_lang", value: lang, url: cfg.baseUrl() });
+    for (const [width, height] of [[375, 812], [320, 640]]) {
+      await ctx.page.setViewport({ width, height, deviceScaleFactor: 1, isMobile: true, hasTouch: true });
+      for (const p of pages) {
+        await ctx.goto(p, "networkidle2");
+        const bad = await ctx.page.evaluate(() => {
+          const out = [];
+          if (document.documentElement.scrollWidth > innerWidth) out.push(`page is ${document.documentElement.scrollWidth} px wide`);
+          for (const el of document.querySelectorAll("body *")) {
+            const cs = getComputedStyle(el);
+            if (cs.position === "fixed" || cs.display === "none" || cs.visibility === "hidden") continue;
+            const b = el.getBoundingClientRect();
+            if (!(b.width > 0 && b.height > 0 && b.right > innerWidth + 1)) continue;
+            let scrolls = false;
+            for (let a = el.parentElement; a && a !== document.body; a = a.parentElement) if (/auto|scroll|hidden|clip/.test(getComputedStyle(a).overflowX)) scrolls = true;
+            if (!scrolls) out.push(`${el.tagName}.${el.className} ends at ${Math.round(b.right)} px`);
+          }
+          return out.slice(0, 4);
+        });
+        assert.deepEqual(bad, [], `${p} (${lang}) at ${width} px: ${bad.join("; ")}`);
+      }
+    }
+  }
+});
+
 s.test("G-FR55 FR check (membership): the form and the payment step are in French", { lang: "fr" }, async (ctx) => {
   await joinPage(ctx);
   const text = await ctx.text();

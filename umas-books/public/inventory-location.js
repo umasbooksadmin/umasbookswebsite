@@ -3,10 +3,10 @@
 // server already carries the location through the save -> next book loop, this
 // just also survives a page reload or a new visit to the page.
 (function () {
-  var STORE_NAME = "umas.inventory.location.v2";
+  var STORE_NAME = "umas.inventory.location.v3";
 
   function normalize(v) {
-    return String(v || "").replace(/\s+/g, " ").trim().toUpperCase().slice(0, 40);
+    return String(v || "").replace(/\s+/g, " ").trim().slice(0, 40);
   }
   function read() {
     try { return localStorage.getItem(STORE_NAME) || ""; } catch (e) { return ""; }
@@ -26,7 +26,7 @@
     for (var i = 0; i < mirrors.length; i++) mirrors[i].value = v;
   }
 
-  // A fresh form starts at the default ("STORE"): the location used last in this
+  // A fresh form starts at the default ("Store"): the location used last in this
   // browser takes its place, unless the page was opened with a location of its own.
   if (!input.value || input.hasAttribute("data-location-default")) {
     var saved = read();

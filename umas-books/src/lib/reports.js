@@ -162,9 +162,9 @@ function sumRows(rows, keys) {
 
 // ---------- 1. inventory ----------
 
-async function inventoryBy(db, { groupExpr, labelExpr, mapLabel = (x) => x, title, key, firstLabel }) {
+async function inventoryBy(db, { groupExpr, labelExpr, labelAgg, mapLabel = (x) => x, title, key, firstLabel }) {
   const { rows } = await db.query(
-    `SELECT MIN((${labelExpr}) COLLATE "C") AS label,
+    `SELECT ${labelAgg || `MIN((${labelExpr}) COLLATE "C")`} AS label,
             COUNT(*) FILTER (WHERE c.status = 'in_stock')::int AS in_stock_count,
             COALESCE(SUM(c.price) FILTER (WHERE c.status = 'in_stock'), 0)::float8 AS in_stock_value,
             COUNT(*) FILTER (WHERE c.status = 'reserved')::int AS reserved_count,
@@ -201,7 +201,7 @@ async function inventoryReport(db) {
   const sections = await Promise.all([
     inventoryBy(db, { key: "genre", title: "By genre", firstLabel: "Genre", groupExpr: `lower(${GENRE})`, labelExpr: GENRE }),
     inventoryBy(db, { key: "condition", title: "By condition", firstLabel: "Condition", groupExpr: "c.condition", labelExpr: "c.condition", mapLabel: conditionLabel }),
-    inventoryBy(db, { key: "location", title: "By location", firstLabel: "Location", groupExpr: "COALESCE(c.location, '')", labelExpr: "COALESCE(c.location, '(no location)')" }),
+    inventoryBy(db, { key: "location", title: "By location", firstLabel: "Location", groupExpr: "lower(COALESCE(c.location, ''))", labelExpr: "COALESCE(c.location, '(no location)')", labelAgg: "MODE() WITHIN GROUP (ORDER BY COALESCE(c.location, '(no location)') COLLATE \"C\")" }),
     inventoryBy(db, { key: "source", title: "By source", firstLabel: "Source", groupExpr: "COALESCE(c.source, '')", labelExpr: "COALESCE(c.source, '')", mapLabel: sourceLabel }),
   ]);
   return {
