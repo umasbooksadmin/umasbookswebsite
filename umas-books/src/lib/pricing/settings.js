@@ -11,6 +11,7 @@ const CACHE_MS = 60 * 1000;
 // label shown to volunteers, and the sane range it must stay within.
 const NUMBER_FIELDS = [
   { col: "mass_market_price", label: "Mass market price (EUR)", min: 0.5, max: 50 },
+  { col: "trade_price", label: "Trade price (EUR)", min: 0.5, max: 50 },
   { col: "hardcover_min_price", label: "Hardback minimum price (EUR)", min: 1, max: 100 },
   { col: "a_max", label: "Rule A: market value under (EUR)", min: 1, max: 100 },
   { col: "a_price", label: "Rule A: price (EUR)", min: 0.5, max: 100 },
@@ -44,6 +45,7 @@ function rowToSettings(row) {
   return {
     levels: (Array.isArray(row.levels) ? row.levels : DEFAULT_SETTINGS.levels).map(Number),
     massMarketPrice: n(row.mass_market_price),
+    tradePrice: row.trade_price == null ? DEFAULT_SETTINGS.tradePrice : n(row.trade_price),
     hardcoverMinPrice: n(row.hardcover_min_price),
     hardcoverMinAppliesToClearance: row.hardcover_min_applies_to_clearance === true,
     aMax: n(row.a_max), aPrice: n(row.a_price),
@@ -68,7 +70,7 @@ function rowToSettings(row) {
 function defaultRow() {
   const d = DEFAULT_SETTINGS;
   return {
-    levels: [...d.levels], mass_market_price: d.massMarketPrice, hardcover_min_price: d.hardcoverMinPrice,
+    levels: [...d.levels], mass_market_price: d.massMarketPrice, trade_price: d.tradePrice, hardcover_min_price: d.hardcoverMinPrice,
     hardcover_min_applies_to_clearance: d.hardcoverMinAppliesToClearance, a_max: d.aMax, a_price: d.aPrice, b_max: d.bMax, b_price: d.bPrice, c_max: d.cMax, c_factor: d.cFactor,
     used_fraction: d.usedFraction, rounding_step: d.roundingStep,
     fallback_hardcover: d.fallbackEur.hardcover, fallback_trade: d.fallbackEur.trade,

@@ -665,6 +665,15 @@ Good to know:
   Anthropic console usage page after the first week.
 - **Privacy:** only the ISBN, title, author and binding are sent. See
   `docs/privacy/processors-checklist.md` (Anthropic row).
+- **Reprice after the pricing change (migration 085):** the migration only
+  updates the pricing *settings* (and only values still at the old defaults);
+  it never changes a book's price. After deploying, an admin opens **Pricing
+  rules > Reprice** and confirms groups A (Trade to EUR 5), B (Mass Market to
+  EUR 5) and C (EUR 8 to EUR 10) one by one. Each confirmed group is one
+  transaction, one **Admin activity** row (`pricing.reprice`) and a CSV of
+  before/after prices per copy (kept in `price_reprice_items`, so it can be
+  downloaded again from the run page). There is no undo button: to revert, use
+  that CSV (`old_price` column) to set the prices back by hand.
 - **To start fresh for one book** (its cached online price looks wrong): in the
   database, `DELETE FROM price_lookups WHERE isbn = '<the 13-digit ISBN>';`.
 

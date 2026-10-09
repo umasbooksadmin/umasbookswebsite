@@ -7,13 +7,18 @@
 //
 //   1. condition new                          -> the publisher's price (loi Lang)
 //   2. no ISBN                                -> manual review: no price suggested
-//   3. not mass market and M >= c_max (50)    -> manual review: no price suggested
-//   4. clearance: N >= 2 and the book is Set A (mass market, or M < a_max)
+//   3. not mass market / trade and M >= c_max (50)
+//                                             -> manual review: no price suggested
+//   4. clearance: N >= 2 and the book is Set A (mass market, trade, or M < a_max)
 //                                             -> EUR 1
 //   5. mass market                            -> EUR 5, whatever M is
+//      trade                                  -> EUR 5, whatever M is
 //   6. Set A  M < a_max (6)                   -> EUR 5
-//      Set B  M < b_max (20)                  -> EUR 8
+//      Set B  M < b_max (20)                  -> EUR 10
 //      Set C  M < c_max (50)                  -> M x 0.75, rounded to the nearest 0.50
+//
+// The standard price levels are 3, 5 and 10 (EUR 8 was retired): Rule B's
+// price (b_price) is therefore 10, the nearest remaining level above 8.
 //   7. hardcover floor: a hardcover below EUR 10 is raised to EUR 10
 //
 // A suggestion is only ever a suggestion: a volunteer accepts or changes it.
@@ -22,17 +27,18 @@ const { toIsbn13 } = require("./isbn");
 
 const DEFAULT_SETTINGS = Object.freeze({
   // Standard prices a volunteer can pick by hand (besides clearance and custom).
-  levels: Object.freeze([3, 5, 8, 10]),
+  levels: Object.freeze([3, 5, 10]),
   massMarketPrice: 5,
+  tradePrice: 5,
   aMax: 6, aPrice: 5,
-  bMax: 20, bPrice: 8,
+  bMax: 20, bPrice: 10,
   cMax: 50, cFactor: 0.75,
   hardcoverMinPrice: 10,
   hardcoverMinAppliesToClearance: false, // true: a hardcover on clearance is raised to the minimum too
   usedFraction: 0.35, // used value as a share of the publisher's price, when only that is known
   roundingStep: 0.5,
   // Typical used value, in EUR, when nothing at all is known about the book.
-  fallbackEur: Object.freeze({ hardcover: 12, trade: 8, mass_market: 4, unknown: 8 }),
+  fallbackEur: Object.freeze({ hardcover: 12, trade: 5, mass_market: 5, unknown: 5 }),
   usdEur: 0.92, // 1 USD in EUR (to convert US listings)
   gbpEur: 1.15, // 1 GBP in EUR (to convert UK listings)
   // Clearance: once a book already has `afterCopies` copies in stock (in stock
@@ -113,7 +119,7 @@ function neighbours(price, settings) {
 //      referenceSource, comparablesUsed, comparablesDropped, needsReview,
 //      reviewMessage, clearance, floorApplied, normal } or null: a NEW copy
 //      with no publisher price.
-//   ruleSet: 'new' | 'review' | 'clearance' | 'mass_market' | 'A' | 'B' | 'C'
+//   ruleSet: 'new' | 'review' | 'clearance' | 'mass_market' | 'trade' | 'A' | 'B' | 'C'
 //   level: number (a standard price) | 'custom' (Rule C) | 'clearance' | 'review' | null (new)
 //   basis: 'publisher' | 'clearance' | 'market' (listings found) | 'rules' (estimated)
 //   price is null for 'review'. `normal` (clearance only) is the price without clearance.
@@ -154,16 +160,18 @@ function suggestFromRules({ condition, binding, isbn, comparables, originalPrice
     };
   };
 
+  // Mass market and trade: one flat price each, whatever the book is worth online.
   const isMassMarket = binding === "mass_market";
+  const isFlat = isMassMarket || binding === "trade";
   let info = blank;
   let ref = null;
   let ruleSet;
   let ruled;
 
-  if (isMassMarket) {
-    // Mass market: one price whatever the book is worth online (so no market value is needed).
-    ruleSet = "mass_market";
-    ruled = cents(s.massMarketPrice);
+  if (isFlat) {
+    // Mass market and trade: one price whatever the book is worth online (so no market value is needed).
+    ruleSet = isMassMarket ? "mass_market" : "trade";
+    ruled = cents(isMassMarket ? s.massMarketPrice : s.tradePrice);
   } else {
     ref = referenceFrom({ marketEur, comparables, originalPrice, binding, settings: s });
     const m = ref.valueEur;
@@ -189,7 +197,7 @@ function suggestFromRules({ condition, binding, isbn, comparables, originalPrice
   const level = ruleSet === "C" && !floorApplied ? "custom" : price;
 
   // 4. Clearance (Rule A and mass market books, or every rule when set so).
-  if (clearanceDue(isMassMarket || ruleSet === "A")) {
+  if (clearanceDue(isFlat || ruleSet === "A")) {
     return clearanceResult(info, ref ? ref.confidence : "high", { ruleSet, price, level });
   }
 

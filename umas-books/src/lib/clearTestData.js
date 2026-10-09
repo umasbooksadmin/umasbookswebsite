@@ -54,6 +54,8 @@ const TABLES = {
   book_requests: "shop",
   book_request_list_tokens: "shop",
   price_lookups: "shop",
+  price_reprice_runs: "shop", // the Reprice tool's history (before/after prices of book copies)
+  price_reprice_items: "shop",
   images: "shop", // only the ones no remaining row refers to
   favorites: "shop",
   // people
@@ -270,6 +272,8 @@ function buildPlan({ includeContent = false, keepMembers = false } = {}, have = 
   del("orders");
   del("favorites");
   del("book_awards");
+  del("price_reprice_items");
+  del("price_reprice_runs");
   del("book_copies");
   del("books");
   del("price_lookups");

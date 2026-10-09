@@ -16,13 +16,14 @@
     <ol>
       <li><strong>New book:</strong> the publisher's price (French fixed book price law). No other rule applies.</li>
       <li><strong>No ISBN:</strong> no price is suggested. A person looks the book up and chooses the price.</li>
-      <li><strong>Very valuable books</strong> (not mass market) with an online value of <%- num('c_max') %> EUR or more: no price is suggested. A person checks the listings and chooses the price.</li>
-      <li><strong>Clearance:</strong> if the shop already holds <%- num('clearance_after_copies', { step: '1', min: '1', max: '20' }) %> or more copies of the same book (in stock or reserved), and it is a Rule A or mass market book, the next copy goes to the clearance bin at <%- num('clearance_price') %> EUR.</li>
+      <li><strong>Very valuable books</strong> (not mass market or trade) with an online value of <%- num('c_max') %> EUR or more: no price is suggested. A person checks the listings and chooses the price.</li>
+      <li><strong>Clearance:</strong> if the shop already holds <%- num('clearance_after_copies', { step: '1', min: '1', max: '20' }) %> or more copies of the same book (in stock or reserved), and it is a Rule A, trade or mass market book, the next copy goes to the clearance bin at <%- num('clearance_price') %> EUR.</li>
       <li><strong>Mass market paperbacks:</strong> <%- num('mass_market_price') %> EUR, whatever they are worth online.</li>
-      <li><strong>Everything else, by online value:</strong>
+      <li><strong>Trade paperbacks:</strong> <%- num('trade_price') %> EUR, whatever they are worth online (and whatever the condition or the number of copies, except clearance above).</li>
+      <li><strong>Everything else (hardbacks, other and unknown bindings), by online value:</strong>
         <ul>
           <li><strong>Rule A</strong> (popular, plenty of supply): under <%- num('a_max') %> EUR online &rarr; <%- num('a_price') %> EUR.</li>
-          <li><strong>Rule B</strong> (mid-range stock): from Rule A's limit up to <%- num('b_max') %> EUR &rarr; <%- num('b_price') %> EUR.</li>
+          <li><strong>Rule B</strong> (mid-range stock): from Rule A's limit up to <%- num('b_max') %> EUR &rarr; <%- num('b_price') %> EUR. (EUR 8 is no longer a standard price: books that used to be EUR 8 are now EUR 10.)</li>
           <li><strong>Rule C</strong> (high value, collectible): from Rule B's limit up to Rule 3's limit &rarr; <%- num('c_factor') %> &times; the online value, rounded to the nearest <%- num('rounding_step') %> EUR.</li>
         </ul>
       </li>
@@ -53,10 +54,11 @@
     <div class="stack">
       <label for="levels">Standard prices you can pick by hand</label>
       <input id="levels" name="levels" type="text" required value="<%= form.levels %>">
-      <p class="muted small">From lowest to highest, separated by commas. Clearance and Custom are always offered as well.</p>
+      <p class="muted small">From lowest to highest, separated by commas. The standard prices are 3, 5 and 10: EUR 8 was removed. Clearance and Custom are always offered as well.</p>
       <label for="used_fraction">When only the publisher's price is known: a used copy is worth about this share of it</label>
       <%- num('used_fraction') %>
       <label>When nothing at all is known, the book's online value is taken to be (EUR)</label>
+      <p class="muted small">Mass Market and Trade are a flat price, so for them this value is not used.</p>
       <div class="muted small">
         Mass Market <%- num('fallback_mass_market') %>
         Trade <%- num('fallback_trade') %>
@@ -130,6 +132,7 @@
 </div>
 
 <p><a href="/admin/pricing/review">Price check: books priced differently from the suggestion &rarr;</a></p>
+<p><a href="/admin/pricing/reprice">Reprice: move Trade, Mass Market and EUR 8 copies in stock to the new prices &rarr;</a></p>
 
 <script src="/print-button.js"></script>
 <%- include('../../partials/admin_footer') %>

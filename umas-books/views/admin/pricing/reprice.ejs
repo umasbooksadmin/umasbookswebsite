@@ -1,0 +1,60 @@
+<%- include('../../partials/admin_header', { title: 'Reprice', active: active, pageTitle: 'Reprice stock', pageSub: 'Move copies already in stock to the new prices. Nothing changes until you confirm a group.' }) %>
+
+<% if (notice) { %><div class="notice-box" role="status"><%= notice %></div><% } %>
+<p><a href="/admin/pricing">&larr; Pricing rules</a></p>
+
+<div class="card">
+  <p class="muted small">
+    The pricing rules changed: Trade and Mass Market are a flat price, and EUR 8 is no longer a standard price.
+    Each group below is previewed and confirmed on its own. Only plain copies that are in stock are listed:
+    <strong>never</strong> clearance copies, new books (their price is fixed by the publisher), copies that are reserved,
+    sold, in a cart or held for a book request, and copies with no price. Orders keep the price they were made at.
+    Every confirmed group is recorded in <a href="/admin/audit">Admin activity</a> and can be downloaded as a CSV
+    of the changes (before and after) so it can be reversed by hand.
+  </p>
+</div>
+
+<% groups.forEach(g => { %>
+  <div class="card" id="group-<%= g.key %>">
+    <div class="section-title">Group <%= g.letter %>: <%= g.title %> &rarr; EUR <%= money(g.target) %> (<%= g.count %> to change)</div>
+    <% if (!g.count) { %>
+      <p class="muted">Nothing to change.</p>
+    <% } else { %>
+      <p class="muted small">Showing <%= g.sample.length %> of <%= g.count %>.</p>
+      <div style="overflow-x:auto;">
+        <div class="table-scroll"><table class="ann-table">
+          <thead><tr><th>Book</th><th>Copy</th><th>Price now</th><th>New price</th></tr></thead>
+          <tbody>
+            <% g.sample.forEach(r => { %>
+              <tr>
+                <td><a href="/admin/inventory/<%= r.book_id %>"><%= r.title %></a></td>
+                <td>#<%= r.id %></td>
+                <td>EUR <%= money(r.price) %></td>
+                <td>EUR <%= money(g.target) %></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table></div>
+      </div>
+      <form data-confirm="Change the price of <%= g.count %> copies to EUR <%= money(g.target) %>?" method="post" action="/admin/pricing/reprice/<%= g.key %>" style="margin-top:12px;">
+        <%- include('../../partials/csrf_field') %>
+        <button class="btn" type="submit">Confirm group <%= g.letter %>: change these <%= g.count %> copies to EUR <%= money(g.target) %></button>
+      </form>
+    <% } %>
+  </div>
+<% }) %>
+
+<div class="card">
+  <div class="section-title">Earlier runs</div>
+  <% if (!runs.length) { %>
+    <p class="muted">None yet.</p>
+  <% } else { %>
+    <ul class="plain">
+      <% runs.forEach(r => { %>
+        <li><a href="/admin/pricing/reprice/runs/<%= r.id %>">Run <%= r.id %></a> &middot; Group <%= repriceRunLabel(r) %> &middot; <%= r.copies_changed %> copies &rarr; EUR <%= money(r.new_price) %> &middot; <%= formatDateTime(r.created_at) %></li>
+      <% }) %>
+    </ul>
+  <% } %>
+</div>
+
+<%- include('../../partials/admin_footer') %>
