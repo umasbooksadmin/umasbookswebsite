@@ -164,16 +164,16 @@
     var BINDING_STORE_NAME = "umas.inventory.binding.v2";
     var SOURCE_STORE_NAME = "umas.inventory.source.v2";
     var CONDITION_STORE_NAME = "umas.inventory.condition.v2";
-    var LOCATION_STORE_NAME = "umas.inventory.location.v2"; // same name as inventory-location.js
+    var LOCATION_STORE_NAME = "umas.inventory.location.v3"; // same name as inventory-location.js
     function store(key, value) { try { if (value) localStorage.setItem(key, value); else localStorage.removeItem(key); } catch (e) { /* storage blocked: fine */ } }
     function recall(key) { try { return localStorage.getItem(key) || ""; } catch (e) { return ""; } }
 
-    function normalizeLoc(v) { return String(v || "").replace(/\s+/g, " ").trim().toUpperCase().slice(0, 40); }
+    function normalizeLoc(v) { return String(v || "").replace(/\s+/g, " ").trim().slice(0, 40); }
     // A location typed for the first time joins the dropdown at once (the server lists it from the next page load on).
     function addLocationOption(v) {
       var list = document.getElementById("location-options");
       if (!list || !v) return;
-      for (var k = 0; k < list.options.length; k++) if (list.options[k].value === v) return;
+      for (var k = 0; k < list.options.length; k++) if (list.options[k].value.toLowerCase() === v.toLowerCase()) return; // "store" is the same place as "Store"
       var o = document.createElement("option"); o.value = v; list.appendChild(o);
     }
 

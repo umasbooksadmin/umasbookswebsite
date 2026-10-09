@@ -212,7 +212,7 @@ test("the no-JavaScript 'Suggest price' button re-shows the form with everything
   });
   assert.equal(r.res.status, 200);
   assert.match(r.text, /value="My Title"/);
-  assert.match(r.text, /value="FICTION A1"/);
+  assert.match(r.text, /value="fiction a1"/);
   assert.match(r.text, /dog-eared/);
   assert.match(r.text, /name="acquisitionCost"[^>]*value="1.5"/);
   assert.match(r.text, /Suggested EUR 5\.00/);

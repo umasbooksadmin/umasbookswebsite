@@ -142,7 +142,7 @@ s.test("A9 (must) scanning an ISBN looks the book up in place (no page reload) a
   await ctx.page.waitForSelector("#isbn[data-scan-active]"); // the page script is running
   for (const id of ["#isbn", "#title", "#author", "#location", "#source"]) assert.ok(await ctx.page.$(id), `add-book field ${id}`);
   assert.equal(await ctx.page.evaluate(() => document.activeElement && document.activeElement.id), "isbn", "the ISBN box has the cursor");
-  assert.equal(await ctx.page.$eval("#location", (i) => i.value), "STORE", "Location starts at Store");
+  assert.equal(await ctx.page.$eval("#location", (i) => i.value), "Store", "Location starts at Store, not STORE");
   assert.equal(await ctx.page.$eval("#source", (i) => i.value), "donation", "Source starts at Donation");
   // A scanner types the digits and presses Enter: the page must look up, not submit.
   await ctx.page.keyboard.type(REAL_ISBN);
@@ -227,10 +227,46 @@ s.test("A9e (must) on a phone (375 px, and 320 px) every admin page has the logo
   assert.ok(landed === "/" || landed === "/dashboard", `the logo opens the main page (the browser is on ${ctx.page.url()})`);
 });
 
+s.test("A9f (must) the page title (Back link and heading) is on the left and fully on screen on phones (320 to 430 px), on a sideways phone and on a computer, with nothing past the right edge", { as: "admin" }, async (ctx) => {
+  for (const width of [320, 360, 375, 390, 430, 932, 1200]) {
+    const phone = width < 900;
+    await ctx.page.setViewport({ width, height: 812, deviceScaleFactor: 2, isMobile: phone, hasTouch: phone });
+    for (const p of ["/admin/inventory/new", "/admin/inventory", "/admin/inventory/scan", "/admin/orders"]) {
+      await admin(ctx, p);
+      const r = await ctx.page.evaluate(() => {
+        const problems = [];
+        const h1 = document.querySelector(".admin-topbar h1");
+        const back = document.querySelector(".admin-back-link");
+        const main = document.querySelector(".admin-main").getBoundingClientRect();
+        const h = h1.getBoundingClientRect();
+        if (h.left >= innerWidth / 2) problems.push(`the title starts at ${Math.round(h.left)} px, right of the middle of the ${innerWidth} px screen`);
+        if (h.left > main.left + 40) problems.push(`the title starts ${Math.round(h.left - main.left)} px in from the page content: it should line up with it`);
+        if (back && back.getBoundingClientRect().left > main.left + 40) problems.push("the Back link is not at the left of the page content");
+        if (h1.closest(".admin-topbar-tools")) problems.push("the title is inside the tools wrapper (menu button, search, initials), which pushes it to the right");
+        const av = document.querySelector(".admin-avatar").getBoundingClientRect();
+        if (av.left < h.left) problems.push("the initials are left of the title");
+        if (document.documentElement.scrollWidth > innerWidth) problems.push(`sideways scroll: page ${document.documentElement.scrollWidth} px in a ${innerWidth} px window`);
+        for (const el of document.querySelectorAll("body *")) {
+          const cs = getComputedStyle(el);
+          if (cs.position === "fixed" || cs.display === "none" || cs.visibility === "hidden" || el.closest(".admin-sidebar, .skip-link, [hidden]")) continue;
+          const b = el.getBoundingClientRect();
+          if (b.width > 0 && b.right > innerWidth + 1) {
+            let scrolls = false;
+            for (let a = el.parentElement; a && a !== document.body; a = a.parentElement) if (/auto|scroll/.test(getComputedStyle(a).overflowX)) scrolls = true;
+            if (!scrolls) problems.push(`${el.tagName}.${el.className} ends at ${Math.round(b.right)} px, past the ${innerWidth} px screen`);
+          }
+        }
+        return problems.slice(0, 5);
+      });
+      assert.deepEqual(r, [], `${p} at ${width} px: ${r.join("; ")}`);
+    }
+  }
+});
+
 s.test("A9d Location, Source, Binding and Condition are the last values used (also after a reload); the first time they are Store, Donation, the last binding and Very Good (nothing is saved)", { as: "admin" }, async (ctx) => {
   await admin(ctx, "/admin/inventory/new");
   await ctx.page.waitForSelector("#isbn[data-scan-active]");
-  await ctx.page.evaluate(() => { for (const k of ["binding", "location", "source", "condition"]) localStorage.removeItem(`umas.inventory.${k}.v2`); });
+  await ctx.page.evaluate(() => { for (const k of ["binding", "location", "source", "condition"]) { localStorage.removeItem(`umas.inventory.${k}.v2`); localStorage.removeItem(`umas.inventory.${k}.v3`); } });
   await ctx.page.reload();
   assert.equal(await ctx.page.$eval("#source", (i) => i.value), "donation", "first time: Donation");
   assert.equal(await ctx.page.$eval("#condition", (i) => i.value), "very_good", "first time: Very Good");
@@ -245,7 +281,7 @@ s.test("A9d Location, Source, Binding and Condition are the last values used (al
   assert.equal(await ctx.page.$eval("#source", (i) => i.value), "purchase");
   assert.equal(await ctx.page.$eval("#condition", (i) => i.value), "good");
   assert.equal(await ctx.page.$eval("#location", (i) => i.value), "E2E-LAST");
-  await ctx.page.evaluate(() => { for (const k of ["binding", "location", "source", "condition"]) localStorage.removeItem(`umas.inventory.${k}.v2`); });
+  await ctx.page.evaluate(() => { for (const k of ["binding", "location", "source", "condition"]) { localStorage.removeItem(`umas.inventory.${k}.v2`); localStorage.removeItem(`umas.inventory.${k}.v3`); } });
 });
 
 s.test("A10 (must) the copy form has condition, binding, source, location and the price control with a suggestion", { as: "admin" }, async (ctx) => {
@@ -651,7 +687,7 @@ s.manual("A28b Erase Member on a throwaway account", "irreversible; left for you
 s.write("A10b (must) create a tagged test book through the ISBN lookup, see a price suggestion, and save it (nothing is sold)", { as: "admin" }, async (ctx) => {
   tagged.isbn = isbn13();
   tagged.title = `${TAG()} Test Book`;
-  tagged.location = `E2E-${TAG().slice(4, 12)}`;
+  tagged.location = `E2e-${TAG().slice(4, 12)}`; // mixed case on purpose: locations keep their capitals
   await admin(ctx, "/admin/inventory/new");
   await ctx.page.waitForSelector("#isbn[data-scan-active]"); // the page script is running
   await ctx.page.keyboard.type(REAL_ISBN);
@@ -690,7 +726,7 @@ s.write("A10b (must) create a tagged test book through the ISBN lookup, see a pr
 
 s.write("A10c (must) a new location can be typed (also on a phone); a fresh browser starts at the location, source, binding and condition used last, not at Store", { as: "admin" }, async (ctx) => {
   if (!tagged.id) ctx.skip("needs A10b");
-  const clear = () => ctx.page.evaluate(() => { for (const k of ["binding", "location", "source", "condition"]) localStorage.removeItem(`umas.inventory.${k}.v2`); });
+  const clear = () => ctx.page.evaluate(() => { for (const k of ["binding", "location", "source", "condition"]) { localStorage.removeItem(`umas.inventory.${k}.v2`); localStorage.removeItem(`umas.inventory.${k}.v3`); } });
   for (const phone of [false, true]) {
     if (phone) await ctx.page.setViewport({ width: 375, height: 812, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
     await admin(ctx, "/admin/inventory/new");
@@ -698,16 +734,16 @@ s.write("A10c (must) a new location can be typed (also on a phone); a fresh brow
     await clear();
     await ctx.page.reload();
     await ctx.page.waitForSelector("#isbn[data-scan-active]");
-    assert.equal(await ctx.page.$eval("#location", (i) => i.value), tagged.location, "a fresh browser: the location of the last copy saved, not STORE");
+    assert.equal(await ctx.page.$eval("#location", (i) => i.value), tagged.location, "a fresh browser: the location of the last copy saved (as typed), not Store");
     assert.equal(await ctx.page.$eval("#binding", (i) => i.value), "trade", "a fresh browser: the last binding");
     assert.equal(await ctx.page.$eval("#condition", (i) => i.value), "very_good");
-    // A location that is in no list yet: typed, not picked. It must stay as typed (upper case) and be remembered.
-    const fresh = `${tagged.location}-NEW${phone ? "P" : "D"}`;
+    // A location that is in no list yet: typed, not picked. It must stay exactly as typed (capitals kept) and be remembered.
+    const fresh = `${tagged.location}-New${phone ? "P" : "D"}`;
     await ctx.page.$eval("#location", (i) => { i.value = ""; });
-    await ctx.page.type("#location", fresh.toLowerCase());
+    await ctx.page.type("#location", fresh);
     assert.equal(await ctx.page.$eval("#location", (i) => i.readOnly || i.disabled), false, "the Location field is editable");
     await ctx.page.keyboard.press("Enter");
-    assert.equal(await ctx.page.$eval("#location", (i) => i.value), fresh, "the new location is kept (upper case)");
+    assert.equal(await ctx.page.$eval("#location", (i) => i.value), fresh, "the new location is kept as typed (capitals kept)");
     await ctx.page.reload();
     assert.equal(await ctx.page.$eval("#location", (i) => i.value), fresh, "remembered after a reload");
     await clear();
@@ -745,6 +781,23 @@ s.write("A16 (must) Move books moves the tagged copy to a new place, and the boo
   has(await ctx.text(), /1 moved so far|moved/);
   await admin(ctx, `/admin/inventory?q=${encodeURIComponent(TAG())}`);
   has(await ctx.text(), new RegExp(`Location: ${dest}`));
+  // A change of capitals only is a real move ("STORE" -> "Store" is how an old shelf gets renamed): the list then shows one spelling.
+  const upper = dest.toUpperCase();
+  await admin(ctx, "/admin/inventory/move");
+  await ctx.page.$eval("#dest", (i) => { i.value = ""; });
+  await ctx.page.type("#dest", upper);
+  await ctx.page.type("#scan", tagged.isbn);
+  await Promise.all([ctx.page.waitForNavigation(), ctx.page.$eval("#scan", (i) => i.form.querySelector("button[type='submit']").click())]);
+  has(await ctx.text(), /Moved:/);
+  await admin(ctx, `/admin/inventory?q=${encodeURIComponent(TAG())}`);
+  has(await ctx.text(), new RegExp(`Location: ${upper}(?!,)`));
+  await admin(ctx, "/admin/inventory/move");
+  await ctx.page.$eval("#dest", (i) => { i.value = ""; });
+  await ctx.page.type("#dest", dest);
+  await ctx.page.type("#scan", tagged.isbn);
+  await Promise.all([ctx.page.waitForNavigation(), ctx.page.$eval("#scan", (i) => i.form.querySelector("button[type='submit']").click())]);
+  await admin(ctx, `/admin/inventory?q=${encodeURIComponent(TAG())}`);
+  has(await ctx.text(), new RegExp(`Location: ${dest}(?!,)`));
 });
 
 s.write("A17 the copy's Source is saved and visible on the book page", { as: "admin" }, async (ctx) => {

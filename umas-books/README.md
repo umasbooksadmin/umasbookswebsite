@@ -242,12 +242,12 @@ mean" box on the book's page.
 
 ### How to use locations (for volunteers)
 
-Each copy can have a location, such as `FICTION-A1`, meaning the shelf or box
+Each copy can have a location, such as `Store` or `Fiction A1`, meaning the shelf or box
 it sits on.
 
 - **Adding books:** on **Books & Reservations > Scan a book** (the **Add Book** page),
   scan or type the ISBN: the book is looked up at once and the form filled in
-  (see "Fast scanning" below). **Location** starts at `STORE` and keeps the last
+  (see "Fast scanning" below). **Location** starts at `Store` and keeps the last
   one you used (pick one from the list, or type a new one; it is added to the
   list as soon as a book is saved with it). Change it whenever you move to
   another shelf.
@@ -258,8 +258,12 @@ it sits on.
 - **Finding books:** the inventory list shows each book's locations, and the
   **Location** box filters the list to one place.
 - **Changing one copy:** open the book and edit **Location** on the copy.
-- Location names are tidied automatically (capital letters, single spaces),
-  so `fiction a1` and `FICTION A1` are the same place.
+- Location names keep the capital letters you type (`Store`, `Fiction A1`); only
+  extra spaces are tidied. Capitals do not make a different place: `store`,
+  `Store` and `STORE` are one entry in the list, shown in the spelling used most.
+  To change how a place is written (for example the old `STORE` to `Store`), use
+  **Move books** with the new spelling as the destination and scan the books:
+  a change of capitals alone counts as a move.
 
 ### Customer book requests (volunteer how-to)
 

@@ -168,20 +168,59 @@ function normalizeGenres(value) {
   return genres.length ? genres.join(", ") : null;
 }
 
-// Shelf/box location of a copy: free text such as "fiction a1". Stored
-// trimmed, with runs of whitespace collapsed, upper-cased and at most 40
-// characters, so "Fiction  a1" and "FICTION A1" are one location in the
-// dropdown. Returns null when nothing is left.
+// Shelf/box location of a copy: free text such as "Store" or "Fiction A1".
+// Stored as typed (capitalisation kept), trimmed, with runs of whitespace
+// collapsed and at most 40 characters. Returns null when nothing is left.
+// Capitals do not make a different place: compare with sameLocation() and list
+// with uniqueLocations(), never with ===.
 const LOCATION_MAX = 40;
 function normalizeLocation(value) {
   const s = String(value == null ? "" : value)
     .replace(/[\u0000-\u001f\u007f]/g, " ") // eslint-disable-line no-control-regex
     .replace(/\s+/g, " ")
     .trim()
-    .toUpperCase()
     .slice(0, LOCATION_MAX)
     .trim();
   return s || null;
+}
+
+// The case-insensitive identity of a location ("Store", "STORE" and "store" are
+// one place), or null for a blank one.
+function locationKey(value) {
+  const n = normalizeLocation(value);
+  return n ? n.toLowerCase() : null;
+}
+function sameLocation(a, b) {
+  const ka = locationKey(a);
+  return ka !== null && ka === locationKey(b);
+}
+
+// One entry per place, however it was capitalised. `entries` are location
+// strings, or { location, count, last } (how many copies use that exact
+// spelling, and when one was last touched). The spelling shown is the most
+// common one, then the most recently used, then the first alphabetically.
+// Sorted by name, ignoring capitals.
+function uniqueLocations(entries) {
+  const groups = new Map();
+  for (const e of entries || []) {
+    const location = normalizeLocation(typeof e === "string" ? e : e && e.location);
+    if (!location) continue;
+    const count = typeof e === "object" && e && Number(e.count) > 0 ? Number(e.count) : 1;
+    const last = typeof e === "object" && e && e.last ? new Date(e.last).getTime() || 0 : 0;
+    const key = location.toLowerCase();
+    const g = groups.get(key) || { spellings: new Map() };
+    const s = g.spellings.get(location) || { location, count: 0, last: 0 };
+    s.count += count;
+    s.last = Math.max(s.last, last);
+    g.spellings.set(location, s);
+    groups.set(key, g);
+  }
+  const out = [];
+  for (const g of groups.values()) {
+    const best = [...g.spellings.values()].sort((a, b) => b.count - a.count || b.last - a.last || (a.location < b.location ? -1 : 1))[0];
+    out.push(best.location);
+  }
+  return out.sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()) || (a < b ? -1 : 1));
 }
 
 // Decides what a scanner (a keyboard that types a code then Enter) typed:
@@ -215,4 +254,4 @@ function isbnVariants(isbn) {
   return [...out];
 }
 
-module.exports = { CONDITIONS, BINDINGS, DEFAULT_CONDITION, STATUSES, SOURCES, normalizeSource, LOCATION_MAX, normalizeCondition, normalizeBinding, conditionLabel, bindingLabel, resolveCopyPricing, isPurchasablePrice, normalizeStatus, normalizeGenres, normalizeLocation, parseScan, isbnVariants };
+module.exports = { CONDITIONS, BINDINGS, DEFAULT_CONDITION, STATUSES, SOURCES, normalizeSource, LOCATION_MAX, normalizeCondition, normalizeBinding, conditionLabel, bindingLabel, resolveCopyPricing, isPurchasablePrice, normalizeStatus, normalizeGenres, normalizeLocation, locationKey, sameLocation, uniqueLocations, parseScan, isbnVariants };

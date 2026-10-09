@@ -102,12 +102,13 @@
         </form>
         <% } %>
         <a class="admin-avatar" href="/account" title="<%= locals.user ? user.displayName : '' %>"><%= locals.user ? user.displayName.split(/\s+/).map(function(w){ return w[0]; }).slice(0,2).join('').toUpperCase() : '?' %></a>
-        <div class="admin-topbar-title">
+      </div>
+      <%# A sibling of the tools (not inside them): inside, it was laid out after the search box and avatar, i.e. on the right of the bar. %>
+      <div class="admin-topbar-title">
         <% if (active !== "overview") { %>
           <a href="#" class="admin-back-link">&larr; Back</a>
         <% } %>
         <h1><%= typeof pageTitle !== "undefined" ? pageTitle : "Dashboard" %></h1>
         <% if (typeof pageSub !== "undefined") { %><p class="sub"><%= pageSub %></p><% } %>
       </div>
-    </div>
     </div>
