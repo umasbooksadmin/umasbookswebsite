@@ -602,6 +602,7 @@ aiUsageStats.getStats().start();
 const runAiUsagePrune = guardJob("AI usage statistics retention", async () => {
   const removed = await aiUsageStats.pruneAiUsageStats(pool);
   if (removed) console.log("AI usage statistics retention:", JSON.stringify({ removed }));
+  await require("./lib/aiLimits").pruneAiDailyCap(pool); // the daily cap counters (lib/aiLimits.js)
 }, { pool, intervalMs: DAY });
 runAiUsagePrune();
 const aiUsageStatsTimer = setInterval(runAiUsagePrune, DAY);

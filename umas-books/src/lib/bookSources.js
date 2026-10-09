@@ -15,6 +15,8 @@
 //
 // Every request names who we are (Open Library, Google and the BnF ask API clients to).
 
+const { readBoundedText, readBoundedJson, XML_MAX_BYTES } = require("./boundedBody");
+
 const USER_AGENT = "UmasBooksInventory/1.0 (+https://umasbooks.org; admin@umasbooks.org)";
 
 function isbn10to13(isbn10) {
@@ -60,7 +62,7 @@ async function getRaw(fetchImpl, url, signal, accept) {
 async function getJson(fetchImpl, url, signal) {
   const r = await getRaw(fetchImpl, url, signal, "application/json");
   if (r.state !== "ok") return r;
-  try { return { state: "ok", data: await r.res.json() }; } catch { return { state: "error" }; }
+  try { return { state: "ok", data: await readBoundedJson(r.res) }; } catch { return { state: "error" }; } // over 1 MB: this source failed
 }
 
 // ---------------- Open Library: data API ----------------
@@ -176,7 +178,7 @@ async function bnf({ forms, fetchImpl, signal }) {
   const r = await getRaw(fetchImpl, url, signal, "application/xml");
   if (r.state !== "ok") return r;
   let xml;
-  try { xml = await r.res.text(); } catch { return { state: "error" }; }
+  try { xml = await readBoundedText(r.res, XML_MAX_BYTES); } catch { return { state: "error" }; } // over 2 MB: this source failed
   const book = fromBnf(xml, forms);
   return book ? { state: "ok", book } : { state: "missing" };
 }
@@ -278,7 +280,7 @@ async function isbndb({ forms, fetchImpl, signal, helpers, stats, env = process.
   if (res.status === 429) {
     const retry = Number(res.headers && res.headers.get && res.headers.get("retry-after"));
     let daily = false;
-    try { daily = /daily/i.test(JSON.stringify(await res.json())); } catch { /* no body */ }
+    try { daily = /daily/i.test(JSON.stringify(await readBoundedJson(res))); } catch { /* no body */ }
     isbndbState.status = "rate_limited";
     isbndbState.lastError = daily ? "The daily quota of the ISBNdb plan is used up (it resets at 00:00 UTC)." : "The per-minute quota of the ISBNdb plan was exceeded.";
     isbndbState.pausedUntil = now() + (Number.isFinite(retry) && retry > 0 ? retry * 1000 : daily ? 30 * 60 * 1000 : 60 * 1000);
@@ -288,7 +290,7 @@ async function isbndb({ forms, fetchImpl, signal, helpers, stats, env = process.
   if (res.status === 404) { isbndbState.status = "ok"; isbndbState.lastOkAt = now(); return { state: "missing" }; }
   if (!res.ok) { isbndbState.status = "error"; isbndbState.lastError = `ISBNdb answered HTTP ${res.status}.`; return { state: "error" }; }
   let data;
-  try { data = await res.json(); } catch { return { state: "error" }; }
+  try { data = await readBoundedJson(res); } catch { return { state: "error" }; }
   isbndbState.status = "ok";
   isbndbState.lastError = null;
   isbndbState.lastOkAt = now();

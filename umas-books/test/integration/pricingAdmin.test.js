@@ -797,19 +797,19 @@ test("an empty answer is remembered for a week; a failure for an hour (so a brok
   assert.equal(fFail.calls.length, 2);
 });
 
-test("daily cap (PRICING_AI_DAILY_MAX) is counted from the database: it survives restarts, and yesterday does not count", async () => {
-  const todayCount = async () => (await h.q("SELECT count(*)::int AS n FROM price_lookups WHERE fetched_at >= (date_trunc('day', now() AT TIME ZONE 'Europe/Paris') AT TIME ZONE 'Europe/Paris')"))[0].n;
+test("daily cap (PRICING_AI_DAILY_MAX) is an atomic counter in the database (ai_daily_cap): it survives restarts, and yesterday does not count", async () => {
+  await h.q("DELETE FROM ai_daily_cap");
   const f = fakeFetch(answerWith([6, 7]));
-  const used = await todayCount();
-  const env = { ...ENV, PRICING_AI_DAILY_MAX: String(used + 1) };
-  assert.ok(await lookupMarket(h.pool, { isbn: isbn13() }, { fetchImpl: f, env }), "one more is allowed");
-  assert.equal(f.calls.length, 1);
+  const env = { ...ENV, PRICING_AI_DAILY_MAX: "2" };
+  assert.ok(await lookupMarket(h.pool, { isbn: isbn13() }, { fetchImpl: f, env }), "first is allowed");
+  assert.ok(await lookupMarket(h.pool, { isbn: isbn13() }, { fetchImpl: f, env }), "second is allowed");
+  assert.equal(f.calls.length, 2);
   const blocked = isbn13();
   assert.equal(await lookupMarket(h.pool, { isbn: blocked }, { fetchImpl: f, env }), null, "the cap is reached");
-  assert.equal(f.calls.length, 1, "and no call was made");
+  assert.equal(f.calls.length, 2, "and no call was made");
   assert.equal((await h.q("SELECT 1 FROM price_lookups WHERE isbn = $1", [blocked])).length, 0);
   // a "restart" (nothing is kept in memory) changes nothing; the next day's lookups start from zero
-  await h.q("UPDATE price_lookups SET fetched_at = now() - interval '2 days' WHERE fetched_at >= now() - interval '1 hour'");
+  await h.q("UPDATE ai_daily_cap SET day = day - 2");
   assert.ok(await lookupMarket(h.pool, { isbn: blocked }, { fetchImpl: f, env }));
   assert.equal(await lookupMarket(h.pool, { isbn: isbn13() }, { fetchImpl: f, env: { ...ENV, PRICING_AI_DAILY_MAX: "0" } }), null, "0 switches lookups off");
 });
