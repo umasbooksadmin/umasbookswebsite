@@ -26,19 +26,19 @@ test("without APP_ENV=staging nothing is ever refused (live keys, production hos
 });
 
 test("staging refuses live HelloAsso credentials (no API base, or the production API base)", () => {
-  const creds = { APP_ENV: "staging", HELLOASSO_CLIENT_ID: "a", HELLOASSO_CLIENT_SECRET: "b", HELLOASSO_ORG_SLUG: "c" };
+  const creds = { APP_ENV: "staging", PRODUCTION_DATABASE_HOST: "dpg-prod123-a", HELLOASSO_CLIENT_ID: "a", HELLOASSO_CLIENT_SECRET: "b", HELLOASSO_ORG_SLUG: "c" };
   for (const base of [undefined, "", "https://api.helloasso.com/v5"]) {
     const p = stagingBootProblems({ ...creds, ...(base === undefined ? {} : { HELLOASSO_API_BASE: base }) });
     assert.equal(p.length, 1, String(base));
     assert.match(p[0], /SANDBOX/);
   }
   // even one live credential alone is enough to refuse
-  assert.equal(stagingBootProblems({ APP_ENV: "staging", HELLOASSO_CLIENT_ID: "a" }).length, 1);
+  assert.equal(stagingBootProblems({ APP_ENV: "staging", PRODUCTION_DATABASE_HOST: "dpg-prod123-a", HELLOASSO_CLIENT_ID: "a" }).length, 1);
 });
 
 test("staging accepts sandbox credentials, or none at all", () => {
-  assert.deepEqual(stagingBootProblems({ APP_ENV: "staging", HELLOASSO_CLIENT_ID: "a", HELLOASSO_CLIENT_SECRET: "b", HELLOASSO_ORG_SLUG: "c", HELLOASSO_API_BASE: SANDBOX }), []);
-  assert.deepEqual(stagingBootProblems({ APP_ENV: "staging" }), []);
+  assert.deepEqual(stagingBootProblems({ APP_ENV: "staging", HELLOASSO_CLIENT_ID: "a", HELLOASSO_CLIENT_SECRET: "b", HELLOASSO_ORG_SLUG: "c", HELLOASSO_API_BASE: SANDBOX, PRODUCTION_DATABASE_HOST: "dpg-prod123-a" }), []);
+  assert.deepEqual(stagingBootProblems({ APP_ENV: "staging", PRODUCTION_DATABASE_HOST: "dpg-prod123-a" }), []);
 });
 
 test("staging refuses a DATABASE_URL on the production database host (full or short host name)", () => {
@@ -46,8 +46,17 @@ test("staging refuses a DATABASE_URL on the production database host (full or sh
   assert.equal(stagingBootProblems({ ...env, DATABASE_URL: "postgres://u:p@dpg-prod123-a.frankfurt-postgres.render.com/umas_books" }).length, 1);
   assert.equal(stagingBootProblems({ ...env, DATABASE_URL: "postgres://u:p@dpg-prod123-a/umas_books" }).length, 1);
   assert.equal(stagingBootProblems({ ...env, DATABASE_URL: "postgres://u:p@dpg-stage456-a/umas_books" }).length, 0);
-  // variable not set: no check
-  assert.equal(stagingBootProblems({ APP_ENV: "staging", DATABASE_URL: "postgres://u:p@dpg-prod123-a/x" }).length, 0);
+});
+
+test("staging REQUIRES PRODUCTION_DATABASE_HOST: unset, empty or blank is refused with a clear message", () => {
+  for (const v of [undefined, "", "   "]) {
+    const env = { APP_ENV: "staging", DATABASE_URL: "postgres://u:p@dpg-stage456-a/x", ...(v === undefined ? {} : { PRODUCTION_DATABASE_HOST: v }) };
+    const p = stagingBootProblems(env);
+    assert.equal(p.length, 1, JSON.stringify(v));
+    assert.match(p[0], /PRODUCTION_DATABASE_HOST is not set.*REQUIRED/);
+  }
+  // not staging: never refused for this reason
+  assert.deepEqual(stagingBootProblems({ DATABASE_URL: "postgres://u:p@dpg-prod123-a/x" }), []);
 });
 
 test("enforceStagingBoot logs a clear message and exits 1 on a problem", () => {
@@ -182,5 +191,7 @@ test("render.staging.yaml: separate file, staging names, no production secrets, 
   assert.match(y, /startCommand: npm run seed; npm start/);
   assert.match(y, /key: SESSION_SECRET\n\s+generateValue: true/);
   assert.match(y, /key: STAGING_MAIL_TO\n\s+sync: false/);
+  assert.match(y, /key: PRODUCTION_DATABASE_HOST\n\s+sync: false/);
+  assert.match(y, /REQUIRED/);
   assert.ok(!/umasbooks\.org|HELLOASSO_CLIENT|ANTHROPIC|domains?:/.test(y.replace(/#.*$/gm, "")), "no production address, HelloAsso or Anthropic keys, no custom domain");
 });

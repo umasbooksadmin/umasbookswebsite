@@ -110,6 +110,37 @@ services:
       # (tests do); anything else, or unset, leaves it on.
       - key: COVER_BACKFILL
         value: "on"
+      # ---- Optional settings added so a Blueprint rebuild ASKS for them instead of
+      # silently starting without them. All are `sync: false`: Render never
+      # overwrites a value already set in the dashboard, and on a rebuild it prompts
+      # (leaving a box empty = the setting is off / its default applies). ----
+      #
+      # Book-lookup and awards keys (scanning screen, book pages). Secrets.
+      #   NYT_API_KEY         New York Times Books API (bestseller / award badges)
+      #   GOOGLE_BOOKS_API_KEY  Google Books (higher quota for the lookup)
+      #   ISBNDB_API_KEY      ISBNdb (paid, last-resort lookup; unset = not used)
+      - key: NYT_API_KEY
+        sync: false
+      - key: GOOGLE_BOOKS_API_KEY
+        sync: false
+      - key: ISBNDB_API_KEY
+        sync: false
+      # Online price check (uses ANTHROPIC_API_KEY above). PRICING_AI=1 switches it
+      # on (unset/0 = off). PRICING_AI_DAILY_MAX = most lookups a day (default 150;
+      # 0 stops them). PRICING_AI_MODEL = optional different model. There is no
+      # separate "AI_DAILY_MAX_CALLS" setting: PRICING_AI_DAILY_MAX is the cap.
+      - key: PRICING_AI
+        sync: false
+      - key: PRICING_AI_DAILY_MAX
+        sync: false
+      - key: PRICING_AI_MODEL
+        sync: false
+      # Admin session limits (docs/runbook.md section ab). Empty = defaults:
+      # signed out after 8 hours idle (0.25 to 72) and 7 days at most (1 to 30).
+      - key: ADMIN_SESSION_IDLE_HOURS
+        sync: false
+      - key: ADMIN_SESSION_MAX_DAYS
+        sync: false
       # PREVIEW_MODE is deliberately NOT in this file. The "coming soon" mode is
       # switched on and off by hand in the Render dashboard (Environment), so a
       # Blueprint sync can never switch a live site back into preview mode (or

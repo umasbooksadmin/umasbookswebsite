@@ -84,3 +84,19 @@ test("an oversized admin upload is a 413 with a friendly message, not a 500", as
   assert.equal(res.status, 413);
   assert.match(await res.text(), /too large/i);
 });
+
+test("every kind of response carries Permissions-Policy; app and marketing CSPs both upgrade insecure requests", async () => {
+  for (const p of ["/healthz", "/about.html", "/cart", "/robots.txt", "/logo.png", "/no-such-page"]) {
+    const res = await fetch(`${app.base}${p}`, { redirect: "manual" });
+    await res.arrayBuffer();
+    const pp = res.headers.get("permissions-policy") || "";
+    assert.match(pp, /camera=\(\)/, p);
+    assert.match(pp, /microphone=\(\)/, p);
+    assert.match(pp, /geolocation=\(\)/, p);
+  }
+  for (const p of ["/cart", "/about.html"]) {
+    const res = await fetch(`${app.base}${p}`);
+    await res.text();
+    assert.match(res.headers.get("content-security-policy"), /(^|;\s*)upgrade-insecure-requests(;|$)/, p);
+  }
+});

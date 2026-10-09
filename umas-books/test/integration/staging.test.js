@@ -13,8 +13,8 @@ const { startTestApp } = require("../helpers/testApp");
 let staging, normal, stagingLive;
 
 before(async () => {
-  staging = await startTestApp({ port: 4360, isolated: true, env: { APP_ENV: "staging", PREVIEW_MODE: "", STAGING_MAIL_TO: "me@example.org", HELLOASSO_API_BASE: "https://api.helloasso-sandbox.com/v5" } });
-  stagingLive = await startTestApp({ port: 4362, isolated: true, env: { APP_ENV: "staging", PREVIEW_MODE: "true" } });
+  staging = await startTestApp({ port: 4360, isolated: true, env: { APP_ENV: "staging", PRODUCTION_DATABASE_HOST: "dpg-production-example-a", PREVIEW_MODE: "", STAGING_MAIL_TO: "me@example.org", HELLOASSO_API_BASE: "https://api.helloasso-sandbox.com/v5" } });
+  stagingLive = await startTestApp({ port: 4362, isolated: true, env: { APP_ENV: "staging", PRODUCTION_DATABASE_HOST: "dpg-production-example-a", PREVIEW_MODE: "true" } });
   normal = await startTestApp({ port: 4361, isolated: true, env: { APP_ENV: "", PREVIEW_MODE: "" } });
 });
 after(async () => {
@@ -73,7 +73,7 @@ test("without APP_ENV: no staging banner, no noindex, robots.txt and sitemap as 
 test("boot: APP_ENV=staging with live HelloAsso credentials exits 1 with a clear message; sandbox credentials pass the guard", () => {
   const run = (extra, script) => spawnSync("node", [script], {
     cwd: path.join(__dirname, "..", ".."),
-    env: { ...process.env, APP_ENV: "staging", DATABASE_URL: "postgres://localhost:1/none", PGSSLMODE: "disable", ...extra },
+    env: { ...process.env, APP_ENV: "staging", PRODUCTION_DATABASE_HOST: "dpg-production-example-a", DATABASE_URL: "postgres://localhost:1/none", PGSSLMODE: "disable", ...extra },
     encoding: "utf8",
     timeout: 20000,
   });
@@ -86,6 +86,12 @@ test("boot: APP_ENV=staging with live HelloAsso credentials exits 1 with a clear
   const prod = run({ PRODUCTION_DATABASE_HOST: "dpg-prod123-a", DATABASE_URL: "postgres://u:p@dpg-prod123-a/x" }, "src/migrate.js");
   assert.equal(prod.status, 1);
   assert.match(prod.stderr, /PRODUCTION database host/);
+  // PRODUCTION_DATABASE_HOST unset: refused too, by all three entry points
+  for (const script of ["src/index.js", "src/migrate.js", "src/seed.js"]) {
+    const r = run({ PRODUCTION_DATABASE_HOST: "" }, script);
+    assert.equal(r.status, 1, script);
+    assert.match(r.stderr, /\[staging\] FATAL: PRODUCTION_DATABASE_HOST is not set/, script);
+  }
   // sandbox: the guard passes (the process then fails later on the unreachable database, not with the guard message)
   const ok = run({ ...live, HELLOASSO_API_BASE: "https://api.helloasso-sandbox.com/v5" }, "src/migrate.js");
   assert.ok(!/\[staging\] FATAL/.test(ok.stderr));
