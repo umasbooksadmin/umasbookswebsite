@@ -185,9 +185,9 @@ test("a fresh Add book page: ISBN first and focused, Location Store, Source Dona
   assert.match(isbnTag, /inputmode="numeric"/);
   assert.match(isbnTag, /autocomplete="off"/);
   assert.match(isbnTag, /autocapitalize="off"/);
-  assert.match(text, /id="location"[^>]*value="STORE"/);
+  assert.match(text, /id="location"[^>]*value="Store"/);
   assert.match(text, /<option value="donation" selected>Donation<\/option>/);
-  assert.match(text, /<datalist id="location-options">[\s\S]*<option value="STORE">[\s\S]*<\/datalist>/);
+  assert.match(text, /<datalist id="location-options">[\s\S]*<option value="Store">[\s\S]*<\/datalist>/);
   assert.match(text, /src="\/scan-intake\.js"/);
   assert.match(text, /href="\/scan-intake\.css"/);
   assert.match(text, /role="status"[^>]*id="scan-status"|id="scan-status"[^>]*role="status"/);
@@ -208,7 +208,7 @@ test("no field of the Add book page is readonly, disabled or inputmode none, and
 
 test("a location and a source in the query (the last entry) replace Store and Donation; without them the browser's memory may", async () => {
   const { text } = await get("/admin/inventory/new?location=poetry%20b2&source=lot");
-  assert.match(text, /id="location"[^>]*value="POETRY B2"/);
+  assert.match(text, /id="location"[^>]*value="poetry b2"/, "capitals as typed");
   assert.doesNotMatch(text, /id="location"[^>]*data-location-default/, "a queried location is not replaced by the remembered one");
   assert.match(text, /<option value="lot" selected>/, "the source of the last book");
   assert.match(text, /data-source-set="1"/);
@@ -240,17 +240,20 @@ test("the old scan page has no Current location or Source controls any more, and
   assert.equal(posted.location, "/admin/inventory/lookup");
   const lookup = await get(posted.location);
   assert.equal(lookup.status, 200);
-  assert.match(lookup.text, /id="location"[^>]*value="STORE"/, "a lookup page also starts at Store");
+  assert.match(lookup.text, /id="location"[^>]*value="Store"/, "a lookup page also starts at Store");
   assert.match(lookup.text, /<option value="donation" selected>/);
 });
 
-test("Store is treated like any other location: normalised on save, on the Move books page and in the filter", async () => {
+test("Store is a location like any other: kept as typed on save, listed once on the Add book and Move books pages, whatever the capitals", async () => {
   const title = `Store Book ${uniq()}`;
   const r = await post("/admin/inventory", { form: copyBody(title, { location: "store", fast: "0" }) });
   assert.equal(r.status, 302);
   const { rows } = await pool.query("SELECT c.location FROM book_copies c JOIN books b ON b.id = c.book_id WHERE b.title = $1", [title]);
-  assert.deepEqual(rows.map((x) => x.location), ["STORE"]);
-  assert.match((await get("/admin/inventory/move")).text, /<option value="STORE">/);
+  assert.deepEqual(rows.map((x) => x.location), ["store"]);
+  for (const path of ["/admin/inventory/move", "/admin/inventory/new"]) {
+    const opts = [...(await get(path)).text.matchAll(/<option value="([^"]*)">/g)].map((m) => m[1]).filter((v) => v.toLowerCase() === "store");
+    assert.equal(opts.length, 1, `${path}: one entry for Store, not one per spelling (${opts})`);
+  }
   assert.match((await get(`/admin/inventory?q=${encodeURIComponent(title)}&location=store`)).text, new RegExp(title));
 });
 
@@ -263,7 +266,7 @@ test("Save and add another (no JavaScript): redirects back to a fresh form with 
   const u = new URL(r.location, "http://x");
   assert.equal(u.pathname, "/admin/inventory/new");
   assert.match(u.searchParams.get("saved"), /^\d+$/);
-  assert.equal(u.searchParams.get("location"), "FICTION A1");
+  assert.equal(u.searchParams.get("location"), "fiction a1");
   assert.equal(u.searchParams.get("binding"), "hardcover");
   assert.equal(u.searchParams.get("condition"), "good");
   assert.equal(u.searchParams.get("source"), "lot");
@@ -275,7 +278,7 @@ test("Save and add another (no JavaScript): redirects back to a fresh form with 
   assert.doesNotMatch(page.match(/<div class="scan-saved"[\s\S]*?<\/div>/)[0], /autofocus/, "the message does not take the focus");
   assert.match(page.match(/<input id="isbn"[^>]*>/)[0], /autofocus/, "the ISBN box takes it");
   assert.match(page.match(/<input id="isbn"[^>]*>/)[0], /value=""/, "and is empty");
-  assert.match(page, /id="location"[^>]*value="FICTION A1"/);
+  assert.match(page, /id="location"[^>]*value="fiction a1"/);
   assert.match(page, /<option value="hardcover" selected>/);
   assert.match(page, /<option value="good" selected>/);
   assert.match(page, /<option value="lot" selected>/, "the source of the last book is kept");
@@ -313,7 +316,7 @@ test("Save book (fast=0) still opens the book; the old scan flow (fromScan) now 
   assert.match(r1.location, /^\/admin\/inventory\/\d+$/);
   const t2 = `FromScan ${uniq()}`;
   const r2 = await post("/admin/inventory", { form: copyBody(t2, { fromScan: "1", fast: "1", location: "kids c3" }) });
-  assert.match(r2.location, /^\/admin\/inventory\/new\?saved=\d+&location=KIDS\+C3/);
+  assert.match(r2.location, /^\/admin\/inventory\/new\?saved=\d+&location=kids\+c3/);
 });
 
 test("the old no-JavaScript Look up button posts to the lookup page and the form comes back filled, keeping Store and Donation", async () => {
@@ -325,7 +328,7 @@ test("the old no-JavaScript Look up button posts to the lookup page and the form
   assert.equal(r.status, 200);
   assert.equal((await get(posted.location)).status, 302, "shown once: a reload goes back to the scan page");
   assert.match(r.text, /name="title"[^>]*value="Posted Lookup"/);
-  assert.match(r.text, /id="location"[^>]*value="STORE"/);
+  assert.match(r.text, /id="location"[^>]*value="store"/, "kept as typed");
 });
 
 // ------------------------------------------- a new location, and the last values used
@@ -335,11 +338,11 @@ test("a location typed for the first time is saved with the book, offered in the
   const r = await post("/admin/inventory", { headers: { ...adminHeader(), ...asJson }, form: copyBody(title, { fast: "1", location: "  brand new  shelf-9 ", binding: "hardcover", condition: "good", source: "lot" }) });
   assert.equal(r.status, 200, r.text);
   const { rows } = await pool.query("SELECT c.location FROM book_copies c JOIN books b ON b.id = c.book_id WHERE b.title = $1", [title]);
-  assert.deepEqual(rows.map((x) => x.location), ["BRAND NEW SHELF-9"], "saved as typed, normalised");
+  assert.deepEqual(rows.map((x) => x.location), ["brand new shelf-9"], "saved as typed (spaces tidied, capitals kept)");
   // A visit with no query and nothing in the browser's memory: the server starts the form at the last values used.
   const { text } = await get("/admin/inventory/new");
-  assert.match(text, /id="location"[^>]*value="BRAND NEW SHELF-9"/, "not STORE");
-  assert.match(text, /<datalist id="location-options">[\s\S]*<option value="BRAND NEW SHELF-9">[\s\S]*<\/datalist>/, "in the list afterwards");
+  assert.match(text, /id="location"[^>]*value="brand new shelf-9"/, "not Store");
+  assert.match(text, /<datalist id="location-options">[\s\S]*<option value="brand new shelf-9">[\s\S]*<\/datalist>/, "in the list afterwards");
   assert.match(text, /<option value="lot" selected>/);
   assert.match(text, /<option value="hardcover" selected>/);
   assert.match(text.match(/<select id="condition"[\s\S]*?<\/select>/)[0], /<option value="good" selected>/);
@@ -347,13 +350,13 @@ test("a location typed for the first time is saved with the book, offered in the
   assert.match(text, /data-location-default/);
   assert.match(text, /data-binding-set=""/);
   // A query still wins over the last values.
-  assert.match((await get("/admin/inventory/new?location=other%20place")).text, /id="location"[^>]*value="OTHER PLACE"/);
+  assert.match((await get("/admin/inventory/new?location=other%20place")).text, /id="location"[^>]*value="other place"/);
 });
 
 test("another admin's last copy does not set this admin's starting values", async () => {
   const { rows } = await pool.query("INSERT INTO users (email, password_hash, display_name, is_admin) VALUES ($1, 'x', 'Other Admin', true) RETURNING id", [`other-admin-${Date.now()}@example.test`]);
   const other = { "x-test-user": JSON.stringify({ id: rows[0].id, email: "o@example.test", displayName: "Other", isAdmin: true }) };
   const { text } = await get("/admin/inventory/new", { headers: other });
-  assert.match(text, /id="location"[^>]*value="STORE"/);
+  assert.match(text, /id="location"[^>]*value="Store"/);
   assert.match(text, /<option value="donation" selected>/);
 });

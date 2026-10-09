@@ -51,7 +51,7 @@
 
     <div class="field">
     <label for="location">Location</label>
-    <input id="location" name="location" type="text" list="location-options" maxlength="40" value="<%= location %>" placeholder="e.g. FICTION-A1" data-location-input<%= typeof locationQueried !== 'undefined' && locationQueried ? '' : ' data-location-default' %> autocomplete="off" autocapitalize="characters" enterkeyhint="next">
+    <input id="location" name="location" type="text" list="location-options" maxlength="40" value="<%= location %>" placeholder="e.g. Store or Fiction A1" data-location-input<%= typeof locationQueried !== 'undefined' && locationQueried ? '' : ' data-location-default' %> autocomplete="off" autocapitalize="off" enterkeyhint="next">
     </div>
     <%- include('../../partials/location_options') %>
 

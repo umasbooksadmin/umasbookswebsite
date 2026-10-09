@@ -93,7 +93,7 @@ const logTexts = (state) => JSON.parse(state.log).map((e) => e.t);
 
 // ---------- intake ----------
 
-test("intake saves a normalised location on the new copy", async () => {
+test("intake saves the location as typed (spaces tidied, capitals kept) on the new copy", async () => {
   const title = `Intake Book ${uniq()}`;
   const res = await post("/admin/inventory", {
     title, description: "d", descriptionFr: "d", coverUrl: "https://example.test/c.jpg",
@@ -101,11 +101,11 @@ test("intake saves a normalised location on the new copy", async () => {
   });
   assert.equal(res.status, 302);
   // The scan flow comes back with the same location, ready for the next book.
-  assert.match(res.headers.get("location"), /^\/admin\/inventory\/new\?saved=\d+&location=FICTION\+A1&condition=very_good$/);
+  assert.match(res.headers.get("location"), /^\/admin\/inventory\/new\?saved=\d+&location=fiction\+a1&condition=very_good$/);
   const { rows } = await pool.query(
     "SELECT c.location FROM book_copies c JOIN books b ON b.id = c.book_id WHERE b.title = $1", [title]
   );
-  assert.deepEqual(rows.map((r) => r.location), ["FICTION A1"]);
+  assert.deepEqual(rows.map((r) => r.location), ["fiction a1"]);
 });
 
 test("intake without a location stores NULL", async () => {
@@ -121,20 +121,20 @@ test("the Add book page pre-fills the carried location, starts at Store, and off
   const bookId = await seedBook(`Dropdown ${uniq()}`, isbn13());
   await seedCopy(bookId, { location: "ZZ-DROPDOWN" });
   const { text } = await get("/admin/inventory/new?location=poetry%20b2");
-  assert.match(text, /id="location"[^>]*list="location-options"[^>]*value="POETRY B2"/);
+  assert.match(text, /id="location"[^>]*list="location-options"[^>]*value="poetry b2"/);
   assert.match(text, /<datalist id="location-options">[\s\S]*<option value="ZZ-DROPDOWN">[\s\S]*<\/datalist>/);
-  assert.match(text, /<datalist id="location-options">[\s\S]*<option value="STORE">[\s\S]*<\/datalist>/, "Store is offered even when no copy is there");
+  assert.match(text, /<datalist id="location-options">[\s\S]*<option value="Store">[\s\S]*<\/datalist>/, "Store is offered even when no copy is there");
   assert.match(text, /src="\/inventory-location\.js"/);
-  assert.match((await get("/admin/inventory/new")).text, /id="location"[^>]*value="STORE"/);
+  assert.match((await get("/admin/inventory/new")).text, /id="location"[^>]*value="Store"/);
 });
 
 test("the add-book form is pre-filled with the carried location and a typed new one joins the list", async () => {
   const { text } = await get("/admin/inventory/new?location=brand%20new%20shelf");
-  assert.match(text, /name="location"[^>]*value="BRAND NEW SHELF"/);
+  assert.match(text, /name="location"[^>]*value="brand new shelf"/);
   const title = `Typed Location ${uniq()}`;
   await post("/admin/inventory", { title, description: "d", descriptionFr: "d", coverUrl: "https://example.test/c.jpg", status: "in_stock", condition: "very_good", price: "5", location: "brand new shelf" });
   const { text: after } = await get("/admin/inventory/new");
-  assert.match(after, /<option value="BRAND NEW SHELF">/);
+  assert.match(after, /<option value="brand new shelf">/);
 });
 
 test("copy edit form shows and saves the location, and a change is audited", async () => {
@@ -143,11 +143,11 @@ test("copy edit form shows and saves the location, and a change is audited", asy
   const { text } = await get(`/admin/inventory/${bookId}`);
   assert.match(text, new RegExp(`id="location-${copyId}"[^>]*value="OLD-1"`));
   assert.match(text, /Location OLD-1/);
-  const res = await post(`/admin/inventory/${bookId}/copies/${copyId}`, { condition: "very_good", status: "in_stock", price: "5", location: " new-2 " });
+  const res = await post(`/admin/inventory/${bookId}/copies/${copyId}`, { condition: "very_good", status: "in_stock", price: "5", location: " New-2 " });
   assert.equal(res.status, 302);
-  assert.equal(await locationOf(copyId), "NEW-2");
+  assert.equal(await locationOf(copyId), "New-2");
   const { rows } = await pool.query("SELECT detail FROM admin_audit_log WHERE action = 'copy.move' AND target_id = $1", [copyId]);
-  assert.deepEqual(rows.map((r) => r.detail), ["from OLD-1 to NEW-2"]);
+  assert.deepEqual(rows.map((r) => r.detail), ["from OLD-1 to New-2"]);
   // Clearing it stores NULL.
   await post(`/admin/inventory/${bookId}/copies/${copyId}`, { condition: "very_good", status: "in_stock", price: "5", location: "" });
   assert.equal(await locationOf(copyId), null);
@@ -173,7 +173,7 @@ test("each scan moves one copy, oldest first, and skips copies already there", a
   const middle = await seedCopy(bookId, { ageDays: 20 });
   const newest = await seedCopy(bookId, { location: "C3", ageDays: 10 });
 
-  let s = await moveScan({}, isbn, "mv-1");
+  let s = await moveScan({}, isbn, "MV-1");
   assert.equal(await locationOf(oldest), "MV-1");
   assert.equal(await locationOf(middle), null);
   assert.equal(s.moved, 1);
@@ -198,13 +198,13 @@ test("each scan moves one copy, oldest first, and skips copies already there", a
 test("ISBN typed with hyphens, and the other ISBN form of the same book, both match", async () => {
   const bookId = await seedBook(`Variant ${uniq()}`, "0143127551");
   const copyId = await seedCopy(bookId);
-  const s = await moveScan({}, "978-0-14-312755-0", "variants");
+  const s = await moveScan({}, "978-0-14-312755-0", "VARIANTS");
   assert.equal(await locationOf(copyId), "VARIANTS");
   assert.equal(s.moved, 1);
 });
 
 test("unknown ISBN, non-barcode text and a missing destination are reported and move nothing", async () => {
-  let s = await moveScan({}, "9780000000002", "mv-2");
+  let s = await moveScan({}, "9780000000002", "MV-2");
   assert.match(logTexts(s)[0], /^Not in inventory: 9780000000002$/);
   s = await moveScan(s, "FICTION-A1");
   assert.match(logTexts(s)[0], /^Not a book barcode: FICTION-A1$/);
@@ -225,7 +225,7 @@ test("sold, donated and in-cart copies are never moved, with a clear message", a
   const reservedBook = await seedBook(`Reserved ${uniq()}`, reservedIsbn);
   const reserved = await seedCopy(reservedBook, { status: "reserved" });
 
-  let s = await moveScan({}, soldIsbn, "mv-3");
+  let s = await moveScan({}, soldIsbn, "MV-3");
   assert.match(logTexts(s)[0], /^Only sold or donated copies: Only Sold/);
   s = await moveScan(s, cartIsbn);
   assert.match(logTexts(s)[0], /^Skipped, in a customer's cart: In Cart/);
@@ -247,12 +247,12 @@ test("changing the destination mid-way sends later scans to the new place", asyn
   const copyB = await seedCopy(bookB);
   let s = await moveScan({}, a, "shelf one");
   s = await moveScan(s, b, "shelf two");
-  assert.equal(await locationOf(copyA), "SHELF ONE");
-  assert.equal(await locationOf(copyB), "SHELF TWO");
-  assert.deepEqual(logTexts(s).filter((t) => t.startsWith("Moving books to")), ["Moving books to SHELF TWO", "Moving books to SHELF ONE"]);
-  assert.match(s.html, /Moving books to SHELF TWO/);
+  assert.equal(await locationOf(copyA), "shelf one");
+  assert.equal(await locationOf(copyB), "shelf two");
+  assert.deepEqual(logTexts(s).filter((t) => t.startsWith("Moving books to")), ["Moving books to shelf two", "Moving books to shelf one"]);
+  assert.match(s.html, /Moving books to shelf two/);
   assert.match(s.html, /name="scan"[^>]*autofocus/, "scan field is focused again after each scan");
-  assert.match(s.html, /name="dest"[^>]*value="SHELF TWO"/, "destination stays selected");
+  assert.match(s.html, /name="dest"[^>]*value="shelf two"/, "destination stays selected");
 });
 
 test("the running log keeps only the last 30 entries and ignores a tampered log field", async () => {
@@ -268,7 +268,7 @@ test("each move writes one audit row with location codes only", async () => {
   const bookId = await seedBook(`Audited ${uniq()}`, isbn);
   const c1 = await seedCopy(bookId, { location: "FROM-1", ageDays: 5 });
   const c2 = await seedCopy(bookId, { ageDays: 1 });
-  let s = await moveScan({}, isbn, "to-9");
+  let s = await moveScan({}, isbn, "TO-9");
   s = await moveScan(s, isbn);
   await moveScan(s, isbn); // already there: no row
   const { rows } = await pool.query(
@@ -301,4 +301,80 @@ test("inventory list shows each book's in-stock locations and has no Location se
 
   const { text: ignored } = await get(`/admin/inventory?q=${mark}&location=FLT-A1`);
   assert.match(ignored, /Filter In/, "a leftover ?location= is ignored");
+});
+
+// ---------- capitals are kept, but never make a second place ----------
+
+const optionValues = (html) => [...html.matchAll(/<option value="([^"]*)">/g)].map((m) => m[1]);
+const oneEntryFor = (html, name) => optionValues(html.match(/<datalist id="location-options">[\s\S]*?<\/datalist>/)[0]).filter((v) => v.toLowerCase() === name.toLowerCase());
+
+test("Store is saved as 'Store', not 'STORE', and typing 'store' later is the same place in the list", async () => {
+  const t1 = `Cap Store ${uniq()}`;
+  const t2 = `Cap Store lower ${uniq()}`;
+  const base = { description: "d", descriptionFr: "d", coverUrl: "https://example.test/c.jpg", status: "in_stock", condition: "very_good", price: "5" };
+  await post("/admin/inventory", { ...base, title: t1, location: "Capital Test Shelf" });
+  await post("/admin/inventory", { ...base, title: t2, location: "capital test shelf" });
+  const { rows } = await pool.query("SELECT b.title, c.location FROM book_copies c JOIN books b ON b.id = c.book_id WHERE b.title = ANY($1) ORDER BY b.title", [[t1, t2]]);
+  assert.deepEqual(rows.map((r) => r.location).sort(), ["Capital Test Shelf", "capital test shelf"], "each kept as typed");
+  const newPage = (await get("/admin/inventory/new")).text;
+  assert.deepEqual(oneEntryFor(newPage, "capital test shelf").length, 1, "one entry in the Add book list");
+  assert.equal(oneEntryFor((await get("/admin/inventory/move")).text, "capital test shelf").length, 1, "one entry on Move books");
+  // The offered default is Store, and a stored 'Store' / 'STORE' mix does not list it twice.
+  const bookId = await seedBook(`Store Mix ${uniq()}`, isbn13());
+  await seedCopy(bookId, { location: "Store" });
+  await seedCopy(bookId, { location: "STORE" });
+  await seedCopy(bookId, { location: "store" });
+  const page = (await get("/admin/inventory/new")).text;
+  assert.equal(oneEntryFor(page, "store").length, 1);
+});
+
+test("the list shows the most common spelling of a place", async () => {
+  const bookId = await seedBook(`Spelling ${uniq()}`, isbn13());
+  await seedCopy(bookId, { location: "Spell-Test Nook" });
+  await seedCopy(bookId, { location: "SPELL-TEST NOOK" });
+  await seedCopy(bookId, { location: "SPELL-TEST NOOK" });
+  const { text } = await get("/admin/inventory/move");
+  assert.deepEqual(oneEntryFor(text, "spell-test nook"), ["SPELL-TEST NOOK"]);
+  assert.match((await get(`/admin/inventory/${bookId}`)).text, /Location Spell-Test Nook/, "each copy shows its own spelling");
+});
+
+test("Move books treats a change of capitals only as a real move (STORE -> Store), and the list then shows 'Store' only", async () => {
+  const isbn = isbn13();
+  const bookId = await seedBook(`Rename ${uniq()}`, isbn);
+  const c1 = await seedCopy(bookId, { location: "Rename-Test STORE", ageDays: 2 });
+  const c2 = await seedCopy(bookId, { location: "Rename-Test STORE", ageDays: 1 });
+  let s = await moveScan({}, isbn, "Rename-Test Store");
+  assert.match(logTexts(s)[0], /^Moved: Rename \d+ \(was Rename-Test STORE\) → Rename-Test Store$/);
+  assert.equal(await locationOf(c1), "Rename-Test Store");
+  s = await moveScan(s, isbn);
+  assert.equal(await locationOf(c2), "Rename-Test Store");
+  assert.equal(s.moved, 2);
+  s = await moveScan(s, isbn);
+  assert.match(logTexts(s)[0], /^Already at Rename-Test Store:/, "same capitals again: nothing to do");
+  const { rows } = await pool.query("SELECT detail FROM admin_audit_log WHERE action = 'copy.move' AND target_id = ANY($1) ORDER BY id", [[c1, c2]]);
+  assert.deepEqual(rows.map((r) => r.detail), ["from Rename-Test STORE to Rename-Test Store", "from Rename-Test STORE to Rename-Test Store"]);
+  const moveEntries = oneEntryFor((await get("/admin/inventory/move")).text, "rename-test store");
+  assert.deepEqual(moveEntries, ["Rename-Test Store"], "the list shows the new spelling only");
+});
+
+test("the inventory list shows each place once per book, whatever its capitals", async () => {
+  const mark = uniq();
+  const bookId = await seedBook(`Cap List ${mark}`, isbn13());
+  await seedCopy(bookId, { location: "Cap-Shelf" });
+  await seedCopy(bookId, { location: "CAP-SHELF" });
+  await seedCopy(bookId, { location: "Zed Shelf" });
+  const { text } = await get(`/admin/inventory?q=${mark}`);
+  assert.match(text, /Location: Cap-Shelf, Zed Shelf(?!, )|Location: CAP-SHELF, Zed Shelf(?!, )/);
+  assert.doesNotMatch(text, /Cap-Shelf, CAP-SHELF|CAP-SHELF, Cap-Shelf/);
+});
+
+test("the inventory report groups locations case-insensitively", async () => {
+  const bookId = await seedBook(`Report Cap ${uniq()}`, isbn13());
+  await seedCopy(bookId, { location: "Report-Cap Bay" });
+  await seedCopy(bookId, { location: "REPORT-CAP BAY" });
+  const reports = require("../../src/lib/reports");
+  const inv = await reports.REPORTS.find((r) => r.slug === "inventory").run(pool);
+  const rows = inv.sections.find((x) => x.key === "location").rows.filter((r) => String(r.label).toLowerCase() === "report-cap bay");
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].total_count, 2);
 });

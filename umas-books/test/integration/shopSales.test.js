@@ -124,7 +124,7 @@ test("intake saves the chosen source; anything unknown is stored as NULL", async
   assert.equal(res.status, 302);
   assert.equal(await sourceOfTitle(withSource), "donation");
   // The add flow comes back remembering the location and the source.
-  assert.match(res.headers.get("location"), /^\/admin\/inventory\/new\?saved=\d+&location=A1&source=donation&condition=very_good$/);
+  assert.match(res.headers.get("location"), /^\/admin\/inventory\/new\?saved=\d+&location=a1&source=donation&condition=very_good$/);
 
   const none = `Source None ${uniq()}`;
   await post("/admin/inventory", { ...INTAKE, title: none, source: "" });

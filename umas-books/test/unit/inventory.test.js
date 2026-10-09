@@ -29,13 +29,41 @@ test("normalizeGenres trims, dedupes case-insensitively, and rejoins", () => {
   assert.equal(normalizeGenres(" Fantasy ,fiction, Fantasy"), "Fantasy, fiction");
 });
 
-const { normalizeLocation, parseScan, isbnVariants } = require("../../src/lib/inventory");
+const { normalizeLocation, locationKey, sameLocation, uniqueLocations, LOCATION_MAX, parseScan, isbnVariants } = require("../../src/lib/inventory");
 
-test("normalizeLocation trims, collapses spaces, upper-cases and caps at 40", () => {
-  assert.equal(normalizeLocation("  fiction   a1 "), "FICTION A1");
-  assert.equal(normalizeLocation("Fiction-A1"), "FICTION-A1");
-  assert.equal(normalizeLocation("x".repeat(60)), "X".repeat(40));
-  assert.equal(normalizeLocation("a\tb\nc"), "A B C");
+test("normalizeLocation keeps the capitals, trims, collapses spaces and caps at 40", () => {
+  assert.equal(normalizeLocation("  fiction   a1 "), "fiction a1");
+  assert.equal(normalizeLocation("Fiction-A1"), "Fiction-A1");
+  assert.equal(normalizeLocation("Store"), "Store");
+  assert.equal(normalizeLocation("STORE"), "STORE");
+  assert.equal(normalizeLocation("x".repeat(60)), "x".repeat(40));
+  assert.equal(normalizeLocation("Ab".repeat(30)), "Ab".repeat(20));
+  assert.equal(LOCATION_MAX, 40);
+  assert.equal(normalizeLocation("a\tb\nc"), "a b c");
+  assert.equal(normalizeLocation("a".repeat(39) + "   b"), "a".repeat(39), "no trailing space left after the cut");
+});
+
+test("normalizeLocation leaves every other character as it was (accents, digits, punctuation)", () => {
+  assert.equal(normalizeLocation("Étagère #3 (rez-de-chaussée) / A.1_b"), "Étagère #3 (rez-de-chaussée) / A.1_b");
+  assert.equal(normalizeLocation(12), "12");
+});
+
+test("locations that differ only in capitals are the same place", () => {
+  assert.equal(sameLocation("store", "STORE"), true);
+  assert.equal(sameLocation(" Store ", "sTORE"), true);
+  assert.equal(sameLocation("Store", "Store 2"), false);
+  assert.equal(sameLocation("", ""), false, "blank is no place");
+  assert.equal(sameLocation(null, "Store"), false);
+  assert.equal(locationKey("  Fiction   A1"), "fiction a1");
+  assert.equal(locationKey("   "), null);
+});
+
+test("uniqueLocations lists one entry per place, in the most common then most recent spelling", () => {
+  assert.deepEqual(uniqueLocations(["STORE", "Store", "store", "Fiction A1"]), ["Fiction A1", "STORE"], "ties: the first alphabetically (capitals first)");
+  assert.deepEqual(uniqueLocations([{ location: "STORE", count: 2 }, { location: "Store", count: 5 }, { location: "Zed", count: 1 }]), ["Store", "Zed"]);
+  assert.deepEqual(uniqueLocations([{ location: "STORE", count: 3, last: "2026-01-01" }, { location: "Store", count: 3, last: "2026-02-01" }]), ["Store"], "tie on count: the most recently used");
+  assert.deepEqual(uniqueLocations([{ location: "b" }, { location: "A" }, { location: "  " }, { location: null }, "a"]), ["A", "b"], "blanks dropped, sorted ignoring capitals");
+  assert.deepEqual(uniqueLocations(undefined), []);
 });
 
 test("normalizeLocation returns null for blank input", () => {
