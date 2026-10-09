@@ -782,8 +782,13 @@ in person only: online payment exists only for HelloAsso memberships and orders.
 - **Day and money.** Days are Paris days. Expected cash = opening float + cash
   sales (completed). Closing stores counted/expected/difference and locks voids
   for that day. The Accounting export (`src/lib/accounting.js`) combines till
-  items, older "Sell in shop" sales (no till sale), paid online orders and
-  membership payments into rows by day, category and payment method.
+  items, older "Sell in shop" sales (no till sale), collected reservations and
+  membership payments into rows by day, category and payment method. A
+  reservation collected at the till is counted once, from its till lines
+  (`reservation_order_id`); one collected with the admin button is counted from the
+  order under `orders.payment_method` (cash, card, cheque, other); only old
+  online-checkout orders (no method) and memberships are HelloAsso. A refund row
+  uses the method of the sale.
 
 #### Till correctness and money safety (migration `074_till_correctness.sql`)
 

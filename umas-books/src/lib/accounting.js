@@ -3,10 +3,15 @@
 // Sources, each counted once:
 //   - till sales (till_sale_items of completed sales; voided ones are excluded)
 //   - older "Sell in shop" sales (shop_sales rows with no till sale)
-//   - paid online orders (status 'paid': refunded/cancelled ones are excluded), HelloAsso
+//   - collected reservations (orders paid in person), counted ONCE:
+//       * collected at the till: from their till_sale_items (tagged reservation_order_id), never
+//         again from the order;
+//       * collected with the admin "Mark collected and paid" button: from the order, under the
+//         method the staff chose (orders.payment_method: cash, card, cheque, other);
+//       * old orders paid online through HelloAsso (payment_method empty / helloasso / online): HelloAsso
 //   - membership payments (HelloAsso)
-//   - refunded online orders: the original sale stays on its day, and a NEGATIVE row dated at the
-//     refund (same category and method) corrects it in the export of the month the refund happened
+//   - refunded reservations: the original sale stays on its day, and a NEGATIVE row dated at the
+//     refund (same category and method as the sale) corrects it in the export of the month the refund happened
 //   - over/short from the day closing (till_days.difference_cents), as its own row
 // The opening float is a loan to the drawer, never revenue: it appears nowhere here.
 // Each row also carries a label (libellé), debit account, credit account and journal from the
@@ -17,14 +22,14 @@ const { SITE_TIME_ZONE } = require("./tz");
 const TZ = SITE_TIME_ZONE;
 
 const CATEGORY_ORDER = ["Books used", "Books new", "Merchandise", "Refreshments", "Class seats", "Membership", "Donation", "Other"];
-const METHOD_ORDER = ["Cash", "Card at the till", "HelloAsso", "Other / not recorded"];
+const METHOD_ORDER = ["Cash", "Card at the till", "Cheque", "HelloAsso", "Other / not recorded"];
 
 const OVER = "Cash over/short";
 const OVER_IN = "Cash over";
 const OVER_OUT = "Cash short";
 
 // Defaults, to confirm with the treasurer. Debit: where the money lands; credit: the income account.
-const DEBIT_DEFAULT = { Cash: ["530", "CA"], "Card at the till": ["511", "BQ"], HelloAsso: ["511", "BQ"], "Other / not recorded": ["471", "OD"] };
+const DEBIT_DEFAULT = { Cash: ["530", "CA"], "Card at the till": ["511", "BQ"], Cheque: ["511", "BQ"], HelloAsso: ["511", "BQ"], "Other / not recorded": ["471", "OD"] };
 const CREDIT_DEFAULT = {
   "Books used": "707", "Books new": "707", Merchandise: "707", Refreshments: "707", "Class seats": "706", Membership: "756", Donation: "754", Other: "708",
 };
@@ -56,7 +61,7 @@ const FR_CATEGORY = {
   "Books used": "livres d'occasion", "Books new": "livres neufs", Merchandise: "marchandises", Refreshments: "boissons et restauration",
   "Class seats": "places de cours", Membership: "adhésions", Donation: "dons", Other: "autres ventes",
 };
-const FR_METHOD = { Cash: "espèces", "Card at the till": "carte (caisse)", HelloAsso: "HelloAsso", "Other / not recorded": "mode non enregistré" };
+const FR_METHOD = { Cash: "espèces", "Card at the till": "carte (caisse)", Cheque: "chèque", HelloAsso: "HelloAsso", "Other / not recorded": "mode non enregistré" };
 function labelFor(category, method, date, refund) {
   if (category === OVER) return `${method === OVER_IN ? "Écart de caisse en plus" : "Écart de caisse en moins"} ${date}`;
   return `${refund ? "Remboursement" : "Ventes"} ${FR_CATEGORY[category] || category}, ${FR_METHOD[method] || method}, ${date}`;
@@ -66,6 +71,14 @@ const inRange = (col, a, b) =>
   `${col} >= ($${a}::date)::timestamp AT TIME ZONE '${TZ}' AND ${col} < (($${b}::date) + 1)::timestamp AT TIME ZONE '${TZ}'`;
 
 const METHOD_SQL = (col) => `CASE ${col} WHEN 'cash' THEN 'Cash' WHEN 'card' THEN 'Card at the till' ELSE 'Other / not recorded' END`;
+// How an ORDER was paid. Reservations are paid in person, so the staff's choice is the method;
+// an order with no method (or helloasso / online) is an old online-checkout order: HelloAsso.
+// An unknown value is "Other / not recorded" (account 471), never silently HelloAsso.
+const ORDER_METHOD_SQL = `CASE WHEN o.payment_method IS NULL OR o.payment_method IN ('helloasso', 'online') THEN 'HelloAsso'
+  WHEN o.payment_method = 'cash' THEN 'Cash' WHEN o.payment_method = 'card' THEN 'Card at the till'
+  WHEN o.payment_method = 'cheque' THEN 'Cheque' ELSE 'Other / not recorded' END`;
+// Orders collected at the till are counted from the till's own lines (exactly once).
+const TILL_COLLECTED = "EXISTS (SELECT 1 FROM till_sale_items ti WHERE ti.reservation_order_id = o.id)";
 const CATEGORY_SQL = `CASE i.category WHEN 'books_used' THEN 'Books used' WHEN 'books_new' THEN 'Books new' WHEN 'merchandise' THEN 'Merchandise'
   WHEN 'refreshments' THEN 'Refreshments' WHEN 'donation' THEN 'Donation' ELSE 'Other' END`;
 
@@ -93,17 +106,24 @@ async function accountingRows(db, from, to) {
               CASE WHEN oi.class_dropin_seat_id IS NOT NULL THEN 'Class seats'
                    WHEN oi.book_copy_id IS NOT NULL AND c.condition = 'new' THEN 'Books new'
                    WHEN oi.book_copy_id IS NOT NULL THEN 'Books used' ELSE 'Other' END,
-              'HelloAsso', 1, ROUND(oi.price * 100)::bigint
+              ${ORDER_METHOD_SQL}, 1, ROUND(oi.price * 100)::bigint
        FROM order_items oi JOIN orders o ON o.id = oi.order_id LEFT JOIN book_copies c ON c.id = oi.book_copy_id
-       WHERE o.status IN ('paid', 'refunded') AND o.paid_at IS NOT NULL AND ${inRange("o.paid_at", 1, 2)}
+       WHERE o.status IN ('paid', 'refunded') AND o.paid_at IS NOT NULL AND NOT ${TILL_COLLECTED} AND ${inRange("o.paid_at", 1, 2)}
        UNION ALL
        SELECT (o.refunded_at AT TIME ZONE '${TZ}')::date,
               CASE WHEN oi.class_dropin_seat_id IS NOT NULL THEN 'Class seats'
                    WHEN oi.book_copy_id IS NOT NULL AND c.condition = 'new' THEN 'Books new'
                    WHEN oi.book_copy_id IS NOT NULL THEN 'Books used' ELSE 'Other' END,
-              'HelloAsso', -1, -ROUND(oi.price * 100)::bigint
+              ${ORDER_METHOD_SQL}, -1, -ROUND(oi.price * 100)::bigint
        FROM order_items oi JOIN orders o ON o.id = oi.order_id LEFT JOIN book_copies c ON c.id = oi.book_copy_id
-       WHERE o.status = 'refunded' AND o.paid_at IS NOT NULL AND o.refunded_at IS NOT NULL AND ${inRange("o.refunded_at", 1, 2)}
+       WHERE o.status = 'refunded' AND o.paid_at IS NOT NULL AND o.refunded_at IS NOT NULL AND NOT ${TILL_COLLECTED} AND ${inRange("o.refunded_at", 1, 2)}
+       UNION ALL
+       -- a refunded reservation that was collected at the till: the sale is already a till row, so only the
+       -- reversal is added here, from the same till lines (same category and method), on the refund day
+       SELECT (o.refunded_at AT TIME ZONE '${TZ}')::date, ${CATEGORY_SQL}, ${METHOD_SQL("s.payment_method")},
+              -i.quantity::int, -(i.quantity * i.unit_price_cents)::bigint
+       FROM till_sale_items i JOIN till_sales s ON s.id = i.sale_id JOIN orders o ON o.id = i.reservation_order_id
+       WHERE s.status = 'completed' AND o.status = 'refunded' AND o.refunded_at IS NOT NULL AND ${inRange("o.refunded_at", 1, 2)}
        UNION ALL
        SELECT (mp.paid_at AT TIME ZONE '${TZ}')::date, 'Membership', 'HelloAsso', 1, mp.amount_cents::bigint
        FROM membership_payments mp
@@ -127,8 +147,9 @@ async function accountingRows(db, from, to) {
 
 // Totals for a range, in CENTS, split the way the Dashboard shows them (refunds are the
 // export's negative rows, so they are netted in; voided till sales are not in it at all):
-//   membership = the Membership category; online = the other HelloAsso rows (paid orders);
-//   till = everything taken in the shop (cash, card, older shop sales, cash over/short).
+//   membership = the Membership category; online = the other HelloAsso rows (old orders paid
+//   online before reservations); till = everything taken in person (cash, card, cheque, reservations
+//   collected at the till or with the admin button, older shop sales, cash over/short).
 async function salesTotals(db, from, to) {
   const rows = await accountingRows(db, from, to);
   const t = { totalCents: 0, tillCents: 0, onlineCents: 0, membershipCents: 0 };
@@ -160,10 +181,10 @@ async function accountingExportReport(db, ctx) {
     `SELECT COUNT(*)::int AS n FROM membership_payments WHERE amount_cents IS NULL AND ${inRange("paid_at", 1, 2)}`, params
   );
   const notes = [
-    "Days are Paris days. Voided till sales and cancelled online reservations are not included. No customer data appears here.",
-    "A refunded online reservation keeps its row on the day it was paid and gets a NEGATIVE row (negative count and total) on the day it was refunded, so a month already given to the treasurer is corrected in the month of the refund.",
+    "Days are Paris days. Voided till sales and cancelled reservations are not included. No customer data appears here.",
+    "A refunded reservation keeps its row on the day it was paid and gets a NEGATIVE row (negative count and total) on the day it was refunded, so a month already given to the treasurer is corrected in the month of the refund.",
     "A closed day with a cash difference adds one \"Cash over/short\" row (positive: over, negative: short). The opening float is never revenue and is not in this export.",
-    "Class seats and Books are paid online through HelloAsso; Membership comes from the HelloAsso membership payments; the till rows are Cash or Card at the till.",
+    "Books and class seats are reserved on the website and paid IN PERSON: a reservation collected at the till is counted once, from the till, and one collected with \"Mark collected and paid\" is counted under the method the staff chose (Cash, Card at the till, Cheque, or Other / not recorded). Only Membership comes from HelloAsso (the membership payments); a HelloAsso row for books is an old order paid online before reservations existed.",
     "Older \"Sell in shop\" sales paid by card are shown as Card at the till; those with no payment method as Other / not recorded.",
     "The label, debit account, credit account and journal come from the table at /admin/reports/accounting/mapping. The defaults are a starting point: ask the treasurer to confirm the account numbers and the import layout.",
   ];

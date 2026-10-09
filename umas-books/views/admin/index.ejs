@@ -23,7 +23,7 @@
   <div class="admin-stat tone-green">
     <div class="label">Sales this month</div>
     <div class="value" id="sales-month">&euro;<%= Number(stats.salesThisMonth).toFixed(0) %></div>
-    <div class="trend-row"><span id="sales-breakdown">Till &euro;<%= Number(stats.salesBreakdown.till).toFixed(0) %> &middot; Online &euro;<%= Number(stats.salesBreakdown.online).toFixed(0) %> &middot; Membership &euro;<%= Number(stats.salesBreakdown.membership).toFixed(0) %></span></div>
+    <div class="trend-row"><span id="sales-breakdown">In person &euro;<%= Number(stats.salesBreakdown.till).toFixed(0) %> &middot; Old online orders &euro;<%= Number(stats.salesBreakdown.online).toFixed(0) %> &middot; Membership &euro;<%= Number(stats.salesBreakdown.membership).toFixed(0) %></span></div>
     <div class="trend-row"><span id="sales-today">Today &euro;<%= Number(stats.salesToday).toFixed(0) %> &middot; Last month &euro;<%= Number(stats.salesLastMonth).toFixed(0) %></span> <%- trend(stats.salesThisMonth, stats.salesLastMonth) %></div>
     <% if (stats.refundsThisMonth > 0) { %><div class="trend-row"><span id="refunds-line">Refunded this month: <%= stats.refundsThisMonth %> (&euro;<%= Number(stats.refundsAmountThisMonth).toFixed(0) %>), not included above</span></div><% } %>
   </div>

@@ -1253,11 +1253,15 @@ and on the other reports.
    with **Download for French Excel** and send the file. Row layout: Date,
    Category, Payment method, Count, Total (EUR), Libellé, Compte débit,
    Compte crédit, Journal. One row per Paris day, category and payment method
-   (Cash, Card at the till, HelloAsso, Other / not recorded). It never contains
-   names or emails.
-2. **Refunds.** A refunded online reservation keeps its row on the day it was paid and
+   (Cash, Card at the till, Cheque, HelloAsso, Other / not recorded). Books and
+   seats are reserved on the website and paid IN PERSON: a reservation collected
+   at the till is counted once (from the till) and one collected with "Mark
+   collected and paid" is counted under the method chosen there (cash, card,
+   cheque, other). **HelloAsso rows are memberships only**, plus any old order
+   paid online before reservations existed. It never contains names or emails.
+2. **Refunds.** A refunded reservation keeps its row on the day it was paid and
    gets a **negative** row (negative count and total, label "Remboursement ...")
-   on the day it was refunded. A month already sent is therefore not changed:
+   on the day it was refunded (same category and method as the sale). A month already sent is therefore not changed:
    the correction is in the export of the month of the refund.
 3. **Cash over/short.** When a day is closed with a difference, one row
    "Cash over/short" appears (positive: over, negative: short) with the accounts
