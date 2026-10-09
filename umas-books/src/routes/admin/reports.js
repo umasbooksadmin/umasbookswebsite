@@ -70,6 +70,18 @@ router.post("/admin/reports/accounting/mapping", requireAdmin, async (req, res) 
   res.redirect("/admin/reports/accounting/mapping?saved=1");
 });
 
+// "Send a test credit alert" (AI usage part of the lookup-sources report): the real credit-out mail with [TEST] in the
+// subject, at most once a minute, written to the admin activity log. See lib/aiCreditAlert.js.
+router.post("/admin/reports/lookup-sources/test-credit-alert", requireAdmin, async (req, res) => {
+  const result = await require("../../lib/aiCreditAlert").sendTestAlert(pool);
+  await audit(req, { action: "ai.credit_alert_test", targetType: "report", detail: result.limited ? "refused: less than a minute since the last test" : result.sent ? "sent" : "send failed" });
+  await setFlash(req, "credit-alert-test", {
+    notice: result.sent ? "Test email sent. Check the inbox of the alert address (and the spam folder)." : null,
+    error: result.limited ? "A test was sent less than a minute ago. Wait a minute and try again." : result.sent ? null : "The test email could not be sent. Check the Gmail settings (runbook, \"Emails are not arriving\").",
+  });
+  res.redirect(303, "/admin/reports/lookup-sources#ai-credit-test");
+});
+
 router.get("/admin/reports/:slug", requireAdmin, async (req, res) => {
   let slug = String(req.params.slug || "");
   let wantsCsv = req.query.format === "csv" || req.query.format === "csv-fr";
@@ -101,7 +113,9 @@ router.get("/admin/reports/:slug", requireAdmin, async (req, res) => {
   // filter change is not a new entry).
   if (slug === "accounts") await auditAccountsView(req);
 
+  const creditTest = slug === "lookup-sources" ? takeFlash(req, "credit-alert-test") : null;
   res.render("admin/reports/show", {
+    creditTest,
     active: "reports", report, result, groups: GROUPS, formatCell,
     query: { from: result.range.from, to: result.range.to, group: result.group, period: require("../../lib/lookupSourcesReport").parsePeriod(req.query.period, require("../../lib/reports").todayParis()).key },
     periods: require("../../lib/lookupSourcesReport").PERIODS,

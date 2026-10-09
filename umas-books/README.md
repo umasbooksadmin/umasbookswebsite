@@ -151,7 +151,10 @@ more things to keep in mind:
   report ends with **AI usage**: calls, errors, tokens and an estimated cost
   per AI feature (description, French translation, genres, cover photo,
   price check), and a red banner when the Anthropic credit has run out
-  (`docs/runbook.md`, "AI usage").
+  (`docs/runbook.md`, "AI usage"). When the credit runs out the site also
+  emails the alert address once (at most once per 24 hours, re-armed by the next
+  successful AI call), shows a red line on the Dashboard, and the report has a
+  **Send a test credit alert** button (`lib/aiCreditAlert.js`).
 - **Book search** (`/books`, public, no login) — anyone can search
   in-stock inventory by title, author, or genre, and add copies to the
   cart (the reservation flow above). A copy is held (status `reserved`) when
@@ -198,7 +201,7 @@ clear error, the email outbox keeps the message and retries it, the dashboard
 shows it under "Needs attention" and (after an hour) an alert is sent.
 
 **Alert recipients.** Alerts (errors, emails that cannot be sent, failing
-background jobs, launch warnings) go to `ALERT_TO` — one address or several
+background jobs, launch warnings, the Anthropic credit running out) go to `ALERT_TO` — one address or several
 separated by commas (default `admin@umasbooks.org`). Add a second address on a
 different mail provider than the Google account that sends them. The GitHub
 workflows (backup, uptime, freshness, restore test, weekly test alert) read the

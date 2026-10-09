@@ -70,7 +70,9 @@ function extractUsage(data) {
   };
 }
 
-function createAiUsageStats({ getPool = () => require("../db").pool, flushMs = 30 * 1000, now = Date.now, log = (m) => console.warn(m) } = {}) {
+// `alert` ({ creditOutOf(), creditWorking() }, lib/aiCreditAlert.js) is told about credit errors and successes, to email
+// the admin once when the credit runs out; none by default (tests), the process-wide recorder passes the real one.
+function createAiUsageStats({ getPool = () => require("../db").pool, flushMs = 30 * 1000, now = Date.now, log = (m) => console.warn(m), alert = null } = {}) {
   let totals = new Map(); // "day|feature" -> { day, feature, ...counters, last_credit_error_at }
   let timer = null;
   let flushing = null;
@@ -104,6 +106,10 @@ function createAiUsageStats({ getPool = () => require("../db").pool, flushMs = 3
       else if (status === 429) d.limited = 1;
       else d.errors = 1;
       add(totals, parisDay(now()), feature, d);
+      if (alert) {
+        if (d.credit_errors) alert.creditOutOf();
+        else if (d.ok) alert.creditWorking();
+      }
     } catch { /* never in the way of a call */ }
   }
 
@@ -161,7 +167,7 @@ function createAiUsageStats({ getPool = () => require("../db").pool, flushMs = 3
 
 let current = null;
 // The process-wide recorder (lazy, so requiring this file never touches the database).
-const getStats = () => current || (current = createAiUsageStats());
+const getStats = () => current || (current = createAiUsageStats({ alert: require("./aiCreditAlert").getCreditAlert() }));
 // Tests inject a fake (or null to go back to the default).
 const setStats = (s) => { current = s; };
 
