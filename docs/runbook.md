@@ -2606,3 +2606,33 @@ English text slips into the French version.
 * **Counts**: `cd umas-books && node scripts/i18n-audit.js` prints every page that still has English in
   its French version (should say `TOTAL flagged: 0`); `--write` updates the table in
   `docs/i18n-audit.md`.
+
+## af) Nightly inventory export
+
+**What.** Every evening at **21:00 Paris time** a GitHub workflow (*Nightly inventory export*) exports **all inventory** as a CSV and sends it two ways: **emailed** to the alert addresses (the `ALERT_TO` variable: it should list admin@umasbooks.org and sharonbje@gmail.com, separated by commas) and **stored** in the private Backblaze bucket (the backup bucket), folder `inventory-exports/`:
+
+| File | What |
+|---|---|
+| `inventory_YYYY-MM-DD.csv` | One row per **copy** (the day's file) |
+| `inventory_latest.csv` | The same file, overwritten every night |
+| `inventory_books_YYYY-MM-DD.csv` | One row per **book**, with copy totals (in store, reserved, sold) |
+
+Both dated files are attached to the email (subject `[umas-books] Inventory export YYYY-MM-DD (N copies)`; the body gives the counts). Above 15 MB only the per-book file is attached and the email says where the full one is. The CSV is **not** kept in GitHub (no Actions artifact; the job log shows counts only).
+
+**Columns (per copy):** ISBN-13, ISBN-10, Title, Author(s), Publisher, Year, Binding (Mass Market / Trade / Hardback / Other), Condition (New / Like New / Very Good / Good / Acceptable), Price (EUR), Location, Source, Status (In Store / Reserved / Sold / Donated / Damaged / withdrawn), Date added, Copy ID, Till code (`UB-<copy id>`), Book ID, Genres, Clearance (Yes/No), Publisher price (EUR), Notes, Date sold (when known). The app stores one ISBN per book: the other form is computed from it (an ISBN-10 exists only for 978- numbers). There is no subtitle or language column because the database does not hold them. **No customer data**: no buyer or reservation-holder name, email or phone, only the status. (The *Notes* column is the free-text note an admin typed on the copy: do not type personal data there.)
+
+**Format (one dialect, for French Excel; the same as the accounting export):** UTF-8 with a byte-order mark, **semicolon** separator, **decimal comma** (`4,50`), text in quotes, CRLF line ends, dates as `YYYY-MM-DD` (Paris days). A cell starting with `=`, `+`, `-` or `@` gets a leading apostrophe so Excel cannot run it as a formula.
+
+**Open in Excel (French settings).** Double-click the file, or Excel > File > Open. Accents and prices should look right. If everything is in one column: Data > From Text/CSV, delimiter *Semicolon*, encoding *UTF-8*. Excel may show a long ISBN as `9,78E+12` in a narrow column (widen it), and it drops the leading zero of an ISBN-10 such as `0306406152`; to keep it, import with Data > From Text/CSV and set the column type to *Text*.
+
+**Any time, from the website.** *Inventory* page > **Download all inventory (CSV)** (admins only; the link beside it gives the per-book file). Same columns and format, as of now. Each download is written to *Admin activity* (`inventory.csv`).
+
+**Run it by hand.** GitHub > Actions > *Nightly inventory export* > Run workflow (the box *Run now, even if it is not 21:00 in Paris* is ticked by default). It emails and uploads as usual.
+
+**How the 21:00 works.** GitHub schedules are in UTC, so the workflow is scheduled at 19:00 **and** 20:00 UTC and the first step lets only the run that falls in the 21:00 hour of Paris continue (the other one ends at once, green, with a notice). GitHub can start a scheduled run late (usually minutes); the file then arrives a little after 21:00. A delay of more than an hour skips that night.
+
+**Owner steps (once).** Nothing new to configure: it uses the existing secrets (`DATABASE_URL`, `BACKUP_S3_KEY_ID`, `BACKUP_S3_APPLICATION_KEY`, `GMAIL_USER`, `GMAIL_APP_PASSWORD`, all repository secrets) and variables (`BACKUP_S3_BUCKET`, `BACKUP_S3_ENDPOINT`, `BACKUP_S3_REGION`, `ALERT_TO`, all repository variables). Two checks:
+1. **Repository variable** `ALERT_TO` (Settings > Secrets and variables > Actions > Variables): make sure it lists both addresses, comma-separated. The inventory email goes to the same list as the other alerts.
+2. **Backblaze bucket setting** (Buckets > the backup bucket > Lifecycle Settings > custom rule): File Path `inventory-exports/`, *Days Till Hide* `90`, *Days Till Delete* `1`. Without it the daily files pile up for ever (a few MB a day). `inventory_latest.csv` is rewritten every night, so it always stays recent.
+
+**If it fails.** An email "[umas-books] Nightly inventory export failed" arrives; open the run link. The database user is the same read-only user as the backup: "permission denied" means its SELECT grants need re-running (section ad, *A read-only database user for the backup*; it must be able to read `books` and `book_copies`). Missing Backblaze or Gmail settings are named in the log. Meanwhile the website button gives the current file.
