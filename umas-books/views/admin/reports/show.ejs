@@ -27,6 +27,21 @@
 </div>
 <% } %>
 
+<% if (report.usesPeriod) { %>
+<div class="card">
+  <form class="stack" method="get" action="/admin/reports/<%= report.slug %>" style="flex-direction: row; gap: 8px; max-width: 720px; align-items: end; flex-wrap: wrap;">
+    <div>
+      <label for="period">Period</label>
+      <select id="period" name="period">
+        <% periods.forEach(p => { %><option value="<%= p.key %>" <%= p.key === query.period ? 'selected' : '' %>><%= p.label %></option><% }) %>
+      </select>
+    </div>
+    <button class="btn" type="submit">Show</button>
+  </form>
+  <p class="muted small">Paris days. Without a choice, the last 30 days are shown.</p>
+</div>
+<% } %>
+
 <% if (accountFilters) { %>
 <div class="card">
   <form class="stack" method="get" action="/admin/reports/<%= report.slug %>" style="flex-direction: row; gap: 8px; max-width: 900px; align-items: end; flex-wrap: wrap;">
@@ -102,8 +117,8 @@
     <a class="btn btn-outline btn-small" href="/admin/reports/<%= report.slug %>?format=csv&amp;table=<%= section.key %>&amp;<%- acctQs() %>">Download CSV</a>
     <a class="btn btn-outline btn-small" title="Semicolon separators and decimal commas, for Excel in French" href="/admin/reports/<%= report.slug %>?format=csv&amp;locale=fr&amp;table=<%= section.key %>&amp;<%- acctQs() %>">Download for French Excel</a>
     <% } else { %>
-    <a class="btn btn-outline btn-small" href="/admin/reports/<%= report.slug %>?format=csv&amp;table=<%= section.key %>&amp;from=<%= query.from %>&amp;to=<%= query.to %>&amp;group=<%= query.group %>">Download CSV</a>
-    <a class="btn btn-outline btn-small" title="Semicolon separators and decimal commas, for Excel in French" href="/admin/reports/<%= report.slug %>?format=csv&amp;locale=fr&amp;table=<%= section.key %>&amp;from=<%= query.from %>&amp;to=<%= query.to %>&amp;group=<%= query.group %>">Download for French Excel</a>
+    <a class="btn btn-outline btn-small" href="/admin/reports/<%= report.slug %>?format=csv&amp;table=<%= section.key %>&amp;from=<%= query.from %>&amp;to=<%= query.to %>&amp;group=<%= query.group %><%- report.usesPeriod ? '&amp;period=' + query.period : '' %>">Download CSV</a>
+    <a class="btn btn-outline btn-small" title="Semicolon separators and decimal commas, for Excel in French" href="/admin/reports/<%= report.slug %>?format=csv&amp;locale=fr&amp;table=<%= section.key %>&amp;from=<%= query.from %>&amp;to=<%= query.to %>&amp;group=<%= query.group %><%- report.usesPeriod ? '&amp;period=' + query.period : '' %>">Download for French Excel</a>
     <% } %>
     <% if (report.slug === 'accounting') { %><a class="btn btn-outline btn-small" href="/admin/reports/accounting/mapping">Accounts mapping</a><% } %>
   </p>
