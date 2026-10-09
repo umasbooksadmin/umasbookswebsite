@@ -266,7 +266,7 @@ test("Save and add another (no JavaScript): redirects back to a fresh form with 
   const u = new URL(r.location, "http://x");
   assert.equal(u.pathname, "/admin/inventory/new");
   assert.match(u.searchParams.get("saved"), /^\d+$/);
-  assert.equal(u.searchParams.get("location"), "FICTION A1");
+  assert.equal(u.searchParams.get("location"), "fiction a1");
   assert.equal(u.searchParams.get("binding"), "hardcover");
   assert.equal(u.searchParams.get("condition"), "good");
   assert.equal(u.searchParams.get("source"), "lot");
@@ -278,7 +278,7 @@ test("Save and add another (no JavaScript): redirects back to a fresh form with 
   assert.doesNotMatch(page.match(/<div class="scan-saved"[\s\S]*?<\/div>/)[0], /autofocus/, "the message does not take the focus");
   assert.match(page.match(/<input id="isbn"[^>]*>/)[0], /autofocus/, "the ISBN box takes it");
   assert.match(page.match(/<input id="isbn"[^>]*>/)[0], /value=""/, "and is empty");
-  assert.match(page, /id="location"[^>]*value="FICTION A1"/);
+  assert.match(page, /id="location"[^>]*value="fiction a1"/);
   assert.match(page, /<option value="hardcover" selected>/);
   assert.match(page, /<option value="good" selected>/);
   assert.match(page, /<option value="lot" selected>/, "the source of the last book is kept");
@@ -316,7 +316,7 @@ test("Save book (fast=0) still opens the book; the old scan flow (fromScan) now 
   assert.match(r1.location, /^\/admin\/inventory\/\d+$/);
   const t2 = `FromScan ${uniq()}`;
   const r2 = await post("/admin/inventory", { form: copyBody(t2, { fromScan: "1", fast: "1", location: "kids c3" }) });
-  assert.match(r2.location, /^\/admin\/inventory\/new\?saved=\d+&location=KIDS\+C3/);
+  assert.match(r2.location, /^\/admin\/inventory\/new\?saved=\d+&location=kids\+c3/);
 });
 
 test("the old no-JavaScript Look up button posts to the lookup page and the form comes back filled, keeping Store and Donation", async () => {
