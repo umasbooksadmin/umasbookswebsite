@@ -138,7 +138,9 @@ async function request(path, { method = "GET", fields, files, form, headers = ad
   return { res, text: await res.text(), status: res.status, location: res.headers.get("location") };
 }
 const get = (p, o) => request(p, o);
-const post = (p, o) => request(p, { ...o, method: "POST" });
+// A save answers at once; the cover, description and translation are fetched just after (lib/bookFill.js): wait for them.
+const { settled } = require("../../src/lib/afterResponse");
+const post = async (p, o) => { const r = await request(p, { ...o, method: "POST" }); await settled(); return r; };
 // A lookup or a refused form answers 303 (Post/Redirect/Get): follow it with the
 // session cookie, as the browser does, and return the page the person ends on.
 async function followPost(p, o) {

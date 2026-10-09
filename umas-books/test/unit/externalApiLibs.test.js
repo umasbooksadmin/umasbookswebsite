@@ -17,7 +17,14 @@ let handler; // (url, init) => Response | Promise<Response>
 
 const ALLOWED = ["https://api.anthropic.com/", "https://openlibrary.org/"];
 
+// This file is about Open Library's brief service alone (the other catalogs have test/unit/scanLookupSources.test.js).
+const { lookupCache } = require("../../src/lib/bookLookup");
+const realSources = process.env.SCAN_LOOKUP_SOURCES;
+
 beforeEach(() => {
+  process.env.SCAN_LOOKUP_SOURCES = "openlibrary";
+  process.env.SCAN_CACHE_TTL_MS = "0"; // these tests ask the same ISBN again with another answer
+  lookupCache.clear();
   calls.length = 0;
   handler = () => { throw new Error("unexpected fetch"); };
   process.env.ANTHROPIC_API_KEY = "test-key-not-real";
@@ -32,6 +39,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  delete process.env.SCAN_CACHE_TTL_MS;
+  if (realSources === undefined) delete process.env.SCAN_LOOKUP_SOURCES; else process.env.SCAN_LOOKUP_SOURCES = realSources;
   mock.restoreAll();
   mock.timers.reset();
   global.fetch = realFetch;

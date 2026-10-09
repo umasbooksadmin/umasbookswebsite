@@ -1276,6 +1276,7 @@ reservations behind. The code handles it in one place (`lib/privacy.js`):
 | `HELLOASSO_CLIENT_ID`, `HELLOASSO_CLIENT_SECRET`, `HELLOASSO_ORG_SLUG` | for online membership payment | optional `HELLOASSO_API_BASE` |
 | `HELLOASSO_MEMBERSHIP_FORM_SLUG` | no | when set, only orders of that HelloAsso form (its `formSlug`) grant membership; unset = any Membership-type form of the organisation |
 | `ANTHROPIC_API_KEY`, `ANTHROPIC_WORKSPACE_ID` | optional | cover scan, book descriptions and genre in admin inventory; also needed (with the switch below) for the AI price lookup |
+| `ISBNDB_API_KEY`, `ISBNDB_API_BASE` | optional | paid ISBNdb catalog, a last resort in the ISBN lookup of the Add a book page (see runbook, "Scan speed"); off without the key |
 | `PRICING_AI` | optional | `true` or `1` turns on the AI market-price lookup behind price suggestions (needs `ANTHROPIC_API_KEY`); off by default, rules still work without it |
 | `PRICING_AI_DAILY_MAX`, `PRICING_AI_MODEL` | optional | daily cap on price lookups (default 150) and model override |
 | `NYT_API_KEY` | optional | enables best-seller lists from the New York Times Books API; without it that source is skipped |

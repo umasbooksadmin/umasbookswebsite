@@ -691,7 +691,7 @@ router.post("/admin/inventory/:id/copies/:copyId", requireAdmin, async (req, res
   const bookId = Number(req.params.id);
   const copyId = Number(req.params.copyId);
   const condition = normalizeCondition(req.body.condition);
-  const settings = await req.timing.time("settings", () => getSettings(pool));
+  const settings = await getSettings(pool);
   const choice = priceFromLevelChoice(condition, req.body, settings);
   const pricing = resolveCopyPricing(condition, choice.rawPrice, req.body.publisherPrice);
   const costCheck = parseAcquisitionCost(req.body.acquisitionCost);

@@ -39,4 +39,18 @@ router.get("/admin/diagnostics/jobs", requireAdmin, async (req, res) => {
   });
 });
 
+// The catalogs behind the ISBN lookup of the scan page: which are on, and whether the paid one (ISBNdb, only with
+// ISBNDB_API_KEY) is working: this is where "key refused" or "quota used up" shows, not on the scanning screen.
+// Read-only, never shows the key. English only (admin area). See docs/runbook.md, "Scan speed".
+router.get("/admin/diagnostics/lookup", requireAdmin, (req, res) => {
+  res.set("Cache-Control", "no-store");
+  const { isbndbStatus } = require("../../lib/bookSources");
+  res.render("admin/diagnostics_lookup", {
+    active: "diagnostics",
+    isbndb: isbndbStatus(),
+    googleKey: Boolean(process.env.GOOGLE_BOOKS_API_KEY),
+    sources: String(process.env.SCAN_LOOKUP_SOURCES || "openlibrary,bnf,google,openlibrary-data,isbndb"),
+  });
+});
+
 module.exports = router;

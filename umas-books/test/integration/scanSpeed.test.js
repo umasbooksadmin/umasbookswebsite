@@ -255,3 +255,27 @@ test("save: a second copy of a book that lacks its texts fills them afterwards w
   assert.equal(row.description, "A description.");
   assert.equal((await pool.query("SELECT count(*)::int AS n FROM book_copies WHERE book_id = $1", [row.id])).rows[0].n, 2);
 });
+
+test("diagnostics: /admin/diagnostics/lookup lists the sources, says ISBNdb is off without a key, and never shows a key", async () => {
+  const diag = express.Router();
+  const alone = await listen(buildApp([diag.use(require("../../src/routes/admin/diagnostics"))]));
+  try {
+    const get = () => realFetch(`${alone.base}/admin/diagnostics/lookup`, { headers: adminHeader() }).then((r) => r.text());
+    const off = await get();
+    assert.match(off, /Open Library/);
+    assert.match(off, /no <code>ISBNDB_API_KEY<\/code> is set/);
+    process.env.ISBNDB_API_KEY = "super-secret-value";
+    try {
+      const on = await get();
+      assert.doesNotMatch(on, /super-secret-value/);
+      assert.doesNotMatch(on, /is set\./);
+      assert.match(on, /Key set/);
+    } finally {
+      delete process.env.ISBNDB_API_KEY;
+    }
+    const anon = await realFetch(`${alone.base}/admin/diagnostics/lookup`, { redirect: "manual" });
+    assert.equal(anon.status, 302);
+  } finally {
+    await alone.close();
+  }
+});

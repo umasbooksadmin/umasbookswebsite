@@ -9,7 +9,9 @@ const { lookupByIsbnDetailed, createTtlCache } = require("../../src/lib/bookLook
 const { runAfterResponse, settled } = require("../../src/lib/afterResponse");
 const { serverTiming, createTimings } = require("../../src/lib/timing");
 
-const ISBN = "9780143127550";
+// A 979- ISBN has no ISBN-10 form, so one source asks once. Only Open Library here: the other sources have their own file.
+process.env.SCAN_LOOKUP_SOURCES = "openlibrary";
+const ISBN = "9791090636071";
 const record = (title) => ({ records: { r: { isbns: [ISBN], data: { title, authors: [{ name: "A. Writer" }], publishers: [{ name: "Pub" }], publish_date: "2001" } } } });
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 // A fetch that never answers on its own, only when its signal aborts.

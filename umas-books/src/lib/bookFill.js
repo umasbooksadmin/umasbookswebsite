@@ -10,7 +10,7 @@
 // a cover that could not be downloaded keeps its source address for the 5-minute
 // cover job (coverStore.backfillCovers), as before.
 
-const { lookupByIsbn, searchByTitleAuthor } = require("./bookLookup");
+const { lookupByIsbn, searchByTitleAuthor, isbnCoverUrl } = require("./bookLookup");
 const { prepareCover } = require("./coverStore");
 const { generateBookDescription, translateDescriptionToFrench } = require("./bookDescription");
 
@@ -26,6 +26,10 @@ async function findCoverUrl({ isbn, title, author }) {
     const withCover = candidates.find((c) => c.coverUrl);
     if (withCover) return withCover.coverUrl;
   }
+  // Open Library's own cover for the ISBN, when the catalog records had none ("default=false": a 404 when there is none,
+  // so a placeholder is never stored). prepareCover keeps the address for the 5-minute cover job if the download fails.
+  const byIsbnCover = isbnCoverUrl(isbn);
+  if (byIsbnCover) return byIsbnCover;
   return null;
 }
 
