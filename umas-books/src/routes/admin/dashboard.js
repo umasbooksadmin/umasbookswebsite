@@ -51,7 +51,7 @@ async function loadSlowCounts() {
     // Read-only; a failure here must not take the dashboard down.
     () => countUnusedImages(pool).catch(() => 0),
   ], 1); // sequential: this task is one of the three slots the request itself uses
-  return { books: books.rows[0], accounts: accounts.rows[0], memberCount, unusedImages };
+  return { books: books.rows[0], accounts: accounts.rows[0], memberCount: memberCount.rows[0].n, unusedImages };
 }
 const slowCounts = cachedFor(loadSlowCounts, countsTtlMs);
 

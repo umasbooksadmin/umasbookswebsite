@@ -142,7 +142,8 @@ test("the admin dashboard renders with at most three queries in flight", async (
     const responses = await Promise.all([h.get("/admin")]);
     const { res, text } = responses[0];
     assert.equal(res.status, 200);
-    assert.match(text, /Needs attention|Overview|Sales/i);
+    assert.doesNotMatch(text, /NaN|undefined|\[object Object\]/, "every figure is a number");
+    assert.match(text, /Members/);
   } finally {
     h.pool.query = realQuery;
   }
