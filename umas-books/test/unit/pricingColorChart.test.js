@@ -3,28 +3,22 @@ const assert = require("node:assert/strict");
 const { colorChartRows } = require("../../src/lib/pricing/colorChart");
 const { DEFAULT_SETTINGS } = require("../../src/lib/pricing/rules");
 
-test("colour chart: all seven colours with names and the original scheme at the default prices", () => {
+test("colour chart: the seven rows, in order, by kind of book, with Uma's wording", () => {
   const rows = colorChartRows(DEFAULT_SETTINGS);
-  assert.deepEqual(rows.map((r) => [r.name, r.price]), [
-    ["Orange", "EUR 1"], ["Yellow", "EUR 3"], ["Green", "EUR 5"], ["Blue", "No longer used"], ["Red", "EUR 10"],
-    ["Purple", "Special price"], ["White", "Publisher's price"],
+  assert.deepEqual(rows.map((r) => [r.name, r.price, r.when]), [
+    ["Orange", "1 euro", "Clearance"], ["Yellow", "3 euro", "Children's"], ["Green", "5 euro", "Mass Market"],
+    ["Blue", "5 euro", "Trade"], ["Red", "10 euro", "Hardback"], ["Purple", "Special price", "Any other price"],
+    ["White", "Publisher's price", "New book"],
   ]);
-  assert.equal(rows.find((r) => r.key === "green").hex, "#237A3C");
+  const by = Object.fromEntries(rows.map((r) => [r.key, r]));
+  assert.equal(by.green.hex, "#237A3C");
+  assert.equal(by.blue.hex, "#2F6FDE");
+  assert.ok(!rows.some((r) => /\b8\b/.test(r.price)), "no 8 euro row");
 });
 
-test("colour chart: three prices are yellow, green, red; blue is shown as no longer used", () => {
-  const by = Object.fromEntries(colorChartRows(DEFAULT_SETTINGS).map((r) => [r.key, r]));
-  assert.match(by.blue.when, /EUR 8 is no longer a standard price/);
-  assert.equal(by.red.price, "EUR 10");
-});
-
-test("colour chart: follows the standard prices, and marks unused colours", () => {
-  const rows = colorChartRows({ ...DEFAULT_SETTINGS, levels: [2.5, 6, 9, 12], clearance: { ...DEFAULT_SETTINGS.clearance, price: 1.5 } });
-  const by = Object.fromEntries(rows.map((r) => [r.key, r.price]));
-  assert.deepEqual([by.orange, by.yellow, by.green, by.blue, by.red], ["EUR 1.50", "EUR 2.50", "EUR 6", "EUR 9", "EUR 12"]);
-});
-
-test("colour chart: with only two prices the unused colours say so", () => {
-  const by = Object.fromEntries(colorChartRows({ ...DEFAULT_SETTINGS, levels: [3, 7] }).map((r) => [r.key, r.price]));
-  assert.deepEqual([by.yellow, by.green, by.blue, by.red], ["EUR 3", "EUR 7", "Not in use", "Not in use"]);
+test("colour chart: prices follow the settings", () => {
+  const rows = colorChartRows({
+    ...DEFAULT_SETTINGS, levels: [2.5, 6, 12], massMarketPrice: 4, tradePrice: 6, clearance: { ...DEFAULT_SETTINGS.clearance, price: 1.5 },
+  });
+  assert.deepEqual(rows.map((r) => r.price), ["1.5 euro", "2.5 euro", "4 euro", "6 euro", "12 euro", "Special price", "Publisher's price"]);
 });

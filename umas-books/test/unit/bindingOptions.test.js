@@ -58,17 +58,18 @@ test("lookup mapping table: hardcover, mass market / poche, other paperbacks = t
   for (const [input, expected] of table) assert.equal(mapBinding(input), expected, String(input));
 });
 
-test("pricing: trade behaves exactly like the old paperback; other goes through the normal rules (no floor, not mass market)", () => {
+test("pricing: trade is a flat price like mass market; other goes through the normal rules (no floor, not flat)", () => {
   const run = (binding, marketEur, existingCopies = 0) => {
     const r = suggestFromRules({ condition: "very_good", binding, isbn: "9780141036144", marketEur, existingCopies, settings: DEFAULT_SETTINGS });
     return [r.ruleSet, r.price];
   };
-  assert.equal(DEFAULT_SETTINGS.fallbackEur.trade, 8);
+  assert.equal(DEFAULT_SETTINGS.fallbackEur.trade, 5);
   assert.equal(DEFAULT_SETTINGS.fallbackEur.paperback, undefined);
-  for (const [market, copies, expected] of [[3, 0, ["A", 5]], [3, 2, ["clearance", 1]], [12, 0, ["B", 8]], [30, 0, ["C", 22.5]]]) {
-    assert.deepEqual(run("trade", market, copies), expected, `trade ${market}/${copies}`);
+  for (const [market, copies, expected] of [[3, 0, ["A", 5]], [3, 2, ["clearance", 1]], [12, 0, ["B", 10]], [30, 0, ["C", 22.5]]]) {
     assert.deepEqual(run("other", market, copies), expected, `other ${market}/${copies}`);
-    assert.deepEqual(run("trade", market, copies), run(null, market, copies));
+    assert.deepEqual(run(null, market, copies), expected);
+    // trade: EUR 5 whatever the value (clearance still applies from the third copy)
+    assert.deepEqual(run("trade", market, copies), copies >= 2 ? ["clearance", 1] : ["trade", 5], `trade ${market}/${copies}`);
   }
   assert.deepEqual(run("mass_market", 12), ["mass_market", 5], "mass market unchanged");
   assert.equal(run("hardcover", 3)[1], 10, "hardcover floor unchanged");

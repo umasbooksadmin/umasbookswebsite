@@ -113,6 +113,6 @@ test("a row without trade_price (before the migration) falls back to the default
 });
 
 test("the Trade price field is required", () => {
-  const { trade_price, ...without } = GOOD;
+  const { trade_price: _tradePrice, ...without } = GOOD;
   assert.match(validateSettingsInput(without).error, /Trade price \(EUR\): enter a number/);
 });
