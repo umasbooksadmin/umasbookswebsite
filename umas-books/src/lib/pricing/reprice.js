@@ -106,9 +106,9 @@ async function applyGroup(pool, key, settings, actor = {}) {
     const changedRows = locked.filter((r) => done.has(r.id));
     if (!changedRows.length) return { runId: null, changed: 0, target };
     const { rows: run } = await client.query(
-      `INSERT INTO price_reprice_runs (group_key, new_price, copies_changed, actor_user_id, actor_label)
+      `INSERT INTO price_reprice_runs (group_key, new_price, copies_changed, actor_user_id, actor_role)
        VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-      [key, target, changedRows.length, actor.id ?? null, actor.label ?? null]
+      [key, target, changedRows.length, actor.id ?? null, actor.role || "admin"]
     );
     const runId = run[0].id;
     await client.query(

@@ -218,7 +218,7 @@ router.post("/admin/pricing/reprice/:group", requireAdmin, async (req, res) => {
   if (!group) return res.status(404).render("404");
   const settings = await getSettings(pool);
   const user = req.session && req.session.user;
-  const result = await reprice.applyGroup(pool, group.key, settings, { id: user ? user.id : null, label: user ? user.email : null });
+  const result = await reprice.applyGroup(pool, group.key, settings, { id: user ? user.id : null, role: "admin" });
   if (!result.runId) return res.redirect(303, `/admin/pricing/reprice?none=${group.key}`);
   await audit(req, {
     action: "pricing.reprice", targetType: "price_reprice_run", targetId: result.runId,
