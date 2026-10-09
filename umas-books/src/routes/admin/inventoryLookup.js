@@ -15,6 +15,7 @@ const { normalizeIsbn, lookupByIsbn } = require("../../lib/bookLookup");
 const { isbnVariants, bindingLabel } = require("../../lib/inventory");
 const { prepareCover } = require("../../lib/coverStore");
 const { computeSuggestion } = require("../../lib/pricing/forms");
+const { serverTiming } = require("../../lib/timing");
 
 const router = express.Router();
 
@@ -31,22 +32,22 @@ const isValidIsbnShape = (s) => /^(\d{13}|\d{9}[\dX])$/.test(s);
 
 // GET /admin/inventory/lookup with no ?isbn= is the page of the no-JavaScript lookup
 // (Post/Redirect/Get, in inventory.js): it is passed on. Only ?isbn= answers JSON here.
-router.get("/admin/inventory/lookup", requireAdmin, (req, res, next) => (req.query.isbn === undefined ? next("router") : next()), lookupLimiter, async (req, res) => {
+router.get("/admin/inventory/lookup", requireAdmin, (req, res, next) => (req.query.isbn === undefined ? next("router") : next()), serverTiming("scan.lookup"), lookupLimiter, async (req, res) => {
   res.set("Cache-Control", "no-store");
   const isbn = normalizeIsbn(String(req.query.isbn == null ? "" : req.query.isbn).slice(0, 40));
   if (!isValidIsbnShape(isbn)) return res.status(400).json({ error: "Enter an ISBN of 10 or 13 digits." });
 
-  const { rows } = await pool.query(
+  const { rows } = await req.timing.time("db", () => pool.query(
     `SELECT b.id, b.title, b.authors, b.publisher, b.published_year, b.description, b.cover_url, b.categories, b.categories_fr, b.binding,
             (SELECT count(*)::int FROM book_copies c WHERE c.book_id = b.id AND c.status IN ('in_stock', 'reserved')) AS copies
      FROM books b WHERE b.isbn = ANY($1) ORDER BY b.id LIMIT 1`,
     [isbnVariants(isbn)]
-  );
+  ));
   const stocked = rows[0] || null;
 
   let found = null;
   try {
-    found = await lookupByIsbn(isbn);
+    found = await req.timing.time("catalog", () => lookupByIsbn(isbn));
   } catch (err) {
     console.warn("ISBN lookup failed:", err.message);
   }
@@ -68,7 +69,7 @@ router.get("/admin/inventory/lookup", requireAdmin, (req, res, next) => (req.que
   // The catalog gives an Open Library address: the preview uses our own copy (lib/coverStore.js).
   if (book && book.coverUrl && !book.coverUrl.startsWith("/")) {
     try {
-      book.coverUrl = (await prepareCover(book.coverUrl)).cover || null;
+      book.coverUrl = (await req.timing.time("cover", () => prepareCover(book.coverUrl))).cover || null;
     } catch {
       book.coverUrl = null;
     }
@@ -78,9 +79,9 @@ router.get("/admin/inventory/lookup", requireAdmin, (req, res, next) => (req.que
   const bindingHint = book && book.binding ? { key: book.binding, label: bindingLabel(book.binding, "en") || book.binding } : null;
   // The price follows the binding selected on the page (the one used last), else the catalog's.
   const selectedBinding = String(req.query.binding == null ? "" : req.query.binding).slice(0, 20);
-  const suggestion = await computeSuggestion({
+  const suggestion = await req.timing.time("price", () => computeSuggestion({
     isbn, title: book && book.title, author: book && book.author, binding: selectedBinding || (book && book.binding), condition: "very_good",
-  });
+  }));
 
   res.json({
     ok: true,
