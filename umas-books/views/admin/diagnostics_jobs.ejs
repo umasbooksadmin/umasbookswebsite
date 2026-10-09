@@ -30,4 +30,23 @@
   <p>A job is flagged when it has failed 3 times in a row, or has not succeeded for three times its interval. The first time it happens you get one alert email; you get one more when it recovers. Times are Paris time. What to do: <code>docs/runbook.md</code>, &ldquo;Background jobs&rdquo;.</p>
 </div>
 
+<div class="card" id="alert-flags">
+  <div class="section-title">Alerts sent</div>
+  <% const fmtA = (d) => new Date(d).toLocaleString('en-GB', { timeZone: 'Europe/Paris', dateStyle: 'medium', timeStyle: 'short' }); %>
+  <% const alertNames = { 'anthropic-credit': 'Anthropic API credit ran out (cleared by the next successful AI call)', 'anthropic-credit-test': 'Test credit alert button', 'outbox-stuck': 'Emails stuck in the outbox' }; %>
+  <% if (!alerts.length) { %>
+    <p class="muted">No alert is being held back right now.</p>
+  <% } else { %>
+  <table class="ann-table">
+    <thead><tr><th scope="col">Alert</th><th scope="col">Last sent (Paris time)</th></tr></thead>
+    <tbody>
+      <% alerts.forEach(function (a) { %>
+      <tr><th scope="row"><%= alertNames[a.key] || a.key %></th><td><%= fmtA(a.last_sent_at) %></td></tr>
+      <% }) %>
+    </tbody>
+  </table>
+  <% } %>
+  <p class="muted small">Each alert is emailed at most once per period (the credit alert: once per 24 hours while the problem lasts). A row stays until the problem is over or its period ends.</p>
+</div>
+
 <%- include('../partials/admin_footer') %>

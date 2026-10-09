@@ -36,6 +36,7 @@ router.get("/admin/diagnostics/jobs", requireAdmin, async (req, res) => {
   res.render("admin/diagnostics_jobs", {
     active: "diagnostics",
     jobs: await listJobRuns(pool),
+    alerts: await pool.query("SELECT key, last_sent_at FROM alert_flags ORDER BY key").then((r) => r.rows).catch(() => []),
   });
 });
 

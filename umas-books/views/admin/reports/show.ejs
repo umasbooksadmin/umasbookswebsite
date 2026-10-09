@@ -74,6 +74,19 @@
 
 <% result.notes.forEach(n => { %><p class="muted small"><%= n %></p><% }) %>
 
+<% if (report.slug === 'lookup-sources') { %>
+<div class="card" id="ai-credit-test">
+  <div class="section-title">Anthropic credit alert</div>
+  <% if (creditTest && creditTest.notice) { %><div role="status" class="notice-box"><%= creditTest.notice %></div><% } %>
+  <% if (creditTest && creditTest.error) { %><div role="alert" class="error-box"><%= creditTest.error %></div><% } %>
+  <p class="muted small">When Anthropic reports that the credit has run out, the site emails the alert address once (at most once every 24 hours). Press the button to check that this email reaches you: it sends the same message once, with [TEST] in the subject.</p>
+  <form method="post" action="/admin/reports/lookup-sources/test-credit-alert">
+    <%- include('../../partials/csrf_field') %>
+    <button class="btn btn-outline btn-small" type="submit">Send a test credit alert</button>
+  </form>
+</div>
+<% } %>
+
 <% result.sections.forEach((section, idx) => { %>
 <div class="card">
   <div class="section-title"><%= section.title %></div>

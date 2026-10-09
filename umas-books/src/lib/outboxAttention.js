@@ -18,6 +18,12 @@ async function outboxAttention(db) {
   if (stuck.rows[0].n) items.push({ href: "/admin/email-outbox", text: `${stuck.rows[0].n} email(s) have been waiting to be sent for more than 30 minutes.` });
   if (unmatched.rows[0].n) items.push({ href: "/admin/members#unmatched-payments", text: `${unmatched.rows[0].n} membership payment(s) match no confirmed account.` });
   items.push(...jobs);
+  // The Anthropic credit alert (lib/aiCreditAlert.js): shown until a call works again.
+  try {
+    const { creditAlertState, parisTime } = require("./aiCreditAlert");
+    const credit = await creditAlertState(db);
+    if (credit.active) items.push({ href: "/admin/reports/lookup-sources", text: `Anthropic API credit ran out at ${parisTime(new Date(credit.at).getTime())} (Paris time). The AI helpers are off until you add credit at console.anthropic.com > Settings > Billing.` });
+  } catch { /* the dashboard must not depend on it */ }
   return items;
 }
 

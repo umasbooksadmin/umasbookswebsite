@@ -1373,6 +1373,7 @@ signal: the Monday test alert (section d) proves the channel works.
 | `Unhandled rejection` / `Uncaught exception (process restarting)` | Gmail sender | The site hit an unexpected error and may have restarted | 1. Check `/healthz` and Render > **Events** (restart count). 2. Render **Logs** around the time. 3. Repeating = rollback (section a) and call the developer |
 | `N emails could not be sent` | Gmail sender | Mails gave up after 8 tries over about 13 hours | Section l): 1. Admin > **Email outbox**, read **Last error**. 2. Fix the cause (usually section m). 3. **Retry now**, then **Mark failed as handled** |
 | `N emails are stuck in the outbox` | Gmail sender | Mails have waited more than an hour (it repeats at most every 6 h) | 1. Admin > **Email outbox** > **Last error**. 2. "Invalid login": section m). "not configured": set `GMAIL_USER` and `GMAIL_APP_PASSWORD` in Render. 3. Wait a minute after the fix: queued mail goes out by itself |
+| `Anthropic API credit has run out` (a test says `[TEST]` first) | Gmail sender, at most once per 24 h while it lasts | The Anthropic credit is used up: AI descriptions, French translation, genre suggestions, cover photo reading and price checks are off; scanning, saving, the till and reservations work | 1. console.anthropic.com > Settings > Billing: add credit. 2. Turn on auto-reload and a monthly limit. 3. Nothing to change in Render. See "AI usage", "Email alert: the Anthropic credit has run out" |
 | `Background job failing: <name>` | Gmail sender | A background job failed 3 times in a row (one email per outage) | Section s): 1. Admin > `/admin/diagnostics/jobs`, read **Last error**. 2. Render **Logs**, search the job name. 3. If it is `Email outbox` see l); `Retention purge: ...` or `Membership ...`: call the developer, nothing customer-facing is lost yet |
 | `Background job recovered: <name>` | Gmail sender | It works again | Nothing |
 | `APP_BASE_URL missing` / `... (not https)` | Gmail sender, at most once per 24 h per problem | The live site has no correct public address: emailed links and payment returns are wrong | 1. Render > Environment: set `APP_BASE_URL` to `https://umasbooks.org`. 2. Save (it restarts). 3. The red banner on admin pages disappears |
@@ -1866,7 +1867,30 @@ instead) and online price checks (the price rules still suggest a price). Books 
 **If a feature uses far more than expected**, look at the daily table for the day it started, then at that feature's row: many calls with few
 successes means retries on errors; very large input tokens on Cover photo reading means large photos. To stop the price check at once set `PRICING_AI_DAILY_MAX=0`
 (or `PRICING_AI` off); to stop everything remove `ANTHROPIC_API_KEY`. The counts are saved about every 30 seconds (a restart can lose the last ~30 s),
-rows older than 36 months are deleted by the daily job "AI usage statistics retention" (`/admin/diagnostics/jobs`). No alert or email is sent by this page.
+rows older than 36 months are deleted by the daily job "AI usage statistics retention" (`/admin/diagnostics/jobs`). This page itself sends nothing; the credit alert below does.
+
+#### Email alert: the Anthropic credit has run out
+
+**What it is.** The moment Anthropic refuses a call because the credit is used up ("credit balance is too low", or a billing error), the site emails
+the alert address (`ALERT_TO`, else `CONTACT_TO`, else admin@umasbooks.org: the same as every other alert) with the subject
+`[umas-books] Anthropic API credit has run out`. It says what stopped (descriptions, French translation, genre suggestions, cover photo reading, the AI
+price check), what still works (scanning by ISBN, saving books, the till, reservations) and how to fix it.
+
+**How to fix it.** console.anthropic.com > Settings > Billing: add credit, turn on **auto-reload** and set a **monthly limit**. Nothing to change in Render and
+nothing to restart; the AI features come back by themselves.
+
+**The 24-hour rule.** At most ONE email per 24 hours while the problem lasts (the "anthropic-credit" row of the `alert_flags` table, the same mechanism as the
+launch-guard alerts; it holds across restarts). A call that works again deletes that row, so the next outage alerts at once, even the same day. No "working again" email
+is sent. If the mail itself cannot be sent (Gmail down), the next refused call tries again instead of waiting 24 hours.
+
+**Where else it shows.** A red line "Anthropic API credit ran out at <time>" in the Dashboard's **Needs attention** box, and a row in **Diagnostics > Background jobs > Alerts sent**
+(with the time it was last sent). Both disappear after the next successful AI call (the next book saved without a description, for instance). The red banner on the
+report (above) is separate: it stays 24 hours after the last refused call.
+
+**Test it.** **Reports > Book lookup sources used > Anthropic credit alert > Send a test credit alert**: the same email once, with `[TEST]` in the subject. Once a minute at most;
+recorded in **Admin activity** as `ai.credit_alert_test`. It does not create the red dashboard line. If the test mail does not arrive, see "Emails are not arriving".
+
+**What it never contains:** the API key, or anything Anthropic answered beyond the fact that the credit is out. Sending never slows down or blocks an AI call or a save.
 
 ### The barcode scanner must send Enter
 

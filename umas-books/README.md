@@ -151,7 +151,10 @@ more things to keep in mind:
   report ends with **AI usage**: calls, errors, tokens and an estimated cost
   per AI feature (description, French translation, genres, cover photo,
   price check), and a red banner when the Anthropic credit has run out
-  (`docs/runbook.md`, "AI usage").
+  (`docs/runbook.md`, "AI usage"). When the credit runs out the site also
+  emails the alert address once (at most once per 24 hours, re-armed by the next
+  successful AI call), shows a red line on the Dashboard, and the report has a
+  **Send a test credit alert** button (`lib/aiCreditAlert.js`).
 - **Book search** (`/books`, public, no login) — anyone can search
   in-stock inventory by title, author, or genre, and add copies to the
   cart (the reservation flow above). A copy is held (status `reserved`) when

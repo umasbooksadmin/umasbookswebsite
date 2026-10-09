@@ -471,6 +471,12 @@ s.test("A19d the report also has the AI usage tables (per feature, month, day), 
   assert.match(body, /"Feature","Calls made"/);
   assert.doesNotMatch(body, /[^\s,"]+@[^\s,"]+\.[a-z]{2,}/i, "no email address in the CSV");
 });
+s.test("A19e the AI usage report has the Send a test credit alert button (not pressed here: it would send a real email)", { as: "admin" }, async (ctx) => {
+  await admin(ctx, "/admin/reports/lookup-sources");
+  const text = await ctx.text();
+  has(text, /Anthropic credit alert/);
+  has(text, /Send a test credit alert/);
+});
 s.manual("A21 the sales report counts the online sale, the shop sale and the drop-in seat separately", "needs real paid sales (AC26, AC35, A63)");
 
 // ---- 5F. Book requests ----
