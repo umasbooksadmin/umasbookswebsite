@@ -144,7 +144,10 @@ more things to keep in mind:
   saving" form — nothing is saved without a look. Books can also be added
   or edited by hand with no scan at all. If a book has no description, one
   is generated automatically by Claude (also re-generatable by hand from
-  the book's page).
+  the book's page). The report **Reports > Book lookup sources used**
+  (`/admin/reports/lookup-sources`) counts how often each catalog (Open
+  Library, BnF, Google Books, ISBNdb) was used, supplied the title or failed
+  (counts only, see `docs/runbook.md`, "Which catalogs are used").
 - **Book search** (`/books`, public, no login) — anyone can search
   in-stock inventory by title, author, or genre, and add copies to the
   cart (the reservation flow above). A copy is held (status `reserved`) when

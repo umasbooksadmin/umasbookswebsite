@@ -364,14 +364,14 @@ s.test("A18 (must) the retired Sell in shop address sends you to the Till (nothi
 
 // ---- 5E. Reports and CSV ----
 
-const REPORTS = ["Inventory on hand", "Aging stock", "Sales over time", "Sell-through by genre", "Membership", "Intake log", "Accounts", "Accounting export"];
+const REPORTS = ["Inventory on hand", "Aging stock", "Sales over time", "Sell-through by genre", "Membership", "Intake log", "Accounts", "Accounting export", "Book lookup sources used"];
 
-s.test("A19 (must) the Reports page lists eight reports and each opens with tables", { as: "admin" }, async (ctx) => {
+s.test("A19 (must) the Reports page lists the reports (nine) and each opens with tables", { as: "admin" }, async (ctx) => {
   await admin(ctx, "/admin/reports");
   const text = await ctx.text();
   for (const r of REPORTS) has(text, new RegExp(r), "report list");
   const hrefs = await ctx.page.$$eval("a[href^='/admin/reports/']", (as) => as.map((a) => a.getAttribute("href")));
-  assert.ok(hrefs.length >= 8, `report links: ${hrefs.length}`);
+  assert.ok(hrefs.length >= 9, `report links: ${hrefs.length}`);
   for (const h of hrefs) {
     await admin(ctx, h);
     const t = await ctx.text();
@@ -405,6 +405,21 @@ s.test("A19b the Accounts report shows counts by type and a list with type pills
   hasNoNaN(text, "accounts report");
   for (const re of [/Total accounts/, /Unconfirmed/, /Email confirmed/, /Paid reservations/, /Download CSV/]) has(text, re);
   for (const name of ["type", "q", "from", "to"]) assert.ok(await ctx.page.$(`[name='${name}']`), `filter ${name}`);
+});
+s.test("A19c the Book lookup sources used report has the explanation, the period menu, the per-source, month and day tables, and a counts-only CSV", { as: "admin" }, async (ctx) => {
+  await admin(ctx, "/admin/reports/lookup-sources");
+  const text = await ctx.text();
+  hasNoNaN(text, "lookup sources report");
+  for (const re of [/How to read this/, /Last 30 days/, /Per source/, /Per month/, /Per day/, /Open Library/, /Google Books/, /ISBNdb/, /Not found: filled by hand/, /check your ISBNdb plan quota/, /Download CSV/]) has(text, re);
+  assert.ok(await ctx.page.$("select[name='period']"), "period menu");
+  for (const period of ["today", "7d", "month", "all"]) {
+    await admin(ctx, `/admin/reports/lookup-sources?period=${period}`);
+    hasNoNaN(await ctx.text(), `lookup sources report ${period}`);
+  }
+  const res = await ctx.fetchRaw("/admin/reports/lookup-sources?format=csv&period=all");
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get("content-disposition") || "", /attachment; filename="umas-books-lookup-sources-sources-all\.csv"/);
+  assert.doesNotMatch(await res.text(), /[^\s,"]+@[^\s,"]+\.[a-z]{2,}/i, "no email address in the CSV");
 });
 s.manual("A21 the sales report counts the online sale, the shop sale and the drop-in seat separately", "needs real paid sales (AC26, AC35, A63)");
 

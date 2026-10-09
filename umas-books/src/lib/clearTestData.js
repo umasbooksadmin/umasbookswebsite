@@ -90,6 +90,7 @@ const TABLES = {
   pricing_settings: "kept",
   job_runs: "kept", // background-job bookkeeping (no personal data); clearing it would only hide a failing job
   alert_flags: "kept", // "alert X was sent at T" markers (no personal data)
+  lookup_source_stats: "kept", // aggregate lookup counts per day and catalog (no personal data)
 };
 
 const IDENT_RE = /^[a-z_][a-z0-9_]*$/;

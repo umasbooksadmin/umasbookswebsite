@@ -209,6 +209,19 @@ Fonts: the website serves its typefaces itself (self-hosted files in `assets/fon
 | Retention | Book data is kept as long as the book is in the catalogue. Price-lookup cache: 30 days for a found price, 7 days for no result, 1 hour after a failure (`TTL_MS` in `src/lib/pricing/market.js`). Anthropic's own retention of API requests is set by Anthropic's terms (per Anthropic's privacy centre, confirmed 4 October 2026: inputs and outputs are deleted from Anthropic's systems within 30 days, except content flagged for usage-policy violations, which is kept longer; the site sends only book facts and cover photos, no personal data). |
 | Security | API key stored as a Render environment variable; the calls fail open (a failure never blocks an admin action); daily caps on lookups (`PRICING_AI_DAILY_MAX`) |
 
+## 11b. Book lookup statistics / Statistiques des recherches de livres
+
+| | |
+|---|---|
+| Purpose | Technical statistics so the maintainer can see which book catalogs (Open Library, BnF, Google Books, ISBNdb) are used and worth keeping: report "Book lookup sources used" (`/admin/reports/lookup-sources`) |
+| Data | **Aggregate counts only, no personal data**: per day and per catalog, how many lookups were made, how many gave the title, failed or were refused, and the total response time. **No ISBN, no title, no user or administrator identifier, no IP address** is stored (`lookup_source_stats`, `src/lib/lookupStats.js`). |
+| People | None. Only administrators can see the report. |
+| Legal basis | Legitimate interest (running the shop efficiently); no personal data involved |
+| Recipients / processors | None beyond the database host already listed (Render). |
+| Transfers outside EU | None specific to this data. |
+| Retention | Daily rows older than 36 months are deleted by a daily job ("Lookup statistics retention" in `src/index.js`, visible on `/admin/diagnostics/jobs`). |
+| Security | Admin-only page and CSV (the CSV download is logged in the administrator action log); the counts are held in memory and saved in batches, never blocking a lookup. |
+
 ## 12. Domain name and DNS / Nom de domaine et DNS
 
 | | |

@@ -1741,6 +1741,36 @@ Where the book facts come from, and what each source's rules allow: Open Library
 services used as their documentation describes, with a User-Agent that names the shop and an address to write to; nothing is stored beyond
 the fields the app already keeps for a book.
 
+#### Which catalogs are used: the report "Book lookup sources used"
+
+**Reports** > **Book lookup sources used** (`/admin/reports/lookup-sources`; also linked from **Diagnostics** > Book lookup
+sources) counts, for each catalog, how often the Add a book lookup used it. **What it is for:** deciding whether Google
+Books or ISBNdb (paid) is worth keeping, and spotting a catalog that is slow or refusing (quota, wrong key).
+
+How to read it. Pick a **Period** (Today, Last 7 days, Last 30 days = default, This month, All time). Per source:
+- **Asked**: times the catalog was called (a call that was never made, for example ISBNdb while paused, is not counted).
+- **Supplied the title**: its answer was the one whose title was used (the first catalog, in priority order, that had a title).
+- **Only filled missing fields**: another catalog gave the title; this one added something missing (author, publisher, year, description...).
+- **Answered, nothing new**: it had the book, but nothing of it was needed.
+- **Found nothing**: it does not know the ISBN. **Errors / timeouts**: it failed or was too slow. **Refused (429/401/403)**: quota reached, key refused.
+- **Cut short**: the answer was already given and the site stopped waiting for it (not an error).
+- **Average response (ms)**: how long it took when it did answer.
+- Rows "Answered from memory (cache)" and "Not found: filled by hand" count lookups answered without any catalog, and lookups where no catalog gave a title.
+- **Totals**: lookups, found-with-title rate, cache hit rate, not found, and the **ISBNdb paid calls this calendar month** (whatever the period).
+  Compare that number with your ISBNdb plan: **check your ISBNdb plan quota** on isbndb.com; the site does not know it.
+A rule of thumb: a catalog whose "Supplied the title" and "Only filled missing fields" stay near zero over a month or two costs time (or money)
+without helping; one with many "Errors" or "Refused" needs attention (see ISBNdb below, and the diagnostics page for the live status).
+The page has a table per month and per day, and **Download CSV** (the "Per source" table by default; the Per month and Per day tables
+have their own link). Counts only.
+
+How it works and its limits. The scan path adds to counters in memory (`src/lib/lookupStats.js`); they are saved to the table
+`lookup_source_stats` about every 30 seconds and when the site stops, so a lookup never waits for the database and a
+failure to save is only logged once ("Lookup statistics: could not be saved ...") and retried. A restart can lose
+at most the last ~30 seconds. The report saves the counters of the instance it runs on first; if the site ever runs on
+several instances, each saves its own, and the report adds them up. Nothing personal is stored: no ISBN, title or user
+(see `docs/privacy/record-of-processing.md`, section 11b). Daily rows older than 36 months are deleted by the daily job
+"Lookup statistics retention" (`/admin/diagnostics/jobs`).
+
 #### ISBNdb (optional, paid): finding books the free catalogs miss
 
 ISBNdb has the largest ISBN database but is a paid service. It is **off** unless `ISBNDB_API_KEY` is set, and then it is
