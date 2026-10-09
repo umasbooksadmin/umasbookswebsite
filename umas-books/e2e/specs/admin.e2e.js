@@ -345,6 +345,16 @@ s.test("A14a bad numbers are refused with a clear English error and what was typ
   }
 });
 
+s.test("A14d (must) the Inventory list is in A-Z order, ignoring a leading The", { as: "admin" }, async (ctx) => {
+  await admin(ctx, "/admin/inventory");
+  const titles = await ctx.page.$$eval("ul.plain li a[href^='/admin/inventory/'] strong", (n) => n.map((e) => e.textContent.trim()));
+  if (titles.length < 2) ctx.skip("data: fewer than two books in the inventory");
+  const { sortTitleKey } = require("../../src/lib/titleSort");
+  const c = new Intl.Collator("en", { sensitivity: "base" });
+  const first = (t) => sortTitleKey(t).charAt(0);
+  for (let i = 1; i < titles.length; i++) assert.ok(c.compare(first(titles[i - 1]), first(titles[i])) <= 0, `"${titles[i - 1]}" is listed before "${titles[i]}"`);
+});
+
 s.manual("A13 photo scan of a cover or barcode", "needs a photo and the ANTHROPIC_API_KEY on the site");
 
 // ---- 5D. Awards, locations, selling ----

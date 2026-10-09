@@ -2128,3 +2128,19 @@ They are protected by a confirm box or a typed confirmation, and by the limits a
 erasing a privacy request (type the address), "Mark refunded" (tick a box), make or
 remove admin, deactivate or erase an account, reset two-step, delete a book or copy
 (each a confirm box). Closing the day only asks for the counted cash.
+
+## aa) Alphabetical order ignores a leading "The"
+
+Wherever books are listed A to Z (the shop search, "More by this author", the admin
+**Books & Reservations** list), a leading **The** is ignored: `The Hobbit` is listed
+between `Hamlet` and `Hunger Games`. The title shown is never changed.
+
+* Only the whole word "The" is ignored (any capitals), after any leading space, quote or
+  bracket: `Theory of Everything` and `Theodore Rex` stay under T, and `"The Road"` goes
+  under R. A title that is only "The" keeps its own place.
+* **A**/**An** and the French **Le / La / Les / L'** are NOT ignored. To add them, the
+  rule is one expression, in `migrations/086_books_title_sort.sql` (the `books.title_sort`
+  column) and its twin `sortTitleKey()` in `src/lib/titleSort.js`; ask a developer.
+* `books.title_sort` is a generated column: it updates itself when a title is edited,
+  and there is nothing to run by hand. If a title looks mis-sorted, check
+  `SELECT title, title_sort FROM books WHERE id = ...`.

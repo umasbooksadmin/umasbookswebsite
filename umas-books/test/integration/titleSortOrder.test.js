@@ -26,7 +26,6 @@ const EXPECTED = [
   "1984", "The 39 Steps", "a tale", "THE END", "The  Great Gatsby", "Hamlet", "The Hobbit", "Hunger Games",
   "The Road", '"The Road"', "Roads", "The", "Theodore Rex", "Theory of Everything",
 ];
-const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&#34;").replace(/'/g, "&#39;");
 
 let server;
 const ids = {};
