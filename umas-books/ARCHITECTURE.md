@@ -118,8 +118,8 @@ different nav (no cart/account icons).
 `session` store table (created by `migrate.js` / `connect-pg-simple`
 rather than by a numbered migration), grouped by what they belong to:
 
-- **Condition grades and binding** — `book_copies.condition` is one of four
-  grades, `new`, `very_good`, `good`, `acceptable` (default `very_good`),
+- **Condition grades and binding** — `book_copies.condition` is one of five
+  grades, `new`, `like_new`, `very_good`, `good`, `acceptable` (default `very_good`),
   defined once in `CONDITIONS` in `src/lib/inventory.js` (value, English and
   French label, one-line description) and used by the admin forms, the public
   book page (every in-stock copy is listed with its grade, plus a "What the
@@ -127,8 +127,8 @@ rather than by a numbered migration), grouped by what they belong to:
   appends the grade, joined from the copy via `order_items.book_copy_id`).
   Migration 048 remapped the old grades (good to very_good, fair and poor to
   acceptable) and added a CHECK constraint; migration 078 made the grades
-  New / Very Good / Good / Acceptable (like_new became very_good, and
-  `normalizeCondition` still accepts like_new, fair and poor as aliases). A copy that cannot be sold at all
+  New / Very Good / Good / Acceptable (like_new became very_good), and migration 083 added Like New back as a fifth grade
+  (no data converted back; `normalizeCondition` still accepts fair and poor as aliases). A copy that cannot be sold at all
   is not a grade: it gets the status `damaged`. `books.binding` (migration
   048, NULL when unknown) is `mass_market`, `trade`, `hardcover` (shown as "Hardback") or `other`,
   in that display order (`BINDINGS`, `normalizeBinding`; migration 077 renamed `paperback` to
@@ -256,49 +256,28 @@ rather than by a numbered migration), grouped by what they belong to:
   as a badge). `/admin/pricing/review` is the price check (copies that differ
   from the suggestion, copies needing review, clearance candidates; audit
   `copy.reprice`).
-- **Price sticker colors** — the shop marks copies with colored price stickers
-  (3 yellow, 5 green, 8 blue, 10 red, any other used price purple, clearance
-  orange, new books white with the publisher's price written on). Nothing is
-  stored: `src/lib/priceColors.js` is the single source of truth (levels with
-  key, EUR amount, EN/FR label, hex and text color) and derives a copy's color
-  from its data, in this order: `is_clearance` -> orange; condition `new` ->
-  white (retail); price exactly 3/5/8/10 -> that color; else purple. Admin
-  views get it as `app.locals.priceColors`; `views/partials/sticker_chip.ejs`
-  draws a chip and `sticker_legend.ejs` the legend. The price control
-  (`_price_control.ejs` + `public/price-suggestion.js`) shows a live chip that
-  follows the price level and the condition (the scheme reaches the script as
-  JSON in `data-sticker-levels`). For new books the suggestion panel says
+- **New books in the price control** — for new books the suggestion panel says
   "New book: sell at the publisher's price (max 5% off)" and never proposes a
   used level (`summaryLabel` in `lib/pricing/index.js`; the loi Lang rules in
   `resolveCopyPricing` are unchanged).
-
-  | Route | Purpose |
-  |---|---|
-  | `GET /admin/inventory/stickers` | printable sheet of in-stock copies (`src/routes/admin/stickers.js`, `views/admin/inventory/stickers.ejs`): filters `?since=` (default last 7 days, Paris time), `?location=`, `?color=`; sorted by location then color |
-  | `GET /admin/inventory/stickers?format=csv` | same rows as a CSV download (audit action `stickers.csv`); the smoke crawler skips `?format=csv` links |
-
-  The sheet has an `@media print` stylesheet (menu hidden, chips keep their
-  colors via `print-color-adjust: exact`). Mounted before the inventory router
-  because `stickers` would otherwise be read as a book id.
-- **The till** — in-person sales (`src/routes/admin/till.js`, `src/routes/admin/labels.js`,
-  libs `till.js`, `tillScan.js`, `cardPayments.js`, `accounting.js`, `code128.js`;
-  views `views/admin/till/`, `views/admin/inventory/labels.ejs` and `label_sheet.ejs`;
-  scripts `public/till.js`, `till-day.js`, `labels.js`). English. Admins, plus accounts with "Till access"
+- **The till** — in-person sales (`src/routes/admin/till.js`,
+  libs `till.js`, `tillScan.js`, `cardPayments.js`, `accounting.js`;
+  views `views/admin/till/`;
+  scripts `public/till.js`, `till-day.js`). English. Admins, plus accounts with "Till access"
   (`users.is_till`, `requireTillOrAdmin`, only on the till page and its scan/check/sale/release/void/receipt/read-only end-of-day routes).
   See `docs/architecture.md` ("The till", "Till correctness and money safety") for the data model.
 
   | Route | Purpose |
   |---|---|
-  | `GET /admin/inventory/labels` | pick copies (filters like the stickers page); `?id=<copyId>` (repeatable), `?all=1` render the print sheet; `?w=&h=` mm (default 50x25), `?layout=roll\|sheet`; audit `labels.print` |
   | `GET /admin/till` | the till screen: scan box, lines, Cash / Card, quick items, today's sales with Void |
-  | `POST /admin/till/scan` | JSON: resolves a scanned code (order: `UB-` label, quick-item barcode, ISBN, unknown) |
+  | `POST /admin/till/scan` | JSON: resolves a scanned code (order: `UB-` copy code, quick-item barcode, ISBN, unknown) |
   | `POST /admin/till/check` | JSON: the sale's validation without writing (called when Cash / Card opens) |
   | `POST /admin/till/sale` | JSON: records the sale in one transaction (`sale_token` + basket hash make it idempotent; `expectedTotalCents` must match; 409 `price_changed` / `day_closed` / `token_replay`); audit `till.sale`, `till.price_override`, `till.sale_backdated`, `till.day_reopen` |
   | `POST /admin/till/release` | releases a copy from an EXPIRED online cart (the cart's release function); audit `till.release_cart` |
   | `POST /admin/till/sales/:id/void` | same-day void with a reason; restocks copies and quick items; audit `till.void`; card sales carry the "I refunded the card" tick |
   | `POST /admin/till/sales/:id/refunded` | ticks "I refunded the card" on a voided card sale; audit `till.refund_confirmed` |
   | `GET /admin/till/sales/:id/receipt` | printable receipt (no customer data, "TVA non applicable") |
-  | `GET /admin/till/items`, `POST /admin/till/items[/:id]`, `POST /admin/till/items/:id/generate-code`, `GET /admin/till/items/:id/label` | "Other stock (not books)": quick items with optional barcode, stock and a Code 128 label for shop codes |
+  | `GET /admin/till/items`, `POST /admin/till/items[/:id]`, `POST /admin/till/items/:id/generate-code` | "Other stock (not books)": quick items with optional barcode, stock and a generated shop code |
   | `GET /admin/till/day[?day=][&format=csv]`, `POST /admin/till/day/open` (today or a past unclosed day), `POST /admin/till/day/close`, `POST /admin/till/day/reopen` | end of day: totals, opening float, count and close (locks voids, needs a confirmation if no float), reopen (admin, reason), CSV; unclosed past days and unrefunded voided card sales appear in the dashboard's Needs attention |
   | `GET /admin/reports/accounting[?format=csv]` | Accounting export (`src/lib/accounting.js`): one row per Paris day, category and payment method; no customer data |
 - **Accounts & auth** — `users`, `password_reset_tokens`,

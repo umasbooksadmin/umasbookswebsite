@@ -215,7 +215,7 @@ footer.site { text-align: center; padding: 30px 0; color: var(--ink-soft); font-
   border-radius: 4px; padding: 14px; color: var(--ink);
 }
 .book-card:hover { border-color: var(--maroon); text-decoration: none; }
-.book-card-cover { width: 100%; height: auto; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 3px; margin-bottom: 10px; background: #efe9dd; }
+.book-card-cover { width: 100%; height: auto; aspect-ratio: 2 / 3; object-fit: contain; border-radius: 3px; margin-bottom: 10px; background: #efe9dd; }
 .book-card-body { flex: 1; display: flex; flex-direction: column; }
 .book-card-title { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; font-size: 17.5px; line-height: 1.25; margin-bottom: 2px; }
 .book-card-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
@@ -224,7 +224,7 @@ footer.site { text-align: center; padding: 30px 0; color: var(--ink-soft); font-
 .book-detail-grid { display: grid; grid-template-columns: 240px 1fr; gap: 36px; margin-top: 18px; }
 .book-detail-cover {
   width: 100%; max-width: 240px; height: auto; aspect-ratio: 2 / 3; border-radius: 4px; border: 1px solid var(--card-border);
-  object-fit: cover; image-rendering: -webkit-optimize-contrast; background: #efe9dd; /* neutral box while the cover loads or if it fails */
+  object-fit: contain; image-rendering: -webkit-optimize-contrast; background: #efe9dd; /* neutral box while the cover loads or if it fails */
 }
 .book-detail-kicker { font-family: 'Montserrat', sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--maroon); font-size: 12.5px; margin-bottom: 6px; }
 .book-awards { margin: 16px 0; padding: 14px 16px; background: #fbf6ea; border: 1px solid var(--card-border); border-left: 4px solid var(--gold); border-radius: 2px; }
@@ -252,7 +252,7 @@ footer.site { text-align: center; padding: 30px 0; color: var(--ink-soft); font-
   display: flex; align-items: center; gap: 16px; background: var(--panel);
   border: 1px solid var(--card-border); border-radius: 4px; padding: 12px 16px;
 }
-.cart-item-cover { width: 48px; height: auto; background: #efe9dd; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 3px; flex: 0 0 auto; }
+.cart-item-cover { width: 48px; height: auto; background: #efe9dd; aspect-ratio: 2 / 3; object-fit: contain; border-radius: 3px; flex: 0 0 auto; }
 .cart-item-body { flex: 1; min-width: 0; }
 .cart-item-title { font-family: 'Cormorant Garamond', serif; font-weight: 600; font-size: 17px; }
 .cart-item-price { font-family: 'Montserrat', sans-serif; font-weight: 600; color: var(--maroon-dark); flex: 0 0 auto; }
@@ -303,6 +303,7 @@ form.stack select { font-family: 'Cormorant Garamond', Georgia, serif; font-size
   color: var(--green); background: var(--panel); font-size: 13px; font-weight: 600; white-space: nowrap;
 }
 .condition-badge.condition-new { background: var(--green); color: #fff; }
+.condition-badge.condition-like_new { border-style: double; border-width: 4px; padding: 0 8px; }
 .condition-badge.condition-very_good { border-style: solid; }
 .condition-badge.condition-good { border-color: var(--gold-dark); color: var(--gold-dark); }
 .condition-badge.condition-acceptable { border-color: var(--maroon-dark); border-style: dashed; color: var(--maroon-dark); }

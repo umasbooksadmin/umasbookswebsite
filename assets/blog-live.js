@@ -6,7 +6,10 @@
    page's own bootstrap script listen for that event to redraw. */
 (function () {
   window.UMAS_POSTS = window.UMAS_POSTS || [];
-  fetch("/api/blog/posts", { headers: { Accept: "application/json" } })
+  // ?preview=1 on the page (the admin screen's Preview link): ask for drafts and
+  // scheduled posts too; the server only honours it for a logged-in admin.
+  var adminPreview = /[?&]preview=1(&|$)/.test(location.search);
+  fetch("/api/blog/posts" + (adminPreview ? "?preview=1" : ""), { headers: { Accept: "application/json" } })
     .then(function (res) { return res.ok ? res.json() : []; })
     .then(function (posts) {
       window.UMAS_POSTS = Array.isArray(posts) ? posts : [];

@@ -223,7 +223,7 @@
     var keepAsIs = function (v) { return v === "-" ? "" : (v || null); };
     remember(BINDING_STORE_NAME, bindingSel, isSet("binding"), function (v) { return v === "-" ? "" : (v ? (resolveBindingKey(v, availableBindings) || null) : null); });
     remember(SOURCE_STORE_NAME, sourceSel, isSet("source"), keepAsIs);
-    remember(CONDITION_STORE_NAME, conditionSel, isSet("condition"), function (v) { return v === "like_new" ? "very_good" : keepAsIs(v); }); // the old "like_new" grade is now very_good
+    remember(CONDITION_STORE_NAME, conditionSel, isSet("condition"), keepAsIs);
     conditionSel.dispatchEvent(new Event("change", { bubbles: true })); // the price control follows a remembered condition
     started = true;
 
@@ -315,14 +315,6 @@
       span.appendChild(b);
       span.appendChild(document.createTextNode("."));
       savedEl.appendChild(span);
-      var a = document.createElement("a");
-      a.className = "btn btn-small btn-outline";
-      a.href = data.labelUrl;
-      a.target = "_blank";
-      a.rel = "noopener";
-      a.textContent = "Print label UB-" + data.copyId;
-      savedEl.appendChild(document.createTextNode(" "));
-      savedEl.appendChild(a);
       if (data.requests > 0) {
         var r = document.createElement("span");
         r.className = "scan-saved-requests";

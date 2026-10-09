@@ -1,4 +1,6 @@
 require("dotenv").config({ quiet: true });
+// Test system (APP_ENV=staging) only: never seed the production database from staging.
+require("./lib/staging").enforceStagingBoot();
 const bcrypt = require("bcryptjs");
 const { validateNewPassword } = require("./lib/passwordPolicy");
 

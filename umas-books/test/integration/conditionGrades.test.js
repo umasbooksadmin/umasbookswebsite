@@ -75,6 +75,7 @@ test("migration 048 remaps old grades, sets the default, and locks the column to
   await assert.rejects(pool.query("UPDATE book_copies SET condition = 'poor' WHERE id = $1", [ids.new]), { code: "23514" });
   // Later migrations bring the table back to its current state for the tests below.
   await pool.query(fs.readFileSync(path.join(__dirname, "..", "..", "migrations", "078_condition_good_not_like_new.sql"), "utf8"));
+  await pool.query(fs.readFileSync(path.join(__dirname, "..", "..", "migrations", "083_condition_like_new.sql"), "utf8"));
 });
 
 test("migration 078 turns like_new into very_good, makes good a grade again, locks the four grades (re-runnable)", async () => {
@@ -98,6 +99,29 @@ test("migration 078 turns like_new into very_good, makes good a grade again, loc
   assert.deepEqual(now, { new: "new", like_new: "very_good", very_good: "very_good", acceptable: "acceptable" });
   await pool.query("INSERT INTO book_copies (book_id, condition) VALUES ($1, 'good')", [b.id]);
   for (const bad of ["like_new", "fair", "poor", "pristine", ""]) {
+    await assert.rejects(pool.query("INSERT INTO book_copies (book_id, condition) VALUES ($1, $2)", [b.id, bad]), { code: "23514" }, bad);
+  }
+  await pool.query(fs.readFileSync(path.join(__dirname, "..", "..", "migrations", "083_condition_like_new.sql"), "utf8")); // back to the current state
+});
+
+test("migration 083 allows like_new again, changes no row, still rejects other values (re-runnable)", async () => {
+  const sql = fs.readFileSync(path.join(__dirname, "..", "..", "migrations", "083_condition_like_new.sql"), "utf8");
+  const { rows: [b] } = await pool.query("INSERT INTO books (title) VALUES ($1) RETURNING id", [`${TAG} m083`]);
+  // The 078 state: four grades.
+  await pool.query("ALTER TABLE book_copies DROP CONSTRAINT book_copies_condition_check");
+  await pool.query("ALTER TABLE book_copies ADD CONSTRAINT book_copies_condition_check CHECK (condition IN ('new', 'very_good', 'good', 'acceptable'))");
+  await assert.rejects(pool.query("INSERT INTO book_copies (book_id, condition) VALUES ($1, 'like_new')", [b.id]), { code: "23514" }, "not allowed before");
+  const { rows: [vg] } = await pool.query("INSERT INTO book_copies (book_id, condition) VALUES ($1, 'very_good') RETURNING id", [b.id]);
+
+  await pool.query(sql);
+  await pool.query(sql); // idempotent
+
+  const { rows: [after] } = await pool.query("SELECT condition FROM book_copies WHERE id = $1", [vg.id]);
+  assert.equal(after.condition, "very_good", "no row is converted back");
+  for (const ok of ["new", "like_new", "very_good", "good", "acceptable"]) {
+    await pool.query("INSERT INTO book_copies (book_id, condition) VALUES ($1, $2)", [b.id, ok]);
+  }
+  for (const bad of ["fair", "poor", "pristine", ""]) {
     await assert.rejects(pool.query("INSERT INTO book_copies (book_id, condition) VALUES ($1, $2)", [b.id, bad]), { code: "23514" }, bad);
   }
 });
@@ -144,27 +168,30 @@ test("migration 077 turns paperback into trade, keeps NULL, allows other, locks 
 test("book page (English): every copy is listed with its grade and price, plus the legend and the binding", async () => {
   const b = await makeBook({
     title: `${TAG} Multi`, binding: "trade",
-    copies: [["acceptable", 3], ["new", 12], ["very_good", 6], ["good", 9]],
+    copies: [["acceptable", 3], ["new", 12], ["like_new", 7], ["very_good", 6], ["good", 9]],
   });
   const { status, text } = await page(`/books/${b.id}`, "en");
   assert.equal(status, 200);
-  for (const [grade, price] of [["Acceptable", "3.00"], ["New", "12.00"], ["Very Good", "6.00"], ["Good", "9.00"]]) {
+  for (const [grade, price] of [["Acceptable", "3.00"], ["New", "12.00"], ["Like New", "7.00"], ["Very Good", "6.00"], ["Good", "9.00"]]) {
     assert.match(text, new RegExp(`condition-badge condition-[a-z_]+">${grade}</span></td>\\s*<td>€${price}</td>`), grade);
   }
   for (const id of b.copyIds) assert.match(text, new RegExp(`name="copyId" value="${id}"`), "an add-to-cart form per copy");
   assert.match(text, /<details class="grade-legend">/);
   assert.match(text, /What the grades mean/);
   assert.match(text, /Unread, as published \(sold at the publisher(?:'|&#39;)s price\)\./);
+  assert.match(text, /As new: no marks or wear, possibly read once\./);
   assert.match(text, /Looks almost new: clean pages/);
   assert.match(text, /Normal wear from reading: a few creases or marks/);
   assert.match(text, /Clearly used but complete and readable: wear, creases or some markings\./);
   assert.match(text, /Binding<\/dt> :\s*<dd>Trade<\/dd>|Binding :<\/dt> <dd>Trade/);
-  assert.ok(!/>Like New<|>Fair<|>Poor</.test(text), "no old grade name");
+  assert.ok(!/>Fair<|>Poor</.test(text), "no old grade name");
 });
 
 test("book page (French): grades, legend and binding are in French", async () => {
-  const b = await makeBook({ title: `${TAG} Multi FR`, binding: "mass_market", copies: [["very_good", 6], ["acceptable", 3]] });
+  const b = await makeBook({ title: `${TAG} Multi FR`, binding: "mass_market", copies: [["like_new", 8], ["very_good", 6], ["acceptable", 3]] });
   const { text } = await page(`/books/${b.id}`, "fr");
+  assert.match(text, /condition-badge condition-like_new">Comme neuf</);
+  assert.match(text, /Comme neuf\u00a0: sans marques ni usure/);
   assert.match(text, /condition-badge condition-very_good">Très bon état</);
   assert.match(text, /condition-badge condition-acceptable">État correct</);
   assert.match(text, /Que signifient les états\u00a0\?/);

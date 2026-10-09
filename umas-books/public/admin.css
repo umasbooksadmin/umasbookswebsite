@@ -48,6 +48,9 @@
    regular content width leaves them narrow — this lets that one row use
    the full available width instead. */
 .admin-main.is-wide { max-width: none; }
+.admin-topbar-brand { display: none; }
+.admin-topbar-tools { order: 2; }
+.admin-topbar-title { order: 1; }
 .admin-topbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 26px; flex-wrap: wrap; }
 .admin-back-link { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: var(--maroon); text-decoration: none; margin-bottom: 8px; }
 .admin-back-link:hover { text-decoration: underline; }
@@ -113,6 +116,20 @@
     display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 20;
   }
   .admin-layout.is-nav-open .admin-nav-backdrop { display: block; }
+  /* The sidebar logo is inside the closed drawer here, so the topbar gets a small
+     logo (same file and size as the compact phone header) that links to the main
+     page. Row 1: logo, menu button, avatar. Row 2: search (if the page has one).
+     Row 3: Back link and title. The tools wrapper dissolves so its three items
+     can take part in that wrapping. */
+  .admin-topbar { gap: 8px 12px; margin-bottom: 18px; }
+  .admin-topbar-brand { display: block; order: 1; flex: 0 1 104px; min-width: 72px; min-height: 44px; margin-right: auto; line-height: 0; }
+  .admin-topbar-brand img { display: block; width: 100%; max-width: 104px; height: auto; }
+  .admin-topbar-tools { display: contents; }
+  .admin-nav-toggle { order: 2; }
+  .admin-avatar { order: 3; width: 44px; height: 44px; flex: 0 0 auto; }
+  .admin-search { order: 4; flex: 1 0 100%; box-sizing: border-box; }
+  .admin-search input { flex: 1 1 auto; width: auto; min-width: 0; }
+  .admin-topbar-title { order: 5; flex: 1 0 100%; }
 }
 
 .admin-card { background: #fff; border: 1px solid var(--card-border); border-radius: 10px; padding: 26px 24px; }
@@ -186,6 +203,9 @@
 .richtext-editor { min-height: 140px; padding: 10px 12px; font-size: 15.5px; }
 .richtext-editor:focus { outline: none; }
 .richtext-hidden { display: none; }
+.field-error { color: #90503f; font-size: 14px; margin-top: -6px; }
+.field-error[hidden] { display: none; }
+.richtext.richtext-invalid { outline: 2px solid #d4b4ab; outline-offset: 2px; }
 
 .stack label.ann-check {
   display: flex; align-items: flex-start; gap: 8px; font-family: 'Libre Baskerville', Georgia, serif;
@@ -207,46 +227,24 @@
 .price-suggestion-box { margin: 6px 0 10px; }
 .price-suggestion-box summary { cursor: pointer; color: var(--maroon); }
 
-/* Shelf-sticker color chips and the printable sticker sheet (colors come from lib/priceColors) */
-.sticker-chip { display: inline-block; padding: 2px 10px; border-radius: 999px; border: 1px solid transparent; font-size: 13px; font-weight: 600; line-height: 1.5; text-transform: none; letter-spacing: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-.sticker-note { margin: 4px 0 8px; font-size: 13.5px; }
-.sticker-legend { list-style: none; margin: 8px 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px 18px; }
-.sticker-legend li { display: inline-flex; align-items: center; gap: 6px; }
-.sticker-filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }
-.sticker-sheet { width: 100%; border-collapse: collapse; font-size: 14px; }
-.sticker-sheet th, .sticker-sheet td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--card-border); vertical-align: top; }
+/* Filter rows and printable report tables (till end of day, accounting mapping) */
+.filter-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }
+.report-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.report-table th, .report-table td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--card-border); vertical-align: top; }
 @media print {
   /* The page title, back link, menu and search never print: on a label roll the heading would be printed as the first label. */
   .admin-sidebar, .admin-nav-backdrop, .skip-link, .admin-preview-note, .admin-sandbox-note, .no-print, .admin-topbar, .admin-topbar-tools, .admin-back-link, .admin-nav-toggle { display: none !important; }
   html, body { background: #fff !important; }
   .admin-layout, .admin-main, main { display: block !important; margin: 0 !important; padding: 0 !important; width: auto !important; }
   .card { box-shadow: none !important; border: 0 !important; padding: 0 !important; }
-  .sticker-sheet { font-size: 11pt; }
-  .sticker-sheet tr { break-inside: avoid; }
-  .sticker-chip { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .report-table { font-size: 11pt; }
+  .report-table tr { break-inside: avoid; }
 }
 
 /* Printable pickup list (/admin/orders/pickup-list?print=1) */
 .pickup-list-print { font-size: 13px; }
 .pickup-list-print .pickup-customer { padding: 6px 0; }
 @media print { .pickup-list .pickup-customer { break-inside: avoid; } }
-/* Copy barcode labels (/admin/inventory/labels). Size comes from --lw / --lh (mm). */
-.label-sheet { display: flex; flex-wrap: wrap; gap: 4mm; }
-.copy-label { box-sizing: border-box; width: var(--lw, 50mm); height: var(--lh, 25mm); padding: 1mm; overflow: hidden; background: #fff; color: #000; border: 1px dashed #bbb; display: flex; flex-direction: column; justify-content: space-between; font-family: Arial, Helvetica, sans-serif; line-height: 1.1; }
-.copy-label .cl-bars { height: 38%; min-height: 4mm; display: flex; justify-content: center; }
-.copy-label .barcode { height: 100%; display: block; flex: none; }
-.copy-label .cl-code { font-size: calc(6.5pt * var(--fs, 1)); text-align: center; letter-spacing: 0.05em; }
-.copy-label .cl-row { display: flex; align-items: center; justify-content: space-between; gap: 2mm; }
-.copy-label .cl-row .sticker-chip { font-size: calc(6.5pt * var(--fs, 1)); padding: 0 2mm; }
-.copy-label .cl-price { font-size: calc(10pt * var(--fs, 1)); }
-.copy-label .cl-title { font-size: calc(7pt * var(--fs, 1)); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.copy-label .cl-meta { font-size: calc(6pt * var(--fs, 1)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-@media print {
-  .label-sheet { gap: 0; display: block; }
-  .label-sheet-sheet { display: flex; gap: 2mm; }
-  .copy-label { border: 0; break-inside: avoid; }
-  .label-sheet-sheet .copy-label { border: 0.2mm dotted #999; }
-}
 .admin-nav .admin-nav-till { background: #fff; color: var(--btn-bg); border: 2px solid var(--btn-bg); border-radius: 8px; margin: 6px 0 2px; padding: 8px 12px; letter-spacing: 0.04em; }
 .admin-nav .admin-nav-till:hover { background: #eef2ea; }
 /* On the till the pill is filled (selected); elsewhere it is an outlined shortcut, so it never looks like the current page. */
@@ -260,8 +258,8 @@
 .ann-list-col, .ann-panel, .ann-layout > * { min-width: 0; }
 .card { min-width: 0; max-width: 100%; box-sizing: border-box; }
 .admin-main input, .admin-main select, .admin-main textarea { max-width: 100%; box-sizing: border-box; }
-.admin-main form.stack, .admin-main .stack > div, .sticker-filters > div { min-width: 0; max-width: 100%; }
-.sticker-filters select, .sticker-filters input { max-width: 100%; }
+.admin-main form.stack, .admin-main .stack > div, .filter-row > div { min-width: 0; max-width: 100%; }
+.filter-row select, .filter-row input { max-width: 100%; }
 @media (max-width: 640px) {
   .admin-main .calendar-grid { grid-template-columns: repeat(7, minmax(84px, 1fr)); overflow-x: auto; }
   .admin-main .calendar-pill-body input, .admin-main .calendar-pill-body select { width: 100%; }

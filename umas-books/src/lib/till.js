@@ -11,7 +11,6 @@ const crypto = require("crypto");
 const { SITE_TIME_ZONE } = require("./tz");
 const { parseMoney } = require("./validation");
 const inv = require("./inventory");
-const colors = require("./priceColors");
 const { parseTillScan } = require("./tillScan");
 const { loadReservation, reservationOfCopy, lockReservedLines, collectReserved } = require("./tillReservations");
 
@@ -124,7 +123,6 @@ async function checkBarcodeFree(db, code, excludeId = null) {
 // ---------- scan ----------
 
 function copyLine(r) {
-  const level = colors.colorFor(r);
   const isNew = r.condition === "new";
   const asking = r.price != null ? toCents(r.price) : (isNew && r.publisher_price != null ? toCents(r.publisher_price) : null);
   return {
@@ -132,7 +130,6 @@ function copyLine(r) {
     condition: r.condition, conditionLabel: inv.conditionLabel(r.condition), isNew,
     priceCents: asking, publisherPriceCents: r.publisher_price != null ? toCents(r.publisher_price) : null,
     location: r.location || "", category: isNew ? "books_new" : "books_used",
-    color: { key: level.key, label: level.label, hex: level.hex, text: level.text, border: level.border || null },
   };
 }
 

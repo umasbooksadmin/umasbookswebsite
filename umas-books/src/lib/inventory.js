@@ -5,7 +5,7 @@
 const { normalizeIsbn } = require("./bookLookup");
 const { parseMoney } = require("./validation");
 
-// The four condition grades (New, Very Good, Good, Acceptable): the single source of truth for the admin forms,
+// The five condition grades (New, Like New, Very Good, Good, Acceptable): the single source of truth for the admin forms,
 // the public pages, the cart and the emails. A copy that cannot be sold at all
 // is not a condition: it gets the status "damaged / withdrawn" instead.
 const CONDITIONS = [
@@ -13,6 +13,11 @@ const CONDITIONS = [
     value: "new", label: "New", label_fr: "Neuf",
     description: "Unread, as published (sold at the publisher's price).",
     description_fr: "Jamais lu, tel que publié (vendu au prix éditeur).",
+  },
+  {
+    value: "like_new", label: "Like New", label_fr: "Comme neuf",
+    description: "As new: no marks or wear, possibly read once.",
+    description_fr: "Comme neuf : sans marques ni usure, peut-être lu une fois.",
   },
   {
     value: "very_good", label: "Very Good", label_fr: "Très bon état",
@@ -31,9 +36,9 @@ const CONDITIONS = [
   },
 ];
 
-// Old grade keys (still in old links, imports or forms): "like_new" is now
-// "very_good" (migration 078); "fair" and "poor" were always "acceptable".
-const CONDITION_ALIASES = { like_new: "very_good", fair: "acceptable", poor: "acceptable" };
+// Old grade keys (still in old links, imports or forms): "fair" and "poor"
+// were always "acceptable". "like_new" is a real grade again (migration 083).
+const CONDITION_ALIASES = { fair: "acceptable", poor: "acceptable" };
 
 const DEFAULT_CONDITION = "very_good";
 

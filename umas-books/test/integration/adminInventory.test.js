@@ -238,6 +238,20 @@ test("show page renders the book and its copies; unknown and garbage ids give th
   assert.equal((await post("/admin/inventory/1/copies/abc/delete", { form: {} })).status, 404);
 });
 
+test("show page shows each copy's Till code (UB-<copy id>), also for a book with no ISBN", async () => {
+  for (const isbn of [null, isbn13()]) {
+    const b = await seedBook({ isbn, copies: [{}, { price: 9 }, { status: "sold" }] });
+    const { text, status } = await get(`/admin/inventory/${b.id}`);
+    assert.equal(status, 200);
+    for (const id of b.copyIds) {
+      assert.ok(text.includes(`Till code: <code`) && text.includes(`>UB-${id}</code>`), `UB-${id} shown`);
+      assert.ok(text.includes(`data-copy-text="UB-${id}"`), `UB-${id} has a Copy button`);
+    }
+    assert.match(text, /Type this code in the Till scan box/);
+    assert.match(text, /<script src="\/copy-text\.js"><\/script>/);
+  }
+});
+
 test("show page releases an expired reservation but keeps a fresh one", async () => {
   const day = 86400000;
   const b = await seedBook({
@@ -427,7 +441,7 @@ test("add: creates the book and one copy; garbage condition/status fall back to 
   });
   assert.equal(status, 302);
   const [book] = await bookByTitle(title);
-  assert.match(location, new RegExp(`^/admin/inventory/${book.id}\\?label=\\d+$`)); // the copy id lets the page offer its label
+  assert.match(location, new RegExp(`^/admin/inventory/${book.id}$`)); // the copy id lets the page offer its label
   assert.equal(book.isbn, isbn);
   assert.equal(book.authors, "Au Thor");
   assert.equal(book.published_year, 1987);
@@ -485,7 +499,7 @@ test("add: a missing description is generated and translated; a missing cover is
   ai.description = "Auto blurb.";
   const { location } = await post("/admin/inventory", { fields: { title, isbn, author: "Auto Author" } });
   const [book] = await bookByTitle(title);
-  assert.match(location, new RegExp(`^/admin/inventory/${book.id}\\?label=\\d+$`)); // the copy id lets the page offer its label
+  assert.match(location, new RegExp(`^/admin/inventory/${book.id}$`)); // the copy id lets the page offer its label
   assert.equal(book.description, "Auto blurb.");
   assert.equal(book.description_fr, "FR: Auto blurb.");
   await storedImage(book.cover_url);
@@ -560,7 +574,7 @@ test("add: a second copy of an ISBN already in stock joins the existing book ins
   const isbn = isbn13();
   const b = await seedBook({ isbn, copies: [{ price: 6 }] });
   const { location } = await post("/admin/inventory", { fields: { title: b.title, isbn, price: "4", condition: "acceptable" } });
-  assert.match(location, new RegExp(`^/admin/inventory/${b.id}\\?label=\\d+$`));
+  assert.match(location, new RegExp(`^/admin/inventory/${b.id}$`));
   assert.equal((await pool.query("SELECT count(*)::int AS n FROM books WHERE isbn = $1", [isbn])).rows[0].n, 1);
   const copies = await copiesOf(b.id);
   assert.equal(copies.length, 2);
@@ -787,18 +801,18 @@ test("delete book: removes the book and cascades to its copies", async () => {
 
 // ------------------------------------------------ condition grades, binding
 
-test("add/scan/edit forms offer the four grades (default Very Good) and the binding select", async () => {
+test("add/scan/edit forms offer the five grades (default Very Good) and the binding select", async () => {
   const { text } = await get("/admin/inventory/new");
   const options = (id) => [...text.slice(text.indexOf(`id="${id}"`)).split("</select>")[0].matchAll(/<option value="([^"]*)"[^>]*>([^<]*)</g)].map((m) => [m[1], m[2].trim()]);
-  assert.deepEqual(options("condition"), [["new", "New"], ["very_good", "Very Good"], ["good", "Good"], ["acceptable", "Acceptable"]]);
+  assert.deepEqual(options("condition"), [["new", "New"], ["like_new", "Like New"], ["very_good", "Very Good"], ["good", "Good"], ["acceptable", "Acceptable"]]);
   assert.match(text, /<option value="very_good" selected>Very Good/);
   assert.deepEqual(options("binding"), [["", "Not specified"], ["mass_market", "Mass Market"], ["trade", "Trade"], ["hardcover", "Hardback"], ["other", "Other"]]);
 
   const b = await seedBook();
   const show = await get(`/admin/inventory/${b.id}`);
-  assert.match(show.text, /<option value="very_good" selected>Very Good<\/option><option value="good" >Good<\/option><option value="acceptable" >Acceptable<\/option>/);
+  assert.match(show.text, /<option value="like_new" >Like New<\/option><option value="very_good" selected>Very Good<\/option><option value="good" >Good<\/option><option value="acceptable" >Acceptable<\/option>/);
   const copyConditions = [...show.text.slice(show.text.indexOf('name="condition"')).split("</select>")[0].matchAll(/<option value="([^"]*)"/g)].map((m) => m[1]);
-  assert.deepEqual(copyConditions, ["new", "very_good", "good", "acceptable"], "edit-copy form: exactly the four grades, in order");
+  assert.deepEqual(copyConditions, ["new", "like_new", "very_good", "good", "acceptable"], "edit-copy form: exactly the five grades, in order");
   assert.match(show.text, /id="binding" name="binding"/);
   const editValues = [...show.text.slice(show.text.indexOf('id="binding"')).split("</select>")[0].matchAll(/<option value="([^"]*)"/g)].map((m) => m[1]);
   assert.deepEqual(editValues, ["", "mass_market", "trade", "hardcover", "other"], "edit form: placeholder plus exactly the four bindings, in order");

@@ -16,7 +16,7 @@
 // otherwise falls back to deriving the key from SESSION_SECRET, which would
 // silently re-key every admin's two-step secret if SESSION_SECRET is ever
 // rotated. Outside production that fallback is kept for convenience.
-const { isPreviewMode } = require("./preview");
+const { isNonLive } = require("./preview");
 const { usesSandbox } = require("./helloassoHosts");
 const REQUIRED = ["DATABASE_URL", "SESSION_SECRET", "TOTP_ENCRYPTION_KEY"];
 
@@ -45,7 +45,7 @@ function validateEnv(env = process.env) {
   // Error alerts ride on the Gmail credentials; the OPTIONAL_GROUPS warning
   // above already says so. This one is stronger: a live site (not preview)
   // that cannot email anyone about its own failures.
-  if (!isPreviewMode(env) && (!isSet(env, "GMAIL_USER") || !isSet(env, "GMAIL_APP_PASSWORD"))) {
+  if (!isNonLive(env) && (!isSet(env, "GMAIL_USER") || !isSet(env, "GMAIL_APP_PASSWORD"))) {
     warnings.push("Gmail is not configured and preview mode is off - error alerts to the admin are DISABLED on a live site. Set GMAIL_USER and GMAIL_APP_PASSWORD.");
   }
   // Launch guards (preview OFF = the site is live): things that are harmless
@@ -54,7 +54,7 @@ function validateEnv(env = process.env) {
   // each is a loud log line plus, for the serious ones, ONE alert email per
   // boot (src/index.js sends `alerts` once the server is listening).
   const alerts = [];
-  if (isPreviewMode(env)) {
+  if (isNonLive(env)) {
     if (!isSet(env, "APP_BASE_URL") && !isSet(env, "RENDER_EXTERNAL_URL")) {
       warnings.push("APP_BASE_URL / RENDER_EXTERNAL_URL not set - emailed links will fail in production.");
     }
