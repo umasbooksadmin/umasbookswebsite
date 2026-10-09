@@ -8,11 +8,12 @@ const { mapBinding } = require("../../src/lib/bookLookup");
 const { orderItemLabel } = require("../../src/lib/orderItems");
 const { buildOrderConfirmationText } = require("../../src/lib/orderEmail");
 
-test("the four grades, in order, with the exact English and French labels", () => {
+test("the five grades, in order, with the exact English and French labels", () => {
   assert.deepEqual(
     inv.CONDITIONS.map((c) => [c.value, c.label, c.label_fr]),
     [
       ["new", "New", "Neuf"],
+      ["like_new", "Like New", "Comme neuf"],
       ["very_good", "Very Good", "Très bon état"],
       ["good", "Good", "Bon état"],
       ["acceptable", "Acceptable", "État correct"],
@@ -26,15 +27,17 @@ test("every grade has a one-line description in both languages", () => {
     assert.ok(!c.description.includes("\n") && !c.description_fr.includes("\n"));
   }
   assert.equal(inv.CONDITIONS[0].description, "Unread, as published (sold at the publisher's price).");
-  assert.equal(inv.CONDITIONS[1].description_fr, "Presque comme neuf : pages propres, sans annotations ni surlignage, au plus une très légère usure.");
+  assert.equal(inv.CONDITIONS[1].description, "As new: no marks or wear, possibly read once.");
+  assert.equal(inv.CONDITIONS[1].description_fr, "Comme neuf : sans marques ni usure, peut-être lu une fois.");
+  assert.equal(inv.CONDITIONS[2].description_fr, "Presque comme neuf : pages propres, sans annotations ni surlignage, au plus une très légère usure.");
 });
 
-test("normalizeCondition keeps the four grades and falls back to very_good; old keys are aliases", () => {
+test("normalizeCondition keeps the five grades and falls back to very_good; fair and poor are aliases", () => {
   for (const c of inv.CONDITIONS) assert.equal(inv.normalizeCondition(c.value), c.value);
   for (const old of ["", "pristine", null, undefined, "NEW", {}]) {
     assert.equal(inv.normalizeCondition(old), "very_good", String(old));
   }
-  assert.deepEqual(["like_new", "fair", "poor"].map(inv.normalizeCondition), ["very_good", "acceptable", "acceptable"]);
+  assert.deepEqual(["like_new", "fair", "poor"].map(inv.normalizeCondition), ["like_new", "acceptable", "acceptable"]);
   assert.equal(inv.DEFAULT_CONDITION, "very_good");
 });
 
@@ -42,7 +45,8 @@ test("conditionLabel follows the language and leaves an unknown value as is", ()
   assert.equal(inv.conditionLabel("very_good", "en"), "Very Good");
   assert.equal(inv.conditionLabel("very_good", "fr"), "Très bon état");
   assert.equal(inv.conditionLabel("acceptable", "fr"), "État correct");
-  assert.equal(inv.conditionLabel("like_new", "en"), "Very Good", "old key");
+  assert.equal(inv.conditionLabel("like_new", "en"), "Like New");
+  assert.equal(inv.conditionLabel("like_new", "fr"), "Comme neuf");
   assert.equal(inv.conditionLabel("very_good", null), "Very Good");
   assert.equal(inv.conditionLabel("mystery", "fr"), "mystery");
 });

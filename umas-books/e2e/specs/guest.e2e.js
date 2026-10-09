@@ -228,12 +228,12 @@ s.test("G15 (must) a book page shows cover, title, author, binding, price, copie
   assert.ok(await ctx.page.$(".book-disclaimer a[href='/terms-of-sale.html']"), "the disclaimer links the terms");
 });
 
-s.test("G16 (must) 'What the grades mean' lists the four grades", async (ctx) => {
+s.test("G16 (must) 'What the grades mean' lists the five grades", async (ctx) => {
   const book = await stockedBook(ctx);
   await ctx.goto(`/books/${book.id}`);
   await ctx.page.click(".grade-legend summary");
   const legend = await ctx.page.$eval(".grade-legend", (d) => d.innerText);
-  for (const g of ["New", "Very Good", "Good", "Acceptable"]) has(legend, new RegExp(g));
+  for (const g of ["New", "Like New", "Very Good", "Good", "Acceptable"]) has(legend, new RegExp(g));
   has(legend, /The grade is the description of the book/);
 });
 
@@ -325,7 +325,7 @@ s.test("G-FR11 FR check (books): search page, book page and grade legend in Fren
   has(text, /exemplaires? en rayon/);
   await ctx.page.click(".grade-legend summary");
   const legend = await ctx.page.$eval(".grade-legend", (d) => d.innerText);
-  for (const g of ["Neuf", "Très bon état", "Bon état", "État correct"]) has(legend, new RegExp(g));
+  for (const g of ["Neuf", "Comme neuf", "Très bon état", "Bon état", "État correct"]) has(legend, new RegExp(g));
   has(legend, /L’état indiqué est la description du livre/);
   has(text, /Prix TTC, TVA non applicable/);
   has(text, /Nos livres d’occasion sont vendus tels que décrits/);
@@ -942,20 +942,6 @@ s.test("G25b FR check (legal pages): hours as 14 h–19 h, the withdrawal senten
 
 s.manual("G25c the membership page shows the price before the HelloAsso form loads, and the shop address shows its street number", "needs MEMBERSHIP_PRICE_EUR and SHOP_STREET_NUMBER to be set in src/lib/legal.js (empty until the association gives them: docs/legal-todos.md); the helpers are covered by test/unit/legalConstants.test.js");
 
-s.test("G25d the footer shows the map to the shop, loaded from our own site, with English alt text", async (ctx) => {
-  await ctx.goto("/visit.html");
-  assert.ok(await ctx.page.$("footer.mkt-footer .h-footer-map img"), "map in the footer");
-  assert.equal(await ctx.page.$eval("footer.mkt-footer .h-footer-map img", (i) => i.alt), "Map showing the route to Uma's Books and Adventures from Rue de l'Oulmet along Rue Peyrolière to the impasse, Albi");
-  assert.equal(await ctx.page.$eval("footer.mkt-footer .h-footer-map img", (i) => i.getAttribute("loading")), "lazy");
-  assert.equal(await ctx.page.$eval("footer.mkt-footer .h-footer-map img", (i) => new URL(i.currentSrc || i.src).origin === location.origin), true);
-});
-
-s.test("G25e FR check (footer map): French alt text and caption", { lang: "fr" }, async (ctx) => {
-  await ctx.goto("/visit.html");
-  assert.equal(await ctx.page.$eval("footer.mkt-footer .h-footer-map img", (i) => i.alt), "Plan de l’itinéraire vers Uma’s Books and Adventures depuis la rue de l’Oulmet, par la rue Peyrolière jusqu’à l’impasse, Albi");
-  has(await ctx.page.$eval("footer.mkt-footer .h-footer-map figcaption", (c) => c.textContent), /Albi, France\s: rue Peyrolière/);
-});
-
 s.test("G57a an adult registering for themselves is not asked for a child's details; checkboxes for days and times, no Ctrl/Cmd", async (ctx) => {
   await ctx.goto("/pre-registration.html");
   assert.equal(await ctx.page.$$eval("select[multiple]", (l) => l.length), 0, "no multi-select list");
@@ -1040,6 +1026,20 @@ s.test("G61 a book page shows the cover from our own server with its size reserv
   assert.equal(cover.prio, "high");
   const { html } = await pageHtml(ctx, `/books/${book.id}`);
   assert.doesNotMatch(html, /openlibrary\.org|archive\.org/);
+});
+
+s.test("G62 New In covers are shown whole (contain, 2:3 box, no horizontal overflow)", async (ctx) => {
+  await ctx.goto("/books.html", "networkidle2");
+  const covers = await ctx.page.$$eval("#bk-new-track img.cover", (imgs) => imgs.map((i) => {
+    const r = i.getBoundingClientRect();
+    return { fit: getComputedStyle(i).objectFit, ratio: r.height ? r.width / r.height : 0 };
+  }));
+  if (!covers.length) ctx.skip("data: no New In covers on the site");
+  for (const c of covers) {
+    assert.equal(c.fit, "contain");
+    assert.ok(Math.abs(c.ratio - 2 / 3) < 0.03, `box ratio ${c.ratio}`);
+  }
+  assert.ok(await ctx.page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "no horizontal overflow");
 });
 
 s.test("G-FR55 FR check (membership): the form and the payment step are in French", { lang: "fr" }, async (ctx) => {

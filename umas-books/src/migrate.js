@@ -1,6 +1,8 @@
 require("dotenv").config({ quiet: true });
 const fs = require("fs");
 const path = require("path");
+// Test system (APP_ENV=staging) only: never migrate the production database from staging.
+require("./lib/staging").enforceStagingBoot();
 const { pool } = require("./db");
 
 // Applies each migrations/*.sql file exactly once, in filename order, and

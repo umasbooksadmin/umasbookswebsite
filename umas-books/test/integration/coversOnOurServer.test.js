@@ -134,3 +134,24 @@ test("cover CSS reserves a 2:3 box and a neutral background; failed loads are ha
     assert.doesNotMatch(read(f), /\bonerror\s*=\s*["']/i, `${path.relative(ROOT, f)} has an inline onerror`);
   }
 });
+
+test("covers are shown whole: no object-fit: cover, and height:auto so the height=300 attribute cannot override the 2:3 box", () => {
+  const rule = (css, sel) => {
+    const m = new RegExp(`(?:^|\\n)${sel.replace(/[.]/g, "\\.")} \\{([^}]*)\\}`).exec(css);
+    assert.ok(m, `${sel} rule not found`);
+    return m[1];
+  };
+  const books = read(path.join(ROOT, "..", "assets", "books.css"));
+  const site = read(path.join(ROOT, "..", "assets", "site.css"));
+  const style = read(path.join(ROOT, "public", "style.css"));
+  const checks = [[books, ".bk-book .cover"], [site, ".arrival-cover"], [style, ".book-card-cover"], [style, ".book-detail-cover"], [style, ".cart-item-cover"]];
+  for (const [css, sel] of checks) {
+    const body = rule(css, sel);
+    assert.match(body, /object-fit: contain/, `${sel} must use object-fit: contain`);
+    assert.doesNotMatch(body, /object-fit: cover/, `${sel} must not crop`);
+    assert.match(body, /aspect-ratio: 2 \/ 3/, `${sel} keeps its 2:3 box`);
+  }
+  // These imgs carry height="300"; without height:auto that attribute wins over aspect-ratio.
+  assert.match(rule(books, ".bk-book .cover"), /height: auto/);
+  assert.match(rule(site, ".arrival-cover"), /height: auto/);
+});

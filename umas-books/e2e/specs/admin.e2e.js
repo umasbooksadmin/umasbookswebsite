@@ -263,7 +263,7 @@ s.test("A9d Location, Source, Binding and Condition are the last values used (al
 s.test("A10 (must) the copy form has condition, binding, source, location and the price control with a suggestion", { as: "admin" }, async (ctx) => {
   await admin(ctx, "/admin/inventory/new");
   const conditions = await ctx.page.$$eval("#condition option", (o) => o.map((x) => x.textContent.trim()));
-  for (const c of ["New", "Very Good", "Good", "Acceptable"]) assert.ok(conditions.some((x) => x.toLowerCase() === c.toLowerCase()), `condition ${c} in ${conditions}`);
+  for (const c of ["New", "Like New", "Very Good", "Good", "Acceptable"]) assert.ok(conditions.some((x) => x.toLowerCase() === c.toLowerCase()), `condition ${c} in ${conditions}`);
   const bindings = await ctx.page.$$eval("#binding option", (o) => o.map((x) => x.textContent.trim()));
   for (const b of ["Hardcover", "Trade", "Mass Market", "Other"]) assert.ok(bindings.some((x) => x.toLowerCase().includes(b.toLowerCase())), `binding ${b} in ${bindings}`);
   assert.ok(await ctx.page.$("#source") && await ctx.page.$("#location"));
@@ -793,6 +793,8 @@ for (const [name, path, re] of PAGES) {
     const text = await ctx.text();
     has(text, re);
     hasNoNaN(text, path);
+    // Preview mode must not get in the way of the blog: the screen says so.
+    if (ctx.preview && path === "/admin/blog") has(text, /Blog posts are not affected by preview mode/);
   });
 }
 s.manual("A30b create, sign up for, edit and delete an event", "publishes a public event and sends nothing, but changes the real calendar; do by hand");
@@ -800,7 +802,27 @@ s.manual("A31b create a session and check a drop-in seat can be reserved", "chan
 s.manual("A32b add a meeting with minutes, then delete it", "changes what members see; do by hand");
 s.manual("A33b add a weekly repeating shift, then delete it", "changes what volunteers see; do by hand");
 s.manual("A34b publish, schedule, pin, archive and delete announcements", "changes what members see; do by hand");
-s.manual("A35b publish a blog post and upload a featured image", "publishes to the public blog; do by hand");
+s.test("A35c (must) Blog form: Save with no content shows a message instead of doing nothing, and a title plus content is accepted by the browser", { as: "admin" }, async (ctx) => {
+  await admin(ctx, "/admin/blog");
+  const page = ctx.page;
+  const before = page.url();
+  // Nothing is saved by this step: with no content the form is stopped by the page itself, and with content it is only checked, never sent.
+  await page.select("#blog-status", "published");
+  await page.type("#blog-title", `${TAG()} blog form check`);
+  await page.click("#blog-form button[type=submit]");
+  await page.waitForFunction(() => { const n = document.getElementById("blog-body-error"); return n && !n.hidden; }, { timeout: 5000 });
+  assert.equal(page.url(), before, "the form was sent although the content is empty");
+  assert.ok((await page.$eval("#blog-body-error", (n) => n.textContent)).includes("write some content"), "no visible message about the empty content");
+  await page.click(".richtext-editor");
+  await page.keyboard.type("Some content");
+  const state = await page.evaluate(() => {
+    const f = document.getElementById("blog-form");
+    f.querySelector("[name=body]").value = f.querySelector(".richtext-editor").innerHTML;
+    return { valid: f.checkValidity(), invalid: [...f.querySelectorAll(":invalid")].map((e) => e.name), noticeHidden: document.getElementById("blog-body-error").hidden };
+  });
+  assert.deepEqual(state, { valid: true, invalid: [], noticeHidden: true }, "the browser would still block Save");
+});
+s.manual("A35b publish a blog post and upload a featured image", "publishes to the public blog (this works in preview mode too); do by hand");
 s.manual("A36b start, run and close a charity vote", "changes the members' vote; do by hand");
 s.manual("A37 (must) hide a forum post with a statement of reasons and restore it", "needs a forum post by someone else, and sends the author an email");
 

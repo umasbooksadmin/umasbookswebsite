@@ -118,8 +118,8 @@ different nav (no cart/account icons).
 `session` store table (created by `migrate.js` / `connect-pg-simple`
 rather than by a numbered migration), grouped by what they belong to:
 
-- **Condition grades and binding** — `book_copies.condition` is one of four
-  grades, `new`, `very_good`, `good`, `acceptable` (default `very_good`),
+- **Condition grades and binding** — `book_copies.condition` is one of five
+  grades, `new`, `like_new`, `very_good`, `good`, `acceptable` (default `very_good`),
   defined once in `CONDITIONS` in `src/lib/inventory.js` (value, English and
   French label, one-line description) and used by the admin forms, the public
   book page (every in-stock copy is listed with its grade, plus a "What the
@@ -127,8 +127,8 @@ rather than by a numbered migration), grouped by what they belong to:
   appends the grade, joined from the copy via `order_items.book_copy_id`).
   Migration 048 remapped the old grades (good to very_good, fair and poor to
   acceptable) and added a CHECK constraint; migration 078 made the grades
-  New / Very Good / Good / Acceptable (like_new became very_good, and
-  `normalizeCondition` still accepts like_new, fair and poor as aliases). A copy that cannot be sold at all
+  New / Very Good / Good / Acceptable (like_new became very_good), and migration 083 added Like New back as a fifth grade
+  (no data converted back; `normalizeCondition` still accepts fair and poor as aliases). A copy that cannot be sold at all
   is not a grade: it gets the status `damaged`. `books.binding` (migration
   048, NULL when unknown) is `hardcover`, `trade`, `mass_market` or `other`
   (`BINDINGS`, `normalizeBinding`; migration 077 renamed `paperback` to

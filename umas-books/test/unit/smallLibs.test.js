@@ -48,7 +48,7 @@ test("seatsTakenExpr counts both legacy sign-ups and in_cart/reserved/sold drop-
 test("inventory vocab: normalizers accept exactly the listed values", () => {
   for (const c of inv.CONDITIONS) assert.equal(inv.normalizeCondition(c.value), c.value);
   for (const s of inv.STATUSES) assert.equal(inv.normalizeStatus(s.value), s.value);
-  assert.deepEqual(inv.CONDITIONS.map((c) => c.value), ["new", "very_good", "good", "acceptable"]);
+  assert.deepEqual(inv.CONDITIONS.map((c) => c.value), ["new", "like_new", "very_good", "good", "acceptable"]);
   assert.deepEqual(inv.STATUSES.map((s) => s.value), ["in_stock", "reserved", "sold", "donated", "damaged"]);
 });
 
