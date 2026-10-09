@@ -6,14 +6,18 @@
 //
 // Only the ISBN, title, author and binding are sent: never anything about a
 // person. Results are cached per ISBN-13 in price_lookups for 30 days, and a
-// daily cap (PRICING_AI_DAILY_MAX, default 150) is counted from that same
-// table, so a restart cannot reset it.
+// daily cap (PRICING_AI_DAILY_MAX, default 150) is kept in the database
+// (table ai_daily_cap, taken atomically, see lib/aiLimits.js) so a restart cannot
+// reset it; every check also counts against the shared AI_DAILY_MAX_CALLS.
 
 const { TEXT_MODEL } = require("../bookDescription");
 const { DEFAULT_SETTINGS } = require("./rules");
 const { toIsbn13 } = require("./isbn");
 const { normalizeBinding } = require("../inventory");
 const { recordCall } = require("../aiUsageStats");
+const { getAiLimits } = require("../aiLimits");
+const { createInflight } = require("../inflight");
+const { isValidIsbn } = require("../bookLookup");
 
 const TIMEOUT_MS = 12000;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -176,14 +180,23 @@ async function fetchMarketData(query, { fetchImpl, env = process.env, settings =
   }
 }
 
+// Two price checks for the same ISBN at the same moment share one run (one cap slot, one API call).
+const marketInflight = createInflight();
+
 // Cached, capped lookup. Returns { originalPrice, comparables, fromCache,
 // fetchedAt } or null (disabled, no ISBN, cap reached, failure, or a recent
 // failure still being waited out). Never throws.
-async function lookupMarket(pool, query, { fetchImpl, env = process.env, settings = DEFAULT_SETTINGS, now = Date.now() } = {}) {
+function lookupMarket(pool, query, opts = {}) {
+  const env = opts.env || process.env;
+  if (!aiEnabled(env)) return Promise.resolve(null);
+  const isbn13 = toIsbn13(query.isbn);
+  // A number whose check digit is wrong is not a book: no AI call for it.
+  if (!isbn13 || !isValidIsbn(isbn13)) return Promise.resolve(null);
+  return marketInflight.run(isbn13, () => lookupMarketOnce(pool, query, isbn13, opts));
+}
+
+async function lookupMarketOnce(pool, query, isbn13, { fetchImpl, env = process.env, settings = DEFAULT_SETTINGS, now = Date.now() } = {}) {
   try {
-    if (!aiEnabled(env)) return null;
-    const isbn13 = toIsbn13(query.isbn);
-    if (!isbn13) return null;
 
     const { rows } = await pool.query("SELECT fetched_at, data, state FROM price_lookups WHERE isbn = $1", [isbn13]);
     if (rows.length) {
@@ -196,13 +209,11 @@ async function lookupMarket(pool, query, { fetchImpl, env = process.env, setting
       }
     }
 
-    // Daily cap, counted from the database (Paris calendar day).
-    const { rows: used } = await pool.query(
-      `SELECT COUNT(*)::int AS n FROM price_lookups
-       WHERE fetched_at >= (date_trunc('day', now() AT TIME ZONE 'Europe/Paris') AT TIME ZONE 'Europe/Paris')`
-    );
-    if (used[0].n >= dailyMax(env)) {
-      console.warn("Price check skipped: daily limit reached.");
+    // Daily caps, taken ATOMICALLY (Paris calendar day): the price check's own PRICING_AI_DAILY_MAX, then the shared
+    // AI_DAILY_MAX_CALLS of every AI feature (lib/aiLimits.js). Concurrent checks can never exceed either.
+    const slot = await getAiLimits().acquirePriceCall(dailyMax(env), { pool, env });
+    if (!slot.ok) {
+      console.warn(`Price check skipped: ${slot.scope === "all" ? slot.message : "daily limit reached."}`);
       return null;
     }
 

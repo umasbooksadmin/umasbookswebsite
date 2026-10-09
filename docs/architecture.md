@@ -1292,7 +1292,8 @@ reservations behind. The code handles it in one place (`lib/privacy.js`):
 | `ANTHROPIC_API_KEY`, `ANTHROPIC_WORKSPACE_ID` | optional | cover scan, book descriptions and genre in admin inventory; also needed (with the switch below) for the AI price lookup |
 | `ISBNDB_API_KEY`, `ISBNDB_API_BASE` | optional | paid ISBNdb catalog, a last resort in the ISBN lookup of the Add a book page (see runbook, "Scan speed"); off without the key |
 | `PRICING_AI` | optional | `true` or `1` turns on the AI market-price lookup behind price suggestions (needs `ANTHROPIC_API_KEY`); off by default, rules still work without it |
-| `PRICING_AI_DAILY_MAX`, `PRICING_AI_MODEL` | optional | daily cap on price lookups (default 150) and model override |
+| `AI_DAILY_MAX_CALLS` | optional | the most Anthropic calls per Paris day for ALL AI features together (default 600, `0` = off); atomic counter in table `ai_daily_cap` (`src/lib/aiLimits.js`); at the cap AI calls are skipped, one alert mail a day (`alert_flags` key `ai-daily-cap`). See runbook "AI limits" |
+| `PRICING_AI_DAILY_MAX`, `PRICING_AI_MODEL` | optional | daily cap on price lookups (default 150, also atomic, a part of `AI_DAILY_MAX_CALLS`) and model override |
 | `NYT_API_KEY` | optional | enables best-seller lists from the New York Times Books API; without it that source is skipped |
 | `AWARDS_LOOKUPS` | optional | `off` stops every awards lookup (used by tests) |
 | `COVER_BACKFILL` | optional | `off` stops the background job that copies book covers to our own server (used by tests) |
