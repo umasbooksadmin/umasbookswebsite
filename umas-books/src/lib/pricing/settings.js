@@ -11,7 +11,7 @@ const CACHE_MS = 60 * 1000;
 // label shown to volunteers, and the sane range it must stay within.
 const NUMBER_FIELDS = [
   { col: "mass_market_price", label: "Mass market price (EUR)", min: 0.5, max: 50 },
-  { col: "hardcover_min_price", label: "Hardcover minimum price (EUR)", min: 1, max: 100 },
+  { col: "hardcover_min_price", label: "Hardback minimum price (EUR)", min: 1, max: 100 },
   { col: "a_max", label: "Rule A: market value under (EUR)", min: 1, max: 100 },
   { col: "a_price", label: "Rule A: price (EUR)", min: 0.5, max: 100 },
   { col: "b_max", label: "Rule B: market value under (EUR)", min: 2, max: 500 },
@@ -20,7 +20,7 @@ const NUMBER_FIELDS = [
   { col: "c_factor", label: "Rule C: share of the market value", min: 0.2, max: 1 },
   { col: "used_fraction", label: "Used value as a share of the publisher's price", min: 0.05, max: 1 },
   { col: "rounding_step", label: "Round Rule C prices to the nearest (EUR)", min: 0.05, max: 5 },
-  { col: "fallback_hardcover", label: "Typical value when nothing is known: hardcover (EUR)", min: 1, max: 500 },
+  { col: "fallback_hardcover", label: "Typical value when nothing is known: hardback (EUR)", min: 1, max: 500 },
   { col: "fallback_trade", label: "Typical value when nothing is known: trade (EUR)", min: 1, max: 500 },
   { col: "fallback_mass_market", label: "Typical value when nothing is known: mass market (EUR)", min: 1, max: 500 },
   { col: "fallback_unknown", label: "Typical value when nothing is known: binding unknown or other (EUR)", min: 1, max: 500 },
@@ -34,7 +34,7 @@ const ENUM_FIELDS = [
   { col: "clearance_applies_to", label: "Clearance rule covers", values: ["set_a", "all_sets"] },
 ];
 const BOOL_FIELDS = [
-  { col: "hardcover_min_applies_to_clearance", label: "Hardcover minimum also applies on clearance" },
+  { col: "hardcover_min_applies_to_clearance", label: "Hardback minimum also applies on clearance" },
 ];
 const LIST_FIELD ={ col: "levels", label: "Standard prices", min: 0.5, max: 500, minLength: 2, maxLength: 8 };
 const COLUMNS = [...NUMBER_FIELDS.map((f) => f.col), ...ENUM_FIELDS.map((f) => f.col), ...BOOL_FIELDS.map((f) => f.col), LIST_FIELD.col];

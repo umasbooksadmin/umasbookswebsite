@@ -286,7 +286,7 @@ test("endpoint: new -> publisher price (none without it); mass market EUR 5 with
 
   const hc = await suggestion({ isbn, binding: "hardcover" });
   assert.deepEqual([hc.price, hc.ruleSet, hc.floorApplied], [10, "A", true]);
-  assert.match(hc.rationale.join(" "), /Hardcover: minimum price EUR 10\.00/);
+  assert.match(hc.rationale.join(" "), /Hardback: minimum price EUR 10\.00/);
   assert.equal(market.calls.length, 1);
 
   const review = await suggestion({ isbn: "", binding: "trade" });
@@ -536,9 +536,9 @@ test("pricing rules page: shows the rules, the calculator and the sample table",
   assert.match(text, /name="a_max"[^>]*value="6"/);
   assert.match(text, /name="clearance_after_copies"[^>]*value="2"/);
   assert.match(text, /name="levels"[^>]*value="3, 5, 8, 10"/);
-  assert.match(text, /<th>Hardcover<\/th>/);
-  assert.match(text, /<tr><td>5\.50<\/td><td>EUR 5\.00<\/td><td>EUR 10\.00<\/td><td>EUR 5\.00<\/td><td>EUR 5\.00<\/td><td>EUR 5\.00<\/td>/, "5.50: unknown 5, hardcover floored to 10, trade 5, mass market 5, other 5");
-  assert.match(text, /<tr><td>50\.00<\/td>(<td>Manual review<\/td>){3}<td>EUR 5\.00<\/td><td>Manual review<\/td>/, "50: review except mass market");
+  assert.match(text, /<th>Mass Market<\/th><th>Trade<\/th><th>Hardback<\/th><th>Other<\/th>/);
+  assert.match(text, /<tr><td>5\.50<\/td><td>EUR 5\.00<\/td><td>EUR 5\.00<\/td><td>EUR 5\.00<\/td><td>EUR 10\.00<\/td><td>EUR 5\.00<\/td>/, "5.50: unknown 5, mass market 5, trade 5, hardback floored to 10, other 5");
+  assert.match(text, /<tr><td>50\.00<\/td><td>Manual review<\/td><td>EUR 5\.00<\/td>(<td>Manual review<\/td>){3}/, "50: review except mass market");
   assert.match(text, /Any value, no ISBN<\/td><td colspan="5">Manual review/);
   assert.match(text, /Pricing rules<\/a>/, "in the admin menu");
 });
@@ -566,7 +566,7 @@ test("pricing rules page: price colour chart lists every colour by name and foll
 test("pricing rules calculator: market value, binding, copies in stock, ISBN", async () => {
   const calc = async (q) => (await h.get(`/admin/pricing?${new URLSearchParams(q)}`)).text;
   assert.match(await calc({ calcMarket: "24", calcBinding: "hardcover" }), /EUR 18\.00<\/strong> &middot; Rule C/);
-  assert.match(await calc({ calcMarket: "3", calcBinding: "hardcover" }), /EUR 10\.00<\/strong> &middot; Rule A \+ hardcover minimum/);
+  assert.match(await calc({ calcMarket: "3", calcBinding: "hardcover" }), /EUR 10\.00<\/strong> &middot; Rule A \+ hardback minimum/);
   assert.match(await calc({ calcMarket: "3", calcBinding: "trade", calcCopies: "2" }), /EUR 1\.00<\/strong> &middot; Clearance/);
   assert.match(await calc({ calcMarket: "12", calcBinding: "trade", calcCopies: "2" }), /EUR 8\.00<\/strong> &middot; Rule B/);
   assert.match(await calc({ calcMarket: "80", calcBinding: "mass_market" }), /EUR 5\.00<\/strong> &middot; Mass market price/);

@@ -51,7 +51,7 @@ test("every number is range-checked, with plain-English messages, all problems a
     a_price: "abc", rounding_step: "", usd_eur: "9", fallback_unknown: "0",
   };
   const { error } = validateSettingsInput({ ...GOOD, ...bad });
-  for (const label of ["Rule C: share of the market value", "Used value as a share", "Hardcover minimum price", "Clearance: copies already in stock", "Clearance price", "Mass market price", "Rule A: price", "Round Rule C prices", "1 US dollar", "binding unknown"]) {
+  for (const label of ["Rule C: share of the market value", "Used value as a share", "Hardback minimum price", "Clearance: copies already in stock", "Clearance price", "Mass market price", "Rule A: price", "Round Rule C prices", "1 US dollar", "binding unknown"]) {
     assert.ok(error.includes(label), `mentions ${label}: ${error}`);
   }
   // edges that are allowed

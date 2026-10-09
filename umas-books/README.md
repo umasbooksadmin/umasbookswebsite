@@ -231,9 +231,10 @@ true; if you hesitate between two, choose the lower one.
 A book that is not fit to sell (pages missing, mouldy, falling apart) is not a
 grade: set its **status** to "Damaged / withdrawn" instead.
 
-The **binding** says what kind of book it is: **Hardcover**, **Trade** (a
-normal paperback, in French "broché"), **Mass Market** (the small pocket
-paperback, "poche") or **Other** (board book, spiral-bound, anything else).
+The **binding** says what kind of book it is: **Mass Market** (the small
+pocket paperback, "poche"), **Trade** (a normal paperback, in French
+"broché"), **Hardback** (in French "relié") or **Other** (board book,
+spiral-bound, anything else).
 It is filled in automatically when the scan finds it; check it, and choose
 "Not specified" if unsure.
 Customers see the grade of each copy, the binding, and a "What the grades
@@ -371,8 +372,8 @@ can always pick another price, and nothing is published until you save.
   have. **The condition of your copy does not change the price.**
   - A **new** book is always sold at the publisher's price (French law).
   - **Mass market** paperbacks are EUR 5.
-  - Other books (hardcover, trade and **Other**): worth under EUR 6 online = EUR 5; EUR 6 to 19.99 = EUR 8;
-    EUR 20 to 49.99 = about three quarters of the online value. **Hardcovers
+  - Other books (hardback, trade and **Other**): worth under EUR 6 online = EUR 5; EUR 6 to 19.99 = EUR 8;
+    EUR 20 to 49.99 = about three quarters of the online value. **Hardbacks
     are never under EUR 10.**
   - If we already have **2 or more copies** of the same book (in stock or
     reserved), the next one goes to the **clearance** bin at EUR 1 (this
