@@ -125,6 +125,7 @@
       return { kind: "stocked", text: "Already in stock: " + ex.copies + (ex.copies === 1 ? " copy" : " copies") + ". " + (ex.title || "") };
     }
     if (result && result.found && result.book && result.book.title) return { kind: "found", text: "Found: " + result.book.title };
+    if (result && (result.catalog === "slow" || result.catalog === "error")) return { kind: "notfound", text: "Catalog is slow right now: fill in by hand, or scan again" };
     return { kind: "notfound", text: "Not found: fill in by hand" };
   }
 

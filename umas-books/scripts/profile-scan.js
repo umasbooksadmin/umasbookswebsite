@@ -88,6 +88,9 @@ async function main() {
       console.log(`${(kind + "." + name).padEnd(22)} ${String(arr.length).padStart(4)} ${pct(arr, 50).toFixed(0).padStart(7)} ${pct(arr, 95).toFixed(0).padStart(8)} ${Math.max(...arr).toFixed(0).padStart(8)}`);
     }
   }
+  await require("../src/lib/afterResponse").settled(); // the covers and texts filled in after each save
+  const { rows: filled } = await pool.query("SELECT count(*) FILTER (WHERE cover_url IS NOT NULL)::int AS covers, count(*) FILTER (WHERE description IS NOT NULL)::int AS descriptions, count(*)::int AS books FROM books");
+  console.log(`\nafter the background fill: ${filled[0].covers}/${filled[0].books} books have a cover, ${filled[0].descriptions}/${filled[0].books} a description`);
   await server.close();
   await pool.end();
 }

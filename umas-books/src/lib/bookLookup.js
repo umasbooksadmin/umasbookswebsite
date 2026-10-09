@@ -131,11 +131,98 @@ async function fetchJson(url, timeoutMs = 5000) {
   return null;
 }
 
-async function lookupByIsbn(rawIsbn) {
-  const isbn = normalizeIsbn(rawIsbn);
-  if (!isbn) return null;
+// ---------- The ISBN lookup (the one that has to feel instant) ----------
+//
+// Open Library answers in 0.7 s most of the time and now and then in 6 s or never.
+// So the lookup of the scan page does not wait on one slow answer:
+//   - timeoutMs  (SCAN_LOOKUP_TIMEOUT_MS, default 4000): the whole lookup is given up after
+//                this long; the page then says "not found: fill in by hand" (state "slow").
+//   - hedgeMs    (SCAN_LOOKUP_HEDGE_MS, default 1500, 0 = off): if the first request has not
+//                answered by then, an identical second one is sent and the first answer wins.
+//                A request that FAILS fast (connection reset) is retried at once, as before.
+//   - cache      found and "not in the catalog" answers are kept in memory for
+//                SCAN_CACHE_TTL_MS (default 10 minutes, 0 = off), so scanning the same ISBN
+//                again, or saving a book just looked up, does not call Open Library twice.
+//                A timeout or a network error is never cached.
 
-  const data = await fetchJson(`https://openlibrary.org/api/volumes/brief/isbn/${isbn}.json`);
+const envNumber = (name, fallback) => {
+  const raw = process.env[name];
+  if (raw === undefined || raw === "") return fallback;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 ? n : fallback;
+};
+
+function createTtlCache({ max = 300, ttlMs = () => envNumber("SCAN_CACHE_TTL_MS", 10 * 60 * 1000), now = () => Date.now() } = {}) {
+  const map = new Map();
+  return {
+    get(key) {
+      const hit = map.get(key);
+      if (!hit) return undefined;
+      if (hit.expires <= now()) { map.delete(key); return undefined; }
+      map.delete(key); map.set(key, hit); // most recently used last
+      return hit.value;
+    },
+    set(key, value) {
+      const ttl = typeof ttlMs === "function" ? ttlMs() : ttlMs;
+      if (!(ttl > 0)) return;
+      map.delete(key);
+      map.set(key, { value, expires: now() + ttl });
+      while (map.size > max) map.delete(map.keys().next().value);
+    },
+    clear() { map.clear(); },
+    get size() { return map.size; },
+  };
+}
+
+const lookupCache = createTtlCache();
+
+// One GET with a deadline, an optional hedge and one quick retry.
+// Resolves { state: "ok", data } | { state: "missing" } (404) | { state: "error" } | { state: "timeout" }; never rejects.
+function fetchJsonRace(url, { timeoutMs, hedgeMs = 0, fetchImpl = (...a) => fetch(...a) }) {
+  return new Promise((resolve) => {
+    const controller = new AbortController();
+    let started = 0;
+    let ended = 0;
+    let settled = false;
+    let last = { state: "error" };
+    let hedgeTimer = null;
+    let deadline = null;
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(hedgeTimer);
+      clearTimeout(deadline);
+      controller.abort();
+      resolve(result);
+    };
+    deadline = setTimeout(() => finish({ state: "timeout" }), timeoutMs);
+    const attempt = () => {
+      if (settled || started >= MAX_ATTEMPTS) return;
+      started += 1;
+      (async () => {
+        try {
+          const res = await fetchImpl(url, { signal: controller.signal, headers: { "User-Agent": "UmasBooksInventory/1.0" } });
+          if (!res.ok) return { state: res.status === 404 ? "missing" : "error" };
+          return { state: "ok", data: await res.json() };
+        } catch {
+          return { state: "error" };
+        }
+      })().then((r) => {
+        ended += 1;
+        if (r.state === "ok" || r.state === "missing") return finish(r);
+        last = r;
+        if (ended >= started) {
+          if (started < MAX_ATTEMPTS) attempt();
+          else finish(last);
+        }
+      });
+    };
+    attempt();
+    if (hedgeMs > 0 && hedgeMs < timeoutMs) hedgeTimer = setTimeout(attempt, hedgeMs);
+  });
+}
+
+function bookFromRecord(isbn, data) {
   if (!data || Array.isArray(data) || !data.records) return null;
 
   const record = Object.values(data.records)[0];
@@ -166,6 +253,35 @@ async function lookupByIsbn(rawIsbn) {
   };
 }
 
+// -> { book, state } with state "found" | "missing" (the catalog has no such book) |
+// "slow" (gave up waiting) | "error" (network trouble). Never throws.
+// opts: timeoutMs, hedgeMs, fetchImpl (tests), cache (a createTtlCache(), tests; false = no cache).
+async function lookupByIsbnDetailed(rawIsbn, opts = {}) {
+  const isbn = normalizeIsbn(rawIsbn);
+  if (!isbn) return { book: null, state: "missing" };
+  const cache = opts.cache === undefined ? lookupCache : opts.cache;
+  const hit = cache ? cache.get(isbn) : undefined;
+  if (hit) return { book: hit.book ? { ...hit.book } : null, state: hit.state, cached: true };
+
+  const r = await fetchJsonRace(`https://openlibrary.org/api/volumes/brief/isbn/${isbn}.json`, {
+    timeoutMs: opts.timeoutMs === undefined ? envNumber("SCAN_LOOKUP_TIMEOUT_MS", 4000) : opts.timeoutMs,
+    hedgeMs: opts.hedgeMs === undefined ? envNumber("SCAN_LOOKUP_HEDGE_MS", 1500) : opts.hedgeMs,
+    fetchImpl: opts.fetchImpl,
+  });
+  if (r.state === "timeout") return { book: null, state: "slow" };
+  if (r.state === "error") return { book: null, state: "error" };
+  const book = r.state === "ok" ? bookFromRecord(isbn, r.data) : null;
+  const result = { book, state: book ? "found" : "missing" };
+  if (cache) cache.set(isbn, result);
+  return { book: book ? { ...book } : null, state: result.state };
+}
+
+// The book the catalog knows for an ISBN, or null (not found, slow, network error).
+// Callers that are not the scan page (a photo, the saving of a book) can wait longer.
+async function lookupByIsbn(rawIsbn, opts = {}) {
+  return (await lookupByIsbnDetailed(rawIsbn, { timeoutMs: 8000, ...opts })).book;
+}
+
 async function searchByTitleAuthor(title, author) {
   if (!title && !author) return [];
   const params = new URLSearchParams({
@@ -194,4 +310,4 @@ async function searchByTitleAuthor(title, author) {
   });
 }
 
-module.exports = { normalizeIsbn, mapBinding, lookupByIsbn, searchByTitleAuthor, COMMON_GENRES, COMMON_GENRES_FR, GENRE_ALIASES_FR, translateGenresToFrench };
+module.exports = { normalizeIsbn, mapBinding, lookupByIsbn, lookupByIsbnDetailed, createTtlCache, lookupCache, searchByTitleAuthor, COMMON_GENRES, COMMON_GENRES_FR, GENRE_ALIASES_FR, translateGenresToFrench };
