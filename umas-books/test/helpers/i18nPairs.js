@@ -134,4 +134,4 @@ function problems(p) {
   return out;
 }
 
-module.exports = { pairs, problems };
+module.exports = { pairs, problems, splitArgs };

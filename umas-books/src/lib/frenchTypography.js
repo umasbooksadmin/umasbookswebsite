@@ -45,6 +45,14 @@ function fixAttributes(tag) {
   return tag.replace(SPOKEN_ATTR, (_, a, v, z) => a + fixText(v, false) + z);
 }
 
+// The same no-break-space rules for a plain-text French email (subject or body): no HTML, so no
+// tags to avoid. The apostrophe is left as written (names typed by people are not touched).
+function frenchPlainText(text) {
+  return String(text)
+    .replace(/ +([;:!?»])/g, NBSP + "$1")
+    .replace(/«[ ]+/g, "«" + NBSP);
+}
+
 function frenchTypography(html) {
   const s = String(html);
   let out = "";
@@ -100,4 +108,4 @@ function installFrenchRender(res) {
   };
 }
 
-module.exports = { frenchTypography, installFrenchRender, NBSP };
+module.exports = { frenchTypography, frenchPlainText, installFrenchRender, NBSP };

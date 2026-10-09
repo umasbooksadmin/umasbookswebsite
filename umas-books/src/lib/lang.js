@@ -30,7 +30,13 @@ function translator(lang) {
 // For email builders: const tr = emailTr(order.lang); tr("Hello", "Bonjour").
 // Unknown/missing lang means English.
 function emailTr(lang) {
-  return translator(normLang(lang) || "en");
+  const l = normLang(lang) || "en";
+  const tr = translator(l);
+  if (l !== "fr") return tr;
+  // French emails get the no-break space before ; : ! ? » (and after «), like the pages do
+  // (frenchTypography.js), so a colon never starts a line in a mail reader.
+  const { frenchPlainText } = require("./frenchTypography");
+  return (en, fr, vars) => frenchPlainText(tr(en, fr, vars));
 }
 
 module.exports = { normLang, pickLang, emailTr, translator, fill };

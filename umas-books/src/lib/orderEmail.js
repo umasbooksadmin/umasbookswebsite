@@ -5,6 +5,7 @@ const { formatEuro } = require("./money");
 const { orderItemLabel, reservationLastDay } = require("./orderItems");
 const legal = require("./legal");
 const { NO_RETURNS, vatNotice } = require("./legalText");
+const { frenchPlainText } = require("./frenchTypography");
 
 // The shop you pick up at (Rue Peyrolière) is NOT the association's
 // registered office (siège, 5 rue Hippolyte Savary): customers get the shop
@@ -97,7 +98,9 @@ function buildOrderConfirmationText(order, items, base) {
     `Hi ${name},\n\nThanks for your reservation. Nothing has been paid online: you pay at the shop when you collect.\n\nReservation #${order.id} — ${orderDate}\n\n${lines}\n\nTotal to pay at the shop: ${total}\n\nPAY AT THE SHOP WHEN YOU COLLECT\n${deadline}${seatNote}${SHOP_LINES.en} Please quote reservation #${order.id}. You pay in cash or by card, after checking the book: you are free to decline it.\n\nTO CANCEL\nLog in and open your account page, then press “Cancel reservation”: ${accountUrl}\n\n`,
     `Bonjour ${name},\n\nMerci pour votre réservation. Rien n’a été payé en ligne : vous réglez à la boutique au moment du retrait.\n\nRéservation n° ${order.id} — ${orderDate}\n\n${lines}\n\nTotal à régler à la boutique : ${total}\n\nÀ RÉGLER À LA BOUTIQUE AU RETRAIT\n${deadline}${seatNote}${SHOP_LINES.fr} Merci d’indiquer la réservation n° ${order.id}. Vous payez en espèces ou par carte, après avoir vérifié le livre : vous êtes libre de le refuser.\n\nPOUR ANNULER\nConnectez-vous, ouvrez votre page de compte puis appuyez sur « Annuler la réservation » : ${accountUrl}\n\n`
   );
-  return `${head}${termsLine}${cgvLine}${lang === "fr" ? LEGAL_RIGHTS_FRENCH_ONLY : LEGAL_RIGHTS}\n\n${sellerLines(lang)}`;
+  const text = `${head}${termsLine}${cgvLine}${lang === "fr" ? LEGAL_RIGHTS_FRENCH_ONLY : LEGAL_RIGHTS}\n\n${sellerLines(lang)}`;
+  // The fixed legal blocks are not written through tr(): give the French mail the same no-break spaces.
+  return lang === "fr" ? frenchPlainText(text) : text;
 }
 
 // Day-10 reminder (RESERVATION_REMINDER_DAYS_BEFORE days before the deadline).
