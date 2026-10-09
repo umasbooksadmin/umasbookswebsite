@@ -30,6 +30,7 @@ const { RESERVATION_DAYS, MAX_RESERVED_COPIES, MAX_ACTIVE_RESERVATIONS, SESSION_
 //   SOLD_OUT                 something in the cart was taken in the meantime
 //   TOO_MANY_RESERVATIONS    the account already has MAX_ACTIVE_RESERVATIONS open
 //   TOO_MANY_COPIES          the account would hold more than MAX_RESERVED_COPIES books
+//   PRICE_CHANGED            a price differs from what the customer saw (err.changes lists them)
 //   BUSY                     deadlock twice in a row
 // (Anything else is an unexpected failure.)
 async function createReservation(pool, { user, name, phone = null, items, lang = null, hasDropin = false, acceptedVersion }) {
@@ -57,6 +58,12 @@ async function createReservation(pool, { user, name, phone = null, items, lang =
   // The confirmation was stored in the same transaction (outbox); send it now.
   if (order.confirmationId) await deliverNow(pool, order.confirmationId);
   return order;
+}
+
+function priceChangedError(changes) {
+  const err = new Error("PRICE_CHANGED");
+  err.changes = changes;
+  return err;
 }
 
 async function reserveInTransaction(client, { user, email, name, phone, bookItems, dropinItems, total, lang, hasDropin, acceptedVersion }) {
@@ -88,7 +95,23 @@ async function reserveInTransaction(client, { user, email, name, phone, bookItem
     // Take the row locks in id order. Two carts sharing copies would
     // otherwise each lock them in their own order and deadlock.
     const copyIds = bookItems.map((i) => i.copyId).sort((a, b) => a - b);
-    await client.query("SELECT id FROM book_copies WHERE id = ANY($1::int[]) ORDER BY id FOR UPDATE", [copyIds]);
+    const { rows: locked } = await client.query(
+      "SELECT id, price, status FROM book_copies WHERE id = ANY($1::int[]) ORDER BY id FOR UPDATE",
+      [copyIds]
+    );
+    // The price is checked UNDER THE LOCK: a reprice (or an edit) between the moment the
+    // customer saw the cart and now would otherwise leave order_items.price different from
+    // book_copies.price. The customer is never charged a different price silently: the
+    // reservation is refused (PRICE_CHANGED, rolled back) and they confirm again at the new one.
+    const priceChanges = [];
+    for (const row of locked) {
+      if (row.status !== "in_stock" || row.price == null) continue; // taken: the UPDATE below says SOLD_OUT
+      const item = bookItems.find((i) => i.copyId === row.id);
+      if (item && Math.round(Number(row.price) * 100) !== Math.round(Number(item.price) * 100)) {
+        priceChanges.push({ kind: "book", id: row.id, title: item.title, oldPrice: Number(item.price), newPrice: Number(row.price) });
+      }
+    }
+    if (priceChanges.length) throw priceChangedError(priceChanges);
     const { rows: held } = await client.query(
       `UPDATE book_copies
        SET status = 'reserved', reserved_by_name = $3, reserved_by_email = $4, reserved_by_phone = $5, reserved_at = now(),
@@ -134,6 +157,9 @@ async function reserveInTransaction(client, { user, email, name, phone, bookItem
       if (!cls || spotsLeft < count) throw new Error("SOLD_OUT");
 
       const item = dropinItems.find((i) => i.classId === classId);
+      if (Math.round(Number(cls.dropin_price) * 100) !== Math.round(Number(item.price) * 100)) {
+        throw priceChangedError([{ kind: "dropin", id: classId, title: item.title, oldPrice: Number(item.price), newPrice: Number(cls.dropin_price) }]);
+      }
       for (let n = 0; n < count; n++) {
         const { rows: seatRows } = await client.query(
           `INSERT INTO class_dropin_seats (class_id, status, order_id) VALUES ($1, 'reserved', $2) RETURNING id`,
