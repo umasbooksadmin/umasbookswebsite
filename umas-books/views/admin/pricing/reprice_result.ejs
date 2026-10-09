@@ -7,7 +7,7 @@
 
 <div class="card">
   <p>
-    Run <%= run.id %> &middot; <%= formatDateTime(run.created_at) %> &middot; <%= run.actor_label || '' %><br>
+    Run <%= run.id %> &middot; <%= formatDateTime(run.created_at) %> &middot; <%= run.actor_role || 'admin' %><br>
     <a href="/admin/audit">See this run in Admin activity</a> (action <code>pricing.reprice</code>, run <%= run.id %>).<br>
     <a href="/admin/pricing/reprice/runs/<%= run.id %>/export.csv">Download the changes as CSV</a> (price before and after, for each copy).
   </p>

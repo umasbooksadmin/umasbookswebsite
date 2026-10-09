@@ -229,7 +229,7 @@ router.post("/admin/pricing/reprice/:group", requireAdmin, async (req, res) => {
     // A form without the previewed count and hash is never applied: re-preview.
     return res.redirect(303, `/admin/pricing/reprice?stale=${group.key}&was=0&now=0`);
   }
-  const result = await reprice.applyGroup(pool, group.key, settings, { id: user ? user.id : null, label: user ? user.email : null }, { count: Number(expectedCount), hash: expectedHash });
+  const result = await reprice.applyGroup(pool, group.key, settings, { id: user ? user.id : null, role: "admin" }, { count: Number(expectedCount), hash: expectedHash });
   if (result.mismatch) {
     await audit(req, { action: "pricing.reprice.refused", detail: `Group ${group.letter} (${group.key}): previewed ${result.expectedCount}, live ${result.liveCount}` });
     return res.redirect(303, `/admin/pricing/reprice?stale=${group.key}&was=${result.expectedCount}&now=${result.liveCount}`);

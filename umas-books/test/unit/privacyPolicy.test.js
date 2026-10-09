@@ -216,3 +216,24 @@ test("privacy policy: books and seats are paid in the shop, only the membership 
     assert.doesNotMatch(d["pp.s5.list"], /IP address kept with an order|Adresse IP conservée avec une commande/);
   }
 });
+
+test("privacy policy: names the services that get only book or technical data, in English and French", () => {
+  for (const d of [en, fr]) {
+    for (const name of ["Google Books", "ISBNdb", "BnF", "Wikidata", "Wikimedia", "New York Times", "Have I Been Pwned", "Anthropic"]) {
+      assert.match(d["pp.s4.list"], new RegExp(name), `${name} is named`);
+    }
+    assert.match(d["pp.s4.list"], /5/, "the 5-character hash prefix is stated");
+    assert.match(d["pp.s4.p2"], /Open Library/);
+  }
+  assert.match(en["pp.s4.list"], /first 5 characters of a one-way fingerprint/);
+  assert.match(fr["pp.s4.list"], /5 premiers caractères d’une empreinte à sens unique/);
+});
+
+test("privacy policy: states sessions, the phone-number rule and the log period accurately, in English and French", () => {
+  assert.match(en["pp.s5.list"], /2 hours for a visitor who is not logged in \(24 hours if the cart holds something\), up to 30 days once you are logged in/);
+  assert.match(en["pp.s5.list"], /8 hours without activity and after 7 days at most/);
+  assert.match(fr["pp.s5.list"], /2 heures pour un visiteur non connecté \(24 heures si le panier contient quelque chose\)/);
+  assert.match(fr["pp.s5.list"], /8 heures d’inactivité et au plus tard après 7 jours/);
+  assert.match(en["pp.s5.list"], /phone number, if you gave one, is erased as soon as the reservation is collected and paid, cancelled or expired, and in any case 30 days/);
+  assert.match(fr["pp.s5.list"], /numéro de téléphone, si vous en avez donné un, est effacé dès que la réservation est retirée et payée/);
+});
