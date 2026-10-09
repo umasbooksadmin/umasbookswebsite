@@ -25,9 +25,15 @@
 
   function getJSON(url, cb, isRetry) {
     fetch(url)
-      .then(function (res) { if (!res.ok) throw new Error('bad response'); return res.json(); })
+      .then(function (res) {
+        // 429 (too many searches from this connection): no automatic retry, say so.
+        if (res.status === 429) { var e = new Error('rate limited'); e.rateLimited = true; throw e; }
+        if (!res.ok) throw new Error('bad response');
+        return res.json();
+      })
       .then(function (data) { cb(null, data); })
       .catch(function (err) {
+        if (err && err.rateLimited) { cb(err); return; }
         if (!isRetry) { setTimeout(function () { getJSON(url, cb, true); }, 4000); return; }
         cb(err);
       });
@@ -115,7 +121,7 @@
     resultsGrid.innerHTML = '<p class="muted">' + esc(t('bk.loading', 'Loading books…')) + '</p>';
     resultsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
     getJSON(url, function (err, books) {
-      if (err) { resultsGrid.innerHTML = '<p class="muted">' + esc(t('bk.error')) + '</p>'; return; }
+      if (err) { resultsGrid.innerHTML = '<p class="muted">' + esc(t(err.rateLimited ? 'bk.ratelimited' : 'bk.error')) + '</p>'; return; }
       if (!books.length) { resultsGrid.innerHTML = '<p class="muted">' + esc(t('bk.empty')) + ' <a href="/request-a-book">' + esc(t('bk.empty.ask')) + '</a></p>'; return; }
       resultsGrid.innerHTML = books.map(function (b) { return bookCard(b, true); }).join('');
       syncFavorites(resultsGrid);

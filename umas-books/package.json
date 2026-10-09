@@ -45,6 +45,6 @@
     "puppeteer": "^25.12.0"
   },
   "allowScripts": {
-    "puppeteer@25.12.0": true
+    "puppeteer@25.13.0": true
   }
 }

@@ -124,6 +124,8 @@ async function main() {
     port,
     env: {
       ADMIN_2FA_REQUIRED: "true",
+      // The personas open hundreds of fresh browser sessions from this one address; the live site caps that at 60 per 10 minutes.
+      ANON_SESSION_LIMIT: "100000",
       PREVIEW_MODE: preview ? "true" : "",
       HELLOASSO_CLIENT_ID: "fake", HELLOASSO_CLIENT_SECRET: "fake", HELLOASSO_ORG_SLUG: "fake-org",
       HELLOASSO_API_BASE: `http://127.0.0.1:${fake.port}/v5`,

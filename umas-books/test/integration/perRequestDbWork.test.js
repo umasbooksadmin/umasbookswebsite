@@ -8,6 +8,7 @@ const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const { startTestApp } = require("../helpers/testApp");
 const { makeCookieJar, fetchCsrfToken } = require("../helpers/httpClient");
+const { createAccount, loginOverHttp } = require("../helpers/accounts");
 
 const PORT = 3440;
 
@@ -81,30 +82,55 @@ test("/api/session returns the logged-out shape including cartCount", async () =
   });
 });
 
-test("an existing session is not touched on every request, but is refreshed once it is a day old", async () => {
-  const jar = makeCookieJar();
-  await fetchCsrfToken(app.base, jar);
-  const sid = decodeURIComponent(jar.header().split("umasbooks.sid=")[1].split(";")[0]).slice(2).split(".")[0];
-  const expireOf = async () => (await pool.query("SELECT extract(epoch FROM expire) AS e FROM session WHERE sid = $1", [sid])).rows[0].e;
-
-  // Backdate: pretend it was last saved 10 days ago (20 days left).
-  const DAY = 86400;
-  const backdated = Math.floor(Date.now() / 1000) + 20 * DAY;
+// Shared by the two sliding-expiry tests: make `sid`'s row expire `secondsLeft` from now.
+async function backdate(sid, secondsLeft) {
+  const when = Math.floor(Date.now() / 1000) + secondsLeft;
   await pool.query(
     `UPDATE session SET expire = to_timestamp($1),
        sess = jsonb_set(sess::jsonb, '{cookie,expires}', to_jsonb(to_char(to_timestamp($1) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.000"Z"')))::json
-     WHERE sid = $2`, [backdated, sid]);
+     WHERE sid = $2`, [when, sid]);
+  return when;
+}
+const sidOf = (jar) => decodeURIComponent(jar.header().split("umasbooks.sid=")[1].split(";")[0]).slice(2).split(".")[0];
+const expireOf = async (sid) => (await pool.query("SELECT extract(epoch FROM expire::timestamptz) AS e FROM session WHERE sid = $1", [sid])).rows[0].e;
+const hit = async (jar) => (await fetch(`${app.base}/api/session`, { headers: { cookie: jar.header() } })).arrayBuffer();
+const DAY = 86400;
 
+test("a logged-in session is not touched on every request, but is refreshed (30 days) once it is a day old", async () => {
+  const acc = await createAccount(pool, { email: `refresh-${Date.now()}@example.test` });
+  const jar = makeCookieJar();
+  assert.equal((await loginOverHttp(app.base, jar, acc)).status, 302);
+  const sid = sidOf(jar);
+
+  // Backdate: pretend it was last saved 10 days ago (20 days left).
+  const backdated = await backdate(sid, 20 * DAY);
   // First request after backdating: refreshes the expiry (one save).
   // (Read the body: express-session only finishes the response after its
   // save completes, so a fully read body means the write has landed.)
-  await (await fetch(`${app.base}/api/session`, { headers: { cookie: jar.header() } })).arrayBuffer();
-  const refreshed = await expireOf();
+  await hit(jar);
+  const refreshed = await expireOf(sid);
   assert.ok(refreshed > backdated + 9 * DAY, "a >1-day-old session is extended");
 
   // Further requests the same day must not write again.
-  for (let i = 0; i < 3; i++) await (await fetch(`${app.base}/api/session`, { headers: { cookie: jar.header() } })).arrayBuffer();
-  assert.equal(await expireOf(), refreshed, "no per-request touch");
+  for (let i = 0; i < 3; i++) await hit(jar);
+  assert.equal(await expireOf(sid), refreshed, "no per-request touch");
+});
+
+test("a guest session (2 hours) is refreshed at most every 30 minutes, not on every request", async () => {
+  const jar = makeCookieJar();
+  await fetchCsrfToken(app.base, jar);
+  const sid = sidOf(jar);
+  const fresh = await expireOf(sid);
+  for (let i = 0; i < 3; i++) await hit(jar);
+  assert.equal(await expireOf(sid), fresh, "fresh guest session: no write");
+
+  const backdated = await backdate(sid, 60 * 60); // 1 h left of 2 h: older than 30 min
+  await hit(jar);
+  const refreshed = await expireOf(sid);
+  assert.ok(refreshed > backdated + 50 * 60, "extended back to about 2 hours");
+  assert.ok(refreshed < Date.now() / 1000 + 2 * 3600 + 120, "but never beyond 2 hours");
+  for (let i = 0; i < 3; i++) await hit(jar);
+  assert.equal(await expireOf(sid), refreshed, "no per-request touch");
 });
 
 test("responses are gzip-compressed when the client accepts it", async () => {

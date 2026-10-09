@@ -7,8 +7,9 @@
 //     single STAGING_MAIL_TO address (the original recipient is written in the
 //     subject and at the top of the body), or, with STAGING_MAIL_TO unset, is
 //     not sent at all (mailer.js).
-//   - refuses to boot with live HelloAsso credentials (sandbox only) or when
-//     DATABASE_URL points at the production database host.
+//   - refuses to boot with live HelloAsso credentials (sandbox only), when
+//     PRODUCTION_DATABASE_HOST is not set, or when DATABASE_URL points at the
+//     production database host.
 //   - banner on every page, noindex, robots.txt Disallow, empty sitemap.
 
 function isStaging(env = process.env) {
@@ -52,6 +53,14 @@ function stagingBootProblems(env = process.env) {
     problems.push(
       "HelloAsso credentials are set but HELLOASSO_API_BASE is not the HelloAsso SANDBOX address (https://api.helloasso-sandbox.com/v5). " +
       "A staging site must never hold live HelloAsso credentials: use sandbox credentials with HELLOASSO_API_BASE=https://api.helloasso-sandbox.com/v5, or remove the HELLOASSO_* variables."
+    );
+  }
+  // The protection against a staging site pointing at the production database
+  // only works if the production host is known: make it mandatory here.
+  if (!isSet(env, "PRODUCTION_DATABASE_HOST")) {
+    problems.push(
+      "PRODUCTION_DATABASE_HOST is not set. It is REQUIRED on a staging site: it is how the service knows DATABASE_URL must never be the production database. " +
+      "Set it to the production database host name (Render > umas-books-db > Info > Hostname, the \"dpg-...\" part)."
     );
   }
   const prodProblem = productionHostProblem(env);

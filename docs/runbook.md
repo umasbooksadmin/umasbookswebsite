@@ -74,8 +74,15 @@ asks you to. Always change **every** place listed, then check
 | `PREVIEW_MODE` (not a secret; see section g) | Render env var only |
 | `BACKUP_S3_BUCKET`, `BACKUP_S3_ENDPOINT`, `BACKUP_S3_REGION` (and optional `BACKUP_S3_PREFIX`) | GitHub **repository variables** |
 | `BACKUP_S3_KEY_ID`, `BACKUP_S3_APPLICATION_KEY` | GitHub **repository secrets** |
+| `BACKUP_AGE_RECIPIENT` (the age **public** key; not a secret) | GitHub **repository variable**. Section ad) |
+| `BACKUP_AGE_IDENTITY` (the age **private** key; optional, not recommended) | GitHub **repository secret**, used only by the monthly restore test. Section ad) |
+| age private key (the file `umas-books-backup-key.txt`) | Your password manager, plus a second copy kept elsewhere (section ad). **Never** in GitHub, Render or the repository, unless you choose the optional `BACKUP_AGE_IDENTITY` |
 
-**DATABASE_URL (the Render database password).**
+**DATABASE_URL (the Render database password).** The GitHub copy should be the
+*read-only backup user's* connection string (`backup_ro`), not the owner's:
+section ad), "A read-only database user for the backup". Rotating the owner's
+password (steps below) then does not touch GitHub; rotating `backup_ro`'s does
+(only the GitHub secret changes, plus the `ALTER ROLE` in step 2 of that section).
 Render links the web service to the database automatically
 (`fromDatabase` in `render.yaml`), but GitHub keeps its own copy.
 If you change one and not the other, the site keeps working but the nightly
@@ -346,11 +353,20 @@ the UptimeRobot "DOWN" alert) is in section r) "When you receive an alert".
      another 30 days.
   The pre-registration emails hold a child's name and year of birth, so do not
   skip them.
+- **Backup restore drill (section ad):** decrypt the newest backup on your Mac,
+  restore it into a scratch database, look at the counts, delete it. The
+  monthly GitHub restore test does *not* decrypt anything unless you gave it the
+  private key, so this is the only proof that the key in your password manager
+  really opens the backups.
 - **GitHub Actions minutes:** also check the monthly usage (section t): GitHub > profile picture > Settings > Billing and plans > Usage this month.
 - **UptimeRobot:** check the monitors are still active and the plan is still free (section d).
 
 ### Every year
 
+- **Rotate the backup credentials (section ad):** the `backup_ro` database
+  password and the Backblaze application key (the age key pair only if a person
+  who had it has left). Put the date in the calendar for **1 October**, next to
+  the quarterly drill.
 
 - **Domain renewal:** umasbooks.org is registered at **Squarespace Domains** and
   expires **2027-08-22** (the DNS is also managed there). Check auto-renew and
@@ -399,6 +415,29 @@ The decision for the maintainer (and a developer if needed):
 Do not close the rule before the backup has a way in: you would silently lose
 your backups. Whichever you choose, run **Nightly database backup** manually
 afterwards and confirm it is green.
+
+**Why the rule cannot simply list GitHub's addresses.** GitHub's runners use
+thousands of address ranges that change every week (published at
+`https://api.github.com/meta`, key `actions`), far more than a Render rule list
+is meant for, and a stale list silently breaks the backup. The practical
+choices are: (a) keep `0.0.0.0/0` and make the credential in GitHub weak
+as a *prize* (a **read-only** user, section ad), long, rotated every year, and
+the repository private; (b) take the dump from somewhere with a fixed address
+(a small always-on machine of your own, or a self-hosted GitHub runner), then
+close the rule to that one address. (b) costs money and upkeep; this runbook
+recommends (a) for now.
+
+**The residual risk, stated plainly (with option a).** Anyone who gets the
+`DATABASE_URL` secret out of GitHub (a compromised GitHub account, a malicious
+change to a workflow, a leaked log) can read **all** production data from
+anywhere on the internet, until the password is rotated. The read-only user
+stops them *changing or deleting* data, the encryption (section ad) protects
+the copies in Backblaze, but neither stops them *reading* the live database
+with that secret. What reduces it: the read-only user, a 40-character random
+password, rotating it yearly (calendar, section e) and immediately after any
+suspicion, keeping the repository private with two-step verification on every
+GitHub account that can change workflows, and watching the Render database's
+**Connections / Logs** if anything looks odd.
 
 ## g) Launching: turn preview mode off
 
@@ -649,7 +688,7 @@ service's **Environment** tab):
 | Variable | What it does |
 |---|---|
 | `PRICING_AI` | Set to `1` (or `true`) to switch the online price check on. Needs `ANTHROPIC_API_KEY` to be set too. Remove it (or set `0`) to switch it off: suggestions then use the built-in rules only, which still works. |
-| `PRICING_AI_DAILY_MAX` | Most online lookups per day (Paris time), default `150`. It is counted in the database (one atomic counter, section ad), so restarting the service does not reset it and parallel requests cannot exceed it. `0` stops all lookups. Every lookup also counts against the shared `AI_DAILY_MAX_CALLS` (section ad). |
+| `PRICING_AI_DAILY_MAX` | Most online lookups per day (Paris time), default `150`. It is counted in the database (one atomic counter, section ae), so restarting the service does not reset it and parallel requests cannot exceed it. `0` stops all lookups. Every lookup also counts against the shared `AI_DAILY_MAX_CALLS` (section ae). |
 | `PRICING_AI_MODEL` | Optional. A different Anthropic model for the check. It must support the web search tool. Leave unset to use the same model as book descriptions. |
 
 Good to know:
@@ -1371,6 +1410,7 @@ signal: the Monday test alert (section d) proves the channel works.
 | UptimeRobot "Monitor is DOWN" (`umasbooks.org/healthz`) | UptimeRobot, within 5-10 min | The site or its database does not answer | Same three actions as "Site health check failing" above. Planned work: **Pause** the monitor first (UptimeRobot > Monitors > pause icon), **Resume** after. A "Monitor is UP" email = recovered |
 | `Site health check recovered` | GitHub | The outage is over | Nothing. Look in Render **Events** for the cause and note it |
 | `Nightly database backup failed` | GitHub, 03:00 UTC | No new backup tonight (older ones are safe) | 1. Open the run link in the email, read the red step. 2. "settings are missing" = a `BACKUP_S3_*` or `DATABASE_URL` secret changed (section b). 3. After the fix: **Actions > Nightly database backup > Run workflow**, confirm green and a new file in Backblaze |
+| `Database backups are NOT encrypted` | GitHub, every Monday while it lasts | The repository variable `BACKUP_AGE_RECIPIENT` is not set, so the dumps in Backblaze are readable by anyone who gets into the bucket | Section ad): do "Set up the encryption" once. The nightly failure email carries the same warning |
 | `No fresh database backup in Backblaze` | GitHub, 09:00 UTC daily | The newest dump is missing, empty, over 36 h old, or (after the 3rd of the month) the monthly copy is over 35 days old | 1. **Actions > Nightly database backup**: is it enabled and green? (GitHub disables schedules after 60 days of repository inactivity or when minutes run out: section t). 2. Run it by hand. 3. Re-run **Backup freshness check** |
 | `Backup restore test FAILED` | GitHub, 1st of the month | The newest dump could not be restored or lacks tables or migrations | 1. Open the run, read the red message (it says which table, or "dump is OLDER than the repository"). 2. Run **Nightly database backup** by hand, then **Monthly backup restore test** by hand. 3. Still red: do not trust the backups; ask a developer, and keep a manual dump (section u, step 2) meanwhile |
 | `Error on GET /...` (or POST) | Gmail sender, the site | A page crashed (a 500). At most one per kind of error per 15 minutes | 1. Note the page and the time. 2. Render > **Logs**, search for the same time. 3. If it repeats or is on checkout/login, section a) rollback; otherwise send the text to the developer |
@@ -1958,9 +1998,11 @@ before):
 - **HelloAsso sandbox only.** The service **refuses to start** (clear message in
   the Render logs, deploy shown as failed) if HelloAsso credentials are set and
   `HELLOASSO_API_BASE` is not the sandbox address.
-- **Cannot touch the real database.** If you set `PRODUCTION_DATABASE_HOST`,
-  the service (and its migrate and seed steps) refuse to start when the staging
-  `DATABASE_URL` is that host.
+- **Cannot touch the real database.** `PRODUCTION_DATABASE_HOST` is
+  **required**: the service (and its migrate and seed steps) refuse to start
+  when it is missing or empty ("PRODUCTION_DATABASE_HOST is not set" in the
+  Render logs), and when the staging `DATABASE_URL` is that host. Setting it
+  is the lock itself, so a forgotten value cannot leave staging unprotected.
 
 ### One-time set-up (about 20 minutes)
 
@@ -1983,7 +2025,8 @@ for the cheapest paid one).
      Use your own email and a **new** password that is not the real site's.
    - `PRODUCTION_DATABASE_HOST`: Render dashboard > `umas-books-db` > **Info** >
      the **Hostname** (starts with `dpg-`). It is not a password; it is the
-     extra lock described above.
+     lock described above, and it is **required**: the service refuses to start
+     without it.
 2. Render dashboard > **New +** > **Blueprint**.
 3. Pick the repository `umasbooksadmin/umasbookswebsite`. Give the Blueprint a
    name such as `umas-books-staging`, **Branch** `main`, and set **Blueprint
@@ -2168,7 +2211,15 @@ test site is not backed up (it holds nothing worth keeping).
 
 ## ab) Admin sessions: how long they last
 
-Customers, members and volunteers stay logged in for up to 30 days. **Admins and
+Customers, members and volunteers stay logged in for up to 30 days. Visitors who
+are NOT logged in get a much shorter session (`src/lib/sessionLifetime.js`): **2 hours**,
+or **24 hours** while they have something in the cart. This is what keeps a flood of
+anonymous page loads from filling the `session` table: expired rows are deleted every
+15 minutes, a job ("Guest session prune", `/admin/diagnostics/jobs`) also deletes guest
+rows that would outlive 24 hours, and one IP address can create at most 60 stored guest
+sessions per 10 minutes (further cookie-less page loads from it get a 429 "Too many
+requests" until the window passes; people who already have a session cookie are not
+affected). Logging in switches the session to the 30 days above. **Admins and
 Till accounts** are signed out sooner, so a forgotten laptop or a borrowed till
 tablet cannot be used for long:
 
@@ -2220,6 +2271,214 @@ erasing a privacy request (type the address), "Mark refunded" (tick a box), make
 remove admin, deactivate or erase an account, reset two-step, delete a book or copy
 (each a confirm box). Closing the day only asks for the counted cash.
 
+## ad) Encrypting the backups, restore drill, read-only backup user, yearly rotation
+
+**What and why.** Each night GitHub dumps the whole database (members' names,
+emails, addresses, orders, password hashes) and uploads it to Backblaze B2. Until
+this section is done, those files are **readable by anyone who gets into the
+Backblaze bucket**. With it, each dump is encrypted on GitHub's machine
+*before* upload, with the tool `age` (https://age-encryption.org), using a
+**public** key. The nightly job never holds the private key: only you do, and
+only to restore. A file in Backblaze is then named
+`umas_books_full_<timestamp>.dump.age` and is useless without the private key.
+
+> **The private key is the backups.** If it is lost, every encrypted backup is
+> unreadable, forever. Keep it in your password manager **and** one more place
+> (below), and prove it works with the quarterly drill.
+
+Where each setting lives (this is the part to get right):
+
+| Setting | Type | Where | Needed by |
+|---|---|---|---|
+| `BACKUP_AGE_RECIPIENT` (public key, starts `age1`) | GitHub **repository variable** | GitHub > repository > Settings > Secrets and variables > Actions > **Variables** tab > New repository variable | nightly backup |
+| `DATABASE_URL` (read-only user's address) | GitHub **repository secret** | same page, **Secrets** tab > edit `DATABASE_URL` | nightly backup |
+| `BACKUP_AGE_IDENTITY` (private key) | GitHub **repository secret**, **optional, not recommended** | same page, Secrets tab | monthly restore test only |
+| Backblaze lifecycle rules, default encryption, application key | **Backblaze bucket / App Keys settings** | Backblaze web console | Backblaze |
+| Inbound IP rules (section f) | **Render database setting** | Render dashboard > `umas-books-db` | Render |
+
+None of these is a Render **environment variable**.
+
+### Set up the encryption (once, about 15 minutes, on your Mac)
+
+1. Install the tool: open Terminal and run `brew install age`.
+2. Make the key pair. Run:
+
+   ```bash
+   cd ~/Documents   # anywhere private; this file will be deleted at the end
+   age-keygen -o umas-books-backup-key.txt
+   ```
+
+   It prints a line `Public key: age1....` (about 62 characters) and writes the
+   private key into `umas-books-backup-key.txt` (a line starting
+   `AGE-SECRET-KEY-`).
+3. **Save the private key**, before anything else:
+   - In your password manager, create a *secure note* "Uma's Books backup key
+     (age)" and paste the **whole contents** of `umas-books-backup-key.txt` into
+     it (`cat umas-books-backup-key.txt | pbcopy`, then paste; clear the
+     clipboard afterwards).
+   - Make **one more copy** somewhere different, so that losing the password
+     manager or your laptop cannot lose the backups: for example a printed
+     sheet in a safe place, or the shared emergency vault described in
+     section w) (a second trusted person must be able to find it).
+4. Set the **public** key in GitHub: repository > **Settings** > **Secrets and
+   variables** > **Actions** > the **Variables** tab > **New repository
+   variable**. Name `BACKUP_AGE_RECIPIENT`, value the `age1...` line (only that
+   word, no `Public key:` text). This is a **repository variable**, not a secret.
+   It is public by nature, so it is safe if it leaks. (Several keys can be given
+   separated by commas or spaces, e.g. a second person's.)
+5. Run **Actions > Nightly database backup > Run workflow**. In the run page,
+   the summary says **"Backups are encrypted with age (1 recipient(s))"**, and
+   the new file in Backblaze ends in `.dump.age`. If you pasted the wrong
+   thing (for instance the private key) the run **fails** with a message,
+   instead of uploading anything unencrypted.
+6. Delete `umas-books-backup-key.txt` from the Mac (it is in the password
+   manager now): `rm -P umas-books-backup-key.txt`.
+7. Do the **restore drill** below once now, to prove the key opens a backup.
+8. **Encrypt or remove the old unencrypted copies.** Files already in Backblaze
+   stay readable. The `full/` ones disappear by themselves after 30 days
+   (plus a day), but the `monthly/` ones stay up to 2 years. Either delete the
+   old `.dump` files in the Backblaze console (**Buckets > Browse Files**; tick
+   the files; delete; use "show all versions" so hidden old versions go
+   too), or encrypt them first if you want to keep the history:
+   download one, `age -r age1YOURPUBLICKEY -o X.dump.age X.dump`, upload the
+   `.age` back to the same folder, then delete the plain one. The freshness
+   check and the restore test accept both kinds meanwhile.
+
+While `BACKUP_AGE_RECIPIENT` is **not** set the backup still runs (a missing
+backup is worse than an unencrypted one) but says so loudly: a warning on every
+run page, the line "backups are not encrypted" in any failure email, and a
+reminder email every Monday.
+
+### The monthly restore test and the private key (a decision)
+
+Encrypted backups cannot be restored by GitHub unless GitHub has the private
+key. There are two ways, and the choice is yours:
+
+- **Default, recommended: no key in GitHub.** On the 1st of each month the test
+  checks, *without decrypting*, that the newest file exists, that it starts with
+  the age header, that it is not tiny, and that its size is within +/-50% of the
+  previous month's copy. The run summary says plainly "No restore was
+  performed". A truncated, empty or swapped file is caught; a file encrypted
+  to the *wrong* key is **not** (only the drill proves that). You do the real
+  decrypt-and-restore yourself **every quarter** (below).
+- **Optional: full automatic restore.** Create a repository **secret**
+  `BACKUP_AGE_IDENTITY` (Settings > Secrets and variables > Actions > **Secrets**
+  > New repository secret) with the whole contents of the private key file.
+  The monthly test then decrypts, restores into a scratch Postgres and runs the
+  data checks, as it did before encryption. **The trade-off:** the private key
+  now sits in GitHub, so whoever can read the repository's secrets (a hijacked
+  GitHub account, a malicious workflow change) can decrypt *every* backup in
+  Backblaze, which is exactly what the encryption was meant to prevent if only
+  one of the two places leaks. It only restores the *newest* dump. If you want
+  this anyway, keep the quarterly drill too.
+
+Nothing needs to be set for the default.
+
+### The restore drill (every quarter: 1 January, April, July, October; about 20 minutes)
+
+On your Mac (needs `brew install age awscli postgresql@18`; use the
+Postgres 18 tools, see "Restoring from a backup" in
+[`umas-books/README.md`](../umas-books/README.md#restoring-from-a-backup)):
+
+1. Download the newest file as in step 1 of that README section, e.g.
+   `aws s3 cp s3://$BUCKET/store-backups/full/umas_books_full_<timestamp>.dump.age . --endpoint-url $EP`.
+2. Get the private key out of the password manager into a temporary file only
+   you can read, decrypt, and delete the key file straight away:
+
+   ```bash
+   umask 077
+   pbpaste > key.txt          # after copying the secure note's contents
+   age -d -i key.txt -o restore.dump umas_books_full_<timestamp>.dump.age
+   rm -P key.txt
+   ```
+
+   A message such as "no identity matched any of the file's recipients" means
+   the key in the password manager is **not** the one the backups were made
+   for. That is the thing this drill exists to find: fix it today (check the
+   `BACKUP_AGE_RECIPIENT` value against the `Public key:` of the key you hold;
+   `age-keygen -y key.txt` prints the public key of a private key).
+3. Restore into a scratch database and look at it, exactly as steps 2 and 3 of
+   the README section (`createdb`, `pg_restore --no-owner --no-privileges
+   --exit-on-error`, the counts query).
+4. Clean up: `dropdb umas_books_restored; rm -P restore.dump *.dump.age`.
+5. Note the date in the calendar entry.
+
+### A read-only database user for the backup (once)
+
+The nightly job should not log in as the database owner. Create a user that can
+only **read**. In the Render dashboard open `umas-books-db`, copy the **External
+Database URL**, and from your Mac run `psql "<that URL>"`, then (choose a long
+password made of letters and digits only, so it needs no escaping, e.g. the
+output of `openssl rand -hex 24`):
+
+```sql
+CREATE ROLE backup_ro LOGIN PASSWORD 'PASTE_THE_RANDOM_PASSWORD' CONNECTION LIMIT 2;
+GRANT CONNECT ON DATABASE umas_books TO backup_ro;
+GRANT pg_read_all_data TO backup_ro;      -- PostgreSQL 14 or newer: read every table and sequence
+ALTER ROLE backup_ro SET default_transaction_read_only = on;
+```
+
+(The Render database is PostgreSQL 18 and `umas_books` is its database name;
+`render.yaml`. If Render refuses `CREATE ROLE` with "permission denied", stop:
+keep the owner's address in the secret, and ask a developer. Do not work around
+it.)
+
+The connection string is the **External Database URL** with the user and
+password replaced, keeping the host and database name:
+
+```
+postgresql://backup_ro:THE_RANDOM_PASSWORD@dpg-XXXXXXXX-a.frankfurt-postgres.render.com/umas_books
+```
+
+Put it in the GitHub **repository secret** `DATABASE_URL` (Settings > Secrets and
+variables > Actions > Secrets > pencil icon on `DATABASE_URL`; paste; Update).
+The workflow just uses the secret, nothing in it changes. Then run **Nightly
+database backup** by hand and check it is green and the new file has about the
+usual size. `pg_dump` only reads, so this user cannot modify or delete data.
+**Do not touch** `DATABASE_URL` in **Render**: that one is the owner's and
+belongs to the website itself.
+
+### Backblaze settings (once; these are Backblaze bucket settings)
+
+1. **Lifecycle rules** (Buckets > the backup bucket > **Lifecycle Settings** >
+   Use custom lifecycle rules). Two rules:
+   - File Path `store-backups/full/`: *Days Till Hide* `30`, *Days Till Delete*
+     `1`.
+   - File Path `store-backups/monthly/`: *Days Till Hide* `730`, *Days Till
+     Delete* `1`.
+   The workflows rely on exactly these two folder names. (If you changed
+   `BACKUP_S3_PREFIX`, use that instead of `store-backups`.)
+2. **Server-side encryption** (same bucket page > **Default Encryption** >
+   Enable, *SSE-B2*). It is an extra layer for Backblaze's disks; it does **not**
+   replace the age encryption (the files are readable to anyone with a valid
+   bucket key without it).
+3. **The application key** (App Keys): limited to this one bucket. The console's
+   "Read and Write" type also lets the key delete files; a key without the
+   delete right (list, read and write only) can be made with Backblaze's `b2`
+   command-line tool (`b2 key create --bucket <bucket> <name> listFiles,readFiles,writeFiles`)
+   and means a leaked key cannot erase the backups. Optional hardening.
+4. Bucket type **Private**, and no "Object Lock" is needed.
+
+### Rotation and reminders
+
+| When | What | Where |
+|---|---|---|
+| Every year (1 October), and straight away if anything leaks | New password for `backup_ro`: `ALTER ROLE backup_ro PASSWORD 'new';` in `psql`, then update the GitHub secret `DATABASE_URL`, run the backup by hand | Render database, GitHub **secret** |
+| Every year | New Backblaze application key, update `BACKUP_S3_KEY_ID` and `BACKUP_S3_APPLICATION_KEY` (section b), delete the old key | Backblaze, GitHub **secrets** |
+| Only if someone who held the private key leaves, or it may have leaked | New age key pair (set-up steps 2 to 5 again). **Keep the old private key** as long as old backups exist (up to 2 years for `monthly/`), or re-encrypt those; add the new one to the password manager as a second note | GitHub **variable** |
+| Every quarter | Restore drill | your Mac |
+
+### Residual risk, plainly
+
+Encryption protects the **copies in Backblaze**. It does not protect the live
+database: the GitHub secret `DATABASE_URL` still gives read access to
+everything in production from anywhere on the internet (Render's rule has to
+allow GitHub, section f). The mitigations are the read-only user, a long random
+password, yearly rotation, a private repository, and two-step verification on
+the GitHub accounts: see the end of section f). A leak of the Backblaze keys
+alone no longer exposes the data; a leak of the age **private** key *and* the
+Backblaze keys does.
+
 ## aa) Alphabetical order ignores a leading "The"
 
 Wherever books are listed A to Z (the shop search, "More by this author", the admin
@@ -2262,7 +2521,7 @@ English text slips into the French version.
   its French version (should say `TOTAL flagged: 0`); `--write` updates the table in
   `docs/i18n-audit.md`.
 
-## ad) AI limits (daily cap, per-minute limits, lookup and webhook protections)
+## ae) AI limits (daily cap, per-minute limits, lookup and webhook protections)
 
 The paid AI (Anthropic) is used for book descriptions, French translations, genre suggestions, reading a cover photo and the online price
 check. Several limits keep a mistake, a loop or an abuser from running up the bill. Nothing here needs doing day to day.

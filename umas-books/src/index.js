@@ -18,6 +18,8 @@ const { attachUser, requireAdmin } = require("./middleware/auth");
 const { resolveAdminSessionConfig, enforceAdminSession } = require("./lib/adminSession");
 const { csrfProtection, csrfTokenEndpoint } = require("./middleware/csrf");
 const { csrfTokenLimiter } = require("./middleware/rateLimits");
+const { genid, createAnonSessionGuard } = require("./lib/anonSessionGuard");
+const { sessionLifetime, lifetimeFor, GUEST_MAX_AGE_MS } = require("./lib/sessionLifetime");
 const { expireStaleReservations, sendPickupReminders } = require("./lib/reservations");
 const { runCartMaintenance: sweepCart } = require("./lib/cart");
 const { runOrderFollowUps } = require("./lib/orderSweeps");
@@ -72,6 +74,9 @@ const isProd = process.env.NODE_ENV === "production";
 // Helmet turns this off too, but it is mounted after /healthz and the
 // static mounts, which would otherwise still answer "X-Powered-By: Express".
 app.disable("x-powered-by");
+// First of all, so every response (static files, /healthz, images, redirects,
+// pages) carries it. See lib/permissionsPolicy.js.
+app.use(require("./lib/permissionsPolicy").permissionsPolicy);
 
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "..", "views"));
@@ -152,7 +157,9 @@ app.use(
     },
   })
 );
+app.use(require("./middleware/stripNul").rejectNulInPath);
 app.use(express.urlencoded({ extended: false }));
+app.use(require("./middleware/stripNul").stripNulFromInput);
 
 // A repeated form-field name (e.g. two inputs both named "email", or a
 // scanner/extension re-submitting one) makes the urlencoded parser above
@@ -179,7 +186,7 @@ if (!process.env.SESSION_SECRET) {
   throw new Error("SESSION_SECRET is not set");
 }
 
-const SESSION_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+// Session lifetimes (30 days logged in, 24 h guest cart, 2 h other guests) live in lib/sessionLifetime.js.
 const SESSION_REFRESH_AFTER_MS = 24 * 60 * 60 * 1000;
 const adminSessionConfig = resolveAdminSessionConfig();
 for (const w of adminSessionConfig.warnings) console.warn(`[session] WARNING: ${w}`);
@@ -198,7 +205,11 @@ app.use(
     // "refresh the expiry" middleware below saves the session at most
     // once a day. rolling stays false so the cookie isn't re-sent on
     // every response either.
-    store: new pgSession({ pool, createTableIfMissing: true, disableTouch: true }),
+    // pruneSessionInterval: connect-pg-simple deletes expired rows (DELETE ... WHERE expire < now())
+    // every 15 minutes (randomised 50-150 %), so guest rows (2 h / 24 h) vanish soon after expiry.
+    store: new pgSession({ pool, createTableIfMissing: true, disableTouch: true, pruneSessionInterval: 15 * 60 }),
+    // genid flags brand-new sessions on the request (lib/anonSessionGuard.js).
+    genid,
     name: "umasbooks.sid",
     secret: process.env.SESSION_SECRET,
     resave: false,
@@ -207,21 +218,32 @@ app.use(
       httpOnly: true,
       secure: isProd,
       sameSite: "lax",
-      maxAge: SESSION_MAX_AGE_MS,
+      // A NEW session starts as a short guest session; lib/sessionLifetime.js
+      // lengthens it when the person logs in (30 days) or fills a cart (24 h).
+      maxAge: GUEST_MAX_AGE_MS,
     },
   })
 );
+app.use(sessionLifetime);
 
-// Sliding 30-day expiry without per-request writes: if the session was
-// last saved more than a day ago (its stored cookie.expires is under
-// 29 days away), record a timestamp so express-session saves it once,
-// which pushes both the DB row's expiry and the cookie out by another
-// 30 days. An active person therefore stays logged in indefinitely; an
-// idle one still expires 30 days (give or take a day) after last visit.
+// Sliding expiry without per-request writes: if the session was last saved long
+// enough ago that fewer than (lifetime - REFRESH_AFTER) remain, record a
+// timestamp so express-session saves it once, which pushes both the DB row's
+// expiry and the cookie out by another full lifetime. REFRESH_AFTER is a day
+// for a 30-day login (an active person stays logged in indefinitely; an idle
+// one expires 30 days, give or take a day, after the last visit) and a quarter
+// of the lifetime for the short guest sessions (2 h -> a write at most every
+// 30 min; 24 h cart -> every 6 h).
 app.use((req, res, next) => {
   const expires = req.session && req.session.cookie && req.session.cookie.expires;
-  if (expires && new Date(expires).getTime() - Date.now() < SESSION_MAX_AGE_MS - SESSION_REFRESH_AFTER_MS) {
-    req.session.refreshedAt = Date.now();
+  if (expires) {
+    const lifetime = lifetimeFor(req.session);
+    const refreshAfter = Math.min(SESSION_REFRESH_AFTER_MS, lifetime / 4);
+    // A legacy 30-day guest row (older than this change) has MORE than `lifetime`
+    // left: leave it alone, the guest-session prune below removes it.
+    if (new Date(expires).getTime() - Date.now() < lifetime - refreshAfter) {
+      req.session.refreshedAt = Date.now();
+    }
   }
   next();
 });
@@ -229,6 +251,8 @@ app.use((req, res, next) => {
 // Language (cookie / Accept-Language -> req.lang, tr(), localised dates).
 // Reads headers only, so it never creates a session or touches the DB.
 app.use(langMiddleware);
+// After the language middleware (friendly 429 text), before anything that would put a guest into the session.
+app.use(createAnonSessionGuard());
 app.use(seoLocals);
 app.use(attachUser(pool));
 // Admin / till sessions: 8-hour idle and 7-day absolute limits (lib/adminSession.js).
@@ -237,6 +261,7 @@ app.use(attachUser(pool));
 app.use(enforceAdminSession(adminSessionConfig));
 // Right after attachUser (it needs res.locals.user): logged-in responses are no-store.
 app.use(noStoreForUsers);
+app.use(require("./middleware/noStoreForUsers").noStoreForTokenPages);
 app.use((req, res, next) => {
   res.locals.cartCount = Array.isArray(req.session.cart) ? req.session.cart.length : 0;
   next();
@@ -565,6 +590,17 @@ const runAiUsagePrune = guardJob("AI usage statistics retention", async () => {
 runAiUsagePrune();
 const aiUsageStatsTimer = setInterval(runAiUsagePrune, DAY);
 
+// Guest session rows: connect-pg-simple prunes EXPIRED rows every 15 minutes; this also removes
+// guest rows that would live longer than 24 h (the 30-day ones from before guest sessions were
+// shortened, lib/sessionLifetime.js). Logged-in sessions are never touched.
+const { pruneStaleGuestSessions } = require("./lib/sessionPrune");
+const runGuestSessionPrune = guardJob("Guest session prune", async () => {
+  const removed = await pruneStaleGuestSessions(pool);
+  if (removed) console.log("Guest session prune:", JSON.stringify({ removed }));
+}, { pool, intervalMs: 15 * 60 * 1000 });
+setTimeout(runGuestSessionPrune, 20 * 1000).unref();
+const guestSessionPruneTimer = setInterval(runGuestSessionPrune, 15 * 60 * 1000);
+
 // Awards & best-seller lists (lib/awards): every 2 minutes look up a few
 // books that have never been checked (newest first), plus retries of failed
 // checks and a yearly refresh. This also back-fills old books gradually. No
@@ -619,6 +655,7 @@ function shutdown(signal) {
   clearInterval(privacyTimer);
   clearInterval(imageCleanupTimer);
   clearInterval(awardsTimer);
+  clearInterval(guestSessionPruneTimer);
   clearInterval(lookupStatsTimer);
   clearInterval(aiUsageStatsTimer);
   clearInterval(coverTimer);
