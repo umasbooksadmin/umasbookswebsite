@@ -542,6 +542,18 @@ const runImageCleanup = guardJob("Image cleanup", async () => {
 runImageCleanup();
 const imageCleanupTimer = setInterval(runImageCleanup, DAY);
 
+// Book lookup statistics (lib/lookupStats.js, report /admin/reports/lookup-sources): counts per catalog are
+// kept in memory by the scan path and written to the database about every 30 s (and at shutdown), so a lookup never
+// waits on it. Aggregate technical counts, no personal data; daily rows older than 36 months are pruned once a day.
+const lookupStats = require("./lib/lookupStats");
+lookupStats.getStats().start();
+const runLookupStatsPrune = guardJob("Lookup statistics retention", async () => {
+  const removed = await lookupStats.pruneLookupStats(pool);
+  if (removed) console.log("Lookup statistics retention:", JSON.stringify({ removed }));
+}, { pool, intervalMs: DAY });
+runLookupStatsPrune();
+const lookupStatsTimer = setInterval(runLookupStatsPrune, DAY);
+
 // Awards & best-seller lists (lib/awards): every 2 minutes look up a few
 // books that have never been checked (newest first), plus retries of failed
 // checks and a yearly refresh. This also back-fills old books gradually. No
@@ -596,6 +608,7 @@ function shutdown(signal) {
   clearInterval(privacyTimer);
   clearInterval(imageCleanupTimer);
   clearInterval(awardsTimer);
+  clearInterval(lookupStatsTimer);
   clearInterval(coverTimer);
   clearTimeout(coverFirstTimer);
   setTimeout(() => {
@@ -603,7 +616,8 @@ function shutdown(signal) {
     process.exit(1);
   }, SHUTDOWN_TIMEOUT_MS).unref();
   server.close(() => {
-    pool.end().then(
+    // the lookup counts still in memory go to the database before the pool closes (never fails the shutdown)
+    lookupStats.getStats().stop().catch(() => {}).then(() => pool.end()).then(
       () => {
         console.log("Shutdown complete.");
         process.exit(0);

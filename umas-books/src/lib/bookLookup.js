@@ -202,7 +202,7 @@ function fetchJsonRace(url, { timeoutMs, hedgeMs = 0, fetchImpl = (...a) => fetc
       (async () => {
         try {
           const res = await fetchImpl(url, { signal: controller.signal, headers: { "User-Agent": "UmasBooksInventory/1.0" } });
-          if (!res.ok) return { state: res.status === 404 ? "missing" : "error" };
+          if (!res.ok) return res.status === 404 ? { state: "missing" } : { state: "error", status: res.status };
           return { state: "ok", data: await res.json() };
         } catch {
           return { state: "error" };
@@ -282,6 +282,22 @@ function mergeBooks(isbn, books) {
   return out;
 }
 
+// Which of the sources that gave a book did what, for the statistics (report /admin/reports/lookup-sources):
+// "won" supplied the title (the first titled one, in priority order), "filled" supplied at least one other field
+// of the merged book, "redundant" had a book but nothing of it was used. Same rule as mergeBooks.
+// entries: [[name, book]] in priority order. -> Map name -> "won" | "filled" | "redundant"
+function attributeSources(entries) {
+  const titled = entries.filter(([, b]) => b && b.title);
+  const out = new Map(entries.filter(([, b]) => b).map(([n]) => [n, "redundant"]));
+  if (!titled.length) return out;
+  out.set(titled[0][0], "won");
+  for (const f of FIELDS) {
+    const from = titled.find(([, b]) => b[f] !== undefined && b[f] !== null && b[f] !== "");
+    if (from && out.get(from[0]) === "redundant") out.set(from[0], "filled");
+  }
+  return out;
+}
+
 const SOURCE_LIST_DEFAULT = "openlibrary,bnf,google,openlibrary-data,isbndb";
 const enabledSources = () => new Set(String(process.env.SCAN_LOOKUP_SOURCES || SOURCE_LIST_DEFAULT).split(",").map((x) => x.trim().toLowerCase()).filter(Boolean));
 const isComplete = (b) => Boolean(b && b.title && b.author && b.publisher && b.publishedYear);
@@ -298,7 +314,10 @@ async function lookupByIsbnDetailed(rawIsbn, opts = {}) {
   const isbn = normalizeIsbn(rawIsbn);
   if (!isbn) return { book: null, state: "missing" };
   const cache = opts.cache === undefined ? lookupCache : opts.cache;
+  const stats = opts.stats || require("./lookupStats").getStats(); // counts only, see lib/lookupStats.js
   const hit = cache ? cache.get(isbn) : undefined;
+  if (hit) stats.record("cache", { asked: 1, won: hit.book && hit.book.title ? 1 : 0 });
+  if (hit && !(hit.book && hit.book.title)) stats.record("none", { asked: 1 });
   if (hit) return { book: hit.book ? { ...hit.book } : null, state: hit.state, via: hit.via, cached: true };
 
   const sources = require("./bookSources");
@@ -316,7 +335,7 @@ async function lookupByIsbnDetailed(rawIsbn, opts = {}) {
   const briefOnce = async (form, budget) => {
     const r = await fetchJsonRace(`https://openlibrary.org/api/volumes/brief/isbn/${form}.json`, { timeoutMs: budget, hedgeMs, fetchImpl });
     if (r.state === "timeout") return { state: "error", slow: true };
-    if (r.state !== "ok") return { state: r.state };
+    if (r.state !== "ok") return r.status ? { state: r.state, status: r.status } : { state: r.state };
     const book = bookFromRecord(isbn, r.data);
     return book ? { state: "ok", book } : { state: "missing" };
   };
@@ -337,8 +356,8 @@ async function lookupByIsbnDetailed(rawIsbn, opts = {}) {
   if (enabled.has("openlibrary-data")) plan.push(["openlibrary-data", () => sources.openLibraryData({ forms, fetchImpl, signal: controller.signal, helpers }), true]);
   // ISBNdb (paid, only with ISBNDB_API_KEY): the last resort, asked once the free sources are all in and the
   // book is still missing or lacks its author, publisher or year.
-  if (enabled.has("isbndb") && sources.isbndbConfigured()) plan.push(["isbndb", () => sources.isbndb({ forms, fetchImpl, signal: controller.signal, helpers }), "fallback"]);
-  if (!plan.length) return { book: null, state: "error", via: [] };
+  if (enabled.has("isbndb") && sources.isbndbConfigured()) plan.push(["isbndb", () => sources.isbndb({ forms, fetchImpl, signal: controller.signal, helpers, stats }), "fallback"]);
+  if (!plan.length) { stats.record("lookup", { asked: 1 }); stats.record("none", { asked: 1 }); return { book: null, state: "error", via: [] }; }
 
   const results = new Map();
   const free = plan.filter((e) => e[2] !== "fallback");
@@ -362,8 +381,9 @@ async function lookupByIsbnDetailed(rawIsbn, opts = {}) {
       const [name, run] = entry;
       if (done || results.has(name) || entry.running) return;
       entry.running = true;
+      const askedAt = Date.now();
       Promise.resolve().then(run).catch(() => ({ state: "error" })).then((r) => {
-        results.set(name, r || { state: "error" });
+        results.set(name, { ...(r || { state: "error" }), ms: Date.now() - askedAt });
         if (done) return;
         if (r && r.state !== "ok" && name === "openlibrary") {
           const late = plan.find((e) => e[2] === true);
@@ -399,6 +419,7 @@ async function lookupByIsbnDetailed(rawIsbn, opts = {}) {
   });
 
   const merged = mergeBooks(isbn, plan.map(([name]) => results.get(name)).filter((r) => r && r.book).map((r) => r.book));
+  recordLookupStats(stats, plan, results, merged);
   const via = plan.map(([name]) => name).filter((name) => results.get(name) && results.get(name).book && results.get(name).book.title);
   if (merged) {
     const out = { book: merged, state: "found", via };
@@ -414,6 +435,30 @@ async function lookupByIsbnDetailed(rawIsbn, opts = {}) {
     return out;
   }
   return { book: null, state: pending || slow ? "slow" : "error", via: [] };
+}
+
+// One lookup into the statistics: what each source that was really asked did. Counts only; never throws.
+function recordLookupStats(stats, plan, results, merged) {
+  try {
+    const roles = attributeSources(plan.map(([name]) => [name, results.get(name) && results.get(name).book]));
+    for (const entry of plan) {
+      const name = entry[0];
+      const r = results.get(name);
+      if (r && r.skipped) continue; // paused or not applicable: no call was made
+      if (!r) {
+        if (entry.running) stats.record(name, { asked: 1, cancelled: 1 }); // still waiting when the answer was given
+        continue;
+      }
+      const delta = { asked: 1, ms: r.ms };
+      if (r.state === "ok" && r.book && r.book.title) delta[roles.get(name)] = 1;
+      else if (r.state === "error") delta[r.status === 429 || r.status === 401 || r.status === 403 ? "limited" : "errors"] = 1;
+      else delta.empty = 1;
+      stats.record(name, delta);
+    }
+    const found = Boolean(merged && merged.title);
+    stats.record("lookup", { asked: 1, won: found ? 1 : 0 });
+    if (!found) stats.record("none", { asked: 1 });
+  } catch { /* statistics never get in the way */ }
 }
 
 // The book the catalog knows for an ISBN, or null (not found, slow, network error).
@@ -453,4 +498,4 @@ async function searchByTitleAuthor(title, author) {
   });
 }
 
-module.exports = { normalizeIsbn, mapBinding, lookupByIsbn, lookupByIsbnDetailed, mergeBooks, pickGenres, isbnCoverUrl, createTtlCache, lookupCache, searchByTitleAuthor, COMMON_GENRES, COMMON_GENRES_FR, GENRE_ALIASES_FR, translateGenresToFrench };
+module.exports = { normalizeIsbn, mapBinding, lookupByIsbn, lookupByIsbnDetailed, mergeBooks, attributeSources, pickGenres, isbnCoverUrl, createTtlCache, lookupCache, searchByTitleAuthor, COMMON_GENRES, COMMON_GENRES_FR, GENRE_ALIASES_FR, translateGenresToFrench };

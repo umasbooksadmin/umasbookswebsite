@@ -120,7 +120,7 @@ async function googleBooks({ forms, fetchImpl, signal, helpers, now = Date.now }
     const r = await getJson(fetchImpl, `https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}&maxResults=3${key}`, signal);
     if (r.state === "error") {
       if (r.status === 429 || r.status === 403) googlePause.until = now() + 10 * 60 * 1000;
-      return { state: "error" };
+      return r.status ? { state: "error", status: r.status } : { state: "error" };
     }
     if (r.state === "ok") {
       const items = Array.isArray(r.data && r.data.items) ? r.data.items : [];
@@ -248,7 +248,7 @@ function fromIsbndb(b, helpers) {
     binding: helpers.mapBinding ? helpers.mapBinding(b.binding) : null,
   };
 }
-async function isbndb({ forms, fetchImpl, signal, helpers, env = process.env, now = Date.now, sleep = (ms) => new Promise((r) => setTimeout(r, ms)) }) {
+async function isbndb({ forms, fetchImpl, signal, helpers, stats, env = process.env, now = Date.now, sleep = (ms) => new Promise((r) => setTimeout(r, ms)) }) {
   if (!isbndbConfigured(env)) return { state: "error", skipped: true };
   if (now() < isbndbState.pausedUntil) return { state: "error", skipped: true };
   const interval = Number(env.ISBNDB_MIN_INTERVAL_MS) >= 0 && env.ISBNDB_MIN_INTERVAL_MS !== undefined && env.ISBNDB_MIN_INTERVAL_MS !== "" ? Number(env.ISBNDB_MIN_INTERVAL_MS) : 1000;
@@ -258,6 +258,7 @@ async function isbndb({ forms, fetchImpl, signal, helpers, env = process.env, no
   if (slot > now()) await sleep(slot - now());
   if (signal && signal.aborted) return { state: "error", skipped: true };
   isbndbState.calls += 1;
+  try { (stats || require("./lookupStats").getStats()).record("isbndb", { paid_calls: 1 }); } catch { /* statistics never get in the way */ }
   isbndbState.lastCallAt = now();
   let res;
   try {
@@ -272,7 +273,7 @@ async function isbndb({ forms, fetchImpl, signal, helpers, env = process.env, no
     isbndbState.lastError = `The key was refused (HTTP ${res.status}): it is wrong, or the ISBNdb subscription is not active.`;
     isbndbState.pausedUntil = now() + 30 * 60 * 1000;
     warnOnce(`auth${res.status}`, `the API key was refused (HTTP ${res.status}); ISBNdb is left alone for 30 minutes. Check ISBNDB_API_KEY and the subscription.`);
-    return { state: "error" };
+    return { state: "error", status: res.status };
   }
   if (res.status === 429) {
     const retry = Number(res.headers && res.headers.get && res.headers.get("retry-after"));
@@ -282,7 +283,7 @@ async function isbndb({ forms, fetchImpl, signal, helpers, env = process.env, no
     isbndbState.lastError = daily ? "The daily quota of the ISBNdb plan is used up (it resets at 00:00 UTC)." : "The per-minute quota of the ISBNdb plan was exceeded.";
     isbndbState.pausedUntil = now() + (Number.isFinite(retry) && retry > 0 ? retry * 1000 : daily ? 30 * 60 * 1000 : 60 * 1000);
     warnOnce(`quota${daily}`, isbndbState.lastError);
-    return { state: "error" };
+    return { state: "error", status: 429 };
   }
   if (res.status === 404) { isbndbState.status = "ok"; isbndbState.lastOkAt = now(); return { state: "missing" }; }
   if (!res.ok) { isbndbState.status = "error"; isbndbState.lastError = `ISBNdb answered HTTP ${res.status}.`; return { state: "error" }; }

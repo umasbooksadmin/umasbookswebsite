@@ -90,7 +90,7 @@ router.get("/admin/reports/:slug", requireAdmin, async (req, res) => {
     const range = report.usesRange ? `-${result.range.from}_${result.range.to}` : "";
     res.set({
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="umas-books-${slug}-${section.key}${range}${french ? "-fr" : ""}.csv"`,
+      "Content-Disposition": `attachment; filename="umas-books-${slug}-${section.key}${range}${report.usesPeriod ? `-${require("../../lib/lookupSourcesReport").parsePeriod(req.query.period, require("../../lib/reports").todayParis()).key}` : ""}${french ? "-fr" : ""}.csv"`,
       "Cache-Control": "no-store",
     });
     return res.send(toCsv(section, { locale: french ? "fr" : "en" }));
@@ -103,7 +103,8 @@ router.get("/admin/reports/:slug", requireAdmin, async (req, res) => {
 
   res.render("admin/reports/show", {
     active: "reports", report, result, groups: GROUPS, formatCell,
-    query: { from: result.range.from, to: result.range.to, group: result.group },
+    query: { from: result.range.from, to: result.range.to, group: result.group, period: require("../../lib/lookupSourcesReport").parsePeriod(req.query.period, require("../../lib/reports").todayParis()).key },
+    periods: require("../../lib/lookupSourcesReport").PERIODS,
     accountFilters: report.filters === "accounts" ? {
       type: parseTypeFilter(req.query.type), q: String(req.query.q || "").slice(0, 100),
       from: validDay(req.query.from) || "", to: validDay(req.query.to) || "",
