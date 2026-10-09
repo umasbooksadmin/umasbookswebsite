@@ -38,7 +38,7 @@ Only the static files the marketing pages load, plus deployment and CI config:
 | `logo.png` | The shop's logo, served at `/logo.png`. |
 | `render.yaml` | The Render Blueprint (web service + Postgres), both on paid plans matching the Render dashboard. |
 | `.github/dependabot.yml` | Weekly update pull requests for GitHub Actions and npm packages (never auto-merged). |
-| `.github/workflows/` | CI (six required checks on every pull request), the nightly database backup, the monthly backup-restore test, and the uptime check. |
+| `.github/workflows/` | CI (six required checks on every pull request), the nightly database backup, the monthly backup-restore test, the nightly inventory CSV export (21:00 Paris, emailed and stored in Backblaze), and the uptime check. |
 
 The marketing static files are served before the session store, so images and
 CSS never cost a database lookup (see `ARCHITECTURE.md`).

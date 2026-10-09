@@ -158,6 +158,24 @@ router.get("/admin/inventory", requireAdmin, async (req, res) => {
   });
 });
 
+// "Download all inventory (CSV)": the same files the nightly job emails and
+// stores (lib/inventoryExport.js): one row per copy, or (?books=1) one row per
+// book. No buyer or reservation-holder data. Streamed; logged like other CSV downloads.
+router.get("/admin/inventory/export.csv", requireAdmin, async (req, res) => {
+  const { writeCopiesCsv, writeBooksCsv } = require("../../lib/inventoryExport");
+  const perBook = req.query.books === "1";
+  const day = require("../../lib/reports").todayParis();
+  res.set({
+    "Content-Type": "text/csv; charset=utf-8",
+    "Content-Disposition": `attachment; filename="inventory${perBook ? "_books" : ""}_${day}.csv"`,
+    "Cache-Control": "no-store",
+  });
+  const sink = (text) => (res.write(text) ? undefined : new Promise((resolve) => res.once("drain", resolve)));
+  const result = await (perBook ? writeBooksCsv : writeCopiesCsv)(pool, sink);
+  await audit(req, { action: "inventory.csv", targetType: "inventory", detail: `${perBook ? "per book" : "per copy"}: ${result.rows} rows (French Excel)` });
+  res.end();
+});
+
 router.get("/admin/inventory/scan", requireAdmin, async (req, res) => {
   res.render("admin/inventory/scan", {
     active: "inventory",
