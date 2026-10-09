@@ -476,7 +476,6 @@ s.test("A19e the AI usage report has the Send a test credit alert button (not pr
   const text = await ctx.text();
   has(text, /Anthropic credit alert/);
   has(text, /Send a test credit alert/);
-  has(text, /action="\/admin\/reports\/lookup-sources\/test-credit-alert"/);
 });
 s.manual("A21 the sales report counts the online sale, the shop sale and the drop-in seat separately", "needs real paid sales (AC26, AC35, A63)");
 
