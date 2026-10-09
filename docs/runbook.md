@@ -649,7 +649,7 @@ service's **Environment** tab):
 | Variable | What it does |
 |---|---|
 | `PRICING_AI` | Set to `1` (or `true`) to switch the online price check on. Needs `ANTHROPIC_API_KEY` to be set too. Remove it (or set `0`) to switch it off: suggestions then use the built-in rules only, which still works. |
-| `PRICING_AI_DAILY_MAX` | Most online lookups per day (Paris time), default `150`. It is counted from the database, so restarting the service does not reset it. `0` stops all lookups. |
+| `PRICING_AI_DAILY_MAX` | Most online lookups per day (Paris time), default `150`. It is counted in the database (one atomic counter, section ad), so restarting the service does not reset it and parallel requests cannot exceed it. `0` stops all lookups. Every lookup also counts against the shared `AI_DAILY_MAX_CALLS` (section ad). |
 | `PRICING_AI_MODEL` | Optional. A different Anthropic model for the check. It must support the web search tool. Leave unset to use the same model as book descriptions. |
 
 Good to know:
@@ -2257,3 +2257,51 @@ English text slips into the French version.
 * **Counts**: `cd umas-books && node scripts/i18n-audit.js` prints every page that still has English in
   its French version (should say `TOTAL flagged: 0`); `--write` updates the table in
   `docs/i18n-audit.md`.
+
+## ad) AI limits (daily cap, per-minute limits, lookup and webhook protections)
+
+The paid AI (Anthropic) is used for book descriptions, French translations, genre suggestions, reading a cover photo and the online price
+check. Several limits keep a mistake, a loop or an abuser from running up the bill. Nothing here needs doing day to day.
+
+**The knobs** (Render environment variables: Render dashboard > the `umas-books` service > **Environment**; saving restarts the service)
+
+| Variable | Default | What it does |
+|---|---|---|
+| `AI_DAILY_MAX_CALLS` | `600` | The most Anthropic calls **per Paris calendar day for ALL features together** (descriptions, translations, genres, cover photos, price checks). `0` switches every AI feature off. |
+| `PRICING_AI_DAILY_MAX` | `150` | The most **price checks** per day (a part of the 600 above, so the price check can never use more than its own share). |
+
+**What happens when the daily cap is reached.** The AI calls are skipped, nothing else stops:
+
+- a book still saves (its description stays empty; press **Generate** after midnight, Paris time);
+- the Generate button, the photo scan and the Add a book page say **"Daily AI limit reached (N). Resets at midnight Paris time."**;
+- the report *Book lookup sources used* (Reports) shows the same sentence in a red banner;
+- ONE email goes to the alert address (`ALERT_TO`) the first time it happens each day, with the same instructions as here (alert key `ai-daily-cap`; a
+  mail that could not be sent is tried again by the next refused call);
+- the counter starts again at midnight Paris time.
+
+**To allow more calls** (a busy day, a big batch of books): Render > the `umas-books` service > **Environment** > add or edit `AI_DAILY_MAX_CALLS`
+(for example `1500`) > **Save changes**. Render restarts the service by itself; the new number is used at once, and calls already made today still count.
+To find out whether the number is too small or something is looping, open Reports > *Book lookup sources used*, section **AI usage per day**.
+
+**How it is kept exact.** Each call takes its slot with a single database statement (table `ai_daily_cap`, one row per day and scope), so any number of
+requests at the same moment can never go past the cap. If the database cannot be reached the site counts in memory instead (still capped). No text, title,
+ISBN or person is ever stored in it; rows older than 40 days are deleted by the daily job.
+
+**Other protections that belong with these**
+
+- **10 AI requests a minute per admin** on "Generate description" and on the photo scan (typing an ISBN is not counted). Past that the page says
+  "Too many AI requests: wait a minute and try again." (HTTP 429); wait a minute.
+- **Text length caps** on what is sent to the AI: title 200 characters, author 200, description 2000.
+- **ISBN check digit.** A number whose last digit is wrong (a typo, or a made-up 13-digit number) is refused with "That ISBN is not valid: check the digits"
+  before any catalog or paid ISBNdb request is made. Hyphens and spaces are fine; 979 numbers and ISBN-10 with an X are accepted. The till's barcode
+  scanning is unchanged (it never used this check).
+- **One request for identical concurrent lookups.** Two scans of the same ISBN at the same moment (or the scan page plus a save), or two identical AI
+  requests, share one outside call.
+- **Size limit on catalog answers.** Open Library, Google Books, ISBNdb, Wikidata and the NYT lists are read up to 1 MB (the BnF XML up to 2 MB); a
+  bigger answer is treated as "that source failed" (counted as an error in the lookup statistics) and the other sources carry on.
+- **HelloAsso webhook.** `/webhooks/helloasso` is not signed (HelloAsso offers no signature), so anyone could post fake payments to make the
+  site call HelloAsso's API. Besides the 300-per-5-minutes-per-IP limit: a second webhook for the **same payer email within 60 seconds** does not
+  call HelloAsso again; one check is made at the end of the minute instead, so a real payment (which sends several events in a row) is still
+  verified; and at most **120 checks per 10 minutes** are made for all emails together (the surplus is acknowledged, logged once, and a real payment
+  among it is picked up by the membership reconciliation job, which runs every 6 hours: `/admin/diagnostics/jobs`, "Membership reconciliation"). The
+  counters are in memory (one server process), so a restart only forgets them. Real payments are not affected; the sync itself is idempotent.

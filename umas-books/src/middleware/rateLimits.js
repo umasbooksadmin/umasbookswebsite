@@ -38,6 +38,22 @@ function limit({ windowMs, max, ...options }) {
 
 const HOUR = 60 * 60 * 1000;
 
+// The admin endpoints that call the paid AI service (cover photo reading, "Generate description"): 10 a minute per
+// admin account, whatever the IP. `handler` answers the refusal (a JSON 429 for the pages' scripts); `skip` lets a
+// route count only the requests that really call the AI.
+const AI_PER_MINUTE = 10;
+const { AI_LIMIT_MESSAGE } = require("../lib/aiLimits");
+function aiAdminLimiter({ handler, skip, max = AI_PER_MINUTE } = {}) {
+  return limit({
+    windowMs: 60 * 1000,
+    max,
+    keyGenerator: (req) => `ai-user-${req.session && req.session.user ? req.session.user.id : "anon"}`,
+    handler: handler || ((req, res) => res.status(429).json({ error: AI_LIMIT_MESSAGE })),
+    ...(skip ? { skip } : {}),
+    validate: { keyGeneratorIpFallback: false },
+  });
+}
+
 // For limiters that only count failed attempts (skipSuccessfulRequests). A
 // refused form now answers 303 (Post/Redirect/Get, lib/postRedirect.js), so the
 // status code no longer says "failed": the handler marks it in
@@ -68,6 +84,8 @@ module.exports = {
     skip: (req) => Boolean(req.session && req.session.csrfToken),
   }),
   limit,
+  aiAdminLimiter,
+  AI_LIMIT_MESSAGE,
   ipKey,
   IPV6_SUBNET,
 };

@@ -484,6 +484,8 @@ one, so a Blueprint rebuild starts correctly; values marked "by hand" are
 | `HELLOASSO_API_BASE` | leave empty/unset for production (the sandbox address is only for tests) | by hand |
 | `HELLOASSO_MEMBERSHIP_FORM_SLUG` | optional: only this HelloAsso form grants membership | by hand |
 | `ANTHROPIC_API_KEY`, `ANTHROPIC_WORKSPACE_ID` | photo scanning and book descriptions | by hand |
+| `AI_DAILY_MAX_CALLS` | optional: the most Anthropic calls per Paris day for ALL AI features together (default `600`; `0` = AI off). Raise it in Render > Environment (runbook section ad, "AI limits") | default, not in the file |
+| `PRICING_AI_DAILY_MAX` | optional: the most online price checks per day, part of the total above (default `150`) | default, not in the file |
 | `ISBNDB_API_KEY`, `ISBNDB_API_BASE`, `ISBNDB_MIN_INTERVAL_MS` | optional paid book catalog (ISBNdb), used only as a last resort when the free catalogs find nothing; key = secret, add by hand in Render (runbook section aa, "ISBNdb") | by hand |
 | `GOOGLE_BOOKS_API_KEY` | optional: removes Google's cap on keyless Google Books lookups | by hand |
 | `SCAN_LOOKUP_TIMEOUT_MS`, `SCAN_LOOKUP_HEDGE_MS`, `SCAN_LOOKUP_GRACE_MS`, `SCAN_LOOKUP_SOURCES`, `SCAN_CACHE_TTL_MS`, `SCAN_NEGATIVE_TTL_MS`, `SCAN_COVER_WAIT_MS`, `SCAN_PRICE_WAIT_MS`, `SCAN_SLOW_LOG_MS` | optional speed settings of the Add a book page (runbook section aa, "Scan speed") | defaults, not in the file |
