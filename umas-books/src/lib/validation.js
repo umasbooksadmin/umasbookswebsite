@@ -13,8 +13,16 @@ function isEmail(value) {
 
 // Trimmed string, capped at `max` characters ("" for anything non-string —
 // e.g. an array from a repeated form field).
+// NUL (\u0000) can never be stored in a Postgres text value or used in a query
+// parameter ("invalid byte sequence for encoding UTF8: 0x00" -> a 500 and an
+// alert email), so it is dropped from every cleaned value. Browsers never send
+// one in a form; a scanner sends %00.
+function stripNul(value) {
+  return typeof value === "string" && value.includes("\0") ? value.split("\0").join("") : value;
+}
+
 function clean(value, max) {
-  return typeof value === "string" ? value.trim().slice(0, max) : "";
+  return typeof value === "string" ? stripNul(value).trim().slice(0, max) : "";
 }
 
 // Absolute http(s) URL, or null. Anything else ("javascript:", "data:",
