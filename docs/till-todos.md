@@ -4,11 +4,11 @@
 
 The **Accounting export** (Reports > Accounting export, CSV with the columns
 Date, Category, Payment method, Count, Total (EUR), Libellé, Compte débit,
-Compte crédit, Journal) is built for the treasurer. Refunded online orders give a
+Compte crédit, Journal) is built for the treasurer. Refunded reservations give a
 negative row on the refund day; a closed day's cash difference gives a
 "Cash over/short" row; the opening float is never counted. The accounts come
 from the editable table `accounting_map` (`/admin/reports/accounting/mapping`),
-whose defaults (530 cash, 511 or 512 for cards and HelloAsso, 707/706/756/754/708
+whose defaults (530 cash, 511 or 512 for cards, cheques and HelloAsso (HelloAsso is memberships only: reservations are paid in person), 707/706/756/754/708
 income, 658/758 over/short) are a guess to be confirmed. There is also a French
 Excel variant of every CSV (`&locale=fr`).
 Ask the treasurer to confirm the import layout. Question for the treasurer: does Paheko's import (or the accountant's software)

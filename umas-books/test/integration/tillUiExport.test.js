@@ -141,7 +141,7 @@ test("accounting mapping page: edit is validated, saved, audited and used by the
   assert.equal(page.res.status, 200);
   assert.match(page.text, /ask the treasurer to confirm/);
   const rows = (page.text.match(/name="debit_\d+"/g) || []).length;
-  assert.equal(rows, 4 * 8 + 2);
+  assert.equal(rows, 5 * 8 + 2);
   const body = {};
   for (let i = 0; i < rows; i++) {
     const g = (f) => page.text.match(new RegExp(`name="${f}_${i}" value="([^"]*)"`))[1];
