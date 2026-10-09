@@ -201,7 +201,7 @@ clear error, the email outbox keeps the message and retries it, the dashboard
 shows it under "Needs attention" and (after an hour) an alert is sent.
 
 **Alert recipients.** Alerts (errors, emails that cannot be sent, failing
-background jobs, launch warnings, the Anthropic credit running out) go to `ALERT_TO` — one address or several
+background jobs, launch warnings) go to `ALERT_TO` — one address or several
 separated by commas (default `admin@umasbooks.org`). Add a second address on a
 different mail provider than the Google account that sends them. The GitHub
 workflows (backup, uptime, freshness, restore test, weekly test alert) read the
