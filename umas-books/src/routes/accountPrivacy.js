@@ -176,7 +176,7 @@ router.post("/account/privacy/resend-verification", requireAuth, resendLimiter, 
 router.post("/account/privacy/export", requireAuth, privacyLimiter, async (req, res) => {
   const user = await checkPassword(req, res);
   if (!user) return;
-  const data = await buildMemberExport(pool, user.id);
+  const data = await buildMemberExport(pool, user.id, { lang: req.lang });
   await selfAudit(req, "member.self_export", user.id);
   console.log(`Member ${user.id} downloaded their own data.`);
   res.set("Cache-Control", "no-store");

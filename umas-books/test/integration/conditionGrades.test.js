@@ -247,6 +247,12 @@ test("search API: results carry the grades on the shelf and the binding", async 
   assert.equal(hit.binding, "hardcover");
   assert.equal(hit.bindingLabel, "Hardback");
   assert.equal(hit.price, 3);
+  // The labels follow the visitor's language (the values do not).
+  const frRes = await fetch(`${app.base}/api/books/search?q=${encodeURIComponent(`${TAG} Api book`)}`, { headers: { cookie: "umasbooks_lang=fr" } });
+  const frHit = (await frRes.json()).find((x) => x.id === b.id);
+  assert.deepEqual(frHit.conditions, [{ value: "new", label: "Neuf" }, { value: "acceptable", label: "État correct" }]);
+  assert.equal(frHit.bindingLabel, "Relié");
+  assert.equal(frHit.binding, "hardcover");
 });
 
 test("book page: the friendly used-book note, the no-returns notice that keeps legal rights, the grade line and the tax line (English and French)", async () => {

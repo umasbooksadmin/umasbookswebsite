@@ -162,7 +162,7 @@ test("drop-in seat reminder: once, within 24 hours of the session, not earlier, 
   const r1 = await sweeps.sendSeatReminders(pool);
   assert.equal(r1.sent, 1);
   const mail = h.emailsTo(a.email)[0];
-  assert.match(mail.subject, /Rappel : votre place/);
+  assert.match(mail.subject, /Rappel\u00a0: votre place/);
   assert.match(mail.text, /vous réglez sur place/i);
   assert.equal(h.emailsTo(b.email).length, 0, "5 days away: too early");
   assert.equal(h.emailsTo(c.email).length, 0, "cancelled");

@@ -483,3 +483,20 @@ test("resend: the email goes to the account's own address, in the account's lang
   assert.match(sent[0].subject, /Confirmez votre adresse e-mail/);
   assert.match(sent[0].text, /\/verify-email\//);
 });
+
+test("the data file's explanatory note follows the language (the field names do not), and an admin address refuses a customer in their language", async () => {
+  const jar = await loginAs(await createUser());
+  const fr = await exportAs(jar, PASSWORD, { lang: "fr" });
+  assert.equal(fr.status, 200);
+  const frData = JSON.parse(await fr.text());
+  assert.match(frData.note, /^Données personnelles détenues par Uma's Books sur ce compte\./);
+  assert.ok(frData.user && frData.exported_at, "the field names stay the database's");
+  const en = JSON.parse(await (await exportAs(jar, PASSWORD, { lang: "en" })).text());
+  assert.match(en.note, /^Personal data held by Uma's Books about this account\./);
+
+  const frAdmin = await get("/admin", jar, "fr");
+  assert.equal(frAdmin.status, 403);
+  assert.equal(await frAdmin.text(), "Réservé aux administrateurs.");
+  const enAdmin = await get("/admin", jar, "en");
+  assert.equal(await enAdmin.text(), "Admins only.");
+});

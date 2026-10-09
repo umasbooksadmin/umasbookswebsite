@@ -16,6 +16,7 @@
 //   - /webhooks/helloasso (HelloAsso may be configured with either address;
 //     it must never move or fail, and it has its own limiter).
 // Off in preview, in tests and in dev (NODE_ENV !== production).
+const { detectLang } = require("./lang");
 const { isNonLive } = require("../lib/preview");
 
 const WEBHOOK_PATH = "/webhooks/helloasso";
@@ -39,7 +40,7 @@ function canonicalHost({ env = process.env } = {}) {
     const host = String(req.headers.host || "").toLowerCase();
     if (!host || host === target.host) return next();
     if (req.method !== "GET" && req.method !== "HEAD") {
-      return res.status(421).set("Cache-Control", "no-store").type("text/plain").send("Misdirected request: use " + target.origin);
+      return res.status(421).set("Cache-Control", "no-store").type("text/plain").send(detectLang(req).lang === "fr" ? "Requête mal adressée : utilisez " + target.origin : "Misdirected request: use " + target.origin);
     }
     return res.redirect(301, target.origin + req.originalUrl);
   };

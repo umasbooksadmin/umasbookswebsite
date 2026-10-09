@@ -192,6 +192,20 @@ test("calendar headings, weekdays, prices and seat counts are French with the fr
   assert.match(en, /6 places left/);
 });
 
+test("French counts of 0 and 1 are singular (0 vote, 0 participant, 0 inscrit, 1 place restante), English is unchanged", async () => {
+  const charity = (await render(member, "/charity", "fr")).text;
+  assert.match(charity, />0 vote</);
+  assert.match(charity, />2 votes</);
+  assert.doesNotMatch(charity, />[01] votes</);
+  const meetings = (await render(member, `/meetings?month=${MONTH}`, "fr")).text;
+  assert.doesNotMatch(meetings, /\b[01] participants/);
+  assert.match(meetings, /\b[01] participant\b/);
+  const sessions = (await render(null, `/sessions?month=${MONTH}`, "fr")).text;
+  assert.doesNotMatch(sessions, /\b[01] places restantes/);
+  const en = (await render(member, "/charity", "en")).text;
+  assert.match(en, />0 votes</);
+});
+
 test("the .ics download is event data and stays as stored", async () => {
   const res = await fetch(`${app.base}/events/${eventId}/ics`, { headers: { cookie: "umasbooks_lang=fr" } });
   const text = await res.text();
@@ -205,7 +219,7 @@ test("server messages are French with the fr cookie and English without", async 
   const fr = await post(null, "/contact", bad, "fr");
   assert.equal(fr.status, 303);
   assert.equal(fr.location, "/contact");
-  assert.match(fr.text, /Veuillez indiquer votre nom, une adresse email valide et votre message\./);
+  assert.match(fr.text, /Veuillez indiquer votre nom, une adresse e-mail valide et votre message\./);
   assert.match(fr.text, /<option value="Events"[^>]*>Événements<\/option>/);
   const en = await post(null, "/contact", bad, "en");
   assert.match(en.text, /Please fill in your name, a valid email address and your message\./);

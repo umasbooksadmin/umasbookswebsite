@@ -57,10 +57,21 @@ test("a reservation without a base URL still says where to cancel, and omits the
 
 // ------------------------------------------------------------ languages
 
-const { orderConfirmationSubject, LEGAL_RIGHTS, SELLER_LINES } = require("../../src/lib/orderEmail");
+const { frenchPlainText } = require("../../src/lib/frenchTypography");
+const { orderConfirmationSubject, LEGAL_RIGHTS, LEGAL_RIGHTS_FRENCH_ONLY, SELLER_LINES, sellerLines } = require("../../src/lib/orderEmail");
+
+// French mails carry a no-break space before : ; ! ? and » (like the pages); the old assertions read plain spaces.
+const nb = (t) => t.replace(/\u00a0(?=[:;!?»])/g, " ").replace(/«\u00a0/g, "« ");
+
+test("French reservation email: no-break space before a colon, none of the plain-space kind", () => {
+  const t = buildOrderConfirmationText({ ...order, lang: "fr" }, items, "https://shop.test/");
+  assert.match(t, /Total à régler à la boutique\u00a0: 12,50\u00a0€/);
+  assert.doesNotMatch(t, / [:;!?»]/);
+  assert.match(buildOrderConfirmationText({ ...order, lang: "en" }, items, "https://shop.test/"), /Total to pay at the shop: €12\.50/);
+});
 
 test("French reservation: French subject and body, prices, date, deadline, shop address and hours, how to cancel", () => {
-  const t = buildOrderConfirmationText({ ...order, lang: "fr" }, items, "https://shop.test/");
+  const t = nb(buildOrderConfirmationText({ ...order, lang: "fr" }, items, "https://shop.test/"));
   assert.equal(orderConfirmationSubject("fr"), "Votre réservation chez Uma's Books");
   assert.match(t, /^Bonjour Ada,/);
   assert.match(t, /Merci pour votre réservation\. Rien n’a été payé en ligne : vous réglez à la boutique au moment du retrait\./);
@@ -76,11 +87,16 @@ test("French reservation: French subject and body, prices, date, deadline, shop 
   assert.doesNotMatch(t, /Thanks for your reservation|Pay at the shop|^Hi /im);
 });
 
-test("French reservation keeps the bilingual legal block and seller identity verbatim", () => {
+test("French reservation: the legal block and the seller identity are in French only; the English email keeps the bilingual block", () => {
   const t = buildOrderConfirmationText({ ...order, lang: "fr" }, items, "");
-  for (const block of [LEGAL_RIGHTS, SELLER_LINES]) assert.ok(t.includes(block));
-  assert.match(t, /YOUR RIGHTS/);
+  for (const block of [LEGAL_RIGHTS_FRENCH_ONLY, sellerLines("fr")]) assert.ok(t.includes(frenchPlainText(block)));
   assert.match(t, /VOS DROITS/);
+  assert.doesNotMatch(t, /YOUR RIGHTS|Reserving is free|Legal guarantees:|Complaints:|Phone/);
+  assert.match(t, /Tél\.\u00a0: 06 98 95 67 91/);
+  const en = buildOrderConfirmationText({ ...order, lang: "en" }, items, "");
+  for (const block of [LEGAL_RIGHTS, SELLER_LINES]) assert.ok(en.includes(block));
+  assert.match(en, /YOUR RIGHTS/);
+  assert.match(en, /VOS DROITS/);
 });
 
 test("English is the default: a missing or unknown order.lang means English", () => {
@@ -101,7 +117,7 @@ test("a seat-only reservation has no book deadline; it says you pay at the sessi
   const en = buildOrderConfirmationText(seatOrder, [seat], "https://shop.test/");
   assert.doesNotMatch(en, /We hold your books/);
   assert.match(en, /Drop-in seats: you pay at the session\. A seat can be cancelled online until \d+ hours before the session/);
-  const fr = buildOrderConfirmationText({ ...seatOrder, lang: "fr" }, [seat], "https://shop.test/");
+  const fr = nb(buildOrderConfirmationText({ ...seatOrder, lang: "fr" }, [seat], "https://shop.test/"));
   assert.doesNotMatch(fr, /Nous gardons vos livres/);
   assert.match(fr, /Places « drop-in » : vous réglez sur place, à la séance\./);
   // Books and a seat together carry both notes.

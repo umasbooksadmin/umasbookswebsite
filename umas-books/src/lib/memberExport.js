@@ -65,7 +65,9 @@ async function buildEmailSections(pool, email, userId = null) {
 }
 
 // Returns null when there is no such account.
-async function buildMemberExport(pool, userId) {
+// `lang` only chooses the language of the explanatory note: the field names are
+// the database's, and stay the same in every language (it is a data file).
+async function buildMemberExport(pool, userId, { lang = "en" } = {}) {
   const { rows: userRows } = await pool.query("SELECT * FROM users WHERE id = $1", [userId]);
   if (!userRows.length) return null;
   const user = {};
@@ -77,7 +79,9 @@ async function buildMemberExport(pool, userId) {
 
   return {
     exported_at: new Date().toISOString(),
-    note: "Personal data held by Uma's Books about this account. Passwords and security secrets are never included.",
+    note: lang === "fr"
+      ? "Données personnelles détenues par Uma's Books sur ce compte. Les mots de passe et les secrets de sécurité n’y figurent jamais."
+      : "Personal data held by Uma's Books about this account. Passwords and security secrets are never included.",
     user,
     ...(await buildEmailSections(pool, email, userId)),
     favorites: await q(

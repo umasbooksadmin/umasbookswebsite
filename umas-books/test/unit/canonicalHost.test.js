@@ -9,10 +9,12 @@ async function boot(env) {
   app.use(canonicalHost({ env }));
   app.all("*splat", (req, res) => res.status(200).send("served"));
   const server = await new Promise((r) => { const s = app.listen(0, "127.0.0.1", () => r(s)); });
-  const request = (method, path, host) => new Promise((resolve, reject) => {
-    const r = http.request({ host: "127.0.0.1", port: server.address().port, method, path, headers: { host } }, (res) => {
+  const request = (method, path, host, extraHeaders = {}) => new Promise((resolve, reject) => {
+    const r = http.request({ host: "127.0.0.1", port: server.address().port, method, path, headers: { host, ...extraHeaders } }, (res) => {
       res.resume();
-      res.on("end", () => resolve({ status: res.statusCode, location: res.headers.location }));
+      let body = "";
+      res.on("data", (c) => { body += c; });
+      res.on("end", () => resolve({ status: res.statusCode, location: res.headers.location, body }));
     });
     r.on("error", reject);
     r.end();
@@ -80,4 +82,15 @@ test("off in preview, outside production, and when APP_BASE_URL is missing or no
       assert.equal((await s.request("GET", "/x", "umas-books-cmvv.onrender.com")).status, 200, JSON.stringify(env));
     } finally { s.close(); }
   }
+});
+
+test("live: the 421 text is French for a French visitor (cookie or Accept-Language), English otherwise", async () => {
+  const s = await boot(LIVE);
+  try {
+    const host = "umas-books-cmvv.onrender.com";
+    assert.match((await s.request("POST", "/login", host)).body, /^Misdirected request: use https:\/\/umasbooks\.org$/);
+    assert.match((await s.request("POST", "/login", host, { cookie: "umasbooks_lang=fr" })).body, /^Requête mal adressée : utilisez https:\/\/umasbooks\.org$/);
+    assert.match((await s.request("POST", "/login", host, { "accept-language": "fr-FR,fr;q=0.9" })).body, /^Requête mal adressée/);
+    assert.match((await s.request("POST", "/login", host, { cookie: "umasbooks_lang=en", "accept-language": "fr" })).body, /^Misdirected/);
+  } finally { s.close(); }
 });

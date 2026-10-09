@@ -49,7 +49,7 @@
                 <div class="calendar-pill-body">
                   <div class="muted small">
                     <%= formatTime(s.starts_at) %> &ndash; <%= formatTime(s.ends_at) %>
-                    &middot; <%= tr('{n}/{max} filled', '{n}/{max} inscrits', { n: s.signup_count, max: s.capacity }) %>
+                    &middot; <%= tr('{n}/{max} filled', s.signup_count < 2 ? '{n}/{max} inscrit' : '{n}/{max} inscrits', { n: s.signup_count, max: s.capacity }) %>
                   </div>
                   <% if (s.notes) { %><div class="muted small"><%= s.notes %></div><% } %>
                   <% if (mine) { %>

@@ -14,7 +14,7 @@ const full = sellsDropin && spotsLeft != null && spotsLeft <= 0;
       <div class="fcal-session-title"><%= c.title %></div>
       <div class="fcal-session-time"><%= formatTime(c.starts_at) %></div>
       <div class="fcal-session-seats">
-        <%= eur(c.dropin_price) %><%= spotsLeft != null ? ' · ' + (spotsLeft === 1 ? tr('1 place left', '1 place restante') : tr('{n} places left', '{n} places restantes', { n: spotsLeft })) : '' %>
+        <%= eur(c.dropin_price) %><%= spotsLeft != null ? ' · ' + (spotsLeft === 1 ? tr('1 place left', '1 place restante') : tr('{n} places left', spotsLeft < 2 ? '{n} place restante' : '{n} places restantes', { n: spotsLeft })) : '' %>
       </div>
     </summary>
     <div class="fcal-session-details">

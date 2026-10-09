@@ -109,7 +109,8 @@ test("a French reservation stores lang=fr and its confirmation email is French (
   const fr = await reserve("fr");
   assert.equal(fr.subject, "Votre réservation chez Uma's Books");
   assert.match(fr.text, /^Bonjour Marie,/);
-  assert.match(fr.text, /YOUR RIGHTS/, "legal block stays bilingual");
+  assert.match(fr.text, /VOS DROITS/, "the legal block is French");
+  assert.doesNotMatch(fr.text, /YOUR RIGHTS/, "and French only");
   const en = await reserve("en");
   assert.equal(en.subject, "Your reservation at Uma's Books");
   assert.match(en.text, /^Hi Marie,/);
@@ -155,7 +156,7 @@ test("pickup reminder follows the member's language (English when unknown)", asy
     return sent.find((m) => m.to === email);
   };
   const fr = await remind(await makeUser("fr"));
-  assert.match(fr.subject, /^Rappel : votre exemplaire de « I18n Shop Book/);
+  assert.match(fr.subject, /^Rappel\u00a0: votre exemplaire de «\u00a0I18n Shop Book/);
   assert.match(fr.text, /^Bonjour Jean Dupont,/);
   const none = await remind(`nobody-${uniq()}@example.test`);
   assert.match(none.subject, /^Reminder: your copy of/);

@@ -1,6 +1,6 @@
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
-const { frenchTypography: fr, NBSP } = require("../../src/lib/frenchTypography");
+const { frenchTypography: fr, frenchPlainText, NBSP } = require("../../src/lib/frenchTypography");
 
 test("a plain space before ; : ! ? and » (and after «) becomes a no-break space", () => {
   assert.equal(fr("<p>Total : 5 € ! Vraiment ? Oui ; non « ok »</p>"), `<p>Total${NBSP}: 5 €${NBSP}! Vraiment${NBSP}? Oui${NBSP}; non «${NBSP}ok${NBSP}»</p>`);
@@ -34,4 +34,13 @@ test("it is idempotent and leaves English-only markup alone", () => {
   const once = fr("<p>Merci : l'équipe !</p>");
   assert.equal(fr(once), once);
   assert.equal(fr("<p>Hello world</p>"), "<p>Hello world</p>");
+});
+
+test("plain-text emails: no-break space before ; : ! ? » and after «, URLs and times untouched; French emails get it, English ones do not", () => {
+  assert.equal(frenchPlainText("Bonjour : « Merci » !"), `Bonjour${NBSP}: «${NBSP}Merci${NBSP}»${NBSP}!`);
+  assert.equal(frenchPlainText("https://x.org/a?b=1 à 14:00"), "https://x.org/a?b=1 à 14:00");
+  assert.equal(frenchPlainText(frenchPlainText("Voici : ok")), frenchPlainText("Voici : ok"));
+  const { emailTr } = require("../../src/lib/lang");
+  assert.equal(emailTr("fr")("Total: 5", "Total : 5"), `Total${NBSP}: 5`);
+  assert.equal(emailTr("en")("Total : 5", "Total : 5"), "Total : 5");
 });
