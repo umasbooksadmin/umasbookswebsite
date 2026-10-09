@@ -11,6 +11,7 @@ const { getSettings, getSettingsAndRow, validateSettingsInput, saveSettings, NUM
 const { suggestFromRules } = require("../../lib/pricing/rules");
 const { ruleName } = require("../../lib/pricing");
 const { clearanceCandidates, cachedComparables, rulesSuggestionFor } = require("../../lib/pricing/clearance");
+const { colorChartRows } = require("../../lib/pricing/colorChart");
 const { levelText } = require("../../lib/pricing/intake");
 
 const router = express.Router();
@@ -74,7 +75,7 @@ async function renderSettings(res, { error = null, form = null, saved = false, q
   const { settings, row } = await getSettingsAndRow(pool, Date.now(), { fresh: true });
   res.render("admin/pricing/settings", {
     active: "pricing", error, saved, form: form || formValues(row), calc: calculator(settings, query),
-    bindingColumns: BINDING_COLUMNS, money,
+    bindingColumns: BINDING_COLUMNS, money, colorChart: colorChartRows(settings),
   });
 }
 
