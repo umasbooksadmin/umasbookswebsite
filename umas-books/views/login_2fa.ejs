@@ -18,7 +18,7 @@
   <form class="stack" method="post" action="/login/2fa">
     <%- include('partials/csrf_field') %>
     <label for="recovery-code"><%= tr('Recovery code', 'Code de récupération') %></label>
-    <input id="recovery-code" name="code" type="text" inputmode="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="AB3DE-F7GH2" required>
+    <input id="recovery-code" name="code" type="text" inputmode="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" required>
     <button class="btn btn-outline" type="submit"><%= tr('Use this recovery code', 'Utiliser ce code de récupération') %></button>
   </form>
 </details>

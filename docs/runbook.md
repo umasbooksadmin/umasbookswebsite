@@ -172,8 +172,17 @@ Try in this order:
 1. **Forgot password.** On the login page click the forgot-password link. The
    email goes to the account's address.
 2. **Two-step verification code lost** (applies once two-step verification is
-   live): another admin opens the site > Admin > **Members** > finds the person
-   > **Reset Two-Step**. The person logs in with their password and enrols again.
+   live). First, the person's own **recovery codes**: each admin was shown 10
+   codes once when they turned two-step on (and they are kept in the shared
+   password manager, section w). On the code page they open **Lost your phone?
+   Use a recovery code instead**, type one code in the **Recovery code** box
+   (works on a phone: it is a letters keyboard; capitals or lowercase, with or
+   without the dash and spaces, e.g. `ab3def7gh2` for `AB3DE-F7GH2`) and press
+   **Use this recovery code**. Each code works once; afterwards, at
+   `/account/2fa`, **Get new recovery codes** (needs a current app code) issues
+   a fresh set. If the person has no recovery code left: another admin opens
+   the site > Admin > **Members** > finds the person > **Reset Two-Step**. The
+   person logs in with their password and enrols again.
 3. **The only admin is locked out.** In Render, open the `umas-books` service >
    **Shell** tab, run `psql "$DATABASE_URL"`, then (changing the email):
 

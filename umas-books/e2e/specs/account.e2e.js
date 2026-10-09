@@ -152,6 +152,12 @@ s.test("AC9 (must) a wrong password and an unknown email give the same message",
   }
   assert.equal(seen[0], "Incorrect email or password.");
   assert.equal(seen[1], seen[0]);
+  // The refused form keeps the typed e-mail (never the password) and puts the cursor in the password box.
+  const after = await ctx.page.evaluate(() => ({ email: document.querySelector("#email").value, password: document.querySelector("#password").value, focus: document.activeElement && document.activeElement.id, alert: !!document.querySelector("[role='alert']") }));
+  assert.equal(after.email, tries[1][0]);
+  assert.equal(after.password, "");
+  assert.equal(after.focus, "password");
+  assert.ok(after.alert);
 });
 
 s.manual("AC10 five wrong passwords lock the account for 15 minutes", "would lock the test account for 15 minutes and break the rest of the run; use a throwaway account by hand");
@@ -534,25 +540,31 @@ s.manual("AC43b turn two-step on with an authenticator app, log in with a code, 
 
 // ---- 2H. Member-only pages are NOT shown to an account holder ----
 //
-// What the site does today (src/middleware/auth.js requireMember, routes/dashboard.js):
-// a logged-in account that is not a member, volunteer or admin is sent to the
-// home page ("/") from /dashboard, /announcements, /forum*, /meetings*, and
-// /volunteer. /charity is the one exception: a vote set to "visible to
-// everyone" can be read, but voting and suggesting are still refused.
+// What the site does today (src/lib/membersOnly.js, used by requireMember in
+// src/middleware/auth.js and routes/dashboard.js): a logged-in account that is not a member,
+// volunteer or admin gets a short page "This area is for members" (HTTP 403) with a button to the
+// membership page, from /dashboard, /announcements, /forum*, /meetings*, and /volunteer (there:
+// "for volunteers", button to the volunteer form). /charity is the one exception: a vote set to
+// "visible to everyone" can be read, but voting and suggesting are still refused.
+// A form POST to these pages keeps a quiet redirect to the home page.
 
 const MEMBER_CONTENT = [/Welcome back/i, /Start a thread/i, /Add a reply/i, /I.ll be there/i, /Submit My Votes/i, /Suggest a Charity/i, /View All Announcements/i];
 
-async function refusedForNonMember(ctx, p) {
+async function refusedForNonMember(ctx, p, notice = /This area is for members/, button = "/membership.html") {
   const raw = await ctx.fetchRaw(p);
-  assert.ok([301, 302, 303, 307].includes(raw.status), `${p} answered ${raw.status}, expected a redirect (member content must not be shown)`);
-  assert.equal(new URL(raw.headers.get("location") || "", ctx.base).pathname, "/", `${p} should send an account holder to the home page`);
-  await ctx.goto(p);
-  assert.equal(new URL(ctx.page.url()).pathname, "/", `${p}: the browser should end on the home page`);
+  assert.equal(raw.status, 403, `${p} answered ${raw.status}, expected the 403 'for members' page (member content must not be shown)`);
+  const res = await ctx.goto(p);
+  assert.equal(res.status(), 403);
+  assert.equal(new URL(ctx.page.url()).pathname, p, `${p}: the browser stays here and explains`);
   const text = await ctx.text();
-  for (const re of MEMBER_CONTENT) hasNot(text, re, `${p} ended on the home page, which must show no member content`);
+  has(text, notice);
+  assert.ok(await ctx.page.$(`a.btn[href='${button}']`), `${p}: a button to ${button}`);
+  assert.ok(await ctx.page.$(".notice-box[role='status']"), `${p}: the notice is announced to screen readers`);
+  assert.ok(await ctx.page.$("form[action='/logout'] button"), `${p}: still logged in`);
+  for (const re of MEMBER_CONTENT) hasNot(text, re, `${p} is the 'for members' page, which must show no member content`);
 }
 
-s.test("AC44 (must) /dashboard (Member's Access) sends an account holder to the home page and shows no member content", { as: "account" }, async (ctx) => {
+s.test("AC44 (must) /dashboard (Member's Access) tells an account holder the area is for members and shows no member content", { as: "account" }, async (ctx) => {
   await refusedForNonMember(ctx, "/dashboard");
 });
 
@@ -579,7 +591,7 @@ s.test("AC47 (must) the meetings calendar and RSVP are refused to an account hol
 s.test("AC48 (must) the charity page shows no vote or suggestion form to an account holder, and voting is refused", { as: "account" }, async (ctx) => {
   await ctx.goto("/charity");
   const where = new URL(ctx.page.url()).pathname;
-  assert.ok(where === "/" || where === "/charity", `sent to ${where}`);
+  assert.equal(where, "/charity", `stayed on ${where}`);
   if (where === "/charity") {
     // The open vote is set to "visible to everyone": it may be read, never used.
     assert.equal(await ctx.page.$("form[action='/charity/vote']"), null, "no vote form");
@@ -596,16 +608,17 @@ s.test("AC48 (must) the charity page shows no vote or suggestion form to an acco
 });
 
 s.test("AC49 the volunteer shifts page is refused to an account holder", { as: "account" }, async (ctx) => {
-  await refusedForNonMember(ctx, "/volunteer");
+  await refusedForNonMember(ctx, "/volunteer", /This area is for volunteers/, "/volunteer.html");
 });
 
-s.test("AC50 the key icon (Member's Access) leads an account holder to the home page, not to member content", { as: "account" }, async (ctx) => {
+s.test("AC50 the key icon (Member's Access) leads an account holder to the 'for members' page, not to member content", { as: "account" }, async (ctx) => {
   await ctx.goto("/", "networkidle2");
   assert.equal(new URL(ctx.page.url()).pathname, "/", "an account holder who is not a member stays on the home page");
   const key = await ctx.page.$("a.h-tool[href='/dashboard']");
   if (key) {
     await Promise.all([ctx.page.waitForNavigation(), key.click()]);
-    assert.equal(new URL(ctx.page.url()).pathname, "/");
+    assert.equal(new URL(ctx.page.url()).pathname, "/dashboard");
+    has(await ctx.text(), /This area is for members/);
   }
   for (const re of MEMBER_CONTENT) hasNot(await ctx.text(), re);
   assert.ok(await ctx.page.$("form[action='/logout'] button"), "still logged in");
