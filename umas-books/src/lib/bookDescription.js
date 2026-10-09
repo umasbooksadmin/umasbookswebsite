@@ -5,13 +5,28 @@
 // still be saved without one rather than blocking the save.
 
 const { recordCall } = require("./aiUsageStats");
+const { getAiLimits, clampText, MAX_TITLE, MAX_AUTHOR, MAX_DESCRIPTION } = require("./aiLimits");
+const { createInflight } = require("./inflight");
+
+// Two identical requests running at the same time (a double click, two screens) share one API call.
+const inflight = createInflight();
 
 const TEXT_MODEL = "claude-haiku-4-5-20251001";
 
-async function callClaude(prompt, { maxTokens = 200, label, feature = "description" }) {
+function callClaude(prompt, opts) {
+  return inflight.run(`${opts.feature || "description"}|${opts.maxTokens || 200}|${prompt}`, () => callClaudeOnce(prompt, opts));
+}
+
+async function callClaudeOnce(prompt, { maxTokens = 200, label, feature = "description" }) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     console.warn(`${label} skipped: ANTHROPIC_API_KEY not set.`);
+    return null;
+  }
+  // The shared daily cap (lib/aiLimits.js): at the cap the call is skipped, like any other AI problem.
+  const slot = await getAiLimits().acquireAiCall();
+  if (!slot.ok) {
+    console.warn(`${label} skipped: ${slot.message}`);
     return null;
   }
 
@@ -63,7 +78,12 @@ async function callClaude(prompt, { maxTokens = 200, label, feature = "descripti
   }
 }
 
-async function generateBookDescription({ title, author, publisher, publishedYear }) {
+async function generateBookDescription(input) {
+  const { publishedYear } = input;
+  // Only a bounded amount of text goes to the paid API (a title in a request can be 100 KB long).
+  const title = clampText(input.title, MAX_TITLE);
+  const author = clampText(input.author, MAX_AUTHOR);
+  const publisher = clampText(input.publisher, MAX_AUTHOR);
   if (!title) {
     console.warn("AI description skipped: no title provided.");
     return null;
@@ -91,7 +111,7 @@ async function translateDescriptionToFrench(englishText) {
 
   const prompt = `Translate this English bookshop back-cover description to French. Keep the same tone and length. Respond with ONLY the French translation, no preamble, no quotes around it.
 
-"${englishText}"`;
+"${clampText(englishText, MAX_DESCRIPTION)}"`;
 
   return callClaude(prompt, { maxTokens: 250, label: "AI description (French)", feature: "translation" });
 }

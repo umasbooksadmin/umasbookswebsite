@@ -485,6 +485,9 @@ one, so a Blueprint rebuild starts correctly; values marked "by hand" are
 | `HELLOASSO_API_BASE` | leave empty/unset for production (the sandbox address is only for tests) | by hand |
 | `HELLOASSO_MEMBERSHIP_FORM_SLUG` | optional: only this HelloAsso form grants membership | by hand |
 | `ANTHROPIC_API_KEY`, `ANTHROPIC_WORKSPACE_ID` | photo scanning and book descriptions | by hand |
+| `AI_DAILY_MAX_CALLS` | optional: the most Anthropic calls per Paris day for ALL AI features together (default `600`; `0` = AI off). Raise it in Render > Environment (runbook section ae, "AI limits"; the AI price-check cap `PRICING_AI_DAILY_MAX` is a part of it) | by hand |
+| `NYT_API_KEY` | optional: New York Times Books API key for the awards / best-seller badges (runbook section i) | by hand |
+| `PRICING_AI`, `PRICING_AI_DAILY_MAX`, `PRICING_AI_MODEL` | optional online price check (see docs/runbook.md) | by hand |
 | `ISBNDB_API_KEY`, `ISBNDB_API_BASE`, `ISBNDB_MIN_INTERVAL_MS` | optional paid book catalog (ISBNdb), used only as a last resort when the free catalogs find nothing; key = secret, add by hand in Render (runbook section aa, "ISBNdb") | by hand |
 | `GOOGLE_BOOKS_API_KEY` | optional: removes Google's cap on keyless Google Books lookups | by hand |
 | `SCAN_LOOKUP_TIMEOUT_MS`, `SCAN_LOOKUP_HEDGE_MS`, `SCAN_LOOKUP_GRACE_MS`, `SCAN_LOOKUP_SOURCES`, `SCAN_CACHE_TTL_MS`, `SCAN_NEGATIVE_TTL_MS`, `SCAN_COVER_WAIT_MS`, `SCAN_PRICE_WAIT_MS`, `SCAN_SLOW_LOG_MS` | optional speed settings of the Add a book page (runbook section aa, "Scan speed") | defaults, not in the file |
@@ -525,11 +528,21 @@ Render deploy/spin-down) it stops taking new connections, lets in-flight
 requests — notably HelloAsso membership webhooks — finish, closes the database pool and
 exits 0; after 10 seconds it exits anyway.
 
+## Nightly inventory export
+
+Every evening at 21:00 (Paris) the *Nightly inventory export* workflow
+(`.github/workflows/inventory-export.yml`, script `scripts/export-inventory-csv.js`,
+columns and format in `src/lib/inventoryExport.js`) emails a CSV of all inventory (one
+row per copy, plus one row per book) to the alert addresses and stores it in the Backblaze
+bucket under `inventory-exports/`. No customer data in it. The same file is
+available any time from Admin > Inventory > **Download all inventory (CSV)**. Set-up and how
+to open it in Excel: `docs/runbook.md`, section af.
+
 ## Backups in Backblaze B2
 
 The nightly workflow uploads one complete dump (image bytes included, login
 sessions left out) to a private **Backblaze B2** bucket
-(`<bucket>/store-backups/full/umas_books_full_<UTC timestamp>.dump`, plus a
+(`<bucket>/store-backups/full/umas_books_full_<UTC timestamp>.dump.age`, encrypted client-side with `age`; plain `.dump` while `BACKUP_AGE_RECIPIENT` is unset; plus a
 copy under `store-backups/monthly/` on the 1st of each month). Nothing is
 committed to the code repository. B2 speaks the S3 protocol, so the workflow
 uses the standard AWS CLI pointed at B2's endpoint. The upload is required:
@@ -559,6 +572,8 @@ Actions). The type matters — the workflows read these two kinds only:
 | Variables | **Repository variables** | `BACKUP_S3_PREFIX` | optional; defaults to `store-backups` |
 | Secrets | **Repository secrets** | `BACKUP_S3_KEY_ID` | the B2 keyID |
 | Secrets | **Repository secrets** | `BACKUP_S3_APPLICATION_KEY` | the B2 applicationKey |
+| Variables | **Repository variables** | `BACKUP_AGE_RECIPIENT` | the age **public** key (`age1...`) that encrypts every dump before upload; unset = dumps uploaded unencrypted, with a loud warning. Runbook section ad) |
+| Secrets | **Repository secrets** | `BACKUP_AGE_IDENTITY` | optional, **not recommended**: the age private key, lets the monthly restore test decrypt and restore (runbook section ad) |
 
 (Not *environment* variables/secrets: the workflows don't name a GitHub
 environment, so those would be invisible to them and the upload would
@@ -584,15 +599,19 @@ by hand — it downloads the newest dump from B2 and restores it.
 ## Restoring from a backup
 
 `.github/workflows/nightly-db-backup.yml` dumps the production database
-every night (03:00 UTC) with `pg_dump --format=custom` and uploads it to the
+every night (03:00 UTC) with `pg_dump --format=custom`, **encrypts it with
+`age`** (when the repository variable `BACKUP_AGE_RECIPIENT` is set: runbook
+section ad), and uploads it to the
 private Backblaze B2 bucket as `store-backups/full/umas_books_full_<UTC
-timestamp>.dump` (kept 30 days; the 1st-of-month copy under
+timestamp>.dump.age` (`.dump` while unencrypted; kept 30 days; the 1st-of-month copy under
 `store-backups/monthly/` is kept 2 years). Once a month,
 `.github/workflows/backup-restore-test.yml` downloads the newest dump,
 restores it into a scratch Postgres and checks the data (including that it is as
 new as the newest migration in the repository), emailing the alert
-address(es) (`ALERT_TO`) if that fails — so this procedure is exercised
-regularly, not just on a bad day.
+address(es) (`ALERT_TO`) if that fails. For an **encrypted** dump it only checks
+the file's integrity (header, size) unless the optional secret
+`BACKUP_AGE_IDENTITY` is set, so the real decrypt-and-restore is the quarterly
+drill in runbook section ad).
 
 > **Each dump is complete** — book covers and other uploaded photos
 > included. Only login sessions are left out (everyone simply logs in again
@@ -604,7 +623,8 @@ regularly, not just on a bad day.
 > copy when you are done.
 
 You need the PostgreSQL **18** client tools (the dumps are made with 18;
-an older `pg_restore` cannot read them) and the AWS CLI.
+an older `pg_restore` cannot read them), the AWS CLI and, for a `.age` file,
+`age` (`brew install age`) and the **private key** from the password manager.
 
 1. **Download a dump** from Backblaze B2. Fill in the three values (the
    bucket name, the endpoint, and the B2 key pair from the Backblaze
@@ -625,6 +645,20 @@ an older `pg_restore` cannot read them) and the AWS CLI.
 
    Pick the newest file from the list (names sort by date), or one from
    `store-backups/monthly/` for an older copy.
+
+   If the file ends in **`.age`** it is encrypted: decrypt it first (the key
+   file must be readable only by you, and deleted afterwards):
+
+   ```bash
+   umask 077
+   pbpaste > key.txt     # the private key, copied from the password manager
+   age -d -i key.txt -o restore.dump umas_books_full_<timestamp>.dump.age
+   rm -P key.txt
+   ```
+
+   Then continue with `restore.dump`. (An unencrypted `.dump` can be
+   downloaded straight to `restore.dump`.) `bash scripts/backup-encrypt-selftest.sh`
+   rehearses the encrypt-decrypt round trip with a dummy file and a throwaway key.
 
 2. **Restore into a fresh database.** Never restore over a database you
    still need:
@@ -669,7 +703,7 @@ an older `pg_restore` cannot read them) and the AWS CLI.
    "Running migration: ..." for each newer file (or "Migrations complete."),
    then that `/healthz` returns 200.
 
-5. **Clean up:** `rm restore.dump`, and `dropdb umas_books_restored` if it
+5. **Clean up:** `rm restore.dump umas_books_full_*.age`, and `dropdb umas_books_restored` if it
    was only a drill.
 
 **If the whole Render account is gone** (not just the data), restoring the

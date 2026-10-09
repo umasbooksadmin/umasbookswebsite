@@ -144,6 +144,7 @@ async function plant() {
   await db.query("INSERT INTO alert_flags (key, last_sent_at) VALUES ('outbox-stuck', now())");
   await db.query("INSERT INTO lookup_source_stats (day, source, asked) VALUES (current_date, 'google', 1)");
   await db.query("INSERT INTO ai_usage_stats (day, feature, calls) VALUES (current_date, 'genre', 1)");
+  await db.query("INSERT INTO ai_daily_cap (day, scope, calls) VALUES (current_date, 'all', 1)");
 
   // logs
   await db.query("INSERT INTO admin_audit_log (action, actor_label) VALUES ('test_one', 'a'), ('test_two', 'b'), ('test_three', 'c')");

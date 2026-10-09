@@ -73,7 +73,10 @@ jobs:
     # real app as a child process against this job's own Postgres
     # service and hit it over real HTTP (see test/integration/).
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # 25, not 10: the suite (~2,200 tests) took 9m50s on a good day and
+    # was being cancelled at the old limit. The duration is printed in the
+    # job summary so the trend is visible before it nears this again.
+    timeout-minutes: 25
     services:
       postgres:
         image: postgres:18 # matches production — see nightly-db-backup.yml
@@ -109,8 +112,15 @@ jobs:
         run: npm ci --ignore-scripts
       - if: steps.changes.outputs.docs_only != 'true'
         run: npm run migrate
-      - if: steps.changes.outputs.docs_only != 'true'
-        run: npm test
+      - name: Run the test suite (and record how long it took)
+        if: steps.changes.outputs.docs_only != 'true'
+        run: |
+          start=$(date +%s)
+          status=0
+          npm test || status=$?
+          secs=$(( $(date +%s) - start ))
+          echo "Test suite duration: $((secs / 60))m $((secs % 60))s (job limit: 25m)" >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
 
   migration-test:
     # Proves every migration applies cleanly, in order, to a brand-new
@@ -214,7 +224,7 @@ jobs:
     # server error or a navigation failure, or on a persona whose login
     # didn't actually take (see assert-crawl-ok.js).
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25 # the crawl takes about 10 minutes; headroom for slow runners
     services:
       postgres:
         image: postgres:18

@@ -28,6 +28,10 @@ function buildMarketingCsp(formActionSources) {
     `form-action ${formActionSources.join(" ")}`,
     "frame-ancestors 'none'",
     "frame-src https://www.helloasso.com",
+    // Same as the app pages (helmet's default): a stray http:// sub-resource is
+    // fetched over https. HSTS already covers navigation; this closes the gap
+    // for mixed content.
+    "upgrade-insecure-requests",
   ].join("; ");
 }
 

@@ -103,6 +103,15 @@ async function build(db, period, { csv = false } = {}) {
     banner = { level: "danger", text: `Anthropic API credit ran out at ${at}: top up at console.anthropic.com > Billing. Until then the AI features (descriptions, translations, genres, cover photo reading, price checks) do not work; scanning by ISBN, saving, the till and reservations keep working.` };
   }
 
+  // The shared daily cap (AI_DAILY_MAX_CALLS, lib/aiLimits.js) used up today: say so, and how to raise it.
+  try {
+    const cap = await require("./aiLimits").getAiLimits().status({ pool: db });
+    if (cap.reached) {
+      const text = `${cap.message} The AI helpers are paused until then; scanning, saving, the till and reservations keep working. To allow more calls a day, raise AI_DAILY_MAX_CALLS in Render > Environment (runbook: "AI limits").`;
+      banner = banner ? { level: "danger", text: `${banner.text} ${text}` } : { level: "danger", text };
+    }
+  } catch { /* the report does not depend on it */ }
+
   const priced = AI_PRICES.usdPerMTok[AI_PRICES.assumedModel];
   return {
     banner,

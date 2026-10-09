@@ -74,8 +74,15 @@ asks you to. Always change **every** place listed, then check
 | `PREVIEW_MODE` (not a secret; see section g) | Render env var only |
 | `BACKUP_S3_BUCKET`, `BACKUP_S3_ENDPOINT`, `BACKUP_S3_REGION` (and optional `BACKUP_S3_PREFIX`) | GitHub **repository variables** |
 | `BACKUP_S3_KEY_ID`, `BACKUP_S3_APPLICATION_KEY` | GitHub **repository secrets** |
+| `BACKUP_AGE_RECIPIENT` (the age **public** key; not a secret) | GitHub **repository variable**. Section ad) |
+| `BACKUP_AGE_IDENTITY` (the age **private** key; optional, not recommended) | GitHub **repository secret**, used only by the monthly restore test. Section ad) |
+| age private key (the file `umas-books-backup-key.txt`) | Your password manager, plus a second copy kept elsewhere (section ad). **Never** in GitHub, Render or the repository, unless you choose the optional `BACKUP_AGE_IDENTITY` |
 
-**DATABASE_URL (the Render database password).**
+**DATABASE_URL (the Render database password).** The GitHub copy should be the
+*read-only backup user's* connection string (`backup_ro`), not the owner's:
+section ad), "A read-only database user for the backup". Rotating the owner's
+password (steps below) then does not touch GitHub; rotating `backup_ro`'s does
+(only the GitHub secret changes, plus the `ALTER ROLE` in step 2 of that section).
 Render links the web service to the database automatically
 (`fromDatabase` in `render.yaml`), but GitHub keeps its own copy.
 If you change one and not the other, the site keeps working but the nightly
@@ -346,11 +353,20 @@ the UptimeRobot "DOWN" alert) is in section r) "When you receive an alert".
      another 30 days.
   The pre-registration emails hold a child's name and year of birth, so do not
   skip them.
+- **Backup restore drill (section ad):** decrypt the newest backup on your Mac,
+  restore it into a scratch database, look at the counts, delete it. The
+  monthly GitHub restore test does *not* decrypt anything unless you gave it the
+  private key, so this is the only proof that the key in your password manager
+  really opens the backups.
 - **GitHub Actions minutes:** also check the monthly usage (section t): GitHub > profile picture > Settings > Billing and plans > Usage this month.
 - **UptimeRobot:** check the monitors are still active and the plan is still free (section d).
 
 ### Every year
 
+- **Rotate the backup credentials (section ad):** the `backup_ro` database
+  password and the Backblaze application key (the age key pair only if a person
+  who had it has left). Put the date in the calendar for **1 October**, next to
+  the quarterly drill.
 
 - **Domain renewal:** umasbooks.org is registered at **Squarespace Domains** and
   expires **2027-08-22** (the DNS is also managed there). Check auto-renew and
@@ -399,6 +415,29 @@ The decision for the maintainer (and a developer if needed):
 Do not close the rule before the backup has a way in: you would silently lose
 your backups. Whichever you choose, run **Nightly database backup** manually
 afterwards and confirm it is green.
+
+**Why the rule cannot simply list GitHub's addresses.** GitHub's runners use
+thousands of address ranges that change every week (published at
+`https://api.github.com/meta`, key `actions`), far more than a Render rule list
+is meant for, and a stale list silently breaks the backup. The practical
+choices are: (a) keep `0.0.0.0/0` and make the credential in GitHub weak
+as a *prize* (a **read-only** user, section ad), long, rotated every year, and
+the repository private; (b) take the dump from somewhere with a fixed address
+(a small always-on machine of your own, or a self-hosted GitHub runner), then
+close the rule to that one address. (b) costs money and upkeep; this runbook
+recommends (a) for now.
+
+**The residual risk, stated plainly (with option a).** Anyone who gets the
+`DATABASE_URL` secret out of GitHub (a compromised GitHub account, a malicious
+change to a workflow, a leaked log) can read **all** production data from
+anywhere on the internet, until the password is rotated. The read-only user
+stops them *changing or deleting* data, the encryption (section ad) protects
+the copies in Backblaze, but neither stops them *reading* the live database
+with that secret. What reduces it: the read-only user, a 40-character random
+password, rotating it yearly (calendar, section e) and immediately after any
+suspicion, keeping the repository private with two-step verification on every
+GitHub account that can change workflows, and watching the Render database's
+**Connections / Logs** if anything looks odd.
 
 ## g) Launching: turn preview mode off
 
@@ -649,7 +688,7 @@ service's **Environment** tab):
 | Variable | What it does |
 |---|---|
 | `PRICING_AI` | Set to `1` (or `true`) to switch the online price check on. Needs `ANTHROPIC_API_KEY` to be set too. Remove it (or set `0`) to switch it off: suggestions then use the built-in rules only, which still works. |
-| `PRICING_AI_DAILY_MAX` | Most online lookups per day (Paris time), default `150`. It is counted from the database, so restarting the service does not reset it. `0` stops all lookups. |
+| `PRICING_AI_DAILY_MAX` | Most online lookups per day (Paris time), default `150`. It is counted in the database (one atomic counter, section ae), so restarting the service does not reset it and parallel requests cannot exceed it. `0` stops all lookups. Every lookup also counts against the shared `AI_DAILY_MAX_CALLS` (section ae). |
 | `PRICING_AI_MODEL` | Optional. A different Anthropic model for the check. It must support the web search tool. Leave unset to use the same model as book descriptions. |
 
 Good to know:
@@ -1371,6 +1410,7 @@ signal: the Monday test alert (section d) proves the channel works.
 | UptimeRobot "Monitor is DOWN" (`umasbooks.org/healthz`) | UptimeRobot, within 5-10 min | The site or its database does not answer | Same three actions as "Site health check failing" above. Planned work: **Pause** the monitor first (UptimeRobot > Monitors > pause icon), **Resume** after. A "Monitor is UP" email = recovered |
 | `Site health check recovered` | GitHub | The outage is over | Nothing. Look in Render **Events** for the cause and note it |
 | `Nightly database backup failed` | GitHub, 03:00 UTC | No new backup tonight (older ones are safe) | 1. Open the run link in the email, read the red step. 2. "settings are missing" = a `BACKUP_S3_*` or `DATABASE_URL` secret changed (section b). 3. After the fix: **Actions > Nightly database backup > Run workflow**, confirm green and a new file in Backblaze |
+| `Database backups are NOT encrypted` | GitHub, every Monday while it lasts | The repository variable `BACKUP_AGE_RECIPIENT` is not set, so the dumps in Backblaze are readable by anyone who gets into the bucket | Section ad): do "Set up the encryption" once. The nightly failure email carries the same warning |
 | `No fresh database backup in Backblaze` | GitHub, 09:00 UTC daily | The newest dump is missing, empty, over 36 h old, or (after the 3rd of the month) the monthly copy is over 35 days old | 1. **Actions > Nightly database backup**: is it enabled and green? (GitHub disables schedules after 60 days of repository inactivity or when minutes run out: section t). 2. Run it by hand. 3. Re-run **Backup freshness check** |
 | `Backup restore test FAILED` | GitHub, 1st of the month | The newest dump could not be restored or lacks tables or migrations | 1. Open the run, read the red message (it says which table, or "dump is OLDER than the repository"). 2. Run **Nightly database backup** by hand, then **Monthly backup restore test** by hand. 3. Still red: do not trust the backups; ask a developer, and keep a manual dump (section u, step 2) meanwhile |
 | `Error on GET /...` (or POST) | Gmail sender, the site | A page crashed (a 500). At most one per kind of error per 15 minutes | 1. Note the page and the time. 2. Render > **Logs**, search for the same time. 3. If it repeats or is on checkout/login, section a) rollback; otherwise send the text to the developer |
@@ -1958,9 +1998,11 @@ before):
 - **HelloAsso sandbox only.** The service **refuses to start** (clear message in
   the Render logs, deploy shown as failed) if HelloAsso credentials are set and
   `HELLOASSO_API_BASE` is not the sandbox address.
-- **Cannot touch the real database.** If you set `PRODUCTION_DATABASE_HOST`,
-  the service (and its migrate and seed steps) refuse to start when the staging
-  `DATABASE_URL` is that host.
+- **Cannot touch the real database.** `PRODUCTION_DATABASE_HOST` is
+  **required**: the service (and its migrate and seed steps) refuse to start
+  when it is missing or empty ("PRODUCTION_DATABASE_HOST is not set" in the
+  Render logs), and when the staging `DATABASE_URL` is that host. Setting it
+  is the lock itself, so a forgotten value cannot leave staging unprotected.
 
 ### One-time set-up (about 20 minutes)
 
@@ -1983,7 +2025,8 @@ for the cheapest paid one).
      Use your own email and a **new** password that is not the real site's.
    - `PRODUCTION_DATABASE_HOST`: Render dashboard > `umas-books-db` > **Info** >
      the **Hostname** (starts with `dpg-`). It is not a password; it is the
-     extra lock described above.
+     lock described above, and it is **required**: the service refuses to start
+     without it.
 2. Render dashboard > **New +** > **Blueprint**.
 3. Pick the repository `umasbooksadmin/umasbookswebsite`. Give the Blueprint a
    name such as `umas-books-staging`, **Branch** `main`, and set **Blueprint
@@ -2228,6 +2271,268 @@ erasing a privacy request (type the address), "Mark refunded" (tick a box), make
 remove admin, deactivate or erase an account, reset two-step, delete a book or copy
 (each a confirm box). Closing the day only asks for the counted cash.
 
+## ad) Encrypting the backups, restore drill, read-only backup user, yearly rotation
+
+**What and why.** Each night GitHub dumps the whole database (members' names,
+emails, addresses, orders, password hashes) and uploads it to Backblaze B2. Until
+this section is done, those files are **readable by anyone who gets into the
+Backblaze bucket**. With it, each dump is encrypted on GitHub's machine
+*before* upload, with the tool `age` (https://age-encryption.org), using a
+**public** key. The nightly job never holds the private key: only you do, and
+only to restore. A file in Backblaze is then named
+`umas_books_full_<timestamp>.dump.age` and is useless without the private key.
+
+> **The private key is the backups.** If it is lost, every encrypted backup is
+> unreadable, forever. Keep it in your password manager **and** one more place
+> (below), and prove it works with the quarterly drill.
+
+Where each setting lives (this is the part to get right):
+
+| Setting | Type | Where | Needed by |
+|---|---|---|---|
+| `BACKUP_AGE_RECIPIENT` (public key, starts `age1`) | GitHub **repository variable** | GitHub > repository > Settings > Secrets and variables > Actions > **Variables** tab > New repository variable | nightly backup |
+| `DATABASE_URL` (read-only user's address) | GitHub **repository secret** | same page, **Secrets** tab > edit `DATABASE_URL` | nightly backup |
+| `BACKUP_AGE_IDENTITY` (private key) | GitHub **repository secret**, **optional, not recommended** | same page, Secrets tab | monthly restore test only |
+| Backblaze lifecycle rules, default encryption, application key | **Backblaze bucket / App Keys settings** | Backblaze web console | Backblaze |
+| Inbound IP rules (section f) | **Render database setting** | Render dashboard > `umas-books-db` | Render |
+
+None of these is a Render **environment variable**.
+
+### Set up the encryption (once, about 15 minutes, on your Mac)
+
+1. Install the tool: open Terminal and run `brew install age`.
+2. Make the key pair. Run:
+
+   ```bash
+   cd ~/Documents   # anywhere private; this file will be deleted at the end
+   age-keygen -o umas-books-backup-key.txt
+   ```
+
+   It prints a line `Public key: age1....` (about 62 characters) and writes the
+   private key into `umas-books-backup-key.txt` (a line starting
+   `AGE-SECRET-KEY-`).
+3. **Save the private key**, before anything else:
+   - In your password manager, create a *secure note* "Uma's Books backup key
+     (age)" and paste the **whole contents** of `umas-books-backup-key.txt` into
+     it (`cat umas-books-backup-key.txt | pbcopy`, then paste; clear the
+     clipboard afterwards).
+   - Make **one more copy** somewhere different, so that losing the password
+     manager or your laptop cannot lose the backups: for example a printed
+     sheet in a safe place, or the shared emergency vault described in
+     section w) (a second trusted person must be able to find it).
+4. Set the **public** key in GitHub: repository > **Settings** > **Secrets and
+   variables** > **Actions** > the **Variables** tab > **New repository
+   variable**. Name `BACKUP_AGE_RECIPIENT`, value the `age1...` line (only that
+   word, no `Public key:` text). This is a **repository variable**, not a secret.
+   It is public by nature, so it is safe if it leaks. (Several keys can be given
+   separated by commas or spaces, e.g. a second person's.)
+5. Run **Actions > Nightly database backup > Run workflow**. In the run page,
+   the summary says **"Backups are encrypted with age (1 recipient(s))"**, and
+   the new file in Backblaze ends in `.dump.age`. If you pasted the wrong
+   thing (for instance the private key) the run **fails** with a message,
+   instead of uploading anything unencrypted.
+6. Delete `umas-books-backup-key.txt` from the Mac (it is in the password
+   manager now): `rm -P umas-books-backup-key.txt`.
+7. Do the **restore drill** below once now, to prove the key opens a backup.
+8. **Encrypt or remove the old unencrypted copies.** Files already in Backblaze
+   stay readable. The `full/` ones disappear by themselves after 30 days
+   (plus a day), but the `monthly/` ones stay up to 2 years. Either delete the
+   old `.dump` files in the Backblaze console (**Buckets > Browse Files**; tick
+   the files; delete; use "show all versions" so hidden old versions go
+   too), or encrypt them first if you want to keep the history:
+   download one, `age -r age1YOURPUBLICKEY -o X.dump.age X.dump`, upload the
+   `.age` back to the same folder, then delete the plain one. The freshness
+   check and the restore test accept both kinds meanwhile.
+
+While `BACKUP_AGE_RECIPIENT` is **not** set the backup still runs (a missing
+backup is worse than an unencrypted one) but says so loudly: a warning on every
+run page, the line "backups are not encrypted" in any failure email, and a
+reminder email every Monday.
+
+### The monthly restore test and the private key (a decision)
+
+Encrypted backups cannot be restored by GitHub unless GitHub has the private
+key. There are two ways, and the choice is yours:
+
+- **Default, recommended: no key in GitHub.** On the 1st of each month the test
+  checks, *without decrypting*, that the newest file exists, that it starts with
+  the age header, that it is not tiny, and that its size is within +/-50% of the
+  previous month's copy. The run summary says plainly "No restore was
+  performed". A truncated, empty or swapped file is caught; a file encrypted
+  to the *wrong* key is **not** (only the drill proves that). You do the real
+  decrypt-and-restore yourself **every quarter** (below).
+- **Optional: full automatic restore.** Create a repository **secret**
+  `BACKUP_AGE_IDENTITY` (Settings > Secrets and variables > Actions > **Secrets**
+  > New repository secret) with the whole contents of the private key file.
+  The monthly test then decrypts, restores into a scratch Postgres and runs the
+  data checks, as it did before encryption. **The trade-off:** the private key
+  now sits in GitHub, so whoever can read the repository's secrets (a hijacked
+  GitHub account, a malicious workflow change) can decrypt *every* backup in
+  Backblaze, which is exactly what the encryption was meant to prevent if only
+  one of the two places leaks. It only restores the *newest* dump. If you want
+  this anyway, keep the quarterly drill too.
+
+Nothing needs to be set for the default.
+
+### The restore drill (every quarter: 1 January, April, July, October; about 20 minutes)
+
+On your Mac (needs `brew install age awscli postgresql@18`; use the
+Postgres 18 tools, see "Restoring from a backup" in
+[`umas-books/README.md`](../umas-books/README.md#restoring-from-a-backup)):
+
+1. Download the newest file as in step 1 of that README section, e.g.
+   `aws s3 cp s3://$BUCKET/store-backups/full/umas_books_full_<timestamp>.dump.age . --endpoint-url $EP`.
+2. Get the private key out of the password manager into a temporary file only
+   you can read, decrypt, and delete the key file straight away:
+
+   ```bash
+   umask 077
+   pbpaste > key.txt          # after copying the secure note's contents
+   age -d -i key.txt -o restore.dump umas_books_full_<timestamp>.dump.age
+   rm -P key.txt
+   ```
+
+   A message such as "no identity matched any of the file's recipients" means
+   the key in the password manager is **not** the one the backups were made
+   for. That is the thing this drill exists to find: fix it today (check the
+   `BACKUP_AGE_RECIPIENT` value against the `Public key:` of the key you hold;
+   `age-keygen -y key.txt` prints the public key of a private key).
+3. Restore into a scratch database and look at it, exactly as steps 2 and 3 of
+   the README section (`createdb`, `pg_restore --no-owner --no-privileges
+   --exit-on-error`, the counts query).
+4. Clean up: `dropdb umas_books_restored; rm -P restore.dump *.dump.age`.
+5. Note the date in the calendar entry.
+
+### A read-only database user for the backup (once)
+
+The nightly job should not log in as the database owner. Create a user that can
+only **read**. In the Render dashboard open `umas-books-db`, copy the **External
+Database URL**, and from your Mac run `psql "<that URL>"`, then (choose a long
+password made of letters and digits only, so it needs no escaping, e.g. the
+output of `openssl rand -hex 24`):
+
+Run it connected as the **owner / application role** (the one in Render's own
+`DATABASE_URL`, which also runs the migrations), not as a superuser:
+
+```sql
+CREATE ROLE backup_ro LOGIN PASSWORD 'PASTE_THE_RANDOM_PASSWORD' CONNECTION LIMIT 2;
+ALTER ROLE backup_ro SET default_transaction_read_only = on;
+GRANT CONNECT ON DATABASE umas_books TO backup_ro;
+GRANT USAGE ON SCHEMA public TO backup_ro;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO backup_ro;
+GRANT SELECT ON ALL SEQUENCES IN SCHEMA public TO backup_ro;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO backup_ro;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON SEQUENCES TO backup_ro;
+```
+
+Do **not** use `GRANT pg_read_all_data TO backup_ro`: on Render's managed
+PostgreSQL the owner role is not a superuser, the grant does not take effect,
+and `pg_dump` then fails with `permission denied for table users`.
+
+Each `GRANT` must answer `GRANT` (and each `ALTER DEFAULT PRIVILEGES` must answer
+`ALTER DEFAULT PRIVILEGES`); any `ERROR` or `WARNING` line means that grant did
+not happen, so read it before going on. The first four lines cover everything
+that exists today. The last two matter because tables created later by
+migrations (run by the owner role) become readable by `backup_ro`
+automatically; without them the backup would break at the next migration that
+adds a table. `ALTER DEFAULT PRIVILEGES` only applies to objects created by the
+role that runs it, so it must be run as the owner/application role that runs
+the migrations (the role in Render's `DATABASE_URL`).
+
+Check it before going further (all in the same `psql` session):
+
+```sql
+SELECT has_table_privilege('backup_ro', 'public.users', 'SELECT');   -- must be t
+\ddp                                                                  -- lists the default privileges for backup_ro
+```
+
+(The Render database is PostgreSQL 18 and `umas_books` is its database name;
+`render.yaml`. If Render refuses `CREATE ROLE` with "permission denied", stop:
+keep the owner's address in the secret, and ask a developer. Do not work around
+it.)
+
+The connection string is the **External Database URL** with the user and
+password replaced, keeping the host and database name:
+
+```
+postgresql://backup_ro:THE_RANDOM_PASSWORD@dpg-XXXXXXXX-a.frankfurt-postgres.render.com/umas_books
+```
+
+**Test the backup user before putting it in GitHub** (from your Mac, with the
+real password; this only reads):
+
+```bash
+psql "postgresql://backup_ro:THE_RANDOM_PASSWORD@dpg-XXXXXXXX-a.frankfurt-postgres.render.com/umas_books" -c "select count(*) from users"
+/usr/lib/postgresql/18/bin/pg_dump --schema-only -f /dev/null "postgresql://backup_ro:THE_RANDOM_PASSWORD@dpg-XXXXXXXX-a.frankfurt-postgres.render.com/umas_books"
+```
+
+(Use whichever `pg_dump` is version 18 on your Mac, e.g. `pg_dump --version`.)
+Both must finish without an error. The backup runs `pg_dump` with
+`--exclude-table-data=session`, which skips the *rows* of the `session` table
+but still needs to read its definition, so the user must be able to read the
+`session` table (and every other table) too; the `GRANT ... ALL TABLES` line
+covers it.
+
+> **Troubleshooting: `permission denied for table ...` in the backup log**
+> (for example `pg_dump: error: query failed: ERROR: permission denied for table users`
+> followed by `LOCK TABLE public.users, ... IN ACCESS SHARE MODE`). It means
+> `backup_ro` lacks `SELECT` on that table: the grants are missing or were never
+> applied. The workflow's red annotation and the alert email point here. Fix:
+> connect as the owner role, re-run the `GRANT` and `ALTER DEFAULT PRIVILEGES`
+> lines above, check that every one answered `GRANT` / `ALTER DEFAULT PRIVILEGES`
+> with no error, confirm `has_table_privilege(...)` returns `t`, run the two test
+> commands above, then run **Nightly database backup** by hand.
+
+Put it in the GitHub **repository secret** `DATABASE_URL` (Settings > Secrets and
+variables > Actions > Secrets > pencil icon on `DATABASE_URL`; paste; Update).
+The workflow just uses the secret, nothing in it changes. Then run **Nightly
+database backup** by hand and check it is green and the new file has about the
+usual size. `pg_dump` only reads, so this user cannot modify or delete data.
+**Do not touch** `DATABASE_URL` in **Render**: that one is the owner's and
+belongs to the website itself.
+
+### Backblaze settings (once; these are Backblaze bucket settings)
+
+1. **Lifecycle rules** (Buckets > the backup bucket > **Lifecycle Settings** >
+   Use custom lifecycle rules). Two rules:
+   - File Path `store-backups/full/`: *Days Till Hide* `30`, *Days Till Delete*
+     `1`.
+   - File Path `store-backups/monthly/`: *Days Till Hide* `730`, *Days Till
+     Delete* `1`.
+   The workflows rely on exactly these two folder names. (If you changed
+   `BACKUP_S3_PREFIX`, use that instead of `store-backups`.)
+2. **Server-side encryption** (same bucket page > **Default Encryption** >
+   Enable, *SSE-B2*). It is an extra layer for Backblaze's disks; it does **not**
+   replace the age encryption (the files are readable to anyone with a valid
+   bucket key without it).
+3. **The application key** (App Keys): limited to this one bucket. The console's
+   "Read and Write" type also lets the key delete files; a key without the
+   delete right (list, read and write only) can be made with Backblaze's `b2`
+   command-line tool (`b2 key create --bucket <bucket> <name> listFiles,readFiles,writeFiles`)
+   and means a leaked key cannot erase the backups. Optional hardening.
+4. Bucket type **Private**, and no "Object Lock" is needed.
+
+### Rotation and reminders
+
+| When | What | Where |
+|---|---|---|
+| Every year (1 October), and straight away if anything leaks | New password for `backup_ro`: `ALTER ROLE backup_ro PASSWORD 'new';` in `psql`, then update the GitHub secret `DATABASE_URL`, run the backup by hand | Render database, GitHub **secret** |
+| After Render restores or recreates the database (and after any change of the owner role) | Re-run the `GRANT` and `ALTER DEFAULT PRIVILEGES` lines for `backup_ro` (box "permission denied for table ..." above; recreate the role first if it is gone), check `has_table_privilege` returns `t`, run the backup by hand | Render database, as the owner role |
+| Every year | New Backblaze application key, update `BACKUP_S3_KEY_ID` and `BACKUP_S3_APPLICATION_KEY` (section b), delete the old key | Backblaze, GitHub **secrets** |
+| Only if someone who held the private key leaves, or it may have leaked | New age key pair (set-up steps 2 to 5 again). **Keep the old private key** as long as old backups exist (up to 2 years for `monthly/`), or re-encrypt those; add the new one to the password manager as a second note | GitHub **variable** |
+| Every quarter | Restore drill | your Mac |
+
+### Residual risk, plainly
+
+Encryption protects the **copies in Backblaze**. It does not protect the live
+database: the GitHub secret `DATABASE_URL` still gives read access to
+everything in production from anywhere on the internet (Render's rule has to
+allow GitHub, section f). The mitigations are the read-only user, a long random
+password, yearly rotation, a private repository, and two-step verification on
+the GitHub accounts: see the end of section f). A leak of the Backblaze keys
+alone no longer exposes the data; a leak of the age **private** key *and* the
+Backblaze keys does.
+
 ## aa) Alphabetical order ignores a leading "The"
 
 Wherever books are listed A to Z (the shop search, "More by this author", the admin
@@ -2270,7 +2575,84 @@ English text slips into the French version.
   its French version (should say `TOTAL flagged: 0`); `--write` updates the table in
   `docs/i18n-audit.md`.
 
-## Database connections
+## ae) AI limits (daily cap, per-minute limits, lookup and webhook protections)
+
+The paid AI (Anthropic) is used for book descriptions, French translations, genre suggestions, reading a cover photo and the online price
+check. Several limits keep a mistake, a loop or an abuser from running up the bill. Nothing here needs doing day to day.
+
+**The knobs** (Render environment variables: Render dashboard > the `umas-books` service > **Environment**; saving restarts the service)
+
+| Variable | Default | What it does |
+|---|---|---|
+| `AI_DAILY_MAX_CALLS` | `600` | The most Anthropic calls **per Paris calendar day for ALL features together** (descriptions, translations, genres, cover photos, price checks). `0` switches every AI feature off. |
+| `PRICING_AI_DAILY_MAX` | `150` | The most **price checks** per day (a part of the 600 above, so the price check can never use more than its own share). |
+
+**What happens when the daily cap is reached.** The AI calls are skipped, nothing else stops:
+
+- a book still saves (its description stays empty; press **Generate** after midnight, Paris time);
+- the Generate button, the photo scan and the Add a book page say **"Daily AI limit reached (N). Resets at midnight Paris time."**;
+- the report *Book lookup sources used* (Reports) shows the same sentence in a red banner;
+- ONE email goes to the alert address (`ALERT_TO`) the first time it happens each day, with the same instructions as here (alert key `ai-daily-cap`; a
+  mail that could not be sent is tried again by the next refused call);
+- the counter starts again at midnight Paris time.
+
+**To allow more calls** (a busy day, a big batch of books): Render > the `umas-books` service > **Environment** > add or edit `AI_DAILY_MAX_CALLS`
+(for example `1500`) > **Save changes**. Render restarts the service by itself; the new number is used at once, and calls already made today still count.
+To find out whether the number is too small or something is looping, open Reports > *Book lookup sources used*, section **AI usage per day**.
+
+**How it is kept exact.** Each call takes its slot with a single database statement (table `ai_daily_cap`, one row per day and scope), so any number of
+requests at the same moment can never go past the cap. If the database cannot be reached the site counts in memory instead (still capped). No text, title,
+ISBN or person is ever stored in it; rows older than 40 days are deleted by the daily job.
+
+**Other protections that belong with these**
+
+- **10 AI requests a minute per admin** on "Generate description" and on the photo scan (typing an ISBN is not counted). Past that the page says
+  "Too many AI requests: wait a minute and try again." (HTTP 429); wait a minute.
+- **Text length caps** on what is sent to the AI: title 200 characters, author 200, description 2000.
+- **ISBN check digit.** A number whose last digit is wrong (a typo, or a made-up 13-digit number) is refused with "That ISBN is not valid: check the digits"
+  before any catalog or paid ISBNdb request is made. Hyphens and spaces are fine; 979 numbers and ISBN-10 with an X are accepted. The till's barcode
+  scanning is unchanged (it never used this check).
+- **One request for identical concurrent lookups.** Two scans of the same ISBN at the same moment (or the scan page plus a save), or two identical AI
+  requests, share one outside call.
+- **Size limit on catalog answers.** Open Library, Google Books, ISBNdb, Wikidata and the NYT lists are read up to 1 MB (the BnF XML up to 2 MB); a
+  bigger answer is treated as "that source failed" (counted as an error in the lookup statistics) and the other sources carry on.
+- **HelloAsso webhook.** `/webhooks/helloasso` is not signed (HelloAsso offers no signature), so anyone could post fake payments to make the
+  site call HelloAsso's API. Besides the 300-per-5-minutes-per-IP limit: a second webhook for the **same payer email within 60 seconds** does not
+  call HelloAsso again; one check is made at the end of the minute instead, so a real payment (which sends several events in a row) is still
+  verified; and at most **120 checks per 10 minutes** are made for all emails together (the surplus is acknowledged, logged once, and a real payment
+  among it is picked up by the membership reconciliation job, which runs every 6 hours: `/admin/diagnostics/jobs`, "Membership reconciliation"). The
+  counters are in memory (one server process), so a restart only forgets them. Real payments are not affected; the sync itself is idempotent.
+
+## af) Nightly inventory export
+
+**What.** Every evening at **21:00 Paris time** a GitHub workflow (*Nightly inventory export*) exports **all inventory** as a CSV and sends it two ways: **emailed** to the alert addresses (the `ALERT_TO` variable: it should list admin@umasbooks.org and sharonbje@gmail.com, separated by commas) and **stored** in the private Backblaze bucket (the backup bucket), folder `inventory-exports/`:
+
+| File | What |
+|---|---|
+| `inventory_YYYY-MM-DD.csv` | One row per **copy** (the day's file) |
+| `inventory_latest.csv` | The same file, overwritten every night |
+| `inventory_books_YYYY-MM-DD.csv` | One row per **book**, with copy totals (in store, reserved, sold) |
+
+Both dated files are attached to the email (subject `[umas-books] Inventory export YYYY-MM-DD (N copies)`; the body gives the counts). Above 15 MB only the per-book file is attached and the email says where the full one is. The CSV is **not** kept in GitHub (no Actions artifact; the job log shows counts only).
+
+**Columns (per copy):** ISBN-13, ISBN-10, Title, Author(s), Publisher, Year, Binding (Mass Market / Trade / Hardback / Other), Condition (New / Like New / Very Good / Good / Acceptable), Price (EUR), Location, Source, Status (In Store / Reserved / Sold / Donated / Damaged / withdrawn), Date added, Copy ID, Till code (`UB-<copy id>`), Book ID, Genres, Clearance (Yes/No), Publisher price (EUR), Notes, Date sold (when known). The app stores one ISBN per book: the other form is computed from it (an ISBN-10 exists only for 978- numbers). There is no subtitle or language column because the database does not hold them. **No customer data**: no buyer or reservation-holder name, email or phone, only the status. (The *Notes* column is the free-text note an admin typed on the copy: do not type personal data there.)
+
+**Format (one dialect, for French Excel; the same as the accounting export):** UTF-8 with a byte-order mark, **semicolon** separator, **decimal comma** (`4,50`), text in quotes, CRLF line ends, dates as `YYYY-MM-DD` (Paris days). A cell starting with `=`, `+`, `-` or `@` gets a leading apostrophe so Excel cannot run it as a formula.
+
+**Open in Excel (French settings).** Double-click the file, or Excel > File > Open. Accents and prices should look right. If everything is in one column: Data > From Text/CSV, delimiter *Semicolon*, encoding *UTF-8*. Excel may show a long ISBN as `9,78E+12` in a narrow column (widen it), and it drops the leading zero of an ISBN-10 such as `0306406152`; to keep it, import with Data > From Text/CSV and set the column type to *Text*.
+
+**Any time, from the website.** *Inventory* page > **Download all inventory (CSV)** (admins only; the link beside it gives the per-book file). Same columns and format, as of now. Each download is written to *Admin activity* (`inventory.csv`).
+
+**Run it by hand.** GitHub > Actions > *Nightly inventory export* > Run workflow (the box *Run now, even if it is not 21:00 in Paris* is ticked by default). It emails and uploads as usual.
+
+**How the 21:00 works.** GitHub schedules are in UTC, so the workflow is scheduled at 19:00 **and** 20:00 UTC and the first step lets only the run that falls in the 21:00 hour of Paris continue (the other one ends at once, green, with a notice). GitHub can start a scheduled run late (usually minutes); the file then arrives a little after 21:00. A delay of more than an hour skips that night.
+
+**Owner steps (once).** Nothing new to configure: it uses the existing secrets (`DATABASE_URL`, `BACKUP_S3_KEY_ID`, `BACKUP_S3_APPLICATION_KEY`, `GMAIL_USER`, `GMAIL_APP_PASSWORD`, all repository secrets) and variables (`BACKUP_S3_BUCKET`, `BACKUP_S3_ENDPOINT`, `BACKUP_S3_REGION`, `ALERT_TO`, all repository variables). Two checks:
+1. **Repository variable** `ALERT_TO` (Settings > Secrets and variables > Actions > Variables): make sure it lists both addresses, comma-separated. The inventory email goes to the same list as the other alerts.
+2. **Backblaze bucket setting** (Buckets > the backup bucket > Lifecycle Settings > custom rule): File Path `inventory-exports/`, *Days Till Hide* `90`, *Days Till Delete* `1`. Without it the daily files pile up for ever (a few MB a day). `inventory_latest.csv` is rewritten every night, so it always stays recent.
+
+**If it fails.** An email "[umas-books] Nightly inventory export failed" arrives; open the run link. The database user is the same read-only user as the backup: "permission denied" means its SELECT grants need re-running (section ad, *A read-only database user for the backup*; it must be able to read `books` and `book_copies`). Missing Backblaze or Gmail settings are named in the log. Meanwhile the website button gives the current file.
+## ag) Database connections
 
 How many connections to Postgres the site opens, what limits them, and what to do when the log says the pool is saturated.
 
