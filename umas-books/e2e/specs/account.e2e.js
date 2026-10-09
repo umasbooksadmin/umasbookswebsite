@@ -47,8 +47,9 @@ async function fill(ctx, sel, text) {
 s.test("AC-setup the account-holder test login is a plain account (confirmed, not a member)", { as: "account" }, async (ctx) => {
   // The harness refuses the login when Member's Access opens for it (member, volunteer or admin),
   // and skips every account test with that message. Here it is checked once more, in plain sight.
-  await ctx.goto("/dashboard");
-  assert.equal(new URL(ctx.page.url()).pathname, "/", "an account holder is sent from Member's Access to the home page");
+  const res = await ctx.goto("/dashboard");
+  assert.equal(res.status(), 403, "an account holder is told Member's Access is for members (403)");
+  has(await ctx.text(), /This area is for members/);
   assert.ok(await ctx.page.$("form[action='/logout'] button"), "logged in");
 });
 

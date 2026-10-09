@@ -82,7 +82,7 @@
   .bk-genres .label { border-right: 0; padding: 0; font-size: 24px; }
   .bk-genres .label br { display: none; }
   .bk-genre-list {
-    display: flex; overflow-x: auto; gap: 14px; width: 100%; padding-bottom: 6px;
+    display: flex; overflow-x: auto; gap: 14px; width: 100%; max-width: 100%; min-width: 0; padding-bottom: 6px; /* max/min: without them the row made the whole page 1170px wide on a phone, which also stopped the page from scrolling to the results */
     scroll-snap-type: x proximity; scrollbar-width: none;
   }
   .bk-genre-list::-webkit-scrollbar { display: none; }

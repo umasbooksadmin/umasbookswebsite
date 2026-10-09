@@ -227,7 +227,7 @@ s.test("G13a (must) on a phone a genre tap or a search is a history step: Back r
   await done();
   assert.match(await search(), /^\?genre=[a-z]+$/, "the genre is in the address");
   const first = await ctx.page.evaluate(() => ({ search: location.search, title: document.querySelector("#bk-results-title").textContent }));
-  await ctx.page.waitForFunction(() => window.scrollY > 100, { timeout: 5000 });
+  await ctx.page.waitForFunction(() => { const t = document.querySelector("#bk-results").getBoundingClientRect().top; return t >= -5 && t < 250; }, { timeout: 5000 }); // the results were scrolled to the top of the screen
   const buttonsAgain = await ctx.page.$$("#bk-genre-list .bk-genre");
   await buttonsAgain[buttonsAgain.length - 1].click();
   await done();
@@ -259,7 +259,7 @@ s.test("G13a (must) on a phone a genre tap or a search is a history step: Back r
   await ctx.page.keyboard.press("Enter");
   await ctx.page.waitForSelector("#bk-results-grid .bk-book");
   assert.equal(await search(), `?q=${encodeURIComponent(word).replace(/%20/g, "+")}`);
-  await ctx.page.waitForFunction(() => window.scrollY > 100, { timeout: 5000 });
+  await ctx.page.waitForFunction(() => { const t = document.querySelector("#bk-results").getBoundingClientRect().top; return t >= -5 && t < 250; }, { timeout: 5000 }); // the results were scrolled to the top of the screen
   await ctx.goto(`/books.html?q=${encodeURIComponent(word)}`, "networkidle2");
   await ctx.page.waitForSelector("#bk-results-grid .bk-book");
   assert.equal(await ctx.page.$eval("#shop-search-input", (i) => i.value), word, "the shared search is back in the box");

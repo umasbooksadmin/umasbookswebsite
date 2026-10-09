@@ -125,8 +125,10 @@
   function reducedMotion() {
     try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; }
   }
-  function scrollToResults() {
-    resultsEl.scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth', block: 'start' });
+  function scrollToResults(again) {
+    // The second call (after the results are drawn) is instant: a smooth scroll started while the
+    // page was still changing height can be cut short, which left the page at the top on phones.
+    resultsEl.scrollIntoView({ behavior: reducedMotion() || again ? 'auto' : 'smooth', block: 'start' });
     // Focus the heading so a keyboard / screen reader user lands on the results too (no second scroll).
     resultsTitle.setAttribute('tabindex', '-1');
     try { resultsTitle.focus({ preventScroll: true }); } catch (e) { /* old browser: the scroll is enough */ }
@@ -153,6 +155,7 @@
       if (err) { resultsGrid.innerHTML = '<p class="muted">' + esc(t(err.rateLimited ? 'bk.ratelimited' : 'bk.error')) + '</p>'; return; }
       cache[url] = books;
       drawBooks(books);
+      if (scroll && Math.abs(resultsEl.getBoundingClientRect().top) > 40) scrollToResults(true);
     });
   }
 
