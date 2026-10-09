@@ -121,7 +121,7 @@ Things I was not sure about; nothing was changed for them unless said.
 
 ## What the crawler does not cover
 
-* Text built by JavaScript in the browser after the page loads (the books search results, the favourites list, the calendar on the events page, the home slider): the dictionaries are checked for matching keys and for French content (`frenchWording`), and `pageDictionary` tests the swap, but the rendered result is only checked by the browser tests (`npm run e2e`) and by `docs/testing/french-review.md`.
+* Text built by JavaScript in the browser after the page loads (the books search results, the favourites list, the calendar on the events page, the home slider): the dictionaries are checked for matching keys and for French content (`frenchWording`), and `pageDictionary` tests the swap, but the rendered result is checked by `node scripts/i18n-audit-browser.js` (a real headless Chrome loads those pages in both languages and presses the FR toggle; not part of `npm test` because it needs Chrome), by the browser tests (`npm run e2e`) and by `docs/testing/french-review.md`. Last run: nothing left in English except the stored blog posts (question 5) and the genre words "Fiction" and "Romance", which are French words too.
 * States that need an outside service (a HelloAsso payment, the real SMTP server, the till).
 * The mails that need a long wait (the day-10 pickup reminder, the seat reminder, "reservation ended", the inactive-account warning, the forum statement of reasons, the "we found your book" mail): their texts are `tr()` pairs and are covered by the pairs test and by the integration tests that build them in French (`reservationSweeps`, `forumModeration`, `i18nShop`, `orderConfirmationEmail`).
 
