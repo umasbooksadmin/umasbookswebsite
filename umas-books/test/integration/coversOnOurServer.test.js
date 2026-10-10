@@ -119,7 +119,7 @@ test("every cover <img> in the views and public scripts has width, height, an as
   }
   assert.ok(n >= 6, `found ${n} cover images`);
   // Lists load lazily; the one main image does not.
-  assert.match(read(path.join(ROOT, "public", "page-books.js")), /class="cover" src="' \+ esc\(b\.coverUrl\) \+ '" alt="" width="200" height="300" loading="lazy"/);
+  assert.match(read(path.join(ROOT, "public", "page-books.js")), /class="cover" src="' \+ esc\(b\.coverUrl\) \+ '"' \+ coverAttrs\(b\.coverUrl, '[^']+'\) \+ ' alt="" width="200" height="300" loading="lazy"/);
   assert.match(read(path.join(ROOT, "public", "favorites-page.js")), /class="book-card-cover" width="200" height="300" loading="lazy"/);
 });
 
