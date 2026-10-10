@@ -67,13 +67,18 @@ function langMiddleware(req, res, next) {
   // English-only, so it is left alone.
   if (lang === "fr" && !/^\/admin(\/|$)/.test(req.path)) installFrenchRender(res);
 
-  // A page cacheable by a shared cache (routes set `public, max-age`) now
-  // differs by language, so it must be cached per cookie / Accept-Language.
-  // Static assets are served before this middleware and are unaffected.
+  // Any HTML page differs by language (cookie / Accept-Language), so a shared
+  // cache (a CDN, a proxy) must key it on both. Cache-Control stays as each
+  // route set it. Redirects do not depend on the language, and anything a route
+  // marks `public` is covered too (JSON endpoints included). Static assets are
+  // served before this middleware and are unaffected.
   const writeHead = res.writeHead;
   res.writeHead = function (...args) {
     const cc = this.getHeader("Cache-Control");
-    if (cc && /public/i.test(String(cc))) this.vary("Cookie, Accept-Language");
+    const type = this.getHeader("Content-Type");
+    const status = this.statusCode;
+    const html = type && /^text\/html/i.test(String(type)) && !(status >= 300 && status < 400);
+    if (html || (cc && /public/i.test(String(cc)))) this.vary("Accept-Language, Cookie");
     return writeHead.apply(this, args);
   };
   next();
