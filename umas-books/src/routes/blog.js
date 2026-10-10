@@ -1,5 +1,7 @@
 const express = require("express");
 const { pool } = require("../db");
+const { sanitizeHtml } = require("../lib/sanitizeHtml");
+const { parisDateString } = require("../lib/tz");
 
 const router = express.Router();
 
@@ -9,6 +11,23 @@ const router = express.Router();
 // which populate window.UMAS_POSTS from this instead of a hand-edited
 // file — see migrations/027_blog_redesign.sql for the one-time import of
 // what used to live in assets/posts.js.
+// Defence in depth: bodies are sanitised when they are WRITTEN (routes/admin/blog.js), and again
+// here when they are SERVED, so a row that got into the table another way (an import, a migration,
+// a hand-run SQL fix) can never put script or event handlers on the public pages. Sanitising is
+// about 0.3 ms for a 6 KB post (1 ms for 24 KB); the result is remembered by body text so a busy
+// feed costs nothing after the first request (bounded: cleared when it grows past 300 bodies).
+const SANITISED = new Map();
+function safeBody(body) {
+  const raw = String(body || "");
+  let out = SANITISED.get(raw);
+  if (out === undefined) {
+    if (SANITISED.size >= 300) SANITISED.clear();
+    out = sanitizeHtml(raw);
+    SANITISED.set(raw, out);
+  }
+  return out;
+}
+
 router.get("/api/blog/posts", async (req, res) => {
   res.set("Access-Control-Allow-Origin", "*");
   res.set("Cross-Origin-Resource-Policy", "cross-origin");
@@ -39,10 +58,10 @@ router.get("/api/blog/posts", async (req, res) => {
       slug: p.slug,
       title: p.title,
       excerpt: p.excerpt || "",
-      body: p.body,
+      body: safeBody(p.body),
       category: p.category || undefined,
       image: p.image_url || undefined,
-      date: p.published_at.toISOString().slice(0, 10),
+      date: parisDateString(p.published_at), // the Paris calendar day, not the UTC one
       ...(adminPreview ? { status: p.status, live: p.status === "published" && p.published_at <= new Date() } : {}),
     }))
   );

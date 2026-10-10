@@ -828,6 +828,10 @@ in person only: online payment exists only for HelloAsso memberships and orders.
 - **Card voids.** `till_sales.refund_confirmed` (+ `_at`, `_by`): staff tick "I refunded the card"
   at void time or later (`POST /admin/till/sales/:id/refunded`); unticked voided card sales are in
   the dashboard's Needs attention and on End of day.
+- **Void rules by role.** `voidSale` / `confirmRefund` take `isAdmin`: a card sale and the refund tick
+  are admin only (403 `TillError`); a till-only void needs a reason of at least `TILL_VOID_REASON_MIN`
+  characters and is capped per account per Paris day by `TILL_MAX_VOIDS_PER_DAY` (default 3, counted
+  under a per-user advisory lock). `voidsOfDay` feeds Needs attention, End of day and its CSV.
 - **Expired carts.** A copy `in_cart` past `CART_HOLD_TTL_MINUTES` is offered with "Release this
   copy from the expired cart and add it" (`POST /admin/till/release` calls the cart's own
   `releaseCartHold`); a live hold is refused with the minutes left.
@@ -1288,7 +1292,8 @@ reservations behind. The code handles it in one place (`lib/privacy.js`):
 | `ANTHROPIC_API_KEY`, `ANTHROPIC_WORKSPACE_ID` | optional | cover scan, book descriptions and genre in admin inventory; also needed (with the switch below) for the AI price lookup |
 | `ISBNDB_API_KEY`, `ISBNDB_API_BASE` | optional | paid ISBNdb catalog, a last resort in the ISBN lookup of the Add a book page (see runbook, "Scan speed"); off without the key |
 | `PRICING_AI` | optional | `true` or `1` turns on the AI market-price lookup behind price suggestions (needs `ANTHROPIC_API_KEY`); off by default, rules still work without it |
-| `PRICING_AI_DAILY_MAX`, `PRICING_AI_MODEL` | optional | daily cap on price lookups (default 150) and model override |
+| `AI_DAILY_MAX_CALLS` | optional | the most Anthropic calls per Paris day for ALL AI features together (default 600, `0` = off); atomic counter in table `ai_daily_cap` (`src/lib/aiLimits.js`); at the cap AI calls are skipped, one alert mail a day (`alert_flags` key `ai-daily-cap`). See runbook "AI limits" |
+| `PRICING_AI_DAILY_MAX`, `PRICING_AI_MODEL` | optional | daily cap on price lookups (default 150, also atomic, a part of `AI_DAILY_MAX_CALLS`) and model override |
 | `NYT_API_KEY` | optional | enables best-seller lists from the New York Times Books API; without it that source is skipped |
 | `AWARDS_LOOKUPS` | optional | `off` stops every awards lookup (used by tests) |
 | `COVER_BACKFILL` | optional | `off` stops the background job that copies book covers to our own server (used by tests) |

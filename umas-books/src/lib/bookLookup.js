@@ -3,8 +3,31 @@
 // timeout) rather than throwing, so a lookup miss just falls through to
 // manual entry in the UI.
 
+const { readBoundedJson } = require("./boundedBody");
+const { createInflight } = require("./inflight");
+
 function normalizeIsbn(isbn) {
   return (isbn || "").replace(/[^0-9Xx]/g, "").toUpperCase();
+}
+
+// Is this (already normalized) string a REAL ISBN: ISBN-13 (978 or 979 prefix) or ISBN-10 (X allowed as the last
+// character) with a correct check digit? Used before any outbound call, so a mistyped or made-up number never
+// costs a catalog request (or a paid ISBNdb one). normalizeIsbn itself stays loose: it is also how stored values
+// and the till's codes are compared.
+function isValidIsbn(isbn) {
+  const s = String(isbn == null ? "" : isbn);
+  if (/^97[89]\d{10}$/.test(s)) {
+    let sum = 0;
+    for (let i = 0; i < 12; i++) sum += Number(s[i]) * (i % 2 ? 3 : 1);
+    return (10 - (sum % 10)) % 10 === Number(s[12]);
+  }
+  if (/^\d{9}[\dX]$/.test(s)) {
+    let sum = 0;
+    for (let i = 0; i < 9; i++) sum += (10 - i) * Number(s[i]);
+    sum += s[9] === "X" ? 10 : Number(s[9]);
+    return sum % 11 === 0;
+  }
+  return false;
 }
 
 // A free-text physical format from Open Library or Google ("Hardcover", "Mass
@@ -108,7 +131,7 @@ async function fetchJsonOnce(url, timeoutMs) {
   try {
     const res = await fetch(url, { signal: controller.signal, headers: { "User-Agent": "UmasBooksInventory/1.0" } });
     if (!res.ok) return null;
-    return await res.json();
+    return await readBoundedJson(res); // over 1 MB: treated as a failed source
   } finally {
     clearTimeout(timeout);
   }
@@ -203,7 +226,7 @@ function fetchJsonRace(url, { timeoutMs, hedgeMs = 0, fetchImpl = (...a) => fetc
         try {
           const res = await fetchImpl(url, { signal: controller.signal, headers: { "User-Agent": "UmasBooksInventory/1.0" } });
           if (!res.ok) return res.status === 404 ? { state: "missing" } : { state: "error", status: res.status };
-          return { state: "ok", data: await res.json() };
+          return { state: "ok", data: await readBoundedJson(res) }; // over 1 MB: this source failed
         } catch {
           return { state: "error" };
         }
@@ -310,9 +333,19 @@ const isComplete = (b) => Boolean(b && b.title && b.author && b.publisher && b.p
 // (SCAN_LOOKUP_GRACE_MS, 300) after the first titled result, or at the deadline: a slow secondary source never
 // holds back the primary one, and a source that fails never hides the others.
 // opts: timeoutMs, hedgeMs, graceMs, lateMs, fetchImpl (tests), cache (a createTtlCache(), tests; false = no cache).
+// Lookups for the same ISBN running at the same time (a double scan, the scan page and a save) share ONE set of outside
+// calls; every caller gets its own copy of the answer. An ISBN whose check digit is wrong is refused here with state
+// "invalid", before any outside call.
+const lookupInflight = createInflight();
 async function lookupByIsbnDetailed(rawIsbn, opts = {}) {
   const isbn = normalizeIsbn(rawIsbn);
   if (!isbn) return { book: null, state: "missing" };
+  if (!isValidIsbn(isbn)) return { book: null, state: "invalid" };
+  const r = await lookupInflight.run(isbn, () => lookupByIsbnOnce(isbn, opts));
+  return { ...r, book: r.book ? { ...r.book } : r.book, via: r.via ? [...r.via] : r.via };
+}
+
+async function lookupByIsbnOnce(isbn, opts) {
   const cache = opts.cache === undefined ? lookupCache : opts.cache;
   const stats = opts.stats || require("./lookupStats").getStats(); // counts only, see lib/lookupStats.js
   const hit = cache ? cache.get(isbn) : undefined;
@@ -471,6 +504,8 @@ async function lookupByIsbn(rawIsbn, opts = {}) {
 }
 
 async function searchByTitleAuthor(title, author) {
+  title = String(title == null ? "" : title).slice(0, 200);
+  author = String(author == null ? "" : author).slice(0, 200);
   if (!title && !author) return [];
   const params = new URLSearchParams({
     limit: "5",
@@ -498,4 +533,4 @@ async function searchByTitleAuthor(title, author) {
   });
 }
 
-module.exports = { normalizeIsbn, mapBinding, lookupByIsbn, lookupByIsbnDetailed, mergeBooks, attributeSources, pickGenres, isbnCoverUrl, createTtlCache, lookupCache, searchByTitleAuthor, COMMON_GENRES, COMMON_GENRES_FR, GENRE_ALIASES_FR, translateGenresToFrench };
+module.exports = { normalizeIsbn, isValidIsbn, mapBinding, lookupByIsbn, lookupByIsbnDetailed, mergeBooks, attributeSources, pickGenres, isbnCoverUrl, createTtlCache, lookupCache, searchByTitleAuthor, COMMON_GENRES, COMMON_GENRES_FR, GENRE_ALIASES_FR, translateGenresToFrench };
