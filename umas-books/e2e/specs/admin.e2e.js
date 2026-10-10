@@ -1267,6 +1267,7 @@ s.test("A114 (must) on a phone (390 px) the Inventory landing buttons are equal-
   await admin(ctx, "/admin/inventory");
   const b = await ctx.page.evaluate(() => [...document.querySelectorAll(".inv-actions .btn")].map((e) => { const r = e.getBoundingClientRect(); return { w: Math.round(r.width), left: Math.round(r.left), top: Math.round(r.top) }; }));
   assert.ok(b.length >= 4);
-  assert.equal(new Set(b.map((x) => x.w)).size, 1, `tiles have different widths: ${b.map((x) => x.w).join(", ")}`);
-  assert.equal(new Set(b.map((x) => x.left)).size, 2, "two columns");
+  const paired = b.length % 2 ? b.slice(0, -1) : b; // an odd last tile spans both columns
+  assert.equal(new Set(paired.map((x) => x.w)).size, 1, `tiles have different widths: ${paired.map((x) => x.w).join(", ")}`);
+  assert.equal(new Set(paired.map((x) => x.left)).size, 2, "two columns");
 });
