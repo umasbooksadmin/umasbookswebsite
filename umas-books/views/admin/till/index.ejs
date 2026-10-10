@@ -35,10 +35,13 @@
     </section>
 
     <aside class="till-right" aria-label="Payment">
-      <div class="till-total"><span>Total</span><strong id="total" aria-live="polite" aria-atomic="true">€0.00</strong></div>
-      <div class="till-pay">
-        <button type="button" class="btn till-big" id="pay-cash" disabled>Cash</button>
-        <button type="button" class="btn till-big till-card" id="pay-card" disabled>Card</button>
+      <%# Total, Cash and Card: below 1100 px this bar sticks to the bottom of the screen (till.css); from 1100 px it is just part of the column. %>
+      <div class="till-paybar">
+        <div class="till-total"><span>Total</span><strong id="total" aria-live="polite" aria-atomic="true">€0.00</strong></div>
+        <div class="till-pay">
+          <button type="button" class="btn till-big" id="pay-cash" disabled>Cash</button>
+          <button type="button" class="btn till-big till-card" id="pay-card" disabled>Card</button>
+        </div>
       </div>
       <div class="till-tools">
         <button type="button" class="btn btn-outline till-btn" id="manual-open">Manual item</button>
@@ -108,7 +111,7 @@
       </div>
       <label for="manual-cat">Category</label>
       <select id="manual-cat">
-        <% categories.forEach(c => { %><option value="<%= c.value %>"><%= c.label %></option><% }) %>
+        <% categories.forEach(c => { %><option value="<%= c.value %>" title="<%= c.label %>"><%= c.value === 'books_other' ? 'Other (not new books)' : c.label %></option><% }) %>
       </select>
       <p id="manual-error" class="till-err" role="alert" hidden></p>
       <div class="till-actions"><button class="btn till-btn" type="submit">Add to sale</button><button type="button" class="btn btn-outline till-btn" data-close>Cancel</button></div>
@@ -118,6 +121,22 @@
   <div class="till-modal" id="cash-modal" role="dialog" aria-modal="true" aria-labelledby="cash-title" hidden>
     <div class="till-modal-box till-wide">
       <h2 id="cash-title">Cash</h2>
+      <%# Messages sit ABOVE the keypad so a refusal is never off screen on a phone. %>
+      <div class="till-cash-msgs">
+        <p id="cash-check" class="till-err" role="alert" hidden></p>
+        <div class="till-reopen" data-reopen hidden>
+          <% if (isAdmin) { %>
+          <label class="till-beep"><input type="checkbox" data-reopen-tick> Reopen this day to record this sale</label>
+          <label>Reason for reopening (required)</label>
+          <input type="text" maxlength="120" autocomplete="off" data-reopen-reason placeholder="Why this sale is added to a closed day">
+          <p class="muted small">The day will be open again: count the drawer and close it again afterwards.</p>
+          <% } else { %>
+          <p class="muted small">The day is closed. Ask an admin to reopen it.</p>
+          <% } %>
+        </div>
+        <p id="cash-error" class="till-err" role="alert" hidden></p>
+        <div id="cash-restart" hidden><button type="button" class="btn btn-outline till-btn" data-restart>Restart the sale</button></div>
+      </div>
       <div class="till-cash">
         <div>
           <div class="till-row"><span>Total</span><strong id="cash-total">€0.00</strong></div>
@@ -137,19 +156,6 @@
           <button type="button" class="btn btn-outline till-key till-key-clear" data-key="C">Clear</button>
         </div>
       </div>
-      <p id="cash-check" class="till-err" role="alert" hidden></p>
-      <div class="till-reopen" data-reopen hidden>
-        <% if (isAdmin) { %>
-        <label class="till-beep"><input type="checkbox" data-reopen-tick> Reopen this day to record this sale</label>
-        <label>Reason for reopening (required)</label>
-        <input type="text" maxlength="120" autocomplete="off" data-reopen-reason placeholder="Why this sale is added to a closed day">
-        <p class="muted small">The day will be open again: count the drawer and close it again afterwards.</p>
-        <% } else { %>
-        <p class="muted small">The day is closed. Ask an admin to reopen it.</p>
-        <% } %>
-      </div>
-      <p id="cash-error" class="till-err" role="alert" hidden></p>
-      <div id="cash-restart" hidden><button type="button" class="btn btn-outline till-btn" data-restart>Restart the sale</button></div>
       <div class="till-actions"><button type="button" class="btn till-big" id="cash-confirm" disabled>Confirm sale</button><button type="button" class="btn btn-outline till-btn" data-close>Back</button></div>
     </div>
   </div>
@@ -205,12 +211,12 @@
       <tbody>
         <% recent.forEach(s => { %>
           <tr class="<%= s.status === 'voided' ? 'till-voided' : '' %>">
-            <td><%= s.id %></td>
-            <td><%= formatTime(s.created_at) %></td>
-            <td><%= s.summary %></td>
-            <td><%= s.payment_method === 'cash' ? 'Cash' : 'Card' %></td>
-            <td><%= eur(s.total_cents) %><%= s.status === 'voided' ? ' (voided)' : '' %></td>
-            <td>
+            <td data-label="Sale"><%= s.id %></td>
+            <td data-label="Time"><%= formatTime(s.created_at) %></td>
+            <td data-label="Items"><%= s.summary %></td>
+            <td data-label="Paid by"><%= s.payment_method === 'cash' ? 'Cash' : 'Card' %></td>
+            <td data-label="Total"><%= eur(s.total_cents) %><%= s.status === 'voided' ? ' (voided)' : '' %></td>
+            <td class="till-recent-actions">
               <a href="/admin/till/sales/<%= s.id %>/receipt" target="_blank" rel="noopener">Receipt</a>
               <% if (s.status === 'completed' && !summary.closed && s.payment_method === 'card' && !isAdmin) { %>
                 <span class="muted small">Only an admin can void a card sale.</span>
