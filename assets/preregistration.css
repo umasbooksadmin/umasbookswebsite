@@ -45,7 +45,7 @@
 .preg-form .field label { font-size: 14.5px; color: var(--ink); }
 .preg-form .field label .req { color: var(--maroon); }
 .preg-form .field input, .preg-form .field select, .preg-form .field textarea {
-  font-family: 'Cormorant Garamond', Georgia, serif; font-size: 16.5px; color: var(--ink);
+  font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; font-size: 16.5px; color: var(--ink);
   background: #fbfaf7; border: 1px solid var(--card-border); border-radius: 4px; padding: 11px 13px;
 }
 .preg-form .field textarea { resize: vertical; min-height: 80px; }
@@ -63,7 +63,7 @@
 .preg-submit {
   display: inline-flex; align-items: center; gap: 12px; justify-content: center; width: 100%;
   padding: 16px 24px; border-radius: 4px; background: var(--btn-bg); color: #fff; border: 0; cursor: pointer;
-  font-family: 'Cormorant Garamond', Georgia, serif; font-size: 15px; letter-spacing: 0.14em;
+  font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; font-size: 15px; letter-spacing: 0.14em;
   text-transform: uppercase; font-weight: 700; margin-top: 6px;
 }
 .preg-submit:hover { background: var(--btn-bg-dark); }
@@ -74,7 +74,7 @@
 .preg-summary { background: #fbe7e4; border-radius: 6px; padding: 30px 28px; text-align: center; }
 .preg-summary .kicker { font-size: 13px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--maroon-dark); font-weight: 700; margin-bottom: 18px; }
 .preg-summary .item { margin-bottom: 4px; }
-.preg-summary .item .big { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 32px; color: var(--ink); line-height: 1.1; }
+.preg-summary .item .big { font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; font-size: 32px; color: var(--ink); line-height: 1.1; }
 .preg-summary .item .small { font-size: 14px; color: var(--ink-soft); }
 .preg-summary .preg-rule { width: 40px; height: 1px; background: rgba(166, 83, 71, 0.4); margin: 18px auto; border: 0; }
 .preg-summary .blurb { font-size: 15px; color: var(--ink-soft); line-height: 1.4; margin-top: 4px; }

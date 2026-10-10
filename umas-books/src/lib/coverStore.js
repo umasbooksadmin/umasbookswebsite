@@ -18,7 +18,8 @@
 // names (ALLOWED_HOSTS, also checked on every redirect), the name must resolve to a
 // public address, a size and time limit, and a content-type check; the bytes must
 // then decode as a real image. The re-encode caps the width at 600 px, drops all
-// metadata and always produces a JPEG.
+// metadata and always produces a JPEG. Smaller copies (300/450 px wide, for phone grids) are made
+// from that stored JPEG on request by lib/imageVariants.js; nothing else is stored.
 //
 //   isAllowedCoverUrl(url)             the host/protocol check alone
 //   fetchCoverImage(url, opts)         -> Buffer (the raw bytes), or throws

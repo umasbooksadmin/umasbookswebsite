@@ -822,6 +822,25 @@ Archive is never printed in a page: it is downloaded once and stored too
   not matching the strict pattern, or unknown, is 404. No rate limiter: the
   response is immutable and cacheable and a page legitimately loads dozens.
   CSP `imgSrc` is `'self' data:` only.
+- **Width variants (`src/lib/imageVariants.js`, no migration):** a phone shows a
+  cover in a 150-170 px slot, so grids, the "New In" carousel, book cards, the
+  cart and the favourites ask for a smaller copy through `srcset`/`sizes`.
+  `GET /img/<sha256>-w300.jpg` (also `-w450`, `-w600`) is the stored JPEG scaled
+  to that width by sharp, height following the ratio (never cropped), no
+  metadata, never enlarged (a 600 px request for a 600 px cover is the stored
+  bytes). Only those three widths exist: any other name (another width, another
+  extension, a query-string width) is a plain 404, so the URL cannot make the
+  server render arbitrary sizes, and the query string plays no part. The variant
+  is made on the first request and kept in a small in-memory LRU (24 MB, bounded;
+  a restart only costs a recompute), at most 2 resizes run at once and requests
+  for the same variant share one. Same immutable cache headers as the original;
+  the `ETag` is `"<hash>-w300"`, so a 304 needs no database read. Variants are
+  only made for stored JPEGs (covers); a PNG/WebP upload has no variants. Pages
+  use `coverSrcset(url)` (EJS local, `app.locals`) and `public/page-books.js` /
+  `public/favorites-page.js` build the same attributes by hand; an address that
+  is not a stored `/img/<hash>.jpg` gets no `srcset`. Widths 300/450/600 (not
+  just 300/600) because a 160 px slot on a 2x phone needs 320 px: 450 is the
+  smallest copy that stays sharp there.
 - **Legacy values:** the migration converted every `data:image/...;base64`
   value in those four columns (inside its transaction). Templates and APIs
   just print the column, so old data URIs and new short URLs both work.
@@ -833,6 +852,40 @@ Archive is never printed in a page: it is downloaded once and stored too
   to the private Backblaze B2 bucket under `store-backups/full/` (nothing is
   committed to git); the workflow fails if `BACKUP_S3_*` is not configured
   (README, "Restoring from a backup").
+
+## Phone polish: print, colour scheme, safe area, fonts
+
+- **Print (`public/print.css`):** linked with `media="print"` from the two public
+  heads only (`views/partials/header.ejs`, `views/marketing/partials/mkt_header.ejs`).
+  Hides the header, menu, footer, banners, language switch, buttons, heart
+  buttons and sticky bars; writes the address after an *external* link in running
+  text (`main p a[href^="http"]::after`; our own links are relative, so they are not
+  printed). Admin pages do not load it: their print layouts (pickup list, reports,
+  the price-sticker colour chart in `admin.css`) and the till receipt
+  (`till-receipt.css`) are untouched, as is the order receipt rule in `style.css`.
+- **Colour scheme (decision: the site stays light):** there is no dark theme (the
+  botanical artwork is painted for a pale page). `color-scheme: light` on `:root`
+  (`style.css`, `assets/site.css`) plus `<meta name="color-scheme" content="light">` in
+  every head, so a phone in dark mode still draws form controls, scrollbars and the
+  canvas light. A test fails if a `prefers-color-scheme: dark` rule appears: adding a
+  dark theme is a design decision, not a CSS tweak.
+- **Safe area:** `viewport-fit=cover` is deliberately *not* set. Without it a
+  home-screen (standalone) page is laid out inside the safe area, so nothing sits
+  under the home indicator. Bars that would need it anyway pad with
+  `env(safe-area-inset-bottom)` already (till pay bar, scan page bar, the sticky save bar
+  `.form-actions-sticky`, the phone menu drawer); a test fails for any new
+  `position: fixed|sticky` bar at `bottom: 0` that does not. If `viewport-fit=cover` is
+  ever added, those paddings start to matter at once.
+- **Fonts:** the two fonts every page needs first (Cormorant Garamond and Nunito Sans,
+  latin) are preloaded (`rel=preload as=font crossorigin`, same URL as the CSS, so it
+  is not fetched twice). Each of the four families has a `... Fallback` `@font-face`
+  (`local('Georgia')` or `local('Arial')`) with `size-adjust`, `ascent-override`,
+  `descent-override`, `line-gap-override: 0`, named right after the web font in every
+  `font-family` stack, so the swap does not reflow the text (privacy policy CLS 0.055
+  -> 0 at 390 px on throttled 4G, CPU 4x). Values were measured in headless Chrome on a
+  mixed English/French sample (width ratio, then rounded up about 0.6% so a line that
+  fits in the web font also fits in the stand-in); re-measure if a font file changes.
+  Phones without Georgia/Arial (some Android) fall through to the generic font as before.
 
 ## Reservations: reserve online, pay in the shop
 
