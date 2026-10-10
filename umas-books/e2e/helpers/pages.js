@@ -161,4 +161,70 @@ async function phoneOverflow(page, width, allow = PHONE_ALLOW) {
   }, width, allow.map((a) => a.selector));
 }
 
-module.exports = { phoneOverflow, PHONE_ALLOW, reserveViaHttp, has, hasNot, stockedBook, addFirstCopyToCart, cartLineCount, cancelOpenReservations, openReservationCount, pressReserve, pageHtml, stripTags, EN_ONLY };
+// ---- phone layout: tap targets and text size (step G83) ----
+// The key controls that must be at least 44x44 CSS px to tap on a phone, by page. The size measured is the real hit area:
+// from the middle of the control the page is probed outwards with elementFromPoint, so padding and the invisible ::after
+// areas (hearts, the Instagram icon, carousel dots) count, and a neighbour covering the control does not.
+const TAP_TARGETS = {
+  "/": [".h-tools > .h-tool", ".h-menu-btn", ".langtoggle button", "footer .h-social a", ".wn-arrow", ".wn-dot"],
+  "/login": ["#email", "#password", ".password-toggle", "form[action='/login'] button[type='submit']", "a.tap-link"],
+  "/contact": ["#c-name", "#c-email", "form button.btn"],
+  "/books.html": ["#shop-search-input", ".bk-search button", ".bk-link-btn", ".favorite-toggle"],
+  "/books/:id": ["button.btn-small", ".favorite-toggle", "a.tap-link", ".site-back-link"],
+  "/sessions": [".fcal-nav a", ".fcal-view-toggle a"],
+  "/events": [".fcal-nav a", ".fcal-view-toggle a"],
+};
+
+// -> list of faults ("selector WxH"), empty = every matching control is big enough. Controls cut by the screen edge
+// (a carousel you swipe) and the ones that are not on the page (a book out of stock has no Add to Cart) are skipped.
+async function tapTargetFaults(page, selectors, min = 44) {
+  return page.evaluate((sels, need) => {
+    const own = (el, hit) => !!hit && (hit === el || el.contains(hit));
+    const reach = (el, cx, cy, dx, dy) => { let n = 0; while (n < 30 && own(el, document.elementFromPoint(cx + dx * (n + 1), cy + dy * (n + 1)))) n++; return n; };
+    const out = [];
+    for (const sel of sels) {
+      for (const el of document.querySelectorAll(sel)) {
+        const cs = getComputedStyle(el);
+        if (cs.display === "none" || cs.visibility === "hidden" || el.closest("[hidden], .visually-hidden")) continue;
+        el.scrollIntoView({ block: "center", inline: "center" });
+        const r = el.getBoundingClientRect();
+        if (!(r.width > 0 && r.height > 0) || r.left < 0 || r.right > innerWidth + 1) continue;
+        const cx = r.left + r.width / 2;
+        const cy = r.top + r.height / 2;
+        if (!own(el, document.elementFromPoint(cx, cy))) continue;
+        const w = 1 + reach(el, cx, cy, -1, 0) + reach(el, cx, cy, 1, 0);
+        const h = 1 + reach(el, cx, cy, 0, -1) + reach(el, cx, cy, 0, 1);
+        if (w < need - 2 || h < need - 2) out.push(`${sel} ${w}x${h}`);
+      }
+    }
+    return [...new Set(out)].slice(0, 6);
+  }, selectors, min);
+}
+
+// Text that may be smaller than 13px, each with the reason. Labels, table headers and legends must be 13px or more.
+const SMALL_TEXT_ALLOW = [
+  { selector: ".calendar-weekday, .fcal-weekday", min: 12.5, reason: "a column heading (MON, TUE...) of the month grid; 12.5px uppercase with letter-spacing" },
+  { selector: ".calendar-day-weekday, .fcal-day-weekday", min: 12, reason: "the weekday word beside a date in the phone list: 12px uppercase" },
+  { selector: ".book-thumb-placeholder, .cover-missing", min: 12, reason: '"No cover" inside a 44x64 thumbnail' },
+  { selector: ".admin-avatar", min: 12, reason: "initials inside a 40px circle" },
+  { selector: ".home-fit, .home-fit *", min: 0, reason: "the one-screen home page layout only exists from 1025px wide, never on a phone" },
+];
+
+// -> faults for labels, table headers, legends and buttons under 13px (or the allowed minimum)
+async function smallTextFaults(page, allow = SMALL_TEXT_ALLOW) {
+  return page.evaluate((allowList) => {
+    const out = [];
+    for (const el of document.querySelectorAll("label, th, legend, .calendar-weekday, .fcal-weekday, .calendar-day-weekday, .fcal-day-weekday, button, .btn, .btn-small, .status-pill")) {
+      const cs = getComputedStyle(el);
+      if (cs.display === "none" || cs.visibility === "hidden" || !el.textContent.trim() || el.closest("[hidden], .visually-hidden, [aria-hidden='true']")) continue;
+      const b = el.getBoundingClientRect();
+      if (!(b.width > 0 && b.height > 0) || b.width <= 1) continue;
+      const px = parseFloat(cs.fontSize);
+      const a = allowList.find((x) => el.matches(x.selector));
+      if (px < (a ? a.min : 13)) out.push(`${el.tagName.toLowerCase()}${typeof el.className === "string" && el.className ? "." + el.className.trim().split(/\s+/)[0] : ""} ${px}px "${el.textContent.trim().slice(0, 20)}"`);
+    }
+    return [...new Set(out)].slice(0, 6);
+  }, allow.map(({ selector, min }) => ({ selector, min })));
+}
+
+module.exports = { tapTargetFaults, smallTextFaults, TAP_TARGETS, SMALL_TEXT_ALLOW, phoneOverflow, PHONE_ALLOW, reserveViaHttp, has, hasNot, stockedBook, addFirstCopyToCart, cartLineCount, cancelOpenReservations, openReservationCount, pressReserve, pageHtml, stripTags, EN_ONLY };

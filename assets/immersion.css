@@ -33,7 +33,7 @@
 .imm-session-card h3 { font-size: 18px; font-weight: 600; line-height: 1.2; margin-bottom: 16px; }
 .imm-session-card .imm-rule { width: 26px; height: 1px; background: currentColor; opacity: 0.35; margin: 0 auto 12px; }
 .imm-session-card .age-label {
-  font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; opacity: 0.7; margin-bottom: 2px;
+  font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.7; margin-bottom: 2px;
 }
 .imm-session-card .age-range { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 26px; }
 .imm-session-card.tone-a { background: #dfe7e1; }

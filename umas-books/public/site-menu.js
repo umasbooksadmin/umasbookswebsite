@@ -2,13 +2,14 @@
    The markup is a <details>, so it opens and closes without this script; this
    adds what <details> lacks: aria-expanded, Esc to close (focus goes back to the
    button), a click or Tab outside to close, and keeping the links open and
-   visible from 641px up, where the button is hidden. Loaded right after the
+   visible from 641px up (unless it is a phone turned sideways: a screen under 501px high and up to 1000px wide gets the
+   Menu button too, see site-header.css), where the button is hidden. Loaded right after the
    header so the closed state is set before the page below paints. */
 (function () {
   var menu = document.querySelector("details.h-menu");
   if (!menu) return;
   var button = menu.querySelector("summary");
-  var phone = window.matchMedia("(max-width: 640px)");
+  var phone = window.matchMedia("(max-width: 640px), (max-height: 500px) and (max-width: 1000px)");
 
   function describe() {
     if (phone.matches) button.setAttribute("aria-expanded", menu.open ? "true" : "false");

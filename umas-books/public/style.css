@@ -78,10 +78,10 @@ header.site {
 .btn:hover { background: var(--btn-bg-dark); text-decoration: none; }
 .btn-outline { background: transparent; color: var(--btn-bg); border: 1px solid var(--btn-bg); }
 .btn-outline:hover { background: var(--btn-bg); color: #fff; }
-.btn-small { padding: 6px 14px; font-size: 12px; }
+.btn-small { padding: 6px 14px; font-size: 14px; }
 
 form.stack { display: flex; flex-direction: column; gap: 12px; max-width: 440px; }
-form.stack label { font-family: 'Montserrat', sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; font-size: 12px; color: var(--gold-dark); }
+form.stack label { font-family: 'Montserrat', sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; font-size: 13px; color: var(--gold-dark); }
 form.stack input, form.stack textarea {
   font-family: 'Libre Baskerville', Georgia, serif; font-size: 16px; color: var(--ink);
   border: 1px solid var(--card-border); border-radius: 3px; padding: 9px 12px; background: var(--panel);
@@ -104,7 +104,7 @@ input[type="file"].file-input-hidden {
 .password-toggle {
   position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
   background: none; border: 0; cursor: pointer; color: var(--ink-soft);
-  font-family: 'Montserrat', sans-serif; font-weight: 600; font-size: 12px; padding: 4px 6px;
+  font-family: 'Montserrat', sans-serif; font-weight: 600; font-size: 14px; padding: 4px 6px;
 }
 .password-toggle:hover { color: var(--maroon); }
 
@@ -120,7 +120,7 @@ ul.plain.nested li { padding: 4px 0; border-bottom: 0; }
 .order-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .status-pill {
   display: inline-block; flex: 0 0 auto; padding: 3px 11px; border-radius: 20px;
-  font-family: 'Montserrat', sans-serif; font-size: 12.5px; font-weight: 600; letter-spacing: 0.02em;
+  font-family: 'Montserrat', sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 0.02em;
 }
 .status-pill.paid, .status-pill.upcoming, .status-pill.published { background: #eaf0e6; color: var(--green); }
 .status-pill.pending, .status-pill.scheduled, .status-pill.reserved { background: #faf3df; color: #8a6a1f; }
@@ -145,7 +145,7 @@ footer.site { text-align: center; padding: 30px 0; color: var(--ink-soft); font-
 .calendar-view-toggle { display: flex; gap: 8px; }
 .calendar-view-toggle a.is-active { background: var(--maroon); color: #fff; border-color: var(--maroon); }
 .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
-.calendar-weekday { text-align: center; font-family: 'Montserrat', sans-serif; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft); font-size: 11.5px; padding-bottom: 4px; }
+.calendar-weekday { text-align: center; font-family: 'Montserrat', sans-serif; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft); font-size: 12.5px; padding-bottom: 4px; }
 .calendar-day {
   min-height: 100px; border: 1px solid var(--card-border); border-radius: 4px;
   padding: 6px; background: var(--panel);
@@ -155,7 +155,7 @@ footer.site { text-align: center; padding: 30px 0; color: var(--ink-soft); font-
 .calendar-day-number { font-size: 13px; color: var(--ink-soft); margin-bottom: 4px; }
 .calendar-pill {
   background: var(--cream); border: 1px solid var(--card-border); border-radius: 3px;
-  padding: 4px 6px; margin-bottom: 4px; font-size: 12.5px;
+  padding: 4px 6px; margin-bottom: 4px; font-size: 13px;
 }
 .calendar-pill summary { cursor: pointer; list-style: none; color: var(--ink); }
 .calendar-pill summary::-webkit-details-marker { display: none; }
@@ -170,7 +170,7 @@ footer.site { text-align: center; padding: 30px 0; color: var(--ink-soft); font-
 .calendar-add-pill[open] { background: var(--panel); border-style: solid; }
 .calendar-pill-body { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
 .calendar-pill-body form.stack { gap: 8px; max-width: none; }
-.calendar-day-more { font-size: 12px; color: var(--ink-soft); }
+.calendar-day-more { font-size: 13px; color: var(--ink-soft); }
 
 .book-thumb {
   width: 44px; height: 64px; object-fit: cover; border-radius: 2px;
@@ -178,7 +178,7 @@ footer.site { text-align: center; padding: 30px 0; color: var(--ink-soft); font-
 }
 .book-thumb-placeholder {
   display: flex; align-items: center; justify-content: center; text-align: center;
-  background: var(--cream); color: var(--ink-soft); font-size: 10px; padding: 4px;
+  background: var(--cream); color: var(--ink-soft); font-size: 12px; padding: 4px;
 }
 .book-cover-preview {
   width: 120px; height: auto; border-radius: 3px; border: 1px solid var(--card-border);
@@ -226,14 +226,15 @@ footer.site { text-align: center; padding: 30px 0; color: var(--ink-soft); font-
   width: 100%; max-width: 240px; height: auto; aspect-ratio: 2 / 3; border-radius: 4px; border: 1px solid var(--card-border);
   object-fit: contain; image-rendering: -webkit-optimize-contrast; background: #efe9dd; /* neutral box while the cover loads or if it fails */
 }
-.book-detail-kicker { font-family: 'Montserrat', sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--maroon); font-size: 12.5px; margin-bottom: 6px; }
+.book-detail-kicker { font-family: 'Montserrat', sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--maroon); font-size: 13px; margin-bottom: 6px; }
 .book-awards { margin: 16px 0; padding: 14px 16px; background: #fbf6ea; border: 1px solid var(--card-border); border-left: 4px solid var(--gold); border-radius: 2px; }
-.book-awards-title { font-family: 'Montserrat', sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; font-size: 12px; color: var(--gold-dark); }
+.book-awards-title { font-family: 'Montserrat', sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; font-size: 13px; color: var(--gold-dark); }
 .book-awards-list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 8px; }
 .book-awards-list li { background: var(--panel); border: 1px solid var(--gold); border-radius: 999px; padding: 3px 12px; font-size: 14px; line-height: 1.4; }
 .book-awards-more { margin-top: 8px; }
 .book-awards-more summary { cursor: pointer; color: var(--maroon); }
-.book-about-title { margin: 18px 0 6px; }
+.book-about-title { margin: 18px 0 6px; font-size: 1.17em; } /* an h2 (no skipped heading level) drawn at the old h3 size */
+.as-h3 { font-size: 1.17em; }
 .book-about { margin: 0; overflow-wrap: anywhere; }
 .book-detail-price { font-family: 'Montserrat', sans-serif; font-size: 24px; font-weight: 700; color: var(--maroon-dark); margin: 14px 0; }
 .availability-box {
@@ -321,7 +322,7 @@ form.stack select { font-family: 'Cormorant Garamond', Georgia, serif; font-size
 .book-facts { margin: 0 0 8px; }
 .book-facts dt, .book-facts dd { display: inline; margin: 0; }
 .book-facts dt { font-weight: 600; }
-.clearance-badge { display: inline-block; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #fff; background: #9b1c1c; padding: 2px 8px; border-radius: 3px; vertical-align: middle; }
+.clearance-badge { display: inline-block; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #fff; background: #9b1c1c; padding: 2px 8px; border-radius: 3px; vertical-align: middle; }
 
 /* A cover that failed to load, swapped in by public/app.js: same box as the image, no broken-image frame. */
 .cover-missing { display: flex; align-items: center; justify-content: center; text-align: center; background: #efe9dd; color: #4a463f; font-size: 13px; padding: 6px; aspect-ratio: 2 / 3; }
@@ -343,7 +344,7 @@ body { overflow-wrap: break-word; }
 h1, h2, h3, h4, h5, h6, p, li, dt, dd, summary, label, blockquote, figcaption,
 .muted, .small, .thread-meta, .reply, .rich-content, .error-box, .notice-box { overflow-wrap: anywhere; }
 .book-card-title, .book-card-author, .book-card-body, .book-detail-kicker, .book-about, .book-facts, .book-awards-list li,
-.cart-item-title, .cart-item-body, .cover-note, .dash-ann-item h3, .dash-ann-item p, .dash-charity h3, .dash-charity p,
+.cart-item-title, .cart-item-body, .cover-note, .dash-ann-item h3, .dash-ann-item h2, .dash-ann-item p, .dash-charity h3, .dash-charity p,
 .rich-content, .thread-title, .reply p { overflow-wrap: anywhere; hyphens: auto; hyphenate-limit-chars: 9 4 3; }
 h1 { hyphens: auto; hyphenate-limit-chars: 9 4 3; }
 /* grid and flex items default to min-width:auto, i.e. as wide as their longest word: let them shrink */
@@ -377,9 +378,58 @@ img { max-width: 100%; }
   }
   .calendar-agenda .calendar-day-number { grid-column: 1; grid-row: 1 / -1; display: flex; flex-direction: column; align-items: center; margin: 0; font-size: 18px; color: var(--ink); }
   .calendar-agenda .calendar-day.is-today .calendar-day-number { color: var(--maroon); }
-  .calendar-agenda .calendar-day-weekday { display: block; margin-bottom: 2px; font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); }
+  .calendar-agenda .calendar-day-weekday { display: block; margin-bottom: 2px; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); }
   .calendar-agenda .calendar-pill { grid-column: 2; margin-bottom: 0; }
   .calendar-agenda .calendar-pill summary { display: flex; align-items: center; min-height: 44px; }
   .calendar-agenda .calendar-pill-body .btn { min-height: 44px; display: inline-flex; align-items: center; }
 }
 @media (max-width: 480px) { .calendar-nav-main { flex-wrap: wrap; } }
+
+/* ---------- Keyboard focus ----------
+   One ring for every control, shown only for keyboard (and switch/voice) use, never after a mouse or touch tap
+   (:focus-visible). Two tones so it reads on any background: 2px near-black outline (about 17:1 on the cream page)
+   with a 2px white ring between it and the control, so it is also visible on the dark green and terracotta buttons
+   (white against the button, near-black against the page). Contrast is checked by test/unit/focusContrast.test.js.
+   assets/site.css (marketing pages) carries the identical rule. Form fields that have their own focus style
+   (.formcard, .bk-search, till, ...) keep it. */
+:focus-visible { outline: 2px solid #1a1a1a; outline-offset: 2px; box-shadow: 0 0 0 2px #fff; }
+/* things only ever focused by script (the page body after a skip link, a heading after a search) show no ring */
+[tabindex="-1"]:focus-visible { outline: none; box-shadow: none; }
+
+/* Links inside a paragraph, list or table cell: 4px of vertical padding on the INLINE link makes its clickable box 24px+ high
+   (WCAG 2.2 2.5.8) without changing the line spacing. The same rule is in site-header.css for the public pages. */
+main p a:not(.btn), main li a:not(.btn), main td a:not(.btn), main label a:not(.btn), main dd a:not(.btn), main .value a:not(.btn) { padding-block: 4px; }
+
+/* ---------- Tap targets: at least 44x44 CSS px on a phone or any touch screen ----------
+   (WCAG 2.2 2.5.8 asks for 24px; 44px is the size of a fingertip.) Desktop with a mouse is unchanged. Padding,
+   min-height and invisible ::after areas make the hit area bigger; the look stays the same. */
+@media (max-width: 700px), (pointer: coarse) {
+  .btn, .btn-small, .btn-outline {
+    display: inline-flex; align-items: center; justify-content: center; text-align: center; min-height: 44px; min-width: 44px;
+  }
+  /* a disclosure line ("On-screen keyboard not showing?", "Report", "Just signed up? ...") is a 44px row */
+  main summary:not(.btn) { padding-block: 11px; }
+  main .fcal-session summary, main .calendar-pill summary { padding-block: 0; }
+  .calendar-pill summary { display: flex; align-items: center; min-height: 44px; }
+  .richtext-toolbar button { min-width: 44px; min-height: 44px; }
+  .btn-small { padding: 6px 14px; }
+  :where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]):not([type="range"]):not([type="color"]), select) { min-height: 44px; }
+  input[type="checkbox"], input[type="radio"] { width: 24px; height: 24px; flex: 0 0 24px; margin: 0; }
+  /* a checkbox or radio with its text: the whole line is the tap area */
+  label:has(> input[type="checkbox"]), label:has(> input[type="radio"]) { display: flex; align-items: center; gap: 10px; min-height: 44px; }
+  .password-toggle { min-width: 44px; min-height: 44px; right: 0; padding: 4px 8px; }
+  .password-field input { padding-right: 56px; }
+  /* "Back", "Back to Books", "Forgot your password?" ...: a standalone link is a 44px-high row */
+  .order-row > a, th > a { display: inline-flex; align-items: center; min-height: 44px; }
+  .tap-link, .admin-back-link, .dash-view-all { display: inline-flex; align-items: center; min-height: 44px; }
+  .calendar-nav .btn { padding-block: 6px; }
+}
+
+/* The reservation form's "I accept the terms of sale": a normal sentence (not a small gold uppercase field
+   label) with a 24px box and a 44px-high line to tap. (views/cart.ejs; the admin forms use the same class.) */
+form.stack label.ann-check {
+  display: flex; align-items: center; gap: 12px; min-height: 44px;
+  font-family: 'Libre Baskerville', Georgia, serif; font-size: 15px; line-height: 1.5; font-weight: normal;
+  text-transform: none; letter-spacing: normal; color: var(--ink);
+}
+form.stack label.ann-check input { flex: 0 0 24px; width: 24px; height: 24px; margin: 0; }
