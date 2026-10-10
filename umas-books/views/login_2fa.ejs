@@ -1,15 +1,27 @@
 <%- include('partials/header', { title: tr('Two-step verification', 'Vérification en deux étapes') }) %>
 
 <h1><%= tr('Two-step verification', 'Vérification en deux étapes') %></h1>
-<% if (error) { %><div class="error-box" role="alert"><%= error %></div><% } %>
+<% if (error) { %><div class="error-box" role="alert" id="code-error"><%= error %></div><% } %>
+<%# Two forms on purpose (no script needed): the app code is digits, so the first box brings up the number pad on a
+    phone; a recovery code (AB3DE-F7GH2) has letters, so it has its own text box. Both post the same field to the
+    same address and the server accepts a code in any case, with or without the hyphen or spaces (lib/totp.js normalizeRecovery). %>
 <p><%= tr('Enter the 6-digit code from your authenticator app.', 'Saisissez le code à 6 chiffres de votre application d’authentification.') %></p>
 <form class="stack" method="post" action="/login/2fa">
   <%- include('partials/csrf_field') %>
   <label for="code"><%= tr('Code', 'Code') %></label>
-  <input id="code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" autofocus required>
+  <input id="code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" autocapitalize="off" autocorrect="off" spellcheck="false"<%- error ? ' aria-describedby="code-error"' : '' %> autofocus required>
   <button class="btn" type="submit"><%= tr('Verify', 'Valider') %></button>
 </form>
-<p class="muted small"><%= tr('Lost your phone? Enter one of your recovery codes instead (each works once).', 'Vous avez perdu votre téléphone ? Saisissez plutôt l’un de vos codes de récupération (chacun ne fonctionne qu’une fois).') %></p>
+<details class="muted small recovery-code-box"<%- error ? ' open' : '' %>>
+  <summary><%= tr('Lost your phone? Use a recovery code instead', 'Vous avez perdu votre téléphone ? Utilisez plutôt un code de récupération') %></summary>
+  <p><%= tr('Enter one of your recovery codes (each works once). Letters and numbers, with or without the dash.', 'Saisissez l’un de vos codes de récupération (chacun ne fonctionne qu’une fois). Des lettres et des chiffres, avec ou sans le tiret.') %></p>
+  <form class="stack" method="post" action="/login/2fa">
+    <%- include('partials/csrf_field') %>
+    <label for="recovery-code"><%= tr('Recovery code', 'Code de récupération') %></label>
+    <input id="recovery-code" name="code" type="text" inputmode="text" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" required>
+    <button class="btn btn-outline" type="submit"><%= tr('Use this recovery code', 'Utiliser ce code de récupération') %></button>
+  </form>
+</details>
 <p class="muted small"><a href="/login"><%= tr('Start over', 'Recommencer') %></a></p>
 
 <%- include('partials/footer') %>

@@ -1,0 +1,23 @@
+<%# Shown (HTTP 403) to a signed-in account that may not open a members-only page: see src/lib/membersOnly.js. %>
+<% const _vol = locals.area === 'volunteer'; %>
+<%- include('partials/header', { noindex: true, title: _vol ? tr('Volunteers only', 'Réservé aux bénévoles') : tr('Members only', 'Réservé aux membres') }) %>
+
+<h1><%= _vol ? tr('This area is for volunteers', 'Cet espace est réservé aux bénévoles') : tr('This area is for members', 'Cet espace est réservé aux membres') %></h1>
+<div role="status" class="notice-box">
+  <% if (_vol) { %>
+    <%= tr('The volunteer shifts are for our volunteers. Want to help? Tell us about yourself and we will be in touch.', 'Les créneaux de bénévolat sont réservés à nos bénévoles. Envie de nous aider ? Présentez-vous et nous vous recontacterons.') %>
+  <% } else { %>
+    <%= tr('Become a member to join the forum, meetings and more.', 'Devenez membre pour rejoindre le forum, les réunions et bien plus.') %>
+  <% } %>
+</div>
+<p>
+  <% if (_vol) { %>
+    <a class="btn" href="/volunteer.html"><%= tr('Volunteer with us', 'Devenir bénévole') %></a>
+  <% } else { %>
+    <a class="btn" href="/membership.html"><%= tr('Become a member', 'Devenir membre') %></a>
+  <% } %>
+  <a class="btn btn-outline" href="/"><%= tr('Back to the home page', 'Retour à l’accueil') %></a>
+</p>
+<p class="muted small"><%= tr('You are signed in, and your account, cart and favorites are not affected.', 'Vous êtes connecté(e), et votre compte, votre panier et vos favoris ne sont pas concernés.') %></p>
+
+<%- include('partials/footer') %>

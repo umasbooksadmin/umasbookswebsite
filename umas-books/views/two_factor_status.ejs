@@ -9,7 +9,7 @@
 <form class="stack" method="post" action="/account/2fa/recovery-codes">
   <%- include('partials/csrf_field') %>
   <label for="code1"><%= tr('Code', 'Code') %></label>
-  <input id="code1" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" required>
+  <input id="code1" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" autocapitalize="off" autocorrect="off" spellcheck="false" required>
   <button class="btn btn-outline" type="submit"><%= tr('New recovery codes', 'Nouveaux codes de récupération') %></button>
 </form>
 
@@ -18,7 +18,7 @@
 <form class="stack" method="post" action="/account/2fa/disable">
   <%- include('partials/csrf_field') %>
   <label for="code2"><%= tr('Code', 'Code') %></label>
-  <input id="code2" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" required>
+  <input id="code2" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" autocapitalize="off" autocorrect="off" spellcheck="false" required>
   <button class="btn btn-outline" type="submit"><%= tr('Turn off two-step verification', 'Désactiver la vérification en deux étapes') %></button>
 </form>
 <% } else { %>

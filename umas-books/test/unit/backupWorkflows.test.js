@@ -61,3 +61,43 @@ test("restore test: downloads the newest dump from the full/ prefix, read-only",
   assert.equal(checkouts.length, 1);
   assert.match(restore, /sparse-checkout: umas-books\/migrations/);
 });
+
+// ---- Empty monthly/ folder (list-objects-v2 returns "Contents: null") ----
+
+const freshness = fs.readFileSync(path.join(wfDir, "backup-freshness.yml"), "utf8");
+
+test("every sort_by(Contents ...) list query in every workflow is null-safe", () => {
+  let n = 0;
+  for (const [name, text] of [["freshness", freshness], ["restore", restore], ["nightly", nightly]]) {
+    for (const m of text.matchAll(/--query '([^']*sort_by[^']*)'/g)) {
+      n++;
+      assert.ok(m[1].includes("sort_by(Contents || `[]`,"), `${name}: not null-safe: ${m[1]}`);
+    }
+    assert.doesNotMatch(text, /sort_by\(Contents,/, `${name}: bare sort_by(Contents, ...)`);
+  }
+  assert.ok(n >= 5, "found the list queries");
+});
+
+test("freshness: no monthly copy yet is a notice while backups are younger than 35 days", () => {
+  assert.match(freshness, /::notice title=No monthly copy yet::No monthly copy yet: the first one is written by the nightly backup on the 1st of next month/);
+  assert.match(freshness, /\[0\]\.LastModified/); // oldest backup in full/
+  assert.match(freshness, /OLDEST_DAYS" -lt "\$MAX_MONTHLY_AGE_DAYS"/);
+  // ... and still an error when backups are older and there is still none.
+  assert.match(freshness, /::error::No monthly copies found[^\n]*although backups have existed/);
+});
+
+test("nightly: bootstraps the monthly copy and has the force_monthly input", () => {
+  assert.match(nightly, /workflow_dispatch:[^\n]*\n\s+inputs:\n\s+force_monthly:[\s\S]*?type: boolean\n\s+default: false/);
+  assert.match(nightly, /FORCE_MONTHLY: \$\{\{ inputs\.force_monthly \}\}/);
+  assert.match(nightly, /bootstrap: no monthly copy exists at all/);
+  // one per calendar month: on the 1st only if none was written this month
+  assert.match(nightly, /"\$\(date -u \+%d\)" = "01" \] && \[ "\$\{NEWEST_MONTHLY:0:7\}" != "\$THIS_MONTH"/);
+});
+
+const { spawnSync: spawnJm } = require("node:child_process");
+const pyJm = process.env.PYTHON || "python3";
+const haveJmespath = spawnJm(pyJm, ["-c", "import jmespath"]).status === 0;
+test("self-test: the list queries against sample JSON (needs python jmespath)", { skip: haveJmespath ? false : "python module jmespath is not installed" }, () => {
+  const r = spawnJm("bash", [path.join(__dirname, "..", "..", "scripts", "backup-list-selftest.sh")], { encoding: "utf8", env: { ...process.env, PYTHON: pyJm } });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+});

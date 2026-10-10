@@ -16,7 +16,7 @@
   <label for="password"><%= tr('Your account password', 'Mot de passe de votre compte') %></label>
   <input id="password" name="password" type="password" autocomplete="current-password" required>
   <label for="code"><%= tr('Code', 'Code') %></label>
-  <input id="code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" required>
+  <input id="code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" autocapitalize="off" autocorrect="off" spellcheck="false" required>
   <button class="btn" type="submit"><%= tr('Turn on two-step verification', 'Activer la vérification en deux étapes') %></button>
 </form>
 

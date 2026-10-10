@@ -27,8 +27,8 @@ test("an 'error' event on the pool is handled, not thrown", () => {
 
 test("pool has bounded size and timeouts", () => {
   const o = pool.options;
-  assert.equal(o.max, 10);
-  assert.equal(o.connectionTimeoutMillis, 5000);
+  assert.equal(o.max, 20, "default DB_POOL_MAX");
+  assert.equal(o.connectionTimeoutMillis, 10000);
   assert.equal(o.idleTimeoutMillis, 30000);
   assert.equal(o.statement_timeout, 30000);
   assert.equal(o.idle_in_transaction_session_timeout, 30000);
