@@ -44,6 +44,24 @@ test("till page: live regions, scanner suffix hint", async () => {
   assert.match(text, /till-change-row" aria-live="polite"/);
 });
 
+test("till on a phone: pay bar, errors above the keypad, scroll lock, card rows (markup and CSS)", async () => {
+  const { text } = await h.get("/admin/till");
+  assert.match(text, /class="till-paybar"[^]*id="total"[^]*id="pay-cash"[^]*id="pay-card"/, "Total, Cash and Card sit in one bar");
+  assert.ok(text.indexOf('id="cash-error"') < text.indexOf('class="till-keypad"'), "a refusal is above the keypad");
+  assert.ok(text.indexOf('id="cash-check"') < text.indexOf('class="till-keypad"'), "the check message is above the keypad");
+  assert.match(text, /id="cash-error" class="till-err" role="alert"/);
+  const css = require("node:fs").readFileSync(require("node:path").join(__dirname, "../../public/till.css"), "utf8");
+  assert.match(css, /@media \(max-width: 1100px\) \{\s*\/\* Total, Cash and Card[^]*\.till-paybar \{\s*position: fixed;[^}]*bottom: 0/);
+  assert.match(css, /body\.modal-open \{ position: fixed/);
+  assert.match(css, /\.till-modal-box \.till-actions \{\s*position: sticky; bottom: 0/);
+  assert.match(css, /\.till-recent td\[data-label\]::before/);
+  const js = require("node:fs").readFileSync(require("node:path").join(__dirname, "../../public/till.js"), "utf8");
+  assert.match(js, /classList\.add\("modal-open"\)/);
+  assert.match(js, /scrollIntoView/);
+  assert.match(text, /<option value="books_other"[^>]*>Other \(not new books\)<\/option>/, "the category fits a phone");
+  assert.match(require("node:fs").readFileSync(require("node:path").join(__dirname, "../../views/admin/till/index.ejs"), "utf8"), /data-label="Items"/, "each cell of Today's sales has its label for the card layout");
+});
+
 test("printing hides the topbar and its heading", async () => {
   const css = require("node:fs").readFileSync(require("node:path").join(__dirname, "../../public/admin.css"), "utf8");
   const print = css.slice(css.indexOf("@media print"));

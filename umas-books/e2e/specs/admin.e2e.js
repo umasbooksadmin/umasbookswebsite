@@ -1020,6 +1020,44 @@ s.test("A60 (must) the Till page loads from the menu, the scan box has the focus
   await ctx.page.waitForFunction(() => /not recognised/.test(document.getElementById("till-msg").textContent), { timeout: 8000 });
 });
 
+// The till on a phone and on a tablet held sideways (steps A60b, A60c): with four lines on the sale the
+// Total / Cash / Card bar and the cash screen's Confirm sale are on screen without scrolling. Nothing is
+// sold: four manual items are put on the sale, Cash is opened (the check writes nothing) and closed again.
+async function tillFitsViewport(ctx) {
+  await admin(ctx, "/admin/till");
+  const click = (sel) => ctx.page.$eval(sel, (e) => e.click());
+  for (const price of ["2.50", "3.00", "4.00", "5.00"]) {
+    await click("#manual-open");
+    await ctx.page.waitForFunction(() => !document.getElementById("manual-modal").hidden);
+    await ctx.page.type("#manual-desc", "E2E fit check");
+    await ctx.page.type("#manual-price", price);
+    await ctx.page.$eval("#manual-form button[type='submit']", (b) => b.click());
+    await ctx.page.waitForFunction(() => document.getElementById("manual-modal").hidden);
+  }
+  assert.equal(await ctx.page.$$eval("#lines li", (l) => l.length), 4, "four lines on the sale");
+  await ctx.page.evaluate(() => window.scrollTo(0, 0));
+  const inside = (sel) => ctx.page.$eval(sel, (e) => {
+    const r = e.getBoundingClientRect();
+    return { ok: r.width > 0 && r.top >= 0 && r.left >= 0 && r.bottom <= window.innerHeight && r.right <= window.innerWidth, box: [r.left, r.top, r.right, r.bottom].map(Math.round), vp: [window.innerWidth, window.innerHeight] };
+  });
+  for (const sel of ["#total", "#pay-cash", "#pay-card"]) {
+    const r = await inside(sel);
+    assert.ok(r.ok, `${sel} is fully on screen without scrolling: box ${r.box} in viewport ${r.vp}`);
+  }
+  await click("#pay-cash");
+  await ctx.page.waitForFunction(() => !document.getElementById("cash-modal").hidden);
+  await click("[data-amount='exact']");
+  await ctx.page.waitForFunction(() => !document.getElementById("cash-confirm").disabled, { timeout: 8000 });
+  const c = await inside("#cash-confirm");
+  assert.ok(c.ok, `Confirm sale is on screen without scrolling: box ${c.box} in viewport ${c.vp}`);
+  const lock = await ctx.page.evaluate(() => document.body.classList.contains("modal-open"));
+  assert.ok(lock, "the page behind the cash screen is locked (no scrolling behind it)");
+  await click("#cash-modal [data-close]");
+  assert.ok(!(await ctx.page.evaluate(() => document.body.classList.contains("modal-open"))), "the page is unlocked again");
+}
+s.test("A60b (must) on a phone (390x844) with four lines the Total, Cash and Card buttons and the cash screen's Confirm sale are on screen without scrolling", { as: "admin", viewport: { width: 390, height: 844, isMobile: true, hasTouch: true, deviceScaleFactor: 2 } }, tillFitsViewport);
+s.test("A60c (must) on a tablet held sideways (1024x768) with four lines the Total, Cash and Card buttons and the cash screen's Confirm sale are on screen without scrolling", { as: "admin", viewport: { width: 1024, height: 768, isMobile: true, hasTouch: true } }, tillFitsViewport);
+
 s.test("A62 the End of day page, Quick items page and the Accounting export report load", { as: "admin" }, async (ctx) => {
   await admin(ctx, "/admin/till/day");
   has(await ctx.text(), /Cash drawer/);

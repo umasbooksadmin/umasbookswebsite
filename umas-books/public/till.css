@@ -101,3 +101,91 @@
 .till-item-form .btn, .till-open .btn { min-height: 44px; }
 .till-item-form > div { min-width: 0; }
 .till-item-form label { margin-bottom: 4px; }
+
+/* ---------------------------------------------------------------------------
+   Phone and tablet (below 1100 px). Everything here is inside a media query, so the till on a
+   computer screen (1100 px and wider) is unchanged.
+   --------------------------------------------------------------------------- */
+.till-paybar { display: contents; }
+.till-modal, .till-modal-box { overscroll-behavior: contain; }
+
+@media (max-width: 1100px) {
+  /* Total, Cash and Card: a bar stuck to the bottom of the screen, always visible, about 84 px high. */
+  .till-paybar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; box-sizing: border-box;
+    display: flex; align-items: center; gap: 10px; min-height: 84px;
+    padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0px));
+    background: #fff; border-top: 2px solid var(--card-border); box-shadow: 0 -4px 14px rgba(0, 0, 0, 0.12);
+  }
+  .till-paybar .till-total { flex: 1 1 auto; min-width: 0; flex-direction: column; align-items: flex-start; gap: 2px; padding: 0; font-size: 14px; line-height: 1.1; }
+  .till-paybar .till-total strong { font-size: 28px; max-width: 100%; overflow-wrap: anywhere; }
+  .till-paybar .till-pay { flex: 0 1 auto; display: flex; gap: 8px; }
+  .till-paybar .till-big { min-height: 64px; min-width: 88px; font-size: 20px; padding: 8px 12px; letter-spacing: 0.04em; }
+  /* Room under the page so the bar never covers the last thing on it. */
+  body:has(.till-paybar) .admin-main { padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px)); }
+
+  /* The page behind an open payment screen does not scroll (the script pins the body at its scroll position). */
+  body.modal-open { position: fixed; left: 0; right: 0; width: 100%; overflow: hidden; }
+
+  /* Modal forms: the label above the field, fields as wide as the box. */
+  .till-modal-box label:not(.till-beep) { display: block; margin: 8px 0 4px; }
+  .till-modal-box input[type=text], .till-modal-box input[type=number], .till-modal-box select { width: 100%; box-sizing: border-box; }
+  .till-two > div { min-width: 0; }
+  .till-modal-box { max-height: calc(100dvh - 24px); }
+  .till-modal-box.till-wide { max-height: calc(100dvh - 24px); }
+  .till-cash-msgs .till-err { margin: 6px 0; }
+}
+@media (min-width: 901px) and (max-width: 1100px) {
+  /* the admin menu is a permanent 240 px sidebar here */
+  .till-paybar { left: 240px; }
+}
+
+/* Small screens (a phone, or a phone held sideways): the payment screens are a sheet from the bottom,
+   at most as tall as the screen, with the buttons in a footer that stays in view. */
+@media (max-width: 640px), (max-height: 520px) {
+  .till-modal { padding: 0; align-items: flex-end; }
+  .till-modal-box, .till-modal-box.till-wide {
+    width: 100%; max-height: 100dvh; box-sizing: border-box; border-radius: 14px 14px 0 0;
+    padding: 12px 14px 0; overflow-y: auto;
+  }
+  .till-modal-box h2 { font-size: 20px; margin: 0 0 6px; }
+  .till-modal-box .till-actions {
+    position: sticky; bottom: 0; z-index: 2; margin: 10px -14px 0; flex-wrap: wrap; gap: 8px;
+    padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0px)); background: #fff; border-top: 1px solid var(--card-border);
+  }
+  .till-modal-box .till-actions .till-btn { flex: 1 1 0; min-height: 56px; }
+  .till-modal-box .till-actions .till-big { flex: 2 1 0; min-height: 56px; font-size: 20px; padding: 8px 12px; }
+  .till-modal-box .till-card-text { font-size: 20px; margin: 4px 0; }
+  .till-modal-box .till-row { font-size: 16px; padding: 2px 0; }
+  .till-modal-box .till-row strong { font-size: 24px; }
+  .till-modal-box .till-change-row { padding: 4px 10px; margin-top: 2px; }
+  .till-modal-box .till-change-row strong { font-size: 30px; }
+  #cash-note { margin: 2px 0; min-height: 0; }
+  .till-quick-amounts { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-top: 6px; }
+  .till-quick-amounts .till-btn { min-height: 44px; padding: 4px; font-size: 16px; letter-spacing: 0; }
+  .till-keypad { gap: 6px; }
+  .till-key { min-height: 44px; font-size: 22px; }
+  .till-key-clear { min-height: 44px; font-size: 16px; }
+}
+@media (max-width: 640px) {
+  .till-cash { gap: 8px; }
+  /* Today's sales: one card per sale instead of a table whose Items column is a few pixels wide. */
+  .till-recent, .till-recent tbody, .till-recent tr, .till-recent td { display: block; }
+  .till-recent thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .till-recent tr { border: 1px solid var(--card-border); border-radius: 10px; padding: 8px 12px; margin: 0 0 10px; background: #fff; }
+  .till-recent td { border: 0; padding: 3px 0; display: flex; gap: 10px; align-items: baseline; font-size: 15px; }
+  .till-recent td[data-label]::before { content: attr(data-label); flex: 0 0 64px; font-weight: 700; color: var(--ink-soft, #555); }
+  .till-recent td:not([data-label]) { display: block; }
+  .till-recent .till-recent-actions { border-top: 1px solid var(--card-border); margin-top: 6px; padding-top: 8px; }
+  .till-recent .till-recent-actions a { display: inline-block; min-height: 44px; line-height: 44px; margin-right: 12px; }
+  .till-void summary { min-height: 44px; display: inline-flex; align-items: center; }
+  .till-void input { width: 100%; box-sizing: border-box; min-height: 44px; }
+}
+@media (max-width: 1100px) {
+  /* scrolling to a field (focus, scrollIntoView) leaves the bottom bar's height free */
+  html:has(.till-paybar) { scroll-padding-bottom: 104px; }
+}
+@media (max-width: 640px), (max-height: 520px) {
+  .till-modal-box .till-actions .btn { padding-left: 8px; padding-right: 8px; letter-spacing: 0.02em; white-space: nowrap; }
+  .till-modal-box .till-actions .till-btn { font-size: 16px; }
+}
