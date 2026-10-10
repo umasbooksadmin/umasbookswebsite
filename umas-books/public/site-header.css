@@ -135,7 +135,7 @@ header.mkt-header .langtoggle button {
 header.mkt-header .langtoggle a {
   position: relative; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; text-decoration: none;
   min-width: 32px; min-height: 32px; border-bottom: 1px solid transparent; padding: 2px 3px; line-height: 1;
-  font-family: 'Nunito Sans', 'Helvetica Neue', Arial, sans-serif; font-size: 12.5px; font-weight: 600; letter-spacing: 0.06em; color: var(--ink-soft);
+  font-family: 'Nunito Sans', 'Nunito Sans Fallback', 'Helvetica Neue', Arial, sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 0.06em; color: var(--ink-soft);
 }
 header.mkt-header .langtoggle button.is-active, header.mkt-header .langtoggle button:hover,
 header.mkt-header .langtoggle a.is-active, header.mkt-header .langtoggle a:hover { color: var(--maroon); border-bottom-color: var(--maroon); }
