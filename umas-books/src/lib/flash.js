@@ -16,8 +16,36 @@ const MAX_AGE_MS = 10 * 60 * 1000;
 // (see lib/session.js).
 async function setFlash(req, key, data) {
   if (!req.session) return;
+  pruneStaleFlash(req);
   req.session.pageFlash = { ...(req.session.pageFlash || {}), [key]: { at: Date.now(), data } };
   await saveSession(req);
+}
+
+// Drops entries nobody picked up within the window (a redirect that never
+// arrived, a tab closed): they hold typed values (email, phone, name), so they
+// must not sit in the session row until it expires (up to 30 days when logged
+// in). Runs on every request that carries a session (see flashHousekeeping), and
+// before a new entry is stored. Returns how many entries were dropped. Writes to
+// the session only when something was dropped.
+function pruneStaleFlash(req, now = Date.now()) {
+  const all = req.session && req.session.pageFlash;
+  if (!all || typeof all !== "object") return 0;
+  let dropped = 0;
+  for (const key of Object.keys(all)) {
+    const at = all[key] && all[key].at;
+    if (!Number.isFinite(at) || now - at > MAX_AGE_MS) {
+      delete all[key];
+      dropped += 1;
+    }
+  }
+  if (!Object.keys(all).length) delete req.session.pageFlash;
+  return dropped;
+}
+
+// Express middleware, mounted right after the session middleware.
+function flashHousekeeping(req, res, next) {
+  pruneStaleFlash(req);
+  next();
 }
 
 function takeFlash(req, key) {
@@ -29,4 +57,4 @@ function takeFlash(req, key) {
   return Date.now() - at <= MAX_AGE_MS ? data : null;
 }
 
-module.exports = { setFlash, takeFlash };
+module.exports = { setFlash, takeFlash, pruneStaleFlash, flashHousekeeping, MAX_AGE_MS };

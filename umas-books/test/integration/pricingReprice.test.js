@@ -70,6 +70,12 @@ async function world() {
   return { trade, mm, hard, other, unknown };
 }
 
+// What the confirm button posts: the count and hash of the preview shown just now.
+const confirm = async (key) => {
+  const p = await previewOf();
+  return h.post(`/admin/pricing/reprice/${key}`, { expectedCount: String(p[key].count), expectedHash: p[key].hash });
+};
+
 const previewOf = async () => {
   const settings = await require("../../src/lib/pricing/settings").getSettings(h.pool);
   return Object.fromEntries((await reprice.previewGroups(h.pool, settings)).map((g) => [g.key, g]));
@@ -135,7 +141,7 @@ test("preview: copies held for a book request or in an open order are not listed
 test("confirm A: Trade copies go to 5.00 in one run, recorded on the copy, audited once, others untouched", async () => {
   const w = await world();
   const reservedBefore = await copy(w.trade.ids[4]);
-  const r = await h.post("/admin/pricing/reprice/trade", {});
+  const r = await confirm("trade");
   assert.equal(r.res.status, 200, "lands on the result page");
   assert.match(r.text, /Group A: Trade copies: <strong>3<\/strong> copies changed to EUR 5\.00/);
   assert.match(r.text, /href="\/admin\/audit"/);
@@ -156,6 +162,10 @@ test("confirm A: Trade copies go to 5.00 in one run, recorded on the copy, audit
 
   const [run] = await runs();
   assert.deepEqual([run.group_key, Number(run.new_price), run.copies_changed, run.actor_user_id], ["trade", 5, 3, h.admin.id]);
+  // Privacy: the run records the account and a role, never the administrator's email.
+  assert.deepEqual([run.actor_role, run.actor_label], ["admin", null]);
+  assert.ok(!JSON.stringify(run).includes("@"), "no email anywhere in the run row");
+  assert.doesNotMatch(r.text, /@/, "the result page shows no email either");
   const items = await h.q("SELECT * FROM price_reprice_items WHERE run_id = $1 ORDER BY copy_id", [run.id]);
   assert.equal(items.length, 3);
   const withHistory = items.find((i) => i.copy_id === w.trade.ids[10]);
@@ -168,8 +178,8 @@ test("confirm A: Trade copies go to 5.00 in one run, recorded on the copy, audit
 
 test("confirm is idempotent: a second run finds nothing, records no run and no audit row", async () => {
   await world();
-  await h.post("/admin/pricing/reprice/trade", {});
-  const second = await h.post("/admin/pricing/reprice/trade", {});
+  await confirm("trade");
+  const second = await confirm("trade");
   assert.equal(second.res.status, 200);
   assert.match(second.text, /Group A: nothing left to change/);
   assert.equal((await runs()).length, 1);
@@ -181,7 +191,7 @@ test("confirm B: Mass Market only, to the saved Mass market price", async () => 
   const w = await world();
   await h.q("UPDATE pricing_settings SET mass_market_price = 6 WHERE id = 1");
   clearSettingsCache();
-  const r = await h.post("/admin/pricing/reprice/mass_market", {});
+  const r = await confirm("mass_market");
   assert.match(r.text, /Group B: Mass Market copies: <strong>3<\/strong> copies changed to EUR 6\.00/, "4, 5 and 8 are not 6");
   assert.deepEqual(await Promise.all([0, 1, 2, 3, 4].map((i) => priceOf(w.mm.ids[i]))), [6, 6, 6, 1, 6]);
   assert.equal((await copy(w.mm.ids[3])).is_clearance, true, "clearance left alone");
@@ -190,7 +200,7 @@ test("confirm B: Mass Market only, to the saved Mass market price", async () => 
 
 test("confirm C: other bindings at exactly 8.00 go to 10.00; trade and mass market at 8 are not C's", async () => {
   const w = await world();
-  const r = await h.post("/admin/pricing/reprice/eight_to_ten", {});
+  const r = await confirm("eight_to_ten");
   assert.match(r.text, /<strong>3<\/strong> copies changed to EUR 10\.00/);
   assert.deepEqual(await Promise.all([0, 1, 2, 3, 4].map((i) => priceOf(w.hard.ids[i]))), [10, 10, 8, 8.5, 8], "hardback: 8 -> 10; 10, clearance, 8.50 and reserved unchanged");
   assert.equal(await priceOf(w.other.ids[0]), 10);
@@ -198,7 +208,7 @@ test("confirm C: other bindings at exactly 8.00 go to 10.00; trade and mass mark
   assert.equal(await priceOf(w.trade.ids[0]), 8, "trade at 8 waits for group A");
   assert.equal(await priceOf(w.mm.ids[2]), 8, "mass market at 8 waits for group B");
   // then A takes the trade copy to 5, never to 10
-  await h.post("/admin/pricing/reprice/trade", {});
+  await confirm("trade");
   assert.equal(await priceOf(w.trade.ids[0]), 5);
 });
 
@@ -214,26 +224,137 @@ test("orders keep the price they were made at: a reserved copy's order line is n
   const [o] = await h.q("INSERT INTO orders (buyer_name, buyer_email, status, total_amount) VALUES ('n', 'n@example.test', 'reserved', 8) RETURNING id");
   const col = (await h.q("SELECT column_name FROM information_schema.columns WHERE table_name = 'order_items' AND column_name IN ('book_title', 'item_title') ORDER BY 1 LIMIT 1"))[0].column_name;
   await h.q(`INSERT INTO order_items (order_id, book_copy_id, ${col}, price) VALUES ($1, $2, 't', 8)`, [o.id, t.ids[0]]);
-  for (const g of ["trade", "mass_market", "eight_to_ten"]) await h.post(`/admin/pricing/reprice/${g}`, {});
+  for (const g of ["trade", "mass_market", "eight_to_ten"]) await confirm(g);
   assert.equal(await priceOf(t.ids[0]), 8);
   assert.equal(Number((await h.q("SELECT price FROM order_items WHERE order_id = $1", [o.id]))[0].price), 8);
 });
 
 // -------------------------------------------------------------- concurrency
 
-test("a copy sold between the preview and the confirmation is not changed", async () => {
+test("a copy sold or reserved between the preview and the confirmation: NOTHING is applied and the admin is told to re-preview", async () => {
   const w = await world();
   const p = await previewOf();
   assert.equal(p.trade.count, 3);
   // ... the shop sells one, and a customer reserves another, after the admin looked
   await h.q("UPDATE book_copies SET status = 'sold' WHERE id = $1", [w.trade.ids[0]]);
   await h.q("UPDATE book_copies SET status = 'reserved' WHERE id = $1", [w.trade.ids[1]]);
-  const r = await h.post("/admin/pricing/reprice/trade", {});
-  assert.match(r.text, /<strong>1<\/strong> copies changed/);
+  const r = await h.post("/admin/pricing/reprice/trade", { expectedCount: String(p.trade.count), expectedHash: p.trade.hash });
+  assert.match(r.text, /Group A was NOT changed[^<]*you confirmed 3, there are now 1/);
   assert.equal(await priceOf(w.trade.ids[0]), 8);
   assert.equal(await priceOf(w.trade.ids[1]), 3);
+  assert.equal(await priceOf(w.trade.ids[10]), 12, "even the copy that is still eligible is not touched");
+  assert.equal((await runs()).length, 0);
+  assert.equal((await auditRows("pricing.reprice.refused")).length, 1);
+  // confirming the NEW preview works
+  const ok = await confirm("trade");
+  assert.match(ok.text, /<strong>1<\/strong> copies changed/);
+});
+
+test("same count but different copies is refused too (the ids are compared, not just the count)", async () => {
+  const t = await book("trade", [{ price: 8 }, { price: 8 }]);
+  const p = await previewOf();
+  const [b2] = await h.q("INSERT INTO books (title, authors, binding) VALUES ($1, 'A', 'trade') RETURNING id", [tag()]);
+  await h.q("UPDATE book_copies SET status = 'sold' WHERE id = $1", [t.ids[0]]);
+  await h.q("INSERT INTO book_copies (book_id, condition, price, status) VALUES ($1, 'good', 9, 'in_stock')", [b2.id]);
+  const live = await previewOf();
+  assert.equal(live.trade.count, p.trade.count, "the count is the same");
+  const r = await h.post("/admin/pricing/reprice/trade", { expectedCount: String(p.trade.count), expectedHash: p.trade.hash });
+  assert.match(r.text, /was NOT changed/);
+  assert.equal(await priceOf(t.ids[1]), 8);
+});
+
+test("a confirm without the previewed count and hash is never applied", async () => {
+  const t = await book("trade", [{ price: 8 }]);
+  const r = await h.post("/admin/pricing/reprice/trade", {});
+  assert.match(r.text, /was NOT changed/);
+  assert.equal(await priceOf(t.ids[0]), 8);
+  assert.equal((await runs()).length, 0);
+});
+
+test("preview: copies that would RAISE, LOWER or stay the same are counted separately; the first 25 of each are listed", async () => {
+  // Group A: hand-priced 3 and 4 go UP to 5, 8 and 12 go DOWN
+  const t = await book("trade", [{ price: 3 }, { price: 4 }, { price: 8 }, { price: 12 }, { price: 5 }]);
+  const p = (await previewOf()).trade;
+  assert.equal(p.count, 4);
+  assert.deepEqual([p.raiseCount, p.lowerCount, p.sameCount], [2, 2, 0]);
+  assert.deepEqual(p.raiseSample.map((r) => r.id), [t.ids[0], t.ids[1]]);
+  assert.deepEqual(p.lowerSample.map((r) => r.id), [t.ids[2], t.ids[3]]);
+  const page = await h.get("/admin/pricing/reprice");
+  assert.match(page.text, /<strong>2<\/strong> would go <strong>UP<\/strong>[^<]*<strong>2<\/strong> would go <strong>DOWN<\/strong>/);
+  // the lists are capped at 25 per direction
+  await book("trade", Array.from({ length: 30 }, () => ({ price: 2 })));
+  const big = (await previewOf()).trade;
+  assert.equal(big.raiseCount, 32);
+  assert.equal(big.raiseSample.length, 25);
+});
+
+// --------------------------------------------------------------------- undo
+
+test("undo: preview, then confirm restores the previous prices (and history), only for copies still at the new price and in stock; audited", async () => {
+  const w = await world();
+  await confirm("trade");
+  const run = (await runs())[0];
+  assert.equal(await priceOf(w.trade.ids[0]), 5);
+  // after the run: one copy was sold, one hand-edited
+  await h.q("UPDATE book_copies SET status = 'sold' WHERE id = $1", [w.trade.ids[0]]);
+  await h.q("UPDATE book_copies SET price = 6.5 WHERE id = $1", [w.trade.ids[1]]);
+
+  const result = await h.get(`/admin/pricing/reprice/runs/${run.id}`);
+  assert.match(result.text, /Undo this run/);
+  const preview = await h.get(`/admin/pricing/reprice/runs/${run.id}/undo`);
+  assert.equal(preview.res.status, 200);
+  assert.match(preview.text, /<strong>1<\/strong> copies go back/);
+  assert.match(preview.text, /<strong>2<\/strong> are left alone/);
+  assert.equal(await priceOf(w.trade.ids[10]), 5, "the preview changes nothing");
+
+  const m = preview.text.match(/name="expectedCount" value="(\d+)"[\s\S]*?name="expectedHash" value="([0-9a-f]{64})"/);
+  const done = await h.post(`/admin/pricing/reprice/runs/${run.id}/undo`, { expectedCount: m[1], expectedHash: m[2] });
+  assert.match(done.text, /Undone: 1 copies back at their previous price, 2 left alone/);
+  const c = await copy(w.trade.ids[10]);
+  assert.equal(Number(c.price), 12);
+  assert.equal(Number(c.suggested_price), 12);
+  assert.equal(c.suggested_level, "10");
+  assert.equal(c.price_basis, "adjusted");
+  assert.equal(await priceOf(w.trade.ids[0]), 5, "sold copy untouched");
+  assert.equal(await priceOf(w.trade.ids[1]), 6.5, "hand-edited copy untouched");
+  const a = await auditRows("pricing.reprice.undo");
+  assert.equal(a.length, 1);
+  assert.match(a[0].detail, /1 copies restored, 2 left alone/);
+  // a second undo has nothing left to restore
+  const again = await h.get(`/admin/pricing/reprice/runs/${run.id}/undo`);
+  assert.match(again.text, /Nothing can be restored/);
+});
+
+test("undo: a confirm with a stale count/hash, or without them, restores nothing", async () => {
+  const w = await world();
+  await confirm("trade");
+  const run = (await runs())[0];
+  const preview = await h.get(`/admin/pricing/reprice/runs/${run.id}/undo`);
+  const m = preview.text.match(/name="expectedCount" value="(\d+)"[\s\S]*?name="expectedHash" value="([0-9a-f]{64})"/);
+  await h.q("UPDATE book_copies SET status = 'sold' WHERE id = $1", [w.trade.ids[0]]); // changes the restorable set
+  const stale = await h.post(`/admin/pricing/reprice/runs/${run.id}/undo`, { expectedCount: m[1], expectedHash: m[2] });
+  assert.match(stale.text, /Nothing was undone/);
+  const none = await h.post(`/admin/pricing/reprice/runs/${run.id}/undo`, {});
+  assert.equal(none.res.status, 200);
   assert.equal(await priceOf(w.trade.ids[10]), 5);
-  assert.equal((await h.q("SELECT COUNT(*)::int AS n FROM price_reprice_items"))[0].n, 1, "only what changed is recorded");
+  assert.equal((await auditRows("pricing.reprice.undo")).length, 0);
+});
+
+test("undo: only the LAST run can be undone; routes need admin and a real run", async () => {
+  const t = await book("trade", [{ price: 8 }]);
+  await book("mass_market", [{ price: 8 }]);
+  await confirm("trade");
+  await confirm("mass_market");
+  const [first, second] = await runs();
+  const old = await h.get(`/admin/pricing/reprice/runs/${first.id}/undo`);
+  assert.match(old.text, /A newer run exists/);
+  assert.doesNotMatch((await h.get(`/admin/pricing/reprice/runs/${first.id}`)).text, /Undo this run/);
+  const r = await h.post(`/admin/pricing/reprice/runs/${first.id}/undo`, { expectedCount: "1", expectedHash: "0".repeat(64) });
+  assert.equal(r.res.status, 200);
+  assert.equal(await priceOf(t.ids[0]), 5, "the older run was not undone");
+  assert.equal((await h.get(`/admin/pricing/reprice/runs/${second.id}/undo`, h.member)).res.status, 403);
+  assert.equal((await h.get(`/admin/pricing/reprice/runs/99999/undo`)).res.status, 404);
+  assert.equal((await h.post(`/admin/pricing/reprice/runs/99999/undo`, {})).res.status, 404);
 });
 
 test("a copy locked by another transaction is skipped, not waited for, and is picked up by the next run", async () => {
@@ -244,7 +365,7 @@ test("a copy locked by another transaction is skipped, not waited for, and is pi
     await other.query("BEGIN");
     await other.query("SELECT id FROM book_copies WHERE id = $1 FOR UPDATE", [t.ids[0]]); // e.g. a reservation in progress
     const started = Date.now();
-    const result = await reprice.applyGroup(h.pool, "trade", settings, { id: h.admin.id, label: "x" });
+    const result = await reprice.applyGroup(h.pool, "trade", settings, { id: h.admin.id, role: "admin" });
     assert.ok(Date.now() - started < 3000, "did not wait for the lock");
     assert.equal(result.changed, 1);
     assert.equal(await priceOf(t.ids[0]), 8);
@@ -253,7 +374,7 @@ test("a copy locked by another transaction is skipped, not waited for, and is pi
     await other.query("ROLLBACK");
     other.release();
   }
-  const again = await reprice.applyGroup(h.pool, "trade", settings, { id: h.admin.id, label: "x" });
+  const again = await reprice.applyGroup(h.pool, "trade", settings, { id: h.admin.id, role: "admin" });
   assert.equal(again.changed, 1);
   assert.equal(await priceOf(t.ids[0]), 5);
 });
@@ -263,7 +384,7 @@ test("a group is all or nothing: a failure while recording rolls every price bac
   const settings = await require("../../src/lib/pricing/settings").getSettings(h.pool);
   await h.q("ALTER TABLE price_reprice_items RENAME TO price_reprice_items_x");
   try {
-    await assert.rejects(reprice.applyGroup(h.pool, "trade", settings, { id: h.admin.id, label: "x" }));
+    await assert.rejects(reprice.applyGroup(h.pool, "trade", settings, { id: h.admin.id, role: "admin" }));
   } finally {
     await h.q("ALTER TABLE price_reprice_items_x RENAME TO price_reprice_items");
   }
@@ -276,7 +397,7 @@ test("a group is all or nothing: a failure while recording rolls every price bac
 test("CSV: every changed copy with before and after, audited, admin only, and quotes are safe", async () => {
   const [b] = await h.q("INSERT INTO books (title, authors, binding) VALUES ($1, 'A', 'trade') RETURNING id", ['=HYPERLINK("x"), "q"']);
   const [c1] = await h.q("INSERT INTO book_copies (book_id, condition, price, status) VALUES ($1, 'good', 8.5, 'in_stock') RETURNING id", [b.id]);
-  await h.post("/admin/pricing/reprice/trade", {});
+  await confirm("trade");
   const [run] = await runs();
   const res = await h.get(`/admin/pricing/reprice/runs/${run.id}/export.csv`);
   assert.equal(res.res.status, 200);
@@ -294,7 +415,7 @@ test("CSV: every changed copy with before and after, audited, admin only, and qu
 
 test("the Reprice page lists earlier runs, and the result page shows before and after", async () => {
   const w = await book("trade", [{ price: 8 }]);
-  await h.post("/admin/pricing/reprice/trade", {});
+  await confirm("trade");
   const [run] = await runs();
   const page = await h.get("/admin/pricing/reprice");
   assert.ok(page.text.includes(`/admin/pricing/reprice/runs/${run.id}"`));
@@ -344,4 +465,25 @@ test("a fresh database ends with the new defaults (migrations run in order)", as
   await h.q("DELETE FROM pricing_settings");
   await h.q("INSERT INTO pricing_settings (id) VALUES (1)");
   assert.deepEqual(num(await settingsRow()), { levels: [3, 5, 10], b_price: 10, fallback_trade: 5, fallback_mass_market: 5, fallback_unknown: 5, fallback_hardcover: 12, trade_price: 5, mass_market_price: 5 });
+});
+
+test("migration 090: reprice run labels older than 12 months are erased, newer ones stay until the purge; the admin FK is SET NULL", async () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const sql = fs.readFileSync(path.join(__dirname, "../../migrations/090_privacy_reprice_actor.sql"), "utf8");
+  await h.q("DELETE FROM price_reprice_runs");
+  await h.q(
+    `INSERT INTO price_reprice_runs (group_key, new_price, copies_changed, actor_user_id, actor_label, created_at) VALUES
+       ('trade', 5, 1, $1, 'old-admin@example.test', now() - interval '13 months'),
+       ('trade', 5, 1, $1, 'recent-admin@example.test', now() - interval '2 months')`,
+    [h.admin.id]
+  );
+  await h.pool.query(sql);
+  await h.pool.query(sql); // idempotent
+  const rows = await h.q("SELECT actor_label FROM price_reprice_runs ORDER BY created_at");
+  assert.deepEqual(rows.map((r) => r.actor_label), [null, "recent-admin@example.test"]);
+  const [fk] = await h.q(
+    "SELECT confdeltype::text AS t FROM pg_constraint WHERE conname = 'price_reprice_runs_actor_user_fk'"
+  );
+  assert.equal(fk.t, "n", "ON DELETE SET NULL");
 });

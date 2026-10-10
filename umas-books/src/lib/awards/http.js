@@ -4,6 +4,8 @@
 // tests never touch the network. Secrets (API keys) are scrubbed from any
 // error text before it can reach a log.
 
+const { readBoundedJson } = require("../boundedBody");
+
 const DEFAULT_TIMEOUT_MS = 8000;
 
 function scrub(text, secrets = []) {
@@ -19,10 +21,10 @@ async function requestJson(url, { fetch: fetchFn, method = "GET", headers = {}, 
   try {
     const res = await doFetch(url, { method, headers, body, signal: controller.signal });
     if (!res.ok) return { ok: false, status: res.status, error: `HTTP ${res.status}` };
-    const json = await res.json();
+    const json = await readBoundedJson(res); // over 1 MB: the source failed (caught below)
     return { ok: true, status: res.status, json };
   } catch (err) {
-    const msg = err && err.name === "AbortError" ? "timed out" : scrub(err && err.message, secrets);
+    const msg = err && err.name === "AbortError" ? "timed out" : err && err.name === "BodyTooLargeError" ? "response too large" : scrub(err && err.message, secrets);
     return { ok: false, status: 0, error: msg };
   } finally {
     clearTimeout(timer);

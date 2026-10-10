@@ -156,6 +156,8 @@ s.test("G10 with preview off the banner is gone and the cart shows the prompt to
   has(await ctx.text(), /log in|sign up|create an account/);
 });
 
+const GUEST_PHONE = { width: 375, height: 812, deviceScaleFactor: 2, isMobile: true, hasTouch: true };
+
 // ---- 1C. Books ----
 
 s.test("G11 (must) Browse Books has search, genres, New In carousel", async (ctx) => {
@@ -212,6 +214,55 @@ s.test("G13 genre buttons filter the list and change it when another is chosen",
     assert.equal(await ctx.page.$eval("#bk-genre-list .is-active", (e) => e.getAttribute("aria-pressed")), "true");
   }
   assert.notEqual(seen[0], seen[1], "the results heading changes with the genre");
+});
+
+s.test("G13a (must) on a phone a genre tap or a search is a history step: Back returns to the previous results, and the address can be shared", { viewport: GUEST_PHONE }, async (ctx) => {
+  await ctx.goto("/books.html", "networkidle2");
+  await ctx.page.waitForSelector("#bk-genre-list .bk-genre");
+  const done = () => ctx.page.waitForFunction(() => !/Loading books/.test(document.querySelector("#bk-results-grid").innerText));
+  const search = () => ctx.page.evaluate(() => location.search);
+  const buttons = await ctx.page.$$("#bk-genre-list .bk-genre");
+  assert.equal(await search(), "", "nothing chosen yet: the plain address");
+  await buttons[0].click();
+  await done();
+  assert.match(await search(), /^\?genre=[a-z]+$/, "the genre is in the address");
+  const first = await ctx.page.evaluate(() => ({ search: location.search, title: document.querySelector("#bk-results-title").textContent }));
+  await ctx.page.waitForFunction(() => { const t = document.querySelector("#bk-results").getBoundingClientRect().top; return t >= -5 && t < 250; }, { timeout: 5000 }); // the results were scrolled to the top of the screen
+  const buttonsAgain = await ctx.page.$$("#bk-genre-list .bk-genre");
+  await buttonsAgain[buttonsAgain.length - 1].click();
+  await done();
+  const second = await ctx.page.evaluate(() => ({ search: location.search, title: document.querySelector("#bk-results-title").textContent }));
+  assert.notEqual(second.search, first.search, "a second tap is a second address");
+  assert.notEqual(second.title, first.title);
+  // Back: the first genre's results, its button marked, the title and the address as before.
+  await ctx.page.goBack();
+  await ctx.page.waitForFunction((q) => location.search === q, {}, first.search);
+  await done();
+  assert.equal(await ctx.page.$eval("#bk-results-title", (e) => e.textContent), first.title);
+  assert.equal(await ctx.page.$eval("#bk-genre-list .bk-genre[data-index='0']", (e) => e.getAttribute("aria-pressed")), "true");
+  assert.equal(new URL(ctx.page.url()).pathname, "/books.html", "Back stayed on Browse Books, it did not go to Home");
+  // Back again: the plain page, results hidden.
+  await ctx.page.goBack();
+  await ctx.page.waitForFunction(() => location.search === "");
+  assert.equal(await ctx.page.$eval("#bk-results", (e) => e.hidden), true);
+  // Forward, then the shared address opened fresh shows the same results.
+  await ctx.page.goForward();
+  await ctx.page.waitForFunction((q) => location.search === q, {}, first.search);
+  await ctx.goto(`/books.html${first.search}`, "networkidle2");
+  await done();
+  assert.equal(await ctx.page.$eval("#bk-results-title", (e) => e.textContent), first.title, "a shared address opens on the same results");
+  // A search is a step too, and puts the words back in the box.
+  const book = await stockedBook(ctx);
+  const word = book.title.split(/\s+/).sort((a, b) => b.length - a.length)[0];
+  await ctx.goto("/books.html", "networkidle2");
+  await ctx.page.type("#shop-search-input", word);
+  await ctx.page.keyboard.press("Enter");
+  await ctx.page.waitForSelector("#bk-results-grid .bk-book");
+  assert.equal(await search(), `?q=${encodeURIComponent(word).replace(/%20/g, "+")}`);
+  await ctx.page.waitForFunction(() => { const t = document.querySelector("#bk-results").getBoundingClientRect().top; return t >= -5 && t < 250; }, { timeout: 5000 }); // the results were scrolled to the top of the screen
+  await ctx.goto(`/books.html?q=${encodeURIComponent(word)}`, "networkidle2");
+  await ctx.page.waitForSelector("#bk-results-grid .bk-book");
+  assert.equal(await ctx.page.$eval("#shop-search-input", (i) => i.value), word, "the shared search is back in the box");
 });
 
 s.test("G14 New In arrows and See All New In work", async (ctx) => {
@@ -631,7 +682,6 @@ s.test("G41b (must) a French guest with an English browser and empty localStorag
   has(await ctx.text(), /Votre panier/);
 });
 
-const GUEST_PHONE = { width: 375, height: 812, deviceScaleFactor: 2, isMobile: true, hasTouch: true };
 
 s.test("G41c (must) on a phone the header is compact: logo and icons on one row, a Menu button for the links (Esc and an outside tap close it), EN/FR easy to tap", { viewport: GUEST_PHONE }, async (ctx) => {
   await ctx.goto("/", "networkidle2");
@@ -795,6 +845,8 @@ s.test("G48b the cart survives a reload and the back button", async (ctx) => {
 s.test("G52 logged out, /forum shows the login page", { anon: true }, async (ctx) => {
   await ctx.goto("/forum");
   assert.equal(new URL(ctx.page.url()).pathname, "/login");
+  assert.equal(new URL(ctx.page.url()).searchParams.get("returnTo"), "/forum", "log in leads back to the forum");
+  has(await ctx.text(), /Log in to open the members.? area/);
 });
 
 // Reserving needs an account: "Reserve (free, no commitment)" sends a guest to log in or sign up.

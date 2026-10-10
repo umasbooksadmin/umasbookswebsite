@@ -205,3 +205,53 @@ test("an undecryptable secret does not 500 the login; recovery codes still work"
   const ok = await post(a.jar, "/login/2fa", { code: codes[0] });
   assert.equal(ok.res.status, 302);
 });
+
+// PH-02: on a phone the number pad has no letters, and a recovery code is letters and digits. The
+// code page keeps the number pad for the app code and gives the recovery code its own text box.
+test("the code page has a number-pad box for the app code and a text box for a recovery code", async () => {
+  const admin = await createUser({ admin: true });
+  await enrol(admin);
+  const a = await passwordLogin(admin.email);
+  for (const [lang, label, summary] of [["en", "Recovery code", /Lost your phone\? Use a recovery code instead/], ["fr", "Code de récupération", /Vous avez perdu votre téléphone/]]) {
+    const res = await fetch(`${app.base}/login/2fa`, { headers: { cookie: `${a.jar.header()}; umasbooks_lang=${lang}` } });
+    const html = await res.text();
+    const inputs = [...html.matchAll(/<input[^>]*name="code"[^>]*>/g)].map((m) => m[0]);
+    assert.equal(inputs.length, 2, "two code boxes, in two separate forms (works with no script)");
+    const [app1, rec] = inputs;
+    assert.match(app1, /inputmode="numeric"/);
+    assert.match(app1, /autocomplete="one-time-code"/);
+    assert.doesNotMatch(rec, /inputmode="numeric"/, "the recovery box must allow letters");
+    assert.match(rec, /inputmode="text"/);
+    assert.match(rec, /autocapitalize="characters"/);
+    assert.match(rec, /autocorrect="off"/);
+    assert.match(rec, /spellcheck="false"/);
+    assert.match(html, summary);
+    assert.ok(html.includes(label));
+    assert.equal((html.match(/<form[^>]*action="\/login\/2fa"/g) || []).length, 2);
+  }
+});
+
+test("a recovery code is accepted in lowercase, without the hyphen, or with spaces; an app code with spaces too", async () => {
+  const admin = await createUser({ admin: true });
+  const { codes, secret } = await enrol(admin);
+  const forms = [
+    codes[0].toLowerCase().replace("-", ""),
+    codes[1].replace("-", " ").toLowerCase(),
+    `  ${codes[2].toLowerCase()}  `,
+    codes[3].replace("-", " - "),
+  ];
+  for (const typed of forms) {
+    const a = await passwordLogin(admin.email);
+    const ok = await post(a.jar, "/login/2fa", { code: typed });
+    assert.equal(ok.res.status, 302, `"${typed}" should log in`);
+    assert.equal(ok.location, "/admin");
+  }
+  // used up: the same code in another spelling is refused
+  const b = await passwordLogin(admin.email);
+  assert.equal((await post(b.jar, "/login/2fa", { code: codes[0].toLowerCase().replace("-", "") })).res.status, 303);
+  // an app code typed in two groups, as phones often show it
+  const code = totp.hotp(secret, totp.currentStep() + 1);
+  const c = await passwordLogin(admin.email);
+  const spaced = await post(c.jar, "/login/2fa", { code: `${code.slice(0, 2)} ${code.slice(2, 4)} ${code.slice(4)}` });
+  assert.equal(spaced.res.status, 302);
+});

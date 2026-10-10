@@ -83,7 +83,7 @@ test("guests are sent to /login for every forum page and cannot post", async () 
   for (const p of ["/forum", "/forum/new", "/forum/1"]) {
     const { res } = await get(anon, p);
     assert.equal(res.status, 302, p);
-    assert.equal(res.headers.get("location"), "/login", p);
+    assert.equal(res.headers.get("location"), `/login?returnTo=${encodeURIComponent(p)}`, p);
   }
   for (const [p, f] of [["/forum/new", { title: "Hi", body: "There" }], ["/forum/1/replies", { body: "Hi" }]]) {
     const { res } = await post(anon, p, f);
@@ -97,9 +97,9 @@ test("a logged-in NON-member can't read or post to the forum", async () => {
   const threadsBefore = await threadCount();
   const repliesBefore = await replyCount();
   for (const p of ["/forum", "/forum/new", "/forum/1"]) {
-    const { res } = await get(plainJar, p);
-    assert.equal(res.status, 302, p);
-    assert.equal(res.headers.get("location"), "/", p);
+    const { res, text } = await get(plainJar, p);
+    assert.equal(res.status, 403, p);
+    assert.match(text, /This area is for members/, p);
   }
   const t = await post(plainJar, "/forum/new", { title: "Sneaky", body: "Not a member" });
   assert.equal(t.res.status, 302);

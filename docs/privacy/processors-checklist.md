@@ -113,6 +113,11 @@ Date checked: ____ / ____ / ______ / Done by: ____________
 - **What they get (`src/lib/awards/nyt.js`):** a book's ISBN-13 and our API key, only when `NYT_API_KEY` is set. **No personal data.**
 - **Action for Sharon:** none for the DPA. Keep to their terms (5 requests per minute, 500 per day; the code enforces both).
 
+## Google Books, ISBNdb, BnF (book data by ISBN)
+
+- **What they get (`src/lib/bookLookup.js`, `bookSources.js`):** an ISBN, or a title/author search, sent **by our server** when an admin adds a book (googleapis.com/books, api2.isbndb.com with our API key, catalogue.bnf.fr). **No personal data**: no visitor's browser contacts them. Named in the public privacy policy (section "Who receives your data") together with Wikidata/Wikimedia, the New York Times API and Have I Been Pwned, as services that receive only book or technical data.
+- **Action for Sharon:** none (no personal data). Keep to their terms of use.
+
 ## Open Library / Internet Archive (book data and covers)
 
 - **What they get:** an ISBN or a title/author search when an admin adds a book (`src/lib/bookLookup.js`), and a request for the cover image, both made **by our server** (`src/lib/coverStore.js`). No personal data: the request carries no visitor information. Their server sees the Render server's IP address, not a person's.

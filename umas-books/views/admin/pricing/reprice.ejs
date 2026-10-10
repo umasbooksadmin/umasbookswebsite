@@ -1,6 +1,7 @@
 <%- include('../../partials/admin_header', { title: 'Reprice', active: active, pageTitle: 'Reprice stock', pageSub: 'Move copies already in stock to the new prices. Nothing changes until you confirm a group.' }) %>
 
 <% if (notice) { %><div class="notice-box" role="status"><%= notice %></div><% } %>
+<% if (locals.error) { %><div class="error-box" role="alert"><%= error %></div><% } %>
 <p><a href="/admin/pricing">&larr; Pricing rules</a></p>
 
 <div class="card">
@@ -10,7 +11,7 @@
     <strong>never</strong> clearance copies, new books (their price is fixed by the publisher), copies that are reserved,
     sold, in a cart or held for a book request, and copies with no price. A reservation keeps the price it was made at.
     Every confirmed group is recorded in <a href="/admin/audit">Admin activity</a> and can be downloaded as a CSV
-    of the changes (before and after) so it can be reversed by hand.
+    of the changes (before and after) so it can be reversed by hand. The last run can also be undone from its result page.
   </p>
 </div>
 
@@ -20,25 +21,32 @@
     <% if (!g.count) { %>
       <p class="muted">Nothing to change.</p>
     <% } else { %>
-      <p class="muted small">Showing <%= g.sample.length %> of <%= g.count %>.</p>
-      <div style="overflow-x:auto;">
-        <div class="table-scroll"><table class="ann-table">
-          <thead><tr><th>Book</th><th>Copy</th><th>Price now</th><th>New price</th></tr></thead>
-          <tbody>
-            <% g.sample.forEach(r => { %>
-              <tr>
-                <td><a href="/admin/inventory/<%= r.book_id %>"><%= r.title %></a></td>
-                <td>#<%= r.id %></td>
-                <td>EUR <%= money(r.price) %></td>
-                <td>EUR <%= money(g.target) %></td>
-              </tr>
-            <% }) %>
-          </tbody>
-        </table></div>
-      </div>
-      <form data-confirm="Change the price of <%= g.count %> copies to EUR <%= money(g.target) %>?" method="post" action="/admin/pricing/reprice/<%= g.key %>" style="margin-top:12px;">
+      <p><strong><%= g.raiseCount %></strong> would go <strong>UP</strong> &middot; <strong><%= g.lowerCount %></strong> would go <strong>DOWN</strong> &middot; <strong><%= g.sameCount %></strong> stay the same.</p>
+      <% if (g.raiseCount) { %><p class="muted small">Copies going up include any hand-priced copy that is below the target price (for example a book priced at EUR 3): check the list before confirming.</p><% } %>
+      <% [['UP', g.raiseCount, g.raiseSample], ['DOWN', g.lowerCount, g.lowerSample], ['the same price', g.sameCount, g.sameSample]].forEach(([dir, n, rows]) => { if (!n) return; %>
+        <h3 class="small">Going <%= dir %>: <%= n %> (showing the first <%= rows.length %>)</h3>
+        <div style="overflow-x:auto;">
+          <div class="table-scroll"><table class="ann-table">
+            <thead><tr><th>Book</th><th>Copy</th><th>Price now</th><th>New price</th></tr></thead>
+            <tbody>
+              <% rows.forEach(r => { %>
+                <tr>
+                  <td><a href="/admin/inventory/<%= r.book_id %>"><%= r.title %></a></td>
+                  <td>#<%= r.id %></td>
+                  <td>EUR <%= money(r.price) %></td>
+                  <td>EUR <%= money(g.target) %></td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table></div>
+        </div>
+      <% }) %>
+      <form data-confirm="Change the price of <%= g.count %> copies (<%= g.raiseCount %> up, <%= g.lowerCount %> down) to EUR <%= money(g.target) %>?" method="post" action="/admin/pricing/reprice/<%= g.key %>" style="margin-top:12px;">
         <%- include('../../partials/csrf_field') %>
+        <input type="hidden" name="expectedCount" value="<%= g.count %>">
+        <input type="hidden" name="expectedHash" value="<%= g.hash %>">
         <button class="btn" type="submit">Confirm group <%= g.letter %>: change these <%= g.count %> copies to EUR <%= money(g.target) %></button>
+        <span class="muted small">If the copies changed since this page loaded, nothing is applied and you see a fresh preview.</span>
       </form>
     <% } %>
   </div>

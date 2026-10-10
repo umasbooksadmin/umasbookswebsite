@@ -1,0 +1,216 @@
+name: Nightly inventory export
+
+# Every evening at 21:00 Europe/Paris: a CSV of ALL inventory (one row per
+# copy, plus a small per-book file), emailed to ALERT_TO and stored in the
+# Backblaze B2 bucket under inventory-exports/. Runs on GitHub's own
+# infrastructure, with the same read-only database user as the nightly backup.
+# Columns and format: umas-books/src/lib/inventoryExport.js. Set-up and
+# how to open the file in Excel: docs/runbook.md, "Nightly inventory export".
+#
+# No customer data is in the files (status only: no buyer or reservation-holder
+# names, emails or phones). The CSV is NEVER uploaded as a GitHub Actions
+# artifact and the job log shows counts only, so no inventory data is kept in
+# GitHub storage; it lives in the private bucket and in the emails.
+#
+# Uses only settings that already exist (repository SECRETS DATABASE_URL,
+# BACKUP_S3_KEY_ID, BACKUP_S3_APPLICATION_KEY, GMAIL_USER, GMAIL_APP_PASSWORD;
+# repository VARIABLES BACKUP_S3_BUCKET, BACKUP_S3_ENDPOINT, BACKUP_S3_REGION,
+# ALERT_TO). Nothing new to configure.
+
+on:
+  schedule:
+    # GitHub cron is UTC only. 21:00 Paris is 19:00 UTC in summer (CEST) and
+    # 20:00 UTC in winter (CET): both are scheduled and the first step lets only
+    # the run that falls in the 21:00 hour of Paris go on.
+    - cron: "0 19 * * *"
+    - cron: "0 20 * * *"
+  workflow_dispatch:
+    inputs:
+      ignore_time_check:
+        description: "Run now, even if it is not 21:00 in Paris (use this for a manual run)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: inventory-export
+  cancel-in-progress: false
+
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Only go on at 21:00 in Paris
+        id: gate
+        env:
+          IGNORE: ${{ inputs.ignore_time_check }}
+        run: |
+          hour=$(TZ=Europe/Paris date +%H)
+          if [ "$IGNORE" = "true" ] || [ "$hour" = "21" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Inventory export skipped::It is ${hour}h in Paris, not 21h: the other of the two daily schedules does the export (this one exists for summer/winter time)."
+          fi
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.gate.outputs.run == 'true'
+
+      - name: Check the settings are all present
+        if: steps.gate.outputs.run == 'true'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          BUCKET: ${{ vars.BACKUP_S3_BUCKET }}
+          ENDPOINT: ${{ vars.BACKUP_S3_ENDPOINT }}
+          REGION: ${{ vars.BACKUP_S3_REGION }}
+          KEY_ID: ${{ secrets.BACKUP_S3_KEY_ID }}
+          APP_KEY: ${{ secrets.BACKUP_S3_APPLICATION_KEY }}
+        run: |
+          if [ -z "$DATABASE_URL" ] || [ -z "$BUCKET" ] || [ -z "$ENDPOINT" ] || [ -z "$REGION" ] || [ -z "$KEY_ID" ] || [ -z "$APP_KEY" ]; then
+            echo "::error::Settings are missing. Needed: DATABASE_URL, BACKUP_S3_KEY_ID, BACKUP_S3_APPLICATION_KEY (repository secrets) and BACKUP_S3_BUCKET, BACKUP_S3_ENDPOINT, BACKUP_S3_REGION (repository variables), the same as the nightly backup."
+            exit 1
+          fi
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        if: steps.gate.outputs.run == 'true'
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: umas-books/package-lock.json
+
+      - name: Install the app's runtime dependencies
+        if: steps.gate.outputs.run == 'true'
+        working-directory: umas-books
+        run: npm ci --omit=dev --ignore-scripts
+
+      - name: Export the inventory
+        if: steps.gate.outputs.run == 'true'
+        id: export
+        working-directory: umas-books
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          # Read-only SELECTs. Prints counts and sizes (key=value), never rows.
+          node scripts/export-inventory-csv.js --out "$RUNNER_TEMP/inventory" > "$RUNNER_TEMP/export-counts.txt"
+          cat "$RUNNER_TEMP/export-counts.txt"
+          cat "$RUNNER_TEMP/export-counts.txt" >> "$GITHUB_OUTPUT"
+
+      - name: Upload to Backblaze
+        if: steps.gate.outputs.run == 'true'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_S3_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_APPLICATION_KEY }}
+          AWS_DEFAULT_REGION: ${{ vars.BACKUP_S3_REGION }}
+          # Backblaze's S3 API predates the AWS CLI's newer default checksum
+          # headers; only send/validate them when an operation requires it.
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+          ENDPOINT: ${{ vars.BACKUP_S3_ENDPOINT }}
+          BUCKET: ${{ vars.BACKUP_S3_BUCKET }}
+          DAY: ${{ steps.export.outputs.date }}
+        run: |
+          # The folder name is what the bucket's lifecycle rule matches
+          # (docs/runbook.md, "Nightly inventory export"): do not rename.
+          dir="$RUNNER_TEMP/inventory"
+          for f in "inventory_${DAY}.csv" "inventory_books_${DAY}.csv" "inventory_latest.csv"; do
+            test -s "$dir/$f" || { echo "::error::$f is missing or empty."; exit 1; }
+            aws s3 cp "$dir/$f" "s3://${BUCKET}/inventory-exports/$f" --endpoint-url "$ENDPOINT" --only-show-errors
+          done
+          echo "Uploaded 3 files to ${BUCKET}/inventory-exports/"
+
+      - name: Choose what to attach
+        # Gmail refuses messages over about 25 MB. Beyond 15 MB of CSV (a very
+        # large inventory) only the small per-book file is attached and the
+        # email says where the full file is.
+        if: steps.gate.outputs.run == 'true'
+        id: attach
+        env:
+          DAY: ${{ steps.export.outputs.date }}
+          COPIES_BYTES: ${{ steps.export.outputs.copies_bytes }}
+        run: |
+          dir="$RUNNER_TEMP/inventory"
+          if [ "$COPIES_BYTES" -le 15000000 ]; then
+            echo "files=$dir/inventory_${DAY}.csv,$dir/inventory_books_${DAY}.csv" >> "$GITHUB_OUTPUT"
+            echo "note=" >> "$GITHUB_OUTPUT"
+          else
+            echo "files=$dir/inventory_books_${DAY}.csv" >> "$GITHUB_OUTPUT"
+            echo "note=The per-copy file is too big to email (over 15 MB): download it from Backblaze, folder inventory-exports/, file inventory_latest.csv, or from the admin Inventory page." >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Summary
+        if: steps.gate.outputs.run == 'true'
+        env:
+          DAY: ${{ steps.export.outputs.date }}
+          COPIES: ${{ steps.export.outputs.copies }}
+          IN_STOCK: ${{ steps.export.outputs.in_stock }}
+          RESERVED: ${{ steps.export.outputs.reserved }}
+          SOLD: ${{ steps.export.outputs.sold }}
+          OTHER: ${{ steps.export.outputs.other }}
+          BOOKS: ${{ steps.export.outputs.books }}
+          COPIES_BYTES: ${{ steps.export.outputs.copies_bytes }}
+          BOOKS_BYTES: ${{ steps.export.outputs.books_bytes }}
+        run: |
+          {
+            echo "## Inventory export ${DAY}"
+            echo
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Copies | ${COPIES} (in store ${IN_STOCK}, reserved ${RESERVED}, sold ${SOLD}, other ${OTHER}) |"
+            echo "| Books | ${BOOKS} |"
+            echo "| inventory_${DAY}.csv | ${COPIES_BYTES} bytes |"
+            echo "| inventory_books_${DAY}.csv | ${BOOKS_BYTES} bytes |"
+            echo
+            echo "Stored in Backblaze under inventory-exports/ and emailed. Counts only: no inventory data is shown here or kept in GitHub."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Email the inventory
+        if: steps.gate.outputs.run == 'true'
+        uses: dawidd6/action-send-mail@67ce3558d613188179559c61d3565140cf389968 # v22
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.GMAIL_USER }}
+          password: ${{ secrets.GMAIL_APP_PASSWORD }}
+          subject: "[umas-books] Inventory export ${{ steps.export.outputs.date }} (${{ steps.export.outputs.copies }} copies)"
+          to: ${{ vars.ALERT_TO || 'admin@umasbooks.org' }}
+          from: "Uma's Books Inventory Export <${{ secrets.GMAIL_USER }}>"
+          attachments: ${{ steps.attach.outputs.files }}
+          body: |
+            Here is the inventory of Uma's Books as of ${{ steps.export.outputs.date }}, 21:00 Paris time.
+
+            Copies: ${{ steps.export.outputs.copies }}
+              In store: ${{ steps.export.outputs.in_stock }}
+              Reserved: ${{ steps.export.outputs.reserved }}
+              Sold: ${{ steps.export.outputs.sold }}
+              Other (donated or withdrawn): ${{ steps.export.outputs.other }}
+            Books (titles): ${{ steps.export.outputs.books }}
+
+            Attached: inventory_${{ steps.export.outputs.date }}.csv (one row per copy) and inventory_books_${{ steps.export.outputs.date }}.csv (one row per book, with totals).
+            ${{ steps.attach.outputs.note }}
+
+            To open in Excel (French settings): double-click the file, or in Excel use File > Open. Accents and prices (decimal comma) display correctly. If everything lands in one column, use Data > From Text/CSV and choose delimiter "Semicolon" and encoding "UTF-8".
+
+            The files contain no customer data. A copy of each is stored in Backblaze (private bucket), folder inventory-exports/, and kept for about 90 days. You can also download the current inventory any time from the admin Inventory page: "Download all inventory (CSV)".
+
+            Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+      - name: Alert admin if any step above failed
+        if: failure()
+        uses: dawidd6/action-send-mail@67ce3558d613188179559c61d3565140cf389968 # v22
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.GMAIL_USER }}
+          password: ${{ secrets.GMAIL_APP_PASSWORD }}
+          subject: "[umas-books] Nightly inventory export failed"
+          to: ${{ vars.ALERT_TO || 'admin@umasbooks.org' }}
+          from: "Uma's Books Backup Monitor <${{ secrets.GMAIL_USER }}>"
+          body: |
+            Tonight's inventory export did not complete successfully (or was only partly done: the Backblaze copy may exist without the email, or the other way round).
+
+            Check the failed run for details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+            You can download the current inventory yourself from the admin Inventory page ("Download all inventory (CSV)"). The database backup is a separate job and is not affected.

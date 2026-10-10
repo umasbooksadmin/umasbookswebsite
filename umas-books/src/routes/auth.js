@@ -1,4 +1,5 @@
 const express = require("express");
+const { renderLogoutConfirm } = require("../middleware/csrf");
 const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
 const { limit, ipKey, failureCounts, onlyMarkedFailures } = require("../middleware/rateLimits");
@@ -625,7 +626,9 @@ router.post("/login/2fa", twoFactorLimiter, async (req, res) => {
     const code = String(req.body.code || "").trim();
 
     let accepted = false;
-    if (/^\d{3}\s?\d{3}$/.test(code)) {
+    // An app code is six digits (spaces allowed: "123 456", "12 34 56"); anything else is tried as a
+    // recovery code, which hashRecovery reads in any case, with or without the dash and spaces.
+    if (/^\d{6}$/.test(code.replace(/\s/g, ""))) {
       let secret = null;
       try {
         secret = totp.decryptSecret(user.totp_secret_enc);
@@ -811,6 +814,14 @@ router.post("/account/password", requireAuth, passwordChangeLimiter, async (req,
   await redirectWithFlash(req, res, "/account/password", "changePassword", { notice: req.tr("Password updated.", "Mot de passe mis à jour.") });
 });
 
+// GET /logout never logs anyone out (a link, a prefetch or an image tag must not): it shows the
+// confirm page. Not logged in: nothing to confirm, go home.
+router.get("/logout", (req, res) => {
+  if (!req.session.user) return res.redirect("/");
+  return renderLogoutConfirm(req, res);
+});
+
+// The CSRF middleware has already refused a bad token (it shows the confirm page instead).
 router.post("/logout", (req, res) => {
   req.session.destroy(() => res.redirect("/"));
 });

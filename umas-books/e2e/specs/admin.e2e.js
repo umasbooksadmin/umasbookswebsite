@@ -73,7 +73,11 @@ s.test("A1 (must) admin login asks for the two-step code, then lands on the Dash
   has(text, /Two-step verification/);
   has(text, /Enter the 6-digit code from your authenticator app\./);
   has(text, /Verify/);
-  has(text, /Lost your phone\? Enter one of your recovery codes instead/);
+  has(text, /Lost your phone\? Use a recovery code instead/);
+  // A phone's number pad has no letters: the app code box is numeric, the recovery code box is a text box with its own button.
+  assert.equal(await ctx.page.$eval("#code", (i) => i.getAttribute("inputmode")), "numeric");
+  assert.notEqual(await ctx.page.$eval("#recovery-code", (i) => i.getAttribute("inputmode")), "numeric");
+  assert.equal(await ctx.page.$eval("#recovery-code", (i) => i.getAttribute("autocapitalize")), "characters");
   const { freshCode } = require("../helpers/totp");
   if (!c.totpSecret) ctx.skip("E2E_ADMIN_TOTP_SECRET is not set: only a one-time recovery code was given, which is never spent by the tests");
   await ctx.page.type("#code", await freshCode(c.totpSecret));
@@ -95,7 +99,7 @@ s.test("A5 (must) the two-step page shows it is on, with recovery codes and no w
   has(text, /new recovery codes/);
   assert.equal(await ctx.page.$("form[action='/account/2fa/disable']"), null, "admins have no Turn off option");
 });
-s.manual("A5c using a recovery code to log in, and that it works only once", "spends one of the account's one-time recovery codes");
+s.manual("A5c (must) using a recovery code to log in (typed in lowercase, with or without the dash), and that it works only once", "spends one of the account's one-time recovery codes");
 
 // ---- 5B. Dashboard and menu ----
 
@@ -403,6 +407,8 @@ s.test("A18 (must) the retired Sell in shop address sends you to the Till (nothi
 // ---- 5E. Reports and CSV ----
 
 const REPORTS = ["Inventory on hand", "Aging stock", "Sales over time", "Sell-through by genre", "Membership", "Intake log", "Accounts", "Accounting export", "Book lookup sources used"];
+
+s.manual("A19f Inventory CSV: the Download all inventory button and the nightly email", "the nightly email and the Backblaze copy need GitHub Actions, the mailbox and Backblaze; the download itself is covered by test/integration/inventoryExport.test.js");
 
 s.test("A19 (must) the Reports page lists the reports (nine) and each opens with tables", { as: "admin" }, async (ctx) => {
   await admin(ctx, "/admin/reports");
@@ -1093,3 +1099,6 @@ s.test("A96 the Dashboard tile is Sales this month with a In person, Old online 
 });
 s.manual("A98 admin sessions end after 8 hours idle or 7 days (needs the database to age the session; covered by test/integration/adminSessionTimeouts.test.js)", "waiting 8 hours is left for you, or the integration test, to do");
 s.manual("A97 backdating needs a reason, a basket above EUR 10,000 is refused, a price below asking needs a reason, an expired cart copy can be released", "selling is left for you to do by hand");
+s.manual("A99 till voids by role: card voids and the refund tick need an admin, till-only cash voids are limited and listed (covered by test/integration/tillVoidRules.test.js)", "needs a second, till-only account");
+s.manual("A100 reprice: an exact-count confirmation and an undo of the last run (covered by test/integration/pricingReprice.test.js)", "applying a reprice changes real prices: left for you to do by hand");
+s.manual("A101 blog publish dates are Paris time and bulk publish/draft are audited (covered by test/integration/blogCorrectness.test.js)", "needs waiting for a scheduled date");

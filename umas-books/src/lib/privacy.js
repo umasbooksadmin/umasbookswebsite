@@ -28,6 +28,7 @@ const RETENTION = {
   bookRequestMonths: 12, // book requests nobody closed
   outboxSentDays: 30, // stored copy (recipient, subject, body) of an email that was sent
   outboxFailedDays: 90, // same for an email that could not be sent
+  repriceActorMonths: 12, // a price-reprice run's admin label (new runs store no email; this clears older ones)
   closedRequestDays: 30, // fulfilled/cancelled/expired book requests keep no contact details
 };
 
@@ -132,6 +133,12 @@ async function eraseMember(pool, userId, { client } = {}) {
     if (sessionTable[0].t) {
       await db.query("DELETE FROM session WHERE (sess -> 'user' ->> 'id')::int = $1", [userId]);
     }
+
+    // An administrator's own entries in the admin action log and the reprice
+    // history lose the email they were labelled with (the numeric id stays until
+    // the 12-month purge; the account itself is gone, so it points at nothing).
+    await db.query("UPDATE admin_audit_log SET actor_label = NULL WHERE actor_user_id = $1", [userId]);
+    await db.query("UPDATE price_reprice_runs SET actor_label = NULL WHERE actor_user_id = $1", [userId]);
 
     // Cascades: reset/verification tokens, favorites, RSVPs, volunteer
     // sign-ups. Forum posts and other authored rows keep their text with
@@ -246,6 +253,14 @@ async function purgeExpiredPersonalData(pool, { onStep } = {}) {
     const r = await pool.query(
       `UPDATE admin_audit_log SET detail = NULL
        WHERE detail IS NOT NULL AND at < now() - interval '${RETENTION.auditDetailMonths} months'`
+    );
+    return r.rowCount;
+  });
+
+  await step("repriceActors", async () => {
+    const r = await pool.query(
+      `UPDATE price_reprice_runs SET actor_label = NULL
+       WHERE actor_label IS NOT NULL AND created_at < now() - interval '${RETENTION.repriceActorMonths} months'`
     );
     return r.rowCount;
   });
