@@ -41,6 +41,8 @@
 
   var HEART = '<svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 20s-7-4.4-9.5-8.8C.8 7.8 2.4 4.5 5.8 4c2-.3 3.7.7 4.8 2.4L12 8l1.4-1.6C14.5 4.7 16.2 3.7 18.2 4c3.4.5 5 3.8 3.3 7.2C19 15.6 12 20 12 20z"/></svg>';
 
+  // On a /fr/ page the cards link to /fr/books/12 (assets/site.js decides which paths have a French address).
+  function href(u) { return window.UmasFrHref ? window.UmasFrHref(u) : u; }
   // Smaller copies of a stored cover (routes/img.js: /img/<hash>-w300.jpg, -w450, -w600) so a phone does not
   // download the 600 px file for a 160 px slot. Mirrors lib/imageVariants.js coverSrcset; other addresses get none.
   function coverSrcset(u) {
@@ -61,7 +63,7 @@
       ? '<button type="button" class="favorite-toggle" data-book-id="' + esc(b.id) + '" aria-pressed="false" aria-label="' + esc(t('bk.fav.add', 'Add {t} to favorites').replace('{t}', b.title)) + '">' + HEART + '</button>'
       : '';
     return '<div class="bk-book">' + fav +
-      '<a href="' + esc(b.url) + '">' + cover +
+      '<a href="' + esc(href(b.url)) + '">' + cover +
         '<div class="t">' + esc(b.title) + '</div>' +
         (b.author ? '<div class="a">' + esc(b.author) + '</div>' : '') +
         (price ? '<div class="p">' + esc(price) + '</div>' : '') +
@@ -145,7 +147,7 @@
     try { resultsTitle.focus({ preventScroll: true }); } catch (e) { /* old browser: the scroll is enough */ }
   }
   function drawBooks(books) {
-    if (!books.length) { resultsGrid.innerHTML = '<p class="muted">' + esc(t('bk.empty')) + ' <a href="/request-a-book">' + esc(t('bk.empty.ask')) + '</a></p>'; return; }
+    if (!books.length) { resultsGrid.innerHTML = '<p class="muted">' + esc(t('bk.empty')) + ' <a href="' + esc(href('/request-a-book')) + '">' + esc(t('bk.empty.ask')) + '</a></p>'; return; }
     resultsGrid.innerHTML = books.map(function (b) { return bookCard(b, true); }).join('');
     syncFavorites(resultsGrid);
   }

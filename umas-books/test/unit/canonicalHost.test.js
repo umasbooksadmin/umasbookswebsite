@@ -59,6 +59,18 @@ test("live: a POST (or any non-GET) to another host is 421, never served and nev
   } finally { s.close(); }
 });
 
+test("live: a /fr/ address is French for the 421 text, and a GET keeps /fr/ in the 301", async () => {
+  const s = await boot(LIVE);
+  try {
+    const host = "umas-books-cmvv.onrender.com";
+    assert.match((await s.request("POST", "/fr/contact", host)).body, /^Requête mal adressée/);
+    assert.equal((await s.request("POST", "/fr/contact", host)).status, 421);
+    const r = await s.request("GET", "/fr/books.html?genre=x", host);
+    assert.equal(r.status, 301);
+    assert.equal(r.location, "https://umasbooks.org/fr/books.html?genre=x");
+  } finally { s.close(); }
+});
+
 test("live: never /healthz or the HelloAsso webhook, on any host or method", async () => {
   const s = await boot(LIVE);
   try {

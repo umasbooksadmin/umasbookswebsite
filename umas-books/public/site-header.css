@@ -131,9 +131,17 @@ header.mkt-header .langtoggle button {
   background: none; border: 0; border-bottom: 1px solid transparent; cursor: pointer; padding: 2px 3px; line-height: 1;
   font-family: 'Nunito Sans', 'Nunito Sans Fallback', 'Helvetica Neue', Arial, sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 0.06em; color: var(--ink-soft);
 }
-header.mkt-header .langtoggle button.is-active, header.mkt-header .langtoggle button:hover { color: var(--maroon); border-bottom-color: var(--maroon); }
+/* The toggle is two links on pages that have an English and a French address (see views/partials/mkt_chrome_header.ejs). */
+header.mkt-header .langtoggle a {
+  position: relative; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; text-decoration: none;
+  min-width: 32px; min-height: 32px; border-bottom: 1px solid transparent; padding: 2px 3px; line-height: 1;
+  font-family: 'Nunito Sans', 'Nunito Sans Fallback', 'Helvetica Neue', Arial, sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 0.06em; color: var(--ink-soft);
+}
+header.mkt-header .langtoggle button.is-active, header.mkt-header .langtoggle button:hover,
+header.mkt-header .langtoggle a.is-active, header.mkt-header .langtoggle a:hover { color: var(--maroon); border-bottom-color: var(--maroon); }
 @media (pointer: coarse) {
   header.mkt-header .langtoggle button { min-width: 44px; min-height: 44px; }
+  header.mkt-header .langtoggle a { min-width: 44px; min-height: 44px; }
 }
 header.mkt-header .langtoggle { gap: 4px; }
 /* Menu: from 641px up the links are always shown (the button is hidden); see the phone rules below. */
@@ -238,6 +246,7 @@ header.mkt-header .langtoggle span { color: var(--line); }
   header.mkt-header .h-noscript { max-width: none; padding: 2px 0 4px; }
   header.mkt-header .langtoggle { order: 4; margin: 0; gap: 0; }
   header.mkt-header .langtoggle button { min-width: 44px; min-height: 44px; padding: 0; }
+  header.mkt-header .langtoggle a { min-width: 44px; min-height: 44px; padding: 0; }
   header.mkt-header .langtoggle span { display: none; }
   header.mkt-header .h-nav { order: 3; width: auto; margin: 0 auto 0 0; padding: 0; justify-content: flex-start; flex: 1 1 auto; }
   header.mkt-header .h-menu { display: block; }

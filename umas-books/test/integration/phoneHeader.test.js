@@ -1,7 +1,7 @@
 // The public header after the second front-end review: a compact phone header
 // whose nav is a <details> "Menu" (works without JavaScript, never hidden from
 // keyboard users on a desktop), the one-line preview banner, the og:image choice
-// (cover vs logo), the x-default hreflang, and the books.html no-JavaScript
+// (cover vs logo), the hreflang alternates, and the books.html no-JavaScript
 // leftovers. Port 4287 is reserved for this file.
 
 const { test, before, after } = require("node:test");
@@ -62,7 +62,8 @@ for (const [label, path] of [["app page (book)", () => `/books/${ids.stored}`], 
 test("French header: the Menu button, the nav links and the language toggle are all there", async () => {
   const head = header(await get("/", "fr"));
   assert.match(head, /Parcourir les livres/);
-  assert.match(head, /<button type="button" data-lang="fr" class="is-active" aria-pressed="true">FR<\/button>/);
+  assert.match(head, /<a href="\/fr\/" data-lang="fr" lang="fr" hreflang="fr" class="is-active" aria-current="true">FR<\/a>/);
+  assert.match(head, /<a href="\/" data-lang="en" lang="en" hreflang="en">EN<\/a>/, "EN is a link to the English address");
 });
 
 test("preview banner: a More / Less toggle (a <details>, no JavaScript needed), the full text and the feedback link", async () => {
@@ -89,13 +90,22 @@ test("og:image on a book page: the stored cover (absolute URL), else the logo", 
   }
 });
 
-test("hreflang: only x-default (EN and FR share one URL), on app and marketing pages, none on a noindex page", async () => {
+test("hreflang: en, fr and x-default (English) on app and marketing pages; the canonical is in the page's own language; none on a noindex page", async () => {
   for (const p of [`/books/${ids.stored}`, "/books.html", "/"]) {
+    const en = p;
+    const fr = p === "/" ? "/fr/" : "/fr" + p;
     const html = await get(p);
-    const canonical = (html.match(/<link rel="canonical" href="([^"]+)">/) || [])[1];
-    assert.ok(canonical, `${p}: canonical`);
-    assert.ok(html.includes(`<link rel="alternate" hreflang="x-default" href="${canonical}">`), `${p}: x-default points at the canonical URL`);
-    assert.doesNotMatch(html, /hreflang="(en|fr)/, `${p}: no language pairs (one URL for both languages)`);
+    assert.ok(html.includes(`<link rel="canonical" href="${SITE}${en}">`), `${p}: canonical is the English URL`);
+    assert.ok(html.includes(`<link rel="alternate" hreflang="en" href="${SITE}${en}">`), `${p}: hreflang en`);
+    assert.ok(html.includes(`<link rel="alternate" hreflang="fr" href="${SITE}${fr}">`), `${p}: hreflang fr`);
+    assert.ok(html.includes(`<link rel="alternate" hreflang="x-default" href="${SITE}${en}">`), `${p}: x-default is the English URL`);
+    // The French address and the cookie-French unprefixed page both point at the French canonical.
+    for (const frHtml of [await get(fr), await get(p, "fr")]) {
+      assert.ok(frHtml.includes(`<link rel="canonical" href="${SITE}${fr}">`), `${p}: French canonical is the /fr/ URL`);
+      assert.ok(frHtml.includes(`<link rel="alternate" hreflang="en" href="${SITE}${en}">`), `${p}: French page still lists the English alternate`);
+      assert.ok(frHtml.includes(`<link rel="alternate" hreflang="fr" href="${SITE}${fr}">`));
+      assert.ok(frHtml.includes(`<meta property="og:url" content="${SITE}${fr}">`), `${p}: og:url is the French canonical`);
+    }
   }
   assert.doesNotMatch(await get("/login"), /hreflang/, "login is noindex: no canonical, no hreflang") ;
 });

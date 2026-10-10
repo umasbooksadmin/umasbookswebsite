@@ -125,11 +125,41 @@
     } catch (e) {}
   }
 
+  // The French site lives under /fr/ (src/lib/frUrls.js): the same public pages, always French.
+  // FR_PUBLIC mirrors isPublicPath() there (test/unit/frUrls.test.js keeps them in step); it decides
+  // which links written in the browser (dictionary text, book and event cards) gain the /fr prefix.
+  var FR_PUBLIC = /^\/(?:|(?:about|blog|books|events|programs|immersion|pre-registration|membership|membership-terms|visit|privacy-policy|terms-of-sale|mentions-legales)(?:\.html)?|volunteer\.html|contact|sessions|request-a-book(?:\/sent)?|books\/\d+)\/?$/;
+  function isFrPath(p) { return p === "/fr" || String(p || "").indexOf("/fr/") === 0; }
+  function frHref(href) {
+    var h = String(href || "");
+    // This site's own absolute address (the events API sends them) counts as a local path.
+    if (typeof location !== "undefined" && location.origin && h.indexOf(location.origin + "/") === 0) h = h.slice(location.origin.length);
+    var m = /^([^?#]*)(.*)$/.exec(h);
+    if (!m || m[1].charAt(0) !== "/" || m[1].charAt(1) === "/" || isFrPath(m[1]) || !FR_PUBLIC.test(m[1])) return href;
+    return (m[1] === "/" ? "/fr/" : "/fr" + m[1]) + m[2];
+  }
+  // On a /fr/ page every link to a public page stays under /fr/ (the toggle, which points at the other
+  // language on purpose, is left alone). Called after each dictionary swap and by the scripts that draw cards.
+  function prefixFrLinks(root) {
+    if (!isFrPath(location.pathname)) return;
+    (root || document).querySelectorAll("a[href^='/']").forEach(function (a) {
+      if (a.hasAttribute("data-lang")) return;
+      var h = a.getAttribute("href"), f = frHref(h);
+      if (f !== h) a.setAttribute("href", f);
+    });
+  }
+  window.UmasFrHref = function (href) { return isFrPath(location.pathname) ? frHref(href) : href; };
+  window.UmasPrefixFrLinks = prefixFrLinks;
+  // Test hook (test/unit/frUrls.test.js).
+  if (typeof window !== "undefined") window.__umasFrHref = frHref;
+
   // Which language to start in. A choice the person made (localStorage) wins;
   // then the cookie the server read; then the language the server already
   // rendered into <html lang>; the browser's language is the last resort.
   // Never flip a server-rendered page to the browser's language.
-  function resolveInitialLang(stored, cookie, htmlLang, navLang) {
+  // A /fr/ address is French whatever was stored earlier (src/lib/frUrls.js).
+  function resolveInitialLang(stored, cookie, htmlLang, navLang, pathname) {
+    if (isFrPath(pathname)) return "fr";
     var picks = [stored, cookie, htmlLang];
     for (var i = 0; i < picks.length; i++) {
       var l = String(picks[i] || "").toLowerCase().slice(0, 2);
@@ -182,11 +212,13 @@
         if (attr && v != null) el.setAttribute(attr, v);
       });
     });
-    document.querySelectorAll(".langtoggle button").forEach(function (b) {
+    document.querySelectorAll(".langtoggle [data-lang]").forEach(function (b) {
       var on = b.getAttribute("data-lang") === lang;
       b.classList.toggle("is-active", on);
-      b.setAttribute("aria-pressed", on ? "true" : "false");
+      if (b.tagName === "A") { if (on) b.setAttribute("aria-current", "true"); else b.removeAttribute("aria-current"); }
+      else b.setAttribute("aria-pressed", on ? "true" : "false");
     });
+    prefixFrLinks();
     try { localStorage.setItem(STORE_KEY, lang); } catch (e) {}
     writeLangCookie(lang);
   }
@@ -306,11 +338,24 @@
     // A language chosen earlier (localStorage) must reach the server too:
     // fix a missing or differing cookie so the next request matches.
     if ((stored === "fr" || stored === "en") && readLangCookie() !== stored) writeLangCookie(stored);
-    var initial = resolveInitialLang(stored, readLangCookie(), document.documentElement.lang, navigator.language);
+    var initial = resolveInitialLang(stored, readLangCookie(), document.documentElement.lang, navigator.language, location.pathname);
 
-    document.querySelectorAll(".langtoggle button").forEach(function (b) {
-      b.addEventListener("click", function () {
+    document.querySelectorAll(".langtoggle [data-lang]").forEach(function (b) {
+      b.addEventListener("click", function (ev) {
         var lang = b.getAttribute("data-lang") === "fr" ? "fr" : "en";
+        // A link to the page's other-language address: remember the choice, then let the browser go there
+        // (the address itself says which language it is, so nothing is swapped here). Clicking the language
+        // already shown just stays.
+        if (b.tagName === "A") {
+          try { localStorage.setItem(STORE_KEY, lang); } catch (e) {}
+          writeLangCookie(lang);
+          if (ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.button) return;
+          if (b.getAttribute("href") === location.pathname + location.search || b.classList.contains("is-active")) {
+            ev.preventDefault(); // same address: reload only if the language really changes (server-rendered text)
+            if (lang !== document.documentElement.lang) location.reload();
+          }
+          return;
+        }
         // Pages without a client-side dictionary (book page, cart, login,
         // forms: server-rendered through tr()) can only change language by
         // asking the server again: remember the choice, then reload.

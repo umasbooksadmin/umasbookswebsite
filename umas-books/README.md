@@ -65,6 +65,16 @@ left; [`../docs/i18n-audit.md`](../docs/i18n-audit.md) has the "definition of do
 allow-list rules, and [`../docs/testing/french-review.md`](../docs/testing/french-review.md)
 is the list of screens and emails to read when you review the French.
 
+French also has its own web addresses: every public page exists at `/<page>` (English first; it still
+follows the language cookie / the browser's `Accept-Language`) and at `/fr/<page>` (always French), for
+example `/books.html` and `/fr/books.html`, `/books/12` and `/fr/books/12`, `/` and `/fr/`. Each page's
+`<head>` names both (`canonical`, `hreflang`) and `sitemap.xml` lists both. Admin, cart, login, accounts
+and the forms exist once, unprefixed. The rules live in `src/lib/frUrls.js`; when you add a public page,
+add it to `isPublicPath()` (and to the matching pattern in `assets/site.js`), and keep image/script paths in
+marketing views root-relative (`/assets/...`). `test/integration/frenchUrls.test.js` crawls `/fr/` and fails on a
+link that leaves it. Submitting the sitemap to Google and Bing after launch is in `../docs/runbook.md`
+("Search engines: submit the sitemap").
+
 #### Writing tests that are safe on the shared CI database
 
 With `DATABASE_URL` set (as in CI) there is ONE Postgres database and node

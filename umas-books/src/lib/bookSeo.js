@@ -38,7 +38,8 @@ function bookDescription(book, lang, tr) {
 
 // base: absolute site URL ('' when unknown). Returns { description, ogImage, jsonLd }.
 function buildBookSeo({ book, copies, base, lang, tr }) {
-  const url = base ? `${base.replace(/\/+$/, "")}/books/${book.id}` : undefined;
+  // The page's own address: /fr/books/12 in French (lib/frUrls.js), matching its canonical link.
+  const url = base ? `${base.replace(/\/+$/, "")}${lang === "fr" ? "/fr" : ""}/books/${book.id}` : undefined;
   const image = absoluteUrl(base, book.cover_url);
   const description = bookDescription(book, lang, tr);
 

@@ -49,7 +49,8 @@ const LIST_RE = /\/my-requests\/list\/([a-f0-9]{64})/;
 // Submits the form, waits for the confirmation mail, returns its tokens.
 async function submit(c, fields, opts) {
   const res = await c.post("/request-a-book", fields, opts);
-  assert.equal(res.seeOther, "/request-a-book/sent", "answered with 303 to the thank-you page");
+  const french = /umasbooks_lang=fr/.test(String((opts && opts.headers && opts.headers.cookie) || ""));
+  assert.equal(res.seeOther, french ? "/fr/request-a-book/sent" : "/request-a-book/sent", "answered with 303 to the thank-you page (its /fr/ twin for a French visitor)");
   assert.equal(res.status, 200);
   const mail = await waitFor(() => mailTo(fields.email)[0], { message: "confirmation email" });
   return { res, mail, confirm: tokenIn(mail, CONFIRM_RE), manage: tokenIn(mail, MANAGE_RE) };

@@ -218,7 +218,7 @@ test("server messages are French with the fr cookie and English without", async 
   const bad = { name: "", email: "nope", message: "", topic: "Events" };
   const fr = await post(null, "/contact", bad, "fr");
   assert.equal(fr.status, 303);
-  assert.equal(fr.location, "/contact");
+  assert.equal(fr.location, "/fr/contact", "a French visitor lands on the French address of the page");
   assert.match(fr.text, /Veuillez indiquer votre nom, une adresse e-mail valide et votre message\./);
   assert.match(fr.text, /<option value="Events"[^>]*>Événements<\/option>/);
   const en = await post(null, "/contact", bad, "en");

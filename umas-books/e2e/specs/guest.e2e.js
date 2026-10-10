@@ -736,6 +736,44 @@ s.test("G41e tap targets on a desktop window: carousel dots, footer links and 'T
   assert.deepEqual(small, [], "targets under 24x24 (WCAG 2.2, 2.5.8)");
 });
 
+s.test("G41f (must) French has its own addresses: /fr/ opens in French with no saved language, links stay under /fr/, EN | FR move between the two addresses", { lang: null, browserLang: "en-US" }, async (ctx) => {
+  const book = await stockedBook(ctx);
+  const lang = () => ctx.page.$eval("html", (h) => h.lang);
+  const path = () => new URL(ctx.page.url()).pathname;
+  await ctx.goto("/fr/", "networkidle2");
+  assert.equal(await lang(), "fr", "/fr/ is French although the browser is English and nothing was saved");
+  has(await ctx.text(), /Parcourir les livres/);
+  assert.equal((await ctx.cookies()).find((c) => c.name === "umasbooks_lang").value, "fr", "visiting /fr/ remembers French for the forms and pages that follow");
+  const toggle = await ctx.page.$$eval(".langtoggle a[data-lang]", (as) => as.map((a) => ({ lang: a.dataset.lang, href: a.getAttribute("href"), active: a.classList.contains("is-active") })));
+  assert.deepEqual(toggle, [{ lang: "en", href: "/", active: false }, { lang: "fr", href: "/fr/", active: true }]);
+  assert.equal(await ctx.page.$eval("link[rel='canonical']", (l) => new URL(l.href).pathname), "/fr/");
+  assert.deepEqual(await ctx.page.$$eval("link[rel='alternate'][hreflang]", (ls) => ls.map((l) => l.hreflang).sort()), ["en", "fr", "x-default"]);
+  // The menu and the footer stay on /fr/.
+  const stray = await ctx.page.$$eval("header a[href], footer a[href]", (as) => as.filter((a) => !a.hasAttribute("data-lang")).map((a) => a.getAttribute("href"))
+    .filter((h) => /^\/($|books|events|sessions|contact|privacy-policy|terms-of-sale|mentions-legales|visit|request-a-book)/.test(h)));
+  assert.deepEqual(stray, [], "public links in the header and footer start with /fr");
+  await Promise.all([ctx.page.waitForNavigation({ waitUntil: "domcontentloaded" }), ctx.page.click("header .h-nav a[data-i18n='nav.books']")]);
+  assert.equal(path(), "/fr/books.html");
+  assert.equal(await lang(), "fr");
+  // A book page, and the toggle both ways.
+  await ctx.goto(`/fr/books/${book.id}`, "networkidle2");
+  assert.equal(await lang(), "fr");
+  await Promise.all([ctx.page.waitForNavigation({ waitUntil: "domcontentloaded" }), ctx.page.click(".langtoggle [data-lang='en']")]);
+  assert.equal(path(), `/books/${book.id}`);
+  assert.equal(await lang(), "en", "EN leads to the English address and stays English");
+  await ctx.page.reload({ waitUntil: "domcontentloaded" });
+  assert.equal(await lang(), "en", "English kept after a reload (the choice was stored)");
+  await Promise.all([ctx.page.waitForNavigation({ waitUntil: "domcontentloaded" }), ctx.page.click(".langtoggle [data-lang='fr']")]);
+  assert.equal(path(), `/fr/books/${book.id}`);
+  assert.equal(await lang(), "fr");
+  // Only the public pages exist under /fr/.
+  for (const p of ["/fr/admin", "/fr/cart", "/fr/no-such-page"]) {
+    const res = await ctx.goto(p);
+    assert.equal(res.status(), 404, p);
+    assert.equal(await lang(), "fr", `${p}: the 404 page is French`);
+  }
+});
+
 // ---- 1H. Cookies, language memory, 404 ----
 
 s.test("G42 (must) a fresh visit shows no cookie-consent banner", async (ctx) => {

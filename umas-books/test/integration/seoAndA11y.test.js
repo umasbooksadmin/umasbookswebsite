@@ -69,12 +69,24 @@ test("sitemap.xml lists marketing pages, /sessions, /events and in-stock books o
   assert.match(res.headers.get("cache-control"), /max-age=3600/);
   assert.equal(res.headers.getSetCookie().length, 0, "no session for crawlers");
   const xml = await res.text();
-  assert.match(xml, /<urlset xmlns="http:\/\/www\.sitemaps\.org\/schemas\/sitemap\/0\.9">/);
+  assert.match(xml, /<urlset xmlns="http:\/\/www\.sitemaps\.org\/schemas\/sitemap\/0\.9" xmlns:xhtml="http:\/\/www\.w3\.org\/1999\/xhtml">/);
   const locs = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
   for (const p of ["/", ...MARKETING_PAGES.map((f) => "/" + f), "/sessions", "/events"]) {
     assert.ok(locs.includes(SITE + p), `sitemap lists ${p}`);
   }
+  const esc = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  for (const p of ["/", ...MARKETING_PAGES.map((f) => "/" + f), "/sessions", "/events", "/contact", "/request-a-book", `/books/${inStockId}`]) {
+    const fr = p === "/" ? "/fr/" : "/fr" + p;
+    assert.ok(locs.includes(SITE + fr), `sitemap lists the French twin ${fr}`);
+    for (const loc of [SITE + p, SITE + fr]) {
+      const entry = xml.match(new RegExp(`<url><loc>${esc(loc)}</loc>.*?</url>`))[0];
+      assert.ok(entry.includes(`<xhtml:link rel="alternate" hreflang="en" href="${SITE}${p}"/>`), `${loc}: alternate en`);
+      assert.ok(entry.includes(`<xhtml:link rel="alternate" hreflang="fr" href="${SITE}${fr}"/>`), `${loc}: alternate fr`);
+      assert.ok(entry.includes(`<xhtml:link rel="alternate" hreflang="x-default" href="${SITE}${p}"/>`), `${loc}: alternate x-default`);
+    }
+  }
   assert.ok(locs.includes(`${SITE}/books/${inStockId}`), "in-stock book is listed");
+  assert.ok(!locs.includes(`${SITE}/fr/books/${soldId}`), "nor is its French twin");
   assert.ok(!locs.includes(`${SITE}/books/${soldId}`), "a book with no in-stock copy is not");
   assert.ok(locs.every((l) => l.startsWith(SITE + "/")), "every URL is absolute on the configured base");
   assert.ok(!locs.some((l) => /\/(admin|account|cart|login|signup|api)(\/|$)/.test(l)));

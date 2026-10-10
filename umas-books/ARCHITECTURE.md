@@ -621,12 +621,44 @@ screens stay English). Two languages only: `en` and `fr`.
   only: no session, no DB). `req.lang` is `fr` only when the cookie is exactly
   `fr`; with no cookie, the first `Accept-Language` tag decides (`fr*` is
   French); otherwise `en`. It sets `res.locals.lang` / `htmlLang`,
-  `req.langFromCookie`, `req.tr` and `res.locals.tr`, and replaces the date
+  `req.langFromCookie`, `req.frPrefix`, `req.tr` and `res.locals.tr`, and replaces the date
   helpers in views with French-aware ones (`fr-FR` / `en-GB`, still Europe/Paris;
   also `formatDateLong`, "3 octobre 2026"). `app.locals` dates stay en-GB for
-  non-request callers such as emails. Responses with `Cache-Control: public`
-  get `Vary: Cookie, Accept-Language` (static assets are mounted earlier and
-  untouched).
+  non-request callers such as emails. Every HTML response (and anything marked
+  `Cache-Control: public`) gets `Vary: Accept-Language, Cookie` next to
+  compression's `Accept-Encoding`; redirects do not (static assets are mounted
+  earlier and untouched). Cache-Control itself is left as each route set it.
+- **French addresses (`/fr/`).** The same public pages exist under `/fr/`, always
+  French whatever the cookie or `Accept-Language` say, so search engines (which send
+  neither) can index them. `src/lib/frUrls.js` is the one rule: `isPublicPath()` lists the
+  pages with a twin (`/`, the marketing pages and their extensionless forms, `/contact`,
+  `/events`, `/sessions`, `/request-a-book`, `/books/:id`). The language middleware strips
+  the prefix from `req.url` (so each page's own route answers; `req.originalUrl` keeps
+  `/fr/`), sets `req.frPrefix`, and writes `umasbooks_lang=fr` for a human visitor (not for
+  crawlers). `/fr` 301s to `/fr/`; any other `/fr/...` (admin, cart, login, api, POSTs,
+  typos) matches no route and is a French 404. Unprefixed addresses stay English-first and
+  keep honouring the cookie / `Accept-Language` with no redirect, but their
+  `rel="canonical"` is the language-specific address and every public page carries
+  `hreflang` `en`, `fr` and `x-default` (English) alternates (`res.locals.seoUrls()`, read by
+  both `<head>` partials), `og:locale`, and JSON-LD `inLanguage`. `sitemap.xml` lists both
+  addresses of every page with `xhtml:link` alternates (still empty in preview/staging; the
+  preview `noindex` applies to `/fr/` too). Forms, `/api/` and every private area exist once,
+  unprefixed: a French page posts to the normal URL, and `res.redirect` sends a French
+  visitor to the `/fr/` twin of a public target (permanent 301s only on a `/fr/` request,
+  so a cache never keeps a language-dependent redirect).
+  Links: on a `/fr/` page the server rewrites `<a href="/public-page">` to `/fr/...` after
+  rendering (`prefixLinks()` in `frenchTypography.js` / `pageDictionary.js`; forms, assets and
+  the toggle are left alone), and `assets/site.js` does the same for what it writes in the
+  browser (dictionary text, book and event cards; `test/unit/frUrls.test.js` keeps its copy of
+  the rule in step). Marketing views use root-relative asset paths (`/assets/img/...`) because
+  a relative one would resolve under `/fr/`.
+- **The EN | FR toggle** is two real links (`/x` and `/fr/x`, query string kept) on pages with a
+  twin, so it works without JavaScript; clicking one stores the choice in the cookie and
+  localStorage. Pages without a twin (cart, login, account...) keep two buttons that store the
+  choice and reload. On a `/fr/` address site.js always starts in French, whatever was stored.
+  Without JavaScript the FR link works (the `/fr/` visit writes the cookie) but EN cannot override a French cookie,
+  so the "JavaScript is needed to change language" note stays in the header on every page. A `/fr/` address that
+  is no page (a French 404) gets a toggle whose EN link goes home.
 - **Translate a view:** `<%= tr('English', 'Français') %>`, with placeholders
   `<%= tr('Hello {name}', 'Bonjour {name}', { name: user.displayName }) %>`
   (French falls back to English if empty; `<%= %>` does the HTML escaping).
@@ -680,6 +712,9 @@ screens stay English). Two languages only: `en` and `fr`.
   `--write` refreshes `docs/i18n-audit.md`, which also holds the "definition of done" for a new
   text and the review checklist (`docs/testing/french-review.md`). The admin area, emails to the
   admins and stored content (blog posts, announcements, forum posts, event texts) are out of scope.
+  It also fetches the `/fr/` address of every public page with no language cookie and no `Accept-Language`, and
+  expects the same status and no English text there too (`test/integration/frenchUrls.test.js` covers the links,
+  cookie, redirects and head tags of `/fr/`).
 - **Older per-page net:** `test/helpers/i18nAudit.js` (`visibleText`, `untranslated`,
   shared `ALLOWLIST` for brand names and legal identifiers) reports text that is
   identical in the English and French render of a page, including `aria-label`,

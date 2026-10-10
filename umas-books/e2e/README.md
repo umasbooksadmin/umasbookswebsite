@@ -124,8 +124,8 @@ a dash (skipped, with the reason). At the end:
   logins or because writes are off), **Known** (a known problem, shown but not
   counted as a failure), **Manual** (cannot be automated) and **Total**.
 - `Coverage: automated N / manual M / total T tests`, and a line saying how
-  many steps of the manual script have an automated test. (Full local run: 201
-  automated, 72 manual-only, 273 tests in all.)
+  many steps of the manual script have an automated test. (Full local run: 202
+  automated, 72 manual-only, 274 tests in all.)
 - **FAILED**: each failure with the step id and what was wrong. A screenshot
   and the page's HTML are saved in `e2e/artifacts/` (not committed to git).
 - **Known issues**: tests marked as known problems. If one starts passing, the
@@ -139,8 +139,8 @@ safety guard refused to start.
 
 These need a person (an e-mailed link, a payment, a second person or browser,
 real time passing, or something that would be damaging to automate). They
-appear in the report as skipped tests starting with `manual:`. Of the 219
-steps in the manual script, **163 have an automated test** (some only for part
+appear in the report as skipped tests starting with `manual:`. Of the 220
+steps in the manual script, **164 have an automated test** (some only for part
 of the step) and **56 are manual-only**:
 
 | Why | Steps |

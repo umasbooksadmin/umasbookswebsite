@@ -32,7 +32,7 @@
   }
   function image(p, cls) {
     if (!p.image) return '<div class="' + cls + ' blog-img-none" aria-hidden="true"></div>';
-    return '<div class="' + cls + (p.imageFit === "contain" ? " is-contain" : "") + '"><img src="' + esc(p.image) + '" alt="" loading="lazy"></div>';
+    return '<div class="' + cls + (p.imageFit === "contain" ? " is-contain" : "") + '"><img src="' + esc(/^(\/|[a-z][a-z0-9+.-]*:)/i.test(p.image) ? p.image : "/" + p.image) + '" alt="" loading="lazy"></div>';
   }
   function card(p, l, base) {
     var href = (base || "blog.html") + "?post=" + encodeURIComponent(p.slug);

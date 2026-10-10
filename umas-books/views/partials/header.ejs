@@ -14,7 +14,10 @@ const _siteName = _members ? _t("Uma's Books Members", "Uma’s Books — Espace
 const _title = typeof title !== "undefined" ? title + " — " + _siteName : _siteName;
 const _indexable = !(typeof noindex !== "undefined" && noindex) && !_members;
 const _site = locals.siteUrl ? String(locals.siteUrl).replace(/\/+$/, '') : '';
-const _pageUrl = (_site && locals.canonicalPath) ? _site + locals.canonicalPath : '';
+// Canonical URL in THIS page's language + hreflang alternates (lib/frUrls.js, via the seoUrls local).
+const _seo = typeof locals.seoUrls === 'function' ? locals.seoUrls() : null;
+const _pageUrl = _seo ? _seo.canonical : ((_site && locals.canonicalPath) ? _site + locals.canonicalPath : '');
+const _alternates = _seo ? _seo.alternates : (_pageUrl ? [{ hreflang: 'x-default', href: _pageUrl }] : []);
 const _desc = (typeof description !== "undefined" && description) ? description
   : _t("Uma's Books & Adventures — a community English bookshop in Albi, France: pre-loved English books, English programs and events.", "Uma’s Books & Adventures — une librairie associative anglophone à Albi : livres anglais d’occasion, programmes d’anglais et événements.");
 const _abs = (u) => !u ? '' : /^https?:\/\//i.test(u) ? u : (_site ? _site + (u.charAt(0) === '/' ? '' : '/') + u : '');
@@ -26,8 +29,9 @@ const _defaultImg = !(typeof ogImage !== "undefined" && ogImage);
 <% if (locals.preview || locals.staging) { %><meta name="robots" content="noindex, nofollow">
 <% } else if (!_indexable) { %><meta name="robots" content="noindex">
 <% } %><% if (_indexable) { %><meta name="description" content="<%= _desc %>">
-<% if (_pageUrl) { %><link rel="canonical" href="<%= _pageUrl %>"><link rel="alternate" hreflang="x-default" href="<%= _pageUrl %>">
-<% } %><meta property="og:site_name" content="Uma's Books &amp; Adventures">
+<% if (_pageUrl) { %><link rel="canonical" href="<%= _pageUrl %>">
+<% _alternates.forEach(a => { %><link rel="alternate" hreflang="<%= a.hreflang %>" href="<%= a.href %>">
+<% }) %><% } %><meta property="og:site_name" content="Uma's Books &amp; Adventures">
 <meta property="og:title" content="<%= typeof title !== "undefined" ? title : _siteName %>">
 <meta property="og:description" content="<%= _desc %>">
 <meta property="og:type" content="<%= typeof ogType !== "undefined" && ogType ? ogType : 'website' %>">

@@ -17,7 +17,10 @@ const _path = (typeof canonicalPath !== 'undefined' && canonicalPath) ? canonica
 const _desc = (typeof description !== 'undefined' && description)
   ? description
   : "Uma's Books & Adventures — a community English bookshop in Albi, France.";
-const _pageUrl = _siteUrl ? _siteUrl + _path : '';
+// Canonical URL in THIS page's language + hreflang alternates (lib/frUrls.js, via the seoUrls local).
+const _seo = typeof locals.seoUrls === 'function' ? locals.seoUrls() : null;
+const _pageUrl = _seo ? _seo.canonical : (_siteUrl ? _siteUrl + _path : '');
+const _alternates = _seo ? _seo.alternates : (_pageUrl ? [{ hreflang: 'x-default', href: _pageUrl }] : []);
 const _ogImage = _siteUrl ? _siteUrl + '/assets/img/logo-stamp-1280x720.png' : '';
 const nav = [
   { key: 'home', href: '/', i18n: 'nav.home', label: 'Home' },
@@ -38,8 +41,9 @@ const nav = [
 <meta name="description" content="<%= _desc %>" data-i18n-attr="content:meta.description">
 <% if (locals.preview || locals.staging) { %><meta name="robots" content="noindex, nofollow">
 <% } %>
-<% if (_pageUrl) { %><link rel="canonical" href="<%= _pageUrl %>"><link rel="alternate" hreflang="x-default" href="<%= _pageUrl %>">
-<% } %><meta property="og:site_name" content="Uma's Books &amp; Adventures">
+<% if (_pageUrl) { %><link rel="canonical" href="<%= _pageUrl %>">
+<% _alternates.forEach(a => { %><link rel="alternate" hreflang="<%= a.hreflang %>" href="<%= a.href %>">
+<% }) %><% } %><meta property="og:site_name" content="Uma's Books &amp; Adventures">
 <meta property="og:title" content="<%= title %>" data-i18n-attr="content:meta.title">
 <meta property="og:description" content="<%= _desc %>" data-i18n-attr="content:meta.description">
 <meta property="og:type" content="website">

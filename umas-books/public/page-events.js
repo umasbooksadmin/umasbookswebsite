@@ -41,7 +41,7 @@
           '<div class="ev-meta"><span class="sr-date">' + esc(fmt(e.startsAt, { day: 'numeric', month: 'long' })) + ' · </span>' + esc(meta.join(' · ')) + '</div>' +
           (e.description ? '<p class="ev-desc">' + esc(e.description) + '</p>' : '') +
         '</div>' +
-        '<a class="h-btn" href="' + esc(e.url) + '">' + esc(t('events.signup', 'Sign up')) + ' <span class="arrow" aria-hidden="true">&rarr;</span></a>' +
+        '<a class="h-btn" href="' + esc(window.UmasFrHref ? window.UmasFrHref(e.url) : e.url) + '">' + esc(t('events.signup', 'Sign up')) + ' <span class="arrow" aria-hidden="true">&rarr;</span></a>' +
       '</article>';
     }).join('');
   }

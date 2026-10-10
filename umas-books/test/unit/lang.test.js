@@ -74,10 +74,20 @@ test("middleware: no cookie falls back to the first Accept-Language tag", () => 
   assert.equal(run({ "accept-language": "fr" }).req.langFromCookie, false);
 });
 
-test("middleware: only publicly cacheable responses get Vary", () => {
+test("middleware: HTML and publicly cacheable responses get Vary: Accept-Language, Cookie", () => {
   const { res, resHeaders } = run({}, "public, max-age=60");
   res.writeHead(200);
-  assert.equal(resHeaders.vary, "Cookie, Accept-Language");
+  assert.equal(resHeaders.vary, "Accept-Language, Cookie");
+  const html = run({});
+  html.resHeaders["content-type"] = "text/html; charset=utf-8";
+  html.res.statusCode = 200;
+  html.res.writeHead(200);
+  assert.equal(html.resHeaders.vary, "Accept-Language, Cookie");
+  const redirect = run({});
+  redirect.resHeaders["content-type"] = "text/html; charset=utf-8";
+  redirect.res.statusCode = 301;
+  redirect.res.writeHead(301);
+  assert.equal(redirect.resHeaders.vary, undefined, "a redirect does not depend on the language");
   const other = run({}, "no-store");
   other.res.writeHead(200);
   assert.equal(other.resHeaders.vary, undefined);
