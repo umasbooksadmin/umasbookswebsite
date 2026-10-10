@@ -54,7 +54,6 @@ const STUCK_AFTER_MINUTES = 60;
 const STUCK_ALERT_EVERY_MINUTES = 6 * 60;
 const STUCK_FLAG = "outbox-stuck";
 const FAST_PATH_WAIT_MS = 5000;
-const ADVISORY_KEY = 7243902;
 
 // Kinds whose body is a live login/confirmation link. The link is single-use
 // and short-lived, so the body is blanked as soon as the mail is sent.
@@ -297,8 +296,9 @@ async function expireStaleTokenMail(pool) {
   return r.rowCount;
 }
 
-async function claimDue(client, limit) {
-  const { rows } = await client.query(
+// `db` is the pool (or any client): the claim is a single statement.
+async function claimDue(db, limit) {
+  const { rows } = await db.query(
     `UPDATE email_outbox SET next_try_at = now() + ($2 * interval '1 minute')
      WHERE id IN (
        SELECT id FROM email_outbox WHERE status = 'pending' AND next_try_at <= now()
@@ -378,40 +378,36 @@ async function alertStuckEmails(pool) {
   return true;
 }
 
-// The worker tick. Guarded by an advisory lock so only one app instance works
-// the queue at a time (the claim would make it safe anyway; this also keeps a
-// second instance from re-reading the same rows every minute).
+// The worker tick. It holds NO database connection while it talks to SMTP
+// (up to 20 sends of up to 10 s each): every database step is one short
+// statement on the pool, so a slow Gmail cannot take a connection away from
+// web requests. Safe with several instances (and with two ticks in one
+// process): the claim is one UPDATE ... FOR UPDATE SKIP LOCKED that pushes
+// next_try_at a lease ahead (claimDue), so each row goes to exactly one
+// sender. A process that dies after claiming leaves rows 'pending' with the
+// lease running; they are claimed again when it ends (LEASE_MINUTES).
 async function processOutbox(pool, { limit = BATCH_SIZE } = {}) {
-  const client = await pool.connect();
-  let locked = false;
   const summary = { sent: 0, failed: 0 };
-  try {
-    ({ rows: [{ locked }] } = await client.query("SELECT pg_try_advisory_lock($1) AS locked", [ADVISORY_KEY]));
-    if (!locked) return { skipped: true, ...summary };
-    await expireStaleTokenMail(pool).catch((err) => console.error("Outbox: expiring stale link mail failed:", err.message));
-    const batch = await claimDue(client, limit);
-    let consecutiveFailures = 0;
-    for (let i = 0; i < batch.length; i++) {
-      if (await sendClaimed(pool, batch[i])) {
-        summary.sent++;
-        consecutiveFailures = 0;
-      } else {
-        summary.failed++;
-        // Gmail is refusing everything: stop burning a 10 s timeout per row and
-        // hand the unattempted ones back for the next tick.
-        if (++consecutiveFailures >= 3) {
-          const rest = batch.slice(i + 1).map((r) => r.id);
-          if (rest.length) await client.query("UPDATE email_outbox SET next_try_at = now() WHERE id = ANY($1::bigint[])", [rest]);
-          break;
-        }
+  await expireStaleTokenMail(pool).catch((err) => console.error("Outbox: expiring stale link mail failed:", err.message));
+  const batch = await claimDue(pool, limit);
+  let consecutiveFailures = 0;
+  for (let i = 0; i < batch.length; i++) {
+    if (await sendClaimed(pool, batch[i])) {
+      summary.sent++;
+      consecutiveFailures = 0;
+    } else {
+      summary.failed++;
+      // Gmail is refusing everything: stop burning a 10 s timeout per row and
+      // hand the unattempted ones back for the next tick.
+      if (++consecutiveFailures >= 3) {
+        const rest = batch.slice(i + 1).map((r) => r.id);
+        if (rest.length) await pool.query("UPDATE email_outbox SET next_try_at = now() WHERE id = ANY($1::bigint[])", [rest]);
+        break;
       }
     }
-    await alertFailedEmails(pool).catch((err) => console.error("Outbox failure alert failed:", err.message));
-    await alertStuckEmails(pool).catch((err) => console.error("Outbox stuck-email alert failed:", err.message));
-  } finally {
-    if (locked) await client.query("SELECT pg_advisory_unlock($1)", [ADVISORY_KEY]).catch(() => {});
-    client.release();
   }
+  await alertFailedEmails(pool).catch((err) => console.error("Outbox failure alert failed:", err.message));
+  await alertStuckEmails(pool).catch((err) => console.error("Outbox stuck-email alert failed:", err.message));
   return summary;
 }
 

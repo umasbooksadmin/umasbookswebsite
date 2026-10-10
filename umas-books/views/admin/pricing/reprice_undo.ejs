@@ -1,0 +1,33 @@
+<%- include('../../partials/admin_header', { title: 'Undo reprice run', active: active, pageTitle: 'Undo reprice run', pageSub: 'Put the previous prices back. Nothing changes until you confirm.' }) %>
+
+<p><a href="/admin/pricing/reprice/runs/<%= run.id %>">&larr; Run <%= run.id %></a></p>
+
+<div class="card">
+  <p>Run <%= run.id %> &middot; Group <%= label %> &middot; set <%= run.copies_changed %> copies to EUR <%= money(run.new_price) %> on <%= formatDateTime(run.created_at) %>.</p>
+  <% if (!isLast) { %>
+    <div class="error-box" role="alert">A newer run exists, so this one can no longer be undone here. Undo the newest run first, or use the CSV of this run to correct prices by hand.</div>
+  <% } else if (!undo.count) { %>
+    <p class="muted">Nothing can be restored: every copy of this run has been sold, reserved or changed since (<%= undo.skipped %> left alone).</p>
+  <% } else { %>
+    <p><strong><%= undo.count %></strong> copies go back to their previous price. <strong><%= undo.skipped %></strong> are left alone because they are no longer in stock or no longer at EUR <%= money(run.new_price) %>.</p>
+    <div style="overflow-x:auto;">
+      <div class="table-scroll"><table class="ann-table">
+        <thead><tr><th>Book</th><th>Copy</th><th>Price now</th><th>Back to</th></tr></thead>
+        <tbody>
+          <% undo.sample.forEach(r => { %>
+            <tr><td><%= r.title %></td><td>#<%= r.copy_id %></td><td>EUR <%= money(r.new_price) %></td><td>EUR <%= money(r.old_price) %></td></tr>
+          <% }) %>
+        </tbody>
+      </table></div>
+    </div>
+    <% if (undo.count > undo.sample.length) { %><p class="muted small">Showing the first <%= undo.sample.length %> of <%= undo.count %>.</p><% } %>
+    <form data-confirm="Put the previous price back on <%= undo.count %> copies?" method="post" action="/admin/pricing/reprice/runs/<%= run.id %>/undo" style="margin-top:12px;">
+      <%- include('../../partials/csrf_field') %>
+      <input type="hidden" name="expectedCount" value="<%= undo.count %>">
+      <input type="hidden" name="expectedHash" value="<%= undo.hash %>">
+      <button class="btn" type="submit">Confirm: restore <%= undo.count %> previous prices</button>
+    </form>
+  <% } %>
+</div>
+
+<%- include('../../partials/admin_footer') %>

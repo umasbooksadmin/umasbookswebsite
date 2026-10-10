@@ -9,6 +9,8 @@ name: Backup freshness check
 # oldest backup is 35 days old); the nightly job writes the first copy at once.
 # Needs the same BACKUP_S3_* repository variables/secrets as the nightly
 # backup, plus GMAIL_USER / GMAIL_APP_PASSWORD for the email.
+# The yearly 10-year copy is not required; a warning (never a failure) is raised from
+# January 2027 if it is missing after 15 January (see the last check below).
 # Encrypted backups (<name>.dump.age) are recognised: the first bytes of the
 # newest object are read (a few bytes, never the whole file) and must be the age
 # header (".age") or the pg_dump header (".dump"). An UNENCRYPTED newest dump
@@ -138,6 +140,45 @@ jobs:
           if [ "$AGE_DAYS" -gt "$MAX_MONTHLY_AGE_DAYS" ]; then
             echo "::error::The newest monthly copy is ${AGE_DAYS} days old (limit ${MAX_MONTHLY_AGE_DAYS}): the 1st-of-the-month copy was not written."
             exit 1
+          fi
+
+      - name: Check the yearly copy (a warning only, from January 2027)
+        # The 10-year copy is written on 2 January (nightly-db-backup.yml). It is NOT required
+        # to exist: this step never fails the job, it only raises a warning annotation when,
+        # after 15 January, there is no yearly/ object dated in the current Paris year.
+        # Not checked before 2027: the system starts in 2026 and has no January behind it.
+        # (A copy made earlier with force_yearly is dated that day and counts for its own year.)
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_S3_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_APPLICATION_KEY }}
+          AWS_DEFAULT_REGION: ${{ vars.BACKUP_S3_REGION }}
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+          ENDPOINT: ${{ vars.BACKUP_S3_ENDPOINT }}
+          BUCKET: ${{ vars.BACKUP_S3_BUCKET }}
+          PREFIX: ${{ vars.BACKUP_S3_PREFIX }}
+        run: |
+          YEAR=$(TZ=Europe/Paris date +%Y)
+          MONTH=$((10#$(TZ=Europe/Paris date +%m)))
+          DAY=$((10#$(TZ=Europe/Paris date +%d)))
+          if [ "$YEAR" -lt 2027 ]; then
+            echo "Before 2027: the yearly copy is not checked yet."
+            exit 0
+          fi
+          if [ "$MONTH" = "1" ] && [ "$DAY" -le 15 ]; then
+            echo "Day $DAY of January: the yearly copy check starts after the 15th."
+            exit 0
+          fi
+          PREFIX="${PREFIX:-store-backups}"
+          PREFIX="${PREFIX%/}"
+          # shellcheck disable=SC2016  # the backticks are JMESPath literals, not shell
+          N=$(aws s3api list-objects-v2 --endpoint-url "$ENDPOINT" --bucket "$BUCKET" \
+                --prefix "${PREFIX}/yearly/umas_books_full_${YEAR}-" --delimiter "/" \
+                --query 'length(Contents || `[]`)' --output text)
+          if [ "${N:-0}" = "0" ]; then
+            echo "::warning title=No yearly backup copy for ${YEAR}::There is no object under ${PREFIX}/yearly/ dated ${YEAR}. The 10-year copy should have been written on 2 January. Run the Nightly database backup workflow with force_yearly ticked (docs/runbook.md, 'Keeping records for 10 years')."
+          else
+            echo "Yearly copy for ${YEAR}: present (${N} object(s))."
           fi
 
       - name: Alert admin if there is no fresh backup

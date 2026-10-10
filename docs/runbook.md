@@ -76,6 +76,8 @@ asks you to. Always change **every** place listed, then check
 | `BACKUP_S3_KEY_ID`, `BACKUP_S3_APPLICATION_KEY` | GitHub **repository secrets** |
 | `BACKUP_AGE_RECIPIENT` (the age **public** key; not a secret) | GitHub **repository variable**. Section ad) |
 | `BACKUP_AGE_IDENTITY` (the age **private** key; optional, not recommended) | GitHub **repository secret**, used only by the monthly restore test. Section ad) |
+| `ACCOUNTING_TO` (optional, not a secret: the treasurer's address, or several separated by commas) | GitHub **repository variable**. Section ae) |
+| `FISCAL_YEAR_START_MONTH` (optional, a number 1-12, default 1 = January) | GitHub **repository variable**. Section ae) |
 | age private key (the file `umas-books-backup-key.txt`) | Your password manager, plus a second copy kept elsewhere (section ad). **Never** in GitHub, Render or the repository, unless you choose the optional `BACKUP_AGE_IDENTITY` |
 
 **DATABASE_URL (the Render database password).** The GitHub copy should be the
@@ -172,8 +174,17 @@ Try in this order:
 1. **Forgot password.** On the login page click the forgot-password link. The
    email goes to the account's address.
 2. **Two-step verification code lost** (applies once two-step verification is
-   live): another admin opens the site > Admin > **Members** > finds the person
-   > **Reset Two-Step**. The person logs in with their password and enrols again.
+   live). First, the person's own **recovery codes**: each admin was shown 10
+   codes once when they turned two-step on (and they are kept in the shared
+   password manager, section w). On the code page they open **Lost your phone?
+   Use a recovery code instead**, type one code in the **Recovery code** box
+   (works on a phone: it is a letters keyboard; capitals or lowercase, with or
+   without the dash and spaces, e.g. `ab3def7gh2` for `AB3DE-F7GH2`) and press
+   **Use this recovery code**. Each code works once; afterwards, at
+   `/account/2fa`, **Get new recovery codes** (needs a current app code) issues
+   a fresh set. If the person has no recovery code left: another admin opens
+   the site > Admin > **Members** > finds the person > **Reset Two-Step**. The
+   person logs in with their password and enrols again.
 3. **The only admin is locked out.** In Render, open the `umas-books` service >
    **Shell** tab, run `psql "$DATABASE_URL"`, then (changing the email):
 
@@ -343,17 +354,19 @@ the UptimeRobot "DOWN" alert) is in section r) "When you receive an alert".
   emails sent by the website's contact form, volunteer sign-up and English
   Immersion pre-registration (subjects start with `Website contact:`,
   `Website volunteer sign-up` and `Website pre-registration:`) are deleted from
-  the admin@umasbooks.org mailbox after 12 months. Nothing does it
-  automatically, and a yearly check would let some emails stay up to 24 months,
-  so do it **every quarter**:
-  1. In Gmail, search `older_than:12m` (to see only the website's emails, use
-     `subject:(Website) older_than:12m`).
+  the admin@umasbooks.org mailbox after 12 months. Gmail cannot be cleaned by the
+  website, so the website **emails a reminder to `ALERT_TO` once a month**
+  (subject "Monthly reminder: delete contact-form emails older than 12 months";
+  job `Contact mailbox reminder`, remembered in `alert_flags`, listed under
+  "Alerts sent" on `/admin/diagnostics/jobs`). When it arrives:
+  1. In Gmail, search `older_than:1y` (to see only the website's emails, use
+     `subject:(Website) older_than:1y`).
   2. Review the list. Keep any conversation that is still ongoing.
   3. Delete the rest (select all, Delete).
   4. Empty the Trash (Gmail > Trash > "Empty Trash now"), or the emails stay
      another 30 days.
   The pre-registration emails hold a child's name and year of birth, so do not
-  skip them.
+  skip them. If no reminder arrives for two months, check the job row.
 - **Backup restore drill (section ad):** decrypt the newest backup on your Mac,
   restore it into a scratch database, look at the counts, delete it. The
   monthly GitHub restore test does *not* decrypt anything unless you gave it the
@@ -689,7 +702,7 @@ service's **Environment** tab):
 | Variable | What it does |
 |---|---|
 | `PRICING_AI` | Set to `1` (or `true`) to switch the online price check on. Needs `ANTHROPIC_API_KEY` to be set too. Remove it (or set `0`) to switch it off: suggestions then use the built-in rules only, which still works. |
-| `PRICING_AI_DAILY_MAX` | Most online lookups per day (Paris time), default `150`. It is counted from the database, so restarting the service does not reset it. `0` stops all lookups. |
+| `PRICING_AI_DAILY_MAX` | Most online lookups per day (Paris time), default `150`. It is counted in the database (one atomic counter, section ae), so restarting the service does not reset it and parallel requests cannot exceed it. `0` stops all lookups. Every lookup also counts against the shared `AI_DAILY_MAX_CALLS` (section ae). |
 | `PRICING_AI_MODEL` | Optional. A different Anthropic model for the check. It must support the web search tool. Leave unset to use the same model as book descriptions. |
 
 Good to know:
@@ -712,8 +725,19 @@ Good to know:
   EUR 5) and C (EUR 8 to EUR 10) one by one. Each confirmed group is one
   transaction, one **Admin activity** row (`pricing.reprice`) and a CSV of
   before/after prices per copy (kept in `price_reprice_items`, so it can be
-  downloaded again from the run page). There is no undo button: to revert, use
-  that CSV (`old_price` column) to set the prices back by hand.
+  downloaded again from the run page).
+  **Confirming is exact:** the Confirm button posts the number of copies and a
+  fingerprint of the copies it previewed; if anything differs when you press it
+  (a copy sold, reserved or newly eligible) nothing is applied and you get a
+  fresh preview. The preview counts copies that go **up**, **down** or stay the
+  same and lists the first 25 of each (group A also raises hand-priced copies
+  below EUR 5 up to EUR 5: check that list). **Undo this run** (button on the
+  result page, newest run only): a preview first, then confirm; it puts the
+  previous price (and suggestion history) back **only** on copies still at the
+  price the run set and still in stock, so a copy sold, reserved or re-priced
+  by hand since is left alone; it is written to Admin activity as
+  `pricing.reprice.undo`. The CSV (`old_price` column) remains for anything
+  the undo left alone.
 - **To start fresh for one book** (its cached online price looks wrong): in the
   database, `DELETE FROM price_lookups WHERE isbn = '<the 13-digit ISBN>';`.
 
@@ -1266,6 +1290,26 @@ hours without any till action**: log in again (and, like admins, after 7 days; s
 "Admin sessions: how long they last"). Remove the access the same way; it
 stops at once. The list shows a **Till** pill; **Reports > Accounts** shows "+ Till".
 
+### Till void rules
+
+A Till-only account has no two-step verification, so voiding is limited for it:
+
+- **Card sales can only be voided by an admin**, and only an admin can tick
+  **I refunded the card** (the Till-only account sees "Only an admin can void a
+  card sale"). Ask an admin; they void it and refund the card on the SumUp
+  reader or app.
+- A Till-only account can void **today's cash sales**, with a reason of at least
+  5 characters, **at most 3 per day each** (Paris day). The 4th is refused with
+  "Ask an admin to void this one". Admins are not limited. To change the number,
+  set the Render environment variable (service > **Environment**)
+  `TILL_MAX_VOIDS_PER_DAY` (default `3`) and save; Render restarts the service.
+- **Every void is visible:** the Dashboard's **Needs attention** lists each void
+  made today (who, time, amount, cash or card, reason; "(till account)" marks
+  a Till-only account), **End of day** has a **Voided sales** table (also in the
+  printed page) and its CSV has the columns **Voided by** and **Voided at (Paris)**;
+  the audit row `till.void` says "by till account" when it was one. There is no
+  daily email of the till today, so look at the Dashboard when you open.
+
 ### "Sell in shop" is retired
 
 The old page (Books & Reservations > Sell in shop) is gone: its address now sends you to the
@@ -1413,6 +1457,7 @@ signal: the Monday test alert (section d) proves the channel works.
 | `Nightly database backup failed` | GitHub, 03:00 UTC | No new backup tonight (older ones are safe) | 1. Open the run link in the email, read the red step. 2. "settings are missing" = a `BACKUP_S3_*` or `DATABASE_URL` secret changed (section b). 3. After the fix: **Actions > Nightly database backup > Run workflow**, confirm green and a new file in Backblaze |
 | `Database backups are NOT encrypted` | GitHub, every Monday while it lasts | The repository variable `BACKUP_AGE_RECIPIENT` is not set, so the dumps in Backblaze are readable by anyone who gets into the bucket | Section ad): do "Set up the encryption" once. The nightly failure email carries the same warning |
 | `No fresh database backup in Backblaze` | GitHub, 09:00 UTC daily | The newest dump is missing, empty, over 36 h old, or (after the 3rd of the month) the monthly copy is over 35 days old. The monthly copy appears on the 1st (and the nightly job also writes one when none exists at all); before the first one, the freshness check shows a notice ("No monthly copy yet"), not a failure | 1. **Actions > Nightly database backup**: is it enabled and green? (GitHub disables schedules after 60 days of repository inactivity or when minutes run out: section t). 2. Run it by hand. 3. Re-run **Backup freshness check** |
+| `Monthly accounting export failed` | GitHub, 1st of the month, 07:00 Paris | The accounting files of last month were not produced or not stored | 1. Open the run link, read the red step. 2. Settings missing = `DATABASE_URL` or a `BACKUP_S3_*` value changed (section b). 3. After the fix: **Actions > Monthly accounting export > Run workflow** (leave the month empty, or type `YYYY-MM`): the files are simply written again |
 | `Backup restore test FAILED` | GitHub, 1st of the month | The newest dump could not be restored or lacks tables or migrations | 1. Open the run, read the red message (it says which table, or "dump is OLDER than the repository"). 2. Run **Nightly database backup** by hand, then **Monthly backup restore test** by hand. 3. Still red: do not trust the backups; ask a developer, and keep a manual dump (section u, step 2) meanwhile |
 | `Error on GET /...` (or POST) | Gmail sender, the site | A page crashed (a 500). At most one per kind of error per 15 minutes | 1. Note the page and the time. 2. Render > **Logs**, search for the same time. 3. If it repeats or is on checkout/login, section a) rollback; otherwise send the text to the developer |
 | `Unhandled rejection` / `Uncaught exception (process restarting)` | Gmail sender | The site hit an unexpected error and may have restarted | 1. Check `/healthz` and Render > **Events** (restart count). 2. Render **Logs** around the time. 3. Repeating = rollback (section a) and call the developer |
@@ -1464,9 +1509,39 @@ success is older than **3 times its interval**.
 
 The jobs: Reservation expiry, Pickup reminders, Membership expiry, Membership
 reconciliation (every 6 h); Order follow-up (6 h); Cart maintenance (10 min);
-Email outbox (1 min); Retention purge and one row per purge step, Image cleanup
+Email outbox (1 min); Order phone cleanup (6 h); Contact mailbox reminder (daily check, one email a month); Retention purge and one row per purge step, Image cleanup
 (daily); Awards check (2 min); Cover backfill (5 min). A row for a job that no
 longer exists stops flagging after 30 days.
+
+### Retention rules (what is kept how long, and which job removes it)
+
+Single table; the code constants are in `src/lib/privacy.js` (`RETENTION`) and
+`src/lib/privacyMaintenance.js`. The public policy and
+`docs/privacy/record-of-processing.md` must say the same; change them together.
+
+| Data | Kept | Removed by |
+|---|---|---|
+| Buyer **phone** on an order | Until the reservation is collected and paid, cancelled or expired; at the latest 30 days after the order was made | Job `Order phone cleanup` (every 6 h, 500 rows per run) |
+| Phone on a held book copy | While the hold lasts; at the latest 30 days | `Order phone cleanup` (and the hold ending clears it at once) |
+| Name + email on a **paid** order, payment records | 10 years (accounting law); the phone is NOT part of this | `Retention purge: accounting` (daily) |
+| Name + email + phone on a **cancelled / expired** (never paid) order | 30 days after the order was made, then anonymised (`Erased`) | `Retention purge: closedOrders` |
+| Contact details on a closed or uncollected book hold | 30 days | `Retention purge: reservationContacts` |
+| Buyer IP on an order | 2 days at most | `Retention purge: clientIps` |
+| Event / class sign-ups | 12 months after the event | `Retention purge: signups` |
+| Book requests | unconfirmed 7 days; open 12 months; closed 30 days | `Retention purge: bookRequests` |
+| Copies of sent emails (outbox) | 30 days (90 if never sent) | `Retention purge: emailOutbox` |
+| Admin action log | 12 months; free-text detail 6 months; administrator's email label cleared on erase | `Retention purge: auditLog`, `auditDetail`, `eraseMember` |
+| Price-reprice run: administrator | Account id + role "admin" only (no email since migration 090); older labels cleared at 12 months | migration 090, `Retention purge: repriceActors` |
+| Unconfirmed accounts / inactive accounts | 7 days / 3 years without login (warned 30 days before) | `unconfirmedAccounts`, `inactivityWarnings`, `inactiveAccounts` |
+| Sessions | Guest 2 h (24 h with a cart); logged in 30 days; admin / till 8 h idle, 7 days at most | session expiry, `Guest session prune`, `lib/adminSession.js` |
+| One-time page state (typed values after a refused form) | 10 minutes; dropped on the next request after that | `lib/flash.js` (`flashHousekeeping`) |
+| Contact / volunteer / pre-registration emails in Gmail | 12 months | **Manual**, prompted by the monthly `Contact mailbox reminder` email |
+| Render platform logs | 14 days on the Pro plan (Render docs: Hobby 7, Pro 14, Scale 30; the workspace is on Pro) | Render |
+| Backups | nightly 30 days, monthly 2 years | backup job |
+
+A test (`test/integration/privacyTidyUp.test.js`, "coverage") lists every column
+that can hold a person's data and fails when a new table or column appears
+without a decision (erased and exported, or allowed with a reason).
 
 ## t) GitHub Actions minutes (private repository)
 
@@ -2520,7 +2595,7 @@ belongs to the website itself.
 | Every year (1 October), and straight away if anything leaks | New password for `backup_ro`: `ALTER ROLE backup_ro PASSWORD 'new';` in `psql`, then update the GitHub secret `DATABASE_URL`, run the backup by hand | Render database, GitHub **secret** |
 | After Render restores or recreates the database (and after any change of the owner role) | Re-run the `GRANT` and `ALTER DEFAULT PRIVILEGES` lines for `backup_ro` (box "permission denied for table ..." above; recreate the role first if it is gone), check `has_table_privilege` returns `t`, run the backup by hand | Render database, as the owner role |
 | Every year | New Backblaze application key, update `BACKUP_S3_KEY_ID` and `BACKUP_S3_APPLICATION_KEY` (section b), delete the old key | Backblaze, GitHub **secrets** |
-| Only if someone who held the private key leaves, or it may have leaked | New age key pair (set-up steps 2 to 5 again). **Keep the old private key** as long as old backups exist (up to 2 years for `monthly/`), or re-encrypt those; add the new one to the password manager as a second note | GitHub **variable** |
+| Only if someone who held the private key leaves, or it may have leaked | New age key pair (set-up steps 2 to 5 again). **Keep the old private key** as long as old backups exist (up to 2 years for `monthly/`, **10 years for `yearly/`**: see section ae), or re-encrypt those; add the new one to the password manager as a second note | GitHub **variable** |
 | Every quarter | Restore drill | your Mac |
 
 ### Residual risk, plainly
@@ -2533,6 +2608,99 @@ password, yearly rotation, a private repository, and two-step verification on
 the GitHub accounts: see the end of section f). A leak of the Backblaze keys
 alone no longer exposes the data; a leak of the age **private** key *and* the
 Backblaze keys does.
+
+## ae) Keeping records for 10 years
+
+French accounting records must be kept 10 years. The database backups alone
+cannot do that (they are deleted after 30 days, and monthly ones after 2
+years), so two more things are kept for 10 years. Everything below is automatic;
+the owner steps at the end are done once.
+
+### What is kept where, and for how long
+
+| What | Where in Backblaze | How often | Kept | Encrypted? |
+|---|---|---|---|---|
+| Nightly database dump | `store-backups/full/` | every night, 03:00 UTC | 30 days | yes (age) |
+| Monthly database dump | `store-backups/monthly/` | 1st of the month | 2 years | yes (age) |
+| **Yearly database dump** | `store-backups/yearly/umas_books_full_YYYY-MM-DD.dump.age` | 2 January (Paris date), once a year | **10 years** | yes (age), the same file as that night's dump |
+| **Monthly accounting export** | `accounting-exports/YYYY/accounting_YYYY-MM.csv`, `till_days_YYYY-MM.csv`, `summary_YYYY-MM.txt` | 1st of the month, 07:00 Paris: the previous month | **10 years** | **no**, on purpose: no personal data, readable without any key |
+| **Yearly accounting export** | `accounting-exports/YYYY/accounting_YYYY-full-year.csv` (plus `till_days_` and `summary_` of the same name) | 2 January: the whole previous year | **10 years** | no |
+
+The accounting export is the same file as **Admin > Reports > Accounting
+export** (French Excel format: semicolons, decimal commas). `till_days_...` is
+the end-of-day summary of the till, one row per day (opening float, cash
+counted, difference, totals by method, first and last receipt number, closed
+yes/no). `summary_...` is a short text: totals by account and method, number of
+sales, refunds and voids, receipt number range, days not closed. None of them
+contains a name, an email address or a phone number (the scripts refuse to write
+a file that does). The two CSV files are also **emailed** on the 1st (to
+`ACCOUNTING_TO`, else to `ALERT_TO`): save them in the accounting folder or in
+Paheko. If last month is before October 2026, the email says the figures were
+overstated (the accounting fix of October 2026, PR #265, stopped double counting
+refunded reservations).
+
+If a month's email or storage failed you get a `Monthly accounting export
+failed` email (section r). To redo a month: **Actions > Monthly accounting
+export > Run workflow**, month `YYYY-MM` (empty = last month). Running it again
+overwrites the same files. The same page also exports for a month by hand when
+you need it earlier than the 1st; the current month is refused unless
+"allow_current_month" is ticked (a test only: it is not finished).
+
+**Bootstrap test, once:** **Actions > Nightly database backup > Run workflow >
+tick `force_yearly`**. It makes tonight's dump as usual, then also writes
+`store-backups/yearly/umas_books_full_<today>.dump.age` and the accounting
+export of the previous year (probably empty: the system started in 2026; you get
+an email with only the header rows). This proves the path works before the real
+one on 2 January 2027. A forced copy is labelled with the date it was made and
+is kept 10 years like the others.
+
+The Backup freshness check does **not** require a yearly copy. From January
+2027, if there is none dated in the current year after 15 January, it adds a
+yellow warning to its run (never a failure, no email).
+
+### Owner steps (once, in this order)
+
+1. **Backblaze lifecycle rules** (a Backblaze **bucket setting**: Buckets > the
+   backup bucket > **Lifecycle Settings** > Use custom lifecycle rules). Add two
+   rules next to the existing two:
+   - File Path `store-backups/yearly/`: *Days Till Hide* `3650`, *Days Till
+     Delete* `1`.
+   - File Path `accounting-exports/`: *Days Till Hide* `3650`, *Days Till
+     Delete* `1`.
+   (If you changed `BACKUP_S3_PREFIX`, use that instead of `store-backups` for
+   the first rule; `accounting-exports/` is always at the top of the bucket.)
+   Without these rules nothing is ever deleted, which is safe but not tidy.
+   Check that the existing `full/` (30) and `monthly/` (730) rules are still there.
+2. **Optional, GitHub repository variable `ACCOUNTING_TO`** (GitHub > the
+   repository > Settings > Secrets and variables > Actions > **Variables** tab >
+   New repository variable): the treasurer's address, or several separated by
+   commas. Not a secret. Unset = the files come to `ALERT_TO` (you).
+3. **Make the age private key survive 10 years.** The yearly dumps can only be
+   read with the private key from section ad). Keep **three** copies: (a) on
+   paper, printed, in a safe or other safe place (the key is a few lines of
+   text; print the file `umas-books-backup-key.txt`, and test that you can type
+   or scan it back); (b) in the password manager; (c) on a USB stick kept apart
+   from the computer. If you ever create a new key pair, **keep the old private
+   key**: yearly dumps stay encrypted to the key that was current on that day.
+   Calendar reminders: **every January** (after the 2nd) check in Backblaze that
+   `store-backups/yearly/` has a file dated that January and that
+   `accounting-exports/<last year>/` has twelve months plus `...-full-year`;
+   **every October** (the yearly rotation day, section ad) do the restore drill
+   with the newest `yearly/` file as well as a recent nightly one.
+4. **Tell the accountant** where the files are: either give them access to the
+   `accounting-exports/` folder in Backblaze (or send them a copy of a year's
+   folder each January), or ask them to save the monthly emails in Paheko, or
+   do it yourself on the 1st. The files are plain and readable for 10 years.
+5. **If the association's financial year is not the calendar year**, tell me
+   which month it starts in and set the repository **variable**
+   `FISCAL_YEAR_START_MONTH` (a number 1-12, for example `7` for a year from
+   July to June). The yearly export on 2 January then exports the most recent
+   financial year that has fully ended (for `7` and January 2027: July 2025 to
+   June 2026, stored as `accounting_2025-full-year.csv`, named after the year in
+   which it starts). Months are not affected: the monthly files are always
+   calendar months. Unset = 1 (the calendar year).
+6. Run the **bootstrap test** above once and read the two emails/files that
+   result.
 
 ## aa) Alphabetical order ignores a leading "The"
 
@@ -2575,3 +2743,107 @@ English text slips into the French version.
 * **Counts**: `cd umas-books && node scripts/i18n-audit.js` prints every page that still has English in
   its French version (should say `TOTAL flagged: 0`); `--write` updates the table in
   `docs/i18n-audit.md`.
+
+## ae) AI limits (daily cap, per-minute limits, lookup and webhook protections)
+
+The paid AI (Anthropic) is used for book descriptions, French translations, genre suggestions, reading a cover photo and the online price
+check. Several limits keep a mistake, a loop or an abuser from running up the bill. Nothing here needs doing day to day.
+
+**The knobs** (Render environment variables: Render dashboard > the `umas-books` service > **Environment**; saving restarts the service)
+
+| Variable | Default | What it does |
+|---|---|---|
+| `AI_DAILY_MAX_CALLS` | `600` | The most Anthropic calls **per Paris calendar day for ALL features together** (descriptions, translations, genres, cover photos, price checks). `0` switches every AI feature off. |
+| `PRICING_AI_DAILY_MAX` | `150` | The most **price checks** per day (a part of the 600 above, so the price check can never use more than its own share). |
+
+**What happens when the daily cap is reached.** The AI calls are skipped, nothing else stops:
+
+- a book still saves (its description stays empty; press **Generate** after midnight, Paris time);
+- the Generate button, the photo scan and the Add a book page say **"Daily AI limit reached (N). Resets at midnight Paris time."**;
+- the report *Book lookup sources used* (Reports) shows the same sentence in a red banner;
+- ONE email goes to the alert address (`ALERT_TO`) the first time it happens each day, with the same instructions as here (alert key `ai-daily-cap`; a
+  mail that could not be sent is tried again by the next refused call);
+- the counter starts again at midnight Paris time.
+
+**To allow more calls** (a busy day, a big batch of books): Render > the `umas-books` service > **Environment** > add or edit `AI_DAILY_MAX_CALLS`
+(for example `1500`) > **Save changes**. Render restarts the service by itself; the new number is used at once, and calls already made today still count.
+To find out whether the number is too small or something is looping, open Reports > *Book lookup sources used*, section **AI usage per day**.
+
+**How it is kept exact.** Each call takes its slot with a single database statement (table `ai_daily_cap`, one row per day and scope), so any number of
+requests at the same moment can never go past the cap. If the database cannot be reached the site counts in memory instead (still capped). No text, title,
+ISBN or person is ever stored in it; rows older than 40 days are deleted by the daily job.
+
+**Other protections that belong with these**
+
+- **10 AI requests a minute per admin** on "Generate description" and on the photo scan (typing an ISBN is not counted). Past that the page says
+  "Too many AI requests: wait a minute and try again." (HTTP 429); wait a minute.
+- **Text length caps** on what is sent to the AI: title 200 characters, author 200, description 2000.
+- **ISBN check digit.** A number whose last digit is wrong (a typo, or a made-up 13-digit number) is refused with "That ISBN is not valid: check the digits"
+  before any catalog or paid ISBNdb request is made. Hyphens and spaces are fine; 979 numbers and ISBN-10 with an X are accepted. The till's barcode
+  scanning is unchanged (it never used this check).
+- **One request for identical concurrent lookups.** Two scans of the same ISBN at the same moment (or the scan page plus a save), or two identical AI
+  requests, share one outside call.
+- **Size limit on catalog answers.** Open Library, Google Books, ISBNdb, Wikidata and the NYT lists are read up to 1 MB (the BnF XML up to 2 MB); a
+  bigger answer is treated as "that source failed" (counted as an error in the lookup statistics) and the other sources carry on.
+- **HelloAsso webhook.** `/webhooks/helloasso` is not signed (HelloAsso offers no signature), so anyone could post fake payments to make the
+  site call HelloAsso's API. Besides the 300-per-5-minutes-per-IP limit: a second webhook for the **same payer email within 60 seconds** does not
+  call HelloAsso again; one check is made at the end of the minute instead, so a real payment (which sends several events in a row) is still
+  verified; and at most **120 checks per 10 minutes** are made for all emails together (the surplus is acknowledged, logged once, and a real payment
+  among it is picked up by the membership reconciliation job, which runs every 6 hours: `/admin/diagnostics/jobs`, "Membership reconciliation"). The
+  counters are in memory (one server process), so a restart only forgets them. Real payments are not affected; the sync itself is idempotent.
+
+## af) Nightly inventory export
+
+**What.** Every evening at **21:00 Paris time** a GitHub workflow (*Nightly inventory export*) exports **all inventory** as a CSV and sends it two ways: **emailed** to the alert addresses (the `ALERT_TO` variable: it should list admin@umasbooks.org and sharonbje@gmail.com, separated by commas) and **stored** in the private Backblaze bucket (the backup bucket), folder `inventory-exports/`:
+
+| File | What |
+|---|---|
+| `inventory_YYYY-MM-DD.csv` | One row per **copy** (the day's file) |
+| `inventory_latest.csv` | The same file, overwritten every night |
+| `inventory_books_YYYY-MM-DD.csv` | One row per **book**, with copy totals (in store, reserved, sold) |
+
+Both dated files are attached to the email (subject `[umas-books] Inventory export YYYY-MM-DD (N copies)`; the body gives the counts). Above 15 MB only the per-book file is attached and the email says where the full one is. The CSV is **not** kept in GitHub (no Actions artifact; the job log shows counts only).
+
+**Columns (per copy):** ISBN-13, ISBN-10, Title, Author(s), Publisher, Year, Binding (Mass Market / Trade / Hardback / Other), Condition (New / Like New / Very Good / Good / Acceptable), Price (EUR), Location, Source, Status (In Store / Reserved / Sold / Donated / Damaged / withdrawn), Date added, Copy ID, Till code (`UB-<copy id>`), Book ID, Genres, Clearance (Yes/No), Publisher price (EUR), Notes, Date sold (when known). The app stores one ISBN per book: the other form is computed from it (an ISBN-10 exists only for 978- numbers). There is no subtitle or language column because the database does not hold them. **No customer data**: no buyer or reservation-holder name, email or phone, only the status. (The *Notes* column is the free-text note an admin typed on the copy: do not type personal data there.)
+
+**Format (one dialect, for French Excel; the same as the accounting export):** UTF-8 with a byte-order mark, **semicolon** separator, **decimal comma** (`4,50`), text in quotes, CRLF line ends, dates as `YYYY-MM-DD` (Paris days). A cell starting with `=`, `+`, `-` or `@` gets a leading apostrophe so Excel cannot run it as a formula.
+
+**Open in Excel (French settings).** Double-click the file, or Excel > File > Open. Accents and prices should look right. If everything is in one column: Data > From Text/CSV, delimiter *Semicolon*, encoding *UTF-8*. Excel may show a long ISBN as `9,78E+12` in a narrow column (widen it), and it drops the leading zero of an ISBN-10 such as `0306406152`; to keep it, import with Data > From Text/CSV and set the column type to *Text*.
+
+**Any time, from the website.** *Inventory* page > **Download all inventory (CSV)** (admins only; the link beside it gives the per-book file). Same columns and format, as of now. Each download is written to *Admin activity* (`inventory.csv`).
+
+**Run it by hand.** GitHub > Actions > *Nightly inventory export* > Run workflow (the box *Run now, even if it is not 21:00 in Paris* is ticked by default). It emails and uploads as usual.
+
+**How the 21:00 works.** GitHub schedules are in UTC, so the workflow is scheduled at 19:00 **and** 20:00 UTC and the first step lets only the run that falls in the 21:00 hour of Paris continue (the other one ends at once, green, with a notice). GitHub can start a scheduled run late (usually minutes); the file then arrives a little after 21:00. A delay of more than an hour skips that night.
+
+**Owner steps (once).** Nothing new to configure: it uses the existing secrets (`DATABASE_URL`, `BACKUP_S3_KEY_ID`, `BACKUP_S3_APPLICATION_KEY`, `GMAIL_USER`, `GMAIL_APP_PASSWORD`, all repository secrets) and variables (`BACKUP_S3_BUCKET`, `BACKUP_S3_ENDPOINT`, `BACKUP_S3_REGION`, `ALERT_TO`, all repository variables). Two checks:
+1. **Repository variable** `ALERT_TO` (Settings > Secrets and variables > Actions > Variables): make sure it lists both addresses, comma-separated. The inventory email goes to the same list as the other alerts.
+2. **Backblaze bucket setting** (Buckets > the backup bucket > Lifecycle Settings > custom rule): File Path `inventory-exports/`, *Days Till Hide* `90`, *Days Till Delete* `1`. Without it the daily files pile up for ever (a few MB a day). `inventory_latest.csv` is rewritten every night, so it always stays recent.
+
+**If it fails.** An email "[umas-books] Nightly inventory export failed" arrives; open the run link. The database user is the same read-only user as the backup: "permission denied" means its SELECT grants need re-running (section ad, *A read-only database user for the backup*; it must be able to read `books` and `book_copies`). Missing Backblaze or Gmail settings are named in the log. Meanwhile the website button gives the current file.
+## ag) Database connections
+
+How many connections to Postgres the site opens, what limits them, and what to do when the log says the pool is saturated.
+
+**The limits.**
+- The Render Postgres plan in `render.yaml` is `1c-2g` (2 GB RAM). Render sets the connection limit from the plan's RAM: **100 simultaneous connections** for a database under 8 GB (200 from 8 GB, 400 from 16 GB, 500 from 32 GB; the old "legacy" plans had 97/197/397). Render does **not** put a connection pooler in front, and when the limit is reached new connections are **refused** (they do not queue). I took these numbers from Render's documentation page "Connecting to Render Postgres" (checked 2026-10); I could not read the live value from the database. To check it yourself: Render dashboard > the database > **Connect** > use the `psql` command, then run `SHOW max_connections;`. Keep about 10 below the number for Postgres's own use.
+- Each app instance has its own pool. During a deploy **two instances overlap** for a minute or two, plus the pre-deploy migration (1 connection), the nightly backup (1) and any `psql` session you have open. With the default of 20 per instance that is about 20 + 20 + 3 = 43 of 100.
+
+**The knobs** (Render environment variables; see section b for where):
+
+| Variable | Default | What it does |
+|---|---|---|
+| `DB_POOL_MAX` | `20` | Most connections ONE instance keeps open. Whole number 2 to 50. Anything else is ignored with a warning in the log (`DB_POOL_MAX="..." is not a whole number from 2 to 50; using 20`), so a typo cannot stop the site. Keep `instances x DB_POOL_MAX` (times 2 during a deploy) well under 100. |
+| `DASHBOARD_COUNTS_CACHE_SECONDS` | `30` on the live site, `0` elsewhere | How long the admin dashboard reuses the book, account, member and unused-image counts (never sales, orders or "needs attention"). `0` = always fresh. |
+
+Fixed in `src/db.js`: wait at most **10 s** for a free connection (then the request fails with "timeout exceeded when trying to connect"), close connections idle for 30 s, end any single query after **30 s** (`statement_timeout`), end a transaction left idle for 30 s. Migrations lift the 30 s limit for their own connection.
+
+**The log line.** If callers have been waiting for a connection for more than 2 seconds, the site writes (at most once a minute) a line like
+
+`DB pool saturated: waiting=4 total=20 idle=0 max=20 (callers have waited 3s for a connection; see docs/runbook.md, "Database connections")`
+
+- `waiting` = requests/jobs queued for a connection right now; `total` = connections open; `idle` = open but free; `max` = `DB_POOL_MAX`.
+- One line during a traffic burst (a mailing, a busy launch hour) is harmless: the queue cleared on its own.
+- Lines every minute for a long time, or users seeing "Something went wrong" with `timeout exceeded when trying to connect` in the logs: something is holding connections or the load is higher than the pool. First look at Render > the service > **Logs** for slow-query or job errors at the same time; then raise `DB_POOL_MAX` one step (for example 20 to 30) if `instances x max x 2` stays under about 90, and redeploy. Raising it is not a cure for a query that never finishes: the 30 s limit ends those.
+
+**What the code does to stay inside the pool** (for developers): the admin dashboard runs its queries at most 3 at a time (`lib/runLimited.js`); the email outbox worker holds **no** connection while it talks to Gmail (it claims rows with one `UPDATE`, sends, and records each result with a short statement; a row whose worker died is picked up again when its 5-minute lease ends); every `pool.connect()` is released in a `finally`. `node scripts/load-dashboard.js` (local database only, not part of CI) fires 30 dashboard requests plus an outbox batch with a slow fake mail server and prints the pool's waiting counts.

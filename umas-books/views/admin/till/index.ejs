@@ -212,19 +212,24 @@
             <td><%= eur(s.total_cents) %><%= s.status === 'voided' ? ' (voided)' : '' %></td>
             <td>
               <a href="/admin/till/sales/<%= s.id %>/receipt" target="_blank" rel="noopener">Receipt</a>
-              <% if (s.status === 'completed' && !summary.closed) { %>
+              <% if (s.status === 'completed' && !summary.closed && s.payment_method === 'card' && !isAdmin) { %>
+                <span class="muted small">Only an admin can void a card sale.</span>
+              <% } else if (s.status === 'completed' && !summary.closed) { %>
                 <details class="till-void"><summary>Void sale</summary>
                   <form data-confirm="Void this sale? The books go back into stock and the sale leaves the day's totals." method="post" action="/admin/till/sales/<%= s.id %>/void">
                     <%- include('../../partials/csrf_field') %>
                     <% if (s.payment_method === 'card') { %><p class="till-err" role="note">This was a card payment: refund it on the SumUp reader or app yourself.</p><% } %>
-                    <label for="reason-<%= s.id %>">Reason (required)</label>
-                    <input id="reason-<%= s.id %>" name="reason" type="text" required maxlength="120" autocomplete="off">
-                    <% if (s.payment_method === 'card') { %><label class="till-beep"><input type="checkbox" name="refundConfirmed" value="1"> I refunded the card</label><% } %>
+                    <% if (!isAdmin) { %><p class="muted small" role="note">Every void is shown to the admins (who, when, how much, why). Voids per day are limited.</p><% } %>
+                    <label for="reason-<%= s.id %>">Reason (required, at least 5 characters)</label>
+                    <input id="reason-<%= s.id %>" name="reason" type="text" required minlength="<%= isAdmin ? 1 : 5 %>" maxlength="120" autocomplete="off">
+                    <% if (s.payment_method === 'card' && isAdmin) { %><label class="till-beep"><input type="checkbox" name="refundConfirmed" value="1"> I refunded the card</label><% } %>
                     <button class="btn btn-small" type="submit">Void this sale and put the books back</button>
                   </form>
                 </details>
               <% } else if (s.status === 'voided') { %><span class="muted small"><%= s.void_reason %></span>
-                <% if (s.payment_method === 'card' && !s.refund_confirmed) { %>
+                <% if (s.payment_method === 'card' && !s.refund_confirmed && !isAdmin) { %>
+                  <span class="till-err">Card refund not confirmed: an admin must do this.</span>
+                <% } else if (s.payment_method === 'card' && !s.refund_confirmed) { %>
                   <form method="post" action="/admin/till/sales/<%= s.id %>/refunded">
                     <%- include('../../partials/csrf_field') %>
                     <input type="hidden" name="back" value="/admin/till">

@@ -20,7 +20,10 @@ test("every workflow that emails sends to the ALERT_TO variable (default admin@u
   for (const f of workflows) {
     for (const m of read(f).matchAll(/^\s*to:\s*(.+)$/gm)) {
       found++;
-      assert.equal(m[1].trim(), "${{ vars.ALERT_TO || 'admin@umasbooks.org' }}", `${f}: ${m[1]}`);
+      // The ONE exception: the accounting files go to the treasurer's ACCOUNTING_TO, falling back to ALERT_TO.
+      const accountingMail = "${{ vars.ACCOUNTING_TO || vars.ALERT_TO || 'admin@umasbooks.org' }}";
+      const ok = m[1].trim() === "${{ vars.ALERT_TO || 'admin@umasbooks.org' }}" || (m[1].trim() === accountingMail && /^(accounting-export-monthly|nightly-db-backup)\.yml$/.test(f));
+      assert.ok(ok, `${f}: ${m[1]}`);
     }
   }
   assert.ok(found >= 6);
@@ -77,7 +80,7 @@ test("README documents every variable render.yaml declares", () => {
 
 test("render.yaml declares the optional API keys and settings as sync:false (a rebuild prompts, nothing is overwritten) and does not touch autoDeploy", () => {
   const y = fs.readFileSync(path.join(repo, "render.yaml"), "utf8");
-  for (const k of ["NYT_API_KEY", "ISBNDB_API_KEY", "GOOGLE_BOOKS_API_KEY", "ANTHROPIC_API_KEY", "PRICING_AI", "PRICING_AI_DAILY_MAX", "PRICING_AI_MODEL", "ADMIN_SESSION_IDLE_HOURS", "ADMIN_SESSION_MAX_DAYS"]) {
+  for (const k of ["NYT_API_KEY", "ISBNDB_API_KEY", "GOOGLE_BOOKS_API_KEY", "ANTHROPIC_API_KEY", "PRICING_AI", "PRICING_AI_DAILY_MAX", "AI_DAILY_MAX_CALLS", "PRICING_AI_MODEL", "ADMIN_SESSION_IDLE_HOURS", "ADMIN_SESSION_MAX_DAYS"]) {
     assert.match(y, new RegExp(`key: ${k}\\n\\s+sync: false`), `${k} is sync:false`);
   }
   assert.ok(!/autoDeploy/.test(y), "render.yaml leaves autoDeploy alone");

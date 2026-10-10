@@ -3,6 +3,7 @@ const { limit } = require("../middleware/rateLimits");
 const { pool } = require("../db");
 const { syncMembershipForEmail } = require("../lib/membership");
 const { scrubPersonalData } = require("../lib/scrub");
+const { getSyncGuard } = require("../lib/webhookGuard");
 
 const router = express.Router();
 
@@ -62,7 +63,9 @@ router.post("/webhooks/helloasso", webhookLimiter, express.json(), async (req, r
     const formType = pick(body, ["data.formType", "data.order.formType"]);
     const payerEmail = pick(body, ["data.payer.email"]);
     if (formType === "Membership" && payerEmail) {
-      await syncMembershipForEmail(pool, payerEmail);
+      // Per-address cooldown + global cap (lib/webhookGuard.js): a forged flood cannot use up HelloAsso's API limits.
+      const email = String(payerEmail).slice(0, 254);
+      await getSyncGuard().request(email, () => syncMembershipForEmail(pool, email));
     } else {
       console.warn("HelloAsso webhook: not a membership payment, ignored:", scrubPersonalData(JSON.stringify(body)).slice(0, 500));
     }

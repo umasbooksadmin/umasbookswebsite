@@ -293,10 +293,20 @@ router.post("/cart/reserve", checkoutLimiter, async (req, res) => {
   if (!name) return refuse(req.tr("Please enter your name.", "Veuillez indiquer votre nom."));
   if (req.body.acceptCgv !== "on") return refuse(req.tr("Please accept the terms of sale to continue.", "Veuillez accepter les conditions générales de vente (CGV) pour continuer."));
 
+  // The price the customer SAW for each book (a hidden field of the cart form): the
+  // reservation is refused, not silently re-priced, when the copy's price under the row
+  // lock differs (lib/cart.js). A missing field falls back to the price just loaded.
+  const priced = items.map((i) => {
+    if (i.kind !== "book") return i;
+    const raw = String(req.body[`seenPrice_${i.copyId}`] ?? "").trim().replace(",", ".");
+    const seen = Number(raw);
+    return raw !== "" && Number.isFinite(seen) && seen > 0 ? { ...i, price: Math.round(seen * 100) / 100 } : i;
+  });
+
   let order;
   try {
     order = await createReservation(pool, {
-      user: account.user, name, phone, items, lang: req.lang, hasDropin: false, acceptedVersion: TERMS_OF_SALE_VERSION,
+      user: account.user, name, phone, items: priced, lang: req.lang, hasDropin: false, acceptedVersion: TERMS_OF_SALE_VERSION,
     });
   } catch (err) {
     if (err.message === "TOO_MANY_RESERVATIONS") {
@@ -304,6 +314,13 @@ router.post("/cart/reserve", checkoutLimiter, async (req, res) => {
     }
     if (err.message === "TOO_MANY_COPIES") {
       return refuse(req.tr(`We can hold at most ${MAX_RESERVED_COPIES} books at a time for one account, counting your other open reservations. Please remove some books from your cart, or collect or cancel a reservation first.`, `Nous pouvons garder au plus ${MAX_RESERVED_COPIES} livres à la fois pour un compte, vos autres réservations en cours comprises. Veuillez retirer des livres de votre panier, ou retirer ou annuler une réservation avant d’en faire une autre.`));
+    }
+    if (err.message === "PRICE_CHANGED") {
+      // Nothing was reserved. The cart page now shows the new price; pressing Reserve again confirms it.
+      const msgs = (err.changes || []).map((c) => req.tr(
+        `The price of "${c.title}" changed to EUR ${c.newPrice.toFixed(2)}, please review your reservation.`,
+        `Le prix de « ${c.title} » est passé à ${c.newPrice.toFixed(2).replace(".", ",")} €, veuillez vérifier votre réservation.`));
+      return refuse(msgs.join(" "));
     }
     if (err.message === "BUSY") {
       return refuse(req.tr("The shop is busy right now. Please try again in a moment.", "La boutique est très sollicitée en ce moment. Veuillez réessayer dans un instant."));

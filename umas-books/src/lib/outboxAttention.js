@@ -2,16 +2,18 @@
 // the email outbox and membership payments (lib/outbox.js, lib/membership.js).
 // Kept out of routes/admin/dashboard.js so that file stays small.
 // Each is a real query; nothing is shown when everything is fine.
+const { runLimited } = require("./runLimited");
+
 async function outboxAttention(db) {
   const { jobAttention } = require("./jobRuns");
-  const [orders, failed, stuck, unmatched, jobs] = await Promise.all([
-    db.query(`SELECT COUNT(*)::int AS n FROM orders
+  const [orders, failed, stuck, unmatched, jobs] = await runLimited([
+    () => db.query(`SELECT COUNT(*)::int AS n FROM orders
               WHERE status = 'reserved' AND confirmation_sent_at IS NULL AND created_at < now() - interval '30 minutes'`),
-    db.query("SELECT COUNT(*)::int AS n FROM email_outbox WHERE status = 'failed'"),
-    db.query(`SELECT COUNT(*)::int AS n FROM email_outbox WHERE status = 'pending' AND created_at < now() - interval '30 minutes'`),
-    db.query("SELECT COUNT(*)::int AS n FROM membership_payments WHERE user_id IS NULL AND unmatched_at IS NOT NULL"),
-    jobAttention(db),
-  ]);
+    () => db.query("SELECT COUNT(*)::int AS n FROM email_outbox WHERE status = 'failed'"),
+    () => db.query(`SELECT COUNT(*)::int AS n FROM email_outbox WHERE status = 'pending' AND created_at < now() - interval '30 minutes'`),
+    () => db.query("SELECT COUNT(*)::int AS n FROM membership_payments WHERE user_id IS NULL AND unmatched_at IS NOT NULL"),
+    () => jobAttention(db),
+  ], 1); // one at a time: the dashboard already runs this beside two other queries
   const items = [];
   if (orders.rows[0].n) items.push({ href: "/admin/orders", text: `${orders.rows[0].n} reservation(s) have no confirmation email sent after 30 minutes. Resend it from the reservations list.` });
   if (failed.rows[0].n) items.push({ href: "/admin/email-outbox", text: `${failed.rows[0].n} email(s) could not be sent after 8 attempts.` });

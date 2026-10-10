@@ -24,6 +24,7 @@
     <button class="btn" type="submit">Show</button>
   </form>
   <p class="muted small">Paris days. Without dates, the last 12 months are shown.</p>
+  <% if (report.slug === 'accounting') { %><p class="muted small">The previous month is also emailed to you on the 1st at 07:00 and stored for 10 years.</p><% } %>
 </div>
 <% } %>
 

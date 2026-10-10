@@ -1,6 +1,7 @@
 const express = require("express");
 const { pool, withTransaction } = require("../db");
 const { requireMember } = require("../middleware/auth");
+const { refuseMembersOnly } = require("../lib/membersOnly");
 const { CHARITY_CATEGORIES, CHARITY_CATEGORIES_FR } = require("../lib/charityCategories");
 const { charityIdeaLimiter } = require("../middleware/rateLimits");
 const { clean, cleanHttpUrl } = require("../lib/validation");
@@ -47,7 +48,7 @@ router.get("/charity", async (req, res) => {
 
   const publiclyVisible = charity && charity.round.visible_to === "everyone";
   if (!publiclyVisible && !isMember) {
-    return res.redirect(user ? "/" : "/login");
+    return refuseMembersOnly(req, res);
   }
 
   const { rows: myIdeas } = user
