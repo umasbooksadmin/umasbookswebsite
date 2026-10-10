@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* global document, getComputedStyle */
+/* global document, getComputedStyle, innerWidth */
 // Phone overflow audit (a developer tool; NOT run in CI or by `npm test`).
 //
 //   node scripts/phone-overflow-audit.js                  all pages, all widths, EN + FR
@@ -7,6 +7,8 @@
 //   node scripts/phone-overflow-audit.js --widths 320,375 --lang en
 //   node scripts/phone-overflow-audit.js --page /admin/orders   only pages whose address contains this text
 //   node scripts/phone-overflow-audit.js --desktop DIR   only save 1280x800 screenshots of every page (compare two runs)
+//   node scripts/phone-overflow-audit.js --targets        instead of overflow: tap targets under 44 px (24 px for links inside running text),
+//                                                         text under 13 px and the header height, grouped by selector (use with --widths/--lang/--only/--page)
 //   node scripts/phone-overflow-audit.js --shots DIR      also saves a screenshot of every page that overflows
 //   node scripts/phone-overflow-audit.js --shots DIR --all-shots   screenshot every page
 //
@@ -43,6 +45,7 @@ const LANGS = String(opt("lang", "en,fr")).split(",");
 const ONLY = opt("only", "all");
 const SHOTS = opt("shots", "");
 const DESKTOP = opt("desktop", ""); // save a 1280 px wide screenshot of every page here (to compare before/after a CSS change), then stop
+const TARGETS = has("targets"); // measure tap targets / small text instead of overflow
 const PAGE_FILTER = opt("page", ""); // only pages whose address contains this text
 
 const LONG_TITLE = "Averyveryveryverylongtitlewithoutanyspacesatallsothatitcannotbreakanywhereandkeepsgoingandgoing".slice(0, 90); // 90 letters, no space
@@ -196,6 +199,82 @@ function measure(iw) {
   return { sw: document.documentElement.scrollWidth, iw, offenders: out.slice(0, 6), clipped: clipped.slice(0, 4) };
 }
 
+// Runs inside the page (--targets). Real hit areas, not just boxes: from the middle of each control it walks outwards
+// with elementFromPoint, so padding, negative-margin and ::after hit areas count and an overlapping neighbour does not.
+function measureTargets() {
+  const own = (el, hit) => !!hit && (hit === el || el.contains(hit) || (hit.closest && el.closest("label") && hit.closest("label") === el.closest("label")));
+  const reach = (el, cx, cy, dx, dy) => { let n = 0; while (n < 30 && own(el, document.elementFromPoint(cx + dx * (n + 1), cy + dy * (n + 1)))) n++; return n; };
+  const name = (el) => `${el.tagName.toLowerCase()}${el.id ? "#" + el.id : ""}${typeof el.className === "string" && el.className ? "." + el.className.trim().split(/\s+/).slice(0, 2).join(".") : ""}`;
+  const small = [];
+  const seen = new Set();
+  const sel = "a[href], button, input:not([type=hidden]), select, textarea, summary, [role=button], [role=tab], label";
+  for (const el0 of document.querySelectorAll(sel)) {
+    let el = el0;
+    if (el.tagName === "LABEL" && !el.querySelector("input[type=checkbox], input[type=radio]") && !(el.control && /checkbox|radio/.test(el.control.type)) && !el.classList.contains("btn")) continue;
+    if (el.tagName === "INPUT" && /checkbox|radio/.test(el.type) && el.labels && el.labels.length) el = [...el.labels].sort((a, b) => b.getBoundingClientRect().height - a.getBoundingClientRect().height)[0];
+    if (seen.has(el)) continue;
+    seen.add(el);
+    const cs = getComputedStyle(el);
+    if (cs.display === "none" || cs.visibility === "hidden" || el.closest("[hidden], [aria-hidden='true'], .visually-hidden, .hp, .skip-link")) continue;
+    if (el.classList.contains("file-input-hidden") || el.matches(".label, span.label")) continue;
+    const det = el.closest("details:not([open])");
+    if (det && !(el.tagName === "SUMMARY" && el.parentElement === det)) continue;
+    let r = el.getBoundingClientRect();
+    if (!(r.width > 0 && r.height > 0)) continue;
+    if (cs.position === "fixed") continue;
+    el.scrollIntoView({ block: "center", inline: "center" });
+    r = el.getBoundingClientRect();
+    if (r.width > innerWidth - 4) { if (r.height >= 44) continue; }
+    // find a point of the control that really hits it
+    let cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    if (!own(el, document.elementFromPoint(cx, cy))) {
+      let ok = false;
+      for (const [fx, fy] of [[0.25, 0.5], [0.75, 0.5], [0.5, 0.25], [0.5, 0.75], [0.15, 0.15]]) {
+        const x = r.left + r.width * fx, y = r.top + r.height * fy;
+        if (own(el, document.elementFromPoint(x, y))) { cx = x; cy = y; ok = true; break; }
+      }
+      if (!ok) continue;
+    }
+    const w = 1 + reach(el, cx, cy, -1, 0) + reach(el, cx, cy, 1, 0);
+    const h = 1 + reach(el, cx, cy, 0, -1) + reach(el, cx, cy, 0, 1);
+    const inline = el.tagName === "A" && /^(inline|contents)$/.test(cs.display) && !!el.closest("p, li, dd, td, label, .muted, .small, .value, address, .error-box, .notice-box, .rich-content");
+    const inText = el.tagName === "A" && !!el.closest("p, li, dd, .muted, .small, .error-box, .notice-box, .rich-content") && !el.closest("nav, .h-nav, footer, .btn") && cs.display !== "block" && cs.display !== "flex";
+    const need = inline || inText ? 24 : 44;
+    const bw = Math.min(r.width, 999), bh = Math.min(r.height, 999);
+    if (inline || inText ? (Math.max(w, bw) < need - 2 || Math.max(h, bh) < need - 2) : (w < need - 2 || h < need - 2)) {
+      small.push({ n: name(el) + (el.tagName === "A" ? " in " + name(el.parentElement) : ""), w: Math.max(w, 0), h: Math.max(h, 0), bw: Math.round(bw), bh: Math.round(bh), need, text: (el.textContent || el.getAttribute("aria-label") || el.value || "").trim().replace(/\s+/g, " ").slice(0, 28) });
+    }
+  }
+  // text under 13 px
+  const tiny = {};
+  for (const el of document.querySelectorAll("body *")) {
+    if (el.closest("svg, script, style, noscript") || !el.childNodes.length) continue;
+    let own = "";
+    for (const c of el.childNodes) if (c.nodeType === 3) own += c.nodeValue;
+    if (!own.trim()) continue;
+    const cs = getComputedStyle(el);
+    if (cs.display === "none" || cs.visibility === "hidden" || el.closest("[hidden], .visually-hidden")) continue;
+    const det = el.closest("details:not([open])");
+    if (det && !(el.closest("summary"))) continue;
+    const b = el.getBoundingClientRect();
+    if (!(b.width > 0 && b.height > 0)) continue;
+    const px = parseFloat(cs.fontSize);
+    if (px < 13) { const k = `${name(el)} ${px}px ${cs.textTransform === "uppercase" ? "UPPER" : ""}`; tiny[k] = (tiny[k] || 0) + 1; }
+  }
+  const skips = [];
+  let prev = 0;
+  for (const h of document.querySelectorAll("h1, h2, h3, h4, h5, h6")) {
+    if (getComputedStyle(h).display === "none") continue;
+    const lv = Number(h.tagName[1]);
+    if (prev && lv > prev + 1) skips.push(`h${prev}->h${lv} "${h.textContent.trim().slice(0, 30)}"`);
+    prev = lv;
+  }
+  const hd = document.querySelector("header.mkt-header");
+  return { skips, small, tiny, header: hd ? Math.round(hd.getBoundingClientRect().height) : null };
+}
+
+const AGG = { small: {}, tiny: {}, header: {}, skips: {} };
+
 async function main() {
   const port = await freePort();
   const secret = (k) => `Aa1!${k}${Math.random().toString(16).slice(2)}${Math.random().toString(16).slice(2)}`;
@@ -267,6 +346,23 @@ async function main() {
               }
             }
             if (res && res.status() >= 400 && res.status() !== 404) { console.log(`HTTP${res.status()} ${g.name} ${p}`); }
+            if (TARGETS) {
+              // a tall viewport so every control can be hit-tested without scrolling
+              // (not for a phone turned sideways: its short screen is what the header rules look at)
+              const full = await page.evaluate(() => document.documentElement.scrollHeight);
+              if (vp.height >= 600) await page.setViewport({ width: vp.width, height: Math.min(Math.max(full + 40, vp.height), 9000), deviceScaleFactor: 1, isMobile: true, hasTouch: true });
+              await new Promise((r) => setTimeout(r, 100));
+              const t = await page.evaluate(measureTargets);
+              await page.setViewport({ width: vp.width, height: vp.height, deviceScaleFactor: 1, isMobile: true, hasTouch: true });
+              checked++;
+              const key = `${g.name}/${lang}/${vp.label}`;
+              AGG.header[`${key} ${p}`] = t.header;
+              if (t.skips.length) AGG.skips[`${key} ${p}`] = t.skips;
+              for (const x of t.small) { const k = `${x.n} [need ${x.need}]`; const a = (AGG.small[k] ||= { n: 0, min: [999, 999], pages: new Set(), text: x.text }); a.n++; a.min = [Math.min(a.min[0], Math.max(x.w, x.bw)), Math.min(a.min[1], Math.max(x.h, x.bh))]; a.pages.add(`${key} ${p}`); }
+              for (const [k, n] of Object.entries(t.tiny)) { const a = (AGG.tiny[k] ||= { n: 0, pages: new Set() }); a.n += n; a.pages.add(`${key} ${p}`); }
+              if (SHOTS && has("all-shots")) await page.screenshot({ path: path.join(SHOTS, `${g.name}-${lang}-${vp.label}-${p.replace(/[^a-z0-9]+/gi, "_")}.png`) }).catch(() => {});
+              continue;
+            }
             const m = await page.evaluate(measure, vp.width);
             checked++;
             const bad = m.sw > m.iw || m.offenders.length || m.clipped.length;
@@ -283,6 +379,19 @@ async function main() {
         }
       }
       await context.close();
+    }
+    if (TARGETS) {
+      console.log("\n## Tap targets too small (min width x min height seen; pages)");
+      for (const [k, a] of Object.entries(AGG.small).sort((x, y) => y[1].n - x[1].n)) console.log(`${String(a.n).padStart(4)}  ${k}  ${a.min[0]}x${a.min[1]}  "${a.text}"  e.g. ${[...a.pages].slice(0, 2).join(" | ")}`);
+      console.log("\n## Text under 13px (element, size, count; pages)");
+      for (const [k, a] of Object.entries(AGG.tiny).sort((x, y) => y[1].n - x[1].n)) console.log(`${String(a.n).padStart(4)}  ${k}  e.g. ${[...a.pages].slice(0, 2).join(" | ")}`);
+      console.log("\n## Heading level jumps");
+      for (const [k, v] of Object.entries(AGG.skips)) console.log(`${k}: ${v.join("; ")}`);
+      console.log("\n## Header height");
+      const hs = {};
+      for (const [k, v] of Object.entries(AGG.header)) { const [, l, w] = k.split(" ")[0].split("/"); const kk = `${l}/${w}`; (hs[kk] ||= new Set()).add(v); }
+      for (const [k, v] of Object.entries(hs)) console.log(`${k}: ${[...v].sort((a, b) => a - b).join(", ")}`);
+      problems = Object.keys(AGG.small).length;
     }
     console.log(`\n# ${checked} page views checked; ${problems} with a problem`);
   } finally {

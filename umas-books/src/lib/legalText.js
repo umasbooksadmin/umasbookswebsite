@@ -44,6 +44,17 @@ const PICKUP = {
   },
 };
 
+// The same without the hold period: the cart already says "We hold your books for 14 days" in
+// NOTHING_PAID_ONLINE right above it, so this line adds only where and when.
+const PICKUP_WHERE = {
+  get en() {
+    return `Pay and collect them at the shop, ${legal.shopStreet("en")}, Albi. ${legal.shopHoursFirm("en")}`;
+  },
+  get fr() {
+    return `Réglez-les et retirez-les à la boutique, ${legal.shopStreet("fr", false)}, Albi. ${legal.shopHoursFirm("fr")}`;
+  },
+};
+
 // Under the cart's "Reserve" button: nothing is paid online.
 const NOTHING_PAID_ONLINE = {
   en: `Nothing is paid online. We hold your books for ${legal.RESERVATION_DAYS} days: come to the shop and pay when you collect them.`,
@@ -69,6 +80,7 @@ function legalFor(lang) {
     bookFriendly: BOOK_FRIENDLY[l],
     gradeNote: GRADE_NOTE[l],
     pickup: PICKUP[l],
+    pickupWhere: PICKUP_WHERE[l],
     nothingPaidOnline: NOTHING_PAID_ONLINE[l],
     vatNotice: vatNotice(),
     priceLine: priceLine(l),
@@ -109,4 +121,4 @@ function fillVat(dict, lang = "en") {
   return out;
 }
 
-module.exports = { NO_RETURNS, BOOK_FRIENDLY, GRADE_NOTE, PICKUP, NOTHING_PAID_ONLINE, vatNotice, priceLine, legalFor, fillVat };
+module.exports = { NO_RETURNS, BOOK_FRIENDLY, GRADE_NOTE, PICKUP, PICKUP_WHERE, NOTHING_PAID_ONLINE, vatNotice, priceLine, legalFor, fillVat };

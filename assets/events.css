@@ -44,7 +44,7 @@
   .ev-item { grid-template-columns: 76px minmax(0, 1fr); gap: 16px 18px; align-items: start; }
   .ev-date { width: 72px; height: 72px; }
   .ev-date .d { font-size: 28px; }
-  .ev-date .m { font-size: 12px; }
+  .ev-date .m { font-size: 13px; }
   .ev-item .h-btn { grid-column: 2; justify-self: start; padding: 11px 20px; font-size: 14px; }
   .ev-title { font-size: 22px; }
 }
