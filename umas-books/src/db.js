@@ -1,5 +1,7 @@
 require("./lib/tz"); // Europe/Paris — see lib/tz.js
 const { Pool } = require("pg");
+const { parsePoolMax } = require("./lib/dbConfig");
+const { createPoolMonitor } = require("./lib/poolMonitor");
 
 if (!process.env.DATABASE_URL) {
   throw new Error("DATABASE_URL is not set");
@@ -16,6 +18,9 @@ if (!process.env.DATABASE_URL) {
 // also verify the server's identity. Real certificate verification would
 // require switching to the external database URL instead (a publicly
 // verifiable certificate, but traffic leaves Render's private network).
+const poolMax = parsePoolMax(process.env.DB_POOL_MAX);
+if (poolMax.warning) console.warn(poolMax.warning);
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.PGSSLMODE === "disable" ? false : { rejectUnauthorized: false },
@@ -25,10 +30,17 @@ const pool = new Pool({
   // failing. Deliberately generous: migrations and the seed run through this
   // same pool (migrate.js lifts statement_timeout for its own connection,
   // since it can block on its advisory lock while another deploy migrates).
-  max: 10,
-  connectionTimeoutMillis: 5000,
+  // max: DB_POOL_MAX (default 20, allowed 2-50; lib/dbConfig.js). Render's
+  // Postgres allows 100 connections and a deploy runs two instances at once.
+  max: poolMax.value,
+  connectionTimeoutMillis: 10000,
   idleTimeoutMillis: 30000,
   statement_timeout: 30000,
+  // No client-side query_timeout: it would also cut migrations and
+  // clearTestData, which deliberately raise statement_timeout for their own
+  // session. statement_timeout (server side) ends a runaway query; keepAlive
+  // makes a dead network path surface as a connection error instead of a hang.
+  keepAlive: true,
   idle_in_transaction_session_timeout: 30000,
 });
 
@@ -41,6 +53,12 @@ const pool = new Pool({
 pool.on("error", (err) => {
   console.error("Idle PostgreSQL client error (client discarded, continuing):", err.message);
 });
+
+// One warning a minute while callers have waited over 2 s for a connection.
+// Not started under tests: the monitor's timer is unref'd, but a test run
+// should stay quiet.
+const poolMonitor = createPoolMonitor(pool);
+if (process.env.NODE_ENV !== "test") poolMonitor.start();
 
 // Shared transaction boilerplate — checkout (lib/cart.js) and the event/
 // volunteer-shift signup routes each used to hand-roll their own
@@ -86,4 +104,4 @@ async function withTransaction(pool, fn) {
   }
 }
 
-module.exports = { pool, withTransaction };
+module.exports = { pool, withTransaction, poolMonitor };
