@@ -14,7 +14,7 @@
 <% if (isAdmin) { %><%- include('partials/forum_moderation', { kind: 'thread', id: thread.id, hidden: !!thread.hidden, code: thread.hidden_code, note: thread.hidden_note }) %><% } %>
 <%- include('partials/forum_report', { kind: 'thread', id: thread.id }) %>
 
-<h3><%= tr('Replies', 'Réponses') %></h3>
+<h2 class="as-h3"><%= tr('Replies', 'Réponses') %></h2>
 <% if (!replies.length) { %>
   <p class="muted"><%= tr('No replies yet.', 'Aucune réponse pour le moment.') %></p>
 <% } %>
@@ -31,7 +31,7 @@
   </div>
 <% }) %>
 
-<h3 id="reply-heading"><%= tr('Add a reply', 'Ajouter une réponse') %></h3>
+<h2 class="as-h3" id="reply-heading"><%= tr('Add a reply', 'Ajouter une réponse') %></h2>
 <form class="stack" method="post" action="/forum/<%= thread.id %>/replies">
   <%- include('partials/csrf_field') %>
   <textarea name="body" aria-labelledby="reply-heading" required></textarea>

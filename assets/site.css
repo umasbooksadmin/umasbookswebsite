@@ -68,9 +68,12 @@ body {
 }
 
 a { color: var(--maroon); }
-a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible {
-  outline: 2px solid var(--maroon); outline-offset: 2px;
-}
+/* Keyboard focus ring, the same rule as umas-books/public/style.css (the app pages): shown only for keyboard use
+   (:focus-visible), 2px near-black outline with a 2px white ring inside it, so it reads on cream, white and on the
+   dark green / terracotta buttons (checked by test/unit/focusContrast.test.js). Fields with their own focus style
+   (.formcard, .mem-form, .preg-form, .bk-search) keep it. */
+:focus-visible { outline: 2px solid #1a1a1a; outline-offset: 2px; box-shadow: 0 0 0 2px #fff; }
+[tabindex="-1"]:focus-visible { outline: none; box-shadow: none; }
 
 /* Lets keyboard/screen-reader users jump past the header's ~11 tab
    stops (logo, 4 nav links, 6 tool icons, language toggle) straight to
@@ -514,3 +517,11 @@ h1, h2, h3, h4, h5, h6, p, li, dt, dd, summary, label, blockquote, figcaption { 
 .wn-title, .wn-excerpt, .ev-title, .ev-desc, .blog-title, .blog-excerpt, .bk-book .t, .bk-book .a { hyphens: auto; hyphenate-limit-chars: 9 4 3; }
 .wn-slide > *, .ev-item > *, .blog-grid > *, .blog-card-link > *, .bk-grid > *, .bk-results > * { min-width: 0; }
 .bk-grid { grid-template-columns: repeat(auto-fill, minmax(min(150px, 100%), 1fr)); }
+
+/* Phones and touch screens: 44px tap targets for the buttons and arrows (the look is the same, only taller). */
+@media (max-width: 700px), (pointer: coarse) {
+  .btn, .btn-submit, .btn-outline, .btn-maroon, .h-btn { min-height: 44px; }
+  .carousel-arrow { width: 44px; height: 44px; }
+  .formcard .check-row { align-items: center; min-height: 44px; }
+  .formcard .check-row input { width: 24px; height: 24px; flex: 0 0 24px; margin: 0; }
+}

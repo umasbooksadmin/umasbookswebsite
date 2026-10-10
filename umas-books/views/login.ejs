@@ -30,6 +30,6 @@ const _emailFocus = !!(error && !locals.typedEmail); %>
     <button class="btn" type="submit"><%= tr('Send me the link again', 'Renvoyer le lien') %></button>
   </form>
 </details>
-<p class="muted small"><a href="/forgot-password"><%= tr('Forgot your password?', 'Mot de passe oublié ?') %></a></p>
+<p class="muted small"><a class="tap-link" href="/forgot-password"><%= tr('Forgot your password?', 'Mot de passe oublié ?') %></a></p>
 
 <%- include('partials/footer') %>

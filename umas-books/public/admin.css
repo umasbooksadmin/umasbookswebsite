@@ -174,7 +174,7 @@
 .ann-bulk-row select { font-family: inherit; font-size: 14px; padding: 7px 10px; border: 1px solid var(--card-border); border-radius: 4px; }
 
 .ann-table { width: 100%; border-collapse: collapse; font-size: 14px; }
-.ann-table th { text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-soft); padding: 8px 6px; border-bottom: 1px solid var(--card-border); }
+.ann-table th { text-align: left; font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-soft); padding: 8px 6px; border-bottom: 1px solid var(--card-border); }
 .ann-table td { padding: 10px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
 .ann-row-title { display: flex; gap: 10px; align-items: flex-start; }
 .ann-thumb { width: 52px; height: 40px; object-fit: cover; border-radius: 3px; flex: 0 0 auto; }
@@ -222,10 +222,10 @@
 /* Price control and suggestion (add-book form, copy edit form) */
 .price-control [hidden] { display: none !important; }
 .price-levels { border: 1px solid var(--card-border); border-radius: 3px; padding: 8px 12px 10px; margin: 0 0 8px; }
-.price-levels legend { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; padding: 0 4px; }
+.price-levels legend { font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; padding: 0 4px; }
 .price-option { display: inline-flex; align-items: center; gap: 6px; margin: 4px 14px 4px 0; text-transform: none; letter-spacing: 0; font-size: 15px; font-weight: 500; }
 .price-option input { width: auto; }
-.price-suggested-tag { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--green, #3d6b46); font-weight: 700; }
+.price-suggested-tag { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--green, #3d6b46); font-weight: 700; }
 .price-suggestion-box { margin: 6px 0 10px; }
 .price-suggestion-box summary { cursor: pointer; color: var(--maroon); }
 
@@ -251,7 +251,7 @@
 .admin-nav .admin-nav-till:hover { background: #eef2ea; }
 /* On the till the pill is filled (selected); elsewhere it is an outlined shortcut, so it never looks like the current page. */
 .admin-nav .admin-nav-till.is-active { background: var(--btn-bg-dark); border-color: var(--btn-bg-dark); color: #fff; font-weight: 700; }
-.admin-nav-heading { margin: 14px 0 2px; padding: 0 14px; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #5a5a50; }
+.admin-nav-heading { margin: 14px 0 2px; padding: 0 14px; font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #5a5a50; }
 .admin-nav-group { display: flex; flex-direction: column; gap: 1px; }
 .admin-nav-group a { padding: 7px 14px 7px 22px; font-size: 15.5px; }
 

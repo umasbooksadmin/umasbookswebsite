@@ -1,6 +1,6 @@
 <%- include('partials/header', { title: book.title, hideBackLink: true }) %>
 
-<p><a href="/books.html<%= backGenre ? '?genre=' + encodeURIComponent(backGenre) : '' %>">&larr; <%= backGenre ? tr('Back to {genre}', 'Retour à {genre}', { genre: genreLabel(backGenre) }) : tr('Back to Books', 'Retour aux livres') %></a></p>
+<p><a class="tap-link" href="/books.html<%= backGenre ? '?genre=' + encodeURIComponent(backGenre) : '' %>">&larr; <%= backGenre ? tr('Back to {genre}', 'Retour à {genre}', { genre: genreLabel(backGenre) }) : tr('Back to Books', 'Retour aux livres') %></a></p>
 
 <div class="book-detail-grid">
   <div>
@@ -24,7 +24,7 @@
     <p class="muted" style="margin-top:0;"><%= tr('by', 'de') %> <%= book.authors || tr('Unknown author', 'Auteur inconnu') %></p>
 
     <% if (book.description) { %>
-      <h3 class="book-about-title"><%= tr('About this book', 'À propos de ce livre') %></h3>
+      <h2 class="book-about-title"><%= tr('About this book', 'À propos de ce livre') %></h2>
       <p class="book-about"><%= tr(book.description, book.description_fr) %></p>
     <% } %>
 

@@ -93,3 +93,9 @@
 .preg-fieldset .preg-field-hint { margin-top: 0; margin-bottom: 8px; }
 .preg-fieldset .preg-check { margin-bottom: 8px; color: var(--ink); }
 .preg-child-block[hidden] { display: none; }
+
+/* Phones and touch screens: a 24px box and a 44px-high line to tap for each tick-box. */
+@media (max-width: 700px), (pointer: coarse) {
+  .preg-check { align-items: center; min-height: 44px; }
+  .preg-check input { width: 24px; height: 24px; flex: 0 0 24px; margin: 0; }
+}

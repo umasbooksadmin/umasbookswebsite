@@ -8,7 +8,7 @@
 
 const assert = require("node:assert/strict");
 const e2e = require("../helpers/harness");
-const { has, hasNot, stockedBook, addFirstCopyToCart, pageHtml, stripTags, cartLineCount, phoneOverflow } = require("../helpers/pages");
+const { has, hasNot, stockedBook, addFirstCopyToCart, pageHtml, stripTags, cartLineCount, phoneOverflow, tapTargetFaults, smallTextFaults, TAP_TARGETS } = require("../helpers/pages");
 const { testEmail } = require("../helpers/config");
 const cfg = require("../helpers/config");
 
@@ -43,8 +43,9 @@ s.test("G1 (must) home page shows the menu, the header icons and the footer", as
   assert.ok(await ctx.page.$("[data-cart-count]"), "cart count");
   const toggles = await ctx.page.$$eval(".langtoggle [data-lang]", (b) => b.map((x) => x.textContent.trim()));
   assert.deepEqual(toggles, ["EN", "FR"]);
+  // (a.h-menu-fav is the Favorites link that only shows inside the phone Menu on the narrowest screens.)
   // On a normal window the menu links are on screen (not folded into the phone "Menu" button) and the EN/FR buttons are easy to hit.
-  const links = await ctx.page.$$eval("header .h-nav a", (as) => as.map((a) => { const r = a.getBoundingClientRect(); return { t: a.textContent.trim(), shown: r.width > 0 && r.height > 0 }; }));
+  const links = await ctx.page.$$eval("header .h-nav a:not(.h-menu-fav)", (as) => as.map((a) => { const r = a.getBoundingClientRect(); return { t: a.textContent.trim(), shown: r.width > 0 && r.height > 0 }; }));
   assert.equal(links.length, 4);
   assert.deepEqual(links.filter((l) => !l.shown), [], "every menu link is visible on a desktop-size window");
   const sizes = await ctx.page.$$eval(".langtoggle [data-lang]", (b) => b.map((x) => { const r = x.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; }));
@@ -1165,7 +1166,62 @@ s.test("G82 (must) on a phone (375 px and 320 px) very long titles and words wra
   }
 });
 
-s.test("G83 (must) printing a public page leaves out the header, menu and footer and writes external links out in full", async (ctx) => {
+s.test("G83 (must) on a phone (390 px) the key controls are at least 44x44 px to tap, labels, table headers and buttons are 13px or more, and the header is one row of icons", { timeout: 300000 }, async (ctx) => {
+  // The controls are listed in e2e/helpers/pages.js (TAP_TARGETS): header icons, Menu, EN/FR, the Instagram icon, carousel arrows
+  // and dots, the login fields, Show password, Forgot your password, the contact form, the Browse Books search and the hearts,
+  // Add to Cart, Back to Books, the calendar previous/next and Month/Week toggle. Text sizes: SMALL_TEXT_ALLOW (with reasons).
+  const book = await stockedBook(ctx);
+  await ctx.page.setViewport({ width: 390, height: 844, deviceScaleFactor: 1, isMobile: true, hasTouch: true });
+  for (const lang of ["en", "fr"]) {
+    await ctx.page.setCookie({ name: "umasbooks_lang", value: lang, url: cfg.baseUrl() });
+    for (const [pageUrl, selectors] of Object.entries(TAP_TARGETS)) {
+      const url = pageUrl.replace(":id", book.id);
+      await ctx.goto(url, "networkidle2");
+      const small = await tapTargetFaults(ctx.page, selectors);
+      assert.deepEqual(small, [], `${url} (${lang}) at 390 px: controls under 44 px: ${small.join("; ")}`);
+      const tiny = await smallTextFaults(ctx.page);
+      assert.deepEqual(tiny, [], `${url} (${lang}) at 390 px: text under 13 px: ${tiny.join("; ")}`);
+    }
+    // the header: one row of icons (logo + icons), then the Menu row; no wrapped second row of icons
+    await ctx.goto("/", "networkidle2");
+    const rows = await ctx.page.evaluate(() => [...new Set([...document.querySelectorAll("header.mkt-header .h-tools > .h-tool, header.mkt-header .h-tools > form")].filter((e) => e.getBoundingClientRect().width > 0).map((e) => Math.round(e.getBoundingClientRect().top)))].length);
+    assert.equal(rows, 1, `the header icons are on ${rows} rows (${lang})`);
+  }
+  // a phone at 320 px: still one row of icons
+  await ctx.page.setViewport({ width: 320, height: 640, deviceScaleFactor: 1, isMobile: true, hasTouch: true });
+  await ctx.goto("/", "networkidle2");
+  const rows320 = await ctx.page.evaluate(() => [...new Set([...document.querySelectorAll("header.mkt-header .h-tools > .h-tool, header.mkt-header .h-tools > form")].filter((e) => e.getBoundingClientRect().width > 0).map((e) => Math.round(e.getBoundingClientRect().top)))].length);
+  assert.equal(rows320, 1, `the header icons are on ${rows320} rows at 320 px`);
+  // a phone turned sideways: one compact row
+  await ctx.page.setViewport({ width: 844, height: 390, deviceScaleFactor: 1, isMobile: true, hasTouch: true });
+  await ctx.goto("/", "networkidle2");
+  const h = await ctx.page.evaluate(() => Math.round(document.querySelector("header.mkt-header").getBoundingClientRect().height));
+  assert.ok(h <= 70, `the header is ${h} px high on a phone turned sideways (it was 176)`);
+});
+
+s.test("G84 (must) headings go down one level at a time on the public pages (a book page, Volunteer, Blog, Browse Books, Events), in English and in French", { timeout: 300000 }, async (ctx) => {
+  const book = await stockedBook(ctx);
+  for (const lang of ["en", "fr"]) {
+    await ctx.page.setCookie({ name: "umasbooks_lang", value: lang, url: cfg.baseUrl() });
+    for (const url of [`/books/${book.id}`, "/volunteer.html", "/blog.html", "/books.html", "/events.html", "/events", "/membership.html", "/immersion.html", "/about.html", "/"]) {
+      await ctx.goto(url, "networkidle2");
+      const jumps = await ctx.page.evaluate(() => {
+        const out = [];
+        let prev = 0;
+        for (const h of document.querySelectorAll("main h1, main h2, main h3, main h4, main h5, main h6")) {
+          if (getComputedStyle(h).display === "none" || h.closest("[hidden]")) continue;
+          const level = Number(h.tagName[1]);
+          if (prev && level > prev + 1) out.push(`h${prev} to h${level} "${h.textContent.trim().slice(0, 30)}"`);
+          prev = level;
+        }
+        return out;
+      });
+      assert.deepEqual(jumps, [], `${url} (${lang}): a heading level is skipped: ${jumps.join("; ")}`);
+    }
+  }
+});
+
+s.test("G87 (must) printing a public page leaves out the header, menu and footer and writes external links out in full", async (ctx) => {
   for (const path of ["/privacy-policy.html", "/events.html"]) {
     await ctx.goto(path, "networkidle2");
     await ctx.page.emulateMediaType("print");
@@ -1181,7 +1237,7 @@ s.test("G83 (must) printing a public page leaves out the header, menu and footer
   }
 });
 
-s.test("G84 (must) a phone set to dark mode still gets the light site, with light form controls", async (ctx) => {
+s.test("G88 (must) a phone set to dark mode still gets the light site, with light form controls", async (ctx) => {
   await ctx.page.emulateMediaFeatures([{ name: "prefers-color-scheme", value: "dark" }]);
   try {
     await ctx.goto("/contact", "networkidle2");
@@ -1198,9 +1254,9 @@ s.test("G84 (must) a phone set to dark mode still gets the light site, with ligh
   }
 });
 
-s.manual("G85 added to the home screen on an iPhone, no bar or button sits behind the home indicator", "needs a real iPhone in home-screen (standalone) mode; the safe-area padding itself is checked by a unit test");
+s.manual("G89 added to the home screen on an iPhone, no bar or button sits behind the home indicator", "needs a real iPhone in home-screen (standalone) mode; the safe-area padding itself is checked by a unit test");
 
-s.test("G86 (must) covers on a phone are sized: the Browse Books grid asks for the 300, 450 or 600 px copy, never an oversized one for a 160 px slot", { viewport: GUEST_PHONE }, async (ctx) => {
+s.test("G90 (must) covers on a phone are sized: the Browse Books grid asks for the 300, 450 or 600 px copy, never an oversized one for a 160 px slot", { viewport: GUEST_PHONE }, async (ctx) => {
   const asked = [];
   ctx.page.on("request", (r) => { if (/\/img\//.test(r.url())) asked.push(new URL(r.url()).pathname); });
   await ctx.goto("/books.html", "networkidle2");
