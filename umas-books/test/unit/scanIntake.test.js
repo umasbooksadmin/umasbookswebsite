@@ -139,15 +139,27 @@ test("planFill fills untouched fields, empties them for a book without that data
   assert.equal(notFound.author, "", "a book that was not found clears what the last scan filled in");
 });
 
-test("binding: the lookup's answer is only a hint; it never replaces the selected (remembered) binding", () => {
+test("binding: an untouched select takes the catalog's binding; a touched one only shows it as a hint", () => {
   const avail = ["hardcover", "trade", "mass_market", "other"];
   const hint = { key: "hardcover", label: "Hardcover" };
-  const kept = S.chooseBinding({ current: "trade", hint, available: avail });
+  // untouched: the catalog's binding is selected for the person
+  const applied = S.chooseBinding({ current: "trade", hint, available: avail, touched: false, baseline: "trade" });
+  assert.equal(applied.value, "hardcover");
+  assert.match(applied.helper, /^Open Library says: Hardcover/);
+  assert.match(applied.helper, /selected for you/);
+  // already on the same value: nothing to announce beyond the hint
+  assert.equal(S.chooseBinding({ current: "hardcover", hint, available: avail, touched: false, baseline: "trade" }).helper, "Open Library says: Hardcover");
+  // touched (a person chose, or the address carried one): never replaced
+  const kept = S.chooseBinding({ current: "trade", hint, available: avail, touched: true, baseline: "trade" });
   assert.equal(kept.value, "trade");
   assert.equal(kept.helper, "Open Library says: Hardcover");
-  assert.equal(S.chooseBinding({ current: "other", hint, available: avail }).value, "other", "even on a first-ever form");
-  assert.equal(S.chooseBinding({ current: "", hint, available: avail }).value, "", "Not specified stays Not specified");
-  assert.equal(S.chooseBinding({ current: "trade", hint: null, available: avail }).helper, "");
+  assert.equal(S.chooseBinding({ current: "", hint, available: avail, touched: true }).value, "", "Not specified stays Not specified once chosen");
+  // no answer, or one this page cannot show: back to the remembered (last used) binding
+  assert.equal(S.chooseBinding({ current: "hardcover", hint: null, available: avail, touched: false, baseline: "trade" }).value, "trade");
+  assert.equal(S.chooseBinding({ current: "trade", hint: { key: "boxed_set", label: "Boxed set" }, available: avail, touched: false, baseline: "trade" }).value, "trade");
+  assert.equal(S.chooseBinding({ current: "trade", hint: null, available: avail, touched: false, baseline: "trade" }).helper, "");
+  // "paperback" from the catalog is read as "trade" when this page has no "paperback"
+  assert.equal(S.chooseBinding({ current: "other", hint: { key: "paperback", label: "Paperback" }, available: avail, touched: false, baseline: "other" }).value, "trade");
 });
 
 test("a remembered 'paperback' is read as 'trade' when the list has no paperback", () => {
