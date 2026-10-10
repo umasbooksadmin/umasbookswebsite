@@ -107,7 +107,7 @@ test("the Books page links to the form in English and French", async () => {
   assert.match(en, /"bk\.band\.ask\.t":"Can't find a book\? Ask us"/);
   assert.match(en, /"bk\.empty\.ask"/);
   const script = await (await fetch(`${app.base}/page-books.js`)).text(); // the page's own script (was inline)
-  assert.match(script, /\/request-a-book">' \+ esc\(t\('bk\.empty\.ask'\)\)/, "the empty search result links to the form");
+  assert.match(script, /href\('\/request-a-book'\)\) \+ '">' \+ esc\(t\('bk\.empty\.ask'\)\)/, "the empty search result links to the form (under /fr/ on a French address)");
   assert.match(en, /"bk\.band\.ask\.t":"Vous ne trouvez pas un livre\u00a0\? Demandez-nous"/);
 });
 

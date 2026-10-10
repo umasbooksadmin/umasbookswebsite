@@ -64,9 +64,12 @@ function sitemapEntry(base, path, lastmod) {
   return [en, fr].map((loc) => `  <url><loc>${xmlEscape(loc)}</loc>${lastmod || ""}${links}</url>`);
 }
 
+const HOME_PATH = "/";
+const FIXED_PAGES = [HOME_PATH].concat(MARKETING_PAGES.map((f) => `/${f}`), DYNAMIC_PAGES);
+
 function buildSitemapXml(base, bookRows) {
   const urls = [];
-  for (const p of ["/", ...MARKETING_PAGES.map((f) => "/" + f), ...DYNAMIC_PAGES]) urls.push(...sitemapEntry(base, p));
+  for (const p of FIXED_PAGES) urls.push(...sitemapEntry(base, p));
   for (const b of bookRows) {
     const lastmod = b.updated_at ? `<lastmod>${new Date(b.updated_at).toISOString()}</lastmod>` : "";
     urls.push(...sitemapEntry(base, `/books/${b.id}`, lastmod));

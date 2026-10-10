@@ -106,10 +106,10 @@ function guest(lang) {
   };
 }
 const member = async (email) => (await pool.query("SELECT is_member, member_expires_at FROM users WHERE email = $1", [email.toLowerCase()])).rows[0];
-const press = async (v) => {
+const press = async (v, back = "/membership.html") => {
   const r = await v.post("/membership/check");
   assert.equal(r.res.status, 303, "redirects back to the page");
-  assert.equal(r.location, "/membership.html");
+  assert.equal(r.location, back);
   return (await v.get("/membership.html")).text;
 };
 async function waitFor(fn, what) {
@@ -151,7 +151,7 @@ test("payment not found yet: a clear message naming the email to use (EN and FR)
 
   const fr = guest("fr");
   await fr.login(account);
-  const frHtml = await press(fr);
+  const frHtml = await press(fr, "/fr/membership.html"); // a French visitor is sent back to the French address
   assert.ok(frHtml.includes("Nous n’avons pas encore trouvé votre paiement. Cela peut prendre quelques minutes. Vérifiez que vous avez utilisé l’adresse e-mail"));
   assert.ok(frHtml.includes("sur le formulaire de paiement."));
 });

@@ -224,6 +224,11 @@ test("the toggle links to the equivalent address in the other language (query st
   }
 });
 
+test("a French 404 under /fr/ has a toggle that still works (EN leads home)", async () => {
+  assert.deepEqual(toggle(await (await get("/fr/no-such-page")).text()), [{ lang: "en", href: "/" }, { lang: "fr", href: "/fr/" }]);
+  assert.deepEqual(toggle(await (await get("/fr/admin")).text()), [{ lang: "en", href: "/" }, { lang: "fr", href: "/fr/" }]);
+});
+
 test("pages with no French address keep the two buttons (they store the choice and reload)", async () => {
   for (const p of ["/cart", "/login", "/signup", "/favorites"]) {
     const html = await text(p);

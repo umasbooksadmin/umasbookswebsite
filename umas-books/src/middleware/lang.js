@@ -82,7 +82,8 @@ function langMiddleware(req, res, next) {
   // English-only, so it is left alone.
   if (lang === "fr" && !/^\/admin(\/|$)/.test(req.path)) installFrenchRender(res);
 
-  res.locals.langSwitch = () => switchHrefs(splitFr(req.originalUrl || req.url).rest);
+  // A /fr/ address that is no page (a French 404): EN leads home, since no English twin exists.
+  res.locals.langSwitch = () => switchHrefs(splitFr(req.originalUrl || req.url).rest) || (fr.prefixed ? { en: "/", fr: "/fr/" } : null);
 
   // A redirect to a public page lands on its /fr/ twin when the language is
   // French: always for a /fr/ request, and for a one-off (302/303) redirect from

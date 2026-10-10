@@ -656,6 +656,9 @@ screens stay English). Two languages only: `en` and `fr`.
   twin, so it works without JavaScript; clicking one stores the choice in the cookie and
   localStorage. Pages without a twin (cart, login, account...) keep two buttons that store the
   choice and reload. On a `/fr/` address site.js always starts in French, whatever was stored.
+  Without JavaScript the FR link works (the `/fr/` visit writes the cookie) but EN cannot override a French cookie,
+  so the "JavaScript is needed to change language" note stays in the header on every page. A `/fr/` address that
+  is no page (a French 404) gets a toggle whose EN link goes home.
 - **Translate a view:** `<%= tr('English', 'Français') %>`, with placeholders
   `<%= tr('Hello {name}', 'Bonjour {name}', { name: user.displayName }) %>`
   (French falls back to English if empty; `<%= %>` does the HTML escaping).

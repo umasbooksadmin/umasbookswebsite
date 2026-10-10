@@ -71,8 +71,10 @@ const NAV_FR = { 'nav.home': 'Accueil', 'nav.books': 'Parcourir les livres', 'na
         <span aria-hidden="true">|</span>
         <button type="button" data-lang="fr"<%- isFrChrome ? ' class="is-active" aria-pressed="true"' : ' aria-pressed="false"' %>>FR</button>
       </div>
-      <noscript><span class="h-noscript"><%= t('JavaScript is needed to change language', 'JavaScript est nécessaire pour changer de langue') %></span></noscript>
       <% } %>
+      <%# The links are plain addresses, but the choice itself is written to the cookie by assets/site.js: without
+          JavaScript, EN from a /fr/ page cannot override a French cookie. So the note stays on every page. %>
+      <noscript><span class="h-noscript"><%= t('JavaScript is needed to change language', 'JavaScript est nécessaire pour changer de langue') %></span></noscript>
     </div>
   </div>
 </header>
