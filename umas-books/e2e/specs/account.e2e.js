@@ -523,6 +523,7 @@ s.manual("AC42 the back button after reserving shows no error page and does not 
 s.manual("AC56 the limit of 10 books: an 11th book in one account's reservations is refused with a clear message", "needs 11 books in stock and would use another of the 10 reservation requests an hour; the app's own tests cover it");
 
 s.manual("AC57 a drop-in seat cannot be cancelled online within 24 hours of its session (the account page says to contact the shop)", "needs a session starting within 24 hours; the app's own tests cover it");
+s.manual("AC58 a price that changed while reserving is refused with a message and confirmed on the second press (covered by test/integration/reservePriceUnderLock.test.js)", "needs a second window changing the price at the right moment");
 
 
 // ---- 2G. Two-step verification for an ordinary account ----

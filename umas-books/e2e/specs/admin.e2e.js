@@ -1099,3 +1099,6 @@ s.test("A96 the Dashboard tile is Sales this month with a In person, Old online 
 });
 s.manual("A98 admin sessions end after 8 hours idle or 7 days (needs the database to age the session; covered by test/integration/adminSessionTimeouts.test.js)", "waiting 8 hours is left for you, or the integration test, to do");
 s.manual("A97 backdating needs a reason, a basket above EUR 10,000 is refused, a price below asking needs a reason, an expired cart copy can be released", "selling is left for you to do by hand");
+s.manual("A99 till voids by role: card voids and the refund tick need an admin, till-only cash voids are limited and listed (covered by test/integration/tillVoidRules.test.js)", "needs a second, till-only account");
+s.manual("A100 reprice: an exact-count confirmation and an undo of the last run (covered by test/integration/pricingReprice.test.js)", "applying a reprice changes real prices: left for you to do by hand");
+s.manual("A101 blog publish dates are Paris time and bulk publish/draft are audited (covered by test/integration/blogCorrectness.test.js)", "needs waiting for a scheduled date");

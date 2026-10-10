@@ -9,6 +9,7 @@ const { sanitizeHtml } = require("../../lib/sanitizeHtml");
 const { redirectWithFlash, takePageFlash } = require("../../lib/postRedirect");
 const { validateIdParams } = require("../../middleware/idParams");
 const { parseId } = require("../../lib/validation");
+const { parisInstant, parisDateString } = require("../../lib/tz");
 
 const router = express.Router();
 // Garbage ids get the 404 page, not a Postgres 22P02 and a 500.
@@ -60,13 +61,31 @@ async function uniqueBlogSlug(base, excludeId) {
 // blank) — the /api/blog/posts feed (src/routes/blog.js) only ever
 // returns 'published' rows whose published_at has actually passed, so a
 // 'scheduled' one becomes visible on its own once that date arrives.
-function resolveBlogPublishedAt(status, dateStr) {
+//
+// The typed date means PARIS time: "2026-10-31" is the start of that day in Paris (and an optional
+// publishTime "HH:MM" that time), never UTC midnight, which is 01:00-02:00 in Paris.
+function resolveBlogPublishedAt(status, dateStr, timeStr) {
   if (status === "draft") return null;
-  return dateStr ? new Date(dateStr) : new Date();
+  return dateStr ? parisInstant(dateStr, timeStr || "00:00") : new Date();
 }
 
+// The list filters to return to after a save/bulk action. Only the known list parameters are kept,
+// each checked against what the list itself accepts, and the query string is rebuilt from them: the
+// posted text is never appended as it is (it could carry any other parameter, a fragment, a newline).
+const DATE_RANGES = ["7d", "30d", "year"];
 function blogBackQuery(req) {
-  return req.body.backQuery ? `?${req.body.backQuery}` : "";
+  const raw = typeof req.body.backQuery === "string" ? req.body.backQuery.slice(0, 500) : "";
+  if (!raw) return "";
+  const src = new URLSearchParams(raw);
+  const out = new URLSearchParams();
+  if (BLOG_STATUSES.includes(src.get("status"))) out.set("status", src.get("status"));
+  if (BLOG_CATEGORIES.includes(src.get("category"))) out.set("category", src.get("category"));
+  const q = (src.get("q") || "").trim().slice(0, 100);
+  if (q) out.set("q", q);
+  if (DATE_RANGES.includes(src.get("dateRange"))) out.set("dateRange", src.get("dateRange"));
+  if (/^\d{1,5}$/.test(src.get("page") || "") && Number(src.get("page")) >= 1) out.set("page", String(Number(src.get("page"))));
+  const qs = out.toString();
+  return qs ? `?${qs}` : "";
 }
 
 // What the form sent, cleaned the same way for create and edit. `error` is a
@@ -80,6 +99,7 @@ function readBlogForm(req) {
   const tags = (req.body.tags || "").trim() || null;
   const status = BLOG_STATUSES.includes(req.body.status) ? req.body.status : "published";
   const dateStr = typeof req.body.publishDate === "string" ? req.body.publishDate.trim() : "";
+  const timeStr = typeof req.body.publishTime === "string" ? req.body.publishTime.trim() : "";
   const values = { title, excerpt: excerpt || "", body, category: category || "", tags: tags || "", status, publishDate: dateStr };
 
   let error = null;
@@ -87,10 +107,12 @@ function readBlogForm(req) {
   const bodyText = body.replace(/<[^>]*>/g, "").replace(/&nbsp;|\s/g, "");
   if (!title) error = "Please give the post a title. Nothing was saved.";
   else if (!bodyText && status !== "draft") error = "Please write some content before publishing or scheduling the post (a draft may stay empty). Nothing was saved.";
-  else if (dateStr && (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr) || Number.isNaN(new Date(dateStr).getTime()))) {
+  else if (dateStr && !parisInstant(dateStr)) {
     error = "The publish date is not a valid date (use the date picker, or year-month-day like 2026-10-31). Nothing was saved.";
+  } else if (timeStr && !parisInstant(dateStr || "2000-01-01", timeStr)) {
+    error = "The publish time is not a valid time (use hours:minutes like 18:30). Nothing was saved.";
   }
-  const publishedAt = error ? null : resolveBlogPublishedAt(status, dateStr);
+  const publishedAt = error ? null : resolveBlogPublishedAt(status, dateStr, dateStr ? timeStr : "");
   return { title, excerpt, body, category, tags, status, publishedAt, values, error };
 }
 
@@ -165,12 +187,12 @@ router.get("/admin/blog", requireAdmin, async (req, res) => {
   // A refused save (or a saved one) left a message and what was typed.
   const flash = takePageFlash(req, res, "adminBlog") || {};
   const keepTyped = flash.values && (flash.editId || null) === (editing ? editing.id : null);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = parisDateString(new Date());
   const base = editing
     ? {
         title: editing.title, excerpt: editing.excerpt || "", body: editing.body, category: editing.category || "",
         tags: editing.tags || "", status: editing.status,
-        publishDate: editing.published_at ? new Date(editing.published_at).toISOString().slice(0, 10) : today,
+        publishDate: editing.published_at ? parisDateString(editing.published_at) : today,
       }
     : { title: "", excerpt: "", body: "", category: "", tags: "", status: "published", publishDate: today };
   const formValues = keepTyped ? { ...base, ...flash.values } : base;
@@ -223,8 +245,10 @@ router.post("/admin/blog/bulk", requireAdmin, async (req, res) => {
         "UPDATE blog_posts SET status = 'published', published_at = COALESCE(published_at, now()), updated_at = now() WHERE id = ANY($1)",
         [ids]
       );
+      await audit(req, { action: "blog.bulk_publish", targetType: "blog_post", detail: `ids ${ids.join(",")}` });
     } else if (req.body.bulkAction === "draft") {
       await pool.query("UPDATE blog_posts SET status = 'draft', updated_at = now() WHERE id = ANY($1)", [ids]);
+      await audit(req, { action: "blog.bulk_draft", targetType: "blog_post", detail: `ids ${ids.join(",")}` });
     }
   }
   res.redirect(`/admin/blog${backQuery}`);

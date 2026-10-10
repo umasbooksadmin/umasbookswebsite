@@ -722,8 +722,19 @@ Good to know:
   EUR 5) and C (EUR 8 to EUR 10) one by one. Each confirmed group is one
   transaction, one **Admin activity** row (`pricing.reprice`) and a CSV of
   before/after prices per copy (kept in `price_reprice_items`, so it can be
-  downloaded again from the run page). There is no undo button: to revert, use
-  that CSV (`old_price` column) to set the prices back by hand.
+  downloaded again from the run page).
+  **Confirming is exact:** the Confirm button posts the number of copies and a
+  fingerprint of the copies it previewed; if anything differs when you press it
+  (a copy sold, reserved or newly eligible) nothing is applied and you get a
+  fresh preview. The preview counts copies that go **up**, **down** or stay the
+  same and lists the first 25 of each (group A also raises hand-priced copies
+  below EUR 5 up to EUR 5: check that list). **Undo this run** (button on the
+  result page, newest run only): a preview first, then confirm; it puts the
+  previous price (and suggestion history) back **only** on copies still at the
+  price the run set and still in stock, so a copy sold, reserved or re-priced
+  by hand since is left alone; it is written to Admin activity as
+  `pricing.reprice.undo`. The CSV (`old_price` column) remains for anything
+  the undo left alone.
 - **To start fresh for one book** (its cached online price looks wrong): in the
   database, `DELETE FROM price_lookups WHERE isbn = '<the 13-digit ISBN>';`.
 
@@ -1275,6 +1286,26 @@ need two-step verification (admins still do) but its till session ends after **8
 hours without any till action**: log in again (and, like admins, after 7 days; see
 "Admin sessions: how long they last"). Remove the access the same way; it
 stops at once. The list shows a **Till** pill; **Reports > Accounts** shows "+ Till".
+
+### Till void rules
+
+A Till-only account has no two-step verification, so voiding is limited for it:
+
+- **Card sales can only be voided by an admin**, and only an admin can tick
+  **I refunded the card** (the Till-only account sees "Only an admin can void a
+  card sale"). Ask an admin; they void it and refund the card on the SumUp
+  reader or app.
+- A Till-only account can void **today's cash sales**, with a reason of at least
+  5 characters, **at most 3 per day each** (Paris day). The 4th is refused with
+  "Ask an admin to void this one". Admins are not limited. To change the number,
+  set the Render environment variable (service > **Environment**)
+  `TILL_MAX_VOIDS_PER_DAY` (default `3`) and save; Render restarts the service.
+- **Every void is visible:** the Dashboard's **Needs attention** lists each void
+  made today (who, time, amount, cash or card, reason; "(till account)" marks
+  a Till-only account), **End of day** has a **Voided sales** table (also in the
+  printed page) and its CSV has the columns **Voided by** and **Voided at (Paris)**;
+  the audit row `till.void` says "by till account" when it was one. There is no
+  daily email of the till today, so look at the Dashboard when you open.
 
 ### "Sell in shop" is retired
 
