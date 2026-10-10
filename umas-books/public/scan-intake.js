@@ -126,12 +126,17 @@
     return "";
   }
 
-  // The binding after a lookup. The catalog's answer never replaces what is
-  // selected (the binding of the last book is kept for a run of paperbacks);
-  // it is only shown as small helper text.
+  // The binding after a lookup. A binding the person chose (or the address carried) is never replaced;
+  // the catalog's answer is then only shown as small helper text. While the select is untouched, the
+  // catalog's binding (when the page's list has it) is selected for them, and without an answer the
+  // select goes back to its starting value (the binding last used in this browser).
   function chooseBinding(state) {
-    var helper = state.hint ? "Open Library says: " + (state.hint.label || state.hint.key) : "";
-    return { value: state.current, helper: helper };
+    var label = state.hint ? (state.hint.label || state.hint.key) : "";
+    var helper = state.hint ? "Open Library says: " + label : "";
+    if (state.touched) return { value: state.current, helper: helper };
+    var key = state.hint ? resolveBindingKey(state.hint.key, state.available || []) : "";
+    if (key) return { value: key, helper: helper + (key !== state.current ? " (selected for you; change it if wrong)" : "") };
+    return { value: state.baseline == null ? state.current : state.baseline, helper: helper };
   }
 
   // The status line for a lookup answer: { kind: found | notfound | stocked, text }.
@@ -208,6 +213,31 @@
     function focusIsbn() {
       try { isbn.focus({ preventScroll: false }); isbn.select(); } catch (e) { /* fine */ }
     }
+    // After a save: the cursor goes to the ISBN box without the page jumping. Only when the box (or the
+    // "Saved" line above it) is out of sight does the page scroll, just far enough to show both.
+    function focusIsbnInView() {
+      try { isbn.focus({ preventScroll: true }); isbn.select(); } catch (e) { /* fine */ }
+      var bar = form.querySelector("[data-scan-actions]");
+      var viewH = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+      var covered = bar && bar.getBoundingClientRect().top < viewH ? viewH - bar.getBoundingClientRect().top : 0;
+      var r = isbn.getBoundingClientRect();
+      if (r.top >= 0 && r.bottom <= viewH - covered) return;
+      var target = savedEl && !savedEl.hidden ? savedEl : isbn;
+      var y = target.getBoundingClientRect().top + (window.pageYOffset || 0) - 12;
+      try { window.scrollTo({ top: Math.max(0, y), behavior: "auto" }); } catch (e) { window.scrollTo(0, Math.max(0, y)); }
+    }
+    // "My ISBN has an X": the iOS number pad has no X (the check digit of an ISBN-10 can be one), so the box
+    // can switch to the letter keyboard. The numeric pad stays the default (13 digits is by far the common case).
+    var xToggle = form.querySelector("[data-isbn-x]");
+    function setIsbnLetters(on, refocus) {
+      isbn.setAttribute("inputmode", on ? "text" : "numeric");
+      isbn.setAttribute("autocapitalize", on ? "characters" : "off");
+      if (xToggle) {
+        xToggle.setAttribute("aria-pressed", on ? "true" : "false");
+      }
+      if (refocus) { try { isbn.blur(); isbn.focus(); } catch (e) { /* fine */ } } // the keyboard changes when the box is focused again
+    }
+    if (xToggle) xToggle.addEventListener("click", function () { setIsbnLetters(xToggle.getAttribute("aria-pressed") !== "true", true); });
     // The cursor goes back to the ISBN box by itself (after a lookup, on load, after a save)
     // only when no other field is in use: a person who tapped Title, Location or Price while
     // the lookup ran must keep that field, and its keyboard.
@@ -236,6 +266,11 @@
     remember(CONDITION_STORE_NAME, conditionSel, isSet("condition"), keepAsIs);
     conditionSel.dispatchEvent(new Event("change", { bubbles: true })); // the price control follows a remembered condition
     started = true;
+    // The binding select is "touched" once a person picks something (or the address carried a value): from then on a
+    // lookup only shows the catalog's binding as text. Untouched, a lookup selects it; baseline is where it goes back to.
+    var bindingTouched = isSet("binding");
+    var bindingBaseline = bindingSel.value;
+    bindingSel.addEventListener("change", function () { bindingTouched = true; }); // the script itself never fires "change" on this select
 
     // ---- fields edited by hand are never overwritten by a lookup
     Object.keys(FILL_FIELDS).forEach(function (name) {
@@ -252,7 +287,8 @@
       });
       var cover = values.coverUrl;
       if (cover && !touched.coverUrl) { coverImg.src = cover; coverImg.hidden = false; } else if (!cover) { coverImg.hidden = true; coverImg.removeAttribute("src"); }
-      var chosen = chooseBinding({ current: bindingSel.value, hint: result.bindingHint, available: availableBindings });
+      var chosen = chooseBinding({ current: bindingSel.value, hint: result.bindingHint, available: availableBindings, touched: bindingTouched, baseline: bindingBaseline });
+      if (chosen.value !== bindingSel.value) bindingSel.value = chosen.value;
       bindingHint.textContent = chosen.helper;
       if (priceRoot && result.suggestion) priceRoot.dispatchEvent(new CustomEvent("ps:apply", { detail: result.suggestion }));
     }
@@ -348,6 +384,8 @@
       locationInput.value = keep.location;
       conditionSel.value = keep.condition;
       bindingSel.value = keep.binding;
+      bindingTouched = false; bindingBaseline = keep.binding;
+      setIsbnLetters(false, false);
       sourceSel.value = keep.source;
       var photo = form.elements.coverPhoto; if (photo) photo.value = "";
       var photoName = document.getElementById("coverPhoto-name"); if (photoName) photoName.textContent = "No photo selected";
@@ -374,7 +412,7 @@
       setStatus("loading", "Saving…");
       // On a phone the keyboard only stays up when focus moves inside this same tap:
       // put the cursor in the ISBN box now, before the save is answered.
-      focusIsbn();
+      try { isbn.focus({ preventScroll: true }); isbn.select(); } catch (e) { /* fine */ }
       var done = function () {
         saving = false;
         form.removeAttribute("aria-busy");
@@ -399,7 +437,7 @@
             showSaved(res.body);
             setStatus("", "Ready for the next book: scan the barcode.");
             isbn.value = scanned || pendingIsbn || "";
-            refocusIsbn();
+            if (shouldRefocusIsbn(document.activeElement, isbn)) focusIsbnInView();
             if (isCompleteIsbn(isbn.value)) runLookup(isbn.value);
             pendingIsbn = "";
             return;

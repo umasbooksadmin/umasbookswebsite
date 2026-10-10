@@ -21,7 +21,7 @@ after(h.stop);
 
 // The top-bar logo link: href "/", an image named exactly like the brand, before the page title.
 function assertBrandLink(html, where) {
-  const m = html.match(/<div class="admin-topbar">([\s\S]*?)<h1>/);
+  const m = html.match(/<div class="admin-topbar[^"]*">([\s\S]*?)<h1>/);
   assert.ok(m, `${where}: no top bar`);
   const a = m[1].match(/<a class="admin-topbar-brand" href="\/">([\s\S]*?)<\/a>/);
   assert.ok(a, `${where}: no link to "/" with class admin-topbar-brand in the top bar`);

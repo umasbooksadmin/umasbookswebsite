@@ -48,7 +48,7 @@
       </div>
       <div class="richtext-editor" contenteditable="true"><%- formValues.body %></div>
     </div>
-    <textarea name="body" class="richtext-hidden"><%= formValues.body %></textarea>
+    <textarea name="body" class="richtext-hidden" aria-label="Post text"><%= formValues.body %></textarea>
     <div class="field-error" id="blog-body-error" role="alert" hidden>Please write some content before publishing or scheduling (a draft may stay empty).</div>
 
     <label for="blog-excerpt">Excerpt (optional)</label>
@@ -76,7 +76,7 @@
       <label class="ann-check"><input type="checkbox" name="removeImage"> <span>Remove current image</span></label>
     <% } %>
     <button type="button" class="btn btn-outline" data-trigger-file="blog-image" style="align-self:flex-start;">Upload an image</button>
-    <input id="blog-image" name="image" type="file" accept="image/*" class="file-input-hidden" data-file-name-target="blog-image-name" data-max-bytes="15728640" data-max-label="15 MB">
+    <input id="blog-image" name="image" type="file" aria-label="Featured image" accept="image/*" class="file-input-hidden" data-file-name-target="blog-image-name" data-max-bytes="15728640" data-max-label="15 MB">
     <span id="blog-image-name" class="muted small file-input-name">No image selected (JPG, PNG or WebP, max 15 MB)</span>
 
     <label for="blog-category">Category</label>
@@ -101,18 +101,18 @@
   </div>
 
   <form class="ann-filters" method="get" action="/admin/blog">
-    <input type="text" name="q" value="<%= filters.q %>" placeholder="Search posts by title, content or tags…">
-    <select name="status">
+    <input type="text" name="q" aria-label="Search posts" value="<%= filters.q %>" placeholder="Search posts by title, content or tags…">
+    <select name="status" aria-label="Filter by status">
       <option value="">All Statuses</option>
       <option value="draft" <%= filters.status === 'draft' ? 'selected' : '' %>>Draft</option>
       <option value="scheduled" <%= filters.status === 'scheduled' ? 'selected' : '' %>>Scheduled</option>
       <option value="published" <%= filters.status === 'published' ? 'selected' : '' %>>Published</option>
     </select>
-    <select name="category">
+    <select name="category" aria-label="Filter by category">
       <option value="">All Categories</option>
       <% categories.forEach(c => { %><option value="<%= c %>" <%= filters.category === c ? 'selected' : '' %>><%= c %></option><% }) %>
     </select>
-    <select name="dateRange">
+    <select name="dateRange" aria-label="Filter by date">
       <option value="">All Dates</option>
       <option value="7d" <%= filters.dateRange === '7d' ? 'selected' : '' %>>Last 7 days</option>
       <option value="30d" <%= filters.dateRange === '30d' ? 'selected' : '' %>>Last 30 days</option>
@@ -126,7 +126,7 @@
     <%- include('../partials/csrf_field') %>
     <input type="hidden" name="backQuery" value="<%= listQs %>">
     <div class="ann-bulk-row">
-      <select name="bulkAction">
+      <select name="bulkAction" aria-label="Bulk action for the selected posts">
         <option value="">Bulk actions…</option>
         <option value="publish">Publish</option>
         <option value="draft">Move to Draft</option>
@@ -138,7 +138,7 @@
     <div class="table-scroll"><table class="ann-table table-sticky-first">
       <thead>
         <tr>
-          <th><input type="checkbox" data-select-all="blog-rows"></th>
+          <th><input type="checkbox" data-select-all="blog-rows" aria-label="Select all posts"></th>
           <th>Image</th>
           <th>Title</th>
           <th>Category</th>
@@ -151,7 +151,7 @@
         <% if (!posts.length) { %><tr><td colspan="7" class="muted" style="text-align:center; padding:24px;">No posts match these filters.</td></tr><% } %>
         <% posts.forEach(p => { %>
           <tr>
-            <td><input type="checkbox" name="ids" value="<%= p.id %>" data-select-all-item="blog-rows"></td>
+            <td><input type="checkbox" name="ids" value="<%= p.id %>" data-select-all-item="blog-rows" aria-label="Select <%= p.title %>"></td>
             <td><% if (p.image_url) { %><img src="<%= p.image_url %>" alt="" class="ann-thumb"><% } %></td>
             <td>
               <strong><%= p.title %></strong>

@@ -13,7 +13,8 @@
     <label for="rb-author"><%= tr('Author (optional)', 'Auteur (facultatif)') %></label>
     <input id="rb-author" name="author" type="text" maxlength="150" value="<%= values.author || '' %>">
     <label for="rb-isbn"><%= tr('ISBN (optional)', 'ISBN (facultatif)') %></label>
-    <input id="rb-isbn" name="isbn" type="text" maxlength="40" autocomplete="off" value="<%= values.isbn || '' %>">
+    <%# inputmode="text", not "numeric": the iOS number pad has no X (an ISBN-10 can end in one) and no hyphen, so a customer could not type those ISBNs. autocapitalize makes the X a capital. %>
+    <input id="rb-isbn" name="isbn" type="text" inputmode="text" autocapitalize="characters" autocorrect="off" spellcheck="false" maxlength="40" autocomplete="off" value="<%= values.isbn || '' %>">
     <label for="rb-email"><%= tr('Your email', 'Votre e-mail') %></label>
     <input id="rb-email" name="email" type="email" autocomplete="email" maxlength="200" required value="<%= values.email || '' %>">
     <label for="rb-name"><%= tr('Your name (optional)', 'Votre nom (facultatif)') %></label>

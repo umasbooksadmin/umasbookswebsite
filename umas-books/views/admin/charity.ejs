@@ -16,15 +16,15 @@
         <form class="stack" method="post" action="/admin/charity-rounds" style="margin-top:14px; max-width:440px;">
           <%- include('../partials/csrf_field') %>
           <label>Question</label>
-          <input name="title" type="text" required placeholder="Which charity should we support next?">
+          <input aria-label="Question" name="title" type="text" required placeholder="Which charity should we support next?">
           <label>Label (optional, e.g. "Q4 2026")</label>
-          <input name="label" type="text">
+          <input aria-label="Label (optional)" name="label" type="text">
           <label>Voting ends (optional)</label>
-          <input name="closesAt" type="datetime-local">
+          <input aria-label="Voting ends (optional)" name="closesAt" type="datetime-local">
           <label class="ann-check"><input type="checkbox" name="allowMultiple" checked> <span>Allow multiple selections</span></label>
           <label class="ann-check"><input type="checkbox" name="showResultsDuringVote" checked> <span>Show results while voting is open</span></label>
           <label>Visible to</label>
-          <select name="visibleTo">
+          <select aria-label="Visible to" name="visibleTo">
             <option value="members">Members Only</option>
             <option value="everyone">Everyone</option>
           </select>
@@ -53,15 +53,15 @@
               <form class="stack" method="post" action="/admin/charity-rounds/<%= activeRound.id %>/settings">
                 <%- include('../partials/csrf_field') %>
                 <label>Title</label>
-                <input name="title" type="text" required value="<%= activeRound.title %>">
+                <input aria-label="Title" name="title" type="text" required value="<%= activeRound.title %>">
                 <label>Label</label>
-                <input name="label" type="text" value="<%= activeRound.label || '' %>">
+                <input aria-label="Label" name="label" type="text" value="<%= activeRound.label || '' %>">
                 <label>Voting ends</label>
-                <input name="closesAt" type="datetime-local" value="<%= activeRound.closes_at ? new Date(activeRound.closes_at.getTime() - activeRound.closes_at.getTimezoneOffset()*60000).toISOString().slice(0,16) : '' %>">
+                <input aria-label="Voting ends" name="closesAt" type="datetime-local" value="<%= activeRound.closes_at ? new Date(activeRound.closes_at.getTime() - activeRound.closes_at.getTimezoneOffset()*60000).toISOString().slice(0,16) : '' %>">
                 <label class="ann-check"><input type="checkbox" name="allowMultiple" <%= activeRound.allow_multiple ? 'checked' : '' %>> <span>Allow multiple selections</span></label>
                 <label class="ann-check"><input type="checkbox" name="showResultsDuringVote" <%= activeRound.show_results_during_vote ? 'checked' : '' %>> <span>Show results while voting is open</span></label>
                 <label>Visible to</label>
-                <select name="visibleTo">
+                <select aria-label="Visible to" name="visibleTo">
                   <option value="members" <%= activeRound.visible_to === 'members' ? 'selected' : '' %>>Members Only</option>
                   <option value="everyone" <%= activeRound.visible_to === 'everyone' ? 'selected' : '' %>>Everyone</option>
                 </select>
@@ -98,18 +98,18 @@
             <input type="hidden" name="returnTab" value="current">
             <input type="hidden" name="addToCurrentVote" value="on">
             <label>Name</label>
-            <input name="name" type="text" required>
+            <input aria-label="Name" name="name" type="text" required>
             <label>Category</label>
-            <select name="category">
+            <select aria-label="Category" name="category">
               <option value="">Select…</option>
               <% categories.forEach(cat => { %><option value="<%= cat %>"><%= cat %></option><% }) %>
             </select>
             <label>Description</label>
-            <textarea name="description"></textarea>
+            <textarea aria-label="Description" name="description"></textarea>
             <label>Website URL</label>
-            <input name="websiteUrl" type="text" placeholder="https://">
+            <input aria-label="Website URL" name="websiteUrl" type="text" placeholder="https://">
             <label>Photo</label>
-            <input name="image" type="file" accept="image/*">
+            <input aria-label="Photo" name="image" type="file" accept="image/*">
             <button class="btn btn-small" type="submit">Add &amp; Include in Vote</button>
           </form>
         </div>
@@ -146,18 +146,18 @@
                 <%- include('../partials/csrf_field') %>
                 <input type="hidden" name="returnTab" value="current">
                 <label>Name</label>
-                <input name="name" type="text" required value="<%= o.name %>">
+                <input aria-label="Name" name="name" type="text" required value="<%= o.name %>">
                 <label>Category</label>
-                <select name="category">
+                <select aria-label="Category" name="category">
                   <option value="">Select…</option>
                   <% categories.forEach(cat => { %><option value="<%= cat %>" <%= o.category === cat ? 'selected' : '' %>><%= cat %></option><% }) %>
                 </select>
                 <label>Description</label>
-                <textarea name="description"><%= o.description || '' %></textarea>
+                <textarea aria-label="Description" name="description"><%= o.description || '' %></textarea>
                 <label>Website URL</label>
-                <input name="websiteUrl" type="text" value="<%= o.website_url || '' %>">
+                <input aria-label="Website URL" name="websiteUrl" type="text" value="<%= o.website_url || '' %>">
                 <label>Photo</label>
-                <input name="image" type="file" accept="image/*">
+                <input aria-label="Photo" name="image" type="file" accept="image/*">
                 <button class="btn btn-small" type="submit">Save</button>
               </form>
             </details>
@@ -188,7 +188,7 @@
 <% if (tab === 'library') { %>
   <form method="get" action="/admin/charity" style="margin-bottom:16px; display:flex; gap:10px;">
     <input type="hidden" name="tab" value="library">
-    <input type="text" name="q" value="<%= q %>" placeholder="Search charities…" style="flex:1; padding:8px 10px; border:1px solid var(--card-border); border-radius:4px;">
+    <input type="text" name="q" aria-label="Search charities" value="<%= q %>" placeholder="Search charities…" style="flex:1; padding:8px 10px; border:1px solid var(--card-border); border-radius:4px;">
     <button class="btn btn-small" type="submit">Search</button>
     <% if (q) { %><a class="btn btn-outline btn-small" href="/admin/charity?tab=library">Clear</a><% } %>
   </form>
@@ -209,18 +209,18 @@
                 <%- include('../partials/csrf_field') %>
                 <input type="hidden" name="returnTab" value="library">
                 <label>Name</label>
-                <input name="name" type="text" required value="<%= c.name %>">
+                <input aria-label="Name" name="name" type="text" required value="<%= c.name %>">
                 <label>Category</label>
-                <select name="category">
+                <select aria-label="Category" name="category">
                   <option value="">Select…</option>
                   <% categories.forEach(cat => { %><option value="<%= cat %>" <%= c.category === cat ? 'selected' : '' %>><%= cat %></option><% }) %>
                 </select>
                 <label>Description</label>
-                <textarea name="description"><%= c.description || '' %></textarea>
+                <textarea aria-label="Description" name="description"><%= c.description || '' %></textarea>
                 <label>Website URL</label>
-                <input name="websiteUrl" type="text" value="<%= c.website_url || '' %>">
+                <input aria-label="Website URL" name="websiteUrl" type="text" value="<%= c.website_url || '' %>">
                 <label>Photo</label>
-                <input name="image" type="file" accept="image/*">
+                <input aria-label="Photo" name="image" type="file" accept="image/*">
                 <button class="btn btn-small" type="submit">Save</button>
               </form>
             </details>
@@ -240,18 +240,18 @@
           <%- include('../partials/csrf_field') %>
           <input type="hidden" name="returnTab" value="library">
           <label>Name</label>
-          <input name="name" type="text" required>
+          <input aria-label="Name" name="name" type="text" required>
           <label>Category</label>
-          <select name="category">
+          <select aria-label="Category" name="category">
             <option value="">Select…</option>
             <% categories.forEach(cat => { %><option value="<%= cat %>"><%= cat %></option><% }) %>
           </select>
           <label>Description</label>
-          <textarea name="description"></textarea>
+          <textarea aria-label="Description" name="description"></textarea>
           <label>Website URL</label>
-          <input name="websiteUrl" type="text" placeholder="https://">
+          <input aria-label="Website URL" name="websiteUrl" type="text" placeholder="https://">
           <label>Photo</label>
-          <input name="image" type="file" accept="image/*">
+          <input aria-label="Photo" name="image" type="file" accept="image/*">
           <% if (activeRound) { %><label class="ann-check"><input type="checkbox" name="addToCurrentVote"> <span>Also add to the current vote</span></label><% } %>
           <button class="btn" type="submit">Add Charity</button>
         </form>

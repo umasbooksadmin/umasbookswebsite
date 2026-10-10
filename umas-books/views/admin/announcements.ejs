@@ -27,19 +27,19 @@
 
 <form class="ann-filters" method="get" action="/admin/announcements">
   <input type="hidden" name="status" value="<%= filters.status %>">
-  <input type="text" name="q" value="<%= filters.q %>" placeholder="Search by title, content or category…">
-  <select name="category">
+  <input type="text" name="q" aria-label="Search announcements" value="<%= filters.q %>" placeholder="Search by title, content or category…">
+  <select name="category" aria-label="Filter by category">
     <option value="">All Categories</option>
     <% categories.forEach(c => { %><option value="<%= c %>" <%= filters.category === c ? 'selected' : '' %>><%= c %></option><% }) %>
   </select>
-  <select name="dateRange">
+  <select name="dateRange" aria-label="Filter by date">
     <option value="">All Dates</option>
     <option value="7d" <%= filters.dateRange === '7d' ? 'selected' : '' %>>Last 7 days</option>
     <option value="30d" <%= filters.dateRange === '30d' ? 'selected' : '' %>>Last 30 days</option>
     <option value="year" <%= filters.dateRange === 'year' ? 'selected' : '' %>>This year</option>
   </select>
   <label><input type="checkbox" name="pinnedOnly" value="1" <%= filters.pinnedOnly ? 'checked' : '' %>> Pinned Only</label>
-  <select name="sort">
+  <select name="sort" aria-label="Sort order">
     <option value="newest" <%= filters.sort === 'newest' ? 'selected' : '' %>>Newest First</option>
     <option value="oldest" <%= filters.sort === 'oldest' ? 'selected' : '' %>>Oldest First</option>
   </select>
@@ -54,7 +54,7 @@
         <%- include('../partials/csrf_field') %>
         <input type="hidden" name="backQuery" value="<%= currentQs %>">
         <div class="ann-bulk-row">
-          <select name="bulkAction">
+          <select name="bulkAction" aria-label="Bulk action for the selected announcements">
             <option value="">Bulk actions…</option>
             <option value="publish">Publish</option>
             <option value="archive">Archive</option>
@@ -67,7 +67,7 @@
         <div class="table-scroll"><table class="ann-table table-sticky-first">
           <thead>
             <tr>
-              <th><input type="checkbox" data-select-all="ann-rows"></th>
+              <th><input type="checkbox" data-select-all="ann-rows" aria-label="Select all announcements"></th>
               <th>Announcement</th>
               <th>Category</th>
               <th>Status</th>
@@ -83,7 +83,7 @@
             <% } %>
             <% announcements.forEach(a => { %>
               <tr>
-                <td><input type="checkbox" name="ids" value="<%= a.id %>" data-select-all-item="ann-rows"></td>
+                <td><input type="checkbox" name="ids" value="<%= a.id %>" data-select-all-item="ann-rows" aria-label="Select <%= a.title %>"></td>
                 <td>
                   <div class="ann-row-title">
                     <% if (a.image_url) { %><img src="<%= a.image_url %>" alt="" class="ann-thumb"><% } %>
@@ -184,7 +184,7 @@
           </div>
           <div class="richtext-editor" contenteditable="true"><%- editing ? editing.body : '' %></div>
         </div>
-        <textarea name="body" class="richtext-hidden"><%= editing ? editing.body : '' %></textarea>
+        <textarea name="body" class="richtext-hidden" aria-label="Announcement text"><%= editing ? editing.body : '' %></textarea>
         <div class="field-error" role="alert" hidden>Please write some content for the announcement.</div>
 
         <label>Featured Image</label>
@@ -193,7 +193,7 @@
           <label class="ann-check"><input type="checkbox" name="removeImage"> <span>Remove current image</span></label>
         <% } %>
         <button type="button" class="btn btn-outline" data-trigger-file="ann-image" style="align-self:flex-start;">Upload an image</button>
-        <input id="ann-image" name="image" type="file" accept="image/*" class="file-input-hidden" data-file-name-target="ann-image-name">
+        <input id="ann-image" name="image" type="file" aria-label="Featured image" accept="image/*" class="file-input-hidden" data-file-name-target="ann-image-name">
         <span id="ann-image-name" class="muted small file-input-name">No image selected (JPG/PNG, max 5MB)</span>
 
         <label for="ann-category">Category</label>
@@ -218,7 +218,7 @@
           <span>Set an expiration date (optional)</span>
         </label>
         <div data-show-when="expiresEnabled=on">
-          <input type="date" name="expiresAt" value="<%= editing && editing.expires_at ? new Date(editing.expires_at).toISOString().slice(0,10) : '' %>">
+          <input type="date" name="expiresAt" aria-label="Expiration date" value="<%= editing && editing.expires_at ? new Date(editing.expires_at).toISOString().slice(0,10) : '' %>">
         </div>
 
         <div class="section-title" style="font-size:16px; margin-top:6px;">Status</div>

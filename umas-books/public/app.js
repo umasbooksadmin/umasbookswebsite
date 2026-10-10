@@ -38,25 +38,71 @@ document.addEventListener("submit", function (e) {
   }
 }, true);
 
-// Below 640px the admin sidebar (partials/admin_header.ejs) is an
-// off-canvas drawer rather than a permanent column (see admin.css) —
-// the hamburger button opens it, and the backdrop, its own close
-// button, a nav link, or Escape all close it again.
+// Up to 900px the admin sidebar (partials/admin_header.ejs) is an off-canvas
+// drawer rather than a permanent column (see admin.css). The hamburger button
+// opens it; the backdrop, its own close button, a menu link or Escape close it.
+// While it is open it behaves like a dialog: focus moves into it (the close
+// button), Tab and Shift+Tab stay inside it (everything behind it is inert),
+// the page behind does not scroll, and closing returns focus to the hamburger.
 (function () {
   var layout = document.querySelector(".admin-layout");
   if (!layout) return;
   var toggle = document.querySelector("[data-toggle-admin-nav]");
-  function setOpen(open) {
+  var drawer = document.getElementById("admin-sidebar");
+  var phone = window.matchMedia ? window.matchMedia("(max-width: 900px)") : null;
+  var isOpen = false;
+  // What sits behind the open drawer: the page itself and the skip link.
+  function behind() { return Array.prototype.slice.call(document.querySelectorAll(".admin-main, .skip-link, .admin-preview-note, .admin-sandbox-note")); }
+  function setInert(on) {
+    behind().forEach(function (el) {
+      if (on) el.setAttribute("inert", ""); else el.removeAttribute("inert");
+    });
+  }
+  function focusables() {
+    if (!drawer) return [];
+    return Array.prototype.slice.call(drawer.querySelectorAll("a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])"));
+  }
+  function setOpen(open, opts) {
+    if (open === isOpen) return;
+    isOpen = open;
     layout.classList.toggle("is-nav-open", open);
+    document.documentElement.classList.toggle("is-admin-nav-open", open);
     if (toggle) toggle.setAttribute("aria-expanded", open ? "true" : "false");
+    if (drawer) {
+      // Open, it is a modal dialog (Escape closes it); closed, it is just the page's navigation again.
+      ["role:dialog", "aria-modal:true", "aria-label:Menu"].forEach(function (pair) {
+        var kv = pair.split(":");
+        if (open) drawer.setAttribute(kv[0], kv[1]); else drawer.removeAttribute(kv[0]);
+      });
+    }
+    setInert(open);
+    if (open) {
+      var first = drawer && drawer.querySelector(".admin-nav-close");
+      if (first) first.focus();
+    } else if (opts && opts.returnFocus && toggle) {
+      toggle.focus();
+    }
   }
   document.addEventListener("click", function (e) {
-    if (e.target.closest("[data-toggle-admin-nav]")) { setOpen(true); return; }
-    if (e.target.closest("[data-close-admin-nav]") || e.target.closest(".admin-nav a")) { setOpen(false); }
+    if (e.target.closest("[data-toggle-admin-nav]")) { setOpen(!isOpen, { returnFocus: true }); return; }
+    if (e.target.closest("[data-close-admin-nav]") || e.target.closest(".admin-nav a")) { setOpen(false, { returnFocus: true }); }
   });
   document.addEventListener("keydown", function (e) {
-    if (e.key === "Escape") setOpen(false);
+    if (!isOpen) return;
+    if (e.key === "Escape") { e.preventDefault(); setOpen(false, { returnFocus: true }); return; }
+    if (e.key !== "Tab") return;
+    var items = focusables();
+    if (!items.length) return;
+    var firstEl = items[0], lastEl = items[items.length - 1], active = document.activeElement;
+    if (!drawer.contains(active)) { e.preventDefault(); firstEl.focus(); }
+    else if (e.shiftKey && active === firstEl) { e.preventDefault(); lastEl.focus(); }
+    else if (!e.shiftKey && active === lastEl) { e.preventDefault(); firstEl.focus(); }
   });
+  // Turning the phone sideways past 900px (or resizing a window) makes the drawer a permanent column: drop the lock.
+  if (phone) {
+    var onChange = function () { if (!phone.matches) setOpen(false, {}); };
+    if (phone.addEventListener) phone.addEventListener("change", onChange); else if (phone.addListener) phone.addListener(onChange);
+  }
 })();
 
 document.addEventListener("click", function (e) {
