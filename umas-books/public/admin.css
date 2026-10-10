@@ -357,7 +357,6 @@
    fills the width (the label text is also the field's aria-label). */
 .rule-field input { width: 6.5em; }
 .rule-field-label { display: none; }
-.rule-group-label { margin: 0; font-family: 'Montserrat', sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; font-size: 12px; color: var(--gold-dark); }
 @media (max-width: 600px) {
   .rule-field { display: block; margin: 8px 0 12px; }
   .rule-field-label { display: block; margin: 0 0 4px; font-size: 14px; font-weight: 600; color: var(--ink-soft); }
@@ -404,5 +403,6 @@ html.is-admin-nav-open, html.is-admin-nav-open body { overflow: hidden; }
 @media (max-width: 640px) {
   .inv-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   .inv-actions .btn { display: flex; align-items: center; justify-content: center; text-align: center; min-height: 44px; box-sizing: border-box; margin: 0; width: 100%; }
+  .inv-actions .btn:last-child:nth-child(odd) { grid-column: 1 / -1; }
 }
 @media (max-width: 340px) { .inv-actions { grid-template-columns: minmax(0, 1fr); } }

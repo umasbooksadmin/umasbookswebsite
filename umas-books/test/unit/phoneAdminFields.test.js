@@ -101,7 +101,7 @@ test("Save bar on the add page: full width, at most 56px, clears the home indica
   assert.ok(btn);
   assert.ok(Number(m[1]) + Number(m[2]) + Number(btn[1]) + 1 <= 56, "5 + 5 + 44 + 1px border");
   assert.match(bar, /\.scan-intake \.scan-actions \{ flex: 1 1 100%; width: 100%;/);
-  assert.match(scanCss, /\.scan-status:empty \{ position: absolute;/, "an empty status line leaves no gap");
+  assert.match(bar, /\.scan-status:empty \{ position: absolute;/, "an empty status line leaves no gap (phones only: the computer layout is unchanged)");
 });
 
 test("add page: the 'My ISBN has an X' toggle switches the box to the letter keyboard", () => {

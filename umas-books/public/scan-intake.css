@@ -80,7 +80,7 @@
 
 /* Empty status line: out of the layout (no blank gap under the ISBN row) but still in the page, so a screen reader
    announces the text that appears in it. */
-.scan-status:empty { position: absolute; width: 1px; height: 1px; min-height: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
 
 /* "My ISBN has an X": touch screens only; a toggle that looks pressed when on. */
 .scan-x-toggle { display: none; align-self: flex-start; min-height: 44px; padding: 8px 14px; border: 1px solid var(--card-border); border-radius: 6px; background: #fff; color: var(--maroon); font: inherit; font-size: 15px; cursor: pointer; }
@@ -90,6 +90,7 @@
 /* Phones and tablets held sideways: the form fills the card, and the Save bar is one full-width, compact strip
    (55px with the 44px button) that clears the home indicator. */
 @media (max-width: 900px) {
+  .scan-status:empty { position: absolute; width: 1px; height: 1px; min-height: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .scan-intake form.stack { max-width: none; }
   .scan-hint { margin-top: 0; }
   .scan-intake .form-actions-sticky[data-scan-actions] { padding: 5px 0 calc(5px + env(safe-area-inset-bottom, 0px)); margin-top: 8px; flex-wrap: nowrap; }
