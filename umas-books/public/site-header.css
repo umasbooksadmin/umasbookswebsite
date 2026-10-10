@@ -224,6 +224,8 @@ header.mkt-header .langtoggle span { color: var(--line); }
   header.mkt-header .h-header-row { position: relative; padding: 4px 12px; gap: 0; align-items: center; justify-content: flex-start; }
   /* flex-basis 72px, growing to at most 104px: the row only wraps when even the smallest logo does not fit (an admin has six icons) */
   header.mkt-header .h-logo { order: 1; flex: 1 1 72px; min-width: 72px; max-width: 104px; margin-right: auto; }
+  /* the logo link is as high as the row (at least 44px), so it is an easy tap target even when the logo is shrunk to 72px */
+  header.mkt-header .h-logo { display: flex; align-items: center; align-self: stretch; }
   header.mkt-header .h-logo img { width: 100%; max-width: 104px; height: auto; }
   header.mkt-header .h-tools { display: contents; }
   header.mkt-header .h-tools::after { content: ""; order: 2; flex: 0 0 100%; height: 0; }

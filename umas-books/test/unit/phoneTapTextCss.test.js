@@ -144,6 +144,7 @@ test("header on a phone: a person icon for My Account, different icons for Log i
 test("header on a phone: six icons fit one row at 320px (the heart moves into the Menu), a phone turned sideways gets one row", () => {
   has(header, /header\.mkt-header \.h-tools > \.h-tool, header\.mkt-header \.h-tools > form \{ order: 2; flex: 0 1 44px; min-width: 44px; \}/, "icons are never narrower than 44px");
   has(header, /header\.mkt-header \.h-logo \{ order: 1; flex: 1 1 72px; min-width: 72px; max-width: 104px; margin-right: auto; \}/, "the logo gives way first");
+  has(header, /header\.mkt-header \.h-logo \{ display: flex; align-items: center; align-self: stretch; \}/, "logo link is as high as the row");
   has(header, /@media \(max-width: 359px\) \{ header\.mkt-header \.h-tools > \.h-tool\.fav \{ display: none; \} header\.mkt-header \.h-menu-links a\.h-menu-fav \{ display: flex; \} \}/);
   assert.match(read("umas-books", "views", "partials", "mkt_chrome_header.ejs"), /<a class="h-menu-fav" href="\/favorites" data-i18n="tool\.favorites"><%= t\('Favorites', 'Favoris'\) %><\/a>/);
   const land = block(header, "@media (max-height: 500px) and (max-width: 1000px) {\n  header.mkt-header .h-header-row");
