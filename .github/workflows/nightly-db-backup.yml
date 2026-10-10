@@ -19,11 +19,25 @@ name: Nightly database backup
 # is not set the backup still runs, UNENCRYPTED, with a prominent warning in
 # the job summary, the failure email and a weekly reminder email. Set-up and
 # restore: docs/runbook.md section "Encrypting the backups".
+#
+# YEARLY COPY (10 years): on 2 January (Paris date), AFTER the normal dump, the SAME
+# (encrypted) file is also uploaded to <prefix>/yearly/umas_books_full_YYYY-MM-DD.dump.age,
+# once per calendar year, and the accounting export of the whole previous year
+# (accounting-exports/YYYY/accounting_YYYY-full-year.csv) is stored and emailed. The manual
+# input force_yearly does the same right away (the bootstrap test). If encryption is off the
+# yearly copy is written too, flagged by the same warning. Docs: docs/runbook.md, section
+# "Keeping records for 10 years".
 
 on:
   schedule:
     - cron: "0 3 * * *" # 03:00 UTC nightly
-  workflow_dispatch: {} # allows a manual "Run workflow" from the Actions tab
+  workflow_dispatch: # allows a manual "Run workflow" from the Actions tab
+    inputs:
+      force_yearly:
+        description: "Also create the 10-year yearly copy and the previous year's accounting export right now (bootstrap test; the copy is labelled with today's date)"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -139,6 +153,7 @@ jobs:
           PREFIX: ${{ vars.BACKUP_S3_PREFIX }}
           ENCRYPT: ${{ steps.enc.outputs.encrypt }}
           BACKUP_AGE_RECIPIENT: ${{ vars.BACKUP_AGE_RECIPIENT }}
+          FORCE_YEARLY: ${{ inputs.force_yearly }}
         run: |
           if [ -z "$DATABASE_URL" ]; then
             echo "::error::DATABASE_URL secret is not set — see this workflow's comments for how to add it."
@@ -196,6 +211,87 @@ jobs:
             aws s3 cp "$UPLOAD" "s3://${BUCKET}/${PREFIX}/monthly/$(basename "$UPLOAD")" --endpoint-url "$ENDPOINT" --only-show-errors
             echo "Monthly copy written."
           fi
+          # Yearly copy, kept 10 years (the bucket lifecycle rule for yearly/ is set by hand):
+          # on 2 January, Paris date, or when force_yearly is ticked. Once per calendar year:
+          # skipped if a yearly object of this year already exists (a manual force always writes).
+          PARIS_DATE=$(TZ=Europe/Paris date +%F)
+          YEAR="${PARIS_DATE%%-*}"
+          if [ "$FORCE_YEARLY" = "true" ] || [ "$(TZ=Europe/Paris date +%m-%d)" = "01-02" ]; then
+            # shellcheck disable=SC2016  # the backticks are JMESPath literals, not shell
+            EXISTING=$(aws s3api list-objects-v2 --endpoint-url "$ENDPOINT" --bucket "$BUCKET" \
+                         --prefix "${PREFIX}/yearly/umas_books_full_${YEAR}-" \
+                         --query 'length(Contents || `[]`)' --output text)
+            if [ "${EXISTING:-0}" != "0" ] && [ "$FORCE_YEARLY" != "true" ]; then
+              echo "A yearly copy for ${YEAR} already exists: not written again."
+            else
+              case "$UPLOAD" in *.age) YEXT=".dump.age" ;; *) YEXT=".dump" ;; esac
+              aws s3 cp "$UPLOAD" "s3://${BUCKET}/${PREFIX}/yearly/umas_books_full_${PARIS_DATE}${YEXT}" --endpoint-url "$ENDPOINT" --only-show-errors
+              echo "Yearly copy written: ${PREFIX}/yearly/umas_books_full_${PARIS_DATE}${YEXT}"
+              if [ "$ENCRYPT" != "true" ]; then
+                echo "::warning title=Yearly copy is not encrypted::BACKUP_AGE_RECIPIENT is not set: the 10-year copy is UNENCRYPTED. See docs/runbook.md, section 'Encrypting the backups'."
+              fi
+              echo "yearly=true" >> "$GITHUB_OUTPUT"
+              echo "- Yearly copy (10 years): \`yearly/umas_books_full_${PARIS_DATE}${YEXT}\`" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          fi
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        if: steps.dump.outputs.yearly == 'true'
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: umas-books/package-lock.json
+
+      - name: Install dependencies for the yearly accounting export
+        if: steps.dump.outputs.yearly == 'true'
+        working-directory: umas-books
+        run: npm ci --ignore-scripts
+
+      - name: Yearly accounting export (the whole previous year, read-only)
+        # Reuses scripts/export-accounting-month.js in year mode: the last complete year
+        # (the financial year starts in the repository VARIABLE FISCAL_YEAR_START_MONTH,
+        # default 1 = January). Plain files (no personal data), kept 10 years.
+        id: yearly
+        if: steps.dump.outputs.yearly == 'true'
+        working-directory: umas-books
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          FISCAL_YEAR_START_MONTH: ${{ vars.FISCAL_YEAR_START_MONTH }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_S3_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_APPLICATION_KEY }}
+          AWS_DEFAULT_REGION: ${{ vars.BACKUP_S3_REGION }}
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+          ENDPOINT: ${{ vars.BACKUP_S3_ENDPOINT }}
+          BUCKET: ${{ vars.BACKUP_S3_BUCKET }}
+        run: |
+          node scripts/export-accounting-month.js --year last --out "$GITHUB_WORKSPACE/accounting-out"
+          cd "$GITHUB_WORKSPACE/accounting-out"
+          LABEL=""
+          for f in accounting_*-full-year.csv; do LABEL="${f#accounting_}"; LABEL="${LABEL%.csv}"; done
+          test -n "$LABEL" || { echo "::error::No yearly accounting file was produced."; exit 1; }
+          FOLDER="${LABEL%%-*}"
+          for f in "accounting_${LABEL}.csv" "till_days_${LABEL}.csv" "summary_${LABEL}.txt"; do
+            test -s "$f" || { echo "::error::$f is missing or empty."; exit 1; }
+            case "$f" in *.csv) TYPE="text/csv; charset=utf-8" ;; *) TYPE="text/plain; charset=utf-8" ;; esac
+            aws s3 cp "$f" "s3://${BUCKET}/accounting-exports/${FOLDER}/${f}" --endpoint-url "$ENDPOINT" --content-type "$TYPE" --only-show-errors
+            echo "Stored accounting-exports/${FOLDER}/${f}"
+          done
+          echo "label=${LABEL}" >> "$GITHUB_OUTPUT"
+
+      - name: Email the yearly accounting files
+        if: steps.dump.outputs.yearly == 'true'
+        uses: dawidd6/action-send-mail@67ce3558d613188179559c61d3565140cf389968 # v22
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.GMAIL_USER }}
+          password: ${{ secrets.GMAIL_APP_PASSWORD }}
+          subject: "[umas-books] Accounting export ${{ steps.yearly.outputs.label }}"
+          to: ${{ vars.ACCOUNTING_TO || vars.ALERT_TO || 'admin@umasbooks.org' }}
+          from: "Uma's Books Accounting <${{ secrets.GMAIL_USER }}>"
+          body: file://accounting-out/email_body.txt
+          attachments: accounting-out/accounting_*.csv,accounting-out/till_days_*.csv
 
       - name: Alert admin if any step above failed
         # `if: failure()` here means "some earlier step in this job
