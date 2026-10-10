@@ -128,7 +128,7 @@
           <% if (isAdmin) { %>
           <label class="till-beep"><input type="checkbox" data-reopen-tick> Reopen this day to record this sale</label>
           <label>Reason for reopening (required)</label>
-          <input type="text" maxlength="120" autocomplete="off" data-reopen-reason placeholder="Why this sale is added to a closed day">
+          <input aria-label="Reason for reopening (required)" type="text" maxlength="120" autocomplete="off" data-reopen-reason placeholder="Why this sale is added to a closed day">
           <p class="muted small">The day will be open again: count the drawer and close it again afterwards.</p>
           <% } else { %>
           <p class="muted small">The day is closed. Ask an admin to reopen it.</p>

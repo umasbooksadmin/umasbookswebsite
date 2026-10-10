@@ -173,6 +173,7 @@ s.test("A9b (must) on a phone (375x812 and 320x640) the Add book page has no sid
       for (const el of fields) {
         const d = el.closest("details");
         if (d && !d.open) continue;
+        if (!el.getClientRects().length) continue; // not shown (the global search is left out on this page on a phone)
         const name = el.id || el.name;
         if (el.readOnly || el.disabled || el.getAttribute("inputmode") === "none") problems.push(`${name} is readonly, disabled or inputmode none`);
         el.scrollIntoView({ block: "center" });
@@ -188,7 +189,7 @@ s.test("A9b (must) on a phone (375x812 and 320x640) the Add book page has no sid
       const bar = document.querySelector("[data-scan-actions]").getBoundingClientRect();
       if (bar.bottom > innerHeight + 1) problems.push(`the Save bar is below the screen (bottom ${Math.round(bar.bottom)} > ${innerHeight})`);
       const isbnBox = document.getElementById("isbn").getBoundingClientRect();
-      if (isbnBox.top > 420) problems.push(`the ISBN box starts ${Math.round(isbnBox.top)} px down: it should be near the top`);
+      if (isbnBox.top > 260) problems.push(`the ISBN box starts ${Math.round(isbnBox.top)} px down: it should be near the top (260 px at most)`);
       return problems;
     });
     assert.deepEqual(r, [], `${width}x${height}: ${r.join("; ")}`);
