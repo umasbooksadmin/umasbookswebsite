@@ -15,7 +15,7 @@
 
 const assert = require("node:assert/strict");
 const e2e = require("../helpers/harness");
-const { has, hasNot, reserveViaHttp } = require("../helpers/pages");
+const { has, hasNot, reserveViaHttp, phoneOverflow } = require("../helpers/pages");
 const cfg = require("../helpers/config");
 
 const s = e2e.persona("admin");
@@ -1098,3 +1098,57 @@ s.manual("A97 backdating needs a reason, a basket above EUR 10,000 is refused, a
 s.manual("A99 till voids by role: card voids and the refund tick need an admin, till-only cash voids are limited and listed (covered by test/integration/tillVoidRules.test.js)", "needs a second, till-only account");
 s.manual("A100 reprice: an exact-count confirmation and an undo of the last run (covered by test/integration/pricingReprice.test.js)", "applying a reprice changes real prices: left for you to do by hand");
 s.manual("A101 blog publish dates are Paris time and bulk publish/draft are audited (covered by test/integration/blogCorrectness.test.js)", "needs waiting for a scheduled date");
+
+s.test("A102 (must) on a phone (375 px and 320 px) the admin lists and tables fit the screen, long titles wrap, wide tables say they scroll, and the member calendars are a list", { as: "admin", timeout: 300000 }, async (ctx) => {
+  const pages = ["/admin", "/admin/inventory", "/admin/orders", "/admin/members", "/admin/blog", "/admin/announcements", "/admin/reports", "/admin/events", "/admin/meetings", "/admin/volunteer-shifts", "/admin/charity", "/admin/till/day", "/admin/diagnostics/lookup"];
+  for (const [width, height] of [[375, 812], [320, 640]]) {
+    await ctx.page.setViewport({ width, height, deviceScaleFactor: 1, isMobile: true, hasTouch: true });
+    for (const p of pages) {
+      const res = await ctx.goto(p);
+      if (res.status() >= 400 || new URL(ctx.page.url()).pathname !== p) continue; // a page this site does not have (or hides from this login) is not a fault here
+      const bad = await phoneOverflow(ctx.page, width);
+      assert.deepEqual(bad, [], `${p} at ${width} px: ${bad.join("; ")}`);
+    }
+    // a book whose title is a long unbroken string (the local test copy has one) and the Inventory search that lists it
+    const hostile = await e2e.getJson("/api/books/search?q=E2Ephone").catch(() => []);
+    if (hostile.length) {
+      for (const p of [`/admin/inventory?q=E2Ephone`, `/admin/inventory/${hostile[0].id}`]) {
+        await admin(ctx, p);
+        const bad = await phoneOverflow(ctx.page, width);
+        assert.deepEqual(bad, [], `${p} at ${width} px: ${bad.join("; ")}`);
+      }
+    }
+    // Every table that is wider than its box scrolls inside it and says so: an edge shadow always, and the
+    // 'swipe' line above it (the script adds it) while it is wider.
+    for (const p of ["/admin/members", "/admin/blog", "/admin/announcements", "/admin/reports"]) {
+      const res = await ctx.goto(p);
+      if (res.status() >= 400) continue;
+      const r = await ctx.page.evaluate(() => [...document.querySelectorAll(".table-scroll")].map((b) => {
+        const wide = b.scrollWidth > b.clientWidth + 2;
+        const hint = b.previousElementSibling;
+        return { wide, shadow: /gradient/.test(getComputedStyle(b).backgroundImage), hint: !!(hint && hint.classList.contains("table-scroll-hint")), hintShown: !!(hint && getComputedStyle(hint).display !== "none") };
+      }));
+      for (const t of r) {
+        assert.ok(t.shadow, `${p} at ${width} px: a table box has no scroll shadow`);
+        assert.ok(t.hint, `${p} at ${width} px: a table box has no swipe hint line`);
+        if (t.wide) assert.ok(t.hintShown, `${p} at ${width} px: a table wider than its box shows no swipe hint`);
+      }
+    }
+  }
+  // The member and volunteer calendars (an admin may open them): below 480 px a list, not seven 28 px columns.
+  await ctx.page.setViewport({ width: 375, height: 812, deviceScaleFactor: 1, isMobile: true, hasTouch: true });
+  for (const p of ["/meetings", "/volunteer"]) {
+    const res = await ctx.goto(p);
+    if (res.status() >= 400 || new URL(ctx.page.url()).pathname !== p) continue;
+    const r = await ctx.page.evaluate(() => {
+      const g = document.querySelector(".calendar-agenda");
+      const heads = [...document.querySelectorAll(".calendar-agenda .calendar-weekday")].filter((h) => getComputedStyle(h).display !== "none");
+      return g ? { display: getComputedStyle(g).display, heads: heads.length } : null;
+    });
+    assert.ok(r, `${p} has the calendar`);
+    assert.equal(r.display, "block", `${p} at 375 px is a list`);
+    assert.equal(r.heads, 0, `${p} at 375 px shows no weekday header row`);
+    const bad = await phoneOverflow(ctx.page, 375);
+    assert.deepEqual(bad, [], `${p} at 375 px: ${bad.join("; ")}`);
+  }
+});

@@ -331,3 +331,55 @@ form.stack select { font-family: 'Cormorant Garamond', Georgia, serif; font-size
   body:has(.order-receipt) > :not(main) { display: none !important; }
   body:has(.order-receipt) .no-print { display: none !important; }
 }
+
+/* ---------- Phones: nothing may be wider than the screen ----------
+   A long unbroken string (a 90-letter title, a web address used as a title, a 41-letter word) used to
+   widen the whole page. Text that someone typed now wraps anywhere as a last resort (overflow-wrap:
+   anywhere also lowers the smallest width a flex or grid item can shrink to, which is what stopped
+   boxes from squeezing); only a word that does not fit on a line by itself is ever broken. Table cells
+   are left alone on purpose: a table scrolls inside its .table-scroll box (admin.css) instead of
+   breaking words. Where the page language is set, hyphens:auto lets long words break with a hyphen. */
+body { overflow-wrap: break-word; }
+h1, h2, h3, h4, h5, h6, p, li, dt, dd, summary, label, blockquote, figcaption,
+.muted, .small, .thread-meta, .reply, .rich-content, .error-box, .notice-box { overflow-wrap: anywhere; }
+.book-card-title, .book-card-author, .book-card-body, .book-detail-kicker, .book-about, .book-facts, .book-awards-list li,
+.cart-item-title, .cart-item-body, .cover-note, .dash-ann-item h3, .dash-ann-item p, .dash-charity h3, .dash-charity p,
+.rich-content, .thread-title, .reply p { overflow-wrap: anywhere; hyphens: auto; hyphenate-limit-chars: 9 4 3; }
+h1 { hyphens: auto; hyphenate-limit-chars: 9 4 3; }
+/* grid and flex items default to min-width:auto, i.e. as wide as their longest word: let them shrink */
+.book-detail-grid > *, .book-card, .book-card-wrap, .dash-row > *, .dash-links > *, .dash-hero > *, .order-row > *, .vote-option > *,
+.cart-item > *, .dash-ann-item > div, .dash-panel-head > h2 { min-width: 0; }
+.book-detail-grid { grid-template-columns: 240px minmax(0, 1fr); }
+@media (max-width: 700px) { .book-detail-grid { grid-template-columns: minmax(0, 1fr); } }
+.book-grid { grid-template-columns: repeat(auto-fill, minmax(min(160px, 100%), 1fr)); }
+.dash-row { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); }
+@media (max-width: 900px) { .dash-row, .dash-links, .dash-hero { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 820px) { .dash-hero { grid-template-columns: minmax(0, 1fr); } }
+.dash-links { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.vote-bar { max-width: 100%; }
+img { max-width: 100%; }
+/* Rows that hold a title, a date and a status pill: the pill (and everything else) may wrap onto the next line. */
+.order-row { flex-wrap: wrap; min-width: 0; }
+.order-row > * { min-width: 0; max-width: 100%; }
+.order-row .status-pill { max-width: 100%; white-space: normal; text-align: center; }
+
+/* Member and volunteer calendars (/meetings, /volunteer) on a phone: seven 28px columns cannot hold a
+   title, so below 480px the month becomes a list like /events (floral-calendar.css): one row per day that
+   has something on it, the weekday and date on the left, the items stacked on the right. */
+.calendar-grid > * { min-width: 0; }
+.calendar-day-weekday { display: none; }
+@media (max-width: 480px) {
+  .calendar-agenda { display: block; }
+  .calendar-agenda .calendar-weekday, .calendar-agenda .calendar-day.is-empty, .calendar-agenda .calendar-day:not(:has(.calendar-pill)) { display: none; }
+  .calendar-agenda .calendar-day {
+    display: grid; grid-template-columns: 48px minmax(0, 1fr); column-gap: 12px; row-gap: 6px; align-items: start;
+    min-height: 0; margin-bottom: 8px; padding: 10px 8px;
+  }
+  .calendar-agenda .calendar-day-number { grid-column: 1; grid-row: 1 / -1; display: flex; flex-direction: column; align-items: center; margin: 0; font-size: 18px; color: var(--ink); }
+  .calendar-agenda .calendar-day.is-today .calendar-day-number { color: var(--maroon); }
+  .calendar-agenda .calendar-day-weekday { display: block; margin-bottom: 2px; font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); }
+  .calendar-agenda .calendar-pill { grid-column: 2; margin-bottom: 0; }
+  .calendar-agenda .calendar-pill summary { display: flex; align-items: center; min-height: 44px; }
+  .calendar-agenda .calendar-pill-body .btn { min-height: 44px; display: inline-flex; align-items: center; }
+}
+@media (max-width: 480px) { .calendar-nav-main { flex-wrap: wrap; } }

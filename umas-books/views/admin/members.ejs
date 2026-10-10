@@ -91,11 +91,11 @@
   <a class="btn btn-outline btn-small" href="/admin/members">Clear Filters</a>
 </form>
 
-<div class="ann-layout" style="grid-template-columns: <%= detail ? '1.6fr 1fr' : '1fr' %>;">
+<div class="ann-layout<%= detail ? ' has-detail' : ' no-detail' %>">
   <div class="ann-list-col">
     <div class="card" style="padding:14px 16px;">
       <div style="overflow-x:auto;">
-      <div class="table-scroll"><table class="ann-table">
+      <div class="table-scroll"><table class="ann-table table-sticky-first">
         <thead>
           <tr>
             <th>

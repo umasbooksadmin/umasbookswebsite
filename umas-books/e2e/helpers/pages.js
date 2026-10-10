@@ -125,4 +125,40 @@ async function reserveViaHttp(ctx, who, count = 1) {
   return { id, token, copyIds: copyIds.map(Number) };
 }
 
-module.exports = { reserveViaHttp, has, hasNot, stockedBook, addFirstCopyToCart, cartLineCount, cancelOpenReservations, openReservationCount, pressReserve, pageHtml, stripTags, EN_ONLY };
+// ---- phone layout: nothing wider than the screen ----
+// Regions that are allowed to run past the right edge, each with the reason. Everything else is a fault.
+// (Anything inside an ancestor that scrolls sideways on purpose, a carousel or a .table-scroll box, is
+// skipped automatically: it is not listed here.)
+const PHONE_ALLOW = [
+  { selector: ".visually-hidden, .sr-date, .skip-link, .file-input-hidden, .hp", reason: "text hidden from the eye (screen readers, a spam trap, a skip link) is positioned off the screen on purpose" },
+  { selector: "[aria-hidden='true'].art, .fcal-hero .art", reason: "decorative flower pictures are cut by the edge of their box on purpose" },
+];
+
+// Measures the open page as a phone `width` px wide. Returns a list of faults (empty = fine). It compares with the
+// width asked for, NOT window.innerWidth: a mobile browser widens innerWidth to fit wide content, which would hide
+// exactly the fault looked for.
+async function phoneOverflow(page, width, allow = PHONE_ALLOW) {
+  return page.evaluate((w, allowSelectors) => {
+    const out = [];
+    const sw = document.documentElement.scrollWidth;
+    if (sw > w) out.push(`the page is ${sw} px wide on a ${w} px screen`);
+    for (const el of document.querySelectorAll("body *")) {
+      const cs = getComputedStyle(el);
+      if (cs.position === "fixed" || cs.display === "none" || cs.visibility === "hidden") continue;
+      if (el.closest("svg") && el.tagName !== "svg") continue;
+      const b = el.getBoundingClientRect();
+      if (!(b.width > 0 && b.height > 0 && b.right > w + 1)) continue;
+      if (allowSelectors.some((sel) => el.closest(sel))) continue;
+      if (el.closest("[hidden], [aria-hidden='true']")) continue;
+      const closed = el.closest("details:not([open])");
+      if (closed && !(el.closest("summary") && el.closest("summary").parentElement === closed)) continue;
+      let scrolls = false;
+      for (let a = el.parentElement; a && a !== document.body && a !== document.documentElement; a = a.parentElement) if (/auto|scroll|hidden|clip/.test(getComputedStyle(a).overflowX)) scrolls = true;
+      if (scrolls) continue;
+      out.push(`${el.tagName.toLowerCase()}${el.className && typeof el.className === "string" ? "." + el.className.trim().split(/\s+/).slice(0, 2).join(".") : ""} ends at ${Math.round(b.right)} px`);
+    }
+    return out.slice(0, 5);
+  }, width, allow.map((a) => a.selector));
+}
+
+module.exports = { phoneOverflow, PHONE_ALLOW, reserveViaHttp, has, hasNot, stockedBook, addFirstCopyToCart, cartLineCount, cancelOpenReservations, openReservationCount, pressReserve, pageHtml, stripTags, EN_ONLY };

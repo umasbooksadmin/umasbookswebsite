@@ -95,7 +95,7 @@
     <p class="muted">Nothing to show for this period.</p>
   <% } else { %>
     <div style="overflow-x:auto;">
-      <div class="table-scroll"><table class="ann-table">
+      <div class="table-scroll"><table class="ann-table table-sticky-first">
         <thead>
           <tr>
             <% section.columns.forEach(c => { %><th<%- ['int', 'eur', 'usd', 'eur4', 'pct', 'dec1'].includes(c.type) ? ' style="text-align:right;"' : '' %>><%= c.label %></th><% }) %>
