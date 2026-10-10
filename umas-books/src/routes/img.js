@@ -13,9 +13,15 @@
 // and the ETag is the content hash, so /img/<hash>.jpg?x=1 and ?x=2 are the same
 // image with the same validators (a CDN should be set to ignore the query string
 // for /img/*).
+//
+// Smaller copies: /img/<sha256>-w300.jpg (also -w450, -w600) is the same JPEG scaled to that
+// width, never cropped (lib/imageVariants.js). Only those three widths exist; any other
+// name is a 404, so the URL cannot be used to make the server render arbitrary sizes.
+// Same cache headers; the ETag carries the width.
 
 const express = require("express");
 const { getImage, FILE_RE, TYPE_BY_EXT } = require("../lib/imageStore");
+const { getVariant, VARIANT_RE } = require("../lib/imageVariants");
 
 const { limit } = require("../middleware/rateLimits");
 
@@ -33,9 +39,10 @@ function notFound(res) {
 
 // Step 1 (no database, not rate limited): validate the name, answer 304.
 function precheck(req, res, next) {
-  const m = FILE_RE.exec(req.params.file);
+  const v = VARIANT_RE.exec(req.params.file);
+  const m = v || FILE_RE.exec(req.params.file);
   if (!m) return notFound(res);
-  const etag = `"${m[1]}"`;
+  const etag = v ? `"${v[1]}-w${v[2]}"` : `"${m[1]}"`;
 
   // The hash IS the content, so a client that already holds it needs nothing.
   const inm = req.get("if-none-match");
@@ -43,14 +50,14 @@ function precheck(req, res, next) {
     res.set({ ETag: etag, "Cache-Control": IMMUTABLE });
     return res.status(304).end();
   }
-  req.imgKey = { id: m[1], ext: m[2], etag };
+  req.imgKey = v ? { id: v[1], ext: "jpg", etag, width: Number(v[2]) } : { id: m[1], ext: m[2], etag };
   next();
 }
 
 // Step 2: the database read.
 router.get("/img/:file", precheck, imgLimiter, async (req, res) => {
-  const { id, ext, etag } = req.imgKey;
-  const image = await getImage(id);
+  const { id, ext, etag, width } = req.imgKey;
+  const image = width ? await getVariant(id, width) : await getImage(id);
   // The extension must agree with what was stored (a .png URL can't serve a JPEG).
   if (!image || image.contentType !== TYPE_BY_EXT[ext]) return notFound(res);
 

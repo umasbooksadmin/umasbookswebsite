@@ -12,13 +12,13 @@
 /* ---------- Buttons ---------- */
 .h-btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 12px;
-  font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600;
+  font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; font-weight: 600;
   font-size: 15px; letter-spacing: 0.14em; text-transform: uppercase; text-decoration: none;
   white-space: nowrap; padding: 14px 26px; border: 1px solid var(--btn-bg); border-radius: 0;
   background: var(--btn-bg); color: #fff; transition: background 0.15s ease, color 0.15s ease;
 }
 .h-btn:hover { background: var(--btn-bg-dark); border-color: var(--btn-bg-dark); }
-.h-btn .arrow { font-family: 'Montserrat', sans-serif; font-weight: 500; font-size: 15px; line-height: 1; }
+.h-btn .arrow { font-family: 'Montserrat', 'Montserrat Fallback', sans-serif; font-weight: 500; font-size: 15px; line-height: 1; }
 .h-btn-outline { background: transparent; color: var(--ink); border-color: var(--ink); }
 .h-btn-outline:hover { background: var(--btn-bg); border-color: var(--btn-bg); color: #fff; }
 .h-btn-lg { font-size: 17px; padding: 17px 36px; letter-spacing: 0.16em; }

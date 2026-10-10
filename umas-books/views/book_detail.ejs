@@ -10,7 +10,7 @@
       </button>
       <% if (book.cover_url) { %>
         <%# width/height + aspect-ratio reserve the space (no layout shift); the cover is the page's main image, so it loads first. A failed load is swapped for a placeholder by public/app.js. %>
-        <img src="<%= book.cover_url %>" alt="<%= tr('Cover of {title}', 'Couverture de {title}', { title: book.title }) %>" class="book-detail-cover" width="240" height="360" fetchpriority="high" decoding="async" data-cover>
+        <img src="<%= book.cover_url %>"<% if (coverSrcset(book.cover_url)) { %> srcset="<%= coverSrcset(book.cover_url) %>" sizes="(max-width: 700px) 150px, 240px"<% } %> alt="<%= tr('Cover of {title}', 'Couverture de {title}', { title: book.title }) %>" class="book-detail-cover" width="240" height="360" fetchpriority="high" decoding="async" data-cover>
       <% } else { %>
         <div class="book-detail-cover book-thumb-placeholder"><%= tr('No cover', 'Pas de couverture') %></div>
       <% } %>
@@ -128,7 +128,7 @@
         </button>
         <a class="book-card" href="/books/<%= b.id %>">
           <% if (b.cover_url) { %>
-            <img src="<%= b.cover_url %>" alt="" class="book-card-cover" width="200" height="300" loading="lazy" decoding="async" data-cover>
+            <img src="<%= b.cover_url %>"<% if (coverSrcset(b.cover_url)) { %> srcset="<%= coverSrcset(b.cover_url) %>" sizes="(max-width: 700px) 45vw, 200px"<% } %> alt="" class="book-card-cover" width="200" height="300" loading="lazy" decoding="async" data-cover>
           <% } else { %>
             <div class="book-card-cover book-thumb-placeholder"><%= tr('No cover', 'Pas de couverture') %></div>
           <% } %>

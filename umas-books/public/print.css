@@ -1,0 +1,34 @@
+/* Printing a public page (linked with media="print" from views/partials/header.ejs and
+   views/marketing/partials/mkt_header.ejs, so it costs a screen visitor nothing).
+   What a person wants on paper is the content: a privacy policy, a book page, an event, a
+   reservation. The header, menu, footer, banners, language switch, buttons and any sticky bar are
+   left out. Admin pages do not load this file: they have their own print rules in admin.css
+   (pickup list, reports, the price-sticker colour chart) and the till receipt has
+   till-receipt.css, so neither is touched here. The order receipt (cart_return.ejs) keeps its
+   own rule in style.css, which is stricter. */
+@media print {
+  @page { margin: 15mm; }
+  html, body { background: #fff !important; color: #000 !important; }
+  body { font-size: 11.5pt; line-height: 1.45; }
+
+  /* Site chrome and everything that only works on a screen. */
+  .skip-link, header.mkt-header, footer.mkt-footer, .site-back-bar, .preview-banner, .staging-banner,
+  .langtoggle, .favorite-toggle, .no-print, .cookie-banner, .consent-banner, [data-cookie-banner], [data-consent],
+  .form-actions-sticky, .sticky-bar, .flash,
+  button, .btn, input[type="submit"], input[type="button"] { display: none !important; }
+
+  main, .container { width: auto !important; max-width: none !important; margin: 0 !important; padding: 0 !important; box-shadow: none !important; }
+  .card, .book-card { box-shadow: none !important; }
+
+  h1, h2, h3, h4 { break-after: avoid; }
+  img, tr, .book-card, .bk-book, .book-facts, blockquote { break-inside: avoid; }
+  img { max-width: 100% !important; height: auto; }
+  a { color: inherit; text-decoration: underline; }
+
+  /* An address in running text is useless on paper unless it is written out. Only external links (full
+     http/https addresses): our own links are relative paths, which would print as "/books/12". */
+  main p a[href^="http"]::after, main li a[href^="http"]::after, main dd a[href^="http"]::after, main blockquote a[href^="http"]::after {
+    content: " (" attr(href) ")"; font-size: 0.85em; overflow-wrap: anywhere; word-break: break-all;
+  }
+  main a.btn[href^="http"]::after, main .no-url[href^="http"]::after { content: none; }
+}

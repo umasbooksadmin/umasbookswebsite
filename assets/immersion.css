@@ -35,7 +35,7 @@
 .imm-session-card .age-label {
   font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.7; margin-bottom: 2px;
 }
-.imm-session-card .age-range { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 26px; }
+.imm-session-card .age-range { font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; font-size: 26px; }
 .imm-session-card.tone-a { background: #dfe7e1; }
 .imm-session-card.tone-b { background: #f7e2df; }
 .imm-session-card.tone-c { background: #f4ead2; }
@@ -76,7 +76,7 @@
 .imm-join-meta .m { flex: 1; padding-left: 18px; border-left: 2px solid rgba(166, 83, 71, 0.3); }
 .imm-join-meta .m:first-child { padding-left: 0; border-left: 0; }
 .imm-join-meta .m .lbl { font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft); }
-.imm-join-meta .m .val { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 21px; color: var(--ink); display: block; margin-top: 2px; }
+.imm-join-meta .m .val { font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; font-size: 21px; color: var(--ink); display: block; margin-top: 2px; }
 .imm-join-meta .m .note { font-size: 13px; color: var(--ink-soft); }
 .imm-join-btn {
   display: inline-flex; align-items: center; gap: 12px; padding: 14px 26px; border-radius: 4px;

@@ -25,6 +25,14 @@
     });
   }
 
+  // Smaller copies of a stored cover (routes/img.js: /img/<hash>-w300.jpg, -w450, -w600) so a phone does not
+  // download the 600 px file for a 160 px slot. Mirrors lib/imageVariants.js coverSrcset; other addresses get none.
+  function coverAttrs(u, sizes) {
+    var m = /^\/img\/([0-9a-f]{64})\.jpg$/.exec(u || "");
+    if (!m) return "";
+    return ' srcset="/img/' + m[1] + '-w300.jpg 300w, /img/' + m[1] + '-w450.jpg 450w, ' + u + ' 600w" sizes="' + sizes + '"';
+  }
+
   function render(books) {
     if (!books.length) {
       list.innerHTML = fr
@@ -34,7 +42,7 @@
     }
     list.innerHTML = books.map(function (b) {
       var cover = b.coverUrl
-        ? '<img src="' + esc(b.coverUrl) + '" alt="" class="book-card-cover" width="200" height="300" loading="lazy" decoding="async" data-cover>'
+        ? '<img src="' + esc(b.coverUrl) + '"' + coverAttrs(b.coverUrl, "(max-width: 700px) 45vw, 200px") + ' alt="" class="book-card-cover" width="200" height="300" loading="lazy" decoding="async" data-cover>'
         : '<div class="book-card-cover book-thumb-placeholder">' + t("No cover", "Pas de couverture") + "</div>";
       var price = b.price != null ? '<span class="book-card-price">' + euro(b.price) + "</span>" : "";
       var availability = b.inStockCount > 0

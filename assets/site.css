@@ -14,6 +14,16 @@
 @font-face { font-family: 'Nunito Sans'; font-style: normal; font-weight: 400 600; font-display: swap; src: url(fonts/nunito-sans-normal-latin-ext-400-600.woff2) format('woff2'); unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
 @font-face { font-family: 'Nunito Sans'; font-style: normal; font-weight: 400 600; font-display: swap; src: url(fonts/nunito-sans-normal-latin-400-600.woff2) format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
 
+/* Stand-ins used while a web font loads (font-display: swap). Each is a font already on the phone (Georgia / Arial),
+   scaled and spaced to the web font's metrics, so text wraps the same before and after the swap and the page does not
+   jump (layout shift). Values measured in headless Chrome with a canvas on a mixed English/French sample (width
+   ratio, rounded UP by about 0.6% so a line that fits in the web font also fits here = size-adjust; the web font's ascent/descent as a percentage of the adjusted size). Re-measure if a font file
+   changes. Where the phone has no Georgia/Arial (some Android) the next font in the stack is used, as before. */
+@font-face { font-family: 'Cormorant Garamond Fallback'; src: local('Georgia'); size-adjust: 88.3%; ascent-override: 104.64%; descent-override: 32.5%; line-gap-override: 0%; }
+@font-face { font-family: 'Libre Baskerville Fallback'; src: local('Georgia'); size-adjust: 116%; ascent-override: 83.6%; descent-override: 23.27%; line-gap-override: 0%; }
+@font-face { font-family: 'Nunito Sans Fallback'; src: local('Arial'), local('Helvetica'); size-adjust: 101%; ascent-override: 100.1%; descent-override: 34.95%; line-gap-override: 0%; }
+@font-face { font-family: 'Montserrat Fallback'; src: local('Arial'), local('Helvetica'); size-adjust: 113.4%; ascent-override: 85.36%; descent-override: 22.14%; line-gap-override: 0%; }
+
 /* Uma's Books & Adventures — shared site styles */
 
 :root {
@@ -50,7 +60,7 @@ body {
   margin: 0;
   background: var(--cream);
   color: var(--ink);
-  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif;
   font-size: 19px;
   font-weight: 500;
   line-height: 1.6;
@@ -81,11 +91,11 @@ a { color: var(--maroon); }
 .site-back-bar { max-width: 1180px; margin: 0 auto; padding: 0 28px 14px; }
 .site-back-link {
   display: inline-flex; align-items: center; gap: 6px; font-size: 15px;
-  font-family: 'Cormorant Garamond', Georgia, serif; color: var(--maroon); text-decoration: none;
+  font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; color: var(--maroon); text-decoration: none;
 }
 .site-back-link:hover { text-decoration: underline; }
 
-h1, h2, h3 { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; color: var(--ink); margin: 0; text-wrap: balance; }
+h1, h2, h3 { font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; font-weight: 500; color: var(--ink); margin: 0; text-wrap: balance; }
 img { max-width: 100%; display: block; }
 
 .wrap { max-width: 1180px; margin: 0 auto; padding: 0 28px; }
@@ -98,7 +108,7 @@ img { max-width: 100%; display: block; }
 
 /* ---------- Buttons ---------- */
 .btn {
-  display: inline-block; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600;
+  display: inline-block; font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; font-weight: 600;
   font-size: 15px; letter-spacing: 0.14em; text-transform: uppercase; text-decoration: none;
   padding: 13px 26px; border-radius: 0; border: 1px solid var(--btn-bg); cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease;
@@ -116,7 +126,7 @@ img { max-width: 100%; display: block; }
   position: relative; z-index: 2; max-width: 560px; padding: 60px 40px; color: #fff;
 }
 .hero .eyebrow-tag {
-  font-family: 'Cormorant Garamond', Georgia, serif; font-variant: small-caps; letter-spacing: 0.12em; font-size: 13px;
+  font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; font-variant: small-caps; letter-spacing: 0.12em; font-size: 13px;
   opacity: 0.9; margin-bottom: 10px; display:block;
 }
 .hero h1 { font-size: clamp(34px, 5.4vw, 58px); font-weight: 700; color: #fff; line-height: 1.12; margin-bottom: 18px; }
@@ -135,7 +145,7 @@ img { max-width: 100%; display: block; }
   display: flex; align-items: center; justify-content: center;
 }
 .photo-block .placeholder-tag {
-  font-family: 'Cormorant Garamond', Georgia, serif; font-style: italic; font-size: 14px; color: var(--ink-soft);
+  font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; font-style: italic; font-size: 14px; color: var(--ink-soft);
   border: 1px dashed var(--card-border); border-radius: 999px; padding: 6px 16px;
   background: rgba(255, 255, 255, 0.6); text-align: center; max-width: 80%;
 }
@@ -211,7 +221,7 @@ img { max-width: 100%; display: block; }
 .donate-card .btn, .member-card .btn { align-self: flex-start; }
 .newsletter-form { display: flex; gap: 10px; flex-wrap: wrap; }
 .newsletter-form input {
-  flex: 1 1 180px; font-family: 'Cormorant Garamond', Georgia, serif; font-size: 16px; padding: 11px 14px;
+  flex: 1 1 180px; font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; font-size: 16px; padding: 11px 14px;
   border: 1px solid var(--card-border); border-radius: 2px; background: #fff; color: var(--ink);
 }
 @media (max-width: 760px) {
@@ -228,7 +238,7 @@ img { max-width: 100%; display: block; }
 /* ---------- Shared chapter / content block styles (sub-pages) ---------- */
 .page-hero { padding: 54px 28px 10px; text-align: center; }
 .page-hero .kicker {
-  font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; text-transform: uppercase;
+  font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; font-weight: 600; text-transform: uppercase;
   font-size: 14px; letter-spacing: 0.14em; color: var(--gold-dark);
 }
 .page-hero h1 { font-size: clamp(30px, 4.4vw, 46px); margin-top: 8px; text-transform: uppercase; letter-spacing: 0.08em; }
@@ -244,7 +254,7 @@ img { max-width: 100%; display: block; }
   background: var(--panel); border: 1px solid var(--card-border); border-radius: 3px;
   padding: 18px 22px; display: flex; gap: 16px; align-items: baseline;
 }
-.card .card-title { font-family: 'Cormorant Garamond', serif; font-weight: 600; font-size: 20px; color: var(--ink); flex: 0 0 auto; min-width: 190px; }
+.card .card-title { font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', serif; font-weight: 600; font-size: 20px; color: var(--ink); flex: 0 0 auto; min-width: 190px; }
 .card .card-desc { color: var(--ink-soft); font-size: 18px; }
 @media (max-width: 560px) { .card { flex-direction: column; gap: 4px; } .card .card-title { min-width: 0; } }
 
@@ -254,25 +264,25 @@ img { max-width: 100%; display: block; }
 }
 .note-box strong { color: var(--maroon-dark); font-weight: 600; }
 .badge-soon {
-  display: inline-block; margin-top: 6px; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600;
+  display: inline-block; margin-top: 6px; font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; font-weight: 600;
   text-transform: uppercase; letter-spacing: 0.08em; font-size: 13px;
   color: var(--gold-dark); border: 1px dashed var(--card-border); border-radius: 999px; padding: 4px 16px;
 }
 .cta-row { text-align: center; margin-top: 28px; }
 
-.form-title { font-family: 'Cormorant Garamond', serif; font-weight: 600; font-size: 24px; color: var(--ink); text-align: center; margin: 32px 0 0; }
+.form-title { font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', serif; font-weight: 600; font-size: 24px; color: var(--ink); text-align: center; margin: 32px 0 0; }
 .formcard { max-width: 62ch; margin: 20px auto 0; display: flex; flex-direction: column; gap: 14px; }
 .formcard .field { display: flex; flex-direction: column; gap: 6px; text-align: left; }
-.formcard label { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; letter-spacing: 0.08em; font-size: 14px; text-transform: uppercase; color: var(--gold-dark); }
+.formcard label { font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; font-weight: 600; letter-spacing: 0.08em; font-size: 14px; text-transform: uppercase; color: var(--gold-dark); }
 .formcard input, .formcard textarea {
-  font-family: 'Cormorant Garamond', Georgia, serif; font-size: 17.5px; color: var(--ink);
+  font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; font-size: 17.5px; color: var(--ink);
   background: var(--panel); border: 1px solid var(--card-border); border-radius: 3px; padding: 10px 12px;
 }
 .formcard textarea { resize: vertical; min-height: 80px; }
 .formcard input:focus, .formcard textarea:focus { outline: 2px solid var(--maroon); outline-offset: 1px; }
 .form-hint { font-size: 15.5px; color: var(--ink-soft); max-width: 62ch; margin: -4px auto 0; text-align: left; }
 .btn-submit {
-  align-self: flex-start; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; font-size: 15.5px;
+  align-self: flex-start; font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; font-weight: 600; font-size: 15.5px;
   letter-spacing: 0.04em; text-transform: uppercase; color: #fff; background: var(--btn-bg); border: 0; border-radius: 3px;
   padding: 12px 26px; cursor: pointer; transition: background 0.15s ease;
 }
@@ -280,11 +290,11 @@ img { max-width: 100%; display: block; }
 
 .scheduletable { width: 100%; max-width: 62ch; margin: 20px auto 0; border-collapse: collapse; font-size: 17px; }
 .scheduletable th, .scheduletable td { padding: 10px 14px; border-bottom: 1px solid var(--line); text-align: left; }
-.scheduletable th { font-family: 'Cormorant Garamond', Georgia, serif; text-transform: uppercase; letter-spacing: 0.06em; font-size: 14px; color: var(--gold-dark); font-weight: 600; }
+.scheduletable th { font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; text-transform: uppercase; letter-spacing: 0.06em; font-size: 14px; color: var(--gold-dark); font-weight: 600; }
 
 .visit-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; max-width: 62ch; margin: 0 auto; text-align: center; }
 @media (max-width: 620px) { .visit-grid { grid-template-columns: 1fr; gap: 30px; } }
-.visit-item .label { font-family: 'Cormorant Garamond', Georgia, serif; text-transform: uppercase; font-weight: 600; letter-spacing: 0.1em; font-size: 13.5px; color: var(--gold-dark); display: block; margin-bottom: 8px; }
+.visit-item .label { font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; text-transform: uppercase; font-weight: 600; letter-spacing: 0.1em; font-size: 13.5px; color: var(--gold-dark); display: block; margin-bottom: 8px; }
 .visit-item .value { font-size: 17px; color: var(--ink); }
 .visit-item .value a { color: var(--maroon); text-decoration: none; border-bottom: 1px solid var(--line); }
 .visit-item .hours-row { display: flex; justify-content: space-between; gap: 8px; max-width: 200px; margin: 0 auto; }
@@ -293,11 +303,11 @@ img { max-width: 100%; display: block; }
 .program-hero { padding: 46px 28px 10px; }
 .program-hero-grid { display: grid; grid-template-columns: 1.15fr 1fr; gap: 40px; align-items: center; }
 .program-hero-copy .kicker {
-  font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; text-transform: uppercase;
+  font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; font-weight: 600; text-transform: uppercase;
   letter-spacing: 0.1em; font-size: 14px; color: var(--maroon); display: block; margin-bottom: 10px;
 }
 .program-hero-copy h1 { font-size: clamp(30px, 4.2vw, 44px); margin-bottom: 10px; }
-.program-hero-copy .tagline { font-family: 'Cormorant Garamond', serif; font-style: italic; font-weight: 600; font-size: 21px; color: var(--maroon-dark); margin: 0 0 14px; }
+.program-hero-copy .tagline { font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', serif; font-style: italic; font-weight: 600; font-size: 21px; color: var(--maroon-dark); margin: 0 0 14px; }
 .program-hero-copy p.desc { color: var(--ink-soft); margin: 0 0 26px; max-width: 46ch; }
 .mini-feature-row { display: flex; gap: 26px; flex-wrap: wrap; }
 .mini-feature { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; max-width: 120px; }
@@ -317,7 +327,7 @@ img { max-width: 100%; display: block; }
 .detail-row .detail-icon { width: 24px; height: 24px; flex: 0 0 auto; color: var(--maroon); margin-top: 3px; }
 .detail-row .detail-icon svg { width: 100%; height: 100%; }
 .detail-row dt {
-  font-family: 'Cormorant Garamond', Georgia, serif; text-transform: uppercase; letter-spacing: 0.06em;
+  font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; text-transform: uppercase; letter-spacing: 0.06em;
   font-size: 14px; color: var(--gold-dark); font-weight: 600; margin: 0 0 3px;
 }
 .detail-row dd { margin: 0; color: var(--ink); line-height: 1.5; }
@@ -359,7 +369,7 @@ img { max-width: 100%; display: block; }
   display: flex; align-items: center; justify-content: center; text-align: center;
   color: var(--ink-soft); font-size: 13.5px; padding: 6px;
 }
-.arrival-title { font-family: 'Cormorant Garamond', serif; font-weight: 600; font-size: 17.5px; line-height: 1.25; margin-bottom: 2px; }
+.arrival-title { font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', serif; font-weight: 600; font-size: 17.5px; line-height: 1.25; margin-bottom: 2px; }
 .arrival-meta { font-size: 15px; color: var(--ink-soft); }
 .carousel-arrow {
   flex: 0 0 auto; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--card-border);
@@ -371,7 +381,7 @@ img { max-width: 100%; display: block; }
 
 .shop-search { display: flex; gap: 10px; max-width: 440px; margin: 24px auto 0; }
 .shop-search input {
-  flex: 1; font-family: 'Cormorant Garamond', Georgia, serif; font-size: 17.5px; padding: 11px 14px;
+  flex: 1; font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; font-size: 17.5px; padding: 11px 14px;
   border: 1px solid var(--card-border); border-radius: 2px; background: var(--panel); color: var(--ink);
 }
 .shop-results-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 22px 20px; margin-top: 28px; }
@@ -397,9 +407,9 @@ img { max-width: 100%; display: block; }
   flex: 0 0 auto; width: 56px; text-align: center; color: var(--maroon-dark);
   border-right: 1px solid var(--card-border); padding-right: 16px;
 }
-.event-date-day { display: block; font-family: 'Cormorant Garamond', Georgia, serif; font-size: 24px; font-weight: 700; line-height: 1; }
-.event-date-month { display: block; font-family: 'Cormorant Garamond', Georgia, serif; text-transform: uppercase; letter-spacing: 0.06em; font-size: 13.5px; margin-top: 4px; }
-.event-title { font-family: 'Cormorant Garamond', serif; font-weight: 600; font-size: 20px; margin-bottom: 2px; }
+.event-date-day { display: block; font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; font-size: 24px; font-weight: 700; line-height: 1; }
+.event-date-month { display: block; font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; text-transform: uppercase; letter-spacing: 0.06em; font-size: 13.5px; margin-top: 4px; }
+.event-title { font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', serif; font-weight: 600; font-size: 20px; margin-bottom: 2px; }
 .event-meta { color: var(--ink-soft); font-size: 16.5px; }
 .event-desc { color: var(--ink-soft); font-size: 17px; margin: 8px 0 0; }
 .event-link { display: inline-block; margin-top: 10px; font-weight: 600; }
