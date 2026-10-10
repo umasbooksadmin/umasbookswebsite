@@ -158,8 +158,8 @@ const ticked = (v) => v === "1" || v === "on" || v === "true";
 router.post("/admin/till/sales/:id/void", requireTillOrAdmin, voidLimiter, async (req, res) => {
   const id = Number(req.params.id);
   try {
-    const r = await till.voidSale(pool, { saleId: id, reason: req.body.reason, userId: req.session.user.id, refundConfirmed: ticked(req.body.refundConfirmed) });
-    await audit(req, { action: "till.void", targetType: "till_sale", targetId: id, detail: `${money(r.totalCents)}: ${till.cleanText(req.body.reason, 120)}${r.card ? (r.refundConfirmed ? " (card refunded)" : " (card refund not confirmed yet)") : ""}` });
+    const r = await till.voidSale(pool, { saleId: id, reason: req.body.reason, userId: req.session.user.id, refundConfirmed: ticked(req.body.refundConfirmed), isAdmin: isAdminReq(req) });
+    await audit(req, { action: "till.void", targetType: "till_sale", targetId: id, detail: `${money(r.totalCents)}${isAdminReq(req) ? "" : " by till account"}: ${till.cleanText(req.body.reason, 120)}${r.card ? (r.refundConfirmed ? " (card refunded)" : " (card refund not confirmed yet)") : ""}` });
     res.redirect(`/admin/till?voided=${id}${r.card && !r.refundConfirmed ? "&card=1" : ""}`);
   } catch (err) {
     if (!(err instanceof till.TillError)) throw err;
@@ -173,7 +173,7 @@ router.post("/admin/till/sales/:id/refunded", requireTillOrAdmin, voidLimiter, a
   const id = Number(req.params.id);
   const back = typeof req.body.back === "string" && /^\/admin\/till(\/day\?day=\d{4}-\d{2}-\d{2})?$/.test(req.body.back) ? req.body.back : "/admin/till/day";
   try {
-    const r = await till.confirmRefund(pool, { saleId: id, userId: req.session.user.id });
+    const r = await till.confirmRefund(pool, { saleId: id, userId: req.session.user.id, isAdmin: isAdminReq(req) });
     await audit(req, { action: "till.refund_confirmed", targetType: "till_sale", targetId: id, detail: `card refunded ${money(r.totalCents)}` });
   } catch (err) {
     if (!(err instanceof till.TillError)) throw err;
@@ -321,9 +321,10 @@ function dayFrom(req) {
 const DAY_LIST_LIMIT = 500;
 async function daySales(day) {
   const { rows } = await pool.query(
-    `SELECT s.id, s.created_at, s.payment_method, s.total_cents, s.status, s.void_reason, s.card_reference, s.refund_confirmed,
+    `SELECT s.id, s.created_at, s.payment_method, s.total_cents, s.status, s.void_reason, s.card_reference, s.refund_confirmed, s.voided_at,
+            COALESCE(NULLIF(u.display_name, ''), u.email) AS voided_by_name,
             (SELECT string_agg(i.description || CASE WHEN i.quantity > 1 THEN ' x' || i.quantity ELSE '' END, '; ' ORDER BY i.id) FROM till_sale_items i WHERE i.sale_id = s.id) AS summary
-     FROM till_sales s WHERE (s.created_at AT TIME ZONE '${SITE_TIME_ZONE}')::date = $1::date
+     FROM till_sales s LEFT JOIN users u ON u.id = s.voided_by WHERE (s.created_at AT TIME ZONE '${SITE_TIME_ZONE}')::date = $1::date
      ORDER BY s.created_at, s.id LIMIT ${DAY_LIST_LIMIT}`, [day]
   );
   return rows;
@@ -338,10 +339,11 @@ router.get("/admin/till/day", requireTillOrAdmin, async (req, res) => {
     const french = wantsFrenchCsv(req.query);
     const d = csvDialect(french ? "fr" : "en");
     await audit(req, { action: "till.day_csv", targetType: "till_day", detail: french ? `${day} (French Excel)` : day });
-    const head = ["Sale", "Time (Paris)", "Payment method", "Status", "Total (EUR)", "Items", "Card reference", "Void reason"].map(csvCell).join(d.sep);
+    const head = ["Sale", "Time (Paris)", "Payment method", "Status", "Total (EUR)", "Items", "Card reference", "Void reason", "Voided by", "Voided at (Paris)"].map(csvCell).join(d.sep);
     const lines = sales.map((s) => [
       s.id, csvCell(formatTime(s.created_at)), csvCell(s.payment_method), csvCell(s.status), csvDecimal(money(s.total_cents), d),
       csvCell(s.summary), csvCell(s.card_reference), csvCell(s.void_reason),
+      csvCell(s.status === "voided" ? s.voided_by_name : ""), csvCell(s.status === "voided" && s.voided_at ? formatTime(s.voided_at) : ""),
     ].join(d.sep));
     res.set({
       "Content-Type": "text/csv; charset=utf-8",

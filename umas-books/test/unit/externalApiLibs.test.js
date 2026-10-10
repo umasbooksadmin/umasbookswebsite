@@ -21,7 +21,11 @@ const ALLOWED = ["https://api.anthropic.com/", "https://openlibrary.org/"];
 const { lookupCache } = require("../../src/lib/bookLookup");
 const realSources = process.env.SCAN_LOOKUP_SOURCES;
 
+// The AI daily cap (lib/aiLimits.js) talks to the database; these tests use mocked timers and no database.
+const aiLimits = require("../../src/lib/aiLimits");
+
 beforeEach(() => {
+  aiLimits.setAiLimits({ acquireAiCall: async () => ({ ok: true }), status: async () => ({ reached: false }), reachedToday: () => ({ reached: false }) });
   process.env.SCAN_LOOKUP_SOURCES = "openlibrary";
   process.env.SCAN_CACHE_TTL_MS = "0"; // these tests ask the same ISBN again with another answer
   lookupCache.clear();
@@ -39,6 +43,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  aiLimits.setAiLimits(null);
   delete process.env.SCAN_CACHE_TTL_MS;
   if (realSources === undefined) delete process.env.SCAN_LOOKUP_SOURCES; else process.env.SCAN_LOOKUP_SOURCES = realSources;
   mock.restoreAll();

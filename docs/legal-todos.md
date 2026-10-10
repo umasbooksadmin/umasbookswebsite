@@ -61,10 +61,18 @@ says who has to decide or do it: *maintainer* (Sharon), *accountant* or
 - [ ] **9. Refreshments** (owner: maintainer). If drinks or food are served:
   recommendation: declare it to the mairie and the DDPP (hygiene rules), and find
   out which alcohol licence applies before serving any alcohol.
-- [ ] **10. Mailbox cleanup is a quarterly task** (owner: maintainer). The
-  12-month promise for contact, volunteer and pre-registration emails is checked
-  every quarter (runbook, section e, "Quarterly"). Put it in the calendar: Gmail
-  search `older_than:12m`, review, delete, empty the Trash.
+- [ ] **10. Mailbox cleanup is a manual task, now prompted monthly** (owner:
+  maintainer). The 12-month promise for contact, volunteer and pre-registration
+  emails cannot be enforced by code (it is the Gmail inbox). Since October 2026
+  the website emails a reminder to `ALERT_TO` once a month (runbook, section e).
+  Do the cleanup when it arrives: Gmail search `older_than:1y`, review, delete,
+  empty the Trash. Tick this item when the first cleanup is done (date: ____).
+- [ ] **10b. Confirm the retention periods with the accountant** (owner:
+  maintainer, accountant). Name and email stay on paid orders for 10 years, the
+  phone number is removed once the order is collected and paid (30 days at the
+  latest); never-paid reservations are anonymised after 30 days (the period the
+  policy already promised). Confirm the accountant needs nothing more than name
+  and email on a paid sale.
 - [ ] **11. Accept or record the data processing agreements** (owner:
   maintainer): see `docs/privacy/processors-checklist.md` (Status column), in
   particular GitHub (it runs the backup job, so the database dump passes through

@@ -485,6 +485,7 @@ one, so a Blueprint rebuild starts correctly; values marked "by hand" are
 | `HELLOASSO_API_BASE` | leave empty/unset for production (the sandbox address is only for tests) | by hand |
 | `HELLOASSO_MEMBERSHIP_FORM_SLUG` | optional: only this HelloAsso form grants membership | by hand |
 | `ANTHROPIC_API_KEY`, `ANTHROPIC_WORKSPACE_ID` | photo scanning and book descriptions | by hand |
+| `AI_DAILY_MAX_CALLS` | optional: the most Anthropic calls per Paris day for ALL AI features together (default `600`; `0` = AI off). Raise it in Render > Environment (runbook section ae, "AI limits"; the AI price-check cap `PRICING_AI_DAILY_MAX` is a part of it) | by hand |
 | `NYT_API_KEY` | optional: New York Times Books API key for the awards / best-seller badges (runbook section i) | by hand |
 | `PRICING_AI`, `PRICING_AI_DAILY_MAX`, `PRICING_AI_MODEL` | optional online price check (see docs/runbook.md) | by hand |
 | `ISBNDB_API_KEY`, `ISBNDB_API_BASE`, `ISBNDB_MIN_INTERVAL_MS` | optional paid book catalog (ISBNdb), used only as a last resort when the free catalogs find nothing; key = secret, add by hand in Render (runbook section aa, "ISBNdb") | by hand |
@@ -526,6 +527,16 @@ alerts, or online membership payment would then be silently off). On `SIGTERM` (
 Render deploy/spin-down) it stops taking new connections, lets in-flight
 requests — notably HelloAsso membership webhooks — finish, closes the database pool and
 exits 0; after 10 seconds it exits anyway.
+
+## Nightly inventory export
+
+Every evening at 21:00 (Paris) the *Nightly inventory export* workflow
+(`.github/workflows/inventory-export.yml`, script `scripts/export-inventory-csv.js`,
+columns and format in `src/lib/inventoryExport.js`) emails a CSV of all inventory (one
+row per copy, plus one row per book) to the alert addresses and stores it in the Backblaze
+bucket under `inventory-exports/`. No customer data in it. The same file is
+available any time from Admin > Inventory > **Download all inventory (CSV)**. Set-up and how
+to open it in Excel: `docs/runbook.md`, section af.
 
 ## Backups in Backblaze B2
 

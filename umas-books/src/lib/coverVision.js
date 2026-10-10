@@ -4,6 +4,7 @@
 // caller falls back to manual entry rather than blocking the scan flow.
 
 const { recordCall } = require("./aiUsageStats");
+const { getAiLimits } = require("./aiLimits");
 
 const VISION_MODEL = "claude-haiku-4-5-20251001";
 
@@ -30,6 +31,12 @@ async function extractBookInfoFromPhoto(buffer, mimeType) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     console.warn("ANTHROPIC_API_KEY not set — photo scanning is disabled.");
+    return null;
+  }
+
+  const slot = await getAiLimits().acquireAiCall(); // the shared daily cap (lib/aiLimits.js)
+  if (!slot.ok) {
+    console.warn(`Photo reading skipped: ${slot.message}`);
     return null;
   }
 

@@ -237,6 +237,40 @@ test("the 200 is sent immediately — before a slow HelloAsso membership lookup 
 });
 
 // Keep last: the limiter is per-process and counts every request above too.
+// --- Cooldown and global cap (lib/webhookGuard.js) ------------------------
+
+const { createSyncGuard, setSyncGuard } = require("../../src/lib/webhookGuard");
+
+test("the same payer email twice within the cooldown: HelloAsso is asked once now and once more at the end of the cooldown; other emails are not delayed", async () => {
+  setSyncGuard(createSyncGuard({ cooldownMs: 400, log: () => {} }));
+  try {
+    const { id, email } = await makeUser({ verified: true });
+    membershipOrders = [authorizedOrder(Math.floor(Math.random() * 1e9))];
+    for (let i = 0; i < 4; i++) assert.equal((await post(membershipBody(email))).status, 200, "always acknowledged");
+    const other = `other-${uniq()}@example.test`;
+    assert.equal((await post(membershipBody(other))).status, 200);
+    await waitFor(async () => (await userRow(id)).is_member === true, { message: "membership granted by the first check" });
+    await waitFor(() => membershipLookups.includes(other), { message: "another email is checked at once" });
+    assert.deepEqual(membershipLookups.filter((e) => e === email), [email], "one check so far for the repeated email");
+    await waitFor(() => membershipLookups.filter((e) => e === email).length === 2, { message: "the trailing check", timeoutMs: 3000 });
+    await new Promise((r) => setTimeout(r, 600));
+    assert.equal(membershipLookups.filter((e) => e === email).length, 2, "exactly two checks for four webhooks");
+  } finally { setSyncGuard(null); }
+});
+
+test("a flood of forged emails makes at most the global cap of HelloAsso checks; every call is still acknowledged", async () => {
+  const logs = [];
+  setSyncGuard(createSyncGuard({ maxPerWindow: 5, log: (m) => logs.push(m) }));
+  try {
+    for (let i = 0; i < 12; i++) assert.equal((await post(membershipBody(`forged${i}-${uniq()}@example.test`))).status, 200);
+    await waitFor(() => membershipLookups.length >= 5, { message: "5 checks" });
+    await new Promise((r) => setTimeout(r, 300));
+    assert.equal(membershipLookups.length, 5);
+    assert.equal(logs.length, 1);
+    assert.equal(errors.length, 0);
+  } finally { setSyncGuard(null); }
+});
+
 test("rate limit: callers past the cap get 429 and no further processing", async () => {
   const statuses = [];
   for (let i = 0; i < 320; i++) {

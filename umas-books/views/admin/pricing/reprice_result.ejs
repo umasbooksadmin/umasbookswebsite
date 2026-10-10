@@ -1,14 +1,21 @@
 <%- include('../../partials/admin_header', { title: 'Reprice result', active: active, pageTitle: 'Reprice result', pageSub: 'The prices were changed. This is the record of what happened.' }) %>
 
+<% if (locals.notice) { %><div class="notice-box" role="status"><%= notice %></div><% } %>
+<% if (locals.error) { %><div class="error-box" role="alert"><%= error %></div><% } %>
 <div class="notice-box" role="status">Group <%= label %>: <strong><%= run.copies_changed %></strong> copies changed to EUR <%= money(run.new_price) %>.</div>
 <p><a href="/admin/pricing/reprice">&larr; Reprice</a></p>
 
 <div class="card">
   <p>
-    Run <%= run.id %> &middot; <%= formatDateTime(run.created_at) %> &middot; <%= run.actor_label || '' %><br>
+    Run <%= run.id %> &middot; <%= formatDateTime(run.created_at) %> &middot; <%= run.actor_role || 'admin' %><br>
     <a href="/admin/audit">See this run in Admin activity</a> (action <code>pricing.reprice</code>, run <%= run.id %>).<br>
     <a href="/admin/pricing/reprice/runs/<%= run.id %>/export.csv">Download the changes as CSV</a> (price before and after, for each copy).
   </p>
+  <% if (isLast) { %>
+    <p><a class="btn btn-outline" href="/admin/pricing/reprice/runs/<%= run.id %>/undo">Undo this run</a> <span class="muted small">(preview first; only copies still at EUR <%= money(run.new_price) %> and in stock go back)</span></p>
+  <% } else { %>
+    <p class="muted small">Only the most recent run can be undone from here; the CSV has the before and after of this one.</p>
+  <% } %>
   <p class="muted small">Press the group's button on the Reprice page again and it will find 0 copies to change.</p>
   <div style="overflow-x:auto;">
     <div class="table-scroll"><table class="ann-table">
