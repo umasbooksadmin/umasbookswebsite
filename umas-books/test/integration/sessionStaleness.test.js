@@ -118,5 +118,5 @@ test("changing a password logs out other sessions but keeps the one that made th
 
   const bAfter = await fetch(`${app.base}/announcements`, { headers: { cookie: jarB.header() }, redirect: "manual" });
   assert.equal(bAfter.status, 302);
-  assert.equal(bAfter.headers.get("location"), "/login");
+  assert.equal(bAfter.headers.get("location"), "/login?returnTo=%2Fannouncements", "logged out: sent to log in, back to this page afterwards");
 });

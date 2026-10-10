@@ -626,7 +626,9 @@ router.post("/login/2fa", twoFactorLimiter, async (req, res) => {
     const code = String(req.body.code || "").trim();
 
     let accepted = false;
-    if (/^\d{3}\s?\d{3}$/.test(code)) {
+    // An app code is six digits (spaces allowed: "123 456", "12 34 56"); anything else is tried as a
+    // recovery code, which hashRecovery reads in any case, with or without the dash and spaces.
+    if (/^\d{6}$/.test(code.replace(/\s/g, ""))) {
       let secret = null;
       try {
         secret = totp.decryptSecret(user.totp_secret_enc);

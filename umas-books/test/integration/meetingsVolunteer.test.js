@@ -52,13 +52,13 @@ const rsvpCount = async (id) => Number((await pool.query("SELECT COUNT(*) FROM m
 
 // ---------------------------------------------------------------- meetings
 
-test("meetings: anonymous goes to /login, non-member to /, member/volunteer/admin get the page", async () => {
+test("meetings: anonymous goes to /login, non-member gets the 403 page, member/volunteer/admin get the page", async () => {
   const anon = await c.get("/meetings");
   assert.equal(anon.status, 302);
-  assert.equal(anon.location, "/login");
+  assert.equal(anon.location, "/login?returnTo=%2Fmeetings");
   const nonMember = await c.get("/meetings", { as: plain });
-  assert.equal(nonMember.status, 302);
-  assert.equal(nonMember.location, "/");
+  assert.equal(nonMember.status, 403);
+  assert.match(nonMember.text, /This area is for members/);
   for (const u of [member, volunteer, admin]) {
     const ok = await c.get("/meetings?month=2091-01", { as: u });
     assert.equal(ok.status, 200);
@@ -164,10 +164,10 @@ const shiftSignups = async (id) => Number((await pool.query("SELECT COUNT(*) FRO
 
 test("volunteer: only volunteers and admins may view or sign up; plain members and anonymous are redirected", async () => {
   const s = await makeShift(noon(2091, 7, 10));
-  assert.equal((await c.get("/volunteer")).location, "/login");
+  assert.equal((await c.get("/volunteer")).location, "/login?returnTo=%2Fvolunteer");
   const memberView = await c.get("/volunteer", { as: member });
-  assert.equal(memberView.status, 302);
-  assert.equal(memberView.location, "/");
+  assert.equal(memberView.status, 403);
+  assert.match(memberView.text, /This area is for volunteers/);
   for (const who of [null, member, plain]) {
     const r = await c.post(`/volunteer/${s.id}/signup`, {}, { as: who });
     assert.equal(r.status, 302);

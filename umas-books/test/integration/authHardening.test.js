@@ -265,7 +265,7 @@ test("an admin email change kills the account's sessions and unused reset links"
 
   const after1 = await fetch(`${app.base}/announcements`, { redirect: "manual", headers: { cookie: squatterJar.header() } });
   assert.equal(after1.status, 302);
-  assert.equal(after1.headers.get("location"), "/login", "the old session must be logged out");
+  assert.equal(after1.headers.get("location"), "/login?returnTo=%2Fannouncements", "the old session must be logged out");
 
   const resetPage = await fetch(`${app.base}/reset-password/${rawReset}`, { redirect: "manual" });
   assert.equal(resetPage.status, 400, "a reset link sent to the old address must be dead");

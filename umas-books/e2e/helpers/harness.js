@@ -86,10 +86,10 @@ class NotAnAccountHolder extends Error {}
 // The account-holder persona must NOT be a member, volunteer or admin, or
 // the "member pages are refused" tests would prove nothing. What the site
 // shows tells: /dashboard (Member's Access) opens for a member, volunteer or
-// admin and sends everyone else to the home page.
+// admin and answers everyone else with the "This area is for members" page (403).
 async function requireNotMember(page) {
-  await page.goto(`${BASE}/dashboard`, { waitUntil: "domcontentloaded" });
-  if (new URL(page.url()).pathname === "/dashboard" || new URL(page.url()).pathname.startsWith("/admin")) {
+  const res = await page.goto(`${BASE}/dashboard`, { waitUntil: "domcontentloaded" });
+  if ((new URL(page.url()).pathname === "/dashboard" && res.status() < 400) || new URL(page.url()).pathname.startsWith("/admin")) {
     throw new NotAnAccountHolder("the E2E_ACCOUNT_* login is a member, volunteer or admin: Member's Access opened for it. Use a plain account (confirmed email, NOT marked as member, volunteer or admin), or the account tests prove nothing. The account tests were skipped.");
   }
 }
