@@ -173,6 +173,7 @@ s.test("A9b (must) on a phone (375x812 and 320x640) the Add book page has no sid
       for (const el of fields) {
         const d = el.closest("details");
         if (d && !d.open) continue;
+        if (!el.getClientRects().length) continue; // not shown (the global search is left out on this page on a phone)
         const name = el.id || el.name;
         if (el.readOnly || el.disabled || el.getAttribute("inputmode") === "none") problems.push(`${name} is readonly, disabled or inputmode none`);
         el.scrollIntoView({ block: "center" });
@@ -188,7 +189,7 @@ s.test("A9b (must) on a phone (375x812 and 320x640) the Add book page has no sid
       const bar = document.querySelector("[data-scan-actions]").getBoundingClientRect();
       if (bar.bottom > innerHeight + 1) problems.push(`the Save bar is below the screen (bottom ${Math.round(bar.bottom)} > ${innerHeight})`);
       const isbnBox = document.getElementById("isbn").getBoundingClientRect();
-      if (isbnBox.top > 420) problems.push(`the ISBN box starts ${Math.round(isbnBox.top)} px down: it should be near the top`);
+      if (isbnBox.top > 260) problems.push(`the ISBN box starts ${Math.round(isbnBox.top)} px down: it should be near the top (260 px at most)`);
       return problems;
     });
     assert.deepEqual(r, [], `${width}x${height}: ${r.join("; ")}`);
@@ -1193,4 +1194,119 @@ s.test("A102 (must) on a phone (375 px and 320 px) the admin lists and tables fi
     const bad = await phoneOverflow(ctx.page, 375);
     assert.deepEqual(bad, [], `${p} at 375 px: ${bad.join("; ")}`);
   }
+});
+
+// ---- Admin on a phone: readable fields, labels, menu, scan page (390 px, touch) ----
+const phone390 = (ctx) => ctx.page.setViewport({ width: 390, height: 844, deviceScaleFactor: 1, isMobile: true, hasTouch: true });
+
+s.test("A110 (must) on a phone (390 px) the add-a-book page shows the ISBN box in the first screen, has no search bar or Back link, a compact full-width Save bar, and an ISBN-with-X switch", { as: "admin" }, async (ctx) => {
+  await phone390(ctx);
+  await admin(ctx, "/admin/inventory/new");
+  const r = await ctx.page.evaluate(() => {
+    const vis = (sel) => { const e = document.querySelector(sel); return !!e && getComputedStyle(e).display !== "none" && e.getBoundingClientRect().height > 0; };
+    const isbn = document.getElementById("isbn").getBoundingClientRect();
+    const bar = document.querySelector("[data-scan-actions]").getBoundingClientRect();
+    const form = document.getElementById("intake-form").getBoundingClientRect();
+    return { isbnTop: isbn.top + scrollY, search: vis(".admin-search"), back: vis(".admin-back-link"), barH: bar.height, barW: bar.width, formW: form.width, toggle: vis("[data-isbn-x]"), mode: document.getElementById("isbn").getAttribute("inputmode") };
+  });
+  assert.ok(r.isbnTop <= 300, `the ISBN box starts ${Math.round(r.isbnTop)} px down (should be inside the first 300 px)`);
+  assert.equal(r.search, false, "the global search bar is hidden on this page");
+  assert.equal(r.back, false, "the Back link is hidden on this page");
+  assert.ok(r.barH <= 56, `the Save bar is ${Math.round(r.barH)} px high (56 at most)`);
+  assert.ok(r.barW >= r.formW - 2, `the Save bar is ${Math.round(r.barW)} px wide in a ${Math.round(r.formW)} px form`);
+  assert.equal(r.toggle, true, "the 'My ISBN has an X' switch is offered on a touch screen");
+  assert.equal(r.mode, "numeric");
+  await ctx.page.tap("[data-isbn-x]");
+  const on = await ctx.page.evaluate(() => ({ mode: document.getElementById("isbn").getAttribute("inputmode"), pressed: document.querySelector("[data-isbn-x]").getAttribute("aria-pressed"), focused: document.activeElement && document.activeElement.id }));
+  assert.deepEqual(on, { mode: "text", pressed: "true", focused: "isbn" }, "the switch gives the ISBN box the letter keyboard and keeps the cursor there");
+});
+
+s.test("A111 (must) on a phone (390 px) the admin menu drawer takes focus, keeps Tab inside, locks the page scroll and gives focus back on Escape; its links are 44 px tall", { as: "admin" }, async (ctx) => {
+  await phone390(ctx);
+  await admin(ctx, "/admin/inventory");
+  const state = () => ctx.page.evaluate(() => ({
+    expanded: document.querySelector("[data-toggle-admin-nav]").getAttribute("aria-expanded"),
+    inside: !!document.activeElement.closest("#admin-sidebar"),
+    active: document.activeElement.className || document.activeElement.tagName,
+    overflow: getComputedStyle(document.documentElement).overflow,
+  }));
+  assert.equal((await state()).expanded, "false");
+  assert.equal(await ctx.page.$eval("[data-toggle-admin-nav]", (b) => b.getAttribute("aria-controls")), "admin-sidebar");
+  await ctx.page.tap("[data-toggle-admin-nav]");
+  await new Promise((r) => setTimeout(r, 400));
+  let st = await state();
+  assert.equal(st.expanded, "true");
+  assert.ok(st.inside, "focus moved into the drawer when it opened");
+  assert.equal(st.overflow, "hidden", "the page behind does not scroll while the menu is open");
+  for (let i = 0; i < 40; i++) {
+    await ctx.page.keyboard.press("Tab");
+    assert.ok((await state()).inside, `Tab ${i + 1} left the drawer`);
+  }
+  await ctx.page.keyboard.down("Shift");
+  await ctx.page.keyboard.press("Tab");
+  await ctx.page.keyboard.up("Shift");
+  assert.ok((await state()).inside, "Shift+Tab left the drawer");
+  const short = await ctx.page.evaluate(() => [...document.querySelectorAll("#admin-sidebar a, #admin-sidebar button")].filter((a) => a.getBoundingClientRect().height < 43.5).map((a) => `${a.textContent.trim().slice(0, 20)} ${Math.round(a.getBoundingClientRect().height)}px`));
+  assert.deepEqual(short, [], "menu links and buttons are at least 44 px tall");
+  await ctx.page.keyboard.press("Escape");
+  await new Promise((r) => setTimeout(r, 300));
+  st = await state();
+  assert.equal(st.expanded, "false");
+  assert.match(st.active, /admin-nav-toggle/, "Escape gives focus back to the menu button");
+  assert.notEqual(st.overflow, "hidden", "the page scrolls again");
+});
+
+s.test("A112 (must) on a phone (390 px) no field on the main admin pages is under 16 px (iOS would zoom in), and every field has a name", { as: "admin", timeout: 180000 }, async (ctx) => {
+  await phone390(ctx);
+  const pages = ["/admin", "/admin/inventory", "/admin/inventory/new", "/admin/inventory/move", "/admin/orders", "/admin/members", "/admin/requests", "/admin/sessions", "/admin/events", "/admin/volunteer-shifts", "/admin/meetings", "/admin/till", "/admin/till/items", "/admin/till/day", "/admin/announcements", "/admin/blog", "/admin/charity", "/admin/pricing", "/admin/reports/accounting/mapping", "/admin/privacy"];
+  for (const p of pages) {
+    const res = await ctx.goto(p);
+    if (res.status() >= 400 || new URL(ctx.page.url()).pathname !== p) continue;
+    const bad = await ctx.page.evaluate(() => {
+      const out = [];
+      for (const e of document.querySelectorAll("input, select, textarea")) {
+        if (["hidden", "checkbox", "radio", "file", "submit", "button", "range", "color"].includes(e.type)) continue;
+        const cs = getComputedStyle(e);
+        if (cs.display === "none" || cs.visibility === "hidden") continue;
+        const label = (e.getAttribute("aria-label") || "").trim() || [...(e.labels || [])].some((l) => l.textContent.trim()) || e.getAttribute("aria-labelledby");
+        if (parseFloat(cs.fontSize) < 16) out.push(`${e.tagName.toLowerCase()}[name=${e.name}] is ${cs.fontSize}`);
+        if (!label) out.push(`${e.tagName.toLowerCase()}[name=${e.name}] has no name`);
+      }
+      return out;
+    });
+    assert.deepEqual(bad, [], `${p}: ${bad.slice(0, 5).join("; ")}`);
+  }
+});
+
+s.test("A113 (must) on a phone (390 px) each Pricing rules field has its label above it and is full width, and Accounting mapping is one card per rule", { as: "admin" }, async (ctx) => {
+  await phone390(ctx);
+  await admin(ctx, "/admin/pricing");
+  const rules = await ctx.page.evaluate(() => [...document.querySelectorAll(".rule-field")].map((f) => {
+    const l = f.querySelector(".rule-field-label"), i = f.querySelector("input");
+    if (!i) return null;
+    const lr = l ? l.getBoundingClientRect() : null, ir = i.getBoundingClientRect(), pr = (i.closest("li, .stack, .card") || document.body).getBoundingClientRect();
+    return { name: i.getAttribute("aria-label"), labelAbove: !l || lr.bottom <= ir.top + 1, wide: ir.width >= pr.width * 0.6, h: ir.height };
+  }));
+  assert.ok(rules.length >= 19, `found ${rules.length} rule fields`);
+  for (const r of rules) {
+    assert.ok(r.name, "a rule field has no aria-label");
+    assert.ok(r.labelAbove, `${r.name}: the label is not above the field`);
+    assert.ok(r.wide, `${r.name}: the field is narrow`);
+    assert.ok(r.h >= 44, `${r.name}: the field is ${r.h} px high`);
+  }
+  await admin(ctx, "/admin/reports/accounting/mapping");
+  const cards = await ctx.page.evaluate(() => ({ rows: [...document.querySelectorAll(".map-table tbody tr")].length, tr: getComputedStyle(document.querySelector(".map-table tbody tr")).display, wide: document.documentElement.scrollWidth <= innerWidth }));
+  assert.ok(cards.rows > 5);
+  assert.equal(cards.tr, "grid", "each rule is a card");
+  assert.ok(cards.wide, "no sideways scrolling");
+});
+
+s.test("A114 (must) on a phone (390 px) the Inventory landing buttons are equal-width tiles, two to a row", { as: "admin" }, async (ctx) => {
+  await phone390(ctx);
+  await admin(ctx, "/admin/inventory");
+  const b = await ctx.page.evaluate(() => [...document.querySelectorAll(".inv-actions .btn")].map((e) => { const r = e.getBoundingClientRect(); return { w: Math.round(r.width), left: Math.round(r.left), top: Math.round(r.top) }; }));
+  assert.ok(b.length >= 4);
+  const paired = b.length % 2 ? b.slice(0, -1) : b; // an odd last tile spans both columns
+  assert.equal(new Set(paired.map((x) => x.w)).size, 1, `tiles have different widths: ${paired.map((x) => x.w).join(", ")}`);
+  assert.equal(new Set(paired.map((x) => x.left)).size, 2, "two columns");
 });

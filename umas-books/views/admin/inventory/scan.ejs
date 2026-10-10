@@ -1,4 +1,4 @@
-<%- include('../../partials/admin_header', { title: 'Scan a Book', active: active, pageTitle: 'Scan a Book', extraCss: ['/scan-intake.css'] }) %>
+<%- include('../../partials/admin_header', { title: 'Scan a Book', active: active, pageTitle: 'Scan a Book', compactTop: true, extraCss: ['/scan-intake.css'] }) %>
 
 <% if (typeof saved !== "undefined" && saved) { %><div role="status" class="notice-box">Book saved &mdash; ready for the next one.</div><% } %>
 <% if (typeof requestsMatched !== "undefined" && requestsMatched > 0) { %><div role="status" class="notice-box"><%= requestsMatched %> customer<%= requestsMatched === 1 ? '' : 's' %> asked for this book. <a href="/admin/requests?status=matched">See the requests</a></div><% } %>
@@ -29,7 +29,7 @@
     <form class="stack" method="post" action="/admin/inventory/lookup" enctype="multipart/form-data">
       <%- include('../../partials/csrf_field') %>
       <button type="button" class="btn btn-outline" data-trigger-file="photo">Take or Choose Photo</button>
-      <input id="photo" name="photo" type="file" accept="image/*" capture="environment" required class="file-input-hidden" data-file-name-target="photo-name" data-auto-submit-file>
+      <input id="photo" name="photo" type="file" aria-label="Book photo" accept="image/*" capture="environment" required class="file-input-hidden" data-file-name-target="photo-name" data-auto-submit-file>
       <span id="photo-name" class="muted small file-input-name">No photo selected</span>
     </form>
   <% } else { %>

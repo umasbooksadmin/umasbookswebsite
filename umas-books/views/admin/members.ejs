@@ -56,9 +56,9 @@
       <form class="stack" method="post" action="/admin/members">
         <%- include('../partials/csrf_field') %>
         <label>Name</label>
-        <input name="displayName" type="text" required>
+        <input aria-label="Name" name="displayName" type="text" required>
         <label>Email</label>
-        <input name="email" type="email" required>
+        <input aria-label="Email" name="email" type="email" required>
         <label class="ann-check"><input type="checkbox" name="isMember"> <span>Mark as a member</span></label>
         <label class="ann-check"><input type="checkbox" name="isVolunteer"> <span>Mark as a volunteer</span></label>
         <label class="ann-check"><input type="checkbox" name="isAdmin"> <span>Make an admin</span></label>
@@ -70,18 +70,18 @@
 </div>
 
 <form class="ann-filters" method="get" action="/admin/members">
-  <input type="text" name="q" value="<%= filters.q %>" placeholder="Search by name or email…">
-  <select name="role">
+  <input type="text" name="q" aria-label="Search accounts by name or email" value="<%= filters.q %>" placeholder="Search by name or email…">
+  <select name="role" aria-label="Filter by account type">
     <% Object.keys(filterLabels).forEach(function (v) { %>
       <option value="<%= v %>" <%= filters.role === v ? 'selected' : '' %>><%= filterLabels[v] %> (<%= typeCounts[v] %>)</option>
     <% }) %>
   </select>
-  <select name="status">
+  <select name="status" aria-label="Filter by status">
     <option value="">All Statuses</option>
     <option value="active" <%= filters.status === 'active' ? 'selected' : '' %>>Active</option>
     <option value="inactive" <%= filters.status === 'inactive' ? 'selected' : '' %>>Inactive</option>
   </select>
-  <select name="dateRange">
+  <select name="dateRange" aria-label="Filter by date joined">
     <option value="">All Time</option>
     <option value="7d" <%= filters.dateRange === '7d' ? 'selected' : '' %>>Last 7 days</option>
     <option value="30d" <%= filters.dateRange === '30d' ? 'selected' : '' %>>Last 30 days</option>
@@ -259,9 +259,9 @@
             <%- include('../partials/csrf_field') %>
             <input type="hidden" name="backQuery" value="<%= listQs %>">
             <label>Name</label>
-            <input name="displayName" type="text" required value="<%= detail.user.display_name %>">
+            <input aria-label="Name" name="displayName" type="text" required value="<%= detail.user.display_name %>">
             <label>Email</label>
-            <input name="email" type="email" required value="<%= detail.user.email %>">
+            <input aria-label="Email" name="email" type="email" required value="<%= detail.user.email %>">
             <button class="btn btn-small" type="submit">Save Changes</button>
           </form>
         <% } %>

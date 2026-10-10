@@ -336,3 +336,73 @@
 /* Two fields side by side (Publish date + Status): one under the other on a phone. */
 .field-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 @media (max-width: 520px) { .field-pair { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---------- Phones: readable fields, labelled rules, drawer menu, compact scan header ---------- */
+/* Fields are 16px on a phone or a tablet (any touch screen): under 16px iOS zooms the page when a field gets
+   focus and does not zoom back. Up to 767px they are also 44px tall (a fingertip); check boxes, radio buttons and
+   file pickers keep their own size. The rule is long on purpose: it must beat the smaller sizes set for filters,
+   tables and forms elsewhere. */
+@media (max-width: 767px), (pointer: coarse) {
+  .admin-main input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=hidden]):not([type=range]):not([type=color]):not([type=submit]):not([type=button]),
+  .admin-main select,
+  .admin-main textarea { font-size: 16px; }
+}
+@media (max-width: 767px) {
+  .admin-main input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=hidden]):not([type=range]):not([type=color]):not([type=submit]):not([type=button]),
+  .admin-main select { min-height: 44px; }
+  .admin-main input[type=checkbox], .admin-main input[type=radio] { min-width: 22px; min-height: 22px; }
+}
+
+/* Pricing rules: a number inside a sentence on a computer; on a phone every rule field has its label above it and
+   fills the width (the label text is also the field's aria-label). */
+.rule-field input { width: 6.5em; }
+.rule-field-label { display: none; }
+@media (max-width: 600px) {
+  .rule-field { display: block; margin: 8px 0 12px; }
+  .rule-field-label { display: block; margin: 0 0 4px; font-size: 14px; font-weight: 600; color: var(--ink-soft); }
+  .rule-field input { display: block; width: 100%; }
+  .admin-main ol li > .rule-field:first-of-type { margin-top: 10px; }
+}
+
+/* Accounting mapping: one card per rule on a phone (category and method as the heading, the three fields below). */
+.map-table input[name^="debit_"], .map-table input[name^="credit_"] { width: 90px; }
+.map-table input[name^="journal_"] { width: 70px; }
+@media (max-width: 600px) {
+  .map-table, .map-table tbody, .map-table tr, .map-table td { display: block; }
+  .map-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .map-table tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; padding: 12px; margin-bottom: 12px; border: 1px solid var(--card-border); border-radius: 8px; background: #fff; }
+  .admin-main .map-table td, .admin-main .map-table td:first-child { min-width: 0; padding: 0; border: 0; }
+  .map-table td[data-heading] { grid-column: 1 / -1; font-weight: 600; }
+  .map-table td[data-heading="method"] { margin-top: -6px; font-weight: 400; color: var(--ink-soft); }
+  .map-table td[data-label]::before { content: attr(data-label); display: block; margin-bottom: 2px; font-size: 13px; color: var(--ink-soft); }
+  .map-table td[data-label]:last-child { grid-column: 1 / 2; }
+  .map-table input[name^="debit_"], .map-table input[name^="credit_"], .map-table input[name^="journal_"] { width: 100%; }
+}
+
+/* Drawer menu (up to 900px): links at least 44px tall, the page behind it does not scroll while it is open
+   (app.js sets the class on <html> and makes the page behind inert). */
+html.is-admin-nav-open, html.is-admin-nav-open body { overflow: hidden; }
+@media (max-width: 900px) {
+  .admin-sidebar { overscroll-behavior: contain; }
+  .admin-nav a, .admin-nav-group a, .admin-sidebar .admin-view-site { min-height: 44px; box-sizing: border-box; display: flex; align-items: center; }
+  .admin-nav-close { flex: 0 0 44px; width: 44px; height: 44px; margin-bottom: 4px; font-size: 28px; display: flex; align-items: center; justify-content: center; }
+  .admin-sidebar .admin-logo { min-height: 44px; }
+}
+
+/* The scan, add-book and till pages: on a phone the global search box and the Back link are left out (they
+   only push the ISBN box down) and the title row is small, so the ISBN field is in the first screen. */
+@media (max-width: 900px) {
+  .admin-topbar.is-compact { margin-bottom: 8px; gap: 6px 12px; }
+  .admin-topbar.is-compact .admin-search, .admin-topbar.is-compact .admin-back-link { display: none; }
+  .admin-topbar.is-compact h1 { font-size: 20px; line-height: 1.2; margin: 0; }
+  .admin-topbar.is-compact .sub { display: none; }
+  .admin-topbar.is-compact .admin-topbar-brand { min-height: 40px; }
+}
+
+/* Admin Inventory landing: the action buttons are equal-width tiles, two to a row on a phone. */
+@media (max-width: 640px) {
+  .inv-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .inv-actions .btn { display: flex; align-items: center; justify-content: center; text-align: center; min-height: 44px; box-sizing: border-box; margin: 0; width: 100%; }
+  .inv-actions .btn:last-child:nth-child(odd) { grid-column: 1 / -1; }
+}
+@media (max-width: 340px) { .inv-actions { grid-template-columns: minmax(0, 1fr); } }

@@ -4,7 +4,29 @@
 <% if (error) { %><div class="error-box" role="alert"><%= error %></div><% } %>
 
 <%
-  const num = (col, o = {}) => `<input name="${col}" type="number" step="${o.step || '0.01'}" min="${o.min || '0'}" ${o.max ? 'max="' + o.max + '"' : ''} required value="${String(form[col]).replace(/"/g, '&quot;')}" style="width:6.5em">`;
+  const ruleLabels = {
+    "c_max": "Online value from which no price is suggested (EUR)",
+    "clearance_after_copies": "Copies held before clearance starts",
+    "clearance_price": "Clearance price (EUR)",
+    "mass_market_price": "Mass market paperback price (EUR)",
+    "trade_price": "Trade paperback price (EUR)",
+    "a_max": "Rule A: online value below (EUR)",
+    "a_price": "Rule A: price (EUR)",
+    "b_max": "Rule B: online value up to (EUR)",
+    "b_price": "Rule B: price (EUR)",
+    "c_factor": "Rule C: multiplier of the online value",
+    "rounding_step": "Rule C: round to the nearest (EUR)",
+    "hardcover_min_price": "Hardback minimum price (EUR)",
+    "used_fraction": "Share of the publisher's price a used copy is worth",
+    "fallback_mass_market": "Assumed online value, mass market (EUR)",
+    "fallback_trade": "Assumed online value, trade (EUR)",
+    "fallback_hardcover": "Assumed online value, hardback (EUR)",
+    "fallback_unknown": "Assumed online value, unknown or other binding (EUR)",
+    "usd_eur": "Euros for 1 US dollar",
+    "gbp_eur": "Euros for 1 British pound"
+  };
+  // Each field has its own name (aria-label). On a phone the same text shows as a label above a full-width field (admin.css .rule-field); on a computer it stays a number inside the sentence.
+  const num = (col, o = {}) => `<span class="rule-field">${o.bare ? '' : `<label class="rule-field-label" for="rule-${col}">${ruleLabels[col]}</label>`}<input id="rule-${col}" name="${col}" aria-label="${ruleLabels[col]}" type="number" inputmode="decimal" step="${o.step || '0.01'}" min="${o.min || '0'}" ${o.max ? 'max="' + o.max + '"' : ''} required value="${String(form[col]).replace(/"/g, '&quot;')}"></span>`;
 %>
 
 <form method="post" action="/admin/pricing">
@@ -55,8 +77,8 @@
       <label for="levels">Standard prices you can pick by hand</label>
       <input id="levels" name="levels" type="text" required value="<%= form.levels %>">
       <p class="muted small">From lowest to highest, separated by commas. The standard prices are 3, 5 and 10: EUR 8 was removed. Clearance and Custom are always offered as well.</p>
-      <label for="used_fraction">When only the publisher's price is known: a used copy is worth about this share of it</label>
-      <%- num('used_fraction') %>
+      <label for="rule-used_fraction">When only the publisher's price is known: a used copy is worth about this share of it</label>
+      <%- num('used_fraction', { bare: true }) %>
       <label>When nothing at all is known, the book's online value is taken to be (EUR)</label>
       <p class="muted small">Mass Market and Trade are a flat price, so for them this value is not used.</p>
       <div class="muted small">
