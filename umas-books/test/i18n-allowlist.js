@@ -19,6 +19,7 @@ const ALLOW = [
   { match: "Code", reason: "the same word in French (two-step verification code field)" },
   { match: "and Adventures", reason: "second half of the brand lockup \"Uma's Books and Adventures\" on the members' dashboard, which must stay exactly as written" },
   { match: "Cloudflare", reason: "company name in the privacy policy" },
+  { match: "Have I Been Pwned", reason: "service name in the privacy policy (the password-breach check)" },
   { match: "umasbooks_lang", reason: "literal name of the language cookie, shown in code style in the legal notice" },
   { match: /^[A-Z2-7]{32}$/, reason: "the generated two-step verification key (base32), shown for typing into an app" },
   { match: /^1 vote$/, reason: "\"1 vote\" is spelled the same in French" },

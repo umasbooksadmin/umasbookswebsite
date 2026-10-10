@@ -58,13 +58,27 @@
   <ul>
     <% summary.unrefunded.forEach(u => { %>
       <li>Sale <a href="/admin/till/sales/<%= u.id %>/receipt"><%= u.id %></a> (<%= fmtMoney(u.total_cents) %>)
-        <form method="post" action="/admin/till/sales/<%= u.id %>/refunded" style="display:inline">
+        <% if (canManage) { %><form method="post" action="/admin/till/sales/<%= u.id %>/refunded" style="display:inline">
           <%- include('../../partials/csrf_field') %>
           <input type="hidden" name="back" value="/admin/till/day?day=<%= day %>">
           <button class="btn btn-small" type="submit">I refunded the card</button>
-        </form></li>
+        </form><% } else { %><span class="muted small">an admin confirms the refund</span><% } %></li>
     <% }) %>
   </ul>
+</div>
+<% } %>
+
+<% if (summary.voidList.length) { %>
+<div class="card" id="voids">
+  <div class="section-title">Voided sales (<%= summary.voidList.length %>)</div>
+  <div class="table-scroll"><table class="report-table">
+    <thead><tr><th>Sale</th><th>Voided at</th><th>Voided by</th><th>Paid by</th><th>Amount</th><th>Reason</th></tr></thead>
+    <tbody>
+      <% summary.voidList.forEach(v => { %>
+        <tr><td><a href="/admin/till/sales/<%= v.id %>/receipt"><%= v.id %></a></td><td><%= formatTime(v.voided_at) %></td><td><%= v.voided_by_name %><%= v.by_admin ? '' : ' (till account)' %></td><td><%= v.payment_method === 'cash' ? 'Cash' : 'Card' %></td><td><%= fmtMoney(v.total_cents) %></td><td><%= v.void_reason %></td></tr>
+      <% }) %>
+    </tbody>
+  </table></div>
 </div>
 <% } %>
 

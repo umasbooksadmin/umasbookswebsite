@@ -64,6 +64,16 @@ async function buildEmailSections(pool, email, userId = null) {
   };
 }
 
+async function countSessions(pool, userId) {
+  const { rows: t } = await pool.query("SELECT to_regclass('session') AS t");
+  if (!t[0].t) return 0;
+  const { rows } = await pool.query(
+    "SELECT count(*)::int AS n FROM session WHERE (sess -> 'user' ->> 'id')::int = $1 AND expire > now()",
+    [userId]
+  );
+  return rows[0].n;
+}
+
 // Returns null when there is no such account.
 // `lang` only chooses the language of the explanatory note: the field names are
 // the database's, and stay the same in every language (it is a data file).
@@ -84,6 +94,26 @@ async function buildMemberExport(pool, userId, { lang = "en" } = {}) {
       : "Personal data held by Uma's Books about this account. Passwords and security secrets are never included.",
     user,
     ...(await buildEmailSections(pool, email, userId)),
+    // Two-step login: only whether it is on. The secret and recovery codes are never exported.
+    two_factor_enabled: Boolean(userRows[0].totp_enabled_at),
+    // Logged-in sessions (devices) currently open for this account; the session table
+    // is created by connect-pg-simple on first use, so it may not exist yet.
+    active_sessions: await countSessions(pool, userId),
+    // Entries of the administrators' action log that are ABOUT this person (their
+    // account, their orders). Entries they made themselves as an administrator are
+    // not "about" them and are not listed; the log names no one else.
+    admin_log_entries_about_you: await q(
+      `SELECT at, action, target_type, target_id, detail FROM admin_audit_log
+       WHERE (target_type = 'user' AND target_id = $1)
+          OR (target_type = 'order' AND target_id IN (SELECT id FROM orders WHERE user_id = $1 OR (user_id IS NULL AND lower(buyer_email) = $2)))
+       ORDER BY at, id`,
+      [userId, email]
+    ),
+    event_rsvps: await q(
+      `SELECT r.created_at, e.title, e.starts_at FROM event_rsvps r JOIN events e ON e.id = r.event_id
+       WHERE r.user_id = $1 ORDER BY e.starts_at`,
+      [userId]
+    ),
     favorites: await q(
       `SELECT f.created_at, b.title, b.authors FROM favorites f JOIN books b ON b.id = f.book_id
        WHERE f.user_id = $1 ORDER BY f.created_at`,

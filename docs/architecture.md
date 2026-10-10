@@ -828,6 +828,10 @@ in person only: online payment exists only for HelloAsso memberships and orders.
 - **Card voids.** `till_sales.refund_confirmed` (+ `_at`, `_by`): staff tick "I refunded the card"
   at void time or later (`POST /admin/till/sales/:id/refunded`); unticked voided card sales are in
   the dashboard's Needs attention and on End of day.
+- **Void rules by role.** `voidSale` / `confirmRefund` take `isAdmin`: a card sale and the refund tick
+  are admin only (403 `TillError`); a till-only void needs a reason of at least `TILL_VOID_REASON_MIN`
+  characters and is capped per account per Paris day by `TILL_MAX_VOIDS_PER_DAY` (default 3, counted
+  under a per-user advisory lock). `voidsOfDay` feeds Needs attention, End of day and its CSV.
 - **Expired carts.** A copy `in_cart` past `CART_HOLD_TTL_MINUTES` is offered with "Release this
   copy from the expired cart and add it" (`POST /admin/till/release` calls the cart's own
   `releaseCartHold`); a live hold is refused with the minutes left.

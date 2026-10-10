@@ -1,4 +1,5 @@
 const express = require("express");
+const { renderLogoutConfirm } = require("../middleware/csrf");
 const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
 const { limit, ipKey, failureCounts, onlyMarkedFailures } = require("../middleware/rateLimits");
@@ -811,6 +812,14 @@ router.post("/account/password", requireAuth, passwordChangeLimiter, async (req,
   await redirectWithFlash(req, res, "/account/password", "changePassword", { notice: req.tr("Password updated.", "Mot de passe mis à jour.") });
 });
 
+// GET /logout never logs anyone out (a link, a prefetch or an image tag must not): it shows the
+// confirm page. Not logged in: nothing to confirm, go home.
+router.get("/logout", (req, res) => {
+  if (!req.session.user) return res.redirect("/");
+  return renderLogoutConfirm(req, res);
+});
+
+// The CSRF middleware has already refused a bad token (it shows the confirm page instead).
 router.post("/logout", (req, res) => {
   req.session.destroy(() => res.redirect("/"));
 });

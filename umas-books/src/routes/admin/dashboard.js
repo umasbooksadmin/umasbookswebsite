@@ -5,6 +5,9 @@ const { countUnusedImages } = require("../../lib/imageCleanup");
 const { salesStats, attentionCounts } = require("../../lib/dashboardStats");
 const { outboxAttention } = require("../../lib/outboxAttention");
 const till = require("../../lib/till");
+const tillLib = till;
+const { todayParis } = require("../../lib/reports");
+const { formatTime } = require("../../lib/dates");
 const { runLimited, cachedFor } = require("../../lib/runLimited");
 
 const DASHBOARD_CONCURRENCY = 3;
@@ -83,6 +86,18 @@ router.get("/admin", requireAdmin, async (req, res) => {
       text: `Till: ${unrefunded.length} voided card sale${unrefunded.length === 1 ? "" : "s"} (€${(total / 100).toFixed(2)}) not marked as refunded. Refund the card on the SumUp reader or app, then tick "I refunded the card".`,
     });
   }
+
+  // Every void made today (who, when, how much, why): a till-only account has no two-step
+  // verification, so an admin should see them.
+  const today = todayParis();
+  const voidsToday = await tillLib.voidsOfDay(pool, today).catch(() => []);
+  for (const v of voidsToday.slice(0, 10)) {
+    tillItems.push({
+      href: `/admin/till/day?day=${today}`,
+      text: `Till void today: sale ${v.id}, €${(v.total_cents / 100).toFixed(2)} ${v.payment_method}, by ${v.voided_by_name}${v.by_admin ? "" : " (till account)"} at ${formatTime(v.voided_at)}: ${v.void_reason}`,
+    });
+  }
+  if (voidsToday.length > 10) tillItems.push({ href: `/admin/till/day?day=${today}`, text: `Till: ${voidsToday.length - 10} more void(s) today. See the end of day.` });
 
   res.render("admin/index", {
     active: "overview",
