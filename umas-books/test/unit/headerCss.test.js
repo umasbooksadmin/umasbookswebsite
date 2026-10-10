@@ -21,7 +21,7 @@ test("language toggle: at least 32x32 with a mouse, 44x44 on a touch screen (any
 test("phone header: the Menu button shows only at 640px and below; from 641px the summary is hidden and the links always show", () => {
   assert.match(header, /header\.mkt-header \.h-menu-btn \{ display: none; \}/);
   assert.match(header, /header\.mkt-header \.h-menu::details-content \{ content-visibility: visible; display: contents; \}/);
-  const phone = block(header, "@media (max-width: 640px) {\n  header.mkt-header { padding-bottom: 0; }");
+  const phone = block(header, "@media (max-width: 640px), (max-height: 500px) and (max-width: 1000px) {\n  header.mkt-header { padding-bottom: 0; }");
   assert.match(phone, /\.h-menu-btn \{[^}]*display: inline-flex[^}]*min-height: 44px/);
   assert.match(phone, /\.h-menu:not\(\[open\]\)::details-content \{ content-visibility: hidden; \}/);
   assert.match(phone, /\.h-tools \{ display: contents; \}/, "icons and the language toggle share one row with the logo");

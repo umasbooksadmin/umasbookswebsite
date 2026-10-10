@@ -274,8 +274,14 @@ s.test("AC22 (must) the reserve form has name, email, phone, terms checkbox with
   await addFirstCopyToCart(ctx, book);
   await needReserve(ctx);
   const form = await ctx.page.$eval("form[action='/cart/reserve']", (f) => f.innerText);
-  for (const re of [/Name/, /Email/, /Phone \(optional\)/, /terms of sale/, /Nothing is paid online\. We hold your books for 14 days: come to the shop and pay when you collect them\./, /We hold your books for 14 days\. Pay and collect them at the shop, Rue Peyrolière, Albi\. Collect your books during our regular hours, Wednesday to Saturday, 14:00–19:00/, /Used books are not taken back for a change of mind once bought in the shop/, /Reserve \(free, no commitment\)/]) has(form, re);
+  for (const re of [/Name/, /Email/, /Phone \(optional\)/, /terms of sale/, /Nothing is paid online\. We hold your books for 14 days: come to the shop and pay when you collect them\./, /Pay and collect them at the shop, Rue Peyrolière, Albi\. Collect your books during our regular hours, Wednesday to Saturday, 14:00–19:00/, /Used books are not taken back for a change of mind once bought in the shop/, /Reserve \(free, no commitment\)/]) has(form, re);
   hasNot(form, /Order with obligation to pay|HelloAsso|pay online by card/);
+  assert.equal((form.match(/We hold your books for 14 days/g) || []).length, 1, "the 14-day sentence is shown once, not twice in a row");
+  // the terms line is an ordinary sentence (not a small uppercase label) with a box and a row that are easy to tap
+  const cgv = await ctx.page.$eval("form[action='/cart/reserve'] label.ann-check", (l) => { const cs = getComputedStyle(l); const b = l.getBoundingClientRect(); const i = l.querySelector("input").getBoundingClientRect(); return { transform: cs.textTransform, size: parseFloat(cs.fontSize), h: b.height, box: i.width }; });
+  assert.equal(cgv.transform, "none", "the terms line is not in capitals");
+  assert.ok(cgv.size >= 15 && cgv.size <= 16, `terms line text is ${cgv.size}px`);
+  assert.ok(cgv.h >= 43.5 && cgv.box >= 23.5, `terms line ${cgv.h}px high, box ${cgv.box}px`);
   has(await ctx.text(), /Price incl\. tax, TVA non applicable/);
   const link = await ctx.page.$eval("form[action='/cart/reserve'] a[href='/terms-of-sale.html']", (a) => a.target);
   assert.equal(link, "_blank", "the terms open in a new tab");

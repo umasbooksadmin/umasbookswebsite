@@ -41,7 +41,7 @@
         image(p, "blog-card-img") +
         '<div class="blog-card-body">' +
           '<div class="blog-date">' + esc(fmtDate(p.date, l)) + '</div>' +
-          '<h3 class="blog-title">' + esc(pick(p.title, l)) + '</h3>' +
+          '<h2 class="blog-title">' + esc(pick(p.title, l)) + '</h2>' +
           '<p class="blog-excerpt">' + esc(pick(p.excerpt, l)) + '</p>' +
           '<span class="blog-more">' + esc(UI[l].readMore) + ' <span aria-hidden="true">&rarr;</span></span>' +
         '</div>' +

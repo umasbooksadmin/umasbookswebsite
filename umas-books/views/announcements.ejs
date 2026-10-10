@@ -11,7 +11,7 @@
         <% if (a.image_url) { %><img src="<%= a.image_url %>" alt=""><% } %>
         <div>
           <div class="dash-ann-date"><%= a.is_pinned ? '\u{1F4CC} ' : '' %><%= formatDate(a.published_at) %></div>
-          <h3><%= a.title %></h3>
+          <h2><%= a.title %></h2>
           <% if (a.excerpt) { %><p><%= a.excerpt %></p><% } %>
           <div class="rich-content"><%- a.body %></div>
         </div>
