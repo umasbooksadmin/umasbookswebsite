@@ -119,9 +119,31 @@
   }
 
   // ---------- modals ----------
+  // While a modal is open the page behind it must not scroll (a swipe on the overlay used to move it):
+  // the body is pinned in place (till.css, body.modal-open, below 1100 px only) and the scroll position
+  // is put back when the last modal closes.
+  var lockedAt = null;
+  function lockPage() {
+    if (lockedAt !== null || !document.body) return;
+    lockedAt = window.pageYOffset || 0;
+    document.body.style.top = "-" + lockedAt + "px";
+    document.body.classList.add("modal-open");
+  }
+  function unlockPage() {
+    if (lockedAt === null || !document.body) return;
+    var y = lockedAt; lockedAt = null;
+    document.body.classList.remove("modal-open");
+    document.body.style.top = "";
+    if (window.scrollTo) window.scrollTo(0, y);
+  }
+  // A message inside a modal (the check, a refusal) is scrolled into view: it never sits off screen.
+  function reveal(box) {
+    if (box && box.scrollIntoView) { try { box.scrollIntoView({ block: "nearest" }); } catch (e) { /* old browser */ } }
+  }
   function show(id) {
     var m = $(id);
     m.hidden = false; openModal = m;
+    lockPage();
     if (id === "cash-modal" || id === "card-modal") {
       // No button gets the focus: a scanner's Enter would press it. The box itself takes it.
       var box = m.querySelector(".till-modal-box");
@@ -135,6 +157,7 @@
   function hide() {
     if (!openModal) return;
     openModal.hidden = true; openModal = null;
+    unlockPage();
     setTimeout(focusScan, 0);
   }
   Array.prototype.forEach.call(root.querySelectorAll("[data-close]"), function (b) { b.addEventListener("click", hide); });
@@ -466,7 +489,7 @@
     if (j && j.code === "price_changed") {
       msgText = "The price changed: new total " + fmt(j.newTotalCents) + "." + (method === "card" ? " For a card sale do not charge again: cancel the card charge on the reader and restart." : " Restart the sale to see the new prices.");
     }
-    box.textContent = msgText; box.hidden = false;
+    box.textContent = msgText; box.hidden = false; reveal(box);
     var rb = current.reopen;
     if (rb) rb.hidden = !(j && j.code === "day_closed");
     var restart = $(method === "card" ? "card-restart" : "cash-restart");
@@ -482,7 +505,7 @@
       explain(r, box, method);
       return false;
     }).catch(function () {
-      box.textContent = "Connection problem: the sale could not be checked. Close this screen and try again."; box.hidden = false; beep();
+      box.textContent = "Connection problem: the sale could not be checked. Close this screen and try again."; box.hidden = false; reveal(box); beep();
       return false;
     });
   }
@@ -505,7 +528,7 @@
       errBox.textContent = charged
         ? "Connection problem. The card was already charged: do NOT charge again. Press Record card sale again: the sale cannot be recorded twice."
         : "Connection problem. Press the button again: the sale cannot be recorded twice.";
-      errBox.hidden = false; beep();
+      errBox.hidden = false; reveal(errBox); beep();
     });
   }
 
