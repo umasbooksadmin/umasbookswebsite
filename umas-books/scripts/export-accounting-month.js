@@ -70,9 +70,7 @@ async function main(argv, now = new Date()) {
   fs.writeFileSync(path.join(a.out, names.accounting), result.accountingCsv);
   fs.writeFileSync(path.join(a.out, names.till), result.tillCsv);
   fs.writeFileSync(path.join(a.out, names.summary), result.summary);
-  const runUrl = process.env.GITHUB_SERVER_URL && process.env.GITHUB_REPOSITORY && process.env.GITHUB_RUN_ID
-    ? `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}` : "";
-  fs.writeFileSync(path.join(a.out, names.email), ax.emailBody(range, result.stats, { runUrl }));
+  fs.writeFileSync(path.join(a.out, names.email), ax.emailBody(range, result.stats));
   const s = result.stats;
   console.log(`Period ${range.label}: ${range.from} to ${range.to}`);
   console.log(`Accounting rows: ${s.accountingRows}; total ${ax.eurText(s.totalCents)} EUR`);

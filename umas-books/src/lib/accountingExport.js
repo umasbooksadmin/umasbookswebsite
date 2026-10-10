@@ -258,7 +258,7 @@ function fileNames(range) {
 }
 
 // The plain-English body of the email that carries the CSV files.
-function emailBody(range, stats, { runUrl = "" } = {}) {
+function emailBody(range, stats) {
   const names = fileNames(range);
   const what = range.kind === "year" ? `the year ${range.label.replace("-full-year", "")}${range.startMonth > 1 ? ` (financial year starting in month ${range.startMonth})` : ""}` : `the month ${range.label}`;
   const lines = [
@@ -282,8 +282,9 @@ function emailBody(range, stats, { runUrl = "" } = {}) {
   if (firstMonth < FIX_MONTH) {
     lines.push("", `NOTE: figures before October 2026 are not reliable. Until the accounting fix of October 2026 (PR #265) the export counted some refunded reservations twice, so months before ${FIX_MONTH} were overstated. Check ${range.kind === "year" ? "this period" : "this month"} against the till and bank records before using it.`);
   }
-  if (runUrl) lines.push("", `Run: ${runUrl}`);
-  return lines.join("\n") + "\n";
+  const text = lines.join("\n") + "\n";
+  assertNoPersonalData("email body", text); // no run URL on purpose: its long run number looks like a phone number
+  return text;
 }
 
 module.exports = {
