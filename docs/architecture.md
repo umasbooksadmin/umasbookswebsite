@@ -709,7 +709,7 @@ contact form to the shop) goes through `lib/outbox.js`: **store, then send**.
   row cannot be stored.
 - A row is **claimed** by pushing `next_try_at` 5 minutes ahead in one `UPDATE`,
   so the fast path, the worker and two app instances never send the same row.
-- Worker (`processOutbox`, every 60 s, `guardJob` + advisory lock, batch of 20):
+- Worker (`processOutbox`, every 60 s, `guardJob`, batch of 20; holds no database connection while sending, and is safe on several instances because the claim above is a single `UPDATE ... FOR UPDATE SKIP LOCKED`; a worker that dies leaves its rows `pending` and they are claimed again when the 5-minute lease ends):
   retries due rows with backoff **1, 5, 15, 60, 240 min** (240 repeating) up to
   **8 attempts**, then `status = 'failed'` and **one alert email per hour**
   ("N emails could not be sent": kinds, counts, last error with emails and long
