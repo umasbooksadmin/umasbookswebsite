@@ -41,9 +41,20 @@
 
   var HEART = '<svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 20s-7-4.4-9.5-8.8C.8 7.8 2.4 4.5 5.8 4c2-.3 3.7.7 4.8 2.4L12 8l1.4-1.6C14.5 4.7 16.2 3.7 18.2 4c3.4.5 5 3.8 3.3 7.2C19 15.6 12 20 12 20z"/></svg>';
 
+  // Smaller copies of a stored cover (routes/img.js: /img/<hash>-w300.jpg, -w450, -w600) so a phone does not
+  // download the 600 px file for a 160 px slot. Mirrors lib/imageVariants.js coverSrcset; other addresses get none.
+  function coverSrcset(u) {
+    var m = /^\/img\/([0-9a-f]{64})\.jpg$/.exec(u || '');
+    return m ? '/img/' + m[1] + '-w300.jpg 300w, /img/' + m[1] + '-w450.jpg 450w, ' + u + ' 600w' : '';
+  }
+  function coverAttrs(u, sizes) {
+    var s = coverSrcset(u);
+    return s ? ' srcset="' + esc(s) + '" sizes="' + sizes + '"' : '';
+  }
+
   function bookCard(b, withFavorite) {
     var cover = b.coverUrl
-      ? '<img class="cover" src="' + esc(b.coverUrl) + '" alt="" width="200" height="300" loading="lazy" decoding="async" data-cover>'
+      ? '<img class="cover" src="' + esc(b.coverUrl) + '"' + coverAttrs(b.coverUrl, '(max-width: 700px) 45vw, 200px') + ' alt="" width="200" height="300" loading="lazy" decoding="async" data-cover>'
       : '<div class="cover cover-none">' + esc(t('bk.nocover', 'No cover')) + '</div>';
     var price = b.price != null ? euro(b.price) : '';
     var fav = withFavorite

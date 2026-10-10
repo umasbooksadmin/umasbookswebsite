@@ -10,7 +10,7 @@
   min-height: 44px; max-width: 100%; box-sizing: border-box;
 }
 .scan-intake form.stack select {
-  font-family: 'Libre Baskerville', Georgia, serif; color: var(--ink); border: 1px solid var(--card-border);
+  font-family: 'Libre Baskerville', 'Libre Baskerville Fallback', Georgia, serif; color: var(--ink); border: 1px solid var(--card-border);
   border-radius: 3px; padding: 9px 12px; background: var(--panel);
 }
 .scan-intake form.stack input[type="radio"], .scan-intake form.stack input[type="checkbox"] { min-height: 0; width: 22px; height: 22px; flex: 0 0 auto; }

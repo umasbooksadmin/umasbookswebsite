@@ -16,7 +16,7 @@
   font-weight: 700; margin-bottom: 8px;
 }
 .fcal-kicker .rule { width: 46px; height: 2px; background: var(--maroon); margin: 10px auto 0; }
-.fcal-title { font-family: 'Cormorant Garamond', Georgia, serif; font-size: clamp(32px, 5vw, 50px); font-weight: 600; color: var(--ink); margin: 6px 0 8px; }
+.fcal-title { font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; font-size: clamp(32px, 5vw, 50px); font-weight: 600; color: var(--ink); margin: 6px 0 8px; }
 .fcal-sub { font-size: 15px; color: var(--ink-soft); margin: 0 0 14px; }
 
 .fcal-nav {
@@ -27,12 +27,12 @@
 }
 .fcal-nav a:hover { opacity: 0.7; }
 .fcal-nav .fcal-month {
-  font-family: 'Cormorant Garamond', Georgia, serif; font-size: 24px; color: var(--ink); min-width: 12ch;
+  font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; font-size: 24px; color: var(--ink); min-width: 12ch;
 }
 
 .fcal-view-toggle { display: flex; justify-content: center; gap: 8px; margin-bottom: 18px; }
 .fcal-view-toggle a {
-  font-family: 'Montserrat', sans-serif; font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.06em;
+  font-family: 'Montserrat', 'Montserrat Fallback', sans-serif; font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.06em;
   color: var(--maroon); text-decoration: none; border: 1px solid var(--maroon); border-radius: 999px; padding: 5px 16px;
 }
 .fcal-view-toggle a:hover { opacity: 0.8; }
@@ -60,7 +60,7 @@
 .fcal-day-weekday { display: none; }
 
 .fcal-session { border-radius: 4px; padding: 6px 8px; margin-bottom: 6px; overflow-wrap: break-word; }
-.fcal-session .fcal-session-title { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 15px; font-weight: 600; color: var(--ink); line-height: 1.2; overflow-wrap: break-word; }
+.fcal-session .fcal-session-title { font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; font-size: 15px; font-weight: 600; color: var(--ink); line-height: 1.2; overflow-wrap: break-word; }
 .fcal-session .fcal-session-time { font-size: 12.5px; color: var(--ink-soft); }
 .fcal-session .fcal-session-seats { font-size: 12px; color: var(--maroon-dark); margin-top: 2px; }
 .fcal-session .fcal-session-cta {
@@ -80,7 +80,7 @@
 .fcal-session-form { display: flex; flex-direction: column; gap: 4px; margin-bottom: 6px; }
 .fcal-session-form label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft); }
 .fcal-session-form input {
-  font-family: 'Cormorant Garamond', Georgia, serif; font-size: 14px; padding: 5px 7px;
+  font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; font-size: 14px; padding: 5px 7px;
   border: 1px solid var(--card-border); border-radius: 3px; background: #fff; color: var(--ink);
 }
 .fcal-session .fcal-session-cta.fcal-session-cta-outline {

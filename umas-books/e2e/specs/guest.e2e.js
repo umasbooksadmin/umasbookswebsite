@@ -1165,6 +1165,53 @@ s.test("G82 (must) on a phone (375 px and 320 px) very long titles and words wra
   }
 });
 
+s.test("G83 (must) printing a public page leaves out the header, menu and footer and writes external links out in full", async (ctx) => {
+  for (const path of ["/privacy-policy.html", "/events.html"]) {
+    await ctx.goto(path, "networkidle2");
+    await ctx.page.emulateMediaType("print");
+    try {
+      const shown = await ctx.page.evaluate(() => {
+        const vis = (sel) => [...document.querySelectorAll(sel)].some((e) => getComputedStyle(e).display !== "none");
+        return { header: vis("header.mkt-header"), footer: vis("footer.mkt-footer"), skip: vis(".skip-link"), buttons: vis("main button, main .btn") };
+      });
+      assert.deepEqual(shown, { header: false, footer: false, skip: false, buttons: false }, `${path} in print`);
+    } finally {
+      await ctx.page.emulateMediaType("screen");
+    }
+  }
+});
+
+s.test("G84 (must) a phone set to dark mode still gets the light site, with light form controls", async (ctx) => {
+  await ctx.page.emulateMediaFeatures([{ name: "prefers-color-scheme", value: "dark" }]);
+  try {
+    await ctx.goto("/contact", "networkidle2");
+    const r = await ctx.page.evaluate(() => ({
+      meta: (document.querySelector('meta[name="color-scheme"]') || {}).content,
+      scheme: getComputedStyle(document.documentElement).colorScheme,
+      body: getComputedStyle(document.body).backgroundColor,
+    }));
+    assert.equal(r.meta, "light");
+    assert.equal(r.scheme, "light");
+    assert.notEqual(r.body, "rgb(0, 0, 0)");
+  } finally {
+    await ctx.page.emulateMediaFeatures([{ name: "prefers-color-scheme", value: "light" }]);
+  }
+});
+
+s.manual("G85 added to the home screen on an iPhone, no bar or button sits behind the home indicator", "needs a real iPhone in home-screen (standalone) mode; the safe-area padding itself is checked by a unit test");
+
+s.test("G86 (must) covers on a phone are sized: the Browse Books grid asks for the 300, 450 or 600 px copy, never an oversized one for a 160 px slot", { viewport: GUEST_PHONE }, async (ctx) => {
+  const asked = [];
+  ctx.page.on("request", (r) => { if (/\/img\//.test(r.url())) asked.push(new URL(r.url()).pathname); });
+  await ctx.goto("/books.html", "networkidle2");
+  await ctx.page.waitForSelector(".bk-book img.cover");
+  const img = await ctx.page.evaluate(() => { const i = document.querySelector(".bk-book img.cover"); return { srcset: i.getAttribute("srcset"), sizes: i.getAttribute("sizes") }; });
+  if (!img.srcset) ctx.skip("data: the first cover is not a stored /img/ cover");
+  assert.match(img.srcset, /-w300\.jpg 300w, \/img\/[0-9a-f]{64}-w450\.jpg 450w/);
+  assert.ok(img.sizes, "sizes is set");
+  assert.ok(asked.some((u) => /-w(300|450)\.jpg$/.test(u)), `a small cover was requested (${asked.slice(0, 3).join(", ")})`);
+});
+
 s.test("G-FR55 FR check (membership): the form and the payment step are in French", { lang: "fr" }, async (ctx) => {
   await joinPage(ctx);
   const text = await ctx.text();

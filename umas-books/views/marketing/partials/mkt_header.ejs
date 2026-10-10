@@ -34,6 +34,7 @@ const nav = [
 <meta charset="utf-8">
 <title data-i18n="meta.title"><%= title %></title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="light">
 <meta name="description" content="<%= _desc %>" data-i18n-attr="content:meta.description">
 <% if (locals.preview || locals.staging) { %><meta name="robots" content="noindex, nofollow">
 <% } %>
@@ -59,8 +60,11 @@ const nav = [
 <link rel="manifest" href="/site.webmanifest">
 <meta name="theme-color" content="#fffefb">
 <% if (typeof jsonLd !== 'undefined' && jsonLd) { %><script type="application/ld+json"><%- JSON.stringify(jsonLd).replace(/</g, '\\u003c') %></script>
-<% } %><link rel="stylesheet" href="<%= assetUrl('/assets/site.css') %>">
+<% } %><link rel="preload" href="/assets/fonts/cormorant-garamond-normal-latin-500-700.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/assets/fonts/nunito-sans-normal-latin-400-600.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="<%= assetUrl('/assets/site.css') %>">
 <link rel="stylesheet" href="<%= assetUrl('/site-header.css') %>">
+<link rel="stylesheet" href="<%= assetUrl('/print.css') %>" media="print">
 <% (typeof extraCss !== 'undefined' ? extraCss : []).forEach(href => { %><link rel="stylesheet" href="<%= assetUrl(href.charAt(0) === '/' ? href : '/' + href) %>"><% }) %>
 </head>
 <body<%- typeof bodyClass !== 'undefined' && bodyClass ? ' class="' + bodyClass + '"' : '' %>>

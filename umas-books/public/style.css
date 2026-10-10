@@ -14,12 +14,25 @@
 @font-face { font-family: 'Nunito Sans'; font-style: normal; font-weight: 400 600; font-display: swap; src: url(/assets/fonts/nunito-sans-normal-latin-ext-400-600.woff2) format('woff2'); unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
 @font-face { font-family: 'Nunito Sans'; font-style: normal; font-weight: 400 600; font-display: swap; src: url(/assets/fonts/nunito-sans-normal-latin-400-600.woff2) format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
 
+/* Stand-ins used while a web font loads (font-display: swap). Each is a font already on the phone (Georgia / Arial),
+   scaled and spaced to the web font's metrics, so text wraps the same before and after the swap and the page does not
+   jump (layout shift). Values measured in headless Chrome with a canvas on a mixed English/French sample (width
+   ratio, rounded UP by about 0.6% so a line that fits in the web font also fits here = size-adjust; the web font's ascent/descent as a percentage of the adjusted size). Re-measure if a font file
+   changes. Where the phone has no Georgia/Arial (some Android) the next font in the stack is used, as before. */
+@font-face { font-family: 'Cormorant Garamond Fallback'; src: local('Georgia'); size-adjust: 88.3%; ascent-override: 104.64%; descent-override: 32.5%; line-gap-override: 0%; }
+@font-face { font-family: 'Libre Baskerville Fallback'; src: local('Georgia'); size-adjust: 116%; ascent-override: 83.6%; descent-override: 23.27%; line-gap-override: 0%; }
+@font-face { font-family: 'Nunito Sans Fallback'; src: local('Arial'), local('Helvetica'); size-adjust: 101%; ascent-override: 100.1%; descent-override: 34.95%; line-gap-override: 0%; }
+@font-face { font-family: 'Montserrat Fallback'; src: local('Arial'), local('Helvetica'); size-adjust: 113.4%; ascent-override: 85.36%; descent-override: 22.14%; line-gap-override: 0%; }
+
 /* Palette: matches the marketing site's assets/site.css (light palette
    from the Home page design). --ink/--ink-soft are the brand's dark brown / sage green;
    --green is the primary logo/brand green; --maroon/--maroon-dark are
    Terracotta Clay (#a65347) and a darkened variant for the primary accent
    and its hover/heading state; --gold is Mustard Gold. */
 :root {
+  /* The site is light only (no dark theme, on purpose: the artwork is painted for a pale page). This makes a phone in
+     dark mode draw form controls, scrollbars and the page canvas light too. Paired with <meta name="color-scheme">. */
+  color-scheme: light;
   --cream: #fffefb;
   --panel: #ffffff;
   --ink: #000;
@@ -40,14 +53,14 @@ body {
   margin: 0;
   background: var(--cream);
   color: var(--ink);
-  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif;
   font-size: 19px;
   font-weight: 500;
   line-height: 1.6;
 }
 a { color: var(--maroon); text-decoration: none; }
 a:hover { text-decoration: underline; }
-h1, h2, h3 { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; color: var(--ink); margin: 0 0 12px; }
+h1, h2, h3 { font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; font-weight: 500; color: var(--ink); margin: 0 0 12px; }
 
 .wrap { max-width: 880px; margin: 0 auto; padding: 0 24px; }
 /* A week-view calendar has only 7 day-cells instead of up to 42, so the
@@ -65,12 +78,12 @@ header.site {
   padding: 22px 24px; margin-bottom: 20px;
 }
 .card + .card { margin-top: 0; }
-.section-title { font-family: 'Cormorant Garamond', serif; font-weight: 600; font-size: 22px; margin-bottom: 14px; }
+.section-title { font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', serif; font-weight: 600; font-size: 22px; margin-bottom: 14px; }
 .muted { color: var(--ink-soft); font-size: 15.5px; }
 .small { font-size: 14px; }
 
 .btn {
-  display: inline-block; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600;
+  display: inline-block; font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; font-weight: 600;
   font-size: 15px; letter-spacing: 0.12em; text-transform: uppercase; text-decoration: none;
   padding: 11px 22px; border-radius: 0; border: 0; cursor: pointer;
   background: var(--btn-bg); color: #fff;
@@ -81,9 +94,9 @@ header.site {
 .btn-small { padding: 6px 14px; font-size: 12px; }
 
 form.stack { display: flex; flex-direction: column; gap: 12px; max-width: 440px; }
-form.stack label { font-family: 'Montserrat', sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; font-size: 12px; color: var(--gold-dark); }
+form.stack label { font-family: 'Montserrat', 'Montserrat Fallback', sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; font-size: 12px; color: var(--gold-dark); }
 form.stack input, form.stack textarea {
-  font-family: 'Libre Baskerville', Georgia, serif; font-size: 16px; color: var(--ink);
+  font-family: 'Libre Baskerville', 'Libre Baskerville Fallback', Georgia, serif; font-size: 16px; color: var(--ink);
   border: 1px solid var(--card-border); border-radius: 3px; padding: 9px 12px; background: var(--panel);
 }
 form.stack textarea { min-height: 90px; resize: vertical; }
@@ -104,7 +117,7 @@ input[type="file"].file-input-hidden {
 .password-toggle {
   position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
   background: none; border: 0; cursor: pointer; color: var(--ink-soft);
-  font-family: 'Montserrat', sans-serif; font-weight: 600; font-size: 12px; padding: 4px 6px;
+  font-family: 'Montserrat', 'Montserrat Fallback', sans-serif; font-weight: 600; font-size: 12px; padding: 4px 6px;
 }
 .password-toggle:hover { color: var(--maroon); }
 
@@ -120,7 +133,7 @@ ul.plain.nested li { padding: 4px 0; border-bottom: 0; }
 .order-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .status-pill {
   display: inline-block; flex: 0 0 auto; padding: 3px 11px; border-radius: 20px;
-  font-family: 'Montserrat', sans-serif; font-size: 12.5px; font-weight: 600; letter-spacing: 0.02em;
+  font-family: 'Montserrat', 'Montserrat Fallback', sans-serif; font-size: 12.5px; font-weight: 600; letter-spacing: 0.02em;
 }
 .status-pill.paid, .status-pill.upcoming, .status-pill.published { background: #eaf0e6; color: var(--green); }
 .status-pill.pending, .status-pill.scheduled, .status-pill.reserved { background: #faf3df; color: #8a6a1f; }
@@ -141,11 +154,11 @@ footer.site { text-align: center; padding: 30px 0; color: var(--ink-soft); font-
 
 .calendar-nav { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
 .calendar-nav-main { display: flex; align-items: center; gap: 14px; }
-.calendar-nav .month-label { font-family: 'Cormorant Garamond', serif; font-weight: 600; color: var(--maroon-dark); font-size: 21px; }
+.calendar-nav .month-label { font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', serif; font-weight: 600; color: var(--maroon-dark); font-size: 21px; }
 .calendar-view-toggle { display: flex; gap: 8px; }
 .calendar-view-toggle a.is-active { background: var(--maroon); color: #fff; border-color: var(--maroon); }
 .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
-.calendar-weekday { text-align: center; font-family: 'Montserrat', sans-serif; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft); font-size: 11.5px; padding-bottom: 4px; }
+.calendar-weekday { text-align: center; font-family: 'Montserrat', 'Montserrat Fallback', sans-serif; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft); font-size: 11.5px; padding-bottom: 4px; }
 .calendar-day {
   min-height: 100px; border: 1px solid var(--card-border); border-radius: 4px;
   padding: 6px; background: var(--panel);
@@ -217,25 +230,25 @@ footer.site { text-align: center; padding: 30px 0; color: var(--ink-soft); font-
 .book-card:hover { border-color: var(--maroon); text-decoration: none; }
 .book-card-cover { width: 100%; height: auto; aspect-ratio: 2 / 3; object-fit: contain; border-radius: 3px; margin-bottom: 10px; background: #efe9dd; }
 .book-card-body { flex: 1; display: flex; flex-direction: column; }
-.book-card-title { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; font-size: 17.5px; line-height: 1.25; margin-bottom: 2px; }
+.book-card-title { font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; font-weight: 600; font-size: 17.5px; line-height: 1.25; margin-bottom: 2px; }
 .book-card-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
-.book-card-price { font-family: 'Montserrat', sans-serif; font-weight: 600; color: var(--maroon-dark); }
+.book-card-price { font-family: 'Montserrat', 'Montserrat Fallback', sans-serif; font-weight: 600; color: var(--maroon-dark); }
 
 .book-detail-grid { display: grid; grid-template-columns: 240px 1fr; gap: 36px; margin-top: 18px; }
 .book-detail-cover {
   width: 100%; max-width: 240px; height: auto; aspect-ratio: 2 / 3; border-radius: 4px; border: 1px solid var(--card-border);
   object-fit: contain; image-rendering: -webkit-optimize-contrast; background: #efe9dd; /* neutral box while the cover loads or if it fails */
 }
-.book-detail-kicker { font-family: 'Montserrat', sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--maroon); font-size: 12.5px; margin-bottom: 6px; }
+.book-detail-kicker { font-family: 'Montserrat', 'Montserrat Fallback', sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--maroon); font-size: 12.5px; margin-bottom: 6px; }
 .book-awards { margin: 16px 0; padding: 14px 16px; background: #fbf6ea; border: 1px solid var(--card-border); border-left: 4px solid var(--gold); border-radius: 2px; }
-.book-awards-title { font-family: 'Montserrat', sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; font-size: 12px; color: var(--gold-dark); }
+.book-awards-title { font-family: 'Montserrat', 'Montserrat Fallback', sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; font-size: 12px; color: var(--gold-dark); }
 .book-awards-list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 8px; }
 .book-awards-list li { background: var(--panel); border: 1px solid var(--gold); border-radius: 999px; padding: 3px 12px; font-size: 14px; line-height: 1.4; }
 .book-awards-more { margin-top: 8px; }
 .book-awards-more summary { cursor: pointer; color: var(--maroon); }
 .book-about-title { margin: 18px 0 6px; }
 .book-about { margin: 0; overflow-wrap: anywhere; }
-.book-detail-price { font-family: 'Montserrat', sans-serif; font-size: 24px; font-weight: 700; color: var(--maroon-dark); margin: 14px 0; }
+.book-detail-price { font-family: 'Montserrat', 'Montserrat Fallback', sans-serif; font-size: 24px; font-weight: 700; color: var(--maroon-dark); margin: 14px 0; }
 .availability-box {
   background: var(--cream); border: 1px solid var(--card-border); border-radius: 4px;
   padding: 18px 20px; margin: 16px 0;
@@ -254,8 +267,8 @@ footer.site { text-align: center; padding: 30px 0; color: var(--ink-soft); font-
 }
 .cart-item-cover { width: 48px; height: auto; background: #efe9dd; aspect-ratio: 2 / 3; object-fit: contain; border-radius: 3px; flex: 0 0 auto; }
 .cart-item-body { flex: 1; min-width: 0; }
-.cart-item-title { font-family: 'Cormorant Garamond', serif; font-weight: 600; font-size: 17px; }
-.cart-item-price { font-family: 'Montserrat', sans-serif; font-weight: 600; color: var(--maroon-dark); flex: 0 0 auto; }
+.cart-item-title { font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', serif; font-weight: 600; font-size: 17px; }
+.cart-item-price { font-family: 'Montserrat', 'Montserrat Fallback', sans-serif; font-weight: 600; color: var(--maroon-dark); flex: 0 0 auto; }
 .category-grid {
   display: flex; flex-wrap: wrap; justify-content: center; gap: 22px 26px;
   margin: 0 0 28px;
@@ -285,13 +298,13 @@ footer.site { text-align: center; padding: 30px 0; color: var(--ink-soft); font-
 .book-detail-cover-wrap .favorite-toggle svg { width: 20px; height: 20px; }
 
 .cart-total {
-  font-family: 'Montserrat', sans-serif; font-size: 18px; font-weight: 700; text-align: right;
+  font-family: 'Montserrat', 'Montserrat Fallback', sans-serif; font-size: 18px; font-weight: 700; text-align: right;
   margin-bottom: 20px; color: var(--maroon-dark);
 }
 
 /* Contact form */
 .contact-title { margin-top: 8px; }
-form.stack select { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 17px; color: var(--ink); border: 1px solid var(--card-border); border-radius: 3px; padding: 9px 12px; background: var(--panel); }
+form.stack select { font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; font-size: 17px; color: var(--ink); border: 1px solid var(--card-border); border-radius: 3px; padding: 9px 12px; background: var(--panel); }
 .hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
 
 .cover-note { font-size: 13px; color: var(--muted, #6b6b6b); margin: 10px 0 0; }
