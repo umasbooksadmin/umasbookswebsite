@@ -8,7 +8,7 @@
 
 const assert = require("node:assert/strict");
 const e2e = require("../helpers/harness");
-const { has, hasNot, stockedBook, addFirstCopyToCart, pageHtml, stripTags, cartLineCount } = require("../helpers/pages");
+const { has, hasNot, stockedBook, addFirstCopyToCart, pageHtml, stripTags, cartLineCount, phoneOverflow } = require("../helpers/pages");
 const { testEmail } = require("../helpers/config");
 const cfg = require("../helpers/config");
 
@@ -1113,31 +1113,54 @@ s.test("G62 New In covers are shown whole (contain, 2:3 box, no horizontal overf
   assert.ok(await ctx.page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "no horizontal overflow");
 });
 
-s.test("G81 (must) on a phone (375 px and 320 px) no public page is wider than the screen, in English and in French", async (ctx) => {
+s.test("G81 (must) on a phone (375 px and 320 px) no public page is wider than the screen, in English and in French", { timeout: 300000 }, async (ctx) => {
   const pages = ["/", "/about.html", "/books.html", "/events.html", "/programs.html", "/membership.html", "/visit.html", "/volunteer.html", "/privacy-policy.html", "/terms-of-sale.html", "/sessions", "/events", "/contact", "/request-a-book", "/cart", "/login", "/signup"];
-  // Regions that scroll sideways on purpose (a carousel, a table in a scrolling wrapper) are skipped: anything inside an overflow-x auto/scroll/hidden ancestor.
+  // Regions that scroll sideways on purpose (a carousel, the genre row, a table in a scrolling wrapper) are skipped by phoneOverflow: anything inside an overflow-x auto/scroll/hidden ancestor.
   for (const lang of ["en", "fr"]) {
     await ctx.page.setCookie({ name: "umasbooks_lang", value: lang, url: cfg.baseUrl() });
     for (const [width, height] of [[375, 812], [320, 640]]) {
       await ctx.page.setViewport({ width, height, deviceScaleFactor: 1, isMobile: true, hasTouch: true });
       for (const p of pages) {
         await ctx.goto(p, "networkidle2");
-        const bad = await ctx.page.evaluate(() => {
-          const out = [];
-          if (document.documentElement.scrollWidth > innerWidth) out.push(`page is ${document.documentElement.scrollWidth} px wide`);
-          for (const el of document.querySelectorAll("body *")) {
-            const cs = getComputedStyle(el);
-            if (cs.position === "fixed" || cs.display === "none" || cs.visibility === "hidden") continue;
-            const b = el.getBoundingClientRect();
-            if (!(b.width > 0 && b.height > 0 && b.right > innerWidth + 1)) continue;
-            let scrolls = false;
-            for (let a = el.parentElement; a && a !== document.body; a = a.parentElement) if (/auto|scroll|hidden|clip/.test(getComputedStyle(a).overflowX)) scrolls = true;
-            if (!scrolls) out.push(`${el.tagName}.${el.className} ends at ${Math.round(b.right)} px`);
-          }
-          return out.slice(0, 4);
-        });
+        const bad = await phoneOverflow(ctx.page, width);
         assert.deepEqual(bad, [], `${p} (${lang}) at ${width} px: ${bad.join("; ")}`);
       }
+    }
+  }
+});
+
+s.test("G82 (must) on a phone (375 px and 320 px) very long titles and words wrap: the book pages, the Browse Books shelves and the genre row never make a page wider than the screen", { timeout: 300000 }, async (ctx) => {
+  // Books with an unbroken 90-letter title and a 41-letter word are looked for by their tag (the local test copy of the
+  // site, npm run e2e:local, has them); on a real site any in-stock book is checked too.
+  const hostile = await e2e.getJson("/api/books/search?q=E2Ephone").catch(() => []);
+  const some = (await e2e.books()).filter((b) => b.price != null).slice(0, 2);
+  const ids = [...new Set([...hostile, ...some].map((b) => b.id))].slice(0, 6);
+  if (!ids.length) ctx.skip("data: the site has no book to open");
+  for (const lang of ["en", "fr"]) {
+    await ctx.page.setCookie({ name: "umasbooks_lang", value: lang, url: cfg.baseUrl() });
+    for (const [width, height] of [[375, 812], [320, 640]]) {
+      await ctx.page.setViewport({ width, height, deviceScaleFactor: 1, isMobile: true, hasTouch: true });
+      for (const id of ids) {
+        await ctx.goto(`/books/${id}`, "networkidle2");
+        const bad = await phoneOverflow(ctx.page, width);
+        assert.deepEqual(bad, [], `/books/${id} (${lang}) at ${width} px: ${bad.join("; ")}`);
+      }
+      // Browse Books: the genre row scrolls inside its own box (it is wider than the screen, the page is not) ...
+      await ctx.goto("/books.html", "networkidle2");
+      await ctx.page.waitForSelector("#bk-genre-list .bk-genre");
+      const row = await ctx.page.evaluate(() => {
+        const r = document.getElementById("bk-genre-list");
+        return r ? { scrolls: r.scrollWidth > r.clientWidth + 2, overflowX: getComputedStyle(r).overflowX, width: r.getBoundingClientRect().right } : null;
+      });
+      assert.ok(row, "the genre row is on the Browse Books page");
+      assert.ok(row.scrolls && /auto|scroll/.test(row.overflowX), `the genre row scrolls inside its box (${JSON.stringify(row)})`);
+      assert.ok(row.width <= width + 1, `the genre row ends at ${Math.round(row.width)} px on a ${width} px screen`);
+      // ... and a search whose results hold the long titles fits too.
+      await ctx.page.type("#shop-search-input", hostile.length ? "E2Ephone" : "a");
+      await ctx.page.keyboard.press("Enter");
+      await new Promise((r) => setTimeout(r, 1200));
+      const bad = await phoneOverflow(ctx.page, width);
+      assert.deepEqual(bad, [], `/books.html results (${lang}) at ${width} px: ${bad.join("; ")}`);
     }
   }
 });

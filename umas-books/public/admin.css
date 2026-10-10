@@ -165,8 +165,10 @@
 }
 .ann-filters label { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: var(--ink-soft); white-space: nowrap; }
 
-.ann-layout { display: grid; grid-template-columns: 1.7fr 1fr; gap: 24px; align-items: start; }
-@media (max-width: 1100px) { .ann-layout { grid-template-columns: 1fr; } }
+.ann-layout { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+.ann-layout.has-detail { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); }
+.ann-layout.no-detail { grid-template-columns: minmax(0, 1fr); }
+@media (max-width: 1100px) { .ann-layout, .ann-layout.has-detail { grid-template-columns: minmax(0, 1fr); } }
 
 .ann-bulk-row { display: flex; gap: 8px; margin-bottom: 12px; }
 .ann-bulk-row select { font-family: inherit; font-size: 14px; padding: 7px 10px; border: 1px solid var(--card-border); border-radius: 4px; }
@@ -282,3 +284,55 @@
   .admin-layout:has(.color-chart) { min-height: 0 !important; }
   .color-chart .color-swatch { width: 40px; height: 24px; }
 }
+
+/* ---------- Phones: nothing wider than the screen, tables that say they scroll ---------- */
+/* Long unbroken text (a 90-letter title, an address, a code) wraps instead of widening the page. Text that
+   sits in table cells wraps too (the cell keeps a minimum width so a column is never squeezed to one letter);
+   without that, one long title made the Inventory list 807px wide and a table 700px wide. */
+.admin-main { overflow-wrap: break-word; }
+.admin-main :where(h1, h2, h3, h4, h5, h6, p, li, dt, dd, summary, label, div, span, strong, em, a, code, small, blockquote, figcaption) { overflow-wrap: anywhere; }
+.admin-main :where(h1, h2, h3, h4, .admin-stat .label, .admin-card h2, .admin-card p) { hyphens: auto; hyphenate-limit-chars: 9 4 3; }
+/* Table cells: on a computer words are only broken when a box really is too narrow (break-word, which leaves the
+   column widths alone); on a phone (the table scrolls inside its box) they wrap anywhere, and a cell keeps a
+   minimum width so a column is never squeezed to one letter. */
+.admin-main table, .admin-main table * { overflow-wrap: break-word; }
+@media (max-width: 900px) {
+  .admin-main td, .admin-main td * { overflow-wrap: anywhere; }
+  /* pills and buttons in a cell keep their words whole (the table scrolls instead) */
+  .admin-main td .status-pill, .admin-main td .btn { white-space: nowrap; overflow-wrap: normal; }
+  .admin-main td { min-width: 5.5rem; }
+  .admin-main td:first-child { min-width: 9rem; }
+}
+.admin-main :where(.btn, .status-pill, .admin-avatar, .condition-badge, .clearance-badge) { overflow-wrap: normal; }
+.admin-main ul.plain li, .admin-main .card { min-width: 0; }
+.admin-main pre { max-width: 100%; overflow-x: auto; }
+.admin-main .ann-more { max-width: 100%; }
+@media (max-width: 640px) { .ann-more-menu { right: auto; left: 0; max-width: calc(100vw - 36px); } }
+
+/* A table that is wider than its box scrolls sideways inside the box. Two cues say so: a soft shadow on the
+   edge that has more to see (it appears and disappears as you scroll; pure CSS, so it works without script)
+   and, on a phone, a 'swipe' hint line above the table (public/table-scroll.js adds it only when the table
+   really is wider than its box). The first column of the long tables (.table-sticky-first) stays in view. */
+.table-scroll {
+  position: relative;
+  background:
+    linear-gradient(to right, #fff 30%, rgba(255, 255, 255, 0)) left center / 36px 100% no-repeat local,
+    linear-gradient(to left, #fff 30%, rgba(255, 255, 255, 0)) right center / 36px 100% no-repeat local,
+    radial-gradient(farthest-side at 0 50%, rgba(60, 50, 30, 0.28), rgba(60, 50, 30, 0)) left center / 14px 100% no-repeat scroll,
+    radial-gradient(farthest-side at 100% 50%, rgba(60, 50, 30, 0.28), rgba(60, 50, 30, 0)) right center / 14px 100% no-repeat scroll;
+  overscroll-behavior-x: contain;
+}
+.table-scroll-hint { display: none; margin: 0 0 6px; font-size: 13.5px; color: var(--ink-soft); font-family: 'Montserrat', sans-serif; }
+.table-scroll-hint::before { content: "\2194\00a0"; }
+@media (max-width: 900px) {
+  .table-scroll-hint.is-needed { display: block; }
+  .table-scroll-hint.is-done { display: none; }
+  .table-sticky-first th:first-child, .table-sticky-first td:first-child {
+    position: sticky; left: 0; z-index: 1; background: #fff; max-width: 46vw; box-shadow: 1px 0 0 var(--line);
+  }
+}
+.admin-main .calendar-grid > * { min-width: 0; }
+
+/* Two fields side by side (Publish date + Status): one under the other on a phone. */
+.field-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 520px) { .field-pair { grid-template-columns: minmax(0, 1fr); } }

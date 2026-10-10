@@ -54,7 +54,7 @@
     <label for="blog-excerpt">Excerpt (optional)</label>
     <textarea id="blog-excerpt" name="excerpt" placeholder="A short summary shown on the blog list…"><%= formValues.excerpt %></textarea>
 
-    <div class="mem-row" style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+    <div class="mem-row field-pair">
       <div>
         <label for="blog-date">Publish Date</label>
         <input id="blog-date" name="publishDate" type="date" aria-describedby="blog-date-hint" value="<%= formValues.publishDate %>">
@@ -135,7 +135,7 @@
       <button class="btn btn-outline btn-small" type="submit">Apply</button>
     </div>
     <div style="overflow-x:auto;">
-    <div class="table-scroll"><table class="ann-table">
+    <div class="table-scroll"><table class="ann-table table-sticky-first">
       <thead>
         <tr>
           <th><input type="checkbox" data-select-all="blog-rows"></th>

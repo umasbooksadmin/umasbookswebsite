@@ -13,7 +13,7 @@
 
 .ev-list { display: flex; flex-direction: column; }
 .ev-item {
-  display: grid; grid-template-columns: 104px 1fr auto; gap: 28px; align-items: center;
+  display: grid; grid-template-columns: 104px minmax(0, 1fr) auto; gap: 28px; align-items: center;
   padding: 24px 4px; border-top: 1px solid var(--line);
 }
 .ev-item:last-child { border-bottom: 1px solid var(--line); }
@@ -41,7 +41,7 @@
 .ev-more { text-align: center; margin-top: 30px; }
 
 @media (max-width: 700px) {
-  .ev-item { grid-template-columns: 76px 1fr; gap: 16px 18px; align-items: start; }
+  .ev-item { grid-template-columns: 76px minmax(0, 1fr); gap: 16px 18px; align-items: start; }
   .ev-date { width: 72px; height: 72px; }
   .ev-date .d { font-size: 28px; }
   .ev-date .m { font-size: 12px; }

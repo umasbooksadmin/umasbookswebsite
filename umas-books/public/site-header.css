@@ -72,8 +72,10 @@ header.mkt-header a:hover, footer.mkt-footer a:hover { text-decoration: none; }
 }
 .site-back-link:hover { text-decoration: underline; }
 .site-back-link { padding: 11px 0; margin: -11px 0; }
-/* French: never break a heading inside a word or leave one word alone on a line. */
-:lang(fr) h1, :lang(fr) h2, :lang(fr) h3 { hyphens: manual; overflow-wrap: normal; word-break: normal; text-wrap: balance; }
+/* French: never break a heading inside a word or leave one word alone on a line. (overflow-wrap: anywhere
+   only ever breaks a string that is too long to fit a line by itself, such as a typed 90-letter title on a
+   phone; ordinary French words are never split, and hyphens stay manual.) */
+:lang(fr) h1, :lang(fr) h2, :lang(fr) h3 { hyphens: manual; overflow-wrap: anywhere; word-break: normal; text-wrap: balance; }
 .nobr { white-space: nowrap; }
 
 /* ---------- Header ---------- */
