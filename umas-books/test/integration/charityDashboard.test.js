@@ -94,13 +94,13 @@ async function makeAnnouncement({ title, status = "published", at = new Date(Dat
   return t;
 }
 
-test("dashboard: guests go to the membership page, non-members to the site root", async () => {
+test("dashboard: guests go to the membership page, non-members get the 'for members' page (403)", async () => {
   const anon = await get(null, "/dashboard");
   assert.equal(anon.status, 302);
   assert.equal(anon.location, "/membership.html");
   const nm = await get(plain, "/dashboard");
-  assert.equal(nm.status, 302);
-  assert.equal(nm.location, "/");
+  assert.equal(nm.status, 403);
+  assert.match(nm.text, /This area is for members/);
 });
 
 test("dashboard: member, volunteer and admin get the page; display name is escaped", async () => {
@@ -149,8 +149,8 @@ test("dashboard: announcements show only live ones; pinned first; at most 3; tit
   assert.ok(text.indexOf("Pinned") < text.indexOf(scheduledPast) && text.indexOf(scheduledPast) < text.indexOf(live1));
 
   // /announcements is members-only and lists more than 3 live ones.
-  assert.equal((await get(null, "/announcements")).location, "/login");
-  assert.equal((await get(plain, "/announcements")).location, "/");
+  assert.equal((await get(null, "/announcements")).location, "/login?returnTo=%2Fannouncements");
+  assert.equal((await get(plain, "/announcements")).status, 403);
   const all = await get(volunteer, "/announcements");
   assert.equal(all.status, 200);
   for (const shown of [live1, live2, live3, scheduledPast]) assert.ok(all.text.includes(shown));
@@ -195,12 +195,12 @@ test("dashboard charity panel: 'no vote open' without an active round, 'Vote Now
   assert.ok(some.text.includes('href="/charity"'));
 });
 
-test("GET /charity: no round or a members-only round turns people away (anon -> /login, non-member -> /)", async () => {
-  assert.equal((await get(null, "/charity")).location, "/login");
-  assert.equal((await get(plain, "/charity")).location, "/");
+test("GET /charity: no round or a members-only round turns people away (anon -> /login, non-member -> 403 page)", async () => {
+  assert.equal((await get(null, "/charity")).location, "/login?returnTo=%2Fcharity");
+  assert.equal((await get(plain, "/charity")).status, 403);
   await makeRound({ visibleTo: "members" });
-  assert.equal((await get(null, "/charity")).location, "/login");
-  assert.equal((await get(plain, "/charity")).location, "/");
+  assert.equal((await get(null, "/charity")).location, "/login?returnTo=%2Fcharity");
+  assert.equal((await get(plain, "/charity")).status, 403);
   assert.equal((await get(member, "/charity")).status, 200);
 });
 

@@ -73,7 +73,11 @@ s.test("A1 (must) admin login asks for the two-step code, then lands on the Dash
   has(text, /Two-step verification/);
   has(text, /Enter the 6-digit code from your authenticator app\./);
   has(text, /Verify/);
-  has(text, /Lost your phone\? Enter one of your recovery codes instead/);
+  has(text, /Lost your phone\? Use a recovery code instead/);
+  // A phone's number pad has no letters: the app code box is numeric, the recovery code box is a text box with its own button.
+  assert.equal(await ctx.page.$eval("#code", (i) => i.getAttribute("inputmode")), "numeric");
+  assert.notEqual(await ctx.page.$eval("#recovery-code", (i) => i.getAttribute("inputmode")), "numeric");
+  assert.equal(await ctx.page.$eval("#recovery-code", (i) => i.getAttribute("autocapitalize")), "characters");
   const { freshCode } = require("../helpers/totp");
   if (!c.totpSecret) ctx.skip("E2E_ADMIN_TOTP_SECRET is not set: only a one-time recovery code was given, which is never spent by the tests");
   await ctx.page.type("#code", await freshCode(c.totpSecret));
@@ -95,7 +99,7 @@ s.test("A5 (must) the two-step page shows it is on, with recovery codes and no w
   has(text, /new recovery codes/);
   assert.equal(await ctx.page.$("form[action='/account/2fa/disable']"), null, "admins have no Turn off option");
 });
-s.manual("A5c using a recovery code to log in, and that it works only once", "spends one of the account's one-time recovery codes");
+s.manual("A5c (must) using a recovery code to log in (typed in lowercase, with or without the dash), and that it works only once", "spends one of the account's one-time recovery codes");
 
 // ---- 5B. Dashboard and menu ----
 
