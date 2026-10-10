@@ -185,7 +185,8 @@ Conventions that hold across the code:
 French; admin screens stay English. A cookie, `umasbooks_lang`, is written by
 the EN/FR toggle in the page header. The `lang.js` middleware runs before the
 login check and reads only headers (so it never touches the session or the
-database): French when the cookie says `fr`, otherwise the browser's
+database): French when the URL starts with `/fr/` (the same public pages have a French address of
+their own, so search engines can index them), else when the cookie says `fr`, else the browser's
 `Accept-Language`, otherwise English. Views call `tr('English', 'Français')`
 and server code calls `req.tr(...)`. This covers the marketing pages too: they
 are EJS views whose `data-i18n` hooks the server fills from the French

@@ -54,12 +54,25 @@ const NAV_FR = { 'nav.home': 'Accueil', 'nav.books': 'Parcourir les livres', 'na
       <% } else { %>
         <a class="h-tool" href="/login"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="8" r="4.2"/><path d="M4 21c0-4.4 3.6-7.5 8-7.5s8 3.1 8 7.5z" stroke-linejoin="round"/></svg><span class="label"><span data-i18n="tool.login"><%= t('Log In', 'Connexion') %></span></span></a>
       <% } %>
+      <%# Public pages have an English and a French address (/x and /fr/x, lib/frUrls.js): the toggle is two real
+          links to them, so it works without JavaScript and search engines can follow it (assets/site.js stores the
+          choice in the cookie when one is clicked). Pages with no twin (cart, login, account...) keep two buttons
+          that store the choice and reload. %>
+      <% const _sw = typeof locals.langSwitch === 'function' ? locals.langSwitch() : null; %>
+      <% if (_sw) { %>
+      <div class="langtoggle" role="group" aria-label="Language / Langue">
+        <a href="<%= _sw.en %>" data-lang="en" lang="en" hreflang="en"<%- isFrChrome ? '' : ' class="is-active" aria-current="true"' %>>EN</a>
+        <span aria-hidden="true">|</span>
+        <a href="<%= _sw.fr %>" data-lang="fr" lang="fr" hreflang="fr"<%- isFrChrome ? ' class="is-active" aria-current="true"' : '' %>>FR</a>
+      </div>
+      <% } else { %>
       <div class="langtoggle" role="group" aria-label="Language / Langue">
         <button type="button" data-lang="en"<%- isFrChrome ? ' aria-pressed="false"' : ' class="is-active" aria-pressed="true"' %>>EN</button>
         <span aria-hidden="true">|</span>
         <button type="button" data-lang="fr"<%- isFrChrome ? ' class="is-active" aria-pressed="true"' : ' aria-pressed="false"' %>>FR</button>
       </div>
       <noscript><span class="h-noscript"><%= t('JavaScript is needed to change language', 'JavaScript est nécessaire pour changer de langue') %></span></noscript>
+      <% } %>
     </div>
   </div>
 </header>

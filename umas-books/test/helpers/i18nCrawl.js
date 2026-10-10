@@ -27,6 +27,7 @@ const { createAccount, loginOverHttp } = require("./accounts");
 
 const ROOT = path.join(__dirname, "..", "..");
 const MARKETING_PAGES = require("../../src/lib/marketingPages");
+const { isPublicPath, localize, splitUrl } = require("../../src/lib/frUrls");
 
 const PERSONAS = ["guest", "account", "member", "volunteer"];
 
@@ -123,10 +124,12 @@ async function newSession(app, seeded, persona, lang = "en") {
   return jar;
 }
 
+// lang = null: no language cookie and no Accept-Language at all (what a search engine sends), and the
+// reply's cookies are NOT kept (a /fr/ visit writes umasbooks_lang=fr, which would turn the English renders French).
 async function get(app, jar, pathname, lang) {
-  const cookie = [jar.header(), `umasbooks_lang=${lang}`].filter(Boolean).join("; ");
+  const cookie = [jar.header(), lang && `umasbooks_lang=${lang}`].filter(Boolean).join("; ");
   const res = await fetch(app.base + pathname, { redirect: "manual", headers: { cookie, "x-forwarded-for": jar.ip } });
-  jar.capture(res);
+  if (lang) jar.capture(res);
   const ctype = res.headers.get("content-type") || "";
   return { status: res.status, location: res.headers.get("location"), ctype, body: await res.text() };
 }
@@ -434,6 +437,8 @@ async function crawl(app, { allow = [], onlyPersona } = {}) {
       const en = await get(app, jar, p, "en");
       const fr = await get(app, jar, p, "fr");
       pages.push(judge(persona, p, en, fr, allow));
+      // The same public page at its /fr/ address: French with no cookie and no Accept-Language.
+      if (isPublicPath(splitUrl(p)[0])) pages.push(judge(persona, localize(p), en, await get(app, jar, localize(p), null), allow));
     }
   }
   pages.push(...(await runScenarios(app, s, allow)));
@@ -469,7 +474,7 @@ function judge(persona, p, en, fr, allow) {
   else if (/json/.test(fr.ctype)) items = findEnglish(jsonStrings(en.body).map((t) => `<p>${t}</p>`).join(""), jsonStrings(fr.body).map((t) => `<p>${t}</p>`).join(""), allow);
   else if (/text\/plain/.test(fr.ctype) && !/calendar/.test(fr.ctype)) items = findEnglish(`<p>${en.body}</p>`, `<p>${fr.body}</p>`, allow);
   const texts = isHtml ? [...visibleText(fr.body), ...visibleAttributes(fr.body)] : /json/.test(fr.ctype) ? jsonStrings(fr.body) : [];
-  return { persona, path: p, status: fr.status, redirect: fr.location || null, htmlLang: isHtml ? htmlLang(fr.body) : null, items, texts, enTexts: /html/.test(en.ctype) ? [...visibleText(en.body), ...visibleAttributes(en.body)] : [] };
+  return { persona, path: p, status: fr.status, enStatus: en.status, redirect: fr.location || null, htmlLang: isHtml ? htmlLang(fr.body) : null, items, texts, enTexts: /html/.test(en.ctype) ? [...visibleText(en.body), ...visibleAttributes(en.body)] : [] };
 }
 
 module.exports = { captureEnv, crawl, findEnglish, englishScore, htmlLang, PERSONAS, seed, loadKnownEnglish };

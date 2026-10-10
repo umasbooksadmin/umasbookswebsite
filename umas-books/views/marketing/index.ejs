@@ -22,8 +22,9 @@ const jsonLd = {
     closes: legalText.shopCloses,
   }],
 };
+jsonLd.inLanguage = (typeof lang !== 'undefined' && lang === 'fr') ? 'fr' : 'en';
 if (_base) {
-  jsonLd.url = _base + '/';
+  jsonLd.url = _base + ((typeof lang !== 'undefined' && lang === 'fr') ? '/fr/' : '/');
   jsonLd.image = _base + '/assets/img/logo-stamp-1280x720.png';
 }
 %>

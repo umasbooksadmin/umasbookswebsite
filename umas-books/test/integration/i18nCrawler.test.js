@@ -51,6 +51,19 @@ test("no customer page, message or email is left in English on the French render
   assert.deepEqual(bad, [], "untranslated text: use tr('English', 'Français') or the page dictionary, or allow-list it with a reason in test/i18n-allowlist.js");
 });
 
+test("the /fr/ twin of every public page is crawled: same status as the English page, French with no cookie and no Accept-Language", () => {
+  const twins = result.pages.filter((p) => p.path.startsWith("/fr/"));
+  assert.ok(twins.length >= 40, `only ${twins.length} /fr/ pages crawled`);
+  for (const needle of ["/fr/", "/fr/books.html", "/fr/privacy-policy.html", "/fr/books/", "/fr/contact", "/fr/events", "/fr/sessions", "/fr/request-a-book", "/fr/membership.html"]) {
+    assert.ok(twins.some((p) => p.path.startsWith(needle)), `${needle} was crawled`);
+  }
+  for (const p of twins) {
+    assert.equal(p.status, p.enStatus, `${p.persona} ${p.path}: same status as the unprefixed page`);
+    if (p.redirect) assert.ok(p.redirect.startsWith("/fr/") || p.redirect.startsWith("/login") || p.redirect.startsWith("/dashboard"), `${p.persona} ${p.path}: redirects stay under /fr/ (got ${p.redirect})`);
+    if (p.htmlLang !== null) assert.equal(p.htmlLang, "fr", `${p.persona} ${p.path}`);
+  }
+});
+
 test("every French HTML page says lang=\"fr\"", () => {
   const wrong = result.pages.filter((p) => p.htmlLang !== null && p.htmlLang !== "fr").map((p) => `${p.path}: lang=${p.htmlLang}`);
   assert.deepEqual(wrong, []);

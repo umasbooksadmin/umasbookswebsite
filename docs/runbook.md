@@ -633,10 +633,65 @@ secret** = same page, **Secrets** tab.
 - [ ] **Test system rehearsal.** The change that goes live was first on the test
   system (section aa), the staging smoke script passed there, and the production
   deploy was pressed by hand afterwards (if production is on manual deploys).
+- [ ] **Search engines.** Right after launch, submit `sitemap.xml` to Google Search Console and Bing
+  Webmaster Tools and check `/fr/` in a private window ("Search engines: submit the sitemap" above).
 - [ ] **Manual test scripts** run and passed, one script per kind of user (guest,
   account holder, member, volunteer, admin, edge cases): every **(must)** step,
   and the manual-only steps the automated tests list, see
   `docs/testing/manual-test-scripts.md`.
+
+### Search engines: submit the sitemap (after launch)
+
+Owner steps, done once, after `PREVIEW_MODE` is off and `https://umasbooks.org` is live. Until then
+the site tells every crawler to stay away (`noindex`, an empty sitemap), so there is nothing to submit.
+
+**What the site gives search engines.** Every public page exists at two addresses: the English one
+(`/books.html`) and the French one (`/fr/books.html`; the French home page is `/fr/`). Each page names
+both in its `<head>` (`rel="canonical"` for itself, `rel="alternate" hreflang="en|fr|x-default"` for the
+pair, English as the default), and `https://umasbooks.org/sitemap.xml` lists both addresses of every page
+(home, the marketing pages, Contact, Events, Sessions, Request a book and every in-stock book), each with
+its `xhtml:link` alternates. `robots.txt` is unchanged and allows `/fr/`. Admin, cart, login, account and
+members pages have no French address and stay out of the index. The sitemap is cached for an hour.
+
+**Google Search Console** (free; needs a Google account that stays with the shop, ideally the shop's own):
+
+1. Go to `https://search.google.com/search-console` and sign in.
+2. Click the property picker (top left) > **Add property**.
+3. Choose **Domain** (left box), type `umasbooks.org`, click **Continue**. Google shows a `TXT` record.
+4. Add that record where the DNS of `umasbooks.org` is managed (the registrar's DNS page > **Add record** >
+   type **TXT**, host `@`, value = the text Google gave), save, wait a few minutes, then click **Verify**
+   in Search Console. (If you prefer, choose **URL prefix** `https://umasbooks.org/` and verify with the
+   HTML tag or file method instead; the sitemap steps below are the same.)
+5. In the left menu click **Sitemaps**. Under **Add a new sitemap** type `sitemap.xml` and click **Submit**.
+   **Status** should become **Success** within a day, with a number of discovered pages (about twice the
+   number of pages plus twice the number of in-stock books).
+6. Later: left menu **Pages** (or **Indexing > Pages**). Check that `/fr/` addresses appear under indexed
+   pages. **International targeting** no longer exists in Search Console; the `hreflang` tags are what
+   count. If a page is listed under "Alternate page with proper canonical tag", that is right for the
+   cookie-French copy of an English address.
+7. Optional but quick: left menu **URL inspection**, paste `https://umasbooks.org/fr/` and click
+   **Request indexing**; do the same for `https://umasbooks.org/`.
+
+**Bing Webmaster Tools** (also feeds DuckDuckGo, Ecosia and others):
+
+1. Go to `https://www.bing.com/webmasters` and sign in with a Microsoft account (or **Import** the site from
+   Google Search Console in one click: choose **Import from GSC** and allow access; the sitemap comes along).
+2. Without import: click **Add a site**, type `https://umasbooks.org`, click **Add**, and verify with the
+   DNS `CNAME` record Bing shows (same DNS page as above) or the HTML tag option.
+3. Left menu **Sitemaps** > **Submit sitemap**, type `https://umasbooks.org/sitemap.xml`, click **Submit**.
+   Status **Success** can take a day.
+
+**Checks you can do yourself (no tools needed).** Open `https://umasbooks.org/fr/` in a private window with
+the browser set to English: the page is French and **FR** is highlighted. View source and look for
+`rel="canonical" href="https://umasbooks.org/fr/"` and three `hreflang` lines. Open
+`https://umasbooks.org/sitemap.xml` and search the page for `/fr/`. In Search Console the **URL inspection**
+tool shows "User-declared canonical" for any address you paste.
+
+**If a French page is missing from Google** after a few weeks: URL inspection > look at "Page indexing".
+"Crawled, currently not indexed" is Google's choice (low traffic site, thin page): it improves with inbound
+links and time. "Alternate page with proper canonical" is normal for the English copy of a page Google
+prefers in French or the reverse. A "Page with redirect" entry for `/fr` (no slash) is also normal: it is a
+301 to `/fr/`.
 
 ### Check the real client IP
 

@@ -19,6 +19,7 @@ const fs = require("fs");
 const path = require("path");
 const vm = require("vm");
 const { frenchTypography } = require("./frenchTypography");
+const { prefixLinks } = require("./frUrls");
 
 const SITE_JS = path.join(__dirname, "..", "..", "..", "assets", "site.js");
 let common = null;
@@ -118,6 +119,8 @@ function renderMarketing(req, res, next, view) {
   res.render(view, (err, html) => {
     if (err) return next(err);
     if (req.lang === "fr") html = frenchTypography(applyPageDictionary(html, { ...commonDictionary("fr"), ...page.fr }));
+    // /fr/ pages: the links the dictionary just filled in stay under /fr/ too (lib/frUrls.js).
+    if (req.frPrefix) html = prefixLinks(html);
     res.send(html);
   });
 }

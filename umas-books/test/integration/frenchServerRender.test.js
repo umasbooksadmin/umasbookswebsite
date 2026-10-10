@@ -101,7 +101,7 @@ test("legal pages: the HTML the server sends is French when French is chosen (no
     assert.match(body, /site-back-link"[^>]*>← Retour<\/a>/, `${p} back link`);
     assert.match(body, /<meta name="description" content="[^"]*(vente|données|Mentions|adhésion)[^"]*"/i, `${p} French meta description`);
     assert.match(body, /<meta name="twitter:title" content="[^"]*(Conditions|Politique|Mentions)/);
-    assert.match(body, /<button type="button" data-lang="fr" class="is-active" aria-pressed="true">FR<\/button>/, `${p} FR toggle is active`);
+    assert.match(body, /<a href="\/fr\/[^"]*" data-lang="fr" lang="fr" hreflang="fr" class="is-active" aria-current="true">FR<\/a>/, `${p} FR toggle is active (a link to the /fr/ twin)`);
   }
 });
 

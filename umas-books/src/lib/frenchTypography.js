@@ -17,6 +17,7 @@
 // <pre>, <code>, comments (so URLs, JSON, JS and form values stay exact).
 
 const NBSP = " ";
+const { prefixLinks } = require("./frUrls");
 
 // One opening/closing tag; quoted attribute values may contain ">".
 const TAG = /<\/?[a-zA-Z][a-zA-Z0-9-]*(?:\s(?:"[^"]*"|'[^']*'|[^>"'])*)?\/?>/y;
@@ -102,7 +103,8 @@ function installFrenchRender(res) {
     const opts = typeof options === "function" ? undefined : options;
     return render.call(this, view, opts, (err, html) => {
       if (err) return cb ? cb(err) : this.req.next(err);
-      const fixed = frenchTypography(html);
+      let fixed = frenchTypography(html);
+      if (this.req && this.req.frPrefix) fixed = prefixLinks(fixed); // /fr/ pages: links stay under /fr/ (lib/frUrls.js)
       return cb ? cb(null, fixed) : this.send(fixed);
     });
   };

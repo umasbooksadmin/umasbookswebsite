@@ -6,6 +6,7 @@ const express = require("express");
 const { pool } = require("../db");
 const { baseUrl } = require("../lib/baseUrl");
 const { isNonLive } = require("../lib/preview");
+const { localize, seoLinks } = require("../lib/frUrls");
 
 const router = express.Router();
 
@@ -52,15 +53,26 @@ function robotsTxt(base) {
   return lines.join("\n") + "\n";
 }
 
+// Every public page is listed twice, at its English and its French address
+// (/fr/...), each entry carrying the full set of alternates (hreflang en, fr and
+// x-default = English), as Google asks for.
+function sitemapEntry(base, path, lastmod) {
+  const en = base + path;
+  const fr = base + localize(path);
+  const links = [["en", en], ["fr", fr], ["x-default", en]]
+    .map(([lang, href]) => `<xhtml:link rel="alternate" hreflang="${lang}" href="${xmlEscape(href)}"/>`).join("");
+  return [en, fr].map((loc) => `  <url><loc>${xmlEscape(loc)}</loc>${lastmod || ""}${links}</url>`);
+}
+
 function buildSitemapXml(base, bookRows) {
-  const urls = ["/", ...MARKETING_PAGES.map((f) => "/" + f), ...DYNAMIC_PAGES]
-    .map((p) => `  <url><loc>${xmlEscape(base + p)}</loc></url>`);
+  const urls = [];
+  for (const p of ["/", ...MARKETING_PAGES.map((f) => "/" + f), ...DYNAMIC_PAGES]) urls.push(...sitemapEntry(base, p));
   for (const b of bookRows) {
     const lastmod = b.updated_at ? `<lastmod>${new Date(b.updated_at).toISOString()}</lastmod>` : "";
-    urls.push(`  <url><loc>${xmlEscape(`${base}/books/${b.id}`)}</loc>${lastmod}</url>`);
+    urls.push(...sitemapEntry(base, `/books/${b.id}`, lastmod));
   }
   return `<?xml version="1.0" encoding="UTF-8"?>\n` +
-    `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join("\n")}\n</urlset>\n`;
+    `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">\n${urls.join("\n")}\n</urlset>\n`;
 }
 
 let sitemapCache = null; // { base, at, xml }
@@ -101,6 +113,7 @@ router.get("/sitemap.xml", async (req, res) => {
 function setMarketingSeoLocals(req, res, pagePath) {
   res.locals.siteUrl = safeBaseUrl(req);
   res.locals.canonicalPath = pagePath;
+  res.locals.seoUrls = () => seoLinks(res.locals.siteUrl, res.locals.canonicalPath, res.locals.lang);
 }
 
 // Members-only areas: their pages keep "Members" in the title and are not
@@ -115,6 +128,10 @@ function seoLocals(req, res, next) {
   res.locals.siteUrl = safeBaseUrl(req);
   res.locals.canonicalPath = req.path;
   res.locals.membersArea = MEMBERS_AREA.test(req.path);
+  // <head> links: the canonical URL in the page's own language and the hreflang
+  // alternates (lib/frUrls.js). req.path is the page's own path: a /fr/ request
+  // has already had its prefix stripped by the language middleware.
+  res.locals.seoUrls = () => seoLinks(res.locals.siteUrl, res.locals.canonicalPath, res.locals.lang);
   next();
 }
 

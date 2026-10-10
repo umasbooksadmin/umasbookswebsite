@@ -110,6 +110,21 @@ test("search engines: X-Robots-Tag, robots.txt, empty sitemap", async () => {
   assert.ok(!sitemap.includes("<url>"));
 });
 
+test("the /fr/ pages are noindex in preview too (header and meta), and French with the banner", async () => {
+  for (const path of ["/fr/", "/fr/books.html", "/fr/privacy-policy.html", "/fr/contact", "/fr/no-such-page"]) {
+    const res = await get(preview, path);
+    assert.equal(res.headers.get("x-robots-tag"), "noindex, nofollow", path);
+    const html = await res.text();
+    assert.match(html, /<html lang="fr"/, path);
+    assert.match(html, /<meta name="robots" content="noindex, nofollow">/, `${path}: robots meta`);
+    assert.ok(html.includes("preview-banner"), `${path}: banner`);
+  }
+  // Without preview mode the /fr/ pages carry no noindex.
+  const live = await get(normal, "/fr/");
+  assert.equal(live.headers.get("x-robots-tag"), null);
+  assert.ok(!/noindex/.test(await live.text()));
+});
+
 test("membership page replaces the HelloAsso widget with a notice", async () => {
   for (const [lang, h] of [["en", "Membership opens at launch"], ["fr", "L’adhésion ouvrira au lancement"]]) {
     const html = await (await get(preview, "/membership.html", lang)).text();
