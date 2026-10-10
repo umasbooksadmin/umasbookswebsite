@@ -33,15 +33,16 @@
       <a href="/volunteer?view=week" class="btn btn-outline btn-small<%= view === 'week' ? ' is-active' : '' %>"><%= tr('Week', 'Semaine') %></a>
     </div>
   </div>
-  <div class="calendar-grid">
-    <% [tr('Sun', 'Dim'), tr('Mon', 'Lun'), tr('Tue', 'Mar'), tr('Wed', 'Mer'), tr('Thu', 'Jeu'), tr('Fri', 'Ven'), tr('Sat', 'Sam')].forEach(d => { %><div class="calendar-weekday"><%= d %></div><% }) %>
+  <div class="calendar-grid calendar-agenda">
+    <% const weekdayNames = [tr('Sun', 'Dim'), tr('Mon', 'Lun'), tr('Tue', 'Mar'), tr('Wed', 'Mer'), tr('Thu', 'Jeu'), tr('Fri', 'Ven'), tr('Sat', 'Sam')]; %>
+    <% weekdayNames.forEach(d => { %><div class="calendar-weekday"><%= d %></div><% }) %>
     <% weeks.forEach(week => { %>
-      <% week.forEach(day => { %>
+      <% week.forEach((day, wi) => { %>
         <% if (!day) { %>
           <div class="calendar-day is-empty"></div>
         <% } else { %>
           <div class="calendar-day<%= day.isToday ? ' is-today' : '' %>">
-            <div class="calendar-day-number"><%= day.day %></div>
+            <div class="calendar-day-number"><span class="calendar-day-weekday"><%= weekdayNames[wi] %></span><%= day.day %></div>
             <% day.items.forEach(s => { %>
               <% const full = s.signup_count >= s.capacity; const mine = mySignedUpIds.has(s.id); %>
               <details class="calendar-pill<%= full ? ' is-full' : '' %><%= mine ? ' is-mine' : '' %>">

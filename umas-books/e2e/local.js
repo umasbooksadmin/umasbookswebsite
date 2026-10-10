@@ -98,6 +98,10 @@ async function seed(databaseUrl, creds) {
   await book({ title: "E2E Sample Award Winner", author: "Sample Author", categories: "Fiction" }, [{ price: 6 }], [{ label: "Booker Prize", year: 2019 }]);
   await book({ isbn: "9780747532743", title: "E2E Sample New Book", author: "Third Author", binding: "hardcover" }, [{ condition: "new", price: 12, publisherPrice: 12 }]);
 
+  // Phone layout (G82, A102): an unbroken 90-letter title, and a 41-letter word with a web address in the description.
+  const longTitle = `E2Ephone${"x".repeat(82)}`;
+  await book({ title: longTitle, author: `${longTitle.slice(0, 40)} Author`, description: `${longTitle} https://example.org/${"a".repeat(60)}` }, [{ price: 5 }]);
+  await book({ title: "E2Ephone Pneumonoultramicroscopicsilicovolcanoconi", author: "Pneumonoultramicroscopicsilicovolcanoconi", categories: "Fiction" }, [{ price: 6 }]);
   await db.query("INSERT INTO events (title, description, location, starts_at, ends_at, capacity) VALUES ('E2E Sample Event','Sample','Albi',$1,$2,10)", [days(2), days(2.1)]);
   await db.query("INSERT INTO events (title, description, location, starts_at, ends_at, capacity) VALUES ('E2E Sample Full Event','Sample','Albi',$1,$2,1)", [days(3), days(3.1)]);
   await db.query("INSERT INTO classes (title, description, location, starts_at, ends_at, capacity, dropin_price, program_type) VALUES ('E2E Sample Drop-in','Sample','Albi',$1,$2,6,8,'dropin')", [days(2), days(2.1)]);

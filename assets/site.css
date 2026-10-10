@@ -488,3 +488,19 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
 .mem-widget-holder { margin: 8px 0 0; }
 .mem-widget-gate { border: 1px solid var(--card-border); border-radius: 4px; padding: 18px 20px; background: #fbfaf7; }
 .mem-widget-gate .mem-widget-note { margin-bottom: 14px; }
+
+/* ---------- Phones: nothing may be wider than the screen ----------
+   Text that someone typed (a book title, an author, a blog post, an event) can contain a very long
+   unbroken string: a web address used as a title, a 41-letter word. It used to widen the whole page
+   (the Home page 1000px, a book page 1,400px) or be cut off in a card. It now wraps anywhere as a last
+   resort; only a word that does not fit on a line by itself is ever broken (overflow-wrap: anywhere also
+   lowers the smallest width a grid or flex item can shrink to, so boxes can squeeze). hyphens: auto lets
+   long words (9 letters or more) in titles, authors and descriptions break with a hyphen where the page language is set.
+   The same rules are in the app's public/style.css for the pages that do not load this file. */
+body { overflow-wrap: break-word; }
+h1, h2, h3, h4, h5, h6, p, li, dt, dd, summary, label, blockquote, figcaption { overflow-wrap: anywhere; }
+.wn-text, .wn-title, .wn-excerpt, .wn-tag, .ev-title, .ev-meta, .ev-desc, .blog-title, .blog-excerpt, .blog-card-body,
+.bk-book .t, .bk-book .a, .bk-book .p, .bk-results-head h2, .bk-covernote, .bk-band-item h3, .bk-band-item p { overflow-wrap: anywhere; }
+.wn-title, .wn-excerpt, .ev-title, .ev-desc, .blog-title, .blog-excerpt, .bk-book .t, .bk-book .a { hyphens: auto; hyphenate-limit-chars: 9 4 3; }
+.wn-slide > *, .ev-item > *, .blog-grid > *, .blog-card-link > *, .bk-grid > *, .bk-results > * { min-width: 0; }
+.bk-grid { grid-template-columns: repeat(auto-fill, minmax(min(150px, 100%), 1fr)); }
