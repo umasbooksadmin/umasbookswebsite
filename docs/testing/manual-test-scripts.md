@@ -215,7 +215,7 @@ Use a private window. Time: 35 to 45 minutes. A guest browses, searches, fills a
 ### 1A. Home, menu, footer
 
 - [ ] **G1 (must).** Open the home page `/`. **You should see:** the Uma's Books & Adventures page, a menu (Home, Browse Books, English Programs, Events), icons at the top right (heart, receipt/account, cart with a number, key, person, **EN | FR**), and a footer with **Contact Us**, **Albi, France**, **Privacy Policy**, **Terms of Sale**, **Legal Notice**.
-- [ ] **G2.** Click each footer link. **You should see:** each page opens, no error page. (The footer has an Instagram icon that opens the association's page in a new tab; there is no Facebook icon until a real address is set in `SOCIAL_LINKS`, `umas-books/src/lib/legal.js`. The Instagram link is not part of this click-through.)
+- [ ] **G2.** Click each footer link. **You should see:** each page opens, no error page. (The footer has an Instagram icon and, right beside it, a Facebook icon; each opens the association's page in a new tab, in English and in French, and the Facebook address has no `?mibextid=` part. Both are the same size and colour and change the same way on hover. Setting `facebook` in `SOCIAL_LINKS`, `umas-books/src/lib/legal.js`, to an empty value hides the Facebook icon. The Instagram link is not part of this click-through.)
 - [ ] **G3.** Click the key icon (Member's Access) while logged out. **You should see:** the membership page (not a login form).
 - [ ] **G4.** Click the person icon. **You should see:** the Log in page with "Forgot your password?" and "Create an account" links.
 
