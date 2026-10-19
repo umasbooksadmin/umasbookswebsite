@@ -12,6 +12,7 @@ router.use(require("./orders"));
 router.use(require("./members"));
 router.use(require("./announcements"));
 router.use(require("./blog"));
+router.use(require("./collections"));
 router.use(require("./volunteerShifts"));
 router.use(require("./meetings"));
 router.use(require("./events"));

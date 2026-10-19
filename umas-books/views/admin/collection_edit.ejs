@@ -1,0 +1,77 @@
+<%- include('../partials/admin_header', { title: collection.title_en, active: active, pageTitle: collection.title_en, pageSub: 'Edit the collection, ask the AI for suggestions, then approve the books that fit and publish.' }) %>
+<% if (flash && flash.notice) { %><div class="notice-box" role="status"><%= flash.notice %></div><% } %>
+<% if (flash && flash.error) { %><div class="error-box" role="alert"><%= flash.error %></div><% } %>
+<p><a href="/admin/collections">&larr; All collections</a></p>
+
+<div class="card">
+  <div class="section-title">Published on the site?</div>
+  <form method="post" action="/admin/collections/<%= collection.id %>/published" class="stack">
+    <%- include('../partials/csrf_field') %>
+    <input type="hidden" name="published" value="<%= collection.published ? '0' : '1' %>">
+    <input type="hidden" name="back" value="edit">
+    <p><span class="status-pill <%= collection.published ? 'published' : 'draft' %>"><%= collection.published ? 'Published' : 'Not published' %></span>
+      <% if (collection.published) { %> Customers see this collection at <a href="/collections/<%= collection.slug %>" target="_blank" rel="noopener">/collections/<%= collection.slug %></a>.<% } else { %> Customers cannot see it.<% } %></p>
+    <p class="small muted">Only books you have approved <em>and</em> that are in stock are shown. Publishing needs at least one approved book and the French title and description.</p>
+    <div><button class="btn<%= collection.published ? ' btn-outline' : '' %>" type="submit"><%= collection.published ? 'Unpublish' : 'Publish' %></button></div>
+  </form>
+</div>
+
+<form method="post" action="/admin/collections/<%= collection.id %>" class="card stack" id="collection-form">
+  <%- include('../partials/csrf_field') %>
+  <div class="section-title">Text</div>
+  <label for="c-title-en">Title (English)</label>
+  <input id="c-title-en" name="title_en" type="text" maxlength="200" required value="<%= form.title_en %>">
+  <label for="c-desc-en">Description (English)</label>
+  <textarea id="c-desc-en" name="description_en" rows="3" maxlength="1000"><%= form.description_en %></textarea>
+  <label for="c-title-fr">Title (French)</label>
+  <input id="c-title-fr" name="title_fr" type="text" maxlength="200" lang="fr" value="<%= form.title_fr %>">
+  <label for="c-desc-fr">Description (French)</label>
+  <textarea id="c-desc-fr" name="description_fr" rows="3" maxlength="1000" lang="fr"><%= form.description_fr %></textarea>
+  <p class="small muted">The site is fully French when a visitor chooses French, so both French fields are needed before publishing. &ldquo;Translate to French&rdquo; fills only the empty ones; you read them and press Save.</p>
+  <label for="c-prompt">Guidance for the AI (what to look for, what to avoid)</label>
+  <textarea id="c-prompt" name="curation_prompt" rows="5" maxlength="3000"><%= form.curation_prompt %></textarea>
+  <label for="c-sort">Sort order (smaller numbers come first)</label>
+  <input id="c-sort" name="sort_order" type="number" step="1" min="-1000" max="100000" required value="<%= form.sort_order %>">
+  <div>
+    <button class="btn" type="submit">Save</button>
+    <button class="btn btn-outline" type="submit" formaction="/admin/collections/<%= collection.id %>/translate">Translate to French</button>
+  </div>
+</form>
+
+<div class="card stack">
+  <div class="section-title">Suggestions</div>
+  <p class="small muted">The AI looks at books in stock that are not yet in this collection and proposes the ones that fit. Your earlier choices are kept: running it again only adds new suggestions. It counts toward the daily AI limit.
+    <% if (collection.last_generated_at) { %>Last run: <%= formatDateTime(collection.last_generated_at) %>.<% } %></p>
+  <form method="post" action="/admin/collections/<%= collection.id %>/generate">
+    <%- include('../partials/csrf_field') %>
+    <button class="btn" type="submit">Generate suggestions</button>
+  </form>
+</div>
+
+<div class="card">
+  <div class="section-title">Review (<%= counts.suggested %> waiting, <%= counts.approved %> approved, <%= counts.rejected %> rejected)</div>
+  <% if (!books.length) { %>
+    <p class="muted">No books yet. Press <strong>Generate suggestions</strong> above.</p>
+  <% } else { %>
+    <form method="post" action="/admin/collections/<%= collection.id %>/review">
+      <%- include('../partials/csrf_field') %>
+      <p class="small muted">Tick <strong>Approve</strong> to show a book in this collection, or <strong>Reject</strong> to hide it for good. Leave both empty to decide later. Press <strong>Save choices</strong> to keep your ticks.</p>
+      <% books.forEach(function (b) { %>
+        <div class="card" style="margin: 8px 0;">
+          <input type="hidden" name="ids" value="<%= b.id %>">
+          <div><strong><a href="/admin/inventory/<%= b.id %>"><%= b.title %></a></strong><%= b.authors ? ' by ' + b.authors : '' %>
+            <span class="status-pill <%= b.status === 'approved' ? 'published' : (b.status === 'rejected' ? 'cancelled' : 'pending') %>"><%= b.status === 'suggested' ? 'waiting' : b.status %></span>
+            <% if (!b.in_stock) { %><span class="status-pill cancelled">not in stock: hidden from customers</span><% } %></div>
+          <% if (b.categories) { %><div class="small muted"><%= b.categories %></div><% } %>
+          <% if (b.reason) { %><p class="small" style="margin: 6px 0;">Why: <%= b.reason %></p><% } %>
+          <div>
+            <label class="ann-check"><input type="checkbox" name="approve" value="<%= b.id %>" <%= b.status === 'approved' ? 'checked' : '' %>> Approve<span class="visually-hidden">: <%= b.title %></span></label>
+            <label class="ann-check"><input type="checkbox" name="reject" value="<%= b.id %>" <%= b.status === 'rejected' ? 'checked' : '' %>> Reject<span class="visually-hidden">: <%= b.title %></span></label>
+          </div>
+        </div>
+      <% }) %>
+      <button class="btn" type="submit">Save choices</button>
+    </form>
+  <% } %>
+</div>
+<%- include('../partials/admin_footer') %>

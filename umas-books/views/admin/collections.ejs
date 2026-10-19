@@ -1,0 +1,41 @@
+<%- include('../partials/admin_header', { title: 'Collections', active: active, pageTitle: 'Curated collections', pageSub: 'Hand-picked shelves shown on the Browse Books page. The AI only suggests books: nothing is shown to customers until you approve books and press Publish.' }) %>
+<% if (flash && flash.notice) { %><div class="notice-box" role="status"><%= flash.notice %></div><% } %>
+<% if (flash && flash.error) { %><div class="error-box" role="alert"><%= flash.error %></div><% } %>
+
+<div class="card">
+  <p class="small muted">How it works: open a collection, press <strong>Generate suggestions</strong>, tick <strong>Approve</strong> on the books that fit and press <strong>Save choices</strong>, then <strong>Publish</strong>. A collection needs at least one approved book and its French title and description before it can be published. Customers only ever see approved books that are still in stock.</p>
+  <div class="table-scroll"><table class="ann-table">
+    <caption class="visually-hidden">Curated collections</caption>
+    <thead>
+      <tr>
+        <th scope="col">Collection</th>
+        <th scope="col">Position</th>
+        <th scope="col">Suggested</th>
+        <th scope="col">Approved</th>
+        <th scope="col">Published</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% collections.forEach(function (c) { %>
+        <tr>
+          <td><a href="/admin/collections/<%= c.id %>"><strong><%= c.title_en %></strong></a>
+            <% if (c.published && c.approved_in_stock === 0) { %><div class="small muted">Published, but no approved book is in stock now: it is hidden from customers.</div><% } %>
+          </td>
+          <td><%= c.sort_order %></td>
+          <td><%= c.suggested %></td>
+          <td><%= c.approved %><% if (c.approved !== c.approved_in_stock) { %> <span class="small muted">(<%= c.approved_in_stock %> in stock)</span><% } %></td>
+          <td>
+            <form method="post" action="/admin/collections/<%= c.id %>/published">
+              <%- include('../partials/csrf_field') %>
+              <input type="hidden" name="published" value="<%= c.published ? '0' : '1' %>">
+              <input type="hidden" name="back" value="list">
+              <span class="status-pill <%= c.published ? 'published' : 'draft' %>"><%= c.published ? 'Published' : 'Not published' %></span>
+              <button class="btn btn-small<%= c.published ? ' btn-outline' : '' %>" type="submit" aria-label="<%= (c.published ? 'Unpublish ' : 'Publish ') + c.title_en %>"><%= c.published ? 'Unpublish' : 'Publish' %></button>
+            </form>
+          </td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table></div>
+</div>
+<%- include('../partials/admin_footer') %>

@@ -128,7 +128,7 @@
   // The French site lives under /fr/ (src/lib/frUrls.js): the same public pages, always French.
   // FR_PUBLIC mirrors isPublicPath() there (test/unit/frUrls.test.js keeps them in step); it decides
   // which links written in the browser (dictionary text, book and event cards) gain the /fr prefix.
-  var FR_PUBLIC = /^\/(?:|(?:about|blog|books|events|programs|immersion|pre-registration|membership|membership-terms|visit|privacy-policy|terms-of-sale|mentions-legales)(?:\.html)?|volunteer\.html|contact|sessions|request-a-book(?:\/sent)?|books\/\d+)\/?$/;
+  var FR_PUBLIC = /^\/(?:|(?:about|blog|books|events|programs|immersion|pre-registration|membership|membership-terms|visit|privacy-policy|terms-of-sale|mentions-legales)(?:\.html)?|volunteer\.html|contact|sessions|request-a-book(?:\/sent)?|books\/\d+|collections\/[a-z0-9]+(?:-[a-z0-9]+)*)\/?$/;
   function isFrPath(p) { return p === "/fr" || String(p || "").indexOf("/fr/") === 0; }
   function frHref(href) {
     var h = String(href || "");

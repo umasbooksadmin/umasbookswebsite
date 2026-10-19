@@ -1310,3 +1310,21 @@ s.test("A114 (must) on a phone (390 px) the Inventory landing buttons are equal-
   assert.equal(new Set(paired.map((x) => x.w)).size, 1, `tiles have different widths: ${paired.map((x) => x.w).join(", ")}`);
   assert.equal(new Set(paired.map((x) => x.left)).size, 2, "two columns");
 });
+
+s.test("A98 (must) Collections: the list has a Published switch per collection and the counts; a collection page has the English and French fields, Generate, the review boxes and Publish", { as: "admin" }, async (ctx) => {
+  await admin(ctx, "/admin/collections");
+  const text = await ctx.text();
+  has(text, /Curated collections/);
+  has(text, /The Magic We Never Outgrew/);
+  has(text, /Suggested/);
+  has(text, /Approved/);
+  assert.ok((await ctx.page.$$("form[action$='/published'] button[type='submit']")).length >= 19, "a Publish / Unpublish button on every collection");
+  assert.ok(await ctx.page.$("a[href='/admin/collections'].is-active"), "the Collections link in the admin menu is marked");
+  await Promise.all([ctx.page.waitForNavigation({ waitUntil: "domcontentloaded" }), ctx.page.click("td a[href^='/admin/collections/']")]);
+  for (const name of ["title_en", "description_en", "title_fr", "description_fr", "curation_prompt"]) assert.ok(await ctx.page.$(`[name='${name}']`), `field ${name}`);
+  const page = await ctx.text();
+  has(page, /Generate suggestions/);
+  has(page, /Translate to French/);
+  has(page, /Publish/);
+  assert.ok(await ctx.page.$("form[action$='/generate']") && await ctx.page.$("form[action$='/review'], p.muted"), "Generate and the review area are there");
+});

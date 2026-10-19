@@ -405,6 +405,9 @@ MARKETING_PAGES.forEach((file) => {
   });
 });
 
+// Curated collection pages (/collections/<slug>, /fr/collections/<slug>): marketing look, so they carry the marketing CSP.
+app.use(require("./routes/collections").createCollectionsRouter({ marketingCsp }));
+
 app.use(authRoutes);
 app.use(twoFactorRoutes);
 app.use(dashboardRoutes);
