@@ -14,7 +14,7 @@
     </section>
 
     <section class="col-books" aria-labelledby="col-books-title">
-      <h2 class="visually-hidden" id="col-books-title"><%= tr('Books in this collection', 'Les livres de cette collection') %></h2>
+      <h2 class="col-sr" id="col-books-title"><%= tr('Books in this collection', 'Les livres de cette collection') %></h2>
       <% if (!books.length) { %>
         <div class="col-empty" role="status">
           <p><%= tr('Every book in this collection has found a new home. Come back soon, or browse the rest of our shelves.', 'Tous les livres de cette collection ont trouvé preneur. Revenez bientôt, ou parcourez le reste de nos étagères.') %></p>

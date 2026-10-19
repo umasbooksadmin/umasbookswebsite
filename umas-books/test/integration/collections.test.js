@@ -493,3 +493,88 @@ test("the sitemap lists published collections that still have a book, at both ad
   assert.ok(!text.includes(unpub.slug), "an unpublished collection is not advertised");
   assert.ok(!text.includes("paris-is-always-a-good-idea"), "a seeded, unpublished collection is not advertised");
 });
+
+// ---------- the Browse Books button row ----------
+
+const rowOf = (html) => (html.match(/<section class="bk-collections"[\s\S]*?<\/section>/) || [""])[0];
+
+test("Browse Books: no collection published means no row at all", async () => {
+  await pool.query("UPDATE curated_collections SET published = FALSE");
+  for (const p of ["/books.html", "/fr/books.html"]) {
+    const { res, text } = await get(p);
+    assert.equal(res.status, 200);
+    assert.ok(!text.includes("bk-collections"), `${p}: no row, no heading, no empty section`);
+  }
+});
+
+test("Browse Books: a published collection with a book in stock gets a button, in English and in French", async () => {
+  const b = await newBook(`Row ${uniq()}`);
+  const c = await publishedShelf([[b, "approved"]], { title_en: "Row Shelf", title_fr: "Étagère du rang" });
+  await pool.query("UPDATE curated_collections SET icon_path = '/assets/img/collections/paris-is-always-a-good-idea.png' WHERE id = $1", [c.id]);
+  const en = rowOf((await get("/books.html")).text);
+  assert.match(en, /<h2[^>]*>Browse by Collection<\/h2>/);
+  assert.match(en, new RegExp(`<a class="col-btn" href="/collections/${c.slug}">`));
+  assert.match(en, /<span class="col-name">Row Shelf<\/span>/);
+  assert.match(en, /<img src="[^"]*\/assets\/img\/collections\/[a-z-]+\.png[^"]*" alt="" width="120" height="120" loading="lazy">/, "decorative picture, size set, lazy");
+  assert.ok(!/ hidden/.test(en.split(">")[0]), "visible on the plain page");
+  const fr = rowOf((await get("/fr/books.html")).text);
+  assert.match(fr, /<h2[^>]*>Parcourir par collection<\/h2>/);
+  assert.match(fr, new RegExp(`href="/fr/collections/${c.slug}"`));
+  assert.match(fr, /<span class="col-name">Étagère du rang<\/span>/);
+  assert.ok(!fr.includes("Row Shelf") && !fr.includes("Browse by Collection"), "no English on the French row");
+  // Placed under the genre buttons.
+  const html = (await get("/books.html")).text;
+  assert.ok(html.indexOf('id="bk-genre-list"') < html.indexOf('id="bk-collections"') && html.indexOf('id="bk-collections"') < html.indexOf('id="bk-results"'));
+});
+
+test("Browse Books: the row is hidden whenever a genre, a search, a topic or ?new=1 is active (and with no JavaScript)", async () => {
+  for (const q of ["", "?q=paris", "?genre=fiction", "?topic=mystery", "?new=1", "?new=0", "?genre="]) {
+    const html = rowOf((await get(`/books.html${q}`)).text);
+    const hidden = /^<section[^>]* hidden>/.test(html);
+    const expected = ["?q=paris", "?genre=fiction", "?topic=mystery", "?new=1"].includes(q);
+    assert.equal(hidden, expected, `/books.html${q}: hidden=${hidden}`);
+    const fr = rowOf((await get(`/fr/books.html${q}`)).text);
+    assert.equal(/^<section[^>]* hidden>/.test(fr), expected, `/fr/books.html${q}`);
+  }
+});
+
+test("Browse Books: a published collection with no approved book in stock gets no button; unpublished ones never do", async () => {
+  await pool.query("UPDATE curated_collections SET published = FALSE");
+  const gone = await publishedShelf([[await newBook(`Row gone ${uniq()}`, { copyStatus: "sold" }), "approved"]], { title_en: "Emptied Shelf" });
+  const unpub = await freshCollection({ title_en: "Draft Shelf" });
+  await addRow(unpub.id, (await newBook(`Row draft ${uniq()}`)).id, "approved");
+  let html = (await get("/books.html")).text;
+  assert.ok(!html.includes("Emptied Shelf") && !html.includes("Draft Shelf"));
+  assert.ok(!html.includes("bk-collections"), "nothing to show: no row");
+  // One real collection appears; the emptied one still does not.
+  await publishedShelf([[await newBook(`Row ok ${uniq()}`), "approved"]], { title_en: "Visible Shelf" });
+  html = (await get("/books.html")).text;
+  assert.ok(html.includes("Visible Shelf") && !html.includes("Emptied Shelf") && !html.includes("Draft Shelf"));
+  // The emptied collection's own page is still there, with its friendly message.
+  assert.match((await get(`/collections/${gone.slug}`)).text, /found a new home/);
+});
+
+test("Browse Books: buttons follow the sort order, and a collection without a picture is a plain text button", async () => {
+  await pool.query("UPDATE curated_collections SET published = FALSE");
+  const a = await publishedShelf([[await newBook(`Sort A ${uniq()}`), "approved"]], { title_en: "Second Shelf" });
+  const b = await publishedShelf([[await newBook(`Sort B ${uniq()}`), "approved"]], { title_en: "First Shelf" });
+  await pool.query("UPDATE curated_collections SET sort_order = 2 WHERE id = $1", [a.id]);
+  await pool.query("UPDATE curated_collections SET sort_order = 1, icon_path = NULL WHERE id = $1", [b.id]);
+  const row = rowOf((await get("/books.html")).text);
+  assert.ok(row.indexOf("First Shelf") < row.indexOf("Second Shelf"));
+  assert.match(row, /<a class="col-btn no-art" href="\/collections\/[^"]+">\s*<span class="col-name">First Shelf<\/span>/);
+});
+
+test("the French Browse row and collection page carry none of the English from their own tr() strings", async () => {
+  await pool.query("UPDATE curated_collections SET published = FALSE");
+  await publishedShelf([[await newBook(`Fr row ${uniq()}`), "approved"]], { title_en: "Plain English Name", title_fr: "Nom français" });
+  const own = pairs().filter((p) => /collections_row\.ejs$/.test(p.file) && p.en && p.fr);
+  assert.ok(own.length >= 1);
+  const fr = rowOf((await get("/fr/books.html")).text);
+  for (const p of own) {
+    assert.ok(fr.includes(p.fr), `French text "${p.fr}" missing`);
+    assert.ok(!fr.includes(p.en), `English text "${p.en}" on the French row`);
+  }
+  const en = rowOf((await get("/books.html")).text);
+  for (const p of own) assert.ok(en.includes(p.en));
+});

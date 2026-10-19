@@ -50,6 +50,13 @@ async function listButtonCollections(pool) {
   return rows;
 }
 
+// Is a genre, a search, a topic or "See All New In" showing on Browse Books? The collection row is for the plain view only
+// (the same rule as the New In shelf). `query` is req.query of /books.html.
+function browseFilterActive(query = {}) {
+  const one = (v) => String(Array.isArray(v) ? v[0] : v == null ? "" : v).trim();
+  return Boolean(one(query.q) || one(query.genre) || one(query.topic) || one(query.new) === "1");
+}
+
 // Sitemap: the published collections that still have a book to show.
 const listSitemapCollections = listButtonCollections;
 
@@ -122,6 +129,6 @@ async function saveDecisions(pool, collectionId, rows) {
 }
 
 module.exports = {
-  IN_STOCK_SQL, isSlug, approvedInStockBooks, getPublishedCollection, listButtonCollections, listSitemapCollections,
+  IN_STOCK_SQL, isSlug, browseFilterActive, approvedInStockBooks, getPublishedCollection, listButtonCollections, listSitemapCollections,
   localized, publishProblems, setPublished, saveDecisions,
 };

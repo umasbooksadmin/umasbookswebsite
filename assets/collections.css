@@ -44,3 +44,7 @@
 .col-desc { max-width: 720px; margin: 14px auto 0; font-size: 20px; line-height: 1.4; color: var(--ink-soft); }
 .col-empty { text-align: center; padding: 30px 0; font-size: 20px; color: var(--ink-soft); }
 .col-books .bk-covernote { margin-top: 28px; }
+/* Heading read by screen readers only. */
+.col-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+/* On a phone the books go two to a row (the generic grid would give a single, full-width cover at 375 px). */
+@media (max-width: 640px) { .col-books .bk-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px 14px; } }

@@ -67,6 +67,7 @@ const helloassoWebhookRoutes = require("./routes/helloassoWebhook");
 const adminRoutes = require("./routes/admin");
 
 const { latestArrivals } = require("./lib/latestArrivals");
+const { listButtonCollections, browseFilterActive } = require("./lib/collections");
 const { assetUrl, staticHeaders, STATIC_SECURITY_HEADERS } = require("./lib/assetUrl");
 
 const app = express();
@@ -390,6 +391,9 @@ MARKETING_PAGES.forEach((file) => {
       // No-JavaScript fallback: the page fills its shelves from /api/books/*,
       // so the server also lists the newest books inside <noscript>.
       res.locals.noscriptBooks = await latestArrivals(pool, { limit: 12, days: 0 }).catch(() => []);
+      // The curated-collection buttons (lib/collections.js): published ones with a book in stock, plain view only.
+      res.locals.collectionButtons = await listButtonCollections(pool).catch(() => []);
+      res.locals.collectionsHidden = browseFilterActive(req.query);
     }
     if (marketingFormRoutes.FORM_PAGES.includes("/" + file)) {
       // Server-side forms (routes/marketingForms.js): the page carries a CSRF token, so no shared cache.

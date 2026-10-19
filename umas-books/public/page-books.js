@@ -113,6 +113,7 @@
   var form = document.getElementById('shop-search-form');
   var input = document.getElementById('shop-search-input');
   var lastTitle = null;
+  var collectionsEl = document.getElementById('bk-collections'); // absent when no collection is published
 
   // The search / genre state lives in the address (public/books-state.js): a genre tap or a search
   // adds a history entry, so Back returns to the previous results, and the address can be shared.
@@ -175,6 +176,8 @@
   // Put a state on the screen (no history change here).
   function render(state, scroll) {
     current = state;
+    // The collection buttons (views/marketing/partials/collections_row.ejs) are for the plain Browse view only, like New In.
+    if (collectionsEl) collectionsEl.hidden = !!(state.q || state.genre || state.isNew || /[?&]topic=/.test(location.search));
     if (state.q) {
       input.value = state.q;
       setActiveGenre(null);
