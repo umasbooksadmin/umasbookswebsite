@@ -34,7 +34,7 @@ test("seller identity: RNA, SIRET, registered office, phone, e-mail, and 'TVA no
   assert.match(t, /SIRET 109 441 147 00013/);
   assert.match(t, /5 rue Hippolyte Savary, 81000 Albi/);
   assert.match(t, /TVA non applicable/);
-  assert.match(t, /06 98 95 67 91/);
+  assert.match(t, /\+33 6 07 41 70 60/);
   assert.match(t, /admin@umasbooks\.org\nTVA non applicable/, "contact email sits in the seller block");
 });
 
@@ -92,7 +92,7 @@ test("French reservation: the legal block and the seller identity are in French 
   for (const block of [LEGAL_RIGHTS_FRENCH_ONLY, sellerLines("fr")]) assert.ok(t.includes(frenchPlainText(block)));
   assert.match(t, /VOS DROITS/);
   assert.doesNotMatch(t, /YOUR RIGHTS|Reserving is free|Legal guarantees:|Complaints:|Phone/);
-  assert.match(t, /Tél\.\u00a0: 06 98 95 67 91/);
+  assert.match(t, /Tél\.\u00a0: \+33 6 07 41 70 60/);
   const en = buildOrderConfirmationText({ ...order, lang: "en" }, items, "");
   for (const block of [LEGAL_RIGHTS, SELLER_LINES]) assert.ok(en.includes(block));
   assert.match(en, /YOUR RIGHTS/);

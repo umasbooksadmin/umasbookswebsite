@@ -65,6 +65,13 @@ const MEMBERSHIP_PRICE_EUR = "";
 // page, structured data). See docs/legal-todos.md ("give the street number").
 const SHOP_STREET_NUMBER = "";
 
+// The shop's phone number: the ONE place it is written. Shown in the
+// international form (no leading 0); the tel: link uses digits only. Pages and
+// emails read these (templates through legalText.shopPhone / shopPhoneTel and the
+// {shopPhone} / {shopPhoneTel} tokens of fillVat), so a change is made here only.
+const SHOP_PHONE_DISPLAY = "+33 6 07 41 70 60";
+const SHOP_PHONE_TEL = "tel:+33607417060";
+
 // Opening days and hours of the shop: Wednesday to Saturday, 14:00 to 19:00.
 // Machine format for structured data (schema.org day names, 24-hour times),
 // then the text printed on pages: English 14:00–19:00, French 14 h–19 h (a
@@ -152,7 +159,7 @@ module.exports = {
   BRAND_LEGAL_NAME, BRAND_SHORT_NAME, TERMS_OF_SALE_VERSION, VAT_NOTICE_ARTICLE, SOCIAL_LINKS,
   RESERVATION_DAYS, RESERVATION_EXTENSION_DAYS, MAX_RESERVED_COPIES, MAX_ACTIVE_RESERVATIONS,
   SEAT_CANCEL_HOURS, SEAT_REMINDER_HOURS, RESERVATION_REMINDER_DAYS_BEFORE, SEAT_FALLBACK_SESSION_HOURS,
-  MEMBERSHIP_PRICE_EUR, SHOP_STREET_NUMBER,
+  MEMBERSHIP_PRICE_EUR, SHOP_STREET_NUMBER, SHOP_PHONE_DISPLAY, SHOP_PHONE_TEL,
   SHOP_OPEN_DAYS, SHOP_OPENS, SHOP_CLOSES, SHOP_HOURS_EN, SHOP_HOURS_FR,
   SHOP_DAYS_EN, SHOP_DAYS_FR, SHOP_DAYS_SHORT_EN, SHOP_DAYS_SHORT_FR, SHOP_HOURS_FR_SPOKEN, SHOP_EXTRA_HOURS_NOTE_URL,
   shopStreet, shopHours, shopDays, shopDaysShort, shopHoursShort, shopHoursFirm, membershipPrice,
