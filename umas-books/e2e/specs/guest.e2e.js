@@ -1306,12 +1306,174 @@ s.test("G90 (must) covers on a phone are sized: the Browse Books grid asks for t
   assert.ok(asked.some((u) => /-w(300|450)\.jpg$/.test(u)), `a small cover was requested (${asked.slice(0, 3).join(", ")})`);
 });
 
+// ---- New In carousel (G91) and See All New In (G92) ----
+
+// Text inside a New In card that may be wider or taller than its box, with the reason. Empty on purpose: the titles, authors and
+// prices all wrap (a very long word breaks), so nothing is clipped; add a line here only with a reason.
+const CAROUSEL_TEXT_ALLOW = [];
+
+// where the carousel is at rest: which cards are in view and whether any is cut by the edge of the box
+async function carouselState(page) {
+  return page.evaluate((allow) => {
+    const tr = document.getElementById("bk-new-track");
+    const T = tr.getBoundingClientRect();
+    const pad = parseFloat(getComputedStyle(tr).paddingLeft) || 0;
+    const left = T.left + pad - 1, right = T.right - pad + 1; // the box inside its padding (1px for rounding)
+    const cards = [...tr.querySelectorAll(".bk-book")].map((c, i) => ({ i, r: c.getBoundingClientRect(), c }));
+    const inView = cards.filter((x) => x.r.right > left + 1 && x.r.left < right - 1);
+    const cut = inView.filter((x) => x.r.left < left - 0.5 || x.r.right > right + 0.5).map((x) => `card ${x.i} (${Math.round(x.r.left - T.left)}..${Math.round(x.r.right - T.left)} in a box of ${Math.round(T.width)})`);
+    const clipped = [];
+    for (const x of cards) for (const el of x.c.querySelectorAll(".t, .a, .p")) {
+      if (allow.some((a) => el.matches(a.selector))) continue;
+      if (el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1) clipped.push(`card ${x.i} .${el.className}: "${el.textContent.slice(0, 30)}"`);
+      const cs = getComputedStyle(el);
+      if (cs.textOverflow === "ellipsis" || cs.webkitLineClamp !== "none") clipped.push(`card ${x.i} .${el.className} is ellipsized or line-clamped`);
+    }
+    const first = inView[0];
+    return {
+      count: cards.length, scrollLeft: tr.scrollLeft, cut, clipped,
+      firstOffset: first ? Math.round((first.r.left - T.left - pad) * 10) / 10 : null,
+      prevDisabled: document.getElementById("bk-new-prev").disabled, nextDisabled: document.getElementById("bk-new-next").disabled,
+      docWider: document.documentElement.scrollWidth > innerWidth + 1,
+    };
+  }, CAROUSEL_TEXT_ALLOW);
+}
+// wait until the scrolling has stopped
+async function carouselSettled(page) {
+  let last = -1, still = 0;
+  for (let i = 0; i < 40 && still < 4; i++) {
+    const now = await page.$eval("#bk-new-track", (t) => t.scrollLeft);
+    still = now === last ? still + 1 : 0;
+    last = now;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+}
+function assertAtRest(st, where) {
+  assert.deepEqual(st.cut, [], `${where}: a card is cut by the edge of the carousel when it stops: ${st.cut.join("; ")}`);
+  assert.ok(st.firstOffset != null && Math.abs(st.firstOffset) <= 2, `${where}: the first card in view starts ${st.firstOffset} px from the left edge (should be 0)`);
+  assert.deepEqual(st.clipped, [], `${where}: clipped text: ${st.clipped.join("; ")}`);
+  assert.equal(st.docWider, false, `${where}: the page scrolls sideways`);
+}
+
+s.test("G91 (must) the New In carousel never stops on a cut-off card (375 px, 1024 px, 1280 px and 125% zoom), titles are whole, and the arrows, double clicks and arrow keys land on card edges", { timeout: 400000 }, async (ctx) => {
+  // 125% browser zoom of a 1280 px window is a 1024 px wide page, so it is the 1024 px run; 150% of 1920 is 1280.
+  for (const lang of ["en", "fr"]) {
+    await ctx.page.setCookie({ name: "umasbooks_lang", value: lang, url: cfg.baseUrl() });
+    for (const [width, height, touch] of [[375, 812, true], [1024, 800, false], [1280, 800, false]]) {
+      await ctx.page.setViewport({ width, height, deviceScaleFactor: 1, isMobile: touch, hasTouch: touch });
+      await ctx.goto("/books.html", "networkidle2");
+      await ctx.page.waitForSelector("#bk-new-track .bk-book", { timeout: 8000 }).catch(() => ctx.skip("data: the site has no New In books"));
+      await new Promise((r) => setTimeout(r, 400));
+      const where = `${lang} ${width} px`;
+      let st = await carouselState(ctx.page);
+      assertAtRest(st, `${where} at the start`);
+      assert.equal(st.prevDisabled, true, `${where}: Previous is disabled at the start`);
+      for (let n = 1; n <= 20 && !(await carouselState(ctx.page)).nextDisabled; n++) {
+        if (touch) {
+          // a finger: swipe left across the track
+          const box = await ctx.page.$eval("#bk-new-track", (t) => { const r = t.getBoundingClientRect(); return { x: r.left + r.width * 0.85, y: r.top + 60, w: r.width }; });
+          await ctx.page.touchscreen.touchStart(box.x, box.y);
+          for (let k = 1; k <= 8; k++) await ctx.page.touchscreen.touchMove(box.x - (box.w * 0.7 * k) / 8, box.y);
+          await ctx.page.touchscreen.touchEnd();
+        } else {
+          // the mouse: a click, or two quick clicks
+          await ctx.page.click("#bk-new-next");
+          if (n % 2 === 0) await ctx.page.click("#bk-new-next");
+        }
+        await carouselSettled(ctx.page);
+        st = await carouselState(ctx.page);
+        assertAtRest(st, `${where} after ${touch ? "swipe" : "click"} ${n}`);
+        if (touch) break; // a phone has no arrows; one swipe is enough here, the loop below keeps swiping
+      }
+      if (touch) {
+        for (let n = 0; n < 6; n++) {
+          const box = await ctx.page.$eval("#bk-new-track", (t) => { const r = t.getBoundingClientRect(); return { x: r.left + r.width * 0.85, y: r.top + 60, w: r.width }; });
+          await ctx.page.touchscreen.touchStart(box.x, box.y);
+          for (let k = 1; k <= 8; k++) await ctx.page.touchscreen.touchMove(box.x - (box.w * 0.7 * k) / 8, box.y);
+          await ctx.page.touchscreen.touchEnd();
+          await carouselSettled(ctx.page);
+          assertAtRest(await carouselState(ctx.page), `${where} after swipe ${n + 2}`);
+        }
+        continue;
+      }
+      assert.equal((await carouselState(ctx.page)).nextDisabled, true, `${where}: Next is disabled on the last page`);
+      // back with Previous, down to the start
+      for (let n = 0; n < 20 && !(await carouselState(ctx.page)).prevDisabled; n++) {
+        await ctx.page.click("#bk-new-prev");
+        await carouselSettled(ctx.page);
+        assertAtRest(await carouselState(ctx.page), `${where} after Previous ${n + 1}`);
+      }
+      // the keyboard: focus a card link, then the arrow keys move one card at a time
+      await ctx.page.focus("#bk-new-track .bk-book a");
+      for (let n = 0; n < 3; n++) {
+        await ctx.page.keyboard.press("ArrowRight");
+        await carouselSettled(ctx.page);
+        assertAtRest(await carouselState(ctx.page), `${where} after ArrowRight ${n + 1}`);
+      }
+      // the arrows are tap-sized and the focus outline is there
+      const arrow = await ctx.page.$eval("#bk-new-next", (b) => { const r = b.getBoundingClientRect(); b.focus(); return { w: r.width, h: r.height }; });
+      assert.ok(arrow.w >= 44 && arrow.h >= 44, `${where}: the arrow is ${arrow.w}x${arrow.h}`);
+    }
+  }
+  await ctx.page.setViewport({ width: 1280, height: 800, deviceScaleFactor: 1 });
+});
+
+s.test("G92 (must) See All New In shows every new book in a grid with a count and Show more, and the New In carousel is only on the plain Browse view (EN and FR)", { timeout: 300000 }, async (ctx) => {
+  const visible = (sel) => ctx.page.evaluate((q) => { const e = document.querySelector(q); return !!e && !e.hidden && !!(e.offsetWidth || e.offsetHeight || e.getClientRects().length); }, sel);
+  for (const lang of ["en", "fr"]) {
+    await ctx.page.setCookie({ name: "umasbooks_lang", value: lang, url: cfg.baseUrl() });
+    const api = await e2e.getJson("/api/books/new-in?offset=0&limit=24");
+    if (!api || !api.total) ctx.skip("data: the site has no New In books");
+    await ctx.goto("/books.html", "networkidle2");
+    await ctx.page.waitForSelector("#bk-new-track .bk-book");
+    assert.equal(await visible(".bk-new"), true, `${lang}: the carousel is on the plain view`);
+    // a genre hides it, clearing (Back) shows it
+    await ctx.page.click("#bk-genre-list .bk-genre");
+    await ctx.page.waitForFunction(() => !document.getElementById("bk-results").hidden);
+    assert.equal(await visible(".bk-new"), false, `${lang}: a genre hides the carousel`);
+    assert.equal(await ctx.page.$eval(".bk-new", (e) => e.hidden), true);
+    await ctx.page.goBack();
+    await ctx.page.waitForFunction(() => document.getElementById("bk-results").hidden);
+    assert.equal(await visible(".bk-new"), true, `${lang}: Back to the plain view shows the carousel again`);
+    // a search hides it
+    await ctx.page.type("#shop-search-input", "a");
+    await ctx.page.keyboard.press("Enter");
+    await ctx.page.waitForFunction(() => !document.getElementById("bk-results").hidden);
+    assert.equal(await visible(".bk-new"), false, `${lang}: a search hides the carousel`);
+    // See All New In: hidden carousel, count, every book
+    await ctx.goto("/books.html", "networkidle2");
+    await ctx.page.waitForSelector("#bk-new-track .bk-book");
+    await ctx.page.click("#bk-new-all");
+    await ctx.page.waitForFunction(() => document.querySelectorAll("#bk-results-grid .bk-book").length > 0);
+    assert.equal(await visible(".bk-new"), false, `${lang}: See All hides the carousel`);
+    assert.equal(await ctx.page.evaluate(() => !!document.getElementById("bk-new-prev") && document.querySelector(".bk-new").hidden), true, `${lang}: the arrows go with it`);
+    assert.match(await ctx.page.$eval("#bk-results-count", (e) => e.textContent), lang === "fr" ? new RegExp(`^${api.total} nouveaut`) : new RegExp(`^${api.total} new book`), `${lang}: the count is the API total`);
+    for (let i = 0; i < 12 && (await visible("#bk-more")); i++) {
+      const before = await ctx.page.$$eval("#bk-results-grid .bk-book", (e) => e.length);
+      await ctx.page.click("#bk-more");
+      await ctx.page.waitForFunction((n) => document.querySelectorAll("#bk-results-grid .bk-book").length > n, { timeout: 8000 }, before);
+    }
+    assert.equal(await ctx.page.$$eval("#bk-results-grid .bk-book", (e) => e.length), api.total, `${lang}: the grid holds every new book (${api.total})`);
+    assert.equal(await visible("#bk-more"), false, `${lang}: no Show more once everything is shown`);
+    // Back returns to the plain view with the carousel; a direct load of a shared address has none
+    await ctx.page.goBack().catch(() => {});
+    await ctx.goto("/books.html?genre=fiction", "networkidle2");
+    assert.equal(await visible(".bk-new"), false, `${lang}: ?genre=fiction loads with no carousel`);
+    assert.equal(await ctx.page.evaluate(() => { const e = document.querySelector(".bk-new"); return !e || e.hidden || getComputedStyle(e).display === "none"; }), true);
+    await ctx.goto("/books.html?new=1", "networkidle2");
+    assert.equal(await visible(".bk-new"), false, `${lang}: ?new=1 loads with no carousel`);
+    await ctx.goto("/fr/books.html?genre=fiction", "networkidle2");
+    assert.equal(await visible(".bk-new"), false, "/fr/ with a genre has no carousel");
+  }
+});
+
+
 // ---- 1C. Curated collections (the round-picture buttons under the genre buttons, and their pages) ----
 
 // The visible state of the collection row: shown (has size) or not.
 const collectionRowShown = (ctx) => ctx.page.$eval("#bk-collections", (e) => !e.hidden && e.getBoundingClientRect().height > 0).catch(() => false);
 
-s.test("G91 (must) Browse Books: the collection buttons show on the plain page and hide while a genre, a search or See All New In is showing", async (ctx) => {
+s.test("G96 (must) Browse Books: the collection buttons show on the plain page and hide while a genre, a search or See All New In is showing", async (ctx) => {
   await ctx.goto("/books.html", "networkidle2");
   if (!(await ctx.page.$("#bk-collections"))) ctx.skip("data: no collection is published (with an approved book in stock) on this site");
   await ctx.page.waitForSelector("#bk-genre-list .bk-genre");
@@ -1346,7 +1508,7 @@ s.test("G91 (must) Browse Books: the collection buttons show on the plain page a
   assert.equal(await collectionRowShown(ctx), true);
 });
 
-s.test("G92 (must) a collection button opens its page: title, description, the books as the usual cards, and a link back to Browse; the same in French", async (ctx) => {
+s.test("G97 (must) a collection button opens its page: title, description, the books as the usual cards, and a link back to Browse; the same in French", async (ctx) => {
   await ctx.goto("/books.html", "networkidle2");
   if (!(await ctx.page.$("#bk-collections .col-btn"))) ctx.skip("data: no collection is published (with an approved book in stock) on this site");
   const first = await ctx.page.$eval("#bk-collections .col-btn", (a) => ({ href: a.getAttribute("href"), name: a.innerText.trim() }));
@@ -1371,7 +1533,7 @@ s.test("G92 (must) a collection button opens its page: title, description, the b
   has(await ctx.page.$eval("#bk-collections", (e) => e.innerText), /Parcourir par collection/);
 });
 
-s.test("G93 (must) on a phone (375 px) the collection buttons wrap about three to a row, each at least 44 px tall, with no sideways scrolling", { viewport: GUEST_PHONE }, async (ctx) => {
+s.test("G98 (must) on a phone (375 px) the collection buttons wrap about three to a row, each at least 44 px tall, with no sideways scrolling", { viewport: GUEST_PHONE }, async (ctx) => {
   await ctx.goto("/books.html", "networkidle2");
   if (!(await ctx.page.$("#bk-collections .col-btn"))) ctx.skip("data: no collection is published (with an approved book in stock) on this site");
   const r = await ctx.page.$$eval("#bk-collections .col-btn", (els) => els.map((e) => { const b = e.getBoundingClientRect(); return { left: Math.round(b.left), top: Math.round(b.top), w: Math.round(b.width), h: Math.round(b.height) }; }));
@@ -1383,7 +1545,7 @@ s.test("G93 (must) on a phone (375 px) the collection buttons wrap about three t
   assert.equal(await ctx.page.$eval("#bk-collections .col-btn img", (i) => i.getAttribute("loading")), "lazy");
 });
 
-s.test("G94 (must) with JavaScript off the collection buttons and the collection page still work", async (ctx) => {
+s.test("G99 (must) with JavaScript off the collection buttons and the collection page still work", async (ctx) => {
   await ctx.page.setJavaScriptEnabled(false);
   try {
     await ctx.goto("/books.html");
@@ -1397,7 +1559,7 @@ s.test("G94 (must) with JavaScript off the collection buttons and the collection
   }
 });
 
-s.test("G95 (must) an unpublished or unknown collection address is a 404, in English and in French", async (ctx) => {
+s.test("G100 (must) an unpublished or unknown collection address is a 404, in English and in French", async (ctx) => {
   for (const p of ["/collections/no-such-collection", "/fr/collections/no-such-collection"]) {
     const res = await ctx.goto(p);
     assert.equal(res.status(), 404, p);

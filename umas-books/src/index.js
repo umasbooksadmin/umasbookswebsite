@@ -66,7 +66,7 @@ const cartRoutes = require("./routes/cart");
 const helloassoWebhookRoutes = require("./routes/helloassoWebhook");
 const adminRoutes = require("./routes/admin");
 
-const { latestArrivals } = require("./lib/latestArrivals");
+const { newIn } = require("./lib/latestArrivals");
 const { listButtonCollections, browseFilterActive } = require("./lib/collections");
 const { assetUrl, staticHeaders, STATIC_SECURITY_HEADERS } = require("./lib/assetUrl");
 
@@ -390,7 +390,12 @@ MARKETING_PAGES.forEach((file) => {
     if (file === "books.html") {
       // No-JavaScript fallback: the page fills its shelves from /api/books/*,
       // so the server also lists the newest books inside <noscript>.
-      res.locals.noscriptBooks = await latestArrivals(pool, { limit: 12, days: 0 }).catch(() => []);
+      res.locals.noscriptBooks = await newIn(pool, { limit: 12 }).then((r) => r.rows).catch(() => []);
+      // The New In carousel is only for the plain Browse view: with a search, a genre or ?new=1 in the address
+      // it is sent already hidden (public/books-state.js decides, the same as the page script does afterwards).
+      const BooksState = require("../public/books-state");
+      const st = BooksState.parse(qs(req), [String(req.query.genre || "")]);
+      res.locals.newInHidden = !!(st.q || st.genre || st.isNew);
       // The curated-collection buttons (lib/collections.js): published ones with a book in stock, plain view only.
       res.locals.collectionButtons = await listButtonCollections(pool).catch(() => []);
       res.locals.collectionsHidden = browseFilterActive(req.query);

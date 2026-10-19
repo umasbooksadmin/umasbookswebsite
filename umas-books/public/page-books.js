@@ -113,6 +113,11 @@
   var form = document.getElementById('shop-search-form');
   var input = document.getElementById('shop-search-input');
   var lastTitle = null;
+  var newSection = document.querySelector('.bk-new');
+  var countEl = document.getElementById('bk-results-count');
+  var moreBtn = document.getElementById('bk-more');
+  var moreOffset = null;
+  var newShown = [];
   var collectionsEl = document.getElementById('bk-collections'); // absent when no collection is published
 
   // The search / genre state lives in the address (public/books-state.js): a genre tap or a search
@@ -173,11 +178,58 @@
     });
   }
 
+  // "See All New In": every book that counts as New In (src/lib/latestArrivals.js newIn), 24 at a time with a
+  // "Show more" button. Each page is cached by its address, so Back / Forward and a second visit ask nothing.
+  function newInUrl(offset) { return API + '/new-in?offset=' + offset + '&limit=24'; }
+  function drawNewIn(data, append, mine) {
+    if (mine !== requestSeq) return;
+    var firstNew = append ? newShown.length : 0;
+    newShown = append ? newShown.concat(data.books) : data.books.slice();
+    drawBooks(newShown);
+    moreOffset = data.nextOffset;
+    moreBtn.hidden = moreOffset == null;
+    countEl.hidden = false;
+    countEl.textContent = (data.total === 1 ? t('bk.new.count1', '1 new book') : t('bk.new.count', '{n} new books').replace('{n}', data.total));
+    if (append) {
+      var link = resultsGrid.querySelectorAll('.bk-book a')[firstNew];
+      if (link) { try { link.focus({ preventScroll: false }); } catch (e) { /* the books are drawn anyway */ } }
+    }
+  }
+  function loadNewIn(offset, append, mine, scroll) {
+    var url = newInUrl(offset);
+    if (cache[url]) { drawNewIn(cache[url], append, mine); if (scroll) scrollToResults(); return; }
+    if (!append) resultsGrid.innerHTML = '<p class="muted">' + esc(t('bk.loading', 'Loading books…')) + '</p>';
+    if (scroll) scrollToResults();
+    moreBtn.disabled = true;
+    getJSON(url, function (err, data) {
+      if (mine !== requestSeq) return;
+      moreBtn.disabled = false;
+      if (err) { resultsGrid.insertAdjacentHTML('beforeend', '<p class="muted">' + esc(t(err.rateLimited ? 'bk.ratelimited' : 'bk.error')) + '</p>'); return; }
+      cache[url] = data;
+      drawNewIn(data, append, mine);
+      if (scroll && !append && Math.abs(resultsEl.getBoundingClientRect().top) > 40) scrollToResults(true);
+    });
+  }
+  function showNewIn(scroll) {
+    lastTitle = { key: 'bk.results.new' };
+    renderTitle();
+    resultsEl.hidden = false;
+    loadNewIn(0, false, ++requestSeq, scroll);
+  }
+  moreBtn.addEventListener('click', function () {
+    if (moreOffset != null) loadNewIn(moreOffset, true, requestSeq, false);
+  });
+
   // Put a state on the screen (no history change here).
   function render(state, scroll) {
     current = state;
     // The collection buttons (views/marketing/partials/collections_row.ejs) are for the plain Browse view only, like New In.
     if (collectionsEl) collectionsEl.hidden = !!(state.q || state.genre || state.isNew || /[?&]topic=/.test(location.search));
+    // The New In carousel is only on the plain Browse view: a search, a genre or "See All New In" already fills the page with a grid.
+    newSection.hidden = !!(state.q || state.genre || state.isNew);
+    if (!newSection.hidden) setTimeout(layoutCarousel, 0);
+    countEl.hidden = true;
+    moreBtn.hidden = true;
     if (state.q) {
       input.value = state.q;
       setActiveGenre(null);
@@ -191,7 +243,7 @@
     } else if (state.isNew) {
       input.value = '';
       setActiveGenre(null);
-      showResults(API + '/latest-arrivals?days=0&limit=24', { key: 'bk.results.new' }, scroll);
+      showNewIn(scroll);
     } else {
       input.value = '';
       setActiveGenre(null);
@@ -233,16 +285,103 @@
   });
   render(S.parse(location.search, SLUGS), true);
 
+  // ---- New In carousel ----
+  // The track (assets/books.css) shows a whole number of cards (--per) and every card is a snap point. Arrows and
+  // arrow keys scroll to the left edge of a real card (its measured position, never "80% of the width", which
+  // drifted off the card edges), counted from where the previous click is heading, so quick repeated clicks add up.
   var track = document.getElementById('bk-new-track');
-  getJSON(API + '/latest-arrivals?days=0&limit=12', function (err, books) {
-    if (err) { track.innerHTML = '<p class="muted">' + esc(t('bk.error')) + '</p>'; return; }
-    if (!books.length) { track.innerHTML = '<p class="muted">' + esc(t('bk.new.empty')) + '</p>'; return; }
+  var prevBtn = document.getElementById('bk-new-prev');
+  var nextBtn = document.getElementById('bk-new-next');
+  var heading = null;   // index the track is scrolling to after a click (null = at rest)
+  var headingTimer = 0;
+
+  function cardList() { return Array.prototype.slice.call(track.querySelectorAll('.bk-book')); }
+  function padLeft() { return parseFloat(getComputedStyle(track).paddingLeft) || 0; }
+  // where scrollLeft must be for card i to sit at the left edge
+  function stopAt(cards, i) {
+    return Math.max(0, cards[i].getBoundingClientRect().left - track.getBoundingClientRect().left + track.scrollLeft - padLeft());
+  }
+  function perView(cards) {
+    var n = parseInt(getComputedStyle(cards[0]).getPropertyValue('--per'), 10);
+    return n > 0 ? n : 1;
+  }
+  function lastStart(cards) { return Math.floor((cards.length - 1) / perView(cards)) * perView(cards); }
+  function nearest(cards) {
+    var best = 0, bd = Infinity;
+    for (var i = 0; i < cards.length; i++) {
+      var d = Math.abs(stopAt(cards, i) - track.scrollLeft);
+      if (d < bd) { bd = d; best = i; }
+    }
+    return best;
+  }
+  // Leave room after the last card so the last page can start at the left edge (no half-cut card at the end).
+  function layoutCarousel() {
+    var cards = cardList();
+    if (!cards.length || !track.clientWidth) { prevBtn.disabled = nextBtn.disabled = true; return; }
+    track.style.setProperty('--bk-end', '0px');
+    var content = stopAt(cards, cards.length - 1) + cards[cards.length - 1].getBoundingClientRect().width + 2 * padLeft();
+    var need = stopAt(cards, lastStart(cards)) + track.clientWidth;
+    track.style.setProperty('--bk-end', Math.max(0, Math.ceil(need - content)) + 'px');
+    updateArrows();
+  }
+  function updateArrows() {
+    var cards = cardList();
+    if (!cards.length) { prevBtn.disabled = nextBtn.disabled = true; return; }
+    prevBtn.disabled = track.scrollLeft <= 1;
+    nextBtn.disabled = track.scrollLeft >= stopAt(cards, lastStart(cards)) - 1;
+  }
+  function goTo(i, cards) {
+    cards = cards || cardList();
+    i = Math.max(0, Math.min(i, lastStart(cards)));
+    heading = i;
+    clearTimeout(headingTimer);
+    headingTimer = setTimeout(function () { heading = null; }, 700);
+    track.scrollTo({ left: stopAt(cards, i), behavior: reducedMotion() ? 'auto' : 'smooth' });
+  }
+  function step(dir, count) {
+    var cards = cardList();
+    if (!cards.length) return;
+    var from = heading != null ? heading : nearest(cards);
+    goTo(from + dir * (count || perView(cards)), cards);
+  }
+  prevBtn.addEventListener('click', function () { step(-1); });
+  nextBtn.addEventListener('click', function () { step(1); });
+  track.addEventListener('keydown', function (e) {
+    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+    if (e.altKey || e.ctrlKey || e.metaKey) return;
+    e.preventDefault();
+    step(e.key === 'ArrowRight' ? 1 : -1, 1);
+  });
+  var scrollTick = 0;
+  track.addEventListener('scroll', function () {
+    if (scrollTick) return;
+    scrollTick = requestAnimationFrame(function () { scrollTick = 0; updateArrows(); });
+  }, { passive: true });
+  if (window.ResizeObserver) {
+    var lastWidth = 0;
+    new ResizeObserver(function () {
+      // A resize or a browser zoom changes the card width: recompute the end room and sit on a card edge again.
+      var w = track.clientWidth;
+      if (!w || w === lastWidth) return;
+      lastWidth = w;
+      var cards = cardList();
+      var at = cards.length ? nearest(cards) : 0;
+      layoutCarousel();
+      if (cards.length) track.scrollTo({ left: stopAt(cards, Math.min(at, lastStart(cards))), behavior: 'auto' });
+    }).observe(track);
+  }
+  window.addEventListener('resize', layoutCarousel);
+
+  getJSON(API + '/new-in?offset=0&limit=12', function (err, data) {
+    if (err) { track.innerHTML = '<p class="muted">' + esc(t('bk.error')) + '</p>'; layoutCarousel(); return; }
+    var books = data.books || [];
+    if (!books.length) { track.innerHTML = '<p class="muted">' + esc(t('bk.new.empty')) + '</p>'; layoutCarousel(); return; }
     track.innerHTML = books.map(function (b) { return bookCard(b, true); }).join('');
     syncFavorites(track);
+    layoutCarousel();
+    // covers and fonts load after this: sizes are in cqw so nothing moves, but re-check the end room once everything is in
+    window.addEventListener('load', layoutCarousel);
   });
-  function page(dir) { track.scrollBy({ left: dir * track.clientWidth * 0.8, behavior: 'smooth' }); }
-  document.getElementById('bk-new-prev').addEventListener('click', function () { page(-1); });
-  document.getElementById('bk-new-next').addEventListener('click', function () { page(1); });
 
   document.querySelectorAll('.langtoggle button').forEach(function (b) {
     b.addEventListener('click', function () { setTimeout(function () { renderTitle(); }, 0); });
