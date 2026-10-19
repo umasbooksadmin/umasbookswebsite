@@ -1,0 +1,25 @@
+<%- include('../partials/admin_header', { title: 'New collection', active: active, pageTitle: 'New collection', pageSub: 'It starts unpublished. Fill in the text, then add books by hand or with the AI, approve them and publish.' }) %>
+<% if (flash && flash.error) { %><div class="error-box" role="alert"><%= flash.error %></div><% } %>
+<p><a href="/admin/collections">&larr; All collections</a></p>
+<form method="post" action="/admin/collections" class="card stack">
+  <%- include('../partials/csrf_field') %>
+  <label for="n-title-en">Title (English)</label>
+  <input id="n-title-en" name="title_en" type="text" maxlength="200" required value="<%= form.title_en %>">
+  <label for="n-desc-en">Description (English)</label>
+  <textarea id="n-desc-en" name="description_en" rows="3" maxlength="1000"><%= form.description_en %></textarea>
+  <label for="n-title-fr">Title (French)</label>
+  <input id="n-title-fr" name="title_fr" type="text" maxlength="200" lang="fr" value="<%= form.title_fr %>">
+  <label for="n-desc-fr">Description (French)</label>
+  <textarea id="n-desc-fr" name="description_fr" rows="3" maxlength="1000" lang="fr"><%= form.description_fr %></textarea>
+  <p class="small muted">Both French fields are needed before the collection can be published (you can fill them in later, or use Translate to French on the next page).</p>
+  <label for="n-slug">Address (slug), optional</label>
+  <input id="n-slug" name="slug" type="text" maxlength="100" pattern="[a-z0-9]+(-[a-z0-9]+)*" value="<%= form.slug %>" aria-describedby="n-slug-hint">
+  <p class="small muted" id="n-slug-hint">Lower-case letters, numbers and hyphens. Left empty, it is made from the English title. It can be changed until the collection is published.</p>
+  <label for="n-prompt">Guidance for the AI (optional)</label>
+  <textarea id="n-prompt" name="curation_prompt" rows="4" maxlength="3000"><%= form.curation_prompt %></textarea>
+  <p class="small muted">Leave it empty for a collection you fill in by hand only.</p>
+  <label for="n-sort">Sort order (optional; smaller numbers come first, empty puts it last)</label>
+  <input id="n-sort" name="sort_order" type="number" step="1" min="-1000" max="100000" value="<%= form.sort_order %>">
+  <div><button class="btn" type="submit">Create collection</button></div>
+</form>
+<%- include('../partials/admin_footer') %>

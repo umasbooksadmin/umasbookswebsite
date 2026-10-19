@@ -456,8 +456,8 @@ can always pick another price, and nothing is published until you save.
 
 `render.yaml` at the repo root is a Render Blueprint that provisions:
 - a paid-plan Postgres database (`umas-books-db`)
-- this app as a web service (`umas-books`), wired to that database's
-  `DATABASE_URL` and a generated `SESSION_SECRET` automatically
+- this app as a web service (`umas-books`) with a generated `SESSION_SECRET`
+  (`DATABASE_URL` is entered by hand, see the table below)
 
 To deploy: in the Render dashboard, **New +** → **Blueprint**, connect the
 `umasbookswebsite` GitHub repo, and Render will read `render.yaml` and set
@@ -480,7 +480,7 @@ one, so a Blueprint rebuild starts correctly; values marked "by hand" are
 
 | Variable | What it is | In `render.yaml` |
 |---|---|---|
-| `DATABASE_URL` | the database connection | wired to `umas-books-db` |
+| `DATABASE_URL` | the database connection | `sync: false`: set by hand in the dashboard to the database's Internal Database URL; update it when the DB password is rotated ([runbook](../docs/runbook.md), "Rotating the database password") |
 | `SESSION_SECRET`, `TOTP_ENCRYPTION_KEY` | session signing; encrypts admins' two-step secrets | generated |
 | `NODE_ENV` | `production` | `production` |
 | `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD` | first admin (delete the password after first login) | by hand |
@@ -702,9 +702,8 @@ an older `pg_restore` cannot read them), the AWS CLI and, for a `.age` file,
    dashboard, open the `umas-books` service → **Environment**, set
    `DATABASE_URL` to the restored database's connection string (for a
    database in the same Render account/region use its **Internal** URL), and
-   save — Render redeploys. `render.yaml` normally wires `DATABASE_URL` to
-   `umas-books-db`, so if you later re-sync the Blueprint, either restore
-   into `umas-books-db` itself or update `render.yaml` to match. Migrations do
+   save — Render redeploys. `render.yaml` does not manage `DATABASE_URL`
+   (`sync: false`), so a Blueprint sync will not change what you set here. Migrations do
    **not** run when the app boots: they run in Render's **pre-deploy command**
    (`npm run migrate`, see `render.yaml`) the next time the service deploys, and
    that applies any migrations newer than the dump. After pointing

@@ -1,7 +1,7 @@
 <%- include('partials/mkt_header', {
   title: "Books — Uma's Books and Adventures",
   description: "Browse pre-loved English books by genre or search by title, author or keyword, then pick them up at Uma's Books in Albi.",
-  extraCss: ['assets/books.css'],
+  extraCss: ['assets/books.css', 'assets/collections.css'],
   activeNav: 'books',
 }) %>
   <noscript><link rel="stylesheet" href="<%= assetUrl('/assets/books-nojs.css') %>"></noscript>
@@ -34,6 +34,8 @@
       <h2 class="label" id="bk-genres-label" data-i18n-html="bk.genres.label">Browse <br>by Genre</h2>
       <div class="bk-genre-list" id="bk-genre-list"></div>
     </section>
+
+    <%- include('partials/collections_row', { collections: typeof collectionButtons !== 'undefined' ? collectionButtons : [], hidden: typeof collectionsHidden !== 'undefined' && collectionsHidden }) %>
 
     <section class="bk-results" id="bk-results" hidden aria-live="polite">
       <div class="bk-results-head">

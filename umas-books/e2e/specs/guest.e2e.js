@@ -1520,6 +1520,109 @@ s.test("G93 (must) a genre list pages with Show more until every book is shown, 
   }
 });
 
+
+// ---- 1C. Curated collections (the round-picture buttons under the genre buttons, and their pages) ----
+
+// The visible state of the collection row: shown (has size) or not.
+const collectionRowShown = (ctx) => ctx.page.$eval("#bk-collections", (e) => !e.hidden && e.getBoundingClientRect().height > 0).catch(() => false);
+
+s.test("G96 (must) Browse Books: the collection buttons show on the plain page and hide while a genre, a search or See All New In is showing", async (ctx) => {
+  await ctx.goto("/books.html", "networkidle2");
+  if (!(await ctx.page.$("#bk-collections"))) ctx.skip("data: no collection is published (with an approved book in stock) on this site");
+  await ctx.page.waitForSelector("#bk-genre-list .bk-genre");
+  assert.equal(await collectionRowShown(ctx), true, "shown on the default view");
+  const labelBox = await ctx.page.evaluate(() => {
+    const g = document.querySelector("#bk-genre-list").getBoundingClientRect();
+    const c = document.querySelector("#bk-collections").getBoundingClientRect();
+    return { genresAbove: g.bottom <= c.top + 1 };
+  });
+  assert.ok(labelBox.genresAbove, "the row sits under the genre buttons");
+
+  await ctx.page.click("#bk-genre-list .bk-genre");
+  await ctx.page.waitForSelector("#bk-results:not([hidden])");
+  assert.equal(await collectionRowShown(ctx), false, "hidden while a genre is chosen");
+  await ctx.page.goBack();
+  await ctx.page.waitForFunction(() => document.querySelector("#bk-results").hidden);
+  assert.equal(await collectionRowShown(ctx), true, "back on the plain page: shown again");
+
+  await ctx.page.type("#shop-search-input", "the");
+  await ctx.page.keyboard.press("Enter");
+  await ctx.page.waitForSelector("#bk-results:not([hidden])");
+  assert.equal(await collectionRowShown(ctx), false, "hidden while a search is showing");
+
+  await ctx.goto("/books.html?new=1", "networkidle2");
+  await ctx.page.waitForSelector("#bk-results:not([hidden])");
+  assert.equal(await collectionRowShown(ctx), false, "hidden on See All New In (?new=1)");
+  await ctx.goto("/books.html?genre=fiction", "networkidle2");
+  assert.equal(await collectionRowShown(ctx), false, "hidden when the address names a genre");
+  await ctx.goto("/books.html?q=paris", "networkidle2");
+  assert.equal(await collectionRowShown(ctx), false, "hidden when the address holds a search");
+  await ctx.goto("/books.html", "networkidle2");
+  assert.equal(await collectionRowShown(ctx), true);
+});
+
+s.test("G97 (must) a collection button opens its page: title, description, the books as the usual cards, and a link back to Browse; the same in French", async (ctx) => {
+  await ctx.goto("/books.html", "networkidle2");
+  if (!(await ctx.page.$("#bk-collections .col-btn"))) ctx.skip("data: no collection is published (with an approved book in stock) on this site");
+  const first = await ctx.page.$eval("#bk-collections .col-btn", (a) => ({ href: a.getAttribute("href"), name: a.innerText.trim() }));
+  await Promise.all([ctx.page.waitForNavigation({ waitUntil: "domcontentloaded" }), ctx.page.click("#bk-collections .col-btn")]);
+  assert.match(new URL(ctx.page.url()).pathname, /^\/collections\/[a-z0-9-]+$/);
+  assert.equal(await ctx.page.$eval("h1", (h) => h.innerText.trim()), first.name, "the page title is the button's caption");
+  assert.ok((await ctx.page.$$(".bk-grid .bk-book")).length >= 1, "at least one book card");
+  assert.equal(await ctx.page.$eval(".col-back a", (a) => a.getAttribute("href")), "/books.html");
+  has(await ctx.text(), /Back to Browse books/);
+  const alt = await ctx.page.$$eval("link[rel='alternate'][hreflang]", (l) => l.map((x) => x.hreflang));
+  assert.deepEqual(alt.sort(), ["en", "fr", "x-default"]);
+  assert.equal((await ctx.page.$eval("link[rel='canonical']", (l) => new URL(l.href).pathname)), new URL(ctx.page.url()).pathname);
+
+  // French: the same page at /fr/..., nothing left in English.
+  await ctx.goto(`/fr${first.href}`, "networkidle2");
+  assert.equal(await ctx.page.$eval("html", (h) => h.lang), "fr");
+  const text = await ctx.text();
+  has(text, /Retour à Parcourir les livres/);
+  hasNot(text, /Back to Browse|Cover images come from|Add .* to favorites/);
+  assert.equal(await ctx.page.$eval(".col-back a", (a) => a.getAttribute("href")), "/fr/books.html");
+  await ctx.goto("/fr/books.html", "networkidle2");
+  has(await ctx.page.$eval("#bk-collections", (e) => e.innerText), /Parcourir par collection/);
+});
+
+s.test("G98 (must) on a phone (375 px) the collection buttons wrap about three to a row, each at least 44 px tall, with no sideways scrolling", { viewport: GUEST_PHONE }, async (ctx) => {
+  await ctx.goto("/books.html", "networkidle2");
+  if (!(await ctx.page.$("#bk-collections .col-btn"))) ctx.skip("data: no collection is published (with an approved book in stock) on this site");
+  const r = await ctx.page.$$eval("#bk-collections .col-btn", (els) => els.map((e) => { const b = e.getBoundingClientRect(); return { left: Math.round(b.left), top: Math.round(b.top), w: Math.round(b.width), h: Math.round(b.height) }; }));
+  assert.ok(r.every((b) => b.w >= 44 && b.h >= 44), "every button is at least 44 x 44 px");
+  const firstRow = r.filter((b) => Math.abs(b.top - r[0].top) < 4).length;
+  assert.ok(firstRow <= 3 && (r.length < 3 || firstRow >= 2), `${firstRow} buttons in the first row (wraps to about three)`);
+  assert.deepEqual(await phoneOverflow(ctx.page, 375), []);
+  assert.equal(await ctx.page.$eval("#bk-collections .col-btn img", (i) => i.getAttribute("alt")), "", "the picture is decoration: the caption is the name");
+  assert.equal(await ctx.page.$eval("#bk-collections .col-btn img", (i) => i.getAttribute("loading")), "lazy");
+});
+
+s.test("G99 (must) with JavaScript off the collection buttons and the collection page still work", async (ctx) => {
+  await ctx.page.setJavaScriptEnabled(false);
+  try {
+    await ctx.goto("/books.html");
+    if (!(await ctx.page.$("#bk-collections .col-btn"))) ctx.skip("data: no collection is published (with an approved book in stock) on this site");
+    const href = await ctx.page.$eval("#bk-collections .col-btn", (a) => a.getAttribute("href"));
+    await ctx.goto(href);
+    assert.ok((await ctx.page.$$(".bk-grid .bk-book a[href^='/books/']")).length >= 1, "the books are plain links");
+    has(await ctx.text(), /Back to Browse books/);
+  } finally {
+    await ctx.page.setJavaScriptEnabled(true);
+  }
+});
+
+s.test("G100 (must) an unpublished or unknown collection address is a 404, in English and in French", async (ctx) => {
+  for (const p of ["/collections/no-such-collection", "/fr/collections/no-such-collection"]) {
+    const res = await ctx.goto(p);
+    assert.equal(res.status(), 404, p);
+  }
+  // A real collection that nobody has published yet (the migration seeds them all unpublished).
+  const res = await ctx.goto("/collections/the-art-of-getting-lost");
+  if (res.status() === 200) ctx.skip("data: this collection has been published on this site");
+  assert.equal(res.status(), 404);
+});
+
 s.test("G-FR55 FR check (membership): the form and the payment step are in French", { lang: "fr" }, async (ctx) => {
   await joinPage(ctx);
   const text = await ctx.text();
