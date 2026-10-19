@@ -1,0 +1,22 @@
+<%- include('../partials/admin_header', { title: 'Delete collection', active: active, pageTitle: 'Delete: ' + collection.title_en, pageSub: 'This cannot be undone.' }) %>
+<% if (flash && flash.error) { %><div class="error-box" role="alert"><%= flash.error %></div><% } %>
+<p><a href="/admin/collections/<%= collection.id %>">&larr; Back to the collection</a></p>
+<div class="card stack">
+  <div class="section-title">Delete &ldquo;<%= collection.title_en %>&rdquo;?</div>
+  <p>This collection has <strong><%= counts.approved %> approved book<%= counts.approved === 1 ? '' : 's' %></strong> (<%= counts.total %> in its list altogether). Deleting removes the collection and its list of books, with every Approve and Reject you made. <strong>No book is deleted or changed.</strong> Its address /collections/<%= collection.slug %> will answer &ldquo;not found&rdquo;.</p>
+  <% if (collection.published) { %><p class="notice-box">It is published right now: customers would lose it at once.</p><% } %>
+  <p>Safer: <strong>unpublish</strong> it instead. Customers stop seeing it, and you keep everything for later.</p>
+  <form method="post" action="/admin/collections/<%= collection.id %>/published">
+    <%- include('../partials/csrf_field') %>
+    <input type="hidden" name="published" value="0">
+    <input type="hidden" name="back" value="edit">
+    <button class="btn btn-outline" type="submit"<%= collection.published ? '' : ' disabled' %>>Unpublish instead</button>
+    <% if (!collection.published) { %><span class="small muted">It is already unpublished.</span><% } %>
+  </form>
+  <form method="post" action="/admin/collections/<%= collection.id %>/delete" class="stack">
+    <%- include('../partials/csrf_field') %>
+    <label class="ann-check"><input type="checkbox" name="confirm" value="yes" required> <span>Yes, delete this collection for good</span></label>
+    <div><button class="btn" type="submit">Delete collection</button> <a class="btn btn-outline" href="/admin/collections/<%= collection.id %>">Cancel</a></div>
+  </form>
+</div>
+<%- include('../partials/admin_footer') %>

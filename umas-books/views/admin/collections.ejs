@@ -20,6 +20,7 @@
     <div><button class="btn" type="submit">Update all collections</button></div>
     <p class="small muted">Asks the AI about the books added since each collection's last build and adds them as suggestions to review (nothing is removed or changed, and nothing is shown to customers until you approve). Collections never built yet are left for their own Generate suggestions button. Uses the daily AI limit.</p>
   </form>
+  <p><a class="btn btn-outline" href="/admin/collections/new">New collection</a></p>
   <p class="small muted">How it works: open a collection, press <strong>Generate suggestions</strong>, tick <strong>Approve</strong> on the books that fit and press <strong>Save choices</strong>, then <strong>Publish</strong>. A collection needs at least one approved book and its French title and description before it can be published. Customers only ever see approved books that are still in stock.</p>
   <div class="table-scroll"><table class="ann-table">
     <caption class="visually-hidden">Curated collections</caption>
@@ -34,12 +35,19 @@
       </tr>
     </thead>
     <tbody>
-      <% collections.forEach(function (c) { %>
+      <% collections.forEach(function (c, i) { %>
         <tr>
           <td><a href="/admin/collections/<%= c.id %>"><strong><%= c.title_en %></strong></a>
             <% if (c.published && c.approved_in_stock === 0) { %><div class="small muted">Published, but no approved book is in stock now: it is hidden from customers.</div><% } %>
           </td>
-          <td><%= c.sort_order %></td>
+          <td>
+            <%= c.sort_order %>
+            <form method="post" action="/admin/collections/<%= c.id %>/move" style="display:inline-flex; gap:4px;">
+              <%- include('../partials/csrf_field') %>
+              <button class="btn btn-small btn-outline" type="submit" name="dir" value="up" aria-label="Move <%= c.title_en %> up"<%= i === 0 ? ' disabled' : '' %>>&uarr;</button>
+              <button class="btn btn-small btn-outline" type="submit" name="dir" value="down" aria-label="Move <%= c.title_en %> down"<%= i === collections.length - 1 ? ' disabled' : '' %>>&darr;</button>
+            </form>
+          </td>
           <td><% if (c.suggested) { %><span class="status-pill pending"><%= c.suggested %> to review</span><% } else { %>0<% } %></td>
           <td class="small"><%= c.last_generated_at ? formatDateTime(c.last_generated_at) : 'Never built' %><% if (c.last_generated_at && c.new_books > 0) { %><br><%= c.new_books %> new book<%= c.new_books === 1 ? '' : 's' %> since<% } %></td>
           <td><%= c.approved %><% if (c.approved !== c.approved_in_stock) { %> <span class="small muted">(<%= c.approved_in_stock %> in stock)</span><% } %></td>

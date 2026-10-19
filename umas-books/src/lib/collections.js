@@ -31,7 +31,7 @@ async function approvedInStockBooks(pool, collectionId) {
 async function getPublishedCollection(pool, slug) {
   if (!isSlug(slug)) return null;
   const { rows } = await pool.query(
-    "SELECT id, slug, title_en, description_en, title_fr, description_fr, icon_path FROM curated_collections WHERE slug = $1 AND published = TRUE",
+    "SELECT id, slug, title_en, description_en, title_fr, description_fr, icon_path, banner_path, header_alt_en, header_alt_fr FROM curated_collections WHERE slug = $1 AND published = TRUE",
     [slug]
   );
   return rows[0] || null;
@@ -67,6 +67,7 @@ function localized(collection, lang) {
   return {
     title: (fr && collection.title_fr) || collection.title_en,
     description: (fr && collection.description_fr) || collection.description_en,
+    bannerAlt: (fr ? collection.header_alt_fr : collection.header_alt_en) || "",
   };
 }
 
@@ -128,7 +129,103 @@ async function saveDecisions(pool, collectionId, rows) {
   return { ok: true, changed, unpublished };
 }
 
+// ---------- managing collections (admin) ----------
+
+// "Paris, toujours !" -> "paris-toujours": lower case, accents removed, anything else a single hyphen, at most 60 characters.
+function slugify(text) {
+  const base = String(text || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/['’]/g, "")
+    .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60).replace(/-+$/g, "");
+  return base || "collection";
+}
+
+async function slugTaken(pool, slug, exceptId = null) {
+  const { rows } = await pool.query("SELECT 1 FROM curated_collections WHERE slug = $1 AND ($2::int IS NULL OR id <> $2)", [slug, exceptId]);
+  return rows.length > 0;
+}
+
+// The first free slug starting from `base`: base, base-2, base-3 ...
+async function freeSlug(pool, base) {
+  let slug = base;
+  for (let n = 2; await slugTaken(pool, slug); n++) slug = `${base.slice(0, 55)}-${n}`;
+  return slug;
+}
+
+// -> { ok: true, id, slug } | { ok: false, error }. Starts unpublished, last in the order.
+async function createCollection(pool, v) {
+  const slug = v.slug ? String(v.slug).trim() : await freeSlug(pool, slugify(v.title_en));
+  if (!isSlug(slug)) return { ok: false, error: "The address (slug) may only contain lower-case letters, numbers and single hyphens." };
+  if (await slugTaken(pool, slug)) return { ok: false, error: `The address "${slug}" is already used by another collection. Choose a different one.` };
+  const { rows: max } = await pool.query("SELECT COALESCE(MAX(sort_order), 0) AS m FROM curated_collections");
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO curated_collections (slug, title_en, description_en, title_fr, description_fr, curation_prompt, sort_order, published)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, FALSE) RETURNING id, slug`,
+      [slug, v.title_en, v.description_en, v.title_fr, v.description_fr, v.curation_prompt, v.sort_order == null ? Number(max[0].m) + 10 : v.sort_order]
+    );
+    return { ok: true, id: rows[0].id, slug: rows[0].slug };
+  } catch (err) {
+    if (err.code === "23505") return { ok: false, error: `The address "${slug}" is already used by another collection. Choose a different one.` };
+    throw err;
+  }
+}
+
+// Deleting removes the collection and its book links (ON DELETE CASCADE) and never touches a book.
+async function deleteCollection(pool, id) {
+  const { rowCount } = await pool.query("DELETE FROM curated_collections WHERE id = $1", [id]);
+  return rowCount > 0;
+}
+
+// Moves a collection one place up or down in the order the Browse buttons use. Every collection is renumbered 10, 20, 30 ...
+async function moveCollection(pool, id, dir) {
+  const { rows } = await pool.query("SELECT id FROM curated_collections ORDER BY sort_order, id");
+  const ids = rows.map((r) => r.id);
+  const i = ids.indexOf(id);
+  const j = dir === "up" ? i - 1 : i + 1;
+  if (i === -1 || j < 0 || j >= ids.length) return false;
+  [ids[i], ids[j]] = [ids[j], ids[i]];
+  await pool.query("UPDATE curated_collections c SET sort_order = n.pos * 10, updated_at = now() FROM (SELECT x.id, ord AS pos FROM unnest($1::int[]) WITH ORDINALITY AS x(id, ord)) n WHERE c.id = n.id", [ids]);
+  return true;
+}
+
+// A book added by hand counts as approved at once. It must exist and be in stock now.
+async function addBookByHand(pool, collectionId, bookId) {
+  const { rows } = await pool.query(`SELECT b.id FROM books b WHERE b.id = $1 AND ${IN_STOCK_SQL()}`, [bookId]);
+  if (!rows.length) return { ok: false, error: "That book is not in stock, so it cannot be added." };
+  const { rows: pos } = await pool.query("SELECT COALESCE(MAX(position), 0) + 1 AS p FROM curated_collection_books WHERE collection_id = $1", [collectionId]);
+  await pool.query(
+    `INSERT INTO curated_collection_books (collection_id, book_id, status, reason, position) VALUES ($1, $2, 'approved', 'Added by hand', $3)
+     ON CONFLICT (collection_id, book_id) DO UPDATE SET status = 'approved', updated_at = now()`,
+    [collectionId, bookId, pos[0].p]
+  );
+  return { ok: true };
+}
+
+// Removes the link (the book itself is untouched). A collection left with no approved book is unpublished.
+async function removeBook(pool, collectionId, bookId) {
+  const { rowCount } = await pool.query("DELETE FROM curated_collection_books WHERE collection_id = $1 AND book_id = $2", [collectionId, bookId]);
+  const { rows } = await pool.query("SELECT COUNT(*)::int AS n FROM curated_collection_books WHERE collection_id = $1 AND status = 'approved'", [collectionId]);
+  let unpublished = false;
+  if (rows[0].n === 0) unpublished = (await pool.query("UPDATE curated_collections SET published = FALSE, updated_at = now() WHERE id = $1 AND published", [collectionId])).rowCount > 0;
+  return { removed: rowCount > 0, unpublished };
+}
+
+// In-stock books by title, author or ISBN (at least 2 characters), for the admin's "add a book" search.
+async function searchInStock(pool, q, limit = 20) {
+  const text = String(q || "").trim().slice(0, 100);
+  if (text.length < 2) return [];
+  const digits = text.replace(/[^0-9Xx]/g, "");
+  const { rows } = await pool.query(
+    `SELECT b.id, b.title, b.authors, b.isbn FROM books b
+     WHERE ${IN_STOCK_SQL()}
+       AND (b.title ILIKE $1 OR b.authors ILIKE $1 OR ($2 <> '' AND length($2) >= 8 AND regexp_replace(COALESCE(b.isbn, ''), '[^0-9Xx]', '', 'g') = $2))
+     ORDER BY b.title_sort, b.id LIMIT $3`,
+    [`%${text.replace(/[%_\\]/g, (m) => "\\" + m)}%`, digits, limit]
+  );
+  return rows;
+}
+
 module.exports = {
+  slugify, slugTaken, freeSlug, createCollection, deleteCollection, moveCollection, addBookByHand, removeBook, searchInStock,
   IN_STOCK_SQL, isSlug, browseFilterActive, approvedInStockBooks, getPublishedCollection, listButtonCollections, listSitemapCollections,
   localized, publishProblems, setPublished, saveDecisions,
 };

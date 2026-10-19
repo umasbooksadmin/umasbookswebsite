@@ -108,6 +108,7 @@ test("collection pages have an English and a French address", () => {
 
 test("the title and description follow the language, falling back to English only when the French is empty", () => {
   const c = { title_en: "T", description_en: "D", title_fr: "Tf", description_fr: "" };
-  assert.deepEqual(localized(c, "fr"), { title: "Tf", description: "D" });
-  assert.deepEqual(localized(c, "en"), { title: "T", description: "D" });
+  assert.deepEqual(localized(c, "fr"), { title: "Tf", description: "D", bannerAlt: "" });
+  assert.deepEqual(localized(c, "en"), { title: "T", description: "D", bannerAlt: "" });
+  assert.equal(localized({ ...c, header_alt_en: "e", header_alt_fr: "f" }, "fr").bannerAlt, "f");
 });

@@ -2928,6 +2928,25 @@ so kindly.
 4. Press **Publish**. It is refused until at least one book is approved **and** the French title and
    description are filled in. **Unpublish** takes it off the site at once.
 
+**Managing collections** (not only the seeded 19)
+
+- **New collection** (top of the list): English and French title and description, an optional address (made from the
+  English title if left empty; it must be unique and can be changed until the collection is published), the optional
+  AI guidance, a sort order. It starts unpublished. **Leave the guidance empty for a collection you fill in by hand
+  only**: the Generate buttons are then hidden and Update all skips it.
+- **Order:** the up and down arrows in the list (or the Sort order number on the collection) set the order of the
+  buttons on Browse Books.
+- **Add a book by hand:** on the collection, search the books in stock (title, author or ISBN) and press **Add**; it
+  counts as approved at once. **Remove** on any book in the list takes it out (the book itself is never touched). A
+  collection left with no approved book is unpublished.
+- **Pictures:** *Round button picture* (cut to a circle for you; replace or remove, preview shown) and an optional
+  wide **Banner** at the top of the collection page (shown 3:1 on a computer, taller on a phone; give it an English and
+  a French description for screen readers, or leave them empty if it is only decoration). JPG, PNG or WebP up to 5 MB;
+  they are stored in the database like the blog pictures, so they survive deploys.
+- **Delete:** *Delete this collection* opens an "Are you sure?" page that shows how many approved books it has and offers
+  **Unpublish instead**. Deleting removes the collection and its book list, never a book; its address then says
+  "not found".
+
 **Keeping collections up to date as new books arrive** (no schedule: you press the button).
 
 - **Add new books** (on each collection, once it has been built) asks the AI only about books whose copy entered

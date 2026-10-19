@@ -8,8 +8,10 @@
 -- curated_collection_books: the books of a collection and what the admin decided about each. The AI only ever
 --   writes status 'suggested'. Customers see only 'approved' books that are in stock at that moment (read live,
 --   never copied), so a sold book silently leaves the page.
--- icon_path: the round picture on the Browse button (assets/img/collections, made by scripts/crop-collection-art.js);
---   NULL gives a plain text button.
+-- icon_path: the round picture on the Browse button: a seeded file under assets/img/collections (made by
+--   scripts/crop-collection-art.js) or an image an admin uploaded (/img/<hash>.png, lib/imageStore.js); NULL gives a plain
+--   text button. banner_path: an optional wide picture at the top of the collection page (an uploaded /img/<hash>.jpg),
+--   with its English and French alternative text (empty = purely decorative).
 
 CREATE TABLE IF NOT EXISTS curated_collections (
   id                SERIAL PRIMARY KEY,
@@ -20,6 +22,9 @@ CREATE TABLE IF NOT EXISTS curated_collections (
   description_fr    TEXT NOT NULL DEFAULT '',
   curation_prompt   TEXT NOT NULL DEFAULT '',
   icon_path         TEXT,
+  banner_path       TEXT,
+  header_alt_en     TEXT NOT NULL DEFAULT '',
+  header_alt_fr     TEXT NOT NULL DEFAULT '',
   sort_order        INTEGER NOT NULL DEFAULT 0,
   published         BOOLEAN NOT NULL DEFAULT FALSE,
   created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),

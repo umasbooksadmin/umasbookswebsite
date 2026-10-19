@@ -7,8 +7,12 @@
 }) %>
   <div class="bk-wrap col-page">
     <p class="col-back"><a href="/books.html"><span aria-hidden="true">&larr;</span> <%= tr('Back to Browse books', 'Retour à Parcourir les livres') %></a></p>
+    <% if (collection.banner_path) { const bsrc = bannerSrcset(collection.banner_path); %>
+    <%# Wide picture at the top: 3:1 on a computer, taller on a phone (assets/collections.css). Above the fold, so not lazy; width and height are set so nothing jumps. %>
+    <div class="col-banner"><img src="<%= collection.banner_path %>"<% if (bsrc) { %> srcset="<%= bsrc %>" sizes="(max-width: 1240px) 100vw, 1176px"<% } %> alt="<%= bannerAlt %>" width="1600" height="800" decoding="async" fetchpriority="high"></div>
+    <% } %>
     <section class="col-head" aria-labelledby="col-title">
-      <% if (collection.icon_path) { %><%- include('../partials/picture', { src: collection.icon_path, alt: '', w: 204, h: 204, cls: 'col-head-art', lazy: false }) %><% } %>
+      <% if (collection.icon_path && !collection.banner_path) { %><%- include('../partials/collection_icon', { src: collection.icon_path, w: 120, h: 120, cls: 'col-head-art', lazy: false }) %><% } %>
       <h1 id="col-title"><%= collectionTitle %></h1>
       <p class="col-desc"><%= collectionDescription %></p>
     </section>

@@ -169,6 +169,7 @@ async function generateSuggestions(pool, collectionId, { ask = claudeRequest, ma
   const { rows } = await pool.query("SELECT id, title_en, description_en, curation_prompt, last_generated_at::text AS last_built_text, now()::text AS started_text FROM curated_collections WHERE id = $1", [collectionId]);
   const collection = rows[0];
   if (!collection) return { ok: false, error: "That collection does not exist.", reason: "missing" };
+  if (!String(collection.curation_prompt || "").trim()) return { ok: false, error: "This collection has no guidance for the AI, so it is filled in by hand only.", reason: "manual" };
 
   // Times travel as text: a JavaScript Date keeps only milliseconds, and a copy added in the same millisecond would look new.
   const since = mode === "full" ? null : collection.last_built_text;
@@ -200,12 +201,13 @@ async function generateSuggestions(pool, collectionId, { ask = claudeRequest, ma
 // One collection failing never stops the others; each gets its own line. A collection never built is left for its own
 // button (building all 19 at once would be 50+ paid calls). Stops starting new collections after maxMs (a web request must
 // not run for minutes): the rest are reported, and pressing the button again continues.
-// -> [{ id, title, status: 'added' | 'nothing' | 'failed' | 'never' | 'later', added?, considered?, error? }]
+// -> [{ id, title, status: 'added' | 'nothing' | 'failed' | 'never' | 'later' | 'manual', added?, considered?, error? }]
 async function updateAllCollections(pool, { ask = claudeRequest, maxMs = 80000, now = Date.now, ...opts } = {}) {
-  const { rows } = await pool.query("SELECT id, title_en, last_generated_at FROM curated_collections ORDER BY sort_order, id");
+  const { rows } = await pool.query("SELECT id, title_en, last_generated_at, curation_prompt FROM curated_collections ORDER BY sort_order, id");
   const t0 = now();
   const out = [];
   for (const c of rows) {
+    if (!String(c.curation_prompt || "").trim()) { out.push({ id: c.id, title: c.title_en, status: "manual" }); continue; }
     if (!c.last_generated_at) { out.push({ id: c.id, title: c.title_en, status: "never" }); continue; }
     if (now() - t0 > maxMs) { out.push({ id: c.id, title: c.title_en, status: "later" }); continue; }
     let r;

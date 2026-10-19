@@ -20,6 +20,9 @@
 <form method="post" action="/admin/collections/<%= collection.id %>" class="card stack" id="collection-form">
   <%- include('../partials/csrf_field') %>
   <div class="section-title">Text</div>
+  <label for="c-slug">Address (slug)</label>
+  <input id="c-slug" name="slug" type="text" maxlength="100" pattern="[a-z0-9]+(-[a-z0-9]+)*" value="<%= form.slug %>"<%- collection.published ? ' readonly' : '' %> aria-describedby="c-slug-hint">
+  <p class="small muted" id="c-slug-hint">Customers see this collection at /collections/<%= form.slug %>. <%= collection.published ? 'It cannot change while the collection is published: unpublish it first.' : 'You can change it until you publish.' %></p>
   <label for="c-title-en">Title (English)</label>
   <input id="c-title-en" name="title_en" type="text" maxlength="200" required value="<%= form.title_en %>">
   <label for="c-desc-en">Description (English)</label>
@@ -30,15 +33,66 @@
   <textarea id="c-desc-fr" name="description_fr" rows="3" maxlength="1000" lang="fr"><%= form.description_fr %></textarea>
   <p class="small muted">The site is fully French when a visitor chooses French, so both French fields are needed before publishing. &ldquo;Translate to French&rdquo; fills only the empty ones; you read them and press Save.</p>
   <label for="c-prompt">Guidance for the AI (what to look for, what to avoid)</label>
+  <p class="small muted">Leave this empty for a collection you fill in by hand only: the Generate buttons are then hidden.</p>
   <textarea id="c-prompt" name="curation_prompt" rows="5" maxlength="3000"><%= form.curation_prompt %></textarea>
   <label for="c-sort">Sort order (smaller numbers come first)</label>
   <input id="c-sort" name="sort_order" type="number" step="1" min="-1000" max="100000" required value="<%= form.sort_order %>">
   <div>
     <button class="btn" type="submit">Save</button>
     <button class="btn btn-outline" type="submit" formaction="/admin/collections/<%= collection.id %>/translate">Translate to French</button>
+    <a class="btn btn-outline" href="/admin/collections/<%= collection.id %>/delete">Delete this collection</a>
   </div>
 </form>
 
+<% const manualOnly = !String(collection.curation_prompt || '').trim(); %>
+<div class="card stack">
+  <div class="section-title">Pictures</div>
+  <form method="post" action="/admin/collections/<%= collection.id %>/images" enctype="multipart/form-data" class="stack">
+    <%- include('../partials/csrf_field') %>
+    <label for="c-icon">Round button picture (shown on Browse Books)</label>
+    <% if (collection.icon_path) { %>
+      <div><img src="<%= collection.icon_path %>" alt="Current button picture" width="96" height="96" style="border-radius:50%;"></div>
+      <label class="ann-check"><input type="checkbox" name="remove_icon"> <span>Remove the button picture (a plain text button is used)</span></label>
+    <% } else { %><p class="small muted">No picture: the button is plain text.</p><% } %>
+    <input id="c-icon" name="icon" type="file" accept="image/jpeg,image/png,image/webp">
+    <p class="small muted">JPG, PNG or WebP, up to 5 MB. It is cut to a circle.</p>
+
+    <label for="c-banner">Banner (wide picture at the top of the collection page, optional)</label>
+    <% if (collection.banner_path) { %>
+      <div><img src="<%= collection.banner_path %>" alt="Current banner" style="max-width:100%; width:420px; aspect-ratio:3/1; object-fit:cover;"></div>
+      <label class="ann-check"><input type="checkbox" name="remove_banner"> <span>Remove the banner</span></label>
+    <% } else { %><p class="small muted">No banner: the page starts with the title.</p><% } %>
+    <input id="c-banner" name="banner" type="file" accept="image/jpeg,image/png,image/webp">
+    <p class="small muted">JPG, PNG or WebP, up to 5 MB. Shown 3:1 on a computer and taller on a phone: keep the subject in the middle.</p>
+    <label for="c-alt-en">Banner description for screen readers (English; leave empty if purely decorative)</label>
+    <input id="c-alt-en" name="header_alt_en" type="text" maxlength="300" value="<%= collection.header_alt_en %>">
+    <label for="c-alt-fr">Banner description for screen readers (French)</label>
+    <input id="c-alt-fr" name="header_alt_fr" type="text" maxlength="300" lang="fr" value="<%= collection.header_alt_fr %>">
+    <div><button class="btn" type="submit">Save pictures</button></div>
+  </form>
+</div>
+
+<div class="card stack">
+  <div class="section-title">Add a book by hand</div>
+  <form method="get" action="/admin/collections/<%= collection.id %>" role="search" class="stack" style="flex-direction:row; flex-wrap:wrap; gap:8px; align-items:end;">
+    <div style="flex:1; min-width:200px;"><label for="c-find">Search books in stock (title, author or ISBN)</label>
+    <input id="c-find" name="find" type="search" maxlength="100" value="<%= find %>"></div>
+    <button class="btn btn-outline" type="submit">Search</button>
+  </form>
+  <% if (find && !found.length) { %><p class="muted small">No book in stock matches &ldquo;<%= find %>&rdquo;.</p><% } %>
+  <% found.forEach(function (b) { %>
+    <form method="post" action="/admin/collections/<%= collection.id %>/books/add" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+      <%- include('../partials/csrf_field') %>
+      <input type="hidden" name="bookId" value="<%= b.id %>">
+      <span><strong><%= b.title %></strong><%= b.authors ? ' by ' + b.authors : '' %><%= b.isbn ? ' · ' + b.isbn : '' %></span>
+      <% if (inList.has(b.id)) { %><span class="status-pill published">already in this collection</span>
+      <% } else { %><button class="btn btn-small" type="submit" aria-label="Add <%= b.title %>">Add</button><% } %>
+    </form>
+  <% }) %>
+  <p class="small muted">A book added by hand counts as approved at once (it is shown if it is in stock and the collection is published).</p>
+</div>
+
+<% if (!manualOnly) { %>
 <div class="card stack">
   <div class="section-title">Suggestions</div>
   <p class="small"><strong>Last built:</strong> <%= collection.last_generated_at ? formatDateTime(collection.last_generated_at) : 'never' %><% if (collection.last_generated_at) { %> &middot; <%= newBooks %> book<%= newBooks === 1 ? ' was' : 's were' %> added to the shop since then<% } %></p>
@@ -49,6 +103,9 @@
   </form>
   <p class="small"><a href="/admin/collections/<%= collection.id %>/rebuild">Full rebuild (re-evaluate all books)</a></p>
 </div>
+<% } else { %>
+<div class="card"><div class="section-title">Suggestions</div><p class="small muted">This collection has no guidance for the AI, so it is filled in by hand only. Add guidance above to use Generate suggestions.</p></div>
+<% } %>
 
 <div class="card">
   <div class="section-title">Review (<%= counts.suggested %> waiting, <%= counts.approved %> approved, <%= counts.rejected %> rejected)</div>
@@ -68,6 +125,7 @@
           <% if (b.reason) { %><p class="small" style="margin: 6px 0;">Why: <%= b.reason %></p><% } %>
           <div>
             <label class="ann-check"><input type="checkbox" name="approve" value="<%= b.id %>" <%= b.status === 'approved' ? 'checked' : '' %>> Approve<span class="visually-hidden">: <%= b.title %></span></label>
+            <button class="btn btn-small btn-outline" type="submit" formaction="/admin/collections/<%= collection.id %>/books/remove" name="bookId" value="<%= b.id %>" formnovalidate aria-label="Remove <%= b.title %> from this collection">Remove</button>
             <label class="ann-check"><input type="checkbox" name="reject" value="<%= b.id %>" <%= b.status === 'rejected' ? 'checked' : '' %>> Reject<span class="visually-hidden">: <%= b.title %></span></label>
           </div>
         </div>

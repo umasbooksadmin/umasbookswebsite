@@ -316,6 +316,21 @@ app.use("/admin/blog", requireAdmin, (req, res, next) => {
   });
 });
 
+// Same again, for a curated collection's two pictures (see /admin/collections in routes/admin/collections.js): the round
+// Browse button and the wide page banner. 5 MB each; a refusal returns to the list with a sentence.
+const collectionUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+const collectionUploadFields = collectionUpload.fields([{ name: "icon", maxCount: 1 }, { name: "banner", maxCount: 1 }]);
+app.use("/admin/collections", requireAdmin, (req, res, next) => {
+  collectionUploadFields(req, res, (err) => {
+    if (!err) return next();
+    console.warn(`Collection upload refused: ${err.code || err.name}: ${err.message}`);
+    const message = err.code === "LIMIT_FILE_SIZE"
+      ? "That picture is larger than 5 MB. Please choose a smaller one. Nothing was changed."
+      : "The upload could not be read. Please try again. Nothing was changed.";
+    redirectWithFlash(req, res, "/admin/collections", "collections", { error: message }).catch(next);
+  });
+});
+
 // HelloAsso calls this server-to-server with no CSRF token, so it's
 // mounted ahead of the CSRF check below rather than with the rest of
 // the app's routes further down.

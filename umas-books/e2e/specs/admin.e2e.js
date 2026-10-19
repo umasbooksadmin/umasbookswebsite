@@ -1317,6 +1317,8 @@ s.test("A115 (must) Collections: the list has a Published switch per collection 
   has(text, /Curated collections/);
   has(text, /The Magic We Never Outgrew/);
   has(text, /Update all collections/);
+  assert.ok(await ctx.page.$("a[href='/admin/collections/new']"), "a New collection button");
+  assert.ok((await ctx.page.$$("form[action$='/move'] button")).length >= 38, "up and down buttons on every collection");
   has(text, /Last built/);
   has(text, /Approved/);
   assert.ok((await ctx.page.$$("form[action$='/published'] button[type='submit']")).length >= 19, "a Publish / Unpublish button on every collection");
@@ -1327,6 +1329,8 @@ s.test("A115 (must) Collections: the list has a Published switch per collection 
   has(page, /Generate suggestions/);
   has(page, /Translate to French/);
   has(page, /Full rebuild \(re-evaluate all books\)/);
+  for (const name of ["slug", "icon", "banner", "header_alt_en", "header_alt_fr", "find"]) assert.ok(await ctx.page.$(`[name='${name}']`), `field ${name}`);
+  assert.ok(await ctx.page.$("a[href$='/delete']"), "a Delete link (with its own confirm page)");
   has(page, /Last built/);
   has(page, /Publish/);
   assert.ok(await ctx.page.$("form[action$='/generate']") && await ctx.page.$("form[action$='/review'], p.muted"), "Generate and the review area are there");

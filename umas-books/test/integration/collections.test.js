@@ -770,3 +770,256 @@ test("Update all, Add new books and Full rebuild: admin only, CSRF, confirm step
   const log = (await pool.query("SELECT action FROM admin_audit_log WHERE action LIKE 'collection.%' ORDER BY id DESC LIMIT 10")).rows.map((x) => x.action);
   assert.ok(log.includes("collection.update_all") && log.includes("collection.full_rebuild"));
 });
+
+// ---------- managing collections: create, slug, delete, reorder ----------
+
+const sharp = require("sharp");
+
+async function adminMultipart(p, fields, files = {}, { jar = adminJar, csrf = true } = {}) {
+  const form = new FormData();
+  if (csrf) form.append("_csrf", await fetchCsrfToken(app.base, jar));
+  for (const [k, v] of Object.entries(fields)) form.append(k, String(v));
+  for (const [k, f] of Object.entries(files)) form.append(k, new Blob([f.data], { type: f.type }), f.name);
+  const res = await fetch(`${app.base}${p}`, { method: "POST", redirect: "manual", headers: { cookie: jar.header() }, body: form });
+  jar.capture(res);
+  if (res.status !== 303) return { res, text: await res.text() };
+  const next = await get(res.headers.get("location"), { jar });
+  return { res, location: res.headers.get("location"), text: next.text, page: next.res };
+}
+const colorPng = (w, h) => sharp({ create: { width: w, height: h, channels: 3, background: "#3a7" } }).png().toBuffer();
+const colorJpg = (w, h, bg = "#a37") => sharp({ create: { width: w, height: h, channels: 3, background: bg } }).jpeg().toBuffer();
+const newForm = (o = {}) => ({ title_en: "Created Shelf", description_en: "Made by hand.", title_fr: "Étagère créée", description_fr: "Faite à la main.", curation_prompt: "", slug: "", sort_order: "", ...o });
+
+test("Create: starts unpublished with EN and FR text, the slug comes from the English title, duplicates get a number or are refused", async () => {
+  const t = `Brand New Shelf ${uniq()}`;
+  let r = await adminPost("/admin/collections", newForm({ title_en: t }));
+  assert.match(notice(r.text), /Collection created/);
+  const row = (await pool.query("SELECT * FROM curated_collections WHERE title_en = $1", [t])).rows[0];
+  assert.equal(row.published, false);
+  assert.equal(row.slug, t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""));
+  assert.deepEqual([row.title_fr, row.description_fr, row.curation_prompt], ["Étagère créée", "Faite à la main.", ""]);
+  const max = (await pool.query("SELECT max(sort_order) AS m FROM curated_collections")).rows[0].m;
+  assert.equal(row.sort_order, max, "put last in the order");
+
+  // The same title again: the generated slug gets -2.
+  await adminPost("/admin/collections", newForm({ title_en: t }));
+  assert.equal((await pool.query("SELECT 1 FROM curated_collections WHERE slug = $1", [`${row.slug}-2`])).rowCount, 1);
+
+  // A typed slug that is taken, or malformed, or an empty title: refused, typed values come back, nothing created.
+  const before = (await pool.query("SELECT count(*)::int AS n FROM curated_collections")).rows[0].n;
+  r = await adminPost("/admin/collections", newForm({ title_en: "Dup typed", slug: row.slug }));
+  assert.match(notice(r.text), /already used by another collection/);
+  assert.match(r.text, /value="Dup typed"/);
+  r = await adminPost("/admin/collections", newForm({ slug: "Bad Slug!" }));
+  assert.match(notice(r.text), /lower-case letters/);
+  r = await adminPost("/admin/collections", newForm({ title_en: "" }));
+  assert.match(notice(r.text), /English title cannot be empty/);
+  assert.equal((await pool.query("SELECT count(*)::int AS n FROM curated_collections")).rows[0].n, before);
+});
+
+test("the slug can be edited while unpublished (not to a taken one) and is locked once published", async () => {
+  const c = await freshCollection();
+  const other = await freshCollection();
+  const text = (o = {}) => ({ slug: c.slug, title_en: "T", description_en: "D", title_fr: "Tf", description_fr: "Df", curation_prompt: "p", sort_order: "1", ...o });
+  let r = await adminPost(`/admin/collections/${c.id}`, text({ slug: other.slug }));
+  assert.match(notice(r.text), /already used/);
+  r = await adminPost(`/admin/collections/${c.id}`, text({ slug: `renamed-${uniq()}`.toLowerCase() }));
+  assert.match(notice(r.text), /^Saved/);
+  const renamed = (await pool.query("SELECT slug FROM curated_collections WHERE id = $1", [c.id])).rows[0].slug;
+  assert.match(renamed, /^renamed-/);
+  const b = await newBook(`Slug ${uniq()}`);
+  await addRow(c.id, b.id, "approved");
+  await adminPost(`/admin/collections/${c.id}/published`, { published: "1", back: "edit" });
+  await adminPost(`/admin/collections/${c.id}`, text({ slug: "sneaky-change" }));
+  assert.equal((await pool.query("SELECT slug FROM curated_collections WHERE id = $1", [c.id])).rows[0].slug, renamed, "a published address does not change");
+});
+
+test("Delete: needs a confirmation, shows the approved count, removes the collection and its links but never a book, and the address 404s", async () => {
+  const [a, b] = [await newBook(`Del A ${uniq()}`), await newBook(`Del B ${uniq()}`)];
+  const c = await publishedShelf([[a, "approved"], [b, "suggested"]]);
+  const page = await get(`/admin/collections/${c.id}/delete`, { jar: adminJar });
+  assert.match(page.text, /1 approved book\b/);
+  assert.match(page.text, /2 in its list/);
+  assert.match(page.text, /Unpublish instead/);
+  assert.match(page.text, /No book is deleted or changed/);
+  let r = await adminPost(`/admin/collections/${c.id}/delete`, {});
+  assert.match(notice(r.text), /not deleted: tick the box/);
+  assert.equal((await get(`/collections/${c.slug}`)).res.status, 200);
+  r = await adminPost(`/admin/collections/${c.id}/delete`, { confirm: "yes" });
+  assert.match(notice(r.text), /was deleted \(its books were not touched\)/);
+  assert.equal((await get(`/collections/${c.slug}`)).res.status, 404);
+  assert.equal((await get(`/fr/collections/${c.slug}`)).res.status, 404);
+  assert.equal((await pool.query("SELECT 1 FROM curated_collections WHERE id = $1", [c.id])).rowCount, 0);
+  assert.equal((await pool.query("SELECT 1 FROM curated_collection_books WHERE collection_id = $1", [c.id])).rowCount, 0);
+  assert.equal((await pool.query("SELECT 1 FROM books WHERE id = ANY($1)", [[a.id, b.id]])).rowCount, 2, "the books are untouched");
+  assert.equal((await pool.query("SELECT 1 FROM book_copies WHERE book_id = ANY($1)", [[a.id, b.id]])).rowCount, 2);
+  assert.equal((await pool.query("SELECT 1 FROM admin_audit_log WHERE action = 'collection.delete' AND target_id = $1", [c.id])).rowCount, 1);
+  assert.equal((await get(`/admin/collections/${c.id}`, { jar: adminJar })).res.status, 404);
+});
+
+test("Reorder: up and down change the order of the buttons on Browse Books, and so does the sort order number", async () => {
+  await pool.query("UPDATE curated_collections SET published = FALSE");
+  const mk = async (name) => publishedShelf([[await newBook(`Order ${uniq()}`), "approved"]], { title_en: name });
+  const [a, b, c3] = [await mk("Ord Alpha"), await mk("Ord Beta"), await mk("Ord Gamma")];
+  await pool.query("UPDATE curated_collections SET sort_order = id");
+  const names = async () => (rowOf((await get("/books.html")).text).match(/col-name">([^<]+)</g) || []).map((x) => x.replace(/.*>(.*)<$/, "$1").replace("col-name\">", ""));
+  const order = async () => (await names()).filter((n) => n.startsWith("Ord ")).map((n) => n.slice(4));
+  assert.deepEqual(await order(), ["Alpha", "Beta", "Gamma"]);
+  await adminPost(`/admin/collections/${c3.id}/move`, { dir: "up" });
+  assert.deepEqual(await order(), ["Alpha", "Gamma", "Beta"]);
+  await adminPost(`/admin/collections/${a.id}/move`, { dir: "down" });
+  assert.deepEqual(await order(), ["Gamma", "Alpha", "Beta"]);
+  await adminPost(`/admin/collections/${b.id}`, { slug: b.slug, title_en: "Ord Beta", description_en: "d", title_fr: "x", description_fr: "y", curation_prompt: "p", sort_order: "-5" });
+  assert.deepEqual(await order(), ["Beta", "Gamma", "Alpha"], "a numeric sort order works too");
+  const list = (await get("/admin/collections", { jar: adminJar })).text;
+  assert.ok(list.indexOf("Ord Beta") < list.indexOf("Ord Gamma"), "the admin list uses the same order");
+  assert.match(list, /aria-label="Move Ord Beta up"/);
+});
+
+// ---------- pictures ----------
+
+test("Pictures: a button picture (cut round) and a banner (with EN and FR alt text) are uploaded, shown, replaced and removed", async () => {
+  const c = await freshCollection();
+  const b = await newBook(`Pic ${uniq()}`);
+  await addRow(c.id, b.id, "approved");
+  await adminPost(`/admin/collections/${c.id}/published`, { published: "1", back: "edit" });
+  const up = await adminMultipart(`/admin/collections/${c.id}/images`, { header_alt_en: "A bright reading nook", header_alt_fr: "Un coin de lecture lumineux" }, {
+    icon: { data: await colorPng(500, 300), type: "image/png", name: "icon.png" },
+    banner: { data: await colorJpg(2400, 900), type: "image/jpeg", name: "banner.jpg" },
+  });
+  assert.match(notice(up.text), /Pictures saved/);
+  const row = await bySlug(c.slug);
+  assert.match(row.icon_path, /^\/img\/[0-9a-f]{64}\.png$/);
+  assert.match(row.banner_path, /^\/img\/[0-9a-f]{64}\.jpg$/);
+  // Served from the database store, with the right sizes.
+  const icon = await fetch(`${app.base}${row.icon_path}`);
+  assert.equal(icon.headers.get("content-type"), "image/png");
+  const im = await sharp(Buffer.from(await icon.arrayBuffer())).metadata();
+  assert.deepEqual([im.width, im.height, im.hasAlpha], [240, 240, true]);
+  const bn = await sharp(Buffer.from(await (await fetch(`${app.base}${row.banner_path}`)).arrayBuffer())).metadata();
+  assert.deepEqual([bn.width, bn.height], [1600, 800]);
+  // The edit page previews both.
+  const edit = (await get(`/admin/collections/${c.id}`, { jar: adminJar })).text;
+  assert.ok(edit.includes(`src="${row.icon_path}"`) && edit.includes(`src="${row.banner_path}"`));
+  // Public page: banner with the alt text of the language, size attributes, no lazy loading above the fold.
+  const en = (await get(`/collections/${c.slug}`)).text;
+  assert.match(en, new RegExp(`<div class="col-banner"><img src="${row.banner_path}" srcset="[^"]*-w600\\.jpg 600w, ${row.banner_path} 1600w"[^>]*alt="A bright reading nook" width="1600" height="800"`));
+  assert.ok(!/class="col-banner"><img[^>]*loading="lazy"/.test(en));
+  const fr = (await get(`/fr/collections/${c.slug}`)).text;
+  assert.match(fr, /alt="Un coin de lecture lumineux"/);
+  assert.ok(!fr.includes("A bright reading nook"));
+  // The Browse button uses the uploaded round picture.
+  assert.match(rowOf((await get("/books.html")).text), new RegExp(`<img src="${row.icon_path}" alt="" width="120" height="120" loading="lazy"`));
+
+  // Replace, then remove.
+  const first = row.banner_path;
+  await adminMultipart(`/admin/collections/${c.id}/images`, { header_alt_en: "x", header_alt_fr: "y" }, { banner: { data: await colorJpg(900, 900, "#27a"), type: "image/jpeg", name: "b2.jpg" } });
+  assert.notEqual((await bySlug(c.slug)).banner_path, first);
+  await adminMultipart(`/admin/collections/${c.id}/images`, { header_alt_en: "", header_alt_fr: "", remove_icon: "on", remove_banner: "on" });
+  const gone = await bySlug(c.slug);
+  assert.deepEqual([gone.icon_path, gone.banner_path], [null, null]);
+  const page = (await get(`/collections/${c.slug}`)).text;
+  assert.ok(!page.includes("col-banner"), "no banner: the page starts with the title");
+  assert.match(page, /<h1/);
+  assert.match(rowOf((await get("/books.html")).text), /col-btn no-art/, "plain text button without a picture");
+});
+
+test("Pictures: a wrong file type or an oversize file is refused and nothing changes", async () => {
+  const c = await freshCollection();
+  await pool.query("UPDATE curated_collections SET banner_path = NULL WHERE id = $1", [c.id]);
+  const refused = /could not be used|larger than 5 MB/;
+  let r = await adminMultipart(`/admin/collections/${c.id}/images`, { header_alt_en: "", header_alt_fr: "" }, { banner: { data: Buffer.from("not an image at all"), type: "image/png", name: "fake.png" } });
+  assert.match(notice(r.text), refused, "text pretending to be a PNG");
+  r = await adminMultipart(`/admin/collections/${c.id}/images`, { header_alt_en: "", header_alt_fr: "" }, { icon: { data: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"/>'), type: "image/svg+xml", name: "x.svg" } });
+  assert.match(notice(r.text), refused, "SVG is not an accepted type");
+  const gif = await sharp({ create: { width: 10, height: 10, channels: 3, background: "#000" } }).gif().toBuffer();
+  r = await adminMultipart(`/admin/collections/${c.id}/images`, { header_alt_en: "", header_alt_fr: "" }, { banner: { data: gif, type: "image/jpeg", name: "x.jpg" } });
+  assert.match(notice(r.text), refused, "a GIF with a JPEG name is refused: the bytes decide");
+  const big = Buffer.alloc(5 * 1024 * 1024 + 10, 1);
+  r = await adminMultipart(`/admin/collections/${c.id}/images`, { header_alt_en: "", header_alt_fr: "" }, { banner: { data: big, type: "image/jpeg", name: "big.jpg" } });
+  assert.match(notice(r.text), /larger than 5 MB/);
+  const row = await bySlug(c.slug);
+  assert.deepEqual([row.icon_path, row.banner_path], [null, null]);
+});
+
+test("an uploaded collection picture is protected from the unused-image cleanup", async () => {
+  const { findUnusedImages } = require("../../src/lib/imageCleanup");
+  const c = await freshCollection();
+  await adminMultipart(`/admin/collections/${c.id}/images`, { header_alt_en: "", header_alt_fr: "" }, { banner: { data: await colorJpg(800, 400), type: "image/jpeg", name: "k.jpg" } });
+  const id = (await bySlug(c.slug)).banner_path.match(/[0-9a-f]{64}/)[0];
+  assert.ok(!(await findUnusedImages(pool, { minAgeDays: 0 })).some((i) => i.id === id));
+});
+
+// ---------- books by hand, and manual-only collections ----------
+
+test("Add a book by hand: search by title and ISBN, it counts as approved and shows publicly; remove with one click", async () => {
+  const c = await freshCollection();
+  const title = `Handpicked ${uniq()}`;
+  const book = await newBook(title);
+  await pool.query("UPDATE books SET isbn = '9781234567897' WHERE id = $1", [book.id]);
+  const out = await newBook(`Handpicked out ${uniq()}`, { copyStatus: "sold" });
+  let page = (await get(`/admin/collections/${c.id}?find=${encodeURIComponent("Handpicked")}`, { jar: adminJar })).text;
+  assert.ok(page.includes(title) && !page.includes(out.title), "only books in stock are offered");
+  page = (await get(`/admin/collections/${c.id}?find=9781234567897`, { jar: adminJar })).text;
+  assert.ok(page.includes(title), "found by ISBN");
+  assert.match(page, new RegExp(`action="/admin/collections/${c.id}/books/add"`));
+
+  let r = await adminPost(`/admin/collections/${c.id}/books/add`, { bookId: book.id });
+  assert.match(notice(r.text), /Book added \(it counts as approved\)/);
+  assert.equal(await status(c.id, book.id), "approved");
+  await adminPost(`/admin/collections/${c.id}/published`, { published: "1", back: "edit" });
+  assert.equal((await bySlug(c.slug)).published, true, "one hand-added book is enough to publish");
+  assert.ok((await get(`/collections/${c.slug}`)).text.includes(title));
+  r = await adminPost(`/admin/collections/${c.id}/books/add`, { bookId: out.id });
+  assert.match(notice(r.text), /not in stock/);
+  assert.equal(await status(c.id, out.id), undefined);
+
+  // A suggested book added by hand becomes approved; removing deletes the link, never the book.
+  const s2 = await newBook(`Waiting ${uniq()}`);
+  await addRow(c.id, s2.id, "suggested", "x", 5);
+  await adminPost(`/admin/collections/${c.id}/books/add`, { bookId: s2.id });
+  assert.equal(await status(c.id, s2.id), "approved");
+  r = await adminPost(`/admin/collections/${c.id}/books/remove`, { bookId: s2.id });
+  assert.match(notice(r.text), /Book removed/);
+  assert.equal(await status(c.id, s2.id), undefined);
+  assert.equal((await pool.query("SELECT 1 FROM books WHERE id = $1", [s2.id])).rowCount, 1);
+  r = await adminPost(`/admin/collections/${c.id}/books/remove`, { bookId: book.id });
+  assert.match(notice(r.text), /unpublished/, "no approved book left");
+  assert.equal((await get(`/collections/${c.slug}`)).res.status, 404);
+});
+
+test("a collection with a blank guidance prompt is manual-only: no Generate buttons, and the AI is never asked", async () => {
+  const c = await freshCollection();
+  await pool.query("UPDATE curated_collections SET curation_prompt = '' WHERE id = $1", [c.id]);
+  await newBook(`Manual ${uniq()}`);
+  const edit = (await get(`/admin/collections/${c.id}`, { jar: adminJar })).text;
+  assert.ok(!edit.includes(`/admin/collections/${c.id}/generate`) && !edit.includes(`/admin/collections/${c.id}/rebuild`), "no AI buttons");
+  assert.match(edit, /filled in by hand only/);
+  let calls = 0;
+  const r = await generateSuggestions(pool, c.id, { ask: async () => { calls += 1; return { text: "[]", reason: null }; } });
+  assert.deepEqual([r.ok, r.reason, calls], [false, "manual", 0]);
+  await pool.query("UPDATE curated_collections SET last_generated_at = now() - interval '1 day' WHERE id = $1", [c.id]);
+  const all = await updateAllCollections(pool, { ask: async () => { calls += 1; return { text: "[]", reason: null }; } });
+  assert.equal(all.find((x) => x.id === c.id).status, "manual");
+  assert.equal(calls >= 0, true);
+  const posted = await adminPost(`/admin/collections/${c.id}/generate`);
+  assert.match(notice(posted.text), /filled in by hand only/);
+});
+
+test("the new management routes are admin only and need the CSRF token", async () => {
+  const c = await freshCollection();
+  const memberJar = await loginJar(await createUser({ member: true }));
+  const posts = [["/admin/collections", newForm()], [`/admin/collections/${c.id}/move`, { dir: "up" }], [`/admin/collections/${c.id}/delete`, { confirm: "yes" }],
+    [`/admin/collections/${c.id}/books/add`, { bookId: 1 }], [`/admin/collections/${c.id}/books/remove`, { bookId: 1 }]];
+  for (const [p, f] of posts) {
+    assert.equal((await adminPost(p, f, { jar: memberJar })).res.status, 403, `${p}: member`);
+    assert.equal((await adminPost(p, f, { csrf: false })).res.status, 403, `${p}: no token`);
+  }
+  assert.equal((await adminMultipart(`/admin/collections/${c.id}/images`, {}, {}, { jar: memberJar })).res.status, 403);
+  assert.equal((await adminMultipart(`/admin/collections/${c.id}/images`, {}, {}, { csrf: false })).res.status, 403);
+  for (const p of ["/admin/collections/new", `/admin/collections/${c.id}/delete`]) {
+    assert.equal((await get(p, { jar: memberJar })).res.status, 403);
+    assert.equal((await get(p)).res.status, 302);
+  }
+  assert.equal((await bySlug(c.slug)).id, c.id, "nothing was deleted");
+});

@@ -12,7 +12,7 @@
   <ul class="col-list" aria-labelledby="bk-collections-label">
     <% collections.forEach(function (c) { %>
     <li><a class="col-btn<%= c.icon_path ? '' : ' no-art' %>" href="/collections/<%= c.slug %>">
-      <% if (c.icon_path) { %><%- include('../../partials/picture', { src: c.icon_path, alt: '', w: 120, h: 120, lazy: true }) %><% } %>
+      <% if (c.icon_path) { %><%- include('../../partials/collection_icon', { src: c.icon_path, w: 120, h: 120, cls: '', lazy: true }) %><% } %>
       <span class="col-name"><%= lang === 'fr' && c.title_fr ? c.title_fr : c.title_en %></span>
     </a></li>
     <% }) %>

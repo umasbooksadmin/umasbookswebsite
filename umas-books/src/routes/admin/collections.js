@@ -10,7 +10,10 @@ const { aiAdminLimiter, AI_LIMIT_MESSAGE } = require("../../middleware/rateLimit
 const { audit } = require("../../lib/audit");
 const { setFlash, takeFlash } = require("../../lib/flash");
 const { validateIdParams } = require("../../middleware/idParams");
-const { setPublished, saveDecisions, IN_STOCK_SQL } = require("../../lib/collections");
+const {
+  setPublished, saveDecisions, IN_STOCK_SQL, isSlug, slugTaken, createCollection, deleteCollection, moveCollection, addBookByHand, removeBook, searchInStock,
+} = require("../../lib/collections");
+const { processIcon, processBanner } = require("../../lib/collectionImages");
 const { generateSuggestions, updateAllCollections } = require("../../lib/collectionSuggestions");
 const { translateEmptyFrench } = require("../../lib/collectionTranslate");
 const { clearSitemapCache } = require("../seo");
@@ -72,6 +75,75 @@ function resultFlash(result, what) {
   };
 }
 
+// ---------- create, reorder, delete ----------
+
+const readText = (req) => {
+  const str = (v, max) => String(Array.isArray(v) ? v[0] : v == null ? "" : v).replace(/\r\n/g, "\n").trim().slice(0, max);
+  return {
+    slug: str(req.body.slug, 100).toLowerCase(),
+    title_en: str(req.body.title_en, MAX_TITLE),
+    description_en: str(req.body.description_en, MAX_DESCRIPTION),
+    title_fr: str(req.body.title_fr, MAX_TITLE),
+    description_fr: str(req.body.description_fr, MAX_DESCRIPTION),
+    curation_prompt: str(req.body.curation_prompt, MAX_PROMPT),
+    sort_order: String(req.body.sort_order == null ? "" : req.body.sort_order).trim(),
+  };
+};
+
+router.get("/admin/collections/new", requireAdmin, (req, res) => {
+  const f = takeFlash(req, FLASH);
+  res.render("admin/collection_new", { active: "collections", form: (f && f.form) || { slug: "", title_en: "", description_en: "", title_fr: "", description_fr: "", curation_prompt: "", sort_order: "" }, flash: f });
+});
+
+router.post("/admin/collections", requireAdmin, async (req, res) => {
+  const v = readText(req);
+  let error = null;
+  let sort = null;
+  if (!v.title_en) error = "The English title cannot be empty.";
+  else if (v.sort_order !== "") {
+    sort = Number(v.sort_order);
+    if (!Number.isInteger(sort) || sort < -1000 || sort > 100000) error = "Sort order must be a whole number (smaller numbers come first), or empty to put it last.";
+  }
+  const result = error ? { ok: false, error } : await createCollection(pool, { ...v, sort_order: sort });
+  if (!result.ok) {
+    await flash(req, { error: result.error, form: v });
+    return res.redirect(303, "/admin/collections/new");
+  }
+  await audit(req, { action: "collection.create", targetType: "collection", targetId: result.id, detail: result.slug });
+  await flash(req, { notice: "Collection created. It is not published: add books (by hand or with the AI), then publish." });
+  res.redirect(303, `/admin/collections/${result.id}`);
+});
+
+router.post("/admin/collections/:id/move", requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  const moved = await moveCollection(pool, id, req.body.dir === "up" ? "up" : "down");
+  if (moved) await audit(req, { action: "collection.move", targetType: "collection", targetId: id, detail: req.body.dir === "up" ? "up" : "down" });
+  res.redirect(303, "/admin/collections");
+});
+
+router.get("/admin/collections/:id/delete", requireAdmin, async (req, res) => {
+  const collection = await loadCollection(Number(req.params.id));
+  if (!collection) return res.status(404).render("404");
+  const { rows } = await pool.query(
+    "SELECT COUNT(*) FILTER (WHERE status = 'approved')::int AS approved, COUNT(*)::int AS total FROM curated_collection_books WHERE collection_id = $1", [collection.id]
+  );
+  res.render("admin/collection_delete", { active: "collections", collection, counts: rows[0], flash: takeFlash(req, FLASH) });
+});
+
+router.post("/admin/collections/:id/delete", requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  const collection = await loadCollection(id);
+  if (!collection) return res.status(404).render("404");
+  if (req.body.confirm !== "yes") {
+    await flash(req, { error: "The collection was not deleted: tick the box to confirm." });
+    return res.redirect(303, `/admin/collections/${id}/delete`);
+  }
+  await deleteCollection(pool, id);
+  await audit(req, { action: "collection.delete", targetType: "collection", targetId: id, detail: collection.slug });
+  await flash(req, { notice: `"${collection.title_en}" was deleted (its books were not touched).` });
+  res.redirect(303, "/admin/collections");
+});
+
 // "Update all collections" (a fixed path: registered before the /:id routes) and the "Full rebuild" confirm step.
 // Both call the paid AI: 10 a minute per admin, plus the shared daily cap inside each call.
 const aiLimitList = aiAdminLimiter({
@@ -96,7 +168,7 @@ router.post("/admin/collections/update-all", requireAdmin, aiLimitList, async (r
   const added = results.reduce((n, r) => n + (r.added || 0), 0);
   const failed = results.filter((r) => r.status === "failed").length;
   await audit(req, { action: "collection.update_all", detail: `${added} suggestions added, ${failed} failed` });
-  const lines = results.filter((r) => r.status !== "never").map(summaryLine);
+  const lines = results.filter((r) => r.status !== "never" && r.status !== "manual").map(summaryLine);
   await flash(req, {
     [failed ? "error" : "notice"]: `Update all collections: ${added} new suggestion${added === 1 ? "" : "s"} waiting for your review${failed ? `, ${failed} collection${failed === 1 ? "" : "s"} could not be updated` : ""}. Nothing is shown to customers until you approve books.`,
     lines,
@@ -123,6 +195,60 @@ router.post("/admin/collections/:id/rebuild", requireAdmin, aiLimit, async (req,
   redirectBack(res, id);
 });
 
+// ---------- pictures ----------
+
+const IMAGE_PROBLEM = "That picture could not be used. Please choose a JPG, PNG or WebP image of at most 5 MB (a photo in iPhone HEIC format must be saved as JPG first). Nothing was changed.";
+
+router.post("/admin/collections/:id/images", requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  if (!(await loadCollection(id))) return res.status(404).render("404");
+  const file = (name) => req.files && req.files[name] && req.files[name][0];
+  const altOf = (k) => String(Array.isArray(req.body[k]) ? req.body[k][0] : req.body[k] == null ? "" : req.body[k]).trim().slice(0, 300);
+  let icon;
+  let banner;
+  try {
+    if (file("icon")) icon = await processIcon(file("icon").buffer);
+    if (file("banner")) banner = await processBanner(file("banner").buffer);
+  } catch (err) {
+    console.warn(`Collection picture refused: ${err.message}`);
+    await flash(req, { error: IMAGE_PROBLEM });
+    return redirectBack(res, id);
+  }
+  const sets = ["header_alt_en = $2", "header_alt_fr = $3", "updated_at = now()"];
+  const params = [id, altOf("header_alt_en"), altOf("header_alt_fr")];
+  const add = (col, val) => { params.push(val); sets.push(`${col} = $${params.length}`); };
+  if (icon) add("icon_path", icon); else if (req.body.remove_icon === "on") add("icon_path", null);
+  if (banner) add("banner_path", banner); else if (req.body.remove_banner === "on") add("banner_path", null);
+  await pool.query(`UPDATE curated_collections SET ${sets.join(", ")} WHERE id = $1`, params);
+  await audit(req, { action: "collection.images", targetType: "collection", targetId: id, detail: [icon && "button", banner && "banner", req.body.remove_icon === "on" && "button removed", req.body.remove_banner === "on" && "banner removed"].filter(Boolean).join(", ") || "alt text" });
+  await flash(req, { notice: "Pictures saved." });
+  redirectBack(res, id);
+});
+
+// ---------- books by hand ----------
+
+router.post("/admin/collections/:id/books/add", requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  if (!(await loadCollection(id))) return res.status(404).render("404");
+  const bookId = Number(req.body.bookId);
+  const result = Number.isInteger(bookId) && bookId > 0 ? await addBookByHand(pool, id, bookId) : { ok: false, error: "Choose a book from the search results." };
+  if (result.ok) {
+    await audit(req, { action: "collection.book_add", targetType: "collection", targetId: id, detail: `book ${bookId}` });
+    await flash(req, { notice: "Book added (it counts as approved)." });
+  } else await flash(req, { error: result.error });
+  redirectBack(res, id);
+});
+
+router.post("/admin/collections/:id/books/remove", requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  if (!(await loadCollection(id))) return res.status(404).render("404");
+  const bookId = Number(req.body.bookId);
+  const r = Number.isInteger(bookId) && bookId > 0 ? await removeBook(pool, id, bookId) : { removed: false };
+  if (r.removed) await audit(req, { action: "collection.book_remove", targetType: "collection", targetId: id, detail: `book ${bookId}` });
+  await flash(req, r.removed ? { notice: "Book removed from this collection (the book itself is untouched)." + (r.unpublished ? " No approved book is left, so the collection was unpublished." : "") } : { error: "That book is not in this collection." });
+  redirectBack(res, id);
+});
+
 router.get("/admin/collections/:id", requireAdmin, async (req, res) => {
   const collection = await loadCollection(Number(req.params.id));
   if (!collection) return res.status(404).render("404");
@@ -138,29 +264,28 @@ router.get("/admin/collections/:id", requireAdmin, async (req, res) => {
   const form = f && f.form ? { ...collection, ...f.form } : collection;
   const counts = { suggested: 0, approved: 0, rejected: 0 };
   for (const b of books) counts[b.status] += 1;
+  const find = String(req.query.find || "").trim().slice(0, 100);
+  const found = find ? await searchInStock(pool, find) : [];
+  const inList = new Set(books.filter((b) => b.status === "approved").map((b) => b.id));
   const { rows: nb } = await pool.query(
     "SELECT COUNT(DISTINCT book_id)::int AS n FROM book_copies WHERE status = 'in_stock' AND $1::timestamptz IS NOT NULL AND created_at > $1",
     [collection.last_generated_at]
   );
-  res.render("admin/collection_edit", { active: "collections", collection, form, books, counts, flash: f, newBooks: nb[0].n });
+  res.render("admin/collection_edit", { active: "collections", collection, form, books, counts, flash: f, newBooks: nb[0].n, find, found, inList });
 });
 
 router.post("/admin/collections/:id", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   const collection = await loadCollection(id);
   if (!collection) return res.status(404).render("404");
-  const str = (v, max) => String(Array.isArray(v) ? v[0] : v == null ? "" : v).replace(/\r\n/g, "\n").trim().slice(0, max);
-  const values = {
-    title_en: str(req.body.title_en, MAX_TITLE),
-    description_en: str(req.body.description_en, MAX_DESCRIPTION),
-    title_fr: str(req.body.title_fr, MAX_TITLE),
-    description_fr: str(req.body.description_fr, MAX_DESCRIPTION),
-    curation_prompt: str(req.body.curation_prompt, MAX_PROMPT),
-    sort_order: String(req.body.sort_order == null ? "" : req.body.sort_order).trim(),
-  };
+  const values = readText(req);
   const sort = Number(values.sort_order);
+  // The address can change only while the collection is unpublished (a published address is linked and indexed).
+  const newSlug = collection.published || !values.slug ? collection.slug : values.slug;
   let error = null;
   if (!values.title_en) error = "The English title cannot be empty.";
+  else if (!isSlug(newSlug)) error = "The address (slug) may only contain lower-case letters, numbers and single hyphens.";
+  else if (newSlug !== collection.slug && (await slugTaken(pool, newSlug, id))) error = `The address "${newSlug}" is already used by another collection. Choose a different one.`;
   else if (values.sort_order === "" || !Number.isInteger(sort) || sort < -1000 || sort > 100000) error = "Sort order must be a whole number (smaller numbers come first).";
   if (error) {
     await flash(req, { error, form: values });
@@ -168,9 +293,9 @@ router.post("/admin/collections/:id", requireAdmin, async (req, res) => {
   }
   await pool.query(
     `UPDATE curated_collections
-     SET title_en = $2, description_en = $3, title_fr = $4, description_fr = $5, curation_prompt = $6, sort_order = $7, updated_at = now()
+     SET title_en = $2, description_en = $3, title_fr = $4, description_fr = $5, curation_prompt = $6, sort_order = $7, slug = $8, updated_at = now()
      WHERE id = $1`,
-    [id, values.title_en, values.description_en, values.title_fr, values.description_fr, values.curation_prompt, sort]
+    [id, values.title_en, values.description_en, values.title_fr, values.description_fr, values.curation_prompt, sort, newSlug]
   );
   // A published collection must keep its French text: emptying it takes the collection off the site, not off the rules.
   let note = "Saved.";
