@@ -118,6 +118,7 @@
   var moreBtn = document.getElementById('bk-more');
   var moreOffset = null;
   var newShown = [];
+  var collectionsEl = document.getElementById('bk-collections'); // absent when no collection is published
 
   // The search / genre state lives in the address (public/books-state.js): a genre tap or a search
   // adds a history entry, so Back returns to the previous results, and the address can be shared.
@@ -222,6 +223,8 @@
   // Put a state on the screen (no history change here).
   function render(state, scroll) {
     current = state;
+    // The collection buttons (views/marketing/partials/collections_row.ejs) are for the plain Browse view only, like New In.
+    if (collectionsEl) collectionsEl.hidden = !!(state.q || state.genre || state.isNew || /[?&]topic=/.test(location.search));
     // The New In carousel is only on the plain Browse view: a search, a genre or "See All New In" already fills the page with a grid.
     newSection.hidden = !!(state.q || state.genre || state.isNew);
     if (!newSection.hidden) setTimeout(layoutCarousel, 0);

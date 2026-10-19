@@ -29,6 +29,8 @@ for (const file of MARKETING_PAGES) {
   if (!APP_OWNED_BARE.has(bare)) EXACT.add("/" + bare);
 }
 const BOOK_PAGE = /^\/books\/\d+$/;
+// A curated collection (src/routes/collections.js): /collections/<slug> and /fr/collections/<slug>.
+const COLLECTION_PAGE = /^\/collections\/[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 // "/path?query#hash" -> ["/path", "?query#hash"]
 function splitUrl(url) {
@@ -41,7 +43,7 @@ function splitUrl(url) {
 function isPublicPath(pathname) {
   let p = String(pathname || "");
   if (p.length > 1 && p.endsWith("/")) p = p.slice(0, -1);
-  return EXACT.has(p) || BOOK_PAGE.test(p);
+  return EXACT.has(p) || BOOK_PAGE.test(p) || COLLECTION_PAGE.test(p);
 }
 
 function isFrPath(pathname) {

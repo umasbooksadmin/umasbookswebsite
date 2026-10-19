@@ -29,6 +29,8 @@ const IMAGE_REFERENCES = [
   { table: "blog_posts", column: "excerpt" },
   { table: "charities", column: "image_url" },
   { table: "charities", column: "description" },
+  { table: "curated_collections", column: "icon_path" },
+  { table: "curated_collections", column: "banner_path" },
 ];
 
 const DEFAULT_MIN_AGE_DAYS = 7;

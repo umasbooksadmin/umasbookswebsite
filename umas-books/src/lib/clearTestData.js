@@ -58,6 +58,7 @@ const TABLES = {
   price_reprice_items: "shop",
   images: "shop", // only the ones no remaining row refers to
   favorites: "shop",
+  curated_collection_books: "shop", // which books are in a curated collection (they follow the books)
   // people
   users: "people", // non-admins only
   event_signups: "people",
@@ -94,6 +95,7 @@ const TABLES = {
   alert_flags: "kept", // "alert X was sent at T" markers (no personal data)
   ai_usage_stats: "kept", // aggregate AI call/token counts per day and feature (no personal data)
   ai_daily_cap: "kept", // per-day counters of the AI daily cap (counts only, no personal data)
+  curated_collections: "kept", // the 19 seeded shelves (titles, prompts, published or not) are settings, not test data; only their book lists (curated_collection_books) are shop data
   lookup_source_stats: "kept", // aggregate lookup counts per day and catalog (no personal data)
 };
 
@@ -274,6 +276,7 @@ function buildPlan({ includeContent = false, keepMembers = false } = {}, have = 
   del("orders");
   del("favorites");
   del("book_awards");
+  del("curated_collection_books");
   del("price_reprice_items");
   del("price_reprice_runs");
   del("book_copies");

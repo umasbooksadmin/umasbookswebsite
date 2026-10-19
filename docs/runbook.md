@@ -2969,3 +2969,73 @@ Fixed in `src/db.js`: wait at most **10 s** for a free connection (then the requ
 - Lines every minute for a long time, or users seeing "Something went wrong" with `timeout exceeded when trying to connect` in the logs: something is holding connections or the load is higher than the pool. First look at Render > the service > **Logs** for slow-query or job errors at the same time; then raise `DB_POOL_MAX` one step (for example 20 to 30) if `instances x max x 2` stays under about 90, and redeploy. Raising it is not a cure for a query that never finishes: the 30 s limit ends those.
 
 **What the code does to stay inside the pool** (for developers): the admin dashboard runs its queries at most 3 at a time (`lib/runLimited.js`); the email outbox worker holds **no** connection while it talks to Gmail (it claims rows with one `UPDATE`, sends, and records each result with a short statement; a row whose worker died is picked up again when its 5-minute lease ends); every `pool.connect()` is released in a `finally`. `node scripts/load-dashboard.js` (local database only, not part of CI) fires 30 dashboard requests plus an outbox batch with a slow fake mail server and prints the pool's waiting counts.
+
+## ah) Curated collections (the round-picture buttons on Browse Books)
+
+Themed shelves such as *Paris Is Always a Good Idea* or *Bedtime Stories for Little Daydreamers*. Customers
+see a row of round-picture buttons under the genre buttons on **Browse Books** (only on the plain page: not
+while a genre, a search or *See All New In* is showing), and each button opens a page of its own
+(`/collections/<name>`, `/fr/collections/<name>`) with the books.
+
+**Nothing is ever shown until you say so.** The 19 collections start **unpublished**. The AI only *suggests*
+books; you approve each one; then you publish. A customer sees a collection only when it is published, and in it
+only the books you approved **that are in stock right now** (a book that sells or is reserved drops off by itself;
+if a copy comes back it returns). A published collection with nothing left to show has no button and its page says
+so kindly.
+
+**How to fill one** (admin > Site content > **Collections**; English only, like the rest of admin)
+
+1. Open the collection. Check the title and description in English and French, and the *Guidance for the AI*.
+   **Translate to French** fills only the empty French boxes; read them, then press **Save** (it saves nothing
+   by itself).
+2. Press **Generate suggestions**. It looks at up to 300 books in stock that are not yet in this collection
+   (the ones that match the collection's words best) and adds what fits, each with a one-line reason. The
+   collection then shows **Last built** (set only when a build worked).
+3. Tick **Approve** on the books you want (or **Reject** to never see one again), then **Save choices**.
+4. Press **Publish**. It is refused until at least one book is approved **and** the French title and
+   description are filled in. **Unpublish** takes it off the site at once.
+
+**Managing collections** (not only the seeded 19)
+
+- **New collection** (top of the list): English and French title and description, an optional address (made from the
+  English title if left empty; it must be unique and can be changed until the collection is published), the optional
+  AI guidance, a sort order. It starts unpublished. **Leave the guidance empty for a collection you fill in by hand
+  only**: the Generate buttons are then hidden and Update all skips it.
+- **Order:** the up and down arrows in the list (or the Sort order number on the collection) set the order of the
+  buttons on Browse Books.
+- **Add a book by hand:** on the collection, search the books in stock (title, author or ISBN) and press **Add**; it
+  counts as approved at once. **Remove** on any book in the list takes it out (the book itself is never touched). A
+  collection left with no approved book is unpublished.
+- **Pictures:** *Round button picture* (cut to a circle for you; replace or remove, preview shown) and an optional
+  wide **Banner** at the top of the collection page (shown 3:1 on a computer, taller on a phone; give it an English and
+  a French description for screen readers, or leave them empty if it is only decoration). JPG, PNG or WebP up to 5 MB;
+  they are stored in the database like the blog pictures, so they survive deploys.
+- **Delete:** *Delete this collection* opens an "Are you sure?" page that shows how many approved books it has and offers
+  **Unpublish instead**. Deleting removes the collection and its book list, never a book; its address then says
+  "not found".
+
+**Keeping collections up to date as new books arrive** (no schedule: you press the button).
+
+- **Add new books** (on each collection, once it has been built) asks the AI only about books whose copy entered
+  inventory **after the collection's Last built time**, and adds suggestions. **Update all collections** (top of the
+  list) does that for every collection that was built before (never-built ones are left for their own
+  **Generate suggestions** button, because building all 19 at once is more than 50 paid calls). It stops starting new
+  collections after about 80 seconds (the result lists what was not reached: press it again), and one collection
+  failing never stops the others. A collection with no new book shows **Nothing new** and keeps its Last built time.
+- The list shows, per collection, the **Last built** time, "N books were added since the last build", and a
+  **N to review** badge for suggestions waiting for you.
+- New suggestions are always *waiting for review*, also on a collection that is already published: customers
+  see only approved books. Nothing already approved or rejected is ever changed or removed by a rebuild.
+- **Full rebuild (re-evaluate all books)** (link on the collection, with an "Are you sure?" page) asks about every
+  book in stock that is not already in the collection, not only the new ones. It also keeps your choices.
+
+**What it costs and what can go wrong.** Generate, Add new books, Full rebuild, Update all and Translate use the same
+paid AI as book descriptions: they count toward the daily limit `AI_DAILY_MAX_CALLS` (section ae) and appear in
+*AI usage* (under *description* and *translation*); one build is up to 3 calls. If there is no API key, the credit has
+run out or the daily limit is reached, the page shows a plain message and nothing changes; the rest of the site is
+not affected. Every publish, unpublish, save, review, build, rebuild and update is written to *Admin activity*.
+
+**The pictures.** `assets/img/collections/<name>.png` and `.webp`, cut from the artwork sheet
+`assets-src/collections-sheet.webp` by `node scripts/crop-collection-art.js` (only needed if the sheet changes).
+A collection without a picture gets a plain text button. Titles are real text, so they are French when French is
+chosen.

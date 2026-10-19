@@ -1,0 +1,5 @@
+<%
+/* A collection's round picture. Params: src (a seeded /assets/img/collections/<slug>.png, which has a .webp beside it, or an
+   uploaded /img/<hash>.png), w, h, cls, lazy. Always decoration (alt=""): the caption next to it is the name. */
+const _stored = /^\/img\//.test(src);
+%><% if (_stored) { %><img<%- cls ? ' class="' + cls + '"' : '' %> src="<%= src %>" alt="" width="<%= w %>" height="<%= h %>"<%- lazy ? ' loading="lazy"' : '' %> decoding="async"><% } else { %><%- include('picture', { src, alt: '', w, h, cls, lazy }) %><% } %>
