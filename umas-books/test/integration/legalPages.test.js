@@ -74,3 +74,18 @@ test("membership page: no price and no placeholder while MEMBERSHIP_PRICE_EUR is
   const d = dictOf(await get("/membership.html"));
   assert.equal(d.en["mem.price"], "Membership fee: <strong></strong> for 12 months, paid on the HelloAsso form.");
 });
+
+test("visit page: the shop phone shows as a tap-to-call link in English and French, from the legal.js constant", async () => {
+  const legal = require("../../src/lib/legal");
+  assert.equal(legal.SHOP_PHONE_DISPLAY, "+33 6 07 41 70 60");
+  assert.equal(legal.SHOP_PHONE_TEL, "tel:+33607417060");
+  for (const [lang, label] of [["en", "Phone"], ["fr", "Téléphone"]]) {
+    const html = await get("/visit.html", lang);
+    assert.match(html, /<a href="tel:\+33607417060"[^>]*>\+33 6 07 41 70 60<\/a>/, `${lang}: tap-to-call link`);
+    assert.ok(html.includes("admin@umasbooks.org"), `${lang}: email still shown`);
+    const d = dictOf(html);
+    assert.equal(d[lang]["visit.phone.l"], label);
+  }
+  const ml = await get("/mentions-legales.html", "fr");
+  assert.match(ml, /tel:\+33607417060/);
+});

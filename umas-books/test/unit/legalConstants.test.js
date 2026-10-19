@@ -198,3 +198,13 @@ test("favorites page: the French aria-label turns a straight apostrophe in the t
     resolve();
   }, 20));
 });
+
+test("the old shop phone number is gone from every tracked source file", () => {
+  const { execFileSync } = require("node:child_process");
+  const files = execFileSync("git", ["ls-files", "-z"], { cwd: root }).toString().split("\0").filter(Boolean)
+    .filter((f) => !/\.(png|jpe?g|webp|gif|ico|woff2?|pdf|lock)$|package-lock/.test(f) && !f.endsWith("legalConstants.test.js"));
+  // 98 95 67 91 with any mix of space, nbsp, narrow nbsp, dot or hyphen between pairs
+  const old = /98[ .\-  ]?95[ .\-  ]?67[ .\-  ]?91/;
+  const hits = files.filter((f) => { try { return old.test(fs.readFileSync(path.join(root, f), "utf8")); } catch { return false; } });
+  assert.deepEqual(hits, []);
+});
