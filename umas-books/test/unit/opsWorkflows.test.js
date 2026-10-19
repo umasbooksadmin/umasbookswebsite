@@ -72,6 +72,12 @@ test("render.yaml lists the variables a Blueprint rebuild needs, and keeps PREVI
   }
 });
 
+test("render.yaml does not manage DATABASE_URL (sync:false, so a rotated password is never overwritten)", () => {
+  const y = fs.readFileSync(path.join(repo, "render.yaml"), "utf8");
+  assert.match(y, /key: DATABASE_URL\n\s+sync: false/);
+  assert.ok(!/fromDatabase/.test(y), "render.yaml has no fromDatabase wiring");
+});
+
 test("README documents every variable render.yaml declares", () => {
   const y = fs.readFileSync(path.join(repo, "render.yaml"), "utf8");
   const readme = fs.readFileSync(path.join(repo, "umas-books", "README.md"), "utf8");
