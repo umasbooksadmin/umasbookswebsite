@@ -1,4 +1,4 @@
-/* global document */
+/* global document, getComputedStyle */
 // The Browse Books collection buttons in a REAL browser (headless Chrome through puppeteer, the same one the e2e
 // suite and scripts/phone-overflow-audit.js use) against the real app and a throwaway database:
 //   - shown on the plain view, hidden while a genre, a search or ?new=1 is showing (and shown again after Back),
@@ -93,7 +93,7 @@ test("the row is shown on the plain view and hidden with a genre, a search or ?n
   });
 });
 
-test("on a 375 px phone the buttons scroll sideways in their own strip like the genres, are at least 44 px, half-size icons, and the page itself does not scroll sideways", async (t) => {
+test("on a 375 px phone the buttons scroll sideways in their own strip like the genres, are at least 44 px, 90 px icons, genre buttons the same size, and the page itself does not scroll sideways", async (t) => {
   await withPage(t, async (page) => {
     await go(page, "/books.html");
     const r = await page.$$eval("#bk-collections .col-btn", (els) => els.map((e) => { const b = e.getBoundingClientRect(); return { top: Math.round(b.top), w: b.width, h: b.height }; }));
@@ -103,7 +103,21 @@ test("on a 375 px phone the buttons scroll sideways in their own strip like the 
     const sw = await page.evaluate(() => document.documentElement.scrollWidth);
     assert.ok(sw <= 375, `the page is ${sw} px wide on a 375 px screen`);
     const img = await page.$eval("#bk-collections .col-btn img", (i) => ({ alt: i.getAttribute("alt"), lazy: i.loading, w: i.getAttribute("width"), h: i.getAttribute("height"), shown: Math.round(i.getBoundingClientRect().width) }));
-    assert.deepEqual(img, { alt: "", lazy: "lazy", w: "60", h: "60", shown: 60 });
+    assert.deepEqual(img, { alt: "", lazy: "lazy", w: "90", h: "90", shown: 90 });
+    // One family: a genre button is the same size and type as a collection button (same height, caption size, heading).
+    await page.waitForSelector("#bk-genre-list .bk-genre");
+    const look = await page.evaluate(() => {
+      const pick = (el) => ({ font: getComputedStyle(el).fontSize, chip: Math.round(el.querySelector(".chip").getBoundingClientRect().width), h: Math.round(el.getBoundingClientRect().height) });
+      const head = (id) => { const cs = getComputedStyle(document.getElementById(id)); return cs.fontSize + "/" + cs.lineHeight; };
+      return { col: pick(document.querySelector("#bk-collections .col-btn")), genre: pick(document.querySelector("#bk-genre-list .bk-genre")), colHead: head("bk-collections-label"), genreHead: head("bk-genres-label") };
+    });
+    assert.equal(look.col.font, "20px");
+    assert.equal(look.genre.font, look.col.font, "same caption size");
+    assert.equal(look.col.chip, 90);
+    assert.equal(look.genre.chip, 90, "the genre circles are as big as the collection pictures");
+    assert.equal(look.genreHead, look.colHead, "same heading size");
+    assert.ok(look.colHead.startsWith("32px"));
+    assert.ok(look.col.h >= 145 && look.genre.h >= 145, `same minimum button height (${look.col.h} vs ${look.genre.h}); a longer caption may make one taller`);
   }, { viewport: { width: 375, height: 812, deviceScaleFactor: 2, isMobile: true, hasTouch: true } });
 });
 

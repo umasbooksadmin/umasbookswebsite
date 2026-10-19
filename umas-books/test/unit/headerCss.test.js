@@ -51,6 +51,6 @@ test("footer: no vertical separators below 641px (they wrapped into stray bars),
 });
 
 test("browse page genre chips: sized by their label (never clipped), strip bleeds to the screen edge", () => {
-  assert.match(books, /\.bk-genre \{ flex: 0 0 auto; min-width: 66px; max-width: 104px;/);
+  assert.match(books, /\.bk-genre \{ flex: 0 0 auto; min-width: 99px; max-width: 156px;/);
   assert.match(books, /\.bk-genre-list \{ width: auto; margin: 0 -32px; padding: 0 32px 6px;/);
 });

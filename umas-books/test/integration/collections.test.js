@@ -531,18 +531,18 @@ test("Browse Books: a published collection with a book in stock gets a button, i
   assert.match(en, /<h2[^>]*>Browse <br>by Collection<\/h2>/, "two-line label, like Browse by Genre");
   assert.match(en, new RegExp(`<a class="bk-genre col-btn" href="/collections/${c.slug}">`));
   assert.match(en, /<span class="col-name">Row Shelf<\/span>/);
-  assert.match(en, /<img src="[^"]*\/assets\/img\/collections\/[a-z-]+\.png[^"]*" alt="" width="60" height="60" loading="lazy">/, "decorative picture, half size (60px), size set, lazy");
+  assert.match(en, /<img src="[^"]*\/assets\/img\/collections\/[a-z-]+\.png[^"]*" alt="" width="90" height="90" loading="lazy">/, "decorative picture, 1.5x size (90px), size set, lazy");
   assert.ok(!/ hidden/.test(en.split(">")[0]), "visible on the plain page");
   const fr = rowOf((await get("/fr/books.html")).text);
   assert.match(fr, /<h2[^>]*>Parcourir <br>par collection<\/h2>/);
   assert.match(fr, new RegExp(`href="/fr/collections/${c.slug}"`));
   assert.match(fr, /<span class="col-name">Étagère du rang<\/span>/);
   assert.ok(!fr.includes("Row Shelf") && !fr.includes("by Collection"), "no English on the French row");
-  // Page order: title, collections, genres, New In, search, results.
+  // Page order: title, search, collections, New In, genres, results.
   const html = (await get("/books.html")).text;
   const at = (needle) => { const i = html.indexOf(needle); assert.ok(i >= 0, `${needle} is on the page`); return i; };
-  const order = ["<h1", 'id="bk-collections"', 'id="bk-genre-list"', 'id="bk-new-title"', 'id="shop-search-form"', 'id="bk-results"'].map(at);
-  assert.deepEqual(order, [...order].sort((x, y) => x - y), "title, collections, genres, New In, search, results");
+  const order = ["<h1", 'id="shop-search-form"', 'id="bk-collections"', 'id="bk-new-title"', 'id="bk-genre-list"', 'id="bk-results"'].map(at);
+  assert.deepEqual(order, [...order].sort((x, y) => x - y), "title, search, collections, New In, genres, results");
   assert.ok(!html.includes("bk-flower") && !html.includes("flower.webp"), "no flower beside the title");
   assert.ok(html.split("<h1").length === 2 && html.indexOf("<h1") < html.indexOf("<h2"), "one h1, before the h2s");
 });
@@ -913,7 +913,7 @@ test("Pictures: a button picture (cut round) and a banner (with EN and FR alt te
   assert.match(fr, /alt="Un coin de lecture lumineux"/);
   assert.ok(!fr.includes("A bright reading nook"));
   // The Browse button uses the uploaded round picture.
-  assert.match(rowOf((await get("/books.html")).text), new RegExp(`<img src="${row.icon_path}" alt="" width="60" height="60" loading="lazy"`));
+  assert.match(rowOf((await get("/books.html")).text), new RegExp(`<img src="${row.icon_path}" alt="" width="90" height="90" loading="lazy"`));
 
   // Replace, then remove.
   const first = row.banner_path;

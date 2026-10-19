@@ -1,26 +1,24 @@
 /* Uma's Books & Adventures — curated collections: the button row on the Browse page (books.html) and the
    collection page (/collections/<slug>). Loaded after books.css, which supplies the book cards (.bk-book, .bk-grid). */
 
-/* ---------- Browse page: row of collection buttons (above the genre buttons) ----------
-   Same look as Browse by Genre: the section is a .bk-genres (two-line label with a vertical line after it) and each
-   button is a .bk-genre (picture over caption), all styled in books.css. Only the differences are here. */
+/* ---------- Browse page: row of collection buttons (above New In) ----------
+   Same look and size as Browse by Genre: the section is a .bk-genres (two-line label with a vertical line after it) and
+   each button is a .bk-genre (picture over caption), all styled in books.css (1.5x the old size: picture 90 px).
+   Only the differences are here. */
 .bk-collections[hidden] { display: none; }
 .bk-col-list, .bk-col-list li { list-style: none; }
-.bk-genre-list.bk-col-list {
-  margin: 0; padding: 0; min-height: 0; /* server-drawn: nothing to reserve */
-  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 12px 8px;
-}
+.bk-genre-list.bk-col-list { margin: 0; padding: 0; min-height: 0; /* server-drawn: nothing to reserve */ }
 .bk-col-list li { min-width: 0; display: flex; justify-content: center; }
 .bk-col-list .col-btn { text-decoration: none; min-height: 44px; width: 100%; justify-content: flex-start; }
-.bk-col-list .col-btn .chip { width: 60px; height: 60px; overflow: hidden; } /* half the old 120px picture */
-.bk-col-list .col-btn img { display: block; width: 60px; height: 60px; border-radius: 50%; }
+.bk-col-list .col-btn .chip { width: 90px; height: 90px; overflow: hidden; }
+.bk-col-list .col-btn img { display: block; width: 90px; height: 90px; border-radius: 50%; }
 .bk-col-list .col-btn:hover .chip { transform: translateY(-2px); }
 .bk-col-list .col-btn:hover .col-name { color: var(--maroon); }
 .bk-col-list .col-btn:focus-visible { outline: 3px solid var(--maroon); outline-offset: 2px; border-radius: 6px; }
 .bk-col-list .col-name { overflow-wrap: anywhere; hyphens: auto; }
 @media (max-width: 760px) {
   .bk-genre-list.bk-col-list { display: flex; padding: 0 32px 6px; }
-  .bk-col-list li { flex: 0 0 auto; min-width: 66px; max-width: 104px; scroll-snap-align: start; }
+  .bk-col-list li { flex: 0 0 auto; min-width: 99px; max-width: 156px; scroll-snap-align: start; }
 }
 
 /* ---------- Collection page ---------- */

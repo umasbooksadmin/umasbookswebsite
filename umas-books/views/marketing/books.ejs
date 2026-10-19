@@ -10,6 +10,14 @@
       <h1 data-i18n="bk.title">Browse books</h1>
     </section>
 
+    <div class="bk-search-row">
+      <form class="bk-search" id="shop-search-form" role="search">
+        <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg></span>
+        <input type="search" id="shop-search-input" data-i18n-attr="placeholder:bk.search.ph;aria-label:bk.search.label" placeholder="Search books…" aria-label="Search by title, author, keyword, or genre">
+        <button type="submit" data-i18n="bk.search.submit">Search</button>
+      </form>
+    </div>
+
     <noscript>
       <section class="bk-noscript" aria-labelledby="bk-noscript-title">
         <p data-i18n-html="bk.noscript">Searching and browsing by genre need JavaScript. Here are our newest books, or <a href="/request-a-book">ask us to look out for a title</a>.</p>
@@ -23,11 +31,6 @@
     </noscript>
 
     <%- include('partials/collections_row', { collections: typeof collectionButtons !== 'undefined' ? collectionButtons : [], hidden: typeof collectionsHidden !== 'undefined' && collectionsHidden }) %>
-
-    <section class="bk-genres" aria-labelledby="bk-genres-label">
-      <h2 class="label" id="bk-genres-label" data-i18n-html="bk.genres.label">Browse <br>by Genre</h2>
-      <div class="bk-genre-list" id="bk-genre-list"></div>
-    </section>
 
     <section class="bk-new" aria-labelledby="bk-new-title"<%= (typeof newInHidden !== 'undefined' && newInHidden) ? ' hidden' : '' %>>
       <div class="bk-new-head">
@@ -44,13 +47,10 @@
       </div>
     </section>
 
-    <div class="bk-search-row">
-      <form class="bk-search" id="shop-search-form" role="search">
-        <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg></span>
-        <input type="search" id="shop-search-input" data-i18n-attr="placeholder:bk.search.ph;aria-label:bk.search.label" placeholder="Search books…" aria-label="Search by title, author, keyword, or genre">
-        <button type="submit" data-i18n="bk.search.submit">Search</button>
-      </form>
-    </div>
+    <section class="bk-genres" aria-labelledby="bk-genres-label">
+      <h2 class="label" id="bk-genres-label" data-i18n-html="bk.genres.label">Browse <br>by Genre</h2>
+      <div class="bk-genre-list" id="bk-genre-list"></div>
+    </section>
 
     <section class="bk-results" id="bk-results" hidden aria-live="polite">
       <div class="bk-results-head">

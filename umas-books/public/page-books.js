@@ -147,6 +147,7 @@
   function scrollToResults(again) {
     // The second call (after the results are drawn) is instant: a smooth scroll started while the
     // page was still changing height can be cut short, which left the page at the top on phones.
+    // The results come after the genre buttons, below the search box: line the page up on the results heading.
     resultsEl.scrollIntoView({ behavior: reducedMotion() || again ? 'auto' : 'smooth', block: 'start' });
     // Focus the heading so a keyboard / screen reader user lands on the results too (no second scroll).
     resultsTitle.setAttribute('tabindex', '-1');

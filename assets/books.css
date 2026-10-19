@@ -33,46 +33,54 @@
 @media (min-width: 1241px) {
   .bk-search { max-width: min(1020px, calc(100% - 2 * 190px)); }
 }
-.bk-search-row { padding: 0 0 8px; }
+.bk-search-row { padding: 0 0 20px; }
 
-/* ---------- Browse by genre ---------- */
-.bk-genres { display: flex; align-items: flex-start; gap: 22px; padding: 6px 0 20px; }
+/* ---------- Browse by collection / Browse by genre ----------
+   Both blocks are one family (assets/collections.css only adds what a collection picture needs): a two-line heading
+   with a vertical line after it, then a grid of picture-over-caption buttons. They sit 1.5x the old size (picture
+   90 px, caption 20 px, heading 32 px) and share every measure below, so the two rows line up. */
+.bk-genres { display: flex; align-items: flex-start; gap: 33px; padding: 6px 0 20px; }
 .bk-genres .label {
-  flex: 0 0 auto; font-size: 25px; line-height: 1.02; padding: 16px 22px 16px 0;
+  flex: 0 0 auto; font-size: 32px; line-height: 1.02; padding: 24px 33px 24px 0;
   border-right: 1px solid var(--line); align-self: stretch;
 }
-.bk-genre-list { flex: 1; display: grid; grid-template-columns: repeat(14, minmax(0, 1fr)); gap: 12px 4px;
-  min-height: 87px; /* the buttons are drawn by public/page-books.js: reserve their row so the page below does not jump when they appear */ }
+.bk-genre-list { flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 18px 12px;
+  grid-auto-rows: minmax(146px, auto);
+  min-height: 310px; /* two rows: the genre buttons are drawn by public/page-books.js, so reserve their rows and the page below does not jump when they appear */ }
 .bk-genre {
-  display: flex; flex-direction: column; align-items: center; gap: 8px; background: none; border: 0; padding: 0;
-  cursor: pointer; color: var(--ink); font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; font-size: 15.5px;
+  display: flex; flex-direction: column; align-items: center; gap: 9px; background: none; border: 0; padding: 0;
+  cursor: pointer; color: var(--ink); font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; font-size: 20px;
   line-height: 1.15; text-align: center;
 }
 .bk-genre .chip {
-  width: 64px; height: 64px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  width: 90px; height: 90px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
   color: var(--ink); transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
-.bk-genre .chip svg { width: 32px; height: 32px; }
+.bk-genre .chip svg { width: 45px; height: 45px; }
 .bk-genre:hover .chip { transform: translateY(-2px); }
 .bk-genre:hover span:last-child { color: var(--maroon); }
 .bk-genre.is-active .chip { box-shadow: 0 0 0 2px var(--cream), 0 0 0 4px var(--maroon); }
 .bk-genre.is-active span:last-child { color: var(--maroon); font-weight: 600; }
-@media (max-width: 1180px) {
-  .bk-genre-list { grid-template-columns: repeat(7, minmax(0, 1fr)); min-height: 186px; /* two rows */ }
+/* Narrower than the 1,176 px of content a side-by-side heading needs: the heading goes on one line above the buttons. */
+@media (max-width: 1240px) {
+  .bk-genres { flex-direction: column; align-items: stretch; gap: 14px; }
+  .bk-genres .label { border-right: 0; padding: 0; }
+  .bk-genres .label br { display: none; }
+}
+@media (max-width: 980px) {
+  .bk-genre-list { grid-template-columns: repeat(5, minmax(0, 1fr)); min-height: 471px; /* three rows */ }
 }
 @media (max-width: 760px) {
   .bk-search .icon { padding-left: 12px; }
   .bk-search button { padding: 0 18px; letter-spacing: 0.1em; }
-  .bk-genres { flex-direction: column; gap: 14px; }
-  .bk-genres .label { border-right: 0; padding: 0; font-size: 24px; }
-  .bk-genres .label br { display: none; }
+  .bk-genres { gap: 14px; }
   .bk-genre-list {
-    display: flex; overflow-x: auto; gap: 14px; width: 100%; max-width: 100%; min-width: 0; padding-bottom: 6px; /* max/min: without them the row made the whole page 1170px wide on a phone, which also stopped the page from scrolling to the results */
+    display: flex; overflow-x: auto; gap: 21px; width: 100%; max-width: 100%; min-width: 0; padding-bottom: 6px; /* max/min: without them the row made the whole page 1170px wide on a phone, which also stopped the page from scrolling to the results */
     scroll-snap-type: x proximity; scrollbar-width: none;
   }
   .bk-genre-list::-webkit-scrollbar { display: none; }
-  .bk-genre { flex: 0 0 78px; scroll-snap-align: start; }
-  .bk-genre-list { min-height: 93px; } /* one scrolling row + its padding */
+  .bk-genre { scroll-snap-align: start; }
+  .bk-genre-list { min-height: 152px; } /* one scrolling row + its padding */
   .bk-carousel { min-height: 302px; } /* filled by script after the page shows: a minimum only, taller cards (long titles) grow it */
 }
 
@@ -209,20 +217,15 @@ body:has(.bk-band) .mkt-footer { margin-top: 38px; }
   .bk-new { padding: 36px 0 40px; }
 }
 
-/* Smaller genre buttons */
-.bk-genre { font-size: 13.5px; gap: 6px; }
-.bk-genre .chip { width: 50px; height: 50px; }
-.bk-genre .chip svg { width: 24px; height: 24px; }
-.bk-genres .label { font-size: 21px; }
-/* Phones: the chips scroll sideways. Each is as wide as its own label (up to 104px, then the
+/* Phones: the buttons scroll sideways. Each is as wide as its own label (up to 156px, then the
    label wraps at spaces), so no label is ever cut off ("Documentaires", "Jeune adulte"). */
 @media (max-width: 760px) {
-  .bk-genre { flex: 0 0 auto; min-width: 66px; max-width: 104px; padding: 0 2px; overflow-wrap: break-word; }
+  .bk-genre { flex: 0 0 auto; min-width: 99px; max-width: 156px; padding: 0 3px; overflow-wrap: break-word; }
   /* The strip runs to the screen edge (a card cut by the edge of the SCREEN reads as 'scroll', one cut
      by the page margin reads as clipped text) and ends with some air. */
   .bk-genre-list { width: auto; margin: 0 -32px; padding: 0 32px 6px; scroll-padding-inline: 32px; }
   /* The row scrolls inside its own box, never the page: in a column flex box the row was as wide as all 14 chips
-     (about 1,170px) and made the whole page that wide. align-items: stretch gives it the width of the screen, and
+     and made the whole page that wide. align-items: stretch gives it the width of the screen, and
      min-width: 0 lets it be narrower than its content. A soft fade on the right edge says 'swipe for more'. */
   .bk-genres { align-items: stretch; min-width: 0; position: relative; }
   .bk-genre-list { min-width: 0; max-width: calc(100% + 64px); overscroll-behavior-x: contain; }
