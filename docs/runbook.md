@@ -65,7 +65,7 @@ asks you to. Always change **every** place listed, then check
 
 | Secret | Where it lives |
 |---|---|
-| `DATABASE_URL` | Render env var (set automatically from the database) **and** GitHub repository secret `DATABASE_URL` (nightly backup) |
+| `DATABASE_URL` | Render env var (set by hand, see "Rotating the database password" below) **and** GitHub repository secret `DATABASE_URL` (nightly backup) |
 | `SESSION_SECRET` | Render env var only |
 | `TOTP_ENCRYPTION_KEY` | Render env var only |
 | `GMAIL_USER`, `GMAIL_APP_PASSWORD` | Render env var **and** GitHub repository secrets (uptime alerts, backup emails) |
@@ -85,8 +85,9 @@ asks you to. Always change **every** place listed, then check
 section ad), "A read-only database user for the backup". Rotating the owner's
 password (steps below) then does not touch GitHub; rotating `backup_ro`'s does
 (only the GitHub secret changes, plus the `ALTER ROLE` in step 2 of that section).
-Render links the web service to the database automatically
-(`fromDatabase` in `render.yaml`), but GitHub keeps its own copy.
+The web service's `DATABASE_URL` is set by hand in the Render dashboard
+(`render.yaml` marks it `sync: false`, so the Blueprint does not manage it),
+and GitHub keeps its own copy.
 If you change one and not the other, the site keeps working but the nightly
 backup fails (or the reverse).
 
@@ -99,9 +100,34 @@ backup fails (or the reverse).
    **External** URL (Settings > Secrets and variables > Actions > Secrets >
    `DATABASE_URL` > pencil icon).
 3. In Render, check the `umas-books` service redeployed and the Environment tab
-   shows `DATABASE_URL` linked to the database.
+   shows the expected `DATABASE_URL`.
 4. GitHub > Actions > **Nightly database backup** > Run workflow, and confirm it
    goes green.
+
+### Rotating the database password
+
+`DATABASE_URL` on the web service is **not** managed by the Blueprint
+(`sync: false` in `render.yaml`): its value is the database's **Internal
+Database URL**, set by hand. The Blueprint will never overwrite it, so you
+must update it yourself, in this order. Keep the old password until the deploy
+is verified (step 5).
+
+1. Connect as the app user with psql, using the database's **External
+   Database URL** (Render > `umas-books-db` > Connect), and run `\password`.
+   Type the new password twice. (A warning about MD5 may appear; it is
+   harmless.)
+2. Render > `umas-books` > **Environment** > `DATABASE_URL` > edit: take the
+   **Internal Database URL** and put the new password in it. **Save**.
+3. **Manual Deploy > Deploy latest commit.** The pre-deploy command
+   (`npm run migrate`) uses `DATABASE_URL`, so a wrong value makes the deploy
+   fail safely: the old version keeps running.
+4. Check the deploy log shows "Migrations complete." (or each migration), that
+   `/healthz` returns 200, and that you can log in.
+5. Only now is the old password safe to forget. If something is wrong, put the
+   old password back with `\password` and in `DATABASE_URL`.
+6. The GitHub secret `DATABASE_URL` (nightly backup) uses the separate
+   `backup_ro` user: change it only if you also rotate `backup_ro`, as
+   described above.
 
 **SESSION_SECRET.** Render env var only. Changing it logs everyone out (they
 just log in again); nothing else breaks.
