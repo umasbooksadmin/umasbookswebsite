@@ -4,6 +4,7 @@
 
 const { normalizeIsbn } = require("./bookLookup");
 const { parseMoney } = require("./validation");
+const { parisDateString } = require("./tz");
 
 // The five condition grades (New, Like New, Very Good, Good, Acceptable): the single source of truth for the admin forms,
 // the public pages, the cart and the emails. A copy that cannot be sold at all
@@ -109,11 +110,46 @@ function bindingLabel(value, lang) {
   return b ? (lang === "fr" ? b.label_fr : b.label) : null;
 }
 
+// Is a book's publication date MORE than 2 years before today (Europe/Paris)?
+// The books table stores a year only (published_year), but "YYYY-MM" and
+// "YYYY-MM-DD" are understood too. A date is judged by the END of its period
+// (31 December for a year, the last day of the month for a month), so a year
+// counts as older than 2 years only once its 31 December is more than 2 years
+// back (2023 becomes "old" on 1 January 2026). Missing, invalid or future => false,
+// i.e. the fixed-price rule stays. `today` (a Date or "YYYY-MM-DD") is for tests.
+function isPublishedOverTwoYearsAgo(published, today) {
+  if (published === null || published === undefined || published === "") return false;
+  const m = /^\s*(\d{4})(?:-(\d{1,2})(?:-(\d{1,2}))?)?\s*$/.exec(String(published));
+  if (!m) return false;
+  const y = Number(m[1]);
+  if (y < 1000) return false;
+  let mo = 12;
+  if (m[2] !== undefined) { mo = Number(m[2]); if (mo < 1 || mo > 12) return false; }
+  const lastDay = new Date(Date.UTC(y, mo, 0)).getUTCDate();
+  let d = lastDay;
+  if (m[3] !== undefined) { d = Number(m[3]); if (d < 1 || d > lastDay) return false; }
+  const todayStr = typeof today === "string" ? today : parisDateString(today || new Date());
+  const t = /^(\d{4})-(\d{2})-(\d{2})$/.exec(todayStr);
+  if (!t) return false;
+  // Two years after the END of the period, as YYYYMMDD; today must be strictly later.
+  const pad = (n) => String(n).padStart(2, "0");
+  const ey = y + 2;
+  const ed = Math.min(d, new Date(Date.UTC(ey, mo, 0)).getUTCDate()); // 29 Feb + 2 years in a non-leap year
+  const limit = `${ey}${pad(mo)}${pad(ed)}`;
+  return `${t[1]}${t[2]}${t[3]}` > limit;
+}
+
 // French fixed book price law (loi Lang, n° 81-766): a NEW book must be sold
 // at the publisher's price, with at most 5% off. Used books are free-priced.
+// Exception handled here: a new-condition book published more than 2 years ago
+// (see isPublishedOverTwoYearsAgo) is free-priced like a used one and its
+// publisher's price is optional (still validated and stored when typed).
+// opts: { publishedYear } (a year, "YYYY-MM" or "YYYY-MM-DD"; unknown => rule
+// unchanged) and { today } for tests. Callers pass the book's published date.
 // Returns { error } or { price, publisherPrice } (both in euros, or null for
-// non-new copies). A blank price on a new copy defaults to the publisher's.
-function resolveCopyPricing(condition, rawPrice, rawPublisherPrice) {
+// non-new copies). A blank price on a new copy defaults to the publisher's;
+// on an old one with no publisher's price it stays null (manual review).
+function resolveCopyPricing(condition, rawPrice, rawPublisherPrice, opts = {}) {
   const hasPrice = rawPrice !== undefined && rawPrice !== null && String(rawPrice).trim() !== "";
   // Whatever the condition, a price that was typed must be real money: a
   // number of euros with at most 2 decimals, 0 to 10000 (see parseMoney).
@@ -123,6 +159,17 @@ function resolveCopyPricing(condition, rawPrice, rawPublisherPrice) {
     // Blank stays null (e.g. the pricing "manual review" case): such a copy is
     // listed but cannot be bought online (see isPurchasablePrice).
     return { price: typed.value, publisherPrice: null };
+  }
+  const hasPub = rawPublisherPrice !== undefined && rawPublisherPrice !== null && String(rawPublisherPrice).trim() !== "";
+  if (isPublishedOverTwoYearsAgo(opts && opts.publishedYear, opts && opts.today)) {
+    let pub = null;
+    if (hasPub) {
+      const p = parseMoney(rawPublisherPrice, { allowBlank: true, label: "Publisher's price" });
+      if (p.error) return { error: p.error };
+      if (!(p.value > 0)) return { error: "Publisher's price must be above 0, or left blank." };
+      pub = p.value;
+    }
+    return { price: typed.value != null ? typed.value : pub, publisherPrice: pub };
   }
   const pubCents = Math.round(Number(rawPublisherPrice) * 100);
   if (!Number.isFinite(pubCents) || pubCents <= 0 || String(rawPublisherPrice || "").trim() === "") {
@@ -254,4 +301,4 @@ function isbnVariants(isbn) {
   return [...out];
 }
 
-module.exports = { CONDITIONS, BINDINGS, DEFAULT_CONDITION, STATUSES, SOURCES, normalizeSource, LOCATION_MAX, normalizeCondition, normalizeBinding, conditionLabel, bindingLabel, resolveCopyPricing, isPurchasablePrice, normalizeStatus, normalizeGenres, normalizeLocation, locationKey, sameLocation, uniqueLocations, parseScan, isbnVariants };
+module.exports = { CONDITIONS, BINDINGS, DEFAULT_CONDITION, STATUSES, SOURCES, normalizeSource, LOCATION_MAX, normalizeCondition, normalizeBinding, conditionLabel, bindingLabel, resolveCopyPricing, isPublishedOverTwoYearsAgo, isPurchasablePrice, normalizeStatus, normalizeGenres, normalizeLocation, locationKey, sameLocation, uniqueLocations, parseScan, isbnVariants };

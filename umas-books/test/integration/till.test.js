@@ -165,6 +165,42 @@ test("new books follow loi Lang: 95-100% of the publisher price, enforced at the
   assert.equal((await h.sale([h.book(bad, "20")])).status, 400);
 });
 
+test("a New book published over 2 years ago is free-priced at the till; a recent or undated one keeps loi Lang", async () => {
+  const year = Number(new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris", year: "numeric" }).format(new Date()));
+  const oldBook = await h.seedBook(`Old New ${h.uniq()}`);
+  await h.pool.query("UPDATE books SET published_year = $1 WHERE id = $2", [year - 3, oldBook.id]);
+  // no publisher's price, no price: the till asks for one (like a used copy) and the scan marks the line free-priced
+  const unpriced = await h.seedCopy(oldBook.id, { condition: "new", price: null, publisherPrice: null });
+  const scanned = await h.scan(`UB-${unpriced}`);
+  assert.equal(scanned.body.line.fixedPrice, false);
+  assert.equal(scanned.body.line.priceCents, null);
+  assert.equal((await h.sale([h.book(unpriced)])).status, 400);
+  const own = await h.sale([h.book(unpriced, "4.50")], { received: "10" });
+  assert.equal(own.status, 200, JSON.stringify(own.body));
+  assert.equal(own.body.totalCents, 450);
+  const item = (await h.pool.query("SELECT category FROM till_sale_items WHERE sale_id = $1", [own.body.saleId])).rows[0];
+  assert.equal(item.category, "books_new");
+  // a publisher's price on an old copy: any price is accepted (admin, with a reason below the asking price)
+  const priced = await h.seedCopy(oldBook.id, { condition: "new", price: 20, publisherPrice: 20 });
+  assert.equal((await h.scan(`UB-${priced}`)).body.line.priceCents, 2000);
+  const cheap = await h.sale([h.book(priced, "6", "old stock")], { received: "10" });
+  assert.equal(cheap.status, 200, JSON.stringify(cheap.body));
+  assert.equal(cheap.body.totalCents, 600);
+  // recent and undated books: unchanged
+  const recent = await h.seedBook(`Recent New ${h.uniq()}`);
+  await h.pool.query("UPDATE books SET published_year = $1 WHERE id = $2", [year - 2, recent.id]);
+  const undated = await h.seedBook(`Undated New ${h.uniq()}`);
+  for (const b of [recent, undated]) {
+    const c = await h.seedCopy(b.id, { condition: "new", price: 20, publisherPrice: 20 });
+    assert.equal((await h.scan(`UB-${c}`)).body.line.fixedPrice, true);
+    const low = await h.sale([h.book(c, "6", "x")], { received: "50" });
+    assert.equal(low.status, 400);
+    assert.match(low.body.error, /publisher's price/);
+    const missing = await h.seedCopy(b.id, { condition: "new", price: 20, publisherPrice: null });
+    assert.equal((await h.sale([h.book(missing, "20")])).status, 400);
+  }
+});
+
 // ---------- payment ----------
 
 test("cash: received must cover the total; change is computed in cents and recorded", async () => {
