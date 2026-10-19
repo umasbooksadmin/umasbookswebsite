@@ -165,9 +165,9 @@
                 suggestAction: '/admin/inventory/' + book.id + '/copies/' + c.id + '/suggest',
                 selected: c.price != null ? priceUi.keyFor(c.price, c.is_clearance) : '',
               }) %>
-              <label for="publisherPrice-<%= c.id %>">Publisher's price (prix &eacute;diteur) (&euro;)</label>
+              <label for="publisherPrice-<%= c.id %>">Publisher's price (prix &eacute;diteur) (&euro;)<span data-pp-required hidden> *</span></label>
               <input id="publisherPrice-<%= c.id %>" name="publisherPrice" type="number" step="0.01" min="0" value="<%= c.publisher_price != null ? c.publisher_price : '' %>">
-              <p class="muted small">Required only when the condition is New. New books must be sold at the publisher's printed price; a discount of up to 5% is allowed (French fixed book price law).</p>
+              <%- include('_publisher_price_help', { idSuffix: '-' + c.id, condition: c.condition, year: book.published_year, yearFromInput: false, withUseNote: false }) %>
               <label for="acquisitionCost-<%= c.id %>">Acquisition cost (&euro;)</label>
               <input id="acquisitionCost-<%= c.id %>" name="acquisitionCost" type="number" step="0.01" min="0" value="<%= c.acquisition_cost != null ? c.acquisition_cost : '' %>">
               <label for="acquiredAt-<%= c.id %>">Acquisition Date</label>
@@ -195,5 +195,6 @@
 
 <%- include('../../partials/location_options') %>
 <script src="/price-suggestion.js"></script>
+<script src="/publisher-price-rule.js"></script>
 <script src="/copy-text.js"></script>
 <%- include('../../partials/admin_footer') %>

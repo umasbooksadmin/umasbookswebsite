@@ -124,10 +124,12 @@ async function checkBarcodeFree(db, code, excludeId = null) {
 
 function copyLine(r) {
   const isNew = r.condition === "new";
+  // Fixed book price (95-100% of the publisher's price) unless the book is over 2 years old (inv.resolveCopyPricing).
+  const fixedPrice = isNew && !inv.isPublishedOverTwoYearsAgo(r.published_year);
   const asking = r.price != null ? toCents(r.price) : (isNew && r.publisher_price != null ? toCents(r.publisher_price) : null);
   return {
     kind: "book", copyId: r.id, title: r.title, authors: r.authors || "", isbn: r.isbn || "",
-    condition: r.condition, conditionLabel: inv.conditionLabel(r.condition), isNew,
+    condition: r.condition, conditionLabel: inv.conditionLabel(r.condition), isNew, fixedPrice,
     priceCents: asking, publisherPriceCents: r.publisher_price != null ? toCents(r.publisher_price) : null,
     location: r.location || "", category: isNew ? "books_new" : "books_used",
   };
@@ -136,7 +138,7 @@ function copyLine(r) {
 // cart_expired: the online cart hold on an in_cart copy has run out (the sweep
 // has not released it yet); cart_minutes_left: how long a live hold still has.
 const HOLD_MINUTES = () => require("./cart").CART_HOLD_TTL_MINUTES;
-const COPY_COLUMNS = () => `c.id, c.condition, c.price, c.publisher_price, c.location, c.status, c.is_clearance, c.cart_order_id, b.title, b.authors, b.isbn,
+const COPY_COLUMNS = () => `c.id, c.condition, c.price, c.publisher_price, c.location, c.status, c.is_clearance, c.cart_order_id, b.title, b.authors, b.isbn, b.published_year,
   (c.status = 'in_cart' AND c.cart_added_at < now() - interval '${HOLD_MINUTES()} minutes') AS cart_expired,
   CASE WHEN c.status = 'in_cart' AND c.cart_added_at IS NOT NULL
        THEN GREATEST(1, CEIL(EXTRACT(EPOCH FROM (c.cart_added_at + interval '${HOLD_MINUTES()} minutes' - now())) / 60))::int END AS cart_minutes_left`;
@@ -328,9 +330,9 @@ async function buildLines(db, rawItems, { isAdmin = true, lock = true } = {}) {
       const asking = copyLine(copy).priceCents;
       const typed = it.price === undefined || it.price === null ? "" : String(it.price).trim();
       let cents;
-      if (copy.condition === "new") {
-        // Loi Lang: the publisher's price, at most 5% off.
-        const pricing = inv.resolveCopyPricing("new", typed, copy.publisher_price);
+      if (copy.condition === "new" && copyLine(copy).fixedPrice) {
+        // Loi Lang: the publisher's price, at most 5% off (not for a book published over 2 years ago).
+        const pricing = inv.resolveCopyPricing("new", typed, copy.publisher_price, { publishedYear: copy.published_year });
         if (pricing.error) throw new TillError(`"${copy.title}": ${pricing.error}`);
         cents = toCents(pricing.price);
       } else if (typed === "") {

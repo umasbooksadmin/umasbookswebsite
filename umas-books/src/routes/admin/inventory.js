@@ -478,7 +478,14 @@ router.post("/admin/inventory", requireAdmin, serverTiming("scan.save"), async (
   const condition = normalizeCondition(req.body.condition);
   const settings = await req.timing.time("settings", () => getSettings(pool));
   const choice = priceFromLevelChoice(condition, req.body, settings);
-  const pricing = resolveCopyPricing(condition, choice.rawPrice, req.body.publisherPrice);
+  // A New book published more than 2 years ago is free-priced (lib/inventory.js): the year typed here, else the
+  // one already recorded for this ISBN.
+  let pricingYear = yearCheck.error ? null : yearCheck.value;
+  if (pricingYear == null && isbn) {
+    const known = await pool.query("SELECT published_year FROM books WHERE isbn = $1", [isbn]);
+    if (known.rows[0]) pricingYear = known.rows[0].published_year;
+  }
+  const pricing = resolveCopyPricing(condition, choice.rawPrice, req.body.publisherPrice, { publishedYear: pricingYear });
   const costCheck = parseAcquisitionCost(req.body.acquisitionCost);
   const inputError = pricing.error || yearCheck.error || costCheck.error;
   if (inputError) {
@@ -735,7 +742,8 @@ router.post("/admin/inventory/:id/copies/:copyId", requireAdmin, async (req, res
   const condition = normalizeCondition(req.body.condition);
   const settings = await getSettings(pool);
   const choice = priceFromLevelChoice(condition, req.body, settings);
-  const pricing = resolveCopyPricing(condition, choice.rawPrice, req.body.publisherPrice);
+  const yearRow = await pool.query("SELECT published_year FROM books WHERE id = $1", [bookId]);
+  const pricing = resolveCopyPricing(condition, choice.rawPrice, req.body.publisherPrice, { publishedYear: yearRow.rows[0] && yearRow.rows[0].published_year });
   const costCheck = parseAcquisitionCost(req.body.acquisitionCost);
   const acquiredAt = req.body.acquiredAt || null;
   const notes = (req.body.notes || "").trim() || null;
@@ -818,7 +826,7 @@ router.post("/admin/inventory/:id/copies/:copyId", requireAdmin, async (req, res
 // The copy and its book, with what a price suggestion needs.
 async function loadCopyForPricing(bookId, copyId) {
   const { rows } = await pool.query(
-    `SELECT c.*, b.isbn, b.title, b.authors, b.binding
+    `SELECT c.*, b.isbn, b.title, b.authors, b.binding, b.published_year
      FROM book_copies c JOIN books b ON b.id = c.book_id WHERE c.id = $1 AND c.book_id = $2`,
     [copyId, bookId]
   );
@@ -846,7 +854,7 @@ router.post("/admin/inventory/:id/copies/:copyId/use-price", requireAdmin, async
     isbn: copy.isbn, title: copy.title, author: copy.authors, binding: copy.binding, condition: copy.condition, publisherPrice: copy.publisher_price,
   }, { copyId });
   if (suggestion.price == null) return bookBack(req, res, bookId, { error: suggestion.needsReview ? `${suggestion.reviewMessage}: set this price by hand.` : "No price could be suggested: set it by hand." });
-  const pricing = resolveCopyPricing(copy.condition, suggestion.price, copy.publisher_price);
+  const pricing = resolveCopyPricing(copy.condition, suggestion.price, copy.publisher_price, { publishedYear: copy.published_year });
   if (pricing.error) return bookBack(req, res, bookId, { error: pricing.error });
   await pool.query(
     `UPDATE book_copies SET price=$1, suggested_price=$1, suggested_level=$2, price_basis='suggested', is_clearance=$3, updated_at=now()
