@@ -112,22 +112,63 @@ Database URL**, set by hand. The Blueprint will never overwrite it, so you
 must update it yourself, in this order. Keep the old password until the deploy
 is verified (step 5).
 
-1. Connect as the app user with psql, using the database's **External
-   Database URL** (Render > `umas-books-db` > Connect), and run `\password`.
-   Type the new password twice. (A warning about MD5 may appear; it is
-   harmless.)
+0. Back up first (GitHub > Actions > **Nightly database backup** > Run
+   workflow, confirm it goes green).
+1. Change the password inside the database, as the website's own account (see
+   "Which account to change" below). Connect with psql using the **External**
+   host, from your Mac. Reconnect with the new password to prove it works
+   **before** touching Render.
 2. Render > `umas-books` > **Environment** > `DATABASE_URL` > edit: take the
-   **Internal Database URL** and put the new password in it. **Save**.
+   **Internal Database URL** (the host has no `.render.com` in it) and put the
+   new password in it, taken from the password manager. **Save**.
 3. **Manual Deploy > Deploy latest commit.** The pre-deploy command
    (`npm run migrate`) uses `DATABASE_URL`, so a wrong value makes the deploy
    fail safely: the old version keeps running.
 4. Check the deploy log shows "Migrations complete." (or each migration), that
    `/healthz` returns 200, and that you can log in.
 5. Only now is the old password safe to forget. If something is wrong, put the
-   old password back with `\password` and in `DATABASE_URL`.
+   old password back (same method as step 1) and in `DATABASE_URL`.
 6. The GitHub secret `DATABASE_URL` (nightly backup) uses the separate
    `backup_ro` user: change it only if you also rotate `backup_ro`, as
    described above.
+
+**Which account to change.** On this database the login role
+`umasbooksdb_lbtc_user` switches itself to the role `umasbooks` as soon as it
+connects, so a plain `\password` changes `umasbooks` (the role that owns the
+tables, with its own separate password), **not** the website's account. To
+rotate the website's account:
+
+1. Connect as `umasbooksdb_lbtc_user` with its current password.
+2. Run `SET ROLE umasbooksdb_lbtc_user;`
+3. Run `SELECT session_user, current_user;` and check it shows the **same name
+   twice**. If the two names differ, stop: you would be changing the wrong
+   account.
+4. Run `\password umasbooksdb_lbtc_user` and type the new password twice.
+5. Reconnect with the new password to prove it works, then continue with step
+   2 above.
+
+(`ALTER ROLE ... PASSWORD`, or `\password` while acting as `umasbooks`, fails
+with "permission denied to alter role"; that error means step 2 or 3 was
+skipped.)
+
+**Render's Connect panel goes stale (expected).** After you change the password
+inside the database, Render does not learn it: the database's **Connect** panel
+keeps showing the OLD password, so its External, Internal and PSQL addresses
+stop working. This is normal. Take the new password from the password manager,
+never from that panel. Never paste a full connection address (it contains the
+password) into chat or tickets.
+
+**Internal vs external address.** The website uses the **Internal** Database
+URL in `DATABASE_URL`. The External host (ends in `.render.com`) is only for
+psql on your Mac and for GitHub's nightly backup. The backup uses its own
+`backup_ro` account and the GitHub secret `DATABASE_URL`, so rotating the
+website's password does not affect it.
+
+**Inbound IP Rules.** In Render > `umas-books-db` > Networking (PostgreSQL
+**Inbound IP Rules**) keep `0.0.0.0/0` (everywhere). If the rule is limited to
+your own address, GitHub's backup cannot connect. The workspace-level
+"everywhere" rule is for web services and is a different list; it does not
+cover the database.
 
 **SESSION_SECRET.** Render env var only. Changing it logs everyone out (they
 just log in again); nothing else breaks.
