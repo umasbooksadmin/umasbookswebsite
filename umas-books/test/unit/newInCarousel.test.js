@@ -7,7 +7,10 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
-const { newIn, NEW_IN_DAYS, NEW_IN_MIN, NEW_IN_MAX } = require("../../src/lib/latestArrivals");
+const latest = require("../../src/lib/latestArrivals");
+const { newIn, NEW_IN_DAYS, NEW_IN_MIN } = latest;
+const booksRoute = fs.readFileSync(path.join(__dirname, "..", "..", "src", "routes", "books.js"), "utf8");
+const lib = fs.readFileSync(path.join(__dirname, "..", "..", "src", "lib", "latestArrivals.js"), "utf8");
 
 const ROOT = path.join(__dirname, "..", "..", "..");
 const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), "utf8");
@@ -56,32 +59,53 @@ test("the carousel is only on the plain Browse view: hidden for a search, a genr
   assert.match(css, /\.bk-new\[hidden\]/);
 });
 
-test("See All New In pages through /api/books/new-in with a count and Show more, 24 at a time, not a capped search", () => {
+test("See All New In pages through /api/books/new-in with Show more and no count, 24 at a time, not a capped search", () => {
   assert.doesNotMatch(js, /latest-arrivals\?days=0&limit=24/);
   assert.match(js, /\/new-in\?offset=' \+ offset \+ '&limit=24/);
   assert.match(js, /cache\[url\] = data/);
-  for (const key of ["bk.new.count", "bk.new.count1", "bk.more", "bk.results.new"]) {
+  for (const key of ["bk.more", "bk.results.new"]) {
     assert.equal((ejs.match(new RegExp(`"${key.replace(".", "\\.")}":`, "g")) || []).length, 2, `${key} in English and French`);
   }
 });
 
-test("newIn: last 60 days, at least the 40 newest, at most 200, paged with a total and a next offset", async () => {
-  assert.deepEqual([NEW_IN_DAYS, NEW_IN_MIN, NEW_IN_MAX], [60, 40, 200]);
-  const day = 86400000;
-  const mk = (n, ageDays) => Array.from({ length: n }, (_, i) => ({ id: i + 1, newest_copy_at: new Date(Date.now() - (ageDays + i / 1000) * day) }));
-  const poolOf = (rows) => ({ query: async (_sql, params) => ({ rows: rows.slice(0, params[0]) }) });
-  // 10 recent + 100 old: the 40 newest
-  let r = await newIn(poolOf([...mk(10, 1), ...mk(100, 90)]), { offset: 0, limit: 24 });
-  assert.deepEqual([r.total, r.rows.length, r.nextOffset], [40, 24, 24]);
-  r = await newIn(poolOf([...mk(10, 1), ...mk(100, 90)]), { offset: 24, limit: 24 });
-  assert.deepEqual([r.total, r.rows.length, r.nextOffset], [40, 16, null]);
-  // 150 recent: all 150, not 24
-  r = await newIn(poolOf(mk(150, 5)), { offset: 120, limit: 48 });
-  assert.deepEqual([r.total, r.rows.length, r.nextOffset], [150, 30, null]);
-  // 300 recent: capped at 200
-  r = await newIn(poolOf(mk(300, 5)), { offset: 0, limit: 48 });
-  assert.equal(r.total, 200);
-  // fewer than 40 books in the shop: all of them
-  r = await newIn(poolOf(mk(7, 200)), {});
-  assert.deepEqual([r.total, r.rows.length], [7, 7]);
+test("the carousel asks for the WHOLE New In list in one request (no 12-book limit) and the API has no cap", () => {
+  assert.match(js, /getJSON\(API \+ '\/new-in\?all=1'/, "the carousel fetches everything at once");
+  assert.doesNotMatch(js, /new-in\?offset=0&limit=12/);
+  assert.match(booksRoute, /req\.query\.all === "1"/);
+  assert.equal(latest.NEW_IN_MAX, undefined, "no maximum any more");
+  assert.doesNotMatch(lib, /NEW_IN_MAX|max = /);
+  assert.match(read("umas-books", "src", "index.js"), /newIn\(pool, \{ limit: null \}\)/, "the no-JavaScript list holds every new book too");
+});
+
+test("newIn orders by the timestamp the copy was added (created_at DESC, then copy id DESC), never by acquired_at", () => {
+  const sql = lib.slice(lib.indexOf("async function newIn"));
+  assert.match(sql, /MAX\(c\.created_at\) AS newest_copy_at/);
+  assert.match(sql, /row_number\(\) OVER \(ORDER BY p\.newest_copy_at DESC, p\.newest_copy_id DESC\)/);
+  assert.match(sql, /ORDER BY r\.rn/);
+  assert.doesNotMatch(sql, /acquired_at/, "acquired_at is only a date");
+});
+
+test("newIn: returns the page the database sent with the total and a next offset, and the total even for an empty page", async () => {
+  assert.deepEqual([NEW_IN_DAYS, NEW_IN_MIN], [60, 40]);
+  const seen = [];
+  const pool = (total, ids) => ({ query: async (sql, params) => { seen.push(params); return { rows: ids.length ? ids.map((id) => ({ total, id })) : [{ total, id: null }] }; } });
+  let r = await newIn(pool(300, Array.from({ length: 24 }, (_, i) => i + 1)), { offset: 0, limit: 24 });
+  assert.deepEqual([r.total, r.rows.length, r.nextOffset], [300, 24, 24], "300 is not capped at 200");
+  assert.deepEqual(seen[0], [60, 40, 0, 24]);
+  r = await newIn(pool(300, Array.from({ length: 12 }, (_, i) => i + 1)), { offset: 288, limit: 24 });
+  assert.deepEqual([r.total, r.rows.length, r.nextOffset], [300, 12, null]);
+  r = await newIn(pool(300, Array.from({ length: 300 }, (_, i) => i + 1)), { limit: null });
+  assert.deepEqual([r.rows.length, r.nextOffset], [300, null]);
+  assert.equal(seen[2][3], null, "no limit is sent to the database");
+  r = await newIn(pool(40, []), { offset: 90, limit: 24 });
+  assert.deepEqual([r.total, r.rows.length, r.nextOffset], [40, 0, null]);
+  r = await newIn(pool(0, []), {});
+  assert.deepEqual([r.total, r.rows.length, r.nextOffset], [0, 0, null]);
+});
+
+test("genre and search results page like See All New In: paged=1, 24 at a time, Show more, no count line", () => {
+  assert.match(js, /baseUrl \+ '&paged=1&offset=' \+ offset \+ '&limit=24'/);
+  assert.doesNotMatch(js, /countEl|bk-results-count|bk\.new\.count/, "no book count anywhere on the Browse page");
+  assert.doesNotMatch(ejs, /bk-results-count|bk\.new\.count/);
+  assert.match(booksRoute, /req\.query\.paged === "1"/);
 });

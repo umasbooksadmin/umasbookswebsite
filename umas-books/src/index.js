@@ -389,7 +389,7 @@ MARKETING_PAGES.forEach((file) => {
     if (file === "books.html") {
       // No-JavaScript fallback: the page fills its shelves from /api/books/*,
       // so the server also lists the newest books inside <noscript>.
-      res.locals.noscriptBooks = await newIn(pool, { limit: 12 }).then((r) => r.rows).catch(() => []);
+      res.locals.noscriptBooks = await newIn(pool, { limit: null }).then((r) => r.rows).catch(() => []);
       // The New In carousel is only for the plain Browse view: with a search, a genre or ?new=1 in the address
       // it is sent already hidden (public/books-state.js decides, the same as the page script does afterwards).
       const BooksState = require("../public/books-state");

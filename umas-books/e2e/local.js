@@ -107,6 +107,18 @@ async function seed(databaseUrl, creds) {
     const long = i % 3 === 0 ? " and a much longer subtitle that needs several lines on a narrow card, with an Élégante Évocation" : "";
     await book({ title: `E2E Sample New In ${i}${long}`, author: i % 4 === 0 ? "A. Very Long-Named Author, Co-Author Jane Smith, Translator Jean Dupont" : "New In Author" }, [{ price: 3 + (i % 9) }]);
   }
+  // More than 200 New In books, all added today a few minutes apart (Bulk 1 is the newest): the carousel must hold every one of them,
+  // newest first by the time of day, and the arrows must still land on whole cards.
+  await db.query(
+    `WITH b AS (
+       INSERT INTO books (title, authors, categories, categories_fr, binding, description, description_fr)
+       SELECT 'E2E Sample New In Bulk ' || g || CASE WHEN g % 5 = 0 THEN ' with a much longer subtitle on a narrow card' ELSE '' END,
+              'Bulk Author ' || g, 'Fiction', 'Fiction', 'trade', 'A sample book.', 'Un livre d’exemple.'
+       FROM generate_series(1, 230) g RETURNING id, title)
+     INSERT INTO book_copies (book_id, condition, price, status, is_clearance, location, source, created_at)
+     SELECT id, 'very_good', 4, 'in_stock', FALSE, 'Shelf A', 'donation',
+            now() - (substring(title from 'Bulk ([0-9]+)')::int * interval '7 minutes') FROM b`
+  );
   await db.query("INSERT INTO events (title, description, location, starts_at, ends_at, capacity) VALUES ('E2E Sample Event','Sample','Albi',$1,$2,10)", [days(2), days(2.1)]);
   await db.query("INSERT INTO events (title, description, location, starts_at, ends_at, capacity) VALUES ('E2E Sample Full Event','Sample','Albi',$1,$2,1)", [days(3), days(3.1)]);
   await db.query("INSERT INTO classes (title, description, location, starts_at, ends_at, capacity, dropin_price, program_type) VALUES ('E2E Sample Drop-in','Sample','Albi',$1,$2,6,8,'dropin')", [days(2), days(2.1)]);

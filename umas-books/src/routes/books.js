@@ -83,14 +83,15 @@ router.get("/api/books/latest-arrivals", async (req, res) => {
   );
 });
 
-// "New In" in pages: { total, books, nextOffset }. The Books page's carousel asks for the first 12, "See All New In"
-// for 24 at a time until nextOffset is null. Not the search limiter: no text search, one cheap query, cached a minute.
+// "New In" in pages: { total, books, nextOffset }. The Books page's carousel asks for ALL of it (?all=1, one request),
+// "See All New In" for 24 at a time until nextOffset is null. Newest first by the time the copy was added. Not the search limiter: no text search, one cheap query, cached a minute.
 router.get("/api/books/new-in", async (req, res) => {
   res.set("Access-Control-Allow-Origin", "*");
   res.set("Cross-Origin-Resource-Policy", "cross-origin");
   res.set("Cache-Control", "public, max-age=60");
-  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 24, 1), 48);
-  const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+  const all = req.query.all === "1";
+  const limit = all ? null : Math.min(Math.max(parseInt(req.query.limit, 10) || 24, 1), 48);
+  const offset = all ? 0 : Math.max(parseInt(req.query.offset, 10) || 0, 0);
   const { total, rows, nextOffset } = await newIn(pool, { offset, limit });
   res.json({
     total,
@@ -150,7 +151,12 @@ router.get("/api/books/search", bookSearchLimiter, async (req, res) => {
     .filter(Boolean)
     .slice(0, 10);
 
-  if (q && q.length < SEARCH_MIN_LENGTH) return res.json([]);
+  // ?paged=1 (the Books page): { books, total, nextOffset }, ?offset= and ?limit= (1-48, default 24), "Show more" 24 at a
+  // time until nextOffset is null, so every book of a genre or search can be reached. Without it: the plain array, 60 books.
+  const paged = req.query.paged === "1";
+  const limit = paged ? Math.min(Math.max(parseInt(req.query.limit, 10) || 24, 1), 48) : 60;
+  const offset = paged ? Math.max(parseInt(req.query.offset, 10) || 0, 0) : 0;
+  if (q && q.length < SEARCH_MIN_LENGTH) return res.json(paged ? { books: [], total: 0, nextOffset: null } : []);
 
   const clauses = ["c.status = 'in_stock'"];
   const params = [];
@@ -192,14 +198,20 @@ router.get("/api/books/search", bookSearchLimiter, async (req, res) => {
             ${awardsTextSql("b.id")} AS awards,
             (SELECT array_agg(DISTINCT c.condition) FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock') AS conditions,
             b.binding,
-            EXISTS (SELECT 1 FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock' AND c.is_clearance) AS clearance
+            EXISTS (SELECT 1 FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock' AND c.is_clearance) AS clearance,
+            count(*) OVER () AS total
      FROM books b
      WHERE EXISTS (SELECT 1 FROM book_copies c WHERE c.book_id = b.id AND ${clauses.join(" AND ")})
-     ORDER BY b.title_sort, b.title, b.id LIMIT 60`,
+     ORDER BY b.title_sort, b.title, b.id LIMIT ${limit} OFFSET ${offset}`,
     params
   );
-  res.json(
-    rows.map((b) => ({
+  let total = rows.length ? Number(rows[0].total) : 0;
+  if (paged && !rows.length && offset > 0) {
+    // a page past the end: the total is still the total
+    const r = await pool.query(`SELECT count(*)::int AS n FROM books b WHERE EXISTS (SELECT 1 FROM book_copies c WHERE c.book_id = b.id AND ${clauses.join(" AND ")})`, params);
+    total = r.rows[0].n;
+  }
+  const list = rows.map((b) => ({
       id: b.id,
       title: b.title,
       author: b.authors,
@@ -212,8 +224,10 @@ router.get("/api/books/search", bookSearchLimiter, async (req, res) => {
       bindingLabel: bindingLabel(b.binding, req.lang),
       clearance: b.clearance === true,
       url: `${baseUrl(req)}/books/${b.id}`,
-    }))
-  );
+    }));
+  if (!paged) return res.json(list);
+  const end = offset + list.length;
+  res.json({ books: list, total, nextOffset: end < total ? end : null });
 });
 
 // Favorites live entirely client-side (localStorage — see public/favorites.js),
