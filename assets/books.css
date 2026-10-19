@@ -175,8 +175,7 @@
 @media (prefers-reduced-motion: reduce) { .bk-track { scroll-behavior: auto; } }
 
 /* "See All New In": the count line and the Show more button under the grid */
-.bk-results-count { margin: -6px 0 16px; font-size: 18px; color: var(--ink-soft); }
-.bk-results-count[hidden], .bk-more-row [hidden] { display: none; }
+.bk-more-row [hidden] { display: none; }
 .bk-more-row { text-align: center; margin-top: 26px; }
 .bk-more-row .btn { min-height: 44px; }
 

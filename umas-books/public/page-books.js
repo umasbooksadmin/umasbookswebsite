@@ -114,10 +114,10 @@
   var input = document.getElementById('shop-search-input');
   var lastTitle = null;
   var newSection = document.querySelector('.bk-new');
-  var countEl = document.getElementById('bk-results-count');
   var moreBtn = document.getElementById('bk-more');
   var moreOffset = null;
   var newShown = [];
+  var pager = null;     // how the list on screen is paged: { urlFor(offset) }
   var collectionsEl = document.getElementById('bk-collections'); // absent when no collection is published
 
   // The search / genre state lives in the address (public/books-state.js): a genre tap or a search
@@ -157,47 +157,33 @@
     resultsGrid.innerHTML = books.map(function (b) { return bookCard(b, true); }).join('');
     syncFavorites(resultsGrid);
   }
-  function showResults(url, title, scroll) {
+  // Genre and search results page the same way as See All New In: 24 at a time with "Show more" (no count shown).
+  function showResults(baseUrl, title, scroll) {
     lastTitle = title;
     renderTitle();
     resultsEl.hidden = false;
-    var mine = ++requestSeq;
-    if (cache[url]) {
-      drawBooks(cache[url]);
-      if (scroll) scrollToResults();
-      return;
-    }
-    resultsGrid.innerHTML = '<p class="muted">' + esc(t('bk.loading', 'Loading books…')) + '</p>';
-    if (scroll) scrollToResults();
-    getJSON(url, function (err, books) {
-      if (mine !== requestSeq) return;
-      if (err) { resultsGrid.innerHTML = '<p class="muted">' + esc(t(err.rateLimited ? 'bk.ratelimited' : 'bk.error')) + '</p>'; return; }
-      cache[url] = books;
-      drawBooks(books);
-      if (scroll && Math.abs(resultsEl.getBoundingClientRect().top) > 40) scrollToResults(true);
-    });
+    pager = { urlFor: function (offset) { return baseUrl + '&paged=1&offset=' + offset + '&limit=24'; } };
+    loadPage(0, false, ++requestSeq, scroll);
   }
 
   // "See All New In": every book that counts as New In (src/lib/latestArrivals.js newIn), 24 at a time with a
-  // "Show more" button. Each page is cached by its address, so Back / Forward and a second visit ask nothing.
+  // "Show more" button (no count is shown anywhere). Each page is cached by its address, so Back / Forward and a second visit ask nothing.
   function newInUrl(offset) { return API + '/new-in?offset=' + offset + '&limit=24'; }
-  function drawNewIn(data, append, mine) {
+  function drawPage(data, append, mine) {
     if (mine !== requestSeq) return;
     var firstNew = append ? newShown.length : 0;
     newShown = append ? newShown.concat(data.books) : data.books.slice();
     drawBooks(newShown);
     moreOffset = data.nextOffset;
     moreBtn.hidden = moreOffset == null;
-    countEl.hidden = false;
-    countEl.textContent = (data.total === 1 ? t('bk.new.count1', '1 new book') : t('bk.new.count', '{n} new books').replace('{n}', data.total));
     if (append) {
       var link = resultsGrid.querySelectorAll('.bk-book a')[firstNew];
       if (link) { try { link.focus({ preventScroll: false }); } catch (e) { /* the books are drawn anyway */ } }
     }
   }
-  function loadNewIn(offset, append, mine, scroll) {
-    var url = newInUrl(offset);
-    if (cache[url]) { drawNewIn(cache[url], append, mine); if (scroll) scrollToResults(); return; }
+  function loadPage(offset, append, mine, scroll) {
+    var url = pager.urlFor(offset);
+    if (cache[url]) { drawPage(cache[url], append, mine); if (scroll) scrollToResults(); return; }
     if (!append) resultsGrid.innerHTML = '<p class="muted">' + esc(t('bk.loading', 'Loading books…')) + '</p>';
     if (scroll) scrollToResults();
     moreBtn.disabled = true;
@@ -206,7 +192,7 @@
       moreBtn.disabled = false;
       if (err) { resultsGrid.insertAdjacentHTML('beforeend', '<p class="muted">' + esc(t(err.rateLimited ? 'bk.ratelimited' : 'bk.error')) + '</p>'); return; }
       cache[url] = data;
-      drawNewIn(data, append, mine);
+      drawPage(data, append, mine);
       if (scroll && !append && Math.abs(resultsEl.getBoundingClientRect().top) > 40) scrollToResults(true);
     });
   }
@@ -214,10 +200,11 @@
     lastTitle = { key: 'bk.results.new' };
     renderTitle();
     resultsEl.hidden = false;
-    loadNewIn(0, false, ++requestSeq, scroll);
+    pager = { urlFor: newInUrl };
+    loadPage(0, false, ++requestSeq, scroll);
   }
   moreBtn.addEventListener('click', function () {
-    if (moreOffset != null) loadNewIn(moreOffset, true, requestSeq, false);
+    if (moreOffset != null) loadPage(moreOffset, true, requestSeq, false);
   });
 
   // Put a state on the screen (no history change here).
@@ -228,7 +215,6 @@
     // The New In carousel is only on the plain Browse view: a search, a genre or "See All New In" already fills the page with a grid.
     newSection.hidden = !!(state.q || state.genre || state.isNew);
     if (!newSection.hidden) setTimeout(layoutCarousel, 0);
-    countEl.hidden = true;
     moreBtn.hidden = true;
     if (state.q) {
       input.value = state.q;
@@ -372,7 +358,7 @@
   }
   window.addEventListener('resize', layoutCarousel);
 
-  getJSON(API + '/new-in?offset=0&limit=12', function (err, data) {
+  getJSON(API + '/new-in?all=1', function (err, data) {
     if (err) { track.innerHTML = '<p class="muted">' + esc(t('bk.error')) + '</p>'; layoutCarousel(); return; }
     var books = data.books || [];
     if (!books.length) { track.innerHTML = '<p class="muted">' + esc(t('bk.new.empty')) + '</p>'; layoutCarousel(); return; }

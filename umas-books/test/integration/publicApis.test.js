@@ -212,20 +212,27 @@ test("latest-arrivals: ?days= windows by copy age; days=0 removes the window; so
 
 // ------------------------------------------- New In: "See All" shows every qualifying book
 
-test("new-in: pages through EVERY book added in the last 60 days (not just 24), with the total and the next offset; the carousel's first page is the same list", async () => {
-  for (let i = 0; i < 55; i++) await makeBook({ title: `${TAG} NewIn ${i}` });
-  const first = await api("/api/books/new-in?offset=0&limit=24");
-  assert.equal(first.status, 200);
+test("new-in: every book of the last 60 days (no 200 cap), newest first by the exact time added; ?all=1 is the whole list in one request and paging gives the same list", async () => {
+  // 230 recent books so the old 200 maximum would cut the list; the carousel takes them all in one request
+  const mine = [];
+  for (let i = 0; i < 230; i++) mine.push(await makeBook({ title: `${TAG} NewIn ${i}` }));
+  const whole = await api("/api/books/new-in?all=1");
+  assert.equal(whole.status, 200);
   const { rows } = await pool.query("SELECT count(DISTINCT book_id)::int AS n FROM book_copies WHERE status = 'in_stock' AND created_at >= now() - interval '60 days'");
-  assert.ok(rows[0].n >= 55);
-  assert.equal(first.json.total, Math.min(200, Math.max(rows[0].n, 40)), "total = every book of the last 60 days (at least 40, at most 200)");
+  assert.ok(rows[0].n >= 230);
+  assert.equal(whole.json.total, Math.max(rows[0].n, 40), "total = every book of the last 60 days (at least 40), not capped at 200");
+  assert.ok(whole.json.total > 200);
+  assert.equal(whole.json.books.length, whole.json.total, "all=1 returns the whole list");
+  assert.equal(whole.json.nextOffset, null);
+  assert.deepEqual(Object.keys(whole.json.books[0]).sort(), ["author", "coverUrl", "id", "price", "title", "url"]);
+  const first = await api("/api/books/new-in?offset=0&limit=24");
+  assert.equal(first.json.total, whole.json.total);
   assert.equal(first.json.books.length, 24);
   assert.equal(first.json.nextOffset, 24);
-  assert.deepEqual(Object.keys(first.json.books[0]).sort(), ["author", "coverUrl", "id", "price", "title", "url"]);
   const seen = [...first.json.books.map((b) => b.id)];
   let next = first.json.nextOffset;
   let guard = 0;
-  while (next != null && guard++ < 20) {
+  while (next != null && guard++ < 40) {
     const page = await api(`/api/books/new-in?offset=${next}&limit=24`);
     assert.equal(page.json.total, first.json.total, "the total is the same on every page");
     seen.push(...page.json.books.map((b) => b.id));
@@ -233,12 +240,71 @@ test("new-in: pages through EVERY book added in the last 60 days (not just 24), 
   }
   assert.equal(seen.length, first.json.total, "paging reaches every book");
   assert.equal(new Set(seen).size, seen.length, "no book twice");
-  const carousel = await api("/api/books/new-in?limit=12");
-  assert.deepEqual(carousel.json.books.map((b) => b.id), seen.slice(0, 12), "the carousel is the first 12 of the same list");
+  assert.deepEqual(whole.json.books.map((b) => b.id), seen, "the carousel (all=1) and See All (paged) are the same list in the same order");
   assert.deepEqual((await api("/api/books/latest-arrivals?days=0&limit=12")).json.map((b) => b.id), seen.slice(0, 12), "and the old endpoint agrees");
   const past = await api(`/api/books/new-in?offset=${first.json.total + 50}`);
-  assert.deepEqual([past.json.books.length, past.json.nextOffset], [0, null]);
+  assert.deepEqual([past.json.books.length, past.json.nextOffset, past.json.total], [0, null, first.json.total]);
   assert.match(first.res.headers.get("cache-control") || "", /max-age/, "cacheable, so paging never hits the server twice for a page");
+  // the whole list is in descending time order
+  const stamps = (await pool.query("SELECT book_id, MAX(created_at) AS t FROM book_copies WHERE status = 'in_stock' GROUP BY book_id")).rows;
+  const at = new Map(stamps.map((r) => [r.book_id, r.t.getTime()]));
+  for (let i = 1; i < seen.length; i++) assert.ok(at.get(seen[i - 1]) >= at.get(seen[i]), "newest first");
+});
+
+test("new-in: newest first by the exact time the copy was added, same-day books by time of day, ties by copy id, a book counts at its newest in-stock copy, acquired_at never orders", async () => {
+  const ago = (min) => new Date(Date.now() - min * 60000);
+  // all on the same calendar day (minutes ago), inserted in a scrambled order, with acquired_at pointing the opposite way
+  const morning = await makeBook({ title: `${TAG} Time morning`, copies: [{ createdAt: ago(300) }] });
+  const noon = await makeBook({ title: `${TAG} Time noon`, copies: [{ createdAt: ago(200) }] });
+  const evening = await makeBook({ title: `${TAG} Time evening`, copies: [{ createdAt: ago(100) }] });
+  // an old copy plus a newer one: counts at the newer; a newer SOLD copy does not count
+  const multi = await makeBook({ title: `${TAG} Time multi`, copies: [{ createdAt: ago(400) }, { createdAt: ago(150) }, { createdAt: ago(10), status: "sold" }] });
+  const tieTs = ago(50);
+  const tieA = await makeBook({ title: `${TAG} Time tie A`, copies: [{ createdAt: tieTs }] });
+  const tieB = await makeBook({ title: `${TAG} Time tie B`, copies: [{ createdAt: tieTs }] });
+  await pool.query("UPDATE book_copies SET acquired_at = CURRENT_DATE - 30 WHERE book_id = ANY($1)", [[evening.id, tieA.id, tieB.id]]);
+  await pool.query("UPDATE book_copies SET acquired_at = CURRENT_DATE + 1 WHERE book_id = ANY($1)", [[morning.id, multi.id]]);
+  const order = async (qs) => {
+    const ids = new Set([morning, noon, evening, multi, tieA, tieB].map((b) => b.id));
+    return (await api(`/api/books/new-in?${qs}`)).json.books.map((b) => b.id).filter((id) => ids.has(id));
+  };
+  const want = [tieB.id, tieA.id, evening.id, multi.id, noon.id, morning.id]; // 50 min (tie: higher copy id first), 100, 150, 200, 300
+  assert.deepEqual(await order("all=1"), want, "carousel list");
+  const paged = [];
+  for (let next = 0, guard = 0; next != null && guard++ < 40;) {
+    const page = (await api(`/api/books/new-in?offset=${next}&limit=48`)).json;
+    paged.push(...page.books.map((b) => b.id));
+    next = page.nextOffset;
+  }
+  const mineIds = new Set(want);
+  assert.deepEqual(paged.filter((id) => mineIds.has(id)), want, "See All pages give the same order");
+});
+
+test("search paged: a genre or a search pages through EVERY book (24 at a time) in a stable title order with a total; without paged=1 the old 60-book array is unchanged", async () => {
+  const cat = `${TAG}Cat`;
+  for (let i = 0; i < 70; i++) await makeBook({ title: `${TAG} Genre ${String(i).padStart(2, "0")}`, categories: `Fiction, ${cat}` });
+  const base = `/api/books/search?genre=${encodeURIComponent(cat)}&paged=1`;
+  const first = await api(`${base}&offset=0&limit=24`);
+  assert.equal(first.status, 200);
+  assert.deepEqual([first.json.total, first.json.books.length, first.json.nextOffset], [70, 24, 24]);
+  const ids = first.json.books.map((b) => b.id);
+  for (let next = first.json.nextOffset, guard = 0; next != null && guard++ < 10;) {
+    const page = (await api(`${base}&offset=${next}&limit=24`)).json;
+    assert.equal(page.total, 70);
+    ids.push(...page.books.map((b) => b.id));
+    next = page.nextOffset;
+  }
+  assert.equal(ids.length, 70, "every book of the genre is reachable (the old cap was 60)");
+  assert.equal(new Set(ids).size, 70, "no book twice, none skipped");
+  const titles = (await api(`/api/books/search?genre=${encodeURIComponent(cat)}&paged=1&offset=0&limit=48`)).json.books.map((b) => b.title);
+  assert.deepEqual(titles, [...titles].sort(), "title order");
+  const past = (await api(`${base}&offset=500`)).json;
+  assert.deepEqual([past.books.length, past.nextOffset, past.total], [0, null, 70]);
+  const byText = await api(`/api/books/search?q=${encodeURIComponent(`${TAG} Genre`)}&paged=1&limit=48`);
+  assert.deepEqual([byText.json.total, byText.json.books.length, byText.json.nextOffset], [70, 48, 48], "a text search pages too");
+  const plain = await api(`/api/books/search?genre=${encodeURIComponent(cat)}`);
+  assert.ok(Array.isArray(plain.json));
+  assert.equal(plain.json.length, 60, "the unpaged call keeps its 60-book array");
 });
 
 test("books.html is sent with the New In carousel hidden when the address has a search, a genre or new=1, and shown on the plain view", async () => {
