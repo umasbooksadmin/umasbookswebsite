@@ -150,6 +150,30 @@
     return { kind: "notfound", text: "Not found: fill in by hand" };
   }
 
+  // The publisher's price suggestion (GET /admin/inventory/isbndb-price, asked after the lookup). Only a New
+  // book with an empty publisher's price and a complete ISBN is worth asking about.
+  function wantsIsbndbPrice(condition, priceValue, rawIsbn) {
+    return condition === "new" && !String(priceValue == null ? "" : priceValue).trim() && isCompleteIsbn(rawIsbn);
+  }
+
+  // What to show for the server's answer: { text, value } where value (a string for the number field) is
+  // set only when there is a price to offer behind the "Use this price" button; text "" shows nothing.
+  // Nothing here ever fills the field: that takes a click.
+  function isbndbPriceMessage(res) {
+    var state = res && res.state;
+    if (state === "price" && res.original && res.eur > 0) {
+      var original = Number(res.original.amount).toFixed(2) + " " + res.original.currency;
+      var eur = Number(res.eur).toFixed(2);
+      var text = res.original.currency === "EUR"
+        ? "ISBNdb list price: " + original + ". Check the price printed on the book."
+        : "Suggested from ISBNdb: " + original + " = about \u20ac" + eur + ". Check the price printed on the book.";
+      return { text: text, value: eur };
+    }
+    if (state === "none") return { text: "ISBNdb has no price for this book: type the price printed on the cover.", value: "" };
+    if (state === "unavailable") return { text: "ISBNdb could not be reached for a price right now: type the price printed on the cover.", value: "" };
+    return { text: "", value: "" }; // off, not_new, or anything unexpected: say nothing
+  }
+
   // How far the on-screen keyboard covers the bottom of the page, from the
   // layout height (window.innerHeight) and the visual viewport.
   function keyboardInset(innerHeight, vv) {
@@ -293,12 +317,57 @@
       if (priceRoot && result.suggestion) priceRoot.dispatchEvent(new CustomEvent("ps:apply", { detail: result.suggestion }));
     }
 
+    // ---- the publisher's price suggestion (ISBNdb), New books only. Asked AFTER the title lookup has filled the
+    // form, on its own request: it never delays the scan or the save. It only ever shows text and a button;
+    // the field changes only when "Use this price" is pressed.
+    var priceBox = document.querySelector("[data-isbndb-price]");
+    var priceText = priceBox && priceBox.querySelector("[data-isbndb-price-text]");
+    var priceUse = priceBox && priceBox.querySelector("[data-isbndb-use]");
+    var priceField = form.elements.publisherPrice;
+    var priceGuard = createRequestGuard();
+    var suggested = "";
+    function hideSuggestion() {
+      priceGuard.cancel();
+      suggested = "";
+      if (priceBox) { priceBox.hidden = true; priceText.textContent = ""; priceUse.hidden = true; }
+    }
+    function askIsbndbPrice() {
+      if (!priceBox || !priceField) return;
+      var digits = isbnDigits(isbn.value);
+      if (!wantsIsbndbPrice(conditionSel.value, priceField.value, digits)) { hideSuggestion(); return; }
+      var id = priceGuard.begin();
+      fetch("/admin/inventory/isbndb-price?condition=new&isbn=" + encodeURIComponent(digits), { credentials: "same-origin", headers: { Accept: "application/json" } })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (body) {
+          if (!priceGuard.isCurrent(id) || !body || !body.ok) return;
+          if (!wantsIsbndbPrice(conditionSel.value, priceField.value, isbn.value)) return; // changed meanwhile
+          var m = isbndbPriceMessage(body);
+          suggested = m.value;
+          priceText.textContent = m.text;
+          priceUse.hidden = !m.value;
+          priceBox.hidden = !m.text;
+        })
+        .catch(function () { /* the suggestion is a bonus: the form works without it */ });
+    }
+    if (priceBox && priceField) {
+      priceUse.addEventListener("click", function () {
+        if (!suggested) return;
+        priceField.value = suggested;
+        priceField.dispatchEvent(new Event("input", { bubbles: true }));
+        hideSuggestion();
+        try { priceField.focus(); } catch (e) { /* fine */ }
+      });
+      priceField.addEventListener("input", function () { if (priceField.value.trim()) hideSuggestion(); });
+      conditionSel.addEventListener("change", askIsbndbPrice);
+    }
+
     // ---- lookup
     function runLookup(raw) {
       var digits = isbnDigits(raw);
       if (saving) { pendingIsbn = digits; return; }
       var id = guard.begin();
       inFlight = true;
+      hideSuggestion();
       setStatus("loading", "Looking up…");
       fetch("/admin/inventory/lookup?isbn=" + encodeURIComponent(digits) + "&binding=" + encodeURIComponent(bindingSel.value), { credentials: "same-origin", headers: { Accept: "application/json" } })
         .then(function (r) {
@@ -318,6 +387,7 @@
           // The shared daily limit of the paid AI helpers was reached: the lookup itself still worked.
           setStatus(st.kind, st.text + (res.body.aiNotice ? " " + res.body.aiNotice : ""));
           refocusIsbn();
+          askIsbndbPrice();
         })
         .catch(function () {
           if (!guard.isCurrent(id)) return;
@@ -394,6 +464,7 @@
       bindingHint.textContent = "";
       errorEl.hidden = true;
       if (priceRoot) priceRoot.dispatchEvent(new CustomEvent("ps:reset"));
+      hideSuggestion();
       conditionSel.dispatchEvent(new Event("change", { bubbles: true }));
     }
 
@@ -504,7 +575,7 @@
 
   return {
     isbnDigits: isbnDigits, isCompleteIsbn: isCompleteIsbn, createScanWatcher: createScanWatcher, createRequestGuard: createRequestGuard, shouldRefocusIsbn: shouldRefocusIsbn,
-    planFill: planFill, resolveBindingKey: resolveBindingKey, chooseBinding: chooseBinding, lookupStatus: lookupStatus,
+    wantsIsbndbPrice: wantsIsbndbPrice, isbndbPriceMessage: isbndbPriceMessage, planFill: planFill, resolveBindingKey: resolveBindingKey, chooseBinding: chooseBinding, lookupStatus: lookupStatus,
     keyboardInset: keyboardInset, FILL_FIELDS: FILL_FIELDS, init: init,
   };
 });

@@ -138,6 +138,7 @@
 
     <label for="publisherPrice">Publisher's price (prix &eacute;diteur) (&euro;)</label>
     <input id="publisherPrice" name="publisherPrice" type="number" step="0.01" min="0" value="<%= typeof publisherPriceValue !== 'undefined' ? publisherPriceValue : '' %>">
+    <p class="muted small isbndb-price" data-isbndb-price aria-live="polite" hidden><span data-isbndb-price-text></span> <button type="button" class="btn btn-outline btn-small" data-isbndb-use hidden>Use this price</button></p>
     <p class="muted small">Required only when the condition is New. New books must be sold at the publisher's printed price; a discount of up to 5% is allowed (French fixed book price law). Leave Price empty to use the publisher's price.</p>
 
     <label for="acquiredAt">Acquisition Date</label>

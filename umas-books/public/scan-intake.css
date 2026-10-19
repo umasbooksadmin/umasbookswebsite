@@ -97,3 +97,6 @@
   .scan-intake .scan-actions { flex: 1 1 100%; width: 100%; min-width: 0; }
   .scan-intake .scan-actions .btn, .scan-intake .scan-save-view { min-height: 44px; width: 100%; padding-top: 6px; padding-bottom: 6px; }
 }
+
+/* The ISBNdb price suggestion under the publisher's price field (public/scan-intake.js): .btn would otherwise override [hidden]. */
+.isbndb-price [hidden] { display: none !important; }
