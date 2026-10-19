@@ -156,8 +156,9 @@ test("the admin menu links to Collections and the list shows every collection wi
   assert.match(text, /href="\/admin\/collections"[^>]*>Collections</);
   assert.match(text, /Counted Shelf/);
   assert.match(text, /The Magic We Never Outgrew/);
-  const row = text.split("<tr>").find((r) => r.includes("Counted Shelf"));
-  assert.match(row, /<td>1<\/td>\s*<td>1<\/td>/, "suggested 1, approved 1");
+  const row = text.split("<tr>").slice(1).find((r) => r.includes("Counted Shelf"));
+  assert.match(row, /1 to review/);
+  assert.match(row, /<td>1<\/td>/, "approved 1");
   assert.match(row, /Publish/);
 });
 
@@ -332,7 +333,7 @@ test("Generate: suggestions only, invented ids ignored, out-of-stock books ignor
   await pool.query("UPDATE curated_collection_books SET status = 'approved' WHERE collection_id = $1 AND book_id = $2", [c.id, stock[0].id]);
   await pool.query("UPDATE curated_collection_books SET status = 'rejected' WHERE collection_id = $1 AND book_id = $2", [c.id, stock[1].id]);
   prompts.length = 0;
-  r = await generateSuggestions(pool, c.id, { ask: reply([stock[0].id, stock[1].id, stock[2].id]) });
+  r = await generateSuggestions(pool, c.id, { mode: "full", ask: reply([stock[0].id, stock[1].id, stock[2].id]) });
   assert.equal(r.ok, true);
   assert.equal(r.added, 1, "only the new book is added");
   assert.equal(await status(c.id, stock[0].id), "approved");
@@ -343,10 +344,10 @@ test("Generate: suggestions only, invented ids ignored, out-of-stock books ignor
   // Nothing is published by generating.
   assert.equal((await bySlug(c.slug)).published, false);
 
-  // A third run with nothing left to look at asks nothing.
+  // "Add new books" with nothing added since the last build asks nothing.
   let calls = 0;
-  await generateSuggestions(pool, c.id, { ask: async () => { calls += 1; return { text: "[]", reason: null }; }, maxCandidates: 300 });
-  assert.equal(calls, 1, "the stock books of other tests are still new to this collection, so the AI is asked once");
+  const again = await generateSuggestions(pool, c.id, { ask: async () => { calls += 1; return { text: "[]", reason: null }; } });
+  assert.deepEqual([again.ok, again.nothingNew, calls], [true, true, 0]);
 });
 
 test("Writing suggestions never overwrites an existing decision, even if the same book comes back", async () => {
@@ -592,4 +593,180 @@ test("the French Browse row and collection page carry none of the English from t
   }
   const en = rowOf((await get("/books.html")).text);
   for (const p of own) assert.ok(en.includes(p.en));
+});
+
+
+// ---------- rebuilding as new books come in ----------
+
+const { generateSuggestions, updateAllCollections } = require("../../src/lib/collectionSuggestions");
+const okAsk = (log, ids = () => []) => async (prompt) => { log.push(prompt); return { text: JSON.stringify(ids(prompt).map((id) => ({ id, reason: "fits" }))), reason: null }; };
+const idsIn = (prompt) => (prompt.match(/^\d+(?= \| )/gm) || []).map(Number);
+const lastBuilt = async (c) => (await bySlug(c.slug)).last_generated_at;
+
+test("Add new books sends ONLY books added since the last build; a never-built collection sends all in stock", async () => {
+  const c = await freshCollection();
+  const old = await newBook(`Old ${uniq()}`);
+  const log = [];
+  let r = await generateSuggestions(pool, c.id, { ask: okAsk(log, () => []) });
+  assert.equal(r.ok, true);
+  assert.ok(idsIn(log[0]).includes(old.id), "never built: every book in stock is considered");
+  const built = await lastBuilt(c);
+  assert.ok(built, "last built is set after a successful build");
+
+  const fresh = await newBook(`Fresh ${uniq()}`);
+  log.length = 0;
+  r = await generateSuggestions(pool, c.id, { ask: okAsk(log, (p) => idsIn(p)) });
+  assert.deepEqual(idsIn(log[0]), [fresh.id], `only the book that arrived after the last build is sent (old=${old.id}, built=${built.toISOString()})`);
+  assert.equal(r.added, 1);
+  assert.equal(await status(c.id, fresh.id), "suggested");
+  assert.ok((await lastBuilt(c)) > built, "last built moves forward");
+
+  // A second copy of an OLD book arriving later makes that book new again.
+  await pool.query("INSERT INTO book_copies (book_id, status, price, condition) VALUES ($1, 'in_stock', 5, 'good')", [old.id]);
+  log.length = 0;
+  await generateSuggestions(pool, c.id, { ask: okAsk(log, () => []) });
+  assert.deepEqual(idsIn(log[0]), [old.id]);
+});
+
+test("Nothing new: no AI call, the last built time stays, and a book sold again is not 'new'", async () => {
+  const c = await freshCollection();
+  await newBook(`Seen ${uniq()}`);
+  await generateSuggestions(pool, c.id, { ask: okAsk([]) });
+  const built = await lastBuilt(c);
+  let calls = 0;
+  const r = await generateSuggestions(pool, c.id, { ask: async () => { calls += 1; return { text: "[]", reason: null }; } });
+  assert.deepEqual([r.ok, r.nothingNew, r.added, calls], [true, true, 0, 0]);
+  assert.deepEqual(await lastBuilt(c), built);
+  // A new book that is already sold does not count either.
+  await newBook(`Sold later ${uniq()}`, { copyStatus: "sold" });
+  assert.equal((await generateSuggestions(pool, c.id, { ask: okAsk([]) })).nothingNew, true);
+});
+
+test("the last built time changes only when a build worked", async () => {
+  const c = await freshCollection();
+  await newBook(`Fail ${uniq()}`);
+  for (const reason of ["credit", "cap", "timeout", "error"]) {
+    const r = await generateSuggestions(pool, c.id, { ask: async () => ({ text: null, reason }) });
+    assert.equal(r.ok, false);
+    assert.equal(await lastBuilt(c), null, `still never built after ${reason}`);
+  }
+  assert.equal((await generateSuggestions(pool, c.id, { ask: async () => ({ text: "not json", reason: null }) })).ok, true);
+  assert.ok(await lastBuilt(c), "an answer came back (even an empty one): that is a build");
+  const built = await lastBuilt(c);
+  await newBook(`Fail again ${uniq()}`);
+  await generateSuggestions(pool, c.id, { ask: async () => ({ text: null, reason: "timeout" }) });
+  assert.deepEqual(await lastBuilt(c), built, "a failed run keeps the old time, so those books are looked at next time");
+});
+
+test("a rebuild never changes or removes an approved or rejected decision, and new suggestions are not public even on a published collection", async () => {
+  const [a, r2, w] = [await newBook(`Dec A ${uniq()}`), await newBook(`Dec R ${uniq()}`), await newBook(`Dec W ${uniq()}`)];
+  const c = await publishedShelf([[a, "approved"], [r2, "rejected"]]);
+  const before = (await pool.query("SELECT book_id, status, reason, position FROM curated_collection_books WHERE collection_id = $1 ORDER BY book_id", [c.id])).rows;
+  const log = [];
+  for (const mode of ["new", "full"]) {
+    await generateSuggestions(pool, c.id, { mode, ask: okAsk(log, (p) => idsIn(p)) });
+  }
+  const after = (await pool.query("SELECT book_id, status, reason, position FROM curated_collection_books WHERE collection_id = $1 AND book_id = ANY($2) ORDER BY book_id", [c.id, [a.id, r2.id]])).rows;
+  assert.deepEqual(after, before);
+  assert.equal(await status(c.id, w.id), "suggested", "the AI's pick is waiting for review");
+  assert.equal((await bySlug(c.slug)).published, true, "the collection stays published");
+  const page = (await get(`/collections/${c.slug}`)).text;
+  assert.ok(page.includes(a.title), "the approved book is shown");
+  assert.ok(!page.includes(w.title) && !page.includes(r2.title), "a suggested or rejected book never is");
+  assert.ok(!rowOf((await get("/books.html")).text).includes(w.title));
+});
+
+test("Full rebuild looks at every book in stock (not only new ones) and keeps the decisions", async () => {
+  const c = await freshCollection();
+  await newBook(`Before ${uniq()}`);
+  await generateSuggestions(pool, c.id, { ask: okAsk([]) });
+  const log = [];
+  await generateSuggestions(pool, c.id, { ask: okAsk(log) });
+  assert.equal(log.length, 0, "new mode: nothing new");
+  const r = await generateSuggestions(pool, c.id, { mode: "full", ask: okAsk(log, (p) => idsIn(p).slice(0, 1)) });
+  assert.equal(log.length >= 1, true);
+  assert.ok(r.considered >= 1 && r.added >= 1);
+});
+
+test("Update all continues past a failing collection and reports each one", async () => {
+  await pool.query("UPDATE curated_collections SET last_generated_at = NULL");
+  const one = await freshCollection({ title_en: "UA One" });
+  const two = await freshCollection({ title_en: "UA Two" });
+  const three = await freshCollection({ title_en: "UA Three" });
+  const never = await freshCollection({ title_en: "UA Never" });
+  await pool.query("UPDATE curated_collections SET sort_order = id WHERE id = ANY($1)", [[one.id, two.id, three.id, never.id]]);
+  await pool.query("UPDATE curated_collections SET last_generated_at = now() - interval '1 day' WHERE id = ANY($1)", [[one.id, two.id, three.id]]);
+  const book = await newBook(`UA book ${uniq()}`);
+  const asked = [];
+  const ask = async (prompt) => {
+    asked.push(prompt);
+    if (prompt.includes("SHELF: UA One")) return { text: null, reason: "timeout" };
+    if (prompt.includes("SHELF: UA Two")) return { text: JSON.stringify([{ id: book.id, reason: "fits" }]), reason: null };
+    return { text: "[]", reason: null };
+  };
+  const out = await updateAllCollections(pool, { ask });
+  const mine = Object.fromEntries(out.filter((r) => [one.id, two.id, three.id, never.id].includes(r.id)).map((r) => [r.title, r]));
+  assert.equal(mine["UA One"].status, "failed");
+  assert.match(mine["UA One"].error, /too long/);
+  assert.equal(mine["UA Two"].status, "added");
+  assert.equal(mine["UA Two"].added, 1);
+  assert.equal(mine["UA Three"].status, "added", "the run went on after the failure");
+  assert.equal(mine["UA Never"].status, "never");
+  assert.equal(await status(two.id, book.id), "suggested");
+  assert.equal(await lastBuilt(one) < new Date(Date.now() - 3600e3), true, "the failed one keeps its old time");
+  // Second press: everything is up to date.
+  asked.length = 0;
+  const again = await updateAllCollections(pool, { ask: async () => ({ text: "[]", reason: null }) });
+  assert.ok(again.filter((r) => [two.id, three.id].includes(r.id)).every((r) => r.status === "nothing"));
+  // The time limit stops starting new collections and says so.
+  const slow = await updateAllCollections(pool, { ask, maxMs: -1, now: () => 0 });
+  assert.ok(slow.filter((r) => r.status !== "never").every((r) => r.status === "nothing" || r.status === "later" || r.status === "failed" || r.status === "added"));
+});
+
+test("the list shows Last built, the review badge and 'N books were added since the last build'", async () => {
+  const c = await freshCollection({ title_en: "Badge Shelf" });
+  const [a, b] = [await newBook(`Badge A ${uniq()}`), await newBook(`Badge B ${uniq()}`)];
+  await addRow(c.id, a.id, "suggested", "x", 1);
+  await addRow(c.id, b.id, "suggested", "x", 2);
+  await pool.query("UPDATE curated_collections SET last_generated_at = now() - interval '2 days' WHERE id = $1", [c.id]);
+  await newBook(`Badge new ${uniq()}`);
+  await newBook(`Badge new two ${uniq()}`);
+  const { text } = await get("/admin/collections", { jar: adminJar });
+  assert.match(text, /New books since the last build/);
+  assert.match(text, /Badge Shelf<\/a>: \d+ books were added since the last build/);
+  const row = text.split("<tr>").slice(1).find((r) => r.includes("Badge Shelf"));
+  assert.match(row, /2 to review/);
+  assert.match(row, /new books since/);
+  const never = text.split("<tr>").slice(1).find((r) => r.includes("The Literary Apothecary"));
+  assert.match(never, /Never built/);
+  const edit = (await get(`/admin/collections/${c.id}`, { jar: adminJar })).text;
+  assert.match(edit, /Last built:/);
+  assert.match(edit, /Add new books/);
+  assert.match(edit, /Full rebuild \(re-evaluate all books\)/);
+});
+
+test("Update all, Add new books and Full rebuild: admin only, CSRF, confirm step, friendly result and audit entry", async () => {
+  const c = await freshCollection();
+  await pool.query("UPDATE curated_collections SET last_generated_at = now() - interval '1 day' WHERE id = $1", [c.id]);
+  await newBook(`Route ${uniq()}`);
+  const memberJar = await loginJar(await createUser({ member: true }));
+  for (const p of ["/admin/collections/update-all", `/admin/collections/${c.id}/rebuild`]) {
+    assert.equal((await adminPost(p, {}, { jar: memberJar })).res.status, 403, `${p}: member refused`);
+    assert.equal((await adminPost(p, {}, { csrf: false })).res.status, 403, `${p}: no CSRF token refused`);
+  }
+  assert.equal((await get(`/admin/collections/${c.id}/rebuild`, { jar: memberJar })).res.status, 403);
+  const confirmPage = await get(`/admin/collections/${c.id}/rebuild`, { jar: adminJar });
+  assert.match(confirmPage.text, /Are you sure\?/);
+  assert.match(confirmPage.text, /Your Approve and Reject choices are kept/);
+
+  let r = await adminPost(`/admin/collections/${c.id}/rebuild`, {});
+  assert.match(notice(r.text), /not confirmed/);
+  r = await adminPost(`/admin/collections/${c.id}/rebuild`, { confirm: "yes" });
+  assert.match(notice(r.text), /AI helper is not set up/, "no key here: friendly, nothing changes");
+
+  r = await adminPost("/admin/collections/update-all");
+  assert.match(notice(r.text), /could not be updated/);
+  assert.match(r.text, new RegExp(`${c.title_en}: FAILED, The AI helper is not set up`));
+  const log = (await pool.query("SELECT action FROM admin_audit_log WHERE action LIKE 'collection.%' ORDER BY id DESC LIMIT 10")).rows.map((x) => x.action);
+  assert.ok(log.includes("collection.update_all") && log.includes("collection.full_rebuild"));
 });

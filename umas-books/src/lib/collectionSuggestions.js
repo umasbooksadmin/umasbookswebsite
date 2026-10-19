@@ -1,7 +1,9 @@
 // "Generate suggestions" for a curated collection (admin only, /admin/collections/:id).
 //
 //   1. candidates(): the in-stock books that are not yet in this collection (so a second run never re-suggests a book the
-//      admin already approved, rejected or left waiting), cut to a bounded list: the MAX_CANDIDATES most relevant to the
+//      admin already approved, rejected or left waiting), and, for "Add new books" (mode 'new'), only those with a copy that
+//      entered inventory (book_copies.created_at) after the collection's last build (a never-built collection considers all
+//      of them; mode 'full' always does), cut to a bounded list: the MAX_CANDIDATES most relevant to the
 //      collection by keyword overlap, topped up with a stable pseudo-random spread when little matches.
 //   2. buildPrompt(): the collection's own guidance + that list, in batches of BATCH_SIZE books, with the standing rules
 //      (choose only from the list, never invent a book, no major spoilers, obey the collection's guidance).
@@ -55,15 +57,17 @@ function score(book, words) {
 }
 
 // -> [{ id, title, authors, categories, description }] (at most `max`), best first.
-async function candidates(pool, collection, { max = MAX_CANDIDATES } = {}) {
+// since: a Date / ISO string: only books with an in-stock copy added after it; null: every in-stock book.
+async function candidates(pool, collection, { max = MAX_CANDIDATES, since = null } = {}) {
   const { rows } = await pool.query(
     `SELECT b.id, b.title, b.authors, b.categories, left(COALESCE(b.description, ''), 400) AS description
      FROM books b
      WHERE ${IN_STOCK_SQL()}
        AND NOT EXISTS (SELECT 1 FROM curated_collection_books cb WHERE cb.collection_id = $1 AND cb.book_id = b.id)
+       AND ($3::timestamptz IS NULL OR EXISTS (SELECT 1 FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock' AND c.created_at > $3))
      ORDER BY b.id
      LIMIT $2`,
-    [collection.id, MAX_POOL_ROWS]
+    [collection.id, MAX_POOL_ROWS, since]
   );
   const words = keywordsOf(collection);
   return rows
@@ -156,14 +160,20 @@ async function insertSuggestions(pool, collectionId, picks) {
 }
 
 // The whole run. `ask` is the AI call (default: the shared client); tests pass a fake.
-// -> { ok: true, added, considered } | { ok: false, error, reason }. Never throws for an AI problem.
-async function generateSuggestions(pool, collectionId, { ask = claudeRequest, maxCandidates = MAX_CANDIDATES, batchSize = BATCH_SIZE } = {}) {
-  const { rows } = await pool.query("SELECT id, title_en, description_en, curation_prompt FROM curated_collections WHERE id = $1", [collectionId]);
+//   mode 'new'  (default) "Add new books": only books added since the last build (all books if never built)
+//   mode 'full' "Full rebuild": every in-stock book not already in the collection (decisions are kept either way)
+// The "last built" time (last_generated_at) is set ONLY when at least one AI answer was usable, to the moment the run
+// STARTED (a book added during the run is looked at next time). Nothing new to look at is not a build: the time stays.
+// -> { ok: true, added, considered, nothingNew?, partial? } | { ok: false, error, reason }. Never throws for an AI problem.
+async function generateSuggestions(pool, collectionId, { ask = claudeRequest, maxCandidates = MAX_CANDIDATES, batchSize = BATCH_SIZE, mode = "new" } = {}) {
+  const { rows } = await pool.query("SELECT id, title_en, description_en, curation_prompt, last_generated_at::text AS last_built_text, now()::text AS started_text FROM curated_collections WHERE id = $1", [collectionId]);
   const collection = rows[0];
   if (!collection) return { ok: false, error: "That collection does not exist.", reason: "missing" };
 
-  const books = await candidates(pool, collection, { max: maxCandidates });
-  if (!books.length) return { ok: true, added: 0, considered: 0 };
+  // Times travel as text: a JavaScript Date keeps only milliseconds, and a copy added in the same millisecond would look new.
+  const since = mode === "full" ? null : collection.last_built_text;
+  const books = await candidates(pool, collection, { max: maxCandidates, since });
+  if (!books.length) return { ok: true, added: 0, considered: 0, nothingNew: true };
 
   const batches = [];
   for (let i = 0; i < books.length; i += batchSize) batches.push(books.slice(i, i + batchSize));
@@ -181,12 +191,33 @@ async function generateSuggestions(pool, collectionId, { ask = claudeRequest, ma
   }
   let added = 0;
   for (const a of worked) added += await insertSuggestions(pool, collectionId, a.picks);
-  await pool.query("UPDATE curated_collections SET last_generated_at = now(), updated_at = now() WHERE id = $1", [collectionId]);
+  await pool.query("UPDATE curated_collections SET last_generated_at = $2::timestamptz, updated_at = now() WHERE id = $1", [collectionId, collection.started_text]);
   const partial = answers.length - worked.length;
   return { ok: true, added, considered: books.length, partial };
 }
 
+// "Update all collections": "Add new books" for every collection that has been built before, one after the other.
+// One collection failing never stops the others; each gets its own line. A collection never built is left for its own
+// button (building all 19 at once would be 50+ paid calls). Stops starting new collections after maxMs (a web request must
+// not run for minutes): the rest are reported, and pressing the button again continues.
+// -> [{ id, title, status: 'added' | 'nothing' | 'failed' | 'never' | 'later', added?, considered?, error? }]
+async function updateAllCollections(pool, { ask = claudeRequest, maxMs = 80000, now = Date.now, ...opts } = {}) {
+  const { rows } = await pool.query("SELECT id, title_en, last_generated_at FROM curated_collections ORDER BY sort_order, id");
+  const t0 = now();
+  const out = [];
+  for (const c of rows) {
+    if (!c.last_generated_at) { out.push({ id: c.id, title: c.title_en, status: "never" }); continue; }
+    if (now() - t0 > maxMs) { out.push({ id: c.id, title: c.title_en, status: "later" }); continue; }
+    let r;
+    try { r = await generateSuggestions(pool, c.id, { ...opts, ask, mode: "new" }); } catch (err) { r = { ok: false, error: "Unexpected error: " + String(err.message).slice(0, 120) }; }
+    if (!r.ok) out.push({ id: c.id, title: c.title_en, status: "failed", error: r.error });
+    else if (r.nothingNew) out.push({ id: c.id, title: c.title_en, status: "nothing" });
+    else out.push({ id: c.id, title: c.title_en, status: "added", added: r.added, considered: r.considered });
+  }
+  return out;
+}
+
 module.exports = {
   MAX_CANDIDATES, BATCH_SIZE, MAX_PICKS_PER_BATCH, keywordsOf, candidates, buildPrompt, parseSuggestions, explainFailure,
-  insertSuggestions, generateSuggestions,
+  insertSuggestions, generateSuggestions, updateAllCollections,
 };

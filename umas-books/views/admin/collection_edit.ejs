@@ -1,6 +1,7 @@
 <%- include('../partials/admin_header', { title: collection.title_en, active: active, pageTitle: collection.title_en, pageSub: 'Edit the collection, ask the AI for suggestions, then approve the books that fit and publish.' }) %>
 <% if (flash && flash.notice) { %><div class="notice-box" role="status"><%= flash.notice %></div><% } %>
 <% if (flash && flash.error) { %><div class="error-box" role="alert"><%= flash.error %></div><% } %>
+<% if (flash && flash.lines && flash.lines.length) { %><div class="card"><ul class="small"><% flash.lines.forEach(function (l) { %><li><%= l %></li><% }) %></ul></div><% } %>
 <p><a href="/admin/collections">&larr; All collections</a></p>
 
 <div class="card">
@@ -40,12 +41,13 @@
 
 <div class="card stack">
   <div class="section-title">Suggestions</div>
-  <p class="small muted">The AI looks at books in stock that are not yet in this collection and proposes the ones that fit. Your earlier choices are kept: running it again only adds new suggestions. It counts toward the daily AI limit.
-    <% if (collection.last_generated_at) { %>Last run: <%= formatDateTime(collection.last_generated_at) %>.<% } %></p>
+  <p class="small"><strong>Last built:</strong> <%= collection.last_generated_at ? formatDateTime(collection.last_generated_at) : 'never' %><% if (collection.last_generated_at) { %> &middot; <%= newBooks %> book<%= newBooks === 1 ? ' was' : 's were' %> added to the shop since then<% } %></p>
+  <p class="small muted"><%= collection.last_generated_at ? 'Add new books' : 'Generate suggestions' %> asks the AI about <%= collection.last_generated_at ? 'the books added since the last build' : 'the books in stock' %> and adds the ones that fit as suggestions. Your earlier choices are never changed or removed, and nothing is shown to customers until you approve it (also for a collection that is already published). It counts toward the daily AI limit.</p>
   <form method="post" action="/admin/collections/<%= collection.id %>/generate">
     <%- include('../partials/csrf_field') %>
-    <button class="btn" type="submit">Generate suggestions</button>
+    <button class="btn" type="submit"><%= collection.last_generated_at ? 'Add new books' : 'Generate suggestions' %></button>
   </form>
+  <p class="small"><a href="/admin/collections/<%= collection.id %>/rebuild">Full rebuild (re-evaluate all books)</a></p>
 </div>
 
 <div class="card">

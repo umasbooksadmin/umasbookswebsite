@@ -98,11 +98,13 @@ async function seed(databaseUrl, creds) {
   const awardId = await book({ title: "E2E Sample Award Winner", author: "Sample Author", categories: "Fiction" }, [{ price: 6 }], [{ label: "Booker Prize", year: 2019 }]);
   await book({ isbn: "9780747532743", title: "E2E Sample New Book", author: "Third Author", binding: "hardcover" }, [{ condition: "new", price: 12, publisherPrice: 12 }]);
 
-  // Curated collections (G91 to G95): one published with two approved books (the migration seeds all 19 unpublished);
+  // Curated collections (G91 to G95): four published with two approved books (the migration seeds all 19 unpublished);
   // "The Art of Getting Lost" stays unpublished, so its address is a 404.
-  const { rows: col } = await db.query("SELECT id FROM curated_collections WHERE slug = 'paris-is-always-a-good-idea'");
-  await db.query("INSERT INTO curated_collection_books (collection_id, book_id, status, reason, position) VALUES ($1,$2,'approved','Sample',1), ($1,$3,'approved','Sample',2)", [col[0].id, gatsbyId, awardId]);
-  await db.query("UPDATE curated_collections SET published = TRUE WHERE id = $1", [col[0].id]);
+  const { rows: cols } = await db.query("SELECT id, slug FROM curated_collections WHERE slug <> 'the-art-of-getting-lost' ORDER BY sort_order LIMIT 4");
+  for (const c of cols) {
+    await db.query("INSERT INTO curated_collection_books (collection_id, book_id, status, reason, position) VALUES ($1,$2,'approved','Sample',1), ($1,$3,'approved','Sample',2)", [c.id, gatsbyId, awardId]);
+    await db.query("UPDATE curated_collections SET published = TRUE WHERE id = $1", [c.id]);
+  }
 
   // Phone layout (G82, A102): an unbroken 90-letter title, and a 41-letter word with a web address in the description.
   const longTitle = `E2Ephone${"x".repeat(82)}`;

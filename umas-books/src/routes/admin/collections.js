@@ -11,7 +11,7 @@ const { audit } = require("../../lib/audit");
 const { setFlash, takeFlash } = require("../../lib/flash");
 const { validateIdParams } = require("../../middleware/idParams");
 const { setPublished, saveDecisions, IN_STOCK_SQL } = require("../../lib/collections");
-const { generateSuggestions } = require("../../lib/collectionSuggestions");
+const { generateSuggestions, updateAllCollections } = require("../../lib/collectionSuggestions");
 const { translateEmptyFrench } = require("../../lib/collectionTranslate");
 const { clearSitemapCache } = require("../seo");
 
@@ -40,13 +40,87 @@ router.get("/admin/collections", requireAdmin, async (req, res) => {
     `SELECT cc.id, cc.slug, cc.title_en, cc.sort_order, cc.published, cc.last_generated_at,
             COUNT(*) FILTER (WHERE cb.status = 'suggested')::int AS suggested,
             COUNT(*) FILTER (WHERE cb.status = 'approved')::int AS approved,
-            COUNT(*) FILTER (WHERE cb.status = 'approved' AND ${IN_STOCK_SQL("cb.book_id")})::int AS approved_in_stock
+            COUNT(*) FILTER (WHERE cb.status = 'approved' AND ${IN_STOCK_SQL("cb.book_id")})::int AS approved_in_stock,
+            (SELECT COUNT(*)::int FROM books b
+             WHERE ${IN_STOCK_SQL()}
+               AND NOT EXISTS (SELECT 1 FROM curated_collection_books x WHERE x.collection_id = cc.id AND x.book_id = b.id)
+               AND (cc.last_generated_at IS NULL OR EXISTS (SELECT 1 FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock' AND c.created_at > cc.last_generated_at))) AS new_books
      FROM curated_collections cc
      LEFT JOIN curated_collection_books cb ON cb.collection_id = cc.id
      GROUP BY cc.id
      ORDER BY cc.sort_order, cc.id`
   );
   res.render("admin/collections", { active: "collections", collections: rows, flash: takeFlash(req, FLASH) });
+});
+
+// "Generate suggestions" and "Translate to French" call the paid AI: 10 a minute per admin (like the other AI buttons),
+// plus the shared daily cap inside the call. A refusal is shown on the same page, not as raw JSON.
+const aiLimit = aiAdminLimiter({
+  handler: async (req, res) => {
+    await flash(req, { error: AI_LIMIT_MESSAGE });
+    res.redirect(303, `/admin/collections/${Number(req.params.id) || 0}`);
+  },
+});
+
+// The flash for one build result (Add new books / Full rebuild).
+function resultFlash(result, what) {
+  if (!result.ok) return { error: result.error };
+  if (result.nothingNew) return { notice: `${what}: Nothing new. No book in stock is waiting to be looked at for this collection.` };
+  return {
+    notice: `${what}: ${result.added} new suggestion${result.added === 1 ? "" : "s"} added from ${result.considered} book${result.considered === 1 ? "" : "s"} looked at. Nothing is shown to customers until you approve books${result.added ? " (they are waiting for your review below)" : ""}.` +
+      (result.partial ? " Part of the list could not be checked this time: run it again later for the rest." : ""),
+  };
+}
+
+// "Update all collections" (a fixed path: registered before the /:id routes) and the "Full rebuild" confirm step.
+// Both call the paid AI: 10 a minute per admin, plus the shared daily cap inside each call.
+const aiLimitList = aiAdminLimiter({
+  handler: async (req, res) => {
+    await flash(req, { error: AI_LIMIT_MESSAGE });
+    res.redirect(303, "/admin/collections");
+  },
+});
+
+const summaryLine = (r) => {
+  switch (r.status) {
+    case "added": return `${r.title}: ${r.added} new suggestion${r.added === 1 ? "" : "s"} to review (${r.considered} new book${r.considered === 1 ? "" : "s"} looked at)`;
+    case "nothing": return `${r.title}: Nothing new`;
+    case "never": return `${r.title}: never built yet, use its own Generate suggestions button`;
+    case "later": return `${r.title}: not reached this time (press Update all collections again)`;
+    default: return `${r.title}: FAILED, ${r.error}`;
+  }
+};
+
+router.post("/admin/collections/update-all", requireAdmin, aiLimitList, async (req, res) => {
+  const results = await updateAllCollections(pool);
+  const added = results.reduce((n, r) => n + (r.added || 0), 0);
+  const failed = results.filter((r) => r.status === "failed").length;
+  await audit(req, { action: "collection.update_all", detail: `${added} suggestions added, ${failed} failed` });
+  const lines = results.filter((r) => r.status !== "never").map(summaryLine);
+  await flash(req, {
+    [failed ? "error" : "notice"]: `Update all collections: ${added} new suggestion${added === 1 ? "" : "s"} waiting for your review${failed ? `, ${failed} collection${failed === 1 ? "" : "s"} could not be updated` : ""}. Nothing is shown to customers until you approve books.`,
+    lines,
+  });
+  res.redirect(303, "/admin/collections");
+});
+
+router.get("/admin/collections/:id/rebuild", requireAdmin, async (req, res) => {
+  const collection = await loadCollection(Number(req.params.id));
+  if (!collection) return res.status(404).render("404");
+  res.render("admin/collection_rebuild", { active: "collections", collection });
+});
+
+router.post("/admin/collections/:id/rebuild", requireAdmin, aiLimit, async (req, res) => {
+  const id = Number(req.params.id);
+  if (!(await loadCollection(id))) return res.status(404).render("404");
+  if (req.body.confirm !== "yes") {
+    await flash(req, { error: "Full rebuild was not confirmed, so nothing was done." });
+    return redirectBack(res, id);
+  }
+  const result = await generateSuggestions(pool, id, { mode: "full" });
+  await audit(req, { action: "collection.full_rebuild", targetType: "collection", targetId: id, detail: result.ok ? `${result.added} added` : `failed: ${result.reason}` });
+  await flash(req, resultFlash(result, "Full rebuild"));
+  redirectBack(res, id);
 });
 
 router.get("/admin/collections/:id", requireAdmin, async (req, res) => {
@@ -64,7 +138,11 @@ router.get("/admin/collections/:id", requireAdmin, async (req, res) => {
   const form = f && f.form ? { ...collection, ...f.form } : collection;
   const counts = { suggested: 0, approved: 0, rejected: 0 };
   for (const b of books) counts[b.status] += 1;
-  res.render("admin/collection_edit", { active: "collections", collection, form, books, counts, flash: f });
+  const { rows: nb } = await pool.query(
+    "SELECT COUNT(DISTINCT book_id)::int AS n FROM book_copies WHERE status = 'in_stock' AND $1::timestamptz IS NOT NULL AND created_at > $1",
+    [collection.last_generated_at]
+  );
+  res.render("admin/collection_edit", { active: "collections", collection, form, books, counts, flash: f, newBooks: nb[0].n });
 });
 
 router.post("/admin/collections/:id", requireAdmin, async (req, res) => {
@@ -139,30 +217,12 @@ router.post("/admin/collections/:id/review", requireAdmin, async (req, res) => {
   redirectBack(res, id);
 });
 
-// "Generate suggestions" and "Translate to French" call the paid AI: 10 a minute per admin (like the other AI buttons),
-// plus the shared daily cap inside the call. A refusal is shown on the same page, not as raw JSON.
-const aiLimit = aiAdminLimiter({
-  handler: async (req, res) => {
-    await flash(req, { error: AI_LIMIT_MESSAGE });
-    res.redirect(303, `/admin/collections/${Number(req.params.id) || 0}`);
-  },
-});
-
 router.post("/admin/collections/:id/generate", requireAdmin, aiLimit, async (req, res) => {
   const id = Number(req.params.id);
   if (!(await loadCollection(id))) return res.status(404).render("404");
   const result = await generateSuggestions(pool, id);
   await audit(req, { action: "collection.generate", targetType: "collection", targetId: id, detail: result.ok ? `${result.added} added` : `failed: ${result.reason}` });
-  if (!result.ok) {
-    await flash(req, { error: result.error });
-  } else if (!result.considered) {
-    await flash(req, { notice: "No new books to look at: every book in stock is already in this collection (suggested, approved or rejected)." });
-  } else {
-    await flash(req, {
-      notice: `${result.added} new suggestion${result.added === 1 ? "" : "s"} added from ${result.considered} books looked at. Nothing is shown to customers until you approve books and publish.` +
-        (result.partial ? " Part of the list could not be checked this time: generate again later for the rest." : ""),
-    });
-  }
+  await flash(req, resultFlash(result, "Add new books"));
   redirectBack(res, id);
 });
 

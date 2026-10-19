@@ -1,0 +1,18 @@
+<%- include('../partials/admin_header', { title: 'Full rebuild', active: active, pageTitle: 'Full rebuild: ' + collection.title_en, pageSub: 'Re-evaluate every book in stock for this collection.' }) %>
+<p><a href="/admin/collections/<%= collection.id %>">&larr; Back to the collection</a></p>
+<div class="card stack">
+  <div class="section-title">Are you sure?</div>
+  <p>A full rebuild asks the AI about <strong>every book in stock</strong> that is not already in this collection, not only the new ones. It can use several AI calls (up to 3) from the daily limit.</p>
+  <ul class="small">
+    <li>Your Approve and Reject choices are kept exactly as they are, and books already in the list are not asked about again.</li>
+    <li>New suggestions arrive as <strong>waiting for review</strong>: customers see nothing new until you approve.</li>
+    <li>If the AI cannot answer, nothing changes and the &ldquo;last built&rdquo; date stays as it is.</li>
+  </ul>
+  <form method="post" action="/admin/collections/<%= collection.id %>/rebuild">
+    <%- include('../partials/csrf_field') %>
+    <input type="hidden" name="confirm" value="yes">
+    <button class="btn" type="submit">Yes, run the full rebuild</button>
+    <a class="btn btn-outline" href="/admin/collections/<%= collection.id %>">Cancel</a>
+  </form>
+</div>
+<%- include('../partials/admin_footer') %>
