@@ -355,6 +355,19 @@ s.test("A12 (must) a New book needs the publisher's price and may be at most 5% 
   assert.equal(new URL(ctx.page.url()).pathname, "/admin/inventory/new/again", "still on the form: nothing was saved");
 });
 
+s.test("A12a (must) a New book published over 2 years ago: the publisher's price is optional (nothing is saved)", { as: "admin" }, async (ctx) => {
+  await admin(ctx, "/admin/inventory/new");
+  await ctx.page.select("#condition", "new");
+  const shown = async (sel) => ctx.page.$eval(sel, (e) => !e.hidden);
+  await ctx.page.$eval("#publishedYear", (i) => { i.value = String(new Date().getFullYear()); i.dispatchEvent(new Event("input", { bubbles: true })); });
+  assert.ok(await shown("[data-pp-default]"), "a recent year keeps the fixed-price note");
+  assert.ok(await shown("label[for='publisherPrice'] [data-pp-required]"), "a recent year keeps the required star");
+  await ctx.page.$eval("#publishedYear", (i) => { i.value = String(new Date().getFullYear() - 3); i.dispatchEvent(new Event("input", { bubbles: true })); });
+  assert.ok(await shown("[data-pp-old]"), "an old year shows the optional note");
+  assert.ok(!(await shown("label[for='publisherPrice'] [data-pp-required]")), "an old year drops the required star");
+  has(await ctx.page.$eval("[data-pp-old]", (e) => e.textContent), /Published more than 2 years ago: the publisher's price is optional/);
+});
+
 s.test("A14 (must) saving a book with an empty title says 'Title is required.' (nothing is saved)", { as: "admin" }, async (ctx) => {
   await admin(ctx, "/admin/inventory/new");
   await ctx.page.$eval("form[method='post'][action='/admin/inventory']", (f) => { f.noValidate = true; });
