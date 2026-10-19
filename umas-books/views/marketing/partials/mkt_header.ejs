@@ -22,13 +22,15 @@ const _seo = typeof locals.seoUrls === 'function' ? locals.seoUrls() : null;
 const _pageUrl = _seo ? _seo.canonical : (_siteUrl ? _siteUrl + _path : '');
 const _alternates = _seo ? _seo.alternates : (_pageUrl ? [{ hreflang: 'x-default', href: _pageUrl }] : []);
 const _ogImage = _siteUrl ? _siteUrl + '/assets/img/logo-stamp-1280x720.png' : '';
+// Absolute paths: the header also renders on nested pages (/collections/<slug>), where a relative 'books.html'
+// would resolve to /collections/books.html (404). French pages gain /fr via prefixLinks (lib/frUrls.js).
 const nav = [
   { key: 'home', href: '/', i18n: 'nav.home', label: 'Home' },
-  { key: 'books', href: 'books.html', i18n: 'nav.books', label: 'Browse Books' },
-  { key: 'programs', href: 'immersion.html', i18n: 'nav.programs', label: 'English Programs' },
+  { key: 'books', href: '/books.html', i18n: 'nav.books', label: 'Browse Books' },
+  { key: 'programs', href: '/immersion.html', i18n: 'nav.programs', label: 'English Programs' },
   // Straight to the live calendar from inside the app (partials/header.ejs);
   // from here, a guest sees the marketing teaser page first.
-  { key: 'events', href: 'events.html', i18n: 'nav.events', label: 'Events' },
+  { key: 'events', href: '/events.html', i18n: 'nav.events', label: 'Events' },
 ];
 %>
 <!doctype html>
