@@ -2,7 +2,7 @@
 // The Browse Books collection buttons in a REAL browser (headless Chrome through puppeteer, the same one the e2e
 // suite and scripts/phone-overflow-audit.js use) against the real app and a throwaway database:
 //   - shown on the plain view, hidden while a genre, a search or ?new=1 is showing (and shown again after Back),
-//   - on a 375 px phone: about three to a row, every button at least 44 px, no sideways scrolling, lazy pictures,
+//   - on a 375 px phone: one sideways-scrolling strip like the genres, every button at least 44 px, no sideways scrolling, lazy pictures,
 //   - the buttons and the collection page work with JavaScript switched off,
 //   - the French page.
 // Skipped (with a message) when no Chrome can be started on this computer.
@@ -93,18 +93,17 @@ test("the row is shown on the plain view and hidden with a genre, a search or ?n
   });
 });
 
-test("on a 375 px phone the buttons wrap about three to a row, are at least 44 px, and nothing scrolls sideways", async (t) => {
+test("on a 375 px phone the buttons scroll sideways in their own strip like the genres, are at least 44 px, half-size icons, and the page itself does not scroll sideways", async (t) => {
   await withPage(t, async (page) => {
     await go(page, "/books.html");
-    const r = await page.$$eval("#bk-collections .col-btn", (els) => els.map((e) => { const b = e.getBoundingClientRect(); return { top: Math.round(b.top), w: b.width, h: b.height, right: b.right }; }));
+    const r = await page.$$eval("#bk-collections .col-btn", (els) => els.map((e) => { const b = e.getBoundingClientRect(); return { top: Math.round(b.top), w: b.width, h: b.height }; }));
     assert.ok(r.length >= 7);
     assert.ok(r.every((b) => b.w >= 44 && b.h >= 44), "every button is at least 44 x 44 px");
-    assert.equal(r.filter((b) => Math.abs(b.top - r[0].top) < 4).length, 3, "three to a row");
-    assert.ok(r.every((b) => b.right <= 375), "no button runs off the screen");
+    assert.equal(new Set(r.map((b) => b.top)).size, 1, "one scrolling row, like Browse by Genre");
     const sw = await page.evaluate(() => document.documentElement.scrollWidth);
     assert.ok(sw <= 375, `the page is ${sw} px wide on a 375 px screen`);
-    const img = await page.$eval("#bk-collections .col-btn img", (i) => ({ alt: i.getAttribute("alt"), lazy: i.loading, w: i.getAttribute("width"), h: i.getAttribute("height") }));
-    assert.deepEqual(img, { alt: "", lazy: "lazy", w: "120", h: "120" });
+    const img = await page.$eval("#bk-collections .col-btn img", (i) => ({ alt: i.getAttribute("alt"), lazy: i.loading, w: i.getAttribute("width"), h: i.getAttribute("height"), shown: Math.round(i.getBoundingClientRect().width) }));
+    assert.deepEqual(img, { alt: "", lazy: "lazy", w: "60", h: "60", shown: 60 });
   }, { viewport: { width: 375, height: 812, deviceScaleFactor: 2, isMobile: true, hasTouch: true } });
 });
 
@@ -134,7 +133,7 @@ test("a button opens the collection page; the French pages are French from top t
     assert.match(text, /Retour à Parcourir les livres/);
     assert.ok(!/Back to Browse|Cover images come from/.test(text));
     await go(page, "/fr/books.html");
-    assert.match(await page.$eval("#bk-collections", (e) => e.innerText), /Parcourir par collection/);
+    assert.match(await page.$eval("#bk-collections", (e) => e.innerText), /Parcourir\s+par collection/);
     assert.equal(slug && first.href.endsWith(slug), true, "the first button is the first collection in sort order");
   });
 });

@@ -13,24 +13,8 @@
 @media (min-width: 1025px) and (min-height: 480px) {
   .bk-top h1 { font-size: clamp(32px, 6.4vh, 72px); }
 }
-/* Flower right of the title. The negative margins keep the
-   picture from making the title row any taller. */
-.bk-title-row {
-  display: inline-flex; align-items: center; justify-content: center; gap: 1.1em;
-  font-size: clamp(36px, 9.5vw, 74px);
-}
-.bk-title-row h1 { font-size: 1em; position: relative; top: 0.4em; } /* title sits lower than the flower */
-.bk-deco { width: auto; margin: -0.3em 0; flex: 0 0 auto; }
-.bk-flower { height: 1.45em; }
-@media (min-width: 1025px) and (min-height: 480px) {
-  .bk-title-row { font-size: clamp(32px, 6.4vh, 72px); }
-}
-@media (max-width: 600px) {
-  .bk-title-row { gap: 0.4em; }
-  .bk-flower { height: 1.2em; }
-}
 .bk-search {
-  display: flex; max-width: 1020px; margin: 72px auto 0; border: 1px solid #cfcac0; background: var(--panel);
+  display: flex; max-width: 1020px; margin: 0 auto; border: 1px solid #cfcac0; background: var(--panel);
 }
 .bk-search .icon { display: flex; align-items: center; padding: 0 6px 0 16px; color: var(--ink); }
 .bk-search .icon svg { width: 22px; height: 22px; }
@@ -47,8 +31,9 @@
 .bk-search button:hover { background: var(--btn-bg); }
 
 @media (min-width: 1241px) {
-  .bk-search { max-width: min(1020px, calc(100% - 2 * 190px)); margin-top: 84px; }
+  .bk-search { max-width: min(1020px, calc(100% - 2 * 190px)); }
 }
+.bk-search-row { padding: 0 0 8px; }
 
 /* ---------- Browse by genre ---------- */
 .bk-genres { display: flex; align-items: flex-start; gap: 22px; padding: 6px 0 20px; }
@@ -76,7 +61,6 @@
   .bk-genre-list { grid-template-columns: repeat(7, minmax(0, 1fr)); min-height: 186px; /* two rows */ }
 }
 @media (max-width: 760px) {
-  .bk-search { margin-top: 44px; }
   .bk-search .icon { padding-left: 12px; }
   .bk-search button { padding: 0 18px; letter-spacing: 0.1em; }
   .bk-genres { flex-direction: column; gap: 14px; }
@@ -93,7 +77,7 @@
 }
 
 /* ---------- Search results ---------- */
-.bk-results { padding: 10px 0 34px; }
+.bk-results { padding: 28px 0 34px; }
 .bk-results[hidden] { display: none; }
 .bk-results-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
 .bk-results-head h2 { font-size: 32px; }
