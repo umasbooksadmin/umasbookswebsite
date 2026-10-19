@@ -1,0 +1,13 @@
+<%
+  // The note under "Publisher's price": the rule depends on the condition and on the book's published year
+  // (see lib/inventory.js resolveCopyPricing), so public/publisher-price-rule.js swaps the text and the
+  // "required" marker as the condition or year change. This render is the starting state (and the no-JS one).
+  // Params: idSuffix, condition, year (the book's published year or null), yearFromInput (true on the add page:
+  // the year typed in the form is used), withUseNote (add page: "Leave Price empty to use the publisher's price").
+  const ppOld = typeof isPublishedOverTwoYearsAgo === 'function' ? isPublishedOverTwoYearsAgo(year) : false;
+  const ppNew = condition === 'new';
+%>
+<p class="muted small" data-pubprice-help data-pp-suffix="<%= idSuffix %>"<%- yearFromInput ? ' data-pp-year-input="publishedYear"' : ' data-pp-year="' + (year == null ? '' : String(year).replace(/[^0-9-]/g, '')) + '"' %> data-pp-note="<%= withUseNote ? '1' : '' %>">
+  <span data-pp-default<%= ppNew && ppOld ? ' hidden' : '' %>>Required only when the condition is New. New books must be sold at the publisher's printed price; a discount of up to 5% is allowed (French fixed book price law).<% if (withUseNote) { %> Leave Price empty to use the publisher's price.<% } %></span>
+  <span data-pp-old<%= ppNew && ppOld ? '' : ' hidden' %>>Published more than 2 years ago: the publisher's price is optional and you may set your own price. French law's exception for books older than two years also requires the last supply to be more than six months ago: be satisfied that applies (ask the accountant).</span>
+</p>

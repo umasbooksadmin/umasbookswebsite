@@ -134,6 +134,7 @@ Object.assign(app.locals, require("./lib/sessionTone"));
 app.locals.assetUrl = assetUrl;
 app.locals.coverSrcset = require("./lib/imageVariants").coverSrcset;
 app.locals.mondayFirstWeeks = require("./lib/calendar").mondayFirstWeeks;
+app.locals.isPublishedOverTwoYearsAgo = require("./lib/inventory").isPublishedOverTwoYearsAgo; // views/admin/inventory/_publisher_price_help.ejs
 
 // form-action also governs the redirect after a form POST in Chromium. Nothing
 // posts a form to, or redirects after a form POST to, another site: books and
