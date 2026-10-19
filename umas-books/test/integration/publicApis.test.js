@@ -210,6 +210,48 @@ test("latest-arrivals: ?days= windows by copy age; days=0 removes the window; so
   assert.equal((await api("/api/books/latest-arrivals?days=-1&limit=24")).status, 200);
 });
 
+// ------------------------------------------- New In: "See All" shows every qualifying book
+
+test("new-in: pages through EVERY book added in the last 60 days (not just 24), with the total and the next offset; the carousel's first page is the same list", async () => {
+  for (let i = 0; i < 55; i++) await makeBook({ title: `${TAG} NewIn ${i}` });
+  const first = await api("/api/books/new-in?offset=0&limit=24");
+  assert.equal(first.status, 200);
+  const { rows } = await pool.query("SELECT count(DISTINCT book_id)::int AS n FROM book_copies WHERE status = 'in_stock' AND created_at >= now() - interval '60 days'");
+  assert.ok(rows[0].n >= 55);
+  assert.equal(first.json.total, Math.min(200, Math.max(rows[0].n, 40)), "total = every book of the last 60 days (at least 40, at most 200)");
+  assert.equal(first.json.books.length, 24);
+  assert.equal(first.json.nextOffset, 24);
+  assert.deepEqual(Object.keys(first.json.books[0]).sort(), ["author", "coverUrl", "id", "price", "title", "url"]);
+  const seen = [...first.json.books.map((b) => b.id)];
+  let next = first.json.nextOffset;
+  let guard = 0;
+  while (next != null && guard++ < 20) {
+    const page = await api(`/api/books/new-in?offset=${next}&limit=24`);
+    assert.equal(page.json.total, first.json.total, "the total is the same on every page");
+    seen.push(...page.json.books.map((b) => b.id));
+    next = page.json.nextOffset;
+  }
+  assert.equal(seen.length, first.json.total, "paging reaches every book");
+  assert.equal(new Set(seen).size, seen.length, "no book twice");
+  const carousel = await api("/api/books/new-in?limit=12");
+  assert.deepEqual(carousel.json.books.map((b) => b.id), seen.slice(0, 12), "the carousel is the first 12 of the same list");
+  assert.deepEqual((await api("/api/books/latest-arrivals?days=0&limit=12")).json.map((b) => b.id), seen.slice(0, 12), "and the old endpoint agrees");
+  const past = await api(`/api/books/new-in?offset=${first.json.total + 50}`);
+  assert.deepEqual([past.json.books.length, past.json.nextOffset], [0, null]);
+  assert.match(first.res.headers.get("cache-control") || "", /max-age/, "cacheable, so paging never hits the server twice for a page");
+});
+
+test("books.html is sent with the New In carousel hidden when the address has a search, a genre or new=1, and shown on the plain view", async () => {
+  const hiddenIn = (html) => /<section class="bk-new"[^>]*\bhidden\b/.test(html);
+  const get = async (u) => (await fetch(`${app.base}${u}`)).text();
+  assert.equal(hiddenIn(await get("/books.html")), false);
+  assert.equal(hiddenIn(await get("/books.html?genre=fiction")), true);
+  assert.equal(hiddenIn(await get("/books.html?q=dune")), true);
+  assert.equal(hiddenIn(await get("/books.html?new=1")), true);
+  assert.equal(hiddenIn(await get("/fr/books.html?genre=fiction")), true);
+  assert.equal(hiddenIn(await get("/fr/books.html")), false);
+});
+
 // ------------------------------------------- recommendation of the week (removed)
 
 test("the 'recommendation of the week' feature is gone: the API route 404s and /books.html has no such section", async () => {

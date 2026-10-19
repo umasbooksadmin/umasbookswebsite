@@ -10,7 +10,7 @@ const { loadPublicAwards, awardsTextSql } = require("../lib/awards/display");
 const { validateIdParams } = require("../middleware/idParams");
 const { bookSearchLimiter } = require("../middleware/rateLimits");
 
-const { latestArrivals } = require("../lib/latestArrivals");
+const { latestArrivals, newIn } = require("../lib/latestArrivals");
 const { buildBookSeo } = require("../lib/bookSeo");
 const router = express.Router();
 // Garbage ids get the 404 page, not a Postgres 22P02 and a 500.
@@ -81,6 +81,29 @@ router.get("/api/books/latest-arrivals", async (req, res) => {
       url: `${baseUrl(req)}/books/${b.id}`,
     }))
   );
+});
+
+// "New In" in pages: { total, books, nextOffset }. The Books page's carousel asks for the first 12, "See All New In"
+// for 24 at a time until nextOffset is null. Not the search limiter: no text search, one cheap query, cached a minute.
+router.get("/api/books/new-in", async (req, res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Cross-Origin-Resource-Policy", "cross-origin");
+  res.set("Cache-Control", "public, max-age=60");
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 24, 1), 48);
+  const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+  const { total, rows, nextOffset } = await newIn(pool, { offset, limit });
+  res.json({
+    total,
+    nextOffset,
+    books: rows.map((b) => ({
+      id: b.id,
+      title: b.title,
+      author: b.authors,
+      coverUrl: localCover(b.cover_url),
+      price: b.min_price != null ? Number(b.min_price) : null,
+      url: `${baseUrl(req)}/books/${b.id}`,
+    })),
+  });
 });
 
 // Public JSON, cross-origin — consumed by the marketing site's Books
