@@ -2,6 +2,7 @@
 // Mounted BEFORE the inventory router: "lookup" is not a book id.
 //
 //   GET /admin/inventory/lookup?isbn=...
+//   GET /admin/inventory/isbndb-price?isbn=...&condition=new   (the suggested publisher's price, asked after the lookup)
 //
 // Answers with what the catalog knows about the ISBN, the book and copies the
 // shop already has, and the price suggestion for it: the page fills the form
@@ -16,6 +17,8 @@ const { isbnVariants, bindingLabel } = require("../../lib/inventory");
 const { prepareCover } = require("../../lib/coverStore");
 const { computeSuggestion } = require("../../lib/pricing/forms");
 const { serverTiming } = require("../../lib/timing");
+const { getSettings } = require("../../lib/pricing/settings");
+const { suggestPublisherPrice } = require("../../lib/isbndbPrice");
 const { getAiLimits } = require("../../lib/aiLimits");
 
 const router = express.Router();
@@ -122,6 +125,26 @@ router.get("/admin/inventory/lookup", requireAdmin, (req, res, next) => (req.que
     // Set when this process had to skip an AI call today because the shared daily cap was reached (lib/aiLimits.js).
     aiNotice: getAiLimits().reachedToday().reached ? getAiLimits().reachedToday().message : undefined,
   });
+});
+
+// The SUGGESTED publisher's price (prix éditeur) of a New book, from ISBNdb's list price (lib/isbndbPrice.js).
+// Asked by the page AFTER the title lookup, so it never slows a scan. Only for condition=new: for any other
+// condition nothing is sent to ISBNdb. It saves nothing and the page never fills the field without a click.
+router.get("/admin/inventory/isbndb-price", requireAdmin, serverTiming("scan.isbndbPrice"), lookupLimiter, async (req, res) => {
+  res.set("Cache-Control", "no-store");
+  const isbn = normalizeIsbn(String(req.query.isbn == null ? "" : req.query.isbn).slice(0, 40));
+  if (!isValidIsbnShape(isbn) || !isValidIsbn(isbn)) return res.status(400).json({ error: "That ISBN is not valid: check the digits." });
+  if (String(req.query.condition || "") !== "new") return res.json({ ok: true, isbn, state: "not_new" });
+  try {
+    const { isbndbConfigured, isbnForms } = require("../../lib/bookSources");
+    if (!isbndbConfigured()) return res.json({ ok: true, isbn, state: "off" });
+    const rates = await getSettings(pool);
+    const s = await suggestPublisherPrice(isbnForms(isbn).isbn13, rates);
+    res.json({ ok: true, isbn, ...s });
+  } catch (err) {
+    console.warn("ISBNdb price suggestion failed:", err.message);
+    res.json({ ok: true, isbn, state: "unavailable" });
+  }
 });
 
 module.exports = router;
