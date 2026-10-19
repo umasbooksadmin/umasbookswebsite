@@ -93,18 +93,54 @@ test("the row is shown on the plain view and hidden with a genre, a search or ?n
   });
 });
 
-test("on a 375 px phone the buttons scroll sideways in their own strip like the genres, are at least 44 px, half-size icons, and the page itself does not scroll sideways", async (t) => {
+test("on a 375 px phone the buttons scroll sideways in their own carousel, are at least 44 px, 90 px icons, and the page itself does not scroll sideways", async (t) => {
   await withPage(t, async (page) => {
     await go(page, "/books.html");
     const r = await page.$$eval("#bk-collections .col-btn", (els) => els.map((e) => { const b = e.getBoundingClientRect(); return { top: Math.round(b.top), w: b.width, h: b.height }; }));
     assert.ok(r.length >= 7);
     assert.ok(r.every((b) => b.w >= 44 && b.h >= 44), "every button is at least 44 x 44 px");
-    assert.equal(new Set(r.map((b) => b.top)).size, 1, "one scrolling row, like Browse by Genre");
+    assert.equal(new Set(r.map((b) => b.top)).size, 1, "one scrolling row (a carousel)");
     const sw = await page.evaluate(() => document.documentElement.scrollWidth);
     assert.ok(sw <= 375, `the page is ${sw} px wide on a 375 px screen`);
     const img = await page.$eval("#bk-collections .col-btn img", (i) => ({ alt: i.getAttribute("alt"), lazy: i.loading, w: i.getAttribute("width"), h: i.getAttribute("height"), shown: Math.round(i.getBoundingClientRect().width) }));
-    assert.deepEqual(img, { alt: "", lazy: "lazy", w: "60", h: "60", shown: 60 });
+    assert.deepEqual(img, { alt: "", lazy: "lazy", w: "90", h: "90", shown: 90 });
   }, { viewport: { width: 375, height: 812, deviceScaleFactor: 2, isMobile: true, hasTouch: true } });
+});
+
+// The collection and genre carousels use the New In component: arrows on the sides, vertically centred, 44 px, greyed at the ends,
+// whole items only, keyboard Left/Right.
+test("collections and genres are carousels: side arrows, whole items, greyed at the ends, keyboard", async (t) => {
+  await withPage(t, async (page) => {
+    await go(page, "/books.html");
+    await page.waitForSelector("#bk-genre-list .bk-genre");
+    for (const [track, prev, next, min] of [["#bk-col-track", "#bk-col-prev", "#bk-col-next", 7], ["#bk-genre-list", "#bk-genre-prev", "#bk-genre-next", 14]]) {
+      const m = await page.evaluate((tr, pv, nx) => {
+        const t = document.querySelector(tr).getBoundingClientRect(), p = document.querySelector(pv), n = document.querySelector(nx);
+        const pb = p.getBoundingClientRect(), nb = n.getBoundingClientRect();
+        const items = [...document.querySelector(tr).children];
+        const cut = items.filter((i) => { const b = i.getBoundingClientRect(); return b.right > t.left && b.left < t.right && (b.left < t.left - 1 || b.right > t.right + 1); }).length;
+        return { prevLeftOfTrack: pb.right <= t.left + 1, nextRightOfTrack: nb.left >= t.right - 1, cy: Math.abs(pb.top + pb.height / 2 - (t.top + t.height / 2)), size: [pb.width, pb.height], prevDisabled: p.disabled, nextDisabled: n.disabled, n: items.length, cut };
+      }, track, prev, next);
+      assert.ok(m.prevLeftOfTrack && m.nextRightOfTrack, `${track}: arrows on the sides`);
+      assert.ok(m.cy <= 1, `${track}: arrows vertically centred`);
+      assert.deepEqual(m.size, [44, 44]);
+      assert.equal(m.prevDisabled, true, `${track}: Previous greyed at the start`);
+      assert.equal(m.cut, 0, `${track}: no cut-off item`);
+      assert.ok(m.n >= min);
+    }
+    // genres: all 14 reachable by the arrows, and the last page ends greyed
+    for (let i = 0; i < 6 && !(await page.$eval("#bk-genre-next", (b) => b.disabled)); i++) { await page.click("#bk-genre-next"); await new Promise((r) => setTimeout(r, 500)); }
+    assert.equal(await page.$eval("#bk-genre-next", (b) => b.disabled), true, "Next greyed at the end");
+    assert.equal(await page.$eval("#bk-genre-list .bk-genre:last-child", (e) => { const t = e.parentElement.getBoundingClientRect(), b = e.getBoundingClientRect(); return b.left >= t.left && b.right <= t.right + 1; }), true, "the last genre is whole and reachable");
+    // keyboard
+    await page.focus("#bk-col-track .col-btn");
+    await page.keyboard.press("ArrowRight");
+    await new Promise((r) => setTimeout(r, 600));
+    assert.equal(await page.$eval("#bk-col-prev", (b) => b.disabled), false, "Right arrow key moves the collections carousel");
+    // icon sizes: collections 90, genres 50 (unchanged)
+    assert.equal(await page.$eval("#bk-col-track .chip", (e) => Math.round(e.getBoundingClientRect().width)), 90);
+    assert.equal(await page.$eval("#bk-genre-list .chip", (e) => Math.round(e.getBoundingClientRect().width)), 50);
+  }, { viewport: { width: 768, height: 900 } });
 });
 
 test("with JavaScript off the buttons are links and the collection page lists its books", async (t) => {
@@ -133,7 +169,7 @@ test("a button opens the collection page; the French pages are French from top t
     assert.match(text, /Retour à Parcourir les livres/);
     assert.ok(!/Back to Browse|Cover images come from/.test(text));
     await go(page, "/fr/books.html");
-    assert.match(await page.$eval("#bk-collections", (e) => e.innerText), /Parcourir\s+par collection/);
+    assert.match(await page.$eval("#bk-collections", (e) => e.innerText), /Parcourir par collection/);
     assert.equal(slug && first.href.endsWith(slug), true, "the first button is the first collection in sort order");
   });
 });

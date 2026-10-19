@@ -100,7 +100,7 @@
     { key: 'g.all', bg: '#f6e6d4', fg: '#a65347', topic: '', svg: '<path d="m12 3.5 2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/>' }
   ];
 
-  var genreList = document.getElementById('bk-genre-list');
+  var genreList = document.getElementById('bk-genre-list'); // the track of the Browse by Genre carousel
   genreList.innerHTML = GENRES.map(function (g, i) {
     return '<button type="button" class="bk-genre" data-index="' + i + '">' +
       '<span class="chip" style="background:' + g.bg + ';color:' + g.fg + '"><svg ' + I + ' aria-hidden="true">' + g.svg + '</svg></span>' +
@@ -120,6 +120,117 @@
   var pager = null;     // how the list on screen is paged: { urlFor(offset) }
   var collectionsEl = document.getElementById('bk-collections'); // absent when no collection is published
 
+  // ---- Carousels: New In, Browse by Collection, Browse by Genre ----
+  // One component for all three. The track (assets/books.css) shows a whole number of items (--per) and every item is
+  // a snap point. Arrows and arrow keys scroll to the left edge of a real item (its measured position, never "80% of
+  // the width", which drifted off the item edges), counted from where the previous click is heading, so quick repeated
+  // clicks add up.
+  function makeCarousel(track, prevBtn, nextBtn, itemSel) {
+    var heading = null;   // index the track is scrolling to after a click (null = at rest)
+    var headingTimer = 0;
+
+    function cardList() { return Array.prototype.slice.call(track.querySelectorAll(itemSel)); }
+    function padLeft() { return parseFloat(getComputedStyle(track).paddingLeft) || 0; }
+    // where scrollLeft must be for card i to sit at the left edge
+    function stopAt(cards, i) {
+      return Math.max(0, cards[i].getBoundingClientRect().left - track.getBoundingClientRect().left + track.scrollLeft - padLeft());
+    }
+    function perView(cards) {
+      var n = parseInt(getComputedStyle(cards[0]).getPropertyValue('--per'), 10);
+      return n > 0 ? n : 1;
+    }
+    function lastStart(cards) { return Math.floor((cards.length - 1) / perView(cards)) * perView(cards); }
+    function nearest(cards) {
+      var best = 0, bd = Infinity;
+      for (var i = 0; i < cards.length; i++) {
+        var d = Math.abs(stopAt(cards, i) - track.scrollLeft);
+        if (d < bd) { bd = d; best = i; }
+      }
+      return best;
+    }
+    // Leave room after the last card so the last page can start at the left edge (no half-cut card at the end).
+    function layout() {
+      var cards = cardList();
+      if (!cards.length || !track.clientWidth) { prevBtn.disabled = nextBtn.disabled = true; return; }
+      track.style.setProperty('--bk-end', '0px');
+      var content = stopAt(cards, cards.length - 1) + cards[cards.length - 1].getBoundingClientRect().width + 2 * padLeft();
+      var need = stopAt(cards, lastStart(cards)) + track.clientWidth;
+      track.style.setProperty('--bk-end', Math.max(0, Math.ceil(need - content)) + 'px');
+      updateArrows();
+    }
+    function updateArrows() {
+      var cards = cardList();
+      if (!cards.length) { prevBtn.disabled = nextBtn.disabled = true; return; }
+      prevBtn.disabled = track.scrollLeft <= 1;
+      nextBtn.disabled = track.scrollLeft >= stopAt(cards, lastStart(cards)) - 1;
+    }
+    function goTo(i, cards, instant) {
+      cards = cards || cardList();
+      i = Math.max(0, Math.min(i, lastStart(cards)));
+      heading = i;
+      clearTimeout(headingTimer);
+      headingTimer = setTimeout(function () { heading = null; }, 700);
+      track.scrollTo({ left: stopAt(cards, i), behavior: instant ? 'instant' : reducedMotion() ? 'auto' : 'smooth' });
+    }
+    function step(dir, count) {
+      var cards = cardList();
+      if (!cards.length) return;
+      var from = heading != null ? heading : nearest(cards);
+      goTo(from + dir * (count || perView(cards)), cards);
+    }
+    // Bring item i into view (a selected genre on a direct load or Back): the page of items that holds it, no animation.
+    function reveal(i) {
+      var cards = cardList();
+      if (!cards.length || !track.clientWidth || !cards[i]) return;
+      layout();
+      var per = perView(cards), first = nearest(cards);
+      if (i >= first && i < first + per) return;
+      goTo(Math.floor(i / per) * per, cards, true);
+    }
+    prevBtn.addEventListener('click', function () { step(-1); });
+    nextBtn.addEventListener('click', function () { step(1); });
+    track.addEventListener('keydown', function (e) {
+      if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+      if (e.altKey || e.ctrlKey || e.metaKey) return;
+      e.preventDefault();
+      step(e.key === 'ArrowRight' ? 1 : -1, 1);
+    });
+    var scrollTick = 0;
+    track.addEventListener('scroll', function () {
+      if (scrollTick) return;
+      scrollTick = requestAnimationFrame(function () { scrollTick = 0; updateArrows(); });
+    }, { passive: true });
+    if (window.ResizeObserver) {
+      var lastWidth = 0;
+      new ResizeObserver(function () {
+        // A resize or a browser zoom changes the card width: recompute the end room and sit on a card edge again.
+        var w = track.clientWidth;
+        if (!w || w === lastWidth) return;
+        lastWidth = w;
+        var cards = cardList();
+        var at = cards.length ? nearest(cards) : 0;
+        layout();
+        if (cards.length) track.scrollTo({ left: stopAt(cards, Math.min(at, lastStart(cards))), behavior: 'auto' });
+      }).observe(track);
+    }
+    window.addEventListener('resize', layout);
+    return { layout: layout, reveal: reveal };
+  }
+
+  var track = document.getElementById('bk-new-track');
+  var newCarousel = makeCarousel(track, document.getElementById('bk-new-prev'), document.getElementById('bk-new-next'), '.bk-book');
+  var layoutCarousel = newCarousel.layout;
+  var genreCarousel = makeCarousel(genreList, document.getElementById('bk-genre-prev'), document.getElementById('bk-genre-next'), '.bk-genre');
+  var collectionCarousel = collectionsEl
+    ? makeCarousel(document.getElementById('bk-col-track'), document.getElementById('bk-col-prev'), document.getElementById('bk-col-next'), 'li')
+    : null;
+  // A hidden carousel has no width: lay each one out again when it is shown.
+  function layoutAll() {
+    layoutCarousel();
+    genreCarousel.layout();
+    if (collectionCarousel) collectionCarousel.layout();
+  }
+
   // The search / genre state lives in the address (public/books-state.js): a genre tap or a search
   // adds a history entry, so Back returns to the previous results, and the address can be shared.
   var S = window.UmasBooksState;
@@ -134,6 +245,7 @@
       el.classList.toggle('is-active', on);
       el.setAttribute('aria-pressed', on ? 'true' : 'false');
     });
+    if (index != null) genreCarousel.reveal(index);
   }
   function renderTitle() {
     if (!lastTitle) return;
@@ -214,7 +326,7 @@
     if (collectionsEl) collectionsEl.hidden = !!(state.q || state.genre || state.isNew || /[?&]topic=/.test(location.search));
     // The New In carousel is only on the plain Browse view: a search, a genre or "See All New In" already fills the page with a grid.
     newSection.hidden = !!(state.q || state.genre || state.isNew);
-    if (!newSection.hidden) setTimeout(layoutCarousel, 0);
+    setTimeout(layoutAll, 0);
     moreBtn.hidden = true;
     if (state.q) {
       input.value = state.q;
@@ -270,93 +382,6 @@
     render(S.parse(location.search, SLUGS), false);
   });
   render(S.parse(location.search, SLUGS), true);
-
-  // ---- New In carousel ----
-  // The track (assets/books.css) shows a whole number of cards (--per) and every card is a snap point. Arrows and
-  // arrow keys scroll to the left edge of a real card (its measured position, never "80% of the width", which
-  // drifted off the card edges), counted from where the previous click is heading, so quick repeated clicks add up.
-  var track = document.getElementById('bk-new-track');
-  var prevBtn = document.getElementById('bk-new-prev');
-  var nextBtn = document.getElementById('bk-new-next');
-  var heading = null;   // index the track is scrolling to after a click (null = at rest)
-  var headingTimer = 0;
-
-  function cardList() { return Array.prototype.slice.call(track.querySelectorAll('.bk-book')); }
-  function padLeft() { return parseFloat(getComputedStyle(track).paddingLeft) || 0; }
-  // where scrollLeft must be for card i to sit at the left edge
-  function stopAt(cards, i) {
-    return Math.max(0, cards[i].getBoundingClientRect().left - track.getBoundingClientRect().left + track.scrollLeft - padLeft());
-  }
-  function perView(cards) {
-    var n = parseInt(getComputedStyle(cards[0]).getPropertyValue('--per'), 10);
-    return n > 0 ? n : 1;
-  }
-  function lastStart(cards) { return Math.floor((cards.length - 1) / perView(cards)) * perView(cards); }
-  function nearest(cards) {
-    var best = 0, bd = Infinity;
-    for (var i = 0; i < cards.length; i++) {
-      var d = Math.abs(stopAt(cards, i) - track.scrollLeft);
-      if (d < bd) { bd = d; best = i; }
-    }
-    return best;
-  }
-  // Leave room after the last card so the last page can start at the left edge (no half-cut card at the end).
-  function layoutCarousel() {
-    var cards = cardList();
-    if (!cards.length || !track.clientWidth) { prevBtn.disabled = nextBtn.disabled = true; return; }
-    track.style.setProperty('--bk-end', '0px');
-    var content = stopAt(cards, cards.length - 1) + cards[cards.length - 1].getBoundingClientRect().width + 2 * padLeft();
-    var need = stopAt(cards, lastStart(cards)) + track.clientWidth;
-    track.style.setProperty('--bk-end', Math.max(0, Math.ceil(need - content)) + 'px');
-    updateArrows();
-  }
-  function updateArrows() {
-    var cards = cardList();
-    if (!cards.length) { prevBtn.disabled = nextBtn.disabled = true; return; }
-    prevBtn.disabled = track.scrollLeft <= 1;
-    nextBtn.disabled = track.scrollLeft >= stopAt(cards, lastStart(cards)) - 1;
-  }
-  function goTo(i, cards) {
-    cards = cards || cardList();
-    i = Math.max(0, Math.min(i, lastStart(cards)));
-    heading = i;
-    clearTimeout(headingTimer);
-    headingTimer = setTimeout(function () { heading = null; }, 700);
-    track.scrollTo({ left: stopAt(cards, i), behavior: reducedMotion() ? 'auto' : 'smooth' });
-  }
-  function step(dir, count) {
-    var cards = cardList();
-    if (!cards.length) return;
-    var from = heading != null ? heading : nearest(cards);
-    goTo(from + dir * (count || perView(cards)), cards);
-  }
-  prevBtn.addEventListener('click', function () { step(-1); });
-  nextBtn.addEventListener('click', function () { step(1); });
-  track.addEventListener('keydown', function (e) {
-    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
-    if (e.altKey || e.ctrlKey || e.metaKey) return;
-    e.preventDefault();
-    step(e.key === 'ArrowRight' ? 1 : -1, 1);
-  });
-  var scrollTick = 0;
-  track.addEventListener('scroll', function () {
-    if (scrollTick) return;
-    scrollTick = requestAnimationFrame(function () { scrollTick = 0; updateArrows(); });
-  }, { passive: true });
-  if (window.ResizeObserver) {
-    var lastWidth = 0;
-    new ResizeObserver(function () {
-      // A resize or a browser zoom changes the card width: recompute the end room and sit on a card edge again.
-      var w = track.clientWidth;
-      if (!w || w === lastWidth) return;
-      lastWidth = w;
-      var cards = cardList();
-      var at = cards.length ? nearest(cards) : 0;
-      layoutCarousel();
-      if (cards.length) track.scrollTo({ left: stopAt(cards, Math.min(at, lastStart(cards))), behavior: 'auto' });
-    }).observe(track);
-  }
-  window.addEventListener('resize', layoutCarousel);
 
   getJSON(API + '/new-in?all=1', function (err, data) {
     if (err) { track.innerHTML = '<p class="muted">' + esc(t('bk.error')) + '</p>'; layoutCarousel(); return; }

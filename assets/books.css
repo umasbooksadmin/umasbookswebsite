@@ -33,47 +33,32 @@
 @media (min-width: 1241px) {
   .bk-search { max-width: min(1020px, calc(100% - 2 * 190px)); }
 }
-.bk-search-row { padding: 0 0 8px; }
+.bk-search-row { padding: 0 0 22px; }
 
-/* ---------- Browse by genre ---------- */
-.bk-genres { display: flex; align-items: flex-start; gap: 22px; padding: 6px 0 20px; }
-.bk-genres .label {
-  flex: 0 0 auto; font-size: 25px; line-height: 1.02; padding: 16px 22px 16px 0;
-  border-right: 1px solid var(--line); align-self: stretch;
-}
-.bk-genre-list { flex: 1; display: grid; grid-template-columns: repeat(14, minmax(0, 1fr)); gap: 12px 4px;
-  min-height: 87px; /* the buttons are drawn by public/page-books.js: reserve their row so the page below does not jump when they appear */ }
+/* ---------- Browse by Collection / Browse by Genre ----------
+   Both are a heading above a carousel: the same side-arrow carousel as New In (.bk-carousel / .bk-track, below), with
+   round pictures over their names instead of book covers (.bk-tiles). Every entry is as wide as the others and the track
+   shows a whole number of them (--per), so no entry is ever cut off. */
+.bk-sec-title { font-size: 40px; line-height: 1; margin: 0 0 12px; }
 .bk-genre {
-  display: flex; flex-direction: column; align-items: center; gap: 8px; background: none; border: 0; padding: 0;
-  cursor: pointer; color: var(--ink); font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; font-size: 15.5px;
+  display: flex; flex-direction: column; align-items: center; gap: 6px; background: none; border: 0; padding: 0;
+  cursor: pointer; color: var(--ink); font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; font-size: 13.5px;
   line-height: 1.15; text-align: center;
 }
 .bk-genre .chip {
-  width: 64px; height: 64px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
   color: var(--ink); transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
-.bk-genre .chip svg { width: 32px; height: 32px; }
+.bk-genre .chip svg { width: 24px; height: 24px; }
 .bk-genre:hover .chip { transform: translateY(-2px); }
 .bk-genre:hover span:last-child { color: var(--maroon); }
+.bk-genre:focus-visible { outline: 3px solid var(--maroon); outline-offset: 2px; border-radius: 6px; }
 .bk-genre.is-active .chip { box-shadow: 0 0 0 2px var(--cream), 0 0 0 4px var(--maroon); }
 .bk-genre.is-active span:last-child { color: var(--maroon); font-weight: 600; }
-@media (max-width: 1180px) {
-  .bk-genre-list { grid-template-columns: repeat(7, minmax(0, 1fr)); min-height: 186px; /* two rows */ }
-}
 @media (max-width: 760px) {
   .bk-search .icon { padding-left: 12px; }
   .bk-search button { padding: 0 18px; letter-spacing: 0.1em; }
-  .bk-genres { flex-direction: column; gap: 14px; }
-  .bk-genres .label { border-right: 0; padding: 0; font-size: 24px; }
-  .bk-genres .label br { display: none; }
-  .bk-genre-list {
-    display: flex; overflow-x: auto; gap: 14px; width: 100%; max-width: 100%; min-width: 0; padding-bottom: 6px; /* max/min: without them the row made the whole page 1170px wide on a phone, which also stopped the page from scrolling to the results */
-    scroll-snap-type: x proximity; scrollbar-width: none;
-  }
-  .bk-genre-list::-webkit-scrollbar { display: none; }
-  .bk-genre { flex: 0 0 78px; scroll-snap-align: start; }
-  .bk-genre-list { min-height: 93px; } /* one scrolling row + its padding */
-  .bk-carousel { min-height: 302px; } /* filled by script after the page shows: a minimum only, taller cards (long titles) grow it */
+  .bk-new .bk-carousel { min-height: 302px; } /* filled by script after the page shows: a minimum only, taller cards (long titles) grow it */
 }
 
 /* ---------- Search results ---------- */
@@ -151,12 +136,30 @@
 @container (min-width: 880px) { .bk-track .bk-book { --per: 5; } }
 @container (min-width: 1120px) { .bk-track .bk-book { --per: 6; } }
 @media (max-width: 620px) {
-  .bk-new-head h2 { font-size: 34px; }
+  .bk-new-head h2, .bk-sec-title { font-size: 34px; }
 }
 @media (max-width: 620px) and (pointer: coarse) {
   .bk-carousel .arrow { display: none; } /* a finger swipes; a narrow desktop window keeps the arrows */
 }
 @media (prefers-reduced-motion: reduce) { .bk-track { scroll-behavior: auto; } }
+
+/* Collection and genre entries in the carousel (.bk-tiles): equal widths, --per of them per view from the track's own
+   width (about 100px each at the least, so the 90px collection picture and a wrapped name fit), snapped one by one.
+   The names wrap (up to 4 lines) and never widen an entry. */
+.bk-tiles { --gap: 8px; min-height: 104px; list-style: none; margin: 0; }
+.bk-tiles > * { flex: 0 0 calc((100cqw - (var(--per) - 1) * var(--gap)) / var(--per)); min-width: 0; scroll-snap-align: start; scroll-snap-stop: always; }
+.bk-tiles > * { --per: 2; }
+.bk-tiles > li { display: flex; justify-content: center; }
+.bk-tiles .bk-genre { overflow-wrap: anywhere; hyphens: auto; }
+@container (min-width: 298px) { .bk-tiles > * { --per: 3; } }
+@container (min-width: 400px) { .bk-tiles > * { --per: 4; } }
+@container (min-width: 502px) { .bk-tiles > * { --per: 5; } }
+@container (min-width: 604px) { .bk-tiles > * { --per: 6; } }
+@container (min-width: 706px) { .bk-tiles > * { --per: 7; } }
+@container (min-width: 808px) { .bk-tiles > * { --per: 8; } }
+@container (min-width: 910px) { .bk-tiles > * { --per: 9; } }
+@container (min-width: 1012px) { .bk-tiles > * { --per: 10; } }
+@container (min-width: 1114px) { .bk-tiles > * { --per: 11; } }
 
 /* "See All New In": the count line and the Show more button under the grid */
 .bk-more-row [hidden] { display: none; }
@@ -195,7 +198,7 @@
    The Books page scrolls (it isn't squeezed onto one screen like Home),
    so each section gets generous room. */
 .bk-top { padding-bottom: 46px; }
-.bk-genres { padding: 6px 0 34px; }
+.bk-genres { padding: 6px 0 14px; }
 .bk-new { padding: 38px 0 40px; }
 .bk-new-head { margin-bottom: 12px; }
 /* Whole titles and authors: they wrap (a long word breaks) instead of being cut to two lines / "...". */
@@ -207,29 +210,6 @@ body:has(.bk-band) .mkt-footer { margin-top: 38px; }
   .bk-top { padding-bottom: 28px; }
   .bk-genres { padding-bottom: 32px; }
   .bk-new { padding: 36px 0 40px; }
-}
-
-/* Smaller genre buttons */
-.bk-genre { font-size: 13.5px; gap: 6px; }
-.bk-genre .chip { width: 50px; height: 50px; }
-.bk-genre .chip svg { width: 24px; height: 24px; }
-.bk-genres .label { font-size: 21px; }
-/* Phones: the chips scroll sideways. Each is as wide as its own label (up to 104px, then the
-   label wraps at spaces), so no label is ever cut off ("Documentaires", "Jeune adulte"). */
-@media (max-width: 760px) {
-  .bk-genre { flex: 0 0 auto; min-width: 66px; max-width: 104px; padding: 0 2px; overflow-wrap: break-word; }
-  /* The strip runs to the screen edge (a card cut by the edge of the SCREEN reads as 'scroll', one cut
-     by the page margin reads as clipped text) and ends with some air. */
-  .bk-genre-list { width: auto; margin: 0 -32px; padding: 0 32px 6px; scroll-padding-inline: 32px; }
-  /* The row scrolls inside its own box, never the page: in a column flex box the row was as wide as all 14 chips
-     (about 1,170px) and made the whole page that wide. align-items: stretch gives it the width of the screen, and
-     min-width: 0 lets it be narrower than its content. A soft fade on the right edge says 'swipe for more'. */
-  .bk-genres { align-items: stretch; min-width: 0; position: relative; }
-  .bk-genre-list { min-width: 0; max-width: calc(100% + 64px); overscroll-behavior-x: contain; }
-  .bk-genres::after {
-    content: ""; position: absolute; right: -32px; top: 0; bottom: 6px; width: 44px; pointer-events: none;
-    background: linear-gradient(to left, var(--cream) 12%, rgba(255, 254, 251, 0));
-  }
 }
 
 /* Search button: same colour and lettering as the Home

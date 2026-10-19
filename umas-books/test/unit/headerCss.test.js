@@ -50,7 +50,8 @@ test("footer: no vertical separators below 641px (they wrapped into stray bars),
   assert.match(phone, /li:first-child \{ border-left: 0; padding: 0; \}/);
 });
 
-test("browse page genre chips: sized by their label (never clipped), strip bleeds to the screen edge", () => {
-  assert.match(books, /\.bk-genre \{ flex: 0 0 auto; min-width: 66px; max-width: 104px;/);
-  assert.match(books, /\.bk-genre-list \{ width: auto; margin: 0 -32px; padding: 0 32px 6px;/);
+test("browse page genre and collection tiles: equal-width carousel items that wrap their names, whole items per view", () => {
+  assert.match(books, /\.bk-tiles > \* \{ flex: 0 0 calc\(\(100cqw - \(var\(--per\) - 1\) \* var\(--gap\)\) \/ var\(--per\)\); min-width: 0; scroll-snap-align: start;/);
+  assert.match(books, /\.bk-tiles \.bk-genre \{ overflow-wrap: anywhere;/);
+  assert.match(books, /\.bk-genre \.chip \{\s*width: 50px; height: 50px;/, "genre pictures keep their size");
 });

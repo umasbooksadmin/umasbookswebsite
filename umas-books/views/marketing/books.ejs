@@ -22,12 +22,16 @@
       </section>
     </noscript>
 
-    <%- include('partials/collections_row', { collections: typeof collectionButtons !== 'undefined' ? collectionButtons : [], hidden: typeof collectionsHidden !== 'undefined' && collectionsHidden }) %>
+    <div class="bk-search-row">
+      <form class="bk-search" id="shop-search-form" role="search">
+        <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg></span>
+        <input type="search" id="shop-search-input" data-i18n-attr="placeholder:bk.search.ph;aria-label:bk.search.label" placeholder="Search books…" aria-label="Search by title, author, keyword, or genre">
+        <button type="submit" data-i18n="bk.search.submit">Search</button>
+      </form>
+    </div>
 
-    <section class="bk-genres" aria-labelledby="bk-genres-label">
-      <h2 class="label" id="bk-genres-label" data-i18n-html="bk.genres.label">Browse <br>by Genre</h2>
-      <div class="bk-genre-list" id="bk-genre-list"></div>
-    </section>
+
+    <%- include('partials/collections_row', { collections: typeof collectionButtons !== 'undefined' ? collectionButtons : [], hidden: typeof collectionsHidden !== 'undefined' && collectionsHidden }) %>
 
     <section class="bk-new" aria-labelledby="bk-new-title"<%= (typeof newInHidden !== 'undefined' && newInHidden) ? ' hidden' : '' %>>
       <div class="bk-new-head">
@@ -44,13 +48,14 @@
       </div>
     </section>
 
-    <div class="bk-search-row">
-      <form class="bk-search" id="shop-search-form" role="search">
-        <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg></span>
-        <input type="search" id="shop-search-input" data-i18n-attr="placeholder:bk.search.ph;aria-label:bk.search.label" placeholder="Search books…" aria-label="Search by title, author, keyword, or genre">
-        <button type="submit" data-i18n="bk.search.submit">Search</button>
-      </form>
-    </div>
+    <section class="bk-genres" aria-labelledby="bk-genres-label">
+      <h2 class="bk-sec-title" id="bk-genres-label" data-i18n="bk.genres.label">Browse by Genre</h2>
+      <div class="bk-carousel">
+        <button type="button" class="arrow" id="bk-genre-prev" data-i18n-attr="aria-label:bk.genres.prev" aria-label="Previous genres"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4 7 12l8 8"/></svg></button>
+        <div class="bk-track bk-tiles" id="bk-genre-list" role="group" aria-labelledby="bk-genres-label"></div>
+        <button type="button" class="arrow" id="bk-genre-next" data-i18n-attr="aria-label:bk.genres.next" aria-label="Next genres"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 4 8 8-8 8"/></svg></button>
+      </div>
+    </section>
 
     <section class="bk-results" id="bk-results" hidden aria-live="polite">
       <div class="bk-results-head">
@@ -103,7 +108,9 @@
   "bk.noscript": "Searching and browsing by genre need JavaScript. Here are our newest books, or <a href=\"/request-a-book\">ask us to look out for a title</a>.",
   "bk.fav.add": "Add {t} to favorites",
   "bk.search.submit": "Search",
-  "bk.genres.label": "Browse <br>by Genre",
+  "bk.genres.label": "Browse by Genre",
+  "bk.genres.prev": "Previous genres",
+  "bk.genres.next": "Next genres",
   "bk.results.for": "Results for “{q}”",
   "bk.results.new": "All new books",
   "bk.more": "Show more",
@@ -153,7 +160,9 @@
   "bk.noscript": "La recherche et la navigation par genre nécessitent JavaScript. Voici nos dernières nouveautés, ou <a href=\"/request-a-book\">demandez-nous de chercher un titre</a>.",
   "bk.fav.add": "Ajouter {t} aux favoris",
   "bk.search.submit": "Rechercher",
-  "bk.genres.label": "Parcourir <br>par genre",
+  "bk.genres.label": "Parcourir par genre",
+  "bk.genres.prev": "Genres précédents",
+  "bk.genres.next": "Genres suivants",
   "bk.results.for": "Résultats pour « {q} »",
   "bk.results.new": "Toutes les nouveautés",
   "bk.more": "Voir plus",
