@@ -296,6 +296,7 @@ s.test("A9f (must) the page title (Back link and heading) is on the left and ful
   }
 });
 
+s.manual("A9h (must) the suggested publisher's price from ISBNdb on Add Book (shown only for New, never filled until \"Use this price\")", "needs a real ISBNdb key and spends paid ISBNdb requests");
 s.test("A9d Location, Source, Binding and Condition are the last values used (also after a reload); the first time they are Store, Donation, the last binding and Very Good (nothing is saved)", { as: "admin" }, async (ctx) => {
   await admin(ctx, "/admin/inventory/new");
   await ctx.page.waitForSelector("#isbn[data-scan-active]");

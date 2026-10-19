@@ -2048,9 +2048,10 @@ several instances, each saves its own, and the report adds them up. Nothing pers
 
 #### ISBNdb (optional, paid): finding books the free catalogs miss
 
-ISBNdb has the largest ISBN database but is a paid service. It is **off** unless `ISBNDB_API_KEY` is set, and then it is
-only asked as a **last resort**: when the free catalogs found no title, or left out the author, publisher or year. A complete
-free answer costs nothing, so the paid calls stay few. Nothing else changes: remove the variable and it is off again.
+ISBNdb has the largest ISBN database but is a paid service. It is **off** unless `ISBNDB_API_KEY` is set. It has two jobs:
+(1) a **last resort** for the title, author, publisher and year: asked only when the free catalogs found no title or left something out;
+(2) the **suggested publisher's price** for a **New** book (see "Suggested publisher's price" below). A complete free answer costs
+nothing, so the paid calls stay few. Nothing else changes: remove the variable and it is off again.
 
 1. Sign up at isbndb.com > Pricing, choose a plan (check ISBNdb pricing and the plan's daily quota there), and create the API key (account page > API).
    You must do this yourself; nobody else should hold the key.
@@ -2063,6 +2064,29 @@ free answer costs nothing, so the paid calls stay few. Nothing else changes: rem
    or **"Key refused"** (wrong key or subscription lapsed) or **"Quota reached"**. The person scanning never sees these; the lookup simply goes on without ISBNdb
    (paused 30 minutes after a refusal, 1 minute to 30 minutes after a quota answer).
 5. Speed limit: at most one request a second (`ISBNDB_MIN_INTERVAL_MS`, default `1000`; raise the speed only if your plan says so). A request that would wait more than 2.5 s is skipped.
+
+**Where the key goes:** Render dashboard > the **umas-books** web service > **Environment** > `ISBNDB_API_KEY` (an environment variable, not a
+GitHub secret or variable; never put the key in a file or in chat). **How to read the quota:** the site does not know your plan. Check isbndb.com > your account for the daily/monthly quota;
+**Reports > Book lookup sources used** shows "ISBNdb paid calls this calendar month" (title lookups and price suggestions both count), and
+**`/admin/diagnostics/lookup`** shows the live status ("Working", "Key refused", "Quota reached", "Paused until...").
+
+##### Suggested publisher's price (prix editeur) for New books
+
+New books are sold at the publisher's printed price, so on **Add Book**, when **Condition** is **New** and **Publisher's price** is empty, the page asks ISBNdb
+for the book's list price **after** the title lookup has filled the form (a separate request: scanning and saving are never slowed or blocked) and shows,
+under the field, for example: *"Suggested from ISBNdb: 8.99 USD = about EUR 8.25. Check the price printed on the book."* with a **Use this price** button.
+- **Nothing is ever filled or saved by itself.** The field changes only when you press **Use this price**; you still press Save. Always check the
+  price printed on the book (French fixed book price law). For imported English-language books, check with your accountant how the fixed-price rule applies to them.
+- No price (or a price of 0, or an unknown currency): "ISBNdb has no price for this book: type the price printed on the cover." Type it as before.
+- Conversion: the euro figure uses the **exchange rates on Admin > Pricing** ("1 US dollar in euros", default 0.92; "1 British pound in euros", default 1.15). They
+  are approximate and editable: update them from time to time. A price already in euros is used as is. Other currencies are treated as "no price".
+  The result is rounded to the nearest 0.05 euro.
+- Cost control: one paid request per ISBN, remembered **3 days** (a "no price" answer too; kept in memory, so a site restart forgets it), and only for New books:
+  a used book never causes a request. The title fallback's answer already contains the price, so it costs no second request. It obeys the same pauses
+  as above (401/403: 30 minutes; 429: as ISBNdb says), and when ISBNdb is paused the page simply says it could not be reached for a price.
+- What ISBNdb sends (checked 19 Oct 2026 in its published OpenAPI description and client libraries; the live docs page needs a browser): `msrp` (a number
+  with no currency, documented as the USD list price and marked deprecated) and a newer `list_price`/`listPrice` object with `amount` and an ISO `currency`.
+  The site uses the object when present and otherwise `msrp` as USD. The merchant `prices` list (extra paid plan, slower) is not used.
 
 What ISBNdb's terms (isbndb.com/terms-and-conditions, read in October 2026) permit: a subscriber may use the data to run its own site and shop,
 show it to its own users, and download, store and cache it "to the extent necessary" to operate that site **while the subscription lasts**.

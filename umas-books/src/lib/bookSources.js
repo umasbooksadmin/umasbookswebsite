@@ -184,7 +184,8 @@ async function bnf({ forms, fetchImpl, signal }) {
 }
 
 // ---------------- ISBNdb (paid, optional) ----------------
-// Active ONLY when ISBNDB_API_KEY is set. A fallback: the lookup asks it only when the free sources found no
+// Active ONLY when ISBNDB_API_KEY is set. (Also the source of the suggested publisher's price of a New book: lib/isbndbPrice.js
+// uses isbndbRequest below, so pacing, pauses and status are shared.) A fallback: the lookup asks it only when the free sources found no
 // title, or left out the author, publisher or year (lib/bookLookup.js), to keep paid calls few.
 //   - at most one request per ISBNDB_MIN_INTERVAL_MS (default 1000: the basic plans allow about 1 a second),
 //     whatever the number of scans: requests queue for a slot, and one that would wait longer than
@@ -250,7 +251,10 @@ function fromIsbndb(b, helpers) {
     binding: helpers.mapBinding ? helpers.mapBinding(b.binding) : null,
   };
 }
-async function isbndb({ forms, fetchImpl, signal, helpers, stats, env = process.env, now = Date.now, sleep = (ms) => new Promise((r) => setTimeout(r, ms)) }) {
+// ONE request to GET /book/{isbn13}, with the pacing, the pauses and the status bookkeeping above. Used by the
+// title/author fallback (isbndb) and by the list-price suggestion (lib/isbndbPrice.js): the same paid call can serve both.
+// Resolves { state: "ok", data } | { state: "missing" } (404) | { state: "error", skipped?, status? }; never rejects.
+async function isbndbRequest({ forms, fetchImpl, signal, stats, env = process.env, now = Date.now, sleep = (ms) => new Promise((r) => setTimeout(r, ms)) }) {
   if (!isbndbConfigured(env)) return { state: "error", skipped: true };
   if (now() < isbndbState.pausedUntil) return { state: "error", skipped: true };
   const interval = Number(env.ISBNDB_MIN_INTERVAL_MS) >= 0 && env.ISBNDB_MIN_INTERVAL_MS !== undefined && env.ISBNDB_MIN_INTERVAL_MS !== "" ? Number(env.ISBNDB_MIN_INTERVAL_MS) : 1000;
@@ -295,7 +299,14 @@ async function isbndb({ forms, fetchImpl, signal, helpers, stats, env = process.
   isbndbState.lastError = null;
   isbndbState.lastOkAt = now();
   isbndbState.warned.clear(); // a later problem is logged again
-  const book = fromIsbndb(data && data.book, helpers);
+  return { state: "ok", data };
+}
+async function isbndb({ forms, fetchImpl, signal, helpers, stats, env, now, sleep }) {
+  const r = await isbndbRequest({ forms, fetchImpl, signal, stats, env, now, sleep });
+  if (r.state !== "ok") return r;
+  // The same answer carries the list price: remembered so a later price suggestion for this ISBN costs no second call.
+  try { require("./isbndbPrice").remember(forms.isbn13, r.data && r.data.book); } catch { /* the price is a bonus */ }
+  const book = fromIsbndb(r.data && r.data.book, helpers);
   return book ? { state: "ok", book } : { state: "missing" };
 }
 
@@ -303,8 +314,9 @@ function resetSourcePauses() {
   googlePause.until = 0;
   Object.assign(isbndbState, { nextSlot: 0, pausedUntil: 0, status: "unknown", lastError: null, lastOkAt: null, lastCallAt: null, calls: 0 });
   isbndbState.warned.clear();
+  try { require("./isbndbPrice").clearPriceCache(); } catch { /* tests only */ }
 }
 
 module.exports = {
-  USER_AGENT, isbnForms, isFrenchIsbn, isbn10to13, isbn13to10, openLibraryData, googleBooks, bnf, isbndb, isbndbConfigured, isbndbStatus, isbndbBase, fromIsbndb, fromBnf, fromGoogle, fromOpenLibraryData, resetSourcePauses, getJson,
+  USER_AGENT, isbnForms, isFrenchIsbn, isbn10to13, isbn13to10, openLibraryData, googleBooks, bnf, isbndb, isbndbRequest, isbndbConfigured, isbndbStatus, isbndbBase, fromIsbndb, fromBnf, fromGoogle, fromOpenLibraryData, resetSourcePauses, getJson,
 };

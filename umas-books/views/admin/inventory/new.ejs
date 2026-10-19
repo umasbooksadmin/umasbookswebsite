@@ -138,6 +138,7 @@
 
     <label for="publisherPrice">Publisher's price (prix &eacute;diteur) (&euro;)<span data-pp-required hidden> *</span></label>
     <input id="publisherPrice" name="publisherPrice" type="number" step="0.01" min="0" value="<%= typeof publisherPriceValue !== 'undefined' ? publisherPriceValue : '' %>">
+    <p class="muted small isbndb-price" data-isbndb-price aria-live="polite" hidden><span data-isbndb-price-text></span> <button type="button" class="btn btn-outline btn-small" data-isbndb-use hidden>Use this price</button></p>
     <%- include('_publisher_price_help', { idSuffix: '', condition: (typeof selectedCondition !== 'undefined' ? selectedCondition : 'very_good'), year: book.publishedYear, yearFromInput: true, withUseNote: true }) %>
 
     <label for="acquiredAt">Acquisition Date</label>
