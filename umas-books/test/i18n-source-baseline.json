@@ -277,6 +277,10 @@
  },
  {
   "file": "src/lib/inventory.js",
+  "text": "Publisher's price must be above 0, or left blank."
+ },
+ {
+  "file": "src/lib/inventory.js",
   "text": "A new book must be sold at the publisher's price (€{}), with at most 5% off: the price must be between €{} and €{}."
  },
  {

@@ -482,6 +482,80 @@ test("add: valid condition and status values are kept (reserved/sold/donated/dam
   }
 });
 
+// A New book published more than 2 years ago is free-priced (lib/inventory.js); a recent one keeps the fixed-price rule.
+const parisYearNow = () => Number(new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris", year: "numeric" }).format(new Date()));
+test("add: a New book published over 2 years ago needs no publisher's price and takes any price; a recent one still does", async () => {
+  const oldYear = String(parisYearNow() - 3);
+  const recentYear = String(parisYearNow() - 2);
+  const base = { description: "d", descriptionFr: "d", coverUrl: "c", condition: "new" };
+  // old: no publisher's price, own price
+  let title = `OldNew ${tag()}`;
+  let r = await post("/admin/inventory", { fields: { title, ...base, publishedYear: oldYear, price: "4.50" } });
+  assert.equal(r.status, 302);
+  let [book] = await bookByTitle(title);
+  let [copy] = await copiesOf(book.id);
+  assert.deepEqual([copy.condition, Number(copy.price), copy.publisher_price], ["new", 4.5, null]);
+  // old, nothing typed: saved with no price (manual review), like a used book
+  title = `OldNewBlank ${tag()}`;
+  r = await post("/admin/inventory", { fields: { title, ...base, publishedYear: oldYear } });
+  assert.equal(r.status, 302);
+  [book] = await bookByTitle(title);
+  [copy] = await copiesOf(book.id);
+  assert.deepEqual([copy.price, copy.publisher_price], [null, null]);
+  // old, publisher's price typed: stored, and a blank price defaults to it
+  title = `OldNewPub ${tag()}`;
+  await post("/admin/inventory", { fields: { title, ...base, publishedYear: oldYear, publisherPrice: "20" } });
+  [book] = await bookByTitle(title);
+  [copy] = await copiesOf(book.id);
+  assert.deepEqual([Number(copy.price), Number(copy.publisher_price)], [20, 20]);
+  // old, a bad publisher's price is still refused
+  title = `OldNewBad ${tag()}`;
+  r = await post("/admin/inventory", { fields: { title, ...base, publishedYear: oldYear, publisherPrice: "abc", price: "4" } });
+  assert.notEqual(r.status, 302);
+  assert.equal((await bookByTitle(title)).length, 0);
+  // recent (2 years ago: its year may still be under 2 years) or no year: unchanged
+  for (const year of [recentYear, ""]) {
+    title = `RecentNew ${tag()}`;
+    r = await post("/admin/inventory", { fields: { title, ...base, publishedYear: year, price: "4.50" } });
+    assert.notEqual(r.status, 302, `year "${year}" without a publisher's price is refused`);
+    assert.equal((await bookByTitle(title)).length, 0, "nothing half-created");
+    r = await post("/admin/inventory", { fields: { title, ...base, publishedYear: year, price: "4.50", publisherPrice: "20" } });
+    assert.notEqual(r.status, 302, "below 95% of the publisher's price is refused");
+  }
+  // an ISBN already in stock with an old year: a second copy typed without a year follows the recorded one
+  const isbn = isbn13();
+  const known = await seedBook({ isbn });
+  await pool.query("UPDATE books SET published_year = $1 WHERE id = $2", [Number(oldYear), known.id]);
+  r = await post("/admin/inventory", { fields: { title: `Second ${tag()}`, isbn, ...base, price: "3" } });
+  assert.equal(r.status, 302);
+  assert.equal((await copiesOf(known.id)).length, 2);
+});
+
+test("copy update: an old New book takes any price and no publisher's price; a recent one keeps the rule", async () => {
+  const b = await seedBook({ copies: [{ condition: "new", price: 10 }] });
+  const [copyId] = b.copyIds;
+  const url = `/admin/inventory/${b.id}/copies/${copyId}`;
+  const form = { condition: "new", status: "in_stock", price: "3.20", publisherPrice: "" };
+  await pool.query("UPDATE books SET published_year = $1 WHERE id = $2", [parisYearNow() - 2, b.id]);
+  await post(url, { form });
+  let [c] = await copiesOf(b.id);
+  assert.equal(Number(c.price), 10, "recent: refused, nothing changed");
+  await pool.query("UPDATE books SET published_year = NULL WHERE id = $1", [b.id]);
+  await post(url, { form });
+  [c] = await copiesOf(b.id);
+  assert.equal(Number(c.price), 10, "unknown year: refused, nothing changed");
+  await pool.query("UPDATE books SET published_year = $1 WHERE id = $2", [parisYearNow() - 3, b.id]);
+  await post(url, { form });
+  [c] = await copiesOf(b.id);
+  assert.deepEqual([Number(c.price), c.publisher_price], [3.2, null]);
+  await post(url, { form: { ...form, price: "", publisherPrice: "15" } });
+  [c] = await copiesOf(b.id);
+  assert.deepEqual([Number(c.price), Number(c.publisher_price)], [15, 15]);
+  await post(url, { form: { ...form, price: "", publisherPrice: "" } });
+  [c] = await copiesOf(b.id);
+  assert.deepEqual([c.price, c.publisher_price], [null, null]);
+});
+
 test("add: missing optional fields become NULL / defaults; fromScan returns to the fast add page", async () => {
   const title = `Minimal ${tag()}`;
   ai.fail = true; // no AI, no cover found: still saves

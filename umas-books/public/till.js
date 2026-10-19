@@ -236,7 +236,7 @@
   function askPrice(line) {
     pendingPrice = line;
     $("price-title").textContent = line.title;
-    var hint = line.isNew
+    var hint = line.fixedPrice
       ? "New book: sold at the publisher's price (" + fmt(line.publisherPriceCents) + "), at most 5% off: between " + fmt(Math.ceil(line.publisherPriceCents * 0.95)) + " and " + fmt(line.publisherPriceCents) + "."
       : (line.askingCents != null ? "Asking price " + fmt(line.askingCents) + ". Change it only if you agreed another price." : "This copy has no price yet: enter the price.");
     $("price-hint").textContent = hint;
@@ -254,7 +254,7 @@
     var err = $("price-error");
     var bad = null;
     if (c === null) bad = "Enter the price as a number, like 4.50.";
-    else if (l.isNew && (c * 100 < 95 * l.publisherPriceCents || c > l.publisherPriceCents)) bad = "A new book must be between " + fmt(Math.ceil(l.publisherPriceCents * 0.95)) + " and " + fmt(l.publisherPriceCents) + " (French fixed book price law).";
+    else if (l.fixedPrice && (c * 100 < 95 * l.publisherPriceCents || c > l.publisherPriceCents)) bad = "A new book must be between " + fmt(Math.ceil(l.publisherPriceCents * 0.95)) + " and " + fmt(l.publisherPriceCents) + " (French fixed book price law).";
     else if (c <= 0) bad = "Enter a price above 0 (a book is never free at the till).";
     else if (l.askingCents != null && c !== l.askingCents) {
       // Same rule as the server: lower than the asking price, or more than 20% above it, needs a reason and an admin.
