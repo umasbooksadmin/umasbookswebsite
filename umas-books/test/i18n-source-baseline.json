@@ -337,6 +337,14 @@
  },
  {
   "file": "src/index.js",
+  "text": "That picture is larger than 5 MB. Please choose a smaller one. Nothing was changed."
+ },
+ {
+  "file": "src/index.js",
+  "text": "The upload could not be read. Please try again. Nothing was changed."
+ },
+ {
+  "file": "src/index.js",
   "text": "Unhandled rejection"
  },
  {
