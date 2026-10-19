@@ -1,3 +1,4 @@
+/* global document */
 // The Browse Books collection buttons in a REAL browser (headless Chrome through puppeteer, the same one the e2e
 // suite and scripts/phone-overflow-audit.js use) against the real app and a throwaway database:
 //   - shown on the plain view, hidden while a genre, a search or ?new=1 is showing (and shown again after Back),

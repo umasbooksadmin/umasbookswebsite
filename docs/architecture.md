@@ -595,6 +595,35 @@ stateDiagram-v2
   for anonymous demand counts. Erasing a member cancels and strips their requests
   (`lib/privacy.js`).
 
+### Curated collections
+
+Hand-picked themed shelves (*Paris Is Always a Good Idea* ...) shown as a row of
+round-picture buttons on Browse Books and as pages of their own. Tables
+`curated_collections` (slug, English and French title and description, the AI
+guidance prompt, picture, sort order, `published`, `last_generated_at`) and
+`curated_collection_books` (collection, book, status `suggested` / `approved` /
+`rejected`, reason, position). Migration 091 seeds 19 collections, all unpublished.
+
+* **The review step is mandatory.** The AI only writes `suggested` rows
+  (`lib/collectionSuggestions.js`). Customers see a collection only when
+  `published`, and in it only `approved` books with a copy `in_stock` at render
+  time (`lib/collections.js`; a sold or reserved book drops off by itself).
+  Publishing needs one approved book and the French title and description.
+* **Generate** reaches the paid API through the same client as the book
+  descriptions (`claudeRequest` in `lib/bookDescription.js`): the shared daily cap,
+  the usage counts, the credit alert, and a friendly message instead of an error.
+  Candidates are the in-stock books not yet in the collection, cut to the 300 best
+  keyword matches, sent in batches of 100; answers are parsed as JSON, ids not in the
+  list are dropped, and each id is re-checked in the database before the insert
+  (`ON CONFLICT DO NOTHING`, so earlier decisions are never touched).
+* **Pages.** `routes/collections.js` serves `/collections/:slug` and `/fr/collections/:slug`
+  (`lib/frUrls.js` knows the pattern), unpublished or unknown is a 404; the sitemap lists
+  published collections with a book, at both addresses. The Browse row is
+  `views/marketing/partials/collections_row.ejs`, shown on the plain view only
+  (`public/page-books.js` hides it with a genre, search, topic or `?new=1`).
+* **Admin** (English only): `routes/admin/collections.js`, `/admin/collections`.
+  `clear-test-data` keeps the collections and clears only their book lists.
+
 ### Reports, copy source and in-shop sales
 
 * **Reports** (`/admin/reports`, `lib/reports.js`) are read-only and made of a few

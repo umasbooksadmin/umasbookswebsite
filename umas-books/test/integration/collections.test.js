@@ -194,7 +194,10 @@ test("a collection cannot be published without its French title and description"
   await pool.query("UPDATE curated_collections SET title_fr = 'T', description_fr = '' WHERE id = $1", [c.id]);
   r = await adminPost(`/admin/collections/${c.id}/published`, { published: "1", back: "edit" });
   assert.match(notice(r.text), /French title and the French description/, "both are needed");
-  await pool.query("UPDATE curated_collections SET description_fr = 'D' WHERE id = $1", [c.id]);
+  await pool.query("UPDATE curated_collections SET title_fr = '', description_fr = 'D' WHERE id = $1", [c.id]);
+  r = await adminPost(`/admin/collections/${c.id}/published`, { published: "1", back: "edit" });
+  assert.match(notice(r.text), /French title and the French description/, "the description alone is not enough");
+  await pool.query("UPDATE curated_collections SET title_fr = 'T' WHERE id = $1", [c.id]);
   r = await adminPost(`/admin/collections/${c.id}/published`, { published: "1", back: "edit" });
   assert.match(notice(r.text), /^Published/);
 });
@@ -344,6 +347,18 @@ test("Generate: suggestions only, invented ids ignored, out-of-stock books ignor
   let calls = 0;
   await generateSuggestions(pool, c.id, { ask: async () => { calls += 1; return { text: "[]", reason: null }; }, maxCandidates: 300 });
   assert.equal(calls, 1, "the stock books of other tests are still new to this collection, so the AI is asked once");
+});
+
+test("Writing suggestions never overwrites an existing decision, even if the same book comes back", async () => {
+  const { insertSuggestions } = require("../../src/lib/collectionSuggestions");
+  const c = await freshCollection();
+  const [a, b] = [await newBook(`Keep A ${uniq()}`), await newBook(`Keep B ${uniq()}`)];
+  await addRow(c.id, a.id, "approved", "my reason", 1);
+  await addRow(c.id, b.id, "rejected", "no thanks", 2);
+  const added = await insertSuggestions(pool, c.id, [{ bookId: a.id, reason: "new reason" }, { bookId: b.id, reason: "new reason" }]);
+  assert.equal(added, 0);
+  const rows = (await pool.query("SELECT book_id, status, reason FROM curated_collection_books WHERE collection_id = $1 ORDER BY position", [c.id])).rows;
+  assert.deepEqual(rows.map((r) => [r.status, r.reason]), [["approved", "my reason"], ["rejected", "no thanks"]]);
 });
 
 test("Generate: the AI failing (no credit, cap, timeout) is a friendly result, not an exception, and changes nothing", async () => {
