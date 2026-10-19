@@ -2,4 +2,4 @@
    These sections are filled in by the page's script: without it they are an
    empty "Browse by Genre" heading, and a "Loading
    books…" line. The server-rendered "New In" list in .bk-noscript stays. */
-.bk-genres, .bk-results, .bk-new { display: none; }
+.bk-genres:not(.bk-collections), .bk-results, .bk-new { display: none; }

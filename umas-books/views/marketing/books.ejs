@@ -7,15 +7,7 @@
   <noscript><link rel="stylesheet" href="<%= assetUrl('/assets/books-nojs.css') %>"></noscript>
   <div class="bk-wrap">
     <section class="bk-top">
-      <div class="bk-title-row">
-        <h1 data-i18n="bk.title">Browse books</h1>
-        <img class="bk-deco bk-flower" src="/assets/img/flower.webp" alt="" aria-hidden="true" width="400" height="398">
-      </div>
-      <form class="bk-search" id="shop-search-form" role="search">
-        <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg></span>
-        <input type="search" id="shop-search-input" data-i18n-attr="placeholder:bk.search.ph;aria-label:bk.search.label" placeholder="Search books…" aria-label="Search by title, author, keyword, or genre">
-        <button type="submit" data-i18n="bk.search.submit">Search</button>
-      </form>
+      <h1 data-i18n="bk.title">Browse books</h1>
     </section>
 
     <noscript>
@@ -30,24 +22,13 @@
       </section>
     </noscript>
 
+    <%- include('partials/collections_row', { collections: typeof collectionButtons !== 'undefined' ? collectionButtons : [], hidden: typeof collectionsHidden !== 'undefined' && collectionsHidden }) %>
+
     <section class="bk-genres" aria-labelledby="bk-genres-label">
       <h2 class="label" id="bk-genres-label" data-i18n-html="bk.genres.label">Browse <br>by Genre</h2>
       <div class="bk-genre-list" id="bk-genre-list"></div>
     </section>
 
-    <%- include('partials/collections_row', { collections: typeof collectionButtons !== 'undefined' ? collectionButtons : [], hidden: typeof collectionsHidden !== 'undefined' && collectionsHidden }) %>
-
-    <section class="bk-results" id="bk-results" hidden aria-live="polite">
-      <div class="bk-results-head">
-        <h2 id="bk-results-title"></h2>
-      </div>
-      <div class="bk-grid" id="bk-results-grid"></div>
-      <div class="bk-more-row"><button type="button" class="btn btn-outline" id="bk-more" data-i18n="bk.more" hidden>Show more</button></div>
-      <p class="bk-covernote" data-i18n="bk.covernote">Cover images come from an online book library and may not show the actual condition of the copy in our shop.</p>
-    </section>
-  </div>
-
-  <div class="bk-wrap">
     <section class="bk-new" aria-labelledby="bk-new-title"<%= (typeof newInHidden !== 'undefined' && newInHidden) ? ' hidden' : '' %>>
       <div class="bk-new-head">
         <h2 id="bk-new-title" data-i18n="bk.new.title">New In</h2>
@@ -61,6 +42,23 @@
         </div>
         <button type="button" class="arrow" id="bk-new-next" data-i18n-attr="aria-label:bk.next" aria-label="Next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 4 8 8-8 8"/></svg></button>
       </div>
+    </section>
+
+    <div class="bk-search-row">
+      <form class="bk-search" id="shop-search-form" role="search">
+        <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg></span>
+        <input type="search" id="shop-search-input" data-i18n-attr="placeholder:bk.search.ph;aria-label:bk.search.label" placeholder="Search books…" aria-label="Search by title, author, keyword, or genre">
+        <button type="submit" data-i18n="bk.search.submit">Search</button>
+      </form>
+    </div>
+
+    <section class="bk-results" id="bk-results" hidden aria-live="polite">
+      <div class="bk-results-head">
+        <h2 id="bk-results-title"></h2>
+      </div>
+      <div class="bk-grid" id="bk-results-grid"></div>
+      <div class="bk-more-row"><button type="button" class="btn btn-outline" id="bk-more" data-i18n="bk.more" hidden>Show more</button></div>
+      <p class="bk-covernote" data-i18n="bk.covernote">Cover images come from an online book library and may not show the actual condition of the copy in our shop.</p>
     </section>
   </div>
 

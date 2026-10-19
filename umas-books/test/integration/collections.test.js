@@ -512,7 +512,7 @@ test("the sitemap lists published collections that still have a book, at both ad
 
 // ---------- the Browse Books button row ----------
 
-const rowOf = (html) => (html.match(/<section class="bk-collections"[\s\S]*?<\/section>/) || [""])[0];
+const rowOf = (html) => (html.match(/<section class="bk-genres bk-collections"[\s\S]*?<\/section>/) || [""])[0];
 
 test("Browse Books: no collection published means no row at all", async () => {
   await pool.query("UPDATE curated_collections SET published = FALSE");
@@ -528,19 +528,23 @@ test("Browse Books: a published collection with a book in stock gets a button, i
   const c = await publishedShelf([[b, "approved"]], { title_en: "Row Shelf", title_fr: "Étagère du rang" });
   await pool.query("UPDATE curated_collections SET icon_path = '/assets/img/collections/paris-is-always-a-good-idea.png' WHERE id = $1", [c.id]);
   const en = rowOf((await get("/books.html")).text);
-  assert.match(en, /<h2[^>]*>Browse by Collection<\/h2>/);
-  assert.match(en, new RegExp(`<a class="col-btn" href="/collections/${c.slug}">`));
+  assert.match(en, /<h2[^>]*>Browse <br>by Collection<\/h2>/, "two-line label, like Browse by Genre");
+  assert.match(en, new RegExp(`<a class="bk-genre col-btn" href="/collections/${c.slug}">`));
   assert.match(en, /<span class="col-name">Row Shelf<\/span>/);
-  assert.match(en, /<img src="[^"]*\/assets\/img\/collections\/[a-z-]+\.png[^"]*" alt="" width="120" height="120" loading="lazy">/, "decorative picture, size set, lazy");
+  assert.match(en, /<img src="[^"]*\/assets\/img\/collections\/[a-z-]+\.png[^"]*" alt="" width="60" height="60" loading="lazy">/, "decorative picture, half size (60px), size set, lazy");
   assert.ok(!/ hidden/.test(en.split(">")[0]), "visible on the plain page");
   const fr = rowOf((await get("/fr/books.html")).text);
-  assert.match(fr, /<h2[^>]*>Parcourir par collection<\/h2>/);
+  assert.match(fr, /<h2[^>]*>Parcourir <br>par collection<\/h2>/);
   assert.match(fr, new RegExp(`href="/fr/collections/${c.slug}"`));
   assert.match(fr, /<span class="col-name">Étagère du rang<\/span>/);
-  assert.ok(!fr.includes("Row Shelf") && !fr.includes("Browse by Collection"), "no English on the French row");
-  // Placed under the genre buttons.
+  assert.ok(!fr.includes("Row Shelf") && !fr.includes("by Collection"), "no English on the French row");
+  // Page order: title, collections, genres, New In, search, results.
   const html = (await get("/books.html")).text;
-  assert.ok(html.indexOf('id="bk-genre-list"') < html.indexOf('id="bk-collections"') && html.indexOf('id="bk-collections"') < html.indexOf('id="bk-results"'));
+  const at = (needle) => { const i = html.indexOf(needle); assert.ok(i >= 0, `${needle} is on the page`); return i; };
+  const order = ["<h1", 'id="bk-collections"', 'id="bk-genre-list"', 'id="bk-new-title"', 'id="shop-search-form"', 'id="bk-results"'].map(at);
+  assert.deepEqual(order, [...order].sort((x, y) => x - y), "title, collections, genres, New In, search, results");
+  assert.ok(!html.includes("bk-flower") && !html.includes("flower.webp"), "no flower beside the title");
+  assert.ok(html.split("<h1").length === 2 && html.indexOf("<h1") < html.indexOf("<h2"), "one h1, before the h2s");
 });
 
 test("Browse Books: the row is hidden whenever a genre, a search, a topic or ?new=1 is active (and with no JavaScript)", async () => {
@@ -578,7 +582,7 @@ test("Browse Books: buttons follow the sort order, and a collection without a pi
   await pool.query("UPDATE curated_collections SET sort_order = 1, icon_path = NULL WHERE id = $1", [b.id]);
   const row = rowOf((await get("/books.html")).text);
   assert.ok(row.indexOf("First Shelf") < row.indexOf("Second Shelf"));
-  assert.match(row, /<a class="col-btn no-art" href="\/collections\/[^"]+">\s*<span class="col-name">First Shelf<\/span>/);
+  assert.match(row, /<a class="bk-genre col-btn no-art" href="\/collections\/[^"]+">\s*<span class="col-name">First Shelf<\/span>/);
 });
 
 test("the French Browse row and collection page carry none of the English from their own tr() strings", async () => {
@@ -909,7 +913,7 @@ test("Pictures: a button picture (cut round) and a banner (with EN and FR alt te
   assert.match(fr, /alt="Un coin de lecture lumineux"/);
   assert.ok(!fr.includes("A bright reading nook"));
   // The Browse button uses the uploaded round picture.
-  assert.match(rowOf((await get("/books.html")).text), new RegExp(`<img src="${row.icon_path}" alt="" width="120" height="120" loading="lazy"`));
+  assert.match(rowOf((await get("/books.html")).text), new RegExp(`<img src="${row.icon_path}" alt="" width="60" height="60" loading="lazy"`));
 
   // Replace, then remove.
   const first = row.banner_path;

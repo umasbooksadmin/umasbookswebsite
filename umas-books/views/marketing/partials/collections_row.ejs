@@ -1,5 +1,5 @@
 <%
-/* The row of curated-collection buttons under the genre buttons on Browse Books (views/marketing/books.ejs).
+/* The row of curated-collection buttons above the genre buttons (same look: it reuses the .bk-genres / .bk-genre CSS) on Browse Books (views/marketing/books.ejs).
    Params: collections (rows from lib/collections.js listButtonCollections: published, with at least one approved book
    in stock), hidden (true while a genre, a search, a topic or "See All New In" is showing: public/page-books.js then
    toggles it as the person browses). Nothing is drawn when no collection is published. Each button is a plain link
@@ -7,12 +7,12 @@
    (alt=""): the caption, real text in the visitor's language, is the button's name. */
 %>
 <% if (collections && collections.length) { %>
-<section class="bk-collections" id="bk-collections" aria-labelledby="bk-collections-label"<%- hidden ? ' hidden' : '' %>>
-  <h2 class="label" id="bk-collections-label"><%= tr('Browse by Collection', 'Parcourir par collection') %></h2>
-  <ul class="col-list" aria-labelledby="bk-collections-label">
+<section class="bk-genres bk-collections" id="bk-collections" aria-labelledby="bk-collections-label"<%- hidden ? ' hidden' : '' %>>
+  <h2 class="label" id="bk-collections-label"><%= tr('Browse', 'Parcourir') %> <br><%= tr('by Collection', 'par collection') %></h2>
+  <ul class="bk-genre-list bk-col-list" aria-labelledby="bk-collections-label">
     <% collections.forEach(function (c) { %>
-    <li><a class="col-btn<%= c.icon_path ? '' : ' no-art' %>" href="/collections/<%= c.slug %>">
-      <% if (c.icon_path) { %><%- include('../../partials/collection_icon', { src: c.icon_path, w: 120, h: 120, cls: '', lazy: true }) %><% } %>
+    <li><a class="bk-genre col-btn<%= c.icon_path ? '' : ' no-art' %>" href="/collections/<%= c.slug %>">
+      <% if (c.icon_path) { %><span class="chip"><%- include('../../partials/collection_icon', { src: c.icon_path, w: 60, h: 60, cls: '', lazy: true }) %></span><% } %>
       <span class="col-name"><%= lang === 'fr' && c.title_fr ? c.title_fr : c.title_en %></span>
     </a></li>
     <% }) %>
