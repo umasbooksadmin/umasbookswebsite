@@ -32,7 +32,7 @@ test("the legal notice page shows the publisher, director of publication and hos
     "5, rue Hippolyte Savary, 81000 Albi",
     "109 441 147 00013", // SIRET
     "109 441 147", // SIREN
-    "06 98 95 67 91", // phone (LCEN art. 6: legal entities must give one)
+    "+33 6 07 41 70 60", // phone (LCEN art. 6: legal entities must give one)
     "W811011706", // RNA
     "law of 1 July 1901", // English wording
     "Sharon Bjeletich",

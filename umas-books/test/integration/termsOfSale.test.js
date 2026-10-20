@@ -16,7 +16,7 @@ test("terms of sale page is served with guarantees, mediator, HelloAsso (members
   const res = await fetch(`${app.base}/terms-of-sale.html`);
   assert.equal(res.status, 200);
   const html = await res.text();
-  for (const needle of ["L.217-3", "1641", "CM2C", "TVA non applicable", "109 441 147 00013", "HelloAsso", "06 98 95 67 91"]) {
+  for (const needle of ["L.217-3", "1641", "CM2C", "TVA non applicable", "109 441 147 00013", "HelloAsso", "+33 6 07 41 70 60"]) {
     assert.ok(html.includes(needle), `missing ${needle}`);
   }
   // A reservation is a free hold and the sale is made in the shop: no distance-selling withdrawal notice or form for books and seats.

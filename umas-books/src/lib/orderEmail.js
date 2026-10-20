@@ -16,7 +16,7 @@ const { frenchPlainText } = require("./frenchTypography");
 // In French the block is French only (the English email keeps the bilingual
 // block: the legal text is French, an English reader gets both).
 const sellerLines = (lang = "en") =>
-  `Uma's Books — association loi 1901, RNA W811011706, SIRET 109 441 147 00013, 5 rue Hippolyte Savary, 81000 Albi\n${lang === "fr" ? "Tél." : "Tél. / Phone"} : 06 98 95 67 91 — admin@umasbooks.org\n${vatNotice()}`;
+  `Uma's Books — association loi 1901, RNA W811011706, SIRET 109 441 147 00013, 5 rue Hippolyte Savary, 81000 Albi\n${lang === "fr" ? "Tél." : "Tél. / Phone"} : ${legal.SHOP_PHONE_DISPLAY} — admin@umasbooks.org\n${vatNotice()}`;
 const SELLER_LINES = sellerLines();
 
 // A reservation is a free, non-binding hold: the sale is made and paid in the shop
