@@ -62,7 +62,7 @@ test("the two opening-hours texts (SHORT and FIRM), in English and French", () =
   const IG = "https://www.instagram.com/umas_books_adventures/";
   assert.equal(legal.SHOP_EXTRA_HOURS_NOTE_URL, IG);
   assert.equal(legal.SOCIAL_LINKS.instagram, IG, "the same clean address, no tracking query string");
-  assert.equal(legal.SOCIAL_LINKS.facebook, "", "no Facebook page given: stays hidden");
+  assert.equal(legal.SOCIAL_LINKS.facebook, "https://www.facebook.com/share/1CgAM7gwey/", "the clean share link, no ?mibextid tracking part");
   assert.equal(legal.shopHoursShort("en"), "Open Wednesday to Saturday, 14:00–19:00. Extra opening hours when volunteers are available: see our Instagram.");
   assert.equal(legal.shopHoursShort("fr"), `Ouvert du mercredi au samedi, de 14${NB}h à 19${NB}h. Ouvertures supplémentaires selon la disponibilité des bénévoles${NB}: voir notre Instagram.`);
   assert.equal(legal.shopHoursShort("en", true), `Open Wednesday to Saturday, 14:00–19:00. Extra opening hours when volunteers are available: see our <a href="${IG}" target="_blank" rel="noopener noreferrer">Instagram</a>.`);
@@ -197,4 +197,14 @@ test("favorites page: the French aria-label turns a straight apostrophe in the t
     assert.match(listEl.innerHTML, /aria-label="Ajouter L’Étranger aux favoris"/);
     resolve();
   }, 20));
+});
+
+test("the old shop phone number is gone from every tracked source file", () => {
+  const { execFileSync } = require("node:child_process");
+  const files = execFileSync("git", ["ls-files", "-z"], { cwd: root }).toString().split("\0").filter(Boolean)
+    .filter((f) => !/\.(png|jpe?g|webp|gif|ico|woff2?|pdf|lock)$|package-lock/.test(f) && !f.endsWith("legalConstants.test.js"));
+  // 98 95 67 91 with any mix of space, nbsp, narrow nbsp, dot or hyphen between pairs
+  const old = /98[ .\-\u00a0\u202f]?95[ .\-\u00a0\u202f]?67[ .\-\u00a0\u202f]?91/;
+  const hits = files.filter((f) => { try { return old.test(fs.readFileSync(path.join(root, f), "utf8")); } catch { return false; } });
+  assert.deepEqual(hits, []);
 });

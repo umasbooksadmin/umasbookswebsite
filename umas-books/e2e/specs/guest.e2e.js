@@ -1630,6 +1630,25 @@ s.test("G100 (must) an unpublished or unknown collection address is a 404, in En
   assert.equal(res.status(), 404);
 });
 
+s.test("G101 (must) the header and footer links on a collection page open real pages, in English and French, and the language switch stays on the same collection", async (ctx) => {
+  await ctx.goto("/books.html", "networkidle2");
+  if (!(await ctx.page.$("#bk-collections .col-btn"))) ctx.skip("data: no collection is published (with an approved book in stock) on this site");
+  const href = await ctx.page.$eval("#bk-collections .col-btn", (a) => a.getAttribute("href"));
+  for (const [prefix, lang] of [["", "en"], ["/fr", "fr"]]) {
+    await ctx.goto(`${prefix}${href}`, "networkidle2");
+    const links = await ctx.page.$$eval("header.mkt-header a[href], footer a[href]", (as) => as.map((a) => a.getAttribute("href")).filter((h) => h && h.startsWith("/") && !h.startsWith("//")));
+    assert.ok(links.length >= 8, "header and footer links found");
+    assert.ok(links.includes(`${prefix}/books.html`), `Browse Books goes to ${prefix}/books.html`);
+    for (const l of [...new Set(links)]) {
+      const res = await ctx.goto(l);
+      assert.ok(res.status() < 400, `${l} -> ${res.status()}`);
+      await ctx.goto(`${prefix}${href}`, "networkidle2");
+    }
+    const sw = await ctx.page.$eval(`.langtoggle a[data-lang='${lang === "en" ? "fr" : "en"}']`, (a) => a.getAttribute("href"));
+    assert.equal(sw, lang === "en" ? `/fr${href}` : href);
+  }
+});
+
 s.test("G-FR55 FR check (membership): the form and the payment step are in French", { lang: "fr" }, async (ctx) => {
   await joinPage(ctx);
   const text = await ctx.text();

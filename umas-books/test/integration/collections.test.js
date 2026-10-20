@@ -491,6 +491,39 @@ test("the French page is French: language, title, links, texts, and none of the 
   assert.match(text, /Les couvertures proviennent d’une bibliothèque/);
 });
 
+// The header and footer are shared with pages at the site root, so their links must not be relative: from
+// /collections/<slug> a relative "books.html" is /collections/books.html, a 404.
+for (const [lang, prefix] of [["en", ""], ["fr", "/fr"]]) {
+  test(`collection page (${lang}): every header and footer link and asset URL resolves, and Browse Books goes to ${prefix}/books.html`, async () => {
+    const c = await publishedShelf([[await newBook(`Nav ${uniq()}`), "approved"]]);
+    const pagePath = `${prefix}/collections/${c.slug}`;
+    const { res, text } = await get(pagePath);
+    assert.equal(res.status, 200);
+    const grab = (re) => (text.match(re) || [""])[0];
+    const chrome = grab(/<header class="mkt-header"[\s\S]*?<\/header>/) + grab(/<footer[\s\S]*?<\/footer>/);
+    assert.ok(chrome.length > 200, "found the header and footer");
+    const urls = new Set();
+    for (const m of chrome.matchAll(/<a\b[^>]*?\shref="([^"]*)"/g)) urls.add(m[1]);
+    for (const m of text.matchAll(/<(?:link|script|img|source)\b[^>]*?\s(?:href|src)="([^"]*)"/g)) urls.add(m[1]);
+    const internal = [...urls].filter((u) => u && !/^(?:[a-z][a-z0-9+.-]*:|\/\/|#)/i.test(u));
+    assert.ok(internal.length >= 12, `only ${internal.length} internal URLs found`);
+    for (const u of internal) {
+      assert.ok(u.startsWith("/"), `relative URL on a nested page: ${u}`);
+      let r = await fetch(new URL(u, `${app.base}${pagePath}`), { redirect: "manual" });
+      for (let hop = 0; r.status >= 300 && r.status < 400 && hop < 5; hop++) r = await fetch(new URL(r.headers.get("location"), `${app.base}${pagePath}`), { redirect: "manual" });
+      await r.arrayBuffer();
+      assert.equal(r.status, 200, `${u} -> ${r.status}`);
+    }
+    const hrefs = (label) => [...chrome.matchAll(/<a\b[^>]*?\shref="([^"]*)"[^>]*>([^<]*)</g)].filter((m) => m[2].includes(label)).map((m) => m[1]);
+    assert.deepEqual(hrefs(lang === "fr" ? "Parcourir les livres" : "Browse Books"), [`${prefix}/books.html`]);
+    assert.ok(chrome.includes(`href="${prefix || "/"}${prefix ? "/" : ""}"`) , "logo/Home go to the language's home");
+    // The language switch lands on the same collection in the other language.
+    assert.match(chrome, /<a href="\/collections\/[^"]+" data-lang="en"/);
+    assert.match(chrome, /<a href="\/fr\/collections\/[^"]+" data-lang="fr"/);
+    assert.ok(chrome.includes(`href="/collections/${c.slug}" data-lang="en"`) && chrome.includes(`href="/fr/collections/${c.slug}" data-lang="fr"`));
+  });
+}
+
 // ---------- sitemap ----------
 
 test("the sitemap lists published collections that still have a book, at both addresses, and nothing else", async () => {
