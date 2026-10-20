@@ -62,7 +62,7 @@ test("the two opening-hours texts (SHORT and FIRM), in English and French", () =
   const IG = "https://www.instagram.com/umas_books_adventures/";
   assert.equal(legal.SHOP_EXTRA_HOURS_NOTE_URL, IG);
   assert.equal(legal.SOCIAL_LINKS.instagram, IG, "the same clean address, no tracking query string");
-  assert.equal(legal.SOCIAL_LINKS.facebook, "", "no Facebook page given: stays hidden");
+  assert.equal(legal.SOCIAL_LINKS.facebook, "https://www.facebook.com/share/1CgAM7gwey/", "the clean share link, no ?mibextid tracking part");
   assert.equal(legal.shopHoursShort("en"), "Open Wednesday to Saturday, 14:00–19:00. Extra opening hours when volunteers are available: see our Instagram.");
   assert.equal(legal.shopHoursShort("fr"), `Ouvert du mercredi au samedi, de 14${NB}h à 19${NB}h. Ouvertures supplémentaires selon la disponibilité des bénévoles${NB}: voir notre Instagram.`);
   assert.equal(legal.shopHoursShort("en", true), `Open Wednesday to Saturday, 14:00–19:00. Extra opening hours when volunteers are available: see our <a href="${IG}" target="_blank" rel="noopener noreferrer">Instagram</a>.`);

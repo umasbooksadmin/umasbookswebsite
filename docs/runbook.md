@@ -1198,9 +1198,9 @@ Once the accountant answers:
    "TVA non applicable, art. 293 B du CGI". Nothing else needs editing.
 
 **The footer social links.** The Instagram icon shows the association's page
-(`SOCIAL_LINKS.instagram` in `umas-books/src/lib/legal.js`); Facebook stays
-hidden until a real page exists (put the full address in `facebook`; an empty
-value stays hidden). Use the clean address, without the `?...` tracking part.
+(`SOCIAL_LINKS.instagram` in `umas-books/src/lib/legal.js`); the Facebook icon next to it
+shows `SOCIAL_LINKS.facebook` (the share link, without the `?mibextid=...` tracking
+part; an empty value hides the icon). Use the clean address, without the `?...` tracking part.
 
 **The shop opening hours.** Wednesday to Saturday, 14:00 to 19:00, set in ONE
 place: the `SHOP_*` constants in `umas-books/src/lib/legal.js`. Every page,

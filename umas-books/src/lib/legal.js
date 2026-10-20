@@ -43,7 +43,7 @@ const VAT_NOTICE_ARTICLE = "";
 
 // Social network pages shown as icons in the site footer. Leave a value
 // empty until the real page exists: an empty one is not shown at all.
-const SOCIAL_LINKS = { instagram: "https://www.instagram.com/umas_books_adventures/", facebook: "" };
+const SOCIAL_LINKS = { instagram: "https://www.instagram.com/umas_books_adventures/", facebook: "https://www.facebook.com/share/1CgAM7gwey/" };
 
 // ---------------------------------------------------------------------------
 // Facts shown on several legal pages and emails: ONE place to change each.
