@@ -3,3 +3,6 @@
    empty "Browse by Genre" heading, and a "Loading
    books…" line. The server-rendered "New In" list in .bk-noscript stays. */
 .bk-genres:not(.bk-collections), .bk-results, .bk-new { display: none; }
+/* The collection strip still scrolls sideways (a visible scrollbar), but its arrows need the script. */
+.bk-collections .arrow { display: none; }
+.bk-collections .bk-track { scrollbar-width: thin; }

@@ -171,6 +171,11 @@ s.test("G11 (must) Browse Books has search, genres, New In carousel", async (ctx
   has(text, /New In/);
   has(text, /See All New In/);
   assert.ok(await ctx.page.$("#bk-new-prev") && await ctx.page.$("#bk-new-next"), "carousel arrows");
+  assert.ok(await ctx.page.$("#bk-genre-prev") && await ctx.page.$("#bk-genre-next"), "genre carousel arrows");
+  // Order: title, search, (collections), New In, genres, results; the genre pictures keep their 50 px size.
+  const order = await ctx.page.evaluate(() => ["h1", "#shop-search-form", "#bk-new-title", "#bk-genres-label"].map((q) => document.querySelector(q).getBoundingClientRect().top));
+  assert.ok(order.every((v, i) => i === 0 || v > order[i - 1]), `page order: title, search, New In, genres (${order})`);
+  assert.equal(await ctx.page.$eval("#bk-genre-list .chip", (e) => Math.round(e.getBoundingClientRect().width)), 50, "genre pictures keep their size");
 });
 
 s.test("G12 search finds a book by title; a search with no match says so", async (ctx) => {
@@ -1533,10 +1538,10 @@ s.test("G96 (must) Browse Books: the collection buttons show on the plain page a
   assert.equal(await collectionRowShown(ctx), true, "shown on the default view");
   const order = await ctx.page.evaluate(() => {
     const top = (sel) => document.querySelector(sel).getBoundingClientRect().top;
-    const t = ["h1", "#bk-collections", "#bk-genre-list", ".bk-new", "#shop-search-form"].map(top);
+    const t = ["h1", "#shop-search-form", "#bk-collections", ".bk-new", "#bk-genre-list"].map(top);
     return { sorted: t.every((v, i) => i === 0 || v > t[i - 1]), flower: !!document.querySelector(".bk-flower, .bk-title-row") };
   });
-  assert.ok(order.sorted, "page order: title, collections, genres, New In, search");
+  assert.ok(order.sorted, "page order: title, search, collections, New In, genres");
   assert.equal(order.flower, false, "no flower beside the title");
 
   await ctx.page.click("#bk-genre-list .bk-genre");
@@ -1587,13 +1592,14 @@ s.test("G97 (must) a collection button opens its page: title, description, the b
   has(await ctx.page.$eval("#bk-collections", (e) => e.innerText), /Parcourir\s+par collection/);
 });
 
-s.test("G98 (must) on a phone (375 px) the collection buttons sit in one sideways-scrolling strip like the genres, each at least 44 px tall, icons 60 px, with no page-wide sideways scrolling", { viewport: GUEST_PHONE }, async (ctx) => {
+s.test("G98 (must) on a phone (375 px) the collections are a swipeable carousel (no arrows), each entry at least 44 px tall, icons 90 px, whole entries only, with no page-wide sideways scrolling", { viewport: GUEST_PHONE }, async (ctx) => {
   await ctx.goto("/books.html", "networkidle2");
   if (!(await ctx.page.$("#bk-collections .col-btn"))) ctx.skip("data: no collection is published (with an approved book in stock) on this site");
   const r = await ctx.page.$$eval("#bk-collections .col-btn", (els) => els.map((e) => { const b = e.getBoundingClientRect(); return { left: Math.round(b.left), top: Math.round(b.top), w: Math.round(b.width), h: Math.round(b.height) }; }));
   assert.ok(r.every((b) => b.w >= 44 && b.h >= 44), "every button is at least 44 x 44 px");
-  assert.ok(r.every((b) => Math.abs(b.top - r[0].top) < 4), "one strip, like Browse by Genre");
-  assert.equal(await ctx.page.$eval("#bk-collections .col-btn img", (i) => Math.round(i.getBoundingClientRect().width)), 60, "icon is half of the old 120 px");
+  assert.ok(r.every((b) => Math.abs(b.top - r[0].top) < 4), "one carousel row");
+  assert.equal(await ctx.page.$eval("#bk-collections .col-btn img", (i) => Math.round(i.getBoundingClientRect().width)), 90, "icon is 75% of the old 120 px");
+  assert.equal(await ctx.page.$eval("#bk-col-prev", (b) => getComputedStyle(b).display), "none", "arrows are hidden on a touch phone: swipe");
   assert.deepEqual(await phoneOverflow(ctx.page, 375), []);
   assert.equal(await ctx.page.$eval("#bk-collections .col-btn img", (i) => i.getAttribute("alt")), "", "the picture is decoration: the caption is the name");
   assert.equal(await ctx.page.$eval("#bk-collections .col-btn img", (i) => i.getAttribute("loading")), "lazy");

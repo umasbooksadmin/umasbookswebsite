@@ -618,7 +618,7 @@ guidance prompt, picture, sort order, `published`, `last_generated_at`) and
   (`ON CONFLICT DO NOTHING`, so earlier decisions are never touched).
 * **Pages.** `routes/collections.js` serves `/collections/:slug` and `/fr/collections/:slug`
   (`lib/frUrls.js` knows the pattern), unpublished or unknown is a 404; the sitemap lists
-  published collections with a book, at both addresses. The Browse row is
+  published collections with a book, at both addresses. The Browse carousel (heading above, under the search bar) is
   `views/marketing/partials/collections_row.ejs`, shown on the plain view only
   (`public/page-books.js` hides it with a genre, search, topic or `?new=1`).
 * **Admin** (English only): `routes/admin/collections.js`, `/admin/collections`.
