@@ -963,7 +963,7 @@ flowchart LR
     JR[("job_runs<br/>last run, last success,<br/>failures in a row")]
   end
   subgraph gha["GitHub Actions (independent of Render)"]
-    D["every 30 min<br/>uptime check"]
+    D["every hour<br/>uptime check"]
     E["03:00 UTC nightly<br/>database backup to Backblaze"]
     F["1st of month, 05:00 UTC<br/>restore test"]
     FR["09:00 UTC daily<br/>backup freshness check"]
@@ -996,7 +996,7 @@ flowchart LR
 | Unused-image cleanup | web process | daily, and at boot | deletes at most one batch of images older than 7 days that no row references (`lib/imageCleanup.js`) |
 | Awards drain | web process | 2 min, not at boot | looks up awards for a few books at a time (§6); a no-op when `AWARDS_LOOKUPS=off` |
 | Cover backfill | web process | 5 min, first run after 1 min | copies up to 20 book covers from their Open Library / archive.org source address into the `images` table, books on the shelves first; at most 3 failed attempts a week per cover, where only a 404, a placeholder or an invalid image counts as failed (a 5xx, timeout or network error does not, and 3 in a row stop the batch); sends a User-Agent with the site and a contact address; off with `COVER_BACKFILL=off` (`lib/coverStore.js`) |
-| Uptime check | Actions | 30 min (about 1,440 billed minutes a month: see the runbook, section t) | emails on the **second** consecutive failure and on recovery |
+| Uptime check | Actions | hourly (about 720 billed minutes a month: see the runbook, section t) | emails on the **second** consecutive failure and on recovery |
 | Database backup | Actions | 03:00 UTC | full dump to Backblaze B2 (required); a second copy on the 1st of the month |
 | Restore test | Actions | monthly + manual | restores the newest Backblaze dump into a scratch Postgres and checks it (key tables, newest migration, images) |
 | Test alert | Actions | every Monday + manual | sends one email so a broken alert channel is noticed within a week |
@@ -1141,7 +1141,7 @@ flowchart TB
     FQ -- yes --> FOK["ok, nothing sent"]
   end
 
-  subgraph watch["Uptime check every 30 min"]
+  subgraph watch["Uptime check every hour"]
     H["GET /healthz"] --> OK{"database reachable?"}
     OK -- "fails twice in a row" --> E3["one alert email"]
     OK -- "recovers" --> E4["one recovery email"]
@@ -1162,7 +1162,7 @@ flowchart TB
   alert (Mondays) proves the channel works. The runbook (section d, q) has the
   click paths and a table of every alert with its first three actions.
 * **External monitor.** UptimeRobot (free) checks `/healthz` every 5 minutes and
-  alerts by email; the 30-minute GitHub uptime check stays as an independent
+  alerts by email; the hourly GitHub uptime check stays as an independent
   second layer. `ALERT_TO` is `admin@umasbooks.org,sharonbje@gmail.com` in both
   Render and the GitHub variable.
 * **Mail not configured is a failure, not "sent".** `mailer.sendMail` throws in

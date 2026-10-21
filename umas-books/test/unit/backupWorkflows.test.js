@@ -59,7 +59,8 @@ test("restore test: downloads the newest dump from the full/ prefix, read-only",
   // dump's newest migration with the repository's); never the whole repository.
   const checkouts = restore.match(/actions\/checkout@/g) || [];
   assert.equal(checkouts.length, 1);
-  assert.match(restore, /sparse-checkout: umas-books\/migrations/);
+  // (plus .github/actions, the local alert-mail action the failure email uses.)
+  assert.match(restore, /sparse-checkout: \|\n\s+umas-books\/migrations\n\s+\.github\/actions\n/);
 });
 
 // ---- Empty monthly/ folder (list-objects-v2 returns "Contents: null") ----

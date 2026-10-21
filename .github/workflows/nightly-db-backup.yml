@@ -261,7 +261,7 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         if: steps.dump.outputs.yearly == 'true'
         with:
-          node-version: "22"
+          node-version-file: umas-books/.node-version # the one place the Node version is set
           cache: npm
           cache-dependency-path: umas-books/package-lock.json
 
@@ -304,15 +304,13 @@ jobs:
 
       - name: Email the yearly accounting files
         if: steps.dump.outputs.yearly == 'true'
-        uses: dawidd6/action-send-mail@67ce3558d613188179559c61d3565140cf389968 # v22
+        uses: ./.github/actions/send-alert-mail
         with:
-          server_address: smtp.gmail.com
-          server_port: 465
           username: ${{ secrets.GMAIL_USER }}
           password: ${{ secrets.GMAIL_APP_PASSWORD }}
           subject: "[umas-books] Accounting export ${{ steps.yearly.outputs.label }}"
           to: ${{ vars.ACCOUNTING_TO || vars.ALERT_TO || 'admin@umasbooks.org' }}
-          from: "Uma's Books Accounting <${{ secrets.GMAIL_USER }}>"
+          from-name: "Uma's Books Accounting"
           body: file://accounting-out/email_body.txt
           attachments: accounting-out/accounting_*.csv,accounting-out/till_days_*.csv
 
@@ -324,15 +322,13 @@ jobs:
         # Requires GMAIL_USER/GMAIL_APP_PASSWORD as repo secrets — the
         # same Gmail account already used by the app for its own mail.
         if: failure()
-        uses: dawidd6/action-send-mail@67ce3558d613188179559c61d3565140cf389968 # v22
+        uses: ./.github/actions/send-alert-mail
         with:
-          server_address: smtp.gmail.com
-          server_port: 465
           username: ${{ secrets.GMAIL_USER }}
           password: ${{ secrets.GMAIL_APP_PASSWORD }}
           subject: "[umas-books] Nightly database backup failed"
           to: ${{ vars.ALERT_TO || 'admin@umasbooks.org' }}
-          from: "Uma's Books Backup Monitor <${{ secrets.GMAIL_USER }}>"
+          from-name: "Uma's Books Backup Monitor"
           body: |
             Tonight's database backup did not complete successfully.
 
@@ -347,15 +343,13 @@ jobs:
         # Weekly (Mondays UTC) and on manual runs, only while BACKUP_AGE_RECIPIENT
         # is unset and the backup itself succeeded (a failure sends the email above).
         if: success() && steps.enc.outputs.nag == 'true'
-        uses: dawidd6/action-send-mail@67ce3558d613188179559c61d3565140cf389968 # v22
+        uses: ./.github/actions/send-alert-mail
         with:
-          server_address: smtp.gmail.com
-          server_port: 465
           username: ${{ secrets.GMAIL_USER }}
           password: ${{ secrets.GMAIL_APP_PASSWORD }}
           subject: "[umas-books] Database backups are NOT encrypted"
           to: ${{ vars.ALERT_TO || 'admin@umasbooks.org' }}
-          from: "Uma's Books Backup Monitor <${{ secrets.GMAIL_USER }}>"
+          from-name: "Uma's Books Backup Monitor"
           body: |
             The nightly database backups in Backblaze are stored WITHOUT encryption: they contain all members' personal data and password hashes.
 

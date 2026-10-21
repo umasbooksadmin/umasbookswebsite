@@ -9,10 +9,10 @@
     return String(v || "").replace(/\s+/g, " ").trim().slice(0, 40);
   }
   function read() {
-    try { return localStorage.getItem(STORE_NAME) || ""; } catch (e) { return ""; }
+    try { return localStorage.getItem(STORE_NAME) || ""; } catch { return ""; }
   }
   function write(v) {
-    try { if (v) localStorage.setItem(STORE_NAME, v); } catch (e) { /* storage blocked: fine */ }
+    try { if (v) localStorage.setItem(STORE_NAME, v); } catch { /* storage blocked: fine */ }
   }
 
   var input = document.querySelector("[data-location-input]");
