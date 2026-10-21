@@ -79,7 +79,7 @@ test("visit page: the shop phone shows as a tap-to-call link in English and Fren
   const legal = require("../../src/lib/legal");
   assert.equal(legal.SHOP_PHONE_DISPLAY, "+33 6 07 41 70 60");
   assert.equal(legal.SHOP_PHONE_TEL, "tel:+33607417060");
-  for (const [lang, label] of [["en", "Phone: +33 6 07 41 70 60"], ["fr", "Téléphone : +33 6 07 41 70 60"]]) {
+  for (const [lang, label] of [["en", "Phone: +33 6 07 41 70 60"], ["fr", "Téléphone\u00a0: +33 6 07 41 70 60"]]) {
     const html = await get("/visit.html", lang);
     assert.match(html, /<a href="tel:\+33607417060"[^>]*>\+33 6 07 41 70 60<\/a>/, `${lang}: tap-to-call link`);
     assert.ok(html.includes("admin@umasbooks.org"), `${lang}: email still shown`);
