@@ -15,6 +15,7 @@ const { colorChartRows } = require("../../lib/pricing/colorChart");
 const { levelText } = require("../../lib/pricing/intake");
 const reprice = require("../../lib/pricing/reprice");
 const { csvCell } = require("../../lib/reports");
+const { parseIntParam } = require("../../lib/parseParams");
 
 const router = express.Router();
 validateIdParams(router, "copyId", "runId");
@@ -52,7 +53,7 @@ function typedValues(body) {
 
 function calculator(settings, query) {
   const market = Number(String(query.calcMarket == null ? "" : query.calcMarket).replace(",", "."));
-  const copies = Math.max(0, Math.min(1000, parseInt(query.calcCopies, 10) || 0));
+  const copies = parseIntParam(query.calcCopies, { max: 1000 });
   const calc = {
     market: query.calcMarket == null || query.calcMarket === "" ? "" : String(query.calcMarket),
     binding: BINDING_COLUMNS.some((b) => b.value === query.calcBinding) ? query.calcBinding : "",
@@ -147,14 +148,14 @@ async function reviewPage(res, { offset = 0, notice = null } = {}) {
 }
 
 router.get("/admin/pricing/review", requireAdmin, async (req, res) => {
-  const offset = Math.max(0, parseInt(req.query.offset, 10) || 0);
-  const notice = req.query.cleared != null ? `Clearance applied to ${Math.max(0, parseInt(req.query.cleared, 10) || 0)} copies.` : null;
+  const offset = parseIntParam(req.query.offset, { min: 0, max: 1000000, default: 0 });
+  const notice = req.query.cleared != null ? `Clearance applied to ${parseIntParam(req.query.cleared, { max: 1000000 })} copies.` : null;
   await reviewPage(res, { offset, notice });
 });
 
 router.post("/admin/pricing/review/:copyId", requireAdmin, async (req, res) => {
   const copyId = Number(req.params.copyId);
-  const offset = Math.max(0, parseInt(req.body.offset, 10) || 0);
+  const offset = parseIntParam(req.body.offset, { min: 0, max: 1000000, default: 0 });
   const settings = await getSettings(pool);
   const { rows } = await pool.query(
     `SELECT c.id, c.price, c.condition, c.status, c.publisher_price, b.isbn, b.binding
@@ -207,8 +208,8 @@ router.get("/admin/pricing/reprice", requireAdmin, async (req, res) => {
   const groups = await reprice.previewGroups(pool, settings);
   const none = reprice.groupByKey(String(req.query.none || ""));
   const stale = reprice.groupByKey(String(req.query.stale || ""));
-  const was = Math.max(0, parseInt(req.query.was, 10) || 0);
-  const now = Math.max(0, parseInt(req.query.now, 10) || 0);
+  const was = parseIntParam(req.query.was, { max: 1000000 });
+  const now = parseIntParam(req.query.now, { max: 1000000 });
   res.render("admin/pricing/reprice", {
     active: "pricing", money, groups, runs: await reprice.recentRuns(pool), repriceRunLabel,
     notice: none ? `Group ${none.letter}: nothing left to change (a second run finds nothing).` : null,
@@ -249,7 +250,7 @@ router.get("/admin/pricing/reprice/runs/:runId", requireAdmin, async (req, res) 
   const isLast = (await reprice.lastRunId(pool)) === run.id;
   res.render("admin/pricing/reprice_result", {
     active: "pricing", run, items: items.slice(0, 200), total: items.length, money, label: repriceRunLabel(run), isLast,
-    notice: req.query.undone != null ? `Undone: ${Math.max(0, parseInt(req.query.undone, 10) || 0)} copies back at their previous price, ${Math.max(0, parseInt(req.query.skipped, 10) || 0)} left alone (sold, reserved or changed since).` : null,
+    notice: req.query.undone != null ? `Undone: ${parseIntParam(req.query.undone, { max: 1000000 })} copies back at their previous price, ${parseIntParam(req.query.skipped, { max: 1000000 })} left alone (sold, reserved or changed since).` : null,
     error: req.query.undostale ? "Nothing was undone: the copies that can be restored are no longer the ones you previewed. Review the preview and confirm again." : null,
   });
 });

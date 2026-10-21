@@ -8,8 +8,9 @@ const { sanitizeHtml } = require("../../lib/sanitizeHtml");
 
 const { redirectWithFlash, takePageFlash } = require("../../lib/postRedirect");
 const { validateIdParams } = require("../../middleware/idParams");
-const { parseId } = require("../../lib/validation");
+const { parseId, clean } = require("../../lib/validation");
 const { parisInstant, parisDateString } = require("../../lib/tz");
+const { likeContains, parseIntParam } = require("../../lib/parseParams");
 
 const router = express.Router();
 // Garbage ids get the 404 page, not a Postgres 22P02 and a 500.
@@ -142,9 +143,9 @@ async function storeBlogImage(req, res, form, imageFile, editId) {
 router.get("/admin/blog", requireAdmin, async (req, res) => {
   const status = BLOG_STATUSES.includes(req.query.status) ? req.query.status : "";
   const category = BLOG_CATEGORIES.includes(req.query.category) ? req.query.category : "";
-  const q = (req.query.q || "").trim();
+  const q = clean(req.query.q, 100);
   const dateRange = req.query.dateRange || "";
-  const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+  const page = parseIntParam(req.query.page, { min: 1, max: 1000000, default: 1 });
 
   const where = [];
   const params = [];
@@ -157,7 +158,7 @@ router.get("/admin/blog", requireAdmin, async (req, res) => {
     where.push(`category = $${params.length}`);
   }
   if (q) {
-    params.push(`%${q}%`);
+    params.push(likeContains(q));
     where.push(`(title ILIKE $${params.length} OR body ILIKE $${params.length} OR tags ILIKE $${params.length})`);
   }
   if (dateRange === "7d") where.push("created_at >= now() - interval '7 days'");

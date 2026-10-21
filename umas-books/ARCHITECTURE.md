@@ -1177,6 +1177,14 @@ names the files; read those for the details. Operations for these are in
   genre, ISBN), `genre` (exact), `topic` (comma list, up to 10, substring of the
   categories). Rate limited by `bookSearchLimiter`; cached 60 seconds.
 - `GET /api/books/genres`: in-stock genres, cached 5 minutes.
+- Numeric parameters are clamped by `parseIntParam` (`src/lib/parseParams.js`):
+  only plain digits count (an array, `1e3`, `0x10`, spaces or a decimal give the
+  default), a number outside its range is clamped, however many digits it has.
+  The search `?offset=` stops at 100000 (an empty last page); `?ids=` on
+  `/api/books/by-ids` keeps valid distinct ids only, at most 200. `%`, `_` and
+  `\` in a search text are literal (`likeContains`, same file). No hostile
+  number can reach SQL as an out-of-range integer, so none gives a 500 and an
+  alert; `test/integration/numericParamFuzz.test.js` checks every GET route.
 
 ### Curated collections
 

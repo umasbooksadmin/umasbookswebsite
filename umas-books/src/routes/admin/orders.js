@@ -12,6 +12,7 @@ const {
 } = require("../../lib/orderActions");
 const { expireStaleReservations, RESERVATION_EXTENSION_DAYS } = require("../../lib/reservations");
 const { reservationLastDay } = require("../../lib/orderItems");
+const { likeContains, parseIntParam } = require("../../lib/parseParams");
 
 const router = express.Router();
 
@@ -33,7 +34,7 @@ function parseFilters(query) {
     from: validDay(String(query.from || "")) || "",
     to: validDay(String(query.to || "")) || "",
     q: clean(query.q, 100) || "",
-    page: Math.max(1, Math.min(100000, parseInt(query.page, 10) || 1)),
+    page: parseIntParam(query.page, { min: 1, max: 100000, default: 1 }),
   };
   return f;
 }
@@ -48,7 +49,7 @@ function whereFor(f) {
   if (f.from) where.push(`o.created_at >= (${add(f.from)}::date)::timestamp AT TIME ZONE '${SITE_TIME_ZONE}'`);
   if (f.to) where.push(`o.created_at < ((${add(f.to)}::date) + 1)::timestamp AT TIME ZONE '${SITE_TIME_ZONE}'`);
   if (f.q) {
-    const like = add(`%${f.q.replace(/[\\%_]/g, "\\$&")}%`);
+    const like = add(likeContains(f.q));
     const idMatch = /^#?(\d{1,9})$/.exec(f.q);
     const byId = idMatch && Number(idMatch[1]) <= 2147483647 ? `o.id = ${add(Number(idMatch[1]))} OR ` : "";
     where.push(`(${byId}o.buyer_email ILIKE ${like} OR o.buyer_name ILIKE ${like})`);

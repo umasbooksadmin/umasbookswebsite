@@ -10,6 +10,7 @@ const { aiAdminLimiter, AI_LIMIT_MESSAGE } = require("../../middleware/rateLimit
 const { audit } = require("../../lib/audit");
 const { setFlash, takeFlash } = require("../../lib/flash");
 const { validateIdParams } = require("../../middleware/idParams");
+const { parseId } = require("../../lib/validation");
 const {
   setPublished, saveDecisions, IN_STOCK_SQL, isSlug, slugTaken, createCollection, deleteCollection, moveCollection, addBookByHand, removeBook, searchInStock,
 } = require("../../lib/collections");
@@ -230,8 +231,8 @@ router.post("/admin/collections/:id/images", requireAdmin, async (req, res) => {
 router.post("/admin/collections/:id/books/add", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   if (!(await loadCollection(id))) return res.status(404).render("404");
-  const bookId = Number(req.body.bookId);
-  const result = Number.isInteger(bookId) && bookId > 0 ? await addBookByHand(pool, id, bookId) : { ok: false, error: "Choose a book from the search results." };
+  const bookId = parseId(req.body.bookId);
+  const result = bookId !== null ? await addBookByHand(pool, id, bookId) : { ok: false, error: "Choose a book from the search results." };
   if (result.ok) {
     await audit(req, { action: "collection.book_add", targetType: "collection", targetId: id, detail: `book ${bookId}` });
     await flash(req, { notice: "Book added (it counts as approved)." });
@@ -242,8 +243,8 @@ router.post("/admin/collections/:id/books/add", requireAdmin, async (req, res) =
 router.post("/admin/collections/:id/books/remove", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   if (!(await loadCollection(id))) return res.status(404).render("404");
-  const bookId = Number(req.body.bookId);
-  const r = Number.isInteger(bookId) && bookId > 0 ? await removeBook(pool, id, bookId) : { removed: false };
+  const bookId = parseId(req.body.bookId);
+  const r = bookId !== null ? await removeBook(pool, id, bookId) : { removed: false };
   if (r.removed) await audit(req, { action: "collection.book_remove", targetType: "collection", targetId: id, detail: `book ${bookId}` });
   await flash(req, r.removed ? { notice: "Book removed from this collection (the book itself is untouched)." + (r.unpublished ? " No approved book is left, so the collection was unpublished." : "") } : { error: "That book is not in this collection." });
   redirectBack(res, id);

@@ -108,4 +108,21 @@ function parseWholeNumber(raw, { min, max, allowBlank = false, label = "Number" 
   return { value: Number(text) };
 }
 
-module.exports = { isEmail, clean, cleanHttpUrl, parseId, emailSafeName, parseMoney, parseWholeNumber, MONEY_MAX };
+// A calendar day typed or picked in an admin form ("2026-07-15", an <input type="date">), for a DATE column.
+// Returns { value } ("YYYY-MM-DD"; null for an allowed blank) or { error } (a sentence in English for the admin).
+// Anything else (text, "2026-02-31", a repeated field, a year outside 1900-2100) is refused: it would otherwise
+// reach Postgres as "invalid input syntax for type date" or "date out of range", a 500 and an alert email.
+function parseDay(raw, { allowBlank = true, label = "Date" } = {}) {
+  if (raw === undefined || raw === null || (typeof raw === "string" && raw.trim() === "")) {
+    return allowBlank ? { value: null } : { error: `${label} is required.` };
+  }
+  const bad = { error: `${label} must be a real date, like 2026-07-15.` };
+  const m = typeof raw === "string" ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw.trim()) : null;
+  if (!m) return bad;
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== mo - 1 || dt.getUTCDate() !== d || y < 1900 || y > 2100) return bad;
+  return { value: m[0] };
+}
+
+module.exports = { isEmail, clean, cleanHttpUrl, parseId, parseDay, emailSafeName, parseMoney, parseWholeNumber, MONEY_MAX };
