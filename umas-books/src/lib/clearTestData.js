@@ -387,6 +387,7 @@ async function runClearTestData(db, { execute = false, includeContent = false, k
     // Never wait forever on a lock held by the live site, never run away.
     await db.query("SET LOCAL lock_timeout = '15s'");
     await db.query("SET LOCAL statement_timeout = '10min'");
+    await db.query("SET LOCAL jit = off"); // the unused-image predicate has a huge cost estimate but tiny real work
 
     // Warnings for the report, before anything is deleted.
     const paidOrders = await countRows(db, "orders", "status = 'paid'");
