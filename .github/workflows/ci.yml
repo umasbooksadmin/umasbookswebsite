@@ -12,7 +12,7 @@ on:
   workflow_dispatch: {}
 
 # Actions minutes: the repository is private and the Free plan has 2,000 minutes
-# a month; a full run is about 20 billed minutes (smoke-crawl 10, test 6, the
+# a month; a full run is about 20 billed minutes (smoke-crawl 10, test 5, the
 # other four 1 each). Every job below still ALWAYS runs and reports success, so
 # the six required check names never go missing or stay "Pending" (a workflow
 # skipped with `paths:` filters would block merges). Instead, the first step of
@@ -73,8 +73,9 @@ jobs:
     # real app as a child process against this job's own Postgres
     # service and hit it over real HTTP (see test/integration/).
     runs-on: ubuntu-latest
-    # 25, not 10: the suite (~2,200 tests) took 9m50s on a good day and
-    # was being cancelled at the old limit. The duration is printed in the
+    # 25, not 10: the suite had grown past the old 10-minute limit and was
+    # being cancelled. Now about 2,640 tests and the job takes about 5 minutes
+    # (smoke-crawl about 10); 25 stays as headroom. The duration is printed in the
     # job summary so the trend is visible before it nears this again.
     timeout-minutes: 25
     services:

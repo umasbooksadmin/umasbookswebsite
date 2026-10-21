@@ -12,16 +12,47 @@ Express process alongside the members area — see
 [ARCHITECTURE.md](ARCHITECTURE.md#one-app-two-front-ends). It runs on
 Render.
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for routing, shared views, data
-domains, environment variables, and the migration/deploy process — this
-file is about what each feature does, that one is about how it's built.
+**Which document is authoritative for what:** this README says what each
+feature does and how to run, deploy and restore it. [ARCHITECTURE.md](ARCHITECTURE.md)
+is the authoritative file-level map: routing, shared views, data domains,
+the **environment-variable inventory** (if a table here ever disagrees with it,
+ARCHITECTURE.md wins), where each newer feature lives (Browse page, collections,
+ISBNdb price, pricing exception), and the migration/deploy process.
+[`../docs/architecture.md`](../docs/architecture.md) is the same system as
+diagrams; [`../docs/runbook.md`](../docs/runbook.md) is for operating it.
+
+Newer features in one line each (details and file paths in
+[ARCHITECTURE.md](ARCHITECTURE.md#newer-features-where-they-live)): the Browse
+page (search, collection / New In / genre carousels, paged results), admin-reviewed
+curated collections with public pages in English and French, an ISBNdb publisher's
+price suggestion on Add Book, the two-year exception to the fixed book price, and
+case-insensitive shelf locations.
 
 ## Local development
 
-Requires Node 22 and a local PostgreSQL server.
+Requires **Node 22** (production and CI run 22; `package.json` says `22.x`) and a
+local PostgreSQL server. If you have a newer Node installed, use a version
+manager (`nvm use 22`, `fnm use 22` or `brew install node@22`) rather than
+running on the newer one: native modules and test timing can differ.
+
+### Where to keep your working copy
+
+Keep it **outside `~/Documents`**, for example `~/dev/umasbooks`. A checkout
+inside the iCloud-synced `~/Documents` folder makes git operations (checkout,
+rebase, worktree) fail with `mmap failed`, and files can be evicted or
+conflicted mid-operation. Any such old checkout is likely far behind: do not
+try to repair it, clone fresh:
 
 ```bash
-npm install
+mkdir -p ~/dev && cd ~/dev
+git clone https://github.com/umasbooksadmin/umasbookswebsite.git umasbooks
+cd umasbooks/umas-books
+```
+
+### Setup
+
+```bash
+npm ci                      # installs exactly package-lock.json (not `npm install`, which can change it)
 createdb umas_books
 cp .env.example .env        # edit DATABASE_URL / SESSION_SECRET if needed
 npm run migrate
@@ -42,10 +73,15 @@ empty or have no active round).
 ### Running the tests
 
 ```bash
-npm test                          # node --test: unit + integration
-node --test --test-concurrency=4  # same, but caps how many app servers boot at once
+TZ=UTC PGOPTIONS='-c timezone=UTC' npm test   # the safe way to run everything (see the note below)
+node --test --test-concurrency=4              # same idea, but caps how many app servers boot at once
 npm run lint
 ```
+
+Time zone note: the app forces `Europe/Paris` itself, but one test is sensitive to the
+machine's time zone and daylight-saving date (it is queued for a fix). Until then run the
+suite with `TZ=UTC PGOPTIONS='-c timezone=UTC'` in front, as above; a failure of a date test that disappears with those two settings is that test,
+not your change.
 
 The integration tests (`test/integration/`) boot the real app as a child
 process and hit it over HTTP. With no `DATABASE_URL` set they create (and
@@ -185,12 +221,12 @@ more things to keep in mind:
   (`/admin/orders/<id>`); the others stay held until an admin cancels the
   reservation or marks it sold, or they expire.
 - **Admin** (`/admin`, admin accounts only) — a proper multi-page section
-  with its own sub-nav (`views/partials/admin_subnav.ejs`): an overview
+  with its own navigation (`views/partials/admin_header.ejs`): an overview
   with counts/links, plus dedicated pages for Books & Reservations, English
   Programs (`/admin/sessions`), Events, Volunteer Shifts, Meetings,
-  Announcements, Accounts/Members, Charities, and Blog. Add a new admin area by adding a route in `src/routes/admin.js`,
-  a view under
-  `views/admin/`, and a link in the subnav partial.
+  Announcements, Accounts/Members, Charities, and Blog. Add a new admin area by adding a route file under `src/routes/admin/` (mounted in
+  `src/routes/admin/index.js`), a view under `views/admin/`, and a link in
+  `views/partials/admin_header.ejs`.
 
 Note: an earlier, member-only events feature was removed and later
 replaced by the public **Events** and **Sessions** features above (the
@@ -473,6 +509,8 @@ Redeploying an older commit does **not** undo a migration; see
 [`docs/runbook.md`](../docs/runbook.md) before rolling back.
 
 ### Environment variables
+
+This is the short deploy-time list. The complete inventory (every variable, default, secret or not, and where it is set) is in [ARCHITECTURE.md](ARCHITECTURE.md#environment-variables) and wins if the two differ.
 
 Set in Render under the service's **Environment** tab. `render.yaml` lists every
 one, so a Blueprint rebuild starts correctly; values marked "by hand" are
@@ -773,9 +811,10 @@ locked-out admin, who gets alerts, the yearly checklist) are in
 - No event/announcement notification emails yet (email covers password
   reset, signup verification, the contact form, reservations and error
   alerts; the `sendMail` helper in `src/mailer.js` is ready to reuse).
-- No moderation UI for forum threads/replies — an admin can edit or delete
-  announcements and blog posts, but removing a forum post means deleting
-  the row in the database.
+- Forum moderation is limited to hiding and restoring a thread or reply
+  (`src/routes/admin/forum.js`, with a statement of reasons emailed to the
+  author); there is no editing of a post's text and no queue of reported posts
+  beyond the reports emailed to `CONTACT_TO`.
 - No general JSON API — this is a server-rendered app. The few `/api/...`
   routes (book search, latest arrivals, cart count, favorites) exist for
   the site's own pages.

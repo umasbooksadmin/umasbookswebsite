@@ -1,7 +1,7 @@
 // Fake people and reservations for the TEST SYSTEM (staging) only:
 //   npm run demo:load -- --yes      (creates them; safe to run again)
 //   npm run demo:remove -- --yes    (removes exactly what demo:load made)
-// See docs/runbook.md, section aa, "Demo people and reservations".
+// See docs/runbook.md, section ai, "Demo people and reservations".
 //
 // What it makes (everything is marked "demo", nothing else is touched):
 //   - 5 accounts at the reserved example.com domain (nobody can receive mail

@@ -1,7 +1,13 @@
 # Architecture
 
-> For diagrams of the whole system (context, request flow, data model, payments,
-> deploy, backups, security) see [`../docs/architecture.md`](../docs/architecture.md).
+> **Which document is authoritative for what.** This file is the authoritative,
+> file-level map: routes, views, data domains, the **environment-variable
+> inventory** (the one source; a test keeps it complete), migrations, and where
+> each feature lives. [`../docs/architecture.md`](../docs/architecture.md) is the
+> system in diagrams (context, request flow, data model, payments, deploy,
+> backups, security) and defers to this file for variables. [README.md](README.md)
+> says what each feature does and how to run it locally.
+> [`../docs/runbook.md`](../docs/runbook.md) is for operating it.
 
 A quick technical map of how this app is put together — routing, views,
 data, config, and how a change gets from a commit to production. See
@@ -379,44 +385,116 @@ rather than by a numbered migration), grouped by what they belong to:
 
 ## Environment variables
 
-Every one the code actually reads (`grep -rohE "process\.env\.[A-Z_]+"
-src/` is the ground truth if this list ever drifts):
+This table is the inventory of every variable the code reads in `src/` and
+`scripts/`, found by scanning for BOTH `process.env.NAME` and the `env.NAME` /
+`env["NAME"]` / `readNumber(env, "NAME")` / `envNumber("NAME", ...)` forms (many modules take an `env`
+argument so they can be tested). `grep -rn "process.env" src/` alone misses
+the second kind. A guard test, `test/unit/envInventory.test.js`, fails when a
+variable read in `src/` or `scripts/` is missing from this table or from
+[.env.example](.env.example), so add both when you add a variable.
 
-| Variable | Required? | Purpose |
-|---|---|---|
-| `DATABASE_URL` | yes | Postgres connection string — see [Migration process](#migration-process) for how `PGSSLMODE` affects it |
-| `SESSION_SECRET` | yes (app refuses to start if unset) | signs the session cookie |
-| `PORT` | no (defaults 3000) | HTTP listen port |
-| `NODE_ENV` | no | `production` turns on startup env validation (`src/lib/env.js`: fails fast listing every missing required var, warns about disabled email/payments), secure session cookies, and `src/lib/baseUrl.js` requiring `APP_BASE_URL`/`RENDER_EXTERNAL_URL` |
-| `PGSSLMODE` | no | set to `disable` for local dev (no TLS); any other value uses `{ rejectUnauthorized: false }` — see `src/db.js` |
-| `APP_BASE_URL` | no | overrides the auto-detected base URL (emailed links, the membership payment return URL) |
-| `RENDER_EXTERNAL_URL` | no | set automatically by Render; same purpose as `APP_BASE_URL` |
-| `GMAIL_USER` / `GMAIL_APP_PASSWORD` | no | outgoing email (password reset, email verification, contact form, every alert); when unset, development and tests log instead of sending, while **production throws** (the outbox keeps and retries the message rather than marking it sent) |
-| `CONTACT_TO` | no (defaults `admin@umasbooks.org`) | where the Contact form and forum reports deliver; one address or several separated by commas |
-| `ALERT_TO` | no (falls back to `CONTACT_TO`, then `admin@umasbooks.org`) | where every site alert goes (errors, failed/stuck email, failing background jobs, launch warnings); comma separated list. The GitHub workflows use the repository variable of the same name |
-| `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` | `SEED_ADMIN_PASSWORD` required the first time `npm run seed` creates an admin | one-time bootstrap of the first admin account; never blocks startup. `SEED_SAMPLE_CONTENT=true` forces sample content, `SEED_STRICT=true` makes a failure exit 1 (CI) |
-| `ANTHROPIC_API_KEY` | no | powers inventory photo-scan and auto-generated book descriptions |
-| `NYT_API_KEY` | no | New York Times Books API key (free from developer.nytimes.com); enables verified best-seller rows. Never logged |
-| `AWARDS_LOOKUPS` | no | `off` stops all awards lookups (kill switch) |
-| `COVER_BACKFILL` | no | `off` stops the background job that copies book covers to our own server (the test helpers set it). Only a 404, a placeholder or an invalid image counts as a failed attempt; 5xx, timeouts and network errors do not, and 3 in a row stop the batch |
-| `ANTHROPIC_WORKSPACE_ID` | no | optional workspace header on Anthropic API calls |
-| `PRICING_AI` | no (off unless `1` or `true`) | turns on the AI market check behind price suggestions (also needs `ANTHROPIC_API_KEY`); without it prices come from the built-in rules only |
-| `PRICING_AI_MODEL` | no (defaults to the model used for book descriptions) | model for the market check; it must support the web search tool |
-| `PRICING_AI_DAILY_MAX` | no (defaults 150) | most AI market lookups per day, counted from the database so a restart cannot reset it; `0` switches lookups off |
-| `HELLOASSO_CLIENT_ID` / `HELLOASSO_CLIENT_SECRET` / `HELLOASSO_ORG_SLUG` | no (the membership sync is off without them) | HelloAsso API credentials, used for the membership only |
-| `HELLOASSO_API_BASE` | no (defaults to production) | set to HelloAsso's sandbox URL for testing |
-| `TRUST_PROXY_HOPS` | no (default 2 in production, 1 elsewhere) | integer 1 to 5, number of reverse proxies in front of the app (Render's edge and its internal proxy = 2; DNS points straight at Render, the association has no Cloudflare account; a real CDN added later changes this: re-check); decides `req.ip` (`src/lib/trustProxy.js`). Check on `/admin/diagnostics/client-ip` |
-| `APP_BASE_URL` | yes once preview is off | `https://umasbooks.org`; the only base URL used on a live site, and other Hosts are redirected to it (`src/middleware/canonicalHost.js`); other methods on another Host get 421, except `/healthz` and `/webhooks/helloasso` |
-| `HELLOASSO_MEMBERSHIP_FORM_SLUG` | no | only orders of this HelloAsso form (its `formSlug`) grant membership; unset = any Membership-type form |
-| `PREVIEW_MODE` | no (off when unset) | `true` or `1` (any case) turns on [preview mode](#preview-mode): coming-soon banner, payments off, search engines kept out. Set in the Render dashboard, not in `render.yaml` |
+"Where set" says exactly which store holds the value:
 
-`render.yaml` lists every variable above that a rebuild needs (secrets as
+- **Render env var** = Render dashboard > umas-books > Environment (production)
+  or umas-books-staging. `render.yaml` / `render.staging.yaml` list most of
+  them: `value:` = plain value kept in the repo; `generateValue` = Render makes a
+  random one; `sync: false` = typed by hand in the dashboard, never stored in the
+  repo and never overwritten by a Blueprint sync.
+- **Local `.env`** = your own machine only (copy `.env.example`).
+- GitHub values (`GitHub repository variable` = Settings > Secrets and variables
+  > Actions > **Variables** tab, not secret; `GitHub secret` = same page,
+  **Secrets** tab) are listed in the second table below.
+
+### Required
+
+| Variable | Secret? | Where set | What it does |
+|---|---|---|---|
+| `DATABASE_URL` | yes | Render env var, `sync: false`, **set by hand** to the database's Internal Database URL (staging: `fromDatabase` in `render.staging.yaml`); local `.env`. Rotation: runbook "Rotating the database password" (section b) | Postgres connection string. The app (`src/db.js`) refuses to start without it. See [Migration process](#migration-process) for TLS |
+| `SESSION_SECRET` | yes | Render env var (`generateValue: true`); local `.env` | Signs the session cookie. The app refuses to start without it |
+| `TOTP_ENCRYPTION_KEY` | yes | Render env var (`generateValue: true`) | **Required in production** (`src/lib/env.js` fails the boot without it). Encrypts admins' two-step secrets at rest (`src/lib/totp.js`). Outside production it falls back to a key derived from `SESSION_SECRET`. Changing it makes enrolled admins re-enrol, so set it once |
+
+### Optional, with their defaults
+
+| Variable | Secret? | Default | Where set | What it does |
+|---|---|---|---|---|
+| `NODE_ENV` | no | development | Render env var (`production`); local `.env` | `production` turns on startup env validation (`src/lib/env.js`: lists every missing required var, warns about disabled email/payments), secure cookies, mandatory admin 2FA, and `src/lib/baseUrl.js` requiring `APP_BASE_URL`/`RENDER_EXTERNAL_URL` |
+| `PORT` | no | 3000 | Render sets it; local `.env` | HTTP listen port |
+| `PGSSLMODE` | no | TLS on (`rejectUnauthorized: false`) | local `.env` (`disable`) | `disable` for a local Postgres without TLS; anything else keeps TLS (`src/db.js`) |
+| `DB_POOL_MAX` | no | 20 (allowed 2 to 50) | Render env var, optional | Size of the Postgres connection pool (`src/lib/dbConfig.js`). Render allows 100 connections and a deploy runs two instances |
+| `APP_BASE_URL` | no | none | Render env var (`https://umasbooks.org`, plain value in `render.yaml`) | The public address, no trailing slash. The only base URL used on a live site: emailed links, payment return URLs, sitemap; other Hosts are redirected to it (`src/middleware/canonicalHost.js`), other methods on another Host get 421 except `/healthz` and `/webhooks/helloasso` |
+| `RENDER_EXTERNAL_URL` | no | none | Set by Render itself | Fallback for `APP_BASE_URL` when that is unset |
+| `APP_ENV` | no | none | Render env var (`staging` in `render.staging.yaml`) | `staging` marks the test site: red TEST SITE banner, noindex, mail only to `STAGING_MAIL_TO`, boot guards (`src/lib/staging.js`) |
+| `PRODUCTION_DATABASE_HOST` | no (kept out of the repo) | none | Render env var on **staging**, `sync: false` | The production database's host name. Staging refuses to start if this is empty or its `DATABASE_URL` points at that host. Also used by the demo-data script |
+| `STAGING_MAIL_TO` | no | none | Render env var on **staging**, `sync: false` | The only mailbox the test site may send to (`src/lib/staging.js`); required there |
+| `PREVIEW_MODE` | no | off | Render env var, set by hand, deliberately **not** in `render.yaml` | `true` or `1` turns on [preview mode](#preview-mode): coming-soon banner, payments off, search engines kept out |
+| `TRUST_PROXY_HOPS` | no | 2 in production, 1 elsewhere | Render env var (`"2"` in both yaml files) | Integer 1 to 5: reverse proxies in front of the app (Render's edge plus its internal proxy = 2; no Cloudflare). Decides `req.ip` (`src/lib/trustProxy.js`); check on `/admin/diagnostics/client-ip`. A CDN added later changes this |
+| `GMAIL_USER`, `GMAIL_APP_PASSWORD` | `GMAIL_APP_PASSWORD` yes | none | Render env var, `sync: false` (staging: a separate Gmail account); local `.env` | Outgoing mail (resets, verification, contact form, every alert). Unset: dev/tests log instead of sending, **production throws** so the outbox keeps and retries the message |
+| `CONTACT_TO` | no | `admin@umasbooks.org` | Render env var (plain value) | Where the Contact form and forum reports deliver; one address or several separated by commas |
+| `ALERT_TO` | no | falls back to `CONTACT_TO`, then `admin@umasbooks.org` | Render env var (plain value) **and** the GitHub repository variable of the same name (keep the two equal) | Where every site alert goes (errors, failed/stuck email, failing jobs, launch warnings); comma separated list |
+| `MAIL_GLOBAL_PER_HOUR` | no | per-kind caps in `THROTTLE.globalPerHour` (`src/lib/outbox.js`) | Render env var, optional (tests set a high value) | Overrides the shop-wide hourly cap on throttled mail kinds (signup, verification, password reset, book requests) with one positive number |
+| `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD` | password yes | email defaults to `admin@umasbooks.org` | Render env var, `sync: false`; local `.env` | One-time bootstrap of the first admin by `npm run seed`; `SEED_ADMIN_PASSWORD` is required only that first time. Never blocks startup. Delete the password afterwards |
+| `SEED_SAMPLE_CONTENT`, `SEED_STRICT` | no | off | local / CI | `SEED_SAMPLE_CONTENT=true` forces sample content; `SEED_STRICT=true` makes a seed failure exit 1 (CI) |
+| `ADMIN_2FA_REQUIRED` | no | required | tests / local only | `false` switches admin two-step off, **ignored when `NODE_ENV=production`** (`src/middleware/auth.js`). Tests set it |
+| `ADMIN_SESSION_IDLE_HOURS` | no | 8 (allowed 0.25 to 72) | Render env var, `sync: false` | Admin and till accounts are signed out after this long idle (`src/lib/adminSession.js`; runbook section ab) |
+| `ADMIN_SESSION_MAX_DAYS` | no | 7 (allowed 1 to 30) | Render env var, `sync: false` | Admin and till accounts are signed out this long after login even if active |
+| `ANON_SESSION_LIMIT` | no | 60 per IP per 10 minutes | tests only | Stored guest sessions per IP (`src/lib/anonSessionGuard.js`). For the local end-to-end run; leave unset on the live site |
+| `ANTHROPIC_API_KEY` | yes | none | Render env var, `sync: false` | Powers photo-scan and AI book descriptions/translations/genres |
+| `ANTHROPIC_WORKSPACE_ID` | no | none | Render env var, `sync: false` | Optional workspace header on Anthropic calls |
+| `AI_DAILY_MAX_CALLS` | no | 600 (`0` = AI off) | Render env var, `sync: false` | Most Anthropic calls a day for ALL AI features together, counted from the database (`src/lib/aiLimits.js`; runbook "AI limits"). Resets at midnight Paris time |
+| `PRICING_AI` | no | off (on only for `1` or `true`) | Render env var, `sync: false` | Turns on the AI market check behind price suggestions (also needs `ANTHROPIC_API_KEY`) |
+| `PRICING_AI_MODEL` | no | the description model | Render env var, `sync: false` | Model for the market check; must support the web search tool |
+| `PRICING_AI_DAILY_MAX` | no | 150 (`0` = off) | Render env var, `sync: false` | Most AI market lookups a day; part of `AI_DAILY_MAX_CALLS` |
+| `NYT_API_KEY` | yes | none | Render env var, `sync: false` | New York Times Books API key; enables verified best-seller rows. Never logged |
+| `AWARDS_LOOKUPS` | no | on | Render env var, optional | `off` (also `0`, `false`) stops all awards lookups |
+| `COVER_BACKFILL` | no | on | Render env var (`"on"` in `render.yaml`); tests set `off` | `off` stops the background job that copies covers to our own server. Only a 404, placeholder or invalid image counts as a failed attempt; 3 in a row stop the batch |
+| `GOOGLE_BOOKS_API_KEY` | yes | none | Render env var, `sync: false` | Higher Google Books quota for the ISBN lookup (covers from Google are not used, see the cover-source decision) |
+| `ISBNDB_API_KEY` | yes | none | Render env var, `sync: false` | ISBNdb key (paid): last-resort book lookup and the price suggestion. Unset = not used |
+| `ISBNDB_API_BASE` | no | ISBNdb's production API | optional | Must be an `https://...isbndb.com` address, else ignored with a warning (the key is never sent elsewhere) |
+| `ISBNDB_MIN_INTERVAL_MS` | no | 1000 | optional | Minimum gap between ISBNdb calls (`src/lib/bookSources.js`) |
+| `ISBNDB_PRICE_TIMEOUT_MS` | no | 6000 | optional | Timeout for one ISBNdb price call (`src/lib/isbndbPrice.js`) |
+| `ISBNDB_PRICE_TTL_MS` | no | 3 days | optional | How long an ISBNdb price answer is cached |
+| `SCAN_LOOKUP_SOURCES` | no | `openlibrary,bnf,google,openlibrary-data,isbndb` | optional | Comma list of lookup sources the scan screen uses, in order (`src/lib/bookLookup.js`) |
+| `SCAN_CACHE_TTL_MS` | no | 600000 (10 minutes; `0` = off) | optional | How long a scan lookup result is cached (`src/lib/bookLookup.js`) |
+| `SCAN_NEGATIVE_TTL_MS` | no | 120000 (2 minutes) | optional | How long a "not found" is cached |
+| `SCAN_LOOKUP_TIMEOUT_MS` | no | 4000 | optional | The whole book lookup is given up after this long |
+| `SCAN_LOOKUP_HEDGE_MS` | no | 1500 (`0` = off) | optional | Start the second source if the first has not answered by then |
+| `SCAN_LOOKUP_GRACE_MS` | no | 300 | optional | Wait for slower sources this long after the first titled result |
+| `SCAN_COVER_WAIT_MS`, `SCAN_PRICE_WAIT_MS` | no | 1200 / 3000 | optional | Budget for the cover copy and the price suggestion on the Add a book screen (`src/routes/admin/inventoryLookup.js`) |
+| `SCAN_SLOW_LOG_MS` | no | 1500 (`off` disables) | optional | Log a scan lookup slower than this (`src/lib/timing.js`) |
+| `DASHBOARD_COUNTS_CACHE_SECONDS` | no | 30 in production, 0 elsewhere | optional | How long the admin dashboard's slow counts are cached; `0` turns the cache off |
+| `TILL_MAX_VOIDS_PER_DAY` | no | 3 | optional | Voids a non-admin till user may make per day (`src/lib/till.js`) |
+| `FISCAL_YEAR_START_MONTH` | no | 1 | GitHub repository variable (read by `scripts/export-accounting-month.js` in the workflows) | Month the financial year starts, for the monthly accounting export |
+| `HELLOASSO_CLIENT_ID`, `HELLOASSO_CLIENT_SECRET`, `HELLOASSO_ORG_SLUG` | the first two yes | none | Render env var, `sync: false` | HelloAsso API credentials, membership only. Unset: the membership sync is off |
+| `HELLOASSO_API_BASE` | no | production API | Render env var (`sync: false`; staging sets the sandbox URL in the yaml) | HelloAsso's sandbox URL for testing. Staging refuses to boot with credentials but no sandbox address |
+| `HELLOASSO_MEMBERSHIP_FORM_SLUG` | no | any Membership-type form | Render env var, `sync: false` | Only orders of this HelloAsso form (`formSlug`) grant membership |
+| `DEMO_ALLOW_LOCAL`, `DEMO_CONFIRM`, `DEMO_PASSWORD` | `DEMO_PASSWORD` is a throwaway | none | local shell only | Demo-data script switches (`src/lib/demoData.js`): allow a local run, skip the `--yes` prompt, fixed password. Staging or localhost only |
+| `TZ` | no | `Europe/Paris` | forced by the code | `src/lib/tz.js` sets it at start (`TZ` is read only to detect a difference); never needed in Render |
+| `CI`, `GITHUB_OUTPUT`, `DEBUG_BLOBS`, `DUMP_FILE`, `DUMP_EN_FILE` | no | none | CI / developer scripts | Set by GitHub Actions (`CI`, `GITHUB_OUTPUT`) or used by one-off scripts in `scripts/`; nothing to configure |
+
+`render.yaml` lists the production variables a rebuild needs (secrets as
 `sync: false`), except `PREVIEW_MODE`, which is deliberately left out.
+`render.staging.yaml` lists the staging set.
 
-CI (`.github/workflows/ci.yml`) has its own separate set of throwaway
-values for these (a Postgres service container, a dummy
-`SESSION_SECRET`, etc.) — see that file, not this table, for what CI
-actually uses.
+### GitHub Actions values (not read by `src/`)
+
+The workflows in `.github/workflows/` use these; none is set in Render except
+where noted. **Secret** = Secrets tab, **Variable** = Variables tab.
+
+| Name | Kind | Used by | What it is |
+|---|---|---|---|
+| `DATABASE_URL` | GitHub secret | nightly backup, inventory export, accounting export | Production database's **External** URL (the Internal URL does not work from GitHub) |
+| `GMAIL_USER`, `GMAIL_APP_PASSWORD` | GitHub secrets | every workflow that mails an alert | Same Gmail sender as the site |
+| `ALERT_TO` | GitHub repository variable | every alert | Keep equal to the Render value |
+| `ACCOUNTING_TO` | GitHub repository variable | accounting export, nightly backup | Where the monthly accounting export goes |
+| `FISCAL_YEAR_START_MONTH` | GitHub repository variable | accounting export | See above |
+| `BACKUP_S3_KEY_ID`, `BACKUP_S3_APPLICATION_KEY` | GitHub secrets | backup, restore test, freshness, exports | Backblaze B2 application key |
+| `BACKUP_S3_BUCKET`, `BACKUP_S3_ENDPOINT`, `BACKUP_S3_REGION`, `BACKUP_S3_PREFIX` | GitHub repository variables | same | Backblaze bucket location |
+| `BACKUP_AGE_RECIPIENT` | GitHub repository variable | nightly backup | Public `age` key backups are encrypted to |
+| `BACKUP_AGE_IDENTITY` | GitHub secret | restore test | Private `age` key (decrypts backups for the drill) |
+| `SITE_URL` | GitHub repository variable | uptime check | Address the check pings |
+
+CI (`.github/workflows/ci.yml`) has its own throwaway values (a Postgres
+service container, a dummy `SESSION_SECRET`, etc.): see that file.
 
 ## Preview mode
 
@@ -1029,6 +1107,136 @@ also run by the outbox tick); `/admin/members` lists them and
 `lib/memberStatus.js` is the one definition of "active member now"
 (`attachUser`, login, favorites, member counts) and `isoDateParis` formats end
 dates in Paris time.
+
+## Newer features: where they live
+
+Short map of features added after the sections above were written. Each entry
+names the files; read those for the details. Operations for these are in
+[`../docs/runbook.md`](../docs/runbook.md) (the table of contents at its top).
+
+### The Browse page (`/books.html`)
+
+- View `views/marketing/books.ejs`, script `public/page-books.js`, state parsing
+  `public/books-state.js`, styles `../assets/books.css` (repo root `assets/`). Top to bottom: the page
+  title, the **search** box, **Browse by Collection** (carousel of curated
+  collections, `views/marketing/partials/collections_row.ejs`), **New In**
+  (carousel), **Browse by Genre** (carousel of genre tiles), then the **results**
+  grid with a **Show more** button (24 books at a time).
+- All three carousels are one component, `makeCarousel(track, prev, next,
+  itemSel)` in `public/page-books.js`: the track shows a whole number of items,
+  every item is a scroll-snap point, arrows and arrow keys move to the measured
+  left edge of a real item.
+- **Hide rules**: Browse by Collection and New In are for the plain view only.
+  With a search (`?q=`), a genre (`?genre=`), a topic (`?topic=`) or
+  `?new=1` ("See All New In") they are hidden. The server sends them already
+  hidden (`src/index.js`: `newInHidden`, `collectionsHidden` from
+  `browseFilterActive()` in `src/lib/collections.js`) and the page script applies
+  the same rule afterwards, so there is no flash. Browse by Collection is also
+  absent when no collection is published with an approved in-stock book.
+- A `<noscript>` list of the newest books keeps the page usable without JavaScript.
+
+### New In API and paged search
+
+- `GET /api/books/new-in` (`src/routes/books.js`, `newIn()` in `src/lib/latestArrivals.js`): `{ total, books, nextOffset }`, newest copy first; "New In" = books with a copy added in the last 60 days, never fewer than the 40 newest books. `?all=1` returns
+  everything in one request (the carousel); otherwise `?limit=` (1 to 48, default
+  24) and `?offset=`. Not rate limited (no text search, one cheap query); cached
+  60 seconds (`Cache-Control: public, max-age=60`); CORS open.
+- `GET /api/books/search?paged=1`: `{ books, total, nextOffset }` with `?offset=`
+  and `?limit=` (1 to 48, default 24). Without `paged` it returns the plain array,
+  at most 60 books. A query shorter than 2 characters answers empty without
+  touching the database; the description is searched from 3 characters
+  (trigram indexes, migration 088). Filters: `q` (title, author, description,
+  genre, ISBN), `genre` (exact), `topic` (comma list, up to 10, substring of the
+  categories). Rate limited by `bookSearchLimiter`; cached 60 seconds.
+- `GET /api/books/genres`: in-stock genres, cached 5 minutes.
+
+### Curated collections
+
+- Tables (migration `091_curated_collections.sql`): `curated_collections` (slug,
+  English and French title and description, `curation_prompt`, `icon_path`,
+  `banner_path`, `published`, `sort_order`, `last_generated_at`) and
+  `curated_collection_books` (`status` suggested / approved / rejected, `reason`,
+  `position`). Logic: `src/lib/collections.js`; admin routes
+  `src/routes/admin/collections.js` (English only); public
+  `src/routes/collections.js`; AI helper `src/lib/collectionSuggestions.js`;
+  French text `src/lib/collectionTranslate.js`; pictures `src/lib/collectionImages.js`.
+- **Review is mandatory.** The AI only writes `suggested` rows. An admin approves
+  or rejects each book and presses Publish; a collection with no approved book or
+  no French title and description cannot be published. Customers see only
+  `approved` books that are in stock at the moment the page is drawn (read live
+  from `book_copies`, never copied), so a sold book leaves the page by itself.
+- **AI generation limits**: Generate / Add new books / Full rebuild / Update all /
+  Translate call the paid API through the shared client (`bookDescription.js`
+  `claudeRequest`), so they count toward `AI_DAILY_MAX_CALLS`; 10 AI requests a
+  minute per admin; each run looks at no more than 300 candidate books (batches of
+  100, at most 12 picks per batch); invented book ids are dropped and each pick is
+  re-checked against the database. Existing decisions are never overwritten.
+- **Rebuild and last built**: `last_generated_at` ("Last built") is set only when
+  at least one AI answer was usable. "Add new books" considers only copies added
+  since that date; "Full rebuild" (a confirm page, `/admin/collections/:id/rebuild`)
+  considers everything again; "Update all collections" runs "Add new books" for
+  each built collection.
+- **Uploads are stored in the database** (`images` table via `src/lib/imageStore.js`),
+  so they survive deploys: the round icon (240 px PNG, circular) and an optional
+  wide banner (1600 x 800 JPEG) with English and French alt text; JPEG, PNG or
+  WebP, 5 MB at most, re-encoded on upload.
+- **Deletion** is a confirm page with a tick box (`/admin/collections/:id/delete`);
+  it removes the collection and its decisions, never the books.
+- **Public pages**: `/collections/<slug>` and `/fr/collections/<slug>`
+  (server-rendered, marketing CSP); unknown and unpublished slugs are a plain 404.
+  Published collections with a book to show are listed in `sitemap.xml`
+  (`src/routes/seo.js`, which drops its one-hour cache after any admin change).
+  The Browse button row lists published collections that have at least one
+  approved in-stock book (`listButtonCollections`).
+
+### ISBNdb price suggestion
+
+- `GET /admin/inventory/isbndb-price?isbn=...&condition=new`
+  (`src/routes/admin/inventoryLookup.js`, `src/lib/isbndbPrice.js`): the
+  publisher's list price for a New book, shown on Add Book with a "Use this
+  price" button. **Never saved automatically**: the maintainer compares it with
+  the price printed on the book.
+- ISBNdb returns USD, GBP or EUR; the currencies are converted with the rates on
+  **Admin > Pricing** (`usd_eur`, `gbp_eur` in `pricing_settings`) and rounded to
+  the nearest 0.05 EUR. One paid call per ISBN per 3 days (in-memory cache,
+  `ISBNDB_PRICE_TTL_MS`), skipped while ISBNdb is paused (bad key, quota).
+  Keys and knobs: see the environment table.
+
+### Old-new books pricing exception
+
+French fixed book price law (loi Lang) obliges the publisher's price, at most 5%
+off, for New books. `resolveCopyPricing()` in `src/lib/inventory.js` applies the
+**2-year rule**: a New book published more than two years ago
+(`isPublishedOverTwoYearsAgo`, two years after the end of the published
+year / month / day) is free-priced like a used one and its publisher's price is
+optional. The admin note (`views/admin/inventory/_publisher_price_help.ejs`,
+`public/publisher-price-rule.js`) also reminds the maintainer that the law
+additionally requires the last supply to be more than **six months** ago; the
+code cannot check that, so it is a prompt to ask the accountant. The till uses
+the same function (`src/lib/till.js`).
+
+### Locations
+
+Shelf locations (`book_copies.location`, migration 043) keep the capitals the
+volunteer typed. `normalizeLocation` trims, collapses spaces and caps at 40
+characters; comparison and grouping are **case-insensitive** (`locationKey`,
+`sameLocation`, `uniqueLocations` in `src/lib/inventory.js`): "Store", "STORE"
+and "store" are one place, shown with the most common spelling.
+
+### Shop constants (`src/lib/legal.js`)
+
+One file holds the facts printed on many pages and emails; change them there
+only: `SHOP_PHONE_DISPLAY` / `SHOP_PHONE_TEL`, `SOCIAL_LINKS` (Instagram and
+Facebook; an empty value hides the icon), opening days and hours
+(`SHOP_OPEN_DAYS`, ...), the extra-hours note link, reservation limits
+(`RESERVATION_DAYS` and friends), `SHOP_STREET_NUMBER`, `VAT_NOTICE_ARTICLE`.
+
+### DATABASE_URL is set by hand
+
+In `render.yaml`, `DATABASE_URL` is `sync: false`: the value is typed in the Render
+dashboard (the database's Internal Database URL), so a Blueprint sync never
+overwrites a rotated password. Rotation steps: runbook section b, "Rotating the
+database password". Staging uses `fromDatabase` instead (`render.staging.yaml`).
 
 ## Deploy sequence
 

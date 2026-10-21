@@ -10,7 +10,10 @@ members area (accounts, forum, reservations, admin). It runs on Render. Squaresp
 has been retired, and there are no standalone `.html` pages in this repo — the
 pages are EJS templates under `umas-books/views/marketing/`.
 
-Start here:
+Start here (each document says what it is authoritative for; in short: the
+README in `umas-books/` = what it does and how to run it, `umas-books/ARCHITECTURE.md` =
+file-level map and the environment-variable inventory, `docs/architecture.md` = diagrams,
+`docs/runbook.md` = operating it):
 
 - **[`umas-books/README.md`](umas-books/README.md)** — what each feature does,
   how to run it locally, configuration, deploy, and how to restore a backup.
