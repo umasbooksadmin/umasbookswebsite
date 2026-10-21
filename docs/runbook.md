@@ -343,6 +343,16 @@ fix it from the site. Before demoting anyone, check that another admin exists. S
 - *A brand-new database with no users at all:* set `SEED_ADMIN_EMAIL` and
   `SEED_ADMIN_PASSWORD` in Render and redeploy, then delete the password again.
 
+### People see "We're busy right now" when logging in
+
+Password checks are CPU-heavy, so the site runs at most 2 at a time and queues
+20 more (`umas-books/src/lib/passwordHash.js`). Beyond that, the person gets a
+friendly 503 page with a 5-second `Retry-After`; nothing is alerted and nothing
+is counted against their login limits. A few of these at a busy moment (everyone
+logging in at opening time) are normal: they retry and get through. If it is
+constant, look for a flood of login attempts (Render > Logs, many `POST /login`
+from a few addresses); the per-address limits already slow those down.
+
 ## d) Where alerts go
 
 Alerts go to **two addresses**: `admin@umasbooks.org,sharonbje@gmail.com`

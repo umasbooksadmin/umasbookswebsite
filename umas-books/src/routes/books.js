@@ -10,9 +10,20 @@ const { loadPublicAwards, awardsTextSql } = require("../lib/awards/display");
 const { validateIdParams } = require("../middleware/idParams");
 const { bookSearchLimiter } = require("../middleware/rateLimits");
 
-const { latestArrivals, newIn } = require("../lib/latestArrivals");
+const { latestArrivals, newInPage, BROWSE_CACHE_MS } = require("../lib/latestArrivals");
+const { cachedFor, cachedByKey } = require("../lib/runLimited");
 const { buildBookSeo } = require("../lib/bookSeo");
 const router = express.Router();
+// The public JSON lists below are the same for everyone (no session, no per-person data) and change slowly: a browser
+// or the CDN may keep them a minute, and the server computes each at most once per BROWSE_CACHE_MS (45 s; off under
+// NODE_ENV=test so tests see their own writes).
+const PUBLIC_JSON_CACHE = "public, max-age=60, s-maxage=60";
+const cacheTtl = () => (process.env.NODE_ENV === "test" ? 0 : BROWSE_CACHE_MS);
+// latest-arrivals has a few hundred possible (limit, days) pairs: one cached list for each, at most 100 kept.
+const latestArrivalsCached = cachedByKey((key) => {
+  const [limit, days] = key.split(":").map(Number);
+  return latestArrivals(pool, { limit, days });
+}, cacheTtl, 100);
 // Garbage ids get the 404 page, not a Postgres 22P02 and a 500.
 validateIdParams(router, "id");
 
@@ -63,14 +74,14 @@ router.get("/api/books/latest-arrivals", async (req, res) => {
   // reads independently of CORS unless relaxed here too.
   res.set("Access-Control-Allow-Origin", "*");
   res.set("Cross-Origin-Resource-Policy", "cross-origin");
-  res.set("Cache-Control", "public, max-age=60");
+  res.set("Cache-Control", PUBLIC_JSON_CACHE);
   // ?limit= (1–24, default 8) and ?days= (default 7; 0 = no time window,
   // i.e. simply the newest in-stock books — used by the Books page's
   // "New In" shelf so it's never empty during a quiet week).
   const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 8, 1), 24);
   const daysParam = parseInt(req.query.days, 10);
   const days = Number.isInteger(daysParam) && daysParam >= 0 ? Math.min(daysParam, 365) : 7;
-  const rows = await latestArrivals(pool, { limit, days });
+  const rows = await latestArrivalsCached(limit + ":" + days);
   res.json(
     rows.map((b) => ({
       id: b.id,
@@ -83,16 +94,16 @@ router.get("/api/books/latest-arrivals", async (req, res) => {
   );
 });
 
-// "New In" in pages: { total, books, nextOffset }. The Books page's carousel asks for ALL of it (?all=1, one request),
-// "See All New In" for 24 at a time until nextOffset is null. Newest first by the time the copy was added. Not the search limiter: no text search, one cheap query, cached a minute.
+// "New In" in batches: { total, books, nextOffset }. The Books page's carousel loads 60 at a time as the guest nears the
+// end of what is loaded ("See All New In" asks for 24 at a time) until nextOffset is null, so every new book can be reached
+// and no request is ever large. limit is 1-100 (default 24); an offset that is not a safe integer or is past the end gives
+// an empty batch. Newest first by the time the copy was added. Not the search limiter: no text search, answered from one
+// list kept in memory for 45 s (lib/latestArrivals.js newInPage). Anonymous-safe: nothing per person is in it.
 router.get("/api/books/new-in", async (req, res) => {
   res.set("Access-Control-Allow-Origin", "*");
   res.set("Cross-Origin-Resource-Policy", "cross-origin");
-  res.set("Cache-Control", "public, max-age=60");
-  const all = req.query.all === "1";
-  const limit = all ? null : Math.min(Math.max(parseInt(req.query.limit, 10) || 24, 1), 48);
-  const offset = all ? 0 : Math.max(parseInt(req.query.offset, 10) || 0, 0);
-  const { total, rows, nextOffset } = await newIn(pool, { offset, limit });
+  res.set("Cache-Control", PUBLIC_JSON_CACHE);
+  const { total, rows, nextOffset } = await newInPage(pool, { offset: req.query.offset, limit: req.query.limit });
   res.json({
     total,
     nextOffset,
@@ -114,10 +125,7 @@ router.get("/api/books/new-in", async (req, res) => {
 // Public JSON, cross-origin — the list of in-stock genres for the
 // marketing site's genre chips. Same CORS treatment as the other
 // /api/books/* endpoints on this page.
-router.get("/api/books/genres", async (req, res) => {
-  res.set("Access-Control-Allow-Origin", "*");
-  res.set("Cross-Origin-Resource-Policy", "cross-origin");
-  res.set("Cache-Control", "public, max-age=300");
+const genreList = cachedFor(async () => {
   const { rows } = await pool.query(
     `SELECT DISTINCT trim(g) AS genre
      FROM books b, unnest(string_to_array(b.categories, ',')) AS g
@@ -125,7 +133,13 @@ router.get("/api/books/genres", async (req, res) => {
        AND EXISTS (SELECT 1 FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock')
      ORDER BY genre ASC`
   );
-  res.json(rows.map((r) => r.genre));
+  return rows.map((r) => r.genre);
+}, cacheTtl);
+router.get("/api/books/genres", async (req, res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Cross-Origin-Resource-Policy", "cross-origin");
+  res.set("Cache-Control", "public, max-age=300, s-maxage=300");
+  res.json(await genreList());
 });
 
 // A free-text search shorter than this matches nearly everything and cannot use the

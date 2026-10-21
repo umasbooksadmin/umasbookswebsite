@@ -23,7 +23,7 @@
 // an email or a name.
 
 const express = require("express");
-const bcrypt = require("bcryptjs");
+const passwordHash = require("../lib/passwordHash");
 const { pool } = require("../db");
 const mailer = require("../mailer");
 const { requireAuth } = require("../middleware/auth");
@@ -120,7 +120,7 @@ async function checkPassword(req, res) {
     await refuseUnverified(req, res);
     return null;
   }
-  const ok = user && (await bcrypt.compare(String(req.body.currentPassword || ""), user.password_hash));
+  const ok = user && (await passwordHash.compare(String(req.body.currentPassword || ""), user.password_hash));
   if (!ok) {
     await backWithError(req, res, req.tr("Current password is incorrect.", "Le mot de passe actuel est incorrect."), { counted: true });
     return null;

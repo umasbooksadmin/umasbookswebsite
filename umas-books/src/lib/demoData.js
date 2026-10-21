@@ -35,7 +35,7 @@
 // notes starting "DEMO (".
 
 const crypto = require("node:crypto");
-const bcrypt = require("bcryptjs");
+const passwordHash = require("./passwordHash");
 const { isStaging, hostOf, productionHostProblem } = require("./staging");
 
 const MANY_USERS = 50;
@@ -140,7 +140,7 @@ async function ensureAccounts(pool, { fixedPassword, resetPasswords }) {
     let password = null;
     if (!found.length || resetPasswords) password = fixedPassword || randomPassword();
     if (!found.length) {
-      const hash = await bcrypt.hash(password, 10);
+      const hash = await passwordHash.hash(password, 10);
       const { rows } = await pool.query(
         `INSERT INTO users (email, password_hash, display_name, is_member, member_expires_at, is_volunteer, email_verified_at)
          VALUES ($1, $2, $3, $4, ${memberSql}, $5, now()) RETURNING id`,
@@ -154,7 +154,7 @@ async function ensureAccounts(pool, { fixedPassword, resetPasswords }) {
       const sets = [`is_member = $2`, `member_expires_at = ${memberSql}`, `is_volunteer = $3`, "is_disabled = FALSE", "locked_until = NULL", "failed_login_attempts = 0", "email_verified_at = COALESCE(email_verified_at, now())"];
       const params = [found[0].id, Boolean(a.member), Boolean(a.volunteer)];
       if (password) {
-        params.push(await bcrypt.hash(password, 10));
+        params.push(await passwordHash.hash(password, 10));
         sets.push(`password_hash = $${params.length}`, "password_changed_at = now()");
       }
       await pool.query(`UPDATE users SET ${sets.join(", ")} WHERE id = $1 AND NOT is_admin`, params);

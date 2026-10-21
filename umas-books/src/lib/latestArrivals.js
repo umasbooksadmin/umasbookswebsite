@@ -1,3 +1,5 @@
+const { cachedFor } = require("./runLimited");
+
 // The newest in-stock books, shared by GET /api/books/latest-arrivals and the
 // no-JavaScript list on /books.html (see routes/books.js, index.js).
 async function latestArrivals(pool, { limit = 8, days = 7 } = {}) {
@@ -65,4 +67,47 @@ async function newIn(pool, { offset = 0, limit = 24, days = NEW_IN_DAYS, min = N
   return { total, rows: page, nextOffset: end < total ? end : null };
 }
 
-module.exports = { latestArrivals, newIn, NEW_IN_DAYS, NEW_IN_MIN };
+// ---- The public API pages: New In in batches, from ONE cached copy of the whole list -------------------------------
+// The whole list (id, title, authors, cover, price: a few hundred bytes a book) is read from the database at most once
+// every BROWSE_CACHE_MS per process and sliced in memory, so a crowd opening Browse Books, or a client varying ?offset=
+// on purpose, costs one query a minute, not one per request. A new book shows up within that time (the JSON is
+// also cacheable for 60 s by browsers and the CDN, so this adds no visible delay).
+const BROWSE_CACHE_MS = 45 * 1000;
+// The integration and e2e tests add books and read the page straight away (they run the real app with NODE_ENV=test):
+// no sharing there. Unit tests of the cache pass a clock to cachedFor instead.
+const cacheMs = () => (process.env.NODE_ENV === "test" ? 0 : BROWSE_CACHE_MS);
+const NEW_IN_MAX_LIMIT = 100;     // most books in one response
+const NEW_IN_MAX_OFFSET = 100000; // further than this is simply "past the end"
+const wholeLists = new WeakMap(); // pool -> cachedFor(whole New In list)
+
+function newInWhole(pool) {
+  let get = wholeLists.get(pool);
+  if (!get) {
+    get = cachedFor(() => newIn(pool, { limit: null }), cacheMs);
+    wholeLists.set(pool, get);
+  }
+  return get();
+}
+
+// One batch of New In: { total, rows, nextOffset }. Clamps what a client sends: limit 1..NEW_IN_MAX_LIMIT (default 24);
+// an offset that is not a safe integer or is past NEW_IN_MAX_OFFSET (or the end) gives an empty batch, never an error.
+async function newInPage(pool, { offset = 0, limit = 24 } = {}) {
+  const lim = Math.min(Math.max(Math.trunc(Number(limit)) || 24, 1), NEW_IN_MAX_LIMIT);
+  const offNum = Number(offset);
+  const off = Number.isNaN(offNum) ? 0 : Math.max(offNum, 0); // Infinity stays, and is "past the end" below
+  const whole = await newInWhole(pool);
+  if (off > NEW_IN_MAX_OFFSET || off >= whole.total) {
+    return { total: whole.total, rows: [], nextOffset: null };
+  }
+  const start = Math.trunc(off);
+  const rows = whole.rows.slice(start, start + lim);
+  const end = start + rows.length;
+  return { total: whole.total, rows, nextOffset: end < whole.total ? end : null };
+}
+
+// Tests that change the books and read the page again call this; production relies on the time limit.
+function clearBrowseCaches(pool) {
+  if (pool) wholeLists.delete(pool);
+}
+
+module.exports = { latestArrivals, newIn, newInPage, clearBrowseCaches, NEW_IN_DAYS, NEW_IN_MIN, NEW_IN_MAX_LIMIT, NEW_IN_MAX_OFFSET, BROWSE_CACHE_MS };
