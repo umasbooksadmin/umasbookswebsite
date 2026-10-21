@@ -1,7 +1,7 @@
 require("dotenv").config({ quiet: true });
 // Test system (APP_ENV=staging) only: never seed the production database from staging.
 require("./lib/staging").enforceStagingBoot();
-const bcrypt = require("bcryptjs");
+const passwordHash = require("./lib/passwordHash");
 const { validateNewPassword } = require("./lib/passwordPolicy");
 
 // First-boot bootstrap. Runs before every start (render.yaml startCommand),
@@ -56,7 +56,7 @@ async function runSeed({ env = process.env, pool = require("./db").pool, log = c
       if (passwordError) {
         log.warn(`[seed] WARNING: SEED_ADMIN_PASSWORD is not strong enough (${passwordError}); no admin was created.`);
       } else {
-        const hash = await bcrypt.hash(adminPassword, 12);
+        const hash = await passwordHash.hash(adminPassword);
         // ON CONFLICT: a signup racing this insert must not crash the seed.
         const { rows } = await pool.query(
           `INSERT INTO users (email, password_hash, display_name, is_admin)

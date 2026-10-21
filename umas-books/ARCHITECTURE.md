@@ -584,6 +584,30 @@ stores it (saved BEFORE the redirect, see `lib/session.js`), the page's GET read
 - `test/integration/adminPostRedirect.test.js` and `customerPostRedirect.test.js` scan every write route and
   fail when a new handler renders instead of redirecting (add it to the allow-list only with a reason).
 
+## Password hashing (`src/lib/passwordHash.js`)
+
+Every password is hashed and checked through this one module (signup placeholder,
+login, reset, change password, 2FA enrolment, privacy re-check, admin add member,
+seed, demo data).
+
+- **Native `bcrypt`, cost 12.** Each hash/compare runs on libuv's thread pool, not
+  on the event loop. The previous pure-JS `bcryptjs` spent ~200 ms of main-thread
+  CPU per check, so a burst of logins froze every other request. Hashes are the
+  same `$2a$/$2b$` format: stored hashes keep verifying, no rehash. Input over 72
+  bytes is truncated by both libraries, as before. `needsRehash()` is there for a
+  future cost bump.
+- **Concurrency cap.** At most 2 bcrypt operations run at once (the pool has 4
+  threads by default and also serves fs/dns/crypto), up to 20 more wait; beyond
+  that the caller gets a `PasswordBusyError` and the person a friendly 503 with
+  `Retry-After: 5` (`sendBusy`, also wired into `errorHandler`, no alert).
+- **Unknown email on login** still does a real cost-12 compare against a fixed
+  dummy hash (`compareDummy`), so response time does not reveal which emails exist.
+- The native module ships prebuilt binaries (glibc and musl, so Render's Node 22
+  needs no compiler). `bcryptjs` stays as a dependency only for `scripts/` and as
+  the independent implementation in compatibility tests.
+- Benchmark (not in CI): `PORT=4790 node scripts/bench-login-cpu.js` fires 12
+  parallel failed logins and reports an unrelated endpoint's latency meanwhile.
+
 ## Two-step verification (admins)
 
 TOTP (RFC 6238, any authenticator app), mandatory for admins, optional for
