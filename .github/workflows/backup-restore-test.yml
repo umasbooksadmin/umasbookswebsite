@@ -58,12 +58,15 @@ jobs:
       PGDATABASE: restore_test
     steps:
       - name: Check out the migration files (to compare with the dump)
-        # Only umas-books/migrations, with history (no file contents beyond that
+        # Only umas-books/migrations (plus .github/actions, the local alert-mail
+        # action), with history (no file contents beyond that
         # folder): the sanity check below needs the highest migration number in
         # the repository and when each newer file was added.
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          sparse-checkout: umas-books/migrations
+          sparse-checkout: |
+            umas-books/migrations
+            .github/actions
           fetch-depth: 0
           filter: blob:none
 
@@ -340,15 +343,13 @@ jobs:
         # Unlike the uptime check this alerts on the first failure: the job
         # runs once a month, so a silent miss would go unnoticed for weeks.
         if: failure()
-        uses: dawidd6/action-send-mail@67ce3558d613188179559c61d3565140cf389968 # v22
+        uses: ./.github/actions/send-alert-mail
         with:
-          server_address: smtp.gmail.com
-          server_port: 465
           username: ${{ secrets.GMAIL_USER }}
           password: ${{ secrets.GMAIL_APP_PASSWORD }}
           subject: "[umas-books] Backup restore test FAILED"
           to: ${{ vars.ALERT_TO || 'admin@umasbooks.org' }}
-          from: "Uma's Books Backup Monitor <${{ secrets.GMAIL_USER }}>"
+          from-name: "Uma's Books Backup Monitor"
           body: |
             The monthly test that restores the newest database backup into a scratch database did not pass.
 

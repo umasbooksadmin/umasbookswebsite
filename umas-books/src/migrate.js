@@ -62,7 +62,7 @@ async function main() {
     }
     console.log("Migrations complete.");
   } finally {
-    try { await client.query("SELECT pg_advisory_unlock($1)", [LOCK_KEY]); } catch (_) { /* connection may be gone */ }
+    try { await client.query("SELECT pg_advisory_unlock($1)", [LOCK_KEY]); } catch { /* connection may be gone */ }
     client.release();
     await pool.end();
   }

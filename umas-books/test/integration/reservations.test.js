@@ -40,7 +40,8 @@ test("a reservation: order 'reserved', copies held for the account, deadline = e
   assert.equal(order.client_ip, null, "no buyer IP is kept");
   // The deadline is the end of the 14th Paris day: between 14 and 15 days away.
   const days = reservedUntilDays(order);
-  assert.ok(days > RESERVATION_DAYS && days <= RESERVATION_DAYS + 1, `deadline is ${days} days away`);
+  // (1 hour of margin each way: a Paris clock change inside the window moves the real-time distance by an hour.)
+  assert.ok(days > RESERVATION_DAYS - 1 / 24 && days <= RESERVATION_DAYS + 1 + 1 / 24, `deadline is ${days} days away`);
   const { rows: copies } = await h.pool.query("SELECT status, reserved_by_email, cart_order_id FROM book_copies WHERE id = ANY($1::int[])", [[a, b]]);
   for (const c of copies) {
     assert.equal(c.status, "reserved");

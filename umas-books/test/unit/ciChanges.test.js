@@ -71,10 +71,11 @@ test("ci.yml keeps the six required checks, always running, with no workflow-lev
   assert.match(ci, /ci-changes\.sh/);
 });
 
-test("test and smoke-crawl jobs have 25 minutes, and the test job reports its duration", () => {
+test("test (12 min) and smoke-crawl (20 min) jobs have sensible limits, and the test job reports its duration", () => {
   const block = (name) => ci.slice(ci.indexOf(`\n  ${name}:\n`)).split(/\n {2}[a-z-]+:\n/)[1];
-  assert.match(block("test"), /timeout-minutes: 25\b/);
-  assert.match(block("smoke-crawl"), /timeout-minutes: 25\b/);
+  assert.match(block("test"), /timeout-minutes: 12\b/);
+  assert.match(block("smoke-crawl"), /timeout-minutes: 20\b/);
+  assert.match(block("test"), /job limit: 12m/, "the summary line names the real limit");
   assert.match(block("test"), /Test suite duration[\s\S]*GITHUB_STEP_SUMMARY/);
   assert.match(block("test"), /exit "\$status"/, "the suite's exit code is preserved");
 });

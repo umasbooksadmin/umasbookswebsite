@@ -191,7 +191,6 @@
     var isbn = $("[data-scan-isbn]");
     var statusEl = document.getElementById("scan-status");
     var savedEl = document.getElementById("scan-saved");
-    var lookupButton = $("[data-scan-lookup-button]");
     var saveNext = $("[data-scan-save-next]");
     var coverImg = document.getElementById("cover-preview");
     var bindingSel = document.getElementById("binding");
@@ -211,8 +210,8 @@
     var SOURCE_STORE_NAME = "umas.inventory.source.v2";
     var CONDITION_STORE_NAME = "umas.inventory.condition.v2";
     var LOCATION_STORE_NAME = "umas.inventory.location.v3"; // same name as inventory-location.js
-    function store(key, value) { try { if (value) localStorage.setItem(key, value); else localStorage.removeItem(key); } catch (e) { /* storage blocked: fine */ } }
-    function recall(key) { try { return localStorage.getItem(key) || ""; } catch (e) { return ""; } }
+    function store(key, value) { try { if (value) localStorage.setItem(key, value); else localStorage.removeItem(key); } catch { /* storage blocked: fine */ } }
+    function recall(key) { try { return localStorage.getItem(key) || ""; } catch { return ""; } }
 
     function normalizeLoc(v) { return String(v || "").replace(/\s+/g, " ").trim().slice(0, 40); }
     // A location typed for the first time joins the dropdown at once (the server lists it from the next page load on).
@@ -235,12 +234,12 @@
     }
 
     function focusIsbn() {
-      try { isbn.focus({ preventScroll: false }); isbn.select(); } catch (e) { /* fine */ }
+      try { isbn.focus({ preventScroll: false }); isbn.select(); } catch { /* fine */ }
     }
     // After a save: the cursor goes to the ISBN box without the page jumping. Only when the box (or the
     // "Saved" line above it) is out of sight does the page scroll, just far enough to show both.
     function focusIsbnInView() {
-      try { isbn.focus({ preventScroll: true }); isbn.select(); } catch (e) { /* fine */ }
+      try { isbn.focus({ preventScroll: true }); isbn.select(); } catch { /* fine */ }
       var bar = form.querySelector("[data-scan-actions]");
       var viewH = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
       var covered = bar && bar.getBoundingClientRect().top < viewH ? viewH - bar.getBoundingClientRect().top : 0;
@@ -248,7 +247,7 @@
       if (r.top >= 0 && r.bottom <= viewH - covered) return;
       var target = savedEl && !savedEl.hidden ? savedEl : isbn;
       var y = target.getBoundingClientRect().top + (window.pageYOffset || 0) - 12;
-      try { window.scrollTo({ top: Math.max(0, y), behavior: "auto" }); } catch (e) { window.scrollTo(0, Math.max(0, y)); }
+      try { window.scrollTo({ top: Math.max(0, y), behavior: "auto" }); } catch { window.scrollTo(0, Math.max(0, y)); }
     }
     // "My ISBN has an X": the iOS number pad has no X (the check digit of an ISBN-10 can be one), so the box
     // can switch to the letter keyboard. The numeric pad stays the default (13 digits is by far the common case).
@@ -259,7 +258,7 @@
       if (xToggle) {
         xToggle.setAttribute("aria-pressed", on ? "true" : "false");
       }
-      if (refocus) { try { isbn.blur(); isbn.focus(); } catch (e) { /* fine */ } } // the keyboard changes when the box is focused again
+      if (refocus) { try { isbn.blur(); isbn.focus(); } catch { /* fine */ } } // the keyboard changes when the box is focused again
     }
     if (xToggle) xToggle.addEventListener("click", function () { setIsbnLetters(xToggle.getAttribute("aria-pressed") !== "true", true); });
     // The cursor goes back to the ISBN box by itself (after a lookup, on load, after a save)
@@ -355,7 +354,7 @@
         priceField.value = suggested;
         priceField.dispatchEvent(new Event("input", { bubbles: true }));
         hideSuggestion();
-        try { priceField.focus(); } catch (e) { /* fine */ }
+        try { priceField.focus(); } catch { /* fine */ }
       });
       priceField.addEventListener("input", function () { if (priceField.value.trim()) hideSuggestion(); });
       conditionSel.addEventListener("change", askIsbndbPrice);
@@ -398,7 +397,7 @@
 
     var watcher = createScanWatcher({ onComplete: runLookup });
     isbn.addEventListener("input", function () { watcher.input(isbn.value); });
-    isbn.addEventListener("focus", function () { try { isbn.select(); } catch (e) { /* fine */ } });
+    isbn.addEventListener("focus", function () { try { isbn.select(); } catch { /* fine */ } });
     isbn.addEventListener("keydown", function (e) {
       if (e.key !== "Enter" || e.ctrlKey || e.metaKey) return;
       e.preventDefault(); // Enter here only looks up: it never submits the form
@@ -483,7 +482,7 @@
       setStatus("loading", "Saving…");
       // On a phone the keyboard only stays up when focus moves inside this same tap:
       // put the cursor in the ISBN box now, before the save is answered.
-      try { isbn.focus({ preventScroll: true }); isbn.select(); } catch (e) { /* fine */ }
+      try { isbn.focus({ preventScroll: true }); isbn.select(); } catch { /* fine */ }
       var done = function () {
         saving = false;
         form.removeAttribute("aria-busy");

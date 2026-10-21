@@ -391,8 +391,8 @@ thing that broke.
 - **What it is:** UptimeRobot (free plan), account **sharonbje@gmail.com**, one
   HTTP(s) monitor on `https://umasbooks.org/healthz`, every **5 minutes**.
   Alerts go to that account's email and to the UptimeRobot app on the phone.
-- **Second layer:** the 30-minute GitHub check (`.github/workflows/uptime-check.yml`)
-  stays on. UptimeRobot is faster; GitHub also emails ALERT_TO.
+- **Second layer:** the hourly GitHub check (`.github/workflows/uptime-check.yml`,
+  every 60 minutes to save Actions minutes) stays on. UptimeRobot is faster; GitHub also emails ALERT_TO.
 - **Pause it for planned maintenance** (a database move, a long deploy): log in
   at uptimerobot.com > the monitor > **Pause**, and **Resume** when finished.
   Do not delete it. A paused monitor that is never resumed is the usual way
@@ -454,10 +454,10 @@ the UptimeRobot "DOWN" alert) is in section r) "When you receive an alert".
   the payment card a month before, and that the registrant/recovery email
   is one the association controls (section v).
 - **Node 22 end of life: April 2027.** Move to the next LTS before then. The
-  version is set in three places and all must change together:
-  `umas-books/.node-version`, `engines` in `umas-books/package.json`, and
-  `NODE_VERSION` in `.github/workflows/ci.yml` (also check the other
-  workflows for a Node version). Do it in one pull request and let CI test it.
+  version is set in two places and both must change together:
+  `umas-books/.node-version` (every workflow reads this file) and `engines`
+  in `umas-books/package.json`; also update the sentence "Requires Node 22"
+  in `umas-books/README.md` and the one in `umas-books/ARCHITECTURE.md`. Do it in one pull request and let CI test it.
 - **GitHub Actions minutes:** the repo is private, so minutes are metered and
   when they run out the backups stop. Check usage **every month** and keep a
   spending limit set: section t).
@@ -1573,7 +1573,7 @@ signal: the Monday test alert (section d) proves the channel works.
 | Subject (starts with) | Sent by | Means | First three actions |
 |---|---|---|---|
 | `TEST alert - the alert emails work` | GitHub, every Monday | The alert channel works. **Missing on a Monday = broken** | 1. Check spam. 2. Section m) (Gmail password revoked). 3. Run **Actions > Send a test alert > Run workflow** and read the run for an error |
-| `Site health check failing (status N)` | GitHub, every 30 min, on the 2nd failed check | The site is down, or up but cannot reach the database | 1. Open `https://umasbooks.org/healthz` (expect OK). 2. Render dashboard > `umas-books` > **Events** and **Logs**: a failed deploy? out of memory? 3. Render > the database `umas-books-db` is **Available**? If a bad deploy: section a) rollback |
+| `Site health check failing (status N)` | GitHub, every hour, on the 2nd failed check (so up to about 2 hours after the outage starts) | The site is down, or up but cannot reach the database | 1. Open `https://umasbooks.org/healthz` (expect OK). 2. Render dashboard > `umas-books` > **Events** and **Logs**: a failed deploy? out of memory? 3. Render > the database `umas-books-db` is **Available**? If a bad deploy: section a) rollback |
 | UptimeRobot "Monitor is DOWN" (`umasbooks.org/healthz`) | UptimeRobot, within 5-10 min | The site or its database does not answer | Same three actions as "Site health check failing" above. Planned work: **Pause** the monitor first (UptimeRobot > Monitors > pause icon), **Resume** after. A "Monitor is UP" email = recovered |
 | `Site health check recovered` | GitHub | The outage is over | Nothing. Look in Render **Events** for the cause and note it |
 | `Nightly database backup failed` | GitHub, 03:00 UTC | No new backup tonight (older ones are safe) | 1. Open the run link in the email, read the red step. 2. "settings are missing" = a `BACKUP_S3_*` or `DATABASE_URL` secret changed (section b). 3. After the fix: **Actions > Nightly database backup > Run workflow**, confirm green and a new file in Backblaze |
@@ -1679,9 +1679,11 @@ October 2026; a re-measure takes 2 minutes with `gh run list` / the Actions tab)
 | Workflow | Runs | Billed minutes per run | Per month |
 |---|---|---|---|
 | CI (6 jobs: smoke-crawl 10, test 6, lint 1, migration-test 1, dependency-audit 1, secret-scan 1) | on every push to a pull request and every merge to main; about 50 a day in the busiest days | about **20** (docs-only change: about **6**; no smoke-crawl: about **10**) | the big one: 20 x number of pushes |
-| Site uptime check | every 30 min = 48 a day | 1 | about **1,440** |
+| Site uptime check | hourly = 24 a day (was every 30 min: about 1,440 a month) | 1 | about **720** |
 | Nightly database backup | daily | about 1-2 | about 45 |
 | Backup freshness check | daily | 1 | about 30-60 |
+| Nightly inventory export | twice a day (one run does the work, the other exits at once; summer/winter time) | 1 | about 60 |
+| Monthly accounting export | twice on the 1st (same reason) | 1-2 | about 3 |
 | Monthly backup restore test | monthly | about 3-5 (estimate: one short run recorded) | about 5 |
 | Send a test alert | weekly | 1 | about 4 |
 
@@ -1695,14 +1697,39 @@ cancels the run still going; npm and the Chrome that the crawl downloads are
 cached. Why not a `paths:` filter on the whole workflow: a skipped required
 check stays "Pending" forever and blocks the merge.
 
-**The uptime check stays at every 30 minutes** (1,440 minutes a month on its
-own, most of the free allowance). To halve it, change the cron line in
-`.github/workflows/uptime-check.yml` to `0 * * * *` (hourly: 720 a month, an
-outage is still reported within about two hours), **now that** the free
-external monitor (UptimeRobot, every 5 minutes, see section d) watches
-`https://umasbooks.org/healthz`: it gives the fast detection and GitHub is the
-independent second opinion. Do not
-raise the frequency.
+**The uptime check runs every hour** (about 720 minutes a month; it was every
+30 minutes = 1,440, most of the pool). An outage is still reported within about
+two hours (the email goes out on the 2nd failed check). The fast detection is
+the free external monitor (UptimeRobot, every 5 minutes, see section d) on
+`https://umasbooks.org/healthz`; GitHub is the independent second opinion. Do
+not raise the frequency.
+
+> **GitHub Actions minutes (box)**
+>
+> - **One shared pool:** CI, the nightly backup, the freshness check, the
+>   uptime check, the inventory and accounting exports and the restore test
+>   all draw on the same 2,000 minutes a month (Free plan; check your plan on
+>   the Billing page). Rough monthly cost with the table above: uptime 720,
+>   backups and checks about 150, exports about 65, **CI is the rest** (about
+>   20 per push to a pull request, 6 for a docs-only change).
+> - **What stops when the minutes run out** (and no spending limit allows more):
+>   CI, so pull requests cannot be checked or merged; the nightly backup and the
+>   backup freshness check; the uptime check; the inventory and accounting
+>   exports; the restore test and the weekly test alert. The website itself
+>   keeps running (it is on Render), but nothing watches it and nothing is
+>   backed up until the next month or until a limit is raised.
+> - **Where to look:** GitHub > profile picture (top right) > **Settings** >
+>   **Billing and plans** > **Usage** (or **Usage this month**). The repository
+>   > **Actions** tab also lists every run with its duration.
+> - **Recommended spending limit:** Settings > **Billing and plans** >
+>   **Spending limits** > **Actions**: a monthly limit of **10 USD** (about
+>   1,250 extra Linux minutes) with the 75% email alert. A limit of 0 USD is the
+>   dangerous setting. Setting the limit is an owner action (it needs the
+>   billing owner's account); a workflow cannot do it.
+> - **No automatic usage report:** GitHub's billing usage API needs a personal
+>   access token with billing permission, which `GITHUB_TOKEN` does not have,
+>   and storing such a token in the repository would be a worse risk than the one
+>   it removes. So the monthly check below is manual (2 minutes).
 
 **Every month (1st, 2 minutes):**
 
