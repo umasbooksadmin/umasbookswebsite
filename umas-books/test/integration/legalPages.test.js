@@ -79,12 +79,16 @@ test("visit page: the shop phone shows as a tap-to-call link in English and Fren
   const legal = require("../../src/lib/legal");
   assert.equal(legal.SHOP_PHONE_DISPLAY, "+33 6 07 41 70 60");
   assert.equal(legal.SHOP_PHONE_TEL, "tel:+33607417060");
-  for (const [lang, label] of [["en", "Phone"], ["fr", "Téléphone"]]) {
+  for (const [lang, label] of [["en", "Phone: +33 6 07 41 70 60"], ["fr", "Téléphone : +33 6 07 41 70 60"]]) {
     const html = await get("/visit.html", lang);
     assert.match(html, /<a href="tel:\+33607417060"[^>]*>\+33 6 07 41 70 60<\/a>/, `${lang}: tap-to-call link`);
     assert.ok(html.includes("admin@umasbooks.org"), `${lang}: email still shown`);
     const d = dictOf(html);
-    assert.equal(d[lang]["visit.phone.l"], label);
+    assert.equal(d[lang]["visit.phone.aria"], label);
+    assert.equal(d[lang]["visit.phone.l"], undefined, "no separate Phone label any more");
+    // phone sits directly under the email, inside the same Contact item
+    assert.match(html, /admin@umasbooks\.org<\/a><\/span>\s*<span[^>]*><a href="tel:\+33607417060"/, `${lang}: phone directly under email`);
+    assert.equal((html.match(/class="visit-item"/g) || []).length, 3, `${lang}: three visit items`);
   }
   const ml = await get("/mentions-legales.html", "fr");
   assert.match(ml, /tel:\+33607417060/);
