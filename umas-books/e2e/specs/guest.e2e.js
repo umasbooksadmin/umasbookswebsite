@@ -1343,15 +1343,28 @@ async function carouselState(page) {
     };
   }, CAROUSEL_TEXT_ALLOW);
 }
-// wait until the scrolling has stopped
+// wait until the scrolling has stopped and no batch is being fetched (the Next arrow pulses while it is)
 async function carouselSettled(page) {
   let last = -1, still = 0;
-  for (let i = 0; i < 40 && still < 4; i++) {
-    const now = await page.$eval("#bk-new-track", (t) => t.scrollLeft);
-    still = now === last ? still + 1 : 0;
+  for (let i = 0; i < 80 && still < 4; i++) {
+    const now = await page.$eval("#bk-new-track", (t) => `${t.scrollLeft}/${t.querySelectorAll(".bk-book").length}/${document.getElementById("bk-new-next").classList.contains("is-loading")}`);
+    still = now === last && !now.endsWith("true") ? still + 1 : 0;
     last = now;
     await new Promise((r) => setTimeout(r, 100));
   }
+}
+// the whole New In list from the API, the way the carousel gets it: batches (the API gives at most 100 at a time)
+async function allNewIn() {
+  const books = [];
+  let total = null;
+  for (let next = 0, guard = 0; next != null && guard < 400; guard++) {
+    const page = await e2e.getJson(`/api/books/new-in?offset=${next}&limit=100`);
+    if (!page) break;
+    total = page.total;
+    books.push(...page.books);
+    next = page.nextOffset;
+  }
+  return { total: total || 0, books };
 }
 function assertAtRest(st, where) {
   assert.deepEqual(st.cut, [], `${where}: a card is cut by the edge of the carousel when it stops: ${st.cut.join("; ")}`);
@@ -1360,12 +1373,13 @@ function assertAtRest(st, where) {
   assert.equal(st.docWider, false, `${where}: the page scrolls sideways`);
 }
 
-// The carousel holds EVERY New In book, newest first: the same books in the same order as the API, however many there are.
+// The carousel reaches EVERY New In book, newest first, loading them in batches of 60 as the guest nears the end: once the end is
+// reached it holds the same books in the same order as the API, however many there are.
 // On the local site the seed adds books at known times (E2E Sample New In <n> = 1..30 added in turn, then Bulk <k>, k minutes x 7 ago),
 // so the time order can be checked from the titles too.
 async function assertCarouselIsWholeNewestFirstList(ctx, where) {
-  const api = await e2e.getJson("/api/books/new-in?all=1");
-  if (!api || !api.total) ctx.skip("data: the site has no New In books");
+  const api = await allNewIn();
+  if (!api.total) ctx.skip("data: the site has no New In books");
   const cards = await ctx.page.$$eval("#bk-new-track .bk-book a", (as) => as.map((a) => ({ id: Number((a.getAttribute("href").match(/books\/(\d+)/) || [])[1]), t: a.querySelector(".t").textContent })));
   assert.equal(cards.length, api.total, `${where}: the carousel has a card for every new book (${api.total}), not just the first page`);
   assert.deepEqual(cards.map((c) => c.id), api.books.map((b) => b.id), `${where}: the carousel order is the API order (newest added first)`);
@@ -1379,7 +1393,7 @@ async function assertCarouselIsWholeNewestFirstList(ctx, where) {
   }
 }
 
-s.test("G91 (must) the New In carousel holds every new book newest first and never stops on a cut-off card (375 px, 1024 px, 1280 px and 125% zoom), titles are whole, and the arrows, double clicks and arrow keys land on card edges", { timeout: 1200000 }, async (ctx) => {
+s.test("G91 (must) the New In carousel reaches every new book (batches of 60), newest first, and never stops on a cut-off card (375 px, 1024 px, 1280 px and 125% zoom), titles are whole, the arrows, double clicks and arrow keys land on card edges and Next is greyed out only at the true end", { timeout: 1500000 }, async (ctx) => {
   // 125% browser zoom of a 1280 px window is a 1024 px wide page, so it is the 1024 px run; 150% of 1920 is 1280.
   for (const lang of ["en", "fr"]) {
     await ctx.page.setCookie({ name: "umasbooks_lang", value: lang, url: cfg.baseUrl() });
@@ -1389,16 +1403,42 @@ s.test("G91 (must) the New In carousel holds every new book newest first and nev
       await ctx.page.waitForSelector("#bk-new-track .bk-book", { timeout: 8000 }).catch(() => ctx.skip("data: the site has no New In books"));
       await new Promise((r) => setTimeout(r, 400));
       const where = `${lang} ${width} px`;
-      await assertCarouselIsWholeNewestFirstList(ctx, where);
+      const total = (await allNewIn()).total;
       let st = await carouselState(ctx.page);
       assertAtRest(st, `${where} at the start`);
       assert.equal(st.prevDisabled, true, `${where}: Previous is disabled at the start`);
-      for (let n = 1; n <= 150 && !(await carouselState(ctx.page)).nextDisabled; n++) {
+      assert.ok(st.count <= 60, `${where}: only the first batch (60) is loaded at the start, not all ${total} (${st.count} cards)`);
+      if (total > 60) assert.equal(st.nextDisabled, false, `${where}: Next is not greyed out while more batches remain`);
+      if (!touch && total > 60) {
+        // the keyboard at the end of the first batch: Right keeps going, the next 60 arrive, the row does not jump back
+        await ctx.page.focus("#bk-new-track .bk-book a");
+        let presses = 0, lastLeft = 0;
+        while ((await carouselState(ctx.page)).count <= 60 && presses++ < 200) {
+          await ctx.page.keyboard.press("ArrowRight");
+          await carouselSettled(ctx.page);
+          const k = await carouselState(ctx.page);
+          assertAtRest(k, `${where} after ArrowRight ${presses}`);
+          assert.ok(k.scrollLeft >= lastLeft - 1, `${where}: the row jumped back after ArrowRight ${presses} (${k.scrollLeft} < ${lastLeft})`);
+          assert.equal(k.nextDisabled, false, `${where}: Next greyed out while more books remain (key ${presses})`);
+          lastLeft = k.scrollLeft;
+        }
+        assert.ok((await carouselState(ctx.page)).count > 60, `${where}: ArrowRight at the end of the first 60 loaded more books`);
+      }
+      let lastLeftSwipe = -1;
+      // French: the row is the same component, so it is flung to the end (each fling loads the next batch) instead of clicked card by card (English does that)
+      if (lang === "fr") {
+        for (let n = 0; n < 80 && !(await carouselState(ctx.page)).nextDisabled; n++) {
+          await ctx.page.$eval("#bk-new-track", (t) => t.scrollTo({ left: t.scrollWidth }));
+          await carouselSettled(ctx.page);
+        }
+      }
+      for (let n = 1; n <= 400 && lang === "en" && !(await carouselState(ctx.page)).nextDisabled; n++) {
         if (touch) {
           // a finger: swipe left across the track
-          const box = await ctx.page.$eval("#bk-new-track", (t) => { const r = t.getBoundingClientRect(); return { x: r.left + r.width * 0.85, y: r.top + 60, w: r.width }; });
+          // the carousel must be on screen or the finger lands on nothing; the swipe is ~two cards wide
+          const box = await ctx.page.$eval("#bk-new-track", (t) => { t.closest(".bk-new").scrollIntoView(); const r = t.getBoundingClientRect(); return { x: r.left + r.width * 0.95, y: r.top + 60, w: r.width }; });
           await ctx.page.touchscreen.touchStart(box.x, box.y);
-          for (let k = 1; k <= 8; k++) await ctx.page.touchscreen.touchMove(box.x - (box.w * 0.7 * k) / 8, box.y);
+          for (let k = 1; k <= 8; k++) await ctx.page.touchscreen.touchMove(box.x - (box.w * 0.85 * k) / 8, box.y);
           await ctx.page.touchscreen.touchEnd();
         } else {
           // the mouse: a click, or two quick clicks
@@ -1408,22 +1448,20 @@ s.test("G91 (must) the New In carousel holds every new book newest first and nev
         await carouselSettled(ctx.page);
         st = await carouselState(ctx.page);
         assertAtRest(st, `${where} after ${touch ? "swipe" : "click"} ${n}`);
-        if (touch) break; // a phone has no arrows; one swipe is enough here, the loop below keeps swiping
+        if (touch) assert.ok(st.scrollLeft > lastLeftSwipe || st.nextDisabled, `${where}: swipe ${n} did not move the row (it is at ${st.scrollLeft})`);
+        lastLeftSwipe = st.scrollLeft;
+        // Next is only ever greyed out at the true end: while cards are missing, it is live
+        if (st.count < total) assert.equal(st.nextDisabled, false, `${where}: Next is greyed out with only ${st.count} of ${total} books loaded`);
       }
-      if (touch) {
-        for (let n = 0; n < 6; n++) {
-          const box = await ctx.page.$eval("#bk-new-track", (t) => { const r = t.getBoundingClientRect(); return { x: r.left + r.width * 0.85, y: r.top + 60, w: r.width }; });
-          await ctx.page.touchscreen.touchStart(box.x, box.y);
-          for (let k = 1; k <= 8; k++) await ctx.page.touchscreen.touchMove(box.x - (box.w * 0.7 * k) / 8, box.y);
-          await ctx.page.touchscreen.touchEnd();
-          await carouselSettled(ctx.page);
-          assertAtRest(await carouselState(ctx.page), `${where} after swipe ${n + 2}`);
-        }
-        continue;
-      }
-      assert.equal((await carouselState(ctx.page)).nextDisabled, true, `${where}: Next is disabled on the last page`);
+      // the true end: every new book is on the shelf, newest first, and only now is Next disabled
+      st = await carouselState(ctx.page);
+      assert.equal(st.nextDisabled, true, `${where}: Next is disabled on the last page`);
+      assert.equal(st.count, total, `${where}: the carousel ended with ${st.count} of ${total} books`);
+      await assertCarouselIsWholeNewestFirstList(ctx, where);
+      assert.equal(await ctx.page.$$eval("#bk-new-track .bk-book", (c) => new Set(c.map((x) => x.querySelector("a").getAttribute("href"))).size), total, `${where}: no book twice`);
+      if (touch) continue; // a phone has no arrows: nothing more to click
       // back with Previous, down to the start
-      for (let n = 0; n < 150 && !(await carouselState(ctx.page)).prevDisabled; n++) {
+      for (let n = 0; n < (lang === "en" ? 150 : 8) && !(await carouselState(ctx.page)).prevDisabled; n++) {
         await ctx.page.click("#bk-new-prev");
         await carouselSettled(ctx.page);
         assertAtRest(await carouselState(ctx.page), `${where} after Previous ${n + 1}`);
@@ -1479,7 +1517,7 @@ s.test("G92 (must) See All New In shows every new book in a grid with Show more 
       await ctx.page.waitForFunction((n) => document.querySelectorAll("#bk-results-grid .bk-book").length > n, { timeout: 8000 }, before);
     }
     assert.equal(await ctx.page.$$eval("#bk-results-grid .bk-book", (e) => e.length), api.total, `${lang}: the grid holds every new book (${api.total})`);
-    const all = await e2e.getJson("/api/books/new-in?all=1");
+    const all = await allNewIn();
     assert.deepEqual(await ctx.page.$$eval("#bk-results-grid .bk-book a", (as) => as.map((a) => Number((a.getAttribute("href").match(/books\/(\d+)/) || [])[1]))), all.books.map((b) => b.id), `${lang}: See All is in the same newest-first order as the carousel`);
     assert.equal(await visible("#bk-more"), false, `${lang}: no Show more once everything is shown`);
     // Back returns to the plain view with the carousel; a direct load of a shared address has none
