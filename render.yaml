@@ -132,7 +132,7 @@ services:
         sync: false
       # Online price check (uses ANTHROPIC_API_KEY above). PRICING_AI=1 switches it
       # on (unset/0 = off). PRICING_AI_DAILY_MAX = most lookups a day (default 150;
-      # 0 stops them). PRICING_AI_MODEL = optional different model. There is no
+      # 0 stops them). PRICING_AI_MODEL = optional different model.
       # AI_DAILY_MAX_CALLS = most Anthropic calls a day for ALL AI features together
       # (descriptions, translations, genres, cover photos and price checks; default
       # 600, 0 = AI off; runbook "AI limits"). PRICING_AI_DAILY_MAX is a part of it.

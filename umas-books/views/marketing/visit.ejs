@@ -22,11 +22,10 @@
         </div>
         <div class="visit-item">
           <span class="label" data-i18n="visit.contact.l">Contact</span>
-          <span class="value"><a href="mailto:admin@umasbooks.org">admin@umasbooks.org</a></span>
-        </div>
-        <div class="visit-item">
-          <span class="label" data-i18n="visit.phone.l">Phone</span>
-          <span class="value"><a href="<%= legalText.shopPhoneTel %>" style="white-space:nowrap"><%= legalText.shopPhone %></a></span>
+          <span class="value">
+            <span style="display:block"><a href="mailto:admin@umasbooks.org">admin@umasbooks.org</a></span>
+            <span style="display:block"><a href="<%= legalText.shopPhoneTel %>" style="white-space:nowrap" data-i18n-attr="aria-label:visit.phone.aria" aria-label="Phone: <%= legalText.shopPhone %>"><%= legalText.shopPhone %></a></span>
+          </span>
         </div>
       </div>
     </div>
@@ -43,7 +42,7 @@
   "visit.hours.time": "{shopHours}",
   "visit.hours.note": "{shopHoursShort}",
   "visit.contact.l": "Contact",
-  "visit.phone.l": "Phone",
+  "visit.phone.aria": "Phone: {shopPhone}",
 }; %>
 <% const pageI18nFr = {
   "meta.title": "Nous rendre visite — Uma’s Books and Adventures",
@@ -57,6 +56,6 @@
   "visit.hours.time": "{shopHours}",
   "visit.hours.note": "{shopHoursShort}",
   "visit.contact.l": "Contact",
-  "visit.phone.l": "Téléphone",
+  "visit.phone.aria": "Téléphone\u00a0: {shopPhone}",
 }; %>
 <%- include('partials/mkt_footer', { pageI18nEn: fillVat(pageI18nEn, 'en'), pageI18nFr: fillVat(pageI18nFr, 'fr') }) %>

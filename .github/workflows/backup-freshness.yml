@@ -181,17 +181,23 @@ jobs:
             echo "Yearly copy for ${YEAR}: present (${N} object(s))."
           fi
 
+      - name: Fetch the alert-mail action
+        # A local action is read from the workspace, so fetch just .github/actions (a few KB), and only when an email is about to be sent.
+        if: failure()
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: .github/actions
+          persist-credentials: false
+
       - name: Alert admin if there is no fresh backup
         if: failure()
-        uses: dawidd6/action-send-mail@67ce3558d613188179559c61d3565140cf389968 # v22
+        uses: ./.github/actions/send-alert-mail
         with:
-          server_address: smtp.gmail.com
-          server_port: 465
           username: ${{ secrets.GMAIL_USER }}
           password: ${{ secrets.GMAIL_APP_PASSWORD }}
           subject: "[umas-books] No fresh database backup in Backblaze"
           to: ${{ vars.ALERT_TO || 'admin@umasbooks.org' }}
-          from: "Uma's Books Backup Monitor <${{ secrets.GMAIL_USER }}>"
+          from-name: "Uma's Books Backup Monitor"
           body: |
             The daily freshness check could not find a recent database backup in Backblaze (the newest nightly dump is missing, empty, or older than ${{ env.MAX_AGE_HOURS }} hours; or, after the 3rd of the month, the long-term monthly copy is older than 35 days), or it could not reach Backblaze.
 

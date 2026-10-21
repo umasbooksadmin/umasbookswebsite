@@ -6,7 +6,7 @@
   var state = 'loading';
 
   function lang() {
-    try { return localStorage.getItem('umasbooks.lang') === 'fr' ? 'fr' : 'en'; } catch (e) { return 'en'; }
+    try { return localStorage.getItem('umasbooks.lang') === 'fr' ? 'fr' : 'en'; } catch { return 'en'; }
   }
   function t(key, fallback) {
     var dict = (window.PAGE_I18N && window.PAGE_I18N[lang()]) || {};

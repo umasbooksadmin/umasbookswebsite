@@ -16,6 +16,40 @@ environment, so they would not see them.
 Never paste a password or key into chat, an issue, a pull request or a file in
 the repo.
 
+## Contents
+
+Section letters are unique and permanent (other documents refer to them as "runbook section xx"); they are not in
+alphabetical order on the page, so use this list. The letter `j` is deliberately unused.
+
+**Something is wrong right now**
+
+- Bad deploy, site broken: [a) Rolling back a deploy](#a-rolling-back-a-deploy)
+- Roll back, then fix forward: [a) Rolling back a deploy](#a-rolling-back-a-deploy); database changes need a developer first: [z) Making database changes safely (notes for developers)](#z-making-database-changes-safely-notes-for-developers)
+- Database password rotation: [Rotating the database password](#rotating-the-database-password) (inside [b) Rotating secrets](#b-rotating-secrets))
+- Restore drill and restoring from a backup: [The restore drill](#the-restore-drill-every-quarter-1-january-april-july-october-about-20-minutes) in [ad) Backups: encryption, restore drill, read-only user](#ad-encrypting-the-backups-restore-drill-read-only-backup-user-yearly-rotation); the full restore steps are in [`umas-books/README.md`](../umas-books/README.md#restoring-from-a-backup)
+- Render account lost, rebuild everything: [u) Rebuild everything if the Render account is lost](#u-rebuild-everything-if-the-render-account-is-lost)
+- An alert email arrived, what to do: [r) When you receive an alert: what to do](#r-when-you-receive-an-alert-what-to-do)
+- Emails are not arriving: [l) Emails are not arriving (outbox)](#l-emails-are-not-arriving-outbox); Gmail password revoked: [m) Gmail password revoked](#m-gmail-password-revoked)
+- A background job is failing, the diagnostics pages: [s) Background jobs (retention purge, membership expiry, email retries...)](#s-background-jobs-retention-purge-membership-expiry-email-retries)
+- An admin is locked out: [c) An admin is locked out](#c-an-admin-is-locked-out)
+- Scanner lost or broken: [x) A lost or broken scanner](#x-a-lost-or-broken-scanner)
+- Takedown or abuse report: [y) A takedown or abuse report (forum posts, images)](#y-a-takedown-or-abuse-report-forum-posts-images)
+- A data request (access or erasure): [q) A data request (access or erasure)](#q-a-data-request-access-or-erasure)
+
+**Operating the shop**
+
+- [k) Reservations, collecting and paying in the shop, refunds](#k-reservations-collecting-and-paying-in-the-shop-refunds); [n) A member paid with another email](#n-a-member-paid-with-another-email); [p) The till](#p-the-till)
+- [h) Price suggestions and the AI market check](#h-price-suggestions-and-the-ai-market-check); [i) Awards and best-seller lists on books](#i-awards-and-best-seller-lists-on-books); [aa) Fast scanning of books (adding stock)](#aa-fast-scanning-of-books-adding-stock); [ah) Curated collections (Browse by Collection on Browse Books)](#ah-curated-collections-browse-by-collection-on-browse-books); [ab) Admin sessions: how long they last](#ab-admin-sessions-how-long-they-last); [ae) AI limits (daily cap, per-minute limits, lookup and webhook protections)](#ae-ai-limits-daily-cap-per-minute-limits-lookup-and-webhook-protections)
+- [o) The VAT line ("TVA non applicable") and the footer social links](#o-the-vat-line-tva-non-applicable-and-the-footer-social-links); [ac) Reviewing the French (and what to do when a French text is wrong)](#ac-reviewing-the-french-and-what-to-do-when-a-french-text-is-wrong); [ak) Alphabetical order ignores a leading "The"](#ak-alphabetical-order-ignores-a-leading-the)
+
+**Regular routines, setup and reference**
+
+- [d) Where alerts go](#d-where-alerts-go); [e) Quarterly and yearly calendar](#e-quarterly-and-yearly-calendar); [t) GitHub Actions minutes (private repository)](#t-github-actions-minutes-private-repository); [af) Nightly inventory export](#af-nightly-inventory-export); [ag) Database connections](#ag-database-connections)
+- Backups, encryption, retention: [ad) Encrypting the backups, restore drill, read-only backup user, yearly rotation](#ad-encrypting-the-backups-restore-drill-read-only-backup-user-yearly-rotation); [aj) Keeping records for 10 years](#aj-keeping-records-for-10-years)
+- Staging (the test system): [ai) Test system (staging)](#ai-test-system-staging)
+- [g) Launching: turn preview mode off](#g-launching-turn-preview-mode-off); [f) Render database network access: a decision](#f-render-database-network-access-a-decision); [v) Accounts and secrets inventory](#v-accounts-and-secrets-inventory); [w) Emergency access and "bus factor"](#w-emergency-access-and-bus-factor)
+- Secrets inventory: [b) Rotating secrets](#b-rotating-secrets) and [v) Accounts and secrets inventory](#v-accounts-and-secrets-inventory)
+
 ## a) Rolling back a deploy
 
 **Important:** on every deploy Render first runs `npm run migrate` (the
@@ -76,8 +110,8 @@ asks you to. Always change **every** place listed, then check
 | `BACKUP_S3_KEY_ID`, `BACKUP_S3_APPLICATION_KEY` | GitHub **repository secrets** |
 | `BACKUP_AGE_RECIPIENT` (the age **public** key; not a secret) | GitHub **repository variable**. Section ad) |
 | `BACKUP_AGE_IDENTITY` (the age **private** key; optional, not recommended) | GitHub **repository secret**, used only by the monthly restore test. Section ad) |
-| `ACCOUNTING_TO` (optional, not a secret: the treasurer's address, or several separated by commas) | GitHub **repository variable**. Section ae) |
-| `FISCAL_YEAR_START_MONTH` (optional, a number 1-12, default 1 = January) | GitHub **repository variable**. Section ae) |
+| `ACCOUNTING_TO` (optional, not a secret: the treasurer's address, or several separated by commas) | GitHub **repository variable**. Section aj) |
+| `FISCAL_YEAR_START_MONTH` (optional, a number 1-12, default 1 = January) | GitHub **repository variable**. Section aj) |
 | age private key (the file `umas-books-backup-key.txt`) | Your password manager, plus a second copy kept elsewhere (section ad). **Never** in GitHub, Render or the repository, unless you choose the optional `BACKUP_AGE_IDENTITY` |
 
 **DATABASE_URL (the Render database password).** The GitHub copy should be the
@@ -391,8 +425,8 @@ thing that broke.
 - **What it is:** UptimeRobot (free plan), account **sharonbje@gmail.com**, one
   HTTP(s) monitor on `https://umasbooks.org/healthz`, every **5 minutes**.
   Alerts go to that account's email and to the UptimeRobot app on the phone.
-- **Second layer:** the 30-minute GitHub check (`.github/workflows/uptime-check.yml`)
-  stays on. UptimeRobot is faster; GitHub also emails ALERT_TO.
+- **Second layer:** the hourly GitHub check (`.github/workflows/uptime-check.yml`,
+  every 60 minutes to save Actions minutes) stays on. UptimeRobot is faster; GitHub also emails ALERT_TO.
 - **Pause it for planned maintenance** (a database move, a long deploy): log in
   at uptimerobot.com > the monitor > **Pause**, and **Resume** when finished.
   Do not delete it. A paused monitor that is never resumed is the usual way
@@ -454,10 +488,10 @@ the UptimeRobot "DOWN" alert) is in section r) "When you receive an alert".
   the payment card a month before, and that the registrant/recovery email
   is one the association controls (section v).
 - **Node 22 end of life: April 2027.** Move to the next LTS before then. The
-  version is set in three places and all must change together:
-  `umas-books/.node-version`, `engines` in `umas-books/package.json`, and
-  `NODE_VERSION` in `.github/workflows/ci.yml` (also check the other
-  workflows for a Node version). Do it in one pull request and let CI test it.
+  version is set in two places and both must change together:
+  `umas-books/.node-version` (every workflow reads this file) and `engines`
+  in `umas-books/package.json`; also update the sentence "Requires Node 22"
+  in `umas-books/README.md` and the one in `umas-books/ARCHITECTURE.md`. Do it in one pull request and let CI test it.
 - **GitHub Actions minutes:** the repo is private, so minutes are metered and
   when they run out the backups stop. Check usage **every month** and keep a
   spending limit set: section t).
@@ -698,7 +732,7 @@ secret** = same page, **Secrets** tab.
   **Reservations** open the reservation and press **Mark collected and paid** (section
   k). The book shows as sold and the sale shows in the sales report.
 - [ ] **Test system rehearsal.** The change that goes live was first on the test
-  system (section aa), the staging smoke script passed there, and the production
+  system (section ai), the staging smoke script passed there, and the production
   deploy was pressed by hand afterwards (if production is on manual deploys).
 - [ ] **Search engines.** Right after launch, submit `sitemap.xml` to Google Search Console and Bing
   Webmaster Tools and check `/fr/` in a private window ("Search engines: submit the sitemap" above).
@@ -1573,7 +1607,7 @@ signal: the Monday test alert (section d) proves the channel works.
 | Subject (starts with) | Sent by | Means | First three actions |
 |---|---|---|---|
 | `TEST alert - the alert emails work` | GitHub, every Monday | The alert channel works. **Missing on a Monday = broken** | 1. Check spam. 2. Section m) (Gmail password revoked). 3. Run **Actions > Send a test alert > Run workflow** and read the run for an error |
-| `Site health check failing (status N)` | GitHub, every 30 min, on the 2nd failed check | The site is down, or up but cannot reach the database | 1. Open `https://umasbooks.org/healthz` (expect OK). 2. Render dashboard > `umas-books` > **Events** and **Logs**: a failed deploy? out of memory? 3. Render > the database `umas-books-db` is **Available**? If a bad deploy: section a) rollback |
+| `Site health check failing (status N)` | GitHub, every hour, on the 2nd failed check (so up to about 2 hours after the outage starts) | The site is down, or up but cannot reach the database | 1. Open `https://umasbooks.org/healthz` (expect OK). 2. Render dashboard > `umas-books` > **Events** and **Logs**: a failed deploy? out of memory? 3. Render > the database `umas-books-db` is **Available**? If a bad deploy: section a) rollback |
 | UptimeRobot "Monitor is DOWN" (`umasbooks.org/healthz`) | UptimeRobot, within 5-10 min | The site or its database does not answer | Same three actions as "Site health check failing" above. Planned work: **Pause** the monitor first (UptimeRobot > Monitors > pause icon), **Resume** after. A "Monitor is UP" email = recovered |
 | `Site health check recovered` | GitHub | The outage is over | Nothing. Look in Render **Events** for the cause and note it |
 | `Nightly database backup failed` | GitHub, 03:00 UTC | No new backup tonight (older ones are safe) | 1. Open the run link in the email, read the red step. 2. "settings are missing" = a `BACKUP_S3_*` or `DATABASE_URL` secret changed (section b). 3. After the fix: **Actions > Nightly database backup > Run workflow**, confirm green and a new file in Backblaze |
@@ -1678,10 +1712,12 @@ October 2026; a re-measure takes 2 minutes with `gh run list` / the Actions tab)
 
 | Workflow | Runs | Billed minutes per run | Per month |
 |---|---|---|---|
-| CI (6 jobs: smoke-crawl 10, test 6, lint 1, migration-test 1, dependency-audit 1, secret-scan 1) | on every push to a pull request and every merge to main; about 50 a day in the busiest days | about **20** (docs-only change: about **6**; no smoke-crawl: about **10**) | the big one: 20 x number of pushes |
-| Site uptime check | every 30 min = 48 a day | 1 | about **1,440** |
+| CI (6 jobs: smoke-crawl 10, test 5, lint 1, migration-test 1, dependency-audit 1, secret-scan 1) | on every push to a pull request and every merge to main; about 50 a day in the busiest days | about **20** (docs-only change: about **6**; no smoke-crawl: about **10**) | the big one: 20 x number of pushes |
+| Site uptime check | hourly = 24 a day (was every 30 min: about 1,440 a month) | 1 | about **720** |
 | Nightly database backup | daily | about 1-2 | about 45 |
 | Backup freshness check | daily | 1 | about 30-60 |
+| Nightly inventory export | twice a day (one run does the work, the other exits at once; summer/winter time) | 1 | about 60 |
+| Monthly accounting export | twice on the 1st (same reason) | 1-2 | about 3 |
 | Monthly backup restore test | monthly | about 3-5 (estimate: one short run recorded) | about 5 |
 | Send a test alert | weekly | 1 | about 4 |
 
@@ -1695,14 +1731,39 @@ cancels the run still going; npm and the Chrome that the crawl downloads are
 cached. Why not a `paths:` filter on the whole workflow: a skipped required
 check stays "Pending" forever and blocks the merge.
 
-**The uptime check stays at every 30 minutes** (1,440 minutes a month on its
-own, most of the free allowance). To halve it, change the cron line in
-`.github/workflows/uptime-check.yml` to `0 * * * *` (hourly: 720 a month, an
-outage is still reported within about two hours), **now that** the free
-external monitor (UptimeRobot, every 5 minutes, see section d) watches
-`https://umasbooks.org/healthz`: it gives the fast detection and GitHub is the
-independent second opinion. Do not
-raise the frequency.
+**The uptime check runs every hour** (about 720 minutes a month; it was every
+30 minutes = 1,440, most of the pool). An outage is still reported within about
+two hours (the email goes out on the 2nd failed check). The fast detection is
+the free external monitor (UptimeRobot, every 5 minutes, see section d) on
+`https://umasbooks.org/healthz`; GitHub is the independent second opinion. Do
+not raise the frequency.
+
+> **GitHub Actions minutes (box)**
+>
+> - **One shared pool:** CI, the nightly backup, the freshness check, the
+>   uptime check, the inventory and accounting exports and the restore test
+>   all draw on the same 2,000 minutes a month (Free plan; check your plan on
+>   the Billing page). Rough monthly cost with the table above: uptime 720,
+>   backups and checks about 150, exports about 65, **CI is the rest** (about
+>   20 per push to a pull request, 6 for a docs-only change).
+> - **What stops when the minutes run out** (and no spending limit allows more):
+>   CI, so pull requests cannot be checked or merged; the nightly backup and the
+>   backup freshness check; the uptime check; the inventory and accounting
+>   exports; the restore test and the weekly test alert. The website itself
+>   keeps running (it is on Render), but nothing watches it and nothing is
+>   backed up until the next month or until a limit is raised.
+> - **Where to look:** GitHub > profile picture (top right) > **Settings** >
+>   **Billing and plans** > **Usage** (or **Usage this month**). The repository
+>   > **Actions** tab also lists every run with its duration.
+> - **Recommended spending limit:** Settings > **Billing and plans** >
+>   **Spending limits** > **Actions**: a monthly limit of **10 USD** (about
+>   1,250 extra Linux minutes) with the 75% email alert. A limit of 0 USD is the
+>   dangerous setting. Setting the limit is an owner action (it needs the
+>   billing owner's account); a workflow cannot do it.
+> - **No automatic usage report:** GitHub's billing usage API needs a personal
+>   access token with billing permission, which `GITHUB_TOKEN` does not have,
+>   and storing such a token in the repository would be a worse risk than the one
+>   it removes. So the monthly check below is manual (2 minutes).
 
 **Every month (1st, 2 minutes):**
 
@@ -2192,7 +2253,7 @@ to the next field: set it to Enter.
 - "Not found: fill in by hand": Open Library does not know the ISBN. Type title and author.
 - "Too many lookups": the limit is 120 a minute per person; wait a minute.
 
-## aa) Test system (staging)
+## ai) Test system (staging)
 
 ### What it is
 
@@ -2741,7 +2802,7 @@ belongs to the website itself.
 | Every year (1 October), and straight away if anything leaks | New password for `backup_ro`: `ALTER ROLE backup_ro PASSWORD 'new';` in `psql`, then update the GitHub secret `DATABASE_URL`, run the backup by hand | Render database, GitHub **secret** |
 | After Render restores or recreates the database (and after any change of the owner role) | Re-run the `GRANT` and `ALTER DEFAULT PRIVILEGES` lines for `backup_ro` (box "permission denied for table ..." above; recreate the role first if it is gone), check `has_table_privilege` returns `t`, run the backup by hand | Render database, as the owner role |
 | Every year | New Backblaze application key, update `BACKUP_S3_KEY_ID` and `BACKUP_S3_APPLICATION_KEY` (section b), delete the old key | Backblaze, GitHub **secrets** |
-| Only if someone who held the private key leaves, or it may have leaked | New age key pair (set-up steps 2 to 5 again). **Keep the old private key** as long as old backups exist (up to 2 years for `monthly/`, **10 years for `yearly/`**: see section ae), or re-encrypt those; add the new one to the password manager as a second note | GitHub **variable** |
+| Only if someone who held the private key leaves, or it may have leaked | New age key pair (set-up steps 2 to 5 again). **Keep the old private key** as long as old backups exist (up to 2 years for `monthly/`, **10 years for `yearly/`**: see section aj), or re-encrypt those; add the new one to the password manager as a second note | GitHub **variable** |
 | Every quarter | Restore drill | your Mac |
 
 ### Residual risk, plainly
@@ -2755,7 +2816,7 @@ the GitHub accounts: see the end of section f). A leak of the Backblaze keys
 alone no longer exposes the data; a leak of the age **private** key *and* the
 Backblaze keys does.
 
-## ae) Keeping records for 10 years
+## aj) Keeping records for 10 years
 
 French accounting records must be kept 10 years. The database backups alone
 cannot do that (they are deleted after 30 days, and monthly ones after 2
@@ -2848,7 +2909,7 @@ yellow warning to its run (never a failure, no email).
 6. Run the **bootstrap test** above once and read the two emails/files that
    result.
 
-## aa) Alphabetical order ignores a leading "The"
+## ak) Alphabetical order ignores a leading "The"
 
 Wherever books are listed A to Z (the shop search, "More by this author", the admin
 **Books & Reservations** list), a leading **The** is ignored: `The Hobbit` is listed
@@ -2994,17 +3055,20 @@ Fixed in `src/db.js`: wait at most **10 s** for a free connection (then the requ
 
 **What the code does to stay inside the pool** (for developers): the admin dashboard runs its queries at most 3 at a time (`lib/runLimited.js`); the email outbox worker holds **no** connection while it talks to Gmail (it claims rows with one `UPDATE`, sends, and records each result with a short statement; a row whose worker died is picked up again when its 5-minute lease ends); every `pool.connect()` is released in a `finally`. `node scripts/load-dashboard.js` (local database only, not part of CI) fires 30 dashboard requests plus an outbox batch with a slow fake mail server and prints the pool's waiting counts.
 
-## ah) Curated collections (the round-picture buttons on Browse Books)
+## ah) Curated collections (Browse by Collection on Browse Books)
 
-Themed shelves such as *Paris Is Always a Good Idea* or *Bedtime Stories for Little Daydreamers*. Customers
-see a row of round-picture buttons under the genre buttons on **Browse Books** (only on the plain page: not
-while a genre, a search or *See All New In* is showing), and each button opens a page of its own
-(`/collections/<name>`, `/fr/collections/<name>`) with the books.
+Themed shelves such as *Paris Is Always a Good Idea* or *Bedtime Stories for Little Daydreamers*. On
+**Browse Books** they appear as the **Browse by Collection** carousel: a row of round-picture cards (arrows or
+swipe to move along it), placed under the search box and above **New In** and **Browse by Genre**. The carousel is
+only on the plain page: it disappears while a search, a genre, a topic or *See All New In* is showing, and it is
+absent altogether when no collection is published with at least one approved book in stock. Each card opens a page
+of its own (`/collections/<name>`, `/fr/collections/<name>`) with the books. Published collections that still have
+a book to show are also listed in the sitemap.
 
 **Nothing is ever shown until you say so.** The 19 collections start **unpublished**. The AI only *suggests*
 books; you approve each one; then you publish. A customer sees a collection only when it is published, and in it
 only the books you approved **that are in stock right now** (a book that sells or is reserved drops off by itself;
-if a copy comes back it returns). A published collection with nothing left to show has no button and its page says
+if a copy comes back it returns). A published collection with nothing left to show has no card in the carousel and its page says
 so kindly.
 
 **How to fill one** (admin > Site content > **Collections**; English only, like the rest of admin)
@@ -3026,15 +3090,15 @@ so kindly.
   AI guidance, a sort order. It starts unpublished. **Leave the guidance empty for a collection you fill in by hand
   only**: the Generate buttons are then hidden and Update all skips it.
 - **Order:** the up and down arrows in the list (or the Sort order number on the collection) set the order of the
-  buttons on Browse Books.
+  cards in the Browse by Collection carousel.
 - **Add a book by hand:** on the collection, search the books in stock (title, author or ISBN) and press **Add**; it
   counts as approved at once. **Remove** on any book in the list takes it out (the book itself is never touched). A
   collection left with no approved book is unpublished.
-- **Pictures:** *Round button picture* (cut to a circle for you; replace or remove, preview shown) and an optional
+- **Pictures:** *Round picture* (the card in the carousel; cut to a circle for you; replace or remove, preview shown) and an optional
   wide **Banner** at the top of the collection page (shown 3:1 on a computer, taller on a phone; give it an English and
   a French description for screen readers, or leave them empty if it is only decoration). JPG, PNG or WebP up to 5 MB;
   they are stored in the database like the blog pictures, so they survive deploys.
-- **Delete:** *Delete this collection* opens an "Are you sure?" page that shows how many approved books it has and offers
+- **Delete:** *Delete this collection* (on the collection's page) opens an "Are you sure?" page that shows how many approved books it has and offers
   **Unpublish instead**. Deleting removes the collection and its book list, never a book; its address then says
   "not found".
 
@@ -3051,15 +3115,16 @@ so kindly.
 - New suggestions are always *waiting for review*, also on a collection that is already published: customers
   see only approved books. Nothing already approved or rejected is ever changed or removed by a rebuild.
 - **Full rebuild (re-evaluate all books)** (link on the collection, with an "Are you sure?" page) asks about every
-  book in stock that is not already in the collection, not only the new ones. It also keeps your choices.
+  book in stock that is not already in the collection, not only the new ones. It also keeps your choices. If the AI
+  cannot answer, nothing changes and the **Last built** date stays as it was.
 
 **What it costs and what can go wrong.** Generate, Add new books, Full rebuild, Update all and Translate use the same
-paid AI as book descriptions: they count toward the daily limit `AI_DAILY_MAX_CALLS` (section ae) and appear in
+paid AI as book descriptions: they count toward the daily limit `AI_DAILY_MAX_CALLS` (section ae, "AI limits") and appear in
 *AI usage* (under *description* and *translation*); one build is up to 3 calls. If there is no API key, the credit has
 run out or the daily limit is reached, the page shows a plain message and nothing changes; the rest of the site is
 not affected. Every publish, unpublish, save, review, build, rebuild and update is written to *Admin activity*.
 
 **The pictures.** `assets/img/collections/<name>.png` and `.webp`, cut from the artwork sheet
 `assets-src/collections-sheet.webp` by `node scripts/crop-collection-art.js` (only needed if the sheet changes).
-A collection without a picture gets a plain text button. Titles are real text, so they are French when French is
+A collection without a picture gets a plain text card. Titles are real text, so they are French when French is
 chosen.

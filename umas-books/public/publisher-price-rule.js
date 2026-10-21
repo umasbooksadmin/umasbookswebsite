@@ -10,7 +10,7 @@
   function parisYear() {
     try {
       return Number(new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris", year: "numeric" }).format(new Date()));
-    } catch (e) { return new Date().getFullYear(); }
+    } catch { return new Date().getFullYear(); }
   }
 
   // Year-only: 31 Dec of year Y + 2 years is 31 Dec Y+2, so it is "more than 2 years" from 1 Jan Y+3.

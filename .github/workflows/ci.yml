@@ -12,7 +12,7 @@ on:
   workflow_dispatch: {}
 
 # Actions minutes: the repository is private and the Free plan has 2,000 minutes
-# a month; a full run is about 20 billed minutes (smoke-crawl 10, test 6, the
+# a month; a full run is about 20 billed minutes (smoke-crawl 10, test 5, the
 # other four 1 each). Every job below still ALWAYS runs and reports success, so
 # the six required check names never go missing or stay "Pending" (a workflow
 # skipped with `paths:` filters would block merges). Instead, the first step of
@@ -34,9 +34,6 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  NODE_VERSION: "22"
-
 defaults:
   run:
     working-directory: umas-books
@@ -56,7 +53,7 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         if: steps.changes.outputs.docs_only != 'true'
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version-file: umas-books/.node-version # the one place the Node version is set
           cache: npm
           cache-dependency-path: umas-books/package-lock.json
       # --ignore-scripts: the only package with an install script is
@@ -73,10 +70,10 @@ jobs:
     # real app as a child process against this job's own Postgres
     # service and hit it over real HTTP (see test/integration/).
     runs-on: ubuntu-latest
-    # 25, not 10: the suite (~2,200 tests) took 9m50s on a good day and
-    # was being cancelled at the old limit. The duration is printed in the
-    # job summary so the trend is visible before it nears this again.
-    timeout-minutes: 25
+    # About 5-6 minutes in practice (the suite is about 2,640 tests); 12 leaves
+    # double headroom and stops a hung test burning minutes. The duration is
+    # printed in the job summary so the trend is visible before it nears this.
+    timeout-minutes: 12
     services:
       postgres:
         image: postgres:18 # matches production — see nightly-db-backup.yml
@@ -104,7 +101,7 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         if: steps.changes.outputs.docs_only != 'true'
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version-file: umas-books/.node-version # the one place the Node version is set
           cache: npm
           cache-dependency-path: umas-books/package-lock.json
       # --ignore-scripts: skips puppeteer's Chrome download (see the lint job).
@@ -119,7 +116,7 @@ jobs:
           status=0
           npm test || status=$?
           secs=$(( $(date +%s) - start ))
-          echo "Test suite duration: $((secs / 60))m $((secs % 60))s (job limit: 25m)" >> "$GITHUB_STEP_SUMMARY"
+          echo "Test suite duration: $((secs / 60))m $((secs % 60))s (job limit: 12m)" >> "$GITHUB_STEP_SUMMARY"
           exit "$status"
 
   migration-test:
@@ -160,7 +157,7 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         if: steps.changes.outputs.docs_only != 'true'
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version-file: umas-books/.node-version # the one place the Node version is set
           cache: npm
           cache-dependency-path: umas-books/package-lock.json
       # --ignore-scripts: skips puppeteer's Chrome download (see the lint job).
@@ -187,7 +184,7 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         if: steps.changes.outputs.docs_only != 'true'
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version-file: umas-books/.node-version # the one place the Node version is set
           cache: npm
           cache-dependency-path: umas-books/package-lock.json
       # --ignore-scripts: skips puppeteer's Chrome download (see the lint job).
@@ -224,7 +221,7 @@ jobs:
     # server error or a navigation failure, or on a persona whose login
     # didn't actually take (see assert-crawl-ok.js).
     runs-on: ubuntu-latest
-    timeout-minutes: 25 # the crawl takes about 10 minutes; headroom for slow runners
+    timeout-minutes: 20 # the crawl takes about 10-12 minutes; headroom for slow runners
     services:
       postgres:
         image: postgres:18
@@ -260,7 +257,7 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         if: steps.changes.outputs.smoke_needed == 'true'
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version-file: umas-books/.node-version # the one place the Node version is set
           cache: npm
           cache-dependency-path: umas-books/package-lock.json
       - name: Cache the Chrome that puppeteer downloads
