@@ -13,8 +13,9 @@ const bcrypt = require("bcryptjs");
 const { startTestApp } = require("../helpers/testApp");
 const { makeCookieJar, fetchCsrfToken } = require("../helpers/httpClient");
 const {
-  IMAGE_REFERENCES, BATCH_LIMIT, findUnusedImages, countUnusedImages, purgeUnusedImages,
+  IMAGE_REFERENCES, BATCH_LIMIT, findUnusedImages, countUnusedImages, purgeUnusedImages, makeDashboardUnusedCount, notReferencedSql,
 } = require("../../src/lib/imageCleanup");
+const { legacyNotReferencedSql } = require("../helpers/legacyImageRefs");
 
 const PORT = 3760;
 const TAG = `imgclean${Date.now()}`;
@@ -37,6 +38,9 @@ before(async () => {
 after(async () => {
   await pool.query("DELETE FROM books WHERE title LIKE $1", [`${TAG}%`]);
   await pool.query("DELETE FROM blog_posts WHERE title LIKE $1", [`${TAG}%`]);
+  await pool.query("DELETE FROM announcements WHERE title LIKE $1", [`${TAG}%`]);
+  await pool.query("DELETE FROM charities WHERE name LIKE $1", [`${TAG}%`]);
+  await pool.query("DELETE FROM curated_collections WHERE slug LIKE $1", [`${TAG}%`]);
   await pool.end();
   await app.stop();
 });
@@ -180,6 +184,133 @@ test("admin dashboard shows the unused-image count", async () => {
   assert.equal(res.status, 200);
   assert.match(await res.text(), /Unused images waiting for cleanup: \d+/);
   await purgeUnusedImages(pool);
+});
+
+// ---- Linear reference detection vs the original quadratic query (the oracle) ----
+
+// Inserts one row in `table` whose `column` holds `value`, filling the NOT NULL
+// columns of that table with throwaway values.
+async function insertReferencing(table, column, value) {
+  const n = counter++;
+  const base = {
+    books: { title: `${TAG} ref ${n}`, authors: "A" },
+    announcements: { title: `${TAG} ref ${n}`, body: "b" },
+    blog_posts: { title: `${TAG} ref ${n}`, slug: `${TAG}-ref-${n}`, body: "b", status: "published" },
+    charities: { name: `${TAG} ref ${n}` },
+    curated_collections: { slug: `${TAG}-ref-${n}`, title_en: `${TAG} ref ${n}` },
+  }[table];
+  assert.ok(base, `test has no fixture for table ${table}: add it to insertReferencing`);
+  const cols = { ...base, [column]: value };
+  const keys = Object.keys(cols);
+  await pool.query(`INSERT INTO ${table} (${keys.join(", ")}) VALUES (${keys.map((_, i) => `$${i + 1}`).join(", ")})`, keys.map((k) => cols[k]));
+}
+
+test("new reference detection finds exactly what the old strpos query found (every column, plus edge cases)", async () => {
+  const mine = [];
+  const track = async (opts) => { const img = await addImage(opts); mine.push(img.id); return img; };
+
+  // One image referenced from each listed column, in three URL shapes.
+  const shapes = [(u) => u, (u) => `<p>x</p><img src="${u}" alt="">`, (u, id) => `see ${id} and more`];
+  let k = 0;
+  for (const { table, column } of IMAGE_REFERENCES) {
+    const img = await track({ ageDays: 30 });
+    await insertReferencing(table, column, shapes[k++ % shapes.length](img.url, img.id));
+  }
+  // Two images in one cell, a variant URL, and an id that sits inside a longer hex run.
+  const a = await track({ ageDays: 30 });
+  const b = await track({ ageDays: 30 });
+  await insertReferencing("blog_posts", "body", `<img src="${a.url}"><img src="/img/${b.id}-600.jpg">`);
+  const inLongRun = await track({ ageDays: 30 });
+  await insertReferencing("books", "description", `0${inLongRun.id}`); // 65 hex: strpos matched, so must the new one
+  const inLongRun2 = await track({ ageDays: 30 });
+  await insertReferencing("announcements", "body", `${inLongRun2.id}f${"a".repeat(70)}`);
+  // Uppercase hex is not the stored form and never matched.
+  const upper = await track({ ageDays: 30 });
+  await insertReferencing("books", "cover_url", `/img/${upper.id.toUpperCase()}.jpg`);
+  // Unreferenced: old, old but only 63 chars of it quoted, and recent.
+  await track({ ancient: true });
+  const partial = await track({ ageDays: 30 });
+  await insertReferencing("books", "description", partial.id.slice(0, 63));
+  await track({ ageDays: 2 });
+  await track({ ageDays: 6 });
+
+  const run = async (pred) => (await pool.query(
+    `SELECT i.id FROM images i WHERE i.id = ANY($1) AND i.created_at < now() - interval '7 days' AND ${pred} ORDER BY i.id`, [mine]
+  )).rows.map((r) => r.id);
+  const oracle = await run(legacyNotReferencedSql("i"));
+  const linear = await run(notReferencedSql("i"));
+  assert.deepEqual(linear, oracle, "new query must return exactly the old query's unused set");
+  // The set itself is what we built: only the uppercase-only, 63-char-only and ancient images are old AND unreferenced.
+  assert.equal(oracle.length, 3, "everything else is referenced or younger than 7 days");
+  assert.ok(![a.id, b.id, inLongRun.id, inLongRun2.id].some((id) => oracle.includes(id)));
+});
+
+test("the new reference query is linear: no per-image correlated scan of the referencing tables", async () => {
+  const { rows } = await pool.query(`EXPLAIN SELECT i.id FROM images i WHERE ${notReferencedSql("i")}`);
+  const plan = rows.map((r) => r["QUERY PLAN"]).join("\n");
+  // The old form planned one anti join per referencing column (13), each rescanning its table per image.
+  assert.equal((plan.match(/Anti Join/g) || []).length, 1, `exactly one anti join against the precomputed id set:\n${plan}`);
+  assert.doesNotMatch(plan, /SubPlan/, "a correlated SubPlan would rescan the tables per image");
+});
+
+// ---- Dashboard line: bounded wait, connection released, last good value ----
+
+test("countUnusedImages(timeoutMs) cancels a slow query, releases its connection, and the dashboard wrapper degrades", async () => {
+  const { Pool } = require("pg");
+  const own = new Pool({ connectionString: app.databaseUrl, ssl: false, max: 2, statement_timeout: 30000 });
+  try {
+    // A pool whose count query is slowed down with pg_sleep, to stand in for 30k books.
+    const slow = {
+      connect: async () => {
+        const c = await own.connect();
+        const q = c.query.bind(c);
+        const release = c.release.bind(c);
+        c.query = (sql, ...rest) => q(typeof sql === "string" ? sql.replace("SELECT COUNT(*)::int AS n", "SELECT pg_sleep(5), COUNT(*)::int AS n") : sql, ...rest);
+        c.release = (...a) => { c.query = q; c.release = release; return release(...a); }; // the pooled client is reused: undo the patch
+        return c;
+      },
+    };
+    const t0 = Date.now();
+    await assert.rejects(countUnusedImages(slow, { timeoutMs: 300 }), (err) => err.code === "57014");
+    assert.ok(Date.now() - t0 < 2500, `must not wait for the slow query (waited ${Date.now() - t0} ms)`);
+    assert.equal(own.totalCount - own.idleCount, 0, "connection released after the timeout");
+    assert.equal((await own.query("SHOW statement_timeout")).rows[0].statement_timeout, "30s", "SET LOCAL must not leak onto the pooled connection");
+
+    // Wrapper: null before any good value, last good value afterwards, never throws, cached.
+    let now = 0;
+    const clock = () => now;
+    const get = makeDashboardUnusedCount(slow, { ttlMs: 1000, timeoutMs: 200, clock });
+    assert.equal(await get(), null, "no cached value yet: null (page shows n/a)");
+    const good = makeDashboardUnusedCount(own, { ttlMs: 1000, timeoutMs: 2000, clock });
+    const n = await good();
+    assert.equal(typeof n, "number");
+    assert.equal(await good(), n, "served from cache within the TTL");
+  } finally {
+    await own.end();
+  }
+});
+
+test("dashboard wrapper keeps the last good value when a later refresh times out", async () => {
+  let calls = 0;
+  const fake = {
+    connect: async () => ({
+      query: async (sql) => {
+        if (/COUNT/.test(sql)) {
+          calls++;
+          if (calls === 1) return { rows: [{ n: 7 }] };
+          const err = new Error("canceling statement due to statement timeout"); err.code = "57014"; throw err;
+        }
+        return { rows: [] };
+      },
+      release() { this.released = (this.released || 0) + 1; },
+    }),
+  };
+  let now = 0;
+  const get = makeDashboardUnusedCount(fake, { ttlMs: 1000, timeoutMs: 100, clock: () => now });
+  assert.equal(await get(), 7);
+  now = 5000;
+  assert.equal(await get(), 7, "refresh timed out: last good value, not 0 and not an error");
+  assert.equal(calls, 2);
 });
 
 // ---- Completeness: a new image-bearing column must be added to IMAGE_REFERENCES ----

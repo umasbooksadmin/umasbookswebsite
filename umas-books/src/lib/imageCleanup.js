@@ -33,18 +33,35 @@ const IMAGE_REFERENCES = [
   { table: "curated_collections", column: "banner_path" },
 ];
 
+const { cachedFor } = require("./runLimited");
+
 const DEFAULT_MIN_AGE_DAYS = 7;
 const BATCH_LIMIT = 500;
 
 const IDENT_RE = /^[a-z_][a-z0-9_]*$/;
 
-// One NOT EXISTS per referencing column. Identifiers come from the constant
-// above (validated anyway); the hash is matched with strpos, no LIKE escapes.
-function notReferencedSql(alias = "i") {
+// The ids of every image some row refers to, as one set (UNION of one scan per
+// referencing column). Each column is scanned ONCE with regexp_matches, which
+// pulls out every maximal run of 64 or more lowercase hex characters, and
+// substr() slices every 64-character window out of the run (one for a normal
+// id; more only for a longer run), so any id that strpos(col, id) > 0 would
+// have found is found here too. Identifiers come from the constant above
+// (validated anyway).
+const HASH_PATTERN = "[0-9a-f]{64,}";
+
+function referencedIdsSql() {
   return IMAGE_REFERENCES.map(({ table, column }) => {
     if (!IDENT_RE.test(table) || !IDENT_RE.test(column)) throw new Error(`Bad IMAGE_REFERENCES entry ${table}.${column}`);
-    return `NOT EXISTS (SELECT 1 FROM ${table} r WHERE strpos(r.${column}, ${alias}.id) > 0)`;
-  }).join("\n        AND ");
+    return `SELECT substr(m[1], k, 64) AS id FROM ${table}, regexp_matches(${table}.${column}, '(${HASH_PATTERN})', 'g') AS m, generate_series(1, length(m[1]) - 63) AS k`;
+  }).join("\n        UNION\n        ");
+}
+
+// "alias.id is referenced by no row". LINEAR: the set above is built once and
+// hash-anti-joined to the images (the earlier form, one correlated
+// strpos() NOT EXISTS per image per column, was images x rows: ~1.7 ms per
+// image at 30k books, past the 30 s statement timeout around 20k images).
+function notReferencedSql(alias = "i") {
+  return `NOT EXISTS (SELECT 1 FROM (\n        ${referencedIdsSql()}\n      ) refs WHERE refs.id = ${alias}.id)`;
 }
 
 function ageDays(minAgeDays) {
@@ -69,15 +86,41 @@ async function findUnusedImages(pool, { minAgeDays = 0, limit = BATCH_LIMIT } = 
 }
 
 // Number of unused images old enough to be purged (the admin dashboard line).
-async function countUnusedImages(pool, { minAgeDays = DEFAULT_MIN_AGE_DAYS } = {}) {
-  const { rows } = await pool.query(
-    `SELECT COUNT(*)::int AS n
+// timeoutMs (optional) bounds the query with a transaction-local
+// statement_timeout on its own connection, which is released either way; on
+// timeout the error (code 57014) propagates.
+async function countUnusedImages(pool, { minAgeDays = DEFAULT_MIN_AGE_DAYS, timeoutMs = 0 } = {}) {
+  const sql = `SELECT COUNT(*)::int AS n
        FROM images i
       WHERE i.created_at < now() - make_interval(secs => $1 * 86400)
-        AND ${notReferencedSql("i")}`,
-    [ageDays(minAgeDays)]
+        AND ${notReferencedSql("i")}`;
+  const params = [ageDays(minAgeDays)];
+  if (!(timeoutMs > 0)) return (await pool.query(sql, params)).rows[0].n;
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(`SET LOCAL statement_timeout = ${Math.floor(timeoutMs)}`);
+    const { rows } = await client.query(sql, params);
+    await client.query("COMMIT");
+    return rows[0].n;
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+// The dashboard's version: never waits longer than timeoutMs, computed at most
+// once per ttlMs per process, and on a timeout/failure shows the last good
+// value (null before there is one; the page prints "n/a").
+function makeDashboardUnusedCount(pool, { ttlMs = 10 * 60 * 1000, timeoutMs = 3000, clock = Date.now } = {}) {
+  let last = null;
+  return cachedFor(
+    () => countUnusedImages(pool, { timeoutMs }).then((n) => (last = n), () => last),
+    ttlMs,
+    clock
   );
-  return rows[0].n;
 }
 
 // Deletes up to BATCH_LIMIT unused images older than minAgeDays in a single
@@ -104,4 +147,4 @@ async function purgeUnusedImages(pool, { minAgeDays = DEFAULT_MIN_AGE_DAYS, dryR
   return { candidates: rows.length, deleted: rows.length, bytes: rows.reduce((s, r) => s + r.byte_size, 0), dryRun: false };
 }
 
-module.exports = { IMAGE_REFERENCES, notReferencedSql, BATCH_LIMIT, DEFAULT_MIN_AGE_DAYS, findUnusedImages, countUnusedImages, purgeUnusedImages };
+module.exports = { IMAGE_REFERENCES, notReferencedSql, referencedIdsSql, makeDashboardUnusedCount, BATCH_LIMIT, DEFAULT_MIN_AGE_DAYS, findUnusedImages, countUnusedImages, purgeUnusedImages };

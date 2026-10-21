@@ -58,7 +58,7 @@
 </div>
 <% } %>
 
-<p class="desc" id="unused-images-line">Unused images waiting for cleanup: <%= stats.unusedImages %></p>
+<p class="desc" id="unused-images-line">Unused images waiting for cleanup: <%= stats.unusedImages == null ? "n/a" : stats.unusedImages %></p>
 
 <div class="admin-cards">
   <div class="admin-card tone-rose">
