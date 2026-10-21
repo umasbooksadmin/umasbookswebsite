@@ -155,7 +155,7 @@ async function sendSitemap(req, res, name) {
   const base = safeBaseUrl(req);
   if (!base) return res.status(503).type("text/plain").send("Sitemap unavailable: base URL is not configured.");
   const xml = await sitemapCache(`${base}|${name}`);
-  if (xml == null) return res.status(404).type("text/plain").send("Not found");
+  if (xml == null) return res.status(404).end();
   res.set("Cache-Control", "public, max-age=3600");
   res.type("application/xml").send(xml);
 }
@@ -163,7 +163,7 @@ async function sendSitemap(req, res, name) {
 router.get("/sitemap.xml", (req, res) => sendSitemap(req, res, "index"));
 router.get("/sitemap-pages.xml", (req, res) => sendSitemap(req, res, "pages"));
 router.get("/sitemap-books-:n.xml", (req, res) => {
-  if (!/^[1-9]\d{0,5}$/.test(req.params.n)) return res.status(404).type("text/plain").send("Not found");
+  if (!/^[1-9]\d{0,5}$/.test(req.params.n)) return res.status(404).end();
   return sendSitemap(req, res, req.params.n);
 });
 
