@@ -173,7 +173,7 @@ test("genres: distinct, trimmed, sorted, only from books that are in stock", asy
   await makeBook({ categories: `${hidden}`, copies: [{ status: "sold" }] });
   const { res, json } = await api("/api/books/genres");
   assert.equal(res.headers.get("access-control-allow-origin"), "*");
-  assert.equal(res.headers.get("cache-control"), "public, max-age=300");
+  assert.equal(res.headers.get("cache-control"), "public, max-age=300, s-maxage=300");
   assert.equal(json.filter((g) => g === a).length, 1, "distinct");
   assert.ok(json.includes(b));
   assert.ok(!json.includes(hidden));
@@ -186,7 +186,7 @@ test("latest-arrivals: limit is clamped to 1..24 (default 8) and results are new
   for (let i = 0; i < 26; i++) await makeBook({ title: `${marker} ${String(i).padStart(2, "0")}`, copies: [{ price: 2 + i, createdAt: new Date(Date.now() + 3600 * 1000 + i * 1000) }] });
   const dflt = await api("/api/books/latest-arrivals");
   assert.equal(dflt.res.headers.get("access-control-allow-origin"), "*");
-  assert.equal(dflt.res.headers.get("cache-control"), "public, max-age=60");
+  assert.equal(dflt.res.headers.get("cache-control"), "public, max-age=60, s-maxage=60");
   assert.equal(dflt.json.length, 8);
   assert.equal(dflt.json[0].title, `${marker} 25`, "newest copy first");
   assert.deepEqual(Object.keys(dflt.json[0]).sort(), ["author", "coverUrl", "id", "price", "title", "url"]);
@@ -212,43 +212,101 @@ test("latest-arrivals: ?days= windows by copy age; days=0 removes the window; so
 
 // ------------------------------------------- New In: "See All" shows every qualifying book
 
-test("new-in: every book of the last 60 days (no 200 cap), newest first by the exact time added; ?all=1 is the whole list in one request and paging gives the same list", async () => {
-  // 230 recent books so the old 200 maximum would cut the list; the carousel takes them all in one request
-  const mine = [];
-  for (let i = 0; i < 230; i++) mine.push(await makeBook({ title: `${TAG} NewIn ${i}` }));
-  const whole = await api("/api/books/new-in?all=1");
-  assert.equal(whole.status, 200);
-  const { rows } = await pool.query("SELECT count(DISTINCT book_id)::int AS n FROM book_copies WHERE status = 'in_stock' AND created_at >= now() - interval '60 days'");
-  assert.ok(rows[0].n >= 230);
-  assert.equal(whole.json.total, Math.max(rows[0].n, 40), "total = every book of the last 60 days (at least 40), not capped at 200");
-  assert.ok(whole.json.total > 200);
-  assert.equal(whole.json.books.length, whole.json.total, "all=1 returns the whole list");
-  assert.equal(whole.json.nextOffset, null);
-  assert.deepEqual(Object.keys(whole.json.books[0]).sort(), ["author", "coverUrl", "id", "price", "title", "url"]);
-  const first = await api("/api/books/new-in?offset=0&limit=24");
-  assert.equal(first.json.total, whole.json.total);
-  assert.equal(first.json.books.length, 24);
-  assert.equal(first.json.nextOffset, 24);
-  const seen = [...first.json.books.map((b) => b.id)];
-  let next = first.json.nextOffset;
-  let guard = 0;
-  while (next != null && guard++ < 40) {
-    const page = await api(`/api/books/new-in?offset=${next}&limit=24`);
-    assert.equal(page.json.total, first.json.total, "the total is the same on every page");
-    seen.push(...page.json.books.map((b) => b.id));
+// The whole list, 60 at a time, the way the carousel loads it.
+async function newInBatches(limit = 60) {
+  const books = [];
+  let total = null;
+  let next = 0;
+  for (let guard = 0; next != null && guard < 400; guard++) {
+    const page = await api(`/api/books/new-in?offset=${next}&limit=${limit}`);
+    assert.equal(page.status, 200);
+    if (total == null) total = page.json.total;
+    assert.equal(page.json.total, total, "the total is the same on every batch");
+    assert.ok(page.json.books.length <= limit);
+    books.push(...page.json.books);
     next = page.json.nextOffset;
   }
-  assert.equal(seen.length, first.json.total, "paging reaches every book");
-  assert.equal(new Set(seen).size, seen.length, "no book twice");
-  assert.deepEqual(whole.json.books.map((b) => b.id), seen, "the carousel (all=1) and See All (paged) are the same list in the same order");
+  return { books, total };
+}
+
+test("new-in: every book of the last 60 days (no cap), newest first by the exact time added, reachable in batches of 60 or pages of 24 with no gap and no duplicate; there is no all=1 mode", async () => {
+  // 230 recent books so the old 200 maximum would cut the list
+  for (let i = 0; i < 230; i++) await makeBook({ title: `${TAG} NewIn ${i}` });
+  const { rows } = await pool.query("SELECT count(DISTINCT book_id)::int AS n FROM book_copies WHERE status = 'in_stock' AND created_at >= now() - interval '60 days'");
+  assert.ok(rows[0].n >= 230);
+  const batches = await newInBatches(60);
+  assert.equal(batches.total, Math.max(rows[0].n, 40), "total = every book of the last 60 days (at least 40), not capped");
+  assert.ok(batches.total > 200);
+  assert.equal(batches.books.length, batches.total, "batches reach every book");
+  assert.equal(new Set(batches.books.map((b) => b.id)).size, batches.books.length, "no book twice");
+  assert.deepEqual(Object.keys(batches.books[0]).sort(), ["author", "coverUrl", "id", "price", "title", "url"]);
+  const first = await api("/api/books/new-in?offset=0&limit=60");
+  assert.equal(first.json.books.length, 60);
+  assert.equal(first.json.nextOffset, 60, "the boundary is at 60");
+  const second = await api("/api/books/new-in?offset=60&limit=60");
+  assert.deepEqual(second.json.books.map((b) => b.id), batches.books.slice(60, 120).map((b) => b.id), "batch two starts exactly where batch one ended");
+  // See All: 24 at a time gives the same list in the same order
+  const seen = (await newInBatches(24)).books.map((b) => b.id);
+  assert.deepEqual(batches.books.map((b) => b.id), seen, "the carousel (60 at a time) and See All (24 at a time) are the same list in the same order");
   assert.deepEqual((await api("/api/books/latest-arrivals?days=0&limit=12")).json.map((b) => b.id), seen.slice(0, 12), "and the old endpoint agrees");
+  // all=1 is gone: it behaves like no parameter (the default 24), never the whole list
+  const all = await api("/api/books/new-in?all=1");
+  assert.equal(all.json.books.length, 24);
+  assert.equal(all.json.nextOffset, 24);
   const past = await api(`/api/books/new-in?offset=${first.json.total + 50}`);
   assert.deepEqual([past.json.books.length, past.json.nextOffset, past.json.total], [0, null, first.json.total]);
-  assert.match(first.res.headers.get("cache-control") || "", /max-age/, "cacheable, so paging never hits the server twice for a page");
   // the whole list is in descending time order
   const stamps = (await pool.query("SELECT book_id, MAX(created_at) AS t FROM book_copies WHERE status = 'in_stock' GROUP BY book_id")).rows;
   const at = new Map(stamps.map((r) => [r.book_id, r.t.getTime()]));
   for (let i = 1; i < seen.length; i++) assert.ok(at.get(seen[i - 1]) >= at.get(seen[i]), "newest first");
+});
+
+test("new-in: out-of-range or garbage offset and limit give 200 (empty or clamped), never a 500; limit is at most 100; the JSON is public-cacheable, sets no cookie", async () => {
+  for (const qs of ["offset=1e22", "offset=99999999999999999999", "offset=-5", "offset=abc", "offset=1.5", "offset=100001", "offset=Infinity", "offset=0x10", "offset[]=1&limit[]=2", "limit=0", "limit=-1", "limit=abc", "limit=1e9", "limit=999999999999999999999", "offset=1e22&limit=1e9"]) {
+    const r = await api(`/api/books/new-in?${qs}`);
+    assert.equal(r.status, 200, qs);
+    assert.ok(Array.isArray(r.json.books), qs);
+    assert.ok(r.json.books.length <= 100, `${qs}: at most 100 books`);
+    assert.ok(Number.isInteger(r.json.total), qs);
+  }
+  assert.equal((await api("/api/books/new-in?offset=1e22")).json.books.length, 0);
+  assert.equal((await api("/api/books/new-in?limit=1e9")).json.books.length, 100, "limit is clamped to 100");
+  assert.equal((await api("/api/books/new-in?limit=-1")).json.books.length, 1);
+  assert.equal((await api("/api/books/new-in?limit=0")).json.books.length, 24, "0 = the default");
+  const r = await api("/api/books/new-in?offset=0&limit=60");
+  const cc = r.res.headers.get("cache-control") || "";
+  assert.match(cc, /public/);
+  assert.match(cc, /max-age=60/);
+  assert.match(cc, /s-maxage=60/);
+  assert.equal(r.res.headers.get("set-cookie"), null, "an anonymous cacheable response sets no cookie");
+  // (the app adds Vary: Accept-Language, Cookie to every publicly cacheable answer, middleware/lang.js: harmless for a browser
+  // and for a CDN that keys on the URL; the body below is identical for everyone)
+  for (const path of ["/api/books/genres", "/api/books/latest-arrivals"]) {
+    const g = await api(path);
+    assert.equal(g.status, 200);
+    assert.match(g.res.headers.get("cache-control") || "", /public, max-age=\d+, s-maxage=\d+/, path);
+    assert.equal(g.res.headers.get("set-cookie"), null, path);
+  }
+});
+
+test("books.html: the page does not grow with the shelf (the no-JavaScript list is a fixed handful) ", async () => {
+  const size = async () => {
+    const r = await api("/books.html");
+    assert.equal(r.status, 200);
+    const noscript = (r.text.match(/<noscript>[\s\S]*?<\/noscript>/g) || []).join("");
+    return { bytes: Buffer.byteLength(r.text), items: (noscript.match(/<li>/g) || []).length };
+  };
+  const before = await size();
+  assert.ok(before.items > 0 && before.items <= 36, `no-JavaScript list has ${before.items} books (1..36)`);
+  await pool.query(
+    `WITH b AS (INSERT INTO books (title, authors) SELECT $1 || ' Size ' || g, 'Size Author ' || g FROM generate_series(1, 520) g RETURNING id)
+     INSERT INTO book_copies (book_id, status, price, condition) SELECT id, 'in_stock', 4, 'very_good' FROM b`,
+    [TAG]
+  );
+  const after = await size();
+  assert.equal(after.items, 36, "the handful is 36 once there are more than 36 new books");
+  assert.ok(after.bytes < 100 * 1024, `books.html is ${after.bytes} bytes`);
+  assert.ok(after.bytes - before.bytes < 4000, `520 more new books added ${after.bytes - before.bytes} bytes to the page (should be about the same size)`);
 });
 
 test("new-in: newest first by the exact time the copy was added, same-day books by time of day, ties by copy id, a book counts at its newest in-stock copy, acquired_at never orders", async () => {
@@ -264,12 +322,9 @@ test("new-in: newest first by the exact time the copy was added, same-day books 
   const tieB = await makeBook({ title: `${TAG} Time tie B`, copies: [{ createdAt: tieTs }] });
   await pool.query("UPDATE book_copies SET acquired_at = CURRENT_DATE - 30 WHERE book_id = ANY($1)", [[evening.id, tieA.id, tieB.id]]);
   await pool.query("UPDATE book_copies SET acquired_at = CURRENT_DATE + 1 WHERE book_id = ANY($1)", [[morning.id, multi.id]]);
-  const order = async (qs) => {
-    const ids = new Set([morning, noon, evening, multi, tieA, tieB].map((b) => b.id));
-    return (await api(`/api/books/new-in?${qs}`)).json.books.map((b) => b.id).filter((id) => ids.has(id));
-  };
   const want = [tieB.id, tieA.id, evening.id, multi.id, noon.id, morning.id]; // 50 min (tie: higher copy id first), 100, 150, 200, 300
-  assert.deepEqual(await order("all=1"), want, "carousel list");
+  const wantSet = new Set(want);
+  assert.deepEqual((await newInBatches(60)).books.map((b) => b.id).filter((id) => wantSet.has(id)), want, "carousel batches");
   const paged = [];
   for (let next = 0, guard = 0; next != null && guard++ < 40;) {
     const page = (await api(`/api/books/new-in?offset=${next}&limit=48`)).json;

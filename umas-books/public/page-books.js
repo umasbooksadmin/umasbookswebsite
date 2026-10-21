@@ -125,9 +125,36 @@
   // a snap point. Arrows and arrow keys scroll to the left edge of a real item (its measured position, never "80% of
   // the width", which drifted off the item edges), counted from where the previous click is heading, so quick repeated
   // clicks add up.
-  function makeCarousel(track, prevBtn, nextBtn, itemSel) {
+  //
+  // Optional `more` = { hasMore(): bool, load(done) } for a list that arrives in batches (only New In): load(done) appends
+  // the next batch to the track and calls done(true), or done(false) if it failed (hasMore() stays true, the next arrow
+  // click tries again). While more remains the Next arrow is never disabled: the next batch is asked for when the guest
+  // comes within NEAR_END cards of the last loaded one (scroll, swipe, arrow or arrow key), the arrow pulses while it
+  // loads, and a click that has nowhere to go yet carries on by itself once the batch is in. Cards are only ever added
+  // after the last one, so the scroll position and the whole-card stops do not move.
+  var NEAR_END = 3;
+  function makeCarousel(track, prevBtn, nextBtn, itemSel, more) {
     var heading = null;   // index the track is scrolling to after a click (null = at rest)
     var headingTimer = 0;
+    var loading = false;
+    var pendingTarget = null; // a click wanted to go to this card index, which is not loaded yet
+
+    function hasMore() { return !!(more && more.hasMore()); }
+    function ensureMore() {
+      if (loading || !hasMore()) return;
+      loading = true;
+      nextBtn.classList.add('is-loading');
+      nextBtn.setAttribute('aria-busy', 'true');
+      more.load(function (ok) {
+        loading = false;
+        nextBtn.classList.remove('is-loading');
+        nextBtn.removeAttribute('aria-busy');
+        layout();
+        var want = pendingTarget;
+        pendingTarget = null;
+        if (ok && want != null) goTo(want);
+      });
+    }
 
     function cardList() { return Array.prototype.slice.call(track.querySelectorAll(itemSel)); }
     function padLeft() { return parseFloat(getComputedStyle(track).paddingLeft) || 0; }
@@ -162,7 +189,9 @@
       var cards = cardList();
       if (!cards.length) { prevBtn.disabled = nextBtn.disabled = true; return; }
       prevBtn.disabled = track.scrollLeft <= 1;
-      nextBtn.disabled = track.scrollLeft >= stopAt(cards, lastStart(cards)) - 1;
+      // more batches to come: never "the end" (a pending batch or a failed one is retried by the next click)
+      nextBtn.disabled = hasMore() ? false : track.scrollLeft >= stopAt(cards, lastStart(cards)) - 1;
+      if (hasMore() && !loading && nearest(cards) + perView(cards) + NEAR_END >= cards.length) ensureMore();
     }
     function goTo(i, cards, instant) {
       cards = cards || cardList();
@@ -176,7 +205,13 @@
       var cards = cardList();
       if (!cards.length) return;
       var from = heading != null ? heading : nearest(cards);
-      goTo(from + dir * (count || perView(cards)), cards);
+      var target = from + dir * (count || perView(cards));
+      if (dir > 0 && hasMore()) {
+        // the card to stop at may not be loaded yet: go as far as there is, ask for the next batch, finish when it is in
+        if (target > lastStart(cards)) pendingTarget = Math.max(pendingTarget == null ? 0 : pendingTarget, target);
+        if (target + perView(cards) + NEAR_END >= cards.length) ensureMore();
+      }
+      goTo(target, cards);
     }
     // Bring item i into view (a selected genre on a direct load or Back): the page of items that holds it, no animation.
     function reveal(i) {
@@ -218,7 +253,37 @@
   }
 
   var track = document.getElementById('bk-new-track');
-  var newCarousel = makeCarousel(track, document.getElementById('bk-new-prev'), document.getElementById('bk-new-next'), '.bk-book');
+  // New In arrives in batches of NEW_IN_BATCH (the API clamps at 100): the newest first, the next batch as the guest nears the end.
+  var NEW_IN_BATCH = 60;
+  var newInNext = 0;          // offset of the next batch, null once the server said there is no more
+  var newInLoaded = false;    // the first batch is in
+  var newInIds = {};          // ids already in the track (a book added meanwhile shifts the next batch by one: show each once)
+  function appendNewIn(books) {
+    var tmp = document.createElement('div');
+    tmp.innerHTML = books.filter(function (b) {
+      if (newInIds[b.id]) return false;
+      newInIds[b.id] = true;
+      return true;
+    }).map(function (b) { return bookCard(b, true); }).join('');
+    syncFavorites(tmp);
+    var frag = document.createDocumentFragment();
+    while (tmp.firstChild) frag.appendChild(tmp.firstChild);
+    track.appendChild(frag);
+  }
+  function newInBatchUrl(offset) { return API + '/new-in?offset=' + offset + '&limit=' + NEW_IN_BATCH; }
+  var newCarousel = makeCarousel(track, document.getElementById('bk-new-prev'), document.getElementById('bk-new-next'), '.bk-book', {
+    hasMore: function () { return newInLoaded && newInNext != null; },
+    load: function (done) {
+      getJSON(newInBatchUrl(newInNext), function (err, data) {
+        if (err) { done(false); return; }
+        appendNewIn(data.books || []);
+        newInNext = data.nextOffset;
+        // an empty batch with a next offset cannot happen; stop rather than ask for ever
+        if (!(data.books || []).length) newInNext = null;
+        done(true);
+      });
+    }
+  });
   var layoutCarousel = newCarousel.layout;
   var genreCarousel = makeCarousel(genreList, document.getElementById('bk-genre-prev'), document.getElementById('bk-genre-next'), '.bk-genre');
   var collectionCarousel = collectionsEl
@@ -383,12 +448,14 @@
   });
   render(S.parse(location.search, SLUGS), true);
 
-  getJSON(API + '/new-in?all=1', function (err, data) {
+  getJSON(newInBatchUrl(0), function (err, data) {
     if (err) { track.innerHTML = '<p class="muted">' + esc(t('bk.error')) + '</p>'; layoutCarousel(); return; }
     var books = data.books || [];
     if (!books.length) { track.innerHTML = '<p class="muted">' + esc(t('bk.new.empty')) + '</p>'; layoutCarousel(); return; }
-    track.innerHTML = books.map(function (b) { return bookCard(b, true); }).join('');
-    syncFavorites(track);
+    track.innerHTML = '';
+    appendNewIn(books);
+    newInNext = data.nextOffset;
+    newInLoaded = true;
     layoutCarousel();
     // covers and fonts load after this: sizes are in cqw so nothing moves, but re-check the end room once everything is in
     window.addEventListener('load', layoutCarousel);

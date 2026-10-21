@@ -65,3 +65,29 @@ test("cachedFor: a failure is not cached, and TTL 0 turns the cache off", async 
   assert.equal(await off(), 1);
   assert.equal(await off(), 2);
 });
+
+test("cachedByKey: one cached value per key within the TTL, shared in-flight, failures not cached, bounded size", async () => {
+  const { cachedByKey } = require("../../src/lib/runLimited");
+  let now = 1000;
+  const calls = [];
+  const get = cachedByKey(async (k) => { calls.push(k); await sleep(5); return `${k}#${calls.length}`; }, 30000, 3, () => now);
+  const [a, b] = await Promise.all([get("x"), get("x")]);
+  assert.equal(a, b);
+  assert.deepEqual(calls, ["x"], "simultaneous callers share one computation");
+  assert.equal(await get("y"), "y#2");
+  assert.equal(await get("x"), "x#1", "still cached");
+  now += 30001;
+  assert.equal(await get("x"), "x#3", "recomputed after the TTL");
+  await get("p"); await get("q"); await get("r"); // 4 keys > 3: the oldest ("y") is dropped
+  const n = calls.length;
+  await get("r");
+  assert.equal(calls.length, n, "recent keys stay");
+  await get("y");
+  assert.equal(calls.length, n + 1, "the oldest key was evicted");
+  let fails = 0;
+  const flaky = cachedByKey(async () => { if (++fails === 1) throw new Error("no"); return fails; }, 30000);
+  await assert.rejects(flaky("k"), /no/);
+  assert.equal(await flaky("k"), 2, "a failure is not cached");
+  const off = cachedByKey(async () => ++fails, 0);
+  assert.notEqual(await off("k"), await off("k"), "TTL 0 = off");
+});

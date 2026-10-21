@@ -68,13 +68,19 @@ test("See All New In pages through /api/books/new-in with Show more and no count
   }
 });
 
-test("the carousel asks for the WHOLE New In list in one request (no 12-book limit) and the API has no cap", () => {
-  assert.match(js, /getJSON\(API \+ '\/new-in\?all=1'/, "the carousel fetches everything at once");
-  assert.doesNotMatch(js, /new-in\?offset=0&limit=12/);
-  assert.match(booksRoute, /req\.query\.all === "1"/);
-  assert.equal(latest.NEW_IN_MAX, undefined, "no maximum any more");
-  assert.doesNotMatch(lib, /NEW_IN_MAX|max = /);
-  assert.match(read("umas-books", "src", "index.js"), /newIn\(pool, \{ limit: null \}\)/, "the no-JavaScript list holds every new book too");
+test("the carousel loads New In in batches (no all=1, no 12-book limit), the page and the API stay small, and no book is hidden", () => {
+  assert.doesNotMatch(js, /new-in\?all=1/, "the carousel never asks for everything at once");
+  assert.match(js, /var NEW_IN_BATCH = 60/);
+  assert.match(js, /'\/new-in\?offset=' \+ offset \+ '&limit=' \+ NEW_IN_BATCH/);
+  assert.match(js, /getJSON\(newInBatchUrl\(0\)/, "first batch: the newest 60");
+  assert.match(js, /makeCarousel\(track, [^\n]*'\.bk-book', \{\s*hasMore:/, "only the New In carousel has a loadMore hook");
+  assert.match(js, /makeCarousel\(genreList, [^\n]*'\.bk-genre'\);/, "the genres carousel is unchanged");
+  assert.match(js, /nextBtn\.disabled = hasMore\(\) \? false :/, "Next is never greyed out while more batches remain");
+  assert.doesNotMatch(booksRoute, /req\.query\.all/, "the unbounded all=1 mode is gone");
+  assert.match(booksRoute, /newInPage\(pool,/);
+  assert.equal(latest.NEW_IN_MAX, undefined, "no maximum on the list itself (batches are only how it is delivered)");
+  assert.doesNotMatch(read("umas-books", "src", "index.js"), /newIn\(pool, \{ limit: null \}\)/, "the no-JavaScript list is a fixed handful, not the whole list");
+  assert.match(read("umas-books", "src", "index.js"), /newInPage\(pool, \{ offset: 0, limit: 36 \}\)/);
 });
 
 test("newIn orders by the timestamp the copy was added (created_at DESC, then copy id DESC), never by acquired_at", () => {
@@ -108,4 +114,36 @@ test("genre and search results page like See All New In: paged=1, 24 at a time, 
   assert.doesNotMatch(js, /countEl|bk-results-count|bk\.new\.count/, "no book count anywhere on the Browse page");
   assert.doesNotMatch(ejs, /bk-results-count|bk\.new\.count/);
   assert.match(booksRoute, /req\.query\.paged === "1"/);
+});
+
+test("newInPage: batches of the one cached list: clamps limit and offset, same order across batches, one query for many requests", async () => {
+  const { newInPage, NEW_IN_MAX_LIMIT, NEW_IN_MAX_OFFSET } = latest;
+  assert.equal(process.env.NODE_ENV === "test", false, "this unit test runs with the cache on");
+  const total = 250;
+  let queries = 0;
+  const pool = { query: async () => { queries++; return { rows: Array.from({ length: total }, (_, i) => ({ total, id: total - i })) }; } };
+  const ids = [];
+  let next = 0;
+  for (let guard = 0; next != null && guard < 10; guard++) {
+    const page = await newInPage(pool, { offset: next, limit: 60 });
+    assert.equal(page.total, total);
+    assert.ok(page.rows.length <= 60);
+    ids.push(...page.rows.map((r) => r.id));
+    next = page.nextOffset;
+  }
+  assert.deepEqual(ids, Array.from({ length: total }, (_, i) => total - i), "no gap, no duplicate, same order; boundary at 60 / 120 / 180 / 240");
+  assert.equal(queries, 1, "five batches, one database query");
+  assert.equal((await newInPage(pool, { limit: 1e9 })).rows.length, NEW_IN_MAX_LIMIT, "limit is clamped to 100");
+  assert.equal((await newInPage(pool, { limit: -5 })).rows.length, 1);
+  assert.equal((await newInPage(pool, { limit: "abc" })).rows.length, 24, "garbage limit = default");
+  for (const off of [1e22, NEW_IN_MAX_OFFSET + 1, 2 ** 53, Infinity, total, total + 1]) {
+    const p = await newInPage(pool, { offset: off, limit: 24 });
+    assert.deepEqual([p.rows.length, p.nextOffset, p.total], [0, null, total], `offset ${off} is an empty batch`);
+  }
+  assert.equal((await newInPage(pool, { offset: -3, limit: 5 })).rows[0].id, total, "negative offset = start");
+  assert.equal((await newInPage(pool, { offset: "x", limit: 5 })).rows[0].id, total, "garbage offset = start");
+  assert.equal(queries, 1);
+  latest.clearBrowseCaches(pool);
+  await newInPage(pool, {});
+  assert.equal(queries, 2, "clearBrowseCaches forgets the list");
 });
