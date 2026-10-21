@@ -296,6 +296,7 @@ s.test("A9f (must) the page title (Back link and heading) is on the left and ful
   }
 });
 
+s.manual("A9h (must) the suggested publisher's price from ISBNdb on Add Book (shown only for New, never filled until \"Use this price\")", "needs a real ISBNdb key and spends paid ISBNdb requests");
 s.test("A9d Location, Source, Binding and Condition are the last values used (also after a reload); the first time they are Store, Donation, the last binding and Very Good (nothing is saved)", { as: "admin" }, async (ctx) => {
   await admin(ctx, "/admin/inventory/new");
   await ctx.page.waitForSelector("#isbn[data-scan-active]");
@@ -353,6 +354,19 @@ s.test("A12 (must) a New book needs the publisher's price and may be at most 5% 
   has(await post("", ""), /New books need the publisher's price/);
   has(await post("11.00", "12.00"), /at most 5% off.*between .?11\.40 and .?12\.00|between .?11\.40/);
   assert.equal(new URL(ctx.page.url()).pathname, "/admin/inventory/new/again", "still on the form: nothing was saved");
+});
+
+s.test("A12a (must) a New book published over 2 years ago: the publisher's price is optional (nothing is saved)", { as: "admin" }, async (ctx) => {
+  await admin(ctx, "/admin/inventory/new");
+  await ctx.page.select("#condition", "new");
+  const shown = async (sel) => ctx.page.$eval(sel, (e) => !e.hidden);
+  await ctx.page.$eval("#publishedYear", (i) => { i.value = String(new Date().getFullYear()); i.dispatchEvent(new Event("input", { bubbles: true })); });
+  assert.ok(await shown("[data-pp-default]"), "a recent year keeps the fixed-price note");
+  assert.ok(await shown("label[for='publisherPrice'] [data-pp-required]"), "a recent year keeps the required star");
+  await ctx.page.$eval("#publishedYear", (i) => { i.value = String(new Date().getFullYear() - 3); i.dispatchEvent(new Event("input", { bubbles: true })); });
+  assert.ok(await shown("[data-pp-old]"), "an old year shows the optional note");
+  assert.ok(!(await shown("label[for='publisherPrice'] [data-pp-required]")), "an old year drops the required star");
+  has(await ctx.page.$eval("[data-pp-old]", (e) => e.textContent), /Published more than 2 years ago: the publisher's price is optional/);
 });
 
 s.test("A14 (must) saving a book with an empty title says 'Title is required.' (nothing is saved)", { as: "admin" }, async (ctx) => {
@@ -1309,4 +1323,29 @@ s.test("A114 (must) on a phone (390 px) the Inventory landing buttons are equal-
   const paired = b.length % 2 ? b.slice(0, -1) : b; // an odd last tile spans both columns
   assert.equal(new Set(paired.map((x) => x.w)).size, 1, `tiles have different widths: ${paired.map((x) => x.w).join(", ")}`);
   assert.equal(new Set(paired.map((x) => x.left)).size, 2, "two columns");
+});
+
+s.test("A115 (must) Collections: the list has a Published switch per collection and the counts; a collection page has the English and French fields, Generate, the review boxes and Publish", { as: "admin" }, async (ctx) => {
+  await admin(ctx, "/admin/collections");
+  const text = await ctx.text();
+  has(text, /Curated collections/);
+  has(text, /The Magic We Never Outgrew/);
+  has(text, /Update all collections/);
+  assert.ok(await ctx.page.$("a[href='/admin/collections/new']"), "a New collection button");
+  assert.ok((await ctx.page.$$("form[action$='/move'] button")).length >= 38, "up and down buttons on every collection");
+  has(text, /Last built/);
+  has(text, /Approved/);
+  assert.ok((await ctx.page.$$("form[action$='/published'] button[type='submit']")).length >= 19, "a Publish / Unpublish button on every collection");
+  assert.ok(await ctx.page.$("a[href='/admin/collections'].is-active"), "the Collections link in the admin menu is marked");
+  await Promise.all([ctx.page.waitForNavigation({ waitUntil: "domcontentloaded" }), ctx.page.click("td a[href^='/admin/collections/']")]);
+  for (const name of ["title_en", "description_en", "title_fr", "description_fr", "curation_prompt"]) assert.ok(await ctx.page.$(`[name='${name}']`), `field ${name}`);
+  const page = await ctx.text();
+  has(page, /Generate suggestions/);
+  has(page, /Translate to French/);
+  has(page, /Full rebuild \(re-evaluate all books\)/);
+  for (const name of ["slug", "icon", "banner", "header_alt_en", "header_alt_fr", "find"]) assert.ok(await ctx.page.$(`[name='${name}']`), `field ${name}`);
+  assert.ok(await ctx.page.$("a[href$='/delete']"), "a Delete link (with its own confirm page)");
+  has(page, /Last built/);
+  has(page, /Publish/);
+  assert.ok(await ctx.page.$("form[action$='/generate']") && await ctx.page.$("form[action$='/review'], p.muted"), "Generate and the review area are there");
 });

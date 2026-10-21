@@ -38,12 +38,12 @@ test("marketing pages: the same wrapping rules in assets/site.css, and the shrin
   has(readSite("assets", "events.css"), /\.ev-item \{[^}]*grid-template-columns: 104px minmax\(0, 1fr\) auto;/);
 });
 
-test("Browse Books: the genre row scrolls inside its own box with a fade on the right edge", () => {
+test("Browse Books: the genre and collection carousels scroll inside their own box, with whole items and no page overflow", () => {
   const css = readSite("assets", "books.css");
-  has(css, /\.bk-genres \{ align-items: stretch; min-width: 0; position: relative; \}/, "the column flex container stretches the row");
-  has(css, /\.bk-genre-list \{ min-width: 0; max-width: calc\(100% \+ 64px\);/, "the row can be narrower than its chips");
-  has(css, /\.bk-genres::after \{[^}]*pointer-events: none;[^}]*linear-gradient\(to left/, "right-edge fade cue");
-  has(css, /\.bk-genre-list \{[^}]*overflow-x: auto;/, "the row scrolls");
+  has(css, /\.bk-track \{[^}]*flex: 1; min-width: 0;[^}]*overflow-x: auto;[^}]*scroll-snap-type: x mandatory/, "the track scrolls inside its box and can be narrower than its items");
+  has(css, /\.bk-tiles > \* \{ --per: 2; \}/, "two items per view on the narrowest track");
+  has(css, /@container \(min-width: 298px\) \{ \.bk-tiles > \* \{ --per: 3; \} \}/, "three per view fit a 375px phone");
+  has(css, /@media \(max-width: 620px\) and \(pointer: coarse\) \{\s*\.bk-carousel \.arrow \{ display: none; \}/, "arrows hidden on phones: swipe");
 });
 
 test("member and volunteer calendars become a list below 480px", () => {

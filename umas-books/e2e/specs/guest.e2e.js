@@ -171,6 +171,11 @@ s.test("G11 (must) Browse Books has search, genres, New In carousel", async (ctx
   has(text, /New In/);
   has(text, /See All New In/);
   assert.ok(await ctx.page.$("#bk-new-prev") && await ctx.page.$("#bk-new-next"), "carousel arrows");
+  assert.ok(await ctx.page.$("#bk-genre-prev") && await ctx.page.$("#bk-genre-next"), "genre carousel arrows");
+  // Order: title, search, (collections), New In, genres, results; the genre pictures keep their 50 px size.
+  const order = await ctx.page.evaluate(() => ["h1", "#shop-search-form", "#bk-new-title", "#bk-genres-label"].map((q) => document.querySelector(q).getBoundingClientRect().top));
+  assert.ok(order.every((v, i) => i === 0 || v > order[i - 1]), `page order: title, search, New In, genres (${order})`);
+  assert.equal(await ctx.page.$eval("#bk-genre-list .chip", (e) => Math.round(e.getBoundingClientRect().width)), 50, "genre pictures keep their size");
 });
 
 s.test("G12 search finds a book by title; a search with no match says so", async (ctx) => {
@@ -1304,6 +1309,344 @@ s.test("G90 (must) covers on a phone are sized: the Browse Books grid asks for t
   assert.match(img.srcset, /-w300\.jpg 300w, \/img\/[0-9a-f]{64}-w450\.jpg 450w/);
   assert.ok(img.sizes, "sizes is set");
   assert.ok(asked.some((u) => /-w(300|450)\.jpg$/.test(u)), `a small cover was requested (${asked.slice(0, 3).join(", ")})`);
+});
+
+// ---- New In carousel (G91) and See All New In (G92) ----
+
+// Text inside a New In card that may be wider or taller than its box, with the reason. Empty on purpose: the titles, authors and
+// prices all wrap (a very long word breaks), so nothing is clipped; add a line here only with a reason.
+const CAROUSEL_TEXT_ALLOW = [];
+
+// where the carousel is at rest: which cards are in view and whether any is cut by the edge of the box
+async function carouselState(page) {
+  return page.evaluate((allow) => {
+    const tr = document.getElementById("bk-new-track");
+    const T = tr.getBoundingClientRect();
+    const pad = parseFloat(getComputedStyle(tr).paddingLeft) || 0;
+    const left = T.left + pad - 1, right = T.right - pad + 1; // the box inside its padding (1px for rounding)
+    const cards = [...tr.querySelectorAll(".bk-book")].map((c, i) => ({ i, r: c.getBoundingClientRect(), c }));
+    const inView = cards.filter((x) => x.r.right > left + 1 && x.r.left < right - 1);
+    const cut = inView.filter((x) => x.r.left < left - 0.5 || x.r.right > right + 0.5).map((x) => `card ${x.i} (${Math.round(x.r.left - T.left)}..${Math.round(x.r.right - T.left)} in a box of ${Math.round(T.width)})`);
+    const clipped = [];
+    for (const x of cards) for (const el of x.c.querySelectorAll(".t, .a, .p")) {
+      if (allow.some((a) => el.matches(a.selector))) continue;
+      if (el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1) clipped.push(`card ${x.i} .${el.className}: "${el.textContent.slice(0, 30)}"`);
+      const cs = getComputedStyle(el);
+      if (cs.textOverflow === "ellipsis" || cs.webkitLineClamp !== "none") clipped.push(`card ${x.i} .${el.className} is ellipsized or line-clamped`);
+    }
+    const first = inView[0];
+    return {
+      count: cards.length, scrollLeft: tr.scrollLeft, cut, clipped,
+      firstOffset: first ? Math.round((first.r.left - T.left - pad) * 10) / 10 : null,
+      prevDisabled: document.getElementById("bk-new-prev").disabled, nextDisabled: document.getElementById("bk-new-next").disabled,
+      docWider: document.documentElement.scrollWidth > innerWidth + 1,
+    };
+  }, CAROUSEL_TEXT_ALLOW);
+}
+// wait until the scrolling has stopped
+async function carouselSettled(page) {
+  let last = -1, still = 0;
+  for (let i = 0; i < 40 && still < 4; i++) {
+    const now = await page.$eval("#bk-new-track", (t) => t.scrollLeft);
+    still = now === last ? still + 1 : 0;
+    last = now;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+}
+function assertAtRest(st, where) {
+  assert.deepEqual(st.cut, [], `${where}: a card is cut by the edge of the carousel when it stops: ${st.cut.join("; ")}`);
+  assert.ok(st.firstOffset != null && Math.abs(st.firstOffset) <= 2, `${where}: the first card in view starts ${st.firstOffset} px from the left edge (should be 0)`);
+  assert.deepEqual(st.clipped, [], `${where}: clipped text: ${st.clipped.join("; ")}`);
+  assert.equal(st.docWider, false, `${where}: the page scrolls sideways`);
+}
+
+// The carousel holds EVERY New In book, newest first: the same books in the same order as the API, however many there are.
+// On the local site the seed adds books at known times (E2E Sample New In <n> = 1..30 added in turn, then Bulk <k>, k minutes x 7 ago),
+// so the time order can be checked from the titles too.
+async function assertCarouselIsWholeNewestFirstList(ctx, where) {
+  const api = await e2e.getJson("/api/books/new-in?all=1");
+  if (!api || !api.total) ctx.skip("data: the site has no New In books");
+  const cards = await ctx.page.$$eval("#bk-new-track .bk-book a", (as) => as.map((a) => ({ id: Number((a.getAttribute("href").match(/books\/(\d+)/) || [])[1]), t: a.querySelector(".t").textContent })));
+  assert.equal(cards.length, api.total, `${where}: the carousel has a card for every new book (${api.total}), not just the first page`);
+  assert.deepEqual(cards.map((c) => c.id), api.books.map((b) => b.id), `${where}: the carousel order is the API order (newest added first)`);
+  const bulk = cards.map((c) => (c.t.match(/New In Bulk (\d+)/) || [])[1]).filter(Boolean).map(Number);
+  if (bulk.length) {
+    assert.deepEqual(bulk, [...bulk].sort((a, b) => a - b), `${where}: books added the same day are in time order (Bulk 1 is the newest)`);
+    const firstBulk = cards.findIndex((c) => /New In Bulk /.test(c.t));
+    const plain = cards.map((c, i) => ({ i, n: Number((c.t.match(/New In (\d+)/) || [])[1]) })).filter((x) => x.n > 0 && !/Bulk/.test(cards[x.i].t));
+    assert.ok(plain.every((x) => x.i < firstBulk), `${where}: the books added a moment ago come before the older ones`);
+    assert.deepEqual(plain.map((x) => x.n), plain.map((x) => x.n).sort((a, b) => b - a), `${where}: the most recently added is first`);
+  }
+}
+
+s.test("G91 (must) the New In carousel holds every new book newest first and never stops on a cut-off card (375 px, 1024 px, 1280 px and 125% zoom), titles are whole, and the arrows, double clicks and arrow keys land on card edges", { timeout: 1200000 }, async (ctx) => {
+  // 125% browser zoom of a 1280 px window is a 1024 px wide page, so it is the 1024 px run; 150% of 1920 is 1280.
+  for (const lang of ["en", "fr"]) {
+    await ctx.page.setCookie({ name: "umasbooks_lang", value: lang, url: cfg.baseUrl() });
+    for (const [width, height, touch] of [[375, 812, true], [1024, 800, false], [1280, 800, false]]) {
+      await ctx.page.setViewport({ width, height, deviceScaleFactor: 1, isMobile: touch, hasTouch: touch });
+      await ctx.goto("/books.html", "networkidle2");
+      await ctx.page.waitForSelector("#bk-new-track .bk-book", { timeout: 8000 }).catch(() => ctx.skip("data: the site has no New In books"));
+      await new Promise((r) => setTimeout(r, 400));
+      const where = `${lang} ${width} px`;
+      await assertCarouselIsWholeNewestFirstList(ctx, where);
+      let st = await carouselState(ctx.page);
+      assertAtRest(st, `${where} at the start`);
+      assert.equal(st.prevDisabled, true, `${where}: Previous is disabled at the start`);
+      for (let n = 1; n <= 150 && !(await carouselState(ctx.page)).nextDisabled; n++) {
+        if (touch) {
+          // a finger: swipe left across the track
+          const box = await ctx.page.$eval("#bk-new-track", (t) => { const r = t.getBoundingClientRect(); return { x: r.left + r.width * 0.85, y: r.top + 60, w: r.width }; });
+          await ctx.page.touchscreen.touchStart(box.x, box.y);
+          for (let k = 1; k <= 8; k++) await ctx.page.touchscreen.touchMove(box.x - (box.w * 0.7 * k) / 8, box.y);
+          await ctx.page.touchscreen.touchEnd();
+        } else {
+          // the mouse: a click, or two quick clicks
+          await ctx.page.click("#bk-new-next");
+          if (n % 2 === 0) await ctx.page.click("#bk-new-next");
+        }
+        await carouselSettled(ctx.page);
+        st = await carouselState(ctx.page);
+        assertAtRest(st, `${where} after ${touch ? "swipe" : "click"} ${n}`);
+        if (touch) break; // a phone has no arrows; one swipe is enough here, the loop below keeps swiping
+      }
+      if (touch) {
+        for (let n = 0; n < 6; n++) {
+          const box = await ctx.page.$eval("#bk-new-track", (t) => { const r = t.getBoundingClientRect(); return { x: r.left + r.width * 0.85, y: r.top + 60, w: r.width }; });
+          await ctx.page.touchscreen.touchStart(box.x, box.y);
+          for (let k = 1; k <= 8; k++) await ctx.page.touchscreen.touchMove(box.x - (box.w * 0.7 * k) / 8, box.y);
+          await ctx.page.touchscreen.touchEnd();
+          await carouselSettled(ctx.page);
+          assertAtRest(await carouselState(ctx.page), `${where} after swipe ${n + 2}`);
+        }
+        continue;
+      }
+      assert.equal((await carouselState(ctx.page)).nextDisabled, true, `${where}: Next is disabled on the last page`);
+      // back with Previous, down to the start
+      for (let n = 0; n < 150 && !(await carouselState(ctx.page)).prevDisabled; n++) {
+        await ctx.page.click("#bk-new-prev");
+        await carouselSettled(ctx.page);
+        assertAtRest(await carouselState(ctx.page), `${where} after Previous ${n + 1}`);
+      }
+      // the keyboard: focus a card link, then the arrow keys move one card at a time
+      await ctx.page.focus("#bk-new-track .bk-book a");
+      for (let n = 0; n < 3; n++) {
+        await ctx.page.keyboard.press("ArrowRight");
+        await carouselSettled(ctx.page);
+        assertAtRest(await carouselState(ctx.page), `${where} after ArrowRight ${n + 1}`);
+      }
+      // the arrows are tap-sized and the focus outline is there
+      const arrow = await ctx.page.$eval("#bk-new-next", (b) => { const r = b.getBoundingClientRect(); b.focus(); return { w: r.width, h: r.height }; });
+      assert.ok(arrow.w >= 44 && arrow.h >= 44, `${where}: the arrow is ${arrow.w}x${arrow.h}`);
+    }
+  }
+  await ctx.page.setViewport({ width: 1280, height: 800, deviceScaleFactor: 1 });
+});
+
+s.test("G92 (must) See All New In shows every new book in a grid with Show more (no count), and the New In carousel is only on the plain Browse view (EN and FR)", { timeout: 300000 }, async (ctx) => {
+  const visible = (sel) => ctx.page.evaluate((q) => { const e = document.querySelector(q); return !!e && !e.hidden && !!(e.offsetWidth || e.offsetHeight || e.getClientRects().length); }, sel);
+  for (const lang of ["en", "fr"]) {
+    await ctx.page.setCookie({ name: "umasbooks_lang", value: lang, url: cfg.baseUrl() });
+    const api = await e2e.getJson("/api/books/new-in?offset=0&limit=24");
+    if (!api || !api.total) ctx.skip("data: the site has no New In books");
+    await ctx.goto("/books.html", "networkidle2");
+    await ctx.page.waitForSelector("#bk-new-track .bk-book");
+    assert.equal(await visible(".bk-new"), true, `${lang}: the carousel is on the plain view`);
+    // a genre hides it, clearing (Back) shows it
+    await ctx.page.click("#bk-genre-list .bk-genre");
+    await ctx.page.waitForFunction(() => !document.getElementById("bk-results").hidden);
+    assert.equal(await visible(".bk-new"), false, `${lang}: a genre hides the carousel`);
+    assert.equal(await ctx.page.$eval(".bk-new", (e) => e.hidden), true);
+    await ctx.page.goBack();
+    await ctx.page.waitForFunction(() => document.getElementById("bk-results").hidden);
+    assert.equal(await visible(".bk-new"), true, `${lang}: Back to the plain view shows the carousel again`);
+    // a search hides it
+    await ctx.page.type("#shop-search-input", "a");
+    await ctx.page.keyboard.press("Enter");
+    await ctx.page.waitForFunction(() => !document.getElementById("bk-results").hidden);
+    assert.equal(await visible(".bk-new"), false, `${lang}: a search hides the carousel`);
+    // See All New In: hidden carousel, count, every book
+    await ctx.goto("/books.html", "networkidle2");
+    await ctx.page.waitForSelector("#bk-new-track .bk-book");
+    await ctx.page.click("#bk-new-all");
+    await ctx.page.waitForFunction(() => document.querySelectorAll("#bk-results-grid .bk-book").length > 0);
+    assert.equal(await visible(".bk-new"), false, `${lang}: See All hides the carousel`);
+    assert.equal(await ctx.page.evaluate(() => !!document.getElementById("bk-new-prev") && document.querySelector(".bk-new").hidden), true, `${lang}: the arrows go with it`);
+    assert.equal(await ctx.page.$$eval("#bk-results-count", (e) => e.length), 0, `${lang}: there is no count line`);
+    for (let i = 0; i < 40 && (await visible("#bk-more")); i++) {
+      const before = await ctx.page.$$eval("#bk-results-grid .bk-book", (e) => e.length);
+      await ctx.page.click("#bk-more");
+      await ctx.page.waitForFunction((n) => document.querySelectorAll("#bk-results-grid .bk-book").length > n, { timeout: 8000 }, before);
+    }
+    assert.equal(await ctx.page.$$eval("#bk-results-grid .bk-book", (e) => e.length), api.total, `${lang}: the grid holds every new book (${api.total})`);
+    const all = await e2e.getJson("/api/books/new-in?all=1");
+    assert.deepEqual(await ctx.page.$$eval("#bk-results-grid .bk-book a", (as) => as.map((a) => Number((a.getAttribute("href").match(/books\/(\d+)/) || [])[1]))), all.books.map((b) => b.id), `${lang}: See All is in the same newest-first order as the carousel`);
+    assert.equal(await visible("#bk-more"), false, `${lang}: no Show more once everything is shown`);
+    // Back returns to the plain view with the carousel; a direct load of a shared address has none
+    await ctx.page.goBack().catch(() => {});
+    await ctx.goto("/books.html?genre=fiction", "networkidle2");
+    assert.equal(await visible(".bk-new"), false, `${lang}: ?genre=fiction loads with no carousel`);
+    assert.equal(await ctx.page.evaluate(() => { const e = document.querySelector(".bk-new"); return !e || e.hidden || getComputedStyle(e).display === "none"; }), true);
+    await ctx.goto("/books.html?new=1", "networkidle2");
+    assert.equal(await visible(".bk-new"), false, `${lang}: ?new=1 loads with no carousel`);
+    await ctx.goto("/fr/books.html?genre=fiction", "networkidle2");
+    assert.equal(await visible(".bk-new"), false, "/fr/ with a genre has no carousel");
+  }
+});
+
+s.test("G93 (must) a genre list pages with Show more until every book is shown, with no count line (EN and FR, also on a direct load)", { timeout: 300000 }, async (ctx) => {
+  const visible = (sel) => ctx.page.evaluate((q) => { const e = document.querySelector(q); return !!e && !e.hidden && !!(e.offsetWidth || e.offsetHeight || e.getClientRects().length); }, sel);
+  const grid = () => ctx.page.$$eval("#bk-results-grid .bk-book a", (as) => as.map((a) => Number((a.getAttribute("href").match(/books\/(\d+)/) || [])[1])));
+  for (const lang of ["en", "fr"]) {
+    await ctx.page.setCookie({ name: "umasbooks_lang", value: lang, url: cfg.baseUrl() });
+    const first = await e2e.getJson("/api/books/search?topic=fiction&paged=1&offset=0&limit=24");
+    if (!first || !first.total) ctx.skip("data: the site has no Fiction books");
+    if (first.total <= 24) ctx.skip("data: not enough Fiction books to need a second page");
+    for (const direct of [false, true]) {
+      await ctx.goto(direct ? "/books.html?genre=fiction" : "/books.html", "networkidle2");
+      if (!direct) { await ctx.page.waitForSelector("#bk-genre-list .bk-genre"); await ctx.page.click("#bk-genre-list .bk-genre"); }
+      await ctx.page.waitForFunction(() => document.querySelectorAll("#bk-results-grid .bk-book").length > 0);
+      const where = `${lang} ${direct ? "direct load" : "genre click"}`;
+      assert.equal((await grid()).length, 24, `${where}: the first page is 24 books`);
+      assert.equal(await ctx.page.$$eval("#bk-results-count", (e) => e.length), 0, `${where}: no count line on a genre list`);
+      assert.equal(await visible("#bk-more"), true, `${where}: Show more is there`);
+      for (let i = 0; i < 60 && (await visible("#bk-more")); i++) {
+        const before = (await grid()).length;
+        await ctx.page.click("#bk-more");
+        await ctx.page.waitForFunction((n) => document.querySelectorAll("#bk-results-grid .bk-book").length > n, { timeout: 8000 }, before);
+        const focusedIsFirstNew = await ctx.page.evaluate((n) => document.activeElement === document.querySelectorAll("#bk-results-grid .bk-book a")[n], before);
+        assert.equal(focusedIsFirstNew, true, `${where}: focus moves to the first newly added book`);
+      }
+      const ids = await grid();
+      assert.equal(ids.length, first.total, `${where}: every Fiction book is reachable (${first.total})`);
+      assert.equal(new Set(ids).size, ids.length, `${where}: no book twice`);
+      assert.equal(await visible("#bk-more"), false, `${where}: no Show more once everything is shown`);
+    }
+  }
+});
+
+
+// ---- 1C. Curated collections (the round-picture buttons above the genre buttons, and their pages) ----
+
+// The visible state of the collection row: shown (has size) or not.
+const collectionRowShown = (ctx) => ctx.page.$eval("#bk-collections", (e) => !e.hidden && e.getBoundingClientRect().height > 0).catch(() => false);
+
+s.test("G96 (must) Browse Books: the collection buttons show on the plain page and hide while a genre, a search or See All New In is showing", async (ctx) => {
+  await ctx.goto("/books.html", "networkidle2");
+  if (!(await ctx.page.$("#bk-collections"))) ctx.skip("data: no collection is published (with an approved book in stock) on this site");
+  await ctx.page.waitForSelector("#bk-genre-list .bk-genre");
+  assert.equal(await collectionRowShown(ctx), true, "shown on the default view");
+  const order = await ctx.page.evaluate(() => {
+    const top = (sel) => document.querySelector(sel).getBoundingClientRect().top;
+    const t = ["h1", "#shop-search-form", "#bk-collections", ".bk-new", "#bk-genre-list"].map(top);
+    return { sorted: t.every((v, i) => i === 0 || v > t[i - 1]), flower: !!document.querySelector(".bk-flower, .bk-title-row") };
+  });
+  assert.ok(order.sorted, "page order: title, search, collections, New In, genres");
+  assert.equal(order.flower, false, "no flower beside the title");
+
+  await ctx.page.click("#bk-genre-list .bk-genre");
+  await ctx.page.waitForSelector("#bk-results:not([hidden])");
+  assert.equal(await collectionRowShown(ctx), false, "hidden while a genre is chosen");
+  await ctx.page.goBack();
+  await ctx.page.waitForFunction(() => document.querySelector("#bk-results").hidden);
+  assert.equal(await collectionRowShown(ctx), true, "back on the plain page: shown again");
+
+  await ctx.page.type("#shop-search-input", "the");
+  await ctx.page.keyboard.press("Enter");
+  await ctx.page.waitForSelector("#bk-results:not([hidden])");
+  assert.equal(await collectionRowShown(ctx), false, "hidden while a search is showing");
+
+  await ctx.goto("/books.html?new=1", "networkidle2");
+  await ctx.page.waitForSelector("#bk-results:not([hidden])");
+  assert.equal(await collectionRowShown(ctx), false, "hidden on See All New In (?new=1)");
+  await ctx.goto("/books.html?genre=fiction", "networkidle2");
+  assert.equal(await collectionRowShown(ctx), false, "hidden when the address names a genre");
+  await ctx.goto("/books.html?q=paris", "networkidle2");
+  assert.equal(await collectionRowShown(ctx), false, "hidden when the address holds a search");
+  await ctx.goto("/books.html", "networkidle2");
+  assert.equal(await collectionRowShown(ctx), true);
+});
+
+s.test("G97 (must) a collection button opens its page: title, description, the books as the usual cards, and a link back to Browse; the same in French", async (ctx) => {
+  await ctx.goto("/books.html", "networkidle2");
+  if (!(await ctx.page.$("#bk-collections .col-btn"))) ctx.skip("data: no collection is published (with an approved book in stock) on this site");
+  const first = await ctx.page.$eval("#bk-collections .col-btn", (a) => ({ href: a.getAttribute("href"), name: a.innerText.trim() }));
+  await Promise.all([ctx.page.waitForNavigation({ waitUntil: "domcontentloaded" }), ctx.page.click("#bk-collections .col-btn")]);
+  assert.match(new URL(ctx.page.url()).pathname, /^\/collections\/[a-z0-9-]+$/);
+  assert.equal(await ctx.page.$eval("h1", (h) => h.innerText.trim()), first.name, "the page title is the button's caption");
+  assert.ok((await ctx.page.$$(".bk-grid .bk-book")).length >= 1, "at least one book card");
+  assert.equal(await ctx.page.$eval(".col-back a", (a) => a.getAttribute("href")), "/books.html");
+  has(await ctx.text(), /Back to Browse books/);
+  const alt = await ctx.page.$$eval("link[rel='alternate'][hreflang]", (l) => l.map((x) => x.hreflang));
+  assert.deepEqual(alt.sort(), ["en", "fr", "x-default"]);
+  assert.equal((await ctx.page.$eval("link[rel='canonical']", (l) => new URL(l.href).pathname)), new URL(ctx.page.url()).pathname);
+
+  // French: the same page at /fr/..., nothing left in English.
+  await ctx.goto(`/fr${first.href}`, "networkidle2");
+  assert.equal(await ctx.page.$eval("html", (h) => h.lang), "fr");
+  const text = await ctx.text();
+  has(text, /Retour à Parcourir les livres/);
+  hasNot(text, /Back to Browse|Cover images come from|Add .* to favorites/);
+  assert.equal(await ctx.page.$eval(".col-back a", (a) => a.getAttribute("href")), "/fr/books.html");
+  await ctx.goto("/fr/books.html", "networkidle2");
+  has(await ctx.page.$eval("#bk-collections", (e) => e.innerText), /Parcourir\s+par collection/);
+});
+
+s.test("G98 (must) on a phone (375 px) the collections are a swipeable carousel (no arrows), each entry at least 44 px tall, icons 90 px, whole entries only, with no page-wide sideways scrolling", { viewport: GUEST_PHONE }, async (ctx) => {
+  await ctx.goto("/books.html", "networkidle2");
+  if (!(await ctx.page.$("#bk-collections .col-btn"))) ctx.skip("data: no collection is published (with an approved book in stock) on this site");
+  const r = await ctx.page.$$eval("#bk-collections .col-btn", (els) => els.map((e) => { const b = e.getBoundingClientRect(); return { left: Math.round(b.left), top: Math.round(b.top), w: Math.round(b.width), h: Math.round(b.height) }; }));
+  assert.ok(r.every((b) => b.w >= 44 && b.h >= 44), "every button is at least 44 x 44 px");
+  assert.ok(r.every((b) => Math.abs(b.top - r[0].top) < 4), "one carousel row");
+  assert.equal(await ctx.page.$eval("#bk-collections .col-btn img", (i) => Math.round(i.getBoundingClientRect().width)), 90, "icon is 75% of the old 120 px");
+  assert.equal(await ctx.page.$eval("#bk-col-prev", (b) => getComputedStyle(b).display), "none", "arrows are hidden on a touch phone: swipe");
+  assert.deepEqual(await phoneOverflow(ctx.page, 375), []);
+  assert.equal(await ctx.page.$eval("#bk-collections .col-btn img", (i) => i.getAttribute("alt")), "", "the picture is decoration: the caption is the name");
+  assert.equal(await ctx.page.$eval("#bk-collections .col-btn img", (i) => i.getAttribute("loading")), "lazy");
+});
+
+s.test("G99 (must) with JavaScript off the collection buttons and the collection page still work", async (ctx) => {
+  await ctx.page.setJavaScriptEnabled(false);
+  try {
+    await ctx.goto("/books.html");
+    if (!(await ctx.page.$("#bk-collections .col-btn"))) ctx.skip("data: no collection is published (with an approved book in stock) on this site");
+    const href = await ctx.page.$eval("#bk-collections .col-btn", (a) => a.getAttribute("href"));
+    await ctx.goto(href);
+    assert.ok((await ctx.page.$$(".bk-grid .bk-book a[href^='/books/']")).length >= 1, "the books are plain links");
+    has(await ctx.text(), /Back to Browse books/);
+  } finally {
+    await ctx.page.setJavaScriptEnabled(true);
+  }
+});
+
+s.test("G100 (must) an unpublished or unknown collection address is a 404, in English and in French", async (ctx) => {
+  for (const p of ["/collections/no-such-collection", "/fr/collections/no-such-collection"]) {
+    const res = await ctx.goto(p);
+    assert.equal(res.status(), 404, p);
+  }
+  // A real collection that nobody has published yet (the migration seeds them all unpublished).
+  const res = await ctx.goto("/collections/the-art-of-getting-lost");
+  if (res.status() === 200) ctx.skip("data: this collection has been published on this site");
+  assert.equal(res.status(), 404);
+});
+
+s.test("G101 (must) the header and footer links on a collection page open real pages, in English and French, and the language switch stays on the same collection", async (ctx) => {
+  await ctx.goto("/books.html", "networkidle2");
+  if (!(await ctx.page.$("#bk-collections .col-btn"))) ctx.skip("data: no collection is published (with an approved book in stock) on this site");
+  const href = await ctx.page.$eval("#bk-collections .col-btn", (a) => a.getAttribute("href"));
+  for (const [prefix, lang] of [["", "en"], ["/fr", "fr"]]) {
+    await ctx.goto(`${prefix}${href}`, "networkidle2");
+    const links = await ctx.page.$$eval("header.mkt-header a[href], footer a[href]", (as) => as.map((a) => a.getAttribute("href")).filter((h) => h && h.startsWith("/") && !h.startsWith("//")));
+    assert.ok(links.length >= 8, "header and footer links found");
+    assert.ok(links.includes(`${prefix}/books.html`), `Browse Books goes to ${prefix}/books.html`);
+    for (const l of [...new Set(links)]) {
+      const res = await ctx.goto(l);
+      assert.ok(res.status() < 400, `${l} -> ${res.status()}`);
+      await ctx.goto(`${prefix}${href}`, "networkidle2");
+    }
+    const sw = await ctx.page.$eval(`.langtoggle a[data-lang='${lang === "en" ? "fr" : "en"}']`, (a) => a.getAttribute("href"));
+    assert.equal(sw, lang === "en" ? `/fr${href}` : href);
+  }
 });
 
 s.test("G-FR55 FR check (membership): the form and the payment step are in French", { lang: "fr" }, async (ctx) => {

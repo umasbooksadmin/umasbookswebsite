@@ -1,0 +1,36 @@
+/* Uma's Books & Adventures — curated collections: the button row on the Browse page (books.html) and the
+   collection page (/collections/<slug>). Loaded after books.css, which supplies the book cards (.bk-book, .bk-grid). */
+
+/* ---------- Browse page: "Browse by Collection" carousel (under the search bar) ----------
+   A heading, then the same side-arrow carousel as New In and Browse by Genre (assets/books.css: .bk-carousel, .bk-tiles).
+   Each entry is a .bk-genre (picture over name); only what a collection picture needs is here. */
+.bk-collections[hidden] { display: none; }
+.bk-col-list, .bk-col-list li { list-style: none; }
+.bk-col-list .col-btn { text-decoration: none; min-height: 44px; width: 100%; justify-content: flex-start; }
+.bk-col-list .col-btn .chip { width: 90px; height: 90px; overflow: hidden; } /* 75% of the old 120px picture */
+.bk-col-list .col-btn img { display: block; width: 90px; height: 90px; border-radius: 50%; }
+.bk-col-list .col-btn:hover .col-name { color: var(--maroon); }
+.bk-col-list .col-name { overflow-wrap: anywhere; hyphens: auto; }
+/* A collection with no picture: a plain text entry in a box. */
+.bk-col-list .col-btn.no-art { justify-content: center; border: 1px solid #cfcac0; background: var(--panel); padding: 10px 6px; min-height: 90px; }
+
+/* ---------- Collection page ---------- */
+.col-page { padding-bottom: 40px; }
+.col-back { margin: 18px 0 0; }
+.col-back a { display: inline-flex; align-items: center; min-height: 44px; color: var(--ink); text-decoration: none; font-size: 18px; }
+.col-back a:hover { color: var(--maroon); text-decoration: underline; }
+.col-head { text-align: center; padding: 6px 0 26px; }
+.col-head-art, .col-head picture img { width: 120px; height: 120px; border-radius: 50%; display: block; margin: 0 auto 14px; }
+.col-head h1 { font-size: clamp(30px, 7vw, 54px); font-weight: 500; line-height: 1.08; color: var(--ink); overflow-wrap: anywhere; }
+.col-desc { max-width: 720px; margin: 14px auto 0; font-size: 20px; line-height: 1.4; color: var(--ink-soft); }
+.col-empty { text-align: center; padding: 30px 0; font-size: 20px; color: var(--ink-soft); }
+.col-books .bk-covernote { margin-top: 28px; }
+/* Heading read by screen readers only. */
+.col-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+/* On a phone the books go two to a row (the generic grid would give a single, full-width cover at 375 px). */
+@media (max-width: 640px) { .col-books .bk-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px 14px; } }
+
+/* Banner at the top of a collection page: 3:1 on a computer, 3:2 on a phone; the box is sized before the picture loads. */
+.col-banner { margin: 6px 0 4px; }
+.col-banner img { display: block; width: 100%; height: auto; aspect-ratio: 3 / 1; object-fit: cover; border-radius: 14px; background: var(--cream-alt); }
+@media (max-width: 640px) { .col-banner img { aspect-ratio: 3 / 2; border-radius: 10px; } }

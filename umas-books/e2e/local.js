@@ -91,17 +91,42 @@ async function seed(databaseUrl, creds) {
     }
     return rows[0].id;
   };
-  await book({ isbn: "9780141036144", title: "E2E Sample Gatsby", author: "Sample Author", categories: "Fiction, Classics", binding: "trade" },
+  const gatsbyId = await book({ isbn: "9780141036144", title: "E2E Sample Gatsby", author: "Sample Author", categories: "Fiction, Classics", binding: "trade" },
     [{ condition: "very_good", price: 5 }, { condition: "good", price: 8 }, { condition: "acceptable", price: 1, clearance: true }]);
   await book({ title: "E2E Sample Without A Price", author: "Other Author", binding: "hardcover" }, [{ condition: "very_good", price: null }]);
   await book({ title: "E2E Sample Sold Out", author: "Other Author" }, [{ price: 4, status: "sold" }]);
-  await book({ title: "E2E Sample Award Winner", author: "Sample Author", categories: "Fiction" }, [{ price: 6 }], [{ label: "Booker Prize", year: 2019 }]);
+  const awardId = await book({ title: "E2E Sample Award Winner", author: "Sample Author", categories: "Fiction" }, [{ price: 6 }], [{ label: "Booker Prize", year: 2019 }]);
   await book({ isbn: "9780747532743", title: "E2E Sample New Book", author: "Third Author", binding: "hardcover" }, [{ condition: "new", price: 12, publisherPrice: 12 }]);
+
+  // Curated collections (G96 to G100): four published with two approved books (the migration seeds all 19 unpublished);
+  // "The Art of Getting Lost" stays unpublished, so its address is a 404.
+  const { rows: cols } = await db.query("SELECT id, slug FROM curated_collections WHERE slug <> 'the-art-of-getting-lost' ORDER BY sort_order LIMIT 4");
+  for (const c of cols) {
+    await db.query("INSERT INTO curated_collection_books (collection_id, book_id, status, reason, position) VALUES ($1,$2,'approved','Sample',1), ($1,$3,'approved','Sample',2)", [c.id, gatsbyId, awardId]);
+    await db.query("UPDATE curated_collections SET published = TRUE WHERE id = $1", [c.id]);
+  }
 
   // Phone layout (G82, A102): an unbroken 90-letter title, and a 41-letter word with a web address in the description.
   const longTitle = `E2Ephone${"x".repeat(82)}`;
   await book({ title: longTitle, author: `${longTitle.slice(0, 40)} Author`, description: `${longTitle} https://example.org/${"a".repeat(60)}` }, [{ price: 5 }]);
   await book({ title: "E2Ephone Pneumonoultramicroscopicsilicovolcanoconi", author: "Pneumonoultramicroscopicsilicovolcanoconi", categories: "Fiction" }, [{ price: 6 }]);
+  // New In (G91, G92): enough books to fill several carousel pages and a second page of "See All New In", with long titles and authors.
+  for (let i = 1; i <= 30; i++) {
+    const long = i % 3 === 0 ? " and a much longer subtitle that needs several lines on a narrow card, with an Élégante Évocation" : "";
+    await book({ title: `E2E Sample New In ${i}${long}`, author: i % 4 === 0 ? "A. Very Long-Named Author, Co-Author Jane Smith, Translator Jean Dupont" : "New In Author" }, [{ price: 3 + (i % 9) }]);
+  }
+  // More than 200 New In books, all added today a few minutes apart (Bulk 1 is the newest): the carousel must hold every one of them,
+  // newest first by the time of day, and the arrows must still land on whole cards.
+  await db.query(
+    `WITH b AS (
+       INSERT INTO books (title, authors, categories, categories_fr, binding, description, description_fr)
+       SELECT 'E2E Sample New In Bulk ' || g || CASE WHEN g % 5 = 0 THEN ' with a much longer subtitle on a narrow card' ELSE '' END,
+              'Bulk Author ' || g, 'Fiction', 'Fiction', 'trade', 'A sample book.', 'Un livre d’exemple.'
+       FROM generate_series(1, 230) g RETURNING id, title)
+     INSERT INTO book_copies (book_id, condition, price, status, is_clearance, location, source, created_at)
+     SELECT id, 'very_good', 4, 'in_stock', FALSE, 'Shelf A', 'donation',
+            now() - (substring(title from 'Bulk ([0-9]+)')::int * interval '7 minutes') FROM b`
+  );
   await db.query("INSERT INTO events (title, description, location, starts_at, ends_at, capacity) VALUES ('E2E Sample Event','Sample','Albi',$1,$2,10)", [days(2), days(2.1)]);
   await db.query("INSERT INTO events (title, description, location, starts_at, ends_at, capacity) VALUES ('E2E Sample Full Event','Sample','Albi',$1,$2,1)", [days(3), days(3.1)]);
   await db.query("INSERT INTO classes (title, description, location, starts_at, ends_at, capacity, dropin_price, program_type) VALUES ('E2E Sample Drop-in','Sample','Albi',$1,$2,6,8,'dropin')", [days(2), days(2.1)]);

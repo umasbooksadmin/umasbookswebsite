@@ -66,7 +66,8 @@ const cartRoutes = require("./routes/cart");
 const helloassoWebhookRoutes = require("./routes/helloassoWebhook");
 const adminRoutes = require("./routes/admin");
 
-const { latestArrivals } = require("./lib/latestArrivals");
+const { newIn } = require("./lib/latestArrivals");
+const { listButtonCollections, browseFilterActive } = require("./lib/collections");
 const { assetUrl, staticHeaders, STATIC_SECURITY_HEADERS } = require("./lib/assetUrl");
 
 const app = express();
@@ -133,6 +134,7 @@ Object.assign(app.locals, require("./lib/sessionTone"));
 app.locals.assetUrl = assetUrl;
 app.locals.coverSrcset = require("./lib/imageVariants").coverSrcset;
 app.locals.mondayFirstWeeks = require("./lib/calendar").mondayFirstWeeks;
+app.locals.isPublishedOverTwoYearsAgo = require("./lib/inventory").isPublishedOverTwoYearsAgo; // views/admin/inventory/_publisher_price_help.ejs
 
 // form-action also governs the redirect after a form POST in Chromium. Nothing
 // posts a form to, or redirects after a form POST to, another site: books and
@@ -315,6 +317,21 @@ app.use("/admin/blog", requireAdmin, (req, res, next) => {
   });
 });
 
+// Same again, for a curated collection's two pictures (see /admin/collections in routes/admin/collections.js): the round
+// Browse button and the wide page banner. 5 MB each; a refusal returns to the list with a sentence.
+const collectionUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+const collectionUploadFields = collectionUpload.fields([{ name: "icon", maxCount: 1 }, { name: "banner", maxCount: 1 }]);
+app.use("/admin/collections", requireAdmin, (req, res, next) => {
+  collectionUploadFields(req, res, (err) => {
+    if (!err) return next();
+    console.warn(`Collection upload refused: ${err.code || err.name}: ${err.message}`);
+    const message = err.code === "LIMIT_FILE_SIZE"
+      ? "That picture is larger than 5 MB. Please choose a smaller one. Nothing was changed."
+      : "The upload could not be read. Please try again. Nothing was changed.";
+    redirectWithFlash(req, res, "/admin/collections", "collections", { error: message }).catch(next);
+  });
+});
+
 // HelloAsso calls this server-to-server with no CSRF token, so it's
 // mounted ahead of the CSRF check below rather than with the rest of
 // the app's routes further down.
@@ -389,7 +406,15 @@ MARKETING_PAGES.forEach((file) => {
     if (file === "books.html") {
       // No-JavaScript fallback: the page fills its shelves from /api/books/*,
       // so the server also lists the newest books inside <noscript>.
-      res.locals.noscriptBooks = await latestArrivals(pool, { limit: 12, days: 0 }).catch(() => []);
+      res.locals.noscriptBooks = await newIn(pool, { limit: null }).then((r) => r.rows).catch(() => []);
+      // The New In carousel is only for the plain Browse view: with a search, a genre or ?new=1 in the address
+      // it is sent already hidden (public/books-state.js decides, the same as the page script does afterwards).
+      const BooksState = require("../public/books-state");
+      const st = BooksState.parse(qs(req), [String(req.query.genre || "")]);
+      res.locals.newInHidden = !!(st.q || st.genre || st.isNew);
+      // The curated-collection buttons (lib/collections.js): published ones with a book in stock, plain view only.
+      res.locals.collectionButtons = await listButtonCollections(pool).catch(() => []);
+      res.locals.collectionsHidden = browseFilterActive(req.query);
     }
     if (marketingFormRoutes.FORM_PAGES.includes("/" + file)) {
       // Server-side forms (routes/marketingForms.js): the page carries a CSRF token, so no shared cache.
@@ -404,6 +429,9 @@ MARKETING_PAGES.forEach((file) => {
     renderMarketing(req, res, next, "marketing/" + file.replace(/\.html$/, ""));
   });
 });
+
+// Curated collection pages (/collections/<slug>, /fr/collections/<slug>): marketing look, so they carry the marketing CSP.
+app.use(require("./routes/collections").createCollectionsRouter({ marketingCsp }));
 
 app.use(authRoutes);
 app.use(twoFactorRoutes);

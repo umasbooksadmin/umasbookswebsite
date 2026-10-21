@@ -5,6 +5,7 @@
 const express = require("express");
 const { pool } = require("../db");
 const { baseUrl } = require("../lib/baseUrl");
+const { listSitemapCollections } = require("../lib/collections");
 const { isNonLive } = require("../lib/preview");
 const { localize, seoLinks } = require("../lib/frUrls");
 
@@ -67,9 +68,11 @@ function sitemapEntry(base, path, lastmod) {
 const HOME_PATH = "/";
 const FIXED_PAGES = [HOME_PATH].concat(MARKETING_PAGES.map((f) => `/${f}`), DYNAMIC_PAGES);
 
-function buildSitemapXml(base, bookRows) {
+// collectionRows: the PUBLISHED curated collections that still have a book to show (lib/collections.js).
+function buildSitemapXml(base, bookRows, collectionRows = []) {
   const urls = [];
   for (const p of FIXED_PAGES) urls.push(...sitemapEntry(base, p));
+  for (const c of collectionRows) urls.push(...sitemapEntry(base, `/collections/${c.slug}`));
   for (const b of bookRows) {
     const lastmod = b.updated_at ? `<lastmod>${new Date(b.updated_at).toISOString()}</lastmod>` : "";
     urls.push(...sitemapEntry(base, `/books/${b.id}`, lastmod));
@@ -105,7 +108,8 @@ router.get("/sitemap.xml", async (req, res) => {
        LIMIT $1`,
       [MAX_BOOK_URLS]
     );
-    sitemapCache = { base, at: Date.now(), xml: buildSitemapXml(base, rows) };
+    const collections = await listSitemapCollections(pool);
+    sitemapCache = { base, at: Date.now(), xml: buildSitemapXml(base, rows, collections) };
   }
   res.set("Cache-Control", "public, max-age=3600");
   res.type("application/xml").send(sitemapCache.xml);

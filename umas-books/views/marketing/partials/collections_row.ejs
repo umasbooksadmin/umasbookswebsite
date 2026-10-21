@@ -1,0 +1,27 @@
+<%
+/* "Browse by Collection" on Browse Books (views/marketing/books.ejs), under the search bar: a heading, then a carousel of the
+   curated collections (the same side-arrow carousel as New In and the genres: public/page-books.js, assets/books.css).
+   Params: collections (rows from lib/collections.js listButtonCollections: published, with at least one approved book
+   in stock), hidden (true while a genre, a search, a topic or "See All New In" is showing: public/page-books.js then
+   toggles it as the person browses). Nothing is drawn (no heading either) when no collection is published. Each entry is a
+   plain link to /collections/<slug> (/fr/... on the French site), so it works without JavaScript, where the carousel is
+   just a strip that scrolls sideways. The 90 px round picture is decoration (alt=""): the caption, real text in the
+   visitor's language, is the link's name. */
+%>
+<% if (collections && collections.length) { %>
+<section class="bk-genres bk-collections" id="bk-collections" aria-labelledby="bk-collections-label"<%- hidden ? ' hidden' : '' %>>
+  <h2 class="bk-sec-title" id="bk-collections-label"><%= tr('Browse by Collection', 'Parcourir par collection') %></h2>
+  <div class="bk-carousel">
+    <button type="button" class="arrow" id="bk-col-prev" aria-label="<%= tr('Previous collections', 'Collections précédentes') %>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4 7 12l8 8"/></svg></button>
+    <ul class="bk-track bk-tiles bk-col-list" id="bk-col-track" aria-labelledby="bk-collections-label">
+      <% collections.forEach(function (c) { %>
+      <li><a class="bk-genre col-btn<%= c.icon_path ? '' : ' no-art' %>" href="/collections/<%= c.slug %>">
+        <% if (c.icon_path) { %><span class="chip"><%- include('../../partials/collection_icon', { src: c.icon_path, w: 90, h: 90, cls: '', lazy: true }) %></span><% } %>
+        <span class="col-name"><%= lang === 'fr' && c.title_fr ? c.title_fr : c.title_en %></span>
+      </a></li>
+      <% }) %>
+    </ul>
+    <button type="button" class="arrow" id="bk-col-next" aria-label="<%= tr('Next collections', 'Collections suivantes') %>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 4 8 8-8 8"/></svg></button>
+  </div>
+</section>
+<% } %>

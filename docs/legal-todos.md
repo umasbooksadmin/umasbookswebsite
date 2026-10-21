@@ -181,6 +181,6 @@ sale, the reservation email and `NO_RETURNS` to be changed together, and bump
   cart, terms of sale say so; the visit and volunteer pages mention extra
   openings and link to Instagram; search-engine data lists the regular hours
   only). Ask the lawyer to look at this wording together with the terms of sale.
-- The Instagram page is linked from the footer and the visit page (a plain
+- The Instagram and Facebook pages are linked from the footer and the visit page (a plain
   link, nothing embedded); the privacy policy says the link leads to Instagram,
-  a service of Meta. Facebook: no page yet, so no icon.
+  a service of Meta. The Facebook page is linked next to it and covered by the same sentence.

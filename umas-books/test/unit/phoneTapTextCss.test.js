@@ -67,7 +67,7 @@ test("tap targets: the touch rule applies at phone width and on any touch screen
   assert.doesNotMatch(flat(outside), /(^|\} )\.btn \{[^}]*min-height/);
 });
 
-test("tap targets: Instagram icon keeps its 24px icon inside a 44px area; hearts have a 50px invisible area; back link is a 44px row", () => {
+test("tap targets: Instagram and Facebook icons keep their 24px icon inside a 44px area; hearts have a 50px invisible area; back link is a 44px row", () => {
   has(header, /footer\.mkt-footer \.h-social svg \{ width: 24px; height: 24px; \}/, "icon stays 24px");
   has(header, /footer\.mkt-footer \.h-social a \{[^}]*padding: 10px; margin: -10px -4px;/, "44px area around the icon");
   has(header, /\.favorite-toggle::after \{ content: ""; position: absolute; inset: -10px; \}/, "heart hit area");

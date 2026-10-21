@@ -57,6 +57,16 @@ async function seed(app) {
     await q("INSERT INTO book_copies (book_id, status, price) VALUES ($1, 'sold', 5)", [sold.id]);
     out.soldBookId = sold.id;
 
+    // Curated collections (migrations/091 seeds them unpublished): one published with two books, one published whose
+    // only book is sold (its page says so), so the Browse row and both collection pages are read in both languages.
+    const [col] = await q("SELECT id, slug FROM curated_collections WHERE slug = 'paris-is-always-a-good-idea'");
+    await q("INSERT INTO curated_collection_books (collection_id, book_id, status, reason, position) VALUES ($1, $2, 'approved', 'x', 1), ($1, $3, 'approved', 'x', 2)", [col.id, b.id, b2.id]);
+    const [gone] = await q("SELECT id, slug FROM curated_collections WHERE slug = 'the-magic-we-never-outgrew'");
+    await q("INSERT INTO curated_collection_books (collection_id, book_id, status, reason, position) VALUES ($1, $2, 'approved', 'x', 1)", [gone.id, sold.id]);
+    await q("UPDATE curated_collections SET published = TRUE WHERE id = ANY($1)", [[col.id, gone.id]]);
+    out.collectionSlug = col.slug;
+    out.emptyCollectionSlug = gone.slug;
+
     // One set of accounts per language: an account email is written in the account's stored
     // language (users.lang), and the outbox throttles repeated mail to one address.
     out.users = { en: {}, fr: {} };
@@ -144,6 +154,7 @@ function pageList(s) {
     ["/", all], ["/this-page-does-not-exist", ["guest", "member"]],
     ...MARKETING_PAGES.map((f) => ["/" + f, f === "membership.html" || f === "volunteer.html" || f === "programs.html" ? all : ["guest", "member"]]),
     ["/books/" + s.bookId, all], ["/books/" + s.book2Id, ["guest", "account"]], ["/books/" + s.soldBookId, ["guest"]],
+    ["/collections/" + s.collectionSlug, ["guest", "account"]], ["/collections/" + s.emptyCollectionSlug, ["guest"]],
     ["/favorites", ["guest", "account"]], ["/cart", all],
     [`/cart/return?order=${s.orders.paid}`, ["guest"]], [`/cart/return?order=${s.orders.cancelled}`, ["guest"]],
     ["/contact", ["guest", "account"]], ["/contact?sent=1", ["guest"]],

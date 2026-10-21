@@ -41,10 +41,15 @@ services:
     # into a crash loop on the live site.
     startCommand: npm run seed; npm start
     envVars:
+      # NOT managed by the Blueprint (sync: false). The value is set BY HAND in
+      # the Render dashboard (umas-books > Environment) and is the database's
+      # Internal Database URL. Blueprint syncs do not touch it, so a rotated
+      # database password is not overwritten. Update it there whenever the
+      # database password is rotated: docs/runbook.md, "Rotating the database
+      # password". A wrong value fails preDeployCommand (migrate) below, so
+      # the deploy aborts and the old version keeps serving.
       - key: DATABASE_URL
-        fromDatabase:
-          name: umas-books-db
-          property: connectionString
+        sync: false
       - key: SESSION_SECRET
         generateValue: true
       # Encrypts admins' two-step secrets in the database. Separate from

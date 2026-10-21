@@ -100,7 +100,7 @@
     { key: 'g.all', bg: '#f6e6d4', fg: '#a65347', topic: '', svg: '<path d="m12 3.5 2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/>' }
   ];
 
-  var genreList = document.getElementById('bk-genre-list');
+  var genreList = document.getElementById('bk-genre-list'); // the track of the Browse by Genre carousel
   genreList.innerHTML = GENRES.map(function (g, i) {
     return '<button type="button" class="bk-genre" data-index="' + i + '">' +
       '<span class="chip" style="background:' + g.bg + ';color:' + g.fg + '"><svg ' + I + ' aria-hidden="true">' + g.svg + '</svg></span>' +
@@ -113,6 +113,123 @@
   var form = document.getElementById('shop-search-form');
   var input = document.getElementById('shop-search-input');
   var lastTitle = null;
+  var newSection = document.querySelector('.bk-new');
+  var moreBtn = document.getElementById('bk-more');
+  var moreOffset = null;
+  var newShown = [];
+  var pager = null;     // how the list on screen is paged: { urlFor(offset) }
+  var collectionsEl = document.getElementById('bk-collections'); // absent when no collection is published
+
+  // ---- Carousels: New In, Browse by Collection, Browse by Genre ----
+  // One component for all three. The track (assets/books.css) shows a whole number of items (--per) and every item is
+  // a snap point. Arrows and arrow keys scroll to the left edge of a real item (its measured position, never "80% of
+  // the width", which drifted off the item edges), counted from where the previous click is heading, so quick repeated
+  // clicks add up.
+  function makeCarousel(track, prevBtn, nextBtn, itemSel) {
+    var heading = null;   // index the track is scrolling to after a click (null = at rest)
+    var headingTimer = 0;
+
+    function cardList() { return Array.prototype.slice.call(track.querySelectorAll(itemSel)); }
+    function padLeft() { return parseFloat(getComputedStyle(track).paddingLeft) || 0; }
+    // where scrollLeft must be for card i to sit at the left edge
+    function stopAt(cards, i) {
+      return Math.max(0, cards[i].getBoundingClientRect().left - track.getBoundingClientRect().left + track.scrollLeft - padLeft());
+    }
+    function perView(cards) {
+      var n = parseInt(getComputedStyle(cards[0]).getPropertyValue('--per'), 10);
+      return n > 0 ? n : 1;
+    }
+    function lastStart(cards) { return Math.floor((cards.length - 1) / perView(cards)) * perView(cards); }
+    function nearest(cards) {
+      var best = 0, bd = Infinity;
+      for (var i = 0; i < cards.length; i++) {
+        var d = Math.abs(stopAt(cards, i) - track.scrollLeft);
+        if (d < bd) { bd = d; best = i; }
+      }
+      return best;
+    }
+    // Leave room after the last card so the last page can start at the left edge (no half-cut card at the end).
+    function layout() {
+      var cards = cardList();
+      if (!cards.length || !track.clientWidth) { prevBtn.disabled = nextBtn.disabled = true; return; }
+      track.style.setProperty('--bk-end', '0px');
+      var content = stopAt(cards, cards.length - 1) + cards[cards.length - 1].getBoundingClientRect().width + 2 * padLeft();
+      var need = stopAt(cards, lastStart(cards)) + track.clientWidth;
+      track.style.setProperty('--bk-end', Math.max(0, Math.ceil(need - content)) + 'px');
+      updateArrows();
+    }
+    function updateArrows() {
+      var cards = cardList();
+      if (!cards.length) { prevBtn.disabled = nextBtn.disabled = true; return; }
+      prevBtn.disabled = track.scrollLeft <= 1;
+      nextBtn.disabled = track.scrollLeft >= stopAt(cards, lastStart(cards)) - 1;
+    }
+    function goTo(i, cards, instant) {
+      cards = cards || cardList();
+      i = Math.max(0, Math.min(i, lastStart(cards)));
+      heading = i;
+      clearTimeout(headingTimer);
+      headingTimer = setTimeout(function () { heading = null; }, 700);
+      track.scrollTo({ left: stopAt(cards, i), behavior: instant ? 'instant' : reducedMotion() ? 'auto' : 'smooth' });
+    }
+    function step(dir, count) {
+      var cards = cardList();
+      if (!cards.length) return;
+      var from = heading != null ? heading : nearest(cards);
+      goTo(from + dir * (count || perView(cards)), cards);
+    }
+    // Bring item i into view (a selected genre on a direct load or Back): the page of items that holds it, no animation.
+    function reveal(i) {
+      var cards = cardList();
+      if (!cards.length || !track.clientWidth || !cards[i]) return;
+      layout();
+      var per = perView(cards), first = nearest(cards);
+      if (i >= first && i < first + per) return;
+      goTo(Math.floor(i / per) * per, cards, true);
+    }
+    prevBtn.addEventListener('click', function () { step(-1); });
+    nextBtn.addEventListener('click', function () { step(1); });
+    track.addEventListener('keydown', function (e) {
+      if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+      if (e.altKey || e.ctrlKey || e.metaKey) return;
+      e.preventDefault();
+      step(e.key === 'ArrowRight' ? 1 : -1, 1);
+    });
+    var scrollTick = 0;
+    track.addEventListener('scroll', function () {
+      if (scrollTick) return;
+      scrollTick = requestAnimationFrame(function () { scrollTick = 0; updateArrows(); });
+    }, { passive: true });
+    if (window.ResizeObserver) {
+      var lastWidth = 0;
+      new ResizeObserver(function () {
+        // A resize or a browser zoom changes the card width: recompute the end room and sit on a card edge again.
+        var w = track.clientWidth;
+        if (!w || w === lastWidth) return;
+        lastWidth = w;
+        var cards = cardList();
+        var at = cards.length ? nearest(cards) : 0;
+        layout();
+        if (cards.length) track.scrollTo({ left: stopAt(cards, Math.min(at, lastStart(cards))), behavior: 'auto' });
+      }).observe(track);
+    }
+    window.addEventListener('resize', layout);
+    return { layout: layout, reveal: reveal };
+  }
+
+  var track = document.getElementById('bk-new-track');
+  var newCarousel = makeCarousel(track, document.getElementById('bk-new-prev'), document.getElementById('bk-new-next'), '.bk-book');
+  var layoutCarousel = newCarousel.layout;
+  var genreCarousel = makeCarousel(genreList, document.getElementById('bk-genre-prev'), document.getElementById('bk-genre-next'), '.bk-genre');
+  var collectionCarousel = collectionsEl
+    ? makeCarousel(document.getElementById('bk-col-track'), document.getElementById('bk-col-prev'), document.getElementById('bk-col-next'), 'li')
+    : null;
+  // A hidden carousel has no width: lay each one out again when it is shown.
+  function layoutAll() {
+    layoutCarousel();
+    genreCarousel.layout();
+    if (collectionCarousel) collectionCarousel.layout();
+  }
 
   // The search / genre state lives in the address (public/books-state.js): a genre tap or a search
   // adds a history entry, so Back returns to the previous results, and the address can be shared.
@@ -128,6 +245,7 @@
       el.classList.toggle('is-active', on);
       el.setAttribute('aria-pressed', on ? 'true' : 'false');
     });
+    if (index != null) genreCarousel.reveal(index);
   }
   function renderTitle() {
     if (!lastTitle) return;
@@ -151,30 +269,65 @@
     resultsGrid.innerHTML = books.map(function (b) { return bookCard(b, true); }).join('');
     syncFavorites(resultsGrid);
   }
-  function showResults(url, title, scroll) {
+  // Genre and search results page the same way as See All New In: 24 at a time with "Show more" (no count shown).
+  function showResults(baseUrl, title, scroll) {
     lastTitle = title;
     renderTitle();
     resultsEl.hidden = false;
-    var mine = ++requestSeq;
-    if (cache[url]) {
-      drawBooks(cache[url]);
-      if (scroll) scrollToResults();
-      return;
+    pager = { urlFor: function (offset) { return baseUrl + '&paged=1&offset=' + offset + '&limit=24'; } };
+    loadPage(0, false, ++requestSeq, scroll);
+  }
+
+  // "See All New In": every book that counts as New In (src/lib/latestArrivals.js newIn), 24 at a time with a
+  // "Show more" button (no count is shown anywhere). Each page is cached by its address, so Back / Forward and a second visit ask nothing.
+  function newInUrl(offset) { return API + '/new-in?offset=' + offset + '&limit=24'; }
+  function drawPage(data, append, mine) {
+    if (mine !== requestSeq) return;
+    var firstNew = append ? newShown.length : 0;
+    newShown = append ? newShown.concat(data.books) : data.books.slice();
+    drawBooks(newShown);
+    moreOffset = data.nextOffset;
+    moreBtn.hidden = moreOffset == null;
+    if (append) {
+      var link = resultsGrid.querySelectorAll('.bk-book a')[firstNew];
+      if (link) { try { link.focus({ preventScroll: false }); } catch (e) { /* the books are drawn anyway */ } }
     }
-    resultsGrid.innerHTML = '<p class="muted">' + esc(t('bk.loading', 'Loading books…')) + '</p>';
+  }
+  function loadPage(offset, append, mine, scroll) {
+    var url = pager.urlFor(offset);
+    if (cache[url]) { drawPage(cache[url], append, mine); if (scroll) scrollToResults(); return; }
+    if (!append) resultsGrid.innerHTML = '<p class="muted">' + esc(t('bk.loading', 'Loading books…')) + '</p>';
     if (scroll) scrollToResults();
-    getJSON(url, function (err, books) {
+    moreBtn.disabled = true;
+    getJSON(url, function (err, data) {
       if (mine !== requestSeq) return;
-      if (err) { resultsGrid.innerHTML = '<p class="muted">' + esc(t(err.rateLimited ? 'bk.ratelimited' : 'bk.error')) + '</p>'; return; }
-      cache[url] = books;
-      drawBooks(books);
-      if (scroll && Math.abs(resultsEl.getBoundingClientRect().top) > 40) scrollToResults(true);
+      moreBtn.disabled = false;
+      if (err) { resultsGrid.insertAdjacentHTML('beforeend', '<p class="muted">' + esc(t(err.rateLimited ? 'bk.ratelimited' : 'bk.error')) + '</p>'); return; }
+      cache[url] = data;
+      drawPage(data, append, mine);
+      if (scroll && !append && Math.abs(resultsEl.getBoundingClientRect().top) > 40) scrollToResults(true);
     });
   }
+  function showNewIn(scroll) {
+    lastTitle = { key: 'bk.results.new' };
+    renderTitle();
+    resultsEl.hidden = false;
+    pager = { urlFor: newInUrl };
+    loadPage(0, false, ++requestSeq, scroll);
+  }
+  moreBtn.addEventListener('click', function () {
+    if (moreOffset != null) loadPage(moreOffset, true, requestSeq, false);
+  });
 
   // Put a state on the screen (no history change here).
   function render(state, scroll) {
     current = state;
+    // The collection buttons (views/marketing/partials/collections_row.ejs) are for the plain Browse view only, like New In.
+    if (collectionsEl) collectionsEl.hidden = !!(state.q || state.genre || state.isNew || /[?&]topic=/.test(location.search));
+    // The New In carousel is only on the plain Browse view: a search, a genre or "See All New In" already fills the page with a grid.
+    newSection.hidden = !!(state.q || state.genre || state.isNew);
+    setTimeout(layoutAll, 0);
+    moreBtn.hidden = true;
     if (state.q) {
       input.value = state.q;
       setActiveGenre(null);
@@ -188,7 +341,7 @@
     } else if (state.isNew) {
       input.value = '';
       setActiveGenre(null);
-      showResults(API + '/latest-arrivals?days=0&limit=24', { key: 'bk.results.new' }, scroll);
+      showNewIn(scroll);
     } else {
       input.value = '';
       setActiveGenre(null);
@@ -230,16 +383,16 @@
   });
   render(S.parse(location.search, SLUGS), true);
 
-  var track = document.getElementById('bk-new-track');
-  getJSON(API + '/latest-arrivals?days=0&limit=12', function (err, books) {
-    if (err) { track.innerHTML = '<p class="muted">' + esc(t('bk.error')) + '</p>'; return; }
-    if (!books.length) { track.innerHTML = '<p class="muted">' + esc(t('bk.new.empty')) + '</p>'; return; }
+  getJSON(API + '/new-in?all=1', function (err, data) {
+    if (err) { track.innerHTML = '<p class="muted">' + esc(t('bk.error')) + '</p>'; layoutCarousel(); return; }
+    var books = data.books || [];
+    if (!books.length) { track.innerHTML = '<p class="muted">' + esc(t('bk.new.empty')) + '</p>'; layoutCarousel(); return; }
     track.innerHTML = books.map(function (b) { return bookCard(b, true); }).join('');
     syncFavorites(track);
+    layoutCarousel();
+    // covers and fonts load after this: sizes are in cqw so nothing moves, but re-check the end room once everything is in
+    window.addEventListener('load', layoutCarousel);
   });
-  function page(dir) { track.scrollBy({ left: dir * track.clientWidth * 0.8, behavior: 'smooth' }); }
-  document.getElementById('bk-new-prev').addEventListener('click', function () { page(-1); });
-  document.getElementById('bk-new-next').addEventListener('click', function () { page(1); });
 
   document.querySelectorAll('.langtoggle button').forEach(function (b) {
     b.addEventListener('click', function () { setTimeout(function () { renderTitle(); }, 0); });

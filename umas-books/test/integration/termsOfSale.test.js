@@ -16,7 +16,7 @@ test("terms of sale page is served with guarantees, mediator, HelloAsso (members
   const res = await fetch(`${app.base}/terms-of-sale.html`);
   assert.equal(res.status, 200);
   const html = await res.text();
-  for (const needle of ["L.217-3", "1641", "CM2C", "TVA non applicable", "109 441 147 00013", "HelloAsso", "06 98 95 67 91"]) {
+  for (const needle of ["L.217-3", "1641", "CM2C", "TVA non applicable", "109 441 147 00013", "HelloAsso", "+33 6 07 41 70 60"]) {
     assert.ok(html.includes(needle), `missing ${needle}`);
   }
   // A reservation is a free hold and the sale is made in the shop: no distance-selling withdrawal notice or form for books and seats.
@@ -134,14 +134,28 @@ test("terms of sale: the drop-in text has no waiver, checkout or withdrawal word
   assert.ok(!html.includes("right of withdrawal does not apply"));
 });
 
-test("footer: the Instagram icon links to the real page (new tab, noopener noreferrer, named 'Instagram', clean URL); Facebook stays hidden; no placeholder links", async () => {
+test("footer: the Instagram icon links to the real page (new tab, noopener noreferrer, named 'Instagram', clean URL); Facebook icon beside it (EN/FR labels); no placeholder links", async () => {
   for (const headers of [{}, { cookie: "umasbooks_lang=fr" }]) {
     const html = await (await fetch(`${app.base}/terms-of-sale.html`, { headers })).text();
     assert.ok(html.includes('<a href="https://www.instagram.com/umas_books_adventures/" target="_blank" rel="noopener noreferrer" aria-label="Instagram">'));
     assert.ok(!html.includes("instagram.com/umas_books_adventures/?"), "no tracking query string");
-    assert.ok(!/aria-label="Facebook"/.test(html), "no Facebook URL given: no icon");
+    const fr = !!headers.cookie;
+    const label = fr ? "Uma’s Books and Adventures sur Facebook" : "Uma&#39;s Books and Adventures on Facebook";
+    assert.ok(html.includes(`<a href="https://www.facebook.com/share/1CgAM7gwey/" target="_blank" rel="noopener noreferrer" aria-label="${label}">`));
+    assert.ok(!html.includes("mibextid"), "no tracking query string");
+    assert.ok(html.indexOf('aria-label="Instagram"') < html.indexOf("facebook.com/share"), "Facebook sits beside Instagram, after it");
     assert.ok(!/href="#"[^>]*aria-label="(Instagram|Facebook)"/.test(html));
   }
+});
+
+test("footer partial: an empty Facebook address renders no Facebook link (Instagram still shows)", async () => {
+  const ejs = require("ejs");
+  const file = path.join(__dirname, "..", "..", "views", "partials", "mkt_chrome_footer.ejs");
+  const render = (facebook) => ejs.renderFile(file, { socialLinks: { instagram: "https://www.instagram.com/x/", facebook }, tr: (en) => en });
+  const without = await render("");
+  assert.ok(!/facebook/i.test(without), "empty constant: no Facebook link");
+  assert.ok(without.includes('aria-label="Instagram"'));
+  assert.ok((await render("https://www.facebook.com/share/abc/")).includes('href="https://www.facebook.com/share/abc/"'));
 });
 
 test("membership terms: statutes, interim withdrawal statement (14 days, refund, membership ends), forum moderation (DSA), French kicker 'Informations légales'", async () => {

@@ -4,7 +4,7 @@
 // open (return null) on any error or missing config, so a book can
 // still be saved without one rather than blocking the save.
 
-const { recordCall } = require("./aiUsageStats");
+const { recordCall, isCreditError } = require("./aiUsageStats");
 const { getAiLimits, clampText, MAX_TITLE, MAX_AUTHOR, MAX_DESCRIPTION } = require("./aiLimits");
 const { createInflight } = require("./inflight");
 
@@ -17,21 +17,29 @@ function callClaude(prompt, opts) {
   return inflight.run(`${opts.feature || "description"}|${opts.maxTokens || 200}|${prompt}`, () => callClaudeOnce(prompt, opts));
 }
 
-async function callClaudeOnce(prompt, { maxTokens = 200, label, feature = "description" }) {
+async function callClaudeOnce(prompt, opts) {
+  return (await claudeRequest(prompt, opts)).text;
+}
+
+// The same call, but it also says WHY there is no text (for the admin screens that want to tell a person):
+// { text, reason } with reason one of null (worked), "no_key", "cap" (the shared daily cap, see lib/aiLimits.js),
+// "credit" (Anthropic credit used up), "rate" (HTTP 429), "timeout", "error". Never throws, never logs a prompt.
+// opts.timeoutMs (default 8 s) lets a long answer (the collection suggestions) wait longer.
+async function claudeRequest(prompt, { maxTokens = 200, label, feature = "description", timeoutMs = 8000 } = {}) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     console.warn(`${label} skipped: ANTHROPIC_API_KEY not set.`);
-    return null;
+    return { text: null, reason: "no_key" };
   }
   // The shared daily cap (lib/aiLimits.js): at the cap the call is skipped, like any other AI problem.
   const slot = await getAiLimits().acquireAiCall();
   if (!slot.ok) {
     console.warn(`${label} skipped: ${slot.message}`);
-    return null;
+    return { text: null, reason: "cap", message: slot.message };
   }
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8000);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   const t0 = Date.now();
   let recorded = false; // usage statistics (counts only), see lib/aiUsageStats.js
@@ -57,7 +65,7 @@ async function callClaudeOnce(prompt, { maxTokens = 200, label, feature = "descr
       recorded = true;
       recordCall(feature, { status: res.status, bodyText: body, ms: Date.now() - t0 });
       console.warn(`${label} request failed:`, res.status, body);
-      return null;
+      return { text: null, reason: isCreditError(res.status, body) ? "credit" : res.status === 429 ? "rate" : "error" };
     }
 
     const data = await res.json();
@@ -66,13 +74,13 @@ async function callClaudeOnce(prompt, { maxTokens = 200, label, feature = "descr
     const text = data.content && data.content[0] && data.content[0].text;
     if (!text) {
       console.warn(`${label} skipped: unexpected response shape:`, JSON.stringify(data).slice(0, 500));
-      return null;
+      return { text: null, reason: "error" };
     }
-    return text.trim();
+    return { text: text.trim(), reason: null };
   } catch (err) {
     if (!recorded) recordCall(feature, { failed: true, ms: Date.now() - t0 });
     console.warn(`${label} skipped:`, err.name === "AbortError" ? "request timed out" : err.message);
-    return null;
+    return { text: null, reason: err.name === "AbortError" ? "timeout" : "error" };
   } finally {
     clearTimeout(timeout);
   }
@@ -116,4 +124,4 @@ async function translateDescriptionToFrench(englishText) {
   return callClaude(prompt, { maxTokens: 250, label: "AI description (French)", feature: "translation" });
 }
 
-module.exports = { generateBookDescription, translateDescriptionToFrench, TEXT_MODEL };
+module.exports = { generateBookDescription, translateDescriptionToFrench, claudeRequest, TEXT_MODEL };

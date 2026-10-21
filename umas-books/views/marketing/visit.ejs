@@ -24,6 +24,10 @@
           <span class="label" data-i18n="visit.contact.l">Contact</span>
           <span class="value"><a href="mailto:admin@umasbooks.org">admin@umasbooks.org</a></span>
         </div>
+        <div class="visit-item">
+          <span class="label" data-i18n="visit.phone.l">Phone</span>
+          <span class="value"><a href="<%= legalText.shopPhoneTel %>" style="white-space:nowrap"><%= legalText.shopPhone %></a></span>
+        </div>
       </div>
     </div>
   </div>
@@ -39,6 +43,7 @@
   "visit.hours.time": "{shopHours}",
   "visit.hours.note": "{shopHoursShort}",
   "visit.contact.l": "Contact",
+  "visit.phone.l": "Phone",
 }; %>
 <% const pageI18nFr = {
   "meta.title": "Nous rendre visite — Uma’s Books and Adventures",
@@ -52,5 +57,6 @@
   "visit.hours.time": "{shopHours}",
   "visit.hours.note": "{shopHoursShort}",
   "visit.contact.l": "Contact",
+  "visit.phone.l": "Téléphone",
 }; %>
 <%- include('partials/mkt_footer', { pageI18nEn: fillVat(pageI18nEn, 'en'), pageI18nFr: fillVat(pageI18nFr, 'fr') }) %>

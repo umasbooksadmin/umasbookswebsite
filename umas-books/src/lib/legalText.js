@@ -86,6 +86,8 @@ function legalFor(lang) {
     priceLine: priceLine(l),
     shopStreet: legal.shopStreet(l),
     shopStreetInline: legal.shopStreet(l, false),
+    shopPhone: legal.SHOP_PHONE_DISPLAY,
+    shopPhoneTel: legal.SHOP_PHONE_TEL,
     shopHours: legal.shopHours(l),
     shopDays: legal.shopDays(l),
     shopDaysShort: legal.shopDaysShort(l),
@@ -110,6 +112,7 @@ function fillVat(dict, lang = "en") {
   const fills = {
     "{vat}": vatNotice(), "{days}": legal.RESERVATION_DAYS, "{extension}": legal.RESERVATION_EXTENSION_DAYS,
     "{copies}": legal.MAX_RESERVED_COPIES, "{reservations}": legal.MAX_ACTIVE_RESERVATIONS, "{hours}": legal.SEAT_CANCEL_HOURS,
+    "{shopPhoneTel}": legal.SHOP_PHONE_TEL, "{shopPhone}": legal.SHOP_PHONE_DISPLAY,
     "{shopStreetInline}": legal.shopStreet(l, false), "{shopStreet}": legal.shopStreet(l),
     "{shopHours}": legal.shopHours(l), "{shopDaysShort}": legal.shopDaysShort(l), "{shopDays}": legal.shopDays(l),
     "{shopHoursShort}": legal.shopHoursShort(l, true), "{shopHoursFirm}": legal.shopHoursFirm(l), "{membershipPrice}": legal.membershipPrice(l),
