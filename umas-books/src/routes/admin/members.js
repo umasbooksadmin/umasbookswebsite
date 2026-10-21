@@ -1,5 +1,5 @@
 const express = require("express");
-const bcrypt = require("bcryptjs");
+const passwordHash = require("../../lib/passwordHash");
 const crypto = require("crypto");
 const { pool } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
@@ -209,7 +209,7 @@ router.post("/admin/members", requireAdmin, async (req, res) => {
   // NOT NULL column and the account stays unusable until the invite
   // email's reset link (same flow as "Forgot password") lets them set
   // their own, exactly like a real signup would.
-  const placeholderHash = await bcrypt.hash(crypto.randomBytes(24).toString("hex"), 12);
+  const placeholderHash = await passwordHash.hash(crypto.randomBytes(24).toString("hex"));
   // email_verified_at is set immediately here (unlike a real signup) —
   // an admin is already vouching for this being the right email for a
   // real person, and the invite link below needs to be clicked from that

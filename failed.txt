@@ -1,0 +1,6 @@
+test/integration/collectionsBrowse.test.js
+test/integration/i18nCrawler.test.js
+test/integration/memberSelfService.test.js
+test/integration/securityRound2.test.js
+test/integration/sessionStaleness.test.js
+test/integration/tillCorrectness.test.js

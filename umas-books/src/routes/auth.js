@@ -1,7 +1,7 @@
 const express = require("express");
 const { renderLogoutConfirm } = require("../middleware/csrf");
 const crypto = require("crypto");
-const bcrypt = require("bcryptjs");
+const passwordHash = require("../lib/passwordHash");
 const { limit, ipKey, failureCounts, onlyMarkedFailures } = require("../middleware/rateLimits");
 const { redirectWithFlash, takePageFlash, withReturnTo } = require("../lib/postRedirect");
 const { pool } = require("../db");
@@ -52,12 +52,6 @@ const passwordChangeLimiter = limit({
   requestWasSuccessful: onlyMarkedFailures,
   keyGenerator: (req) => `user:${req.session.user.id}`,
 });
-
-// Precomputed once at startup so a login attempt against a nonexistent
-// email still runs a bcrypt compare of comparable cost — otherwise the
-// "no such user" path returns measurably faster than "wrong password",
-// letting an attacker enumerate registered emails via response timing.
-const DUMMY_HASH = bcrypt.hashSync("no-such-account-timing-equalizer", 12);
 
 const signupNotice = (req) =>
   req.tr(
@@ -171,7 +165,7 @@ router.get("/signup", (req, res) => {
 async function registerAccount(req, { email, displayName, returnTo, membership = false }) {
   // Unusable: random, never revealed. The hash still runs on both paths so
   // response time doesn't differ between new and existing emails.
-  const hash = await bcrypt.hash(crypto.randomBytes(32).toString("hex"), 12);
+  const hash = await passwordHash.hash(crypto.randomBytes(32).toString("hex"));
   const { rows: existing } = await pool.query("SELECT id, email, display_name, lang FROM users WHERE email = $1", [email]);
   let created = null;
   if (!existing.length) {
@@ -231,6 +225,7 @@ router.post("/signup", signupLimiter, async (req, res) => {
   try {
     await registerAccount(req, { email, displayName, returnTo });
   } catch (err) {
+    if (passwordHash.isBusy(err)) return passwordHash.sendBusy(req, res);
     console.error(err);
     return backToSignup(req, res, { error: somethingWrong(req), displayName, email }).catch(plainFailure(req, res));
   }
@@ -280,6 +275,7 @@ router.post("/membership/join", signupLimiter, async (req, res) => {
     await saveSession(req);
     res.redirect(303, MEMBERSHIP_PAGE);
   } catch (err) {
+    if (passwordHash.isBusy(err)) return passwordHash.sendBusy(req, res);
     console.error(err);
     res.status(500).type("text").send(somethingWrong(req));
   }
@@ -358,12 +354,6 @@ router.post("/membership/check", (req, res, next) => {
 // Both verbs share one limiter: the route is unauthenticated.
 const verifyEmailLimiter = limit({ windowMs: 15 * MINUTE, max: 30 });
 
-// One hash, computed once at startup (cost 10, ~100 ms, a one-off) and reused
-// for every first confirmation: nobody knows what it is the hash of (random
-// bytes thrown away), which is all "unusable password" needs. Hashing inside
-// the request let anyone burn CPU by hitting the URL with random tokens.
-const UNUSABLE_PASSWORD_HASH = bcrypt.hashSync(crypto.randomBytes(32).toString("hex"), 10);
-
 const renderVerifyEmail = (res, state, token, status = 200) => {
   res.set("Cache-Control", "no-store");
   return res.status(status).render("verify_email", { state, token });
@@ -411,7 +401,7 @@ router.post("/verify-email/:token", verifyEmailLimiter, async (req, res) => {
                 password_hash = $2, password_changed_at = now(),
                 failed_login_attempts = 0, locked_until = NULL
          WHERE id = $1`,
-        [user.id, UNUSABLE_PASSWORD_HASH]
+        [user.id, await passwordHash.unusableHash()]
       );
       await client.query("UPDATE password_reset_tokens SET used_at = now() WHERE user_id = $1 AND used_at IS NULL", [user.id]);
       const rawReset = await createResetToken(client, user.id, returnTo);
@@ -499,8 +489,8 @@ router.post("/login", loginLimiter, async (req, res) => {
     // such user, so the response time doesn't reveal whether the email
     // is registered.
     const ok = user
-      ? await bcrypt.compare(password, user.password_hash)
-      : await bcrypt.compare(password, DUMMY_HASH).then(() => false);
+      ? await passwordHash.compare(password, user.password_hash)
+      : await passwordHash.compareDummy(password);
 
     // A locked account answers exactly like a wrong password (even for the
     // right one), so neither the lock nor the account's existence is
@@ -564,6 +554,7 @@ router.post("/login", loginLimiter, async (req, res) => {
     // site, same as a guest.
     loginAs(req, res, user, landingFor(user, returnTo));
   } catch (err) {
+    if (passwordHash.isBusy(err)) return passwordHash.sendBusy(req, res);
     console.error(err);
     await backToLogin(req, res, { error: somethingWrong(req), email }, { counted: true }).catch(plainFailure(req, res));
   }
@@ -728,7 +719,7 @@ router.post("/reset-password/:token", resetLimiter, async (req, res) => {
     return redirectWithFlash(req, res, resetPage, "reset", { error: passwordError }, { counted: true });
   }
 
-  const hash = await bcrypt.hash(newPassword, 12);
+  const hash = await passwordHash.hash(newPassword);
   const client = await pool.connect();
   let email;
   let returnTo;
@@ -792,13 +783,13 @@ router.post("/account/password", requireAuth, passwordChangeLimiter, async (req,
 
   const { rows } = await pool.query("SELECT * FROM users WHERE id = $1", [req.session.user.id]);
   const user = rows[0];
-  const ok = user && (await bcrypt.compare(currentPassword, user.password_hash));
+  const ok = user && (await passwordHash.compare(currentPassword, user.password_hash));
   if (!ok) {
     // Only a wrong current password counts toward the limiter (counted).
     return redirectWithFlash(req, res, "/account/password", "changePassword", { error: req.tr("Current password is incorrect.", "Le mot de passe actuel est incorrect.") }, { counted: true });
   }
 
-  const hash = await bcrypt.hash(newPassword, 12);
+  const hash = await passwordHash.hash(newPassword);
   const { rows: updated } = await pool.query(
     "UPDATE users SET password_hash = $1, password_changed_at = now() WHERE id = $2 RETURNING password_changed_at",
     [hash, user.id]

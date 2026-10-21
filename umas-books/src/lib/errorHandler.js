@@ -2,6 +2,7 @@
 // src/index.js), kept in its own module so it can be tested directly.
 const { alertOnError } = require("./errorAlert");
 const { langMiddleware } = require("../middleware/lang");
+const passwordHash = require("./passwordHash");
 
 // Friendly text for the client errors that can reach the handler.
 // Each entry is [English, French].
@@ -46,6 +47,13 @@ function errorHandler(err, req, res, next) {
   if (!raw && err && err.name === "MulterError") raw = err.code === "LIMIT_FILE_SIZE" ? 413 : 400;
   const clientStatus = Number.isInteger(raw) && raw >= 400 && raw < 500 ? raw : null;
   const where = `${req.method} ${redactedPath(req)}`;
+
+  // Too many password checks queued (lib/passwordHash.js): a friendly 503,
+  // not a fault, so no alert.
+  if (passwordHash.isBusy(err) && !res.headersSent) {
+    if (typeof res.locals.tr !== "function") langMiddleware(req, res, () => {});
+    return passwordHash.sendBusy(req, res);
+  }
 
   if (clientStatus) {
     console.warn(`Client error ${clientStatus} on ${where}: ${err.message}`);
