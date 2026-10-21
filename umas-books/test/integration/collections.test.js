@@ -532,7 +532,7 @@ test("the sitemap lists published collections that still have a book, at both ad
   const emptied = await publishedShelf([[await newBook(`Map gone ${uniq()}`, { copyStatus: "sold" }), "approved"]]);
   const unpub = await freshCollection();
   await addRow(unpub.id, b.id, "approved");
-  const { res, text } = await get("/sitemap.xml");
+  const { res, text } = await get("/sitemap-pages.xml");
   if (res.status === 503) return; // no base URL in this environment: the sitemap is not served at all
   assert.equal(res.status, 200);
   assert.ok(text.includes(`/collections/${listed.slug}</loc>`));

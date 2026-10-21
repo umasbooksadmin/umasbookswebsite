@@ -491,12 +491,13 @@ process.on("uncaughtException", (err) => {
   ]).finally(() => process.exit(1));
 });
 
+const { configureServer } = require("./lib/serverConfig"); // keepAliveTimeout above the proxy's (see the file)
 const port = process.env.PORT || 3000;
 // Express 5 also passes a listen failure (e.g. EADDRINUSE) to this callback;
 // the "error" handler below deals with that, so only announce real success.
-const server = app.listen(port, (err) => {
+const server = configureServer(app.listen(port, (err) => {
   if (!err) console.log(`umas-books listening on port ${port}`);
-});
+}));
 
 // Launch-guard alerts from lib/env.js (live site with a wrong setup). force skips the throttle so they are never
 // swallowed by an unrelated error alert; the text carries no personal data.

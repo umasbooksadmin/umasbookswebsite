@@ -8,6 +8,7 @@ const { baseUrl } = require("../lib/baseUrl");
 const { listSitemapCollections } = require("../lib/collections");
 const { isNonLive } = require("../lib/preview");
 const { localize, seoLinks } = require("../lib/frUrls");
+const { cachedByKey } = require("../lib/runLimited");
 
 const router = express.Router();
 
@@ -16,8 +17,20 @@ const MARKETING_PAGES = require("../lib/marketingPages");
 // Dynamic public pages worth indexing (besides "/" and the pages above).
 const DYNAMIC_PAGES = ["/sessions", "/events", "/contact", "/request-a-book"];
 
-const MAX_BOOK_URLS = 5000; // the sitemap protocol allows 50,000 per file
+// The sitemap protocol allows 50,000 URLs and 50 MB (uncompressed) per file. Every book is listed twice (English and
+// French address), each with three hreflang alternates: about 1 KB per book, so 20,000 URLs (10,000 books) is about
+// 10 MB, well inside both limits. /sitemap.xml is an INDEX pointing at /sitemap-pages.xml and
+// /sitemap-books-1.xml, -2.xml, ... (newest books first), so the number of books is not capped.
+const MAX_URLS_PER_FILE = 20000;
+const URLS_PER_BOOK = 2;
+// SITEMAP_BOOKS_PER_FILE exists only so tests can exercise several files without inserting thousands of books.
+function booksPerFile() {
+  const n = Number(process.env.SITEMAP_BOOKS_PER_FILE);
+  return Number.isInteger(n) && n > 0 ? Math.min(n, MAX_URLS_PER_FILE / URLS_PER_BOOK) : MAX_URLS_PER_FILE / URLS_PER_BOOK;
+}
 const SITEMAP_TTL_MS = 60 * 60 * 1000;
+const IN_STOCK = "EXISTS (SELECT 1 FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock')";
+const URLSET_OPEN = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">\n`;
 
 // baseUrl() throws in production when neither APP_BASE_URL nor
 // RENDER_EXTERNAL_URL is set (it will not trust the Host header there).
@@ -68,21 +81,61 @@ function sitemapEntry(base, path, lastmod) {
 const HOME_PATH = "/";
 const FIXED_PAGES = [HOME_PATH].concat(MARKETING_PAGES.map((f) => `/${f}`), DYNAMIC_PAGES);
 
-// collectionRows: the PUBLISHED curated collections that still have a book to show (lib/collections.js).
-function buildSitemapXml(base, bookRows, collectionRows = []) {
+function urlsetXml(urls) {
+  return `${URLSET_OPEN}${urls.length ? urls.join("\n") + "\n" : ""}</urlset>\n`;
+}
+
+// The static pages and the PUBLISHED curated collections that still have a book to show (lib/collections.js).
+function buildPagesSitemapXml(base, collectionRows = []) {
   const urls = [];
   for (const p of FIXED_PAGES) urls.push(...sitemapEntry(base, p));
   for (const c of collectionRows) urls.push(...sitemapEntry(base, `/collections/${c.slug}`));
+  return urlsetXml(urls);
+}
+
+function buildBooksSitemapXml(base, bookRows) {
+  const urls = [];
   for (const b of bookRows) {
     const lastmod = b.updated_at ? `<lastmod>${new Date(b.updated_at).toISOString()}</lastmod>` : "";
     urls.push(...sitemapEntry(base, `/books/${b.id}`, lastmod));
   }
-  return `<?xml version="1.0" encoding="UTF-8"?>\n` +
-    `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">\n${urls.join("\n")}\n</urlset>\n`;
+  return urlsetXml(urls);
 }
 
-let sitemapCache = null; // { base, at, xml }
-function clearSitemapCache() { sitemapCache = null; }
+function buildSitemapIndexXml(base, bookFiles) {
+  const names = ["sitemap-pages.xml"];
+  for (let i = 1; i <= bookFiles; i++) names.push(`sitemap-books-${i}.xml`);
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
+    names.map((n) => `  <sitemap><loc>${xmlEscape(`${base}/${n}`)}</loc></sitemap>`).join("\n") + `\n</sitemapindex>\n`;
+}
+
+async function countInStockBooks() {
+  const { rows } = await pool.query(`SELECT count(*)::int AS n FROM books b WHERE ${IN_STOCK}`);
+  return rows[0].n;
+}
+
+// One cached value per file for an hour (cachedByKey also bounds how many are kept). Key: "<base>|<name>".
+// Values: the XML text, or null for a book file that does not exist (past the last one).
+const sitemapCache = cachedByKey(async (key) => {
+  const sep = key.indexOf("|");
+  const base = key.slice(0, sep);
+  const name = key.slice(sep + 1);
+  if (name === "index") return buildSitemapIndexXml(base, Math.ceil((await countInStockBooks()) / booksPerFile()));
+  if (name === "pages") return buildPagesSitemapXml(base, await listSitemapCollections(pool));
+  const n = Number(name);
+  const per = booksPerFile();
+  // Newest first, so a new book always lands in file 1 and never falls off the end; id breaks ties for a stable order.
+  const { rows } = await pool.query(
+    `SELECT b.id, b.updated_at
+     FROM books b
+     WHERE ${IN_STOCK}
+     ORDER BY b.created_at DESC, b.id DESC
+     LIMIT $1 OFFSET $2`,
+    [per, (n - 1) * per]
+  );
+  return rows.length ? buildBooksSitemapXml(base, rows) : null;
+}, SITEMAP_TTL_MS, 10);
+function clearSitemapCache() { sitemapCache.clear(); }
 
 router.get("/robots.txt", (req, res) => {
   // Preview mode: keep every crawler out (see lib/preview.js).
@@ -91,7 +144,9 @@ router.get("/robots.txt", (req, res) => {
   res.type("text/plain").send(robotsTxt(safeBaseUrl(req)));
 });
 
-router.get("/sitemap.xml", async (req, res) => {
+// Serves one sitemap file. In preview/staging every one of them is an empty urlset (nothing to index); without a
+// base URL none is served (503), as before.
+async function sendSitemap(req, res, name) {
   if (isNonLive()) {
     return res.set("Cache-Control", "no-cache").type("application/xml").send(
       `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n</urlset>\n`
@@ -99,20 +154,17 @@ router.get("/sitemap.xml", async (req, res) => {
   }
   const base = safeBaseUrl(req);
   if (!base) return res.status(503).type("text/plain").send("Sitemap unavailable: base URL is not configured.");
-  if (!sitemapCache || sitemapCache.base !== base || Date.now() - sitemapCache.at > SITEMAP_TTL_MS) {
-    const { rows } = await pool.query(
-      `SELECT b.id, b.updated_at
-       FROM books b
-       WHERE EXISTS (SELECT 1 FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock')
-       ORDER BY b.id
-       LIMIT $1`,
-      [MAX_BOOK_URLS]
-    );
-    const collections = await listSitemapCollections(pool);
-    sitemapCache = { base, at: Date.now(), xml: buildSitemapXml(base, rows, collections) };
-  }
+  const xml = await sitemapCache(`${base}|${name}`);
+  if (xml == null) return res.status(404).end();
   res.set("Cache-Control", "public, max-age=3600");
-  res.type("application/xml").send(sitemapCache.xml);
+  res.type("application/xml").send(xml);
+}
+
+router.get("/sitemap.xml", (req, res) => sendSitemap(req, res, "index"));
+router.get("/sitemap-pages.xml", (req, res) => sendSitemap(req, res, "pages"));
+router.get("/sitemap-books-:n.xml", (req, res) => {
+  if (!/^[1-9]\d{0,5}$/.test(req.params.n)) return res.status(404).end();
+  return sendSitemap(req, res, req.params.n);
 });
 
 // Sets the locals views/marketing/partials/mkt_header.ejs reads for the
@@ -148,6 +200,8 @@ module.exports = {
   MARKETING_PAGES,
   setMarketingSeoLocals,
   robotsTxt,
-  buildSitemapXml,
+  buildPagesSitemapXml,
+  buildBooksSitemapXml,
+  buildSitemapIndexXml,
   clearSitemapCache,
 };
