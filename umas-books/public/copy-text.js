@@ -9,8 +9,8 @@
     ta.style.opacity = "0";
     document.body.appendChild(ta);
     ta.select();
-    var ok = false;
-    try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+    var ok;
+    try { ok = document.execCommand("copy"); } catch { ok = false; }
     document.body.removeChild(ta);
     return ok;
   }

@@ -371,16 +371,23 @@ test("favorites toggle: missing/zero/non-numeric bookId is a 400 for a logged-in
   assert.equal((await postJson(user.jar, "/api/favorites/toggle", { isFavorite: "1" })).status, 400);
 });
 
-// BUG: no existence check before the INSERT, so favoriting a well-formed id
-// that isn't a book hits the favorites.book_id foreign key and returns a 500
-// (and spends the alertOnError throttle window) instead of a 4xx.
-test("favorites toggle: an unknown (well-formed) book id is rejected with a 4xx, not a 500",
-  { todo: "POST /api/favorites/toggle with a non-existent bookId returns 500 (FK violation) instead of a 4xx" },
-  async () => {
-    const user = await makeLoggedInUser({ member: false });
-    const r = await postJson(user.jar, "/api/favorites/toggle", { bookId: "999999999", isFavorite: "1" });
-    assert.ok(r.status >= 400 && r.status < 500, `got ${r.status}`);
-  });
+// A well-formed id that is not a book must not reach the favorites.book_id
+// foreign key (a 500, which also spends the alertOnError throttle window).
+test("favorites toggle: an unknown (well-formed) book id is a 404, never a 500", async () => {
+  const user = await makeLoggedInUser({ member: false });
+  const r = await postJson(user.jar, "/api/favorites/toggle", { bookId: "999999999", isFavorite: "1" });
+  assert.equal(r.status, 404);
+  // removing a favourite of a book that does not exist is a harmless no-op
+  assert.equal((await postJson(user.jar, "/api/favorites/toggle", { bookId: "999999999", isFavorite: "" })).status, 204);
+});
+
+test("favorites toggle: huge, negative, fractional, exponent, NaN and non-string ids are 400/404, never a 500", async () => {
+  const user = await makeLoggedInUser({ member: false });
+  for (const bookId of ["1e21", "-5", "1.5", "NaN", "Infinity", "2147483648", "99999999999999999999", " 7", "0x10", 1e21, -5, 1.5, NaN, null, [], {}]) {
+    const r = await postJson(user.jar, "/api/favorites/toggle", { bookId, isFavorite: "1" });
+    assert.ok([400, 404].includes(r.status), `bookId=${JSON.stringify(bookId)} gave ${r.status}`);
+  }
+});
 
 // ------------------------------------------------------------ book detail
 

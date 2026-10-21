@@ -27,16 +27,21 @@ jobs:
   test-alert:
     runs-on: ubuntu-latest
     steps:
-      - name: Send the test email
-        uses: dawidd6/action-send-mail@67ce3558d613188179559c61d3565140cf389968 # v22
+      - name: Fetch the alert-mail action
+        # A local action is read from the workspace. This also makes the weekly test exercise exactly the path a real alert uses.
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          server_address: smtp.gmail.com
-          server_port: 465
+          sparse-checkout: .github/actions
+          persist-credentials: false
+
+      - name: Send the test email
+        uses: ./.github/actions/send-alert-mail
+        with:
           username: ${{ secrets.GMAIL_USER }}
           password: ${{ secrets.GMAIL_APP_PASSWORD }}
           subject: "[umas-books] TEST alert - the alert emails work"
           to: ${{ vars.ALERT_TO || 'admin@umasbooks.org' }}
-          from: "Uma's Books Backup Monitor <${{ secrets.GMAIL_USER }}>"
+          from-name: "Uma's Books Backup Monitor"
           body: |
             This is a test. If you can read this, failure alerts from GitHub will reach you.
 

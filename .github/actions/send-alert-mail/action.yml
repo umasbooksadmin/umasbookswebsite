@@ -1,0 +1,53 @@
+name: Send an alert email
+description: >-
+  The one place the Gmail SMTP settings and the pinned third-party mail action
+  live. Used by every workflow that emails (uptime, backups, exports, test
+  alert). A composite action cannot read secrets or variables itself, so the
+  calling workflow passes GMAIL_USER / GMAIL_APP_PASSWORD and the recipient in
+  as inputs. The calling workflow must have checked this repository out first
+  (a sparse checkout of .github/actions is enough), because a local action is
+  read from the workspace.
+
+inputs:
+  username:
+    description: The Gmail account (the repository secret GMAIL_USER).
+    required: true
+  password:
+    description: The Gmail app password (the repository secret GMAIL_APP_PASSWORD).
+    required: true
+  to:
+    description: Recipient(s), for example vars.ALERT_TO || 'admin@umasbooks.org'.
+    required: true
+  from-name:
+    description: Display name of the sender; the address is the Gmail account.
+    required: true
+  subject:
+    description: Subject line.
+    required: true
+  body:
+    description: The text, or file://path to read it from (relative to the workspace).
+    required: true
+  attachments:
+    description: Comma-separated file globs, relative to the workspace. Empty for none.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Send the email
+      # always(): the caller decides WHEN to send with its own `if` (often
+      # failure()); this must not be skipped just because an earlier step of
+      # the caller's job failed, which is exactly when an alert matters.
+      if: always()
+      uses: dawidd6/action-send-mail@67ce3558d613188179559c61d3565140cf389968 # v22
+      with:
+        server_address: smtp.gmail.com
+        server_port: 465
+        username: ${{ inputs.username }}
+        password: ${{ inputs.password }}
+        subject: ${{ inputs.subject }}
+        to: ${{ inputs.to }}
+        from: "${{ inputs.from-name }} <${{ inputs.username }}>"
+        body: ${{ inputs.body }}
+        attachments: ${{ inputs.attachments }}

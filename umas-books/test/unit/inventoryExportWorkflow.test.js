@@ -75,5 +75,5 @@ test("installs only runtime dependencies and logs counts only", () => {
 });
 
 test("actions are pinned to full commit SHAs", () => {
-  for (const m of code.matchAll(/uses: (\S+)/g)) assert.match(m[1], /@[0-9a-f]{40}$/, m[1]);
+  for (const m of code.matchAll(/uses: (\S+)/g)) assert.match(m[1], /^(\.\/\.github\/actions\/send-alert-mail|\S+@[0-9a-f]{40})$/, m[1]);
 });
