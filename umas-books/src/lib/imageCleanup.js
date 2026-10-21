@@ -64,6 +64,28 @@ function notReferencedSql(alias = "i") {
   return `NOT EXISTS (SELECT 1 FROM (\n        ${referencedIdsSql()}\n      ) refs WHERE refs.id = ${alias}.id)`;
 }
 
+// Runs one statement in a short transaction with JIT off (and optionally a
+// statement timeout). The planner cannot know how many ids the regexp scans
+// produce (it assumes 1000 per row), so its cost estimate is huge and a
+// server with JIT enabled would spend seconds compiling this query for
+// milliseconds of work.
+async function queryNoJit(pool, sql, params, timeoutMs = 0) {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SET LOCAL jit = off");
+    if (timeoutMs > 0) await client.query(`SET LOCAL statement_timeout = ${Math.floor(timeoutMs)}`);
+    const res = await client.query(sql, params);
+    await client.query("COMMIT");
+    return res;
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 function ageDays(minAgeDays) {
   const n = Number(minAgeDays);
   if (!Number.isFinite(n) || n < 0) throw new Error("minAgeDays must be a non-negative number");
@@ -73,7 +95,8 @@ function ageDays(minAgeDays) {
 // Unused images at least minAgeDays old, oldest first, at most `limit`.
 // -> [{ id, byte_size, created_at }]
 async function findUnusedImages(pool, { minAgeDays = 0, limit = BATCH_LIMIT } = {}) {
-  const { rows } = await pool.query(
+  const { rows } = await queryNoJit(
+    pool,
     `SELECT i.id, i.byte_size, i.created_at
        FROM images i
       WHERE i.created_at < now() - make_interval(secs => $1 * 86400)
@@ -95,20 +118,7 @@ async function countUnusedImages(pool, { minAgeDays = DEFAULT_MIN_AGE_DAYS, time
       WHERE i.created_at < now() - make_interval(secs => $1 * 86400)
         AND ${notReferencedSql("i")}`;
   const params = [ageDays(minAgeDays)];
-  if (!(timeoutMs > 0)) return (await pool.query(sql, params)).rows[0].n;
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    await client.query(`SET LOCAL statement_timeout = ${Math.floor(timeoutMs)}`);
-    const { rows } = await client.query(sql, params);
-    await client.query("COMMIT");
-    return rows[0].n;
-  } catch (err) {
-    await client.query("ROLLBACK").catch(() => {});
-    throw err;
-  } finally {
-    client.release();
-  }
+  return (await queryNoJit(pool, sql, params, timeoutMs)).rows[0].n;
 }
 
 // The dashboard's version: never waits longer than timeoutMs, computed at most
@@ -133,7 +143,8 @@ async function purgeUnusedImages(pool, { minAgeDays = DEFAULT_MIN_AGE_DAYS, dryR
     const rows = await findUnusedImages(pool, { minAgeDays: days });
     return { candidates: rows.length, deleted: 0, bytes: rows.reduce((s, r) => s + r.byte_size, 0), dryRun: true };
   }
-  const { rows } = await pool.query(
+  const { rows } = await queryNoJit(
+    pool,
     `DELETE FROM images
       WHERE id IN (
         SELECT i.id FROM images i
