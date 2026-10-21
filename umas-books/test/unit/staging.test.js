@@ -188,7 +188,7 @@ test("render.staging.yaml: separate file, staging names, no production secrets, 
   assert.match(y, /region: frankfurt/);
   assert.match(y, /healthCheckPath: \/healthz/);
   assert.match(y, /preDeployCommand: npm run migrate/);
-  assert.match(y, /startCommand: npm run seed; npm start/);
+  assert.match(y, /startCommand: npm run seed; exec node src\/index\.js/);
   assert.match(y, /key: SESSION_SECRET\n\s+generateValue: true/);
   assert.match(y, /key: STAGING_MAIL_TO\n\s+sync: false/);
   assert.match(y, /key: PRODUCTION_DATABASE_HOST\n\s+sync: false/);

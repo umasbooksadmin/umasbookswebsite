@@ -54,8 +54,8 @@ alphabetical order on the page, so use this list. The letter `j` is deliberately
 
 **Important:** on every deploy Render first runs `npm run migrate` (the
 *Pre-Deploy Command*; if it fails the deploy stops and the old version keeps
-running), then starts the site with `npm run seed; npm start`
-(`render.yaml`; the seed can never block the start). Migrations (database changes) are applied once and recorded. Redeploying an old commit
+running), then starts the site with `npm run seed; exec node src/index.js`
+(`render.yaml`; the seed can never block the start; `exec` makes node receive Render's stop signal itself). Migrations (database changes) are applied once and recorded. Redeploying an old commit
 does **not** undo them. The old code then runs against the newer database,
 which usually works if the migration only added things, but can break if it
 renamed or removed something.
@@ -83,6 +83,19 @@ rolling back: do not roll back blindly.
 change). Follow "Restoring from a backup" in
 [`umas-books/README.md`](../umas-books/README.md#restoring-from-a-backup).
 Anything members did since that backup is lost.
+
+### Deploy settings that protect visitors during a deploy
+
+- **Stop signal (SIGTERM).** The start command ends in `exec node src/index.js` (not `npm start`) so that
+  Render's SIGTERM reaches node, which then finishes in-flight requests and saves the lookup statistics
+  before exiting. Check after the next deploy: Render dashboard > `umas-books` > **Logs**, around the time the
+  new version went live, shows `SIGTERM received - shutting down gracefully.` followed by
+  `Shutdown complete.` (from the OLD instance as it stops). If you only see the old instance's log just stop
+  with no such lines, the signal is not arriving: tell a developer.
+- **Keep-alive timeout.** `src/lib/serverConfig.js` sets node's `keepAliveTimeout` to 65 s and `headersTimeout`
+  to 66 s (node's default of 5 s is shorter than what Render's proxy reuses connections for). The symptom
+  of the old setting was a sporadic 502 or "connection reset" on the first request after a quiet period, with
+  nothing in the app's logs. Do not lower these values.
 
 ## Accounts and secrets inventory
 
@@ -763,6 +776,9 @@ pair, English as the default), and `https://umasbooks.org/sitemap.xml` lists bot
 (home, the marketing pages, Contact, Events, Sessions, Request a book and every in-stock book), each with
 its `xhtml:link` alternates. `robots.txt` is unchanged and allows `/fr/`. Admin, cart, login, account and
 members pages have no French address and stay out of the index. The sitemap is cached for an hour.
+`/sitemap.xml` is an index: it points at `/sitemap-pages.xml` (static pages and published collections) and at
+`/sitemap-books-1.xml`, `-2.xml`, ... with 10,000 in-stock books (20,000 addresses) per file, newest books first.
+Submit only `sitemap.xml`; Google follows the index.
 
 **Google Search Console** (free; needs a Google account that stays with the shop, ideally the shop's own):
 
