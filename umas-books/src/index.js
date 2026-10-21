@@ -520,8 +520,8 @@ server.on("error", (err) => {
 // public/admin inventory routes already expire stale reservations on
 // read, which is what actually keeps the displayed status correct, but
 // this catches it too whenever the process happens to be awake with no
-// traffic (Render's free tier can sleep, so a timer alone isn't reliable
-// on its own). Pickup-reminder emails (3 days before expiry) only ever
+// traffic (the process can restart or be mid-deploy, so a timer alone isn't
+// reliable on its own). Pickup-reminder emails (RESERVATION_REMINDER_DAYS_BEFORE, lib/legal.js) only ever
 // run from here, not on page reads — sending mail is a side effect that
 // doesn't belong in a GET request's hot path.
 //

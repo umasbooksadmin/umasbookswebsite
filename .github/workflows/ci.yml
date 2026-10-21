@@ -12,7 +12,7 @@ on:
   workflow_dispatch: {}
 
 # Actions minutes: the repository is private and the Free plan has 2,000 minutes
-# a month; a full run is about 20 billed minutes (smoke-crawl 10, test 6, the
+# a month; a full run is about 20 billed minutes (smoke-crawl 10, test 5, the
 # other four 1 each). Every job below still ALWAYS runs and reports success, so
 # the six required check names never go missing or stay "Pending" (a workflow
 # skipped with `paths:` filters would block merges). Instead, the first step of
@@ -70,7 +70,7 @@ jobs:
     # real app as a child process against this job's own Postgres
     # service and hit it over real HTTP (see test/integration/).
     runs-on: ubuntu-latest
-    # About 5-6 minutes in practice (the suite is ~2,200 tests); 12 leaves
+    # About 5-6 minutes in practice (the suite is about 2,640 tests); 12 leaves
     # double headroom and stops a hung test burning minutes. The duration is
     # printed in the job summary so the trend is visible before it nears this.
     timeout-minutes: 12
