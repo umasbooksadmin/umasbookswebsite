@@ -42,7 +42,7 @@ test("restore test: all the important tables must exist, and the dump's newest m
   }
   assert.match(r, /max\(filename\) FROM public\.schema_migrations/);
   assert.match(r, /umas-books\/migrations/);
-  assert.match(r, /sparse-checkout: umas-books\/migrations/);
+  assert.match(r, /sparse-checkout: \|\n\s+umas-books\/migrations\n\s+\.github\/actions\n/);
   assert.match(r, /::error::The dump is OLDER than the repository/);
   // every migration table the restore test names really exists in a migration
   const sql = fs.readdirSync(path.join(repo, "umas-books", "migrations")).map((f) => fs.readFileSync(path.join(repo, "umas-books", "migrations", f), "utf8")).join("\n");

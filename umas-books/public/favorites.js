@@ -11,13 +11,13 @@
     try {
       var raw = JSON.parse(localStorage.getItem(KEY) || "[]");
       return Array.isArray(raw) ? raw.filter(function (n) { return Number.isInteger(n); }) : [];
-    } catch (e) {
+    } catch {
       return [];
     }
   }
 
   function setFavorites(ids) {
-    try { localStorage.setItem(KEY, JSON.stringify(ids)); } catch (e) {}
+    try { localStorage.setItem(KEY, JSON.stringify(ids)); } catch { /* storage unavailable (private mode): favorites just are not remembered */ }
   }
 
   function isFavorite(id) { return getFavorites().indexOf(id) !== -1; }

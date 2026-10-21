@@ -471,8 +471,10 @@ actually uses.
   alert goes to the repository variable `ALERT_TO`, default admin@umasbooks.org; a
   weekly "Send a test alert" proves the channel; the restore test also checks
   the dump holds the till, shop, outbox and audit tables and the newest migration;
-  the freshness check also watches the `monthly/` copy):
-  `uptime-check.yml` polls `/healthz` every 30 minutes (Actions minutes are metered on a private repo) and emails once on
+  the freshness check also watches the `monthly/` copy; every email goes through the one local
+  composite action `.github/actions/send-alert-mail`, which holds the Gmail SMTP settings and the
+  pinned mail action):
+  `uptime-check.yml` polls `/healthz` every hour (Actions minutes are metered on a private repo) and emails once on
   the second consecutive failure and once on recovery;
   `nightly-db-backup.yml` uploads one complete `pg_dump` (image bytes
   included, login sessions excluded) to the private Backblaze B2 bucket and
@@ -1051,8 +1053,8 @@ Render Blueprint) at the repo root:
    none exists and the email is free, plus sample content in that same run),
    never touches an existing account or password, and never blocks startup
    (failures are logged and emailed, exit code 0; `;` rather than `&&`). Rolling back to an older commit does NOT undo migrations.
-   The Node version is pinned to 22 (`engines` in `package.json`,
-   `.node-version`, CI's `NODE_VERSION`), and `render.yaml` sets
+   The Node version is pinned to 22 (`engines` in `package.json` and
+   `.node-version`, which every GitHub workflow reads through `node-version-file`), and `render.yaml` sets
    `healthCheckPath: /healthz` (a `SELECT 1`) so a deploy that can't
    reach the database never goes live.
 4. Migrate runs as Render's pre-deploy command and seed in `startCommand`.

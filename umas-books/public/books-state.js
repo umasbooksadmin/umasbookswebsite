@@ -22,7 +22,7 @@
   function parse(search, genres) {
     var out = empty();
     var params;
-    try { params = new URLSearchParams(String(search || '')); } catch (e) { return out; }
+    try { params = new URLSearchParams(String(search || '')); } catch { return out; }
     var q = (params.get('q') || '').replace(/\s+/g, ' ').trim().slice(0, MAX_Q);
     var genre = params.get('genre') || '';
     if (q) { out.q = q; return out; }

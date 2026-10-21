@@ -4,5 +4,5 @@
 // block instead of an inline script lets the marketing CSP drop 'unsafe-inline'.
 (function () {
   var el = document.getElementById('page-i18n-data');
-  try { window.PAGE_I18N = el ? JSON.parse(el.textContent) : { en: {}, fr: {} }; } catch (e) { window.PAGE_I18N = { en: {}, fr: {} }; }
+  try { window.PAGE_I18N = el ? JSON.parse(el.textContent) : { en: {}, fr: {} }; } catch { window.PAGE_I18N = { en: {}, fr: {} }; }
 })();

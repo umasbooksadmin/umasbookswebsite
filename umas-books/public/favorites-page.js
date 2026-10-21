@@ -16,7 +16,7 @@
     n = Number(n);
     if (!isFinite(n)) return "";
     if (!fr) return "€" + n.toFixed(2);
-    try { return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(n); } catch (e) { return n.toFixed(2).replace(".", ",") + "\u00a0€"; }
+    try { return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(n); } catch { return n.toFixed(2).replace(".", ",") + "\u00a0€"; }
   }
 
   function esc(s) {

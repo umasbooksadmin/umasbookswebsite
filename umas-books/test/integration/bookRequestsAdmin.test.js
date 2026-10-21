@@ -296,11 +296,16 @@ test("Notify and hold: emails, reserves the copy so the hold ends in 7 days, and
   assert.equal(cp.status, "reserved");
   assert.equal(cp.reserved_by_email, m.email);
   assert.equal(cp.reserved_by_name, "Req Person");
+  // The product counts CALENDAR days in the database session time zone
+  // (reserved_at = now() - 7 days; the sweep expires at reserved_at + 14 days),
+  // so across a clock change (Paris: late March / late October) "7 days left"
+  // is 167 or 169 real hours, not 168. Compare in hours with a 2 hour margin:
+  // still catches a wrong day count, no longer depends on the date or the TZ.
   const { rows } = await pool.query(
-    "SELECT extract(epoch FROM (reserved_at + interval '14 days' - now())) / 86400 AS days_left FROM book_copies WHERE id = $1",
+    "SELECT extract(epoch FROM (reserved_at + interval '14 days' - now())) / 3600 AS hours_left FROM book_copies WHERE id = $1",
     [m.copyId]
   );
-  assert.ok(Math.abs(Number(rows[0].days_left) - 7) < 0.01, `hold ends in ${rows[0].days_left} days`);
+  assert.ok(Math.abs(Number(rows[0].hours_left) - 7 * 24) <= 2, `hold ends in ${rows[0].hours_left} hours`);
   assert.ok(cp.reminder_sent_at, "reminder is marked as handled");
 
   // the day-11 pickup reminder stays quiet, now and when the hold is older

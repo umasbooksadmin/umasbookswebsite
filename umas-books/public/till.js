@@ -29,7 +29,7 @@
     var parts = t.split(".");
     return Number(parts[0]) * 100 + Number(((parts[1] || "") + "00").slice(0, 2));
   }
-  function store(fn) { try { fn(window.sessionStorage); } catch (e) { /* storage unavailable */ } }
+  function store(fn) { try { fn(window.sessionStorage); } catch { /* storage unavailable */ } }
   function save() {
     store(function (s) {
       if (lines.length) s.setItem(STORE, JSON.stringify({ token: token, lines: lines, cardPaid: cardPaid, chargedTotal: chargedTotal }));
@@ -80,8 +80,8 @@
 
   // ---------- messages and beep ----------
   var beepBox = $("beep");
-  store(function () { try { var v = window.localStorage.getItem("till-beep"); if (v === "0") beepBox.checked = false; } catch (e) { /* */ } });
-  beepBox.addEventListener("change", function () { try { window.localStorage.setItem("till-beep", beepBox.checked ? "1" : "0"); } catch (e) { /* */ } });
+  store(function () { try { var v = window.localStorage.getItem("till-beep"); if (v === "0") beepBox.checked = false; } catch { /* */ } });
+  beepBox.addEventListener("change", function () { try { window.localStorage.setItem("till-beep", beepBox.checked ? "1" : "0"); } catch { /* */ } });
   var audio = null;
   function beep() {
     if (!beepBox.checked) return;
@@ -91,7 +91,7 @@
       o.type = "square"; o.frequency.value = 220; g.gain.value = 0.15;
       o.connect(g); g.connect(audio.destination);
       o.start(); o.stop(audio.currentTime + 0.35);
-    } catch (e) { /* no audio */ }
+    } catch { /* no audio */ }
   }
   var msg = $("till-msg");
   function showError(text) {
@@ -138,7 +138,7 @@
   }
   // A message inside a modal (the check, a refusal) is scrolled into view: it never sits off screen.
   function reveal(box) {
-    if (box && box.scrollIntoView) { try { box.scrollIntoView({ block: "nearest" }); } catch (e) { /* old browser */ } }
+    if (box && box.scrollIntoView) { try { box.scrollIntoView({ block: "nearest" }); } catch { /* old browser */ } }
   }
   function show(id) {
     var m = $(id);
@@ -283,8 +283,8 @@
     return fetch(url, { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json" }, body: body.toString() })
       .then(function (r) {
         return r.text().then(function (t) {
-          var j = null;
-          try { j = JSON.parse(t); } catch (e) { j = null; }
+          var j;
+          try { j = JSON.parse(t); } catch { j = null; }
           // The admin session ended (8 hours idle or 7 days): say so loudly and keep the sale.
           if (r.status === 401 && j && j.error === "session_expired") { showSessionEnded(j.loginUrl); j = null; }
           return { status: r.status, json: j, redirected: r.redirected };

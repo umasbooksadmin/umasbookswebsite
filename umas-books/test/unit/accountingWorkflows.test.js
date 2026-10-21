@@ -55,7 +55,7 @@ test("monthly: read-only permissions, concurrency, 10 minute timeout, no artifac
   assert.match(monthly, /^concurrency:\n {2}group: accounting-export\n {2}cancel-in-progress: false$/m);
   assert.match(monthly, /timeout-minutes: 10\b/);
   assert.doesNotMatch(monthly, /upload-artifact|download-artifact/);
-  for (const m of monthly.matchAll(/uses: ([^\s]+)/g)) assert.match(m[1], /@[0-9a-f]{40}$/, `${m[1]} is pinned to a commit`);
+  for (const m of monthly.matchAll(/uses: ([^\s]+)/g)) assert.match(m[1], /^(\.\/\.github\/actions\/send-alert-mail|.+@[0-9a-f]{40})$/, `${m[1]} is pinned to a commit (or is the local alert-mail action)`);
 });
 
 test("monthly: only these secrets and variables are used, by name (never a value)", () => {
@@ -77,7 +77,7 @@ test("monthly: emails both CSVs to ACCOUNTING_TO, else ALERT_TO; failure alert g
   const mail = stepNamed(monthly, /Email the two CSV files/);
   assert.match(mail, /to: \$\{\{ vars\.ACCOUNTING_TO \|\| vars\.ALERT_TO \|\| 'admin@umasbooks\.org' \}\}/);
   assert.match(mail, /attachments: accounting-out\/accounting_\*\.csv,accounting-out\/till_days_\*\.csv/);
-  assert.match(mail, /dawidd6\/action-send-mail@[0-9a-f]{40}/);
+  assert.match(mail, /uses: \.\/\.github\/actions\/send-alert-mail/);
   const alert = stepNamed(monthly, /Alert admin/);
   assert.match(alert, /to: \$\{\{ vars\.ALERT_TO \|\| 'admin@umasbooks\.org' \}\}/);
   assert.doesNotMatch(alert, /ACCOUNTING_TO/);

@@ -1,6 +1,6 @@
 name: Site uptime check
 
-# Hits /healthz (see umas-books/src/index.js) every 30 minutes — that
+# Hits /healthz (see umas-books/src/index.js) every hour — that
 # route does a real SELECT 1, not just "is the process responding", so
 # this actually catches a broken database connection even while the
 # homepage keeps returning 200 (see the 2026-09-26 incident: the site
@@ -18,17 +18,19 @@ name: Site uptime check
 # are metered, and every run is billed as a whole minute. Every 10 minutes
 # was ~4,300 billed minutes a month on its own — more than a Pro plan's
 # 3,000-minute allowance — and when the allowance runs out, workflows
-# (including the nightly database backup) stop running. Every 30 minutes is
-# ~1,440 a month and still alerts within about an hour of an outage. For
-# faster detection use a free external monitor (UptimeRobot, Better Stack)
-# on /healthz instead of raising this.
+# (including the nightly database backup) stop running. Every 30 minutes was
+# ~1,440 a month, most of the 2,000-minute pool shared with CI, the backups
+# and the exports; hourly is ~720 and still alerts within about two hours of
+# an outage (the alert is sent on the 2nd failed check). Fast detection is the
+# job of the free external monitor (UptimeRobot, every 5 minutes, see
+# docs/runbook.md) on /healthz: do not raise this frequency.
 #
 # Email policy: one alert per outage (on the 2nd consecutive failed
 # check), then silence, then one "recovered" email. See the "decide" step.
 
 on:
   schedule:
-    - cron: "*/30 * * * *"
+    - cron: "7 * * * *" # hourly, at minute 7 (off the busy :00 / :30 slots)
   workflow_dispatch: {}
 
 permissions:
@@ -104,19 +106,25 @@ jobs:
           echo "alert=$ALERT" >> "$GITHUB_OUTPUT"
           echo "recovered=$RECOVERED" >> "$GITHUB_OUTPUT"
 
+      - name: Fetch the alert-mail action
+        # A local action is read from the workspace, so fetch just .github/actions (a few KB), and only when an email is about to be sent.
+        if: steps.decide.outputs.alert == 'true' || steps.decide.outputs.recovered == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: .github/actions
+          persist-credentials: false
+
       - name: Send alert email (second consecutive failure, once per outage)
         if: steps.decide.outputs.alert == 'true'
-        uses: dawidd6/action-send-mail@67ce3558d613188179559c61d3565140cf389968 # v22
+        uses: ./.github/actions/send-alert-mail
         with:
-          server_address: smtp.gmail.com
-          server_port: 465
           username: ${{ secrets.GMAIL_USER }}
           password: ${{ secrets.GMAIL_APP_PASSWORD }}
           subject: "[umas-books] Site health check failing (status ${{ steps.health.outputs.status }})"
           to: ${{ vars.ALERT_TO || 'admin@umasbooks.org' }}
-          from: "Uma's Books Uptime Monitor <${{ secrets.GMAIL_USER }}>"
+          from-name: "Uma's Books Uptime Monitor"
           body: |
-            ${{ env.SITE_URL }}/healthz has failed two checks in a row (about 30 minutes apart), status ${{ steps.health.outputs.status }}.
+            ${{ env.SITE_URL }}/healthz has failed two checks in a row (about an hour apart), status ${{ steps.health.outputs.status }}.
 
             This means either the site is fully down, or it's up but can't reach the database — /healthz checks both.
 
@@ -127,15 +135,13 @@ jobs:
 
       - name: Send recovery email (first healthy check after an alerted outage)
         if: steps.decide.outputs.recovered == 'true'
-        uses: dawidd6/action-send-mail@67ce3558d613188179559c61d3565140cf389968 # v22
+        uses: ./.github/actions/send-alert-mail
         with:
-          server_address: smtp.gmail.com
-          server_port: 465
           username: ${{ secrets.GMAIL_USER }}
           password: ${{ secrets.GMAIL_APP_PASSWORD }}
           subject: "[umas-books] Site health check recovered"
           to: ${{ vars.ALERT_TO || 'admin@umasbooks.org' }}
-          from: "Uma's Books Uptime Monitor <${{ secrets.GMAIL_USER }}>"
+          from-name: "Uma's Books Uptime Monitor"
           body: |
             ${{ env.SITE_URL }}/healthz is responding normally again (status 200).
 
