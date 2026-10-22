@@ -157,6 +157,13 @@ rather than by a numbered migration), grouped by what they belong to:
   through hidden fields and `public/inventory-location.js` (localStorage);
   `/admin/inventory/move` moves one copy per scanned ISBN (`parseScan`), and
   each move writes a `copy.move` audit row (location codes only).
+- **Saving a copy is idempotent** (`POST /admin/inventory`, migration 093
+  `copy_intake_tokens`, `src/lib/intakeToken.js`): the Add Book / fast-scan form carries a
+  random `intakeToken` (a fresh one per page and, in `public/scan-intake.js`, per saved
+  copy). The server claims it before creating anything; the same token again within 10
+  minutes returns the first result (same copy id, no new copy, no second AI/awards
+  follow-up). A failed save releases the token. A post without a token (a page cached
+  from before) still saves as before and logs a warning.
 - **Awards & best-seller lists** — `book_awards` (migration 050, tightened by
   079) plus `books.awards_checked_at / awards_check_state`. Code in
   `src/lib/awards/`: `wikidata.js` (SPARQL by ISBN, awards P166 and
@@ -670,6 +677,12 @@ others. `lib/totp.js` (hand-rolled on `node:crypto`), `routes/twoFactor.js`
   email, the action and a numeric target id, never member emails, names or
   message text, and never throws. Purged after 12 months by
   `purgeExpiredPersonalData`; keep the privacy policy in step.
+- Account switches (Member, Volunteer, Till, Admin, Deactivate): the form posts
+  `desired=on|off` and `lib/accountRoles.js` `setAccountFlag` sets that exact value
+  (idempotent: a double click or stale page cannot undo a change; no audit row when
+  nothing changed; the audit detail has the old and new value). The last active admin
+  cannot be demoted or deactivated: the check runs in the same transaction as the
+  update, under a lock on every admin row, so two admins cannot remove each other.
 - Right of access / portability: admin → Members → member detail →
   **Download data (JSON)** (`GET /admin/members/:id/export.json`, admin only,
   `no-store`) returns the account and everything held under its email or id
@@ -1200,6 +1213,10 @@ names the files; read those for the details. Operations for these are in
   `src/routes/admin/collections.js` (English only); public
   `src/routes/collections.js`; AI helper `src/lib/collectionSuggestions.js`;
   French text `src/lib/collectionTranslate.js`; pictures `src/lib/collectionImages.js`.
+- **Atomic writes**: publish, the Approve/Reject ticks (`saveDecisions`), removing a
+  book and reordering run in one transaction under a row lock on the collection
+  (`lockCollection`), so publishing cannot interleave with un-approving the last book
+  and a failure part-way saves nothing.
 - **Review is mandatory.** The AI only writes `suggested` rows. An admin approves
   or rejects each book and presses Publish; a collection with no approved book or
   no French title and description cannot be published. Customers see only
