@@ -39,7 +39,11 @@ services:
     # when it fails (logging loudly and emailing an alert), and ";" rather
     # than "&&" makes sure of it, because a seed problem must never turn
     # into a crash loop on the live site.
-    startCommand: npm run seed; npm start
+    # "exec node src/index.js" (what "npm start" runs) replaces the shell with node, so
+    # Render's SIGTERM at deploy reaches node itself and its graceful shutdown (in-flight
+    # requests finish, the lookup stats are saved). With "npm start" the signal could stop
+    # at the shell/npm wrapper.
+    startCommand: npm run seed; exec node src/index.js
     envVars:
       # NOT managed by the Blueprint (sync: false). The value is set BY HAND in
       # the Render dashboard (umas-books > Environment) and is the database's
@@ -132,7 +136,7 @@ services:
         sync: false
       # Online price check (uses ANTHROPIC_API_KEY above). PRICING_AI=1 switches it
       # on (unset/0 = off). PRICING_AI_DAILY_MAX = most lookups a day (default 150;
-      # 0 stops them). PRICING_AI_MODEL = optional different model. There is no
+      # 0 stops them). PRICING_AI_MODEL = optional different model.
       # AI_DAILY_MAX_CALLS = most Anthropic calls a day for ALL AI features together
       # (descriptions, translations, genres, cover photos and price checks; default
       # 600, 0 = AI off; runbook "AI limits"). PRICING_AI_DAILY_MAX is a part of it.

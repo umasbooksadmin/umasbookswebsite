@@ -1,5 +1,5 @@
 const express = require("express");
-const bcrypt = require("bcryptjs");
+const passwordHash = require("../../lib/passwordHash");
 const crypto = require("crypto");
 const { pool } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
@@ -14,6 +14,7 @@ const { buildMemberExport } = require("../../lib/memberExport");
 const { parseTypeFilter, typeFilterSql, accountBadges, accountTypeCounts, FILTER_LABELS } = require("../../lib/accountTypes");
 
 const { validateIdParams } = require("../../middleware/idParams");
+const { likeContains, parseIntParam } = require("../../lib/parseParams");
 
 const router = express.Router();
 // Garbage ids get the 404 page, not a Postgres 22P02 and a 500.
@@ -93,12 +94,12 @@ router.get("/admin/members", requireAdmin, async (req, res) => {
   const status = ["active", "inactive"].includes(req.query.status) ? req.query.status : "";
   const dateRange = req.query.dateRange || "";
   const sort = ["name_asc", "name_desc"].includes(req.query.sort) ? req.query.sort : "newest";
-  const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+  const page = parseIntParam(req.query.page, { min: 1, max: 1000000, default: 1 });
 
   const where = [];
   const params = [];
   if (q) {
-    params.push(`%${q}%`);
+    params.push(likeContains(q));
     where.push(`(u.display_name ILIKE $${params.length} OR u.email ILIKE $${params.length})`);
   }
   // Shared definitions with the Accounts report: lib/accountTypes.js.
@@ -171,7 +172,7 @@ router.get("/admin/members", requireAdmin, async (req, res) => {
     ({ rows: linkCandidates } = await pool.query(
       `SELECT id, email, display_name, email_verified_at IS NOT NULL AS verified, is_member
        FROM users WHERE NOT is_disabled AND (email ILIKE $1 OR display_name ILIKE $1) ORDER BY email LIMIT 10`,
-      [`%${linkQ.replace(/[\\%_]/g, "\\$&")}%`]
+      [likeContains(linkQ)]
     ));
   }
 
@@ -209,7 +210,7 @@ router.post("/admin/members", requireAdmin, async (req, res) => {
   // NOT NULL column and the account stays unusable until the invite
   // email's reset link (same flow as "Forgot password") lets them set
   // their own, exactly like a real signup would.
-  const placeholderHash = await bcrypt.hash(crypto.randomBytes(24).toString("hex"), 12);
+  const placeholderHash = await passwordHash.hash(crypto.randomBytes(24).toString("hex"));
   // email_verified_at is set immediately here (unlike a real signup) —
   // an admin is already vouching for this being the right email for a
   // real person, and the invite link below needs to be clicked from that

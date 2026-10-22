@@ -6,6 +6,7 @@
 // leaves the page). Nothing here publishes anything by itself: publishing is an admin's button (publishCollection).
 
 const { localCover } = require("./coverStore");
+const { likeContains } = require("./parseParams");
 
 // A copy that can be bought now. 'reserved' and 'sold' copies do not count.
 const IN_STOCK_SQL = (bookId = "b.id") => `EXISTS (SELECT 1 FROM book_copies c WHERE c.book_id = ${bookId} AND c.status = 'in_stock')`;
@@ -219,7 +220,7 @@ async function searchInStock(pool, q, limit = 20) {
      WHERE ${IN_STOCK_SQL()}
        AND (b.title ILIKE $1 OR b.authors ILIKE $1 OR ($2 <> '' AND length($2) >= 8 AND regexp_replace(COALESCE(b.isbn, ''), '[^0-9Xx]', '', 'g') = $2))
      ORDER BY b.title_sort, b.id LIMIT $3`,
-    [`%${text.replace(/[%_\\]/g, (m) => "\\" + m)}%`, digits, limit]
+    [likeContains(text), digits, limit]
   );
   return rows;
 }

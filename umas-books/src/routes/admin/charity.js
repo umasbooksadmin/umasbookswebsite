@@ -8,7 +8,8 @@ const { parseLocalDateTime } = require("../../lib/dates");
 const { CHARITY_CATEGORIES } = require("../../lib/charityCategories");
 
 const { validateIdParams } = require("../../middleware/idParams");
-const { cleanHttpUrl, parseId } = require("../../lib/validation");
+const { cleanHttpUrl, parseId, clean } = require("../../lib/validation");
+const { likeContains } = require("../../lib/parseParams");
 
 const router = express.Router();
 // Garbage ids get the 404 page, not a Postgres 22P02 and a 500.
@@ -41,7 +42,7 @@ const CHARITY_OPTION_SELECT = `
 router.get("/admin/charity", requireAdmin, async (req, res) => {
   const tab = ["current", "library", "ideas", "past"].includes(req.query.tab) ? req.query.tab : "current";
   const ideasSubTab = ["pending", "approved", "rejected"].includes(req.query.ideasTab) ? req.query.ideasTab : "pending";
-  const q = (req.query.q || "").trim();
+  const q = clean(req.query.q, 100);
 
   const { rows: activeRounds } = await pool.query("SELECT * FROM charity_rounds WHERE is_active = TRUE ORDER BY opens_at DESC LIMIT 1");
   const activeRound = activeRounds[0] || null;
@@ -56,7 +57,7 @@ router.get("/admin/charity", requireAdmin, async (req, res) => {
   const libParams = [];
   let libWhere = "WHERE is_archived = FALSE";
   if (q) {
-    libParams.push(`%${q}%`);
+    libParams.push(likeContains(q));
     libWhere += ` AND (name ILIKE $${libParams.length} OR category ILIKE $${libParams.length})`;
   }
   const { rows: libraryCharities } = await pool.query(`SELECT * FROM charities ${libWhere} ORDER BY name ASC`, libParams);

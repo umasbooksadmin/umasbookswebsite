@@ -798,6 +798,48 @@ test("copy update: sets condition/status/price/cost/date/notes and normalises ba
   assert.deepEqual([c.condition, c.status, c.price, c.acquisition_cost, c.acquired_at, c.notes], ["very_good", "damaged", null, null, null, null]);
 });
 
+test("admin search: % and _ are literal characters, an array q does not crash, and normal search is unchanged", async () => {
+  const t = tag();
+  await seedBook({ title: `Plain ${t} Alpha` });
+  await seedBook({ title: `Percent ${t} 100% Done` });
+  const wild = await get("/admin/inventory?q=__");
+  assert.equal(wild.status, 200);
+  assert.ok(!wild.text.includes(`Plain ${t} Alpha`), "'__' is not 'any two characters'");
+  assert.ok(!(await get("/admin/inventory?q=%25")).text.includes(`Plain ${t} Alpha`), "'%' is not 'everything'");
+  const literal = await get(`/admin/inventory?q=${encodeURIComponent(`${t} 100%`)}`);
+  assert.ok(literal.text.includes(`Percent ${t} 100% Done`), "a real percent sign still matches");
+  assert.ok(!literal.text.includes(`Plain ${t} Alpha`));
+  const normal = await get(`/admin/inventory?q=${t}`);
+  assert.ok(normal.text.includes(`Plain ${t} Alpha`) && normal.text.includes(`Percent ${t} 100% Done`));
+  assert.equal((await get("/admin/inventory?q=a&q=b")).status, 200);
+});
+
+test("add: a bad acquired date is refused with a friendly message and saves nothing (no 500)", async () => {
+  const title = `BadDate ${tag()}`;
+  for (const bad of ["not-a-date", "2026-02-31", "99999-01-01", "0000-01-01", "1e5"]) {
+    const { status, text } = await followPost("/admin/inventory", { fields: { title, price: "5", acquiredAt: bad } });
+    assert.equal(status, 200, bad);
+    assert.match(text, /Date acquired must be a real date, like 2026-07-15\./, bad);
+  }
+  assert.equal((await bookByTitle(title)).length, 0, "nothing half-saved");
+  const ok = await post("/admin/inventory", { fields: { title, price: "5", acquiredAt: "2026-07-15" } });
+  assert.equal(ok.status, 302);
+  assert.equal((await bookByTitle(title)).length, 1);
+});
+
+test("copy update: a bad acquired date is refused with the form shown again and the copy unchanged", async () => {
+  const b = await seedBook();
+  const [copyId] = b.copyIds;
+  const before = (await copiesOf(b.id))[0];
+  for (const bad of ["not-a-date", "2026-13-01", "99999-01-01"]) {
+    const r = await followPost(`/admin/inventory/${b.id}/copies/${copyId}`, { form: { condition: "good", price: "9", acquiredAt: bad } });
+    assert.ok(r.status < 500, bad);
+    assert.match(r.text, /Date acquired must be a real date/, bad);
+  }
+  const after = (await copiesOf(b.id))[0];
+  assert.deepEqual([after.condition, after.price], [before.condition, before.price]);
+});
+
 test("copy update: marking each status works (mark sold, donated, damaged, reserved)", async () => {
   const b = await seedBook();
   const [copyId] = b.copyIds;

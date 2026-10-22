@@ -5,14 +5,26 @@ const { CONDITIONS, bindingLabel, conditionLabel } = require("../lib/inventory")
 const { expireStaleReservations } = require("../lib/reservations");
 const { baseUrl } = require("../lib/baseUrl");
 const { clean, parseId } = require("../lib/validation");
+const { parseIntParam, parseLimitParam, parseIdList, likeContains } = require("../lib/parseParams");
 const { loadPublicAwards, awardsTextSql } = require("../lib/awards/display");
 
 const { validateIdParams } = require("../middleware/idParams");
 const { bookSearchLimiter } = require("../middleware/rateLimits");
 
-const { latestArrivals, newIn } = require("../lib/latestArrivals");
+const { latestArrivals, newInPage, BROWSE_CACHE_MS } = require("../lib/latestArrivals");
+const { cachedFor, cachedByKey } = require("../lib/runLimited");
 const { buildBookSeo } = require("../lib/bookSeo");
 const router = express.Router();
+// The public JSON lists below are the same for everyone (no session, no per-person data) and change slowly: a browser
+// or the CDN may keep them a minute, and the server computes each at most once per BROWSE_CACHE_MS (45 s; off under
+// NODE_ENV=test so tests see their own writes).
+const PUBLIC_JSON_CACHE = "public, max-age=60, s-maxage=60";
+const cacheTtl = () => (process.env.NODE_ENV === "test" ? 0 : BROWSE_CACHE_MS);
+// latest-arrivals has a few hundred possible (limit, days) pairs: one cached list for each, at most 100 kept.
+const latestArrivalsCached = cachedByKey((key) => {
+  const [limit, days] = key.split(":").map(Number);
+  return latestArrivals(pool, { limit, days });
+}, cacheTtl, 100);
 // Garbage ids get the 404 page, not a Postgres 22P02 and a 500.
 validateIdParams(router, "id");
 
@@ -63,14 +75,13 @@ router.get("/api/books/latest-arrivals", async (req, res) => {
   // reads independently of CORS unless relaxed here too.
   res.set("Access-Control-Allow-Origin", "*");
   res.set("Cross-Origin-Resource-Policy", "cross-origin");
-  res.set("Cache-Control", "public, max-age=60");
+  res.set("Cache-Control", PUBLIC_JSON_CACHE);
   // ?limit= (1–24, default 8) and ?days= (default 7; 0 = no time window,
   // i.e. simply the newest in-stock books — used by the Books page's
   // "New In" shelf so it's never empty during a quiet week).
-  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 8, 1), 24);
-  const daysParam = parseInt(req.query.days, 10);
-  const days = Number.isInteger(daysParam) && daysParam >= 0 ? Math.min(daysParam, 365) : 7;
-  const rows = await latestArrivals(pool, { limit, days });
+  const limit = parseLimitParam(req.query.limit, { max: 24, default: 8 });
+  const days = parseIntParam(req.query.days, { min: 0, max: 365, default: 7 });
+  const rows = await latestArrivalsCached(limit + ":" + days);
   res.json(
     rows.map((b) => ({
       id: b.id,
@@ -83,16 +94,16 @@ router.get("/api/books/latest-arrivals", async (req, res) => {
   );
 });
 
-// "New In" in pages: { total, books, nextOffset }. The Books page's carousel asks for ALL of it (?all=1, one request),
-// "See All New In" for 24 at a time until nextOffset is null. Newest first by the time the copy was added. Not the search limiter: no text search, one cheap query, cached a minute.
+// "New In" in batches: { total, books, nextOffset }. The Books page's carousel loads 60 at a time as the guest nears the
+// end of what is loaded ("See All New In" asks for 24 at a time) until nextOffset is null, so every new book can be reached
+// and no request is ever large. limit is 1-100 (default 24); an offset that is not a safe integer or is past the end gives
+// an empty batch. Newest first by the time the copy was added. Not the search limiter: no text search, answered from one
+// list kept in memory for 45 s (lib/latestArrivals.js newInPage). Anonymous-safe: nothing per person is in it.
 router.get("/api/books/new-in", async (req, res) => {
   res.set("Access-Control-Allow-Origin", "*");
   res.set("Cross-Origin-Resource-Policy", "cross-origin");
-  res.set("Cache-Control", "public, max-age=60");
-  const all = req.query.all === "1";
-  const limit = all ? null : Math.min(Math.max(parseInt(req.query.limit, 10) || 24, 1), 48);
-  const offset = all ? 0 : Math.max(parseInt(req.query.offset, 10) || 0, 0);
-  const { total, rows, nextOffset } = await newIn(pool, { offset, limit });
+  res.set("Cache-Control", PUBLIC_JSON_CACHE);
+  const { total, rows, nextOffset } = await newInPage(pool, { offset: req.query.offset, limit: req.query.limit });
   res.json({
     total,
     nextOffset,
@@ -114,10 +125,7 @@ router.get("/api/books/new-in", async (req, res) => {
 // Public JSON, cross-origin — the list of in-stock genres for the
 // marketing site's genre chips. Same CORS treatment as the other
 // /api/books/* endpoints on this page.
-router.get("/api/books/genres", async (req, res) => {
-  res.set("Access-Control-Allow-Origin", "*");
-  res.set("Cross-Origin-Resource-Policy", "cross-origin");
-  res.set("Cache-Control", "public, max-age=300");
+const genreList = cachedFor(async () => {
   const { rows } = await pool.query(
     `SELECT DISTINCT trim(g) AS genre
      FROM books b, unnest(string_to_array(b.categories, ',')) AS g
@@ -125,12 +133,20 @@ router.get("/api/books/genres", async (req, res) => {
        AND EXISTS (SELECT 1 FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock')
      ORDER BY genre ASC`
   );
-  res.json(rows.map((r) => r.genre));
+  return rows.map((r) => r.genre);
+}, cacheTtl);
+router.get("/api/books/genres", async (req, res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Cross-Origin-Resource-Policy", "cross-origin");
+  res.set("Cache-Control", "public, max-age=300, s-maxage=300");
+  res.json(await genreList());
 });
 
 // A free-text search shorter than this matches nearly everything and cannot use the
 // trigram indexes (migrations/088): answered with an empty list without touching the database.
 const SEARCH_MIN_LENGTH = 2;
+// No real catalogue is this deep; a bigger ?offset= is clamped to it (an empty page).
+const SEARCH_MAX_OFFSET = 100000;
 // The description is only searched from this length: shorter text (pg_trgm needs 3 characters)
 // would scan every description of the catalogue.
 const SEARCH_DESCRIPTION_MIN_LENGTH = 3;
@@ -145,7 +161,7 @@ router.get("/api/books/search", bookSearchLimiter, async (req, res) => {
   // ?topic=mystery,thriller,crime — the Books page's fixed genre buttons.
   // Matches any in-stock book whose categories contain one of the words,
   // since real inventory categories are free text (from ISBN lookups).
-  const topics = String(req.query.topic || "")
+  const topics = clean(req.query.topic, 300)
     .split(",")
     .map((t) => t.trim())
     .filter(Boolean)
@@ -154,14 +170,15 @@ router.get("/api/books/search", bookSearchLimiter, async (req, res) => {
   // ?paged=1 (the Books page): { books, total, nextOffset }, ?offset= and ?limit= (1-48, default 24), "Show more" 24 at a
   // time until nextOffset is null, so every book of a genre or search can be reached. Without it: the plain array, 60 books.
   const paged = req.query.paged === "1";
-  const limit = paged ? Math.min(Math.max(parseInt(req.query.limit, 10) || 24, 1), 48) : 60;
-  const offset = paged ? Math.max(parseInt(req.query.offset, 10) || 0, 0) : 0;
+  // offset is clamped to SEARCH_MAX_OFFSET: it is printed into the SQL, so it must be a small safe integer.
+  const limit = paged ? parseLimitParam(req.query.limit, { max: 48, default: 24 }) : 60;
+  const offset = paged ? parseIntParam(req.query.offset, { min: 0, max: SEARCH_MAX_OFFSET, default: 0 }) : 0;
   if (q && q.length < SEARCH_MIN_LENGTH) return res.json(paged ? { books: [], total: 0, nextOffset: null } : []);
 
   const clauses = ["c.status = 'in_stock'"];
   const params = [];
   if (q) {
-    params.push(`%${q}%`);
+    params.push(likeContains(q));
     const n = params.length;
     params.push(q.replace(/[^0-9Xx]/g, ""));
     const isbn = params.length;
@@ -177,7 +194,7 @@ router.get("/api/books/search", bookSearchLimiter, async (req, res) => {
   }
   if (topics.length) {
     const ors = topics.map((t) => {
-      params.push(`%${t}%`);
+      params.push(likeContains(t));
       const p = params.length;
       // Plain "fiction" is also a substring of "Non-fiction", so the
       // Fiction genre button would otherwise pull in non-fiction books
@@ -240,10 +257,8 @@ router.get("/favorites", (req, res) => {
 // CORS relaxation needed, unlike /api/books/latest-arrivals which the
 // marketing site calls cross-origin.
 router.get("/api/books/by-ids", async (req, res) => {
-  const ids = String(req.query.ids || "")
-    .split(",")
-    .map((s) => Number(s.trim()))
-    .filter((n) => Number.isInteger(n) && n > 0);
+  // Valid int4 ids only (anything else is dropped: it could never match, and an id past 2^31 would make Postgres refuse the query).
+  const ids = parseIdList(req.query.ids);
   if (!ids.length) return res.json([]);
 
   const { rows } = await pool.query(

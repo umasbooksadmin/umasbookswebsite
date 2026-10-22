@@ -16,12 +16,46 @@ environment, so they would not see them.
 Never paste a password or key into chat, an issue, a pull request or a file in
 the repo.
 
+## Contents
+
+Section letters are unique and permanent (other documents refer to them as "runbook section xx"); they are not in
+alphabetical order on the page, so use this list. The letter `j` is deliberately unused.
+
+**Something is wrong right now**
+
+- Bad deploy, site broken: [a) Rolling back a deploy](#a-rolling-back-a-deploy)
+- Roll back, then fix forward: [a) Rolling back a deploy](#a-rolling-back-a-deploy); database changes need a developer first: [z) Making database changes safely (notes for developers)](#z-making-database-changes-safely-notes-for-developers)
+- Database password rotation: [Rotating the database password](#rotating-the-database-password) (inside [b) Rotating secrets](#b-rotating-secrets))
+- Restore drill and restoring from a backup: [The restore drill](#the-restore-drill-every-quarter-1-january-april-july-october-about-20-minutes) in [ad) Backups: encryption, restore drill, read-only user](#ad-encrypting-the-backups-restore-drill-read-only-backup-user-yearly-rotation); the full restore steps are in [`umas-books/README.md`](../umas-books/README.md#restoring-from-a-backup)
+- Render account lost, rebuild everything: [u) Rebuild everything if the Render account is lost](#u-rebuild-everything-if-the-render-account-is-lost)
+- An alert email arrived, what to do: [r) When you receive an alert: what to do](#r-when-you-receive-an-alert-what-to-do)
+- Emails are not arriving: [l) Emails are not arriving (outbox)](#l-emails-are-not-arriving-outbox); Gmail password revoked: [m) Gmail password revoked](#m-gmail-password-revoked)
+- A background job is failing, the diagnostics pages: [s) Background jobs (retention purge, membership expiry, email retries...)](#s-background-jobs-retention-purge-membership-expiry-email-retries)
+- An admin is locked out: [c) An admin is locked out](#c-an-admin-is-locked-out)
+- Scanner lost or broken: [x) A lost or broken scanner](#x-a-lost-or-broken-scanner)
+- Takedown or abuse report: [y) A takedown or abuse report (forum posts, images)](#y-a-takedown-or-abuse-report-forum-posts-images)
+- A data request (access or erasure): [q) A data request (access or erasure)](#q-a-data-request-access-or-erasure)
+
+**Operating the shop**
+
+- [k) Reservations, collecting and paying in the shop, refunds](#k-reservations-collecting-and-paying-in-the-shop-refunds); [n) A member paid with another email](#n-a-member-paid-with-another-email); [p) The till](#p-the-till)
+- [h) Price suggestions and the AI market check](#h-price-suggestions-and-the-ai-market-check); [i) Awards and best-seller lists on books](#i-awards-and-best-seller-lists-on-books); [aa) Fast scanning of books (adding stock)](#aa-fast-scanning-of-books-adding-stock); [ah) Curated collections (Browse by Collection on Browse Books)](#ah-curated-collections-browse-by-collection-on-browse-books); [ab) Admin sessions: how long they last](#ab-admin-sessions-how-long-they-last); [ae) AI limits (daily cap, per-minute limits, lookup and webhook protections)](#ae-ai-limits-daily-cap-per-minute-limits-lookup-and-webhook-protections)
+- [o) The VAT line ("TVA non applicable") and the footer social links](#o-the-vat-line-tva-non-applicable-and-the-footer-social-links); [ac) Reviewing the French (and what to do when a French text is wrong)](#ac-reviewing-the-french-and-what-to-do-when-a-french-text-is-wrong); [ak) Alphabetical order ignores a leading "The"](#ak-alphabetical-order-ignores-a-leading-the)
+
+**Regular routines, setup and reference**
+
+- [d) Where alerts go](#d-where-alerts-go); [e) Quarterly and yearly calendar](#e-quarterly-and-yearly-calendar); [t) GitHub Actions minutes (private repository)](#t-github-actions-minutes-private-repository); [af) Nightly inventory export](#af-nightly-inventory-export); [ag) Database connections](#ag-database-connections)
+- Backups, encryption, retention: [ad) Encrypting the backups, restore drill, read-only backup user, yearly rotation](#ad-encrypting-the-backups-restore-drill-read-only-backup-user-yearly-rotation); [aj) Keeping records for 10 years](#aj-keeping-records-for-10-years)
+- Staging (the test system): [ai) Test system (staging)](#ai-test-system-staging)
+- [g) Launching: turn preview mode off](#g-launching-turn-preview-mode-off); [f) Render database network access: a decision](#f-render-database-network-access-a-decision); [v) Accounts and secrets inventory](#v-accounts-and-secrets-inventory); [w) Emergency access and "bus factor"](#w-emergency-access-and-bus-factor)
+- Secrets inventory: [b) Rotating secrets](#b-rotating-secrets) and [v) Accounts and secrets inventory](#v-accounts-and-secrets-inventory)
+
 ## a) Rolling back a deploy
 
 **Important:** on every deploy Render first runs `npm run migrate` (the
 *Pre-Deploy Command*; if it fails the deploy stops and the old version keeps
-running), then starts the site with `npm run seed; npm start`
-(`render.yaml`; the seed can never block the start). Migrations (database changes) are applied once and recorded. Redeploying an old commit
+running), then starts the site with `npm run seed; exec node src/index.js`
+(`render.yaml`; the seed can never block the start; `exec` makes node receive Render's stop signal itself). Migrations (database changes) are applied once and recorded. Redeploying an old commit
 does **not** undo them. The old code then runs against the newer database,
 which usually works if the migration only added things, but can break if it
 renamed or removed something.
@@ -50,6 +84,19 @@ change). Follow "Restoring from a backup" in
 [`umas-books/README.md`](../umas-books/README.md#restoring-from-a-backup).
 Anything members did since that backup is lost.
 
+### Deploy settings that protect visitors during a deploy
+
+- **Stop signal (SIGTERM).** The start command ends in `exec node src/index.js` (not `npm start`) so that
+  Render's SIGTERM reaches node, which then finishes in-flight requests and saves the lookup statistics
+  before exiting. Check after the next deploy: Render dashboard > `umas-books` > **Logs**, around the time the
+  new version went live, shows `SIGTERM received - shutting down gracefully.` followed by
+  `Shutdown complete.` (from the OLD instance as it stops). If you only see the old instance's log just stop
+  with no such lines, the signal is not arriving: tell a developer.
+- **Keep-alive timeout.** `src/lib/serverConfig.js` sets node's `keepAliveTimeout` to 65 s and `headersTimeout`
+  to 66 s (node's default of 5 s is shorter than what Render's proxy reuses connections for). The symptom
+  of the old setting was a sporadic 502 or "connection reset" on the first request after a quiet period, with
+  nothing in the app's logs. Do not lower these values.
+
 ## Accounts and secrets inventory
 
 The inventory (every service, its owner account, recovery email, 2FA, where the
@@ -76,8 +123,8 @@ asks you to. Always change **every** place listed, then check
 | `BACKUP_S3_KEY_ID`, `BACKUP_S3_APPLICATION_KEY` | GitHub **repository secrets** |
 | `BACKUP_AGE_RECIPIENT` (the age **public** key; not a secret) | GitHub **repository variable**. Section ad) |
 | `BACKUP_AGE_IDENTITY` (the age **private** key; optional, not recommended) | GitHub **repository secret**, used only by the monthly restore test. Section ad) |
-| `ACCOUNTING_TO` (optional, not a secret: the treasurer's address, or several separated by commas) | GitHub **repository variable**. Section ae) |
-| `FISCAL_YEAR_START_MONTH` (optional, a number 1-12, default 1 = January) | GitHub **repository variable**. Section ae) |
+| `ACCOUNTING_TO` (optional, not a secret: the treasurer's address, or several separated by commas) | GitHub **repository variable**. Section aj) |
+| `FISCAL_YEAR_START_MONTH` (optional, a number 1-12, default 1 = January) | GitHub **repository variable**. Section aj) |
 | age private key (the file `umas-books-backup-key.txt`) | Your password manager, plus a second copy kept elsewhere (section ad). **Never** in GitHub, Render or the repository, unless you choose the optional `BACKUP_AGE_IDENTITY` |
 
 **DATABASE_URL (the Render database password).** The GitHub copy should be the
@@ -308,6 +355,16 @@ fix it from the site. Before demoting anyone, check that another admin exists. S
   promotes an existing account, so a leaked env var cannot turn into an admin.
 - *A brand-new database with no users at all:* set `SEED_ADMIN_EMAIL` and
   `SEED_ADMIN_PASSWORD` in Render and redeploy, then delete the password again.
+
+### People see "We're busy right now" when logging in
+
+Password checks are CPU-heavy, so the site runs at most 2 at a time and queues
+20 more (`umas-books/src/lib/passwordHash.js`). Beyond that, the person gets a
+friendly 503 page with a 5-second `Retry-After`; nothing is alerted and nothing
+is counted against their login limits. A few of these at a busy moment (everyone
+logging in at opening time) are normal: they retry and get through. If it is
+constant, look for a flood of login attempts (Render > Logs, many `POST /login`
+from a few addresses); the per-address limits already slow those down.
 
 ## d) Where alerts go
 
@@ -698,7 +755,7 @@ secret** = same page, **Secrets** tab.
   **Reservations** open the reservation and press **Mark collected and paid** (section
   k). The book shows as sold and the sale shows in the sales report.
 - [ ] **Test system rehearsal.** The change that goes live was first on the test
-  system (section aa), the staging smoke script passed there, and the production
+  system (section ai), the staging smoke script passed there, and the production
   deploy was pressed by hand afterwards (if production is on manual deploys).
 - [ ] **Search engines.** Right after launch, submit `sitemap.xml` to Google Search Console and Bing
   Webmaster Tools and check `/fr/` in a private window ("Search engines: submit the sitemap" above).
@@ -719,6 +776,9 @@ pair, English as the default), and `https://umasbooks.org/sitemap.xml` lists bot
 (home, the marketing pages, Contact, Events, Sessions, Request a book and every in-stock book), each with
 its `xhtml:link` alternates. `robots.txt` is unchanged and allows `/fr/`. Admin, cart, login, account and
 members pages have no French address and stay out of the index. The sitemap is cached for an hour.
+`/sitemap.xml` is an index: it points at `/sitemap-pages.xml` (static pages and published collections) and at
+`/sitemap-books-1.xml`, `-2.xml`, ... with 10,000 in-stock books (20,000 addresses) per file, newest books first.
+Submit only `sitemap.xml`; Google follows the index.
 
 **Google Search Console** (free; needs a Google account that stays with the shop, ideally the shop's own):
 
@@ -1678,7 +1738,7 @@ October 2026; a re-measure takes 2 minutes with `gh run list` / the Actions tab)
 
 | Workflow | Runs | Billed minutes per run | Per month |
 |---|---|---|---|
-| CI (6 jobs: smoke-crawl 10, test 6, lint 1, migration-test 1, dependency-audit 1, secret-scan 1) | on every push to a pull request and every merge to main; about 50 a day in the busiest days | about **20** (docs-only change: about **6**; no smoke-crawl: about **10**) | the big one: 20 x number of pushes |
+| CI (6 jobs: smoke-crawl 10, test 5, lint 1, migration-test 1, dependency-audit 1, secret-scan 1) | on every push to a pull request and every merge to main; about 50 a day in the busiest days | about **20** (docs-only change: about **6**; no smoke-crawl: about **10**) | the big one: 20 x number of pushes |
 | Site uptime check | hourly = 24 a day (was every 30 min: about 1,440 a month) | 1 | about **720** |
 | Nightly database backup | daily | about 1-2 | about 45 |
 | Backup freshness check | daily | 1 | about 30-60 |
@@ -2219,7 +2279,7 @@ to the next field: set it to Enter.
 - "Not found: fill in by hand": Open Library does not know the ISBN. Type title and author.
 - "Too many lookups": the limit is 120 a minute per person; wait a minute.
 
-## aa) Test system (staging)
+## ai) Test system (staging)
 
 ### What it is
 
@@ -2768,7 +2828,7 @@ belongs to the website itself.
 | Every year (1 October), and straight away if anything leaks | New password for `backup_ro`: `ALTER ROLE backup_ro PASSWORD 'new';` in `psql`, then update the GitHub secret `DATABASE_URL`, run the backup by hand | Render database, GitHub **secret** |
 | After Render restores or recreates the database (and after any change of the owner role) | Re-run the `GRANT` and `ALTER DEFAULT PRIVILEGES` lines for `backup_ro` (box "permission denied for table ..." above; recreate the role first if it is gone), check `has_table_privilege` returns `t`, run the backup by hand | Render database, as the owner role |
 | Every year | New Backblaze application key, update `BACKUP_S3_KEY_ID` and `BACKUP_S3_APPLICATION_KEY` (section b), delete the old key | Backblaze, GitHub **secrets** |
-| Only if someone who held the private key leaves, or it may have leaked | New age key pair (set-up steps 2 to 5 again). **Keep the old private key** as long as old backups exist (up to 2 years for `monthly/`, **10 years for `yearly/`**: see section ae), or re-encrypt those; add the new one to the password manager as a second note | GitHub **variable** |
+| Only if someone who held the private key leaves, or it may have leaked | New age key pair (set-up steps 2 to 5 again). **Keep the old private key** as long as old backups exist (up to 2 years for `monthly/`, **10 years for `yearly/`**: see section aj), or re-encrypt those; add the new one to the password manager as a second note | GitHub **variable** |
 | Every quarter | Restore drill | your Mac |
 
 ### Residual risk, plainly
@@ -2782,7 +2842,7 @@ the GitHub accounts: see the end of section f). A leak of the Backblaze keys
 alone no longer exposes the data; a leak of the age **private** key *and* the
 Backblaze keys does.
 
-## ae) Keeping records for 10 years
+## aj) Keeping records for 10 years
 
 French accounting records must be kept 10 years. The database backups alone
 cannot do that (they are deleted after 30 days, and monthly ones after 2
@@ -2875,7 +2935,7 @@ yellow warning to its run (never a failure, no email).
 6. Run the **bootstrap test** above once and read the two emails/files that
    result.
 
-## aa) Alphabetical order ignores a leading "The"
+## ak) Alphabetical order ignores a leading "The"
 
 Wherever books are listed A to Z (the shop search, "More by this author", the admin
 **Books & Reservations** list), a leading **The** is ignored: `The Hobbit` is listed
@@ -3021,17 +3081,20 @@ Fixed in `src/db.js`: wait at most **10 s** for a free connection (then the requ
 
 **What the code does to stay inside the pool** (for developers): the admin dashboard runs its queries at most 3 at a time (`lib/runLimited.js`); the email outbox worker holds **no** connection while it talks to Gmail (it claims rows with one `UPDATE`, sends, and records each result with a short statement; a row whose worker died is picked up again when its 5-minute lease ends); every `pool.connect()` is released in a `finally`. `node scripts/load-dashboard.js` (local database only, not part of CI) fires 30 dashboard requests plus an outbox batch with a slow fake mail server and prints the pool's waiting counts.
 
-## ah) Curated collections (the round-picture buttons on Browse Books)
+## ah) Curated collections (Browse by Collection on Browse Books)
 
-Themed shelves such as *Paris Is Always a Good Idea* or *Bedtime Stories for Little Daydreamers*. Customers
-see a row of round-picture buttons under the genre buttons on **Browse Books** (only on the plain page: not
-while a genre, a search or *See All New In* is showing), and each button opens a page of its own
-(`/collections/<name>`, `/fr/collections/<name>`) with the books.
+Themed shelves such as *Paris Is Always a Good Idea* or *Bedtime Stories for Little Daydreamers*. On
+**Browse Books** they appear as the **Browse by Collection** carousel: a row of round-picture cards (arrows or
+swipe to move along it), placed under the search box and above **New In** and **Browse by Genre**. The carousel is
+only on the plain page: it disappears while a search, a genre, a topic or *See All New In* is showing, and it is
+absent altogether when no collection is published with at least one approved book in stock. Each card opens a page
+of its own (`/collections/<name>`, `/fr/collections/<name>`) with the books. Published collections that still have
+a book to show are also listed in the sitemap.
 
 **Nothing is ever shown until you say so.** The 19 collections start **unpublished**. The AI only *suggests*
 books; you approve each one; then you publish. A customer sees a collection only when it is published, and in it
 only the books you approved **that are in stock right now** (a book that sells or is reserved drops off by itself;
-if a copy comes back it returns). A published collection with nothing left to show has no button and its page says
+if a copy comes back it returns). A published collection with nothing left to show has no card in the carousel and its page says
 so kindly.
 
 **How to fill one** (admin > Site content > **Collections**; English only, like the rest of admin)
@@ -3053,15 +3116,15 @@ so kindly.
   AI guidance, a sort order. It starts unpublished. **Leave the guidance empty for a collection you fill in by hand
   only**: the Generate buttons are then hidden and Update all skips it.
 - **Order:** the up and down arrows in the list (or the Sort order number on the collection) set the order of the
-  buttons on Browse Books.
+  cards in the Browse by Collection carousel.
 - **Add a book by hand:** on the collection, search the books in stock (title, author or ISBN) and press **Add**; it
   counts as approved at once. **Remove** on any book in the list takes it out (the book itself is never touched). A
   collection left with no approved book is unpublished.
-- **Pictures:** *Round button picture* (cut to a circle for you; replace or remove, preview shown) and an optional
+- **Pictures:** *Round picture* (the card in the carousel; cut to a circle for you; replace or remove, preview shown) and an optional
   wide **Banner** at the top of the collection page (shown 3:1 on a computer, taller on a phone; give it an English and
   a French description for screen readers, or leave them empty if it is only decoration). JPG, PNG or WebP up to 5 MB;
   they are stored in the database like the blog pictures, so they survive deploys.
-- **Delete:** *Delete this collection* opens an "Are you sure?" page that shows how many approved books it has and offers
+- **Delete:** *Delete this collection* (on the collection's page) opens an "Are you sure?" page that shows how many approved books it has and offers
   **Unpublish instead**. Deleting removes the collection and its book list, never a book; its address then says
   "not found".
 
@@ -3078,15 +3141,16 @@ so kindly.
 - New suggestions are always *waiting for review*, also on a collection that is already published: customers
   see only approved books. Nothing already approved or rejected is ever changed or removed by a rebuild.
 - **Full rebuild (re-evaluate all books)** (link on the collection, with an "Are you sure?" page) asks about every
-  book in stock that is not already in the collection, not only the new ones. It also keeps your choices.
+  book in stock that is not already in the collection, not only the new ones. It also keeps your choices. If the AI
+  cannot answer, nothing changes and the **Last built** date stays as it was.
 
 **What it costs and what can go wrong.** Generate, Add new books, Full rebuild, Update all and Translate use the same
-paid AI as book descriptions: they count toward the daily limit `AI_DAILY_MAX_CALLS` (section ae) and appear in
+paid AI as book descriptions: they count toward the daily limit `AI_DAILY_MAX_CALLS` (section ae, "AI limits") and appear in
 *AI usage* (under *description* and *translation*); one build is up to 3 calls. If there is no API key, the credit has
 run out or the daily limit is reached, the page shows a plain message and nothing changes; the rest of the site is
 not affected. Every publish, unpublish, save, review, build, rebuild and update is written to *Admin activity*.
 
 **The pictures.** `assets/img/collections/<name>.png` and `.webp`, cut from the artwork sheet
 `assets-src/collections-sheet.webp` by `node scripts/crop-collection-art.js` (only needed if the sheet changes).
-A collection without a picture gets a plain text button. Titles are real text, so they are French when French is
+A collection without a picture gets a plain text card. Titles are real text, so they are French when French is
 chosen.

@@ -53,6 +53,22 @@ test("a non-admin member is refused (403) and a guest is sent to /login on every
 
 // ---------- events ----------
 
+test("events: a capacity or price that is not a sensible number saves nothing and is never a 500", async () => {
+  const u = h.uniq();
+  for (const [capacity, price] of [["abc", ""], ["99999999999", ""], ["-3", ""], ["1e3", ""], ["", "abc"], ["", "99999999999"], ["", "1e3"], ["", "-1"]]) {
+    const r = await h.post("/admin/events", { title: `Numbers ${u}`, date: DAY, startTime: "12:00", capacity, price });
+    assert.equal(r.res.status, 302, `${capacity}/${price}`);
+  }
+  assert.equal((await h.q("SELECT 1 FROM events WHERE title = $1", [`Numbers ${u}`])).length, 0);
+  const ok = await h.post("/admin/events", { title: `Numbers ${u}`, date: DAY, startTime: "12:00", capacity: "0", price: "4,50" });
+  assert.equal(ok.res.status, 302);
+  const [row] = await h.q("SELECT capacity, price FROM events WHERE title = $1", [`Numbers ${u}`]);
+  assert.deepEqual([row.capacity, Number(row.price)], [0, 4.5]);
+  const bad = await h.post(`/admin/events/${(await h.q("SELECT id FROM events WHERE title = $1", [`Numbers ${u}`]))[0].id}`, { title: `Numbers ${u}`, startsAt: `${DAY}T12:00`, capacity: "99999999999" });
+  assert.equal(bad.res.status, 302);
+  assert.equal((await h.q("SELECT capacity FROM events WHERE title = $1", [`Numbers ${u}`]))[0].capacity, 0, "the bad edit changed nothing");
+});
+
 test("events: month and week views render; create, update, delete round-trip with the calendar view preserved", async () => {
   const title = `Event ${h.uniq()}`;
 

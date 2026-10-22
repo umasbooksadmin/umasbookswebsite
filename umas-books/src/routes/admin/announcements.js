@@ -7,7 +7,8 @@ const { audit } = require("../../lib/audit");
 const { sanitizeHtml } = require("../../lib/sanitizeHtml");
 
 const { validateIdParams } = require("../../middleware/idParams");
-const { parseId } = require("../../lib/validation");
+const { parseId, clean } = require("../../lib/validation");
+const { likeContains } = require("../../lib/parseParams");
 
 const router = express.Router();
 // Garbage ids get the 404 page, not a Postgres 22P02 and a 500.
@@ -43,7 +44,7 @@ function announcementBackQuery(req) {
 router.get("/admin/announcements", requireAdmin, async (req, res) => {
   const status = ANNOUNCEMENT_STATUSES.includes(req.query.status) ? req.query.status : "all";
   const category = ANNOUNCEMENT_CATEGORIES.includes(req.query.category) ? req.query.category : "";
-  const q = (req.query.q || "").trim();
+  const q = clean(req.query.q, 100);
   const dateRange = req.query.dateRange || "";
   const pinnedOnly = req.query.pinnedOnly === "1";
   const sort = req.query.sort === "oldest" ? "oldest" : "newest";
@@ -61,7 +62,7 @@ router.get("/admin/announcements", requireAdmin, async (req, res) => {
     where.push(`a.category = $${params.length}`);
   }
   if (q) {
-    params.push(`%${q}%`);
+    params.push(likeContains(q));
     where.push(`(a.title ILIKE $${params.length} OR a.body ILIKE $${params.length} OR a.excerpt ILIKE $${params.length})`);
   }
   if (pinnedOnly) where.push("a.is_pinned = TRUE");

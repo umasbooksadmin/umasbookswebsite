@@ -4,7 +4,7 @@
 
 const express = require("express");
 const QRCode = require("qrcode");
-const bcrypt = require("bcryptjs");
+const passwordHash = require("../lib/passwordHash");
 const { pool, withTransaction } = require("../db");
 const { requireAuth } = require("../middleware/auth");
 const { limit, onlyMarkedFailures } = require("../middleware/rateLimits");
@@ -59,7 +59,7 @@ router.post("/account/2fa/enable", requireAuth, codeLimiter, async (req, res) =>
   // Re-prove the password: without this, anyone holding a stolen admin
   // session (or password) before the real admin enrols could enrol their
   // OWN authenticator and lock the real admin out.
-  if (!(await bcrypt.compare(String(req.body.password || ""), user.password_hash))) {
+  if (!(await passwordHash.compare(String(req.body.password || ""), user.password_hash))) {
     return backHere(req, res, req.tr("Your password didn't match. Enter your account password to continue.", "Votre mot de passe ne correspond pas. Saisissez le mot de passe de votre compte pour continuer."));
   }
 

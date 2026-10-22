@@ -108,6 +108,11 @@ test("search engines: X-Robots-Tag, robots.txt, empty sitemap", async () => {
   const sitemap = await (await get(preview, "/sitemap.xml")).text();
   assert.match(sitemap, /<urlset[^>]*>\s*<\/urlset>/);
   assert.ok(!sitemap.includes("<url>"));
+  for (const path of ["/sitemap-pages.xml", "/sitemap-books-1.xml"]) {
+    const part = await (await get(preview, path)).text();
+    assert.match(part, /<urlset[^>]*>\s*<\/urlset>/, path);
+    assert.ok(!part.includes("<url>"), path);
+  }
 });
 
 test("the /fr/ pages are noindex in preview too (header and meta), and French with the banner", async () => {

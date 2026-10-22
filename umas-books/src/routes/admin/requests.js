@@ -16,6 +16,7 @@ const { parseId } = require("../../lib/validation");
 const { normalizeIsbn } = require("../../lib/bookLookup");
 const { isbnVariants } = require("../../lib/inventory");
 const br = require("../../lib/bookRequests");
+const { likeContains } = require("../../lib/parseParams");
 
 const router = express.Router();
 
@@ -71,7 +72,7 @@ router.get("/admin/requests", requireAdmin, async (req, res) => {
     where.push(`r.status = $${params.length}`);
   }
   if (q) {
-    params.push(`%${q}%`);
+    params.push(likeContains(q));
     const n = params.length;
     where.push(`(r.title ILIKE $${n} OR r.author ILIKE $${n} OR r.isbn ILIKE $${n} OR r.email ILIKE $${n} OR r.name ILIKE $${n})`);
   }

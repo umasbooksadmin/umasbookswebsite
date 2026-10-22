@@ -18,7 +18,7 @@
 // expireStaleReservations is called at the top of any route that displays copy
 // status (public book search/detail, admin inventory, the cart) so the shown
 // status is always accurate regardless of whether the periodic backstop in
-// index.js has run recently (Render's free tier can sleep, so a timer alone
+// index.js has run recently (the process can restart or be mid-deploy, so a timer alone
 // isn't reliable). Mail is only ever sent from the periodic jobs
 // (lib/orderSweeps.js), never from a page read.
 

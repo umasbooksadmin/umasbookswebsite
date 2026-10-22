@@ -1,7 +1,7 @@
 const express = require("express");
 const { pool } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
-const { countUnusedImages } = require("../../lib/imageCleanup");
+const { makeDashboardUnusedCount } = require("../../lib/imageCleanup");
 const { salesStats, attentionCounts } = require("../../lib/dashboardStats");
 const { outboxAttention } = require("../../lib/outboxAttention");
 const till = require("../../lib/till");
@@ -34,6 +34,14 @@ function countsTtlMs() {
   return process.env.NODE_ENV === "production" ? 30000 : 0;
 }
 
+// The unused-image count is its own slower, longer-lived number: bounded to 3 s
+// (the query holds its connection only that long, then releases it), cached
+// 10 min in production, and on a timeout the last good value (or "n/a").
+const unusedImageCount = makeDashboardUnusedCount(pool, {
+  ttlMs: () => (countsTtlMs() > 0 ? 10 * 60 * 1000 : 0),
+  timeoutMs: 3000,
+});
+
 async function loadSlowCounts() {
   const [books, accounts, memberCount, unusedImages] = await runLimited([
     () => pool.query(`
@@ -52,7 +60,7 @@ async function loadSlowCounts() {
       FROM users`),
     () => pool.query("SELECT COUNT(*)::int AS n FROM users WHERE is_member = TRUE AND (member_expires_at IS NULL OR member_expires_at > now())"),
     // Read-only; a failure here must not take the dashboard down.
-    () => countUnusedImages(pool).catch(() => 0),
+    () => unusedImageCount(),
   ], 1); // sequential: this task is one of the three slots the request itself uses
   return { books: books.rows[0], accounts: accounts.rows[0], memberCount: memberCount.rows[0].n, unusedImages };
 }
