@@ -102,14 +102,13 @@ test("the public feed sanitises stored HTML when it serves it (a row written by 
     `INSERT INTO blog_posts (slug, title, body, status, published_at, created_by) VALUES ($1, 'Evil stored', $2, 'published', now() - interval '1 day', $3)`,
     [slug, evil, h.admin.id]
   );
-  const feed = await (await fetch(`${h.base}/api/blog/posts`)).json();
-  const post = feed.find((p) => p.slug === slug);
-  assert.ok(post);
+  const post = await (await fetch(`${h.base}/api/blog/posts/${slug}`)).json();
+  assert.ok(post.title);
   assert.doesNotMatch(post.body, /<script|onerror|onclick|javascript:|<img/i);
   assert.match(post.body, /<b>bold<\/b>/, "allowed formatting survives");
   // and the admin preview feed too
-  const prev = await (await fetch(`${h.base}/api/blog/posts?preview=1`, { headers: { "x-test-user": JSON.stringify(h.admin) } })).json();
-  assert.doesNotMatch(prev.find((p) => p.slug === slug).body, /<script|onerror|javascript:/i);
+  const prev = await (await fetch(`${h.base}/api/blog/posts/${slug}?preview=1`, { headers: { "x-test-user": JSON.stringify(h.admin) } })).json();
+  assert.doesNotMatch(prev.body, /<script|onerror|javascript:/i);
 });
 
 test("sanitising on read does not change a body that was already sanitised on write", async () => {
@@ -117,5 +116,41 @@ test("sanitising on read does not change a body that was already sanitised on wr
   await h.post("/admin/blog", { title, body: '<p>Hello <b>bold</b> <a href="https://example.org/x">link</a></p><ul><li>one</li></ul>', status: "published", publishDate: parisDateString(new Date(Date.now() - 86400000)) });
   const stored = (await row(title)).body;
   const feed = await (await fetch(`${h.base}/api/blog/posts`)).json();
-  assert.equal(feed.find((p) => p.title === title).body, stored);
+  const slug = feed.find((p) => p.title === title).slug;
+  assert.equal((await (await fetch(`${h.base}/api/blog/posts/${slug}`)).json()).body, stored);
+});
+
+test("the feed is light (no bodies), paged 24 at a time with ?offset, and a post's body comes from its own endpoint", async () => {
+  await h.q("DELETE FROM blog_posts");
+  for (let i = 0; i < 30; i++) {
+    await h.q(
+      `INSERT INTO blog_posts (slug, title, excerpt, body, status, published_at, created_by) VALUES ($1, $2, 'ex', '<p>BODY-TEXT</p>', 'published', now() - ($3 || ' hours')::interval, $4)`,
+      [`p-${i}`, `Post ${i}`, String(i + 1), h.admin.id]
+    );
+  }
+  await h.q(`INSERT INTO blog_posts (slug, title, body, status, created_by) VALUES ('a-draft', 'Draft', '<p>secret</p>', 'draft', $1)`, [h.admin.id]);
+  const res = await fetch(`${h.base}/api/blog/posts`);
+  assert.match(res.headers.get("cache-control"), /max-age=300/);
+  const page1 = await res.json();
+  assert.equal(page1.length, 24);
+  assert.equal(page1[0].slug, "p-0", "newest first");
+  for (const p of page1) {
+    assert.equal("body" in p, false, "no body in the list");
+    assert.ok(p.slug && p.title && p.date && "excerpt" in p);
+  }
+  const page2 = await (await fetch(`${h.base}/api/blog/posts?offset=24`)).json();
+  assert.deepEqual(page2.map((p) => p.slug), ["p-24", "p-25", "p-26", "p-27", "p-28", "p-29"]);
+  assert.equal((await (await fetch(`${h.base}/api/blog/posts?limit=5&offset=-3`)).json()).length, 5);
+  assert.equal((await (await fetch(`${h.base}/api/blog/posts?limit=abc&offset=zz`)).json()).length, 24);
+
+  const one = await fetch(`${h.base}/api/blog/posts/p-29`);
+  assert.equal(one.status, 200);
+  const post = await one.json();
+  assert.equal(post.body, "<p>BODY-TEXT</p>");
+  assert.equal(post.title, "Post 29", "an older post outside the first page is still fetchable");
+  assert.equal((await fetch(`${h.base}/api/blog/posts/a-draft`)).status, 404, "a draft is not public");
+  assert.equal((await fetch(`${h.base}/api/blog/posts/nope`)).status, 404);
+  const adminOne = await fetch(`${h.base}/api/blog/posts/a-draft?preview=1`, { headers: { "x-test-user": JSON.stringify(h.admin) } });
+  assert.equal(adminOne.status, 200);
+  assert.equal(adminOne.headers.get("cache-control"), "no-store");
 });

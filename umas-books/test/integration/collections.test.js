@@ -756,7 +756,7 @@ test("Update all continues past a failing collection and reports each one", asyn
   const again = await updateAllCollections(pool, { ask: async () => ({ text: "[]", reason: null }) });
   assert.ok(again.filter((r) => [two.id, three.id].includes(r.id)).every((r) => r.status === "nothing"));
   // The time limit stops starting new collections and says so.
-  const slow = await updateAllCollections(pool, { ask, maxMs: -1, now: () => 0 });
+  const slow = await updateAllCollections(pool, { ask, startMs: -1, now: () => 0 });
   assert.ok(slow.filter((r) => r.status !== "never").every((r) => r.status === "nothing" || r.status === "later" || r.status === "failed" || r.status === "added"));
 });
 
