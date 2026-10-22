@@ -52,6 +52,7 @@ async function computeSuggestion(src, { copyId = null, pool = defaultPool, opts 
 // are) and, when clearance would also reprice the other copies, lists them.
 async function prepareIntakeForm(res, src, { pool = defaultPool } = {}) {
   const [suggestion, ui, settings] = await Promise.all([computeSuggestion(src, { pool }), priceUi(pool), getSettings(pool)]);
+  res.locals.intakeToken = require("../intakeToken").newToken(); // one-time save token (lib/intakeToken.js)
   res.locals.priceSuggestion = suggestion;
   res.locals.priceUi = ui;
   res.locals.clearanceOthers = settings.clearance.scope === "all" && suggestion.clearance

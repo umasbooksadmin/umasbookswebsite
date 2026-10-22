@@ -55,13 +55,13 @@ async function loginJar(email) {
   return jar;
 }
 
-async function post(jar, path) {
+async function post(jar, path, fields = {}) {
   const token = await fetchCsrfToken(app.base, jar);
   const res = await fetch(`${app.base}${path}`, {
     method: "POST",
     redirect: "manual",
     headers: { ...FORM, cookie: jar.header() },
-    body: new URLSearchParams({ _csrf: token }).toString(),
+    body: new URLSearchParams({ ...fields, _csrf: token }).toString(),
   });
   await res.text();
   return res;
@@ -81,7 +81,7 @@ test("an admin action writes a row with the right actor, action and target, and 
   const member = await createUser();
   const jar = await loginJar(admin.email);
 
-  const res = await post(jar, `/admin/members/${member.id}/toggle-volunteer`);
+  const res = await post(jar, `/admin/members/${member.id}/toggle-volunteer`, { desired: "on" });
   assert.equal(res.status, 302);
   const del = await post(jar, `/admin/members/${member.id}/delete`);
   assert.equal(del.status, 302);
@@ -114,7 +114,7 @@ test("a failing audit write does not break the admin action", async () => {
 
   await pool.query("ALTER TABLE admin_audit_log RENAME TO admin_audit_log_away");
   try {
-    const res = await post(jar, `/admin/members/${member.id}/toggle-volunteer`);
+    const res = await post(jar, `/admin/members/${member.id}/toggle-volunteer`, { desired: "on" });
     assert.equal(res.status, 302);
     const { rows } = await pool.query("SELECT is_volunteer FROM users WHERE id = $1", [member.id]);
     assert.equal(rows[0].is_volunteer, true);
@@ -135,7 +135,7 @@ test("/admin/audit requires an admin and lists entries without personal data", a
   const admin = await createUser({ admin: true });
   const target = await createUser();
   const jar = await loginJar(admin.email);
-  await post(jar, `/admin/members/${target.id}/toggle-volunteer`);
+  await post(jar, `/admin/members/${target.id}/toggle-volunteer`, { desired: "on" });
   await waitForRows("SELECT 1 FROM admin_audit_log WHERE action = 'member.toggle_volunteer' AND target_id = $1", [target.id]);
 
   const res = await fetch(`${app.base}/admin/audit`, { headers: { cookie: jar.header() } });

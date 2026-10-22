@@ -8,6 +8,7 @@
   <form class="stack" method="post" action="/admin/inventory" enctype="multipart/form-data" id="intake-form">
     <%- include('../../partials/csrf_field') %>
     <input type="hidden" name="fromScan" value="<%= fromScan ? '1' : '' %>">
+    <input type="hidden" name="intakeToken" value="<%= locals.intakeToken || '' %>">
 
     <label for="isbn">ISBN (scan or type)</label>
     <div class="scan-isbn-row">

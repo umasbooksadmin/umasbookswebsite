@@ -107,6 +107,7 @@ async function plant() {
   const { rows: [rr] } = await db.query("INSERT INTO price_reprice_runs (group_key, new_price, copies_changed) VALUES ('trade', 5, 1) RETURNING id");
   await db.query("INSERT INTO price_reprice_items (run_id, copy_id, new_price) VALUES ($1, 1, 5)", [rr.id]);
   await db.query("INSERT INTO favorites (user_id, book_id) VALUES ($1, $2)", [member, book]);
+  await db.query("INSERT INTO copy_intake_tokens (token, copy_id, book_id) VALUES ('tok-clear-test-0123456789', $1, $2)", [copy1, book]);
   const collection = await one("INSERT INTO curated_collections (slug, title_en) VALUES ('test-shelf', 'Test shelf') RETURNING id");
   await db.query("INSERT INTO curated_collection_books (collection_id, book_id, status) VALUES ($1, $2, 'approved')", [collection, book]);
 
