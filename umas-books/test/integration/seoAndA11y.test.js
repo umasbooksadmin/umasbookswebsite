@@ -62,13 +62,25 @@ test("robots.txt and sitemap.xml ignore a spoofed Host header", async () => {
   assert.doesNotMatch(await res.text(), /evil\.test/);
 });
 
-test("sitemap.xml lists marketing pages, /sessions, /events and in-stock books only", async () => {
+test("sitemap.xml is an index of the pages file and the books files", async () => {
   const res = await get("/sitemap.xml");
   assert.equal(res.status, 200);
   assert.match(res.headers.get("content-type"), /^application\/xml/);
   assert.match(res.headers.get("cache-control"), /max-age=3600/);
   assert.equal(res.headers.getSetCookie().length, 0, "no session for crawlers");
   const xml = await res.text();
+  assert.match(xml, /<sitemapindex xmlns="http:\/\/www\.sitemaps\.org\/schemas\/sitemap\/0\.9">/);
+  const locs = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
+  assert.deepEqual(locs.slice(0, 2), [`${SITE}/sitemap-pages.xml`, `${SITE}/sitemap-books-1.xml`]);
+});
+
+test("the pages and books sitemap files list marketing pages, /sessions, /events and in-stock books only", async () => {
+  const res = await get("/sitemap-pages.xml");
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get("content-type"), /^application\/xml/);
+  assert.match(res.headers.get("cache-control"), /max-age=3600/);
+  assert.equal(res.headers.getSetCookie().length, 0, "no session for crawlers");
+  const xml = (await res.text()) + (await (await get("/sitemap-books-1.xml")).text());
   assert.match(xml, /<urlset xmlns="http:\/\/www\.sitemaps\.org\/schemas\/sitemap\/0\.9" xmlns:xhtml="http:\/\/www\.w3\.org\/1999\/xhtml">/);
   const locs = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
   for (const p of ["/", ...MARKETING_PAGES.map((f) => "/" + f), "/sessions", "/events"]) {
@@ -93,14 +105,14 @@ test("sitemap.xml lists marketing pages, /sessions, /events and in-stock books o
 });
 
 test("sitemap.xml is cached for an hour (a book added afterwards is not listed yet)", async () => {
-  await get("/sitemap.xml");
+  await get("/sitemap-books-1.xml");
   const lateId = await (async () => {
     const { rows } = await pool.query("INSERT INTO books (title) VALUES ($1) RETURNING id", [`Sitemap late ${stamp}`]);
     await pool.query("INSERT INTO book_copies (book_id, status) VALUES ($1, 'in_stock')", [rows[0].id]);
     return rows[0].id;
   })();
   try {
-    assert.ok(!(await (await get("/sitemap.xml")).text()).includes(`/books/${lateId}<`));
+    assert.ok(!(await (await get("/sitemap-books-1.xml")).text()).includes(`/books/${lateId}<`));
   } finally {
     await pool.query("DELETE FROM books WHERE id = $1", [lateId]);
   }

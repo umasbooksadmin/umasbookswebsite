@@ -48,7 +48,11 @@ services:
     buildCommand: npm ci --omit=dev
     # Same as production.
     preDeployCommand: npm run migrate
-    startCommand: npm run seed; npm start
+    # "exec node src/index.js" (what "npm start" runs) replaces the shell with node, so
+    # Render's SIGTERM at deploy reaches node itself and its graceful shutdown (in-flight
+    # requests finish, the lookup stats are saved). With "npm start" the signal could stop
+    # at the shell/npm wrapper.
+    startCommand: npm run seed; exec node src/index.js
     envVars:
       # ---- Environment variables (plain values, visible in the file) ----
       - key: NODE_ENV

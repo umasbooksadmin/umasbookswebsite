@@ -39,7 +39,11 @@ services:
     # when it fails (logging loudly and emailing an alert), and ";" rather
     # than "&&" makes sure of it, because a seed problem must never turn
     # into a crash loop on the live site.
-    startCommand: npm run seed; npm start
+    # "exec node src/index.js" (what "npm start" runs) replaces the shell with node, so
+    # Render's SIGTERM at deploy reaches node itself and its graceful shutdown (in-flight
+    # requests finish, the lookup stats are saved). With "npm start" the signal could stop
+    # at the shell/npm wrapper.
+    startCommand: npm run seed; exec node src/index.js
     envVars:
       # NOT managed by the Blueprint (sync: false). The value is set BY HAND in
       # the Render dashboard (umas-books > Environment) and is the database's

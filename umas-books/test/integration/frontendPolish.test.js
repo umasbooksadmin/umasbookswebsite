@@ -136,7 +136,7 @@ test("French pages get no-break spaces and curly apostrophes in text only", asyn
 });
 
 test("sitemap lists /contact and /request-a-book (not in preview)", async () => {
-  const xml = await (await get("/sitemap.xml")).text();
+  const xml = await (await get("/sitemap-pages.xml")).text();
   assert.ok(xml.includes(`<loc>${SITE}/contact</loc>`));
   assert.ok(xml.includes(`<loc>${SITE}/request-a-book</loc>`));
 });
