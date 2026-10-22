@@ -3,12 +3,58 @@
 
 
 <div class="card">
-  <form class="stack" method="get" action="/admin/inventory" style="flex-direction: row; gap: 8px; max-width: 720px; align-items: end;">
-    <div style="flex: 1;">
-      <label for="q">Search by title, author, or ISBN</label>
-      <input id="q" name="q" type="text" value="<%= q %>" placeholder="Search inventory...">
+  <form class="stack inv-search" method="get" action="/admin/inventory" role="search" aria-label="Search inventory">
+    <div class="inv-search-main">
+      <div>
+        <label for="q">Search by title, author, or ISBN</label>
+        <input id="q" name="q" type="text" value="<%= q %>" placeholder="Search inventory...">
+      </div>
+      <button class="btn" type="submit">Search</button>
     </div>
-    <button class="btn" type="submit">Search</button>
+    <div class="inv-filters">
+      <div>
+        <label for="f-location">Location</label>
+        <select id="f-location" name="location">
+          <option value="">Any</option>
+          <option value="<%= NO_LOCATION %>" <%= filters.location === NO_LOCATION ? 'selected' : '' %>>No location set</option>
+          <% locations.forEach(l => { %><option value="<%= l %>" <%= filters.location && filters.location !== NO_LOCATION && filters.location.toLowerCase() === l.toLowerCase() ? 'selected' : '' %>><%= l %></option><% }) %>
+        </select>
+      </div>
+      <div>
+        <label for="f-condition">Condition</label>
+        <select id="f-condition" name="condition">
+          <option value="">Any</option>
+          <% CONDITIONS.forEach(c => { %><option value="<%= c.value %>" <%= filters.condition === c.value ? 'selected' : '' %>><%= c.label %></option><% }) %>
+        </select>
+      </div>
+      <div>
+        <label for="f-binding">Binding</label>
+        <select id="f-binding" name="binding">
+          <option value="">Any</option>
+          <option value="<%= NO_BINDING %>" <%= filters.binding === NO_BINDING ? 'selected' : '' %>>Not set</option>
+          <% BINDINGS.forEach(b => { %><option value="<%= b.value %>" <%= filters.binding === b.value ? 'selected' : '' %>><%= b.label %></option><% }) %>
+        </select>
+      </div>
+      <div>
+        <label for="f-genre">Genre</label>
+        <select id="f-genre" name="genre">
+          <option value="">Any</option>
+          <option value="<%= NO_GENRE %>" <%= filters.genre === NO_GENRE ? 'selected' : '' %>>No genre set</option>
+          <% genres.forEach(g => { %><option value="<%= g %>" <%= filters.genre && filters.genre !== NO_GENRE && filters.genre.toLowerCase() === g.toLowerCase() ? 'selected' : '' %>><%= g %></option><% }) %>
+        </select>
+      </div>
+      <div>
+        <label for="f-pmin">Min price (&euro;)</label>
+        <input id="f-pmin" name="priceMin" type="text" inputmode="decimal" autocomplete="off" value="<%= filters.priceMinText %>" placeholder="e.g. 5">
+      </div>
+      <div>
+        <label for="f-pmax">Max price (&euro;)</label>
+        <input id="f-pmax" name="priceMax" type="text" inputmode="decimal" autocomplete="off" value="<%= filters.priceMaxText %>" placeholder="e.g. 5,50">
+      </div>
+    </div>
+    <p class="muted small" style="margin:0;">Location, condition and price look at copies in the store: a book is listed when one copy matches all three.</p>
+    <% if (filterErrors.length) { %><div class="error-box" role="alert" style="margin:0;"><% filterErrors.forEach(e => { %><div><%= e %></div><% }) %></div><% } %>
+    <% if (filterActive) { %><p style="margin:0;"><a href="/admin/inventory<%= q ? '?q=' + encodeURIComponent(q) : '' %>">Clear filters</a><%= q ? ' (keeps the search text)' : '' %> &middot; <a href="/admin/inventory">Clear everything</a></p><% } %>
   </form>
   <p class="inv-actions" style="margin-top:16px;">
     <a class="btn" href="/admin/inventory/new">Scan a book</a>
@@ -26,8 +72,9 @@
 
 <div class="card">
   <% if (!books.length) { %>
-    <p class="muted">No books yet — scan or add one above.</p>
+    <p class="muted"><%= (q || filterActive) ? 'No books match this search.' : 'No books yet — scan or add one above.' %></p>
   <% } else { %>
+    <p class="muted small" role="status" id="inv-count"><%= totalMatches %> <%= totalMatches === 1 ? 'book' : 'books' %><%= (q || filterActive) ? ' match' : '' %><%= totalMatches > books.length ? ' (showing the first ' + books.length + ': narrow the search to see the rest)' : '' %></p>
     <ul class="plain">
       <% books.forEach(b => { %>
         <li style="display:flex; gap:14px; align-items:center;">
@@ -43,6 +90,11 @@
               &middot; <%= b.in_stock_count %>/<%= b.copy_count %> in stock
               <% if (b.locations) { %>&middot; Location: <%= b.locations %><% } %>
             </div>
+            <% if (b.matched_copies.length) { %>
+              <div class="small inv-matched">Matching <%= b.matched_copies.length === 1 ? 'copy' : 'copies' %>:
+                <% b.matched_copies.forEach((m, i) => { %><%= i ? '; ' : '' %><strong><%= m.location || 'No location' %></strong> &middot; <%= conditionLabel(m.condition) %> &middot; <%= m.price == null ? 'no price' : '€' + m.price.toFixed(2) %><% }) %>
+              </div>
+            <% } %>
           </div>
         </li>
       <% }) %>

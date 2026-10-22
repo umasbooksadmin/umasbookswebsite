@@ -284,7 +284,7 @@ test("each move writes one audit row with location codes only", async () => {
 
 // ---------- visibility ----------
 
-test("inventory list shows each book's in-stock locations and has no Location search box", async () => {
+test("inventory list shows each book's in-stock locations and the book search has a Location filter", async () => {
   const mark = uniq();
   const inA = await seedBook(`Filter In ${mark}`, isbn13());
   await seedCopy(inA, { location: "FLT-B2" });
@@ -297,10 +297,11 @@ test("inventory list shows each book's in-stock locations and has no Location se
   assert.match(all, /Filter In/);
   assert.match(all, /Location: FLT-A1, FLT-B2(?!, )/, "sold copies' locations are not listed");
 
-  assert.doesNotMatch(all, /name="location"/, "the book search has no Location box");
+  assert.match(all, /<select id="f-location" name="location">/, "the book search has a Location filter again (see inventorySearch)");
 
-  const { text: ignored } = await get(`/admin/inventory?q=${mark}&location=FLT-A1`);
-  assert.match(ignored, /Filter In/, "a leftover ?location= is ignored");
+  const { text: filtered } = await get(`/admin/inventory?q=${mark}&location=flt-a1`);
+  assert.match(filtered, /Filter In/);
+  assert.doesNotMatch(filtered, /Filter Out/, "?location= narrows the list (case-insensitively)");
 });
 
 // ---------- capitals are kept, but never make a second place ----------
