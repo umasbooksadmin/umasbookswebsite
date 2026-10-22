@@ -45,3 +45,15 @@ test("cleanHttpUrl keeps absolute http(s) URLs and drops everything else", () =>
     assert.equal(cleanHttpUrl(bad), null, JSON.stringify(bad));
   }
 });
+
+test("parseDay: a real calendar day or blank; everything else is an English error (never reaches a DATE column)", () => {
+  const { parseDay } = require("../../src/lib/validation");
+  assert.deepEqual(parseDay("2026-07-15"), { value: "2026-07-15" });
+  assert.deepEqual(parseDay(" 2026-07-15 "), { value: "2026-07-15" });
+  assert.deepEqual(parseDay("2024-02-29"), { value: "2024-02-29" });
+  for (const blank of [undefined, null, "", "  "]) assert.deepEqual(parseDay(blank), { value: null });
+  assert.match(parseDay("", { allowBlank: false, label: "Day" }).error, /Day is required/);
+  for (const bad of ["abc", "2026-02-31", "2025-02-29", "2026-13-01", "2026-00-10", "99999-01-01", "0000-01-01", "1899-12-31", "2101-01-01", "1e5", "15/07/2026", ["2026-07-15"], {}, 20260715]) {
+    assert.match(parseDay(bad, { label: "Date acquired" }).error, /^Date acquired must be a real date, like 2026-07-15\.$/, JSON.stringify(bad));
+  }
+});

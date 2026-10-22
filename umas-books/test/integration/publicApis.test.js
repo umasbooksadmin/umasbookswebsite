@@ -403,6 +403,59 @@ test("by-ids: returns only the requested existing books with stock counts; junk 
   assert.equal((await api("/favorites")).status, 200);
 });
 
+test("search paged: a huge, garbage or repeated offset/limit is clamped, never a 500 (and no alert-worthy error)", async () => {
+  const cat = `${TAG}Clamp`;
+  for (let i = 0; i < 5; i++) await makeBook({ title: `${TAG} Clamp ${i}`, categories: cat });
+  const base = `/api/books/search?genre=${encodeURIComponent(cat)}&paged=1`;
+  for (const offset of ["99999999999999999999", "1e21", "1e22", "9".repeat(60), "2147483648", "-1", "abc", "0x10", "1.5", " 1", "1&offset=2"]) {
+    const r = await api(`${base}&offset=${offset}`);
+    assert.equal(r.status, 200, `offset=${offset}`);
+    assert.ok(r.json.total === 5 || r.json.books.length === 5, `offset=${offset}: a usable answer`);
+  }
+  const past = (await api(`${base}&offset=99999999999999999999`)).json;
+  assert.deepEqual([past.books.length, past.nextOffset, past.total], [0, null, 5], "a huge offset is an empty last page with the real total");
+  for (const limit of ["99999999999999999999", "1e21", "-5", "0", "abc", "1&limit=2"]) {
+    const r = await api(`${base}&limit=${limit}`);
+    assert.equal(r.status, 200, `limit=${limit}`);
+    assert.ok(r.json.books.length >= 1 && r.json.books.length <= 5, `limit=${limit}`);
+  }
+  assert.equal((await api(`${base}&limit=2`)).json.books.length, 2, "a normal limit still applies");
+  assert.equal((await api(`${base}&offset=3&limit=2`)).json.nextOffset, null, "normal paging unchanged");
+  // latest-arrivals clamps the same way
+  for (const q of ["limit=1e21&days=99999999999999999999", "limit=abc&days=abc", "limit=-3&days=-3", "limit=1&limit=2&days=1&days=2"]) {
+    assert.equal((await api(`/api/books/latest-arrivals?${q}`)).status, 200, q);
+  }
+});
+
+test("search text: % and _ are literal, so '__' or '%%' no longer match every book; normal searches behave as before", async () => {
+  const a = await makeBook({ title: `${TAG} Wild Alpha`, authors: "Wild Author" });
+  const b = await makeBook({ title: `${TAG} Wild 100% Beta`, authors: "Wild Author", description: "snake_case words" });
+  for (const q of ["__", "%%", "%_", "\\\\", "_%"]) {
+    const r = await api(`/api/books/search?q=${encodeURIComponent(q)}&paged=1`);
+    assert.equal(r.status, 200, q);
+    assert.deepEqual([r.json.total, r.json.books.length], [0, 0], `'${q}' is just two literal characters nobody has in a title`);
+  }
+  const title = (r) => r.json.map((x) => x.id).sort((x, y) => x - y);
+  assert.deepEqual(title(await api(`/api/books/search?q=${encodeURIComponent(`${TAG} Wild`)}`)), [a.id, b.id].sort((x, y) => x - y), "normal search unchanged");
+  assert.deepEqual(title(await api(`/api/books/search?q=${encodeURIComponent("100%")}`)), [b.id], "a real % still finds its book");
+  assert.deepEqual(title(await api(`/api/books/search?q=${encodeURIComponent("snake_case")}`)), [b.id], "a real _ still finds its book (description search)");
+  assert.deepEqual(title(await api(`/api/books/search?q=${encodeURIComponent("snakeXcase")}`)), [], "_ is not a wildcard");
+  assert.equal((await api("/api/books/search?q=ab&q=cd")).status, 200);
+  assert.equal((await api("/api/books/search?topic=%25%25,__&paged=1")).json.total, 0, "topic words are literal too");
+});
+
+test("by-ids: ids past int4, huge numbers and exponent forms are dropped, not a 500", async () => {
+  const a = await makeBook();
+  for (const ids of ["99999999999", "2147483648", "1e22", "99999999999999999999", "0x10", `${a.id},99999999999,2147483648`, ["1", "2"].map((v) => v).join(",")]) {
+    const r = await api(`/api/books/by-ids?ids=${ids}`);
+    assert.equal(r.status, 200, ids);
+  }
+  assert.deepEqual((await api(`/api/books/by-ids?ids=${a.id},99999999999,2147483648`)).json.map((x) => x.id), [a.id], "the valid id is still answered");
+  assert.deepEqual((await api("/api/books/by-ids?ids=1&ids=2")).json, [], "a repeated parameter is ignored");
+  const many = Array.from({ length: 2500 }, (_, i) => i + 1).join(",");
+  assert.equal((await api(`/api/books/by-ids?ids=${many}`)).status, 200, "a very long list is capped");
+});
+
 test("favorites toggle: anonymous is a silent 204 no-op; logged-in add is idempotent and remove deletes", async () => {
   const book = await makeBook();
   const user = await makeLoggedInUser({ member: false });

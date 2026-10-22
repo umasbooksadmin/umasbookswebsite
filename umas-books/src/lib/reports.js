@@ -15,6 +15,7 @@ const { SITE_TIME_ZONE } = require("./tz");
 const { CONDITIONS, SOURCES } = require("./inventory");
 const { TYPE_LABELS, parseTypeFilter, typeFilterSql, typeCaseSql } = require("./accountTypes");
 const { activeMemberSql } = require("./memberStatus");
+const { likeContains, parseIntParam } = require("./parseParams");
 
 const TZ = SITE_TIME_ZONE;
 const LIST_LIMIT = 500;
@@ -572,14 +573,14 @@ async function accountsReport(db, ctx) {
   const text = String(q.q || "").trim().slice(0, 100);
   const from = validDay(q.from);
   const to = validDay(q.to);
-  const page = Math.max(1, parseInt(q.page, 10) || 1);
+  const page = parseIntParam(q.page, { min: 1, max: 1000000, default: 1 });
 
   const where = [];
   const params = [];
   const tf = typeFilterSql(type, "u");
   if (tf) where.push(tf);
   if (text) {
-    params.push(`%${text.replace(/[\\%_]/g, "\\$&")}%`);
+    params.push(likeContains(text));
     where.push(`(u.display_name ILIKE $${params.length} OR u.email ILIKE $${params.length})`);
   }
   if (from) { params.push(from); where.push(`u.created_at >= ($${params.length}::date)::timestamp AT TIME ZONE '${TZ}'`); }

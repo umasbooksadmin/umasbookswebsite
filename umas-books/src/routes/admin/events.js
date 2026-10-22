@@ -2,6 +2,7 @@ const express = require("express");
 const { pool } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
 const { audit } = require("../../lib/audit");
+const { parseWholeNumber, parseMoney } = require("../../lib/validation");
 const { parseLocalDateTime } = require("../../lib/dates");
 const { groupByDate, resolveCalendarRange, calendarBackQuery } = require("../../lib/calendar");
 
@@ -41,10 +42,14 @@ router.post("/admin/events", requireAdmin, async (req, res) => {
   const date = req.body.date;
   const startTime = req.body.startTime;
   const endTime = req.body.endTime || null;
-  const capacity = req.body.capacity ? Number(req.body.capacity) : null;
-  const price = req.body.price ? Number(req.body.price) : null;
+  // A capacity or price that is not a sensible number saves nothing (like a bad date), instead of reaching Postgres.
+  const capacityNum = parseWholeNumber(req.body.capacity, { min: 0, max: 100000, allowBlank: true, label: "Capacity" });
+  const priceNum = parseMoney(req.body.price, { allowBlank: true });
+  const numbersOk = !capacityNum.error && !priceNum.error;
+  const capacity = capacityNum.value == null ? null : capacityNum.value;
+  const price = priceNum.value == null ? null : priceNum.value;
 
-  if (title && date && startTime) {
+  if (title && date && startTime && numbersOk) {
     const startsAt = parseLocalDateTime(date, startTime);
     const endsAt = endTime ? parseLocalDateTime(date, endTime) : null;
     if (!startsAt) return res.redirect("/admin/events");
@@ -65,10 +70,14 @@ router.post("/admin/events/:id", requireAdmin, async (req, res) => {
   const location = (req.body.location || "").trim() || null;
   const startsAt = parseLocalDateTime(req.body.startsAt);
   const endsAt = req.body.endsAt ? parseLocalDateTime(req.body.endsAt) : null;
-  const capacity = req.body.capacity ? Number(req.body.capacity) : null;
-  const price = req.body.price ? Number(req.body.price) : null;
+  // A capacity or price that is not a sensible number saves nothing (like a bad date), instead of reaching Postgres.
+  const capacityNum = parseWholeNumber(req.body.capacity, { min: 0, max: 100000, allowBlank: true, label: "Capacity" });
+  const priceNum = parseMoney(req.body.price, { allowBlank: true });
+  const numbersOk = !capacityNum.error && !priceNum.error;
+  const capacity = capacityNum.value == null ? null : capacityNum.value;
+  const price = priceNum.value == null ? null : priceNum.value;
 
-  if (title && startsAt) {
+  if (title && startsAt && numbersOk) {
     await pool.query(
       `UPDATE events SET title=$1, description=$2, location=$3, starts_at=$4, ends_at=$5, capacity=$6, price=$7
        WHERE id = $8`,

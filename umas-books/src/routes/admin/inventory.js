@@ -26,7 +26,8 @@ const { aiAdminLimiter, AI_LIMIT_MESSAGE } = require("../../middleware/rateLimit
 const { getAiLimits, clampText, MAX_TITLE, MAX_AUTHOR } = require("../../lib/aiLimits");
 const { runAfterResponse } = require("../../lib/afterResponse");
 const { fillBookGaps, findCoverUrl } = require("../../lib/bookFill");
-const { parseMoney, parseWholeNumber } = require("../../lib/validation");
+const { parseMoney, parseWholeNumber, parseDay, clean } = require("../../lib/validation");
+const { likeContains, parseIntParam } = require("../../lib/parseParams");
 
 const router = express.Router();
 // Garbage ids get the 404 page, not a Postgres 22P02 and a 500.
@@ -136,11 +137,11 @@ const ISBN_NOT_VALID = "That ISBN is not valid: check the digits.";
 
 router.get("/admin/inventory", requireAdmin, async (req, res) => {
   await expireStaleReservations(pool);
-  const q = (req.query.q || "").trim();
+  const q = clean(req.query.q, 100);
   const params = [];
   const conditions = [];
   if (q) {
-    params.push(`%${q}%`);
+    params.push(likeContains(q));
     conditions.push(`(b.title ILIKE $${params.length} OR b.authors ILIKE $${params.length} OR b.isbn ILIKE $${params.length})`);
   }
   const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
@@ -184,7 +185,7 @@ router.get("/admin/inventory/scan", requireAdmin, async (req, res) => {
     active: "inventory",
     error: null,
     saved: req.query.saved === "1",
-    requestsMatched: req.query.saved === "1" ? Math.min(parseInt(req.query.requests, 10) || 0, 999) : 0,
+    requestsMatched: req.query.saved === "1" ? parseIntParam(req.query.requests, { max: 999 }) : 0,
     visionEnabled: !!process.env.ANTHROPIC_API_KEY,
   });
 });
@@ -265,7 +266,7 @@ router.post("/admin/inventory/move", requireAdmin, async (req, res) => {
   const dest = normalizeLocation(req.body.dest);
   const prevDest = normalizeLocation(req.body.prevDest);
   const log = parseMoveLog(req.body.log);
-  let moved = Math.max(0, Math.min(1e6, parseInt(req.body.moved, 10) || 0));
+  let moved = parseIntParam(req.body.moved, { max: 1e6 });
   const entries = [];
 
   if (dest && dest !== prevDest) entries.push({ k: "info", t: `Moving books to ${dest}` });
@@ -412,7 +413,7 @@ router.get("/admin/inventory/new", requireAdmin, async (req, res) => {
     sources: SOURCES,
     locations: await getLocations(),
     savedCopy: saved,
-    savedRequests: saved ? Math.min(parseInt(req.query.requests, 10) || 0, 999) : 0,
+    savedRequests: saved ? parseIntParam(req.query.requests, { max: 999 }) : 0,
     ...(d.condition ? { selectedCondition: d.condition } : {}),
   });
 });
@@ -487,7 +488,8 @@ router.post("/admin/inventory", requireAdmin, serverTiming("scan.save"), async (
   }
   const pricing = resolveCopyPricing(condition, choice.rawPrice, req.body.publisherPrice, { publishedYear: pricingYear });
   const costCheck = parseAcquisitionCost(req.body.acquisitionCost);
-  const inputError = pricing.error || yearCheck.error || costCheck.error;
+  const acquiredCheck = parseDay(req.body.acquiredAt, { label: "Date acquired" });
+  const inputError = pricing.error || yearCheck.error || costCheck.error || acquiredCheck.error;
   if (inputError) {
     if (wantsJson(req)) return res.status(422).json({ ok: false, error: inputError });
     return intakeAgain({
@@ -556,7 +558,7 @@ router.post("/admin/inventory", requireAdmin, serverTiming("scan.save"), async (
 
   const { price, publisherPrice } = pricing;
   const acquisitionCost = costCheck.value;
-  const acquiredAt = req.body.acquiredAt || null;
+  const acquiredAt = acquiredCheck.value;
   const notes = (req.body.copyNotes || "").trim() || null;
 
   // What was suggested on screen, and whether it was kept (learning loop).
@@ -745,7 +747,8 @@ router.post("/admin/inventory/:id/copies/:copyId", requireAdmin, async (req, res
   const yearRow = await pool.query("SELECT published_year FROM books WHERE id = $1", [bookId]);
   const pricing = resolveCopyPricing(condition, choice.rawPrice, req.body.publisherPrice, { publishedYear: yearRow.rows[0] && yearRow.rows[0].published_year });
   const costCheck = parseAcquisitionCost(req.body.acquisitionCost);
-  const acquiredAt = req.body.acquiredAt || null;
+  const acquiredCheck = parseDay(req.body.acquiredAt, { label: "Date acquired" });
+  const acquiredAt = acquiredCheck.value;
   const notes = (req.body.notes || "").trim() || null;
   const location = normalizeLocation(req.body.location);
   const source = normalizeSource(req.body.source);
@@ -762,6 +765,7 @@ router.post("/admin/inventory/:id/copies/:copyId", requireAdmin, async (req, res
   };
   if (pricing.error) return refused(pricing.error);
   if (costCheck.error) return refused(costCheck.error);
+  if (acquiredCheck.error) return refused(acquiredCheck.error);
   const { price, publisherPrice } = pricing;
   const acquisitionCost = costCheck.value;
 

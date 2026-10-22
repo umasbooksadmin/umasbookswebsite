@@ -5,6 +5,7 @@ const { CONDITIONS, bindingLabel, conditionLabel } = require("../lib/inventory")
 const { expireStaleReservations } = require("../lib/reservations");
 const { baseUrl } = require("../lib/baseUrl");
 const { clean, parseId } = require("../lib/validation");
+const { parseIntParam, parseLimitParam, parseIdList, likeContains } = require("../lib/parseParams");
 const { loadPublicAwards, awardsTextSql } = require("../lib/awards/display");
 
 const { validateIdParams } = require("../middleware/idParams");
@@ -78,9 +79,8 @@ router.get("/api/books/latest-arrivals", async (req, res) => {
   // ?limit= (1–24, default 8) and ?days= (default 7; 0 = no time window,
   // i.e. simply the newest in-stock books — used by the Books page's
   // "New In" shelf so it's never empty during a quiet week).
-  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 8, 1), 24);
-  const daysParam = parseInt(req.query.days, 10);
-  const days = Number.isInteger(daysParam) && daysParam >= 0 ? Math.min(daysParam, 365) : 7;
+  const limit = parseLimitParam(req.query.limit, { max: 24, default: 8 });
+  const days = parseIntParam(req.query.days, { min: 0, max: 365, default: 7 });
   const rows = await latestArrivalsCached(limit + ":" + days);
   res.json(
     rows.map((b) => ({
@@ -145,6 +145,8 @@ router.get("/api/books/genres", async (req, res) => {
 // A free-text search shorter than this matches nearly everything and cannot use the
 // trigram indexes (migrations/088): answered with an empty list without touching the database.
 const SEARCH_MIN_LENGTH = 2;
+// No real catalogue is this deep; a bigger ?offset= is clamped to it (an empty page).
+const SEARCH_MAX_OFFSET = 100000;
 // The description is only searched from this length: shorter text (pg_trgm needs 3 characters)
 // would scan every description of the catalogue.
 const SEARCH_DESCRIPTION_MIN_LENGTH = 3;
@@ -159,7 +161,7 @@ router.get("/api/books/search", bookSearchLimiter, async (req, res) => {
   // ?topic=mystery,thriller,crime — the Books page's fixed genre buttons.
   // Matches any in-stock book whose categories contain one of the words,
   // since real inventory categories are free text (from ISBN lookups).
-  const topics = String(req.query.topic || "")
+  const topics = clean(req.query.topic, 300)
     .split(",")
     .map((t) => t.trim())
     .filter(Boolean)
@@ -168,14 +170,15 @@ router.get("/api/books/search", bookSearchLimiter, async (req, res) => {
   // ?paged=1 (the Books page): { books, total, nextOffset }, ?offset= and ?limit= (1-48, default 24), "Show more" 24 at a
   // time until nextOffset is null, so every book of a genre or search can be reached. Without it: the plain array, 60 books.
   const paged = req.query.paged === "1";
-  const limit = paged ? Math.min(Math.max(parseInt(req.query.limit, 10) || 24, 1), 48) : 60;
-  const offset = paged ? Math.max(parseInt(req.query.offset, 10) || 0, 0) : 0;
+  // offset is clamped to SEARCH_MAX_OFFSET: it is printed into the SQL, so it must be a small safe integer.
+  const limit = paged ? parseLimitParam(req.query.limit, { max: 48, default: 24 }) : 60;
+  const offset = paged ? parseIntParam(req.query.offset, { min: 0, max: SEARCH_MAX_OFFSET, default: 0 }) : 0;
   if (q && q.length < SEARCH_MIN_LENGTH) return res.json(paged ? { books: [], total: 0, nextOffset: null } : []);
 
   const clauses = ["c.status = 'in_stock'"];
   const params = [];
   if (q) {
-    params.push(`%${q}%`);
+    params.push(likeContains(q));
     const n = params.length;
     params.push(q.replace(/[^0-9Xx]/g, ""));
     const isbn = params.length;
@@ -191,7 +194,7 @@ router.get("/api/books/search", bookSearchLimiter, async (req, res) => {
   }
   if (topics.length) {
     const ors = topics.map((t) => {
-      params.push(`%${t}%`);
+      params.push(likeContains(t));
       const p = params.length;
       // Plain "fiction" is also a substring of "Non-fiction", so the
       // Fiction genre button would otherwise pull in non-fiction books
@@ -254,10 +257,8 @@ router.get("/favorites", (req, res) => {
 // CORS relaxation needed, unlike /api/books/latest-arrivals which the
 // marketing site calls cross-origin.
 router.get("/api/books/by-ids", async (req, res) => {
-  const ids = String(req.query.ids || "")
-    .split(",")
-    .map((s) => Number(s.trim()))
-    .filter((n) => Number.isInteger(n) && n > 0);
+  // Valid int4 ids only (anything else is dropped: it could never match, and an id past 2^31 would make Postgres refuse the query).
+  const ids = parseIdList(req.query.ids);
   if (!ids.length) return res.json([]);
 
   const { rows } = await pool.query(
