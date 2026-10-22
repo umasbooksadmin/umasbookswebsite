@@ -4,6 +4,7 @@ const crypto = require("crypto");
 const { pool } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
 const { audit } = require("../../lib/audit");
+const { ROLES, parseDesired, setAccountFlag } = require("../../lib/accountRoles");
 const { sendResetLink } = require("../../lib/passwordReset");
 const { baseUrl } = require("../../lib/baseUrl");
 const { sendVerificationEmail } = require("../../lib/emailVerification");
@@ -45,6 +46,12 @@ const MEMBER_ACTIVITY_JOIN = `
     GROUP BY o.buyer_email
   ) dr ON lower(dr.buyer_email) = lower(u.email)
 `;
+
+function roleNoticeFromQuery(raw) {
+  const [role, state] = String(raw || "").split(".");
+  if (!Object.hasOwn(ROLES, role) || !state) return "";
+  return roleNoticeText(role, state);
+}
 
 function membersBackQuery(req) {
   return req.body.backQuery ? `&${req.body.backQuery}` : "";
@@ -177,7 +184,7 @@ router.get("/admin/members", requireAdmin, async (req, res) => {
   }
 
   res.render("admin/members", {
-    unmatched, linkPaymentId, linkQ, linkCandidates, linkNotice: String(req.query.linkNotice || ""),
+    unmatched, linkPaymentId, linkQ, linkCandidates, linkNotice: String(req.query.linkNotice || ""), roleNotice: roleNoticeFromQuery(req.query.roleNotice),
     // Accounts and the new Members quick-link both land here (the same
     // list, just pre-filtered) — this distinguishes which sidebar entry
     // should highlight without needing two separate routes.
@@ -260,52 +267,49 @@ router.post("/admin/members/unmatched/:id/link", requireAdmin, async (req, res) 
   res.redirect(`/admin/members?linkNotice=${result.ok ? "linked" : encodeURIComponent(result.reason)}#unmatched-payments`);
 });
 
-router.post("/admin/members/:id/toggle-member", requireAdmin, async (req, res) => {
-  // Clears member_expires_at on manual toggle so a hand-granted membership
-  // doesn't get silently expired by the HelloAsso-driven backstop sweep
-  // (see expireStaleMemberships in lib/membership.js), and so re-granting
-  // status to someone whose paid membership lapsed starts as indefinite
-  // rather than reusing their old (past) expiry date.
-  const id = Number(req.params.id);
-  await pool.query("UPDATE users SET is_member = NOT is_member, member_expires_at = NULL WHERE id = $1", [id]);
-  await audit(req, { action: "member.toggle_member", targetType: "user", targetId: id });
-  res.redirect(`/admin/members?view=${id}${membersBackQuery(req)}`);
-});
+// Role switches post the state they want (desired=on|off) and the update is
+// idempotent, so a double click or a stale page cannot undo the change.
+// The URLs keep their old names. The notice shows on the account panel.
+const ROLE_NOTICES = {
+  bad: "That request was not understood, so nothing was changed. Reload the page and try again.",
+  missing: "That account no longer exists.",
+  self: "You cannot do that to your own account. Ask another admin.",
+  "last-admin": "Not changed: at least one active admin account must remain.",
+};
+function roleNoticeText(role, state) {
+  const cfg = ROLES[role];
+  if (state === "on") return `${cfg.on}.`;
+  if (state === "off") return `${cfg.off}.`;
+  if (state === "same") return "Nothing to change: the account was already set that way.";
+  return ROLE_NOTICES[state] || "";
+}
 
-router.post("/admin/members/:id/toggle-volunteer", requireAdmin, async (req, res) => {
-  const id = Number(req.params.id);
-  await pool.query("UPDATE users SET is_volunteer = NOT is_volunteer WHERE id = $1", [id]);
-  await audit(req, { action: "member.toggle_volunteer", targetType: "user", targetId: id });
-  res.redirect(`/admin/members?view=${id}${membersBackQuery(req)}`);
-});
-
+function roleRoute(role, { selfProtected = false } = {}) {
+  const cfg = ROLES[role];
+  router.post(`/admin/members/:id/toggle-${role}`, requireAdmin, async (req, res) => {
+    const id = Number(req.params.id);
+    const back = (state) => res.redirect(`/admin/members?view=${id}${membersBackQuery(req)}&roleNotice=${role}.${state}`);
+    // An admin can't demote or deactivate themselves; that could leave no one able to manage accounts.
+    if (selfProtected && id === req.session.user.id) return back("self");
+    const desired = parseDesired(req.body.desired);
+    if (desired === null) return back("bad");
+    const result = await setAccountFlag(pool, id, role, desired);
+    if (result.status === "missing") return back("missing");
+    if (result.status === "last_admin") return back("last-admin");
+    if (result.status === "unchanged") return back("same");
+    await audit(req, {
+      action: `member.toggle_${role}`, targetType: "user", targetId: id,
+      detail: `${desired ? cfg.on : cfg.off} (${result.was ? "on" : "off"} -> ${desired ? "on" : "off"})`,
+    });
+    return back(desired ? "on" : "off");
+  });
+}
+roleRoute("member");
+roleRoute("volunteer");
 // "Till access": the account may use the till (/admin/till) without being an admin.
-router.post("/admin/members/:id/toggle-till", requireAdmin, async (req, res) => {
-  const id = Number(req.params.id);
-  const { rows } = await pool.query("UPDATE users SET is_till = NOT is_till WHERE id = $1 RETURNING is_till", [id]);
-  if (rows.length) {
-    await audit(req, { action: "member.toggle_till", targetType: "user", targetId: id, detail: rows[0].is_till ? "Till access given" : "Till access removed" });
-  }
-  res.redirect(`/admin/members?view=${id}${membersBackQuery(req)}`);
-});
-
-router.post("/admin/members/:id/toggle-admin", requireAdmin, async (req, res) => {
-  const id = Number(req.params.id);
-  // An admin can't demote themselves — that could leave the account list
-  // with no one able to manage it.
-  if (id === req.session.user.id) return res.redirect(`/admin/members?view=${id}${membersBackQuery(req)}`);
-  await pool.query("UPDATE users SET is_admin = NOT is_admin WHERE id = $1", [id]);
-  await audit(req, { action: "member.toggle_admin", targetType: "user", targetId: id });
-  res.redirect(`/admin/members?view=${id}${membersBackQuery(req)}`);
-});
-
-router.post("/admin/members/:id/toggle-disabled", requireAdmin, async (req, res) => {
-  const id = Number(req.params.id);
-  if (id === req.session.user.id) return res.redirect(`/admin/members?view=${id}${membersBackQuery(req)}`);
-  await pool.query("UPDATE users SET is_disabled = NOT is_disabled WHERE id = $1", [id]);
-  await audit(req, { action: "member.toggle_disabled", targetType: "user", targetId: id });
-  res.redirect(`/admin/members?view=${id}${membersBackQuery(req)}`);
-});
+roleRoute("till");
+roleRoute("admin", { selfProtected: true });
+roleRoute("disabled", { selfProtected: true });
 
 router.post("/admin/members/:id/edit", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);

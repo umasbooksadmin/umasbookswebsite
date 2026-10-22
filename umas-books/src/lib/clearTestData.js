@@ -58,6 +58,7 @@ const TABLES = {
   price_reprice_items: "shop",
   images: "shop", // only the ones no remaining row refers to
   favorites: "shop",
+  copy_intake_tokens: "shop", // one-time save tokens of the Add Book form (they follow the copies)
   curated_collection_books: "shop", // which books are in a curated collection (they follow the books)
   // people
   users: "people", // non-admins only
@@ -276,6 +277,7 @@ function buildPlan({ includeContent = false, keepMembers = false } = {}, have = 
   del("orders");
   del("favorites");
   del("book_awards");
+  del("copy_intake_tokens");
   del("curated_collection_books");
   del("price_reprice_items");
   del("price_reprice_runs");
