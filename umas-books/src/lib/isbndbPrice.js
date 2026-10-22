@@ -83,7 +83,7 @@ function remember(isbn13, book, now = Date.now()) {
 
 // Asks ISBNdb (or the cache) for the list price of one ISBN-13.
 // Resolves { state: "ok", amount, currency, cached? } | { state: "none" } (no usable price) | { state: "off" } (no key)
-// | { state: "unavailable" } (paused, failed, slow). Never rejects. opts: fetchImpl, env, now, sleep, stats, timeoutMs.
+// | { state: "unavailable" } (paused, failed, slow) | { state: "limit" } (ISBNDB_DAILY_MAX_CALLS reached today). Never rejects. opts: fetchImpl, env, now, sleep, stats, timeoutMs.
 async function lookupListPrice(isbn13, opts = {}) {
   const sources = require("./bookSources");
   const env = opts.env || process.env;
@@ -101,6 +101,7 @@ async function lookupListPrice(isbn13, opts = {}) {
         stats: opts.stats, env, now: opts.now, sleep: opts.sleep,
       });
       if (r.state === "missing") { const v = { state: "none" }; cacheSet(isbn13, v, now()); return v; }
+      if (r.capped) return { state: "limit" }; // today's paid-call cap is used up (not cached)
       if (r.state !== "ok") return { state: "unavailable" }; // paused, refused, over quota, timed out: not cached
       const book = r.data && r.data.book;
       remember(isbn13, book, now());
@@ -115,7 +116,7 @@ async function lookupListPrice(isbn13, opts = {}) {
 }
 
 // What the Add Book page needs: the original price and the converted, rounded suggestion.
-// { state: "price", original: { amount, currency }, eur, rate, approximate } | { state: "none" | "off" | "unavailable" }
+// { state: "price", original: { amount, currency }, eur, rate, approximate } | { state: "none" | "off" | "unavailable" | "limit" }
 async function suggestPublisherPrice(isbn13, rates, opts = {}) {
   const r = await lookupListPrice(isbn13, opts);
   if (r.state !== "ok") return { state: r.state };

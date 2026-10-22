@@ -2150,7 +2150,11 @@ nothing, so the paid calls stay few. Nothing else changes: remove the variable a
 4. Check: **Admin > `/admin/diagnostics/lookup`** shows ISBNdb as "Key set", then "Working" after the first lookup that needed it,
    or **"Key refused"** (wrong key or subscription lapsed) or **"Quota reached"**. The person scanning never sees these; the lookup simply goes on without ISBNdb
    (paused 30 minutes after a refusal, 1 minute to 30 minutes after a quota answer).
-5. Speed limit: at most one request a second (`ISBNDB_MIN_INTERVAL_MS`, default `1000`; raise the speed only if your plan says so). A request that would wait more than 2.5 s is skipped.
+5. Daily cap: at most `ISBNDB_DAILY_MAX_CALLS` paid requests per Paris day (default `500`, `0` = none; title lookups and price suggestions together,
+   counted in the database so a restart does not reset it). It is a **Render environment variable** (Render > umas-books > Environment; not a GitHub secret or variable).
+   At the cap ISBNdb is skipped quietly (no email, no error): Add Book says "daily limit reached" instead of a price, and
+   **`/admin/diagnostics/lookup`** shows today's count. Raise the number there on a genuinely busy day.
+6. Speed limit: at most one request a second (`ISBNDB_MIN_INTERVAL_MS`, default `1000`; raise the speed only if your plan says so). A request that would wait more than 2.5 s is skipped.
 
 **Where the key goes:** Render dashboard > the **umas-books** web service > **Environment** > `ISBNDB_API_KEY` (an environment variable, not a
 GitHub secret or variable; never put the key in a file or in chat). **How to read the quota:** the site does not know your plan. Check isbndb.com > your account for the daily/monthly quota;
@@ -3134,7 +3138,8 @@ so kindly.
   inventory **after the collection's Last built time**, and adds suggestions. **Update all collections** (top of the
   list) does that for every collection that was built before (never-built ones are left for their own
   **Generate suggestions** button, because building all 19 at once is more than 50 paid calls). It stops starting new
-  collections after about 80 seconds (the result lists what was not reached: press it again), and one collection
+  collections after about 40 seconds and caps each AI call so the whole run ends within about 85 seconds (the site's host
+  closes a page that takes 100 s; the result lists what was not reached: press it again to continue), and one collection
   failing never stops the others. A collection with no new book shows **Nothing new** and keeps its Last built time.
 - The list shows, per collection, the **Last built** time, "N books were added since the last build", and a
   **N to review** badge for suggestions waiting for you.

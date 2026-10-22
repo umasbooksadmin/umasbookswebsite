@@ -3,8 +3,8 @@
    assets/posts.js. */
 (function () {
   var UI = {
-    en: { readMore: "Read more", allPosts: "All posts", back: "All posts", empty: "No posts yet — check back soon.", notFound: "Sorry, we couldn’t find that post." },
-    fr: { readMore: "Lire la suite", allPosts: "Tous les articles", back: "Tous les articles", empty: "Pas encore d’articles — revenez bientôt.", notFound: "Désolé, cet article est introuvable." }
+    en: { readMore: "Read more", more: "Show older posts", allPosts: "All posts", back: "All posts", empty: "No posts yet — check back soon.", notFound: "Sorry, we couldn’t find that post." },
+    fr: { readMore: "Lire la suite", more: "Voir les articles plus anciens", allPosts: "Tous les articles", back: "Tous les articles", empty: "Pas encore d’articles — revenez bientôt.", notFound: "Désolé, cet article est introuvable." }
   };
 
   function lang() {

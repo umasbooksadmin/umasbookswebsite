@@ -41,7 +41,7 @@ defaults:
 jobs:
   lint:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10 # npm ci can crawl on a slow runner (a 5-minute limit cancelled one)
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -126,7 +126,7 @@ jobs:
     # npm run seed; npm start) — independent of the "test" job above, which reuses an
     # already-migrated database for speed.
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10 # npm ci can crawl on a slow runner (a 5-minute limit cancelled one)
     services:
       postgres:
         image: postgres:18
@@ -172,7 +172,7 @@ jobs:
 
   dependency-audit:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10 # npm ci can crawl on a slow runner (a 5-minute limit cancelled one)
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

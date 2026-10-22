@@ -204,6 +204,30 @@ const ISBNDB_DEFAULT_BASE = "https://api2.isbndb.com";
 const MAX_QUEUE_WAIT_MS = 2500;
 const isbndbState = { nextSlot: 0, pausedUntil: 0, status: "unknown", lastError: null, lastOkAt: null, lastCallAt: null, calls: 0, warned: new Set() };
 
+// A daily cap on ALL paid ISBNdb requests (the title/author fallback and the price suggestion), counted per Paris day in
+// the database with the same atomic counter as the AI cap (lib/aiLimits.js, table ai_daily_cap, scope 'isbndb').
+// ISBNDB_DAILY_MAX_CALLS: default 500, 0 = no paid calls at all. At the cap the call is skipped like a pause (no error, no email);
+// the price suggestion says "daily limit reached".
+const ISBNDB_DEFAULT_DAILY_MAX = 500;
+const ISBNDB_CAP_SCOPE = "isbndb";
+function isbndbDailyMax(env = process.env) {
+  const raw = env.ISBNDB_DAILY_MAX_CALLS;
+  if (raw === undefined || raw === "") return ISBNDB_DEFAULT_DAILY_MAX;
+  const n = Number(raw);
+  return Number.isInteger(n) && n >= 0 ? n : ISBNDB_DEFAULT_DAILY_MAX;
+}
+const isbndbCapMessage = (max) => `ISBNdb daily limit reached (${max} calls today); it resets at midnight Paris time.`;
+// Today's paid calls -> { max, used, reached }. For the diagnostics page.
+async function isbndbDailyUsage(pool, env = process.env) {
+  const max = isbndbDailyMax(env);
+  let used = 0;
+  try {
+    const { rows } = await pool.query("SELECT calls FROM ai_daily_cap WHERE scope = $1 AND day = (now() AT TIME ZONE $2)::date", [ISBNDB_CAP_SCOPE, require("./tz").SITE_TIME_ZONE]);
+    used = rows.length ? rows[0].calls : 0;
+  } catch { /* the page still renders */ }
+  return { max, used, reached: used >= max, message: isbndbCapMessage(max) };
+}
+
 const isbndbConfigured = (env = process.env) => Boolean(env.ISBNDB_API_KEY && String(env.ISBNDB_API_KEY).trim());
 function isbndbBase(env = process.env) {
   const raw = String(env.ISBNDB_API_BASE || "").trim().replace(/\/+$/, "");
@@ -263,6 +287,12 @@ async function isbndbRequest({ forms, fetchImpl, signal, stats, env = process.en
   isbndbState.nextSlot = slot + interval;
   if (slot > now()) await sleep(slot - now());
   if (signal && signal.aborted) return { state: "error", skipped: true };
+  // The slot is taken only for a request that is really about to be made.
+  const max = isbndbDailyMax(env);
+  if (!(await require("./aiLimits").getAiLimits().claim(ISBNDB_CAP_SCOPE, max))) {
+    warnOnce(`cap${new Date(now()).toISOString().slice(0, 10)}`, `${isbndbCapMessage(max)} Raise ISBNDB_DAILY_MAX_CALLS in Render > Environment if this is a normal busy day.`);
+    return { state: "error", skipped: true, capped: true };
+  }
   isbndbState.calls += 1;
   try { (stats || require("./lookupStats").getStats()).record("isbndb", { paid_calls: 1 }); } catch { /* statistics never get in the way */ }
   isbndbState.lastCallAt = now();
@@ -318,5 +348,5 @@ function resetSourcePauses() {
 }
 
 module.exports = {
-  USER_AGENT, isbnForms, isFrenchIsbn, isbn10to13, isbn13to10, openLibraryData, googleBooks, bnf, isbndb, isbndbRequest, isbndbConfigured, isbndbStatus, isbndbBase, fromIsbndb, fromBnf, fromGoogle, fromOpenLibraryData, resetSourcePauses, getJson,
+  USER_AGENT, isbnForms, isFrenchIsbn, isbn10to13, isbn13to10, openLibraryData, googleBooks, bnf, isbndb, isbndbRequest, isbndbConfigured, isbndbStatus, isbndbBase, isbndbDailyMax, isbndbDailyUsage, isbndbCapMessage, ISBNDB_DEFAULT_DAILY_MAX, fromIsbndb, fromBnf, fromGoogle, fromOpenLibraryData, resetSourcePauses, getJson,
 };

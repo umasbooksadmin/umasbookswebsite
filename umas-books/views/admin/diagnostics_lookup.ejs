@@ -24,6 +24,7 @@
             Key set; not used yet since the site started (it is only asked when the free sources find no title, or lack the author, publisher or year).
           <% } %>
           <% if (isbndb.configured) { %> Calls since the site started: <%= isbndb.calls %>.<% } %>
+          <% if (isbndb.configured) { %> Paid calls today (Paris time): <%= isbndbToday.used %> of <%= isbndbToday.max %> allowed (<code>ISBNDB_DAILY_MAX_CALLS</code>).<% if (isbndbToday.reached) { %> <strong>Daily limit reached:</strong> no price suggestions or ISBNdb fallbacks until midnight.<% } %><% } %>
           <% if (isbndb.pausedUntil) { %> Paused until <%= new Date(isbndb.pausedUntil).toLocaleTimeString('en-GB', { timeZone: 'Europe/Paris' }) %>.<% } %>
         </td>
       </tr>
