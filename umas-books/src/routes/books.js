@@ -2,7 +2,7 @@ const express = require("express");
 const { localCover } = require("../lib/coverStore");
 const { pool } = require("../db");
 const { CONDITIONS, bindingLabel, conditionLabel } = require("../lib/inventory");
-const { expireStaleReservations } = require("../lib/reservations");
+const { expireStaleReservationsThrottled } = require("../lib/reservations");
 const { baseUrl } = require("../lib/baseUrl");
 const { clean, parseId } = require("../lib/validation");
 const { parseIntParam, parseLimitParam, parseIdList, likeContains } = require("../lib/parseParams");
@@ -282,7 +282,7 @@ router.get("/api/books/by-ids", async (req, res) => {
 });
 
 router.get("/books/:id", async (req, res) => {
-  await expireStaleReservations(pool);
+  await expireStaleReservationsThrottled(pool); // read-only view: at most one sweep per 30 s per process
   const id = Number(req.params.id);
   const { rows: bookRows } = await pool.query("SELECT * FROM books WHERE id = $1", [id]);
   const book = bookRows[0];

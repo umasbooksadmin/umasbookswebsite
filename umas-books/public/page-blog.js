@@ -2,10 +2,23 @@
 (function () {
   var root = document.getElementById('blog-root');
   var B = window.UmasBlog;
+  var shown = null, pending = {}, loaded = {}; // the single-post view: its body is fetched on demand
   function draw() {
     var l = B.lang(), slug = new URLSearchParams(location.search).get('post');
     if (slug) {
-      var p = B.posts().filter(function (x) { return x.slug === slug; })[0];
+      var Live = window.UmasBlogLive;
+      var cached = B.posts().filter(function (x) { return x.slug === slug && x.body != null; })[0];
+      if (!cached && Live) {
+        if (shown !== slug) {
+          root.innerHTML = '<div class="blog-post"><a class="back" href="blog.html">&larr; ' + B.esc(B.ui('back')) + '</a></div>';
+        }
+        shown = slug;
+        if (!pending[slug]) {
+          pending[slug] = Live.post(slug).then(function (p) { loaded[slug] = p || false; draw(); });
+        }
+        if (loaded[slug] === undefined) return;
+      }
+      var p = cached || loaded[slug];
       if (!p) {
         root.innerHTML = '<div class="blog-post"><a class="back" href="blog.html">&larr; ' + B.esc(B.ui('back')) + '</a><p>' + B.esc(B.ui('notFound')) + '</p></div>';
         return;
@@ -29,9 +42,13 @@
     var list = B.posts();
     root.innerHTML = '<h1 class="blog-page-title" data-i18n="blog.title">Blog</h1>' +
       (list.length
-        ? '<div class="blog-grid">' + list.map(function (p) { return B.card(p, l); }).join('') + '</div>'
+        ? '<div class="blog-grid">' + list.map(function (p) { return B.card(p, l); }).join('') + '</div>' +
+          (window.UMAS_POSTS_MORE ? '<p class="blog-more-wrap"><button type="button" class="h-btn blog-load-more">' + B.esc(B.ui('more')) + '</button></p>' : '')
         : '<p class="blog-empty">' + B.esc(B.ui('empty')) + '</p>');
   }
+  root.addEventListener('click', function (e) {
+    if (e.target.closest && e.target.closest('.blog-load-more') && window.UmasBlogLive) window.UmasBlogLive.more();
+  });
   draw();
   document.querySelectorAll('.langtoggle button').forEach(function (b) {
     b.addEventListener('click', function () { setTimeout(draw, 0); });

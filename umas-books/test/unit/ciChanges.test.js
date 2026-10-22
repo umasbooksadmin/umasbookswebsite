@@ -71,6 +71,13 @@ test("ci.yml keeps the six required checks, always running, with no workflow-lev
   assert.match(ci, /ci-changes\.sh/);
 });
 
+test("jobs that run npm ci get 10 minutes (a slow runner cancelled migration-test at 5)", () => {
+  const block = (name) => ci.slice(ci.indexOf(`\n  ${name}:\n`)).split(/\n {2}[a-z-]+:\n/)[1];
+  for (const name of ["lint", "migration-test", "dependency-audit"]) {
+    assert.match(block(name), /timeout-minutes: 10\b/, name);
+  }
+});
+
 test("test (12 min) and smoke-crawl (20 min) jobs have sensible limits, and the test job reports its duration", () => {
   const block = (name) => ci.slice(ci.indexOf(`\n  ${name}:\n`)).split(/\n {2}[a-z-]+:\n/)[1];
   assert.match(block("test"), /timeout-minutes: 12\b/);

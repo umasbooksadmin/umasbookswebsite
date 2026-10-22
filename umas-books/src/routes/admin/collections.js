@@ -159,7 +159,7 @@ const summaryLine = (r) => {
     case "added": return `${r.title}: ${r.added} new suggestion${r.added === 1 ? "" : "s"} to review (${r.considered} new book${r.considered === 1 ? "" : "s"} looked at)`;
     case "nothing": return `${r.title}: Nothing new`;
     case "never": return `${r.title}: never built yet, use its own Generate suggestions button`;
-    case "later": return `${r.title}: not reached this time (press Update all collections again)`;
+    case "later": return `${r.title}: not reached this time (run Update all collections again to continue)`;
     default: return `${r.title}: FAILED, ${r.error}`;
   }
 };
@@ -168,10 +168,11 @@ router.post("/admin/collections/update-all", requireAdmin, aiLimitList, async (r
   const results = await updateAllCollections(pool);
   const added = results.reduce((n, r) => n + (r.added || 0), 0);
   const failed = results.filter((r) => r.status === "failed").length;
-  await audit(req, { action: "collection.update_all", detail: `${added} suggestions added, ${failed} failed` });
+  const later = results.filter((r) => r.status === "later");
+  await audit(req, { action: "collection.update_all", detail: `${added} suggestions added, ${failed} failed${later.length ? `, ${later.length} not reached` : ""}` });
   const lines = results.filter((r) => r.status !== "never" && r.status !== "manual").map(summaryLine);
   await flash(req, {
-    [failed ? "error" : "notice"]: `Update all collections: ${added} new suggestion${added === 1 ? "" : "s"} waiting for your review${failed ? `, ${failed} collection${failed === 1 ? "" : "s"} could not be updated` : ""}. Nothing is shown to customers until you approve books.`,
+    [failed ? "error" : "notice"]: `Update all collections: ${added} new suggestion${added === 1 ? "" : "s"} waiting for your review${failed ? `, ${failed} collection${failed === 1 ? "" : "s"} could not be updated` : ""}. Nothing is shown to customers until you approve books.${later.length ? ` ${later.length} collection${later.length === 1 ? " was" : "s were"} not reached in the time allowed: run Update all collections again to continue.` : ""}`,
     lines,
   });
   res.redirect(303, "/admin/collections");

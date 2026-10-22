@@ -171,6 +171,7 @@
     }
     if (state === "none") return { text: "ISBNdb has no price for this book: type the price printed on the cover.", value: "" };
     if (state === "unavailable") return { text: "ISBNdb could not be reached for a price right now: type the price printed on the cover.", value: "" };
+    if (state === "limit") return { text: "ISBNdb price lookup: daily limit reached, no price today: type the price printed on the cover.", value: "" };
     return { text: "", value: "" }; // off, not_new, or anything unexpected: say nothing
   }
 

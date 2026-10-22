@@ -165,7 +165,7 @@ async function insertSuggestions(pool, collectionId, picks) {
 // The "last built" time (last_generated_at) is set ONLY when at least one AI answer was usable, to the moment the run
 // STARTED (a book added during the run is looked at next time). Nothing new to look at is not a build: the time stays.
 // -> { ok: true, added, considered, nothingNew?, partial? } | { ok: false, error, reason }. Never throws for an AI problem.
-async function generateSuggestions(pool, collectionId, { ask = claudeRequest, maxCandidates = MAX_CANDIDATES, batchSize = BATCH_SIZE, mode = "new" } = {}) {
+async function generateSuggestions(pool, collectionId, { ask = claudeRequest, maxCandidates = MAX_CANDIDATES, batchSize = BATCH_SIZE, mode = "new", timeoutMs = AI_CALL_MAX_MS } = {}) {
   const { rows } = await pool.query("SELECT id, title_en, description_en, curation_prompt, last_generated_at::text AS last_built_text, now()::text AS started_text FROM curated_collections WHERE id = $1", [collectionId]);
   const collection = rows[0];
   if (!collection) return { ok: false, error: "That collection does not exist.", reason: "missing" };
@@ -180,7 +180,7 @@ async function generateSuggestions(pool, collectionId, { ask = claudeRequest, ma
   for (let i = 0; i < books.length; i += batchSize) batches.push(books.slice(i, i + batchSize));
 
   const answers = await Promise.all(batches.map(async (batch) => {
-    const res = await ask(buildPrompt(collection, batch), { maxTokens: 1800, timeoutMs: 45000, label: "AI collection suggestions", feature: "description" });
+    const res = await ask(buildPrompt(collection, batch), { maxTokens: 1800, timeoutMs, label: "AI collection suggestions", feature: "description" });
     if (!res || !res.text) return { failure: (res && res.reason) || "error", message: res && res.message };
     return { picks: parseSuggestions(res.text, new Set(batch.map((b) => b.id))) };
   }));
@@ -199,19 +199,27 @@ async function generateSuggestions(pool, collectionId, { ask = claudeRequest, ma
 
 // "Update all collections": "Add new books" for every collection that has been built before, one after the other.
 // One collection failing never stops the others; each gets its own line. A collection never built is left for its own
-// button (building all 19 at once would be 50+ paid calls). Stops starting new collections after maxMs (a web request must
-// not run for minutes): the rest are reported, and pressing the button again continues.
+// button (building all 19 at once would be 50+ paid calls).
+// The whole run is ONE web request and Cloudflare closes a request at 100 s (the admin would see an error while the
+// server finishes the work), so the total stays under about 85 s: no new collection is STARTED after startMs (40 s), and
+// each AI call gets min(45 s, what is left of totalMs) as its time limit, so the last one started ends by totalMs at the
+// latest. The collections not reached are reported ('later'): pressing the button again continues.
 // -> [{ id, title, status: 'added' | 'nothing' | 'failed' | 'never' | 'later' | 'manual', added?, considered?, error? }]
-async function updateAllCollections(pool, { ask = claudeRequest, maxMs = 80000, now = Date.now, ...opts } = {}) {
+const UPDATE_ALL_START_MS = 40000;
+const UPDATE_ALL_TOTAL_MS = 85000;
+const AI_CALL_MAX_MS = 45000;
+const MIN_CALL_MS = 10000; // less than this left: not worth starting
+async function updateAllCollections(pool, { ask = claudeRequest, startMs = UPDATE_ALL_START_MS, totalMs = UPDATE_ALL_TOTAL_MS, now = Date.now, generate = generateSuggestions, ...opts } = {}) {
   const { rows } = await pool.query("SELECT id, title_en, last_generated_at, curation_prompt FROM curated_collections ORDER BY sort_order, id");
   const t0 = now();
   const out = [];
   for (const c of rows) {
     if (!String(c.curation_prompt || "").trim()) { out.push({ id: c.id, title: c.title_en, status: "manual" }); continue; }
     if (!c.last_generated_at) { out.push({ id: c.id, title: c.title_en, status: "never" }); continue; }
-    if (now() - t0 > maxMs) { out.push({ id: c.id, title: c.title_en, status: "later" }); continue; }
+    const elapsed = now() - t0;
+    if (elapsed > startMs || totalMs - elapsed < MIN_CALL_MS) { out.push({ id: c.id, title: c.title_en, status: "later" }); continue; }
     let r;
-    try { r = await generateSuggestions(pool, c.id, { ...opts, ask, mode: "new" }); } catch (err) { r = { ok: false, error: "Unexpected error: " + String(err.message).slice(0, 120) }; }
+    try { r = await generate(pool, c.id, { ...opts, ask, mode: "new", timeoutMs: Math.min(AI_CALL_MAX_MS, totalMs - elapsed) }); } catch (err) { r = { ok: false, error: "Unexpected error: " + String(err.message).slice(0, 120) }; }
     if (!r.ok) out.push({ id: c.id, title: c.title_en, status: "failed", error: r.error });
     else if (r.nothingNew) out.push({ id: c.id, title: c.title_en, status: "nothing" });
     else out.push({ id: c.id, title: c.title_en, status: "added", added: r.added, considered: r.considered });
@@ -221,5 +229,5 @@ async function updateAllCollections(pool, { ask = claudeRequest, maxMs = 80000, 
 
 module.exports = {
   MAX_CANDIDATES, BATCH_SIZE, MAX_PICKS_PER_BATCH, keywordsOf, candidates, buildPrompt, parseSuggestions, explainFailure,
-  insertSuggestions, generateSuggestions, updateAllCollections,
+  insertSuggestions, generateSuggestions, updateAllCollections, UPDATE_ALL_START_MS, UPDATE_ALL_TOTAL_MS,
 };

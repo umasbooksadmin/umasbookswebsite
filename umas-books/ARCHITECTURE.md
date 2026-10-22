@@ -461,6 +461,7 @@ variable read in `src/` or `scripts/` is missing from this table or from
 | `ISBNDB_MIN_INTERVAL_MS` | no | 1000 | optional | Minimum gap between ISBNdb calls (`src/lib/bookSources.js`) |
 | `ISBNDB_PRICE_TIMEOUT_MS` | no | 6000 | optional | Timeout for one ISBNdb price call (`src/lib/isbndbPrice.js`) |
 | `ISBNDB_PRICE_TTL_MS` | no | 3 days | optional | How long an ISBNdb price answer is cached |
+| `ISBNDB_DAILY_MAX_CALLS` | no | 500 (`0` = no paid calls) | Render env var (Render > Environment; not in `render.yaml`) | Most paid ISBNdb requests per Paris day (title fallback and price suggestion together), counted atomically in `ai_daily_cap` (scope `isbndb`, `src/lib/bookSources.js`). At the cap the call is skipped (no error, no email) and the price suggestion says "daily limit reached"; today's count is on Admin > Diagnostics > Book lookup sources |
 | `SCAN_LOOKUP_SOURCES` | no | `openlibrary,bnf,google,openlibrary-data,isbndb` | optional | Comma list of lookup sources the scan screen uses, in order (`src/lib/bookLookup.js`) |
 | `SCAN_CACHE_TTL_MS` | no | 600000 (10 minutes; `0` = off) | optional | How long a scan lookup result is cached (`src/lib/bookLookup.js`) |
 | `SCAN_NEGATIVE_TTL_MS` | no | 120000 (2 minutes) | optional | How long a "not found" is cached |
@@ -1190,6 +1191,8 @@ names the files; read those for the details. Operations for these are in
   (trigram indexes, migration 088). Filters: `q` (title, author, description,
   genre, ISBN), `genre` (exact), `topic` (comma list, up to 10, substring of the
   categories). Rate limited by `bookSearchLimiter`; cached 60 seconds.
+- `GET /api/blog/posts`: light list (slug, title, excerpt, category, image, date; no bodies), 24 per page (`?offset=`, `?limit=` up to 100), cached 5 minutes; `GET /api/blog/posts/:slug` returns one post with its sanitised body (the blog page fetches it on demand). `?preview=1` (admin) adds drafts, never cached.
+- Public book page (`/books/:id`) sweeps expired reservations at most once per 30 s per process (`expireStaleReservationsThrottled`); cart, checkout return, till and admin screens sweep every time.
 - `GET /api/books/genres`: in-stock genres, cached 5 minutes.
 - Numeric parameters are clamped by `parseIntParam` (`src/lib/parseParams.js`):
   only plain digits count (an array, `1e3`, `0x10`, spaces or a decimal give the
@@ -1229,7 +1232,8 @@ names the files; read those for the details. Operations for these are in
   at least one AI answer was usable. "Add new books" considers only copies added
   since that date; "Full rebuild" (a confirm page, `/admin/collections/:id/rebuild`)
   considers everything again; "Update all collections" runs "Add new books" for
-  each built collection.
+  each built collection (no new collection is started after 40 s and each AI call's limit is cut to what is left of 85 s, so
+  the request stays under Cloudflare's 100 s; skipped ones are reported as "not reached").
 - **Uploads are stored in the database** (`images` table via `src/lib/imageStore.js`),
   so they survive deploys: the round icon (240 px PNG, circular) and an optional
   wide banner (1600 x 800 JPEG) with English and French alt text; JPEG, PNG or

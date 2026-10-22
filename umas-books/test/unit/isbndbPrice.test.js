@@ -7,6 +7,9 @@ const P = require("../../src/lib/isbndbPrice");
 const sources = require("../../src/lib/bookSources");
 const { lookupByIsbnDetailed, createTtlCache } = require("../../src/lib/bookLookup");
 const S = require("../../public/scan-intake.js");
+const { createAiLimits, setAiLimits } = require("../../src/lib/aiLimits");
+// No database in unit tests: the daily counter falls back to memory (a fresh one per test).
+const memoryLimits = () => createAiLimits({ getPool: () => { throw new Error("no db"); }, log: () => {} });
 
 const json = (body, status = 200, headers = {}) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", ...headers } });
 const ISBN = "9780143127550";
@@ -23,7 +26,8 @@ const ask = (fetchImpl, isbn = ISBN, extra = {}) => P.lookupListPrice(isbn, { fe
 
 const saved = {};
 beforeEach(() => {
-  for (const k of ["ISBNDB_API_KEY", "ISBNDB_MIN_INTERVAL_MS", "ISBNDB_PRICE_TTL_MS"]) { saved[k] = process.env[k]; delete process.env[k]; }
+  setAiLimits(memoryLimits());
+  for (const k of ["ISBNDB_API_KEY", "ISBNDB_MIN_INTERVAL_MS", "ISBNDB_PRICE_TTL_MS", "ISBNDB_DAILY_MAX_CALLS"]) { saved[k] = process.env[k]; delete process.env[k]; }
   process.env.ISBNDB_API_KEY = "test-key";
   process.env.ISBNDB_MIN_INTERVAL_MS = "0";
   sources.resetSourcePauses();
@@ -200,4 +204,43 @@ test("page: asked only for a New book with an empty publisher's price and a comp
   const src = require("node:fs").readFileSync(require("node:path").join(__dirname, "../../public/scan-intake.js"), "utf8");
   assert.equal((src.match(/priceField\.value = /g) || []).length, 1, "one place sets the price field");
   assert.match(src, /priceUse\.addEventListener\("click"[^]*?priceField\.value = suggested/);
+});
+
+test("ISBNDB_DAILY_MAX_CALLS: parsing, default 500, 0 = none", () => {
+  assert.equal(sources.isbndbDailyMax({}), 500);
+  assert.equal(sources.isbndbDailyMax({ ISBNDB_DAILY_MAX_CALLS: "" }), 500);
+  assert.equal(sources.isbndbDailyMax({ ISBNDB_DAILY_MAX_CALLS: "20" }), 20);
+  assert.equal(sources.isbndbDailyMax({ ISBNDB_DAILY_MAX_CALLS: "0" }), 0);
+  for (const bad of ["-1", "abc", "1.5"]) assert.equal(sources.isbndbDailyMax({ ISBNDB_DAILY_MAX_CALLS: bad }), 500, bad);
+});
+
+test("the daily cap counts every paid call (price and title fallback) and then skips without calling ISBNdb", async () => {
+  process.env.ISBNDB_DAILY_MAX_CALLS = "2";
+  const f = isbndbOnly(() => json({ book: { title: "T", msrp: 9 } }));
+  assert.equal((await ask(f, "9780143127550")).state, "ok");
+  // the title fallback goes through the same counter
+  const forms = sources.isbnForms("9782070612758");
+  const r2 = await sources.isbndbRequest({ forms, fetchImpl: f, stats: noStats, sleep: async () => {} });
+  assert.equal(r2.state, "ok");
+  assert.equal(f.calls.length, 2);
+  // third distinct ISBN: capped, no request made, nothing cached, never rejects
+  const third = await ask(f, "9780306406157");
+  assert.deepEqual(third, { state: "limit" });
+  assert.equal(f.calls.length, 2, "no paid request after the cap");
+  const r4 = await sources.isbndbRequest({ forms: sources.isbnForms("9780306406157"), fetchImpl: f, stats: noStats, sleep: async () => {} });
+  assert.equal(r4.capped, true);
+  assert.equal(r4.state, "error");
+  // already-cached ISBNs still answer (no call involved)
+  assert.equal((await ask(f, "9780143127550")).cached, true);
+  // the suggestion passes the state on, and the page shows "daily limit reached"
+  const sug = await P.suggestPublisherPrice("9780306406157", RATES, { fetchImpl: f, stats: noStats, sleep: async () => {} });
+  assert.deepEqual(sug, { state: "limit" });
+  assert.match(S.isbndbPriceMessage({ state: "limit" }).text, /daily limit reached/);
+});
+
+test("ISBNDB_DAILY_MAX_CALLS=0 makes no paid call at all", async () => {
+  process.env.ISBNDB_DAILY_MAX_CALLS = "0";
+  const f = isbndbOnly(() => json({ book: { msrp: 9 } }));
+  assert.deepEqual(await ask(f), { state: "limit" });
+  assert.equal(f.calls.length, 0);
 });

@@ -271,6 +271,10 @@ test("diagnostics: /admin/diagnostics/lookup lists the sources, says ISBNdb is o
       assert.doesNotMatch(on, /super-secret-value/);
       assert.doesNotMatch(on, /is set\./);
       assert.match(on, /Key set/);
+      assert.match(on, /Paid calls today \(Paris time\): 0 of 500 allowed/);
+      await pool.query("INSERT INTO ai_daily_cap (day, scope, calls) VALUES ((now() AT TIME ZONE 'Europe/Paris')::date, 'isbndb', 500) ON CONFLICT (day, scope) DO UPDATE SET calls = 500");
+      assert.match(await get(), /Paid calls today \(Paris time\): 500 of 500 allowed[\s\S]*Daily limit reached/);
+      await pool.query("DELETE FROM ai_daily_cap WHERE scope = 'isbndb'");
     } finally {
       delete process.env.ISBNDB_API_KEY;
     }

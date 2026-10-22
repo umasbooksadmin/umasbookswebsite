@@ -19,13 +19,14 @@
 // status (public book search/detail, admin inventory, the cart) so the shown
 // status is always accurate regardless of whether the periodic backstop in
 // index.js has run recently (the process can restart or be mid-deploy, so a timer alone
-// isn't reliable). Mail is only ever sent from the periodic jobs
+// isn't reliable; the public book page uses the throttled variant below). Mail is only ever sent from the periodic jobs
 // (lib/orderSweeps.js), never from a page read.
 
 const { sendEmail } = require("./outbox");
 const { emailSafeName } = require("./validation");
 const { emailTr } = require("./lang");
 const legal = require("./legal");
+const { cachedFor } = require("./runLimited");
 
 // Single source: lib/legal.js.
 const RESERVATION_DAYS = legal.RESERVATION_DAYS;
@@ -53,6 +54,25 @@ async function expireStaleReservations(pool) {
   await expireOrderReservations(pool);
   await releaseEndedSeats(pool);
 }
+
+// The read-only public book page does not need a sweep per view (the jobs sweep
+// every 6 h / 5 min, and the cart, checkout, till and admin paths still call
+// expireStaleReservations directly, every time): at most one sweep per
+// EXPIRY_THROTTLE_MS per process, with concurrent views sharing it. The
+// worst case is a copy that expired in the last 30 s still showing as held.
+const EXPIRY_THROTTLE_MS = 30 * 1000;
+function makeThrottledExpiry(ttlMs = EXPIRY_THROTTLE_MS, clock = Date.now, sweep = expireStaleReservations) {
+  const byPool = new WeakMap();
+  return function throttledExpire(pool) {
+    let get = byPool.get(pool);
+    if (!get) {
+      get = cachedFor(() => sweep(pool), ttlMs, clock);
+      byPool.set(pool, get);
+    }
+    return get();
+  };
+}
+const expireStaleReservationsThrottled = makeThrottledExpiry();
 
 // Only meant to be called from the periodic backstop (not on every page
 // read) — sending mail is a side effect that doesn't need to happen with
@@ -264,7 +284,7 @@ async function extendReservation(pool, orderId) {
 }
 
 module.exports = {
-  expireStaleReservations, sendPickupReminders, expireOrderReservations, releaseEndedSeats,
+  expireStaleReservations, expireStaleReservationsThrottled, makeThrottledExpiry, EXPIRY_THROTTLE_MS, sendPickupReminders, expireOrderReservations, releaseEndedSeats,
   releaseReservation, cancelReservationAsCustomer, extendReservation,
   RESERVATION_DAYS, RESERVATION_TTL_DAYS, RESERVATION_EXTENSION_DAYS, MAX_RESERVED_COPIES, MAX_ACTIVE_RESERVATIONS, SEAT_CANCEL_HOURS,
   SESSION_OVER_SQL,
