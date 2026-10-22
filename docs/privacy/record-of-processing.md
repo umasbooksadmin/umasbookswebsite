@@ -169,7 +169,7 @@ The weekly English Immersion pre-registration form on the website (`POST /pre-re
 
 Uploaded images (book covers, blog, announcement and charity photos) are stored in the database table `images` and are not personal data. Images no longer used by anything are deleted automatically once they have been unused for at least 7 days (`src/lib/imageCleanup.js`, daily at start-up and every 24 hours; the list of columns that can hold an image is `IMAGE_REFERENCES`). They remain in older backups for the backup periods in section 9.
 
-Fonts: the website serves its typefaces itself (self-hosted files in `assets/fonts/`, declared in `public/style.css`, and the Content-Security-Policy allows fonts from the site only: `fontSrc: ["'self'"]` in `src/index.js`). No person IP address is sent to Google Fonts by the website. Squarespace is still used, but only as domain registrar and DNS host (section 12); it does not host or serve the website.
+Fonts: the website serves its typefaces itself (self-hosted files in `assets/fonts/`, declared in `public/style.css`, and the Content-Security-Policy allows fonts from the site only: `fontSrc: ["'self'"]` in `src/app.js`). No person IP address is sent to Google Fonts by the website. Squarespace is still used, but only as domain registrar and DNS host (section 12); it does not host or serve the website.
 
 ## 9. Backups / Sauvegardes
 
@@ -230,7 +230,7 @@ Fonts: the website serves its typefaces itself (self-hosted files in `assets/fon
 | Legal basis | Legitimate interest (running the shop efficiently); no personal data involved |
 | Recipients / processors | None beyond the database host already listed (Render). |
 | Transfers outside EU | None specific to this data. |
-| Retention | Daily rows older than 36 months are deleted by a daily job ("Lookup statistics retention" in `src/index.js`, visible on `/admin/diagnostics/jobs`). |
+| Retention | Daily rows older than 36 months are deleted by a daily job ("Lookup statistics retention" in `src/jobs.js`, visible on `/admin/diagnostics/jobs`). |
 | Security | Admin-only page and CSV (the CSV download is logged in the administrator action log); the counts are held in memory and saved in batches, never blocking a lookup. |
 
 ### 11b (continued). AI usage statistics / Statistiques d'utilisation de l'IA
@@ -243,7 +243,7 @@ Fonts: the website serves its typefaces itself (self-hosted files in `assets/fon
 | Legal basis | Legitimate interest (running the shop and its costs); no personal data involved |
 | Recipients / processors | None beyond the database host already listed (Render). (The AI calls themselves are described in section 11.) |
 | Transfers outside EU | None specific to this data. |
-| Retention | Daily rows older than 36 months are deleted by a daily job ("AI usage statistics retention" in `src/index.js`). Kept by "Clear test data" (not personal data). |
+| Retention | Daily rows older than 36 months are deleted by a daily job ("AI usage statistics retention" in `src/jobs.js`). Kept by "Clear test data" (not personal data). |
 | Security | Admin-only page and CSV (the CSV download is logged in the administrator action log); the counts are held in memory and saved in batches, never blocking or changing an AI call. |
 
 ## 12. Domain name and DNS / Nom de domaine et DNS

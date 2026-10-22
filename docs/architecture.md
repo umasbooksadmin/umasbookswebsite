@@ -133,7 +133,7 @@ config and docs.
 
 ```mermaid
 flowchart TB
-  IDX["src/index.js<br/>middleware order, route mounting,<br/>background timers, shutdown"]
+  IDX["src/index.js (entry) + app.js (createApp)<br/>middleware order, route mounting<br/>jobs.js: background timers; shutdown"]
 
   subgraph MW["src/middleware"]
     MA["auth.js<br/>attachUser, requireAuth/Admin/Member/Volunteer"]
@@ -222,7 +222,7 @@ normally.
 
 ## 4. Request lifecycle
 
-Order matters here — the registration order in `src/index.js` *is* the design.
+Order matters here — the registration order in `src/app.js` (`createApp()`) *is* the design.
 Static files and uploaded images are served before the session so that they
 never cost a session or user lookup, and the HelloAsso webhook is mounted before
 CSRF because it is an external POST with no token. The preview-mode flag is set
@@ -950,7 +950,7 @@ touched by the sync or the expiry sweep.
 
 ## 9. Background jobs
 
-There is no job queue: a few `setInterval` timers in the web process, plus
+There is no job queue: a few `setInterval` timers in the web process (all declared in `src/jobs.js`, one entry per job; see ARCHITECTURE.md "Adding a background job"), plus
 GitHub Actions for work that must survive the site being down. Each timer's job
 is wrapped by `guardJob` (`lib/jobGuard.js`): a run that is still in progress is
 never overlapped by the next tick, which is skipped with one log line, and

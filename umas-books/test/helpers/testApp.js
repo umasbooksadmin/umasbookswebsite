@@ -144,4 +144,42 @@ async function startTestApp({ port, isolated = false, env = {} }) {
   };
 }
 
-module.exports = { startTestApp };
+// OPTIONAL in-process alternative to startTestApp(): builds the real app with createApp()
+// (src/app.js) inside the test's own process and listens on an OS-assigned port (0), so
+// there is no fixed PORT to collide on and the test can stub modules or read module state.
+// No background jobs run (they are started by src/index.js, not by createApp). Differences
+// from startTestApp: one app per test file (src/db.js is a per-process singleton, so the
+// database is this file's), and the server runs in the test's process.
+// Same env defaults as the child process; `env` overrides them (set before src/db loads).
+async function startInProcessApp({ isolated = false, env = {} } = {}) {
+  const { prepareDatabase } = require("./testDatabase");
+  const db = prepareDatabase(`inproc_${process.pid}`, { isolated });
+  Object.assign(process.env, {
+    SESSION_SECRET: "test-session-secret-not-for-production",
+    NODE_ENV: "test",
+    ADMIN_2FA_REQUIRED: "false",
+    AWARDS_LOOKUPS: "off",
+    COVER_BACKFILL: "off",
+    MAIL_GLOBAL_PER_HOUR: "100000",
+    ...env,
+  });
+  db.create();
+  const { createApp } = require("../../src/app");
+  const { pool } = require("../../src/db");
+  const server = await new Promise((resolve, reject) => {
+    const s = createApp().listen(0, "127.0.0.1", (err) => (err ? reject(err) : resolve(s)));
+  });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  return {
+    base,
+    pool,
+    databaseUrl: process.env.DATABASE_URL,
+    async stop() {
+      await new Promise((resolve) => { server.close(resolve); server.closeAllConnections(); });
+      await pool.end();
+      db.drop();
+    },
+  };
+}
+
+module.exports = { startTestApp, startInProcessApp };

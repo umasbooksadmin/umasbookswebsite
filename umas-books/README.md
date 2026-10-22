@@ -774,7 +774,7 @@ locked-out admin, who gets alerts, the yearly checklist) are in
   (`src/middleware/csrf.js`); any POST without a matching token is
   rejected with 403. New forms must include
   `<%- include('partials/csrf_field') %>` right after `<form ...>`.
-- **CSP** (`src/index.js`'s `helmet` config) — `script-src 'self'` with no
+- **CSP** (`src/app.js`'s `helmet` config) — `script-src 'self'` with no
   `unsafe-inline`/`unsafe-eval`; `style-src` allows inline styles (used
   throughout the views) and Google Fonts' stylesheet host.
 - **Login hardening** — a login attempt against a nonexistent email still

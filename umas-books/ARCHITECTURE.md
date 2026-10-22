@@ -16,7 +16,9 @@ data, config, and how a change gets from a commit to production. See
 
 ## One app, two front ends
 
-`umas-books` is a single Express process (`src/index.js`) that serves
+`umas-books` is a single Express process (`src/index.js`, the thin entry; the
+app itself is built by `createApp()` in `src/app.js`, the background jobs by
+`src/jobs.js`) that serves
 **both** the public marketing site (plain pages: About, Books, Events, …)
 **and** the members-area app (accounts, forum, admin, reservations, …). There
 is no separate marketing server — Squarespace was retired, and these
@@ -26,7 +28,7 @@ That's why `render.yaml`'s `buildFilter` covers the whole repo, not just
 
 ## Canonical marketing routes
 
-Registered in `src/index.js`, each backed by a view under
+Registered in `src/app.js`, each backed by a view under
 `views/marketing/`:
 
 | Route | View |
@@ -60,7 +62,7 @@ error summary (`role="alert"`, `tabindex="-1"`, links to each field,
 `assets/site.js` COMMON (EN + FR), so the language toggle and the French server
 render both work. Success redirects to `/<page>?sent=1`, which shows a thank-you
 panel. The repeated `days` / `times` fields are in `MULTI_VALUE_BODY_FIELDS` in
-`src/index.js` so the multi-selects are not collapsed to their first value. The
+`src/app.js` so the multi-selects are not collapsed to their first value. The
 mailbox keeps these emails 12 months (yearly manual cleanup, `docs/runbook.md`).
 
 **HelloAsso form is click-to-load.** `membership.html` renders a
@@ -77,10 +79,10 @@ Static assets are served directly from the repo root, not rendered:
 — two different `express.static` mounts, one per directory.
 
 Every marketing route sets its own restrictive CSP (`marketingCsp` in
-`src/index.js`) before rendering — stricter than default since these
+`src/app.js`) before rendering — stricter than default since these
 pages need no forms/scripts beyond the shared header's language toggle.
 
-Both CSPs (app-wide helmet and `marketingCsp`) have `form-action 'self'` only (`formActionSources` in `src/index.js`): no form of ours posts to another site, and no redirect to another site follows a form POST, because books and seats are reserved here and paid in the shop (Chrome enforces `form-action` on the redirect after a POST, which is why HelloAsso hosts used to be listed there for the old online checkout). The HelloAsso membership form is an iframe/link allowed by `frame-src` instead; `src/lib/helloassoHosts.js` now only tells whether `HELLOASSO_API_BASE` is the sandbox.
+Both CSPs (app-wide helmet and `marketingCsp`) have `form-action 'self'` only (`formActionSources` in `src/app.js`): no form of ours posts to another site, and no redirect to another site follows a form POST, because books and seats are reserved here and paid in the shop (Chrome enforces `form-action` on the redirect after a POST, which is why HelloAsso hosts used to be listed there for the old online checkout). The HelloAsso membership form is an iframe/link allowed by `frame-src` instead; `src/lib/helloassoHosts.js` now only tells whether `HELLOASSO_API_BASE` is the sandbox.
 
 ## Legacy redirects
 
@@ -91,11 +93,11 @@ string:
 
 | Old | Redirects to | Defined in |
 |---|---|---|
-| `/classes.html` | `/programs.html` | `src/index.js` |
-| `/classes` | `/sessions` | `src/index.js` |
-| `/admin/classes` | `/admin/sessions` | `src/index.js` |
-| `/programs` | `/sessions` | `src/index.js` |
-| `/admin/programs` | `/admin/sessions` | `src/index.js` |
+| `/classes.html` | `/programs.html` | `src/app.js` |
+| `/classes` | `/sessions` | `src/app.js` |
+| `/admin/classes` | `/admin/sessions` | `src/app.js` |
+| `/programs` | `/sessions` | `src/app.js` |
+| `/admin/programs` | `/admin/sessions` | `src/app.js` |
 | `/immersion/calendar` | `/sessions` | `src/routes/sessions.js` |
 
 `/programs.html` (the marketing page) is unaffected — it's a different
@@ -174,7 +176,7 @@ rather than by a numbered migration), grouped by what they belong to:
   NYT API, or an admin typed it (`manual`); migration 079 deletes the old AI,
   pending, approved and rejected rows and its CHECK constraints forbid them.
   Every lookup fails open and never blocks a save. A new book is checked in the
-  background right after intake; a timer in `src/index.js` (every 2 minutes, 5
+  background right after intake; a timer in `src/jobs.js` (every 2 minutes, 5
   books, via `guardJob`) checks never-checked books newest first, retries
   failures after a day, and refreshes yearly. Admin add / remove / re-check
   write `award.*` audit rows (label only). `AWARDS_LOOKUPS=off` is a kill
@@ -323,7 +325,7 @@ rather than by a numbered migration), grouped by what they belong to:
   sold copies back `in_stock` (not a copy sold again since) and marks its
   drop-in seats `released`), and the cart in `src/lib/cart.js`
   (`createReservation`). `src/lib/orderSweeps.js` (every 6 h, started in
-  `src/index.js`, no payment-provider call) releases lapsed reservations, sends the
+  `src/jobs.js`, no payment-provider call) releases lapsed reservations, sends the
   day-10 customer reminder (`customer_pickup_reminder_sent_at`), the 24-hour
   drop-in seat reminder, the "reservation ended" email and the admin digest of
   reservations expiring within 2 days (`pickup_reminder_sent_at`), each once.
@@ -510,7 +512,7 @@ service container, a dummy `SESSION_SECRET`, etc.): see that file.
 ## Preview mode
 
 - **Preview mode** (`PREVIEW_MODE=true`, parsed by `isPreviewMode()` in
-  `src/lib/preview.js`; a middleware mounted first in `src/index.js` sets
+  `src/lib/preview.js`; a middleware mounted early in `src/app.js` sets
   `res.locals.preview`) is for showing the site, with sample data only, before
   it opens. Off by default. While on:
   - every customer page shows a bilingual banner (`views/partials/preview_banner.ejs`,
@@ -537,15 +539,15 @@ service container, a dummy `SESSION_SECRET`, etc.): see that file.
 ## Process lifecycle and operations
 
 - **Startup checks** (`src/lib/env.js`, production only): called first thing
-  in `src/index.js`, before `db.js` loads. Missing `DATABASE_URL` /
+  in `src/index.js` (the entry), before `db.js` and `src/app.js` load. Missing `DATABASE_URL` /
   `SESSION_SECRET` → one error naming all of them, exit 1. Unset Gmail,
   HelloAsso, base-URL or `ALERT_TO` variables → a loud `[env] WARNING` line, since
   those features otherwise fail silently (no Gmail also means no error-
   alert emails). A live-site misconfiguration also raises a launch alert, at
   most once per 24 h each (`alert_flags`), and a red banner on every admin page.
   Test/dev are untouched.
-- **Graceful shutdown** (`src/index.js`): SIGTERM/SIGINT clear the two
-  maintenance timers, `server.close()` (in-flight requests, e.g. a
+- **Graceful shutdown** (`src/index.js`): SIGTERM/SIGINT call `jobs.stopAll()`
+  (every job timer, including first-run delays not yet fired), then `server.close()` (in-flight requests, e.g. a
   HelloAsso webhook, are allowed to finish; idle keep-alive sockets are
   dropped), then `pool.end()`, then exit 0. A 10-second hard-exit timer
   exits 1 if requests do not drain. A listen failure (e.g. `EADDRINUSE`)
@@ -556,6 +558,42 @@ service container, a dummy `SESSION_SECRET`, etc.): see that file.
   `/admin/diagnostics/jobs` shows the table, and the dashboard flags a job whose
   last success is older than 3x its interval (`src/lib/jobRuns.js`,
   `test/integration/jobRuns.test.js`).
+- **Adding a background job is ONE edit**: add an entry to `jobSpecs()` in
+  `src/jobs.js`:
+
+  ```js
+  {
+    name: "My job",                 // the job_runs name: shown on /admin/diagnostics/jobs and in alerts
+    label: "What it does, one sentence.",
+    everyMs: 6 * 60 * 60 * 1000,    // the timer AND the "stale after 3x" check both come from this
+    firstRunAfterMs: 5 * 60 * 1000, // 0 = at boot, N = N ms after boot (unref'd), omit = first interval tick
+    enabled: process.env.MY_JOB !== "off", // optional env toggle (default true)
+    run: async () => { await doTheWork(pool); },   // throw to fail; the guard logs, records and alerts
+  },
+  ```
+
+  `schedule()` wraps it in `guardJob`, passes the same `everyMs` to the
+  bookkeeping, starts the timers and registers them for `stopAll()` at shutdown.
+  Never rename a job lightly: its history in `job_runs` is keyed by `name`. Other
+  options: `steps: [{ name, run }]` (several tracked jobs on one timer),
+  `track: false` (the run writes no row itself, it records sub-steps with
+  `ctx.record`), `setup` (runs just before the first run is arranged). The
+  registry is `createJobRegistry({ pool })` (`test/unit/jobs.test.js` checks
+  unique names, positive intervals, the interval-to-bookkeeping wiring and
+  `stopAll()`).
+- **`src/index.js` is a thin entry, `createApp()` builds the app.** `src/app.js`
+  exports `createApp()`: all middleware and routes in order, no `listen`, no
+  timers, no process handlers (`test/unit/createApp.test.js`). `src/index.js`
+  validates the environment, calls `createApp()`, listens
+  (`configureServer`, keep-alive 65 s), sends launch alerts, `startJobs(pool)` and
+  installs the shutdown handler. A test that needs the real app in its own
+  process uses `startInProcessApp()` (`test/helpers/testApp.js`, port 0, no jobs;
+  see `test/integration/createAppInProcess.test.js`); the existing integration
+  tests still boot `node src/index.js` as a child process with `startTestApp`.
+  `scripts/verify-startup-equivalence.js` boots two builds of `index.js` (a git
+  ref and the working tree) against throwaway databases and diffs the middleware
+  stack, timers, logs and shutdown; run it before and after any change to the
+  entry point.
 - **Monitoring and backups** (all GitHub Actions, independent of Render; every
   alert goes to the repository variable `ALERT_TO`, default admin@umasbooks.org; a
   weekly "Send a test alert" proves the channel; the restore test also checks
@@ -651,7 +689,7 @@ others. `lib/totp.js` (hand-rolled on `node:crypto`), `routes/twoFactor.js`
   releases any active book reservation (an open order reservation is cancelled and its items freed), and **anonymises** (never deletes)
   paid orders and HelloAsso membership payment rows, which French accounting law makes
   us keep for 10 years. Forum posts keep their text with no author name.
-- `purgeExpiredPersonalData(pool)` runs at boot and daily from `index.js`:
+- `purgeExpiredPersonalData(pool)` runs at boot and daily from `src/jobs.js`:
   sign-ups 12 months after the event, expired reset/verification tokens
   after 7 days, orders and payment records after 10 years, accounts with no
   login for 3 years (never admins or current members) — emailed a warning
@@ -967,7 +1005,7 @@ Archive is never printed in a page: it is downloaded once and stored too
   inside a body counts). Only images older than 7 days are removed (an
   upload exists before the form that references it is saved), `saveImage`
   refreshes `created_at` on a repeat upload, one run deletes at most 500
-  rows in a single statement, and a daily step in `src/index.js` runs it and
+  rows in a single statement, and a daily job in `src/jobs.js` runs it and
   logs counts only. The admin dashboard shows "Unused images waiting for
   cleanup". A test fails if a new image-looking text column or a new
   `saveImage` caller appears without updating `IMAGE_REFERENCES`.
@@ -1108,7 +1146,7 @@ Points for maintainers:
   `deliverNow` after commit.
 - `mailer.sendMail` is always called through the module object, so tests that
   replace `mailer.sendMail` still see every mail.
-- Worker `processOutbox` runs every 60 s from `index.js` (advisory lock key
+- Worker `processOutbox` runs every 60 s from `src/jobs.js` (advisory lock key
   7243902, claim by pushing `next_try_at` 5 minutes ahead); backoff 1, 5, 15,
   60, 240 min, 8 attempts, then `failed` plus one alert per hour
   (`alertFailedEmails`, sent directly through `errorAlert.sendAdminAlert` with
@@ -1172,7 +1210,7 @@ names the files; read those for the details. Operations for these are in
 - **Hide rules**: Browse by Collection and New In are for the plain view only.
   With a search (`?q=`), a genre (`?genre=`), a topic (`?topic=`) or
   `?new=1` ("See All New In") they are hidden. The server sends them already
-  hidden (`src/index.js`: `newInHidden`, `collectionsHidden` from
+  hidden (`src/app.js`: `newInHidden`, `collectionsHidden` from
   `browseFilterActive()` in `src/lib/collections.js`) and the page script applies
   the same rule afterwards, so there is no flash. Browse by Collection is also
   absent when no collection is published with an approved in-stock book.

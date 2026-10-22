@@ -79,8 +79,8 @@ test("the carousel loads New In in batches (no all=1, no 12-book limit), the pag
   assert.doesNotMatch(booksRoute, /req\.query\.all/, "the unbounded all=1 mode is gone");
   assert.match(booksRoute, /newInPage\(pool,/);
   assert.equal(latest.NEW_IN_MAX, undefined, "no maximum on the list itself (batches are only how it is delivered)");
-  assert.doesNotMatch(read("umas-books", "src", "index.js"), /newIn\(pool, \{ limit: null \}\)/, "the no-JavaScript list is a fixed handful, not the whole list");
-  assert.match(read("umas-books", "src", "index.js"), /newInPage\(pool, \{ offset: 0, limit: 36 \}\)/);
+  assert.doesNotMatch(read("umas-books", "src", "app.js"), /newIn\(pool, \{ limit: null \}\)/, "the no-JavaScript list is a fixed handful, not the whole list");
+  assert.match(read("umas-books", "src", "app.js"), /newInPage\(pool, \{ offset: 0, limit: 36 \}\)/);
 });
 
 test("newIn orders by the timestamp the copy was added (created_at DESC, then copy id DESC), never by acquired_at", () => {
