@@ -402,6 +402,22 @@ s.test("A14d (must) the Inventory list is in A-Z order, ignoring a leading The",
   for (let i = 1; i < titles.length; i++) assert.ok(c.compare(first(titles[i - 1]), first(titles[i])) <= 0, `"${titles[i - 1]}" is listed before "${titles[i]}"`);
 });
 
+s.test("A14e (must) Inventory filters: location, condition, binding, genre and price narrow the list and survive a reload", { as: "admin" }, async (ctx) => {
+  await admin(ctx, "/admin/inventory");
+  for (const id of ["f-location", "f-condition", "f-binding", "f-genre", "f-pmin", "f-pmax"]) {
+    assert.ok(await ctx.page.$(`#${id}`), `the ${id} filter is on the page`);
+  }
+  assert.ok(await ctx.page.$("label[for='f-pmin']"), "filters have visible labels");
+  await admin(ctx, "/admin/inventory?condition=new&priceMax=1000&genre=Fiction");
+  const text = await ctx.text();
+  has(text, /Clear filters/);
+  assert.equal(await ctx.page.$eval("#f-condition", (e) => e.value), "new", "the filter state is kept in the form");
+  assert.equal(await ctx.page.$eval("#f-pmax", (e) => e.value), "1000");
+  assert.equal(await ctx.page.$eval("#f-genre", (e) => e.value), "Fiction");
+  await admin(ctx, "/admin/inventory?priceMin=abc");
+  has(await ctx.text(), /Min price must be a number/);
+});
+
 s.manual("A13 photo scan of a cover or barcode", "needs a photo and the ANTHROPIC_API_KEY on the site");
 
 // ---- 5D. Awards, locations, selling ----
