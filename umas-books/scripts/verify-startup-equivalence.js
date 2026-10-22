@@ -149,7 +149,7 @@ const SCENARIOS = [
 function normalise(text, ctx) {
   return text
     .split(ctx.dbName).join("<DB>")
-    .split(String(ctx.port)).join("<PORT>")
+    .replace(new RegExp(`(?<![0-9a-f])${ctx.port}(?![0-9a-f])`, "g"), "<PORT>") // whole token only: a port number inside a handler hash is not a port
     .split(fs.realpathSync(ctx.dir)).join("<APP>")
     .split(ctx.dir).join("<APP>")
     .replace(/\u001b\[[0-9;]*m/g, "") // eslint-disable-line no-control-regex
