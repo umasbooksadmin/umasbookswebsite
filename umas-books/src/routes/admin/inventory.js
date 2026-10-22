@@ -9,7 +9,7 @@ const { audit } = require("../../lib/audit");
 const { normalizeIsbn, isValidIsbn, lookupByIsbn, searchByTitleAuthor, translateGenresToFrench } = require("../../lib/bookLookup");
 const { extractBookInfoFromPhoto } = require("../../lib/coverVision");
 const { generateBookDescription, translateDescriptionToFrench } = require("../../lib/bookDescription");
-const { CONDITIONS, BINDINGS, STATUSES, SOURCES, normalizeSource, normalizeCondition, normalizeBinding, resolveCopyPricing, normalizeStatus, normalizeGenres, normalizeLocation, uniqueLocations, locationKey, parseScan, isbnVariants } = require("../../lib/inventory");
+const { CONDITIONS, BINDINGS, STATUSES, SOURCES, normalizeSource, normalizeCondition, normalizeBinding, conditionLabel, resolveCopyPricing, normalizeStatus, normalizeGenres, normalizeLocation, uniqueLocations, locationKey, parseScan, isbnVariants } = require("../../lib/inventory");
 const { expireStaleReservations } = require("../../lib/reservations");
 const { checkBookAwardsInBackground } = require("../../lib/awards");
 const { matchRequestsForCopy, matchRequestsForBook } = require("../../lib/bookRequests");
@@ -26,8 +26,9 @@ const { aiAdminLimiter, AI_LIMIT_MESSAGE } = require("../../middleware/rateLimit
 const { getAiLimits, clampText, MAX_TITLE, MAX_AUTHOR } = require("../../lib/aiLimits");
 const { runAfterResponse } = require("../../lib/afterResponse");
 const { fillBookGaps, findCoverUrl } = require("../../lib/bookFill");
-const { parseMoney, parseWholeNumber, parseDay, clean } = require("../../lib/validation");
+const { parseMoney, parseWholeNumber, parseDay } = require("../../lib/validation");
 const { likeContains, parseIntParam } = require("../../lib/parseParams");
+const { parseInventoryFilters, hasAnyFilter, addFilterConditions, matchingCopies, filterLocations, NO_LOCATION, NO_BINDING, NO_GENRE, COMMON_GENRES } = require("../../lib/inventorySearch");
 
 const router = express.Router();
 // Garbage ids get the 404 page, not a Postgres 22P02 and a 500.
@@ -135,30 +136,45 @@ async function getLocations() {
 const wantsJson = (req) => req.accepts(["html", "json"]) === "json";
 const ISBN_NOT_VALID = "That ISBN is not valid: check the digits.";
 
+const LIST_LIMIT = 200;
 router.get("/admin/inventory", requireAdmin, async (req, res) => {
   await expireStaleReservations(pool);
-  const q = clean(req.query.q, 100);
+  const filters = parseInventoryFilters(req.query);
+  const { q } = filters;
   const params = [];
   const conditions = [];
   if (q) {
     params.push(likeContains(q));
     conditions.push(`(b.title ILIKE $${params.length} OR b.authors ILIKE $${params.length} OR b.isbn ILIKE $${params.length})`);
   }
+  addFilterConditions(filters, conditions, params);
   const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
   const { rows: books } = await pool.query(
     `SELECT b.*, COUNT(c.id)::int AS copy_count,
             COUNT(c.id) FILTER (WHERE c.status = 'in_stock')::int AS in_stock_count,
             array_agg(DISTINCT c.location)
-              FILTER (WHERE c.status = 'in_stock' AND c.location IS NOT NULL) AS location_list
+              FILTER (WHERE c.status = 'in_stock' AND c.location IS NOT NULL) AS location_list,
+            COUNT(*) OVER()::int AS total_matches
      FROM books b LEFT JOIN book_copies c ON c.book_id = b.id
      ${where}
-     GROUP BY b.id ORDER BY b.title_sort, b.title, b.id LIMIT 200`,
+     GROUP BY b.id ORDER BY b.title_sort, b.title, b.id LIMIT ${LIST_LIMIT}`,
     params
   );
   // One entry per place, whatever its capitals ("Store" and "STORE" are one).
   for (const b of books) b.locations = b.location_list ? uniqueLocations(b.location_list).join(", ") : null;
+  // With a location/condition/price filter on, show the copies that matched.
+  const matched = await matchingCopies(pool, filters, books.map((b) => b.id));
+  for (const b of books) b.matched_copies = matched.get(b.id) || [];
+  const locations = (await filterLocations(pool)).slice();
+  if (filters.location && filters.location !== NO_LOCATION && !locations.some((l) => locationKey(l) === locationKey(filters.location))) locations.push(filters.location);
+  // The canonical genres; a hand-typed genre from the URL stays selectable.
+  const genres = COMMON_GENRES.slice();
+  if (filters.genre && filters.genre !== NO_GENRE && !genres.some((g) => g.toLowerCase() === filters.genre.toLowerCase())) genres.push(filters.genre);
   res.render("admin/inventory/index", {
     active: "inventory", books, q, notice: hasOrdersNotice(req),
+    filters, filterErrors: filters.errors, filterActive: hasAnyFilter(filters),
+    totalMatches: books.length ? books[0].total_matches : 0, listLimit: LIST_LIMIT,
+    locations, genres, NO_LOCATION, NO_BINDING, NO_GENRE, CONDITIONS, BINDINGS, conditionLabel,
   });
 });
 
