@@ -1,6 +1,6 @@
 // Benchmark (NOT part of CI): does a burst of failed logins starve unrelated
 // requests? Boots the real app on a throwaway database, fires 12 parallel
-// failed logins and, meanwhile, polls GET /api/books/genres every 20 ms.
+// failed logins and, meanwhile, polls GET /api/books/new-in every 20 ms.
 // Prints that endpoint's latency (idle baseline vs. during the burst).
 //
 //   PORT=4790 node scripts/bench-login-cpu.js
@@ -38,7 +38,7 @@ async function failedLogin(base, i) {
   const port = Number(process.env.PORT) || 4790;
   const app = await startTestApp({ port });
   try {
-    const probe = `${app.base}/api/books/genres`;
+    const probe = `${app.base}/api/books/new-in`;
     await timed(probe); // warm up
     const idle = [];
     for (let i = 0; i < 30; i++) { idle.push(await timed(probe)); await new Promise((r) => setTimeout(r, 20)); }
@@ -56,8 +56,8 @@ async function failedLogin(base, i) {
     await poller;
 
     const f = (n) => n.toFixed(1);
-    console.log(`idle    /api/books/genres: n=${idle.length} p50=${f(pct(idle, 0.5))} p95=${f(pct(idle, 0.95))} max=${f(Math.max(...idle))} ms`);
-    console.log(`burst   /api/books/genres: n=${during.length} p50=${f(pct(during, 0.5))} p95=${f(pct(during, 0.95))} max=${f(Math.max(...during))} ms`);
+    console.log(`idle    /api/books/new-in: n=${idle.length} p50=${f(pct(idle, 0.5))} p95=${f(pct(idle, 0.95))} max=${f(Math.max(...idle))} ms`);
+    console.log(`burst   /api/books/new-in: n=${during.length} p50=${f(pct(during, 0.5))} p95=${f(pct(during, 0.95))} max=${f(Math.max(...during))} ms`);
     console.log(`${PARALLEL} failed logins: all done in ${f(burstMs)} ms, statuses ${[...new Set(logins.map((l) => l.status))].join(",")}, slowest ${f(Math.max(...logins.map((l) => l.ms)))} ms`);
     process.exitCode = pct(during, 0.95) < 50 ? 0 : 1;
   } finally {

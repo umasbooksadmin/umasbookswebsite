@@ -62,7 +62,4 @@ function serverTiming(label, { log = console.warn, env = process.env } = {}) {
   };
 }
 
-// For code that may run without a request (tests, background work): a no-op timer.
-const noTiming = { time: (name, fn) => fn(), add() {} };
-
-module.exports = { serverTiming, createTimings, noTiming, slowThreshold };
+module.exports = { serverTiming, createTimings, slowThreshold };

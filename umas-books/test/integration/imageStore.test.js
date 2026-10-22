@@ -167,7 +167,7 @@ test("the public book API returns the short URL, not base64", async () => {
   assert.ok(text.length < 400 && inlineSize > 20 * text.length, `response ${text.length} B vs ~${inlineSize} B inline`);
   console.log(`# search response: ${text.length} bytes now vs ~${inlineSize} bytes with the cover inline`);
 
-  const arrivals = await (await fetch(`${app.base}/api/books/latest-arrivals?limit=50`)).text();
+  const arrivals = await (await fetch(`${app.base}/api/books/new-in?limit=50`)).text();
   assert.ok(!arrivals.includes("base64"));
 });
 

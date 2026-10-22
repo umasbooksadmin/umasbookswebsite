@@ -44,13 +44,6 @@
   .mem-benefit:first-child { border-top: 0; padding-top: 0; }
 }
 
-/* ---------- Two-column layout: form + payment sidebar ---------- */
-.mem-layout {
-  display: grid; grid-template-columns: 1.6fr 1fr; gap: 48px; align-items: start;
-  max-width: 1140px; margin: 0 auto 60px; padding: 0 28px;
-}
-@media (max-width: 900px) { .mem-layout { grid-template-columns: 1fr; } }
-
 .mem-widget-wrap { max-width: 720px; margin: 0 auto 60px; padding: 0 28px; }
 .mem-widget-note { font-size: 15px; color: var(--ink-soft); line-height: 1.5; margin: 0 0 22px; }
 .mem-widget-note a { text-decoration: underline; }
@@ -78,26 +71,4 @@
 .mem-check input { margin-top: 4px; }
 .mem-check a { text-decoration: underline; }
 
-.mem-submit {
-  display: inline-flex; align-items: center; gap: 12px; justify-content: center; width: 100%;
-  padding: 16px 24px; border-radius: 4px; background: var(--btn-bg); color: #fff; border: 0; cursor: pointer;
-  font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; font-size: 15px; letter-spacing: 0.14em;
-  text-transform: uppercase; font-weight: 700; margin-top: 6px;
-}
-.mem-submit:hover { background: var(--btn-bg-dark); }
-.mem-form-hint { text-align: center; font-size: 14.5px; color: var(--ink-soft); margin-top: 14px; }
-
-/* ---------- Sidebar: payment info ---------- */
-.mem-sidebar { position: sticky; top: 24px; }
-.mem-price-card { background: var(--panel, #fff); border: 1px solid var(--card-border); border-radius: 6px; padding: 30px 28px; text-align: center; }
-.mem-medallion { width: 96px; height: 96px; border-radius: 50%; border: 1px solid rgba(166, 83, 71, 0.4); padding: 10px; margin: 0 auto 20px; display: block; }
 .mem-price { font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; font-size: 44px; color: var(--ink); line-height: 1; margin: 0 0 6px; }
-.mem-price-note { font-size: 15px; color: var(--ink-soft); margin: 0 0 18px; }
-.mem-price-card hr.mem-rule { width: 40px; height: 1px; background: rgba(166, 83, 71, 0.4); margin: 18px auto; border: 0; }
-.mem-price-card .mem-payment-note { font-size: 14.5px; color: var(--ink-soft); line-height: 1.4; margin: 0; }
-
-.mem-next-steps { background: #fbe7e4; border-radius: 6px; padding: 22px 24px; margin-top: 18px; }
-.mem-next-steps p { font-size: 14.5px; color: var(--ink-soft); line-height: 1.4; margin: 0; text-align: center; }
-.mem-next-steps hr.mem-rule { width: 40px; height: 1px; background: rgba(166, 83, 71, 0.4); margin: 16px auto; border: 0; }
-
-@media (max-width: 900px) { .mem-sidebar { position: static; } }

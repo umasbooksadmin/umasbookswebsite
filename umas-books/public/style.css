@@ -183,7 +183,6 @@ footer.site { text-align: center; padding: 30px 0; color: var(--ink-soft); font-
 .calendar-add-pill[open] { background: var(--panel); border-style: solid; }
 .calendar-pill-body { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
 .calendar-pill-body form.stack { gap: 8px; max-width: none; }
-.calendar-day-more { font-size: 13px; color: var(--ink-soft); }
 
 .book-thumb {
   width: 44px; height: 64px; object-fit: cover; border-radius: 2px;
@@ -202,14 +201,6 @@ footer.site { text-align: center; padding: 30px 0; color: var(--ink-soft); font-
   align-self: flex-start;
   object-fit: contain;
 }
-
-.genre-subnav {
-  display: flex; flex-wrap: wrap; gap: 6px 18px; margin: -6px 0 22px;
-  border-bottom: 1px solid var(--card-border); padding-bottom: 10px;
-}
-.genre-subnav a { font-size: 15px; color: var(--ink-soft); padding-bottom: 4px; border-bottom: 2px solid transparent; }
-.genre-subnav a:hover { color: var(--maroon); text-decoration: none; }
-.genre-subnav a.is-active { color: var(--maroon); border-bottom-color: var(--maroon); font-weight: 600; }
 
 .availability-badge {
   display: inline-flex; align-items: center; gap: 6px; font-size: 14.5px; font-weight: 600;
@@ -270,19 +261,6 @@ footer.site { text-align: center; padding: 30px 0; color: var(--ink-soft); font-
 .cart-item-body { flex: 1; min-width: 0; }
 .cart-item-title { font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', serif; font-weight: 600; font-size: 17px; }
 .cart-item-price { font-family: 'Montserrat', 'Montserrat Fallback', sans-serif; font-weight: 600; color: var(--maroon-dark); flex: 0 0 auto; }
-.category-grid {
-  display: flex; flex-wrap: wrap; justify-content: center; gap: 22px 26px;
-  margin: 0 0 28px;
-}
-.category-item { display: flex; flex-direction: column; align-items: center; gap: 8px; width: 92px; text-decoration: none; }
-.category-item .chip {
-  width: 62px; height: 62px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
-  color: var(--maroon-dark);
-}
-.category-item .chip svg { width: 28px; height: 28px; }
-.category-item span { font-size: 13.5px; color: var(--ink); line-height: 1.25; text-align: center; }
-.category-item:hover span { color: var(--maroon); }
-.category-item.is-active .chip { outline: 2px solid var(--maroon); outline-offset: 2px; }
 
 .favorite-toggle {
   position: absolute; top: 8px; right: 8px; z-index: 2; width: 30px; height: 30px; border-radius: 50%;
@@ -356,9 +334,9 @@ form.stack select { font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallb
 body { overflow-wrap: break-word; }
 h1, h2, h3, h4, h5, h6, p, li, dt, dd, summary, label, blockquote, figcaption,
 .muted, .small, .thread-meta, .reply, .rich-content, .error-box, .notice-box { overflow-wrap: anywhere; }
-.book-card-title, .book-card-author, .book-card-body, .book-detail-kicker, .book-about, .book-facts, .book-awards-list li,
+.book-card-title, .book-card-body, .book-detail-kicker, .book-about, .book-facts, .book-awards-list li,
 .cart-item-title, .cart-item-body, .cover-note, .dash-ann-item h3, .dash-ann-item h2, .dash-ann-item p, .dash-charity h3, .dash-charity p,
-.rich-content, .thread-title, .reply p { overflow-wrap: anywhere; hyphens: auto; hyphenate-limit-chars: 9 4 3; }
+.rich-content, .reply p { overflow-wrap: anywhere; hyphens: auto; hyphenate-limit-chars: 9 4 3; }
 h1 { hyphens: auto; hyphenate-limit-chars: 9 4 3; }
 /* grid and flex items default to min-width:auto, i.e. as wide as their longest word: let them shrink */
 .book-detail-grid > *, .book-card, .book-card-wrap, .dash-row > *, .dash-links > *, .dash-hero > *, .order-row > *, .vote-option > *,

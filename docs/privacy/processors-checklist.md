@@ -144,5 +144,5 @@ Date checked: ____ / ____ / ______ / Done by: ____________
 
 ## Also worth knowing (not processors in the list above)
 
-- **Google Fonts:** not used by the website any more. Fonts are self-hosted (`assets/fonts/`, `public/style.css`) and the Content-Security-Policy allows fonts from the site only. Only the unused Squarespace-era snippet files at the repository root still import Google Fonts.
+- **Google Fonts:** not used by the website any more. Fonts are self-hosted (`assets/fonts/`, `public/style.css`) and the Content-Security-Policy allows fonts from the site only.
 - (Squarespace is not in this list: it is a provider, see the section below.)

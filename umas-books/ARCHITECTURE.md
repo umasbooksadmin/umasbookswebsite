@@ -1180,7 +1180,6 @@ names the files; read those for the details. Operations for these are in
   categories). Rate limited by `bookSearchLimiter`; cached 60 seconds.
 - `GET /api/blog/posts`: light list (slug, title, excerpt, category, image, date; no bodies), 24 per page (`?offset=`, `?limit=` up to 100), cached 5 minutes; `GET /api/blog/posts/:slug` returns one post with its sanitised body (the blog page fetches it on demand). `?preview=1` (admin) adds drafts, never cached.
 - Public book page (`/books/:id`) sweeps expired reservations at most once per 30 s per process (`expireStaleReservationsThrottled`); cart, checkout return, till and admin screens sweep every time.
-- `GET /api/books/genres`: in-stock genres, cached 5 minutes.
 - Numeric parameters are clamped by `parseIntParam` (`src/lib/parseParams.js`):
   only plain digits count (an array, `1e3`, `0x10`, spaces or a decimal give the
   default), a number outside its range is clamped, however many digits it has.

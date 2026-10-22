@@ -37,7 +37,7 @@ test("cookieless GETs of a form-less page and of /api/session create no session 
   // throwaway session makes sure it exists before counting rows.
   await fetchCsrfToken(app.base, makeCookieJar());
   const before = await sessionRowCount();
-  for (const path of ["/about.html", "/api/session", "/api/books/genres", "/api/events/upcoming"]) {
+  for (const path of ["/about.html", "/api/session", "/api/books/new-in", "/api/events/upcoming"]) {
     const res = await fetch(`${app.base}${path}`);
     assert.equal(res.status, 200, path);
     await res.arrayBuffer();
@@ -147,10 +147,8 @@ test("cache headers: public JSON and static assets cacheable, per-user endpoints
     return res.headers.get("cache-control") || "";
   };
   assert.equal(await cc("/api/events/upcoming"), "public, max-age=60");
-  assert.equal(await cc("/api/books/latest-arrivals"), "public, max-age=60, s-maxage=60");
   assert.equal(await cc("/api/books/new-in"), "public, max-age=60, s-maxage=60");
   assert.equal(await cc("/api/books/search?q=a"), "public, max-age=60");
-  assert.equal(await cc("/api/books/genres"), "public, max-age=300, s-maxage=300");
   assert.equal(await cc("/api/blog/posts"), "public, max-age=300");
   assert.match(await cc("/assets/site.js"), /max-age=604800/);
 
