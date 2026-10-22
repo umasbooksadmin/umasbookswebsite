@@ -47,7 +47,6 @@
 .dash-charity h3 { font-size: 19px; margin: 0 0 6px; }
 .dash-charity p { font-size: 14.5px; color: var(--ink-soft); line-height: 1.4; margin: 0 0 16px; }
 .dash-charity .btn { width: 100%; text-align: center; }
-.dash-charity .muted-note { font-size: 14px; color: var(--ink-soft); }
 
 /* ---------- Forum / Meetings / Volunteer link cards ---------- */
 .dash-links { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 40px; }

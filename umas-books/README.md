@@ -816,5 +816,5 @@ locked-out admin, who gets alerts, the yearly checklist) are in
   author); there is no editing of a post's text and no queue of reported posts
   beyond the reports emailed to `CONTACT_TO`.
 - No general JSON API — this is a server-rendered app. The few `/api/...`
-  routes (book search, latest arrivals, cart count, favorites) exist for
+  routes (book search, new in, cart count, favorites) exist for
   the site's own pages.

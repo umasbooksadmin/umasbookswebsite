@@ -7,6 +7,13 @@
 
 const { localCover } = require("./coverStore");
 const { likeContains } = require("./parseParams");
+// Required when used: the pure helpers of this file are loaded by unit tests that have no database.
+const withTransaction = (pool, fn) => require("../db").withTransaction(pool, fn);
+
+// Every write that depends on what the collection currently holds (publish, the approve ticks, removing a book,
+// renumbering) runs in one transaction under a lock on the collection row, so two admins (or a double click) cannot
+// interleave: e.g. publishing while the last approved book is being un-approved.
+const lockCollection = (db, id) => db.query("SELECT id FROM curated_collections WHERE id = $1 FOR UPDATE", [id]);
 
 // A copy that can be bought now. 'reserved' and 'sold' copies do not count.
 const IN_STOCK_SQL = (bookId = "b.id") => `EXISTS (SELECT 1 FROM book_copies c WHERE c.book_id = ${bookId} AND c.status = 'in_stock')`;
@@ -92,13 +99,18 @@ async function publishProblems(pool, collectionId) {
 }
 
 // Publish / unpublish. Unpublishing is always allowed.
+// The rules are checked and the flag written under the collection's row lock (atomic with an un-approve).
 async function setPublished(pool, collectionId, published) {
-  if (published) {
-    const check = await publishProblems(pool, collectionId);
-    if (!check.ok) return check;
-  }
-  const { rowCount } = await pool.query("UPDATE curated_collections SET published = $2, updated_at = now() WHERE id = $1", [collectionId, Boolean(published)]);
-  return rowCount ? { ok: true } : { ok: false, error: "That collection does not exist.", notFound: true };
+  return withTransaction(pool, async (db) => {
+    const { rowCount: exists } = await lockCollection(db, collectionId);
+    if (!exists) return { ok: false, error: "That collection does not exist.", notFound: true };
+    if (published) {
+      const check = await publishProblems(db, collectionId);
+      if (!check.ok) return check;
+    }
+    await db.query("UPDATE curated_collections SET published = $2, updated_at = now() WHERE id = $1", [collectionId, Boolean(published)]);
+    return { ok: true };
+  });
 }
 
 // Applies the admin's ticks. rows: [{ bookId, approve, reject }] for every book shown on the screen.
@@ -110,24 +122,28 @@ async function saveDecisions(pool, collectionId, rows) {
     if (r.approve && r.reject) return { ok: false, error: "A book cannot be both approved and rejected: tick one box only. Nothing was saved." };
     decisions.push([r.bookId, r.approve ? "approved" : r.reject ? "rejected" : "suggested"]);
   }
-  let changed = 0;
-  for (const [bookId, status] of decisions) {
-    const { rowCount } = await pool.query(
-      "UPDATE curated_collection_books SET status = $3, updated_at = now() WHERE collection_id = $1 AND book_id = $2 AND status <> $3",
-      [collectionId, bookId, status]
+  // All or nothing: a failure part-way rolls every tick back.
+  return withTransaction(pool, async (db) => {
+    await lockCollection(db, collectionId);
+    let changed = 0;
+    for (const [bookId, status] of decisions) {
+      const { rowCount } = await db.query(
+        "UPDATE curated_collection_books SET status = $3, updated_at = now() WHERE collection_id = $1 AND book_id = $2 AND status <> $3",
+        [collectionId, bookId, status]
+      );
+      changed += rowCount;
+    }
+    // A collection that lost its last approved book cannot stay published: it would show an empty page.
+    const { rows: still } = await db.query(
+      "SELECT COUNT(*)::int AS n FROM curated_collection_books WHERE collection_id = $1 AND status = 'approved'", [collectionId]
     );
-    changed += rowCount;
-  }
-  // A collection that lost its last approved book cannot stay published: it would show an empty page.
-  const { rows: still } = await pool.query(
-    "SELECT COUNT(*)::int AS n FROM curated_collection_books WHERE collection_id = $1 AND status = 'approved'", [collectionId]
-  );
-  let unpublished = false;
-  if (still[0].n === 0) {
-    const r = await pool.query("UPDATE curated_collections SET published = FALSE, updated_at = now() WHERE id = $1 AND published", [collectionId]);
-    unpublished = r.rowCount > 0;
-  }
-  return { ok: true, changed, unpublished };
+    let unpublished = false;
+    if (still[0].n === 0) {
+      const r = await db.query("UPDATE curated_collections SET published = FALSE, updated_at = now() WHERE id = $1 AND published", [collectionId]);
+      unpublished = r.rowCount > 0;
+    }
+    return { ok: true, changed, unpublished };
+  });
 }
 
 // ---------- managing collections (admin) ----------
@@ -178,14 +194,18 @@ async function deleteCollection(pool, id) {
 
 // Moves a collection one place up or down in the order the Browse buttons use. Every collection is renumbered 10, 20, 30 ...
 async function moveCollection(pool, id, dir) {
-  const { rows } = await pool.query("SELECT id FROM curated_collections ORDER BY sort_order, id");
-  const ids = rows.map((r) => r.id);
-  const i = ids.indexOf(id);
-  const j = dir === "up" ? i - 1 : i + 1;
-  if (i === -1 || j < 0 || j >= ids.length) return false;
-  [ids[i], ids[j]] = [ids[j], ids[i]];
-  await pool.query("UPDATE curated_collections c SET sort_order = n.pos * 10, updated_at = now() FROM (SELECT x.id, ord AS pos FROM unnest($1::int[]) WITH ORDINALITY AS x(id, ord)) n WHERE c.id = n.id", [ids]);
-  return true;
+  return withTransaction(pool, async (db) => {
+    // Lock every collection (in id order, so two moves cannot deadlock) before reading the order: a stale read would renumber wrongly.
+    await db.query("SELECT id FROM curated_collections ORDER BY id FOR UPDATE");
+    const { rows } = await db.query("SELECT id FROM curated_collections ORDER BY sort_order, id");
+    const ids = rows.map((r) => r.id);
+    const i = ids.indexOf(id);
+    const j = dir === "up" ? i - 1 : i + 1;
+    if (i === -1 || j < 0 || j >= ids.length) return false;
+    [ids[i], ids[j]] = [ids[j], ids[i]];
+    await db.query("UPDATE curated_collections c SET sort_order = n.pos * 10, updated_at = now() FROM (SELECT x.id, ord AS pos FROM unnest($1::int[]) WITH ORDINALITY AS x(id, ord)) n WHERE c.id = n.id", [ids]);
+    return true;
+  });
 }
 
 // A book added by hand counts as approved at once. It must exist and be in stock now.
@@ -203,11 +223,14 @@ async function addBookByHand(pool, collectionId, bookId) {
 
 // Removes the link (the book itself is untouched). A collection left with no approved book is unpublished.
 async function removeBook(pool, collectionId, bookId) {
-  const { rowCount } = await pool.query("DELETE FROM curated_collection_books WHERE collection_id = $1 AND book_id = $2", [collectionId, bookId]);
-  const { rows } = await pool.query("SELECT COUNT(*)::int AS n FROM curated_collection_books WHERE collection_id = $1 AND status = 'approved'", [collectionId]);
-  let unpublished = false;
-  if (rows[0].n === 0) unpublished = (await pool.query("UPDATE curated_collections SET published = FALSE, updated_at = now() WHERE id = $1 AND published", [collectionId])).rowCount > 0;
-  return { removed: rowCount > 0, unpublished };
+  return withTransaction(pool, async (db) => {
+    await lockCollection(db, collectionId);
+    const { rowCount } = await db.query("DELETE FROM curated_collection_books WHERE collection_id = $1 AND book_id = $2", [collectionId, bookId]);
+    const { rows } = await db.query("SELECT COUNT(*)::int AS n FROM curated_collection_books WHERE collection_id = $1 AND status = 'approved'", [collectionId]);
+    let unpublished = false;
+    if (rows[0].n === 0) unpublished = (await db.query("UPDATE curated_collections SET published = FALSE, updated_at = now() WHERE id = $1 AND published", [collectionId])).rowCount > 0;
+    return { removed: rowCount > 0, unpublished };
+  });
 }
 
 // In-stock books by title, author or ISBN (at least 2 characters), for the admin's "add a book" search.

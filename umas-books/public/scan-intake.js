@@ -468,6 +468,15 @@
       conditionSel.dispatchEvent(new Event("change", { bubbles: true }));
     }
 
+    function freshIntakeToken() {
+      var el = form.elements.intakeToken;
+      if (!el) return;
+      var t;
+      try { t = window.crypto.randomUUID(); } catch { /* older browser: below */ }
+      if (!t) { t = ""; for (var i = 0; i < 32; i++) t += Math.floor(Math.random() * 16).toString(16); }
+      el.value = t;
+    }
+
     function saveInPlace(submitter) {
       if (saving) return;
       if (inFlight) { setStatus("loading", "Wait for the lookup to finish, then save."); return; }
@@ -505,6 +514,7 @@
             store(LOCATION_STORE_NAME, normalizeLoc(keep.location)); addLocationOption(normalizeLoc(keep.location));
             var scanned = isbn.value !== savedIsbnValue ? isbn.value : ""; // scanned while saving
             resetForm(keep);
+            freshIntakeToken(); // one token per saved copy; a failed save keeps its token, so a retry cannot add a second copy
             showSaved(res.body);
             setStatus("", "Ready for the next book: scan the barcode.");
             isbn.value = scanned || pendingIsbn || "";

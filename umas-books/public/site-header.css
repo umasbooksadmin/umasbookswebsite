@@ -316,13 +316,7 @@ footer.mkt-footer .h-social svg { width: 24px; height: 24px; }
   footer.mkt-footer li { padding: 0; font-size: 13px; border-left: 0; }
   footer.mkt-footer li a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 10px; }
 }
-footer.mkt-footer .h-footer-util a, .preview-banner a { display: inline-flex; align-items: center; min-height: 32px; }
-footer.mkt-footer .h-footer-util {
-  display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 22px; margin-top: 14px;
-  font-size: 15px; font-style: italic;
-}
-footer.mkt-footer .h-footer-util a { color: var(--ink-soft); text-decoration: none; }
-footer.mkt-footer .h-footer-util a:hover { color: var(--maroon); text-decoration: underline; }
+.preview-banner a { display: inline-flex; align-items: center; min-height: 32px; }
 
 /* Tap targets (WCAG 2.2, 2.5.8: at least 24x24). Links inside paragraphs, lists and table cells are
    17-23px high; vertical padding on an INLINE element makes its box (and its clickable area) taller
@@ -331,10 +325,9 @@ main p a:not(.btn), main li a:not(.btn), main td a:not(.btn), main label a:not(.
 main summary { padding-block: 3px; }
 
 footer.mkt-footer li a { display: inline-block; padding: 6px 0; }
-footer.mkt-footer .h-footer-util a { display: inline-block; padding: 3px 0; }
 /* Touch screens wider than a phone (a phone turned sideways, a tablet): the footer links are still 44px-high rows. */
 @media (pointer: coarse) {
-  footer.mkt-footer li a, footer.mkt-footer .h-footer-util a { display: inline-flex; align-items: center; min-height: 44px; }
+  footer.mkt-footer li a { display: inline-flex; align-items: center; min-height: 44px; }
 }
 /* Phones: no vertical separators between footer links (they wrapped into stray bars); a gap instead. */
 @media (max-width: 640px) {

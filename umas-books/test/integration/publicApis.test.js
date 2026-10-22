@@ -1,9 +1,9 @@
 // Public JSON endpoints and the book detail page (src/routes/books.js,
 // src/routes/blog.js) against the real app: search q/genre/topic filters and
-// result cap, latest-arrivals limit/days clamping, genres, by-ids, favorites toggle auth, book
+// result cap, JSON shapes and CORS headers, by-ids, favorites toggle auth, book
 // detail 404s/escaping, and the blog feed hiding drafts and future posts.
 //
-// Own throwaway database (isolated:true) because latest-arrivals is a
+// Own throwaway database (isolated:true) because new-in is a
 // global "newest N" query that other test files' rows would otherwise crowd. Search results are filtered by a unique
 // per-run tag, so they don't depend on that.
 
@@ -163,51 +163,31 @@ test("search: genre is an exact match on a comma-separated category; topic match
 
 // ------------------------------------------------------------ genres/latest
 
-test("genres: distinct, trimmed, sorted, only from books that are in stock", async () => {
-  const id = uniq().replace("-", "");
-  const a = `Zgenre${id}A`;
-  const b = `Zgenre${id}B`;
-  const hidden = `Zgenre${id}Hidden`;
-  await makeBook({ categories: ` ${b} , ${a}` });
-  await makeBook({ categories: `${a}` });
-  await makeBook({ categories: `${hidden}`, copies: [{ status: "sold" }] });
-  const { res, json } = await api("/api/books/genres");
-  assert.equal(res.headers.get("access-control-allow-origin"), "*");
-  assert.equal(res.headers.get("cache-control"), "public, max-age=300, s-maxage=300");
-  assert.equal(json.filter((g) => g === a).length, 1, "distinct");
-  assert.ok(json.includes(b));
-  assert.ok(!json.includes(hidden));
-  assert.ok(json.indexOf(a) < json.indexOf(b));
-  assert.ok(json.every((g) => g === g.trim() && g !== ""));
-});
-
-test("latest-arrivals: limit is clamped to 1..24 (default 8) and results are newest first with the public shape", async () => {
-  const marker = `${TAG} Latest`;
-  for (let i = 0; i < 26; i++) await makeBook({ title: `${marker} ${String(i).padStart(2, "0")}`, copies: [{ price: 2 + i, createdAt: new Date(Date.now() + 3600 * 1000 + i * 1000) }] });
-  const dflt = await api("/api/books/latest-arrivals");
-  assert.equal(dflt.res.headers.get("access-control-allow-origin"), "*");
-  assert.equal(dflt.res.headers.get("cache-control"), "public, max-age=60, s-maxage=60");
-  assert.equal(dflt.json.length, 8);
-  assert.equal(dflt.json[0].title, `${marker} 25`, "newest copy first");
-  assert.deepEqual(Object.keys(dflt.json[0]).sort(), ["author", "coverUrl", "id", "price", "title", "url"]);
-  assert.equal(dflt.json[0].price, 27);
-  assert.equal((await api("/api/books/latest-arrivals?limit=3")).json.length, 3);
-  assert.equal((await api("/api/books/latest-arrivals?limit=1000")).json.length, 24);
-  assert.equal((await api("/api/books/latest-arrivals?limit=-4")).json.length, 1);
-  assert.equal((await api("/api/books/latest-arrivals?limit=0")).json.length, 8);
-  assert.equal((await api("/api/books/latest-arrivals?limit=abc")).json.length, 8);
-});
-
-test("latest-arrivals: ?days= windows by copy age; days=0 removes the window; sold copies never count", async () => {
-  const old = await makeBook({ title: `${TAG} OldArrival`, copies: [{ createdAt: new Date(Date.now() - 30 * 86400 * 1000) }] });
-  const soldNew = await makeBook({ title: `${TAG} SoldArrival`, copies: [{ status: "sold" }] });
-  const ids = async (q) => (await api(`/api/books/latest-arrivals?limit=24&${q}`)).json.map((x) => x.id);
-  assert.ok(!(await ids("days=7")).includes(old.id));
-  assert.ok(!(await ids("")).includes(old.id), "default window is 7 days");
-  assert.ok((await ids("days=60")).includes(old.id) || (await ids("days=60")).length === 24, "wider window admits it unless crowded out");
-  const all = await ids("days=0");
-  assert.ok(!all.includes(soldNew.id));
-  assert.equal((await api("/api/books/latest-arrivals?days=-1&limit=24")).status, 200);
+test("JSON shapes and headers of the public book lists are pinned: exact keys in order, CORS-open except by-ids", async () => {
+  const b = await makeBook({ title: `${TAG} Shape`, authors: "Shape Author", copies: [{ price: 6.5 }] });
+  const SHARED = ["id", "title", "author", "coverUrl", "price"];
+  const search = await api(`/api/books/search?q=${encodeURIComponent(`${TAG} Shape`)}&paged=1`);
+  assert.deepEqual(Object.keys(search.json), ["books", "total", "nextOffset"]);
+  assert.deepEqual(Object.keys(search.json.books[0]), [...SHARED, "awards", "conditions", "binding", "bindingLabel", "clearance", "url"]);
+  const plain = await api(`/api/books/search?q=${encodeURIComponent(`${TAG} Shape`)}`);
+  assert.ok(Array.isArray(plain.json));
+  assert.deepEqual(Object.keys(plain.json[0]), Object.keys(search.json.books[0]));
+  for (const r of [search, plain]) {
+    assert.equal(r.res.headers.get("access-control-allow-origin"), "*");
+    assert.equal(r.res.headers.get("cross-origin-resource-policy"), "cross-origin");
+    assert.equal(r.res.headers.get("cache-control"), "public, max-age=60");
+  }
+  const ni = await api("/api/books/new-in?limit=1");
+  assert.deepEqual(Object.keys(ni.json), ["total", "nextOffset", "books"]);
+  assert.deepEqual(Object.keys(ni.json.books[0]), [...SHARED, "url"]);
+  assert.equal(ni.res.headers.get("access-control-allow-origin"), "*");
+  assert.equal(ni.res.headers.get("cross-origin-resource-policy"), "cross-origin");
+  assert.equal(ni.res.headers.get("cache-control"), "public, max-age=60, s-maxage=60");
+  const ids = await api(`/api/books/by-ids?ids=${b.id}`);
+  assert.deepEqual(Object.keys(ids.json[0]), [...SHARED, "inStockCount", "url"]);
+  assert.deepEqual(ids.json[0], { id: b.id, title: `${TAG} Shape`, author: "Shape Author", coverUrl: ids.json[0].coverUrl, price: 6.5, inStockCount: 1, url: `/books/${b.id}` });
+  assert.equal(ids.res.headers.get("access-control-allow-origin"), null, "by-ids is same-origin only");
+  assert.equal(ids.res.headers.get("cross-origin-resource-policy"), "same-origin");
 });
 
 // ------------------------------------------- New In: "See All" shows every qualifying book
@@ -248,7 +228,6 @@ test("new-in: every book of the last 60 days (no cap), newest first by the exact
   // See All: 24 at a time gives the same list in the same order
   const seen = (await newInBatches(24)).books.map((b) => b.id);
   assert.deepEqual(batches.books.map((b) => b.id), seen, "the carousel (60 at a time) and See All (24 at a time) are the same list in the same order");
-  assert.deepEqual((await api("/api/books/latest-arrivals?days=0&limit=12")).json.map((b) => b.id), seen.slice(0, 12), "and the old endpoint agrees");
   // all=1 is gone: it behaves like no parameter (the default 24), never the whole list
   const all = await api("/api/books/new-in?all=1");
   assert.equal(all.json.books.length, 24);
@@ -281,12 +260,6 @@ test("new-in: out-of-range or garbage offset and limit give 200 (empty or clampe
   assert.equal(r.res.headers.get("set-cookie"), null, "an anonymous cacheable response sets no cookie");
   // (the app adds Vary: Accept-Language, Cookie to every publicly cacheable answer, middleware/lang.js: harmless for a browser
   // and for a CDN that keys on the URL; the body below is identical for everyone)
-  for (const path of ["/api/books/genres", "/api/books/latest-arrivals"]) {
-    const g = await api(path);
-    assert.equal(g.status, 200);
-    assert.match(g.res.headers.get("cache-control") || "", /public, max-age=\d+, s-maxage=\d+/, path);
-    assert.equal(g.res.headers.get("set-cookie"), null, path);
-  }
 });
 
 test("books.html: the page does not grow with the shelf (the no-JavaScript list is a fixed handful) ", async () => {
@@ -421,10 +394,6 @@ test("search paged: a huge, garbage or repeated offset/limit is clamped, never a
   }
   assert.equal((await api(`${base}&limit=2`)).json.books.length, 2, "a normal limit still applies");
   assert.equal((await api(`${base}&offset=3&limit=2`)).json.nextOffset, null, "normal paging unchanged");
-  // latest-arrivals clamps the same way
-  for (const q of ["limit=1e21&days=99999999999999999999", "limit=abc&days=abc", "limit=-3&days=-3", "limit=1&limit=2&days=1&days=2"]) {
-    assert.equal((await api(`/api/books/latest-arrivals?${q}`)).status, 200, q);
-  }
 });
 
 test("search text: % and _ are literal, so '__' or '%%' no longer match every book; normal searches behave as before", async () => {

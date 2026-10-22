@@ -76,13 +76,12 @@ test("tap targets: Instagram and Facebook icons keep their 24px icon inside a 44
   assert.match(read("umas-books", "views", "book_detail.ejs"), /<a class="tap-link" href="\/books\.html/);
 });
 
-test("tap targets: carousel arrows and dots, calendar previous/next and Month/Week toggle, password Show", () => {
+test("tap targets: carousel arrows (.wn-arrow) and dots, calendar previous/next and Month/Week toggle, password Show", () => {
   const blog = read("assets", "blog.css");
   const bt = block(blog, "@media (max-width: 820px), (pointer: coarse) {");
   has(bt, /\.wn-arrow \{ width: 44px; height: 44px; \}/);
   has(bt, /\.wn-dot \{ width: 44px; height: 44px; padding: 16px; \}/, "44px dot area, 12px dot (44 - 2 x 16)");
   has(blog, /\.wn-dot \{[^}]*width: 24px; height: 24px; [^}]*padding: 6px;/, "the desktop dot is unchanged");
-  has(read("assets", "site.css"), /\.carousel-arrow \{ width: 44px; height: 44px; \}/);
   const ft = block(fcal, TOUCH);
   has(ft, /\.fcal-nav a \{[^}]*min-width: 44px; min-height: 44px;/, "previous / next");
   has(ft, /\.fcal-view-toggle a \{[^}]*min-height: 44px;/, "Month / Week toggle");

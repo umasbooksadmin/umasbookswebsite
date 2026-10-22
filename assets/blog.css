@@ -1,13 +1,6 @@
 /* Uma's Books & Adventures — blog cards (home feed + blog.html) and the
    single-post view. Loaded after site.css. */
 
-.blog-section { width: 100%; max-width: 1240px; margin: 0 auto; padding: 8px 32px 44px; }
-.blog-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 22px; }
-.blog-head h2 { font-size: clamp(22px, 2.4vw, 28px); letter-spacing: 0.14em; text-transform: uppercase; }
-.blog-head .divider { width: 46px; height: 2px; background: var(--maroon); margin-top: 12px; }
-.blog-head .all { color: var(--ink); text-decoration: none; font-size: 18px; }
-.blog-head .all:hover { color: var(--maroon); }
-
 .blog-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px; }
 .blog-card { background: var(--panel); border: 1px solid var(--line); }
 .blog-card-link { display: flex; flex-direction: column; height: 100%; color: var(--ink); text-decoration: none; }
@@ -25,7 +18,6 @@
 
 @media (max-width: 900px) { .blog-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; } }
 @media (max-width: 600px) {
-  .blog-section { padding: 8px 16px 36px; }
   .blog-grid { grid-template-columns: minmax(0, 1fr); }
 }
 

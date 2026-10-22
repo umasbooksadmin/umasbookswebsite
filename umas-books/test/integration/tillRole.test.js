@@ -123,12 +123,12 @@ test("turning Till access on and off is an admin action on Accounts, audited; th
   const holder = await h.makeUser({ name: "Future Cashier" });
   assert.equal((await h.get("/admin/till", holder.jar)).res.status, 403, "no access yet");
   // only an admin can toggle
-  assert.equal((await h.post(`/admin/members/${holder.id}/toggle-till`, {}, till.jar)).status, 403);
+  assert.equal((await h.post(`/admin/members/${holder.id}/toggle-till`, { desired: "on" }, till.jar)).status, 403);
   // with two-step on, the admin must have it set up to reach /admin/members at all: use a session the middleware accepts
   const detail = await h.get(`/admin/members?view=${holder.id}`, adm.jar);
   assert.equal(detail.res.status, 200, "an admin with two-step verification set up");
   assert.match(detail.text, /Till access: off \(give\)/);
-  assert.equal((await h.post(`/admin/members/${holder.id}/toggle-till`, {}, adm.jar)).status, 302);
+  assert.equal((await h.post(`/admin/members/${holder.id}/toggle-till`, { desired: "on" }, adm.jar)).status, 302);
   assert.equal((await h.pool.query("SELECT is_till FROM users WHERE id = $1", [holder.id])).rows[0].is_till, true);
   assert.match((await h.audit("member.toggle_till")).at(-1).detail, /Till access given/);
   // takes effect on the next request (no new login)
@@ -146,7 +146,7 @@ test("turning Till access on and off is an admin action on Accounts, audited; th
   assert.match(csv, /Future Cashier[^\n]*\+ Till/);
 
   // removing it takes the access away at once
-  await h.post(`/admin/members/${holder.id}/toggle-till`, {}, adm.jar);
+  await h.post(`/admin/members/${holder.id}/toggle-till`, { desired: "off" }, adm.jar);
   assert.equal((await h.get("/admin/till", holder.jar)).res.status, 403);
   assert.match((await h.audit("member.toggle_till")).at(-1).detail, /Till access removed/);
 });

@@ -21,6 +21,7 @@ const { parseSuggestedPrice, normalizeSuggestedLevel, priceBasisFor, priceFromLe
 const { setFlash, takeFlash } = require("../../lib/flash");
 const { validateIdParams } = require("../../middleware/idParams");
 const fastScan = require("../../lib/fastScan");
+const intakeToken = require("../../lib/intakeToken");
 const { serverTiming } = require("../../lib/timing");
 const { aiAdminLimiter, AI_LIMIT_MESSAGE } = require("../../middleware/rateLimits");
 const { getAiLimits, clampText, MAX_TITLE, MAX_AUTHOR } = require("../../lib/aiLimits");
@@ -453,7 +454,20 @@ router.post("/admin/inventory/generate-description", requireAdmin, descriptionLi
   res.json({ description, descriptionFr });
 });
 
+// Idempotent: the form carries a one-time token (lib/intakeToken.js). The same token again returns the
+// first save's answer; it never creates a second copy. A request WITHOUT a token (a page cached from before
+// this existed) still saves as before, and is logged so it can be seen when those pages are gone.
 router.post("/admin/inventory", requireAdmin, serverTiming("scan.save"), async (req, res) => {
+  try {
+    await saveCopy(req, res);
+  } catch (err) {
+    // A failure before the copy existed lets the token go, so the retry can save.
+    if (req.intakeClaim) await intakeToken.release(pool, req.intakeClaim);
+    throw err;
+  }
+});
+
+async function saveCopy(req, res) {
   const title = (req.body.title || "").trim();
   const author = (req.body.author || "").trim() || null;
   const isbn = req.body.isbn ? normalizeIsbn(req.body.isbn) : null;
@@ -516,6 +530,33 @@ router.post("/admin/inventory", requireAdmin, serverTiming("scan.save"), async (
       publisherPriceValue: req.body.publisherPrice || "",
       defaultPricing: typedPricing,
     });
+  }
+
+  // What the answer looks like once a copy exists (also used for a repeated token).
+  const answer = (copyId, bookId, bookTitle, requests) => {
+    if (req.body.fast !== "0" && (req.body.fast === "1" || req.body.addAnother === "1" || req.body.fromScan === "1")) {
+      if (wantsJson(req)) return res.json({ ok: true, copyId, bookId, title: bookTitle, requests });
+      return res.redirect(`/admin/inventory/new?${fastScan.carryQuery({ location, source, binding, condition, copyId, requests })}`);
+    }
+    return res.redirect(`/admin/inventory/${bookId}${requests ? `?requests=${requests}` : ""}`);
+  };
+
+  // One-time token: claimed before anything is created.
+  const token = intakeToken.validToken(req.body.intakeToken) ? String(req.body.intakeToken) : null;
+  if (token) {
+    const claimed = await intakeToken.claim(pool, token);
+    if (claimed.state === "done") {
+      const { rows: bk } = await pool.query("SELECT title FROM books WHERE id = $1", [claimed.bookId]);
+      return answer(claimed.copyId, claimed.bookId, (bk[0] && bk[0].title) || title, claimed.requests);
+    }
+    if (claimed.state === "busy") {
+      const msg = "This book is already being saved. Wait a moment and check the book list before saving it again.";
+      if (wantsJson(req)) return res.status(409).json({ ok: false, error: msg });
+      return intakeAgain({ prep: { isbn, title, author, binding: req.body.binding, condition, publisherPrice: req.body.publisherPrice }, book: { isbn, title, author, publisher, publishedYear, description, descriptionFr, coverUrl, genre, genreFr, binding }, error: msg, selectedCondition: condition, defaultPricing: typedPricing });
+    }
+    req.intakeClaim = token;
+  } else {
+    console.warn("Add copy without an intake token (page cached from before tokens): saving without duplicate protection");
   }
 
   const coverPhoto = req.files && req.files.coverPhoto && req.files.coverPhoto[0];
@@ -598,6 +639,7 @@ router.post("/admin/inventory", requireAdmin, serverTiming("scan.save"), async (
     for (const other of repriceOthers) {
       await client.query("UPDATE book_copies SET price = $1, is_clearance = true, updated_at = now() WHERE id = $2", [settings.clearance.price, other.id]);
     }
+    if (token) await intakeToken.attach(client, token, rows[0].id, bookId);
     return rows;
   }));
   for (const other of repriceOthers) {
@@ -621,16 +663,9 @@ router.post("/admin/inventory", requireAdmin, serverTiming("scan.save"), async (
   // banner on the book's page and the scan screen tells the admin.
   const requestsMatched = await req.timing.time("requests", () => matchBookRequests(() => matchRequestsForCopy(pool, bookId, copyRows[0].id)));
 
-  // The one-screen add page (fast=1): back to a fresh form (a JSON answer for the fetch from the page itself).
-  if (req.body.fast !== "0" && (req.body.fast === "1" || req.body.addAnother === "1" || req.body.fromScan === "1")) {
-    const copyId = copyRows[0].id;
-    if (wantsJson(req)) {
-      return res.json({ ok: true, copyId, bookId, title, requests: requestsMatched });
-    }
-    return res.redirect(`/admin/inventory/new?${fastScan.carryQuery({ location, source, binding, condition, copyId, requests: requestsMatched })}`);
-  }
-  res.redirect(`/admin/inventory/${bookId}${requestsMatched ? `?requests=${requestsMatched}` : ""}`);
-});
+  if (token) await intakeToken.setRequests(pool, token, requestsMatched);
+  return answer(copyRows[0].id, bookId, title, requestsMatched);
+}
 
 // `overlay` keeps what was typed in a form that was refused: { book: {column:
 // value}, copy: {id, column: value} } is laid over the stored rows for display

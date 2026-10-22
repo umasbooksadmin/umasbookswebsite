@@ -1420,5 +1420,3 @@ Open items worth knowing:
 * The daily image cleanup only keeps images that a known column references;
   a new image-bearing column must be added to `IMAGE_REFERENCES` in
   `lib/imageCleanup.js` (a test fails if it is forgotten).
-* Squarespace-era files (`SQUARESPACE.md`, `squarespace-*.html`, `tools/`) remain
-  in the repo root, unused.

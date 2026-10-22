@@ -77,7 +77,7 @@ test("the book page: the cover and 'more by this author' cards carry srcset and 
 });
 
 test("the API still returns the plain cover address (the pages add the sizes themselves)", async () => {
-  const res = await fetch(`${app.base}/api/books/latest-arrivals?limit=50&days=3650`);
+  const res = await fetch(`${app.base}/api/books/new-in?limit=100`);
   const list = await res.json();
   const mine = (Array.isArray(list) ? list : list.books || []).filter((b) => /Main cover|Sibling cover/.test(b.title));
   assert.ok(mine.length >= 1);
