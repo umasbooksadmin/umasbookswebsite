@@ -3,7 +3,7 @@ const { isNonLive } = require("./preview");
 // The app's own public base URL — needed only where an *absolute* URL is
 // unavoidable (HelloAsso return/webhook URLs, and JSON API responses meant
 // to be usable by a consumer on a different origin than this app, e.g. a
-// marketing site fetching /api/books/latest-arrivals cross-origin). Never
+// marketing site fetching /api/books/new-in cross-origin). Never
 // hardcode the hostname instead of using this — that's exactly what broke
 // when this app moved to a new Render service with a different URL.
 //

@@ -6,7 +6,7 @@ const { parisDateString } = require("../lib/tz");
 const router = express.Router();
 
 // Public JSON, cross-origin — same CORS treatment as /api/events/upcoming
-// and /api/books/latest-arrivals. Consumed by assets/blog-live.js on the
+// and /api/books/new-in. Consumed by assets/blog-live.js on the
 // static marketing pages (blog.html, index.html's "What's New" slider),
 // which populate window.UMAS_POSTS from this instead of a hand-edited
 // file — see migrations/027_blog_redesign.sql for the one-time import of

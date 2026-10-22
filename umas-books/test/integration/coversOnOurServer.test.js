@@ -71,7 +71,7 @@ test("a leftover external cover address is never printed: the page shows the neu
   assert.match(html, /class="book-detail-cover book-thumb-placeholder"/);
 });
 
-test("JSON answers (search, latest arrivals) never carry an external cover address", async () => {
+test("JSON answers (search, new in) never carry an external cover address", async () => {
   const id = await makeBook("JSON Cover Legacy", EXTERNAL);
   await makeBook("JSON Cover Stored", STORED);
   const search = await (await get("/api/books/search?q=JSON%20Cover")).json();
@@ -80,7 +80,7 @@ test("JSON answers (search, latest arrivals) never carry an external cover addre
   assert.equal(legacy.coverUrl, null);
   assert.ok(search.some((b) => b.coverUrl === STORED));
   assert.ok(!JSON.stringify(search).match(/openlibrary|archive\.org/));
-  const latest = await (await get("/api/books/latest-arrivals?days=0&limit=50")).text();
+  const latest = await (await get("/api/books/new-in?limit=50")).text();
   assert.doesNotMatch(latest, /openlibrary|archive\.org/);
 });
 
@@ -142,9 +142,8 @@ test("covers are shown whole: no object-fit: cover, and height:auto so the heigh
     return m[1];
   };
   const books = read(path.join(ROOT, "..", "assets", "books.css"));
-  const site = read(path.join(ROOT, "..", "assets", "site.css"));
   const style = read(path.join(ROOT, "public", "style.css"));
-  const checks = [[books, ".bk-book .cover"], [site, ".arrival-cover"], [style, ".book-card-cover"], [style, ".book-detail-cover"], [style, ".cart-item-cover"]];
+  const checks = [[books, ".bk-book .cover"], [style, ".book-card-cover"], [style, ".book-detail-cover"], [style, ".cart-item-cover"]];
   for (const [css, sel] of checks) {
     const body = rule(css, sel);
     assert.match(body, /object-fit: contain/, `${sel} must use object-fit: contain`);
@@ -153,5 +152,4 @@ test("covers are shown whole: no object-fit: cover, and height:auto so the heigh
   }
   // These imgs carry height="300"; without height:auto that attribute wins over aspect-ratio.
   assert.match(rule(books, ".bk-book .cover"), /height: auto/);
-  assert.match(rule(site, ".arrival-cover"), /height: auto/);
 });

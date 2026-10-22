@@ -16,7 +16,7 @@ validateIdParams(router, "id");
 // Public JSON, cross-origin — consumed by the marketing site's Events
 // page so it can show the actual upcoming schedule inline instead of
 // just linking out to it. Same CORS treatment as
-// /api/books/latest-arrivals: Access-Control-Allow-Origin alone isn't
+// /api/books/new-in: Access-Control-Allow-Origin alone isn't
 // enough, helmet's Cross-Origin-Resource-Policy: same-origin blocks the
 // read independently of CORS unless relaxed here too.
 router.get("/api/events/upcoming", async (req, res) => {

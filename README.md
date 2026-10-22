@@ -76,14 +76,3 @@ checks (`test`, `lint`, `migration-test`, `dependency-audit`, `secret-scan`,
 `smoke-crawl`) must pass before it can merge. Merging to `main` deploys to
 production on Render. See `umas-books/ARCHITECTURE.md` ("Deploy sequence") and
 `umas-books/README.md` for the details and the local test commands.
-
-## Leftovers from the Squarespace era
-
-These are no longer used by the site and are safe to delete when you are ready
-(they were left in place so nothing was removed without being asked):
-
-- `SQUARESPACE.md`, `squarespace-code-block.html`,
-  `squarespace-code-block.filled.html`, `squarespace-paste-payload.html`
-- `tools/` (`build-squarespace.py`, `build_pages.py`, `gen_page.py`) — page
-  generators for the old standalone HTML pages. Do not run them: they would not
-  produce anything the app uses.

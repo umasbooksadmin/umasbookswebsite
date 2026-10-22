@@ -11,20 +11,31 @@ const { loadPublicAwards, awardsTextSql } = require("../lib/awards/display");
 const { validateIdParams } = require("../middleware/idParams");
 const { bookSearchLimiter } = require("../middleware/rateLimits");
 
-const { latestArrivals, newInPage, BROWSE_CACHE_MS } = require("../lib/latestArrivals");
-const { cachedFor, cachedByKey } = require("../lib/runLimited");
+const { newInPage } = require("../lib/latestArrivals");
 const { buildBookSeo } = require("../lib/bookSeo");
 const router = express.Router();
 // The public JSON lists below are the same for everyone (no session, no per-person data) and change slowly: a browser
-// or the CDN may keep them a minute, and the server computes each at most once per BROWSE_CACHE_MS (45 s; off under
-// NODE_ENV=test so tests see their own writes).
+// or the CDN may keep them a minute (new-in is also kept in memory for 45 s by lib/latestArrivals.js newInPage).
 const PUBLIC_JSON_CACHE = "public, max-age=60, s-maxage=60";
-const cacheTtl = () => (process.env.NODE_ENV === "test" ? 0 : BROWSE_CACHE_MS);
-// latest-arrivals has a few hundred possible (limit, days) pairs: one cached list for each, at most 100 kept.
-const latestArrivalsCached = cachedByKey((key) => {
-  const [limit, days] = key.split(":").map(Number);
-  return latestArrivals(pool, { limit, days });
-}, cacheTtl, 100);
+
+// Public JSON, cross-origin (the cache header differs per route, so it is a parameter). Access-Control-Allow-Origin alone
+// isn't enough: helmet sets a global Cross-Origin-Resource-Policy: same-origin, which blocks cross-origin reads
+// independently of CORS unless relaxed here too. Only ever what is already publicly visible at /books/:id.
+const publicJson = (cacheControl) => (req, res, next) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Cross-Origin-Resource-Policy", "cross-origin");
+  res.set("Cache-Control", cacheControl);
+  next();
+};
+
+// The part of a book every public list shares (key order is part of the response: keep it).
+const bookJson = (b) => ({
+  id: b.id,
+  title: b.title,
+  author: b.authors,
+  coverUrl: localCover(b.cover_url),
+  price: b.min_price != null ? Number(b.min_price) : null,
+});
 // Garbage ids get the 404 page, not a Postgres 22P02 and a 500.
 validateIdParams(router, "id");
 
@@ -64,82 +75,18 @@ router.post("/api/favorites/toggle", async (req, res) => {
   res.status(204).end();
 });
 
-// Public JSON, cross-origin — consumed by the marketing site's "Latest
-// Arrivals" section (a different origin, e.g. umasbooks.org), so this
-// specific endpoint opts back into CORS even though the rest of the app
-// is same-origin only. Only ever returns what's already publicly visible
-// at /books (title, author, cover, price) — nothing sensitive.
-router.get("/api/books/latest-arrivals", async (req, res) => {
-  // Access-Control-Allow-Origin alone isn't enough — helmet sets a global
-  // Cross-Origin-Resource-Policy: same-origin, which blocks cross-origin
-  // reads independently of CORS unless relaxed here too.
-  res.set("Access-Control-Allow-Origin", "*");
-  res.set("Cross-Origin-Resource-Policy", "cross-origin");
-  res.set("Cache-Control", PUBLIC_JSON_CACHE);
-  // ?limit= (1–24, default 8) and ?days= (default 7; 0 = no time window,
-  // i.e. simply the newest in-stock books — used by the Books page's
-  // "New In" shelf so it's never empty during a quiet week).
-  const limit = parseLimitParam(req.query.limit, { max: 24, default: 8 });
-  const days = parseIntParam(req.query.days, { min: 0, max: 365, default: 7 });
-  const rows = await latestArrivalsCached(limit + ":" + days);
-  res.json(
-    rows.map((b) => ({
-      id: b.id,
-      title: b.title,
-      author: b.authors,
-      coverUrl: localCover(b.cover_url),
-      price: b.min_price != null ? Number(b.min_price) : null,
-      url: `${baseUrl(req)}/books/${b.id}`,
-    }))
-  );
-});
-
 // "New In" in batches: { total, books, nextOffset }. The Books page's carousel loads 60 at a time as the guest nears the
 // end of what is loaded ("See All New In" asks for 24 at a time) until nextOffset is null, so every new book can be reached
 // and no request is ever large. limit is 1-100 (default 24); an offset that is not a safe integer or is past the end gives
 // an empty batch. Newest first by the time the copy was added. Not the search limiter: no text search, answered from one
 // list kept in memory for 45 s (lib/latestArrivals.js newInPage). Anonymous-safe: nothing per person is in it.
-router.get("/api/books/new-in", async (req, res) => {
-  res.set("Access-Control-Allow-Origin", "*");
-  res.set("Cross-Origin-Resource-Policy", "cross-origin");
-  res.set("Cache-Control", PUBLIC_JSON_CACHE);
+router.get("/api/books/new-in", publicJson(PUBLIC_JSON_CACHE), async (req, res) => {
   const { total, rows, nextOffset } = await newInPage(pool, { offset: req.query.offset, limit: req.query.limit });
   res.json({
     total,
     nextOffset,
-    books: rows.map((b) => ({
-      id: b.id,
-      title: b.title,
-      author: b.authors,
-      coverUrl: localCover(b.cover_url),
-      price: b.min_price != null ? Number(b.min_price) : null,
-      url: `${baseUrl(req)}/books/${b.id}`,
-    })),
+    books: rows.map((b) => ({ ...bookJson(b), url: `${baseUrl(req)}/books/${b.id}` })),
   });
-});
-
-// Public JSON, cross-origin — consumed by the marketing site's Books
-// page so it can show real in-stock results inline instead of just
-// linking out to the shop. Same CORS treatment as
-// /api/books/latest-arrivals.
-// Public JSON, cross-origin — the list of in-stock genres for the
-// marketing site's genre chips. Same CORS treatment as the other
-// /api/books/* endpoints on this page.
-const genreList = cachedFor(async () => {
-  const { rows } = await pool.query(
-    `SELECT DISTINCT trim(g) AS genre
-     FROM books b, unnest(string_to_array(b.categories, ',')) AS g
-     WHERE b.categories IS NOT NULL AND b.categories <> '' AND trim(g) <> ''
-       AND EXISTS (SELECT 1 FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock')
-     ORDER BY genre ASC`
-  );
-  return rows.map((r) => r.genre);
-}, cacheTtl);
-router.get("/api/books/genres", async (req, res) => {
-  res.set("Access-Control-Allow-Origin", "*");
-  res.set("Cross-Origin-Resource-Policy", "cross-origin");
-  res.set("Cache-Control", "public, max-age=300, s-maxage=300");
-  res.json(await genreList());
 });
 
 // A free-text search shorter than this matches nearly everything and cannot use the
@@ -151,10 +98,7 @@ const SEARCH_MAX_OFFSET = 100000;
 // would scan every description of the catalogue.
 const SEARCH_DESCRIPTION_MIN_LENGTH = 3;
 
-router.get("/api/books/search", bookSearchLimiter, async (req, res) => {
-  res.set("Access-Control-Allow-Origin", "*");
-  res.set("Cross-Origin-Resource-Policy", "cross-origin");
-  res.set("Cache-Control", "public, max-age=60");
+router.get("/api/books/search", bookSearchLimiter, publicJson("public, max-age=60"), async (req, res) => {
   // clean(): capped, and an array (?q=a&q=b) can't reach .trim() and 500.
   const q = clean(req.query.q, 100);
   const genre = clean(req.query.genre, 100);
@@ -229,11 +173,7 @@ router.get("/api/books/search", bookSearchLimiter, async (req, res) => {
     total = r.rows[0].n;
   }
   const list = rows.map((b) => ({
-      id: b.id,
-      title: b.title,
-      author: b.authors,
-      coverUrl: localCover(b.cover_url),
-      price: b.min_price != null ? Number(b.min_price) : null,
+      ...bookJson(b),
       awards: b.awards || "",
       // Grades of the copies on the shelf, best first (value + label in the visitor's language).
       conditions: CONDITIONS.filter((c) => (b.conditions || []).includes(c.value)).map((c) => ({ value: c.value, label: conditionLabel(c.value, req.lang) })),
@@ -254,8 +194,8 @@ router.get("/favorites", (req, res) => {
 });
 
 // Public JSON, same-origin only (the favorites page's own fetch) — no
-// CORS relaxation needed, unlike /api/books/latest-arrivals which the
-// marketing site calls cross-origin.
+// CORS relaxation needed, unlike /api/books/search and
+// /api/books/new-in, which are cross-origin.
 router.get("/api/books/by-ids", async (req, res) => {
   // Valid int4 ids only (anything else is dropped: it could never match, and an id past 2^31 would make Postgres refuse the query).
   const ids = parseIdList(req.query.ids);
@@ -270,11 +210,7 @@ router.get("/api/books/by-ids", async (req, res) => {
   );
   res.json(
     rows.map((b) => ({
-      id: b.id,
-      title: b.title,
-      author: b.authors,
-      coverUrl: localCover(b.cover_url),
-      price: b.min_price != null ? Number(b.min_price) : null,
+      ...bookJson(b),
       inStockCount: b.in_stock_count,
       url: `/books/${b.id}`,
     }))

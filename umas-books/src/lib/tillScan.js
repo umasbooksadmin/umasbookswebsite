@@ -17,7 +17,4 @@ function parseTillScan(value) {
   return { type: "unknown" };
 }
 
-// "UB-1234" for a copy id.
-const copyCode = (id) => `UB-${id}`;
-
-module.exports = { parseTillScan, copyCode };
+module.exports = { parseTillScan };

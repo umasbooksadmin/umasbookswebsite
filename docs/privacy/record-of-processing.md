@@ -169,7 +169,7 @@ The weekly English Immersion pre-registration form on the website (`POST /pre-re
 
 Uploaded images (book covers, blog, announcement and charity photos) are stored in the database table `images` and are not personal data. Images no longer used by anything are deleted automatically once they have been unused for at least 7 days (`src/lib/imageCleanup.js`, daily at start-up and every 24 hours; the list of columns that can hold an image is `IMAGE_REFERENCES`). They remain in older backups for the backup periods in section 9.
 
-Fonts: the website serves its typefaces itself (self-hosted files in `assets/fonts/`, declared in `public/style.css`, and the Content-Security-Policy allows fonts from the site only: `fontSrc: ["'self'"]` in `src/index.js`). No person IP address is sent to Google Fonts by the website. The old Squarespace-era snippet files at the repository root (`squarespace-*.html`) still import Google Fonts, but they are not served by the website; they matter only if someone pastes them into a Squarespace page (they date from when the site was built on Squarespace). Squarespace is still used, but only as domain registrar and DNS host (section 12); it does not host or serve the website.
+Fonts: the website serves its typefaces itself (self-hosted files in `assets/fonts/`, declared in `public/style.css`, and the Content-Security-Policy allows fonts from the site only: `fontSrc: ["'self'"]` in `src/index.js`). No person IP address is sent to Google Fonts by the website. Squarespace is still used, but only as domain registrar and DNS host (section 12); it does not host or serve the website.
 
 ## 9. Backups / Sauvegardes
 

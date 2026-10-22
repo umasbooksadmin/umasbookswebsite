@@ -21,7 +21,6 @@
 .h-btn .arrow { font-family: 'Montserrat', 'Montserrat Fallback', sans-serif; font-weight: 500; font-size: 15px; line-height: 1; }
 .h-btn-outline { background: transparent; color: var(--ink); border-color: var(--ink); }
 .h-btn-outline:hover { background: var(--btn-bg); border-color: var(--btn-bg); color: #fff; }
-.h-btn-lg { font-size: 17px; padding: 17px 36px; letter-spacing: 0.16em; }
 
 /* ---------- Hero ---------- */
 .h-hero {
@@ -49,7 +48,6 @@
 }
 @media (max-width: 520px) {
   .h-hero .tagline { letter-spacing: 0.16em; }
-  .h-btn-lg { font-size: 15px; padding: 14px 24px; letter-spacing: 0.12em; }
 }
 @media (max-width: 760px) {
   .h-hero .art { max-width: 42%; opacity: 0.35; }
@@ -74,7 +72,6 @@
 .h-card p { color: var(--ink-soft); margin: 0 0 24px; font-size: 19px; line-height: 1.3; max-width: 24ch; }
 .h-card .actions { margin-top: auto; display: flex; flex-direction: column; gap: 8px; width: 100%; max-width: 232px; }
 .h-card .actions .h-btn { width: 100%; padding-left: 14px; padding-right: 14px; white-space: normal; }
-.h-card .actions .h-btn-small { font-size: 13.5px; letter-spacing: 0.1em; padding-top: 10px; padding-bottom: 10px; }
 
 @media (max-width: 960px) {
   .h-cards { grid-template-columns: repeat(2, 1fr); row-gap: 36px; }
@@ -84,28 +81,6 @@
   .h-cards { grid-template-columns: 1fr; row-gap: 0; }
   .h-card { border-left: 0; border-top: 1px solid var(--line); padding: 32px 8px; }
   .h-card:first-child { border-top: 0; }
-}
-
-/* ---------- About band ---------- */
-.h-about {
-  display: grid; grid-template-columns: 57% 1fr; align-items: stretch;
-  position: relative; overflow: hidden; margin-top: 12px;
-}
-.h-about .photo { width: 100%; height: 100%; min-height: 320px; object-fit: cover; }
-/* text starts at the top of the band so the title lines up with the top of the photo */
-.h-about-copy { position: relative; padding: 0 32px 56px; align-self: start; }
-.h-about h2 { font-size: clamp(24px, 2.6vw, 30px); letter-spacing: 0.14em; text-transform: uppercase; line-height: 1.05; margin-top: -0.08em; }
-.h-about .divider { width: 46px; height: 2px; background: var(--maroon); margin: 16px 0 22px; }
-.h-about p { color: var(--ink-soft); margin: 0 0 28px; max-width: 34ch; line-height: 1.3; font-size: 19.5px; }
-.h-about .sprig {
-  position: absolute; right: 0; bottom: 0; width: clamp(160px, 22vw, 274px); height: auto; pointer-events: none;
-}
-.h-about-copy > * { position: relative; z-index: 1; }
-@media (max-width: 820px) {
-  .h-about { grid-template-columns: 1fr; }
-  .h-about .photo { min-height: 0; aspect-ratio: 16 / 10; }
-  .h-about-copy { padding: 36px 24px 150px; }
-  .h-about .sprig { width: 170px; }
 }
 
 /* ---------- Fit the whole Home page on one desktop screen ----------
@@ -123,7 +98,6 @@
   .home-fit .h-hero .rule { margin: 1.2vh auto 1.3vh; width: 120px; }
   .home-fit .h-hero .tagline { font-size: clamp(12px, 1.75vh, 18px); margin-bottom: 0; line-height: 1.3; }
   .home-fit .h-hero .tagline br { display: none; }
-  .home-fit .h-btn-lg { font-size: clamp(12px, 1.5vh, 15px); padding: 1.1vh 28px; }
 
   /* Four cards */
   .home-fit .h-cards { padding: 4.5vh 16px 0.4vh; }
@@ -136,20 +110,6 @@
   /* buttons sit right under each card's text (not pushed to the card's bottom) */
   .home-fit .h-card .actions { margin-top: 0; flex-direction: row; flex-wrap: wrap; justify-content: center; max-width: none; gap: 6px; }
   .home-fit .h-card .actions .h-btn { width: auto; font-size: clamp(11.5px, 1.4vh, 14px); padding: 0.8vh 16px; letter-spacing: 0.1em; }
-  .home-fit .h-card .actions .h-btn-small { font-size: clamp(11px, 1.3vh, 13px); padding: 0.55vh 12px; letter-spacing: 0.06em; }
-
-  /* About band */
-  /* margin-top: a clear gap between the cards and the photo band */
-  .home-fit .h-about { margin-top: 3vh; min-height: 18vh; grid-template-columns: 50% 1fr; }
-  /* height 0 + min-height 100%: the photo fills the band without its own
-     proportions making the band taller */
-  .home-fit .h-about .photo { height: 0; min-height: 100%; }
-  .home-fit .h-about-copy { padding: 0 32px 0.8vh; }
-  .home-fit .h-about h2 { font-size: clamp(18px, 2.3vh, 25px); }
-  .home-fit .h-about .divider { margin: 0.8vh 0 0.9vh; }
-  .home-fit .h-about p { font-size: clamp(14px, 1.7vh, 18px); line-height: 1.2; max-width: 72ch; margin-bottom: 1vh; padding-right: min(120px, 12vh); }
-  .home-fit .h-about .h-btn { font-size: clamp(11.5px, 1.4vh, 14px); padding: 0.75vh 22px; }
-  .home-fit .h-about .sprig { width: min(180px, 16vh); }
 
 }
 /* Shorter laptop screens: the minimum text sizes above would add up to a
@@ -159,7 +119,6 @@
   .home-fit .h-hero h1 { font-size: 6.2vh; }
   .home-fit .h-hero .rule { margin: 0.9vh auto 1vh; }
   .home-fit .h-hero .tagline { font-size: 12px; margin-bottom: 0; }
-  .home-fit .h-btn-lg { padding: 0.8vh 24px; font-size: 12px; }
   .home-fit .h-cards { padding: 3.5vh 16px 0.6vh; }
   .home-fit .h-card .medallion { margin-bottom: 0.6vh; }
   .home-fit .h-card h2 { font-size: 17px; }
@@ -168,12 +127,6 @@
   .home-fit .h-card p { font-size: 13.5px; line-height: 1.2; margin-bottom: 0.9vh; }
   .home-fit .h-card .actions { gap: 4px; }
   .home-fit .h-card .actions .h-btn { font-size: 11.5px; padding: 0.7vh 14px; }
-  .home-fit .h-card .actions .h-btn-small { font-size: 11px; padding: 0.45vh 10px; }
-  .home-fit .h-about-copy { padding: 0 28px 0.6vh; }
-  .home-fit .h-about h2 { font-size: 18px; }
-  .home-fit .h-about .divider { margin: 0.7vh 0 0.9vh; }
-  .home-fit .h-about p { font-size: 13.5px; line-height: 1.2; margin-bottom: 0.9vh; }
-  .home-fit .h-about .h-btn { font-size: 11.5px; padding: 0.7vh 18px; }
 }
 /* Very short windows (e.g. 1366×768 laptops, or a scaled Windows display):
    drop the fixed minimum sizes and size text from the window height too. */
@@ -183,7 +136,6 @@
   .home-fit .h-hero-copy { padding-top: 2.2vh; }
   .home-fit .h-hero .rule { margin: 0.6vh auto 0.8vh; }
   .home-fit .h-hero .tagline { font-size: 1.8vh; margin-bottom: 0; letter-spacing: 0.16em; }
-  .home-fit .h-btn-lg { font-size: 1.8vh; padding: 0.6vh 20px; }
   .home-fit .h-card .medallion { width: 6.2vh; height: 6.2vh; margin-bottom: 0.4vh; }
   .home-fit .h-card h2 { font-size: 2.6vh; }
   .home-fit .h-card .subtitle { font-size: 1.6vh; }
@@ -191,14 +143,7 @@
   .home-fit .h-card p { font-size: 2.05vh; line-height: 1.18; margin-bottom: 0.7vh; }
   .home-fit .h-card .actions { gap: 3px; }
   .home-fit .h-card .actions .h-btn { font-size: 1.75vh; padding: 0.5vh 12px; }
-  .home-fit .h-card .actions .h-btn-small { font-size: 1.65vh; padding: 0.35vh 10px; }
-  .home-fit .h-about { margin-top: 2.4vh; }
-  .home-fit .h-about-copy { padding: 0 24px 0.3vh; }
   .home-fit .h-hero-copy { padding-top: 1.8vh; }
-  .home-fit .h-about h2 { font-size: 2.6vh; }
-  .home-fit .h-about .divider { margin: 0.5vh 0 0.6vh; }
-  .home-fit .h-about p { font-size: 2vh; line-height: 1.15; margin-bottom: 0.6vh; }
-  .home-fit .h-about .h-btn { font-size: 1.75vh; padding: 0.5vh 16px; }
 }
 /* When the content is shorter than the screen, let the cards row absorb the
    spare height (split evenly above and below it) so the footer still sits
