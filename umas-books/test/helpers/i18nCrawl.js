@@ -14,7 +14,7 @@
 //       translated it), or
 //   (b) it contains common English function words (the, and, your, please...),
 //       or equals a known English UI string (tr() literals found in the source,
-//       dictionary values of assets/site.js).
+//       dictionary values of assets/i18n-common.js).
 // Anything on the allow-list (test/i18n-allowlist.js, each entry with a reason)
 // is skipped. A "not English" decision is deliberately conservative.
 
@@ -375,7 +375,7 @@ function isAllowed(text, allow) {
 
 let knownEnglish = null;
 // English UI strings known from the source: the first argument of every tr("en", "fr") call
-// (views, routes, libs, emails) and the `en` dictionaries of assets/site.js and page scripts.
+// (views, routes, libs, emails) and the `en` dictionaries of assets/i18n-common.js and page scripts.
 function loadKnownEnglish() {
   if (knownEnglish) return knownEnglish;
   const set = new Set();

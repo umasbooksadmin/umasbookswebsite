@@ -12,7 +12,7 @@
 // anywhere else.
 //
 // An error is a { key, label } pair: `key` selects a message in the page's
-// dictionaries (form.err.* in assets/site.js COMMON, so the language toggle
+// dictionaries (form.err.* in assets/i18n-common.js COMMON, so the language toggle
 // works), `label` is the i18n key of the field's own label for the summary.
 
 const { isEmail, emailSafeName } = require("./validation");

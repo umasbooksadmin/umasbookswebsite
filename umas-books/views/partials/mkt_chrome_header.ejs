@@ -18,7 +18,7 @@ const navItems = typeof nav !== 'undefined' ? nav : [];
 // Server-side French for the chrome (site.js re-applies the same strings
 // client-side on the marketing pages). Falls back to English without tr().
 const t = typeof tr === 'function' ? tr : (en) => en;
-const NAV_FR = { 'nav.home': 'Accueil', 'nav.books': 'Parcourir les livres', 'nav.programs': 'Programmes d’anglais', 'nav.events': 'Événements', 'nav.visit': 'Nous rendre visite' };
+const NAV_FR = commonDictionary('fr'); // the one copy: assets/i18n-common.js
 %>
 <%- include('preview_banner') %>
 <header class="mkt-header">

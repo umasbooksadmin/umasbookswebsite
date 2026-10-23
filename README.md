@@ -54,7 +54,7 @@ CSS never cost a database lookup (see `ARCHITECTURE.md`).
 - **Styles and images:** `assets/`. Change a page's own stylesheet for
   page-specific looks, `site.css` for anything shared.
 - **Languages:** every page has an EN | FR toggle. Shared strings (navigation,
-  footer) live in the `COMMON` dictionary in `assets/site.js`; each page's own
+  footer) live in the `COMMON` dictionary in `assets/i18n-common.js`; each page's own
   strings are the `pageI18nEn` / `pageI18nFr` objects at the bottom of its view.
   Add matching English and French entries — a key missing in one language has no
   fallback.

@@ -3,36 +3,26 @@
 // The marketing pages (views/marketing/*.ejs) are written in English with
 // data-i18n / data-i18n-html / data-i18n-attr hooks, plus an EN and an FR
 // dictionary (the page's own, passed to partials/mkt_footer.ejs, and COMMON in
-// assets/site.js). assets/site.js swaps the text in the browser when someone
+// assets/i18n-common.js). assets/site.js swaps the text in the browser when someone
 // uses the EN/FR toggle. The server runs the SAME swap before sending, so
 // search engines, no-JavaScript clients and print get the chosen language.
 // There is one copy of every text: the dictionaries.
 //
 //   applyPageDictionary(html, dict)  pure: returns html with every hook filled from dict
-//   commonDictionary(lang)           COMMON from assets/site.js (read once, never duplicated)
+//   commonDictionary(lang)           COMMON from assets/i18n-common.js (the one copy; site.js reads it in the browser)
 //   renderMarketing(req, res, next, view)   res.render + applyPageDictionary when req.lang is "fr"
 //
 // Same rules as site.js: data-i18n sets the element's text (escaped here),
 // data-i18n-html sets its inner HTML, data-i18n-attr="attr:key;attr:key" sets
 // attributes. A key missing from the dictionary leaves the English in place.
-const fs = require("fs");
-const path = require("path");
-const vm = require("vm");
 const { frenchTypography } = require("./frenchTypography");
 const { prefixLinks } = require("./frUrls");
 
-const SITE_JS = path.join(__dirname, "..", "..", "..", "assets", "site.js");
-let common = null;
+// assets/i18n-common.js is plain data (the browser loads the same file with a <script>): required, never parsed out of site.js.
+const COMMON = require("../../../assets/i18n-common.js");
 
 function commonDictionary(lang) {
-  if (!common) {
-    const src = fs.readFileSync(SITE_JS, "utf8");
-    const start = src.indexOf("var COMMON = {");
-    const end = src.indexOf("\n  };", start);
-    if (start === -1 || end === -1) throw new Error("assets/site.js: cannot find the COMMON dictionary");
-    common = vm.runInNewContext("(" + src.slice(start + "var COMMON = ".length, end + 4) + ")");
-  }
-  return common[lang === "fr" ? "fr" : "en"];
+  return COMMON[lang === "fr" ? "fr" : "en"];
 }
 
 const escText = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");

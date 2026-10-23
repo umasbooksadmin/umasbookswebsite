@@ -18,6 +18,13 @@ const PAGES = [
   "/terms-of-sale.html", "/mentions-legales.html", "/contact", "/no-such-page-for-the-snapshot",
 ];
 
+// `--wide` (a developer check, not the fixture test): every marketing page, the app pages that share the chrome, and the
+// /fr/ addresses, so a change to the shared header/footer/dictionary is proved on all of them.
+const WIDE_PAGES = [
+  "/books.html", "/blog.html", "/immersion.html", "/membership.html", "/pre-registration.html", "/programs.html", "/volunteer.html",
+  "/login", "/favorites", "/cart", "/fr/", "/fr/books.html", "/fr/visit.html", "/fr/events.html", "/fr/privacy-policy.html", "/fr/membership.html",
+];
+
 // Anything that legitimately changes between two renders is blanked: the port, asset version hashes, CSRF tokens, nonces.
 function normalise(text) {
   return String(text)
@@ -30,7 +37,7 @@ function normalise(text) {
 
 // `base`: an already running app of that directory (the unit test boots one with its own database); without it
 // the app is started here on a free port.
-async function snapshot(dir, { base: givenBase } = {}) {
+async function snapshot(dir, { base: givenBase, wide = false } = {}) {
   const files = {};
   const { createApp } = require(path.join(dir, "src/app"));
   const server = givenBase ? null : await new Promise((resolve, reject) => {
@@ -39,7 +46,7 @@ async function snapshot(dir, { base: givenBase } = {}) {
   const base = givenBase || `http://127.0.0.1:${server.address().port}`;
   try {
     for (const lang of ["en", "fr"]) {
-      for (const p of PAGES) {
+      for (const p of wide ? [...PAGES, ...WIDE_PAGES] : PAGES) {
         const res = await fetch(base + p, { headers: { cookie: `umasbooks_lang=${lang}`, "accept-language": lang }, redirect: "manual" });
         files[`page-${lang}${p === "/" ? "-home" : p.replace(/[^a-zA-Z0-9]+/g, "-")}.txt`] = `${res.status}\n${normalise(await res.text())}`;
       }
@@ -109,10 +116,10 @@ if (require.main === module) {
   const dir = path.resolve(opt("--dir") || path.join(__dirname, ".."));
   const out = opt("--out");
   const identityFile = opt("--identity");
-  if (!out && !identityFile) { console.error("usage: node scripts/snapshot-pages.js --dir <umas-books dir> [--out <folder>] [--identity <file.json>]"); process.exit(2); }
+  if (!out && !identityFile) { console.error("usage: node scripts/snapshot-pages.js --dir <umas-books dir> [--out <folder>] [--identity <file.json>] [--wide]"); process.exit(2); }
   Object.assign(process.env, { NODE_ENV: "test", SESSION_SECRET: "snapshot-session-secret", PGSSLMODE: "disable", AWARDS_LOOKUPS: "off", COVER_BACKFILL: "off" });
   if (!require("../src/lib/config").get("DATABASE_URL")) { console.error("Set DATABASE_URL to a migrated throwaway database."); process.exit(2); }
-  snapshot(dir).then(async (files) => {
+  snapshot(dir, { wide: argv.includes("--wide") }).then(async (files) => {
     if (out) {
       fs.mkdirSync(out, { recursive: true });
       for (const [name, text] of Object.entries(files)) fs.writeFileSync(path.join(out, name), text);

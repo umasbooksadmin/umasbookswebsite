@@ -31,7 +31,7 @@ test("attribute values containing > do not confuse the tag scanner", () => {
   assert.equal(out, '<a title="a > b" data-i18n="a">Salut</a>');
 });
 
-test("the COMMON dictionary comes from assets/site.js (one copy), EN and FR have the same keys", () => {
+test("the COMMON dictionary comes from assets/i18n-common.js (one copy), EN and FR have the same keys", () => {
   const en = commonDictionary("en"), fr = commonDictionary("fr");
   assert.deepEqual(Object.keys(fr).sort(), Object.keys(en).sort());
   assert.equal(fr["nav.back"], "← Retour");

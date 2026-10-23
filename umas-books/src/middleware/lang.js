@@ -20,6 +20,7 @@ const { genreLabel, genresLabel } = require("../lib/genres");
 const { conditionLabel } = require("../lib/inventory");
 const { formatEuro } = require("../lib/money");
 const { assetUrl } = require("../lib/assetUrl");
+const { commonDictionary } = require("../lib/pageDictionary");
 const { installFrenchRender } = require("../lib/frenchTypography");
 const { legalFor, fillVat } = require("../lib/legalText");
 const { SOCIAL_LINKS } = require("../lib/legal");
@@ -67,6 +68,7 @@ function langMiddleware(req, res, next) {
   res.locals.lang = lang;
   res.locals.htmlLang = lang;
   res.locals.tr = tr;
+  res.locals.commonDictionary = commonDictionary; // the shared header partial reads its nav labels from it (assets/i18n-common.js)
   res.locals.assetUrl = assetUrl; // versioned /assets, /style.css ... URLs (lib/assetUrl.js)
   res.locals.eur = (n) => formatEuro(n, lang);
   res.locals.conditionLabel = (value) => conditionLabel(value, lang);

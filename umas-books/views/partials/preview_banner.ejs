@@ -3,7 +3,7 @@
    PREVIEW_MODE is on (src/lib/preview.js). Included at the top of
    partials/mkt_chrome_header.ejs, which both the marketing pages and the
    app pages render. Server-side French via tr(); on marketing pages
-   assets/site.js re-applies the same strings (COMMON preview.*) when the
+   assets/site.js re-applies the same strings (COMMON in assets/i18n-common.js, preview.*) when the
    person toggles the language. Styled in public/site-header.css. */
 if (locals.staging) {
   const t = typeof tr === 'function' ? tr : (en) => en;
