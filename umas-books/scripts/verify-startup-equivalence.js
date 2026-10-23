@@ -219,13 +219,19 @@ async function runOne(side, dir, scenario, template) {
   const idx = transcript.findIndex((l) => l.includes("listening on port"));
   const head = idx === -1 ? transcript : transcript.slice(0, idx + 1);
   const tail = idx === -1 ? [] : transcript.slice(idx + 1);
+  // Two boot-time timers (a 2 s and a 3 s one in the production scenarios) are created in a run-dependent order: the SAME
+  // build compared with itself differs about every other run. So the timers are compared as a sorted list (kind, delay,
+  // unref and cleared still compared per timer; only their creation order is not).
+  const sortedTimers = (text) => {
+    try { const list = JSON.parse(text); return Array.isArray(list) ? JSON.stringify(list.map((t) => JSON.stringify(t)).sort().map((t) => JSON.parse(t)), null, 1) : text; } catch { return text; }
+  };
   return {
     "exit": `code=${result.code} signal=${result.sig || ""}`,
     "log (ordered up to and including listening)": head.join("\n"),
     "log (after listening, sorted)": tail.slice().sort().join("\n"),
     "middleware/route stack + app settings": readJson("stack.json"),
-    "timers after 4 s (kind, delay, unref, cleared)": readJson("running.timers.json"),
-    "timers at exit (kind, delay, unref, cleared)": ignoreKnownShutdownDifference(readJson("exit.timers.json")),
+    "timers after 4 s (kind, delay, unref, cleared)": sortedTimers(readJson("running.timers.json")),
+    "timers at exit (kind, delay, unref, cleared)": sortedTimers(ignoreKnownShutdownDifference(readJson("exit.timers.json"))),
     "process signal / error listeners": readJson("signals.json"),
   };
 }
