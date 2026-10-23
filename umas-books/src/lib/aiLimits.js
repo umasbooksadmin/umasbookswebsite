@@ -19,10 +19,12 @@
 //
 // This file also holds the length caps for what is sent to the AI (a title can be up to 100 KB in a request body).
 
+const config = require("./config");
+const { looseBaseUrl } = require("./baseUrl");
 const { claimAlertSlot, releaseAlertSlot } = require("./alertFlags");
 const { SITE_TIME_ZONE } = require("./tz");
 
-const DEFAULT_DAILY_MAX = 600;
+const DEFAULT_DAILY_MAX = config.specFor("AI_DAILY_MAX_CALLS").default;
 const ALERT_FLAG = "ai-daily-cap";
 const MAX_TITLE = 200;
 const MAX_AUTHOR = 200;
@@ -34,10 +36,7 @@ function clampText(value, max) {
 }
 
 function dailyMax(env = process.env) {
-  const raw = env.AI_DAILY_MAX_CALLS;
-  if (raw === undefined || raw === "") return DEFAULT_DAILY_MAX;
-  const n = Number(raw);
-  return Number.isInteger(n) && n >= 0 ? n : DEFAULT_DAILY_MAX;
+  return config.get("AI_DAILY_MAX_CALLS", env);
 }
 
 // The admin screens are English only; shown when one admin sends more than 10 AI requests a minute.
@@ -126,7 +125,7 @@ function createAiLimits({
     Promise.resolve().then(async () => {
       pool = pool || getPool();
       if (!(await claimAlertSlot(pool, ALERT_FLAG, minutesSinceParisMidnight(now())))) return;
-      const base = (env.APP_BASE_URL || env.RENDER_EXTERNAL_URL || "").replace(/\/$/, "");
+      const base = looseBaseUrl(env);
       const ok = await send({ subject: "[umas-books] Daily AI limit reached: the AI helpers are paused until midnight", text: alertText({ max, base }) });
       if (!ok) { await releaseAlertSlot(pool, ALERT_FLAG); alertedDay = null; } // the next refused call tries again
     }).catch((err) => { alertedDay = null; warnOnce(err); });

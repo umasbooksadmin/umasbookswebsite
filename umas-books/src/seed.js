@@ -1,6 +1,7 @@
 require("dotenv").config({ quiet: true });
 // Test system (APP_ENV=staging) only: never seed the production database from staging.
 require("./lib/staging").enforceStagingBoot();
+const config = require("./lib/config");
 const passwordHash = require("./lib/passwordHash");
 const { validateNewPassword } = require("./lib/passwordPolicy");
 
@@ -27,8 +28,8 @@ const SAMPLE_CHARITIES = [
 
 // pool and log are injectable for tests; defaults are the app's own.
 async function runSeed({ env = process.env, pool = require("./db").pool, log = console } = {}) {
-  const adminEmail = (env.SEED_ADMIN_EMAIL || "admin@umasbooks.org").trim();
-  const adminPassword = env.SEED_ADMIN_PASSWORD;
+  const adminEmail = config.get("SEED_ADMIN_EMAIL", env);
+  const adminPassword = config.get("SEED_ADMIN_PASSWORD", env);
 
   const { rows: existingAdmins } = await pool.query("SELECT id FROM users WHERE is_admin = TRUE ORDER BY id LIMIT 1");
   let adminId = existingAdmins.length ? existingAdmins[0].id : null;
@@ -74,7 +75,7 @@ async function runSeed({ env = process.env, pool = require("./db").pool, log = c
     }
   }
 
-  const wantSamples = createdAdmin || env.SEED_SAMPLE_CONTENT === "true";
+  const wantSamples = createdAdmin || config.get("SEED_SAMPLE_CONTENT", env);
   if (!wantSamples) {
     log.log("Not a fresh database: sample content skipped (set SEED_SAMPLE_CONTENT=true to force it).");
     return { createdAdmin, seededSamples: false };
@@ -131,7 +132,7 @@ async function main() {
   }
   // Never block startup: render.yaml runs `npm run seed; npm start`, and
   // this exit code is 0 on purpose. CI sets SEED_STRICT to see failures.
-  process.exit(failure && process.env.SEED_STRICT === "true" ? 1 : 0);
+  process.exit(failure && config.get("SEED_STRICT") ? 1 : 0);
 }
 
 if (require.main === module) main();

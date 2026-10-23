@@ -9,6 +9,7 @@
 // NEVER in the way of a call or a save: both hooks return at once (the work runs in the background) and swallow
 // every error (logged once). The mail holds no key, no response body and no data about people.
 const { claimAlertSlot } = require("./alertFlags");
+const { looseBaseUrl } = require("./baseUrl");
 const { SITE_TIME_ZONE } = require("./tz");
 
 const FLAG = "anthropic-credit";
@@ -19,7 +20,7 @@ const SUBJECT = "[umas-books] Anthropic API credit has run out";
 
 const parisTime = (ms) => new Date(ms).toLocaleString("en-GB", { timeZone: SITE_TIME_ZONE, dateStyle: "long", timeStyle: "short" });
 
-function alertText({ at, test = false, base = (process.env.APP_BASE_URL || process.env.RENDER_EXTERNAL_URL || "").replace(/\/$/, "") }) {
+function alertText({ at, test = false, base = looseBaseUrl() }) {
   return (
     (test ? "THIS IS A TEST. Nothing is wrong: you pressed \"Send a test credit alert\" to check that this email reaches you.\n\n" : "") +
     `The Anthropic API credit has run out (${parisTime(at)}, Paris time).\n\n` +

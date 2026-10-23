@@ -35,6 +35,7 @@
 // notes starting "DEMO (".
 
 const crypto = require("node:crypto");
+const config = require("./config");
 const passwordHash = require("./passwordHash");
 const { isStaging, hostOf, productionHostProblem } = require("./staging");
 
@@ -74,11 +75,11 @@ const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
 // Pure part: what the ENVIRONMENT forbids. Empty list = allowed.
 function envProblems(env = process.env) {
   const problems = [];
-  const local = String(env.DEMO_ALLOW_LOCAL || "").trim() === "1";
+  const local = config.get("DEMO_ALLOW_LOCAL", env);
   if (isStaging(env)) {
     // fine: the test system
   } else if (local) {
-    if (!LOCAL_HOSTS.has(hostOf(env.DATABASE_URL))) {
+    if (!LOCAL_HOSTS.has(hostOf(config.get("DATABASE_URL", env)))) {
       problems.push("DEMO_ALLOW_LOCAL=1 only works with a DATABASE_URL on localhost (127.0.0.1 or ::1); this DATABASE_URL is not.");
     }
   } else {
@@ -86,7 +87,7 @@ function envProblems(env = process.env) {
   }
   const prod = productionHostProblem(env);
   if (prod) problems.push(prod);
-  if (!String(env.DATABASE_URL || "").trim()) problems.push("DATABASE_URL is not set.");
+  if (!String(config.get("DATABASE_URL", env) || "").trim()) problems.push("DATABASE_URL is not set.");
   return problems;
 }
 
@@ -103,7 +104,7 @@ async function dataProblems(pool) {
 }
 
 function confirmed(argv, env) {
-  return argv.includes("--yes") || String(env.DEMO_CONFIRM || "").trim().toLowerCase() === "yes";
+  return argv.includes("--yes") || config.get("DEMO_CONFIRM", env);
 }
 
 // ---------- mail is muted for the whole run ----------
@@ -367,7 +368,7 @@ async function main({ argv, env = process.env, pool = null, out = console.log, e
   const problems = envProblems(env);
   let fixedPassword = null;
   if (flags.includes("--password-from-env")) {
-    fixedPassword = String(env.DEMO_PASSWORD || "");
+    fixedPassword = config.get("DEMO_PASSWORD", env);
     if (fixedPassword.length < 12) problems.push("--password-from-env needs DEMO_PASSWORD set to at least 12 characters.");
   }
   const refuse = (list) => { for (const p of list) err(`REFUSED: ${p}`); return 1; };

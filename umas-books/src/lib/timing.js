@@ -9,14 +9,10 @@
 // when the whole request was slow (SCAN_SLOW_LOG_MS, default 1500 ms; 0 = log
 // every request, "off" = never). Nothing here can fail a request.
 
-const DEFAULT_SLOW_MS = 1500;
+const config = require("./config");
 
 function slowThreshold(env = process.env) {
-  const raw = env.SCAN_SLOW_LOG_MS;
-  if (raw === undefined || raw === "") return DEFAULT_SLOW_MS;
-  if (String(raw).toLowerCase() === "off") return Infinity;
-  const n = Number(raw);
-  return Number.isFinite(n) && n >= 0 ? n : DEFAULT_SLOW_MS;
+  return config.get("SCAN_SLOW_LOG_MS", env);
 }
 
 function createTimings(now = () => performance.now()) {

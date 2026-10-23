@@ -8,6 +8,7 @@
 // sale_token is unique: the same token again returns the same sale.
 
 const crypto = require("crypto");
+const config = require("./config");
 const { SITE_TIME_ZONE } = require("./tz");
 const { parseMoney } = require("./validation");
 const inv = require("./inventory");
@@ -662,8 +663,7 @@ const parisDay = (ts) => `(${ts} AT TIME ZONE '${TZ}')::date`;
 //     and in its CSV.
 const TILL_VOID_REASON_MIN = 5;
 function maxTillVoidsPerDay(env = process.env) {
-  const raw = String(env.TILL_MAX_VOIDS_PER_DAY == null ? "" : env.TILL_MAX_VOIDS_PER_DAY).trim();
-  return /^\d{1,3}$/.test(raw) ? Number(raw) : 3;
+  return config.get("TILL_MAX_VOIDS_PER_DAY", env);
 }
 
 // refundConfirmed: for a CARD sale, staff ticked "I refunded the card" (on the reader or

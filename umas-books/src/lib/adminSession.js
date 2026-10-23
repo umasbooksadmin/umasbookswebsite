@@ -14,33 +14,29 @@
 //                       write" property (disableTouch in src/index.js) holds.
 // Because lastActivity is only written every 5 minutes, a person is signed out
 // after between 7h55 and 8h of silence, never later.
+const config = require("./config");
 const { safeReturnTo } = require("./returnTo");
 
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
-const DEFAULT_IDLE_HOURS = 8;
-const DEFAULT_MAX_DAYS = 7;
-const IDLE_HOURS_RANGE = [0.25, 72];
-const MAX_DAYS_RANGE = [1, 30]; // the session cookie itself lasts 30 days
+// The defaults and ranges (8 h idle, 0.25 to 72; 7 days absolute, 1 to 30 - the session cookie itself lasts
+// 30 days) are the ADMIN_SESSION_* entries of configRegistry.js.
+const DEFAULT_IDLE_HOURS = config.specFor("ADMIN_SESSION_IDLE_HOURS").default;
+const DEFAULT_MAX_DAYS = config.specFor("ADMIN_SESSION_MAX_DAYS").default;
 const ACTIVITY_WRITE_EVERY_MS = 5 * 60 * 1000;
 const EXPIRED_NOTICE_PARAM = "expired";
 
-function readNumber(env, name, fallback, [min, max], warnings) {
-  const raw = env[name];
-  if (raw === undefined || String(raw).trim() === "") return fallback;
-  const n = Number(String(raw).trim());
-  if (!Number.isFinite(n) || n < min || n > max) {
-    warnings.push(`${name}=${JSON.stringify(raw)} is not a number between ${min} and ${max}; using the default (${fallback}).`);
-    return fallback;
-  }
-  return n;
+function readNumber(env, name, warnings) {
+  const r = config.read(name, env);
+  if (r.state === "invalid") warnings.push(r.message);
+  return r.value;
 }
 
 // Pure: { idleMs, maxMs, warnings }. Bad values are ignored with a warning.
 function resolveAdminSessionConfig(env = process.env) {
   const warnings = [];
-  const idleHours = readNumber(env, "ADMIN_SESSION_IDLE_HOURS", DEFAULT_IDLE_HOURS, IDLE_HOURS_RANGE, warnings);
-  const maxDays = readNumber(env, "ADMIN_SESSION_MAX_DAYS", DEFAULT_MAX_DAYS, MAX_DAYS_RANGE, warnings);
+  const idleHours = readNumber(env, "ADMIN_SESSION_IDLE_HOURS", warnings);
+  const maxDays = readNumber(env, "ADMIN_SESSION_MAX_DAYS", warnings);
   return { idleMs: idleHours * HOUR, maxMs: maxDays * DAY, warnings };
 }
 

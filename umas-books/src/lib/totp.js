@@ -4,6 +4,7 @@
 // is no extra dependency in the login path.
 
 const crypto = require("crypto");
+const config = require("./config");
 
 const STEP_SECONDS = 30;
 const DIGITS = 6;
@@ -70,7 +71,7 @@ function otpauthUri(secretB32, accountEmail) {
 // database dump alone (backups!) therefore never contains usable secrets.
 // Changing the key makes enrolled accounts re-enrol — set it once.
 function key() {
-  const material = process.env.TOTP_ENCRYPTION_KEY || process.env.SESSION_SECRET;
+  const material = config.get("TOTP_ENCRYPTION_KEY") || config.get("SESSION_SECRET");
   if (!material) throw new Error("TOTP_ENCRYPTION_KEY or SESSION_SECRET is required");
   return crypto.createHash("sha256").update(`umasbooks-totp:${material}`).digest();
 }

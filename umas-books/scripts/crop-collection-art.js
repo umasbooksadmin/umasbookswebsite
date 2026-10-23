@@ -13,6 +13,7 @@
 // The outputs are committed; this script only needs to be run again if the sheet changes.
 
 const path = require("node:path");
+const config = require("../src/lib/config");
 const fs = require("node:fs");
 const sharp = require("sharp");
 
@@ -59,7 +60,7 @@ async function findCircles() {
     const ay = (a.minY + a.maxY) / 2, by = (b.minY + b.maxY) / 2;
     return Math.abs(ay - by) > 80 ? ay - by : a.minX - b.minX;
   });
-  if (process.env.DEBUG_BLOBS) console.log(blobs.map((b) => [b.minX, b.minY, b.maxX - b.minX + 1, b.maxY - b.minY + 1].join(",")).join("\n"));
+  if (config.get("DEBUG_BLOBS")) console.log(blobs.map((b) => [b.minX, b.minY, b.maxX - b.minX + 1, b.maxY - b.minY + 1].join(",")).join("\n"));
   return blobs;
 }
 

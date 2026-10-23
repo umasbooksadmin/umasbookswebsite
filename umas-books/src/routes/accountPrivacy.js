@@ -23,6 +23,7 @@
 // an email or a name.
 
 const express = require("express");
+const { CONTACT_EMAIL } = require("../lib/legal");
 const passwordHash = require("../lib/passwordHash");
 const { pool } = require("../db");
 const mailer = require("../mailer");
@@ -55,8 +56,8 @@ const privacyLimiter = limit({
       .type("text/plain")
       .send(
         req.tr(
-          "Too many wrong passwords. Please wait 15 minutes and try again, or email admin@umasbooks.org.",
-          "Trop de mots de passe incorrects. Veuillez patienter 15 minutes et réessayer, ou écrire à admin@umasbooks.org."
+          "Too many wrong passwords. Please wait 15 minutes and try again, or email " + CONTACT_EMAIL + ".",
+          "Trop de mots de passe incorrects. Veuillez patienter 15 minutes et réessayer, ou écrire à " + CONTACT_EMAIL + "."
         )
       ),
 });
@@ -71,8 +72,8 @@ const resendLimiter = limit({
       .type("text/plain")
       .send(
         req.tr(
-          "Too many confirmation emails. Please wait an hour and try again, or email admin@umasbooks.org.",
-          "Trop d'e-mails de confirmation. Veuillez patienter une heure et réessayer, ou écrire à admin@umasbooks.org."
+          "Too many confirmation emails. Please wait an hour and try again, or email " + CONTACT_EMAIL + ".",
+          "Trop d'e-mails de confirmation. Veuillez patienter une heure et réessayer, ou écrire à " + CONTACT_EMAIL + "."
         )
       ),
 });
@@ -203,8 +204,8 @@ function goodbyeEmail(user) {
       ) +
       "\n\n" +
       tr(
-        "If you did not ask for this, please write to admin@umasbooks.org right away.",
-        "Si vous n'êtes pas à l'origine de cette demande, écrivez immédiatement à admin@umasbooks.org."
+        "If you did not ask for this, please write to " + CONTACT_EMAIL + " right away.",
+        "Si vous n'êtes pas à l'origine de cette demande, écrivez immédiatement à " + CONTACT_EMAIL + "."
       ),
   };
 }

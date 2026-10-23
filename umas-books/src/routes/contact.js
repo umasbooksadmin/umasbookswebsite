@@ -1,4 +1,6 @@
 const express = require("express");
+const { CONTACT_EMAIL } = require("../lib/legal");
+const config = require("../lib/config");
 const { limit } = require("../middleware/rateLimits");
 const { redirectWithFlash, takePageFlash } = require("../lib/postRedirect");
 const { sendEmail } = require("../lib/outbox");
@@ -8,7 +10,7 @@ const { isEmail, emailSafeName } = require("../lib/validation");
 const router = express.Router();
 
 // Where contact-form messages are delivered.
-const CONTACT_TO = process.env.CONTACT_TO || "admin@umasbooks.org";
+const CONTACT_TO = config.get("CONTACT_TO");
 
 const TOPICS = ["General question", "Books & reservations", "English programs", "Events", "Donating books", "Membership", "Other"];
 // Only offered while the site is in preview mode (lib/preview.js), but always
@@ -25,8 +27,8 @@ const contactLimiter = limit({
     redirectWithFlash(req, res, "/contact", "contact", {
       values: typedValues(req.body || {}),
       error: req.tr(
-        "Too many messages from this connection — please try again in a little while, or email admin@umasbooks.org.",
-        "Trop de messages depuis cette connexion — veuillez réessayer dans un moment, ou écrire à admin@umasbooks.org."
+        "Too many messages from this connection — please try again in a little while, or email " + CONTACT_EMAIL + ".",
+        "Trop de messages depuis cette connexion — veuillez réessayer dans un moment, ou écrire à " + CONTACT_EMAIL + "."
       ),
     }),
 });
@@ -90,8 +92,8 @@ router.post("/contact", contactLimiter, async (req, res) => {
     return redirectWithFlash(req, res, "/contact", "contact", {
       values,
       error: req.tr(
-        "Sorry, your message couldn't be sent just now. Please try again, or email admin@umasbooks.org.",
-        "Désolé, votre message n’a pas pu être envoyé pour le moment. Veuillez réessayer, ou écrire à admin@umasbooks.org."
+        "Sorry, your message couldn't be sent just now. Please try again, or email " + CONTACT_EMAIL + ".",
+        "Désolé, votre message n’a pas pu être envoyé pour le moment. Veuillez réessayer, ou écrire à " + CONTACT_EMAIL + "."
       ),
     });
   }

@@ -24,6 +24,7 @@
 //     with the transaction) only for tables that ended up completely empty.
 
 const crypto = require("node:crypto");
+const config = require("./config");
 const { isPreviewMode } = require("./preview");
 const { IMAGE_REFERENCES, notReferencedSql } = require("./imageCleanup");
 
@@ -549,15 +550,15 @@ async function main(argv, { env = process.env, out = console.log, err = console.
     err(USAGE);
     return 2;
   }
-  if (!env.DATABASE_URL) {
+  if (!config.get("DATABASE_URL", env)) {
     err("DATABASE_URL is not set.");
     return 1;
   }
-  const { host } = describeDatabaseUrl(env.DATABASE_URL);
+  const { host } = describeDatabaseUrl(config.get("DATABASE_URL", env));
 
   let db;
   try {
-    db = await connect(env.DATABASE_URL);
+    db = await connect(config.get("DATABASE_URL", env));
   } catch (e) {
     err(`Could not connect to the database on ${host}: ${e.message}`);
     return 1;

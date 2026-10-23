@@ -1,7 +1,7 @@
 <%- include('partials/header', { noindex: true, title: tr('Not Found', 'Page introuvable') }) %>
 
 <h1><%= tr('Page not found', 'Page introuvable') %></h1>
-<p class="muted"><%= tr("This page doesn't exist or has moved. If the problem continues, email us at admin@umasbooks.org.", 'Cette page n’existe pas ou a été déplacée. Si le problème persiste, écrivez-nous à admin@umasbooks.org.') %></p>
+<p class="muted"><%= tr("This page doesn't exist or has moved. If the problem continues, email us at " + legalText.contactEmail + ".", 'Cette page n’existe pas ou a été déplacée. Si le problème persiste, écrivez-nous à ' + legalText.contactEmail + '.') %></p>
 <p><a href="/"><%= tr('Go home', 'Retour à l’accueil') %></a></p>
 
 <%- include('partials/footer') %>

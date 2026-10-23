@@ -1,9 +1,10 @@
 require("./lib/tz"); // Europe/Paris — see lib/tz.js
 const { Pool } = require("pg");
-const { parsePoolMax } = require("./lib/dbConfig");
+const config = require("./lib/config");
+const { resolvePoolMax } = require("./lib/dbConfig");
 const { createPoolMonitor } = require("./lib/poolMonitor");
 
-if (!process.env.DATABASE_URL) {
+if (!config.get("DATABASE_URL")) {
   throw new Error("DATABASE_URL is not set");
 }
 
@@ -18,12 +19,12 @@ if (!process.env.DATABASE_URL) {
 // also verify the server's identity. Real certificate verification would
 // require switching to the external database URL instead (a publicly
 // verifiable certificate, but traffic leaves Render's private network).
-const poolMax = parsePoolMax(process.env.DB_POOL_MAX);
+const poolMax = resolvePoolMax();
 if (poolMax.warning) console.warn(poolMax.warning);
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.PGSSLMODE === "disable" ? false : { rejectUnauthorized: false },
+  connectionString: config.get("DATABASE_URL"),
+  ssl: config.get("PGSSLMODE") ? false : { rejectUnauthorized: false },
   // Without these pg waits forever for a connection and a runaway query or
   // abandoned transaction holds a connection (and row locks) indefinitely —
   // when Postgres becomes unreachable, requests would pile up instead of
@@ -58,7 +59,7 @@ pool.on("error", (err) => {
 // Not started under tests: the monitor's timer is unref'd, but a test run
 // should stay quiet.
 const poolMonitor = createPoolMonitor(pool);
-if (process.env.NODE_ENV !== "test") poolMonitor.start();
+if (!config.isTest()) poolMonitor.start();
 
 // Shared transaction boilerplate — checkout (lib/cart.js) and the event/
 // volunteer-shift signup routes each used to hand-roll their own

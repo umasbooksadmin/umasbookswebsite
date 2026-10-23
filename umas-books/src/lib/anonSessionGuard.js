@@ -16,10 +16,12 @@
 // the other limiters in middleware/rateLimits.js, and uses the same client key
 // (req.ip behind the configured trusted proxy hops, IPv6 bucketed by /56).
 const crypto = require("crypto");
+const { CONTACT_EMAIL } = require("./legal");
+const config = require("./config");
 const { ipKey } = require("../middleware/rateLimits");
 
 const DEFAULT_WINDOW_MS = 10 * 60 * 1000;
-const DEFAULT_MAX = 60;
+const DEFAULT_MAX = config.specFor("ANON_SESSION_LIMIT").default;
 const MAX_TRACKED = 20000;
 
 // express-session calls genid only when it makes a NEW id (no cookie, an
@@ -33,8 +35,7 @@ function genid(req) {
 // Only for tests that act as hundreds of visitors from one address (the local end-to-end run); leave it
 // unset on the live site.
 function limitFromEnv(env = process.env) {
-  const n = Number(String(env.ANON_SESSION_LIMIT || "").trim());
-  return Number.isInteger(n) && n >= 1 && n <= 1000000 ? n : DEFAULT_MAX;
+  return config.get("ANON_SESSION_LIMIT", env);
 }
 
 function createAnonSessionGuard({ windowMs = DEFAULT_WINDOW_MS, max = limitFromEnv(), now = Date.now, keyOf } = {}) {
@@ -69,8 +70,8 @@ function createAnonSessionGuard({ windowMs = DEFAULT_WINDOW_MS, max = limitFromE
       const retryAfter = Math.max(1, Math.ceil((h.start + windowMs - now()) / 1000));
       res.set("Retry-After", String(retryAfter));
       res.set("Cache-Control", "no-store");
-      const en = "Too many requests from this connection — please wait a few minutes and try again, or email admin@umasbooks.org.";
-      const fr = "Trop de requêtes depuis cette connexion : veuillez patienter quelques minutes puis réessayer, ou écrire à admin@umasbooks.org.";
+      const en = "Too many requests from this connection — please wait a few minutes and try again, or email " + CONTACT_EMAIL + ".";
+      const fr = "Trop de requêtes depuis cette connexion : veuillez patienter quelques minutes puis réessayer, ou écrire à " + CONTACT_EMAIL + ".";
       res.status(429);
       if (req.path.startsWith("/api/")) return res.json({ error: "rate_limited" });
       return res.type("text/plain").send(req.tr ? req.tr(en, fr) : `${en}\n${fr}`);

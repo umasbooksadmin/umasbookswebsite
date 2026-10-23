@@ -13,21 +13,16 @@
 // cannot spoof req.ip. Trusting too few hops makes req.ip a shared edge
 // address (one rate-limit bucket for everybody); trusting too many lets a
 // client choose its own IP. Verify after a deploy on /admin/diagnostics/client-ip.
+const config = require("./config");
+
 const DEFAULT_PRODUCTION_HOPS = 2;
 const DEFAULT_OTHER_HOPS = 1;
 
 // Pure. Returns { hops, error } - error is a message when the env value is
 // invalid (the caller logs it and uses the default, it never crashes boot).
 function resolveTrustProxyHops(env = process.env) {
-  const fallback = env.NODE_ENV === "production" ? DEFAULT_PRODUCTION_HOPS : DEFAULT_OTHER_HOPS;
-  const raw = env.TRUST_PROXY_HOPS;
-  if (raw === undefined || String(raw).trim() === "") return { hops: fallback, error: null };
-  const text = String(raw).trim();
-  const n = Number(text);
-  if (!/^\d+$/.test(text) || !Number.isInteger(n) || n < 1 || n > 5) {
-    return { hops: fallback, error: `TRUST_PROXY_HOPS=${JSON.stringify(text)} is not an integer from 1 to 5; using ${fallback}.` };
-  }
-  return { hops: n, error: null };
+  const r = config.read("TRUST_PROXY_HOPS", env); // the rule and the defaults: configRegistry.js
+  return { hops: r.value, error: r.state === "invalid" ? r.message : null };
 }
 
 module.exports = { resolveTrustProxyHops, DEFAULT_PRODUCTION_HOPS, DEFAULT_OTHER_HOPS };

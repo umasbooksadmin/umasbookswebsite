@@ -19,9 +19,10 @@
 // share one request, it is skipped while ISBNdb is paused (401/403/429, see bookSources.js), and it is only ever
 // asked for a New book. The cache is in memory (it resets when the site restarts, which costs at most one call per ISBN).
 
+const config = require("./config");
 const { createInflight } = require("./inflight");
 
-const PRICE_TTL_MS = 3 * 24 * 60 * 60 * 1000;
+const PRICE_TTL_MS = config.specFor("ISBNDB_PRICE_TTL_MS").default;
 // Rounding rule: to the nearest 0.05 EUR. French publisher prices are almost always multiples of 5 cents
 // (12.90, 8.95, 9.50), so this lands on a plausible shelf price; it is only a suggestion to check against the cover.
 const ROUND_STEP_CENTS = 5;
@@ -40,8 +41,7 @@ function cacheSet(isbn, value, now, ttl = priceTtl()) {
   cache.set(isbn, { value, expires: now + ttl });
 }
 function priceTtl() {
-  const n = Number(process.env.ISBNDB_PRICE_TTL_MS);
-  return process.env.ISBNDB_PRICE_TTL_MS !== undefined && process.env.ISBNDB_PRICE_TTL_MS !== "" && Number.isFinite(n) && n >= 0 ? n : PRICE_TTL_MS;
+  return config.get("ISBNDB_PRICE_TTL_MS");
 }
 function clearPriceCache() { cache.clear(); }
 
@@ -93,7 +93,7 @@ async function lookupListPrice(isbn13, opts = {}) {
   if (hit) return { ...hit, cached: true };
   return inflight.run(isbn13, async () => {
     const controller = new AbortController();
-    const timeoutMs = opts.timeoutMs || Number(env.ISBNDB_PRICE_TIMEOUT_MS) || 6000;
+    const timeoutMs = opts.timeoutMs || config.get("ISBNDB_PRICE_TIMEOUT_MS", env);
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const r = await sources.isbndbRequest({

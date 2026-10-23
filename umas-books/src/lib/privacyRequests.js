@@ -1,6 +1,6 @@
 // Data subject requests for an email ADDRESS (access and erasure), for people
 // who have no account or write from an address that is not the account's: the
-// privacy policy tells them to write to admin@umasbooks.org, and an admin uses
+// privacy policy tells them to write to the shop mailbox (CONTACT_EMAIL in lib/legal.js), and an admin uses
 // the Privacy requests page (routes/admin/privacyRequests.js), which calls this.
 //
 // It extends, rather than copies, the member tools: the export reuses
@@ -12,6 +12,7 @@
 // a keyed hash (HMAC with SESSION_SECRET), so the same request can be
 // recognised later without the log naming anyone.
 const crypto = require("node:crypto");
+const config = require("./config");
 const { withTransaction } = require("../db");
 const { eraseMember, eraseEmailKeyedData } = require("./privacy");
 const { eraseOutboxFor, listOutboxFor } = require("./outbox");
@@ -24,7 +25,7 @@ function normaliseAddress(raw) {
 }
 
 function auditToken(email) {
-  const key = process.env.SESSION_SECRET || "umasbooks-privacy-requests";
+  const key = config.get("SESSION_SECRET") || "umasbooks-privacy-requests";
   return "hmac:" + crypto.createHmac("sha256", key).update(String(email).toLowerCase()).digest("hex").slice(0, 16);
 }
 

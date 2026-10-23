@@ -42,6 +42,6 @@
   </form>
 </div>
 
-<p class="muted small"><%= tr('Or email us directly at', 'Ou écrivez-nous directement à') %> <a href="mailto:admin@umasbooks.org">admin@umasbooks.org</a>.</p>
+<p class="muted small"><%= tr('Or email us directly at', 'Ou écrivez-nous directement à') %> <a href="mailto:<%= legalText.contactEmail %>"><%= legalText.contactEmail %></a>.</p>
 
 <%- include('partials/footer') %>

@@ -13,6 +13,7 @@
 // Usage: node crawler.js http://localhost:3099 routes.json > crawl.json
 
 const puppeteer = require("puppeteer");
+const config = require("../../src/lib/config");
 
 const BASE = process.argv[2];
 const routesPath = process.argv[3];
@@ -186,7 +187,7 @@ async function crawlPersona(browser, name, email, seeds){
   // none of the risk it would for a general-purpose browsing context —
   // but there's no reason to weaken a developer's local run that already
   // works fine with the sandbox on.
-  const browser = await puppeteer.launch(process.env.CI ? { args: ["--no-sandbox", "--disable-setuid-sandbox"] } : {});
+  const browser = await puppeteer.launch(config.get("CI") ? { args: ["--no-sandbox", "--disable-setuid-sandbox"] } : {});
   const results = {};
   try {
     for (const [name, email] of Object.entries(PERSONAS)) {

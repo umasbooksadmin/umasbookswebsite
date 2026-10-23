@@ -11,6 +11,7 @@
 // reset it; every check also counts against the shared AI_DAILY_MAX_CALLS.
 
 const { TEXT_MODEL } = require("../bookDescription");
+const config = require("../config");
 const { DEFAULT_SETTINGS } = require("./rules");
 const { toIsbn13 } = require("./isbn");
 const { normalizeBinding } = require("../inventory");
@@ -22,20 +23,18 @@ const { isValidIsbn } = require("../bookLookup");
 const TIMEOUT_MS = 12000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const TTL_MS = { ok: 30 * DAY_MS, empty: 7 * DAY_MS, failed: 60 * 60 * 1000 };
-const DEFAULT_DAILY_MAX = 150;
+const DEFAULT_DAILY_MAX = config.specFor("PRICING_AI_DAILY_MAX").default;
 const MIN_EUR = 0.5;
 const MAX_EUR = 500;
 const MAX_COMPARABLES = 12;
 const CURRENCIES = new Set(["EUR", "USD", "GBP"]);
 
 function aiEnabled(env = process.env) {
-  const v = String(env.PRICING_AI || "").trim().toLowerCase();
-  return (v === "1" || v === "true") && Boolean(env.ANTHROPIC_API_KEY);
+  return config.get("PRICING_AI", env) && Boolean(config.get("ANTHROPIC_API_KEY", env));
 }
 
 function dailyMax(env = process.env) {
-  const n = parseInt(env.PRICING_AI_DAILY_MAX, 10);
-  return Number.isFinite(n) && n >= 0 ? n : DEFAULT_DAILY_MAX;
+  return config.get("PRICING_AI_DAILY_MAX", env);
 }
 
 function toEur(amount, currency, settings) {
@@ -127,7 +126,7 @@ Rules:
 
 // One call to the API. Returns the parsed result, or null on any failure.
 async function fetchMarketData(query, { fetchImpl, env = process.env, settings = DEFAULT_SETTINGS, timeoutMs = TIMEOUT_MS } = {}) {
-  const apiKey = env.ANTHROPIC_API_KEY;
+  const apiKey = config.get("ANTHROPIC_API_KEY", env);
   const isbn13 = toIsbn13(query.isbn);
   if (!apiKey || !isbn13) return null;
   const doFetch = fetchImpl || globalThis.fetch;
@@ -143,10 +142,10 @@ async function fetchMarketData(query, { fetchImpl, env = process.env, settings =
         "content-type": "application/json",
         "x-api-key": apiKey,
         "anthropic-version": "2023-06-01",
-        ...(env.ANTHROPIC_WORKSPACE_ID ? { "anthropic-workspace-id": env.ANTHROPIC_WORKSPACE_ID } : {}),
+        ...(config.get("ANTHROPIC_WORKSPACE_ID", env) ? { "anthropic-workspace-id": config.get("ANTHROPIC_WORKSPACE_ID", env) } : {}),
       },
       body: JSON.stringify({
-        model: env.PRICING_AI_MODEL || TEXT_MODEL,
+        model: config.get("PRICING_AI_MODEL", env) || TEXT_MODEL,
         max_tokens: 2000,
         tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 4 }],
         messages: [{ role: "user", content: buildPrompt({ ...query, isbn13 }) }],

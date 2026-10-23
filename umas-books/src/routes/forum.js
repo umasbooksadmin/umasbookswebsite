@@ -1,4 +1,6 @@
 const express = require("express");
+const { CONTACT_EMAIL } = require("../lib/legal");
+const config = require("../lib/config");
 const { pool } = require("../db");
 const { requireMember } = require("../middleware/auth");
 const { forumPostLimiter, forumReplyLimiter, limit } = require("../middleware/rateLimits");
@@ -20,7 +22,7 @@ const MAX_REPORT_COMMENT = 1000;
 const REPORT_EXCERPT = 300;
 
 // Same destination as the contact form and the error alerts.
-const REPORT_TO = process.env.CONTACT_TO || "admin@umasbooks.org";
+const REPORT_TO = config.get("CONTACT_TO");
 
 const REPORT_REASONS = {
   illegal: "Illegal content",
@@ -181,8 +183,8 @@ router.post("/forum/report", requireMember, forumReportLimiter, async (req, res)
   } catch (err) {
     console.error("Forum report email failed:", err);
     return redirectWithFlash(req, res, threadPage, "forumReport", { error: req.tr(
-      "Sorry, your report couldn't be sent just now. Please email admin@umasbooks.org.",
-      "Désolé, votre signalement n’a pas pu être envoyé pour le moment. Veuillez écrire à admin@umasbooks.org."
+      "Sorry, your report couldn't be sent just now. Please email " + CONTACT_EMAIL + ".",
+      "Désolé, votre signalement n’a pas pu être envoyé pour le moment. Veuillez écrire à " + CONTACT_EMAIL + "."
     ) });
   }
   res.redirect(`/forum/${target.thread_id}?reported=1`);

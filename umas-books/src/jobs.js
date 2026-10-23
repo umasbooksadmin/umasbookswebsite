@@ -17,6 +17,7 @@
 //
 // Nothing here runs at require time: startJobs(pool) is called by src/index.js after
 // the server is listening, and tests build their own registry (createJobRegistry).
+const config = require("./lib/config");
 const { guardJob } = require("./lib/jobGuard");
 const { recordJobRun } = require("./lib/jobRuns");
 
@@ -264,7 +265,7 @@ function jobSpecs(pool) {
       label: "Copy up to 20 book covers from Open Library / Internet Archive into our image store.",
       everyMs: 5 * MINUTE,
       firstRunAfterMs: 60 * 1000,
-      enabled: process.env.COVER_BACKFILL !== "off",
+      enabled: config.get("COVER_BACKFILL"),
       run: async () => {
         const { processed, stored, failed, transient } = await backfillCovers(pool);
         if (processed) console.log(`Cover backfill: ${stored} stored, ${failed} failed, ${transient} not reachable (will retry), ${processed} tried.`);

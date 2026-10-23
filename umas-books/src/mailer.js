@@ -1,4 +1,5 @@
 const nodemailer = require("nodemailer");
+const config = require("./lib/config");
 
 const MAIL_TIMEOUT_MS = 10 * 1000;
 
@@ -7,7 +8,7 @@ let transporter;
 function getTransporter() {
   if (transporter !== undefined) return transporter;
 
-  if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
+  if (!config.get("GMAIL_USER") || !config.get("GMAIL_APP_PASSWORD")) {
     console.warn("GMAIL_USER/GMAIL_APP_PASSWORD not set — email sending is disabled.");
     transporter = null;
     return transporter;
@@ -21,8 +22,8 @@ function getTransporter() {
     greetingTimeout: MAIL_TIMEOUT_MS,
     socketTimeout: MAIL_TIMEOUT_MS,
     auth: {
-      user: process.env.GMAIL_USER,
-      pass: process.env.GMAIL_APP_PASSWORD,
+      user: config.get("GMAIL_USER"),
+      pass: config.get("GMAIL_APP_PASSWORD"),
     },
   });
   return transporter;
@@ -49,7 +50,7 @@ async function sendMail(mail) {
     // server. Throwing makes the outbox keep and retry the message, and the
     // dashboard / failure alert show it. Only the recipient and subject are
     // logged: the body of a reset or verification mail is a live login link.
-    if (process.env.NODE_ENV === "production") {
+    if (config.isProduction()) {
       console.error("Email not configured (GMAIL_USER / GMAIL_APP_PASSWORD) - NOT sent:", { to, subject });
       throw new Error("Email is not configured on this server (GMAIL_USER / GMAIL_APP_PASSWORD are not set).");
     }
@@ -58,7 +59,7 @@ async function sendMail(mail) {
     return;
   }
   await t.sendMail({
-    from: `"Uma's Books" <${process.env.GMAIL_USER}>`,
+    from: `"Uma's Books" <${config.get("GMAIL_USER")}>`,
     to,
     subject,
     text,
@@ -68,6 +69,6 @@ async function sendMail(mail) {
   });
 }
 
-const isMailConfigured = () => Boolean(process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD);
+const isMailConfigured = () => Boolean(config.get("GMAIL_USER") && config.get("GMAIL_APP_PASSWORD"));
 
 module.exports = { sendMail, isMailConfigured, MAIL_TIMEOUT_MS };

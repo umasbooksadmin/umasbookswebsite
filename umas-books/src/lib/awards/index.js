@@ -12,12 +12,13 @@
 // so no test can reach the network).
 
 const { lookupWikidataAwards } = require("./wikidata");
+const config = require("../config");
 const { lookupNytAwards } = require("./nyt");
 
 const ON_CONFLICT = "ON CONFLICT (book_id, lower(label), (COALESCE(year, 0)))";
 
 function lookupsDisabled(env = process.env) {
-  return /^(off|0|false)$/i.test(String(env.AWARDS_LOOKUPS || "").trim());
+  return !config.get("AWARDS_LOOKUPS", env);
 }
 
 // Inserts the items one by one. Returns how many rows were added.
@@ -65,7 +66,7 @@ async function checkBookAwards(pool, bookId, deps = {}) {
       await run("wikidata", () => (deps.wikidata || lookupWikidataAwards)(book, { ...common, gapMs: deps.gapMs, sleep: deps.sleep }));
     }
     if (sources.includes("nyt")) {
-      await run("nyt", () => (deps.nyt || lookupNytAwards)(book, { ...common, apiKey: env.NYT_API_KEY, now: deps.now }));
+      await run("nyt", () => (deps.nyt || lookupNytAwards)(book, { ...common, apiKey: config.get("NYT_API_KEY", env), now: deps.now }));
     }
     const state = anyError ? "error" : found > 0 ? "ok" : "none";
     await pool.query("UPDATE books SET awards_checked_at = now(), awards_check_state = $2 WHERE id = $1", [bookId, state]);

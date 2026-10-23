@@ -1,3 +1,4 @@
+const config = require("../lib/config");
 const { isActiveMember } = require("../lib/memberStatus");
 const { refuseMembersOnly } = require("../lib/membersOnly");
 // Role flags and disabled-status are cached into req.session.user at
@@ -92,7 +93,7 @@ function attachUser(pool) {
 // place) can switch it off with ADMIN_2FA_REQUIRED=false, which is ignored
 // when NODE_ENV=production so a stray env var can't weaken the live site.
 function admin2faRequired() {
-  return process.env.NODE_ENV === "production" || process.env.ADMIN_2FA_REQUIRED !== "false";
+  return config.isProduction() || config.get("ADMIN_2FA_REQUIRED");
 }
 
 // A customer who reaches an admin address gets the refusal in their own language.

@@ -8,6 +8,7 @@
 // CSRF after the webhook, 404 then the error handler last): do not reorder it.
 // Requires src/db.js, hence DATABASE_URL and SESSION_SECRET, to be set.
 const path = require("path");
+const config = require("./lib/config");
 const express = require("express");
 const compression = require("compression");
 const helmet = require("helmet");
@@ -60,7 +61,7 @@ const { assetUrl, staticHeaders, STATIC_SECURITY_HEADERS } = require("./lib/asse
 
 function createApp() {
   const app = express();
-  const isProd = process.env.NODE_ENV === "production";
+  const isProd = config.isProduction();
 
   // Helmet turns this off too, but it is mounted after /healthz and the
   // static mounts, which would otherwise still answer "X-Powered-By: Express".
@@ -175,7 +176,7 @@ function createApp() {
     next();
   });
 
-  if (!process.env.SESSION_SECRET) {
+  if (!config.get("SESSION_SECRET")) {
     throw new Error("SESSION_SECRET is not set");
   }
 
@@ -204,7 +205,7 @@ function createApp() {
       // genid flags brand-new sessions on the request (lib/anonSessionGuard.js).
       genid,
       name: "umasbooks.sid",
-      secret: process.env.SESSION_SECRET,
+      secret: config.get("SESSION_SECRET"),
       resave: false,
       saveUninitialized: false,
       cookie: {
