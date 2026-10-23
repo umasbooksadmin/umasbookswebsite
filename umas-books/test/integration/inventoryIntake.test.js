@@ -79,7 +79,8 @@ test("parseIntakeInput: numbers that are wrong do not refuse here (prepareIntake
 test("parseIntakeInput: the token counts only when well formed; a cover photo is picked from the files", () => {
   assert.equal(intake.parseIntakeInput(form({ intakeToken: "short" })).value.token, null);
   assert.equal(intake.parseIntakeInput(form({ intakeToken: undefined })).value.token, null);
-  assert.equal(intake.parseIntakeInput(form({ intakeToken: "abcdefghijklmnop1234" })).value.token, "abcdefghijklmnop1234");
+  const wellFormed = "x".repeat(20); // 16 to 64 letters, digits, - or _
+  assert.equal(intake.parseIntakeInput(form({ intakeToken: wellFormed })).value.token, wellFormed);
   const file = { buffer: Buffer.from("x") };
   assert.equal(intake.parseIntakeInput(form(), { coverPhoto: [file] }).value.coverPhoto, file);
   assert.equal(intake.parseIntakeInput(form(), {}).value.coverPhoto, null);
