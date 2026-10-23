@@ -17,8 +17,8 @@
   font-size: clamp(34px, 5.4vw, 56px); font-weight: 600; line-height: 1.1; color: var(--ink);
   text-transform: none; letter-spacing: normal; margin: 0 0 10px;
 }
-.mem-script { font-family: 'Libre Baskerville', 'Libre Baskerville Fallback', Georgia, serif; font-style: italic; font-size: clamp(20px, 2.8vw, 26px); color: var(--maroon); margin: 0 0 14px; }
-.mem-hero-copy p.mem-sub { font-size: 17px; color: var(--ink-soft); max-width: 52ch; margin: 0 auto; line-height: 1.45; }
+.mem-script { font-family: var(--font-baskerville); font-style: italic; font-size: clamp(20px, 2.8vw, 26px); color: var(--maroon); margin: 0 0 14px; }
+.mem-hero-copy p.mem-sub { font-size: 17px; color: var(--ink); max-width: 52ch; margin: 0 auto; line-height: 1.45; }
 
 /* ---------- Membership Benefits divider ---------- */
 .mem-benefits-head { text-align: center; padding: 8px 28px 0; }
@@ -32,7 +32,7 @@
 .mem-benefit { text-align: center; padding: 0 22px; border-left: 1px solid var(--card-border); }
 .mem-benefit:first-child { border-left: 0; }
 .mem-benefit h3 { font-size: 18px; font-weight: 600; margin: 0 0 10px; line-height: 1.25; }
-.mem-benefit p { font-size: 14.5px; color: var(--ink-soft); margin: 0; line-height: 1.4; }
+.mem-benefit p { font-size: 14.5px; color: var(--ink); margin: 0; line-height: 1.4; }
 @media (max-width: 900px) {
   .mem-benefits { grid-template-columns: repeat(2, 1fr); gap: 28px 0; }
   .mem-benefit { border-left: 0; border-top: 1px solid var(--card-border); padding-top: 22px; }
@@ -45,9 +45,9 @@
 }
 
 .mem-widget-wrap { max-width: 720px; margin: 0 auto 60px; padding: 0 28px; }
-.mem-widget-note { font-size: 15px; color: var(--ink-soft); line-height: 1.5; margin: 0 0 22px; }
+.mem-widget-note { font-size: 15px; color: var(--ink); line-height: 1.5; margin: 0 0 22px; }
 .mem-widget-note a { text-decoration: underline; }
-.mem-widget-hint { font-size: 14px; color: var(--ink-soft); margin: 18px 0 0; }
+.mem-widget-hint { font-size: 14px; color: var(--ink); margin: 18px 0 0; }
 
 .mem-form-title {
   display: flex; align-items: baseline; gap: 14px; margin: 0 0 22px;
@@ -59,7 +59,7 @@
 .mem-form .field label { font-size: 14.5px; color: var(--ink); }
 .mem-form .field label .req { color: var(--maroon); }
 .mem-form .field input, .mem-form .field textarea {
-  font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; font-size: 16.5px; color: var(--ink);
+  font-family: var(--font-serif); font-size: 16.5px; color: var(--ink);
   background: #fbfaf7; border: 1px solid var(--card-border); border-radius: 4px; padding: 11px 13px;
 }
 .mem-form .field textarea { resize: vertical; min-height: 80px; }
@@ -67,8 +67,8 @@
 .mem-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 @media (max-width: 560px) { .mem-row { grid-template-columns: 1fr; } }
 
-.mem-check { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px; font-size: 15px; color: var(--ink-soft); }
+.mem-check { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px; font-size: 15px; color: var(--ink); }
 .mem-check input { margin-top: 4px; }
 .mem-check a { text-decoration: underline; }
 
-.mem-price { font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; font-size: 44px; color: var(--ink); line-height: 1; margin: 0 0 6px; }
+.mem-price { font-family: var(--font-serif); font-size: 44px; color: var(--ink); line-height: 1; margin: 0 0 6px; }

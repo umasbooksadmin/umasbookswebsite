@@ -9,7 +9,7 @@
 .ev-head { text-align: center; }
 .ev-head h2 { font-size: clamp(26px, 3vw, 32px); letter-spacing: 0.14em; text-transform: uppercase; }
 .ev-head .divider { width: 46px; height: 2px; background: var(--maroon); margin: 16px auto 14px; }
-.ev-head p { color: var(--ink-soft); margin: 0 auto 30px; max-width: 46ch; }
+.ev-head p { color: var(--ink); margin: 0 auto 30px; max-width: 46ch; }
 
 .ev-list { display: flex; flex-direction: column; }
 .ev-item {
@@ -26,9 +26,10 @@
 .ev-item:nth-child(4n+3) .ev-date { border-color: var(--green); background: #eef2ea; }
 .ev-date .d { font-size: 38px; font-weight: 500; }
 .ev-date .m { font-size: 13.5px; letter-spacing: 0.18em; text-transform: uppercase; margin-top: 4px; }
-.ev-title { font-size: 25px; line-height: 1.15; }
-.ev-meta { color: var(--ink-soft); font-size: 17px; margin-top: 4px; }
-.ev-desc { color: var(--ink-soft); margin: 8px 0 0; line-height: 1.3; max-width: 60ch; }
+.ev-title { font-size: 25px; line-height: 1.15; overflow-wrap: anywhere; hyphens: auto; hyphenate-limit-chars: 9 4 3; }
+.ev-meta { color: var(--ink); font-size: 17px; margin-top: 4px; overflow-wrap: anywhere; }
+.ev-desc { color: var(--ink); margin: 8px 0 0; line-height: 1.3; max-width: 60ch; overflow-wrap: anywhere; hyphens: auto; hyphenate-limit-chars: 9 4 3; }
+.ev-item > * { min-width: 0; } /* a grid or flex item may shrink below its longest word */
 .ev-item .h-btn { white-space: nowrap; }
 /* Below ~360px these long uppercase buttons (e.g. "View the full calendar")
    were wider than the viewport and forced a horizontal page scroll — let
@@ -37,7 +38,7 @@
 @media (max-width: 400px) {
   .ev-item .h-btn, .ev-more .h-btn { white-space: normal; flex-wrap: wrap; text-align: center; }
 }
-.ev-empty { text-align: center; color: var(--ink-soft); padding: 26px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.ev-empty { text-align: center; color: var(--ink); padding: 26px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
 .ev-more { text-align: center; margin-top: 30px; }
 
 @media (max-width: 700px) {
