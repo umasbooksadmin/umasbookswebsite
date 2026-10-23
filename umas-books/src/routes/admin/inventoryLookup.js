@@ -9,6 +9,7 @@
 // in place with that. Nothing here saves anything.
 
 const express = require("express");
+const config = require("../../lib/config");
 const { pool } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
 const { limit } = require("../../middleware/rateLimits");
@@ -37,10 +38,6 @@ function within(promise, ms, fallback) {
   let timer;
   const late = new Promise((resolve) => { timer = setTimeout(() => resolve(fallback), ms); });
   return Promise.race([promise, late]).finally(() => clearTimeout(timer));
-}
-function envMs(name, fallback) {
-  const n = Number(process.env[name]);
-  return process.env[name] !== undefined && process.env[name] !== "" && Number.isFinite(n) && n >= 0 ? n : fallback;
 }
 
 const isValidIsbnShape = (s) => /^(\d{13}|\d{9}[\dX])$/.test(s);
@@ -99,11 +96,11 @@ router.get("/admin/inventory/lookup", requireAdmin, (req, res, next) => (req.que
   const bindingKey = String(req.query.binding == null ? "" : req.query.binding).slice(0, 20) || (book && book.binding);
   const priceSource = { isbn, title: book && book.title, author: book && book.author, binding: bindingKey, condition: "very_good" };
   const coverTask = book && book.coverUrl && !book.coverUrl.startsWith("/")
-    ? req.timing.time("cover", () => within(prepareCover(book.coverUrl).then((c) => c.cover || null, () => null), envMs("SCAN_COVER_WAIT_MS", 1200), null))
+    ? req.timing.time("cover", () => within(prepareCover(book.coverUrl).then((c) => c.cover || null, () => null), config.get("SCAN_COVER_WAIT_MS"), null))
     : null;
   const priceTask = req.timing.time("price", async () => {
     const full = computeSuggestion(priceSource);
-    const quick = await within(full, envMs("SCAN_PRICE_WAIT_MS", 3000), undefined);
+    const quick = await within(full, config.get("SCAN_PRICE_WAIT_MS"), undefined);
     return quick !== undefined ? quick : computeSuggestion(priceSource, { opts: { market: false } });
   });
   const [cover, suggestion] = await Promise.all([coverTask, priceTask]);

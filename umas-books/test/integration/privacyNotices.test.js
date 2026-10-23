@@ -103,6 +103,6 @@ test("404 and 500 pages give a contact address and French text", async () => {
   assert.match(nfFr, /admin@umasbooks\.org/);
   assert.match(nfFr, /<h1>Page introuvable<\/h1>/);
   const err = view("500.ejs");
-  assert.match(err, /admin@umasbooks\.org/);
+  assert.match(err, /legalText\.contactEmail/, "the 500 page reads the address from lib/legal.js (test/unit/pageSnapshots.test.js renders it)");
   assert.match(err, /'Une erreur est survenue'/);
 });

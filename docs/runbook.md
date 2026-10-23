@@ -47,6 +47,7 @@ alphabetical order on the page, so use this list. The letter `j` is deliberately
 - [d) Where alerts go](#d-where-alerts-go); [e) Quarterly and yearly calendar](#e-quarterly-and-yearly-calendar); [t) GitHub Actions minutes (private repository)](#t-github-actions-minutes-private-repository); [af) Nightly inventory export](#af-nightly-inventory-export); [ag) Database connections](#ag-database-connections)
 - Backups, encryption, retention: [ad) Encrypting the backups, restore drill, read-only backup user, yearly rotation](#ad-encrypting-the-backups-restore-drill-read-only-backup-user-yearly-rotation); [aj) Keeping records for 10 years](#aj-keeping-records-for-10-years)
 - Staging (the test system): [ai) Test system (staging)](#ai-test-system-staging)
+- Adding a setting (environment variable): [al) Adding or changing a setting](#al-adding-or-changing-a-setting-environment-variable)
 - [g) Launching: turn preview mode off](#g-launching-turn-preview-mode-off); [f) Render database network access: a decision](#f-render-database-network-access-a-decision); [v) Accounts and secrets inventory](#v-accounts-and-secrets-inventory); [w) Emergency access and "bus factor"](#w-emergency-access-and-bus-factor)
 - Secrets inventory: [b) Rotating secrets](#b-rotating-secrets) and [v) Accounts and secrets inventory](#v-accounts-and-secrets-inventory)
 
@@ -3159,3 +3160,40 @@ not affected. Every publish, unpublish, save, review, build, rebuild and update 
 `assets-src/collections-sheet.webp` by `node scripts/crop-collection-art.js` (only needed if the sheet changes).
 A collection without a picture gets a plain text card. Titles are real text, so they are French when French is
 chosen.
+
+## al) Adding or changing a setting (environment variable)
+
+For developers. Every setting is one entry in `umas-books/src/lib/configRegistry.js`; that entry feeds the code, the
+`ARCHITECTURE.md` tables, `.env.example` and the launch checks. Adding one is a single edit plus one command.
+
+1. **Add the entry** to `REGISTRY` (copy a neighbour of the same kind):
+   - `name`, `kind` (`"string"`, `"int"`, `"ms"` or `"flag"`), `scope` (`"app"`, `"script"` or `"workflow"`);
+   - `default` (a value, or `(env) => value` when it depends on `NODE_ENV`), `secret` (`true` for keys and
+     passwords: they must be `"string"` settings and are never logged);
+   - the rule if it is a number or a flag: for a number `min`, `max`, `integer`, `blank` (`"empty"` or `"trim"`),
+     ...; for a flag `onWords` / `offWords`. Choose the strictest sensible rule; do not copy an odd legacy one
+     (`ISBNDB_PRICE_TIMEOUT_MS` treats `0` as "use the default", `COVER_BACKFILL` is case-sensitive);
+   - the words of the docs: `where` (`"render"`, `"github-variable"`, `"github-secret"`, `"both"`, ...),
+     `whereText`, `defaultText`, `doc`; and `example` for `.env.example` (`active: true` to leave it uncommented).
+   A variable only a GitHub workflow uses is `scope: "workflow"` with a `github: { kind, usedBy, doc }` field.
+2. **Read it** with `const config = require("./config")` then `config.get("NAME")` (or `config.get("NAME", env)`
+   where the function already takes an `env` argument for tests). Never write `process.env.NAME` in `src/` or
+   `scripts/`.
+3. **Regenerate the documents:** `cd umas-books && npm run docs:env`, and commit the changes to `ARCHITECTURE.md`
+   and `.env.example`.
+4. **Render / GitHub:** set the real value where `where` says (Render > the service > Environment; or GitHub >
+   Settings > Secrets and variables > Actions, **Variables** or **Secrets** tab). Add it to `render.yaml` (and
+   `render.staging.yaml`) only if a rebuild needs it.
+5. **Run the tests:** `npm test`. `envInventory.test.js` names what is missing (an unknown name, a direct read, a stale
+   document). `configEquivalence.test.js` pins the parsing rule of every existing setting against the original
+   parser: a new setting needs no change there, but changing an old entry's rule makes it fail on purpose.
+
+A value that is set but cannot be used (for example `AI_DAILY_MAX_CALLS=lots`) never stops the site: the default
+applies, and the start-up log shows one line `[config] WARNING: AI_DAILY_MAX_CALLS="lots" is not a whole number ...`
+(no email). After a deploy, search the Render log for `[config] WARNING` to catch a typo in the dashboard.
+
+The shop's identity facts (contact email, SIREN, SIRET, RNA, registered office, phone, opening hours) are not
+settings: they are constants in `src/lib/legal.js`, read by pages as `legalText.contactEmail` etc. and by page
+dictionaries as `{contactEmail}`, `{siret}`, `{siren}`, `{rna}`, `{registeredOffice}` tokens; a test fails if one is
+typed anywhere else under `src/` or `views/`. The static files under `assets/` cannot import them and still carry
+the address in their own text.

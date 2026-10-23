@@ -6,10 +6,12 @@
 // Whatever a webhook or a return URL claims is never trusted: callers re-ask
 // HelloAsso's own API (findMembershipOrdersByEmail / listRecentMembershipOrders).
 
-const BASE_URL = process.env.HELLOASSO_API_BASE || "https://api.helloasso.com/v5";
-const CLIENT_ID = process.env.HELLOASSO_CLIENT_ID;
-const CLIENT_SECRET = process.env.HELLOASSO_CLIENT_SECRET;
-const ORG_SLUG = process.env.HELLOASSO_ORG_SLUG;
+const config = require("./config");
+
+const BASE_URL = config.get("HELLOASSO_API_BASE") || "https://api.helloasso.com/v5";
+const CLIENT_ID = config.get("HELLOASSO_CLIENT_ID");
+const CLIENT_SECRET = config.get("HELLOASSO_CLIENT_SECRET");
+const ORG_SLUG = config.get("HELLOASSO_ORG_SLUG");
 
 function isConfigured() {
   return Boolean(CLIENT_ID && CLIENT_SECRET && ORG_SLUG);

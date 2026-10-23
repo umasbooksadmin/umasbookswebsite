@@ -72,6 +72,29 @@ const SHOP_STREET_NUMBER = "";
 const SHOP_PHONE_DISPLAY = "+33 6 07 41 70 60";
 const SHOP_PHONE_TEL = "tel:+33607417060";
 
+// ---------------------------------------------------------------------------
+// Identity and contact facts of the association: the ONE place each is written.
+// Pages and emails read them (templates through legalText.contactEmail / siret / ... and the
+// {contactEmail} / {siret} / {siren} / {rna} / {registeredOffice} tokens of fillVat; server code
+// requires this file). test/unit/identityLiterals.test.js fails when one of these facts is typed
+// again in src/ or views/ instead of read from here.
+// ---------------------------------------------------------------------------
+
+// The shop's mailbox: contact page, error pages, rate-limit messages, emails, legal notice, the
+// default of CONTACT_TO / ALERT_TO / SEED_ADMIN_EMAIL, the User-Agent of outgoing lookups.
+const CONTACT_EMAIL = "admin@umasbooks.org";
+
+// Registration numbers (legal notice, terms of sale, order emails).
+const SIREN = "109 441 147";
+const SIRET = "109 441 147 00013";
+const RNA = "W811011706";
+
+// Registered office (siege social), in the two spellings the texts use: the plain one
+// ("5 rue Hippolyte Savary, 81000 Albi") and the formal one of the legal notice
+// ("5, rue Hippolyte Savary, 81000 Albi, France"). Not the shop address (SHOP_STREET_NUMBER).
+const REGISTERED_OFFICE = "5 rue Hippolyte Savary, 81000 Albi";
+const REGISTERED_OFFICE_FORMAL = "5, rue Hippolyte Savary, 81000 Albi, France";
+
 // Opening days and hours of the shop: Wednesday to Saturday, 14:00 to 19:00.
 // Machine format for structured data (schema.org day names, 24-hour times),
 // then the text printed on pages: English 14:00–19:00, French 14 h–19 h (a
@@ -159,6 +182,7 @@ module.exports = {
   BRAND_LEGAL_NAME, BRAND_SHORT_NAME, TERMS_OF_SALE_VERSION, VAT_NOTICE_ARTICLE, SOCIAL_LINKS,
   RESERVATION_DAYS, RESERVATION_EXTENSION_DAYS, MAX_RESERVED_COPIES, MAX_ACTIVE_RESERVATIONS,
   SEAT_CANCEL_HOURS, SEAT_REMINDER_HOURS, RESERVATION_REMINDER_DAYS_BEFORE, SEAT_FALLBACK_SESSION_HOURS,
+  CONTACT_EMAIL, SIREN, SIRET, RNA, REGISTERED_OFFICE, REGISTERED_OFFICE_FORMAL,
   MEMBERSHIP_PRICE_EUR, SHOP_STREET_NUMBER, SHOP_PHONE_DISPLAY, SHOP_PHONE_TEL,
   SHOP_OPEN_DAYS, SHOP_OPENS, SHOP_CLOSES, SHOP_HOURS_EN, SHOP_HOURS_FR,
   SHOP_DAYS_EN, SHOP_DAYS_FR, SHOP_DAYS_SHORT_EN, SHOP_DAYS_SHORT_FR, SHOP_HOURS_FR_SPOKEN, SHOP_EXTRA_HOURS_NOTE_URL,

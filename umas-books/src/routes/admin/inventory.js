@@ -1,4 +1,5 @@
 const express = require("express");
+const config = require("../../lib/config");
 const { saveImage } = require("../../lib/imageStore");
 const { prepareCover, isAllowedCoverUrl } = require("../../lib/coverStore");
 const { isStoredImageUrl } = require("../../lib/imageStore");
@@ -203,7 +204,7 @@ router.get("/admin/inventory/scan", requireAdmin, async (req, res) => {
     error: null,
     saved: req.query.saved === "1",
     requestsMatched: req.query.saved === "1" ? parseIntParam(req.query.requests, { max: 999 }) : 0,
-    visionEnabled: !!process.env.ANTHROPIC_API_KEY,
+    visionEnabled: !!config.get("ANTHROPIC_API_KEY"),
   });
 });
 
@@ -324,7 +325,7 @@ async function lookupDone(req, res, payload) {
 router.get("/admin/inventory/lookup", requireAdmin, async (req, res) => {
   const f = takeFlash(req, "lookup");
   if (!f) return res.redirect("/admin/inventory/scan");
-  const visionEnabled = !!process.env.ANTHROPIC_API_KEY;
+  const visionEnabled = !!config.get("ANTHROPIC_API_KEY");
   const location = normalizeLocation(f.location) || fastScan.DEFAULT_LOCATION;
   const source = normalizeSource(f.source) || fastScan.DEFAULT_SOURCE;
   if (!f.book) {

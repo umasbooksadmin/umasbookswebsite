@@ -6,6 +6,7 @@
 // the site's own taxonomy.
 
 const { COMMON_GENRES } = require("./bookLookup");
+const config = require("./config");
 const { normalizeGenres } = require("./inventory");
 
 const { recordCall } = require("./aiUsageStats");
@@ -19,7 +20,7 @@ async function generateBookGenres(input) {
   const author = clampText(input.author, MAX_AUTHOR);
   const description = clampText(input.description, MAX_DESCRIPTION);
   const existingGenres = clampText(input.existingGenres, 300);
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = config.get("ANTHROPIC_API_KEY");
   if (!apiKey) {
     console.warn("AI genre skipped: ANTHROPIC_API_KEY not set.");
     return null;
@@ -61,7 +62,7 @@ Respond with ONLY a comma-separated list of the genres you chose from that list,
         "content-type": "application/json",
         "x-api-key": apiKey,
         "anthropic-version": "2023-06-01",
-        ...(process.env.ANTHROPIC_WORKSPACE_ID ? { "anthropic-workspace-id": process.env.ANTHROPIC_WORKSPACE_ID } : {}),
+        ...(config.get("ANTHROPIC_WORKSPACE_ID") ? { "anthropic-workspace-id": config.get("ANTHROPIC_WORKSPACE_ID") } : {}),
       },
       body: JSON.stringify({
         model: TEXT_MODEL,

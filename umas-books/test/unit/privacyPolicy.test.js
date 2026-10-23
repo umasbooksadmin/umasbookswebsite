@@ -14,8 +14,10 @@ function dict(name) {
   return new Function(`return ${m[1]}`)();
 }
 
-const en = dict("pageI18nEn");
-const fr = dict("pageI18nFr");
+const { fillVat } = require("../../src/lib/legalText");
+// The identity facts are {tokens} in the dictionaries, filled by fillVat() exactly as the page does.
+const en = fillVat(dict("pageI18nEn"), "en");
+const fr = fillVat(dict("pageI18nFr"), "fr");
 
 test("privacy policy: EN and FR have exactly the same keys", () => {
   assert.deepStrictEqual(Object.keys(fr).sort(), Object.keys(en).sort());
@@ -100,7 +102,8 @@ test("privacy policy: the spacing check catches the old bug and ignores numbers 
 
 test("privacy policy: the toggled dictionary text matches the static English markup", () => {
   const body = src.split("<% const pageI18nEn")[0];
-  const squash = (h) => h.replace(/>\s+</g, "><").trim();
+  // the static markup reads <%= legalText.x %> where the dictionary has {x}
+  const squash = (h) => h.replace(/<%= legalText\.(\w+) %>/g, (_, k) => fillVat({ v: `{${k}}` }, "en").v).replace(/>\s+</g, "><").trim();
   const re = /<(\w+)[^>]*data-i18n-html="(pp\.[^"]+)"[^>]*>([\s\S]*?)<\/\1>/g;
   let n = 0;
   for (const m of body.matchAll(re)) {

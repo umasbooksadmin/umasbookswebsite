@@ -4,6 +4,7 @@
 // caller falls back to manual entry rather than blocking the scan flow.
 
 const { recordCall } = require("./aiUsageStats");
+const config = require("./config");
 const { getAiLimits } = require("./aiLimits");
 
 const VISION_MODEL = "claude-haiku-4-5-20251001";
@@ -28,7 +29,7 @@ function extractJson(text) {
 }
 
 async function extractBookInfoFromPhoto(buffer, mimeType) {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = config.get("ANTHROPIC_API_KEY");
   if (!apiKey) {
     console.warn("ANTHROPIC_API_KEY not set — photo scanning is disabled.");
     return null;
@@ -53,7 +54,7 @@ async function extractBookInfoFromPhoto(buffer, mimeType) {
         "content-type": "application/json",
         "x-api-key": apiKey,
         "anthropic-version": "2023-06-01",
-        ...(process.env.ANTHROPIC_WORKSPACE_ID ? { "anthropic-workspace-id": process.env.ANTHROPIC_WORKSPACE_ID } : {}),
+        ...(config.get("ANTHROPIC_WORKSPACE_ID") ? { "anthropic-workspace-id": config.get("ANTHROPIC_WORKSPACE_ID") } : {}),
       },
       body: JSON.stringify({
         model: VISION_MODEL,

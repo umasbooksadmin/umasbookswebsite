@@ -21,6 +21,7 @@
 // Customer mail goes through the email outbox (retried when Gmail is down).
 
 const mailer = require("../mailer");
+const { looseBaseUrl } = require("./baseUrl");
 const { ALERT_TO } = require("./errorAlert");
 const { sendEmail } = require("./outbox");
 const { emailTr, normLang } = require("./lang");
@@ -40,7 +41,7 @@ const CUSTOMER_REMINDER_DAY = 10;
 const ADMIN_DIGEST_DAY = 12;
 const PICKUP_WINDOW_DAYS = 14;
 
-const baseUrl = () => (process.env.APP_BASE_URL || process.env.RENDER_EXTERNAL_URL || "").replace(/\/$/, "");
+const baseUrl = () => looseBaseUrl();
 const adminLink = (id) => `${baseUrl()}/admin/orders/${id}`;
 const parisDate = (d) => forLocale(LOCALES.en).formatDate(d);
 
@@ -245,8 +246,8 @@ function buildCustomerPickupReminder(order, items) {
   return {
     subject: tr(`Your books are waiting at the shop (reservation #${order.id})`, `Vos livres vous attendent à la boutique (réservation n° ${order.id})`),
     text: tr(
-      `Hi ${name},\n\nYour books from reservation #${order.id} (paid on ${fmt.formatDateLong(order.paid_at)}) are waiting for you at Uma's Books:\n\n${lines}\n\nOur terms of sale ask you to collect them within 14 days of payment, that is by ${fmt.formatDateLong(deadline)}. The shop is at ${legal.shopStreet("en")}, 81000 Albi. ${legal.shopHoursFirm("en")} Please bring your confirmation email.\n\nIf you need more time, just write to us at admin@umasbooks.org.\n\nUma's Books`,
-      `Bonjour ${name},\n\nVos livres de la réservation n° ${order.id} (payée le ${fmt.formatDateLong(order.paid_at)}) vous attendent à Uma's Books :\n\n${lines}\n\nNos conditions générales de vente (CGV) vous demandent de les retirer dans les 14 jours suivant le paiement, soit avant le ${fmt.formatDateLong(deadline)}. La boutique est située ${legal.shopStreet("fr", false)}, 81000 Albi. ${legal.shopHoursFirm("fr")} Merci de vous munir de votre e-mail de confirmation.\n\nSi vous avez besoin de plus de temps, écrivez-nous simplement à admin@umasbooks.org.\n\nUma's Books`
+      `Hi ${name},\n\nYour books from reservation #${order.id} (paid on ${fmt.formatDateLong(order.paid_at)}) are waiting for you at Uma's Books:\n\n${lines}\n\nOur terms of sale ask you to collect them within 14 days of payment, that is by ${fmt.formatDateLong(deadline)}. The shop is at ${legal.shopStreet("en")}, 81000 Albi. ${legal.shopHoursFirm("en")} Please bring your confirmation email.\n\nIf you need more time, just write to us at ${legal.CONTACT_EMAIL}.\n\nUma's Books`,
+      `Bonjour ${name},\n\nVos livres de la réservation n° ${order.id} (payée le ${fmt.formatDateLong(order.paid_at)}) vous attendent à Uma's Books :\n\n${lines}\n\nNos conditions générales de vente (CGV) vous demandent de les retirer dans les 14 jours suivant le paiement, soit avant le ${fmt.formatDateLong(deadline)}. La boutique est située ${legal.shopStreet("fr", false)}, 81000 Albi. ${legal.shopHoursFirm("fr")} Merci de vous munir de votre e-mail de confirmation.\n\nSi vous avez besoin de plus de temps, écrivez-nous simplement à ${legal.CONTACT_EMAIL}.\n\nUma's Books`
     ),
   };
 }

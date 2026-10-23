@@ -10,6 +10,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { startTestApp } = require("../test/helpers/testApp");
+const config = require("../src/lib/config");
 const { crawl, captureEnv } = require("../test/helpers/i18nCrawl");
 const { ALLOW } = require("../test/i18n-allowlist");
 
@@ -37,12 +38,12 @@ const AREAS = [
     const seen = new Set();
     const out = [];
     for (const p of result.pages) for (const t of p.texts) if (!seen.has(t)) { seen.add(t); out.push(`${p.persona} ${p.path}\t${t}`); }
-    fs.writeFileSync(process.env.DUMP_FILE || "/tmp/i18n-fr-dump.txt", out.join("\n"));
+    fs.writeFileSync(config.get("DUMP_FILE"), out.join("\n"));
   }
   if (process.argv.includes("--dump-en")) {
     const out = [];
     for (const p of result.pages) out.push(`## ${p.persona} ${p.path.replace(/order=[0-9a-f-]{36}/, "order=X")}`, ...(p.enTexts || []).filter((t) => !/^[A-Z2-7]{32}$/.test(t)));
-    fs.writeFileSync(process.env.DUMP_EN_FILE || "/tmp/i18n-en-dump.txt", out.join("\n"));
+    fs.writeFileSync(config.get("DUMP_EN_FILE"), out.join("\n"));
   }
 
   // Each page goes to the first area that claims it (anything unclaimed counts under "Other").

@@ -3,6 +3,7 @@
 // timeout) rather than throwing, so a lookup miss just falls through to
 // manual entry in the UI.
 
+const config = require("./config");
 const { readBoundedJson } = require("./boundedBody");
 const { createInflight } = require("./inflight");
 
@@ -168,14 +169,7 @@ async function fetchJson(url, timeoutMs = 5000) {
 //                again, or saving a book just looked up, does not call Open Library twice.
 //                A timeout or a network error is never cached.
 
-const envNumber = (name, fallback) => {
-  const raw = process.env[name];
-  if (raw === undefined || raw === "") return fallback;
-  const n = Number(raw);
-  return Number.isFinite(n) && n >= 0 ? n : fallback;
-};
-
-function createTtlCache({ max = 300, ttlMs = () => envNumber("SCAN_CACHE_TTL_MS", 10 * 60 * 1000), now = () => Date.now() } = {}) {
+function createTtlCache({ max = 300, ttlMs = () => config.get("SCAN_CACHE_TTL_MS"), now = () => Date.now() } = {}) {
   const map = new Map();
   return {
     get(key) {
@@ -321,8 +315,7 @@ function attributeSources(entries) {
   return out;
 }
 
-const SOURCE_LIST_DEFAULT = "openlibrary,bnf,google,openlibrary-data,isbndb";
-const enabledSources = () => new Set(String(process.env.SCAN_LOOKUP_SOURCES || SOURCE_LIST_DEFAULT).split(",").map((x) => x.trim().toLowerCase()).filter(Boolean));
+const enabledSources = () => new Set(String(config.get("SCAN_LOOKUP_SOURCES")).split(",").map((x) => x.trim().toLowerCase()).filter(Boolean));
 const isComplete = (b) => Boolean(b && b.title && b.author && b.publisher && b.publishedYear);
 
 // -> { book, state, via } with state "found" | "missing" (no source has such a book) |
@@ -356,9 +349,9 @@ async function lookupByIsbnOnce(isbn, opts) {
   const sources = require("./bookSources");
   const forms = sources.isbnForms(isbn);
   const fetchImpl = opts.fetchImpl || ((...a) => fetch(...a));
-  const timeoutMs = opts.timeoutMs === undefined ? envNumber("SCAN_LOOKUP_TIMEOUT_MS", 4000) : opts.timeoutMs;
-  const hedgeMs = opts.hedgeMs === undefined ? envNumber("SCAN_LOOKUP_HEDGE_MS", 1500) : opts.hedgeMs;
-  const graceMs = opts.graceMs === undefined ? envNumber("SCAN_LOOKUP_GRACE_MS", 300) : opts.graceMs;
+  const timeoutMs = opts.timeoutMs === undefined ? config.get("SCAN_LOOKUP_TIMEOUT_MS") : opts.timeoutMs;
+  const hedgeMs = opts.hedgeMs === undefined ? config.get("SCAN_LOOKUP_HEDGE_MS") : opts.hedgeMs;
+  const graceMs = opts.graceMs === undefined ? config.get("SCAN_LOOKUP_GRACE_MS") : opts.graceMs;
   const lateMs = opts.lateMs === undefined ? Math.min(900, timeoutMs / 2) : opts.lateMs;
   const enabled = enabledSources();
   const started = Date.now();
@@ -464,7 +457,7 @@ async function lookupByIsbnOnce(isbn, opts) {
   const primariesMissing = ["openlibrary", "openlibrary-data"].filter((n) => plan.some(([p]) => p === n)).every((n) => results.get(n) && results.get(n).state === "missing");
   if (!pending && !slow && primariesMissing) {
     const out = { book: null, state: "missing", via: [] };
-    if (cache) cache.set(isbn, out, envNumber("SCAN_NEGATIVE_TTL_MS", 2 * 60 * 1000));
+    if (cache) cache.set(isbn, out, config.get("SCAN_NEGATIVE_TTL_MS"));
     return out;
   }
   return { book: null, state: pending || slow ? "slow" : "error", via: [] };

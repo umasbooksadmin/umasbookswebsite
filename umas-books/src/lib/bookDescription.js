@@ -5,6 +5,7 @@
 // still be saved without one rather than blocking the save.
 
 const { recordCall, isCreditError } = require("./aiUsageStats");
+const config = require("./config");
 const { getAiLimits, clampText, MAX_TITLE, MAX_AUTHOR, MAX_DESCRIPTION } = require("./aiLimits");
 const { createInflight } = require("./inflight");
 
@@ -26,7 +27,7 @@ async function callClaudeOnce(prompt, opts) {
 // "credit" (Anthropic credit used up), "rate" (HTTP 429), "timeout", "error". Never throws, never logs a prompt.
 // opts.timeoutMs (default 8 s) lets a long answer (the collection suggestions) wait longer.
 async function claudeRequest(prompt, { maxTokens = 200, label, feature = "description", timeoutMs = 8000 } = {}) {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = config.get("ANTHROPIC_API_KEY");
   if (!apiKey) {
     console.warn(`${label} skipped: ANTHROPIC_API_KEY not set.`);
     return { text: null, reason: "no_key" };
@@ -51,7 +52,7 @@ async function claudeRequest(prompt, { maxTokens = 200, label, feature = "descri
         "content-type": "application/json",
         "x-api-key": apiKey,
         "anthropic-version": "2023-06-01",
-        ...(process.env.ANTHROPIC_WORKSPACE_ID ? { "anthropic-workspace-id": process.env.ANTHROPIC_WORKSPACE_ID } : {}),
+        ...(config.get("ANTHROPIC_WORKSPACE_ID") ? { "anthropic-workspace-id": config.get("ANTHROPIC_WORKSPACE_ID") } : {}),
       },
       body: JSON.stringify({
         model: TEXT_MODEL,

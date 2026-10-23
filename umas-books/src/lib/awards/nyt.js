@@ -7,6 +7,7 @@
 // re-checked later. Fails open: never throws. Returns { items, error, skipped }.
 
 const { isbnVariants } = require("../inventory");
+const config = require("../config");
 const { requestJson, scrub } = require("./http");
 
 const ENDPOINT = "https://api.nytimes.com/svc/books/v3/lists/best-sellers/history.json";
@@ -56,7 +57,7 @@ function mapHistory(json) {
   return [...seen.values()].slice(0, 15);
 }
 
-async function lookupNytAwards({ isbn } = {}, { fetch: fetchFn, apiKey = process.env.NYT_API_KEY, now, timeoutMs } = {}) {
+async function lookupNytAwards({ isbn } = {}, { fetch: fetchFn, apiKey = config.get("NYT_API_KEY"), now, timeoutMs } = {}) {
   if (!apiKey) return { items: [], error: false, skipped: true };
   try {
     const isbn13 = isbn13Of(isbn);

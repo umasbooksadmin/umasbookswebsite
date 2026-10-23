@@ -18,6 +18,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { Client } = require("pg");
 const ax = require("../src/lib/accountingExport");
+const config = require("../src/lib/config");
 
 function parseArgs(argv) {
   const a = { force: false };
@@ -35,7 +36,7 @@ function parseArgs(argv) {
 }
 
 function resolveRange(a, now) {
-  const fiscal = a["fiscal-start-month"] || process.env.FISCAL_YEAR_START_MONTH || 1;
+  const fiscal = a["fiscal-start-month"] || config.get("FISCAL_YEAR_START_MONTH");
   if (a.year) {
     const year = a.year === "last" ? ax.lastFiscalYearStart(now, fiscal) : Number(a.year);
     return ax.yearRange(year, fiscal);
@@ -48,11 +49,11 @@ function resolveRange(a, now) {
 async function main(argv, now = new Date()) {
   const a = parseArgs(argv);
   const range = resolveRange(a, now);
-  if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is not set.");
+  if (!config.get("DATABASE_URL")) throw new Error("DATABASE_URL is not set.");
   const client = new Client({
-    connectionString: process.env.DATABASE_URL,
+    connectionString: config.get("DATABASE_URL"),
     // Same TLS stance as src/db.js: encrypted, certificate not verified. PGSSLMODE=disable for a local database.
-    ssl: process.env.PGSSLMODE === "disable" ? false : { rejectUnauthorized: false },
+    ssl: config.get("PGSSLMODE") ? false : { rejectUnauthorized: false },
     connectionTimeoutMillis: 15000,
   });
   await client.connect();
@@ -76,8 +77,8 @@ async function main(argv, now = new Date()) {
   console.log(`Accounting rows: ${s.accountingRows}; total ${ax.eurText(s.totalCents)} EUR`);
   console.log(`Till days: ${s.tillDays}; till sales: ${s.sales}; refunded reservations: ${s.refunds}; voided: ${s.voids}; unclosed days with sales: ${s.unclosedDays}`);
   console.log(`Files written: ${names.accounting}, ${names.till}, ${names.summary}, ${names.email}`);
-  if (process.env.GITHUB_OUTPUT) {
-    fs.appendFileSync(process.env.GITHUB_OUTPUT, `label=${range.label}\nfolder=${range.folderYear}\ntotal=${ax.eurText(s.totalCents)}\nrows=${s.accountingRows}\n`);
+  if (config.get("GITHUB_OUTPUT")) {
+    fs.appendFileSync(config.get("GITHUB_OUTPUT"), `label=${range.label}\nfolder=${range.folderYear}\ntotal=${ax.eurText(s.totalCents)}\nrows=${s.accountingRows}\n`);
   }
   return result;
 }

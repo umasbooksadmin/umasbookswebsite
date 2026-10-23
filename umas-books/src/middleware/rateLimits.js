@@ -1,4 +1,5 @@
 const rateLimit = require("express-rate-limit");
+const { CONTACT_EMAIL } = require("../lib/legal");
 const { ipKeyGenerator } = rateLimit;
 
 // IPv6 clients are bucketed by their /56, not the raw address: one
@@ -23,10 +24,10 @@ function limit({ windowMs, max, ...options }) {
         .send(
           req.tr
             ? req.tr(
-                "Too many requests from this connection — please wait a while and try again, or email admin@umasbooks.org.",
-                "Trop de requêtes depuis cette connexion : veuillez patienter un moment puis réessayer, ou écrire à admin@umasbooks.org."
+                "Too many requests from this connection — please wait a while and try again, or email " + CONTACT_EMAIL + ".",
+                "Trop de requêtes depuis cette connexion : veuillez patienter un moment puis réessayer, ou écrire à " + CONTACT_EMAIL + "."
               )
-            : "Too many requests from this connection — please wait a while and try again, or email admin@umasbooks.org."
+            : "Too many requests from this connection — please wait a while and try again, or email " + CONTACT_EMAIL + "."
         ),
     ...options,
     windowMs,

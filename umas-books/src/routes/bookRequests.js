@@ -10,6 +10,7 @@
 // Pages reached through a token link are no-store and send no Referer.
 
 const express = require("express");
+const { CONTACT_EMAIL } = require("../lib/legal");
 const { pool } = require("../db");
 const { requireAuth } = require("../middleware/auth");
 const { limit } = require("../middleware/rateLimits");
@@ -65,8 +66,8 @@ const requestLimiter = limit({
     redirectWithFlash(req, res, "/request-a-book", "requestBook", {
       values: formValues(req.body || {}),
       error: req.tr(
-        "You have sent several requests today. Please try again tomorrow, or email admin@umasbooks.org.",
-        "Vous avez envoyé plusieurs demandes aujourd'hui. Veuillez réessayer demain, ou écrire à admin@umasbooks.org."
+        "You have sent several requests today. Please try again tomorrow, or email " + CONTACT_EMAIL + ".",
+        "Vous avez envoyé plusieurs demandes aujourd'hui. Veuillez réessayer demain, ou écrire à " + CONTACT_EMAIL + "."
       ),
     }),
 });

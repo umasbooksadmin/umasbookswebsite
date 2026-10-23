@@ -36,6 +36,8 @@
 // UPDATE, so the fast path and the worker (or two app instances) can never
 // both send the same row.
 const mailer = require("../mailer");
+const config = require("./config");
+const { looseBaseUrl } = require("./baseUrl");
 const { scrubPersonalData } = require("./scrub");
 const { sendAdminAlert } = require("./errorAlert");
 const { claimAlertSlot, releaseAlertSlot } = require("./alertFlags");
@@ -115,8 +117,8 @@ async function enqueueEmail(db, msg) {
 
 function globalCap(kind, limits) {
   if (limits && limits.globalPerHour) return limits.globalPerHour[kind] ?? Infinity;
-  const override = Number(process.env.MAIL_GLOBAL_PER_HOUR);
-  if (Number.isFinite(override) && override > 0) return override;
+  const override = config.get("MAIL_GLOBAL_PER_HOUR");
+  if (override !== undefined) return override;
   return THROTTLE.globalPerHour[kind] ?? Infinity;
 }
 
@@ -327,7 +329,7 @@ async function alertFailedEmails(pool) {
   const byKind = new Map();
   for (const r of rows) byKind.set(r.kind, (byKind.get(r.kind) || 0) + 1);
   const latest = rows.reduce((a, b) => (new Date(b.failed_at) > new Date(a.failed_at) ? b : a));
-  const base = (process.env.APP_BASE_URL || process.env.RENDER_EXTERNAL_URL || "").replace(/\/$/, "");
+  const base = looseBaseUrl();
   const text =
     `${rows.length} email${rows.length === 1 ? "" : "s"} could not be sent after ${MAX_ATTEMPTS} attempts.\n\n` +
     [...byKind].map(([k, n]) => `  ${k}: ${n}`).join("\n") +
@@ -361,7 +363,7 @@ async function alertStuckEmails(pool) {
   const oldest = rows.reduce((a, r) => (new Date(r.oldest) < new Date(a) ? r.oldest : a), rows[0].oldest);
   const minutes = Math.round((Date.now() - new Date(oldest).getTime()) / 60000);
   const sample = rows.map((r) => r.sample_error).find(Boolean);
-  const base = (process.env.APP_BASE_URL || process.env.RENDER_EXTERNAL_URL || "").replace(/\/$/, "");
+  const base = looseBaseUrl();
   const text =
     `${total} email${total === 1 ? " has" : "s have"} been waiting to be sent for more than ${STUCK_AFTER_MINUTES} minutes ` +
     `(the oldest for ${minutes} minutes). The site keeps retrying, but something is wrong with sending.\n\n` +

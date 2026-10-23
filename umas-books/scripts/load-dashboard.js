@@ -31,7 +31,7 @@ const OTHER = arg("other", 20);
 const SMTP_MS = arg("smtp-ms", 2000);
 const PORT = arg("port", 5410);
 
-const url = process.env.DATABASE_URL;
+const url = require("../src/lib/config").get("DATABASE_URL");
 if (!url) { console.error("Set DATABASE_URL to a local database."); process.exit(2); }
 let host;
 try { host = new URL(url).hostname; } catch { host = ""; }

@@ -1,4 +1,5 @@
 const express = require("express");
+const config = require("../../lib/config");
 const { requireAdmin } = require("../../middleware/auth");
 const { resolveTrustProxyHops } = require("../../lib/trustProxy");
 const { pool } = require("../../db");
@@ -50,8 +51,8 @@ router.get("/admin/diagnostics/lookup", requireAdmin, async (req, res) => {
     active: "diagnostics",
     isbndb: isbndbStatus(),
     isbndbToday: await isbndbDailyUsage(pool),
-    googleKey: Boolean(process.env.GOOGLE_BOOKS_API_KEY),
-    sources: String(process.env.SCAN_LOOKUP_SOURCES || "openlibrary,bnf,google,openlibrary-data,isbndb"),
+    googleKey: Boolean(config.get("GOOGLE_BOOKS_API_KEY")),
+    sources: String(config.get("SCAN_LOOKUP_SOURCES")),
   });
 });
 

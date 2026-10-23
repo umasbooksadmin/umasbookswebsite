@@ -7,11 +7,11 @@
 // visitors see published ones as after launch (test/integration/blogPreviewMode.test.js).
 
 const { usesSandbox } = require("./helloassoHosts");
+const config = require("./config");
 const { isStaging } = require("./staging");
 
 function isPreviewMode(env = process.env) {
-  const v = String((env && env.PREVIEW_MODE) || "").trim().toLowerCase();
-  return v === "1" || v === "true";
+  return config.get("PREVIEW_MODE", env);
 }
 
 // Sets res.locals.preview for the views and, in preview mode, asks crawlers
@@ -25,9 +25,9 @@ function previewMiddleware(req, res, next) {
   // admin note; its HelloAsso sandbox is expected, so no "live site" warning.
   const staging = isStaging();
   res.locals.staging = staging;
-  res.locals.helloassoSandbox = !on && !staging && usesSandbox(process.env.HELLOASSO_API_BASE);
-  res.locals.stagingHelloasso = staging ? (usesSandbox(process.env.HELLOASSO_API_BASE) ? "sandbox" : "off") : "";
-  res.locals.stagingMailTo = staging ? String(process.env.STAGING_MAIL_TO || "").trim() : "";
+  res.locals.helloassoSandbox = !on && !staging && usesSandbox(config.get("HELLOASSO_API_BASE"));
+  res.locals.stagingHelloasso = staging ? (usesSandbox(config.get("HELLOASSO_API_BASE")) ? "sandbox" : "off") : "";
+  res.locals.stagingMailTo = staging ? config.get("STAGING_MAIL_TO") : "";
   // Live site with a wrong setup (APP_BASE_URL missing, HelloAsso credentials
   // missing...): a persistent red banner on every admin page (lib/env.js).
   res.locals.launchAlerts = require("./env").launchBannerAlerts(process.env);

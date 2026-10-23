@@ -19,7 +19,8 @@
     "test": "node --test",
     "e2e": "node e2e/run.js",
     "e2e:local": "node e2e/local.js",
-    "e2e:ci": "node e2e/ci.js"
+    "e2e:ci": "node e2e/ci.js",
+    "docs:env": "node scripts/gen-env-docs.js"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",

@@ -3,10 +3,11 @@
 // Services Act, art. 17). Routes: src/routes/admin/forum.js.
 
 const { sendEmail } = require("./outbox");
+const { CONTACT_EMAIL } = require("./legal");
 const { emailTr } = require("./lang");
 const { emailSafeName } = require("./validation");
 
-const CONTEST_ADDRESS = "admin@umasbooks.org";
+const CONTEST_ADDRESS = CONTACT_EMAIL;
 const MAX_NOTE = 500;
 const WHAT_EXCERPT = 100;
 

@@ -29,6 +29,8 @@
 //   backfillCovers(pool, opts)         one gentle batch for the background job
 
 const dns = require("node:dns");
+const config = require("./config");
+const { CONTACT_EMAIL } = require("./legal");
 const https = require("node:https");
 const { Readable } = require("node:stream");
 const net = require("node:net");
@@ -47,7 +49,7 @@ const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const ACCEPTED_FORMATS = new Set(["jpeg", "png", "webp", "gif"]);
 
 // Open Library asks API clients to say who they are and how to reach them.
-const USER_AGENT = "UmasBooksInventory/1.0 (+https://umasbooks.org; admin@umasbooks.org)";
+const USER_AGENT = `UmasBooksInventory/1.0 (+https://umasbooks.org; ${CONTACT_EMAIL})`;
 
 const BATCH_SIZE = 20;
 const MAX_CONSECUTIVE_TRANSIENT = 3; // a batch stops after this many network-type errors in a row
@@ -319,7 +321,8 @@ async function prepareCoverNow(rawUrl, opts = {}) {
 const coverMemo = new Map(); // address -> { promise, expires }
 const MEMO_MAX = 100;
 async function prepareCover(rawUrl, opts = {}) {
-  const ttl = process.env.SCAN_CACHE_TTL_MS === undefined || process.env.SCAN_CACHE_TTL_MS === "" ? 10 * 60 * 1000 : Number(process.env.SCAN_CACHE_TTL_MS);
+  // Unlike the lookup cache (lib/bookLookup.js) this reader never validated the value: NaN or negative just means "no sharing".
+  const ttl = config.get("SCAN_CACHE_TTL_MS", process.env, { lenient: true });
   const url = typeof rawUrl === "string" ? rawUrl.trim() : "";
   if (!url || Object.keys(opts).length || !(ttl > 0) || isStoredImageUrl(url)) return prepareCoverNow(rawUrl, opts);
   const hit = coverMemo.get(url);

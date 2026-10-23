@@ -7,6 +7,7 @@
 require("dotenv").config({ quiet: true });
 const { Client } = require("pg");
 const { main } = require("../src/lib/clearTestData");
+const config = require("../src/lib/config");
 
 // Same TLS stance as src/db.js: encrypted, certificate not verified (Render's
 // internal database uses a self-signed certificate). PGSSLMODE=disable for a
@@ -14,7 +15,7 @@ const { main } = require("../src/lib/clearTestData");
 async function connect(url) {
   const client = new Client({
     connectionString: url,
-    ssl: process.env.PGSSLMODE === "disable" ? false : { rejectUnauthorized: false },
+    ssl: config.get("PGSSLMODE") ? false : { rejectUnauthorized: false },
     connectionTimeoutMillis: 10000,
   });
   await client.connect();
