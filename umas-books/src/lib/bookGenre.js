@@ -6,13 +6,10 @@
 // the site's own taxonomy.
 
 const { COMMON_GENRES } = require("./bookLookup");
-const config = require("./config");
 const { normalizeGenres } = require("./inventory");
 
-const { recordCall } = require("./aiUsageStats");
-const { getAiLimits, clampText, MAX_TITLE, MAX_AUTHOR, MAX_DESCRIPTION } = require("./aiLimits");
-
-const TEXT_MODEL = "claude-haiku-4-5-20251001";
+const anthropic = require("./anthropic");
+const { clampText, MAX_TITLE, MAX_AUTHOR, MAX_DESCRIPTION } = require("./aiLimits");
 
 async function generateBookGenres(input) {
   // Bounded text only goes to the paid API.
@@ -20,8 +17,7 @@ async function generateBookGenres(input) {
   const author = clampText(input.author, MAX_AUTHOR);
   const description = clampText(input.description, MAX_DESCRIPTION);
   const existingGenres = clampText(input.existingGenres, 300);
-  const apiKey = config.get("ANTHROPIC_API_KEY");
-  if (!apiKey) {
+  if (!anthropic.hasApiKey()) {
     console.warn("AI genre skipped: ANTHROPIC_API_KEY not set.");
     return null;
   }
@@ -43,51 +39,23 @@ Title: "${title}"${details ? `\n${details}` : ""}
 
 Respond with ONLY a comma-separated list of the genres you chose from that list, most-relevant first (e.g. "Fantasy, Young Adult Fiction"). No preamble, no explanation, no genres outside the list. If you don't recognize the book and the title gives no clue, respond with "Fiction".`;
 
-  const slot = await getAiLimits().acquireAiCall(); // the shared daily cap (lib/aiLimits.js)
-  if (!slot.ok) {
-    console.warn(`AI genre skipped: ${slot.message}`);
+  const r = await anthropic.request({
+    feature: "genre", model: anthropic.MODELS.text.id, maxTokens: 60, timeoutMs: 8000,
+    messages: [{ role: "user", content: prompt }],
+  });
+  if (!r.ok) {
+    if (r.kind === "cap") console.warn(`AI genre skipped: ${r.message}`);
+    else if (r.status) console.warn("AI genre request failed:", r.status, r.body);
+    else console.warn("AI genre skipped:", r.message);
+    return null;
+  }
+  const text = anthropic.textOf(r.data);
+  if (!text) {
+    console.warn("AI genre skipped: unexpected response shape:", JSON.stringify(r.data).slice(0, 500));
     return null;
   }
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8000);
-
-  const t0 = Date.now();
-  let recorded = false; // usage statistics (counts only), see lib/aiUsageStats.js
   try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      signal: controller.signal,
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-        ...(config.get("ANTHROPIC_WORKSPACE_ID") ? { "anthropic-workspace-id": config.get("ANTHROPIC_WORKSPACE_ID") } : {}),
-      },
-      body: JSON.stringify({
-        model: TEXT_MODEL,
-        max_tokens: 60,
-        messages: [{ role: "user", content: prompt }],
-      }),
-    });
-
-    if (!res.ok) {
-      const body = await res.text().catch(() => "");
-      recorded = true;
-      recordCall("genre", { status: res.status, bodyText: body, ms: Date.now() - t0 });
-      console.warn("AI genre request failed:", res.status, body);
-      return null;
-    }
-
-    const data = await res.json();
-    recorded = true;
-    recordCall("genre", { status: res.status, data, ms: Date.now() - t0 });
-    const text = data.content && data.content[0] && data.content[0].text;
-    if (!text) {
-      console.warn("AI genre skipped: unexpected response shape:", JSON.stringify(data).slice(0, 500));
-      return null;
-    }
-
     // Keep only genres that are actually in the taxonomy — a model can
     // still drift from instructions, and a stray invented tag would
     // otherwise leak into the site's genre filter chips. Map back to the
@@ -98,11 +66,8 @@ Respond with ONLY a comma-separated list of the genres you chose from that list,
       .filter(Boolean);
     return normalizeGenres(picked.join(", "));
   } catch (err) {
-    if (!recorded) recordCall("genre", { failed: true, ms: Date.now() - t0 });
-    console.warn("AI genre skipped:", err.name === "AbortError" ? "request timed out" : err.message);
+    console.warn("AI genre skipped:", err.message);
     return null;
-  } finally {
-    clearTimeout(timeout);
   }
 }
 
