@@ -62,7 +62,7 @@ test("no view (app OR marketing) uses an inline event handler or inline script",
 });
 
 test("the blog Preview button's script is an external file", () => {
-  assert.match(read("views/admin/blog.ejs"), /<script src="\/blog-preview\.js"><\/script>/);
+  assert.match(read("views/admin/blog.ejs"), /<script src="<%= assetUrl\('\/blog-preview\.js'\) %>"><\/script>/);
   assert.match(read("public/blog-preview.js"), /blog-preview-btn/);
 });
 

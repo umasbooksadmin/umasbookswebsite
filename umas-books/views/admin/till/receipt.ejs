@@ -5,7 +5,7 @@
 <title>Ticket <%= receiptNo %> — Uma's Books</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light">
-<link rel="stylesheet" href="/till-receipt.css">
+<link rel="stylesheet" href="<%= assetUrl('/till-receipt.css') %>">
 </head>
 <body>
 <main class="receipt" data-receipt="<%= sale.id %>" data-receipt-no="<%= receiptNo %>">
@@ -31,6 +31,6 @@
   <p class="r-small">Merci de votre visite.</p>
   <p class="no-print">Admin (English): <button type="button" data-print>Print</button> <a href="/admin/till">Back to the till</a></p>
 </main>
-<script src="/print-button.js"></script>
+<script src="<%= assetUrl('/print-button.js') %>"></script>
 </body>
 </html>

@@ -21,7 +21,7 @@ test("till pages need an admin; the till page has an autofocused scan box and no
   const { res, text } = await h.get("/admin/till");
   assert.equal(res.status, 200);
   assert.match(text, /id="scan"[^>]*autofocus/);
-  assert.match(text, /<script src="\/till\.js">/);
+  assert.match(text, /<script src="\/till\.js(\?v=[0-9a-f]+)?">/);
   assert.doesNotMatch(text, /<script[^>]*>[^<]/, "no inline script (CSP)");
   assert.match(text, /href="\/admin\/till"[^>]*><strong>Till<\/strong>/, "Till is in the admin menu");
   assert.match(text, /Cash<\/button>/);

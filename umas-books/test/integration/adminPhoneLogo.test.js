@@ -36,7 +36,7 @@ test("the admin header partial has the logo link to '/' in every variant", async
     { active: "reports", pageTitle: "Reports", mainWide: true },
   ];
   for (const v of variants) {
-    const html = await ejs.renderFile(PARTIAL, { user: { displayName: "Admin Tester" }, ...v });
+    const html = await ejs.renderFile(PARTIAL, { assetUrl: require("../../src/lib/assetUrl").assetUrl, user: { displayName: "Admin Tester" }, ...v });
     assertBrandLink(html, JSON.stringify(v));
   }
 });
@@ -93,7 +93,7 @@ function topbarChildren(html) {
 
 test("the page title is a direct child of the top bar, next to (not inside) the tools wrapper", async () => {
   for (const v of [{ active: "inventory", pageTitle: "Inventory" }, { active: "overview", pageTitle: "Dashboard" }, { active: "till", pageTitle: "Till", tillOnly: true }]) {
-    const html = await ejs.renderFile(PARTIAL, { user: { displayName: "Admin Tester" }, ...v });
+    const html = await ejs.renderFile(PARTIAL, { assetUrl: require("../../src/lib/assetUrl").assetUrl, user: { displayName: "Admin Tester" }, ...v });
     const kids = topbarChildren(html);
     assert.ok(kids.some((k) => k.includes("admin-topbar-tools")), "tools wrapper is a direct child");
     assert.ok(kids.some((k) => k.includes("admin-topbar-title")), `${JSON.stringify(v)}: the title wrapper must be a direct child of .admin-topbar, not inside .admin-topbar-tools`);

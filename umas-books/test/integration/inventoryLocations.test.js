@@ -124,7 +124,7 @@ test("the Add book page pre-fills the carried location, starts at Store, and off
   assert.match(text, /id="location"[^>]*list="location-options"[^>]*value="poetry b2"/);
   assert.match(text, /<datalist id="location-options">[\s\S]*<option value="ZZ-DROPDOWN">[\s\S]*<\/datalist>/);
   assert.match(text, /<datalist id="location-options">[\s\S]*<option value="Store">[\s\S]*<\/datalist>/, "Store is offered even when no copy is there");
-  assert.match(text, /src="\/inventory-location\.js"/);
+  assert.match(text, /src="\/inventory-location\.js(\?v=[0-9a-f]+)?"/);
   assert.match((await get("/admin/inventory/new")).text, /id="location"[^>]*value="Store"/);
 });
 

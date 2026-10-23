@@ -157,19 +157,31 @@ function chunker(sink) {
 
 // db: anything with a pg-style .query(). sink: async (string) => void.
 // Returns counts only: { rows, byStatus: {in_stock, reserved, sold, ...} }.
-async function writeCopiesCsv(db, sink, { batch = BATCH } = {}) {
+// filter (optional, the filtered download): { conditions: [sql over book alias b], params, copyCondition?: (params, "c") => sql }.
+// Without it the SQL below is exactly the full export's.
+function filterParts(filter, afterIdx) {
+  const params = filter ? filter.params.slice() : [];
+  const parts = filter ? filter.conditions.slice() : [];
+  return { params, parts, next: () => params.length + afterIdx };
+}
+
+async function writeCopiesCsv(db, sink, { batch = BATCH, filter = null } = {}) {
   const out = chunker(sink);
   await out.push("﻿" + csvHeader(COPY_COLUMNS) + "\r\n");
   const byStatus = {};
   let rows = 0;
   let after = 0;
+  const fp = filterParts(filter, 0);
+  if (filter && filter.copyCondition) { const cc = filter.copyCondition(fp.params, "c"); if (cc) fp.parts.push(cc); }
+  const ai = fp.params.length + 1;
+  const extra = fp.parts.length ? ` AND ${fp.parts.join(" AND ")}` : "";
   for (;;) {
     const { rows: page } = await db.query(
       `SELECT c.id, c.book_id, c.condition, c.price, c.publisher_price, c.is_clearance, c.location, c.source,
               c.status, c.notes, ${PARIS_DAY("c.created_at")} AS added, ${PARIS_DAY("c.sold_at")} AS sold,
               b.isbn, b.title, b.authors, b.publisher, b.published_year, b.binding, b.categories
        FROM book_copies c JOIN books b ON b.id = c.book_id
-       WHERE c.id > $1 ORDER BY c.id LIMIT $2`, [after, batch]
+       WHERE c.id > $${ai}${extra} ORDER BY c.id LIMIT $${ai + 1}`, [...fp.params, after, batch]
     );
     if (!page.length) break;
     for (const r of page) {
@@ -184,11 +196,14 @@ async function writeCopiesCsv(db, sink, { batch = BATCH } = {}) {
   return { rows, byStatus };
 }
 
-async function writeBooksCsv(db, sink, { batch = BATCH } = {}) {
+async function writeBooksCsv(db, sink, { batch = BATCH, filter = null } = {}) {
   const out = chunker(sink);
   await out.push("﻿" + csvHeader(BOOK_COLUMNS) + "\r\n");
   let rows = 0;
   let after = 0;
+  const fp = filterParts(filter, 0);
+  const ai = fp.params.length + 1;
+  const extra = fp.parts.length ? ` AND ${fp.parts.join(" AND ")}` : "";
   for (;;) {
     const { rows: page } = await db.query(
       `SELECT b.id, b.isbn, b.title, b.authors, b.publisher, b.published_year, b.binding, b.categories,
@@ -197,7 +212,7 @@ async function writeBooksCsv(db, sink, { batch = BATCH } = {}) {
               COUNT(c.id) FILTER (WHERE c.status = 'reserved')::int AS reserved,
               COUNT(c.id) FILTER (WHERE c.status = 'sold')::int AS sold
        FROM books b LEFT JOIN book_copies c ON c.book_id = b.id
-       WHERE b.id > $1 GROUP BY b.id ORDER BY b.id LIMIT $2`, [after, batch]
+       WHERE b.id > $${ai}${extra} GROUP BY b.id ORDER BY b.id LIMIT $${ai + 1}`, [...fp.params, after, batch]
     );
     if (!page.length) break;
     for (const r of page) await out.push(csvLine(BOOK_COLUMNS, bookRow(r)) + "\r\n");
@@ -209,4 +224,16 @@ async function writeBooksCsv(db, sink, { batch = BATCH } = {}) {
   return { rows };
 }
 
-module.exports = { COPY_COLUMNS, BOOK_COLUMNS, DIALECT, isbnForms, copyRow, bookRow, csvHeader, csvLine, writeCopiesCsv, writeBooksCsv };
+// How many rows a filtered download would hold (so a too-large one is refused before anything is sent).
+async function countRows(db, perBook, filter) {
+  const fp = filterParts(filter, 0);
+  if (perBook) {
+    const { rows } = await db.query(`SELECT COUNT(*)::int AS n FROM books b ${fp.parts.length ? "WHERE " + fp.parts.join(" AND ") : ""}`, fp.params);
+    return rows[0].n;
+  }
+  if (filter && filter.copyCondition) { const cc = filter.copyCondition(fp.params, "c"); if (cc) fp.parts.push(cc); }
+  const { rows } = await db.query(`SELECT COUNT(*)::int AS n FROM book_copies c JOIN books b ON b.id = c.book_id ${fp.parts.length ? "WHERE " + fp.parts.join(" AND ") : ""}`, fp.params);
+  return rows[0].n;
+}
+
+module.exports = { countRows, COPY_COLUMNS, BOOK_COLUMNS, DIALECT, isbnForms, copyRow, bookRow, csvHeader, csvLine, writeCopiesCsv, writeBooksCsv };

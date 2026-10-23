@@ -63,10 +63,15 @@
     <a class="btn btn-outline" href="/admin/inventory/move">Move books</a>
     <a class="btn btn-outline" href="/admin/till/items">Other stock (not books)</a>
   </p>
-  <p class="muted" style="margin-top:8px;">
+  <div class="inv-downloads">
     <a class="btn btn-outline" href="/admin/inventory/export.csv">Download all inventory (CSV)</a>
-    <a href="/admin/inventory/export.csv?books=1">per book instead of per copy</a>.
-    One row per copy, for French Excel (semicolons, decimal commas). It has no customer data. The same file is also emailed every evening at 21:00.
+    <a class="btn btn-outline" href="/admin/inventory/results.csv<%= resultsQuery ? '?' + resultsQuery : '' %>">Download these results (CSV)</a>
+  </div>
+  <p class="muted small" style="margin-top:8px;">
+    <strong>All inventory</strong> is everything in the system, whatever you searched. <strong>These results</strong> is exactly what the search and filters above show (all of it, not just the first <%= listLimit %>)<%= filterActive || q ? '' : ': with nothing searched, that is everything too' %>; with a location, condition or price filter on, only the copies that match are listed.
+    Both: one row per copy, for French Excel (semicolons, decimal commas), no customer data.
+    Per book instead of per copy: <a href="/admin/inventory/export.csv?books=1">all inventory</a>, <a href="/admin/inventory/results.csv?<%= resultsQuery ? resultsQuery + '&' : '' %>books=1">these results</a>.
+    The full file is also emailed every evening at 21:00.
   </p>
 </div>
 

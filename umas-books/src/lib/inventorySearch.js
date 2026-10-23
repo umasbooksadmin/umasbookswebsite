@@ -11,6 +11,7 @@
 const { CONDITIONS, BINDINGS, normalizeBinding, normalizeLocation, uniqueLocations } = require("./inventory");
 const { parseMoney, clean } = require("./validation");
 const { COMMON_GENRES } = require("./bookLookup");
+const { likeContains } = require("./parseParams");
 
 // Sentinels for the two special <select> choices (a location is free text of
 // up to 40 characters, so these are chosen to be implausible as a real name).
@@ -88,6 +89,25 @@ function addFilterConditions(f, conditions, params) {
   }
 }
 
+// The whole search (text + filters) as { conditions, params } over the book alias b: the ONE place the on-screen
+// list and the CSV download of its results get their WHERE from.
+function buildSearchWhere(f) {
+  const params = [];
+  const conditions = [];
+  if (f.q) {
+    params.push(likeContains(f.q));
+    conditions.push(`(b.title ILIKE $${params.length} OR b.authors ILIKE $${params.length} OR b.isbn ILIKE $${params.length})`);
+  }
+  addFilterConditions(f, conditions, params);
+  return { conditions, params };
+}
+
+// SQL (over copy alias `alias`) for the copies that matched the copy-level filters, or "" when none is on (then every
+// copy of a matching book counts). Pushes its values into `params`.
+function copyMatchCondition(f, params, alias) {
+  return hasCopyFilter(f) ? copyPredicates(f, params, alias).join(" AND ") : "";
+}
+
 // The copies that made each book match (same predicates), for the result rows.
 async function matchingCopies(pool, f, bookIds) {
   if (!hasCopyFilter(f) || !bookIds.length) return new Map();
@@ -130,5 +150,5 @@ function filterQueryString(f) {
 
 module.exports = {
   NO_LOCATION, NO_BINDING, NO_GENRE, FILTER_KEYS, BINDINGS, CONDITIONS, COMMON_GENRES,
-  parseInventoryFilters, hasCopyFilter, hasAnyFilter, addFilterConditions, matchingCopies, filterLocations, filterQueryString,
+  parseInventoryFilters, hasCopyFilter, hasAnyFilter, addFilterConditions, buildSearchWhere, copyMatchCondition, matchingCopies, filterLocations, filterQueryString,
 };

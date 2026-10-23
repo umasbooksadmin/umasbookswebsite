@@ -41,6 +41,7 @@ function buildApp(routers) {
   app.set("views", path.join(ROOT, "views"));
   Object.assign(app.locals, require("../../src/lib/dates"));
   Object.assign(app.locals, require("../../src/lib/sessionTone"));
+  app.locals.assetUrl = require("../../src/lib/assetUrl").assetUrl;
   app.use(express.urlencoded({ extended: false }));
   app.use(require("../../src/middleware/lang").langMiddleware);
   app.use(session({ secret: "in-process-test", resave: false, saveUninitialized: false, name: "test.sid" }));

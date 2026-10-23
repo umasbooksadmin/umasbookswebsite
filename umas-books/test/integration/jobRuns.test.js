@@ -174,11 +174,11 @@ test("a job removed long ago does not nag forever", async () => {
 test("the launch banner renders on admin pages when the live site is misconfigured", async () => {
   const ejs = require("ejs");
   const path = require("node:path");
-  const html = await ejs.renderFile(path.join(__dirname, "../../views/partials/admin_header.ejs"), {
+  const html = await ejs.renderFile(path.join(__dirname, "../../views/partials/admin_header.ejs"), { assetUrl: require("../../src/lib/assetUrl").assetUrl,
     active: "x", title: "t", launchAlerts: [{ label: "APP_BASE_URL missing", message: "APP_BASE_URL is not set" }],
   });
   assert.match(html, /The live site is not set up correctly/);
   assert.match(html, /APP_BASE_URL is not set/);
-  const none = await ejs.renderFile(path.join(__dirname, "../../views/partials/admin_header.ejs"), { active: "x", title: "t", launchAlerts: [] });
+  const none = await ejs.renderFile(path.join(__dirname, "../../views/partials/admin_header.ejs"), { assetUrl: require("../../src/lib/assetUrl").assetUrl, active: "x", title: "t", launchAlerts: [] });
   assert.doesNotMatch(none, /not set up correctly/);
 });
