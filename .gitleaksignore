@@ -1,0 +1,4 @@
+# gitleaks fingerprints (commit:file:rule:line) of findings that are not secrets.
+# A made-up 20-letter intake token used as a test value, in the first commit of PR #322 (already fixed in the next commit;
+# history is not rewritten).
+7f4c2018c5166271e40b8535470a6e6caf3d65eb:umas-books/test/integration/inventoryIntake.test.js:generic-api-key:82
