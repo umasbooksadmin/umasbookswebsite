@@ -59,7 +59,7 @@ page with status 400 (429 rate limited; a failed send is queued by the outbox an
 error summary (`role="alert"`, `tabindex="-1"`, links to each field,
 `assets/form-errors.js` moves focus to it) and per-field errors
 (`aria-invalid`, `aria-describedby`). The messages are `form.err.*` keys in
-`assets/site.js` COMMON (EN + FR), so the language toggle and the French server
+`assets/i18n-common.js` COMMON (EN + FR), so the language toggle and the French server
 render both work. Success redirects to `/<page>?sent=1`, which shows a thank-you
 panel. The repeated `days` / `times` fields are in `MULTI_VALUE_BODY_FIELDS` in
 `src/app.js` so the multi-selects are not collapsed to their first value. The
@@ -549,7 +549,7 @@ service container, a dummy `SESSION_SECRET`, etc.): see that file.
   it opens. Off by default. While on:
   - every customer page shows a bilingual banner (`views/partials/preview_banner.ejs`,
     included by `partials/mkt_chrome_header.ejs`; marketing pages also get the strings
-    in `assets/site.js` COMMON `preview.*`), linking to `/contact?topic=feedback`
+    in `assets/i18n-common.js` COMMON `preview.*`), linking to `/contact?topic=feedback`
     (the contact form then offers a "Feedback on the preview" topic);
   - reservations and payments are off: the cart shows a notice instead of the
     reserve form, `POST /cart/reserve` answers 403 before locking or creating
@@ -871,7 +871,7 @@ screens stay English). Two languages only: `en` and `fr`.
   NULL means English.
 - **Marketing pages** (`views/marketing`) are written in English with
   `data-i18n` / `data-i18n-html` / `data-i18n-attr` hooks and one EN and one FR
-  dictionary (`pageI18nEn/Fr` in the page, `COMMON` in `assets/site.js`). They are
+  dictionary (`pageI18nEn/Fr` in the page, `COMMON` in `assets/i18n-common.js`: plain data, one copy, loaded by a `<script>` before `site.js` in the browser and `require()`d by the server, also read by the header partial for the nav labels). They are
   rendered through `renderMarketing()` (`src/lib/pageDictionary.js`): when
   `req.lang` is `fr`, `applyPageDictionary()` fills every hook from the French
   dictionaries BEFORE the HTML is sent (the same swap `site.js` does in the

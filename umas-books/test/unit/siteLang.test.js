@@ -9,7 +9,7 @@ const path = require("node:path");
 const vm = require("node:vm");
 
 const src = fs.readFileSync(path.join(__dirname, "..", "..", "..", "assets", "site.js"), "utf8");
-const window = { document: { addEventListener() {}, cookie: "" } };
+const window = { document: { addEventListener() {}, cookie: "" }, UMAS_COMMON: require("../../../assets/i18n-common.js") };
 vm.runInNewContext(src, { window, document: window.document, navigator: { language: "en-US" }, location: { protocol: "http:" } });
 const resolve = window.__umasResolveInitialLang;
 

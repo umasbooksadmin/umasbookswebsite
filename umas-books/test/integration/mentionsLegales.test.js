@@ -72,7 +72,7 @@ test("every public page and the members area link to the legal notice from the f
 test("the footer label is translated (English and French)", async () => {
   const fs = require("node:fs");
   const path = require("node:path");
-  const siteJs = fs.readFileSync(path.join(__dirname, "..", "..", "..", "assets", "site.js"), "utf8");
+  const siteJs = fs.readFileSync(path.join(__dirname, "..", "..", "..", "assets", "i18n-common.js"), "utf8");
   assert.match(siteJs, /"foot\.legal": "Legal Notice"/);
   assert.match(siteJs, /"foot\.legal": "Mentions légales"/);
 });

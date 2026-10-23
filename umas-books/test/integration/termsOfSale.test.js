@@ -58,7 +58,7 @@ test("membership terms describe the instant HelloAsso flow, 12-month duration an
 test("the footer links to the terms of sale, in both languages", async () => {
   const html = await (await fetch(`${app.base}/`)).text();
   assert.match(html, /href="\/terms-of-sale\.html"/);
-  const siteJs = fs.readFileSync(path.join(__dirname, "../../../assets/site.js"), "utf8");
+  const siteJs = fs.readFileSync(path.join(__dirname, "../../../assets/i18n-common.js"), "utf8");
   assert.match(siteJs, /"foot\.terms": "Terms of Sale"/);
   assert.match(siteJs, /"foot\.terms": "Conditions générales de vente"/);
 });

@@ -53,8 +53,8 @@ test("staging: X-Robots-Tag noindex, robots.txt disallows all, sitemap is empty"
   assert.ok(sm.includes("<urlset"));
 });
 
-test("staging also has the site-wide site.js French string for the banner (language switch on marketing pages)", async () => {
-  const js = await (await get(staging, "/assets/site.js")).text();
+test("staging also has the site-wide i18n-common.js French string for the banner (language switch on marketing pages)", async () => {
+  const js = await (await get(staging, "/assets/i18n-common.js")).text();
   assert.ok(js.includes('"staging.text": "TEST SITE: not the real Uma’s Books.'));
   assert.ok(js.includes('"staging.text": "SITE DE TEST\u00a0: ce n’est pas le vrai site'));
 });

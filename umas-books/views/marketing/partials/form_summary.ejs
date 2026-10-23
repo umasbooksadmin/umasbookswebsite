@@ -3,7 +3,7 @@
    volunteer). Params: form ({ errors: { field: { key, label } }, error }),
    ids (field name -> input id, for the links), dict (the page's English
    dictionary, for the field labels). The messages themselves are the
-   form.err.* entries of assets/site.js COMMON (formMsg() = the English text;
+   form.err.* entries of assets/i18n-common.js COMMON (formMsg() = the English text;
    the data-i18n hooks let the language toggle and the French server render
    swap them). role="alert" announces it; assets/form-errors.js moves focus to it. */
 const _errs = (form && form.errors) || {};

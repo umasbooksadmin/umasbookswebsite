@@ -1,7 +1,7 @@
 <%
 /* Shared </main>/<footer>/scripts for every marketing page. Params:
    pageI18nEn/pageI18nFr (objects of this page's own i18n strings — nav,
-   footer and other cross-page strings already live in site.js's COMMON
+   footer and other cross-page strings already live in assets/i18n-common.js (COMMON)
    dict and don't need to be repeated here), extraScripts (array of
    extra script file paths, e.g. ['assets/blog.js'] or '/page-home.js').
    There are NO inline scripts any more: the marketing CSP forbids them. */
@@ -19,6 +19,7 @@
   fr: (typeof pageI18nFr !== 'undefined' ? pageI18nFr : {}),
 }).replace(/</g, '\\u003c').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029') %></script>
 <script src="<%= assetUrl('/page-i18n.js') %>"></script>
+<script src="<%= assetUrl('/assets/i18n-common.js') %>"></script>
 <script src="<%= assetUrl('/assets/site.js') %>"></script>
 <script src="<%= assetUrl('/app.js') %>"></script>
 <% (typeof extraScripts !== 'undefined' ? extraScripts : []).forEach(src => { %><script src="<%= assetUrl(src.charAt(0) === '/' ? src : '/' + src) %>"></script><% }) %>
