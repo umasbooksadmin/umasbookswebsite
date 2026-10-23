@@ -12,7 +12,7 @@
 .bk-col-list .col-btn:hover .col-name { color: var(--maroon); }
 .bk-col-list .col-name { overflow-wrap: anywhere; hyphens: auto; }
 /* A collection with no picture: a plain text entry in a box. */
-.bk-col-list .col-btn.no-art { justify-content: center; border: 1px solid #cfcac0; background: var(--panel); padding: 10px 6px; min-height: 90px; }
+.bk-col-list .col-btn.no-art { justify-content: center; border: 1px solid var(--line-strong); background: var(--panel); padding: 10px 6px; min-height: 90px; }
 
 /* ---------- Collection page ---------- */
 .col-page { padding-bottom: 40px; }
@@ -22,8 +22,8 @@
 .col-head { text-align: center; padding: 6px 0 26px; }
 .col-head-art, .col-head picture img { width: 120px; height: 120px; border-radius: 50%; display: block; margin: 0 auto 14px; }
 .col-head h1 { font-size: clamp(30px, 7vw, 54px); font-weight: 500; line-height: 1.08; color: var(--ink); overflow-wrap: anywhere; }
-.col-desc { max-width: 720px; margin: 14px auto 0; font-size: 20px; line-height: 1.4; color: var(--ink-soft); }
-.col-empty { text-align: center; padding: 30px 0; font-size: 20px; color: var(--ink-soft); }
+.col-desc { max-width: 720px; margin: 14px auto 0; font-size: 20px; line-height: 1.4; color: var(--ink); }
+.col-empty { text-align: center; padding: 30px 0; font-size: 20px; color: var(--ink); }
 .col-books .bk-covernote { margin-top: 28px; }
 /* Heading read by screen readers only. */
 .col-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }

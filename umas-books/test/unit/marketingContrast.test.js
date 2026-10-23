@@ -4,11 +4,7 @@
 
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
-const fs = require("node:fs");
-const path = require("node:path");
-
-const ASSETS = path.join(__dirname, "..", "..", "..", "assets");
-const css = (f) => fs.readFileSync(path.join(ASSETS, f), "utf8");
+const { loadSheet, resolveVars } = require("../helpers/css");
 
 function luminance(hex) {
   const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
@@ -19,27 +15,35 @@ function ratio(a, b) {
   const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
   return (hi + 0.05) / (lo + 0.05);
 }
-const CREAM = css("site.css").match(/--cream:\s*(#[0-9a-f]{6})/i)[1];
+const tokens = loadSheet("assets/site.css").tokens();
+const CREAM = tokens["--cream"];
+// the colour a declaration really paints, whether it is written as a hex or as a token
+const colourOf = (sheet, selector, prop) => {
+  const value = resolveVars(sheet.getDecl(selector, prop), tokens);
+  assert.match(value, /^#[0-9a-f]{6}$/i, `${selector} ${prop} is a plain colour`);
+  return value;
+};
 
 test("programs.css: the drop-in title colour reads at 4.5:1 on the cream background", () => {
-  const colour = css("programs.css").match(/\.pg-dropin \.pg-title\s*\{\s*color:\s*(#[0-9a-f]{6})/i)[1];
+  const colour = colourOf(loadSheet("assets/programs.css"), ".pg-dropin .pg-title", "color");
   assert.ok(ratio(colour, CREAM) >= 4.5, `${colour} on ${CREAM} is ${ratio(colour, CREAM).toFixed(2)}:1`);
 });
 
 test("programs.css: white text on the gold button reads at 4.5:1", () => {
-  const colour = css("programs.css").match(/\.pg-btn\.gold\s*\{\s*background:\s*(#[0-9a-f]{6})/i)[1];
+  const colour = colourOf(loadSheet("assets/programs.css"), ".pg-btn.gold", "background");
   assert.ok(ratio("#ffffff", colour) >= 4.5, `white on ${colour} is ${ratio("#ffffff", colour).toFixed(2)}:1`);
 });
 
 test("events.css lets the schedule buttons wrap inside a 320px viewport", () => {
-  const src = css("events.css");
-  assert.match(src, /\.ev-more \.h-btn \{ max-width: 100%; \}/);
-  assert.match(src, /@media \(max-width: 400px\)[^}]*\{[^}]*white-space: normal/s);
+  const events = loadSheet("assets/events.css");
+  assert.equal(events.getDecl(".ev-more .h-btn", "max-width"), "100%");
+  const narrow = events.list.filter((r) => r.at === "@media (max-width: 400px)");
+  assert.ok(narrow.some((r) => r.decls.some((d) => d.prop === "white-space" && d.value === "normal")), "a rule under 400px sets white-space: normal");
 });
 
 test("the phone nav is a Menu whose open panel stacks the links in a column (nothing scrolls off-screen)", () => {
-  const src = fs.readFileSync(path.join(__dirname, "..", "..", "public", "site-header.css"), "utf8");
-  const mobile = src.slice(src.indexOf("@media (max-width: 640px)"), src.indexOf("/* ---------- Footer"));
-  assert.match(mobile, /\.h-menu-links \{[^}]*flex-direction: column/s);
-  assert.doesNotMatch(mobile, /overflow-x:\s*auto/);
+  const header = loadSheet("public/site-header.css");
+  assert.equal(header.getDecl("header.mkt-header .h-menu-links", "flex-direction", { at: "@media (max-width: 640px), (max-height: 500px) and (max-width: 1000px)" }), "column");
+  const sideways = header.list.filter((r) => r.at.includes("640px")).flatMap((r) => r.decls).filter((d) => d.prop === "overflow-x" && d.value === "auto");
+  assert.deepEqual(sideways, []);
 });

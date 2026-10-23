@@ -14,19 +14,19 @@
   .bk-top h1 { font-size: clamp(32px, 6.4vh, 72px); }
 }
 .bk-search {
-  display: flex; max-width: 1020px; margin: 0 auto; border: 1px solid #cfcac0; background: var(--panel);
+  display: flex; max-width: 1020px; margin: 0 auto; border: 1px solid var(--line-strong); background: var(--panel);
 }
 .bk-search .icon { display: flex; align-items: center; padding: 0 6px 0 16px; color: var(--ink); }
 .bk-search .icon svg { width: 22px; height: 22px; }
 .bk-search input {
   flex: 1; min-width: 0; border: 0; background: transparent; color: var(--ink);
-  font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; font-size: 18px; padding: 12px 10px;
+  font-family: var(--font-serif); font-size: 18px; padding: 12px 10px;
 }
 .bk-search input:focus { outline: none; }
 .bk-search:focus-within { outline: 2px solid var(--btn-bg); outline-offset: 1px; }
 .bk-search button {
   flex: 0 0 auto; border: 0; cursor: pointer; background: #5f7a58; color: #fff; padding: 0 52px;
-  font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; font-weight: 600; font-size: 16px; letter-spacing: 0.16em; text-transform: uppercase;
+  font-family: var(--font-serif); font-weight: 600; font-size: 16px; letter-spacing: 0.16em; text-transform: uppercase;
 }
 .bk-search button:hover { background: var(--btn-bg); }
 
@@ -42,7 +42,7 @@
 .bk-sec-title { font-size: 40px; line-height: 1; margin: 0 0 12px; }
 .bk-genre {
   display: flex; flex-direction: column; align-items: center; gap: 6px; background: none; border: 0; padding: 0;
-  cursor: pointer; color: var(--ink); font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; font-size: 13.5px;
+  cursor: pointer; color: var(--ink); font-family: var(--font-serif); font-size: 13.5px;
   line-height: 1.15; text-align: center;
 }
 .bk-genre .chip {
@@ -65,15 +65,16 @@
 .bk-results { padding: 28px 0 34px; }
 .bk-results[hidden] { display: none; }
 .bk-results-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
-.bk-results-head h2 { font-size: 32px; }
+.bk-results-head h2 { font-size: 32px; overflow-wrap: anywhere; }
 .bk-results-head h2:focus { outline: none; } /* focused by script after a search, only so keyboard and screen-reader users land on the results */
 .bk-link-btn {
   background: none; border: 0; padding: 2px 0; min-height: 28px; cursor: pointer; color: var(--ink);
-  font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; font-size: 18px;
+  font-family: var(--font-serif); font-size: 18px;
 }
 .bk-link-btn:hover { color: var(--maroon); }
 .bk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 26px 22px; }
-.bk-results .muted { color: var(--ink-soft); }
+.bk-grid > *, .bk-results > * { min-width: 0; } /* a grid or flex item may shrink below its longest word */
+.bk-results .muted { color: var(--ink); }
 
 /* ---------- Book card (results + New In) ---------- */
 .bk-book { position: relative; }
@@ -84,14 +85,14 @@
      and makes a tall narrow box. contain shows the whole cover instead of cropping it. */
   box-shadow: 0 2px 6px var(--shadow);
 }
-.bk-book .cover-missing { font-size: 16px; font-style: italic; color: var(--ink-soft); }
+.bk-book .cover-missing { font-size: 16px; font-style: italic; color: var(--ink); }
 .bk-book .cover-none {
   display: flex; align-items: center; justify-content: center; text-align: center; padding: 10px;
-  color: var(--ink-soft); font-size: 16px; font-style: italic;
+  color: var(--ink); font-size: 16px; font-style: italic;
 }
-.bk-book .t { font-size: 18px; line-height: 1.2; margin-top: 12px; }
-.bk-book .a { font-size: 16px; color: var(--ink-soft); margin-top: 2px; }
-.bk-book .p { font-size: 15.5px; color: var(--ink-soft); }
+.bk-book .t { font-size: 18px; line-height: 1.2; margin-top: 12px; overflow-wrap: anywhere; hyphens: auto; hyphenate-limit-chars: 9 4 3; }
+.bk-book .a { font-size: 16px; color: var(--ink); margin-top: 2px; overflow-wrap: anywhere; hyphens: auto; hyphenate-limit-chars: 9 4 3; }
+.bk-book .p { font-size: 15.5px; color: var(--ink); overflow-wrap: anywhere; }
 .bk-book a:hover .t { color: var(--maroon); }
 .bk-book .favorite-toggle { top: 8px; right: 8px; }
 
@@ -134,7 +135,7 @@
   flex: 0 0 calc((100cqw - (var(--per) - 1) * var(--gap)) / var(--per)); min-width: 0;
   scroll-snap-align: start; scroll-snap-stop: always;
 }
-.bk-track .muted { color: var(--ink-soft); flex: 1; }
+.bk-track .muted { color: var(--ink); flex: 1; }
 @container (min-width: 440px) { .bk-track .bk-book { --per: 3; } }
 @container (min-width: 640px) { .bk-track .bk-book { --per: 4; } }
 @container (min-width: 880px) { .bk-track .bk-book { --per: 5; } }
@@ -186,8 +187,8 @@
 .bk-band-item .badge.light { background: #efe0d6; color: var(--green); }
 .bk-band-item .badge svg { width: 34px; height: 34px; }
 .bk-band-item > div { flex: 1; min-width: 0; }
-.bk-band-item h3 { font-size: 21px; line-height: 1.15; }
-.bk-band-item p { margin: 2px 0 0; font-size: 16px; line-height: 1.25; color: var(--ink-soft); }
+.bk-band-item h3 { font-size: 21px; line-height: 1.15; overflow-wrap: anywhere; }
+.bk-band-item p { margin: 2px 0 0; font-size: 16px; line-height: 1.25; color: var(--ink); overflow-wrap: anywhere; }
 .bk-band-item .btn { flex: 0 0 auto; padding: 10px 18px; font-size: 14.5px; letter-spacing: 0.08em; margin-left: auto; }
 @media (max-width: 1200px) {
   .bk-band-row { grid-template-columns: 1fr; gap: 20px; padding: 24px 24px; }
@@ -220,8 +221,8 @@ body:has(.bk-band) .mkt-footer { margin-top: 38px; }
    page buttons (dark green, bold serif, same size). */
 .bk-search button {
   background: var(--btn-bg); color: #fff; border-color: var(--btn-bg);
-  font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; font-weight: 700; letter-spacing: 0.1em;
-  font-size: 15px; -webkit-font-smoothing: auto;
+  font-family: var(--font-serif); font-weight: 700; letter-spacing: 0.1em;
+  font-size: 15px; -webkit-font-smoothing: auto; -moz-osx-font-smoothing: auto;
 }
 .bk-search button:hover { background: var(--btn-bg-dark); border-color: var(--btn-bg-dark); }
 @media (min-width: 1025px) and (min-height: 480px) {
@@ -231,7 +232,7 @@ body:has(.bk-band) .mkt-footer { margin-top: 38px; }
   .bk-search button { font-size: 11.5px; }
 }
 
-.bk-covernote { font-size: 13px; opacity: .75; margin: 14px 0 0; }
+.bk-covernote { font-size: 13px; opacity: .75; margin: 14px 0 0; overflow-wrap: anywhere; }
 
 /* No-JavaScript fallback list (inside <noscript>, views/marketing/books.ejs). */
 .bk-noscript { max-width: 760px; margin: 24px auto; padding: 0 16px; }

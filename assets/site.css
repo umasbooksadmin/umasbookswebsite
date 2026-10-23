@@ -33,18 +33,22 @@
   --cream-alt: #f5f0e6;
   --panel: #ffffff;
   --ink: #000;
-  --ink-soft: #000;
   --green: #43523a;
-  --green-soft: #5b6b50;
   --maroon: #a65347;
   --maroon-dark: #8f5148;
-  --maroon-soft: #a65347;
   --gold: #c4933f;
   --gold-dark: #8c6627; /* darkened from #a77a2e — that shade was 3.81:1 on --cream, failing WCAG AA (4.5:1) for the normal-size text it's used for (form labels, kickers); this clears 5.15:1 */
   --btn-bg: #43523a;
   --btn-bg-dark: #34402d;
   --line: #e4e0d8;
   --card-border: #e4e0d8;
+  --line-strong: #cfcac0; /* form-field and button-tile borders (books.css, collections.css) */
+  /* Font stacks: the one place each is written (the fallback faces are the size-adjusted @font-face rules at the top of this file). */
+  --font-serif: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif;
+  --font-baskerville: 'Libre Baskerville', 'Libre Baskerville Fallback', Georgia, serif;
+  --font-nunito: 'Nunito Sans', 'Nunito Sans Fallback', 'Helvetica Neue', Arial, sans-serif;
+  --font-montserrat: 'Montserrat', 'Montserrat Fallback', sans-serif;
+  --font-script: 'Italianno', cursive;
   --shadow: rgba(43, 42, 38, 0.12);
   color-scheme: light;
 }
@@ -60,7 +64,7 @@ body {
   margin: 0;
   background: var(--cream);
   color: var(--ink);
-  font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif;
+  font-family: var(--font-serif);
   font-size: 19px;
   font-weight: 500;
   line-height: 1.6;
@@ -84,18 +88,9 @@ a { color: var(--maroon); }
    the header/footer it sits next to — loaded here too (see
    views/marketing/partials/mkt_header.ejs), one copy for every page. */
 
-/* Generic browser-back link shown above <main> on every marketing page
-   except the homepage (index.html) — see .site-back-bar markup right
-   after </header> in each page. Kept in sync by hand with the matching
-   rule in umas-books/public/site-header.css. */
-.site-back-bar { max-width: 1180px; margin: 0 auto; padding: 0 28px 14px; }
-.site-back-link {
-  display: inline-flex; align-items: center; gap: 6px; font-size: 15px;
-  font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; color: var(--maroon); text-decoration: none;
-}
-.site-back-link:hover { text-decoration: underline; }
+/* .site-back-bar / .site-back-link: owned by umas-books/public/site-header.css (it also serves the app pages). */
 
-h1, h2, h3 { font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; font-weight: 500; color: var(--ink); margin: 0; text-wrap: balance; }
+h1, h2, h3 { font-family: var(--font-serif); font-weight: 500; color: var(--ink); margin: 0; text-wrap: balance; }
 img { max-width: 100%; display: block; }
 
 .wrap { max-width: 1180px; margin: 0 auto; padding: 0 28px; }
@@ -108,7 +103,7 @@ img { max-width: 100%; display: block; }
 
 /* ---------- Buttons ---------- */
 .btn {
-  display: inline-block; font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; font-weight: 600;
+  display: inline-block; font-family: var(--font-serif); font-weight: 600;
   font-size: 15px; letter-spacing: 0.14em; text-transform: uppercase; text-decoration: none;
   padding: 13px 26px; border-radius: 0; border: 1px solid var(--btn-bg); cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease;
@@ -142,7 +137,7 @@ img { max-width: 100%; display: block; }
 .promo-card .photo-block { aspect-ratio: 16 / 10; }
 .promo-card .promo-body { padding: 26px 28px 30px; }
 .promo-card h3 { font-size: 24px; margin-bottom: 10px; }
-.promo-card p { color: var(--ink-soft); margin: 0 0 20px; }
+.promo-card p { color: var(--ink); margin: 0 0 20px; }
 
 /* ---------- Footer ----------
    Moved to umas-books/public/site-header.css (.mkt-footer), alongside
@@ -151,7 +146,7 @@ img { max-width: 100%; display: block; }
 /* ---------- Shared chapter / content block styles (sub-pages) ---------- */
 .page-hero { padding: 54px 28px 10px; text-align: center; }
 .page-hero .kicker {
-  font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; font-weight: 600; text-transform: uppercase;
+  font-family: var(--font-serif); font-weight: 600; text-transform: uppercase;
   font-size: 14px; letter-spacing: 0.14em; color: var(--gold-dark);
 }
 .page-hero h1 { font-size: clamp(30px, 4.4vw, 46px); margin-top: 8px; text-transform: uppercase; letter-spacing: 0.08em; }
@@ -168,22 +163,22 @@ img { max-width: 100%; display: block; }
   padding: 18px 22px; display: flex; gap: 16px; align-items: baseline;
 }
 .card .card-title { font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', serif; font-weight: 600; font-size: 20px; color: var(--ink); flex: 0 0 auto; min-width: 190px; }
-.card .card-desc { color: var(--ink-soft); font-size: 18px; }
+.card .card-desc { color: var(--ink); font-size: 18px; }
 @media (max-width: 560px) { .card { flex-direction: column; gap: 4px; } .card .card-title { min-width: 0; } }
 
 .form-title { font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', serif; font-weight: 600; font-size: 24px; color: var(--ink); text-align: center; margin: 32px 0 0; }
 .formcard { max-width: 62ch; margin: 20px auto 0; display: flex; flex-direction: column; gap: 14px; }
 .formcard .field { display: flex; flex-direction: column; gap: 6px; text-align: left; }
-.formcard label { font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; font-weight: 600; letter-spacing: 0.08em; font-size: 14px; text-transform: uppercase; color: var(--gold-dark); }
+.formcard label { font-family: var(--font-serif); font-weight: 600; letter-spacing: 0.08em; font-size: 14px; text-transform: uppercase; color: var(--gold-dark); }
 .formcard input, .formcard textarea {
-  font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; font-size: 17.5px; color: var(--ink);
+  font-family: var(--font-serif); font-size: 17.5px; color: var(--ink);
   background: var(--panel); border: 1px solid var(--card-border); border-radius: 3px; padding: 10px 12px;
 }
 .formcard textarea { resize: vertical; min-height: 80px; }
 .formcard input:focus, .formcard textarea:focus { outline: 2px solid var(--maroon); outline-offset: 1px; }
-.form-hint { font-size: 15.5px; color: var(--ink-soft); max-width: 62ch; margin: -4px auto 0; text-align: left; }
+.form-hint { font-size: 15.5px; color: var(--ink); max-width: 62ch; margin: -4px auto 0; text-align: left; }
 .btn-submit {
-  align-self: flex-start; font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; font-weight: 600; font-size: 15.5px;
+  align-self: flex-start; font-family: var(--font-serif); font-weight: 600; font-size: 15.5px;
   letter-spacing: 0.04em; text-transform: uppercase; color: #fff; background: var(--btn-bg); border: 0; border-radius: 3px;
   padding: 12px 26px; cursor: pointer; transition: background 0.15s ease;
 }
@@ -191,17 +186,17 @@ img { max-width: 100%; display: block; }
 
 .scheduletable { width: 100%; max-width: 62ch; margin: 20px auto 0; border-collapse: collapse; font-size: 17px; }
 .scheduletable th, .scheduletable td { padding: 10px 14px; border-bottom: 1px solid var(--line); text-align: left; }
-.scheduletable th { font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; text-transform: uppercase; letter-spacing: 0.06em; font-size: 14px; color: var(--gold-dark); font-weight: 600; }
+.scheduletable th { font-family: var(--font-serif); text-transform: uppercase; letter-spacing: 0.06em; font-size: 14px; color: var(--gold-dark); font-weight: 600; }
 
 .visit-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; max-width: 62ch; margin: 0 auto; text-align: center; }
 @media (max-width: 620px) { .visit-grid { grid-template-columns: 1fr; gap: 30px; } }
-.visit-item .label { font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; text-transform: uppercase; font-weight: 600; letter-spacing: 0.1em; font-size: 13.5px; color: var(--gold-dark); display: block; margin-bottom: 8px; }
+.visit-item .label { font-family: var(--font-serif); text-transform: uppercase; font-weight: 600; letter-spacing: 0.1em; font-size: 13.5px; color: var(--gold-dark); display: block; margin-bottom: 8px; }
 .visit-item .value { font-size: 17px; color: var(--ink); }
 .visit-item .value a { color: var(--maroon); text-decoration: none; border-bottom: 1px solid var(--line); }
 .visit-item .hours-row { display: flex; justify-content: space-between; gap: 8px; max-width: 200px; margin: 0 auto; }
 .detail-row { display: flex; gap: 16px; align-items: flex-start; }
 .detail-row dt {
-  font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; text-transform: uppercase; letter-spacing: 0.06em;
+  font-family: var(--font-serif); text-transform: uppercase; letter-spacing: 0.06em;
   font-size: 14px; color: var(--gold-dark); font-weight: 600; margin: 0 0 3px;
 }
 .detail-row dd { margin: 0; color: var(--ink); line-height: 1.5; }
@@ -209,7 +204,7 @@ img { max-width: 100%; display: block; }
 .favorite-toggle {
   position: absolute; top: 6px; right: 6px; z-index: 2; width: 28px; height: 28px; border-radius: 50%;
   background: rgba(255,255,255,0.88); border: 1px solid var(--card-border); display: flex;
-  align-items: center; justify-content: center; color: var(--ink-soft); cursor: pointer; padding: 0;
+  align-items: center; justify-content: center; color: var(--ink); cursor: pointer; padding: 0;
 }
 .favorite-toggle svg { width: 16px; height: 16px; fill: none; }
 .favorite-toggle:hover { color: var(--maroon); }
@@ -260,8 +255,8 @@ body:not(.home) .mkt-footer { margin-top: 56px; }
 
 /* White lettering on the dark green buttons: bolder weight and the
    browser's default smoothing so the thin serif reads as bright white
-   instead of greyish. */
-.btn-maroon, .btn-submit, .h-btn:not(.h-btn-outline), .bk-search button, .btn-outline:hover, .h-btn-outline:hover {
+   instead of greyish. (.bk-search button is in books.css and .h-btn-outline:hover in home.css, their owners.) */
+.btn-maroon, .btn-submit, .h-btn:not(.h-btn-outline), .btn-outline:hover {
   font-weight: 700; -webkit-font-smoothing: auto; -moz-osx-font-smoothing: auto;
 }
 
@@ -304,11 +299,13 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
    The same rules are in the app's public/style.css for the pages that do not load this file. */
 body { overflow-wrap: break-word; }
 h1, h2, h3, h4, h5, h6, p, li, dt, dd, summary, label, blockquote, figcaption { overflow-wrap: anywhere; }
-.wn-text, .wn-title, .wn-excerpt, .wn-tag, .ev-title, .ev-meta, .ev-desc, .blog-title, .blog-excerpt, .blog-card-body,
-.bk-book .t, .bk-book .a, .bk-book .p, .bk-results-head h2, .bk-covernote, .bk-band-item h3, .bk-band-item p { overflow-wrap: anywhere; }
-.wn-title, .wn-excerpt, .ev-title, .ev-desc, .blog-title, .blog-excerpt, .bk-book .t, .bk-book .a { hyphens: auto; hyphenate-limit-chars: 9 4 3; }
-.wn-slide > *, .ev-item > *, .blog-grid > *, .blog-card-link > *, .bk-grid > *, .bk-results > * { min-width: 0; }
-.bk-grid { grid-template-columns: repeat(auto-fill, minmax(min(150px, 100%), 1fr)); }
+/* The same wrapping rules for the page-specific classes (.wn-*, .blog-*, .ev-*, .bk-*) live in their own sheets
+   (blog.css, events.css, books.css): one owner per class. */
+
+/* Tap targets (WCAG 2.2, 2.5.8: at least 24x24). Links inside paragraphs, lists and table cells are 17-23px high;
+   vertical padding on an INLINE element makes its box (and its clickable area) taller without changing the line
+   spacing. The same rule is in public/style.css for the app and admin pages (the two base sheets never load together). */
+main p a:not(.btn), main li a:not(.btn), main td a:not(.btn), main label a:not(.btn), main dd a:not(.btn), main .value a:not(.btn) { padding-block: 4px; }
 
 /* Phones and touch screens: 44px tap targets for the buttons and arrows (the look is the same, only taller). */
 @media (max-width: 700px), (pointer: coarse) {

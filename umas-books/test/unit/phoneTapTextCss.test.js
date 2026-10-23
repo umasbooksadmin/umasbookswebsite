@@ -10,85 +10,75 @@ const path = require("node:path");
 
 const ROOT = path.join(__dirname, "..", "..", "..");
 const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), "utf8");
-const flat = (s) => s.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/\s+/g, " ");
-const has = (css, re, note = "") => assert.ok(re.test(flat(css)), `CSS rule missing: ${note || re}`);
-const style = read("umas-books", "public", "style.css");
-const header = read("umas-books", "public", "site-header.css");
-const fcal = read("umas-books", "public", "floral-calendar.css");
-const admin = read("umas-books", "public", "admin.css");
+const { loadSheet } = require("../helpers/css");
+const style = loadSheet("public/style.css");
+const header = loadSheet("public/site-header.css");
+const fcal = loadSheet("public/floral-calendar.css");
+const admin = loadSheet("public/admin.css");
+const blog = loadSheet("assets/blog.css");
+const books = loadSheet("assets/books.css");
+const site = loadSheet("assets/site.css");
+const dashboard = loadSheet("public/dashboard.css");
+const events = loadSheet("assets/events.css");
+const immersion = loadSheet("assets/immersion.css");
 
-// the CSS text of a block: from `query` to its matching closing brace
-function block(css, query) {
-  const i = css.indexOf(query);
-  assert.ok(i >= 0, `${query} exists`);
-  let d = 0;
-  let j = css.indexOf("{", i);
-  const start = j;
-  for (; j < css.length; j++) {
-    if (css[j] === "{") d++;
-    if (css[j] === "}" && --d === 0) break;
-  }
-  return css.slice(start, j);
-}
-const TOUCH = "@media (max-width: 700px), (pointer: coarse) {";
+const TOUCH = { at: "@media (max-width: 700px), (pointer: coarse)" };
+const PHONE_MENU = { at: "@media (max-width: 640px), (max-height: 500px) and (max-width: 1000px)" };
+const ANY = { at: "*" };
+const isDecl = (sheet, sel, expected, opts) => {
+  for (const [prop, value] of Object.entries(expected)) assert.equal(sheet.getDecl(sel, prop, opts), value, `${sel} { ${prop} }`);
+};
 
-// every `selector { ... font-size: Npx` pair in a stylesheet: the size of the first rule that names the selector exactly
-function sizeOf(css, selector) {
-  const c = css.replace(/\/\*[\s\S]*?\*\//g, " ");
-  const esc = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const m = c.match(new RegExp(`(?:^|[}\\s,])${esc}\\s*(?:,[^{]*)?\\{([^}]*)\\}`));
-  assert.ok(m, `rule for ${selector}`);
-  const f = m[1].match(/font-size:\s*([\d.]+)px/);
-  assert.ok(f, `${selector} sets a font-size in px`);
-  return Number(f[1]);
+// the font size (px) of the first rule that names the selector; that rule must set one
+function sizeOf(sheet, selector) {
+  const rule = sheet.getRules(selector, ANY)[0];
+  assert.ok(rule, `rule for ${selector}`);
+  const f = rule.decls.find((d) => d.prop === "font-size");
+  assert.ok(f && /px$/.test(f.value), `${selector} sets a font-size in px`);
+  return Number.parseFloat(f.value);
 }
 
 test("tap targets on a phone or touch screen: buttons, fields, tick-boxes, disclosure lines and standalone links are 44px", () => {
-  const touch = block(style, TOUCH);
-  has(touch, /\.btn, \.btn-small, \.btn-outline \{[^}]*min-height: 44px; min-width: 44px;/, "buttons 44px");
-  has(touch, /:where\(input:not\(\[type="checkbox"\]\).*?, select\) \{ min-height: 44px; \}/, "text fields and selects 44px");
-  has(touch, /input\[type="checkbox"\], input\[type="radio"\] \{ width: 24px; height: 24px;/, "24px tick-boxes");
-  has(touch, /label:has\(> input\[type="checkbox"\]\), label:has\(> input\[type="radio"\]\) \{[^}]*min-height: 44px;/, "tick-box line is a 44px row");
-  has(touch, /\.password-toggle \{ min-width: 44px; min-height: 44px;/, "password Show button");
-  has(touch, /main summary:not\(\.btn\) \{ padding-block: 11px; \}/, "disclosure lines");
-  has(touch, /\.tap-link, \.admin-back-link, \.dash-view-all \{[^}]*min-height: 44px;/, "standalone links");
-  has(touch, /\.order-row > a, th > a \{[^}]*min-height: 44px;/, "links in a row / table head");
-  has(touch, /\.richtext-toolbar button \{ min-width: 44px; min-height: 44px; \}/, "editor toolbar");
+  for (const sel of [".btn", ".btn-small", ".btn-outline"]) isDecl(style, sel, { "min-height": "44px", "min-width": "44px" }, TOUCH); // buttons 44px
+  const field = style.list.find((r) => r.at === TOUCH.at && r.selectors.some((x) => x.startsWith(':where(input:not([type="checkbox"])') && x.endsWith(", select)")));
+  assert.ok(field, "text fields and selects 44px: a :where(input..., select) rule in the touch block");
+  assert.equal(field.decls.find((d) => d.prop === "min-height").value, "44px");
+  for (const sel of ['input[type="checkbox"]', 'input[type="radio"]']) isDecl(style, sel, { width: "24px", height: "24px" }, TOUCH); // 24px tick-boxes
+  for (const sel of ['label:has(> input[type="checkbox"])', 'label:has(> input[type="radio"])']) isDecl(style, sel, { "min-height": "44px" }, TOUCH); // tick-box line is a 44px row
+  isDecl(style, ".password-toggle", { "min-width": "44px", "min-height": "44px" }, TOUCH);
+  isDecl(style, "main summary:not(.btn)", { "padding-block": "11px" }, TOUCH); // disclosure lines
+  for (const sel of [".tap-link", ".admin-back-link", ".dash-view-all", ".order-row > a", "th > a"]) isDecl(style, sel, { "min-height": "44px" }, TOUCH); // standalone links, links in a row / table head
+  isDecl(style, ".richtext-toolbar button", { "min-width": "44px", "min-height": "44px" }, TOUCH); // editor toolbar
 });
-
 test("tap targets: the touch rule applies at phone width and on any touch screen, so a 1280px mouse desktop is unchanged", () => {
-  for (const [name, css] of [["style.css", style], ["floral-calendar.css", fcal], ["blog.css", read("assets", "blog.css")], ["books.css", read("assets", "books.css")], ["site.css", read("assets", "site.css")]]) {
-    assert.ok(css.includes(TOUCH) || css.includes("@media (max-width: 820px), (pointer: coarse) {"), `${name} has a phone/touch block`);
+  for (const [name, sheet] of [["style.css", style], ["floral-calendar.css", fcal], ["blog.css", blog], ["books.css", books], ["site.css", site]]) {
+    const queries = sheet.atRules("media");
+    assert.ok(queries.includes(TOUCH.at) || queries.includes("@media (max-width: 820px), (pointer: coarse)"), `${name} has a phone/touch block`);
   }
-  // the 44px rules are never at top level (a top-level `.btn { min-height: 44px }` would change the desktop)
-  const i = style.indexOf(TOUCH);
-  const outside = style.slice(0, i) + style.slice(i + block(style, TOUCH).length + 1);
-  assert.doesNotMatch(flat(outside), /\.btn, \.btn-small, \.btn-outline \{/);
-  assert.doesNotMatch(flat(outside), /(^|\} )\.btn \{[^}]*min-height/);
+  // the 44px rules are never outside the touch block (a top-level `.btn { min-height: 44px }` would change the desktop)
+  for (const r of style.list.filter((x) => x.at !== TOUCH.at)) {
+    assert.notDeepEqual(r.selectors, [".btn", ".btn-small", ".btn-outline"], "the button group sits in the touch block only");
+    if (r.selectors.includes(".btn")) assert.ok(!r.decls.some((d) => d.prop === "min-height"), `.btn min-height outside the touch block (${r.at || "top level"})`);
+  }
 });
-
 test("tap targets: Instagram and Facebook icons keep their 24px icon inside a 44px area; hearts have a 50px invisible area; back link is a 44px row", () => {
-  has(header, /footer\.mkt-footer \.h-social svg \{ width: 24px; height: 24px; \}/, "icon stays 24px");
-  has(header, /footer\.mkt-footer \.h-social a \{[^}]*padding: 10px; margin: -10px -4px;/, "44px area around the icon");
-  has(header, /\.favorite-toggle::after \{ content: ""; position: absolute; inset: -10px; \}/, "heart hit area");
-  has(header, /\.site-back-link \{ padding: 0; margin: 0; min-height: 44px; \}/, "back link row on a phone");
+  isDecl(header, "footer.mkt-footer .h-social svg", { width: "24px", height: "24px" }); // icon stays 24px
+  isDecl(header, "footer.mkt-footer .h-social a", { padding: "10px", margin: "-10px -4px" }); // 44px area around the icon
+  isDecl(header, ".favorite-toggle::after", { content: '""', position: "absolute", inset: "-10px" }); // heart hit area
+  isDecl(header, ".site-back-link", { padding: "0", margin: "0", "min-height": "44px" }, TOUCH); // back link row on a phone
   assert.match(read("umas-books", "views", "login.ejs"), /<a class="tap-link" href="\/forgot-password">/);
   assert.match(read("umas-books", "views", "book_detail.ejs"), /<a class="tap-link" href="\/books\.html/);
 });
-
 test("tap targets: carousel arrows (.wn-arrow) and dots, calendar previous/next and Month/Week toggle, password Show", () => {
-  const blog = read("assets", "blog.css");
-  const bt = block(blog, "@media (max-width: 820px), (pointer: coarse) {");
-  has(bt, /\.wn-arrow \{ width: 44px; height: 44px; \}/);
-  has(bt, /\.wn-dot \{ width: 44px; height: 44px; padding: 16px; \}/, "44px dot area, 12px dot (44 - 2 x 16)");
-  has(blog, /\.wn-dot \{[^}]*width: 24px; height: 24px; [^}]*padding: 6px;/, "the desktop dot is unchanged");
-  const ft = block(fcal, TOUCH);
-  has(ft, /\.fcal-nav a \{[^}]*min-width: 44px; min-height: 44px;/, "previous / next");
-  has(ft, /\.fcal-view-toggle a \{[^}]*min-height: 44px;/, "Month / Week toggle");
-  has(ft, /\.fcal-session \.fcal-session-cta \{[^}]*min-height: 44px;/, "buttons inside a day");
-  has(style, /\.password-toggle \{[^}]*font-size: 14px;/);
+  const BLOG_TOUCH = { at: "@media (max-width: 820px), (pointer: coarse)" };
+  isDecl(blog, ".wn-arrow", { width: "44px", height: "44px" }, BLOG_TOUCH);
+  isDecl(blog, ".wn-dot", { width: "44px", height: "44px", padding: "16px" }, BLOG_TOUCH); // 44px dot area, 12px dot (44 - 2 x 16)
+  isDecl(blog, ".wn-dot", { width: "24px", height: "24px", padding: "6px" }); // the desktop dot is unchanged
+  isDecl(fcal, ".fcal-nav a", { "min-width": "44px", "min-height": "44px" }, TOUCH); // previous / next
+  isDecl(fcal, ".fcal-view-toggle a", { "min-height": "44px" }, TOUCH); // Month / Week toggle
+  isDecl(fcal, ".fcal-session .fcal-session-cta", { "min-height": "44px" }, TOUCH); // buttons inside a day
+  isDecl(style, ".password-toggle", { "font-size": "14px" });
 });
-
 test("small text: form labels, table headers and status pills are at least 13px, buttons 14px, weekdays 12.5px or more", () => {
   assert.ok(sizeOf(style, "form.stack label") >= 13);
   assert.ok(sizeOf(admin, ".ann-table th") >= 13);
@@ -108,24 +98,23 @@ test("small text: form labels, table headers and status pills are at least 13px,
   assert.ok(sizeOf(fcal, ".fcal-session .fcal-session-time") >= 13);
   assert.ok(sizeOf(fcal, ".fcal-session .fcal-session-seats") >= 13);
   assert.ok(sizeOf(style, ".calendar-pill") >= 13);
-  assert.ok(sizeOf(read("umas-books", "public", "dashboard.css"), ".dash-ann-date") >= 13);
-  assert.ok(sizeOf(read("assets", "events.css"), ".ev-date .m") >= 13 || true); // inside a media block: checked by the browser step
-  assert.ok(sizeOf(read("assets", "immersion.css"), ".imm-session-card .age-label") >= 13);
+  assert.ok(sizeOf(dashboard, ".dash-ann-date") >= 13);
+  assert.ok(sizeOf(events, ".ev-date .m") >= 13 || true); // inside a media block: checked by the browser step
+  assert.ok(sizeOf(immersion, ".imm-session-card .age-label") >= 13);
   // the sizes below 13px that remain are listed here, with the reason; the e2e step G83 has the same allow-list
-  has(style, /\.calendar-agenda \.calendar-day-weekday \{[^}]*font-size: 12px;/, "weekday word beside a date in the phone list (12px, allowed)");
-  has(fcal, /\.fcal-day-weekday \{[^}]*font-size: 12px;/, "weekday word beside a date in the phone list (12px, allowed)");
+  isDecl(style, ".calendar-agenda .calendar-day-weekday", { "font-size": "12px" }, ANY); // weekday word beside a date in the phone list (12px, allowed)
+  isDecl(fcal, ".fcal-day-weekday", { "font-size": "12px" }, ANY); // weekday word beside a date in the phone list (12px, allowed)
   assert.ok(sizeOf(style, ".book-thumb-placeholder") >= 12, '"No cover" inside a 44x64 thumbnail (12px, allowed)');
 });
 
 test("focus ring: the global :focus-visible rule is in both stylesheets, mouse clicks do not show it", () => {
-  for (const css of [style, read("assets", "site.css")]) {
-    has(css, /:focus-visible \{ outline: 2px solid #1a1a1a; outline-offset: 2px; box-shadow: 0 0 0 2px #fff; \}/);
-    has(css, /\[tabindex="-1"\]:focus-visible \{ outline: none; box-shadow: none; \}/);
+  for (const sheet of [style, site]) {
+    isDecl(sheet, ":focus-visible", { outline: "2px solid #1a1a1a", "outline-offset": "2px", "box-shadow": "0 0 0 2px #fff" });
+    isDecl(sheet, '[tabindex="-1"]:focus-visible', { outline: "none", "box-shadow": "none" });
   }
   // never the plain :focus (which also shows on a mouse click) for the global ring
-  assert.doesNotMatch(flat(style), /(^|[}\s,])(a|button|input|\*):focus \{ outline/);
+  for (const sel of ["a:focus", "button:focus", "input:focus", "*:focus"]) assert.equal(style.getDecl(sel, "outline", ANY), undefined, `${sel} does not draw the ring`);
 });
-
 test("header on a phone: a person icon for My Account, different icons for Log in / Log out, accessible names in both languages", () => {
   const ejs = read("umas-books", "views", "partials", "mkt_chrome_header.ejs");
   assert.doesNotMatch(ejs, /M6 2\.5h12v19/, "the receipt-shaped icon is gone");
@@ -141,27 +130,26 @@ test("header on a phone: a person icon for My Account, different icons for Log i
 });
 
 test("header on a phone: six icons fit one row at 320px (the heart moves into the Menu), a phone turned sideways gets one row", () => {
-  has(header, /header\.mkt-header \.h-tools > \.h-tool, header\.mkt-header \.h-tools > form \{ order: 2; flex: 0 1 44px; min-width: 44px; \}/, "icons are never narrower than 44px");
-  has(header, /header\.mkt-header \.h-logo \{ order: 1; flex: 1 1 72px; min-width: 72px; max-width: 104px; margin-right: auto; \}/, "the logo gives way first");
-  has(header, /header\.mkt-header \.h-logo \{ display: flex; align-items: center; align-self: stretch; \}/, "logo link is as high as the row");
-  has(header, /@media \(max-width: 359px\) \{ header\.mkt-header \.h-tools > \.h-tool\.fav \{ display: none; \} header\.mkt-header \.h-menu-links a\.h-menu-fav \{ display: flex; \} \}/);
+  for (const sel of ["header.mkt-header .h-tools > .h-tool", "header.mkt-header .h-tools > form"]) isDecl(header, sel, { order: "2", flex: "0 1 44px", "min-width": "44px" }, PHONE_MENU); // icons are never narrower than 44px
+  isDecl(header, "header.mkt-header .h-logo", { order: "1", flex: "1 1 72px", "min-width": "72px", "max-width": "104px", "margin-right": "auto" }, PHONE_MENU); // the logo gives way first
+  isDecl(header, "header.mkt-header .h-logo", { display: "flex", "align-items": "center", "align-self": "stretch" }, PHONE_MENU); // logo link is as high as the row
+  isDecl(header, "header.mkt-header .h-tools > .h-tool.fav", { display: "none" }, { at: "@media (max-width: 359px)" });
+  isDecl(header, "header.mkt-header .h-menu-links a.h-menu-fav", { display: "flex" }, { at: "@media (max-width: 359px)" });
   assert.match(read("umas-books", "views", "partials", "mkt_chrome_header.ejs"), /<a class="h-menu-fav" href="\/favorites" data-i18n="tool\.favorites"><%= t\('Favorites', 'Favoris'\) %><\/a>/);
-  const land = block(header, "@media (max-height: 500px) and (max-width: 1000px) {\n  header.mkt-header .h-header-row");
-  has(land, /\.h-header-row \{ flex-wrap: nowrap;/, "one row");
-  has(land, /\.h-tools::after \{ display: none; \}/, "no forced line break");
-  assert.match(header, /@media \(max-width: 640px\), \(max-height: 500px\) and \(max-width: 1000px\) \{/, "the Menu button also on a sideways phone");
+  const LAND = { at: "@media (max-height: 500px) and (max-width: 1000px)" };
+  isDecl(header, "header.mkt-header .h-header-row", { "flex-wrap": "nowrap" }, LAND); // one row
+  isDecl(header, "header.mkt-header .h-tools::after", { display: "none" }, LAND); // no forced line break
+  assert.ok(header.atRules("media").includes(PHONE_MENU.at), "the Menu button also on a sideways phone");
   assert.match(read("umas-books", "public", "site-menu.js"), /\(max-width: 640px\), \(max-height: 500px\) and \(max-width: 1000px\)/, "site-menu.js uses the same condition");
 });
-
 test("header: wide headers (French, signed in, admin) drop the menu under the logo instead of scrolling sideways", () => {
-  for (const re of [
-    /@media \(min-width: 901px\) and \(max-width: 1060px\) and \(min-height: 501px\) \{ :lang\(fr\) header\.mkt-header \{/,
-    /@media \(min-width: 901px\) and \(max-width: 1100px\) and \(min-height: 501px\) \{ header\.mkt-header:has\(\.h-tools > form\) \{/,
-    /@media \(min-width: 901px\) and \(max-width: 1220px\) and \(min-height: 501px\) \{ header\.mkt-header:has\(\.h-tools > a\[href="\/admin"\]\) \{/,
-    /@media \(min-width: 901px\) and \(max-width: 1360px\) and \(min-height: 501px\) \{ :lang\(fr\) header\.mkt-header:has\(\.h-tools > form\) \{/,
-  ]) has(header, re);
+  for (const [at, sel] of [
+    ["@media (min-width: 901px) and (max-width: 1060px) and (min-height: 501px)", ":lang(fr) header.mkt-header"],
+    ["@media (min-width: 901px) and (max-width: 1100px) and (min-height: 501px)", "header.mkt-header:has(.h-tools > form)"],
+    ["@media (min-width: 901px) and (max-width: 1220px) and (min-height: 501px)", 'header.mkt-header:has(.h-tools > a[href="/admin"])'],
+    ["@media (min-width: 901px) and (max-width: 1360px) and (min-height: 501px)", ":lang(fr) header.mkt-header:has(.h-tools > form)"],
+  ]) assert.ok(header.hasRule(sel, { at }), `${sel} has a rule in ${at}`);
 });
-
 test("cart: the 14-day sentence is shown once; the second paragraph says only where and when", () => {
   const { legalFor } = require("../../src/lib/legalText");
   for (const lang of ["en", "fr"]) {
@@ -179,11 +167,11 @@ test("cart: the 14-day sentence is shown once; the second paragraph says only wh
 test("cart: the terms-of-sale line is a normal sentence with a 24px box and a 44px row, not a small uppercase gold label", () => {
   const cart = read("umas-books", "views", "cart.ejs");
   assert.match(cart, /<label class="ann-check"><input type="checkbox" name="acceptCgv" required>/);
-  const rule = flat(style).match(/form\.stack label\.ann-check \{([^}]*)\}/)[1];
-  assert.match(rule, /text-transform: none/);
-  assert.match(rule, /letter-spacing: normal/);
-  assert.match(rule, /min-height: 44px/);
-  const size = Number(rule.match(/font-size: ([\d.]+)px/)[1]);
+  const rule = style.getRule("form.stack label.ann-check");
+  assert.equal(rule["text-transform"], "none");
+  assert.equal(rule["letter-spacing"], "normal");
+  assert.equal(rule["min-height"], "44px");
+  const size = Number.parseFloat(rule["font-size"]);
   assert.ok(size >= 15 && size <= 16, `${size}px`);
-  has(style, /form\.stack label\.ann-check input \{[^}]*width: 24px; height: 24px;/);
+  isDecl(style, "form.stack label.ann-check input", { width: "24px", height: "24px" });
 });

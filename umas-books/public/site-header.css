@@ -8,8 +8,7 @@
    sync by hand with anything else. */
 
 header.mkt-header, footer.mkt-footer {
-  --cream: #fffefb; --ink: #000; --ink-soft: #000; --maroon: #a65347; --line: #e4e0d8;
-  font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; font-weight: 500; color: var(--ink);
+  font-family: var(--font-serif); font-weight: 500; color: var(--ink);
 }
 header.mkt-header { padding-bottom: 32px; }
 @media (max-width: 900px) { header.mkt-header { padding-bottom: 18px; } }
@@ -17,13 +16,13 @@ header.mkt-header a:hover, footer.mkt-footer a:hover { text-decoration: none; }
 
 /* Lets keyboard/screen-reader users jump past the header's tab stops
    straight to the page content — WCAG 2.4.1 (Bypass Blocks), Level A.
-   Sits before header.mkt-header in the DOM (see partials/header.ejs),
-   so it uses --maroon from style.css's global :root, not the scoped
-   copy above. Hidden until it receives focus. */
+   Sits before header.mkt-header in the DOM (see partials/header.ejs).
+   Uses --maroon from the page's :root (site.css or style.css).
+   Hidden until it receives focus. */
 .skip-link {
   position: absolute; top: -100px; left: 12px; z-index: 100;
   background: var(--maroon); color: #fff; padding: 10px 18px; border-radius: 0 0 4px 4px;
-  font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; font-weight: 600; text-decoration: none;
+  font-family: var(--font-serif); font-weight: 600; text-decoration: none;
   transition: top 0.15s ease;
 }
 .skip-link:focus { top: 0; outline: 2px solid #fff; outline-offset: -4px; }
@@ -63,12 +62,11 @@ header.mkt-header a:hover, footer.mkt-footer a:hover { text-decoration: none; }
 /* Generic browser-back link shown above <main> on every page except the
    member dashboard (see hideBackLink in partials/header.ejs) and pages
    that already have their own more specific "back to X" link. Uses the
-   global --maroon from style.css's :root, same reasoning as .skip-link
-   above — it sits outside header.mkt-header's scoped copy. */
+   --maroon from the page's :root, like .skip-link above. */
 .site-back-bar { max-width: 1480px; margin: 0 auto; padding: 0 32px 14px; }
 .site-back-link {
   display: inline-flex; align-items: center; gap: 6px; font-size: 15px;
-  font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; color: var(--maroon); text-decoration: none;
+  font-family: var(--font-serif); color: var(--maroon); text-decoration: none;
 }
 .site-back-link:hover { text-decoration: underline; }
 .site-back-link { padding: 11px 0; margin: -11px 0; }
@@ -98,7 +96,7 @@ header.mkt-header .h-nav {
   /* nav and tools share the same top offset so the menu sits on the same
      line as the icons */
   display: flex; flex-wrap: nowrap; margin: 30px auto 0; padding-left: 16px;
-  font-family: 'Nunito Sans', 'Nunito Sans Fallback', 'Helvetica Neue', Arial, sans-serif;
+  font-family: var(--font-nunito);
 }
 header.mkt-header .h-nav a {
   white-space: nowrap; color: var(--ink); text-decoration: none; font-size: 17px; font-weight: 400;
@@ -110,7 +108,7 @@ header.mkt-header .h-nav a {
 header.mkt-header .h-nav a:hover, header.mkt-header .h-nav a.is-active { color: var(--maroon); border-bottom-color: var(--maroon); }
 header.mkt-header .h-tools {
   display: flex; align-items: flex-start; gap: 22px; margin-top: 30px;
-  font-family: 'Nunito Sans', 'Nunito Sans Fallback', 'Helvetica Neue', Arial, sans-serif;
+  font-family: var(--font-nunito);
 }
 header.mkt-header .h-tool {
   display: flex; flex-direction: column; align-items: center; gap: 3px; color: var(--ink);
@@ -129,13 +127,13 @@ header.mkt-header .langtoggle button {
   /* 32x32 for a mouse, 44x44 on a touch screen (see the pointer: coarse rule below). */
   min-width: 32px; min-height: 32px;
   background: none; border: 0; border-bottom: 1px solid transparent; cursor: pointer; padding: 2px 3px; line-height: 1;
-  font-family: 'Nunito Sans', 'Nunito Sans Fallback', 'Helvetica Neue', Arial, sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 0.06em; color: var(--ink-soft);
+  font-family: var(--font-nunito); font-size: 13px; font-weight: 600; letter-spacing: 0.06em; color: var(--ink);
 }
 /* The toggle is two links on pages that have an English and a French address (see views/partials/mkt_chrome_header.ejs). */
 header.mkt-header .langtoggle a {
   position: relative; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; text-decoration: none;
   min-width: 32px; min-height: 32px; border-bottom: 1px solid transparent; padding: 2px 3px; line-height: 1;
-  font-family: 'Nunito Sans', 'Nunito Sans Fallback', 'Helvetica Neue', Arial, sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 0.06em; color: var(--ink-soft);
+  font-family: var(--font-nunito); font-size: 13px; font-weight: 600; letter-spacing: 0.06em; color: var(--ink);
 }
 header.mkt-header .langtoggle button.is-active, header.mkt-header .langtoggle button:hover,
 header.mkt-header .langtoggle a.is-active, header.mkt-header .langtoggle a:hover { color: var(--maroon); border-bottom-color: var(--maroon); }
@@ -318,10 +316,8 @@ footer.mkt-footer .h-social svg { width: 24px; height: 24px; }
 }
 .preview-banner a { display: inline-flex; align-items: center; min-height: 32px; }
 
-/* Tap targets (WCAG 2.2, 2.5.8: at least 24x24). Links inside paragraphs, lists and table cells are
-   17-23px high; vertical padding on an INLINE element makes its box (and its clickable area) taller
-   without changing the line spacing. Footer links are inline-blocks with the same padding. */
-main p a:not(.btn), main li a:not(.btn), main td a:not(.btn), main label a:not(.btn), main dd a:not(.btn), main .value a:not(.btn) { padding-block: 4px; }
+/* Tap targets (WCAG 2.2, 2.5.8): the padding on links inside paragraphs, lists and table cells (main p a ...) is in
+   assets/site.css (marketing) and public/style.css (app and admin), each base sheet owns its own copy. */
 main summary { padding-block: 3px; }
 
 footer.mkt-footer li a { display: inline-block; padding: 6px 0; }

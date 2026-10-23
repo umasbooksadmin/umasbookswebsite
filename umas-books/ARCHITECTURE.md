@@ -1113,6 +1113,47 @@ Archive is never printed in a page: it is downloaded once and stored too
   fits in the web font also fits in the stand-in); re-measure if a font file changes.
   Phones without Georgia/Arial (some Android) fall through to the generic font as before.
 
+## CSS ownership
+
+Three layouts, three base sheets. A page loads exactly one of these sets (the real `<link>` tags are in the three layout
+partials; `test/helpers/cssPages.js` reads them):
+
+| Layout (partial) | Pages | Sheets, in load order |
+|---|---|---|
+| `marketing/partials/mkt_header.ejs` | the public marketing site | `assets/site.css`, `public/site-header.css`, `print.css` (print only), then the page's `extraCss` |
+| `partials/header.ejs` | members area and shop (login, account, cart, dashboard, events...) | `public/style.css`, `public/site-header.css`, `print.css` (print only), then `extraCss` (`dashboard.css`, `floral-calendar.css`) |
+| `partials/admin_header.ejs` | admin | `public/style.css`, `public/admin.css`, then `extraCss` (`till.css`, `scan-intake.css`) |
+
+`assets/site.css` and `public/style.css` are two alternative base sheets: they never load on the same page, so each
+repeats the same design tokens, font faces, focus ring and basic buttons (kept in step by `test/unit/cssOwnership.test.js`).
+`site-header.css` (the shared header, footer, back bar, skip link) is the only sheet both public systems load.
+
+**Who owns what.** `site.css` / `style.css`: tokens, base elements, buttons, cards, forms of their system. `site-header.css`:
+`.mkt-header`, `.mkt-footer`, `.site-back-bar`, `.skip-link`, `.preview-banner`, `.langtoggle`, `.favorite-toggle::after`.
+A page sheet (`home.css`, `books.css`, `blog.css`, `events.css`, `dashboard.css`, `till.css`...) owns every class that starts
+with its prefix (`.bk-`, `.wn-`/`.blog-`, `.ev-`, `.dash-`, `.till-`...), **including the wrapping and shrinking rules for them**
+(`overflow-wrap`, `hyphens`, `min-width: 0`): they live next to the rest of the class, not in the base sheet.
+
+**The rule: one owner per shared class.** A selector is declared in one sheet only among the sheets of a page type. Two sheets that
+load together and both declare it make the winner depend on `<link>` order, and an edit to one silently does nothing or changes
+the other system. To add to a class another sheet owns, edit the owner. To override it for one page, scope the override with
+`:where(.page-wrapper) .the-class` (specificity stays the same, so the cascade does not move) and put it in the page sheet.
+`test/unit/cssOwnership.test.js` fails when two co-loaded sheets declare the same selector (allowlist: `ALLOWED_SHARED`, empty
+today; every entry needs a reason).
+
+**Design tokens** (`:root` of `site.css` and `style.css`, same values): colours `--cream`, `--panel`, `--ink`, `--green`,
+`--maroon`, `--maroon-dark`, `--gold`, `--gold-dark`, `--btn-bg`, `--btn-bg-dark`, `--line`, `--card-border`, `--line-strong`
+(field and tile borders); fonts `--font-serif` (Cormorant Garamond, body and headings), `--font-baskerville`, `--font-nunito`,
+`--font-montserrat`, `--font-script` (the stacks are written once; the size-adjusted fallback faces are the `@font-face` rules at the
+top). Only `site.css` also has `--cream-alt` and `--shadow` (marketing sheets only). Use the token when a colour equals one; do not
+type the hex or a font stack again. `--ink-soft`, `--maroon-soft` and `--green-soft` were removed: they held the same value as
+`--ink`/`--maroon` (or were unused), so a "softer" grey is a new design decision, to add as a new token when someone wants it.
+Known gap: `floral-calendar.css` uses `--cream-alt`, which `style.css` does not define, so `.fcal-day.is-empty` has no background
+in the app (listed in `KNOWN_MISSING_TOKENS` of the test; defining the token would tint those days).
+
+Tests read stylesheets through `test/helpers/css.js` (`loadSheet(file).getDecl(selector, prop, { at })`, `getRule`, `hasRule`),
+which parses with postcss, instead of matching the source text with regular expressions.
+
 ## Reservations: reserve online, pay in the shop
 
 **Reserving requires an account.** A guest can browse, search and fill the cart
