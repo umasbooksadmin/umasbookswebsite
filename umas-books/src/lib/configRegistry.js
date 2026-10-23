@@ -550,7 +550,7 @@ const REGISTRY = [
     defaultText: "1",
     doc: "Month the financial year starts, for the monthly accounting export",
     example: "1",
-    github: {"kind":"variable","usedBy":"accounting export","doc":"See above"},
+    github: {"kind":"variable","usedBy":"accounting export","doc":"Month the financial year starts (1 to 12), for the monthly accounting export"},
   },
   {
     name: "HELLOASSO_CLIENT_ID", kind: "string", scope: "app", section: "helloasso",
@@ -696,25 +696,25 @@ const REGISTRY = [
     name: "BACKUP_S3_BUCKET", kind: "string", scope: "workflow",
     secret: false, where: "github-variable",
     doc: "Backblaze bucket location (name)",
-    github: {"kind":"variable","usedBy":"same","doc":"Backblaze bucket location (name)"},
+    github: {"kind":"variable","usedBy":"backup, restore test, freshness, exports","doc":"Backblaze bucket location (name)"},
   },
   {
     name: "BACKUP_S3_ENDPOINT", kind: "string", scope: "workflow",
     secret: false, where: "github-variable",
     doc: "Backblaze bucket location (endpoint)",
-    github: {"kind":"variable","usedBy":"same","doc":"Backblaze bucket location (endpoint)"},
+    github: {"kind":"variable","usedBy":"backup, restore test, freshness, exports","doc":"Backblaze bucket location (endpoint)"},
   },
   {
     name: "BACKUP_S3_REGION", kind: "string", scope: "workflow",
     secret: false, where: "github-variable",
     doc: "Backblaze bucket location (region)",
-    github: {"kind":"variable","usedBy":"same","doc":"Backblaze bucket location (region)"},
+    github: {"kind":"variable","usedBy":"backup, restore test, freshness, exports","doc":"Backblaze bucket location (region)"},
   },
   {
     name: "BACKUP_S3_PREFIX", kind: "string", scope: "workflow",
     secret: false, where: "github-variable",
     doc: "Backblaze bucket location (key prefix)",
-    github: {"kind":"variable","usedBy":"same","doc":"Backblaze bucket location (key prefix)"},
+    github: {"kind":"variable","usedBy":"backup, restore test, freshness, exports","doc":"Backblaze bucket location (key prefix)"},
   },
   {
     name: "BACKUP_AGE_RECIPIENT", kind: "string", scope: "workflow",

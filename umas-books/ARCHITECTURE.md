@@ -523,14 +523,14 @@ where noted. **Secret** = Secrets tab, **Variable** = Variables tab.
 | `GMAIL_USER` | GitHub secret | every workflow that mails an alert | Same Gmail sender as the site |
 | `GMAIL_APP_PASSWORD` | GitHub secret | every workflow that mails an alert | Same Gmail sender as the site |
 | `ALERT_TO` | GitHub repository variable | every alert | Keep equal to the Render value |
-| `FISCAL_YEAR_START_MONTH` | GitHub repository variable | accounting export | See above |
+| `FISCAL_YEAR_START_MONTH` | GitHub repository variable | accounting export | Month the financial year starts (1 to 12), for the monthly accounting export |
 | `ACCOUNTING_TO` | GitHub repository variable | accounting export, nightly backup | Where the monthly accounting export goes |
 | `BACKUP_S3_KEY_ID` | GitHub secret | backup, restore test, freshness, exports | Backblaze B2 application key (id) |
 | `BACKUP_S3_APPLICATION_KEY` | GitHub secret | backup, restore test, freshness, exports | Backblaze B2 application key (secret part) |
-| `BACKUP_S3_BUCKET` | GitHub repository variable | same | Backblaze bucket location (name) |
-| `BACKUP_S3_ENDPOINT` | GitHub repository variable | same | Backblaze bucket location (endpoint) |
-| `BACKUP_S3_REGION` | GitHub repository variable | same | Backblaze bucket location (region) |
-| `BACKUP_S3_PREFIX` | GitHub repository variable | same | Backblaze bucket location (key prefix) |
+| `BACKUP_S3_BUCKET` | GitHub repository variable | backup, restore test, freshness, exports | Backblaze bucket location (name) |
+| `BACKUP_S3_ENDPOINT` | GitHub repository variable | backup, restore test, freshness, exports | Backblaze bucket location (endpoint) |
+| `BACKUP_S3_REGION` | GitHub repository variable | backup, restore test, freshness, exports | Backblaze bucket location (region) |
+| `BACKUP_S3_PREFIX` | GitHub repository variable | backup, restore test, freshness, exports | Backblaze bucket location (key prefix) |
 | `BACKUP_AGE_RECIPIENT` | GitHub repository variable | nightly backup | Public `age` key backups are encrypted to |
 | `BACKUP_AGE_IDENTITY` | GitHub secret | restore test | Private `age` key (decrypts backups for the drill) |
 | `SITE_URL` | GitHub repository variable | uptime check | Address the check pings |

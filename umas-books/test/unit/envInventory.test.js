@@ -31,6 +31,7 @@ const RAW_READS = {
   "scripts/load-dashboard.js": {
     PGSSLMODE: "sets the variable for the app it is about to require (`x = x || 'disable'`), before config could matter",
   },
+  "scripts/verify-startup-equivalence.js": { EQUIV_IGNORE_HANDLER_SOURCE: "a switch of this developer tool itself, read inside the preload it injects into the child; not an app setting" },
   "scripts/profile-scan.js": { ANTHROPIC_API_KEY: "sets a simulated key for the process it profiles (`x = x || 'sim'`)" },
 };
 
