@@ -22,6 +22,8 @@ const ALLOW = [
   { match: "Have I Been Pwned", reason: "service name in the privacy policy (the password-breach check)" },
   { match: "umasbooks_lang", reason: "literal name of the language cookie, shown in code style in the legal notice" },
   { match: /^[A-Z2-7]{32}$/, reason: "the generated two-step verification key (base32), shown for typing into an app" },
+  { match: "Fiction", reason: "genre button on Browse Books (src/lib/browseGenres.js, drawn by the server): \"Fiction\" is spelled the same in French" },
+  { match: "Romance", reason: "genre button on Browse Books (src/lib/browseGenres.js, drawn by the server): \"Romance\" is spelled the same in French" },
   { match: /^1 vote$/, reason: "\"1 vote\" is spelled the same in French" },
 ];
 

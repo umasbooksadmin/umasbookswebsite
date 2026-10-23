@@ -7,6 +7,6 @@
   document.addEventListener("DOMContentLoaded", function () {
     var target = document.querySelector("[data-form-errors]") || document.querySelector("[data-form-sent]");
     if (!target) return;
-    try { target.focus({ preventScroll: false }); } catch (e) { target.focus(); }
+    try { target.focus({ preventScroll: false }); } catch { target.focus(); }
   });
 })();

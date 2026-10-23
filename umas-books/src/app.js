@@ -403,6 +403,10 @@ function createApp() {
         const st = BooksState.parse(qs(req), [String(req.query.genre || "")]);
         res.locals.newInHidden = !!(st.q || st.genre || st.isNew);
         // The curated-collection buttons (lib/collections.js): published ones with a book in stock, plain view only.
+        // The genre buttons (lib/browseGenres.js), drawn by the page itself; public/page-books.js only reads them back.
+        const browseGenres = require("./lib/browseGenres");
+        res.locals.browseGenres = browseGenres.GENRES;
+        res.locals.iconAttrs = browseGenres.ICON_ATTRS;
         res.locals.collectionButtons = await listButtonCollections(pool).catch(() => []);
         res.locals.collectionsHidden = browseFilterActive(req.query);
       }

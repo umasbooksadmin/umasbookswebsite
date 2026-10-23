@@ -12,8 +12,8 @@ on:
   workflow_dispatch: {}
 
 # Actions minutes: the repository is private and the Free plan has 2,000 minutes
-# a month; a full run is about 20 billed minutes (smoke-crawl 10, test 5, the
-# other four 1 each). Every job below still ALWAYS runs and reports success, so
+# a month; a full run is about 22 billed minutes (smoke-crawl 12: the crawl 10 plus the
+# 2-minute browser subset, test 5, the other four 1 each). Every job below still ALWAYS runs and reports success, so
 # the six required check names never go missing or stay "Pending" (a workflow
 # skipped with `paths:` filters would block merges). Instead, the first step of
 # each job (.github/scripts/ci-changes.sh) looks at the files a pull request
@@ -297,6 +297,14 @@ jobs:
         run: node scripts/sitemap/crawler.js http://localhost:3099 routes.json > crawl.json
       - if: steps.changes.outputs.smoke_needed == 'true'
         run: node scripts/sitemap/assert-crawl-ok.js crawl.json
+
+      # A small browser-test subset (about 1-2 minutes) on its OWN throwaway app and database (130 seeded New In
+      # books): the Browse Books carousel (whole cards, arrows, keys, swipes, batches of 60, the true end) at 375 and
+      # 1280 px, and the genre list's Show more. Same Chrome as the crawl. See umas-books/e2e/ci.js. A failure prints
+      # which width and step, what was on screen, and the app's own log.
+      - name: Browse Books browser checks (carousel and genre Show more)
+        if: steps.changes.outputs.smoke_needed == 'true'
+        run: npm run e2e:ci
 
       - name: Server log (always shown, for debugging a failure above)
         if: always() && steps.changes.outputs.smoke_needed == 'true'

@@ -1738,7 +1738,7 @@ October 2026; a re-measure takes 2 minutes with `gh run list` / the Actions tab)
 
 | Workflow | Runs | Billed minutes per run | Per month |
 |---|---|---|---|
-| CI (6 jobs: smoke-crawl 10, test 5, lint 1, migration-test 1, dependency-audit 1, secret-scan 1) | on every push to a pull request and every merge to main; about 50 a day in the busiest days | about **20** (docs-only change: about **6**; no smoke-crawl: about **10**) | the big one: 20 x number of pushes |
+| CI (6 jobs: smoke-crawl 12 (the crawl 10 + the 2-minute browser subset `npm run e2e:ci`), test 5, lint 1, migration-test 1, dependency-audit 1, secret-scan 1) | on every push to a pull request and every merge to main; about 50 a day in the busiest days | about **22** (docs-only change: about **6**; no smoke-crawl: about **10**) | the big one: 20 x number of pushes |
 | Site uptime check | hourly = 24 a day (was every 30 min: about 1,440 a month) | 1 | about **720** |
 | Nightly database backup | daily | about 1-2 | about 45 |
 | Backup freshness check | daily | 1 | about 30-60 |
@@ -1771,7 +1771,7 @@ not raise the frequency.
 >   all draw on the same 2,000 minutes a month (Free plan; check your plan on
 >   the Billing page). Rough monthly cost with the table above: uptime 720,
 >   backups and checks about 150, exports about 65, **CI is the rest** (about
->   20 per push to a pull request, 6 for a docs-only change).
+>   22 per push to a pull request, 6 for a docs-only change).
 > - **What stops when the minutes run out** (and no spending limit allows more):
 >   CI, so pull requests cannot be checked or merged; the nightly backup and the
 >   backup freshness check; the uptime check; the inventory and accounting
