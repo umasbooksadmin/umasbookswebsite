@@ -617,7 +617,7 @@ guidance prompt, picture, sort order, `published`, `last_generated_at`) and
   time (`lib/collections.js`; a sold or reserved book drops off by itself).
   Publishing needs one approved book and the French title and description.
 * **Generate** reaches the paid API through the same client as the book
-  descriptions (`claudeRequest` in `lib/bookDescription.js`): the shared daily cap,
+  descriptions (`askText` in `lib/anthropic.js`, the one Anthropic client): the shared daily cap,
   the usage counts, the credit alert, and a friendly message instead of an error.
   Candidates are the in-stock books not yet in the collection, cut to the 300 best
   keyword matches, sent in batches of 100; answers are parsed as JSON, ids not in the

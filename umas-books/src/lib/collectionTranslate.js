@@ -2,7 +2,7 @@
 // with the same AI client as the book translations (shared daily cap, usage counts, friendly failure). The result is
 // only put in the form: the admin reads it and presses Save, nothing is stored here.
 
-const { claudeRequest } = require("./bookDescription");
+const { askText } = require("./anthropic");
 const { clampText, MAX_DESCRIPTION } = require("./aiLimits");
 const { explainFailure } = require("./collectionSuggestions");
 
@@ -18,7 +18,7 @@ async function translateShort(english, kind, ask) {
 
 // current: { title_en, description_en, title_fr, description_fr } as typed in the form.
 // -> { ok: true, title_fr, description_fr, filled: [..] } | { ok: false, error }. Fields that already have French are kept.
-async function translateEmptyFrench(current, { ask = claudeRequest } = {}) {
+async function translateEmptyFrench(current, { ask = askText } = {}) {
   const out = { title_fr: String(current.title_fr || ""), description_fr: String(current.description_fr || "") };
   const filled = [];
   for (const [field, srcField, kind] of [["title_fr", "title_en", "title"], ["description_fr", "description_en", "text"]]) {

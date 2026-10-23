@@ -14,19 +14,19 @@
 
 const { SITE_TIME_ZONE } = require("./tz");
 
-// ---- PRICES: ONE place to edit. ---------------------------------------------------------------------------------
-// ESTIMATE ONLY. Check Anthropic's price list (https://www.anthropic.com/pricing) when you change the model.
-// Last updated: 2026-10-09. Source: the Claude API model reference available when this was written
-// (claude-haiku-4-5: 1.00 USD per million input tokens, 5.00 USD per million output tokens).
-// Not priced (so the estimate is a floor, not the bill): cache tokens (the site does not use prompt caching, so they
-// are normally 0) and web searches (the price-check feature uses the web search tool, which Anthropic bills per
-// search on top of the tokens: see the invoice at console.anthropic.com). An unknown model is not estimated.
+// ---- PRICES: read from lib/anthropicModels.js (ONE place to edit models and prices). -----------------------------
+// ESTIMATE ONLY (see the note there). Not priced (so the estimate is a floor, not the bill): cache tokens (the site does
+// not use prompt caching, so they are normally 0) and web searches (the price-check feature uses the web search tool,
+// which Anthropic bills per search on top of the tokens: see the invoice at console.anthropic.com). An unknown model is
+// not estimated.
+const { MODELS, PRICES_UPDATED } = require("./anthropicModels");
+
 const AI_PRICES = {
-  updated: "2026-10-09",
-  usdPerMTok: { "claude-haiku-4-5-20251001": { input: 1.0, output: 5.0 } },
-  // The model the estimate assumes for every feature (all features use TEXT_MODEL; PRICING_AI_MODEL can override the
-  // price check: then its estimate is wrong, the page says so).
-  assumedModel: "claude-haiku-4-5-20251001",
+  updated: PRICES_UPDATED,
+  usdPerMTok: Object.fromEntries(Object.values(MODELS).map((m) => [m.id, { ...m.usdPerMTok }])),
+  // The model the estimate assumes for every feature (the text model; PRICING_AI_MODEL can override the price check:
+  // then its estimate is wrong, the page says so).
+  assumedModel: MODELS.text.id,
 };
 
 const FEATURES = ["description", "translation", "genre", "cover", "price"];
@@ -171,7 +171,7 @@ const getStats = () => current || (current = createAiUsageStats({ alert: require
 // Tests inject a fake (or null to go back to the default).
 const setStats = (s) => { current = s; };
 
-// Convenience used by the four AI modules: never throws, whatever happens.
+// Convenience used by the Anthropic client (lib/anthropic.js): never throws, whatever happens.
 function recordCall(feature, outcome) {
   try { getStats().recordCall(feature, outcome); } catch { /* ignore */ }
 }

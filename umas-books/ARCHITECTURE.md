@@ -1357,8 +1357,8 @@ names the files; read those for the details. Operations for these are in
   `approved` books that are in stock at the moment the page is drawn (read live
   from `book_copies`, never copied), so a sold book leaves the page by itself.
 - **AI generation limits**: Generate / Add new books / Full rebuild / Update all /
-  Translate call the paid API through the shared client (`bookDescription.js`
-  `claudeRequest`), so they count toward `AI_DAILY_MAX_CALLS`; 10 AI requests a
+  Translate call the paid API through the shared client (`anthropic.js`
+  `askText`), so they count toward `AI_DAILY_MAX_CALLS`; 10 AI requests a
   minute per admin; each run looks at no more than 300 candidate books (batches of
   100, at most 12 picks per batch); invented book ids are dropped and each pick is
   re-checked against the database. Existing decisions are never overwritten.
@@ -1380,6 +1380,37 @@ names the files; read those for the details. Operations for these are in
   (`src/routes/seo.js`, which drops its one-hour cache after any admin change).
   The Browse button row lists published collections that have at least one
   approved in-stock book (`listButtonCollections`).
+
+### Anthropic client (`src/lib/anthropic.js`)
+
+Every paid AI call (descriptions, French translations, genres, cover-photo reading,
+the price check, collection suggestions and "Translate to French") goes through ONE
+function, `anthropic.request({ feature, model, system, messages, maxTokens, tools,
+timeoutMs, signal, env, fetchImpl, claim })`. It builds the request (URL, headers,
+`anthropic-version`, JSON body), takes a slot of the shared daily cap
+(`aiLimits.acquireAiCall`; `claim: false` when the caller already holds its slot, as
+the price check does), enforces the time limit, counts the call in `ai_usage_stats`
+(`aiUsageStats.recordCall`, which also drives the credit alert email) and returns
+`{ ok: true, data, status, ms }` or `{ ok: false, kind, message, status?, body? }` with
+`kind` one of `no-key`, `cap`, `no-credit`, `rate-limit`, `http`, `timeout`, `network`,
+`invalid`. It never throws and never logs; each feature maps the kinds to its own
+fallback (usually `null`). `askText(prompt, opts)` is the one-prompt text helper that
+answers `{ text, reason }` (used by the descriptions, the collection helpers).
+
+- **Change a model or a price:** edit `src/lib/anthropicModels.js` only. `MODELS`
+  holds `text`, `vision` and `priceLookup` (id and USD per million tokens); the usage
+  report's cost estimate reads the same table. A test fails if a model id or the API
+  URL appears anywhere else in `src/`.
+- **Add an AI feature:** add its name to `FEATURES` in `aiUsageStats.js` (and the
+  report label), build the prompt in the feature's own module, call `request()` with a
+  model key from `MODELS` and that feature's own `maxTokens` / `timeoutMs` (limits are
+  per feature on purpose: 8 s texts, 20 s photos, 12 s price check, 45 s collection
+  suggestions), and decide what each failure kind means for that feature. Do not call
+  `fetch` for the Anthropic API anywhere else.
+- **Tests:** `test/unit/aiClientEquivalence.test.js` compares every feature against
+  golden outgoing requests and outcomes recorded from the code before the client
+  existed (`scripts/ai-golden.js`, harness `test/helpers/aiMatrix.js`); refresh the
+  golden file only when a request is meant to change.
 
 ### ISBNdb price suggestion
 
