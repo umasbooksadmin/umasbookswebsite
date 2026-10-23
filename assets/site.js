@@ -122,7 +122,7 @@
     try {
       document.cookie = COOKIE_KEY + "=" + lang + "; Path=/; Max-Age=31536000; SameSite=Lax" +
         (location.protocol === "https:" ? "; Secure" : "");
-    } catch (e) {}
+    } catch { /* cookies blocked: the server keeps the language it last saw */ }
   }
 
   // The French site lives under /fr/ (src/lib/frUrls.js): the same public pages, always French.
@@ -219,7 +219,7 @@
       else b.setAttribute("aria-pressed", on ? "true" : "false");
     });
     prefixFrLinks();
-    try { localStorage.setItem(STORE_KEY, lang); } catch (e) {}
+    try { localStorage.setItem(STORE_KEY, lang); } catch { /* storage unavailable (private mode): the choice is just not remembered */ }
     writeLangCookie(lang);
   }
 
@@ -334,7 +334,7 @@
 
   document.addEventListener("DOMContentLoaded", function () {
     var stored = null;
-    try { stored = localStorage.getItem(STORE_KEY); } catch (e) {}
+    try { stored = localStorage.getItem(STORE_KEY); } catch { /* storage unavailable (private mode): the choice is just not remembered */ }
     // A language chosen earlier (localStorage) must reach the server too:
     // fix a missing or differing cookie so the next request matches.
     if ((stored === "fr" || stored === "en") && readLangCookie() !== stored) writeLangCookie(stored);
@@ -347,7 +347,7 @@
         // (the address itself says which language it is, so nothing is swapped here). Clicking the language
         // already shown just stays.
         if (b.tagName === "A") {
-          try { localStorage.setItem(STORE_KEY, lang); } catch (e) {}
+          try { localStorage.setItem(STORE_KEY, lang); } catch { /* storage unavailable (private mode): the choice is just not remembered */ }
           writeLangCookie(lang);
           if (ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.button) return;
           if (b.getAttribute("href") === location.pathname + location.search || b.classList.contains("is-active")) {
@@ -361,7 +361,7 @@
         // asking the server again: remember the choice, then reload.
         if (!window.PAGE_I18N) {
           var changed = lang !== document.documentElement.lang;
-          try { localStorage.setItem(STORE_KEY, lang); } catch (e) {}
+          try { localStorage.setItem(STORE_KEY, lang); } catch { /* storage unavailable (private mode): the choice is just not remembered */ }
           writeLangCookie(lang);
           if (changed) { location.reload(); return; }
         }

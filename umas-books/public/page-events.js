@@ -12,11 +12,7 @@
     var dict = (window.PAGE_I18N && window.PAGE_I18N[lang()]) || {};
     return dict[key] || fallback;
   }
-  function esc(s) {
-    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
-      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
-    });
-  }
+  var esc = window.UmasUI.esc; // public/ui.js
   function fmt(iso, opts) {
     opts.timeZone = 'Europe/Paris';
     return new Date(iso).toLocaleString(lang() === 'fr' ? 'fr-FR' : 'en-GB', opts);

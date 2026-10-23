@@ -106,7 +106,7 @@ test("every cover <img> in the views and public scripts has width, height, an as
   const COVER_LINE = /<img\b.*(?:book-detail-cover|book-card-cover|cart-item-cover|book-thumb|class="cover")/;
   const files = [
     path.join(ROOT, "views", "book_detail.ejs"), path.join(ROOT, "views", "cart.ejs"), path.join(ROOT, "views", "admin", "inventory", "index.ejs"),
-    path.join(ROOT, "public", "page-books.js"), path.join(ROOT, "public", "favorites-page.js"),
+    path.join(ROOT, "public", "ui.js"),
   ];
   let n = 0;
   for (const f of files) {
@@ -119,8 +119,8 @@ test("every cover <img> in the views and public scripts has width, height, an as
   }
   assert.ok(n >= 6, `found ${n} cover images`);
   // Lists load lazily; the one main image does not.
-  assert.match(read(path.join(ROOT, "public", "page-books.js")), /class="cover" src="' \+ esc\(b\.coverUrl\) \+ '"' \+ coverAttrs\(b\.coverUrl, '[^']+'\) \+ ' alt="" width="200" height="300" loading="lazy"/);
-  assert.match(read(path.join(ROOT, "public", "favorites-page.js")), /class="book-card-cover" width="200" height="300" loading="lazy"/);
+  assert.match(read(path.join(ROOT, "public", "ui.js")), /class="cover" src="' \+ esc\(b\.coverUrl\) \+ '"' \+ coverAttrs\(b\.coverUrl, (?:'[^']+'|COVER_SIZES)\) \+ ' alt="" width="200" height="300" loading="lazy"/);
+  assert.match(read(path.join(ROOT, "public", "ui.js")), /class="book-card-cover" width="200" height="300" loading="lazy"/);
 });
 
 test("cover CSS reserves a 2:3 box and a neutral background; failed loads are handled by an external script, not onerror", () => {

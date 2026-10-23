@@ -2,7 +2,9 @@
 <%- include('mkt_chrome_footer') %>
 <script src="<%= assetUrl('/assets/site.js') %>"></script>
 <script src="<%= assetUrl('/favorites.js') %>"></script>
-<script src="<%= assetUrl('/favorites-page.js') %>"></script>
+<%# public/ui.js (shared helpers) is only needed by the pages that draw books in the browser: they pass withUi. %>
+<% if (typeof withUi !== 'undefined' && withUi) { %><script src="<%= assetUrl('/ui.js') %>"></script>
+<% } %><script src="<%= assetUrl('/favorites-page.js') %>"></script>
 <script src="<%= assetUrl('/app.js') %>"></script>
 </body>
 </html>

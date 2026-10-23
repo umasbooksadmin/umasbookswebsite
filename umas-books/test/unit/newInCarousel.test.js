@@ -19,6 +19,7 @@ const { loadSheet } = require("../helpers/css");
 const books = loadSheet("assets/books.css");
 const bookText = read("assets", "books.css");
 const js = read("umas-books", "public", "page-books.js");
+const cjs = read("umas-books", "public", "carousel.js"); // the carousel component itself
 const ejs = read("umas-books", "views", "marketing", "books.ejs");
 
 test("card text is never cut: no line-clamp or ellipsis on the New In titles and authors, long words wrap", () => {
@@ -51,13 +52,13 @@ test("the arrows are 44px, have a focus outline, are disabled at the ends and ar
 });
 
 test("the arrows scroll to a measured card edge (not 80% of the width) from where the last click was heading, and keys work", () => {
-  assert.doesNotMatch(js, /clientWidth \* 0\.8/);
-  assert.match(js, /track\.scrollTo\(\{ left: stopAt\(cards, i\)/);
-  assert.match(js, /var from = heading != null \? heading : nearest\(cards\)/, "rapid clicks add up");
-  assert.match(js, /nextBtn\.disabled = /);
-  assert.match(js, /prevBtn\.disabled = /);
-  assert.match(js, /e\.key !== 'ArrowRight' && e\.key !== 'ArrowLeft'/);
-  assert.match(js, /new ResizeObserver/, "a resize or zoom re-aligns");
+  assert.doesNotMatch(cjs, /clientWidth \* 0\.8/);
+  assert.match(cjs, /track\.scrollTo\(\{ left: stopAt\(cards, i\)/);
+  assert.match(cjs, /var from = heading != null \? heading : nearest\(cards\)/, "rapid clicks add up");
+  assert.match(cjs, /nextBtn\.disabled = /);
+  assert.match(cjs, /prevBtn\.disabled = /);
+  assert.match(cjs, /e\.key !== 'ArrowRight' && e\.key !== 'ArrowLeft'/);
+  assert.match(cjs, /new ResizeObserver/, "a resize or zoom re-aligns");
 });
 
 test("the carousel is only on the plain Browse view: hidden for a search, a genre or See All, and sent hidden by the server", () => {
@@ -82,7 +83,7 @@ test("the carousel loads New In in batches (no all=1, no 12-book limit), the pag
   assert.match(js, /getJSON\(newInBatchUrl\(0\)/, "first batch: the newest 60");
   assert.match(js, /makeCarousel\(track, [^\n]*'\.bk-book', \{\s*hasMore:/, "only the New In carousel has a loadMore hook");
   assert.match(js, /makeCarousel\(genreList, [^\n]*'\.bk-genre'\);/, "the genres carousel is unchanged");
-  assert.match(js, /nextBtn\.disabled = hasMore\(\) \? false :/, "Next is never greyed out while more batches remain");
+  assert.match(cjs, /nextBtn\.disabled = hasMore\(\) \? false :/, "Next is never greyed out while more batches remain");
   assert.doesNotMatch(booksRoute, /req\.query\.all/, "the unbounded all=1 mode is gone");
   assert.match(booksRoute, /newInPage\(pool,/);
   assert.equal(latest.NEW_IN_MAX, undefined, "no maximum on the list itself (batches are only how it is delivered)");

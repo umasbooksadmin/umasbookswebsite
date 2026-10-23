@@ -144,7 +144,7 @@ test("the two fonts every page uses first are preloaded from the public heads, a
 test("every place that draws a cover gives the browser a srcset and sizes", () => {
   for (const f of ["views/cart.ejs", "views/book_detail.ejs"]) assert.match(read(...f.split("/")), /srcset="<%= coverSrcset\(/, f);
   assert.equal((read("views", "book_detail.ejs").match(/srcset="<%= coverSrcset\(/g) || []).length, 2, "the big cover and the 'more by this author' cards");
-  for (const f of ["public/page-books.js", "public/favorites-page.js"]) {
+  for (const f of ["public/ui.js"]) { // the one place the browser builds cover attributes (Browse and Favorites cards)
     const js = read(...f.split("/"));
     assert.match(js, /-w300\.jpg 300w/);
     assert.match(js, /-w450\.jpg 450w/);

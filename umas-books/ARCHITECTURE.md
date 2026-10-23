@@ -886,7 +886,7 @@ screens stay English). Two languages only: `en` and `fr`.
   `src/lib/money.js` (French `12,50 €` with a no-break space, English `€12.50`;
   null/NaN give an empty string). Views call `eur(n)` (set in `lang.js`), emails
   and server code call `formatEuro`, and the two client scripts that build
-  prices (the books search in `views/marketing/books.ejs`, `public/favorites-page.js`) read
+  prices (`UmasUI.euro` in `public/ui.js`, used by the Browse and Favorites cards) read
   `<html lang>`. JSON APIs keep numbers. Never print a price with `toFixed(2)`
   to a customer.
 - **Is the French complete? (the crawler).** `test/integration/i18nCrawler.test.js` boots the
@@ -1062,8 +1062,8 @@ Archive is never printed in a page: it is downloaded once and stored too
   for the same variant share one. Same immutable cache headers as the original;
   the `ETag` is `"<hash>-w300"`, so a 304 needs no database read. Variants are
   only made for stored JPEGs (covers); a PNG/WebP upload has no variants. Pages
-  use `coverSrcset(url)` (EJS local, `app.locals`) and `public/page-books.js` /
-  `public/favorites-page.js` build the same attributes by hand; an address that
+  use `coverSrcset(url)` (EJS local, `app.locals`) and `UmasUI.coverAttrs` in
+  `public/ui.js` builds the same attributes in the browser; an address that
   is not a stored `/img/<hash>.jpg` gets no `srcset`. Widths 300/450/600 (not
   just 300/600) because a 160 px slot on a 2x phone needs 320 px: 450 is the
   smallest copy that stays sharp there.
@@ -1276,10 +1276,21 @@ names the files; read those for the details. Operations for these are in
   collections, `views/marketing/partials/collections_row.ejs`), **New In**
   (carousel), **Browse by Genre** (carousel of genre tiles), then the **results**
   grid with a **Show more** button (24 books at a time).
-- All three carousels are one component, `makeCarousel(track, prev, next,
-  itemSel)` in `public/page-books.js`: the track shows a whole number of items,
+- All three carousels are one component, `UmasCarousel.make(track, prev, next,
+  itemSel, more)` in `public/carousel.js`: the track shows a whole number of items,
   every item is a scroll-snap point, arrows and arrow keys move to the measured
-  left edge of a real item.
+  left edge of a real item. The genre buttons are drawn by the server
+  (`src/lib/browseGenres.js`, order, colours, icons, search topics; the labels are
+  in the page's EN/FR dictionaries) and `page-books.js` reads them back.
+  (The home page's "What's New" slider in `assets/blog.js` is a different
+  widget, one post at a time redrawn on each click; it is not this component.)
+- **Shared browser scripts:** `public/ui.js` (loaded before the page script, see
+  `extraScripts` in the views) is the one copy of `esc`, `euro`, `coverAttrs` and the
+  two card layouts (`bookCardHtml` for Browse, `favoriteCardHtml` for Favorites;
+  `views/marketing/collection.ejs` draws the Browse card on the server and
+  `test/unit/uiHelpers.test.js` checks the two have the same structure).
+  `npm run e2e:ci` (`e2e/ci.js`) runs the carousel and genre Show more in a real
+  browser; CI runs it after the crawl.
 - **Hide rules**: Browse by Collection and New In are for the plain view only.
   With a search (`?q=`), a genre (`?genre=`), a topic (`?topic=`) or
   `?new=1` ("See All New In") they are hidden. The server sends them already

@@ -15,10 +15,11 @@
     "clear-test-data": "node scripts/clear-test-data.js",
     "demo:load": "node scripts/demo-data.js load",
     "demo:remove": "node scripts/demo-data.js remove",
-    "lint": "eslint .",
+    "lint": "eslint . ../assets",
     "test": "node --test",
     "e2e": "node e2e/run.js",
     "e2e:local": "node e2e/local.js",
+    "e2e:ci": "node e2e/ci.js",
     "docs:env": "node scripts/gen-env-docs.js"
   },
   "dependencies": {

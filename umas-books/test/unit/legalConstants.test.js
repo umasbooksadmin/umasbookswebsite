@@ -174,7 +174,7 @@ test("French polish: second-hand, 'Young Adult' translated, favorites text, CGV 
   assert.match(fav, /pour l’instant\\u00a0: parcourez/);
   assert.match(fav, /pour le moment\\u00a0: essayez/);
   assert.doesNotMatch(fav, /pour l’instant : |pour le moment : /);
-  assert.match(fav, /frApos\(b\.title\)/, "the French aria-label uses a curly apostrophe");
+  assert.match(fs.readFileSync(path.join(root, "public/ui.js"), "utf8"), /frApos\(b\.title\)/, "the French aria-label uses a curly apostrophe");
   assert.match(fs.readFileSync(path.join(root, "src/lib/orderSweeps.js"), "utf8"), /Nos conditions générales de vente \(CGV\) vous/);
 });
 
@@ -188,10 +188,13 @@ test("favorites page: the French aria-label turns a straight apostrophe in the t
     fetch: () => new Promise(() => {}),
     Intl, Number, String,
   };
+  const ui = fs.readFileSync(path.join(root, "public/ui.js"), "utf8"); // the shared helpers the page script uses (window.UmasUI)
+  vm.runInNewContext(ui, ctx);
   vm.runInNewContext(src, ctx);
   // The page renders the list through render(); call it by listening to the favoritechange path is
   // overkill: re-run with a fetch that returns one book.
   const ctx2 = { ...ctx, window: { UmasFavorites: { get: () => [1], sync() {} } }, fetch: () => Promise.resolve({ json: () => Promise.resolve([{ id: 1, title: "L'Étranger", url: "/books/1", price: 5, inStockCount: 1 }]) }) };
+  vm.runInNewContext(ui, ctx2);
   vm.runInNewContext(src, ctx2);
   return new Promise((resolve) => setTimeout(() => {
     assert.match(listEl.innerHTML, /aria-label="Ajouter L’Étranger aux favoris"/);

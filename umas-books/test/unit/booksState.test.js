@@ -56,6 +56,7 @@ test("page-books.js wires the state to the history and respects reduced motion",
   assert.match(js, /history\.pushState/);
   assert.match(js, /history\.replaceState/);
   assert.match(js, /addEventListener\('popstate'/);
-  assert.match(js, /prefers-reduced-motion: reduce/);
+  assert.match(js, /UI\.reducedMotion/, "the shared helper (public/ui.js) answers it");
+  assert.match(fs.readFileSync(path.join(__dirname, "..", "..", "public", "ui.js"), "utf8"), /prefers-reduced-motion: reduce/);
   assert.match(js, /scrollIntoView/);
 });

@@ -8,13 +8,9 @@
   };
 
   function lang() {
-    try { return localStorage.getItem("umasbooks.lang") === "fr" ? "fr" : "en"; } catch (e) { return "en"; }
+    try { return localStorage.getItem("umasbooks.lang") === "fr" ? "fr" : "en"; } catch { return "en"; }
   }
-  function esc(s) {
-    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
-      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
-    });
-  }
+  var esc = window.UmasUI.esc; // public/ui.js, loaded before this file
   function pick(field, l) {
     if (!field) return "";
     if (typeof field === "string" || Array.isArray(field)) return field;

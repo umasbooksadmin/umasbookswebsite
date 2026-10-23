@@ -28,12 +28,7 @@ module.exports = [
     // Browser scripts served from public/ (plain <script> files, not modules):
     // browser globals, no Node globals, no require().
     files: ["public/**/*.js"],
-    languageOptions: { sourceType: "script", globals: { ...globals.browser, UmasBlog: "readonly" } }, // UmasBlog: assets/blog.js
-  },
-  {
-    // TEMPORARY: another change is reworking this file right now; lint it again
-    // (delete this entry) once that lands, its catch bindings are still the old style.
-    ignores: ["public/page-books.js"],
+    languageOptions: { sourceType: "script", globals: { ...globals.browser, UmasBlog: "readonly", UmasUI: "readonly", UmasCarousel: "readonly" } }, // UmasBlog: assets/blog.js; UmasUI, UmasCarousel: public/ui.js, public/carousel.js
   },
   {
     ignores: ["node_modules/**", "scripts/sitemap/*.json", "scripts/sitemap/*-filled.html", "e2e/artifacts/**"],

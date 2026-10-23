@@ -3,8 +3,10 @@
 These tests do what a person does with `docs/testing/manual-test-scripts.md`:
 they open a real browser (invisible), click through the site and check what
 they see. They run against a **running site by its web address**. They are
-not part of `npm test` and not part of CI, so they can never run against the
-live site by accident.
+not part of `npm test`, so they can never run against the live site by
+accident. One exception: a small subset (`npm run e2e:ci`, `e2e/ci.js`: the
+Browse Books carousel and the genre Show more) boots its own throwaway app and
+runs in CI after the crawl.
 
 There are exactly **five kinds of user** (personas), the same as the five
 scripts of the manual plan, plus the edge cases: **guest** (anyone not logged
