@@ -8,7 +8,7 @@
 //   2. buildPrompt(): the collection's own guidance + that list, in batches of BATCH_SIZE books, with the standing rules
 //      (choose only from the list, never invent a book, no major spoilers, obey the collection's guidance).
 //   3. The paid API is reached through the SAME client as the book descriptions and translations
-//      (lib/bookDescription.js claudeRequest): the shared daily cap AI_DAILY_MAX_CALLS (lib/aiLimits.js), the usage counts
+//      (lib/anthropic.js, the one Anthropic client): the shared daily cap AI_DAILY_MAX_CALLS (lib/aiLimits.js), the usage counts
 //      (lib/aiUsageStats.js, counted under "description"), the credit-out alert, and "fail quietly": a missing key, a spent
 //      cap or no credit gives a friendly message (explainFailure), never a crash.
 //   4. parseSuggestions(): the answer must be a JSON list of { id, reason }. Ids that were not in the list sent (invented
@@ -16,7 +16,7 @@
 //      in stock NOW) before writing it as status 'suggested'. The AI never writes 'approved' and never publishes.
 //   5. Existing decisions are never touched: rows are inserted with ON CONFLICT DO NOTHING.
 
-const { claudeRequest } = require("./bookDescription");
+const { askText } = require("./anthropic");
 const { clampText } = require("./aiLimits");
 const { IN_STOCK_SQL } = require("./collections");
 
@@ -165,7 +165,7 @@ async function insertSuggestions(pool, collectionId, picks) {
 // The "last built" time (last_generated_at) is set ONLY when at least one AI answer was usable, to the moment the run
 // STARTED (a book added during the run is looked at next time). Nothing new to look at is not a build: the time stays.
 // -> { ok: true, added, considered, nothingNew?, partial? } | { ok: false, error, reason }. Never throws for an AI problem.
-async function generateSuggestions(pool, collectionId, { ask = claudeRequest, maxCandidates = MAX_CANDIDATES, batchSize = BATCH_SIZE, mode = "new", timeoutMs = AI_CALL_MAX_MS } = {}) {
+async function generateSuggestions(pool, collectionId, { ask = askText, maxCandidates = MAX_CANDIDATES, batchSize = BATCH_SIZE, mode = "new", timeoutMs = AI_CALL_MAX_MS } = {}) {
   const { rows } = await pool.query("SELECT id, title_en, description_en, curation_prompt, last_generated_at::text AS last_built_text, now()::text AS started_text FROM curated_collections WHERE id = $1", [collectionId]);
   const collection = rows[0];
   if (!collection) return { ok: false, error: "That collection does not exist.", reason: "missing" };
@@ -209,7 +209,7 @@ const UPDATE_ALL_START_MS = 40000;
 const UPDATE_ALL_TOTAL_MS = 85000;
 const AI_CALL_MAX_MS = 45000;
 const MIN_CALL_MS = 10000; // less than this left: not worth starting
-async function updateAllCollections(pool, { ask = claudeRequest, startMs = UPDATE_ALL_START_MS, totalMs = UPDATE_ALL_TOTAL_MS, now = Date.now, generate = generateSuggestions, ...opts } = {}) {
+async function updateAllCollections(pool, { ask = askText, startMs = UPDATE_ALL_START_MS, totalMs = UPDATE_ALL_TOTAL_MS, now = Date.now, generate = generateSuggestions, ...opts } = {}) {
   const { rows } = await pool.query("SELECT id, title_en, last_generated_at, curation_prompt FROM curated_collections ORDER BY sort_order, id");
   const t0 = now();
   const out = [];

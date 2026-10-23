@@ -135,7 +135,7 @@ test("request: same headers as the description call, the web search tool, only I
   const noWs = await fetchMarketData({ isbn: "9780140449136" }, { fetchImpl, env: { ANTHROPIC_API_KEY: "k" } });
   assert.ok(noWs);
   assert.equal("anthropic-workspace-id" in seen[1].init.headers, false);
-  assert.equal(JSON.parse(seen[1].init.body).model, require("../../src/lib/bookDescription").TEXT_MODEL, "default model is the description model");
+  assert.equal(JSON.parse(seen[1].init.body).model, require("../../src/lib/anthropic").MODELS.priceLookup.id, "default model is the price-lookup model");
 });
 
 test("request: fails open: API errors, rejected tool, bad JSON, no ISBN, no key, thrown errors and timeouts all give null", async () => {

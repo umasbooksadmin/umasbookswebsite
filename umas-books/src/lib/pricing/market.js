@@ -10,12 +10,11 @@
 // (table ai_daily_cap, taken atomically, see lib/aiLimits.js) so a restart cannot
 // reset it; every check also counts against the shared AI_DAILY_MAX_CALLS.
 
-const { TEXT_MODEL } = require("../bookDescription");
+const anthropic = require("../anthropic");
 const config = require("../config");
 const { DEFAULT_SETTINGS } = require("./rules");
 const { toIsbn13 } = require("./isbn");
 const { normalizeBinding } = require("../inventory");
-const { recordCall } = require("../aiUsageStats");
 const { getAiLimits } = require("../aiLimits");
 const { createInflight } = require("../inflight");
 const { isValidIsbn } = require("../bookLookup");
@@ -126,41 +125,24 @@ Rules:
 
 // One call to the API. Returns the parsed result, or null on any failure.
 async function fetchMarketData(query, { fetchImpl, env = process.env, settings = DEFAULT_SETTINGS, timeoutMs = TIMEOUT_MS } = {}) {
-  const apiKey = config.get("ANTHROPIC_API_KEY", env);
   const isbn13 = toIsbn13(query.isbn);
-  if (!apiKey || !isbn13) return null;
-  const doFetch = fetchImpl || globalThis.fetch;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  const t0 = Date.now();
-  let recorded = false; // usage statistics (counts only), see lib/aiUsageStats.js
+  if (!anthropic.hasApiKey(env) || !isbn13) return null;
+  // claim: false, the caller (lookupMarketOnce) already holds the price cap and the shared cap (acquirePriceCall).
+  const r = await anthropic.request({
+    feature: "price",
+    model: config.get("PRICING_AI_MODEL", env) || anthropic.MODELS.priceLookup.id,
+    maxTokens: 2000,
+    tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 4 }],
+    messages: [{ role: "user", content: buildPrompt({ ...query, isbn13 }) }],
+    timeoutMs, env, fetchImpl, claim: false,
+  });
+  if (!r.ok) {
+    if (r.status) console.warn("Price check request failed:", r.status);
+    else console.warn("Price check skipped:", r.message);
+    return null;
+  }
   try {
-    const res = await doFetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      signal: controller.signal,
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-        ...(config.get("ANTHROPIC_WORKSPACE_ID", env) ? { "anthropic-workspace-id": config.get("ANTHROPIC_WORKSPACE_ID", env) } : {}),
-      },
-      body: JSON.stringify({
-        model: config.get("PRICING_AI_MODEL", env) || TEXT_MODEL,
-        max_tokens: 2000,
-        tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 4 }],
-        messages: [{ role: "user", content: buildPrompt({ ...query, isbn13 }) }],
-      }),
-    });
-    if (!res.ok) {
-      const body = typeof res.text === "function" ? await res.text().catch(() => "") : "";
-      recorded = true;
-      recordCall("price", { status: res.status, bodyText: body, ms: Date.now() - t0 });
-      console.warn("Price check request failed:", res.status);
-      return null;
-    }
-    const data = await res.json();
-    recorded = true;
-    recordCall("price", { status: res.status, data, ms: Date.now() - t0 });
+    const data = r.data;
     const blocks = Array.isArray(data.content) ? data.content.filter((b) => b && b.type === "text" && typeof b.text === "string") : [];
     // Web search adds narration blocks; the JSON answer is normally the last text.
     for (let i = blocks.length - 1; i >= 0; i--) {
@@ -171,11 +153,8 @@ async function fetchMarketData(query, { fetchImpl, env = process.env, settings =
     if (!joined) console.warn("Price check skipped: answer was not usable JSON.");
     return joined;
   } catch (err) {
-    if (!recorded) recordCall("price", { failed: true, ms: Date.now() - t0 });
-    console.warn("Price check skipped:", err.name === "AbortError" ? "request timed out" : err.message);
+    console.warn("Price check skipped:", err.message);
     return null;
-  } finally {
-    clearTimeout(timer);
   }
 }
 
