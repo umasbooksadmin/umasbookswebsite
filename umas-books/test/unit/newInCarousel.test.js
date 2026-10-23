@@ -15,32 +15,39 @@ const lib = fs.readFileSync(path.join(__dirname, "..", "..", "src", "lib", "late
 const ROOT = path.join(__dirname, "..", "..", "..");
 const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), "utf8");
 const flat = (s) => s.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/\s+/g, " ");
-const css = flat(read("assets", "books.css"));
+const { loadSheet } = require("../helpers/css");
+const books = loadSheet("assets/books.css");
+const bookText = read("assets", "books.css");
 const js = read("umas-books", "public", "page-books.js");
 const ejs = read("umas-books", "views", "marketing", "books.ejs");
 
 test("card text is never cut: no line-clamp or ellipsis on the New In titles and authors, long words wrap", () => {
-  assert.doesNotMatch(css, /line-clamp/, "no line-clamp anywhere in books.css");
-  assert.doesNotMatch(css, /\.bk-track \.bk-book \.a \{[^}]*text-overflow/, "authors are not ellipsized");
-  assert.doesNotMatch(css, /\.bk-track \.bk-book \.a \{[^}]*white-space: nowrap/, "authors wrap");
-  assert.match(css, /\.bk-track \.bk-book \.t, \.bk-track \.bk-book \.a \{[^}]*overflow-wrap: anywhere/);
+  assert.doesNotMatch(flat(bookText), /line-clamp/, "no line-clamp anywhere in books.css");
+  assert.equal(books.getDecl(".bk-track .bk-book .a", "text-overflow", { at: "*" }), undefined, "authors are not ellipsized");
+  assert.notEqual(books.getDecl(".bk-track .bk-book .a", "white-space", { at: "*" }), "nowrap", "authors wrap");
+  for (const sel of [".bk-track .bk-book .t", ".bk-track .bk-book .a"]) assert.equal(books.getDecl(sel, "overflow-wrap"), "anywhere", sel);
 });
 
 test("the track shows a whole number of cards, every card is a snap point, and there is room after the last one", () => {
-  assert.match(css, /\.bk-track \{[^}]*scroll-snap-type: x mandatory[^}]*container-type: inline-size/);
-  assert.match(css, /\.bk-track \{[^}]*scroll-padding-inline: 6px/, "scroll-padding keeps the first card and its outline inside the box");
-  assert.match(css, /\.bk-track \.bk-book \{[^}]*flex: 0 0 calc\(\(100cqw - \(var\(--per\) - 1\) \* var\(--gap\)\) \/ var\(--per\)\)[^}]*scroll-snap-align: start/);
-  assert.match(css, /\.bk-track::after \{[^}]*flex: 0 0 var\(--bk-end, 0px\)/, "end room so the last page can start at the left edge");
-  for (const w of [440, 640, 880, 1120]) assert.match(css, new RegExp(`@container \\(min-width: ${w}px\\)`), `${w}px step`);
-  assert.doesNotMatch(css, /\.bk-track \.bk-book \{[^}]*flex: 0 0 1[0-9]{2}px/, "no fixed card width");
+  const track = books.getRule(".bk-track");
+  assert.equal(track["scroll-snap-type"], "x mandatory");
+  assert.equal(track["container-type"], "inline-size");
+  assert.equal(track["scroll-padding-inline"], "6px", "scroll-padding keeps the first card and its outline inside the box");
+  const card = books.getRule(".bk-track .bk-book");
+  assert.equal(card.flex, "0 0 calc((100cqw - (var(--per) - 1) * var(--gap)) / var(--per))");
+  assert.equal(card["scroll-snap-align"], "start");
+  assert.equal(books.getDecl(".bk-track::after", "flex"), "0 0 var(--bk-end, 0px)", "end room so the last page can start at the left edge");
+  for (const w of [440, 640, 880, 1120]) assert.ok(books.hasRule(".bk-track .bk-book", { at: `@container (min-width: ${w}px)` }), `${w}px step`);
+  assert.doesNotMatch(String(card.flex), /^0 0 1[0-9]{2}px/, "no fixed card width");
 });
 
 test("the arrows are 44px, have a focus outline, are disabled at the ends and are not hidden on a mouse-driven narrow window", () => {
-  assert.match(css, /\.bk-carousel \.arrow \{[^}]*width: 44px; height: 44px/);
-  assert.match(css, /\.bk-carousel \.arrow:focus-visible \{[^}]*outline: 3px solid/);
-  assert.match(css, /\.bk-carousel \.arrow:disabled/);
-  assert.match(css, /@media \(max-width: 620px\) and \(pointer: coarse\) \{ \.bk-carousel \.arrow \{ display: none/);
-  assert.doesNotMatch(css, /@media \(max-width: 620px\) \{[^}]*\.bk-carousel \.arrow \{ display: none/);
+  assert.equal(books.getDecl(".bk-carousel .arrow", "width"), "44px");
+  assert.equal(books.getDecl(".bk-carousel .arrow", "height"), "44px");
+  assert.match(books.getDecl(".bk-carousel .arrow:focus-visible", "outline"), /^3px solid/);
+  assert.ok(books.hasRule(".bk-carousel .arrow:disabled"));
+  assert.equal(books.getDecl(".bk-carousel .arrow", "display", { at: "@media (max-width: 620px) and (pointer: coarse)" }), "none");
+  assert.equal(books.getDecl(".bk-carousel .arrow", "display", { at: "@media (max-width: 620px)" }), undefined, "arrows are not hidden on a mouse-driven narrow window");
 });
 
 test("the arrows scroll to a measured card edge (not 80% of the width) from where the last click was heading, and keys work", () => {
@@ -56,7 +63,7 @@ test("the arrows scroll to a measured card edge (not 80% of the width) from wher
 test("the carousel is only on the plain Browse view: hidden for a search, a genre or See All, and sent hidden by the server", () => {
   assert.match(js, /newSection\.hidden = !!\(state\.q \|\| state\.genre \|\| state\.isNew\)/);
   assert.match(ejs, /<section class="bk-new"[^>]*newInHidden[^>]*>/);
-  assert.match(css, /\.bk-new\[hidden\]/);
+  assert.ok(books.hasRule(".bk-new[hidden]"));
 });
 
 test("See All New In pages through /api/books/new-in with Show more and no count, 24 at a time, not a capped search", () => {

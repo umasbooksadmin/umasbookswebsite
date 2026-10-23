@@ -10,10 +10,10 @@
   text-transform: none; letter-spacing: normal;
 }
 .imm-script {
-  font-family: 'Italianno', cursive; font-size: clamp(28px, 4.2vw, 42px); line-height: 1.15;
+  font-family: var(--font-script); font-size: clamp(28px, 4.2vw, 42px); line-height: 1.15;
   color: var(--maroon); margin: 8px 0 10px;
 }
-.imm-hero-copy .imm-sub { font-size: 17px; color: var(--ink-soft); margin: 0; }
+.imm-hero-copy .imm-sub { font-size: 17px; color: var(--ink); margin: 0; }
 
 .imm-calendar-link { text-align: center; padding: 0 28px 34px; }
 
@@ -35,7 +35,7 @@
 .imm-session-card .age-label {
   font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.7; margin-bottom: 2px;
 }
-.imm-session-card .age-range { font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; font-size: 26px; }
+.imm-session-card .age-range { font-family: var(--font-serif); font-size: 26px; }
 .imm-session-card.tone-a { background: #dfe7e1; }
 .imm-session-card.tone-b { background: #f7e2df; }
 .imm-session-card.tone-c { background: #f4ead2; }
@@ -47,14 +47,14 @@
 
 /* ---------- What is English Immersion? ---------- */
 .imm-about { padding: 10px 28px 50px; text-align: center; }
-.imm-about .prose { max-width: 62ch; margin: 20px auto 0; color: var(--ink-soft); font-size: 18px; line-height: 1.42; }
+.imm-about .prose { max-width: 62ch; margin: 20px auto 0; color: var(--ink); font-size: 18px; line-height: 1.42; }
 .imm-highlights { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; max-width: 1020px; margin: 40px auto 56px; }
 .imm-highlights .col + .col { border-left: 1px solid var(--line); padding-left: 32px; }
 .imm-highlights .h-title {
   font-size: 14px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--maroon-dark);
   margin-bottom: 8px; font-weight: 700; line-height: 1.3;
 }
-.imm-highlights .h-text { font-size: 17px; color: var(--ink-soft); line-height: 1.35; margin: 0; }
+.imm-highlights .h-text { font-size: 17px; color: var(--ink); line-height: 1.35; margin: 0; }
 @media (max-width: 760px) {
   .imm-highlights { grid-template-columns: 1fr; gap: 26px; }
   .imm-highlights .col + .col { border-left: 0; padding-left: 0; border-top: 1px solid var(--line); padding-top: 26px; }
@@ -71,13 +71,13 @@
   font-weight: 700; margin-bottom: 12px;
 }
 .imm-join-card h3 { font-size: clamp(24px, 2.6vw, 30px); font-weight: 600; margin-bottom: 14px; line-height: 1.15; }
-.imm-join-card p { color: var(--ink-soft); font-size: 16.5px; line-height: 1.4; margin: 0 0 22px; }
+.imm-join-card p { color: var(--ink); font-size: 16.5px; line-height: 1.4; margin: 0 0 22px; }
 .imm-join-meta { display: flex; gap: 24px; margin-bottom: 26px; }
 .imm-join-meta .m { flex: 1; padding-left: 18px; border-left: 2px solid rgba(166, 83, 71, 0.3); }
 .imm-join-meta .m:first-child { padding-left: 0; border-left: 0; }
-.imm-join-meta .m .lbl { font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft); }
-.imm-join-meta .m .val { font-family: 'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, serif; font-size: 21px; color: var(--ink); display: block; margin-top: 2px; }
-.imm-join-meta .m .note { font-size: 13px; color: var(--ink-soft); }
+.imm-join-meta .m .lbl { font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink); }
+.imm-join-meta .m .val { font-family: var(--font-serif); font-size: 21px; color: var(--ink); display: block; margin-top: 2px; }
+.imm-join-meta .m .note { font-size: 13px; color: var(--ink); }
 .imm-join-btn {
   display: inline-flex; align-items: center; gap: 12px; padding: 14px 26px; border-radius: 4px;
   color: #fff; text-decoration: none; font-size: 14px; letter-spacing: 0.14em; text-transform: uppercase;

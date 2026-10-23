@@ -9,7 +9,7 @@ const path = require("node:path");
 
 const root = path.join(__dirname, "..", "..");
 const read = (...p) => fs.readFileSync(path.join(root, ...p), "utf8");
-const stripComments = (css) => css.replace(/\/\*[\s\S]*?\*\//g, "");
+const { loadSheet, resolveVars } = require("../helpers/css");
 const cssFiles = () => [
   ...fs.readdirSync(path.join(root, "public")).filter((f) => f.endsWith(".css")).map((f) => path.join(root, "public", f)),
   ...fs.readdirSync(path.join(root, "..", "assets")).filter((f) => f.endsWith(".css")).map((f) => path.join(root, "..", "assets", f)),
@@ -18,44 +18,47 @@ const cssFiles = () => [
 // ---- PH-26 print ----
 
 test("print.css is a print-only sheet that hides the chrome, buttons and sticky bars", () => {
-  const css = stripComments(read("public", "print.css"));
-  assert.match(css, /^\s*@media print\s*\{/, "everything is inside @media print");
-  const hide = /([^{}]*)\{\s*display:\s*none\s*!important;?\s*\}/.exec(css);
-  assert.ok(hide, "has a display:none rule");
+  const print = loadSheet("public/print.css");
+  assert.ok(print.list.length > 0 && print.list.every((r) => r.at === "@media print"), "everything is inside @media print");
+  const hide = print.list.find((r) => r.decls.some((d) => d.prop === "display" && d.value === "none" && d.important));
+  assert.ok(hide, "has a display:none !important rule");
   for (const sel of ["header.mkt-header", "footer.mkt-footer", ".skip-link", ".site-back-bar", ".preview-banner", ".langtoggle", ".favorite-toggle", ".form-actions-sticky", ".sticky-bar", ".cookie-banner", ".consent-banner", "button", ".btn", 'input[type="submit"]'])
-    assert.ok(hide[1].includes(sel), `hides ${sel}`);
+    assert.ok(hide.selectors.includes(sel), `hides ${sel}`);
 });
-
 test("print.css writes out external links only, and only in running text", () => {
-  const css = stripComments(read("public", "print.css"));
-  assert.match(css, /main p a\[href\^="http"\]::after/);
-  assert.match(css, /content:\s*" \(" attr\(href\) "\)"/);
-  assert.ok(!/(^|[\s,}])a::after|a\[href\]::after/.test(css), "no rule that prints the address of every link");
-  assert.ok(!/href\^="\/"|href\^="#"|mailto/.test(css), "relative, anchor and mailto links are not written out");
-  assert.match(css, /a\.btn\[href\^="http"\]::after[^}]*content:\s*none/, "a button-styled link is left alone");
+  const print = loadSheet("public/print.css");
+  assert.ok(print.hasRule('main p a[href^="http"]::after', { at: "@media print" }), "links in paragraphs are written out");
+  assert.equal(print.getDecl('main p a[href^="http"]::after', "content", { at: "@media print" }), '" (" attr(href) ")"');
+  const selectors = print.list.flatMap((r) => r.selectors);
+  assert.ok(!selectors.some((x) => /(^|[\s,])a::after|a\[href\]::after/.test(x)), "no rule that prints the address of every link");
+  assert.ok(!selectors.some((x) => /href\^="\/"|href\^="#"|mailto/.test(x)), "relative, anchor and mailto links are not written out");
+  assert.equal(print.getDecl('main a.btn[href^="http"]::after', "content", { at: "@media print" }), "none", "a button-styled link is left alone");
 });
-
 test("only the public heads load print.css; the admin pages and the till receipt keep their own print rules", () => {
   for (const f of ["views/partials/header.ejs", "views/marketing/partials/mkt_header.ejs"])
     assert.match(read(...f.split("/")), /<link rel="stylesheet" href="<%= assetUrl\('\/print\.css'\) %>" media="print">/, f);
   for (const f of ["views/partials/admin_header.ejs", "views/admin/till/receipt.ejs"])
     assert.ok(!/print\.css/.test(read(...f.split("/"))), `${f} does not load print.css`);
   // The print layouts that must stay as they are.
-  const admin = read("public", "admin.css");
-  assert.match(admin, /\.admin-main:has\(\.color-chart\) > \*:not\(\.color-chart\) \{ display: none !important; \}/);
-  assert.match(read("public", "till-receipt.css"), /@media print \{ \.no-print \{ display: none; \} \.receipt \{ margin: 0; \} @page \{ margin: 4mm; \} \}/);
+  const admin = loadSheet("public/admin.css");
+  const chart = admin.getRules(".admin-main:has(.color-chart) > *:not(.color-chart)", { at: "@media print" })[0];
+  assert.ok(chart, "the colour chart prints on its own");
+  assert.ok(chart.decls.some((d) => d.prop === "display" && d.value === "none" && d.important));
+  const receipt = loadSheet("public/till-receipt.css");
+  assert.equal(receipt.getDecl(".no-print", "display", { at: "@media print" }), "none");
+  assert.equal(receipt.getDecl(".receipt", "margin", { at: "@media print" }), "0");
+  assert.equal(receipt.atRuleDecls("page").margin, "4mm");
 });
 
 // ---- PH-27 colour scheme ----
 
 test("the site is light only: color-scheme is declared in the stylesheets and in every page head", () => {
-  assert.match(stripComments(read("public", "style.css")), /:root\s*\{[^}]*color-scheme:\s*light;/);
-  assert.match(stripComments(read("..", "assets", "site.css")), /:root\s*\{[^}]*color-scheme:\s*light;/);
+  assert.equal(loadSheet("public/style.css").getDecl(":root", "color-scheme", { at: "*" }), "light");
+  assert.equal(loadSheet("assets/site.css").getDecl(":root", "color-scheme", { at: "*" }), "light");
   for (const f of ["views/partials/header.ejs", "views/marketing/partials/mkt_header.ejs", "views/partials/admin_header.ejs", "views/admin/till/receipt.ejs"])
     assert.ok(read(...f.split("/")).includes('<meta name="color-scheme" content="light">'), `${f} has the meta tag`);
-  for (const file of cssFiles()) assert.ok(!/prefers-color-scheme:\s*dark/.test(stripComments(fs.readFileSync(file, "utf8"))), `${path.basename(file)} has no dark theme (the decision is documented in ARCHITECTURE.md)`);
+  for (const file of cssFiles()) assert.ok(!loadSheet(file).atRules("media").some((q) => /prefers-color-scheme:\s*dark/.test(q)), `${path.basename(file)} has no dark theme (the decision is documented in ARCHITECTURE.md)`);
 });
-
 // ---- PH-28 safe area ----
 
 test("every fixed or sticky bar at the bottom of the screen pads for the home indicator", () => {
@@ -64,27 +67,28 @@ test("every fixed or sticky bar at the bottom of the screen pads for the home in
   const offenders = [];
   let barsSeen = 0;
   for (const file of cssFiles()) {
-    const css = stripComments(fs.readFileSync(file, "utf8"));
-    const blocks = [...css.matchAll(/([^{}@]+)\{([^{}]*)\}/g)].map((m) => ({ sel: m[1].trim().replace(/\s+/g, " "), body: m[2] }));
-    for (const b of blocks) {
-      if (!/position:\s*(fixed|sticky)/.test(b.body) || !/(^|[;\s])(bottom:\s*0|inset:\s*0)/.test(b.body)) continue;
-      if (b.sel.split(",").every((s) => OVERLAYS.has(s.trim()))) continue;
+    const rules = loadSheet(file).list;
+    for (const b of rules) {
+      const position = b.decls.find((d) => d.prop === "position");
+      const atBottom = b.decls.some((d) => (d.prop === "bottom" || d.prop === "inset") && /^0(px)?$/.test(d.value));
+      if (!position || !/^(fixed|sticky)$/.test(position.value) || !atBottom) continue;
+      if (b.selectors.every((x) => OVERLAYS.has(x))) continue;
       barsSeen++;
-      const padded = /safe-area-inset-bottom/.test(b.body) || blocks.some((o) => o !== b && o.sel === b.sel && /safe-area-inset-bottom/.test(o.body));
-      if (!padded) offenders.push(`${path.basename(file)}: ${b.sel}`);
+      const safe = (r) => r.decls.some((d) => /safe-area-inset-bottom/.test(d.value));
+      const padded = safe(b) || rules.some((o) => o !== b && o.selectors.join(", ") === b.selectors.join(", ") && safe(o));
+      if (!padded) offenders.push(`${path.basename(file)}: ${b.selectors.join(", ")}`);
     }
   }
   assert.ok(barsSeen >= 3, `found only ${barsSeen} bottom bars`);
   assert.deepEqual(offenders, []);
 });
-
 test("the till pay bar, the sticky save bar and the phone menu drawer use env(safe-area-inset-bottom)", () => {
-  assert.match(read("public", "till.css"), /padding: 10px 14px calc\(10px \+ env\(safe-area-inset-bottom, 0px\)\)/);
-  assert.match(stripComments(read("public", "admin.css")), /\.form-actions-sticky \{[^}]*calc\(12px \+ env\(safe-area-inset-bottom, 0px\)\)/);
-  assert.match(stripComments(read("public", "admin.css")), /\.admin-sidebar \{[^}]*calc\(24px \+ env\(safe-area-inset-bottom, 0px\)\)/);
-  assert.match(read("public", "scan-intake.css"), /safe-area-inset-bottom/);
+  const SAFE = "env(safe-area-inset-bottom, 0px)";
+  assert.equal(loadSheet("public/till.css").getDecl(".till-paybar", "padding", { at: "*" }), `10px 14px calc(10px + ${SAFE})`);
+  assert.equal(loadSheet("public/admin.css").getDecl(".form-actions-sticky", "padding"), `12px 0 calc(12px + ${SAFE})`);
+  assert.equal(loadSheet("public/admin.css").getDecl(".admin-sidebar", "padding"), `24px 18px calc(24px + ${SAFE})`);
+  assert.ok(loadSheet("public/scan-intake.css").list.some((r) => r.decls.some((d) => /safe-area-inset-bottom/.test(d.value))));
 });
-
 test("viewport-fit=cover is NOT set: without it the home-screen app already stays inside the safe area, so the page is never under the indicator", () => {
   for (const f of ["views/partials/header.ejs", "views/marketing/partials/mkt_header.ejs", "views/partials/admin_header.ejs"])
     assert.ok(!/viewport-fit/.test(read(...f.split("/"))), f);
@@ -93,22 +97,31 @@ test("viewport-fit=cover is NOT set: without it the home-screen app already stay
 // ---- PH-29 fonts ----
 
 test("each web font has a size-adjusted local fallback, and every font stack names it right after the web font", () => {
-  for (const [file, label] of [[path.join(root, "public", "style.css"), "style.css"], [path.join(root, "..", "assets", "site.css"), "site.css"]]) {
-    const css = fs.readFileSync(file, "utf8");
-    for (const fam of ["Cormorant Garamond", "Libre Baskerville", "Nunito Sans", "Montserrat"]) {
-      const face = new RegExp(`@font-face \\{ font-family: '${fam} Fallback'; src: local\\([^;]+; size-adjust: [\\d.]+%; ascent-override: [\\d.]+%; descent-override: [\\d.]+%; line-gap-override: 0%; \\}`).exec(css);
-      assert.ok(face, `${label}: ${fam} Fallback face with size-adjust and the three overrides`);
-      const size = Number(/size-adjust: ([\d.]+)%/.exec(face[0])[1]);
+  const FAMILIES = ["Cormorant Garamond", "Libre Baskerville", "Nunito Sans", "Montserrat"];
+  for (const [file, label] of [["public/style.css", "style.css"], ["assets/site.css", "site.css"]]) {
+    const faces = loadSheet(file).fontFaces();
+    for (const fam of FAMILIES) {
+      const face = faces.find((f) => f["font-family"] === `'${fam} Fallback'`);
+      assert.ok(face, `${label}: ${fam} Fallback face`);
+      assert.match(face.src, /^local\(/, `${label}: ${fam} Fallback is a local font`);
+      for (const prop of ["size-adjust", "ascent-override", "descent-override"]) assert.match(face[prop], /^[\d.]+%$/, `${label}: ${fam} Fallback ${prop}`);
+      assert.equal(face["line-gap-override"], "0%", `${label}: ${fam} Fallback line-gap-override`);
+      const size = Number.parseFloat(face["size-adjust"]);
       assert.ok(size > 80 && size < 125, `${fam} size-adjust ${size}% is a plausible scale`);
     }
   }
-  const bare = [];
+  // The stacks are written once, as --font-* tokens (:root of both base sheets), and used as var(--font-*): resolve them.
+  const tokens = { ...loadSheet("assets/site.css").tokens(), ...loadSheet("public/style.css").tokens() };
+  const stacks = [];
+  for (const [name, value] of Object.entries(tokens)) if (name.startsWith("--font-")) stacks.push([`token ${name}`, value]);
+  assert.ok(stacks.length >= 5, "the font stacks are tokens");
   for (const file of cssFiles()) {
-    const css = stripComments(fs.readFileSync(file, "utf8"));
-    for (const m of css.matchAll(/font-family:\s*([^;}]*)[;}]/g)) {
-      for (const fam of ["Cormorant Garamond", "Libre Baskerville", "Nunito Sans", "Montserrat"]) {
-        if (m[1].includes(`'${fam}'`) && !m[1].includes(`'${fam}', '${fam} Fallback'`) && !/^\s*'[^']+'\s*$/.test(m[1]) ) bare.push(`${path.basename(file)}: ${m[0]}`);
-      }
+    for (const d of loadSheet(file).allDecls("font-family")) stacks.push([`${path.basename(file)}: font-family: ${d.value}`, resolveVars(d.value, tokens)]);
+  }
+  const bare = [];
+  for (const [where, value] of stacks) {
+    for (const fam of FAMILIES) {
+      if (value.includes(`'${fam}'`) && !value.includes(`'${fam}', '${fam} Fallback'`) && !/^\s*'[^']+'\s*$/.test(value)) bare.push(where);
     }
   }
   assert.deepEqual(bare, []);
