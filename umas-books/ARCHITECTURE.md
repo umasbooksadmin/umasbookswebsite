@@ -663,6 +663,19 @@ stores it (saved BEFORE the redirect, see `lib/session.js`), the page's GET read
 - `test/integration/adminPostRedirect.test.js` and `customerPostRedirect.test.js` scan every write route and
   fail when a new handler renders instead of redirecting (add it to the allow-list only with a reason).
 
+## Where SQL lives
+
+Rule: **SQL and business rules in `src/lib/`, routes read the request and answer** (parse, call lib, respond: JSON, redirect or render). `collections.js` + `lib/collections.js` is the model. A rule that lives in a lib function can be tested with the real database and no HTTP, and cannot drift between the routes that share it.
+
+Done for the add-a-copy path (the money- and stock-critical one):
+
+- `lib/inventoryIntake.js`: `parseIntakeInput` (pure: the form read and normalised), `prepareIntake` (pricing: fixed-price rule, 2-year rule, the first refusal in the order the form always gave), `saveBookAndCopy` (one-time token, cover photo, the book new or existing, the copy, clearance repricing and its audit entries), `afterSaveFollowUps` (awards, cover/description fill, customers' requests), `intakeAnswer` / `intakeRefusal` (what is answered or shown again).
+- `lib/inventoryCopies.js`: edit a copy (`parseCopyEdit`, `priceCopyEdit`, `updateCopy`), `cancelReservation`, `deleteCopy`, `deleteBook`, and `learningFields` (shared with the intake).
+- `routes/admin/inventory.js` keeps the list, lookup, show and edit-book routes as they were.
+- `test/integration/intakeGolden.test.js` pins the HTTP behaviour (about 60 inputs: status, headers, body, rows, audit entries) from a fixture recorded before the move; `test/integration/inventoryIntake.test.js` tests the lib functions directly. Changing a rule on purpose means re-recording the fixture (`node scripts/record-intake-golden.js`) and saying so in the PR.
+
+Not done yet (route files with the most inline queries, next candidates): `routes/auth.js` (36 `.query()` calls), `routes/admin/charity.js` (25), `routes/admin/members.js` (18).
+
 ## Password hashing (`src/lib/passwordHash.js`)
 
 Every password is hashed and checked through this one module (signup placeholder,

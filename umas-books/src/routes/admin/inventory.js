@@ -1,34 +1,27 @@
 const express = require("express");
 const config = require("../../lib/config");
-const { saveImage } = require("../../lib/imageStore");
-const { prepareCover, isAllowedCoverUrl } = require("../../lib/coverStore");
-const { isStoredImageUrl } = require("../../lib/imageStore");
-const { sharpFromUpload, reencodeForVision } = require("../../lib/uploadImage");
-const { pool, withTransaction } = require("../../db");
+const { prepareCover } = require("../../lib/coverStore");
+const { reencodeForVision } = require("../../lib/uploadImage");
+const { pool } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
 const { audit } = require("../../lib/audit");
 const { normalizeIsbn, isValidIsbn, lookupByIsbn, searchByTitleAuthor, translateGenresToFrench } = require("../../lib/bookLookup");
 const { extractBookInfoFromPhoto } = require("../../lib/coverVision");
 const { generateBookDescription, translateDescriptionToFrench } = require("../../lib/bookDescription");
-const { CONDITIONS, BINDINGS, STATUSES, SOURCES, normalizeSource, normalizeCondition, normalizeBinding, conditionLabel, resolveCopyPricing, normalizeStatus, normalizeGenres, normalizeLocation, uniqueLocations, locationKey, parseScan, isbnVariants } = require("../../lib/inventory");
+const { CONDITIONS, BINDINGS, STATUSES, SOURCES, normalizeSource, normalizeBinding, conditionLabel, resolveCopyPricing, normalizeGenres, normalizeLocation, uniqueLocations, locationKey, parseScan, isbnVariants } = require("../../lib/inventory");
 const { expireStaleReservations } = require("../../lib/reservations");
-const { checkBookAwardsInBackground } = require("../../lib/awards");
-const { matchRequestsForCopy, matchRequestsForBook } = require("../../lib/bookRequests");
-const { getSettings } = require("../../lib/pricing/settings");
+const { matchRequestsForBook } = require("../../lib/bookRequests");
 const { prepareIntakeForm, priceUi, computeSuggestion } = require("../../lib/pricing/forms");
-const { otherRepriceableCopies } = require("../../lib/pricing/clearance");
-const { parseSuggestedPrice, normalizeSuggestedLevel, priceBasisFor, priceFromLevelChoice } = require("../../lib/pricing/intake");
 
 const { setFlash, takeFlash } = require("../../lib/flash");
 const { validateIdParams } = require("../../middleware/idParams");
 const fastScan = require("../../lib/fastScan");
-const intakeToken = require("../../lib/intakeToken");
+const { parseIntakeInput, prepareIntake, intakeRefusal, saveBookAndCopy, afterSaveFollowUps, intakeAnswer, processCoverPhoto, parsePublishedYear, matchBookRequests, BUSY_MESSAGE } = require("../../lib/inventoryIntake");
+const { asTyped, statusLabelOf, parseCopyEdit, priceCopyEdit, copyEditOverlay, updateCopy, cancelReservation, deleteBook, deleteCopy } = require("../../lib/inventoryCopies");
 const { serverTiming } = require("../../lib/timing");
 const { aiAdminLimiter, AI_LIMIT_MESSAGE } = require("../../middleware/rateLimits");
 const { getAiLimits, clampText, MAX_TITLE, MAX_AUTHOR } = require("../../lib/aiLimits");
-const { runAfterResponse } = require("../../lib/afterResponse");
-const { fillBookGaps, findCoverUrl } = require("../../lib/bookFill");
-const { parseMoney, parseWholeNumber, parseDay } = require("../../lib/validation");
+const { findCoverUrl } = require("../../lib/bookFill");
 const { likeContains, parseIntParam } = require("../../lib/parseParams");
 const { parseInventoryFilters, hasAnyFilter, addFilterConditions, matchingCopies, filterLocations, NO_LOCATION, NO_BINDING, NO_GENRE, COMMON_GENRES } = require("../../lib/inventorySearch");
 
@@ -55,50 +48,8 @@ async function getDefaultCopyPricing(isbn) {
 }
 
 
-// ---------- Price suggestions (see lib/pricing) ----------
-// A suggestion is only ever shown: the volunteer accepts it or picks their own
-// price. The suggestion that was on screen travels in hidden fields
-// (suggestedPrice, suggestedLevel) so the save can record whether it was kept.
-// The routes that compute suggestions live in priceSuggestions.js.
-function learningFields(price, body, stored = {}) {
-  const posted = body.suggestedPrice !== undefined || body.suggestedLevel !== undefined;
-  const suggestedPrice = posted ? parseSuggestedPrice(body.suggestedPrice) : (stored.suggested_price != null ? Number(stored.suggested_price) : null);
-  const suggestedLevel = posted ? normalizeSuggestedLevel(body.suggestedLevel) : (stored.suggested_level || null);
-  return { suggestedPrice, suggestedLevel, priceBasis: priceBasisFor(price, suggestedPrice, suggestedLevel) };
-}
-
-// Render has no persistent disk, so an uploaded cover photo can't be
-// saved to the filesystem — it's resized/compressed down to a small
-// thumbnail, stored in the images table (lib/imageStore.js), and its short
-// /img/<hash>.jpg URL goes in the same cover_url column a lookup-sourced
-// image URL would go in.
-async function processCoverPhoto(file) {
-  const resized = await sharpFromUpload(file.buffer)
-    .rotate()
-    .resize(500, 700, { fit: "inside", withoutEnlargement: true })
-    .jpeg({ quality: 78 })
-    .toBuffer();
-  return saveImage(resized, "image/jpeg");
-}
-
-// Matching customers' book requests must never stop a book from being saved:
-// a failure is logged and counts as "nothing matched".
-async function matchBookRequests(fn) {
-  try {
-    return await fn();
-  } catch (err) {
-    console.error("Book request matching failed:", err.message);
-    return 0;
-  }
-}
-
-// ---------- Admin number inputs (one shared check, lib/validation.js) ----------
-// A blank is allowed (not known); anything typed must be a real value.
-const parsePublishedYear = (raw) =>
-  parseWholeNumber(raw, { min: 1000, max: new Date().getFullYear() + 1, allowBlank: true, label: "Published year" });
-const parseAcquisitionCost = (raw) => parseMoney(raw, { allowBlank: true, label: "Acquisition cost" });
-// What to show back in a form after a refused value: the text as typed.
-const asTyped = (raw) => (typeof raw === "string" ? raw.slice(0, 40) : "");
+// Price suggestions: the routes that compute them live in priceSuggestions.js; what a save records of
+// them (learningFields) is in lib/inventoryCopies.js.
 
 // ---------- Inventory ----------
 
@@ -458,215 +409,41 @@ router.post("/admin/inventory/generate-description", requireAdmin, descriptionLi
 // Idempotent: the form carries a one-time token (lib/intakeToken.js). The same token again returns the
 // first save's answer; it never creates a second copy. A request WITHOUT a token (a page cached from before
 // this existed) still saves as before, and is logged so it can be seen when those pages are gone.
+// The rules and the SQL are in lib/inventoryIntake.js; this reads the request and answers it.
 router.post("/admin/inventory", requireAdmin, serverTiming("scan.save"), async (req, res) => {
-  try {
-    await saveCopy(req, res);
-  } catch (err) {
-    // A failure before the copy existed lets the token go, so the retry can save.
-    if (req.intakeClaim) await intakeToken.release(pool, req.intakeClaim);
-    throw err;
-  }
-});
-
-async function saveCopy(req, res) {
-  const title = (req.body.title || "").trim();
-  const author = (req.body.author || "").trim() || null;
-  const isbn = req.body.isbn ? normalizeIsbn(req.body.isbn) : null;
-  const publisher = (req.body.publisher || "").trim() || null;
-  const yearCheck = parsePublishedYear(req.body.publishedYear);
-  const publishedYear = yearCheck.error ? null : yearCheck.value;
-  const genre = normalizeGenres(req.body.genre);
-  let genreFr = (req.body.genreFr || "").trim() || (genre ? translateGenresToFrench(genre) : null);
-  let description = (req.body.description || "").trim() || null;
-  let descriptionFr = (req.body.descriptionFr || "").trim() || null;
-  let coverUrl = (req.body.coverUrl || "").trim() || null;
-
-  const binding = normalizeBinding(req.body.binding);
-  const location = normalizeLocation(req.body.location);
-  const source = normalizeSource(req.body.source);
-
+  const json = wantsJson(req);
   // A refused save shows the add-book form again with what was typed (see GET /admin/inventory/new/again).
-  const intakeAgain = async (state) => {
-    await setFlash(req, "intake", { location: location || "", source: source || "", fromScan: req.body.fromScan === "1", priceLevel: req.body.priceLevel, ...state });
+  const refuse = async (input, kind, message) => {
+    await setFlash(req, "intake", intakeRefusal(input, kind, message));
     return res.redirect(303, "/admin/inventory/new/again");
   };
-  const typedPricing = {
-    price: req.body.price ? asTyped(req.body.price) : 5,
-    acquisitionCost: req.body.acquisitionCost ? asTyped(req.body.acquisitionCost) : 0,
+  const answer = (input, saved, requests) => {
+    const out = intakeAnswer(input, { copyId: saved.copyId, bookId: saved.bookId, title: saved.title, requests }, json);
+    return out.json ? res.json(out.json) : res.redirect(out.redirect);
   };
 
-  if (!title) {
-    if (wantsJson(req)) return res.status(422).json({ ok: false, error: "Title is required." });
-    return intakeAgain({
-      prep: { isbn, title: null, author, binding: req.body.binding, publisherPrice: req.body.publisherPrice },
-      book: { isbn, title: null, author, publisher, publishedYear, description, descriptionFr, coverUrl, genre, genreFr, binding },
-      error: "Title is required.",
-      defaultPricing: typedPricing,
-    });
+  const parsed = parseIntakeInput(req.body, req.files);
+  if (!parsed.ok) {
+    if (json) return res.status(422).json({ ok: false, error: parsed.message });
+    return refuse(parsed.value, "title", parsed.message);
   }
-
-  // Fixed-price rule for new books (see lib/inventory.js). Checked before
-  // anything is saved so a refused copy leaves no half-created book behind.
-  const condition = normalizeCondition(req.body.condition);
-  const settings = await req.timing.time("settings", () => getSettings(pool));
-  const choice = priceFromLevelChoice(condition, req.body, settings);
-  // A New book published more than 2 years ago is free-priced (lib/inventory.js): the year typed here, else the
-  // one already recorded for this ISBN.
-  let pricingYear = yearCheck.error ? null : yearCheck.value;
-  if (pricingYear == null && isbn) {
-    const known = await pool.query("SELECT published_year FROM books WHERE isbn = $1", [isbn]);
-    if (known.rows[0]) pricingYear = known.rows[0].published_year;
+  const prepared = await prepareIntake(pool, parsed.value, { time: req.timing.time });
+  if (!prepared.ok) {
+    if (json) return res.status(422).json({ ok: false, error: prepared.message });
+    return refuse(parsed.value, "input", prepared.message);
   }
-  const pricing = resolveCopyPricing(condition, choice.rawPrice, req.body.publisherPrice, { publishedYear: pricingYear });
-  const costCheck = parseAcquisitionCost(req.body.acquisitionCost);
-  const acquiredCheck = parseDay(req.body.acquiredAt, { label: "Date acquired" });
-  const inputError = pricing.error || yearCheck.error || costCheck.error || acquiredCheck.error;
-  if (inputError) {
-    if (wantsJson(req)) return res.status(422).json({ ok: false, error: inputError });
-    return intakeAgain({
-      prep: { isbn, title, author, binding: req.body.binding, condition, publisherPrice: req.body.publisherPrice },
-      book: { isbn, title, author, publisher, publishedYear: yearCheck.error ? asTyped(req.body.publishedYear) : publishedYear, description, descriptionFr, coverUrl, genre, genreFr, binding },
-      error: inputError,
-      selectedCondition: condition,
-      publisherPriceValue: req.body.publisherPrice || "",
-      defaultPricing: typedPricing,
-    });
+  const input = prepared.value;
+  const ctx = { userId: req.session.user.id, audit: (entry) => audit(req, entry), time: req.timing.time };
+
+  const saved = await saveBookAndCopy(pool, input, ctx);
+  if (saved.state === "duplicate") return answer(input, saved, saved.requests);
+  if (saved.state === "busy") {
+    if (json) return res.status(409).json({ ok: false, error: BUSY_MESSAGE });
+    return refuse(input, "busy", BUSY_MESSAGE);
   }
-
-  // What the answer looks like once a copy exists (also used for a repeated token).
-  const answer = (copyId, bookId, bookTitle, requests) => {
-    if (req.body.fast !== "0" && (req.body.fast === "1" || req.body.addAnother === "1" || req.body.fromScan === "1")) {
-      if (wantsJson(req)) return res.json({ ok: true, copyId, bookId, title: bookTitle, requests });
-      return res.redirect(`/admin/inventory/new?${fastScan.carryQuery({ location, source, binding, condition, copyId, requests })}`);
-    }
-    return res.redirect(`/admin/inventory/${bookId}${requests ? `?requests=${requests}` : ""}`);
-  };
-
-  // One-time token: claimed before anything is created.
-  const token = intakeToken.validToken(req.body.intakeToken) ? String(req.body.intakeToken) : null;
-  if (token) {
-    const claimed = await intakeToken.claim(pool, token);
-    if (claimed.state === "done") {
-      const { rows: bk } = await pool.query("SELECT title FROM books WHERE id = $1", [claimed.bookId]);
-      return answer(claimed.copyId, claimed.bookId, (bk[0] && bk[0].title) || title, claimed.requests);
-    }
-    if (claimed.state === "busy") {
-      const msg = "This book is already being saved. Wait a moment and check the book list before saving it again.";
-      if (wantsJson(req)) return res.status(409).json({ ok: false, error: msg });
-      return intakeAgain({ prep: { isbn, title, author, binding: req.body.binding, condition, publisherPrice: req.body.publisherPrice }, book: { isbn, title, author, publisher, publishedYear, description, descriptionFr, coverUrl, genre, genreFr, binding }, error: msg, selectedCondition: condition, defaultPricing: typedPricing });
-    }
-    req.intakeClaim = token;
-  } else {
-    console.warn("Add copy without an intake token (page cached from before tokens): saving without duplicate protection");
-  }
-
-  const coverPhoto = req.files && req.files.coverPhoto && req.files.coverPhoto[0];
-  if (coverPhoto) coverUrl = await processCoverPhoto(coverPhoto);
-
-  // A second physical copy of a book already in inventory (same ISBN)
-  // should add a copy to that existing record, not create a duplicate
-  // book entry — otherwise scanning a title you already stock splits
-  // into a separate single-copy book instead of accumulating on one.
-  let bookId = null;
-  let isNewBook = false;
-  let fillAfterSave = false;
-  if (isbn) {
-    const { rows: existingRows } = await req.timing.time("db", () => pool.query("SELECT * FROM books WHERE isbn = $1", [isbn]));
-    if (existingRows.length) {
-      const existing = existingRows[0];
-      bookId = existing.id;
-      // A second copy never overwrites what is already recorded: the binding
-      // is only filled in when the book has none yet.
-      if (binding && !existing.binding) {
-        await pool.query("UPDATE books SET binding = $1, updated_at = now() WHERE id = $2", [binding, bookId]);
-      }
-      // A description, a French text or a cover the book still lacks is fetched AFTER the answer (lib/bookFill.js).
-      if (!existing.description || !existing.cover_url || !existing.description_fr) fillAfterSave = true;
-    }
-  }
-
-  if (!bookId) {
-    // Only what is already known is stored now. The AI description, its French translation, the search for a
-    // cover and the cover download all happen after the answer (fillBookGaps, below): they used to hold the
-    // save back for 3 to 20 seconds. A cover address that is not yet a copy on our server is kept as the source.
-    const cover = coverUrl && isStoredImageUrl(coverUrl)
-      ? { cover: coverUrl, source: null }
-      : { cover: null, source: coverUrl && isAllowedCoverUrl(coverUrl) ? coverUrl : null };
-    fillAfterSave = true;
-
-    const { rows } = await req.timing.time("db", () => pool.query(
-      `INSERT INTO books (isbn, title, authors, publisher, published_year, description, description_fr, cover_url, categories, categories_fr, binding, created_by, cover_source_url)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-       ON CONFLICT DO NOTHING RETURNING id`,
-      [isbn || null, title, author, publisher, publishedYear, description, descriptionFr, cover.cover, genre, genreFr, binding, req.session.user.id, cover.source]
-
-    ));
-    if (rows.length) {
-      bookId = rows[0].id;
-      isNewBook = true;
-    } else {
-      // Another request added this ISBN between our lookup above and this
-      // insert (books.isbn is unique, see migration 038) — use its record.
-      const { rows: winner } = await pool.query("SELECT id FROM books WHERE isbn = $1", [isbn]);
-      bookId = winner[0].id;
-    }
-  }
-
-  const status = normalizeStatus(req.body.status);
-
-  const { price, publisherPrice } = pricing;
-  const acquisitionCost = costCheck.value;
-  const acquiredAt = acquiredCheck.value;
-  const notes = (req.body.copyNotes || "").trim() || null;
-
-  // What was suggested on screen, and whether it was kept (learning loop).
-  const learning = learningFields(price, req.body);
-  const suggestedClearance = learning.suggestedLevel === "clearance" && learning.suggestedPrice != null && price === learning.suggestedPrice;
-  const isClearance = condition !== "new" && (choice.isClearance != null ? choice.isClearance : suggestedClearance);
-
-  // With clearance scope "all", the volunteer may also put the book's other
-  // copies on clearance (unticked by default): same transaction, one audit row each.
-  const repriceOthers = settings.clearance.scope === "all" && isClearance && req.body.repriceOthers === "1"
-    ? await otherRepriceableCopies(pool, isbn)
-    : [];
-  const copyRows = await req.timing.time("db", () => withTransaction(pool, async (client) => {
-    const { rows } = await client.query(
-      `INSERT INTO book_copies (book_id, condition, price, publisher_price, acquisition_cost, acquired_at, status, notes, location, source, created_by,
-                                suggested_price, suggested_level, price_basis, is_clearance)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id`,
-      [bookId, condition, price, publisherPrice, acquisitionCost, acquiredAt, status, notes, location, source, req.session.user.id,
-        learning.suggestedPrice, learning.suggestedLevel, learning.priceBasis, isClearance]
-    );
-    for (const other of repriceOthers) {
-      await client.query("UPDATE book_copies SET price = $1, is_clearance = true, updated_at = now() WHERE id = $2", [settings.clearance.price, other.id]);
-    }
-    if (token) await intakeToken.attach(client, token, rows[0].id, bookId);
-    return rows;
-  }));
-  for (const other of repriceOthers) {
-    await audit(req, {
-      action: "copy.reprice", targetType: "book_copy", targetId: other.id,
-      detail: `price ${other.price != null ? Number(other.price).toFixed(2) : "none"} -> ${Number(settings.clearance.price).toFixed(2)} (clearance)`,
-    });
-  }
-
-  // Look up awards / best-seller lists in the background so they usually
-  // appear within seconds. Never awaited: it must not delay or fail the save.
-  if (isNewBook) checkBookAwardsInBackground(pool, bookId);
-
-  // Cover, description and translation: fetched now that the copy is saved and the answer is on its way.
-  if (fillAfterSave) {
-    const hints = { isbn, title, author, publisher, publishedYear, description, descriptionFr, coverUrl };
-    runAfterResponse(`fill book ${bookId}`, () => fillBookGaps(pool, bookId, hints));
-  }
-
-  // Customers who asked for this book (Requests page): matched now, the
-  // banner on the book's page and the scan screen tells the admin.
-  const requestsMatched = await req.timing.time("requests", () => matchBookRequests(() => matchRequestsForCopy(pool, bookId, copyRows[0].id)));
-
-  if (token) await intakeToken.setRequests(pool, token, requestsMatched);
-  return answer(copyRows[0].id, bookId, title, requestsMatched);
-}
+  const requests = await afterSaveFollowUps(pool, saved, input, ctx);
+  return answer(input, { ...saved, title: input.title }, requests);
+});
 
 // `overlay` keeps what was typed in a form that was refused: { book: {column:
 // value}, copy: {id, column: value} } is laid over the stored rows for display
@@ -770,110 +547,27 @@ router.post("/admin/inventory/:id", requireAdmin, async (req, res) => {
 });
 
 router.post("/admin/inventory/:id/delete", requireAdmin, async (req, res) => {
-  try {
-    await pool.query("DELETE FROM books WHERE id = $1", [Number(req.params.id)]);
-  } catch (err) {
-    if (err.code !== "23503") throw err;
-    return res.redirect(`/admin/inventory/${Number(req.params.id)}?notice=has-orders`);
-  }
-  await audit(req, { action: "book.delete", targetType: "book", targetId: Number(req.params.id) });
+  const id = Number(req.params.id);
+  const outcome = await deleteBook(pool, id, { audit: (entry) => audit(req, entry) });
+  if (outcome.hasOrders) return res.redirect(`/admin/inventory/${id}?notice=has-orders`);
   res.redirect("/admin/inventory");
 });
-
-// A copy's status can change under an open edit form (sold in the shop, put in
-// a cart at checkout, reserved by a customer). The form posts the status it was
-// rendered with (renderedStatus); the status is only changed when the person
-// picked a different one AND the copy still has the rendered status. A sold
-// copy or one in somebody's checkout is never changed from this form. The other
-// fields are saved either way.
-// (in_cart is a status of its own, set by checkout, that the form does not offer.)
-const statusLabelOf = (value) => (value === "in_cart" ? "In a cart" : (STATUSES.find((x) => x.value === value) || {}).label || value);
-const isStatusValue = (value) => typeof value === "string" && STATUSES.some((x) => x.value === value);
 
 router.post("/admin/inventory/:id/copies/:copyId", requireAdmin, async (req, res) => {
   const bookId = Number(req.params.id);
   const copyId = Number(req.params.copyId);
-  const condition = normalizeCondition(req.body.condition);
-  const settings = await getSettings(pool);
-  const choice = priceFromLevelChoice(condition, req.body, settings);
-  const yearRow = await pool.query("SELECT published_year FROM books WHERE id = $1", [bookId]);
-  const pricing = resolveCopyPricing(condition, choice.rawPrice, req.body.publisherPrice, { publishedYear: yearRow.rows[0] && yearRow.rows[0].published_year });
-  const costCheck = parseAcquisitionCost(req.body.acquisitionCost);
-  const acquiredCheck = parseDay(req.body.acquiredAt, { label: "Date acquired" });
-  const acquiredAt = acquiredCheck.value;
-  const notes = (req.body.notes || "").trim() || null;
-  const location = normalizeLocation(req.body.location);
-  const source = normalizeSource(req.body.source);
-  // What was typed, kept in the form when something below is refused.
-  const refused = (error) => {
-    return bookBack(req, res, bookId, { error, overlay: {
-      copy: {
-        id: copyId, condition, notes, location, source,
-        price: asTyped(choice.rawPrice), publisher_price: asTyped(req.body.publisherPrice), acquisition_cost: asTyped(req.body.acquisitionCost),
-        ...(isStatusValue(req.body.status) ? { status: req.body.status } : {}),
-        ...(isStatusValue(req.body.renderedStatus) ? { rendered_status: req.body.renderedStatus } : {}),
-      },
-    } });
-  };
-  if (pricing.error) return refused(pricing.error);
-  if (costCheck.error) return refused(costCheck.error);
-  if (acquiredCheck.error) return refused(acquiredCheck.error);
-  const { price, publisherPrice } = pricing;
-  const acquisitionCost = costCheck.value;
+  const input = parseCopyEdit(req.body);
+  const priced = await priceCopyEdit(pool, bookId, input);
+  // What was typed, kept in the form when something is refused.
+  const refused = (error) => bookBack(req, res, bookId, { error, overlay: copyEditOverlay(copyId, input, priced.choice) });
+  if (priced.error) return refused(priced.error);
 
-  const outcome = await withTransaction(pool, async (client) => {
-    const { rows } = await client.query(
-      "SELECT status, cart_order_id, location, price, suggested_price, suggested_level, is_clearance FROM book_copies WHERE id = $1 AND book_id = $2 FOR UPDATE",
-      [copyId, bookId]
-    );
-    const stored = rows[0];
-    if (!stored) return { missing: true };
-    const wanted = isStatusValue(req.body.status) ? req.body.status : stored.status;
-    const rendered = isStatusValue(req.body.renderedStatus) ? req.body.renderedStatus : stored.status;
-    let newStatus = stored.status;
-    let keptStatus = false;
-    if (wanted !== rendered) {
-      if (stored.status !== rendered) {
-        return { error: `This copy changed since you opened the form (now: ${statusLabelOf(stored.status)}). Reload.`, status: 409 };
-      }
-      // A sold copy or one in somebody's checkout keeps its status; the other
-      // fields are still saved (and the page says so).
-      // A copy reserved online by a customer also keeps its status: it is released
-      // from its order page (Cancel reservation), never from here.
-      if (stored.status === "sold" || stored.status === "in_cart" || (stored.status === "reserved" && stored.cart_order_id)) keptStatus = true;
-      else newStatus = wanted;
-    }
-    const startsReservation = newStatus === "reserved" && stored.status !== "reserved";
-    const endsReservation = stored.status === "reserved" && newStatus !== "reserved";
-    // The suggestion shown with the form (if any) is kept; otherwise what was
-    // stored stays. A price chosen as "Clearance" marks the copy as clearance;
-    // any other price change clears the mark.
-    const learning = learningFields(price, req.body, stored);
-    const unchangedPrice = stored.price != null && price != null && Math.round(Number(stored.price) * 100) === Math.round(price * 100);
-    const isClearance = condition !== "new" && (choice.isClearance != null ? choice.isClearance : Boolean(stored.is_clearance) && unchangedPrice);
-    // A reservation made from this form gets reserved_at like any other, so it
-    // expires after the usual two weeks (lib/reservations.js); leaving
-    // "reserved" clears who it was held for.
-    await client.query(
-      `UPDATE book_copies SET condition=$1, status=$2, price=$3, publisher_price=$4, acquisition_cost=$5, acquired_at=$6, notes=$7, location=$10, source=$11,
-              suggested_price=$12, suggested_level=$13, price_basis=$14, is_clearance=$15,
-              reserved_by_name = CASE WHEN $16::boolean THEN NULL ELSE reserved_by_name END,
-              reserved_by_email = CASE WHEN $16::boolean THEN NULL ELSE reserved_by_email END,
-              reserved_by_phone = CASE WHEN $16::boolean THEN NULL ELSE reserved_by_phone END,
-              reminder_sent_at = CASE WHEN $16::boolean OR $17::boolean THEN NULL ELSE reminder_sent_at END,
-              reserved_at = CASE WHEN $16::boolean THEN NULL WHEN $17::boolean THEN now() ELSE reserved_at END,
-              updated_at=now()
-       WHERE id = $8 AND book_id = $9`,
-      [condition, newStatus, price, publisherPrice, acquisitionCost, acquiredAt, notes, copyId, bookId, location, source,
-        learning.suggestedPrice, learning.suggestedLevel, learning.priceBasis, isClearance, endsReservation, startsReservation]
-    );
-    return { before: stored, keptStatus };
-  });
+  const outcome = await updateCopy(pool, bookId, copyId, input, priced);
   if (outcome.error) return refused(outcome.error);
-  if (outcome.before && (outcome.before.location || null) !== location) {
+  if (outcome.before && (outcome.before.location || null) !== input.location) {
     await audit(req, {
       action: "copy.move", targetType: "book_copy", targetId: copyId,
-      detail: `from ${outcome.before.location || "none"} to ${location || "none"}`,
+      detail: `from ${outcome.before.location || "none"} to ${input.location || "none"}`,
     });
   }
   res.redirect(`/admin/inventory/${bookId}${outcome.keptStatus ? "?notice=status-kept" : ""}`);
@@ -927,43 +621,21 @@ router.post("/admin/inventory/:id/copies/:copyId/use-price", requireAdmin, async
 router.post("/admin/inventory/:id/copies/:copyId/cancel-reservation", requireAdmin, async (req, res) => {
   const bookId = Number(req.params.id);
   const copyId = Number(req.params.copyId);
-  // Only a copy that is still reserved goes back to stock: one that was sold
-  // since the page was opened must not be put back on sale. A copy reserved
-  // online (it has an order) is released from that order's page instead.
-  const { rows: held } = await pool.query("SELECT cart_order_id FROM book_copies WHERE id = $1 AND book_id = $2 AND status = 'reserved'", [copyId, bookId]);
-  if (held[0] && held[0].cart_order_id) {
-    return bookBack(req, res, bookId, { error: `This copy is reserved by reservation #${held[0].cart_order_id}. Cancel or collect it from the reservation page (/admin/orders/${held[0].cart_order_id}).` });
+  const outcome = await cancelReservation(pool, bookId, copyId);
+  if (outcome.orderId) {
+    return bookBack(req, res, bookId, { error: `This copy is reserved by reservation #${outcome.orderId}. Cancel or collect it from the reservation page (/admin/orders/${outcome.orderId}).` });
   }
-  const { rowCount } = await pool.query(
-    `UPDATE book_copies SET status='in_stock', reserved_by_name=NULL, reserved_by_email=NULL,
-            reserved_by_phone=NULL, reserved_at=NULL, reminder_sent_at=NULL, updated_at=now()
-     WHERE id = $1 AND book_id = $2 AND status = 'reserved' AND cart_order_id IS NULL`,
-    [copyId, bookId]
-  );
-  if (!rowCount) {
-    const { rows } = await pool.query("SELECT status FROM book_copies WHERE id = $1 AND book_id = $2", [copyId, bookId]);
-    if (rows.length) {
-      return bookBack(req, res, bookId, { error: `This reservation was already gone (the copy is now: ${statusLabelOf(rows[0].status)}). Nothing was changed.` });
-    }
+  if (outcome.gone) {
+    return bookBack(req, res, bookId, { error: `This reservation was already gone (the copy is now: ${statusLabelOf(outcome.gone)}). Nothing was changed.` });
   }
   res.redirect(`/admin/inventory/${bookId}`);
 });
 
 router.post("/admin/inventory/:id/copies/:copyId/delete", requireAdmin, async (req, res) => {
   const bookId = Number(req.params.id);
-  try {
-    await pool.query("DELETE FROM book_copies WHERE id = $1 AND book_id = $2", [Number(req.params.copyId), bookId]);
-  } catch (err) {
-    if (err.code !== "23503") throw err;
-    return res.redirect(`/admin/inventory/${bookId}?notice=has-orders`);
-  }
-  await audit(req, { action: "book_copy.delete", targetType: "book_copy", targetId: Number(req.params.copyId) });
-  const { rows } = await pool.query("SELECT 1 FROM book_copies WHERE book_id = $1", [bookId]);
-  if (!rows.length) {
-    await pool.query("DELETE FROM books WHERE id = $1", [bookId]);
-    await audit(req, { action: "book.delete", targetType: "book", targetId: bookId, detail: "last copy removed" });
-    return res.redirect("/admin/inventory");
-  }
+  const outcome = await deleteCopy(pool, bookId, Number(req.params.copyId), { audit: (entry) => audit(req, entry) });
+  if (outcome.hasOrders) return res.redirect(`/admin/inventory/${bookId}?notice=has-orders`);
+  if (outcome.bookRemoved) return res.redirect("/admin/inventory");
   res.redirect(`/admin/inventory/${bookId}`);
 });
 
