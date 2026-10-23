@@ -3,6 +3,7 @@
 // crawler fetching these never creates a session row.
 
 const express = require("express");
+const config = require("../lib/config");
 const { pool } = require("../db");
 const { baseUrl } = require("../lib/baseUrl");
 const { listSitemapCollections } = require("../lib/collections");
@@ -25,8 +26,7 @@ const MAX_URLS_PER_FILE = 20000;
 const URLS_PER_BOOK = 2;
 // SITEMAP_BOOKS_PER_FILE exists only so tests can exercise several files without inserting thousands of books.
 function booksPerFile() {
-  const n = Number(process.env.SITEMAP_BOOKS_PER_FILE);
-  return Number.isInteger(n) && n > 0 ? Math.min(n, MAX_URLS_PER_FILE / URLS_PER_BOOK) : MAX_URLS_PER_FILE / URLS_PER_BOOK;
+  return Math.min(config.get("SITEMAP_BOOKS_PER_FILE"), MAX_URLS_PER_FILE / URLS_PER_BOOK);
 }
 const SITEMAP_TTL_MS = 60 * 60 * 1000;
 const IN_STOCK = "EXISTS (SELECT 1 FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock')";

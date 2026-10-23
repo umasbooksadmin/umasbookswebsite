@@ -17,11 +17,12 @@
 // Coverage is patchy: no result means "Wikidata does not know", not "no awards".
 
 const isbn3 = require("isbn3");
+const { CONTACT_EMAIL } = require("../legal");
 const { isbnVariants } = require("../inventory");
 const { requestJson } = require("./http");
 
 const ENDPOINT = "https://query.wikidata.org/sparql";
-const USER_AGENT = "UmasBooks/1.0 (admin@umasbooks.org)";
+const USER_AGENT = `UmasBooks/1.0 (${CONTACT_EMAIL})`;
 const MAX_PER_BOOK = 15;
 const MAX_PLAUSIBLE = 25; // more distinct awards than this = a broken query/data, discard
 const GAP_MS = 1200; // be polite: at least this long between two requests

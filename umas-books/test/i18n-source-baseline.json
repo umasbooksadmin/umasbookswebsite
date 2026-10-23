@@ -418,5 +418,13 @@
  {
   "file": "src/index.js",
   "text": "Contact mailbox reminder"
+ },
+ {
+  "file": "src/middleware/rateLimits.js",
+  "text": "Too many requests from this connection — please wait a while and try again, or email"
+ },
+ {
+  "file": "src/lib/orderEmail.js",
+  "text": "Complaints: write to"
  }
 ]

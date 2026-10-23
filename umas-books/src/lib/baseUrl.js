@@ -1,3 +1,4 @@
+const config = require("./config");
 const { isNonLive } = require("./preview");
 
 // The app's own public base URL — needed only where an *absolute* URL is
@@ -21,28 +22,34 @@ const { isNonLive } = require("./preview");
 // end up in a member's email or a payment return URL. Missing = loud error
 // (and checkEnv already warned and emailed the admin at boot).
 function isLive(env = process.env) {
-  return env.NODE_ENV === "production" && !isNonLive(env);
+  return config.isProduction(env) && !isNonLive(env);
 }
 
 // The configured public base URL without a trailing slash, or "" when there
 // is none (never throws): for emails and other places that can degrade.
 function configuredBaseUrl(env = process.env) {
-  const configured = isLive(env) ? env.APP_BASE_URL : env.APP_BASE_URL || env.RENDER_EXTERNAL_URL;
+  const configured = isLive(env) ? config.get("APP_BASE_URL", env) : config.get("APP_BASE_URL", env) || config.get("RENDER_EXTERNAL_URL", env);
   return String(configured || "").trim().replace(/\/+$/, "");
 }
 
 function baseUrl(req) {
   if (isLive()) {
-    if (process.env.APP_BASE_URL) return configuredBaseUrl();
+    if (config.get("APP_BASE_URL")) return configuredBaseUrl();
     console.error("[baseUrl] APP_BASE_URL is not set on a live site - refusing to fall back to RENDER_EXTERNAL_URL or the Host header.");
     throw new Error("APP_BASE_URL must be set on a live site (preview mode off) - refusing to build an absolute URL from RENDER_EXTERNAL_URL or the request's Host header.");
   }
-  const configured = process.env.APP_BASE_URL || process.env.RENDER_EXTERNAL_URL;
+  const configured = config.get("APP_BASE_URL") || config.get("RENDER_EXTERNAL_URL");
   if (configured) return configured;
-  if (process.env.NODE_ENV === "production") {
+  if (config.isProduction()) {
     throw new Error("APP_BASE_URL or RENDER_EXTERNAL_URL must be set in production — refusing to build an absolute URL from the request's Host header.");
   }
   return `${req.protocol}://${req.get("host")}`;
 }
 
-module.exports = { baseUrl, configuredBaseUrl, isLive };
+// APP_BASE_URL, else RENDER_EXTERNAL_URL, else "", without one trailing slash: what the emails, sweeps and
+// alerts print. Looser than configuredBaseUrl on purpose (it also accepts RENDER_EXTERNAL_URL on a live site).
+function looseBaseUrl(env = process.env) {
+  return (config.get("APP_BASE_URL", env) || config.get("RENDER_EXTERNAL_URL", env) || "").replace(/\/$/, "");
+}
+
+module.exports = { baseUrl, configuredBaseUrl, isLive, looseBaseUrl };

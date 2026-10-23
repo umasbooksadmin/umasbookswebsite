@@ -8,6 +8,8 @@
 
 const { findMembershipOrdersByEmail, listRecentMembershipOrders, isConfigured } = require("./helloasso");
 const { sendAdminAlert } = require("./errorAlert");
+const config = require("./config");
+const { looseBaseUrl } = require("./baseUrl");
 
 const MEMBERSHIP_DURATION_MS = 365 * 24 * 60 * 60 * 1000;
 const UNMATCHED_ALERT_EVERY_MINUTES = 60;
@@ -20,7 +22,7 @@ function isAuthorized(order) {
 // "adhesion-2026"). Unset = every Membership-type form of the organisation.
 // An order that carries no formSlug at all is accepted only when unset.
 function formMatches(order) {
-  const slug = (process.env.HELLOASSO_MEMBERSHIP_FORM_SLUG || "").trim().toLowerCase();
+  const slug = config.get("HELLOASSO_MEMBERSHIP_FORM_SLUG");
   if (!slug) return true;
   return String(order.formSlug || "").toLowerCase() === slug;
 }
@@ -99,7 +101,7 @@ async function alertUnmatchedPayments(pool) {
      RETURNING id, payer_email, amount_cents, paid_at, unmatched_reason`
   );
   if (!rows.length) return false;
-  const base = (process.env.APP_BASE_URL || process.env.RENDER_EXTERNAL_URL || "").replace(/\/$/, "");
+  const base = looseBaseUrl();
   const subject = rows.length === 1
     ? `[umas-books] Membership payment from ${rows[0].payer_email} matches no confirmed account`
     : `[umas-books] ${rows.length} membership payments match no confirmed account`;

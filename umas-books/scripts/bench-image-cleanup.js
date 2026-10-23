@@ -7,6 +7,7 @@
 //
 // Refuses to run unless the database name contains "bench" or "scratch" or "test".
 const { Pool } = require("pg");
+const config = require("../src/lib/config");
 const { IMAGE_REFERENCES, notReferencedSql } = require("../src/lib/imageCleanup");
 const { legacyNotReferencedSql } = require("../test/helpers/legacyImageRefs");
 
@@ -17,9 +18,9 @@ const images = nums[1] || 32000;
 const skipOld = args.includes("--skip-old");
 
 async function main() {
-  const url = process.env.DATABASE_URL;
+  const url = config.get("DATABASE_URL");
   if (!url || !/bench|scratch|test/i.test(new URL(url).pathname)) throw new Error("Set DATABASE_URL to a throwaway database whose name contains bench, scratch or test.");
-  const pool = new Pool({ connectionString: url, ssl: process.env.PGSSLMODE === "disable" ? false : { rejectUnauthorized: false }, max: 1 });
+  const pool = new Pool({ connectionString: url, ssl: config.get("PGSSLMODE") ? false : { rejectUnauthorized: false }, max: 1 });
   await pool.query("DELETE FROM books; DELETE FROM images");
   const h = (i) => `encode(sha256(('img-' || ${i})::text::bytea), 'hex')`;
   // Image g is 'old' (40 days). Books reference images 1..books (cover); the rest are unreferenced.

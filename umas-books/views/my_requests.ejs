@@ -15,7 +15,7 @@
   <div role="status" class="notice-box"><%= tr('If requests exist for that address, we have sent you a link. It works for 30 days. Check your spam folder if nothing arrives.', "Si des demandes existent pour cette adresse, nous vous avons envoyé un lien. Il est valable 30 jours. Vérifiez vos courriers indésirables si rien n'arrive.") %></div>
   <p class="muted small"><a href="/books.html"><%= tr('Back to browsing books', 'Retour aux livres') %></a></p>
 <% } else if (state === 'limited') { %>
-  <div role="alert" class="error-box"><%= tr('Too many attempts from this connection. Please try again in an hour, or email admin@umasbooks.org.', 'Trop de tentatives depuis cette connexion. Veuillez réessayer dans une heure, ou écrire à admin@umasbooks.org.') %></div>
+  <div role="alert" class="error-box"><%= tr('Too many attempts from this connection. Please try again in an hour, or email ' + legalText.contactEmail + '.', 'Trop de tentatives depuis cette connexion. Veuillez réessayer dans une heure, ou écrire à ' + legalText.contactEmail + '.') %></div>
 <% } else if (state === 'invalid') { %>
   <div role="alert" class="error-box"><%= tr('This link is not valid any more (links work for 30 days).', "Ce lien n'est plus valable (les liens sont valables 30 jours).") %></div>
   <p class="muted small"><a href="/my-requests"><%= tr('Send me a new link', 'Envoyez-moi un nouveau lien') %></a></p>

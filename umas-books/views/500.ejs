@@ -1,7 +1,7 @@
 <%- include('partials/header', { noindex: true, title: tr('Something went wrong', 'Une erreur est survenue') }) %>
 
 <h1><%= tr('Something went wrong', 'Une erreur est survenue') %></h1>
-<p class="muted"><%= tr("Sorry, that didn't work. Please try again in a moment. If the problem continues, email us at admin@umasbooks.org.", 'Désolé, cela n’a pas fonctionné. Veuillez réessayer dans un instant. Si le problème persiste, écrivez-nous à admin@umasbooks.org.') %></p>
+<p class="muted"><%= tr("Sorry, that didn't work. Please try again in a moment. If the problem continues, email us at " + legalText.contactEmail + ".", 'Désolé, cela n’a pas fonctionné. Veuillez réessayer dans un instant. Si le problème persiste, écrivez-nous à ' + legalText.contactEmail + '.') %></p>
 <p><a href="/"><%= tr('Go home', 'Retour à l’accueil') %></a></p>
 
 <%- include('partials/footer') %>

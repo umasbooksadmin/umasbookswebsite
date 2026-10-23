@@ -1,4 +1,5 @@
 const express = require("express");
+const config = require("../../lib/config");
 const { pool } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
 const { makeDashboardUnusedCount } = require("../../lib/imageCleanup");
@@ -29,9 +30,7 @@ const router = express.Router();
 // NODE_ENV=production (tests and local development always read fresh);
 // DASHBOARD_COUNTS_CACHE_SECONDS overrides, 0 turns it off.
 function countsTtlMs() {
-  const raw = process.env.DASHBOARD_COUNTS_CACHE_SECONDS;
-  if (raw !== undefined && raw !== "" && Number.isFinite(Number(raw)) && Number(raw) >= 0) return Number(raw) * 1000;
-  return process.env.NODE_ENV === "production" ? 30000 : 0;
+  return config.get("DASHBOARD_COUNTS_CACHE_SECONDS") * 1000;
 }
 
 // The unused-image count is its own slower, longer-lived number: bounded to 3 s

@@ -12,11 +12,11 @@
 //     production database host.
 //   - banner on every page, noindex, robots.txt Disallow, empty sitemap.
 
-function isStaging(env = process.env) {
-  return String((env && env.APP_ENV) || "").trim().toLowerCase() === "staging";
-}
+const config = require("./config");
 
-const isSet = (env, name) => typeof env[name] === "string" && env[name].trim() !== "";
+function isStaging(env = process.env) {
+  return config.get("APP_ENV", env) === "staging";
+}
 
 function hostOf(url) {
   try {
@@ -30,9 +30,9 @@ function hostOf(url) {
 // (PRODUCTION_DATABASE_HOST, when set), else null. Shared by the boot guard
 // above and the demo-data script (lib/demoData.js).
 function productionHostProblem(env = process.env) {
-  const prodHost = String(env.PRODUCTION_DATABASE_HOST || "").trim().toLowerCase();
+  const prodHost = config.get("PRODUCTION_DATABASE_HOST", env);
   if (!prodHost) return null;
-  const dbHost = hostOf(env.DATABASE_URL);
+  const dbHost = hostOf(config.get("DATABASE_URL", env));
   // Compare on the first label too: Render shows the same database as
   // "dpg-xxxx-a" (internal) and "dpg-xxxx-a.frankfurt-postgres.render.com" (external).
   const first = (h) => h.split(".")[0];
@@ -48,8 +48,8 @@ function stagingBootProblems(env = process.env) {
   if (!isStaging(env)) return [];
   const { usesSandbox } = require("./helloassoHosts");
   const problems = [];
-  const hasHelloAssoCredentials = ["HELLOASSO_CLIENT_ID", "HELLOASSO_CLIENT_SECRET", "HELLOASSO_ORG_SLUG"].some((n) => isSet(env, n));
-  if (hasHelloAssoCredentials && !usesSandbox(env.HELLOASSO_API_BASE)) {
+  const hasHelloAssoCredentials = ["HELLOASSO_CLIENT_ID", "HELLOASSO_CLIENT_SECRET", "HELLOASSO_ORG_SLUG"].some((n) => config.isSet(n, env));
+  if (hasHelloAssoCredentials && !usesSandbox(config.get("HELLOASSO_API_BASE", env))) {
     problems.push(
       "HelloAsso credentials are set but HELLOASSO_API_BASE is not the HelloAsso SANDBOX address (https://api.helloasso-sandbox.com/v5). " +
       "A staging site must never hold live HelloAsso credentials: use sandbox credentials with HELLOASSO_API_BASE=https://api.helloasso-sandbox.com/v5, or remove the HELLOASSO_* variables."
@@ -57,7 +57,7 @@ function stagingBootProblems(env = process.env) {
   }
   // The protection against a staging site pointing at the production database
   // only works if the production host is known: make it mandatory here.
-  if (!isSet(env, "PRODUCTION_DATABASE_HOST")) {
+  if (!config.isSet("PRODUCTION_DATABASE_HOST", env)) {
     problems.push(
       "PRODUCTION_DATABASE_HOST is not set. It is REQUIRED on a staging site: it is how the service knows DATABASE_URL must never be the production database. " +
       "Set it to the production database host name (Render > umas-books-db > Info > Hostname, the \"dpg-...\" part)."
@@ -84,7 +84,7 @@ const escapeHtml = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;")
 // The message that may actually be sent from a staging site, or null when
 // nothing may be sent (STAGING_MAIL_TO unset). Pure.
 function stagingMail(mail, env = process.env) {
-  const to = String(env.STAGING_MAIL_TO || "").trim();
+  const to = config.get("STAGING_MAIL_TO", env);
   if (!to) return null;
   const original = Array.isArray(mail.to) ? mail.to.join(", ") : String(mail.to || "");
   const header = `[TEST SITE] This email was addressed to: ${original}${mail.replyTo ? ` (reply-to: ${mail.replyTo})` : ""}`;

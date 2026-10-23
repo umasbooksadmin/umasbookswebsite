@@ -1,3 +1,4 @@
+const config = require("./config");
 const { cachedFor } = require("./runLimited");
 
 // The "New In" list of the Browse Books page (GET /api/books/new-in in routes/books.js, and the no-JavaScript list
@@ -57,7 +58,7 @@ async function newIn(pool, { offset = 0, limit = 24, days = NEW_IN_DAYS, min = N
 const BROWSE_CACHE_MS = 45 * 1000;
 // The integration and e2e tests add books and read the page straight away (they run the real app with NODE_ENV=test):
 // no sharing there. Unit tests of the cache pass a clock to cachedFor instead.
-const cacheMs = () => (process.env.NODE_ENV === "test" ? 0 : BROWSE_CACHE_MS);
+const cacheMs = () => (config.isTest() ? 0 : BROWSE_CACHE_MS);
 const NEW_IN_MAX_LIMIT = 100;     // most books in one response
 const NEW_IN_MAX_OFFSET = 100000; // further than this is simply "past the end"
 const wholeLists = new WeakMap(); // pool -> cachedFor(whole New In list)

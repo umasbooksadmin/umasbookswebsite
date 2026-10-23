@@ -7,6 +7,8 @@ require("dotenv").config({ quiet: true });
 require("./lib/tz");
 // Fail fast (production only) with one clear message, before db.js is loaded.
 const envCheck = require("./lib/env").checkEnv();
+// A number or on/off setting that is set but unusable (so its default is in force): one log line each, no email.
+require("./lib/config").warnInvalid();
 // Test system (APP_ENV=staging) only: refuse live HelloAsso keys / the production database.
 require("./lib/staging").enforceStagingBoot();
 const { pool } = require("./db");
@@ -39,7 +41,7 @@ process.on("uncaughtException", (err) => {
 });
 
 const { configureServer } = require("./lib/serverConfig"); // keepAliveTimeout above the proxy's (see the file)
-const port = process.env.PORT || 3000;
+const port = require("./lib/config").get("PORT");
 // Express 5 also passes a listen failure (e.g. EADDRINUSE) to this callback;
 // the "error" handler below deals with that, so only announce real success.
 const server = configureServer(app.listen(port, (err) => {

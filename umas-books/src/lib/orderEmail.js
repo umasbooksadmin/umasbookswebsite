@@ -8,7 +8,7 @@ const { NO_RETURNS, vatNotice } = require("./legalText");
 const { frenchPlainText } = require("./frenchTypography");
 
 // The shop you pick up at (Rue Peyrolière) is NOT the association's
-// registered office (siège, 5 rue Hippolyte Savary): customers get the shop
+// registered office (siège, legal.REGISTERED_OFFICE): customers get the shop
 // address for collection and the siège only in the legal identity block.
 // The shop's identity block for order emails (French consumer-law
 // mentions: who sells, and that VAT does not apply; the VAT line follows
@@ -16,7 +16,7 @@ const { frenchPlainText } = require("./frenchTypography");
 // In French the block is French only (the English email keeps the bilingual
 // block: the legal text is French, an English reader gets both).
 const sellerLines = (lang = "en") =>
-  `Uma's Books — association loi 1901, RNA W811011706, SIRET 109 441 147 00013, 5 rue Hippolyte Savary, 81000 Albi\n${lang === "fr" ? "Tél." : "Tél. / Phone"} : ${legal.SHOP_PHONE_DISPLAY} — admin@umasbooks.org\n${vatNotice()}`;
+  `Uma's Books — association loi 1901, RNA ${legal.RNA}, SIRET ${legal.SIRET}, ${legal.REGISTERED_OFFICE}\n${lang === "fr" ? "Tél." : "Tél. / Phone"} : ${legal.SHOP_PHONE_DISPLAY} — ${legal.CONTACT_EMAIL}\n${vatNotice()}`;
 const SELLER_LINES = sellerLines();
 
 // A reservation is a free, non-binding hold: the sale is made and paid in the shop
@@ -29,13 +29,13 @@ const LEGAL_RIGHTS_EN = [
   "YOUR RIGHTS",
   NO_RETURNS.en,
   "Legal guarantees: you keep the legal guarantee of conformity (art. L.217-3 et seq. of the Consumer Code) and the guarantee against hidden defects (arts. 1641 et seq. of the Civil Code). We give no commercial guarantee beyond these.",
-  "Complaints: write to admin@umasbooks.org. If we cannot settle it, you may use our free consumer mediator: CM2C, 49 rue de Ponthieu, 75008 Paris, https://www.cm2c.net/declarer-un-litige.php",
+  "Complaints: write to " + legal.CONTACT_EMAIL + ". If we cannot settle it, you may use our free consumer mediator: CM2C, 49 rue de Ponthieu, 75008 Paris, https://www.cm2c.net/declarer-un-litige.php",
 ];
 const LEGAL_RIGHTS_FR = [
   "VOS DROITS",
   NO_RETURNS.fr,
   "Garanties légales : vous conservez la garantie légale de conformité (art. L.217-3 et suivants du Code de la consommation) et la garantie contre les vices cachés (art. 1641 et suivants du Code civil). Nous n’offrons aucune garantie commerciale en plus de celles-ci.",
-  "Réclamations : écrivez à admin@umasbooks.org. À défaut de règlement amiable, vous pouvez recourir gratuitement à notre médiateur de la consommation : CM2C, 49 rue de Ponthieu, 75008 Paris, https://www.cm2c.net/declarer-un-litige.php",
+  "Réclamations : écrivez à " + legal.CONTACT_EMAIL + ". À défaut de règlement amiable, vous pouvez recourir gratuitement à notre médiateur de la consommation : CM2C, 49 rue de Ponthieu, 75008 Paris, https://www.cm2c.net/declarer-un-litige.php",
 ];
 // English email: the English block, then the French one (as before). French email: French only.
 const LEGAL_RIGHTS = [...LEGAL_RIGHTS_EN, "", ...LEGAL_RIGHTS_FR].join("\n\n").replace(/\n\n\n\n/g, "\n\n");
@@ -114,8 +114,8 @@ function buildReservationReminder(order, items) {
   return {
     subject: tr(`Your reserved books are waiting at the shop (reservation #${order.id})`, `Vos livres réservés vous attendent à la boutique (réservation n° ${order.id})`),
     text: tr(
-      `Hi ${name},\n\nYour reservation #${order.id} is waiting for you at Uma's Books:\n\n${lines}\n\nWe hold it until the end of ${last} (Paris time). Come by to pay and collect: ${SHOP_LINES.en}\n\nIf you no longer want the books, you can cancel from your account page. If you need more time, write to us at admin@umasbooks.org.\n\nUma's Books`,
-      `Bonjour ${name},\n\nVotre réservation n° ${order.id} vous attend à Uma's Books :\n\n${lines}\n\nNous la gardons jusqu’à la fin de la journée du ${last} (heure de Paris). Passez la régler et la retirer : ${SHOP_LINES.fr}\n\nSi vous ne souhaitez plus ces livres, vous pouvez annuler depuis votre page de compte. Si vous avez besoin de plus de temps, écrivez-nous à admin@umasbooks.org.\n\nUma's Books`
+      `Hi ${name},\n\nYour reservation #${order.id} is waiting for you at Uma's Books:\n\n${lines}\n\nWe hold it until the end of ${last} (Paris time). Come by to pay and collect: ${SHOP_LINES.en}\n\nIf you no longer want the books, you can cancel from your account page. If you need more time, write to us at ${legal.CONTACT_EMAIL}.\n\nUma's Books`,
+      `Bonjour ${name},\n\nVotre réservation n° ${order.id} vous attend à Uma's Books :\n\n${lines}\n\nNous la gardons jusqu’à la fin de la journée du ${last} (heure de Paris). Passez la régler et la retirer : ${SHOP_LINES.fr}\n\nSi vous ne souhaitez plus ces livres, vous pouvez annuler depuis votre page de compte. Si vous avez besoin de plus de temps, écrivez-nous à ${legal.CONTACT_EMAIL}.\n\nUma's Books`
     ),
   };
 }
@@ -145,8 +145,8 @@ function buildSeatReminder(order, seatItem) {
   return {
     subject: tr(`Reminder: your drop-in seat tomorrow (reservation #${order.id})`, `Rappel : votre place « drop-in » demain (réservation n° ${order.id})`),
     text: tr(
-      `Hi ${name},\n\nA reminder of your reserved drop-in seat: ${label}.\n\nYou pay at the session. If you can no longer come, please cancel from your account page, or write to admin@umasbooks.org, so someone else can have the seat.\n\nUma's Books`,
-      `Bonjour ${name},\n\nPetit rappel pour votre place « drop-in » réservée : ${label}.\n\nVous réglez sur place, à la séance. Si vous ne pouvez plus venir, merci d’annuler depuis votre page de compte, ou d’écrire à admin@umasbooks.org, afin qu’une autre personne puisse en profiter.\n\nUma's Books`
+      `Hi ${name},\n\nA reminder of your reserved drop-in seat: ${label}.\n\nYou pay at the session. If you can no longer come, please cancel from your account page, or write to ${legal.CONTACT_EMAIL}, so someone else can have the seat.\n\nUma's Books`,
+      `Bonjour ${name},\n\nPetit rappel pour votre place « drop-in » réservée : ${label}.\n\nVous réglez sur place, à la séance. Si vous ne pouvez plus venir, merci d’annuler depuis votre page de compte, ou d’écrire à ${legal.CONTACT_EMAIL}, afin qu’une autre personne puisse en profiter.\n\nUma's Books`
     ),
   };
 }

@@ -16,6 +16,7 @@
 //   - /webhooks/helloasso (HelloAsso may be configured with either address;
 //     it must never move or fail, and it has its own limiter).
 // Off in preview, in tests and in dev (NODE_ENV !== production).
+const config = require("../lib/config");
 const { detectLang } = require("./lang");
 const { isNonLive } = require("../lib/preview");
 
@@ -33,9 +34,9 @@ function parseOrigin(raw) {
 
 function canonicalHost({ env = process.env } = {}) {
   return (req, res, next) => {
-    if (env.NODE_ENV !== "production" || isNonLive(env)) return next();
+    if (!config.isProduction(env) || isNonLive(env)) return next();
     if (req.path === "/healthz" || req.path === WEBHOOK_PATH) return next();
-    const target = parseOrigin(env.APP_BASE_URL);
+    const target = parseOrigin(config.get("APP_BASE_URL", env));
     if (!target) return next(); // misconfigured: env.js already warned; do not redirect to nowhere
     const host = String(req.headers.host || "").toLowerCase();
     if (!host || host === target.host) return next();

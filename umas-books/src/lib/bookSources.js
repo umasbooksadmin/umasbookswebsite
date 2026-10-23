@@ -15,9 +15,11 @@
 //
 // Every request names who we are (Open Library, Google and the BnF ask API clients to).
 
+const config = require("./config");
+const { CONTACT_EMAIL } = require("./legal");
 const { readBoundedText, readBoundedJson, XML_MAX_BYTES } = require("./boundedBody");
 
-const USER_AGENT = "UmasBooksInventory/1.0 (+https://umasbooks.org; admin@umasbooks.org)";
+const USER_AGENT = `UmasBooksInventory/1.0 (+https://umasbooks.org; ${CONTACT_EMAIL})`;
 
 function isbn10to13(isbn10) {
   const body = "978" + isbn10.slice(0, 9);
@@ -116,7 +118,7 @@ function fromGoogle(item, forms, helpers) {
 }
 async function googleBooks({ forms, fetchImpl, signal, helpers, now = Date.now }) {
   if (now() < googlePause.until) return { state: "error", skipped: true };
-  const key = process.env.GOOGLE_BOOKS_API_KEY ? `&key=${encodeURIComponent(process.env.GOOGLE_BOOKS_API_KEY)}` : "";
+  const key = config.get("GOOGLE_BOOKS_API_KEY") ? `&key=${encodeURIComponent(config.get("GOOGLE_BOOKS_API_KEY"))}` : "";
   let sawMissing = false;
   for (const isbn of [forms.isbn13, forms.isbn10].filter(Boolean)) {
     const r = await getJson(fetchImpl, `https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}&maxResults=3${key}`, signal);
@@ -208,13 +210,10 @@ const isbndbState = { nextSlot: 0, pausedUntil: 0, status: "unknown", lastError:
 // the database with the same atomic counter as the AI cap (lib/aiLimits.js, table ai_daily_cap, scope 'isbndb').
 // ISBNDB_DAILY_MAX_CALLS: default 500, 0 = no paid calls at all. At the cap the call is skipped like a pause (no error, no email);
 // the price suggestion says "daily limit reached".
-const ISBNDB_DEFAULT_DAILY_MAX = 500;
+const ISBNDB_DEFAULT_DAILY_MAX = config.specFor("ISBNDB_DAILY_MAX_CALLS").default;
 const ISBNDB_CAP_SCOPE = "isbndb";
 function isbndbDailyMax(env = process.env) {
-  const raw = env.ISBNDB_DAILY_MAX_CALLS;
-  if (raw === undefined || raw === "") return ISBNDB_DEFAULT_DAILY_MAX;
-  const n = Number(raw);
-  return Number.isInteger(n) && n >= 0 ? n : ISBNDB_DEFAULT_DAILY_MAX;
+  return config.get("ISBNDB_DAILY_MAX_CALLS", env);
 }
 const isbndbCapMessage = (max) => `ISBNdb daily limit reached (${max} calls today); it resets at midnight Paris time.`;
 // Today's paid calls -> { max, used, reached }. For the diagnostics page.
@@ -228,9 +227,9 @@ async function isbndbDailyUsage(pool, env = process.env) {
   return { max, used, reached: used >= max, message: isbndbCapMessage(max) };
 }
 
-const isbndbConfigured = (env = process.env) => Boolean(env.ISBNDB_API_KEY && String(env.ISBNDB_API_KEY).trim());
+const isbndbConfigured = (env = process.env) => Boolean(config.get("ISBNDB_API_KEY", env) && String(config.get("ISBNDB_API_KEY", env)).trim());
 function isbndbBase(env = process.env) {
-  const raw = String(env.ISBNDB_API_BASE || "").trim().replace(/\/+$/, "");
+  const raw = config.get("ISBNDB_API_BASE", env).replace(/\/+$/, "");
   if (!raw) return ISBNDB_DEFAULT_BASE;
   try {
     const u = new URL(raw);
@@ -281,7 +280,7 @@ function fromIsbndb(b, helpers) {
 async function isbndbRequest({ forms, fetchImpl, signal, stats, env = process.env, now = Date.now, sleep = (ms) => new Promise((r) => setTimeout(r, ms)) }) {
   if (!isbndbConfigured(env)) return { state: "error", skipped: true };
   if (now() < isbndbState.pausedUntil) return { state: "error", skipped: true };
-  const interval = Number(env.ISBNDB_MIN_INTERVAL_MS) >= 0 && env.ISBNDB_MIN_INTERVAL_MS !== undefined && env.ISBNDB_MIN_INTERVAL_MS !== "" ? Number(env.ISBNDB_MIN_INTERVAL_MS) : 1000;
+  const interval = config.get("ISBNDB_MIN_INTERVAL_MS", env);
   const slot = Math.max(now(), isbndbState.nextSlot);
   if (slot - now() > MAX_QUEUE_WAIT_MS) return { state: "error", skipped: true };
   isbndbState.nextSlot = slot + interval;
@@ -299,7 +298,7 @@ async function isbndbRequest({ forms, fetchImpl, signal, stats, env = process.en
   let res;
   try {
     res = await fetchImpl(`${isbndbBase(env)}/book/${encodeURIComponent(forms.isbn13)}`, {
-      signal, headers: { "User-Agent": USER_AGENT, Accept: "application/json", Authorization: String(env.ISBNDB_API_KEY).trim() },
+      signal, headers: { "User-Agent": USER_AGENT, Accept: "application/json", Authorization: String(config.get("ISBNDB_API_KEY", env)).trim() },
     });
   } catch {
     return { state: "error" };

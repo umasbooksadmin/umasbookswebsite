@@ -16,6 +16,7 @@
 // Nothing typed is ever written to a log: failures log the error message only.
 
 const express = require("express");
+const config = require("../lib/config");
 const { limit } = require("../middleware/rateLimits");
 const { sendEmail } = require("../lib/outbox");
 const { commonDictionary } = require("../lib/pageDictionary");
@@ -24,7 +25,7 @@ const { redirectWithFlash, takePageFlash } = require("../lib/postRedirect");
 
 const router = express.Router();
 
-const CONTACT_TO = process.env.CONTACT_TO || "admin@umasbooks.org";
+const CONTACT_TO = config.get("CONTACT_TO");
 
 // ONE place that sends these emails. They go through the email outbox (lib/outbox.js)
 // like the contact form, so a failed send is retried; the copy in the database is

@@ -17,15 +17,16 @@
 // addresses and long digit runs (phone numbers) before it leaves the server: an error message can quote user
 // input. Stack frames are kept.
 const { sendMail } = require("../mailer");
+const config = require("./config");
 const { scrubPersonalData } = require("./scrub");
 
 // Where alerts go. ALERT_TO may be ONE address or several separated by commas
-// ("admin@umasbooks.org, someone@other-provider.example"): nodemailer sends one
+// ("shop@example.org, someone@other-provider.example"): nodemailer sends one
 // message to all of them. A second address on a DIFFERENT provider than the one
 // the alert mail is sent from is the point: if the Google account is locked, the
 // alert still reaches somebody. The same variable is used by the GitHub
 // workflows (repository variable ALERT_TO). CONTACT_TO is the older fallback.
-const ALERT_TO = (process.env.ALERT_TO || "").trim() || process.env.CONTACT_TO || "admin@umasbooks.org";
+const ALERT_TO = config.get("ALERT_TO") || config.get("CONTACT_TO");
 const THROTTLE_MS = 15 * 60 * 1000;
 const MAX_ALERTS_PER_WINDOW = 6;
 

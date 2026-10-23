@@ -9,6 +9,11 @@
 //              with `git archive` into a temp dir, node_modules symlinked in
 //   --old-dir  OR an already prepared umas-books directory as the baseline
 //   --new-dir  the build under test (default: this checkout's umas-books/)
+//   --ignore-handler-source   do not compare the source hash of each handler: for a refactor that rewrites handler
+//              BODIES (a setting read, a constant) but not the wiring. Order, paths, methods, names, timers, logs, exit
+//              codes are still compared.
+//   --tolerate REGEX   drop log lines matching REGEX from the NEW build's output before diffing, and print them as
+//              "tolerated": for a line that is added on purpose (config.js's "[config] WARNING" for an invalid value).
 //
 // For each scenario (test env, defaults, fake production env, staging, boot failures...) it
 // boots BOTH builds against a throwaway database (cloned from a migrated template, dropped
@@ -34,6 +39,8 @@ const net = require("node:net");
 const argv = process.argv.slice(2);
 const opt = (n, d) => (argv.includes(n) ? argv[argv.indexOf(n) + 1] : d);
 const NEW_DIR = path.resolve(opt("--new-dir", path.join(__dirname, "..")));
+if (argv.includes("--ignore-handler-source")) process.env.EQUIV_IGNORE_HANDLER_SOURCE = "1";
+const TOLERATE = opt("--tolerate", null) ? new RegExp(opt("--tolerate")) : null;
 const SCRATCH = fs.mkdtempSync(path.join(os.tmpdir(), "equiv-"));
 const RUN_ID = `${process.pid}_${Date.now() % 100000}`;
 
@@ -71,7 +78,7 @@ for (const [clearName] of [["clearInterval"], ["clearTimeout"]]) {
   const orig = global[clearName];
   global[clearName] = function (t) { if (t && t.__equiv) t.__equiv.cleared = true; return orig.apply(this, arguments); };
 }
-const hash = (fn) => crypto.createHash("sha1").update(String(fn).replace(/\\s+/g, "")).digest("hex").slice(0, 8);
+const hash = (fn) => (process.env.EQUIV_IGNORE_HANDLER_SOURCE ? "-" : crypto.createHash("sha1").update(String(fn).replace(/\\s+/g, "")).digest("hex").slice(0, 8));
 // Express 5 keeps no mount path on a layer, only a matcher closure: so record WHICH probe paths each layer matches.
 const PROBES = new Set(["/", "/admin/inventory", "/admin/inventory/x", "/admin/announcements/1", "/admin/charities/1", "/admin/blog/1", "/admin/collections/1", "/collections/x", "/fr/collections/x", "/img/x", "/assets/x", "/healthz"]);
 const gather = (stack) => stack.forEach((l) => { if (l.route && typeof l.route.path === "string") PROBES.add(l.route.path.replace(/:[A-Za-z]+/g, "1")); if (l.handle && l.handle.stack) gather(l.handle.stack); });
@@ -212,13 +219,19 @@ async function runOne(side, dir, scenario, template) {
   const idx = transcript.findIndex((l) => l.includes("listening on port"));
   const head = idx === -1 ? transcript : transcript.slice(0, idx + 1);
   const tail = idx === -1 ? [] : transcript.slice(idx + 1);
+  // Two boot-time timers (a 2 s and a 3 s one in the production scenarios) are created in a run-dependent order: the SAME
+  // build compared with itself differs about every other run. So the timers are compared as a sorted list (kind, delay,
+  // unref and cleared still compared per timer; only their creation order is not).
+  const sortedTimers = (text) => {
+    try { const list = JSON.parse(text); return Array.isArray(list) ? JSON.stringify(list.map((t) => JSON.stringify(t)).sort().map((t) => JSON.parse(t)), null, 1) : text; } catch { return text; }
+  };
   return {
     "exit": `code=${result.code} signal=${result.sig || ""}`,
     "log (ordered up to and including listening)": head.join("\n"),
     "log (after listening, sorted)": tail.slice().sort().join("\n"),
     "middleware/route stack + app settings": readJson("stack.json"),
-    "timers after 4 s (kind, delay, unref, cleared)": readJson("running.timers.json"),
-    "timers at exit (kind, delay, unref, cleared)": ignoreKnownShutdownDifference(readJson("exit.timers.json")),
+    "timers after 4 s (kind, delay, unref, cleared)": sortedTimers(readJson("running.timers.json")),
+    "timers at exit (kind, delay, unref, cleared)": sortedTimers(ignoreKnownShutdownDifference(readJson("exit.timers.json"))),
     "process signal / error listeners": readJson("signals.json"),
   };
 }
@@ -252,12 +265,19 @@ function diffText(a, b) {
       const a = await runOne("old", oldDir, sc, template);
       const b = await runOne("new", NEW_DIR, sc, template);
       let scenarioDiff = "";
+      const tolerated = [];
+      if (TOLERATE) {
+        for (const key of Object.keys(b)) {
+          b[key] = String(b[key]).split("\n").filter((l) => (TOLERATE.test(l) ? (tolerated.push(l.trim()), false) : true)).join("\n");
+        }
+      }
       for (const key of Object.keys(a)) {
         const d = diffText(a[key], b[key]);
         if (d) scenarioDiff += `--- ${key}\n${d}\n`;
       }
       const size = `${a["log (ordered up to and including listening)"].split("\n").length + a["log (after listening, sorted)"].split("\n").length} log lines, ${(a["middleware/route stack + app settings"].match(/"name"/g) || []).length} layers, ${(a["timers after 4 s (kind, delay, unref, cleared)"].match(/"kind"/g) || []).length} timers, ${a.exit}`;
       console.log(`${scenarioDiff ? "DIFF " : "same "} ${sc.name}  [${size}]`);
+      for (const t of tolerated) console.log(`      tolerated (new build only): ${t}`);
       if (scenarioDiff) { differences++; console.log(scenarioDiff); }
     }
     console.log(differences ? `\n${differences} scenario(s) differ.` : "\nDIFF OUTPUT EMPTY: old and new are identical in every scenario.");
