@@ -189,8 +189,8 @@ test("a fresh Add book page: ISBN first and focused, Location Store, Source Dona
   assert.match(text, /id="location"[^>]*value="Store"/);
   assert.match(text, /<option value="donation" selected>Donation<\/option>/);
   assert.match(text, /<datalist id="location-options">[\s\S]*<option value="Store">[\s\S]*<\/datalist>/);
-  assert.match(text, /src="\/scan-intake\.js"/);
-  assert.match(text, /href="\/scan-intake\.css"/);
+  assert.match(text, /src="\/scan-intake\.js(\?v=[0-9a-f]+)?"/);
+  assert.match(text, /href="\/scan-intake\.css(\?v=[0-9a-f]+)?"/);
   assert.match(text, /role="status"[^>]*id="scan-status"|id="scan-status"[^>]*role="status"/);
 });
 

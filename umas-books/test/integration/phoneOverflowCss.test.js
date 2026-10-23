@@ -105,7 +105,7 @@ test("admin: tables scroll in their box with a shadow, a swipe hint and a sticky
   const text = admin.list.find((r) => r.at === "" && r.selectors.some((sel) => sel.startsWith(".admin-main :where(") && /\bdiv\b/.test(sel)));
   assert.ok(text, "admin text wraps: a :where(... div ...) rule exists");
   assert.equal(text.decls.find((d) => d.prop === "overflow-wrap").value, "anywhere", "admin text wraps");
-  assert.match(read("views", "partials", "admin_footer.ejs"), /<script src="\/table-scroll\.js"><\/script>/, "the swipe-hint script is loaded on admin pages");
+  assert.match(read("views", "partials", "admin_footer.ejs"), /<script src="<%= assetUrl\('\/table-scroll\.js'\) %>"><\/script>/, "the swipe-hint script is loaded on admin pages");
   const js = read("public", "table-scroll.js");
   assert.match(js, /Swipe sideways to see all columns/);
   assert.match(js, /Faites glisser sur le côté pour voir toutes les colonnes/, "French hint");

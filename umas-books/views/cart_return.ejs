@@ -31,7 +31,7 @@
     </form>
   <% } %>
   </div>
-  <script src="/print-button.js"></script>
+  <script src="<%= assetUrl('/print-button.js') %>"></script>
 <% } else if (status === 'paid') { %>
   <div class="order-receipt">
   <h1><%= tr('Reservation #{n} collected', 'Réservation n°{n} retirée', { n: order.id }) %></h1>
@@ -49,7 +49,7 @@
   </div>
   <p class="no-print"><button type="button" class="btn" data-print><%= tr('Print this page', 'Imprimer cette page') %></button></p>
   </div>
-  <script src="/print-button.js"></script>
+  <script src="<%= assetUrl('/print-button.js') %>"></script>
 <% } else if (status === 'cancelled') { %>
   <h1><%= tr('Reservation cancelled', 'Réservation annulée') %></h1>
   <p class="muted"><%= tr('This reservation was cancelled. Nothing was charged, and its items are available again.', 'Cette réservation a été annulée. Rien n’a été débité, et ses articles sont de nouveau disponibles.') %></p>

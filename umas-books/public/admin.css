@@ -407,13 +407,24 @@ html.is-admin-nav-open, html.is-admin-nav-open body { overflow: hidden; }
 }
 @media (max-width: 340px) { .inv-actions { grid-template-columns: minmax(0, 1fr); } }
 
+/* Inventory downloads: the two buttons sit side by side and wrap; tall enough to tap. */
+.inv-downloads { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
+.inv-downloads .btn { flex: 0 1 auto; padding-left: 14px; padding-right: 14px; letter-spacing: 0.06em; margin: 0; min-height: 44px; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; text-align: center; }
+@media (max-width: 640px) { .inv-downloads .btn { flex: 1 1 100%; } }
+
 /* Inventory search: text box + compact filter row (works at 375px) */
 .admin-main form.inv-search { max-width: 920px; gap: 10px; }
 .inv-search-main { display: flex; gap: 8px; align-items: end; }
 .inv-search-main > div { flex: 1; min-width: 0; }
-.inv-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
+.inv-search { container-type: inline-size; }
+/* The six choices flow ACROSS the page in even rows (never an orphan): 2 per row by default, 3 per row from 400px of form
+   width, all 6 in one row from 740px; one column only below 280px. Sized by the form's own width (a container query), so
+   it holds whatever the admin sidebar is doing. */
+.inv-filters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+@container (min-width: 400px) { .inv-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@container (min-width: 740px) { .inv-filters { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+@container (max-width: 279px) { .inv-filters { grid-template-columns: minmax(0, 1fr); } }
 .inv-filters > div { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .inv-filters select, .inv-filters input, .inv-search-main input { width: 100%; font-size: 16px; min-height: 44px; box-sizing: border-box; }
 .inv-search-main .btn { min-height: 44px; }
 .inv-matched { margin-top: 2px; color: var(--ink); overflow-wrap: anywhere; }
-@media (max-width: 520px) { .inv-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

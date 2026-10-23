@@ -22,8 +22,8 @@ const { serverTiming } = require("../../lib/timing");
 const { aiAdminLimiter, AI_LIMIT_MESSAGE } = require("../../middleware/rateLimits");
 const { getAiLimits, clampText, MAX_TITLE, MAX_AUTHOR } = require("../../lib/aiLimits");
 const { findCoverUrl } = require("../../lib/bookFill");
-const { likeContains, parseIntParam } = require("../../lib/parseParams");
-const { parseInventoryFilters, hasAnyFilter, addFilterConditions, matchingCopies, filterLocations, NO_LOCATION, NO_BINDING, NO_GENRE, COMMON_GENRES } = require("../../lib/inventorySearch");
+const { parseIntParam } = require("../../lib/parseParams");
+const { parseInventoryFilters, hasAnyFilter, buildSearchWhere, copyMatchCondition, matchingCopies, filterLocations, filterQueryString, NO_LOCATION, NO_BINDING, NO_GENRE, COMMON_GENRES } = require("../../lib/inventorySearch");
 
 const router = express.Router();
 // Garbage ids get the 404 page, not a Postgres 22P02 and a 500.
@@ -94,13 +94,7 @@ router.get("/admin/inventory", requireAdmin, async (req, res) => {
   await expireStaleReservations(pool);
   const filters = parseInventoryFilters(req.query);
   const { q } = filters;
-  const params = [];
-  const conditions = [];
-  if (q) {
-    params.push(likeContains(q));
-    conditions.push(`(b.title ILIKE $${params.length} OR b.authors ILIKE $${params.length} OR b.isbn ILIKE $${params.length})`);
-  }
-  addFilterConditions(filters, conditions, params);
+  const { conditions, params } = buildSearchWhere(filters);
   const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
   const { rows: books } = await pool.query(
     `SELECT b.*, COUNT(c.id)::int AS copy_count,
@@ -125,7 +119,7 @@ router.get("/admin/inventory", requireAdmin, async (req, res) => {
   if (filters.genre && filters.genre !== NO_GENRE && !genres.some((g) => g.toLowerCase() === filters.genre.toLowerCase())) genres.push(filters.genre);
   res.render("admin/inventory/index", {
     active: "inventory", books, q, notice: hasOrdersNotice(req),
-    filters, filterErrors: filters.errors, filterActive: hasAnyFilter(filters),
+    filters, filterErrors: filters.errors, filterActive: hasAnyFilter(filters), resultsQuery: filterQueryString(filters),
     totalMatches: books.length ? books[0].total_matches : 0, listLimit: LIST_LIMIT,
     locations, genres, NO_LOCATION, NO_BINDING, NO_GENRE, CONDITIONS, BINDINGS, conditionLabel,
   });
@@ -146,6 +140,33 @@ router.get("/admin/inventory/export.csv", requireAdmin, async (req, res) => {
   const sink = (text) => (res.write(text) ? undefined : new Promise((resolve) => res.once("drain", resolve)));
   const result = await (perBook ? writeBooksCsv : writeCopiesCsv)(pool, sink);
   await audit(req, { action: "inventory.csv", targetType: "inventory", detail: `${perBook ? "per book" : "per copy"}: ${result.rows} rows (French Excel)` });
+  res.end();
+});
+
+// "Download these results (CSV)": the same file format, but only what the search above shows: the same text search and
+// filters (lib/inventorySearch.js buildSearchWhere, the list's own code), with no 200-book cap. One row per copy (only the
+// copies that matched when a location/condition/price filter is on), or ?books=1 one row per matching book.
+const RESULTS_EXPORT_MAX_ROWS = 50000;
+router.get("/admin/inventory/results.csv", requireAdmin, async (req, res) => {
+  const { writeCopiesCsv, writeBooksCsv, countRows } = require("../../lib/inventoryExport");
+  const filters = parseInventoryFilters(req.query);
+  const perBook = req.query.books === "1";
+  const filter = { ...buildSearchWhere(filters) };
+  if (!perBook) filter.copyCondition = (p, alias) => copyMatchCondition(filters, p, alias);
+  const total = await countRows(pool, perBook, filter);
+  if (total > RESULTS_EXPORT_MAX_ROWS) {
+    return res.status(413).type("text/plain; charset=utf-8").send(
+      `This search has ${total} ${perBook ? "books" : "copies"}, more than the ${RESULTS_EXPORT_MAX_ROWS} a download can hold. Narrow the search, or use "Download all inventory".`);
+  }
+  const day = require("../../lib/reports").todayParis();
+  res.set({
+    "Content-Type": "text/csv; charset=utf-8",
+    "Content-Disposition": `attachment; filename="umas-inventory${perBook ? "-books" : ""}-filtered-${day}.csv"`,
+    "Cache-Control": "no-store",
+  });
+  const sink = (text) => (res.write(text) ? undefined : new Promise((resolve) => res.once("drain", resolve)));
+  const result = await (perBook ? writeBooksCsv : writeCopiesCsv)(pool, sink, { filter });
+  await audit(req, { action: "inventory.csv", targetType: "inventory", detail: `filtered ${perBook ? "per book" : "per copy"}: ${result.rows} rows (French Excel)${filterQueryString(filters) ? ", search " + filterQueryString(filters).slice(0, 200) : ""}` });
   res.end();
 });
 

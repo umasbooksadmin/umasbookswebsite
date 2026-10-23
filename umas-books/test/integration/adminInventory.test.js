@@ -251,7 +251,7 @@ test("show page shows each copy's Till code (UB-<copy id>), also for a book with
       assert.ok(text.includes(`data-copy-text="UB-${id}"`), `UB-${id} has a Copy button`);
     }
     assert.match(text, /Type this code in the Till scan box/);
-    assert.match(text, /<script src="\/copy-text\.js"><\/script>/);
+    assert.match(text, /<script src="\/copy-text\.js(\?v=[0-9a-f]+)?"><\/script>/);
   }
 });
 
