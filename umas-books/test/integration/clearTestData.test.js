@@ -162,12 +162,25 @@ async function allCounts() {
   return out;
 }
 
+const HOST = "db.example.internal";
+const liveOverride = async () => { const a = await liveArgs(); return { acknowledged: true, phrase: a[2] }; };
+// The phrase a person would type after reading the host and the counts (see livePhrase in the library).
+async function liveArgs() {
+  const paid = await count("orders", "status IN ('paid', 'refunded') OR paid_at IS NOT NULL OR collected_at IS NOT NULL");
+  const members = await count("users", "NOT is_admin AND (is_member OR is_volunteer OR is_till)");
+  return ["--i-know-this-is-the-live-database", "--live-confirm", `DELETE LIVE DATA ON ${HOST} WITH ${paid} PAID ORDERS AND ${members} MEMBERS`];
+}
+
 // Runs the command line like a person would; returns { code, out, err }.
-async function cli(args, env = {}) {
+// The fixture is deliberately real-looking (paid order, member, membership payment), which the data-derived
+// live guard refuses; so unless a test passes { live: false } the live override is appended (the guard itself
+// is tested at the end of this file).
+async function cli(args, env = {}, { live = true } = {}) {
   const out = [];
   const err = [];
+  if (live && !args.includes("--list-admins") && !args.includes("--help")) args = [...args, ...(await liveArgs())];
   const code = await ctd.main(args, {
-    env: { DATABASE_URL: `postgres://user:${PASSWORD_IN_URL}@db.example.internal:5432/${dbName}`, PREVIEW_MODE: "true", ...env },
+    env: { DATABASE_URL: `postgres://user:${PASSWORD_IN_URL}@${HOST}:5432/${dbName}`, PREVIEW_MODE: "true", ...env },
     out: (s = "") => out.push(String(s)),
     err: (s = "") => err.push(String(s)),
     connect: async () => {
@@ -255,7 +268,7 @@ test("dry run deletes nothing, restarts no counter, and reports the right counts
 });
 
 async function runDry(opts = {}) {
-  return ctd.runClearTestData(db, { execute: false, ...opts });
+  return ctd.runClearTestData(db, { execute: false, dbHost: HOST, env: {}, ...opts });
 }
 
 test("execute is refused without the exact confirmation, without the backup flag, and with a wrong database name", async () => {
@@ -373,7 +386,7 @@ test("a failed sanity check rolls everything back (simulated damage after the de
   };
   for (const [label, sql] of Object.entries(damage)) {
     await assert.rejects(
-      () => ctd.runClearTestData(db, { execute: true, hooks: { afterDeletes: (c) => c.query(sql) } }),
+      async () => ctd.runClearTestData(db, { execute: true, dbHost: HOST, env: {}, liveOverride: await liveOverride(), hooks: { afterDeletes: (c) => c.query(sql) } }),
       (e) => e instanceof ctd.SanityError || (label === "the admin demoted" && e instanceof Error),
       label
     );
@@ -406,7 +419,7 @@ test("the last admin is never deleted, and with no admin at all it refuses to ru
   assert.equal(none.code, 1);
   assert.match(none.err, /no admin/i);
   assert.deepEqual(await allCounts(), before);
-  await assert.rejects(() => ctd.runClearTestData(db, { execute: true }), ctd.RefusedError);
+  await assert.rejects(() => ctd.runClearTestData(db, { execute: true, dbHost: HOST, env: {} }), ctd.RefusedError);
 });
 
 test("a real run is refused when PREVIEW_MODE is not on, unless --allow-live is given", async () => {
@@ -477,7 +490,13 @@ test("the real script (child process) runs the dry run and refuses an unknown fl
       timeout: 60000,
     });
   const before = await allCounts();
-  const dry = run([]);
+  // The fixture looks live, so the dry run says so and exits 1 unless the override is given; localhost here.
+  const paid = await count("orders", "status IN ('paid', 'refunded') OR paid_at IS NOT NULL OR collected_at IS NOT NULL");
+  const members = await count("users", "NOT is_admin AND (is_member OR is_volunteer OR is_till)");
+  const refused = run([]);
+  assert.equal(refused.status, 1);
+  assert.match(refused.stderr, /looks LIVE/);
+  const dry = run(["--i-know-this-is-the-live-database", "--live-confirm", `DELETE LIVE DATA ON ${new URL(app.databaseUrl).hostname} WITH ${paid} PAID ORDERS AND ${members} MEMBERS`]);
   assert.equal(dry.status, 0, dry.stderr);
   assert.match(dry.stdout, new RegExp(`Database name: ${dbName}`));
   const bad = run(["--nope"]);
@@ -494,4 +513,137 @@ test("parseArgs", () => {
   assert.equal(flags.confirm, "DELETE TEST DATA FROM x");
   assert.equal(ctd.parseArgs(["--confirm", "--execute"]).errors.length, 1, "a flag is not a value");
   assert.deepEqual(ctd.describeDatabaseUrl("postgres://u:pw@host.example:5432/mydb?sslmode=require"), { host: "host.example", name: "mydb" });
+});
+
+// ---------------------------------------------------------------------------
+// Review C (C-M4): the data-derived live-database guard. PREVIEW_MODE is only the operator's word.
+
+test("EXPLOIT: PREVIEW_MODE=true typed on a laptop against a real-looking database is refused, nothing is deleted", async () => {
+  const before = await allCounts();
+  const r = await cli(execArgs(), { PREVIEW_MODE: "true" }, { live: false });
+  assert.equal(r.code, 1);
+  assert.match(r.err, /looks LIVE/);
+  assert.match(r.err, /paid, refunded or collected order/);
+  assert.match(r.err, /membership payment/);
+  assert.match(r.err, /member, volunteer or till account/);
+  assert.match(r.err, /closed till day|PREVIEW_MODE included/);
+  assert.deepEqual(await allCounts(), before, "nothing was deleted");
+  // --allow-live and PREVIEW_MODE variants do not help either.
+  for (const [extra, env] of [[["--allow-live"], { PREVIEW_MODE: "" }], [[], { PREVIEW_MODE: "1" }], [["--allow-live"], { PREVIEW_MODE: "true" }]]) {
+    const x = await cli(execArgs(...extra), env, { live: false });
+    assert.equal(x.code, 1, JSON.stringify([extra, env]));
+    assert.deepEqual(await allCounts(), before);
+  }
+});
+
+test("the dry run prints the refusal reasons and exits non-zero; it still shows the counts", async () => {
+  const before = await allCounts();
+  const r = await cli([], { PREVIEW_MODE: "true" }, { live: false });
+  assert.equal(r.code, 1);
+  assert.match(r.out, /THIS DATABASE LOOKS LIVE: A REAL RUN WOULD BE REFUSED/);
+  assert.match(r.out, /would delete/);
+  assert.match(r.err, /1 paid, refunded or collected order/);
+  assert.match(r.err, /1 membership payment/);
+  assert.match(r.err, /1 member, volunteer or till account/);
+  assert.deepEqual(await allCounts(), before);
+});
+
+test("each kind of live evidence refuses on its own", async () => {
+  const cases = {
+    "a closed till day": async () => { await emptyEverything(); await adminOnly(); await db.query("INSERT INTO till_days (day, opening_float_cents, closed_at) VALUES (current_date, 0, now())"); },
+    "a paid order": async () => { await emptyEverything(); await adminOnly(); await db.query("INSERT INTO orders (buyer_name, buyer_email, total_amount, status) VALUES ('B', 'b@example.test', 1, 'paid')"); },
+    "a refunded order": async () => { await emptyEverything(); await adminOnly(); await db.query("INSERT INTO orders (buyer_name, buyer_email, total_amount, status) VALUES ('B', 'b@example.test', 1, 'refunded')"); },
+    "a collected order": async () => { await emptyEverything(); await adminOnly(); await db.query("INSERT INTO orders (buyer_name, buyer_email, total_amount, status, collected_at) VALUES ('B', 'b@example.test', 1, 'reserved', now())"); },
+    "a membership payment": async () => { await emptyEverything(); await adminOnly(); await db.query("INSERT INTO membership_payments (helloasso_order_id, payer_email, paid_at) VALUES (5, 'm@example.test', now())"); },
+    "a member": async () => { await emptyEverything(); await adminOnly(); await db.query("INSERT INTO users (email, password_hash, display_name, is_member) VALUES ('m@example.test', 'h', 'M', true)"); },
+    "a volunteer": async () => { await emptyEverything(); await adminOnly(); await db.query("INSERT INTO users (email, password_hash, display_name, is_volunteer) VALUES ('v@example.test', 'h', 'V', true)"); },
+    "a till account": async () => { await emptyEverything(); await adminOnly(); await db.query("INSERT INTO users (email, password_hash, display_name, is_till) VALUES ('t@example.test', 'h', 'T', true)"); },
+    "a stocked shop with a sale": async () => {
+      await emptyEverything(); const admin = await adminOnly();
+      await db.query("INSERT INTO books (title) SELECT 'B' || g FROM generate_series(1, 51) g");
+      await db.query("INSERT INTO book_copies (book_id, status) SELECT id, 'in_stock' FROM books");
+      await db.query("INSERT INTO shop_sales (copy_id, price, sold_by) SELECT id, 4, $1 FROM book_copies LIMIT 1", [admin]);
+    },
+  };
+  for (const [label, setup] of Object.entries(cases)) {
+    await setup();
+    const r = await cli(execArgs(), {}, { live: false });
+    assert.equal(r.code, 1, label);
+    assert.match(r.err, /looks LIVE/, label);
+    assert.ok(await count("users") >= 1 && (await count("users", "is_admin")) === 1, `${label}: nothing deleted`);
+  }
+});
+
+async function adminOnly() {
+  return (await q(`INSERT INTO users (email, password_hash, display_name, is_admin) VALUES ('admin@example.test', 'h', 'Admin', true) RETURNING id`))[0].id;
+}
+
+test("a genuinely empty/test database is still allowed without any override (dry run and real run)", async () => {
+  await emptyEverything();
+  await adminOnly();
+  await db.query("INSERT INTO users (email, password_hash, display_name) VALUES ('plain@example.test', 'h', 'Plain')");
+  await db.query("INSERT INTO books (title) SELECT 'B' || g FROM generate_series(1, 60) g");
+  await db.query("INSERT INTO book_copies (book_id, status) SELECT id, 'in_stock' FROM books");
+  await db.query("INSERT INTO orders (buyer_name, buyer_email, total_amount, status) VALUES ('B', 'b@example.test', 1, 'reserved'), ('C', 'c@example.test', 1, 'cancelled')");
+  await db.query("INSERT INTO till_days (day, opening_float_cents) VALUES (current_date, 0)"); // opened, never closed
+  assert.equal((await cli([], {}, { live: false })).code, 0);
+  const real = await cli(execArgs(), {}, { live: false });
+  assert.equal(real.code, 0, real.err);
+  assert.equal(await count("books"), 0);
+});
+
+test("more than 50 stocked books alone (no sale) is a test database; 50 books with a sale is too", async () => {
+  await emptyEverything();
+  const admin = await adminOnly();
+  await db.query("INSERT INTO books (title) SELECT 'B' || g FROM generate_series(1, 50) g");
+  await db.query("INSERT INTO book_copies (book_id, status) SELECT id, 'in_stock' FROM books");
+  await db.query("INSERT INTO shop_sales (copy_id, price, sold_by) SELECT id, 4, $1 FROM book_copies LIMIT 1", [admin]);
+  assert.equal((await cli([], {}, { live: false })).code, 0, "exactly 50 is within the limit");
+});
+
+test("the override needs the flag AND a phrase naming the host and the counts; a wrong or pasted phrase is refused", async () => {
+  const before = await allCounts();
+  const right = (await liveArgs())[2];
+  const bad = [
+    [["--i-know-this-is-the-live-database"]],
+    [["--live-confirm", right]],
+    [["--i-know-this-is-the-live-database", "--live-confirm", right.replace(HOST, "other.example")]],
+    [["--i-know-this-is-the-live-database", "--live-confirm", right.replace("WITH 1 PAID", "WITH 0 PAID")]],
+    [["--i-know-this-is-the-live-database", "--live-confirm", right.replace("AND 1 MEMBERS", "AND 7 MEMBERS")]],
+    [["--i-know-this-is-the-live-database", "--live-confirm", "DELETE LIVE DATA ON <host> WITH <paid orders> PAID ORDERS AND <members> MEMBERS"]],
+    [["--i-know-this-is-the-live-database", "--live-confirm", right.toLowerCase()]],
+    [["--i-know-this-is-the-live-database", "--live-confirm", `DELETE TEST DATA FROM ${dbName}`]],
+  ];
+  for (const [extra] of bad) {
+    const r = await cli(execArgs(...extra), {}, { live: false });
+    assert.equal(r.code, 1, extra.join(" "));
+    assert.deepEqual(await allCounts(), before, `${extra.join(" ")} deleted nothing`);
+  }
+  assert.ok(!(await cli(execArgs("--i-know-this-is-the-live-database", "--live-confirm", "x"), {}, { live: false })).err.includes(right), "the refusal never prints the right phrase");
+  const ok = await cli(execArgs(...(await liveArgs())), {}, { live: false });
+  assert.equal(ok.code, 0, ok.err);
+  assert.match(ok.out, /LIVE-DATABASE OVERRIDE WAS GIVEN/);
+  assert.equal(await count("books"), 0);
+});
+
+test("a database on PRODUCTION_DATABASE_HOST is refused even when it looks empty, unless the override is given", async () => {
+  await emptyEverything();
+  await adminOnly();
+  const env = { PRODUCTION_DATABASE_HOST: "db.example.internal" };
+  const r = await cli(execArgs(), env, { live: false });
+  assert.equal(r.code, 1);
+  assert.match(r.err, /PRODUCTION database host/);
+  const render = await cli(execArgs(), { PRODUCTION_DATABASE_HOST: "db" }, { live: false });
+  assert.equal(render.code, 1, "Render's short host name matches the long one (first label)");
+  const phrase = `DELETE LIVE DATA ON ${HOST} WITH 0 PAID ORDERS AND 0 MEMBERS`;
+  const ok = await cli(execArgs("--i-know-this-is-the-live-database", "--live-confirm", phrase), env, { live: false });
+  assert.equal(ok.code, 0, ok.err);
+});
+
+test("parseArgs knows the live override flags", () => {
+  const { flags, errors } = ctd.parseArgs(["--i-know-this-is-the-live-database", "--live-confirm", "X Y"]);
+  assert.deepEqual(errors, []);
+  assert.equal(flags.iKnowThisIsTheLiveDatabase, true);
+  assert.equal(flags.liveConfirm, "X Y");
+  assert.equal(flags.confirm, null, "--live-confirm is not --confirm");
 });

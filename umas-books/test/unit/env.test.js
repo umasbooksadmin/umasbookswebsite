@@ -204,3 +204,21 @@ test("ALERT_TO unset on a live site is a warning (alerts then go to the default 
   assert.match(validateEnv(env).warnings.join("\n"), /ALERT_TO is not set/);
   assert.doesNotMatch(validateEnv({ ...env, ALERT_TO: "a@one.test, b@two.test" }).warnings.join("\n"), /ALERT_TO is not set/);
 });
+
+test("PREVIEW_MODE with an unrecognised value (a typo) is read as ON and raises a launch alert, a banner and a boot warning", () => {
+  const { launchBannerAlerts } = require("../../src/lib/env");
+  for (const v of ["yse", "enable", "maybe"]) {
+    const env = { ...FULL, NODE_ENV: "production", PREVIEW_MODE: v };
+    const r = validateEnv(env);
+    assert.ok(r.alerts.some((a) => a.code === "preview_mode_value" && /treating it as ON/.test(a.message)), v);
+    assert.match(r.warnings.join("\n"), /PREVIEW_MODE/);
+    assert.ok(launchBannerAlerts(env).some((a) => /PREVIEW_MODE not recognised/.test(a.label)), `${v}: red banner on the admin pages`);
+    const logged = [];
+    require("../../src/lib/config").warnInvalid({ env, log: { warn: (l) => logged.push(l) } });
+    assert.ok(logged.some((l) => /PREVIEW_MODE/.test(l) && /fail closed/.test(l)), `${v}: boot log`);
+  }
+  for (const v of ["true", "on", "yes", "enabled", "false", "off", "disabled", "0", ""]) {
+    const env = { ...FULL, NODE_ENV: "production", PREVIEW_MODE: v };
+    assert.ok(!validateEnv(env).alerts.some((a) => a.code === "preview_mode_value"), `${v} is recognised: no alert`);
+  }
+});

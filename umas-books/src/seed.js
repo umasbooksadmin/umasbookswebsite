@@ -28,7 +28,9 @@ const SAMPLE_CHARITIES = [
 
 // pool and log are injectable for tests; defaults are the app's own.
 async function runSeed({ env = process.env, pool = require("./db").pool, log = console } = {}) {
-  const adminEmail = config.get("SEED_ADMIN_EMAIL", env);
+  // Stored lower-cased and trimmed: login, reset and signup all look accounts up as lower(email),
+  // so a mixed-case seeded address could never log in.
+  const adminEmail = String(config.get("SEED_ADMIN_EMAIL", env) || "").trim().toLowerCase();
   const adminPassword = config.get("SEED_ADMIN_PASSWORD", env);
 
   const { rows: existingAdmins } = await pool.query("SELECT id FROM users WHERE is_admin = TRUE ORDER BY id LIMIT 1");

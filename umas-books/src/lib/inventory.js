@@ -171,13 +171,19 @@ function resolveCopyPricing(condition, rawPrice, rawPublisherPrice, opts = {}) {
     }
     return { price: typed.value != null ? typed.value : pub, publisherPrice: pub };
   }
-  const pubCents = Math.round(Number(rawPublisherPrice) * 100);
-  if (!Number.isFinite(pubCents) || pubCents <= 0 || String(rawPublisherPrice || "").trim() === "") {
+  // Both prices go through the same strict parseMoney as everywhere else (comma or dot,
+  // at most 2 decimals, digits only: no "0x0A", "1e1", or silent rounding of "10.005"),
+  // then the law's arithmetic is done in whole cents.
+  const pubParsed = parseMoney(hasPub ? rawPublisherPrice : "", { allowBlank: true, label: "Publisher's price" });
+  // A blank, malformed or zero publisher's price all get the same sentence (kept byte-identical to what
+  // the intake golden recorded).
+  const pubCents = pubParsed.error || pubParsed.value === null ? 0 : Math.round(pubParsed.value * 100);
+  if (pubCents <= 0) {
     return { error: "New books need the publisher's price (prix éditeur): French law requires them to be sold at that price." };
   }
-  const priceCents = hasPrice ? Math.round(Number(rawPrice) * 100) : pubCents;
+  const priceCents = typed.value !== null ? Math.round(typed.value * 100) : pubCents;
   const euros = (c) => (c / 100).toFixed(2);
-  if (!Number.isFinite(priceCents) || priceCents * 100 < 95 * pubCents || priceCents > pubCents) {
+  if (priceCents * 100 < 95 * pubCents || priceCents > pubCents) {
     const minCents = Math.ceil((95 * pubCents) / 100);
     return { error: `A new book must be sold at the publisher's price (€${euros(pubCents)}), with at most 5% off: the price must be between €${euros(minCents)} and €${euros(pubCents)}.` };
   }

@@ -127,3 +127,22 @@ test("editing a copy enforces the same rule", async () => {
   [row] = await copiesOf(title);
   assert.equal(row.publisher_price, null);
 });
+
+test("a new book accepts French comma prices (typed price and publisher's price)", async () => {
+  const comma = await addBook({ condition: "new", publisherPrice: "10,00", price: "9,50" });
+  assert.equal(comma.res.status, 302, "9,50 against 10,00 is within the 5% rule");
+  const [copy] = await copiesOf(comma.title);
+  assert.equal(Number(copy.price), 9.5);
+  assert.equal(Number(copy.publisher_price), 10);
+  const blank = await addBook({ condition: "new", publisherPrice: "12,90", price: "" });
+  assert.equal(blank.res.status, 302, "a blank price defaults to the comma publisher's price");
+  assert.equal(Number((await copiesOf(blank.title))[0].price), 12.9);
+});
+
+test("a new book refuses hex, exponent and over-precise prices instead of coercing them", async () => {
+  for (const [publisherPrice, price] of [["0x0A", ""], ["1e1", ""], ["10", "0x0A"], ["10", "9.999"], ["10.005", "10"]]) {
+    const { res, title } = await addBook({ condition: "new", publisherPrice, price });
+    assert.equal(res.status, 200, `${publisherPrice} / ${price} should be refused`);
+    assert.equal((await copiesOf(title)).length, 0);
+  }
+});

@@ -97,7 +97,8 @@ function numberMessage(spec, name, raw, text, fallback) {
 // ---- on/off flags ----------------------------------------------------------------------
 // Options: default, onWords, offWords (lower-case words), trim, lower (normalise before the
 // test), ignoreWords (valid values of an enum-like variable that mean "neither"). A value
-// that is none of these is "invalid": the default is used (as it always was) and it is reported.
+// that is none of these is "invalid": the default is used (as it always was) and it is reported;
+// with failClosed (PREVIEW_MODE only) it counts as ON instead.
 function readFlag(spec, name, env) {
   const raw = asEnv(env)[name];
   const fallback = resolveDefault(spec, asEnv(env));
@@ -109,6 +110,16 @@ function readFlag(spec, name, env) {
   if ((spec.offWords || []).includes(s)) return { value: false, state: "ok", raw };
   if (s.trim() === "" || (spec.ignoreWords || []).includes(s)) return { value: fallback, state: "ok", raw };
   const words = [...(spec.onWords || []), ...(spec.offWords || [])].map((w) => JSON.stringify(w)).join(", ");
+  // A safety switch whose "off" is the dangerous state (PREVIEW_MODE: off = live, payments on) must not
+  // fall back to off on a typo: an unrecognised value counts as ON, and says so loudly.
+  if (spec.failClosed) {
+    return {
+      value: true,
+      state: "invalid",
+      raw,
+      message: `${name}=${JSON.stringify(shown(raw))} is not a recognised on/off value (${words}); treating it as ON (fail closed: the site stays in preview mode until this is fixed). Set it to "true" or remove the variable.`,
+    };
+  }
   return {
     value: fallback,
     state: "invalid",
