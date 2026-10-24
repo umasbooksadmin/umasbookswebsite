@@ -93,11 +93,16 @@ test("admin creates a published post with an image; it shows to visitors; edit, 
   const entry = feed.find((p) => p.slug === row.slug);
   assert.ok(entry, "published post is in the public feed");
   assert.equal(entry.image, row.image_url);
-  const blogPage = await fetch(`${app.base}/blog.html?post=${row.slug}`);
+  // The old address is a permanent redirect to the post's own page, which carries the text in the HTML.
+  const old = await fetch(`${app.base}/blog.html?post=${row.slug}`, { redirect: "manual" });
+  assert.equal(old.status, 301);
+  assert.equal(old.headers.get("location"), `/blog/${row.slug}`);
+  const blogPage = await fetch(`${app.base}/blog/${row.slug}`);
   assert.equal(blogPage.status, 200);
   const html = await blogPage.text();
-  assert.ok(html.includes("assets/blog-live.js"), "the page loads the live feed");
+  assert.ok(html.includes("Hello from preview"), "the post text is in the page itself");
   assert.ok(html.includes("preview-banner"), "preview banner is still shown");
+  assert.ok(/<meta name="robots" content="noindex, nofollow">/.test(html), "preview mode keeps the post out of search engines");
 
   // Edit.
   res = await adminPost(`/admin/blog/${row.id}`, { title: `${title} edited`, body: "<p>Changed</p>", status: "published", publishDate: "2020-01-02" });
@@ -143,7 +148,12 @@ test("an admin can preview a draft and a scheduled post on the real blog page fe
   assert.ok(!(await anon.json()).some((p) => p.slug === draft || p.slug === sched));
   // The admin list offers the preview link for posts that are not public.
   const list = await (await adminGet(`/admin/blog?q=${encodeURIComponent(u)}`)).text();
-  assert.ok(list.includes(`/blog.html?post=${draft}&amp;preview=1`) || list.includes(`/blog.html?post=${draft}&preview=1`));
+  assert.ok(list.includes(`/blog/${draft}?preview=1`));
+  // ... and the real page: an admin sees the draft, with a note; everyone else gets "not found".
+  const adminPage = await (await adminGet(`/blog/${draft}?preview=1`)).text();
+  assert.ok(adminPage.includes("Admin preview:") && adminPage.includes(`Unlisted draft ${u}`));
+  assert.equal((await fetch(`${app.base}/blog/${draft}?preview=1`)).status, 404, "an anonymous visitor cannot preview");
+  assert.equal((await fetch(`${app.base}/blog/${draft}`)).status, 404);
 });
 
 test("preview mode still switches off reservations (the blog change loosens nothing else)", async () => {

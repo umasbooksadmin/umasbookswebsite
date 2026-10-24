@@ -386,6 +386,10 @@ function createApp() {
   app.get("/programs", (req, res) => res.redirect(301, "/sessions" + qs(req)));
   app.get("/admin/programs", (req, res) => res.redirect(301, "/admin/sessions" + qs(req)));
 
+  // The blog (list and posts) is rendered by the server from the database: /blog.html, /blog/<slug> and their /fr/
+  // twins (src/routes/blogPages.js). Mounted BEFORE the marketing-page loop below so it answers /blog.html itself.
+  app.use(require("./routes/blogPages").createBlogPagesRouter({ marketingCsp }));
+
   // Becoming a member requires an account: the membership page shows the
   // HelloAsso payment widget only to a logged-in account holder (see
   // src/lib/membershipPage.js). Everyone else gets a login/signup prompt.

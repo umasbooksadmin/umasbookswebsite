@@ -12,6 +12,10 @@
   "text": "Book request list email"
  },
  {
+  "file": "src/routes/blogPages.js",
+  "text": "Uma's Books and Adventures"
+ },
+ {
   "file": "src/routes/books.js",
   "text": "OR (${} <> '' AND length(${}) >= 10 AND regexp_replace(COALESCE(b.isbn, ''), '[^0-9Xx]', '', 'g') = ${}))"
  },

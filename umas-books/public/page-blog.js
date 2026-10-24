@@ -1,57 +1,46 @@
-// Blog page (views/marketing/blog.ejs): list and single post. Needs assets/blog.js (UmasBlog). Was an inline <script>.
+// Blog list (views/marketing/blog.ejs). The posts are already in the page, rendered by the server, and the pager at the
+// bottom is made of real links (?page=2 ...), so the page works without this file. This only improves it: pressing
+// "Show older posts" loads the next page in place instead of navigating. The next page is fetched as the ordinary HTML
+// page and its cards are copied in, so there is exactly one template for a card (views/marketing/partials/blog_card.ejs).
+// If anything goes wrong the link is simply followed.
 (function () {
   var root = document.getElementById('blog-root');
-  var B = window.UmasBlog;
-  var shown = null, pending = {}, loaded = {}; // the single-post view: its body is fetched on demand
-  function draw() {
-    var l = B.lang(), slug = new URLSearchParams(location.search).get('post');
-    if (slug) {
-      var Live = window.UmasBlogLive;
-      var cached = B.posts().filter(function (x) { return x.slug === slug && x.body != null; })[0];
-      if (!cached && Live) {
-        if (shown !== slug) {
-          root.innerHTML = '<div class="blog-post"><a class="back" href="blog.html">&larr; ' + B.esc(B.ui('back')) + '</a></div>';
-        }
-        shown = slug;
-        if (!pending[slug]) {
-          pending[slug] = Live.post(slug).then(function (p) { loaded[slug] = p || false; draw(); });
-        }
-        if (loaded[slug] === undefined) return;
-      }
-      var p = cached || loaded[slug];
-      if (!p) {
-        root.innerHTML = '<div class="blog-post"><a class="back" href="blog.html">&larr; ' + B.esc(B.ui('back')) + '</a><p>' + B.esc(B.ui('notFound')) + '</p></div>';
-        return;
-      }
-      var title = B.pick(p.title, l);
-      document.title = title + ' — Uma\'s Books and Adventures';
-      var body = B.pick(p.body, l) || [];
-      var bodyHtml = Array.isArray(body) ? body.map(function (para) { return '<p>' + B.esc(para) + '</p>'; }).join('') : body;
-      var note = p.live === false
-        ? '<p class="blog-empty" role="status"><strong>Admin preview:</strong> this post is not public yet (' + B.esc(p.status) + ').</p>' : '';
-      root.innerHTML = '<article class="blog-post">' + note +
-        '<a class="back" href="blog.html">&larr; ' + B.esc(B.ui('back')) + '</a>' +
-        '<div class="blog-date">' + B.esc(B.fmtDate(p.date, l)) + '</div>' +
-        '<h1>' + B.esc(title) + '</h1>' +
-        B.image(p, 'blog-post-img') +
-        bodyHtml +
-      '</article>';
-      return;
-    }
-    document.title = "Blog — Uma's Books and Adventures";
-    var list = B.posts();
-    root.innerHTML = '<h1 class="blog-page-title" data-i18n="blog.title">Blog</h1>' +
-      (list.length
-        ? '<div class="blog-grid">' + list.map(function (p) { return B.card(p, l); }).join('') + '</div>' +
-          (window.UMAS_POSTS_MORE ? '<p class="blog-more-wrap"><button type="button" class="h-btn blog-load-more">' + B.esc(B.ui('more')) + '</button></p>' : '')
-        : '<p class="blog-empty">' + B.esc(B.ui('empty')) + '</p>');
-  }
+  if (!root || !window.fetch || !window.DOMParser) return;
+
   root.addEventListener('click', function (e) {
-    if (e.target.closest && e.target.closest('.blog-load-more') && window.UmasBlogLive) window.UmasBlogLive.more();
+    var link = e.target.closest && e.target.closest('.blog-pager-next');
+    if (!link || e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    e.preventDefault();
+    if (link.getAttribute('aria-busy')) return;
+    link.setAttribute('aria-busy', 'true');
+    var url = link.href;
+    fetch(url, { credentials: 'same-origin', headers: { Accept: 'text/html' } })
+      .then(function (res) { if (!res.ok) throw new Error('status ' + res.status); return res.text(); })
+      .then(function (html) {
+        var doc = new DOMParser().parseFromString(html, 'text/html');
+        var grid = root.querySelector('.blog-grid');
+        var incoming = doc.querySelectorAll('#blog-root .blog-card');
+        if (!grid || !incoming.length) throw new Error('no cards');
+        var first = null;
+        incoming.forEach(function (card) {
+          var node = document.importNode(card, true);
+          grid.appendChild(node);
+          if (!first) first = node;
+        });
+        var nextLink = doc.querySelector('#blog-root .blog-pager-next');
+        if (nextLink) {
+          link.setAttribute('href', nextLink.getAttribute('href'));
+          link.removeAttribute('aria-busy');
+          // The "Newer posts" link and the page counter no longer describe what is on screen.
+          var pager = link.closest('.blog-pager');
+          pager.querySelectorAll('.blog-pager-status, [rel=prev]').forEach(function (n) { n.remove(); });
+        } else {
+          var nav = link.closest('.blog-pager');
+          if (nav) nav.remove();
+        }
+        var a = first.querySelector('a');
+        if (a) a.focus({ preventScroll: false });
+      })
+      .catch(function () { window.location.href = url; });
   });
-  draw();
-  document.querySelectorAll('.langtoggle button').forEach(function (b) {
-    b.addEventListener('click', function () { setTimeout(draw, 0); });
-  });
-  window.addEventListener('umasposts:updated', draw);
 })();

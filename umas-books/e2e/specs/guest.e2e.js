@@ -367,7 +367,8 @@ s.test("G80 (must) marketing pages work with no inline scripts: language toggle,
   await ctx.goto("/events.html", "networkidle2");
   await ctx.page.waitForSelector("#events-schedule .ev-item, #events-schedule .ev-empty", { timeout: 15000 });
   await ctx.goto("/blog.html", "networkidle2");
-  await ctx.page.waitForSelector("#blog-root .blog-grid, #blog-root .blog-empty", { timeout: 15000 });
+  // The blog is drawn by the server now: the list (or the "no posts" line) is in the page without waiting for a script.
+  assert.ok(await ctx.page.$("#blog-root .blog-grid, #blog-root .blog-empty"), "the blog list is in the page");
   await ctx.goto("/", "networkidle2");
   assert.deepEqual(violations, [], "no Content-Security-Policy violation on these pages");
 });
@@ -483,13 +484,55 @@ s.test("G26 the sessions page lists upcoming sessions with filters and Month / W
   has(text, /Week/);
 });
 
-s.test("G27 the blog lists published posts; an unknown post says not found", async (ctx) => {
+s.test("G27 the blog lists published posts; a post opens at its own address; an unknown post says not found", async (ctx) => {
   await ctx.goto("/blog.html", "networkidle2");
-  assert.equal((await ctx.page.$$("h1")).length >= 1, true);
-  const res = await ctx.goto("/blog.html?post=no-such-post-e2e", "networkidle2");
-  assert.ok(res.status() < 500);
-  const links = await ctx.page.$$eval("a[href*='blog']", (as) => as.length);
-  assert.ok(links >= 1);
+  assert.equal((await ctx.page.$$("h1")).length, 1);
+  const first = await ctx.page.$eval("a.blog-card-link", (a) => a.getAttribute("href")).catch(() => null);
+  if (first) {
+    assert.match(first, /^\/blog\/[a-z0-9-]+$/, "a card links to the post's own address");
+    await ctx.goto(first, "networkidle2");
+    assert.equal((await ctx.page.$$("h1")).length, 1);
+    assert.ok(await ctx.page.$("a.back"), "a back link");
+  }
+  const res = await ctx.goto("/blog/no-such-post-e2e", "networkidle2");
+  assert.equal(res.status(), 404);
+  const old = await ctx.goto("/blog.html?post=no-such-post-e2e", "networkidle2");
+  assert.equal(old.status(), 404, "the old address leads to the same not-found page");
+});
+
+s.test("G27a (must) the blog is in the page source with no JavaScript, each post has its own address, title and share tags, and the old ?post= address redirects", async (ctx) => {
+  const list = await pageHtml(ctx, "/blog.html");
+  assert.equal(list.status, 200);
+  const links = [...list.html.matchAll(/class="blog-card-link" href="(\/blog\/[a-z0-9-]+)"/g)].map((m) => m[1]);
+  if (!links.length) { has(stripTags(list.html), /No posts yet/); return; }
+  const post = await pageHtml(ctx, links[0]);
+  assert.equal(post.status, 200);
+  assert.equal((post.html.match(/<h1\b/g) || []).length, 1, "one h1");
+  assert.match(post.html, /<link rel="canonical" href="[^"]*\/blog\/[a-z0-9-]+">/);
+  assert.match(post.html, /<meta property="og:type" content="article">/);
+  assert.match(post.html, /<script type="application\/ld\+json">[^<]*"BlogPosting"/);
+  const slug = links[0].split("/").pop();
+  const moved = await fetch(ctx.url(`/blog.html?post=${slug}`), { redirect: "manual" });
+  assert.equal(moved.status, 301);
+  assert.equal(new URL(moved.headers.get("location"), ctx.url("/")).pathname, `/blog/${slug}`);
+  const sm = await fetch(ctx.url("/sitemap.xml"));
+  if (sm.status === 200 && !ctx.preview) has(await sm.text(), /sitemap-blog\.xml/);
+});
+
+s.test("G27b (must) French blog: a post with French text shows it; one without shows the English text under 'Cet article n’est disponible qu’en anglais' and the list marks it EN", async (ctx) => {
+  const list = await pageHtml(ctx, "/fr/blog.html");
+  assert.equal(list.status, 200);
+  assert.match(list.html, /<html lang="fr"/);
+  const cards = [...list.html.matchAll(/<a class="blog-card-link" href="(\/fr\/blog\/[a-z0-9-]+)"( lang="en")?>/g)];
+  if (!cards.length) return;
+  for (const [, href, en] of cards.slice(0, 6)) {
+    const page = await pageHtml(ctx, href);
+    assert.equal(page.status, 200);
+    const fallback = /Cet article n’est disponible qu’en anglais|Cet article n&#39;est disponible qu&#39;en anglais/.test(page.html);
+    assert.equal(fallback, Boolean(en), `${href}: the notice appears exactly for the posts the list marks as English`);
+    const canonical = (/<link rel="canonical" href="([^"]+)"/.exec(page.html) || [])[1] || "";
+    assert.equal(canonical.includes("/fr/blog/"), !fallback, `${href}: canonical is the French address only when the text is French`);
+  }
 });
 
 s.test("G-FR22 FR check: events, sessions and blog in French", { lang: "fr" }, async (ctx) => {

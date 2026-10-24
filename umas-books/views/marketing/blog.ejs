@@ -1,18 +1,44 @@
+<%
+/* The blog list, rendered by the server (src/routes/blogPages.js): the posts are in the HTML, so a search engine and a
+   visitor without JavaScript see them. 24 posts a page with real ?page=N links; public/page-blog.js turns "Show older
+   posts" into an in-page load. Locals from the route: cards, page, pages, hrefFor, adminPreview. */
+const _fr = typeof lang !== 'undefined' && lang === 'fr';
+const _suffixEn = page > 1 ? ' — Page ' + page : '';
+const _suffixFr = page > 1 ? ' — Page ' + page : '';
+%>
 <%- include('partials/mkt_header', {
-  title: "Blog — Uma's Books and Adventures",
+  title: "Blog — Uma's Books and Adventures" + _suffixEn,
   description: "News and stories from Uma's Books & Adventures, the community English bookshop in Albi, France.",
   extraCss: ['assets/blog.css'],
+  robots: typeof robots !== 'undefined' ? robots : '',
 }) %>
-  <div class="blog-page" id="blog-root"></div>
+  <div class="blog-page" id="blog-root">
+    <h1 class="blog-page-title" data-i18n="blog.title">Blog</h1>
+    <% if (adminPreview) { %><p class="blog-empty" role="status"><strong>Admin preview:</strong> this list includes posts that are not public yet (drafts and scheduled posts).</p><% } %>
+    <% if (!cards.length) { %>
+      <p class="blog-empty"><%= tr('No posts yet — check back soon.', 'Pas encore d’articles — revenez bientôt.') %></p>
+    <% } else { %>
+      <div class="blog-grid">
+        <% cards.forEach(function (c) { %><%- include('partials/blog_card', { c }) %><% }) %>
+      </div>
+      <% if (pages > 1) { %>
+      <nav class="blog-pager" aria-label="<%= tr('Pages of posts', 'Pages d’articles') %>">
+        <% if (page > 1) { %><a class="btn btn-outline blog-pager-link" rel="prev" href="<%= hrefFor(page - 1) %>"><span aria-hidden="true">&larr;</span> <%= tr('Newer posts', 'Articles plus récents') %></a><% } %>
+        <span class="blog-pager-status"><%= tr('Page ' + page + ' of ' + pages, 'Page ' + page + ' sur ' + pages) %></span>
+        <% if (page < pages) { %><a class="btn btn-maroon blog-pager-link blog-pager-next" rel="next" href="<%= hrefFor(page + 1) %>"><%= tr('Show older posts', 'Voir les articles plus anciens') %></a><% } %>
+      </nav>
+      <% } %>
+    <% } %>
+  </div>
 <% const pageI18nEn = {
-  "meta.title": "Blog — Uma's Books and Adventures",
+  "meta.title": "Blog — Uma's Books and Adventures" + _suffixEn,
   "meta.description": "News and stories from Uma's Books & Adventures, the community English bookshop in Albi, France.",
   "blog.title": "Blog" }; %>
 <% const pageI18nFr = {
-  "meta.title": "Blog — Uma’s Books and Adventures",
+  "meta.title": "Blog — Uma’s Books and Adventures" + _suffixFr,
   "meta.description": "Actualités et histoires d’Uma’s Books & Adventures, la librairie anglophone et communautaire d’Albi, en France.",
   "blog.title": "Blog" }; %>
 <%- include('partials/mkt_footer', {
   pageI18nEn, pageI18nFr,
-  extraScripts: ['/ui.js', 'assets/blog-live.js', 'assets/blog.js', '/page-blog.js'],
+  extraScripts: ['/page-blog.js'],
 }) %>

@@ -5,7 +5,11 @@
    (optional, e.g. 'home home-fit fit-screen'), activeNav (one of
    'home'|'books'|'programs'|'events', or omitted for none), hideBackLink
    (every page shows a "← Back" link above <main> except the homepage),
-   jsonLd (optional object, emitted as an application/ld+json block).
+   jsonLd (optional object, emitted as an application/ld+json block),
+   ogType ('website' by default; 'article' for a blog post), ogImage (absolute URL of the share picture, default the
+   logo stamp), ogLocale (default from the page's language; a post shown in English on a French page says en_GB),
+   metaProps (optional [{property, content}] extra <meta property> tags, e.g. article:published_time),
+   robots (optional meta robots value, e.g. 'noindex, nofollow' for an admin's preview of a draft).
    Locals set by the marketing routes in src/index.js (res.locals):
    siteUrl (absolute base URL, '' when it can't be determined) and
    canonicalPath (this page's path, e.g. '/about.html'). */
@@ -21,7 +25,9 @@ const _desc = (typeof description !== 'undefined' && description)
 const _seo = typeof locals.seoUrls === 'function' ? locals.seoUrls() : null;
 const _pageUrl = _seo ? _seo.canonical : (_siteUrl ? _siteUrl + _path : '');
 const _alternates = _seo ? _seo.alternates : (_pageUrl ? [{ hreflang: 'x-default', href: _pageUrl }] : []);
-const _ogImage = _siteUrl ? _siteUrl + '/assets/img/logo-stamp-1280x720.png' : '';
+const _customOg = typeof ogImage !== 'undefined' && ogImage ? ogImage : '';
+const _ogImage = _customOg || (_siteUrl ? _siteUrl + '/assets/img/logo-stamp-1280x720.png' : '');
+const _ogLocale = typeof ogLocale !== 'undefined' && ogLocale ? ogLocale : (_isFr ? 'fr_FR' : 'en_GB');
 // Absolute paths: the header also renders on nested pages (/collections/<slug>), where a relative 'books.html'
 // would resolve to /collections/books.html (404). French pages gain /fr via prefixLinks (lib/frUrls.js).
 const nav = [
@@ -42,20 +48,23 @@ const nav = [
 <meta name="color-scheme" content="light">
 <meta name="description" content="<%= _desc %>" data-i18n-attr="content:meta.description">
 <% if (locals.preview || locals.staging) { %><meta name="robots" content="noindex, nofollow">
+<% } else if (typeof robots !== 'undefined' && robots) { %><meta name="robots" content="<%= robots %>">
 <% } %>
 <% if (_pageUrl) { %><link rel="canonical" href="<%= _pageUrl %>">
 <% _alternates.forEach(a => { %><link rel="alternate" hreflang="<%= a.hreflang %>" href="<%= a.href %>">
 <% }) %><% } %><meta property="og:site_name" content="Uma's Books &amp; Adventures">
 <meta property="og:title" content="<%= title %>" data-i18n-attr="content:meta.title">
 <meta property="og:description" content="<%= _desc %>" data-i18n-attr="content:meta.description">
-<meta property="og:type" content="website">
-<meta property="og:locale" content="<%= _isFr ? 'fr_FR' : 'en_GB' %>">
-<meta property="og:locale:alternate" content="<%= _isFr ? 'en_GB' : 'fr_FR' %>">
+<meta property="og:type" content="<%= typeof ogType !== 'undefined' && ogType ? ogType : 'website' %>">
+<meta property="og:locale" content="<%= _ogLocale %>">
+<meta property="og:locale:alternate" content="<%= _ogLocale === 'fr_FR' ? 'en_GB' : 'fr_FR' %>">
+<% (typeof metaProps !== 'undefined' && metaProps ? metaProps : []).forEach(m => { %><meta property="<%= m.property %>" content="<%= m.content %>">
+<% }) %>
 <% if (_pageUrl) { %><meta property="og:url" content="<%= _pageUrl %>">
 <% } %><% if (_ogImage) { %><meta property="og:image" content="<%= _ogImage %>">
-<meta property="og:image:width" content="1280">
+<% if (!_customOg) { %><meta property="og:image:width" content="1280">
 <meta property="og:image:height" content="720">
-<meta property="og:image:alt" content="Uma's Books &amp; Adventures">
+<% } %><meta property="og:image:alt" content="Uma's Books &amp; Adventures">
 <% } %><meta name="twitter:card" content="<%= _ogImage ? 'summary_large_image' : 'summary' %>">
 <meta name="twitter:title" content="<%= title %>" data-i18n-attr="content:meta.title">
 <meta name="twitter:description" content="<%= _desc %>" data-i18n-attr="content:meta.description">

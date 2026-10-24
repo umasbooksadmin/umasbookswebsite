@@ -13,6 +13,13 @@
   }
   const listQs = blogQs({});
   const statusLabels = { draft: 'Draft', scheduled: 'Scheduled', published: 'Published' };
+  // The French status reuses the status pills: ready = green, draft = amber, missing = grey.
+  const frenchPill = { ready: 'published', draft: 'scheduled', missing: 'draft' };
+  const frenchHelp = {
+    ready: 'The French pages show this French version.',
+    draft: 'Not complete yet, so French visitors still see the English text (marked as English). A French version needs a title and content, and an excerpt when the English post has one.',
+    missing: 'No French version yet, so French visitors see the English text (marked as English). The post can be published in English alone.',
+  };
 %>
 
 <% if (flashNotice) { %><div class="notice-box" role="status" id="blog-notice"><%= flashNotice %></div><% } %>
@@ -53,6 +60,36 @@
 
     <label for="blog-excerpt">Excerpt (optional)</label>
     <textarea id="blog-excerpt" name="excerpt" placeholder="A short summary shown on the blog list…"><%= formValues.excerpt %></textarea>
+
+    <fieldset class="blog-fr" id="blog-french">
+      <legend>French version <span class="status-pill <%= frenchPill[formFrenchState] %>" id="blog-french-status">French: <%= frenchLabels[formFrenchState] %></span></legend>
+      <p class="muted small" id="blog-french-help"><%= frenchHelp[formFrenchState] %> Optional; saved with the post. A translation is only a draft for you to read: nothing is saved or shown until you press <%= editing ? 'Save Changes' : 'Publish Post' %>.</p>
+      <div class="blog-fr-tools">
+        <button type="button" class="btn btn-outline btn-small" id="blog-translate-btn" data-translate-url="/admin/blog/translate">Translate to French</button>
+        <span class="muted small" id="blog-translate-status" role="status" aria-live="polite"></span>
+      </div>
+
+      <label for="blog-title-fr">Title (French)</label>
+      <input id="blog-title-fr" name="title_fr" type="text" lang="fr" value="<%= formValues.title_fr %>">
+
+      <label for="blog-content-fr">Content (French)</label>
+      <div class="richtext">
+        <div class="richtext-toolbar">
+          <button type="button" data-cmd="bold"><strong>B</strong></button>
+          <button type="button" data-cmd="italic"><em>I</em></button>
+          <button type="button" data-cmd="underline"><u>U</u></button>
+          <button type="button" data-cmd="insertUnorderedList">&bull; List</button>
+          <button type="button" data-cmd="insertOrderedList">1. List</button>
+          <button type="button" data-cmd="formatBlock" data-arg="blockquote">&ldquo;&rdquo;</button>
+          <button type="button" data-cmd="createLink">Link</button>
+        </div>
+        <div class="richtext-editor" id="blog-content-fr" contenteditable="true" lang="fr" role="textbox" aria-multiline="true" aria-label="Content (French)"><%- formValues.body_fr %></div>
+      </div>
+      <textarea name="body_fr" class="richtext-hidden" aria-label="Post text (French)"><%= formValues.body_fr %></textarea>
+
+      <label for="blog-excerpt-fr">Excerpt (French, optional)</label>
+      <textarea id="blog-excerpt-fr" name="excerpt_fr" lang="fr" placeholder="A short summary shown on the French blog list…"><%= formValues.excerpt_fr %></textarea>
+    </fieldset>
 
     <div class="mem-row field-pair">
       <div>
@@ -143,12 +180,13 @@
           <th>Title</th>
           <th>Category</th>
           <th>Status</th>
+          <th>French</th>
           <th>Published Date</th>
           <th>Actions</th>
         </tr>
       </thead>
       <tbody>
-        <% if (!posts.length) { %><tr><td colspan="7" class="muted" style="text-align:center; padding:24px;">No posts match these filters.</td></tr><% } %>
+        <% if (!posts.length) { %><tr><td colspan="8" class="muted" style="text-align:center; padding:24px;">No posts match these filters.</td></tr><% } %>
         <% posts.forEach(p => { %>
           <tr>
             <td><input type="checkbox" name="ids" value="<%= p.id %>" data-select-all-item="blog-rows" aria-label="Select <%= p.title %>"></td>
@@ -159,10 +197,12 @@
             </td>
             <td><% if (p.category) { %><span class="status-pill category"><%= p.category %></span><% } %></td>
             <td><span class="status-pill <%= p.status %>"><%= statusLabels[p.status] %></span></td>
+            <% const _fs = frenchState(p); %>
+            <td><span class="status-pill <%= frenchPill[_fs] %>"><%= frenchLabels[_fs] %></span></td>
             <td class="muted small"><%= p.published_at ? formatDate(p.published_at) : '—' %></td>
             <td style="white-space:nowrap;">
               <a class="btn btn-outline btn-small" href="/admin/blog?edit=<%= p.id %>&<%= listQs %>">Edit</a>
-              <% if (p.status === 'published' && p.published_at && new Date(p.published_at) <= new Date()) { %><a class="btn btn-outline btn-small" href="/blog.html?post=<%= p.slug %>" target="_blank" rel="noopener">View</a><% } else { %><a class="btn btn-outline btn-small" href="/blog.html?post=<%= p.slug %>&preview=1" target="_blank" rel="noopener" title="Only you can see this: it is not public yet">Preview on site</a><% } %>
+              <% if (p.status === 'published' && p.published_at && new Date(p.published_at) <= new Date()) { %><a class="btn btn-outline btn-small" href="/blog/<%= p.slug %>" target="_blank" rel="noopener">View</a><% } else { %><a class="btn btn-outline btn-small" href="/blog/<%= p.slug %>?preview=1" target="_blank" rel="noopener" title="Only you can see this: it is not public yet">Preview on site</a><% } %>
               <button type="submit" form="blog-delete-<%= p.id %>" class="btn btn-outline btn-small ann-menu-danger">Delete</button>
             </td>
           </tr>
@@ -191,5 +231,6 @@
 </div>
 
 <script src="<%= assetUrl('/blog-preview.js') %>"></script>
+<script src="<%= assetUrl('/blog-translate.js') %>"></script>
 
 <%- include('../partials/admin_footer') %>

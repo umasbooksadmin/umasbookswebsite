@@ -20,7 +20,7 @@ let bookId;
 // page -> reason (why a skipped level is accepted there)
 const ALLOW = {};
 // pages whose headings are all drawn by the browser, so the server's HTML has none (checked from source below)
-const DRAWN_BY_SCRIPT = { "/blog.html": "the page and its list are drawn by assets/blog.js and public/page-blog.js" };
+const DRAWN_BY_SCRIPT = {};
 
 const PAGES = [
   "/", "/about.html", "/books.html", "/events.html", "/programs.html", "/immersion.html", "/membership.html", "/visit.html",
@@ -98,10 +98,13 @@ test("the book page's 'About this book' is an h2 drawn at the old h3 size", () =
   assert.match(css, /\.as-h3 \{ font-size: 1\.17em; \}/);
 });
 
-test("headings made by the browser's scripts: blog cards are h2 (they sit right under the page's h1)", () => {
-  const blog = fs.readFileSync(path.join(__dirname, "..", "..", "..", "assets", "blog.js"), "utf8");
-  assert.match(blog, /<h2 class="blog-title">' \+ esc\(pick\(p\.title, l\)\) \+ '<\/h2>/);
-  assert.doesNotMatch(blog, /blog-title">' \+ [^;]*<\/h3>/);
+test("the blog list and a post are rendered by the server: cards are h2 under the h1, a post has one h1 and no other heading", () => {
+  const card = fs.readFileSync(path.join(__dirname, "..", "..", "views", "marketing", "partials", "blog_card.ejs"), "utf8");
+  assert.match(card, /<h2 class="blog-title">/);
+  assert.doesNotMatch(card, /<h3\b/);
+  const post = fs.readFileSync(path.join(__dirname, "..", "..", "views", "marketing", "blog_post.ejs"), "utf8");
+  assert.equal((post.match(/<h1\b/g) || []).length, 1);
+  assert.doesNotMatch(post, /<h[2-6]\b/);
 });
 
 test("signed-in pages: the forum thread and the announcements list use h2 under their h1", () => {
