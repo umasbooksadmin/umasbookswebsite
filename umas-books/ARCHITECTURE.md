@@ -323,7 +323,18 @@ rather than by a numbered migration), grouped by what they belong to:
   admin then presses "Mark refunded" on `/admin/orders/:id`, which in one
   transaction sets `refunded` + `refunded_at` + `refund_note`, puts the order's
   sold copies back `in_stock` (not a copy sold again since) and marks its
-  drop-in seats `released`), and the cart in `src/lib/cart.js`
+  drop-in seats `released`; it also records `orders.refund_method` (cash from the
+  till drawer, card, transfer, other; NULL for refunds made before migration 095)
+  and, for a cash refund made while today's till day is not closed,
+  `orders.refund_till_day`: `till.daySummary` subtracts those from the day's expected
+  cash, and a cash refund on a closed day is refused). Collected for less than the
+  list price: `collectReservationTx` sets `total_amount` / `amount_received` to what
+  was received and `reserved_total` to the list total. `accounting.accountingRows`
+  exports the lines at list price plus one negative "Discount" row per day and
+  method (credit account 709; `DISCOUNT_ORDERS_SQL`, used by the Sales report too),
+  reversed on the refund day, so the export equals what was received;
+  `test/integration/accountingReconciliation.test.js` asserts export, Sales report,
+  Refunds report and Dashboard agree to the cent), and the cart in `src/lib/cart.js`
   (`createReservation`). `src/lib/orderSweeps.js` (every 6 h, started in
   `src/jobs.js`, no payment-provider call) releases lapsed reservations, sends the
   day-10 customer reminder (`customer_pickup_reminder_sent_at`), the 24-hour

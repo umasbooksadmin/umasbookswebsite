@@ -94,7 +94,7 @@ test("till days: one row per day, float, counted, difference, totals, receipt ra
   assert.deepEqual(Object.keys(by), ["2026-09-01", "2026-09-10"]);
   const ten = by["2026-09-10"];
   assert.deepEqual(ten.slice(1, 8), ["50,00", "62,00", "62,50", "-0,50", "12,50", "20,00", "32,50"]);
-  assert.deepEqual(ten.slice(8), ["2", "1", '"2026-0002"', '"2026-0004"', '"yes"']);
+  assert.deepEqual(ten.slice(8), ["2", "1", '"2026-0002"', '"2026-0004"', '"yes"', "0,00"]);
   assert.equal(by["2026-09-01"][12], '"no"');
   assert.equal(r.stats.unclosedDays, 1, "1 September has a sale and no closing");
   const summary = read(d, "summary_2026-09.txt");

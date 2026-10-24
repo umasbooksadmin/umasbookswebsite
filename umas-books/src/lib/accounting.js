@@ -9,6 +9,12 @@
 //       * collected with the admin "Mark collected and paid" button: from the order, under the
 //         method the staff chose (orders.payment_method: cash, card, cheque, other);
 //       * old orders paid online through HelloAsso (payment_method empty / helloasso / online): HelloAsso
+//   - a DISCOUNT given when the staff collected a reservation for less than its list price
+//     ("Amount received" below the total): the reservation's lines stay at their list price and ONE negative
+//     "Discount" row per day and method carries the difference, so the export of that order is exactly
+//     what was received (cash or card). Refunding such an order reverses what was RECEIVED: the list-price
+//     lines are reversed and the discount row is reversed (a positive "Discount" refund row) on the refund day.
+//     Orders without a discount produce no discount row at all.
 //   - membership payments (HelloAsso)
 //   - refunded reservations: the original sale stays on its day, and a NEGATIVE row dated at the
 //     refund (same category and method as the sale) corrects it in the export of the month the refund happened
@@ -21,17 +27,21 @@
 const { SITE_TIME_ZONE } = require("./tz");
 const TZ = SITE_TIME_ZONE;
 
-const CATEGORY_ORDER = ["Books used", "Books new", "Merchandise", "Refreshments", "Class seats", "Membership", "Donation", "Other"];
+const CATEGORY_ORDER = ["Books used", "Books new", "Merchandise", "Refreshments", "Class seats", "Membership", "Donation", "Other", "Discount"];
 const METHOD_ORDER = ["Cash", "Card at the till", "Cheque", "HelloAsso", "Other / not recorded"];
 
 const OVER = "Cash over/short";
 const OVER_IN = "Cash over";
 const OVER_OUT = "Cash short";
+const DISCOUNT = "Discount";
 
 // Defaults, to confirm with the treasurer. Debit: where the money lands; credit: the income account.
 const DEBIT_DEFAULT = { Cash: ["530", "CA"], "Card at the till": ["511", "BQ"], Cheque: ["511", "BQ"], HelloAsso: ["511", "BQ"], "Other / not recorded": ["471", "OD"] };
 const CREDIT_DEFAULT = {
   "Books used": "707", "Books new": "707", Merchandise: "707", Refreshments: "707", "Class seats": "706", Membership: "756", Donation: "754", Other: "708",
+  // 709 = rabais, remises et ristournes accordes. The discount row is NEGATIVE, so the income stays at list price in 707
+  // and 709 carries the reduction; the cash or bank debit nets to what was really received. Confirm with the treasurer.
+  Discount: "709",
 };
 function defaultMapping(category, method) {
   if (category === OVER) return method === OVER_IN ? { debit: "530", credit: "758", journal: "OD" } : { debit: "658", credit: "530", journal: "OD" };
@@ -41,7 +51,8 @@ function defaultMapping(category, method) {
 // Every (category, method) the mapping page lists.
 function mappingKeys() {
   const keys = [];
-  for (const c of CATEGORY_ORDER) for (const m of METHOD_ORDER) keys.push([c, m]);
+  // A discount is only ever given when collecting a reservation in person, never online (HelloAsso).
+  for (const c of CATEGORY_ORDER) for (const m of METHOD_ORDER) if (!(c === DISCOUNT && m === "HelloAsso")) keys.push([c, m]);
   keys.push([OVER, OVER_IN], [OVER, OVER_OUT]);
   return keys;
 }
@@ -59,11 +70,12 @@ const JOURNAL_RE = /^[0-9A-Za-z]{1,10}$/;
 
 const FR_CATEGORY = {
   "Books used": "livres d'occasion", "Books new": "livres neufs", Merchandise: "marchandises", Refreshments: "boissons et restauration",
-  "Class seats": "places de cours", Membership: "adhésions", Donation: "dons", Other: "autres ventes",
+  "Class seats": "places de cours", Membership: "adhésions", Donation: "dons", Other: "autres ventes", Discount: "remises",
 };
 const FR_METHOD = { Cash: "espèces", "Card at the till": "carte (caisse)", Cheque: "chèque", HelloAsso: "HelloAsso", "Other / not recorded": "mode non enregistré" };
 function labelFor(category, method, date, refund) {
   if (category === OVER) return `${method === OVER_IN ? "Écart de caisse en plus" : "Écart de caisse en moins"} ${date}`;
+  if (category === DISCOUNT) return `${refund ? "Annulation de remise au retrait d'une réservation" : "Remise accordée au retrait d'une réservation"}, ${FR_METHOD[method] || method}, ${date}`;
   return `${refund ? "Remboursement" : "Ventes"} ${FR_CATEGORY[category] || category}, ${FR_METHOD[method] || method}, ${date}`;
 }
 
@@ -82,6 +94,17 @@ const TILL_COLLECTED = "EXISTS (SELECT 1 FROM till_sale_items ti WHERE ti.reserv
 const CATEGORY_SQL = `CASE i.category WHEN 'books_used' THEN 'Books used' WHEN 'books_new' THEN 'Books new' WHEN 'merchandise' THEN 'Merchandise'
   WHEN 'refreshments' THEN 'Refreshments' WHEN 'donation' THEN 'Donation' ELSE 'Other' END`;
 
+// Orders collected for LESS than the list price of their lines (the "Amount received" discount of
+// "Mark collected and paid"): { id, status, paid_at, refunded_at, method, cents = list price - received }.
+// Only orders that record the discount (reserved_total and amount_received set by collectReservationTx)
+// and were not collected at the till; whole cents on both sides, so no rounding drift for any number of lines.
+const DISCOUNT_ORDERS_SQL = `SELECT o.id, o.status, o.paid_at, o.refunded_at, ${ORDER_METHOD_SQL} AS method,
+         (SUM(ROUND(oi.price * 100))::bigint - ROUND(o.total_amount * 100)::bigint) AS cents
+       FROM orders o JOIN order_items oi ON oi.order_id = o.id
+       WHERE o.status IN ('paid', 'refunded') AND o.paid_at IS NOT NULL AND o.reserved_total IS NOT NULL
+         AND o.amount_received IS NOT NULL AND NOT ${TILL_COLLECTED}
+       GROUP BY o.id HAVING SUM(ROUND(oi.price * 100)) > ROUND(o.total_amount * 100)`;
+
 const rank = (list, v) => { const i = list.indexOf(v); return i < 0 ? list.length : i; };
 
 // The lines of the export for a Paris date range, before the account mapping:
@@ -91,14 +114,14 @@ const rank = (list, v) => { const i = list.indexOf(v); return i < 0 ? list.lengt
 async function accountingRows(db, from, to) {
   const params = [from, to];
   const { rows } = await db.query(
-    `WITH lines AS (
+    `WITH disc AS (${DISCOUNT_ORDERS_SQL}), lines AS (
        SELECT (s.created_at AT TIME ZONE '${TZ}')::date AS d, ${CATEGORY_SQL} AS category, ${METHOD_SQL("s.payment_method")} AS method,
-              i.quantity::int AS n, (i.quantity * i.unit_price_cents)::bigint AS cents
+              i.quantity::int AS n, (i.quantity * i.unit_price_cents)::bigint AS cents, false AS rf
        FROM till_sale_items i JOIN till_sales s ON s.id = i.sale_id
        WHERE s.status = 'completed' AND ${inRange("s.created_at", 1, 2)}
        UNION ALL
        SELECT (ss.sold_at AT TIME ZONE '${TZ}')::date, CASE WHEN c.condition = 'new' THEN 'Books new' ELSE 'Books used' END, ${METHOD_SQL("ss.payment_method")},
-              1, ROUND(ss.price * 100)::bigint
+              1, ROUND(ss.price * 100)::bigint, false
        FROM shop_sales ss JOIN book_copies c ON c.id = ss.copy_id
        WHERE ss.till_sale_id IS NULL AND ${inRange("ss.sold_at", 1, 2)}
        UNION ALL
@@ -106,7 +129,7 @@ async function accountingRows(db, from, to) {
               CASE WHEN oi.class_dropin_seat_id IS NOT NULL THEN 'Class seats'
                    WHEN oi.book_copy_id IS NOT NULL AND c.condition = 'new' THEN 'Books new'
                    WHEN oi.book_copy_id IS NOT NULL THEN 'Books used' ELSE 'Other' END,
-              ${ORDER_METHOD_SQL}, 1, ROUND(oi.price * 100)::bigint
+              ${ORDER_METHOD_SQL}, 1, ROUND(oi.price * 100)::bigint, false
        FROM order_items oi JOIN orders o ON o.id = oi.order_id LEFT JOIN book_copies c ON c.id = oi.book_copy_id
        WHERE o.status IN ('paid', 'refunded') AND o.paid_at IS NOT NULL AND NOT ${TILL_COLLECTED} AND ${inRange("o.paid_at", 1, 2)}
        UNION ALL
@@ -114,23 +137,31 @@ async function accountingRows(db, from, to) {
               CASE WHEN oi.class_dropin_seat_id IS NOT NULL THEN 'Class seats'
                    WHEN oi.book_copy_id IS NOT NULL AND c.condition = 'new' THEN 'Books new'
                    WHEN oi.book_copy_id IS NOT NULL THEN 'Books used' ELSE 'Other' END,
-              ${ORDER_METHOD_SQL}, -1, -ROUND(oi.price * 100)::bigint
+              ${ORDER_METHOD_SQL}, -1, -ROUND(oi.price * 100)::bigint, true
        FROM order_items oi JOIN orders o ON o.id = oi.order_id LEFT JOIN book_copies c ON c.id = oi.book_copy_id
        WHERE o.status = 'refunded' AND o.paid_at IS NOT NULL AND o.refunded_at IS NOT NULL AND NOT ${TILL_COLLECTED} AND ${inRange("o.refunded_at", 1, 2)}
        UNION ALL
        -- a refunded reservation that was collected at the till: the sale is already a till row, so only the
        -- reversal is added here, from the same till lines (same category and method), on the refund day
        SELECT (o.refunded_at AT TIME ZONE '${TZ}')::date, ${CATEGORY_SQL}, ${METHOD_SQL("s.payment_method")},
-              -i.quantity::int, -(i.quantity * i.unit_price_cents)::bigint
+              -i.quantity::int, -(i.quantity * i.unit_price_cents)::bigint, true
        FROM till_sale_items i JOIN till_sales s ON s.id = i.sale_id JOIN orders o ON o.id = i.reservation_order_id
        WHERE s.status = 'completed' AND o.status = 'refunded' AND o.refunded_at IS NOT NULL AND ${inRange("o.refunded_at", 1, 2)}
        UNION ALL
-       SELECT (mp.paid_at AT TIME ZONE '${TZ}')::date, 'Membership', 'HelloAsso', 1, mp.amount_cents::bigint
+       SELECT (mp.paid_at AT TIME ZONE '${TZ}')::date, 'Membership', 'HelloAsso', 1, mp.amount_cents::bigint, false
        FROM membership_payments mp
        WHERE mp.amount_cents IS NOT NULL AND ${inRange("mp.paid_at", 1, 2)}
+       UNION ALL
+       -- the discount given at pickup (list price of the lines minus what was received), one negative amount per order
+       -- on the day it was paid, reversed (positive, a refund row) on the day the reservation was refunded
+       SELECT (disc.paid_at AT TIME ZONE '${TZ}')::date, '${DISCOUNT}', disc.method, 0, -disc.cents, false
+       FROM disc WHERE ${inRange("disc.paid_at", 1, 2)}
+       UNION ALL
+       SELECT (disc.refunded_at AT TIME ZONE '${TZ}')::date, '${DISCOUNT}', disc.method, 0, disc.cents, true
+       FROM disc WHERE disc.status = 'refunded' AND disc.refunded_at IS NOT NULL AND ${inRange("disc.refunded_at", 1, 2)}
      )
-     SELECT to_char(d, 'YYYY-MM-DD') AS date, category, method, SUM(n)::int AS count, SUM(cents)::bigint AS cents, (SUM(n) < 0) AS refund
-     FROM lines GROUP BY d, category, method, (n < 0)`,
+     SELECT to_char(d, 'YYYY-MM-DD') AS date, category, method, SUM(n)::int AS count, SUM(cents)::bigint AS cents, rf AS refund
+     FROM lines GROUP BY d, category, method, rf`,
     params
   );
   const { rows: diffs } = await db.query(
@@ -183,6 +214,7 @@ async function accountingExportReport(db, ctx) {
   const notes = [
     "Days are Paris days. Voided till sales and cancelled reservations are not included. No customer data appears here.",
     "A refunded reservation keeps its row on the day it was paid and gets a NEGATIVE row (negative count and total) on the day it was refunded, so a month already given to the treasurer is corrected in the month of the refund.",
+    "A reservation collected for less than its list price (a discount given at pickup) keeps its lines at the list price and adds one NEGATIVE \"Discount\" row per day and payment method (credit account 709 by default), so the export of that reservation is exactly what was received. If it is refunded, the refund reverses what was received: the lines are reversed and the discount row is reversed too (a positive Discount refund row) on the refund day.",
     "A closed day with a cash difference adds one \"Cash over/short\" row (positive: over, negative: short). The opening float is never revenue and is not in this export.",
     "Books and class seats are reserved on the website and paid IN PERSON: a reservation collected at the till is counted once, from the till, and one collected with \"Mark collected and paid\" is counted under the method the staff chose (Cash, Card at the till, Cheque, or Other / not recorded). Only Membership comes from HelloAsso (the membership payments); a HelloAsso row for books is an old order paid online before reservations existed.",
     "Older \"Sell in shop\" sales paid by card are shown as Card at the till; those with no payment method as Other / not recorded.",
@@ -206,5 +238,5 @@ async function accountingExportReport(db, ctx) {
 }
 
 module.exports = {
-  accountingExportReport, accountingRows, salesTotals, loadMapping, defaultMapping, mappingKeys, ACCOUNT_RE, JOURNAL_RE, CATEGORY_ORDER, METHOD_ORDER, OVER, OVER_IN, OVER_OUT,
+  accountingExportReport, accountingRows, salesTotals, loadMapping, defaultMapping, mappingKeys, ACCOUNT_RE, JOURNAL_RE, CATEGORY_ORDER, METHOD_ORDER, OVER, OVER_IN, OVER_OUT, DISCOUNT, DISCOUNT_ORDERS_SQL,
 };

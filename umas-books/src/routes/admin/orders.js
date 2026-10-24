@@ -8,7 +8,7 @@ const { validDay } = require("../../lib/reports");
 const { SITE_TIME_ZONE } = require("../../lib/tz");
 const {
   markOrderCollected, collectReservation, cancelReservationByAdmin, markReservationNoShow, extendReservation,
-  markOrderRefunded, cancelUnpaidOrder, NOTE_MAX, ORDER_VIEWS, OVERDUE_DAYS, PAYMENT_METHODS,
+  markOrderRefunded, cancelUnpaidOrder, NOTE_MAX, ORDER_VIEWS, OVERDUE_DAYS, PAYMENT_METHODS, REFUND_METHODS,
 } = require("../../lib/orderActions");
 const { expireStaleReservations, RESERVATION_EXTENSION_DAYS } = require("../../lib/reservations");
 const { reservationLastDay } = require("../../lib/orderItems");
@@ -116,7 +116,14 @@ const NOTICES = {
   "already-refunded": "This reservation was already marked refunded. Nothing was changed.",
   cancelled: "The unpaid reservation was cancelled and its books and seats are free again.",
 };
-const noticeFor = (key) => NOTICES[String(key || "")] || null;
+// "collected-paid" / "collected-partial" can carry ?discount=4.00 (euros, set by the server): the flash then says so.
+const noticeFor = (key, discount) => {
+  const base = NOTICES[String(key || "")] || null;
+  if (base && /^\d{1,6}\.\d{2}$/.test(String(discount || "")) && Number(discount) > 0 && /^collected-(paid|partial)$/.test(String(key))) {
+    return `${base} Discount given: €${discount} below the list price.`;
+  }
+  return base;
+};
 
 async function loadOrder(id) {
   const { rows } = await pool.query(
@@ -157,7 +164,7 @@ async function renderOrder(req, res, { error = null, status = 200, formValues = 
   return res.status(status).render("admin/order", {
     active: "orders", order, items, history, related, overdueDays: OVERDUE_DAYS, paymentMethods: PAYMENT_METHODS,
     extensionDays: RESERVATION_EXTENSION_DAYS, lastDay: reservationLastDay(order), formValues,
-    notice: status === 200 ? noticeFor(req.query.notice) : null, error,
+    notice: status === 200 ? noticeFor(req.query.notice, req.query.discount) : null, error,
   });
 }
 
@@ -246,7 +253,8 @@ async function collect(req, res, { selected }) {
     action: "order.collected_paid", targetType: "order", targetId: id,
     detail: `${method}, €${result.total.toFixed(2)} of €${result.reservedTotal.toFixed(2)}, ${result.items} item(s)${result.partial ? `, rest moved to reservation #${result.newOrderId}` : ""}${result.dropped.length ? `, dropped ${result.dropped.length} no longer held` : ""}${note ? `; ${note}` : ""}`,
   });
-  res.redirect(`/admin/orders/${id}?notice=${result.partial ? "collected-partial" : "collected-paid"}`);
+  const discountQs = result.discount > 0 ? `&discount=${result.discount.toFixed(2)}` : "";
+  res.redirect(`/admin/orders/${id}?notice=${result.partial ? "collected-partial" : "collected-paid"}${discountQs}`);
 }
 
 router.post("/admin/orders/:id/collect", requireAdmin, (req, res) => collect(req, res, { selected: false }));
@@ -288,23 +296,32 @@ router.post("/admin/orders/:id/extend", requireAdmin, async (req, res) => {
 });
 
 // Step 1: the warning and the form. Nothing changes until the POST below.
-async function renderRefundConfirm(req, res, { error = null, note = "", status = 200 } = {}) {
+async function renderRefundConfirm(req, res, { error = null, note = "", refundMethod = "", status = 200 } = {}) {
   const id = parseId(req.params.id);
   const order = id ? await loadOrder(id) : null;
   if (!order) return res.status(404).render("404");
   if (order.status === "refunded") return res.redirect(`/admin/orders/${id}?notice=already-refunded`);
   const { rows: items } = await pool.query("SELECT item_title, price FROM order_items WHERE order_id = $1 ORDER BY id", [id]);
-  return res.status(status).render("admin/order_refund", { active: "orders", order, items, error, note, noteMax: NOTE_MAX });
+  // Cash comes out of the till drawer: it needs today's till day not to be closed (see lib/till.js daySummary).
+  const { rows: closed } = await pool.query(
+    `SELECT 1 FROM till_days WHERE day = (now() AT TIME ZONE '${SITE_TIME_ZONE}')::date AND closed_at IS NOT NULL`);
+  const tillClosed = closed.length > 0;
+  // Default: refund the way it was paid (cash for cash, card for card); the staff can change it.
+  const suggested = refundMethod || (order.payment_method === "cash" ? "cash" : order.payment_method === "card" ? "card" : "");
+  return res.status(status).render("admin/order_refund", {
+    active: "orders", order, items, error, note, noteMax: NOTE_MAX, refundMethods: REFUND_METHODS, tillClosed,
+    refundMethod: tillClosed && suggested === "cash" ? "" : suggested,
+  });
 }
 
 router.get("/admin/orders/:id/refund", requireAdmin, (req, res) => {
   const f = takeFlash(req, `refund-${req.params.id}`);
-  return renderRefundConfirm(req, res, f ? { error: f.error ? String(f.error) : null, note: String(f.note || "") } : {});
+  return renderRefundConfirm(req, res, f ? { error: f.error ? String(f.error) : null, note: String(f.note || ""), refundMethod: String(f.refundMethod || "") } : {});
 });
 
 // A refused refund goes back to the confirmation page (Post/Redirect/Get) with the note kept.
-const refundRefused = async (req, res, note, error) => {
-  await setFlash(req, `refund-${req.params.id}`, { error, note });
+const refundRefused = async (req, res, note, error, refundMethod = "") => {
+  await setFlash(req, `refund-${req.params.id}`, { error, note, refundMethod });
   return res.redirect(303, `/admin/orders/${req.params.id}/refund`);
 };
 
@@ -317,7 +334,15 @@ router.post("/admin/orders/:id/refund", requireAdmin, async (req, res) => {
   }
   if (!note) return refundRefused(req, res, note, "Please write a note (for example how it was refunded: cash, cheque or card, and the date, or who asked for it).");
 
-  const result = await markOrderRefunded(pool, id, { note });
+  const refundMethod = String(req.body.refundMethod || "");
+  if (!REFUND_METHODS.some((m) => m.value === refundMethod)) {
+    return refundRefused(req, res, note, "Choose how the money was given back (cash from the till drawer, card, bank transfer or other).");
+  }
+
+  const result = await markOrderRefunded(pool, id, { note, refundMethod });
+  if (result.outcome === "till_day_closed") {
+    return refundRefused(req, res, note, `Today's till day (${result.day}) is already closed, so a cash refund can no longer be taken from the drawer. Reopen the day on the End of day page first, or choose "Other" and explain in the note where the cash came from.`, "other");
+  }
   if (result.outcome === "not_found") return res.status(404).render("404");
   if (result.outcome === "already") return res.redirect(`/admin/orders/${id}?notice=already-refunded`);
   if (result.outcome === "not_paid") {
@@ -326,7 +351,7 @@ router.post("/admin/orders/:id/refund", requireAdmin, async (req, res) => {
   if (result.outcome === "note_required") return refundRefused(req, res, note, "Please write a note.");
   await audit(req, {
     action: "order.refunded", targetType: "order", targetId: id,
-    detail: `restocked ${result.restocked}${result.kept.length ? `, kept sold (resold) ${result.kept.length}` : ""}, seats released ${result.seatsReleased}; ${note}`,
+    detail: `${result.refundMethod ? `refunded by ${result.refundMethod}${result.tillDay ? ` from the till drawer of ${result.tillDay}` : ""}, €${result.amount.toFixed(2)}; ` : ""}restocked ${result.restocked}${result.kept.length ? `, kept sold (resold) ${result.kept.length}` : ""}, seats released ${result.seatsReleased}; ${note}`,
   });
   res.redirect(`/admin/orders/${id}?notice=refunded`);
 });

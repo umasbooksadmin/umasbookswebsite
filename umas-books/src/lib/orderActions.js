@@ -30,6 +30,14 @@ const PAYMENT_METHODS = [
   { value: "other", label: "Other" },
 ];
 
+// How a refund was paid out (orders.refund_method). Cash comes out of the till drawer.
+const REFUND_METHODS = [
+  { value: "cash", label: "Cash from the till drawer" },
+  { value: "card", label: "Card refund on the terminal" },
+  { value: "transfer", label: "Bank transfer" },
+  { value: "other", label: "Other" },
+];
+
 // A PAID order from the old online checkout is "awaiting pickup" while it has at
 // least one book and nobody has marked it collected (a reservation that was paid
 // in the shop is collected at the same moment, so it never is). Drop-in seats
@@ -197,7 +205,7 @@ async function collectReservationTx(client, orderId, { adminUserId = null, metho
       [orderId, received / 100, subtotal / 100, method, cleanNote || null, adminUserId]
     );
     return {
-      outcome: "collected", total: received / 100, reservedTotal: subtotal / 100, items: selected.length,
+      outcome: "collected", total: received / 100, reservedTotal: subtotal / 100, discount: (subtotal - received) / 100, items: selected.length,
       partial: rest.length > 0, newOrderId, dropped: inactive.map((i) => i.item_title),
     };
   }
@@ -216,10 +224,27 @@ const markReservationNoShow = (pool, orderId) => releaseReservation(pool, orderI
 //     another paid order): that one is left alone and reported in `kept`;
 //   - the order's drop-in seats become 'released', so they stop counting
 //     against the session's capacity.
-// outcome: "refunded" | "already" | "not_paid" | "not_found" | "note_required".
-async function markOrderRefunded(pool, orderId, { note } = {}) {
+//   - `refundMethod` (REFUND_METHODS) records HOW the money went back. "cash" means it came out of
+//     the till drawer: it is deducted from that Paris day's expected cash (lib/till.js daySummary) so the
+//     closing count is right, and it needs the day not to be closed yet (refund_till_day). No method
+//     (undefined) is the old behaviour: nothing recorded, the drawer is not touched. The amount is what
+//     was RECEIVED (orders.total_amount), also for an order collected with a discount.
+// outcome: "refunded" | "already" | "not_paid" | "not_found" | "note_required" | "method_invalid" |
+// "till_day_closed" (a cash refund while today's till day is already closed; nothing was changed).
+async function markOrderRefunded(pool, orderId, { note, refundMethod } = {}) {
   const cleanNote = String(note == null ? "" : note).trim().slice(0, NOTE_MAX);
+  const method = refundMethod === undefined || refundMethod === null || refundMethod === "" ? null : String(refundMethod);
+  if (method !== null && !REFUND_METHODS.some((m) => m.value === method)) return { outcome: "method_invalid" };
   return withTransaction(pool, async (client) => {
+    let tillDay = null;
+    if (method === "cash") {
+      // Same lock a sale or the closing takes: the day cannot be closed between this check and the commit.
+      const till = require("./till");
+      tillDay = (await till.parisToday(client)).today;
+      await till.lockDay(client, tillDay, "share");
+      const { rows: closed } = await client.query("SELECT 1 FROM till_days WHERE day = $1::date AND closed_at IS NOT NULL", [tillDay]);
+      if (closed.length) return { outcome: "till_day_closed", day: tillDay };
+    }
     const { rows } = await client.query("SELECT * FROM orders WHERE id = $1 FOR UPDATE", [orderId]);
     const order = rows[0];
     if (!order) return { outcome: "not_found" };
@@ -227,7 +252,10 @@ async function markOrderRefunded(pool, orderId, { note } = {}) {
     if (order.status !== "paid") return { outcome: "not_paid", status: order.status };
     if (!cleanNote) return { outcome: "note_required" };
 
-    await client.query("UPDATE orders SET status = 'refunded', refunded_at = now(), refund_note = $2 WHERE id = $1", [orderId, cleanNote]);
+    await client.query(
+      "UPDATE orders SET status = 'refunded', refunded_at = now(), refund_note = $2, refund_method = $3, refund_till_day = $4::date WHERE id = $1",
+      [orderId, cleanNote, method, tillDay]
+    );
 
     const { rows: copyRows } = await client.query(
       `SELECT c.id, c.status,
@@ -251,7 +279,7 @@ async function markOrderRefunded(pool, orderId, { note } = {}) {
       "UPDATE class_dropin_seats SET status = 'released', updated_at = now() WHERE order_id = $1 AND status = 'sold'",
       [orderId]
     );
-    return { outcome: "refunded", restocked: restock.length, kept, seatsReleased: seats.rowCount };
+    return { outcome: "refunded", restocked: restock.length, kept, seatsReleased: seats.rowCount, refundMethod: method, tillDay, amount: Number(order.total_amount) };
   });
 }
 
@@ -271,5 +299,5 @@ async function cancelUnpaidOrder(pool, orderId) {
 module.exports = {
   markOrderCollected, collectReservation, collectReservationTx, cancelReservationByAdmin, markReservationNoShow, extendReservation,
   markOrderRefunded, cancelUnpaidOrder,
-  AWAITING_PICKUP, HAS_BOOKS, NOTE_MAX, ORDER_VIEWS, OVERDUE_DAYS, EXPIRING_SOON_DAYS, STALE_PENDING_HOURS, PAYMENT_METHODS,
+  AWAITING_PICKUP, HAS_BOOKS, NOTE_MAX, ORDER_VIEWS, OVERDUE_DAYS, EXPIRING_SOON_DAYS, STALE_PENDING_HOURS, PAYMENT_METHODS, REFUND_METHODS,
 };

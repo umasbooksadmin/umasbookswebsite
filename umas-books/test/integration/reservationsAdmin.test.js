@@ -256,7 +256,7 @@ test("mark refunded still works after a pickup: books back in stock, out of reve
   const noTick = await admin.post(`/admin/orders/${order.id}/refund`, { note: "Customer returned the book" });
   assert.equal(noTick.status, 200);
   assert.equal((await h.order(order.id)).status, "paid");
-  const r = await admin.post(`/admin/orders/${order.id}/refund`, { confirmRefunded: "on", note: "Refunded in cash at the shop" });
+  const r = await admin.post(`/admin/orders/${order.id}/refund`, { confirmRefunded: "on", refundMethod: "cash", note: "Refunded in cash at the shop" });
   assert.match(r.location, /notice=refunded/);
   assert.equal((await h.order(order.id)).status, "refunded");
   assert.equal((await copyRow(copy)).status, "in_stock");

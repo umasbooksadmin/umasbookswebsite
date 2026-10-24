@@ -38,6 +38,29 @@ document.addEventListener("submit", function (e) {
   }
 }, true);
 
+// "Mark collected and paid": show the discount live (list total minus the amount typed) and make the
+// note required while the amount is below the list total. The server enforces both anyway.
+(function () {
+  function update(input) {
+    var total = Number(input.getAttribute("data-discount-total"));
+    var out = document.getElementById(input.getAttribute("data-discount-out"));
+    var note = document.getElementById(input.getAttribute("data-discount-note"));
+    var typed = Math.round(Number(String(input.value).replace(",", ".")) * 100);
+    var discount = isFinite(typed) && input.value !== "" ? total - typed : 0;
+    if (out) {
+      if (discount > 0) out.textContent = "Discount: \u20AC" + (discount / 100).toFixed(2);
+      else if (discount < 0) out.textContent = "The amount cannot be more than the list total (\u20AC" + (total / 100).toFixed(2) + ").";
+      else out.textContent = "";
+    }
+    if (note) note.required = discount > 0;
+  }
+  document.addEventListener("input", function (e) {
+    if (e.target && e.target.matches && e.target.matches("[data-discount-total]")) update(e.target);
+  });
+  var first = document.querySelector("[data-discount-total]");
+  if (first) update(first);
+})();
+
 // Up to 900px the admin sidebar (partials/admin_header.ejs) is an off-canvas
 // drawer rather than a permanent column (see admin.css). The hamburger button
 // opens it; the backdrop, its own close button, a menu link or Escape close it.
