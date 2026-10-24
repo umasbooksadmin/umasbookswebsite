@@ -36,6 +36,29 @@ function bookDescription(book, lang, tr) {
   );
 }
 
+// The exact brand string of a book page's <title>. Never alter it.
+const TITLE_BRAND = "Uma's Books and Adventures";
+// The part before the brand stays near 60 characters (what a results page shows); the full title is still the page's h1.
+const TITLE_HEAD_MAX = 60;
+const VOWEL_START = /^[aeiouyàâäéèêëîïôöùûüœ]/i;
+
+// "Emma by Jane Austen — Uma's Books and Adventures" / "Emma de Jane Austen — ..." ("d’Agatha Christie" before a
+// vowel). No author: the title alone. If title + author is too long the author goes first, then the title is
+// clipped at a word boundary with an ellipsis.
+function bookPageTitle(book, lang) {
+  const title = String(book.title || "").replace(/\s+/g, " ").trim();
+  const authors = String(book.authors || "").replace(/\s+/g, " ").trim();
+  let head = title;
+  if (authors) {
+    const by = lang === "fr"
+      ? (VOWEL_START.test(authors) ? `${title} d’${authors}` : `${title} de ${authors}`)
+      : `${title} by ${authors}`;
+    if (by.length <= TITLE_HEAD_MAX) head = by;
+  }
+  if (head.length > TITLE_HEAD_MAX) head = clip(head, TITLE_HEAD_MAX);
+  return `${head} — ${TITLE_BRAND}`;
+}
+
 // base: absolute site URL ('' when unknown). Returns { description, ogImage, jsonLd }.
 function buildBookSeo({ book, copies, base, lang, tr }) {
   // The page's own address: /fr/books/12 in French (lib/frUrls.js), matching its canonical link.
@@ -77,4 +100,4 @@ function buildBookSeo({ book, copies, base, lang, tr }) {
   return { description, ogImage: image, jsonLd };
 }
 
-module.exports = { buildBookSeo, itemCondition, absoluteUrl };
+module.exports = { buildBookSeo, bookPageTitle, TITLE_BRAND, itemCondition, absoluteUrl };

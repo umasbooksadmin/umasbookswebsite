@@ -55,7 +55,7 @@ const nav = [
 <% } %><% if (_ogImage) { %><meta property="og:image" content="<%= _ogImage %>">
 <meta property="og:image:width" content="1280">
 <meta property="og:image:height" content="720">
-<meta property="og:image:alt" content="Uma's Books &amp; Adventures">
+<meta property="og:image:alt" content="<%= _isFr ? 'Uma’s Books & Adventures — une librairie associative anglophone à Albi' : 'Uma\'s Books & Adventures — a community English bookshop in Albi, France' %>">
 <% } %><meta name="twitter:card" content="<%= _ogImage ? 'summary_large_image' : 'summary' %>">
 <meta name="twitter:title" content="<%= title %>" data-i18n-attr="content:meta.title">
 <meta name="twitter:description" content="<%= _desc %>" data-i18n-attr="content:meta.description">

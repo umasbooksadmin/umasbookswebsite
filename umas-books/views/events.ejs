@@ -1,4 +1,4 @@
-<%- include('partials/header', { title: tr('Events', 'Événements'), extraCss: ['/floral-calendar.css'], mainClass: view === 'week' ? 'wrap-wide' : 'wrap' }) %>
+<%- include('partials/header', { title: tr('Events', 'Événements'), description: tr("Upcoming events at Uma's Books & Adventures in Albi, France: browse the calendar by month or week and sign up online, no account needed.", 'Les prochains événements d’Uma’s Books & Adventures à Albi : parcourez le calendrier par mois ou par semaine et inscrivez-vous en ligne, sans compte.'), extraCss: ['/floral-calendar.css'], mainClass: view === 'week' ? 'wrap-wide' : 'wrap' }) %>
 
 <% const qs = view === 'week' ? `view=week&week=${currentWeek}` : `month=${currentMonth}`; %>
 <% const prevHref = view === 'week' ? `view=week&week=${prevWeek}` : `month=${prevMonth}`; %>
