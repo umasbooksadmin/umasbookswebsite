@@ -225,7 +225,16 @@ test("flags: PREVIEW_MODE, PRICING_AI, COVER_BACKFILL, AWARDS_LOOKUPS, ADMIN_2FA
     const v = String((env && env[name]) || "").trim().toLowerCase();
     return v === "1" || v === "true";
   };
-  run("PREVIEW_MODE", trimLowerOneOrTrue("PREVIEW_MODE"));
+  // DELIBERATE CHANGE (Review C, C-L1): PREVIEW_MODE used to be "1" or "true" -> on, anything else -> off, so a
+  // typo ("yes", "on", "enabled") silently made the site LIVE. Now: on-words and off-words are recognised
+  // (any case, trimmed), blank is off, and any OTHER value is ON (fail closed) and reported by invalidSettings().
+  // This is the only flag with a different rule from the original parser; the rule is pinned right here.
+  run("PREVIEW_MODE", (env) => {
+    const v = String((env && env.PREVIEW_MODE) || "").trim().toLowerCase();
+    if (v === "") return false;
+    if (["0", "false", "off", "no", "disabled"].includes(v)) return false;
+    return true; // 1, true, on, yes, enabled, and every unrecognised value
+  });
   run("PRICING_AI", trimLowerOneOrTrue("PRICING_AI"));
   run("COVER_BACKFILL", (env) => env.COVER_BACKFILL !== "off");
   run("AWARDS_LOOKUPS", (env) => !/^(off|0|false)$/i.test(String(env.AWARDS_LOOKUPS || "").trim()));
@@ -295,18 +304,18 @@ test("a warning is reported for a set-but-unusable number or flag, never for uns
       if (r.state === "invalid") {
         assert.ok(input !== undefined && String(input) !== "", `${spec.name} warns about an unset/empty value`);
         assert.match(r.message, new RegExp(`^${spec.name}`), "the message starts with the variable name");
-        assert.ok(/using/.test(r.message), "the message says what is used instead");
+        assert.ok(/using|treating/.test(r.message), "the message says what is used instead");
       }
     }
   }
   assert.deepEqual(config.invalidSettings({}), [], "an empty environment reports nothing");
-  const bad = config.invalidSettings({ PREVIEW_MODE: "yes", SCAN_SLOW_LOG_MS: "fast", AI_DAILY_MAX_CALLS: "lots" }).map((b) => b.name);
+  const bad = config.invalidSettings({ PREVIEW_MODE: "yse", SCAN_SLOW_LOG_MS: "fast", AI_DAILY_MAX_CALLS: "lots" }).map((b) => b.name);
   assert.deepEqual(bad, ["PREVIEW_MODE", "AI_DAILY_MAX_CALLS", "SCAN_SLOW_LOG_MS"]);
 });
 
 test("warnInvalid logs one line per bad variable and skips the ones whose module already warns", () => {
   const lines = [];
-  const bad = config.warnInvalid({ env: { PREVIEW_MODE: "yes", DB_POOL_MAX: "x", AI_DAILY_MAX_CALLS: "lots" }, log: { warn: (l) => lines.push(l) } });
+  const bad = config.warnInvalid({ env: { PREVIEW_MODE: "yse", DB_POOL_MAX: "x", AI_DAILY_MAX_CALLS: "lots" }, log: { warn: (l) => lines.push(l) } });
   assert.deepEqual(bad.map((b) => b.name), ["PREVIEW_MODE", "AI_DAILY_MAX_CALLS"]);
   assert.equal(lines.length, 2);
   assert.ok(lines.every((l) => l.startsWith("[config] WARNING: ")));

@@ -17,6 +17,7 @@
 // expected refusals, and is safe to repeat (a second click changes nothing).
 
 const { withTransaction } = require("../db");
+const { parseMoney } = require("./validation");
 const { releaseReservation, extendReservation } = require("./reservations");
 
 const NOTE_MAX = 500;
@@ -145,9 +146,10 @@ async function collectReservationTx(client, orderId, { adminUserId = null, metho
     const subtotal = selected.reduce((sum, i) => sum + toCents(i.price), 0);
     let received = subtotal;
     if (amountReceived !== undefined && amountReceived !== null && String(amountReceived).trim() !== "") {
-      const n = Number(String(amountReceived).replace(",", "."));
-      if (!Number.isFinite(n) || n < 0) return { outcome: "amount_invalid" };
-      received = toCents(n);
+      // Same strict money rule as every other form (comma or dot, at most 2 decimals; no "0x0A", "1e1").
+      const parsed = parseMoney(amountReceived, { allowBlank: true });
+      if (parsed.error || parsed.value === null) return { outcome: "amount_invalid" };
+      received = toCents(parsed.value);
       if (received > subtotal) return { outcome: "amount_too_high", subtotal: subtotal / 100 };
     }
     if (received < subtotal && !cleanNote) return { outcome: "note_required" };

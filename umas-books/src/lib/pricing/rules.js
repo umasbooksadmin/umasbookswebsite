@@ -56,6 +56,12 @@ function isNewCondition(condition) {
 }
 
 function positive(n) {
+  // A text from a form may use a French comma ("12,90"); only plain digits count (no "0x0A", "1e1").
+  if (typeof n === "string") {
+    const t = n.trim().replace(",", ".");
+    if (!/^\d+(\.\d+)?$/.test(t)) return null;
+    n = t;
+  }
   const v = Number(n);
   return Number.isFinite(v) && v > 0 ? v : null;
 }
