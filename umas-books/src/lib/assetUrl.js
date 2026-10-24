@@ -42,11 +42,14 @@ function assetUrl(urlPath) {
 
 // express.static setHeaders hook: a file served for a ?v=<hash> URL is
 // immutable for a year (it only runs for files that exist, never for a 404).
+const IMMUTABLE_CACHE = "public, max-age=31536000, immutable";
+const SHORT_CACHE = "public, max-age=604800";
+function isVersioned(req) {
+  const v = req && req.query && req.query.v;
+  return typeof v === "string" && /^[0-9a-f]{6,}$/.test(v);
+}
 function versionedHeaders(res) {
-  const v = res.req && res.req.query && res.req.query.v;
-  if (typeof v === "string" && /^[0-9a-f]{6,}$/.test(v)) {
-    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
-  }
+  if (isVersioned(res.req)) res.setHeader("Cache-Control", IMMUTABLE_CACHE);
 }
 
 // The static mounts sit before helmet in index.js, so they set the headers
@@ -63,4 +66,4 @@ function staticHeaders(res) {
   versionedHeaders(res);
 }
 
-module.exports = { assetUrl, versionedHeaders, staticHeaders, STATIC_SECURITY_HEADERS };
+module.exports = { assetUrl, versionedHeaders, isVersioned, IMMUTABLE_CACHE, SHORT_CACHE, staticHeaders, STATIC_SECURITY_HEADERS };

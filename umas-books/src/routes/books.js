@@ -12,7 +12,7 @@ const { validateIdParams } = require("../middleware/idParams");
 const { bookSearchLimiter } = require("../middleware/rateLimits");
 
 const { newInPage } = require("../lib/latestArrivals");
-const { buildBookSeo } = require("../lib/bookSeo");
+const { buildBookSeo, bookPageTitle } = require("../lib/bookSeo");
 const router = express.Router();
 // The public JSON lists below are the same for everyone (no session, no per-person data) and change slowly: a browser
 // or the CDN may keep them a minute (new-in is also kept in memory for 45 s by lib/latestArrivals.js newInPage).
@@ -190,7 +190,7 @@ router.get("/api/books/search", bookSearchLimiter, publicJson("public, max-age=6
 // Favorites live entirely client-side (localStorage — see public/favorites.js),
 // so this page just renders a shell; the list itself is fetched below by id.
 router.get("/favorites", (req, res) => {
-  res.render("favorites");
+  res.render("favorites"); // per-user page: head carries noindex, follow
 });
 
 // Public JSON, same-origin only (the favorites page's own fetch) — no
@@ -249,6 +249,7 @@ router.get("/books/:id", async (req, res) => {
   const seo = buildBookSeo({ book, copies, base: res.locals.siteUrl, lang: req.lang, tr: req.tr });
 
   res.render("book_detail", {
+    fullTitle: bookPageTitle(book, req.lang),
     description: seo.description,
     ogImage: seo.ogImage || undefined,
     ogType: "book",
