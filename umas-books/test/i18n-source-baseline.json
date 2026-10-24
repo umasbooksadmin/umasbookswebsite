@@ -430,5 +430,9 @@
  {
   "file": "src/lib/orderEmail.js",
   "text": "Complaints: write to"
+ },
+ {
+  "file": "src/lib/bookSeo.js",
+  "text": "Uma's Books and Adventures"
  }
 ]

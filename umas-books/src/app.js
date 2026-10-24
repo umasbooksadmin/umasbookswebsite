@@ -57,7 +57,7 @@ const adminRoutes = require("./routes/admin");
 
 const { newInPage } = require("./lib/latestArrivals");
 const { listButtonCollections, browseFilterActive } = require("./lib/collections");
-const { assetUrl, staticHeaders, STATIC_SECURITY_HEADERS } = require("./lib/assetUrl");
+const { assetUrl, staticHeaders, isVersioned, IMMUTABLE_CACHE, SHORT_CACHE, STATIC_SECURITY_HEADERS } = require("./lib/assetUrl");
 
 function createApp() {
   const app = express();
@@ -102,7 +102,18 @@ function createApp() {
   // Uploaded images (covers, blog/announcement/charity photos): content-addressed,
   // immutable, served from the DB with no session. See routes/img.js.
   app.use(require("./routes/img"));
-  app.get("/logo.png", (req, res) => res.sendFile("logo.png", { root: marketingRoot, maxAge: STATIC_MAX_AGE, headers: STATIC_SECURITY_HEADERS }));
+  // Same rule as the static mounts: a ?v=<content hash> URL is immutable, a bare one keeps the short cache.
+  app.get("/logo.png", (req, res) => res.sendFile("logo.png", {
+    root: marketingRoot, cacheControl: false,
+    headers: { ...STATIC_SECURITY_HEADERS, "Cache-Control": isVersioned(req) ? IMMUTABLE_CACHE : SHORT_CACHE },
+  }));
+  // Browsers and crawlers ask for /favicon.ico by default whatever the <link rel="icon"> tags say. We have no .ico, so
+  // answer with the 32px PNG (every browser sniffs the type; Google accepts it). The URL never carries a version, so a
+  // long but not immutable cache: 30 days.
+  app.get("/favicon.ico", (req, res) => res.sendFile("favicon-32x32.png", {
+    root: path.join(__dirname, "..", "public"), cacheControl: false,
+    headers: { ...STATIC_SECURITY_HEADERS, "Content-Type": "image/png", "Cache-Control": "public, max-age=2592000" },
+  }));
 
   // For the external uptime check (see .github/workflows/uptime-check.yml)
   // to actually catch what happened on 2026-09-26 — the process was up

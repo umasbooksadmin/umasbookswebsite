@@ -864,6 +864,20 @@ screens stay English). Two languages only: `en` and `fr`.
   unprefixed: a French page posts to the normal URL, and `res.redirect` sends a French
   visitor to the `/fr/` twin of a public target (permanent 301s only on a `/fr/` request,
   so a cache never keeps a language-dependent redirect).
+
+  Crawler-facing details (`src/routes/seo.js`, `views/partials/header.ejs`): the app pages'
+  canonical comes from a normalised path (`canonicalPathOf`: lower case, no trailing slash,
+  so `/Events` and `/events/` name `/events`); `robots.txt` (live only) disallows `/api/` but
+  allows the public JSON that fills the blog, shelves and events (`/api/blog/`, `/api/books`,
+  `/api/events/`) and keeps `/api/books/by-ids` blocked; per-user `/favorites` passes
+  `noindex: 'follow'` (`noindex, follow`, no canonical, not in the sitemap); a page with no
+  `description` of its own shows the site default, so every listed page passes one; the book
+  page passes `fullTitle` (`Title by Author — Uma's Books and Adventures`, French `de`/`d’`,
+  clipped near 60 characters; French pages curl the brand's apostrophe like all text); the home JSON-LD (`views/marketing/index.ejs`) reads telephone and `sameAs` from
+  `lib/legal.js`; `/favicon.ico` serves `public/favicon-32x32.png`. Static files: a `?v=<hash>`
+  URL is `immutable` for a year, a bare one 7 days (`lib/assetUrl.js`, also `/logo.png`);
+  `/img/<sha256>` is always immutable. Preview output (`Disallow: /`, empty sitemaps,
+  `noindex, nofollow`) is pinned by `test/integration/seoQuickWins.test.js`.
   Links: on a `/fr/` page the server rewrites `<a href="/public-page">` to `/fr/...` after
   rendering (`prefixLinks()` in `frenchTypography.js` / `pageDictionary.js`; forms, assets and
   the toggle are left alone), and `assets/site.js` does the same for what it writes in the

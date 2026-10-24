@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <% /* Params: title, description, ogImage (absolute or site-relative), ogType,
-   jsonLd (object, emitted as application/ld+json), noindex, extraCss, hideBackLink.
+   jsonLd (object, emitted as application/ld+json), noindex (true, or "follow" for
+   "noindex, follow"), fullTitle (whole <title>, replacing "title — site name"), extraCss, hideBackLink.
    Locals from middleware (src/middleware/seoLocals.js): siteUrl, canonicalPath (the
    path WITHOUT the query string), membersArea (member-only page: keeps "Members"
    in the title). Shared with the marketing head's SEO block. */
@@ -11,7 +12,7 @@ const _t = typeof tr === 'function' ? tr : (en) => en;
 const _isFr = locals.lang === 'fr';
 const _members = !!locals.membersArea;
 const _siteName = _members ? _t("Uma's Books Members", "Uma’s Books — Espace membres") : _t("Uma's Books", "Uma’s Books");
-const _title = typeof title !== "undefined" ? title + " — " + _siteName : _siteName;
+const _title = (typeof fullTitle !== "undefined" && fullTitle) ? fullTitle : typeof title !== "undefined" ? title + " — " + _siteName : _siteName;
 const _indexable = !(typeof noindex !== "undefined" && noindex) && !_members;
 const _site = locals.siteUrl ? String(locals.siteUrl).replace(/\/+$/, '') : '';
 // Canonical URL in THIS page's language + hreflang alternates (lib/frUrls.js, via the seoUrls local).
@@ -27,7 +28,7 @@ const _defaultImg = !(typeof ogImage !== "undefined" && ogImage);
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light">
 <% if (locals.preview || locals.staging) { %><meta name="robots" content="noindex, nofollow">
-<% } else if (!_indexable) { %><meta name="robots" content="noindex">
+<% } else if (!_indexable) { %><meta name="robots" content="<%= (typeof noindex !== "undefined" && noindex === "follow") ? "noindex, follow" : "noindex" %>">
 <% } %><% if (_indexable) { %><meta name="description" content="<%= _desc %>">
 <% if (_pageUrl) { %><link rel="canonical" href="<%= _pageUrl %>">
 <% _alternates.forEach(a => { %><link rel="alternate" hreflang="<%= a.hreflang %>" href="<%= a.href %>">
@@ -41,6 +42,7 @@ const _defaultImg = !(typeof ogImage !== "undefined" && ogImage);
 <% } %><% if (_ogImage) { %><meta property="og:image" content="<%= _ogImage %>">
 <% if (_defaultImg) { %><meta property="og:image:width" content="1280">
 <meta property="og:image:height" content="720">
+<meta property="og:image:alt" content="<%= _t("Uma's Books & Adventures — a community English bookshop in Albi, France", "Uma’s Books & Adventures — une librairie associative anglophone à Albi") %>">
 <% } %><meta name="twitter:image" content="<%= _ogImage %>">
 <% } %><meta name="twitter:card" content="<%= _ogImage ? (_defaultImg ? 'summary_large_image' : 'summary') : 'summary' %>">
 <meta name="twitter:title" content="<%= typeof title !== "undefined" ? title : _siteName %>">
@@ -57,7 +59,6 @@ const _defaultImg = !(typeof ogImage !== "undefined" && ogImage);
 <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
 <link rel="manifest" href="/site.webmanifest">
 <meta name="theme-color" content="#fffefb">
-<meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Uma's Books">
 </head>
 <body>
