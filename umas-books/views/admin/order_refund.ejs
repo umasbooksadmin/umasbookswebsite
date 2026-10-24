@@ -19,6 +19,7 @@
     <li>the reservation becomes <strong>Refunded</strong> and no longer counts in sales, reports or the buyer&rsquo;s totals;</li>
     <li>every book from this reservation goes back <strong>in stock</strong> (a book already sold again is left alone);</li>
     <li>every drop-in seat is <strong>released</strong> (it stops counting against the session&rsquo;s capacity);</li>
+    <li>the refund of <strong>&euro;<%= Number(order.total_amount).toFixed(2) %></strong> (what was received<%= order.reserved_total != null ? ', not the list price of &euro;' + Number(order.reserved_total).toFixed(2) : '' %>) is recorded, and a cash refund is deducted from today&rsquo;s expected cash in the drawer;</li>
     <li>the action is written to Admin activity.</li>
   </ul>
   <p class="muted small">The customer is not emailed by the website: write to them yourself to confirm the refund.</p>
@@ -27,6 +28,12 @@
     <form class="stack" method="post" action="/admin/orders/<%= order.id %>/refund">
       <%- include('../partials/csrf_field') %>
       <label class="ann-check"><input type="checkbox" name="confirmRefunded" required> <span>I have already given the money back to the customer.</span></label>
+      <label for="refundMethod">Refunded how?</label>
+      <select id="refundMethod" name="refundMethod" required>
+        <option value="">Choose&hellip;</option>
+        <% refundMethods.forEach(m => { %><option value="<%= m.value %>" <%= refundMethod === m.value ? 'selected' : '' %> <%= (m.value === 'cash' && tillClosed) ? 'disabled' : '' %>><%= m.label %><%= (m.value === 'cash' && tillClosed) ? ' (today\'s till day is closed)' : '' %></option><% }) %>
+      </select>
+      <p class="muted small" style="margin:0;">&ldquo;Cash from the till drawer&rdquo; lowers today&rsquo;s expected cash on the End of day page, so the closing count stays right. Choose it only if the money really came out of the drawer.<% if (tillClosed) { %> <strong>Today&rsquo;s till day is already closed: reopen it on the End of day page to refund from the drawer, or choose Other and say in the note where the cash came from.</strong><% } %></p>
       <label for="note">Note (required)</label>
       <textarea id="note" name="note" required maxlength="<%= noteMax %>" placeholder="For example: customer withdrew by email on 3 Oct, refunded in cash at the shop on 4 Oct"><%= note %></textarea>
       <button class="btn" type="submit">Yes, mark this reservation refunded</button>

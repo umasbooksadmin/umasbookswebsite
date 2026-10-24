@@ -34,6 +34,7 @@ const TILL_COLUMNS = [
   { key: "firstReceipt", label: "First receipt", type: "text" },
   { key: "lastReceipt", label: "Last receipt", type: "text" },
   { key: "closed", label: "Closed", type: "text" },
+  { key: "cashRefunds", label: "Cash refunds paid out (EUR)", type: "eur" },
 ];
 const TILL_HEADER = TILL_COLUMNS.map((c) => c.label);
 
@@ -166,6 +167,7 @@ async function tillDays(db, range) {
       sales: s.count, voided: s.voided.n,
       firstReceipt: r ? receiptText(r.y, r.lo) : "", lastReceipt: r ? receiptText(r.y, r.hi) : "",
       closed: s.closed ? "yes" : "no",
+      cashRefunds: s.cashRefunds.total / 100,
     });
   }
   return out;

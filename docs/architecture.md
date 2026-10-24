@@ -817,7 +817,8 @@ in person only: online payment exists only for HelloAsso memberships and orders.
   and ships `ManualCard` (a person charges the SumUp Solo and presses Card paid).
   A SumUp Cloud API implementation is NOT written (see `docs/till-todos.md`).
 - **Day and money.** Days are Paris days. Expected cash = opening float + cash
-  sales (completed). Closing stores counted/expected/difference and locks voids
+  sales (completed) - reservation refunds paid in cash from that day's drawer
+  (`orders.refund_method = 'cash'` and `refund_till_day`). Closing stores counted/expected/difference and locks voids
   for that day. The Accounting export (`src/lib/accounting.js`) combines till
   items, older "Sell in shop" sales (no till sale), collected reservations and
   membership payments into rows by day, category and payment method. A

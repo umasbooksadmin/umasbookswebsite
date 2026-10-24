@@ -71,7 +71,7 @@
 <div class="card">
   <h2 class="section-title">Payment</h2>
   <% if (order.payment_method) { %>
-    <p class="small">Paid in the shop on <%= formatDateTime(order.paid_at) %> by <strong><%= methodLabel(order.payment_method) %></strong>: &euro;<%= Number(order.amount_received).toFixed(2) %> received.<%= order.payment_note ? ' Note: ' + order.payment_note : '' %></p>
+    <p class="small">Paid in the shop on <%= formatDateTime(order.paid_at) %> by <strong><%= methodLabel(order.payment_method) %></strong>: &euro;<%= Number(order.amount_received).toFixed(2) %> received<%= (order.reserved_total != null && Number(order.reserved_total) > Number(order.amount_received)) ? ' (discount: €' + (Number(order.reserved_total) - Number(order.amount_received)).toFixed(2) + ' off the list total of €' + Number(order.reserved_total).toFixed(2) + ')' : '' %>.<%= order.payment_note ? ' Note: ' + order.payment_note : '' %></p>
   <% } else if (order.status === 'reserved') { %>
     <p class="small">Nothing was paid online. The customer pays in the shop (or at the session) when collecting.</p>
   <% } else if (order.checkout_intent_id || order.helloasso_order_id) { %>
@@ -91,7 +91,7 @@
     <li><%= formatDateTime(order.created_at) %> &mdash; <%= order.status === 'pending' ? 'reservation created (unpaid, old online payment flow)' : 'reserved' %></li>
     <% if (order.paid_at) { %><li><%= formatDateTime(order.paid_at) %> &mdash; paid</li><% } %>
     <% if (order.collected_at) { %><li><%= formatDateTime(order.collected_at) %> &mdash; collected<%= order.collected_by_email ? ' (marked by ' + order.collected_by_email + ')' : '' %></li><% } %>
-    <% if (order.refunded_at) { %><li><%= formatDateTime(order.refunded_at) %> &mdash; marked refunded. Note: <%= order.refund_note %></li><% } %>
+    <% if (order.refunded_at) { %><li><%= formatDateTime(order.refunded_at) %> &mdash; marked refunded<%= order.refund_method ? ' (' + ({ cash: 'cash from the till drawer', card: 'card refund on the terminal', transfer: 'bank transfer', other: 'other' }[order.refund_method] || order.refund_method) + ')' : '' %>. Note: <%= order.refund_note %></li><% } %>
     <% if (order.released_at) { %><li><%= formatDateTime(order.released_at) %> &mdash; ended as <%= order.status %> (<%= (order.release_reason || '').replace('_', '-') %>) without payment</li><% } else if (order.status === 'expired' || order.status === 'cancelled') { %><li>Ended as <%= order.status %> without payment</li><% } %>
     <% history.forEach(h => { %><li class="muted small"><%= formatDateTime(h.at) %> &mdash; admin log: <%= h.action %><%= h.actor_label ? ' by ' + h.actor_label : '' %><%= h.detail ? ' (' + h.detail + ')' : '' %></li><% }) %>
   </ul>
@@ -110,10 +110,13 @@
           <option value="">Choose&hellip;</option>
           <% paymentMethods.forEach(m => { %><option value="<%= m.value %>" <%= fv.method === m.value ? 'selected' : '' %>><%= m.label %></option><% }) %>
         </select>
+        <% const listCents = activeItems.reduce((n, i) => n + Math.round(Number(i.price) * 100), 0); %>
+        <p class="small" style="margin:0;">List total: <strong>&euro;<%= (listCents / 100).toFixed(2) %></strong></p>
         <label for="amountReceived">Amount received (&euro;)</label>
-        <input id="amountReceived" name="amountReceived" type="number" step="0.01" min="0" max="<%= activeItems.reduce((n, i) => n + Number(i.price), 0).toFixed(2) %>" value="<%= fv.amountReceived || activeItems.reduce((n, i) => n + Number(i.price), 0).toFixed(2) %>" required>
-        <p class="muted small" style="margin:0;">It can only be lowered (a discount given at the till); then a note is required.</p>
-        <label for="note">Note (required only if less than the total)</label>
+        <input id="amountReceived" name="amountReceived" type="number" step="0.01" min="0" max="<%= (listCents / 100).toFixed(2) %>" value="<%= fv.amountReceived || (listCents / 100).toFixed(2) %>" required data-discount-total="<%= listCents %>" data-discount-note="note" data-discount-out="discount-live">
+        <p id="discount-live" class="small" style="margin:0;" role="status" aria-live="polite"></p>
+        <p class="muted small" style="margin:0;">It can only be lowered (a discount given at the pickup); then a note is required. The accounting export shows the difference as a separate &ldquo;Discount&rdquo; line, so the treasurer sees exactly what was received.</p>
+        <label for="note">Note (required if less than the list total)</label>
         <input id="note" name="note" type="text" maxlength="<%= 500 %>" value="<%= fv.note || '' %>">
         <button class="btn" type="submit">Mark collected and paid</button>
       </form>
