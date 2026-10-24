@@ -447,7 +447,7 @@ same thing everywhere.
 | `APP_ENV` | no | none | Render env var (`staging` in `render.staging.yaml`) | `staging` marks the test site: red TEST SITE banner, noindex, mail only to `STAGING_MAIL_TO`, boot guards (`src/lib/staging.js`) |
 | `PRODUCTION_DATABASE_HOST` | no | none | Render env var on **staging**, `sync: false` | The production database's host name. Staging refuses to start if this is empty or its `DATABASE_URL` points at that host. Also used by the demo-data script |
 | `STAGING_MAIL_TO` | no | none | Render env var on **staging**, `sync: false` | The only mailbox the test site may send to (`src/lib/staging.js`); required there |
-| `PREVIEW_MODE` | no | off | Render env var, set by hand, deliberately **not** in `render.yaml` | `true` or `1` turns on [preview mode](#preview-mode): coming-soon banner, payments off, search engines kept out |
+| `PREVIEW_MODE` | no | off | Render env var, set by hand, deliberately **not** in `render.yaml` | `true`, `1`, `on`, `yes` or `enabled` (any case) turns on [preview mode](#preview-mode): coming-soon banner, payments off, search engines kept out. `false`, `0`, `off`, `no`, `disabled` or empty means off. **Any other value (a typo) counts as ON** (fail closed: a safe, closed site) with a loud boot warning and a launch alert |
 | `SITEMAP_BOOKS_PER_FILE` | no | 10000 | tests only (not set on Render) | In-stock books per `/sitemap-books-N.xml` file (2 URLs each, so 20,000 URLs, under the 50,000 limit); capped at 10000. Lets tests use small files (`src/routes/seo.js`) |
 | `TRUST_PROXY_HOPS` | no | 2 in production, 1 elsewhere | Render env var (`"2"` in both yaml files) | Integer 1 to 5: reverse proxies in front of the app (Render's edge plus its internal proxy = 2; no Cloudflare). Decides `req.ip` (`src/lib/trustProxy.js`); check on `/admin/diagnostics/client-ip`. A CDN added later changes this |
 | `GMAIL_USER` | no | none | Render env var, `sync: false` (staging: a separate Gmail account); local `.env` | Outgoing mail (resets, verification, contact form, every alert). Unset: dev/tests log instead of sending, **production throws** so the outbox keeps and retries the message |
@@ -797,7 +797,13 @@ steps for the maintainer in `docs/runbook.md`) removes test data from the
 database. Layers: dry run by default (the whole job runs in a transaction that is
 rolled back, so its counts are exact); a real run needs `--execute`,
 `--confirm "DELETE TEST DATA FROM <db name>"` and `--i-have-a-backup`; refused
-unless `PREVIEW_MODE` is on (`--allow-live` overrides); unknown flags refused;
+unless `PREVIEW_MODE` is on (`--allow-live` overrides); and, whatever any environment
+variable says, refused when the **data** looks live (a closed till day, a paid /
+refunded / collected order, a membership payment, a non-admin member / volunteer /
+till account, more than 50 stocked books with any sale) or the host is
+`PRODUCTION_DATABASE_HOST`: only `--i-know-this-is-the-live-database` plus
+`--live-confirm "DELETE LIVE DATA ON <host> WITH <n> PAID ORDERS AND <n> MEMBERS"`
+(the counts it found) gets past that; unknown flags refused;
 one transaction of plain `DELETE`s in foreign-key order (no `TRUNCATE ... CASCADE`);
 sanity checks (admins, 2FA, recovery codes, `pricing_settings`, `schema_migrations`,
 kept content unchanged) roll back on any difference; sequences are restarted only

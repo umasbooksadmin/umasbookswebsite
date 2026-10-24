@@ -8,7 +8,16 @@
 //     it back, so the counts it prints are exactly what a real run deletes.
 //  2. A real run needs --execute AND --confirm "DELETE TEST DATA FROM <db>"
 //     (the database's own name) AND --i-have-a-backup.
-//  3. Refuses unless PREVIEW_MODE is on, unless --allow-live is given.
+//  3. Refuses unless PREVIEW_MODE is on, unless --allow-live is given. That
+//     variable is only the operator's word (typed on their own laptop), so:
+//  3b. DATA-DERIVED refusal that no environment variable can override: the
+//     script looks at the database itself and refuses when it holds real-shop
+//     evidence (a closed till day, a paid / refunded / collected order, a
+//     membership payment, a member / volunteer / till account that is not an
+//     admin, or a stocked shop with sales), or when its host is
+//     PRODUCTION_DATABASE_HOST. Only --i-know-this-is-the-live-database plus
+//     --live-confirm "<phrase naming the host and the counts found>" gets past
+//     it (see liveDataEvidence).
 //  4. Every table must be classified in TABLES below (shop / people / logs /
 //     content / kept). The script refuses to run when the database has a table
 //     it does not know, and test/integration/clearTestData.test.js fails when a
@@ -26,6 +35,7 @@
 const crypto = require("node:crypto");
 const config = require("./config");
 const { isPreviewMode } = require("./preview");
+const { productionHostProblem } = require("./staging");
 const { IMAGE_REFERENCES, notReferencedSql } = require("./imageCleanup");
 
 // Group of every table in the public schema.
@@ -118,13 +128,14 @@ const GROUP_TITLES = {
 // ---------------------------------------------------------------------------
 // Command line
 
-const VALUE_FLAGS = new Set(["--confirm"]);
+const VALUE_FLAGS = new Set(["--confirm", "--live-confirm"]);
 const BOOL_FLAGS = new Set([
   "--execute",
   "--i-have-a-backup",
   "--include-content",
   "--keep-members",
   "--allow-live",
+  "--i-know-this-is-the-live-database",
   "--list-admins",
   "--help",
 ]);
@@ -138,6 +149,8 @@ function parseArgs(argv) {
     includeContent: false,
     keepMembers: false,
     allowLive: false,
+    iKnowThisIsTheLiveDatabase: false,
+    liveConfirm: null,
     listAdmins: false,
     help: false,
   };
@@ -156,7 +169,7 @@ function parseArgs(argv) {
       if (value === undefined || (inline === null && value.startsWith("--"))) {
         errors.push(`${arg} needs a value`);
       } else {
-        flags.confirm = value;
+        flags[arg === "--confirm" ? "confirm" : camel(arg)] = value;
         if (inline === null) i += 1;
       }
     } else if (BOOL_FLAGS.has(arg) && inline === null) {
@@ -183,6 +196,15 @@ function describeDatabaseUrl(url) {
 }
 
 const confirmPhrase = (dbName) => `DELETE TEST DATA FROM ${dbName}`;
+
+// What a person must type to delete a database that looks live. It names the
+// host and the two counts the script found, so it can only be written by
+// someone who read them (and never pasted from an old message).
+const LIVE_PHRASE_TEMPLATE = "DELETE LIVE DATA ON <host> WITH <paid orders> PAID ORDERS AND <members> MEMBERS";
+const livePhrase = (host, paidOrders, members) => `DELETE LIVE DATA ON ${host} WITH ${paidOrders} PAID ORDERS AND ${members} MEMBERS`;
+
+// More stocked books than this, together with any recorded sale, is a working shop.
+const LIVE_SHOP_BOOKS = 50;
 
 // The reasons a REAL run must be refused ([] = allowed).
 function executeRefusals(flags, { dbName, env }) {
@@ -343,10 +365,54 @@ function buildPlan({ includeContent = false, keepMembers = false } = {}, have = 
 }
 
 // ---------------------------------------------------------------------------
+// Is this a live database? Read from the data, never from an environment
+// variable (PREVIEW_MODE on an operator's laptop is only their word).
+// Returns { reasons: [sentences], paidOrders, members, ... counts }.
+
+async function liveDataEvidence(db) {
+  const n = async (sql) => (await db.query(sql)).rows[0].n;
+  const closedTillDays = await n("SELECT count(*)::int AS n FROM till_days WHERE closed_at IS NOT NULL");
+  const paidOrders = await n(
+    "SELECT count(*)::int AS n FROM orders WHERE status IN ('paid', 'refunded') OR paid_at IS NOT NULL OR collected_at IS NOT NULL"
+  );
+  const membershipPayments = await n("SELECT count(*)::int AS n FROM membership_payments");
+  const members = await n("SELECT count(*)::int AS n FROM users WHERE NOT is_admin AND (is_member OR is_volunteer OR is_till)");
+  const stockedBooks = await n("SELECT count(DISTINCT book_id)::int AS n FROM book_copies WHERE status = 'in_stock'");
+  const sales = await n(
+    `SELECT ((SELECT count(*) FROM till_sales) + (SELECT count(*) FROM shop_sales)
+           + (SELECT count(*) FROM book_copies WHERE status = 'sold'))::int AS n`
+  );
+  const reasons = [];
+  if (closedTillDays) reasons.push(`${closedTillDays} closed till day(s): the till has been used for real takings.`);
+  if (paidOrders) reasons.push(`${paidOrders} paid, refunded or collected order(s): real sales (French accounting law makes you keep them for 10 years).`);
+  if (membershipPayments) reasons.push(`${membershipPayments} membership payment(s).`);
+  if (members) reasons.push(`${members} member, volunteer or till account(s) that are not admins.`);
+  if (stockedBooks > LIVE_SHOP_BOOKS && sales) {
+    reasons.push(`${stockedBooks} books in stock (more than ${LIVE_SHOP_BOOKS}) and ${sales} recorded sale(s): a working shop.`);
+  }
+  return { reasons, closedTillDays, paidOrders, membershipPayments, members, stockedBooks, sales };
+}
+
+// ---------------------------------------------------------------------------
 // The run
 
 class SanityError extends Error {}
 class RefusedError extends Error {}
+
+// The refusal text for a database that looks live. It lists what was found but does NOT print
+// the phrase, only its shape: it has to be written by someone who read the counts above.
+function liveRefusalText(reasons, liveOverride = {}) {
+  const lines = ["This database looks LIVE (real shop data), so nothing was deleted:"];
+  for (const r of reasons) lines.push(`  - ${r}`);
+  lines.push(
+    "No environment variable (PREVIEW_MODE included) can switch this check off. If this really is the database to wipe, a developer must add",
+    `--i-know-this-is-the-live-database --live-confirm "${LIVE_PHRASE_TEMPLATE}"`,
+    "with the host, the number of paid orders and the number of members found above filled in."
+  );
+  if (liveOverride.acknowledged && !liveOverride.phrase) lines.push("(--live-confirm is missing.)");
+  else if (liveOverride.acknowledged) lines.push("(--live-confirm does not match this database's host and counts exactly.)");
+  return lines.join("\n");
+}
 
 // Runs the whole job on `db` (a connected pg Client/PoolClient, not shared
 // with anything else) inside one transaction. execute=false: dry run, always
@@ -354,7 +420,9 @@ class RefusedError extends Error {}
 // rolling back) when it must not go ahead.
 //   hooks.afterDeletes(db): TEST ONLY, runs after the deletes so a test can
 //   simulate something going wrong and prove the sanity checks catch it.
-async function runClearTestData(db, { execute = false, includeContent = false, keepMembers = false, hooks = {} } = {}) {
+//   dbHost / env: where the database is (for the live-data phrase and the PRODUCTION_DATABASE_HOST check).
+//   liveOverride: { acknowledged, phrase } from --i-know-this-is-the-live-database / --live-confirm.
+async function runClearTestData(db, { execute = false, includeContent = false, keepMembers = false, hooks = {}, dbHost = "(unknown host)", env = process.env, liveOverride = {} } = {}) {
   const { rows: dbRow } = await db.query("SELECT current_database() AS name");
   const dbName = dbRow[0].name;
 
@@ -383,6 +451,8 @@ async function runClearTestData(db, { execute = false, includeContent = false, k
     tables: [], // { group, table, deleted, remaining }
     sequences: [], // { table, sequence, restarted }
     warnings: [],
+    // Real-shop evidence found in the data (see liveDataEvidence); refused === true: a real run would be refused.
+    liveData: { reasons: [], refused: false, overridden: false },
   };
 
   await db.query("BEGIN");
@@ -391,6 +461,20 @@ async function runClearTestData(db, { execute = false, includeContent = false, k
     await db.query("SET LOCAL lock_timeout = '15s'");
     await db.query("SET LOCAL statement_timeout = '10min'");
     await db.query("SET LOCAL jit = off"); // the unused-image predicate has a huge cost estimate but tiny real work
+
+    // The data-derived live-site guard, before anything is deleted. No environment variable switches it off.
+    const evidence = await liveDataEvidence(db);
+    const hostProblem = productionHostProblem(env);
+    const reasons = [...evidence.reasons];
+    if (hostProblem) reasons.push(hostProblem);
+    if (reasons.length) {
+      const phrase = livePhrase(dbHost, evidence.paidOrders, evidence.members);
+      const overridden = liveOverride.acknowledged === true && liveOverride.phrase === phrase;
+      report.liveData = { ...evidence, reasons, refused: !overridden, overridden };
+      if (!overridden && execute) {
+        throw new RefusedError(liveRefusalText(reasons, liveOverride));
+      }
+    }
 
     // Warnings for the report, before anything is deleted.
     const paidOrders = await countRows(db, "orders", "status = 'paid'");
@@ -507,6 +591,11 @@ const USAGE = `Usage: npm run clear-test-data -- [options]
                        charity rounds, meetings, volunteer shifts.
   --keep-members       Keep non-admin accounts and what they own.
   --allow-live         Allow a real run when PREVIEW_MODE is not on (DANGEROUS).
+  --i-know-this-is-the-live-database
+  --live-confirm "DELETE LIVE DATA ON <host> WITH <n> PAID ORDERS AND <n> MEMBERS"
+                       Both are needed to run on a database that holds real shop data
+                       (closed till days, paid orders, membership payments, members).
+                       Without them the script refuses, whatever PREVIEW_MODE says.
 
 Note the "--" after the script name: without it npm swallows the options.`;
 
@@ -533,6 +622,13 @@ function formatReport(report, { dbHost, execute }) {
     lines.push("", `${execute ? "Counters restarted at 1" : "Counters that would restart at 1"} (emptied tables only): ${report.sequences.map((s) => s.table).join(", ")}`);
   }
   for (const w of report.warnings) lines.push("", `WARNING: ${w}`);
+  const live = report.liveData;
+  if (live && live.reasons.length) {
+    lines.push("", live.refused
+      ? "!!! THIS DATABASE LOOKS LIVE: A REAL RUN WOULD BE REFUSED. NOTHING IN THE ENVIRONMENT (PREVIEW_MODE) CAN CHANGE THAT. !!!"
+      : "!!! THIS DATABASE LOOKS LIVE AND THE LIVE-DATABASE OVERRIDE WAS GIVEN. !!!");
+    for (const r of live.reasons) lines.push(`  - ${r}`);
+  }
   return lines.join("\n");
 }
 
@@ -598,8 +694,17 @@ async function main(argv, { env = process.env, out = console.log, err = console.
       execute: flags.execute,
       includeContent: flags.includeContent,
       keepMembers: flags.keepMembers,
+      dbHost: host,
+      env,
+      liveOverride: { acknowledged: flags.iKnowThisIsTheLiveDatabase, phrase: flags.liveConfirm },
     });
     out(formatReport(report, { dbHost: host, execute: flags.execute }));
+    if (report.liveData.refused) {
+      // Dry run on a live-looking database: the counts above are real, but a real run would be refused.
+      err("");
+      err(liveRefusalText(report.liveData.reasons, { acknowledged: flags.iKnowThisIsTheLiveDatabase, phrase: flags.liveConfirm }));
+      return 1;
+    }
     if (!flags.execute) {
       out("");
       out("This was a dry run: nothing was deleted. To delete for real, run:");

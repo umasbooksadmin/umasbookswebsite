@@ -12,10 +12,14 @@ function withEnv(value, fn) {
   }
 }
 
-test("isPreviewMode is on only for 1 / true (any case, trimmed)", () => {
-  for (const v of ["1", "true", "TRUE", "True", " true "]) assert.equal(isPreviewMode({ PREVIEW_MODE: v }), true, v);
-  for (const v of [undefined, "", "0", "false", "yes", "on", "tru"]) assert.equal(isPreviewMode({ PREVIEW_MODE: v }), false, String(v));
+test("isPreviewMode: on-words are on, off-words and blank are off (any case, trimmed)", () => {
+  for (const v of ["1", "true", "TRUE", "True", " true ", "on", "ON", "yes", "Yes", "enabled", "ENABLED"]) assert.equal(isPreviewMode({ PREVIEW_MODE: v }), true, v);
+  for (const v of [undefined, "", " ", "0", "false", "FALSE", "off", "no", "No", "disabled", " Disabled "]) assert.equal(isPreviewMode({ PREVIEW_MODE: v }), false, String(v));
   assert.equal(isPreviewMode({}), false);
+});
+
+test("isPreviewMode fails CLOSED: any other non-empty value counts as ON (a typo must not open the live site)", () => {
+  for (const v of ["tru", "treu", "yse", "enable", "y", "2", "maybe", "nope"]) assert.equal(isPreviewMode({ PREVIEW_MODE: v }), true, v);
 });
 
 test("isPreviewMode reads process.env by default", () => {

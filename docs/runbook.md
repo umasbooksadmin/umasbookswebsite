@@ -618,7 +618,20 @@ minutes (not for a logged-in admin).
 `npm run clear-test-data` removes the test data before launch. It is the one
 command in this project that can destroy real reservations and members, so it is
 built to be hard to run by mistake: it does nothing unless you ask three
-separate times, and it only runs while `PREVIEW_MODE` is on.
+separate times, it only runs while `PREVIEW_MODE` is on, and it **looks at the
+data itself**: it refuses to run on a database that holds real shop data.
+
+> **Do not run this on the real (production) database while it holds real books,
+> members or orders: it would wipe them.** `PREVIEW_MODE=true` typed in front of the
+> command on a laptop is only your word and is *not* what stops it. The script
+> checks the database: it refuses (exit code 1, nothing deleted) when it finds a
+> closed till day, a paid / refunded / collected reservation, a membership payment,
+> an account that is a member, volunteer or till user (admins excepted), or more
+> than 50 books in stock together with any sale, or when the database host is the
+> production host (`PRODUCTION_DATABASE_HOST`). The dry run prints these reasons.
+> Only a developer who really means it can override, with
+> `--i-know-this-is-the-live-database --live-confirm "DELETE LIVE DATA ON <host> WITH <n> PAID ORDERS AND <n> MEMBERS"`
+> (the host and the two counts it printed, filled in by hand).
 
 **What it removes**
 
@@ -698,7 +711,10 @@ which is the point of an undo.
 **Never run it on the live site.** Once `PREVIEW_MODE` is deleted the script
 refuses; `--allow-live` overrides that and exists only for a real emergency with
 a developer at your side, because after launch it would delete real reservations (which
-French accounting law makes you keep for 10 years) and real members.
+French accounting law makes you keep for 10 years) and real members. Even with
+`--allow-live` (or `PREVIEW_MODE=true`) the script still refuses a database that
+holds real shop data (see the box at the top of this section); that second lock
+needs `--i-know-this-is-the-live-database` and a typed phrase.
 
 **New database tables.** The script refuses to run when the database has a table
 it does not know, and an automated test fails when a developer adds one without

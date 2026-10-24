@@ -108,7 +108,13 @@ async function getSettings(pool, now) {
 }
 
 function parseList(raw) {
-  return String(raw == null ? "" : raw).split(/[\s,;]+/).filter(Boolean).map((x) => Number(x.replace(",", ".")));
+  return String(raw == null ? "" : raw).split(/[\s,;]+/).filter(Boolean).map((x) => strictNumber(x.replace(",", ".")));
+}
+
+// A decimal number typed in a form: digits with an optional minus and decimals only.
+// Number() alone would accept "0x0A", "1e1" and "Infinity" as prices.
+function strictNumber(text) {
+  return /^-?\d+(\.\d+)?$|^-?\.\d+$/.test(text) ? Number(text) : NaN;
 }
 
 // Parses and checks the settings form. Returns { error } (plain English, all
@@ -118,7 +124,7 @@ function validateSettingsInput(body) {
   const problems = [];
   for (const f of NUMBER_FIELDS) {
     const raw = String(body && body[f.col] != null ? body[f.col] : "").trim().replace(",", ".");
-    const n = Number(raw);
+    const n = strictNumber(raw);
     if (raw === "" || !Number.isFinite(n)) problems.push(`${f.label}: enter a number.`);
     else if (f.integer && !Number.isInteger(n)) problems.push(`${f.label}: enter a whole number.`);
     else if (n < f.min || n > f.max) problems.push(`${f.label}: must be between ${f.min} and ${f.max}.`);

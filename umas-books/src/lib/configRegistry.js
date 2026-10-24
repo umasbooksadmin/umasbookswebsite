@@ -157,11 +157,11 @@ const REGISTRY = [
   },
   {
     name: "PREVIEW_MODE", kind: "flag", scope: "app", section: "basics",
-    default: false, trim: true, lower: true, onWords: ["1", "true"], offWords: ["0", "false", "off", "no"],
+    default: false, trim: true, lower: true, onWords: ["1", "true", "on", "yes", "enabled"], offWords: ["0", "false", "off", "no", "disabled"], failClosed: true,
     secret: false, where: "render",
     whereText: "Render env var, set by hand, deliberately **not** in `render.yaml`",
     defaultText: "off",
-    doc: "`true` or `1` turns on [preview mode](#preview-mode): coming-soon banner, payments off, search engines kept out",
+    doc: "`true`, `1`, `on`, `yes` or `enabled` (any case) turns on [preview mode](#preview-mode): coming-soon banner, payments off, search engines kept out. `false`, `0`, `off`, `no`, `disabled` or empty means off. **Any other value (a typo) counts as ON** (fail closed: a safe, closed site) with a loud boot warning and a launch alert",
     example: "",
   },
   {

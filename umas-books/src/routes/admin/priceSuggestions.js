@@ -13,7 +13,7 @@ const { requireAdmin } = require("../../middleware/auth");
 const { limit } = require("../../middleware/rateLimits");
 const inventoryLib = require("../../lib/inventory");
 const { normalizeIsbn } = require("../../lib/bookLookup");
-const { parseId } = require("../../lib/validation");
+const { parseId, parseMoney } = require("../../lib/validation");
 const { setFlash, takeFlash } = require("../../lib/flash");
 const { computeSuggestion, prepareIntakeForm, pricingBinding } = require("../../lib/pricing/forms");
 
@@ -91,7 +91,7 @@ router.post("/admin/inventory/suggest", requireAdmin, async (req, res) => {
     fromScan: b.fromScan === "1",
     selectedCondition: condition,
     publisherPriceValue: b.publisherPrice || "",
-    acquisitionCost: b.acquisitionCost ? Number(b.acquisitionCost) : 0,
+    acquisitionCost: parseMoney(b.acquisitionCost, { allowBlank: true }).value || 0, // "4,50" or "4.50"; anything else: 0
   });
   res.redirect(303, "/admin/inventory/new/again");
 });

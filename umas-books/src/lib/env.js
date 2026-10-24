@@ -49,6 +49,13 @@ function validateEnv(env = process.env) {
   // each is a loud log line plus, for the serious ones, ONE alert email per
   // boot (src/index.js sends `alerts` once the server is listening).
   const alerts = [];
+  // PREVIEW_MODE set to something unrecognised is read as ON (fail closed, lib/config.js): the site is
+  // then NOT live although its owner may think it is. Say so on the red banner and by mail.
+  const previewRead = config.read("PREVIEW_MODE", env);
+  if (previewRead.state === "invalid") {
+    warnings.push(previewRead.message);
+    alerts.push({ label: "PREVIEW_MODE not recognised: the site is in preview mode", message: previewRead.message, code: "preview_mode_value" });
+  }
   if (isNonLive(env)) {
     if (!isSet(env, "APP_BASE_URL") && !isSet(env, "RENDER_EXTERNAL_URL")) {
       warnings.push("APP_BASE_URL / RENDER_EXTERNAL_URL not set - emailed links will fail in production.");

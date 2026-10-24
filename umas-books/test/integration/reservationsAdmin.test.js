@@ -404,3 +404,17 @@ test("an erased account's open reservations are cancelled: books back in stock, 
 test("no HelloAsso call anywhere in the reserve / collect / partial / extend / cancel / refund flows above", () => {
   assert.deepEqual(h.helloassoCalls, []);
 });
+
+test("the amount received is parsed like every other money field: comma decimals work, hex/exponent/3 decimals are refused", async () => {
+  const buyer = await h.account();
+  const copy = await h.copy({ price: 8 });
+  const { order } = await h.reserve(buyer, { copyIds: [copy] });
+  for (const bad of ["0x05", "1e1", "7.999"]) {
+    const r = await collect(order.id, { amountReceived: bad });
+    assert.equal(r.status, 200, bad);
+    assert.match(r.text, /number of euros/, bad);
+    assert.equal((await h.order(order.id)).status, "reserved", bad);
+  }
+  const ok = await collect(order.id, { method: "cash", amountReceived: "7,50", note: "rounded down" });
+  assert.equal(ok.status, 302);
+});
