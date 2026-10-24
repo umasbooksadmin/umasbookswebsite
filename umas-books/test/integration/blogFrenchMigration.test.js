@@ -1,4 +1,4 @@
-// Migration 095: the three nullable French columns of blog_posts, and the French texts of the three starter posts
+// Migration 096: the three nullable French columns of blog_posts, and the French texts of the three starter posts
 // (they come from the old assets/posts.js, written by the shop). The French is attached only to a row whose English text
 // is still EXACTLY the original of migration 027 and that has no French yet; running it again changes nothing.
 // Port 6533 is reserved for this file.
@@ -23,7 +23,7 @@ after(async () => {
   app.stop();
 });
 
-const SQL = fs.readFileSync(path.join(__dirname, "..", "..", "migrations", "095_blog_french.sql"), "utf8");
+const SQL = fs.readFileSync(path.join(__dirname, "..", "..", "migrations", "096_blog_french.sql"), "utf8");
 const UPDATES = SQL.slice(SQL.indexOf("UPDATE blog_posts"));
 const POSTS = (() => {
   const ctx = { window: {} };
