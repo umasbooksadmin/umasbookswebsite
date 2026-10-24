@@ -1,4 +1,4 @@
-<%- include('partials/header', { title: tr('Upcoming Sessions', 'Prochaines séances'), extraCss: ['/floral-calendar.css'], mainClass: view === 'week' ? 'wrap-wide' : 'wrap' }) %>
+<%- include('partials/header', { title: tr('Upcoming Sessions', 'Prochaines séances'), description: tr("Upcoming English immersion sessions at Uma's Books & Adventures in Albi: see the monthly or weekly calendar, including drop-in sessions booked one at a time.", 'Les prochaines séances d’immersion en anglais d’Uma’s Books & Adventures à Albi : calendrier par mois ou par semaine, dont les séances à l’unité.'), extraCss: ['/floral-calendar.css'], mainClass: view === 'week' ? 'wrap-wide' : 'wrap' }) %>
 
 <% const typeQs = dropinOnly ? '&type=dropin' : ''; %>
 <% const qs = (view === 'week' ? `view=week&week=${currentWeek}` : `month=${currentMonth}`) + typeQs; %>

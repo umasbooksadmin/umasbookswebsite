@@ -26,7 +26,13 @@ jsonLd.inLanguage = (typeof lang !== 'undefined' && lang === 'fr') ? 'fr' : 'en'
 if (_base) {
   jsonLd.url = _base + ((typeof lang !== 'undefined' && lang === 'fr') ? '/fr/' : '/');
   jsonLd.image = _base + '/assets/img/logo-stamp-1280x720.png';
+  jsonLd.logo = _base + '/logo.png';
 }
+// Phone (E.164, from the tel: constant in lib/legal.js) and social profiles: only when set.
+const _tel = String(legalText.shopPhoneTel || '').replace(/^tel:/, '').trim();
+if (/^\+[1-9]\d{6,14}$/.test(_tel)) jsonLd.telephone = _tel;
+const _sameAs = Object.values(socialLinks || {}).filter((u) => typeof u === 'string' && u.trim());
+if (_sameAs.length) jsonLd.sameAs = _sameAs;
 %>
 <%- include('partials/mkt_header', {
   title: "Uma's Books & Adventures",

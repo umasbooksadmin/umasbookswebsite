@@ -52,6 +52,10 @@ function xmlEscape(s) {
     .replace(/'/g, "&apos;");
 }
 
+// /api/blog/, /api/books and /api/events/ are public read-only JSON that fills the blog, the book shelves and the
+// events page in the browser: Google must be able to fetch them to render those pages. Allow comes before Disallow
+// for crawlers that read top-down; Google uses the longest match. /api/books/by-ids stays blocked (the favorites
+// page's own per-device lookup), as does everything else under /api/ (session, CSRF, cart, favorites).
 function robotsTxt(base) {
   const lines = [
     "User-agent: *",
@@ -61,6 +65,10 @@ function robotsTxt(base) {
     "Disallow: /cart",
     "Disallow: /login",
     "Disallow: /signup",
+    "Disallow: /api/books/by-ids",
+    "Allow: /api/blog/",
+    "Allow: /api/books",
+    "Allow: /api/events/",
     "Disallow: /api/",
   ];
   if (base) lines.push("", `Sitemap: ${base}/sitemap.xml`);
@@ -179,13 +187,21 @@ function setMarketingSeoLocals(req, res, pagePath) {
 // advertised to search engines (see views/partials/header.ejs).
 const MEMBERS_AREA = /^\/(dashboard|forum|charity|meetings|announcements|admin)(\/|$)/;
 
+// One canonical address per page: lower case, no trailing slash (except "/"). Express matches routes without regard to
+// case or a trailing slash, so /Events and /events/ answer 200 too; without this their canonical would name themselves.
+function canonicalPathOf(p) {
+  let out = String(p || "/").toLowerCase();
+  if (out.length > 1) out = out.replace(/\/+$/, "") || "/";
+  return out;
+}
+
 // Runs for every app-rendered page (after the language middleware): the
 // <head> reads siteUrl (absolute base, '' when unknown), canonicalPath (the
 // path WITHOUT its query string, so ?genre= / ?month= variants share one
 // canonical URL) and membersArea.
 function seoLocals(req, res, next) {
   res.locals.siteUrl = safeBaseUrl(req);
-  res.locals.canonicalPath = req.path;
+  res.locals.canonicalPath = canonicalPathOf(req.path);
   res.locals.membersArea = MEMBERS_AREA.test(req.path);
   // <head> links: the canonical URL in the page's own language and the hreflang
   // alternates (lib/frUrls.js). req.path is the page's own path: a /fr/ request
@@ -200,6 +216,7 @@ module.exports = {
   MARKETING_PAGES,
   setMarketingSeoLocals,
   robotsTxt,
+  canonicalPathOf,
   buildPagesSitemapXml,
   buildBooksSitemapXml,
   buildSitemapIndexXml,

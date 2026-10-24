@@ -37,7 +37,7 @@ const meta = (html, attr, name) => (html.match(new RegExp(`<meta ${attr}="${name
 
 test("book page: description, canonical without the query, og/twitter tags, public title", async () => {
   const html = await (await get(`/books/${bookId}?genre=Fiction`)).text();
-  assert.match(html, /<title>Polish &amp; &#34;Pride&#34; \d+ — Uma&#39;s Books<\/title>/);
+  assert.match(html, /<title>Polish &amp; &#34;Pride&#34; \d+ by Jane Austen — Uma&#39;s Books and Adventures<\/title>/);
   assert.doesNotMatch(html, /<title>[^<]*Members/);
   assert.equal(meta(html, "name", "description"), "A comedy of manners.");
   assert.match(html, new RegExp(`<link rel="canonical" href="${SITE}/books/${bookId}">`));
