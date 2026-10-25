@@ -601,6 +601,8 @@ To launch:
    `https://<your site>/robots.txt` no longer says `Disallow: /`. The red
    "PREVIEW MODE is ON" strip is gone from the admin screens.
 
+**How to write a blog post, with a French version.** In **Admin > Blog** fill the English title and content (the excerpt is the short text on the list and in Google; add one), pick a picture, set the date and **Status** (Draft keeps it hidden, Scheduled/Published make it public from the date). Under **French version**: press **Translate to French** for a first draft (it uses one AI call of the daily limit; nothing is saved by it), then read and correct the French title, content and excerpt and press **Save**. The label next to "French version" says **ready** once the French title and content (and excerpt, if the English post has one) are there; until then French readers see the English text marked as English, so a post can always be published in English alone. The post's address is `/blog/<name>` (English) and `/fr/blog/<name>` (French); the name comes from the English title. New posts appear in `/sitemap-blog.xml` within an hour (saving from the editor refreshes it at once). The three starter posts already have French texts (migration 096): read them once and correct them if needed.
+
 **What preview mode does not touch: the blog.** Admins can write, edit,
 publish and delete blog posts (with their featured image) while the site is in
 preview mode, exactly as after launch, and a published post shows on the
@@ -793,7 +795,7 @@ pair, English as the default), and `https://umasbooks.org/sitemap.xml` lists bot
 (home, the marketing pages, Contact, Events, Sessions, Request a book and every in-stock book), each with
 its `xhtml:link` alternates. `robots.txt` is unchanged and allows `/fr/`. Admin, cart, login, account and
 members pages have no French address and stay out of the index. The sitemap is cached for an hour.
-`/sitemap.xml` is an index: it points at `/sitemap-pages.xml` (static pages and published collections) and at
+`/sitemap.xml` is an index: it points at `/sitemap-pages.xml` (static pages and published collections), `/sitemap-blog.xml` (published blog posts) and at
 `/sitemap-books-1.xml`, `-2.xml`, ... with 10,000 in-stock books (20,000 addresses) per file, newest books first.
 Submit only `sitemap.xml`; Google follows the index.
 

@@ -17,6 +17,7 @@ const ALLOW = [
   { match: "Éveil", reason: "program name, French in both languages" },
   { match: "Message", reason: "the same word in French (form label)" },
   { match: "Code", reason: "the same word in French (two-step verification code field)" },
+  { match: "Blog", reason: "the word is spelled the same in French (page title and heading of the blog list)" },
   { match: "and Adventures", reason: "second half of the brand lockup \"Uma's Books and Adventures\" on the members' dashboard, which must stay exactly as written" },
   { match: "Cloudflare", reason: "company name in the privacy policy" },
   { match: "Have I Been Pwned", reason: "service name in the privacy policy (the password-breach check)" },

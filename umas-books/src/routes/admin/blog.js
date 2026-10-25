@@ -5,6 +5,10 @@ const { pool } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
 const { audit } = require("../../lib/audit");
 const { sanitizeHtml } = require("../../lib/sanitizeHtml");
+const { frenchState, hasText } = require("../../lib/blogPosts");
+const { translatePost } = require("../../lib/blogTranslate");
+const { aiAdminLimiter } = require("../../middleware/rateLimits");
+const { clearSitemapCache } = require("../seo");
 
 const { redirectWithFlash, takePageFlash } = require("../../lib/postRedirect");
 const { validateIdParams } = require("../../middleware/idParams");
@@ -15,12 +19,20 @@ const { likeContains, parseIntParam } = require("../../lib/parseParams");
 const router = express.Router();
 // Garbage ids get the 404 page, not a Postgres 22P02 and a 500.
 validateIdParams(router, "id");
+// A saved, published or deleted post changes /sitemap-blog.xml (cached for an hour): drop the cached copy after any change.
+router.use("/admin/blog", (req, res, next) => { if (req.method === "POST") res.on("finish", clearSitemapCache); next(); });
 
 // ---------- Blog ----------
 
 const BLOG_CATEGORIES = ["News", "Events", "Donations", "Programs", "Community", "Books", "Education"];
 const BLOG_STATUSES = ["draft", "scheduled", "published"];
 const BLOG_PAGE_SIZE = 6;
+// The "French" status shown in the editor and the list (lib/blogPosts.js frenchState).
+const FRENCH_LABELS = {
+  missing: "missing",
+  draft: "draft",
+  ready: "ready",
+};
 
 async function processBlogImage(file) {
   const resized = await sharpFromUpload(file.buffer)
@@ -40,7 +52,8 @@ function slugifyTitle(title) {
       .replace(/['’]/g, "")
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "")
-      .slice(0, 60) || "post"
+      .slice(0, 60)
+      .replace(/-+$/, "") || "post"
   );
 }
 
@@ -101,7 +114,16 @@ function readBlogForm(req) {
   const status = BLOG_STATUSES.includes(req.body.status) ? req.body.status : "published";
   const dateStr = typeof req.body.publishDate === "string" ? req.body.publishDate.trim() : "";
   const timeStr = typeof req.body.publishTime === "string" ? req.body.publishTime.trim() : "";
-  const values = { title, excerpt: excerpt || "", body, category: category || "", tags: tags || "", status, publishDate: dateStr };
+  // The French version (all three parts optional; the same sanitising as the English body). An editor holding only
+  // empty paragraphs is stored as nothing.
+  const titleFr = String(req.body.title_fr || "").trim() || null;
+  const excerptFr = String(req.body.excerpt_fr || "").trim() || null;
+  const bodyFrClean = sanitizeHtml(String(req.body.body_fr || "").trim());
+  const bodyFr = hasText(bodyFrClean) ? bodyFrClean : null;
+  const values = {
+    title, excerpt: excerpt || "", body, category: category || "", tags: tags || "", status, publishDate: dateStr,
+    title_fr: titleFr || "", excerpt_fr: excerptFr || "", body_fr: bodyFr || "",
+  };
 
   let error = null;
   // An editor with only empty paragraphs/line breaks counts as empty.
@@ -114,7 +136,7 @@ function readBlogForm(req) {
     error = "The publish time is not a valid time (use hours:minutes like 18:30). Nothing was saved.";
   }
   const publishedAt = error ? null : resolveBlogPublishedAt(status, dateStr, dateStr ? timeStr : "");
-  return { title, excerpt, body, category, tags, status, publishedAt, values, error };
+  return { title, excerpt, body, titleFr, excerptFr, bodyFr, category, tags, status, publishedAt, values, error };
 }
 
 // The admin sees the reason, with what they typed still in the form. The
@@ -194,8 +216,9 @@ router.get("/admin/blog", requireAdmin, async (req, res) => {
         title: editing.title, excerpt: editing.excerpt || "", body: editing.body, category: editing.category || "",
         tags: editing.tags || "", status: editing.status,
         publishDate: editing.published_at ? parisDateString(editing.published_at) : today,
+        title_fr: editing.title_fr || "", excerpt_fr: editing.excerpt_fr || "", body_fr: editing.body_fr || "",
       }
-    : { title: "", excerpt: "", body: "", category: "", tags: "", status: "published", publishDate: today };
+    : { title: "", excerpt: "", body: "", category: "", tags: "", status: "published", publishDate: today, title_fr: "", excerpt_fr: "", body_fr: "" };
   const formValues = keepTyped ? { ...base, ...flash.values } : base;
 
   res.render("admin/blog", {
@@ -206,6 +229,10 @@ router.get("/admin/blog", requireAdmin, async (req, res) => {
     flashError: flash.error || null,
     flashNotice: flash.notice || null,
     categories: BLOG_CATEGORIES,
+    frenchState,
+    frenchLabels: FRENCH_LABELS,
+    // What the French status says for the text now in the form (what was just typed after a refused save, else what is stored).
+    formFrenchState: frenchState({ title: formValues.title, excerpt: formValues.excerpt, title_fr: formValues.title_fr, excerpt_fr: formValues.excerpt_fr, body_fr: formValues.body_fr }),
     filters: { status, category, q, dateRange },
     pagination: { page: currentPage, totalPages, totalMatching, pageSize: BLOG_PAGE_SIZE },
   });
@@ -224,12 +251,32 @@ router.post("/admin/blog", requireAdmin, async (req, res) => {
   const slug = await uniqueBlogSlug(slugifyTitle(form.title));
 
   await pool.query(
-    `INSERT INTO blog_posts (slug, title, excerpt, body, category, tags, status, published_at, image_url, created_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-    [slug, form.title, form.excerpt, form.body, form.category, form.tags, form.status, form.publishedAt, imageUrl, req.session.user.id]
+    `INSERT INTO blog_posts (slug, title, excerpt, body, category, tags, status, published_at, image_url, created_by, title_fr, excerpt_fr, body_fr)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+    [slug, form.title, form.excerpt, form.body, form.category, form.tags, form.status, form.publishedAt, imageUrl, req.session.user.id, form.titleFr, form.excerptFr, form.bodyFr]
   );
   const word = form.status === "draft" ? "saved as a draft" : form.status === "scheduled" ? "scheduled" : "published";
   return redirectWithFlash(req, res, `/admin/blog${blogBackQuery(req)}`, "adminBlog", { notice: `"${form.title}" was ${word}.` });
+});
+
+// "Translate to French": the editor's script sends what is typed in the form (nothing is saved), and gets the French
+// text back to read and edit. It calls the paid AI service, so: 10 a minute per admin, plus the shared daily cap.
+// Registered before /:id like "bulk".
+const translateLimit = aiAdminLimiter();
+router.post("/admin/blog/translate", requireAdmin, translateLimit, async (req, res) => {
+  const pick = (k) => String(Array.isArray(req.body[k]) ? req.body[k][0] : req.body[k] == null ? "" : req.body[k]);
+  const typed = {
+    title: pick("title"), excerpt: pick("excerpt"), body: sanitizeHtml(pick("body").trim()),
+    title_fr: pick("title_fr"), excerpt_fr: pick("excerpt_fr"), body_fr: pick("body_fr"),
+  };
+  const result = await translatePost(typed, { overwrite: pick("overwrite") === "1" });
+  await audit(req, { action: "blog.translate", targetType: "blog_post", detail: result.ok ? `${result.filled.length} filled` : "failed" });
+  if (!result.ok) return res.status(result.status).json({ error: result.error });
+  res.json({
+    titleFr: result.title_fr, excerptFr: result.excerpt_fr, bodyFr: result.body_fr, filled: result.filled,
+    notice: "French filled in below. Read it, change what you like, then press Save: nothing is saved until you do." +
+      (result.partial ? " Part of it could not be translated this time: translate again, or write the rest by hand." : ""),
+  });
 });
 
 // Registered before /:id: otherwise :id matches the literal "bulk" and the
@@ -268,14 +315,15 @@ router.post("/admin/blog/:id", requireAdmin, async (req, res) => {
     const imageUrl = await storeBlogImage(req, res, form, imageFile, id);
     if (!imageUrl) return;
     result = await pool.query(
-      `UPDATE blog_posts SET title=$1, excerpt=$2, body=$3, category=$4, tags=$5, status=$6, published_at=$7, image_url=$8, updated_at=now() WHERE id=$9`,
-      [form.title, form.excerpt, form.body, form.category, form.tags, form.status, form.publishedAt, imageUrl, id]
+      `UPDATE blog_posts SET title=$1, excerpt=$2, body=$3, category=$4, tags=$5, status=$6, published_at=$7, image_url=$8,
+         title_fr=$10, excerpt_fr=$11, body_fr=$12, updated_at=now() WHERE id=$9`,
+      [form.title, form.excerpt, form.body, form.category, form.tags, form.status, form.publishedAt, imageUrl, id, form.titleFr, form.excerptFr, form.bodyFr]
     );
   } else {
     result = await pool.query(
       `UPDATE blog_posts SET title=$1, excerpt=$2, body=$3, category=$4, tags=$5, status=$6, published_at=$7,
-         image_url = CASE WHEN $8 THEN NULL ELSE image_url END, updated_at=now() WHERE id=$9`,
-      [form.title, form.excerpt, form.body, form.category, form.tags, form.status, form.publishedAt, clearImage, id]
+         image_url = CASE WHEN $8 THEN NULL ELSE image_url END, title_fr=$10, excerpt_fr=$11, body_fr=$12, updated_at=now() WHERE id=$9`,
+      [form.title, form.excerpt, form.body, form.category, form.tags, form.status, form.publishedAt, clearImage, id, form.titleFr, form.excerptFr, form.bodyFr]
     );
   }
   if (!result.rowCount) {

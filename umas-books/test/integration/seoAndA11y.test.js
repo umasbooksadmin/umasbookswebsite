@@ -71,7 +71,7 @@ test("sitemap.xml is an index of the pages file and the books files", async () =
   const xml = await res.text();
   assert.match(xml, /<sitemapindex xmlns="http:\/\/www\.sitemaps\.org\/schemas\/sitemap\/0\.9">/);
   const locs = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
-  assert.deepEqual(locs.slice(0, 2), [`${SITE}/sitemap-pages.xml`, `${SITE}/sitemap-books-1.xml`]);
+  assert.deepEqual(locs.slice(0, 3), [`${SITE}/sitemap-pages.xml`, `${SITE}/sitemap-blog.xml`, `${SITE}/sitemap-books-1.xml`]);
 });
 
 test("the pages and books sitemap files list marketing pages, /sessions, /events and in-stock books only", async () => {
