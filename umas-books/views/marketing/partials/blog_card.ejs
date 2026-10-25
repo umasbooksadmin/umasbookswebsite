@@ -1,0 +1,20 @@
+<%
+/* One post in the blog list. `c` comes from cardFor() in src/routes/blogPages.js. On a French page a post with no
+   READY French text shows its English title and excerpt, marked lang="en" and with a small "EN" tag. */
+const _img = c.image;
+%>
+<article class="blog-card">
+  <a class="blog-card-link" href="<%= c.href %>"<% if (c.fallback) { %> lang="en"<% } %>>
+    <% if (_img) { %>
+    <div class="blog-card-img"><img src="<%= _img.src %>"<% if (_img.srcset) { %> srcset="<%= _img.srcset %>" sizes="(max-width: 600px) 100vw, (max-width: 900px) 50vw, 386px"<% } %> alt="" width="800" height="500" decoding="async"<% if (c.eager) { %> fetchpriority="high"<% } else { %> loading="lazy"<% } %>></div>
+    <% } else { %>
+    <div class="blog-card-img blog-img-none" aria-hidden="true"></div>
+    <% } %>
+    <div class="blog-card-body">
+      <div class="blog-date"<% if (c.fallback) { %> lang="<%= lang %>"<% } %>><time datetime="<%= c.date %>"><%= c.dateLabel %></time><% if (adminPreview && c.status !== 'published') { %> · <%= c.status %><% } %></div>
+      <h2 class="blog-title"><%= c.title %><% if (c.fallback) { %> <span class="blog-lang"><span aria-hidden="true">EN</span><span class="blog-sr" lang="fr"> Article disponible uniquement en anglais</span></span><% } %></h2>
+      <% if (c.excerpt) { %><p class="blog-excerpt"><%= c.excerpt %></p><% } %>
+      <span class="blog-more"<% if (c.fallback) { %> lang="<%= lang %>"<% } %>><%= tr('Read more', 'Lire la suite') %> <span aria-hidden="true">&rarr;</span></span>
+    </div>
+  </a>
+</article>

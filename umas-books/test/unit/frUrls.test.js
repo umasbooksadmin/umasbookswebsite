@@ -8,8 +8,8 @@ const { isPublicPath, splitFr, localize, seoLinks, switchHrefs, prefixLinks } = 
 const MARKETING_PAGES = require("../../src/lib/marketingPages");
 
 test("which paths have a French twin", () => {
-  for (const p of ["/", "/books.html", "/books", "/visit.html", "/about", "/privacy-policy.html", "/contact", "/events", "/sessions", "/request-a-book", "/books/12", "/books/12/", "/volunteer.html"]) assert.equal(isPublicPath(p), true, p);
-  for (const p of ["/volunteer", "/admin", "/admin/inventory", "/cart", "/login", "/signup", "/account", "/dashboard", "/api/books/search", "/books/abc", "/events/3/ics", "/fr/", "/favorites", "/healthz", "/robots.txt", "/books.html/x", "/img/abc.jpg", ""]) assert.equal(isPublicPath(p), false, p);
+  for (const p of ["/", "/books.html", "/books", "/visit.html", "/about", "/privacy-policy.html", "/contact", "/events", "/sessions", "/request-a-book", "/books/12", "/books/12/", "/volunteer.html", "/blog/welcome", "/blog/a-b-2", "/blog/post-7/"]) assert.equal(isPublicPath(p), true, p);
+  for (const p of ["/volunteer", "/admin", "/admin/inventory", "/cart", "/login", "/signup", "/account", "/dashboard", "/api/books/search", "/books/abc", "/events/3/ics", "/fr/", "/favorites", "/healthz", "/robots.txt", "/books.html/x", "/img/abc.jpg", "", "/blog/Bad Slug", "/blog/-x", "/blog/a/b"]) assert.equal(isPublicPath(p), false, p);
   for (const f of MARKETING_PAGES) assert.equal(isPublicPath("/" + f), true, f);
 });
 
@@ -22,6 +22,8 @@ test("splitFr and localize", () => {
   assert.equal(localize("/"), "/fr/");
   assert.equal(localize("/?a=1"), "/fr/?a=1");
   assert.equal(localize("/books/12"), "/fr/books/12");
+  assert.equal(localize("/blog/welcome"), "/fr/blog/welcome");
+  assert.equal(localize("/blog/welcome?preview=1"), "/fr/blog/welcome?preview=1");
   assert.equal(localize("/sessions?type=dropin#x"), "/fr/sessions?type=dropin#x");
   for (const same of ["/cart", "/login?returnTo=%2Fbooks%2F1", "/fr/books.html", "//evil.test/books.html", "https://x.test/books.html", "books.html", "/api/books/search", "/volunteer"]) assert.equal(localize(same), same, same);
 });
@@ -64,7 +66,7 @@ test("assets/site.js decides the same public paths as the server (it writes link
   const location = { protocol: "https:", origin: "https://x.org", pathname: "/fr/" };
   vm.runInNewContext(src, { window, document: window.document, navigator: { language: "en" }, location });
   const frHref = window.__umasFrHref;
-  const paths = ["/", ...MARKETING_PAGES.flatMap((f) => ["/" + f, "/" + f.replace(/\.html$/, "")]), "/contact", "/events", "/sessions", "/request-a-book", "/request-a-book/sent", "/books/12", "/books/12/", "/volunteer", "/cart", "/login", "/admin", "/account", "/books/x", "/api/books", "/events/3/ics", "/fr/", "/favorites", "/healthz"];
+  const paths = ["/", ...MARKETING_PAGES.flatMap((f) => ["/" + f, "/" + f.replace(/\.html$/, "")]), "/contact", "/events", "/sessions", "/request-a-book", "/request-a-book/sent", "/books/12", "/books/12/", "/volunteer", "/cart", "/login", "/admin", "/account", "/books/x", "/api/books", "/events/3/ics", "/fr/", "/favorites", "/healthz", "/blog/welcome", "/blog/a-b-2", "/blog/post-7/", "/blog/Bad", "/blog/-x", "/blog/a/b"];
   for (const p of paths) {
     for (const tail of ["", "?a=1", "#x"]) assert.equal(frHref(p + tail), localize(p + tail), p + tail);
   }

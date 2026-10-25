@@ -39,11 +39,11 @@ const get = (p) => fetch(`${app.base}${p}`);
 const locsOf = (xml) => [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
 const bookIdsOf = (xml) => locsOf(xml).filter((l) => l.startsWith(`${SITE}/books/`)).map((l) => Number(l.split("/").pop()));
 
-test("the index lists the pages file and exactly as many books files as the in-stock books need", async () => {
+test("the index lists the pages file, the blog file and exactly as many books files as the in-stock books need", async () => {
   const res = await get("/sitemap.xml");
   assert.equal(res.status, 200);
   assert.deepEqual(locsOf(await res.text()), [
-    `${SITE}/sitemap-pages.xml`, `${SITE}/sitemap-books-1.xml`, `${SITE}/sitemap-books-2.xml`, `${SITE}/sitemap-books-3.xml`,
+    `${SITE}/sitemap-pages.xml`, `${SITE}/sitemap-blog.xml`, `${SITE}/sitemap-books-1.xml`, `${SITE}/sitemap-books-2.xml`, `${SITE}/sitemap-books-3.xml`,
   ]);
 });
 
