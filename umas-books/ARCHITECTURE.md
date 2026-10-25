@@ -327,7 +327,14 @@ rather than by a numbered migration), grouped by what they belong to:
   till drawer, card, transfer, other; NULL for refunds made before migration 095)
   and, for a cash refund made while today's till day is not closed,
   `orders.refund_till_day`: `till.daySummary` subtracts those from the day's expected
-  cash, and a cash refund on a closed day is refused). Collected for less than the
+  cash, and a cash refund on a closed day is refused). Cash taken with the admin
+  "Mark collected and paid" button (`orders.payment_method = 'cash'`, `amount_received`
+  set, `paid_at` on that Paris day, NOT collected at the till: `accounting.TILL_COLLECTED`)
+  is added by `till.daySummary` as `adminCash` to the day's expected cash and to the
+  last column of the till days CSV ("Admin-button cash (EUR)"); the export itself is
+  unchanged (the order is already one export row set), and `collectReservation`
+  refuses cash on a closed till day (`till_day_closed`) like a cash refund.
+  Collected for less than the
   list price: `collectReservationTx` sets `total_amount` / `amount_received` to what
   was received and `reserved_total` to the list total. `accounting.accountingRows`
   exports the lines at list price plus one negative "Discount" row per day and

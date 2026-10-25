@@ -238,5 +238,5 @@ async function accountingExportReport(db, ctx) {
 }
 
 module.exports = {
-  accountingExportReport, accountingRows, salesTotals, loadMapping, defaultMapping, mappingKeys, ACCOUNT_RE, JOURNAL_RE, CATEGORY_ORDER, METHOD_ORDER, OVER, OVER_IN, OVER_OUT, DISCOUNT, DISCOUNT_ORDERS_SQL,
+  accountingExportReport, accountingRows, salesTotals, loadMapping, defaultMapping, mappingKeys, ACCOUNT_RE, JOURNAL_RE, CATEGORY_ORDER, METHOD_ORDER, OVER, OVER_IN, OVER_OUT, DISCOUNT, DISCOUNT_ORDERS_SQL, TILL_COLLECTED,
 };
