@@ -161,7 +161,11 @@ async function renderOrder(req, res, { error = null, status = 200, formValues = 
   for (const i of items) {
     i.active = i.book_copy_id != null ? i.copy_status === "reserved" && i.copy_order_id === order.id : i.seat_status === "reserved";
   }
+  // Cash taken with "Mark collected and paid" counts in today's drawer, so it needs today's till day not to be closed.
+  const { rows: closedDay } = await pool.query(
+    `SELECT 1 FROM till_days WHERE day = (now() AT TIME ZONE '${SITE_TIME_ZONE}')::date AND closed_at IS NOT NULL`);
   return res.status(status).render("admin/order", {
+    tillClosed: closedDay.length > 0,
     active: "orders", order, items, history, related, overdueDays: OVERDUE_DAYS, paymentMethods: PAYMENT_METHODS,
     extensionDays: RESERVATION_EXTENSION_DAYS, lastDay: reservationLastDay(order), formValues,
     notice: status === 200 ? noticeFor(req.query.notice, req.query.discount) : null, error,
@@ -246,6 +250,9 @@ async function collect(req, res, { selected }) {
   });
   if (result.outcome === "not_found") return res.status(404).render("404");
   if (result.outcome === "not_reserved") return res.redirect(`/admin/orders/${id}?notice=not-reserved`);
+  if (result.outcome === "till_day_closed") {
+    return refusedBack(req, res, `Today's till day (${result.day}) is already closed, so cash taken here would not be in the drawer count. Reopen the day on the End of day page first, or choose "Other" and explain in the note where the money went.`, { method: "other", note, amountReceived: String(req.body.amountReceived || "").slice(0, 40) });
+  }
   if (result.outcome !== "collected") {
     return refusedBack(req, res, COLLECT_ERRORS[result.outcome] || "Could not record the payment.", { method, note, amountReceived: String(req.body.amountReceived || "").slice(0, 40) });
   }

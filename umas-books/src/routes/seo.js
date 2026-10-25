@@ -10,6 +10,7 @@ const { listSitemapCollections } = require("../lib/collections");
 const { isNonLive } = require("../lib/preview");
 const { localize, seoLinks } = require("../lib/frUrls");
 const { cachedByKey } = require("../lib/runLimited");
+const blogPosts = require("../lib/blogPosts");
 
 const router = express.Router();
 
@@ -21,7 +22,7 @@ const DYNAMIC_PAGES = ["/sessions", "/events", "/contact", "/request-a-book"];
 // The sitemap protocol allows 50,000 URLs and 50 MB (uncompressed) per file. Every book is listed twice (English and
 // French address), each with three hreflang alternates: about 1 KB per book, so 20,000 URLs (10,000 books) is about
 // 10 MB, well inside both limits. /sitemap.xml is an INDEX pointing at /sitemap-pages.xml and
-// /sitemap-books-1.xml, -2.xml, ... (newest books first), so the number of books is not capped.
+// /sitemap-blog.xml (the published blog posts) and /sitemap-books-1.xml, -2.xml, ... (newest books first), so the number of books is not capped.
 const MAX_URLS_PER_FILE = 20000;
 const URLS_PER_BOOK = 2;
 // SITEMAP_BOOKS_PER_FILE exists only so tests can exercise several files without inserting thousands of books.
@@ -110,8 +111,27 @@ function buildBooksSitemapXml(base, bookRows) {
   return urlsetXml(urls);
 }
 
+// Published blog posts (lib/blogPosts.js): one entry for the English address, and a second one for the French address
+// only when the post has a READY French text (otherwise /fr/blog/<slug> shows English under a canonical pointing at the
+// English address, so it is not listed). Alternates (hreflang) are listed only for versions that exist. lastmod = updated_at.
+function buildBlogSitemapXml(base, postRows) {
+  const urls = [];
+  for (const p of postRows) {
+    const lastmod = p.updated_at ? `<lastmod>${new Date(p.updated_at).toISOString()}</lastmod>` : "";
+    const path = `/blog/${p.slug}`;
+    if (blogPosts.frenchState(p) === "ready") {
+      urls.push(...sitemapEntry(base, path, lastmod));
+    } else {
+      const en = base + path;
+      const link = `<xhtml:link rel="alternate" hreflang="en" href="${xmlEscape(en)}"/><xhtml:link rel="alternate" hreflang="x-default" href="${xmlEscape(en)}"/>`;
+      urls.push(`  <url><loc>${xmlEscape(en)}</loc>${lastmod}${link}</url>`);
+    }
+  }
+  return urlsetXml(urls);
+}
+
 function buildSitemapIndexXml(base, bookFiles) {
-  const names = ["sitemap-pages.xml"];
+  const names = ["sitemap-pages.xml", "sitemap-blog.xml"];
   for (let i = 1; i <= bookFiles; i++) names.push(`sitemap-books-${i}.xml`);
   return `<?xml version="1.0" encoding="UTF-8"?>\n<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
     names.map((n) => `  <sitemap><loc>${xmlEscape(`${base}/${n}`)}</loc></sitemap>`).join("\n") + `\n</sitemapindex>\n`;
@@ -130,6 +150,7 @@ const sitemapCache = cachedByKey(async (key) => {
   const name = key.slice(sep + 1);
   if (name === "index") return buildSitemapIndexXml(base, Math.ceil((await countInStockBooks()) / booksPerFile()));
   if (name === "pages") return buildPagesSitemapXml(base, await listSitemapCollections(pool));
+  if (name === "blog") return buildBlogSitemapXml(base, await blogPosts.listForSitemap(pool, MAX_URLS_PER_FILE / URLS_PER_BOOK));
   const n = Number(name);
   const per = booksPerFile();
   // Newest first, so a new book always lands in file 1 and never falls off the end; id breaks ties for a stable order.
@@ -170,6 +191,7 @@ async function sendSitemap(req, res, name) {
 
 router.get("/sitemap.xml", (req, res) => sendSitemap(req, res, "index"));
 router.get("/sitemap-pages.xml", (req, res) => sendSitemap(req, res, "pages"));
+router.get("/sitemap-blog.xml", (req, res) => sendSitemap(req, res, "blog"));
 router.get("/sitemap-books-:n.xml", (req, res) => {
   if (!/^[1-9]\d{0,5}$/.test(req.params.n)) return res.status(404).end();
   return sendSitemap(req, res, req.params.n);
@@ -219,6 +241,7 @@ module.exports = {
   canonicalPathOf,
   buildPagesSitemapXml,
   buildBooksSitemapXml,
+  buildBlogSitemapXml,
   buildSitemapIndexXml,
   clearSitemapCache,
 };

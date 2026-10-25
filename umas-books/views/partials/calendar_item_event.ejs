@@ -14,15 +14,16 @@ const payOnTheDay = e.price != null ? tr('Payment on the day', 'Paiement sur pla
 %>
 <details class="fcal-session <%= tones[e.id % tones.length] %>">
   <summary>
-    <div class="fcal-session-title"><%= e.title %></div>
+    <div class="fcal-session-title"<% if (e.fallback) { %> lang="en"<% } %>><%= e.title %><% if (e.fallback) { %> <span class="fcal-lang"><span aria-hidden="true">EN</span><span class="visually-hidden" lang="fr"> Événement présenté en anglais</span></span><% } %></div>
     <div class="fcal-session-time"><%= formatTime(e.starts_at) %></div>
     <div class="fcal-session-seats">
       <%= priceLabel %> &middot; <%= tr('{n} going', e.signup_count < 2 ? '{n} inscrit' : '{n} inscrits', { n: e.signup_count }) %>
     </div>
   </summary>
   <div class="fcal-session-details">
-    <div class="muted small"><%= formatDateTime(e.starts_at) %><%= e.location ? ' · ' + e.location : '' %> · <%= priceLabel %><%= payOnTheDay ? ' · ' + payOnTheDay : '' %></div>
-    <% if (e.description) { %><p class="muted small"><%= e.description %></p><% } %>
+    <div class="muted small"><%= formatDateTime(e.starts_at) %><% if (e.location) { %> · <span<% if (e.fallback) { %> lang="en"<% } %>><%= e.location %></span><% } %> · <%= priceLabel %><%= payOnTheDay ? ' · ' + payOnTheDay : '' %></div>
+    <% if (e.fallback) { %><p class="fcal-notice small" role="note"><%= tr('This event is only described in English.', 'Cet événement n’est décrit qu’en anglais.') %></p><% } %>
+    <% if (e.description) { %><p class="muted small"<% if (e.fallback) { %> lang="en"<% } %>><%= e.description %></p><% } %>
 
     <form method="post" action="/events/<%= e.id %>/signup?<%= qs %>" class="fcal-session-form">
       <%- include('csrf_field') %>

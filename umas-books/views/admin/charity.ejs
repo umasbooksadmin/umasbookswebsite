@@ -54,6 +54,8 @@
                 <%- include('../partials/csrf_field') %>
                 <label>Title</label>
                 <input aria-label="Title" name="title" type="text" required value="<%= activeRound.title %>">
+                <%- include('../partials/admin_french_fields', { kind: 'round', idp: 'round-' + activeRound.id, fr, noun: 'vote', saveLabel: 'Save Settings',
+                     values: activeRound, englishRow: activeRound, fields: [{ name: 'title', label: 'Title', type: 'text' }] }) %>
                 <label>Label</label>
                 <input aria-label="Label" name="label" type="text" value="<%= activeRound.label || '' %>">
                 <label>Voting ends</label>
@@ -135,6 +137,9 @@
           </div>
           <% if (o.category) { %><div style="margin-top:6px;"><span class="status-pill category"><%= o.category %></span></div><% } %>
           <% if (o.description) { %><p class="muted small" style="margin-top:8px;"><%= o.description %></p><% } %>
+          <% if (o.charity_id) { const _frs = fr.frenchState('charity', o); %>
+            <div class="muted small fr-flag">French: <span class="status-pill <%= fr.FRENCH_PILL[_frs] %>"><%= fr.FRENCH_LABELS[_frs] %></span></div>
+          <% } %>
           <% if (o.website_url && /^https?:\/\//i.test(o.website_url)) { %><p class="small" style="margin-top:6px;"><a href="<%= o.website_url %>" target="_blank" rel="noopener"><%= o.website_url %></a></p><% } %>
           <div class="muted small" style="margin-top:10px;"><%= o.vote_count %> vote<%= o.vote_count === 1 ? '' : 's' %> (<%= totalCurrentVotes ? Math.round(o.vote_count / totalCurrentVotes * 100) : 0 %>%)</div>
           <div class="vote-bar" style="margin-top:4px;"><span style="width: <%= totalCurrentVotes ? Math.round(o.vote_count / totalCurrentVotes * 100) : 0 %>%;"></span></div>
@@ -154,6 +159,8 @@
                 </select>
                 <label>Description</label>
                 <textarea aria-label="Description" name="description"><%= o.description || '' %></textarea>
+                <%- include('../partials/admin_french_fields', { kind: 'charity', idp: 'chv-' + o.id, fr, noun: 'charity', saveLabel: 'Save',
+                     values: o, englishRow: o, fields: [{ name: 'description', label: 'Description', type: 'textarea' }] }) %>
                 <label>Website URL</label>
                 <input aria-label="Website URL" name="websiteUrl" type="text" value="<%= o.website_url || '' %>">
                 <label>Photo</label>
@@ -203,6 +210,8 @@
             <strong><%= c.name %></strong>
             <% if (c.category) { %><div style="margin-top:6px;"><span class="status-pill category"><%= c.category %></span></div><% } %>
             <% if (c.description) { %><p class="muted small" style="margin-top:8px;"><%= c.description.slice(0, 100) %></p><% } %>
+            <% const _frs = fr.frenchState('charity', c); %>
+            <div class="muted small fr-flag">French: <span class="status-pill <%= fr.FRENCH_PILL[_frs] %>"><%= fr.FRENCH_LABELS[_frs] %></span></div>
             <details style="margin-top:10px;">
               <summary style="cursor:pointer; color:var(--maroon); font-size:13px;">Edit</summary>
               <form class="stack" method="post" action="/admin/charities/<%= c.id %>" enctype="multipart/form-data" style="margin-top:8px;">
@@ -217,6 +226,8 @@
                 </select>
                 <label>Description</label>
                 <textarea aria-label="Description" name="description"><%= c.description || '' %></textarea>
+                <%- include('../partials/admin_french_fields', { kind: 'charity', idp: 'chl-' + c.id, fr, noun: 'charity', saveLabel: 'Save',
+                     values: c, englishRow: c, fields: [{ name: 'description', label: 'Description', type: 'textarea' }] }) %>
                 <label>Website URL</label>
                 <input aria-label="Website URL" name="websiteUrl" type="text" value="<%= c.website_url || '' %>">
                 <label>Photo</label>
@@ -328,4 +339,5 @@
   <% }) %>
 <% } %>
 
+<script src="<%= assetUrl('/french-translate.js') %>"></script>
 <%- include('../partials/admin_footer') %>

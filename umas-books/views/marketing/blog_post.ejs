@@ -1,0 +1,33 @@
+<%
+/* One blog post, rendered by the server (src/routes/blogPages.js). The body is already sanitised (lib/blogPosts.js)
+   and is the only thing printed unescaped. On a French page with no READY French text the English text is shown
+   inside lang="en" elements, under a notice. Locals from the route: post, postText, fallback, live, adminPreview,
+   pageTitle, pageDescription, postDate, postDateLabel, postImage, ogImage, jsonLd, ogLocale, metaProps, robots,
+   prevPost, nextPost. */
+%>
+<%- include('partials/mkt_header', {
+  title: pageTitle,
+  description: pageDescription,
+  extraCss: ['assets/blog.css'],
+  ogType: 'article', ogImage, ogLocale, metaProps, jsonLd, robots,
+}) %>
+  <div class="blog-page">
+    <article class="blog-post">
+      <% if (!live) { %><p class="blog-empty" role="status"><strong>Admin preview:</strong> this post is not public yet (<%= post.status %>).</p><% } %>
+      <a class="back" href="/blog.html"><span aria-hidden="true">&larr;</span> <%= tr('All posts', 'Tous les articles') %></a>
+      <% if (fallback) { %><p class="blog-notice" role="note"><%= tr('This post is only available in English.', 'Cet article n’est disponible qu’en anglais.') %></p><% } %>
+      <div class="blog-date"><time datetime="<%= postDate %>"><%= postDateLabel %></time></div>
+      <h1<% if (fallback) { %> lang="en"<% } %>><%= postText.title %></h1>
+      <% if (postImage) { %>
+      <div class="blog-post-img"><img src="<%= postImage.src %>"<% if (postImage.srcset) { %> srcset="<%= postImage.srcset %>" sizes="(max-width: 760px) 100vw, 720px"<% } %> alt="" width="800" height="500" decoding="async" fetchpriority="high"></div>
+      <% } %>
+      <div class="blog-post-body"<% if (fallback) { %> lang="en"<% } %>><%- postText.body %></div>
+      <% if (prevPost || nextPost) { %>
+      <nav class="blog-neighbours" aria-label="<%= tr('More posts', 'Autres articles') %>">
+        <% if (prevPost) { %><a class="blog-neighbour blog-neighbour-prev" rel="prev" href="<%= prevPost.href %>"><span class="blog-neighbour-label"><span aria-hidden="true">&larr;</span> <%= tr('Previous post', 'Article précédent') %></span><span class="blog-neighbour-title"<% if (prevPost.fallback) { %> lang="en"<% } %>><%= prevPost.title %></span></a><% } %>
+        <% if (nextPost) { %><a class="blog-neighbour blog-neighbour-next" rel="next" href="<%= nextPost.href %>"><span class="blog-neighbour-label"><%= tr('Next post', 'Article suivant') %> <span aria-hidden="true">&rarr;</span></span><span class="blog-neighbour-title"<% if (nextPost.fallback) { %> lang="en"<% } %>><%= nextPost.title %></span></a><% } %>
+      </nav>
+      <% } %>
+    </article>
+  </div>
+<%- include('partials/mkt_footer', { pageI18nEn: {}, pageI18nFr: {}, extraScripts: [] }) %>

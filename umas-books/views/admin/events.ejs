@@ -63,6 +63,8 @@
                     <%= e.price != null ? ' · €' + Number(e.price).toFixed(2) : ' · free' %>
                   </div>
                   <% if (e.description) { %><div class="muted small" style="margin-top:6px;"><%= e.description %></div><% } %>
+                  <% const _frs = fr.frenchState('event', e); %>
+                  <div class="muted small fr-flag">French: <span class="status-pill <%= fr.FRENCH_PILL[_frs] %>"><%= fr.FRENCH_LABELS[_frs] %></span></div>
 
                   <% if (signups.length) { %>
                     <div class="muted small" style="margin-top:10px; font-variant: small-caps; letter-spacing: 0.06em; color: var(--gold-dark);">Signed up</div>
@@ -97,6 +99,9 @@
                       <input id="cap-<%= e.id %>" name="capacity" type="number" min="1" value="<%= e.capacity != null ? e.capacity : '' %>">
                       <label for="price-<%= e.id %>">Price (&euro;, optional)</label>
                       <input id="price-<%= e.id %>" name="price" type="number" min="0" step="0.01" value="<%= e.price != null ? e.price : '' %>" placeholder="Leave blank if free">
+                      <%- include('../partials/admin_french_fields', { kind: 'event', idp: 'ev-' + e.id, fr, noun: 'event', saveLabel: 'Save changes',
+                           values: e, englishRow: e,
+                           fields: [{ name: 'title', label: 'Title', type: 'text' }, { name: 'description', label: 'Description', type: 'textarea' }, { name: 'location', label: 'Location', type: 'text' }] }) %>
                       <div><button class="btn btn-small" type="submit">Save changes</button></div>
                     </form>
                   </details>
@@ -115,4 +120,5 @@
   </div>
 </div>
 
+<script src="<%= assetUrl('/french-translate.js') %>"></script>
 <%- include('../partials/admin_footer') %>

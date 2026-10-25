@@ -9,9 +9,9 @@ const sellsDropin = c.dropin_price != null;
 const full = sellsDropin && spotsLeft != null && spotsLeft <= 0;
 %>
 <% if (sellsDropin) { %>
-  <details class="fcal-session <%= toneForClassTitle(c.title) %>">
+  <details class="fcal-session <%= toneForClassTitle(c.title_en || c.title) %>">
     <summary>
-      <div class="fcal-session-title"><%= c.title %></div>
+      <div class="fcal-session-title"<% if (c.fallback) { %> lang="en"<% } %>><%= c.title %><% if (c.fallback) { %> <span class="fcal-lang"><span aria-hidden="true">EN</span><span class="visually-hidden" lang="fr"> Séance présentée en anglais</span></span><% } %></div>
       <div class="fcal-session-time"><%= formatTime(c.starts_at) %></div>
       <div class="fcal-session-seats">
         <%= eur(c.dropin_price) %><%= spotsLeft != null ? ' · ' + (spotsLeft === 1 ? tr('1 place left', '1 place restante') : tr('{n} places left', spotsLeft < 2 ? '{n} place restante' : '{n} places restantes', { n: spotsLeft })) : '' %>
@@ -32,8 +32,8 @@ const full = sellsDropin && spotsLeft != null && spotsLeft <= 0;
     </div>
   </details>
 <% } else { %>
-  <div class="fcal-session <%= toneForClassTitle(c.title) %>">
-    <div class="fcal-session-title"><%= c.title %></div>
+  <div class="fcal-session <%= toneForClassTitle(c.title_en || c.title) %>">
+    <div class="fcal-session-title"<% if (c.fallback) { %> lang="en"<% } %>><%= c.title %><% if (c.fallback) { %> <span class="fcal-lang"><span aria-hidden="true">EN</span><span class="visually-hidden" lang="fr"> Séance présentée en anglais</span></span><% } %></div>
     <div class="fcal-session-time"><%= formatTime(c.starts_at) %></div>
   </div>
 <% } %>

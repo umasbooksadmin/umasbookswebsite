@@ -2,6 +2,7 @@ const express = require("express");
 const { pool } = require("../db");
 const { groupByDate, resolveCalendarRange } = require("../lib/calendar");
 const { seatsTakenExpr } = require("../lib/classCapacity");
+const { localizeAll } = require("../lib/frenchText");
 
 const router = express.Router();
 
@@ -24,7 +25,7 @@ router.get("/sessions", async (req, res) => {
     [range.start, range.end]
   );
 
-  const weeks = range.buildWeeks(groupByDate(classes, "starts_at"));
+  const weeks = range.buildWeeks(groupByDate(localizeAll("session", classes, req.lang), "starts_at"));
   res.render("sessions", { weeks, view: range.view, dropinOnly, ...range.nav });
 });
 

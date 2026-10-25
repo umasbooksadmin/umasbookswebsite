@@ -18,6 +18,7 @@
 
 const { withTransaction } = require("../db");
 const { parseMoney } = require("./validation");
+const { SITE_TIME_ZONE } = require("./tz");
 const { releaseReservation, extendReservation } = require("./reservations");
 
 const NOTE_MAX = 500;
@@ -98,8 +99,24 @@ const toCents = (v) => Math.round(Number(v) * 100);
 // only be LOWER (a discount given at the till, with a note).
 // outcome: "collected" | "not_found" | "not_reserved" | "method_required" |
 // "nothing_to_collect" | "amount_invalid" | "amount_too_high" | "note_required".
+//
+// Cash taken here (not at the till) is counted in that Paris day's expected drawer cash (lib/till.js
+// daySummary, "Cash taken via admin"). So, like a cash refund, it is refused once that till day is
+// CLOSED (outcome "till_day_closed", with the day): a closed day's counted figures must not change
+// behind its back. The staff reopen the day on End of day, or record the payment as "Other".
 async function collectReservation(pool, orderId, opts = {}) {
-  return withTransaction(pool, (client) => collectReservationTx(client, orderId, opts));
+  return withTransaction(pool, async (client) => {
+    if (opts.method === "cash") {
+      // The same lock a sale or the closing takes; "today" is the transaction's now(), exactly what paid_at/collected_at get.
+      const till = require("./till");
+      const { rows: d } = await client.query(`SELECT (now() AT TIME ZONE '${SITE_TIME_ZONE}')::date::text AS day`);
+      const day = d[0].day;
+      await till.lockDay(client, day, "share");
+      const { rows: closed } = await client.query("SELECT 1 FROM till_days WHERE day = $1::date AND closed_at IS NOT NULL", [day]);
+      if (closed.length) return { outcome: "till_day_closed", day };
+    }
+    return collectReservationTx(client, orderId, opts);
+  });
 }
 
 // The same, inside a transaction the caller already opened (the till collects a

@@ -601,6 +601,8 @@ To launch:
    `https://<your site>/robots.txt` no longer says `Disallow: /`. The red
    "PREVIEW MODE is ON" strip is gone from the admin screens.
 
+**How to write a blog post, with a French version.** In **Admin > Blog** fill the English title and content (the excerpt is the short text on the list and in Google; add one), pick a picture, set the date and **Status** (Draft keeps it hidden, Scheduled/Published make it public from the date). Under **French version**: press **Translate to French** for a first draft (it uses one AI call of the daily limit; nothing is saved by it), then read and correct the French title, content and excerpt and press **Save**. The label next to "French version" says **ready** once the French title and content (and excerpt, if the English post has one) are there; until then French readers see the English text marked as English, so a post can always be published in English alone. The post's address is `/blog/<name>` (English) and `/fr/blog/<name>` (French); the name comes from the English title. New posts appear in `/sitemap-blog.xml` within an hour (saving from the editor refreshes it at once). The three starter posts already have French texts (migration 096): read them once and correct them if needed.
+
 **What preview mode does not touch: the blog.** Admins can write, edit,
 publish and delete blog posts (with their featured image) while the site is in
 preview mode, exactly as after launch, and a published post shows on the
@@ -793,7 +795,7 @@ pair, English as the default), and `https://umasbooks.org/sitemap.xml` lists bot
 (home, the marketing pages, Contact, Events, Sessions, Request a book and every in-stock book), each with
 its `xhtml:link` alternates. `robots.txt` is unchanged and allows `/fr/`. Admin, cart, login, account and
 members pages have no French address and stay out of the index. The sitemap is cached for an hour.
-`/sitemap.xml` is an index: it points at `/sitemap-pages.xml` (static pages and published collections) and at
+`/sitemap.xml` is an index: it points at `/sitemap-pages.xml` (static pages and published collections), `/sitemap-blog.xml` (published blog posts) and at
 `/sitemap-books-1.xml`, `-2.xml`, ... with 10,000 in-stock books (20,000 addresses) per file, newest books first.
 Submit only `sitemap.xml`; Google follows the index.
 
@@ -1139,6 +1141,9 @@ cheque or card), then you record it:
      needs today's till day not to be closed: if it is, reopen it on **End of day**
      first (the page says so), or choose **Other** and write in the note where the
      cash came from.
+     This works for a reservation collected at the till AND for one collected
+     with the admin button in cash (the cash came into the drawer as "Cash taken
+     via admin" on its day; the refund takes it out again, so the two cancel).
    - **Card refund on the terminal**, **Bank transfer**, **Other**: the drawer is not
      touched.
    - Refunds recorded before this choice existed have no method and count as before.
@@ -1151,6 +1156,12 @@ cheque or card), then you record it:
    **Admin activity**. Pressing twice changes nothing.
 5. Email the customer to confirm (the website does not), and put the book back
    on the shelf.
+
+If you use the admin **Mark collected and paid** button with **Cash** after
+today's till day was **closed**, the website refuses (nothing is changed), the
+same way as a cash refund: the closed day's counted figures would no longer match.
+Reopen the day on **End of day** first, or choose **Other** and write in the note
+where the money went (then it is not in any drawer figure).
 
 A **partial** refund (one book of several): do **not** press Mark refunded (it
 would put **all** the books back on sale). Write a note in your own records and
@@ -1440,9 +1451,18 @@ on the till as Cash or Card (put "app" in the card reference).
 
 ### Closing the day (count the drawer)
 
+**Daily routine: collect shop-paid reservations at the till** (scan or type
+ORDER-<number>). The admin **Mark collected and paid** button is a back-up for a
+slip, not the normal way.
+
 1. Open **End of day**. Check the numbers: sales by payment method, voided
-   sales, and **Expected cash in the drawer** (opening float + cash sales - cash
-   refunds paid out of the drawer that day, shown as their own line).
+   sales, and **Expected cash in the drawer** (opening float + cash sales + any
+   **Cash taken via admin (Mark collected and paid)** - cash refunds paid out of
+   the drawer that day; the last two are shown as their own lines). If you
+   used the admin button for a CASH pickup, that cash is in the drawer, so it is
+   in the expected figure (a reservation collected at the till is already in the
+   cash sales and is never counted twice). The till days CSV has it in its last
+   column, **Admin-button cash (EUR)**.
 2. Count all the cash in the drawer (coins and notes, including the float) and
    type the total in **Counted cash**. The screen shows **over** or **short** as
    you type.
@@ -3024,8 +3044,26 @@ English text slips into the French version.
   Se connecter, Créer un compte, Espace membres. Prices `12,50 €`; 0 and 1 are singular (`0 vote`).
 * **What is deliberately not translated**: the shop's name "Uma's Books and Adventures", legal
   entity names, book titles, authors and publishers, award names, and anything people or admins
-  write themselves (forum posts, announcements, blog posts, event and session descriptions).
-  Those are stored in one language. The list with reasons is in `docs/i18n-audit.md`.
+  write themselves. Forum posts are stored in one language. Blog posts, events, sessions,
+  announcements and charities have an OPTIONAL French version that the shop writes (see the next
+  paragraph); until it is written, French readers see the English text marked as English. The list
+  with reasons is in `docs/i18n-audit.md`.
+* **How to add French text to an event or a session** (the same for announcements and charities).
+  In **Admin > Events**, open the event and press **Edit**: under the English fields is the **French
+  version** box (title, description, location). Press **Translate to French** for a first draft (one
+  AI call of the daily limit, nothing is saved by it), read and correct it, then press **Save changes**.
+  The label **French: ready** appears when the French title (and the French description, if the English
+  event has one) are there; the location is optional because an address needs no translation. Until it
+  is ready, `/fr/events` and the French Events page show the English text with a small **EN** tag and the
+  note "Cet événement n’est décrit qu’en anglais" (a half-written French text is never shown). A session
+  (**English Programs > Edit**) only has a French title: it is also what a French reader sees for a drop-in
+  seat in the cart, the account page and the reminder e-mails, while the shop's accounting record keeps the
+  English title. **Announcements** (French title, summary, content: ready needs title and content, and the
+  summary when the English one has a summary) are read by members on the member home and `/announcements`;
+  **Charities** have a French description (library or vote editor) and the vote has a French question
+  (**Edit Vote Settings**); charity names are never translated. Events are created in English: add the
+  French by editing the event afterwards. Nothing is translated automatically and the English text is never
+  changed. Not covered on purpose: meetings and volunteer shifts (members-only working notes), forum posts.
 * **Counts**: `cd umas-books && node scripts/i18n-audit.js` prints every page that still has English in
   its French version (should say `TOTAL flagged: 0`); `--write` updates the table in
   `docs/i18n-audit.md`.

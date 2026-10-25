@@ -2,6 +2,7 @@ const express = require("express");
 const { pool } = require("../db");
 const { requireMember } = require("../middleware/auth");
 const { refuseMembersOnly } = require("../lib/membersOnly");
+const { localizeAll } = require("../lib/frenchText");
 
 const router = express.Router();
 
@@ -52,14 +53,14 @@ router.get("/dashboard", requireMemberOrOfferSignup, async (req, res) => {
     charity = { round, options: options.rows };
   }
 
-  res.render("dashboard", { announcements: announcements.rows, charity });
+  res.render("dashboard", { announcements: localizeAll("announcement", announcements.rows, req.lang), charity });
 });
 
 router.get("/announcements", requireMember, async (req, res) => {
   const { rows: announcements } = await pool.query(
     `SELECT * FROM announcements WHERE ${LIVE_ANNOUNCEMENTS_WHERE} ORDER BY is_pinned DESC, published_at DESC LIMIT 50`
   );
-  res.render("announcements", { announcements });
+  res.render("announcements", { announcements: localizeAll("announcement", announcements, req.lang) });
 });
 
 module.exports = router;

@@ -5,6 +5,7 @@ const { refuseMembersOnly } = require("../lib/membersOnly");
 const { CHARITY_CATEGORIES, CHARITY_CATEGORIES_FR } = require("../lib/charityCategories");
 const { charityIdeaLimiter } = require("../middleware/rateLimits");
 const { clean, cleanHttpUrl } = require("../lib/validation");
+const { localize } = require("../lib/frenchText");
 
 const router = express.Router();
 
@@ -15,7 +16,7 @@ async function loadActiveRound(userId) {
   if (!roundRows.length) return null;
   const round = roundRows[0];
   const { rows: options } = await pool.query(
-    `SELECT o.id, COALESCE(c.name, o.name) AS name, COALESCE(c.description, o.description) AS description,
+    `SELECT o.id, COALESCE(c.name, o.name) AS name, COALESCE(c.description, o.description) AS description, c.description_fr,
             c.category, c.image_url, c.website_url,
             (SELECT COUNT(*) FROM charity_votes v WHERE v.option_id = o.id)::int AS vote_count
      FROM charity_options o LEFT JOIN charities c ON c.id = o.charity_id
@@ -49,6 +50,12 @@ router.get("/charity", async (req, res) => {
   const publiclyVisible = charity && charity.round.visible_to === "everyone";
   if (!publiclyVisible && !isMember) {
     return refuseMembersOnly(req, res);
+  }
+
+  // The French question and descriptions where the shop wrote them (lib/frenchText.js); else the English text, marked as English.
+  if (charity) {
+    charity.round = localize("round", charity.round, req.lang);
+    charity.options = charity.options.map((o) => localize("charity", o, req.lang));
   }
 
   const { rows: myIdeas } = user

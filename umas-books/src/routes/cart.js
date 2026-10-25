@@ -113,7 +113,7 @@ async function loadCartItems(cart) {
   if (dropinLines.length) {
     const classIds = [...new Set(dropinLines.map((l) => l.classId))];
     const { rows } = await pool.query(
-      `SELECT c.id, c.title, c.starts_at, c.capacity, c.dropin_price, ${seatsTakenExpr("c")}::int AS seats_taken
+      `SELECT c.id, c.title, c.title_fr, c.starts_at, c.capacity, c.dropin_price, ${seatsTakenExpr("c")}::int AS seats_taken
        FROM classes c WHERE c.id = ANY($1::int[])`,
       [classIds]
     );
@@ -131,7 +131,7 @@ async function loadCartItems(cart) {
       acceptedPerClass.set(cls.id, alreadyAccepted + 1);
       items.push({
         kind: "dropin", lineId: line.lineId, classId: cls.id,
-        title: cls.title, startsAt: cls.starts_at, price: Number(cls.dropin_price),
+        title: cls.title, titleFr: cls.title_fr, startsAt: cls.starts_at, price: Number(cls.dropin_price),
       });
     }
   }

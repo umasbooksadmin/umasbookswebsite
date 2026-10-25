@@ -24,8 +24,8 @@
             <img src="<%= a.image_url || annPhotos[i % annPhotos.length] %>" alt="">
             <div>
               <div class="dash-ann-date"><%= a.is_pinned ? '\u{1F4CC} ' : '' %><%= formatDate(a.published_at) %></div>
-              <h3><%= a.title %></h3>
-              <% if (a.excerpt) { %><p><%= a.excerpt %></p><% } else { %><div class="rich-content"><%- a.body %></div><% } %>
+              <h3<% if (a.fallback) { %> lang="en"<% } %>><%= a.title %><% if (a.fallback) { %> <span class="dash-lang"><span aria-hidden="true">EN</span><span class="visually-hidden" lang="fr"> Annonce disponible uniquement en anglais</span></span><% } %></h3>
+              <% if (a.excerpt) { %><p<% if (a.fallback) { %> lang="en"<% } %>><%= a.excerpt %></p><% } else { %><div class="rich-content"<% if (a.fallback) { %> lang="en"<% } %>><%- a.body %></div><% } %>
             </div>
           </li>
         <% }) %>

@@ -4,6 +4,8 @@ const { groupByDate, monthParam, resolveCalendarRange, calendarBackQuery } = req
 const { baseUrl } = require("../lib/baseUrl");
 const { isEmail, clean } = require("../lib/validation");
 const { eventSignupLimiter } = require("../middleware/rateLimits");
+const { localize, localizeAll } = require("../lib/frenchText");
+const { normLang } = require("../lib/lang");
 
 const { validateIdParams } = require("../middleware/idParams");
 
@@ -27,14 +29,18 @@ router.get("/api/events/upcoming", async (req, res) => {
     `SELECT e.*, (SELECT COUNT(*) FROM event_signups s WHERE s.event_id = e.id) AS signup_count
      FROM events e WHERE e.starts_at >= now() ORDER BY e.starts_at ASC LIMIT 10`
   );
+  // ?lang=fr asks for the French text where an event has a READY French version (lib/frenchText.js); each event says
+  // which language its text is in (`lang`), so a page can label an English fallback.
+  const lang = normLang(req.query.lang) || "en";
   res.json(
-    rows.map((e) => {
+    localizeAll("event", rows, lang).map((e) => {
       const starts = new Date(e.starts_at);
       return {
         id: e.id,
         title: e.title,
         description: e.description,
         location: e.location,
+        lang: e.frLang,
         startsAt: e.starts_at,
         endsAt: e.ends_at,
         capacity: e.capacity,
@@ -54,7 +60,7 @@ router.get("/events", async (req, res) => {
     [range.start, range.end]
   );
 
-  const weeks = range.buildWeeks(groupByDate(events, "starts_at"));
+  const weeks = range.buildWeeks(groupByDate(localizeAll("event", events, req.lang), "starts_at"));
   res.render("events", { weeks, view: range.view, ...range.nav });
 });
 
@@ -73,8 +79,9 @@ function icsEscape(text) {
 router.get("/events/:id/ics", async (req, res) => {
   const eventId = Number(req.params.id);
   const { rows } = await pool.query("SELECT * FROM events WHERE id = $1", [eventId]);
-  const event = rows[0];
-  if (!event) return res.status(404).send(req.tr("Event not found.", "Événement introuvable."));
+  if (!rows[0]) return res.status(404).send(req.tr("Event not found.", "Événement introuvable."));
+  // The file is in the visitor's language (French text only when it is ready; else the English text).
+  const event = localize("event", rows[0], req.lang);
 
   const startsAt = new Date(event.starts_at);
   const endsAt = event.ends_at ? new Date(event.ends_at) : new Date(startsAt.getTime() + 60 * 60 * 1000);

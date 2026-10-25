@@ -31,6 +31,8 @@ for (const file of MARKETING_PAGES) {
 const BOOK_PAGE = /^\/books\/\d+$/;
 // A curated collection (src/routes/collections.js): /collections/<slug> and /fr/collections/<slug>.
 const COLLECTION_PAGE = /^\/collections\/[a-z0-9]+(?:-[a-z0-9]+)*$/;
+// A blog post (src/routes/blogPages.js): /blog/<slug> and /fr/blog/<slug>. The slug is lower-case letters, digits and dashes.
+const BLOG_POST = /^\/blog\/[a-z0-9][a-z0-9-]*$/;
 
 // "/path?query#hash" -> ["/path", "?query#hash"]
 function splitUrl(url) {
@@ -43,7 +45,7 @@ function splitUrl(url) {
 function isPublicPath(pathname) {
   let p = String(pathname || "");
   if (p.length > 1 && p.endsWith("/")) p = p.slice(0, -1);
-  return EXACT.has(p) || BOOK_PAGE.test(p) || COLLECTION_PAGE.test(p);
+  return EXACT.has(p) || BOOK_PAGE.test(p) || COLLECTION_PAGE.test(p) || BLOG_POST.test(p);
 }
 
 function isFrPath(pathname) {

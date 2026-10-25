@@ -27,7 +27,8 @@
         <% } else { %>
           <div class="cart-item-cover book-thumb-placeholder"><%= tr('Session', 'Séance') %></div>
           <div class="cart-item-body">
-            <div class="cart-item-title"><%= i.title %></div>
+            <% const _frTitle = lang === 'fr' && i.titleFr && String(i.titleFr).trim() ? String(i.titleFr).trim() : null; %>
+            <div class="cart-item-title"<% if (lang === 'fr' && !_frTitle) { %> lang="en"<% } %>><%= _frTitle || i.title %></div>
             <div class="muted small"><%= tr('Drop-in seat', 'Place drop-in') %> &middot; <%= formatDateTime(i.startsAt) %></div>
           </div>
         <% } %>
