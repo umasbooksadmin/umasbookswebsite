@@ -14,6 +14,7 @@ const { parseMoney } = require("./validation");
 const inv = require("./inventory");
 const { parseTillScan } = require("./tillScan");
 const { loadReservation, reservationOfCopy, lockReservedLines, collectReserved } = require("./tillReservations");
+const { TILL_COLLECTED } = require("./accounting");
 
 const TZ = SITE_TIME_ZONE;
 const MAX_LINES = 60;
@@ -797,12 +798,22 @@ async function daySummary(db, day) {
     `SELECT COUNT(*)::int AS n, COALESCE(SUM(ROUND(total_amount * 100)), 0)::int AS total FROM orders
      WHERE status = 'refunded' AND refund_method = 'cash' AND refund_till_day = $1::date`, [day]);
   const cashRefunds = cr[0];
+  // Cash taken with the admin "Mark collected and paid" button (a back-up for the till): orders.payment_method = 'cash',
+  // collected that Paris day (paid_at: set together with collected_at, and the day the export dates the sale), with the amount received recorded (older rows without it are left out, as before). Orders
+  // collected AT the till already have a till sale (its cash is in cash.total above), so they are excluded: never counted twice.
+  // A refunded order stays in: its cash did come into the drawer, and the refund (above) takes it out again.
+  const { rows: ac } = await db.query(
+    `SELECT COUNT(*)::int AS n, COALESCE(SUM(ROUND(o.amount_received * 100)), 0)::int AS total FROM orders o
+     WHERE o.payment_method = 'cash' AND o.status IN ('paid', 'refunded') AND o.paid_at IS NOT NULL AND o.collected_at IS NOT NULL AND o.amount_received IS NOT NULL
+       AND NOT ${TILL_COLLECTED} AND ${parisDay("o.paid_at")} = $1::date`, [day]);
+  const adminCash = ac[0];
   const row = dayRows[0] || null;
   const floatCents = row ? row.opening_float_cents : 0;
   return {
     day, cash, card, voided, categories: cats,
     count: cash.n + card.n, total: cash.total + card.total,
-    dayRow: row, hasFloat: !!row, floatCents, cashRefunds, expectedCashCents: floatCents + cash.total - cashRefunds.total,
+    dayRow: row, hasFloat: !!row, floatCents, cashRefunds, adminCash,
+    expectedCashCents: floatCents + cash.total + adminCash.total - cashRefunds.total,
     closed: !!(row && row.closed_at), salesAfterClose: after[0].n, unrefunded, voidList,
   };
 }

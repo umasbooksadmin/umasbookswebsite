@@ -35,6 +35,7 @@ const TILL_COLUMNS = [
   { key: "lastReceipt", label: "Last receipt", type: "text" },
   { key: "closed", label: "Closed", type: "text" },
   { key: "cashRefunds", label: "Cash refunds paid out (EUR)", type: "eur" },
+  { key: "adminCash", label: "Admin-button cash (EUR)", type: "eur" },
 ];
 const TILL_HEADER = TILL_COLUMNS.map((c) => c.label);
 
@@ -146,7 +147,9 @@ async function tillDays(db, range) {
   const { rows: days } = await db.query(
     `SELECT to_char(d, 'YYYY-MM-DD') AS day FROM (
        SELECT (created_at AT TIME ZONE '${TZ}')::date AS d FROM till_sales WHERE ${rangeSql("created_at")}
-       UNION SELECT day FROM till_days WHERE day >= $1::date AND day <= $2::date) x ORDER BY d`, params);
+       UNION SELECT day FROM till_days WHERE day >= $1::date AND day <= $2::date
+       UNION SELECT (paid_at AT TIME ZONE '${TZ}')::date FROM orders
+         WHERE payment_method = 'cash' AND status IN ('paid', 'refunded') AND collected_at IS NOT NULL AND amount_received IS NOT NULL AND ${rangeSql("paid_at")}) x ORDER BY d`, params);
   const { rows: receipts } = await db.query(
     `SELECT to_char((created_at AT TIME ZONE '${TZ}')::date, 'YYYY-MM-DD') AS day, MIN(receipt_year) AS y, MIN(receipt_no) AS lo, MAX(receipt_no) AS hi
      FROM till_sales WHERE receipt_no IS NOT NULL AND ${rangeSql("created_at")} GROUP BY 1`, params);
@@ -168,6 +171,7 @@ async function tillDays(db, range) {
       firstReceipt: r ? receiptText(r.y, r.lo) : "", lastReceipt: r ? receiptText(r.y, r.hi) : "",
       closed: s.closed ? "yes" : "no",
       cashRefunds: s.cashRefunds.total / 100,
+      adminCash: s.adminCash.total / 100,
     });
   }
   return out;
