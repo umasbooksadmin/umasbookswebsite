@@ -83,6 +83,19 @@
   .h-card:first-child { border-top: 0; }
 }
 
+/* ---------- Phones: the page starts at "What's New" ----------
+   Same query as the header's Menu (public/site-header.css), so the four cards' links (Browse Books, English Programs,
+   Events) are always in the Menu whenever the cards are hidden. The hero keeps the page's one <h1> in the page for
+   screen readers and search engines, visually hidden (the clip pattern, not display:none); its artwork, rule and
+   tagline and the four cards are not shown. Tablets and desktops are untouched. */
+@media (max-width: 640px), (max-height: 500px) and (max-width: 1000px) {
+  .h-hero {
+    position: absolute; width: 1px; height: 1px; min-height: 0; margin: -1px; padding: 0; overflow: hidden;
+    clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
+  .h-hero .art, .h-hero .rule, .h-hero .tagline, .h-cards { display: none; }
+}
+
 /* ---------- Fit the whole Home page on one desktop screen ----------
    On computer-sized screens every section is sized from the window
    height (vh), so header + hero + cards + About band + footer add up to
