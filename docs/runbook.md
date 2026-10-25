@@ -1139,6 +1139,9 @@ cheque or card), then you record it:
      needs today's till day not to be closed: if it is, reopen it on **End of day**
      first (the page says so), or choose **Other** and write in the note where the
      cash came from.
+     This works for a reservation collected at the till AND for one collected
+     with the admin button in cash (the cash came into the drawer as "Cash taken
+     via admin" on its day; the refund takes it out again, so the two cancel).
    - **Card refund on the terminal**, **Bank transfer**, **Other**: the drawer is not
      touched.
    - Refunds recorded before this choice existed have no method and count as before.
@@ -1151,6 +1154,12 @@ cheque or card), then you record it:
    **Admin activity**. Pressing twice changes nothing.
 5. Email the customer to confirm (the website does not), and put the book back
    on the shelf.
+
+If you use the admin **Mark collected and paid** button with **Cash** after
+today's till day was **closed**, the website refuses (nothing is changed), the
+same way as a cash refund: the closed day's counted figures would no longer match.
+Reopen the day on **End of day** first, or choose **Other** and write in the note
+where the money went (then it is not in any drawer figure).
 
 A **partial** refund (one book of several): do **not** press Mark refunded (it
 would put **all** the books back on sale). Write a note in your own records and
@@ -1440,9 +1449,18 @@ on the till as Cash or Card (put "app" in the card reference).
 
 ### Closing the day (count the drawer)
 
+**Daily routine: collect shop-paid reservations at the till** (scan or type
+ORDER-<number>). The admin **Mark collected and paid** button is a back-up for a
+slip, not the normal way.
+
 1. Open **End of day**. Check the numbers: sales by payment method, voided
-   sales, and **Expected cash in the drawer** (opening float + cash sales - cash
-   refunds paid out of the drawer that day, shown as their own line).
+   sales, and **Expected cash in the drawer** (opening float + cash sales + any
+   **Cash taken via admin (Mark collected and paid)** - cash refunds paid out of
+   the drawer that day; the last two are shown as their own lines). If you
+   used the admin button for a CASH pickup, that cash is in the drawer, so it is
+   in the expected figure (a reservation collected at the till is already in the
+   cash sales and is never counted twice). The till days CSV has it in its last
+   column, **Admin-button cash (EUR)**.
 2. Count all the cash in the drawer (coins and notes, including the float) and
    type the total in **Counted cash**. The screen shows **over** or **short** as
    you type.

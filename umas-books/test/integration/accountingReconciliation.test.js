@@ -213,7 +213,7 @@ test("refund after the day was closed: the cash option is refused (nothing chang
   const day = await paris();
   const netBefore = await exportNet(day, day);
   const r = await reserve([4]);
-  await collectByAdmin(r, "cash");
+  await collectByAdmin(r, "card"); // cash would now be refused: the day is closed (see adminButtonCash.test.js)
   const before = await lib.till.daySummary(h.pool, day);
   const form = (await h.get(`/admin/orders/${r.id}/refund`)).text;
   assert.match(form, /Refunded how\?/);

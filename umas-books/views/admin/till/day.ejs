@@ -38,6 +38,7 @@
     <tbody>
       <tr><td>Opening float<%= summary.hasFloat ? '' : ' (not entered)' %></td><td><%= fmtMoney(summary.floatCents) %></td></tr>
       <tr><td>+ Cash sales</td><td><%= fmtMoney(summary.cash.total) %></td></tr>
+      <% if (summary.adminCash.n) { %><tr id="admin-cash"><td>+ Cash taken via admin (Mark collected and paid) (<%= summary.adminCash.n %> reservation<%= summary.adminCash.n === 1 ? '' : 's' %> collected on the reservation page, not at the till)</td><td><%= fmtMoney(summary.adminCash.total) %></td></tr><% } %>
       <% if (summary.cashRefunds.n) { %><tr id="cash-refunds"><td>&minus; Cash refunds paid out (<%= summary.cashRefunds.n %> reservation<%= summary.cashRefunds.n === 1 ? '' : 's' %> refunded from the drawer)</td><td><%= fmtMoney(summary.cashRefunds.total) %></td></tr><% } %>
       <tr><th>Expected cash in the drawer</th><th id="expected"><%= fmtMoney(summary.expectedCashCents) %></th></tr>
       <% if (summary.closed) { %>

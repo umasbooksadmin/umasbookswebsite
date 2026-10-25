@@ -108,8 +108,9 @@
         <label for="method">How did they pay?</label>
         <select id="method" name="method" required>
           <option value="">Choose&hellip;</option>
-          <% paymentMethods.forEach(m => { %><option value="<%= m.value %>" <%= fv.method === m.value ? 'selected' : '' %>><%= m.label %></option><% }) %>
+          <% paymentMethods.forEach(m => { %><option value="<%= m.value %>" <%= fv.method === m.value ? 'selected' : '' %> <%= (m.value === 'cash' && tillClosed) ? 'disabled' : '' %>><%= m.label %><%= (m.value === 'cash' && tillClosed) ? ' (today\'s till day is closed)' : '' %></option><% }) %>
         </select>
+        <p class="muted small" id="collect-till-note" style="margin:0;">Usually collect a reservation at the till (scan ORDER-<%= order.id %>). If you use this button for cash, the cash is added to today&rsquo;s expected drawer cash on the End of day page (&ldquo;Cash taken via admin&rdquo;).<% if (tillClosed) { %> <strong id="collect-till-closed">Today&rsquo;s till day is already closed, so Cash is not offered: reopen the day on the End of day page first, or choose Other and say in the note where the money went.</strong><% } %></p>
         <% const listCents = activeItems.reduce((n, i) => n + Math.round(Number(i.price) * 100), 0); %>
         <p class="small" style="margin:0;">List total: <strong>&euro;<%= (listCents / 100).toFixed(2) %></strong></p>
         <label for="amountReceived">Amount received (&euro;)</label>
@@ -132,7 +133,7 @@
           <label for="method-sel">How did they pay?</label>
           <select id="method-sel" name="method" required>
             <option value="">Choose&hellip;</option>
-            <% paymentMethods.forEach(m => { %><option value="<%= m.value %>"><%= m.label %></option><% }) %>
+            <% paymentMethods.forEach(m => { %><option value="<%= m.value %>" <%= (m.value === 'cash' && tillClosed) ? 'disabled' : '' %>><%= m.label %><%= (m.value === 'cash' && tillClosed) ? ' (today\'s till day is closed)' : '' %></option><% }) %>
           </select>
           <button class="btn btn-outline" type="submit">Collect selected items</button>
         </form>
