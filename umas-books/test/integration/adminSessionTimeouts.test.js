@@ -50,10 +50,11 @@ async function login(base, email, returnTo) {
   });
   jar.capture(res);
   assert.equal(res.status, 302, "login should succeed");
-  // express-session also saves again AFTER the redirect went out (the session hash it compares
-  // with predates loginAs' own save). On a slow runner that late write could land after a test
-  // has aged the session row and silently undo it; let it finish first.
-  await new Promise((r) => setTimeout(r, 400));
+  // express-session answers the redirect and then saves the session AGAIN (its hash predates loginAs' own save), and
+  // it ends the response only when that save is done. Reading the body to its end is therefore the signal that the
+  // row is final; a test that ages the row before that has its patch overwritten by the late save (a fixed sleep
+  // here was only a guess that a loaded CI machine could overrun).
+  await res.arrayBuffer();
   return { jar, location: res.headers.get("location") };
 }
 
@@ -65,7 +66,13 @@ async function readSess(jar) {
 async function patchSess(jar, patch) {
   await pool.query("UPDATE session SET sess = (sess::jsonb || $2::jsonb)::json WHERE sid = $1", [sidOf(jar), JSON.stringify(patch)]);
 }
-const get = (base, jar, path, headers = {}) => fetch(`${base}${path}`, { redirect: "manual", headers: { cookie: jar.header(), ...headers } });
+// Resolves with the response, but only once it has ENDED: express-session ends it after storing the session, so a
+// patchSess() that follows cannot be overwritten by that store (see login()). The body stays readable.
+async function get(base, jar, path, headers = {}) {
+  const res = await fetch(`${base}${path}`, { redirect: "manual", headers: { cookie: jar.header(), ...headers } });
+  await res.clone().arrayBuffer();
+  return res;
+}
 
 test("login stamps adminLoginAt and adminLastActivity for an admin, not for a member", async () => {
   const email = `as-stamp-${Date.now()}@example.test`;

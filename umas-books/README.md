@@ -134,6 +134,19 @@ more things to keep in mind:
   assertion, which a loaded CI machine overruns. A test that follows a
   fire-and-forget mail with a "no mail was sent" check must first wait for
   the mail it caused, or that mail lands in the next test's count.
+- **Never assert a gap between two real events, or a "winner" of a race.** Under CI load a timer fires
+  late and "simultaneous" requests are not: `stamps[1] - stamps[0] >= 100` on real fetches, or "the second
+  of two concurrent requests gets the last-admin notice" (it may instead arrive after the first finished and
+  be refused with 403), fail one run in fifty. Check a schedule on an injected clock/`sleep` (the ISBNdb
+  limiter takes `now` and `sleep`), and for a race assert what must hold whichever way it goes (exactly one
+  admin left, one change made) and test the lock directly (`setAccountFlag` called twice with
+  `Promise.all`), where both calls really do reach it together.
+- **Wait for background work through its promise, not a guessed sleep.** Hooks that run "in the background"
+  usually return their promise for tests (`createCreditAlert`): keep them and await them
+  (`test/integration/aiCreditAlert.test.js` `settle()`), or `waitFor(...)` their visible effect.
+- **Rewriting a stored session row races express-session's late save.** It ends a response only after
+  storing the session, so read the response body to the end (`await res.arrayBuffer()`) before changing the
+  row with SQL; `test/integration/adminSessionTimeouts.test.js` does this in `login()` and `get()`.
 - **A 302 after a session change can arrive before the session is stored.**
   express-session answers before its store write finishes (see
   `src/lib/session.js`), so "POST `/cart/add`, then GET `/cart`" can see the
