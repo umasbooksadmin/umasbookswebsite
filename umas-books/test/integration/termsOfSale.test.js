@@ -79,7 +79,7 @@ test("terms of sale (English and French): free non-binding reservation, price ho
   for (const [lang, needles] of [
     ["en", [
       "Second-hand books: no returns",
-      "Reserving is free and commits you to nothing. You pay and the sale is made in the shop, after you have seen the book. Used books are not taken back for a change of mind once bought in the shop; the legal guarantees still apply.",
+      "Reserving is free and commits you to nothing. You pay and the sale is made in the shop, after you have seen the book. Used books are not taken back, exchanged or refunded for a change of mind once bought in the shop; the legal guarantees still apply.",
       "This does not affect your legal rights as a consumer, including the legal guarantees.",
       "The price shown when you reserve is honoured for the whole time the reservation is held.",
       "released automatically, with no fee and no penalty",
@@ -101,7 +101,7 @@ test("terms of sale (English and French): free non-binding reservation, price ho
     ]],
     ["fr", [
       "Livres d’occasion\u00a0: pas de reprise",
-      "Réserver est gratuit et ne vous engage à rien. Vous payez et la vente est conclue en boutique, après avoir vu le livre. Les livres d’occasion ne sont ni repris ni échangés pour simple changement d’avis une fois achetés en boutique\u00a0; les garanties légales restent applicables.",
+      "Réserver est gratuit et ne vous engage à rien. Vous payez et la vente est conclue en boutique, après avoir vu le livre. Les livres d’occasion ne sont ni repris, ni échangés, ni remboursés pour simple changement d’avis une fois achetés en boutique\u00a0; les garanties légales restent applicables.",
       "Cela ne porte pas atteinte à vos droits légaux de consommateur",
       "Le prix affiché au moment de la réservation est garanti pendant toute la durée de la réservation.",
       "sans frais ni pénalité",

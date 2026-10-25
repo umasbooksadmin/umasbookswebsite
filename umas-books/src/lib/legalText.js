@@ -11,14 +11,41 @@
 //    bought in the shop, but the legal guarantees still apply. The text must
 //    NEVER say that the legal guarantees are waived.
 //  - French typography: a no-break space (U+00A0) before ; : ! ? and %.
+const { translator } = require("./lang");
 const legal = require("./legal"); // read at call time, so one constant drives every page
 
 const NB = " ";
 
 const NO_RETURNS = {
-  en: "Reserving is free and commits you to nothing. You pay and the sale is made in the shop, after you have seen the book. Used books are not taken back for a change of mind once bought in the shop; the legal guarantees still apply.",
-  fr: `Réserver est gratuit et ne vous engage à rien. Vous payez et la vente est conclue en boutique, après avoir vu le livre. Les livres d’occasion ne sont ni repris ni échangés pour simple changement d’avis une fois achetés en boutique${NB}; les garanties légales restent applicables.`,
+  en: "Reserving is free and commits you to nothing. You pay and the sale is made in the shop, after you have seen the book. Used books are not taken back, exchanged or refunded for a change of mind once bought in the shop; the legal guarantees still apply.",
+  fr: `Réserver est gratuit et ne vous engage à rien. Vous payez et la vente est conclue en boutique, après avoir vu le livre. Les livres d’occasion ne sont ni repris, ni échangés, ni remboursés pour simple changement d’avis une fois achetés en boutique${NB}; les garanties légales restent applicables.`,
 };
+
+// The SHORT form of the same rule, for small muted lines on the reservation receipt, the
+// account's reservations and the reminder / expiry emails (the full sentence above stays on the
+// cart, the book page and the confirmation email). New books are not covered: it says "second-hand".
+// It ends with a link to the terms of sale: pages use legalFor().noReturnsSee / noReturnsLinkLabel / noReturnsLinkPath, plain-text emails use noReturnsShortPlain().
+const NO_RETURNS_SHORT = {
+  en: "Second-hand books are not taken back or refunded for a change of mind. Your legal guarantees still apply.",
+  fr: `Les livres d’occasion ne sont ni repris ni remboursés pour simple changement d’avis. Vos garanties légales restent applicables.`,
+};
+// The words around the link, as a pair per language (kept in tr() so the i18n scan sees both sides).
+function noReturnsLink(lang) {
+  const tr = translator(lang === "fr" ? "fr" : "en");
+  return { see: tr("See our", "Voir nos"), label: tr("Terms of sale", "conditions de vente") };
+}
+const TERMS_PATH = "/terms-of-sale.html";
+
+// The short notice as one plain-text sentence group with the full address of the terms of sale
+// (the French page under /fr/ for a French reader). `base` is the site's origin; with none (no public
+// address configured) the sentence is given without the link rather than with a relative one.
+function noReturnsShortPlain(lang, base) {
+  const l = lang === "fr" ? "fr" : "en";
+  if (!base) return NO_RETURNS_SHORT[l];
+  const url = `${String(base || "").replace(/\/$/, "")}${l === "fr" ? "/fr" : ""}${TERMS_PATH}`;
+  const { see, label } = noReturnsLink(l);
+  return `${NO_RETURNS_SHORT[l]} ${see} ${label}${l === "fr" ? NB : ""}: ${url}`;
+}
 
 // Shown on the book page next to the price, before the NO_RETURNS notice.
 const BOOK_FRIENDLY = {
@@ -77,6 +104,10 @@ function legalFor(lang) {
   const l = lang === "fr" ? "fr" : "en";
   return {
     noReturns: NO_RETURNS[l],
+    noReturnsShort: NO_RETURNS_SHORT[l],
+    noReturnsSee: noReturnsLink(l).see,
+    noReturnsLinkLabel: noReturnsLink(l).label,
+    noReturnsLinkPath: (l === "fr" ? "/fr" : "") + TERMS_PATH,
     bookFriendly: BOOK_FRIENDLY[l],
     gradeNote: GRADE_NOTE[l],
     pickup: PICKUP[l],
@@ -133,4 +164,4 @@ function fillVat(dict, lang = "en") {
   return out;
 }
 
-module.exports = { NO_RETURNS, BOOK_FRIENDLY, GRADE_NOTE, PICKUP, PICKUP_WHERE, NOTHING_PAID_ONLINE, vatNotice, priceLine, legalFor, fillVat };
+module.exports = { NO_RETURNS, NO_RETURNS_SHORT, noReturnsShortPlain, BOOK_FRIENDLY, GRADE_NOTE, PICKUP, PICKUP_WHERE, NOTHING_PAID_ONLINE, vatNotice, priceLine, legalFor, fillVat };

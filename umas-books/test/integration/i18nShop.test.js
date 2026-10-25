@@ -45,8 +45,8 @@ test("reservation form (book + drop-in seat) is fully translated", async () => {
   assert.ok(nb(pages.fr).includes("Rien n’est payé en ligne. Nous gardons vos livres 14 jours : passez à la boutique et réglez-les au moment du retrait."));
   assert.doesNotMatch(pages.en, /obligation to pay|Order with/);
   assert.doesNotMatch(pages.fr, /obligation de paiement/);
-  assert.ok(pages.en.includes("Used books are not taken back for a change of mind once bought in the shop; the legal guarantees still apply."));
-  assert.ok(nb(pages.fr).includes("Les livres d’occasion ne sont ni repris ni échangés pour simple changement d’avis une fois achetés en boutique"));
+  assert.ok(pages.en.includes("Used books are not taken back, exchanged or refunded for a change of mind once bought in the shop; the legal guarantees still apply."));
+  assert.ok(nb(pages.fr).includes("Les livres d’occasion ne sont ni repris, ni échangés, ni remboursés pour simple changement d’avis une fois achetés en boutique"));
   assert.ok(pages.en.includes("Price incl. tax, TVA non applicable") && pages.fr.includes("Prix TTC, TVA non applicable"));
   assert.ok(pages.en.includes("Pay and collect them at the shop, Rue Peyrolière, Albi. Collect your books during our regular hours, Wednesday to Saturday, 14:00–19:00. We are sometimes open at other times when volunteers are available, but only the regular hours are guaranteed."));
   assert.ok(pages.fr.includes("rue Peyrolière, Albi. Venez retirer vos livres pendant nos horaires habituels, du mercredi au samedi, de 14\u00a0h à 19\u00a0h. Nous sommes parfois ouverts à d’autres moments selon la disponibilité des bénévoles, mais seuls les horaires habituels sont garantis."));
