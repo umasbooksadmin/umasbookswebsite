@@ -242,11 +242,30 @@ test("ISBNdb: 429 pauses it for the Retry-After seconds; a 404 is a plain 'not t
 test("ISBNdb: requests are spaced by the rate limit however many scans run together; a long queue is skipped, not waited for", async () => {
   process.env.ISBNDB_API_KEY = "k";
   process.env.ISBNDB_MIN_INTERVAL_MS = "120";
-  const stamps = [];
-  const f = internet({ isbndb: () => { stamps.push(performance.now()); return json({}, 404); } });
+  // The spacing is the limiter's schedule: each request takes the next free slot, one interval after the previous.
+  // Checked on a fake clock with an injected sleep (the slot each request is told to wait for), not by timing real
+  // fetches: on a loaded machine a timer fires late and the gap between two real calls can be anything.
+  sources.resetSourcePauses();
+  const T0 = 1_700_000_000_000;
+  const waits = [];
+  const fakeSleep = (ms) => { waits.push(ms); return Promise.resolve(); };
+  const g0 = internet({ isbndb: () => json({}, 404) });
+  const spacedForms = sources.isbnForms("9791090636071");
+  const call = () => sources.isbndb({ forms: spacedForms, fetchImpl: g0, signal: new AbortController().signal, helpers: { pickGenres: () => null }, now: () => T0, sleep: fakeSleep });
+  await Promise.all([call(), call(), call()]);
+  assert.deepEqual(waits, [120, 240], "the first goes at once, the next two wait for slots 120 and 240 ms later");
+  assert.equal(g0.count("isbndb.com"), 3);
+  // Later, once the schedule has caught up, a request needs no wait at all.
+  waits.length = 0;
+  await sources.isbndb({ forms: spacedForms, fetchImpl: g0, signal: new AbortController().signal, helpers: { pickGenres: () => null }, now: () => T0 + 10_000, sleep: fakeSleep });
+  assert.deepEqual(waits, []);
+
+  // Through the real lookup path: three scans together all get their one request out (no clock assertions here).
+  sources.resetSourcePauses();
+  process.env.ISBNDB_MIN_INTERVAL_MS = "20";
+  const f = internet({ isbndb: () => json({}, 404) });
   await Promise.all(["9791090636071", "9791090636088", "9791090636095"].map((i) => run(i, f, { timeoutMs: 3000 })));
-  assert.equal(stamps.length, 3);
-  assert.ok(stamps[1] - stamps[0] >= 100 && stamps[2] - stamps[1] >= 100, `spaced: ${stamps.map((s) => (s - stamps[0]).toFixed(0)).join(", ")}`);
+  assert.equal(f.count("isbndb.com"), 3);
 
   // A direct burst against the limiter: slots beyond MAX_QUEUE_WAIT_MS are refused at once.
   sources.resetSourcePauses();

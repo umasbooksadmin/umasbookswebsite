@@ -147,8 +147,31 @@ test("two admins demoting each other at the same moment leave exactly one admin"
   ]);
   const { rows } = await pool.query("SELECT count(*)::int AS n FROM users WHERE is_admin AND NOT is_disabled");
   assert.equal(rows[0].n, 1, "exactly one active admin remains");
-  const locs = [r1, r2].map((r) => r.headers.get("location"));
-  assert.equal(locs.filter((l) => /last-admin/.test(l)).length, 1, "the loser is told why");
+  // Two real requests are never exactly simultaneous: depending on timing the second one is either stopped by the
+  // last-admin lock (both got past the admin check together) or refused with 403 because the first had already
+  // taken its sender's admin rights away. Both are correct; what must hold is one demotion happened and no more.
+  const outcome = (r) => (r.status === 403 ? "forbidden" : (r.headers.get("location") || "").match(/roleNotice=admin\.([\w-]+)/)?.[1] ?? `status ${r.status}`);
+  const outcomes = [r1, r2].map(outcome).sort();
+  assert.ok(
+    outcomes.join() === "last-admin,off" || outcomes.join() === "forbidden,off",
+    `one demotion succeeds and the other is stopped (last-admin lock or no longer an admin); got ${outcomes.join(", ")}`
+  );
+});
+
+test("the last-admin lock itself: two simultaneous demotions of each other through the lock, exactly one wins", async () => {
+  // Same race without the HTTP layer, so BOTH calls reach the lock together and the loser is always the lock's
+  // "last_admin" answer (the test above cannot promise that: the second request may arrive after the first finished).
+  const { setAccountFlag } = require("../../src/lib/accountRoles");
+  for (const role of ["admin", "disabled"]) {
+    await pool.query("UPDATE users SET is_admin = false WHERE is_admin");
+    const a = await createUser({ admin: true });
+    const b = await createUser({ admin: true });
+    const desired = role === "admin" ? false : true;
+    const results = await Promise.all([setAccountFlag(pool, a.id, role, desired), setAccountFlag(pool, b.id, role, desired)]);
+    assert.deepEqual(results.map((r) => r.status).sort(), ["changed", "last_admin"], `${role}: one change, one refusal`);
+    const { rows } = await pool.query("SELECT count(*)::int AS n FROM users WHERE is_admin AND NOT is_disabled");
+    assert.equal(rows[0].n, 1);
+  }
 });
 
 test("two admins deactivating each other at the same moment leave one active admin", async () => {
