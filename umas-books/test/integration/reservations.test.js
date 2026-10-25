@@ -129,7 +129,7 @@ test("the confirmation e-mail goes through the outbox, in English and in French"
       assert.match(body, /Pay at the shop|PAY AT THE SHOP/i);
       assert.match(body, /We hold your books until the end of \d{1,2} \w+ 20\d\d \(Paris time\)/);
       assert.match(body, /Reserving is free and commits you to nothing/);
-      assert.match(body, /Used books are not taken back for a change of mind once bought in the shop/);
+      assert.match(body, /Used books are not taken back, exchanged or refunded for a change of mind once bought in the shop/);
       assert.doesNotMatch(body, /withdraw|WITHDRAWAL/i, "no withdrawal notice or form");
       assert.match(body, /legal guarantee of conformity/);
       assert.match(body, new RegExp(`version ${TERMS_OF_SALE_VERSION}`));

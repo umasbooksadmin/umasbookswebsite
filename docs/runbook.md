@@ -1115,7 +1115,7 @@ reservation to collect it ... or cancel the reservation first").
 A reservation is a free hold and the sale is made and paid in the shop, so the
 site shows no withdrawal notice or form for books and seats (a legal review
 asked for this; the lawyer is asked to confirm: `docs/legal-todos.md`, section
-7). The terms say: "Used books are not taken back for a change of mind once
+7). The terms say: "Used books are not taken back, exchanged or refunded for a change of mind once
 bought in the shop; the legal guarantees still apply." The legal guarantees
 (a book that does not match its description) always apply, so **never refuse a
 customer who writes about a book that does not match its description**: look at
