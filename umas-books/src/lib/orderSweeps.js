@@ -21,7 +21,7 @@
 // Customer mail goes through the email outbox (retried when Gmail is down).
 
 const mailer = require("../mailer");
-const { looseBaseUrl } = require("./baseUrl");
+const { looseBaseUrl, configuredBaseUrl } = require("./baseUrl");
 const { ALERT_TO } = require("./errorAlert");
 const { sendEmail } = require("./outbox");
 const { emailTr, normLang } = require("./lang");
@@ -98,7 +98,7 @@ async function sendReservationReminders(pool) {
     if (!order) continue;
     try {
       const items = await loadOrderItems(pool, order.id);
-      await sendEmail({ kind: "reservation_reminder", lang: order.lang, relatedOrderId: order.id, to: order.buyer_email, ...buildReservationReminder(order, items) });
+      await sendEmail({ kind: "reservation_reminder", lang: order.lang, relatedOrderId: order.id, to: order.buyer_email, ...buildReservationReminder(order, items, configuredBaseUrl()) });
       sent++;
     } catch (err) {
       console.error(`Reservation reminder failed for order ${order.id}:`, err.message);
@@ -162,7 +162,7 @@ async function sendExpiryNotices(pool) {
     if (!order) continue;
     try {
       const items = (await loadOrderItems(pool, order.id)).filter((i) => i.class_dropin_seat_id == null);
-      await sendEmail({ kind: "reservation_expired", lang: order.lang, relatedOrderId: order.id, to: order.buyer_email, ...buildReservationExpiredNotice(order, items) });
+      await sendEmail({ kind: "reservation_expired", lang: order.lang, relatedOrderId: order.id, to: order.buyer_email, ...buildReservationExpiredNotice(order, items, configuredBaseUrl()) });
       sent++;
     } catch (err) {
       console.error(`Reservation expiry notice failed for order ${order.id}:`, err.message);

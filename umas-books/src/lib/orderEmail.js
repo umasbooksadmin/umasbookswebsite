@@ -4,7 +4,7 @@ const { emailTr, normLang } = require("./lang");
 const { formatEuro } = require("./money");
 const { orderItemLabel, reservationLastDay } = require("./orderItems");
 const legal = require("./legal");
-const { NO_RETURNS, vatNotice } = require("./legalText");
+const { NO_RETURNS, noReturnsShortPlain, vatNotice } = require("./legalText");
 const { frenchPlainText } = require("./frenchTypography");
 
 // The shop you pick up at (Rue Peyrolière) is NOT the association's
@@ -103,35 +103,37 @@ function buildOrderConfirmationText(order, items, base) {
   return lang === "fr" ? frenchPlainText(text) : text;
 }
 
-// Day-10 reminder (RESERVATION_REMINDER_DAYS_BEFORE days before the deadline).
-function buildReservationReminder(order, items) {
+// Day-10 reminder; `base` is the site's origin (for the terms-of-sale link) (RESERVATION_REMINDER_DAYS_BEFORE days before the deadline).
+function buildReservationReminder(order, items, base) {
   const lang = normLang(order.lang) || "en";
   const tr = emailTr(lang);
   const fmt = forLocale(LOCALES[lang]);
   const name = emailSafeName(order.buyer_name);
   const lines = items.filter((i) => i.class_dropin_seat_id == null).map((i) => `- ${orderItemLabel(i, lang)}`).join("\n");
   const last = fmt.formatDateLong(reservationLastDay(order));
+  const notice = noReturnsShortPlain(lang, base);
   return {
     subject: tr(`Your reserved books are waiting at the shop (reservation #${order.id})`, `Vos livres réservés vous attendent à la boutique (réservation n° ${order.id})`),
     text: tr(
-      `Hi ${name},\n\nYour reservation #${order.id} is waiting for you at Uma's Books:\n\n${lines}\n\nWe hold it until the end of ${last} (Paris time). Come by to pay and collect: ${SHOP_LINES.en}\n\nIf you no longer want the books, you can cancel from your account page. If you need more time, write to us at ${legal.CONTACT_EMAIL}.\n\nUma's Books`,
-      `Bonjour ${name},\n\nVotre réservation n° ${order.id} vous attend à Uma's Books :\n\n${lines}\n\nNous la gardons jusqu’à la fin de la journée du ${last} (heure de Paris). Passez la régler et la retirer : ${SHOP_LINES.fr}\n\nSi vous ne souhaitez plus ces livres, vous pouvez annuler depuis votre page de compte. Si vous avez besoin de plus de temps, écrivez-nous à ${legal.CONTACT_EMAIL}.\n\nUma's Books`
+      `Hi ${name},\n\nYour reservation #${order.id} is waiting for you at Uma's Books:\n\n${lines}\n\nWe hold it until the end of ${last} (Paris time). Come by to pay and collect: ${SHOP_LINES.en}\n\nIf you no longer want the books, you can cancel from your account page. If you need more time, write to us at ${legal.CONTACT_EMAIL}.\n\n${notice}\n\nUma's Books`,
+      `Bonjour ${name},\n\nVotre réservation n° ${order.id} vous attend à Uma's Books :\n\n${lines}\n\nNous la gardons jusqu’à la fin de la journée du ${last} (heure de Paris). Passez la régler et la retirer : ${SHOP_LINES.fr}\n\nSi vous ne souhaitez plus ces livres, vous pouvez annuler depuis votre page de compte. Si vous avez besoin de plus de temps, écrivez-nous à ${legal.CONTACT_EMAIL}.\n\n${notice}\n\nUma's Books`
     ),
   };
 }
 
 // Sent once when a reservation was released because its deadline passed (or its
 // session did): no penalty, the items are simply back on sale.
-function buildReservationExpiredNotice(order, items) {
+function buildReservationExpiredNotice(order, items, base) {
   const lang = normLang(order.lang) || "en";
   const tr = emailTr(lang);
   const name = emailSafeName(order.buyer_name);
   const lines = items.map((i) => `- ${orderItemLabel(i, lang)}`).join("\n");
+  const notice = noReturnsShortPlain(lang, base);
   return {
     subject: tr(`Your reservation #${order.id} has ended`, `Votre réservation n° ${order.id} est terminée`),
     text: tr(
-      `Hi ${name},\n\nYour reservation #${order.id} was not collected in time, so we have put the items back on sale:\n\n${lines}\n\nThere is nothing to pay and no penalty. If you still want them and they are available, you can reserve them again on our website.\n\nUma's Books`,
-      `Bonjour ${name},\n\nVotre réservation n° ${order.id} n’a pas été retirée à temps ; nous avons donc remis les articles en vente :\n\n${lines}\n\nIl n’y a rien à payer et aucune pénalité. Si vous les souhaitez encore et qu’ils sont disponibles, vous pouvez les réserver de nouveau sur notre site.\n\nUma's Books`
+      `Hi ${name},\n\nYour reservation #${order.id} was not collected in time, so we have put the items back on sale:\n\n${lines}\n\nThere is nothing to pay and no penalty. If you still want them and they are available, you can reserve them again on our website.\n\n${notice}\n\nUma's Books`,
+      `Bonjour ${name},\n\nVotre réservation n° ${order.id} n’a pas été retirée à temps ; nous avons donc remis les articles en vente :\n\n${lines}\n\nIl n’y a rien à payer et aucune pénalité. Si vous les souhaitez encore et qu’ils sont disponibles, vous pouvez les réserver de nouveau sur notre site.\n\n${notice}\n\nUma's Books`
     ),
   };
 }

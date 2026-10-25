@@ -22,6 +22,7 @@
     <% } %>
     <p class="muted small"><%= tr("Uma's Books — association loi 1901, " + legalText.registeredOffice + " — " + legalText.contactEmail + ". Pay and collect at the shop (" + legalText.shopStreet + ") and give this reservation number. " + legalText.shopHoursFirm, "Uma's Books — association loi 1901, " + legalText.registeredOffice + " — " + legalText.contactEmail + ". Réglez et retirez à la boutique (" + legalText.shopStreetInline + ") en indiquant ce numéro de réservation. " + legalText.shopHoursFirm) %></p>
   </div>
+  <p class="muted small no-returns-note"><%= legalText.noReturnsShort %> <%= legalText.noReturnsSee %> <a href="<%= legalText.noReturnsLinkPath %>"><%= legalText.noReturnsLinkLabel %></a>.</p>
   <p class="muted small"><%= tr('A confirmation email is on its way to {email}.', 'Un e-mail de confirmation vous est envoyé à l’adresse {email}.', { email: order.buyer_email }) %></p>
   <p class="no-print"><button type="button" class="btn" data-print><%= tr('Print this page', 'Imprimer cette page') %></button></p>
   <% if (isOwner) { %>

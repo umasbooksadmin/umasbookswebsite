@@ -151,3 +151,14 @@ test("every place that draws a cover gives the browser a srcset and sizes", () =
     assert.match(js, /sizes="/);
   }
 });
+
+test("collection page: the h1 can be visually hidden (col-sr) and the banner leaves room before the books", () => {
+  const s = loadSheet("assets/collections.css");
+  const sr = s.getRule(".col-sr");
+  assert.equal(sr.position, "absolute");
+  assert.equal(sr.width, "1px");
+  assert.equal(sr.height, "1px");
+  assert.equal(sr.overflow, "hidden");
+  assert.equal(s.getDecl(".col-banner", "margin"), "6px 0 24px");
+  assert.equal(s.hasRule(".col-head"), true);
+});

@@ -1060,3 +1060,42 @@ test("the new management routes are admin only and need the CSRF token", async (
   }
   assert.equal((await bySlug(c.slug)).id, c.id, "nothing was deleted");
 });
+
+// ---------- title and text under the banner ----------
+
+test("With a banner the title is visually hidden and the description paragraph is not output; without one both show as before (EN and FR)", async () => {
+  const ld = (t) => (t.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g) || []).join("\n");
+  const c = await publishedShelf([[await newBook(`Banner ${uniq()}`), "approved"]]);
+  const plain = { en: (await get(`/collections/${c.slug}`)).text, fr: (await get(`/fr/collections/${c.slug}`)).text };
+  for (const t of Object.values(plain)) {
+    assert.ok(!t.includes("col-banner"));
+    assert.match(t, /<h1 id="col-title">/, "no banner: the h1 is a plain, visible heading");
+    assert.match(t, /<p class="col-desc">/);
+    assert.match(t, /<section class="col-head"/);
+  }
+  await pool.query("UPDATE curated_collections SET banner_path = $2, header_alt_en = 'Alt EN', header_alt_fr = 'Alt FR' WHERE id = $1", [c.id, `/img/${"a".repeat(64)}.jpg`]);
+  const withB = { en: (await get(`/collections/${c.slug}`)).text, fr: (await get(`/fr/collections/${c.slug}`)).text };
+  for (const [lang, t] of Object.entries(withB)) {
+    assert.match(t, /<h1 class="col-sr" id="col-title">/, `${lang}: h1 present and visually hidden`);
+    assert.ok(!t.includes("col-desc"), `${lang}: no description paragraph`);
+    assert.ok(!t.includes('class="col-head"'));
+    assert.match(t, /<div class="col-banner"><img[^>]*alt="Alt (EN|FR)"/);
+    assert.match(t, /<h2 class="col-sr" id="col-books-title">/);
+    // head: meta description, Open Graph, canonical, hreflang and structured data are the same as without a banner
+    const head = (s) => s.slice(0, s.indexOf("</head>"));
+    assert.equal(head(t).replace(/\s+/g, " "), head(plain[lang]).replace(/\s+/g, " "), `${lang}: <head> unchanged`);
+    assert.equal(ld(t), ld(plain[lang]));
+  }
+  assert.match(withB.en, /<meta name="description" content="Gentle reads\."/);
+  assert.match(withB.fr, /<meta name="description" content="Des lectures douces\."/);
+  assert.match(withB.en, />Quiet Shelf<\/h1>/);
+  assert.match(withB.fr, />Étagère calme<\/h1>/);
+});
+
+test("An empty collection with a banner still shows its message", async () => {
+  const c = await publishedShelf([]);
+  await pool.query("UPDATE curated_collections SET banner_path = $2 WHERE id = $1", [c.id, `/img/${"b".repeat(64)}.jpg`]);
+  const t = (await get(`/collections/${c.slug}`)).text;
+  assert.match(t, /<div class="col-empty" role="status">[\s\S]*Every book in this collection has found a new home/);
+  assert.match(t, /<h1 class="col-sr"/);
+});
