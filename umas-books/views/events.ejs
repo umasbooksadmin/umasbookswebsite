@@ -5,7 +5,7 @@
 <% const nextHref = view === 'week' ? `view=week&week=${nextWeek}` : `month=${nextMonth}`; %>
 <% const monWeeks = view === 'week' ? weeks : mondayFirstWeeks(weeks); %>
 
-<section class="fcal-hero">
+<section class="fcal-hero fcal-hero-events">
   <%- include('partials/picture', { src: '/assets/img/hero-left.png', alt: '', w: 322, h: 512, cls: 'art art-left', lazy: true }) %>
   <%- include('partials/picture', { src: '/assets/img/hero-right.png', alt: '', w: 286, h: 512, cls: 'art art-right', lazy: true }) %>
   <div class="fcal-hero-copy">
