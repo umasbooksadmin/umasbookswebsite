@@ -427,3 +427,6 @@ form.stack label.ann-check {
   text-transform: none; letter-spacing: normal; color: var(--ink);
 }
 form.stack label.ann-check input { flex: 0 0 24px; width: 24px; height: 24px; margin: 0; }
+
+/* A text with no French version yet, on a French page: it stays in English (lang="en" in the markup) with this small tag. */
+.charity-lang { display: inline-block; vertical-align: middle; margin-left: 6px; padding: 0 5px; border: 1px solid currentColor; border-radius: 3px; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; line-height: 1.5; color: var(--maroon); }

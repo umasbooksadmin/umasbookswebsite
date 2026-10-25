@@ -5,6 +5,7 @@ const { audit } = require("../../lib/audit");
 const { parseWholeNumber, parseMoney } = require("../../lib/validation");
 const { parseLocalDateTime } = require("../../lib/dates");
 const { groupByDate, resolveCalendarRange, calendarBackQuery } = require("../../lib/calendar");
+const frenchText = require("../../lib/frenchText");
 
 const { validateIdParams } = require("../../middleware/idParams");
 
@@ -32,7 +33,7 @@ router.get("/admin/events", requireAdmin, async (req, res) => {
   }
 
   const weeks = range.buildWeeks(groupByDate(events, "starts_at"));
-  res.render("admin/events", { active: "events", weeks, signupsByEvent, view: range.view, ...range.nav });
+  res.render("admin/events", { active: "events", fr: frenchText, weeks, signupsByEvent, view: range.view, ...range.nav });
 });
 
 router.post("/admin/events", requireAdmin, async (req, res) => {
@@ -78,10 +79,13 @@ router.post("/admin/events/:id", requireAdmin, async (req, res) => {
   const price = priceNum.value == null ? null : priceNum.value;
 
   if (title && startsAt && numbersOk) {
+    // The optional French version (title, description, place): "" is stored as NULL = no French for that part.
+    const french = frenchText.readFrench("event", req.body);
     await pool.query(
-      `UPDATE events SET title=$1, description=$2, location=$3, starts_at=$4, ends_at=$5, capacity=$6, price=$7
+      `UPDATE events SET title=$1, description=$2, location=$3, starts_at=$4, ends_at=$5, capacity=$6, price=$7,
+         title_fr=$9, description_fr=$10, location_fr=$11
        WHERE id = $8`,
-      [title, description, location, startsAt, endsAt, capacity, price, id]
+      [title, description, location, startsAt, endsAt, capacity, price, id, french.title_fr, french.description_fr, french.location_fr]
     );
   }
   const backQuery = calendarBackQuery(req.query);

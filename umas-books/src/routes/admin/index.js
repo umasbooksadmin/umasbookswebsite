@@ -12,6 +12,7 @@ router.use(require("./orders"));
 router.use(require("./members"));
 router.use(require("./announcements"));
 router.use(require("./blog"));
+router.use(require("./frenchText")); // "Translate to French" for events, sessions, announcements, charities
 router.use(require("./collections"));
 router.use(require("./volunteerShifts"));
 router.use(require("./meetings"));

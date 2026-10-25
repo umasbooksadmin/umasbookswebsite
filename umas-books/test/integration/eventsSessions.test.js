@@ -105,7 +105,7 @@ test("GET /api/events/upcoming: CORS/cache headers, JSON shape, at most 10 entri
   assert.ok(times.every((t) => t >= Date.now() - 5000), "no past events");
   const first = list.find((e) => e.id === mine[0].id);
   assert.ok(first, "the earliest seeded event is in the feed");
-  assert.deepEqual(Object.keys(first).sort(), ["capacity", "description", "endsAt", "id", "location", "signupCount", "startsAt", "title", "url"]);
+  assert.deepEqual(Object.keys(first).sort(), ["capacity", "description", "endsAt", "id", "lang", "location", "signupCount", "startsAt", "title", "url"]);
   assert.equal(first.title, mine[0].title);
   assert.equal(first.capacity, 7);
   assert.equal(Number(first.signupCount), 1);

@@ -5,6 +5,7 @@ const { pool } = require("../../db");
 const { requireAdmin } = require("../../middleware/auth");
 const { audit } = require("../../lib/audit");
 const { sanitizeHtml } = require("../../lib/sanitizeHtml");
+const frenchText = require("../../lib/frenchText");
 
 const { validateIdParams } = require("../../middleware/idParams");
 const { parseId, clean } = require("../../lib/validation");
@@ -96,6 +97,7 @@ router.get("/admin/announcements", requireAdmin, async (req, res) => {
 
   res.render("admin/announcements", {
     active: "announcements",
+    fr: frenchText,
     announcements,
     counts,
     allCount,
@@ -121,11 +123,17 @@ router.post("/admin/announcements", requireAdmin, async (req, res) => {
 
   const imageFile = req.files && req.files.image && req.files.image[0];
   const imageUrl = imageFile ? await processAnnouncementImage(imageFile) : null;
+  // The optional French version (title, summary, content): "" is stored as NULL = no French for that part; the
+  // content passes the same sanitising as the English one.
+  const french = frenchText.readFrench("announcement", req.body);
+  if (french.excerpt_fr) french.excerpt_fr = french.excerpt_fr.slice(0, 200);
 
   await pool.query(
-    `INSERT INTO announcements (title, excerpt, body, category, status, published_at, image_url, is_pinned, expires_at, event_id, created_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-    [title, excerpt, body, category, status, publishedAt, imageUrl, isPinned, expiresAt, eventId, req.session.user.id]
+    `INSERT INTO announcements (title, excerpt, body, category, status, published_at, image_url, is_pinned, expires_at, event_id, created_by,
+       title_fr, excerpt_fr, body_fr)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+    [title, excerpt, body, category, status, publishedAt, imageUrl, isPinned, expiresAt, eventId, req.session.user.id,
+      french.title_fr, french.excerpt_fr, french.body_fr]
   );
   res.redirect(`/admin/announcements${backQuery}`);
 });
@@ -173,13 +181,16 @@ router.post("/admin/announcements/:id", requireAdmin, async (req, res) => {
   const imageFile = req.files && req.files.image && req.files.image[0];
   const newImageUrl = imageFile ? await processAnnouncementImage(imageFile) : null;
   const clearImage = !imageFile && req.body.removeImage === "on";
+  const french = frenchText.readFrench("announcement", req.body);
+  if (french.excerpt_fr) french.excerpt_fr = french.excerpt_fr.slice(0, 200);
 
   await pool.query(
     `UPDATE announcements SET title=$1, excerpt=$2, body=$3, category=$4, status=$5, published_at=$6,
        image_url = CASE WHEN $7::text IS NOT NULL THEN $7 WHEN $8 THEN NULL ELSE image_url END,
-       is_pinned=$9, expires_at=$10, event_id=$11, updated_at=now()
+       is_pinned=$9, expires_at=$10, event_id=$11, title_fr=$13, excerpt_fr=$14, body_fr=$15, updated_at=now()
      WHERE id=$12`,
-    [title, excerpt, body, category, status, publishedAt, newImageUrl, clearImage, isPinned, expiresAt, eventId, id]
+    [title, excerpt, body, category, status, publishedAt, newImageUrl, clearImage, isPinned, expiresAt, eventId, id,
+      french.title_fr, french.excerpt_fr, french.body_fr]
   );
   res.redirect(`/admin/announcements${backQuery}`);
 });

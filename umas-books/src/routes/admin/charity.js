@@ -6,6 +6,7 @@ const { requireAdmin } = require("../../middleware/auth");
 const { audit } = require("../../lib/audit");
 const { parseLocalDateTime } = require("../../lib/dates");
 const { CHARITY_CATEGORIES } = require("../../lib/charityCategories");
+const frenchText = require("../../lib/frenchText");
 
 const { validateIdParams } = require("../../middleware/idParams");
 const { cleanHttpUrl, parseId, clean } = require("../../lib/validation");
@@ -33,7 +34,7 @@ async function processCharityImage(file) {
 const CHARITY_OPTION_SELECT = `
   SELECT o.id, o.round_id, o.charity_id,
          COALESCE(c.name, o.name) AS name,
-         COALESCE(c.description, o.description) AS description,
+         COALESCE(c.description, o.description) AS description, c.description_fr,
          c.category, c.image_url, c.website_url,
          (SELECT COUNT(*) FROM charity_votes v WHERE v.option_id = o.id)::int AS vote_count
   FROM charity_options o LEFT JOIN charities c ON c.id = o.charity_id
@@ -83,6 +84,7 @@ router.get("/admin/charity", requireAdmin, async (req, res) => {
 
   res.render("admin/charity", {
     active: "charity",
+    fr: frenchText,
     tab,
     ideasSubTab,
     q,
@@ -129,10 +131,11 @@ router.post("/admin/charity-rounds/:id/settings", requireAdmin, async (req, res)
   const showResultsDuringVote = req.body.showResultsDuringVote === "on";
 
   if (title) {
+    const french = frenchText.readFrench("round", req.body);
     await pool.query(
       `UPDATE charity_rounds SET title=$1, label=$2, opens_at = COALESCE($3::timestamptz, opens_at), closes_at=$4,
-         allow_multiple=$5, visible_to=$6, show_results_during_vote=$7 WHERE id=$8`,
-      [title, label, opensAt, closesAt, allowMultiple, visibleTo, showResultsDuringVote, id]
+         allow_multiple=$5, visible_to=$6, show_results_during_vote=$7, title_fr=$9 WHERE id=$8`,
+      [title, label, opensAt, closesAt, allowMultiple, visibleTo, showResultsDuringVote, id, french.title_fr]
     );
   }
   res.redirect("/admin/charity?tab=current");
@@ -187,16 +190,17 @@ router.post("/admin/charities/:id", requireAdmin, async (req, res) => {
   if (!name) return res.redirect(`/admin/charity?tab=${returnTab}`);
 
   const imageFile = req.files && req.files.image && req.files.image[0];
+  const french = frenchText.readFrench("charity", req.body);
   if (imageFile) {
     const imageUrl = await processCharityImage(imageFile);
     await pool.query(
-      "UPDATE charities SET name=$1, description=$2, category=$3, website_url=$4, image_url=$5 WHERE id=$6",
-      [name, description, category, websiteUrl, imageUrl, id]
+      "UPDATE charities SET name=$1, description=$2, category=$3, website_url=$4, image_url=$5, description_fr=$7 WHERE id=$6",
+      [name, description, category, websiteUrl, imageUrl, id, french.description_fr]
     );
   } else {
     await pool.query(
-      "UPDATE charities SET name=$1, description=$2, category=$3, website_url=$4 WHERE id=$5",
-      [name, description, category, websiteUrl, id]
+      "UPDATE charities SET name=$1, description=$2, category=$3, website_url=$4, description_fr=$6 WHERE id=$5",
+      [name, description, category, websiteUrl, id, french.description_fr]
     );
   }
   res.redirect(`/admin/charity?tab=${returnTab}`);

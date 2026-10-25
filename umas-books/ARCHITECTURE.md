@@ -829,6 +829,16 @@ codes), their sessions, `pricing_settings`, `schema_migrations`.
 Content is kept unless `--include-content`; non-admin accounts are kept with
 `--keep-members`.
 
+## French versions of events, sessions, announcements and charities
+
+Same conventions as the blog (migration 097, nullable columns next to the English ones, English never changed):
+
+- **Columns**: `events` (`title_fr`, `description_fr`, `location_fr`), `classes` (`title_fr`; the session's other fields are not shown to customers), `announcements` (`title_fr`, `excerpt_fr`, `body_fr`), `charities` (`description_fr`; names stay as they are), `charity_rounds` (`title_fr`). No table added, so `clearTestData` is unchanged. Meetings and volunteer shifts are members-only working notes and were left out on purpose.
+- **One module** `src/lib/frenchText.js`: `SPECS` says per kind which fields are *needed* for the French to be **ready** (event: title, plus the description when the English has one; session: title; announcement: title and body, plus the excerpt when the English has one; charity: the description when the English has one; vote: title), `frenchState()` returns missing / draft / ready, `localize(kind, row, lang)` returns a copy of the row whose fields hold the French text only for `lang === 'fr'` and a *ready* row (`frLang`, `fallback`, and the English originals as `<field>_en`), `readFrench()` reads the admin form (blank -> NULL, HTML sanitised). An HTML text (announcement body) is sanitised on write and again on read.
+- **Pages**: `/events` (+ `/events/:id/ics`, in the visitor's language), `/sessions`, `/dashboard` and `/announcements` (members, `req.lang`), `/charity` localize their rows in the route; the views print `title`/`description` as before and add `lang="en"` and a small "EN" tag (with a spoken French note) when `fallback` is true; an event card also shows the note "Cet événement n'est décrit qu'en anglais". `GET /api/events/upcoming?lang=fr` does the same and every event carries `lang`; `public/page-events.js` (marketing Events page) asks in the page's `<html lang>`. A session's colour keeps following the English title (`title_en`).
+- **Drop-in lines**: `lib/orderItems.js` (`orderItemLabel`) uses `classes.title_fr` for a French reader (page or e-mail, from `orders.lang`) and the English title otherwise; the cart page does the same from `titleFr`. `order_items.item_title` (the accounting record) is always written in English.
+- **Admin**: the shared partial `views/partials/admin_french_fields.ejs` (French version box with the status label and the button) is used by the events, sessions, announcements and charity editors; lists show the French status. **Translate to French**: `POST /admin/translate-french/:kind` (`routes/admin/frenchText.js`, `lib/frenchTranslate.js`, `public/french-translate.js`): one `askText` call (shared daily cap, 10 a minute per admin), fills only the form, never saves, sanitises HTML, audit entry `french.translate` (counts only).
+
 ## Languages
 
 Everything customers and members see must be available in French (admin

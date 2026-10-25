@@ -111,7 +111,7 @@ test("signed-in pages: the forum thread and the announcements list use h2 under 
   assert.match(thread, /<h2 class="as-h3">/);
   const ann = fs.readFileSync(path.join(views, "announcements.ejs"), "utf8");
   assert.doesNotMatch(ann, /<h3\b/);
-  assert.match(ann, /<h2><%= a\.title %><\/h2>/);
+  assert.match(ann, /<h2(?:<% if \(a\.fallback\) \{ %> lang="en"<% \} %>)?><%= a\.title %>/, "an announcement title is an h2 (it may carry lang=en and the EN tag when it has no French)");
   const vol = fs.readFileSync(path.join(views, "marketing", "volunteer.ejs"), "utf8");
   assert.doesNotMatch(vol, /<h3\b/);
 });

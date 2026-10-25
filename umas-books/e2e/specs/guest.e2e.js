@@ -474,6 +474,7 @@ s.test("G25 English programs, programs and pre-registration pages open", async (
   assert.equal(await ctx.page.$("form[data-mailto]"), null, "no mailto form any more");
 });
 
+s.manual("G26b (must) events and sessions in French: the French text when written, the English text with an EN tag otherwise", "needs events and sessions with and without a French version (A30c, A31c); do by hand");
 s.test("G26 the sessions page lists upcoming sessions with filters and Month / Week", async (ctx) => {
   await ctx.goto("/sessions");
   const text = await ctx.text();

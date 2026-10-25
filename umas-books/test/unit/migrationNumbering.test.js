@@ -26,7 +26,8 @@ const path = require("node:path");
 
 const dir = path.join(__dirname, "..", "..", "migrations");
 // 89: reserved by PR #267 (ai_daily_cap). TEMPORARY: remove 89 here once #267 is merged (this PR uses 090).
-const KNOWN_GAPS = new Set([49, 51, 52, 61, 64, 67, 69, 70, 71, 72, 73, 77, 78, 79, 89]);
+// 96: reserved by PR #330 (blog_french). TEMPORARY: remove 96 here once #330 is merged (this PR uses 097).
+const KNOWN_GAPS = new Set([49, 51, 52, 61, 64, 67, 69, 70, 71, 72, 73, 77, 78, 79, 89, 96]);
 
 const files = fs.readdirSync(dir).filter((f) => f.endsWith(".sql")).sort();
 

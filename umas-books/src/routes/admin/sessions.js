@@ -5,6 +5,7 @@ const { audit } = require("../../lib/audit");
 const { parseLocalDateTime } = require("../../lib/dates");
 const { groupByDate, resolveCalendarRange, calendarBackQuery } = require("../../lib/calendar");
 const { seatsTakenExpr } = require("../../lib/classCapacity");
+const frenchText = require("../../lib/frenchText");
 const { setFlash, takeFlash } = require("../../lib/flash");
 const { parseMoney, parseWholeNumber } = require("../../lib/validation");
 
@@ -60,7 +61,7 @@ async function renderSessions(res, calendarQuery, { error = null, notice = null,
   }
 
   const weeks = range.buildWeeks(groupByDate(classes, "starts_at"));
-  res.render("admin/sessions", { active: "sessions", notice, error, formOverlay: overlay, weeks, signupsByClass, dropinByClass, programTypes: PROGRAM_TYPES, view: range.view, ...range.nav });
+  res.render("admin/sessions", { active: "sessions", fr: frenchText, notice, error, formOverlay: overlay, weeks, signupsByClass, dropinByClass, programTypes: PROGRAM_TYPES, view: range.view, ...range.nav });
 }
 
 // A refused form answers with a redirect back to the calendar (Post/Redirect/Get):
@@ -128,13 +129,15 @@ router.post("/admin/sessions/:id", requireAdmin, async (req, res) => {
   const capacityCheck = parseCapacity(req.body.capacity);
   const dropinCheck = parseDropinPrice(req.body.dropinPrice);
   const programType = PROGRAM_TYPES.includes(req.body.programType) ? req.body.programType : null;
+  // The optional French title: "" is stored as NULL = no French.
+  const french = frenchText.readFrench("session", req.body);
 
   const refuse = (error) => {
     return refuseAndRedirect(req, res, req.query, {
       error,
       overlay: {
         classId: id,
-        values: { title, description: description || "", location: location || "", programType: programType || "", capacity: asTyped(req.body.capacity), dropinPrice: asTyped(req.body.dropinPrice) },
+        values: { title, title_fr: french.title_fr || "", description: description || "", location: location || "", programType: programType || "", capacity: asTyped(req.body.capacity), dropinPrice: asTyped(req.body.dropinPrice) },
       },
     });
   };
@@ -167,9 +170,10 @@ router.post("/admin/sessions/:id", requireAdmin, async (req, res) => {
         return;
       }
       await client.query(
-        `UPDATE classes SET title=$1, description=$2, location=$3, starts_at=$4, ends_at=$5, capacity=$6, dropin_price=$7, program_type=$8
+        `UPDATE classes SET title=$1, description=$2, location=$3, starts_at=$4, ends_at=$5, capacity=$6, dropin_price=$7, program_type=$8,
+           title_fr=$10
          WHERE id = $9`,
-        [title, description, location, startsAt, endsAt, capacity, dropinPrice, programType, id]
+        [title, description, location, startsAt, endsAt, capacity, dropinPrice, programType, id, french.title_fr]
       );
     });
   }

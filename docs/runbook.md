@@ -3024,8 +3024,26 @@ English text slips into the French version.
   Se connecter, Créer un compte, Espace membres. Prices `12,50 €`; 0 and 1 are singular (`0 vote`).
 * **What is deliberately not translated**: the shop's name "Uma's Books and Adventures", legal
   entity names, book titles, authors and publishers, award names, and anything people or admins
-  write themselves (forum posts, announcements, blog posts, event and session descriptions).
-  Those are stored in one language. The list with reasons is in `docs/i18n-audit.md`.
+  write themselves. Forum posts are stored in one language. Blog posts, events, sessions,
+  announcements and charities have an OPTIONAL French version that the shop writes (see the next
+  paragraph); until it is written, French readers see the English text marked as English. The list
+  with reasons is in `docs/i18n-audit.md`.
+* **How to add French text to an event or a session** (the same for announcements and charities).
+  In **Admin > Events**, open the event and press **Edit**: under the English fields is the **French
+  version** box (title, description, location). Press **Translate to French** for a first draft (one
+  AI call of the daily limit, nothing is saved by it), read and correct it, then press **Save changes**.
+  The label **French: ready** appears when the French title (and the French description, if the English
+  event has one) are there; the location is optional because an address needs no translation. Until it
+  is ready, `/fr/events` and the French Events page show the English text with a small **EN** tag and the
+  note "Cet événement n’est décrit qu’en anglais" (a half-written French text is never shown). A session
+  (**English Programs > Edit**) only has a French title: it is also what a French reader sees for a drop-in
+  seat in the cart, the account page and the reminder e-mails, while the shop's accounting record keeps the
+  English title. **Announcements** (French title, summary, content: ready needs title and content, and the
+  summary when the English one has a summary) are read by members on the member home and `/announcements`;
+  **Charities** have a French description (library or vote editor) and the vote has a French question
+  (**Edit Vote Settings**); charity names are never translated. Events are created in English: add the
+  French by editing the event afterwards. Nothing is translated automatically and the English text is never
+  changed. Not covered on purpose: meetings and volunteer shifts (members-only working notes), forum posts.
 * **Counts**: `cd umas-books && node scripts/i18n-audit.js` prints every page that still has English in
   its French version (should say `TOTAL flagged: 0`); `--write` updates the table in
   `docs/i18n-audit.md`.
