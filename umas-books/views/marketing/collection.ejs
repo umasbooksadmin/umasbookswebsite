@@ -11,11 +11,16 @@
     <%# Wide picture at the top: 3:1 on a computer, taller on a phone (assets/collections.css). Above the fold, so not lazy; width and height are set so nothing jumps. %>
     <div class="col-banner"><img src="<%= collection.banner_path %>"<% if (bsrc) { %> srcset="<%= bsrc %>" sizes="(max-width: 1240px) 100vw, 1176px"<% } %> alt="<%= bannerAlt %>" width="1600" height="800" decoding="async" fetchpriority="high"></div>
     <% } %>
+    <% if (collection.banner_path) { %>
+    <%# With a banner the title and description are not shown under it (maintainer request 2026-10-25). The h1 stays for screen readers and search engines, visually hidden; the description paragraph is not output at all (it still feeds the meta description, Open Graph and JSON-LD in the head). %>
+    <h1 class="col-sr" id="col-title"><%= collectionTitle %></h1>
+    <% } else { %>
     <section class="col-head" aria-labelledby="col-title">
-      <% if (collection.icon_path && !collection.banner_path) { %><%- include('../partials/collection_icon', { src: collection.icon_path, w: 120, h: 120, cls: 'col-head-art', lazy: false }) %><% } %>
+      <% if (collection.icon_path) { %><%- include('../partials/collection_icon', { src: collection.icon_path, w: 120, h: 120, cls: 'col-head-art', lazy: false }) %><% } %>
       <h1 id="col-title"><%= collectionTitle %></h1>
       <p class="col-desc"><%= collectionDescription %></p>
     </section>
+    <% } %>
 
     <section class="col-books" aria-labelledby="col-books-title">
       <h2 class="col-sr" id="col-books-title"><%= tr('Books in this collection', 'Les livres de cette collection') %></h2>
