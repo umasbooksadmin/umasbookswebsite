@@ -21,6 +21,7 @@ const ADMIN_DIR = path.join(__dirname, "..", "..", "src", "routes", "admin");
 
 // Handlers that may answer a POST with a body: a download or JSON for fetch().
 const MAY_SEND = new Set([
+  "/admin/translate-french/:kind", // JSON for public/french-translate.js (fetch): the French text goes into the form, nothing is saved
   "/admin/privacy/export", // the JSON data-request download
   "/admin/inventory/generate-description", // JSON for public/app.js
   "/admin/blog/translate", // JSON for public/blog-translate.js (fetch): the French text goes into the form, nothing is saved

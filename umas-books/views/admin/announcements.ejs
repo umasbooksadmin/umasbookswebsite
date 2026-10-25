@@ -71,6 +71,7 @@
               <th>Announcement</th>
               <th>Category</th>
               <th>Status</th>
+              <th>French</th>
               <th>Publish Date</th>
               <th>Last Edited</th>
               <th>Pinned</th>
@@ -79,7 +80,7 @@
           </thead>
           <tbody>
             <% if (!announcements.length) { %>
-              <tr><td colspan="8" class="muted" style="text-align:center; padding:24px;">No announcements match these filters.</td></tr>
+              <tr><td colspan="9" class="muted" style="text-align:center; padding:24px;">No announcements match these filters.</td></tr>
             <% } %>
             <% announcements.forEach(a => { %>
               <tr>
@@ -96,6 +97,8 @@
                 </td>
                 <td><% if (a.category) { %><span class="status-pill category"><%= a.category %></span><% } %></td>
                 <td><span class="status-pill <%= a.status %>"><%= statusLabels[a.status] %></span></td>
+                <% const _frs = fr.frenchState('announcement', a); %>
+                <td><span class="status-pill <%= fr.FRENCH_PILL[_frs] %>"><%= fr.FRENCH_LABELS[_frs] %></span></td>
                 <td class="muted small"><%= a.published_at ? formatDateTime(a.published_at) : '—' %></td>
                 <td class="muted small"><%= formatDateTime(a.updated_at) %></td>
                 <td><%= a.is_pinned ? '\u{1F4CC}' : '' %></td>
@@ -187,6 +190,10 @@
         <textarea name="body" class="richtext-hidden" aria-label="Announcement text"><%= editing ? editing.body : '' %></textarea>
         <div class="field-error" role="alert" hidden>Please write some content for the announcement.</div>
 
+        <%- include('../partials/admin_french_fields', { kind: 'announcement', idp: 'ann', fr, noun: 'announcement', saveLabel: editing ? 'Save Changes' : 'Publish',
+             values: editing || {}, englishRow: editing || {},
+             fields: [{ name: 'title', label: 'Title', type: 'text' }, { name: 'excerpt', label: 'Excerpt / Summary', type: 'textarea', maxlength: 200, placeholder: 'A short summary to display in the list…' }, { name: 'body', label: 'Content', type: 'html' }] }) %>
+
         <label>Featured Image</label>
         <% if (editing && editing.image_url) { %>
           <img src="<%= editing.image_url %>" alt="" style="max-width:160px; border-radius:4px; margin-bottom:6px;">
@@ -239,4 +246,5 @@
   </div>
 </div>
 
+<script src="<%= assetUrl('/french-translate.js') %>"></script>
 <%- include('../partials/admin_footer') %>

@@ -952,6 +952,19 @@ s.manual("A30b create, sign up for, edit and delete an event", "publishes a publ
 s.manual("A31b create a session and check a drop-in seat can be reserved", "changes the real sessions calendar; do by hand");
 s.manual("A32b add a meeting with minutes, then delete it", "changes what members see; do by hand");
 s.manual("A33b add a weekly repeating shift, then delete it", "changes what volunteers see; do by hand");
+s.test("A34c (must) Announcements editor has the French version section: the French status, a Translate to French button, the French title, content and summary", { as: "admin" }, async (ctx) => {
+  await admin(ctx, "/admin/announcements");
+  const page = ctx.page;
+  assert.ok(await page.$(".fr-version"), "the French version section");
+  has(await page.$eval(".fr-version legend", (n) => n.textContent), /French: (missing|draft|ready)/);
+  assert.ok(await page.$(".fr-translate-btn"), "the Translate to French button (not pressed here: it uses the paid AI)");
+  for (const name of ["title_fr", "excerpt_fr", "body_fr"]) assert.ok(await page.$(`[name=${name}]`), name);
+  assert.ok(await page.$(".fr-version .richtext-editor[data-fr-field=body]"), "the French content uses the same rich-text editor");
+  assert.equal(await page.$eval("#ann-title-fr", (n) => n.getAttribute("lang")), "fr");
+});
+s.manual("A30c (must) an event's French version: Translate to French, Save, and /fr/events shows it", "changes the real events calendar and uses the paid AI button (counts toward the daily cap); do by hand");
+s.manual("A31c a session's French title and the French drop-in seat line", "changes the real sessions calendar and uses the AI button; do by hand");
+s.manual("A36c charity: the French description and question", "changes the members' vote text and uses the AI button; do by hand");
 s.manual("A34b publish, schedule, pin, archive and delete announcements", "changes what members see; do by hand");
 s.test("A35c (must) Blog form: Save with no content shows a message instead of doing nothing, and a title plus content is accepted by the browser", { as: "admin" }, async (ctx) => {
   await admin(ctx, "/admin/blog");

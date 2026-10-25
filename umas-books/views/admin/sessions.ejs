@@ -75,6 +75,8 @@
                     <%= c.program_type ? ' · ' + c.program_type : '' %>
                   </div>
                   <% if (c.description) { %><div class="muted small" style="margin-top:6px;"><%= c.description %></div><% } %>
+                  <% const _frs = fr.frenchState('session', c); %>
+                  <div class="muted small fr-flag">French title: <span class="status-pill <%= fr.FRENCH_PILL[_frs] %>"><%= fr.FRENCH_LABELS[_frs] %></span></div>
 
                   <% if (signups.length) { %>
                     <div class="muted small" style="margin-top:10px; font-variant: small-caps; letter-spacing: 0.06em; color: var(--gold-dark);">Signed up (free, legacy)</div>
@@ -124,6 +126,10 @@
                       <div class="muted small">Leave blank to keep the current capacity. It can't go below the seats already booked.</div>
                       <label for="dropin-<%= c.id %>">Drop-in price (&euro;, optional)</label>
                       <input id="dropin-<%= c.id %>" name="dropinPrice" type="number" min="0.01" max="10000" step="0.01" value="<%= ev ? ev.dropinPrice : (c.dropin_price != null ? c.dropin_price : '') %>" placeholder="Leave blank to not sell as drop-in">
+                      <%- include('../partials/admin_french_fields', { kind: 'session', idp: 'sess-' + c.id, fr, noun: 'session', saveLabel: 'Save changes',
+                           values: { title_fr: ev && ev.title_fr != null ? ev.title_fr : (c.title_fr || '') },
+                           englishRow: { title: c.title, title_fr: ev && ev.title_fr != null ? ev.title_fr : c.title_fr },
+                           fields: [{ name: 'title', label: 'Title', type: 'text' }] }) %>
                       <div><button class="btn btn-small" type="submit">Save changes</button></div>
                     </form>
                   </details>
@@ -142,4 +148,5 @@
   </div>
 </div>
 
+<script src="<%= assetUrl('/french-translate.js') %>"></script>
 <%- include('../partials/admin_footer') %>

@@ -141,3 +141,8 @@
   .fcal-session .fcal-session-cta { display: flex; align-items: center; justify-content: center; min-height: 44px; font-size: 14px; }
   .fcal-session-form input { font-size: 16px; }
 }
+
+/* A French page showing a title or description that has no French version yet: it stays in English (lang="en" in the
+   markup) and carries this small "EN" tag, plus a spoken note for screen readers. */
+.fcal-lang { display: inline-block; vertical-align: middle; margin-left: 4px; padding: 0 5px; border: 1px solid currentColor; border-radius: 3px; font-family: var(--font-sans, inherit); font-size: 10px; font-weight: 700; letter-spacing: 0.08em; line-height: 1.5; color: var(--maroon); }
+.fcal-session-details .fcal-notice { display: block; margin: 0 0 6px; font-style: italic; }

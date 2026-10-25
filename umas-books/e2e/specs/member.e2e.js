@@ -46,6 +46,7 @@ s.test("M12 (must) the Announcements page opens for a member", { as: "member" },
   has(await ctx.text(), /Announcements/);
 });
 
+s.manual("M12b announcements in French: the French text when written, the English text with an EN tag otherwise", "needs announcements with and without a French version (A34c); do by hand");
 s.test("M17 (must) Home shows the public home page to a logged-in member, with Member's Access still in the header", { as: "member" }, async (ctx) => {
   await ctx.goto("/");
   assert.equal(new URL(ctx.page.url()).pathname, "/", "Home must not redirect a member to Member's Access");
