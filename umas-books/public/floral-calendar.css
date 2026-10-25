@@ -142,6 +142,13 @@
   .fcal-session-form input { font-size: 16px; }
 }
 
+/* Public Events page on phones only (.fcal-hero-events is set by views/events.ejs, not by the sessions page): the small
+   red kicker line and the short rule under it are dropped, so the title sits right under the Back link. */
+@media (max-width: 700px) {
+  .fcal-hero-events { padding-top: 0; }
+  .fcal-hero-events .fcal-kicker { display: none; }
+}
+
 /* A French page showing a title or description that has no French version yet: it stays in English (lang="en" in the
    markup) and carries this small "EN" tag, plus a spoken note for screen readers. */
 .fcal-lang { display: inline-block; vertical-align: middle; margin-left: 4px; padding: 0 5px; border: 1px solid currentColor; border-radius: 3px; font-family: var(--font-sans, inherit); font-size: 10px; font-weight: 700; letter-spacing: 0.08em; line-height: 1.5; color: var(--maroon); }
