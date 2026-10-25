@@ -986,6 +986,18 @@ s.test("A35c (must) Blog form: Save with no content shows a message instead of d
   });
   assert.deepEqual(state, { valid: true, invalid: [], noticeHidden: true }, "the browser would still block Save");
 });
+s.test("A35d (must) Blog editor has the French version section: the French status, a Translate to French button, the French title, content and excerpt", { as: "admin" }, async (ctx) => {
+  await admin(ctx, "/admin/blog");
+  const page = ctx.page;
+  assert.ok(await page.$("#blog-french"), "the French version section");
+  has(await page.$eval("#blog-french-status", (n) => n.textContent), /French: (missing|draft|ready)/);
+  assert.ok(await page.$("#blog-translate-btn"), "the Translate to French button (not pressed here: it uses the paid AI)");
+  for (const name of ["title_fr", "excerpt_fr", "body_fr"]) assert.ok(await page.$(`[name=${name}]`), name);
+  assert.ok(await page.$("#blog-content-fr.richtext-editor"), "the French content uses the same rich-text editor");
+  const lang = await page.$eval("#blog-title-fr", (n) => n.getAttribute("lang"));
+  assert.equal(lang, "fr");
+});
+s.manual("A35e translate a blog post to French and save it", "presses the AI button (counts toward the daily cap) and publishes a post; do by hand");
 s.manual("A35b publish a blog post and upload a featured image", "publishes to the public blog (this works in preview mode too); do by hand");
 s.manual("A36b start, run and close a charity vote", "changes the members' vote; do by hand");
 s.manual("A37 (must) hide a forum post with a statement of reasons and restore it", "needs a forum post by someone else, and sends the author an email");

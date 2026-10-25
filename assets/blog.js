@@ -1,14 +1,15 @@
-/* Uma's Books & Adventures — blog rendering shared by index.html (latest
-   posts feed) and blog.html (all posts + single post). Posts live in
-   assets/posts.js. */
+/* Uma's Books & Adventures — the "What's New" slider on the home page. The blog itself (list and posts) is rendered by
+   the server (src/routes/blogPages.js); this file only draws the slider from the JSON feed that assets/blog-live.js loads
+   into window.UMAS_POSTS (the newest posts, in the page's language, each with `lang`: "en" marks an English fallback). */
 (function () {
   var UI = {
     en: { readMore: "Read more", more: "Show older posts", allPosts: "All posts", back: "All posts", empty: "No posts yet — check back soon.", notFound: "Sorry, we couldn’t find that post." },
     fr: { readMore: "Lire la suite", more: "Voir les articles plus anciens", allPosts: "Tous les articles", back: "Tous les articles", empty: "Pas encore d’articles — revenez bientôt.", notFound: "Désolé, cet article est introuvable." }
   };
 
+  // The language the server rendered the page in (<html lang>; assets/site.js keeps it in step with the EN / FR toggle).
   function lang() {
-    try { return localStorage.getItem("umasbooks.lang") === "fr" ? "fr" : "en"; } catch { return "en"; }
+    return document.documentElement.lang === "fr" ? "fr" : "en";
   }
   var esc = window.UmasUI.esc; // public/ui.js, loaded before this file
   function pick(field, l) {
@@ -30,20 +31,6 @@
     if (!p.image) return '<div class="' + cls + ' blog-img-none" aria-hidden="true"></div>';
     return '<div class="' + cls + (p.imageFit === "contain" ? " is-contain" : "") + '"><img src="' + esc(/^(\/|[a-z][a-z0-9+.-]*:)/i.test(p.image) ? p.image : "/" + p.image) + '" alt="" loading="lazy"></div>';
   }
-  function card(p, l, base) {
-    var href = (base || "blog.html") + "?post=" + encodeURIComponent(p.slug);
-    return '<article class="blog-card">' +
-      '<a class="blog-card-link" href="' + esc(href) + '">' +
-        image(p, "blog-card-img") +
-        '<div class="blog-card-body">' +
-          '<div class="blog-date">' + esc(fmtDate(p.date, l)) + '</div>' +
-          '<h2 class="blog-title">' + esc(pick(p.title, l)) + '</h2>' +
-          '<p class="blog-excerpt">' + esc(pick(p.excerpt, l)) + '</p>' +
-          '<span class="blog-more">' + esc(UI[l].readMore) + ' <span aria-hidden="true">&rarr;</span></span>' +
-        '</div>' +
-      '</a></article>';
-  }
-
   var ARROW_L = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 6 8.5 12l6 6"/></svg>';
   var ARROW_R = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9.5 6 6 6-6 6"/></svg>';
   var CUI = {
@@ -52,15 +39,19 @@
   };
 
   function slide(p, l) {
-    var href = "blog.html?post=" + encodeURIComponent(p.slug);
+    // /fr/ pages keep their links under /fr/ (assets/site.js); a post with no French text is shown in English, marked "EN".
+    var href = window.UmasFrHref ? window.UmasFrHref("/blog/" + encodeURIComponent(p.slug)) : "/blog/" + encodeURIComponent(p.slug);
     var cat = pick(p.category, l);
+    var fallback = l === "fr" && p.lang === "en";
+    var en = fallback ? ' lang="en"' : "";
     return '<div class="wn-slide">' +
       image(p, "wn-img") +
       '<div class="wn-text">' +
         (cat ? '<span class="wn-tag">' + esc(cat) + '</span>' : '') +
-        '<h3 class="wn-title">' + esc(pick(p.title, l)) + '</h3>' +
+        '<h3 class="wn-title"' + en + '>' + esc(pick(p.title, l)) +
+          (fallback ? ' <span class="wn-lang"><span aria-hidden="true">EN</span><span class="wn-sr" lang="fr"> Article disponible uniquement en anglais</span></span>' : '') + '</h3>' +
         '<div class="wn-date">' + esc(fmtDate(p.date, l)) + '</div>' +
-        '<p class="wn-excerpt">' + esc(pick(p.excerpt, l)) + '</p>' +
+        '<p class="wn-excerpt"' + en + '>' + esc(pick(p.excerpt, l)) + '</p>' +
         '<a class="h-btn" href="' + esc(href) + '"><span>' + esc(UI[l].readMore) + '</span> <span class="arrow" aria-hidden="true">&rarr;</span></a>' +
       '</div></div>';
   }
@@ -73,7 +64,6 @@
     posts: posts,
     fmtDate: fmtDate,
     image: image,
-    card: card,
     // "What's New" slider on the home page: one post at a time (picture left,
     // text card right) with arrows and dots; re-renders on language switch.
     carousel: function (el, n) {
@@ -106,21 +96,6 @@
       // arrive after an async fetch — re-draw once they're in, same as a
       // language switch, so the slider picks up the real list instead of
       // whatever (if anything) was available at first paint.
-      window.addEventListener("umasposts:updated", draw);
-    },
-    // Render the newest `n` posts as cards into `el`; re-renders on language switch.
-    feed: function (el, n) {
-      if (!el) return;
-      function draw() {
-        var l = lang(), list = posts().slice(0, n || 3);
-        el.innerHTML = list.length
-          ? list.map(function (p) { return card(p, l); }).join("")
-          : '<p class="blog-empty">' + esc(UI[l].empty) + "</p>";
-      }
-      draw();
-      document.querySelectorAll(".langtoggle button").forEach(function (b) {
-        b.addEventListener("click", function () { setTimeout(draw, 0); });
-      });
       window.addEventListener("umasposts:updated", draw);
     }
   };

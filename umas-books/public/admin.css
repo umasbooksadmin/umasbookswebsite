@@ -334,6 +334,11 @@
 .admin-main .calendar-grid > * { min-width: 0; }
 
 /* Two fields side by side (Publish date + Status): one under the other on a phone. */
+/* Blog editor: the optional French version (views/admin/blog.ejs, public/blog-translate.js) */
+.blog-fr { border: 1px solid var(--card-border); border-radius: 4px; padding: 12px 14px 16px; margin: 6px 0 0; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.blog-fr legend { padding: 0 6px; font-weight: 600; }
+.blog-fr-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.blog-fr-error { color: #90503f; }
 .field-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 @media (max-width: 520px) { .field-pair { grid-template-columns: minmax(0, 1fr); } }
 

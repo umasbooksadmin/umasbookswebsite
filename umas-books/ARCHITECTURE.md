@@ -829,6 +829,14 @@ codes), their sessions, `pricing_settings`, `schema_migrations`.
 Content is kept unless `--include-content`; non-admin accounts are kept with
 `--keep-members`.
 
+## The blog (server-rendered, English and French)
+
+- **Pages** (`src/routes/blogPages.js`, views `marketing/blog.ejs`, `blog_post.ejs`, `partials/blog_card.ejs`): `/blog.html` (24 posts a page, real `?page=N` links; `public/page-blog.js` only turns "Show older posts" into an in-page load by fetching the next HTML page), `/blog/<slug>` and their `/fr/` twins (`lib/frUrls.js` treats `/blog/<slug>` as a public path). The post's whole sanitised body is in the HTML, with its own title, description, canonical, hreflang, Open Graph / Twitter tags, `BlogPosting` + `BreadcrumbList` JSON-LD and previous / next links. `/blog.html?post=<slug>` is a 301 to `/blog/<slug>`. The marketing header partial takes `ogType`, `ogImage`, `ogLocale`, `metaProps` and `robots` for this.
+- **One rule for "public"** (`src/lib/blogPosts.js`): `status = 'published' AND published_at <= now()`; an admin with `?preview=1` sees everything (noindex, `no-store`, a note). The JSON feed (`routes/blog.js`), the pages, the sitemap and the admin status all use it.
+- **French**: nullable `title_fr`, `excerpt_fr`, `body_fr` (migration 096), one slug for both languages. `frenchState()`: *missing* (nothing), *ready* (title and body, and an excerpt when the English post has one), *draft* (anything in between). Only *ready* French is shown. Otherwise `/fr/blog/<slug>` shows the English text inside `lang="en"` elements under the notice "Cet article n'est disponible qu'en anglais", its canonical points at the English address and there is no `fr` hreflang; lists mark such posts with a small "EN" tag. Bodies (both languages) pass the same sanitize-html allowlist on write and on read.
+- **Sitemap**: `/sitemap-blog.xml` (listed in `/sitemap.xml`): published posts, `lastmod` = `updated_at`; a post with ready French gets both addresses with `en`/`fr`/`x-default` alternates, others only the English one. Empty in preview mode like the other files; any admin POST to `/admin/blog` drops the cached copy.
+- **Translate to French** (`lib/blogTranslate.js`, `POST /admin/blog/translate`, `public/blog-translate.js`): one call of `askText` (shared daily cap, 10 a minute per admin) returns title / excerpt / body to the form; nothing is saved or published by it, and the returned body is sanitised.
+
 ## French versions of events, sessions, announcements and charities
 
 Same conventions as the blog (migration 097, nullable columns next to the English ones, English never changed):
@@ -1367,7 +1375,7 @@ names the files; read those for the details. Operations for these are in
   (trigram indexes, migration 088). Filters: `q` (title, author, description,
   genre, ISBN), `genre` (exact), `topic` (comma list, up to 10, substring of the
   categories). Rate limited by `bookSearchLimiter`; cached 60 seconds.
-- `GET /api/blog/posts`: light list (slug, title, excerpt, category, image, date; no bodies), 24 per page (`?offset=`, `?limit=` up to 100), cached 5 minutes; `GET /api/blog/posts/:slug` returns one post with its sanitised body (the blog page fetches it on demand). `?preview=1` (admin) adds drafts, never cached.
+- `GET /api/blog/posts`: light list (slug, title, excerpt, category, image, date; no bodies), 24 per page (`?offset=`, `?limit=` up to 100), cached 5 minutes; `GET /api/blog/posts/:slug` returns one post with its sanitised body. `?lang=fr` gives the French text where a post has a READY French version; every post carries `lang` (`en`/`fr`, the language of the text sent). Used by the home page's "What's New" slider only: the blog pages are rendered by the server. `?preview=1` (admin) adds drafts, never cached.
 - Public book page (`/books/:id`) sweeps expired reservations at most once per 30 s per process (`expireStaleReservationsThrottled`); cart, checkout return, till and admin screens sweep every time.
 - Numeric parameters are clamped by `parseIntParam` (`src/lib/parseParams.js`):
   only plain digits count (an array, `1e3`, `0x10`, spaces or a decimal give the
