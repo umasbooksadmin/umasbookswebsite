@@ -274,7 +274,7 @@ s.test("AC22 (must) the reserve form has name, email, phone, terms checkbox with
   await addFirstCopyToCart(ctx, book);
   await needReserve(ctx);
   const form = await ctx.page.$eval("form[action='/cart/reserve']", (f) => f.innerText);
-  for (const re of [/Name/, /Email/, /Phone \(optional\)/, /terms of sale/, /Nothing is paid online\. We hold your books for 14 days: come to the shop and pay when you collect them\./, /Pay and collect them at the shop, Rue Peyrolière, Albi\. Collect your books during our regular hours, Wednesday to Saturday, 14:00–19:00/, /Used books are not taken back for a change of mind once bought in the shop/, /Reserve \(free, no commitment\)/]) has(form, re);
+  for (const re of [/Name/, /Email/, /Phone \(optional\)/, /terms of sale/, /Nothing is paid online\. We hold your books for 14 days: come to the shop and pay when you collect them\./, /Pay and collect them at the shop, Rue Peyrolière, Albi\. Collect your books during our regular hours, Wednesday to Saturday, 14:00–19:00/, /Used books are not taken back, exchanged or refunded for a change of mind once bought in the shop/, /Reserve \(free, no commitment\)/]) has(form, re);
   hasNot(form, /Order with obligation to pay|HelloAsso|pay online by card/);
   assert.equal((form.match(/We hold your books for 14 days/g) || []).length, 1, "the 14-day sentence is shown once, not twice in a row");
   // the terms line is an ordinary sentence (not a small uppercase label) with a box and a row that are easy to tap
@@ -311,7 +311,7 @@ s.test("AC-FR22 FR check (cart): the cart and the reserve form are in French", {
   for (const re of [/Votre panier/, /Retirer/, /Total\s:/]) has(text, re);
   if (ctx.preview) { has(text, /Les réservations en ligne ouvriront au lancement/); return; }
   if (!(await reserveForm(ctx))) return;
-  for (const re of [/Réservation/, /Nom/, /E-mail/, /Téléphone \(facultatif\)/, /J.ai lu et j.accepte les conditions générales de vente \(CGV\)/, /Réserver \(gratuit, sans engagement\)/, /Rien n’est payé en ligne\. Nous gardons vos livres 14 jours\s: passez à la boutique et réglez-les au moment du retrait\./, /Les livres d’occasion ne sont ni repris ni échangés/, /Prix TTC, TVA non applicable/, /Réglez-les et retirez-les à la boutique, rue Peyrolière, Albi\. Venez retirer vos livres pendant nos horaires habituels, du mercredi au samedi, de 14\s?h à 19\s?h/]) has(text, re);
+  for (const re of [/Réservation/, /Nom/, /E-mail/, /Téléphone \(facultatif\)/, /J.ai lu et j.accepte les conditions générales de vente \(CGV\)/, /Réserver \(gratuit, sans engagement\)/, /Rien n’est payé en ligne\. Nous gardons vos livres 14 jours\s: passez à la boutique et réglez-les au moment du retrait\./, /Les livres d’occasion ne sont ni repris, ni échangés, ni remboursés/, /Prix TTC, TVA non applicable/, /Réglez-les et retirez-les à la boutique, rue Peyrolière, Albi\. Venez retirer vos livres pendant nos horaires habituels, du mercredi au samedi, de 14\s?h à 19\s?h/]) has(text, re);
   hasNot(text, /Commander avec obligation de paiement|HelloAsso/);
 });
 

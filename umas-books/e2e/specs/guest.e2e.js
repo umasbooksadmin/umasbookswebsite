@@ -299,7 +299,7 @@ s.test("G15 (must) a book page shows cover, title, author, binding, price, copie
   // The friendly used-book disclaimer and the price tax line; never a waiver of legal rights.
   has(text, /Price incl\. tax, TVA non applicable/);
   has(text, /Our second-hand books are sold as described, so please read the condition grade, and ask us if you have any question\./);
-  has(text, /Used books are not taken back for a change of mind once bought in the shop; the legal guarantees still apply\./);
+  has(text, /Used books are not taken back, exchanged or refunded for a change of mind once bought in the shop; the legal guarantees still apply\./);
   hasNot(text, /waive|renounce/i);
   assert.ok(await ctx.page.$(".book-disclaimer a[href='/terms-of-sale.html']"), "the disclaimer links the terms");
 });
@@ -406,7 +406,7 @@ s.test("G-FR11 FR check (books): search page, book page and grade legend in Fren
   has(legend, /L’état indiqué est la description du livre/);
   has(text, /Prix TTC, TVA non applicable/);
   has(text, /Nos livres d’occasion sont vendus tels que décrits/);
-  has(text, /Les livres d’occasion ne sont ni repris ni échangés pour simple changement d’avis une fois achetés en boutique/);
+  has(text, /Les livres d’occasion ne sont ni repris, ni échangés, ni remboursés pour simple changement d’avis une fois achetés en boutique/);
   assert.equal(await ctx.page.$eval("html", (h) => h.lang), "fr");
 });
 
