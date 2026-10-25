@@ -1131,8 +1131,21 @@ cheque or card), then you record it:
    than 14 days after the email) and give the money back: cash, cheque or card.
 3. **Only after you gave the money back**, open the reservation and press **Mark
    refunded**. A confirmation page asks you to tick "I have already given the
-   money back to the customer" and to write a note (for example "Withdrawal
-   email 3 Oct, book returned 5 Oct, refunded in cash 5 Oct"). Confirm.
+   money back to the customer", to choose **Refunded how?** and to write a note
+   (for example "Withdrawal email 3 Oct, book returned 5 Oct, refunded in cash 5
+   Oct"). Confirm.
+   - **Cash from the till drawer**: choose it only if the money really came out of
+     the drawer. The refund is then taken off that day's **Expected cash in the
+     drawer** (End of day shows a line "Cash refunds paid out"), so the closing
+     count is right and no "Cash short" row is exported on top of the refund. It
+     needs today's till day not to be closed: if it is, reopen it on **End of day**
+     first (the page says so), or choose **Other** and write in the note where the
+     cash came from.
+   - **Card refund on the terminal**, **Bank transfer**, **Other**: the drawer is not
+     touched.
+   - Refunds recorded before this choice existed have no method and count as before.
+   The refund is always the amount **received** (if you gave a discount when
+   collecting, that is less than the list price).
 4. What the website does at once: the reservation becomes **Refunded**; the books go
    back **In stock** (a book already sold again is left alone); drop-in seats are
    released; the sale leaves the dashboard, the reports (a **Refunds** table in
@@ -1430,7 +1443,8 @@ on the till as Cash or Card (put "app" in the card reference).
 ### Closing the day (count the drawer)
 
 1. Open **End of day**. Check the numbers: sales by payment method, voided
-   sales, and **Expected cash in the drawer** (opening float + cash sales).
+   sales, and **Expected cash in the drawer** (opening float + cash sales - cash
+   refunds paid out of the drawer that day, shown as their own line).
 2. Count all the cash in the drawer (coins and notes, including the float) and
    type the total in **Counted cash**. The screen shows **over** or **short** as
    you type.
@@ -1547,7 +1561,25 @@ and on the other reports.
 2. **Refunds.** A refunded reservation keeps its row on the day it was paid and
    gets a **negative** row (negative count and total, label "Remboursement ...")
    on the day it was refunded (same category and method as the sale). A month already sent is therefore not changed:
-   the correction is in the export of the month of the refund.
+   the correction is in the export of the month of the refund. A refund paid in cash
+   from the drawer is also taken off the day's expected cash, so it does not
+   come back as a "Cash short" row.
+2b. **Discounts at pickup.** When a reservation is collected for LESS than its
+   list price ("Amount received" lower than the total, with a note), its book
+   lines are exported at the **list price** as usual and ONE extra **negative**
+   row per day and payment method is added: category **Discount**, label
+   "Remise accordée au retrait d'une réservation, <method>, <date>", count 0,
+   credit account **709** (rabais, remises et ristournes accordés; debit = the
+   same cash/bank account as the sale). The sum of the sale lines and the discount
+   row is exactly what was received in cash or by card, to the cent, for any
+   number of lines. If that reservation is refunded, the refund reverses what was
+   received: the list-price lines get their negative rows and the discount gets a
+   **positive** row labelled "Annulation de remise ..." on the refund day. Reservations
+   without a discount never produce a Discount row. The Sales report shows a
+   **Pickup discounts** column when the chosen dates contain one (Total revenue
+   is net of it); the Dashboard's Sales this month, the Refunds report and
+   the export always agree. 709 is a proposal like the other accounts: ask the
+   treasurer to confirm it (change it in the Accounts mapping page).
 3. **Cash over/short.** When a day is closed with a difference, one row
    "Cash over/short" appears (positive: over, negative: short) with the accounts
    658 / 758. The opening float is never revenue and appears nowhere.

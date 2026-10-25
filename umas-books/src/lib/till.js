@@ -792,12 +792,17 @@ async function daySummary(db, day) {
   const cash = pick("cash", "completed");
   const card = pick("card", "completed");
   const voided = { n: pick("cash", "voided").n + pick("card", "voided").n, total: pick("cash", "voided").total + pick("card", "voided").total };
+  // Reservation refunds paid in cash from this day's drawer (orders.refund_method = 'cash'): money that left the drawer.
+  const { rows: cr } = await db.query(
+    `SELECT COUNT(*)::int AS n, COALESCE(SUM(ROUND(total_amount * 100)), 0)::int AS total FROM orders
+     WHERE status = 'refunded' AND refund_method = 'cash' AND refund_till_day = $1::date`, [day]);
+  const cashRefunds = cr[0];
   const row = dayRows[0] || null;
   const floatCents = row ? row.opening_float_cents : 0;
   return {
     day, cash, card, voided, categories: cats,
     count: cash.n + card.n, total: cash.total + card.total,
-    dayRow: row, hasFloat: !!row, floatCents, expectedCashCents: floatCents + cash.total,
+    dayRow: row, hasFloat: !!row, floatCents, cashRefunds, expectedCashCents: floatCents + cash.total - cashRefunds.total,
     closed: !!(row && row.closed_at), salesAfterClose: after[0].n, unrefunded, voidList,
   };
 }
@@ -893,5 +898,5 @@ async function unclosedDays(db) {
 module.exports = {
   TillError, assignReceiptNumber, receiptNumber, OTHER_CATEGORIES, EXPORT_CATEGORY, DESCRIPTION_MAX, MAX_QTY, MAX_TOTAL_CENTS, OVERRIDE_UP_PERCENT, eur, toCents, parseCents, cashChange, cleanText,
   parseBarcode, checkBarcodeFree, SHOP_CODE_PREFIX, lookupScan, releaseExpiredCartCopy, buildLines, completeSale, checkSale, voidSale, confirmRefund,
-  unrefundedVoids, voidsOfDay, maxTillVoidsPerDay, TILL_VOID_REASON_MIN, daySummary, openDay, closeDay, reopenDay, unclosedDays, basketHash,
+  unrefundedVoids, voidsOfDay, maxTillVoidsPerDay, TILL_VOID_REASON_MIN, daySummary, lockDay, parisToday, openDay, closeDay, reopenDay, unclosedDays, basketHash,
 };

@@ -287,7 +287,7 @@ async function salesReport(db, ctx) {
   const group = ctx.group;
   const params = [group, ctx.from, ctx.to];
   const { rows } = await db.query(
-    `WITH online AS (
+    `WITH disc AS (${require("./accounting").DISCOUNT_ORDERS_SQL}), online AS (
        SELECT date_trunc($1::text, o.paid_at AT TIME ZONE '${TZ}') AS p, COUNT(*)::int AS n, COALESCE(SUM(oi.price), 0)::float8 AS rev
        FROM order_items oi JOIN orders o ON o.id = oi.order_id
        WHERE o.status = 'paid' AND oi.book_copy_id IS NOT NULL AND ${inRange("o.paid_at", 2, 3)}
@@ -297,25 +297,35 @@ async function salesReport(db, ctx) {
        FROM shop_sales s
        WHERE ${inRange("s.sold_at", 2, 3)}
        GROUP BY 1
+     ), discounts AS (
+       -- discounts given at pickup on orders still paid (a refunded order is not in the sales at all), in cents
+       SELECT date_trunc($1::text, disc.paid_at AT TIME ZONE '${TZ}') AS p, SUM(disc.cents)::bigint AS cents
+       FROM disc WHERE disc.status = 'paid' AND ${inRange("disc.paid_at", 2, 3)}
+       GROUP BY 1
+     ), periods AS (
+       SELECT p FROM online UNION SELECT p FROM shop UNION SELECT p FROM discounts
      )
-     SELECT to_char(COALESCE(online.p, shop.p), 'YYYY-MM-DD') AS period,
+     SELECT to_char(periods.p, 'YYYY-MM-DD') AS period,
             COALESCE(online.n, 0) AS online_items, COALESCE(online.rev, 0) AS online_revenue,
-            COALESCE(shop.n, 0) AS shop_items, COALESCE(shop.rev, 0) AS shop_revenue
-     FROM online FULL JOIN shop ON online.p = shop.p
+            COALESCE(shop.n, 0) AS shop_items, COALESCE(shop.rev, 0) AS shop_revenue,
+            COALESCE(discounts.cents, 0)::bigint AS discount_cents
+     FROM periods LEFT JOIN online ON online.p = periods.p LEFT JOIN shop ON shop.p = periods.p LEFT JOIN discounts ON discounts.p = periods.p
      ORDER BY 1`,
     params
   );
   const out = rows.map((r) => {
     const items = r.online_items + r.shop_items;
-    const revenue = money(r.online_revenue + r.shop_revenue);
+    const discounts = -Number(r.discount_cents) / 100;
+    const revenue = money(r.online_revenue + r.shop_revenue + discounts);
     return {
       period: periodLabel(r.period, group),
       online_items: r.online_items, online_revenue: money(r.online_revenue),
-      shop_items: r.shop_items, shop_revenue: money(r.shop_revenue),
+      shop_items: r.shop_items, shop_revenue: money(r.shop_revenue), discounts: money(discounts),
       total_revenue: revenue, average: items ? money(revenue / items) : null,
     };
   });
-  const t = sumRows(out, ["online_items", "online_revenue", "shop_items", "shop_revenue", "total_revenue"]);
+  const t = sumRows(out, ["online_items", "online_revenue", "shop_items", "shop_revenue", "discounts", "total_revenue"]);
+  const hasDiscounts = out.some((r) => r.discounts !== 0);
   const totalItems = t.online_items + t.shop_items;
   const totals = { period: "Total", ...t, average: totalItems ? money(t.total_revenue / totalItems) : null };
 
@@ -348,6 +358,8 @@ async function salesReport(db, ctx) {
           { key: "period", label: periodHeader, type: "text" },
           { key: "online_items", label: "Reserved-online items", type: "int" }, { key: "online_revenue", label: "Reserved-online revenue", type: "eur" },
           { key: "shop_items", label: "Shop items", type: "int" }, { key: "shop_revenue", label: "Shop revenue", type: "eur" },
+          // only when a discount exists in the range, so a range without one is exactly the report it always was
+          ...(hasDiscounts ? [{ key: "discounts", label: "Pickup discounts", type: "eur" }] : []),
           { key: "total_revenue", label: "Total revenue", type: "eur" }, { key: "average", label: "Average per item", type: "eur" },
         ],
         rows: out, totals,
@@ -364,7 +376,7 @@ async function salesReport(db, ctx) {
         note: "Counted on the day the reservation was marked refunded. A refunded reservation no longer appears in the reserved-online sales and drop-in figures.",
       },
     ],
-    notes: ["Reserved-online = books reserved on the website and paid in the shop (\"Mark collected and paid\"), counted on the day the payment was recorded. Shop = books sold at the Till (and older sales from the retired Sell in shop page). Days are Paris days."],
+    notes: ["Reserved-online = books reserved on the website and paid in the shop (\"Mark collected and paid\"), counted on the day the payment was recorded. Shop = books sold at the Till (and older sales from the retired Sell in shop page). Days are Paris days.", "Pickup discounts: when a reservation is collected for less than its list price, the difference is shown here as a negative amount (on the day it was paid) and deducted from Total revenue, so the total is what was really received. The discount applies to the whole reservation, so it is not split between books and drop-in seats."],
   };
 }
 

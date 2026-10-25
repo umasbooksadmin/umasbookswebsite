@@ -36,7 +36,7 @@ const orderRow = async (id) => (await h.q("SELECT * FROM orders WHERE id = $1", 
 const copyStatuses = async (ids) => (await h.q("SELECT status FROM book_copies WHERE id = ANY($1::int[]) ORDER BY id", [ids])).map((r) => r.status);
 const auditRows = (id) => h.q("SELECT action, detail, actor_user_id FROM admin_audit_log WHERE target_type = 'order' AND target_id = $1 ORDER BY id", [id]);
 const seatsTaken = async (classId) => (await h.q(`SELECT ${seatsTakenExpr("classes")}::int AS n FROM classes WHERE id = $1`, [classId]))[0].n;
-const refundPost = (id, extra = {}) => h.post(`/admin/orders/${id}/refund`, { confirmRefunded: "on", note: "Withdrew by email, refunded in cash at the shop on 3 Oct", ...extra });
+const refundPost = (id, extra = {}) => h.post(`/admin/orders/${id}/refund`, { confirmRefunded: "on", refundMethod: "other", note: "Withdrew by email, refunded in cash at the shop on 3 Oct", ...extra });
 
 test("mark refunded: order refunded, books back in stock, seat released, audited, out of the sales report", async () => {
   const { order, copyIds, seatId, classId } = await makeOrder(h.pool, { books: 2, seat: true, paidDaysAgo: 1 });
@@ -142,7 +142,7 @@ test("mark refunded refuses an order that is not paid, and a missing confirmatio
   const noBox = await h.post(`/admin/orders/${order.id}/refund`, { note: "x" });
   assert.equal(noBox.res.status, 200);
   assert.match(noBox.text, /Tick the box/);
-  const noNote = await h.post(`/admin/orders/${order.id}/refund`, { confirmRefunded: "on", note: "   " });
+  const noNote = await h.post(`/admin/orders/${order.id}/refund`, { confirmRefunded: "on", refundMethod: "other", note: "   " });
   assert.equal(noNote.res.status, 200);
   assert.match(noNote.text, /write a note/);
   assert.equal((await orderRow(order.id)).status, "paid");

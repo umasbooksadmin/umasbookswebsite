@@ -599,6 +599,7 @@ s.write("A24d (must) Mark refunded (after giving the money back in the shop): th
   await ctx.goto(`/admin/orders/${id}/refund`);
   has(await ctx.text(), /Do this only AFTER you gave the money back to the customer in the shop/);
   assert.equal(await ctx.page.$eval("input[name='confirmRefunded']", (i) => i.required), true);
+  await ctx.page.select("#refundMethod", "other");
   await ctx.page.type("#note", `${TAG()} refunded in cash at the shop (test)`);
   await ctx.page.click("input[name='confirmRefunded']");
   await Promise.all([ctx.page.waitForNavigation({ waitUntil: "domcontentloaded" }), ctx.page.click("form[action$='/refund'] button[type='submit']")]);
@@ -639,6 +640,7 @@ s.write("A24i Collect selected items (partial pickup): the chosen book is sold a
   has(await ctx.text(), /Reserved: awaiting pickup/);
   // The paid half is refunded so its book goes back on the shelf.
   await ctx.goto(`/admin/orders/${r.id}/refund`);
+  await ctx.page.select("#refundMethod", "other");
   await ctx.page.type("#note", `${TAG()} partial pickup test, undone`);
   await ctx.page.click("input[name='confirmRefunded']");
   await Promise.all([ctx.page.waitForNavigation({ waitUntil: "domcontentloaded" }), ctx.page.click("form[action$='/refund'] button[type='submit']")]);
