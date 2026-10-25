@@ -54,6 +54,10 @@ const GLOBAL_DESTRUCTIVE = [
   [/\bTRUNCATE\b/i, "TRUNCATE"],
   [/\bDROP\s+TABLE\b/i, "DROP TABLE"],
   [/\bDELETE\s+FROM\s+\w+\s*(?=["'`;)]|$)/im, "DELETE FROM <table> with no WHERE"],
+  // Counting (or resetting) every account in the database: other files create users and admins at the same time,
+  // so "exactly one admin" or "n users" is only true in a database of your own.
+  [/\bcount\(\*\)(?:::\w+)?\s*(?:AS\s+\w+\s+)?FROM\s+users\s*(?:WHERE\s+(?:NOT\s+)?is_(?:admin|disabled|member|till|volunteer)\b[^"'`;)]*)?(?=["'`;)])/i, "count of all users / all admins (not limited to ids this test created)"],
+  [/\bUPDATE\s+users\s+SET\s+is_admin\s*=\s*(?:false|FALSE)\s+WHERE\s+is_admin\s*(?=["'`;)])/, "UPDATE users SET is_admin = false for every admin"],
   [/\bUPDATE\s+orders\s+SET\s+client_ip\s*=\s*NULL\s*(?:WHERE\s+client_ip\s+IS\s+NOT\s+NULL\s*)?(?=["'`;)])/i, "UPDATE orders SET client_ip = NULL for every order"],
 ];
 
@@ -115,6 +119,12 @@ test("checker: flags statements that act on a whole shared table", () => {
   assert.equal(flagged("DELETE FROM books").length, 1);
   assert.equal(flagged("TRUNCATE orders CASCADE").length, 1);
   assert.equal(flagged("DROP TABLE schema_migrations").length, 1);
+  // global account counts and admin resets (the adminRoleToggles pattern)
+  assert.equal(flagged("SELECT count(*)::int AS n FROM users WHERE is_admin AND NOT is_disabled").length, 1);
+  assert.equal(flagged("SELECT count(*) FROM users").length, 1);
+  assert.equal(flagged("UPDATE users SET is_admin = false WHERE is_admin").length, 1);
+  assert.equal(flagged("SELECT count(*) FROM users WHERE id = ANY($1)").length, 0);
+  assert.equal(flagged("SELECT count(*) FROM users WHERE email = $1").length, 0);
   // scoped to the test's own rows: fine
   assert.equal(flagged("UPDATE orders SET client_ip = NULL WHERE buyer_email = $1").length, 0);
   assert.equal(flagged("DELETE FROM books WHERE id = $1").length, 0);

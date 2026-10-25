@@ -5,6 +5,7 @@
 const { test, before, after, beforeEach } = require("node:test");
 const assert = require("node:assert/strict");
 const { adminHarness } = require("../helpers/adminHarness");
+const { waitFor } = require("../helpers/inProcessApp");
 
 const h = adminHarness("ai_credit_alert", ["dashboard", "reports", "diagnostics"], { isolated: true });
 
@@ -33,12 +34,18 @@ beforeEach(async () => {
   impl = async (opts) => { sent.push(opts); };
   await h.q("DELETE FROM alert_flags");
   await h.q("DELETE FROM ai_usage_stats");
-  alert = createCreditAlert({ getPool: () => h.pool, minGapMs: 0, log: () => {} });
+  background.length = 0;
+  const real = createCreditAlert({ getPool: () => h.pool, minGapMs: 0, log: () => {} });
+  // The hooks return their promise "only so that tests can wait for it": keep every one, so settle() waits for the
+  // work itself instead of sleeping a guessed time (a fixed 150 ms was too short on a loaded CI machine).
+  const track = (fn) => (...a) => { const p = fn(...a); background.push(p); return p; };
+  alert = { creditOutOf: track(real.creditOutOf), creditWorking: track(real.creditWorking) };
   stats = ai.createAiUsageStats({ getPool: () => h.pool, log: () => {}, alert });
 });
-// recordCall fires the hook itself (in the background): settle lets that work finish.
+// recordCall fires the hook itself (in the background): settle waits until all of that work has finished.
+const background = [];
 const credit = async () => { stats.recordCall("description", { status: 400, bodyText: CREDIT_BODY, ms: 5 }); await settle(); };
-const settle = () => new Promise((r) => setTimeout(r, 150));
+const settle = async () => { while (background.length) await Promise.allSettled(background.splice(0)); };
 const flag = async () => (await h.q("SELECT last_sent_at FROM alert_flags WHERE key = $1", [FLAG]))[0];
 
 test("the first credit error sends ONE mail to the alert address; the second within 24 hours does not", async () => {
@@ -114,11 +121,14 @@ test("a mail that cannot be sent never throws, is retried by the next credit err
 });
 
 test("recordCall returns at once and does not wait for the mail", async () => {
-  impl = () => new Promise(() => {}); // never answers
+  let asked = false;
+  impl = () => { asked = true; return new Promise(() => {}); }; // never answers
   const t0 = Date.now();
   stats.recordCall("description", { status: 400, bodyText: CREDIT_BODY, ms: 5 });
   assert.ok(Date.now() - t0 < 50);
-  await settle(); // let the background attempt reach the (never answering) mailer before the next test swaps it
+  // let the background attempt reach the (never answering) mailer before the next test swaps it
+  await waitFor(() => asked, { message: "the background attempt reached the mailer" });
+  background.length = 0; // that attempt never finishes: nothing to wait for
 });
 
 test("the test button: admin only, sends [TEST] once, refuses a second press within a minute, is audited, leaves the real flag alone", async () => {
