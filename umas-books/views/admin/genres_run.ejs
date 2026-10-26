@@ -1,0 +1,51 @@
+<%- include('../partials/admin_header', { title: 'Genre update result', active: 'genres', pageTitle: 'Genre update result', pageSub: 'The genres were changed. This is the record of what happened.', extraCss: ['/genres.css'] }) %>
+
+<% if (notice) { %><div class="notice-box" role="status"><%= notice %></div><% } %>
+<% if (error) { %><div class="error-box" role="alert"><%= error %></div><% } %>
+<p><a href="/admin/genres">&larr; Genres</a></p>
+
+<div class="card gn-result">
+  <div class="section-title">Run <%= run.id %>: <%= run.books_changed %> book<%= run.books_changed === 1 ? '' : 's' %> changed<%= run.status === 'failed' ? ' (stopped by an error)' : '' %></div>
+  <p>
+    <%= formatDateTime(run.started_at) %> &middot; <%= run.actor_label || 'admin' %><br>
+    <%= run.genres_removed %> genre<%= run.genres_removed === 1 ? '' : 's' %> removed.
+    <a href="/admin/audit">See it in Admin activity</a> (action <code>genre.apply</code>, run <%= run.id %>).
+  </p>
+  <% if (run.undone_at) { %>
+    <p><strong>This run was undone</strong> on <%= formatDateTime(run.undone_at) %>: <%= run.undo_restored %> book<%= run.undo_restored === 1 ? '' : 's' %> restored.</p>
+  <% } else if (undoable) { %>
+    <div class="gn-undo">
+      <p>
+        <strong>Undo this run:</strong> <%= undo.count %> book<%= undo.count === 1 ? '' : 's' %> would go back exactly as they were<% if (undo.skipped) { %>; <%= undo.skipped %> would be left alone (edited or deleted since)<% } %>.
+      </p>
+      <form method="post" action="/admin/genres/runs/<%= run.id %>/undo" data-confirm="Put the genres of <%= undo.count %> books back as they were before this run?">
+        <%- include('../partials/csrf_field') %>
+        <input type="hidden" name="expectedCount" value="<%= undo.count %>">
+        <input type="hidden" name="expectedHash" value="<%= undo.hash %>">
+        <button class="btn btn-outline" type="submit"<%= undo.count ? '' : ' disabled' %>>Undo this run</button>
+      </form>
+    </div>
+  <% } else { %>
+    <p class="muted small">Only the newest run that has not been undone can be undone.</p>
+  <% } %>
+  <p class="muted small">Press Update all books again and it will find nothing left to change.</p>
+
+  <h3 class="gn-h">Examples (<%= examples.length %> of <%= run.books_changed %>)</h3>
+  <div class="table-scroll"><table class="ann-table gn-examples">
+    <thead><tr><th scope="col">Book</th><th scope="col">Before</th><th scope="col">After</th></tr></thead>
+    <tbody>
+    <% examples.forEach(function (e) { %>
+      <tr>
+        <td><% if (e.title) { %><a href="/admin/inventory/<%= e.book_id %>"><%= e.title %></a><% } else { %>(book deleted)<% } %></td>
+        <td><span class="gn-before"><%= e.old_categories %></span><br><span class="muted small">French: <%= e.old_categories_fr || 'none' %></span></td>
+        <td><span class="gn-after"><%= e.new_categories == null ? '(no genre)' : e.new_categories %></span><br><span class="muted small">French: <%= e.new_categories_fr || 'none' %></span></td>
+      </tr>
+    <% }) %>
+    </tbody>
+  </table></div>
+  <details class="gn-more"><summary>The rules this run used</summary>
+    <ul class="plain"><% (run.rules_snapshot || []).forEach(function (r) { %><li><%= r.kind === 'exact' ? 'Genre' : 'Word' %> "<%= r.pattern %>" &rarr; <%= r.action === 'map' ? r.target : r.action === 'remove' ? 'removed' : 'left as is' %></li><% }) %></ul>
+  </details>
+</div>
+
+<%- include('../partials/admin_footer') %>

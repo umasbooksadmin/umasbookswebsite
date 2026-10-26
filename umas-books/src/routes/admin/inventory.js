@@ -8,6 +8,8 @@ const { audit } = require("../../lib/audit");
 const { normalizeIsbn, isValidIsbn, lookupByIsbn, searchByTitleAuthor, translateGenresToFrench } = require("../../lib/bookLookup");
 const { extractBookInfoFromPhoto } = require("../../lib/coverVision");
 const { generateBookDescription, translateDescriptionToFrench } = require("../../lib/bookDescription");
+const { applyRulesToBook } = require("../../lib/genreRules");
+const { genreFilterOptions } = require("../../lib/genreAdmin");
 const { CONDITIONS, BINDINGS, STATUSES, SOURCES, normalizeSource, normalizeBinding, conditionLabel, resolveCopyPricing, normalizeGenres, normalizeLocation, uniqueLocations, locationKey, parseScan, isbnVariants } = require("../../lib/inventory");
 const { expireStaleReservations } = require("../../lib/reservations");
 const { matchRequestsForBook } = require("../../lib/bookRequests");
@@ -26,7 +28,7 @@ const { COVER_ERRORS, COVER_NOTICES } = require("../../lib/coverEdit");
 const { isStoredImageUrl } = require("../../lib/imageStore");
 const { variantUrl } = require("../../lib/imageVariants");
 const { parseIntParam } = require("../../lib/parseParams");
-const { parseInventoryFilters, hasAnyFilter, buildSearchWhere, copyMatchCondition, matchingCopies, filterLocations, filterQueryString, NO_LOCATION, NO_BINDING, NO_GENRE, COMMON_GENRES } = require("../../lib/inventorySearch");
+const { parseInventoryFilters, hasAnyFilter, buildSearchWhere, copyMatchCondition, matchingCopies, filterLocations, filterQueryString, NO_LOCATION, NO_BINDING, NO_GENRE } = require("../../lib/inventorySearch");
 
 const router = express.Router();
 // Garbage ids get the 404 page, not a Postgres 22P02 and a 500.
@@ -117,14 +119,13 @@ router.get("/admin/inventory", requireAdmin, async (req, res) => {
   for (const b of books) b.matched_copies = matched.get(b.id) || [];
   const locations = (await filterLocations(pool)).slice();
   if (filters.location && filters.location !== NO_LOCATION && !locations.some((l) => locationKey(l) === locationKey(filters.location))) locations.push(filters.location);
-  // The canonical genres; a hand-typed genre from the URL stays selectable.
-  const genres = COMMON_GENRES.slice();
-  if (filters.genre && filters.genre !== NO_GENRE && !genres.some((g) => g.toLowerCase() === filters.genre.toLowerCase())) genres.push(filters.genre);
+  // The managed genres (Admin > Genres) first, then the other genres in use under "Other"; a hand-typed genre from the URL stays selectable.
+  const { managed: genres, other: otherGenres } = await genreFilterOptions(pool, filters.genre && filters.genre !== NO_GENRE ? filters.genre : "");
   res.render("admin/inventory/index", {
     active: "inventory", books, q, notice: hasOrdersNotice(req),
     filters, filterErrors: filters.errors, filterActive: hasAnyFilter(filters), resultsQuery: filterQueryString(filters),
     totalMatches: books.length ? books[0].total_matches : 0, listLimit: LIST_LIMIT,
-    locations, genres, NO_LOCATION, NO_BINDING, NO_GENRE, CONDITIONS, BINDINGS, conditionLabel,
+    locations, genres, otherGenres, NO_LOCATION, NO_BINDING, NO_GENRE, CONDITIONS, BINDINGS, conditionLabel,
   });
 });
 
@@ -536,8 +537,9 @@ router.post("/admin/inventory/:id", requireAdmin, async (req, res) => {
   const publisher = (req.body.publisher || "").trim() || null;
   const yearCheck = parsePublishedYear(req.body.publishedYear);
   const publishedYear = yearCheck.value ?? null;
-  const genre = normalizeGenres(req.body.genre);
+  let genre = normalizeGenres(req.body.genre);
   let genreFr = (req.body.genreFr || "").trim() || (genre ? translateGenresToFrench(genre) : null);
+  ({ genre, genreFr } = await applyRulesToBook(pool, genre, genreFr)); // the genre rules of Admin > Genres (none saved: unchanged)
   let description = (req.body.description || "").trim() || null;
   let descriptionFr = (req.body.descriptionFr || "").trim() || null;
   let coverUrl = (req.body.coverUrl || "").trim() || null;

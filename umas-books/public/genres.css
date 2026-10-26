@@ -1,0 +1,69 @@
+/* Admin > Genres (views/admin/genres*.ejs). This sheet owns every .gn- class (ARCHITECTURE.md, CSS ownership). */
+.gn-inline { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; }
+.gn-link { font-size: 14px; }
+.gn-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.gn-h { font-family: var(--font-serif); font-size: 18px; margin: 18px 0 8px; }
+.gn-num { text-align: right; white-space: nowrap; }
+.gn-center { text-align: center; }
+.gn-managed .gn-actions { display: table-cell; }
+.gn-actions { white-space: nowrap; }
+.gn-actions > * { margin-right: 6px; vertical-align: middle; }
+.gn-order { white-space: nowrap; }
+
+.gn-input { width: 100%; min-width: 7em; box-sizing: border-box; font: inherit; font-size: 15px; padding: 6px 8px; border: 1px solid var(--card-border); border-radius: 3px; background: var(--panel); color: var(--ink); }
+.gn-pos { width: 5em; font: inherit; font-size: 15px; padding: 6px 8px; border: 1px solid var(--card-border); border-radius: 3px; background: var(--panel); color: var(--ink); }
+table.gn-managed td, table.gn-managed th { padding-left: 4px; padding-right: 4px; }
+.gn-managed select { max-width: 8.5em; }
+.gn-managed select, .gn-rules select, .gn-slot select, .gn-filter select, .gn-addrule select {
+  font: inherit; font-size: 15px; padding: 6px 8px; border: 1px solid var(--card-border); border-radius: 3px; background: var(--panel); color: var(--ink); max-width: 100%;
+}
+.gn-icon-btn { font: inherit; font-size: 15px; min-width: 32px; min-height: 32px; border: 1px solid var(--card-border); background: var(--panel); color: var(--ink); border-radius: 3px; cursor: pointer; }
+.gn-icon-btn:disabled { opacity: 0.4; cursor: default; }
+.gn-danger { color: var(--maroon); border-color: var(--maroon); padding: 0 10px; }
+
+.gn-swatch { display: inline-block; vertical-align: middle; width: 22px; height: 22px; border-radius: 50%; margin-right: 6px; border: 1px solid var(--line-strong); }
+.gn-iconprev { display: inline-flex; vertical-align: middle; align-items: center; justify-content: center; width: 28px; height: 28px; margin-right: 6px; border-radius: 50%; background: var(--cream); color: var(--ink); }
+.gn-iconprev svg { width: 18px; height: 18px; }
+
+.gn-more { margin-top: 6px; font-size: 14px; }
+.gn-more summary { cursor: pointer; color: var(--maroon); }
+.gn-mini { display: block; margin-top: 8px; font-size: 13px; }
+.gn-mini input { display: block; width: 100%; box-sizing: border-box; font: inherit; font-size: 14px; padding: 5px 8px; border: 1px solid var(--card-border); border-radius: 3px; background: var(--panel); color: var(--ink); }
+.gn-check { display: block; margin-top: 8px; font-size: 13px; }
+
+.gn-addgenre, .gn-addrule { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
+.gn-addgenre label { display: inline-block; margin-right: 12px; font-size: 14px; }
+.gn-addgenre input { font: inherit; padding: 6px 8px; border: 1px solid var(--card-border); border-radius: 3px; background: var(--panel); color: var(--ink); }
+.gn-sentence { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 6px; font-size: 16px; }
+.gn-sentence input { font: inherit; padding: 6px 10px; border: 1px solid var(--card-border); border-radius: 3px; background: var(--panel); color: var(--ink); min-width: 10em; }
+.gn-matches { margin-top: 10px; font-size: 14px; }
+.gn-matches ul { margin: 6px 0 0; padding-left: 20px; max-height: 260px; overflow: auto; }
+.gn-matches .gn-warn { color: var(--maroon); }
+
+.gn-kind { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--gold-dark); margin-bottom: 3px; }
+.gn-proposals { list-style: none; padding: 0; margin: 10px 0; }
+.gn-proposals li { padding: 4px 0; border-bottom: 1px solid var(--line); }
+.gn-proposals label { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+
+.gn-filter { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin-bottom: 8px; }
+.gn-filter label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.gn-filter input[type="search"] { font: inherit; padding: 6px 10px; border: 1px solid var(--card-border); border-radius: 3px; background: var(--panel); color: var(--ink); }
+.gn-row.gn-unmapped .gn-target-label { color: var(--maroon); }
+.gn-row.gn-saved { background: #f3f7ef; }
+.gn-name { overflow-wrap: anywhere; }
+.gn-pager { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+.gn-slot { margin: 0; }
+.gn-slot[data-state="busy"] select { opacity: 0.6; }
+.gn-slot-msg { display: block; font-size: 13px; color: var(--maroon); }
+
+.gn-stats { margin: 0 0 8px; padding-left: 20px; line-height: 1.7; }
+.gn-confirm { margin-top: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.gn-before { text-decoration: line-through; text-decoration-color: var(--maroon); }
+.gn-after { font-weight: 600; }
+.gn-undo { border-left: 3px solid var(--gold); padding: 4px 0 4px 12px; margin: 10px 0; }
+
+@media (max-width: 640px) {
+  .gn-sentence input, .gn-sentence select { width: 100%; }
+  .gn-confirm .btn, .gn-update .btn { width: 100%; }
+  .gn-managed .gn-input { min-width: 8em; }
+}

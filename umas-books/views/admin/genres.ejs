@@ -1,0 +1,231 @@
+<%- include('../partials/admin_header', { title: 'Genres', active: 'genres', pageTitle: 'Genres', pageSub: 'Slot the many genre spellings found on your books into the genres you manage. Nothing changes on a book until you press Update all books.', mainWide: true, extraCss: ['/genres.css'] }) %>
+<%
+  const targetOptions = (selected, { withKeep = false, withNone = false } = {}) =>
+    '<optgroup label="Managed genres">' + managed.map(g => '<option value="m:' + g.id + '"' + (selected === 'm:' + g.id ? ' selected' : '') + '>' + escapeHtml(g.name_en) + '</option>').join('') + '</optgroup>' +
+    '<option value="remove"' + (selected === 'remove' ? ' selected' : '') + '>Remove from books</option>' +
+    (withKeep ? '<option value="keep"' + (selected === 'keep' ? ' selected' : '') + '>Leave as is</option>' : '') +
+    (withNone ? '<option value="none">Clear my rule (Unmapped)</option>' : '');
+  function escapeHtml(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+  const ruleSelected = (r) => (r.action === 'map' ? 'm:' + r.targetId : r.action);
+  const ruleForm = flash.ruleForm || {};
+%>
+
+<% if (flash.notice) { %><div class="notice-box" role="status"><%= flash.notice %></div><% } %>
+<% if (flash.error) { %><div class="error-box" role="alert"><%= flash.error %></div><% } %>
+
+<div class="card gn-update" id="update">
+  <div class="section-title">Update all books</div>
+  <p class="muted small">
+    Rewrites the Genres of every book through your rules: a genre a rule matches is replaced by its managed name (and its French name), removed ones are dropped,
+    duplicates are merged, and genres no rule matches are left as they are. You see exactly what would change first, then confirm.
+    Every run is recorded and the newest one can be undone. New and edited books follow the same rules automatically.
+  </p>
+  <form method="post" action="/admin/genres/apply/preview" class="gn-inline">
+    <%- include('../partials/csrf_field') %>
+    <button class="btn" type="submit">Preview: update all books</button>
+    <% if (lastRun) { %><a class="gn-link" href="/admin/genres/runs/<%= lastRun.id %>">Last run: <%= lastRun.books_changed %> books, <%= formatDateTime(lastRun.started_at) %></a><% } %>
+  </form>
+</div>
+
+<div class="card" id="managed">
+  <div class="section-title">Managed genres</div>
+  <p class="muted small">The genres you want to use, in English and French. A managed genre can also be a button on the public Browse page (Show on Browse); its position there is the Browse position.
+    Use the arrows to reorder the list. The list was seeded from the genres the shop already used, so nothing changed when this page appeared.</p>
+  <div class="table-scroll"><table class="ann-table gn-managed">
+    <thead><tr>
+      <th scope="col">English</th><th scope="col">French</th><th scope="col" class="gn-num">Books</th>
+      <th scope="col">Show on Browse</th><th scope="col">Colour</th><th scope="col">Icon</th><th scope="col">Browse position</th><th scope="col"><span class="gn-sr">Actions</span></th>
+    </tr></thead>
+    <tbody>
+    <% managed.forEach(function (g, i) { const f = 'mg-' + g.id; %>
+      <tr>
+        <td>
+          <input form="<%= f %>" name="nameEn" value="<%= g.name_en %>" maxlength="60" aria-label="English name of <%= g.name_en %>" class="gn-input">
+          <details class="gn-more"><summary>Browse button text</summary>
+            <label class="gn-mini">Button label (English)<input form="<%= f %>" name="labelEn" value="<%= g.browse_label_en || '' %>" maxlength="60" placeholder="<%= g.name_en %>"></label>
+            <label class="gn-mini">Button label (French)<input form="<%= f %>" name="labelFr" value="<%= g.browse_label_fr || '' %>" maxlength="60" placeholder="<%= g.name_fr %>"></label>
+            <label class="gn-mini">Search words (comma-separated; blank = the genre's name)<input form="<%= f %>" name="topic" value="<%= g.browse_topic || '' %>" maxlength="300"></label>
+            <label class="gn-check"><input form="<%= f %>" type="checkbox" name="everywhere" value="1" checked> If I rename it, show me the update of all books</label>
+            <p class="muted small">Link code: <code><%= g.browse_slug %></code> (never changes, so old links keep working)</p>
+          </details>
+        </td>
+        <td><input form="<%= f %>" name="nameFr" value="<%= g.name_fr %>" maxlength="60" aria-label="French name of <%= g.name_en %>" class="gn-input"></td>
+        <td class="gn-num"><%= g.books %></td>
+        <td class="gn-center"><input form="<%= f %>" type="checkbox" name="showOnBrowse" value="1" <%= g.show_on_browse ? 'checked' : '' %> aria-label="Show <%= g.name_en %> on the Browse page"></td>
+        <td>
+          <span class="gn-swatch" data-gn-swatch style="background:<%= (PALETTE[g.colour] || PALETTE.sage).bg %>;color:<%= (PALETTE[g.colour] || PALETTE.sage).fg %>"></span>
+          <select form="<%= f %>" name="colour" aria-label="Colour of <%= g.name_en %>" data-gn-colour>
+            <% Object.keys(PALETTE).forEach(function (k) { %><option value="<%= k %>" data-bg="<%= PALETTE[k].bg %>" data-fg="<%= PALETTE[k].fg %>" <%= g.colour === k ? 'selected' : '' %>><%= PALETTE[k].label %></option><% }) %>
+          </select>
+        </td>
+        <td>
+          <span class="gn-iconprev" data-gn-iconprev data-icon="<%= g.icon || 'book' %>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><%- (ICONS[g.icon] || ICONS.book).svg %></svg></span>
+          <select form="<%= f %>" name="icon" aria-label="Icon of <%= g.name_en %>" data-gn-icon>
+            <% Object.keys(ICONS).forEach(function (k) { %><option value="<%= k %>" <%= (g.icon || 'book') === k ? 'selected' : '' %>><%= ICONS[k].label %></option><% }) %>
+          </select>
+        </td>
+        <td><input form="<%= f %>" name="browseOrder" type="number" min="0" max="1000" value="<%= g.browse_order %>" aria-label="Browse position of <%= g.name_en %>" class="gn-pos"></td>
+        <td class="gn-actions">
+          <form id="<%= f %>" method="post" action="/admin/genres/managed/<%= g.id %>" class="gn-inline"><%- include('../partials/csrf_field') %><button class="btn btn-small" type="submit">Save</button></form>
+          <form method="post" action="/admin/genres/managed/<%= g.id %>/move" class="gn-inline"><%- include('../partials/csrf_field') %>
+            <button class="gn-icon-btn" type="submit" name="dir" value="up" aria-label="Move <%= g.name_en %> up" <%= i === 0 ? 'disabled' : '' %>>&uarr;</button>
+            <button class="gn-icon-btn" type="submit" name="dir" value="down" aria-label="Move <%= g.name_en %> down" <%= i === managed.length - 1 ? 'disabled' : '' %>>&darr;</button>
+          </form>
+          <a class="gn-link" href="/admin/genres/managed/<%= g.id %>/delete" aria-label="Delete <%= g.name_en %>">Delete</a>
+        </td>
+      </tr>
+    <% }) %>
+    </tbody>
+  </table></div>
+
+  <form method="post" action="/admin/genres/managed" class="gn-addgenre">
+    <%- include('../partials/csrf_field') %>
+    <h3 class="gn-h">Add a managed genre</h3>
+    <label>English name <input name="nameEn" maxlength="60" required></label>
+    <label>French name <input name="nameFr" maxlength="60" placeholder="optional"></label>
+    <button class="btn" type="submit">Add genre</button>
+  </form>
+</div>
+
+<div class="card" id="rules">
+  <div class="section-title">Mapping rules</div>
+  <p class="muted small">First match wins: a rule for one exact genre beats a word rule, and a word rule beats a managed genre's own name (use Show matches before saving a word rule, and &ldquo;Leave as is&rdquo; on a genre to protect it). A genre no rule matches stays as it is.</p>
+
+  <form method="post" action="/admin/genres/rules" class="gn-addrule" data-gn-ruleform>
+    <%- include('../partials/csrf_field') %>
+    <input type="hidden" name="kind" value="contains-word">
+    <p class="gn-sentence">
+      <label for="gn-word">Add a rule: any genre containing the word</label>
+      <input id="gn-word" name="pattern" maxlength="80" required value="<%= ruleForm.kind === 'contains-word' ? ruleForm.pattern : '' %>" placeholder="Children" data-gn-word>
+      <label for="gn-target">becomes</label>
+      <select id="gn-target" name="target" data-gn-target><%- targetOptions(ruleForm.target) %></select>
+    </p>
+    <p class="muted small">The word is matched whole, ignoring capitals; plurals and 's are tolerated (Children matches Children, Children's, Childrens, Children’s Books) but not Childhood.</p>
+    <p class="gn-inline">
+      <button class="btn btn-outline" type="button" data-gn-show hidden>Show matches</button>
+      <button class="btn" type="submit">Save rule</button>
+    </p>
+    <div class="gn-matches" data-gn-matches aria-live="polite"></div>
+  </form>
+
+  <% if (storedRules.length) { %>
+  <div class="table-scroll"><table class="ann-table gn-rules">
+    <caption class="gn-sr">Saved rules</caption>
+    <thead><tr><th scope="col">Rule</th><th scope="col">Becomes</th><th scope="col" class="gn-num">Takes now</th><th scope="col"><span class="gn-sr">Actions</span></th></tr></thead>
+    <tbody>
+    <% storedRules.forEach(function (r) { const f = 'rule-' + r.id; %>
+      <tr>
+        <td>
+          <span class="gn-kind"><%= r.kind === 'exact' ? 'This genre' : 'Any genre containing the word' %></span>
+          <input form="<%= f %>" name="pattern" value="<%= r.pattern %>" maxlength="80" aria-label="<%= r.kind === 'exact' ? 'Genre' : 'Word' %> of this rule" class="gn-input">
+        </td>
+        <td><select form="<%= f %>" name="target" aria-label="Where <%= r.pattern %> goes"><%- targetOptions(ruleSelected(r), { withKeep: r.kind === 'exact' }) %></select></td>
+        <td class="gn-num"><%= r.genres %> genres, <%= r.books %> books</td>
+        <td class="gn-actions">
+          <form id="<%= f %>" method="post" action="/admin/genres/rules/<%= r.id %>" class="gn-inline"><%- include('../partials/csrf_field') %><button class="btn btn-small" type="submit">Save</button></form>
+          <form method="post" action="/admin/genres/rules/<%= r.id %>/move" class="gn-inline"><%- include('../partials/csrf_field') %>
+            <button class="gn-icon-btn" type="submit" name="dir" value="up" aria-label="Move rule <%= r.pattern %> up">&uarr;</button>
+            <button class="gn-icon-btn" type="submit" name="dir" value="down" aria-label="Move rule <%= r.pattern %> down">&darr;</button>
+          </form>
+          <form method="post" action="/admin/genres/rules/<%= r.id %>/delete" class="gn-inline" data-confirm="Delete this rule? The genres it handled become Unmapped again."><%- include('../partials/csrf_field') %><button class="gn-icon-btn gn-danger" type="submit" aria-label="Delete rule <%= r.pattern %>">Delete</button></form>
+        </td>
+      </tr>
+    <% }) %>
+    </tbody>
+  </table></div>
+  <p class="muted small">Order inside each kind is the priority: use the arrows to change it.</p>
+  <% } else { %><p class="muted">No rules yet. Slot a genre from the table below, or add a word rule above.</p><% } %>
+</div>
+
+<div class="card" id="ai">
+  <div class="section-title">Suggest slots with AI</div>
+  <p class="muted small">Sends the genres that have no slot yet (the most used first, up to 300) to the AI, which proposes one of your managed genres for each or none. You read the proposals and tick the ones to keep; nothing is saved or changed until you press Save. It uses one of the site's shared daily AI calls per 100 genres.</p>
+  <form method="post" action="/admin/genres/suggest" class="gn-inline"><%- include('../partials/csrf_field') %><button class="btn btn-outline" type="submit">Suggest slots with AI</button></form>
+  <% if (suggestions) { %>
+    <% if (suggestions.notice) { %><div class="notice-box" role="status"><%= suggestions.notice %></div><% } %>
+    <% if (!suggestions.proposals.length) { %>
+      <p class="muted">The AI had no proposal<%= suggestions.asked ? ' for the ' + suggestions.asked + ' genres it was asked about' : '' %>.</p>
+    <% } else { %>
+      <form method="post" action="/admin/genres/suggest/save" class="gn-suggest">
+        <%- include('../partials/csrf_field') %>
+        <h3 class="gn-h">Proposals (<%= suggestions.proposals.length %>)<%= suggestions.rejected ? ', ' + suggestions.rejected + ' rejected because they named a genre that is not managed' : '' %></h3>
+        <p><button class="btn btn-small btn-outline" type="button" data-gn-tickall>Tick all</button></p>
+        <ul class="gn-proposals">
+          <% suggestions.proposals.forEach(function (p) { %>
+            <li><label><input type="checkbox" name="accept" value="<%= p.targetId + '|' + p.name %>"> <span class="gn-prop-name"><%= p.name %></span> <span class="muted small">(<%= p.books %> book<%= p.books === 1 ? '' : 's' %>)</span> &rarr; <strong><%= p.targetName %></strong></label></li>
+          <% }) %>
+        </ul>
+        <button class="btn" type="submit">Save ticked rules</button>
+      </form>
+    <% } %>
+  <% } %>
+</div>
+
+<div class="card" id="found">
+  <div class="section-title">Found genres</div>
+  <p class="muted small">Every distinct genre on your books (spellings that differ only by capitals or apostrophes count as one). Choose "Slot into..." on a row to save a rule for exactly that genre at once.</p>
+  <form method="get" action="/admin/genres#found" class="gn-filter">
+    <label>Search <input type="search" name="q" value="<%= q %>" maxlength="80" placeholder="e.g. children"></label>
+    <label>Show
+      <select name="filter">
+        <option value="all" <%= filter === 'all' ? 'selected' : '' %>>All (<%= table.counts.all %>)</option>
+        <option value="unmapped" <%= filter === 'unmapped' ? 'selected' : '' %>>Unmapped only (<%= table.counts.unmapped %>)</option>
+        <option value="mapped" <%= filter === 'mapped' ? 'selected' : '' %>>Mapped only (<%= table.counts.mapped %>)</option>
+      </select>
+    </label>
+    <label>Sort
+      <select name="sort">
+        <% [['books', 'Most books'], ['books-asc', 'Fewest books'], ['name', 'Name A to Z'], ['name-desc', 'Name Z to A'], ['target', 'Managed genre']].forEach(function (s) { %><option value="<%= s[0] %>" <%= sort === s[0] ? 'selected' : '' %>><%= s[1] %></option><% }) %>
+      </select>
+    </label>
+    <button class="btn btn-small" type="submit">Apply</button>
+  </form>
+  <p class="muted small" role="status"><%= table.total %> genre<%= table.total === 1 ? '' : 's' %> shown<%= table.pages > 1 ? ' (page ' + table.page + ' of ' + table.pages + ')' : '' %>.</p>
+
+  <% if (!table.rows.length) { %>
+    <p class="muted">No genre matches.</p>
+  <% } else { %>
+  <div class="table-scroll"><table class="ann-table gn-found">
+    <thead><tr>
+      <th scope="col"><a href="/admin/genres<%= tableQuery({ sort: sort === 'name' ? 'name-desc' : 'name', page: 1 }) %>#found">Genre</a></th>
+      <th scope="col" class="gn-num"><a href="/admin/genres<%= tableQuery({ sort: sort === 'books' ? 'books-asc' : 'books', page: 1 }) %>#found">Books</a></th>
+      <th scope="col"><a href="/admin/genres<%= tableQuery({ sort: 'target', page: 1 }) %>#found">Managed genre</a></th>
+      <th scope="col">Slot into...</th>
+    </tr></thead>
+    <tbody>
+    <% table.rows.forEach(function (r) { const exact = exactByKey.get(r.key); const sel = exact ? ruleSelected(exact) : ''; %>
+      <tr class="gn-row gn-<%= r.status %>">
+        <td class="gn-name"><%= r.name %></td>
+        <td class="gn-num"><%= r.books %></td>
+        <td><span class="gn-target-label" data-gn-label><%= r.status === 'unmapped' ? 'Unmapped' : r.targetLabel %></span>
+          <% if (r.status !== 'unmapped') { %><span class="muted small gn-via" data-gn-via>(<%= r.via %>)</span><% } %></td>
+        <td>
+          <form method="post" action="/admin/genres/slot" class="gn-slot" data-gn-slot>
+            <%- include('../partials/csrf_field') %>
+            <input type="hidden" name="genre" value="<%= r.name %>">
+            <input type="hidden" name="q" value="<%= q %>"><input type="hidden" name="filter" value="<%= filter %>"><input type="hidden" name="sort" value="<%= sort %>"><input type="hidden" name="page" value="<%= table.page %>">
+            <select name="target" aria-label="Slot <%= r.name %> into">
+              <option value="">Slot into...</option>
+              <%- targetOptions(sel, { withKeep: true, withNone: Boolean(exact) }) %>
+            </select>
+            <noscript><button class="btn btn-small" type="submit">Save</button></noscript>
+          </form>
+        </td>
+      </tr>
+    <% }) %>
+    </tbody>
+  </table></div>
+  <% if (table.pages > 1) { %>
+    <nav class="gn-pager" aria-label="Found genres pages">
+      <% if (table.page > 1) { %><a class="btn btn-small btn-outline" href="/admin/genres<%= tableQuery({ page: table.page - 1 }) %>#found">Previous</a><% } %>
+      <span class="muted small">Page <%= table.page %> of <%= table.pages %></span>
+      <% if (table.page < table.pages) { %><a class="btn btn-small btn-outline" href="/admin/genres<%= tableQuery({ page: table.page + 1 }) %>#found">Next</a><% } %>
+    </nav>
+  <% } %>
+  <% } %>
+</div>
+
+<div hidden id="gn-icons"><% Object.keys(ICONS).forEach(function (k) { %><svg data-icon="<%= k %>" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><%- ICONS[k].svg %></svg><% }) %></div>
+
+<script src="<%= assetUrl('/genres.js') %>"></script>
+<%- include('../partials/admin_footer') %>

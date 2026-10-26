@@ -30,6 +30,7 @@ const MAY_SEND = new Set([
   "/admin/till/scan", // ditto
   "/admin/till/release",
   "/admin/till/check",
+  "/admin/genres/slot", // JSON for public/genres.js (fetch): the "Slot into..." select saves one exact rule; a plain form post redirects
   "/admin/forum/hide", // plain-text 400 for a missing reason (no valid target yet)
 ]);
 

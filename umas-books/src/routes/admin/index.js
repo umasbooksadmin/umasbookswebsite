@@ -28,6 +28,7 @@ router.use(require("./awards"));
 router.use(require("./reports"));
 router.use(require("./forum"));
 router.use(require("./pricing"));
+router.use(require("./genres")); // managed genres, mapping rules, "Update all books"
 router.use(require("./audit"));
 router.use(require("./diagnostics"));
 router.use(emailOutbox);

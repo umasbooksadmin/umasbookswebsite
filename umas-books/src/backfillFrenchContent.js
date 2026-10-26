@@ -1,6 +1,7 @@
 require("dotenv").config({ quiet: true });
 const { pool } = require("./db");
 const { generateBookGenres } = require("./lib/bookGenre");
+const { applyRulesToBook } = require("./lib/genreRules");
 const { translateGenresToFrench } = require("./lib/bookLookup");
 const { translateDescriptionToFrench } = require("./lib/bookDescription");
 
@@ -34,12 +35,14 @@ async function main() {
   let descriptionsSkipped = 0;
 
   for (const book of books) {
-    const genresEn = await generateBookGenres({
+    const guessed = await generateBookGenres({
       title: book.title,
       author: book.authors,
       description: book.description,
       existingGenres: book.categories,
     });
+    // The genre rules of Admin > Genres apply to what the AI picked too (none saved: unchanged).
+    const genresEn = guessed ? (await applyRulesToBook(pool, guessed, null)).genre : guessed;
 
     if (!genresEn) {
       console.warn(`  [genre skip] #${book.id} "${book.title}" — no genre returned`);

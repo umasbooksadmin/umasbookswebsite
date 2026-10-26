@@ -175,7 +175,7 @@ function createApp() {
   // already defend themselves with [].concat(...), so they're left alone;
   // everything else collapses to its first value, the same as a normal
   // single-submission form would send.
-  const MULTI_VALUE_BODY_FIELDS = new Set(["optionIds", "ids", "days", "times", "itemIds"]); // days/times: the pre-registration form
+  const { MULTI_VALUE_BODY_FIELDS } = require("./lib/multiValueFields");
   app.use((req, res, next) => {
     if (req.body && typeof req.body === "object") {
       for (const key of Object.keys(req.body)) {
@@ -434,9 +434,9 @@ function createApp() {
         const st = BooksState.parse(qs(req), [String(req.query.genre || "")]);
         res.locals.newInHidden = !!(st.q || st.genre || st.isNew);
         // The curated-collection buttons (lib/collections.js): published ones with a book in stock, plain view only.
-        // The genre buttons (lib/browseGenres.js), drawn by the page itself; public/page-books.js only reads them back.
+        // The genre buttons (managed genres, lib/browseGenres.js), drawn by the page itself; public/page-books.js only reads them back.
         const browseGenres = require("./lib/browseGenres");
-        res.locals.browseGenres = browseGenres.GENRES;
+        res.locals.browseGenres = await browseGenres.loadBrowseGenres(pool); // managed genres on Browse + the All Genres button
         res.locals.iconAttrs = browseGenres.ICON_ATTRS;
         res.locals.collectionButtons = await listButtonCollections(pool).catch(() => []);
         res.locals.collectionsHidden = browseFilterActive(req.query);

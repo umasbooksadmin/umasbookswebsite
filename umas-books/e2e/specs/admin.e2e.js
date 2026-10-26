@@ -1280,6 +1280,8 @@ s.manual("A97 backdating needs a reason, a basket above EUR 10,000 is refused, a
 s.manual("A99 till voids by role: card voids and the refund tick need an admin, till-only cash voids are limited and listed (covered by test/integration/tillVoidRules.test.js)", "needs a second, till-only account");
 s.manual("A100 reprice: an exact-count confirmation and an undo of the last run (covered by test/integration/pricingReprice.test.js)", "applying a reprice changes real prices: left for you to do by hand");
 s.manual("A101 blog publish dates are Paris time and bulk publish/draft are audited (covered by test/integration/blogCorrectness.test.js)", "needs waiting for a scheduled date");
+s.manual("A117 Genres: managed list, mapping rules, 'Show matches' and 'Suggest slots with AI' change nothing on a book until you confirm (covered by test/integration/genresAdmin.test.js)", "slotting genres and the AI button change the shared genre rules: left for you to do by hand");
+s.manual("A118 Genres: 'Update all books' previews with before/after examples, applies only the previewed set, and the last run can be undone (covered by test/integration/genresAdmin.test.js and genresRealApp.test.js)", "applying it rewrites the real catalogue: left for you to do by hand");
 
 s.test("A102 (must) on a phone (375 px and 320 px) the admin lists and tables fit the screen, long titles wrap, wide tables say they scroll, and the member calendars are a list", { as: "admin", timeout: 300000 }, async (ctx) => {
   const pages = ["/admin", "/admin/inventory", "/admin/orders", "/admin/members", "/admin/blog", "/admin/announcements", "/admin/reports", "/admin/events", "/admin/meetings", "/admin/volunteer-shifts", "/admin/charity", "/admin/till/day", "/admin/diagnostics/lookup"];

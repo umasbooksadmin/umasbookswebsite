@@ -1,0 +1,217 @@
+// "Update all books" (Admin > Genres): rewrites books.categories / categories_fr of every book through the genre
+// rules. This touches the real catalogue, so it follows the Reprice tool's safety model (lib/pricing/reprice.js):
+//
+//   PREVIEW   planRun() computes the whole rewrite WITHOUT writing: how many books would change, 10 before/after
+//             examples, totals, and a fingerprint (count + sha256 of "id:new value" of every change).
+//   CONFIRM   applyRun() recomputes the plan and applies it only when it is exactly the one previewed (a rule or a
+//             book edited in between: nothing is changed and the admin looks again).
+//   BATCHES   500 books per transaction; each UPDATE re-checks that the book still holds the value the plan read
+//             (a book saved meanwhile is skipped, never overwritten). One run at a time (advisory lock).
+//   RECORD    genre_runs (who, when, the rules as they were) and genre_run_changes (old and new value of every changed
+//             book).
+//   UNDO      undoRun() puts the old values back for the books that still hold what the run wrote (the same
+//             exactness as the preview). Only the newest run that is not undone can be undone.
+//   IDEMPOTENT  a second run finds nothing left to change.
+//
+// Genres no rule matches are left as they are. Never touches books without genres.
+
+const crypto = require("node:crypto");
+const { readRules, planBook } = require("./genreRules");
+const { clearAll } = require("./genreAdmin");
+
+const BATCH = 500;
+const EXAMPLES = 10;
+const LOCK_KEY = 7243911; // arbitrary constant, apart from migrate.js's
+
+// The rewrite of every book that has genres. -> { changes: [{ id, title, old, oldFr, en, fr, enChanged, frChanged }], stats, hash, rulesSnapshot }
+async function planRun(db) {
+  const { rules, stored } = await readRules(db);
+  const { rows } = await db.query(
+    "SELECT id, title, categories, categories_fr FROM books WHERE categories IS NOT NULL AND btrim(categories) <> '' ORDER BY id"
+  );
+  const changes = [];
+  const stats = { booksWithGenres: rows.length, booksChanged: 0, genresRemoved: 0, genresRenamed: 0, duplicatesCollapsed: 0, frenchOnly: 0 };
+  const hash = crypto.createHash("sha256");
+  for (const b of rows) {
+    const p = planBook(b.categories, b.categories_fr, rules);
+    if (!p.changed) continue;
+    const en = p.enChanged ? p.en : b.categories; // spacing alone never rewrites a string
+    const fr = p.fr;
+    changes.push({ id: b.id, title: b.title, old: b.categories, oldFr: b.categories_fr, en, fr, enChanged: p.enChanged, frChanged: p.frChanged });
+    stats.booksChanged += 1;
+    stats.genresRemoved += p.removed;
+    stats.genresRenamed += p.renamed;
+    stats.duplicatesCollapsed += p.collapsed;
+    if (!p.enChanged) stats.frenchOnly += 1;
+    hash.update(`${b.id}:${en == null ? "\u0000" : en}|${fr == null ? "\u0000" : fr}\n`);
+  }
+  // Examples: books whose English genres change come first (they are what the admin is looking for).
+  // Different before -> after pairs first, so ten examples show ten kinds of change rather than one repeated.
+  const ordered = [...changes.filter((c) => c.enChanged), ...changes.filter((c) => !c.enChanged)];
+  const seenPairs = new Set();
+  const varied = ordered.filter((c) => { const k = `${c.old}\u0000${c.en}`; if (seenPairs.has(k)) return false; seenPairs.add(k); return true; });
+  const examples = [...varied, ...ordered.filter((c) => !varied.includes(c))].slice(0, EXAMPLES);
+  return {
+    changes, stats, examples, count: changes.length, hash: hash.digest("hex"),
+    rulesSnapshot: stored.map((r) => ({ kind: r.kind, pattern: r.pattern, action: r.action, target: r.target })),
+  };
+}
+
+// The part of a plan that fits in a session / a page (no list of every change).
+function planSummary(plan) {
+  return { count: plan.count, hash: plan.hash, stats: plan.stats, examples: plan.examples.map((e) => ({ id: e.id, title: e.title, old: e.old, oldFr: e.oldFr, en: e.en, fr: e.fr })) };
+}
+
+// Runs fn(client) holding the one-run-at-a-time lock. -> { busy: true } when another run holds it.
+async function withRunLock(pool, fn) {
+  const client = await pool.connect();
+  let locked = false;
+  try {
+    const { rows } = await client.query("SELECT pg_try_advisory_lock($1) AS ok", [LOCK_KEY]);
+    locked = rows[0].ok;
+    if (!locked) return { busy: true };
+    return await fn(client);
+  } finally {
+    if (locked) await client.query("SELECT pg_advisory_unlock($1)", [LOCK_KEY]).catch(() => {});
+    client.release();
+  }
+}
+
+const chunks = (list, n) => Array.from({ length: Math.ceil(list.length / n) }, (_, i) => list.slice(i * n, (i + 1) * n));
+
+// Applies the plan. `expected` ({ count, hash }) is what the admin previewed.
+// -> { runId, changed, skipped, stats } | { busy } | { mismatch, expectedCount, liveCount } | { runId: null, changed: 0 } (nothing to do)
+async function applyRun(pool, actor = {}, expected = null, { onBatch } = {}) {
+  return withRunLock(pool, async (client) => {
+    const plan = await planRun(client);
+    if (expected && (plan.count !== Number(expected.count) || plan.hash !== String(expected.hash))) {
+      return { mismatch: true, expectedCount: Number(expected.count), liveCount: plan.count };
+    }
+    if (!plan.count) return { runId: null, changed: 0, skipped: 0, stats: plan.stats };
+    const { rows: [run] } = await client.query(
+      "INSERT INTO genre_runs (actor_user_id, actor_label, rules_snapshot) VALUES ($1, $2, $3::jsonb) RETURNING id",
+      [actor.id ?? null, actor.label ?? null, JSON.stringify(plan.rulesSnapshot)]
+    );
+    let changed = 0;
+    try {
+      for (const batch of chunks(plan.changes, BATCH)) {
+        await client.query("BEGIN");
+        try {
+          const payload = JSON.stringify(batch.map((c) => ({ id: c.id, old: c.old, oldFr: c.oldFr, en: c.en, fr: c.fr })));
+          // The book must still hold what the plan read: one saved since is left alone.
+          const { rows: done } = await client.query(
+            `UPDATE books b SET categories = t.en, categories_fr = t.fr, updated_at = now()
+             FROM jsonb_to_recordset($1::jsonb) AS t(id int, old text, "oldFr" text, en text, fr text)
+             WHERE b.id = t.id AND b.categories IS NOT DISTINCT FROM t.old AND b.categories_fr IS NOT DISTINCT FROM t."oldFr"
+             RETURNING b.id`, [payload]
+          );
+          const ids = done.map((r) => r.id);
+          if (ids.length) {
+            await client.query(
+              `INSERT INTO genre_run_changes (run_id, book_id, old_categories, old_categories_fr, new_categories, new_categories_fr)
+               SELECT $1, t.id, t.old, t."oldFr", t.en, t.fr
+               FROM jsonb_to_recordset($2::jsonb) AS t(id int, old text, "oldFr" text, en text, fr text)
+               WHERE t.id = ANY($3::int[])`, [run.id, payload, ids]
+            );
+          }
+          await client.query("COMMIT");
+          changed += ids.length;
+        } catch (err) {
+          await client.query("ROLLBACK");
+          throw err;
+        }
+        if (onBatch) await onBatch(changed);
+      }
+      await client.query(
+        "UPDATE genre_runs SET status = 'done', finished_at = now(), books_changed = $2, genres_removed = $3 WHERE id = $1",
+        [run.id, changed, plan.stats.genresRemoved]
+      );
+    } catch (err) {
+      await client.query("UPDATE genre_runs SET status = 'failed', finished_at = now(), books_changed = $2 WHERE id = $1", [run.id, changed]).catch(() => {});
+      clearAll(pool);
+      throw err;
+    }
+    clearAll(pool);
+    return { runId: run.id, changed, skipped: plan.count - changed, stats: plan.stats };
+  });
+}
+
+// ---------- history and undo ----------
+
+async function getRun(db, id) {
+  const { rows } = await db.query("SELECT * FROM genre_runs WHERE id = $1", [id]);
+  return rows[0] || null;
+}
+
+async function recentRuns(db, limit = 10) {
+  const { rows } = await db.query("SELECT * FROM genre_runs ORDER BY id DESC LIMIT $1", [limit]);
+  return rows;
+}
+
+// The only run that can be undone: the newest one that is not undone yet.
+async function undoableRunId(db) {
+  const { rows } = await db.query("SELECT max(id)::int AS id FROM genre_runs WHERE undone_at IS NULL");
+  return rows[0].id;
+}
+
+async function runExamples(db, runId, limit = EXAMPLES) {
+  const { rows } = await db.query(
+    `SELECT c.book_id, b.title, c.old_categories, c.new_categories, c.old_categories_fr, c.new_categories_fr
+     FROM genre_run_changes c LEFT JOIN books b ON b.id = c.book_id
+     WHERE c.run_id = $1 AND c.old_categories IS DISTINCT FROM c.new_categories ORDER BY c.book_id LIMIT $2`, [runId, limit]
+  );
+  return rows;
+}
+
+// What Undo of `runId` would do: a book goes back only while it still holds exactly what the run wrote.
+async function previewUndo(db, runId) {
+  const { rows } = await db.query(
+    `SELECT c.book_id, (b.id IS NOT NULL AND b.categories IS NOT DISTINCT FROM c.new_categories
+                        AND b.categories_fr IS NOT DISTINCT FROM c.new_categories_fr) AS restorable
+     FROM genre_run_changes c LEFT JOIN books b ON b.id = c.book_id WHERE c.run_id = $1 ORDER BY c.book_id`, [runId]
+  );
+  const ok = rows.filter((r) => r.restorable).map((r) => r.book_id);
+  return { total: rows.length, count: ok.length, skipped: rows.length - ok.length, hash: idsHash(ok) };
+}
+
+function idsHash(ids) {
+  return crypto.createHash("sha256").update([...ids].map(Number).sort((a, b) => a - b).join(",")).digest("hex");
+}
+
+// -> { restored, skipped } | { notFound } | { notLast } | { busy } | { mismatch, expectedCount, liveCount }
+async function undoRun(pool, runId, expected = null) {
+  return withRunLock(pool, async (client) => {
+    const run = await getRun(client, runId);
+    if (!run) return { notFound: true };
+    if ((await undoableRunId(client)) !== runId) return { notLast: true };
+    const live = await previewUndo(client, runId);
+    if (expected && (live.count !== Number(expected.count) || live.hash !== String(expected.hash))) {
+      return { mismatch: true, expectedCount: Number(expected.count), liveCount: live.count };
+    }
+    const { rows: all } = await client.query(
+      "SELECT book_id, old_categories, old_categories_fr, new_categories, new_categories_fr FROM genre_run_changes WHERE run_id = $1 ORDER BY book_id", [runId]
+    );
+    let restored = 0;
+    for (const batch of chunks(all, BATCH)) {
+      await client.query("BEGIN");
+      try {
+        const { rowCount } = await client.query(
+          `UPDATE books b SET categories = t.old, categories_fr = t."oldFr", updated_at = now()
+           FROM jsonb_to_recordset($1::jsonb) AS t(id int, old text, "oldFr" text, en text, fr text)
+           WHERE b.id = t.id AND b.categories IS NOT DISTINCT FROM t.en AND b.categories_fr IS NOT DISTINCT FROM t.fr`,
+          [JSON.stringify(batch.map((c) => ({ id: c.book_id, old: c.old_categories, oldFr: c.old_categories_fr, en: c.new_categories, fr: c.new_categories_fr })))]
+        );
+        await client.query("COMMIT");
+        restored += rowCount;
+      } catch (err) {
+        await client.query("ROLLBACK");
+        throw err;
+      }
+    }
+    await client.query("UPDATE genre_runs SET undone_at = now(), undo_restored = $2 WHERE id = $1", [runId, restored]);
+    clearAll(pool);
+    return { restored, skipped: all.length - restored, run };
+  });
+}
+
+module.exports = { BATCH, LOCK_KEY, planRun, planSummary, applyRun, getRun, recentRuns, undoableRunId, runExamples, previewUndo, undoRun, withRunLock, idsHash };

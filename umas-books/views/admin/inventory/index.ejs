@@ -40,7 +40,9 @@
         <select id="f-genre" name="genre">
           <option value="">Any</option>
           <option value="<%= NO_GENRE %>" <%= filters.genre === NO_GENRE ? 'selected' : '' %>>No genre set</option>
-          <% genres.forEach(g => { %><option value="<%= g %>" <%= filters.genre && filters.genre !== NO_GENRE && filters.genre.toLowerCase() === g.toLowerCase() ? 'selected' : '' %>><%= g %></option><% }) %>
+          <% const genreSel = (g) => (filters.genre && filters.genre !== NO_GENRE && filters.genre.toLowerCase() === g.toLowerCase() ? 'selected' : ''); %>
+          <% genres.forEach(g => { %><option value="<%= g %>" <%= genreSel(g) %>><%= g %></option><% }) %>
+          <% if (otherGenres.length) { %><optgroup label="Other (not managed)"><% otherGenres.forEach(g => { %><option value="<%= g %>" <%= genreSel(g) %>><%= g %></option><% }) %></optgroup><% } %>
         </select>
       </div>
       <div>

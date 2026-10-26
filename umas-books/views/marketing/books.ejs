@@ -40,20 +40,6 @@
   "bk.band.ask.d": "Tell us what you are looking for and we'll email you if a copy arrives. No account needed.",
   "bk.band.ask.cta": "Ask us",
   "bk.empty.ask": "Can't find it? Ask us to look out for it.",
-  "g.fiction": "Fiction",
-  "g.children": "Children's Books",
-  "g.ya": "Young Adult",
-  "g.nonfiction": "Non-Fiction",
-  "g.classics": "Classics",
-  "g.mystery": "Mystery & Thriller",
-  "g.romance": "Romance",
-  "g.biography": "Biography & Memoir",
-  "g.health": "Health & Wellness",
-  "g.arts": "Arts & Crafts",
-  "g.travel": "Travel",
-  "g.food": "Food & Drink",
-  "g.home": "Home & Garden",
-  "g.all": "All Genres",
 }; -%>
 <% const pageI18nFr = {
   "meta.title": "Livres — Uma’s Books and Adventures",
@@ -96,21 +82,9 @@
   "bk.band.ask.d": "Dites-nous ce que vous cherchez et nous vous écrirons si un exemplaire arrive. Aucun compte nécessaire.",
   "bk.band.ask.cta": "Demander",
   "bk.empty.ask": "Introuvable ? Demandez-nous de le chercher pour vous.",
-  "g.fiction": "Fiction",
-  "g.children": "Jeunesse",
-  "g.ya": "Jeune adulte",
-  "g.nonfiction": "Documentaires",
-  "g.classics": "Classiques",
-  "g.mystery": "Polar & Thriller",
-  "g.romance": "Romance",
-  "g.biography": "Biographies & Mémoires",
-  "g.health": "Santé & Bien-être",
-  "g.arts": "Arts & Loisirs créatifs",
-  "g.travel": "Voyage",
-  "g.food": "Cuisine & Boissons",
-  "g.home": "Maison & Jardin",
-  "g.all": "Tous les genres",
 }; -%>
+<%# The genre button labels (g.<slug>) come from the managed genres (Admin > Genres): English and French, in the page dictionaries like every other text. -%>
+<% browseGenres.forEach(function (g) { pageI18nEn[g.key] = g.labelEn; pageI18nFr[g.key] = g.labelFr; }); -%>
 <%- include('partials/mkt_header', {
   title: "Books — Uma's Books and Adventures",
   description: "Browse pre-loved English books by genre or search by title, author or keyword, then pick them up at Uma's Books in Albi.",
@@ -168,7 +142,7 @@
       <div class="bk-carousel">
         <button type="button" class="arrow" id="bk-genre-prev" data-i18n-attr="aria-label:bk.genres.prev" aria-label="Previous genres"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4 7 12l8 8"/></svg></button>
         <button type="button" class="arrow arrow-next" id="bk-genre-next" data-i18n-attr="aria-label:bk.genres.next" aria-label="Next genres"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 4 8 8-8 8"/></svg></button>
-        <%# The genre buttons (src/lib/browseGenres.js). public/page-books.js reads data-slug / data-topic back from here and wires the clicks. %>
+        <%# The genre buttons (managed genres, src/lib/browseGenres.js). public/page-books.js reads data-slug / data-topic back from here and wires the clicks. %>
         <div class="bk-track bk-tiles" id="bk-genre-list" role="group" aria-labelledby="bk-genres-label"><%
           browseGenres.forEach(function (g, i) { %><button type="button" class="bk-genre" data-index="<%= i %>" data-slug="<%= g.slug %>" data-topic="<%= g.topic %>"><span class="chip" style="background:<%= g.bg %>;color:<%= g.fg %>"><svg <%- iconAttrs %> aria-hidden="true"><%- g.svg %></svg></span><span data-i18n="<%= g.key %>"><%= pageI18nEn[g.key] %></span></button><% }) %></div>
       </div>
