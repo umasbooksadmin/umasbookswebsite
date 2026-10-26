@@ -130,7 +130,6 @@ input[type="file"].file-input-hidden {
 .err-msg { margin: 0; }
 .err-fields { margin: 6px 0 0; padding-left: 20px; }
 .err-fields a { color: inherit; text-decoration: underline; }
-.error-box:focus { outline: 2px solid #90503f; outline-offset: 2px; } /* focused by public/app.js after a refused form */
 .error-box { background: #f7f1f0; border: 1px solid #d4b4ab; color: #90503f; padding: 10px 14px; border-radius: 3px; font-size: 15px; margin-bottom: 14px; }
 .notice-box { background: #f0f0ee; border: 1px solid #acaba1; color: #47462f; padding: 10px 14px; border-radius: 3px; font-size: 15px; margin-bottom: 14px; }
 
@@ -403,6 +402,9 @@ img { max-width: 100%; }
 :focus-visible { outline: 2px solid #1a1a1a; outline-offset: 2px; box-shadow: 0 0 0 2px #fff; }
 /* things only ever focused by script (the page body after a skip link, a heading after a search) show no ring */
 [tabindex="-1"]:focus-visible { outline: none; box-shadow: none; }
+/* ...except the error summary of a refused form (public/app.js focuses it): a keyboard or screen-reader user must SEE where focus went
+   (WCAG 2.4.7). Higher specificity and later than the rule above, which hid it before; the same two-tone ring as every other focus. */
+.error-box[data-form-errors]:focus, .error-box[data-form-errors]:focus-visible { outline: 2px solid #1a1a1a; outline-offset: 2px; box-shadow: 0 0 0 2px #fff; }
 
 /* Links inside a paragraph, list or table cell: 4px of vertical padding on the INLINE link makes its clickable box 24px+ high
    (WCAG 2.2 2.5.8) without changing the line spacing. The same rule is in assets/site.css for the marketing pages (the two base sheets never load together). */

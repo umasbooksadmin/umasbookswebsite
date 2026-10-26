@@ -1700,8 +1700,10 @@ s.test("G103 (must) a refused contact form shows an error summary with links to 
     const r = await ctx.page.evaluate(() => ({
       active: document.activeElement && document.activeElement.id, links: [...document.querySelectorAll("#form-errors a")].map((a) => a.getAttribute("href")),
       invalid: [...document.querySelectorAll("[aria-invalid=true]")].map((e) => e.id),
+      ring: (() => { const cs = getComputedStyle(document.getElementById("form-errors")); return cs.outlineStyle !== "none" && parseFloat(cs.outlineWidth) >= 2; })(),
     }));
     assert.equal(r.active, "form-errors", `${lang}: focus is on the error summary`);
+    assert.equal(r.ring, true, `${lang}: the focused error summary shows a focus ring`);
     assert.deepEqual(r.links, ["#c-name", "#c-email", "#c-message"], `${lang}: the summary links to every field that needs a change`);
     assert.deepEqual(r.invalid, ["c-name", "c-email", "c-message"], `${lang}: the fields are marked invalid`);
   }
