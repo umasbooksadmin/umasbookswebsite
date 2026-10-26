@@ -234,6 +234,7 @@ const COVERAGE = {
   "orders.client_ip": SQL("orders"), "orders.user_id": SQL("orders"),
   "price_reprice_runs.actor_label": { erase: "sql", allow: "no longer written; older values cleared at 12 months and on erase" },
   "price_reprice_runs.actor_user_id": STAFF,
+  "genre_runs.actor_user_id": STAFF, // Admin > Genres run history: the admin who pressed Update all books (the e-mail is not stored; SET NULL on delete)
   "till_quick_items.name": NOT_PERSON("name of a quick-sale button (e.g. 'Coffee')"),
   "job_runs.name": NOT_PERSON("name of a background job"),
 };

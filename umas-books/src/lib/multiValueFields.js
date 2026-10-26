@@ -11,6 +11,7 @@ const MULTI_VALUE_BODY_FIELDS = new Set([
   "itemIds", // order: collect only the ticked items
   "days", "times", // pre-registration form
   "approve", "reject", // collection review: one checkbox per book
+  "accept", // Admin > Genres: the AI proposals the admin ticked
 ]);
 
 module.exports = { MULTI_VALUE_BODY_FIELDS };

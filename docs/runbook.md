@@ -40,7 +40,7 @@ alphabetical order on the page, so use this list. The letter `j` is deliberately
 
 - [k) Reservations, collecting and paying in the shop, refunds](#k-reservations-collecting-and-paying-in-the-shop-refunds); [n) A member paid with another email](#n-a-member-paid-with-another-email); [p) The till](#p-the-till)
 - [h) Price suggestions and the AI market check](#h-price-suggestions-and-the-ai-market-check); [i) Awards and best-seller lists on books](#i-awards-and-best-seller-lists-on-books); [aa) Fast scanning of books (adding stock)](#aa-fast-scanning-of-books-adding-stock); [ah) Curated collections (Browse by Collection on Browse Books)](#ah-curated-collections-browse-by-collection-on-browse-books); [ab) Admin sessions: how long they last](#ab-admin-sessions-how-long-they-last); [ae) AI limits (daily cap, per-minute limits, lookup and webhook protections)](#ae-ai-limits-daily-cap-per-minute-limits-lookup-and-webhook-protections)
-- [o) The VAT line ("TVA non applicable") and the footer social links](#o-the-vat-line-tva-non-applicable-and-the-footer-social-links); [ac) Reviewing the French (and what to do when a French text is wrong)](#ac-reviewing-the-french-and-what-to-do-when-a-french-text-is-wrong); [ak) Alphabetical order ignores a leading "The"](#ak-alphabetical-order-ignores-a-leading-the)
+- [o) The VAT line ("TVA non applicable") and the footer social links](#o-the-vat-line-tva-non-applicable-and-the-footer-social-links); [ac) Reviewing the French (and what to do when a French text is wrong)](#ac-reviewing-the-french-and-what-to-do-when-a-french-text-is-wrong); [am) Managing genres: cleaning up genre names, Undo](#am-managing-genres-cleaning-up-genre-names-undo); [ak) Alphabetical order ignores a leading "The"](#ak-alphabetical-order-ignores-a-leading-the)
 
 **Regular routines, setup and reference**
 
@@ -3419,6 +3419,48 @@ Fixed in `src/db.js`: wait at most **10 s** for a free connection (then the requ
 - Lines every minute for a long time, or users seeing "Something went wrong" with `timeout exceeded when trying to connect` in the logs: something is holding connections or the load is higher than the pool. First look at Render > the service > **Logs** for slow-query or job errors at the same time; then raise `DB_POOL_MAX` one step (for example 20 to 30) if `instances x max x 2` stays under about 90, and redeploy. Raising it is not a cure for a query that never finishes: the 30 s limit ends those.
 
 **What the code does to stay inside the pool** (for developers): the admin dashboard runs its queries at most 3 at a time (`lib/runLimited.js`); the email outbox worker holds **no** connection while it talks to Gmail (it claims rows with one `UPDATE`, sends, and records each result with a short statement; a row whose worker died is picked up again when its 5-minute lease ends); every `pool.connect()` is released in a `finally`. `node scripts/load-dashboard.js` (local database only, not part of CI) fires 30 dashboard requests plus an outbox batch with a slow fake mail server and prints the pool's waiting counts.
+
+## am) Managing genres: cleaning up genre names, Undo
+
+Books carry free-text genres (`books.categories`, French in `categories_fr`) that come from catalogue lookups and hand typing,
+so the same idea appears as "Children's Books", "Children's Fiction", "Juvenile Fiction"... **Admin > Site content > Genres**
+(`/admin/genres`) is where you decide what they should be. Nothing on a book changes until you press **Update all books** and
+confirm.
+
+**The three parts**
+
+1. **Managed genres**: the names you want, in English and French. They were seeded from the genres the shop already used. A
+   managed genre can be a button on the public Browse page (**Show on Browse**, colour, icon, Browse position). Renaming one
+   leaves a rule from the old name to the new one, and the rename form offers to open the Update-all preview straight away.
+   Deleting one asks first: the rules that pointed at it go with it (those genres become Unmapped); books keep their text.
+2. **Found genres**: every spelling in use, with the number of books (capitals and apostrophes do not make a new row).
+   **Slot into...** on a row saves a rule for exactly that genre. **Unmapped only** shows what still has no slot.
+3. **Mapping rules**: "any genre containing the word X becomes Y" (the word is matched whole, ignoring capitals; plurals and
+   's are tolerated; **Childhood is not Children**), or one exact genre, which can also be **Remove from books** or **Leave as
+   is**. First match wins: exact rules, then word rules (arrows set the order), then a managed genre's own name. A word rule
+   also takes managed names that contain the word (the word Fiction takes Non-fiction), so always press **Show matches** first,
+   and protect a genre with a **Leave as is** rule. A genre no rule matches is never touched.
+
+**Cleaning up, step by step**
+
+1. Add the managed genres you want (for example Children).
+2. Add word rules for the big families (Children, Juvenile...), then slot the rest from **Unmapped only**, or press **Suggest
+   slots with AI**: it proposes, you tick, nothing is saved until **Save ticked rules** (it uses the shared daily AI cap, section
+   ae; with no key or credit it says so and nothing happens).
+3. Press **Preview: update all books**. Read the counts and the 10 before/after examples (the French follows: a mapped genre
+   gets the managed French name, the others the fixed word list).
+4. Press **Confirm**. It runs in batches of 500 books, one run at a time. A book saved while it runs is skipped, never overwritten.
+   If the books or rules changed since the preview, nothing is applied and you see a new preview. Every run is in **Admin
+   activity** (`genre.apply`) and on its result page.
+5. After that, books you add or edit go through the same rules automatically (with no rule saved, nothing changes).
+
+**Undo.** The result page of a run has **Undo this run** (only the newest run that is not undone). It shows how many books go
+back; a book you edited since is left alone. Confirm and the previous genres (English and French) come back (`genre.undo`).
+Undo only restores books; it does not delete the rules, so pressing Update all books again redoes the change.
+
+**If something looks wrong.** Rules and managed genres are plain tables (`genre_rules`, `managed_genres`): delete a wrong rule
+on the page and run Update all books again; the books it already changed keep the managed name until you slot or rename it.
+Test-data clearing (section g) keeps the managed list and the rules and clears the run history with the books.
 
 ## ah) Curated collections (Browse by Collection on Browse Books)
 

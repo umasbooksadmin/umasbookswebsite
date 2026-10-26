@@ -16,6 +16,7 @@ const { saveImage, isStoredImageUrl } = require("./imageStore");
 const { isAllowedCoverUrl } = require("./coverStore");
 const { sharpFromUpload } = require("./uploadImage");
 const { normalizeIsbn, translateGenresToFrench } = require("./bookLookup");
+const { applyRulesToBook } = require("./genreRules");
 const { normalizeSource, normalizeCondition, normalizeBinding, resolveCopyPricing, normalizeStatus, normalizeGenres, normalizeLocation } = require("./inventory");
 const { getSettings } = require("./pricing/settings");
 const { otherRepriceableCopies } = require("./pricing/clearance");
@@ -171,7 +172,8 @@ async function saveBookAndCopy(pool, input, ctx) {
 }
 
 async function createBookAndCopy(pool, input, ctx, time) {
-  const { isbn, title, author, publisher, publishedYear, description, descriptionFr, genre, genreFr, binding, condition, location, source, token, choice, pricing, settings } = input;
+  const { isbn, title, author, publisher, publishedYear, description, descriptionFr, binding, condition, location, source, token, choice, pricing, settings } = input;
+  let { genre, genreFr } = input;
   let { coverUrl } = input;
   if (input.coverPhoto) coverUrl = await processCoverPhoto(input.coverPhoto);
 
@@ -204,6 +206,9 @@ async function createBookAndCopy(pool, input, ctx, time) {
       ? { cover: coverUrl, source: null }
       : { cover: null, source: coverUrl && isAllowedCoverUrl(coverUrl) ? coverUrl : null };
     fillAfterSave = true;
+    // The genre rules of Admin > Genres (lib/genreRules.js): a new book never brings back a name the admin cleaned up.
+    // With no rule saved, nothing changes.
+    ({ genre, genreFr } = await applyRulesToBook(pool, genre, genreFr));
 
     const { rows } = await time("db", () => pool.query(
       `INSERT INTO books (isbn, title, authors, publisher, published_year, description, description_fr, cover_url, categories, categories_fr, binding, created_by, cover_source_url)

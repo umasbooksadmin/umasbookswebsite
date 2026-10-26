@@ -1,0 +1,57 @@
+<%- include('../partials/admin_header', { title: 'Update all books', active: 'genres', pageTitle: 'Update all books', pageSub: 'What would change on your books. Nothing has been changed yet.', extraCss: ['/genres.css'] }) %>
+
+<% if (notice) { %><div class="notice-box" role="status"><%= notice %></div><% } %>
+<% if (error) { %><div class="error-box" role="alert"><%= error %></div><% } %>
+<p><a href="/admin/genres">&larr; Genres</a></p>
+
+<% if (!preview) { %>
+  <div class="card">
+    <p>There is no preview on screen (it is not kept when you reload). Press the button to compute one: nothing is changed by it.</p>
+    <form method="post" action="/admin/genres/apply/preview" class="gn-inline"><%- include('../partials/csrf_field') %><button class="btn" type="submit">Preview: update all books</button></form>
+  </div>
+<% } else { %>
+  <div class="card gn-preview" id="preview">
+    <div class="section-title"><%= preview.count %> book<%= preview.count === 1 ? '' : 's' %> would change</div>
+    <% if (!preview.count) { %>
+      <p class="muted">Every book that has genres already follows your rules. Nothing to do.</p>
+    <% } else { %>
+      <ul class="gn-stats">
+        <li><strong><%= preview.count %></strong> of <%= preview.stats.booksWithGenres %> books with genres change<% if (preview.stats.frenchOnly) { %> (<%= preview.stats.frenchOnly %> of them only in French)<% } %></li>
+        <li><strong><%= preview.stats.genresRenamed %></strong> genre<%= preview.stats.genresRenamed === 1 ? '' : 's' %> renamed to a managed name</li>
+        <li><strong><%= preview.stats.genresRemoved %></strong> genre<%= preview.stats.genresRemoved === 1 ? '' : 's' %> removed</li>
+        <li><strong><%= preview.stats.duplicatesCollapsed %></strong> duplicate<%= preview.stats.duplicatesCollapsed === 1 ? '' : 's' %> merged</li>
+      </ul>
+      <h3 class="gn-h">Examples (<%= preview.examples.length %> of <%= preview.count %>)</h3>
+      <div class="table-scroll"><table class="ann-table gn-examples">
+        <thead><tr><th scope="col">Book</th><th scope="col">Before</th><th scope="col">After</th></tr></thead>
+        <tbody>
+        <% preview.examples.forEach(function (e) { %>
+          <tr>
+            <td><a href="/admin/inventory/<%= e.id %>"><%= e.title %></a></td>
+            <td><span class="gn-before"><%= e.old %></span><br><span class="muted small">French: <%= e.oldFr || 'none' %></span></td>
+            <td><span class="gn-after"><%= e.en == null ? '(no genre)' : e.en %></span><br><span class="muted small">French: <%= e.fr || 'none' %></span></td>
+          </tr>
+        <% }) %>
+        </tbody>
+      </table></div>
+      <form method="post" action="/admin/genres/apply" class="gn-confirm" data-confirm="Change the genres of <%= preview.count %> books? This is recorded and can be undone from the result page.">
+        <%- include('../partials/csrf_field') %>
+        <input type="hidden" name="expectedCount" value="<%= preview.count %>">
+        <input type="hidden" name="expectedHash" value="<%= preview.hash %>">
+        <button class="btn" type="submit">Confirm: change these <%= preview.count %> books</button>
+        <span class="muted small">If a book or a rule changed since this preview, nothing is applied and you see a fresh one. A book saved while this runs is skipped, never overwritten.</span>
+      </form>
+    <% } %>
+  </div>
+<% } %>
+
+<% if (runs.length) { %>
+  <div class="card">
+    <div class="section-title">Earlier runs</div>
+    <ul class="plain">
+      <% runs.forEach(function (r) { %><li><a href="/admin/genres/runs/<%= r.id %>">Run <%= r.id %></a> &middot; <%= r.books_changed %> books &middot; <%= formatDateTime(r.started_at) %><%= r.undone_at ? ' · undone' : '' %></li><% }) %>
+    </ul>
+  </div>
+<% } %>
+
+<%- include('../partials/admin_footer') %>

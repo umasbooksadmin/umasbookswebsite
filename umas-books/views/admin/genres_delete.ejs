@@ -1,0 +1,20 @@
+<%- include('../partials/admin_header', { title: 'Delete a managed genre', active: 'genres', pageTitle: 'Delete a managed genre', pageSub: 'Check what happens to the rules that point at it.', extraCss: ['/genres.css'] }) %>
+
+<p><a href="/admin/genres#managed">&larr; Genres</a></p>
+<div class="card">
+  <div class="section-title">Delete "<%= impact.genre.name_en %>"?</div>
+  <ul class="gn-stats">
+    <li>It is removed from the managed list<%= impact.genre.show_on_browse ? ' and its button disappears from the public Browse page' : '' %>.</li>
+    <li><strong><%= impact.rules.length %></strong> rule<%= impact.rules.length === 1 ? '' : 's' %> slotting genres into it <%= impact.rules.length === 1 ? 'is' : 'are' %> deleted with it: those genres become <strong>Unmapped</strong> again.</li>
+    <li>No book is changed now. <%= impact.books %> book<%= impact.books === 1 ? '' : 's' %> carry the name "<%= impact.genre.name_en %>" and keep it (it becomes an ordinary unmanaged genre).</li>
+  </ul>
+  <% if (impact.rules.length) { %>
+    <p class="muted small">The rules: <%= impact.rules.map(function (r) { return (r.kind === 'exact' ? 'genre ' : 'word ') + '"' + r.pattern + '"'; }).join(', ') %>.</p>
+  <% } %>
+  <form method="post" action="/admin/genres/managed/<%= impact.genre.id %>/delete" class="gn-inline" data-confirm="Delete this managed genre? Its rules go with it.">
+    <%- include('../partials/csrf_field') %>
+    <button class="btn" type="submit">Delete this genre</button>
+    <a class="btn btn-outline" href="/admin/genres#managed">Keep it</a>
+  </form>
+</div>
+<%- include('../partials/admin_footer') %>

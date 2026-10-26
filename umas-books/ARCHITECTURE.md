@@ -1256,6 +1256,44 @@ in the app (listed in `KNOWN_MISSING_TOKENS` of the test; defining the token wou
 Tests read stylesheets through `test/helpers/css.js` (`loadSheet(file).getDecl(selector, prop, { at })`, `getRule`, `hasRule`),
 which parses with postcss, instead of matching the source text with regular expressions.
 
+## Genres: managed list, rules, Update all books, Browse buttons
+
+`books.categories` is a comma-separated free-text string (English; `categories_fr` is the French one, one entry per genre).
+Admin > Genres (`routes/admin/genres.js`, views `admin/genres*.ejs`, `public/genres.js` + `genres.css` with the `.gn-` prefix; English only)
+manages it. Migration 100 adds only tables (no book is rewritten by it):
+
+- `managed_genres` (EN/FR names, `sort_order`, and the Browse button: `show_on_browse`, `browse_slug`, `browse_order`, `browse_label_en/fr`,
+  `browse_topic`, `colour`, `icon`), seeded from `COMMON_GENRES` / `COMMON_GENRES_FR` plus Health & Wellness and Home & Garden.
+- `genre_rules` (`exact` | `contains-word`, action `map` | `remove` | `keep`, target, `sort_order`), `genre_runs`, `genre_run_changes`.
+  Classification for the test-data script: the two settings tables are `kept`, the two run tables `shop`.
+
+**Matching** is pure and lives in `lib/genreRules.js` (`applyGenreRules`, `rewriteGenres`, `planBook`): exact rules, then word rules, then
+the managed names (identity, normalises capitals), each by `sort_order`; first match wins; an unmatched genre is left as it is; duplicates
+collapse, order is kept, nothing left = NULL. `lib/genreAdmin.js` is the data side (found genres: ONE aggregate query, cached 60 s; CRUD;
+"Show matches"), `lib/genreSuggest.js` the AI help (batches of 100, shared daily cap through `askText`, answers validated against the managed
+names, never saved), `lib/genreRun.js` the bulk run.
+
+**Update all books follows the Reprice safety model:** preview (POST, nothing written; count + sha256 of every planned change) -> confirm
+(POST, CSRF, rate limited; recomputes and refuses unless it equals the preview) -> batches of 500 in transactions with a session advisory
+lock (one run at a time; each UPDATE re-checks the value the plan read) -> `genre_runs` + before/after per book -> audit
+(`genre.apply`) -> caches cleared. **Undo** restores only books that still hold what the run wrote (`genre.undo`), newest un-undone run only.
+Idempotent: a second run plans 0 changes. A book whose genres do not change keeps its stored string; its French is recomputed only when a rule
+or managed name matched one of its genres.
+
+**Save paths** (`inventoryIntake.createBookAndCopy` for a new book, the book edit route, the French backfill script) call
+`applyRulesToBook(pool, genre, genreFr)`: with NO stored rule nothing changes; otherwise the genres go through the same rules (cached in-process
+60 s, cleared on every rule change) and the French follows. The admin Inventory Genre filter lists the managed genres, then up to 200 other genres
+in use under "Other". The repeated checkbox field `accept` of the AI proposals is on the allow-list in `lib/multiValueFields.js` (guard test
+`test/unit/multiValueFields.test.js`).
+
+**Browse buttons are managed genres** (`lib/browseGenres.js`): `loadBrowseGenres(pool)` reads the rows with `show_on_browse` ordered by
+`browse_order`, cached 60 s (cleared on edits and after Update all books), then appends the fixed **All Genres** button (not a genre: no row).
+`views/marketing/books.ejs` draws them and puts each label (`browse_label_*`, else the managed name) in the page's EN/FR dictionaries as
+`g.<slug>`. The slug (the value of `?genre=`) is created once and never changes, so old links keep working; the 13 original slugs, search words,
+colours (`PALETTE`) and icons (`ICONS`) are seeded exactly. The search is unchanged: `/api/books/search?topic=` matches the words as substrings
+of `books.categories`; a genre with no search words searches its own name. The rendered Browse page of the seeded data is byte-identical to the
+page before this change (`test/fixtures/browseGenres.golden.json`).
+
 ## Reservations: reserve online, pay in the shop
 
 **Reserving requires an account.** A guest can browse, search and fill the cart
