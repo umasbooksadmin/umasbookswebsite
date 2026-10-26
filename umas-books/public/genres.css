@@ -5,13 +5,12 @@
 .gn-h { font-family: var(--font-serif); font-size: 18px; margin: 18px 0 8px; }
 .gn-num { text-align: right; white-space: nowrap; }
 .gn-center { text-align: center; }
-.gn-managed .gn-actions { display: table-cell; }
-.gn-actions { white-space: nowrap; }
+.gn-actions { white-space: normal; min-width: 11em; }
 .gn-actions > * { margin-right: 6px; vertical-align: middle; }
 .gn-order { white-space: nowrap; }
 
 .gn-input { width: 100%; min-width: 7em; box-sizing: border-box; font: inherit; font-size: 15px; padding: 6px 8px; border: 1px solid var(--card-border); border-radius: 3px; background: var(--panel); color: var(--ink); }
-.gn-pos { width: 5em; font: inherit; font-size: 15px; padding: 6px 8px; border: 1px solid var(--card-border); border-radius: 3px; background: var(--panel); color: var(--ink); }
+.gn-pos { width: 4em; font: inherit; font-size: 15px; padding: 6px 8px; border: 1px solid var(--card-border); border-radius: 3px; background: var(--panel); color: var(--ink); }
 table.gn-managed td, table.gn-managed th { padding-left: 4px; padding-right: 4px; }
 .gn-managed select { max-width: 8.5em; }
 .gn-managed select, .gn-rules select, .gn-slot select, .gn-filter select, .gn-addrule select {
@@ -66,4 +65,15 @@ table.gn-managed td, table.gn-managed th { padding-left: 4px; padding-right: 4px
   .gn-sentence input, .gn-sentence select { width: 100%; }
   .gn-confirm .btn, .gn-update .btn { width: 100%; }
   .gn-managed .gn-input { min-width: 8em; }
+}
+
+/* Found genres on a phone: each genre is a small card (name, books, its slot, the "Slot into..." select) instead of a table to scroll sideways. */
+@media (max-width: 640px) {
+  .gn-found, .gn-found tbody, .gn-found tr, .gn-found td { display: block; width: auto; }
+  .gn-found thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
+  .gn-found tr { padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .gn-found td { border: 0; padding: 2px 4px; text-align: left; }
+  .gn-found .gn-name { font-weight: 600; font-size: 16px; }
+  .gn-found .gn-num::after { content: " books"; }
+  .gn-found select { width: 100%; box-sizing: border-box; min-height: 44px; }
 }

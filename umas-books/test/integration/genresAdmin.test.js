@@ -247,7 +247,7 @@ test("preview numbers equal apply numbers; apply changes exactly the expected bo
   const plan = await run.planRun(h.pool);
   assert.ok(plan.count > 0);
   assert.equal(plan.examples.length, 10);
-  const result = await run.applyRun(h.pool, { id: h.admin.id, label: h.admin.email }, { count: plan.count, hash: plan.hash });
+  const result = await run.applyRun(h.pool, { id: h.admin.id }, { count: plan.count, hash: plan.hash });
   assert.equal(result.changed, plan.count, "preview == apply");
   assert.equal(result.skipped, 0);
 

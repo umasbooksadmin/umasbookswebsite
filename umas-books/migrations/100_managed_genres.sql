@@ -53,7 +53,6 @@ CREATE TABLE IF NOT EXISTS genre_runs (
   finished_at    TIMESTAMPTZ,
   status         TEXT NOT NULL DEFAULT 'running' CHECK (status IN ('running', 'done', 'failed')),
   actor_user_id  INTEGER REFERENCES users (id) ON DELETE SET NULL,
-  actor_label    TEXT,
   books_changed  INTEGER NOT NULL DEFAULT 0,
   genres_removed INTEGER NOT NULL DEFAULT 0,
   rules_snapshot JSONB NOT NULL DEFAULT '[]'::jsonb,

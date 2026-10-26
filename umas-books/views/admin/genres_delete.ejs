@@ -11,7 +11,7 @@
   <% if (impact.rules.length) { %>
     <p class="muted small">The rules: <%= impact.rules.map(function (r) { return (r.kind === 'exact' ? 'genre ' : 'word ') + '"' + r.pattern + '"'; }).join(', ') %>.</p>
   <% } %>
-  <form method="post" action="/admin/genres/managed/<%= impact.genre.id %>/delete" class="gn-inline">
+  <form method="post" action="/admin/genres/managed/<%= impact.genre.id %>/delete" class="gn-inline" data-confirm="Delete this managed genre? Its rules go with it.">
     <%- include('../partials/csrf_field') %>
     <button class="btn" type="submit">Delete this genre</button>
     <a class="btn btn-outline" href="/admin/genres#managed">Keep it</a>

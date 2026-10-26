@@ -7,7 +7,7 @@
 <div class="card gn-result">
   <div class="section-title">Run <%= run.id %>: <%= run.books_changed %> book<%= run.books_changed === 1 ? '' : 's' %> changed<%= run.status === 'failed' ? ' (stopped by an error)' : '' %></div>
   <p>
-    <%= formatDateTime(run.started_at) %> &middot; <%= run.actor_label || 'admin' %><br>
+    <%= formatDateTime(run.started_at) %> &middot; <%= run.actor_name || 'admin' %><br>
     <%= run.genres_removed %> genre<%= run.genres_removed === 1 ? '' : 's' %> removed.
     <a href="/admin/audit">See it in Admin activity</a> (action <code>genre.apply</code>, run <%= run.id %>).
   </p>

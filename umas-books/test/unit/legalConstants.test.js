@@ -168,8 +168,9 @@ test("legal-todos.md lists the constants that still need a real value", () => {
 
 test("French polish: second-hand, 'Young Adult' translated, favorites text, CGV wording", () => {
   assert.doesNotMatch(view("marketing/privacy-policy.ejs"), /secondhand/);
-  assert.doesNotMatch(view("marketing/books.ejs").split("const pageI18nFr")[1], /"g\.ya": "Young Adult"/);
-  assert.match(view("marketing/books.ejs").split("const pageI18nFr")[1], /"g\.ya": "Jeune adulte"/);
+  // the genre buttons' labels are the managed genres' (migration 100 seeds them): the French of "ya" is "Jeune adulte"
+  const seed = fs.readFileSync(path.join(root, "migrations/100_managed_genres.sql"), "utf8");
+  assert.match(seed, /'ya', 3, 'Young Adult', 'Jeune adulte'/);
   const fav = fs.readFileSync(path.join(root, "public/favorites-page.js"), "utf8");
   assert.match(fav, /pour l’instant\\u00a0: parcourez/);
   assert.match(fav, /pour le moment\\u00a0: essayez/);

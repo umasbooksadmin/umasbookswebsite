@@ -89,8 +89,8 @@ async function applyRun(pool, actor = {}, expected = null, { onBatch } = {}) {
     }
     if (!plan.count) return { runId: null, changed: 0, skipped: 0, stats: plan.stats };
     const { rows: [run] } = await client.query(
-      "INSERT INTO genre_runs (actor_user_id, actor_label, rules_snapshot) VALUES ($1, $2, $3::jsonb) RETURNING id",
-      [actor.id ?? null, actor.label ?? null, JSON.stringify(plan.rulesSnapshot)]
+      "INSERT INTO genre_runs (actor_user_id, rules_snapshot) VALUES ($1, $2::jsonb) RETURNING id",
+      [actor.id ?? null, JSON.stringify(plan.rulesSnapshot)]
     );
     let changed = 0;
     try {
@@ -139,7 +139,7 @@ async function applyRun(pool, actor = {}, expected = null, { onBatch } = {}) {
 // ---------- history and undo ----------
 
 async function getRun(db, id) {
-  const { rows } = await db.query("SELECT * FROM genre_runs WHERE id = $1", [id]);
+  const { rows } = await db.query("SELECT r.*, u.display_name AS actor_name FROM genre_runs r LEFT JOIN users u ON u.id = r.actor_user_id WHERE r.id = $1", [id]);
   return rows[0] || null;
 }
 
@@ -155,10 +155,14 @@ async function undoableRunId(db) {
 }
 
 async function runExamples(db, runId, limit = EXAMPLES) {
+  // One book per different before -> after pair, so the examples show different kinds of change.
   const { rows } = await db.query(
-    `SELECT c.book_id, b.title, c.old_categories, c.new_categories, c.old_categories_fr, c.new_categories_fr
-     FROM genre_run_changes c LEFT JOIN books b ON b.id = c.book_id
-     WHERE c.run_id = $1 AND c.old_categories IS DISTINCT FROM c.new_categories ORDER BY c.book_id LIMIT $2`, [runId, limit]
+    `SELECT * FROM (
+       SELECT DISTINCT ON (c.old_categories, c.new_categories) c.book_id, b.title, c.old_categories, c.new_categories, c.old_categories_fr, c.new_categories_fr
+       FROM genre_run_changes c LEFT JOIN books b ON b.id = c.book_id
+       WHERE c.run_id = $1 AND c.old_categories IS DISTINCT FROM c.new_categories
+       ORDER BY c.old_categories, c.new_categories, c.book_id) t
+     ORDER BY t.book_id LIMIT $2`, [runId, limit]
   );
   return rows;
 }

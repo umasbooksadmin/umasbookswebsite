@@ -261,7 +261,7 @@ router.post("/admin/genres/apply", requireAdmin, bulkLimit, async (req, res) => 
     return res.redirect(303, "/admin/genres/apply");
   }
   const user = userOf(req);
-  const result = await run.applyRun(pool, { id: user.id || null, label: user.email || null }, { count: Number(expectedCount), hash: expectedHash });
+  const result = await run.applyRun(pool, { id: user.id || null }, { count: Number(expectedCount), hash: expectedHash });
   if (result.busy) {
     await setFlash(req, FLASH_APPLY, { error: "Another genre update is running right now. Wait for it to finish, then preview again." });
     return res.redirect(303, "/admin/genres/apply");
