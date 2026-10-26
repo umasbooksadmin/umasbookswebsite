@@ -27,7 +27,7 @@
           </div>
           <ul class="plain nested">
             <% (o.items || []).forEach(i => { %>
-              <li><%= i.title %> <span class="muted small">&middot; <%= money(i.price) %></span></li>
+              <li><%- i.isSeat ? escHtml(i.title) : bookText(i.bookTitle) + (i.grade ? ' (' + escHtml(i.grade) + ')' : '') %> <span class="muted small">&middot; <%= money(i.price) %></span></li>
             <% }) %>
           </ul>
           <div class="muted small"><%= tr('Total:', 'Total :') %> <%= money(o.total_amount) %></div>

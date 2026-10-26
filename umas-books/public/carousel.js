@@ -3,6 +3,11 @@
 //
 //   UmasCarousel.make(track, prevBtn, nextBtn, itemSel [, more]) -> { layout(), reveal(i) }
 //
+// Keyboard (WCAG 2.1.1 / 2.4.3 / 2.4.7): only the items on screen are tab stops (tabStops(), roving: the others get
+// tabindex="-1" and are put back as they scroll in), so passing a 260-card row takes a handful of Tab presses, not 460, and
+// the arrows (before the track in the page) move to the rest. The arrows are never `disabled` (a focused button that gets
+// disabled drops focus on <body>): at an end they get aria-disabled="true", stay focusable and ignore the click.
+
 (function (root, factory) {
   var api = factory();
   if (typeof window !== 'undefined') window.UmasCarousel = api;
@@ -28,12 +33,54 @@
   // Is the card at `index` (the first one in view, or the one a click is heading to) close enough to the last loaded card
   // that the next batch should be asked for?
   function wantsMoreAt(index, per, count) { return index + per + NEAR_END >= count; }
+  // Which items are tab stops: those with at least `ratio` of their width inside the view. rects = [{left, right}] of the
+  // items, view = {left, right}. If none qualifies (a view between cards), the item nearest the view's left edge is the one
+  // stop, so the row is never skipped entirely. Pure, so test/unit/carouselTabStops.test.js can run it.
+  var TAB_RATIO = 0.5;
+  function tabStops(rects, view, ratio) {
+    var r = ratio == null ? TAB_RATIO : ratio, flags = [], any = false, best = -1, bd = Infinity;
+    for (var i = 0; i < rects.length; i++) {
+      var w = rects[i].right - rects[i].left;
+      var shown = Math.min(rects[i].right, view.right) - Math.max(rects[i].left, view.left);
+      var on = w > 0 && shown >= w * r;
+      flags.push(on);
+      if (on) any = true;
+      var d = Math.abs(rects[i].left - view.left);
+      if (d < bd) { bd = d; best = i; }
+    }
+    if (!any && best >= 0) flags[best] = true;
+    return flags;
+  }
 
   function makeCarousel(track, prevBtn, nextBtn, itemSel, more) {
     var heading = null;   // index the track is scrolling to after a click (null = at rest)
     var headingTimer = 0;
     var loading = false;
     var pendingTarget = null; // a click wanted to go to this card index, which is not loaded yet
+
+    function setDisabled(btn, on) {
+      if (on) btn.setAttribute('aria-disabled', 'true'); else btn.removeAttribute('aria-disabled');
+    }
+    function isDisabled(btn) { return btn.getAttribute('aria-disabled') === 'true'; }
+    // The links and buttons of an item are its tab stops (an item that is itself a link or a button is its own).
+    function stopsOf(item) {
+      return item.matches('a, button') ? [item] : Array.prototype.slice.call(item.querySelectorAll('a, button'));
+    }
+    var stopState = [];   // last flag applied per item index, so only a change touches the DOM
+    function updateTabStops() {
+      var cards = cardList();
+      if (!cards.length || !track.clientWidth) return;
+      var tr = track.getBoundingClientRect();
+      var flags = tabStops(cards.map(function (c) { return c.getBoundingClientRect(); }), { left: tr.left, right: tr.right });
+      for (var i = 0; i < cards.length; i++) {
+        if (stopState[i] === flags[i] && cards[i].__tabsSet) continue;
+        stopState[i] = flags[i];
+        cards[i].__tabsSet = true;
+        stopsOf(cards[i]).forEach(function (el) {
+          if (flags[i]) el.removeAttribute('tabindex'); else el.setAttribute('tabindex', '-1');
+        });
+      }
+    }
 
     function hasMore() { return !!(more && more.hasMore()); }
     function ensureMore() {
@@ -74,7 +121,7 @@
     // Leave room after the last card so the last page can start at the left edge (no half-cut card at the end).
     function layout() {
       var cards = cardList();
-      if (!cards.length || !track.clientWidth) { prevBtn.disabled = nextBtn.disabled = true; return; }
+      if (!cards.length || !track.clientWidth) { setDisabled(prevBtn, true); setDisabled(nextBtn, true); return; }
       track.style.setProperty('--bk-end', '0px');
       var content = stopAt(cards, cards.length - 1) + cards[cards.length - 1].getBoundingClientRect().width + 2 * padLeft();
       var need = stopAt(cards, lastStart(cards)) + track.clientWidth;
@@ -83,10 +130,11 @@
     }
     function updateArrows() {
       var cards = cardList();
-      if (!cards.length) { prevBtn.disabled = nextBtn.disabled = true; return; }
-      prevBtn.disabled = track.scrollLeft <= 1;
+      if (!cards.length) { setDisabled(prevBtn, true); setDisabled(nextBtn, true); return; }
+      setDisabled(prevBtn, track.scrollLeft <= 1);
       // more batches to come: never "the end" (a pending batch or a failed one is retried by the next click)
-      nextBtn.disabled = hasMore() ? false : track.scrollLeft >= stopAt(cards, lastStart(cards)) - 1;
+      setDisabled(nextBtn, hasMore() ? false : track.scrollLeft >= stopAt(cards, lastStart(cards)) - 1);
+      updateTabStops();
       if (hasMore() && !loading && wantsMoreAt(nearest(cards), perView(cards), cards.length)) ensureMore();
     }
     function goTo(i, cards, instant) {
@@ -118,8 +166,8 @@
       if (i >= first && i < first + per) return;
       goTo(Math.floor(i / per) * per, cards, true);
     }
-    prevBtn.addEventListener('click', function () { step(-1); });
-    nextBtn.addEventListener('click', function () { step(1); });
+    prevBtn.addEventListener('click', function () { if (!isDisabled(prevBtn)) step(-1); });
+    nextBtn.addEventListener('click', function () { if (!isDisabled(nextBtn)) step(1); });
     track.addEventListener('keydown', function (e) {
       if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
       if (e.altKey || e.ctrlKey || e.metaKey) return;
@@ -148,5 +196,5 @@
     return { layout: layout, reveal: reveal };
   }
 
-  return { make: makeCarousel, lastStartIndex: lastStartIndex, wantsMoreAt: wantsMoreAt, NEAR_END: NEAR_END };
+  return { make: makeCarousel, lastStartIndex: lastStartIndex, wantsMoreAt: wantsMoreAt, tabStops: tabStops, NEAR_END: NEAR_END };
 });

@@ -26,6 +26,7 @@
     if (!img || img.tagName !== 'IMG' || !img.classList.contains('cover')) return;
     var ph = document.createElement('div');
     ph.className = 'cover cover-none';
+    ph.setAttribute('aria-hidden', 'true');
     ph.textContent = t('bk.nocover', 'No cover');
     img.replaceWith(ph);
   }, true);
@@ -48,6 +49,13 @@
   var lastTitle = null;
   var newSection = document.querySelector('.bk-new');
   var moreBtn = document.getElementById('bk-more');
+  var statusEl = document.getElementById('bk-status');   // visually-hidden status line for screen readers (no counts)
+  // Say something short to screen readers. Cleared first so the same sentence twice in a row is announced again.
+  function say(key) {
+    if (!statusEl) return;
+    statusEl.textContent = '';
+    setTimeout(function () { statusEl.textContent = t(key); }, 60);
+  }
   var moreOffset = null;
   var newShown = [];
   var pager = null;     // how the list on screen is paged: { urlFor(offset) }
@@ -162,16 +170,17 @@
   }
   function loadPage(offset, append, mine, scroll) {
     var url = pager.urlFor(offset);
-    if (cache[url]) { drawPage(cache[url], append, mine); if (scroll) scrollToResults(); return; }
+    if (cache[url]) { drawPage(cache[url], append, mine); say(append ? 'bk.status.more' : 'bk.status.results'); if (scroll) scrollToResults(); return; }
     if (!append) resultsGrid.innerHTML = '<p class="muted">' + esc(t('bk.loading', 'Loading books…')) + '</p>';
     if (scroll) scrollToResults();
-    moreBtn.disabled = true;
+    moreBtn.setAttribute('aria-disabled', 'true');   // not disabled: the focused button keeps focus while the page loads
     getJSON(url, function (err, data) {
       if (mine !== requestSeq) return;
-      moreBtn.disabled = false;
-      if (err) { resultsGrid.insertAdjacentHTML('beforeend', '<p class="muted">' + esc(t(err.rateLimited ? 'bk.ratelimited' : 'bk.error')) + '</p>'); return; }
+      moreBtn.removeAttribute('aria-disabled');
+      if (err) { say(err.rateLimited ? 'bk.ratelimited' : 'bk.error'); resultsGrid.insertAdjacentHTML('beforeend', '<p class="muted">' + esc(t(err.rateLimited ? 'bk.ratelimited' : 'bk.error')) + '</p>'); return; }
       cache[url] = data;
       drawPage(data, append, mine);
+      say(append ? 'bk.status.more' : 'bk.status.results');
       if (scroll && !append && Math.abs(resultsEl.getBoundingClientRect().top) > 40) scrollToResults(true);
     });
   }
@@ -183,6 +192,7 @@
     loadPage(0, false, ++requestSeq, scroll);
   }
   moreBtn.addEventListener('click', function () {
+    if (moreBtn.getAttribute('aria-disabled') === 'true') return;
     if (moreOffset != null) loadPage(moreOffset, true, requestSeq, false);
   });
 

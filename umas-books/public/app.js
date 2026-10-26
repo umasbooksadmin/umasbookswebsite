@@ -445,3 +445,12 @@ document.addEventListener("change", function (e) {
     });
   });
 })();
+
+// A refused customer form (contact, request a book, sign-up) comes back with an error summary
+// (views/partials/form_error_summary.ejs, data-form-errors): put focus on it so keyboard and screen-reader
+// users land on the problem and its links to the fields, not at the top of the page.
+document.addEventListener("DOMContentLoaded", function () {
+  var summary = document.querySelector("[data-form-errors]");
+  if (!summary) return;
+  try { summary.focus({ preventScroll: false }); } catch { summary.focus(); }
+});

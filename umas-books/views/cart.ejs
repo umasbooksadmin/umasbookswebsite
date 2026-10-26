@@ -17,11 +17,11 @@
           <% if (i.coverUrl) { %>
             <img src="<%= i.coverUrl %>"<% if (coverSrcset(i.coverUrl)) { %> srcset="<%= coverSrcset(i.coverUrl) %>" sizes="48px"<% } %> alt="" class="cart-item-cover" width="48" height="72" loading="lazy" decoding="async" data-cover>
           <% } else { %>
-            <div class="cart-item-cover book-thumb-placeholder"><%= tr('No cover', 'Pas de couverture') %></div>
+            <div class="cart-item-cover book-thumb-placeholder" aria-hidden="true"><%= tr('No cover', 'Pas de couverture') %></div>
           <% } %>
           <div class="cart-item-body">
-            <div class="cart-item-title"><%= i.title %></div>
-            <div class="muted small"><%= i.authors || tr('Unknown author', 'Auteur inconnu') %></div>
+            <div class="cart-item-title"><%- bookText(i.title) %></div>
+            <div class="muted small"><%- i.authors ? bookText(i.authors) : escHtml(tr('Unknown author', 'Auteur inconnu')) %></div>
             <div style="margin-top:4px;"><span class="condition-badge condition-<%= i.condition %>"><%= conditionLabel(i.condition) %></span></div>
           </div>
         <% } else { %>

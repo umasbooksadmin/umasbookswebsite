@@ -15,7 +15,7 @@ before(async () => { app = await startTestApp({ port: PORT, isolated: true }); }
 after(() => app.stop());
 
 const page = async (lang) => (await fetch(`${app.base}/books.html`, { headers: { cookie: `umasbooks_lang=${lang}` } })).text();
-const listOf = (html) => html.match(/<div class="bk-track bk-tiles" id="bk-genre-list"[^>]*>([\s\S]*?)<\/div>\s*<button/)[1];
+const listOf = (html) => html.match(/<div class="bk-track bk-tiles" id="bk-genre-list"[^>]*>([\s\S]*?)<\/div>\s*<\/div>\s*<\/section>/)[1];
 
 test("the genre list, in order, is what the page used to build in the browser", () => {
   assert.deepEqual(GENRES.map((g) => g.slug), ["fiction", "children", "ya", "nonfiction", "classics", "mystery", "romance", "biography", "health", "arts", "travel", "food", "home", "all"]);

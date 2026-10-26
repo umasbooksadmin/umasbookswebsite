@@ -1,6 +1,6 @@
 const express = require("express");
 const { pool } = require("../db");
-const { orderItemLabel } = require("../lib/orderItems");
+const { orderItemLabel, orderItemParts } = require("../lib/orderItems");
 const { requireAuth } = require("../middleware/auth");
 const { activeRequestsForUser } = require("../lib/bookRequests");
 const { SEAT_CANCEL_HOURS } = require("../lib/legal");
@@ -58,7 +58,7 @@ router.get("/account", requireAuth, async (req, res) => {
     [email, req.session.user.id]
   );
 
-  for (const o of orders) o.items = (o.items || []).map((i) => ({ title: orderItemLabel(i, req.lang), price: i.price, isSeat: i.classStartsAt != null }));
+  for (const o of orders) o.items = (o.items || []).map((i) => ({ title: orderItemLabel(i, req.lang), ...orderItemParts(i, req.lang), price: i.price, isSeat: i.classStartsAt != null }));
   res.render("account", { orders, email, emailVerified: true, bookRequests, notice, lastDay: reservationLastDay });
 });
 

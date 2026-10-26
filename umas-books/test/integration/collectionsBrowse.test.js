@@ -119,7 +119,7 @@ test("collections and genres are carousels: side arrows, whole items, greyed at 
         const pb = p.getBoundingClientRect(), nb = n.getBoundingClientRect();
         const items = [...document.querySelector(tr).children];
         const cut = items.filter((i) => { const b = i.getBoundingClientRect(); return b.right > t.left && b.left < t.right && (b.left < t.left - 1 || b.right > t.right + 1); }).length;
-        return { prevLeftOfTrack: pb.right <= t.left + 1, nextRightOfTrack: nb.left >= t.right - 1, cy: Math.abs(pb.top + pb.height / 2 - (t.top + t.height / 2)), size: [pb.width, pb.height], prevDisabled: p.disabled, nextDisabled: n.disabled, n: items.length, cut };
+        return { prevLeftOfTrack: pb.right <= t.left + 1, nextRightOfTrack: nb.left >= t.right - 1, cy: Math.abs(pb.top + pb.height / 2 - (t.top + t.height / 2)), size: [pb.width, pb.height], prevDisabled: p.getAttribute("aria-disabled") === "true", nextDisabled: n.getAttribute("aria-disabled") === "true", n: items.length, cut };
       }, track, prev, next);
       assert.ok(m.prevLeftOfTrack && m.nextRightOfTrack, `${track}: arrows on the sides`);
       assert.ok(m.cy <= 1, `${track}: arrows vertically centred`);
@@ -129,14 +129,14 @@ test("collections and genres are carousels: side arrows, whole items, greyed at 
       assert.ok(m.n >= min);
     }
     // genres: all 14 reachable by the arrows, and the last page ends greyed
-    for (let i = 0; i < 6 && !(await page.$eval("#bk-genre-next", (b) => b.disabled)); i++) { await page.click("#bk-genre-next"); await new Promise((r) => setTimeout(r, 500)); }
-    assert.equal(await page.$eval("#bk-genre-next", (b) => b.disabled), true, "Next greyed at the end");
+    for (let i = 0; i < 6 && !(await page.$eval("#bk-genre-next", (b) => b.getAttribute("aria-disabled") === "true")); i++) { await page.click("#bk-genre-next"); await new Promise((r) => setTimeout(r, 500)); }
+    assert.equal(await page.$eval("#bk-genre-next", (b) => b.getAttribute("aria-disabled") === "true"), true, "Next greyed at the end");
     assert.equal(await page.$eval("#bk-genre-list .bk-genre:last-child", (e) => { const t = e.parentElement.getBoundingClientRect(), b = e.getBoundingClientRect(); return b.left >= t.left && b.right <= t.right + 1; }), true, "the last genre is whole and reachable");
     // keyboard
     await page.focus("#bk-col-track .col-btn");
     await page.keyboard.press("ArrowRight");
     await new Promise((r) => setTimeout(r, 600));
-    assert.equal(await page.$eval("#bk-col-prev", (b) => b.disabled), false, "Right arrow key moves the collections carousel");
+    assert.equal(await page.$eval("#bk-col-prev", (b) => b.getAttribute("aria-disabled") === "true"), false, "Right arrow key moves the collections carousel");
     // icon sizes: collections 90, genres 50 (unchanged)
     assert.equal(await page.$eval("#bk-col-track .chip", (e) => Math.round(e.getBoundingClientRect().width)), 90);
     assert.equal(await page.$eval("#bk-genre-list .chip", (e) => Math.round(e.getBoundingClientRect().width)), 50);

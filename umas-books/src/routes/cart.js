@@ -6,7 +6,7 @@ const { expireStaleReservations, cancelReservationAsCustomer, MAX_RESERVED_COPIE
 const { seatsTakenExpr } = require("../lib/classCapacity");
 const { isPreviewMode } = require("../lib/preview");
 const { TERMS_OF_SALE_VERSION } = require("../lib/legal");
-const { loadOrderItems, orderItemLabel, reservationLastDay } = require("../lib/orderItems");
+const { loadOrderItems, orderItemLabel, orderItemParts, reservationLastDay } = require("../lib/orderItems");
 const { saveSession } = require("../lib/session");
 const { clean, parseId } = require("../lib/validation");
 const { CART_RETURN } = require("../lib/returnTo");
@@ -374,7 +374,7 @@ router.get("/cart/return", async (req, res) => {
   const order = rows[0];
   if (!order) return res.status(404).render("404");
 
-  const orderItems = (await loadOrderItems(pool, order.id)).map((i) => ({ label: orderItemLabel(i, req.lang), price: i.price, isSeat: i.class_dropin_seat_id != null }));
+  const orderItems = (await loadOrderItems(pool, order.id)).map((i) => ({ label: orderItemLabel(i, req.lang), ...orderItemParts(i, req.lang), price: i.price, isSeat: i.class_dropin_seat_id != null }));
   const sessionUser = req.session && req.session.user;
   const isOwner = !!(sessionUser && order.user_id && sessionUser.id === order.user_id);
   res.render("cart_return", { order, items: orderItems, status: order.status, isOwner, lastDay: reservationLastDay(order), limits: LIMITS });

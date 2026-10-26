@@ -1,16 +1,19 @@
 <%- include('partials/header', { noindex: true, title: tr('Join', 'Inscription') }) %>
 
 <h1><%= tr('Create your account', 'Créer votre compte') %></h1>
-<% if (error) { %><div role="alert" class="error-box"><%= error %></div><% } %>
+<% const _bad = new Set(typeof errorFields !== 'undefined' ? errorFields : []);
+   const _fieldLabels = { displayName: ['displayName', tr('Name', 'Nom')], email: ['email', tr('Email', 'E-mail')] };
+   const invalidAttrs = (k) => _bad.has(k) ? ' aria-invalid="true" aria-describedby="form-errors"' : ''; %>
+<%- include('partials/form_error_summary', { error, fields: [..._bad].filter((k) => _fieldLabels[k]).map((k) => ({ id: _fieldLabels[k][0], label: _fieldLabels[k][1] })) }) %>
 <% if (notice) { %><div role="status" class="notice-box"><%= notice %></div><% } %>
 <%- include('partials/return_note') %>
 <form class="stack" method="post" action="/signup">
   <%- include('partials/csrf_field') %>
   <% if (locals.returnTo) { %><input type="hidden" name="returnTo" value="<%= locals.returnTo %>"><% } %>
   <label for="displayName"><%= tr('Name', 'Nom') %></label>
-  <input id="displayName" name="displayName" type="text" autocomplete="name" value="<%= (locals.values && locals.values.displayName) || '' %>" required>
+  <input id="displayName" name="displayName" type="text" autocomplete="name"<%- invalidAttrs('displayName') %> value="<%= (locals.values && locals.values.displayName) || '' %>" required>
   <label for="email"><%= tr('Email', 'E-mail') %></label>
-  <input id="email" name="email" type="email" autocomplete="email" value="<%= (locals.values && locals.values.email) || '' %>" required>
+  <input id="email" name="email" type="email" autocomplete="email"<%- invalidAttrs('email') %> value="<%= (locals.values && locals.values.email) || '' %>" required>
   <p class="muted small"><%= tr('We will email you a link to confirm your address and choose your password.', 'Nous vous enverrons par e-mail un lien pour confirmer votre adresse et choisir votre mot de passe.') %></p>
   <button class="btn" type="submit"><%= tr('Create account', 'Créer mon compte') %></button>
   <%- include('partials/privacy_note', { en: 'We use your details only to create and manage your account. See our', fr: 'Vos données servent uniquement à créer et gérer votre compte. Consultez notre' }) %>
