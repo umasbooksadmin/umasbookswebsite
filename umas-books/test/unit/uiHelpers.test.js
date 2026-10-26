@@ -105,37 +105,39 @@ test("the Favorites card is exactly what the Favorites page drew before, in Engl
   assert.match(loadUi("fr").favoriteCardHtml(BARE), /<span class="fav-name">Ajouter <span lang="en">L’Étranger &lt;b&gt;<\/span> aux favoris<\/span>/);
 });
 
-// ---- the card on the server (views/marketing/collection.ejs) has the same structure as the one the browser draws ----
+// ---- the card on the server (views/marketing/partials/book_card.ejs, used by views/marketing/collection.ejs) is the browser card ----
 
-// Every opening tag as "tag.class.class[attr,attr]" (attribute NAMES only, sorted). The server template has EJS inside:
-// remove the <% %> tags, which leaves the markup of every branch of its ifs, so it is compared with the union of the
-// browser cards for every branch (cover or none, author, price, heart).
-function shapes(html) {
-  const out = new Set();
-  for (const m of html.matchAll(/<([a-z][a-z0-9]*)\b((?:\s+[a-z-]+(?:="[^"]*")?)*)\s*\/?>/gi)) {
-    const attrs = [...m[2].replace(/="[^"]*"/g, "=").matchAll(/\s([a-z-]+)/gi)].map((a) => a[1]).filter((a) => !["class", "aria-hidden"].includes(a));
-    const cls = (/\sclass="([^"]*)"/.exec(m[2]) || [null, ""])[1].split(/\s+/).filter(Boolean).sort();
-    out.add(`${m[1]}${cls.map((c) => "." + c).join("")}[${attrs.sort().join(",")}]`);
-  }
-  return out;
+// The partial as the server renders it (the helpers res.locals carries), in a page language, the way renderMarketing finishes a French page.
+function serverCard(b, lang) {
+  const ejs = require("ejs");
+  const { bookText, favName } = require("../../src/lib/bookText");
+  const { formatEuro } = require("../../src/lib/money");
+  const { frenchTypography } = require("../../src/lib/frenchTypography");
+  const file = path.join(ROOT, "views", "marketing", "partials", "book_card.ejs");
+  const html = ejs.render(fs.readFileSync(file, "utf8"), {
+    b, lang, tr: (en, fr) => (lang === "fr" ? fr : en), eur: (n) => formatEuro(n, lang), coverSrcset: serverCoverSrcset,
+    bookText: (t, l) => bookText(t, lang, l), favName: (t, l) => favName(t, lang, l),
+  }, { filename: file, views: [path.join(ROOT, "views")] });
+  return lang === "fr" ? frenchTypography(html) : html;
 }
+// What the two renderers may differ in, and nothing else: EJS writes " as &#34; (the same character), and the server's heart svg is aria-hidden
+// (it is decorative; the browser's is not marked, the button has its own name). A French page's curly apostrophe in a title (frenchTypography, on
+// the whole server page) is a straight one in the browser card: public/page-collection.js curls the apostrophes of the cards it adds, so the page is
+// consistent; Browse leaves its titles as they are.
+const sameHtml = (html) => html.replace(/&#34;/g, "&quot;").replace(/<svg ([^>]*) aria-hidden="true">/g, "<svg $1>").replace(/&#39;/g, "’").trim();
 
-test("collection.ejs and the Browse card have the same markup structure: same tags, classes and attributes", () => {
-  const ejs = fs.readFileSync(path.join(ROOT, "views", "marketing", "collection.ejs"), "utf8");
-  const start = ejs.indexOf('<div class="bk-book">');
-  const end = ejs.indexOf("<% }) %>", start);
-  assert.ok(start > 0 && end > start, "the card is still in collection.ejs");
-  // `\n` and attribute values containing EJS (<%= b.id %>) become plain text inside the quotes
-  // the heart is the shared partial (English: aria-label; French: a hidden span with the title marked lang="en")
-  const heart = fs.readFileSync(path.join(ROOT, "views", "partials", "favorite_button.ejs"), "utf8");
-  const server = shapes(ejs.slice(start, end).replace(/<%- include\('..\/partials\/favorite_button'[^%]*%>/, heart).replace(/<%[\s\S]*?%>/g, ""));
-  const browser = new Set();
+test("collection.ejs's card (book_card.ejs) and the Browse card (ui.js bookCardHtml) are the same HTML, byte for byte, in English and French", () => {
+  const cases = [
+    { id: 12, title: "Le Petit Prince", authors: "Antoine de Saint-Exupéry", cover_url: `/img/${HASH}.jpg`, min_price: 7.5 },                 // everything
+    { id: 13, title: "Bare Book <b>", authors: "", cover_url: null, min_price: null },                                                     // no cover, author, price
+    { id: 14, title: "Quotes \"and\" & ampersands", authors: "A & B", cover_url: "/img/x.jpg", min_price: 0 },                             // escaping, a cover with no variants, a price of 0
+    { id: 15, title: "L'Étranger", authors: "Albert Camus", cover_url: null, min_price: 12 },                                              // an apostrophe (curly in French)
+  ];
   for (const lang of ["en", "fr"]) {
     const ui = loadUi(lang);
-    for (const b of [FULL, BARE, { ...FULL, author: "", price: null }]) for (const sh of shapes(ui.bookCardHtml(b, true))) browser.add(sh);
+    for (const b of cases) {
+      const browser = ui.bookCardHtml({ id: b.id, title: b.title, author: b.authors, price: b.min_price, coverUrl: b.cover_url, url: `/books/${b.id}` }, true);
+      assert.equal(sameHtml(serverCard(b, lang)), sameHtml(browser), `${lang} book ${b.id}: the server card and the browser card differ: change both together`);
+    }
   }
-  // the server's title and author spans (lang="en", from bookText()) are made by EJS, so they are not in the template text
-  for (const sh of [...browser]) if (sh.startsWith("span[lang]")) browser.delete(sh);
-  assert.deepEqual([...server].sort(), [...browser].sort(), "the server card and the browser card differ: change both together");
-  assert.ok(server.has("div.bk-book[]") && server.has("button.favorite-toggle[aria-label,aria-pressed,data-book-id,type]") && server.has("span.fav-name[]"), "the shapes were really read");
 });

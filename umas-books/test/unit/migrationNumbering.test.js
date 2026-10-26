@@ -13,7 +13,7 @@
 //  - gaps are allowed (abandoned branches), but only the KNOWN ones below: a new
 //    gap is almost always a number taken by a branch that is still open or lost.
 //
-// Known gaps (numbers that were never used on main; 098 is reserved by an open PR): 049, 051, 052, 061, 064, 067 and 069-073
+// Known gaps (numbers that were never used on main): 049, 051, 052, 061, 064, 067 and 069-073
 // (reserved by branches that renumbered or never used them). They may stay missing, or be filled
 // later (filling a listed gap is fine). Every other number from 001 up to the newest file must exist.
 // If you really must skip a number on purpose, add it to KNOWN_GAPS here in the same PR.
@@ -24,7 +24,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const dir = path.join(__dirname, "..", "..", "migrations");
-const KNOWN_GAPS = new Set([49, 51, 52, 61, 64, 67, 69, 70, 71, 72, 73, 98]); // 98: taken by the open cover-editing PR (#340); fine to fill when it merges
+const KNOWN_GAPS = new Set([49, 51, 52, 61, 64, 67, 69, 70, 71, 72, 73]);
 
 const files = fs.readdirSync(dir).filter((f) => f.endsWith(".sql")).sort();
 

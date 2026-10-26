@@ -22,17 +22,25 @@ const SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const isSlug = (s) => typeof s === "string" && s.length <= 100 && SLUG_RE.test(s);
 
 // The approved, in-stock books of a collection, alphabetical (A, An and The ignored), shaped like the cards of the Browse page.
-async function approvedInStockBooks(pool, collectionId) {
+// { offset, limit } give one page of it (the collection page shows PAGE_SIZE at a time, like the Browse results); without
+// them: every book. countApprovedInStock is the size of the whole list.
+const COLLECTION_PAGE_SIZE = 24;
+const APPROVED_IN_STOCK_FROM = `FROM curated_collection_books cb
+     JOIN books b ON b.id = cb.book_id
+     WHERE cb.collection_id = $1 AND cb.status = 'approved' AND ${IN_STOCK_SQL()}`;
+async function approvedInStockBooks(pool, collectionId, { offset = 0, limit = null } = {}) {
   const { rows } = await pool.query(
     `SELECT b.id, b.title, b.authors, b.cover_url,
             (SELECT MIN(price) FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock') AS min_price
-     FROM curated_collection_books cb
-     JOIN books b ON b.id = cb.book_id
-     WHERE cb.collection_id = $1 AND cb.status = 'approved' AND ${IN_STOCK_SQL()}
-     ORDER BY b.title_sort, b.title, b.id`,
-    [collectionId]
+     ${APPROVED_IN_STOCK_FROM}
+     ORDER BY b.title_sort, b.title, b.id${limit == null ? "" : " LIMIT $2 OFFSET $3"}`,
+    limit == null ? [collectionId] : [collectionId, limit, offset]
   );
   return rows.map((r) => ({ ...r, cover_url: localCover(r.cover_url), min_price: r.min_price != null ? Number(r.min_price) : null }));
+}
+async function countApprovedInStock(pool, collectionId) {
+  const { rows } = await pool.query(`SELECT count(*)::int AS n ${APPROVED_IN_STOCK_FROM}`, [collectionId]);
+  return rows[0].n;
 }
 
 // A published collection by its address, or null (unknown slug and unpublished look the same: a 404).
@@ -255,6 +263,6 @@ async function searchInStock(pool, q, limit = 20) {
 
 module.exports = {
   slugify, slugTaken, freeSlug, createCollection, deleteCollection, moveCollection, addBookByHand, removeBook, searchInStock,
-  IN_STOCK_SQL, isSlug, browseFilterActive, approvedInStockBooks, getPublishedCollection, listButtonCollections, listSitemapCollections,
+  IN_STOCK_SQL, isSlug, browseFilterActive, approvedInStockBooks, countApprovedInStock, COLLECTION_PAGE_SIZE, getPublishedCollection, listButtonCollections, listSitemapCollections,
   localized, publishProblems, setPublished, saveDecisions,
 };

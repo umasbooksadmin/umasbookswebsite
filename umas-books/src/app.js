@@ -289,10 +289,25 @@ function createApp() {
   // upload), rather than one per route, so a single multipart request is
   // never run through multer twice.
   const inventoryUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
-  app.use("/admin/inventory", requireAdmin, inventoryUpload.fields([
+  const inventoryUploadFields = inventoryUpload.fields([
     { name: "photo", maxCount: 1 },
     { name: "coverPhoto", maxCount: 1 },
-  ]));
+  ]);
+  app.use("/admin/inventory", requireAdmin, (req, res, next) => {
+    inventoryUploadFields(req, res, (err) => {
+      if (!err) return next();
+      // Replacing a cover with a photo over the size limit sends the admin back to the book with a sentence
+      // (the Cover card); every other upload keeps the generic error page.
+      const m = req.method === "POST" && /^\/(\d{1,9})\/cover\/replace$/.exec(req.path);
+      if (!m) return next(err);
+      const code = err.code === "LIMIT_FILE_SIZE" ? "too-big" : "not-image";
+      if (req.accepts(["html", "json"]) === "json") {
+        const { COVER_ERRORS } = require("./lib/coverEdit");
+        return res.status(COVER_ERRORS[code].status).json({ ok: false, code, message: COVER_ERRORS[code].message });
+      }
+      res.redirect(303, `/admin/inventory/${m[1]}?cover=${code}#cover`);
+    });
+  });
 
   // Same reasoning as inventoryUpload above, for the announcement form's
   // featured-image upload (see /admin/announcements in routes/admin/announcements.js).

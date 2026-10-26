@@ -1,0 +1,40 @@
+/* The Cover card on a book's admin page (views/admin/inventory/show.ejs, public/cover-edit.js).
+   Every class here starts with cvr-, so no other sheet declares one of them (ARCHITECTURE.md, "CSS ownership").
+   Phone first: the picture and the buttons stack, buttons are the shared 44px .btn size, nothing is wider than the card. */
+
+.cvr-body { display: flex; flex-wrap: wrap; gap: 16px 24px; align-items: flex-start; }
+.cvr-preview { flex: 0 0 auto; max-width: 100%; }
+.cvr-img { display: block; width: 150px; max-width: 100%; height: auto; border-radius: 3px; border: 1px solid var(--card-border); background: var(--cream); }
+.cvr-empty {
+  display: flex; align-items: center; justify-content: center; text-align: center; box-sizing: border-box;
+  width: 150px; max-width: 100%; aspect-ratio: 2 / 3; padding: 8px; border-radius: 3px;
+  border: 1px dashed var(--line-strong); background: var(--cream); color: var(--ink); font-size: 15px;
+}
+.cvr-side { flex: 1 1 240px; min-width: 0; }
+.cvr-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 10px; }
+.cvr-actions form { margin: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.cvr-actions[hidden], .cvr-crop[hidden], .cvr-actions [hidden] { display: none; }
+.cvr-note { margin: 0 0 10px; }
+.cvr-message { margin-bottom: 14px; }
+.cvr-message:focus { outline: 2px solid var(--maroon); outline-offset: 2px; }
+
+/* Crop: the picture with a dimmed surround and a box that can be dragged and resized (pointer events: mouse, pen, finger). */
+.cvr-crop { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+.cvr-stage { position: relative; display: inline-block; max-width: 100%; line-height: 0; overflow: hidden; border-radius: 3px; vertical-align: top; }
+.cvr-stage-img { display: block; max-width: 100%; max-height: 60vh; width: auto; height: auto; user-select: none; -webkit-user-drag: none; }
+/* The only element that turns off the browser's own touch scrolling and zooming, so a finger drags the box and not the page. */
+.cvr-overlay { position: absolute; inset: 0; touch-action: none; cursor: crosshair; }
+.cvr-box {
+  position: absolute; box-sizing: border-box; cursor: move; touch-action: none;
+  border: 2px solid #fff; outline: 1px solid var(--ink); box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
+}
+.cvr-box:focus-visible { outline: 3px solid var(--gold); outline-offset: 0; }
+.cvr-handle { position: absolute; width: 36px; height: 36px; touch-action: none; }
+.cvr-handle::after { content: ""; position: absolute; left: 50%; top: 50%; width: 16px; height: 16px; margin: -8px 0 0 -8px; background: #fff; border: 2px solid var(--ink); border-radius: 3px; box-sizing: border-box; }
+.cvr-handle[data-handle="nw"] { left: -18px; top: -18px; cursor: nwse-resize; }
+.cvr-handle[data-handle="ne"] { right: -18px; top: -18px; cursor: nesw-resize; }
+.cvr-handle[data-handle="sw"] { left: -18px; bottom: -18px; cursor: nesw-resize; }
+.cvr-handle[data-handle="se"] { right: -18px; bottom: -18px; cursor: nwse-resize; }
+.cvr-readout { margin: 8px 0 10px; min-height: 1.4em; }
+.cvr-crop-form { margin: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.cvr-actions .btn span[aria-hidden] { font-size: 1.25em; line-height: 1; margin-right: 4px; }
