@@ -23,6 +23,7 @@ router.use(require("./priceSuggestions")); // before inventory: "price-suggestio
 router.use(require("./inventoryLookup")); // before inventory: "lookup" is not a book id
 router.use(require("./till"));
 router.use(require("./inventory"));
+router.use(require("./inventoryCover")); // the Cover card: replace, rotate, crop, remove
 router.use(require("./awards"));
 router.use(require("./reports"));
 router.use(require("./forum"));
