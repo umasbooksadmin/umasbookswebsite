@@ -3233,17 +3233,17 @@ yellow warning to its run (never a failure, no email).
 6. Run the **bootstrap test** above once and read the two emails/files that
    result.
 
-## ak) Alphabetical order ignores a leading "The"
+## ak) Alphabetical order ignores a leading "The", "A" or "An"
 
 Wherever books are listed A to Z (the shop search, "More by this author", the admin
-**Books & Reservations** list), a leading **The** is ignored: `The Hobbit` is listed
-between `Hamlet` and `Hunger Games`. The title shown is never changed.
+**Books & Reservations** list), a leading **The**, **A** or **An** is ignored: `The Hobbit` is listed
+between `Hamlet` and `Hunger Games`, and `A Midsummer Night's Dream` under M (also the two lists on a collection's edit page and the public collection page). The title shown is never changed.
 
-* Only the whole word "The" is ignored (any capitals), after any leading space, quote or
-  bracket: `Theory of Everything` and `Theodore Rex` stay under T, and `"The Road"` goes
-  under R. A title that is only "The" keeps its own place.
-* **A**/**An** and the French **Le / La / Les / L'** are NOT ignored. To add them, the
-  rule is one expression, in `migrations/086_books_title_sort.sql` (the `books.title_sort`
+* Only the whole word "The", "A" or "An" (followed by a space) is ignored (any capitals), after any leading space, quote or
+  bracket: `Theory of Everything`, `Anne of Green Gables` and `A. J. Ayer` keep their own letter, and `"The Road"` goes
+  under R. A title that is only "The", "A" or "An" keeps its own place.
+* The French **Le / La / Les / L'** are NOT ignored. The rule is one expression, in
+  `migrations/099_books_title_sort_a_an.sql` (the `books.title_sort`
   column) and its twin `sortTitleKey()` in `src/lib/titleSort.js`; ask a developer.
 * `books.title_sort` is a generated column: it updates itself when a title is edited,
   and there is nothing to run by hand. If a title looks mis-sorted, check

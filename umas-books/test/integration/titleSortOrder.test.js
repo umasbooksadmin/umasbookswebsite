@@ -1,4 +1,4 @@
-// Alphabetical order ignores a leading "The" (migration 086, books.title_sort),
+// Alphabetical order ignores a leading "The", "A" or "An" (migrations 086 and 099, books.title_sort),
 // against the real SQL: the public search API (/api/books/search), "More by
 // this author" on the book page, and the admin Inventory list. The titles
 // shown are never changed. Also the migration itself (re-runs cleanly, follows
@@ -19,12 +19,12 @@ const ROOT = path.join(__dirname, "..", "..");
 const AUTHOR = "Sort Author";
 // Inserted in a scrambled order on purpose.
 const TITLES = [
-  "Theory of Everything", "The Hobbit", "Roads", "Hunger Games", "The Road", "a tale", "The  Great Gatsby",
+  "Theory of Everything", "The Hobbit", "Roads", "Hunger Games", "The Road", "a tale", "The  Great Gatsby", "An Introduction", "A Midsummer Night's Dream", "A",
   "Hamlet", "THE END", '"The Road"', "1984", "The 39 Steps", "The", "Theodore Rex",
 ];
 const EXPECTED = [
-  "1984", "The 39 Steps", "a tale", "THE END", "The  Great Gatsby", "Hamlet", "The Hobbit", "Hunger Games",
-  "The Road", '"The Road"', "Roads", "The", "Theodore Rex", "Theory of Everything",
+  "1984", "The 39 Steps", "A", "THE END", "The  Great Gatsby", "Hamlet", "The Hobbit", "Hunger Games",
+  "An Introduction", "A Midsummer Night's Dream", "The Road", '"The Road"', "Roads", "a tale", "The", "Theodore Rex", "Theory of Everything",
 ];
 
 let server;
@@ -99,4 +99,16 @@ test("migration 086 re-runs cleanly and leaves the keys alone", async () => {
   assert.deepEqual((await pool.query("SELECT id, title_sort FROM books ORDER BY id")).rows, before);
   const idx = await pool.query("SELECT 1 FROM pg_indexes WHERE indexname = 'idx_books_title_sort'");
   assert.equal(idx.rowCount, 1);
+});
+
+test("migration 099 (A and An) re-runs cleanly: the keys, the index and the new expression stay", async () => {
+  const before = (await pool.query("SELECT id, title_sort FROM books ORDER BY id")).rows;
+  await pool.query("DELETE FROM schema_migrations WHERE filename = '099_books_title_sort_a_an.sql'");
+  execFileSync("node", ["src/migrate.js"], { cwd: ROOT, env: { ...process.env, PGSSLMODE: "disable" }, encoding: "utf8" });
+  assert.deepEqual((await pool.query("SELECT id, title_sort FROM books ORDER BY id")).rows, before);
+  assert.equal((await pool.query("SELECT 1 FROM pg_indexes WHERE indexname = 'idx_books_title_sort'")).rowCount, 1);
+  const keys = Object.fromEntries(before.map((r) => [r.id, r.title_sort]));
+  assert.equal(keys[ids["An Introduction"]], "introduction");
+  assert.equal(keys[ids["A Midsummer Night's Dream"]], "midsummer night's dream");
+  assert.equal(keys[ids["A"]], "a");
 });
