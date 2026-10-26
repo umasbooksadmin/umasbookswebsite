@@ -180,7 +180,7 @@ async function seedBook({ title = `Seed ${tag()}`, isbn = null, cover = KEEP_COV
 test("guests are sent to /login and non-admins get 403 on every inventory route", async () => {
   const routes = [
     ["GET", "/admin/inventory"], ["GET", "/admin/inventory/new"], ["GET", "/admin/inventory/scan"], ["GET", "/admin/inventory/1"],
-    ["POST", "/admin/inventory"], ["POST", "/admin/inventory/lookup"], ["POST", "/admin/inventory/generate-description"],
+    ["POST", "/admin/inventory"], ["POST", "/admin/inventory/lookup"], ["POST", "/admin/inventory/generate-description"], ["POST", "/admin/inventory/translate-french"],
     ["POST", "/admin/inventory/1"], ["POST", "/admin/inventory/1/delete"], ["POST", "/admin/inventory/1/copies/1"],
     ["POST", "/admin/inventory/1/copies/1/cancel-reservation"], ["POST", "/admin/inventory/1/copies/1/delete"],
   ];
@@ -417,6 +417,67 @@ test("generate-description: needs a title, returns English + French, 502s when t
   r = await post("/admin/inventory/generate-description", { form: { title: "Blurb Book" } });
   assert.equal(r.status, 502);
   assert.match(JSON.parse(r.text).error, /Couldn't generate a description/);
+});
+
+// --------------------------------------------------------- translate-french
+
+// The AI limit is per admin per minute (10): each test uses its own admin so the count of earlier tests does not matter.
+let freshAdminSeq = 900000;
+const freshAdmin = () => ({ "x-test-user": JSON.stringify({ id: ++freshAdminSeq, email: "fr@example.test", displayName: "Fr", isAdmin: true }) });
+
+test("translate-french: genres come from the word list (unknown ones stay English), the description is ONE AI call", async () => {
+  const r = await post("/admin/inventory/translate-french", { headers: freshAdmin(), form: { genre: "Fantasy, Young Adult, Zorblax, fantasy", description: "A big dragon." } });
+  assert.equal(r.status, 200);
+  assert.deepEqual(JSON.parse(r.text), { genreFr: "Fantasy, Jeune adulte, Zorblax", descriptionFr: "FR: A big dragon.", aiMessage: null });
+  assert.equal(anthropicCalls.length, 1, "one AI call, for the description only");
+  assert.match(anthropicCalls[0].messages[0].content, /^Translate/);
+});
+
+test("translate-french: nothing to translate means no AI call and nothing invented", async () => {
+  let r = await post("/admin/inventory/translate-french", { headers: freshAdmin(), form: { genre: "Crime", description: "   " } });
+  assert.deepEqual(JSON.parse(r.text), { genreFr: "Polar", descriptionFr: null, aiMessage: null });
+  r = await post("/admin/inventory/translate-french", { headers: freshAdmin(), form: { genre: " , ,", description: "" } });
+  assert.deepEqual(JSON.parse(r.text), { genreFr: "", descriptionFr: null, aiMessage: null });
+  r = await post("/admin/inventory/translate-french", { headers: freshAdmin(), form: {} });
+  assert.equal(r.status, 200);
+  assert.deepEqual(JSON.parse(r.text), { genreFr: "", descriptionFr: null, aiMessage: null });
+  assert.equal(anthropicCalls.length, 0);
+});
+
+test("translate-french: huge and hostile values are clamped, control characters removed, and nothing is saved", async () => {
+  const before = (await pool.query("SELECT count(*)::int AS n FROM books")).rows[0].n;
+  const hostile = `<script>alert(1)</script>${"x".repeat(9000)}\u0000\u0007`;
+  const r = await post("/admin/inventory/translate-french", { headers: freshAdmin(), form: { genre: `Fantasy,${"G".repeat(2000)}`, description: hostile } });
+  assert.equal(r.status, 200);
+  const out = JSON.parse(r.text);
+  assert.ok(out.genreFr.length <= 300 + 20, `genres clamped (${out.genreFr.length})`);
+  assert.equal(anthropicCalls.length, 1);
+  const prompt = anthropicCalls[0].messages[0].content;
+  assert.ok(prompt.length < 2300, `description clamped before the AI (${prompt.length})`);
+  assert.ok(!/[\u0000-\u0008]/.test(prompt)); // eslint-disable-line no-control-regex
+  assert.equal(typeof out.descriptionFr, "string", "returned as data (the page puts it in a box with .value, never as HTML)");
+  assert.equal((await pool.query("SELECT count(*)::int AS n FROM books")).rows[0].n, before, "saves nothing");
+  const arrays = await post("/admin/inventory/translate-french", { headers: freshAdmin(), form: { genre: ["a", "b"], description: ["c"] } });
+  assert.equal(arrays.status, 200);
+});
+
+test("translate-french: an AI failure still returns the genres, with a plain sentence; no credit and no key say why", async () => {
+  ai.fail = true;
+  let r = await post("/admin/inventory/translate-french", { headers: freshAdmin(), form: { genre: "Humor", description: "A funny book." } });
+  assert.equal(r.status, 200);
+  let out = JSON.parse(r.text);
+  assert.equal(out.genreFr, "Humour");
+  assert.equal(out.descriptionFr, null);
+  assert.equal(out.aiMessage, "The translation could not be made right now (the AI service did not answer). The French genres were still updated.");
+
+  const realKey = process.env.ANTHROPIC_API_KEY;
+  try {
+    delete process.env.ANTHROPIC_API_KEY;
+    r = await post("/admin/inventory/translate-french", { headers: freshAdmin(), form: { genre: "Humor", description: "A funny book." } });
+    out = JSON.parse(r.text);
+    assert.equal(out.genreFr, "Humour");
+    assert.match(out.aiMessage, /\(the AI service is not set up\)\. The French genres were still updated\.$/);
+  } finally { process.env.ANTHROPIC_API_KEY = realKey; }
 });
 
 // ------------------------------------------------------------------ add book
