@@ -406,7 +406,7 @@ test("remove puts the book back to No cover, keeps the picture for the cleanup j
   // public pages
   const page = await get(null, `/books/${id}`);
   assert.equal(page.status, 200);
-  assert.match(page.text, /class="book-detail-cover book-thumb-placeholder">No cover</);
+  assert.match(page.text, /class="book-detail-cover book-thumb-placeholder"[^>]*>No cover</);
   assert.doesNotMatch(page.text, new RegExp(url.slice(5, 30)));
   const search = await (await fetch(`${app.base}/api/books/search?q=${encodeURIComponent((await pool.query("SELECT title FROM books WHERE id=$1", [id])).rows[0].title)}`)).json();
   assert.equal(search.find((b) => b.id === id).coverUrl, null);
