@@ -131,7 +131,7 @@ test("French browse page: the genre chips are translated (Jeune adulte, Document
 test("French book page: the favorite button's aria-label uses the curly apostrophe", async () => {
   await pool.query("UPDATE books SET title = $2 WHERE id = $1", [ids.none, `L'Étranger ${stamp}`]);
   const html = await get(`/books/${ids.none}`, "fr");
-  assert.match(html, /aria-label="Ajouter L’Étranger \d+ aux favoris"/);
+  assert.match(html, /<span class="fav-name">Ajouter <span lang="en">L’Étranger \d+<\/span> aux favoris<\/span>/, "the French name is a hidden span, the English title marked lang=en");
   const en = await get(`/books/${ids.none}`, "en");
   assert.match(en, /aria-label="Add L(&#39;|')Étranger \d+ to favorites"/, "English is untouched");
 });

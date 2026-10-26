@@ -29,7 +29,8 @@ async function carouselState(page) {
     return {
       count: cards.length, scrollLeft: tr.scrollLeft, cut, clipped,
       firstOffset: first ? Math.round((first.r.left - T.left - pad) * 10) / 10 : null,
-      prevDisabled: document.getElementById("bk-new-prev").disabled, nextDisabled: document.getElementById("bk-new-next").disabled,
+      // the arrows are aria-disabled (never `disabled`, so a focused arrow keeps focus at the end of the row)
+      prevDisabled: document.getElementById("bk-new-prev").getAttribute("aria-disabled") === "true", nextDisabled: document.getElementById("bk-new-next").getAttribute("aria-disabled") === "true",
       docWider: document.documentElement.scrollWidth > innerWidth + 1,
     };
   }, CAROUSEL_TEXT_ALLOW);

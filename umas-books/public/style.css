@@ -127,6 +127,10 @@ input[type="file"].file-input-hidden {
 }
 .password-toggle:hover { color: var(--maroon); }
 
+.err-msg { margin: 0; }
+.err-fields { margin: 6px 0 0; padding-left: 20px; }
+.err-fields a { color: inherit; text-decoration: underline; }
+.error-box:focus { outline: 2px solid #90503f; outline-offset: 2px; } /* focused by public/app.js after a refused form */
 .error-box { background: #f7f1f0; border: 1px solid #d4b4ab; color: #90503f; padding: 10px 14px; border-radius: 3px; font-size: 15px; margin-bottom: 14px; }
 .notice-box { background: #f0f0ee; border: 1px solid #acaba1; color: #47462f; padding: 10px 14px; border-radius: 3px; font-size: 15px; margin-bottom: 14px; }
 
@@ -311,6 +315,16 @@ form.stack select { font-family: var(--font-serif); font-size: 17px; color: var(
 .copy-table td { padding: 8px 8px 8px 0; border-bottom: 1px solid var(--card-border); vertical-align: middle; }
 .copy-table td:last-child, .copy-table th:last-child { text-align: right; padding-right: 0; }
 .copy-table form { margin: 0; }
+/* Below 420px (a 320px phone, or a 400% browser zoom) three columns plus a button are wider than the box and the page scrolled
+   sideways (WCAG 1.4.10 Reflow). Each copy becomes a small block: condition, price, button on their own lines. The table
+   roles are written in the markup (views/book_detail.ejs) because display: block drops them in some screen readers. */
+@media (max-width: 419px) {
+  .copy-table, .copy-table tbody { display: block; }
+  .copy-table thead { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .copy-table tr { display: block; padding: 10px 0; border-bottom: 1px solid var(--card-border); }
+  .copy-table td, .copy-table td:last-child { display: block; text-align: left; border: 0; padding: 3px 0; }
+  .copy-table td .btn { width: 100%; }
+}
 .grade-legend { margin-top: 12px; font-size: 14.5px; }
 .grade-legend summary { cursor: pointer; color: var(--maroon-dark); font-weight: 600; }
 .grade-legend dl { margin: 10px 0 0; display: grid; grid-template-columns: max-content 1fr; gap: 8px 14px; align-items: baseline; }

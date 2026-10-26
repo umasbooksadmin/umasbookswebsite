@@ -32,11 +32,12 @@ function privatePage(res) {
   res.set("Referrer-Policy", "no-referrer");
 }
 
-function renderForm(req, res, { status = 200, error = null, values = null } = {}) {
+function renderForm(req, res, { status = 200, error = null, values = null, errorFields = [] } = {}) {
   const u = req.session && req.session.user;
   res.set("Cache-Control", "no-store");
   res.status(status).render("request_book", {
     error,
+    errorFields,
     values: values || { title: "", author: "", isbn: "", email: u ? u.email : "", name: u ? u.displayName || "" : "", note: "" },
   });
 }
@@ -81,7 +82,7 @@ function formValues(body) {
 
 router.get("/request-a-book", (req, res) => {
   const flash = takePageFlash(req, res, "requestBook");
-  renderForm(req, res, flash ? { error: flash.error, values: flash.values } : {});
+  renderForm(req, res, flash ? { error: flash.error, values: flash.values, errorFields: flash.errorFields || [] } : {});
 });
 router.get(SENT_URL, (req, res) => sentPage(res));
 router.get(CONFIRMED_URL, (req, res) => {
@@ -113,19 +114,24 @@ router.post("/request-a-book", requestLimiter, async (req, res) => {
   const isbn = br.parseRequestIsbn(values.isbn);
 
   let error = null;
+  let errorFields = [];   // the inputs the message is about (views/request_book.ejs links to them)
   if (!values.title) {
+    errorFields = ["title"];
     error = req.tr("Please tell us the title of the book.", "Veuillez indiquer le titre du livre.");
   } else if (!isEmail(values.email)) {
+    errorFields = ["email"];
     error = req.tr("Please enter one valid email address, so we can write to you.", "Veuillez saisir une seule adresse e-mail valide, pour que nous puissions vous écrire.");
   } else if (isbn === null) {
+    errorFields = ["isbn"];
     error = req.tr("The ISBN should have 10 or 13 digits (or leave it empty).", "L'ISBN doit comporter 10 ou 13 chiffres (ou laissez le champ vide).");
   } else if (tooLong.length) {
+    errorFields = tooLong;
     error = req.tr(
       "Something you typed is too long. Titles can have up to 200 characters and notes up to 500.",
       "Un champ est trop long. Les titres peuvent comporter jusqu'à 200 caractères et les notes jusqu'à 500."
     );
   }
-  if (error) return redirectWithFlash(req, res, "/request-a-book", "requestBook", { error, values });
+  if (error) return redirectWithFlash(req, res, "/request-a-book", "requestBook", { error, errorFields, values });
 
   const user = req.session && req.session.user;
   const lang = normLang(req.lang) || "en";

@@ -3,24 +3,27 @@
 <h1><%= tr("Can't find a book? Ask us", 'Vous ne trouvez pas un livre ? Demandez-nous') %></h1>
 <p class="muted"><%= tr("Tell us which book you are looking for and we'll keep an eye out for it. If a copy arrives, we'll email you. You don't need an account or a membership.", "Dites-nous quel livre vous cherchez et nous garderons l'œil ouvert. Si un exemplaire arrive, nous vous écrirons. Vous n'avez besoin ni de compte ni d'adhésion.") %></p>
 
-<% if (error) { %><div role="alert" class="error-box"><%= error %></div><% } %>
+<% const _bad = new Set(typeof errorFields !== 'undefined' ? errorFields : []);
+   const _fieldLabels = { title: ['rb-title', tr('Title', 'Titre')], author: ['rb-author', tr('Author (optional)', 'Auteur (facultatif)')], isbn: ['rb-isbn', tr('ISBN (optional)', 'ISBN (facultatif)')], email: ['rb-email', tr('Your email', 'Votre e-mail')], name: ['rb-name', tr('Your name (optional)', 'Votre nom (facultatif)')], note: ['rb-note', tr('Anything else we should know? (optional)', "Autre chose à nous dire ? (facultatif)")] };
+   const invalidAttrs = (k) => _bad.has(k) ? ' aria-invalid="true" aria-describedby="form-errors"' : ''; %>
+<%- include('partials/form_error_summary', { error, fields: [..._bad].filter((k) => _fieldLabels[k]).map((k) => ({ id: _fieldLabels[k][0], label: _fieldLabels[k][1] })) }) %>
 
 <div class="card">
   <form class="stack" method="post" action="/request-a-book">
     <%- include('partials/csrf_field') %>
     <label for="rb-title"><%= tr('Title', 'Titre') %></label>
-    <input id="rb-title" name="title" type="text" maxlength="200" required value="<%= values.title || '' %>">
+    <input id="rb-title" name="title" type="text" maxlength="200" required<%- invalidAttrs('title') %> value="<%= values.title || '' %>">
     <label for="rb-author"><%= tr('Author (optional)', 'Auteur (facultatif)') %></label>
-    <input id="rb-author" name="author" type="text" maxlength="150" value="<%= values.author || '' %>">
+    <input id="rb-author" name="author" type="text" maxlength="150"<%- invalidAttrs('author') %> value="<%= values.author || '' %>">
     <label for="rb-isbn"><%= tr('ISBN (optional)', 'ISBN (facultatif)') %></label>
     <%# inputmode="text", not "numeric": the iOS number pad has no X (an ISBN-10 can end in one) and no hyphen, so a customer could not type those ISBNs. autocapitalize makes the X a capital. %>
-    <input id="rb-isbn" name="isbn" type="text" inputmode="text" autocapitalize="characters" autocorrect="off" spellcheck="false" maxlength="40" autocomplete="off" value="<%= values.isbn || '' %>">
+    <input id="rb-isbn" name="isbn" type="text" inputmode="text" autocapitalize="characters" autocorrect="off" spellcheck="false" maxlength="40" autocomplete="off"<%- invalidAttrs('isbn') %> value="<%= values.isbn || '' %>">
     <label for="rb-email"><%= tr('Your email', 'Votre e-mail') %></label>
-    <input id="rb-email" name="email" type="email" autocomplete="email" maxlength="200" required value="<%= values.email || '' %>">
+    <input id="rb-email" name="email" type="email" autocomplete="email" maxlength="200" required<%- invalidAttrs('email') %> value="<%= values.email || '' %>">
     <label for="rb-name"><%= tr('Your name (optional)', 'Votre nom (facultatif)') %></label>
-    <input id="rb-name" name="name" type="text" autocomplete="name" maxlength="100" value="<%= values.name || '' %>">
+    <input id="rb-name" name="name" type="text" autocomplete="name" maxlength="100"<%- invalidAttrs('name') %> value="<%= values.name || '' %>">
     <label for="rb-note"><%= tr('Anything else we should know? (optional)', "Autre chose à nous dire ? (facultatif)") %></label>
-    <textarea id="rb-note" name="note" rows="4" maxlength="500"><%= values.note || '' %></textarea>
+    <textarea id="rb-note" name="note" rows="4" maxlength="500"<%- invalidAttrs('note') %>><%= values.note || '' %></textarea>
     <div class="hp" aria-hidden="true">
       <label for="rb-website"><%= tr('Website', 'Site web') %></label>
       <input id="rb-website" name="website" type="text" tabindex="-1" autocomplete="off">

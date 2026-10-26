@@ -173,7 +173,7 @@ test("book page (English): every copy is listed with its grade and price, plus t
   const { status, text } = await page(`/books/${b.id}`, "en");
   assert.equal(status, 200);
   for (const [grade, price] of [["Acceptable", "3.00"], ["New", "12.00"], ["Like New", "7.00"], ["Very Good", "6.00"], ["Good", "9.00"]]) {
-    assert.match(text, new RegExp(`condition-badge condition-[a-z_]+">${grade}</span></td>\\s*<td>€${price}</td>`), grade);
+    assert.match(text, new RegExp(`condition-badge condition-[a-z_]+">${grade}</span></td>\\s*<td role="cell">€${price}</td>`), grade);
   }
   for (const id of b.copyIds) assert.match(text, new RegExp(`name="copyId" value="${id}"`), "an add-to-cart form per copy");
   assert.match(text, /<details class="grade-legend">/);

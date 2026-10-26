@@ -87,6 +87,7 @@ const nav = [
 
 <%- include('../../partials/mkt_chrome_header', { nav, activeNav: typeof activeNav !== 'undefined' ? activeNav : undefined }) %>
 <% if (typeof hideBackLink === 'undefined' || !hideBackLink) { %>
-<div class="site-back-bar"><a href="<%= typeof backHref !== 'undefined' && backHref ? backHref : '/' %>" class="site-back-link" data-i18n="nav.back"><%= _isFr ? '← Retour' : '← Back' %></a></div>
+<%# A landmark of its own (axe "region", RGAA 9.2): the bar sits above <main>, so it is a labelled <nav>, not loose content. %>
+<nav class="site-back-bar" aria-label="<%= _isFr ? 'Lien de retour' : 'Back link' %>"><a href="<%= typeof backHref !== 'undefined' && backHref ? backHref : '/' %>" class="site-back-link" data-i18n="nav.back"><%= _isFr ? '← Retour' : '← Back' %></a></nav>
 <% } %>
 <main id="main-content" tabindex="-1">

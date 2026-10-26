@@ -47,6 +47,7 @@ test("the arrows are 44px, have a focus outline, are disabled at the ends and ar
   assert.equal(books.getDecl(".bk-carousel .arrow", "height"), "44px");
   assert.match(books.getDecl(".bk-carousel .arrow:focus-visible", "outline"), /^3px solid/);
   assert.ok(books.hasRule(".bk-carousel .arrow:disabled"));
+  assert.ok(books.hasRule('.bk-carousel .arrow[aria-disabled="true"]'), "the aria-disabled arrow looks greyed out");
   assert.equal(books.getDecl(".bk-carousel .arrow", "display", { at: "@media (max-width: 620px) and (pointer: coarse)" }), "none");
   assert.equal(books.getDecl(".bk-carousel .arrow", "display", { at: "@media (max-width: 620px)" }), undefined, "arrows are not hidden on a mouse-driven narrow window");
 });
@@ -55,8 +56,9 @@ test("the arrows scroll to a measured card edge (not 80% of the width) from wher
   assert.doesNotMatch(cjs, /clientWidth \* 0\.8/);
   assert.match(cjs, /track\.scrollTo\(\{ left: stopAt\(cards, i\)/);
   assert.match(cjs, /var from = heading != null \? heading : nearest\(cards\)/, "rapid clicks add up");
-  assert.match(cjs, /nextBtn\.disabled = /);
-  assert.match(cjs, /prevBtn\.disabled = /);
+  assert.match(cjs, /setDisabled\(nextBtn, /);
+  assert.doesNotMatch(cjs, /Btn\.disabled = /, "never `disabled`: a focused arrow would drop focus on <body>");
+  assert.match(cjs, /setDisabled\(prevBtn, /);
   assert.match(cjs, /e\.key !== 'ArrowRight' && e\.key !== 'ArrowLeft'/);
   assert.match(cjs, /new ResizeObserver/, "a resize or zoom re-aligns");
 });
@@ -83,7 +85,7 @@ test("the carousel loads New In in batches (no all=1, no 12-book limit), the pag
   assert.match(js, /getJSON\(newInBatchUrl\(0\)/, "first batch: the newest 60");
   assert.match(js, /makeCarousel\(track, [^\n]*'\.bk-book', \{\s*hasMore:/, "only the New In carousel has a loadMore hook");
   assert.match(js, /makeCarousel\(genreList, [^\n]*'\.bk-genre'\);/, "the genres carousel is unchanged");
-  assert.match(cjs, /nextBtn\.disabled = hasMore\(\) \? false :/, "Next is never greyed out while more batches remain");
+  assert.match(cjs, /setDisabled\(nextBtn, hasMore\(\) \? false :/, "Next is never greyed out while more batches remain");
   assert.doesNotMatch(booksRoute, /req\.query\.all/, "the unbounded all=1 mode is gone");
   assert.match(booksRoute, /newInPage\(pool,/);
   assert.equal(latest.NEW_IN_MAX, undefined, "no maximum on the list itself (batches are only how it is delivered)");

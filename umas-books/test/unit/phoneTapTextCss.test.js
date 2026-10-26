@@ -61,10 +61,10 @@ test("tap targets: the touch rule applies at phone width and on any touch screen
     if (r.selectors.includes(".btn")) assert.ok(!r.decls.some((d) => d.prop === "min-height"), `.btn min-height outside the touch block (${r.at || "top level"})`);
   }
 });
-test("tap targets: Instagram and Facebook icons keep their 24px icon inside a 44px area; hearts have a 50px invisible area; back link is a 44px row", () => {
+test("tap targets: Instagram and Facebook icons keep their 24px icon inside a 44px area; hearts have a 44px invisible area; back link is a 44px row", () => {
   isDecl(header, "footer.mkt-footer .h-social svg", { width: "24px", height: "24px" }); // icon stays 24px
   isDecl(header, "footer.mkt-footer .h-social a", { padding: "10px", margin: "-10px -4px" }); // 44px area around the icon
-  isDecl(header, ".favorite-toggle::after", { content: '""', position: "absolute", inset: "-10px" }); // heart hit area
+  isDecl(header, ".favorite-toggle::after", { content: '""', position: "absolute", width: "44px", height: "44px" }); // heart hit area: exactly 44 x 44, centred
   isDecl(header, ".site-back-link", { padding: "0", margin: "0", "min-height": "44px" }, TOUCH); // back link row on a phone
   assert.match(read("umas-books", "views", "login.ejs"), /<a class="tap-link" href="\/forgot-password">/);
   assert.match(read("umas-books", "views", "book_detail.ejs"), /<a class="tap-link" href="\/books\.html/);

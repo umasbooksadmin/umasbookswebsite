@@ -1182,6 +1182,13 @@ Archive is never printed in a page: it is downloaded once and stored too
   fits in the web font also fits in the stand-in); re-measure if a font file changes.
   Phones without Georgia/Arial (some Android) fall through to the generic font as before.
 
+## Accessibility conventions (WCAG 2.2 AA / RGAA)
+
+- **Language of parts.** The shop sells English books, so on a French page titles and authors are wrapped in `<span lang="en">` (`src/lib/bookText.js`, views use `bookText()`; browser twin `UmasUI.enSpan` in `public/ui.js`). The catalogue has no book-language field; a book that carried a non-English `language` would be left unwrapped. An `aria-label` cannot carry a `lang`, so on French pages the favourite heart's name is a visually-hidden `.fav-name` span inside the button (`views/partials/favorite_button.ejs`); English pages keep a plain `aria-label`. Image `alt` text (cover) stays one French sentence with the title inside it: the HTML alt attribute cannot switch language.
+- **Carousels** (`public/carousel.js`): only the items on screen are tab stops (`tabStops()`, the rest get `tabindex="-1"`); the Next arrow is before the track in the DOM and drawn after it with CSS `order`; arrows use `aria-disabled`, never `disabled` (a focused button that gets disabled drops focus on `<body>`); a skip link jumps from New In to Browse by Genre.
+- **Customer form errors:** `views/partials/form_error_summary.ejs` (role=alert, links to the fields, `data-form-errors`, focused by `public/app.js`) plus `aria-invalid` and `aria-describedby="form-errors"` on the fields named by the route's `errorFields`. The marketing forms (volunteer, pre-registration) have their own summary partial.
+- **Hit areas:** the heart's invisible `::after` is exactly 44 x 44 and centred, whatever the heart's own size.
+
 ## CSS ownership
 
 Three layouts, three base sheets. A page loads exactly one of these sets (the real `<link>` tags are in the three layout

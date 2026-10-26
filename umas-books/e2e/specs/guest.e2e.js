@@ -1654,6 +1654,76 @@ s.test("G101 (must) the header and footer links on a collection page open real p
   }
 });
 
+s.test("G102 (must) keyboard on Browse Books: few Tab stops through the New In row, a skip link, arrows before the books, and Next keeps focus at the end", { timeout: 120000 }, async (ctx) => {
+  await ctx.page.setViewport({ width: 1280, height: 800, deviceScaleFactor: 1 });
+  await ctx.page.setCookie({ name: "umasbooks_lang", value: "en", url: cfg.baseUrl() });
+  await ctx.goto("/books.html", "networkidle2");
+  await ctx.page.waitForSelector("#bk-new-track .bk-book", { timeout: 8000 }).catch(() => ctx.skip("data: the site has no New In books"));
+  await new Promise((r) => setTimeout(r, 400));
+  await ctx.page.focus("#bk-new-all");
+  const names = [];
+  for (let i = 0; i < 40; i++) {
+    await ctx.page.keyboard.press("Tab");
+    const id = await ctx.page.evaluate(() => { const e = document.activeElement; return e && e.id ? e.id : e ? e.tagName : "none"; });
+    names.push(id);
+    if (id === "bk-genre-prev") break;
+  }
+  assert.ok(names.includes("bk-genre-prev"), `Tab reaches the genre row within 40 presses (${names.join(" ")})`);
+  assert.ok(names.length < 20, `fewer than 20 Tab presses to pass the New In row, took ${names.length}`);
+  assert.ok(names.indexOf("bk-new-prev") < names.indexOf("bk-new-next") && names.indexOf("bk-new-next") < names.findIndex((n) => n === "A" || n === "BUTTON"), `the arrows come before the books (${names.slice(0, 6).join(" ")})`);
+  // the skip link is the first stop after See All, hidden until focused, and goes to the genres
+  await ctx.page.focus("#bk-new-all");
+  await ctx.page.keyboard.press("Tab");
+  const skip = await ctx.page.evaluate(() => { const a = document.activeElement; const r = a.getBoundingClientRect(); return { cls: a.className, w: r.width, h: r.height, href: a.getAttribute("href") }; });
+  assert.equal(skip.cls, "bk-skip");
+  assert.ok(skip.w > 40 && skip.h > 15, "the skip link is visible while focused");
+  assert.equal(skip.href, "#bk-genres-label");
+  // Next at the end of the row: it never becomes `disabled`, so focus stays on it
+  await ctx.page.focus("#bk-new-next");
+  for (let i = 0; i < 120; i++) {
+    await ctx.page.keyboard.press("Enter");
+    await new Promise((r) => setTimeout(r, 100));
+    if (await ctx.page.$eval("#bk-new-next", (b) => b.getAttribute("aria-disabled") === "true")) break;
+  }
+  const end = await ctx.page.evaluate(() => ({ id: document.activeElement && document.activeElement.id, ad: document.getElementById("bk-new-next").getAttribute("aria-disabled"), dis: document.getElementById("bk-new-next").disabled }));
+  assert.deepEqual(end, { id: "bk-new-next", ad: "true", dis: false }, "focus stays on Next at the end of the row");
+});
+
+s.test("G103 (must) a refused contact form shows an error summary with links to the fields, marks them invalid and puts focus on the summary", async (ctx) => {
+  for (const lang of ["en", "fr"]) {
+    await ctx.page.setCookie({ name: "umasbooks_lang", value: lang, url: cfg.baseUrl() });
+    await ctx.goto("/contact", "networkidle2");
+    await ctx.page.$eval("#c-name", (i) => { i.required = false; });
+    await ctx.page.$eval("#c-email", (i) => { i.required = false; i.type = "text"; i.value = "not-an-address"; });
+    await ctx.page.$eval("#c-message", (i) => { i.required = false; });
+    await Promise.all([ctx.page.waitForNavigation({ waitUntil: "networkidle2" }), ctx.page.click("form[action='/contact'] button[type=submit]")]);
+    const r = await ctx.page.evaluate(() => ({
+      active: document.activeElement && document.activeElement.id, links: [...document.querySelectorAll("#form-errors a")].map((a) => a.getAttribute("href")),
+      invalid: [...document.querySelectorAll("[aria-invalid=true]")].map((e) => e.id),
+    }));
+    assert.equal(r.active, "form-errors", `${lang}: focus is on the error summary`);
+    assert.deepEqual(r.links, ["#c-name", "#c-email", "#c-message"], `${lang}: the summary links to every field that needs a change`);
+    assert.deepEqual(r.invalid, ["c-name", "c-email", "c-message"], `${lang}: the fields are marked invalid`);
+  }
+});
+
+s.test("G104 (must) a book with several copies fits a 320 px wide screen with no sideways scrolling, and stays a table for screen readers", async (ctx) => {
+  const ids = await e2e.getJson("/api/books/new-in?offset=0&limit=100");
+  let found = null;
+  for (const b of (ids && ids.books) || []) {
+    await ctx.goto(b.url, "networkidle2");
+    if ((await ctx.page.$$(".copy-table tbody tr")).length > 1) { found = b; break; }
+  }
+  if (!found) ctx.skip("data: needs a book with two or more copies in stock");
+  for (const width of [320, 400]) {
+    await ctx.page.setViewport({ width, height: 800, deviceScaleFactor: 1 });
+    await ctx.goto(found.url, "networkidle2");
+    const m = await ctx.page.evaluate(() => ({ over: document.documentElement.scrollWidth - document.documentElement.clientWidth, role: document.querySelector(".copy-table").getAttribute("role") }));
+    assert.ok(m.over <= 0, `${width} px: the page scrolls sideways by ${m.over}px`);
+    assert.equal(m.role, "table");
+  }
+});
+
 s.test("G-FR55 FR check (membership): the form and the payment step are in French", { lang: "fr" }, async (ctx) => {
   await joinPage(ctx);
   const text = await ctx.text();

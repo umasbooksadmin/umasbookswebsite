@@ -110,7 +110,22 @@
 }
 .bk-carousel .arrow svg { width: 26px; height: 26px; }
 .bk-carousel .arrow:hover { color: var(--maroon); }
-.bk-carousel .arrow:disabled { opacity: .3; cursor: default; color: var(--ink); }
+.bk-carousel .arrow:disabled, .bk-carousel .arrow[aria-disabled="true"] { opacity: .3; cursor: default; color: var(--ink); } /* aria-disabled, not disabled: a focused arrow that reached the end keeps focus (public/carousel.js) */
+/* The Next arrow comes before the track in the page (so it is reached before the cards), and is drawn after it. */
+.bk-carousel > .arrow { order: 1; }
+.bk-carousel > .bk-track { order: 2; }
+.bk-carousel > .arrow-next { order: 3; }
+.bk-track:focus-visible { outline: 3px solid var(--maroon); outline-offset: -3px; border-radius: 6px; }
+/* Skip link over the New In row, visible only while it has keyboard focus: it sits in the section's top padding. */
+.bk-new { position: relative; }
+.bk-skip {
+  position: absolute; top: 3px; left: 0; z-index: 5; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+  background: var(--maroon); color: #fff; font-family: var(--font-serif); font-weight: 600; text-decoration: none; border-radius: 4px;
+}
+.bk-skip:focus { width: auto; height: auto; margin: 0; padding: 3px 12px; font-size: 16px; line-height: 1.3; overflow: visible; clip: auto; outline: 2px solid #fff; outline-offset: -4px; }
+/* Text for screen readers only (the results status line). */
+.bk-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.bk-more-row .btn[aria-disabled="true"] { opacity: .6; cursor: progress; }
 /* More New In books are being fetched: the arrow pulses (it is never greyed out while more remain). */
 .bk-carousel .arrow.is-loading { animation: bk-arrow-pulse .9s ease-in-out infinite; cursor: progress; }
 @keyframes bk-arrow-pulse { 50% { opacity: .35; } }

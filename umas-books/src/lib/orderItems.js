@@ -46,6 +46,16 @@ function orderItemLabel(item, lang) {
   return condition ? `${label} (${conditionLabel(condition, lang)})` : label;
 }
 
+// The pieces of a book line's label, so a French page can mark the English title (lib/bookText.js) and leave the French
+// grade alone. A drop-in seat line has no title of its own to mark: { bookTitle: null }.
+function orderItemParts(item, lang) {
+  const title = item.class_title ?? item.classTitle;
+  const startsAt = item.class_starts_at ?? item.classStartsAt;
+  if (title != null && startsAt != null) return { bookTitle: null, grade: "" };
+  const condition = item.copy_condition ?? item.condition;
+  return { bookTitle: item.item_title ?? item.title, grade: condition ? conditionLabel(condition, lang) : "" };
+}
+
 async function loadOrderItems(pool, orderId) {
   const { rows } = await pool.query(ORDER_ITEMS_SQL, [orderId]);
   return rows;
@@ -58,4 +68,4 @@ function reservationLastDay(order) {
   return order.reserved_until ? new Date(new Date(order.reserved_until).getTime() - 60 * 1000) : null;
 }
 
-module.exports = { ORDER_ITEMS_SQL, dropinLabel, orderItemLabel, loadOrderItems, reservationLastDay };
+module.exports = { ORDER_ITEMS_SQL, dropinLabel, orderItemLabel, orderItemParts, loadOrderItems, reservationLastDay };
