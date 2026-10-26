@@ -21,7 +21,7 @@ const IN_STOCK_SQL = (bookId = "b.id") => `EXISTS (SELECT 1 FROM book_copies c W
 const SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const isSlug = (s) => typeof s === "string" && s.length <= 100 && SLUG_RE.test(s);
 
-// The approved, in-stock books of a collection, in the admin's order, shaped like the cards of the Browse page.
+// The approved, in-stock books of a collection, alphabetical (A, An and The ignored), shaped like the cards of the Browse page.
 // { offset, limit } give one page of it (the collection page shows PAGE_SIZE at a time, like the Browse results); without
 // them: every book. countApprovedInStock is the size of the whole list.
 const COLLECTION_PAGE_SIZE = 24;
@@ -33,7 +33,7 @@ async function approvedInStockBooks(pool, collectionId, { offset = 0, limit = nu
     `SELECT b.id, b.title, b.authors, b.cover_url,
             (SELECT MIN(price) FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock') AS min_price
      ${APPROVED_IN_STOCK_FROM}
-     ORDER BY cb.position, b.title_sort, b.id${limit == null ? "" : " LIMIT $2 OFFSET $3"}`,
+     ORDER BY b.title_sort, b.title, b.id${limit == null ? "" : " LIMIT $2 OFFSET $3"}`,
     limit == null ? [collectionId] : [collectionId, limit, offset]
   );
   return rows.map((r) => ({ ...r, cover_url: localCover(r.cover_url), min_price: r.min_price != null ? Number(r.min_price) : null }));
@@ -218,15 +218,20 @@ async function moveCollection(pool, id, dir) {
 
 // A book added by hand counts as approved at once. It must exist and be in stock now.
 async function addBookByHand(pool, collectionId, bookId) {
-  const { rows } = await pool.query(`SELECT b.id FROM books b WHERE b.id = $1 AND ${IN_STOCK_SQL()}`, [bookId]);
-  if (!rows.length) return { ok: false, error: "That book is not in stock, so it cannot be added." };
-  const { rows: pos } = await pool.query("SELECT COALESCE(MAX(position), 0) + 1 AS p FROM curated_collection_books WHERE collection_id = $1", [collectionId]);
-  await pool.query(
-    `INSERT INTO curated_collection_books (collection_id, book_id, status, reason, position) VALUES ($1, $2, 'approved', 'Added by hand', $3)
-     ON CONFLICT (collection_id, book_id) DO UPDATE SET status = 'approved', updated_at = now()`,
-    [collectionId, bookId, pos[0].p]
-  );
-  return { ok: true };
+  // Under the collection's lock, like every other change to its books (two clicks at once cannot take the same position).
+  return withTransaction(pool, async (db) => {
+    const { rowCount: exists } = await lockCollection(db, collectionId);
+    if (!exists) return { ok: false, error: "That collection does not exist." };
+    const { rows } = await db.query(`SELECT b.id FROM books b WHERE b.id = $1 AND ${IN_STOCK_SQL()}`, [bookId]);
+    if (!rows.length) return { ok: false, error: "That book is not in stock, so it cannot be added." };
+    const { rows: pos } = await db.query("SELECT COALESCE(MAX(position), 0) + 1 AS p FROM curated_collection_books WHERE collection_id = $1", [collectionId]);
+    await db.query(
+      `INSERT INTO curated_collection_books (collection_id, book_id, status, reason, position) VALUES ($1, $2, 'approved', 'Added by hand', $3)
+       ON CONFLICT (collection_id, book_id) DO UPDATE SET status = 'approved', updated_at = now()`,
+      [collectionId, bookId, pos[0].p]
+    );
+    return { ok: true };
+  });
 }
 
 // Removes the link (the book itself is untouched). A collection left with no approved book is unpublished.

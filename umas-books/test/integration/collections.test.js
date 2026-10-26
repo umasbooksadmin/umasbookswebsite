@@ -1099,3 +1099,76 @@ test("An empty collection with a banner still shows its message", async () => {
   assert.match(t, /<div class="col-empty" role="status">[\s\S]*Every book in this collection has found a new home/);
   assert.match(t, /<h1 class="col-sr"/);
 });
+
+// ---------- Save choices with several ticks; add-by-hand visibility; order by name ----------
+
+test("Save choices keeps EVERY ticked Approve and Reject (a repeated field is a list, not its first value)", async () => {
+  const c = await freshCollection();
+  const books = [];
+  for (let i = 0; i < 6; i++) { const b = await newBook(`Multi ${i} ${uniq()}`); books.push(b); await addRow(c.id, b.id, "suggested", "r", i + 1); }
+  const [a1, a2, a3, r1, r2, wait] = books;
+  const r = await adminPost(`/admin/collections/${c.id}/review`, { ids: books.map((b) => b.id), approve: [a1.id, a2.id, a3.id], reject: [r1.id, r2.id] });
+  assert.match(notice(r.text), /Saved your choices \(5 changed\)/);
+  assert.deepEqual(
+    await Promise.all(books.map((b) => status(c.id, b.id))),
+    ["approved", "approved", "approved", "rejected", "rejected", "suggested"]
+  );
+  assert.equal(wait.id, books[5].id);
+});
+
+// The review form posts ids/approve/reject: one repeated field per book, checked on the page that renders them.
+test("the edit page: books in alphabetical order ignoring The/A/An, in both lists and on the public page; Remove is outside the review form", async () => {
+  const c = await freshCollection();
+  const tag = uniq();
+  const titles = [`Theory ${tag}`, `The Hobbit ${tag}`, `A Midsummer ${tag}`, `An Introduction ${tag}`, `Zebra ${tag}`];
+  const expected = [`The Hobbit ${tag}`, `An Introduction ${tag}`, `A Midsummer ${tag}`, `Theory ${tag}`, `Zebra ${tag}`];
+  let pos = 10;
+  for (const t of titles) { const b = await newBook(t); await addRow(c.id, b.id, "approved", "r", pos--); }
+  await pool.query("UPDATE curated_collections SET published = TRUE WHERE id = $1", [c.id]);
+  const html = (await get(`/admin/collections/${c.id}`, { jar: adminJar })).text;
+  const order = (fragment) => expected.map((t) => fragment.indexOf(`>${t}</a>`));
+  const sortedAsc = (xs) => xs.every((x, i) => x > -1 && (i === 0 || x > xs[i - 1]));
+  const inColl = html.slice(html.indexOf('id="in-collection"'), html.indexOf('id="review"'));
+  const review = html.slice(html.indexOf('id="review"'));
+  assert.ok(sortedAsc(order(inColl)), "In this collection is sorted by name");
+  assert.ok(sortedAsc(order(review)), "the review list is sorted by name");
+  const pub = (await get(`/collections/${c.slug}`)).text;
+  assert.ok(sortedAsc(expected.map((t) => pub.indexOf(t))), "the public page is sorted by name too");
+
+  const form = html.match(/<form method="post" action="\/admin\/collections\/\d+\/review">[\s\S]*?<\/form>/)[0];
+  assert.ok(!form.includes("/books/remove"), "no Remove action inside the review form");
+  const firstSubmit = form.match(/<button[^>]*type="submit"[^>]*>/)[0];
+  assert.ok(!/form="remove-book-form"/.test(firstSubmit) && /Save choices/.test(form.slice(form.indexOf(firstSubmit))), "implicit submission (Enter) hits Save choices");
+  assert.match(html, /<form method="post" action="\/admin\/collections\/\d+\/books\/remove" id="remove-book-form" data-confirm="[^"]+">/);
+  assert.ok(/form="remove-book-form" name="bookId"/.test(html), "Remove buttons point at the separate form");
+});
+
+test("after Add the search stays, the book is named and highlighted, the count shows, and the flash is at the top", async () => {
+  const c = await freshCollection();
+  const tag = uniq();
+  const b1 = await newBook(`Findme One ${tag}`);
+  const b2 = await newBook(`Findme Two ${tag}`);
+  const r = await adminPost(`/admin/collections/${c.id}/books/add`, { bookId: b1.id, find: tag });
+  assert.equal(r.res.status, 303);
+  assert.match(r.location, new RegExp(`\\?find=${tag}&added=${b1.id}#add-book$`));
+  assert.match(notice(r.text), /Book added/);
+  assert.match(r.text, new RegExp(`Added: Findme One ${tag}\\.`));
+  assert.match(r.text, /now has 1 approved book/);
+  assert.ok(r.text.includes(`Findme Two ${tag}`), "the search results are still there, so the next book can be added");
+  assert.match(r.text, /already in this collection/);
+  assert.match(r.text, new RegExp(`class="just-added"[^>]*>[\\s\\S]{0,400}Findme One ${tag}`));
+  assert.ok(r.text.indexOf("notice-box") < r.text.indexOf("Add a book by hand"), "the flash message comes first");
+  const r2 = await adminPost(`/admin/collections/${c.id}/books/add`, { bookId: b2.id, find: tag });
+  assert.match(r2.text, /now has 2 approved books/);
+});
+
+test("adding books at the same moment: every book is saved once, with its own position", async () => {
+  const c = await freshCollection();
+  const tag = uniq();
+  const books = [await newBook(`Race A ${tag}`), await newBook(`Race B ${tag}`), await newBook(`Race C ${tag}`)];
+  await Promise.all(books.map((b) => adminPost(`/admin/collections/${c.id}/books/add`, { bookId: b.id })));
+  await Promise.all([1, 2, 3].map(() => adminPost(`/admin/collections/${c.id}/books/add`, { bookId: books[0].id })));
+  const { rows } = await pool.query("SELECT book_id, position FROM curated_collection_books WHERE collection_id = $1 AND status = 'approved'", [c.id]);
+  assert.equal(rows.length, 3);
+  assert.equal(new Set(rows.map((x) => x.position)).size, 3, "no two books share a position");
+});

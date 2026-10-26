@@ -72,24 +72,44 @@
   </form>
 </div>
 
-<div class="card stack">
+<nav class="small" aria-label="On this page"><a href="#add-book">Add a book by hand</a> &middot; <a href="#in-collection">In this collection (<%= approvedBooks.length %>)</a> &middot; <a href="#review">Review all books (<%= books.length %>)</a></nav>
+
+<div class="card stack" id="add-book">
   <div class="section-title">Add a book by hand</div>
-  <form method="get" action="/admin/collections/<%= collection.id %>" role="search" class="stack" style="flex-direction:row; flex-wrap:wrap; gap:8px; align-items:end;">
+  <% if (addedBook) { %><div class="notice-box" role="status"><strong>Added: <%= addedBook.title %>.</strong> It counts as approved. This collection now has <%= approvedBooks.length %> approved book<%= approvedBooks.length === 1 ? '' : 's' %> &middot; <a href="#book-<%= addedBook.id %>">see it in the list below</a>. Search again or add another book here.</div><% } %>
+  <form method="get" action="/admin/collections/<%= collection.id %>#add-book" role="search" class="stack" style="flex-direction:row; flex-wrap:wrap; gap:8px; align-items:end;">
     <div style="flex:1; min-width:200px;"><label for="c-find">Search books in stock (title, author or ISBN)</label>
     <input id="c-find" name="find" type="search" maxlength="100" value="<%= find %>"></div>
     <button class="btn btn-outline" type="submit">Search</button>
   </form>
   <% if (find && !found.length) { %><p class="muted small">No book in stock matches &ldquo;<%= find %>&rdquo;.</p><% } %>
   <% found.forEach(function (b) { %>
-    <form method="post" action="/admin/collections/<%= collection.id %>/books/add" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+    <form method="post" action="/admin/collections/<%= collection.id %>/books/add" class="<%= addedBook && addedBook.id === b.id ? 'just-added' : '' %>" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
       <%- include('../partials/csrf_field') %>
       <input type="hidden" name="bookId" value="<%= b.id %>">
+      <input type="hidden" name="find" value="<%= find %>">
       <span><strong><%= b.title %></strong><%= b.authors ? ' by ' + b.authors : '' %><%= b.isbn ? ' · ' + b.isbn : '' %></span>
       <% if (inList.has(b.id)) { %><span class="status-pill published">already in this collection</span>
       <% } else { %><button class="btn btn-small" type="submit" aria-label="Add <%= b.title %>">Add</button><% } %>
     </form>
   <% }) %>
   <p class="small muted">A book added by hand counts as approved at once (it is shown if it is in stock and the collection is published).</p>
+</div>
+
+<div class="card stack" id="in-collection">
+  <div class="section-title">In this collection (<%= approvedBooks.length %> approved<%= collection.published ? ', ' + approvedInStock + ' shown to customers' : '' %>)</div>
+  <% if (!approvedBooks.length) { %><p class="muted small">No approved book yet.</p><% } else { %>
+    <ul class="plain">
+      <% approvedBooks.forEach(function (b) { %>
+        <li id="book-<%= b.id %>" class="<%= addedBook && addedBook.id === b.id ? 'just-added' : '' %>" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:4px 0;">
+          <span><strong><a href="/admin/inventory/<%= b.id %>"><%= b.title %></a></strong><%= b.authors ? ' by ' + b.authors : '' %></span>
+          <% if (!b.in_stock) { %><span class="status-pill cancelled">not in stock: hidden from customers</span><% } %>
+          <button class="btn btn-small btn-outline" type="submit" form="remove-book-form" name="bookId" value="<%= b.id %>" formnovalidate aria-label="Remove <%= b.title %> from this collection">Remove</button>
+        </li>
+      <% }) %>
+    </ul>
+  <% } %>
+  <p class="small muted">In alphabetical order (A, An and The are ignored).</p>
 </div>
 
 <% if (!manualOnly) { %>
@@ -107,16 +127,22 @@
 <div class="card"><div class="section-title">Suggestions</div><p class="small muted">This collection has no guidance for the AI, so it is filled in by hand only. Add guidance above to use Generate suggestions.</p></div>
 <% } %>
 
-<div class="card">
+<%# Remove buttons live outside the review form (form="remove-book-form"): pressing Enter in the review form can only ever Save choices. %>
+<form method="post" action="/admin/collections/<%= collection.id %>/books/remove" id="remove-book-form" data-confirm="Remove this book from the collection? The book itself is kept in the shop.">
+  <%- include('../partials/csrf_field') %>
+</form>
+
+<div class="card" id="review">
   <div class="section-title">Review (<%= counts.suggested %> waiting, <%= counts.approved %> approved, <%= counts.rejected %> rejected)</div>
   <% if (!books.length) { %>
     <p class="muted">No books yet. Press <strong>Generate suggestions</strong> above.</p>
   <% } else { %>
     <form method="post" action="/admin/collections/<%= collection.id %>/review">
       <%- include('../partials/csrf_field') %>
-      <p class="small muted">Tick <strong>Approve</strong> to show a book in this collection, or <strong>Reject</strong> to hide it for good. Leave both empty to decide later. Press <strong>Save choices</strong> to keep your ticks.</p>
+      <p class="small muted">All the collection's books, in alphabetical order (A, An and The are ignored). Tick <strong>Approve</strong> to show a book in this collection, or <strong>Reject</strong> to hide it for good. Leave both empty to decide later. Press <strong>Save choices</strong> to keep your ticks: it saves every tick on this page.</p>
+      <p><button class="btn" type="submit">Save choices</button></p>
       <% books.forEach(function (b) { %>
-        <div class="card" style="margin: 8px 0;">
+        <div class="card<%= addedBook && addedBook.id === b.id ? ' just-added' : '' %>" style="margin: 8px 0;">
           <input type="hidden" name="ids" value="<%= b.id %>">
           <div><strong><a href="/admin/inventory/<%= b.id %>"><%= b.title %></a></strong><%= b.authors ? ' by ' + b.authors : '' %>
             <span class="status-pill <%= b.status === 'approved' ? 'published' : (b.status === 'rejected' ? 'cancelled' : 'pending') %>"><%= b.status === 'suggested' ? 'waiting' : b.status %></span>
@@ -125,8 +151,8 @@
           <% if (b.reason) { %><p class="small" style="margin: 6px 0;">Why: <%= b.reason %></p><% } %>
           <div>
             <label class="ann-check"><input type="checkbox" name="approve" value="<%= b.id %>" <%= b.status === 'approved' ? 'checked' : '' %>> Approve<span class="visually-hidden">: <%= b.title %></span></label>
-            <button class="btn btn-small btn-outline" type="submit" formaction="/admin/collections/<%= collection.id %>/books/remove" name="bookId" value="<%= b.id %>" formnovalidate aria-label="Remove <%= b.title %> from this collection">Remove</button>
             <label class="ann-check"><input type="checkbox" name="reject" value="<%= b.id %>" <%= b.status === 'rejected' ? 'checked' : '' %>> Reject<span class="visually-hidden">: <%= b.title %></span></label>
+            <button class="btn btn-small btn-outline" type="submit" form="remove-book-form" name="bookId" value="<%= b.id %>" formnovalidate aria-label="Remove <%= b.title %> from this collection">Remove</button>
           </div>
         </div>
       <% }) %>
