@@ -229,16 +229,24 @@ router.post("/admin/collections/:id/images", requireAdmin, async (req, res) => {
 
 // ---------- books by hand ----------
 
+// After adding a book the admin lands back on the same search (so several books can be added in a row), at the
+// "Add a book by hand" card, with the added book named and highlighted (?added=).
+const cleanFind = (v) => String(Array.isArray(v) ? v[0] : v == null ? "" : v).trim().slice(0, 100);
+
 router.post("/admin/collections/:id/books/add", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   if (!(await loadCollection(id))) return res.status(404).render("404");
   const bookId = parseId(req.body.bookId);
+  const find = cleanFind(req.body.find);
   const result = bookId !== null ? await addBookByHand(pool, id, bookId) : { ok: false, error: "Choose a book from the search results." };
   if (result.ok) {
     await audit(req, { action: "collection.book_add", targetType: "collection", targetId: id, detail: `book ${bookId}` });
     await flash(req, { notice: "Book added (it counts as approved)." });
   } else await flash(req, { error: result.error });
-  redirectBack(res, id);
+  const q = new URLSearchParams();
+  if (find) q.set("find", find);
+  if (result.ok) q.set("added", String(bookId));
+  res.redirect(303, `/admin/collections/${id}${q.size ? `?${q}` : ""}#add-book`);
 });
 
 router.post("/admin/collections/:id/books/remove", requireAdmin, async (req, res) => {
@@ -248,7 +256,7 @@ router.post("/admin/collections/:id/books/remove", requireAdmin, async (req, res
   const r = bookId !== null ? await removeBook(pool, id, bookId) : { removed: false };
   if (r.removed) await audit(req, { action: "collection.book_remove", targetType: "collection", targetId: id, detail: `book ${bookId}` });
   await flash(req, r.removed ? { notice: "Book removed from this collection (the book itself is untouched)." + (r.unpublished ? " No approved book is left, so the collection was unpublished." : "") } : { error: "That book is not in this collection." });
-  redirectBack(res, id);
+  res.redirect(303, `/admin/collections/${id}#in-collection`);
 });
 
 router.get("/admin/collections/:id", requireAdmin, async (req, res) => {
@@ -258,7 +266,7 @@ router.get("/admin/collections/:id", requireAdmin, async (req, res) => {
     `SELECT b.id, b.title, b.authors, b.categories, cb.status, cb.reason, ${IN_STOCK_SQL()} AS in_stock
      FROM curated_collection_books cb JOIN books b ON b.id = cb.book_id
      WHERE cb.collection_id = $1
-     ORDER BY CASE cb.status WHEN 'suggested' THEN 0 WHEN 'approved' THEN 1 ELSE 2 END, cb.position, b.id`,
+     ORDER BY b.title_sort, b.title, b.id`,
     [collection.id]
   );
   const f = takeFlash(req, FLASH);
@@ -266,14 +274,18 @@ router.get("/admin/collections/:id", requireAdmin, async (req, res) => {
   const form = f && f.form ? { ...collection, ...f.form } : collection;
   const counts = { suggested: 0, approved: 0, rejected: 0 };
   for (const b of books) counts[b.status] += 1;
-  const find = String(req.query.find || "").trim().slice(0, 100);
+  const find = cleanFind(req.query.find);
   const found = find ? await searchInStock(pool, find) : [];
-  const inList = new Set(books.filter((b) => b.status === "approved").map((b) => b.id));
+  const approvedBooks = books.filter((b) => b.status === "approved");
+  const inList = new Set(approvedBooks.map((b) => b.id));
+  const approvedInStock = approvedBooks.filter((b) => b.in_stock).length;
+  const addedId = parseId(req.query.added);
+  const addedBook = addedId !== null && inList.has(addedId) ? approvedBooks.find((b) => b.id === addedId) : null;
   const { rows: nb } = await pool.query(
     "SELECT COUNT(DISTINCT book_id)::int AS n FROM book_copies WHERE status = 'in_stock' AND $1::timestamptz IS NOT NULL AND created_at > $1",
     [collection.last_generated_at]
   );
-  res.render("admin/collection_edit", { active: "collections", collection, form, books, counts, flash: f, newBooks: nb[0].n, find, found, inList });
+  res.render("admin/collection_edit", { active: "collections", collection, form, books, counts, flash: f, newBooks: nb[0].n, find, found, inList, approvedBooks, approvedInStock, addedBook });
 });
 
 router.post("/admin/collections/:id", requireAdmin, async (req, res) => {

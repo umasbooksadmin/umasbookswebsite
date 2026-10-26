@@ -1,3 +1,25 @@
+<%# The words public/page-collection.js and public/ui.js draw in the browser (Show more, the status line, the cards of the next pages): the same
+    words as the Browse page (views/marketing/books.ejs); test/integration/collectionResults.test.js keeps the two in step. %>
+<% const collectionPageI18n = {
+  en: {
+    "bk.fav.add": "Add {t} to favorites",
+    "bk.more": "Show more",
+    "bk.status.more": "More books added to the results.",
+    "bk.loading": "Loading books…",
+    "bk.error": "Couldn't load books right now — try again in a moment.",
+    "bk.ratelimited": "Too many searches — please wait a moment and try again.",
+    "bk.nocover": "No cover",
+  },
+  fr: {
+    "bk.fav.add": "Ajouter {t} aux favoris",
+    "bk.more": "Voir plus",
+    "bk.status.more": "Livres ajoutés aux résultats.",
+    "bk.loading": "Chargement des livres…",
+    "bk.error": "Impossible de charger les livres pour le moment — réessayez dans un instant.",
+    "bk.ratelimited": "Trop de recherches : veuillez patienter un instant puis réessayer.",
+    "bk.nocover": "Pas de couverture",
+  },
+}; %>
 <%- include('partials/mkt_header', {
   title: collectionTitle + " — Uma's Books and Adventures",
   description: collectionDescription,
@@ -22,7 +44,12 @@
     </section>
     <% } %>
 
-    <section class="col-books" aria-labelledby="col-books-title">
+    <%# A polite status for screen readers (text only, no counts), set by public/page-collection.js after Show more: same line as on Browse. %>
+    <p class="bk-sr" id="bk-status" role="status" aria-live="polite"></p>
+    <%# The list is the Browse genre results (assets/books.css .bk-results, .bk-grid, .bk-more-row, .bk-covernote; views/marketing/books.ejs has the
+        same elements): the first 24 books are here, public/page-collection.js adds the next 24 with "Show more" from /api/collections/<slug>/books.
+        The heading is for screen readers: the title (or the banner) above already names the collection. %>
+    <section class="bk-results" id="bk-results" aria-labelledby="col-books-title" data-collection="<%= collection.slug %>"<% if (moreOffset != null) { %> data-next-offset="<%= moreOffset %>"<% } %>>
       <h2 class="col-sr" id="col-books-title"><%= tr('Books in this collection', 'Les livres de cette collection') %></h2>
       <% if (!books.length) { %>
         <div class="col-empty" role="status">
@@ -30,22 +57,10 @@
           <p><a class="btn btn-outline" href="/books.html"><%= tr('Browse all books', 'Parcourir tous les livres') %></a></p>
         </div>
       <% } else { %>
-        <div class="bk-grid">
-          <% books.forEach(function (b) { const srcset = coverSrcset(b.cover_url); %>
-          <div class="bk-book">
-            <%- include('../partials/favorite_button', { id: b.id, title: b.title }) %>
-            <a href="/books/<%= b.id %>">
-              <% if (b.cover_url) { %><img class="cover" src="<%= b.cover_url %>"<% if (srcset) { %> srcset="<%= srcset %>" sizes="(max-width: 700px) 45vw, 200px"<% } %> alt="" width="200" height="300" loading="lazy" decoding="async" data-cover>
-              <% } else { %><div class="cover cover-none" aria-hidden="true"><%= tr('No cover', 'Pas de couverture') %></div><% } %>
-              <div class="t"><%- bookText(b.title) %></div>
-              <% if (b.authors) { %><div class="a"><%- bookText(b.authors) %></div><% } %>
-              <% if (b.min_price != null) { %><div class="p"><%= eur(b.min_price) %></div><% } %>
-            </a>
-          </div>
-          <% }) %>
-        </div>
+        <div class="bk-grid" id="bk-results-grid"><% books.forEach(function (b) { %><%- include('partials/book_card', { b }) %><% }) %></div>
+        <div class="bk-more-row"><button type="button" class="btn btn-outline" id="bk-more" data-i18n="bk.more" hidden>Show more</button></div>
         <p class="bk-covernote"><%= tr('Cover images come from an online book library and may not show the actual condition of the copy in our shop.', 'Les couvertures proviennent d’une bibliothèque de livres en ligne et peuvent ne pas refléter l’état réel de l’exemplaire en boutique.') %></p>
       <% } %>
     </section>
   </div>
-<%- include('partials/mkt_footer', { pageI18nEn: {}, pageI18nFr: {}, extraScripts: ['favorites.js'] }) %>
+<%- include('partials/mkt_footer', { pageI18nEn: collectionPageI18n.en, pageI18nFr: collectionPageI18n.fr, extraScripts: ['favorites.js', '/ui.js', '/page-collection.js'] }) %>

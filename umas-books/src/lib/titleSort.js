@@ -1,18 +1,18 @@
-// Alphabetical order for book titles ignores a leading "The".
+// Alphabetical order for book titles ignores a leading "The", "A" or "An".
 //
-// Same rule as books.title_sort (migrations/086_books_title_sort.sql), which
+// Same rule as books.title_sort (migrations/086 and 099_books_title_sort_a_an.sql), which
 // the SQL "ORDER BY b.title_sort, b.title, b.id" uses. This is the JavaScript
 // twin for anything that sorts titles in code instead of the database.
 //   - leading spaces, quotes, brackets and other punctuation are ignored;
-//   - then one leading "The" (any capitals) is ignored, only when it is a
-//     whole first word, so "Theory" and "Theodore" are untouched;
-//   - a title that is only "The" (or only punctuation) keeps its own text.
-// "A"/"An" and the French articles are deliberately NOT ignored.
+//   - then one leading "The", "A" or "An" (any capitals) is ignored, only when it is a
+//     whole first word followed by a space, so "Theory", "Anne" and "A. J. Ayer" are untouched;
+//   - a title that is only "The", "A" or "An" (or only punctuation) keeps its own text.
+// The French articles are deliberately NOT ignored.
 // The shown title is never changed: this is only the sort key.
 
 const NOT_ALNUM = "[^\\p{L}\\p{N}]";
 const LEADING_PUNCT = new RegExp(`^${NOT_ALNUM}+`, "u");
-const LEADING_THE = new RegExp(`^the${NOT_ALNUM}*\\s${NOT_ALNUM}*([\\p{L}\\p{N}])`, "iu");
+const LEADING_THE = new RegExp(`^(?:the${NOT_ALNUM}*|an?)\\s${NOT_ALNUM}*([\\p{L}\\p{N}])`, "iu");
 
 function sortTitleKey(title) {
   const t = String(title == null ? "" : title);
