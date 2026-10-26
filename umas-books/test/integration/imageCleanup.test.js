@@ -352,7 +352,7 @@ test("only the known upload handlers call saveImage, and the rich-text bodies ar
   })(path.join(ROOT, "src"));
   assert.deepEqual(
     files.sort(),
-    ["lib/collectionImages.js", "lib/coverStore.js", "lib/imageStore.js", "lib/inventoryIntake.js", "routes/admin/announcements.js", "routes/admin/blog.js", "routes/admin/charity.js"],
+    ["lib/collectionImages.js", "lib/coverStore.js", "lib/imageStore.js", "lib/inventoryIntake.js", "routes/admin/announcements.js", "routes/admin/blog.js", "routes/admin/charity.js", "routes/admin/inventoryCover.js"],
     "a new saveImage caller: add the column it writes to IMAGE_REFERENCES (src/lib/imageCleanup.js), then update this list"
   );
   for (const k of ["books.cover_url", "announcements.image_url", "blog_posts.image_url", "charities.image_url",

@@ -55,6 +55,20 @@ function aiAdminLimiter({ handler, skip, max = AI_PER_MINUTE } = {}) {
   });
 }
 
+// Per admin account (whatever the IP): the cover editor re-encodes a picture on every press (rotate, crop, replace),
+// so a stuck key or a script cannot keep the server busy. 30 a minute is far above hand use (a few presses a book).
+// `handler` answers the refusal in the page's own way (the cover routes send the admin back to the book).
+const COVER_EDITS_PER_MINUTE = 30;
+function coverEditLimiter({ handler, max = COVER_EDITS_PER_MINUTE } = {}) {
+  return limit({
+    windowMs: 60 * 1000,
+    max,
+    keyGenerator: (req) => `cover-edit-${req.session && req.session.user ? req.session.user.id : "anon"}`,
+    ...(handler ? { handler } : {}),
+    validate: { keyGeneratorIpFallback: false },
+  });
+}
+
 // For limiters that only count failed attempts (skipSuccessfulRequests). A
 // refused form now answers 303 (Post/Redirect/Get, lib/postRedirect.js), so the
 // status code no longer says "failed": the handler marks it in
@@ -97,6 +111,7 @@ module.exports = {
   }),
   limit,
   aiAdminLimiter,
+  coverEditLimiter,
   AI_LIMIT_MESSAGE,
   ipKey,
   IPV6_SUBNET,

@@ -22,6 +22,9 @@ const { serverTiming } = require("../../lib/timing");
 const { aiAdminLimiter, AI_LIMIT_MESSAGE } = require("../../middleware/rateLimits");
 const { getAiLimits, clampText, MAX_TITLE, MAX_AUTHOR } = require("../../lib/aiLimits");
 const { findCoverUrl } = require("../../lib/bookFill");
+const { COVER_ERRORS, COVER_NOTICES } = require("../../lib/coverEdit");
+const { isStoredImageUrl } = require("../../lib/imageStore");
+const { variantUrl } = require("../../lib/imageVariants");
 const { parseIntParam } = require("../../lib/parseParams");
 const { parseInventoryFilters, hasAnyFilter, buildSearchWhere, copyMatchCondition, matchingCopies, filterLocations, filterQueryString, NO_LOCATION, NO_BINDING, NO_GENRE, COMMON_GENRES } = require("../../lib/inventorySearch");
 
@@ -490,7 +493,10 @@ async function renderBook(res, id, error = null, notice = null, overlay = {}) {
      WHERE a.book_id = $1 ORDER BY (a.status = 'pending') DESC, a.year DESC NULLS LAST, lower(a.label)`, [id]
   );
   res.locals.priceUi = await priceUi(pool); // the price-level choices in each copy's form
-  res.render("admin/inventory/show", { active: "inventory", book, copies, awards, conditions: CONDITIONS, bindings: BINDINGS, statuses: STATUSES, sources: SOURCES, error, notice, locations: await getLocations(), requestCount: asked[0].n });
+  // The Cover card works on the STORED picture (not on what was typed in a refused form): a preview only for our own copy.
+  const storedCover = bookRows[0].cover_url;
+  const cover = { stored: isStoredImageUrl(storedCover), url: storedCover, preview: isStoredImageUrl(storedCover) ? variantUrl(storedCover, 450) : null, external: Boolean(storedCover) && !isStoredImageUrl(storedCover) };
+  res.render("admin/inventory/show", { active: "inventory", cover, book, copies, awards, conditions: CONDITIONS, bindings: BINDINGS, statuses: STATUSES, sources: SOURCES, error, notice, locations: await getLocations(), requestCount: asked[0].n });
 }
 
 // A refused book or copy form answers with a redirect to the book's page
@@ -515,6 +521,10 @@ router.get("/admin/inventory/:id", requireAdmin, async (req, res) => {
       res.locals.suggestFor = { copyId: copy.id, suggestion };
     }
   }
+  // The sentence the Cover card shows after a rotate / crop / replace / remove (routes/admin/inventoryCover.js).
+  const coverCode = typeof req.query.cover === "string" ? req.query.cover : "";
+  if (Object.hasOwn(COVER_NOTICES, coverCode)) res.locals.coverMessage = { text: COVER_NOTICES[coverCode], error: false };
+  else if (Object.hasOwn(COVER_ERRORS, coverCode)) res.locals.coverMessage = { text: COVER_ERRORS[coverCode].message, error: true };
   return renderBook(res, id, f && f.error ? String(f.error) : null, hasOrdersNotice(req), (f && f.overlay) || {});
 });
 
@@ -542,9 +552,12 @@ router.post("/admin/inventory/:id", requireAdmin, async (req, res) => {
     const coverPhoto = req.files && req.files.coverPhoto && req.files.coverPhoto[0];
     if (coverPhoto) coverUrl = await processCoverPhoto(coverPhoto);
 
+    // A cover removed on purpose (Cover card, migration 098) is not looked up again by saving the details.
+    const { rows: [current] } = await pool.query("SELECT cover_removed_at FROM books WHERE id = $1", [id]);
+    const coverRemoved = Boolean(current && current.cover_removed_at);
     [description, coverUrl] = await Promise.all([
       description || generateBookDescription({ title, author, publisher, publishedYear }),
-      coverUrl || findCoverUrl({ isbn, title, author }),
+      coverUrl || (coverRemoved ? null : findCoverUrl({ isbn, title, author })),
     ]);
     descriptionFr = descriptionFr || (description ? await translateDescriptionToFrench(description) : null);
     const cover = await prepareCover(coverUrl);
@@ -552,6 +565,7 @@ router.post("/admin/inventory/:id", requireAdmin, async (req, res) => {
       await pool.query(
         `UPDATE books SET isbn=$1, title=$2, authors=$3, publisher=$4, published_year=$5,
                 description=$6, description_fr=$7, cover_url=$8, categories=$9, categories_fr=$10, binding=$11,
+                cover_removed_at = CASE WHEN $8::text IS NULL AND $13::text IS NULL THEN cover_removed_at ELSE NULL END,
                 cover_source_url = COALESCE($13, cover_source_url),
                 cover_fetch_failures = CASE WHEN $13::text IS NULL THEN cover_fetch_failures ELSE 0 END, updated_at=now()
          WHERE id = $12`,

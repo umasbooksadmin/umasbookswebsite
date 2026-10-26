@@ -41,12 +41,13 @@ async function fillBookGaps(pool, bookId, hints = {}, deps = {}) {
   const findCover = deps.findCoverUrl || findCoverUrl;
   const prepare = deps.prepareCover || prepareCover;
 
-  const { rows } = await pool.query("SELECT description, description_fr, cover_url FROM books WHERE id = $1", [bookId]);
+  const { rows } = await pool.query("SELECT description, description_fr, cover_url, cover_removed_at FROM books WHERE id = $1", [bookId]);
   const row = rows[0];
   if (!row) return { filled: false };
   const needDescription = !row.description;
   const needFrench = !row.description_fr;
-  const needCover = !row.cover_url;
+  // A cover an admin removed on purpose (migration 098) is not looked up again.
+  const needCover = !row.cover_url && !row.cover_removed_at;
   if (!needDescription && !needFrench && !needCover) return { filled: false };
 
   const [description, coverAddress] = await Promise.all([
