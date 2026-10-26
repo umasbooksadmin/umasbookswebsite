@@ -404,3 +404,30 @@ test("the AI usage report shows a banner when the daily cap is used up", async (
   aiUsageStats.setStats(null);
   await settle();
 });
+
+test("POST translate-french: at the daily cap the genres are still translated and the message says why; no AI call is made", async () => {
+  process.env.AI_DAILY_MAX_CALLS = "0";
+  const restore = warnQuiet();
+  try {
+    const r = await request("/admin/inventory/translate-french", { method: "POST", form: { genre: "Fantasy, Young Adult", description: "A dragon book." } });
+    assert.equal(r.status, 200);
+    assert.equal(r.json.genreFr, "Fantasy, Jeune adulte");
+    assert.equal(r.json.descriptionFr, null);
+    assert.match(r.json.aiMessage, /^The translation could not be made right now \(Daily AI limit reached \(0\)\. Resets at midnight Paris time\)\. The French genres were still updated\.$/);
+    assert.equal(anthropicBodies.length, 0);
+  } finally { restore(); }
+});
+
+test("POST translate-french: a huge description is clamped; the 11th request in a minute gets a friendly JSON 429; another admin is not affected", async () => {
+  const me = await freshAdmin();
+  const first = await request("/admin/inventory/translate-french", { method: "POST", userId: me, form: { genre: "Fantasy", description: "D".repeat(60000) } });
+  assert.equal(first.status, 200);
+  assert.ok(anthropicBodies[0].messages[0].content.length < 2300, "bounded prompt");
+  for (let i = 1; i < 10; i++) assert.equal((await request("/admin/inventory/translate-french", { method: "POST", userId: me, form: { genre: "Fantasy", description: `Book ${i}` } })).status, 200);
+  const calls = anthropicBodies.length;
+  const blocked = await request("/admin/inventory/translate-french", { method: "POST", userId: me, form: { genre: "Fantasy", description: "Book 11" } });
+  assert.equal(blocked.status, 429);
+  assert.equal(blocked.json.error, "Too many AI requests: wait a minute and try again.");
+  assert.equal(anthropicBodies.length, calls, "the blocked request made no AI call");
+  assert.equal((await request("/admin/inventory/translate-french", { method: "POST", form: { genre: "Fantasy", description: "Other admin" }, userId: otherAdminId })).status, 200, "per admin, not global");
+});

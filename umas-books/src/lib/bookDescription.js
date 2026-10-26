@@ -15,8 +15,9 @@ function callClaude(prompt, opts) {
   return inflight.run(`${opts.feature || "description"}|${opts.maxTokens || 200}|${prompt}`, () => callClaudeOnce(prompt, opts));
 }
 
+// { text, reason } as askText answers (reason null when it worked); the callers below keep only what they need.
 async function callClaudeOnce(prompt, opts) {
-  return (await askText(prompt, opts)).text;
+  return askText(prompt, opts);
 }
 
 async function generateBookDescription(input) {
@@ -40,7 +41,7 @@ async function generateBookDescription(input) {
 Title: "${title}" ${details}
 Only describe the book itself — no marketing fluff about the shop, no mention that it's second-hand. If you don't recognize the book, write a brief generic description based only on the title. Respond with ONLY the description text, no preamble, no quotes around it.`;
 
-  return callClaude(prompt, { maxTokens: 200, label: "AI description" });
+  return (await callClaude(prompt, { maxTokens: 200, label: "AI description" })).text;
 }
 
 // Translates an existing (English) description to French — used both
@@ -48,7 +49,14 @@ Only describe the book itself — no marketing fluff about the shop, no mention 
 // script for older books that already have an English description but
 // no French one.
 async function translateDescriptionToFrench(englishText) {
-  if (!englishText) return null;
+  return (await translateDescriptionToFrenchWhy(englishText)).text;
+}
+
+// Same, but says why when there is no translation: { text, reason, message }. reason is null (worked), "empty" (nothing to
+// translate: no call was made), or askText's "no_key", "cap" (+ message), "credit", "rate", "timeout", "error". The book
+// form's "Update the French from the English" button uses it to tell the admin what happened.
+async function translateDescriptionToFrenchWhy(englishText) {
+  if (!englishText) return { text: null, reason: "empty" };
 
   const prompt = `Translate this English bookshop back-cover description to French. Keep the same tone and length. Respond with ONLY the French translation, no preamble, no quotes around it.
 
@@ -57,4 +65,4 @@ async function translateDescriptionToFrench(englishText) {
   return callClaude(prompt, { maxTokens: 250, label: "AI description (French)", feature: "translation" });
 }
 
-module.exports = { generateBookDescription, translateDescriptionToFrench };
+module.exports = { generateBookDescription, translateDescriptionToFrench, translateDescriptionToFrenchWhy };

@@ -7,7 +7,7 @@ const { requireAdmin } = require("../../middleware/auth");
 const { audit } = require("../../lib/audit");
 const { normalizeIsbn, isValidIsbn, lookupByIsbn, searchByTitleAuthor, translateGenresToFrench } = require("../../lib/bookLookup");
 const { extractBookInfoFromPhoto } = require("../../lib/coverVision");
-const { generateBookDescription, translateDescriptionToFrench } = require("../../lib/bookDescription");
+const { generateBookDescription, translateDescriptionToFrench, translateDescriptionToFrenchWhy } = require("../../lib/bookDescription");
 const { CONDITIONS, BINDINGS, STATUSES, SOURCES, normalizeSource, normalizeBinding, conditionLabel, resolveCopyPricing, normalizeGenres, normalizeLocation, uniqueLocations, locationKey, parseScan, isbnVariants } = require("../../lib/inventory");
 const { expireStaleReservations } = require("../../lib/reservations");
 const { matchRequestsForBook } = require("../../lib/bookRequests");
@@ -428,6 +428,30 @@ router.post("/admin/inventory/generate-description", requireAdmin, descriptionLi
   }
   const descriptionFr = await translateDescriptionToFrench(description);
   res.json({ description, descriptionFr });
+});
+
+// "Update the French from the English" (public/book-french.js) on the book edit and Add Book forms. Nothing is saved:
+// the page puts the answer into the French boxes and the admin presses Save. The genres come from the built-in word
+// list at once (no AI); the description is ONE AI call (shared daily cap), none when the English description is empty.
+// A failed AI call is still a 200 with the genres and a plain sentence (aiMessage), so the genre part always works.
+const FRENCH_GENRE_MAX = 300;
+const FRENCH_DESCRIPTION_MAX = 5000;
+const AI_WHY = {
+  no_key: "the AI service is not set up",
+  credit: "the AI service has no credit left",
+  rate: "the AI service is busy",
+  timeout: "the AI service took too long",
+  error: "the AI service did not answer",
+};
+router.post("/admin/inventory/translate-french", requireAdmin, descriptionLimiter, async (req, res) => {
+  const genre = normalizeGenres(clampText(req.body.genre, FRENCH_GENRE_MAX));
+  const description = clampText(req.body.description, FRENCH_DESCRIPTION_MAX);
+  const genreFr = genre ? translateGenresToFrench(genre) : "";
+  if (!description) return res.json({ genreFr, descriptionFr: null, aiMessage: null });
+  const r = await translateDescriptionToFrenchWhy(description);
+  if (r.text) return res.json({ genreFr, descriptionFr: r.text, aiMessage: null });
+  const why = r.reason === "cap" ? (r.message || "the daily AI limit is reached") : AI_WHY[r.reason] || AI_WHY.error;
+  res.json({ genreFr, descriptionFr: null, aiMessage: `The translation could not be made right now (${why.replace(/\.$/, "")}). The French genres were still updated.` });
 });
 
 // Idempotent: the form carries a one-time token (lib/intakeToken.js). The same token again returns the
