@@ -5,35 +5,9 @@
   var UI = window.UmasUI;   // public/ui.js: escaping, money, cover attributes, the book card
   var esc = UI.esc, t = UI.t;
 
-  function getJSON(url, cb, isRetry) {
-    fetch(url)
-      .then(function (res) {
-        // 429 (too many searches from this connection): no automatic retry, say so.
-        if (res.status === 429) { var e = new Error('rate limited'); e.rateLimited = true; throw e; }
-        if (!res.ok) throw new Error('bad response');
-        return res.json();
-      })
-      .then(function (data) { cb(null, data); })
-      .catch(function (err) {
-        if (err && err.rateLimited) { cb(err); return; }
-        if (!isRetry) { setTimeout(function () { getJSON(url, cb, true); }, 4000); return; }
-        cb(err);
-      });
-  }
-
-  document.addEventListener('error', function (e) {
-    var img = e.target;
-    if (!img || img.tagName !== 'IMG' || !img.classList.contains('cover')) return;
-    var ph = document.createElement('div');
-    ph.className = 'cover cover-none';
-    ph.setAttribute('aria-hidden', 'true');
-    ph.textContent = t('bk.nocover', 'No cover');
-    img.replaceWith(ph);
-  }, true);
-
-  function syncFavorites(root) {
-    if (window.UmasFavorites) root.querySelectorAll('.favorite-toggle').forEach(window.UmasFavorites.sync);
-  }
+  var getJSON = UI.getJSON;   // public/ui.js: GET JSON with one retry, none when rate limited
+  UI.installCoverFallback();  // a cover that fails to load becomes the "No cover" box
+  var syncFavorites = UI.syncFavorites;
 
   // The genre buttons are in the page (views/marketing/books.ejs, from src/lib/browseGenres.js); read them back here.
   var genreList = document.getElementById('bk-genre-list'); // the track of the Browse by Genre carousel

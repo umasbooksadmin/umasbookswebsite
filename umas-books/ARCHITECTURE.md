@@ -1388,10 +1388,12 @@ names the files; read those for the details. Operations for these are in
 - **Shared browser scripts:** `public/ui.js` (loaded before the page script, see
   `extraScripts` in the views) is the one copy of `esc`, `euro`, `coverAttrs` and the
   two card layouts (`bookCardHtml` for Browse, `favoriteCardHtml` for Favorites;
-  `views/marketing/collection.ejs` draws the Browse card on the server and
-  `test/unit/uiHelpers.test.js` checks the two have the same structure).
-  `npm run e2e:ci` (`e2e/ci.js`) runs the carousel and genre Show more in a real
-  browser; CI runs it after the crawl.
+  `views/marketing/partials/book_card.ejs` draws the Browse card on the server, for the
+  collection page, and `test/unit/uiHelpers.test.js` checks the two give the same HTML
+  byte for byte, EN and FR). It also holds `getJSON` (one retry, none when rate limited),
+  `syncFavorites` and `installCoverFallback`, shared by `page-books.js` and `page-collection.js`.
+  `npm run e2e:ci` (`e2e/ci.js`) runs the carousel, the genre Show more and a collection
+  page's Show more (CI-G97a) in a real browser; CI runs it after the crawl.
 - **Hide rules**: Browse by Collection and New In are for the plain view only.
   With a search (`?q=`), a genre (`?genre=`), a topic (`?topic=`) or
   `?new=1` ("See All New In") they are hidden. The server sends them already
@@ -1464,6 +1466,23 @@ names the files; read those for the details. Operations for these are in
   it removes the collection and its decisions, never the books.
 - **Public pages**: `/collections/<slug>` and `/fr/collections/<slug>`
   (server-rendered, marketing CSP); unknown and unpublished slugs are a plain 404.
+  **The book list is the Browse genre results** (maintainer decision 2026-10-26: "just pages of
+  books like browsing by genre", not a carousel): `collection.ejs` uses the same elements and
+  classes as the Browse results (`section.bk-results`, `.bk-grid`, `.bk-more-row` with `#bk-more`,
+  `.bk-covernote`, the `.bk-sr` status line), styled only by `assets/books.css` (one owner per class:
+  `assets/collections.css` has no rule for them, a test checks it), so the grid, gaps, cards, phone
+  columns and Show more button are Browse's by construction. The first 24 books are in the HTML
+  (no JavaScript needed, search engines read them); `public/page-collection.js` loads the next 24
+  at a time from `GET /api/collections/<slug>/books?offset=&limit=` (`src/routes/collections.js`:
+  `{ total, nextOffset, books }` in the `bookJson` shape of `/api/books/new-in`, limit 1-48 default 24,
+  offset clamped to 0-100000, public, `max-age=60`; unknown or unpublished slug: 404, `no-store`), same
+  order as the page (`approvedInStockBooks` with `offset`/`limit`; the admin's position, then title).
+  The Show more button is in the HTML but `hidden`; the script shows it when `data-next-offset` is on
+  the section, so a collection of 24 books or fewer, or no JavaScript, has no dead button. Behaviour
+  copied from Browse: `aria-disabled` while loading, the status line "More books added to the results."
+  (no counts), focus on the first new book. The heading of the list is for screen readers only (the
+  title or banner above names the collection). The robots.txt rule for `/api/` is unchanged (the
+  Show more endpoint is for the page's own script, not crawlers).
   Published collections with a book to show are listed in `sitemap.xml`
   (`src/routes/seo.js`, which drops its one-hour cache after any admin change).
   The Browse button row lists published collections that have at least one

@@ -111,10 +111,13 @@ async function seed(databaseUrl, creds) {
   await book({ title: longTitle, author: `${longTitle.slice(0, 40)} Author`, description: `${longTitle} https://example.org/${"a".repeat(60)}` }, [{ price: 5 }]);
   await book({ title: "E2Ephone Pneumonoultramicroscopicsilicovolcanoconi", author: "Pneumonoultramicroscopicsilicovolcanoconi", categories: "Fiction" }, [{ price: 6 }]);
   // New In (G91, G92): enough books to fill several carousel pages and a second page of "See All New In", with long titles and authors.
+  const newInIds = [];
   for (let i = 1; i <= 30; i++) {
     const long = i % 3 === 0 ? " and a much longer subtitle that needs several lines on a narrow card, with an Élégante Évocation" : "";
-    await book({ title: `E2E Sample New In ${i}${long}`, author: i % 4 === 0 ? "A. Very Long-Named Author, Co-Author Jane Smith, Translator Jean Dupont" : "New In Author" }, [{ price: 3 + (i % 9) }]);
+    newInIds.push(await book({ title: `E2E Sample New In ${i}${long}`, author: i % 4 === 0 ? "A. Very Long-Named Author, Co-Author Jane Smith, Translator Jean Dupont" : "New In Author" }, [{ price: 3 + (i % 9) }]));
   }
+  // G97a: the fourth published collection also holds these 30 books (32 in all), more than the 24 a collection page shows at first.
+  for (const [k, id] of newInIds.entries()) await db.query("INSERT INTO curated_collection_books (collection_id, book_id, status, reason, position) VALUES ($1,$2,'approved','Sample',$3)", [cols[3].id, id, k + 3]);
   // More than 200 New In books, all added today a few minutes apart (Bulk 1 is the newest): the carousel must hold every one of them,
   // newest first by the time of day, and the arrows must still land on whole cards.
   await db.query(

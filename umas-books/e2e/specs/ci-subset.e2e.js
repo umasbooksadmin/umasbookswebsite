@@ -1,4 +1,4 @@
-// The CI-sized subset of the guest steps: the Browse Books carousel (G91) and the genre list's Show more (G93), on a throwaway
+// The CI-sized subset of the guest steps: the Browse Books carousel (G91), the genre list's Show more (G93) and a collection page's Show more (G97a), on a throwaway
 // app seeded by e2e/ci.js with 130 New In books (crossing the carousel's batch boundary of 60 twice) that are all Fiction.
 // Run with `npm run e2e:ci` (CI does, in the smoke-crawl job, after the crawl). The full G91 (230 books, three widths, both
 // languages, 150 clicks) takes about ten minutes; this variant keeps every kind of check (whole cards at rest, arrows, keys,
@@ -33,7 +33,9 @@ s.test("CI-G91 the New In carousel reaches every new book across the batch bound
     if (touch) {
       // a finger: swipe left across the track (about two cards wide), then fling to the end; each fling loads the next batch
       for (let n = 1; n <= 6; n++) {
-        const box = await ctx.page.$eval("#bk-new-track", (t) => { t.closest(".bk-new").scrollIntoView(); const r = t.getBoundingClientRect(); return { x: r.left + r.width * 0.95, y: r.top + 60, w: r.width }; });
+        // instant, not smooth: with a published collection above New In the track starts below the fold, and a smooth scroll still under way would
+        // leave the touch point off the screen
+        const box = await ctx.page.$eval("#bk-new-track", (t) => { t.closest(".bk-new").scrollIntoView({ behavior: "instant", block: "start" }); const r = t.getBoundingClientRect(); return { x: r.left + r.width * 0.95, y: r.top + 60, w: r.width }; });
         const before = st.scrollLeft;
         await ctx.page.touchscreen.touchStart(box.x, box.y);
         for (let k = 1; k <= 8; k++) await ctx.page.touchscreen.touchMove(box.x - (box.w * 0.85 * k) / 8, box.y);
@@ -121,6 +123,22 @@ s.test("CI-G93 a genre list pages with Show more until every book is shown, with
     assert.equal(new Set(ids).size, ids.length, `${where}: no book twice`);
     assert.equal(await visible("#bk-more"), false, `${where}: no Show more once everything is shown`);
   }
+});
+
+s.test("CI-G97a a collection page pages like the genre results: 24 books, Show more adds the rest (30), focus on the first new book, then no button", { timeout: 60000 }, async (ctx) => {
+  await ctx.page.setCookie({ name: "umasbooks_lang", value: "en", url: cfg.baseUrl() });
+  await ctx.goto("/books.html", "networkidle2");
+  const href = await ctx.page.$eval("#bk-collections .col-btn", (a) => a.getAttribute("href"));
+  await ctx.goto(href, "networkidle2");
+  const count = () => ctx.page.$$eval("#bk-results-grid .bk-book", (e) => e.length);
+  assert.equal(await count(), 24, "the first page is 24 books");
+  assert.equal(await ctx.page.$eval("#bk-more", (b) => !b.hidden), true, "Show more is there");
+  await ctx.page.click("#bk-more");
+  await ctx.page.waitForFunction(() => document.querySelectorAll("#bk-results-grid .bk-book").length === 30, { timeout: 8000 });
+  assert.equal(await ctx.page.evaluate(() => document.activeElement === document.querySelectorAll("#bk-results-grid .bk-book a")[24]), true, "focus is on the first new book");
+  assert.equal(await ctx.page.$eval("#bk-more", (b) => b.hidden), true, "no Show more after the last book");
+  const ids = await ctx.page.$$eval("#bk-results-grid .bk-book a", (a) => a.map((x) => x.getAttribute("href")));
+  assert.equal(new Set(ids).size, 30, "each book once");
 });
 
 s.test("CI-G102 keyboard: few Tab stops through the New In row (arrows first, off-screen books skipped), a skip link on focus, and Next keeps focus at the end", { timeout: 120000 }, async (ctx) => {
