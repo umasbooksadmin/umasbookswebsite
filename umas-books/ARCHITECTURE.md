@@ -1095,6 +1095,31 @@ Archive is never printed in a page: it is downloaded once and stored too
   inline `onerror`, which the CSP blocks). Neither CSP lists an external image
   host any more (`img-src 'self' data:`).
 
+- **Editing a cover (`src/lib/coverEdit.js`, `src/routes/admin/inventoryCover.js`, migration 098):** the Cover card on a
+  book's admin page replaces, rotates, crops or removes the cover. Four admin-only POST routes,
+  `/admin/inventory/:id/cover/{rotate,crop,replace,remove}` (CSRF, audit `cover.rotate|crop|replace|remove` with the book id,
+  `coverEditLimiter`: 30 a minute per admin), all plain form posts that redirect back to `#cover` with `?cover=<code>`
+  (the sentence is looked up in `COVER_NOTICES` / `COVER_ERRORS`; a script sending `Accept: application/json` gets JSON and
+  the real status: 400 bad values, 409 changed meanwhile / not stored / no cover, 413 over 8 MB, 429). One pipeline for every
+  edit, built on the same pieces as the other photo paths: `sharpFromUpload` (40 MP cap), format read from the bytes
+  (JPEG, PNG, WebP only: GIF, SVG, HEIC and "HTML named .jpg" are refused), `.rotate()` with no angle first (EXIF
+  orientation), all metadata dropped, transparent areas on white, always a JPEG (quality 85, down to 50 if over 400 KB),
+  never enlarged, longest side at most 900 px (so a turn never shrinks a cover). The result goes through `saveImage`
+  (new SHA-256 id) and `books.cover_url` is updated with `WHERE cover_url = <the one edited>` (two people cannot undo each
+  other; a double press by one person is two turns). The old image is NOT touched: it stays until
+  `imageCleanup` finds nothing refers to it and it is older than 7 days. Crop values are fractions (0..1) of the CURRENT
+  stored picture, plain decimals only (`NaN`, `1e-1`, arrays, negatives refused; a box up to 0.001 past the edge is pulled back;
+  at least 5% and 30 px each way). Rotate and crop only work on `/img/<hash>` pictures that exist in our store (an own photo
+  or an Open Library cover that `coverStore` copied there). A leftover external address, a `data:` URI or an unknown hash is
+  REFUSED with a clear message (409 `not-stored`) instead of being imported: the editor makes no network call at all, so it
+  has no SSRF surface; Replace and Remove still work for such a book. **Remove** sets `cover_url` and `cover_source_url` to
+  NULL and `cover_removed_at = now()`; that mark makes `fillBookGaps`, the edit-details save and `backfillCovers` leave the
+  book without a cover until a photo or cover address is set again. An edit calls `clearBrowseCaches` (New In) and
+  does not run awards, AI or description fill. The crop box is `public/cover-edit.js` (pointer events: mouse, pen and touch,
+  keyboard: arrows move, Shift+arrows resize, Escape cancels; `touch-action: none` only on the overlay), styled by
+  `public/cover-edit.css` (`cvr-` prefix, owned by this page only); without JavaScript the Crop button stays hidden and the
+  other three still work. Tests: `test/integration/coverEdit.test.js`, `test/unit/coverEdit.test.js`.
+
 - **Where the bytes live:** the `images` table (`id` = lowercase hex SHA-256
   of the bytes, `content_type`, `data` BYTEA, `byte_size`;
   `migrations/034_image_store.sql`). Content-addressed, so identical uploads

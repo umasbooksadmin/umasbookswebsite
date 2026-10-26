@@ -363,6 +363,7 @@ async function backfillCovers(pool, { limit = BATCH_SIZE, delayMs = 500, ...fetc
     `SELECT b.id, b.cover_source_url
        FROM books b
       WHERE b.cover_url IS NULL
+        AND b.cover_removed_at IS NULL
         AND b.cover_source_url IS NOT NULL
         AND (b.cover_fetch_attempted_at IS NULL
              OR (b.cover_fetch_attempted_at < now() - interval '${RETRY_SPACING}'

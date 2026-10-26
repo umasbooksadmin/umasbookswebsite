@@ -2271,7 +2271,7 @@ an email.
    hidden one). A hidden post is no longer visible to members, and the action is
    recorded in the admin activity log. For a **picture**: edit the item that shows it
    (announcement, blog post, charity, book) in the admin and **remove or
-   replace the image**; the unused image is deleted by the daily cleanup after
+   replace the image** (a book: the **Cover** card, **Remove cover**); the unused image is deleted by the daily cleanup after
    7 days (Admin dashboard > unused images). Expected: reload the public page
    in a private window: the content is gone.
 3. **Serious cases** (a minor, threats, personal data such as an address or a
@@ -2562,6 +2562,27 @@ to the next field: set it to Enter.
 - Location, Source, Binding and Condition are the **last ones you used** (the browser on
   that device remembers them; the first time ever: Store, Donation, Other, Very Good). If a
   wrong one appears, it is the one remembered from the last book: pick the right one once.
+
+### Fixing a cover picture (the Cover card)
+
+Open the book in **Inventory**: the **Cover** card sits under the book's details.
+
+- **Replace cover photo** (or **Add cover photo** when there is none) opens the camera on a phone, or the files on a computer;
+  the new picture is saved the moment you choose it. **Rotate left / Rotate right** turn the picture a quarter turn each
+  press. **Crop** (needs JavaScript, which every normal browser has) shows the picture with a box: drag the box or its
+  corners, or draw a new box, then **Apply crop**. **Remove cover** asks first and puts the book back to "No cover".
+- Rotate and crop work on any cover that is saved on our server: your own photo, and a cover that came from Open Library.
+  A very old cover that is only a web address (not saved on our server) cannot be turned or cut: the card says so; use
+  **Replace cover photo** or **Remove cover**.
+- Every press makes a **new picture** and leaves the old one in the image store; the daily **Image cleanup** deletes it after
+  7 days when no book uses it (Admin dashboard > unused images). Nothing is deleted at the moment of the press, so a mistake can
+  be fixed by a developer within the week. The public page shows the new cover at once (the New In list within 45 seconds
+  on the live site).
+- **Remove cover** is remembered: saving the book's details, scanning another copy of it, or the background job will not
+  fetch a cover again. Adding a photo or typing a cover address again lifts that.
+- Every change is in **Admin activity** (`cover.rotate`, `cover.crop`, `cover.replace`, `cover.remove`, with the book number).
+  The limit is 30 changes a minute per admin; "Too many cover changes" means wait a minute.
+- Not a cover on the **Add a book** screen: a photo taken there is saved with the book; fix it afterwards from the book's page.
 
 ### If something is wrong
 

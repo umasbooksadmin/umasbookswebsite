@@ -2362,6 +2362,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B1"
   },
   {
@@ -2382,6 +2383,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B2"
   },
   {
@@ -2402,6 +2404,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B3"
   },
   {
@@ -2422,6 +2425,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B4"
   },
   {
@@ -2442,6 +2446,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B5"
   },
   {
@@ -2462,6 +2467,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B6"
   },
   {
@@ -2482,6 +2488,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B7"
   },
   {
@@ -2502,6 +2509,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B8"
   },
   {
@@ -2522,6 +2530,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B9"
   },
   {
@@ -2542,6 +2551,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B10"
   },
   {
@@ -2562,6 +2572,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B11"
   },
   {
@@ -2582,6 +2593,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B12"
   },
   {
@@ -2602,6 +2614,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B13"
   },
   {
@@ -2622,6 +2635,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B14"
   },
   {
@@ -2642,6 +2656,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B15"
   },
   {
@@ -2662,6 +2677,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B16"
   },
   {
@@ -2682,6 +2698,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B17"
   },
   {
@@ -2702,6 +2719,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B18"
   },
   {
@@ -2722,6 +2740,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B19"
   },
   {
@@ -2742,6 +2761,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B20"
   },
   {
@@ -2762,6 +2782,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B21"
   },
   {
@@ -2782,6 +2803,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B22"
   },
   {
@@ -2802,6 +2824,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B23"
   },
   {
@@ -2822,6 +2845,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B24"
   },
   {
@@ -2842,6 +2866,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B25"
   },
   {
@@ -2862,6 +2887,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B26"
   },
   {
@@ -2882,6 +2908,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B27"
   },
   {
@@ -2902,6 +2929,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B28"
   },
   {
@@ -2922,6 +2950,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B29"
   },
   {
@@ -2942,6 +2971,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B30"
   },
   {
@@ -2962,6 +2992,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B31"
   },
   {
@@ -2982,6 +3013,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B32"
   },
   {
@@ -3002,6 +3034,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B33"
   },
   {
@@ -3022,6 +3055,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B34"
   },
   {
@@ -3042,6 +3076,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B35"
   },
   {
@@ -3062,6 +3097,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B36"
   },
   {
@@ -3082,6 +3118,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B37"
   },
   {
@@ -3102,6 +3139,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B38"
   },
   {
@@ -3122,6 +3160,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B39"
   },
   {
@@ -3142,6 +3181,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B40"
   },
   {
@@ -3162,6 +3202,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B41"
   },
   {
@@ -3182,6 +3223,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B42"
   },
   {
@@ -3202,6 +3244,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B43"
   },
   {
@@ -3222,6 +3265,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B44"
   },
   {
@@ -3242,6 +3286,7 @@
    "cover_source_url": "https://covers.openlibrary.org/b/isbn/9780070000636-L.jpg?default=false",
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B45"
   },
   {
@@ -3262,6 +3307,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B46"
   },
   {
@@ -3282,6 +3328,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B47"
   },
   {
@@ -3302,6 +3349,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B48"
   },
   {
@@ -3322,6 +3370,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B49"
   },
   {
@@ -3342,6 +3391,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B50"
   },
   {
@@ -3362,6 +3412,7 @@
    "cover_source_url": "https://covers.openlibrary.org/b/isbn/9780070000674-L.jpg?default=false",
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B51"
   },
   {
@@ -3382,6 +3433,7 @@
    "cover_source_url": "https://covers.openlibrary.org/b/id/1-L.jpg",
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B52"
   },
   {
@@ -3402,6 +3454,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B53"
   },
   {
@@ -3422,6 +3475,7 @@
    "cover_source_url": "https://covers.openlibrary.org/b/isbn/9780070000704-L.jpg?default=false",
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B54"
   },
   {
@@ -3442,6 +3496,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B55"
   },
   {
@@ -3462,6 +3517,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B56"
   },
   {
@@ -3482,6 +3538,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B57"
   },
   {
@@ -3502,6 +3559,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B58"
   },
   {
@@ -3522,6 +3580,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B59"
   },
   {
@@ -3542,6 +3601,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B60"
   },
   {
@@ -3562,6 +3622,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B61"
   },
   {
@@ -3582,6 +3643,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B62"
   },
   {
@@ -3602,6 +3664,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B63"
   },
   {
@@ -3622,6 +3685,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B64"
   },
   {
@@ -3642,6 +3706,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B65"
   },
   {
@@ -3662,6 +3727,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B66"
   },
   {
@@ -3682,6 +3748,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B67"
   },
   {
@@ -3702,6 +3769,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B68"
   },
   {
@@ -3722,6 +3790,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B69"
   },
   {
@@ -3742,6 +3811,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B70"
   },
   {
@@ -3762,6 +3832,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B71"
   },
   {
@@ -3782,6 +3853,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B72"
   },
   {
@@ -3802,6 +3874,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B73"
   },
   {
@@ -3822,6 +3895,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B74"
   },
   {
@@ -3842,6 +3916,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B75"
   },
   {
@@ -3862,6 +3937,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B76"
   },
   {
@@ -3882,6 +3958,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B77"
   },
   {
@@ -3902,6 +3979,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B78"
   },
   {
@@ -3922,6 +4000,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B79"
   },
   {
@@ -3942,6 +4021,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B80"
   },
   {
@@ -3962,6 +4042,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B81"
   },
   {
@@ -3982,6 +4063,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B82"
   },
   {
@@ -4002,6 +4084,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B83"
   },
   {
@@ -4022,6 +4105,7 @@
    "cover_source_url": null,
    "cover_fetch_failures": 0,
    "cover_fetch_attempted_at": null,
+   "cover_removed_at": null,
    "_id": "B84"
   }
  ],
