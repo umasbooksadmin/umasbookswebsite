@@ -1670,7 +1670,7 @@ s.test("G102 (must) keyboard on Browse Books: few Tab stops through the New In r
   }
   assert.ok(names.includes("bk-genre-prev"), `Tab reaches the genre row within 40 presses (${names.join(" ")})`);
   assert.ok(names.length < 20, `fewer than 20 Tab presses to pass the New In row, took ${names.length}`);
-  assert.ok(names.indexOf("bk-new-prev") < names.indexOf("bk-new-next") && names.indexOf("bk-new-next") < names.findIndex((n) => n === "A" || n === "BUTTON"), `the arrows come before the books (${names.slice(0, 6).join(" ")})`);
+  assert.ok(names.indexOf("bk-new-prev") < names.indexOf("bk-new-next") && names.indexOf("bk-new-next") < names.indexOf("bk-new-track"), `the arrows come before the books (${names.slice(0, 6).join(" ")})`);
   // the skip link is the first stop after See All, hidden until focused, and goes to the genres
   await ctx.page.focus("#bk-new-all");
   await ctx.page.keyboard.press("Tab");
