@@ -12,6 +12,9 @@
 //   UmasUI.bookCardHtml(b, withFavorite)   the Browse card (.bk-book): the New In carousel and the search/genre grid;
 //                                          views/marketing/collection.ejs draws the same card on the server
 //   UmasUI.favoriteCardHtml(b)             the Favorites page card (.book-card-wrap), which also shows stock
+//   UmasUI.enSpan(text, language)  escaped text; on a French page an English book's text wrapped in <span lang="en"> (WCAG 3.1.2;
+//                                 src/lib/bookText.js is the server twin, test/unit/bookText.test.js keeps them in step)
+//   UmasUI.favNameHtml(title, language)   the heart's spoken name for a French page: « Ajouter <span lang="en">T</span> aux favoris »
 //   UmasUI.reducedMotion()        true when the person asked for less motion
 (function (root, factory) {
   var api = factory();
@@ -54,6 +57,30 @@
   }
   var COVER_SIZES = '(max-width: 700px) 45vw, 200px';
 
+  // Language of parts (WCAG 3.1.2): the shop sells English books, so on a French page a title or an author is English
+  // text inside French text. A book with a `language` that is not English (none today: the catalogue has no such field)
+  // is left alone, like lib/bookText.js isEnglishBook.
+  function isEnglishBook(language) {
+    var l = String(language == null ? '' : language).trim().toLowerCase();
+    return !l || l === 'en' || l.indexOf('en-') === 0 || l === 'eng' || l === 'english';
+  }
+  function enSpan(text, language) {
+    var h = esc(text);
+    return h && lang() === 'fr' && isEnglishBook(language) ? '<span lang="en">' + h + '</span>' : h;
+  }
+  // The heart's name on a French page: an aria-label cannot carry a lang, so it is a visually-hidden span inside the
+  // button (class fav-name, public/site-header.css) with the title marked up. English pages keep the aria-label.
+  function favNameHtml(title, language) {
+    var parts = t('bk.fav.add', 'Ajouter {t} aux favoris').split('{t}'); // French pages only (favButton); the fallback is French because the Favorites page has no dictionary
+    return esc(parts[0]) + enSpan(frApos(title), language) + esc(parts.slice(1).join('{t}'));
+  }
+  function favButton(id, title, language, pressed, labelEn) {
+    var open = '<button type="button" class="favorite-toggle" data-book-id="' + esc(id) + '" aria-pressed="' + pressed + '"';
+    return lang() === 'fr'
+      ? open + '>' + HEART + '<span class="fav-name">' + favNameHtml(title, language) + '</span></button>'
+      : open + ' aria-label="' + esc(labelEn) + '">' + HEART + '</button>';
+  }
+
   // On a /fr/ page the cards link to /fr/books/12 (assets/site.js decides which paths have a French address).
   function href(u) { return typeof window !== 'undefined' && window.UmasFrHref ? window.UmasFrHref(u) : u; }
 
@@ -63,15 +90,13 @@
   function bookCardHtml(b, withFavorite) {
     var cover = b.coverUrl
       ? '<img class="cover" src="' + esc(b.coverUrl) + '"' + coverAttrs(b.coverUrl, COVER_SIZES) + ' alt="" width="200" height="300" loading="lazy" decoding="async" data-cover>'
-      : '<div class="cover cover-none">' + esc(t('bk.nocover', 'No cover')) + '</div>';
+      : '<div class="cover cover-none" aria-hidden="true">' + esc(t('bk.nocover', 'No cover')) + '</div>';
     var price = b.price != null ? euro(b.price) : '';
-    var fav = withFavorite
-      ? '<button type="button" class="favorite-toggle" data-book-id="' + esc(b.id) + '" aria-pressed="false" aria-label="' + esc(t('bk.fav.add', 'Add {t} to favorites').replace('{t}', b.title)) + '">' + HEART + '</button>'
-      : '';
+    var fav = withFavorite ? favButton(b.id, b.title, b.language, 'false', t('bk.fav.add', 'Add {t} to favorites').replace('{t}', b.title)) : '';
     return '<div class="bk-book">' + fav +
       '<a href="' + esc(href(b.url)) + '">' + cover +
-        '<div class="t">' + esc(b.title) + '</div>' +
-        (b.author ? '<div class="a">' + esc(b.author) + '</div>' : '') +
+        '<div class="t">' + enSpan(b.title, b.language) + '</div>' +
+        (b.author ? '<div class="a">' + enSpan(b.author, b.language) + '</div>' : '') +
         (price ? '<div class="p">' + esc(price) + '</div>' : '') +
       '</a></div>';
   }
@@ -85,17 +110,17 @@
     function pick(en, frText) { return fr ? frText : en; }
     var cover = b.coverUrl
       ? '<img src="' + esc(b.coverUrl) + '"' + coverAttrs(b.coverUrl, COVER_SIZES) + ' alt="" class="book-card-cover" width="200" height="300" loading="lazy" decoding="async" data-cover>'
-      : '<div class="book-card-cover book-thumb-placeholder">' + pick('No cover', 'Pas de couverture') + '</div>';
+      : '<div class="book-card-cover book-thumb-placeholder" aria-hidden="true">' + pick('No cover', 'Pas de couverture') + '</div>';
     var price = b.price != null ? '<span class="book-card-price">' + euro(b.price) + '</span>' : '';
     var availability = b.inStockCount > 0
       ? '<span class="availability-badge is-in-stock"><span class="dot"></span>' + b.inStockCount + ' ' + pick('in stock', 'en stock') + '</span>'
       : '<span class="availability-badge is-out">&middot; ' + pick('Currently unavailable', 'Actuellement indisponible') + '</span>';
     return '<div class="book-card-wrap">' +
-      '<button type="button" class="favorite-toggle" data-book-id="' + b.id + '" aria-pressed="true" aria-label="' + esc(pick('Add ' + b.title + ' to favorites', 'Ajouter ' + frApos(b.title) + ' aux favoris')) + '">' + HEART + '</button>' +
+      favButton(b.id, b.title, b.language, 'true', 'Add ' + b.title + ' to favorites') +
       '<a class="book-card" href="' + esc(b.url) + '">' + cover +
         '<div class="book-card-body">' +
-          '<div class="book-card-title">' + esc(b.title) + '</div>' +
-          '<div class="muted small">' + esc(b.author || pick('Unknown author', 'Auteur inconnu')) + '</div>' +
+          '<div class="book-card-title">' + enSpan(b.title, b.language) + '</div>' +
+          '<div class="muted small">' + (b.author ? enSpan(b.author, b.language) : esc(pick('Unknown author', 'Auteur inconnu'))) + '</div>' +
           '<div class="book-card-meta">' + price + availability + '</div>' +
         '</div>' +
       '</a>' +
@@ -107,7 +132,7 @@
   }
 
   return {
-    esc: esc, lang: lang, t: t, euro: euro, href: href,
+    esc: esc, enSpan: enSpan, favNameHtml: favNameHtml, lang: lang, t: t, euro: euro, href: href,
     coverSrcset: coverSrcset, coverAttrs: coverAttrs,
     HEART: HEART, bookCardHtml: bookCardHtml, favoriteCardHtml: favoriteCardHtml,
     reducedMotion: reducedMotion,

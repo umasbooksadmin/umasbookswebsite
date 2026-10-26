@@ -48,9 +48,9 @@ router.get("/contact", (req, res) => {
   // /contact?topic=feedback pre-selects the preview-feedback topic.
   // A refused form (POST /contact) left its message and what was typed here, once.
   const flash = takePageFlash(req, res, "contact");
-  if (flash) return res.render("contact", { topics: topicsFor(), sent: false, error: flash.error, values: flash.values || {} });
+  if (flash) return res.render("contact", { topics: topicsFor(), sent: false, error: flash.error, values: flash.values || {}, errorFields: flash.errorFields || [] });
   const values = isPreviewMode() && req.query.topic === "feedback" ? { topic: FEEDBACK_TOPIC } : {};
-  res.render("contact", { topics: topicsFor(), sent: req.query.sent === "1", error: null, values });
+  res.render("contact", { topics: topicsFor(), sent: req.query.sent === "1", error: null, values, errorFields: [] });
 });
 
 router.post("/contact", contactLimiter, async (req, res) => {
@@ -67,6 +67,7 @@ router.post("/contact", contactLimiter, async (req, res) => {
   if (!values.name || !values.message || !isEmail(values.email)) {
     return redirectWithFlash(req, res, "/contact", "contact", {
       values,
+      errorFields: [!values.name && "name", !isEmail(values.email) && "email", !values.message && "message"].filter(Boolean),
       error: req.tr(
         "Please fill in your name, a valid email address and your message.",
         "Veuillez indiquer votre nom, une adresse e-mail valide et votre message."

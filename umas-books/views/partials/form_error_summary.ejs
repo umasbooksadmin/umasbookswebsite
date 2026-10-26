@@ -1,0 +1,15 @@
+<%# The error summary above a customer form (contact, request a book, sign-up): the message, then a link to each field that needs a
+    change, in the page's language. The same pattern as the log-in page and the marketing forms (views/marketing/partials/form_summary.ejs):
+    role="alert" announces it, public/app.js moves focus to it (data-form-errors), the invalid inputs carry aria-invalid and
+    aria-describedby="form-errors" (see invalidAttrs in the page). Params: error (text), fields: [{ id, label }]. %>
+<% if (error) { %>
+<div role="alert" class="error-box" id="form-errors" tabindex="-1" data-form-errors>
+  <p class="err-msg"><%= error %></p>
+  <% if (fields && fields.length) { %>
+  <ul class="err-fields" aria-label="<%= tr('Fields to check', 'Champs à vérifier') %>">
+    <% fields.forEach(function (f) { %><li><a href="#<%= f.id %>"><%= f.label %></a></li>
+    <% }) %>
+  </ul>
+  <% } %>
+</div>
+<% } %>

@@ -16,15 +16,19 @@
 <% if (sent) { %>
   <div role="status" class="notice-box"><%= tr('Thank you! Your message has been sent — we\'ll reply by email soon.', 'Merci ! Votre message a bien été envoyé — nous vous répondrons bientôt par e-mail.') %></div>
 <% } %>
-<% if (error) { %><div role="alert" class="error-box"><%= error %></div><% } %>
+<% const _bad = new Set(typeof errorFields !== 'undefined' ? errorFields : []);
+   const _fieldLabels = { name: ['c-name', tr('Your name', 'Votre nom')], email: ['c-email', tr('Your email', 'Votre e-mail')], message: ['c-message', tr('Message', 'Message')] };
+   // aria-invalid + aria-describedby on the fields the summary names (the log-in page's pattern)
+   const invalidAttrs = (k) => _bad.has(k) ? ' aria-invalid="true" aria-describedby="form-errors"' : ''; %>
+<%- include('partials/form_error_summary', { error, fields: [..._bad].filter((k) => _fieldLabels[k]).map((k) => ({ id: _fieldLabels[k][0], label: _fieldLabels[k][1] })) }) %>
 
 <div class="card">
   <form class="stack" method="post" action="/contact">
     <%- include('partials/csrf_field') %>
     <label for="c-name"><%= tr('Your name', 'Votre nom') %></label>
-    <input id="c-name" name="name" type="text" autocomplete="name" maxlength="120" required value="<%= values.name || '' %>">
+    <input id="c-name" name="name" type="text" autocomplete="name" maxlength="120" required<%- invalidAttrs('name') %> value="<%= values.name || '' %>">
     <label for="c-email"><%= tr('Your email', 'Votre e-mail') %></label>
-    <input id="c-email" name="email" type="email" autocomplete="email" maxlength="200" required value="<%= values.email || '' %>">
+    <input id="c-email" name="email" type="email" autocomplete="email" maxlength="200" required<%- invalidAttrs('email') %> value="<%= values.email || '' %>">
     <label for="c-topic"><%= tr('Topic', 'Sujet') %></label>
     <select id="c-topic" name="topic">
       <% topics.forEach(function (t) { %>
@@ -32,7 +36,7 @@
       <% }) %>
     </select>
     <label for="c-message"><%= tr('Message', 'Message') %></label>
-    <textarea id="c-message" name="message" rows="7" maxlength="5000" required><%= values.message || '' %></textarea>
+    <textarea id="c-message" name="message" rows="7" maxlength="5000" required<%- invalidAttrs('message') %>><%= values.message || '' %></textarea>
     <div class="hp" aria-hidden="true">
       <label for="c-website"><%= tr('Website', 'Site web') %></label>
       <input id="c-website" name="website" type="text" tabindex="-1" autocomplete="off">

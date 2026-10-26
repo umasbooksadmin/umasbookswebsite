@@ -102,7 +102,7 @@ test("the Favorites card is exactly what the Favorites page drew before, in Engl
     assert.equal(ui.favoriteCardHtml(FULL), GOLDEN[`fav_full_${lang}`], `${lang} in stock, with cover`);
     assert.equal(ui.favoriteCardHtml(BARE), GOLDEN[`fav_bare_${lang}`], `${lang} unavailable, no cover (the French label has a curly apostrophe)`);
   }
-  assert.match(loadUi("fr").favoriteCardHtml(BARE), /aria-label="Ajouter L’Étranger &lt;b&gt; aux favoris"/);
+  assert.match(loadUi("fr").favoriteCardHtml(BARE), /<span class="fav-name">Ajouter <span lang="en">L’Étranger &lt;b&gt;<\/span> aux favoris<\/span>/);
 });
 
 // ---- the card on the server (views/marketing/collection.ejs) has the same structure as the one the browser draws ----
@@ -126,13 +126,16 @@ test("collection.ejs and the Browse card have the same markup structure: same ta
   const end = ejs.indexOf("<% }) %>", start);
   assert.ok(start > 0 && end > start, "the card is still in collection.ejs");
   // `\n` and attribute values containing EJS (<%= b.id %>) become plain text inside the quotes
-  const server = shapes(ejs.slice(start, end).replace(/<%[\s\S]*?%>/g, ""));
-  const ui = loadUi("en");
-  const browser = new Set([
-    ...shapes(ui.bookCardHtml(FULL, true)),
-    ...shapes(ui.bookCardHtml(BARE, true)),
-    ...shapes(ui.bookCardHtml({ ...FULL, author: "", price: null }, true)),
-  ]);
+  // the heart is the shared partial (English: aria-label; French: a hidden span with the title marked lang="en")
+  const heart = fs.readFileSync(path.join(ROOT, "views", "partials", "favorite_button.ejs"), "utf8");
+  const server = shapes(ejs.slice(start, end).replace(/<%- include\('..\/partials\/favorite_button'[^%]*%>/, heart).replace(/<%[\s\S]*?%>/g, ""));
+  const browser = new Set();
+  for (const lang of ["en", "fr"]) {
+    const ui = loadUi(lang);
+    for (const b of [FULL, BARE, { ...FULL, author: "", price: null }]) for (const sh of shapes(ui.bookCardHtml(b, true))) browser.add(sh);
+  }
+  // the server's title and author spans (lang="en", from bookText()) are made by EJS, so they are not in the template text
+  for (const sh of [...browser]) if (sh.startsWith("span[lang]")) browser.delete(sh);
   assert.deepEqual([...server].sort(), [...browser].sort(), "the server card and the browser card differ: change both together");
-  assert.ok(server.has("div.bk-book[]") && server.has("button.favorite-toggle[aria-label,aria-pressed,data-book-id,type]"), "the shapes were really read");
+  assert.ok(server.has("div.bk-book[]") && server.has("button.favorite-toggle[aria-label,aria-pressed,data-book-id,type]") && server.has("span.fav-name[]"), "the shapes were really read");
 });

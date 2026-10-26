@@ -10,7 +10,7 @@
       &middot; <%= tr('Name:', 'Nom :') %> <%= order.buyer_name %></p>
     <ul class="plain">
       <% items.forEach(i => { %>
-        <li><%= i.label %> <span class="muted small">&middot; <%= eur(i.price) %></span></li>
+        <li><%- i.isSeat ? escHtml(i.label) : bookText(i.bookTitle) + (i.grade ? ' (' + escHtml(i.grade) + ')' : '') %> <span class="muted small">&middot; <%= eur(i.price) %></span></li>
       <% }) %>
     </ul>
     <p><strong><%= tr('Total to pay at the shop:', 'Total à régler à la boutique :') %> <%= eur(order.total_amount) %></strong></p>
@@ -43,7 +43,7 @@
       &middot; <%= tr('Name:', 'Nom :') %> <%= order.buyer_name %></p>
     <ul class="plain">
       <% items.forEach(i => { %>
-        <li><%= i.label %> <span class="muted small">&middot; <%= eur(i.price) %></span></li>
+        <li><%- i.isSeat ? escHtml(i.label) : bookText(i.bookTitle) + (i.grade ? ' (' + escHtml(i.grade) + ')' : '') %> <span class="muted small">&middot; <%= eur(i.price) %></span></li>
       <% }) %>
     </ul>
     <p><strong><%= tr('Total:', 'Total :') %> <%= eur(order.total_amount) %></strong></p>

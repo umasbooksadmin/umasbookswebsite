@@ -174,7 +174,7 @@ test("French polish: second-hand, 'Young Adult' translated, favorites text, CGV 
   assert.match(fav, /pour l’instant\\u00a0: parcourez/);
   assert.match(fav, /pour le moment\\u00a0: essayez/);
   assert.doesNotMatch(fav, /pour l’instant : |pour le moment : /);
-  assert.match(fs.readFileSync(path.join(root, "public/ui.js"), "utf8"), /frApos\(b\.title\)/, "the French aria-label uses a curly apostrophe");
+  assert.match(fs.readFileSync(path.join(root, "public/ui.js"), "utf8"), /frApos\(title\)/, "the French name uses a curly apostrophe");
   assert.match(fs.readFileSync(path.join(root, "src/lib/orderSweeps.js"), "utf8"), /Nos conditions générales de vente \(CGV\) vous/);
 });
 
@@ -197,7 +197,7 @@ test("favorites page: the French aria-label turns a straight apostrophe in the t
   vm.runInNewContext(ui, ctx2);
   vm.runInNewContext(src, ctx2);
   return new Promise((resolve) => setTimeout(() => {
-    assert.match(listEl.innerHTML, /aria-label="Ajouter L’Étranger aux favoris"/);
+    assert.match(listEl.innerHTML, /<span class="fav-name">Ajouter <span lang="en">L’Étranger<\/span> aux favoris<\/span>/);
     resolve();
   }, 20));
 });

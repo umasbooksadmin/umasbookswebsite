@@ -154,7 +154,7 @@ router.get("/signup", (req, res) => {
   }
   res.locals.returnTo = safeReturnTo(req.query.returnTo);
   const flash = takePageFlash(req, res, "signup") || {};
-  res.render("signup", { error: flash.error || null, notice: flash.notice || null, values: flash });
+  res.render("signup", { error: flash.error || null, notice: flash.notice || null, values: flash, errorFields: flash.errorFields || [] });
 });
 
 // The one place an account is created from a typed name + email: used by the
@@ -205,7 +205,7 @@ router.post("/signup", signupLimiter, async (req, res) => {
   res.locals.returnTo = returnTo;
 
   if (!email || !displayName) {
-    return backToSignup(req, res, { error: req.tr("All fields are required.", "Tous les champs sont obligatoires."), displayName, email });
+    return backToSignup(req, res, { error: req.tr("All fields are required.", "Tous les champs sont obligatoires."), errorFields: [!displayName && "displayName", !email && "email"].filter(Boolean), displayName, email });
   }
 
   // Not a single plain address ("a@x.com, b@y.com" would make nodemailer

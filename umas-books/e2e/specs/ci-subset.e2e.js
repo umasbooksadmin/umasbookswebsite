@@ -122,3 +122,30 @@ s.test("CI-G93 a genre list pages with Show more until every book is shown, with
     assert.equal(await visible("#bk-more"), false, `${where}: no Show more once everything is shown`);
   }
 });
+
+s.test("CI-G102 keyboard: few Tab stops through the New In row (arrows first, off-screen books skipped), a skip link on focus, and Next keeps focus at the end", { timeout: 120000 }, async (ctx) => {
+  await ctx.page.setViewport({ width: 1280, height: 800, deviceScaleFactor: 1 });
+  await ctx.page.setCookie({ name: "umasbooks_lang", value: "en", url: cfg.baseUrl() });
+  await ctx.goto("/books.html", "networkidle2");
+  await ctx.page.waitForSelector("#bk-new-track .bk-book", { timeout: 8000 });
+  await new Promise((r) => setTimeout(r, 400));
+  await ctx.page.focus("#bk-new-all");
+  const names = [];
+  for (let i = 0; i < 40; i++) {
+    await ctx.page.keyboard.press("Tab");
+    const id = await ctx.page.evaluate(() => { const e = document.activeElement; return e && e.id ? e.id : e ? e.className || e.tagName : "none"; });
+    names.push(id);
+    if (id === "bk-genre-prev") break;
+  }
+  assert.equal(names[0], "bk-skip", `the skip link is the first stop after See All (${names.slice(0, 4).join(" ")})`);
+  assert.deepEqual(names.slice(1, 3), ["bk-new-prev", "bk-new-next"], "the arrows come before the books");
+  assert.ok(names.includes("bk-genre-prev") && names.length < 20, `fewer than 20 Tab presses to pass the New In row (${names.length}: ${names.join(" ")})`);
+  await ctx.page.focus("#bk-new-next");
+  for (let i = 0; i < 150; i++) {
+    await ctx.page.keyboard.press("Enter");
+    await new Promise((r) => setTimeout(r, 100));
+    if (await ctx.page.$eval("#bk-new-next", (b) => b.getAttribute("aria-disabled") === "true")) break;
+  }
+  const end = await ctx.page.evaluate(() => ({ id: document.activeElement && document.activeElement.id, ad: document.getElementById("bk-new-next").getAttribute("aria-disabled"), dis: document.getElementById("bk-new-next").disabled }));
+  assert.deepEqual(end, { id: "bk-new-next", ad: "true", dis: false }, "focus stays on Next at the end of the row");
+});

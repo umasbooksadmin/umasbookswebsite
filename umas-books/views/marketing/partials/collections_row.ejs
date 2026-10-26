@@ -13,6 +13,7 @@
   <h2 class="bk-sec-title" id="bk-collections-label"><%= tr('Browse by Collection', 'Parcourir par collection') %></h2>
   <div class="bk-carousel">
     <button type="button" class="arrow" id="bk-col-prev" aria-label="<%= tr('Previous collections', 'Collections précédentes') %>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4 7 12l8 8"/></svg></button>
+    <button type="button" class="arrow arrow-next" id="bk-col-next" aria-label="<%= tr('Next collections', 'Collections suivantes') %>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 4 8 8-8 8"/></svg></button>
     <ul class="bk-track bk-tiles bk-col-list" id="bk-col-track" aria-labelledby="bk-collections-label">
       <% collections.forEach(function (c) { %>
       <li><a class="bk-genre col-btn<%= c.icon_path ? '' : ' no-art' %>" href="/collections/<%= c.slug %>">
@@ -21,7 +22,6 @@
       </a></li>
       <% }) %>
     </ul>
-    <button type="button" class="arrow" id="bk-col-next" aria-label="<%= tr('Next collections', 'Collections suivantes') %>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 4 8 8-8 8"/></svg></button>
   </div>
 </section>
 <% } %>

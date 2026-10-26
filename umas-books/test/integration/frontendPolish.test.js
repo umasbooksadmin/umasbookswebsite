@@ -64,7 +64,7 @@ test("French book page: og:locale fr_FR, French title suffix, favorites button n
   const html = await (await get(`/books/${bookId}`, { cookie: "umasbooks_lang=fr" })).text();
   assert.equal(meta(html, "property", "og:locale"), "fr_FR");
   assert.match(html, /<html lang="fr">/);
-  assert.match(html, /aria-label="Ajouter Polish[^"]* aux favoris"/);
+  assert.match(html, /<span class="fav-name">Ajouter <span lang="en">Polish[^<]*<\/span> aux favoris<\/span>/);
   const en = await (await get(`/books/${bookId}`)).text();
   assert.match(en, /aria-label="Add Polish[^"]* to favorites"/);
 });

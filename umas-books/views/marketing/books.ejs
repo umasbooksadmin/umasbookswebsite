@@ -19,6 +19,10 @@
   "bk.new.all": "See All New In",
   "bk.new.empty": "New arrivals are on their way — check back soon.",
   "bk.prev": "Previous",
+  "bk.new.region": "New In books: use the arrow keys to move along",
+  "bk.skip.genres": "Skip to Browse by Genre",
+  "bk.status.results": "Results updated.",
+  "bk.status.more": "More books added to the results.",
   "bk.next": "Next",
   "bk.loading": "Loading books…",
   "bk.empty": "No books match that search — try another word.",
@@ -71,6 +75,10 @@
   "bk.new.all": "Voir toutes les nouveautés",
   "bk.new.empty": "De nouveaux livres arrivent bientôt — revenez vite.",
   "bk.prev": "Précédent",
+  "bk.new.region": "Nouveautés : utilisez les flèches du clavier pour avancer",
+  "bk.skip.genres": "Passer à « Parcourir par genre »",
+  "bk.status.results": "Résultats mis à jour.",
+  "bk.status.more": "Livres ajoutés aux résultats.",
   "bk.next": "Suivant",
   "bk.loading": "Chargement des livres…",
   "bk.empty": "Aucun livre ne correspond — essayez un autre mot.",
@@ -121,7 +129,7 @@
         <h2 id="bk-noscript-title" data-i18n="bk.new.title">New In</h2>
         <ul class="bk-noscript-list">
           <% (typeof noscriptBooks !== 'undefined' ? noscriptBooks : []).forEach(b => { %>
-          <li><a href="/books/<%= b.id %>"><%= b.title %></a><% if (b.authors) { %> — <%= b.authors %><% } %><% if (b.min_price != null) { %> · <%= eur(b.min_price) %><% } %></li>
+          <li><a href="/books/<%= b.id %>"><%- bookText(b.title) %></a><% if (b.authors) { %> — <%- bookText(b.authors) %><% } %><% if (b.min_price != null) { %> · <%= eur(b.min_price) %><% } %></li>
           <% }) %>
         </ul>
       </section>
@@ -144,12 +152,14 @@
         <span class="sub" data-i18n="bk.new.sub">Fresh arrivals, new adventures.</span>
         <button type="button" class="bk-link-btn" id="bk-new-all"><span data-i18n="bk.new.all">See All New In</span> &rarr;</button>
       </div>
+      <%# Skip the New In row (up to hundreds of books) for the genres below. Visible only while it has keyboard focus (assets/books.css .bk-skip). %>
+      <a class="bk-skip" href="#bk-genres-label" data-i18n="bk.skip.genres">Skip to Browse by Genre</a>
       <div class="bk-carousel">
         <button type="button" class="arrow" id="bk-new-prev" data-i18n-attr="aria-label:bk.prev" aria-label="Previous"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4 7 12l8 8"/></svg></button>
-        <div class="bk-track" id="bk-new-track">
+        <button type="button" class="arrow arrow-next" id="bk-new-next" data-i18n-attr="aria-label:bk.next" aria-label="Next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 4 8 8-8 8"/></svg></button>
+        <div class="bk-track" id="bk-new-track" role="region" tabindex="0" data-i18n-attr="aria-label:bk.new.region" aria-label="New In books: use the arrow keys to move along">
           <p class="muted" data-i18n="bk.loading">Loading books…</p>
         </div>
-        <button type="button" class="arrow" id="bk-new-next" data-i18n-attr="aria-label:bk.next" aria-label="Next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 4 8 8-8 8"/></svg></button>
       </div>
     </section>
 
@@ -157,14 +167,17 @@
       <h2 class="bk-sec-title" id="bk-genres-label" data-i18n="bk.genres.label">Browse by Genre</h2>
       <div class="bk-carousel">
         <button type="button" class="arrow" id="bk-genre-prev" data-i18n-attr="aria-label:bk.genres.prev" aria-label="Previous genres"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4 7 12l8 8"/></svg></button>
+        <button type="button" class="arrow arrow-next" id="bk-genre-next" data-i18n-attr="aria-label:bk.genres.next" aria-label="Next genres"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 4 8 8-8 8"/></svg></button>
         <%# The genre buttons (src/lib/browseGenres.js). public/page-books.js reads data-slug / data-topic back from here and wires the clicks. %>
         <div class="bk-track bk-tiles" id="bk-genre-list" role="group" aria-labelledby="bk-genres-label"><%
           browseGenres.forEach(function (g, i) { %><button type="button" class="bk-genre" data-index="<%= i %>" data-slug="<%= g.slug %>" data-topic="<%= g.topic %>"><span class="chip" style="background:<%= g.bg %>;color:<%= g.fg %>"><svg <%- iconAttrs %> aria-hidden="true"><%- g.svg %></svg></span><span data-i18n="<%= g.key %>"><%= pageI18nEn[g.key] %></span></button><% }) %></div>
-        <button type="button" class="arrow" id="bk-genre-next" data-i18n-attr="aria-label:bk.genres.next" aria-label="Next genres"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 4 8 8-8 8"/></svg></button>
       </div>
     </section>
 
-    <section class="bk-results" id="bk-results" hidden aria-live="polite">
+    <%# A polite status for screen readers, separate from the results (an aria-live region around 24 cards re-announced them all). Text only, no counts: public/page-books.js sets it after a genre, a search or Show more. %>
+    <p class="bk-sr" id="bk-status" role="status" aria-live="polite"></p>
+
+    <section class="bk-results" id="bk-results" hidden>
       <div class="bk-results-head">
         <h2 id="bk-results-title"></h2>
       </div>
