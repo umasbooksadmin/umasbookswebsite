@@ -783,6 +783,84 @@ secret** = same page, **Secrets** tab.
   and the manual-only steps the automated tests list, see
   `docs/testing/manual-test-scripts.md`.
 
+**More items to tick** (added from the October 2026 reviews; each says who does
+it. The ones for the accountant or the lawyer are questions to put in writing,
+the answer is theirs):
+
+- [ ] **Legal to-do list reviewed.** *Owner: Sharon.* Open `docs/legal-todos.md`;
+  every open item is either answered or **consciously accepted** (write the
+  date and "accepted" next to it).
+- [ ] **Shop street number set.** *Owner: Sharon.* `SHOP_STREET_NUMBER` in
+  `umas-books/src/lib/legal.js` (read by `shopStreet()`) is no longer empty, so the
+  legal notice, footer, terms and emails say "<number> rue Peyrolière" (legal
+  to-do item 1). A developer makes the one-line change in a pull request.
+- [ ] **VAT wording confirmed.** *Owner: accountant, then Sharon.* The accountant
+  names the article (261-7-1° or 293 B of the CGI) or confirms plain "TVA non
+  applicable"; `VAT_NOTICE_ARTICLE` is set as in section o) (legal to-do item 13).
+- [ ] **Fixed-price rule for imported English books.** *Owner: accountant or
+  lawyer.* Written answer on how the French fixed book price rule applies to
+  English-language books bought abroad and sold new, including the condition
+  under which the 2-year exception (a book more than two years after
+  its last supply) may be used. The site today requires a new book to be priced
+  at 95% to 100% of the publisher's price (`docs/architecture.md`, "Fixed price
+  for new books"). The 2-year exception is **not described anywhere else in the
+  repository**: take the exact rule from the professional's answer, not from here.
+- [ ] **NF525 answered.** *Owner: accountant.* Does the till need the NF525
+  certificate? If yes, the till must not be used for real sales until it is
+  (legal to-do item 14).
+- [ ] **`FISCAL_YEAR_START_MONTH` and `ACCOUNTING_TO` set.** *Owner: Sharon.*
+  **Both are GitHub repository variables** (GitHub > Settings > Secrets and
+  variables > Actions > **Variables** tab), **not** Render environment variables:
+  only the accounting-export workflow reads them. `FISCAL_YEAR_START_MONTH` is a
+  number 1 to 12 (default 1); `ACCOUNTING_TO` is the address that receives the
+  monthly export (section aj).
+- [ ] **`SEED_ADMIN_PASSWORD` removed from Render.** *Owner: Sharon.* It is only
+  needed the very first time, to create the first admin. Once you can log in as
+  an admin: Render > `umas-books` > **Environment** > `SEED_ADMIN_PASSWORD` >
+  delete > Save (the service redeploys). It is a **Render environment variable**.
+- [ ] **Backblaze lifecycle rules for the long copies.** *Owner: Sharon.* Rules
+  for `store-backups/yearly/` and `accounting-exports/` (both *Days Till Hide*
+  `3650`, *Days Till Delete* `1`) exist in the Backblaze bucket, next to the
+  `full/` (30) and `monthly/` (730) rules (section aj, "Owner steps").
+- [ ] **Restore drill passed in the last 3 months.** *Owner: Sharon.* Section
+  ad), "The restore drill": download, decrypt with the age key, restore into a
+  scratch database. Write the date here: ____.
+- [ ] **HelloAsso for real.** *Owner: Sharon.* Production keys and the webhook
+  are set (the two items above), **and** one real membership payment was made and
+  the membership turned active. Then try the membership form with **Apple Pay /
+  Google Pay** on a phone. The site sends the header `Permissions-Policy` with
+  `payment=()` (`umas-books/src/lib/permissionsPolicy.js`) and delegates nothing
+  to the HelloAsso frame, which **may** stop the wallet buttons inside the frame.
+  If a wallet button is missing or does nothing, tell the maintainer: it is a
+  one-line change, but we have not tested it against HelloAsso.
+- [ ] **Search engines.** *Owner: Sharon.* Sitemap submitted to Google Search
+  Console and Bing Webmaster Tools (the item above and "Search engines: submit
+  the sitemap"): the address to give is `https://umasbooks.org/sitemap.xml`.
+- [ ] **If a Cloudflare (or other CDN) account is ever put in front of the
+  site.** *Owner: Sharon, with the developer.* Today there is none (see "Check
+  the real client IP": the `cloudflare` header is Render's own edge). If one is
+  added: its cache rules must respect the site's own cache headers for `/assets`
+  and `/img`; purge the cached `robots.txt` after launch; its managed
+  `robots.txt` / AI-crawler blocking must be off or deliberately chosen (it can
+  rewrite the site's own `robots.txt`); and redo "Check the real client IP". We
+  could not verify these Cloudflare settings from the repository.
+- [ ] **GitHub Actions spending limit set.** *Owner: Sharon.* GitHub > your
+  account **Settings > Billing and plans > Spending limits > Actions** (section
+  t). Without it the nightly backup can stop when the free minutes run out.
+- [ ] **UptimeRobot monitors in place.** *Owner: Sharon.* The `/healthz` monitor
+  of section d) exists and alerts reach a second person too.
+- [ ] **Anthropic credit and key decided.** *Owner: Sharon.* Either credit is
+  added with auto-reload and a monthly limit, and `ANTHROPIC_API_KEY` is the
+  production key in Render, or the AI features are knowingly left off (section r,
+  the "credit has run out" alert).
+- [ ] **Accessibility statement (optional).** *Owner: Sharon.* Decide whether to
+  publish an accessibility statement; write the decision here: ____. (No such page
+  exists on the site today.)
+- [ ] **Consumer mediator membership current.** *Owner: Sharon.* The membership
+  with the mediator named in the terms of sale (CM2C) is up to date; the
+  adhesion was confirmed on 2026-10-06 (legal to-do item 8a): confirm it is still
+  valid at launch.
+
 ### Search engines: submit the sitemap (after launch)
 
 Owner steps, done once, after `PREVIEW_MODE` is off and `https://umasbooks.org` is live. Until then
@@ -1758,11 +1836,30 @@ success is older than **3 times its interval**.
    `Retention purge: ...` it means personal data is not being deleted on time,
    so do not leave it for weeks.
 
-The jobs: Reservation expiry, Pickup reminders, Membership expiry, Membership
-reconciliation (every 6 h); Order follow-up (6 h); Cart maintenance (10 min);
-Email outbox (1 min); Order phone cleanup (6 h); Contact mailbox reminder (daily check, one email a month); Retention purge and one row per purge step, Image cleanup
-(daily); Awards check (2 min); Cover backfill (5 min). A row for a job that no
-longer exists stops flagging after 30 days.
+The jobs, each with how often it runs (the list is `jobSpecs()` in
+`umas-books/src/jobs.js`; the diagnostics page shows the same names):
+
+| Job | Runs |
+|---|---|
+| Reservation expiry, Pickup reminders, Membership expiry, Membership reconciliation (four rows, one shared timer) | at boot, then every 6 hours |
+| Order follow-up | every 6 hours (first run 5 minutes after boot) |
+| Cart maintenance | every 10 minutes |
+| Email outbox | every minute |
+| Retention purge (one row per purge step, `Retention purge: <step>`) | at boot, then daily |
+| Order phone cleanup | every 6 hours |
+| Contact mailbox reminder | daily check (one email a month) |
+| Image cleanup | daily |
+| Lookup statistics retention (prunes book-lookup statistics older than 36 months) | daily |
+| AI usage statistics retention | daily |
+| Guest session prune (guest session rows older than 24 hours; logged-in sessions are never touched) | every 15 minutes |
+| Awards check | every 2 minutes |
+| Cover backfill (switched off when the Render environment variable `COVER_BACKFILL` is `off`) | every 5 minutes |
+
+A row for a job that no longer exists stops flagging after 30 days. **For
+developers, to add a job:** add one entry to `jobSpecs()` in
+`umas-books/src/jobs.js` (name, `everyMs`, `run`); the registry there starts it,
+records every run for this page and stops it cleanly at shutdown, so nothing is
+wired in `src/index.js` any more. Then add it to the table above.
 
 ### Retention rules (what is kept how long, and which job removes it)
 
@@ -1882,17 +1979,22 @@ not raise the frequency.
 
 For: the Render account is suspended, locked, deleted, or its owner is not
 reachable, and the site is gone. **The data is safe in Backblaze** (nightly
-dumps, 30 days; monthly copies, 2 years); the code is on GitHub. **Time
+dumps, 30 days; monthly copies, 2 years; yearly copies, 10 years) **but it is
+encrypted: without the age private key (below) it cannot be opened, so find
+that key first.** The code is on GitHub. **Time
 needed: 2 to 4 hours** (most of it waiting for DNS and the restore). Do it
 with a second person if you can. Have these ready: the password manager (section
-v), the Backblaze login, the GitHub login, the Squarespace login, the HelloAsso
+v), **the age private key** (file `umas-books-backup-key.txt`, or the secure note
+"Uma's Books backup key (age)" in the password manager, or the paper copy in the
+sealed envelope, section w), the Backblaze login, the GitHub login, the Squarespace login, the HelloAsso
 login.
 
 **What you need and where each comes from** (also section v):
 
 | Setting | Where the value comes from |
 |---|---|
-| `DATABASE_URL` | Render creates the new database; Blueprint wires it |
+| `DATABASE_URL` (Render environment variable) | **Not** wired by the Blueprint: `render.yaml` marks it `sync: false`, so you set it by hand in Render > `umas-books` > **Environment**, as the new database's **Internal Database URL** (the host has no `.render.com` in it), and only **after** the restore (step 5). See "Rotating the database password" in section b |
+| **The age private key** (not a setting: a file) | The password manager secure note "Uma's Books backup key (age)", or the paper copy (section w). It starts with `AGE-SECRET-KEY-`. **Without it the `.dump.age` backups cannot be opened.** The matching public key is the GitHub **repository variable** `BACKUP_AGE_RECIPIENT` (not secret) |
 | `SESSION_SECRET` | Generated by the Blueprint (everyone just logs in again) |
 | `TOTP_ENCRYPTION_KEY` | **The saved copy in the password manager** (section b). A new random key makes every admin's two-step secret unreadable: you would have to clear two-step for each admin (section c) |
 | `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD` | You choose; only used if the database has no admin. With a restored database you do not need them |
@@ -1903,14 +2005,38 @@ login.
 | `HELLOASSO_MEMBERSHIP_FORM_SLUG` (optional) | The last part of the membership form's HelloAsso address |
 | `APP_BASE_URL`, `CONTACT_TO`, `ALERT_TO`, `TRUST_PROXY_HOPS`, `COVER_BACKFILL` | Already set to sensible values by `render.yaml` |
 | `PREVIEW_MODE` | **Not** in `render.yaml` on purpose. Leave it unset for the live site |
-| GitHub repository secrets/variables (`DATABASE_URL`, `GMAIL_*`, `BACKUP_S3_*`, `ALERT_TO`, `SITE_URL`) | Section b table; the new `DATABASE_URL` is the **External** URL of the new database |
+| GitHub repository secrets/variables (`DATABASE_URL`, `GMAIL_*`, `BACKUP_S3_*`, `BACKUP_AGE_RECIPIENT`, `ALERT_TO`, `SITE_URL`) | Section b table. The GitHub secret `DATABASE_URL` is the address of the **read-only `backup_ro` user** on the new database (step 11), not the owner's. `BACKUP_AGE_RECIPIENT` is the same public key as before (a repository **variable**, in the same repository; if the repository is new too, set it again from the saved key: `age-keygen -y umas-books-backup-key.txt` prints it) |
 
 **Steps:**
 
-1. **Make sure you have a dump.** Backblaze > Buckets > the bucket > folder
-   `store-backups/full/` > the newest `umas_books_full_<date>.dump` (or from
-   `monthly/`). Download it to a computer you control (README "Restoring from a
-   backup" has the command-line version). Expected: a file of some megabytes.
+1. **Make sure you have a backup file, and the key.** Backblaze > Buckets >
+   the bucket > folder `store-backups/full/` > the newest
+   `umas_books_full_<date>.dump.age` (or from `monthly/`, or `yearly/` for an
+   old one). The `.age` ending means it is **encrypted**. Download it to a
+   computer you control (the README "Restoring from a backup" has the
+   command-line version). Expected: a file of some megabytes. Then **decrypt
+   it** with the private key (the key file must be readable only by you; delete
+   it afterwards). On your Mac, in Terminal, one command at a time:
+
+   ```bash
+   cd ~/Documents
+   ```
+
+   ```bash
+   brew install age
+   ```
+
+   ```bash
+   age -d -i umas-books-backup-key.txt -o umas_books_full_<date>.dump umas_books_full_<date>.dump.age
+   ```
+
+   (This is the same command the monthly restore test uses: `age -d -i <key file>
+   -o <file>.dump <file>.dump.age`.) If the key is only in the password manager,
+   first paste it into a file: `umask 077` then `pbpaste > umas-books-backup-key.txt`.
+   "no identity matched any of the file's recipients" means this is not the key
+   those backups were made for: try the other copy (section w), or an older key
+   (section ad, "Rotation"). When the restore is done, delete the key file:
+   `rm -P umas-books-backup-key.txt`.
 2. **New Render account** (or recovered): render.com > Sign up/log in. Add a
    **payment method** (the plan in `render.yaml` is paid). Add a **second
    owner** straight away (section w).
@@ -1918,19 +2044,66 @@ login.
    (authorize the `umasbooksadmin/umasbookswebsite` repository) > pick the
    repo > Render reads `render.yaml` and proposes `umas-books-db` and
    `umas-books`. Fill the "sync: false" values from the table above >
-   **Apply**. Expected: the database becomes **Available**; the first deploy of
-   the service may fail or start empty: that is fine.
-4. **Restore the data** into the new database: Render > `umas-books-db` >
-   **Connect** > copy the **External Database URL**, then on your computer (with
-   PostgreSQL 18 client tools, see the README):
-   `pg_restore --no-owner --no-privileges --exit-on-error -d "<external url>" restore.dump`.
-   If the database already has tables from the first deploy, drop and recreate
-   it empty first (ask for help if unsure: never restore over data you need).
-   Expected: no error output; it takes a few minutes.
-5. **Deploy:** Render > `umas-books` > **Manual Deploy > Deploy latest commit**.
-   The pre-deploy command `npm run migrate` applies any migration newer than
-   the dump (the log shows "Running migration: ..." and "Migrations complete").
-   Expected: **Live**, and `https://<service>.onrender.com/healthz` shows OK.
+   **Apply**. **Do not give `DATABASE_URL` a real value yet**: if Render makes
+   you type something, type the word `placeholder`. Expected: the database
+   becomes **Available**; the first deploy of the service **fails** (its
+   pre-deploy step cannot reach a database with a placeholder address). That is
+   what we want.
+
+   > **Why this order matters.** The deploy's pre-deploy step `npm run migrate`
+   > builds all the tables in the database it is pointed at. A restore into a
+   > database that already has those tables stops with errors such as
+   > `relation "..." already exists` (this was reproduced with
+   > `pg_restore --exit-on-error`). So: **restore first into an empty database,
+   > point the service at it afterwards.** If the website has already run
+   > against the new database (for instance you set the real `DATABASE_URL`
+   > before restoring), do the reset in step 4a.
+
+4. **Restore the data** into the new, **empty** database: Render >
+   `umas-books-db` > **Connect** > copy the **External Database URL** (just
+   created, so the password in it is current). On your Mac (PostgreSQL 18 client
+   tools: `brew install libpq`, see the README), in the folder with the
+   decrypted file:
+
+   ```bash
+   cd ~/Documents
+   ```
+
+   ```bash
+   pg_restore --no-owner --no-privileges --exit-on-error -d "<external url>" umas_books_full_<date>.dump
+   ```
+
+   Expected: no error output; it takes a few minutes. Then check the numbers
+   (README "Restoring from a backup", step 3).
+
+   **4a. Only if the database is not empty** (the error `relation ... already
+   exists`, or the site already ran against it): you must empty it first. This
+   erases everything in that database, so do it **only** on the brand-new
+   database of this rebuild, never on one that holds data you need. Safest: in
+   Render create **another new, empty PostgreSQL database** (New + > PostgreSQL;
+   same region, version 18) and restore into that one, then use **its**
+   Internal URL in step 5; delete the unused one later. The alternative is to
+   reset the schema of the same database: connect with `psql "<external url>"`
+   and run the two lines one after the other:
+
+   ```sql
+   DROP SCHEMA public CASCADE;
+   ```
+
+   ```sql
+   CREATE SCHEMA public;
+   ```
+
+   Then repeat step 4. (Not tried by us on Render's managed PostgreSQL: if
+   Render answers "permission denied", use the new-database way instead.)
+5. **Point the service at it, then deploy.** Render > `umas-books` >
+   **Environment** > `DATABASE_URL` > edit > the new database's **Internal
+   Database URL** (the host has no `.render.com`) > **Save**. Then **Manual
+   Deploy > Deploy latest commit**. The pre-deploy command `npm run migrate`
+   finds the restored tables and applies only the migrations newer than the dump
+   (the log shows "Running migration: ..." for those, if any, and "Migrations
+   complete"). Expected: **Live**, and `https://<service>.onrender.com/healthz`
+   shows OK.
 6. **Check the data:** log in at the `.onrender.com` address as an admin; the
    dashboard shows the books, accounts and reservations you expect.
 7. **DNS at Squarespace:** Squarespace > **Domains** > `umasbooks.org` > **DNS
@@ -1949,13 +2122,33 @@ login.
 9. **Real client IP check:** section "Check the real client IP" (in g): from your
    phone on mobile data, `/admin/diagnostics/client-ip` must show **your** IP;
    adjust `TRUST_PROXY_HOPS` if not.
-10. **GitHub:** update the repository secrets/variables (section b table): the
-    **External** `DATABASE_URL` of the new database. Run **Actions > Nightly
-    database backup > Run workflow**: green, and a new file in Backblaze.
-11. **Final checks:** `/healthz`, a login, a password-reset email, a small
+10. **Recreate the read-only backup user `backup_ro`.** Database roles are
+    **not** in the dump, so the new database does not have it and the nightly
+    backup would fail at the first run. Follow section ad, "A read-only database
+    user for the backup (once)": connect with `psql "<external url>"` as the
+    owner (the user in Render's own `DATABASE_URL`), run the `CREATE ROLE`,
+    `ALTER ROLE`, `GRANT` and `ALTER DEFAULT PRIVILEGES` lines **exactly as
+    printed there** with a new random password (`openssl rand -hex 24`), check
+    `has_table_privilege` answers `t`, and test the user with the two test
+    commands before going on. Put the new password in the password manager.
+11. **GitHub:** update the repository secrets/variables (section b table): the
+    GitHub **secret** `DATABASE_URL` (Settings > Secrets and variables > Actions
+    > **Secrets** tab > pencil icon on `DATABASE_URL`) becomes the
+    **`backup_ro` address on the new database's External host** (the External
+    URL with the user and password replaced, section ad). Check that the
+    **variable** `BACKUP_AGE_RECIPIENT` is still there (Variables tab). Run
+    **Actions > Nightly database backup > Run workflow**: green, the summary
+    says backups are encrypted, and a new `.dump.age` file appears in Backblaze.
+12. **Final checks:** `/healthz`, a login, a password-reset email, a small
     payment, the Monday test alert, `/admin/diagnostics/jobs` all **OK** after
-    10 minutes.
-12. **Write down what changed** (new service address, new owner) in section v.
+    10 minutes. If the old service is still around, make sure it is suspended so
+    two sites never write to one database.
+13. **Write down what changed** (new service address, new owner, the new
+    `backup_ro` password's place) in section v. If you rotated the database
+    password at any point, remember that Render's **Connect** panel keeps
+    showing the **old** password after a rotation (section b, "Rotating the
+    database password"): take the current one from the password manager, never
+    from that panel.
 
 ## v) Accounts and secrets inventory
 
@@ -1964,10 +2157,26 @@ safe). It lists **accounts and where access lives**, never the secrets
 themselves (those live in the password manager). `TODO(the association)` =
 unknown from the repository: someone with the login must fill the cell.
 
+> **To fill in (nothing below has been invented).** Each line is a service whose
+> cells still say `TODO(the association)`. Someone with the login fills them in
+> the table, then ticks the line. Where a cell says "Who else has access", add a
+> second person (section w).
+>
+> - [ ] **Render:** owner account, recovery email / phone, 2FA, who else has access
+> - [ ] **GitHub:** recovery email / phone, 2FA
+> - [ ] **Backblaze B2:** owner account, recovery email / phone, 2FA, who else has access
+> - [ ] **Squarespace Domains:** owner account, recovery email / phone, 2FA, who else has access
+> - [ ] **Google Workspace:** recovery email / phone, 2FA, who else has access
+> - [ ] **HelloAsso:** owner account, recovery email / phone, 2FA, who else has access
+> - [ ] **Anthropic:** owner account, recovery email / phone, 2FA, who else has access
+> - [ ] **UptimeRobot:** recovery email / phone, 2FA, who else has access
+> - [ ] **Password manager:** owner account, recovery email / phone, 2FA
+
 | Service | Owner account | Recovery email / phone | 2FA | Where the secret lives | Who else has access |
 |---|---|---|---|---|---|
 | **Render** (hosting, database) | TODO(the association): the login email of the Render account | TODO(the association) | TODO(the association) | Render dashboard > Environment; `TOTP_ENCRYPTION_KEY` copy in the password manager | TODO(the association): Render > Account/Workspace > Members (add a second owner, section w) |
-| **GitHub** (code, backups schedule, alerts) | Personal user `umasbooksadmin` (owner of the repository `umasbooksadmin/umasbookswebsite`) | TODO(the association) | TODO(the association) | Repository secrets: `DATABASE_URL`, `GMAIL_USER`, `GMAIL_APP_PASSWORD`, `BACKUP_S3_KEY_ID`, `BACKUP_S3_APPLICATION_KEY`; variables: `BACKUP_S3_*`, `ALERT_TO`, `SITE_URL` | Collaborators (Settings > Collaborators): `sharonbje`, `MelinaHartley` (not admins). A personal account cannot have a second owner: consider moving the repository to a **GitHub organisation** with two owners |
+| **GitHub** (code, backups schedule, alerts) | Personal user `umasbooksadmin` (owner of the repository `umasbooksadmin/umasbookswebsite`) | TODO(the association) | TODO(the association) | Repository secrets: `DATABASE_URL` (the read-only `backup_ro` address), `GMAIL_USER`, `GMAIL_APP_PASSWORD`, `BACKUP_S3_KEY_ID`, `BACKUP_S3_APPLICATION_KEY`; variables: `BACKUP_S3_*`, `BACKUP_AGE_RECIPIENT` (public key), `ALERT_TO`, `SITE_URL` | Collaborators (Settings > Collaborators): `sharonbje`, `MelinaHartley` (not admins). A personal account cannot have a second owner: consider moving the repository to a **GitHub organisation** with two owners |
+| **The age private key** (decrypts every `.dump.age` backup) | Held by the owner: file `umas-books-backup-key.txt` in the owner's Documents folder (delete it from there once the copies below exist) | n/a | n/a | **Two copies, never in GitHub or Render**: the password manager secure note "Uma's Books backup key (age)", and a paper copy in the sealed envelope (section w). The public half is the GitHub **repository variable** `BACKUP_AGE_RECIPIENT` (safe to show). Restore command: `age -d -i umas-books-backup-key.txt -o <file>.dump <file>.dump.age` | At least one other trusted person must know where the paper copy is |
 | **Backblaze B2** (offsite backups) | TODO(the association) | TODO(the association) | TODO(the association) | Application key (keyID + applicationKey) in GitHub secrets; the master login in the password manager | TODO(the association) |
 | **Squarespace Domains** (registrar **and** DNS for umasbooks.org; expires **2027-08-22**) | TODO(the association): the Squarespace account email | TODO(the association) | TODO(the association) | Password manager | TODO(the association) |
 | **Google Workspace** (admin@umasbooks.org: mail, the sender of every alert) | The Workspace admin account (admin@umasbooks.org) | TODO(the association) | TODO(the association) | App password `GMAIL_APP_PASSWORD` in Render **and** GitHub; login in the password manager | TODO(the association): Admin console > Users > add a second **super admin** |
@@ -2005,13 +2214,23 @@ takes an afternoon.
    manager vault. For the **website's own admin accounts**, each admin saves
    the recovery codes shown when they set up two-step verification (the site
    shows them once). Check that two people can open the vault.
-3. **The `TOTP_ENCRYPTION_KEY` copy** in the password manager (section b).
+3. **The `TOTP_ENCRYPTION_KEY` copy** in the password manager (section b), and
+   **the age private key** (the key that opens the nightly backups, file
+   `umas-books-backup-key.txt`) as a secure note named "Uma's Books backup key
+   (age)". Without it every backup in Backblaze is unreadable (section ad).
 4. **A sealed envelope** (or the vault's "emergency kit") with: the password
    manager's master recovery, the domain registrar login, this runbook printed,
-   and the name of the developer to call.
+   **a paper copy of the age private key** (print the file's contents, the
+   lines starting `AGE-SECRET-KEY-`, or copy them by hand, and write on the
+   sheet the restore command
+   `age -d -i umas-books-backup-key.txt -o <file>.dump <file>.dump.age`; the key
+   and the Backblaze login must never sit in the same place), and the name of
+   the developer to call. Check once a year that the paper copy still matches
+   the password manager (`age-keygen -y <key file>` prints the public key, which
+   must equal the GitHub variable `BACKUP_AGE_RECIPIENT`).
 5. **Test once a year** (put it in the yearly calendar): someone other than the
    usual person logs into Render, GitHub, Backblaze, Squarespace and Google
-   using only the vault.
+   using only the vault, and finds the age key in it.
 6. At least **two admins** on the website itself (Admin > Accounts), and never
    demote the last one (section c).
 
@@ -2845,10 +3064,16 @@ real password; this only reads):
 
 ```bash
 psql "postgresql://backup_ro:THE_RANDOM_PASSWORD@dpg-XXXXXXXX-a.frankfurt-postgres.render.com/umas_books" -c "select count(*) from users"
-/usr/lib/postgresql/18/bin/pg_dump --schema-only -f /dev/null "postgresql://backup_ro:THE_RANDOM_PASSWORD@dpg-XXXXXXXX-a.frankfurt-postgres.render.com/umas_books"
+pg_dump --schema-only -f /dev/null "postgresql://backup_ro:THE_RANDOM_PASSWORD@dpg-XXXXXXXX-a.frankfurt-postgres.render.com/umas_books"
 ```
 
-(Use whichever `pg_dump` is version 18 on your Mac, e.g. `pg_dump --version`.)
+(On a Mac, `brew install libpq` installs `pg_dump`; Homebrew does not put it on
+your path by default, so either run `brew link --force libpq` or call it by its
+full path, `/opt/homebrew/opt/libpq/bin/pg_dump` on an Apple-silicon Mac
+(`/usr/local/opt/libpq/bin/pg_dump` on an Intel Mac). Check `pg_dump --version`
+says 18: an older one refuses to dump a version 18 server. The nightly backup
+itself runs on GitHub's Linux machines and uses
+`/usr/lib/postgresql/18/bin/pg_dump` there; you never type that path on your Mac.)
 Both must finish without an error. The backup runs `pg_dump` with
 `--exclude-table-data=session`, which skips the *rows* of the `session` table
 but still needs to read its definition, so the user must be able to read the

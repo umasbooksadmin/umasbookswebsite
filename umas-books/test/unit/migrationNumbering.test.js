@@ -13,10 +13,9 @@
 //  - gaps are allowed (abandoned branches), but only the KNOWN ones below: a new
 //    gap is almost always a number taken by a branch that is still open or lost.
 //
-// Known gaps (never used on main): 049, 051, 052, 061, 064.
-// 067, 069-073 were reserved by branches that renumbered or never used them; 077-079 are
-// taken by branches that were still open when this list was written. They may stay
-// missing, or be filled later (filling a listed gap is fine).
+// Known gaps (numbers that were never used on main): 049, 051, 052, 061, 064, 067 and 069-073
+// (reserved by branches that renumbered or never used them). They may stay missing, or be filled
+// later (filling a listed gap is fine). Every other number from 001 up to the newest file must exist.
 // If you really must skip a number on purpose, add it to KNOWN_GAPS here in the same PR.
 
 const test = require("node:test");
@@ -25,9 +24,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const dir = path.join(__dirname, "..", "..", "migrations");
-// 89: reserved by PR #267 (ai_daily_cap). TEMPORARY: remove 89 here once #267 is merged (this PR uses 090).
-// 95: reserved by PR #329 (order_refund_method). TEMPORARY: remove 95 here once #329 is merged (this PR uses 096).
-const KNOWN_GAPS = new Set([49, 51, 52, 61, 64, 67, 69, 70, 71, 72, 73, 77, 78, 79, 89, 95]);
+const KNOWN_GAPS = new Set([49, 51, 52, 61, 64, 67, 69, 70, 71, 72, 73]);
 
 const files = fs.readdirSync(dir).filter((f) => f.endsWith(".sql")).sort();
 
