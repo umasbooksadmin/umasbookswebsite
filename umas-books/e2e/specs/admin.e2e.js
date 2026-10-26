@@ -876,7 +876,7 @@ s.write("A15b (must) adding an award shows it on the public book page; removing 
   await ctx.goto(`/books/${tagged.id}`);
   has(await ctx.text(), /Awards & lists:.*Booker Prize/s);
   await admin(ctx, `/admin/inventory/${tagged.id}`);
-  await Promise.all([ctx.page.waitForNavigation(), ctx.page.click("form[action$='/remove'] button")]);
+  await Promise.all([ctx.page.waitForNavigation(), ctx.page.click("form[action^='/admin/awards/'][action$='/remove'] button")]);
   await ctx.goto(`/books/${tagged.id}`);
   hasNot(await ctx.text(), /Booker Prize/);
 });
