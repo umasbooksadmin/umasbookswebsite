@@ -1,4 +1,4 @@
-<%- include('../../partials/admin_header', { title: book.title, active: active, pageTitle: book.title }) %>
+<%- include('../../partials/admin_header', { title: book.title, active: active, pageTitle: book.title, extraCss: ['/cover-edit.css'] }) %>
 <% if (typeof notice !== "undefined" && notice) { %><div class="notice-box" role="status"><%= notice %></div><% } %>
 
 <% if (typeof requestCount !== "undefined" && requestCount > 0) { %><div class="notice-box" role="status"><%= requestCount %> customer<%= requestCount === 1 ? '' : 's' %> asked for this book. <a href="/admin/requests?status=matched&amp;book=<%= book.id %>">See the request<%= requestCount === 1 ? '' : 's' %></a></div><% } %>
@@ -62,6 +62,76 @@
       </form>
     </details>
   </div>
+</div>
+
+<div class="card" id="cover" data-cover-edit>
+  <div class="section-title">Cover</div>
+  <% if (typeof coverMessage !== "undefined" && coverMessage) { %>
+    <div class="<%= coverMessage.error ? 'error-box' : 'notice-box' %> cvr-message" tabindex="-1" data-cover-message <%- coverMessage.error ? 'role="alert"' : 'role="status"' %>><%= coverMessage.text %></div>
+  <% } %>
+  <p class="visually-hidden" role="status" aria-live="polite" data-cover-live></p>
+  <div class="cvr-body">
+    <div class="cvr-preview">
+      <% if (cover.preview) { %>
+        <img class="cvr-img" src="<%= cover.preview %>" alt="Current cover of <%= book.title %>" data-cover-img>
+      <% } else { %>
+        <div class="cvr-empty"><%= cover.external ? 'Cover not saved on our server' : 'No cover' %></div>
+      <% } %>
+    </div>
+    <div class="cvr-side">
+      <% if (cover.external) { %>
+        <p class="muted small cvr-note">This cover is an old web address that is not saved on our server, so it can't be rotated or cropped. Replace it with a photo, or remove it.</p>
+      <% } else if (!cover.url) { %>
+        <p class="muted small cvr-note">This book has no cover. Take a photo of the front, or choose one from your files.</p>
+      <% } else { %>
+        <p class="muted small cvr-note">Changes are saved at once. The picture you replace is cleaned up automatically later.</p>
+      <% } %>
+      <div class="cvr-actions">
+        <form method="post" action="/admin/inventory/<%= book.id %>/cover/replace" enctype="multipart/form-data">
+          <%- include('../../partials/csrf_field') %>
+          <button type="button" class="btn btn-outline btn-small" data-trigger-file="cover-photo"><%= cover.url ? 'Replace cover photo' : 'Add cover photo' %></button>
+          <input id="cover-photo" name="coverPhoto" type="file" aria-label="<%= cover.url ? 'Replace cover photo' : 'Add cover photo' %>" accept="image/*" capture="environment" class="file-input-hidden" data-file-name-target="cover-photo-name" data-max-bytes="8388608" data-max-label="8 MB" data-auto-submit-file>
+          <span id="cover-photo-name" class="visually-hidden"></span>
+          <noscript><label for="cover-photo-plain">Photo</label> <input id="cover-photo-plain" name="coverPhoto" type="file" accept="image/*"> <button class="btn btn-small" type="submit">Upload</button></noscript>
+        </form>
+        <% if (cover.stored) { %>
+          <form method="post" action="/admin/inventory/<%= book.id %>/cover/rotate">
+            <%- include('../../partials/csrf_field') %>
+            <button class="btn btn-outline btn-small" type="submit" name="direction" value="left"><span aria-hidden="true">&#8634;</span> Rotate left</button>
+            <button class="btn btn-outline btn-small" type="submit" name="direction" value="right"><span aria-hidden="true">&#8635;</span> Rotate right</button>
+          </form>
+          <button type="button" class="btn btn-outline btn-small" data-cover-crop-open hidden aria-expanded="false" aria-controls="cover-crop">Crop</button>
+        <% } %>
+        <% if (cover.url) { %>
+          <form method="post" action="/admin/inventory/<%= book.id %>/cover/remove" data-confirm="Remove this book's cover? The book will show &quot;No cover&quot; until you add one.">
+            <%- include('../../partials/csrf_field') %>
+            <button class="btn btn-outline btn-small" type="submit">Remove cover</button>
+          </form>
+        <% } %>
+      </div>
+    </div>
+  </div>
+  <% if (cover.stored) { %>
+    <div class="cvr-crop" id="cover-crop" data-cover-crop hidden>
+      <p class="muted small" id="cover-crop-help">Drag the box, or its corners, to choose the part to keep. You can also drag on the picture to draw a new box. With a keyboard, focus the box: arrow keys move it, Shift plus arrow keys change its size, Escape cancels.</p>
+      <div class="cvr-stage" data-cover-stage>
+        <img class="cvr-stage-img" src="<%= cover.preview %>" alt="" data-cover-stage-img>
+        <div class="cvr-overlay" data-cover-overlay>
+          <div class="cvr-box" tabindex="0" role="group" aria-label="Crop area" aria-describedby="cover-crop-help" data-cover-box>
+            <span class="cvr-handle" data-handle="nw"></span><span class="cvr-handle" data-handle="ne"></span><span class="cvr-handle" data-handle="sw"></span><span class="cvr-handle" data-handle="se"></span>
+          </div>
+        </div>
+      </div>
+      <p class="small cvr-readout" data-cover-readout></p>
+      <form class="cvr-crop-form" method="post" action="/admin/inventory/<%= book.id %>/cover/crop" data-cover-crop-form>
+        <%- include('../../partials/csrf_field') %>
+        <input type="hidden" name="x" value="0"><input type="hidden" name="y" value="0"><input type="hidden" name="w" value="1"><input type="hidden" name="h" value="1">
+        <button class="btn btn-small" type="submit">Apply crop</button>
+        <button class="btn btn-outline btn-small" type="button" data-cover-reset>Reset</button>
+        <button class="btn btn-outline btn-small" type="button" data-cover-cancel>Cancel</button>
+      </form>
+    </div>
+  <% } %>
 </div>
 
 <div class="card">
@@ -195,6 +265,7 @@
 
 <%- include('../../partials/location_options') %>
 <script src="<%= assetUrl('/price-suggestion.js') %>"></script>
+<script src="<%= assetUrl('/cover-edit.js') %>"></script>
 <script src="<%= assetUrl('/publisher-price-rule.js') %>"></script>
 <script src="<%= assetUrl('/copy-text.js') %>"></script>
 <%- include('../../partials/admin_footer') %>

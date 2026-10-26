@@ -925,6 +925,88 @@ s.write("A14b edit the tagged book's author and see it saved; the public page sh
   await ctx.goto(`/books/${tagged.id}`);
   has(await ctx.text(), new RegExp(`${TAG()} Author`));
 });
+s.write("A14f (must) the tagged book's Cover card: replace the photo, rotate it, crop it with the keyboard, remove it, add a photo again", { as: "admin", timeout: 180000 }, async (ctx) => {
+  if (!tagged.id) ctx.skip("needs A10b");
+  const fs = require("node:fs");
+  const os = require("node:os");
+  const sharp = require("sharp");
+  const file = require("node:path").join(os.tmpdir(), `${TAG()}-cover.jpg`);
+  fs.writeFileSync(file, await sharp({ create: { width: 300, height: 450, channels: 3, background: "#2c5d63" } }).jpeg().toBuffer());
+  const coverSize = async () => ctx.page.$eval("img[data-cover-img]", (i) => new Promise((ok) => (i.complete ? ok([i.naturalWidth, i.naturalHeight]) : (i.onload = () => ok([i.naturalWidth, i.naturalHeight])))));
+  try {
+    await admin(ctx, `/admin/inventory/${tagged.id}`);
+    assert.ok(await ctx.page.$("#cover"), "the Cover card is on the book page");
+    // Replace: the hidden file input is what the camera / files picker fills; the page reloads with the new cover.
+    await Promise.all([ctx.page.waitForNavigation(), (await ctx.page.$("#cover-photo")).uploadFile(file)]);
+    has(await ctx.text(), /Cover photo replaced/);
+    assert.deepEqual(await coverSize(), [300, 450], "the new photo is the cover");
+    // Rotate right: 300 x 450 becomes 450 x 300 (kept at its own size, not shrunk).
+    await Promise.all([ctx.page.waitForNavigation(), ctx.page.click("#cover button[name='direction'][value='right']")]);
+    has(await ctx.text(), /Cover rotated/);
+    assert.deepEqual(await coverSize(), [450, 300]);
+    // Crop with the keyboard: open, make the box 5 points smaller with Shift+arrows, apply.
+    await ctx.page.click("[data-cover-crop-open]");
+    await ctx.page.focus("[data-cover-box]");
+    const before = await ctx.page.$eval("[data-cover-box]", (b) => b.style.width);
+    await ctx.page.keyboard.down("Shift");
+    for (let i = 0; i < 5; i++) await ctx.page.keyboard.press("ArrowLeft");
+    await ctx.page.keyboard.up("Shift");
+    assert.notEqual(await ctx.page.$eval("[data-cover-box]", (b) => b.style.width), before, "Shift+arrow resizes the box");
+    await Promise.all([ctx.page.waitForNavigation(), ctx.page.click("[data-cover-crop-form] button[type='submit']")]);
+    has(await ctx.text(), /Cover cropped/);
+    const [w, h] = await coverSize();
+    assert.ok(w < 450 && h < 300, `cropped to ${w} x ${h}`);
+    // Cancel with Escape leaves the picture alone and gives the focus back to Crop.
+    await ctx.page.click("[data-cover-crop-open]");
+    await ctx.page.focus("[data-cover-box]");
+    await ctx.page.keyboard.press("Escape");
+    assert.equal(await ctx.page.$eval("[data-cover-crop]", (e) => e.hidden), true);
+    assert.equal(await ctx.page.evaluate(() => document.activeElement.hasAttribute("data-cover-crop-open")), true);
+    // Remove: asks first, then the public page says No cover.
+    ctx.page.once("dialog", (d) => d.accept());
+    await Promise.all([ctx.page.waitForNavigation(), ctx.page.click("#cover form[action$='/cover/remove'] button")]);
+    has(await ctx.text(), /Cover removed/);
+    await ctx.goto(`/books/${tagged.id}`);
+    has(await ctx.text(), /No cover/);
+    // And a photo again, so the tagged book ends with a cover.
+    await admin(ctx, `/admin/inventory/${tagged.id}`);
+    has(await ctx.text(), /Add cover photo/);
+    await Promise.all([ctx.page.waitForNavigation(), (await ctx.page.$("#cover-photo")).uploadFile(file)]);
+    has(await ctx.text(), /Cover photo replaced/);
+  } finally {
+    fs.rmSync(file, { force: true });
+  }
+});
+
+s.write("A14g on a phone (375 px and 320 px) the Cover card fits the screen, its buttons are 44 px tall, and the crop box can be dragged with a finger", { as: "admin", timeout: 180000 }, async (ctx) => {
+  if (!tagged.id) ctx.skip("needs A10b");
+  try {
+    for (const width of [375, 320]) {
+      await ctx.page.setViewport({ width, height: 812, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+      await admin(ctx, `/admin/inventory/${tagged.id}`);
+      const bad = await phoneOverflow(ctx.page, width);
+      assert.deepEqual(bad, [], `the book page at ${width} px: ${bad.join("; ")}`);
+      const small = await ctx.page.$$eval("#cover .btn", (els) => els.filter((e) => e.offsetParent).map((e) => ({ t: e.textContent.trim(), h: Math.round(e.getBoundingClientRect().height) })).filter((x) => x.h < 44));
+      assert.deepEqual(small, [], `buttons under 44 px at ${width} px`);
+      if (!(await ctx.page.$("[data-cover-crop-open]"))) ctx.skip("data: the tagged book has no stored cover (A14f must run first)");
+      await ctx.page.tap("[data-cover-crop-open]");
+      const bad2 = await phoneOverflow(ctx.page, width);
+      assert.deepEqual(bad2, [], `crop open at ${width} px: ${bad2.join("; ")}`);
+      if (width === 375) {
+        const r = await ctx.page.$eval("[data-cover-stage-img]", (e) => { const b = e.getBoundingClientRect(); return { x: b.x, y: b.y, w: b.width, h: b.height }; });
+        const before = await ctx.page.$eval("[data-cover-readout]", (e) => e.textContent);
+        const t = await ctx.page.touchscreen.touchStart(r.x + r.w * 0.1, r.y + r.h * 0.1);
+        await t.move(r.x + r.w * 0.5, r.y + r.h * 0.6);
+        await t.move(r.x + r.w * 0.8, r.y + r.h * 0.8);
+        await t.end();
+        assert.notEqual(await ctx.page.$eval("[data-cover-readout]", (e) => e.textContent), before, "a finger drag draws a new box");
+      }
+    }
+  } finally {
+    await ctx.page.setViewport({ width: 1280, height: 800 });
+  }
+});
+
 s.manual("A14c Delete 1 copy / Delete this book", "left to you: the tagged test book stays so you can inspect it, then delete it from its admin page (see e2e/README.md Cleaning up)");
 
 // ---- 5I-5K. Events, programs, meetings, shifts, announcements, blog, charity, forum ----
