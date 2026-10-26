@@ -1403,7 +1403,7 @@ s.test("G91 (must) the New In carousel reaches every new book (batches of 60), n
         if (touch) {
           // a finger: swipe left across the track
           // the carousel must be on screen or the finger lands on nothing; the swipe is ~two cards wide
-          const box = await ctx.page.$eval("#bk-new-track", (t) => { t.closest(".bk-new").scrollIntoView(); const r = t.getBoundingClientRect(); return { x: r.left + r.width * 0.95, y: r.top + 60, w: r.width }; });
+          const box = await ctx.page.$eval("#bk-new-track", (t) => { t.closest(".bk-new").scrollIntoView({ behavior: "instant", block: "start" }); const r = t.getBoundingClientRect(); return { x: r.left + r.width * 0.95, y: r.top + 60, w: r.width }; });
           await ctx.page.touchscreen.touchStart(box.x, box.y);
           for (let k = 1; k <= 8; k++) await ctx.page.touchscreen.touchMove(box.x - (box.w * 0.85 * k) / 8, box.y);
           await ctx.page.touchscreen.touchEnd();
@@ -1595,6 +1595,43 @@ s.test("G97 (must) a collection button opens its page: title, description, the b
   assert.equal(await ctx.page.$eval(".col-back a", (a) => a.getAttribute("href")), "/fr/books.html");
   await ctx.goto("/fr/books.html", "networkidle2");
   has(await ctx.page.$eval("#bk-collections", (e) => e.innerText), /Parcourir\s+par collection/);
+});
+
+s.test("G97a (must) a collection page lists its books like the genre results: 24 first, then Show more adds 24 more (focus on the first new book), no count; at 375 px the same grid as a genre", async (ctx) => {
+  await ctx.goto("/books.html", "networkidle2");
+  const hrefs = await ctx.page.$$eval("#bk-collections .col-btn", (a) => a.map((x) => x.getAttribute("href")));
+  if (!hrefs.length) ctx.skip("data: no collection is published (with an approved book in stock) on this site");
+  let big = null;
+  for (const h of hrefs) {
+    const j = await e2e.getJson(`/api/collections/${h.split("/").pop()}/books?offset=0&limit=1`);
+    if (j && j.total > 24) { big = { href: h, total: j.total }; break; }
+  }
+  if (!big) ctx.skip("data: no published collection has more than 24 books in stock, so there is no Show more to try");
+  await ctx.goto(big.href, "networkidle2");
+  const count = () => ctx.page.$$eval("#bk-results-grid .bk-book", (e) => e.length);
+  assert.equal(await count(), 24, "the first page is 24 books");
+  assert.equal(await ctx.page.$eval("#bk-more", (b) => !b.hidden && b.getBoundingClientRect().height >= 44), true, "Show more is there, tap-sized");
+  assert.equal(await ctx.page.$$eval("#bk-results-count", (e) => e.length), 0, "no count line");
+  assert.equal(await ctx.page.$eval("#bk-results-grid", (g) => getComputedStyle(g).display), "grid");
+  const before = await count();
+  await ctx.page.click("#bk-more");
+  await ctx.page.waitForFunction((n) => document.querySelectorAll("#bk-results-grid .bk-book").length > n, { timeout: 8000 }, before);
+  assert.equal(await ctx.page.evaluate((n) => document.activeElement === document.querySelectorAll("#bk-results-grid .bk-book a")[n], before), true, "focus moves to the first new book");
+  for (let i = 0; i < 20 && (await ctx.page.$eval("#bk-more", (b) => !b.hidden)); i++) {
+    const n = await count();
+    await ctx.page.click("#bk-more");
+    await ctx.page.waitForFunction((k) => document.querySelectorAll("#bk-results-grid .bk-book").length > k, { timeout: 8000 }, n);
+  }
+  assert.equal(await count(), big.total, "every book of the collection is reachable");
+  assert.equal(await ctx.page.$eval("#bk-more", (b) => b.hidden), true, "no Show more after the last book");
+  // a phone: the same grid as the genre results (one column or two, by the width, as on Browse), no sideways scrolling
+  await ctx.page.setViewport({ width: 375, height: 812, deviceScaleFactor: 1, isMobile: true, hasTouch: true });
+  await ctx.goto(big.href, "networkidle2");
+  const cols = await ctx.page.$eval(".bk-grid", (g) => getComputedStyle(g).gridTemplateColumns);
+  await ctx.goto("/books.html?genre=fiction", "networkidle2");
+  await ctx.page.waitForSelector("#bk-results-grid .bk-book");
+  assert.equal(await ctx.page.$eval(".bk-grid", (g) => getComputedStyle(g).gridTemplateColumns), cols, "375 px: the genre results have the same columns");
+  assert.deepEqual(await phoneOverflow(ctx.page, 375), []);
 });
 
 s.test("G98 (must) on a phone (375 px) the collections are a swipeable carousel (no arrows), each entry at least 44 px tall, icons 90 px, whole entries only, with no page-wide sideways scrolling", { viewport: GUEST_PHONE }, async (ctx) => {

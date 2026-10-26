@@ -1,5 +1,6 @@
 const express = require("express");
 const { localCover } = require("../lib/coverStore");
+const { publicJson, bookJson, PUBLIC_JSON_CACHE } = require("../lib/publicBookJson");
 const { pool } = require("../db");
 const { CONDITIONS, bindingLabel, conditionLabel } = require("../lib/inventory");
 const { expireStaleReservationsThrottled } = require("../lib/reservations");
@@ -16,26 +17,7 @@ const { buildBookSeo, bookPageTitle } = require("../lib/bookSeo");
 const router = express.Router();
 // The public JSON lists below are the same for everyone (no session, no per-person data) and change slowly: a browser
 // or the CDN may keep them a minute (new-in is also kept in memory for 45 s by lib/latestArrivals.js newInPage).
-const PUBLIC_JSON_CACHE = "public, max-age=60, s-maxage=60";
-
-// Public JSON, cross-origin (the cache header differs per route, so it is a parameter). Access-Control-Allow-Origin alone
-// isn't enough: helmet sets a global Cross-Origin-Resource-Policy: same-origin, which blocks cross-origin reads
-// independently of CORS unless relaxed here too. Only ever what is already publicly visible at /books/:id.
-const publicJson = (cacheControl) => (req, res, next) => {
-  res.set("Access-Control-Allow-Origin", "*");
-  res.set("Cross-Origin-Resource-Policy", "cross-origin");
-  res.set("Cache-Control", cacheControl);
-  next();
-};
-
-// The part of a book every public list shares (key order is part of the response: keep it).
-const bookJson = (b) => ({
-  id: b.id,
-  title: b.title,
-  author: b.authors,
-  coverUrl: localCover(b.cover_url),
-  price: b.min_price != null ? Number(b.min_price) : null,
-});
+// publicJson, PUBLIC_JSON_CACHE and bookJson are shared with the collection page list (lib/publicBookJson.js).
 // Garbage ids get the 404 page, not a Postgres 22P02 and a 500.
 validateIdParams(router, "id");
 
