@@ -175,6 +175,7 @@ function createApp() {
   // already defend themselves with [].concat(...), so they're left alone;
   // everything else collapses to its first value, the same as a normal
   // single-submission form would send.
+  // The list is in lib/multiValueFields.js (a test checks every route that reads a list is named there).
   const { MULTI_VALUE_BODY_FIELDS } = require("./lib/multiValueFields");
   app.use((req, res, next) => {
     if (req.body && typeof req.body === "object") {

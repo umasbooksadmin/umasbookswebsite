@@ -37,9 +37,17 @@ test("a title that is only The (or has nothing to sort on) keeps its own text", 
   assert.equal(sortTitleKey(null), "");
 });
 
-test("A, An and the French articles are NOT ignored", () => {
-  assert.equal(sortTitleKey("A Tale of Two Cities"), "a tale of two cities");
-  assert.equal(sortTitleKey("An Instance"), "an instance");
+test("A and An are ignored like The, only as a whole first word; the French articles are not", () => {
+  assert.equal(sortTitleKey("A Tale of Two Cities"), "tale of two cities");
+  assert.equal(sortTitleKey("a midsummer night's dream"), "midsummer night's dream");
+  assert.equal(sortTitleKey("An Instance"), "instance");
+  assert.equal(sortTitleKey("AN  Introduction"), "introduction");
+  assert.equal(sortTitleKey("A"), "a");
+  assert.equal(sortTitleKey("An"), "an");
+  assert.equal(sortTitleKey("A. J. Ayer"), "a. j. ayer");
+  assert.equal(sortTitleKey("Anne of Green Gables"), "anne of green gables");
+  assert.equal(sortTitleKey("Another Country"), "another country");
+  assert.equal(sortTitleKey("Theory of Everything"), "theory of everything");
   assert.equal(sortTitleKey("Le Petit Prince"), "le petit prince");
   assert.equal(sortTitleKey("L’Étranger"), "l’étranger");
 });

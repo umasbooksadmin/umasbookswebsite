@@ -440,3 +440,6 @@ html.is-admin-nav-open, html.is-admin-nav-open body { overflow: hidden; }
 .fr-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
 .fr-error { color: #90503f; }
 .fr-flag { margin-top: 6px; }
+
+/* Collection edit: the book that was just added by hand */
+.just-added { background: #f3efe0; outline: 2px solid var(--gold-dark, #8c6627); outline-offset: 2px; border-radius: 3px; }

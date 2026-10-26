@@ -152,13 +152,14 @@ test("every place that draws a cover gives the browser a srcset and sizes", () =
   }
 });
 
-test("collection page: the h1 can be visually hidden (col-sr) and the banner leaves room before the books", () => {
+test("collection page: the h1 can be visually hidden (col-sr) and the banner leaves room before the books (the list's own top padding, as under the genre row)", () => {
   const s = loadSheet("assets/collections.css");
   const sr = s.getRule(".col-sr");
   assert.equal(sr.position, "absolute");
   assert.equal(sr.width, "1px");
   assert.equal(sr.height, "1px");
   assert.equal(sr.overflow, "hidden");
-  assert.equal(s.getDecl(".col-banner", "margin"), "6px 0 24px");
+  assert.equal(s.getDecl(".col-banner", "margin"), "6px 0 0");
+  assert.equal(loadSheet("assets/books.css").getDecl(".bk-results", "padding"), "28px 0 34px", "the room under the banner is the results padding, the same as under the genre row");
   assert.equal(s.hasRule(".col-head"), true);
 });

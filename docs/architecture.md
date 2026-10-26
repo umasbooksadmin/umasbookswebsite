@@ -457,8 +457,8 @@ Details of the shop tables worth knowing:
   `manual`) and `is_clearance`, so that later the shop can see how often a
   volunteer kept the suggested price (see "Pricing" below). The data is collected but nothing
   reads it back yet.
-* **Alphabetical order.** Lists sorted by title use `books.title_sort` (migration 086, a generated
-  column), which ignores a leading whole-word "The" (not "A"/"An" or French articles); the shown title
+* **Alphabetical order.** Lists sorted by title use `books.title_sort` (migrations 086/099, a generated
+  column), which ignores a leading whole-word "The", "A" or "An" (not French articles); the shown title
   is unchanged. See `umas-books/ARCHITECTURE.md`.
 * **Inventory locations.** `book_copies.location` is free text per physical copy
   (trimmed, capitals kept as typed; "Store" and "STORE" are the same place when

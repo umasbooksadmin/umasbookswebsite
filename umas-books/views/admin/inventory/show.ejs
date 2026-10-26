@@ -41,6 +41,7 @@
         <input id="genre" name="genre" type="text" value="<%= book.categories || '' %>" placeholder="e.g. Fantasy, Fiction — separate multiple with commas">
         <label for="genreFr">Genres (French)</label>
         <input id="genreFr" name="genreFr" type="text" value="<%= book.categories_fr || '' %>" placeholder="Filled in automatically from Genres above if left blank">
+        <p class="muted small" data-fr-stale="genreFr" data-fr-english="genre" hidden>English changed: use "Update the French from the English".</p>
         <label for="coverUrl">Cover image URL</label>
         <input id="coverUrl" name="coverUrl" type="text" value="<%= book.cover_url || '' %>">
         <% if (!book.cover_url) { %>
@@ -54,6 +55,13 @@
         <div><button type="button" class="btn btn-outline btn-small" data-generate-description="description" data-generate-description-fr="descriptionFr">Generate description</button></div>
         <label for="descriptionFr">Description (French)</label>
         <textarea id="descriptionFr" name="descriptionFr"><%= book.description_fr || '' %></textarea>
+        <p class="muted small" data-fr-stale="descriptionFr" data-fr-english="description" hidden>English changed: use "Update the French from the English".</p>
+        <div data-fr-sync-tools hidden>
+          <div class="fr-tools">
+            <button type="button" class="btn btn-outline btn-small" data-fr-sync data-fr-url="/admin/inventory/translate-french" data-fr-genre="genre" data-fr-genre-fr="genreFr" data-fr-desc="description" data-fr-desc-fr="descriptionFr" data-fr-status="fr-sync-status" data-fr-save-label="Save changes">Update the French from the English</button>
+            <span class="muted small" id="fr-sync-status" role="status" aria-live="polite"></span>
+          </div>
+        </div>
         <div><button class="btn btn-small" type="submit">Save changes</button></div>
       </form>
       <form data-confirm="Delete this book and all of its copies? This can't be undone." method="post" action="/admin/inventory/<%= book.id %>/delete" style="margin-top:10px;">
@@ -266,6 +274,7 @@
 <%- include('../../partials/location_options') %>
 <script src="<%= assetUrl('/price-suggestion.js') %>"></script>
 <script src="<%= assetUrl('/cover-edit.js') %>"></script>
+<script src="<%= assetUrl('/book-french.js') %>"></script>
 <script src="<%= assetUrl('/publisher-price-rule.js') %>"></script>
 <script src="<%= assetUrl('/copy-text.js') %>"></script>
 <%- include('../../partials/admin_footer') %>

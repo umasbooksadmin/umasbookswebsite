@@ -1,10 +1,17 @@
-// The form fields that are genuinely meant to arrive more than once (a checkbox list, a multi-select). Everything else
-// that a form repeats collapses to its FIRST value in app.js (a repeated "email" would otherwise be an array that every
-// handler's .trim() chokes on). A route that reads a repeated field must have its name here AND defend itself with
-// [].concat(req.body.name || []); test/unit/multiValueFields.test.js reads the views and fails when a repeated field
-// name is missing from this list.
-//   optionIds     charity vote options        ids, itemIds   bulk-action checkbox lists
-//   days, times   the pre-registration form   accept        Admin > Genres: the AI suggestions the admin ticked
-const MULTI_VALUE_BODY_FIELDS = new Set(["optionIds", "ids", "days", "times", "itemIds", "accept"]);
+// Form fields that are MEANT to arrive more than once (a checkbox list, a row of hidden ids).
+//
+// src/app.js collapses every other repeated urlencoded field to its first value, so a stray duplicate
+// cannot crash a handler that expects a string. A field that a handler reads as a list MUST be named
+// here, or only its first value ever reaches the handler: that is how "Approve" on several books of a
+// collection saved only one of them. test/unit/multiValueFields.test.js fails when a route reads
+// [].concat(req.body.X) and X is missing from this list.
+const MULTI_VALUE_BODY_FIELDS = new Set([
+  "optionIds", // charity vote (multi-choice)
+  "ids", // bulk actions: announcements, blog, collection review (every book shown)
+  "itemIds", // order: collect only the ticked items
+  "days", "times", // pre-registration form
+  "approve", "reject", // collection review: one checkbox per book
+  "accept", // Admin > Genres: the AI proposals the admin ticked
+]);
 
 module.exports = { MULTI_VALUE_BODY_FIELDS };

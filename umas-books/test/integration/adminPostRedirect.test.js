@@ -24,6 +24,7 @@ const MAY_SEND = new Set([
   "/admin/translate-french/:kind", // JSON for public/french-translate.js (fetch): the French text goes into the form, nothing is saved
   "/admin/privacy/export", // the JSON data-request download
   "/admin/inventory/generate-description", // JSON for public/app.js
+  "/admin/inventory/translate-french", // JSON for public/book-french.js (fetch): the French text goes into the form, nothing is saved
   "/admin/blog/translate", // JSON for public/blog-translate.js (fetch): the French text goes into the form, nothing is saved
   "/admin/inventory", // "Save and add another" on the Add Book page: JSON for public/scan-intake.js (fetch); a plain form post redirects
   "/admin/till/sale", // JSON for the till's fetch()

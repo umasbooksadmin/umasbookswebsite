@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// `npm run e2e:ci`: the small browser-test subset CI runs (e2e/specs/ci-subset.e2e.js: the Browse Books carousel and the genre
-// list's Show more) against a throwaway copy of the app on this computer, seeded with 130 New In books that are all Fiction,
+// `npm run e2e:ci`: the small browser-test subset CI runs (e2e/specs/ci-subset.e2e.js: the Browse Books carousel, the genre
+// list's Show more and a collection page's Show more) against a throwaway copy of the app on this computer, seeded with 130 New In books that are all Fiction,
 // so the carousel crosses its batch boundary of 60 twice. Same pieces as e2e:local (test/helpers/testApp, headless Chrome through
 // puppeteer), a fraction of the time (about two minutes; the full G91 alone takes ten). Nothing is sent anywhere.
 //
@@ -35,6 +35,14 @@ async function seed(databaseUrl) {
             now() - (substring(title from 'Bulk ([0-9]+)')::int * interval '7 minutes') FROM b`,
     [BOOKS]
   );
+  // CI-G97a: a published collection with 30 of those books (more than the 24 a collection page shows at first)
+  const { rows: col } = await db.query("SELECT id FROM curated_collections ORDER BY sort_order, id LIMIT 1");
+  await db.query(
+    `INSERT INTO curated_collection_books (collection_id, book_id, status, reason, position)
+     SELECT $1, b.id, 'approved', 'Sample', row_number() OVER (ORDER BY b.id) FROM (SELECT id FROM books WHERE title LIKE 'E2E Sample New In Bulk %' ORDER BY id LIMIT 30) b`,
+    [col[0].id]
+  );
+  await db.query("UPDATE curated_collections SET published = TRUE WHERE id = $1", [col[0].id]);
   await db.end();
 }
 

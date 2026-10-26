@@ -601,6 +601,8 @@ To launch:
    `https://<your site>/robots.txt` no longer says `Disallow: /`. The red
    "PREVIEW MODE is ON" strip is gone from the admin screens.
 
+**How to refresh a book's French after changing its English.** Saving a book only translates a French box that is empty, so after you change the English Genres or Description the French stays as it was (a small grey line under the French box says "English changed"). On the book's edit page (and on Add manually) press **Update the French from the English** under Description (French): the two French boxes are filled from what is in the English boxes now, after a question if they already have text. Nothing is saved until you press **Save changes**. The genres come from the built-in word list (a genre that is not in it stays in English); the description uses one AI call of the daily limit. If the AI has no credit or the limit is reached you read why, and the French genres are still updated.
+
 **How to write a blog post, with a French version.** In **Admin > Blog** fill the English title and content (the excerpt is the short text on the list and in Google; add one), pick a picture, set the date and **Status** (Draft keeps it hidden, Scheduled/Published make it public from the date). Under **French version**: press **Translate to French** for a first draft (it uses one AI call of the daily limit; nothing is saved by it), then read and correct the French title, content and excerpt and press **Save**. The label next to "French version" says **ready** once the French title and content (and excerpt, if the English post has one) are there; until then French readers see the English text marked as English, so a post can always be published in English alone. The post's address is `/blog/<name>` (English) and `/fr/blog/<name>` (French); the name comes from the English title. New posts appear in `/sitemap-blog.xml` within an hour (saving from the editor refreshes it at once). The three starter posts already have French texts (migration 096): read them once and correct them if needed.
 
 **What preview mode does not touch: the blog.** Admins can write, edit,
@@ -3254,17 +3256,17 @@ yellow warning to its run (never a failure, no email).
 6. Run the **bootstrap test** above once and read the two emails/files that
    result.
 
-## ak) Alphabetical order ignores a leading "The"
+## ak) Alphabetical order ignores a leading "The", "A" or "An"
 
 Wherever books are listed A to Z (the shop search, "More by this author", the admin
-**Books & Reservations** list), a leading **The** is ignored: `The Hobbit` is listed
-between `Hamlet` and `Hunger Games`. The title shown is never changed.
+**Books & Reservations** list), a leading **The**, **A** or **An** is ignored: `The Hobbit` is listed
+between `Hamlet` and `Hunger Games`, and `A Midsummer Night's Dream` under M (also the two lists on a collection's edit page and the public collection page). The title shown is never changed.
 
-* Only the whole word "The" is ignored (any capitals), after any leading space, quote or
-  bracket: `Theory of Everything` and `Theodore Rex` stay under T, and `"The Road"` goes
-  under R. A title that is only "The" keeps its own place.
-* **A**/**An** and the French **Le / La / Les / L'** are NOT ignored. To add them, the
-  rule is one expression, in `migrations/086_books_title_sort.sql` (the `books.title_sort`
+* Only the whole word "The", "A" or "An" (followed by a space) is ignored (any capitals), after any leading space, quote or
+  bracket: `Theory of Everything`, `Anne of Green Gables` and `A. J. Ayer` keep their own letter, and `"The Road"` goes
+  under R. A title that is only "The", "A" or "An" keeps its own place.
+* The French **Le / La / Les / L'** are NOT ignored. The rule is one expression, in
+  `migrations/099_books_title_sort_a_an.sql` (the `books.title_sort`
   column) and its twin `sortTitleKey()` in `src/lib/titleSort.js`; ask a developer.
 * `books.title_sort` is a generated column: it updates itself when a title is edited,
   and there is nothing to run by hand. If a title looks mis-sorted, check

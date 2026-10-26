@@ -10,12 +10,17 @@
 //   UmasUI.coverSrcset(url)       "/img/<hash>-w300.jpg 300w, ..." for a stored cover, '' for any other address
 //   UmasUI.coverAttrs(url, sizes) ' srcset="..." sizes="..."' (leading space) or ''
 //   UmasUI.bookCardHtml(b, withFavorite)   the Browse card (.bk-book): the New In carousel and the search/genre grid;
-//                                          views/marketing/collection.ejs draws the same card on the server
+//                                          views/marketing/partials/book_card.ejs draws the same card on the server (test/unit/uiHelpers.test.js compares them)
 //   UmasUI.favoriteCardHtml(b)             the Favorites page card (.book-card-wrap), which also shows stock
 //   UmasUI.enSpan(text, language)  escaped text; on a French page an English book's text wrapped in <span lang="en"> (WCAG 3.1.2;
 //                                 src/lib/bookText.js is the server twin, test/unit/bookText.test.js keeps them in step)
 //   UmasUI.favNameHtml(title, language)   the heart's spoken name for a French page: « Ajouter <span lang="en">T</span> aux favoris »
+//   UmasUI.frApos(text)           a straight apostrophe as the curly one (French typography)
 //   UmasUI.reducedMotion()        true when the person asked for less motion
+//   UmasUI.getJSON(url, cb)       GET JSON, cb(err, data); one retry after 4 s, none when rate limited (err.rateLimited): Browse and the
+//                                 collection page's "Show more" ask the server the same way
+//   UmasUI.syncFavorites(root)    colour the hearts inside root from the saved favourites (public/favorites.js)
+//   UmasUI.installCoverFallback() a cover that fails to load becomes the "No cover" box (one listener per page)
 (function (root, factory) {
   var api = factory();
   if (typeof window !== 'undefined') window.UmasUI = api;
@@ -131,8 +136,41 @@
     try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { return false; }
   }
 
+  function getJSON(url, cb, isRetry) {
+    fetch(url)
+      .then(function (res) {
+        // 429 (too many searches from this connection): no automatic retry, say so.
+        if (res.status === 429) { var e = new Error('rate limited'); e.rateLimited = true; throw e; }
+        if (!res.ok) throw new Error('bad response');
+        return res.json();
+      })
+      .then(function (data) { cb(null, data); })
+      .catch(function (err) {
+        if (err && err.rateLimited) { cb(err); return; }
+        if (!isRetry) { setTimeout(function () { getJSON(url, cb, true); }, 4000); return; }
+        cb(err);
+      });
+  }
+
+  function syncFavorites(root) {
+    if (window.UmasFavorites) root.querySelectorAll('.favorite-toggle').forEach(window.UmasFavorites.sync);
+  }
+
+  function installCoverFallback() {
+    document.addEventListener('error', function (e) {
+      var img = e.target;
+      if (!img || img.tagName !== 'IMG' || !img.classList.contains('cover')) return;
+      var ph = document.createElement('div');
+      ph.className = 'cover cover-none';
+      ph.setAttribute('aria-hidden', 'true');
+      ph.textContent = t('bk.nocover', 'No cover');
+      img.replaceWith(ph);
+    }, true);
+  }
+
   return {
-    esc: esc, enSpan: enSpan, favNameHtml: favNameHtml, lang: lang, t: t, euro: euro, href: href,
+    getJSON: getJSON, syncFavorites: syncFavorites, installCoverFallback: installCoverFallback,
+    frApos: frApos, esc: esc, enSpan: enSpan, favNameHtml: favNameHtml, lang: lang, t: t, euro: euro, href: href,
     coverSrcset: coverSrcset, coverAttrs: coverAttrs,
     HEART: HEART, bookCardHtml: bookCardHtml, favoriteCardHtml: favoriteCardHtml,
     reducedMotion: reducedMotion,
