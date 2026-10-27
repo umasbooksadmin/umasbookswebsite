@@ -1352,8 +1352,9 @@ account" (at most one per hour) and by the dashboard box. Admin > **Accounts**
    usually a typo or a second address).
 2. Under the payment, type part of their account email or name > **Search** >
    **Link to account** next to the right account. The payment is attached and
-   the membership is granted immediately (365 days from the payment, or from the
-   end of the current membership when renewing early).
+   the membership is granted immediately (one calendar year from the payment, to the
+   end of that day in France, or from the end of the current membership when
+   renewing early).
 3. If the account's email is not confirmed ("email not confirmed" next to it),
    the link still works, but ask the person to confirm their email.
 4. A payment more than a year old, or a payment of 0 EUR, never grants
@@ -1667,6 +1668,15 @@ and on the other reports.
    the correction is in the export of the month of the refund. A refund paid in cash
    from the drawer is also taken off the day's expected cash, so it does not
    come back as a "Cash short" row.
+   **A refunded membership works the same way.** When HelloAsso refunds a
+   membership payment (or a dispute is lost), the payment is no longer deleted:
+   it keeps its row on the day it was paid (the month already sent never changes)
+   and a **negative Membership row** (label "Remboursement adhésions, HelloAsso, ...",
+   count -1) appears on the day the site first saw the refund, in the export of
+   that month. The membership itself ends at once. The record is kept for 10 years
+   like the other payments and is anonymised, not deleted, if the person asks for
+   erasure. If HelloAsso later reports the payment as valid again (a dispute won),
+   the payment stands again and the negative row disappears from that month.
 2b. **Discounts at pickup.** When a reservation is collected for LESS than its
    list price ("Amount received" lower than the total, with a note), its book
    lines are exported at the **list price** as usual and ONE extra **negative**

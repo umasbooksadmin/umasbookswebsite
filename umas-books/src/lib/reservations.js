@@ -26,6 +26,7 @@ const { sendEmail } = require("./outbox");
 const { emailSafeName } = require("./validation");
 const { emailTr } = require("./lang");
 const legal = require("./legal");
+const { parisPlusDaysSql } = require("./tz");
 const { noReturnsShortPlain } = require("./legalText");
 const { configuredBaseUrl } = require("./baseUrl");
 const { cachedFor } = require("./runLimited");
@@ -276,7 +277,7 @@ async function extendReservation(pool, orderId) {
     const { rows: books } = await client.query("SELECT 1 FROM book_copies WHERE cart_order_id = $1 AND status = 'reserved' LIMIT 1", [orderId]);
     if (!books.length) return { outcome: "no_books" };
     const { rows: upd } = await client.query(
-      `UPDATE orders SET reserved_until = GREATEST(reserved_until, now()) + make_interval(days => $2),
+      `UPDATE orders SET reserved_until = ${parisPlusDaysSql("GREATEST(reserved_until, now())", "$2::int")},
               reservation_extended_at = now()
        WHERE id = $1 RETURNING reserved_until`,
       [orderId, RESERVATION_EXTENSION_DAYS]

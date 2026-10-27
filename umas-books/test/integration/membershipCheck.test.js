@@ -132,7 +132,8 @@ test("payment found: the account becomes a member and the page says so, with the
   const v = guest();
   await v.login(account);
   const html = await press(v);
-  const expected = new Date(paidAt.getTime() + 365 * 86400000).toISOString().slice(0, 10);
+  const paidDay = paidAt.toLocaleDateString("en-CA", { timeZone: "Europe/Paris" }); // YYYY-MM-DD in Paris
+  const expected = `${Number(paidDay.slice(0, 4)) + 1}${paidDay.slice(4)}`; // the same day one year later (a calendar year)
   assert.ok(html.includes(`<span data-i18n="mem.check.found">Membership found: you are a member until</span> <strong>${expected}</strong>`));
   assert.equal((await member(account.email)).is_member, true);
   assert.deepEqual(lookups, [account.email], "only this account's own email was looked up");

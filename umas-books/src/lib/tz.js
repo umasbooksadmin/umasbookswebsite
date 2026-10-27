@@ -43,4 +43,15 @@ function parisInstant(dateStr, timeStr = "00:00") {
   return new Date(wall - 3600000); // a wall time that does not exist (spring-forward gap): the hour after
 }
 
-module.exports = { SITE_TIME_ZONE, parisDateString, parisInstant };
+// SQL for "<timestamptz expression> plus/minus N CALENDAR days in Paris". `expr + interval 'N days'` on a
+// timestamptz is evaluated in the database SESSION time zone (UTC on Render, whatever the developer's machine says
+// locally), so across a clock change a deadline would land an hour early or late in Paris wall time (a hold
+// extended from 2026-10-23 00:00 Paris by 7 days ended 2026-10-29 23:00). Converting to Paris wall-clock time,
+// adding the days there and converting back keeps the Paris time of day, whatever the session zone is.
+// `days` is a number (inlined, must be an integer) or a SQL fragment such as "$2::int".
+function parisPlusDaysSql(expr, days) {
+  const d = typeof days === "number" ? String(Math.trunc(days)) : days;
+  return `(((${expr}) AT TIME ZONE '${SITE_TIME_ZONE}' + make_interval(days => ${d})) AT TIME ZONE '${SITE_TIME_ZONE}')`;
+}
+
+module.exports = { SITE_TIME_ZONE, parisDateString, parisInstant, parisPlusDaysSql };

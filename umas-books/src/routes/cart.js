@@ -322,6 +322,19 @@ router.post("/cart/reserve", checkoutLimiter, async (req, res) => {
         `Le prix de « ${c.title} » est passé à ${c.newPrice.toFixed(2).replace(".", ",")} €, veuillez vérifier votre réservation.`));
       return refuse(msgs.join(" "));
     }
+    if (err.message === "NOT_FOR_SALE") {
+      // A copy's price was cleared (or set to 0) after the customer saw the cart: it is not "taken by someone else".
+      const fresh = await loadCartItems(cart);
+      req.session.cart = fresh.map((i) => ({
+        kind: i.kind, lineId: i.lineId,
+        ...(i.kind === "book" ? { copyId: i.copyId } : { classId: i.classId }),
+      }));
+      const names = (err.titles || []).map((t) => `"${t}"`).join(", ");
+      const namesFr = (err.titles || []).map((t) => `« ${t} »`).join(", ");
+      return refuse(req.tr(
+        `${names} is no longer for sale at the moment (it has no price), so nothing was reserved. Please review your cart and try again.`,
+        `${namesFr} n’est plus en vente pour le moment (il n’a plus de prix), donc rien n’a été réservé. Veuillez vérifier votre panier et réessayer.`));
+    }
     if (err.message === "BUSY") {
       return refuse(req.tr("The shop is busy right now. Please try again in a moment.", "La boutique est très sollicitée en ce moment. Veuillez réessayer dans un instant."));
     }

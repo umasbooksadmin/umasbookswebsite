@@ -11,7 +11,7 @@
 // { key, title, columns: [{ key, label, type }], rows, totals, note }, shown as
 // a table on the page and exported by toCsv().
 
-const { SITE_TIME_ZONE } = require("./tz");
+const { SITE_TIME_ZONE, parisPlusDaysSql } = require("./tz");
 const { CONDITIONS, SOURCES } = require("./inventory");
 const { TYPE_LABELS, parseTypeFilter, typeFilterSql, typeCaseSql } = require("./accountTypes");
 const { activeMemberSql } = require("./memberStatus");
@@ -443,7 +443,7 @@ async function membershipReport(db, ctx) {
     db.query(
       `SELECT to_char(date_trunc('month', first_paid AT TIME ZONE '${TZ}'), 'YYYY-MM') AS month, COUNT(*)::int AS n
        FROM (
-         SELECT MIN(paid_at) AS first_paid FROM membership_payments
+         SELECT MIN(paid_at) AS first_paid FROM membership_payments WHERE reversed_at IS NULL
          GROUP BY COALESCE('u' || user_id::text, 'e' || lower(payer_email))
        ) f
        WHERE ${inRange("first_paid", 1, 2)}
@@ -460,7 +460,7 @@ async function membershipReport(db, ctx) {
       `SELECT display_name, to_char(member_expires_at AT TIME ZONE '${TZ}', 'YYYY-MM-DD') AS expires
        FROM users
        WHERE is_member AND member_expires_at IS NOT NULL
-         AND member_expires_at >= now() AND member_expires_at < now() + interval '30 days'
+         AND member_expires_at >= now() AND member_expires_at < ${parisPlusDaysSql("now()", 30)}
        ORDER BY member_expires_at ASC, id ASC LIMIT ${LIST_LIMIT}`
     ),
   ]);

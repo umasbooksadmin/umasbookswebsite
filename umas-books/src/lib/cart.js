@@ -28,6 +28,8 @@ const { RESERVATION_DAYS, MAX_RESERVED_COPIES, MAX_ACTIVE_RESERVATIONS, SESSION_
 //   items:  cart lines as loaded by routes/cart.js (kind 'book' | 'dropin', price > 0)
 // Resolves the new order row. Rejects with an Error whose message is one of
 //   SOLD_OUT                 something in the cart was taken in the meantime
+//   NOT_FOR_SALE             a copy is still on the shelf but its price was cleared or set to 0 since the customer
+//                            saw the cart (err.titles lists them): not "taken by someone else"
 //   TOO_MANY_RESERVATIONS    the account already has MAX_ACTIVE_RESERVATIONS open
 //   TOO_MANY_COPIES          the account would hold more than MAX_RESERVED_COPIES books
 //   PRICE_CHANGED            a price differs from what the customer saw (err.changes lists them)
@@ -104,14 +106,26 @@ async function reserveInTransaction(client, { user, email, name, phone, bookItem
     // book_copies.price. The customer is never charged a different price silently: the
     // reservation is refused (PRICE_CHANGED, rolled back) and they confirm again at the new one.
     const priceChanges = [];
+    const notForSale = [];
     for (const row of locked) {
-      if (row.status !== "in_stock" || row.price == null || Number(row.price) <= 0) continue; // taken or not for sale: the UPDATE below says SOLD_OUT
+      if (row.status === "in_stock" && (row.price == null || Number(row.price) <= 0)) {
+        const item = bookItems.find((i) => i.copyId === row.id);
+        notForSale.push(item ? item.title : `#${row.id}`);
+        continue;
+      }
+      if (row.status !== "in_stock") continue; // taken: the UPDATE below says SOLD_OUT
       const item = bookItems.find((i) => i.copyId === row.id);
       if (item && Math.round(Number(row.price) * 100) !== Math.round(Number(item.price) * 100)) {
         priceChanges.push({ kind: "book", id: row.id, title: item.title, oldPrice: Number(item.price), newPrice: Number(row.price) });
       }
     }
     if (priceChanges.length) throw priceChangedError(priceChanges);
+    if (notForSale.length && locked.length === copyIds.length && locked.every((r) => r.status === "in_stock")) {
+      // Only when nothing was actually taken by someone else: that case stays SOLD_OUT.
+      const err = new Error("NOT_FOR_SALE");
+      err.titles = notForSale;
+      throw err;
+    }
     const { rows: held } = await client.query(
       `UPDATE book_copies
        SET status = 'reserved', reserved_by_name = $3, reserved_by_email = $4, reserved_by_phone = $5, reserved_at = now(),

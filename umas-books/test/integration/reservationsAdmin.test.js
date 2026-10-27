@@ -188,7 +188,9 @@ test("an item that is no longer held (its book was sold elsewhere) is dropped fr
   const { order } = await h.reserve(buyer, { copyIds: [a, b] });
   await h.pool.query("UPDATE book_copies SET status = 'sold', cart_order_id = NULL WHERE id = $1", [b]);
   const r = await collect(order.id);
-  assert.match(r.location, /collected-paid/);
+  // Review F, F7: the flash names the item that was removed (it used to say only "Collected and paid").
+  assert.equal(r.seeOther, `/admin/orders/${order.id}`);
+  assert.match(r.text, /Collected and paid\. 1 item was collected; 1 was no longer reserved and was removed from this reservation: /);
   const paid = await h.order(order.id);
   assert.equal(Number(paid.total_amount), 6, "only the held book");
   assert.equal((await items(order.id)).length, 1);

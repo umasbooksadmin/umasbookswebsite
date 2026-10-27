@@ -302,7 +302,7 @@ rather than by a numbered migration), grouped by what they belong to:
   | `GET /admin/till/sales/:id/receipt` | printable receipt (no customer data, "TVA non applicable") |
   | `GET /admin/till/items`, `POST /admin/till/items[/:id]`, `POST /admin/till/items/:id/generate-code` | "Other stock (not books)": quick items with optional barcode, stock and a generated shop code |
   | `GET /admin/till/day[?day=][&format=csv]`, `POST /admin/till/day/open` (today or a past unclosed day), `POST /admin/till/day/close`, `POST /admin/till/day/reopen` | end of day: totals, opening float, count and close (locks voids, needs a confirmation if no float), reopen (admin, reason), CSV; unclosed past days and unrefunded voided card sales appear in the dashboard's Needs attention |
-  | `GET /admin/reports/accounting[?format=csv]` | Accounting export (`src/lib/accounting.js`): one row per Paris day, category and payment method; no customer data |
+  | `GET /admin/reports/accounting[?format=csv]` | Accounting export (`src/lib/accounting.js`): one row per Paris day, category and payment method; no customer data. A refunded reservation, and a refunded membership payment (`membership_payments.reversed_at`), keep their original row and add a NEGATIVE row on the refund day |
 - **Accounts & auth** — `users`, `password_reset_tokens`,
   `email_verification_tokens`
 - **Shop / reservations** — `books`, `book_copies`, `orders` (with `cgv_accepted_at` / `cgv_version`: proof of acceptance of the terms of sale, version from `src/lib/legal.js`), `order_items`
@@ -999,6 +999,19 @@ anything invalid so the write is skipped. Display helpers set
 `weeklyDateTimes`, which keeps the same wall-clock time across the October/March
 clock changes instead of adding 7×24 h.
 
+The DATABASE session zone is pinned to UTC too (`options: "-c timezone=UTC"` in
+`src/db.js`; Render's Postgres is UTC already, a developer's may not be), so
+nothing depends on the machine. `timestamptz + interval '7 days'` is evaluated in
+that session zone, i.e. as 7×24 h, which ends a hold an hour early or late in
+Paris wall time across a clock change. A deadline that means "N calendar days
+later in Paris" is therefore written with `parisPlusDaysSql(expr, days)`
+(`src/lib/tz.js`: add the days to the Paris wall-clock time, convert back):
+extending a reservation, the "reservations expiring" windows that compare against
+the stored Paris-midnight `reserved_until`, and the membership "ending within 30
+days" list. Plain elapsed-time windows (an order paid N days ago, a copy reserved
+N days ago, minutes/hours, retention periods) deliberately stay `interval` maths:
+an hour either way does not matter there. Tests: `test/integration/parisCalendarDays.test.js`.
+
 Before this existed, typed times were stored as UTC (18:00 became 18:00Z, i.e.
 20:00 in Paris in summer) — migration `033_paris_wall_times.sql` shifted those
 rows once. Date-only fields (blog dates, announcement expiry) are
@@ -1392,13 +1405,14 @@ Points for maintainers:
 
 ### Membership payments (`src/lib/membership.js`, migration 063)
 
-`expiryFromPayments` chains payments (`max(paid_at, previous end) + 365 d`);
+`expiryFromPayments` chains payments (one calendar year in Paris time from `max(paid day, previous last day)`, ending at the last instant of that Paris day);
 only Authorized orders over 0 EUR on `HELLOASSO_MEMBERSHIP_FORM_SLUG` (when
 set) count; a result in the past grants nothing. A payer email with no
 confirmed account is stored in `membership_payments` with `user_id NULL`,
 `unmatched_at` set, and alerted (once an hour, from `alertUnmatchedPayments`,
 also run by the outbox tick); `/admin/members` lists them and
 `linkUnmatchedPayment` attaches one and grants in one transaction.
+A refund or lost dispute no longer deletes the payment: the sync sets `reversed_at` / `reversed_amount_cents` (once), validity ignores reversed rows, and `accountingRows` adds a negative Membership row dated `reversed_at`.
 `lib/memberStatus.js` is the one definition of "active member now"
 (`attachUser`, login, favorites, member counts) and `isoDateParis` formats end
 dates in Paris time.

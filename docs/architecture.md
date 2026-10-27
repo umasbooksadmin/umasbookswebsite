@@ -915,13 +915,13 @@ blocked: they still attach once an account with that confirmed email exists.
 flowchart LR
   P["Person pays on the<br/>HelloAsso form"] --> T{{"Trigger"}}
   T -- "webhook (any payload)" --> S
-  T -- "every 6 h: orders from the last 3 days" --> S
+  T -- "every 6 h: orders from the last 60 days" --> S
   T -- "account verified, password reset,<br/>or created by an admin" --> S
   S["syncMembershipForEmail<br/>asks HelloAsso for that payer's<br/>Membership orders (exact email match)"]
   S --> V{"Account exists with a<br/>VERIFIED email?"}
   V -- no --> W["record as UNMATCHED payment (user_id NULL),<br/>throttled admin alert, admin links it by hand"]
-  V -- yes --> R["record payment (amount &gt; 0, form slug if set),<br/>member_expires_at = max(paid_at, previous end) + 365 days,<br/>is_member = true unless already past"]
-  R --> X["revoke only on positive evidence:<br/>order returned without an Authorized payment"]
+  V -- yes --> R["record payment (amount &gt; 0, form slug if set),<br/>member_expires_at = end of the Paris day one calendar year after<br/>max(paid day, previous last day),<br/>is_member = true unless already past"]
+  R --> X["reverse only on positive evidence:<br/>order returned without an Authorized payment<br/>(row kept, reversed_at set; a negative Membership<br/>row appears in the export of that month)"]
 ```
 
 Manual admin grants (`/admin/members`) have no `member_expires_at` and are never
@@ -932,10 +932,23 @@ touched by the sync or the expiry sweep.
 - Only an `Authorized` order with an amount **above 0** counts; if
   `HELLOASSO_MEMBERSHIP_FORM_SLUG` is set only that form counts.
 - **Renewal arithmetic** (`expiryFromPayments`): payments are chained oldest
-  first, each adding 365 days starting at `max(paid_at, previous end)`. Renewing
-  at day 300 therefore ends 730 days after the first payment; re-running a sync
+  first; each adds ONE CALENDAR YEAR in Paris time (not 365 days: a leap year
+  would end a day early and the end hour would drift across a clock change), and
+  the membership ends at the last instant of that Paris day. A payment made while
+  the membership still runs starts from its last day, so renewing early loses no
+  time (paid 2026-09-15 and again 2027-01-10: ends 2028-09-15); re-running a sync
   never adds time twice (it is derived from the payments only). A result
-  already in the past grants nothing.
+  already in the past grants nothing. Stored end dates are not rewritten by the
+  migration; a later sync of an existing member recalculates it with this rule.
+- **Refund or lost dispute**: the `membership_payments` row is NOT deleted. The
+  sync sets `reversed_at` (once; never moved by a later sync) and
+  `reversed_amount_cents`; membership validity (`applyMembershipGrant`, the
+  join count of the Membership report) ignores reversed rows, and
+  `accountingRows` adds a NEGATIVE Membership row dated `reversed_at` (Paris
+  day), so a month already exported never changes and the refund month shows the
+  reversal. The row stays in the privacy export, is anonymised on erasure and is
+  deleted by the 10-year purge like any payment. An order HelloAsso reports
+  Authorized again clears the marks.
 - **Unmatched payments**: a payer email with no account, or an account whose
   email is not confirmed, is stored in `membership_payments` with
   `user_id NULL` and `unmatched_at` set (migration 063). The admin gets one
@@ -1406,7 +1419,7 @@ Open items worth knowing:
 * Revenue is counted on the day staff record the payment (`paid_at`), not the day
   of the reservation; a payment recorded days after it was taken lands in the
   day it was recorded.
-* The 6-hourly membership backstop only looks at orders from the last 3 days;
+* The 6-hourly membership backstop only looks at orders from the last 60 days (at most 1 + 50 HelloAsso calls per run: one org-wide page of 50 orders, then one lookup per distinct payer);
   older missed payments rely on the webhook or account verification.
 * If the only admin loses their phone and recovery codes there is nobody to reset
   them; the fix is a one-line database update in the Render shell (see
