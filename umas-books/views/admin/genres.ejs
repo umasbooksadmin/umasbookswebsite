@@ -23,7 +23,7 @@
   <form method="post" action="/admin/genres/apply/preview" class="gn-inline">
     <%- include('../partials/csrf_field') %>
     <button class="btn" type="submit">Preview: update all books</button>
-    <% if (lastRun) { %><a class="gn-link" href="/admin/genres/runs/<%= lastRun.id %>">Last run: <%= lastRun.books_changed %> books, <%= formatDateTime(lastRun.started_at) %></a><% } %>
+    <% if (lastRun) { %><a class="gn-link" href="/admin/genres/runs/<%= lastRun.id %>">Last run: <%= lastRun.books_changed %> books<%= lastRun.status === 'failed' ? (lastRun.note ? ', failed (interrupted)' : ', failed') : '' %>, <%= formatDateTime(lastRun.started_at) %></a><% } %>
   </form>
 </div>
 

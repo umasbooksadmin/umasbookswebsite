@@ -10,6 +10,7 @@ const frenchText = require("../../lib/frenchText");
 const { validateIdParams } = require("../../middleware/idParams");
 const { parseId, clean } = require("../../lib/validation");
 const { likeContains } = require("../../lib/parseParams");
+const { makeBackQuery, oneOf, text } = require("../../lib/backQuery");
 
 const router = express.Router();
 // Garbage ids get the 404 page, not a Postgres 22P02 and a 500.
@@ -38,8 +39,13 @@ function resolveAnnouncementStatus(action, scheduledAt) {
   return { status: "published", publishedAt: new Date() };
 }
 
+// The list filters to return to, rebuilt from a whitelist (lib/backQuery.js), never appended as posted.
+const announcementBack = makeBackQuery({
+  status: oneOf([...ANNOUNCEMENT_STATUSES, "all"]), category: oneOf(ANNOUNCEMENT_CATEGORIES), q: text(100),
+  dateRange: oneOf(["7d", "30d", "year"]), pinnedOnly: oneOf(["1"]), sort: oneOf(["oldest", "newest"]),
+});
 function announcementBackQuery(req) {
-  return req.body.backQuery ? `?${req.body.backQuery}` : "";
+  return announcementBack(req.body.backQuery);
 }
 
 router.get("/admin/announcements", requireAdmin, async (req, res) => {

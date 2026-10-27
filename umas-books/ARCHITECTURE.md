@@ -1293,6 +1293,7 @@ names, never saved), `lib/genreRun.js` the bulk run.
 (POST, CSRF, rate limited; recomputes and refuses unless it equals the preview) -> batches of 500 in transactions with a session advisory
 lock (one run at a time; each UPDATE re-checks the value the plan read) -> `genre_runs` + before/after per book -> audit
 (`genre.apply`) -> caches cleared. **Undo** restores only books that still hold what the run wrote (`genre.undo`), newest un-undone run only.
+A run the server never finished (crash, SIGTERM) stays `running` until `reapStaleRuns` (`src/lib/genreRun.js`) marks it `failed` with a `note` (migration 102): at the start of every apply and when the Genres pages load, for `running` rows older than 15 minutes while nobody holds the run lock. It shows as "failed (interrupted)" and Undo stays available for the books it had already changed.
 Idempotent: a second run plans 0 changes. A book whose genres do not change keeps its stored string; its French is recomputed only when a rule
 or managed name matched one of its genres.
 
@@ -1482,6 +1483,35 @@ names the files; read those for the details. Operations for these are in
   `\` in a search text are literal (`likeContains`, same file). No hostile
   number can reach SQL as an out-of-range integer, so none gives a 500 and an
   alert; `test/integration/numericParamFuzz.test.js` checks every GET route.
+- **Public input handling (the rule):** every value read from `req.query` or
+  `req.body` goes through `clean(value, max)` (`src/lib/validation.js`, a
+  capped trimmed string, `""` for anything that is not a string),
+  `parseIntParam` / `parseIdList` / `parseId` (`src/lib/parseParams.js`,
+  `validation.js`), or is compared against a fixed list (`LIST.includes(v)`,
+  `v === "1"`). Never call `.trim()`, `.toLowerCase()`, `.split()` or a regex
+  directly on a raw value: Express 5 gives an ARRAY for a repeated query
+  parameter (`?genre=a&genre=b`), so that throws, answers 500 and sends an
+  alert email to an anonymous visitor. Repeated urlencoded form fields are
+  collapsed to their first value in `src/app.js`, and multipart ones right
+  after multer (`collapseRepeatedFields`, `src/lib/multiValueFields.js`); a
+  field meant to repeat is named in `MULTI_VALUE_BODY_FIELDS`. The same
+  numericParamFuzz test also sends repeated (`?x=a&x=b`), bracketed (`?x[]=a`,
+  `?x[a]=b`), over-long and NUL-carrying text for EVERY query name found in
+  `src/` to every GET route in the router stack (public and admin, with a real
+  book so detail pages run) and fails on any 5xx or 429: a new route or
+  parameter is covered without editing the test.
+- **Return-to-the-list text** (`backQuery` hidden fields in admin Members,
+  Announcements, Blog) is rebuilt by `makeBackQuery` (`src/lib/backQuery.js`):
+  a whitelist of keys per screen, each value checked or clamped and encoded;
+  the posted string is never appended to a redirect.
+- **Multipart limits** (the multer instances in `src/app.js`): 200 fields, 210
+  parts, 64 KB per text field (256 KB for blog and announcement bodies) plus
+  the per-instance file size. Over the limit: 413 (file or field too large) or
+  400 (too many fields) through the error handler, no alert; the blog and
+  collections forms answer with their own sentence.
+- Sitemap files past the last one (`/sitemap-books-<n>.xml`, `n` greater than
+  ceil(in-stock books / per file)) are a 404 from the cached count, with no
+  `OFFSET` scan.
 
 ### Curated collections
 
