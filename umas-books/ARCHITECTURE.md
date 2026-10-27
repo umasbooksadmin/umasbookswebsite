@@ -1277,7 +1277,7 @@ names, never saved), `lib/genreRun.js` the bulk run.
 (POST, CSRF, rate limited; recomputes and refuses unless it equals the preview) -> batches of 500 in transactions with a session advisory
 lock (one run at a time; each UPDATE re-checks the value the plan read) -> `genre_runs` + before/after per book -> audit
 (`genre.apply`) -> caches cleared. **Undo** restores only books that still hold what the run wrote (`genre.undo`), newest un-undone run only.
-A run the server never finished (crash, SIGTERM) stays `running` until `reapStaleRuns` (`src/lib/genreRun.js`) marks it `failed` with a `note` (migration 101): at the start of every apply and when the Genres pages load, for `running` rows older than 15 minutes while nobody holds the run lock. It shows as "failed (interrupted)" and Undo stays available for the books it had already changed.
+A run the server never finished (crash, SIGTERM) stays `running` until `reapStaleRuns` (`src/lib/genreRun.js`) marks it `failed` with a `note` (migration 102): at the start of every apply and when the Genres pages load, for `running` rows older than 15 minutes while nobody holds the run lock. It shows as "failed (interrupted)" and Undo stays available for the books it had already changed.
 Idempotent: a second run plans 0 changes. A book whose genres do not change keeps its stored string; its French is recomputed only when a rule
 or managed name matched one of its genres.
 
