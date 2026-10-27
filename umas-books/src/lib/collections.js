@@ -8,6 +8,8 @@
 const { localCover } = require("./coverStore");
 const { likeContains } = require("./parseParams");
 const { BUY_COPY_SQL } = require("./cardCart");
+const { genresLabel } = require("./genres");
+const { frenchPlainText } = require("./frenchTypography");
 // Required when used: the pure helpers of this file are loaded by unit tests that have no database.
 const withTransaction = (pool, fn) => require("../db").withTransaction(pool, fn);
 
@@ -29,9 +31,10 @@ const COLLECTION_PAGE_SIZE = 24;
 const APPROVED_IN_STOCK_FROM = `FROM curated_collection_books cb
      JOIN books b ON b.id = cb.book_id
      WHERE cb.collection_id = $1 AND cb.status = 'approved' AND ${IN_STOCK_SQL()}`;
+// Each row also carries the book's genre (categories, categories_fr) and the AI's reason (reason, reason_fr) for bookExtras().
 async function approvedInStockBooks(pool, collectionId, { offset = 0, limit = null } = {}) {
   const { rows } = await pool.query(
-    `SELECT b.id, b.title, b.authors, b.cover_url,
+    `SELECT b.id, b.title, b.authors, b.cover_url, b.categories, b.categories_fr, cb.reason, cb.reason_fr,
             (SELECT MIN(price) FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock') AS min_price,
             ${BUY_COPY_SQL("b.id")} AS buy_copy_id
      ${APPROVED_IN_STOCK_FROM}
@@ -87,6 +90,26 @@ function localized(collection, lang) {
     description: (fr && collection.description_fr) || collection.description_en,
     bannerAlt: (fr ? collection.header_alt_fr : collection.header_alt_en) || "",
   };
+}
+
+// What a book added by hand carries as its reason (addBookByHand): a note for the admin screen, never shown to customers.
+const HAND_REASON = "Added by hand";
+
+// French typography for a short French text that travels as data (the collection API): the same no-break spaces as
+// lib/frenchTypography.js gives the server-drawn page, and the curly apostrophe, so both paths print the same text.
+const frenchShort = (s) => frenchPlainText(s).replace(/'/g, "\u2019");
+
+// The two lines under a book on the customer collection page, in the visitor's language. Used by the page AND the
+// "Show more" API (routes/collections.js), so the first 24 books and the next ones say exactly the same.
+//   genre: the book's genres as the book page shows them (lib/genres.js: the French taxonomy on /fr/), or null;
+//   why:   the AI's reason, or null for a book added by hand. In French ONLY the French reason: until it exists
+//          (reason_fr is NULL) the line is not shown, never the English.
+function bookExtras(row, lang) {
+  const fr = lang === "fr";
+  const genre = String(genresLabel(row.categories, fr ? "fr" : "en", row.categories_fr) || "").trim();
+  const en = String(row.reason || "").trim();
+  const why = !en || en === HAND_REASON ? "" : String((fr ? row.reason_fr : en) || "").trim();
+  return { genre: genre ? (fr ? frenchShort(genre) : genre) : null, why: why ? (fr ? frenchShort(why) : why) : null };
 }
 
 // The publish rules. -> { ok: true } | { ok: false, error } (the error is for the admin screens, English).
@@ -228,9 +251,9 @@ async function addBookByHand(pool, collectionId, bookId) {
     if (!rows.length) return { ok: false, error: "That book is not in stock, so it cannot be added." };
     const { rows: pos } = await db.query("SELECT COALESCE(MAX(position), 0) + 1 AS p FROM curated_collection_books WHERE collection_id = $1", [collectionId]);
     await db.query(
-      `INSERT INTO curated_collection_books (collection_id, book_id, status, reason, position) VALUES ($1, $2, 'approved', 'Added by hand', $3)
+      `INSERT INTO curated_collection_books (collection_id, book_id, status, reason, position) VALUES ($1, $2, 'approved', $4, $3)
        ON CONFLICT (collection_id, book_id) DO UPDATE SET status = 'approved', updated_at = now()`,
-      [collectionId, bookId, pos[0].p]
+      [collectionId, bookId, pos[0].p, HAND_REASON]
     );
     return { ok: true };
   });
@@ -266,5 +289,5 @@ async function searchInStock(pool, q, limit = 20) {
 module.exports = {
   slugify, slugTaken, freeSlug, createCollection, deleteCollection, moveCollection, addBookByHand, removeBook, searchInStock,
   IN_STOCK_SQL, isSlug, browseFilterActive, approvedInStockBooks, countApprovedInStock, COLLECTION_PAGE_SIZE, getPublishedCollection, listButtonCollections, listSitemapCollections,
-  localized, publishProblems, setPublished, saveDecisions,
+  localized, publishProblems, setPublished, saveDecisions, bookExtras, HAND_REASON,
 };

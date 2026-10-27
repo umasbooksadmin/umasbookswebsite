@@ -126,6 +126,17 @@
 <% } else { %>
 <div class="card"><div class="section-title">Suggestions</div><p class="small muted">This collection has no guidance for the AI, so it is filled in by hand only. Add guidance above to use Generate suggestions.</p></div>
 <% } %>
+<% if (missingFrench) { %>
+<%# The customer page on /fr/ shows a book's "why" line only in French: these reasons have no French yet, so French visitors see the genre only. %>
+<div class="card stack" id="reasons-french">
+  <div class="section-title">French reasons</div>
+  <p class="small muted"><%= missingFrench %> reason<%= missingFrench === 1 ? ' has' : 's have' %> no French yet. Customers see each approved book's reason under it on the collection page; on the French page a reason without French is not shown. Translate asks the AI for up to <%= reasonBatch %> at a time (approved books first); press again for the rest. It counts toward the daily AI limit.</p>
+  <form method="post" action="/admin/collections/<%= collection.id %>/translate-reasons">
+    <%- include('../partials/csrf_field') %>
+    <button class="btn btn-outline" type="submit">Translate reasons to French</button>
+  </form>
+</div>
+<% } %>
 
 <%# Remove buttons live outside the review form (form="remove-book-form"): pressing Enter in the review form can only ever Save choices. %>
 <form method="post" action="/admin/collections/<%= collection.id %>/books/remove" id="remove-book-form" data-confirm="Remove this book from the collection? The book itself is kept in the shop.">
@@ -149,6 +160,7 @@
             <% if (!b.in_stock) { %><span class="status-pill cancelled">not in stock: hidden from customers</span><% } %></div>
           <% if (b.categories) { %><div class="small muted"><%= b.categories %></div><% } %>
           <% if (b.reason) { %><p class="small" style="margin: 6px 0;">Why: <%= b.reason %></p><% } %>
+          <% if (b.reason_fr) { %><p class="small muted" style="margin: 0 0 6px;">French: <span lang="fr"><%= b.reason_fr %></span></p><% } %>
           <div>
             <label class="ann-check"><input type="checkbox" name="approve" value="<%= b.id %>" <%= b.status === 'approved' ? 'checked' : '' %>> Approve<span class="visually-hidden">: <%= b.title %></span></label>
             <label class="ann-check"><input type="checkbox" name="reject" value="<%= b.id %>" <%= b.status === 'rejected' ? 'checked' : '' %>> Reject<span class="visually-hidden">: <%= b.title %></span></label>
