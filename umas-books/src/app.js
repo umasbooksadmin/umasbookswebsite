@@ -176,15 +176,9 @@ function createApp() {
   // everything else collapses to its first value, the same as a normal
   // single-submission form would send.
   // The list is in lib/multiValueFields.js (a test checks every route that reads a list is named there).
-  const { MULTI_VALUE_BODY_FIELDS } = require("./lib/multiValueFields");
+  const { collapseRepeatedFields, MULTIPART_LIMITS, MULTIPART_RICH_TEXT_FIELD_SIZE } = require("./lib/multiValueFields");
   app.use((req, res, next) => {
-    if (req.body && typeof req.body === "object") {
-      for (const key of Object.keys(req.body)) {
-        if (Array.isArray(req.body[key]) && !MULTI_VALUE_BODY_FIELDS.has(key)) {
-          req.body[key] = req.body[key][0];
-        }
-      }
-    }
+    collapseRepeatedFields(req.body);
     next();
   });
 
@@ -288,14 +282,14 @@ function createApp() {
   // used anywhere under this prefix (the ISBN-photo scan and the cover-photo
   // upload), rather than one per route, so a single multipart request is
   // never run through multer twice.
-  const inventoryUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
+  const inventoryUpload = multer({ storage: multer.memoryStorage(), limits: { ...MULTIPART_LIMITS, fileSize: 8 * 1024 * 1024 } });
   const inventoryUploadFields = inventoryUpload.fields([
     { name: "photo", maxCount: 1 },
     { name: "coverPhoto", maxCount: 1 },
   ]);
   app.use("/admin/inventory", requireAdmin, (req, res, next) => {
     inventoryUploadFields(req, res, (err) => {
-      if (!err) return next();
+      if (!err) { collapseRepeatedFields(req.body); return next(); }
       // Replacing a cover with a photo over the size limit sends the admin back to the book with a sentence
       // (the Cover card); every other upload keeps the generic error page.
       const m = req.method === "POST" && /^\/(\d{1,9})\/cover\/replace$/.exec(req.path);
@@ -311,24 +305,41 @@ function createApp() {
 
   // Same reasoning as inventoryUpload above, for the announcement form's
   // featured-image upload (see /admin/announcements in routes/admin/announcements.js).
-  const announcementUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
-  app.use("/admin/announcements", requireAdmin, announcementUpload.fields([{ name: "image", maxCount: 1 }]));
+  const announcementUpload = multer({ storage: multer.memoryStorage(), limits: { ...MULTIPART_LIMITS, fieldSize: MULTIPART_RICH_TEXT_FIELD_SIZE, fileSize: 5 * 1024 * 1024 } });
+  // A refused upload (too big, too many fields) goes to the error handler: a friendly 413/400 page, no alert.
+  const announcementUploadFields = announcementUpload.fields([{ name: "image", maxCount: 1 }]);
+  app.use("/admin/announcements", requireAdmin, (req, res, next) => {
+    announcementUploadFields(req, res, (err) => {
+      if (err) return next(err);
+      collapseRepeatedFields(req.body);
+      next();
+    });
+  });
 
   // Same again, for a charity's photo (see /admin/charities in routes/admin/charity.js).
-  const charityUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
-  app.use("/admin/charities", requireAdmin, charityUpload.fields([{ name: "image", maxCount: 1 }]));
+  const charityUpload = multer({ storage: multer.memoryStorage(), limits: { ...MULTIPART_LIMITS, fileSize: 5 * 1024 * 1024 } });
+  const charityUploadFields = charityUpload.fields([{ name: "image", maxCount: 1 }]);
+  app.use("/admin/charities", requireAdmin, (req, res, next) => {
+    charityUploadFields(req, res, (err) => {
+      if (err) return next(err);
+      collapseRepeatedFields(req.body);
+      next();
+    });
+  });
 
   // Same again, for a blog post's featured image (see /admin/blog in routes/admin/blog.js).
   // 15 MB: a camera or phone photo is commonly 6-12 MB and is shrunk to 800x500 anyway.
   // A refused upload sends the admin back to the form with a sentence, not a bare error page.
-  const blogUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
+  const blogUpload = multer({ storage: multer.memoryStorage(), limits: { ...MULTIPART_LIMITS, fieldSize: MULTIPART_RICH_TEXT_FIELD_SIZE, fileSize: 15 * 1024 * 1024 } });
   const blogUploadFields = blogUpload.fields([{ name: "image", maxCount: 1 }]);
   app.use("/admin/blog", requireAdmin, (req, res, next) => {
     blogUploadFields(req, res, (err) => {
-      if (!err) return next();
+      if (!err) { collapseRepeatedFields(req.body); return next(); }
       console.warn(`Blog upload refused: ${err.code || err.name}: ${err.message}`);
       const message = err.code === "LIMIT_FILE_SIZE"
         ? "The post was NOT saved: that picture is larger than 15 MB. Please choose a smaller picture and write the post again."
+        : err.code === "LIMIT_FIELD_VALUE"
+        ? "The post was NOT saved: one of the text boxes is longer than 256 KB. Please shorten it and try again."
         : "The post was NOT saved: the upload could not be read. Please try again, with or without the picture.";
       redirectWithFlash(req, res, "/admin/blog", "adminBlog", { error: message }).catch(next);
     });
@@ -336,11 +347,11 @@ function createApp() {
 
   // Same again, for a curated collection's two pictures (see /admin/collections in routes/admin/collections.js): the round
   // Browse button and the wide page banner. 5 MB each; a refusal returns to the list with a sentence.
-  const collectionUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+  const collectionUpload = multer({ storage: multer.memoryStorage(), limits: { ...MULTIPART_LIMITS, fileSize: 5 * 1024 * 1024 } });
   const collectionUploadFields = collectionUpload.fields([{ name: "icon", maxCount: 1 }, { name: "banner", maxCount: 1 }]);
   app.use("/admin/collections", requireAdmin, (req, res, next) => {
     collectionUploadFields(req, res, (err) => {
-      if (!err) return next();
+      if (!err) { collapseRepeatedFields(req.body); return next(); }
       console.warn(`Collection upload refused: ${err.code || err.name}: ${err.message}`);
       const message = err.code === "LIMIT_FILE_SIZE"
         ? "That picture is larger than 5 MB. Please choose a smaller one. Nothing was changed."

@@ -12,7 +12,8 @@ const { syncMembershipInBackground, linkUnmatchedPayment } = require("../../lib/
 const { isEmail, clean, parseId } = require("../../lib/validation");
 const { eraseMember } = require("../../lib/privacy");
 const { buildMemberExport } = require("../../lib/memberExport");
-const { parseTypeFilter, typeFilterSql, accountBadges, accountTypeCounts, FILTER_LABELS } = require("../../lib/accountTypes");
+const { TYPES, parseTypeFilter, typeFilterSql, accountBadges, accountTypeCounts, FILTER_LABELS } = require("../../lib/accountTypes");
+const { makeBackQuery, oneOf, text, pageNumber } = require("../../lib/backQuery");
 
 const { validateIdParams } = require("../../middleware/idParams");
 const { likeContains, parseIntParam } = require("../../lib/parseParams");
@@ -53,8 +54,13 @@ function roleNoticeFromQuery(raw) {
   return roleNoticeText(role, state);
 }
 
+// The list filters to return to, rebuilt from a whitelist (lib/backQuery.js), joined with "&" after ?view=<id>.
+const membersBack = makeBackQuery({
+  q: text(100), role: oneOf(TYPES), status: oneOf(["active", "inactive"]), dateRange: oneOf(["7d", "30d", "year"]),
+  sort: oneOf(["name_asc", "name_desc"]), page: pageNumber,
+});
 function membersBackQuery(req) {
-  return req.body.backQuery ? `&${req.body.backQuery}` : "";
+  return membersBack(req.body.backQuery).replace(/^\?/, "&");
 }
 
 async function loadMemberDetail(userId) {

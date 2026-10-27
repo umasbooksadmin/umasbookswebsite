@@ -42,9 +42,9 @@ function redactedPath(req) {
 // is a 500 and alerts, with the subject carrying only method + redacted path.
 function errorHandler(err, req, res, next) {
   let raw = Number(err && (err.status || err.statusCode));
-  // MulterError carries no status of its own, only a code: too-big is a
-  // 413, any other multer limit (unexpected field, too many files...) a 400.
-  if (!raw && err && err.name === "MulterError") raw = err.code === "LIMIT_FILE_SIZE" ? 413 : 400;
+  // MulterError carries no status of its own, only a code: too-big (a file or one
+  // text field) is a 413, any other multer limit (unexpected field, too many fields or parts...) a 400.
+  if (!raw && err && err.name === "MulterError") raw = err.code === "LIMIT_FILE_SIZE" || err.code === "LIMIT_FIELD_VALUE" ? 413 : 400;
   const clientStatus = Number.isInteger(raw) && raw >= 400 && raw < 500 ? raw : null;
   const where = `${req.method} ${redactedPath(req)}`;
 

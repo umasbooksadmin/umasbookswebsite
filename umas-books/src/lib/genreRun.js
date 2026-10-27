@@ -22,6 +22,8 @@ const { clearAll } = require("./genreAdmin");
 const BATCH = 500;
 const EXAMPLES = 10;
 const LOCK_KEY = 7243911; // arbitrary constant, apart from migrate.js's
+const STALE_RUN_MINUTES = 15; // a 'running' row this old whose lock nobody holds is a run the server never finished
+const INTERRUPTED_NOTE = "interrupted: the server stopped before this run finished";
 
 // The rewrite of every book that has genres. -> { changes: [{ id, title, old, oldFr, en, fr, enChanged, frChanged }], stats, hash, rulesSnapshot }
 async function planRun(db) {
@@ -77,12 +79,34 @@ async function withRunLock(pool, fn) {
   }
 }
 
+// Marks every 'running' run started more than STALE_RUN_MINUTES ago as failed (note INTERRUPTED_NOTE). Only call it
+// while holding the run lock (a live run holds it for its whole length, so a 'running' row seen under the lock is
+// dead). books_changed is recomputed from the changes the run did record, so Undo still shows (and restores) them.
+// -> the number of rows reaped
+async function reapStale(db) {
+  const { rowCount } = await db.query(
+    `UPDATE genre_runs r
+        SET status = 'failed', finished_at = now(), note = $2,
+            books_changed = (SELECT count(*) FROM genre_run_changes c WHERE c.run_id = r.id)
+      WHERE r.status = 'running' AND r.started_at < now() - make_interval(mins => $1::int)`,
+    [STALE_RUN_MINUTES, INTERRUPTED_NOTE]
+  );
+  return rowCount;
+}
+
+// The same, for a caller that does not hold the lock (the runs pages): does nothing while a run holds it.
+async function reapStaleRuns(pool) {
+  const r = await withRunLock(pool, (client) => reapStale(client));
+  return r && r.busy ? 0 : r;
+}
+
 const chunks = (list, n) => Array.from({ length: Math.ceil(list.length / n) }, (_, i) => list.slice(i * n, (i + 1) * n));
 
 // Applies the plan. `expected` ({ count, hash }) is what the admin previewed.
 // -> { runId, changed, skipped, stats } | { busy } | { mismatch, expectedCount, liveCount } | { runId: null, changed: 0 } (nothing to do)
 async function applyRun(pool, actor = {}, expected = null, { onBatch } = {}) {
   return withRunLock(pool, async (client) => {
+    await reapStale(client); // a run an earlier crash left 'running' must not stay so forever
     const plan = await planRun(client);
     if (expected && (plan.count !== Number(expected.count) || plan.hash !== String(expected.hash))) {
       return { mismatch: true, expectedCount: Number(expected.count), liveCount: plan.count };
@@ -218,4 +242,4 @@ async function undoRun(pool, runId, expected = null) {
   });
 }
 
-module.exports = { BATCH, LOCK_KEY, planRun, planSummary, applyRun, getRun, recentRuns, undoableRunId, runExamples, previewUndo, undoRun, withRunLock, idsHash };
+module.exports = { BATCH, LOCK_KEY, STALE_RUN_MINUTES, INTERRUPTED_NOTE, reapStale, reapStaleRuns, planRun, planSummary, applyRun, getRun, recentRuns, undoableRunId, runExamples, previewUndo, undoRun, withRunLock, idsHash };

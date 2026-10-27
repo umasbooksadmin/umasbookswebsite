@@ -142,6 +142,10 @@ async function countInStockBooks() {
   return rows[0].n;
 }
 
+// The number of in-stock books, cached on its own (one key) so a request for a file number past the end is answered
+// from this alone: without it every distinct ?n= ran a full ORDER BY ... OFFSET scan before finding out it was empty.
+const bookCountCache = cachedByKey(() => countInStockBooks(), SITEMAP_TTL_MS, 2);
+
 // One cached value per file for an hour (cachedByKey also bounds how many are kept). Key: "<base>|<name>".
 // Values: the XML text, or null for a book file that does not exist (past the last one).
 const sitemapCache = cachedByKey(async (key) => {
@@ -153,6 +157,8 @@ const sitemapCache = cachedByKey(async (key) => {
   if (name === "blog") return buildBlogSitemapXml(base, await blogPosts.listForSitemap(pool, MAX_URLS_PER_FILE / URLS_PER_BOOK));
   const n = Number(name);
   const per = booksPerFile();
+  // Past the last file (the same ceil(count / per) the index lists): 404 without the heavy query.
+  if (n > Math.ceil((await bookCountCache("books")) / per)) return null;
   // Newest first, so a new book always lands in file 1 and never falls off the end; id breaks ties for a stable order.
   const { rows } = await pool.query(
     `SELECT b.id, b.updated_at
