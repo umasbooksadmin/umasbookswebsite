@@ -256,11 +256,16 @@ test("show page shows each copy's Till code (UB-<copy id>), also for a book with
 });
 
 test("show page releases an expired reservation but keeps a fresh one", async () => {
+  // Instants are built with plain millisecond arithmetic (zone independent) and stay 2 hours either side of the
+  // 14-day limit, so the test gives the same answer in any machine time zone, any database session zone, and
+  // across a clock change: "14 days" is 336 h in a UTC session but 337 h or 335 h in a Paris-zone session when
+  // the window spans a daylight-saving change (it did on 2026-10-25), which made a 1-minute margin flaky.
   const day = 86400000;
+  const hour = 3600000;
   const b = await seedBook({
     copies: [
-      { status: "reserved", name: "Fresh", email: "fresh@example.test", reservedAt: new Date(Date.now() - 13 * day) },
-      { status: "reserved", name: "Stale", email: "stale@example.test", reservedAt: new Date(Date.now() - 14 * day - 60000) },
+      { status: "reserved", name: "Fresh", email: "fresh@example.test", reservedAt: new Date(Date.now() - 14 * day + 2 * hour) },
+      { status: "reserved", name: "Stale", email: "stale@example.test", reservedAt: new Date(Date.now() - 14 * day - 2 * hour) },
     ],
   });
   const res = await get(`/admin/inventory/${b.id}`);

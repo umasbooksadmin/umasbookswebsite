@@ -872,9 +872,16 @@ s.write("A116 (must) 'Update the French from the English' fills the two French b
   if (!tagged.id) ctx.skip("needs A10b");
   await admin(ctx, `/admin/inventory/${tagged.id}`);
   const btn = "button[data-fr-sync]";
+  // The edit form sits inside a closed <details> ("Edit details"). A closed one cannot take focus, so typing into
+  // it is silently lost (puppeteer's type() focuses first): open it the way an admin does, by clicking the summary.
+  await (await ctx.page.evaluateHandle(() => document.getElementById("genre").closest("details").querySelector(":scope > summary"))).asElement().click();
+  await ctx.page.waitForSelector("#genre", { visible: true });
   assert.ok(await ctx.page.$eval(btn, (b) => b.offsetParent !== null), "the button is shown");
   const frBefore = await ctx.page.$eval("#genreFr", (i) => i.value);
-  await ctx.page.type("#genre", ", Poetry");
+  await ctx.page.focus("#genre");
+  await ctx.page.keyboard.press("End"); // the caret starts at the beginning: put it after the existing genres
+  await ctx.page.keyboard.type(", Poetry");
+  assert.match(await ctx.page.$eval("#genre", (i) => i.value), /, Poetry$/, "the English genre was really typed");
   if (frBefore) assert.ok(await ctx.page.$eval("[data-fr-stale='genreFr']", (p) => !p.hidden), "the hint shows under Genres (French)");
   await ctx.page.click(btn); // the browser's confirm box is accepted by the harness when a French box has text
   await ctx.page.waitForFunction(() => /French updated from the English|could not be made right now/.test(document.getElementById("fr-sync-status").textContent), { timeout: 30000 });
