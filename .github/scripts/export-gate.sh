@@ -9,6 +9,8 @@
 #               accounting-exports/<year>/accounting_<YYYY-MM>.csv is ABSENT, skip when it exists.
 #   inventory   hours 21-23 (Paris): run when today's inventory-exports/inventory_books_<date>.csv
 #               is ABSENT (it is the last dated file the export uploads), skip when it exists.
+#               Hours 0-5 (a run GitHub delayed past midnight): same, but for YESTERDAY's file.
+#               Hours 6-20: skip.
 #   manual      IGNORE=true (the default of a manual run) or an explicit month: always run.
 #
 # If Backblaze cannot be asked (network, credentials) the gate runs the export anyway and says so
@@ -71,8 +73,14 @@ case "$kind" in
     ;;
   inventory)
     if [ "${IGNORE:-}" = "true" ]; then decide true "manual run (time and file checks skipped)."; fi
-    if [ "$hour" -lt 21 ]; then decide false "It is ${hour}h in Paris, before 21h: a later schedule does the export (two exist for summer/winter time)."; fi
-    check_absent "inventory-exports/inventory_books_${date_part}.csv" "Tonight's inventory export (${date_part})"
+    day_for="$date_part"
+    if [ "$hour" -le 5 ]; then
+      # GitHub often starts scheduled runs 2-4 hours late: a run after midnight still owes yesterday's export.
+      day_for=$(date -u -d "${date_part} -1 day" +%F 2>/dev/null || date -u -j -v-1d -f "%Y-%m-%d" "$date_part" +%F)
+    elif [ "$hour" -lt 21 ]; then
+      decide false "It is ${hour}h in Paris, before 21h: a later schedule does the export (several exist for summer/winter time and delays)."
+    fi
+    check_absent "inventory-exports/inventory_books_${day_for}.csv" "The inventory export for ${day_for}"
     ;;
   *)
     echo "Usage: export-gate.sh accounting|inventory" >&2
