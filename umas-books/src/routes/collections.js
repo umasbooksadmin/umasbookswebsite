@@ -8,6 +8,7 @@ const express = require("express");
 const { pool } = require("../db");
 const { getPublishedCollection, approvedInStockBooks, countApprovedInStock, COLLECTION_PAGE_SIZE, localized } = require("../lib/collections");
 const { publicJson, bookJson, PUBLIC_JSON_CACHE } = require("../lib/publicBookJson");
+const { cardBuy, setCardCartLocals } = require("../lib/cardCart");
 const { baseUrl } = require("../lib/baseUrl");
 const { parseIntParam, parseLimitParam } = require("../lib/parseParams");
 const { renderMarketing } = require("../lib/pageDictionary");
@@ -34,7 +35,9 @@ function createCollectionsRouter({ marketingCsp }) {
     const { title, description, bannerAlt } = localized(collection, req.lang);
     res.set("Content-Security-Policy", marketingCsp);
     setMarketingSeoLocals(req, res, `/collections/${collection.slug}`);
-    Object.assign(res.locals, { collection, collectionTitle: title, collectionDescription: description, bannerAlt, books, moreOffset: total > books.length ? books.length : null, coverSrcset, bannerSrcset });
+    Object.assign(res.locals, { collection, collectionTitle: title, collectionDescription: description, bannerAlt, books: books.map((b) => ({ ...b, buy: cardBuy(b.buy_copy_id) })), moreOffset: total > books.length ? books.length : null, coverSrcset, bannerSrcset });
+    // The cards' cart icons (lib/cardCart.js): a signed-in person's own form and "in your cart"; a guest's page stays the same for everyone.
+    await setCardCartLocals(pool, req, res);
     renderMarketing(req, res, next, "marketing/collection");
   });
 

@@ -92,7 +92,7 @@
 }
 .bk-book .t { font-size: 18px; line-height: 1.2; margin-top: 12px; overflow-wrap: anywhere; hyphens: auto; hyphenate-limit-chars: 9 4 3; }
 .bk-book .a { font-size: 16px; color: var(--ink); margin-top: 2px; overflow-wrap: anywhere; hyphens: auto; hyphenate-limit-chars: 9 4 3; }
-.bk-book .p { font-size: 15.5px; color: var(--ink); overflow-wrap: anywhere; }
+.bk-book .p { font-size: 15.5px; color: var(--ink); overflow-wrap: anywhere; display: flex; align-items: center; gap: 8px; min-width: 0; }
 .bk-book a:hover .t { color: var(--maroon); }
 .bk-book .favorite-toggle { top: 8px; right: 8px; }
 
@@ -252,6 +252,8 @@ body:has(.bk-band) .mkt-footer { margin-top: 38px; }
 /* No-JavaScript fallback list (inside <noscript>, views/marketing/books.ejs). */
 .bk-noscript { max-width: 760px; margin: 24px auto; padding: 0 16px; }
 .bk-noscript-list { padding-left: 20px; line-height: 1.7; }
+.bk-noscript-list .bk-cart { float: right; margin-left: 10px; } /* the cart icon at the right end of the book's line */
+.bk-noscript-list li { clear: both; }
 
 /* Phones and touch screens: the "See all" link-buttons are 44px tap targets. */
 @media (max-width: 700px), (pointer: coarse) {

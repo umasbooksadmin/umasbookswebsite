@@ -13,6 +13,7 @@ const { validateIdParams } = require("../middleware/idParams");
 const { bookSearchLimiter } = require("../middleware/rateLimits");
 
 const { newInPage } = require("../lib/latestArrivals");
+const { BUY_COPY_SQL, cardBuy, setCardCartLocals } = require("../lib/cardCart");
 const { buildBookSeo, bookPageTitle } = require("../lib/bookSeo");
 const router = express.Router();
 // The public JSON lists below are the same for everyone (no session, no per-person data) and change slowly: a browser
@@ -142,6 +143,7 @@ router.get("/api/books/search", bookSearchLimiter, publicJson("public, max-age=6
             (SELECT array_agg(DISTINCT c.condition) FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock') AS conditions,
             b.binding,
             EXISTS (SELECT 1 FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock' AND c.is_clearance) AS clearance,
+            ${BUY_COPY_SQL("b.id")} AS buy_copy_id,
             count(*) OVER () AS total
      FROM books b
      WHERE EXISTS (SELECT 1 FROM book_copies c WHERE c.book_id = b.id AND ${clauses.join(" AND ")})
@@ -186,7 +188,8 @@ router.get("/api/books/by-ids", async (req, res) => {
   const { rows } = await pool.query(
     `SELECT b.id, b.title, b.authors, b.cover_url,
             (SELECT MIN(price) FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock') AS min_price,
-            (SELECT COUNT(*) FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock')::int AS in_stock_count
+            (SELECT COUNT(*) FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock')::int AS in_stock_count,
+            ${BUY_COPY_SQL("b.id")} AS buy_copy_id
      FROM books b WHERE b.id = ANY($1::int[])`,
     [ids]
   );
@@ -216,15 +219,20 @@ router.get("/books/:id", async (req, res) => {
   if (book.authors) {
     const { rows } = await pool.query(
       `SELECT b.id, b.title, b.cover_url,
-              (SELECT MIN(price) FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock') AS min_price
+              (SELECT MIN(price) FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock') AS min_price,
+              ${BUY_COPY_SQL("b.id")} AS buy_copy_id
        FROM books b
        WHERE b.authors = $1 AND b.id != $2
          AND EXISTS (SELECT 1 FROM book_copies c WHERE c.book_id = b.id AND c.status = 'in_stock')
        ORDER BY b.title_sort, b.title, b.id LIMIT 6`,
       [book.authors, id]
     );
-    moreByAuthor = rows.map((r) => ({ ...r, cover_url: localCover(r.cover_url) }));
+    // buy: the "More by" card's cart icon (lib/cardCart.js)
+    moreByAuthor = rows.map((r) => ({ ...r, cover_url: localCover(r.cover_url), buy: cardBuy(r.buy_copy_id) }));
   }
+  // This page already prints a CSRF token for every visitor (the copy table's Add to Cart forms), so its card icons
+  // are real POST forms for guests too, and show "in your cart" from the session.
+  await setCardCartLocals(pool, req, res, { personal: true });
 
   // Link previews and search results: description, cover as an absolute URL,
   // schema.org Book + Offer (src/lib/bookSeo.js; read by partials/header.ejs).

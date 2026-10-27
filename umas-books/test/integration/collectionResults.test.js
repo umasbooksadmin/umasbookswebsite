@@ -87,7 +87,7 @@ test("the page carries the Browse results markup: section.bk-results, div.bk-gri
     assert.match(t, /<div class="bk-more-row"><button type="button" class="btn btn-outline" id="bk-more" data-i18n="bk\.more" hidden>(Show more|Voir plus)<\/button><\/div>/);
     assert.match(t, /<p class="bk-covernote">/);
     assert.match(t, /<p class="bk-sr" id="bk-status" role="status" aria-live="polite"><\/p>/);
-    assert.match(t, /<script src="\/ui\.js[^"]*"><\/script>\s*<script src="\/page-collection\.js[^"]*"><\/script>/);
+    assert.match(t, /<script src="\/ui\.js[^"]*"><\/script>\s*<script src="\/cart-add\.js[^"]*"><\/script>\s*<script src="\/page-collection\.js[^"]*"><\/script>/);
     assert.ok(!/class="[^"]*\bcol-books\b/.test(t), "no collection-only wrapper class for the list");
   }
   assert.match(await html("/fr/collections/many-books"), /hidden>Voir plus<\/button>/);
@@ -165,7 +165,7 @@ test("API: pages continue where the page stops, in the page's order, each book o
 test("API: same JSON shape as /api/books/new-in and search (bookJson), public cache and CORS headers, FR shares the data", async () => {
   const { r, j } = await api("many-books", "?offset=0&limit=1");
   assert.deepEqual(Object.keys(j), ["total", "nextOffset", "books"]);
-  assert.deepEqual(Object.keys(j.books[0]), ["id", "title", "author", "coverUrl", "price", "url"]);
+  assert.deepEqual(Object.keys(j.books[0]), ["id", "title", "author", "coverUrl", "price", "buy", "url"]);
   const ni = await (await get("/api/books/new-in?limit=1")).json();
   assert.deepEqual(Object.keys(j.books[0]), Object.keys(ni.books[0]));
   assert.equal(r.headers.get("cache-control"), "public, max-age=60, s-maxage=60");
@@ -291,15 +291,15 @@ test("Show more adds the next 24 with the Browse behaviour: focus on the first n
     await page.focus("#bk-more");
     await page.keyboard.press("Enter");
     await page.waitForFunction(() => document.querySelectorAll(".bk-grid .bk-book").length === 48, { timeout: 8000 });
-    assert.equal(await page.evaluate(() => document.activeElement === document.querySelectorAll(".bk-grid .bk-book a")[24]), true, "focus is on the 25th book");
+    assert.equal(await page.evaluate(() => document.activeElement === document.querySelectorAll(".bk-grid .bk-book > a")[24]), true, "focus is on the 25th book");
     assert.equal(await page.$eval("#bk-more", (b) => b.hidden), false, "more remain");
     await page.waitForFunction(() => /More books added/.test(document.getElementById("bk-status").textContent), { timeout: 3000 });
     assert.equal(await page.$eval("#bk-status", (s) => /\d/.test(s.textContent)), false, "no count is announced");
     await page.click("#bk-more");
     await page.waitForFunction(() => document.querySelectorAll(".bk-grid .bk-book").length === 60, { timeout: 8000 });
     assert.equal(await page.$eval("#bk-more", (b) => b.hidden), true, "the last page hides the button");
-    assert.equal(await page.evaluate(() => document.activeElement === document.querySelectorAll(".bk-grid .bk-book a")[48]), true, "focus is on the 49th book");
-    const idsOnPage = await page.$$eval(".bk-grid .bk-book a", (a) => a.map((x) => x.getAttribute("href").replace(/^.*\/books\//, "")));
+    assert.equal(await page.evaluate(() => document.activeElement === document.querySelectorAll(".bk-grid .bk-book > a")[48]), true, "focus is on the 49th book");
+    const idsOnPage = await page.$$eval(".bk-grid .bk-book > a", (a) => a.map((x) => x.getAttribute("href").replace(/^.*\/books\//, "")));
     assert.equal(new Set(idsOnPage).size, 60, "each book once");
     assert.deepEqual(idsOnPage.map(Number), await orderedIds("many-books"));
     // the cards the script drew have the same elements and classes as the cards the server drew
@@ -315,7 +315,7 @@ test("French: Voir plus, curly apostrophes on the next cards, French links", asy
     assert.equal(await page.$eval("#bk-more", (b) => b.textContent.trim()), "Voir plus");
     await page.click("#bk-more");
     await page.waitForFunction(() => document.querySelectorAll(".bk-grid .bk-book").length === 48, { timeout: 8000 });
-    const hrefs = await page.$$eval(".bk-grid .bk-book a", (a) => a.map((x) => x.getAttribute("href")));
+    const hrefs = await page.$$eval(".bk-grid .bk-book > a", (a) => a.map((x) => x.getAttribute("href")));
     assert.ok(hrefs.every((h) => /\/fr\/books\/\d+$/.test(h)), "every card links to the French book page");
     const titles = await page.$$eval(".bk-grid .t", (e) => e.map((x) => x.textContent));
     assert.ok(titles.some((x) => x.startsWith("L’Étrange many-books Book 030")), "the title drawn by the script has a curly apostrophe, like the server's cards");

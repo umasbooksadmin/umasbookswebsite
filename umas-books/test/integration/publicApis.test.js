@@ -102,7 +102,7 @@ test("search: CORS headers and result shape; only in-stock books; price is the c
   assert.equal(res.headers.get("cross-origin-resource-policy"), "cross-origin");
   assert.equal(res.headers.get("cache-control"), "public, max-age=60");
   const hit = json.find((x) => x.id === b.id);
-  assert.deepEqual(hit, { id: b.id, title: b.title, author: "Some Author", coverUrl: "/c.png", price: 4.5, awards: "", conditions: [{ value: "very_good", label: "Very Good" }], clearance: false, binding: null, bindingLabel: null, url: `${app.base}/books/${b.id}` });
+  assert.deepEqual(hit, { id: b.id, title: b.title, author: "Some Author", coverUrl: "/c.png", price: 4.5, buy: { choose: true }, awards: "", conditions: [{ value: "very_good", label: "Very Good" }], clearance: false, binding: null, bindingLabel: null, url: `${app.base}/books/${b.id}` });
   assert.ok(!json.some((x) => x.id === gone.id), "books with no in-stock copy are hidden");
 });
 
@@ -165,7 +165,7 @@ test("search: genre is an exact match on a comma-separated category; topic match
 
 test("JSON shapes and headers of the public book lists are pinned: exact keys in order, CORS-open except by-ids", async () => {
   const b = await makeBook({ title: `${TAG} Shape`, authors: "Shape Author", copies: [{ price: 6.5 }] });
-  const SHARED = ["id", "title", "author", "coverUrl", "price"];
+  const SHARED = ["id", "title", "author", "coverUrl", "price", "buy"]; // buy: the card's cart icon (lib/cardCart.js)
   const search = await api(`/api/books/search?q=${encodeURIComponent(`${TAG} Shape`)}&paged=1`);
   assert.deepEqual(Object.keys(search.json), ["books", "total", "nextOffset"]);
   assert.deepEqual(Object.keys(search.json.books[0]), [...SHARED, "awards", "conditions", "binding", "bindingLabel", "clearance", "url"]);
@@ -185,7 +185,8 @@ test("JSON shapes and headers of the public book lists are pinned: exact keys in
   assert.equal(ni.res.headers.get("cache-control"), "public, max-age=60, s-maxage=60");
   const ids = await api(`/api/books/by-ids?ids=${b.id}`);
   assert.deepEqual(Object.keys(ids.json[0]), [...SHARED, "inStockCount", "url"]);
-  assert.deepEqual(ids.json[0], { id: b.id, title: `${TAG} Shape`, author: "Shape Author", coverUrl: ids.json[0].coverUrl, price: 6.5, inStockCount: 1, url: `/books/${b.id}` });
+  assert.deepEqual(ids.json[0], { id: b.id, title: `${TAG} Shape`, author: "Shape Author", coverUrl: ids.json[0].coverUrl, price: 6.5, buy: { copyId: ids.json[0].buy.copyId }, inStockCount: 1, url: `/books/${b.id}` });
+  assert.ok(Number.isInteger(ids.json[0].buy.copyId), "one priced copy: the card's icon adds it");
   assert.equal(ids.res.headers.get("access-control-allow-origin"), null, "by-ids is same-origin only");
   assert.equal(ids.res.headers.get("cross-origin-resource-policy"), "same-origin");
 });
@@ -219,7 +220,7 @@ test("new-in: every book of the last 60 days (no cap), newest first by the exact
   assert.ok(batches.total > 200);
   assert.equal(batches.books.length, batches.total, "batches reach every book");
   assert.equal(new Set(batches.books.map((b) => b.id)).size, batches.books.length, "no book twice");
-  assert.deepEqual(Object.keys(batches.books[0]).sort(), ["author", "coverUrl", "id", "price", "title", "url"]);
+  assert.deepEqual(Object.keys(batches.books[0]).sort(), ["author", "buy", "coverUrl", "id", "price", "title", "url"]);
   const first = await api("/api/books/new-in?offset=0&limit=60");
   assert.equal(first.json.books.length, 60);
   assert.equal(first.json.nextOffset, 60, "the boundary is at 60");
@@ -488,7 +489,8 @@ test("book detail: renders title, author, cheapest-first copies, condition, esca
   assert.ok(text.includes(`/books/${sibling.id}`));
   assert.ok(!text.includes(`/books/${soldOut.id}`), "sold-out books by the same author aren't suggested");
   assert.match(text, /action="\/cart\/add"/);
-  assert.equal((text.match(/name="copyId"/g) || []).length, 2, "one add-to-cart form per copy");
+  // the copy table's forms (the "More by" cards carry their own cart icon forms, class bk-cart-add)
+  assert.equal((text.match(/<form method="post" action="\/cart\/add">/g) || []).length, 2, "one add-to-cart form per copy");
   assert.match(text, /Acceptable/);
   assert.match(text, /Very Good/);
 });
@@ -498,7 +500,7 @@ test("book detail: a book with no in-stock copies renders without an add-to-cart
   const page = await api(`/books/${sold.id}`);
   assert.equal(page.status, 200);
   assert.ok(!page.text.includes(`action="/books/${sold.id}/reserve"`));
-  assert.ok(!page.text.includes('action="/cart/add"'), "nothing to add to the cart");
+  assert.ok(!page.text.includes('<form method="post" action="/cart/add">'), "nothing to add to the cart");
   for (const id of ["999999999", "abc", "0", "-1", "99999999999999999999", "1.5"]) {
     const r = await api(`/books/${id}`);
     assert.equal(r.status, 404, `/books/${id}`);

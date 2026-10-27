@@ -57,6 +57,8 @@
     });
   }
   window.UmasFrHref = function (href) { return isFrPath(location.pathname) ? frHref(href) : href; };
+  // The same one /api/session request, for public/cart-add.js (which books are in the cart).
+  window.UmasSession = function () { return getSession(); };
   window.UmasPrefixFrLinks = prefixFrLinks;
   // Test hook (test/unit/frUrls.test.js).
   if (typeof window !== "undefined") window.__umasFrHref = frHref;

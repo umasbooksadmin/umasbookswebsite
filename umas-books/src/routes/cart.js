@@ -9,7 +9,7 @@ const { TERMS_OF_SALE_VERSION } = require("../lib/legal");
 const { loadOrderItems, orderItemLabel, orderItemParts, reservationLastDay } = require("../lib/orderItems");
 const { saveSession } = require("../lib/session");
 const { clean, parseId } = require("../lib/validation");
-const { CART_RETURN } = require("../lib/returnTo");
+const { CART_RETURN, safeReturnTo } = require("../lib/returnTo");
 const { checkoutLimiter, cartEditLimiter } = require("../middleware/rateLimits");
 const { redirectWithFlash, takePageFlash } = require("../lib/postRedirect");
 
@@ -196,20 +196,46 @@ router.get("/cart/checkout", async (req, res) => {
 // limits in lib/legal.js cap what can be held at once).
 const MAX_CART_LINES = 20;
 
+// Two callers: the book page's Add to Cart buttons, and the cart icon on a book card (via=card, lib/cardCart.js). The
+// card icon follows "buying requires an account": a guest's book is put in the session's cart (which login carries
+// across, see loginAs in routes/auth.js) and they are sent to sign in, with the existing returnTo bringing them back to
+// the page they were on, the book now in their cart. public/cart-add.js posts here with Accept: application/json and
+// gets the outcome as JSON instead of a redirect (same CSRF token, same limiter):
+//   { ok: true, inCart: true, cartCount, bookId [, login] }   added (or already there); login: go sign in first
+//   { ok: false, error: "unavailable" | "full" }                 nothing added
 router.post("/cart/add", cartEditLimiter, async (req, res) => {
   const copyId = parseId(req.body.copyId);
   const backTo = isSafeLocalPath(req.body.backTo) ? req.body.backTo : "/cart";
+  const fromCard = req.body.via === "card";
+  const wantsJson = req.accepts(["html", "json"]) === "json";
+  let outcome = "unavailable";
+  let bookId = null;
   if (copyId !== null) {
-    const { rows } = await pool.query("SELECT id FROM book_copies WHERE id = $1 AND status = 'in_stock' AND price IS NOT NULL AND price > 0", [copyId]);
+    const { rows } = await pool.query("SELECT id, book_id FROM book_copies WHERE id = $1 AND status = 'in_stock' AND price IS NOT NULL AND price > 0", [copyId]);
     if (rows.length) {
+      bookId = rows[0].book_id;
       const cart = getCart(req);
-      if (cart.length < MAX_CART_LINES && !cart.some((l) => l.kind === "book" && l.copyId === copyId)) {
+      if (cart.some((l) => l.kind === "book" && l.copyId === copyId)) {
+        outcome = "added";
+      } else if (cart.length < MAX_CART_LINES) {
         cart.push({ kind: "book", lineId: nextLineId(req), copyId });
+        outcome = "added";
+      } else {
+        outcome = "full";
       }
     }
   }
   await saveSession(req);
-  res.redirect(backTo);
+  const login = fromCard && outcome === "added" && !req.session.user
+    ? `/login?returnTo=${encodeURIComponent(safeReturnTo(backTo) || CART_RETURN)}`
+    : null;
+  if (wantsJson) {
+    res.set("Cache-Control", "no-store");
+    if (outcome !== "added") return res.json({ ok: false, error: outcome });
+    const cartCount = req.session.cart.length;
+    return res.json(login ? { ok: true, inCart: true, cartCount, bookId, login } : { ok: true, inCart: true, cartCount, bookId });
+  }
+  res.redirect(login || backTo);
 });
 
 router.post("/cart/add-dropin", cartEditLimiter, async (req, res) => {

@@ -54,7 +54,7 @@ s.test("CI-G91 the New In carousel reaches every new book across the batch bound
       }
     } else {
       // the keyboard at the start: Right moves one card at a time and lands on a card edge
-      await ctx.page.focus("#bk-new-track .bk-book a");
+      await ctx.page.focus("#bk-new-track .bk-book > a");
       for (let n = 1; n <= 4; n++) {
         await ctx.page.keyboard.press("ArrowRight");
         await carouselSettled(ctx.page);
@@ -99,7 +99,7 @@ s.test("CI-G91 the New In carousel reaches every new book across the batch bound
 
 s.test("CI-G93 a genre list pages with Show more until every book is shown, with no count line (genre click and direct load)", { timeout: 120000 }, async (ctx) => {
   const visible = (sel) => ctx.page.evaluate((q) => { const e = document.querySelector(q); return !!e && !e.hidden && !!(e.offsetWidth || e.offsetHeight || e.getClientRects().length); }, sel);
-  const grid = () => ctx.page.$$eval("#bk-results-grid .bk-book a", (as) => as.map((a) => Number((a.getAttribute("href").match(/books\/(\d+)/) || [])[1])));
+  const grid = () => ctx.page.$$eval("#bk-results-grid .bk-book > a", (as) => as.map((a) => Number((a.getAttribute("href").match(/books\/(\d+)/) || [])[1])));
   await ctx.page.setCookie({ name: "umasbooks_lang", value: "en", url: cfg.baseUrl() });
   const first = await e2e.getJson("/api/books/search?topic=fiction&paged=1&offset=0&limit=24");
   if (!first || first.total <= 24) ctx.skip(`data: needs more than 24 Fiction books to need a second page, the site has ${first && first.total}`);
@@ -115,7 +115,7 @@ s.test("CI-G93 a genre list pages with Show more until every book is shown, with
       const before = (await grid()).length;
       await ctx.page.click("#bk-more");
       await ctx.page.waitForFunction((n) => document.querySelectorAll("#bk-results-grid .bk-book").length > n, { timeout: 8000 }, before);
-      const focusedIsFirstNew = await ctx.page.evaluate((n) => document.activeElement === document.querySelectorAll("#bk-results-grid .bk-book a")[n], before);
+      const focusedIsFirstNew = await ctx.page.evaluate((n) => document.activeElement === document.querySelectorAll("#bk-results-grid .bk-book > a")[n], before);
       assert.equal(focusedIsFirstNew, true, `${where}: focus moves to the first newly added book (after Show more ${i + 1})`);
     }
     const ids = await grid();
@@ -135,9 +135,9 @@ s.test("CI-G97a a collection page pages like the genre results: 24 books, Show m
   assert.equal(await ctx.page.$eval("#bk-more", (b) => !b.hidden), true, "Show more is there");
   await ctx.page.click("#bk-more");
   await ctx.page.waitForFunction(() => document.querySelectorAll("#bk-results-grid .bk-book").length === 30, { timeout: 8000 });
-  assert.equal(await ctx.page.evaluate(() => document.activeElement === document.querySelectorAll("#bk-results-grid .bk-book a")[24]), true, "focus is on the first new book");
+  assert.equal(await ctx.page.evaluate(() => document.activeElement === document.querySelectorAll("#bk-results-grid .bk-book > a")[24]), true, "focus is on the first new book");
   assert.equal(await ctx.page.$eval("#bk-more", (b) => b.hidden), true, "no Show more after the last book");
-  const ids = await ctx.page.$$eval("#bk-results-grid .bk-book a", (a) => a.map((x) => x.getAttribute("href")));
+  const ids = await ctx.page.$$eval("#bk-results-grid .bk-book > a", (a) => a.map((x) => x.getAttribute("href")));
   assert.equal(new Set(ids).size, 30, "each book once");
 });
 
@@ -157,7 +157,12 @@ s.test("CI-G102 keyboard: few Tab stops through the New In row (arrows first, of
   }
   assert.equal(names[0], "bk-skip", `the skip link is the first stop after See All (${names.slice(0, 4).join(" ")})`);
   assert.deepEqual(names.slice(1, 3), ["bk-new-prev", "bk-new-next"], "the arrows come before the books");
-  assert.ok(names.includes("bk-genre-prev") && names.length < 20, `fewer than 20 Tab presses to pass the New In row (${names.length}: ${names.join(" ")})`);
+  // Only the books in view are stops (public/carousel.js roving tabindex): each has its heart, its link and, when it can be bought
+  // online, its cart icon (src/lib/cardCart.js), so at most 3 per book in view (6 at most at this width) plus the 5 stops around them.
+  const booksStopped = names.filter((n) => n === "A").length;
+  assert.ok(booksStopped >= 1 && booksStopped <= 6, `only the books in view are Tab stops (${booksStopped})`);
+  assert.ok(names.includes("bk-genre-prev") && names.length <= 5 + 3 * booksStopped, `at most heart, link and cart icon per book in view (${names.length}: ${names.join(" ")})`);
+  assert.ok(names.length < 25, `fewer than 25 Tab presses to pass the New In row (${names.length})`);
   await ctx.page.focus("#bk-new-next");
   for (let i = 0; i < 150; i++) {
     await ctx.page.keyboard.press("Enter");

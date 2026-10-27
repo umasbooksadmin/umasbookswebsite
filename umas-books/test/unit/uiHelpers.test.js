@@ -90,6 +90,42 @@ test("the Browse card (New In carousel, genre and search grid) is exactly what B
   }
 });
 
+// ---- the cart icon on the price line (src/lib/cardCart.js decides; ui.js cartControlHtml, views/partials/card_cart.ejs, public/cart-add.js) ----
+
+test("the cart icon: an add form for one copy, a link to the book page for a choice, nothing when nothing can be bought", () => {
+  for (const lang of ["en", "fr"]) {
+    const ui = loadUi(lang);
+    assert.equal(ui.bookCardHtml({ ...FULL, buy: { copyId: 41 } }, true), GOLDEN[`browse_add_${lang}`], `${lang} one copy`);
+    assert.equal(ui.bookCardHtml({ ...FULL, buy: { choose: true } }, true), GOLDEN[`browse_choose_${lang}`], `${lang} several different copies`);
+    assert.equal(ui.favoriteCardHtml({ ...FULL, buy: { copyId: 41 } }), GOLDEN[`fav_add_${lang}`], `${lang} Favorites card`);
+    for (const buy of [undefined, null, {}, { copyId: 0 }, { copyId: -3 }]) {
+      assert.equal(ui.cartControlHtml({ ...FULL, buy }), "", `${lang} buy=${JSON.stringify(buy)}: no icon at all`);
+      assert.doesNotMatch(ui.bookCardHtml({ ...FULL, buy }, true), /bk-cart/, `${lang} buy=${JSON.stringify(buy)}: no dead icon`);
+    }
+  }
+  const en = loadUi("en").cartControlHtml({ ...FULL, buy: { copyId: 41 } });
+  // the price line carries it, outside the book's link; a plain GET form to the sign-in page (works with no session), the "in your cart" link hidden
+  assert.match(loadUi("en").bookCardHtml({ ...FULL, buy: { copyId: 41 } }, true), /<\/a><div class="p">€7\.50<span class="bk-cart" data-book-id="12">/);
+  assert.match(en, /<form class="bk-cart-add" method="get" action="\/login" data-copy-id="41"><input type="hidden" name="returnTo" value="\/">/);
+  assert.match(en, /<button type="submit" class="bk-cart-btn" aria-label="Add Le Petit Prince to cart">/);
+  assert.match(en, /<a class="bk-cart-btn bk-cart-in" href="\/cart" aria-label="Le Petit Prince is in your cart \(view cart\)" hidden>/);
+  assert.match(loadUi("en").cartControlHtml({ ...FULL, buy: { choose: true } }), /<a class="bk-cart-btn bk-cart-choose" href="\/books\/12" aria-label="Choose a copy of Le Petit Prince to add to cart">/);
+});
+
+test("the cart icon's names: English aria-label, French visually-hidden text with the English title in lang=\"en\"", () => {
+  const fr = loadUi("fr");
+  const add = fr.cartControlHtml({ ...FULL, title: "L'Étranger", buy: { copyId: 41 } });
+  assert.doesNotMatch(add, /aria-label/);
+  assert.match(add, /<span class="bk-cart-name">Ajouter <span lang="en">L’Étranger<\/span> au panier<\/span><\/button>/);
+  assert.match(add, /<span class="bk-cart-name"><span lang="en">L’Étranger<\/span> est dans votre panier \(voir le panier\)<\/span><\/a>/);
+  assert.match(fr.cartControlHtml({ ...FULL, buy: { choose: true } }), /<span class="bk-cart-name">Choisir un exemplaire de <span lang="en">Le Petit Prince<\/span> à ajouter au panier<\/span>/);
+  assert.match(loadUi("en").cartControlHtml({ ...FULL, title: 'A "B" <c>', buy: { copyId: 1 } }), /aria-label="Add A &quot;B&quot; &lt;c&gt; to cart"/);
+  // the status lines public/cart-add.js says
+  assert.equal(loadUi("en").cartText("added", "Emma"), "Added to your cart: Emma.");
+  assert.equal(fr.cartText("added", "Emma"), "Ajouté à votre panier : Emma.");
+  assert.equal(fr.cartText("gone", "Emma"), "Désolé, Emma n’est plus disponible.");
+});
+
 test("the Browse card links to the French address under /fr/ (window.UmasFrHref) and escapes it", () => {
   const ui = loadUi("fr", { frHref: (u) => "/fr" + u });
   assert.match(ui.bookCardHtml(FULL, false), /<a href="\/fr\/books\/12">/);
@@ -108,15 +144,16 @@ test("the Favorites card is exactly what the Favorites page drew before, in Engl
 // ---- the card on the server (views/marketing/partials/book_card.ejs, used by views/marketing/collection.ejs) is the browser card ----
 
 // The partial as the server renders it (the helpers res.locals carries), in a page language, the way renderMarketing finishes a French page.
-function serverCard(b, lang) {
+function serverCard(b, lang, cardCart) {
   const ejs = require("ejs");
-  const { bookText, favName } = require("../../src/lib/bookText");
+  const { bookText, favName, cartName } = require("../../src/lib/bookText");
   const { formatEuro } = require("../../src/lib/money");
   const { frenchTypography } = require("../../src/lib/frenchTypography");
   const file = path.join(ROOT, "views", "marketing", "partials", "book_card.ejs");
   const html = ejs.render(fs.readFileSync(file, "utf8"), {
     b, lang, tr: (en, fr) => (lang === "fr" ? fr : en), eur: (n) => formatEuro(n, lang), coverSrcset: serverCoverSrcset,
-    bookText: (t, l) => bookText(t, lang, l), favName: (t, l) => favName(t, lang, l),
+    bookText: (t, l) => bookText(t, lang, l), favName: (t, l) => favName(t, lang, l), cartName: (k, t, l) => cartName(k, t, lang, l),
+    ...(cardCart ? { cardCart, csrfToken: "TOKEN" } : {}),
   }, { filename: file, views: [path.join(ROOT, "views")] });
   return lang === "fr" ? frenchTypography(html) : html;
 }
@@ -132,12 +169,27 @@ test("collection.ejs's card (book_card.ejs) and the Browse card (ui.js bookCardH
     { id: 13, title: "Bare Book <b>", authors: "", cover_url: null, min_price: null },                                                     // no cover, author, price
     { id: 14, title: "Quotes \"and\" & ampersands", authors: "A & B", cover_url: "/img/x.jpg", min_price: 0 },                             // escaping, a cover with no variants, a price of 0
     { id: 15, title: "L'Étranger", authors: "Albert Camus", cover_url: null, min_price: 12 },                                              // an apostrophe (curly in French)
+    { id: 16, title: "One Copy", authors: "C", cover_url: null, min_price: 5, buy: { copyId: 41 } },                                        // the cart icon adds copy 41
+    { id: 17, title: "L'Choice \"x\" & y", authors: "C", cover_url: null, min_price: 3, buy: { choose: true } },                            // the cart icon opens the book page
   ];
   for (const lang of ["en", "fr"]) {
     const ui = loadUi(lang);
     for (const b of cases) {
-      const browser = ui.bookCardHtml({ id: b.id, title: b.title, author: b.authors, price: b.min_price, coverUrl: b.cover_url, url: `/books/${b.id}` }, true);
+      const browser = ui.bookCardHtml({ id: b.id, title: b.title, author: b.authors, price: b.min_price, coverUrl: b.cover_url, url: `/books/${b.id}`, buy: b.buy }, true);
       assert.equal(sameHtml(serverCard(b, lang)), sameHtml(browser), `${lang} book ${b.id}: the server card and the browser card differ: change both together`);
     }
   }
+});
+
+test("the server's cart icon for one session: a POST form to /cart/add with the CSRF token, and \"in your cart\" from the session", () => {
+  const b = { id: 16, title: "One Copy", authors: "C", cover_url: null, min_price: 5, buy: { copyId: 41 } };
+  const html = serverCard(b, "en", { post: true, inCart: new Set(), backTo: "/collections/x?y=1" });
+  assert.match(html, /<form class="bk-cart-add" method="post" action="\/cart\/add" data-copy-id="41"><input type="hidden" name="_csrf" value="TOKEN"><input type="hidden" name="copyId" value="41"><input type="hidden" name="backTo" value="\/collections\/x\?y=1"><input type="hidden" name="via" value="card"><button/);
+  assert.match(html, /<a class="bk-cart-btn bk-cart-in" href="\/cart" aria-label="One Copy is in your cart \(view cart\)" hidden>/);
+  const inCart = serverCard(b, "en", { post: true, inCart: new Set([16]), backTo: "/" });
+  assert.match(inCart, /<form class="bk-cart-add"[^>]* hidden>/, "already in the cart: no second add");
+  assert.match(inCart, /<a class="bk-cart-btn bk-cart-in" href="\/cart" aria-label="One Copy is in your cart \(view cart\)">/, "shown as in the cart, a link to the cart");
+  const guest = serverCard(b, "en", { post: false, inCart: new Set(), backTo: "/collections/x" });
+  assert.doesNotMatch(guest, /_csrf|TOKEN/, "a guest's page prints no token (no session is created for it)");
+  assert.match(guest, /method="get" action="\/login"[^>]*><input type="hidden" name="returnTo" value="\/collections\/x">/);
 });

@@ -1,5 +1,6 @@
 const config = require("./config");
 const { cachedFor } = require("./runLimited");
+const { BUY_COPY_SQL } = require("./cardCart");
 
 // The "New In" list of the Browse Books page (GET /api/books/new-in in routes/books.js, and the no-JavaScript list
 // of /books.html in index.js).
@@ -24,7 +25,8 @@ async function newIn(pool, { offset = 0, limit = 24, days = NEW_IN_DAYS, min = N
        SELECT b.id, b.title, b.authors, b.cover_url,
               MIN(c.price) AS min_price,
               MAX(c.created_at) AS newest_copy_at,
-              (array_agg(c.id ORDER BY c.created_at DESC, c.id DESC))[1] AS newest_copy_id
+              (array_agg(c.id ORDER BY c.created_at DESC, c.id DESC))[1] AS newest_copy_id,
+              ${BUY_COPY_SQL("b.id")} AS buy_copy_id
        FROM books b
        JOIN book_copies c ON c.book_id = b.id AND c.status = 'in_stock'
        GROUP BY b.id
@@ -37,7 +39,7 @@ async function newIn(pool, { offset = 0, limit = 24, days = NEW_IN_DAYS, min = N
      ), tot AS (
        SELECT COALESCE(MAX(LEAST(n_all, GREATEST(n_recent, $2::bigint))), 0) AS total FROM ranked
      )
-     SELECT tot.total, r.id, r.title, r.authors, r.cover_url, r.min_price, r.newest_copy_at, r.newest_copy_id
+     SELECT tot.total, r.id, r.title, r.authors, r.cover_url, r.min_price, r.newest_copy_at, r.newest_copy_id, r.buy_copy_id
      FROM tot
      LEFT JOIN ranked r ON r.rn > $3::bigint AND r.rn <= tot.total
                         AND ($4::bigint IS NULL OR r.rn <= $3::bigint + $4::bigint)
