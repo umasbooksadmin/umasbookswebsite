@@ -234,11 +234,17 @@ test("CSRF: a card add without the token, or with a wrong one, is refused and ad
     assert.equal(r.status, 403);
     assert.equal((await v.session()).cartCount, 0);
   }
+  // the same request with the session's own token is the one that works (so the 403s above are the token, nothing else)
+  const ok = await v.post("/cart/add", { copyId: copy["Card One Copy"][0], via: "card", _csrf: await v.token() }, JSON_ACCEPT);
+  assert.equal(ok.status, 200);
+  assert.equal((await ok.json()).cartCount, 1);
   const guest = visitor();
   await guest.token();
   const r = await guest.post("/cart/add", { copyId: copy["Card One Copy"][0], via: "card", _csrf: "nope" }, JSON_ACCEPT);
   assert.equal(r.status, 403);
   assert.equal((await guest.session()).cartCount, 0);
+  const guestOk = await guest.post("/cart/add", { copyId: copy["Card One Copy"][0], via: "card", backTo: "/books.html", _csrf: await guest.token() }, JSON_ACCEPT);
+  assert.equal((await guestOk.json()).login, "/login?returnTo=%2Fbooks.html");
 });
 
 test("French pages: the names are French, with the English title marked lang=\"en\"", async () => {
