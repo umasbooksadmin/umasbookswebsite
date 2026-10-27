@@ -17,6 +17,7 @@ const {
 const { processIcon, processBanner } = require("../../lib/collectionImages");
 const { generateSuggestions, updateAllCollections } = require("../../lib/collectionSuggestions");
 const { translateEmptyFrench } = require("../../lib/collectionTranslate");
+const { translateMissingReasons, countMissingFrench, BATCH: REASON_BATCH } = require("../../lib/collectionReasonTranslate");
 const { clearSitemapCache } = require("../seo");
 
 const router = express.Router();
@@ -263,7 +264,7 @@ router.get("/admin/collections/:id", requireAdmin, async (req, res) => {
   const collection = await loadCollection(Number(req.params.id));
   if (!collection) return res.status(404).render("404");
   const { rows: books } = await pool.query(
-    `SELECT b.id, b.title, b.authors, b.categories, cb.status, cb.reason, ${IN_STOCK_SQL()} AS in_stock
+    `SELECT b.id, b.title, b.authors, b.categories, cb.status, cb.reason, cb.reason_fr, ${IN_STOCK_SQL()} AS in_stock
      FROM curated_collection_books cb JOIN books b ON b.id = cb.book_id
      WHERE cb.collection_id = $1
      ORDER BY b.title_sort, b.title, b.id`,
@@ -285,7 +286,8 @@ router.get("/admin/collections/:id", requireAdmin, async (req, res) => {
     "SELECT COUNT(DISTINCT book_id)::int AS n FROM book_copies WHERE status = 'in_stock' AND $1::timestamptz IS NOT NULL AND created_at > $1",
     [collection.last_generated_at]
   );
-  res.render("admin/collection_edit", { active: "collections", collection, form, books, counts, flash: f, newBooks: nb[0].n, find, found, inList, approvedBooks, approvedInStock, addedBook });
+  const missingFrench = await countMissingFrench(pool, collection.id);
+  res.render("admin/collection_edit", { active: "collections", collection, form, books, counts, flash: f, newBooks: nb[0].n, find, found, inList, approvedBooks, approvedInStock, addedBook, missingFrench, reasonBatch: REASON_BATCH });
 });
 
 router.post("/admin/collections/:id", requireAdmin, async (req, res) => {
@@ -362,6 +364,18 @@ router.post("/admin/collections/:id/generate", requireAdmin, aiLimit, async (req
   const result = await generateSuggestions(pool, id);
   await audit(req, { action: "collection.generate", targetType: "collection", targetId: id, detail: result.ok ? `${result.added} added` : `failed: ${result.reason}` });
   await flash(req, resultFlash(result, "Add new books"));
+  redirectBack(res, id);
+});
+
+// "Translate reasons to French": the French of the reasons that have none yet (lib/collectionReasonTranslate.js), one batch a press.
+router.post("/admin/collections/:id/translate-reasons", requireAdmin, aiLimit, async (req, res) => {
+  const id = Number(req.params.id);
+  if (!(await loadCollection(id))) return res.status(404).render("404");
+  const result = await translateMissingReasons(pool, id);
+  await audit(req, { action: "collection.translate_reasons", targetType: "collection", targetId: id, detail: result.ok ? `${result.translated} translated, ${result.remaining} left` : `failed: ${result.reason}` });
+  await flash(req, result.ok
+    ? { notice: `${result.translated} reason${result.translated === 1 ? "" : "s"} translated to French.${result.remaining ? ` ${result.remaining} still without French: press Translate reasons to French again.` : " Every reason now has French."}` }
+    : { error: result.error });
   redirectBack(res, id);
 });
 

@@ -83,7 +83,7 @@ test("the page carries the Browse results markup: section.bk-results, div.bk-gri
   for (const prefix of ["", "/fr"]) {
     const t = await html(`${prefix}/collections/many-books`);
     assert.match(t, /<section class="bk-results" id="bk-results" aria-labelledby="col-books-title" data-collection="many-books" data-next-offset="24">/);
-    assert.match(t, /<div class="bk-grid" id="bk-results-grid"><div class="bk-book">/);
+    assert.match(t, /<div class="bk-grid" id="bk-results-grid"><div class="col-item"><div class="bk-book">/, "each card is the shared card inside a .col-item (its genre and why lines under it)");
     assert.match(t, /<div class="bk-more-row"><button type="button" class="btn btn-outline" id="bk-more" data-i18n="bk\.more" hidden>(Show more|Voir plus)<\/button><\/div>/);
     assert.match(t, /<p class="bk-covernote">/);
     assert.match(t, /<p class="bk-sr" id="bk-status" role="status" aria-live="polite"><\/p>/);
@@ -133,7 +133,9 @@ test("the words page-collection.js draws are the Browse page's words, in both la
     const col = dict(await html(`${prefix}/collections/many-books`));
     for (const lang of ["en", "fr"]) {
       assert.ok(Object.keys(col[lang]).length >= 7);
-      for (const [k, v] of Object.entries(col[lang])) assert.equal(v, browse[lang][k], `${prefix || "/"} ${lang} ${k}`);
+      // col.why is this page's own word (the label of the "why it's here" line): the others are the Browse page's
+      for (const [k, v] of Object.entries(col[lang])) if (k !== "col.why") assert.equal(v, browse[lang][k], `${prefix || "/"} ${lang} ${k}`);
+      assert.equal(col[lang]["col.why"], lang === "fr" ? "Pourquoi ce livre\u00a0:" : "Why it’s here:");
     }
   }
 });
@@ -162,12 +164,12 @@ test("API: pages continue where the page stops, in the page's order, each book o
   assert.equal(d.j.nextOffset, 24);
 });
 
-test("API: same JSON shape as /api/books/new-in and search (bookJson), public cache and CORS headers, FR shares the data", async () => {
+test("API: same JSON shape as /api/books/new-in and search (bookJson) plus genre and why, public cache and CORS headers, FR shares the data", async () => {
   const { r, j } = await api("many-books", "?offset=0&limit=1");
   assert.deepEqual(Object.keys(j), ["total", "nextOffset", "books"]);
-  assert.deepEqual(Object.keys(j.books[0]), ["id", "title", "author", "coverUrl", "price", "url"]);
+  assert.deepEqual(Object.keys(j.books[0]), ["id", "title", "author", "coverUrl", "price", "url", "genre", "why"]);
   const ni = await (await get("/api/books/new-in?limit=1")).json();
-  assert.deepEqual(Object.keys(j.books[0]), Object.keys(ni.books[0]));
+  assert.deepEqual(Object.keys(j.books[0]).slice(0, 6), Object.keys(ni.books[0]));
   assert.equal(r.headers.get("cache-control"), "public, max-age=60, s-maxage=60");
   assert.equal(r.headers.get("access-control-allow-origin"), "*");
   assert.equal(r.headers.get("cross-origin-resource-policy"), "cross-origin");

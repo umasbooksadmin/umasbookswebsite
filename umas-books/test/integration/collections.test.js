@@ -350,6 +350,85 @@ test("Generate: suggestions only, invented ids ignored, out-of-stock books ignor
   assert.deepEqual([again.ok, again.nothingNew, calls], [true, true, 0]);
 });
 
+// ---------- the reason in French (customer collection page on /fr/) ----------
+
+test("Generate stores the French reason the AI gives with the English one; no French in the answer leaves it empty (NULL)", async () => {
+  const { generateSuggestions } = require("../../src/lib/collectionSuggestions");
+  const c = await freshCollection();
+  const [a, b] = [await newBook(`Fr A ${uniq()}`), await newBook(`Fr B ${uniq()}`)];
+  let prompt = "";
+  const r = await generateSuggestions(pool, c.id, {
+    ask: async (p) => { prompt = p; return { text: JSON.stringify([{ id: a.id, reason: "A warm read.", reason_fr: "Une lecture chaleureuse." }, { id: b.id, reason: "A calm read." }]), reason: null }; },
+  });
+  assert.equal(r.added, 2);
+  const rows = (await pool.query("SELECT book_id, reason, reason_fr FROM curated_collection_books WHERE collection_id = $1 ORDER BY position", [c.id])).rows;
+  assert.deepEqual(rows.map((x) => [x.book_id, x.reason, x.reason_fr]), [[a.id, "A warm read.", "Une lecture chaleureuse."], [b.id, "A calm read.", null]]);
+  assert.match(prompt, /"reason_fr"/, "the prompt asks for the French");
+  assert.match(prompt, /Customers read it on the website/, "the prompt asks for customer wording");
+  await pool.query("UPDATE book_copies SET status = 'sold' WHERE book_id = ANY($1)", [[a.id, b.id]]); // out of the later tests' AI candidates
+});
+
+test("Translate reasons to French: fills only the missing French (approved first, in batches), skips hand-added and rejected books, keeps a reason changed meanwhile", async () => {
+  const { translateMissingReasons, countMissingFrench } = require("../../src/lib/collectionReasonTranslate");
+  const c = await freshCollection();
+  const bs = [];
+  // (sold copies: these books must not join the AI candidates of the later tests, which pick from every book in stock)
+  for (let i = 0; i < 6; i++) bs.push(await newBook(`Tr ${i} ${uniq()}`, { copyStatus: "sold" }));
+  await addRow(c.id, bs[0].id, "suggested", "Waiting reason.", 1);
+  await addRow(c.id, bs[1].id, "approved", "Approved reason.", 2);
+  await addRow(c.id, bs[2].id, "approved", "Added by hand", 3);
+  await addRow(c.id, bs[3].id, "rejected", "Rejected reason.", 4);
+  await addRow(c.id, bs[4].id, "approved", "Has French.", 5);
+  await pool.query("UPDATE curated_collection_books SET reason_fr = 'Déjà en français.' WHERE collection_id = $1 AND book_id = $2", [c.id, bs[4].id]);
+  await addRow(c.id, bs[5].id, "approved", null, 6);
+  assert.equal(await countMissingFrench(pool, c.id), 2, "the waiting and the approved reason; not hand-added, rejected, already French or empty");
+  const sent = [];
+  const ask = async (p) => {
+    const list = JSON.parse(p.slice(p.indexOf("[{"), p.indexOf("}]") + 2));
+    sent.push(list);
+    return { text: JSON.stringify(list.map((x) => ({ id: x.id, fr: `FR ${x.reason}` })).concat([{ id: 424242, fr: "invented" }])), reason: null };
+  };
+  // batch of 1: the approved book goes first
+  let r = await translateMissingReasons(pool, c.id, { ask, batch: 1 });
+  assert.deepEqual([r.ok, r.translated, r.remaining], [true, 1, 1]);
+  assert.deepEqual(sent[0], [{ id: bs[1].id, reason: "Approved reason." }]);
+  // a reason that changes while the call is out keeps its (now wrong) French empty
+  r = await translateMissingReasons(pool, c.id, { ask: async (p) => { await pool.query("UPDATE curated_collection_books SET reason = 'Changed.' WHERE collection_id = $1 AND book_id = $2", [c.id, bs[0].id]); return ask(p); } });
+  assert.deepEqual([r.ok, r.translated, r.remaining], [true, 0, 1]);
+  r = await translateMissingReasons(pool, c.id, { ask });
+  assert.deepEqual([r.ok, r.translated, r.remaining], [true, 1, 0]);
+  const fr = Object.fromEntries((await pool.query("SELECT book_id, reason_fr FROM curated_collection_books WHERE collection_id = $1", [c.id])).rows.map((x) => [x.book_id, x.reason_fr]));
+  assert.deepEqual([fr[bs[0].id], fr[bs[1].id], fr[bs[2].id], fr[bs[3].id], fr[bs[4].id], fr[bs[5].id]], ["FR Changed.", "FR Approved reason.", null, null, "Déjà en français.", null]);
+  // nothing left: no call at all; an AI failure is a friendly message
+  let calls = 0;
+  assert.deepEqual(await translateMissingReasons(pool, c.id, { ask: async () => { calls += 1; return { text: "[]" }; } }), { ok: true, translated: 0, remaining: 0 });
+  assert.equal(calls, 0);
+  await pool.query("UPDATE curated_collection_books SET reason_fr = NULL WHERE collection_id = $1 AND book_id = $2", [c.id, bs[1].id]);
+  const fail = await translateMissingReasons(pool, c.id, { ask: async () => ({ text: null, reason: "credit" }) });
+  assert.equal(fail.ok, false);
+  assert.match(fail.error, /no credit left/);
+});
+
+test("Admin page: the French of each reason is shown, and the Translate reasons button says how many have no French (gone when none)", async () => {
+  const c = await freshCollection();
+  const [a, b] = [await newBook(`Adm A ${uniq()}`, { copyStatus: "sold" }), await newBook(`Adm B ${uniq()}`, { copyStatus: "sold" })];
+  await addRow(c.id, a.id, "approved", "English only.", 1);
+  await addRow(c.id, b.id, "approved", "Both.", 2);
+  await pool.query("UPDATE curated_collection_books SET reason_fr = 'Les deux.' WHERE collection_id = $1 AND book_id = $2", [c.id, b.id]);
+  let page = (await get(`/admin/collections/${c.id}`, { jar: adminJar })).text;
+  assert.match(page, /French: <span lang="fr">Les deux\.<\/span>/);
+  assert.match(page, /1 reason has no French yet/);
+  assert.match(page, new RegExp(`action="/admin/collections/${c.id}/translate-reasons"`));
+  // without an API key: a friendly message, nothing changed
+  const r = await adminPost(`/admin/collections/${c.id}/translate-reasons`);
+  assert.equal(r.res.status, 303);
+  assert.match(r.text, /The AI helper is not set up on this site/);
+  assert.equal((await pool.query("SELECT reason_fr FROM curated_collection_books WHERE collection_id = $1 AND book_id = $2", [c.id, a.id])).rows[0].reason_fr, null);
+  await pool.query("UPDATE curated_collection_books SET reason_fr = 'Anglais seulement.' WHERE collection_id = $1 AND book_id = $2", [c.id, a.id]);
+  page = (await get(`/admin/collections/${c.id}`, { jar: adminJar })).text;
+  assert.ok(!page.includes("translate-reasons"), "every reason has French: no button");
+});
+
 test("Writing suggestions never overwrites an existing decision, even if the same book comes back", async () => {
   const { insertSuggestions } = require("../../src/lib/collectionSuggestions");
   const c = await freshCollection();
@@ -700,8 +779,11 @@ test("a rebuild never changes or removes an approved or rejected decision, and n
   const c = await publishedShelf([[a, "approved"], [r2, "rejected"]]);
   const before = (await pool.query("SELECT book_id, status, reason, position FROM curated_collection_books WHERE collection_id = $1 ORDER BY book_id", [c.id])).rows;
   const log = [];
+  // The AI names every book it was sent, w first: only 12 picks per answer are kept, and with many books in stock w could
+  // otherwise fall past the twelfth (the order depends on the book ids, so on how many books earlier tests made).
+  const wFirst = (p) => { const ids = idsIn(p); return ids.includes(w.id) ? [w.id, ...ids.filter((id) => id !== w.id)] : ids; };
   for (const mode of ["new", "full"]) {
-    await generateSuggestions(pool, c.id, { mode, ask: okAsk(log, (p) => idsIn(p)) });
+    await generateSuggestions(pool, c.id, { mode, ask: okAsk(log, wFirst) });
   }
   const after = (await pool.query("SELECT book_id, status, reason, position FROM curated_collection_books WHERE collection_id = $1 AND book_id = ANY($2) ORDER BY book_id", [c.id, [a.id, r2.id]])).rows;
   assert.deepEqual(after, before);
@@ -1061,25 +1143,28 @@ test("the new management routes are admin only and need the CSRF token", async (
   assert.equal((await bySlug(c.slug)).id, c.id, "nothing was deleted");
 });
 
-// ---------- title and text under the banner ----------
+// ---------- title and text on every collection page (also under a banner) ----------
 
-test("With a banner the title is visually hidden and the description paragraph is not output; without one both show as before (EN and FR)", async () => {
+test("The title (a visible h1) and the description show on every collection page: at the top without a banner, directly under the banner with one (EN and FR)", async () => {
   const ld = (t) => (t.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g) || []).join("\n");
   const c = await publishedShelf([[await newBook(`Banner ${uniq()}`), "approved"]]);
   const plain = { en: (await get(`/collections/${c.slug}`)).text, fr: (await get(`/fr/collections/${c.slug}`)).text };
   for (const t of Object.values(plain)) {
     assert.ok(!t.includes("col-banner"));
+    assert.match(t, /<section class="col-head" aria-labelledby="col-title">/);
     assert.match(t, /<h1 id="col-title">/, "no banner: the h1 is a plain, visible heading");
     assert.match(t, /<p class="col-desc">/);
-    assert.match(t, /<section class="col-head"/);
   }
   await pool.query("UPDATE curated_collections SET banner_path = $2, header_alt_en = 'Alt EN', header_alt_fr = 'Alt FR' WHERE id = $1", [c.id, `/img/${"a".repeat(64)}.jpg`]);
   const withB = { en: (await get(`/collections/${c.slug}`)).text, fr: (await get(`/fr/collections/${c.slug}`)).text };
   for (const [lang, t] of Object.entries(withB)) {
-    assert.match(t, /<h1 class="col-sr" id="col-title">/, `${lang}: h1 present and visually hidden`);
-    assert.ok(!t.includes("col-desc"), `${lang}: no description paragraph`);
-    assert.ok(!t.includes('class="col-head"'));
+    assert.ok(!/<h1 class="col-sr"/.test(t), `${lang}: the h1 is not visually hidden any more`);
+    // banner, then the title and description, then the books
+    const order = ['<div class="col-banner"><img', '<section class="col-head col-head-under" aria-labelledby="col-title">', '<h1 id="col-title">', '<p class="col-desc">', '<section class="bk-results"'].map((m) => t.indexOf(m));
+    assert.ok(order.every((i) => i > 0), `${lang}: every part is there ${order}`);
+    assert.deepEqual([...order].sort((x, y) => x - y), order, `${lang}: banner, title, description, books in that order`);
     assert.match(t, /<div class="col-banner"><img[^>]*alt="Alt (EN|FR)"/);
+    assert.ok(!t.includes('class="col-head-art"'), `${lang}: with a banner the round button picture is left out`);
     assert.match(t, /<h2 class="col-sr" id="col-books-title">/);
     // head: meta description, Open Graph, canonical, hreflang and structured data are the same as without a banner
     const head = (s) => s.slice(0, s.indexOf("</head>"));
@@ -1088,16 +1173,17 @@ test("With a banner the title is visually hidden and the description paragraph i
   }
   assert.match(withB.en, /<meta name="description" content="Gentle reads\."/);
   assert.match(withB.fr, /<meta name="description" content="Des lectures douces\."/);
-  assert.match(withB.en, />Quiet Shelf<\/h1>/);
-  assert.match(withB.fr, />Étagère calme<\/h1>/);
+  assert.match(withB.en, /<h1 id="col-title">Quiet Shelf<\/h1>\s*<p class="col-desc">Gentle reads\.<\/p>/);
+  assert.match(withB.fr, /<h1 id="col-title">Étagère calme<\/h1>\s*<p class="col-desc">Des lectures douces\.<\/p>/);
+  assert.ok(!withB.fr.includes("Quiet Shelf") && !withB.fr.includes("Gentle reads"), "no English title or description on the French page");
 });
 
-test("An empty collection with a banner still shows its message", async () => {
+test("An empty collection with a banner still shows its message, under its visible title", async () => {
   const c = await publishedShelf([]);
   await pool.query("UPDATE curated_collections SET banner_path = $2 WHERE id = $1", [c.id, `/img/${"b".repeat(64)}.jpg`]);
   const t = (await get(`/collections/${c.slug}`)).text;
   assert.match(t, /<div class="col-empty" role="status">[\s\S]*Every book in this collection has found a new home/);
-  assert.match(t, /<h1 class="col-sr"/);
+  assert.match(t, /<h1 id="col-title">Quiet Shelf<\/h1>/);
 });
 
 // ---------- Save choices with several ticks; add-by-hand visibility; order by name ----------
