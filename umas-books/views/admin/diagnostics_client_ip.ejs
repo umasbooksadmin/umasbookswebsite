@@ -10,6 +10,8 @@
       <tr><th scope="row">CF-Connecting-IP</th><td><%= cfConnectingIp %></td></tr>
       <tr><th scope="row">True-Client-IP</th><td><%= trueClientIp %></td></tr>
       <tr><th scope="row">Trusted proxy hops (TRUST_PROXY_HOPS)</th><td><%= trustProxyHops %></td></tr>
+      <tr><th scope="row">Node.js (running now)</th><td><strong>Node.js: <%= node.version %></strong><% if (node.known && node.ok) { %> (OK, minimum <%= node.minimum %>)<% } else if (!node.known) { %> (no minimum listed for this version)<% } %></td></tr>
+      <% if (!node.ok) { %><tr class="node-warning"><th scope="row">WARNING</th><td><strong>This Node.js is older than <%= node.minimum %>, which has the October 2026 security fixes.</strong> See <code>docs/runbook.md</code>, &ldquo;Node.js security updates&rdquo;.</td></tr><% } %>
     </tbody>
   </table></div>
   <p>The <strong>req.ip</strong> value must be your own public IP address (search &ldquo;what is my IP&rdquo;), not an address of the hosting edge (Render/Cloudflare). Check it once from a phone on mobile data and once from home wifi. If it is wrong, set <code>TRUST_PROXY_HOPS</code> in Render &gt; Environment (2 normally; 1 if the shown address is already your own but the list shows one extra address, 3 if it is still an edge address).</p>

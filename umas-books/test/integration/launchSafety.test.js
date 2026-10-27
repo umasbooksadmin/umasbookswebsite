@@ -49,6 +49,8 @@ test("diagnostics page: req.ip is the client with 'client, edge'", async () => {
   assert.match(html, /172\.70\.0\.9/, "req.ips lists the edge");
   assert.match(html, /CF-Connecting-IP/);
   assert.match(html, /True-Client-IP/);
+  assert.ok(html.includes(`Node.js: ${process.version}`), "the running Node version is shown");
+  assert.doesNotMatch(html, /node-warning/, "no stale-Node warning on a current runtime");
 });
 
 test("diagnostics page: a spoofed 'evil, client, edge' still yields the client", async () => {

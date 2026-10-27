@@ -554,7 +554,7 @@ where noted. **Secret** = Secrets tab, **Variable** = Variables tab.
 | `SITE_URL` | GitHub repository variable | uptime check | Address the check pings |
 <!-- env-github:end -->
 
-The Node version is not an environment variable: it is pinned in `umas-books/.node-version`, which the workflows read (`node-version-file`); `package.json` `engines` says `22.x`.
+The Node version is not an environment variable: it is pinned to an exact patch version (currently `22.23.4`) in `umas-books/.node-version`, which the workflows read (`node-version-file`) and Render uses; `package.json` `engines` says `22.x`. The minimum safe version per major is in `src/lib/nodeVersion.js`; the running version is shown on Admin > Diagnostics (client IP page) and warned about on the dashboard.
 
 CI (`.github/workflows/ci.yml`) has its own throwaway values (a Postgres
 service container, a dummy `SESSION_SECRET`, etc.): see that file.
@@ -1628,8 +1628,7 @@ Render Blueprint) at the repo root:
    none exists and the email is free, plus sample content in that same run),
    never touches an existing account or password, and never blocks startup
    (failures are logged and emailed, exit code 0; `;` rather than `&&`). Rolling back to an older commit does NOT undo migrations.
-   The Node version is pinned to 22 (`engines` in `package.json` and
-   `.node-version`, which every GitHub workflow reads through `node-version-file`), and `render.yaml` sets
+   The Node version is pinned to an exact 22.x patch (`.node-version`, and `engines` `22.x` in `package.json`; which every GitHub workflow reads through `node-version-file`), and `render.yaml` sets
    `healthCheckPath: /healthz` (a `SELECT 1`) so a deploy that can't
    reach the database never goes live.
 4. Migrate runs as Render's pre-deploy command and seed in `startCommand`.
