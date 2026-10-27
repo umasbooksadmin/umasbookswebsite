@@ -54,7 +54,7 @@ async function findRecords(pool, email) {
   );
   const requestLinks = await q("SELECT count(*)::int AS n FROM book_request_list_tokens WHERE lower(email) = $1");
   const payments = await q(
-    "SELECT id, amount_cents, paid_at, user_id, unmatched_at FROM membership_payments WHERE lower(payer_email) = $1 OR user_id = ANY($2::int[]) ORDER BY id",
+    "SELECT id, amount_cents, paid_at, user_id, unmatched_at, reversed_at, reversed_amount_cents FROM membership_payments WHERE lower(payer_email) = $1 OR user_id = ANY($2::int[]) ORDER BY id",
     [email, ids]
   );
   const outbox = await listOutboxFor(pool, email);

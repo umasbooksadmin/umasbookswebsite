@@ -38,6 +38,7 @@ const crypto = require("node:crypto");
 const config = require("./config");
 const passwordHash = require("./passwordHash");
 const { isStaging, hostOf, productionHostProblem } = require("./staging");
+const { parisPlusDaysSql } = require("./tz");
 
 const MANY_USERS = 50;
 const MAX_DEMO_COPIES = 6;
@@ -256,7 +257,7 @@ async function ensureReservations(pool, log) {
     });
     const r = { key: spec.key, orderId: order.id, what: spec.what, book: copy.title };
     if (spec.expiring) {
-      await pool.query("UPDATE orders SET reserved_until = now() + make_interval(days => $2) WHERE id = $1 AND status = 'reserved'", [order.id, EXPIRING_IN_DAYS]);
+      await pool.query(`UPDATE orders SET reserved_until = ${parisPlusDaysSql("now()", "$2::int")} WHERE id = $1 AND status = 'reserved'`, [order.id, EXPIRING_IN_DAYS]);
     }
     if (spec.pay) {
       try {

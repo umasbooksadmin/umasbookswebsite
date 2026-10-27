@@ -135,7 +135,7 @@ async function loadOrder(id) {
   return rows[0] || null;
 }
 
-async function renderOrder(req, res, { error = null, status = 200, formValues = {} } = {}) {
+async function renderOrder(req, res, { error = null, status = 200, formValues = {}, flashNotice = null } = {}) {
   const id = parseId(req.params.id);
   if (id) await expireStaleReservations(pool);
   const order = id ? await loadOrder(id) : null;
@@ -168,7 +168,7 @@ async function renderOrder(req, res, { error = null, status = 200, formValues = 
     tillClosed: closedDay.length > 0,
     active: "orders", order, items, history, related, overdueDays: OVERDUE_DAYS, paymentMethods: PAYMENT_METHODS,
     extensionDays: RESERVATION_EXTENSION_DAYS, lastDay: reservationLastDay(order), formValues,
-    notice: status === 200 ? noticeFor(req.query.notice, req.query.discount) : null, error,
+    notice: status === 200 ? (flashNotice ? `${flashNotice}${Number(req.query.discount) > 0 && /^\d{1,6}\.\d{2}$/.test(String(req.query.discount)) ? ` Discount given: \u20ac${req.query.discount} below the list price.` : ""}` : noticeFor(req.query.notice, req.query.discount)) : null, error,
   });
 }
 
@@ -182,6 +182,7 @@ async function refusedBack(req, res, error, formValues) {
 router.get("/admin/orders/:id", requireAdmin, (req, res, next) => {
   if (req.params.id === "pickup-list") return next();
   const f = takeFlash(req, `order-${req.params.id}`);
+  if (f && f.notice) return renderOrder(req, res, { flashNotice: String(f.notice).slice(0, 1000) });
   return renderOrder(req, res, f && f.error ? { error: String(f.error), formValues: f.formValues || {} } : {});
 });
 
@@ -254,13 +255,27 @@ async function collect(req, res, { selected }) {
     return refusedBack(req, res, `Today's till day (${result.day}) is already closed, so cash taken here would not be in the drawer count. Reopen the day on the End of day page first, or choose "Other" and explain in the note where the money went.`, { method: "other", note, amountReceived: String(req.body.amountReceived || "").slice(0, 40) });
   }
   if (result.outcome !== "collected") {
-    return refusedBack(req, res, COLLECT_ERRORS[result.outcome] || "Could not record the payment.", { method, note, amountReceived: String(req.body.amountReceived || "").slice(0, 40) });
+    let message = COLLECT_ERRORS[result.outcome] || "Could not record the payment.";
+    if (result.outcome === "nothing_to_collect" && result.notHeld && result.notHeld.length) {
+      message = `None of the ticked items is still reserved, so nothing was collected and nothing was changed (${result.notHeld.join("; ")}). Reload the page.`;
+    }
+    return refusedBack(req, res, message, { method, note, amountReceived: String(req.body.amountReceived || "").slice(0, 40) });
   }
   await audit(req, {
     action: "order.collected_paid", targetType: "order", targetId: id,
     detail: `${method}, €${result.total.toFixed(2)} of €${result.reservedTotal.toFixed(2)}, ${result.items} item(s)${result.partial ? `, rest moved to reservation #${result.newOrderId}` : ""}${result.dropped.length ? `, dropped ${result.dropped.length} no longer held` : ""}${note ? `; ${note}` : ""}`,
   });
   const discountQs = result.discount > 0 ? `&discount=${result.discount.toFixed(2)}` : "";
+  if (result.dropped.length) {
+    // An item that was no longer held (sold at the till meanwhile) was removed from the order: say so, with its title,
+    // instead of only "Collected and paid" (the audit log has it too).
+    const n = result.items;
+    const m = result.dropped.length;
+    const plural = (k, one, many) => `${k} ${k === 1 ? one : many}`;
+    const text = `Collected and paid. ${plural(n, "item was", "items were")} collected; ${plural(m, "was", "were")} no longer reserved and ${m === 1 ? "was" : "were"} removed from this reservation: ${result.dropped.join("; ")}.`;
+    await setFlash(req, `order-${id}`, { notice: text });
+    return res.redirect(303, `/admin/orders/${id}${discountQs ? `?${discountQs.slice(1)}` : ""}`);
+  }
   res.redirect(`/admin/orders/${id}?notice=${result.partial ? "collected-partial" : "collected-paid"}${discountQs}`);
 }
 

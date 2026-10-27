@@ -1,5 +1,6 @@
 // Membership payment integrity (src/lib/membership.js, middleware/auth.js):
-//  - renewing early loses no time: expiry = max(paid_at, current end) + 365 days;
+//  - a membership lasts one CALENDAR year in Paris time and ends at the end of that Paris day; renewing early
+//    loses no time: last day = one year after max(paid day, current last day);
 //  - an old payment found late (already past) grants nothing;
 //  - a 0 EUR "payment" is not a membership; an optional form slug restricts it;
 //  - a payment whose payer email matches no confirmed account is KEPT as an
@@ -54,10 +55,16 @@ const account = (e, opts = {}) => createAccount(h.pool, { email: e, ...opts });
 const userRow = async (e) => (await h.q("SELECT * FROM users WHERE email = $1", [e]))[0];
 const sync = (e) => membership.syncMembershipForEmail(h.pool, e);
 const close = (a, b, ms = 5000) => Math.abs(new Date(a) - new Date(b)) <= ms;
+// The expected end, worked out by POSTGRES (an independent oracle): the last millisecond of the Paris day one year
+// after the given Paris day (PG clamps 29 February to 28 February).
+const endOfYearFrom = async (instantOrDay) => (await h.q(
+  `SELECT ((((($1::timestamptz) AT TIME ZONE 'Europe/Paris')::date + interval '1 year' + interval '1 day')::timestamp AT TIME ZONE 'Europe/Paris') - interval '1 millisecond') AS t`,
+  [instantOrDay]
+))[0].t;
 
 // ---------- grant arithmetic ----------
 
-test("a first payment grants paid_at + 365 days", async () => {
+test("a first payment grants one calendar year, to the end of that Paris day", async () => {
   const e = email("first");
   await account(e);
   const paid = ago(10);
@@ -65,10 +72,10 @@ test("a first payment grants paid_at + 365 days", async () => {
   await sync(e);
   const u = await userRow(e);
   assert.equal(u.is_member, true);
-  assert.ok(close(u.member_expires_at, new Date(paid.getTime() + 365 * DAY)));
+  assert.ok(close(u.member_expires_at, await endOfYearFrom(paid)), `got ${u.member_expires_at}`);
 });
 
-test("renewing at day 300 gives 365 days from the OLD end date, not from the payment", async () => {
+test("renewing at day 300 gives a year from the OLD end date, not from the payment", async () => {
   const e = email("renew");
   await account(e);
   const first = ago(300);
@@ -79,10 +86,11 @@ test("renewing at day 300 gives 365 days from the OLD end date, not from the pay
   orders.set(e, [o1, order(e, second)]);
   await sync(e);
   const u = await userRow(e);
-  assert.ok(close(u.member_expires_at, new Date(first.getTime() + 730 * DAY)), `expected old end + 365 days, got ${u.member_expires_at}`);
+  const twoYears = await endOfYearFrom(await endOfYearFrom(first));
+  assert.ok(close(u.member_expires_at, twoYears), `expected two years after the first payment day, got ${u.member_expires_at}`);
   // And it is idempotent: syncing again adds nothing.
   await sync(e);
-  assert.ok(close((await userRow(e)).member_expires_at, new Date(first.getTime() + 730 * DAY)));
+  assert.ok(close((await userRow(e)).member_expires_at, twoYears));
 });
 
 test("renewing after the membership lapsed starts from the payment date", async () => {
@@ -93,7 +101,7 @@ test("renewing after the membership lapsed starts from the payment date", async 
   orders.set(e, [order(e, first), order(e, second)]);
   await sync(e);
   const u = await userRow(e);
-  assert.ok(close(u.member_expires_at, new Date(second.getTime() + 365 * DAY)));
+  assert.ok(close(u.member_expires_at, await endOfYearFrom(second)));
 });
 
 test("a payment older than a year found late grants nothing (no is_member with a past end date)", async () => {
@@ -239,7 +247,7 @@ test("/admin/members lists unmatched payments and 'Link to account' attaches the
   assert.match(res.headers.get("location"), /linkNotice=linked/);
   const u = await userRow(real);
   assert.equal(u.is_member, true);
-  assert.ok(close(u.member_expires_at, new Date(paid.getTime() + 365 * DAY)));
+  assert.ok(close(u.member_expires_at, await endOfYearFrom(paid)));
   const [linked] = await h.q("SELECT user_id, unmatched_at, linked_at FROM membership_payments WHERE id = $1", [p.id]);
   assert.equal(linked.user_id, acc.id);
   assert.equal(linked.unmatched_at, null);

@@ -40,7 +40,7 @@ async function buildEmailSections(pool, email, userId = null) {
       [email, userId]
     ),
     membership_payments: await q(
-      `SELECT id, helloasso_order_id, payer_email, amount_cents, paid_at, created_at
+      `SELECT id, helloasso_order_id, payer_email, amount_cents, paid_at, created_at, reversed_at, reversed_amount_cents
        FROM membership_payments WHERE user_id = $1 OR lower(payer_email) = $2 ORDER BY paid_at`,
       [userId, email]
     ),

@@ -15,7 +15,9 @@
 //     what was received (cash or card). Refunding such an order reverses what was RECEIVED: the list-price
 //     lines are reversed and the discount row is reversed (a positive "Discount" refund row) on the refund day.
 //     Orders without a discount produce no discount row at all.
-//   - membership payments (HelloAsso)
+//   - membership payments (HelloAsso); one refunded or lost in a dispute keeps its row on the day it was paid and
+//     gets a NEGATIVE Membership row (a refund row, same wording as the other refunds) on the day the reversal was
+//     seen (membership_payments.reversed_at), exactly like a refunded reservation
 //   - refunded reservations: the original sale stays on its day, and a NEGATIVE row dated at the
 //     refund (same category and method as the sale) corrects it in the export of the month the refund happened
 //   - over/short from the day closing (till_days.difference_cents), as its own row
@@ -151,6 +153,13 @@ async function accountingRows(db, from, to) {
        SELECT (mp.paid_at AT TIME ZONE '${TZ}')::date, 'Membership', 'HelloAsso', 1, mp.amount_cents::bigint, false
        FROM membership_payments mp
        WHERE mp.amount_cents IS NOT NULL AND ${inRange("mp.paid_at", 1, 2)}
+       UNION ALL
+       -- a membership payment HelloAsso later refunded (or lost in a dispute): the payment keeps its row on the day
+       -- it was paid (a month already exported never changes) and a NEGATIVE row, same category and method, is dated
+       -- the day we saw the reversal (membership_payments.reversed_at, set once by lib/membership.js)
+       SELECT (mp.reversed_at AT TIME ZONE '${TZ}')::date, 'Membership', 'HelloAsso', -1, -mp.reversed_amount_cents::bigint, true
+       FROM membership_payments mp
+       WHERE mp.reversed_at IS NOT NULL AND mp.reversed_amount_cents IS NOT NULL AND ${inRange("mp.reversed_at", 1, 2)}
        UNION ALL
        -- the discount given at pickup (list price of the lines minus what was received), one negative amount per order
        -- on the day it was paid, reversed (positive, a refund row) on the day the reservation was refunded

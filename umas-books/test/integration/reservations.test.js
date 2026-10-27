@@ -470,7 +470,7 @@ test("createReservation refuses a copy whose price is missing or 0 at the moment
   for (const copyId of [unpriced, free]) {
     await assert.rejects(
       createReservation(h.pool, { user: buyer, name: "Price", items: [{ kind: "book", copyId, title: "P", price: 5 }], acceptedVersion: "v" }),
-      /SOLD_OUT/
+      /NOT_FOR_SALE/ // (Review F, F10: still on the shelf, so not SOLD_OUT = taken by someone else)
     );
     assert.equal(await h.copyStatus(copyId), "in_stock");
   }

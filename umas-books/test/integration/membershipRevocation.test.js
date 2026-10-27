@@ -51,6 +51,10 @@ const recordedIds = async (email) =>
   (await pool.query("SELECT helloasso_order_id FROM membership_payments WHERE payer_email = $1 ORDER BY 1", [email]))
     .rows.map((r) => Number(r.helloasso_order_id));
 
+const standingIds = async (email) =>
+  (await pool.query("SELECT helloasso_order_id FROM membership_payments WHERE payer_email = $1 AND reversed_at IS NULL ORDER BY 1", [email]))
+    .rows.map((r) => Number(r.helloasso_order_id));
+
 test("a recorded payment absent from the search response is kept (no revocation by absence)", async () => {
   const email = `absent-${Date.now()}@example.test`;
   await createVerifiedUser(email);
@@ -87,7 +91,9 @@ test("an order that is present but no longer Authorized (refund) is revoked", as
   const u = await userRow(email);
   assert.equal(u.is_member, false);
   assert.equal(u.member_expires_at, null);
-  assert.deepEqual(await recordedIds(email), []);
+  // Kept as the 10-year record, marked reversed (not deleted); see membershipReversal.test.js.
+  assert.deepEqual(await recordedIds(email), [id]);
+  assert.deepEqual(await standingIds(email), []);
 });
 
 test("refunding one of two orders keeps the other; a newer paid order still extends expiry", async () => {
@@ -106,5 +112,6 @@ test("refunding one of two orders keeps the other; a newer paid order still exte
   mockedOrders = [order(email, newId), order(email, oldId, "Refunded", oldDate)];
   await syncMembershipForEmail(pool, email);
   assert.equal((await userRow(email)).is_member, true);
-  assert.deepEqual(await recordedIds(email), [newId]);
+  assert.deepEqual(await standingIds(email), [newId]);
+  assert.deepEqual(await recordedIds(email), [oldId, newId].sort((x, y) => x - y), "the refunded one is kept, marked reversed");
 });
