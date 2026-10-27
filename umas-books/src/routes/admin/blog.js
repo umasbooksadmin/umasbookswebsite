@@ -15,6 +15,7 @@ const { validateIdParams } = require("../../middleware/idParams");
 const { parseId, clean } = require("../../lib/validation");
 const { parisInstant, parisDateString } = require("../../lib/tz");
 const { likeContains, parseIntParam } = require("../../lib/parseParams");
+const { makeBackQuery, oneOf, text, pageNumber } = require("../../lib/backQuery");
 
 const router = express.Router();
 // Garbage ids get the 404 page, not a Postgres 22P02 and a 500.
@@ -83,23 +84,13 @@ function resolveBlogPublishedAt(status, dateStr, timeStr) {
   return dateStr ? parisInstant(dateStr, timeStr || "00:00") : new Date();
 }
 
-// The list filters to return to after a save/bulk action. Only the known list parameters are kept,
-// each checked against what the list itself accepts, and the query string is rebuilt from them: the
-// posted text is never appended as it is (it could carry any other parameter, a fragment, a newline).
+// The list filters to return to after a save/bulk action: rebuilt from a whitelist, never appended as posted (lib/backQuery.js).
 const DATE_RANGES = ["7d", "30d", "year"];
+const blogBack = makeBackQuery({
+  status: oneOf(BLOG_STATUSES), category: oneOf(BLOG_CATEGORIES), q: text(100), dateRange: oneOf(DATE_RANGES), page: pageNumber,
+});
 function blogBackQuery(req) {
-  const raw = typeof req.body.backQuery === "string" ? req.body.backQuery.slice(0, 500) : "";
-  if (!raw) return "";
-  const src = new URLSearchParams(raw);
-  const out = new URLSearchParams();
-  if (BLOG_STATUSES.includes(src.get("status"))) out.set("status", src.get("status"));
-  if (BLOG_CATEGORIES.includes(src.get("category"))) out.set("category", src.get("category"));
-  const q = (src.get("q") || "").trim().slice(0, 100);
-  if (q) out.set("q", q);
-  if (DATE_RANGES.includes(src.get("dateRange"))) out.set("dateRange", src.get("dateRange"));
-  if (/^\d{1,5}$/.test(src.get("page") || "") && Number(src.get("page")) >= 1) out.set("page", String(Number(src.get("page"))));
-  const qs = out.toString();
-  return qs ? `?${qs}` : "";
+  return blogBack(req.body.backQuery);
 }
 
 // What the form sent, cleaned the same way for create and edit. `error` is a

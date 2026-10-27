@@ -5,12 +5,15 @@
 <p><a href="/admin/genres">&larr; Genres</a></p>
 
 <div class="card gn-result">
-  <div class="section-title">Run <%= run.id %>: <%= run.books_changed %> book<%= run.books_changed === 1 ? '' : 's' %> changed<%= run.status === 'failed' ? ' (stopped by an error)' : '' %></div>
+  <div class="section-title">Run <%= run.id %>: <%= run.books_changed %> book<%= run.books_changed === 1 ? '' : 's' %> changed<%= run.status === 'failed' ? (run.note ? ' (failed: interrupted)' : ' (stopped by an error)') : '' %></div>
   <p>
     <%= formatDateTime(run.started_at) %> &middot; <%= run.actor_name || 'admin' %><br>
     <%= run.genres_removed %> genre<%= run.genres_removed === 1 ? '' : 's' %> removed.
     <a href="/admin/audit">See it in Admin activity</a> (action <code>genre.apply</code>, run <%= run.id %>).
   </p>
+  <% if (run.status === 'failed' && run.note) { %>
+    <p class="muted small">This run was interrupted: the server stopped before it finished, so only the books listed below were changed. Undo puts them back.</p>
+  <% } %>
   <% if (run.undone_at) { %>
     <p><strong>This run was undone</strong> on <%= formatDateTime(run.undone_at) %>: <%= run.undo_restored %> book<%= run.undo_restored === 1 ? '' : 's' %> restored.</p>
   <% } else if (undoable) { %>

@@ -241,7 +241,7 @@ router.get("/books/:id", async (req, res) => {
     awards: await loadPublicAwards(pool, id),
     conditions: CONDITIONS,
     bindingLabel: bindingLabel(book.binding, req.lang),
-    backGenre: (req.query.genre || "").trim(),
+    backGenre: clean(req.query.genre, 100),
     moreByAuthor,
   });
 });

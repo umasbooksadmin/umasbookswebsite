@@ -22,6 +22,7 @@ const { parseIntakeInput, prepareIntake, intakeRefusal, saveBookAndCopy, afterSa
 const { asTyped, statusLabelOf, parseCopyEdit, priceCopyEdit, copyEditOverlay, updateCopy, cancelReservation, deleteBook, deleteCopy } = require("../../lib/inventoryCopies");
 const { serverTiming } = require("../../lib/timing");
 const { aiAdminLimiter, AI_LIMIT_MESSAGE } = require("../../middleware/rateLimits");
+const { clean } = require("../../lib/validation");
 const { getAiLimits, clampText, MAX_TITLE, MAX_AUTHOR } = require("../../lib/aiLimits");
 const { findCoverUrl } = require("../../lib/bookFill");
 const { COVER_ERRORS, COVER_NOTICES } = require("../../lib/coverEdit");
@@ -553,7 +554,21 @@ router.get("/admin/inventory/:id", requireAdmin, async (req, res) => {
   return renderBook(res, id, f && f.error ? String(f.error) : null, hasOrdersNotice(req), (f && f.overlay) || {});
 });
 
-router.post("/admin/inventory/:id", requireAdmin, async (req, res) => {
+// Saving a book with an EMPTY description makes the server write one with the paid AI (and translate it); that is
+// counted against the same per-admin 10-a-minute limit as the other AI buttons. A normal save, with a description
+// typed, never calls the AI to write one and is never limited. A refusal brings the admin back to the book with
+// what was typed and the same sentence as the other AI buttons.
+const bookEditLimiter = aiAdminLimiter({
+  skip: (req) => !clean(req.body && req.body.title, 500) || Boolean(clean(req.body && req.body.description, 5000)),
+  handler: (req, res) => {
+    const b = req.body || {};
+    return bookBack(req, res, Number(req.params.id), { error: AI_LIMIT_MESSAGE, overlay: {
+      book: { isbn: clean(b.isbn, 40) || null, title: clean(b.title, 500), authors: clean(b.author, 500) || null, publisher: clean(b.publisher, 500) || null, published_year: clean(b.publishedYear, 10), description: "", description_fr: clean(b.descriptionFr, 5000) || null, cover_url: clean(b.coverUrl, 1000) || null },
+    } });
+  },
+});
+
+router.post("/admin/inventory/:id", requireAdmin, bookEditLimiter, async (req, res) => {
   const id = Number(req.params.id);
   const title = (req.body.title || "").trim();
   const author = (req.body.author || "").trim() || null;

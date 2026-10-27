@@ -14,7 +14,9 @@ const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) =
 test("app.js collapses repeated fields except the ones on the allow-list", () => {
   const app = fs.readFileSync(path.join(ROOT, "src", "app.js"), "utf8");
   assert.ok(app.includes('require("./lib/multiValueFields")'));
-  assert.ok(/!MULTI_VALUE_BODY_FIELDS\.has\(key\)/.test(app));
+  assert.ok(/collapseRepeatedFields\(req\.body\)/.test(app));
+  const lib = fs.readFileSync(path.join(ROOT, "src", "lib", "multiValueFields.js"), "utf8");
+  assert.ok(/!MULTI_VALUE_BODY_FIELDS\.has\(key\)/.test(lib));
 });
 
 test("every checkbox rendered in a loop, and every field a route reads as a list, is on the allow-list", () => {

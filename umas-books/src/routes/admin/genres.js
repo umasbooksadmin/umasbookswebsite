@@ -77,6 +77,7 @@ router.get("/admin/genres", requireAdmin, async (req, res) => {
   const table = admin.queryFound(found, rules, { filter, q, sort, page, pageSize: PAGE_SIZE });
   const storedRules = await admin.listRules(pool, found);
   const exactByKey = new Map(storedRules.filter((r) => r.kind === "exact").map((r) => [genreKey(r.pattern), r]));
+  await run.reapStaleRuns(pool).catch(() => {}); // a run a crash left 'running' becomes 'failed (interrupted)'
   const lastRun = await run.getRun(pool, await run.undoableRunId(pool));
   res.set("Cache-Control", "private, no-store");
   res.render("admin/genres", {
@@ -249,6 +250,7 @@ router.post("/admin/genres/apply/preview", requireAdmin, bulkLimit, async (req, 
 router.get("/admin/genres/apply", requireAdmin, async (req, res) => {
   const f = takeFlash(req, FLASH_APPLY) || {};
   res.set("Cache-Control", "private, no-store");
+  await run.reapStaleRuns(pool).catch(() => {});
   res.render("admin/genres_apply", { active: "genres", preview: f.preview || null, notice: f.notice || null, error: f.error || null, runs: await run.recentRuns(pool, 5) });
 });
 
@@ -284,6 +286,7 @@ router.post("/admin/genres/apply", requireAdmin, bulkLimit, async (req, res) => 
 });
 
 router.get("/admin/genres/runs/:id", requireAdmin, async (req, res) => {
+  await run.reapStaleRuns(pool).catch(() => {});
   const r = await run.getRun(pool, Number(req.params.id));
   if (!r) return res.status(404).render("404");
   const f = takeFlash(req, FLASH) || {};

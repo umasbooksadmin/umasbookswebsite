@@ -49,7 +49,7 @@
   <div class="card">
     <div class="section-title">Earlier runs</div>
     <ul class="plain">
-      <% runs.forEach(function (r) { %><li><a href="/admin/genres/runs/<%= r.id %>">Run <%= r.id %></a> &middot; <%= r.books_changed %> books &middot; <%= formatDateTime(r.started_at) %><%= r.undone_at ? ' · undone' : '' %></li><% }) %>
+      <% runs.forEach(function (r) { %><li><a href="/admin/genres/runs/<%= r.id %>">Run <%= r.id %></a> &middot; <%= r.books_changed %> books<%= r.status === 'failed' ? (r.note ? ' · failed (interrupted)' : ' · failed') : '' %> &middot; <%= formatDateTime(r.started_at) %><%= r.undone_at ? ' · undone' : '' %></li><% }) %>
     </ul>
   </div>
 <% } %>

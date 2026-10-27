@@ -532,3 +532,57 @@ test("the admin Inventory Genre filter lists the managed genres first, then the 
   assert.ok(select.indexOf(">Basketweaving<") > iOther && select.indexOf(">Zoology<") > iOther, "raw genres in use under Other");
   assert.equal((select.match(/>Fiction</g) || []).length, 1, "a managed genre is not repeated under Other");
 });
+
+// ---------- a run the server never finished (crash, SIGTERM mid-run) ----------
+
+// What a crash after one batch leaves behind: a 'running' row, and the books that batch already rewrote.
+async function crashedRun(minutesAgo) {
+  const [b1] = await q("INSERT INTO books (title, categories, categories_fr) VALUES ('Crash 1', 'Children', 'Enfants') RETURNING id");
+  const [b2] = await q("INSERT INTO books (title, categories, categories_fr) VALUES ('Crash 2', 'Children', 'Enfants') RETURNING id");
+  const [r] = await q("INSERT INTO genre_runs (started_at, status) VALUES (now() - make_interval(mins => $1::int), 'running') RETURNING id", [minutesAgo]);
+  for (const b of [b1, b2]) {
+    await q("INSERT INTO genre_run_changes (run_id, book_id, old_categories, old_categories_fr, new_categories, new_categories_fr) VALUES ($1, $2, 'Children''s Books', 'Livres', 'Children', 'Enfants')", [r.id, b.id]);
+  }
+  return { runId: r.id, bookIds: [b1.id, b2.id] };
+}
+const runRow = async (id) => (await q("SELECT * FROM genre_runs WHERE id = $1", [id]))[0];
+
+test("a stale 'running' run becomes failed (interrupted) with the books it did change, and Undo restores them", async () => {
+  const { runId, bookIds } = await crashedRun(20);
+  assert.equal(await run.reapStaleRuns(h.pool), 1);
+  const row = await runRow(runId);
+  assert.equal(row.status, "failed");
+  assert.equal(row.note, run.INTERRUPTED_NOTE);
+  assert.equal(row.books_changed, 2);
+  assert.ok(row.finished_at);
+  const page = await h.get("/admin/genres");
+  assert.match(page.text, /failed \(interrupted\)/);
+  const detail = await h.get(`/admin/genres/runs/${runId}`);
+  assert.match(detail.text, /failed: interrupted/);
+  assert.match(detail.text, /Undo this run/, "Undo stays available for the partial changes");
+  const undone = await run.undoRun(h.pool, runId);
+  assert.equal(undone.restored, 2);
+  for (const id of bookIds) assert.equal((await cats(id)).categories, "Children's Books");
+});
+
+test("a recent 'running' run is left alone, and so is a stale one while its lock is held", async () => {
+  const fresh = await crashedRun(2);
+  assert.equal(await run.reapStaleRuns(h.pool), 0);
+  assert.equal((await runRow(fresh.runId)).status, "running");
+  await q("UPDATE genre_runs SET started_at = now() - interval '30 minutes' WHERE id = $1", [fresh.runId]);
+  const during = await run.withRunLock(h.pool, async () => run.reapStaleRuns(h.pool));
+  assert.equal(during, 0, "the lock is held: a live run");
+  assert.equal((await runRow(fresh.runId)).status, "running");
+  assert.equal(await run.reapStaleRuns(h.pool), 1, "lock free: the run is dead");
+});
+
+test("starting an apply tidies up a stale run first", async () => {
+  await seedBooks(30);
+  await childrenRules();
+  const { runId } = await crashedRun(45);
+  const applied = await run.applyRun(h.pool, {}, null);
+  assert.ok(applied.runId > runId);
+  const row = await runRow(runId);
+  assert.equal(row.status, "failed");
+  assert.equal(row.note, run.INTERRUPTED_NOTE);
+});
