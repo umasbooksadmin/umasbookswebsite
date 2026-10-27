@@ -21,7 +21,7 @@ on:
   schedule:
     # GitHub cron is UTC only. 21:00 Paris is 19:00 UTC in summer (CEST) and
     # 20:00 UTC in winter (CET). The gate (.github/scripts/export-gate.sh) is
-    # idempotent: from 21h to 23h Paris the run goes on only if today's file is
+    # idempotent: from 21h Paris until 5h (a delayed run still owes yesterday's file) the run goes on only if the file is
     # not in Backblaze yet. So the two lines above do the export, and the two
     # later ones are retries that cover a delayed or dropped run (and do
     # nothing once the file exists).

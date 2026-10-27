@@ -18,7 +18,8 @@ test("scheduled at 19:00, 20:00 (summer/winter 21h) plus retries at 21:00 and 22
   assert.match(gate, /id: gate/);
   const script = fs.readFileSync(path.join(__dirname, "..", "..", "..", ".github", "scripts", "export-gate.sh"), "utf8");
   assert.match(script, /"\$hour" -lt 21/);
-  assert.match(script, /inventory-exports\/inventory_books_\$\{date_part\}\.csv/);
+  assert.match(script, /inventory-exports\/inventory_books_\$\{day_for\}\.csv/);
+  assert.match(script, /"\$hour" -le 5/, "a run delayed past midnight still owes yesterday's file");
   assert.doesNotMatch(gate, /exit [1-9]/);
 });
 

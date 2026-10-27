@@ -84,6 +84,10 @@ test("inventory gate: 21h-23h run only while today's file is absent; earlier hou
   assert.equal(want("22"), "true", "late run, tolerated");
   assert.equal(want("23"), "true");
   assert.equal(want("20"), "false", "the winter-time duplicate line one hour early");
+  assert.equal(want("0"), "true", "a run GitHub delayed past midnight still owes yesterday's file");
+  assert.equal(want("0", "inventory-exports/inventory_books_2026-10-26.csv"), "false", "yesterday's file exists");
+  assert.equal(want("1", today), "true", "today's file is not yesterday's");
+  assert.equal(want("6"), "false", "morning: nothing owed");
   assert.equal(want("22", today), "false", "already done tonight");
   assert.equal(want("21", "inventory-exports/inventory_books_2026-10-26.csv"), "true", "yesterday's file is not tonight's");
   assert.equal(want("10", today, "true"), "true", "manual");
