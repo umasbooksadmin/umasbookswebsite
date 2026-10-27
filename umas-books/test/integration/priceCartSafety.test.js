@@ -129,7 +129,8 @@ test("book page: a copy with no price or a 0 price has no Add to Cart button, on
   assert.match(en.text, new RegExp(`name="copyId" value="${good}"`));
   assert.doesNotMatch(en.text, new RegExp(`name="copyId" value="${noPrice}"`));
   assert.doesNotMatch(en.text, new RegExp(`name="copyId" value="${zero}"`));
-  assert.equal((en.text.match(/action="\/cart\/add"/g) || []).length, 1, "one Add to Cart form, for the priced copy");
+  // the copy table's forms (a "More by" card's cart icon form has class bk-cart-add and is checked in cardCart.test.js)
+  assert.equal((en.text.match(/<form method="post" action="\/cart\/add">/g) || []).length, 1, "one Add to Cart form, for the priced copy");
   assert.equal((en.text.match(/Ask in the shop/g) || []).length, 2);
   assert.match(en.text, /€7\.50/);
 
@@ -143,7 +144,7 @@ test("book page: when no copy has a price there is no price headline and no cart
   await makeCopy(bookId, { price: null });
   const page = await guest().get(`/books/${bookId}`);
   assert.equal(page.res.status, 200);
-  assert.doesNotMatch(page.text, /action="\/cart\/add"/);
+  assert.doesNotMatch(page.text, /<form method="post" action="\/cart\/add">/);
   assert.doesNotMatch(page.text, /Infinity/);
   assert.match(page.text, /Ask in the shop/);
 });

@@ -150,7 +150,7 @@ test("with JavaScript off the buttons are links and the collection page lists it
     const href = await page.$eval("#bk-collections .col-btn", (a) => a.getAttribute("href"));
     assert.match(href, /^\/collections\/[a-z0-9-]+$/);
     await go(page, href);
-    assert.ok((await page.$$(".bk-grid .bk-book a[href^='/books/']")).length >= 1);
+    assert.ok((await page.$$(".bk-grid .bk-book > a[href^='/books/']")).length >= 1);
     assert.equal(await page.$eval(".col-back a", (a) => a.getAttribute("href")), "/books.html");
   }, { js: false });
 });

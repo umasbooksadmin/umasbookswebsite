@@ -12,6 +12,10 @@
 //   UmasUI.bookCardHtml(b, withFavorite)   the Browse card (.bk-book): the New In carousel and the search/genre grid;
 //                                          views/marketing/partials/book_card.ejs draws the same card on the server (test/unit/uiHelpers.test.js compares them)
 //   UmasUI.favoriteCardHtml(b)             the Favorites page card (.book-card-wrap), which also shows stock
+//   UmasUI.cartControlHtml(b)              the cart icon on a card's price line (b.buy from the JSON, src/lib/cardCart.js);
+//                                          views/partials/card_cart.ejs draws the same on the server; public/cart-add.js runs it
+//   UmasUI.cartText(key, title)            the cart icon's words (status lines) in the page language, {t} = the title
+//   UmasUI.here()                 this page's path and query (the sign-in page's returnTo)
 //   UmasUI.enSpan(text, language)  escaped text; on a French page an English book's text wrapped in <span lang="en"> (WCAG 3.1.2;
 //                                 src/lib/bookText.js is the server twin, test/unit/bookText.test.js keeps them in step)
 //   UmasUI.favNameHtml(title, language)   the heart's spoken name for a French page: « Ajouter <span lang="en">T</span> aux favoris »
@@ -91,7 +95,62 @@
 
   var HEART = '<svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 20s-7-4.4-9.5-8.8C.8 7.8 2.4 4.5 5.8 4c2-.3 3.7.7 4.8 2.4L12 8l1.4-1.6C14.5 4.7 16.2 3.7 18.2 4c3.4.5 5 3.8 3.3 7.2C19 15.6 12 20 12 20z"/></svg>';
 
-  // The Browse card. b = { id, title, author, price, coverUrl, url }.
+  // ---- The cart icon on a card's price line (src/lib/cardCart.js decides; public/cart-add.js does the adding) ----
+  // The words, in both languages here (the Favorites page has no dictionary); views/partials/card_cart.ejs and
+  // src/lib/bookText.js cartName() are the server's copy (test/unit/uiHelpers.test.js compares the HTML).
+  var CART_TEXT = {
+    en: {
+      add: 'Add {t} to cart', inCart: '{t} is in your cart (view cart)', choose: 'Choose a copy of {t} to add to cart',
+      added: 'Added to your cart: {t}.', gone: 'Sorry, {t} is no longer available.',
+      full: 'Your cart is full: reserve or remove a book first.', error: 'Could not add {t} to your cart. Please try again.',
+      busy: 'Too many tries. Please wait a moment and try again.',
+    },
+    fr: {
+      add: 'Ajouter {t} au panier', inCart: '{t} est dans votre panier (voir le panier)', choose: 'Choisir un exemplaire de {t} à ajouter au panier',
+      added: 'Ajouté à votre panier : {t}.', gone: 'Désolé, {t} n’est plus disponible.',
+      full: 'Votre panier est plein : réservez ou retirez d’abord un livre.', error: 'Impossible d’ajouter {t} à votre panier. Veuillez réessayer.',
+      busy: 'Trop de tentatives. Veuillez patienter un instant puis réessayer.',
+    },
+  };
+  function cartText(key, title) { return CART_TEXT[lang()][key].split('{t}').join(String(title == null ? '' : title)); }
+  // An English page names the control with aria-label; a French one with a visually-hidden span inside it, so the English
+  // title can carry lang="en" (the same as the heart, favButton).
+  function cartName(key, title, language) {
+    if (lang() !== 'fr') return { attr: ' aria-label="' + esc(cartText(key, title)) + '"', span: '' };
+    var parts = CART_TEXT.fr[key].split('{t}');
+    return { attr: '', span: '<span class="bk-cart-name">' + esc(parts[0]) + enSpan(frApos(title), language) + esc(parts.slice(1).join('{t}')) + '</span>' };
+  }
+  var CART_ADD_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2.5 3.5h2.6l2.3 11.2a1.6 1.6 0 0 0 1.6 1.3h8.3a1.6 1.6 0 0 0 1.6-1.2l1.6-6.8H6"/><circle cx="9.5" cy="20" r="1.3"/><circle cx="17.5" cy="20" r="1.3"/><path d="M13.3 9.6v4M11.3 11.6h4"/></svg>';
+  var CART_IN_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 8h14.8l-1.6 6.8a1.6 1.6 0 0 1-1.6 1.2H9a1.6 1.6 0 0 1-1.6-1.3z" fill="currentColor"/><path d="M2.5 3.5h2.6L6 8"/><circle cx="9.5" cy="20" r="1.3"/><circle cx="17.5" cy="20" r="1.3"/><path d="m10.9 11.9 1.8 1.8 3.4-3.6" stroke="#fff"/></svg>';
+  // Where the person is, for the sign-in page's returnTo (src/lib/returnTo.js accepts a local path up to 200 characters).
+  function here() {
+    if (typeof location === 'undefined' || !location.pathname) return '/';
+    var p = location.pathname + (location.search || '');
+    return p.length <= 200 ? p : location.pathname.slice(0, 200);
+  }
+  // b = { id, title, language, url, buy }; buy = null | { copyId } | { choose: true }. '' when there is nothing to buy online.
+  // Drawn in the browser it is always the "not in your cart" state with a plain GET form to the sign-in page (works with no
+  // session at all); public/cart-add.js turns it into the right state and posts the add itself.
+  function cartControlHtml(b) {
+    var buy = b && b.buy;
+    if (!buy || !(buy.copyId > 0 || buy.choose)) return '';
+    var control;
+    if (buy.copyId > 0) {
+      var add = cartName('add', b.title, b.language);
+      control = '<form class="bk-cart-add" method="get" action="/login" data-copy-id="' + esc(buy.copyId) + '">' +
+        '<input type="hidden" name="returnTo" value="' + esc(here()) + '">' +
+        '<button type="submit" class="bk-cart-btn"' + add.attr + '>' + CART_ADD_SVG + add.span + '</button></form>';
+    } else {
+      var choose = cartName('choose', b.title, b.language);
+      control = '<a class="bk-cart-btn bk-cart-choose" href="' + esc(href(b.url)) + '"' + choose.attr + '>' + CART_ADD_SVG + choose.span + '</a>';
+    }
+    var inCart = cartName('inCart', b.title, b.language);
+    return '<span class="bk-cart" data-book-id="' + esc(b.id) + '">' + control +
+      '<a class="bk-cart-btn bk-cart-in" href="/cart"' + inCart.attr + ' hidden>' + CART_IN_SVG + inCart.span + '</a></span>';
+  }
+
+  // The Browse card. b = { id, title, author, price, coverUrl, url, buy }. The price line is outside the link: it carries the
+  // cart icon (a form or a link of its own cannot sit inside a link).
   function bookCardHtml(b, withFavorite) {
     var cover = b.coverUrl
       ? '<img class="cover" src="' + esc(b.coverUrl) + '"' + coverAttrs(b.coverUrl, COVER_SIZES) + ' alt="" width="200" height="300" loading="lazy" decoding="async" data-cover>'
@@ -102,8 +161,9 @@
       '<a href="' + esc(href(b.url)) + '">' + cover +
         '<div class="t">' + enSpan(b.title, b.language) + '</div>' +
         (b.author ? '<div class="a">' + enSpan(b.author, b.language) + '</div>' : '') +
-        (price ? '<div class="p">' + esc(price) + '</div>' : '') +
-      '</a></div>';
+      '</a>' +
+      (price ? '<div class="p">' + esc(price) + cartControlHtml(b) + '</div>' : '') +
+      '</div>';
   }
 
   // French typography: a curly apostrophe in a title ("L'Étranger" -> "L’Étranger") in the French label.
@@ -120,15 +180,17 @@
     var availability = b.inStockCount > 0
       ? '<span class="availability-badge is-in-stock"><span class="dot"></span>' + b.inStockCount + ' ' + pick('in stock', 'en stock') + '</span>'
       : '<span class="availability-badge is-out">&middot; ' + pick('Currently unavailable', 'Actuellement indisponible') + '</span>';
+    // The price line (price, stock, cart icon) is outside the link (a form cannot sit inside a link); the link still covers the
+    // whole card (public/style.css .book-card::after), under the icon.
     return '<div class="book-card-wrap">' +
       favButton(b.id, b.title, b.language, 'true', 'Add ' + b.title + ' to favorites') +
       '<a class="book-card" href="' + esc(b.url) + '">' + cover +
         '<div class="book-card-body">' +
           '<div class="book-card-title">' + enSpan(b.title, b.language) + '</div>' +
           '<div class="muted small">' + (b.author ? enSpan(b.author, b.language) : esc(pick('Unknown author', 'Auteur inconnu'))) + '</div>' +
-          '<div class="book-card-meta">' + price + availability + '</div>' +
         '</div>' +
       '</a>' +
+      '<div class="book-card-meta">' + price + cartControlHtml(b) + availability + '</div>' +
     '</div>';
   }
 
@@ -173,6 +235,7 @@
     frApos: frApos, esc: esc, enSpan: enSpan, favNameHtml: favNameHtml, lang: lang, t: t, euro: euro, href: href,
     coverSrcset: coverSrcset, coverAttrs: coverAttrs,
     HEART: HEART, bookCardHtml: bookCardHtml, favoriteCardHtml: favoriteCardHtml,
+    cartControlHtml: cartControlHtml, cartText: cartText, cartName: cartName, here: here,
     reducedMotion: reducedMotion,
   };
 });

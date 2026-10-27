@@ -130,13 +130,15 @@
           <% } %>
           <div class="book-card-body">
             <div class="book-card-title"><%- bookText(b.title) %></div>
-            <% if (b.min_price != null) { %><div class="book-card-price"><%= eur(b.min_price) %></div><% } %>
           </div>
         </a>
+        <%# The price line is outside the link (it carries the cart icon, partials/card_cart.ejs); the link still covers the whole card (style.css .book-card::after). %>
+        <% if (b.min_price != null) { %><div class="book-card-meta book-card-priceline"><span class="book-card-price"><%= eur(b.min_price) %></span><%- include('partials/card_cart', { b }).trim() %></div><% } %>
       </div>
     <% }) %>
   </div>
   <%- include('partials/cover_note') %>
 <% } %>
 
-<%- include('partials/footer') %>
+<%# withUi: public/ui.js and public/cart-add.js, for the cart icons of the "More by" cards. %>
+<%- include('partials/footer', { withUi: true }) %>

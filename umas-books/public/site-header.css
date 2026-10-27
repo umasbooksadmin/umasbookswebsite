@@ -336,3 +336,26 @@ footer.mkt-footer li a { display: inline-block; padding: 6px 0; }
 .favorite-toggle::after { content: ""; position: absolute; left: 50%; top: 50%; width: 44px; height: 44px; transform: translate(-50%, -50%); }
 /* On a French page the heart's spoken name is text inside the button (an aria-label cannot carry lang="en" for the title). */
 .fav-name { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* ---------- The cart icon on a book card's price line (views/partials/card_cart.ejs, public/ui.js cartControlHtml) ----------
+   Shared by the marketing pages (Browse, collections) and the app pages (Favorites, the book page's "More by"). The icon is
+   22px and sits at the right end of the price line without making the line taller; an invisible ::after makes the tappable
+   area 44 x 44 (WCAG 2.5.5), like the heart's. It never reaches past the icon's right edge (in the New In carousel that would
+   widen the scrolling row and stop it off a card edge) and mostly grows upwards and to the left, over the price line. "In your cart" is the filled cart, in maroon, linking to the cart. */
+.bk-cart { display: inline-flex; align-items: center; flex: 0 0 auto; margin-left: auto; }
+.bk-cart form { display: inline-flex; margin: 0; }
+.bk-cart[hidden], .bk-cart [hidden] { display: none !important; }
+.bk-cart-btn {
+  position: relative; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 24px;
+  padding: 0; margin: 0; border: 0; border-radius: 4px; background: none; color: var(--ink); cursor: pointer; text-decoration: none;
+}
+.bk-cart-btn svg { display: block; width: 22px; height: 22px; }
+.bk-cart-btn::after { content: ""; position: absolute; right: 0; top: -14px; width: 44px; height: 44px; }
+.bk-cart-btn:hover { color: var(--maroon); }
+.bk-cart-btn:focus-visible { outline: 2px solid var(--maroon); outline-offset: 2px; }
+.bk-cart .bk-cart-in, .bk-cart .bk-cart-in:hover { color: var(--maroon); } /* .bk-cart: beats the card's own link colour (.bk-book a) */
+.bk-cart-btn[aria-busy="true"] { opacity: 0.5; cursor: progress; }
+/* On a French page the icon's spoken name is text inside it (an aria-label cannot carry lang="en" for the title). */
+.bk-cart-name { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+/* public/cart-add.js's status line ("Added to your cart: ...") for screen readers. */
+.bk-cart-status { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }

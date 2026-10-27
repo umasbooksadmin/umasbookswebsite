@@ -25,6 +25,7 @@ const MAY_SEND = new Set([
   "/account/privacy/export", // the JSON data download (a refusal redirects)
   "/webhooks/helloasso", // server-to-server JSON for HelloAsso, not a browser form
   "/api/favorites/toggle", // fetch() from public/favorites.js: 204 / 400 / 404, no body
+  "/cart/add", // JSON only to fetch() from public/cart-add.js (Accept: application/json); a form post still redirects
   "/events/:id/signup", // plain-text 404 for a forged event id only
   "/volunteer/:id/signup", // plain-text 404 for a forged shift id only
 ]);

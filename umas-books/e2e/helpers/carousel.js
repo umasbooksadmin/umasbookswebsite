@@ -19,12 +19,17 @@ async function carouselState(page) {
     const inView = cards.filter((x) => x.r.right > left + 1 && x.r.left < right - 1);
     const cut = inView.filter((x) => x.r.left < left - 0.5 || x.r.right > right + 0.5).map((x) => `card ${x.i} (${Math.round(x.r.left - T.left)}..${Math.round(x.r.right - T.left)} in a box of ${Math.round(T.width)})`);
     const clipped = [];
+    // The cart icon's invisible 44 x 44 tap area (public/site-header.css .bk-cart-btn::after) reaches past the price line on
+    // purpose; it is not text. It is set aside while the text is measured, so a cut price is still caught.
+    const carts = [...tr.querySelectorAll(".bk-cart")];
+    carts.forEach((c) => { c.dataset.e2eDisplay = c.style.display; c.style.display = "none"; });
     for (const x of cards) for (const el of x.c.querySelectorAll(".t, .a, .p")) {
       if (allow.some((a) => el.matches(a.selector))) continue;
       if (el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1) clipped.push(`card ${x.i} .${el.className}: "${el.textContent.slice(0, 30)}"`);
       const cs = getComputedStyle(el);
       if (cs.textOverflow === "ellipsis" || cs.webkitLineClamp !== "none") clipped.push(`card ${x.i} .${el.className} is ellipsized or line-clamped`);
     }
+    carts.forEach((c) => { c.style.display = c.dataset.e2eDisplay; delete c.dataset.e2eDisplay; });
     const first = inView[0];
     return {
       count: cards.length, scrollLeft: tr.scrollLeft, cut, clipped,
@@ -72,7 +77,7 @@ function assertAtRest(st, where) {
 async function assertCarouselIsWholeNewestFirstList(ctx, where) {
   const api = await allNewIn();
   if (!api.total) ctx.skip("data: the site has no New In books");
-  const cards = await ctx.page.$$eval("#bk-new-track .bk-book a", (as) => as.map((a) => ({ id: Number((a.getAttribute("href").match(/books\/(\d+)/) || [])[1]), t: a.querySelector(".t").textContent })));
+  const cards = await ctx.page.$$eval("#bk-new-track .bk-book > a", (as) => as.map((a) => ({ id: Number((a.getAttribute("href").match(/books\/(\d+)/) || [])[1]), t: a.querySelector(".t").textContent })));
   assert.equal(cards.length, api.total, `${where}: the carousel has a card for every new book (${api.total}), not just the first page`);
   assert.deepEqual(cards.map((c) => c.id), api.books.map((b) => b.id), `${where}: the carousel order is the API order (newest added first)`);
   const bulk = cards.map((c) => (c.t.match(/New In Bulk (\d+)/) || [])[1]).filter(Boolean).map(Number);

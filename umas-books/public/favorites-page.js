@@ -20,6 +20,7 @@
     list.querySelectorAll(".favorite-toggle").forEach(function (btn) {
       if (window.UmasFavorites) window.UmasFavorites.sync(btn);
     });
+    if (window.UmasCart) window.UmasCart.sync(list);   // cart icons of books already in the cart (public/cart-add.js)
   }
 
   function load() {

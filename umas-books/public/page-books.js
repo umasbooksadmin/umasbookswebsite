@@ -52,6 +52,7 @@
       return true;
     }).map(function (b) { return UI.bookCardHtml(b, true); }).join('');
     syncFavorites(tmp);
+    if (window.UmasCart) window.UmasCart.sync(tmp);   // cart icons of books already in the cart (public/cart-add.js)
     var frag = document.createDocumentFragment();
     while (tmp.firstChild) frag.appendChild(tmp.firstChild);
     track.appendChild(frag);
@@ -117,6 +118,7 @@
     if (!books.length) { resultsGrid.innerHTML = '<p class="muted">' + esc(t('bk.empty')) + ' <a href="' + esc(UI.href('/request-a-book')) + '">' + esc(t('bk.empty.ask')) + '</a></p>'; return; }
     resultsGrid.innerHTML = books.map(function (b) { return UI.bookCardHtml(b, true); }).join('');
     syncFavorites(resultsGrid);
+    if (window.UmasCart) window.UmasCart.sync(resultsGrid);
   }
   // Genre and search results page the same way as See All New In: 24 at a time with "Show more" (no count shown).
   function showResults(baseUrl, title, scroll) {
@@ -138,7 +140,7 @@
     moreOffset = data.nextOffset;
     moreBtn.hidden = moreOffset == null;
     if (append) {
-      var link = resultsGrid.querySelectorAll('.bk-book a')[firstNew];
+      var link = resultsGrid.querySelectorAll('.bk-book > a')[firstNew];
       if (link) { try { link.focus({ preventScroll: false }); } catch { /* the books are drawn anyway */ } }
     }
   }

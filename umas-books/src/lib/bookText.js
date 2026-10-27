@@ -29,4 +29,19 @@ function favName(title, pageLang, language) {
   return pageLang === "fr" ? `Ajouter ${bookText(title, "fr", language)} aux favoris` : `Add ${esc(title)} to favorites`;
 }
 
-module.exports = { bookText, favName, isEnglishBook, esc };
+// The cart icon's accessible name on a book card (views/partials/card_cart.ejs), the same rule as the heart: an English
+// page gets { attr: ' aria-label="..."' }, a French page { span: '<span class="bk-cart-name">... <span lang="en">Title</span> ...</span>' }
+// (text inside the control). public/ui.js cartName() is the browser copy (test/unit/uiHelpers.test.js compares them).
+const CART_NAMES = {
+  add: ["Add {t} to cart", "Ajouter {t} au panier"],
+  inCart: ["{t} is in your cart (view cart)", "{t} est dans votre panier (voir le panier)"],
+  choose: ["Choose a copy of {t} to add to cart", "Choisir un exemplaire de {t} à ajouter au panier"],
+};
+function cartName(key, title, pageLang, language) {
+  const [en, fr] = CART_NAMES[key];
+  if (pageLang !== "fr") return { attr: ` aria-label="${esc(en.split("{t}").join(String(title == null ? "" : title)))}"`, span: "" };
+  const parts = fr.split("{t}");
+  return { attr: "", span: `<span class="bk-cart-name">${esc(parts[0])}${bookText(title, "fr", language)}${esc(parts.slice(1).join("{t}"))}</span>` };
+}
+
+module.exports = { bookText, favName, cartName, isEnglishBook, esc };

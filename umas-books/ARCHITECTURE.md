@@ -1363,6 +1363,32 @@ reservation page (also the link in the email).
   nothing creates a `pending` order any more, and `/webhooks/helloasso` only handles
   membership payments (an old notification naming a checkout order is logged).
 
+### Cart icon on book cards (`src/lib/cardCart.js`)
+
+Every book card with a price (Browse New In, genre/search/See All results, collection pages, Favorites, the
+book page's "More by", the Browse no-JavaScript list) has a cart icon at the right end of its price line. The book
+page's own price line has none: its copy table right below already has an Add to Cart button per copy.
+
+- **What it does** is decided per book from the copies buyable online now (`in_stock`, price > 0, the
+  `/cart/add` rule), by `BUY_COPY_SQL` in the list queries, sent as `buy` in the public JSON (`lib/publicBookJson.js`):
+  none -> no icon (unpriced, reserved, sold: never a dead icon); one copy, or several identical in what the book page
+  shows (price, grade, clearance) -> `{ copyId }`, the oldest (lowest id) is added; several that differ ->
+  `{ choose: true }`, the icon opens the book page. A book with a copy in the session's cart shows "in your cart",
+  a link to `/cart`, never a second add (`cartBookIds`, also in `/api/session` as `cartBookIds`).
+- **Markup**: `views/partials/card_cart.ejs` (server) and `UmasUI.cartControlHtml` (`public/ui.js`, browser), the
+  same HTML (`test/unit/uiHelpers.test.js`). The price line sits outside the card's link (a form cannot be inside a
+  link); on the `.book-card` cards the link's `::after` still covers the whole card. Names: "Add T to cart" /
+  "Ajouter T au panier" (French: visually-hidden text with the title in `lang="en"`, like the heart).
+- **Forms without JavaScript**: a page drawn for one session (signed in, or the book page, which prints a token
+  anyway) gets a POST form to `/cart/add` with the CSRF token and `via=card`. A guest's marketing page (Browse,
+  collections) stays the same for everyone and creates no session: its icon is a GET form to `/login?returnTo=<page>`.
+- **With JavaScript** (`public/cart-add.js`): any icon form posts `/cart/add` itself (token from `/api/csrf-token`,
+  `Accept: application/json`), and the answer is JSON. Signed in: the icon turns to "in your cart" in every card of
+  that book, focus moves onto it, the header count follows, a polite status line speaks. Signed out: `/cart/add`
+  puts the copy in the session's cart and answers with `/login?returnTo=<page>` (for a plain form: redirects there);
+  login carries the cart across, so they land back on the page with the book in their cart. Same limiter, same
+  CSRF check, no state-changing GET.
+
 ### Email outbox (`src/lib/outbox.js`, migration 062)
 
 All customer emails are **stored in `email_outbox` first**, then sent

@@ -13,6 +13,7 @@
 //                                                      (WCAG 3.1.2: a screen reader speaks it with an English voice) unless the book
 //                                                      says it is not English (lib/bookText.js)
 //   res.locals.favName(title [, language])             the favourite heart's spoken name as HTML (same wrapper), for a visually-hidden span
+//   res.locals.cartName(key, title [, language])       a book card's cart icon name: { attr, span } (lib/bookText.js cartName)
 // A /fr/ address is always French and is served by the page's unprefixed route
 // (the prefix is stripped from req.url; req.originalUrl keeps it). It also writes
 // the language cookie, so the POSTs and redirects that follow stay French. A
@@ -28,7 +29,7 @@ const { commonDictionary } = require("../lib/pageDictionary");
 const { installFrenchRender } = require("../lib/frenchTypography");
 const { legalFor, fillVat } = require("../lib/legalText");
 const { SOCIAL_LINKS } = require("../lib/legal");
-const { bookText, favName, esc: escHtml } = require("../lib/bookText");
+const { bookText, favName, cartName, esc: escHtml } = require("../lib/bookText");
 const { splitFr, isPublicPath, localize, switchHrefs, splitUrl } = require("../lib/frUrls");
 
 const COOKIE_NAME = "umasbooks_lang";
@@ -82,6 +83,7 @@ function langMiddleware(req, res, next) {
   res.locals.bookText = (text, language) => bookText(text, lang, language);
   res.locals.escHtml = escHtml; // for the few views that build a mixed sentence around bookText()
   res.locals.favName = (title, language) => favName(title, lang, language);
+  res.locals.cartName = (key, title, language) => cartName(key, title, lang, language);
   res.locals.legalText = legalFor(lang);
   res.locals.fillVat = fillVat;
   res.locals.socialLinks = SOCIAL_LINKS;

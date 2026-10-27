@@ -56,6 +56,7 @@ const helloassoWebhookRoutes = require("./routes/helloassoWebhook");
 const adminRoutes = require("./routes/admin");
 
 const { newInPage } = require("./lib/latestArrivals");
+const { cardBuy, setCardCartLocals, cartBookIds } = require("./lib/cardCart");
 const { listButtonCollections, browseFilterActive } = require("./lib/collections");
 const { assetUrl, staticHeaders, isVersioned, IMMUTABLE_CACHE, SHORT_CACHE, STATIC_SECURITY_HEADERS } = require("./lib/assetUrl");
 
@@ -382,10 +383,14 @@ function createApp() {
   // booleans actually needed for those links. cartCount is folded in so a
   // marketing page view needs ONE session-backed request, not two
   // (/api/cart/count still exists for any other caller).
-  app.get("/api/session", (req, res) => {
+  // cartBookIds: the books with a copy in this session's cart, so a book card drawn in the browser shows its cart icon
+  // as "in your cart" (public/cart-add.js, lib/cardCart.js). Read only when the cart has something in it.
+  app.get("/api/session", async (req, res) => {
     res.set("Cache-Control", "no-store");
+    const cartBooks = await cartBookIds(pool, req.session).catch(() => []);
     res.json({
       cartCount: Array.isArray(req.session.cart) ? req.session.cart.length : 0,
+      cartBookIds: cartBooks,
       loggedIn: Boolean(req.session.user),
       isMember: Boolean(req.session.user && req.session.user.isMember),
       isVolunteer: Boolean(req.session.user && req.session.user.isVolunteer),
@@ -439,7 +444,9 @@ function createApp() {
         // No-JavaScript fallback: the page fills its shelves from /api/books/*, so the server also lists the newest
         // books inside <noscript>. A fixed handful (36), never the whole New In list: the page must not grow with the
         // shelf (the carousel loads the rest in batches). Read from the list kept in memory, so it costs no query.
-        res.locals.noscriptBooks = await newInPage(pool, { offset: 0, limit: 36 }).then((r) => r.rows).catch(() => []);
+        res.locals.noscriptBooks = await newInPage(pool, { offset: 0, limit: 36 }).then((r) => r.rows.map((b) => ({ ...b, buy: cardBuy(b.buy_copy_id) }))).catch(() => []);
+        // The no-JavaScript list's cart icons (lib/cardCart.js): a signed-in person's own form and "in your cart"; a guest's are plain sign-in links.
+        await setCardCartLocals(pool, req, res);
         // The New In carousel is only for the plain Browse view: with a search, a genre or ?new=1 in the address
         // it is sent already hidden (public/books-state.js decides, the same as the page script does afterwards).
         const BooksState = require("../public/books-state");

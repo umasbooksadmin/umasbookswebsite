@@ -56,7 +56,8 @@
       while ((n = w.nextNode())) n.nodeValue = UI.frApos(n.nodeValue);
     });
     UI.syncFavorites(tmp);
-    var first = tmp.querySelector('.bk-book a');
+    if (window.UmasCart) window.UmasCart.sync(tmp);   // cart icons of books already in the cart (public/cart-add.js)
+    var first = tmp.querySelector('.bk-book > a');
     var frag = document.createDocumentFragment();
     while (tmp.firstChild) frag.appendChild(tmp.firstChild);
     grid.appendChild(frag);
