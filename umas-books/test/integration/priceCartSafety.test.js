@@ -203,7 +203,9 @@ test("reservation lock: a price removed after the cart was read cannot be held o
   try {
     const res = await v.post("/cart/reserve", { name: "Buyer", acceptCgv: "on" });
     assert.equal(res.seeOther, "/cart", "no redirect to the reservation page: back to the cart");
-    assert.match(res.text, /taken by someone else/);
+    // Not "taken by someone else": the copy is still on the shelf, it just has no price any more (Review F, F10).
+    assert.match(res.text, /is no longer for sale at the moment \(it has no price\)/);
+    assert.ok(!/taken by someone else/.test(res.text));
   } finally {
     await pool.query(`DROP TRIGGER IF EXISTS ${fn} ON orders`);
     await pool.query(`DROP FUNCTION IF EXISTS ${fn}()`);

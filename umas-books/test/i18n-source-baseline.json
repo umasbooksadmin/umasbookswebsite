@@ -133,7 +133,7 @@
  },
  {
   "file": "src/lib/orderSweeps.js",
-  "text": "o.status = 'reserved' AND o.reserved_until > now() AND o.reserved_until <= now() + interval '{} days' AND EXISTS (SELECT 1 FROM order_items i WHERE i.order_id ="
+  "text": "o.status = 'reserved' AND o.reserved_until > now() AND o.reserved_until <= {} AND EXISTS (SELECT 1 FROM order_items i WHERE i.order_id = o.id AND i.book_copy_id"
  },
  {
   "file": "src/lib/orderSweeps.js",

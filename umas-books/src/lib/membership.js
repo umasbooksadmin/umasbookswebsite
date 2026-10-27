@@ -10,8 +10,8 @@ const { findMembershipOrdersByEmail, listRecentMembershipOrders, isConfigured } 
 const { sendAdminAlert } = require("./errorAlert");
 const config = require("./config");
 const { looseBaseUrl } = require("./baseUrl");
+const { parisDateString, parisInstant } = require("./tz");
 
-const MEMBERSHIP_DURATION_MS = 365 * 24 * 60 * 60 * 1000;
 const UNMATCHED_ALERT_EVERY_MINUTES = 60;
 
 function isAuthorized(order) {
@@ -38,16 +38,39 @@ function countsForMembership(order) {
   return isAuthorized(order) && amountCents(order) > 0 && formMatches(order);
 }
 
-// End date of a membership built from payments, oldest first. Every payment
-// adds 365 days; a payment made while the previous period is still running
-// starts when that one ends, so renewing early loses no time:
-//   expiry = max(paid_at, previous expiry) + 365 days.
+// Calendar arithmetic on "YYYY-MM-DD" strings (UTC fields only, so the process and database time zones
+// play no part). A membership lasts one calendar year: paid on 2027-03-01 it runs through 2028-03-01.
+function addOneYear(ymd) {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const ny = y + 1;
+  const leap = (ny % 4 === 0 && ny % 100 !== 0) || ny % 400 === 0;
+  const nd = m === 2 && d === 29 && !leap ? 28 : d; // 29 February: the last day of February the year after
+  return `${String(ny).padStart(4, "0")}-${String(m).padStart(2, "0")}-${String(nd).padStart(2, "0")}`;
+}
+function nextDay(ymd) {
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10);
+}
+// The last instant (23:59:59.999, Paris time) of a Paris day: so every page that shows the end date as a
+// date shows the LAST day of the membership, and an end date is never an hour out across a clock change.
+function endOfParisDay(ymd) {
+  return new Date(parisInstant(nextDay(ymd)).getTime() - 1);
+}
+
+// End date of a membership built from payments, oldest first. Every payment adds ONE CALENDAR YEAR in Paris
+// time (not 365 days: a leap year would end a day early, and the end hour would drift across a clock change)
+// and the membership ends at the END of that Paris day. A payment made while the previous period is still
+// running starts when that one ends, so renewing early loses no time:
+//   last day = one year after max(paid day, previous last day).
 // Derived only from the payments, so re-running a sync never adds time twice.
 function expiryFromPayments(paidAtList) {
-  return [...paidAtList]
-    .map((d) => new Date(d).getTime())
-    .sort((a, b) => a - b)
-    .reduce((exp, paid) => new Date(Math.max(paid, exp ? exp.getTime() : 0) + MEMBERSHIP_DURATION_MS), null);
+  const paid = [...paidAtList].map((d) => new Date(d)).sort((a, b) => a - b);
+  let lastDay = null; // the last Paris day the membership covers so far
+  for (const at of paid) {
+    const stillRunning = lastDay && at.getTime() <= endOfParisDay(lastDay).getTime();
+    lastDay = addOneYear(stillRunning ? lastDay : parisDateString(at));
+  }
+  return lastDay ? endOfParisDay(lastDay) : null;
 }
 
 // Sets is_member/member_expires_at for one account from its recorded payments
@@ -57,7 +80,8 @@ function expiryFromPayments(paidAtList) {
 async function applyMembershipGrant(db, userId, now = new Date()) {
   const { rows } = await db.query(
     // NULL amount: a row recorded before amounts were stored; it stays valid.
-    "SELECT paid_at FROM membership_payments WHERE user_id = $1 AND (amount_cents IS NULL OR amount_cents > 0)",
+    // A payment HelloAsso later refunded (reversed_at set) grants nothing.
+    "SELECT paid_at FROM membership_payments WHERE user_id = $1 AND reversed_at IS NULL AND (amount_cents IS NULL OR amount_cents > 0)",
     [userId]
   );
   if (!rows.length) return null;
@@ -146,11 +170,12 @@ async function linkUnmatchedPayment(pool, paymentId, userId, now = new Date()) {
 // Re-checks HelloAsso (never trusts the webhook body itself — see
 // lib/helloasso.js) for this payer's Membership-form orders, records any
 // newly-seen paid order, extends the matching site account's membership
-// (see expiryFromPayments), and reverts any
+// (see expiryFromPayments), and REVERSES any
 // previously-recorded payment whose order is returned by HelloAsso but no
 // longer shows as Authorized (a refund or a won dispute both land here,
 // since HelloAsso reuses the same order id and just flips its payment's
-// state — see paiement-remboursé.md/paiement-contesté-gagne.md). A
+// state — see paiement-remboursé.md/paiement-contesté-gagne.md). A reversed
+// payment is kept and marked (reversed_at), never deleted. A
 // recorded payment that is merely absent from the response is kept. A payer
 // email with no matching (or no confirmed) account is recorded as an
 // unmatched payment for the admin to link by hand (see above).
@@ -208,17 +233,23 @@ async function syncMembershipForEmail(pool, email) {
   }
 
   const { rows: recorded } = await pool.query(
-    "SELECT id, helloasso_order_id, paid_at, amount_cents FROM membership_payments WHERE user_id = $1",
+    "SELECT id, helloasso_order_id, paid_at, amount_cents, reversed_at FROM membership_payments WHERE user_id = $1",
     [user.id]
   );
-  const reversed = [];
+  const reversing = []; // newly refunded / lost in a dispute: kept as a record, marked reversed (never deleted)
+  const reinstating = []; // reversed earlier, Authorized again: the payment stands again
+  let alreadyReversed = false;
   let ungranted = false; // a recorded payment that no longer counts (0 EUR)
   let validCount = 0;
   for (const r of recorded) {
     const order = returnedById.get(Number(r.helloasso_order_id));
     if (order && !isAuthorized(order)) {
-      reversed.push(r);
+      if (r.reversed_at) alreadyReversed = true;
+      else reversing.push(r);
+    } else if (r.reversed_at && !order) {
+      alreadyReversed = true; // absent from the response proves nothing: a reversal stays
     } else {
+      if (r.reversed_at) reinstating.push(r);
       if (!order) {
         console.warn(`HelloAsso order ${r.helloasso_order_id} is recorded but absent from the search response — keeping it.`);
       }
@@ -226,15 +257,28 @@ async function syncMembershipForEmail(pool, email) {
       else ungranted = true;
     }
   }
-  if (reversed.length) {
-    await pool.query("DELETE FROM membership_payments WHERE id = ANY($1)", [reversed.map((r) => r.id)]);
+  if (reversing.length) {
+    // The row is KEPT (10-year accounting record) and the reversal is dated once: the accounting export adds a
+    // NEGATIVE Membership row on that day (lib/accounting.js), so a month already exported never changes.
+    // reversed_at IS NULL in the WHERE: a second sync never moves the date.
+    await pool.query(
+      `UPDATE membership_payments SET reversed_at = now(), reversed_amount_cents = amount_cents
+       WHERE id = ANY($1::int[]) AND reversed_at IS NULL`,
+      [reversing.map((r) => r.id)]
+    );
+  }
+  if (reinstating.length) {
+    await pool.query(
+      "UPDATE membership_payments SET reversed_at = NULL, reversed_amount_cents = NULL WHERE id = ANY($1::int[])",
+      [reinstating.map((r) => r.id)]
+    );
   }
 
   if (!validCount) {
     // Nothing left to base a membership on. Only clear is_member if it
     // was payment-driven (member_expires_at set) — a manual admin grant
     // (member_expires_at NULL) is never touched by this sync.
-    if (reversed.length || ungranted) {
+    if (reversing.length || alreadyReversed || ungranted) {
       await pool.query(
         "UPDATE users SET is_member = FALSE, member_expires_at = NULL WHERE id = $1 AND member_expires_at IS NOT NULL",
         [user.id]
@@ -275,16 +319,27 @@ async function expireStaleMemberships(pool) {
 // recent window is re-synced — the sync is idempotent, this just avoids
 // re-checking every historical member on each run. (A refund on an older
 // order is still only caught by its webhook.)
-const RECENT_WINDOW_MS = 3 * 24 * 60 * 60 * 1000;
+//
+// The window is 60 days (it was 3): a refund usually comes days to weeks after the payment, and the sync is what
+// marks the payment reversed (reversed_at), so a missed webhook for a refund is now caught for two months.
+// Cost, bounded: the org-wide listing is ONE HelloAsso call returning at most 50 orders (pageSize 50), so there
+// are at most 50 distinct payers, i.e. at most 1 + 50 calls per run; the job runs every 6 h, so at most ~204
+// calls a day, made one after the other. These calls do not go through the webhook guard's 120-per-10-minutes
+// cap (lib/webhookGuard.js), which only limits the public webhook; MAX_RECONCILE_EMAILS is a second, explicit
+// ceiling on what a run may check. Typical use is far lower: a small shop has a handful of payers in 60 days.
+const RECENT_WINDOW_MS = 60 * 24 * 60 * 60 * 1000;
+const MAX_RECONCILE_EMAILS = 50;
 
 async function reconcileRecentMemberships(pool) {
   if (!isConfigured()) return;
   const cutoff = Date.now() - RECENT_WINDOW_MS;
   const orders = await listRecentMembershipOrders();
   const emails = new Set(
-    orders
-      .filter((o) => o.payer && typeof o.payer.email === "string" && new Date(o.date).getTime() >= cutoff)
-      .map((o) => o.payer.email.toLowerCase())
+    [...new Set(
+      orders
+        .filter((o) => o.payer && typeof o.payer.email === "string" && new Date(o.date).getTime() >= cutoff)
+        .map((o) => o.payer.email.toLowerCase())
+    )].slice(0, MAX_RECONCILE_EMAILS) // newest first (the listing is sorted that way)
   );
   const failures = [];
   for (const email of emails) {

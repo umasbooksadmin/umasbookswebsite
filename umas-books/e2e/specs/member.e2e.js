@@ -1,7 +1,7 @@
 // Script 3 of docs/testing/manual-test-scripts.md: the member.
 //
 // A member is an account holder who also paid the membership fee (is_member
-// true; HelloAsso payment matched by email, which expires after 365 days, or
+// true; HelloAsso payment matched by email, which expires one calendar year after the payment, or
 // an admin pressing "Mark as Member", which has no end date). The payment is
 // manual-only (the tests never pay), so these tests use the account you supply
 // in E2E_MEMBER_EMAIL / E2E_MEMBER_PASSWORD: a confirmed account an admin

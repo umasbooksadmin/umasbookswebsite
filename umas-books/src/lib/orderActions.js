@@ -18,7 +18,7 @@
 
 const { withTransaction } = require("../db");
 const { parseMoney } = require("./validation");
-const { SITE_TIME_ZONE } = require("./tz");
+const { SITE_TIME_ZONE, parisPlusDaysSql } = require("./tz");
 const { releaseReservation, extendReservation } = require("./reservations");
 
 const NOTE_MAX = 500;
@@ -54,7 +54,7 @@ const STALE_PENDING_HOURS = 2;
 const ORDER_VIEWS = {
   expiring_soon: {
     label: `Expiring in ${EXPIRING_SOON_DAYS} days`,
-    sql: `o.status = 'reserved' AND o.reserved_until >= now() AND o.reserved_until < now() + interval '${EXPIRING_SOON_DAYS} days'`,
+    sql: `o.status = 'reserved' AND o.reserved_until >= now() AND o.reserved_until < ${parisPlusDaysSql("now()", EXPIRING_SOON_DAYS)}`,
   },
   past_deadline: {
     label: "Past the deadline, not yet released",
@@ -165,7 +165,11 @@ async function collectReservationTx(client, orderId, { adminUserId = null, metho
     const inactive = items.filter((i) => !isActive(i));
     const wanted = itemIds ? new Set(itemIds.map(Number)) : null;
     const selected = wanted ? active.filter((i) => wanted.has(i.id)) : active;
-    if (!selected.length) return { outcome: "nothing_to_collect" };
+    if (!selected.length) {
+      // Nothing was changed. `notHeld` names the ticked items that are no longer held (sold at the till meanwhile, say).
+      const ticked = wanted ? inactive.filter((i) => wanted.has(i.id)) : inactive;
+      return { outcome: "nothing_to_collect", notHeld: ticked.map((i) => i.item_title) };
+    }
     const rest = active.filter((i) => !selected.includes(i));
 
     const subtotal = selected.reduce((sum, i) => sum + toCents(i.price), 0);
@@ -205,7 +209,8 @@ async function collectReservationTx(client, orderId, { adminUserId = null, metho
     const soldSeats = selected.filter((i) => i.class_dropin_seat_id != null).map((i) => i.class_dropin_seat_id);
     if (soldCopies.length) {
       await client.query(
-        `UPDATE book_copies SET status = 'sold', reserved_by_name = NULL, reserved_by_email = NULL, reserved_by_phone = NULL,
+        // sold_at / sold_via: the inventory export's "Date sold" (the till sets sold_via = 'till' for its own sales).
+        `UPDATE book_copies SET status = 'sold', sold_at = now(), sold_via = 'reservation', reserved_by_name = NULL, reserved_by_email = NULL, reserved_by_phone = NULL,
                 reserved_at = NULL, reminder_sent_at = NULL, cart_order_id = NULL, cart_added_at = NULL, updated_at = now()
          WHERE id = ANY($1::int[])`,
         [soldCopies]
@@ -287,7 +292,7 @@ async function markOrderRefunded(pool, orderId, { note, refundMethod } = {}) {
     const kept = copyRows.filter((c) => c.status === "sold" && (c.resold_in_shop || c.resold_online)).map((c) => c.id);
     if (restock.length) {
       await client.query(
-        `UPDATE book_copies SET status = 'in_stock', cart_order_id = NULL, cart_added_at = NULL, updated_at = now()
+        `UPDATE book_copies SET status = 'in_stock', sold_at = NULL, sold_via = NULL, cart_order_id = NULL, cart_added_at = NULL, updated_at = now()
          WHERE id = ANY($1::int[])`,
         [restock]
       );

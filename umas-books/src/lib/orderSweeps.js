@@ -33,6 +33,7 @@ const { AWAITING_PICKUP } = require("./orderActions");
 const { expireOrderReservations, releaseEndedSeats } = require("./reservations");
 const { buildReservationReminder, buildReservationExpiredNotice, buildSeatReminder } = require("./orderEmail");
 const legal = require("./legal");
+const { parisPlusDaysSql } = require("./tz");
 
 const ADMIN_DIGEST_DAYS_BEFORE = 2;
 const EXPIRY_NOTICE_WINDOW_DAYS = 7;
@@ -85,7 +86,7 @@ async function sendReservationReminders(pool) {
   const due = `o.status = 'reserved' AND o.customer_pickup_reminder_sent_at IS NULL
        AND o.buyer_email NOT LIKE '%@erased.invalid'
        AND o.reserved_until > now()
-       AND o.reserved_until <= now() + interval '${legal.RESERVATION_REMINDER_DAYS_BEFORE} days'
+       AND o.reserved_until <= ${parisPlusDaysSql("now()", legal.RESERVATION_REMINDER_DAYS_BEFORE)}
        AND EXISTS (SELECT 1 FROM order_items i WHERE i.order_id = o.id AND i.book_copy_id IS NOT NULL)`;
   const { rows: candidates } = await pool.query(`SELECT o.id FROM orders o WHERE ${due} ORDER BY o.id LIMIT 200`);
   let sent = 0;
@@ -179,7 +180,7 @@ async function sendAdminReservationDigest(pool) {
     pool,
     {
       column: "pickup_reminder_sent_at",
-      whereSql: `o.status = 'reserved' AND o.reserved_until > now() AND o.reserved_until <= now() + interval '${ADMIN_DIGEST_DAYS_BEFORE} days'
+      whereSql: `o.status = 'reserved' AND o.reserved_until > now() AND o.reserved_until <= ${parisPlusDaysSql("now()", ADMIN_DIGEST_DAYS_BEFORE)}
         AND EXISTS (SELECT 1 FROM order_items i WHERE i.order_id = o.id AND i.book_copy_id IS NOT NULL)`,
     },
     async (orders) => {

@@ -43,6 +43,11 @@ const pool = new Pool({
   // makes a dead network path surface as a connection error instead of a hang.
   keepAlive: true,
   idle_in_transaction_session_timeout: 30000,
+  // Pin the SESSION time zone to UTC. Render's Postgres already runs in UTC, but a developer's database or a
+  // future host may not, and `timestamptz + interval '1 day'` and date_trunc / ::date casts without an explicit
+  // zone depend on it. Everything that means Paris time says so explicitly (AT TIME ZONE 'Europe/Paris', or
+  // lib/tz.js parisPlusDaysSql for calendar days), so behaviour is the same on every machine.
+  options: "-c timezone=UTC",
 });
 
 // An idle pooled client whose connection drops (DB restart, failover,
