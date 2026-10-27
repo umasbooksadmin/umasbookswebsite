@@ -72,7 +72,13 @@
   font-family: var(--font-serif); font-size: 18px;
 }
 .bk-link-btn:hover { color: var(--maroon); }
-.bk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 26px 22px; }
+/* At least two books per row: a column is 150px wide at the least, or half the row on a phone too narrow for two of those
+   (under 386px: a 320-375px phone showed one 470-550px-tall card per screen). Wider screens are as before. */
+.bk-grid {
+  --gx: 22px;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(min(150px, calc((100% - var(--gx)) / 2)), 1fr)); gap: 26px var(--gx);
+}
+@media (max-width: 480px) { .bk-grid { --gx: 16px; } }
 .bk-grid > *, .bk-results > * { min-width: 0; } /* a grid or flex item may shrink below its longest word */
 .bk-results .muted { color: var(--ink); }
 
@@ -158,8 +164,29 @@
 @media (max-width: 620px) {
   .bk-new-head h2, .bk-sec-title { font-size: 34px; }
 }
+/* A touch phone: the arrows float over the ends of the track as small round buttons instead of taking a column each, so
+   the cards keep the whole width (two side columns would squeeze a New In card to about 90px). Swiping works as before.
+   They hang half into the page's 32px side margin, centred on the covers (New In) or on the round pictures (genres,
+   collections), below the favorite heart and above the price line with its cart icon. At an end the arrow that has
+   nowhere to go fades out and lets taps through to the card under it (still focusable, shown faded while it has keyboard
+   focus: public/carousel.js never disables it). A narrow desktop window keeps the side columns. */
 @media (max-width: 620px) and (pointer: coarse) {
-  .bk-carousel .arrow { display: none; } /* a finger swipes; a narrow desktop window keeps the arrows */
+  .bk-carousel { position: relative; align-items: flex-start; container: bk-carousel / inline-size; }
+  .bk-carousel .arrow {
+    position: absolute; z-index: 3; top: 11px; left: -14px; width: 44px; height: 44px; border-radius: 50%;
+    background: rgba(255, 254, 251, 0.94); border: 1px solid var(--line-strong); box-shadow: 0 1px 5px rgba(43, 42, 38, 0.3);
+    transition: opacity 0.15s ease;
+  }
+  .bk-carousel .arrow-next { left: auto; right: -14px; }
+  .bk-carousel .arrow svg { width: 22px; height: 22px; }
+  .bk-carousel .arrow[aria-disabled="true"] { opacity: 0; pointer-events: none; }
+  .bk-carousel .arrow[aria-disabled="true"]:focus-visible { opacity: 0.45; }
+  /* New In: the middle of the covers. A cover is 2:3 and a card 1/--per of the track (its 6px side padding and 20px gaps
+     taken off), 8px below the track's top: with W the carousel width, middle = 8 + 0.75 * (W - 12 - (per-1)*20) / per. */
+  .bk-new .bk-carousel .arrow { top: calc(0.375 * (100cqw - 32px) - 14px); }
+  @container bk-carousel (min-width: 452px) { .bk-new .bk-carousel .arrow { top: calc(0.25 * (100cqw - 52px) - 14px); } }
+  /* Collections: the middle of the 90px pictures (genres keep the 11px above: the middle of their 50px chips). */
+  .bk-collections .bk-carousel .arrow { top: 35px; }
 }
 @media (prefers-reduced-motion: reduce) { .bk-track { scroll-behavior: auto; } }
 
