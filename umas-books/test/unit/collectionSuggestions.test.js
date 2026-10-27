@@ -40,11 +40,19 @@ test("the prompt keeps each book on one line and cannot be broken out of by a ti
 test("answers are parsed to ids from the list only: invented ids, repeats and junk are dropped", () => {
   const allowed = new Set([11, 12, 13]);
   const text = 'Here you go:\n[{"id": 11, "reason": "Quiet and kind."}, {"id": 999, "reason": "Invented"}, {"id": 11, "reason": "again"}, {"id": "12", "reason": "  Warm\\n and wise "}, {"nope": 1}, null]';
-  assert.deepEqual(parseSuggestions(text, allowed), [{ bookId: 11, reason: "Quiet and kind." }, { bookId: 12, reason: "Warm and wise" }]);
+  assert.deepEqual(parseSuggestions(text, allowed), [{ bookId: 11, reason: "Quiet and kind.", reasonFr: null }, { bookId: 12, reason: "Warm and wise", reasonFr: null }]);
   assert.deepEqual(parseSuggestions("I cannot help", allowed), []);
   assert.deepEqual(parseSuggestions('{"id": 11}', allowed), []);
   assert.deepEqual(parseSuggestions(null, allowed), []);
   assert.deepEqual(parseSuggestions("[not json]", allowed), []);
+});
+
+test("the French reason is read with the English one (cut like it), and missing or empty French is null", () => {
+  const allowed = new Set([1, 2, 3]);
+  const text = JSON.stringify([{ id: 1, reason: "Warm.", reason_fr: "  Chaleureux\n et doux. " }, { id: 2, reason: "Calm.", reason_fr: "" }, { id: 3, reason: "Long.", reason_fr: "é".repeat(1000) }]);
+  const out = parseSuggestions(text, allowed);
+  assert.deepEqual(out.slice(0, 2), [{ bookId: 1, reason: "Warm.", reasonFr: "Chaleureux et doux." }, { bookId: 2, reason: "Calm.", reasonFr: null }]);
+  assert.equal(out[2].reasonFr.length, 280);
 });
 
 test("no more than the allowed number of picks per answer, and a long reason is cut", () => {

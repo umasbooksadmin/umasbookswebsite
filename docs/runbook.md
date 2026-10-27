@@ -3531,8 +3531,12 @@ so kindly.
    **Translate to French** fills only the empty French boxes; read them, then press **Save** (it saves nothing
    by itself).
 2. Press **Generate suggestions**. It looks at up to 300 books in stock that are not yet in this collection
-   (the ones that match the collection's words best) and adds what fits, each with a one-line reason. The
-   collection then shows **Last built** (set only when a build worked).
+   (the ones that match the collection's words best) and adds what fits, each with a one-line reason in English
+   and French. The collection then shows **Last built** (set only when a build worked). Customers see each
+   approved book's genre and, under it, this reason (just the sentence, no label); a book added by
+   hand shows its genre only. On the French page a reason with no French is not shown: older suggestions made
+   before October 2026 have none, and **Translate reasons to French** (shown on the collection page while any
+   is missing) fills up to 40 per press, approved books first.
 3. Tick **Approve** on the books you want (or **Reject** to never see one again), then **Save choices**.
 4. Press **Publish**. It is refused until at least one book is approved **and** the French title and
    description are filled in. **Unpublish** takes it off the site at once.
