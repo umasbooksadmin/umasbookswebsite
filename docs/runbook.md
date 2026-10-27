@@ -44,7 +44,7 @@ alphabetical order on the page, so use this list. The letter `j` is deliberately
 
 **Regular routines, setup and reference**
 
-- [an) Node.js security updates: how to update](#an-nodejs-security-updates-how-to-update); [d) Where alerts go](#d-where-alerts-go); [e) Quarterly and yearly calendar](#e-quarterly-and-yearly-calendar); [t) GitHub Actions minutes (private repository)](#t-github-actions-minutes-private-repository); [af) Nightly inventory export](#af-nightly-inventory-export); [ag) Database connections](#ag-database-connections)
+- [an) Node.js security updates: how to update](#an-nodejs-security-updates-how-to-update); [d) Where alerts go](#d-where-alerts-go); [e) Quarterly and yearly calendar](#e-quarterly-and-yearly-calendar); [t) GitHub Actions minutes (private repository)](#t-github-actions-minutes-private-repository); [af) Nightly inventory export](#af-nightly-inventory-export); [ag) Database connections](#ag-database-connections); [ao) Database size monitoring](#ao-database-size-monitoring); [ap) When a deploy fails because a migration could not get a lock](#ap-when-a-deploy-fails-because-a-migration-could-not-get-a-lock)
 - Backups, encryption, retention: [ad) Encrypting the backups, restore drill, read-only backup user, yearly rotation](#ad-encrypting-the-backups-restore-drill-read-only-backup-user-yearly-rotation); [aj) Keeping records for 10 years](#aj-keeping-records-for-10-years)
 - Staging (the test system): [ai) Test system (staging)](#ai-test-system-staging)
 - Adding a setting (environment variable): [al) Adding or changing a setting](#al-adding-or-changing-a-setting-environment-variable)
@@ -1803,7 +1803,11 @@ signal: the Monday test alert (section d) proves the channel works.
 | `Nightly database backup failed` | GitHub, 03:00 UTC | No new backup tonight (older ones are safe) | 1. Open the run link in the email, read the red step. 2. "settings are missing" = a `BACKUP_S3_*` or `DATABASE_URL` secret changed (section b). 3. After the fix: **Actions > Nightly database backup > Run workflow**, confirm green and a new file in Backblaze |
 | `Database backups are NOT encrypted` | GitHub, every Monday while it lasts | The repository variable `BACKUP_AGE_RECIPIENT` is not set, so the dumps in Backblaze are readable by anyone who gets into the bucket | Section ad): do "Set up the encryption" once. The nightly failure email carries the same warning |
 | `No fresh database backup in Backblaze` | GitHub, 09:00 UTC daily | The newest dump is missing, empty, over 36 h old, or (after the 3rd of the month) the monthly copy is over 35 days old. The monthly copy appears on the 1st (and the nightly job also writes one when none exists at all); before the first one, the freshness check shows a notice ("No monthly copy yet"), not a failure | 1. **Actions > Nightly database backup**: is it enabled and green? (GitHub disables schedules after 60 days of repository inactivity or when minutes run out: section t). 2. Run it by hand. 3. Re-run **Backup freshness check** |
-| `Monthly accounting export failed` | GitHub, 1st of the month, 07:00 Paris | The accounting files of last month were not produced or not stored | 1. Open the run link, read the red step. 2. Settings missing = `DATABASE_URL` or a `BACKUP_S3_*` value changed (section b). 3. After the fix: **Actions > Monthly accounting export > Run workflow** (leave the month empty, or type `YYYY-MM`): the files are simply written again |
+| `Monthly accounting export failed` | GitHub, 1st-3rd of the month (the run retries on the next days while the file is missing) | The accounting files of last month were not produced or not stored | 1. Open the run link, read the red step. 2. Settings missing = `DATABASE_URL` or a `BACKUP_S3_*` value changed (section b). 3. After the fix: **Actions > Monthly accounting export > Run workflow** (leave the month empty, or type `YYYY-MM`): the files are simply written again |
+| `Accounting export for YYYY-MM is missing` | GitHub, 09:00 UTC daily from the 3rd of the month (the backup freshness check) | Last month's `accounting-exports/<year>/accounting_<YYYY-MM>.csv` is not in Backblaze: the monthly export never ran (schedule delayed or dropped, workflow disabled) or failed on every try | **Actions > Monthly accounting export > Run workflow**, type the month `YYYY-MM` from the subject in the **month** box, run. Details: section aj, "What to do when the missing-export alert arrives" |
+| `Inventory export is missing` | GitHub, 09:00 UTC daily | No file was stored in `inventory-exports/` in the last 36 hours | **Actions > Nightly inventory export** is enabled? **Run workflow**. Section af |
+| `Database has reached N% of its plan` / `Database is N% full: upgrade the plan now` | The site, weekly (Monday-ish, the day the weekly job runs), at most one of each per week | The database is at 70% (or 90%) of the plan limit set in `DB_PLAN_STORAGE_MB` | Section ao: upgrade the database plan in Render, then update `DB_PLAN_STORAGE_MB` |
+| A deploy fails with `could not get a table lock` | Render deploy log (pre-deploy), no email | A migration waited for a table that a long query or open transaction was holding; the old version keeps serving | Section ap: wait, then deploy again |
 | `Backup restore test FAILED` | GitHub, 1st of the month | The newest dump could not be restored or lacks tables or migrations | 1. Open the run, read the red message (it says which table, or "dump is OLDER than the repository"). 2. Run **Nightly database backup** by hand, then **Monthly backup restore test** by hand. 3. Still red: do not trust the backups; ask a developer, and keep a manual dump (section u, step 2) meanwhile |
 | `Error on GET /...` (or POST) | Gmail sender, the site | A page crashed (a 500). At most one per kind of error per 15 minutes | 1. Note the page and the time. 2. Render > **Logs**, search for the same time. 3. If it repeats or is on checkout/login, section a) rollback; otherwise send the text to the developer |
 | `Unhandled rejection` / `Uncaught exception (process restarting)` | Gmail sender | The site hit an unexpected error and may have restarted | 1. Check `/healthz` and Render > **Events** (restart count). 2. Render **Logs** around the time. 3. Repeating = rollback (section a) and call the developer |
@@ -1925,8 +1929,8 @@ October 2026; a re-measure takes 2 minutes with `gh run list` / the Actions tab)
 | Site uptime check | hourly = 24 a day (was every 30 min: about 1,440 a month) | 1 | about **720** |
 | Nightly database backup | daily | about 1-2 | about 45 |
 | Backup freshness check | daily | 1 | about 30-60 |
-| Nightly inventory export | twice a day (one run does the work, the other exits at once; summer/winter time) | 1 | about 60 |
-| Monthly accounting export | twice on the 1st (same reason) | 1-2 | about 3 |
+| Nightly inventory export | four times a day (one run does the work; the others check Backblaze for today's file and stop; summer/winter time and retries) | 1 | about 120 |
+| Monthly accounting export | up to four times in the first three days (the first run that finds no file does the work; later ones stop after a Backblaze check) | 1-2 | about 5 |
 | Monthly backup restore test | monthly | about 3-5 (estimate: one short run recorded) | about 5 |
 | Send a test alert | weekly | 1 | about 4 |
 
@@ -3192,7 +3196,7 @@ the owner steps at the end are done once.
 | Nightly database dump | `store-backups/full/` | every night, 03:00 UTC | 30 days | yes (age) |
 | Monthly database dump | `store-backups/monthly/` | 1st of the month | 2 years | yes (age) |
 | **Yearly database dump** | `store-backups/yearly/umas_books_full_YYYY-MM-DD.dump.age` | 2 January (Paris date), once a year | **10 years** | yes (age), the same file as that night's dump |
-| **Monthly accounting export** | `accounting-exports/YYYY/accounting_YYYY-MM.csv`, `till_days_YYYY-MM.csv`, `summary_YYYY-MM.txt` | 1st of the month, 07:00 Paris: the previous month | **10 years** | **no**, on purpose: no personal data, readable without any key |
+| **Monthly accounting export** | `accounting-exports/YYYY/accounting_YYYY-MM.csv`, `till_days_YYYY-MM.csv`, `summary_YYYY-MM.txt` | 1st of the month, about 07:00 Paris: the previous month; retried on the 2nd and 3rd while the file is missing | **10 years** | **no**, on purpose: no personal data, readable without any key |
 | **Yearly accounting export** | `accounting-exports/YYYY/accounting_YYYY-full-year.csv` (plus `till_days_` and `summary_` of the same name) | 2 January: the whole previous year | **10 years** | no |
 
 The accounting export is the same file as **Admin > Reports > Accounting
@@ -3270,6 +3274,32 @@ yellow warning to its run (never a failure, no email).
    calendar months. Unset = 1 (the calendar year).
 6. Run the **bootstrap test** above once and read the two emails/files that
    result.
+
+### What to do when the missing-export alert arrives
+
+The monthly export is **idempotent**: on days 1-3 of the month (Paris), at any hour, a scheduled run goes on
+only if last month's `accounting-exports/<year>/accounting_<YYYY-MM>.csv` is **not** in Backblaze, and ends
+green with a notice ("already exists") otherwise. So a run that GitHub delays or drops is retried by the next
+schedule line (05:00 and 06:00 UTC on the 1st; 05:30 and 06:30 UTC on the 2nd and 3rd). Each morning at 09:00 UTC
+from the 3rd, the **Backup freshness check** also looks for the file, and if it is still missing it emails
+**`[umas-books] Accounting export for YYYY-MM is missing`** to `ALERT_TO`.
+
+When that email arrives:
+
+1. Open **GitHub > Actions > Monthly accounting export** (left list). Look at the last runs: green with "skipped"
+   notices only, a red run (read the red step: settings missing = section b), or no run at all (the workflow is
+   disabled: GitHub switches schedules off after 60 days without repository activity, section t; click **Enable workflow**).
+2. Click **Run workflow**. In the **month** box type the month from the email subject, `YYYY-MM` (for example `2026-09`),
+   leave **Run now, whatever the day and whether or not the file already exists** ticked, and run. It writes the three files
+   to `accounting-exports/<year>/` (writing the same month again just overwrites them) and emails the two CSVs to the treasurer.
+3. Check the run is green, then open Backblaze > the bucket > `accounting-exports/<year>/` and see
+   `accounting_<YYYY-MM>.csv`, `till_days_<YYYY-MM>.csv` and `summary_<YYYY-MM>.txt`.
+4. Re-run **Backup freshness check** (Actions > Backup freshness check > Run workflow): it must be green.
+
+The nightly inventory export works the same way: from 21:00 to 23:59 Paris a scheduled run goes on only if
+`inventory-exports/inventory_books_<today>.csv` is absent (four schedule lines, 19:00-22:00 UTC). The freshness
+check emails **`Inventory export is missing`** when `inventory-exports/` has no file from the last 36 hours:
+run **Actions > Nightly inventory export > Run workflow** (section af).
 
 ## ak) Alphabetical order ignores a leading "The", "A" or "An"
 
@@ -3380,6 +3410,8 @@ ISBN or person is ever stored in it; rows older than 40 days are deleted by the 
   counters are in memory (one server process), so a restart only forgets them. Real payments are not affected; the sync itself is idempotent.
 
 ## af) Nightly inventory export
+
+*Missing export?* The daily backup freshness check emails "Inventory export is missing" if nothing was stored in the last 36 hours; run the workflow by hand (Actions > Nightly inventory export > Run workflow). Details: section aj, "What to do when the missing-export alert arrives".
 
 **What.** Every evening at **21:00 Paris time** a GitHub workflow (*Nightly inventory export*) exports **all inventory** as a CSV and sends it two ways: **emailed** to the alert addresses (the `ALERT_TO` variable: it should list admin@umasbooks.org and sharonbje@gmail.com, separated by commas) and **stored** in the private Backblaze bucket (the backup bucket), folder `inventory-exports/`:
 
@@ -3612,3 +3644,54 @@ Pinning means a new security release is NOT picked up automatically: put a month
 reminder in the calendar to check https://nodejs.org/en/blog/vulnerability, and read
 Render's emails. The check on the diagnostics page needs no network and only knows the
 table, so keep the table up to date.
+
+## ao) Database size monitoring
+
+Book covers and photos are stored in the database (the `images` table, at most 400 KB each), so the database is what
+fills up on a small Render plan. A full database stops all saving (orders, tills, signups), so it is watched.
+
+**Where to look.** *Admin > Diagnostics > Database size* (`/admin/diagnostics/database`; also linked from *Background jobs*):
+the total size, the size of the images table and the number of images, the 5 biggest tables, the growth since the
+last weekly snapshot, and the percentage of the plan. The dashboard *Needs attention* box shows a line from 70%.
+
+**Set the plan limit once (optional but recommended).** The app cannot read the plan from Render, so you tell it:
+1. Render dashboard > the database `umas-books-db` > **Info**: find the plan's **storage** (for example 1 GB = 1024 MB).
+2. Render dashboard > the `umas-books` service > **Environment** > add the **Render environment variable**
+   `DB_PLAN_STORAGE_MB` = that number of megabytes (for example `1024`). Optional; default `0` = unknown, in which
+   case the page shows sizes only with the note "set DB_PLAN_STORAGE_MB in Render to get a warning". Saving the variable
+   redeploys the service.
+3. Update it whenever you change the plan.
+
+**What the warnings are.** A weekly job (*Background jobs*: "Database size check") stores a snapshot (the last 120 are
+kept) and, from **70%** of `DB_PLAN_STORAGE_MB`, emails `ALERT_TO` once a week ("Database has reached N% of its plan"); from **90%**
+a stronger, separate email once a week ("Database is N% full: upgrade the plan now"). Both also show on the dashboard.
+
+**What to do when it warns.**
+1. **Resize the plan:** Render > `umas-books-db` > **Settings/Info** > change the plan to one with more storage
+   (the data is kept; it takes a few minutes; check the site afterwards). This is the real fix. Postgres plans on
+   Render can be upgraded but not downgraded, so choose with that in mind.
+2. Update `DB_PLAN_STORAGE_MB` (above).
+3. To slow the growth: the daily *Image cleanup* job (*Background jobs*) deletes one batch of images that no row uses any
+   more and are older than 7 days; check that it is green. Look at *Images table* on the page: thousands of images
+   at several hundred KB each is the usual cause. Old books' covers are only removed when the book is.
+4. A backup is not a fix: a full database stays full after a restore.
+
+## ap) When a deploy fails because a migration could not get a lock
+
+Before each deploy Render runs the database migrations (`src/migrate.js`) while the OLD version still serves. A
+migration that changes a table (ALTER, DROP) needs an exclusive lock on it; if a long query or an open transaction
+holds the table, everything else would queue behind the migration and the live site would freeze. So each migration
+waits at most **5 seconds** for a lock (Render environment variable `MIGRATE_LOCK_TIMEOUT_MS`, optional, default
+5000), then gives up, rolls back and **tries the same file again** up to **5 times** with growing pauses (`MIGRATE_LOCK_RETRIES`,
+optional, default 5). This is safe: each file runs in one transaction.
+
+If it is still locked after that, the deploy fails with: *Migration NNN_name.sql could not get a table lock after 6 tries...*
+The old version keeps serving, nothing was changed.
+
+1. Wait a few minutes (a long admin report, a backup or an import may be running), then in Render > `umas-books` >
+   **Manual Deploy > Deploy latest commit**. It usually passes.
+2. If it fails again, look for the holder: Render > the database > **Connect** (a developer runs
+   `SELECT pid, state, query_start, query FROM pg_stat_activity WHERE state <> 'idle' ORDER BY query_start`), and end a
+   stuck session with `pg_terminate_backend(pid)` only if it is clearly stuck.
+3. For a one-off busy period you can raise `MIGRATE_LOCK_TIMEOUT_MS` or `MIGRATE_LOCK_RETRIES` in Render > Environment,
+   deploy, then remove the variable again.
