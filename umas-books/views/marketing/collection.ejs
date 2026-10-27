@@ -1,6 +1,5 @@
 <%# The words public/page-collection.js and public/ui.js draw in the browser (Show more, the status line, the cards of the next pages): the same
-    words as the Browse page (views/marketing/books.ejs), plus "col.why" (this page only, the label of the "why it's here" line);
-    test/integration/collectionResults.test.js keeps the two in step. %>
+    words as the Browse page (views/marketing/books.ejs); test/integration/collectionResults.test.js keeps the two in step. %>
 <% const collectionPageI18n = {
   en: {
     "bk.fav.add": "Add {t} to favorites",
@@ -10,7 +9,6 @@
     "bk.error": "Couldn't load books right now — try again in a moment.",
     "bk.ratelimited": "Too many searches — please wait a moment and try again.",
     "bk.nocover": "No cover",
-    "col.why": "Why it’s here:",
   },
   fr: {
     "bk.fav.add": "Ajouter {t} aux favoris",
@@ -20,7 +18,6 @@
     "bk.error": "Impossible de charger les livres pour le moment — réessayez dans un instant.",
     "bk.ratelimited": "Trop de recherches : veuillez patienter un instant puis réessayer.",
     "bk.nocover": "Pas de couverture",
-    "col.why": "Pourquoi ce livre :",
   },
 }; %>
 <%- include('partials/mkt_header', {
@@ -58,9 +55,9 @@
         </div>
       <% } else { %>
         <%# Each book is the shared Browse card (partials/book_card.ejs, untouched) in a .col-item with, under it, its genre and the
-            AI's "why it's here" line (lib/collections.js bookExtras; no reason for a book added by hand, and on /fr/ only a French one).
+            AI's reason (no label: just the sentence) (lib/collections.js bookExtras; no reason for a book added by hand, and on /fr/ only a French one).
             public/page-collection.js itemHtml draws the same markup for the books "Show more" adds. %>
-        <div class="bk-grid" id="bk-results-grid"><% const whyLabel = collectionPageI18n[lang === 'fr' ? 'fr' : 'en']['col.why']; books.forEach(function (b) { const x = b.extras || {}; %><div class="col-item"><%- include('partials/book_card', { b }) %><% if (x.genre || x.why) { %><div class="col-more"><% if (x.genre) { %><p class="col-genre"><%= x.genre %></p><% } %><% if (x.why) { %><p class="col-why"><span class="col-why-label"><%= whyLabel %></span> <%= x.why %></p><% } %></div><% } %></div><% }) %></div>
+        <div class="bk-grid" id="bk-results-grid"><% books.forEach(function (b) { const x = b.extras || {}; %><div class="col-item"><%- include('partials/book_card', { b }) %><% if (x.genre || x.why) { %><div class="col-more"><% if (x.genre) { %><p class="col-genre"><%= x.genre %></p><% } %><% if (x.why) { %><p class="col-why"><%= x.why %></p><% } %></div><% } %></div><% }) %></div>
         <div class="bk-more-row"><button type="button" class="btn btn-outline" id="bk-more" data-i18n="bk.more" hidden>Show more</button></div>
         <p class="bk-covernote"><%= tr('Cover images come from an online book library and may not show the actual condition of the copy in our shop.', 'Les couvertures proviennent d’une bibliothèque de livres en ligne et peuvent ne pas refléter l’état réel de l’exemplaire en boutique.') %></p>
       <% } %>

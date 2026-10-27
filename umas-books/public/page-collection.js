@@ -38,7 +38,7 @@
   // (lib/collections.js bookExtras, already in the page's language). The same markup as views/marketing/collection.ejs.
   function itemHtml(b) {
     var more = (b.genre ? '<p class="col-genre">' + esc(b.genre) + '</p>' : '') +
-      (b.why ? '<p class="col-why"><span class="col-why-label">' + esc(t('col.why')) + '</span> ' + esc(b.why) + '</p>' : '');
+      (b.why ? '<p class="col-why">' + esc(b.why) + '</p>' : '');
     return '<div class="col-item">' + UI.bookCardHtml(b, true) + (more ? '<div class="col-more">' + more + '</div>' : '') + '</div>';
   }
 

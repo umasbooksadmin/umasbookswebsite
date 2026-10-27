@@ -133,9 +133,7 @@ test("the words page-collection.js draws are the Browse page's words, in both la
     const col = dict(await html(`${prefix}/collections/many-books`));
     for (const lang of ["en", "fr"]) {
       assert.ok(Object.keys(col[lang]).length >= 7);
-      // col.why is this page's own word (the label of the "why it's here" line): the others are the Browse page's
-      for (const [k, v] of Object.entries(col[lang])) if (k !== "col.why") assert.equal(v, browse[lang][k], `${prefix || "/"} ${lang} ${k}`);
-      assert.equal(col[lang]["col.why"], lang === "fr" ? "Pourquoi ce livre\u00a0:" : "Why it’s here:");
+      for (const [k, v] of Object.entries(col[lang])) assert.equal(v, browse[lang][k], `${prefix || "/"} ${lang} ${k}`);
     }
   }
 });

@@ -40,4 +40,3 @@
 .col-genre { font-family: var(--font-montserrat); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; font-size: 12.5px; line-height: 1.35;
   color: var(--maroon-dark); overflow-wrap: anywhere; hyphens: auto; }
 .col-why { margin-top: 6px; font-size: 15px; line-height: 1.4; color: var(--ink); overflow-wrap: anywhere; hyphens: auto; hyphenate-limit-chars: 9 4 3; }
-.col-why-label { font-style: italic; }

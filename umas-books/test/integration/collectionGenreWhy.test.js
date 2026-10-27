@@ -1,8 +1,8 @@
 /* global document, window */
 // The customer collection page shows, under each book, its genre and the AI's "why it's here" line (lib/collections.js
 // bookExtras). Real app, throwaway database:
-//   - English page: the genre as stored, the English reason after "Why it’s here:"
-//   - French page: the French genre (the site's taxonomy, as on the book page), the French reason after "Pourquoi ce livre :",
+//   - English page: the genre as stored, then the English reason on its own (no "Why it’s here:" label, owner's choice)
+//   - French page: the French genre (the site's taxonomy, as on the book page), the French reason on its own (no label),
 //     and NEVER the English reason: a reason with no French yet hides the line
 //   - a book added by hand (reason "Added by hand", an admin note) shows its genre only, in both languages
 //   - the API (?lang=en|fr) gives the same genre and why as the page, so "Show more" prints what the page prints
@@ -14,7 +14,6 @@ const assert = require("node:assert/strict");
 const { startTestApp } = require("../helpers/testApp");
 
 const PORT = 6484;
-const NBSP = " ";
 let app;
 let pool;
 let browser;
@@ -97,15 +96,16 @@ const api = async (q) => (await (await get(`/api/collections/why-shelf/books${q}
 
 test("English page: the genre and the English reason under each book", async () => {
   const t = await html("/collections/why-shelf");
-  assert.match(item(t, ids.both), /<div class="col-more"><p class="col-genre">Mystery, Science Fiction<\/p><p class="col-why"><span class="col-why-label">Why it’s here:<\/span> A clever puzzle set in a rainy Paris\.<\/p><\/div><\/div>/);
-  assert.match(item(t, ids.enOnly), /<p class="col-genre">Romance<\/p><p class="col-why"><span class="col-why-label">Why it’s here:<\/span> A sweet love story across the Channel\.<\/p>/);
+  assert.match(item(t, ids.both), /<div class="col-more"><p class="col-genre">Mystery, Science Fiction<\/p><p class="col-why">A clever puzzle set in a rainy Paris\.<\/p><\/div><\/div>/);
+  assert.match(item(t, ids.enOnly), /<p class="col-genre">Romance<\/p><p class="col-why">A sweet love story across the Channel\.<\/p>/);
   assert.match(item(t, ids.noGenre), /<div class="col-more"><p class="col-why">/, "no genre: no genre line");
   assert.ok(!item(t, ids.noGenre).includes("col-genre"));
+  assert.ok(!/Why it(’|'|&#39;)s here/.test(t) && !t.includes("col-why-label"), "the reason has no label (owner's choice)");
 });
 
 test("French page: the French genre and the French reason; a reason without French is hidden, never shown in English", async () => {
   const t = await html("/fr/collections/why-shelf");
-  assert.match(item(t, ids.both), new RegExp(`<p class="col-genre">Policier, Science-fiction</p><p class="col-why"><span class="col-why-label">Pourquoi ce livre${NBSP}:</span> Une énigme astucieuse dans un Paris pluvieux\\.</p>`));
+  assert.match(item(t, ids.both), new RegExp(`<p class="col-genre">Policier, Science-fiction</p><p class="col-why">Une énigme astucieuse dans un Paris pluvieux\\.</p>`));
   // no French reason yet: the genre only
   assert.match(item(t, ids.enOnly), /<div class="col-more"><p class="col-genre">Romance<\/p><\/div><\/div>/);
   assert.ok(!item(t, ids.enOnly).includes("col-why"));
@@ -114,7 +114,8 @@ test("French page: the French genre and the French reason; a reason without Fren
   for (const en of ["A clever puzzle", "A sweet love story", "Quiet and kind", "Brave ", "Why it’s here", "Why it's here", "Added by hand"]) {
     assert.ok(!printed.includes(en), `English "${en}" on the French page`);
   }
-  assert.match(item(t, ids.noGenre), /<div class="col-more"><p class="col-why"><span class="col-why-label">Pourquoi ce livre\u00a0:<\/span> Calme et bienveillant\.<\/p><\/div>/);
+  assert.match(item(t, ids.noGenre), /<div class="col-more"><p class="col-why">Calme et bienveillant\.<\/p><\/div>/);
+  assert.ok(!t.includes("Pourquoi ce livre") && !t.includes("col-why-label"), "the reason has no label (owner's choice)");
 });
 
 test("a book added by hand shows its genre only (EN and FR): its 'Added by hand' note is for the admin", async () => {
@@ -162,7 +163,7 @@ test("API: ?lang=en and ?lang=fr give the same genre and why as the page; no ?la
     for (const b of list) {
       const it = item(page[lang], b.id);
       const g = /<p class="col-genre">([^<]*)<\/p>/.exec(it);
-      const w = /<span class="col-why-label">[^<]*<\/span> ([^<]*)<\/p>/.exec(it);
+      const w = /<p class="col-why">([^<]*)<\/p>/.exec(it);
       assert.equal(g ? unesc(g[1]) : null, b.genre, `${lang} ${b.id} genre`);
       assert.equal(w ? unesc(w[1]) : null, b.why, `${lang} ${b.id} why`);
     }
@@ -215,10 +216,10 @@ test("Show more draws the genre and why lines exactly as the server does (EN and
       const text = await page.$eval(".bk-grid", (g) => g.textContent);
       if (prefix) {
         assert.ok(!text.includes("Sweet and English") && !text.includes("Why it") && !text.includes("Added by hand"), "no English on the French page after Show more");
-        assert.ok(text.includes("Pourquoi ce livre : Astucieux et pluvieux."));
+        assert.ok(text.includes("Astucieux et pluvieux.") && !text.includes("Pourquoi ce livre"), "the French reason, with no label");
         assert.ok(text.includes("l’audace !"), "French typography on the French reason drawn by the script");
       } else {
-        assert.ok(text.includes("Why it’s here: Sweet and English."));
+        assert.ok(text.includes("Sweet and English.") && !text.includes("Why it"), "the English reason, with no label");
       }
     });
   }
