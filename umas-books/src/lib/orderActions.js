@@ -20,6 +20,7 @@ const { withTransaction } = require("../db");
 const { parseMoney } = require("./validation");
 const { SITE_TIME_ZONE, parisPlusDaysSql } = require("./tz");
 const { releaseReservation, extendReservation } = require("./reservations");
+const inv = require("./inventory");
 
 const NOTE_MAX = 500;
 
@@ -81,6 +82,28 @@ async function markOrderCollected(pool, orderId, adminUserId) {
 
 const toCents = (v) => Math.round(Number(v) * 100);
 
+// The least an item collected with "Mark collected and paid" may be paid for (cents), with the SAME price
+// rules as the till (lib/till.js buildLines), so a discount at pickup can never break the law:
+//   - a NEW book under the French fixed book price law (loi Lang): at least 95% of the publisher's price,
+//     rounded UP to the cent (the minimum inv.resolveCopyPricing allows), and never more than the reserved
+//     price itself. Exactly as at the till, a new book published more than 2 years ago
+//     (inv.isPublishedOverTwoYearsAgo on books.published_year) is free-priced. A fixed-price new book with
+//     no publisher's price on record cannot be priced at the till at all; here it keeps its reserved price
+//     (no discount).
+//   - a second-hand book, or a new one published over 2 years ago: the till lets an admin lower its price
+//     freely (with a reason), so 0 here (the note is the reason).
+//   - a drop-in class seat (and anything else): its reserved price. A reserved seat's price cannot be
+//     changed at the till either.
+// item: { price, book_copy_id, condition, publisher_price, published_year }. `today` ("YYYY-MM-DD") is for tests.
+function collectionFloorCents(item, today) {
+  const price = toCents(item.price);
+  if (item.book_copy_id == null) return price;
+  if (item.condition !== "new" || inv.isPublishedOverTwoYearsAgo(item.published_year, today)) return 0;
+  const pub = item.publisher_price == null ? 0 : toCents(item.publisher_price);
+  if (!(pub > 0)) return price;
+  return Math.min(price, Math.ceil((95 * pub) / 100));
+}
+
 // "Mark collected and paid". The customer came, took (some of) the reserved items
 // and paid in the shop. Everything below is ONE transaction with the order row
 // locked first (a release or an extension cannot overlap it):
@@ -97,8 +120,11 @@ const toCents = (v) => Math.round(Number(v) * 100);
 //     order (same customer, same deadline, split_from_order_id = this order).
 // `amountReceived` (euros) defaults to the total of the collected items and may
 // only be LOWER (a discount given at the till, with a note).
+// It may not go below the legal / till minimum of the collected items (collectionFloorCents): outcome
+// "below_minimum", with { minimum (euros), received (euros), limits: [{ title, minimum, kind: "book"|"seat" }] }
+// naming each item that cannot be discounted down to 0.
 // outcome: "collected" | "not_found" | "not_reserved" | "method_required" |
-// "nothing_to_collect" | "amount_invalid" | "amount_too_high" | "note_required".
+// "nothing_to_collect" | "amount_invalid" | "amount_too_high" | "below_minimum" | "note_required".
 //
 // Cash taken here (not at the till) is counted in that Paris day's expected drawer cash (lib/till.js
 // daySummary, "Cash taken via admin"). So, like a cash refund, it is refused once that till day is
@@ -133,9 +159,11 @@ async function collectReservationTx(client, orderId, { adminUserId = null, metho
 
     const { rows: items } = await client.query(
       `SELECT oi.id, oi.price, oi.item_title, oi.book_copy_id, oi.class_dropin_seat_id,
-              bc.status AS copy_status, bc.cart_order_id AS copy_order_id, ds.status AS seat_status
+              bc.status AS copy_status, bc.cart_order_id AS copy_order_id, ds.status AS seat_status,
+              bc.condition, bc.publisher_price, b.published_year
        FROM order_items oi
        LEFT JOIN book_copies bc ON bc.id = oi.book_copy_id
+       LEFT JOIN books b ON b.id = bc.book_id
        LEFT JOIN class_dropin_seats ds ON ds.id = oi.class_dropin_seat_id
        WHERE oi.order_id = $1 ORDER BY oi.id`,
       [orderId]
@@ -180,6 +208,15 @@ async function collectReservationTx(client, orderId, { adminUserId = null, metho
       if (parsed.error || parsed.value === null) return { outcome: "amount_invalid" };
       received = toCents(parsed.value);
       if (received > subtotal) return { outcome: "amount_too_high", subtotal: subtotal / 100 };
+    }
+    // Never below what the till itself would accept for these items (fixed book price law, seats).
+    const floors = selected.map((i) => ({ i, floor: collectionFloorCents(i) }));
+    const minimum = floors.reduce((sum, f) => sum + f.floor, 0);
+    if (received < minimum) {
+      return {
+        outcome: "below_minimum", minimum: minimum / 100, received: received / 100,
+        limits: floors.filter((f) => f.floor > 0).map((f) => ({ title: f.i.item_title, minimum: f.floor / 100, kind: f.i.book_copy_id != null ? "book" : "seat" })),
+      };
     }
     if (received < subtotal && !cleanNote) return { outcome: "note_required" };
 
@@ -321,5 +358,5 @@ async function cancelUnpaidOrder(pool, orderId) {
 module.exports = {
   markOrderCollected, collectReservation, collectReservationTx, cancelReservationByAdmin, markReservationNoShow, extendReservation,
   markOrderRefunded, cancelUnpaidOrder,
-  AWAITING_PICKUP, HAS_BOOKS, NOTE_MAX, ORDER_VIEWS, OVERDUE_DAYS, EXPIRING_SOON_DAYS, STALE_PENDING_HOURS, PAYMENT_METHODS, REFUND_METHODS,
+  collectionFloorCents, AWAITING_PICKUP, HAS_BOOKS, NOTE_MAX, ORDER_VIEWS, OVERDUE_DAYS, EXPIRING_SOON_DAYS, STALE_PENDING_HOURS, PAYMENT_METHODS, REFUND_METHODS,
 };

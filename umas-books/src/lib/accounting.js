@@ -19,7 +19,12 @@
 //     gets a NEGATIVE Membership row (a refund row, same wording as the other refunds) on the day the reversal was
 //     seen (membership_payments.reversed_at), exactly like a refunded reservation
 //   - refunded reservations: the original sale stays on its day, and a NEGATIVE row dated at the
-//     refund (same category and method as the sale) corrects it in the export of the month the refund happened
+//     refund (same category as the sale) corrects it in the export of the month the refund happened.
+//     The refund row's METHOD is how the money was given back (orders.refund_method, migration 095):
+//     cash from the drawer -> Cash (530), card refund on the terminal -> Card at the till, bank transfer
+//     -> Bank transfer, other -> Other / not recorded. So a card sale refunded in cash lowers Cash, exactly
+//     like the drawer count (lib/till.js daySummary). Only a refund with no recorded method (every refund
+//     made before migration 095) falls back to the sale's own method, as before.
 //   - over/short from the day closing (till_days.difference_cents), as its own row
 // The opening float is a loan to the drawer, never revenue: it appears nowhere here.
 // Each row also carries a label (libellé), debit account, credit account and journal from the
@@ -30,7 +35,9 @@ const { SITE_TIME_ZONE } = require("./tz");
 const TZ = SITE_TIME_ZONE;
 
 const CATEGORY_ORDER = ["Books used", "Books new", "Merchandise", "Refreshments", "Class seats", "Membership", "Donation", "Other", "Discount"];
-const METHOD_ORDER = ["Cash", "Card at the till", "Cheque", "HelloAsso", "Other / not recorded"];
+// "Bank transfer" only ever appears on refund rows (a refund paid by transfer): nothing is SOLD by transfer.
+const TRANSFER = "Bank transfer";
+const METHOD_ORDER = ["Cash", "Card at the till", "Cheque", "HelloAsso", TRANSFER, "Other / not recorded"];
 
 const OVER = "Cash over/short";
 const OVER_IN = "Cash over";
@@ -38,7 +45,11 @@ const OVER_OUT = "Cash short";
 const DISCOUNT = "Discount";
 
 // Defaults, to confirm with the treasurer. Debit: where the money lands; credit: the income account.
-const DEBIT_DEFAULT = { Cash: ["530", "CA"], "Card at the till": ["511", "BQ"], Cheque: ["511", "BQ"], HelloAsso: ["511", "BQ"], "Other / not recorded": ["471", "OD"] };
+// A refund paid by bank transfer leaves the bank: by default the same bank-side account and journal as the other
+// bank methods (511, BQ); the treasurer may prefer 512 (Banque) and can change it on the mapping page.
+const DEBIT_DEFAULT = {
+  Cash: ["530", "CA"], "Card at the till": ["511", "BQ"], Cheque: ["511", "BQ"], HelloAsso: ["511", "BQ"], [TRANSFER]: ["511", "BQ"], "Other / not recorded": ["471", "OD"],
+};
 const CREDIT_DEFAULT = {
   "Books used": "707", "Books new": "707", Merchandise: "707", Refreshments: "707", "Class seats": "706", Membership: "756", Donation: "754", Other: "708",
   // 709 = rabais, remises et ristournes accordes. The discount row is NEGATIVE, so the income stays at list price in 707
@@ -74,7 +85,7 @@ const FR_CATEGORY = {
   "Books used": "livres d'occasion", "Books new": "livres neufs", Merchandise: "marchandises", Refreshments: "boissons et restauration",
   "Class seats": "places de cours", Membership: "adhésions", Donation: "dons", Other: "autres ventes", Discount: "remises",
 };
-const FR_METHOD = { Cash: "espèces", "Card at the till": "carte (caisse)", Cheque: "chèque", HelloAsso: "HelloAsso", "Other / not recorded": "mode non enregistré" };
+const FR_METHOD = { Cash: "espèces", "Card at the till": "carte (caisse)", Cheque: "chèque", HelloAsso: "HelloAsso", [TRANSFER]: "virement", "Other / not recorded": "mode non enregistré" };
 function labelFor(category, method, date, refund) {
   if (category === OVER) return `${method === OVER_IN ? "Écart de caisse en plus" : "Écart de caisse en moins"} ${date}`;
   if (category === DISCOUNT) return `${refund ? "Annulation de remise au retrait d'une réservation" : "Remise accordée au retrait d'une réservation"}, ${FR_METHOD[method] || method}, ${date}`;
@@ -91,16 +102,21 @@ const METHOD_SQL = (col) => `CASE ${col} WHEN 'cash' THEN 'Cash' WHEN 'card' THE
 const ORDER_METHOD_SQL = `CASE WHEN o.payment_method IS NULL OR o.payment_method IN ('helloasso', 'online') THEN 'HelloAsso'
   WHEN o.payment_method = 'cash' THEN 'Cash' WHEN o.payment_method = 'card' THEN 'Card at the till'
   WHEN o.payment_method = 'cheque' THEN 'Cheque' ELSE 'Other / not recorded' END`;
+// How a reservation REFUND was paid out (orders.refund_method), as an export method; `fallback` (the sale's own
+// method) only when no refund method was recorded (refunds made before migration 095).
+const REFUND_METHOD_SQL = (fallback) => `CASE o.refund_method WHEN 'cash' THEN 'Cash' WHEN 'card' THEN 'Card at the till'
+  WHEN 'transfer' THEN '${TRANSFER}' WHEN 'other' THEN 'Other / not recorded' ELSE ${fallback} END`;
 // Orders collected at the till are counted from the till's own lines (exactly once).
 const TILL_COLLECTED = "EXISTS (SELECT 1 FROM till_sale_items ti WHERE ti.reservation_order_id = o.id)";
 const CATEGORY_SQL = `CASE i.category WHEN 'books_used' THEN 'Books used' WHEN 'books_new' THEN 'Books new' WHEN 'merchandise' THEN 'Merchandise'
-  WHEN 'refreshments' THEN 'Refreshments' WHEN 'donation' THEN 'Donation' ELSE 'Other' END`;
+  WHEN 'refreshments' THEN 'Refreshments' WHEN 'donation' THEN 'Donation' WHEN 'class_seats' THEN 'Class seats' ELSE 'Other' END`;
 
 // Orders collected for LESS than the list price of their lines (the "Amount received" discount of
-// "Mark collected and paid"): { id, status, paid_at, refunded_at, method, cents = list price - received }.
+// "Mark collected and paid"): { id, status, paid_at, refunded_at, method, refund_method (how a refund was paid
+// out, as an export method; the sale's method when not recorded), cents = list price - received }.
 // Only orders that record the discount (reserved_total and amount_received set by collectReservationTx)
 // and were not collected at the till; whole cents on both sides, so no rounding drift for any number of lines.
-const DISCOUNT_ORDERS_SQL = `SELECT o.id, o.status, o.paid_at, o.refunded_at, ${ORDER_METHOD_SQL} AS method,
+const DISCOUNT_ORDERS_SQL = `SELECT o.id, o.status, o.paid_at, o.refunded_at, ${ORDER_METHOD_SQL} AS method, ${REFUND_METHOD_SQL(ORDER_METHOD_SQL)} AS refund_method,
          (SUM(ROUND(oi.price * 100))::bigint - ROUND(o.total_amount * 100)::bigint) AS cents
        FROM orders o JOIN order_items oi ON oi.order_id = o.id
        WHERE o.status IN ('paid', 'refunded') AND o.paid_at IS NOT NULL AND o.reserved_total IS NOT NULL
@@ -139,13 +155,14 @@ async function accountingRows(db, from, to) {
               CASE WHEN oi.class_dropin_seat_id IS NOT NULL THEN 'Class seats'
                    WHEN oi.book_copy_id IS NOT NULL AND c.condition = 'new' THEN 'Books new'
                    WHEN oi.book_copy_id IS NOT NULL THEN 'Books used' ELSE 'Other' END,
-              ${ORDER_METHOD_SQL}, -1, -ROUND(oi.price * 100)::bigint, true
+              ${REFUND_METHOD_SQL(ORDER_METHOD_SQL)}, -1, -ROUND(oi.price * 100)::bigint, true
        FROM order_items oi JOIN orders o ON o.id = oi.order_id LEFT JOIN book_copies c ON c.id = oi.book_copy_id
        WHERE o.status = 'refunded' AND o.paid_at IS NOT NULL AND o.refunded_at IS NOT NULL AND NOT ${TILL_COLLECTED} AND ${inRange("o.refunded_at", 1, 2)}
        UNION ALL
        -- a refunded reservation that was collected at the till: the sale is already a till row, so only the
-       -- reversal is added here, from the same till lines (same category and method), on the refund day
-       SELECT (o.refunded_at AT TIME ZONE '${TZ}')::date, ${CATEGORY_SQL}, ${METHOD_SQL("s.payment_method")},
+       -- reversal is added here, from the same till lines (same category), on the refund day, under the method the
+       -- refund was paid out with (the till sale's method only when none was recorded)
+       SELECT (o.refunded_at AT TIME ZONE '${TZ}')::date, ${CATEGORY_SQL}, ${REFUND_METHOD_SQL(METHOD_SQL("s.payment_method"))},
               -i.quantity::int, -(i.quantity * i.unit_price_cents)::bigint, true
        FROM till_sale_items i JOIN till_sales s ON s.id = i.sale_id JOIN orders o ON o.id = i.reservation_order_id
        WHERE s.status = 'completed' AND o.status = 'refunded' AND o.refunded_at IS NOT NULL AND ${inRange("o.refunded_at", 1, 2)}
@@ -162,11 +179,12 @@ async function accountingRows(db, from, to) {
        WHERE mp.reversed_at IS NOT NULL AND mp.reversed_amount_cents IS NOT NULL AND ${inRange("mp.reversed_at", 1, 2)}
        UNION ALL
        -- the discount given at pickup (list price of the lines minus what was received), one negative amount per order
-       -- on the day it was paid, reversed (positive, a refund row) on the day the reservation was refunded
+       -- on the day it was paid, reversed (positive, a refund row) on the day the reservation was refunded, under the
+       -- refund's method like the reversed lines, so the refund nets to what was received
        SELECT (disc.paid_at AT TIME ZONE '${TZ}')::date, '${DISCOUNT}', disc.method, 0, -disc.cents, false
        FROM disc WHERE ${inRange("disc.paid_at", 1, 2)}
        UNION ALL
-       SELECT (disc.refunded_at AT TIME ZONE '${TZ}')::date, '${DISCOUNT}', disc.method, 0, disc.cents, true
+       SELECT (disc.refunded_at AT TIME ZONE '${TZ}')::date, '${DISCOUNT}', disc.refund_method, 0, disc.cents, true
        FROM disc WHERE disc.status = 'refunded' AND disc.refunded_at IS NOT NULL AND ${inRange("disc.refunded_at", 1, 2)}
      )
      SELECT to_char(d, 'YYYY-MM-DD') AS date, category, method, SUM(n)::int AS count, SUM(cents)::bigint AS cents, rf AS refund
@@ -223,6 +241,7 @@ async function accountingExportReport(db, ctx) {
   const notes = [
     "Days are Paris days. Voided till sales and cancelled reservations are not included. No customer data appears here.",
     "A refunded reservation keeps its row on the day it was paid and gets a NEGATIVE row (negative count and total) on the day it was refunded, so a month already given to the treasurer is corrected in the month of the refund.",
+    "The negative refund row is under the way the money was GIVEN BACK, as recorded with \"Mark refunded\": cash from the till drawer is Cash, a card refund on the terminal is Card at the till, a bank transfer is Bank transfer, anything else is Other / not recorded. So a card sale refunded in cash lowers Cash (as the drawer count does), not Card. A refund recorded before the method was asked keeps the method of the sale.",
     "A reservation collected for less than its list price (a discount given at pickup) keeps its lines at the list price and adds one NEGATIVE \"Discount\" row per day and payment method (credit account 709 by default), so the export of that reservation is exactly what was received. If it is refunded, the refund reverses what was received: the lines are reversed and the discount row is reversed too (a positive Discount refund row) on the refund day.",
     "A closed day with a cash difference adds one \"Cash over/short\" row (positive: over, negative: short). The opening float is never revenue and is not in this export.",
     "Books and class seats are reserved on the website and paid IN PERSON: a reservation collected at the till is counted once, from the till, and one collected with \"Mark collected and paid\" is counted under the method the staff chose (Cash, Card at the till, Cheque, or Other / not recorded). Only Membership comes from HelloAsso (the membership payments); a HelloAsso row for books is an old order paid online before reservations existed.",
@@ -247,5 +266,5 @@ async function accountingExportReport(db, ctx) {
 }
 
 module.exports = {
-  accountingExportReport, accountingRows, salesTotals, loadMapping, defaultMapping, mappingKeys, ACCOUNT_RE, JOURNAL_RE, CATEGORY_ORDER, METHOD_ORDER, OVER, OVER_IN, OVER_OUT, DISCOUNT, DISCOUNT_ORDERS_SQL, TILL_COLLECTED,
+  accountingExportReport, accountingRows, salesTotals, loadMapping, defaultMapping, mappingKeys, ACCOUNT_RE, JOURNAL_RE, CATEGORY_ORDER, METHOD_ORDER, OVER, OVER_IN, OVER_OUT, DISCOUNT, TRANSFER, DISCOUNT_ORDERS_SQL, TILL_COLLECTED,
 };
