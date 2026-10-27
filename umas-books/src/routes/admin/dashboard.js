@@ -10,6 +10,7 @@ const tillLib = till;
 const { todayParis } = require("../../lib/reports");
 const { formatTime } = require("../../lib/dates");
 const { runLimited, cachedFor } = require("../../lib/runLimited");
+const { checkNodeVersion } = require("../../lib/nodeVersion");
 
 const DASHBOARD_CONCURRENCY = 3;
 
@@ -106,9 +107,13 @@ router.get("/admin", requireAdmin, async (req, res) => {
   }
   if (voidsToday.length > 10) tillItems.push({ href: `/admin/till/day?day=${today}`, text: `Till: ${voidsToday.length - 10} more void(s) today. See the end of day.` });
 
+  // A stale Node.js runtime (older than the table in lib/nodeVersion.js): no query, no network.
+  const node = checkNodeVersion();
+  const nodeItems = node.ok ? [] : [{ href: "/admin/diagnostics/client-ip", text: `Node.js ${node.version} is older than ${node.minimum} (security fixes). See the runbook, "Node.js security updates".` }];
+
   res.render("admin/index", {
     active: "overview",
-    outboxAttention: [...attentionFromMail, ...tillItems],
+    outboxAttention: [...attentionFromMail, ...tillItems, ...nodeItems],
     stats: {
       ...sales,
       inStockCount: books.in_stock,

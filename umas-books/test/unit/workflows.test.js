@@ -144,7 +144,8 @@ test("the uptime check runs hourly (Actions minutes budget), not every 30 minute
 test("Node version: one source (umas-books/.node-version); workflows read it, nothing hard-codes it", () => {
   const nodeVersion = fs.readFileSync(path.join(repoRoot, "umas-books", ".node-version"), "utf8").trim();
   const pkg = JSON.parse(fs.readFileSync(path.join(repoRoot, "umas-books", "package.json"), "utf8"));
-  assert.equal(pkg.engines.node, `${nodeVersion}.x`, "package.json engines agrees with .node-version");
+  assert.match(nodeVersion, /^\d+\.\d+\.\d+$/, ".node-version is an exact pinned version (Render may not rebuild a floating major)");
+  assert.equal(pkg.engines.node, `${nodeVersion.split(".")[0]}.x`, "package.json engines agrees with the .node-version major");
   for (const f of files) {
     const src = read(f);
     assert.doesNotMatch(src, /node-version: ["']?\d/, `${f}: no literal node-version`);

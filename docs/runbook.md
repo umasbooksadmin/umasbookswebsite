@@ -44,7 +44,7 @@ alphabetical order on the page, so use this list. The letter `j` is deliberately
 
 **Regular routines, setup and reference**
 
-- [d) Where alerts go](#d-where-alerts-go); [e) Quarterly and yearly calendar](#e-quarterly-and-yearly-calendar); [t) GitHub Actions minutes (private repository)](#t-github-actions-minutes-private-repository); [af) Nightly inventory export](#af-nightly-inventory-export); [ag) Database connections](#ag-database-connections)
+- [an) Node.js security updates: how to update](#an-nodejs-security-updates-how-to-update); [d) Where alerts go](#d-where-alerts-go); [e) Quarterly and yearly calendar](#e-quarterly-and-yearly-calendar); [t) GitHub Actions minutes (private repository)](#t-github-actions-minutes-private-repository); [af) Nightly inventory export](#af-nightly-inventory-export); [ag) Database connections](#ag-database-connections)
 - Backups, encryption, retention: [ad) Encrypting the backups, restore drill, read-only backup user, yearly rotation](#ad-encrypting-the-backups-restore-drill-read-only-backup-user-yearly-rotation); [aj) Keeping records for 10 years](#aj-keeping-records-for-10-years)
 - Staging (the test system): [ai) Test system (staging)](#ai-test-system-staging)
 - Adding a setting (environment variable): [al) Adding or changing a setting](#al-adding-or-changing-a-setting-environment-variable)
@@ -511,11 +511,16 @@ the UptimeRobot "DOWN" alert) is in section r) "When you receive an alert".
   expires **2027-08-22** (the DNS is also managed there). Check auto-renew and
   the payment card a month before, and that the registrant/recovery email
   is one the association controls (section v).
+- **Node.js security releases: check every month** (and whenever Render emails
+  you): https://nodejs.org/en/blog/vulnerability. The version is pinned exactly,
+  so it does not update itself: [an) Node.js security updates](#an-nodejs-security-updates-how-to-update).
 - **Node 22 end of life: April 2027.** Move to the next LTS before then. The
   version is set in two places and both must change together:
-  `umas-books/.node-version` (every workflow reads this file) and `engines`
-  in `umas-books/package.json`; also update the sentence "Requires Node 22"
-  in `umas-books/README.md` and the one in `umas-books/ARCHITECTURE.md`. Do it in one pull request and let CI test it.
+  `umas-books/.node-version` (an exact version such as `24.22.1`; every workflow
+  and Render read this file) and `engines` in `umas-books/package.json` (the
+  major, e.g. `24.x`); also update the sentence "Requires Node 22"
+  in `umas-books/README.md`, the one in `umas-books/ARCHITECTURE.md`, and the
+  table in `umas-books/src/lib/nodeVersion.js`. Do it in one pull request and let CI test it.
 - **GitHub Actions minutes:** the repo is private, so minutes are metered and
   when they run out the backups stop. Check usage **every month** and keep a
   spending limit set: section t).
@@ -3573,3 +3578,27 @@ settings: they are constants in `src/lib/legal.js`, read by pages as `legalText.
 dictionaries as `{contactEmail}`, `{siret}`, `{siren}`, `{rna}`, `{registeredOffice}` tokens; a test fails if one is
 typed anywhere else under `src/` or `views/`. The static files under `assets/` cannot import them and still carry
 the address in their own text.
+
+## an) Node.js security updates: how to update
+
+Render emailed on 2026-10-27: Node.js published security fixes on 2026-10-20/21
+(TLS hostname check bypass, a Brotli decompression flaw, a certificate authority
+removed from the trusted list) and asks apps to run **22.23.4**, 24.22.1 or
+26.12.1 or later in the same major. The app is pinned to `22.23.4`.
+
+1. Find the new version number (Render's email, or https://nodejs.org/en/blog/vulnerability).
+2. Put the exact version (for example `22.23.5`, no `v`) in `umas-books/.node-version`
+   and the same number for that major in the `MINIMUM_NODE` table in
+   `umas-books/src/lib/nodeVersion.js`. Leave `engines` (`22.x`) alone. Do not set a
+   `NODE_VERSION` variable on Render: it would override the file (and a test forbids it in the workflows).
+3. Open the pull request, wait for the six checks, merge. Render redeploys by itself.
+4. When the deploy is live, open **Admin > Diagnostics > client IP**
+   (`/admin/diagnostics/client-ip`): the row "Node.js (running now)" must show the new
+   version. If it is older than the table, the same page shows a WARNING row and the
+   dashboard "Needs attention" box lists it. If it did not change, trigger **Manual Deploy >
+   Clear build cache & deploy** on Render.
+
+Pinning means a new security release is NOT picked up automatically: put a monthly
+reminder in the calendar to check https://nodejs.org/en/blog/vulnerability, and read
+Render's emails. The check on the diagnostics page needs no network and only knows the
+table, so keep the table up to date.

@@ -30,9 +30,9 @@ case-insensitive shelf locations.
 
 ## Local development
 
-Requires **Node 22** (production and CI run 22; the version is pinned in `.node-version`, which CI also reads, and `package.json` says `22.x`) and a
+Requires **Node 22** (production and CI run the exact version pinned in `.node-version`, currently `22.23.4`, which CI and Render also read; `package.json` says `22.x`) and a
 local PostgreSQL server. If you have a newer Node installed, use a version
-manager (`nvm use 22`, `fnm use 22` or `brew install node@22`) rather than
+manager (`nvm use`, `fnm use` or `brew install node@22`) rather than
 running on the newer one: native modules and test timing can differ.
 
 ### Where to keep your working copy

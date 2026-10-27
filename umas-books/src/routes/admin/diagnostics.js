@@ -4,6 +4,7 @@ const { requireAdmin } = require("../../middleware/auth");
 const { resolveTrustProxyHops } = require("../../lib/trustProxy");
 const { pool } = require("../../db");
 const { listJobRuns } = require("../../lib/jobRuns");
+const { checkNodeVersion } = require("../../lib/nodeVersion");
 
 const router = express.Router();
 
@@ -26,6 +27,7 @@ router.get("/admin/diagnostics/client-ip", requireAdmin, (req, res) => {
     cfConnectingIp: header("cf-connecting-ip"),
     trueClientIp: header("true-client-ip"),
     trustProxyHops: resolveTrustProxyHops().hops,
+    node: checkNodeVersion(),
   });
 });
 
