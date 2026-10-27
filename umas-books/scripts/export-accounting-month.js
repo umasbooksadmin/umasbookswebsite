@@ -8,7 +8,8 @@
 //   node scripts/export-accounting-month.js --year 2026 --out DIR          the year 2026
 //   node scripts/export-accounting-month.js --year last --out DIR          the last complete year
 //   --fiscal-start-month M   financial year starts in month M (default: env FISCAL_YEAR_START_MONTH, else 1)
-//   --force                  allow the current month or a future month (tests only)
+//   --force                  allow the current month or a future month (tests only; the workflow then
+//                            does not store the files, see output complete=false)
 //
 // Files (same CSV dialect as the admin export: UTF-8 BOM, semicolon, decimal comma, CRLF):
 //   accounting_<label>.csv  till_days_<label>.csv  summary_<label>.txt  email_body.txt
@@ -71,14 +72,16 @@ async function main(argv, now = new Date()) {
   fs.writeFileSync(path.join(a.out, names.accounting), result.accountingCsv);
   fs.writeFileSync(path.join(a.out, names.till), result.tillCsv);
   fs.writeFileSync(path.join(a.out, names.summary), result.summary);
-  fs.writeFileSync(path.join(a.out, names.email), ax.emailBody(range, result.stats));
+  const over = ax.isPeriodOver(range, now);
+  const testNote = over ? "" : `TEST RUN: ${range.label} is not over yet. These files are NOT stored in Backblaze and are not the accounting record of ${range.label}; the real export runs after the period ends.\n\n`;
+  fs.writeFileSync(path.join(a.out, names.email), testNote + ax.emailBody(range, result.stats));
   const s = result.stats;
   console.log(`Period ${range.label}: ${range.from} to ${range.to}`);
   console.log(`Accounting rows: ${s.accountingRows}; total ${ax.eurText(s.totalCents)} EUR`);
   console.log(`Till days: ${s.tillDays}; till sales: ${s.sales}; refunded reservations: ${s.refunds}; voided: ${s.voids}; unclosed days with sales: ${s.unclosedDays}`);
   console.log(`Files written: ${names.accounting}, ${names.till}, ${names.summary}, ${names.email}`);
   if (config.get("GITHUB_OUTPUT")) {
-    fs.appendFileSync(config.get("GITHUB_OUTPUT"), `label=${range.label}\nfolder=${range.folderYear}\ntotal=${ax.eurText(s.totalCents)}\nrows=${s.accountingRows}\n`);
+    fs.appendFileSync(config.get("GITHUB_OUTPUT"), `label=${range.label}\nfolder=${range.folderYear}\ntotal=${ax.eurText(s.totalCents)}\nrows=${s.accountingRows}\ncomplete=${over}\n`);
   }
   return result;
 }

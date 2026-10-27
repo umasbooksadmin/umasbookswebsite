@@ -17,9 +17,11 @@ name: Backup freshness check
 # is only a warning here (the nightly job's own warnings and weekly email cover
 # that), because the freshness alert means "no backup", which is not the case.
 # It also checks the two scheduled exports (.github/scripts/export-freshness.sh): from the 3rd of
-# each month (Paris) last month's accounting-exports/<year>/accounting_<YYYY-MM>.csv must exist,
-# and inventory-exports/ must hold a file written in the last 36 hours. Each has its own alert
-# email ("Accounting export for <month> is missing" / "Inventory export is missing") with the
+# each month (Paris) last month's accounting-exports/<year>/accounting_<YYYY-MM>.csv must exist
+# (written after the month ended), and last night's end-of-day inventory export
+# (inventory-exports/inventory_books_<yesterday>.csv, written at or after 21:00 Paris that day)
+# must exist; a manual or test run does not count. Each has its own alert email
+# ("Accounting export for <month> is missing" / "Inventory export for <day> is missing") with the
 # runbook steps; the job is marked failed at the very end so the run shows red.
 
 on:
@@ -209,7 +211,7 @@ jobs:
           BUCKET: ${{ vars.BACKUP_S3_BUCKET }}
         run: bash .github/scripts/export-freshness.sh accounting
 
-      - name: Check the inventory export is under 36 hours old
+      - name: Check last night's end-of-day inventory export exists
         id: inventory
         if: always()
         env:
@@ -260,13 +262,13 @@ jobs:
         with:
           username: ${{ secrets.GMAIL_USER }}
           password: ${{ secrets.GMAIL_APP_PASSWORD }}
-          subject: "[umas-books] Inventory export is missing (nothing stored in the last 36 hours)"
+          subject: "[umas-books] Inventory export for ${{ steps.inventory.outputs.label }} is missing"
           to: ${{ vars.ALERT_TO || 'admin@umasbooks.org' }}
           from-name: "Uma's Books Backup Monitor"
           body: |
-            No inventory export has been stored in Backblaze (folder inventory-exports/) in the last 36 hours (${{ steps.inventory.outputs.reason }}).
+            The end-of-day inventory export for ${{ steps.inventory.outputs.label }} is not in Backblaze (folder inventory-exports/): ${{ steps.inventory.outputs.reason }}
 
-            What to do: open GitHub > Actions > "Nightly inventory export" > Run workflow and run it, and make sure the workflow is enabled. You can also download the current inventory from the admin Inventory page. Runbook: docs/runbook.md, "What to do when the missing-export alert arrives" (section "Nightly inventory export").
+            What to do: open GitHub > Actions > "Nightly inventory export" and make sure the workflow is enabled, and look at last night's runs. A manual run (Run workflow) gives you the inventory as of now; the evening of ${{ steps.inventory.outputs.label }} cannot be exported after the fact. You can also download the current inventory from the admin Inventory page. Runbook: docs/runbook.md, "What to do when the missing-export alert arrives" (section "Nightly inventory export").
 
             This check: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
