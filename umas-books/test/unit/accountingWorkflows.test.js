@@ -27,23 +27,25 @@ const stepNamed = (text, re) => {
 };
 const names = (text, kind) => [...new Set([...text.matchAll(new RegExp(`${kind}\\.([A-Z0-9_]+)`, "g"))].map((m) => m[1]))].sort();
 
-test("monthly: runs at 05:00 and 06:00 UTC on the 1st, plus a manual run with the three inputs", () => {
-  assert.match(monthly, /- cron: "0 5 1 \* \*"/);
-  assert.match(monthly, /- cron: "0 6 1 \* \*"/);
-  assert.equal((monthly.match(/- cron:/g) || []).length, 2);
+test("monthly: crons on the 1st (05:00, 06:00 UTC) AND retries on the 2nd-3rd, plus a manual run with the three inputs", () => {
+  assert.deepEqual([...monthly.matchAll(/- cron: "([^"]+)"/g)].map((m) => m[1]), ["0 5 1 * *", "0 6 1 * *", "30 5 2-3 * *", "30 6 2-3 * *"]);
   assert.match(monthly, /workflow_dispatch:/);
   for (const input of ["month", "ignore_time_check", "allow_current_month"]) assert.match(monthly, new RegExp(`^ {6}${input}:`, "m"));
 });
 
-test("monthly: the FIRST step is the Paris time gate (hour 7, day 1) and everything else waits for it", () => {
+test("monthly: the gate is idempotent (asks Backblaze via the shared script) and everything else waits for it", () => {
   const all = steps(monthly);
-  assert.match(all[0], /id: gate/);
-  assert.match(all[0], /TZ=Europe\/Paris date \+%H/);
-  assert.match(all[0], /TZ=Europe\/Paris date \+%d/);
-  assert.match(all[0], /"\$HOUR" = "7"/);
-  assert.match(all[0], /"\$DAY" = "1"/);
-  assert.match(all[0], /IGNORE: \$\{\{ inputs\.ignore_time_check \}\}/);
-  for (const s of all.slice(1)) {
+  assert.match(all[0], /actions\/checkout@/, "checkout first: the gate script lives in the repository");
+  assert.doesNotMatch(all[0], /if:/);
+  assert.match(all[1], /id: gate/);
+  assert.match(all[1], /run: bash \.github\/scripts\/export-gate\.sh accounting/);
+  assert.match(all[1], /IGNORE: \$\{\{ inputs\.ignore_time_check \}\}/);
+  assert.match(all[1], /MONTH_INPUT: \$\{\{ inputs\.month \}\}/);
+  assert.doesNotMatch(all[1], /HOUR/, "no longer exact-hour");
+  const gateScript = fs.readFileSync(path.join(root, ".github", "scripts", "export-gate.sh"), "utf8");
+  assert.match(gateScript, /"\$day" -gt 3/, "days 1-3 only");
+  assert.match(gateScript, /accounting-exports\/\$\{py\}\/accounting_\$\{label\}\.csv/);
+  for (const s of all.slice(2)) {
     if (/Alert admin/.test(s)) { assert.match(s, /if: failure\(\)/); continue; }
     assert.match(s, /if: steps\.gate\.outputs\.run == 'true'/, s.split("\n")[0]);
   }
@@ -155,11 +157,28 @@ test("freshness: the yearly copy is only a warning, never required, and only che
   assert.doesNotMatch(stepNamed(freshness, /Check the newest nightly dump/), /yearly/);
 });
 
+test("freshness: from the 3rd the accounting export and a 36-hour inventory export are required, with their own alert emails", () => {
+  const acc = stepNamed(freshness, /Check last month's accounting export exists/);
+  assert.match(acc, /export-freshness\.sh accounting/);
+  assert.match(acc, /if: always\(\)/);
+  assert.match(stepNamed(freshness, /Check the inventory export is under 36 hours/), /export-freshness\.sh inventory/);
+  const mail = stepNamed(freshness, /Alert admin if last month's accounting export is missing/);
+  assert.match(mail, /if: always\(\) && steps\.accounting\.outputs\.missing == 'true'/);
+  assert.match(mail, /subject: "\[umas-books\] Accounting export for \$\{\{ steps\.accounting\.outputs\.label \}\} is missing"/);
+  assert.match(mail, /docs\/runbook\.md, "What to do when the missing-export alert arrives"/);
+  assert.match(mail, /Run workflow/);
+  assert.match(stepNamed(freshness, /Alert admin if the inventory export is missing/), /subject: "\[umas-books\] Inventory export is missing/);
+  assert.match(stepNamed(freshness, /Mark the run failed/), /exit 1/);
+  const script = fs.readFileSync(path.join(root, ".github", "scripts", "export-freshness.sh"), "utf8");
+  assert.match(script, /"\$day" -lt 3/);
+  assert.match(script, /MAX_AGE_HOURS:-36/);
+});
+
 test("runbook: the section exists with the owner steps, the lifecycle values and the config types", () => {
   const m = runbook.match(/^## ([a-z]+)\) Keeping records for 10 years$/m);
   assert.ok(m, "section heading");
   const body = runbook.slice(runbook.indexOf(m[0]), runbook.indexOf("\n## ", runbook.indexOf(m[0]) + 5));
-  for (const needle of ["store-backups/yearly/", "accounting-exports/", "`3650`", "ACCOUNTING_TO", "FISCAL_YEAR_START_MONTH", "repository variable", "Variables** tab", "paper", "USB", "January", "October", "force_yearly", "Backblaze **bucket setting**", "Paheko"]) {
+  for (const needle of ["store-backups/yearly/", "accounting-exports/", "`3650`", "ACCOUNTING_TO", "FISCAL_YEAR_START_MONTH", "repository variable", "Variables** tab", "paper", "USB", "January", "October", "force_yearly", "Backblaze **bucket setting**", "Paheko", "What to do when the missing-export alert arrives", "Monthly accounting export"]) {
     assert.ok(body.includes(needle), `runbook mentions ${needle}`);
   }
   assert.doesNotMatch(runbook, /\bSEC\)/, "no placeholder letter left");

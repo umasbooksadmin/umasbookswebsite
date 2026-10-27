@@ -11,23 +11,25 @@ const path = require("node:path");
 const wf = fs.readFileSync(path.join(__dirname, "..", "..", "..", ".github", "workflows", "inventory-export.yml"), "utf8");
 const code = wf.split("\n").filter((l) => !/^\s*#/.test(l)).join("\n"); // without comment lines
 
-test("scheduled at 19:00 and 20:00 UTC, and only goes on when it is 21h in Paris", () => {
-  assert.deepEqual([...code.matchAll(/- cron: "([^"]+)"/g)].map((m) => m[1]), ["0 19 * * *", "0 20 * * *"]);
-  assert.match(code, /TZ=Europe\/Paris date \+%H/);
-  assert.match(code, /\[ "\$hour" = "21" \]/);
-  // the no-op path succeeds (no exit 1 in the gate step) with a notice
-  const gate = code.match(/- name: Only go on at 21:00 in Paris[\s\S]*?(?=\n {6}- )/)[0];
+test("scheduled at 19:00, 20:00 (summer/winter 21h) plus retries at 21:00 and 22:00 UTC; the gate asks Backblaze", () => {
+  assert.deepEqual([...code.matchAll(/- cron: "([^"]+)"/g)].map((m) => m[1]), ["0 19 * * *", "0 20 * * *", "0 21 * * *", "0 22 * * *"]);
+  const gate = code.match(/- name: Only go on from 21h in Paris[\s\S]*?(?=\n {6}- )/)[0];
+  assert.match(gate, /run: bash \.github\/scripts\/export-gate\.sh inventory/);
+  assert.match(gate, /id: gate/);
+  const script = fs.readFileSync(path.join(__dirname, "..", "..", "..", ".github", "scripts", "export-gate.sh"), "utf8");
+  assert.match(script, /"\$hour" -lt 21/);
+  assert.match(script, /inventory-exports\/inventory_books_\$\{date_part\}\.csv/);
   assert.doesNotMatch(gate, /exit [1-9]/);
-  assert.match(gate, /::notice/);
 });
 
-test("every real step waits for the time check; manual runs can skip it", () => {
+test("every real step waits for the gate; manual runs can skip it", () => {
   assert.match(code, /workflow_dispatch:\n {4}inputs:\n {6}ignore_time_check:\n(?:.*\n)*? {8}type: boolean/);
   assert.match(code, /IGNORE: \$\{\{ inputs\.ignore_time_check \}\}/);
   const steps = code.split(/\n {6}- /).slice(1);
-  const gateStep = steps.find((s) => s.startsWith("name: Only go on at 21:00"));
+  assert.match(steps[0], /^uses: actions\/checkout@/, "checkout first: the gate script lives in the repository");
+  const gateStep = steps.find((s) => s.startsWith("name: Only go on from 21h"));
   assert.ok(gateStep);
-  for (const s of steps) {
+  for (const s of steps.slice(1)) {
     if (s === gateStep || /^name: Alert admin/.test(s)) continue;
     assert.match(s, /if: steps\.gate\.outputs\.run == 'true'/, s.split("\n")[0]);
   }
@@ -54,7 +56,7 @@ test("uses the existing secrets and variables by name only, no new ones, no lite
 });
 
 test("uploads the dated, books and latest files to inventory-exports/ in the backup bucket", () => {
-  assert.match(code, /inventory_\$\{DAY\}\.csv" "inventory_books_\$\{DAY\}\.csv" "inventory_latest\.csv"/);
+  assert.match(code, /inventory_\$\{DAY\}\.csv" "inventory_latest\.csv" "inventory_books_\$\{DAY\}\.csv"/); // the books file LAST: it is the "done" marker of the gate
   assert.match(code, /s3:\/\/\$\{BUCKET\}\/inventory-exports\/\$f/);
   assert.match(code, /--endpoint-url "\$ENDPOINT"/);
 });

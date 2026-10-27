@@ -112,6 +112,7 @@ const TABLES = {
   curated_collections: "kept", // the 19 seeded shelves (titles, prompts, published or not) are settings, not test data; only their book lists (curated_collection_books) are shop data
   managed_genres: "kept", // the managed genre list (EN/FR names, Browse buttons): settings, not test data
   genre_rules: "kept", // the rules that slot raw genres into the managed ones: settings
+  db_size_snapshots: "kept", // weekly database-size snapshots (monitoring numbers only, no personal data)
   lookup_source_stats: "kept", // aggregate lookup counts per day and catalog (no personal data)
 };
 

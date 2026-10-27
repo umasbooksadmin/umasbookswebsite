@@ -112,6 +112,7 @@ function jobSpecs(pool) {
   const lookupStats = require("./lib/lookupStats");
   const aiUsageStats = require("./lib/aiUsageStats");
   const { pruneStaleGuestSessions } = require("./lib/sessionPrune");
+  const { runDbSizeCheck } = require("./lib/dbSize");
 
   return [
     // Belt-and-suspenders backstop for the 2-week reservation expiry (page reads already
@@ -245,6 +246,20 @@ function jobSpecs(pool) {
       run: async () => {
         const removed = await pruneStaleGuestSessions(pool);
         if (removed) console.log("Guest session prune:", JSON.stringify({ removed }));
+      },
+    },
+    // Database size (lib/dbSize.js): covers and photos live in the database, so its size is watched. Weekly: stores a
+    // snapshot (last 120 kept) and warns (dashboard line + one email a week) from 70% of DB_PLAN_STORAGE_MB, again from 90%.
+    // Not at boot (a restart-heavy host would repeat it): first run 10 minutes after boot; the snapshot itself is skipped
+    // when one is under 6 days old.
+    {
+      name: "Database size check",
+      label: "Weekly snapshot of the database size and a warning when it nears the plan's storage limit.",
+      everyMs: 7 * DAY,
+      firstRunAfterMs: 10 * MINUTE,
+      run: async () => {
+        const r = await runDbSizeCheck(pool);
+        console.log("Database size check:", JSON.stringify(r));
       },
     },
     // Awards & best-seller lists (lib/awards): every 2 minutes a few never-checked books, retries, a yearly

@@ -1,0 +1,44 @@
+<%- include('../partials/admin_header', { title: 'Database size', active: active, pageTitle: 'Database size', pageSub: 'How full the database is. Covers and photos are stored in it. Read-only.' }) %>
+
+<div class="card" id="database-size">
+  <div class="section-title">Database size</div>
+  <% const a = assessment; %>
+  <% const when = (d) => new Date(d).toLocaleString('en-GB', { timeZone: 'Europe/Paris', dateStyle: 'medium', timeStyle: 'short' }); %>
+  <p><strong id="db-total"><%= fmtBytes(sizes.dbBytes) %></strong> in total<% if (a.known) { %> of <strong><%= a.limitMb %> MB</strong> (the plan): <strong id="db-percent"><%= a.percent %>%</strong> full.<% } else { %>.<% } %></p>
+
+  <% if (a.level === 'critical') { %>
+    <div class="error-box" role="alert" id="db-level"><strong>Over 90% full.</strong> Upgrade the database plan in Render now (runbook: &ldquo;Database size monitoring&rdquo;).</div>
+  <% } else if (a.level === 'warning') { %>
+    <div class="error-box" role="alert" id="db-level"><strong>Over 70% full.</strong> Plan an upgrade of the database plan in Render (runbook: &ldquo;Database size monitoring&rdquo;).</div>
+  <% } else if (a.level === 'ok') { %>
+    <p id="db-level" class="muted">Below the 70% warning level.</p>
+  <% } else { %>
+    <p id="db-level" class="muted">The plan&rsquo;s storage limit is not known: set <code>DB_PLAN_STORAGE_MB</code> in Render to get a warning (Render &gt; the database &gt; Info shows the limit; then <code>umas-books</code> &gt; Environment).</p>
+  <% } %>
+
+  <table class="ann-table">
+    <tbody>
+      <tr><th scope="row">Images table (covers and photos)</th><td id="db-images"><%= fmtBytes(sizes.imagesBytes) %> in <%= sizes.imageCount %> image(s)</td></tr>
+      <tr><th scope="row">Growth since the last weekly snapshot</th><td id="db-growth">
+        <% if (sizes.previous) { %>
+          <%= sizes.growthBytes >= 0 ? '+' : '-' %><%= fmtBytes(Math.abs(sizes.growthBytes)) %> since <%= when(sizes.previous.takenAt) %> (was <%= fmtBytes(sizes.previous.dbBytes) %>)
+        <% } else { %>
+          No snapshot yet: the first one is taken about 10 minutes after the next start of the site, then every week.
+        <% } %>
+      </td></tr>
+    </tbody>
+  </table>
+
+  <div class="section-title" style="margin-top:1rem">The 5 biggest tables</div>
+  <table class="ann-table" id="db-top-tables">
+    <thead><tr><th scope="col">Table</th><th scope="col">Size (with indexes)</th></tr></thead>
+    <tbody>
+      <% sizes.topTables.forEach(function (t) { %>
+      <tr><th scope="row"><code><%= t.name %></code></th><td><%= fmtBytes(t.bytes) %></td></tr>
+      <% }) %>
+    </tbody>
+  </table>
+  <p class="muted small">A weekly job takes a snapshot (the last 120 are kept) and sends one email a week from 70% of the plan, and a stronger one from 90%. Runbook: <code>docs/runbook.md</code>, &ldquo;Database size monitoring&rdquo;. <a href="/admin/diagnostics/jobs">Background jobs</a></p>
+</div>
+
+<%- include('../partials/admin_footer') %>

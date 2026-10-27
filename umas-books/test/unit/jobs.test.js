@@ -29,7 +29,7 @@ const EXPECTED_NAMES = [
   "Reservation expiry", "Pickup reminders", "Membership expiry", "Membership reconciliation",
   "Order follow-up", "Cart maintenance", "Email outbox",
   "Retention purge", "Order phone cleanup", "Contact mailbox reminder", "Image cleanup",
-  "Lookup statistics retention", "AI usage statistics retention", "Guest session prune", "Awards check", "Cover backfill",
+  "Lookup statistics retention", "AI usage statistics retention", "Guest session prune", "Database size check", "Awards check", "Cover backfill",
 ];
 
 afterEach(() => { mock.timers.reset(); mock.restoreAll(); });
@@ -62,6 +62,7 @@ test("the intervals and first-run delays are the ones the app has always used", 
     "Lookup statistics retention": [D, 0],
     "AI usage statistics retention": [D, 0],
     "Guest session prune": [15 * MIN, 20000],
+    "Database size check": [7 * D, 10 * MIN],
     "Awards check": [2 * MIN, undefined],
     "Cover backfill": [5 * MIN, MIN],
   });

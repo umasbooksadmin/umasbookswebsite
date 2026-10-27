@@ -58,4 +58,19 @@ router.get("/admin/diagnostics/lookup", requireAdmin, async (req, res) => {
   });
 });
 
+// The database size: how full the database is against the plan's limit (DB_PLAN_STORAGE_MB), what takes the room
+// (the images table first: covers and photos are stored there), and the growth since the last weekly snapshot.
+// Read-only. English only (admin area). See docs/runbook.md, "Database size monitoring".
+router.get("/admin/diagnostics/database", requireAdmin, async (req, res) => {
+  res.set("Cache-Control", "no-store");
+  const dbSize = require("../../lib/dbSize");
+  const sizes = await dbSize.readSizes(pool);
+  res.render("admin/diagnostics_database", {
+    active: "diagnostics",
+    sizes,
+    assessment: dbSize.assess(sizes.dbBytes),
+    fmtBytes: dbSize.fmtBytes,
+  });
+});
+
 module.exports = router;

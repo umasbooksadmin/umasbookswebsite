@@ -26,6 +26,10 @@ async function outboxAttention(db) {
     const credit = await creditAlertState(db);
     if (credit.active) items.push({ href: "/admin/reports/lookup-sources", text: `Anthropic API credit ran out at ${parisTime(new Date(credit.at).getTime())} (Paris time). The AI helpers are off until you add credit at console.anthropic.com > Settings > Billing.` });
   } catch { /* the dashboard must not depend on it */ }
+  // The database nears its plan's storage limit (lib/dbSize.js): only with DB_PLAN_STORAGE_MB set, from 70%.
+  try {
+    items.push(...(await require("./dbSize").dbSizeAttention(db)));
+  } catch { /* the dashboard must not depend on it */ }
   return items;
 }
 

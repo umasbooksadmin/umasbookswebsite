@@ -11,9 +11,14 @@ name: Monthly accounting export
 # accounting-exports/YYYY/ (plain, NOT encrypted: they hold no personal data and must stay
 # readable for 10 years without any key). Re-running a month overwrites the same files.
 #
-# The two cron lines (05:00 and 06:00 UTC) cover summer and winter time: the first step lets
-# only the run that is 07:xx in Paris on the 1st through. Manual run: Actions > this workflow
-# > Run workflow (optionally a month YYYY-MM; the time check is skipped).
+# The gate is IDEMPOTENT, not time-exact (.github/scripts/export-gate.sh): on days 1-3 of the
+# month (Paris), at ANY hour, the run goes on only if last month's
+# accounting-exports/YYYY/accounting_YYYY-MM.csv is ABSENT in Backblaze, and ends green with a
+# notice when it exists. So a scheduled run that GitHub delays or drops is simply retried by the
+# next cron line (05:00 and 06:00 UTC on the 1st; 05:30 and 06:30 UTC on the 2nd and 3rd), and
+# once the file exists the later lines do nothing. backup-freshness.yml emails if the file is
+# still missing from the 3rd on. Manual run: Actions > this workflow > Run workflow (optionally a
+# month YYYY-MM; the time and file checks are skipped).
 #
 # Needs: repository SECRET DATABASE_URL (the read-only backup_ro user), the BACKUP_S3_*
 # variables/secrets of the nightly backup, GMAIL_USER / GMAIL_APP_PASSWORD. Optional repository
@@ -23,8 +28,10 @@ name: Monthly accounting export
 
 on:
   schedule:
-    - cron: "0 5 1 * *" # 05:00 UTC = 07:00 Paris in summer (CEST)
-    - cron: "0 6 1 * *" # 06:00 UTC = 07:00 Paris in winter (CET)
+    - cron: "0 5 1 * *" # 05:00 UTC = 07:00 Paris in summer (CEST), 06:00 in winter
+    - cron: "0 6 1 * *" # 06:00 UTC = 08:00 Paris in summer, 07:00 in winter
+    - cron: "30 5 2-3 * *" # retry the next days if the file is still missing
+    - cron: "30 6 2-3 * *"
   workflow_dispatch:
     inputs:
       month:
@@ -33,7 +40,7 @@ on:
         default: ""
         type: string
       ignore_time_check:
-        description: "Run now even if it is not 07:00 Paris on the 1st"
+        description: "Run now, whatever the day and whether or not the file already exists"
         required: false
         default: true
         type: boolean
@@ -55,23 +62,21 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - name: Only run at 07:00 Paris time on the 1st
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Run only if last month's file is not in Backblaze yet (days 1-3)
         id: gate
         env:
           IGNORE: ${{ inputs.ignore_time_check }}
-        run: |
-          HOUR=$((10#$(TZ=Europe/Paris date +%H)))
-          DAY=$((10#$(TZ=Europe/Paris date +%d)))
-          if [ "$IGNORE" = "true" ] || { [ "$HOUR" = "7" ] && [ "$DAY" = "1" ]; }; then
-            echo "run=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "run=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::Paris time is day $DAY, hour $HOUR: not 07:00 on the 1st. Nothing to do (the other schedule line covers it)."
-          fi
-
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        # `|| failure()`: the failure alert below is a local action and needs the checkout even if the gate step itself broke.
-        if: steps.gate.outputs.run == 'true' || failure()
+          MONTH_INPUT: ${{ inputs.month }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_S3_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_APPLICATION_KEY }}
+          AWS_DEFAULT_REGION: ${{ vars.BACKUP_S3_REGION }}
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+          ENDPOINT: ${{ vars.BACKUP_S3_ENDPOINT }}
+          BUCKET: ${{ vars.BACKUP_S3_BUCKET }}
+        run: bash .github/scripts/export-gate.sh accounting
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         if: steps.gate.outputs.run == 'true'

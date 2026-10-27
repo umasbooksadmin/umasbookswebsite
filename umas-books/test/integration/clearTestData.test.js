@@ -150,6 +150,7 @@ async function plant() {
   // kept: operational bookkeeping, never cleared
   await db.query("INSERT INTO job_runs (name, interval_seconds, last_run_at, last_success_at) VALUES ('Email outbox', 60, now(), now())");
   await db.query("INSERT INTO alert_flags (key, last_sent_at) VALUES ('outbox-stuck', now())");
+  await db.query("INSERT INTO db_size_snapshots (db_bytes, images_bytes) VALUES (1000, 100)");
   await db.query("INSERT INTO lookup_source_stats (day, source, asked) VALUES (current_date, 'google', 1)");
   await db.query("INSERT INTO ai_usage_stats (day, feature, calls) VALUES (current_date, 'genre', 1)");
   await db.query("INSERT INTO ai_daily_cap (day, scope, calls) VALUES (current_date, 'all', 1)");
