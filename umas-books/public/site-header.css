@@ -353,7 +353,7 @@ footer.mkt-footer li a { display: inline-block; padding: 6px 0; }
 .bk-cart-btn::after { content: ""; position: absolute; right: 0; top: -14px; width: 44px; height: 44px; }
 .bk-cart-btn:hover { color: var(--maroon); }
 .bk-cart-btn:focus-visible { outline: 2px solid var(--maroon); outline-offset: 2px; }
-.bk-cart-in, .bk-cart-in:hover { color: var(--maroon); }
+.bk-cart .bk-cart-in, .bk-cart .bk-cart-in:hover { color: var(--maroon); } /* .bk-cart: beats the card's own link colour (.bk-book a) */
 .bk-cart-btn[aria-busy="true"] { opacity: 0.5; cursor: progress; }
 /* On a French page the icon's spoken name is text inside it (an aria-label cannot carry lang="en" for the title). */
 .bk-cart-name { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
