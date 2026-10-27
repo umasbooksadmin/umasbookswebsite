@@ -167,7 +167,7 @@ test("API: same JSON shape as /api/books/new-in and search (bookJson) plus genre
   assert.deepEqual(Object.keys(j), ["total", "nextOffset", "books"]);
   assert.deepEqual(Object.keys(j.books[0]), ["id", "title", "author", "coverUrl", "price", "buy", "url", "genre", "why"]);
   const ni = await (await get("/api/books/new-in?limit=1")).json();
-  assert.deepEqual(Object.keys(j.books[0]).slice(0, 6), Object.keys(ni.books[0]));
+  assert.deepEqual(Object.keys(j.books[0]).slice(0, 7), Object.keys(ni.books[0])); // the bookJson keys (with buy, the cart icon) and url
   assert.equal(r.headers.get("cache-control"), "public, max-age=60, s-maxage=60");
   assert.equal(r.headers.get("access-control-allow-origin"), "*");
   assert.equal(r.headers.get("cross-origin-resource-policy"), "cross-origin");
