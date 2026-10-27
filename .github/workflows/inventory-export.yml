@@ -20,14 +20,19 @@ name: Nightly inventory export
 on:
   schedule:
     # GitHub cron is UTC only. 21:00 Paris is 19:00 UTC in summer (CEST) and
-    # 20:00 UTC in winter (CET): both are scheduled and the first step lets only
-    # the run that falls in the 21:00 hour of Paris go on.
+    # 20:00 UTC in winter (CET). The gate (.github/scripts/export-gate.sh) is
+    # idempotent: from 21h to 23h Paris the run goes on only if today's file is
+    # not in Backblaze yet. So the two lines above do the export, and the two
+    # later ones are retries that cover a delayed or dropped run (and do
+    # nothing once the file exists).
     - cron: "0 19 * * *"
     - cron: "0 20 * * *"
+    - cron: "0 21 * * *"
+    - cron: "0 22 * * *"
   workflow_dispatch:
     inputs:
       ignore_time_check:
-        description: "Run now, even if it is not 21:00 in Paris (use this for a manual run)"
+        description: "Run now, even if it is not 21:00 in Paris or today's file already exists (use this for a manual run)"
         type: boolean
         default: true
 
@@ -43,22 +48,20 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - name: Only go on at 21:00 in Paris
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Only go on from 21h in Paris, if today's file is not in Backblaze yet
         id: gate
         env:
           IGNORE: ${{ inputs.ignore_time_check }}
-        run: |
-          hour=$(TZ=Europe/Paris date +%H)
-          if [ "$IGNORE" = "true" ] || [ "$hour" = "21" ]; then
-            echo "run=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "run=false" >> "$GITHUB_OUTPUT"
-            echo "::notice title=Inventory export skipped::It is ${hour}h in Paris, not 21h: the other of the two daily schedules does the export (this one exists for summer/winter time)."
-          fi
-
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        # `|| failure()`: the failure alert below is a local action and needs the checkout even if the gate step itself broke.
-        if: steps.gate.outputs.run == 'true' || failure()
+          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_S3_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_APPLICATION_KEY }}
+          AWS_DEFAULT_REGION: ${{ vars.BACKUP_S3_REGION }}
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+          ENDPOINT: ${{ vars.BACKUP_S3_ENDPOINT }}
+          BUCKET: ${{ vars.BACKUP_S3_BUCKET }}
+        run: bash .github/scripts/export-gate.sh inventory
 
       - name: Check the settings are all present
         if: steps.gate.outputs.run == 'true'
@@ -115,8 +118,9 @@ jobs:
         run: |
           # The folder name is what the bucket's lifecycle rule matches
           # (docs/runbook.md, "Nightly inventory export"): do not rename.
+          # inventory_books_<date>.csv goes LAST: export-gate.sh treats it as "today's export is done".
           dir="$RUNNER_TEMP/inventory"
-          for f in "inventory_${DAY}.csv" "inventory_books_${DAY}.csv" "inventory_latest.csv"; do
+          for f in "inventory_${DAY}.csv" "inventory_latest.csv" "inventory_books_${DAY}.csv"; do
             test -s "$dir/$f" || { echo "::error::$f is missing or empty."; exit 1; }
             aws s3 cp "$dir/$f" "s3://${BUCKET}/inventory-exports/$f" --endpoint-url "$ENDPOINT" --only-show-errors
           done

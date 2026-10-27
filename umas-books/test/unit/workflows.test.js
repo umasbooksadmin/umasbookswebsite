@@ -119,7 +119,7 @@ test("every workflow that emails: calls the local action, passes the two Gmail s
     assert.ok(co.length >= 1, `${f}: checkout before the first email step`);
     if (/sparse-checkout/.test(src)) assert.match(src, /\.github\/actions/, `${f}: sparse checkout includes .github/actions`);
   }
-  assert.equal(calls, 12, "12 email steps, as before the refactor");
+  assert.equal(calls, 14, "12 email steps as before the refactor + the two missing-export alerts");
 });
 
 test("the failure alerts still run on failure(), and uptime/freshness fetch the action only when they email", () => {
@@ -131,7 +131,8 @@ test("the failure alerts still run on failure(), and uptime/freshness fetch the 
   const up = read("uptime-check.yml");
   assert.match(up, /Fetch the alert-mail action\n(?:\s+#.*\n)*\s+if: steps\.decide\.outputs\.alert == 'true' \|\| steps\.decide\.outputs\.recovered == 'true'/);
   const fr = read("backup-freshness.yml");
-  assert.match(fr, /Fetch the alert-mail action\n(?:\s+#.*\n)*\s+if: failure\(\)/);
+  // freshness now fetches .github/actions AND .github/scripts first (its export checks run the scripts)
+  assert.match(fr, /Fetch the alert-mail action\n(?:\s+#.*\n)*\s+uses: actions\/checkout@[0-9a-f]{40}[^\n]*\n\s+with:\n\s+sparse-checkout: \|\n\s+\.github\/actions\n\s+\.github\/scripts/);
 });
 
 test("the uptime check runs hourly (Actions minutes budget), not every 30 minutes", () => {

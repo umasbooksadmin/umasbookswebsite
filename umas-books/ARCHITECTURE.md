@@ -483,6 +483,9 @@ same thing everywhere.
 | `ANON_SESSION_LIMIT` | no | 60 per IP per 10 minutes | tests only | Stored guest sessions per IP (`src/lib/anonSessionGuard.js`). For the local end-to-end run; leave unset on the live site |
 | `ANTHROPIC_API_KEY` | yes | none | Render env var, `sync: false` | Powers photo-scan and AI book descriptions/translations/genres |
 | `ANTHROPIC_WORKSPACE_ID` | no | none | Render env var, `sync: false` | Optional workspace header on Anthropic calls |
+| `MIGRATE_LOCK_TIMEOUT_MS` | no | 5000 (5 seconds; at least 100) | Render environment variable, optional (Render > `umas-books` > Environment) | How long ONE migration waits for a table lock before giving up and retrying (`src/migrate.js`; runbook "When a deploy fails because a migration could not get a lock") |
+| `MIGRATE_LOCK_RETRIES` | no | 5 (`0` = no retry) | Render environment variable, optional (Render > `umas-books` > Environment) | How many times a migration file is retried, with growing pauses, when it fails because a lock was not available (`src/migrate.js`). Still locked after that: the deploy fails and the old version keeps serving |
+| `DB_PLAN_STORAGE_MB` | no | 0 (= unknown: sizes are shown, no warning) | Render environment variable, optional (Render > `umas-books` > Environment) | The storage limit of the database plan in megabytes (Render > the database > Info). With it set, the weekly database size check warns at 70% and again at 90% (`src/jobs.js`; admin Diagnostics > Database size; runbook "Database size monitoring") |
 | `AI_DAILY_MAX_CALLS` | no | 600 (`0` = AI off) | Render env var, `sync: false` | Most Anthropic calls a day for ALL AI features together, counted from the database (`src/lib/aiLimits.js`; runbook "AI limits"). Resets at midnight Paris time |
 | `PRICING_AI` | no | off (on only for `1` or `true`) | Render env var, `sync: false` | Turns on the AI market check behind price suggestions (also needs `ANTHROPIC_API_KEY`) |
 | `PRICING_AI_MODEL` | no | the description model | Render env var, `sync: false` | Model for the market check; must support the web search tool |
@@ -1290,6 +1293,7 @@ names, never saved), `lib/genreRun.js` the bulk run.
 (POST, CSRF, rate limited; recomputes and refuses unless it equals the preview) -> batches of 500 in transactions with a session advisory
 lock (one run at a time; each UPDATE re-checks the value the plan read) -> `genre_runs` + before/after per book -> audit
 (`genre.apply`) -> caches cleared. **Undo** restores only books that still hold what the run wrote (`genre.undo`), newest un-undone run only.
+A run the server never finished (crash, SIGTERM) stays `running` until `reapStaleRuns` (`src/lib/genreRun.js`) marks it `failed` with a `note` (migration 102): at the start of every apply and when the Genres pages load, for `running` rows older than 15 minutes while nobody holds the run lock. It shows as "failed (interrupted)" and Undo stays available for the books it had already changed.
 Idempotent: a second run plans 0 changes. A book whose genres do not change keeps its stored string; its French is recomputed only when a rule
 or managed name matched one of its genres.
 
@@ -1479,6 +1483,35 @@ names the files; read those for the details. Operations for these are in
   `\` in a search text are literal (`likeContains`, same file). No hostile
   number can reach SQL as an out-of-range integer, so none gives a 500 and an
   alert; `test/integration/numericParamFuzz.test.js` checks every GET route.
+- **Public input handling (the rule):** every value read from `req.query` or
+  `req.body` goes through `clean(value, max)` (`src/lib/validation.js`, a
+  capped trimmed string, `""` for anything that is not a string),
+  `parseIntParam` / `parseIdList` / `parseId` (`src/lib/parseParams.js`,
+  `validation.js`), or is compared against a fixed list (`LIST.includes(v)`,
+  `v === "1"`). Never call `.trim()`, `.toLowerCase()`, `.split()` or a regex
+  directly on a raw value: Express 5 gives an ARRAY for a repeated query
+  parameter (`?genre=a&genre=b`), so that throws, answers 500 and sends an
+  alert email to an anonymous visitor. Repeated urlencoded form fields are
+  collapsed to their first value in `src/app.js`, and multipart ones right
+  after multer (`collapseRepeatedFields`, `src/lib/multiValueFields.js`); a
+  field meant to repeat is named in `MULTI_VALUE_BODY_FIELDS`. The same
+  numericParamFuzz test also sends repeated (`?x=a&x=b`), bracketed (`?x[]=a`,
+  `?x[a]=b`), over-long and NUL-carrying text for EVERY query name found in
+  `src/` to every GET route in the router stack (public and admin, with a real
+  book so detail pages run) and fails on any 5xx or 429: a new route or
+  parameter is covered without editing the test.
+- **Return-to-the-list text** (`backQuery` hidden fields in admin Members,
+  Announcements, Blog) is rebuilt by `makeBackQuery` (`src/lib/backQuery.js`):
+  a whitelist of keys per screen, each value checked or clamped and encoded;
+  the posted string is never appended to a redirect.
+- **Multipart limits** (the multer instances in `src/app.js`): 200 fields, 210
+  parts, 64 KB per text field (256 KB for blog and announcement bodies) plus
+  the per-instance file size. Over the limit: 413 (file or field too large) or
+  400 (too many fields) through the error handler, no alert; the blog and
+  collections forms answer with their own sentence.
+- Sitemap files past the last one (`/sitemap-books-<n>.xml`, `n` greater than
+  ceil(in-stock books / per file)) are a 404 from the cached count, with no
+  `OFFSET` scan.
 
 ### Curated collections
 
