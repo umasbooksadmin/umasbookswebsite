@@ -99,6 +99,14 @@ test("monthly: the export step is read-only and uses the script; the month and f
   assert.match(exp, /--force/);
 });
 
+test("monthly: a test run of an unfinished month (complete=false) is not stored under the real name", () => {
+  // Replayed end to end (test run, then the 1st) in exportSchedule.test.js.
+  const store = stepNamed(monthly, /Store the files in Backblaze/);
+  assert.match(store, /COMPLETE: \$\{\{ steps\.export\.outputs\.complete \}\}/);
+  assert.ok(store.indexOf('if [ "$COMPLETE" != "true" ]') < store.indexOf("aws s3 cp"), "checked before any upload");
+  assert.match(stepNamed(monthly, /Email the two CSV files/), /'TEST '/);
+});
+
 test("nightly: force_yearly input; yearly block comes AFTER the normal upload and the monthly copy", () => {
   assert.match(nightly, /force_yearly:\n[\s\S]*?type: boolean/);
   assert.match(nightly, /FORCE_YEARLY: \$\{\{ inputs\.force_yearly \}\}/);
@@ -157,21 +165,21 @@ test("freshness: the yearly copy is only a warning, never required, and only che
   assert.doesNotMatch(stepNamed(freshness, /Check the newest nightly dump/), /yearly/);
 });
 
-test("freshness: from the 3rd the accounting export and a 36-hour inventory export are required, with their own alert emails", () => {
+test("freshness: from the 3rd the accounting export and last night's end-of-day inventory export are required, with their own alert emails", () => {
   const acc = stepNamed(freshness, /Check last month's accounting export exists/);
   assert.match(acc, /export-freshness\.sh accounting/);
   assert.match(acc, /if: always\(\)/);
-  assert.match(stepNamed(freshness, /Check the inventory export is under 36 hours/), /export-freshness\.sh inventory/);
+  assert.match(stepNamed(freshness, /Check last night's end-of-day inventory export exists/), /export-freshness\.sh inventory/);
   const mail = stepNamed(freshness, /Alert admin if last month's accounting export is missing/);
   assert.match(mail, /if: always\(\) && steps\.accounting\.outputs\.missing == 'true'/);
   assert.match(mail, /subject: "\[umas-books\] Accounting export for \$\{\{ steps\.accounting\.outputs\.label \}\} is missing"/);
   assert.match(mail, /docs\/runbook\.md, "What to do when the missing-export alert arrives"/);
   assert.match(mail, /Run workflow/);
-  assert.match(stepNamed(freshness, /Alert admin if the inventory export is missing/), /subject: "\[umas-books\] Inventory export is missing/);
+  assert.match(stepNamed(freshness, /Alert admin if the inventory export is missing/), /subject: "\[umas-books\] Inventory export for \$\{\{ steps\.inventory\.outputs\.label \}\} is missing"/);
   assert.match(stepNamed(freshness, /Mark the run failed/), /exit 1/);
   const script = fs.readFileSync(path.join(root, ".github", "scripts", "export-freshness.sh"), "utf8");
   assert.match(script, /"\$day" -lt 3/);
-  assert.match(script, /MAX_AGE_HOURS:-36/);
+  assert.match(script, /paris_epoch "\$owed" "21:00"/, "same rule as the gate: an evening file");
 });
 
 test("runbook: the section exists with the owner steps, the lifecycle values and the config types", () => {
