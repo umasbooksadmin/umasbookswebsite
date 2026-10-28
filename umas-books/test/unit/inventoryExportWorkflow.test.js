@@ -18,7 +18,8 @@ test("scheduled at 19:00, 20:00 (summer/winter 21h) plus retries at 21:00 and 22
   assert.match(gate, /id: gate/);
   const script = fs.readFileSync(path.join(__dirname, "..", "..", "..", ".github", "scripts", "export-gate.sh"), "utf8");
   assert.match(script, /"\$hour" -lt 21/);
-  assert.match(script, /inventory-exports\/inventory_books_\$\{day_for\}\.csv/);
+  assert.match(script, /inventory-exports\/inventory_books_\$\{for_day\}\.csv/);
+  assert.match(script, /paris_epoch "\$for_day" "21:00"/, "only a file written from 21:00 Paris that day counts");
   assert.match(script, /"\$hour" -le 5/, "a run delayed past midnight still owes yesterday's file");
   assert.doesNotMatch(gate, /exit [1-9]/);
 });
@@ -62,10 +63,22 @@ test("uploads the dated, books and latest files to inventory-exports/ in the bac
   assert.match(code, /--endpoint-url "\$ENDPOINT"/);
 });
 
+test("every file name, the subject and the email use the day the gate decided for (not the runner's clock)", () => {
+  // The behaviour itself (late runs, manual runs, DST) is replayed end to end in exportSchedule.test.js.
+  const exp = code.match(/- name: Export the inventory[\s\S]*?(?=\n {6}- )/)[0];
+  assert.match(exp, /DAY: \$\{\{ steps\.gate\.outputs\.day \}\}/);
+  assert.match(exp, /node scripts\/export-inventory-csv\.js --out "\$RUNNER_TEMP\/inventory" --date "\$DAY"/);
+  assert.doesNotMatch(code, /steps\.export\.outputs\.date/);
+  assert.equal((code.match(/DAY: \$\{\{ steps\.gate\.outputs\.day \}\}/g) || []).length, 4, "export, upload, attach and summary steps");
+  assert.doesNotMatch(code, /21:00 Paris time/, "the email says when the snapshot was really taken");
+});
+
 test("emails ALERT_TO with the attachments, the counts subject and a failure alert", () => {
   assert.equal([...code.matchAll(/^\s*to:\s*(.+)$/gm)].map((m) => m[1].trim()).join("|"),
     "${{ vars.ALERT_TO || 'admin@umasbooks.org' }}|${{ vars.ALERT_TO || 'admin@umasbooks.org' }}");
-  assert.match(code, /subject: "\[umas-books\] Inventory export \$\{\{ steps\.export\.outputs\.date \}\} \(\$\{\{ steps\.export\.outputs\.copies \}\} copies\)"/);
+  assert.match(code, /subject: \$\{\{ steps\.attach\.outputs\.subject \}\}/);
+  assert.match(code, /echo "subject=\[umas-books\] Inventory export \$\{DAY\} \(\$\{COPIES\} copies\)"/);
+  assert.match(code, /echo "subject=\[umas-books\] Inventory export \$\{DAY\}, manual run at/);
   assert.match(code, /attachments: \$\{\{ steps\.attach\.outputs\.files \}\}/);
   assert.match(code, /if: failure\(\)/);
   assert.match(code, /subject: "\[umas-books\] Nightly inventory export failed"/);

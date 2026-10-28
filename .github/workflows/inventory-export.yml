@@ -20,11 +20,15 @@ name: Nightly inventory export
 on:
   schedule:
     # GitHub cron is UTC only. 21:00 Paris is 19:00 UTC in summer (CEST) and
-    # 20:00 UTC in winter (CET). The gate (.github/scripts/export-gate.sh) is
-    # idempotent: from 21h Paris until 5h (a delayed run still owes yesterday's file) the run goes on only if the file is
-    # not in Backblaze yet. So the two lines above do the export, and the two
-    # later ones are retries that cover a delayed or dropped run (and do
-    # nothing once the file exists).
+    # 20:00 UTC in winter (CET), but GitHub often starts scheduled runs 2-4
+    # hours late (past midnight Paris). The gate (.github/scripts/export-gate.sh)
+    # is idempotent and decides for ONE Paris day, which every later step uses
+    # (steps.gate.outputs.day): from 21h Paris that day is today, from 0h to 5h
+    # it is yesterday (a delayed run still owes yesterday's export). The run
+    # goes on only if that day's end-of-day file (written at or after 21:00
+    # Paris that day) is not in Backblaze yet; a manual run during the day does
+    # not count, so it never cancels the evening export. The other lines are
+    # retries that cover a delayed or dropped run (and do nothing once it exists).
     - cron: "0 19 * * *"
     - cron: "0 20 * * *"
     - cron: "0 21 * * *"
@@ -32,7 +36,7 @@ on:
   workflow_dispatch:
     inputs:
       ignore_time_check:
-        description: "Run now, even if it is not 21:00 in Paris or today's file already exists (use this for a manual run)"
+        description: "Run now, even if it is not 21:00 in Paris (use this for a manual run: it exports the inventory as of now and does not replace tonight's export)"
         type: boolean
         default: true
 
@@ -50,7 +54,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Only go on from 21h in Paris, if today's file is not in Backblaze yet
+      - name: Only go on from 21h in Paris, if that evening's export is not in Backblaze yet
         id: gate
         env:
           IGNORE: ${{ inputs.ignore_time_check }}
@@ -96,11 +100,16 @@ jobs:
         working-directory: umas-books
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DAY: ${{ steps.gate.outputs.day }}
         run: |
+          # The files are named after the day the gate decided for (yesterday for a run GitHub
+          # delayed past midnight), NOT the runner's clock.
+          test -n "$DAY" || { echo "::error::The gate did not say which day to export."; exit 1; }
           # Read-only SELECTs. Prints counts and sizes (key=value), never rows.
-          node scripts/export-inventory-csv.js --out "$RUNNER_TEMP/inventory" > "$RUNNER_TEMP/export-counts.txt"
+          node scripts/export-inventory-csv.js --out "$RUNNER_TEMP/inventory" --date "$DAY" > "$RUNNER_TEMP/export-counts.txt"
           cat "$RUNNER_TEMP/export-counts.txt"
           cat "$RUNNER_TEMP/export-counts.txt" >> "$GITHUB_OUTPUT"
+          echo "taken=$(TZ=Europe/Paris date +'%Y-%m-%d %H:%M')" >> "$GITHUB_OUTPUT"
 
       - name: Upload to Backblaze
         if: steps.gate.outputs.run == 'true'
@@ -114,11 +123,12 @@ jobs:
           AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
           ENDPOINT: ${{ vars.BACKUP_S3_ENDPOINT }}
           BUCKET: ${{ vars.BACKUP_S3_BUCKET }}
-          DAY: ${{ steps.export.outputs.date }}
+          DAY: ${{ steps.gate.outputs.day }}
         run: |
           # The folder name is what the bucket's lifecycle rule matches
           # (docs/runbook.md, "Nightly inventory export"): do not rename.
-          # inventory_books_<date>.csv goes LAST: export-gate.sh treats it as "today's export is done".
+          # inventory_books_<day>.csv goes LAST: export-gate.sh treats it (written at or after
+          # 21:00 Paris on <day>) as "that evening's export is done".
           dir="$RUNNER_TEMP/inventory"
           for f in "inventory_${DAY}.csv" "inventory_latest.csv" "inventory_books_${DAY}.csv"; do
             test -s "$dir/$f" || { echo "::error::$f is missing or empty."; exit 1; }
@@ -126,17 +136,29 @@ jobs:
           done
           echo "Uploaded 3 files to ${BUCKET}/inventory-exports/"
 
-      - name: Choose what to attach
+      - name: Choose what to attach and the email text
         # Gmail refuses messages over about 25 MB. Beyond 15 MB of CSV (a very
         # large inventory) only the small per-book file is attached and the
         # email says where the full file is.
         if: steps.gate.outputs.run == 'true'
         id: attach
         env:
-          DAY: ${{ steps.export.outputs.date }}
+          DAY: ${{ steps.gate.outputs.day }}
+          MANUAL: ${{ steps.gate.outputs.manual }}
+          TAKEN: ${{ steps.export.outputs.taken }}
+          COPIES: ${{ steps.export.outputs.copies }}
           COPIES_BYTES: ${{ steps.export.outputs.copies_bytes }}
         run: |
           dir="$RUNNER_TEMP/inventory"
+          # Say when the snapshot was really taken: a manual run is not "21:00", and a delayed
+          # scheduled run is taken after midnight (it is still that evening's export).
+          if [ "$MANUAL" = "true" ]; then
+            echo "subject=[umas-books] Inventory export ${DAY}, manual run at ${TAKEN#* } (${COPIES} copies)" >> "$GITHUB_OUTPUT"
+            echo "intro=Here is the inventory of Uma's Books as of ${TAKEN} Paris time (a manual run, not the scheduled end-of-day export)." >> "$GITHUB_OUTPUT"
+          else
+            echo "subject=[umas-books] Inventory export ${DAY} (${COPIES} copies)" >> "$GITHUB_OUTPUT"
+            echo "intro=Here is the end-of-day inventory of Uma's Books for ${DAY}, taken ${TAKEN} Paris time." >> "$GITHUB_OUTPUT"
+          fi
           if [ "$COPIES_BYTES" -le 15000000 ]; then
             echo "files=$dir/inventory_${DAY}.csv,$dir/inventory_books_${DAY}.csv" >> "$GITHUB_OUTPUT"
             echo "note=" >> "$GITHUB_OUTPUT"
@@ -148,7 +170,7 @@ jobs:
       - name: Summary
         if: steps.gate.outputs.run == 'true'
         env:
-          DAY: ${{ steps.export.outputs.date }}
+          DAY: ${{ steps.gate.outputs.day }}
           COPIES: ${{ steps.export.outputs.copies }}
           IN_STOCK: ${{ steps.export.outputs.in_stock }}
           RESERVED: ${{ steps.export.outputs.reserved }}
@@ -177,12 +199,12 @@ jobs:
         with:
           username: ${{ secrets.GMAIL_USER }}
           password: ${{ secrets.GMAIL_APP_PASSWORD }}
-          subject: "[umas-books] Inventory export ${{ steps.export.outputs.date }} (${{ steps.export.outputs.copies }} copies)"
+          subject: ${{ steps.attach.outputs.subject }}
           to: ${{ vars.ALERT_TO || 'admin@umasbooks.org' }}
           from-name: "Uma's Books Inventory Export"
           attachments: ${{ steps.attach.outputs.files }}
           body: |
-            Here is the inventory of Uma's Books as of ${{ steps.export.outputs.date }}, 21:00 Paris time.
+            ${{ steps.attach.outputs.intro }}
 
             Copies: ${{ steps.export.outputs.copies }}
               In store: ${{ steps.export.outputs.in_stock }}
@@ -191,7 +213,7 @@ jobs:
               Other (donated or withdrawn): ${{ steps.export.outputs.other }}
             Books (titles): ${{ steps.export.outputs.books }}
 
-            Attached: inventory_${{ steps.export.outputs.date }}.csv (one row per copy) and inventory_books_${{ steps.export.outputs.date }}.csv (one row per book, with totals).
+            Attached: inventory_${{ steps.gate.outputs.day }}.csv (one row per copy) and inventory_books_${{ steps.gate.outputs.day }}.csv (one row per book, with totals).
             ${{ steps.attach.outputs.note }}
 
             To open in Excel (French settings): double-click the file, or in Excel use File > Open. Accents and prices (decimal comma) display correctly. If everything lands in one column, use Data > From Text/CSV and choose delimiter "Semicolon" and encoding "UTF-8".

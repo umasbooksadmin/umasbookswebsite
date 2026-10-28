@@ -1818,7 +1818,7 @@ signal: the Monday test alert (section d) proves the channel works.
 | `No fresh database backup in Backblaze` | GitHub, 09:00 UTC daily | The newest dump is missing, empty, over 36 h old, or (after the 3rd of the month) the monthly copy is over 35 days old. The monthly copy appears on the 1st (and the nightly job also writes one when none exists at all); before the first one, the freshness check shows a notice ("No monthly copy yet"), not a failure | 1. **Actions > Nightly database backup**: is it enabled and green? (GitHub disables schedules after 60 days of repository inactivity or when minutes run out: section t). 2. Run it by hand. 3. Re-run **Backup freshness check** |
 | `Monthly accounting export failed` | GitHub, 1st-3rd of the month (the run retries on the next days while the file is missing) | The accounting files of last month were not produced or not stored | 1. Open the run link, read the red step. 2. Settings missing = `DATABASE_URL` or a `BACKUP_S3_*` value changed (section b). 3. After the fix: **Actions > Monthly accounting export > Run workflow** (leave the month empty, or type `YYYY-MM`): the files are simply written again |
 | `Accounting export for YYYY-MM is missing` | GitHub, 09:00 UTC daily from the 3rd of the month (the backup freshness check) | Last month's `accounting-exports/<year>/accounting_<YYYY-MM>.csv` is not in Backblaze: the monthly export never ran (schedule delayed or dropped, workflow disabled) or failed on every try | **Actions > Monthly accounting export > Run workflow**, type the month `YYYY-MM` from the subject in the **month** box, run. Details: section aj, "What to do when the missing-export alert arrives" |
-| `Inventory export is missing` | GitHub, 09:00 UTC daily | No file was stored in `inventory-exports/` in the last 36 hours | **Actions > Nightly inventory export** is enabled? **Run workflow**. Section af |
+| `Inventory export for <day> is missing` | GitHub, 09:00 UTC daily | Last night's end-of-day file (`inventory_books_<day>.csv`, written from 21:00 Paris that day) is not in `inventory-exports/` | **Actions > Nightly inventory export** is enabled? Look at last night's runs. Section af |
 | `Database has reached N% of its plan` / `Database is N% full: upgrade the plan now` | The site, weekly (Monday-ish, the day the weekly job runs), at most one of each per week | The database is at 70% (or 90%) of the plan limit set in `DB_PLAN_STORAGE_MB` | Section ao: upgrade the database plan in Render, then update `DB_PLAN_STORAGE_MB` |
 | A deploy fails with `could not get a table lock` | Render deploy log (pre-deploy), no email | A migration waited for a table that a long query or open transaction was holding; the old version keeps serving | Section ap: wait, then deploy again |
 | `Backup restore test FAILED` | GitHub, 1st of the month | The newest dump could not be restored or lacks tables or migrations | 1. Open the run, read the red message (it says which table, or "dump is OLDER than the repository"). 2. Run **Nightly database backup** by hand, then **Monthly backup restore test** by hand. 3. Still red: do not trust the backups; ask a developer, and keep a manual dump (section u, step 2) meanwhile |
@@ -3230,7 +3230,9 @@ failed` email (section r). To redo a month: **Actions > Monthly accounting
 export > Run workflow**, month `YYYY-MM` (empty = last month). Running it again
 overwrites the same files. The same page also exports for a month by hand when
 you need it earlier than the 1st; the current month is refused unless
-"allow_current_month" is ticked (a test only: it is not finished).
+"allow_current_month" is ticked (a test only: it is not finished). Such a test
+run is **emailed marked TEST and NOT stored** in Backblaze, so it can never stand
+in for the month's real export on the 1st.
 
 **Bootstrap test, once:** **Actions > Nightly database backup > Run workflow >
 tick `force_yearly`**. It makes tonight's dump as usual, then also writes
@@ -3291,8 +3293,8 @@ yellow warning to its run (never a failure, no email).
 ### What to do when the missing-export alert arrives
 
 The monthly export is **idempotent**: on days 1-3 of the month (Paris), at any hour, a scheduled run goes on
-only if last month's `accounting-exports/<year>/accounting_<YYYY-MM>.csv` is **not** in Backblaze, and ends
-green with a notice ("already exists") otherwise. So a run that GitHub delays or drops is retried by the next
+only if last month's `accounting-exports/<year>/accounting_<YYYY-MM>.csv` is **not** in Backblaze (a file written
+before the month ended, by an old test run, does not count), and ends green with a notice ("already exists") otherwise. So a run that GitHub delays or drops is retried by the next
 schedule line (05:00 and 06:00 UTC on the 1st; 05:30 and 06:30 UTC on the 2nd and 3rd). Each morning at 09:00 UTC
 from the 3rd, the **Backup freshness check** also looks for the file, and if it is still missing it emails
 **`[umas-books] Accounting export for YYYY-MM is missing`** to `ALERT_TO`.
@@ -3309,10 +3311,13 @@ When that email arrives:
    `accounting_<YYYY-MM>.csv`, `till_days_<YYYY-MM>.csv` and `summary_<YYYY-MM>.txt`.
 4. Re-run **Backup freshness check** (Actions > Backup freshness check > Run workflow): it must be green.
 
-The nightly inventory export works the same way: from 21:00 to 23:59 Paris a scheduled run goes on only if
-`inventory-exports/inventory_books_<today>.csv` is absent (four schedule lines, 19:00-22:00 UTC). The freshness
-check emails **`Inventory export is missing`** when `inventory-exports/` has no file from the last 36 hours:
-run **Actions > Nightly inventory export > Run workflow** (section af).
+The nightly inventory export works the same way, for one Paris **evening** at a time: a scheduled run goes on
+only if that evening's `inventory-exports/inventory_books_<day>.csv` is absent or was written before 21:00 Paris
+that day (four schedule lines, 19:00-22:00 UTC; GitHub often starts them 2-4 hours late, so a run between 00:00
+and 05:59 Paris still does the evening before and names the files after it). The freshness check emails
+**`Inventory export for <day> is missing`** when last night's end-of-day file is not there: check the workflow is
+enabled and look at last night's runs (section af). A manual run gives you the inventory as of now; a past evening
+cannot be exported after the fact.
 
 ## ak) Alphabetical order ignores a leading "The", "A" or "An"
 
@@ -3424,7 +3429,7 @@ ISBN or person is ever stored in it; rows older than 40 days are deleted by the 
 
 ## af) Nightly inventory export
 
-*Missing export?* The daily backup freshness check emails "Inventory export is missing" if nothing was stored in the last 36 hours; run the workflow by hand (Actions > Nightly inventory export > Run workflow). Details: section aj, "What to do when the missing-export alert arrives".
+*Missing export?* The daily backup freshness check emails "Inventory export for <day> is missing" if last night's end-of-day file (`inventory_books_<day>.csv`, written at or after 21:00 Paris that day) is not in Backblaze; a manual run during the day does not count. Check the workflow is enabled and look at last night's runs; a manual run (Actions > Nightly inventory export > Run workflow) gives you the inventory as of now. Details: section aj, "What to do when the missing-export alert arrives".
 
 **What.** Every evening at **21:00 Paris time** a GitHub workflow (*Nightly inventory export*) exports **all inventory** as a CSV and sends it two ways: **emailed** to the alert addresses (the `ALERT_TO` variable: it should list admin@umasbooks.org and sharonbje@gmail.com, separated by commas) and **stored** in the private Backblaze bucket (the backup bucket), folder `inventory-exports/`:
 
@@ -3434,7 +3439,7 @@ ISBN or person is ever stored in it; rows older than 40 days are deleted by the 
 | `inventory_latest.csv` | The same file, overwritten every night |
 | `inventory_books_YYYY-MM-DD.csv` | One row per **book**, with copy totals (in store, reserved, sold) |
 
-Both dated files are attached to the email (subject `[umas-books] Inventory export YYYY-MM-DD (N copies)`; the body gives the counts). Above 15 MB only the per-book file is attached and the email says where the full one is. The CSV is **not** kept in GitHub (no Actions artifact; the job log shows counts only).
+Both dated files are attached to the email (subject `[umas-books] Inventory export YYYY-MM-DD (N copies)`; the body says when the snapshot was taken, Paris time, and gives the counts). Above 15 MB only the per-book file is attached and the email says where the full one is. The CSV is **not** kept in GitHub (no Actions artifact; the job log shows counts only).
 
 **Columns (per copy):** ISBN-13, ISBN-10, Title, Author(s), Publisher, Year, Binding (Mass Market / Trade / Hardback / Other), Condition (New / Like New / Very Good / Good / Acceptable), Price (EUR), Location, Source, Status (In Store / Reserved / Sold / Donated / Damaged / withdrawn), Date added, Copy ID, Till code (`UB-<copy id>`), Book ID, Genres, Clearance (Yes/No), Publisher price (EUR), Notes, Date sold (when known). The app stores one ISBN per book: the other form is computed from it (an ISBN-10 exists only for 978- numbers). There is no subtitle or language column because the database does not hold them. **No customer data**: no buyer or reservation-holder name, email or phone, only the status. (The *Notes* column is the free-text note an admin typed on the copy: do not type personal data there.)
 
@@ -3444,9 +3449,9 @@ Both dated files are attached to the email (subject `[umas-books] Inventory expo
 
 **Any time, from the website.** *Inventory* page > **Download all inventory (CSV)** (admins only; the link beside it gives the per-book file). Same columns and format, as of now. Each download is written to *Admin activity* (`inventory.csv`).
 
-**Run it by hand.** GitHub > Actions > *Nightly inventory export* > Run workflow (the box *Run now, even if it is not 21:00 in Paris* is ticked by default). It emails and uploads as usual.
+**Run it by hand.** GitHub > Actions > *Nightly inventory export* > Run workflow (the box *Run now, even if it is not 21:00 in Paris* is ticked by default). It exports the inventory **as of now** under today's date, emails it (subject `... YYYY-MM-DD, manual run at HH:MM ...`) and uploads it. Before 21:00 it does **not** replace that evening's export: the scheduled run still exports at 21:00 and overwrites the day's files (a manual run from 21:00 counts as that evening's export).
 
-**How the 21:00 works.** GitHub schedules are in UTC, so the workflow is scheduled at 19:00 **and** 20:00 UTC and the first step lets only the run that falls in the 21:00 hour of Paris continue (the other one ends at once, green, with a notice). GitHub can start a scheduled run late (usually minutes); the file then arrives a little after 21:00. A delay of more than an hour skips that night.
+**How the 21:00 works.** GitHub schedules are in UTC and GitHub often starts scheduled runs 2-4 hours late (in October 2026 they started between 21:08 and 03:46 Paris). So the workflow is scheduled four times (19:00, 20:00, 21:00 and 22:00 UTC) and the first step (`.github/scripts/export-gate.sh`) decides for **one Paris day**: from 21:00 to 23:59 Paris it is today, from 00:00 to 05:59 it is **yesterday** (a late run still owes yesterday's export, and the files are named after yesterday), at other hours the run ends at once, green, with a notice. The run goes on only if that day's `inventory_books_<day>.csv` is not in Backblaze, or was written before 21:00 Paris that day (by a manual run); otherwise it ends green with "already exists". So each evening is exported once, by the first scheduled run that starts between 21:00 and 05:59.
 
 **Owner steps (once).** Nothing new to configure: it uses the existing secrets (`DATABASE_URL`, `BACKUP_S3_KEY_ID`, `BACKUP_S3_APPLICATION_KEY`, `GMAIL_USER`, `GMAIL_APP_PASSWORD`, all repository secrets) and variables (`BACKUP_S3_BUCKET`, `BACKUP_S3_ENDPOINT`, `BACKUP_S3_REGION`, `ALERT_TO`, all repository variables). Two checks:
 1. **Repository variable** `ALERT_TO` (Settings > Secrets and variables > Actions > Variables): make sure it lists both addresses, comma-separated. The inventory email goes to the same list as the other alerts.
