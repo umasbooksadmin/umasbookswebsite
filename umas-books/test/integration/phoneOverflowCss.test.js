@@ -70,7 +70,7 @@ test("Browse Books: the genre and collection carousels scroll inside their own b
   assert.equal(track["scroll-snap-type"], "x mandatory", "whole items");
   assert.equal(books.getDecl(".bk-tiles > *", "--per", { at: "" }), "2", "two items per view on the narrowest track");
   assert.equal(books.getDecl(".bk-tiles > *", "--per", { at: "@container (min-width: 298px)" }), "3", "three per view fit a 375px phone");
-  assert.equal(books.getDecl(".bk-carousel .arrow", "display", { at: "@media (max-width: 620px) and (pointer: coarse)" }), "none", "arrows hidden on phones: swipe");
+  assert.equal(books.getDecl(".bk-carousel .arrow", "position", { at: "@media (max-width: 620px) and (pointer: coarse)" }), "absolute", "arrows float over the track on phones: no column of their own");
 });
 
 test("member and volunteer calendars become a list below 480px", () => {

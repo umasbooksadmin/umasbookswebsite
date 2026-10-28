@@ -42,14 +42,24 @@ test("the track shows a whole number of cards, every card is a snap point, and t
   assert.doesNotMatch(String(card.flex), /^0 0 1[0-9]{2}px/, "no fixed card width");
 });
 
-test("the arrows are 44px, have a focus outline, are disabled at the ends and are not hidden on a mouse-driven narrow window", () => {
+test("the arrows are 44px, have a focus outline, are disabled at the ends, and float over the track on a touch phone", () => {
   assert.equal(books.getDecl(".bk-carousel .arrow", "width"), "44px");
   assert.equal(books.getDecl(".bk-carousel .arrow", "height"), "44px");
   assert.match(books.getDecl(".bk-carousel .arrow:focus-visible", "outline"), /^3px solid/);
   assert.ok(books.hasRule(".bk-carousel .arrow:disabled"));
   assert.ok(books.hasRule('.bk-carousel .arrow[aria-disabled="true"]'), "the aria-disabled arrow looks greyed out");
-  assert.equal(books.getDecl(".bk-carousel .arrow", "display", { at: "@media (max-width: 620px) and (pointer: coarse)" }), "none");
+  // a touch phone: shown, as round buttons floating over the ends of the track (no column of their own, so the cards keep
+  // their width); the one at an end fades out and lets taps through (test/integration/phoneCarouselArrows.test.js checks it in Chrome)
+  const PHONE = { at: "@media (max-width: 620px) and (pointer: coarse)" };
+  assert.equal(books.getDecl(".bk-carousel .arrow", "display", PHONE), undefined, "arrows are not hidden on a touch phone");
+  assert.equal(books.getDecl(".bk-carousel .arrow", "position", PHONE), "absolute", "they float over the track, taking no column");
+  assert.equal(books.getDecl(".bk-carousel", "position", PHONE), "relative");
+  assert.equal(books.getDecl(".bk-carousel .arrow", "border-radius", PHONE), "50%");
+  assert.ok(books.getDecl(".bk-carousel .arrow", "background", PHONE), "a light background, visible on any cover");
+  assert.equal(books.getDecl('.bk-carousel .arrow[aria-disabled="true"]', "opacity", PHONE), "0");
+  assert.equal(books.getDecl('.bk-carousel .arrow[aria-disabled="true"]', "pointer-events", PHONE), "none");
   assert.equal(books.getDecl(".bk-carousel .arrow", "display", { at: "@media (max-width: 620px)" }), undefined, "arrows are not hidden on a mouse-driven narrow window");
+  assert.equal(books.getDecl(".bk-carousel .arrow", "position"), undefined, "desktop: arrows in their own columns, as before");
 });
 
 test("the arrows scroll to a measured card edge (not 80% of the width) from where the last click was heading, and keys work", () => {
