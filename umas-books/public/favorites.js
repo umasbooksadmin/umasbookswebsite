@@ -1,6 +1,8 @@
-// Favorites are per-browser only (localStorage), not tied to an
-// account — matches the rest of the public site (search) not needing to
-// log in. Any ".favorite-toggle[data-book-id]" button on any
+// Favorites are saved in the browser (localStorage), signed in or not:
+// a signed-out visitor needs no account for them. Signed in, each toggle
+// is also saved to the account, and once per login the browser's list is
+// merged into the account (and the account's into the browser's, see
+// mergeIntoAccount below). Any ".favorite-toggle[data-book-id]" button on any
 // page gets wired up automatically; the Favorites page itself (see
 // favorites.ejs) also uses UmasFavorites.get()/sync() to fetch and
 // render the saved list.
@@ -69,6 +71,35 @@
     document.querySelectorAll(".favorite-toggle").forEach(sync);
   });
 
+  // After a sign-in (/api/session says favoritesMerge, once per login session): the favourites saved in this browser
+  // while signed out go to the account (POST /api/favorites/merge), and the account's come back into the browser. The
+  // hearts and the Favorites page follow (event "favoritesmerged"). Best effort: a failure changes nothing.
+  function mergeIntoAccount() {
+    if (!window.fetch || !window.UmasSession) return;
+    window.UmasSession().then(function (data) {
+      if (!data || !data.loggedIn || !data.favoritesMerge) return;
+      return getCsrfToken().then(function (token) {
+        if (!token) return;
+        var body = "ids=" + encodeURIComponent(getFavorites().join(",")) + "&_csrf=" + encodeURIComponent(token);
+        return fetch("/api/favorites/merge", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
+          body: body,
+        }).then(function (res) { return res.ok && res.status !== 204 ? res.json() : null; }).then(function (out) {
+          if (!out || !Array.isArray(out.ids)) return;
+          var favs = getFavorites();
+          var before = favs.length;
+          out.ids.forEach(function (id) { if (Number.isInteger(id) && favs.indexOf(id) === -1) favs.push(id); });
+          if (favs.length !== before) setFavorites(favs);
+          document.querySelectorAll(".favorite-toggle").forEach(sync);
+          document.dispatchEvent(new CustomEvent("favoritesmerged", { detail: { ids: favs } }));
+        });
+      });
+    }).catch(function () {});
+  }
+  mergeIntoAccount();
+
   document.addEventListener("click", function (e) {
     var btn = e.target.closest(".favorite-toggle");
     if (!btn) return;
@@ -82,5 +113,5 @@
     syncToServer(id, nowFav);
   });
 
-  window.UmasFavorites = { get: getFavorites, has: isFavorite, toggle: toggleFavorite, sync: sync };
+  window.UmasFavorites = { get: getFavorites, has: isFavorite, toggle: toggleFavorite, sync: sync, merge: mergeIntoAccount };
 })();

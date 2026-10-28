@@ -42,6 +42,10 @@ const CUSTOMER_REMINDER_DAY = 10;
 const ADMIN_DIGEST_DAY = 12;
 const PICKUP_WINDOW_DAYS = 14;
 
+// A guest reservation whose email link was not opened yet (lib/guestOrders.js) gets no reminder and is not in the
+// admin digest: it lasts 2 hours and nobody has confirmed the address.
+const CONFIRMED_SQL = "NOT (o.is_guest AND o.guest_confirmed_at IS NULL)";
+
 const baseUrl = () => looseBaseUrl();
 const adminLink = (id) => `${baseUrl()}/admin/orders/${id}`;
 const parisDate = (d) => forLocale(LOCALES.en).formatDate(d);
@@ -84,7 +88,7 @@ async function releaseDue(pool) {
 
 async function sendReservationReminders(pool) {
   const due = `o.status = 'reserved' AND o.customer_pickup_reminder_sent_at IS NULL
-       AND o.buyer_email NOT LIKE '%@erased.invalid'
+       AND o.buyer_email NOT LIKE '%@erased.invalid' AND ${CONFIRMED_SQL}
        AND o.reserved_until > now()
        AND o.reserved_until <= ${parisPlusDaysSql("now()", legal.RESERVATION_REMINDER_DAYS_BEFORE)}
        AND EXISTS (SELECT 1 FROM order_items i WHERE i.order_id = o.id AND i.book_copy_id IS NOT NULL)`;
@@ -115,7 +119,7 @@ async function sendSeatReminders(pool) {
   const { rows: candidates } = await pool.query(
     `SELECT s.id FROM class_dropin_seats s JOIN classes c ON c.id = s.class_id JOIN orders o ON o.id = s.order_id
      WHERE s.status = 'reserved' AND s.reminder_sent_at IS NULL AND o.status = 'reserved'
-       AND o.buyer_email NOT LIKE '%@erased.invalid'
+       AND o.buyer_email NOT LIKE '%@erased.invalid' AND ${CONFIRMED_SQL}
        AND c.starts_at > now() AND c.starts_at <= now() + make_interval(hours => $1)
      ORDER BY s.id LIMIT 200`,
     [legal.SEAT_REMINDER_HOURS]
@@ -180,7 +184,7 @@ async function sendAdminReservationDigest(pool) {
     pool,
     {
       column: "pickup_reminder_sent_at",
-      whereSql: `o.status = 'reserved' AND o.reserved_until > now() AND o.reserved_until <= ${parisPlusDaysSql("now()", ADMIN_DIGEST_DAYS_BEFORE)}
+      whereSql: `o.status = 'reserved' AND ${CONFIRMED_SQL} AND o.reserved_until > now() AND o.reserved_until <= ${parisPlusDaysSql("now()", ADMIN_DIGEST_DAYS_BEFORE)}
         AND EXISTS (SELECT 1 FROM order_items i WHERE i.order_id = o.id AND i.book_copy_id IS NOT NULL)`,
     },
     async (orders) => {

@@ -137,8 +137,7 @@
     var control;
     if (buy.copyId > 0) {
       var add = cartName('add', b.title, b.language);
-      control = '<form class="bk-cart-add" method="get" action="/login" data-copy-id="' + esc(buy.copyId) + '">' +
-        '<input type="hidden" name="returnTo" value="' + esc(here()) + '">' +
+      control = '<form class="bk-cart-add" method="get" action="/books/' + esc(b.id) + '" data-copy-id="' + esc(buy.copyId) + '">' +
         '<button type="submit" class="bk-cart-btn"' + add.attr + '>' + CART_ADD_SVG + add.span + '</button></form>';
     } else {
       var choose = cartName('choose', b.title, b.language);

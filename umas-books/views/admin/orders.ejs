@@ -63,6 +63,7 @@
             <span class="status-pill <%= o.status %>"><%= cap(o.status) %></span>
             <% if (o.status === 'reserved' && o.reserved_until && o.items && o.items.some(i => !i.seat)) { %><span class="muted small">held until the end of <%= formatDate(lastDay(o)) %></span><% } %>
             <% if (o.status === 'paid' && o.collected_at) { %><span class="status-pill completed">Collected</span><% } %>
+            <% if (o.is_guest) { %><span class="status-pill category">Guest</span><% if (o.status === 'reserved' && !o.guest_confirmed_at) { %><span class="muted small">email link not opened yet</span><% } %><% } %>
           </div>
           <div class="muted small"><%= o.buyer_name %> &middot; <%= o.buyer_email %><%= o.buyer_phone ? ' · ' + o.buyer_phone : '' %></div>
           <ul class="plain nested">

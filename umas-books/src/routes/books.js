@@ -58,6 +58,27 @@ router.post("/api/favorites/toggle", async (req, res) => {
   res.status(204).end();
 });
 
+// Signing in merges the browser's favourites (localStorage, kept for signed-out visitors too) into the account, once
+// per login session: public/favorites.js posts its saved ids here when /api/session says favoritesMerge (set until this
+// runs), and gets back the account's whole list, which it adds to the browser's. Unknown book ids are skipped; at most
+// 200 ids. Signed out: 204, nothing stored.
+router.post("/api/favorites/merge", async (req, res) => {
+  res.set("Cache-Control", "no-store");
+  if (!req.session.user) return res.status(204).end();
+  const ids = parseIdList(String(req.body.ids || ""));
+  if (ids.length) {
+    await pool.query(
+      `INSERT INTO favorites (user_id, book_id)
+       SELECT $1, b.id FROM books b WHERE b.id = ANY($2::int[])
+       ON CONFLICT (user_id, book_id) DO NOTHING`,
+      [req.session.user.id, ids]
+    );
+  }
+  const { rows } = await pool.query("SELECT book_id FROM favorites WHERE user_id = $1 ORDER BY book_id LIMIT 1000", [req.session.user.id]);
+  req.session.favoritesMerged = true;
+  res.json({ ids: rows.map((r) => r.book_id) });
+});
+
 // "New In" in batches: { total, books, nextOffset }. The Books page's carousel loads 60 at a time as the guest nears the
 // end of what is loaded ("See All New In" asks for 24 at a time) until nextOffset is null, so every new book can be reached
 // and no request is ever large. limit is 1-100 (default 24); an offset that is not a safe integer or is past the end gives

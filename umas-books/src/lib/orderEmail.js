@@ -59,7 +59,9 @@ const hasSeats = (items) => items.some((i) => i.class_dropin_seat_id != null);
 // tested. Written in the order's language (order.lang; English when missing).
 // The legal blocks (rights, seller identity) are bilingual FR/EN in every
 // language, so they are never reduced to one language.
-function buildOrderConfirmationText(order, items, base) {
+// opts.manageUrl: a guest reservation (no account, lib/guestOrders.js): the "to cancel" paragraph gives the private
+// link to view and cancel the reservation instead of the account page.
+function buildOrderConfirmationText(order, items, base, { manageUrl = null } = {}) {
   const lang = normLang(order.lang) || "en";
   const tr = emailTr(lang);
   const fmt = forLocale(LOCALES[lang]);
@@ -94,14 +96,43 @@ function buildOrderConfirmationText(order, items, base) {
         `Places « drop-in » : vous réglez sur place, à la séance. Une place peut être annulée en ligne jusqu’à ${legal.SEAT_CANCEL_HOURS} heures avant la séance ; nous la libérons une fois la séance passée.\n`
       )
     : "";
+  const cancelEn = manageUrl
+    ? `To see or cancel your reservation (no account needed), open this private link: ${manageUrl}\nKeep it to yourself: anyone with the link can cancel the reservation.`
+    : `Log in and open your account page, then press “Cancel reservation”: ${accountUrl}`;
+  const cancelFr = manageUrl
+    ? `Pour consulter ou annuler votre réservation (sans compte), ouvrez ce lien personnel : ${manageUrl}\nNe le partagez pas : toute personne qui a ce lien peut annuler la réservation.`
+    : `Connectez-vous, ouvrez votre page de compte puis appuyez sur « Annuler la réservation » : ${accountUrl}`;
   const head = tr(
-    `Hi ${name},\n\nThanks for your reservation. Nothing has been paid online: you pay at the shop when you collect.\n\nReservation #${order.id} — ${orderDate}\n\n${lines}\n\nTotal to pay at the shop: ${total}\n\nPAY AT THE SHOP WHEN YOU COLLECT\n${deadline}${seatNote}${SHOP_LINES.en} Please quote reservation #${order.id}. You pay in cash or by card, after checking the book: you are free to decline it.\n\nTO CANCEL\nLog in and open your account page, then press “Cancel reservation”: ${accountUrl}\n\n`,
-    `Bonjour ${name},\n\nMerci pour votre réservation. Rien n’a été payé en ligne : vous réglez à la boutique au moment du retrait.\n\nRéservation n° ${order.id} — ${orderDate}\n\n${lines}\n\nTotal à régler à la boutique : ${total}\n\nÀ RÉGLER À LA BOUTIQUE AU RETRAIT\n${deadline}${seatNote}${SHOP_LINES.fr} Merci d’indiquer la réservation n° ${order.id}. Vous payez en espèces ou par carte, après avoir vérifié le livre : vous êtes libre de le refuser.\n\nPOUR ANNULER\nConnectez-vous, ouvrez votre page de compte puis appuyez sur « Annuler la réservation » : ${accountUrl}\n\n`
+    `Hi ${name},\n\nThanks for your reservation. Nothing has been paid online: you pay at the shop when you collect.\n\nReservation #${order.id} — ${orderDate}\n\n${lines}\n\nTotal to pay at the shop: ${total}\n\nPAY AT THE SHOP WHEN YOU COLLECT\n${deadline}${seatNote}${SHOP_LINES.en} Please quote reservation #${order.id}. You pay in cash or by card, after checking the book: you are free to decline it.\n\nTO CANCEL\n${cancelEn}\n\n`,
+    `Bonjour ${name},\n\nMerci pour votre réservation. Rien n’a été payé en ligne : vous réglez à la boutique au moment du retrait.\n\nRéservation n° ${order.id} — ${orderDate}\n\n${lines}\n\nTotal à régler à la boutique : ${total}\n\nÀ RÉGLER À LA BOUTIQUE AU RETRAIT\n${deadline}${seatNote}${SHOP_LINES.fr} Merci d’indiquer la réservation n° ${order.id}. Vous payez en espèces ou par carte, après avoir vérifié le livre : vous êtes libre de le refuser.\n\nPOUR ANNULER\n${cancelFr}\n\n`
   );
   const text = `${head}${termsLine}${cgvLine}${lang === "fr" ? LEGAL_RIGHTS_FRENCH_ONLY : LEGAL_RIGHTS}\n\n${sellerLines(lang)}`;
   // The fixed legal blocks are not written through tr(): give the French mail the same no-break spaces.
   return lang === "fr" ? frenchPlainText(text) : text;
 }
+
+// The first email of a GUEST reservation (lib/guestOrders.js): the books are held for
+// GUEST_CONFIRM_HOURS until the guest opens confirmUrl; manageUrl views and cancels it.
+function buildGuestConfirmEmail(order, items, { confirmUrl, manageUrl }) {
+  const lang = normLang(order.lang) || "en";
+  const tr = emailTr(lang);
+  const name = emailSafeName(order.buyer_name);
+  const hours = legal.GUEST_CONFIRM_HOURS;
+  const lines = items.map((i) => `- ${orderItemLabel(i, lang)} — ${formatEuro(i.price, lang)}`).join("\n");
+  const total = formatEuro(order.total_amount, lang);
+  const text = tr(
+    `Hi ${name},\n\nWe are holding these items for you (reservation #${order.id}):\n\n${lines}\n\nTotal to pay at the shop: ${total}\n\nPLEASE CONFIRM WITHIN ${hours} HOURS\nOpen this link and press “Confirm my reservation”:\n${confirmUrl}\n\nIf you do not confirm within ${hours} hours, the items go back on sale automatically and nothing else happens. Once you confirm, we hold your books for ${legal.RESERVATION_DAYS} days and send you the full confirmation.\n\nTo see or cancel this reservation (no account needed): ${manageUrl}\n\nIf you did not make this reservation, just ignore this email.\n\nUma's Books`,
+    `Bonjour ${name},\n\nNous vous gardons ces articles (réservation n° ${order.id}) :\n\n${lines}\n\nTotal à régler à la boutique : ${total}\n\nMERCI DE CONFIRMER DANS LES ${hours} HEURES\nOuvrez ce lien et appuyez sur « Confirmer ma réservation » :\n${confirmUrl}\n\nSans confirmation dans les ${hours} heures, les articles sont automatiquement remis en vente, et rien d’autre ne se passe. Une fois la réservation confirmée, nous gardons vos livres ${legal.RESERVATION_DAYS} jours et vous envoyons la confirmation complète.\n\nPour consulter ou annuler cette réservation (sans compte) : ${manageUrl}\n\nSi vous n’avez pas fait cette réservation, ignorez simplement cet e-mail.\n\nUma's Books`
+  );
+  return {
+    subject: tr(`Please confirm your reservation at Uma's Books (within ${hours} hours)`, `Merci de confirmer votre réservation chez Uma's Books (dans les ${hours} heures)`),
+    text: lang === "fr" ? frenchPlainText(text) : text,
+  };
+}
+
+// How a customer cancels, for the reminders: an account holder from the account page, a guest with the private link
+// of the confirmation email (lib/guestOrders.js).
+const isGuestOrder = (order) => Boolean(order.is_guest && !order.user_id);
 
 // Day-10 reminder; `base` is the site's origin (for the terms-of-sale link) (RESERVATION_REMINDER_DAYS_BEFORE days before the deadline).
 function buildReservationReminder(order, items, base) {
@@ -115,8 +146,8 @@ function buildReservationReminder(order, items, base) {
   return {
     subject: tr(`Your reserved books are waiting at the shop (reservation #${order.id})`, `Vos livres réservés vous attendent à la boutique (réservation n° ${order.id})`),
     text: tr(
-      `Hi ${name},\n\nYour reservation #${order.id} is waiting for you at Uma's Books:\n\n${lines}\n\nWe hold it until the end of ${last} (Paris time). Come by to pay and collect: ${SHOP_LINES.en}\n\nIf you no longer want the books, you can cancel from your account page. If you need more time, write to us at ${legal.CONTACT_EMAIL}.\n\n${notice}\n\nUma's Books`,
-      `Bonjour ${name},\n\nVotre réservation n° ${order.id} vous attend à Uma's Books :\n\n${lines}\n\nNous la gardons jusqu’à la fin de la journée du ${last} (heure de Paris). Passez la régler et la retirer : ${SHOP_LINES.fr}\n\nSi vous ne souhaitez plus ces livres, vous pouvez annuler depuis votre page de compte. Si vous avez besoin de plus de temps, écrivez-nous à ${legal.CONTACT_EMAIL}.\n\n${notice}\n\nUma's Books`
+      `Hi ${name},\n\nYour reservation #${order.id} is waiting for you at Uma's Books:\n\n${lines}\n\nWe hold it until the end of ${last} (Paris time). Come by to pay and collect: ${SHOP_LINES.en}\n\nIf you no longer want the books, you can cancel ${isGuestOrder(order) ? "with the link in your confirmation email" : "from your account page"}. If you need more time, write to us at ${legal.CONTACT_EMAIL}.\n\n${notice}\n\nUma's Books`,
+      `Bonjour ${name},\n\nVotre réservation n° ${order.id} vous attend à Uma's Books :\n\n${lines}\n\nNous la gardons jusqu’à la fin de la journée du ${last} (heure de Paris). Passez la régler et la retirer : ${SHOP_LINES.fr}\n\nSi vous ne souhaitez plus ces livres, vous pouvez annuler ${isGuestOrder(order) ? "avec le lien de votre e-mail de confirmation" : "depuis votre page de compte"}. Si vous avez besoin de plus de temps, écrivez-nous à ${legal.CONTACT_EMAIL}.\n\n${notice}\n\nUma's Books`
     ),
   };
 }
@@ -147,13 +178,13 @@ function buildSeatReminder(order, seatItem) {
   return {
     subject: tr(`Reminder: your drop-in seat tomorrow (reservation #${order.id})`, `Rappel : votre place « drop-in » demain (réservation n° ${order.id})`),
     text: tr(
-      `Hi ${name},\n\nA reminder of your reserved drop-in seat: ${label}.\n\nYou pay at the session. If you can no longer come, please cancel from your account page, or write to ${legal.CONTACT_EMAIL}, so someone else can have the seat.\n\nUma's Books`,
-      `Bonjour ${name},\n\nPetit rappel pour votre place « drop-in » réservée : ${label}.\n\nVous réglez sur place, à la séance. Si vous ne pouvez plus venir, merci d’annuler depuis votre page de compte, ou d’écrire à ${legal.CONTACT_EMAIL}, afin qu’une autre personne puisse en profiter.\n\nUma's Books`
+      `Hi ${name},\n\nA reminder of your reserved drop-in seat: ${label}.\n\nYou pay at the session. If you can no longer come, please cancel ${isGuestOrder(order) ? "with the link in your confirmation email" : "from your account page"}, or write to ${legal.CONTACT_EMAIL}, so someone else can have the seat.\n\nUma's Books`,
+      `Bonjour ${name},\n\nPetit rappel pour votre place « drop-in » réservée : ${label}.\n\nVous réglez sur place, à la séance. Si vous ne pouvez plus venir, merci d’annuler ${isGuestOrder(order) ? "avec le lien de votre e-mail de confirmation" : "depuis votre page de compte"}, ou d’écrire à ${legal.CONTACT_EMAIL}, afin qu’une autre personne puisse en profiter.\n\nUma's Books`
     ),
   };
 }
 
 module.exports = {
-  buildOrderConfirmationText, orderConfirmationSubject, buildReservationReminder, buildReservationExpiredNotice, buildSeatReminder,
+  buildOrderConfirmationText, orderConfirmationSubject, buildGuestConfirmEmail, buildReservationReminder, buildReservationExpiredNotice, buildSeatReminder,
   SELLER_LINES, LEGAL_RIGHTS, LEGAL_RIGHTS_FRENCH_ONLY, SHOP_LINES, sellerLines,
 };

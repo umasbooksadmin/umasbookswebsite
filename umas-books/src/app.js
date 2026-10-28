@@ -392,6 +392,8 @@ function createApp() {
       cartCount: Array.isArray(req.session.cart) ? req.session.cart.length : 0,
       cartBookIds: cartBooks,
       loggedIn: Boolean(req.session.user),
+      // Signed in and the browser's favourites not merged into the account yet this session (public/favorites.js).
+      favoritesMerge: Boolean(req.session.user && !req.session.favoritesMerged),
       isMember: Boolean(req.session.user && req.session.user.isMember),
       isVolunteer: Boolean(req.session.user && req.session.user.isVolunteer),
       isAdmin: Boolean(req.session.user && req.session.user.isAdmin),

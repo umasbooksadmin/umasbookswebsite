@@ -143,13 +143,13 @@ function legalFor(lang) {
 // (SHOP_HOURS_EN / SHOP_HOURS_FR), {shopDays} / {shopDaysShort} (SHOP_DAYS_*), {shopHoursShort} / {shopHoursFirm} (the two "extra openings" texts) and {membershipPrice} (MEMBERSHIP_PRICE_EUR,
 // "" when not set), the identity facts {contactEmail}, {siren}, {siret}, {rna}, {registeredOffice} (plain) and
 // {registeredOfficeFormal} (the legal notice's spelling), plus the reservation policy numbers {days}, {extension},
-// {copies}, {reservations} and {hours} (lib/legal.js). `lang` defaults to
+// {copies}, {reservations}, {hours} and {guestHours} (lib/legal.js). `lang` defaults to
 // English: pass the dictionary's language so the shop tokens come out right.
 function fillVat(dict, lang = "en") {
   const l = lang === "fr" ? "fr" : "en";
   const fills = {
     "{vat}": vatNotice(), "{days}": legal.RESERVATION_DAYS, "{extension}": legal.RESERVATION_EXTENSION_DAYS,
-    "{copies}": legal.MAX_RESERVED_COPIES, "{reservations}": legal.MAX_ACTIVE_RESERVATIONS, "{hours}": legal.SEAT_CANCEL_HOURS,
+    "{copies}": legal.MAX_RESERVED_COPIES, "{reservations}": legal.MAX_ACTIVE_RESERVATIONS, "{hours}": legal.SEAT_CANCEL_HOURS, "{guestHours}": legal.GUEST_CONFIRM_HOURS,
     "{shopPhoneTel}": legal.SHOP_PHONE_TEL, "{shopPhone}": legal.SHOP_PHONE_DISPLAY,
     "{contactEmail}": legal.CONTACT_EMAIL, "{siren}": legal.SIREN, "{siret}": legal.SIRET, "{rna}": legal.RNA,
     "{registeredOfficeFormal}": legal.REGISTERED_OFFICE_FORMAL, "{registeredOffice}": legal.REGISTERED_OFFICE,

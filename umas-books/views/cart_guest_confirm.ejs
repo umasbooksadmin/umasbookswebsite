@@ -1,0 +1,25 @@
+<%- include('partials/header', { noindex: true, title: state === 'manage-invalid' ? tr('Reservation link', 'Lien de réservation') : tr('Confirm your reservation', 'Confirmer votre réservation') }) %>
+
+<% if (state === 'ask') { %>
+  <h1><%= tr('Confirm your reservation', 'Confirmer votre réservation') %></h1>
+  <p class="muted"><%= tr('Press the button to confirm reservation #{n}. We then hold your books for the usual time and email you the details.', 'Appuyez sur le bouton pour confirmer la réservation n°{n}. Nous gardons alors vos livres le temps habituel et vous envoyons les détails par e-mail.', { n: order.id }) %></p>
+  <form class="stack" method="post" action="/cart/guest/confirm/<%= token %>">
+    <%- include('partials/csrf_field') %>
+    <button class="btn" type="submit"><%= tr('Confirm my reservation', 'Confirmer ma réservation') %></button>
+  </form>
+<% } else if (state === 'used') { %>
+  <h1><%= tr('Already confirmed', 'Déjà confirmée') %></h1>
+  <div role="status" class="notice-box"><%= tr('This link was already used: your reservation is confirmed. To see or cancel it, use the link in the confirmation email we sent you.', 'Ce lien a déjà été utilisé : votre réservation est confirmée. Pour la consulter ou l’annuler, utilisez le lien de l’e-mail de confirmation que nous vous avons envoyé.') %></div>
+<% } else if (state === 'expired') { %>
+  <h1><%= tr('This link has expired', 'Ce lien a expiré') %></h1>
+  <div role="alert" class="error-box"><%= tr('The reservation was not confirmed within {hours} hours (or it was cancelled), so its items went back on sale. Nothing is owed. You can reserve them again if they are still available.', 'La réservation n’a pas été confirmée dans les {hours} heures (ou elle a été annulée), ses articles ont donc été remis en vente. Vous ne devez rien. Vous pouvez les réserver de nouveau s’ils sont encore disponibles.', { hours: confirmHours }) %></div>
+  <p><a class="btn" href="/books.html"><%= tr('Back to Books', 'Retour aux livres') %></a></p>
+<% } else if (state === 'manage-invalid') { %>
+  <h1><%= tr('Reservation link not valid', 'Lien de réservation non valable') %></h1>
+  <div role="alert" class="error-box"><%= tr('This link is not valid or has expired. If you need help with a reservation, write to us and give its number.', 'Ce lien n’est pas valable ou a expiré. Si vous avez besoin d’aide pour une réservation, écrivez-nous en indiquant son numéro.') %> <a href="mailto:<%= legalText.contactEmail %>"><%= legalText.contactEmail %></a></div>
+<% } else { %>
+  <h1><%= tr('Link not valid', 'Lien non valable') %></h1>
+  <div role="alert" class="error-box"><%= tr('This confirmation link is not valid. Please open the link exactly as it is in the email we sent you.', 'Ce lien de confirmation n’est pas valable. Veuillez ouvrir le lien tel qu’il figure dans l’e-mail que nous vous avons envoyé.') %></div>
+<% } %>
+
+<%- include('partials/footer') %>

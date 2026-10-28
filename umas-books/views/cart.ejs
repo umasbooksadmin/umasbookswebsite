@@ -48,11 +48,16 @@
   <% if (locals.preview) { %>
     <div role="status" class="notice-box"><%= tr('Online reservations open when we launch. This is a preview, so you can fill a cart to see how it works, but nothing can be reserved yet.', 'Les réservations en ligne ouvriront au lancement. Ceci est un aperçu : vous pouvez remplir un panier pour voir comment cela fonctionne, mais rien ne peut encore être réservé.') %></div>
   <% } else if (locals.checkoutState === 'guest') { %>
+    <div class="card" id="continue-as-guest">
+      <h2 class="section-title"><%= tr('Reserve without an account', 'Réserver sans compte') %></h2>
+      <p class="muted"><%= tr('Give your name and email, then confirm with the link we email you. No password needed.', 'Indiquez votre nom et votre e-mail, puis confirmez avec le lien que nous vous envoyons. Aucun mot de passe n’est nécessaire.') %></p>
+      <p><a class="btn" href="/cart/guest"><%= tr('Continue as a guest', 'Continuer en tant qu’invité') %></a></p>
+    </div>
     <div class="card" id="login-to-checkout">
-      <h2 class="section-title"><%= tr('Log in or create an account to reserve', 'Connectez-vous ou créez un compte pour réserver') %></h2>
-      <p class="muted"><%= tr('You need an account to reserve. Your cart is kept: you will come straight back here.', 'Un compte est nécessaire pour réserver. Votre panier est conservé : vous reviendrez directement ici.') %></p>
+      <h2 class="section-title"><%= tr('Or log in, or create an account', 'Ou connectez-vous, ou créez un compte') %></h2>
+      <p class="muted"><%= tr('With an account, all your reservations are on your account page. Your cart is kept: you will come straight back here.', 'Avec un compte, toutes vos réservations sont sur votre page de compte. Votre panier est conservé : vous reviendrez directement ici.') %></p>
       <p>
-        <a class="btn" href="/login?returnTo=<%= encodeURIComponent('/cart') %>"><%= tr('Log in', 'Se connecter') %></a>
+        <a class="btn btn-outline" href="/login?returnTo=<%= encodeURIComponent('/cart') %>"><%= tr('Log in', 'Se connecter') %></a>
         <a class="btn btn-outline" href="/signup?returnTo=<%= encodeURIComponent('/cart') %>"><%= tr('Create an account', 'Créer un compte') %></a>
       </p>
     </div>

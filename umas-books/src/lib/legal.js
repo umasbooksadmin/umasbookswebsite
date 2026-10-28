@@ -9,7 +9,7 @@ const BRAND_SHORT_NAME = "Uma's Books";
 // (orders.cgv_version, with orders.cgv_accepted_at) as proof of acceptance.
 // Bump it (to the date of the change, YYYY-MM-DD) whenever the terms of sale
 // text changes in a way that matters to buyers.
-const TERMS_OF_SALE_VERSION = "2026-10-09";
+const TERMS_OF_SALE_VERSION = "2026-10-28";
 
 // Reservation policy ("Reserve online, pay at the shop"): nothing is paid
 // online for books and drop-in seats. These numbers are the single source for
@@ -22,6 +22,10 @@ const TERMS_OF_SALE_VERSION = "2026-10-09";
 //  - SEAT_REMINDER_HOURS: the reminder email goes out this long before a session.
 //  - RESERVATION_REMINDER_DAYS_BEFORE: the book reminder goes out this many
 //    days before the deadline (day 10 of 14).
+//  - GUEST_CONFIRM_HOURS: a reservation made WITHOUT an account (lib/guestOrders.js)
+//    is held this long for the guest to open the link in the email; unconfirmed,
+//    it is released automatically. Confirmed, the usual RESERVATION_DAYS apply.
+//    MAX_RESERVED_COPIES / MAX_ACTIVE_RESERVATIONS then count per email address.
 const RESERVATION_DAYS = 14;
 const RESERVATION_EXTENSION_DAYS = 7;
 const MAX_RESERVED_COPIES = 10;
@@ -29,6 +33,7 @@ const MAX_ACTIVE_RESERVATIONS = 3;
 const SEAT_CANCEL_HOURS = 24;
 const SEAT_REMINDER_HOURS = 24;
 const RESERVATION_REMINDER_DAYS_BEFORE = 4;
+const GUEST_CONFIRM_HOURS = 2;
 // A drop-in seat is held until the class ends (classes.ends_at); when a class
 // has no end time, this many hours after it starts.
 const SEAT_FALLBACK_SESSION_HOURS = 3;
@@ -181,7 +186,7 @@ function membershipPrice(lang) {
 module.exports = {
   BRAND_LEGAL_NAME, BRAND_SHORT_NAME, TERMS_OF_SALE_VERSION, VAT_NOTICE_ARTICLE, SOCIAL_LINKS,
   RESERVATION_DAYS, RESERVATION_EXTENSION_DAYS, MAX_RESERVED_COPIES, MAX_ACTIVE_RESERVATIONS,
-  SEAT_CANCEL_HOURS, SEAT_REMINDER_HOURS, RESERVATION_REMINDER_DAYS_BEFORE, SEAT_FALLBACK_SESSION_HOURS,
+  SEAT_CANCEL_HOURS, SEAT_REMINDER_HOURS, RESERVATION_REMINDER_DAYS_BEFORE, SEAT_FALLBACK_SESSION_HOURS, GUEST_CONFIRM_HOURS,
   CONTACT_EMAIL, SIREN, SIRET, RNA, REGISTERED_OFFICE, REGISTERED_OFFICE_FORMAL,
   MEMBERSHIP_PRICE_EUR, SHOP_STREET_NUMBER, SHOP_PHONE_DISPLAY, SHOP_PHONE_TEL,
   SHOP_OPEN_DAYS, SHOP_OPENS, SHOP_CLOSES, SHOP_HOURS_EN, SHOP_HOURS_FR,

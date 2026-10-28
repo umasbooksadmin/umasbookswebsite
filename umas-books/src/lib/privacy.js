@@ -87,6 +87,12 @@ async function eraseEmailKeyedData(db, email, { userId = null, replacementEmail 
     // no accounting value, but deleting would fight the cart/expiry code,
     // so they are anonymised the same way. The access token is rotated so
     // an old emailed link stops working.
+    // A guest reservation's private links stop working too (lib/guestOrders.js).
+    await db.query(
+      `DELETE FROM guest_order_tokens WHERE order_id IN (
+         SELECT id FROM orders WHERE user_id = $2 OR (user_id IS NULL AND lower(buyer_email) = $1))`,
+      [email, userId]
+    );
     await db.query(
       `UPDATE orders
        SET buyer_name = $2, buyer_email = COALESCE($3, 'erased-order-' || id || '@erased.invalid'), buyer_phone = NULL, client_ip = NULL,
@@ -189,7 +195,11 @@ async function purgeExpiredPersonalData(pool, { onStep } = {}) {
     const b = await pool.query(
       `DELETE FROM email_verification_tokens WHERE expires_at < now() - interval '${RETENTION.tokenGraceDays} days'`
     );
-    return a.rowCount + b.rowCount;
+    // A guest reservation's confirm / manage links (lib/guestOrders.js).
+    const c = await pool.query(
+      `DELETE FROM guest_order_tokens WHERE expires_at < now() - interval '${RETENTION.tokenGraceDays} days'`
+    );
+    return a.rowCount + b.rowCount + c.rowCount;
   });
 
   await step("accounting", async () => {
