@@ -29,15 +29,15 @@
 
 <div class="card" id="managed">
   <div class="section-title">Managed genres</div>
-  <p class="muted small">The genres you want to use. Books have English genres only: the French site shows these English names too. A managed genre can also be a button on the public Browse page (Show on Browse); its position there is the Browse position.
-    Use the arrows to reorder the list. The list was seeded from the genres the shop already used, so nothing changed when this page appeared.</p>
+  <p class="muted small">The genres you want to use, listed A to Z. Books have English genres only: the French site shows these English names too. A managed genre can also be a button on the public Browse page (Show on Browse).
+    The order of the buttons on the Browse page is not A to Z: it follows the <strong>Browse position</strong> numbers (smaller numbers first); change a number and press Save to move a button. The list was seeded from the genres the shop already used, so nothing changed when this page appeared.</p>
   <div class="table-scroll"><table class="ann-table gn-managed">
     <thead><tr>
       <th scope="col">Name</th><th scope="col" class="gn-num">Books</th>
       <th scope="col">Show on Browse</th><th scope="col">Colour</th><th scope="col">Icon</th><th scope="col">Browse position</th><th scope="col"><span class="gn-sr">Actions</span></th>
     </tr></thead>
     <tbody>
-    <% managed.forEach(function (g, i) { const f = 'mg-' + g.id; %>
+    <% managed.forEach(function (g) { const f = 'mg-' + g.id; %>
       <tr>
         <td>
           <input form="<%= f %>" name="nameEn" value="<%= g.name_en %>" maxlength="60" aria-label="Name of <%= g.name_en %>" class="gn-input">
@@ -65,10 +65,6 @@
         <td><input form="<%= f %>" name="browseOrder" type="number" min="0" max="1000" value="<%= g.browse_order %>" aria-label="Browse position of <%= g.name_en %>" class="gn-pos"></td>
         <td class="gn-actions">
           <form id="<%= f %>" method="post" action="/admin/genres/managed/<%= g.id %>" class="gn-inline"><%- include('../partials/csrf_field') %><button class="btn btn-small" type="submit">Save</button></form>
-          <form method="post" action="/admin/genres/managed/<%= g.id %>/move" class="gn-inline"><%- include('../partials/csrf_field') %>
-            <button class="gn-icon-btn" type="submit" name="dir" value="up" aria-label="Move <%= g.name_en %> up" <%= i === 0 ? 'disabled' : '' %>>&uarr;</button>
-            <button class="gn-icon-btn" type="submit" name="dir" value="down" aria-label="Move <%= g.name_en %> down" <%= i === managed.length - 1 ? 'disabled' : '' %>>&darr;</button>
-          </form>
           <a class="gn-link" href="/admin/genres/managed/<%= g.id %>/delete" aria-label="Delete <%= g.name_en %>">Delete</a>
         </td>
       </tr>

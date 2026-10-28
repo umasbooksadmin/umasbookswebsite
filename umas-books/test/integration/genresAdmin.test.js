@@ -147,7 +147,7 @@ test("the found-genres page answers fast at 30,000 books", { timeout: 60000 }, a
 
 // ---------------------------------------------------------------- managed genres and rules (CRUD, audit)
 
-test("managed genres: add, rename (leaves an exact rule for the old name), reorder, delete", async () => {
+test("managed genres: add, rename (leaves an exact rule for the old name), listed A to Z, delete", async () => {
   const add = await h.post("/admin/genres/managed", { nameEn: "Kids", nameFr: "Enfants" });
   assert.equal(add.res.status, 200);
   const [kids] = await q("SELECT * FROM managed_genres WHERE name_en = 'Kids'");
@@ -167,10 +167,13 @@ test("managed genres: add, rename (leaves an exact rule for the old name), reord
   assert.equal(rule.target_managed_genre_id, kids.id, "books named Kids can be carried over by Update all books");
   assert.equal((await audits("genre.managed_update")).length, 1);
 
-  const before = (await q("SELECT id FROM managed_genres ORDER BY sort_order, id")).map((r) => r.id);
-  await h.post(`/admin/genres/managed/${before[1]}/move`, { dir: "up" });
-  const after1 = (await q("SELECT id FROM managed_genres ORDER BY sort_order, id")).map((r) => r.id);
-  assert.deepEqual(after1.slice(0, 2), [before[1], before[0]]);
+  // The admin list is A to Z (no up/down arrows any more): the old move address is gone and changes nothing.
+  const before = (await q("SELECT id, sort_order FROM managed_genres ORDER BY id"));
+  const moved = await h.post(`/admin/genres/managed/${kids.id}/move`, { dir: "up" });
+  assert.equal(moved.res.status, 404);
+  assert.deepEqual(await q("SELECT id, sort_order FROM managed_genres ORDER BY id"), before);
+  const names = (await admin.listManaged(h.pool)).map((g) => g.name_en);
+  assert.deepEqual(names, names.slice().sort(admin.compareNames), "listManaged is A to Z");
 
   const confirmPage = await h.get(`/admin/genres/managed/${kids.id}/delete`);
   assert.match(confirmPage.text, /1<\/strong> rule slotting genres into it is deleted with it/);
