@@ -445,7 +445,7 @@ html.is-admin-nav-open, html.is-admin-nav-open body { overflow: hidden; }
 .inv-ask-row { display: flex; gap: 8px; align-items: stretch; }
 .inv-ask-row textarea { flex: 1; min-width: 0; font-size: 16px; min-height: 44px; box-sizing: border-box; resize: vertical; }
 .inv-ask-row .btn { min-height: 44px; align-self: flex-end; }
-.inv-understood { margin: 0 0 12px; overflow-wrap: anywhere; }
+.inv-understood { margin: 12px 0 0; overflow-wrap: anywhere; }
 .inv-understood > div { margin-top: 4px; }
 
 /* The optional French version of an admin form (views/partials/admin_french_fields.ejs, public/french-translate.js) */

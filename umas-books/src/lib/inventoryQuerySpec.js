@@ -479,7 +479,8 @@ function explainSpec(spec) {
     head = spec.copies === "all" ? `Books (with or without copies) where: ${explainNode(spec.where, true)}.`
       : `Books with at least one copy ${scope}, where: ${explainNode(spec.where, true)}.`;
   } else head = `Books with one copy ${scope} where: ${explainNode(spec.where, true)}.`;
-  const one = hasCopyField(spec) && leaves(spec.where).length > 1 ? " All the copy details must be true of the same copy." : "";
+  const copyLeaves = leaves(spec.where).filter((l) => FIELDS[l.field].level === "copy" || (l.field2 && FIELDS[l.field2].level === "copy"));
+  const one = copyLeaves.length > 1 ? " All the copy details must be true of the same copy." : "";
   return `${head}${one} ${explainSort(spec)}`;
 }
 

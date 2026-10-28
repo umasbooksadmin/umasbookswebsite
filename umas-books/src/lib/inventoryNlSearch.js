@@ -17,7 +17,7 @@ const { FIELDS, OPS_BY_TYPE, FIELD_COMPARE_OPS, SORTABLE, COPIES, validateSpec }
 
 const MAX_SENTENCE = 300;
 const TOOL_NAME = "inventory_query";
-const STILL_WORKS = "The search box and the filters above still work.";
+const STILL_WORKS = "The search box and the filters below still work.";
 
 const MESSAGES = {
   empty: "Type a sentence first, for example: books with a customer price different from the publisher's price.",
@@ -25,7 +25,7 @@ const MESSAGES = {
   "no-key": `The sentence search is off: the AI service is not set up on this site. ${STILL_WORKS}`,
   credit: `The AI service is out of credit, so the sentence could not be read. ${STILL_WORKS}`,
   busy: `The AI service did not answer just now: try again in a minute. ${STILL_WORKS}`,
-  cannot: "That cannot be answered by a search of the inventory (it may ask about something the inventory does not record, like sales totals or customers). Try saying it another way, or use the filters above.",
+  cannot: "That cannot be answered by a search of the inventory (it may ask about something the inventory does not record, like sales totals or customers). Try saying it another way, or use the filters below.",
 };
 
 const fieldNames = Object.keys(FIELDS);
@@ -138,7 +138,7 @@ async function sentenceToSpec(sentence, { genres = [], locations = [], today, si
   const v = validateSpec(spec);
   if (!v.ok) {
     console.warn("AI inventory search: the spec was refused:", v.error);
-    return { ok: false, reason: "invalid", message: `The sentence was read as a search this page cannot run (${v.error}) Try saying it another way, or use the filters above.` };
+    return { ok: false, reason: "invalid", message: `The sentence was read as a search this page cannot run (${v.error}) Try saying it another way, or use the filters below.` };
   }
   return { ok: true, spec: v.spec };
 }

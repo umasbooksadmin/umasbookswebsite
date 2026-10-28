@@ -222,7 +222,7 @@ more things to keep in mind:
   (counts only, see `docs/runbook.md`, "Which catalogs are used"). The same
   report ends with **AI usage**: calls, errors, tokens and an estimated cost
   per AI feature (description, French translation, genres, cover photo,
-  price check), and a red banner when the Anthropic credit has run out
+  price check, inventory search by sentence), and a red banner when the Anthropic credit has run out
   (`docs/runbook.md`, "AI usage"). When the credit runs out the site also
   emails the alert address once (at most once per 24 hours, re-armed by the next
   successful AI call), shows a red line on the Dashboard, and the report has a
@@ -349,6 +349,27 @@ it sits on.
   **Received to** find copies by their Acquisition Date (both days included;
   either may be left empty), and **No date received set** finds copies without
   one. Like location, condition and price, one copy has to match them all.
+- **Finding books by describing them:** at the top of the Inventory page, type
+  what you want in **Describe what you are looking for** and press **Find**, for
+  example "books with a customer price different from the publisher's price",
+  "fantasy books under 6 euros, cheapest first", "copies received this month
+  with no location", "hardbacks published before 1950", or "sold copies that had
+  a publisher's price". The AI (one Anthropic call, counted under "Inventory
+  search (sentence)" in the AI usage report and in the shared daily cap) turns it
+  into a search; the page then says **Understood as: ...** in plain English (the
+  site's own wording, built from the search it is about to run, not the AI's):
+  check it before trusting the list. The matching copies show the prices or
+  dates the search is about. A blank value never counts as "different" or
+  "under" unless you say so ("... or with no publisher's price"). Like the
+  filters, one copy has to match every copy detail, and only copies in the store
+  count unless you ask for sold copies or all copies. **Download these results
+  (CSV)** downloads exactly that search (the AI is not asked again). It is
+  read-only and English only. If the AI is off or out of credit the page says so
+  and the search box and filters keep working. What it can search: title,
+  author, ISBN, publisher, description, year published, genre, binding; and per
+  copy customer price, publisher's price, cost, suggested price, condition,
+  location, status, source, date received, date added, date sold, clearance and
+  notes. It never sees or searches customer data (reservations, emails).
 - **Changing one copy:** open the book and edit **Location** on the copy.
 - Location names keep the capital letters you type (`Store`, `Fiction A1`); only
   extra spaces are tidied. Capitals do not make a different place: `store`,

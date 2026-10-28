@@ -224,7 +224,7 @@ test("AI failures: a clear message on the normal page, never a 500", async () =>
     aiReply = reply;
     const page = await ask("books by someone", "fail");
     assert.match(errorBox(page.text) || "", message);
-    assert.match(errorBox(page.text), /filters above/);
+    assert.match(errorBox(page.text), /filters below/);
     assert.equal(understood(page.text), null, "no results of a sentence search");
     assert.match(page.text, /<textarea id="nl-ask"[^>]*>books by someone<\/textarea>/, "the sentence is kept in the box");
     assert.equal(titlesIn(page.text).length, 6, "the normal list still shows");

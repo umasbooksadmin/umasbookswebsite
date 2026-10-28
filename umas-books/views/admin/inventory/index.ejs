@@ -10,9 +10,12 @@
       <textarea id="nl-ask" name="ask" rows="2" maxlength="<%= nl.maxLength %>" placeholder="e.g. books with a customer price different from the publisher's price" aria-describedby="nl-ask-help"><%= nl.sentence %></textarea>
       <button class="btn" type="submit">Find</button>
     </div>
-    <p class="muted small" id="nl-ask-help" style="margin:0;">In your own words, in English. The AI turns it into a search, which is shown as "Understood as" above the results: check it. Read-only: it never changes anything.<%= nl.enabled ? '' : ' (Off on this site: the AI service is not set up. The search and filters below work.)' %></p>
+    <p class="muted small" id="nl-ask-help" style="margin:0;">In your own words, in English. The AI turns it into a search, which is shown as "Understood as" above the results: check it. Read-only: it never changes anything.<%= nl.enabled ? '' : ' (Off on this site: the AI service is not set up. The search box and filters below work.)' %></p>
     <% if (nl.error) { %><div class="error-box" role="alert" style="margin:0;"><%= nl.error %></div><% } %>
   </form>
+  <% if (nl.active) { %>
+    <div class="notice-box inv-understood" role="status"><strong>Understood as:</strong> <%= nl.understood %><% if (nl.sentence) { %><div class="muted small">You asked: &ldquo;<%= nl.sentence %>&rdquo;</div><% } %><div class="small"><a href="#inv-results"><%= totalMatches %> <%= totalMatches === 1 ? 'book matches' : 'books match' %>: see the results below</a> &middot; <a href="/admin/inventory">Clear this search</a></div></div>
+  <% } %>
 </div>
 
 <div class="card">
@@ -101,10 +104,7 @@
   </p>
 </div>
 
-<div class="card">
-  <% if (nl.active) { %>
-    <div class="notice-box inv-understood" role="status"><strong>Understood as:</strong> <%= nl.understood %><% if (nl.sentence) { %><div class="muted small">You asked: &ldquo;<%= nl.sentence %>&rdquo;</div><% } %><div class="small"><a href="/admin/inventory">Clear this search</a></div></div>
-  <% } %>
+<div class="card" id="inv-results">
   <% if (!books.length) { %>
     <p class="muted"><%= (q || filterActive || nl.active) ? 'No books match this search.' : 'No books yet — scan or add one above.' %></p>
   <% } else { %>
