@@ -1435,7 +1435,7 @@ s.test("G91 (must) the New In carousel reaches every new book (batches of 60), n
       assert.equal(st.count, total, `${where}: the carousel ended with ${st.count} of ${total} books`);
       await assertCarouselIsWholeNewestFirstList(ctx, where);
       assert.equal(await ctx.page.$$eval("#bk-new-track .bk-book", (c) => new Set(c.map((x) => x.querySelector("a").getAttribute("href"))).size), total, `${where}: no book twice`);
-      if (touch) continue; // a phone has no arrows: nothing more to click
+      if (touch) continue; // a phone: swiped above (its arrows are tapped in CI-G91 and test/integration/phoneCarouselArrows.test.js)
       // back with Previous, down to the start
       for (let n = 0; n < (lang === "en" ? 150 : 8) && !(await carouselState(ctx.page)).prevDisabled; n++) {
         await ctx.page.click("#bk-new-prev");
@@ -1633,7 +1633,7 @@ s.test("G97a (must) a collection page lists its books like the genre results: 24
   }
   assert.equal(await count(), big.total, "every book of the collection is reachable");
   assert.equal(await ctx.page.$eval("#bk-more", (b) => b.hidden), true, "no Show more after the last book");
-  // a phone: the same grid as the genre results (one column or two, by the width, as on Browse), no sideways scrolling
+  // a phone: the same grid as the genre results (two books per row, as on Browse), no sideways scrolling
   await ctx.page.setViewport({ width: 375, height: 812, deviceScaleFactor: 1, isMobile: true, hasTouch: true });
   await ctx.goto(big.href, "networkidle2");
   const cols = await ctx.page.$eval(".bk-grid", (g) => getComputedStyle(g).gridTemplateColumns);
@@ -1643,14 +1643,17 @@ s.test("G97a (must) a collection page lists its books like the genre results: 24
   assert.deepEqual(await phoneOverflow(ctx.page, 375), []);
 });
 
-s.test("G98 (must) on a phone (375 px) the collections are a swipeable carousel (no arrows), each entry at least 44 px tall, icons 90 px, whole entries only, with no page-wide sideways scrolling", { viewport: GUEST_PHONE }, async (ctx) => {
+s.test("G98 (must) on a phone (375 px) the collections are a swipeable carousel (with round arrows over its ends), each entry at least 44 px tall, icons 90 px, whole entries only, with no page-wide sideways scrolling", { viewport: GUEST_PHONE }, async (ctx) => {
   await ctx.goto("/books.html", "networkidle2");
   if (!(await ctx.page.$("#bk-collections .col-btn"))) ctx.skip("data: no collection is published (with an approved book in stock) on this site");
   const r = await ctx.page.$$eval("#bk-collections .col-btn", (els) => els.map((e) => { const b = e.getBoundingClientRect(); return { left: Math.round(b.left), top: Math.round(b.top), w: Math.round(b.width), h: Math.round(b.height) }; }));
   assert.ok(r.every((b) => b.w >= 44 && b.h >= 44), "every button is at least 44 x 44 px");
   assert.ok(r.every((b) => Math.abs(b.top - r[0].top) < 4), "one carousel row");
   assert.equal(await ctx.page.$eval("#bk-collections .col-btn img", (i) => Math.round(i.getBoundingClientRect().width)), 90, "icon is 75% of the old 120 px");
-  assert.equal(await ctx.page.$eval("#bk-col-prev", (b) => getComputedStyle(b).display), "none", "arrows are hidden on a touch phone: swipe");
+  const arrow = await ctx.page.$eval("#bk-col-next", (b) => { const cs = getComputedStyle(b), r = b.getBoundingClientRect(); return { display: cs.display, position: cs.position, w: r.width, h: r.height }; });
+  assert.notEqual(arrow.display, "none", "the arrows show on a touch phone too");
+  assert.equal(arrow.position, "absolute", "they float over the ends of the row (no column of their own)");
+  assert.ok(arrow.w >= 44 && arrow.h >= 44, `the arrow is ${arrow.w}x${arrow.h}, under 44x44`);
   assert.deepEqual(await phoneOverflow(ctx.page, 375), []);
   assert.equal(await ctx.page.$eval("#bk-collections .col-btn img", (i) => i.getAttribute("alt")), "", "the picture is decoration: the caption is the name");
   assert.equal(await ctx.page.$eval("#bk-collections .col-btn img", (i) => i.getAttribute("loading")), "lazy");

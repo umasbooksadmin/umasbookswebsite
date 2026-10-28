@@ -3,7 +3,7 @@
 // Run with `npm run e2e:ci` (CI does, in the smoke-crawl job, after the crawl). The full G91 (230 books, three widths, both
 // languages, 150 clicks) takes about ten minutes; this variant keeps every kind of check (whole cards at rest, arrows, keys,
 // swipes, the double click, batches arriving, the end state, the same books in the same order as the API) with fewer
-// iterations, at 375 px (a phone, swipes) and 1280 px (arrows and keys), in English. A failure message says what was on
+// iterations, at 375 px (a phone, swipes and taps on the arrows) and 1280 px (arrows and keys), in English. A failure message says what was on
 // screen: which width, which step, which card was cut and by how many pixels.
 
 const assert = require("node:assert/strict");
@@ -14,7 +14,7 @@ const cfg = require("../helpers/config");
 const s = e2e.persona("guest");
 const BATCH = 60; // public/page-books.js NEW_IN_BATCH
 
-s.test("CI-G91 the New In carousel reaches every new book across the batch boundary of 60, whole cards at rest, arrows, keys, swipes and the true end (375 px and 1280 px)", { timeout: 240000 }, async (ctx) => {
+s.test("CI-G91 the New In carousel reaches every new book across the batch boundary of 60, whole cards at rest, arrows, keys, swipes, phone arrows and the true end (375 px and 1280 px)", { timeout: 240000 }, async (ctx) => {
   await ctx.page.setCookie({ name: "umasbooks_lang", value: "en", url: cfg.baseUrl() });
   const total = (await allNewIn()).total;
   if (total <= BATCH) ctx.skip(`data: needs more than ${BATCH} New In books to cross a batch boundary, the site has ${total}`);
@@ -45,6 +45,24 @@ s.test("CI-G91 the New In carousel reaches every new book across the batch bound
         assertAtRest(st, `${where} after swipe ${n}`);
         assert.ok(st.scrollLeft > before, `${where}: swipe ${n} did not move the row (it is at ${st.scrollLeft}, was ${before})`);
       }
+      // the arrows show on a phone too, floating over the ends of the row: a tap on Next moves a page on, a tap on Previous back
+      const tapArrow = async (sel) => {
+        await ctx.page.$eval("#bk-new-track", (t) => t.closest(".bk-new").scrollIntoView({ behavior: "instant", block: "start" }));
+        await ctx.page.tap(sel);
+        await carouselSettled(ctx.page);
+        return carouselState(ctx.page);
+      };
+      const shown = await ctx.page.$eval("#bk-new-next", (b) => { const cs = getComputedStyle(b), r = b.getBoundingClientRect(); return { display: cs.display, opacity: cs.opacity, w: r.width, h: r.height }; });
+      assert.ok(shown.display !== "none" && shown.opacity === "1", `${where}: the Next arrow is shown on a phone (${shown.display}, opacity ${shown.opacity})`);
+      assert.ok(shown.w >= 44 && shown.h >= 44, `${where}: the arrow is ${shown.w}x${shown.h}, under 44x44`);
+      let before = st.scrollLeft;
+      st = await tapArrow("#bk-new-next");
+      assertAtRest(st, `${where} after a tap on Next`);
+      assert.ok(st.scrollLeft > before, `${where}: a tap on Next did not move the row (it is at ${st.scrollLeft}, was ${before})`);
+      before = st.scrollLeft;
+      st = await tapArrow("#bk-new-prev");
+      assertAtRest(st, `${where} after a tap on Previous`);
+      assert.ok(st.scrollLeft < before, `${where}: a tap on Previous did not move the row back (it is at ${st.scrollLeft}, was ${before})`);
       for (let n = 0; n < 40 && !(await carouselState(ctx.page)).nextDisabled; n++) {
         await ctx.page.$eval("#bk-new-track", (t) => t.scrollTo({ left: t.scrollWidth }));
         await carouselSettled(ctx.page);
