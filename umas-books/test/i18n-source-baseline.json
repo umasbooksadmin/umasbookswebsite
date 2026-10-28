@@ -328,6 +328,22 @@
   "text": "Translate this English bookshop back-cover description to French. Keep the same tone and length. Respond with ONLY the French translation, no preamble, no quote"
  },
  {
+  "file": "src/lib/bookDescription.js",
+  "text": "i do not"
+ },
+ {
+  "file": "src/lib/bookDescription.js",
+  "text": "i could not"
+ },
+ {
+  "file": "src/lib/bookDescription.js",
+  "text": "i am not"
+ },
+ {
+  "file": "src/lib/bookDescription.js",
+  "text": "there is no"
+ },
+ {
   "file": "src/index.js",
   "text": "The post was NOT saved: that picture is larger than 15 MB. Please choose a smaller picture and write the post again."
  },

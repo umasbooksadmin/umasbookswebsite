@@ -10,12 +10,16 @@ test("a real description is kept exactly as written", () => {
   assert.equal(usableDescription(d), d);
   assert.equal(usableDescription("Nobody in town knows who left the letter. Unfortunately for Anna, everyone has a theory."), "Nobody in town knows who left the letter. Unfortunately for Anna, everyone has a theory.");
   assert.equal(usableDescription("None of the villagers expected the stranger to stay."), "None of the villagers expected the stranger to stay.");
+  assert.equal(usableDescription("I Capture the Castle is a coming-of-age novel."), "I Capture the Castle is a coming-of-age novel.");
+  // a description that starts with the book's own title is a description, whatever its first words
+  assert.equal(usableDescription("I Am Not a Serial Killer is a dark teen thriller.", "I Am Not a Serial Killer"), "I Am Not a Serial Killer is a dark teen thriller.");
+  assert.equal(usableDescription("Sorry Not Sorry follows two sisters.", "Sorry Not Sorry"), "Sorry Not Sorry follows two sisters.");
 });
 
 test("NONE, a refusal or an apology means no description at all", () => {
   for (const bad of ["NONE", "none", " None. ", '"NONE"', "N/A", "Unknown",
-    "I don't recognize this book, so I can't write a description.", "I do not have information about this title.",
-    "I'm not familiar with this book.", "I cannot write a description for a book I don't know.", "Sorry, I don't know this book.",
+    "I don't recognize this book, so I can't write a description.", "I dont recognize this book.", "I don\u2019t recognize this book.", "I can\u2019t describe it.", "I do not have information about this title.",
+    "I'm not familiar with this book.", "I\u2019m not familiar with this book.", "I cannot write a description for a book I don't know.", "Sorry, I don't know this book.",
     "Unfortunately I have no details about it.", "There is no information about this title.", "As an AI I can't say.", "", "   ", null, undefined, 42]) {
     assert.equal(usableDescription(bad), null, JSON.stringify(bad));
   }
