@@ -23,7 +23,7 @@ before(async () => {
   const c = new Client({ connectionString: app.databaseUrl });
   await c.connect();
   try {
-    const { rows } = await c.query("INSERT INTO books (title, authors, binding, description, description_fr) VALUES ('Urls Book', 'Urls Author', 'trade', 'An English blurb.', 'Un résumé en français.') RETURNING id");
+    const { rows } = await c.query("INSERT INTO books (title, authors, binding, description) VALUES ('Urls Book', 'Urls Author', 'trade', 'An English blurb.') RETURNING id");
     bookId = rows[0].id;
     await c.query("INSERT INTO book_copies (book_id, status, price, condition) VALUES ($1, 'in_stock', 7, 'very_good')", [bookId]);
   } finally {

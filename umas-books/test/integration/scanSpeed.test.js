@@ -190,7 +190,7 @@ test("lookup: answers carry a Server-Timing header with the steps", async () => 
 test("save: answers before the cover has been downloaded; the cover then fills in by itself", async () => {
   delays.cover = 1500;
   const isbn = isbn13();
-  const r = await save({ isbn, title: "Cover Later", description: "d", descriptionFr: "d", coverUrl: COVER });
+  const r = await save({ isbn, title: "Cover Later", description: "d", coverUrl: COVER });
   assert.equal(r.res.status, 200);
   assert.equal(r.body.ok, true);
   assert.ok(r.ms < 1000, `the save answered in ${r.ms.toFixed(0)} ms while the cover needs 1.5 s`);
@@ -216,16 +216,14 @@ test("save: a slow AI description does not delay the save; it is filled in after
   await settled();
   const row = await bookRow(isbn);
   assert.equal(row.description, "A description.");
-  assert.equal(row.description_fr, null, "no French translation is made");
 
   // Typed text is stored at once and the AI is not asked for it.
   calls.ai = 0;
   const isbn2 = isbn13();
-  await save({ isbn: isbn2, title: "Typed", description: "Typed words", descriptionFr: "Mots tapes", coverUrl: "" });
+  await save({ isbn: isbn2, title: "Typed", description: "Typed words", coverUrl: "" });
   await settled();
   const row2 = await bookRow(isbn2);
   assert.equal(row2.description, "Typed words");
-  assert.equal(row2.description_fr, null, "a posted French description is ignored");
   assert.equal(calls.ai, 0);
   void noCover;
 });
@@ -235,7 +233,7 @@ test("save: a book saved without a cover gets one found afterwards (from the cat
   books.set(isbn, catalogEntry("Find My Cover"));
   await lookup(isbn); // the catalog answer is now remembered
   const catalogCalls = calls.catalog;
-  const r = await save({ isbn, title: "Find My Cover", description: "d", descriptionFr: "d" });
+  const r = await save({ isbn, title: "Find My Cover", description: "d" });
   assert.ok(r.ms < 800);
   await settled();
   assert.match((await bookRow(isbn)).cover_url, /^\/img\//);
@@ -245,9 +243,9 @@ test("save: a book saved without a cover gets one found afterwards (from the cat
 test("save: a second copy of a book that lacks its texts fills them afterwards without delaying the answer", async () => {
   process.env.ANTHROPIC_API_KEY = "test-key";
   const isbn = isbn13();
-  await save({ isbn, title: "Two Copies", description: "d", descriptionFr: "d", coverUrl: "" });
+  await save({ isbn, title: "Two Copies", description: "d", coverUrl: "" });
   await settled();
-  await pool.query("UPDATE books SET description = NULL, description_fr = NULL WHERE isbn = $1", [isbn]);
+  await pool.query("UPDATE books SET description = NULL WHERE isbn = $1", [isbn]);
   delays.ai = 1000;
   const r = await save({ isbn, title: "Two Copies" });
   assert.ok(r.ms < 800, `answered in ${r.ms.toFixed(0)} ms`);

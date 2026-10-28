@@ -611,7 +611,7 @@ router.post("/admin/inventory/:id", requireAdmin, bookEditLimiter, async (req, r
   const publishedYear = yearCheck.value ?? null;
   let genre = normalizeGenres(req.body.genre);
   ({ genre } = await applyRulesToBook(pool, genre)); // the genre rules of Admin > Genres (none saved: unchanged)
-  // Books have no French genre or description (Sharon, 2026-10-28): a posted genreFr / descriptionFr is ignored.
+  // Books have no French genre or description (Sharon, 2026-10-28): a posted French genre / description field is ignored.
   let description = (req.body.description || "").trim() || null;
   let coverUrl = (req.body.coverUrl || "").trim() || null;
 

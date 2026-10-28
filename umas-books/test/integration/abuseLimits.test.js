@@ -150,7 +150,7 @@ test("the same ISBN added simultaneously ends up as one book with all the copies
   const admin = await loginAs({ admin: true });
   const isbn = `978${Date.now()}`.slice(0, 13);
   const fields = {
-    title: "Racy Book", author: "R", isbn, description: "d", descriptionFr: "d", coverUrl: "https://example.test/c.jpg", price: "5",
+    title: "Racy Book", author: "R", isbn, description: "d", coverUrl: "https://example.test/c.jpg", price: "5",
   };
   // One CSRF token for all six requests: six concurrent token fetches on one
   // session would race each other (each can replace the other's token).
@@ -187,7 +187,7 @@ test("when another request adds the ISBN between the lookup and the insert, the 
   await pool.query("CREATE TRIGGER abuse_test_race BEFORE INSERT ON books FOR EACH ROW EXECUTE FUNCTION abuse_test_race()");
   try {
     const res = await post(admin, "/admin/inventory", {
-      title: `Race Loser ${isbn}`, isbn, description: "d", descriptionFr: "d", coverUrl: "https://example.test/c.jpg", price: "5",
+      title: `Race Loser ${isbn}`, isbn, description: "d", coverUrl: "https://example.test/c.jpg", price: "5",
     });
     assert.equal(res.status, 302);
   } finally {
