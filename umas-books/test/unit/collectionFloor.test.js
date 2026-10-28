@@ -3,7 +3,7 @@
 // The least "Mark collected and paid" may take for an item (lib/orderActions.js collectionFloorCents) is
 // the till's own price rule: a fixed-price NEW book at least 95% of the publisher's price (rounded up to the
 // cent, the minimum inv.resolveCopyPricing accepts); a new book published over 2 years ago and a second-hand
-// book free (0); a class seat its price. No database needed (the module only requires the pool lazily).
+// book free (0); a class seat free too (0). No database needed (the module only requires the pool lazily).
 process.env.DATABASE_URL = process.env.DATABASE_URL || "postgres://localhost:5432/never_connected";
 
 const test = require("node:test");
@@ -41,7 +41,7 @@ test("the 2-year exception applies exactly as at the till (inv.isPublishedOverTw
   }
 });
 
-test("a second-hand book is free-priced (0), a class seat keeps its price", () => {
+test("a second-hand book and a class seat are free-priced (0)", () => {
   for (const condition of ["very_good", "good", "acceptable"]) assert.equal(collectionFloorCents(book({ condition })), 0, condition);
-  assert.equal(collectionFloorCents({ book_copy_id: null, class_dropin_seat_id: 3, price: "9.00" }), 900);
+  assert.equal(collectionFloorCents({ book_copy_id: null, class_dropin_seat_id: 3, price: "9.00" }), 0);
 });

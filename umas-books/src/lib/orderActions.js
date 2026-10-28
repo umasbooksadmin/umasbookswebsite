@@ -92,12 +92,12 @@ const toCents = (v) => Math.round(Number(v) * 100);
 //     (no discount).
 //   - a second-hand book, or a new one published over 2 years ago: the till lets an admin lower its price
 //     freely (with a reason), so 0 here (the note is the reason).
-//   - a drop-in class seat (and anything else): its reserved price. A reserved seat's price cannot be
-//     changed at the till either.
+//   - a drop-in class seat: 0. Sharon decided (2026-10-28) a seat may be discounted at pickup, with a
+//     note like any other discount; no law sets a minimum for it.
 // item: { price, book_copy_id, condition, publisher_price, published_year }. `today` ("YYYY-MM-DD") is for tests.
 function collectionFloorCents(item, today) {
   const price = toCents(item.price);
-  if (item.book_copy_id == null) return price;
+  if (item.book_copy_id == null) return 0;
   if (item.condition !== "new" || inv.isPublishedOverTwoYearsAgo(item.published_year, today)) return 0;
   const pub = item.publisher_price == null ? 0 : toCents(item.publisher_price);
   if (!(pub > 0)) return price;
@@ -121,7 +121,7 @@ function collectionFloorCents(item, today) {
 // `amountReceived` (euros) defaults to the total of the collected items and may
 // only be LOWER (a discount given at the till, with a note).
 // It may not go below the legal / till minimum of the collected items (collectionFloorCents): outcome
-// "below_minimum", with { minimum (euros), received (euros), limits: [{ title, minimum, kind: "book"|"seat" }] }
+// "below_minimum", with { minimum (euros), received (euros), limits: [{ title, minimum, kind: "book" }] }
 // naming each item that cannot be discounted down to 0.
 // outcome: "collected" | "not_found" | "not_reserved" | "method_required" |
 // "nothing_to_collect" | "amount_invalid" | "amount_too_high" | "below_minimum" | "note_required".
@@ -215,7 +215,7 @@ async function collectReservationTx(client, orderId, { adminUserId = null, metho
     if (received < minimum) {
       return {
         outcome: "below_minimum", minimum: minimum / 100, received: received / 100,
-        limits: floors.filter((f) => f.floor > 0).map((f) => ({ title: f.i.item_title, minimum: f.floor / 100, kind: f.i.book_copy_id != null ? "book" : "seat" })),
+        limits: floors.filter((f) => f.floor > 0).map((f) => ({ title: f.i.item_title, minimum: f.floor / 100, kind: "book" })),
       };
     }
     if (received < subtotal && !cleanNote) return { outcome: "note_required" };

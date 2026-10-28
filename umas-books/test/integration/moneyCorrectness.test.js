@@ -3,7 +3,7 @@
 //      paid: a card sale refunded in cash from the drawer lowers Cash (530), a cash sale refunded by bank
 //      transfer is a Bank transfer row, never Cash. Only a refund with no recorded method keeps the sale's method.
 //  G3  "Amount received" can never go below the fixed book price (loi Lang: 95% of the publisher's price for a
-//      new book, except one published over 2 years ago), nor below a class seat's price: the till's own rules.
+//      new book, except one published over 2 years ago). A class seat may be discounted (Sharon, 2026-10-28).
 //  G4  a drop-in class seat collected at the till is a "Class seats" line (706), like one collected with the
 //      admin button, and so is its refund; migration 105 moves the old till seat lines from "Other".
 // Ends with a whole-day reconciliation: per account, the export equals what moved in the drawer and the bank.
@@ -181,14 +181,17 @@ test("G3: a new book published over 2 years ago and a second-hand book may be di
   await collectByAdmin(used, "card", "0", "given away, damaged");
 });
 
-test("G3: a class seat keeps its price; with a second-hand book the minimum is the seat's price", async () => {
+test("G3: a class seat can be discounted at pickup; a new book with it still keeps its fixed-price minimum", async () => {
   const r = await reserve({ books: [{ price: 6 }], seats: [9] });
-  const res = await collectForm(r, { method: "card", amountReceived: "8.00", note: "deal" });
+  await collectByAdmin(r, "card", "3.00", "class discount");
+  assert.equal((await orderRow(r.id)).status, "paid");
+  const n = await reserve({ books: [{ price: 20, condition: "new", publisherPrice: 20, title: "Fixed price" }], seats: [9] });
+  const res = await collectForm(n, { method: "card", amountReceived: "10.00", note: "deal" });
   assert.equal(res.status, 200);
   const text = await res.text();
-  assert.match(text, /below the minimum for these items: €9\.00/);
-  assert.match(text, /Class seats are collected at their full price/);
-  await collectByAdmin(r, "card", "9.00", "book free with the class");
+  assert.match(text, /below the minimum for these items: €19\.00/);
+  assert.doesNotMatch(text, /Class seats/);
+  await collectByAdmin(n, "card", "19.00", "seat free with the book");
 });
 
 test("G3: the till collects reservations at their reserved price, so it is never refused by the floor", async () => {

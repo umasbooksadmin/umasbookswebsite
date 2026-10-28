@@ -245,12 +245,10 @@ const euro = (n) => `€${Number(n).toFixed(2)}`;
 // "below_minimum": name each item that limits the discount, and the least that can be received.
 function belowMinimumMessage(result) {
   const books = result.limits.filter((l) => l.kind === "book");
-  const seats = result.limits.filter((l) => l.kind === "seat");
   const parts = [`The amount received (${euro(result.received)}) is below the minimum for these items: ${euro(result.minimum)}. Nothing was changed.`];
   if (books.length) {
     parts.push(`New books are sold at the fixed book price (French law): at most 5% below the publisher's price. ${books.map((b) => `"${b.title}": at least ${euro(b.minimum)}`).join("; ")}.`);
   }
-  if (seats.length) parts.push(`Class seats are collected at their full price: ${seats.map((b) => `"${b.title}": ${euro(b.minimum)}`).join("; ")}.`);
   return parts.join(" ");
 }
 

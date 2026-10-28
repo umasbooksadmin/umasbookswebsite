@@ -114,7 +114,7 @@
         <% const listCents = activeItems.reduce((n, i) => n + Math.round(Number(i.price) * 100), 0); %>
         <% const minCents = activeItems.reduce((n, i) => n + i.floorCents, 0); %>
         <p class="small" style="margin:0;">List total: <strong>&euro;<%= (listCents / 100).toFixed(2) %></strong></p>
-        <% if (minCents > 0) { %><p class="muted small" id="collect-minimum" style="margin:0;">Lowest amount allowed: <strong>&euro;<%= (minCents / 100).toFixed(2) %></strong> (new books: at most 5% below the publisher's price, French fixed book price law; class seats: full price).</p><% } %>
+        <% if (minCents > 0) { %><p class="muted small" id="collect-minimum" style="margin:0;">Lowest amount allowed: <strong>&euro;<%= (minCents / 100).toFixed(2) %></strong> (new books: at most 5% below the publisher's price, French fixed book price law).</p><% } %>
         <label for="amountReceived">Amount received (&euro;)</label>
         <input id="amountReceived" name="amountReceived" type="number" step="0.01" min="<%= (minCents / 100).toFixed(2) %>" max="<%= (listCents / 100).toFixed(2) %>" value="<%= fv.amountReceived || (listCents / 100).toFixed(2) %>" required data-discount-total="<%= listCents %>" data-discount-note="note" data-discount-out="discount-live">
         <p id="discount-live" class="small" style="margin:0;" role="status" aria-live="polite"></p>
