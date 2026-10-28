@@ -20,6 +20,7 @@ const totp = require("../lib/totp");
 const { audit } = require("../lib/audit");
 const { syncMembershipInBackground, syncMembershipForEmail } = require("../lib/membership");
 const helloasso = require("../lib/helloasso");
+const { attachGuestOrders } = require("../lib/guestOrders");
 const { isPreviewMode } = require("../lib/preview");
 const { loginThrottle } = require("../lib/loginThrottle");
 
@@ -107,6 +108,9 @@ function loginAs(req, res, user, redirectTo) {
   loginThrottle.recordSuccess(user.id, ipKey(req)); // clears this address's failures; remembers it as a usual one
   const cart = req.session.cart;
   const cartSeq = req.session.cartSeq;
+  // Reservations made as a guest with this account's email join the account, only when that email is confirmed
+  // (lib/guestOrders.js attachGuestOrders checks it): e.g. an address confirmed before the guest reservation was made.
+  const attached = attachGuestOrders(pool, user.id).catch((attachErr) => { console.error("Attaching guest orders failed:", attachErr.message); return 0; });
   req.session.regenerate((err) => {
     if (err) {
       console.error(err);
@@ -123,7 +127,7 @@ function loginAs(req, res, user, redirectTo) {
     if (cart) req.session.cart = cart;
     if (cartSeq) req.session.cartSeq = cartSeq;
     // Persist before redirecting — see lib/session.js.
-    saveSession(req).then(
+    Promise.all([saveSession(req), attached]).then(
       () => res.redirect(redirectTo),
       (saveErr) => {
         console.error(saveErr);
@@ -404,10 +408,13 @@ router.post("/verify-email/:token", verifyEmailLimiter, async (req, res) => {
         [user.id, await passwordHash.unusableHash()]
       );
       await client.query("UPDATE password_reset_tokens SET used_at = now() WHERE user_id = $1 AND used_at IS NULL", [user.id]);
+      // The email is confirmed now: its guest reservations join the account (lib/guestOrders.js).
+      await attachGuestOrders(client, user.id);
       const rawReset = await createResetToken(client, user.id, returnTo);
       outcome = { redirect: `/reset-password/${rawReset}?confirmed=1`, noStore: true };
     } else {
       await client.query("UPDATE users SET email_verified_at = now() WHERE id = $1", [user.id]);
+      await attachGuestOrders(client, user.id);
       outcome = { redirect: `/login?verified=success${returnParam}`, syncEmail: user.email };
     }
     await client.query("COMMIT");
@@ -753,6 +760,8 @@ router.post("/reset-password/:token", resetLimiter, async (req, res) => {
       [hash, userId]
     );
     email = users[0] && users[0].email;
+    // A completed reset confirms the email (above): its guest reservations join the account (lib/guestOrders.js).
+    await attachGuestOrders(client, userId);
     await client.query("UPDATE password_reset_tokens SET used_at = now() WHERE user_id = $1 AND used_at IS NULL", [userId]);
     await client.query("COMMIT");
   } catch (err) {

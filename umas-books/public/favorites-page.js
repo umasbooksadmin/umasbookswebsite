@@ -1,7 +1,7 @@
 // Renders the Favorites page's book list (views/favorites.ejs) — the
-// favorited ids live in localStorage (see favorites.js), so the list
-// itself has to be fetched and rendered client-side; there's nothing to
-// query server-side without an account.
+// favorited ids live in localStorage (see favorites.js), signed in or not,
+// so the list itself has to be fetched and rendered client-side; no
+// account is needed for it.
 (function () {
   var list = document.getElementById("favorites-list");
   if (!list) return;
@@ -46,6 +46,9 @@
     if (card) card.remove();
     if (!list.querySelector(".book-card-wrap")) render([]);
   });
+
+  // Signing in merged the account's favourites into this browser's list (public/favorites.js): draw it again.
+  document.addEventListener("favoritesmerged", load);
 
   load();
 })();

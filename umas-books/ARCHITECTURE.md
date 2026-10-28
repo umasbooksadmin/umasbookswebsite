@@ -324,7 +324,8 @@ rather than by a numbered migration), grouped by what they belong to:
   transaction sets `refunded` + `refunded_at` + `refund_note`, puts the order's
   sold copies back `in_stock` (not a copy sold again since) and marks its
   drop-in seats `released`; it also records `orders.refund_method` (cash from the
-  till drawer, card, transfer, other; NULL for refunds made before migration 095)
+  till drawer, card, transfer, other; NULL for refunds made before migration 095;
+  the accounting export's refund row uses it as its payment method)
   and, for a cash refund made while today's till day is not closed,
   `orders.refund_till_day`: `till.daySummary` subtracts those from the day's expected
   cash, and a cash refund on a closed day is refused). Cash taken with the admin
@@ -1313,20 +1314,59 @@ page before this change (`test/fixtures/browseGenres.golden.json`).
 
 ## Reservations: reserve online, pay in the shop
 
-**Reserving requires an account.** A guest can browse, search and fill the cart
-(a list of lines in the session, at most 20), but `POST /cart/reserve` (and the
-old `GET /cart/checkout`, which only redirects) send them to
-`/login?returnTo=/cart` (checked server-side, after the preview-mode refusal and
-before anything is validated, locked or created). Login regenerates the session
-but copies the cart across; the returnTo (local paths only, `src/lib/returnTo.js`)
-travels in the login form and, through signup, inside the single-use
-`email_verification_tokens.return_to` / `password_reset_tokens.return_to`, so
-signup -> confirm -> choose password -> login ends back on the cart. The
-reservation is placed under the account's confirmed email (`orders.user_id`,
-`buyer_email` from the `users` row, never from the form; an unconfirmed account
-is refused); the name is pre-filled from `display_name` and stored on the order.
-Orders from before this rule have `user_id` NULL and keep working by token
-(`/cart/return`, exports by email).
+**Reserving: with an account, or as a guest.** Anyone can browse, search and fill
+the cart (a list of lines in the session, at most 20; a signed-out visitor's cart
+is the same session cart). The cart page then offers two ways to reserve:
+
+- **With an account** (`POST /cart/reserve`; a signed-out visitor posting it, and
+  the old `GET /cart/checkout`, are sent to `/login?returnTo=/cart`). Login
+  regenerates the session but copies the cart across; the returnTo (local paths
+  only, `src/lib/returnTo.js`) travels in the login form and, through signup,
+  inside the single-use `email_verification_tokens.return_to` /
+  `password_reset_tokens.return_to`, so signup -> confirm -> choose password ->
+  login ends back on the cart. The reservation is placed under the account's
+  confirmed email (`orders.user_id`, `buyer_email` from the `users` row, never
+  from the form; an unconfirmed account is refused); the name is pre-filled from
+  `display_name` and stored on the order.
+- **As a guest, without an account** (`GET /cart/guest`, `POST /cart/guest/reserve`,
+  `src/lib/guestOrders.js`, migration 106): name and email required, phone
+  optional, the terms box; no password. The same `createReservation` with
+  `guest: { email }`: `orders.user_id` NULL, `orders.is_guest` TRUE. The books are
+  held at once but `reserved_until` is only `GUEST_CONFIRM_HOURS` (2 h,
+  `lib/legal.js`) away, and the email (`guest_reservation`, a throttled
+  one-time-link kind of the outbox, queued inside the reservation transaction: a
+  throttled address rolls the reservation back, `MAIL_THROTTLED`) carries a
+  **confirm link** and a **manage link**. `GET /cart/guest/confirm/:token` shows
+  a button (mail scanners must not confirm); the POST claims the token atomically,
+  sets `guest_confirmed_at` and the deadline an account holder's reservation made
+  at the same moment would have (end of the 14th Paris day after `created_at`, or
+  the end of the session for seats only), and sends the full confirmation
+  (`guest_reservation_confirmed`, the account holder's text with the manage link
+  instead of the account page). Never confirmed, the usual expiry releases it
+  (release reason `unconfirmed`: no "your reservation has ended" mail, no
+  reminders, not in the admin digest). `GET /cart/guest/manage/:token` is the
+  reservation page plus "Cancel reservation" (`cancelReservationAsGuest`, the same
+  release as the customer cancel). Tokens (`guest_order_tokens`): 32 random
+  bytes, only the SHA-256 stored, one purpose each, `confirm` single use and
+  expiring with the 2 hours, `manage` expiring 30 days after the deadline; both
+  emails' bodies are blanked once sent. Limits: `MAX_RESERVED_COPIES` /
+  `MAX_ACTIVE_RESERVATIONS` count per lower-cased email over every open guest
+  reservation of that address (unconfirmed ones included), under a per-email
+  advisory lock, plus the per-IP `checkoutLimiter` and CSRF. Drop-in seats share
+  the cart, so a guest can reserve seats too; classes that need a sign-up,
+  membership, member discounts and the account page still need an account.
+  **Attach**: `attachGuestOrders(db, userId)` sets `user_id` on the guest orders
+  with the account's email, only when that account's email is confirmed (and the
+  account not disabled): called from `POST /verify-email/:token`, a completed
+  password reset (both confirm the email) and every login (`loginAs`). An
+  attached order keeps `is_guest` TRUE (the admin page says so).
+  The admin orders list and order page mark guest orders "Guest" with name,
+  email and phone; collect, partial pickup (the guest's links follow the part
+  still reserved), refund, no-show, cancel and the accounting export are the
+  account holder's, unchanged. "Resend confirmation" mints fresh links.
+
+Orders from before accounts were required have `user_id` NULL and `is_guest`
+FALSE and keep working by token (`/cart/return`, exports by email).
 
 Reservation flow (`createReservation`, `src/lib/cart.js`): one transaction,
 under a per-account advisory lock, checks the limits in `src/lib/legal.js`
@@ -1358,8 +1398,10 @@ reservation page (also the link in the email).
   `released` rather than deleting them: `order_items.class_dropin_seat_id`
   references the seat (no ON DELETE action). A released seat stops counting
   toward the session's capacity and is not on the roster.
-- **Old online checkout.** `runCartMaintenance` (every 10 min) only releases
-  leftover `in_cart` holds from before the change; no payment provider is asked,
+- **Old online checkout.** `runCartMaintenance` (every 10 min) releases
+  leftover `in_cart` holds from before the change, and runs the reservation
+  expiry so an unconfirmed guest hold goes back on sale within 10 minutes of its
+  2 hours even without traffic; no payment provider is asked,
   nothing creates a `pending` order any more, and `/webhooks/helloasso` only handles
   membership payments (an old notification naming a checkout order is logged).
 
@@ -1380,14 +1422,23 @@ page's own price line has none: its copy table right below already has an Add to
   link); on the `.book-card` cards the link's `::after` still covers the whole card. Names: "Add T to cart" /
   "Ajouter T au panier" (French: visually-hidden text with the title in `lang="en"`, like the heart).
 - **Forms without JavaScript**: a page drawn for one session (signed in, or the book page, which prints a token
-  anyway) gets a POST form to `/cart/add` with the CSRF token and `via=card`. A guest's marketing page (Browse,
-  collections) stays the same for everyone and creates no session: its icon is a GET form to `/login?returnTo=<page>`.
+  anyway) gets a POST form to `/cart/add` with the CSRF token and `via=card`. A signed-out visitor's marketing page
+  (Browse, collections) stays the same for everyone and creates no session: its icon is a GET form to the book's page
+  (`/books/<id>`, whose Add to Cart works signed out).
 - **With JavaScript** (`public/cart-add.js`): any icon form posts `/cart/add` itself (token from `/api/csrf-token`,
   `Accept: application/json`), and the answer is JSON. Signed in: the icon turns to "in your cart" in every card of
-  that book, focus moves onto it, the header count follows, a polite status line speaks. Signed out: `/cart/add`
-  puts the copy in the session's cart and answers with `/login?returnTo=<page>` (for a plain form: redirects there);
-  login carries the cart across, so they land back on the page with the book in their cart. Same limiter, same
-  CSRF check, no state-changing GET.
+  that book, focus moves onto it, the header count follows, a polite status line speaks. Signed out: the same (the
+  copy goes into the session's cart, which login carries across; no sign-in detour). Same limiter, same CSRF check,
+  no state-changing GET.
+
+### Favourites
+
+Saved in the browser (`localStorage` `umasbooks.favorites`, `public/favorites.js`, every read and write in
+try/catch), signed in or not; the Favorites page (`/favorites`) needs no account and draws the list from
+`/api/books/by-ids`. Signed in, each toggle is also saved to `favorites` (`POST /api/favorites/toggle`), and once
+per login session (`/api/session` `favoritesMerge`, cleared by the merge) the browser posts its whole list to
+`POST /api/favorites/merge`, which adds it to the account (unknown ids skipped, 200 at most) and answers the
+account's list, added back into the browser. `favorites.js` is on every page (EJS footer and marketing footer).
 
 ### Email outbox (`src/lib/outbox.js`, migration 062)
 

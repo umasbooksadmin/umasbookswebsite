@@ -190,13 +190,15 @@ more things to keep in mind:
   "Check my membership" button (`src/lib/membershipPage.js`). **The membership
   is the only thing paid online** (`src/lib/helloasso.js`, webhook at
   `/webhooks/helloasso`; payments are matched to accounts by email).
-- **Reservations** (`/cart`) — **needs an account**: guests can browse and
-  fill the cart, then are asked to log in or sign up (the cart is kept and they
-  return to it). Book copies and class drop-in seats are **reserved online and
+- **Reservations** (`/cart`) — **with an account or as a guest**: anyone can
+  browse and fill the cart, then either logs in / signs up (the cart is kept and
+  they return to it) or continues as a guest (name, email, optional phone; the
+  hold is confirmed from an emailed link within 2 hours, and a private link views
+  and cancels it). Book copies and class drop-in seats are **reserved online and
   paid in person**: "Reserve (free, no commitment)" holds the books for 14 days (an admin
   can extend once by 7 days) and a drop-in seat until the session is over; the
   customer pays at the shop when collecting, or at the session. At most 10
-  books and 3 open reservations per account; the customer can cancel from
+  books and 3 open reservations per account (or per email for guests); the customer can cancel from
   their account page (a seat until 24 hours before the session). Nothing is
   paid on the website. The numbers are in `src/lib/legal.js`. See
   ARCHITECTURE.md's "Reservations" section.

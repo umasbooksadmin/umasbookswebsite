@@ -104,9 +104,9 @@ test("the cart icon: an add form for one copy, a link to the book page for a cho
     }
   }
   const en = loadUi("en").cartControlHtml({ ...FULL, buy: { copyId: 41 } });
-  // the price line carries it, outside the book's link; a plain GET form to the sign-in page (works with no session), the "in your cart" link hidden
+  // the price line carries it, outside the book's link; without JavaScript a plain GET form to the book page (works with no session), the "in your cart" link hidden
   assert.match(loadUi("en").bookCardHtml({ ...FULL, buy: { copyId: 41 } }, true), /<\/a><div class="p">€7\.50<span class="bk-cart" data-book-id="12">/);
-  assert.match(en, /<form class="bk-cart-add" method="get" action="\/login" data-copy-id="41"><input type="hidden" name="returnTo" value="\/">/);
+  assert.match(en, /<form class="bk-cart-add" method="get" action="\/books\/12" data-copy-id="41"><button/);
   assert.match(en, /<button type="submit" class="bk-cart-btn" aria-label="Add Le Petit Prince to cart">/);
   assert.match(en, /<a class="bk-cart-btn bk-cart-in" href="\/cart" aria-label="Le Petit Prince is in your cart \(view cart\)" hidden>/);
   assert.match(loadUi("en").cartControlHtml({ ...FULL, buy: { choose: true } }), /<a class="bk-cart-btn bk-cart-choose" href="\/books\/12" aria-label="Choose a copy of Le Petit Prince to add to cart">/);
@@ -191,5 +191,6 @@ test("the server's cart icon for one session: a POST form to /cart/add with the 
   assert.match(inCart, /<a class="bk-cart-btn bk-cart-in" href="\/cart" aria-label="One Copy is in your cart \(view cart\)">/, "shown as in the cart, a link to the cart");
   const guest = serverCard(b, "en", { post: false, inCart: new Set(), backTo: "/collections/x" });
   assert.doesNotMatch(guest, /_csrf|TOKEN/, "a guest's page prints no token (no session is created for it)");
-  assert.match(guest, /method="get" action="\/login"[^>]*><input type="hidden" name="returnTo" value="\/collections\/x">/);
+  assert.match(guest, /<form class="bk-cart-add" method="get" action="\/books\/16" data-copy-id="41"><button/, "a signed-out visitor: the script adds to the session cart; without it, the book page");
+  assert.doesNotMatch(guest, /\/login|returnTo/, "no detour through the login page any more (guest checkout, 2026-10-28)");
 });

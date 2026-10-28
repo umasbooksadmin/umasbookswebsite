@@ -44,9 +44,9 @@ async function cartBookIds(pool, session) {
 // res.locals.cardCart for a page that draws cards on the server.
 //   personal: the page is already drawn for this one session (a signed-in person's page, or a page that prints a CSRF
 //   token anyway, like the book page). Only then does the HTML carry the session's own things: a real POST form with the
-//   CSRF token, and the "in your cart" state. A guest's marketing page (a collection, Browse) stays the same HTML for
-//   everyone and creates no session: its icon is a plain GET form to the sign-in page (the existing returnTo brings
-//   them back), and public/cart-add.js does the rest when JavaScript runs.
+//   CSRF token, and the "in your cart" state. A signed-out visitor's marketing page (a collection, Browse) stays the same
+//   HTML for everyone and creates no session: its icon is a plain GET form to the book's page (no JavaScript), and
+//   public/cart-add.js adds the book to the session's cart directly when JavaScript runs.
 async function setCardCartLocals(pool, req, res, { personal = false } = {}) {
   const isPersonal = Boolean(req.session && req.session.user) || personal;
   let inCart = [];

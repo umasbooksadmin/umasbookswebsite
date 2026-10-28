@@ -289,15 +289,21 @@ Key rules:
   k-anonymity breach check; a locked account (5 failures, 15 min) answers like a
   wrong password; the lockout counter is one atomic `UPDATE`. Wrong two-step
   codes count toward the same lockout.
-* **Reserving and joining need an account.** Guests browse and fill the cart
-  (session); `POST /cart/reserve` (and the old `GET /cart/checkout`, which only
-  redirects) send them to `/login?returnTo=/cart` (preview mode is checked
-  first, so its notice is never masked), and the reservation is placed under the
-  account's confirmed email with `orders.user_id`. The
-  `returnTo` (local paths only, `lib/returnTo.js`) also rides inside the
-  single-use email-verification and reset tokens (`return_to` columns), so
-  signup -> confirm -> choose password -> login ends on the cart, and the cart
-  itself is copied across the login's session regeneration.
+* **Reserving: with an account or as a guest; joining needs an account.** Anyone
+  browses and fills the cart (session). With an account, `POST /cart/reserve`
+  places the reservation under the account's confirmed email with
+  `orders.user_id` (a signed-out visitor posting it, and the old
+  `GET /cart/checkout`, are sent to `/login?returnTo=/cart`; preview mode is
+  checked first, so its notice is never masked). The `returnTo` (local paths
+  only, `lib/returnTo.js`) also rides inside the single-use email-verification
+  and reset tokens (`return_to` columns), so signup -> confirm -> choose password
+  -> login ends on the cart, and the cart itself is copied across the login's
+  session regeneration. As a guest (`/cart/guest`, `lib/guestOrders.js`): name,
+  email, optional phone; the items are held 2 hours until the guest opens the
+  emailed confirm link, then the usual deadline applies; a manage link views and
+  cancels without an account; guest orders join an account with the same email
+  only once that email is confirmed (see umas-books/ARCHITECTURE.md,
+  "Reservations").
 * **Sessions** — id regenerated at login (the guest cart is carried over); the session is **saved before the
   redirect** (`lib/session.js`) because `express-session` otherwise answers
   before its write lands; cookie `HttpOnly`, `Secure`, `SameSite=Lax`.
@@ -703,7 +709,7 @@ What keeps it correct:
 |---|---|
 | Overselling | atomic `UPDATE … WHERE status='in_stock'` on the copies inside the reservation transaction (a mismatch rolls everything back as `SOLD_OUT`), copy rows locked in id order, class rows locked with `FOR UPDATE` and the seat count re-read |
 | Hoarding stock without paying | per account: at most `MAX_RESERVED_COPIES` (10) books and `MAX_ACTIVE_RESERVATIONS` (3) open reservations (`lib/legal.js`), checked under a per-account advisory lock so two simultaneous requests cannot slip past; a cart holds at most 20 lines; `POST /cart/reserve` is rate limited (10 an hour per address) |
-| Anonymous reservations | reserving requires a logged-in account with a confirmed email, enforced on the server (`routes/cart.js`); the order stores `user_id` and the account's email (a posted email is ignored). Guests keep a cart in their session but cannot reserve |
+| Anonymous reservations | an account reservation uses the account's confirmed email (`user_id`; a posted email is ignored). A guest reservation (`lib/guestOrders.js`) is held only 2 hours until the emailed confirm link is opened (unconfirmed: released automatically, reason `unconfirmed`, no further mail); at most 10 books and 3 open reservations per email address (any case, unconfirmed ones included, per-email advisory lock); the first mail is a throttled kind (per recipient and shop-wide); tokens are random, stored hashed, single purpose and expiring |
 | Terms | reserving requires accepting the terms of sale; the order stores the time and the version (`cgv_accepted_at`, `cgv_version`). There is no withdrawal waiver step: nothing is paid online |
 | Deadline | `orders.reserved_until` = the end of the 14th Paris day for books (`RESERVATION_DAYS`); for a seat-only order, the end of its session; an admin can extend a books reservation once by 7 days (`extendReservation`) |
 | Release | `lib/reservations.js` `expireOrderReservations` / `releaseEndedSeats` run at the top of every route that shows copy status and from the 6-hourly jobs, so a lapsed reservation is released even when the site was idle: the copies go back `in_stock`, the seats `released`, the order `expired` (`release_reason`) |
@@ -827,8 +833,15 @@ in person only: online payment exists only for HelloAsso memberships and orders.
   reservation collected at the till is counted once, from its till lines
   (`reservation_order_id`); one collected with the admin button is counted from the
   order under `orders.payment_method` (cash, card, cheque, other); only old
-  online-checkout orders (no method) and memberships are HelloAsso. A refund row
-  uses the method of the sale.
+  online-checkout orders (no method) and memberships are HelloAsso. A reservation
+  refund row uses the method the money was GIVEN BACK with (`orders.refund_method`:
+  cash -> Cash, card -> Card at the till, transfer -> Bank transfer, other -> Other /
+  not recorded), the same as the drawer maths; only a refund with no recorded method
+  (before migration 095) keeps the method of the sale. A drop-in seat collected at
+  the till is a `class_seats` till line (migration 105), exported as Class seats.
+  "Mark collected and paid" refuses an amount below the till's own price floor
+  (`orderActions.collectionFloorCents`: 95% of the publisher's price for a fixed-price
+  new book, 0 for second-hand and over-2-years-old books, the full price for a seat).
 
 #### Till correctness and money safety (migration `074_till_correctness.sql`)
 

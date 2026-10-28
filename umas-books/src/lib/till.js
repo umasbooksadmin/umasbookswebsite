@@ -37,10 +37,13 @@ const OTHER_CATEGORIES = [
   { value: "other", label: "Other" },
 ];
 const OTHER_CATEGORY_VALUES = new Set(OTHER_CATEGORIES.map((c) => c.value));
-// What the accounting export calls each line category.
+// A drop-in class seat of a reservation collected at the till (never a manual or quick item category):
+// exported as "Class seats" (706), exactly like a seat collected with the admin button.
+const SEAT_CATEGORY = "class_seats";
+// What the accounting export calls each line category (lib/accounting.js CATEGORY_SQL says the same).
 const EXPORT_CATEGORY = {
   books_used: "Books used", books_new: "Books new", books_other: "Other",
-  merchandise: "Merchandise", refreshments: "Refreshments", donation: "Donation", other: "Other",
+  merchandise: "Merchandise", refreshments: "Refreshments", donation: "Donation", other: "Other", class_seats: "Class seats",
 };
 
 // extra: fields sent to the browser with the message (code, newTotalCents...).
@@ -323,7 +326,7 @@ async function buildLines(db, rawItems, { isAdmin = true, lock = true } = {}) {
       lines.push({
         kind: "reserved", orderId: Number(it.orderId), itemId: Number(it.itemId), copyId: isBook ? row.book_copy_id : null,
         description: row.item_title, quantity: 1, unitCents: toCents(row.price), expectedCents: expected,
-        category: isBook ? (row.condition === "new" ? "books_new" : "books_used") : "other",
+        category: isBook ? (row.condition === "new" ? "books_new" : "books_used") : SEAT_CATEGORY,
       });
     } else if (it.kind === "book") {
       const copy = copies.get(Number(it.copyId));
@@ -907,7 +910,7 @@ async function unclosedDays(db) {
 }
 
 module.exports = {
-  TillError, assignReceiptNumber, receiptNumber, OTHER_CATEGORIES, EXPORT_CATEGORY, DESCRIPTION_MAX, MAX_QTY, MAX_TOTAL_CENTS, OVERRIDE_UP_PERCENT, eur, toCents, parseCents, cashChange, cleanText,
+  TillError, assignReceiptNumber, receiptNumber, OTHER_CATEGORIES, EXPORT_CATEGORY, SEAT_CATEGORY, DESCRIPTION_MAX, MAX_QTY, MAX_TOTAL_CENTS, OVERRIDE_UP_PERCENT, eur, toCents, parseCents, cashChange, cleanText,
   parseBarcode, checkBarcodeFree, SHOP_CODE_PREFIX, lookupScan, releaseExpiredCartCopy, buildLines, completeSale, checkSale, voidSale, confirmRefund,
   unrefundedVoids, voidsOfDay, maxTillVoidsPerDay, TILL_VOID_REASON_MIN, daySummary, lockDay, parisToday, openDay, closeDay, reopenDay, unclosedDays, basketHash,
 };

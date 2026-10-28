@@ -1,6 +1,30 @@
 <%- include('partials/header', { noindex: true, title: tr('Reservation', 'Réservation') }) %>
 
-<% if (status === 'reserved') { %>
+<% if (locals.notice) { %><div role="status" class="notice-box"><%= notice %></div><% } %>
+
+<% if (status === 'reserved' && locals.awaitingConfirm) { %>
+  <div class="order-receipt" id="guest-check-email">
+  <h1><%= tr('Check your email to confirm', 'Consultez vos e‑mails pour confirmer') %></h1>
+  <div role="status" class="notice-box"><%= tr('We are holding your items. We sent a link to {email}: open it within {hours} hours (by {time}, Paris time) to confirm your reservation. Without confirmation, the items go back on sale automatically.', 'Nous vous gardons vos articles. Nous avons envoyé un lien à {email} : ouvrez-le dans les {hours} heures (avant {time}, heure de Paris) pour confirmer votre réservation. Sans confirmation, les articles sont automatiquement remis en vente.', { email: order.buyer_email, hours: confirmHours, time: formatDateTime(order.reserved_until) }) %></div>
+  <div class="card" id="order-summary">
+    <p class="small"><strong><%= tr('Reservation #{n}', 'Réservation n°{n}', { n: order.id }) %></strong>
+      &middot; <%= tr('Name:', 'Nom :') %> <%= order.buyer_name %></p>
+    <ul class="plain">
+      <% items.forEach(i => { %>
+        <li><%- i.isSeat ? escHtml(i.label) : bookText(i.bookTitle) + (i.grade ? ' (' + escHtml(i.grade) + ')' : '') %> <span class="muted small">&middot; <%= eur(i.price) %></span></li>
+      <% }) %>
+    </ul>
+    <p><strong><%= tr('Total to pay at the shop:', 'Total à régler à la boutique :') %> <%= eur(order.total_amount) %></strong></p>
+  </div>
+  <p class="muted small"><%= tr('No email? Check your spam folder. The email also has a link to see or cancel this reservation.', 'Pas d’e-mail ? Vérifiez vos courriers indésirables. L’e-mail contient aussi un lien pour consulter ou annuler cette réservation.') %></p>
+  <% if (locals.manageToken) { %>
+    <form method="post" action="/cart/guest/manage/<%= manageToken %>/cancel" class="no-print" data-confirm="<%= tr('Cancel this reservation? Its items become available to others.', 'Annuler cette réservation ? Ses articles redeviendront disponibles pour les autres.') %>">
+      <%- include('partials/csrf_field') %>
+      <button type="submit" class="btn btn-outline btn-small"><%= tr('Cancel reservation', 'Annuler la réservation') %></button>
+    </form>
+  <% } %>
+  </div>
+<% } else if (status === 'reserved') { %>
   <div class="order-receipt">
   <h1><%= tr('Reservation #{n} recorded', 'Réservation n°{n} enregistrée', { n: order.id }) %></h1>
   <p class="muted"><%= legalText.nothingPaidOnline %></p>
@@ -25,10 +49,16 @@
   <p class="muted small no-returns-note"><%= legalText.noReturnsShort %> <%= legalText.noReturnsSee %> <a href="<%= legalText.noReturnsLinkPath %>"><%= legalText.noReturnsLinkLabel %></a>.</p>
   <p class="muted small"><%= tr('A confirmation email is on its way to {email}.', 'Un e-mail de confirmation vous est envoyé à l’adresse {email}.', { email: order.buyer_email }) %></p>
   <p class="no-print"><button type="button" class="btn" data-print><%= tr('Print this page', 'Imprimer cette page') %></button></p>
-  <% if (isOwner) { %>
+  <% if (locals.manageToken) { %>
+    <p class="muted small no-print"><%= tr('Keep this page’s link (it is also in your email): it is how you see or cancel this reservation without an account.', 'Gardez le lien de cette page (il est aussi dans votre e-mail) : il vous permet de consulter ou d’annuler cette réservation sans compte.') %></p>
+    <form method="post" action="/cart/guest/manage/<%= manageToken %>/cancel" class="no-print" data-confirm="<%= tr('Cancel this reservation? Its items become available to others.', 'Annuler cette réservation ? Ses articles redeviendront disponibles pour les autres.') %>">
+      <%- include('partials/csrf_field') %>
+      <button type="submit" class="btn btn-outline btn-small"><%= tr('Cancel reservation', 'Annuler la réservation') %></button>
+    </form>
+  <% } else if (isOwner) { %>
     <form method="post" action="/cart/reservations/<%= order.id %>/cancel" class="no-print" data-confirm="<%= tr('Cancel this reservation? Its items become available to others.', 'Annuler cette réservation ? Ses articles redeviendront disponibles pour les autres.') %>">
       <%- include('partials/csrf_field') %>
-      <button type="submit" class="btn-outline"><%= tr('Cancel reservation', 'Annuler la réservation') %></button>
+      <button type="submit" class="btn btn-outline btn-small"><%= tr('Cancel reservation', 'Annuler la réservation') %></button>
     </form>
   <% } %>
   </div>
@@ -54,6 +84,10 @@
 <% } else if (status === 'cancelled') { %>
   <h1><%= tr('Reservation cancelled', 'Réservation annulée') %></h1>
   <p class="muted"><%= tr('This reservation was cancelled. Nothing was charged, and its items are available again.', 'Cette réservation a été annulée. Rien n’a été débité, et ses articles sont de nouveau disponibles.') %></p>
+  <p><a class="btn" href="/books.html"><%= tr('Back to Books', 'Retour aux livres') %></a></p>
+<% } else if (status === 'expired' && order.release_reason === 'unconfirmed') { %>
+  <h1><%= tr('Reservation not confirmed', 'Réservation non confirmée') %></h1>
+  <p class="muted"><%= tr('This reservation was not confirmed within {hours} hours, so its items went back on sale. Nothing is owed. You can reserve them again if they are still available.', 'Cette réservation n’a pas été confirmée dans les {hours} heures, ses articles ont donc été remis en vente. Vous ne devez rien. Vous pouvez les réserver de nouveau s’ils sont encore disponibles.', { hours: confirmHours }) %></p>
   <p><a class="btn" href="/books.html"><%= tr('Back to Books', 'Retour aux livres') %></a></p>
 <% } else if (status === 'expired') { %>
   <h1><%= tr('Reservation ended', 'Réservation terminée') %></h1>

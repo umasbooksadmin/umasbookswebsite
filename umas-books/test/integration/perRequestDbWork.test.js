@@ -78,7 +78,7 @@ test("/api/csrf-token works for a cookieless client and sets up a session", asyn
 test("/api/session returns the logged-out shape including cartCount", async () => {
   const res = await fetch(`${app.base}/api/session`);
   assert.deepEqual(await res.json(), {
-    cartCount: 0, cartBookIds: [], loggedIn: false, isMember: false, isVolunteer: false, isAdmin: false,
+    cartCount: 0, cartBookIds: [], favoritesMerge: false, loggedIn: false, isMember: false, isVolunteer: false, isAdmin: false,
   });
 });
 

@@ -59,9 +59,16 @@
 <div class="card">
   <h2 class="section-title">Customer</h2>
   <p>
-    <%= order.buyer_name %> &middot; <%= order.buyer_email %><%= order.buyer_phone ? ' · ' + order.buyer_phone : '' %><br>
+    <% if (order.is_guest) { %><span class="status-pill category" id="order-guest">Guest</span> <% } %><%= order.buyer_name %> &middot; <%= order.buyer_email %><%= order.buyer_phone ? ' · ' + order.buyer_phone : '' %><br>
+    <% if (order.is_guest) { %>
+      <span class="muted small">Reserved without an account (guest).
+        <% if (order.guest_confirmed_at) { %>The guest confirmed it from the email link on <%= formatDateTime(order.guest_confirmed_at) %>.<% } else if (order.status === 'reserved') { %>The guest has not opened the email link yet: unless they do, it is released automatically at <%= formatDateTime(order.reserved_until) %>.<% } else { %>The email link was never opened.<% } %>
+      </span><br>
+    <% } %>
     <% if (order.user_id) { %>
-      <span class="muted small">Account: <a href="/admin/members?view=<%= order.user_id %>"><%= order.account_name || order.account_email || ('#' + order.user_id) %></a></span>
+      <span class="muted small">Account: <a href="/admin/members?view=<%= order.user_id %>"><%= order.account_name || order.account_email || ('#' + order.user_id) %></a><%= order.is_guest ? ' (attached after the account confirmed this email)' : '' %></span>
+    <% } else if (order.is_guest) { %>
+      <span class="muted small">No linked account. It is attached automatically if this email later gets a confirmed account.</span>
     <% } else { %>
       <span class="muted small">No linked account (reservation made before accounts were required, or the account was erased).</span>
     <% } %>
@@ -112,9 +119,11 @@
         </select>
         <p class="muted small" id="collect-till-note" style="margin:0;">Usually collect a reservation at the till (scan ORDER-<%= order.id %>). If you use this button for cash, the cash is added to today&rsquo;s expected drawer cash on the End of day page (&ldquo;Cash taken via admin&rdquo;).<% if (tillClosed) { %> <strong id="collect-till-closed">Today&rsquo;s till day is already closed, so Cash is not offered: reopen the day on the End of day page first, or choose Other and say in the note where the money went.</strong><% } %></p>
         <% const listCents = activeItems.reduce((n, i) => n + Math.round(Number(i.price) * 100), 0); %>
+        <% const minCents = activeItems.reduce((n, i) => n + i.floorCents, 0); %>
         <p class="small" style="margin:0;">List total: <strong>&euro;<%= (listCents / 100).toFixed(2) %></strong></p>
+        <% if (minCents > 0) { %><p class="muted small" id="collect-minimum" style="margin:0;">Lowest amount allowed: <strong>&euro;<%= (minCents / 100).toFixed(2) %></strong> (new books: at most 5% below the publisher's price, French fixed book price law).</p><% } %>
         <label for="amountReceived">Amount received (&euro;)</label>
-        <input id="amountReceived" name="amountReceived" type="number" step="0.01" min="0" max="<%= (listCents / 100).toFixed(2) %>" value="<%= fv.amountReceived || (listCents / 100).toFixed(2) %>" required data-discount-total="<%= listCents %>" data-discount-note="note" data-discount-out="discount-live">
+        <input id="amountReceived" name="amountReceived" type="number" step="0.01" min="<%= (minCents / 100).toFixed(2) %>" max="<%= (listCents / 100).toFixed(2) %>" value="<%= fv.amountReceived || (listCents / 100).toFixed(2) %>" required data-discount-total="<%= listCents %>" data-discount-note="note" data-discount-out="discount-live">
         <p id="discount-live" class="small" style="margin:0;" role="status" aria-live="polite"></p>
         <p class="muted small" style="margin:0;">It can only be lowered (a discount given at the pickup); then a note is required. The accounting export shows the difference as a separate &ldquo;Discount&rdquo; line, so the treasurer sees exactly what was received.</p>
         <label for="note">Note (required if less than the list total)</label>

@@ -159,7 +159,7 @@ test("accounting mapping page: edit is validated, saved, audited and used by the
   assert.equal(page.res.status, 200);
   assert.match(page.text, /ask the treasurer to confirm/);
   const rows = (page.text.match(/name="debit_\d+"/g) || []).length;
-  assert.equal(rows, 5 * 8 + 4 + 2, "8 categories x 5 methods, Discount x 4 methods (never HelloAsso), 2 over/short");
+  assert.equal(rows, 6 * 8 + 5 + 2, "8 categories x 6 methods (Bank transfer: refunds only), Discount x 5 methods (never HelloAsso), 2 over/short");
   const body = {};
   for (let i = 0; i < rows; i++) {
     const g = (f) => page.text.match(new RegExp(`name="${f}_${i}" value="([^"]*)"`))[1];
