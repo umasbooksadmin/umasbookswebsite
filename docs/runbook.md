@@ -1667,7 +1667,8 @@ and on the other reports.
    with **Download for French Excel** and send the file. Row layout: Date,
    Category, Payment method, Count, Total (EUR), Libellé, Compte débit,
    Compte crédit, Journal. One row per Paris day, category and payment method
-   (Cash, Card at the till, Cheque, HelloAsso, Other / not recorded). Books and
+   (Cash, Card at the till, Cheque, HelloAsso, Bank transfer, Other / not recorded;
+   Bank transfer only ever appears on refund rows). Books and
    seats are reserved on the website and paid IN PERSON: a reservation collected
    at the till is counted once (from the till) and one collected with "Mark
    collected and paid" is counted under the method chosen there (cash, card,
@@ -1675,7 +1676,12 @@ and on the other reports.
    paid online before reservations existed. It never contains names or emails.
 2. **Refunds.** A refunded reservation keeps its row on the day it was paid and
    gets a **negative** row (negative count and total, label "Remboursement ...")
-   on the day it was refunded (same category and method as the sale). A month already sent is therefore not changed:
+   on the day it was refunded (same category as the sale). Its payment method is
+   **how the money was given back**, as chosen in "Mark refunded": cash from the
+   drawer is Cash (530), a card refund on the terminal is Card at the till, a bank
+   transfer is Bank transfer, anything else is Other / not recorded. So a card sale
+   refunded in cash lowers Cash, exactly like the drawer count. Refunds recorded
+   before the site asked how (before migration 095) keep the sale's method. A month already sent is therefore not changed:
    the correction is in the export of the month of the refund. A refund paid in cash
    from the drawer is also taken off the day's expected cash, so it does not
    come back as a "Cash short" row.
@@ -1696,7 +1702,10 @@ and on the other reports.
    credit account **709** (rabais, remises et ristournes accordés; debit = the
    same cash/bank account as the sale). The sum of the sale lines and the discount
    row is exactly what was received in cash or by card, to the cent, for any
-   number of lines. If that reservation is refunded, the refund reverses what was
+   number of lines. The amount received can never be below the legal minimum: a
+   new book under the fixed book price law at least 95% of the publisher's price
+   (not for a new book published more than 2 years ago), a class seat its full
+   price; second-hand books can be discounted freely, as at the till. If that reservation is refunded, the refund reverses what was
    received: the list-price lines get their negative rows and the discount gets a
    **positive** row labelled "Annulation de remise ..." on the refund day. Reservations
    without a discount never produce a Discount row. The Sales report shows a
@@ -1711,14 +1720,18 @@ and on the other reports.
    from **Reports > Accounting export > Accounts mapping**
    (`/admin/reports/accounting/mapping`), an editable table; each change is
    recorded in Admin activity. Starting values: cash 530; cards and HelloAsso
-   511 (clearing account, to confirm: the treasurer may want 512); payment with
+   511 (clearing account, to confirm: the treasurer may want 512); refunds by bank
+   transfer 511 / BQ too (to confirm: 512 Banque is the usual account); payment with
    no recorded method 471; Books used, Books new, Merchandise, Refreshments
    707; Class seats 706; Membership 756; Donation 754; Other 708; over 758,
    short 658. **These are only a starting point: ask the treasurer to confirm
    the account numbers and the import layout.** Nothing here was checked
    against Paheko or any other software.
 5. Voided till sales and cancelled online reservations are not in the export.
-6. The manual category "Other (not new books: scan new books so the price rules apply)" appears as Other (it is not mapped to Books used: see `docs/till-todos.md`).
+6. Drop-in class seats are Class seats (706) whether collected at the till or with
+   "Mark collected and paid" (migration 105 moved the till seat lines recorded before
+   it from Other to Class seats; totals per day and payment method did not change).
+7. The manual category "Other (not new books: scan new books so the price rules apply)" appears as Other (it is not mapped to Books used: see `docs/till-todos.md`).
 
 ### Later: the SumUp Cloud API
 

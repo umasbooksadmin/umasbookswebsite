@@ -833,8 +833,15 @@ in person only: online payment exists only for HelloAsso memberships and orders.
   reservation collected at the till is counted once, from its till lines
   (`reservation_order_id`); one collected with the admin button is counted from the
   order under `orders.payment_method` (cash, card, cheque, other); only old
-  online-checkout orders (no method) and memberships are HelloAsso. A refund row
-  uses the method of the sale.
+  online-checkout orders (no method) and memberships are HelloAsso. A reservation
+  refund row uses the method the money was GIVEN BACK with (`orders.refund_method`:
+  cash -> Cash, card -> Card at the till, transfer -> Bank transfer, other -> Other /
+  not recorded), the same as the drawer maths; only a refund with no recorded method
+  (before migration 095) keeps the method of the sale. A drop-in seat collected at
+  the till is a `class_seats` till line (migration 105), exported as Class seats.
+  "Mark collected and paid" refuses an amount below the till's own price floor
+  (`orderActions.collectionFloorCents`: 95% of the publisher's price for a fixed-price
+  new book, 0 for second-hand and over-2-years-old books, the full price for a seat).
 
 #### Till correctness and money safety (migration `074_till_correctness.sql`)
 

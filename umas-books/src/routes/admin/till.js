@@ -333,7 +333,7 @@ async function daySales(day) {
 router.get("/admin/till/day", requireTillOrAdmin, async (req, res) => {
   const { day, today } = dayFrom(req);
   const [summary, sales, unclosed] = await Promise.all([till.daySummary(pool, day), daySales(day), till.unclosedDays(pool)]);
-  const catLabel = (k) => k === "books_used" ? "Books used" : k === "books_new" ? "Books new" : (till.OTHER_CATEGORIES.find((c) => c.value === k) || {}).label || k;
+  const catLabel = (k) => k === "books_used" ? "Books used" : k === "books_new" ? "Books new" : k === till.SEAT_CATEGORY ? "Class seats" : (till.OTHER_CATEGORIES.find((c) => c.value === k) || {}).label || k;
 
   if (req.query.format === "csv" || req.query.format === "csv-fr") {
     const french = wantsFrenchCsv(req.query);
