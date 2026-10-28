@@ -2,11 +2,10 @@
 // cartControlHtml draw it). A plain script, loaded after assets/site.js and public/ui.js; it sets window.UmasCart.
 //
 //   - Pressing the icon posts the add itself (POST /cart/add with the CSRF token from /api/csrf-token, Accept: application/json),
-//     whatever the form in the page says (a guest's page has a plain GET form to the sign-in page, a signed-in person's a POST
-//     form): no page reload. Added: every icon of that book on the page turns into "in your cart" (focus moves onto it), the
-//     header's cart count follows, and a status line tells screen readers. A guest: the server puts the book in the session's
-//     cart and answers with the sign-in address (returnTo = this page), and the browser goes there; login carries the cart
-//     across, so they come back to this page with the book in their cart.
+//     whatever the form in the page says (a page drawn for everyone has a plain GET form to the book's page, a signed-in
+//     person's a POST form): no page reload. Added: every icon of that book on the page turns into "in your cart" (focus moves
+//     onto it), the header's cart count follows, and a status line tells screen readers. Signed in or not, the same: a
+//     signed-out visitor's book goes into the session's cart (which login carries across) and they stay on the page.
 //   - "In your cart" comes from /api/session (cartBookIds, the same request assets/site.js makes for the cart count): every icon
 //     on the page, and the cards a page script draws later (UmasCart.sync(root)).
 //   - Without JavaScript the forms work as they are (see card_cart.ejs).
@@ -98,7 +97,6 @@
       return res.json();
     }).then(function (data) {
       if (!data) return;
-      if (data.ok && data.login) { location.assign(data.login); return; }   // a guest: sign in first (the book is already in the cart)
       done();
       if (data.ok) {
         inCart[bookId] = true;
