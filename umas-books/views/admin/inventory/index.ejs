@@ -3,6 +3,19 @@
 
 
 <div class="card">
+  <form class="stack inv-ask" method="post" action="/admin/inventory/ask" aria-label="Search inventory by describing it">
+    <%- include('../../partials/csrf_field') %>
+    <label for="nl-ask">Describe what you are looking for</label>
+    <div class="inv-ask-row">
+      <textarea id="nl-ask" name="ask" rows="2" maxlength="<%= nl.maxLength %>" placeholder="e.g. books with a customer price different from the publisher's price" aria-describedby="nl-ask-help"><%= nl.sentence %></textarea>
+      <button class="btn" type="submit">Find</button>
+    </div>
+    <p class="muted small" id="nl-ask-help" style="margin:0;">In your own words, in English. The AI turns it into a search, which is shown as "Understood as" above the results: check it. Read-only: it never changes anything.<%= nl.enabled ? '' : ' (Off on this site: the AI service is not set up. The search and filters below work.)' %></p>
+    <% if (nl.error) { %><div class="error-box" role="alert" style="margin:0;"><%= nl.error %></div><% } %>
+  </form>
+</div>
+
+<div class="card">
   <form class="stack inv-search" method="get" action="/admin/inventory" role="search" aria-label="Search inventory">
     <div class="inv-search-main">
       <div>
@@ -81,7 +94,7 @@
     <a class="btn btn-outline" href="/admin/inventory/results.csv<%= resultsQuery ? '?' + resultsQuery : '' %>">Download these results (CSV)</a>
   </div>
   <p class="muted small" style="margin-top:8px;">
-    <strong>All inventory</strong> is everything in the system, whatever you searched. <strong>These results</strong> is exactly what the search and filters above show (all of it, not just the first <%= listLimit %>)<%= filterActive || q ? '' : ': with nothing searched, that is everything too' %>; with a location, condition, price or date received filter on, only the copies that match are listed.
+    <strong>All inventory</strong> is everything in the system, whatever you searched. <strong>These results</strong> is exactly what the search and filters above show (or the sentence search, when one is shown) (all of it, not just the first <%= listLimit %>)<%= filterActive || q ? '' : ': with nothing searched, that is everything too' %>; with a location, condition, price or date received filter on, only the copies that match are listed.
     Both: one row per copy, for French Excel (semicolons, decimal commas), no customer data.
     Per book instead of per copy: <a href="/admin/inventory/export.csv?books=1">all inventory</a>, <a href="/admin/inventory/results.csv?<%= resultsQuery ? resultsQuery + '&' : '' %>books=1">these results</a>.
     The full file is also emailed every evening at 21:00.
@@ -89,10 +102,13 @@
 </div>
 
 <div class="card">
+  <% if (nl.active) { %>
+    <div class="notice-box inv-understood" role="status"><strong>Understood as:</strong> <%= nl.understood %><% if (nl.sentence) { %><div class="muted small">You asked: &ldquo;<%= nl.sentence %>&rdquo;</div><% } %><div class="small"><a href="/admin/inventory">Clear this search</a></div></div>
+  <% } %>
   <% if (!books.length) { %>
-    <p class="muted"><%= (q || filterActive) ? 'No books match this search.' : 'No books yet — scan or add one above.' %></p>
+    <p class="muted"><%= (q || filterActive || nl.active) ? 'No books match this search.' : 'No books yet — scan or add one above.' %></p>
   <% } else { %>
-    <p class="muted small" role="status" id="inv-count"><%= totalMatches %> <%= totalMatches === 1 ? 'book' : 'books' %><%= (q || filterActive) ? ' match' : '' %><%= totalMatches > books.length ? ' (showing the first ' + books.length + ': narrow the search to see the rest)' : '' %></p>
+    <p class="muted small" role="status" id="inv-count"><%= totalMatches %> <%= totalMatches === 1 ? 'book' : 'books' %><%= (q || filterActive || nl.active) ? ' match' : '' %><%= totalMatches > books.length ? ' (showing the first ' + books.length + ': narrow the search to see the rest)' : '' %></p>
     <ul class="plain">
       <% books.forEach(b => { %>
         <li style="display:flex; gap:14px; align-items:center;">
@@ -110,7 +126,7 @@
             </div>
             <% if (b.matched_copies.length) { %>
               <div class="small inv-matched">Matching <%= b.matched_copies.length === 1 ? 'copy' : 'copies' %>:
-                <% b.matched_copies.forEach((m, i) => { %><%= i ? '; ' : '' %><strong><%= m.location || 'No location' %></strong> &middot; <%= conditionLabel(m.condition) %> &middot; <%= m.price == null ? 'no price' : '€' + m.price.toFixed(2) %><% if (showReceived) { %> &middot; <%= m.received ? 'received ' + m.received : 'no date received' %><% } %><% }) %>
+                <% b.matched_copies.forEach((m, i) => { %><%= i ? '; ' : '' %><strong><%= m.location || 'No location' %></strong> &middot; <%= conditionLabel(m.condition) %> &middot; <%= m.price == null ? 'no price' : '€' + m.price.toFixed(2) %><% if (showReceived) { %> &middot; <%= m.received ? 'received ' + m.received : 'no date received' %><% } %><% (m.extra || []).forEach(x => { %> &middot; <%= x %><% }) %><% }) %>
               </div>
             <% } %>
           </div>

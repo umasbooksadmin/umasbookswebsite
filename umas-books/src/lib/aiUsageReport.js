@@ -11,6 +11,7 @@ const FEATURE_LABELS = {
   genre: "Genre suggestion",
   cover: "Cover photo reading",
   price: "Price check (web search)",
+  search: "Inventory search (sentence)",
 };
 const SUMS = ["calls", "ok", "errors", "limited", "credit_errors", "input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens", "web_searches", "duration_ms_sum", "duration_n"];
 const num = (v) => Number(v || 0);

@@ -29,7 +29,7 @@ const AI_PRICES = {
   assumedModel: MODELS.text.id,
 };
 
-const FEATURES = ["description", "translation", "genre", "cover", "price"];
+const FEATURES = ["description", "translation", "genre", "cover", "price", "search"];
 const COUNTERS = ["calls", "ok", "errors", "limited", "credit_errors", "input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens", "web_searches", "duration_ms_sum", "duration_n"];
 const BIGINTS = new Set(["input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens", "duration_ms_sum"]);
 const MAX_KEYS = 200;

@@ -43,19 +43,20 @@ function textOf(data) {
 // Is there an API key? (the features that check their own input first ask this, to keep their order of checks)
 const hasApiKey = (env) => Boolean(config.get("ANTHROPIC_API_KEY", env));
 
-// request({ feature, model, system, messages, maxTokens, tools, timeoutMs, signal, env, fetchImpl, claim })
+// request({ feature, model, system, messages, maxTokens, tools, toolChoice, timeoutMs, signal, env, fetchImpl, claim })
 //   feature     usage-statistics feature (aiUsageStats FEATURES)
 //   model       a model id (MODELS.text.id ...)
 //   messages    the messages array, sent as is
 //   system      optional system prompt (omitted from the body when absent)
 //   tools       optional tools array (omitted when absent)
+//   toolChoice  optional tool_choice object, e.g. { type: "tool", name: "..." } (omitted when absent)
 //   timeoutMs   REQUIRED: each feature keeps its own limit (8 s texts, 20 s photos, 45 s collection suggestions ...)
 //   signal      optional AbortSignal of the caller (counts as a timeout failure when it fires)
 //   env         optional settings object for config.get (tests); default process.env
 //   fetchImpl   optional fetch (tests); default globalThis.fetch looked up at call time
 //   claim       "shared" (default): take one slot of the shared daily cap first. false: the caller already holds its
 //               slot (the price check takes its own cap and the shared one together in lib/aiLimits acquirePriceCall)
-async function request({ feature, model, system, messages, maxTokens, tools, timeoutMs, signal, env, fetchImpl, claim = "shared" }) {
+async function request({ feature, model, system, messages, maxTokens, tools, toolChoice, timeoutMs, signal, env, fetchImpl, claim = "shared" }) {
   const apiKey = config.get("ANTHROPIC_API_KEY", env);
   if (!apiKey) return { ok: false, kind: "no-key", message: "ANTHROPIC_API_KEY not set." };
 
@@ -90,6 +91,7 @@ async function request({ feature, model, system, messages, maxTokens, tools, tim
         model,
         max_tokens: maxTokens,
         ...(tools ? { tools } : {}),
+        ...(toolChoice ? { tool_choice: toolChoice } : {}),
         ...(system ? { system } : {}),
         messages,
       }),
