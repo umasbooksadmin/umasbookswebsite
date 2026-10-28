@@ -1,4 +1,4 @@
-// After migration 109 (no books.description_fr / categories_fr, no managed_genres.name_fr / browse_label_fr) the REAL
+// After migration 108 (no books.description_fr / categories_fr, no managed_genres.name_fr / browse_label_fr) the REAL
 // app (child process, real sessions and CSRF) boots and the main customer and admin pages answer 200: the book page in
 // English and French, the genre pages and the genre search, a collection, Admin > Genres, the inventory list, its
 // search and both CSV exports, scan intake, add manually, edit book and the till. Port 6539 is reserved for this file.

@@ -1,6 +1,6 @@
 // Customer-facing book page and Browse on the French site: books have an English description and English genres only
 // (Sharon, 2026-10-28). /fr/ shows the ENGLISH description and genres (marked lang="en"), inside the French page.
-// Books have no French columns (dropped by migration 109).
+// Books have no French columns (dropped by migration 108).
 const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const { startTestApp } = require("../helpers/testApp");

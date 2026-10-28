@@ -20,7 +20,7 @@
 const IMAGE_REFERENCES = [
   { table: "books", column: "cover_url" },
   { table: "books", column: "description" },
-  // The old French book descriptions (books lost that column in migration 109): kept as the undo, so a picture
+  // The old French book descriptions (books lost that column in migration 108): kept as the undo, so a picture
   // embedded in one stays until the backup table itself is dropped (docs/runbook.md section aq).
   { table: "book_french_backup", column: "description_fr" },
   { table: "announcements", column: "image_url" },

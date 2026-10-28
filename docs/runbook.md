@@ -3746,18 +3746,18 @@ line (action `books.french_removed`, by "migration 107"): *French book descripti
 kept in table book_french_backup.* N is the number of books that had French text. Running the migration again changes nothing
 and writes no second line.
 
-**The columns are gone (migration 109, 2026-10-28).** The next deploy dropped the four unused columns:
+**The columns are gone (migration 108, 2026-10-28).** The next deploy dropped the four unused columns:
 `books.description_fr`, `books.categories_fr`, `managed_genres.name_fr` and `managed_genres.browse_label_fr`. Before
 dropping, it checked that every French value still in the two book columns was saved in `book_french_backup` (and copied
 any that was not); if a value had differed from the saved one, the deploy would have stopped with nothing dropped. **Admin >
-Admin activity** has one line (action `books.french_columns_dropped`, by "migration 109"): *French book columns dropped
+Admin activity** has one line (action `books.french_columns_dropped`, by "migration 108"): *French book columns dropped
 (books.description_fr, books.categories_fr, managed_genres name_fr / browse_label_fr). Book text, copies and prices are
 untouched. The old French values are kept in table book_french_backup.* **`book_french_backup` stays** until Sharon decides
 otherwise. (The French names of the managed genres were not copied anywhere: they were the shop's standard list seeded by
 migration 100, which still lists them, and the nightly database backups have them until those age out.)
 
 **Restore (only if the French is wanted back).** The site no longer shows or edits these values, so restoring only puts the
-data back in the database (for a later change of mind, or to read the old French). Since migration 109 the two book columns
+data back in the database (for a later change of mind, or to read the old French). Since migration 108 the two book columns
 no longer exist, so the recipe first adds them back (empty), then fills them from the backup. Render dashboard >
 `umas-books` > **Shell**, run `psql "$DATABASE_URL"`, then paste (it fills only French boxes that are empty now, never
 overwrites, and is safe to run twice):

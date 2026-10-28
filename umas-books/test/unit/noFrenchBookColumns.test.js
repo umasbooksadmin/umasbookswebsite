@@ -1,7 +1,7 @@
-// Migration 109 dropped books.description_fr, books.categories_fr, managed_genres.name_fr and
+// Migration 108 dropped books.description_fr, books.categories_fr, managed_genres.name_fr and
 // managed_genres.browse_label_fr. No source file (code, views, scripts, tests, e2e) may name them again: a query
 // that did would fail on the live database. Old migrations are history and are not scanned; the two migration tests
-// (107, 109) and the page test (which checks the columns are gone) need the names.
+// (107, 108) and the page test (which checks the columns are gone) need the names.
 //
 // description_fr stays a real column elsewhere (collections, events, charities; the condition grades' French text),
 // so for it only a mention tied to the books table is refused. The other names exist nowhere else and are refused
@@ -53,7 +53,7 @@ function offenders() {
 }
 
 test("no source file names a dropped French book / managed-genre column", () => {
-  assert.deepEqual(offenders(), [], "these lines name a column migration 109 dropped");
+  assert.deepEqual(offenders(), [], "these lines name a column migration 108 dropped");
 });
 
 test("the check itself catches each kind of mention (so an empty result means something)", () => {

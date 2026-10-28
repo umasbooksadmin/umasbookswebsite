@@ -61,7 +61,7 @@ BEGIN
     rescued := rescued + n;
   END IF;
   IF rescued > 0 THEN
-    RAISE NOTICE 'migration 109: % French book value(s) were not in book_french_backup and were copied there first', rescued;
+    RAISE NOTICE 'migration 108: % French book value(s) were not in book_french_backup and were copied there first', rescued;
   END IF;
 
   -- 2. Check: nothing that is about to be dropped is unsaved.
@@ -72,7 +72,7 @@ BEGIN
     CASE WHEN has_cats THEN '(b.categories_fr IS NOT NULL AND b.categories_fr IS DISTINCT FROM k.categories_fr)' ELSE 'FALSE' END)
     INTO unsaved;
   IF unsaved > 0 THEN
-    RAISE EXCEPTION 'migration 109 stopped, nothing dropped: % book(s) hold a French value in books.description_fr / categories_fr that differs from the one saved in book_french_backup. Compare them (docs/runbook.md, "French book descriptions and genres (removed)") before deploying again.', unsaved;
+    RAISE EXCEPTION 'migration 108 stopped, nothing dropped: % book(s) hold a French value in books.description_fr / categories_fr that differs from the one saved in book_french_backup. Compare them (docs/runbook.md, "French book descriptions and genres (removed)") before deploying again.', unsaved;
   END IF;
 END $$;
 
@@ -82,7 +82,7 @@ ALTER TABLE managed_genres DROP COLUMN IF EXISTS name_fr, DROP COLUMN IF EXISTS 
 
 -- 4. One Admin activity line, once.
 INSERT INTO admin_audit_log (actor_label, action, target_type, detail)
-SELECT 'migration 109', 'books.french_columns_dropped', 'book',
+SELECT 'migration 108', 'books.french_columns_dropped', 'book',
        'French book columns dropped (books.description_fr, books.categories_fr, managed_genres name_fr / browse_label_fr). '
        || 'Book text, copies and prices are untouched. The old French values are kept in table book_french_backup.'
 WHERE NOT EXISTS (SELECT 1 FROM admin_audit_log WHERE action = 'books.french_columns_dropped');
