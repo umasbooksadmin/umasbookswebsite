@@ -40,8 +40,8 @@
     <% examples.forEach(function (e) { %>
       <tr>
         <td><% if (e.title) { %><a href="/admin/inventory/<%= e.book_id %>"><%= e.title %></a><% } else { %>(book deleted)<% } %></td>
-        <td><span class="gn-before"><%= e.old_categories %></span><br><span class="muted small">French: <%= e.old_categories_fr || 'none' %></span></td>
-        <td><span class="gn-after"><%= e.new_categories == null ? '(no genre)' : e.new_categories %></span><br><span class="muted small">French: <%= e.new_categories_fr || 'none' %></span></td>
+        <td><span class="gn-before"><%= e.old_categories %></span></td>
+        <td><span class="gn-after"><%= e.new_categories == null ? '(no genre)' : e.new_categories %></span></td>
       </tr>
     <% }) %>
     </tbody>

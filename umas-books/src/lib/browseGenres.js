@@ -66,13 +66,13 @@ function nextColour(previous) {
 function buttonFromRow(r) {
   const palette = PALETTE[r.colour] || PALETTE[PALETTE_KEYS[(r.id || 0) % PALETTE_KEYS.length]];
   const icon = ICONS[r.icon] || ICONS[DEFAULT_ICON];
-  const frName = String(r.name_fr || "").trim();
   return {
     slug: r.browse_slug, key: `g.${r.browse_slug}`, bg: palette.bg, fg: palette.fg,
     topic: r.browse_topic != null && String(r.browse_topic).trim() !== "" ? String(r.browse_topic).trim() : r.name_en,
     svg: icon.svg,
     labelEn: r.browse_label_en || r.name_en,
-    labelFr: r.browse_label_fr || frName || r.name_en,
+    // Book genres are English on both sites (Sharon, 2026-10-28): the French page shows the English label too.
+    labelFr: r.browse_label_en || r.name_en,
   };
 }
 

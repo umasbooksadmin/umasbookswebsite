@@ -1,6 +1,7 @@
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
-const { normalizeIsbn, translateGenresToFrench } = require("../../src/lib/bookLookup");
+const bookLookup = require("../../src/lib/bookLookup");
+const { normalizeIsbn } = bookLookup;
 
 test("normalizeIsbn strips hyphens and spaces", () => {
   assert.equal(normalizeIsbn("978-0-13-468599-1"), "9780134685991");
@@ -20,10 +21,8 @@ test("normalizeIsbn handles empty/missing input", () => {
   assert.equal(normalizeIsbn(undefined), "");
 });
 
-test("translateGenresToFrench: taxonomy genres, the age-group short forms (Young Adult, Children's) and unknown tags", () => {
-  assert.equal(translateGenresToFrench("Fiction, Mystery, Young Adult Fiction"), "Fiction, Policier, Fiction jeune adulte");
-  assert.equal(translateGenresToFrench("Young Adult"), "Jeune adulte");
-  assert.equal(translateGenresToFrench("young adult, Children's"), "Jeune adulte, Jeunesse");
-  assert.equal(translateGenresToFrench("Non-fiction, Zymurgy"), "Non-fiction, Zymurgy", "a tag outside the taxonomy is kept, not dropped");
-  assert.equal(translateGenresToFrench(""), null);
+test("no French genre translation: books have English genres only (2026-10-28)", () => {
+  assert.equal(bookLookup.translateGenresToFrench, undefined);
+  assert.equal(bookLookup.COMMON_GENRES_FR, undefined);
+  assert.equal(bookLookup.GENRE_ALIASES_FR, undefined);
 });

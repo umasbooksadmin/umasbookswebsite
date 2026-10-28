@@ -158,7 +158,7 @@ const png = (w = 60, h = 40) => sharp({ create: { width: w, height: h, channels:
 const bookByTitle = async (title) => (await pool.query("SELECT * FROM books WHERE title = $1", [title])).rows;
 const copiesOf = async (bookId) => (await pool.query("SELECT * FROM book_copies WHERE book_id = $1 ORDER BY id", [bookId])).rows;
 
-async function seedBook({ title = `Seed ${tag()}`, isbn = null, cover = KEEP_COVER, description = "Existing description", descriptionFr = "Description existante", copies = [{}] } = {}) {
+async function seedBook({ title = `Seed ${tag()}`, isbn = null, cover = KEEP_COVER, description = "Existing description", descriptionFr = null, copies = [{}] } = {}) {
   const { rows } = await pool.query(
     "INSERT INTO books (isbn, title, authors, description, description_fr, cover_url) VALUES ($1, $2, 'Seed Author', $3, $4, $5) RETURNING id",
     [isbn, title, description, descriptionFr, cover]
@@ -180,7 +180,7 @@ async function seedBook({ title = `Seed ${tag()}`, isbn = null, cover = KEEP_COV
 test("guests are sent to /login and non-admins get 403 on every inventory route", async () => {
   const routes = [
     ["GET", "/admin/inventory"], ["GET", "/admin/inventory/new"], ["GET", "/admin/inventory/scan"], ["GET", "/admin/inventory/1"],
-    ["POST", "/admin/inventory"], ["POST", "/admin/inventory/lookup"], ["POST", "/admin/inventory/generate-description"], ["POST", "/admin/inventory/translate-french"],
+    ["POST", "/admin/inventory"], ["POST", "/admin/inventory/lookup"], ["POST", "/admin/inventory/generate-description"],
     ["POST", "/admin/inventory/1"], ["POST", "/admin/inventory/1/delete"], ["POST", "/admin/inventory/1/copies/1"],
     ["POST", "/admin/inventory/1/copies/1/cancel-reservation"], ["POST", "/admin/inventory/1/copies/1/delete"],
   ];
@@ -405,7 +405,7 @@ test("lookup by photo: nothing readable, or the vision API failing, shows the sc
 
 // --------------------------------------------------------- generate-description
 
-test("generate-description: needs a title, returns English + French, 502s when the AI is down", async () => {
+test("generate-description: needs a title, returns the English description only (no translation call), 502s when the AI is down", async () => {
   let r = await post("/admin/inventory/generate-description", { form: { title: "  " } });
   assert.equal(r.status, 400);
   assert.deepEqual(JSON.parse(r.text), { error: "Enter a title first." });
@@ -414,7 +414,8 @@ test("generate-description: needs a title, returns English + French, 502s when t
   ai.description = "A lovely blurb.";
   r = await post("/admin/inventory/generate-description", { form: { title: "Blurb Book", author: "A. Writer", publisher: "P", publishedYear: "1999" } });
   assert.equal(r.status, 200);
-  assert.deepEqual(JSON.parse(r.text), { description: "A lovely blurb.", descriptionFr: "FR: A lovely blurb." });
+  assert.deepEqual(JSON.parse(r.text), { description: "A lovely blurb." });
+  assert.equal(anthropicCalls.length, 1, "one AI call: the English description, no French translation");
   const prompt = anthropicCalls[0].messages[0].content;
   assert.ok(prompt.includes('"Blurb Book"') && prompt.includes("by A. Writer") && prompt.includes("published by P") && prompt.includes("(1999)"));
 
@@ -424,65 +425,15 @@ test("generate-description: needs a title, returns English + French, 502s when t
   assert.match(JSON.parse(r.text).error, /Couldn't generate a description/);
 });
 
-// --------------------------------------------------------- translate-french
+// --------------------------------------------------------- no French for books
 
-// The AI limit is per admin per minute (10): each test uses its own admin so the count of earlier tests does not matter.
-let freshAdminSeq = 900000;
-const freshAdmin = () => ({ "x-test-user": JSON.stringify({ id: ++freshAdminSeq, email: "fr@example.test", displayName: "Fr", isAdmin: true }) });
-
-test("translate-french: genres come from the word list (unknown ones stay English), the description is ONE AI call", async () => {
-  const r = await post("/admin/inventory/translate-french", { headers: freshAdmin(), form: { genre: "Fantasy, Young Adult, Zorblax, fantasy", description: "A big dragon." } });
-  assert.equal(r.status, 200);
-  assert.deepEqual(JSON.parse(r.text), { genreFr: "Fantasy, Jeune adulte, Zorblax", descriptionFr: "FR: A big dragon.", aiMessage: null });
-  assert.equal(anthropicCalls.length, 1, "one AI call, for the description only");
-  assert.match(anthropicCalls[0].messages[0].content, /^Translate/);
-});
-
-test("translate-french: nothing to translate means no AI call and nothing invented", async () => {
-  let r = await post("/admin/inventory/translate-french", { headers: freshAdmin(), form: { genre: "Crime", description: "   " } });
-  assert.deepEqual(JSON.parse(r.text), { genreFr: "Polar", descriptionFr: null, aiMessage: null });
-  r = await post("/admin/inventory/translate-french", { headers: freshAdmin(), form: { genre: " , ,", description: "" } });
-  assert.deepEqual(JSON.parse(r.text), { genreFr: "", descriptionFr: null, aiMessage: null });
-  r = await post("/admin/inventory/translate-french", { headers: freshAdmin(), form: {} });
-  assert.equal(r.status, 200);
-  assert.deepEqual(JSON.parse(r.text), { genreFr: "", descriptionFr: null, aiMessage: null });
+// Books have no French description or genre (Sharon, 2026-10-28): the "Update the French from the English" route is gone.
+test("the old translate-french route is gone: an admin gets 404 and no AI call is made", async () => {
+  const r = await post("/admin/inventory/translate-french", { form: { genre: "Humor", description: "A funny book." } });
+  assert.equal(r.status, 404);
   assert.equal(anthropicCalls.length, 0);
-});
-
-test("translate-french: huge and hostile values are clamped, control characters removed, and nothing is saved", async () => {
-  const before = (await pool.query("SELECT count(*)::int AS n FROM books")).rows[0].n;
-  const hostile = `<script>alert(1)</script>${"x".repeat(9000)}\u0000\u0007`;
-  const r = await post("/admin/inventory/translate-french", { headers: freshAdmin(), form: { genre: `Fantasy,${"G".repeat(2000)}`, description: hostile } });
-  assert.equal(r.status, 200);
-  const out = JSON.parse(r.text);
-  assert.ok(out.genreFr.length <= 300 + 20, `genres clamped (${out.genreFr.length})`);
-  assert.equal(anthropicCalls.length, 1);
-  const prompt = anthropicCalls[0].messages[0].content;
-  assert.ok(prompt.length < 2300, `description clamped before the AI (${prompt.length})`);
-  assert.ok(!/[\u0000-\u0008]/.test(prompt)); // eslint-disable-line no-control-regex
-  assert.equal(typeof out.descriptionFr, "string", "returned as data (the page puts it in a box with .value, never as HTML)");
-  assert.equal((await pool.query("SELECT count(*)::int AS n FROM books")).rows[0].n, before, "saves nothing");
-  const arrays = await post("/admin/inventory/translate-french", { headers: freshAdmin(), form: { genre: ["a", "b"], description: ["c"] } });
-  assert.equal(arrays.status, 200);
-});
-
-test("translate-french: an AI failure still returns the genres, with a plain sentence; no credit and no key say why", async () => {
-  ai.fail = true;
-  let r = await post("/admin/inventory/translate-french", { headers: freshAdmin(), form: { genre: "Humor", description: "A funny book." } });
-  assert.equal(r.status, 200);
-  let out = JSON.parse(r.text);
-  assert.equal(out.genreFr, "Humour");
-  assert.equal(out.descriptionFr, null);
-  assert.equal(out.aiMessage, "The translation could not be made right now (the AI service did not answer). The French genres were still updated.");
-
-  const realKey = process.env.ANTHROPIC_API_KEY;
-  try {
-    delete process.env.ANTHROPIC_API_KEY;
-    r = await post("/admin/inventory/translate-french", { headers: freshAdmin(), form: { genre: "Humor", description: "A funny book." } });
-    out = JSON.parse(r.text);
-    assert.equal(out.genreFr, "Humour");
-    assert.match(out.aiMessage, /\(the AI service is not set up\)\. The French genres were still updated\.$/);
-  } finally { process.env.ANTHROPIC_API_KEY = realKey; }
+  assert.equal(require("../../src/lib/bookDescription").translateDescriptionToFrench, undefined, "the book translation function is removed");
+  assert.equal(require("../../src/lib/bookLookup").translateGenresToFrench, undefined, "the French genre word list is removed");
 });
 
 // ------------------------------------------------------------------ add book
@@ -504,7 +455,7 @@ test("add: creates the book and one copy; garbage condition/status fall back to 
   const { status, location } = await post("/admin/inventory", {
     fields: {
       title: `  ${title}  `, author: "Au Thor", isbn: `${isbn.slice(0, 3)}-${isbn.slice(3)}`, publisher: "Pub", publishedYear: "1987",
-      genre: " Mystery , mystery, Fiction ", description: "Given description", descriptionFr: "Description donnée",
+      genre: " Mystery , mystery, Fiction ", genreFr: "Policier tapé", description: "Given description", descriptionFr: "Description donnée",
       coverUrl: "https://covers.openlibrary.org/b/id/12-L.jpg", condition: "pristine", status: "lost", price: "8.50", acquisitionCost: "2", acquiredAt: "2026-01-15", copyNotes: " dog-eared ",
     },
   });
@@ -515,9 +466,9 @@ test("add: creates the book and one copy; garbage condition/status fall back to 
   assert.equal(book.authors, "Au Thor");
   assert.equal(book.published_year, 1987);
   assert.equal(book.categories, "Mystery, Fiction");
-  assert.equal(book.categories_fr, "Policier, Fiction");
+  assert.equal(book.categories_fr, null, "no French genre is stored (none is made from the English either)");
   assert.equal(book.description, "Given description");
-  assert.equal(book.description_fr, "Description donnée");
+  assert.equal(book.description_fr, null, "a posted descriptionFr (an old form) is ignored");
   await storedImage(book.cover_url); // an external address typed in is copied to our server
   assert.equal(book.cover_source_url, "https://covers.openlibrary.org/b/id/12-L.jpg");
   assert.equal(book.created_by, adminId);
@@ -532,7 +483,7 @@ test("add: creates the book and one copy; garbage condition/status fall back to 
   // assertion does not depend on the machine's timezone.
   const d = new Date(copy.acquired_at);
   assert.deepEqual([d.getFullYear(), d.getMonth() + 1, d.getDate()], [2026, 1, 15]);
-  assert.equal(anthropicCalls.length, 0, "nothing to generate when description, French and cover are all given");
+  assert.equal(anthropicCalls.length, 0, "nothing to generate when description and cover are given");
   assert.equal(olCalls.length, 0);
 });
 
@@ -635,7 +586,7 @@ test("add: missing optional fields become NULL / defaults; fromScan returns to t
   assert.deepEqual([copy.price, copy.acquisition_cost, copy.acquired_at, copy.notes], [null, null, null, null]);
 });
 
-test("add: a missing description is generated and translated; a missing cover is looked up by ISBN", async () => {
+test("add: a missing description is generated (English only, never translated); a missing cover is looked up by ISBN", async () => {
   const title = `Auto ${tag()}`;
   const isbn = isbn13();
   openLibrary.isbn.set(isbn, { title, cover: { large: "https://covers.openlibrary.org/b/id/62-L.jpg" } });
@@ -644,7 +595,9 @@ test("add: a missing description is generated and translated; a missing cover is
   const [book] = await bookByTitle(title);
   assert.match(location, new RegExp(`^/admin/inventory/${book.id}$`)); // the copy id lets the page offer its label
   assert.equal(book.description, "Auto blurb.");
-  assert.equal(book.description_fr, "FR: Auto blurb.");
+  assert.equal(book.description_fr, null, "no French description is written");
+  assert.equal(book.categories_fr, null);
+  assert.ok(!anthropicCalls.some((c) => /^Translate/.test(c.messages[0].content)), "no translation call");
   await storedImage(book.cover_url);
   assert.equal(book.cover_source_url, "https://covers.openlibrary.org/b/id/62-L.jpg");
 });
@@ -726,7 +679,7 @@ test("add: a second copy of an ISBN already in stock joins the existing book ins
   assert.equal(olCalls.length, 0);
 });
 
-test("add: a second copy backfills the existing book's missing description, translation and cover", async () => {
+test("add: a second copy backfills the existing book's missing description and cover (no French)", async () => {
   const isbn = isbn13();
   const b = await seedBook({ isbn, cover: null, description: null, descriptionFr: null });
   openLibrary.isbn.set(isbn, { title: b.title, cover: { large: "https://covers.openlibrary.org/b/id/63-L.jpg" } });
@@ -734,7 +687,7 @@ test("add: a second copy backfills the existing book's missing description, tran
   await post("/admin/inventory", { fields: { title: b.title, isbn } });
   const [book] = (await pool.query("SELECT * FROM books WHERE id = $1", [b.id])).rows;
   assert.equal(book.description, "Backfilled blurb.");
-  assert.equal(book.description_fr, "FR: Backfilled blurb.");
+  assert.equal(book.description_fr, null, "no French description is written");
   await storedImage(book.cover_url);
   assert.equal(book.cover_source_url, "https://covers.openlibrary.org/b/id/63-L.jpg");
   assert.equal((await copiesOf(b.id)).length, 2);
@@ -750,19 +703,20 @@ test("add: a second copy never overwrites what the existing book already has", a
   assert.equal(book.description, "Keep me");
   assert.equal(book.cover_url, KEEP_COVER);
   assert.equal(coverCalls.length, 0, "no download when the book already has a cover");
-  assert.equal(book.description_fr, "FR: Keep me", "only the missing French text was filled in");
+  assert.equal(book.description_fr, null, "no French text is filled in");
+  assert.equal(anthropicCalls.length, 0, "nothing to generate or translate: the book has a description and a cover");
 });
 
 // ------------------------------------------------------------------ edit book
 
-test("edit: updates the book's fields, normalising ISBN and genres", async () => {
+test("edit: updates the book's fields, normalising ISBN and genres; a posted French genre or description is ignored", async () => {
   const b = await seedBook({ isbn: isbn13() });
   const newTitle = `Renamed ${tag()}`;
   const isbn = isbn13();
   const { status, location } = await post(`/admin/inventory/${b.id}`, {
     fields: {
       title: newTitle, author: "New Author", isbn: `${isbn.slice(0, 3)}-${isbn.slice(3)}`, publisher: "NP", publishedYear: "2010",
-      genre: "History,history, Poetry", description: "New description", descriptionFr: "Nouvelle description", coverUrl: "https://covers.openlibrary.org/b/id/65-L.jpg",
+      genre: "History,history, Poetry", genreFr: "Histoire tapée", description: "New description", descriptionFr: "Nouvelle description", coverUrl: "https://covers.openlibrary.org/b/id/65-L.jpg",
     },
   });
   assert.equal(status, 302);
@@ -770,7 +724,7 @@ test("edit: updates the book's fields, normalising ISBN and genres", async () =>
   const [book] = (await pool.query("SELECT * FROM books WHERE id = $1", [b.id])).rows;
   assert.deepEqual(
     [book.title, book.authors, book.isbn, book.publisher, book.published_year, book.categories, book.categories_fr, book.description, book.description_fr, book.cover_source_url],
-    [newTitle, "New Author", isbn, "NP", 2010, "History, Poetry", "Histoire, Poésie", "New description", "Nouvelle description", "https://covers.openlibrary.org/b/id/65-L.jpg"]
+    [newTitle, "New Author", isbn, "NP", 2010, "History, Poetry", null, "New description", null, "https://covers.openlibrary.org/b/id/65-L.jpg"]
   );
   await storedImage(book.cover_url);
   assert.equal((await copiesOf(b.id)).length, 1, "copies untouched");
@@ -793,7 +747,8 @@ test("edit: blanking the description regenerates it, blanking the cover looks on
   await post(`/admin/inventory/${b.id}`, { fields: { title: b.title, isbn } });
   const [book] = (await pool.query("SELECT * FROM books WHERE id = $1", [b.id])).rows;
   assert.equal(book.description, "Regenerated.");
-  assert.equal(book.description_fr, "FR: Regenerated.");
+  assert.equal(book.description_fr, null, "the regenerated description is not translated");
+  assert.ok(!anthropicCalls.some((c) => /^Translate/.test(c.messages[0].content)), "no translation call");
   await storedImage(book.cover_url);
   assert.equal(book.cover_source_url, "https://covers.openlibrary.org/b/id/66-L.jpg");
 });

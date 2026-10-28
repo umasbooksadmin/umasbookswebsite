@@ -205,9 +205,11 @@ French, `€12.50` in English. Emails follow the reader's stored language:
 `users.lang` (set at signup, refreshed at login), `orders.lang` (set at
 reservation) and `book_requests.lang`; an empty value means English. French mails
 carry the same no-break spaces as the pages. A crawler test reads every customer page,
-form message and email in French and fails on English left in them (`docs/i18n-audit.md`). Book
-descriptions have a French column (`description_fr`). Admin screens, and the
-admin-only alert emails, stay English.
+form message and email in French and fails on English left in them (`docs/i18n-audit.md`). Books
+have an English description and English genres only (Sharon, 2026-10-28): the French
+site shows them in English, marked `lang="en"` (migration 107 emptied the old
+`description_fr` / `categories_fr` columns into `book_french_backup`; runbook section aq).
+Admin screens, and the admin-only alert emails, stay English.
 
 **Preview mode.** `lib/preview.js` reads `PREVIEW_MODE` (`true` or `1`) on every
 request. When on, views get `res.locals.preview`: a "coming soon" banner is shown

@@ -11,8 +11,10 @@ const golden = require("../fixtures/ai-client-golden.json");
 
 test("the golden matrix covers every feature and scenario", () => {
   const keys = Object.keys(golden);
-  assert.ok(keys.length >= 190, `matrix has ${keys.length} cases`);
-  for (const f of ["description", "translation", "genre", "cover", "price", "price (override model)", "price lookup (caps, cache row)", "collection suggestions (ask)", "collection translate to French", "collection translate blurb"]) {
+  // 189 since the book description translation was removed (2026-10-28): the collection translations still cover the
+  // "translation" feature (collection translate to French / blurb).
+  assert.ok(keys.length >= 189, `matrix has ${keys.length} cases`);
+  for (const f of ["description", "genre", "cover", "price", "price (override model)", "price lookup (caps, cache row)", "collection suggestions (ask)", "collection translate to French", "collection translate blurb"]) {
     assert.ok(keys.some((k) => k.startsWith(`${f} | `)), `feature ${f}`);
   }
   for (const s of ["400 credit balance too low", "429 rate limit", "529 overloaded", "network error", "timeout (no answer)", "200 oversize body", "daily cap reached", "no API key"]) {

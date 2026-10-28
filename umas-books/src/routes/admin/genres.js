@@ -101,7 +101,7 @@ router.get("/admin/genres/rules/preview", requireAdmin, async (req, res) => {
 // ---------- managed genres ----------
 
 router.post("/admin/genres/managed", requireAdmin, writeLimit, async (req, res) => {
-  const r = await admin.addManaged(pool, { nameEn: req.body.nameEn, nameFr: req.body.nameFr });
+  const r = await admin.addManaged(pool, { nameEn: req.body.nameEn });
   if (!r.ok) {
     await flash(req, { error: r.error });
     return res.redirect(303, "/admin/genres#managed");
@@ -115,8 +115,8 @@ router.post("/admin/genres/managed/:id", requireAdmin, writeLimit, async (req, r
   const id = Number(req.params.id);
   const b = req.body;
   const r = await admin.updateManaged(pool, id, {
-    nameEn: b.nameEn, nameFr: b.nameFr, colour: b.colour, icon: b.icon, showOnBrowse: b.showOnBrowse === "1",
-    labelEn: b.labelEn, labelFr: b.labelFr, topic: b.topic, browseOrder: /^\d{1,4}$/.test(String(b.browseOrder || "")) ? Number(b.browseOrder) : undefined,
+    nameEn: b.nameEn, colour: b.colour, icon: b.icon, showOnBrowse: b.showOnBrowse === "1",
+    labelEn: b.labelEn, topic: b.topic, browseOrder: /^\d{1,4}$/.test(String(b.browseOrder || "")) ? Number(b.browseOrder) : undefined,
   });
   if (!r.ok) {
     await flash(req, { error: r.error });

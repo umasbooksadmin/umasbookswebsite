@@ -1,6 +1,6 @@
 // Admin > Genres (/admin/genres), end to end in-process on a database of this file's own:
 // the found-genres aggregate, managed genres and rule CRUD (with audit), the preview that equals the apply, an apply that
-// changes exactly the expected books (200 noisy ones), French following, unmapped genres untouched, idempotency, Undo
+// changes exactly the expected books (200 noisy ones), never a French genre (books have none since 2026-10-28), unmapped genres untouched, idempotency, Undo
 // (and Undo skipping books edited since), the lock that blocks two runs, the save paths applying the rules, the AI
 // suggestion flow with a mocked AI, and the Genre filter of the admin Inventory.
 
@@ -72,10 +72,9 @@ async function childrenRules() {
 // ---------------------------------------------------------------- migration seed
 
 test("the seed is the current canonical lists (same order), and nothing is mapped yet", async () => {
-  const { COMMON_GENRES, COMMON_GENRES_FR } = require("../../src/lib/bookLookup");
-  const rows = await q("SELECT name_en, name_fr FROM managed_genres ORDER BY sort_order, id");
+  const { COMMON_GENRES } = require("../../src/lib/bookLookup");
+  const rows = await q("SELECT name_en FROM managed_genres ORDER BY sort_order, id");
   assert.deepEqual(rows.slice(0, COMMON_GENRES.length).map((r) => r.name_en), COMMON_GENRES);
-  assert.deepEqual(rows.slice(0, COMMON_GENRES.length).map((r) => r.name_fr), COMMON_GENRES_FR);
   assert.deepEqual(rows.slice(COMMON_GENRES.length).map((r) => r.name_en), ["Health & Wellness", "Home & Garden"], "the two extra Browse genres");
   assert.equal((await q("SELECT count(*)::int AS n FROM genre_rules"))[0].n, 0);
 });
@@ -152,7 +151,7 @@ test("managed genres: add, rename (leaves an exact rule for the old name), reord
   const add = await h.post("/admin/genres/managed", { nameEn: "Kids", nameFr: "Enfants" });
   assert.equal(add.res.status, 200);
   const [kids] = await q("SELECT * FROM managed_genres WHERE name_en = 'Kids'");
-  assert.equal(kids.name_fr, "Enfants");
+  assert.equal(kids.name_fr, "", "a posted French name is ignored: managed genres have an English name only");
   assert.equal(kids.browse_slug, "kids");
   assert.equal(kids.show_on_browse, true);
   assert.equal(kids.icon, "book");
@@ -162,7 +161,7 @@ test("managed genres: add, rename (leaves an exact rule for the old name), reord
 
   await h.post(`/admin/genres/managed/${kids.id}`, { nameEn: "Little ones", nameFr: "Petits", showOnBrowse: "1", colour: "sky", icon: "heart", browseOrder: "3" });
   const [renamed] = await q("SELECT * FROM managed_genres WHERE id = $1", [kids.id]);
-  assert.deepEqual([renamed.name_en, renamed.name_fr, renamed.colour, renamed.icon, renamed.browse_slug, renamed.browse_order], ["Little ones", "Petits", "sky", "heart", "kids", 3], "the Browse link code never changes");
+  assert.deepEqual([renamed.name_en, renamed.name_fr, renamed.colour, renamed.icon, renamed.browse_slug, renamed.browse_order], ["Little ones", "", "sky", "heart", "kids", 3], "the Browse link code never changes; no French name is written");
   const rule = (await q("SELECT * FROM genre_rules WHERE kind = 'exact'"))[0];
   assert.equal(rule.pattern, "Kids");
   assert.equal(rule.target_managed_genre_id, kids.id, "books named Kids can be carried over by Update all books");
@@ -263,19 +262,13 @@ test("preview numbers equal apply numbers; apply changes exactly the expected bo
     const now = await cats(id);
     if (b.categories == null) { assert.equal(now.categories, null); assert.equal(now.categories_fr, null); continue; }
     assert.equal(now.categories, expectedEn[b.categories], `book ${id}: ${b.categories}`);
-    if (now.categories !== b.categories || now.categories_fr !== b.categories_fr) changed += 1;
+    assert.equal(now.categories_fr, b.categories_fr, `book ${id}: the run never writes a French genre`);
+    if (now.categories !== b.categories) changed += 1;
     else assert.equal(now.updated_at.getTime(), b.updated_at.getTime(), "an unchanged book is not touched");
   }
   assert.equal(changed, plan.count);
-  // French follows: the managed French name for Children, the fixed word list for the rest
-  const kids = await q("SELECT categories_fr FROM books WHERE categories = 'Children' LIMIT 1");
-  assert.equal(kids[0].categories_fr, "Jeunesse");
-  const mixed = await q("SELECT categories_fr FROM books WHERE categories = 'Children, Fiction' LIMIT 1");
-  assert.equal(mixed[0].categories_fr, "Jeunesse, Fiction");
-  const mystery = await q("SELECT categories_fr FROM books WHERE categories = 'Mystery' LIMIT 1");
-  assert.equal(mystery[0].categories_fr, "Policier");
-  const unmapped = await q("SELECT categories_fr FROM books WHERE categories = 'Zoology' LIMIT 1");
-  assert.equal(unmapped[0].categories_fr, "x", "an unmapped book keeps its stored French exactly");
+  // No French genre is made: the run records NULL for the French before/after of every change
+  assert.equal((await q("SELECT count(*)::int AS n FROM genre_run_changes WHERE old_categories_fr IS NOT NULL OR new_categories_fr IS NOT NULL"))[0].n, 0);
   const childhood = await q("SELECT categories FROM books WHERE categories = 'Childhood' LIMIT 1");
   assert.equal(childhood.length, 1, "Childhood is not Children");
 
@@ -336,7 +329,7 @@ test("the routes: preview (POST) -> confirm (POST) -> result page with Undo; aud
   assert.equal((await run.planRun(h.pool)).count > 0, true, "after the undo the rules would change the books again");
 });
 
-test("undo restores exactly the changed books (genres and French), and skips books edited since", async () => {
+test("undo restores exactly the changed books (English genres; the French column is never touched), and skips books edited since", async () => {
   const ids = await seedBooks(60);
   await childrenRules();
   const original = new Map();
@@ -358,7 +351,7 @@ test("undo restores exactly the changed books (genres and French), and skips boo
     const now = await cats(id);
     if (id === touched[0]) { assert.equal(now.categories, "Hand edited"); continue; }
     assert.equal(now.categories, o.categories, `book ${id}`);
-    assert.equal(now.categories_fr, o.categories_fr, `French of book ${id}`);
+    assert.equal(now.categories_fr, o.categories_fr, `French of book ${id} untouched`);
   }
   assert.ok((await run.getRun(h.pool, applied.runId)).undone_at);
   assert.equal((await run.undoRun(h.pool, applied.runId)).notLast, true, "an undone run cannot be undone again");
@@ -429,7 +422,8 @@ test("a batch size of 500: 30,000 books apply in under 30 s", { timeout: 120000 
   const t0 = Date.now();
   const r = await run.applyRun(h.pool, {}, null);
   const ms = Date.now() - t0;
-  assert.ok(r.changed > 20000, `changed ${r.changed}`);
+  // 4 of the 8 spellings change in English (no French-only changes any more since books have no French genre)
+  assert.equal(r.changed, 15000, `changed ${r.changed}`);
   assert.ok(ms < 30000, `apply took ${ms} ms`);
   const again = await run.planRun(h.pool);
   assert.equal(again.count, 0, "idempotent at scale");
@@ -453,23 +447,23 @@ test("save paths: a new book (scan intake) and an edited book go through the sam
   await childrenRules();
   const created = await save("Children's Books, Fiction, Fiction");
   assert.equal(created.categories, "Children, Fiction");
-  assert.equal(created.categories_fr, "Jeunesse, Fiction");
+  assert.equal(created.categories_fr, null, "no French genre is stored");
   assert.equal((await save("Zoology")).categories, "Zoology", "an unmapped genre is left alone");
 
   // the edit route
   const [b] = await q("INSERT INTO books (title, categories) VALUES ('Edit me', 'Zoology') RETURNING id");
-  await h.post(`/admin/inventory/${b.id}`, { title: "Edit me", genre: "Childrens, Mystery", description: "d", descriptionFr: "d", coverUrl: stored });
+  await h.post(`/admin/inventory/${b.id}`, { title: "Edit me", genre: "Childrens, Mystery", genreFr: "Enfants", description: "d", descriptionFr: "d", coverUrl: stored });
   const edited = await cats(b.id);
   assert.equal(edited.categories, "Children, Mystery");
-  assert.equal(edited.categories_fr, "Jeunesse, Policier");
+  assert.equal(edited.categories_fr, null, "a posted genreFr is ignored and none is made");
   await settled();
 });
 
-test("applyRulesToBook: the typed French is kept when the genres do not change", async () => {
+test("applyRulesToBook: English genres only (no French genre in the answer)", async () => {
   await childrenRules();
-  assert.deepEqual(await applyRulesToBook(h.pool, "Children", "Enfants"), { genre: "Children", genreFr: "Enfants" });
-  assert.deepEqual(await applyRulesToBook(h.pool, "Childrens", "Enfants"), { genre: "Children", genreFr: "Jeunesse" });
-  assert.deepEqual(await applyRulesToBook(h.pool, null, null), { genre: null, genreFr: null });
+  assert.deepEqual(await applyRulesToBook(h.pool, "Children"), { genre: "Children" });
+  assert.deepEqual(await applyRulesToBook(h.pool, "Childrens"), { genre: "Children" });
+  assert.deepEqual(await applyRulesToBook(h.pool, null), { genre: null });
 });
 
 // ---------------------------------------------------------------- AI help
@@ -562,7 +556,11 @@ test("a stale 'running' run becomes failed (interrupted) with the books it did c
   assert.match(detail.text, /Undo this run/, "Undo stays available for the partial changes");
   const undone = await run.undoRun(h.pool, runId);
   assert.equal(undone.restored, 2);
-  for (const id of bookIds) assert.equal((await cats(id)).categories, "Children's Books");
+  for (const id of bookIds) {
+    const now = await cats(id);
+    assert.equal(now.categories, "Children's Books");
+    assert.equal(now.categories_fr, "Enfants", "Undo puts back the English only: an old run's French before-value is never written");
+  }
 });
 
 test("a recent 'running' run is left alone, and so is a stale one while its lock is held", async () => {

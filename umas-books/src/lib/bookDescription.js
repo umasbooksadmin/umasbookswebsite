@@ -1,11 +1,11 @@
 // Generates a short, back-cover-style description for a book that has
-// none (Open Library often lacks one), and can translate an existing
-// description to French (see translateDescriptionToFrench). Both fail
-// open (return null) on any error or missing config, so a book can
-// still be saved without one rather than blocking the save.
+// none (Open Library often lacks one). It fails open (returns null) on
+// any error or missing config, so a book can still be saved without one
+// rather than blocking the save. Books have no French description
+// (Sharon, 2026-10-28): the French site shows this English text.
 
 const { askText } = require("./anthropic");
-const { clampText, MAX_TITLE, MAX_AUTHOR, MAX_DESCRIPTION } = require("./aiLimits");
+const { clampText, MAX_TITLE, MAX_AUTHOR } = require("./aiLimits");
 const { createInflight } = require("./inflight");
 
 // Two identical requests running at the same time (a double click, two screens) share one API call.
@@ -44,25 +44,4 @@ Only describe the book itself — no marketing fluff about the shop, no mention 
   return (await callClaude(prompt, { maxTokens: 200, label: "AI description" })).text;
 }
 
-// Translates an existing (English) description to French — used both
-// right after generateBookDescription produces one, and by the backfill
-// script for older books that already have an English description but
-// no French one.
-async function translateDescriptionToFrench(englishText) {
-  return (await translateDescriptionToFrenchWhy(englishText)).text;
-}
-
-// Same, but says why when there is no translation: { text, reason, message }. reason is null (worked), "empty" (nothing to
-// translate: no call was made), or askText's "no_key", "cap" (+ message), "credit", "rate", "timeout", "error". The book
-// form's "Update the French from the English" button uses it to tell the admin what happened.
-async function translateDescriptionToFrenchWhy(englishText) {
-  if (!englishText) return { text: null, reason: "empty" };
-
-  const prompt = `Translate this English bookshop back-cover description to French. Keep the same tone and length. Respond with ONLY the French translation, no preamble, no quotes around it.
-
-"${clampText(englishText, MAX_DESCRIPTION)}"`;
-
-  return callClaude(prompt, { maxTokens: 250, label: "AI description (French)", feature: "translation" });
-}
-
-module.exports = { generateBookDescription, translateDescriptionToFrench, translateDescriptionToFrenchWhy };
+module.exports = { generateBookDescription };

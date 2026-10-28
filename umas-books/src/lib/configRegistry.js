@@ -310,7 +310,7 @@ const REGISTRY = [
     secret: true, where: "render",
     whereText: "Render env var, `sync: false`",
     defaultText: "none",
-    doc: "Powers photo-scan and AI book descriptions/translations/genres",
+    doc: "Powers photo-scan, AI book descriptions (English), the Translate to French buttons (blog, collections, events...) and genre suggestions",
     example: "",
   },
   {

@@ -4,7 +4,7 @@ const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const { applyGenreRules, rewriteGenres, planBook, containsWord, genreKey, splitGenres, matchRule } = require("../../src/lib/genreRules");
 
-const children = [{ kind: "contains-word", pattern: "Children", target: "Children", targetFr: "Jeunesse" }];
+const children = [{ kind: "contains-word", pattern: "Children", target: "Children" }];
 
 test("the word Children matches Children, Children's, Childrens, Children’s Books and Children's Fiction", () => {
   for (const g of ["Children", "Children's", "Childrens", "Children’s Books", "Children's Fiction", "CHILDREN'S BOOKS", "  children  "]) {
@@ -93,10 +93,10 @@ test("first match wins inside a kind (priority = list order, or sort)", () => {
   assert.equal(applyGenreRules("True Crime", swapped), "Non-fiction");
 });
 
-test("French follows: the managed French name for mapped genres, the word list for the rest", () => {
+test("English only: the rewrite gives no French genre (books have none since 2026-10-28)", () => {
   const r = rewriteGenres("Children's Books, Mystery, Zoology", [...children, { kind: "exact", pattern: "Mystery", action: "keep" }]);
   assert.equal(r.en, "Children, Mystery, Zoology");
-  assert.equal(r.fr, "Jeunesse, Policier, Zoology");
+  assert.equal("fr" in r, false);
 });
 
 test("changed means the list differs; spacing alone is not a change", () => {
@@ -105,17 +105,12 @@ test("changed means the list differs; spacing alone is not a change", () => {
   assert.equal(rewriteGenres("Children", children).changed, false);
 });
 
-test("planBook: a book already in line is not touched; a stale French is fixed when a rule applies", () => {
-  const rules = [...children, { kind: "managed", pattern: "Children", target: "Children", targetFr: "Jeunesse" }];
-  const done = planBook("Children", "Jeunesse", rules);
-  assert.equal(done.changed, false);
-  const staleFr = planBook("Children", "Enfants", rules);
-  assert.equal(staleFr.changed, true);
-  assert.equal(staleFr.enChanged, false);
-  assert.equal(staleFr.fr, "Jeunesse");
-  const free = planBook("Zoology", "Zoologie", rules);
-  assert.equal(free.changed, false, "unmapped genres and their French stay as they are");
-  assert.equal(free.fr, "Zoologie");
+test("planBook: a book already in line is not touched; a book whose English changes is", () => {
+  const rules = [...children, { kind: "managed", pattern: "Children", target: "Children" }];
+  assert.equal(planBook("Children", rules).changed, false);
+  const p = planBook("Children's Books", rules);
+  assert.deepEqual([p.changed, p.en, "fr" in p], [true, "Children", false]);
+  assert.equal(planBook("Zoology", rules).changed, false, "unmapped genres stay as they are");
 });
 
 test("helpers", () => {

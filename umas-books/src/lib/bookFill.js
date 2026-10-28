@@ -1,7 +1,6 @@
 // What a freshly saved book still lacks, filled in AFTER the save has answered.
 //
-// Saving a book used to wait for the AI description (up to 8 s), its French
-// translation (8 s), a search for a cover (Open Library, 10 s or more) and the
+// Saving a book used to wait for the AI description (up to 8 s), a search for a cover (Open Library, 10 s or more) and the
 // download and re-encoding of that cover, all before the first database write. None
 // of it is needed to put the copy on the shelf, so the save now writes the row at once
 // and calls fillBookGaps() afterwards (lib/afterResponse.js). The book page, the shop
@@ -9,10 +8,12 @@
 // stored is ever overwritten (every column is filled only while it is still empty), and
 // a cover that could not be downloaded keeps its source address for the 5-minute
 // cover job (coverStore.backfillCovers), as before.
+// Books have no French description or French genre (Sharon, 2026-10-28): nothing French is ever written here; the
+// French site shows the English description (migration 107 emptied books.description_fr / categories_fr).
 
 const { lookupByIsbn, searchByTitleAuthor, isbnCoverUrl } = require("./bookLookup");
 const { prepareCover } = require("./coverStore");
-const { generateBookDescription, translateDescriptionToFrench } = require("./bookDescription");
+const { generateBookDescription } = require("./bookDescription");
 
 // Best-effort cover address for a book saved without one: the ISBN first (most
 // precise), then a title/author search.
@@ -33,42 +34,38 @@ async function findCoverUrl({ isbn, title, author }) {
   return null;
 }
 
-// hints: { isbn, title, author, publisher, publishedYear, description, descriptionFr, coverUrl }
+// hints: { isbn, title, author, publisher, publishedYear, description, coverUrl }
 // as typed on the form (all optional). deps: injectable for tests.
 async function fillBookGaps(pool, bookId, hints = {}, deps = {}) {
   const describe = deps.generateBookDescription || generateBookDescription;
-  const translate = deps.translateDescriptionToFrench || translateDescriptionToFrench;
   const findCover = deps.findCoverUrl || findCoverUrl;
   const prepare = deps.prepareCover || prepareCover;
 
-  const { rows } = await pool.query("SELECT description, description_fr, cover_url, cover_removed_at FROM books WHERE id = $1", [bookId]);
+  const { rows } = await pool.query("SELECT description, cover_url, cover_removed_at FROM books WHERE id = $1", [bookId]);
   const row = rows[0];
   if (!row) return { filled: false };
   const needDescription = !row.description;
-  const needFrench = !row.description_fr;
   // A cover an admin removed on purpose (migration 098) is not looked up again.
   const needCover = !row.cover_url && !row.cover_removed_at;
-  if (!needDescription && !needFrench && !needCover) return { filled: false };
+  if (!needDescription && !needCover) return { filled: false };
 
   const [description, coverAddress] = await Promise.all([
     needDescription ? (hints.description || describe({ title: hints.title, author: hints.author, publisher: hints.publisher, publishedYear: hints.publishedYear })) : null,
     needCover ? (hints.coverUrl || findCover({ isbn: hints.isbn, title: hints.title, author: hints.author })) : null,
   ]);
-  const english = row.description || description;
-  const french = needFrench ? (hints.descriptionFr || (english ? await translate(english) : null)) : null;
   const cover = needCover ? await prepare(coverAddress) : { cover: null, source: null };
 
-  if (!description && !french && !cover.cover && !cover.source) return { filled: false };
+  if (!description && !cover.cover && !cover.source) return { filled: false };
   await pool.query(
-    `UPDATE books SET description = COALESCE(description, $1), description_fr = COALESCE(description_fr, $2),
-            cover_url = COALESCE(cover_url, $3),
-            cover_source_url = CASE WHEN cover_url IS NULL AND $4::text IS NOT NULL THEN $4 ELSE cover_source_url END,
-            cover_fetch_failures = CASE WHEN cover_url IS NULL AND $4::text IS NOT NULL THEN 0 ELSE cover_fetch_failures END,
+    `UPDATE books SET description = COALESCE(description, $1),
+            cover_url = COALESCE(cover_url, $2),
+            cover_source_url = CASE WHEN cover_url IS NULL AND $3::text IS NOT NULL THEN $3 ELSE cover_source_url END,
+            cover_fetch_failures = CASE WHEN cover_url IS NULL AND $3::text IS NOT NULL THEN 0 ELSE cover_fetch_failures END,
             updated_at = now()
-     WHERE id = $5`,
-    [description, french, cover.cover, cover.source, bookId]
+     WHERE id = $4`,
+    [description, cover.cover, cover.source, bookId]
   );
-  return { filled: true, description: Boolean(description), french: Boolean(french), cover: Boolean(cover.cover) };
+  return { filled: true, description: Boolean(description), cover: Boolean(cover.cover) };
 }
 
 module.exports = { fillBookGaps, findCoverUrl };

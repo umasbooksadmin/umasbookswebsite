@@ -42,7 +42,7 @@ const prepared = async (body, files) => {
 test("parseIntakeInput: a plain form is read and normalised", () => {
   const r = intake.parseIntakeInput(form({
     title: "  The Title  ", author: " ", isbn: "978-0-14-312755-0", location: "  Back   room\t", source: "nonsense", status: "weird", condition: "bogus",
-    publishedYear: "1999", acquisitionCost: "2.5", acquiredAt: "2024-03-09", copyNotes: " n ", genre: "Fiction", genreFr: "",
+    publishedYear: "1999", acquisitionCost: "2.5", acquiredAt: "2024-03-09", copyNotes: " n ", genre: "Fiction", genreFr: "Roman", descriptionFr: "Texte",
   }));
   assert.equal(r.ok, true);
   const v = r.value;
@@ -57,7 +57,7 @@ test("parseIntakeInput: a plain form is read and normalised", () => {
   assert.equal(v.costCheck.value, 2.5);
   assert.equal(v.acquiredCheck.value, "2024-03-09");
   assert.equal(v.notes, "n");
-  assert.ok(v.genreFr, "an empty French genre is filled from the English one");
+  assert.equal("genreFr" in v || "descriptionFr" in v, false, "no French genre or description is read or made (books have none)");
 });
 
 test("parseIntakeInput: a missing title is refused with the form still returned", () => {

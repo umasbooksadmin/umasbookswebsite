@@ -54,7 +54,7 @@ router.get("/admin/inventory/lookup", requireAdmin, (req, res, next) => (req.que
   // The shop's own record and the catalog do not depend on each other: asked together.
   const [stockedResult, catalog] = await Promise.all([
     req.timing.time("db", () => pool.query(
-      `SELECT b.id, b.title, b.authors, b.publisher, b.published_year, b.description, b.cover_url, b.categories, b.categories_fr, b.binding,
+      `SELECT b.id, b.title, b.authors, b.publisher, b.published_year, b.description, b.cover_url, b.categories, b.binding,
               (SELECT count(*)::int FROM book_copies c WHERE c.book_id = b.id AND c.status IN ('in_stock', 'reserved')) AS copies
        FROM books b WHERE b.isbn = ANY($1) ORDER BY b.id LIMIT 1`,
       [isbnVariants(isbn)]
@@ -77,12 +77,12 @@ router.get("/admin/inventory/lookup", requireAdmin, (req, res, next) => (req.que
         publishedYear: stocked.published_year || (found && found.publishedYear) || null,
         description: stocked.description || (found && found.description) || null,
         coverUrl: stocked.cover_url || (found && found.coverUrl) || null,
-        genre: stocked.categories || (found && found.genre) || null, genreFr: stocked.categories_fr || (found && found.genreFr) || null,
+        genre: stocked.categories || (found && found.genre) || null,
         binding: stocked.binding || (found && found.binding) || null,
       }
     : found && {
         title: found.title, author: found.author, publisher: found.publisher, publishedYear: found.publishedYear,
-        description: found.description, coverUrl: found.coverUrl, genre: found.genre, genreFr: found.genreFr, binding: found.binding || null,
+        description: found.description, coverUrl: found.coverUrl, genre: found.genre, binding: found.binding || null,
       };
 
   // The preview's cover and the price suggestion are independent too, and neither may hold the

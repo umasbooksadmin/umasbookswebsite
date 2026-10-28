@@ -36,9 +36,9 @@ test("Book + Offer JSON-LD has the fields search engines need", () => {
   assert.equal(jsonLd.offers.find((x) => x.price === "9.90").itemCondition, "https://schema.org/NewCondition");
 });
 
-test("French uses the French description; no copies means no offers; external covers stay as they are", () => {
+test("French uses the English description (books have no French one; a leftover description_fr is ignored); no copies means no offers; external covers stay as they are", () => {
   const seo = buildBookSeo({ book: { ...book, cover_url: "https://covers.openlibrary.org/x.jpg" }, copies: [], base, lang: "fr", tr: translator("fr") });
-  assert.equal(seo.description, "Une comédie de mœurs.");
+  assert.equal(seo.description, "A <comedy> of manners.");
   assert.equal(seo.jsonLd.offers, undefined);
   assert.equal(seo.ogImage, "https://covers.openlibrary.org/x.jpg");
 });

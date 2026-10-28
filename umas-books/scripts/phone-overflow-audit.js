@@ -94,7 +94,7 @@ async function seedWith(db, creds) {
 
   const book = async (title, author, description, price = 6, genres = "Fiction") => {
     const { rows } = await db.query(
-      "INSERT INTO books (title, authors, categories, categories_fr, binding, description, description_fr) VALUES ($1,$2,$3,$3,'trade',$4,$4) RETURNING id",
+      "INSERT INTO books (title, authors, categories, binding, description) VALUES ($1,$2,$3,'trade',$4) RETURNING id",
       [title, author, genres, description]
     );
     await db.query("INSERT INTO book_copies (book_id, condition, price, status, location, source) VALUES ($1,'very_good',$2,'in_stock','Shelf A','donation')", [rows[0].id, price]);

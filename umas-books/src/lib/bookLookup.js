@@ -63,52 +63,7 @@ const COMMON_GENRES = [
   "Children's Fiction", "Young Adult Fiction", "Classics",
 ];
 
-// Same order as COMMON_GENRES — a fixed, deterministic translation (no AI
-// call needed) since the taxonomy itself is fixed. Used to keep the
-// AI-assigned/backfilled genre in French too (see translateGenresToFrench).
-const COMMON_GENRES_FR = [
-  "Fiction", "Non-fiction",
-  "Fantasy", "Science-fiction", "Policier", "Romance", "Thriller", "Horreur",
-  "Biographie", "Histoire", "Poésie", "Théâtre", "Aventure", "Humour",
-  "Philosophie", "Religion", "Voyage", "Cuisine", "Art", "Développement personnel",
-  "Fiction jeunesse", "Fiction jeune adulte", "Classiques",
-];
-
-// Translates a comma-joined genre string (must be drawn from COMMON_GENRES,
-// e.g. from pickGenres/normalizeGenres) into French. A genre that isn't in
-// the taxonomy (the rare free-text fallback in pickGenres, or something a
-// staff member typed by hand) is kept as-is rather than dropped.
-// Short forms of the age-group genres (the browse page's chips, hand-typed tags):
-// not in the taxonomy above, but they must not stay English on a French page.
-const GENRE_ALIASES_FR = [
-  ["Young Adult", "Jeune adulte"], ["Young Adult Books", "Jeune adulte"],
-  ["Children's", "Jeunesse"], ["Children's Books", "Jeunesse"], ["Children", "Jeunesse"], ["Juvenile Fiction", "Fiction jeunesse"],
-  // Other tags that turn up from ISBN lookups, the browse page's topics and hand typing.
-  ["Nonfiction", "Non-fiction"], ["Juvenile Nonfiction", "Documentaires jeunesse"], ["Picture Books", "Albums illustrés"],
-  ["Memoir", "Mémoires"], ["Memoirs", "Mémoires"], ["Autobiography", "Autobiographie"], ["Biography & Autobiography", "Biographies et autobiographies"],
-  ["Crime", "Polar"], ["Detective", "Policier"], ["Mystery & Detective", "Policier"], ["Suspense", "Suspense"], ["Crime & Mystery", "Polar"], ["True Crime", "Faits divers"],
-  ["Sci-Fi", "Science-fiction"], ["Short Stories", "Nouvelles"], ["Graphic Novels", "Bandes dessinées"], ["Comics", "Bandes dessinées"], ["Comics & Graphic Novels", "Bandes dessinées"],
-  ["Literary Fiction", "Littérature générale"], ["Historical Fiction", "Roman historique"], ["Humour", "Humour"], ["Humor & Entertainment", "Humour"],
-  ["Self Help", "Développement personnel"], ["Self-Help", "Développement personnel"], ["Health", "Santé"], ["Health & Fitness", "Santé et forme"], ["Fitness", "Forme"], ["Wellness", "Bien-être"],
-  ["Psychology", "Psychologie"], ["Business", "Économie et gestion"], ["Education", "Éducation"], ["Science", "Sciences"], ["Nature", "Nature"], ["Language", "Langues"],
-  ["Social Science", "Sciences sociales"], ["Political Science", "Sciences politiques"], ["Music", "Musique"], ["Photography", "Photographie"], ["Antiques & Collectibles", "Antiquités et objets de collection"],
-  ["Performing Arts", "Arts du spectacle"], ["Arts & Crafts", "Arts et loisirs créatifs"], ["Crafts & Hobbies", "Loisirs créatifs"], ["Design", "Design"],
-  ["Gardening", "Jardinage"], ["Home & Garden", "Maison et jardin"], ["House & Home", "Maison"], ["Interior Design", "Décoration d'intérieur"],
-  ["Food & Drink", "Cuisine et boissons"], ["Cooking & Food", "Cuisine"], ["Wine", "Vin"], ["Baking", "Pâtisserie"],
-  ["Pets", "Animaux de compagnie"], ["Sports & Recreation", "Sports et loisirs"], ["Games", "Jeux"], ["Reference", "Ouvrages de référence"], ["Fairy Tales", "Contes"],
-];
-
-function translateGenresToFrench(genresCsv) {
-  if (!genresCsv) return null;
-  const byLowerEn = new Map([
-    ...GENRE_ALIASES_FR.map(([en, fr]) => [en.toLowerCase(), fr]),
-    ...COMMON_GENRES.map((g, i) => [g.toLowerCase(), COMMON_GENRES_FR[i]]),
-  ]);
-  return genresCsv.split(",").map((g) => {
-    const trimmed = g.trim();
-    return byLowerEn.get(trimmed.toLowerCase()) || trimmed;
-  }).join(", ");
-}
+// Books have English genres only (Sharon, 2026-10-28): there is no French list and no French translation of a genre.
 
 // A book can reasonably match several of these (e.g. both "Fantasy" and
 // "Young Adult Fiction") — return every one that appears, most-generic
@@ -266,7 +221,6 @@ function bookFromRecord(isbn, data) {
     description: typeof info.description === "string" ? info.description : (info.description && info.description.value) || null,
     coverUrl: (info.cover && (info.cover.large || info.cover.medium)) || null,
     genre,
-    genreFr: translateGenresToFrench(genre),
     pages: Number.isInteger(info.number_of_pages) ? info.number_of_pages : null,
     language: null,
     binding: mapBinding(info.physical_format || (record.details && record.details.details && record.details.details.physical_format)),
@@ -295,7 +249,6 @@ function mergeBooks(isbn, books) {
     const from = titled.find((b) => b[f] !== undefined && b[f] !== null && b[f] !== "");
     out[f] = from ? from[f] : null;
   }
-  out.genreFr = translateGenresToFrench(out.genre);
   return out;
 }
 
@@ -521,9 +474,8 @@ async function searchByTitleAuthor(title, author) {
       description: null,
       coverUrl: doc.cover_i ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg` : null,
       genre,
-      genreFr: translateGenresToFrench(genre),
     };
   });
 }
 
-module.exports = { normalizeIsbn, isValidIsbn, mapBinding, lookupByIsbn, lookupByIsbnDetailed, mergeBooks, attributeSources, pickGenres, isbnCoverUrl, createTtlCache, lookupCache, searchByTitleAuthor, COMMON_GENRES, COMMON_GENRES_FR, GENRE_ALIASES_FR, translateGenresToFrench };
+module.exports = { normalizeIsbn, isValidIsbn, mapBinding, lookupByIsbn, lookupByIsbnDetailed, mergeBooks, attributeSources, pickGenres, isbnCoverUrl, createTtlCache, lookupCache, searchByTitleAuthor, COMMON_GENRES };

@@ -120,12 +120,13 @@ const fresh = () => { const s = createAiUsageStats({ getPool: () => null }); set
 const by = (s) => Object.fromEntries(s.snapshot().map((r) => [r.feature, r]));
 
 test("description, translation and genre: counted, results unchanged, the prompt is not stored", async () => {
-  const { generateBookDescription, translateDescriptionToFrench } = require("../../src/lib/bookDescription");
+  const { generateBookDescription } = require("../../src/lib/bookDescription");
+  const { translateEmptyFrench } = require("../../src/lib/collectionTranslate");
   const { generateBookGenres } = require("../../src/lib/bookGenre");
   const s = fresh();
   await withFetch(async () => okBody("A fine book."), async () => {
     assert.equal(await generateBookDescription({ title: "Secret Title Alpha" }), "A fine book.");
-    assert.equal(await translateDescriptionToFrench("Hello"), "A fine book.");
+    assert.equal((await translateEmptyFrench({ title_en: "Hello" })).title_fr, "A fine book.");
     assert.equal(await generateBookGenres({ title: "Secret Title Alpha" }), null, "no taxonomy genre in the answer: same result as before");
   });
   const r = by(s);

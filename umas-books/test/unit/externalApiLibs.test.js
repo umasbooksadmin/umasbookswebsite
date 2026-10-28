@@ -149,7 +149,8 @@ test("coverVision: a hung request is aborted after 20s and returns null", async 
 
 // ------------------------------------------------------------- bookDescription
 
-const { generateBookDescription, translateDescriptionToFrench } = require("../../src/lib/bookDescription");
+const bookDescriptionLib = require("../../src/lib/bookDescription");
+const { generateBookDescription } = bookDescriptionLib;
 
 test("bookDescription: builds a prompt from the details, trims the reply", async () => {
   handler = () => claudeText("  A fine book about whales.\n");
@@ -179,23 +180,11 @@ test("bookDescription: no title or no API key -> null with no request", async ()
   assert.equal(await generateBookDescription({}), null);
   delete process.env.ANTHROPIC_API_KEY;
   assert.equal(await generateBookDescription({ title: "X" }), null);
-  assert.equal(await translateDescriptionToFrench("Hello"), null);
   assert.equal(calls.length, 0);
 });
 
-test("bookDescription: translate sends the English text, returns the French", async () => {
-  handler = () => claudeText("Un beau livre.");
-  assert.equal(await translateDescriptionToFrench("A fine book."), "Un beau livre.");
-  const body = JSON.parse(calls[0].init.body);
-  assert.equal(body.max_tokens, 250);
-  assert.match(body.messages[0].content, /A fine book\./);
-  assert.match(body.messages[0].content, /French/);
-});
-
-test("bookDescription: translate of empty text makes no request", async () => {
-  assert.equal(await translateDescriptionToFrench(""), null);
-  assert.equal(await translateDescriptionToFrench(null), null);
-  assert.equal(calls.length, 0);
+test("bookDescription: there is no French translation of a book description any more", () => {
+  assert.deepEqual(Object.keys(bookDescriptionLib).filter((k) => /french|translat/i.test(k)), []);
 });
 
 test("bookDescription: failures resolve to null (500, odd shape, network error, timeout)", async () => {
@@ -204,7 +193,7 @@ test("bookDescription: failures resolve to null (500, odd shape, network error, 
   handler = () => json({ content: [{ type: "tool_use" }] });
   assert.equal(await generateBookDescription({ title: "X" }), null);
   handler = () => { throw new TypeError("fetch failed"); };
-  assert.equal(await translateDescriptionToFrench("Hi"), null);
+  assert.equal(await generateBookDescription({ title: "X" }), null);
 
   mock.timers.enable({ apis: ["setTimeout"] });
   handler = hang;
@@ -213,7 +202,8 @@ test("bookDescription: failures resolve to null (500, odd shape, network error, 
 
 // ------------------------------------------------------------------ bookLookup
 
-const { lookupByIsbn, searchByTitleAuthor, translateGenresToFrench, COMMON_GENRES, normalizeIsbn } = require("../../src/lib/bookLookup");
+const bookLookupLib = require("../../src/lib/bookLookup");
+const { lookupByIsbn, searchByTitleAuthor, COMMON_GENRES, normalizeIsbn } = bookLookupLib;
 
 const volumeReply = (data, isbns = ["9780140328721"]) => json({ records: { "/books/OL1M": { isbns, data } } });
 
@@ -240,7 +230,6 @@ test("bookLookup: lookupByIsbn maps a found record, normalising the ISBN in the 
     description: "A fox story.",
     coverUrl: "https://covers.example/l.jpg",
     genre: "Fiction, Fantasy",
-    genreFr: "Fiction, Fantasy",
     binding: "mass_market",
   });
 });
@@ -274,7 +263,7 @@ test("bookLookup: lookupByIsbn handles sparse records (by_statement author, stri
 
   handler = () => volumeReply({});
   const bare = await lookupByIsbn("0140328726");
-  assert.deepEqual([bare.title, bare.author, bare.description, bare.coverUrl, bare.genre, bare.genreFr], [null, null, null, null, null, null]);
+  assert.deepEqual([bare.title, bare.author, bare.description, bare.coverUrl, bare.genre, bare.genreFr], [null, null, null, null, null, undefined]);
 });
 
 test("bookLookup: not-found shapes return null", async (t) => {
@@ -339,10 +328,10 @@ test("bookLookup: searchByTitleAuthor builds the query and maps docs", async () 
   assert.equal(u.searchParams.get("limit"), "5");
   assert.deepEqual(results[0], {
     isbn: "111", title: "Dune", author: "Frank Herbert", publisher: "Chilton", publishedYear: 1965, description: null,
-    coverUrl: "https://covers.openlibrary.org/b/id/42-L.jpg", genre: "Fiction, Science Fiction", genreFr: "Fiction, Science-fiction",
+    coverUrl: "https://covers.openlibrary.org/b/id/42-L.jpg", genre: "Fiction, Science Fiction",
   });
   assert.deepEqual(results[1], {
-    isbn: null, title: "Bare", author: null, publisher: null, publishedYear: null, description: null, coverUrl: null, genre: null, genreFr: null,
+    isbn: null, title: "Bare", author: null, publisher: null, publishedYear: null, description: null, coverUrl: null, genre: null,
   });
 });
 
@@ -370,10 +359,8 @@ test("bookLookup: searchByTitleAuthor caps at 5, omits unused params, and falls 
   assert.deepEqual(await runTimersUntilSettled(searchByTitleAuthor("x"), 5000), []);
 });
 
-test("bookLookup: translateGenresToFrench maps the taxonomy and keeps unknown free text", () => {
-  assert.equal(translateGenresToFrench(null), null);
-  assert.equal(translateGenresToFrench(""), null);
-  assert.equal(translateGenresToFrench("Mystery,  history , Whimsy"), "Policier, Histoire, Whimsy");
+test("bookLookup: no French genre list or translation any more; the English taxonomy stays", () => {
+  assert.deepEqual(Object.keys(bookLookupLib).filter((k) => /french|_FR$/i.test(k)), []);
   assert.ok(COMMON_GENRES.includes("Fantasy"));
   assert.equal(normalizeIsbn("0-8044-2957-x"), "080442957X");
 });

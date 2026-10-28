@@ -205,7 +205,7 @@ test("save: answers before the cover has been downloaded; the cover then fills i
   assert.match(row.cover_url, /^\/img\/[0-9a-f]+\.jpg$/);
 });
 
-test("save: a slow AI description and translation do not delay the save; they are filled in afterwards, never over typed text", async () => {
+test("save: a slow AI description does not delay the save; it is filled in afterwards (English only), never over typed text", async () => {
   process.env.ANTHROPIC_API_KEY = "test-key";
   delays.ai = 1200;
   const noCover = { cover: undefined };
@@ -216,7 +216,7 @@ test("save: a slow AI description and translation do not delay the save; they ar
   await settled();
   const row = await bookRow(isbn);
   assert.equal(row.description, "A description.");
-  assert.equal(row.description_fr, "Une description.");
+  assert.equal(row.description_fr, null, "no French translation is made");
 
   // Typed text is stored at once and the AI is not asked for it.
   calls.ai = 0;
@@ -225,7 +225,7 @@ test("save: a slow AI description and translation do not delay the save; they ar
   await settled();
   const row2 = await bookRow(isbn2);
   assert.equal(row2.description, "Typed words");
-  assert.equal(row2.description_fr, "Mots tapes");
+  assert.equal(row2.description_fr, null, "a posted French description is ignored");
   assert.equal(calls.ai, 0);
   void noCover;
 });

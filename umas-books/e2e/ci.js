@@ -25,10 +25,10 @@ async function seed(databaseUrl) {
   // All added today a few minutes apart (Bulk 1 is the newest): all New In, all Fiction, some with a long subtitle so cards differ in height.
   await db.query(
     `WITH b AS (
-       INSERT INTO books (title, authors, categories, categories_fr, binding, description, description_fr)
+       INSERT INTO books (title, authors, categories, binding, description)
        SELECT 'E2E Sample New In Bulk ' || g || CASE WHEN g % 5 = 0 THEN ' with a much longer subtitle on a narrow card' ELSE '' END,
               CASE WHEN g % 4 = 0 THEN 'A. Very Long-Named Author, Co-Author Jane Smith, Translator Jean Dupont' ELSE 'Bulk Author ' || g END,
-              'Fiction', 'Fiction', 'trade', 'A sample book.', 'Un livre d’exemple.'
+              'Fiction', 'trade', 'A sample book.'
        FROM generate_series(1, $1::int) g RETURNING id, title)
      INSERT INTO book_copies (book_id, condition, price, status, is_clearance, location, source, created_at)
      SELECT id, 'very_good', 4, 'in_stock', FALSE, 'Shelf A', 'donation',
