@@ -4,7 +4,7 @@
 
 <% if (status === 'reserved' && locals.awaitingConfirm) { %>
   <div class="order-receipt" id="guest-check-email">
-  <h1><%= tr('Check your email to confirm', 'Consultez vos e-mails pour confirmer') %></h1>
+  <h1><%= tr('Check your email to confirm', 'Consultez vos e‑mails pour confirmer') %></h1>
   <div role="status" class="notice-box"><%= tr('We are holding your items. We sent a link to {email}: open it within {hours} hours (by {time}, Paris time) to confirm your reservation. Without confirmation, the items go back on sale automatically.', 'Nous vous gardons vos articles. Nous avons envoyé un lien à {email} : ouvrez-le dans les {hours} heures (avant {time}, heure de Paris) pour confirmer votre réservation. Sans confirmation, les articles sont automatiquement remis en vente.', { email: order.buyer_email, hours: confirmHours, time: formatDateTime(order.reserved_until) }) %></div>
   <div class="card" id="order-summary">
     <p class="small"><strong><%= tr('Reservation #{n}', 'Réservation n°{n}', { n: order.id }) %></strong>
@@ -20,7 +20,7 @@
   <% if (locals.manageToken) { %>
     <form method="post" action="/cart/guest/manage/<%= manageToken %>/cancel" class="no-print" data-confirm="<%= tr('Cancel this reservation? Its items become available to others.', 'Annuler cette réservation ? Ses articles redeviendront disponibles pour les autres.') %>">
       <%- include('partials/csrf_field') %>
-      <button type="submit" class="btn-outline"><%= tr('Cancel reservation', 'Annuler la réservation') %></button>
+      <button type="submit" class="btn btn-outline btn-small"><%= tr('Cancel reservation', 'Annuler la réservation') %></button>
     </form>
   <% } %>
   </div>
@@ -53,12 +53,12 @@
     <p class="muted small no-print"><%= tr('Keep this page’s link (it is also in your email): it is how you see or cancel this reservation without an account.', 'Gardez le lien de cette page (il est aussi dans votre e-mail) : il vous permet de consulter ou d’annuler cette réservation sans compte.') %></p>
     <form method="post" action="/cart/guest/manage/<%= manageToken %>/cancel" class="no-print" data-confirm="<%= tr('Cancel this reservation? Its items become available to others.', 'Annuler cette réservation ? Ses articles redeviendront disponibles pour les autres.') %>">
       <%- include('partials/csrf_field') %>
-      <button type="submit" class="btn-outline"><%= tr('Cancel reservation', 'Annuler la réservation') %></button>
+      <button type="submit" class="btn btn-outline btn-small"><%= tr('Cancel reservation', 'Annuler la réservation') %></button>
     </form>
   <% } else if (isOwner) { %>
     <form method="post" action="/cart/reservations/<%= order.id %>/cancel" class="no-print" data-confirm="<%= tr('Cancel this reservation? Its items become available to others.', 'Annuler cette réservation ? Ses articles redeviendront disponibles pour les autres.') %>">
       <%- include('partials/csrf_field') %>
-      <button type="submit" class="btn-outline"><%= tr('Cancel reservation', 'Annuler la réservation') %></button>
+      <button type="submit" class="btn btn-outline btn-small"><%= tr('Cancel reservation', 'Annuler la réservation') %></button>
     </form>
   <% } %>
   </div>

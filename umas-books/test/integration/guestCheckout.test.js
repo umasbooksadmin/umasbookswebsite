@@ -212,8 +212,9 @@ test("an unconfirmed hold is released after 2 hours by the usual expiry (reason 
   assert.equal(await h.copyStatus(copy), "reserved");
 
   // time travel: the 2 hours are over (the reservation and its link were made 2 h 1 min ago)
-  await h.pool.query("UPDATE orders SET created_at = created_at - interval '121 minutes', reserved_until = now() - interval '1 minute' WHERE id = $1", [g.order.id]);
-  await h.pool.query("UPDATE guest_order_tokens SET expires_at = now() - interval '1 minute' WHERE order_id = $1 AND purpose = 'confirm'", [g.order.id]);
+  // (every time of the reservation moves back 121 minutes: the deadline it was GIVEN at reserve time is what passes)
+  await h.pool.query("UPDATE orders SET created_at = created_at - interval '121 minutes', reserved_until = reserved_until - interval '121 minutes' WHERE id = $1", [g.order.id]);
+  await h.pool.query("UPDATE guest_order_tokens SET created_at = created_at - interval '121 minutes', expires_at = expires_at - interval '121 minutes' WHERE order_id = $1", [g.order.id]);
   // the 10-minute job releases it without any page being read
   const { runCartMaintenance } = require("../../src/lib/cart");
   await runCartMaintenance(h.pool);
@@ -407,7 +408,7 @@ test("French: the guest pages, messages and email are in French", async () => {
   assert.match(g.mail.text, /MERCI DE CONFIRMER DANS LES 2 HEURES/);
   assert.match(g.mail.text, /Ouvrez ce lien et appuyez sur «\u00a0Confirmer ma réservation\u00a0»\u00a0:/, "French typography in the email");
   const page = await v.get(g.r.location);
-  assert.match(page.text, /Consultez vos e-mails pour confirmer/);
+  assert.match(page.text, /Consultez vos e\u2011mails pour confirmer/);
   const ask = await h.visitor(null, { lang: "fr" }).get(`/cart/guest/confirm/${g.confirm}`);
   assert.match(ask.text, /Confirmer ma réservation/);
   const done = await h.visitor(null, { lang: "fr" }).post(`/cart/guest/confirm/${g.confirm}`);
