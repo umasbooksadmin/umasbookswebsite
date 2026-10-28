@@ -22,7 +22,6 @@
     <p class="muted" style="margin-top:0;"><%= tr('by', 'de') %> <%- book.authors ? bookText(book.authors) : tr('Unknown author', 'Auteur inconnu') %></p>
 
     <% if (book.description) { %>
-      <h2 class="book-about-title"><%= tr('About this book', 'À propos de ce livre') %></h2>
       <%# Books have an English description only (Sharon, 2026-10-28): the French page shows it too, marked lang="en". %>
       <p class="book-about"><%- bookText(book.description) %></p>
     <% } %>

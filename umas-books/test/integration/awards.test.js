@@ -415,11 +415,13 @@ test("layout: description and awards sit in the top block beside the cover, befo
   // Books have an English description only (2026-10-28): the French page shows it too.
   await pool.query("UPDATE books SET description = 'Plain English blurb.' WHERE id = $1", [book.id]);
   await addAward(book.id, "Layout Prize", { year: 2020 });
-  for (const [lang, blurb, head] of [["en", "Plain English blurb.", "About this book"], ["fr", "Plain English blurb.", "À propos de ce livre"]]) {
+  for (const [lang, blurb, byline] of [["en", "Plain English blurb.", ">by "], ["fr", "Plain English blurb.", ">de "]]) {
     const html = (await http(`/books/${book.id}`, { user: null, cookie: `umasbooks_lang=${lang}` })).text;
     const col = html.indexOf('<h1 style="margin-bottom:4px;"');
     const at = (s) => html.indexOf(s, col); // the meta description in <head> repeats the blurb
-    assert.ok(col > 0 && at(`class="book-about-title">${head}`) > col && at(blurb) > at(head), `${lang}: description under the title`);
+    // No "About this book" heading (Sharon, 2026-10-28): the description follows the author line directly.
+    assert.ok(col > 0 && at(byline) > col && at(`<p class="book-about">`) > at(byline) && at(blurb) > at(byline), `${lang}: description under the title and author`);
+    assert.ok(!html.includes("About this book") && !html.includes("À propos de ce livre") && !html.includes("book-about-title"), `${lang}: no "About this book" heading`);
     assert.ok(at('class="book-awards"') > at(blurb), `${lang}: awards after the description`);
     const after = Math.min(...["book-detail-price", "availability-box"].map((c) => at(`class="${c}`)).filter((i) => i >= 0));
     assert.ok(at('class="book-awards"') < after && at(blurb) < after, `${lang}: both before price and copies`);
